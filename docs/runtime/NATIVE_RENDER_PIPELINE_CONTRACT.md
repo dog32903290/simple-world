@@ -33,6 +33,9 @@ native_renderer_backend_interface_shell.py
 
 It must not reimplement shader assembly, uniform evaluation, or backend status.
 It only validates artifact compatibility and passes `RenderFrameInput` forward.
+ResourceLifetime must receive RenderGraph's `resource_access_ledger.json`; the
+main pipeline may not silently allocate render targets from a separate hand-made
+resource fixture.
 
 ## Compatibility Law
 

@@ -68,7 +68,7 @@ def run_pipeline(
     resource_access_ledger = read_json_file(render_graph_dir / "resource_access_ledger.json", {})
     render_graph_errors = read_json_file(render_graph_dir / "render_graph_errors.json", [])
 
-    run_shell(repo_root, "docs/runtime/scripts/resource_lifetime_shell.py", resource_fixture, resource_dir, "resourceLifetime", trace, errors)
+    run_resource_lifetime_shell(repo_root, resource_fixture, resource_access_ledger_path=render_graph_dir / "resource_access_ledger.json", out_dir=resource_dir, trace=trace, errors=errors)
     resource_registry = read_json_file(resource_dir / "resource_registry.json", {})
     invalidation_ledger = read_json_file(resource_dir / "view_invalidation_ledger.json", {})
     resource_errors = read_json_file(resource_dir / "resource_lifetime_errors.json", [])
@@ -199,6 +199,36 @@ def run_command_stream_shell(
     if result.returncode != 0:
         errors.append({
             "code": "native_render_pipeline.commandStream_failed",
+            "status": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        })
+
+
+def run_resource_lifetime_shell(
+    repo_root: Path,
+    fixture_path: Path | None,
+    resource_access_ledger_path: Path,
+    out_dir: Path,
+    trace: list[dict[str, Any]],
+    errors: list[dict[str, Any]],
+) -> None:
+    if fixture_path is None:
+        errors.append({"code": "native_render_pipeline.missing_resourceLifetime_fixture"})
+        return
+    script_path = repo_root / "docs/runtime/scripts/resource_lifetime_shell.py"
+    trace.append({"op": "resourceLifetime.begin", "fixture": str(fixture_path), "resourceAccessLedger": str(resource_access_ledger_path)})
+    result = subprocess.run(
+        ["python3", str(script_path), str(fixture_path), str(out_dir), str(resource_access_ledger_path)],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    trace.append({"op": "resourceLifetime.end", "status": result.returncode})
+    if result.returncode != 0:
+        errors.append({
+            "code": "native_render_pipeline.resourceLifetime_failed",
             "status": result.returncode,
             "stdout": result.stdout,
             "stderr": result.stderr,

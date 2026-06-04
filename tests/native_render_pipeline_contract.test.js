@@ -70,10 +70,10 @@ test("NativeRenderPipeline shell emits one connected headless frame proof", () =
   assert.equal(summary.layers.commandStream, "ok");
   assert.equal(summary.layers.nativeBackend, "rendered");
   assert.equal(summary.layers.capturedFrame, "captured");
-  assert.equal(summary.liveTextureCount, 1);
+  assert.equal(summary.liveTextureCount, 3);
   assert.deepEqual(summary.renderGraphPassOrder, ["mainColorPass", "postFxPass", "publishFrame"]);
   assert.equal(summary.renderGraphBarrierCount, 2);
-  assert.ok(summary.invalidatedViewCount >= 1);
+  assert.equal(summary.invalidatedViewCount, 0);
   assert.equal(summary.drawCalls, 1);
   assert.equal(summary.targetProgramId, "program.sphere_sdf_raymarch.fragment");
   assert.equal(summary.loudness, 0.37);
@@ -85,8 +85,12 @@ test("NativeRenderPipeline shell emits one connected headless frame proof", () =
   assert.deepEqual(renderPassPlan.passOrder, ["mainColorPass", "postFxPass", "publishFrame"]);
   assert.equal(resourceAccessLedger.barrierCount, 2);
   assert.equal(resourceRegistry.resources["main.color"].disposed, false);
-  assert.equal(resourceRegistry.resources["main.color"].width, 1920);
-  assert.ok(invalidationLedger.invalidatedViews.find((entry) => entry.viewId === "main.color.srv"));
+  assert.equal(resourceRegistry.resources["main.color"].width, 3840);
+  assert.equal(resourceRegistry.resources["main.depth"].disposed, false);
+  assert.equal(resourceRegistry.resources["postfx.color"].disposed, false);
+  assert.equal(resourceRegistry.views["main.color.rtv"].ok, true);
+  assert.equal(resourceRegistry.views["main.depth.dsv"].ok, true);
+  assert.deepEqual(invalidationLedger.invalidatedViews, []);
   assert.equal(commandSummary.ok, true);
   assert.equal(commandSummary.drawCalls, 1);
   assert.equal(commandResult.ok, true);

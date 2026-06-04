@@ -5,14 +5,30 @@
       "id": "main.color",
       "owner": "",
       "role": "ColorBuffer",
-      "width": 1920,
-      "height": 1080,
+      "width": 3840,
+      "height": 2160,
       "format": "R16G16B16A16_Float",
       "arraySize": 1,
       "sampleCount": 1,
       "bindFlags": [
         "RenderTarget",
         "ShaderResource"
+      ],
+      "optionFlags": [],
+      "disposed": false
+    },
+    "main.depth": {
+      "kind": "Texture2D",
+      "id": "main.depth",
+      "owner": "",
+      "role": "DepthBuffer",
+      "width": 3840,
+      "height": 2160,
+      "format": "D32_Float",
+      "arraySize": 1,
+      "sampleCount": 1,
+      "bindFlags": [
+        "DepthStencil"
       ],
       "optionFlags": [],
       "disposed": false
@@ -32,7 +48,7 @@
         "ShaderResource"
       ],
       "optionFlags": [],
-      "disposed": true
+      "disposed": false
     }
   },
   "views": {
@@ -48,17 +64,30 @@
       "type": "RTV",
       "dimension": "Texture2D"
     },
+    "main.depth.srv": {
+      "ok": true,
+      "textureId": "main.depth",
+      "type": "SRV",
+      "format": "R32_Float"
+    },
+    "main.depth.dsv": {
+      "ok": true,
+      "textureId": "main.depth",
+      "type": "DSV",
+      "format": "D32_Float",
+      "dimension": "Texture2D"
+    },
     "postfx.color.srv": {
-      "ok": false,
+      "ok": true,
       "textureId": "postfx.color",
       "type": "SRV",
-      "reason": "source texture disposed"
+      "format": "R16G16B16A16_Float"
     },
     "postfx.color.rtv": {
-      "ok": false,
+      "ok": true,
       "textureId": "postfx.color",
       "type": "RTV",
-      "reason": "source texture disposed"
+      "dimension": "Texture2D"
     }
   }
 }

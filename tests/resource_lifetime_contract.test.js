@@ -1,13 +1,16 @@
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
 const repoRoot = path.resolve(__dirname, "..");
 const contractPath = path.join(repoRoot, "docs/runtime/RESOURCE_LIFETIME_CONTRACT.md");
 const fixturePath = path.join(repoRoot, "docs/runtime/fixtures/resource_lifetime.graph.json");
+const renderGraphFixturePath = path.join(repoRoot, "docs/runtime/fixtures/render_graph_passes.graph.json");
 const scriptPath = path.join(repoRoot, "docs/runtime/scripts/resource_lifetime_shell.py");
+const renderGraphScriptPath = path.join(repoRoot, "docs/runtime/scripts/render_graph_shell.py");
 const artifactDir = path.join(repoRoot, "docs/runtime/artifacts/resource_lifetime");
 
 test("ResourceLifetime contract names allocation, reuse, reallocation, dispose, and view invalidation", () => {
@@ -70,6 +73,40 @@ test("ResourceLifetime shell emits registry, trace, and invalidated old views", 
   assert.equal(registry.views["main.color.srv"].ok, true);
   assert.ok(invalidation.invalidatedViews.find((entry) => entry.viewId === "main.color.srv" && entry.frameIndex === 2));
   assert.ok(invalidation.invalidatedViews.find((entry) => entry.viewId === "postfx.color.srv" && entry.reason === "source texture disposed"));
+});
+
+test("ResourceLifetime shell can derive Texture2D allocation from RenderGraph resources", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "resource-lifetime-render-graph-"));
+  const renderGraphDir = path.join(tmpDir, "render_graph");
+  const renderGraphRun = spawnSync("python3", [renderGraphScriptPath, renderGraphFixturePath, renderGraphDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(renderGraphRun.status, 0, renderGraphRun.stderr || renderGraphRun.stdout);
+
+  const ledgerPath = path.join(renderGraphDir, "resource_access_ledger.json");
+  const run = spawnSync("python3", [scriptPath, fixturePath, tmpDir, ledgerPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 0, run.stderr || run.stdout);
+  const trace = JSON.parse(fs.readFileSync(path.join(tmpDir, "resource_lifetime_trace.json"), "utf8"));
+  const registry = JSON.parse(fs.readFileSync(path.join(tmpDir, "resource_registry.json"), "utf8"));
+  const errors = JSON.parse(fs.readFileSync(path.join(tmpDir, "resource_lifetime_errors.json"), "utf8"));
+
+  assert.deepEqual(errors, []);
+  assert.deepEqual(trace.find((entry) => entry.op === "deriveResourcesFromRenderGraph").resourceIds, [
+    "main.color",
+    "main.depth",
+    "postfx.color",
+  ]);
+  assert.equal(registry.resources["main.color"].width, 3840);
+  assert.deepEqual(registry.resources["main.color"].bindFlags, ["RenderTarget", "ShaderResource"]);
+  assert.deepEqual(registry.resources["main.depth"].bindFlags, ["DepthStencil"]);
+  assert.deepEqual(registry.resources["postfx.color"].bindFlags, ["RenderTarget", "ShaderResource"]);
+  assert.equal(registry.views["main.color.rtv"].ok, true);
+  assert.equal(registry.views["main.depth.dsv"].ok, true);
 });
 
 test("native_resource_api exposes allocate_or_reuse and detects reallocation pressure", () => {

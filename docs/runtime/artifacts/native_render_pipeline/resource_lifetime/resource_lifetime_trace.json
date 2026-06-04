@@ -4,6 +4,15 @@
     "graphId": "fixture.resource_lifetime"
   },
   {
+    "op": "deriveResourcesFromRenderGraph",
+    "resourceCount": 3,
+    "resourceIds": [
+      "main.color",
+      "main.depth",
+      "postfx.color"
+    ]
+  },
+  {
     "op": "frame.begin",
     "frameIndex": 0
   },
@@ -20,58 +29,26 @@
   {
     "op": "resource.allocate",
     "frameIndex": 0,
+    "resourceId": "main.depth",
+    "resolution": {
+      "width": 3840,
+      "height": 2160
+    },
+    "format": "D32_Float"
+  },
+  {
+    "op": "resource.allocate",
+    "frameIndex": 0,
     "resourceId": "postfx.color",
     "resolution": {
       "width": 3840,
       "height": 2160
     },
     "format": "R16G16B16A16_Float"
-  },
-  {
-    "op": "resource.dispose",
-    "frameIndex": 0,
-    "resourceId": "postfx.color",
-    "reason": "endOfFrame"
   },
   {
     "op": "frame.end",
     "frameIndex": 0
-  },
-  {
-    "op": "frame.begin",
-    "frameIndex": 1
-  },
-  {
-    "op": "resource.reuse",
-    "frameIndex": 1,
-    "resourceId": "main.color",
-    "resolution": {
-      "width": 3840,
-      "height": 2160
-    },
-    "format": "R16G16B16A16_Float"
-  },
-  {
-    "op": "frame.end",
-    "frameIndex": 1
-  },
-  {
-    "op": "frame.begin",
-    "frameIndex": 2
-  },
-  {
-    "op": "resource.reallocate",
-    "frameIndex": 2,
-    "resourceId": "main.color",
-    "resolution": {
-      "width": 1920,
-      "height": 1080
-    },
-    "format": "R16G16B16A16_Float"
-  },
-  {
-    "op": "frame.end",
-    "frameIndex": 2
   },
   {
     "op": "publishResourceLifetimeArtifacts",

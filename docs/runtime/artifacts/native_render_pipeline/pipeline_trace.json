@@ -13,7 +13,8 @@
   },
   {
     "op": "resourceLifetime.begin",
-    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/resource_lifetime.graph.json"
+    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/resource_lifetime.graph.json",
+    "resourceAccessLedger": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/artifacts/native_render_pipeline/render_graph/resource_access_ledger.json"
   },
   {
     "op": "resourceLifetime.end",
