@@ -109,10 +109,23 @@ resources, but it does not prove real SRV creation or renderer integration.
 The runtime closure report now reads that proof artifact directly before it
 removes the old combined t8 gate; if the artifact is missing, stale, or widened,
 the closure report fails instead of silently narrowing `requiredNext`.
+The TiXL mesh draw stage/MRT/matrix proof now parses the donor HLSL, confirms
+that `vsMain(uint id : SV_VertexID)` performs procedural indexed vertex
+addressing, `psInput.pixelPosition` carries `SV_POSITION`, `psOutput.Color`
+writes `SV_Target0`, `psOutput.Normal` writes `SV_Target1`, the fragment path
+contains `ddx`/`ddy` and `discard`, and the source uses D3D `mul(vector,
+matrix)` order. It then runs a tiny explicit Metal adapter probe that verifies
+`[[vertex_id]]`, `[[stage_in]]`, two color attachments, and the selected
+vector-matrix convention by exact readback. It consumes the current source
+audit, t8, b5 native packing, and texture/sampler artifacts only to block stale
+or widened upstream claims. It does not translate TiXL donor HLSL to MSL, prove
+TextureCube behavior, prove full PBR, or replace the backend. The closure report
+now reads that artifact directly before removing
+`prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter` from
+`requiredNext`.
 The next required work is therefore:
 
 ```text
-prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter
 prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference
 replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof
 ```

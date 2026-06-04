@@ -60,6 +60,20 @@ def main() -> int:
         "op": "readShadergraphResourcesExpansionArtifact",
         "artifact": display_path(shadergraph_resources_path, repo_root) if shadergraph_resources_path is not None else None,
     })
+    stage_mrt_matrix_path = resolve_repo_path(repo_root, fixture_path, fixture.get("tixlMeshDrawStageMrtMatrixArtifact"))
+    stage_mrt_matrix = read_json(
+        stage_mrt_matrix_path,
+        errors,
+        "runtime_closure.stage_mrt_matrix_read_failed",
+        fallback={},
+        repo_root=repo_root,
+    ) if stage_mrt_matrix_path is not None else {}
+    if stage_mrt_matrix_path is None:
+        errors.append({"code": "runtime_closure.missing_stage_mrt_matrix_artifact"})
+    trace.append({
+        "op": "readStageMrtMatrixArtifact",
+        "artifact": display_path(stage_mrt_matrix_path, repo_root) if stage_mrt_matrix_path is not None else None,
+    })
     report = build_report(
         artifacts.get("pipelineSummary", {}),
         artifacts.get("commandStreamSummary", {}),
@@ -67,11 +81,13 @@ def main() -> int:
         artifacts.get("nativeBackendInterface", {}),
         artifacts.get("backendStatus", {}),
         shadergraph_resources,
+        stage_mrt_matrix,
         artifacts.get("pipelineErrors", []),
         errors,
         {
             **artifacts.get("evidence", {}),
             "shadergraphResourcesExpansion": display_path(shadergraph_resources_path, repo_root) if shadergraph_resources_path is not None else None,
+            "stageMrtMatrix": display_path(stage_mrt_matrix_path, repo_root) if stage_mrt_matrix_path is not None else None,
         },
         repo_root,
         graph_id=fixture.get("graphId"),
@@ -88,6 +104,10 @@ def main() -> int:
     trace.append({
         "op": "evaluateShadergraphResourcesExpansion",
         "bounded": "shadergraph_t8_resources_empty_for_sphere_sdf_fixture" in report["bounded"],
+    })
+    trace.append({
+        "op": "evaluateStageMrtMatrixSemantics",
+        "proven": "tixl_mesh_draw_stage_mrt_matrix_semantics" in report["proven"],
     })
     trace.append({"op": "publishRuntimeClosureReport", "ok": report["ok"]})
     write_artifacts(out_dir, report, trace, errors)
@@ -118,6 +138,7 @@ def build_report(
     native_backend_interface: dict[str, Any],
     backend_status: dict[str, Any],
     shadergraph_resources: dict[str, Any],
+    stage_mrt_matrix: dict[str, Any],
     pipeline_errors: list[dict[str, Any]],
     errors: list[dict[str, Any]],
     evidence: dict[str, str],
@@ -151,6 +172,7 @@ def build_report(
         })
 
     shadergraph_resources_ok = validate_shadergraph_resources_expansion(shadergraph_resources, errors, evidence.get("shadergraphResourcesExpansion"))
+    stage_mrt_matrix_ok = validate_stage_mrt_matrix(stage_mrt_matrix, errors, evidence.get("stageMrtMatrix"))
 
     core_pipeline_proven = (
         pipeline_ok
@@ -178,7 +200,15 @@ def build_report(
         bounded.append("native_hlsl_metal_compile")
         if shadergraph_resources_ok:
             bounded.append("shadergraph_t8_resources_empty_for_sphere_sdf_fixture")
-            required_next.extend(REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND)
+            if stage_mrt_matrix_ok:
+                proven.append("tixl_mesh_draw_stage_mrt_matrix_semantics")
+                required_next.extend([
+                    item
+                    for item in REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND
+                    if item != "prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter"
+                ])
+            else:
+                required_next.extend(REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND)
         else:
             required_next.append("expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates")
     elif native_draw_shader_status not in (None, "supported"):
@@ -211,6 +241,7 @@ def build_report(
             "backendCanCompileNow": backend_can_compile_now,
             "nonBlackSample": non_black_sample,
             "shadergraphResourcesExpansionStatus": shadergraph_resources.get("status"),
+            "stageMrtMatrixStatus": stage_mrt_matrix.get("status"),
         },
         "evidence": evidence,
     }
@@ -275,6 +306,94 @@ def validate_shadergraph_resources_expansion(artifact: dict[str, Any], errors: l
     if mismatches:
         errors.append({
             "code": "runtime_closure.shadergraph_resources_expansion_not_proven",
+            "path": path,
+            "mismatches": mismatches,
+        })
+        return False
+    return True
+
+
+def validate_stage_mrt_matrix(artifact: dict[str, Any], errors: list[dict[str, Any]], path: str | None) -> bool:
+    claims = artifact.get("claims") if isinstance(artifact.get("claims"), dict) else {}
+    expected_true = {
+        "donorHlslParsed",
+        "sourceAuditArtifactConsumed",
+        "shadergraphResourcesExpansionArtifactConsumed",
+        "b5NativePackingArtifactConsumed",
+        "textureSamplerBindingArtifactConsumed",
+        "vertexStageSemanticProven",
+        "pixelStageSemanticProven",
+        "mrtTarget0ColorProven",
+        "mrtTarget1NormalProven",
+        "fragmentDerivativeSemanticsPresent",
+        "alphaDiscardSemanticsPresent",
+        "d3dMulVectorMatrixConventionPresent",
+        "handwrittenMeshDrawAdapterStageMrtMatrixProof",
+        "sourceBackedOnly",
+    }
+    expected_false = {
+        "hlslToMslTranslation",
+        "fullPbrResourceBinding",
+        "textureCubeSampleLevelGetDimensionsProven",
+        "backendReplacementReady",
+        "tixlRuntimeParity",
+        "pbrVisualCorrectness",
+        "rendererIntegrationComplete",
+        "constantBufferAdapterComplete",
+        "fullTextureSamplerMapping",
+        "tixlDonorHlslMetalProbeRan",
+    }
+    source_facts = artifact.get("sourceFacts") if isinstance(artifact.get("sourceFacts"), dict) else {}
+    metal_probe = artifact.get("explicitMetalProbe") if isinstance(artifact.get("explicitMetalProbe"), dict) else {}
+    required_source_facts = {
+        "vsMainUsesSvVertexId",
+        "vsMainComputesFaceIndex",
+        "vsMainReadsIndexedPbrVertex",
+        "psInputPixelPositionSvPosition",
+        "psOutputColorTarget0",
+        "psOutputNormalTarget1",
+        "psMainReturnsPsOutput",
+        "psMainWritesColor",
+        "psMainWritesNormal",
+        "fragmentUsesDdxDdy",
+        "fragmentUsesDiscard",
+        "mulPosObjectToClip",
+        "mulObjectToWorld",
+        "mulObjectToCamera",
+        "mulEyeCameraToWorld",
+        "mulNormalDetailTbn",
+    }
+    mismatches: list[dict[str, Any]] = []
+    if artifact.get("kind") != "TixlMeshDrawStageMrtMatrixProof":
+        mismatches.append({"field": "kind", "expected": "TixlMeshDrawStageMrtMatrixProof", "actual": artifact.get("kind")})
+    if artifact.get("graphId") != "fixture.tixl_mesh_draw_stage_mrt_matrix":
+        mismatches.append({"field": "graphId", "expected": "fixture.tixl_mesh_draw_stage_mrt_matrix", "actual": artifact.get("graphId")})
+    if artifact.get("ok") is not True:
+        mismatches.append({"field": "ok", "expected": True, "actual": artifact.get("ok")})
+    if artifact.get("status") != "proven_tixl_mesh_draw_stage_mrt_matrix_semantics":
+        mismatches.append({"field": "status", "expected": "proven_tixl_mesh_draw_stage_mrt_matrix_semantics", "actual": artifact.get("status")})
+    for field in sorted(expected_true):
+        if claims.get(field) is not True:
+            mismatches.append({"field": f"claims.{field}", "expected": True, "actual": claims.get(field)})
+    for field in sorted(expected_false):
+        if claims.get(field) is not False:
+            mismatches.append({"field": f"claims.{field}", "expected": False, "actual": claims.get(field)})
+    for field in sorted(required_source_facts):
+        if source_facts.get(field) is not True:
+            mismatches.append({"field": f"sourceFacts.{field}", "expected": True, "actual": source_facts.get(field)})
+    if metal_probe.get("status") != "proven_explicit_metal_stage_mrt_matrix_probe":
+        mismatches.append({"field": "explicitMetalProbe.status", "expected": "proven_explicit_metal_stage_mrt_matrix_probe", "actual": metal_probe.get("status")})
+    if metal_probe.get("actualCompilerRan") is not True or metal_probe.get("actualMetalRan") is not True:
+        mismatches.append({"field": "explicitMetalProbe.actualMetalRan", "expected": True, "actual": {"actualCompilerRan": metal_probe.get("actualCompilerRan"), "actualMetalRan": metal_probe.get("actualMetalRan")}})
+    if metal_probe.get("target0") != [13, 90, 111, 255]:
+        mismatches.append({"field": "explicitMetalProbe.target0", "expected": [13, 90, 111, 255], "actual": metal_probe.get("target0")})
+    if metal_probe.get("target1") != [31, 37, 41, 255]:
+        mismatches.append({"field": "explicitMetalProbe.target1", "expected": [31, 37, 41, 255], "actual": metal_probe.get("target1")})
+    if metal_probe.get("tixlDonorHlslMetalProbeRan") is not False:
+        mismatches.append({"field": "explicitMetalProbe.tixlDonorHlslMetalProbeRan", "expected": False, "actual": metal_probe.get("tixlDonorHlslMetalProbeRan")})
+    if mismatches:
+        errors.append({
+            "code": "runtime_closure.stage_mrt_matrix_not_proven",
             "path": path,
             "mismatches": mismatches,
         })

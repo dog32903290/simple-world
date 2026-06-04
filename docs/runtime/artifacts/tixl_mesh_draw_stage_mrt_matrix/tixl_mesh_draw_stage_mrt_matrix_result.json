@@ -1,0 +1,135 @@
+{
+  "kind": "TixlMeshDrawStageMrtMatrixProof",
+  "graphId": "fixture.tixl_mesh_draw_stage_mrt_matrix",
+  "ok": true,
+  "status": "proven_tixl_mesh_draw_stage_mrt_matrix_semantics",
+  "message": "source-backed stage/MRT/matrix semantics for the bounded handwritten mesh draw adapter",
+  "inputArtifacts": {
+    "sourceAudit": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+      "kind": "TixlMeshDrawShaderSourceAudit",
+      "status": "audited_tixl_mesh_draw_source",
+      "ok": true
+    },
+    "shadergraphResourcesExpansion": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
+      "kind": "TixlMeshDrawShadergraphResourcesExpansionProof",
+      "status": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
+      "ok": true
+    },
+    "b5NativePacking": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_b5_native_packing/tixl_mesh_draw_b5_native_packing_result.json",
+      "kind": "TixlMeshDrawB5NativePackingProof",
+      "status": "proven_b5_shadergraph_params_native_packing",
+      "ok": true
+    },
+    "textureSamplerBinding": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json",
+      "kind": "TixlMeshDrawTextureSamplerBindingProof",
+      "status": "proven_tixl_mesh_draw_texture_sampler_binding",
+      "ok": true
+    }
+  },
+  "source": {
+    "path": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl"
+  },
+  "sourceFacts": {
+    "vsMainUsesSvVertexId": true,
+    "vsMainComputesFaceIndex": true,
+    "vsMainReadsIndexedPbrVertex": true,
+    "psInputPixelPositionSvPosition": true,
+    "psOutputColorTarget0": true,
+    "psOutputNormalTarget1": true,
+    "psMainReturnsPsOutput": true,
+    "psMainWritesColor": true,
+    "psMainWritesNormal": true,
+    "psMainReturnsOutput": true,
+    "fragmentUsesDdxDdy": true,
+    "fragmentUsesDiscard": true,
+    "mulPosObjectToClip": true,
+    "mulObjectToWorld": true,
+    "mulObjectToCamera": true,
+    "mulEyeCameraToWorld": true,
+    "mulNormalDetailTbn": true
+  },
+  "stageSemantics": {
+    "vertexEntry": "vsMain(uint id : SV_VertexID)",
+    "vertexAddressing": "faceIndex = id / 3, faceVertexIndex = id % 3, PbrVertices[FaceIndices[faceIndex][faceVertexIndex]]",
+    "positionSemantic": "psInput.pixelPosition : SV_POSITION",
+    "pixelEntry": "psMain(psInput pin) : SV_TARGET -> psOutput",
+    "derivativesAndDiscard": "ddx/ddy present; discard present behind AlphaCutOff"
+  },
+  "mrtSemantics": {
+    "target0": "psOutput.Color : SV_Target0; output.Color = litColor",
+    "target1": "psOutput.Normal : SV_Target1; output.Normal = float4(worldNormal, 1.0)"
+  },
+  "matrixSemantics": {
+    "convention": "D3D/HLSL mul(vector, matrix)",
+    "examples": [
+      "mul(posInObject, ObjectToClipSpace)",
+      "mul(posInObject, ObjectToWorld)",
+      "mul(posInObject, ObjectToCamera)",
+      "mul(float4(0, 0, 0, 1), CameraToWorld)",
+      "mul(N, tbnToWorld)"
+    ]
+  },
+  "explicitMetalProbe": {
+    "status": "proven_explicit_metal_stage_mrt_matrix_probe",
+    "actualCompilerRan": true,
+    "actualMetalRan": true,
+    "target0": [
+      13,
+      90,
+      111,
+      255
+    ],
+    "target1": [
+      31,
+      37,
+      41,
+      255
+    ],
+    "generatedMslArtifact": "generated_stage_mrt_matrix_probe.metal",
+    "tixlDonorHlslMetalProbeRan": false
+  },
+  "notProven": [
+    "HLSL-to-MSL translation",
+    "TiXL donor HLSL Metal render probe",
+    "TextureCube SampleLevel/GetDimensions",
+    "full PBR resource binding",
+    "backend replacement",
+    "TiXL runtime parity",
+    "PBR visual correctness"
+  ],
+  "claims": {
+    "donorHlslParsed": true,
+    "sourceAuditArtifactConsumed": true,
+    "shadergraphResourcesExpansionArtifactConsumed": true,
+    "b5NativePackingArtifactConsumed": true,
+    "textureSamplerBindingArtifactConsumed": true,
+    "vertexStageSemanticProven": true,
+    "pixelStageSemanticProven": true,
+    "mrtTarget0ColorProven": true,
+    "mrtTarget1NormalProven": true,
+    "fragmentDerivativeSemanticsPresent": true,
+    "alphaDiscardSemanticsPresent": true,
+    "d3dMulVectorMatrixConventionPresent": true,
+    "explicitMetalStageMrtMatrixProbeRan": true,
+    "explicitMetalStageInProven": true,
+    "explicitMetalMrtWriteProven": true,
+    "explicitMetalVectorMatrixConventionProven": true,
+    "handwrittenMeshDrawAdapterStageMrtMatrixProof": true,
+    "sourceBackedOnly": true,
+    "actualMetalProbeRan": true,
+    "tixlDonorHlslMetalProbeRan": false,
+    "hlslToMslTranslation": false,
+    "fullPbrResourceBinding": false,
+    "textureCubeSampleLevelGetDimensionsProven": false,
+    "backendReplacementReady": false,
+    "tixlRuntimeParity": false,
+    "pbrVisualCorrectness": false,
+    "rendererIntegrationComplete": false,
+    "constantBufferAdapterComplete": false,
+    "fullTextureSamplerMapping": false
+  }
+}

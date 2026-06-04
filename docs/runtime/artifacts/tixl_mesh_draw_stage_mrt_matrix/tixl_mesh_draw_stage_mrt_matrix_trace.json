@@ -1,0 +1,81 @@
+[
+  {
+    "op": "loadTixlMeshDrawStageMrtMatrixFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_stage_mrt_matrix.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "donorHlsl": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+    "sourceAudit": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+    "shadergraphResourcesExpansion": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
+    "b5NativePacking": "docs/runtime/artifacts/tixl_mesh_draw_b5_native_packing/tixl_mesh_draw_b5_native_packing_result.json",
+    "textureSamplerBinding": "docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json"
+  },
+  {
+    "op": "readInputArtifactsAndDonorSource",
+    "sourceAuditRead": true,
+    "shadergraphResourcesExpansionRead": true,
+    "b5NativePackingRead": true,
+    "textureSamplerBindingRead": true,
+    "donorHlslRead": true
+  },
+  {
+    "op": "validateInputArtifacts",
+    "sourceAuditValid": true,
+    "shadergraphResourcesExpansionValid": true,
+    "b5NativePackingValid": true,
+    "textureSamplerBindingValid": true
+  },
+  {
+    "op": "parseDonorHlslStageMrtMatrixSemantics",
+    "valid": true,
+    "foundFacts": [
+      "fragmentUsesDdxDdy",
+      "fragmentUsesDiscard",
+      "mulEyeCameraToWorld",
+      "mulNormalDetailTbn",
+      "mulObjectToCamera",
+      "mulObjectToWorld",
+      "mulPosObjectToClip",
+      "psInputPixelPositionSvPosition",
+      "psMainReturnsOutput",
+      "psMainReturnsPsOutput",
+      "psMainWritesColor",
+      "psMainWritesNormal",
+      "psOutputColorTarget0",
+      "psOutputNormalTarget1",
+      "vsMainComputesFaceIndex",
+      "vsMainReadsIndexedPbrVertex",
+      "vsMainUsesSvVertexId"
+    ]
+  },
+  {
+    "op": "writeExplicitMetalStageMrtMatrixProbe",
+    "msl": "generated_stage_mrt_matrix_probe.metal",
+    "probe": "stage_mrt_matrix_probe.mm"
+  },
+  {
+    "op": "buildExplicitMetalStageMrtMatrixProbe",
+    "compiler": "xcrun clang++",
+    "exitCode": 0
+  },
+  {
+    "op": "runExplicitMetalStageMrtMatrixProbe",
+    "exitCode": 0
+  },
+  {
+    "op": "validateExplicitMetalStageMrtMatrixProbe",
+    "status": "proven_explicit_metal_stage_mrt_matrix_probe",
+    "valid": true
+  },
+  {
+    "op": "proveStageMrtMatrixSemanticsForHandwrittenAdapter",
+    "sourceBackedOnly": true,
+    "actualMetalProbeRan": true,
+    "tixlDonorHlslMetalProbeRan": false
+  },
+  {
+    "op": "publishTixlMeshDrawStageMrtMatrixArtifacts",
+    "ok": true
+  }
+]

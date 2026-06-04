@@ -4,7 +4,8 @@
   "ok": true,
   "overallStatus": "proven_with_bounded_native_backend",
   "proven": [
-    "core_headless_pipeline"
+    "core_headless_pipeline",
+    "tixl_mesh_draw_stage_mrt_matrix_semantics"
   ],
   "bounded": [
     "native_hlsl_metal_compile",
@@ -12,7 +13,6 @@
   ],
   "broken": [],
   "requiredNext": [
-    "prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter",
     "prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference",
     "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof"
   ],
@@ -22,7 +22,8 @@
     "nativeDrawShaderStatus": "compileParityNotClaimed",
     "backendCanCompileNow": false,
     "nonBlackSample": true,
-    "shadergraphResourcesExpansionStatus": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture"
+    "shadergraphResourcesExpansionStatus": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
+    "stageMrtMatrixStatus": "proven_tixl_mesh_draw_stage_mrt_matrix_semantics"
   },
   "evidence": {
     "pipelineSummary": "docs/runtime/artifacts/native_render_pipeline/pipeline_summary.json",
@@ -31,6 +32,7 @@
     "nativeBackendInterface": "docs/runtime/artifacts/native_render_pipeline/native_backend/native_backend_interface.json",
     "backendStatus": "docs/runtime/artifacts/native_render_pipeline/native_backend/backend_status.json",
     "pipelineErrors": "docs/runtime/artifacts/native_render_pipeline/native_render_pipeline_errors.json",
-    "shadergraphResourcesExpansion": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json"
+    "shadergraphResourcesExpansion": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
+    "stageMrtMatrix": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json"
   }
 }

@@ -1,0 +1,62 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.tixl_mesh_draw_stage_mrt_matrix",
+  "kind": "TixlMeshDrawStageMrtMatrixProof",
+  "metadata": {
+    "purpose": "Prove only source-backed stage, MRT, and matrix semantics for the bounded handwritten mesh draw adapter."
+  },
+  "donorHlsl": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+  "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+  "shadergraphResourcesExpansionArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
+  "b5NativePackingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_b5_native_packing/tixl_mesh_draw_b5_native_packing_result.json",
+  "textureSamplerBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json",
+  "adapterBoundary": {
+    "route": "handwritten_explicit_msl_adapter",
+    "proofType": "source_backed_semantics_only",
+    "stageSemantics": [
+      "vsMain(uint id : SV_VertexID) reads FaceIndices and PbrVertices",
+      "psInput.pixelPosition carries SV_POSITION",
+      "psMain(psInput pin) returns psOutput",
+      "psOutput.Color carries SV_Target0",
+      "psOutput.Normal carries SV_Target1",
+      "psMain writes output.Color and output.Normal before returning output",
+      "fragment path uses ddx and ddy for flat normals/specular AA",
+      "fragment path can discard when alpha cutoff fails",
+      "matrix convention uses mul(vector, matrix)"
+    ]
+  },
+  "expected": {
+    "status": "proven_tixl_mesh_draw_stage_mrt_matrix_semantics",
+    "claims": {
+      "donorHlslParsed": true,
+      "sourceAuditArtifactConsumed": true,
+      "shadergraphResourcesExpansionArtifactConsumed": true,
+      "b5NativePackingArtifactConsumed": true,
+      "textureSamplerBindingArtifactConsumed": true,
+      "vertexStageSemanticProven": true,
+      "pixelStageSemanticProven": true,
+      "mrtTarget0ColorProven": true,
+      "mrtTarget1NormalProven": true,
+      "fragmentDerivativeSemanticsPresent": true,
+      "alphaDiscardSemanticsPresent": true,
+      "d3dMulVectorMatrixConventionPresent": true,
+      "explicitMetalStageMrtMatrixProbeRan": true,
+      "explicitMetalStageInProven": true,
+      "explicitMetalMrtWriteProven": true,
+      "explicitMetalVectorMatrixConventionProven": true,
+      "handwrittenMeshDrawAdapterStageMrtMatrixProof": true,
+      "sourceBackedOnly": true,
+      "actualMetalProbeRan": true,
+      "tixlDonorHlslMetalProbeRan": false,
+      "hlslToMslTranslation": false,
+      "fullPbrResourceBinding": false,
+      "textureCubeSampleLevelGetDimensionsProven": false,
+      "backendReplacementReady": false,
+      "tixlRuntimeParity": false,
+      "pbrVisualCorrectness": false,
+      "rendererIntegrationComplete": false,
+      "constantBufferAdapterComplete": false,
+      "fullTextureSamplerMapping": false
+    }
+  }
+}

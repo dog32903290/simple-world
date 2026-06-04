@@ -12,6 +12,10 @@
     "artifact": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json"
   },
   {
+    "op": "readStageMrtMatrixArtifact",
+    "artifact": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json"
+  },
+  {
     "op": "evaluateCoreHeadlessPipeline",
     "proven": true,
     "broken": false
@@ -23,6 +27,10 @@
   {
     "op": "evaluateShadergraphResourcesExpansion",
     "bounded": true
+  },
+  {
+    "op": "evaluateStageMrtMatrixSemantics",
+    "proven": true
   },
   {
     "op": "publishRuntimeClosureReport",
