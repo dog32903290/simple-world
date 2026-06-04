@@ -51,12 +51,15 @@ That explicit MSL proof exists, but it does not discharge the TiXL donor HLSL
 boundary.
 
 For the bounded backend state, `requiredNext` names the remaining draw-shader
-source work:
+translation, resource binding, and native compile proof work. The TiXL donor
+source audit exists as a dependency map; it narrows the blocker but does not
+replace the proof:
 
 ```text
 provide_explicit_msl_for_tixl_draw_shader
 prove_or_reject_hlsl_to_msl_translation_for_mesh_draw
-replace_bounded_backend_interface_with_native_compile_proof_after_draw_shader_source_exists
+prove_native_mesh_resource_binding_for_draw_shader
+replace_bounded_backend_interface_after_hlsl_to_msl_and_resource_binding_proof
 ```
 
 ## Failure Law

@@ -1,0 +1,31 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.tixl_mesh_draw_shader_source_audit",
+  "metadata": {
+    "purpose": "Audit TiXL mesh-Draw.hlsl source dependencies and semantic blockers without compiling, rendering, or claiming parity."
+  },
+  "donorSource": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+  "includeSearchRoots": [
+    "external/tixl/Operators/Lib/Assets/shaders"
+  ],
+  "expected": {
+    "status": "audited_tixl_mesh_draw_source",
+    "missingStatus": "blocked_missing_donor_source",
+    "vertexEntry": "vsMain",
+    "pixelEntry": "psMain",
+    "directIncludes": [
+      "shared/point.hlsl",
+      "shared/quat-functions.hlsl",
+      "shared/point-light.hlsl",
+      "shared/pbr.hlsl",
+      "shared/pbr-render.hlsl"
+    ],
+    "recursiveIncludeEdge": "shared/pbr-render.hlsl -> shared/pbr.hlsl",
+    "claims": {
+      "hlslToMslTranslationProven": false,
+      "tixlParity": false,
+      "nativeCompileParity": false,
+      "pbrVisualCorrectness": false
+    }
+  }
+}

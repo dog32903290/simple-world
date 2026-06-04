@@ -1,0 +1,24 @@
+[
+  {
+    "op": "loadTixlMeshDrawShaderSourceAuditFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_shader_source_audit.graph.json"
+  },
+  {
+    "op": "resolveDonorSource",
+    "donorSource": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+    "exists": true,
+    "includeSearchRoots": [
+      "external/tixl/Operators/Lib/Assets/shaders"
+    ]
+  },
+  {
+    "op": "parseIncludeGraph",
+    "fileCount": 6,
+    "edgeCount": 6,
+    "unresolvedIncludeCount": 0
+  },
+  {
+    "op": "publishTixlMeshDrawShaderSourceAuditArtifacts",
+    "ok": true
+  }
+]

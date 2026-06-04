@@ -1,0 +1,1033 @@
+{
+  "kind": "TixlMeshDrawShaderSourceAudit",
+  "graphId": "fixture.tixl_mesh_draw_shader_source_audit",
+  "ok": true,
+  "status": "audited_tixl_mesh_draw_source",
+  "donorSource": {
+    "path": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+    "sha256": "90e3c694a4580eaa8f378bfc1638343e55d786b62df12c83e476e96b1d1e4ca6",
+    "lineCount": 247
+  },
+  "includeGraph": {
+    "directIncludes": [
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+        "include": "shared/point.hlsl",
+        "line": 1,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/point.hlsl",
+        "resolved": true
+      },
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+        "include": "shared/quat-functions.hlsl",
+        "line": 2,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/quat-functions.hlsl",
+        "resolved": true
+      },
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+        "include": "shared/point-light.hlsl",
+        "line": 3,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/point-light.hlsl",
+        "resolved": true
+      },
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+        "include": "shared/pbr.hlsl",
+        "line": 4,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr.hlsl",
+        "resolved": true
+      },
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+        "include": "shared/pbr-render.hlsl",
+        "line": 157,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr-render.hlsl",
+        "resolved": true
+      }
+    ],
+    "edges": [
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+        "include": "shared/point.hlsl",
+        "line": 1,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/point.hlsl",
+        "resolved": true
+      },
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+        "include": "shared/quat-functions.hlsl",
+        "line": 2,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/quat-functions.hlsl",
+        "resolved": true
+      },
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+        "include": "shared/point-light.hlsl",
+        "line": 3,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/point-light.hlsl",
+        "resolved": true
+      },
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+        "include": "shared/pbr.hlsl",
+        "line": 4,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr.hlsl",
+        "resolved": true
+      },
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+        "include": "shared/pbr-render.hlsl",
+        "line": 157,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr-render.hlsl",
+        "resolved": true
+      },
+      {
+        "from": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr-render.hlsl",
+        "include": "shared/pbr.hlsl",
+        "line": 1,
+        "to": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr.hlsl",
+        "resolved": true
+      }
+    ],
+    "files": [
+      {
+        "source": {
+          "path": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+          "sha256": "90e3c694a4580eaa8f378bfc1638343e55d786b62df12c83e476e96b1d1e4ca6",
+          "lineCount": 247
+        },
+        "directIncludes": [
+          {
+            "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+            "include": "shared/point.hlsl",
+            "line": 1,
+            "to": "external/tixl/Operators/Lib/Assets/shaders/shared/point.hlsl",
+            "resolved": true
+          },
+          {
+            "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+            "include": "shared/quat-functions.hlsl",
+            "line": 2,
+            "to": "external/tixl/Operators/Lib/Assets/shaders/shared/quat-functions.hlsl",
+            "resolved": true
+          },
+          {
+            "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+            "include": "shared/point-light.hlsl",
+            "line": 3,
+            "to": "external/tixl/Operators/Lib/Assets/shaders/shared/point-light.hlsl",
+            "resolved": true
+          },
+          {
+            "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+            "include": "shared/pbr.hlsl",
+            "line": 4,
+            "to": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr.hlsl",
+            "resolved": true
+          },
+          {
+            "from": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+            "include": "shared/pbr-render.hlsl",
+            "line": 157,
+            "to": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr-render.hlsl",
+            "resolved": true
+          }
+        ],
+        "entries": [
+          {
+            "name": "vsMain",
+            "returnType": "psInput",
+            "line": 87
+          },
+          {
+            "name": "psMain",
+            "returnType": "psOutput",
+            "line": 208
+          }
+        ],
+        "buffers": [
+          {
+            "name": "Transforms",
+            "register": "b0",
+            "fields": [
+              {
+                "type": "float4x4",
+                "name": "CameraToClipSpace",
+                "array": null
+              },
+              {
+                "type": "float4x4",
+                "name": "ClipSpaceToCamera",
+                "array": null
+              },
+              {
+                "type": "float4x4",
+                "name": "WorldToCamera",
+                "array": null
+              },
+              {
+                "type": "float4x4",
+                "name": "CameraToWorld",
+                "array": null
+              },
+              {
+                "type": "float4x4",
+                "name": "WorldToClipSpace",
+                "array": null
+              },
+              {
+                "type": "float4x4",
+                "name": "ClipSpaceToWorld",
+                "array": null
+              },
+              {
+                "type": "float4x4",
+                "name": "ObjectToWorld",
+                "array": null
+              },
+              {
+                "type": "float4x4",
+                "name": "WorldToObject",
+                "array": null
+              },
+              {
+                "type": "float4x4",
+                "name": "ObjectToCamera",
+                "array": null
+              },
+              {
+                "type": "float4x4",
+                "name": "ObjectToClipSpace",
+                "array": null
+              }
+            ]
+          },
+          {
+            "name": "Params",
+            "register": "b1",
+            "fields": [
+              {
+                "type": "float4",
+                "name": "Color",
+                "array": null
+              },
+              {
+                "type": "float",
+                "name": "AlphaCutOff",
+                "array": null
+              },
+              {
+                "type": "float",
+                "name": "UseFlatShading",
+                "array": null
+              },
+              {
+                "type": "float",
+                "name": "SpecularAA",
+                "array": null
+              }
+            ]
+          },
+          {
+            "name": "FogParams",
+            "register": "b2",
+            "fields": [
+              {
+                "type": "float4",
+                "name": "FogColor",
+                "array": null
+              },
+              {
+                "type": "float",
+                "name": "FogDistance",
+                "array": null
+              },
+              {
+                "type": "float",
+                "name": "FogBias",
+                "array": null
+              }
+            ]
+          },
+          {
+            "name": "PointLights",
+            "register": "b3",
+            "fields": [
+              {
+                "type": "PointLight",
+                "name": "Lights",
+                "array": "[8]"
+              },
+              {
+                "type": "int",
+                "name": "ActiveLightCount",
+                "array": null
+              }
+            ]
+          },
+          {
+            "name": "PbrParams",
+            "register": "b4",
+            "fields": [
+              {
+                "type": "float4",
+                "name": "BaseColor",
+                "array": null
+              },
+              {
+                "type": "float4",
+                "name": "EmissiveColor",
+                "array": null
+              },
+              {
+                "type": "float",
+                "name": "Roughness",
+                "array": null
+              },
+              {
+                "type": "float",
+                "name": "Specular",
+                "array": null
+              },
+              {
+                "type": "float",
+                "name": "Metal",
+                "array": null
+              }
+            ]
+          },
+          {
+            "name": "Params",
+            "register": "b5",
+            "fields": []
+          }
+        ],
+        "resources": [
+          {
+            "kind": "StructuredBuffer",
+            "elementType": "PbrVertex",
+            "name": "PbrVertices",
+            "register": "t0"
+          },
+          {
+            "kind": "StructuredBuffer",
+            "elementType": "int3",
+            "name": "FaceIndices",
+            "register": "t1"
+          },
+          {
+            "kind": "Texture2D",
+            "elementType": "float4",
+            "name": "BaseColorMap",
+            "register": "t2"
+          },
+          {
+            "kind": "Texture2D",
+            "elementType": "float4",
+            "name": "EmissiveColorMap",
+            "register": "t3"
+          },
+          {
+            "kind": "Texture2D",
+            "elementType": "float4",
+            "name": "RSMOMap",
+            "register": "t4"
+          },
+          {
+            "kind": "Texture2D",
+            "elementType": "float4",
+            "name": "NormalMap",
+            "register": "t5"
+          },
+          {
+            "kind": "TextureCube",
+            "elementType": "float4",
+            "name": "PrefilteredSpecular",
+            "register": "t6"
+          },
+          {
+            "kind": "Texture2D",
+            "elementType": "float4",
+            "name": "BRDFLookup",
+            "register": "t7"
+          }
+        ],
+        "samplers": [
+          {
+            "name": "WrappedSampler",
+            "register": "s0"
+          },
+          {
+            "name": "ClampedSampler",
+            "register": "s1"
+          }
+        ],
+        "templateHoles": [
+          {
+            "name": "FLOAT_PARAMS",
+            "line": 53
+          },
+          {
+            "name": "GLOBALS",
+            "line": 129
+          },
+          {
+            "name": "RESOURCES(t8)",
+            "line": 132
+          },
+          {
+            "name": "FIELD_FUNCTIONS",
+            "line": 135
+          },
+          {
+            "name": "FIELD_CALL",
+            "line": 146
+          }
+        ],
+        "symbols": {
+          "structs": [
+            "psInput",
+            "psOutput"
+          ],
+          "functions": [
+            "AdjustRoughnessForSpecularAA",
+            "ComputeNormal",
+            "GetDistance",
+            "GetField",
+            "psMain",
+            "vsMain"
+          ]
+        }
+      },
+      {
+        "source": {
+          "path": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr-render.hlsl",
+          "sha256": "eaba550f5e884d2ef1f083e4a7db1cbc4ec2003ba94a62d5d47014263dc3c52b",
+          "lineCount": 113
+        },
+        "directIncludes": [
+          {
+            "from": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr-render.hlsl",
+            "include": "shared/pbr.hlsl",
+            "line": 1,
+            "to": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr.hlsl",
+            "resolved": true
+          }
+        ],
+        "entries": [],
+        "buffers": [],
+        "resources": [],
+        "samplers": [],
+        "templateHoles": [],
+        "symbols": {
+          "structs": [],
+          "functions": [
+            "AdjustRoughnessForSpecularAA",
+            "ComputePbr"
+          ]
+        }
+      },
+      {
+        "source": {
+          "path": "external/tixl/Operators/Lib/Assets/shaders/shared/pbr.hlsl",
+          "sha256": "b8088485bf567266d71979da61322b2eddfaeb626288b92e7f7bbed614c4a7bc",
+          "lineCount": 92
+        },
+        "directIncludes": [],
+        "entries": [],
+        "buffers": [],
+        "resources": [],
+        "samplers": [],
+        "templateHoles": [],
+        "symbols": {
+          "structs": [
+            "FragmentMaterial",
+            "PbrVertex"
+          ],
+          "functions": [
+            "fresnelSchlick",
+            "gaSchlickG1",
+            "gaSchlickGGX",
+            "ndfGGX",
+            "querySpecularTextureLevels"
+          ]
+        }
+      },
+      {
+        "source": {
+          "path": "external/tixl/Operators/Lib/Assets/shaders/shared/point-light.hlsl",
+          "sha256": "5aa1c1904624aeb830804c86cb29dad639ff6e36b00342ae50e76552f9cd2b17",
+          "lineCount": 9
+        },
+        "directIncludes": [],
+        "entries": [],
+        "buffers": [],
+        "resources": [],
+        "samplers": [],
+        "templateHoles": [],
+        "symbols": {
+          "structs": [
+            "PointLight"
+          ],
+          "functions": []
+        }
+      },
+      {
+        "source": {
+          "path": "external/tixl/Operators/Lib/Assets/shaders/shared/point.hlsl",
+          "sha256": "85dc4f10a23beccae5c79070cffa6409d81d4b5367264b6333ca6e533e3a44cf",
+          "lineCount": 38
+        },
+        "directIncludes": [],
+        "entries": [],
+        "buffers": [],
+        "resources": [],
+        "samplers": [],
+        "templateHoles": [],
+        "symbols": {
+          "structs": [
+            "LegacyPoint",
+            "Particle",
+            "Point"
+          ],
+          "functions": []
+        }
+      },
+      {
+        "source": {
+          "path": "external/tixl/Operators/Lib/Assets/shaders/shared/quat-functions.hlsl",
+          "sha256": "d008bc577cc7489743d05012fa0d53de08488d5a464fba0c458c9274e1fcdbbc",
+          "lineCount": 303
+        },
+        "directIncludes": [],
+        "entries": [],
+        "buffers": [],
+        "resources": [],
+        "samplers": [],
+        "templateHoles": [],
+        "symbols": {
+          "structs": [],
+          "functions": [
+            "qConjugate",
+            "qFromAngleAxis",
+            "qFromEuler",
+            "qFromMatrix3",
+            "qFromMatrix3Precise",
+            "qFromVectors",
+            "qInverse",
+            "qLookAt",
+            "qMul",
+            "qRotateVec3",
+            "qSlerp",
+            "qToMatrix",
+            "q_encode_v",
+            "q_separate_v"
+          ]
+        }
+      }
+    ]
+  },
+  "entryPoints": {
+    "vsMain": {
+      "found": true,
+      "line": 87,
+      "returnType": "psInput"
+    },
+    "psMain": {
+      "found": true,
+      "line": 208,
+      "returnType": "psOutput"
+    }
+  },
+  "requiredBuffers": [
+    {
+      "name": "Transforms",
+      "register": "b0",
+      "fields": [
+        {
+          "type": "float4x4",
+          "name": "CameraToClipSpace",
+          "array": null
+        },
+        {
+          "type": "float4x4",
+          "name": "ClipSpaceToCamera",
+          "array": null
+        },
+        {
+          "type": "float4x4",
+          "name": "WorldToCamera",
+          "array": null
+        },
+        {
+          "type": "float4x4",
+          "name": "CameraToWorld",
+          "array": null
+        },
+        {
+          "type": "float4x4",
+          "name": "WorldToClipSpace",
+          "array": null
+        },
+        {
+          "type": "float4x4",
+          "name": "ClipSpaceToWorld",
+          "array": null
+        },
+        {
+          "type": "float4x4",
+          "name": "ObjectToWorld",
+          "array": null
+        },
+        {
+          "type": "float4x4",
+          "name": "WorldToObject",
+          "array": null
+        },
+        {
+          "type": "float4x4",
+          "name": "ObjectToCamera",
+          "array": null
+        },
+        {
+          "type": "float4x4",
+          "name": "ObjectToClipSpace",
+          "array": null
+        }
+      ]
+    },
+    {
+      "name": "Params",
+      "register": "b1",
+      "fields": [
+        {
+          "type": "float4",
+          "name": "Color",
+          "array": null
+        },
+        {
+          "type": "float",
+          "name": "AlphaCutOff",
+          "array": null
+        },
+        {
+          "type": "float",
+          "name": "UseFlatShading",
+          "array": null
+        },
+        {
+          "type": "float",
+          "name": "SpecularAA",
+          "array": null
+        }
+      ]
+    },
+    {
+      "name": "FogParams",
+      "register": "b2",
+      "fields": [
+        {
+          "type": "float4",
+          "name": "FogColor",
+          "array": null
+        },
+        {
+          "type": "float",
+          "name": "FogDistance",
+          "array": null
+        },
+        {
+          "type": "float",
+          "name": "FogBias",
+          "array": null
+        }
+      ]
+    },
+    {
+      "name": "PointLights",
+      "register": "b3",
+      "fields": [
+        {
+          "type": "PointLight",
+          "name": "Lights",
+          "array": "[8]"
+        },
+        {
+          "type": "int",
+          "name": "ActiveLightCount",
+          "array": null
+        }
+      ]
+    },
+    {
+      "name": "PbrParams",
+      "register": "b4",
+      "fields": [
+        {
+          "type": "float4",
+          "name": "BaseColor",
+          "array": null
+        },
+        {
+          "type": "float4",
+          "name": "EmissiveColor",
+          "array": null
+        },
+        {
+          "type": "float",
+          "name": "Roughness",
+          "array": null
+        },
+        {
+          "type": "float",
+          "name": "Specular",
+          "array": null
+        },
+        {
+          "type": "float",
+          "name": "Metal",
+          "array": null
+        }
+      ]
+    },
+    {
+      "name": "Params",
+      "register": "b5",
+      "fields": []
+    }
+  ],
+  "resources": [
+    {
+      "kind": "StructuredBuffer",
+      "elementType": "PbrVertex",
+      "name": "PbrVertices",
+      "register": "t0"
+    },
+    {
+      "kind": "StructuredBuffer",
+      "elementType": "int3",
+      "name": "FaceIndices",
+      "register": "t1"
+    },
+    {
+      "kind": "Texture2D",
+      "elementType": "float4",
+      "name": "BaseColorMap",
+      "register": "t2"
+    },
+    {
+      "kind": "Texture2D",
+      "elementType": "float4",
+      "name": "EmissiveColorMap",
+      "register": "t3"
+    },
+    {
+      "kind": "Texture2D",
+      "elementType": "float4",
+      "name": "RSMOMap",
+      "register": "t4"
+    },
+    {
+      "kind": "Texture2D",
+      "elementType": "float4",
+      "name": "NormalMap",
+      "register": "t5"
+    },
+    {
+      "kind": "TextureCube",
+      "elementType": "float4",
+      "name": "PrefilteredSpecular",
+      "register": "t6"
+    },
+    {
+      "kind": "Texture2D",
+      "elementType": "float4",
+      "name": "BRDFLookup",
+      "register": "t7"
+    }
+  ],
+  "samplers": [
+    {
+      "name": "WrappedSampler",
+      "register": "s0"
+    },
+    {
+      "name": "ClampedSampler",
+      "register": "s1"
+    }
+  ],
+  "constants": [
+    {
+      "buffer": "Transforms",
+      "register": "b0",
+      "name": "CameraToClipSpace",
+      "type": "float4x4",
+      "array": null
+    },
+    {
+      "buffer": "Transforms",
+      "register": "b0",
+      "name": "ClipSpaceToCamera",
+      "type": "float4x4",
+      "array": null
+    },
+    {
+      "buffer": "Transforms",
+      "register": "b0",
+      "name": "WorldToCamera",
+      "type": "float4x4",
+      "array": null
+    },
+    {
+      "buffer": "Transforms",
+      "register": "b0",
+      "name": "CameraToWorld",
+      "type": "float4x4",
+      "array": null
+    },
+    {
+      "buffer": "Transforms",
+      "register": "b0",
+      "name": "WorldToClipSpace",
+      "type": "float4x4",
+      "array": null
+    },
+    {
+      "buffer": "Transforms",
+      "register": "b0",
+      "name": "ClipSpaceToWorld",
+      "type": "float4x4",
+      "array": null
+    },
+    {
+      "buffer": "Transforms",
+      "register": "b0",
+      "name": "ObjectToWorld",
+      "type": "float4x4",
+      "array": null
+    },
+    {
+      "buffer": "Transforms",
+      "register": "b0",
+      "name": "WorldToObject",
+      "type": "float4x4",
+      "array": null
+    },
+    {
+      "buffer": "Transforms",
+      "register": "b0",
+      "name": "ObjectToCamera",
+      "type": "float4x4",
+      "array": null
+    },
+    {
+      "buffer": "Transforms",
+      "register": "b0",
+      "name": "ObjectToClipSpace",
+      "type": "float4x4",
+      "array": null
+    },
+    {
+      "buffer": "Params",
+      "register": "b1",
+      "name": "Color",
+      "type": "float4",
+      "array": null
+    },
+    {
+      "buffer": "Params",
+      "register": "b1",
+      "name": "AlphaCutOff",
+      "type": "float",
+      "array": null
+    },
+    {
+      "buffer": "Params",
+      "register": "b1",
+      "name": "UseFlatShading",
+      "type": "float",
+      "array": null
+    },
+    {
+      "buffer": "Params",
+      "register": "b1",
+      "name": "SpecularAA",
+      "type": "float",
+      "array": null
+    },
+    {
+      "buffer": "FogParams",
+      "register": "b2",
+      "name": "FogColor",
+      "type": "float4",
+      "array": null
+    },
+    {
+      "buffer": "FogParams",
+      "register": "b2",
+      "name": "FogDistance",
+      "type": "float",
+      "array": null
+    },
+    {
+      "buffer": "FogParams",
+      "register": "b2",
+      "name": "FogBias",
+      "type": "float",
+      "array": null
+    },
+    {
+      "buffer": "PointLights",
+      "register": "b3",
+      "name": "Lights",
+      "type": "PointLight",
+      "array": "[8]"
+    },
+    {
+      "buffer": "PointLights",
+      "register": "b3",
+      "name": "ActiveLightCount",
+      "type": "int",
+      "array": null
+    },
+    {
+      "buffer": "PbrParams",
+      "register": "b4",
+      "name": "BaseColor",
+      "type": "float4",
+      "array": null
+    },
+    {
+      "buffer": "PbrParams",
+      "register": "b4",
+      "name": "EmissiveColor",
+      "type": "float4",
+      "array": null
+    },
+    {
+      "buffer": "PbrParams",
+      "register": "b4",
+      "name": "Roughness",
+      "type": "float",
+      "array": null
+    },
+    {
+      "buffer": "PbrParams",
+      "register": "b4",
+      "name": "Specular",
+      "type": "float",
+      "array": null
+    },
+    {
+      "buffer": "PbrParams",
+      "register": "b4",
+      "name": "Metal",
+      "type": "float",
+      "array": null
+    }
+  ],
+  "templateHoles": [
+    {
+      "source": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+      "name": "FLOAT_PARAMS",
+      "line": 53
+    },
+    {
+      "source": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+      "name": "GLOBALS",
+      "line": 129
+    },
+    {
+      "source": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+      "name": "RESOURCES(t8)",
+      "line": 132
+    },
+    {
+      "source": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+      "name": "FIELD_FUNCTIONS",
+      "line": 135
+    },
+    {
+      "source": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+      "name": "FIELD_CALL",
+      "line": 146
+    }
+  ],
+  "symbolSummary": {
+    "structs": [
+      "FragmentMaterial",
+      "LegacyPoint",
+      "Particle",
+      "PbrVertex",
+      "Point",
+      "PointLight",
+      "psInput",
+      "psOutput"
+    ],
+    "functions": [
+      "AdjustRoughnessForSpecularAA",
+      "ComputeNormal",
+      "ComputePbr",
+      "GetDistance",
+      "GetField",
+      "fresnelSchlick",
+      "gaSchlickG1",
+      "gaSchlickGGX",
+      "ndfGGX",
+      "psMain",
+      "qConjugate",
+      "qFromAngleAxis",
+      "qFromEuler",
+      "qFromMatrix3",
+      "qFromMatrix3Precise",
+      "qFromVectors",
+      "qInverse",
+      "qLookAt",
+      "qMul",
+      "qRotateVec3",
+      "qSlerp",
+      "qToMatrix",
+      "q_encode_v",
+      "q_separate_v",
+      "querySpecularTextureLevels",
+      "vsMain"
+    ]
+  },
+  "semanticBlockers": [
+    {
+      "code": "requires_hlsl_to_msl_translation_lane",
+      "message": "Audit records TiXL HLSL source requirements only; no HLSL-to-MSL translator has run."
+    },
+    {
+      "code": "requires_native_mesh_resource_binding",
+      "message": "PbrVertices, FaceIndices, material textures, environment maps, and samplers need a native binding contract before compile parity."
+    },
+    {
+      "code": "requires_pbr_visual_reference",
+      "message": "PBR lighting and IBL resources are summarized but not rendered or visually compared."
+    },
+    {
+      "code": "shader_template_holes_require_tixl_expansion",
+      "holes": [
+        "FLOAT_PARAMS",
+        "GLOBALS",
+        "RESOURCES(t8)",
+        "FIELD_FUNCTIONS",
+        "FIELD_CALL"
+      ]
+    },
+    {
+      "code": "duplicate_buffer_names_need_binding_policy",
+      "names": [
+        "Params"
+      ]
+    }
+  ],
+  "claims": {
+    "hlslToMslTranslationProven": false,
+    "tixlParity": false,
+    "nativeCompileParity": false,
+    "pbrVisualCorrectness": false
+  }
+}
