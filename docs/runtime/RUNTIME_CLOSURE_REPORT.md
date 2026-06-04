@@ -87,11 +87,14 @@ ShaderGraph params expansion verdict now narrows that blocker: b5 is the
 `GenerateShaderGraphCode` through `ShaderGraphNode.CollectAllNodeParams` and
 the `FloatParams` buffer. It now provides a source-backed SphereSDF fixture
 manifest for `SphereSDF_nG1CBDm_Center` and `SphereSDF_nG1CBDm_Radius`, but
-native b5 Metal packing has not been compiled or read back yet. The next
-required work is therefore:
+native b5 Metal packing had not yet been compiled or read back. The TiXL mesh
+draw b5 native packing proof now consumes that source-backed expansion and
+proves the exact 16-byte b5 buffer at Metal `buffer(7)` with a real compute
+readback. That closes the b5 native packing lane only; it does not prove the
+combined b0-b5 adapter, texture/sampler mapping, t8+ resources, or backend
+replacement. The next required work is therefore:
 
 ```text
-prove_native_b5_packing_from_source_backed_shadergraph_params
 map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1
 expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates
 replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof

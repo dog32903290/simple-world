@@ -1,0 +1,43 @@
+{
+  "graphId": "fixture.tixl_mesh_draw_b5_native_packing",
+  "kind": "TixlMeshDrawB5NativePackingProof",
+  "b5ShadergraphParamsExpansionArtifact": "docs/runtime/artifacts/tixl_mesh_draw_b5_shadergraph_params_expansion/tixl_mesh_draw_b5_shadergraph_params_expansion_result.json",
+  "constantBufferLayoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+  "pointlightsAndB5PackingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_pointlights_and_b5_packing/tixl_mesh_draw_pointlights_and_b5_packing_result.json",
+  "probeRegisters": ["b5"],
+  "expected": {
+    "status": "proven_b5_shadergraph_params_native_packing",
+    "b5NativePacking": {
+      "register": "b5",
+      "name": "Params",
+      "semanticRole": "shadergraph_duplicate_params",
+      "metalBuffer": 7,
+      "sizeBytes": 16,
+      "offsets": {
+        "SphereSDF_nG1CBDm_Center": 0,
+        "SphereSDF_nG1CBDm_Radius": 12
+      },
+      "values": {
+        "SphereSDF_nG1CBDm_Center": [-1.4845504, 0, 0.54366434],
+        "SphereSDF_nG1CBDm_Radius": 0.5
+      }
+    },
+    "claims": {
+      "b5ShadergraphParamsExpansionArtifactConsumed": true,
+      "constantBufferLayoutArtifactConsumed": true,
+      "pointlightsAndB5PackingArtifactConsumed": true,
+      "b3PointLightsPackingProven": true,
+      "b5ShadergraphParamsExpanded": true,
+      "b5FieldsSourceBacked": true,
+      "actualMetalB5PackingProbeRan": false,
+      "b5NativePackingProven": false,
+      "constantBufferAdapterComplete": false,
+      "textureSamplerMapping": false,
+      "fullPbrResourceBinding": false,
+      "backendReplacementReady": false,
+      "hlslToMslTranslation": false,
+      "tixlRuntimeParity": false,
+      "pbrVisualCorrectness": false
+    }
+  }
+}

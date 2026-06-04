@@ -1,0 +1,42 @@
+[
+  {
+    "op": "loadTixlMeshDrawB5NativePackingFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_b5_native_packing.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "b5ShadergraphParamsExpansionArtifact": "docs/runtime/artifacts/tixl_mesh_draw_b5_shadergraph_params_expansion/tixl_mesh_draw_b5_shadergraph_params_expansion_result.json",
+    "constantBufferLayoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+    "pointlightsAndB5PackingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_pointlights_and_b5_packing/tixl_mesh_draw_pointlights_and_b5_packing_result.json"
+  },
+  {
+    "op": "validateInputArtifacts",
+    "b5ShadergraphParamsExpansionValid": true,
+    "constantBufferLayoutValid": true,
+    "pointlightsAndB5PackingValid": true
+  },
+  {
+    "op": "packB5HostBytesFromExpansionArtifact",
+    "byteCount": 16,
+    "source": "expansion.floatBuffer.values + expansion.fields.offsetBytes"
+  },
+  {
+    "op": "buildGeneratedB5PackingProbe",
+    "compiler": "xcrun clang++",
+    "exitCode": 0
+  },
+  {
+    "op": "runGeneratedB5PackingProbe",
+    "exitCode": 0
+  },
+  {
+    "op": "validateB5PackingProbeReadback",
+    "status": "proven_b5_shadergraph_params_native_packing",
+    "ok": true,
+    "valid": true
+  },
+  {
+    "op": "publishTixlMeshDrawB5NativePackingArtifacts",
+    "ok": true
+  }
+]
