@@ -1,0 +1,38 @@
+[
+  {
+    "op": "loadTixlMeshDrawConstantBufferNativePackingFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_constant_buffer_native_packing.graph.json"
+  },
+  {
+    "op": "resolveConstantBufferLayoutArtifact",
+    "layoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+    "layoutArtifactExists": true
+  },
+  {
+    "op": "validateConstantBufferLayoutArtifact",
+    "kind": "TixlMeshDrawConstantBufferLayoutProof",
+    "ok": true,
+    "status": "classified_tixl_mesh_draw_constant_buffer_layout",
+    "selectedStrategy": "handwritten_explicit_msl_adapter",
+    "valid": true
+  },
+  {
+    "op": "buildGeneratedConstantBufferNativePackingProbe",
+    "compiler": "xcrun clang++",
+    "exitCode": 0
+  },
+  {
+    "op": "runGeneratedConstantBufferNativePackingProbe",
+    "exitCode": 0
+  },
+  {
+    "op": "validateNativePackingProbeReadback",
+    "status": "proven_partial_native_constant_buffer_packing",
+    "ok": true,
+    "valid": true
+  },
+  {
+    "op": "publishTixlMeshDrawConstantBufferNativePackingArtifacts",
+    "ok": true
+  }
+]

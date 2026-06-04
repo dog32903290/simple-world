@@ -1,0 +1,79 @@
+{
+  "graphId": "fixture.tixl_mesh_draw_constant_buffer_native_packing",
+  "kind": "TixlMeshDrawConstantBufferNativePackingProof",
+  "layoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+  "probeRegisters": ["b0", "b1", "b2", "b4"],
+  "pendingRegisters": ["b3", "b5"],
+  "expected": {
+    "status": "proven_partial_native_constant_buffer_packing",
+    "claims": {
+      "constantBufferLayoutArtifactConsumed": true,
+      "actualMetalPackingProbeRan": false,
+      "nativePackingProofComplete": false,
+      "b0b5AdapterReady": false,
+      "textureSamplerMapping": false,
+      "fullPbrResourceBinding": false,
+      "backendReplacementReady": false,
+      "hlslToMslTranslation": false,
+      "tixlRuntimeParity": false,
+      "pbrVisualCorrectness": false
+    },
+    "provenNativePacking": [
+      {
+        "register": "b0",
+        "name": "Transforms",
+        "metalBuffer": 2,
+        "sizeBytes": 640,
+        "offsets": {
+          "CameraToClipSpace": 0,
+          "ClipSpaceToCamera": 64,
+          "WorldToCamera": 128,
+          "CameraToWorld": 192,
+          "WorldToClipSpace": 256,
+          "ClipSpaceToWorld": 320,
+          "ObjectToWorld": 384,
+          "WorldToObject": 448,
+          "ObjectToCamera": 512,
+          "ObjectToClipSpace": 576
+        }
+      },
+      {
+        "register": "b1",
+        "name": "Params",
+        "semanticRole": "mesh_draw_material_params",
+        "metalBuffer": 3,
+        "sizeBytes": 32,
+        "offsets": {
+          "Color": 0,
+          "AlphaCutOff": 16,
+          "UseFlatShading": 20,
+          "SpecularAA": 24
+        }
+      },
+      {
+        "register": "b2",
+        "name": "FogParams",
+        "metalBuffer": 4,
+        "sizeBytes": 32,
+        "offsets": {
+          "FogColor": 0,
+          "FogDistance": 16,
+          "FogBias": 20
+        }
+      },
+      {
+        "register": "b4",
+        "name": "PbrParams",
+        "metalBuffer": 6,
+        "sizeBytes": 48,
+        "offsets": {
+          "BaseColor": 0,
+          "EmissiveColor": 16,
+          "Roughness": 32,
+          "Specular": 36,
+          "Metal": 40
+        }
+      }
+    ]
+  }
+}

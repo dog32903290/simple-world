@@ -1,0 +1,143 @@
+{
+  "kind": "TixlMeshDrawConstantBufferNativePackingProof",
+  "graphId": "fixture.tixl_mesh_draw_constant_buffer_native_packing",
+  "ok": true,
+  "status": "proven_partial_native_constant_buffer_packing",
+  "selectedStrategy": "handwritten_explicit_msl_adapter",
+  "layoutArtifact": {
+    "path": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+    "kind": "TixlMeshDrawConstantBufferLayoutProof",
+    "ok": true,
+    "status": "classified_tixl_mesh_draw_constant_buffer_layout",
+    "selectedStrategy": "handwritten_explicit_msl_adapter",
+    "bindingPolicyReadiness": "bounded_partial",
+    "reservedMetalBufferRange": [
+      2,
+      7
+    ]
+  },
+  "probe": {
+    "backend": "Metal",
+    "generatedMslArtifact": "generated_constant_buffer_native_packing_probe.metal",
+    "actualCompilerRan": true,
+    "actualMetalRan": true,
+    "roundtripReadback": true,
+    "message": "compiled generated MSL compute probe and read b0,b1,b2,b4 constant buffers"
+  },
+  "provenNativePacking": [
+    {
+      "register": "b0",
+      "name": "Transforms",
+      "metalBuffer": 2,
+      "sizeBytes": 640,
+      "offsets": {
+        "CameraToClipSpace": 0,
+        "ClipSpaceToCamera": 64,
+        "WorldToCamera": 128,
+        "CameraToWorld": 192,
+        "WorldToClipSpace": 256,
+        "ClipSpaceToWorld": 320,
+        "ObjectToWorld": 384,
+        "WorldToObject": 448,
+        "ObjectToCamera": 512,
+        "ObjectToClipSpace": 576
+      },
+      "proof": {
+        "method": "Metal compute readback from host bytes written at the listed offsets",
+        "roundtripSentinelReadback": true
+      }
+    },
+    {
+      "register": "b1",
+      "name": "Params",
+      "semanticRole": "mesh_draw_material_params",
+      "metalBuffer": 3,
+      "sizeBytes": 32,
+      "offsets": {
+        "Color": 0,
+        "AlphaCutOff": 16,
+        "UseFlatShading": 20,
+        "SpecularAA": 24
+      },
+      "proof": {
+        "method": "Metal compute readback from host bytes written at the listed offsets",
+        "roundtripSentinelReadback": true
+      }
+    },
+    {
+      "register": "b2",
+      "name": "FogParams",
+      "metalBuffer": 4,
+      "sizeBytes": 32,
+      "offsets": {
+        "FogColor": 0,
+        "FogDistance": 16,
+        "FogBias": 20
+      },
+      "proof": {
+        "method": "Metal compute readback from host bytes written at the listed offsets",
+        "roundtripSentinelReadback": true
+      }
+    },
+    {
+      "register": "b4",
+      "name": "PbrParams",
+      "metalBuffer": 6,
+      "sizeBytes": 48,
+      "offsets": {
+        "BaseColor": 0,
+        "EmissiveColor": 16,
+        "Roughness": 32,
+        "Specular": 36,
+        "Metal": 40
+      },
+      "proof": {
+        "method": "Metal compute readback from host bytes written at the listed offsets",
+        "roundtripSentinelReadback": true
+      }
+    }
+  ],
+  "pendingNativePacking": [
+    {
+      "register": "b3",
+      "name": "PointLights",
+      "reason": "PointLight element layout is not proven in this tiny packing probe."
+    },
+    {
+      "register": "b5",
+      "name": "Params",
+      "semanticRole": "shadergraph_duplicate_params",
+      "reason": "The source audit has no concrete b5 Params fields to pack."
+    }
+  ],
+  "semanticBlockers": [
+    {
+      "code": "b3_point_light_native_packing_pending",
+      "reason": "PointLight element layout and array stride are not proven by this tiny b0/b1/b2/b4 probe."
+    },
+    {
+      "code": "b5_duplicate_params_fields_unknown",
+      "reason": "The layout artifact records b5 Params as registered and disambiguated, but no concrete fields are known."
+    },
+    {
+      "code": "texture_sampler_mapping_not_in_scope",
+      "reason": "This native packing proof does not map t2-t7 textures or s0-s1 samplers."
+    },
+    {
+      "code": "backend_replacement_not_ready",
+      "reason": "Partial constant-buffer packing does not implement full resource binding or a backend."
+    }
+  ],
+  "claims": {
+    "constantBufferLayoutArtifactConsumed": true,
+    "actualMetalPackingProbeRan": true,
+    "nativePackingProofComplete": false,
+    "b0b5AdapterReady": false,
+    "textureSamplerMapping": false,
+    "fullPbrResourceBinding": false,
+    "backendReplacementReady": false,
+    "hlslToMslTranslation": false,
+    "tixlRuntimeParity": false,
+    "pbrVisualCorrectness": false
+  }
+}

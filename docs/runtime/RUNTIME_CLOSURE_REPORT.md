@@ -73,11 +73,15 @@ to t0/t1 packed mesh buffers and is not ready for full PBR resource binding or
 backend replacement. The TiXL mesh draw constant buffer layout proof now
 classifies b0-b5 HLSL cbuffer facts and reserves a bounded partial candidate
 mapping after t0/t1, but it still requires native Metal packing proof before
-those constants can be treated as adapter-ready. The next required work is
-therefore:
+those constants can be treated as adapter-ready. The TiXL mesh draw constant
+buffer native packing proof now compiles a tiny Metal probe and proves b0
+Transforms, b1 material Params, b2 FogParams, and b4 PbrParams readback at the
+reserved adapter slots. b3 PointLights and b5 duplicate Params remain pending,
+so the full constant-buffer adapter is still not ready. The next required work
+is therefore:
 
 ```text
-prove_native_metal_packing_for_handwritten_adapter_constant_buffers_b0_b5
+prove_native_metal_packing_for_pointlights_b3_and_duplicate_params_b5
 map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1
 expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates
 replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof
