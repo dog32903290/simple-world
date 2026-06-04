@@ -54,13 +54,14 @@ For the bounded backend state, `requiredNext` names the remaining draw-shader
 translation, resource binding, and native compile proof work. The TiXL donor
 source audit exists as a dependency map, and the TiXL mesh draw buffer layout
 proof fixes `PbrVertex`/`FaceIndices` packing facts for the next approximation.
-They narrow the blocker but do not replace the proof:
+The TiXL mesh draw MSL approximation proof now shows that this fixed layout can
+feed a tiny explicit MSL/Metal mesh draw through compile, render, and readback.
+Those lanes narrow the blocker but do not replace the remaining proof:
 
 ```text
-implement_msl_draw_approximation_from_tixl_mesh_draw_buffer_layout
-prove_or_reject_hlsl_to_msl_translation_for_mesh_draw
 prove_native_mesh_resource_binding_against_pbrvertex_faceindices_layout
-replace_bounded_backend_interface_after_msl_draw_and_resource_binding_proof
+prove_or_reject_hlsl_to_msl_translation_for_mesh_draw
+replace_bounded_backend_interface_after_resource_binding_and_hlsl_to_msl_proof
 ```
 
 ## Failure Law

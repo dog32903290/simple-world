@@ -15,10 +15,9 @@ from typing import Any
 
 
 REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND = [
-    "implement_msl_draw_approximation_from_tixl_mesh_draw_buffer_layout",
-    "prove_or_reject_hlsl_to_msl_translation_for_mesh_draw",
     "prove_native_mesh_resource_binding_against_pbrvertex_faceindices_layout",
-    "replace_bounded_backend_interface_after_msl_draw_and_resource_binding_proof",
+    "prove_or_reject_hlsl_to_msl_translation_for_mesh_draw",
+    "replace_bounded_backend_interface_after_resource_binding_and_hlsl_to_msl_proof",
 ]
 
 

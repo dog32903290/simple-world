@@ -1,0 +1,69 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.tixl_mesh_draw_msl_approx",
+  "kind": "TixlMeshDrawMslApproxProof",
+  "metadata": {
+    "purpose": "Compile and render a minimal explicit MSL mesh draw approximation using the fixed PbrVertex/FaceIndices layout."
+  },
+  "layoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_buffer_layout/tixl_mesh_draw_buffer_layout_result.json",
+  "viewport": {
+    "width": 16,
+    "height": 16
+  },
+  "mesh": {
+    "vertices": [
+      {
+        "position": [-0.8, -0.75, 0.0],
+        "normal": [0.0, 0.0, 1.0],
+        "tangent": [1.0, 0.0, 0.0],
+        "bitangent": [0.0, 1.0, 0.0],
+        "texCoord": [0.0, 0.0],
+        "texCoord2": [0.0, 0.0],
+        "selected": 0.0,
+        "colorRGB": [1.0, 0.15, 0.1]
+      },
+      {
+        "position": [0.8, -0.75, 0.0],
+        "normal": [0.0, 0.0, 1.0],
+        "tangent": [1.0, 0.0, 0.0],
+        "bitangent": [0.0, 1.0, 0.0],
+        "texCoord": [1.0, 0.0],
+        "texCoord2": [1.0, 0.0],
+        "selected": 0.0,
+        "colorRGB": [0.1, 1.0, 0.2]
+      },
+      {
+        "position": [0.0, 0.85, 0.0],
+        "normal": [0.0, 0.0, 1.0],
+        "tangent": [1.0, 0.0, 0.0],
+        "bitangent": [0.0, 1.0, 0.0],
+        "texCoord": [0.5, 1.0],
+        "texCoord2": [0.5, 1.0],
+        "selected": 1.0,
+        "colorRGB": [0.1, 0.25, 1.0]
+      }
+    ],
+    "faces": [
+      [0, 1, 2]
+    ]
+  },
+  "expected": {
+    "status": "rendered_tixl_mesh_draw_msl_approximation",
+    "pbrVertexStrideBytes": 80,
+    "faceIndicesStrideBytes": 12,
+    "vertexCount": 3,
+    "faceCount": 1,
+    "drawVertexCount": 3,
+    "claims": {
+      "layoutArtifactConsumed": true,
+      "actualCompilerRan": true,
+      "actualMetalRan": true,
+      "mslApproximationRendered": true,
+      "mslApproxBufferPackingObserved": true,
+      "tixlRuntimeParity": false,
+      "hlslToMslTranslation": false,
+      "pbrVisualCorrectness": false,
+      "drawMeshRuntime": false
+    }
+  }
+}

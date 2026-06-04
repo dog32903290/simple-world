@@ -1,0 +1,61 @@
+{
+  "kind": "TixlMeshDrawMslApproxProof",
+  "graphId": "fixture.tixl_mesh_draw_msl_approx",
+  "ok": true,
+  "status": "rendered_tixl_mesh_draw_msl_approximation",
+  "backend": "Metal",
+  "width": 16,
+  "height": 16,
+  "byteCount": 1024,
+  "message": "compiled explicit MSL approximation, drew packed PbrVertex/FaceIndices mesh, and read back pixels",
+  "claims": {
+    "layoutArtifactConsumed": true,
+    "actualCompilerRan": true,
+    "actualMetalRan": true,
+    "mslApproximationRendered": true,
+    "mslApproxBufferPackingObserved": true,
+    "tixlRuntimeParity": false,
+    "hlslToMslTranslation": false,
+    "pbrVisualCorrectness": false,
+    "drawMeshRuntime": false
+  },
+  "layoutArtifact": {
+    "path": "docs/runtime/artifacts/tixl_mesh_draw_buffer_layout/tixl_mesh_draw_buffer_layout_result.json",
+    "kind": "TixlMeshDrawBufferLayoutProof",
+    "status": "summarized_tixl_mesh_draw_buffer_layout",
+    "ok": true,
+    "pbrVertexStrideBytes": 80,
+    "faceIndicesStrideBytes": 12,
+    "previousMetalBufferPackingParity": false
+  },
+  "meshSummary": {
+    "vertexCount": 3,
+    "faceCount": 1,
+    "drawVertexCount": 3,
+    "pbrVertexStrideBytes": 80,
+    "faceIndicesStrideBytes": 12
+  },
+  "generatedMslArtifact": "generated_explicit_msl_approx.metal",
+  "controlFrameStats": {
+    "width": 16,
+    "height": 16,
+    "byteCount": 1024,
+    "nonBlack": false,
+    "varied": false,
+    "nonBlackPixels": 0,
+    "uniqueColorSamples": 1,
+    "frameDigest": "7da9a417bf722b83",
+    "opaquePixels": 256
+  },
+  "frameStats": {
+    "width": 16,
+    "height": 16,
+    "byteCount": 1024,
+    "nonBlack": true,
+    "varied": true,
+    "nonBlackPixels": 84,
+    "uniqueColorSamples": 85,
+    "frameDigest": "9c09adf221b57b49",
+    "opaquePixels": 256
+  }
+}

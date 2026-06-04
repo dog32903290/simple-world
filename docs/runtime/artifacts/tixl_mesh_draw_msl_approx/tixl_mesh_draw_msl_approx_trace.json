@@ -1,0 +1,49 @@
+[
+  {
+    "op": "loadTixlMeshDrawMslApproxFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_msl_approx.graph.json"
+  },
+  {
+    "op": "resolveLayoutArtifact",
+    "layoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_buffer_layout/tixl_mesh_draw_buffer_layout_result.json",
+    "layoutArtifactExists": true
+  },
+  {
+    "op": "validateLayoutArtifact",
+    "kind": "TixlMeshDrawBufferLayoutProof",
+    "ok": true,
+    "status": "summarized_tixl_mesh_draw_buffer_layout",
+    "pbrVertexStrideBytes": 80,
+    "faceIndicesStrideBytes": 12,
+    "previousMetalBufferPackingParity": false,
+    "valid": true
+  },
+  {
+    "op": "validateMeshPayload",
+    "vertexCount": 3,
+    "faceCount": 1
+  },
+  {
+    "op": "validateMslSourceContract",
+    "valid": true,
+    "requiredTokenCount": 8
+  },
+  {
+    "op": "buildTixlMeshDrawMslApproxProbe",
+    "compiler": "xcrun clang++",
+    "probe": "docs/runtime/native/tixl_mesh_draw_msl_approx_probe.mm",
+    "exitCode": 0
+  },
+  {
+    "op": "runTixlMeshDrawMslApproxProbe",
+    "exitCode": 0
+  },
+  {
+    "op": "runTixlMeshDrawMslApproxControlProbe",
+    "exitCode": 0
+  },
+  {
+    "op": "publishTixlMeshDrawMslApproxArtifacts",
+    "ok": true
+  }
+]

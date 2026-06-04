@@ -26,6 +26,7 @@ test("RuntimeClosureReport docs describe a bounded closure ledger, not Metal par
   assert.match(source, /MetalExplicitMslProof/);
   assert.match(source, /NativeDrawShaderCompileProof/);
   assert.match(source, /explicit MSL proof exists/);
+  assert.match(source, /TiXL mesh draw MSL approximation proof now shows/);
   assert.match(source, /does not discharge the TiXL donor HLSL\s+boundary/);
   assert.match(source, /docs\/runtime\/artifacts\/native_render_pipeline/);
 });
@@ -61,11 +62,11 @@ test("RuntimeClosureReport shell emits a closure ledger from existing proof arti
   assert.ok(report.bounded.includes("native_hlsl_metal_compile"));
   assert.deepEqual(report.broken, []);
   assert.deepEqual(report.requiredNext, [
-    "implement_msl_draw_approximation_from_tixl_mesh_draw_buffer_layout",
-    "prove_or_reject_hlsl_to_msl_translation_for_mesh_draw",
     "prove_native_mesh_resource_binding_against_pbrvertex_faceindices_layout",
-    "replace_bounded_backend_interface_after_msl_draw_and_resource_binding_proof",
+    "prove_or_reject_hlsl_to_msl_translation_for_mesh_draw",
+    "replace_bounded_backend_interface_after_resource_binding_and_hlsl_to_msl_proof",
   ]);
+  assert.ok(!report.requiredNext.includes("implement_msl_draw_approximation_from_tixl_mesh_draw_buffer_layout"));
   assert.ok(!report.requiredNext.includes("implement_native_draw_shader_compile_parity"));
   assert.ok(!report.requiredNext.includes("replace_bounded_backend_interface_with_native_compile_proof"));
   assert.deepEqual(report.summary, {
