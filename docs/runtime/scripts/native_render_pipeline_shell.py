@@ -93,7 +93,14 @@ def run_pipeline(
     run_shader_program_shell(repo_root, program_fixture, material_pbr_dir / "mesh_pbr_draw_command.json", program_dir, trace, errors)
     shader_package = read_json_file(program_dir / "shader_program_package.json", {})
 
-    backend_input_fixture = write_backend_fixture_with_frame_input(backend_fixture, frame_input, program_fixture, out_dir, errors)
+    backend_input_fixture = write_backend_fixture_with_frame_input(
+        backend_fixture,
+        frame_input,
+        program_fixture,
+        material_pbr_dir / "mesh_pbr_draw_command.json",
+        out_dir,
+        errors,
+    )
     run_shell(repo_root, "docs/runtime/scripts/native_renderer_backend_interface_shell.py", backend_input_fixture, backend_dir, "nativeBackend", trace, errors)
     native_interface = read_json_file(backend_dir / "native_backend_interface.json", {})
     captured_frame = read_json_file(backend_dir / "captured_frame_contract.json", {})
@@ -281,6 +288,7 @@ def write_backend_fixture_with_frame_input(
     backend_fixture_path: Path | None,
     frame_input: dict[str, Any],
     shader_program_fixture: Path | None,
+    draw_command_path: Path,
     out_dir: Path,
     errors: list[dict[str, Any]],
 ) -> Path | None:
@@ -293,6 +301,7 @@ def write_backend_fixture_with_frame_input(
         errors.append({"code": "native_render_pipeline.backend_fixture_read_failed", "message": str(exc)})
         return None
     backend_fixture["shaderProgramFixture"] = str(shader_program_fixture) if shader_program_fixture is not None else ""
+    backend_fixture["drawCommandArtifact"] = str(draw_command_path)
     backend_fixture["requestedFrame"] = {
         "resolution": frame_input.get("resolution"),
         "viewportScale": frame_input.get("viewportScale", 1),

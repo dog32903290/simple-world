@@ -9,7 +9,28 @@
       "entryPoint": "raymarch_field_1"
     }
   ],
-  "requestedDrawShader": null,
+  "requestedDrawShader": {
+    "source": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+    "language": "HLSL_TIXL_DONOR",
+    "vertexShaderEntry": "vsMain",
+    "pixelShaderEntry": "psMain",
+    "selectedMaterialId": "glass",
+    "constantBuffers": [
+      "transforms",
+      "context",
+      "pointLights",
+      "pbr:glass"
+    ],
+    "shaderResources": [
+      "DefaultAlbedoColorSrv",
+      "DefaultEmissiveColorSrv",
+      "DefaultRoughnessMetallicOcclusionSrv",
+      "DefaultNormalSrv",
+      "PbrLookUpTextureSrv",
+      "studio_small_08_prefiltered"
+    ],
+    "compileParity": "notClaimed"
+  },
   "bindings": {
     "uniforms": [],
     "samplers": [],

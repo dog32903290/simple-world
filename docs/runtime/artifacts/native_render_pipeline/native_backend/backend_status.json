@@ -9,5 +9,8 @@
   "preservesLastValidFrame": false,
   "viewportWidth": 3840,
   "viewportHeight": 2160,
-  "viewportScale": 1
+  "viewportScale": 1,
+  "nativeDrawShaderStatus": "compileParityNotClaimed",
+  "nativeDrawShaderSource": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+  "nativeDrawShaderCanCompileNow": false
 }

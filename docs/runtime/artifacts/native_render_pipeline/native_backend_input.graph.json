@@ -52,5 +52,6 @@
     "renderStatus": "rendered",
     "captureStatus": "captured",
     "nonBlackSample": true
-  }
+  },
+  "drawCommandArtifact": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/artifacts/native_render_pipeline/material_pbr/mesh_pbr_draw_command.json"
 }

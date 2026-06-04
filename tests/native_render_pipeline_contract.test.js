@@ -60,6 +60,8 @@ test("NativeRenderPipeline shell emits one connected headless frame proof", () =
   const invalidationLedger = readArtifact("view_invalidation_ledger.json");
   const commandSummary = readArtifact("command_stream_summary.json");
   const commandResult = readArtifact("command_stream_result.json");
+  const backendInterface = JSON.parse(fs.readFileSync(path.join(artifactDir, "native_backend/native_backend_interface.json"), "utf8"));
+  const backendStatus = JSON.parse(fs.readFileSync(path.join(artifactDir, "native_backend/backend_status.json"), "utf8"));
   const capturedFrame = readArtifact("captured_frame_contract.json");
   const errors = readArtifact("native_render_pipeline_errors.json");
 
@@ -106,6 +108,10 @@ test("NativeRenderPipeline shell emits one connected headless frame proof", () =
   const shaderPackage = JSON.parse(fs.readFileSync(path.join(artifactDir, "shader_program/shader_program_package.json"), "utf8"));
   assert.equal(shaderPackage.requestedDrawShader.vertexShaderEntry, "vsMain");
   assert.equal(shaderPackage.requestedDrawShader.pixelShaderEntry, "psMain");
+  assert.equal(backendInterface.nativeDrawBoundary.status, "compileParityNotClaimed");
+  assert.equal(backendInterface.nativeDrawBoundary.source, "Lib:shaders/3d/mesh/mesh-Draw.hlsl");
+  assert.equal(backendInterface.nativeDrawBoundary.backendCanCompileNow, false);
+  assert.equal(backendStatus.nativeDrawShaderStatus, "compileParityNotClaimed");
   assert.equal(capturedFrame.nonBlackSample, true);
   assert.deepEqual(trace.map((entry) => entry.op), [
     "loadNativeRenderPipeline",

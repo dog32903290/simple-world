@@ -59,6 +59,23 @@ backendStatus()
 package must include source hash, language, stages, entry symbols, bindings, and
 last-valid policy.
 
+If the package carries `requestedDrawShader`, the backend must publish a native
+draw boundary:
+
+```text
+source
+language
+vertexShaderEntry
+pixelShaderEntry
+compileParity
+backendCanCompileNow
+futureNativeCandidate
+```
+
+For the current proof, TiXL HLSL donor shaders are accepted as visible future
+native candidates, but `backendCanCompileNow` must stay false and the status
+must be `compileParityNotClaimed`.
+
 ## Last Valid Law
 
 Compile failure has one allowed live behavior:

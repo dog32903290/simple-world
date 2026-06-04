@@ -59,6 +59,8 @@ test("NativeRendererBackend shell compiles packaged shader and emits backend lif
   assert.equal(iface.shaderProgramId, "program.sphere_sdf_raymarch.fragment");
   assert.ok(iface.acceptedProgramShape.includes("sourceHash"));
   assert.ok(iface.acceptedProgramShape.includes("lastValidPolicy"));
+  assert.ok(iface.acceptedProgramShape.includes("requestedDrawShader"));
+  assert.equal(iface.nativeDrawBoundary.status, "notRequested");
 
   assert.equal(compileResult.ok, true);
   assert.equal(compileResult.status, "compiled");
@@ -70,6 +72,7 @@ test("NativeRendererBackend shell compiles packaged shader and emits backend lif
   assert.equal(status.hasRenderableProgram, true);
   assert.equal(status.viewportWidth, 3840);
   assert.equal(status.viewportHeight, 2160);
+  assert.equal(status.nativeDrawShaderStatus, "notRequested");
 
   assert.equal(frameInput.kind, "RenderFrameInput");
   assert.equal(frameInput.frameIndex, 42);

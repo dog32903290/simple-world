@@ -9,5 +9,8 @@
   "preservesLastValidFrame": false,
   "viewportWidth": 3840,
   "viewportHeight": 2160,
-  "viewportScale": 1
+  "viewportScale": 1,
+  "nativeDrawShaderStatus": "notRequested",
+  "nativeDrawShaderSource": null,
+  "nativeDrawShaderCanCompileNow": null
 }

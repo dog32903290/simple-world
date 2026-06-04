@@ -16,7 +16,8 @@
     "stages",
     "entrySymbols",
     "bindings",
-    "lastValidPolicy"
+    "lastValidPolicy",
+    "requestedDrawShader"
   ],
   "operationsRun": [
     "compileShader",
@@ -24,5 +25,18 @@
     "renderFrame",
     "captureFrame"
   ],
-  "shaderProgramId": "program.sphere_sdf_raymarch.fragment"
+  "shaderProgramId": "program.sphere_sdf_raymarch.fragment",
+  "nativeDrawBoundary": {
+    "kind": "NativeDrawShaderBoundary",
+    "present": true,
+    "status": "compileParityNotClaimed",
+    "source": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+    "language": "HLSL_TIXL_DONOR",
+    "vertexShaderEntry": "vsMain",
+    "pixelShaderEntry": "psMain",
+    "selectedMaterialId": "glass",
+    "compileParity": "notClaimed",
+    "backendCanCompileNow": false,
+    "futureNativeCandidate": true
+  }
 }

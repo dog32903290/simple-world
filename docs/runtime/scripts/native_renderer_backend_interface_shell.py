@@ -47,6 +47,7 @@ def main() -> int:
 def run_interface_proof(fixture: dict[str, Any], fixture_path: Path, out_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     repo_root = Path(__file__).resolve().parents[3]
     shader_program_fixture = resolve_repo_path(repo_root, fixture_path, fixture.get("shaderProgramFixture"))
+    draw_command_artifact = resolve_repo_path(repo_root, fixture_path, fixture.get("drawCommandArtifact"))
     shader_program_dir = out_dir / "shader_program"
     errors: list[dict[str, Any]] = []
     shader_package: dict[str, Any] = {}
@@ -56,8 +57,11 @@ def run_interface_proof(fixture: dict[str, Any], fixture_path: Path, out_dir: Pa
         errors.append({"code": "native_backend.missing_shader_program_fixture"})
     else:
         shader_shell = repo_root / "docs/runtime/scripts/shader_program_shell.py"
+        shader_args = ["python3", str(shader_shell), str(shader_program_fixture), str(shader_program_dir)]
+        if draw_command_artifact is not None:
+            shader_args.append(str(draw_command_artifact))
         result = subprocess.run(
-            ["python3", str(shader_shell), str(shader_program_fixture), str(shader_program_dir)],
+            shader_args,
             cwd=repo_root,
             text=True,
             capture_output=True,
@@ -78,8 +82,9 @@ def run_interface_proof(fixture: dict[str, Any], fixture_path: Path, out_dir: Pa
     has_previous_valid = bool(initial_state.get("previousValidProgram"))
     package_ok = shader_package.get("status") == "ok" and not shader_errors and not errors
     compile_result = compile_shader_program(backend, shader_package, package_ok, has_previous_valid, shader_errors)
+    native_draw_boundary = evaluate_native_draw_boundary(backend, shader_package)
     frame_input = build_frame_input(requested_frame)
-    backend_status = build_backend_status(backend, compile_result, requested_frame)
+    backend_status = build_backend_status(backend, compile_result, requested_frame, native_draw_boundary)
     captured_frame = build_captured_frame(backend, compile_result, frame_input)
 
     interface = {
@@ -101,9 +106,11 @@ def run_interface_proof(fixture: dict[str, Any], fixture_path: Path, out_dir: Pa
             "entrySymbols",
             "bindings",
             "lastValidPolicy",
+            "requestedDrawShader",
         ],
         "operationsRun": [] if not package_ok else ["compileShader", "resize", "renderFrame", "captureFrame"],
         "shaderProgramId": shader_package.get("programId"),
+        "nativeDrawBoundary": native_draw_boundary,
     }
 
     if not compile_result["ok"]:
@@ -118,6 +125,38 @@ def run_interface_proof(fixture: dict[str, Any], fixture_path: Path, out_dir: Pa
         "frame_input": frame_input,
         "captured_frame": captured_frame,
     }, errors
+
+
+def evaluate_native_draw_boundary(
+    backend: dict[str, Any],
+    shader_package: dict[str, Any],
+) -> dict[str, Any]:
+    requested = shader_package.get("requestedDrawShader")
+    supported_languages = set(backend.get("capabilities", {}).get("shaderLanguages", []))
+    future_languages = set(backend.get("capabilities", {}).get("futureNativeLanguages", []))
+    if requested is None:
+        return {
+            "kind": "NativeDrawShaderBoundary",
+            "present": False,
+            "status": "notRequested",
+        }
+    language = requested.get("language")
+    native_source = requested.get("source")
+    native_supported = language in supported_languages
+    future_supported = language in future_languages or language == "HLSL_TIXL_DONOR"
+    return {
+        "kind": "NativeDrawShaderBoundary",
+        "present": True,
+        "status": "compileParityNotClaimed" if not native_supported else "supported",
+        "source": native_source,
+        "language": language,
+        "vertexShaderEntry": requested.get("vertexShaderEntry"),
+        "pixelShaderEntry": requested.get("pixelShaderEntry"),
+        "selectedMaterialId": requested.get("selectedMaterialId"),
+        "compileParity": requested.get("compileParity"),
+        "backendCanCompileNow": native_supported,
+        "futureNativeCandidate": future_supported,
+    }
 
 
 def compile_shader_program(
@@ -163,7 +202,12 @@ def build_frame_input(requested_frame: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_backend_status(backend: dict[str, Any], compile_result: dict[str, Any], requested_frame: dict[str, Any]) -> dict[str, Any]:
+def build_backend_status(
+    backend: dict[str, Any],
+    compile_result: dict[str, Any],
+    requested_frame: dict[str, Any],
+    native_draw_boundary: dict[str, Any],
+) -> dict[str, Any]:
     resolution = requested_frame.get("resolution", {})
     return {
         "kind": "RenderBackendStatus",
@@ -177,6 +221,9 @@ def build_backend_status(backend: dict[str, Any], compile_result: dict[str, Any]
         "viewportWidth": resolution.get("width", 0),
         "viewportHeight": resolution.get("height", 0),
         "viewportScale": requested_frame.get("viewportScale", 1),
+        "nativeDrawShaderStatus": native_draw_boundary.get("status"),
+        "nativeDrawShaderSource": native_draw_boundary.get("source"),
+        "nativeDrawShaderCanCompileNow": native_draw_boundary.get("backendCanCompileNow"),
     }
 
 

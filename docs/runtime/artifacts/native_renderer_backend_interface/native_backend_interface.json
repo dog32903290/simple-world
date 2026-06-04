@@ -16,7 +16,8 @@
     "stages",
     "entrySymbols",
     "bindings",
-    "lastValidPolicy"
+    "lastValidPolicy",
+    "requestedDrawShader"
   ],
   "operationsRun": [
     "compileShader",
@@ -24,5 +25,10 @@
     "renderFrame",
     "captureFrame"
   ],
-  "shaderProgramId": "program.sphere_sdf_raymarch.fragment"
+  "shaderProgramId": "program.sphere_sdf_raymarch.fragment",
+  "nativeDrawBoundary": {
+    "kind": "NativeDrawShaderBoundary",
+    "present": false,
+    "status": "notRequested"
+  }
 }
