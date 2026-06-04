@@ -1,0 +1,9 @@
+{
+  "width": 8,
+  "height": 8,
+  "byteCount": 256,
+  "nonBlack": true,
+  "varied": true,
+  "nonBlackPixels": 64,
+  "uniqueColorSamples": 64
+}

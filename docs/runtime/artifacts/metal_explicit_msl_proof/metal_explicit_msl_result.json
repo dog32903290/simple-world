@@ -1,0 +1,28 @@
+{
+  "kind": "MetalExplicitMslProof",
+  "graphId": "fixture.metal_explicit_msl_proof",
+  "ok": true,
+  "status": "rendered",
+  "backend": "Metal",
+  "width": 8,
+  "height": 8,
+  "byteCount": 256,
+  "message": "compiled explicit MSL, rendered offscreen RGBA8Unorm, and read back pixels",
+  "claims": {
+    "actualCompilerRan": true,
+    "actualMetalRan": true,
+    "rendererIntegration": false,
+    "nativeDrawShaderCompileProofIntegration": false,
+    "tixlHlslTranslation": false,
+    "pbrParity": false
+  },
+  "frameStats": {
+    "width": 8,
+    "height": 8,
+    "byteCount": 256,
+    "nonBlack": true,
+    "varied": true,
+    "nonBlackPixels": 64,
+    "uniqueColorSamples": 64
+  }
+}

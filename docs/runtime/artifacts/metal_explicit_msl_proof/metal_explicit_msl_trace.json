@@ -1,0 +1,27 @@
+[
+  {
+    "op": "loadMetalExplicitMslProof",
+    "fixture": "docs/runtime/fixtures/metal_explicit_msl_proof.graph.json"
+  },
+  {
+    "op": "validateExplicitMslFixture",
+    "graphId": "fixture.metal_explicit_msl_proof",
+    "hasExplicitMslSource": true,
+    "width": 8,
+    "height": 8
+  },
+  {
+    "op": "buildMetalProbe",
+    "compiler": "xcrun clang++",
+    "probe": "docs/runtime/native/metal_explicit_msl_probe.mm",
+    "exitCode": 0
+  },
+  {
+    "op": "runMetalProbe",
+    "exitCode": 0
+  },
+  {
+    "op": "publishMetalExplicitMslArtifacts",
+    "ok": true
+  }
+]
