@@ -1,0 +1,75 @@
+{
+  "kind": "TixlMeshDrawB5ShadergraphParamsExpansionVerdict",
+  "graphId": "fixture.tixl_mesh_draw_b5_shadergraph_params_expansion",
+  "ok": false,
+  "status": "blocked_b5_shadergraph_params_not_expanded",
+  "inputArtifacts": {
+    "sourceAudit": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+      "kind": "TixlMeshDrawShaderSourceAudit",
+      "ok": true,
+      "status": "audited_tixl_mesh_draw_source"
+    },
+    "constantBufferLayout": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+      "kind": "TixlMeshDrawConstantBufferLayoutProof",
+      "ok": true,
+      "status": "classified_tixl_mesh_draw_constant_buffer_layout",
+      "selectedStrategy": "handwritten_explicit_msl_adapter"
+    },
+    "pointlightsAndB5Packing": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_pointlights_and_b5_packing/tixl_mesh_draw_pointlights_and_b5_packing_result.json",
+      "kind": "TixlMeshDrawPointLightsAndB5PackingVerdict",
+      "ok": true,
+      "status": "proven_b3_pointlights_packing_b5_blocked",
+      "selectedStrategy": "handwritten_explicit_msl_adapter"
+    }
+  },
+  "sourceFacts": {
+    "meshDrawTemplate": {
+      "path": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+      "cbuffer": "Params",
+      "register": "b5",
+      "templateHole": "FLOAT_PARAMS"
+    },
+    "generator": {
+      "path": "external/tixl/Operators/Lib/field/render/_/GenerateShaderGraphCode.cs",
+      "collectsParamsWith": "ShaderGraphNode.CollectAllNodeParams",
+      "injectsParamsWith": "AssembleAndInjectParameters",
+      "writesFloatBufferWith": "CreateParameterBuffer(FloatParams, floatParams)"
+    },
+    "composition": {
+      "path": "external/tixl/Operators/Lib/mesh/draw/DrawMesh.t3",
+      "fragmentFieldFeedsGenerateShaderGraphCode": true
+    }
+  },
+  "expansion": {
+    "register": "b5",
+    "name": "Params",
+    "semanticRole": "shadergraph_duplicate_params",
+    "templateHole": "FLOAT_PARAMS",
+    "sourceAuditFields": [],
+    "layoutFields": [],
+    "expanded": false,
+    "reason": "b5 Params is generated from ShaderGraph FLOAT_PARAMS; current artifacts do not provide concrete source-backed fields."
+  },
+  "nextWork": {
+    "requiredNext": "produce_source_backed_shadergraph_param_expansion_artifact_for_b5"
+  },
+  "claims": {
+    "sourceAuditArtifactConsumed": true,
+    "constantBufferLayoutArtifactConsumed": true,
+    "pointlightsAndB5PackingArtifactConsumed": true,
+    "b3PointLightsPackingProven": true,
+    "b5ShadergraphParamsExpanded": false,
+    "b5FieldsSourceBacked": false,
+    "b5NativePackingReady": false,
+    "constantBufferAdapterComplete": false,
+    "textureSamplerMapping": false,
+    "fullPbrResourceBinding": false,
+    "backendReplacementReady": false,
+    "hlslToMslTranslation": false,
+    "tixlRuntimeParity": false,
+    "pbrVisualCorrectness": false
+  }
+}

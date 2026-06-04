@@ -1,0 +1,29 @@
+{
+  "graphId": "fixture.tixl_mesh_draw_b5_shadergraph_params_expansion",
+  "kind": "TixlMeshDrawB5ShadergraphParamsExpansionVerdict",
+  "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+  "constantBufferLayoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+  "pointlightsAndB5PackingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_pointlights_and_b5_packing/tixl_mesh_draw_pointlights_and_b5_packing_result.json",
+  "meshDrawTemplateSource": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+  "generateShaderGraphCodeSource": "external/tixl/Operators/Lib/field/render/_/GenerateShaderGraphCode.cs",
+  "drawMeshCompositionSource": "external/tixl/Operators/Lib/mesh/draw/DrawMesh.t3",
+  "expected": {
+    "status": "blocked_b5_shadergraph_params_not_expanded",
+    "claims": {
+      "sourceAuditArtifactConsumed": true,
+      "constantBufferLayoutArtifactConsumed": true,
+      "pointlightsAndB5PackingArtifactConsumed": true,
+      "b3PointLightsPackingProven": true,
+      "b5ShadergraphParamsExpanded": false,
+      "b5FieldsSourceBacked": false,
+      "b5NativePackingReady": false,
+      "constantBufferAdapterComplete": false,
+      "textureSamplerMapping": false,
+      "fullPbrResourceBinding": false,
+      "backendReplacementReady": false,
+      "hlslToMslTranslation": false,
+      "tixlRuntimeParity": false,
+      "pbrVisualCorrectness": false
+    }
+  }
+}

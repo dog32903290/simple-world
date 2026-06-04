@@ -81,11 +81,15 @@ consumes that prior proof and proves b3 PointLights native packing with a
 separate Metal compute readback for `PointLight[8]` stride, field offsets, and
 `ActiveLightCount`. b5 duplicate Params remains blocked because the current
 source audit/layout artifact has no concrete shadergraph param fields, so the
-full constant-buffer adapter is still not ready. The next required work is
-therefore:
+full constant-buffer adapter is still not ready. The TiXL mesh draw b5
+ShaderGraph params expansion verdict now narrows that blocker: b5 is the
+`/*{FLOAT_PARAMS}*/` hole in `mesh-Draw.hlsl`, filled by
+`GenerateShaderGraphCode` through `ShaderGraphNode.CollectAllNodeParams` and
+the `FloatParams` buffer, but current artifacts still have no concrete
+source-backed field list. The next required work is therefore:
 
 ```text
-expand_shadergraph_duplicate_params_b5_before_full_constant_buffer_adapter
+produce_source_backed_shadergraph_param_expansion_artifact_for_b5
 map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1
 expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates
 replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof

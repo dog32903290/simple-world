@@ -1,0 +1,28 @@
+[
+  {
+    "op": "loadB5ShadergraphParamsExpansionFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_b5_shadergraph_params_expansion.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+    "constantBufferLayoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+    "pointlightsAndB5PackingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_pointlights_and_b5_packing/tixl_mesh_draw_pointlights_and_b5_packing_result.json",
+    "meshDrawTemplateSource": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+    "generateShaderGraphCodeSource": "external/tixl/Operators/Lib/field/render/_/GenerateShaderGraphCode.cs",
+    "drawMeshCompositionSource": "external/tixl/Operators/Lib/mesh/draw/DrawMesh.t3"
+  },
+  {
+    "op": "validateB5ShadergraphExpansionInputs",
+    "sourceFactsValid": true,
+    "pointlightsVerdictValid": true,
+    "sourceAuditB5FieldCount": 0,
+    "layoutB5FieldCount": 0,
+    "layoutValid": true,
+    "sourceAuditValid": true
+  },
+  {
+    "op": "publishB5ShadergraphParamsExpansionArtifacts",
+    "ok": false
+  }
+]
