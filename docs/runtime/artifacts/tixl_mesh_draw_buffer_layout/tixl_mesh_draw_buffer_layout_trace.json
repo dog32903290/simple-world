@@ -1,0 +1,30 @@
+[
+  {
+    "op": "loadTixlMeshDrawBufferLayoutFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_buffer_layout.graph.json"
+  },
+  {
+    "op": "resolveDonorEvidence",
+    "donorLayoutSource": "external/tixl/Core/Rendering/PbrVertex.cs",
+    "donorLayoutSourceExists": true,
+    "donorShaderSource": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+    "donorShaderSourceExists": true,
+    "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+    "sourceAuditArtifactExists": true
+  },
+  {
+    "op": "summarizePbrVertexLayout",
+    "fieldCount": 8,
+    "strideBytes": 80
+  },
+  {
+    "op": "summarizeFaceIndicesLayout",
+    "found": true,
+    "strideBytes": 12,
+    "topology": "TriangleList"
+  },
+  {
+    "op": "publishTixlMeshDrawBufferLayoutArtifacts",
+    "ok": true
+  }
+]

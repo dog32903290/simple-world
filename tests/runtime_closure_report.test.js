@@ -61,10 +61,10 @@ test("RuntimeClosureReport shell emits a closure ledger from existing proof arti
   assert.ok(report.bounded.includes("native_hlsl_metal_compile"));
   assert.deepEqual(report.broken, []);
   assert.deepEqual(report.requiredNext, [
-    "provide_explicit_msl_for_tixl_draw_shader",
+    "implement_msl_draw_approximation_from_tixl_mesh_draw_buffer_layout",
     "prove_or_reject_hlsl_to_msl_translation_for_mesh_draw",
-    "prove_native_mesh_resource_binding_for_draw_shader",
-    "replace_bounded_backend_interface_after_hlsl_to_msl_and_resource_binding_proof",
+    "prove_native_mesh_resource_binding_against_pbrvertex_faceindices_layout",
+    "replace_bounded_backend_interface_after_msl_draw_and_resource_binding_proof",
   ]);
   assert.ok(!report.requiredNext.includes("implement_native_draw_shader_compile_parity"));
   assert.ok(!report.requiredNext.includes("replace_bounded_backend_interface_with_native_compile_proof"));

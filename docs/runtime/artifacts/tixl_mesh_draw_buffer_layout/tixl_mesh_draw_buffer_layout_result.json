@@ -1,0 +1,139 @@
+{
+  "kind": "TixlMeshDrawBufferLayoutProof",
+  "graphId": "fixture.tixl_mesh_draw_buffer_layout",
+  "ok": true,
+  "status": "summarized_tixl_mesh_draw_buffer_layout",
+  "evidence": {
+    "donorLayoutSource": {
+      "path": "external/tixl/Core/Rendering/PbrVertex.cs",
+      "sha256": "1e172a4255323dcd787488ef8a35b65852dc6f209170a5fc910cb2f1b254e531",
+      "lineCount": 33
+    },
+    "donorShaderSource": {
+      "path": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+      "sha256": "90e3c694a4580eaa8f378bfc1638343e55d786b62df12c83e476e96b1d1e4ca6",
+      "lineCount": 247
+    },
+    "sourceAuditArtifact": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+      "sha256": "bb0f01372bd9aabbb7e1552e1f315464362138f64a1513587a81b99987961855",
+      "kind": "TixlMeshDrawShaderSourceAudit",
+      "status": "audited_tixl_mesh_draw_source",
+      "ok": true
+    }
+  },
+  "pbrVertex": {
+    "struct": "PbrVertex",
+    "layoutKind": "Explicit",
+    "fields": [
+      {
+        "name": "Position",
+        "donorName": "Position",
+        "type": "float3",
+        "donorType": "Vector3",
+        "offsetBytes": 0,
+        "sizeBytes": 12,
+        "line": 8
+      },
+      {
+        "name": "Normal",
+        "donorName": "Normal",
+        "type": "float3",
+        "donorType": "Vector3",
+        "offsetBytes": 12,
+        "sizeBytes": 12,
+        "line": 11
+      },
+      {
+        "name": "Tangent",
+        "donorName": "Tangent",
+        "type": "float3",
+        "donorType": "Vector3",
+        "offsetBytes": 24,
+        "sizeBytes": 12,
+        "line": 14
+      },
+      {
+        "name": "Bitangent",
+        "donorName": "Bitangent",
+        "type": "float3",
+        "donorType": "Vector3",
+        "offsetBytes": 36,
+        "sizeBytes": 12,
+        "line": 17
+      },
+      {
+        "name": "TexCoord",
+        "donorName": "Texcoord",
+        "type": "float2",
+        "donorType": "Vector2",
+        "offsetBytes": 48,
+        "sizeBytes": 8,
+        "line": 20
+      },
+      {
+        "name": "TexCoord2",
+        "donorName": "Texcoord2",
+        "type": "float2",
+        "donorType": "Vector2",
+        "offsetBytes": 56,
+        "sizeBytes": 8,
+        "line": 23
+      },
+      {
+        "name": "Selected",
+        "donorName": "Selection",
+        "type": "float",
+        "donorType": "float",
+        "offsetBytes": 64,
+        "sizeBytes": 4,
+        "line": 26
+      },
+      {
+        "name": "ColorRGB",
+        "donorName": "ColorRgb",
+        "type": "float3",
+        "donorType": "Vector3",
+        "offsetBytes": 68,
+        "sizeBytes": 12,
+        "line": 29
+      }
+    ],
+    "strideBytes": 80
+  },
+  "faceIndices": {
+    "buffer": "FaceIndices",
+    "found": true,
+    "elementType": "int3",
+    "register": "t1",
+    "strideBytes": 12,
+    "topology": "TriangleList",
+    "drawVertexCountFormula": "faceCount * 3",
+    "triangulationClaimed": false
+  },
+  "drawContract": {
+    "topology": "TriangleList",
+    "drawVertexCountFormula": "faceCount * 3",
+    "triangulationClaimed": false
+  },
+  "semanticBlockers": [
+    {
+      "code": "metal_buffer_packing_parity_not_proven",
+      "message": "This lane fixes contract facts only; no Metal buffer packing proof has run."
+    },
+    {
+      "code": "tixl_runtime_parity_not_proven",
+      "message": "This lane reads donor layout evidence only; it does not run TiXL or compare runtime output."
+    },
+    {
+      "code": "visual_correctness_not_proven",
+      "message": "No draw, render, screenshot, or readback is performed in this lane."
+    }
+  ],
+  "claims": {
+    "contractLayoutSummarized": true,
+    "metalBufferPackingParity": false,
+    "tixlRuntimeParity": false,
+    "visualCorrectness": false
+  }
+}
