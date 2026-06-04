@@ -1,0 +1,70 @@
+[
+  {
+    "op": "loadTixlMeshDrawTextureCubePbrReferenceFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_texturecube_pbr_reference.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "sourceAudit": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+    "stageMrtMatrix": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json",
+    "textureSamplerBinding": "docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json",
+    "b5NativePacking": "docs/runtime/artifacts/tixl_mesh_draw_b5_native_packing/tixl_mesh_draw_b5_native_packing_result.json",
+    "shadergraphResourcesExpansion": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
+    "hlslToMslVerdict": "docs/runtime/artifacts/tixl_mesh_draw_hlsl_to_msl_verdict/tixl_mesh_draw_hlsl_to_msl_verdict_result.json"
+  },
+  {
+    "op": "readInputArtifacts",
+    "sourceAuditRead": true,
+    "stageMrtMatrixRead": true,
+    "textureSamplerBindingRead": true,
+    "b5NativePackingRead": true,
+    "shadergraphResourcesExpansionRead": true,
+    "hlslToMslVerdictRead": true
+  },
+  {
+    "op": "validateInputArtifacts",
+    "valid": true
+  },
+  {
+    "op": "validateFixtureExpectations",
+    "valid": true
+  },
+  {
+    "op": "runExplicitMetalTextureCubeProbe",
+    "generatedMslArtifact": "generated_texturecube_pbr_reference_probe.metal"
+  },
+  {
+    "op": "buildTextureCubePbrReferenceLedger",
+    "dimensions": {
+      "width": 4,
+      "height": 4,
+      "mipLevels": 2
+    },
+    "mip1Dimensions": {
+      "width": 2,
+      "height": 2
+    },
+    "sampleLevel0Rgba8": [
+      52,
+      86,
+      120,
+      255
+    ],
+    "sampleLevel1Rgba8": [
+      140,
+      30,
+      200,
+      255
+    ],
+    "boundedPbrSentinel": [
+      68,
+      62,
+      54,
+      255
+    ]
+  },
+  {
+    "op": "publishTixlMeshDrawTextureCubePbrReferenceArtifacts",
+    "ok": true
+  }
+]

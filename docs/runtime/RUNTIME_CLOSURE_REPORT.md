@@ -123,10 +123,21 @@ TextureCube behavior, prove full PBR, or replace the backend. The closure report
 now reads that artifact directly before removing
 `prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter` from
 `requiredNext`.
+The TiXL mesh draw TextureCube SampleLevel / GetDimensions proof now maps only
+that API pair into a tiny explicit Metal
+`texturecube.sample(..., level(0.0))`,
+`texturecube.sample(..., level(1.0))`, `get_width(0)`, `get_height(0)`,
+`get_width(1)`, `get_height(1)`, and `get_num_mip_levels()` probe, with exact
+4x4/2-mip dimensions plus separate mip-level RGBA8 sentinel readbacks.
+It also establishes `boundedPbrVisualReferenceEstablished` by generating and
+comparing a deterministic analytic sentinel before removing
+`prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference` from
+`requiredNext`, but it still leaves `pbrVisualCorrectness: false`,
+`fullPbrResourceBinding: false`, `hlslToMslTranslation: false`, and
+`backendReplacementReady: false`.
 The next required work is therefore:
 
 ```text
-prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference
 replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof
 ```
 

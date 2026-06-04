@@ -74,6 +74,16 @@ def main() -> int:
         "op": "readStageMrtMatrixArtifact",
         "artifact": display_path(stage_mrt_matrix_path, repo_root) if stage_mrt_matrix_path is not None else None,
     })
+    texturecube_pbr_reference_path = resolve_repo_path(repo_root, fixture_path, fixture.get("tixlMeshDrawTextureCubePbrReferenceArtifact"))
+    texturecube_pbr_reference = read_json(
+        texturecube_pbr_reference_path,
+        errors,
+        "runtime_closure.texturecube_pbr_reference_read_failed",
+        fallback={},
+        repo_root=repo_root,
+    ) if texturecube_pbr_reference_path is not None else {}
+    if texturecube_pbr_reference_path is None:
+        errors.append({"code": "runtime_closure.missing_texturecube_pbr_reference_artifact"})
     report = build_report(
         artifacts.get("pipelineSummary", {}),
         artifacts.get("commandStreamSummary", {}),
@@ -82,12 +92,14 @@ def main() -> int:
         artifacts.get("backendStatus", {}),
         shadergraph_resources,
         stage_mrt_matrix,
+        texturecube_pbr_reference,
         artifacts.get("pipelineErrors", []),
         errors,
         {
             **artifacts.get("evidence", {}),
             "shadergraphResourcesExpansion": display_path(shadergraph_resources_path, repo_root) if shadergraph_resources_path is not None else None,
             "stageMrtMatrix": display_path(stage_mrt_matrix_path, repo_root) if stage_mrt_matrix_path is not None else None,
+            "textureCubePbrReference": display_path(texturecube_pbr_reference_path, repo_root) if texturecube_pbr_reference_path is not None else None,
         },
         repo_root,
         graph_id=fixture.get("graphId"),
@@ -108,6 +120,15 @@ def main() -> int:
     trace.append({
         "op": "evaluateStageMrtMatrixSemantics",
         "proven": "tixl_mesh_draw_stage_mrt_matrix_semantics" in report["proven"],
+    })
+    trace.append({
+        "op": "readTextureCubePbrReferenceArtifact",
+        "artifact": display_path(texturecube_pbr_reference_path, repo_root) if texturecube_pbr_reference_path is not None else None,
+    })
+    trace.append({
+        "op": "evaluateTextureCubePbrReference",
+        "proven": "tixl_mesh_draw_texturecube_samplelevel_getdimensions" in report["proven"],
+        "bounded": "bounded_pbr_visual_reference" in report["bounded"],
     })
     trace.append({"op": "publishRuntimeClosureReport", "ok": report["ok"]})
     write_artifacts(out_dir, report, trace, errors)
@@ -139,6 +160,7 @@ def build_report(
     backend_status: dict[str, Any],
     shadergraph_resources: dict[str, Any],
     stage_mrt_matrix: dict[str, Any],
+    texturecube_pbr_reference: dict[str, Any],
     pipeline_errors: list[dict[str, Any]],
     errors: list[dict[str, Any]],
     evidence: dict[str, str],
@@ -173,6 +195,7 @@ def build_report(
 
     shadergraph_resources_ok = validate_shadergraph_resources_expansion(shadergraph_resources, errors, evidence.get("shadergraphResourcesExpansion"))
     stage_mrt_matrix_ok = validate_stage_mrt_matrix(stage_mrt_matrix, errors, evidence.get("stageMrtMatrix"))
+    texturecube_pbr_reference_ok = validate_texturecube_pbr_reference(texturecube_pbr_reference, errors, evidence.get("textureCubePbrReference"))
 
     core_pipeline_proven = (
         pipeline_ok
@@ -202,11 +225,23 @@ def build_report(
             bounded.append("shadergraph_t8_resources_empty_for_sphere_sdf_fixture")
             if stage_mrt_matrix_ok:
                 proven.append("tixl_mesh_draw_stage_mrt_matrix_semantics")
-                required_next.extend([
-                    item
-                    for item in REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND
-                    if item != "prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter"
-                ])
+                if texturecube_pbr_reference_ok:
+                    proven.append("tixl_mesh_draw_texturecube_samplelevel_getdimensions")
+                    bounded.append("bounded_pbr_visual_reference")
+                    required_next.extend([
+                        item
+                        for item in REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND
+                        if item not in (
+                            "prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter",
+                            "prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference",
+                        )
+                    ])
+                else:
+                    required_next.extend([
+                        item
+                        for item in REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND
+                        if item != "prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter"
+                    ])
             else:
                 required_next.extend(REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND)
         else:
@@ -216,12 +251,14 @@ def build_report(
 
     native_compile_is_bounded = "native_hlsl_metal_compile" in bounded
     shadergraph_resources_are_bounded = "shadergraph_t8_resources_empty_for_sphere_sdf_fixture" in bounded
+    texturecube_pbr_is_closed = "tixl_mesh_draw_texturecube_samplelevel_getdimensions" in proven and "bounded_pbr_visual_reference" in bounded
     ok = (
         not errors
         and not broken
         and "core_headless_pipeline" in proven
         and native_compile_is_bounded
         and shadergraph_resources_are_bounded
+        and texturecube_pbr_is_closed
     )
     overall_status = "proven_with_bounded_native_backend" if ok else "broken"
 
@@ -242,6 +279,7 @@ def build_report(
             "nonBlackSample": non_black_sample,
             "shadergraphResourcesExpansionStatus": shadergraph_resources.get("status"),
             "stageMrtMatrixStatus": stage_mrt_matrix.get("status"),
+            "textureCubePbrReferenceStatus": texturecube_pbr_reference.get("status"),
         },
         "evidence": evidence,
     }
@@ -394,6 +432,80 @@ def validate_stage_mrt_matrix(artifact: dict[str, Any], errors: list[dict[str, A
     if mismatches:
         errors.append({
             "code": "runtime_closure.stage_mrt_matrix_not_proven",
+            "path": path,
+            "mismatches": mismatches,
+        })
+        return False
+    return True
+
+
+def validate_texturecube_pbr_reference(artifact: dict[str, Any], errors: list[dict[str, Any]], path: str | None) -> bool:
+    claims = artifact.get("claims") if isinstance(artifact.get("claims"), dict) else {}
+    expected_true = {
+        "sourceAuditArtifactConsumed",
+        "stageMrtMatrixArtifactConsumed",
+        "textureSamplerBindingArtifactConsumed",
+        "b5NativePackingArtifactConsumed",
+        "shadergraphResourcesExpansionArtifactConsumed",
+        "hlslToMslVerdictArtifactConsumed",
+        "actualMetalTextureCubeProbeRan",
+        "textureCubeSampleLevelProven",
+        "textureCubeGetDimensionsProven",
+        "boundedPbrVisualReferenceEstablished",
+    }
+    expected_false = {
+        "fullPbrResourceBinding",
+        "backendReplacementReady",
+        "hlslToMslTranslation",
+        "tixlRuntimeParity",
+        "pbrVisualCorrectness",
+        "rendererIntegrationComplete",
+        "fullTextureSamplerMapping",
+        "nativeCompileParity",
+    }
+    probe = artifact.get("textureCubeApiProbe") if isinstance(artifact.get("textureCubeApiProbe"), dict) else {}
+    reference = artifact.get("boundedPbrVisualReference") if isinstance(artifact.get("boundedPbrVisualReference"), dict) else {}
+    comparison = reference.get("comparison") if isinstance(reference.get("comparison"), dict) else {}
+    mismatches: list[dict[str, Any]] = []
+    if artifact.get("kind") != "TixlMeshDrawTextureCubePbrReferenceProof":
+        mismatches.append({"field": "kind", "expected": "TixlMeshDrawTextureCubePbrReferenceProof", "actual": artifact.get("kind")})
+    if artifact.get("graphId") != "fixture.tixl_mesh_draw_texturecube_pbr_reference":
+        mismatches.append({"field": "graphId", "expected": "fixture.tixl_mesh_draw_texturecube_pbr_reference", "actual": artifact.get("graphId")})
+    if artifact.get("ok") is not True:
+        mismatches.append({"field": "ok", "expected": True, "actual": artifact.get("ok")})
+    if artifact.get("status") != "proven_texturecube_samplelevel_getdimensions_and_bounded_pbr_reference":
+        mismatches.append({"field": "status", "expected": "proven_texturecube_samplelevel_getdimensions_and_bounded_pbr_reference", "actual": artifact.get("status")})
+    for field in sorted(expected_true):
+        if claims.get(field) is not True:
+            mismatches.append({"field": f"claims.{field}", "expected": True, "actual": claims.get(field)})
+    for field in sorted(expected_false):
+        if claims.get(field) is not False:
+            mismatches.append({"field": f"claims.{field}", "expected": False, "actual": claims.get(field)})
+    if probe.get("status") != "proven_texturecube_samplelevel_getdimensions_probe":
+        mismatches.append({"field": "textureCubeApiProbe.status", "expected": "proven_texturecube_samplelevel_getdimensions_probe", "actual": probe.get("status")})
+    if probe.get("actualCompilerRan") is not True or probe.get("actualMetalRan") is not True:
+        mismatches.append({"field": "textureCubeApiProbe.actualMetalRan", "expected": True, "actual": {"actualCompilerRan": probe.get("actualCompilerRan"), "actualMetalRan": probe.get("actualMetalRan")}})
+    if probe.get("dimensions") != {"width": 4, "height": 4, "mipLevels": 2}:
+        mismatches.append({"field": "textureCubeApiProbe.dimensions", "expected": {"width": 4, "height": 4, "mipLevels": 2}, "actual": probe.get("dimensions")})
+    if probe.get("mip1Dimensions") != {"width": 2, "height": 2}:
+        mismatches.append({"field": "textureCubeApiProbe.mip1Dimensions", "expected": {"width": 2, "height": 2}, "actual": probe.get("mip1Dimensions")})
+    if probe.get("sampleLevel0Rgba8") != [52, 86, 120, 255]:
+        mismatches.append({"field": "textureCubeApiProbe.sampleLevel0Rgba8", "expected": [52, 86, 120, 255], "actual": probe.get("sampleLevel0Rgba8")})
+    if probe.get("sampleLevel1Rgba8") != [140, 30, 200, 255]:
+        mismatches.append({"field": "textureCubeApiProbe.sampleLevel1Rgba8", "expected": [140, 30, 200, 255], "actual": probe.get("sampleLevel1Rgba8")})
+    if probe.get("generatedMslArtifact") != "generated_texturecube_pbr_reference_probe.metal":
+        mismatches.append({"field": "textureCubeApiProbe.generatedMslArtifact", "expected": "generated_texturecube_pbr_reference_probe.metal", "actual": probe.get("generatedMslArtifact")})
+    if reference.get("kind") != "analytic_sentinel":
+        mismatches.append({"field": "boundedPbrVisualReference.kind", "expected": "analytic_sentinel", "actual": reference.get("kind")})
+    if reference.get("sentinelRgba8") != [68, 62, 54, 255]:
+        mismatches.append({"field": "boundedPbrVisualReference.sentinelRgba8", "expected": [68, 62, 54, 255], "actual": reference.get("sentinelRgba8")})
+    if comparison.get("status") != "matched_bounded_sentinel":
+        mismatches.append({"field": "boundedPbrVisualReference.comparison.status", "expected": "matched_bounded_sentinel", "actual": comparison.get("status")})
+    if comparison.get("expectedRgba8") != [68, 62, 54, 255] or comparison.get("actualRgba8") != [68, 62, 54, 255]:
+        mismatches.append({"field": "boundedPbrVisualReference.comparison.rgba8", "expected": [68, 62, 54, 255], "actual": {"expectedRgba8": comparison.get("expectedRgba8"), "actualRgba8": comparison.get("actualRgba8")}})
+    if mismatches:
+        errors.append({
+            "code": "runtime_closure.texturecube_pbr_reference_not_proven",
             "path": path,
             "mismatches": mismatches,
         })

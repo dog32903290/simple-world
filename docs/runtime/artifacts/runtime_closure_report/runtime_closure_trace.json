@@ -33,6 +33,15 @@
     "proven": true
   },
   {
+    "op": "readTextureCubePbrReferenceArtifact",
+    "artifact": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json"
+  },
+  {
+    "op": "evaluateTextureCubePbrReference",
+    "proven": true,
+    "bounded": true
+  },
+  {
     "op": "publishRuntimeClosureReport",
     "ok": true
   }

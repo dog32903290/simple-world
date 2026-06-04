@@ -1,0 +1,74 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.tixl_mesh_draw_texturecube_pbr_reference",
+  "kind": "TixlMeshDrawTextureCubePbrReferenceProof",
+  "metadata": {
+    "purpose": "Prove only TextureCube SampleLevel/GetDimensions API mapping and a bounded PBR visual reference sentinel for the handwritten mesh draw adapter lane."
+  },
+  "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+  "stageMrtMatrixArtifact": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json",
+  "textureSamplerBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json",
+  "b5NativePackingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_b5_native_packing/tixl_mesh_draw_b5_native_packing_result.json",
+  "shadergraphResourcesExpansionArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
+  "hlslToMslVerdictArtifact": "docs/runtime/artifacts/tixl_mesh_draw_hlsl_to_msl_verdict/tixl_mesh_draw_hlsl_to_msl_verdict_result.json",
+  "textureCubeApiMapping": {
+    "sourceApi": [
+      "TextureCube.SampleLevel",
+      "TextureCube.GetDimensions"
+    ],
+    "metalApi": [
+      "texturecube.sample(..., level(0.0))",
+      "texturecube.sample(..., level(1.0))",
+      "get_width(0)",
+      "get_height(0)",
+      "get_width(1)",
+      "get_height(1)",
+      "get_num_mip_levels()"
+    ]
+  },
+  "boundedPbrVisualReference": {
+    "kind": "analytic_sentinel",
+    "inputLevel0Rgba8": [
+      52,
+      86,
+      120,
+      255
+    ],
+    "inputLevel1Rgba8": [
+      140,
+      30,
+      200,
+      255
+    ],
+    "expectedSentinelRgba8": [
+      68,
+      62,
+      54,
+      255
+    ],
+    "comparison": "exact_rgba8"
+  },
+  "expected": {
+    "status": "proven_texturecube_samplelevel_getdimensions_and_bounded_pbr_reference",
+    "claims": {
+      "sourceAuditArtifactConsumed": true,
+      "stageMrtMatrixArtifactConsumed": true,
+      "textureSamplerBindingArtifactConsumed": true,
+      "b5NativePackingArtifactConsumed": true,
+      "shadergraphResourcesExpansionArtifactConsumed": true,
+      "hlslToMslVerdictArtifactConsumed": true,
+      "actualMetalTextureCubeProbeRan": true,
+      "textureCubeSampleLevelProven": true,
+      "textureCubeGetDimensionsProven": true,
+      "boundedPbrVisualReferenceEstablished": true,
+      "fullPbrResourceBinding": false,
+      "backendReplacementReady": false,
+      "hlslToMslTranslation": false,
+      "tixlRuntimeParity": false,
+      "pbrVisualCorrectness": false,
+      "rendererIntegrationComplete": false,
+      "fullTextureSamplerMapping": false,
+      "nativeCompileParity": false
+    }
+  }
+}

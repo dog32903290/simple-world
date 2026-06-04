@@ -5,15 +5,16 @@
   "overallStatus": "proven_with_bounded_native_backend",
   "proven": [
     "core_headless_pipeline",
-    "tixl_mesh_draw_stage_mrt_matrix_semantics"
+    "tixl_mesh_draw_stage_mrt_matrix_semantics",
+    "tixl_mesh_draw_texturecube_samplelevel_getdimensions"
   ],
   "bounded": [
     "native_hlsl_metal_compile",
-    "shadergraph_t8_resources_empty_for_sphere_sdf_fixture"
+    "shadergraph_t8_resources_empty_for_sphere_sdf_fixture",
+    "bounded_pbr_visual_reference"
   ],
   "broken": [],
   "requiredNext": [
-    "prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference",
     "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof"
   ],
   "summary": {
@@ -23,7 +24,8 @@
     "backendCanCompileNow": false,
     "nonBlackSample": true,
     "shadergraphResourcesExpansionStatus": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
-    "stageMrtMatrixStatus": "proven_tixl_mesh_draw_stage_mrt_matrix_semantics"
+    "stageMrtMatrixStatus": "proven_tixl_mesh_draw_stage_mrt_matrix_semantics",
+    "textureCubePbrReferenceStatus": "proven_texturecube_samplelevel_getdimensions_and_bounded_pbr_reference"
   },
   "evidence": {
     "pipelineSummary": "docs/runtime/artifacts/native_render_pipeline/pipeline_summary.json",
@@ -33,6 +35,7 @@
     "backendStatus": "docs/runtime/artifacts/native_render_pipeline/native_backend/backend_status.json",
     "pipelineErrors": "docs/runtime/artifacts/native_render_pipeline/native_render_pipeline_errors.json",
     "shadergraphResourcesExpansion": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
-    "stageMrtMatrix": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json"
+    "stageMrtMatrix": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json",
+    "textureCubePbrReference": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json"
   }
 }
