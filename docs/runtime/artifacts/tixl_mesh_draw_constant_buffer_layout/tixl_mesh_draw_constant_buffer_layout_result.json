@@ -1,0 +1,286 @@
+{
+  "kind": "TixlMeshDrawConstantBufferLayoutProof",
+  "graphId": "fixture.tixl_mesh_draw_constant_buffer_layout",
+  "ok": true,
+  "status": "classified_tixl_mesh_draw_constant_buffer_layout",
+  "selectedStrategy": "handwritten_explicit_msl_adapter",
+  "inputArtifacts": {
+    "sourceAudit": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+      "kind": "TixlMeshDrawShaderSourceAudit",
+      "ok": true,
+      "status": "audited_tixl_mesh_draw_source"
+    },
+    "explicitTranslationStrategy": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_explicit_translation_strategy/tixl_mesh_draw_explicit_translation_strategy_result.json",
+      "kind": "TixlMeshDrawExplicitTranslationStrategy",
+      "ok": true,
+      "status": "selected_handwritten_explicit_msl_adapter"
+    }
+  },
+  "acceptanceGates": [
+    {
+      "code": "valid_source_audit_artifact",
+      "passed": true
+    },
+    {
+      "code": "selected_handwritten_explicit_msl_adapter_consumed",
+      "passed": true
+    },
+    {
+      "code": "exact_b0_b5_layout_classified",
+      "passed": true
+    },
+    {
+      "code": "duplicate_params_disambiguated",
+      "passed": true
+    },
+    {
+      "code": "constant_buffer_policy_bounded_partial",
+      "passed": true
+    },
+    {
+      "code": "native_packing_proof_still_required",
+      "passed": true
+    },
+    {
+      "code": "no_texture_sampler_or_backend_claims",
+      "passed": true
+    }
+  ],
+  "constantBufferRegisters": [
+    "b0",
+    "b1",
+    "b2",
+    "b3",
+    "b4",
+    "b5"
+  ],
+  "constantBuffers": [
+    {
+      "register": "b0",
+      "name": "Transforms",
+      "semanticRole": "mesh_draw_transforms",
+      "fields": [
+        {
+          "name": "CameraToClipSpace",
+          "type": "float4x4"
+        },
+        {
+          "name": "ClipSpaceToCamera",
+          "type": "float4x4"
+        },
+        {
+          "name": "WorldToCamera",
+          "type": "float4x4"
+        },
+        {
+          "name": "CameraToWorld",
+          "type": "float4x4"
+        },
+        {
+          "name": "WorldToClipSpace",
+          "type": "float4x4"
+        },
+        {
+          "name": "ClipSpaceToWorld",
+          "type": "float4x4"
+        },
+        {
+          "name": "ObjectToWorld",
+          "type": "float4x4"
+        },
+        {
+          "name": "WorldToObject",
+          "type": "float4x4"
+        },
+        {
+          "name": "ObjectToCamera",
+          "type": "float4x4"
+        },
+        {
+          "name": "ObjectToClipSpace",
+          "type": "float4x4"
+        }
+      ]
+    },
+    {
+      "register": "b1",
+      "name": "Params",
+      "semanticRole": "mesh_draw_material_params",
+      "fields": [
+        {
+          "name": "Color",
+          "type": "float4"
+        },
+        {
+          "name": "AlphaCutOff",
+          "type": "float"
+        },
+        {
+          "name": "UseFlatShading",
+          "type": "float"
+        },
+        {
+          "name": "SpecularAA",
+          "type": "float"
+        }
+      ]
+    },
+    {
+      "register": "b2",
+      "name": "FogParams",
+      "semanticRole": "mesh_draw_fog_params",
+      "fields": [
+        {
+          "name": "FogColor",
+          "type": "float4"
+        },
+        {
+          "name": "FogDistance",
+          "type": "float"
+        },
+        {
+          "name": "FogBias",
+          "type": "float"
+        }
+      ]
+    },
+    {
+      "register": "b3",
+      "name": "PointLights",
+      "semanticRole": "mesh_draw_point_lights",
+      "fields": [
+        {
+          "name": "Lights",
+          "type": "PointLight",
+          "array": "[8]"
+        },
+        {
+          "name": "ActiveLightCount",
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "register": "b4",
+      "name": "PbrParams",
+      "semanticRole": "mesh_draw_pbr_params",
+      "fields": [
+        {
+          "name": "BaseColor",
+          "type": "float4"
+        },
+        {
+          "name": "EmissiveColor",
+          "type": "float4"
+        },
+        {
+          "name": "Roughness",
+          "type": "float"
+        },
+        {
+          "name": "Specular",
+          "type": "float"
+        },
+        {
+          "name": "Metal",
+          "type": "float"
+        }
+      ]
+    },
+    {
+      "register": "b5",
+      "name": "Params",
+      "semanticRole": "shadergraph_duplicate_params",
+      "fields": []
+    }
+  ],
+  "duplicateNamePolicy": {
+    "name": "Params",
+    "b1": {
+      "register": "b1",
+      "semanticRole": "mesh_draw_material_params"
+    },
+    "b5": {
+      "register": "b5",
+      "semanticRole": "shadergraph_duplicate_params",
+      "disambiguatedFrom": "b1:Params",
+      "fieldsKnownFromSourceAudit": false
+    }
+  },
+  "bindingPolicy": {
+    "readiness": "bounded_partial",
+    "reservedAfterMeshBuffers": [
+      "PbrVertices t0 -> buffer(0)",
+      "FaceIndices t1 -> buffer(1)"
+    ],
+    "reservedMetalBufferRange": [
+      2,
+      7
+    ],
+    "candidateMapping": [
+      {
+        "sourceRegister": "b0",
+        "sourceName": "Transforms",
+        "metalBuffer": 2
+      },
+      {
+        "sourceRegister": "b1",
+        "sourceName": "Params",
+        "semanticRole": "mesh_draw_material_params",
+        "metalBuffer": 3
+      },
+      {
+        "sourceRegister": "b2",
+        "sourceName": "FogParams",
+        "metalBuffer": 4
+      },
+      {
+        "sourceRegister": "b3",
+        "sourceName": "PointLights",
+        "metalBuffer": 5
+      },
+      {
+        "sourceRegister": "b4",
+        "sourceName": "PbrParams",
+        "metalBuffer": 6
+      },
+      {
+        "sourceRegister": "b5",
+        "sourceName": "Params",
+        "semanticRole": "shadergraph_duplicate_params",
+        "metalBuffer": 7
+      }
+    ],
+    "nativePackingProofRequired": true,
+    "backendBindingImplemented": false,
+    "textureSamplerMappingIncluded": false
+  },
+  "semanticBlockers": [
+    {
+      "code": "b0_b5_layout_needs_native_packing_proof",
+      "reason": "Source audit records HLSL constants, but no native Metal struct packing probe has verified offsets or alignment."
+    },
+    {
+      "code": "texture_sampler_mapping_not_in_scope",
+      "reason": "This lane classifies cbuffers only; t2-t7 textures and s0-s1 samplers remain pending."
+    },
+    {
+      "code": "backend_replacement_not_ready",
+      "reason": "The bounded partial policy is not a backend binding implementation."
+    }
+  ],
+  "claims": {
+    "selectedStrategyConsumed": true,
+    "constantBufferLayoutClassified": true,
+    "constantBufferBindingPolicyReady": "bounded_partial",
+    "b0b5LayoutNeedsNativePackingProof": true,
+    "textureSamplerMapping": false,
+    "fullPbrResourceBinding": false,
+    "backendReplacementReady": false,
+    "hlslToMslTranslation": false,
+    "tixlRuntimeParity": false,
+    "pbrVisualCorrectness": false
+  }
+}

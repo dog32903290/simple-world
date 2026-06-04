@@ -1,0 +1,30 @@
+[
+  {
+    "op": "loadTixlMeshDrawConstantBufferLayoutFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_constant_buffer_layout.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+    "strategyArtifact": "docs/runtime/artifacts/tixl_mesh_draw_explicit_translation_strategy/tixl_mesh_draw_explicit_translation_strategy_result.json"
+  },
+  {
+    "op": "readInputArtifacts",
+    "sourceAuditRead": true,
+    "strategyRead": true
+  },
+  {
+    "op": "validateInputArtifacts",
+    "sourceAuditValid": true,
+    "strategyValid": true
+  },
+  {
+    "op": "classifyConstantBufferLayout",
+    "constantBufferCount": 6,
+    "bindingPolicyReadiness": "bounded_partial"
+  },
+  {
+    "op": "publishTixlMeshDrawConstantBufferLayoutArtifacts",
+    "ok": true
+  }
+]
