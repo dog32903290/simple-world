@@ -65,12 +65,18 @@ t0-t7 textures/cubes, s0-s1 samplers, t8+ template resources, TiXL template
 holes, duplicate `Params`, global frag state, derivatives, discard, MRT outputs,
 D3D system semantics, D3D `mul(vector, matrix)`, and TextureCube
 `SampleLevel`/`GetDimensions`. Those lanes narrow the blocker but do not replace
-the remaining proof:
+the remaining proof. The TiXL mesh draw explicit translation strategy lane now
+selects `handwritten_explicit_msl_adapter` as the short-term route and leaves a
+full cross-compiler unselected; it only records the strategy after the rejected
+mechanical verdict. It still acknowledges that the observed adapter is limited
+to t0/t1 packed mesh buffers and is not ready for full PBR resource binding or
+backend replacement. The next required work is therefore:
 
 ```text
-replace_rejected_mechanical_hlsl_to_msl_with_explicit_mesh_draw_translation_strategy
-bind_full_pbr_texture_sampler_set_after_explicit_mesh_draw_translation_strategy
-replace_bounded_backend_interface_after_resource_binding_and_explicit_translation_proof
+prove_handwritten_explicit_msl_adapter_constant_buffer_layout_b0_b5
+map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1
+expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates
+replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof
 ```
 
 ## Failure Law

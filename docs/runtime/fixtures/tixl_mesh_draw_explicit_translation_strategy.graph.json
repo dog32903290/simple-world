@@ -1,0 +1,52 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.tixl_mesh_draw_explicit_translation_strategy",
+  "kind": "TixlMeshDrawExplicitTranslationStrategy",
+  "metadata": {
+    "purpose": "Select the next bounded TiXL mesh draw translation route after the HLSL-to-MSL verdict rejected mechanical translation for mesh draw parity."
+  },
+  "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+  "verdictArtifact": "docs/runtime/artifacts/tixl_mesh_draw_hlsl_to_msl_verdict/tixl_mesh_draw_hlsl_to_msl_verdict_result.json",
+  "resourceBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+  "expected": {
+    "status": "selected_handwritten_explicit_msl_adapter",
+    "claims": {
+      "mechanicalTranslationRejected": true,
+      "selectedStrategy": "handwritten_explicit_msl_adapter",
+      "fullCrossCompilerSelected": false,
+      "explicitAdapterReadyForFullPbr": false,
+      "fullPbrResourceBinding": false,
+      "backendReplacementReady": false,
+      "tixlRuntimeParity": false,
+      "hlslToMslTranslation": false,
+      "pbrVisualCorrectness": false
+    },
+    "nextAdapterGates": [
+      "constant buffer layout b0-b5",
+      "texture/sampler mapping t2-t7/s0-s1",
+      "t8+ shadergraph expansion",
+      "MRT contract",
+      "stage semantics",
+      "matrix convention",
+      "cube mip query",
+      "PBR visual reference"
+    ],
+    "requiredVerdictBlockerCodes": [
+      "cbuffer_register_set_requires_explicit_layout_policy",
+      "texture_and_cube_register_set_requires_resource_mapping",
+      "sampler_register_set_requires_sampler_mapping",
+      "template_resources_t8_plus_require_tixl_expansion",
+      "template_holes_require_tixl_shadergraph_expansion",
+      "duplicate_params_cbuffer_requires_disambiguation",
+      "global_frag_state_requires_rewrite",
+      "derivatives_require_fragment_stage_mapping",
+      "discard_requires_fragment_control_flow_mapping",
+      "mrt_sv_target_outputs_require_render_target_contract",
+      "system_semantics_require_stage_attribute_mapping",
+      "d3d_mul_order_requires_matrix_convention_proof",
+      "texturecube_samplelevel_getdimensions_requires_msl_texture_mapping",
+      "pbr_visual_reference_missing",
+      "resource_binding_proof_is_partial"
+    ]
+  }
+}

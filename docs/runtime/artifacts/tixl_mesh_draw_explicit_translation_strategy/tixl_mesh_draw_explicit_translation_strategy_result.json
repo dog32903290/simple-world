@@ -1,0 +1,162 @@
+{
+  "kind": "TixlMeshDrawExplicitTranslationStrategy",
+  "graphId": "fixture.tixl_mesh_draw_explicit_translation_strategy",
+  "ok": true,
+  "status": "selected_handwritten_explicit_msl_adapter",
+  "selectedStrategy": "handwritten_explicit_msl_adapter",
+  "rejectedStrategy": "mechanical_hlsl_to_msl_translation",
+  "unselectedLargerStrategy": "full_cross_compiler",
+  "message": "mechanical HLSL-to-MSL mesh draw parity is rejected; short-term work should use an explicit handwritten MSL mesh draw adapter with bounded gates",
+  "inputArtifacts": {
+    "sourceAudit": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+      "kind": "TixlMeshDrawShaderSourceAudit",
+      "ok": true,
+      "status": "audited_tixl_mesh_draw_source"
+    },
+    "hlslToMslVerdict": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_hlsl_to_msl_verdict/tixl_mesh_draw_hlsl_to_msl_verdict_result.json",
+      "kind": "TixlMeshDrawHlslToMslTranslationVerdict",
+      "ok": true,
+      "status": "rejected_for_mesh_draw_parity"
+    },
+    "resourceBinding": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+      "kind": "TixlMeshDrawResourceBindingProof",
+      "ok": true,
+      "status": "summarized_tixl_mesh_draw_resource_binding"
+    }
+  },
+  "acceptanceGates": [
+    {
+      "code": "valid_source_audit_artifact",
+      "required": "TixlMeshDrawShaderSourceAudit ok with b0-b5, t0-t7, s0-s1, and template holes recorded",
+      "passed": true
+    },
+    {
+      "code": "valid_rejected_hlsl_to_msl_verdict_artifact",
+      "required": "TixlMeshDrawHlslToMslTranslationVerdict ok with status rejected_for_mesh_draw_parity",
+      "passed": true
+    },
+    {
+      "code": "mechanical_translation_rejected",
+      "required": "verdict claims hlslToMslTranslation false and backendReplacementReady false",
+      "passed": true
+    },
+    {
+      "code": "observed_adapter_limited_to_t0_t1",
+      "required": "resource binding ledger observes only PbrVertices t0 and FaceIndices t1",
+      "passed": true
+    },
+    {
+      "code": "pending_full_pbr_resource_binding_acknowledged",
+      "required": "PBR cbuffers/textures/samplers and t8+ shadergraph resources remain pending",
+      "passed": true
+    },
+    {
+      "code": "selected_handwritten_explicit_msl_adapter",
+      "required": "short-term strategy is an explicit handwritten MSL mesh draw adapter",
+      "passed": true
+    },
+    {
+      "code": "full_cross_compiler_not_selected",
+      "required": "full cross-compiler remains an unselected larger route",
+      "passed": true
+    }
+  ],
+  "evidence": {
+    "sourceAudit": {
+      "status": "audited_tixl_mesh_draw_source",
+      "requiredBufferRegisters": [
+        "b0",
+        "b1",
+        "b2",
+        "b3",
+        "b4",
+        "b5"
+      ],
+      "resourceRegisters": [
+        "t0",
+        "t1",
+        "t2",
+        "t3",
+        "t4",
+        "t5",
+        "t6",
+        "t7"
+      ],
+      "samplerRegisters": [
+        "s0",
+        "s1"
+      ],
+      "templateHoles": [
+        "FIELD_CALL",
+        "FIELD_FUNCTIONS",
+        "FLOAT_PARAMS",
+        "GLOBALS",
+        "RESOURCES(t8)"
+      ]
+    },
+    "verdict": {
+      "status": "rejected_for_mesh_draw_parity",
+      "mechanicalTranslationStatus": "rejected_for_mesh_draw_parity",
+      "requiredBlockerCodes": [
+        "cbuffer_register_set_requires_explicit_layout_policy",
+        "texture_and_cube_register_set_requires_resource_mapping",
+        "sampler_register_set_requires_sampler_mapping",
+        "template_resources_t8_plus_require_tixl_expansion",
+        "template_holes_require_tixl_shadergraph_expansion",
+        "duplicate_params_cbuffer_requires_disambiguation",
+        "global_frag_state_requires_rewrite",
+        "derivatives_require_fragment_stage_mapping",
+        "discard_requires_fragment_control_flow_mapping",
+        "mrt_sv_target_outputs_require_render_target_contract",
+        "system_semantics_require_stage_attribute_mapping",
+        "d3d_mul_order_requires_matrix_convention_proof",
+        "texturecube_samplelevel_getdimensions_requires_msl_texture_mapping",
+        "pbr_visual_reference_missing",
+        "resource_binding_proof_is_partial"
+      ]
+    },
+    "observedAdapter": {
+      "name": "packed_mesh_buffer_adapter",
+      "source": "TixlMeshDrawMslApproxProof via TixlMeshDrawResourceBindingProof",
+      "boundRegisters": [
+        "t0",
+        "t1"
+      ],
+      "boundResources": [
+        "PbrVertices",
+        "FaceIndices"
+      ],
+      "scope": "t0/t1 packed PbrVertices and FaceIndices only"
+    },
+    "pendingResourceFamilies": [
+      "b0-b5",
+      "t2-t7",
+      "s0-s1",
+      "t8+"
+    ]
+  },
+  "nextAdapterGates": [
+    "constant buffer layout b0-b5",
+    "texture/sampler mapping t2-t7/s0-s1",
+    "t8+ shadergraph expansion",
+    "MRT contract",
+    "stage semantics",
+    "matrix convention",
+    "cube mip query",
+    "PBR visual reference"
+  ],
+  "claims": {
+    "mechanicalTranslationRejected": true,
+    "selectedStrategy": "handwritten_explicit_msl_adapter",
+    "fullCrossCompilerSelected": false,
+    "explicitAdapterReadyForFullPbr": false,
+    "fullPbrResourceBinding": false,
+    "backendReplacementReady": false,
+    "tixlRuntimeParity": false,
+    "hlslToMslTranslation": false,
+    "pbrVisualCorrectness": false
+  }
+}
