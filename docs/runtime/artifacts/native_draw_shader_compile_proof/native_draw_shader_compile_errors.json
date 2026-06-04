@@ -1,0 +1,10 @@
+[
+  {
+    "code": "native_draw_shader_compile.native_source_missing",
+    "programId": "program.sphere_sdf_raymarch.fragment",
+    "sourceLanguage": "HLSL_TIXL_DONOR",
+    "sourceDerivedFrom": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+    "donorSource": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+    "message": "requestedDrawShader has no explicit nativeSource; donor metadata is not native compile proof."
+  }
+]

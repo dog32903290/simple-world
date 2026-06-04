@@ -1,0 +1,24 @@
+[
+  {
+    "op": "loadNativeDrawShaderCompileProof",
+    "fixture": "docs/runtime/fixtures/native_draw_shader_compile_proof.graph.json"
+  },
+  {
+    "op": "loadShaderProgramPackage",
+    "package": "docs/runtime/artifacts/native_render_pipeline/shader_program/shader_program_package.json"
+  },
+  {
+    "op": "validateRequestedDrawShader",
+    "programId": "program.sphere_sdf_raymarch.fragment",
+    "hasRequestedDrawShader": true
+  },
+  {
+    "op": "blockDonorHlslNativeCompileClaim",
+    "sourceLanguage": "HLSL_TIXL_DONOR",
+    "donorSource": "Lib:shaders/3d/mesh/mesh-Draw.hlsl"
+  },
+  {
+    "op": "publishNativeDrawShaderCompileArtifacts",
+    "ok": false
+  }
+]

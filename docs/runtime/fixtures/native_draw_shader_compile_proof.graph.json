@@ -1,0 +1,16 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.native_draw_shader_compile_proof",
+  "metadata": {
+    "purpose": "Replay the ShaderProgram requestedDrawShader through a compile-only native draw shader diagnostic proof shell."
+  },
+  "shaderProgramPackage": "docs/runtime/artifacts/native_render_pipeline/shader_program/shader_program_package.json",
+  "expected": {
+    "requestedDrawShaderSource": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+    "sourceLanguage": "HLSL_TIXL_DONOR",
+    "vertexEntry": "vsMain",
+    "pixelEntry": "psMain",
+    "status": "blocked_missing_native_source",
+    "errorCode": "native_draw_shader_compile.native_source_missing"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "kind": "NativeDrawShaderCompileProof",
+  "programId": "program.sphere_sdf_raymarch.fragment",
+  "graphId": "fixture.shader_program_contract",
+  "shaderProgramStatus": "ok",
+  "requestedDrawShader": {
+    "source": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+    "sourceLanguage": "HLSL_TIXL_DONOR",
+    "vertexEntry": "vsMain",
+    "fragmentEntry": "psMain",
+    "sourceDerivedFrom": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+    "donorSource": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+    "compileParity": "notClaimed"
+  },
+  "ok": false,
+  "status": "blocked_missing_native_source",
+  "claims": {
+    "actualCompilerRan": false,
+    "nativeCompileParity": false,
+    "metalParity": false,
+    "tixlParity": false,
+    "pbrVisualCorrectness": false
+  }
+}
