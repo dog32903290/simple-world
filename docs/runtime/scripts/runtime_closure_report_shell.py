@@ -35,7 +35,7 @@ def main() -> int:
     trace: list[dict[str, Any]] = [{"op": "loadRuntimeClosureFixture", "fixture": display_path(fixture_path, repo_root)}]
     fixture = read_json(fixture_path, errors, "runtime_closure.fixture_read_failed")
     if fixture is None:
-        report = build_report({}, {}, {}, {}, {}, {}, [], errors, {}, repo_root)
+        report = build_report({}, {}, {}, {}, {}, {}, {}, {}, {}, [], errors, {}, repo_root)
         write_artifacts(out_dir, report, trace, errors)
         return 1
 
@@ -84,6 +84,24 @@ def main() -> int:
     ) if texturecube_pbr_reference_path is not None else {}
     if texturecube_pbr_reference_path is None:
         errors.append({"code": "runtime_closure.missing_texturecube_pbr_reference_artifact"})
+    trace.append({
+        "op": "readTextureCubePbrReferenceArtifact",
+        "artifact": display_path(texturecube_pbr_reference_path, repo_root) if texturecube_pbr_reference_path is not None else None,
+    })
+    backend_replacement_gate_path = resolve_repo_path(repo_root, fixture_path, fixture.get("tixlMeshDrawBackendReplacementGateArtifact"))
+    backend_replacement_gate = read_json(
+        backend_replacement_gate_path,
+        errors,
+        "runtime_closure.backend_replacement_gate_read_failed",
+        fallback={},
+        repo_root=repo_root,
+    ) if backend_replacement_gate_path is not None else {}
+    if backend_replacement_gate_path is None:
+        errors.append({"code": "runtime_closure.missing_backend_replacement_gate_artifact"})
+    trace.append({
+        "op": "readBackendReplacementGateArtifact",
+        "artifact": display_path(backend_replacement_gate_path, repo_root) if backend_replacement_gate_path is not None else None,
+    })
     report = build_report(
         artifacts.get("pipelineSummary", {}),
         artifacts.get("commandStreamSummary", {}),
@@ -93,6 +111,7 @@ def main() -> int:
         shadergraph_resources,
         stage_mrt_matrix,
         texturecube_pbr_reference,
+        backend_replacement_gate,
         artifacts.get("pipelineErrors", []),
         errors,
         {
@@ -100,6 +119,7 @@ def main() -> int:
             "shadergraphResourcesExpansion": display_path(shadergraph_resources_path, repo_root) if shadergraph_resources_path is not None else None,
             "stageMrtMatrix": display_path(stage_mrt_matrix_path, repo_root) if stage_mrt_matrix_path is not None else None,
             "textureCubePbrReference": display_path(texturecube_pbr_reference_path, repo_root) if texturecube_pbr_reference_path is not None else None,
+            "backendReplacementGate": display_path(backend_replacement_gate_path, repo_root) if backend_replacement_gate_path is not None else None,
         },
         repo_root,
         graph_id=fixture.get("graphId"),
@@ -122,13 +142,13 @@ def main() -> int:
         "proven": "tixl_mesh_draw_stage_mrt_matrix_semantics" in report["proven"],
     })
     trace.append({
-        "op": "readTextureCubePbrReferenceArtifact",
-        "artifact": display_path(texturecube_pbr_reference_path, repo_root) if texturecube_pbr_reference_path is not None else None,
-    })
-    trace.append({
         "op": "evaluateTextureCubePbrReference",
         "proven": "tixl_mesh_draw_texturecube_samplelevel_getdimensions" in report["proven"],
         "bounded": "bounded_pbr_visual_reference" in report["bounded"],
+    })
+    trace.append({
+        "op": "evaluateBackendReplacementGate",
+        "bounded": "bounded_native_backend_replacement_guarded" in report["bounded"],
     })
     trace.append({"op": "publishRuntimeClosureReport", "ok": report["ok"]})
     write_artifacts(out_dir, report, trace, errors)
@@ -161,6 +181,7 @@ def build_report(
     shadergraph_resources: dict[str, Any],
     stage_mrt_matrix: dict[str, Any],
     texturecube_pbr_reference: dict[str, Any],
+    backend_replacement_gate: dict[str, Any],
     pipeline_errors: list[dict[str, Any]],
     errors: list[dict[str, Any]],
     evidence: dict[str, str],
@@ -196,6 +217,7 @@ def build_report(
     shadergraph_resources_ok = validate_shadergraph_resources_expansion(shadergraph_resources, errors, evidence.get("shadergraphResourcesExpansion"))
     stage_mrt_matrix_ok = validate_stage_mrt_matrix(stage_mrt_matrix, errors, evidence.get("stageMrtMatrix"))
     texturecube_pbr_reference_ok = validate_texturecube_pbr_reference(texturecube_pbr_reference, errors, evidence.get("textureCubePbrReference"))
+    backend_replacement_gate_ok = validate_backend_replacement_gate(backend_replacement_gate, errors, evidence.get("backendReplacementGate"))
 
     core_pipeline_proven = (
         pipeline_ok
@@ -228,14 +250,17 @@ def build_report(
                 if texturecube_pbr_reference_ok:
                     proven.append("tixl_mesh_draw_texturecube_samplelevel_getdimensions")
                     bounded.append("bounded_pbr_visual_reference")
-                    required_next.extend([
-                        item
-                        for item in REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND
-                        if item not in (
-                            "prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter",
-                            "prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference",
-                        )
-                    ])
+                    if backend_replacement_gate_ok:
+                        bounded.append("bounded_native_backend_replacement_guarded")
+                    else:
+                        required_next.extend([
+                            item
+                            for item in REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND
+                            if item not in (
+                                "prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter",
+                                "prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference",
+                            )
+                        ])
                 else:
                     required_next.extend([
                         item
@@ -252,6 +277,7 @@ def build_report(
     native_compile_is_bounded = "native_hlsl_metal_compile" in bounded
     shadergraph_resources_are_bounded = "shadergraph_t8_resources_empty_for_sphere_sdf_fixture" in bounded
     texturecube_pbr_is_closed = "tixl_mesh_draw_texturecube_samplelevel_getdimensions" in proven and "bounded_pbr_visual_reference" in bounded
+    backend_replacement_gate_is_closed = "bounded_native_backend_replacement_guarded" in bounded
     ok = (
         not errors
         and not broken
@@ -259,6 +285,7 @@ def build_report(
         and native_compile_is_bounded
         and shadergraph_resources_are_bounded
         and texturecube_pbr_is_closed
+        and backend_replacement_gate_is_closed
     )
     overall_status = "proven_with_bounded_native_backend" if ok else "broken"
 
@@ -280,6 +307,10 @@ def build_report(
             "shadergraphResourcesExpansionStatus": shadergraph_resources.get("status"),
             "stageMrtMatrixStatus": stage_mrt_matrix.get("status"),
             "textureCubePbrReferenceStatus": texturecube_pbr_reference.get("status"),
+            "backendReplacementGateStatus": backend_replacement_gate.get("status"),
+            "backendReplacementReady": False,
+            "fullPbrResourceBinding": False,
+            "nativeGpuParityComplete": False,
         },
         "evidence": evidence,
     }
@@ -506,6 +537,61 @@ def validate_texturecube_pbr_reference(artifact: dict[str, Any], errors: list[di
     if mismatches:
         errors.append({
             "code": "runtime_closure.texturecube_pbr_reference_not_proven",
+            "path": path,
+            "mismatches": mismatches,
+        })
+        return False
+    return True
+
+
+def validate_backend_replacement_gate(artifact: dict[str, Any], errors: list[dict[str, Any]], path: str | None) -> bool:
+    claims = artifact.get("claims") if isinstance(artifact.get("claims"), dict) else {}
+    guard = artifact.get("guard") if isinstance(artifact.get("guard"), dict) else {}
+    expected_true = {
+        "backendReplacementGateEvaluated",
+        "nativeRenderPipelineArtifactConsumed",
+        "resourceBindingArtifactConsumed",
+        "textureSamplerBindingArtifactConsumed",
+        "shadergraphResourcesExpansionArtifactConsumed",
+        "stageMrtMatrixArtifactConsumed",
+        "textureCubePbrReferenceArtifactConsumed",
+        "replacementBlockedBecauseFullBindingMissing",
+        "replacementBlockedBecauseAdapterProofMissing",
+        "boundedNativeBackendRemains",
+    }
+    expected_false = {
+        "backendReplacementReady",
+        "fullPbrResourceBinding",
+        "hlslToMslTranslation",
+        "tixlRuntimeParity",
+        "nativeGpuParityComplete",
+    }
+    mismatches: list[dict[str, Any]] = []
+    if artifact.get("kind") != "TixlMeshDrawBackendReplacementGateProof":
+        mismatches.append({"field": "kind", "expected": "TixlMeshDrawBackendReplacementGateProof", "actual": artifact.get("kind")})
+    if artifact.get("graphId") != "fixture.tixl_mesh_draw_backend_replacement_gate":
+        mismatches.append({"field": "graphId", "expected": "fixture.tixl_mesh_draw_backend_replacement_gate", "actual": artifact.get("graphId")})
+    if artifact.get("ok") is not True:
+        mismatches.append({"field": "ok", "expected": True, "actual": artifact.get("ok")})
+    if artifact.get("status") != "guarded_backend_replacement_blocked":
+        mismatches.append({"field": "status", "expected": "guarded_backend_replacement_blocked", "actual": artifact.get("status")})
+    for field in sorted(expected_true):
+        if claims.get(field) is not True:
+            mismatches.append({"field": f"claims.{field}", "expected": True, "actual": claims.get(field)})
+    for field in sorted(expected_false):
+        if claims.get(field) is not False:
+            mismatches.append({"field": f"claims.{field}", "expected": False, "actual": claims.get(field)})
+    if guard.get("decision") != "replacement_blocked_guarded":
+        mismatches.append({"field": "guard.decision", "expected": "replacement_blocked_guarded", "actual": guard.get("decision")})
+    if guard.get("fullPbrResourceBindingPresent") is not False:
+        mismatches.append({"field": "guard.fullPbrResourceBindingPresent", "expected": False, "actual": guard.get("fullPbrResourceBindingPresent")})
+    if guard.get("explicitAdapterProofPresent") is not False:
+        mismatches.append({"field": "guard.explicitAdapterProofPresent", "expected": False, "actual": guard.get("explicitAdapterProofPresent")})
+    if guard.get("boundedBackendState") != "bounded_native_backend_remains":
+        mismatches.append({"field": "guard.boundedBackendState", "expected": "bounded_native_backend_remains", "actual": guard.get("boundedBackendState")})
+    if mismatches:
+        errors.append({
+            "code": "runtime_closure.backend_replacement_gate_not_proven",
             "path": path,
             "mismatches": mismatches,
         })

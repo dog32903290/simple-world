@@ -14,6 +14,7 @@ const pipelineArtifactDir = path.join(repoRoot, "docs/runtime/artifacts/native_r
 const shadergraphResourcesArtifactPath = path.join(repoRoot, "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json");
 const stageMrtMatrixArtifactPath = path.join(repoRoot, "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json");
 const textureCubePbrReferenceArtifactPath = path.join(repoRoot, "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json");
+const backendReplacementGateArtifactPath = path.join(repoRoot, "docs/runtime/artifacts/tixl_mesh_draw_backend_replacement_gate/tixl_mesh_draw_backend_replacement_gate_result.json");
 
 test("RuntimeClosureReport docs describe a bounded closure ledger, not Metal parity completion", () => {
   const source = fs.readFileSync(contractPath, "utf8");
@@ -53,6 +54,11 @@ test("RuntimeClosureReport docs describe a bounded closure ledger, not Metal par
   assert.match(source, /boundedPbrVisualReferenceEstablished/);
   assert.match(source, /removing\s+`prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference`/);
   assert.match(source, /does not discharge the TiXL donor HLSL\s+boundary/);
+  assert.match(source, /Backend Replacement Gate proof now consumes/);
+  assert.match(source, /backendReplacementGateEvaluated/);
+  assert.match(source, /bounded_native_backend_replacement_guarded/);
+  assert.match(source, /backendReplacementReady: false/);
+  assert.match(source, /fullPbrResourceBinding: false/);
   assert.match(source, /docs\/runtime\/artifacts\/native_render_pipeline/);
 });
 
@@ -64,6 +70,7 @@ test("RuntimeClosureReport fixture points at the native render pipeline proof ar
   assert.equal(graph.tixlMeshDrawShadergraphResourcesExpansionArtifact, "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json");
   assert.equal(graph.tixlMeshDrawStageMrtMatrixArtifact, "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json");
   assert.equal(graph.tixlMeshDrawTextureCubePbrReferenceArtifact, "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json");
+  assert.equal(graph.tixlMeshDrawBackendReplacementGateArtifact, "docs/runtime/artifacts/tixl_mesh_draw_backend_replacement_gate/tixl_mesh_draw_backend_replacement_gate_result.json");
   assert.equal(graph.expected.overallStatus, "proven_with_bounded_native_backend");
   assert.equal(graph.expected.drawCalls, 1);
   assert.equal(graph.expected.commandSource, "drawCommandArtifact");
@@ -92,10 +99,10 @@ test("RuntimeClosureReport shell emits a closure ledger from existing proof arti
   assert.ok(report.bounded.includes("native_hlsl_metal_compile"));
   assert.ok(report.bounded.includes("shadergraph_t8_resources_empty_for_sphere_sdf_fixture"));
   assert.ok(report.bounded.includes("bounded_pbr_visual_reference"));
+  assert.ok(report.bounded.includes("bounded_native_backend_replacement_guarded"));
   assert.deepEqual(report.broken, []);
-  assert.deepEqual(report.requiredNext, [
-    "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof",
-  ]);
+  assert.deepEqual(report.requiredNext, []);
+  assert.ok(!report.requiredNext.includes("replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof"));
   assert.ok(!report.requiredNext.includes("prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference"));
   assert.ok(!report.requiredNext.includes("prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter"));
   assert.ok(!report.requiredNext.includes("expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates"));
@@ -119,6 +126,10 @@ test("RuntimeClosureReport shell emits a closure ledger from existing proof arti
     shadergraphResourcesExpansionStatus: "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
     stageMrtMatrixStatus: "proven_tixl_mesh_draw_stage_mrt_matrix_semantics",
     textureCubePbrReferenceStatus: "proven_texturecube_samplelevel_getdimensions_and_bounded_pbr_reference",
+    backendReplacementGateStatus: "guarded_backend_replacement_blocked",
+    backendReplacementReady: false,
+    fullPbrResourceBinding: false,
+    nativeGpuParityComplete: false,
   });
 
   assert.equal(report.evidence.pipelineSummary, "docs/runtime/artifacts/native_render_pipeline/pipeline_summary.json");
@@ -130,18 +141,21 @@ test("RuntimeClosureReport shell emits a closure ledger from existing proof arti
   assert.equal(report.evidence.shadergraphResourcesExpansion, "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json");
   assert.equal(report.evidence.stageMrtMatrix, "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json");
   assert.equal(report.evidence.textureCubePbrReference, "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json");
+  assert.equal(report.evidence.backendReplacementGate, "docs/runtime/artifacts/tixl_mesh_draw_backend_replacement_gate/tixl_mesh_draw_backend_replacement_gate_result.json");
 
   assert.deepEqual(trace.map((entry) => entry.op), [
     "loadRuntimeClosureFixture",
     "readNativeRenderPipelineArtifacts",
     "readShadergraphResourcesExpansionArtifact",
     "readStageMrtMatrixArtifact",
+    "readTextureCubePbrReferenceArtifact",
+    "readBackendReplacementGateArtifact",
     "evaluateCoreHeadlessPipeline",
     "evaluateNativeCompileBoundary",
     "evaluateShadergraphResourcesExpansion",
     "evaluateStageMrtMatrixSemantics",
-    "readTextureCubePbrReferenceArtifact",
     "evaluateTextureCubePbrReference",
+    "evaluateBackendReplacementGate",
     "publishRuntimeClosureReport",
   ]);
 });
@@ -418,6 +432,70 @@ test("RuntimeClosureReport shell fails and keeps cube/PBR gate when TextureCube/
   assert.ok(fields.includes("textureCubeApiProbe.mip1Dimensions"));
   assert.ok(fields.includes("textureCubeApiProbe.sampleLevel1Rgba8"));
   assert.ok(fields.includes("boundedPbrVisualReference.comparison.status"));
+});
+
+test("RuntimeClosureReport shell fails and keeps backend replacement gate when gate proof is missing", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-closure-missing-backend-gate-"));
+  const badOutDir = path.join(tmpDir, "closure_report");
+  const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+  fixture.tixlMeshDrawBackendReplacementGateArtifact = path.join(tmpDir, "missing_backend_gate_result.json");
+  const badFixturePath = path.join(tmpDir, "runtime_closure_report.graph.json");
+  fs.writeFileSync(badFixturePath, JSON.stringify(fixture, null, 2));
+
+  const run = spawnSync("python3", [scriptPath, badFixturePath, badOutDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 1);
+  const report = JSON.parse(fs.readFileSync(path.join(badOutDir, "runtime_closure_report.json"), "utf8"));
+  const errors = JSON.parse(fs.readFileSync(path.join(badOutDir, "runtime_closure_errors.json"), "utf8"));
+
+  assert.equal(report.ok, false);
+  assert.ok(!report.bounded.includes("bounded_native_backend_replacement_guarded"));
+  assert.ok(report.requiredNext.includes("replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof"));
+  assert.ok(errors.some((error) => error.code === "runtime_closure.backend_replacement_gate_read_failed"));
+  assert.ok(errors.some((error) => error.code === "runtime_closure.backend_replacement_gate_not_proven"));
+});
+
+test("RuntimeClosureReport shell fails and keeps backend replacement gate when gate proof widens claims", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-closure-bad-backend-gate-"));
+  const badOutDir = path.join(tmpDir, "closure_report");
+  const forgedArtifact = JSON.parse(fs.readFileSync(backendReplacementGateArtifactPath, "utf8"));
+  forgedArtifact.graphId = "fixture.some_other_backend_replacement_gate";
+  forgedArtifact.claims.backendReplacementReady = true;
+  forgedArtifact.claims.fullPbrResourceBinding = true;
+  forgedArtifact.claims.tixlRuntimeParity = true;
+  forgedArtifact.guard.decision = "replacement_ready";
+  forgedArtifact.guard.fullPbrResourceBindingPresent = true;
+  const forgedArtifactPath = path.join(tmpDir, "backend_gate_result.json");
+  fs.writeFileSync(forgedArtifactPath, JSON.stringify(forgedArtifact, null, 2));
+
+  const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+  fixture.tixlMeshDrawBackendReplacementGateArtifact = forgedArtifactPath;
+  const badFixturePath = path.join(tmpDir, "runtime_closure_report.graph.json");
+  fs.writeFileSync(badFixturePath, JSON.stringify(fixture, null, 2));
+
+  const run = spawnSync("python3", [scriptPath, badFixturePath, badOutDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 1);
+  const report = JSON.parse(fs.readFileSync(path.join(badOutDir, "runtime_closure_report.json"), "utf8"));
+  const errors = JSON.parse(fs.readFileSync(path.join(badOutDir, "runtime_closure_errors.json"), "utf8"));
+
+  assert.equal(report.ok, false);
+  assert.ok(report.requiredNext.includes("replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof"));
+  const gateError = errors.find((error) => error.code === "runtime_closure.backend_replacement_gate_not_proven");
+  assert.ok(gateError);
+  const fields = gateError.mismatches.map((mismatch) => mismatch.field);
+  assert.ok(fields.includes("graphId"));
+  assert.ok(fields.includes("claims.backendReplacementReady"));
+  assert.ok(fields.includes("claims.fullPbrResourceBinding"));
+  assert.ok(fields.includes("claims.tixlRuntimeParity"));
+  assert.ok(fields.includes("guard.decision"));
+  assert.ok(fields.includes("guard.fullPbrResourceBindingPresent"));
 });
 
 test("RuntimeClosureReport shell fails when native compile boundary is broken instead of bounded", () => {

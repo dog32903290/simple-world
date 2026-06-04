@@ -1,0 +1,39 @@
+[
+  {
+    "op": "loadTixlMeshDrawBackendReplacementGateFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_backend_replacement_gate.graph.json"
+  },
+  {
+    "op": "resolveBackendReplacementGateInputs",
+    "nativeRenderPipelineArtifacts": "docs/runtime/artifacts/native_render_pipeline",
+    "resourceBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+    "textureSamplerBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json",
+    "shadergraphResourcesExpansionArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
+    "stageMrtMatrixArtifact": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json",
+    "textureCubePbrReferenceArtifact": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json"
+  },
+  {
+    "op": "readBackendReplacementGateInputs",
+    "nativePipelineRead": true,
+    "resourceBindingRead": true,
+    "textureSamplerBindingRead": true,
+    "shadergraphResourcesExpansionRead": true,
+    "stageMrtMatrixRead": true,
+    "textureCubePbrReferenceRead": true
+  },
+  {
+    "op": "validateBackendReplacementGateInputs",
+    "valid": true,
+    "mismatchCount": 0
+  },
+  {
+    "op": "evaluateBackendReplacementGuard",
+    "backendReplacementReady": false,
+    "fullPbrResourceBinding": false,
+    "adapterProofPresent": false
+  },
+  {
+    "op": "publishTixlMeshDrawBackendReplacementGateArtifacts",
+    "ok": true
+  }
+]

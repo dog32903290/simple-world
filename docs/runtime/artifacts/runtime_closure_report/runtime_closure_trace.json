@@ -16,6 +16,14 @@
     "artifact": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json"
   },
   {
+    "op": "readTextureCubePbrReferenceArtifact",
+    "artifact": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json"
+  },
+  {
+    "op": "readBackendReplacementGateArtifact",
+    "artifact": "docs/runtime/artifacts/tixl_mesh_draw_backend_replacement_gate/tixl_mesh_draw_backend_replacement_gate_result.json"
+  },
+  {
     "op": "evaluateCoreHeadlessPipeline",
     "proven": true,
     "broken": false
@@ -33,12 +41,12 @@
     "proven": true
   },
   {
-    "op": "readTextureCubePbrReferenceArtifact",
-    "artifact": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json"
-  },
-  {
     "op": "evaluateTextureCubePbrReference",
     "proven": true,
+    "bounded": true
+  },
+  {
+    "op": "evaluateBackendReplacementGate",
     "bounded": true
   },
   {

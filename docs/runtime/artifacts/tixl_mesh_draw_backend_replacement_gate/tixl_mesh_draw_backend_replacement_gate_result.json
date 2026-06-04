@@ -1,0 +1,86 @@
+{
+  "kind": "TixlMeshDrawBackendReplacementGateProof",
+  "graphId": "fixture.tixl_mesh_draw_backend_replacement_gate",
+  "ok": true,
+  "status": "guarded_backend_replacement_blocked",
+  "message": "backend replacement gate evaluated; replacement remains blocked until full PBR resource binding and an explicit adapter proof both exist",
+  "inputArtifacts": {
+    "nativeRenderPipeline": {
+      "path": "docs/runtime/artifacts/native_render_pipeline",
+      "pipelineOk": true,
+      "drawCalls": 1,
+      "nonBlackSample": true,
+      "nativeDrawBoundaryStatus": "compileParityNotClaimed",
+      "backendCanCompileNow": false
+    },
+    "resourceBinding": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+      "kind": "TixlMeshDrawResourceBindingProof",
+      "graphId": "fixture.tixl_mesh_draw_resource_binding",
+      "status": "summarized_tixl_mesh_draw_resource_binding",
+      "ok": true
+    },
+    "textureSamplerBinding": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json",
+      "kind": "TixlMeshDrawTextureSamplerBindingProof",
+      "graphId": "fixture.tixl_mesh_draw_texture_sampler_binding",
+      "status": "proven_tixl_mesh_draw_texture_sampler_binding",
+      "ok": true
+    },
+    "shadergraphResourcesExpansion": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
+      "kind": "TixlMeshDrawShadergraphResourcesExpansionProof",
+      "graphId": "fixture.tixl_mesh_draw_shadergraph_resources_expansion",
+      "status": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
+      "ok": true
+    },
+    "stageMrtMatrix": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json",
+      "kind": "TixlMeshDrawStageMrtMatrixProof",
+      "graphId": "fixture.tixl_mesh_draw_stage_mrt_matrix",
+      "status": "proven_tixl_mesh_draw_stage_mrt_matrix_semantics",
+      "ok": true
+    },
+    "textureCubePbrReference": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json",
+      "kind": "TixlMeshDrawTextureCubePbrReferenceProof",
+      "graphId": "fixture.tixl_mesh_draw_texturecube_pbr_reference",
+      "status": "proven_texturecube_samplelevel_getdimensions_and_bounded_pbr_reference",
+      "ok": true
+    }
+  },
+  "guard": {
+    "requiredBeforeReplacement": [
+      "fullPbrResourceBinding",
+      "explicitAdapterProof"
+    ],
+    "fullPbrResourceBindingPresent": false,
+    "explicitAdapterProofPresent": false,
+    "decision": "replacement_blocked_guarded",
+    "boundedBackendState": "bounded_native_backend_remains"
+  },
+  "notProven": [
+    "backend replacement readiness",
+    "full PBR resource binding",
+    "HLSL-to-MSL translation",
+    "TiXL runtime parity",
+    "native GPU parity completion"
+  ],
+  "claims": {
+    "backendReplacementGateEvaluated": true,
+    "nativeRenderPipelineArtifactConsumed": true,
+    "resourceBindingArtifactConsumed": true,
+    "textureSamplerBindingArtifactConsumed": true,
+    "shadergraphResourcesExpansionArtifactConsumed": true,
+    "stageMrtMatrixArtifactConsumed": true,
+    "textureCubePbrReferenceArtifactConsumed": true,
+    "replacementBlockedBecauseFullBindingMissing": true,
+    "replacementBlockedBecauseAdapterProofMissing": true,
+    "boundedNativeBackendRemains": true,
+    "backendReplacementReady": false,
+    "fullPbrResourceBinding": false,
+    "hlslToMslTranslation": false,
+    "tixlRuntimeParity": false,
+    "nativeGpuParityComplete": false
+  }
+}

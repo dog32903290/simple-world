@@ -11,12 +11,11 @@
   "bounded": [
     "native_hlsl_metal_compile",
     "shadergraph_t8_resources_empty_for_sphere_sdf_fixture",
-    "bounded_pbr_visual_reference"
+    "bounded_pbr_visual_reference",
+    "bounded_native_backend_replacement_guarded"
   ],
   "broken": [],
-  "requiredNext": [
-    "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof"
-  ],
+  "requiredNext": [],
   "summary": {
     "drawCalls": 1,
     "selectedMaterialId": "glass",
@@ -25,7 +24,11 @@
     "nonBlackSample": true,
     "shadergraphResourcesExpansionStatus": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
     "stageMrtMatrixStatus": "proven_tixl_mesh_draw_stage_mrt_matrix_semantics",
-    "textureCubePbrReferenceStatus": "proven_texturecube_samplelevel_getdimensions_and_bounded_pbr_reference"
+    "textureCubePbrReferenceStatus": "proven_texturecube_samplelevel_getdimensions_and_bounded_pbr_reference",
+    "backendReplacementGateStatus": "guarded_backend_replacement_blocked",
+    "backendReplacementReady": false,
+    "fullPbrResourceBinding": false,
+    "nativeGpuParityComplete": false
   },
   "evidence": {
     "pipelineSummary": "docs/runtime/artifacts/native_render_pipeline/pipeline_summary.json",
@@ -36,6 +39,7 @@
     "pipelineErrors": "docs/runtime/artifacts/native_render_pipeline/native_render_pipeline_errors.json",
     "shadergraphResourcesExpansion": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
     "stageMrtMatrix": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json",
-    "textureCubePbrReference": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json"
+    "textureCubePbrReference": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json",
+    "backendReplacementGate": "docs/runtime/artifacts/tixl_mesh_draw_backend_replacement_gate/tixl_mesh_draw_backend_replacement_gate_result.json"
   }
 }

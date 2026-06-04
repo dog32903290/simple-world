@@ -8,6 +8,7 @@
   "tixlMeshDrawShadergraphResourcesExpansionArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
   "tixlMeshDrawStageMrtMatrixArtifact": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json",
   "tixlMeshDrawTextureCubePbrReferenceArtifact": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json",
+  "tixlMeshDrawBackendReplacementGateArtifact": "docs/runtime/artifacts/tixl_mesh_draw_backend_replacement_gate/tixl_mesh_draw_backend_replacement_gate_result.json",
   "expected": {
     "overallStatus": "proven_with_bounded_native_backend",
     "drawCalls": 1,

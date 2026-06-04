@@ -135,11 +135,29 @@ comparing a deterministic analytic sentinel before removing
 `requiredNext`, but it still leaves `pbrVisualCorrectness: false`,
 `fullPbrResourceBinding: false`, `hlslToMslTranslation: false`, and
 `backendReplacementReady: false`.
-The next required work is therefore:
+The TiXL mesh draw Backend Replacement Gate proof now consumes the current
+native render pipeline, resource binding, texture/sampler binding, t8
+ShaderGraph resources, stage/MRT/matrix, and TextureCube/PBR reference
+artifacts. It evaluates the replacement gate and proves the replacement is
+guarded, not ready: `backendReplacementGateEvaluated: true`,
+`replacementBlockedBecauseFullBindingMissing: true`,
+`replacementBlockedBecauseAdapterProofMissing: true`,
+`boundedNativeBackendRemains: true`, `backendReplacementReady: false`,
+`fullPbrResourceBinding: false`, `hlslToMslTranslation: false`, and
+`tixlRuntimeParity: false`. The closure report removes
+`replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof`
+only when that guarded proof is valid, then records
+`bounded_native_backend_replacement_guarded` in `bounded`.
+The next required work list is therefore empty for this bounded closure lane:
 
 ```text
-replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof
+[]
 ```
+
+That empty list is not native GPU parity completion; it means the remaining
+backend replacement lane is closed by a guard proof that keeps replacement
+blocked until a future full resource binding artifact and explicit adapter
+proof exist.
 
 ## Failure Law
 
