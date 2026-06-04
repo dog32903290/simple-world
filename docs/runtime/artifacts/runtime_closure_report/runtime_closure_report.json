@@ -1,0 +1,32 @@
+{
+  "kind": "RuntimeClosureReport",
+  "graphId": "fixture.runtime_closure_report",
+  "ok": true,
+  "overallStatus": "proven_with_bounded_native_backend",
+  "proven": [
+    "core_headless_pipeline"
+  ],
+  "bounded": [
+    "native_hlsl_metal_compile"
+  ],
+  "broken": [],
+  "requiredNext": [
+    "implement_native_draw_shader_compile_parity",
+    "replace_bounded_backend_interface_with_native_compile_proof"
+  ],
+  "summary": {
+    "drawCalls": 1,
+    "selectedMaterialId": "glass",
+    "nativeDrawShaderStatus": "compileParityNotClaimed",
+    "backendCanCompileNow": false,
+    "nonBlackSample": true
+  },
+  "evidence": {
+    "pipelineSummary": "docs/runtime/artifacts/native_render_pipeline/pipeline_summary.json",
+    "commandStreamSummary": "docs/runtime/artifacts/native_render_pipeline/command_stream_summary.json",
+    "shaderProgramPackage": "docs/runtime/artifacts/native_render_pipeline/shader_program/shader_program_package.json",
+    "nativeBackendInterface": "docs/runtime/artifacts/native_render_pipeline/native_backend/native_backend_interface.json",
+    "backendStatus": "docs/runtime/artifacts/native_render_pipeline/native_backend/backend_status.json",
+    "pipelineErrors": "docs/runtime/artifacts/native_render_pipeline/native_render_pipeline_errors.json"
+  }
+}

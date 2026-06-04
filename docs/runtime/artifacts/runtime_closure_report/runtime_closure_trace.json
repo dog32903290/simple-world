@@ -1,0 +1,23 @@
+[
+  {
+    "op": "loadRuntimeClosureFixture",
+    "fixture": "docs/runtime/fixtures/runtime_closure_report.graph.json"
+  },
+  {
+    "op": "readNativeRenderPipelineArtifacts",
+    "artifactDir": "docs/runtime/artifacts/native_render_pipeline"
+  },
+  {
+    "op": "evaluateCoreHeadlessPipeline",
+    "proven": true,
+    "broken": false
+  },
+  {
+    "op": "evaluateNativeCompileBoundary",
+    "bounded": true
+  },
+  {
+    "op": "publishRuntimeClosureReport",
+    "ok": true
+  }
+]

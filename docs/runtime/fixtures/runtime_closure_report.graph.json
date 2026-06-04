@@ -1,0 +1,16 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.runtime_closure_report",
+  "metadata": {
+    "purpose": "Read existing native render pipeline proof artifacts and publish a closure ledger."
+  },
+  "nativeRenderPipelineArtifacts": "docs/runtime/artifacts/native_render_pipeline",
+  "expected": {
+    "overallStatus": "proven_with_bounded_native_backend",
+    "drawCalls": 1,
+    "commandSource": "drawCommandArtifact",
+    "nonBlackSample": true,
+    "nativeDrawShaderStatus": "compileParityNotClaimed",
+    "backendCanCompileNow": false
+  }
+}
