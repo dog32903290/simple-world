@@ -40,6 +40,25 @@ The native HLSL/Metal compile remains bounded when
 `backendCanCompileNow == false`. That is an explicit next-work ledger entry,
 not a failure of the current headless closure.
 
+Newer proof lanes narrow that blocker but do not remove it. `MetalExplicitMslProof`
+proves that explicit MSL source can go through real Metal compile, offscreen
+render, and readback. `NativeDrawShaderCompileProof` can delegate explicit
+`requestedDrawShader.nativeSource` MSL to that Metal proof. The current
+native_render_pipeline `ShaderProgram` still requests the TiXL donor draw shader
+as `HLSL_TIXL_DONOR` with no explicit native source, so the default
+NativeDrawShaderCompileProof artifact remains `blocked_missing_native_source`.
+That explicit MSL proof exists, but it does not discharge the TiXL donor HLSL
+boundary.
+
+For the bounded backend state, `requiredNext` names the remaining draw-shader
+source work:
+
+```text
+provide_explicit_msl_for_tixl_draw_shader
+prove_or_reject_hlsl_to_msl_translation_for_mesh_draw
+replace_bounded_backend_interface_with_native_compile_proof_after_draw_shader_source_exists
+```
+
 ## Failure Law
 
 The closure report fails if `native_render_pipeline_errors.json` is non-empty

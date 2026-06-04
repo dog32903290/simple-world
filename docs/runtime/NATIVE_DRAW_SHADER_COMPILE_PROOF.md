@@ -86,6 +86,16 @@ Changing `requestedDrawShader.language`, package `status`, or
 `compileParity` without `nativeSource` is still blocked as missing native
 source.
 
+## Closure Handoff
+
+RuntimeClosureReport may still close the current `native_render_pipeline` lane
+as `proven_with_bounded_native_backend` while this default proof is blocked.
+The explicit MSL Metal proof exists, but it only proves supplied native MSL; it
+does not discharge the TiXL donor HLSL boundary. The remaining closure work is
+to provide explicit MSL for the TiXL draw shader, or prove/reject a real
+HLSL-to-MSL translation lane for mesh draw shaders, before replacing the
+bounded backend interface with native compile proof.
+
 ## First Proof
 
 Fixture:
