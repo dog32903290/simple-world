@@ -1,0 +1,33 @@
+[
+  {
+    "op": "loadTixlMeshDrawResourceBindingFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_resource_binding.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+    "bufferLayoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_buffer_layout/tixl_mesh_draw_buffer_layout_result.json",
+    "mslApproxArtifact": "docs/runtime/artifacts/tixl_mesh_draw_msl_approx/tixl_mesh_draw_msl_approx_result.json"
+  },
+  {
+    "op": "readInputArtifacts",
+    "sourceAuditRead": true,
+    "bufferLayoutRead": true,
+    "mslApproxRead": true
+  },
+  {
+    "op": "validateInputArtifacts",
+    "sourceAuditValid": true,
+    "bufferLayoutValid": true,
+    "mslApproxValid": true
+  },
+  {
+    "op": "buildBindingLedger",
+    "boundNowCount": 2,
+    "declaredButUnboundCount": 19
+  },
+  {
+    "op": "publishTixlMeshDrawResourceBindingArtifacts",
+    "ok": true
+  }
+]

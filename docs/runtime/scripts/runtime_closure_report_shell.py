@@ -15,8 +15,8 @@ from typing import Any
 
 
 REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND = [
-    "prove_native_mesh_resource_binding_against_pbrvertex_faceindices_layout",
     "prove_or_reject_hlsl_to_msl_translation_for_mesh_draw",
+    "bind_full_pbr_texture_sampler_set_after_hlsl_to_msl_translation",
     "replace_bounded_backend_interface_after_resource_binding_and_hlsl_to_msl_proof",
 ]
 

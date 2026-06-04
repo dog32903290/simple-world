@@ -1,0 +1,23 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.tixl_mesh_draw_resource_binding",
+  "kind": "TixlMeshDrawResourceBindingProof",
+  "metadata": {
+    "purpose": "Build a narrow binding ledger from TiXL mesh-Draw.hlsl source requirements to the current explicit MSL approximation proof."
+  },
+  "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+  "bufferLayoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_buffer_layout/tixl_mesh_draw_buffer_layout_result.json",
+  "mslApproxArtifact": "docs/runtime/artifacts/tixl_mesh_draw_msl_approx/tixl_mesh_draw_msl_approx_result.json",
+  "expected": {
+    "status": "summarized_tixl_mesh_draw_resource_binding",
+    "boundBufferCount": 2,
+    "declaredButUnboundCount": 19,
+    "claims": {
+      "meshBufferBindingObserved": true,
+      "fullPbrResourceBinding": false,
+      "hlslToMslTranslation": false,
+      "tixlRuntimeParity": false,
+      "backendReplacementReady": false
+    }
+  }
+}

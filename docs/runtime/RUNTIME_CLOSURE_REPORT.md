@@ -51,16 +51,19 @@ That explicit MSL proof exists, but it does not discharge the TiXL donor HLSL
 boundary.
 
 For the bounded backend state, `requiredNext` names the remaining draw-shader
-translation, resource binding, and native compile proof work. The TiXL donor
-source audit exists as a dependency map, and the TiXL mesh draw buffer layout
-proof fixes `PbrVertex`/`FaceIndices` packing facts for the next approximation.
-The TiXL mesh draw MSL approximation proof now shows that this fixed layout can
-feed a tiny explicit MSL/Metal mesh draw through compile, render, and readback.
-Those lanes narrow the blocker but do not replace the remaining proof:
+translation, full resource binding, and native compile proof work. The TiXL
+donor source audit exists as a dependency map, and the TiXL mesh draw buffer
+layout proof fixes `PbrVertex`/`FaceIndices` packing facts for the next
+approximation. The TiXL mesh draw MSL approximation proof now shows that this
+fixed layout can feed a tiny explicit MSL/Metal mesh draw through compile,
+render, and readback. The TiXL mesh draw resource binding proof records that
+only `PbrVertices t0 -> buffer(0)` and `FaceIndices t1 -> buffer(1)` are bound
+today; PBR cbuffers, textures, samplers, and t8+ injected resources remain
+unbound. Those lanes narrow the blocker but do not replace the remaining proof:
 
 ```text
-prove_native_mesh_resource_binding_against_pbrvertex_faceindices_layout
 prove_or_reject_hlsl_to_msl_translation_for_mesh_draw
+bind_full_pbr_texture_sampler_set_after_hlsl_to_msl_translation
 replace_bounded_backend_interface_after_resource_binding_and_hlsl_to_msl_proof
 ```
 
