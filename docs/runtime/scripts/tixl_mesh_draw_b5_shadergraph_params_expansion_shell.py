@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-Publish a fail-closed verdict for TiXL mesh Draw b5 shadergraph Params expansion.
+Publish a source-backed verdict for TiXL mesh Draw b5 shadergraph Params.
 
 b5 is the duplicate Params cbuffer generated from the ShaderGraph FLOAT_PARAMS
-template hole. The current artifacts have no concrete b5 fields, so this lane
-records the blocker instead of inventing native packing.
+template hole. This lane expands one concrete SphereSDF FragmentField fixture
+into inspectable b5 fields without claiming native packing.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import sys
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -31,8 +33,8 @@ EXPECTED_CLAIMS = {
     "constantBufferLayoutArtifactConsumed": True,
     "pointlightsAndB5PackingArtifactConsumed": True,
     "b3PointLightsPackingProven": True,
-    "b5ShadergraphParamsExpanded": False,
-    "b5FieldsSourceBacked": False,
+    "b5ShadergraphParamsExpanded": True,
+    "b5FieldsSourceBacked": True,
     "b5NativePackingReady": False,
     "constantBufferAdapterComplete": False,
     "textureSamplerMapping": False,
@@ -158,16 +160,43 @@ def run_proof(repo_root: Path, fixture_path: Path, fixture: dict[str, Any]) -> t
         status = "blocked_invalid_b5_expansion_provenance" if source_audit_errors or layout_errors else "blocked_invalid_input_artifact"
         return result_payload(graph_id, status, input_summary, source_facts, expansion_verdict(b5_source_fields, b5_layout_fields), {}, False, False, False), trace, errors
 
+    expansion, expansion_errors = expand_shadergraph_params(fixture.get("shadergraphParamExpansion"), repo_root)
+    trace.append({
+        "op": "expandB5ShadergraphParams",
+        "expanded": expansion.get("expanded") is True,
+        "fieldCount": len(expansion.get("fields", [])),
+        "valid": not expansion_errors,
+    })
+    if expansion_errors:
+        errors.append({
+            "code": "tixl_mesh_draw_b5_shadergraph_params_expansion.invalid_shadergraph_param_expansion",
+            "message": "b5 ShaderGraph params expansion requires a supported source-backed ShaderGraph fixture.",
+            "mismatches": expansion_errors,
+        })
+        return result_payload(
+            graph_id,
+            "blocked_b5_shadergraph_params_not_expanded",
+            input_summary,
+            source_facts,
+            expansion,
+            {"requiredNext": "produce_source_backed_shadergraph_param_expansion_artifact_for_b5"},
+            True,
+            True,
+            True,
+        ), trace, errors
+
     return result_payload(
         graph_id,
-        "blocked_b5_shadergraph_params_not_expanded",
+        "expanded_b5_shadergraph_params_source_backed",
         input_summary,
         source_facts,
-        expansion_verdict(b5_source_fields, b5_layout_fields),
-        {"requiredNext": "produce_source_backed_shadergraph_param_expansion_artifact_for_b5"},
+        expansion,
+        {"requiredNext": "prove_native_b5_packing_from_source_backed_shadergraph_params"},
         True,
         True,
         True,
+        ok=True,
+        expanded=True,
     ), trace, errors
 
 
@@ -178,8 +207,8 @@ def validate_fixture(fixture: dict[str, Any]) -> list[dict[str, Any]]:
     if fixture.get("kind") != "TixlMeshDrawB5ShadergraphParamsExpansionVerdict":
         mismatches.append({"field": "kind", "expected": "TixlMeshDrawB5ShadergraphParamsExpansionVerdict", "actual": fixture.get("kind")})
     expected = fixture.get("expected") if isinstance(fixture.get("expected"), dict) else {}
-    if expected.get("status") != "blocked_b5_shadergraph_params_not_expanded":
-        mismatches.append({"field": "expected.status", "expected": "blocked_b5_shadergraph_params_not_expanded", "actual": expected.get("status")})
+    if expected.get("status") != "expanded_b5_shadergraph_params_source_backed":
+        mismatches.append({"field": "expected.status", "expected": "expanded_b5_shadergraph_params_source_backed", "actual": expected.get("status")})
     if expected.get("claims") != EXPECTED_CLAIMS:
         mismatches.append({"field": "expected.claims", "expected": EXPECTED_CLAIMS, "actual": expected.get("claims")})
     return mismatches
@@ -269,6 +298,273 @@ def validate_field_provenance(fields: list[dict[str, Any]], prefix: str) -> list
         "actual": fields,
         "reason": "This lane cannot accept concrete b5 fields until a separate source-backed ShaderGraph expansion artifact exists.",
     }]
+
+
+def expand_shadergraph_params(spec: Any, repo_root: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    if not isinstance(spec, dict):
+        return empty_expansion(), [{"field": "shadergraphParamExpansion", "expected": "source-backed ShaderGraph expansion fixture", "actual": spec}]
+
+    root = spec.get("rootNode") if isinstance(spec.get("rootNode"), dict) else {}
+    errors: list[dict[str, Any]] = []
+    if root.get("type") != "tixl.field.generate.sdf.SphereSDF":
+        errors.append({"field": "shadergraphParamExpansion.rootNode.type", "expected": "tixl.field.generate.sdf.SphereSDF", "actual": root.get("type")})
+
+    evidence = root.get("sourceEvidence") if isinstance(root.get("sourceEvidence"), dict) else {}
+    csharp_path = resolve_repo_path(repo_root, evidence.get("csharp"))
+    defaults_path = resolve_repo_path(repo_root, evidence.get("defaults"))
+    example_path = resolve_repo_path(repo_root, evidence.get("example") or spec.get("source"))
+    errors.extend(validate_sphere_sdf_sources(csharp_path, defaults_path, example_path, root, repo_root))
+    if errors:
+        return empty_expansion(), errors
+
+    symbol_child_id = str(root.get("tixlSymbolChildId") or "")
+    prefix = f"SphereSDF_{shorten_guid(symbol_child_id)}_"
+    params = root.get("params") if isinstance(root.get("params"), dict) else {}
+    center = params.get("Center") if isinstance(params.get("Center"), dict) else {}
+    radius = float(params.get("Radius", 0.5))
+    center_values = [
+        float(center.get("x", 0.0)),
+        float(center.get("y", 0.0)),
+        float(center.get("z", 0.0)),
+    ]
+    float_values: list[float] = []
+    fields: list[dict[str, Any]] = []
+    add_parameter(float_values, fields, "float3", f"{prefix}Center", center_values, {
+        "node": "SphereSDF",
+        "field": "Center",
+        "sourceKind": "GraphParam",
+        "sourcePaths": [
+            "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs",
+            "external/tixl/Operators/examples/testing/ShaderTests.t3",
+        ],
+    })
+    add_parameter(float_values, fields, "float", f"{prefix}Radius", [radius], {
+        "node": "SphereSDF",
+        "field": "Radius",
+        "sourceKind": "GraphParam",
+        "sourcePaths": [
+            "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs",
+            "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.t3",
+        ],
+    })
+    return {
+        "register": "b5",
+        "name": "Params",
+        "semanticRole": "shadergraph_duplicate_params",
+        "templateHole": "FLOAT_PARAMS",
+        "expanded": True,
+        "sourceAuditFields": [],
+        "layoutFields": [],
+        "rootNode": {
+            "type": root.get("type"),
+            "title": root.get("title"),
+            "tixlSymbolChildId": symbol_child_id,
+            "prefix": prefix,
+        },
+        "fields": fields,
+        "floatBuffer": {
+            "valueType": "float",
+            "values": float_values,
+            "sizeBytes": len(float_values) * 4,
+            "alignment": "ShaderParamHandling pads vector and matrix parameters to 4-float cbuffer boundaries.",
+        },
+        "generatedHlsl": "\n".join(f"{field['type']}  {field['name']};" for field in fields),
+        "proofBoundary": {
+            "sourceBacked": True,
+            "runsRealTiXLGenerateShaderGraphCode": False,
+            "nativeB5PackingProven": False,
+            "residualRisk": "This manifest applies TiXL source laws to a concrete SphereSDF fixture; native packing and real TiXL execution remain separate gates.",
+        },
+    }, []
+
+
+def empty_expansion() -> dict[str, Any]:
+    return {
+        "register": "b5",
+        "name": "Params",
+        "semanticRole": "shadergraph_duplicate_params",
+        "templateHole": "FLOAT_PARAMS",
+        "expanded": False,
+        "sourceAuditFields": [],
+        "layoutFields": [],
+        "fields": [],
+        "reason": "No supported source-backed ShaderGraph parameter expansion fixture was provided.",
+    }
+
+
+def validate_sphere_sdf_sources(csharp_path: Path | None, defaults_path: Path | None, example_path: Path | None, root: dict[str, Any], repo_root: Path) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    csharp = read_text(csharp_path) if csharp_path else None
+    defaults = read_text(defaults_path) if defaults_path else None
+    example = read_text(example_path) if example_path else None
+    for field, text, needle in (
+        ("SphereSDF.cs", csharp, "[GraphParam]"),
+        ("SphereSDF.cs", csharp, "public readonly InputSlot<Vector3> Center"),
+        ("SphereSDF.cs", csharp, "public readonly InputSlot<float> Radius"),
+        ("SphereSDF.cs", csharp, "new ShaderGraphNode(this)"),
+        ("SphereSDF.t3", defaults, '"DefaultValue": 0.5'),
+        ("SphereSDF.t3", defaults, '"X": 0.0'),
+        ("ShaderTests.t3", example, str(root.get("tixlSymbolChildId"))),
+        ("ShaderTests.t3", example, "/*SphereSDF*/"),
+    ):
+        if text is None:
+            errors.append({"field": field, "expected": "readable source file", "actual": "missing"})
+        elif needle not in text:
+            errors.append({"field": field, "expected": needle, "actual": "missing"})
+    if csharp is None or defaults is None or example is None:
+        return errors
+
+    params = root.get("params") if isinstance(root.get("params"), dict) else {}
+    fixture_center = params.get("Center") if isinstance(params.get("Center"), dict) else {}
+    fixture_radius = float(params.get("Radius", 0.5))
+    source_center = extract_sphere_sdf_example_center(example, str(root.get("tixlSymbolChildId")))
+    source_radius = extract_sphere_sdf_example_radius(example, str(root.get("tixlSymbolChildId")))
+    default_radius = extract_sphere_sdf_default_radius(defaults)
+    if source_center is None:
+        errors.append({"field": "ShaderTests.t3.SphereSDF.Center", "expected": "source-backed Center InputValue", "actual": "missing"})
+    else:
+        expected_center = {"x": source_center[0], "y": source_center[1], "z": source_center[2]}
+        actual_center = {
+            "x": float(fixture_center.get("x", 0.0)),
+            "y": float(fixture_center.get("y", 0.0)),
+            "z": float(fixture_center.get("z", 0.0)),
+        }
+        if actual_center != expected_center:
+            errors.append({"field": "shadergraphParamExpansion.rootNode.params.Center", "expected": expected_center, "actual": actual_center})
+    expected_radius = source_radius if source_radius is not None else default_radius
+    if expected_radius is None:
+        errors.append({"field": "SphereSDF.Radius", "expected": "source or default radius", "actual": "missing"})
+    elif fixture_radius != expected_radius:
+        errors.append({"field": "shadergraphParamExpansion.rootNode.params.Radius", "expected": expected_radius, "actual": fixture_radius})
+    return errors
+
+
+def extract_sphere_sdf_example_center(source: str, child_id: str) -> list[float] | None:
+    block = extract_json_object_block_containing(source, child_id)
+    if block is None or "/*Center*/" not in block:
+        return None
+    center_block = extract_json_object_block_containing(block, "/*Center*/")
+    if center_block is None:
+        return None
+    values = {}
+    for key in ("X", "Y", "Z"):
+        value = extract_json_number(center_block, key)
+        if value is None:
+            return None
+        values[key] = value
+    return [values["X"], values["Y"], values["Z"]]
+
+
+def extract_sphere_sdf_example_radius(source: str, child_id: str) -> float | None:
+    block = extract_json_object_block_containing(source, child_id)
+    if block is None or "/*Radius*/" not in block:
+        return None
+    radius_block = extract_json_object_block_containing(block, "/*Radius*/")
+    if radius_block is None:
+        return None
+    return extract_json_number(radius_block, "Value")
+
+
+def extract_sphere_sdf_default_radius(source: str) -> float | None:
+    block = extract_json_object_block_containing(source, "/*Radius*/")
+    if block is None:
+        return None
+    return extract_json_number(block, "DefaultValue")
+
+
+def extract_json_object_block_containing(source: str, needle: str) -> str | None:
+    index = source.find(needle)
+    if index < 0:
+        return None
+    start = source.rfind("{", 0, index)
+    if start < 0:
+        return None
+    depth = 0
+    for offset in range(start, len(source)):
+        char = source[offset]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start:offset + 1]
+    return None
+
+
+def extract_json_number(source: str, key: str) -> float | None:
+    marker = f'"{key}"'
+    index = source.find(marker)
+    if index < 0:
+        return None
+    colon = source.find(":", index)
+    if colon < 0:
+        return None
+    end = colon + 1
+    while end < len(source) and source[end] in " \t\r\n":
+        end += 1
+    start = end
+    while end < len(source) and source[end] in "-+.0123456789":
+        end += 1
+    try:
+        return float(source[start:end])
+    except ValueError:
+        return None
+
+
+def add_parameter(float_values: list[float], fields: list[dict[str, Any]], type_name: str, name: str, values: list[float], provenance: dict[str, Any]) -> None:
+    component_count = {"float": 1, "int": 1, "float2": 2, "float3": 3, "float4": 4, "float4x4": 16}[type_name]
+    pad_float_values(float_values, fields, component_count)
+    offset = len(float_values) * 4
+    float_values.extend(values)
+    fields.append({
+        "name": name,
+        "type": type_name,
+        "offsetBytes": offset,
+        "componentCount": component_count,
+        "floatValueRange": [offset // 4, (offset // 4) + len(values)],
+        "provenance": provenance,
+    })
+
+
+def pad_float_values(float_values: list[float], fields: list[dict[str, Any]], size: int) -> None:
+    current_start = len(float_values) % 4
+    required_padding = 0
+    if size == 2:
+        required_padding = current_start % 2
+    elif size == 3:
+        if current_start == 2:
+            required_padding = 2
+        elif current_start == 3:
+            required_padding = 1
+    elif size in (4, 16):
+        required_padding = (4 - current_start) % 4
+    for _ in range(required_padding):
+        float_values.append(0.0)
+        fields.append({
+            "name": f"__padding{len(float_values)}",
+            "type": "float",
+            "offsetBytes": (len(float_values) - 1) * 4,
+            "componentCount": 1,
+            "provenance": {
+                "sourceKind": "ShaderParamHandling.PadFloatParametersToVectorComponentCount",
+                "sourcePaths": ["external/tixl/Core/DataTypes/ShaderGraph/ShaderParamHandling.cs"],
+            },
+        })
+
+
+def shorten_guid(value: str) -> str:
+    guid = uuid.UUID(value)
+    text = base64.b64encode(guid.bytes_le).decode("ascii").replace("+", "").replace("/", "").replace("=", "")
+    return text[:7]
+
+
+def resolve_repo_path(repo_root: Path, value: Any) -> Path | None:
+    if not isinstance(value, str) or not value:
+        return None
+    path = Path(value).expanduser()
+    if path.is_absolute():
+        return path
+    return (repo_root / path).resolve()
 
 
 def result_payload(

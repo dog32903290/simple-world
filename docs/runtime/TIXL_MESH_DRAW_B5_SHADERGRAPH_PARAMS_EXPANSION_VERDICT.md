@@ -7,7 +7,7 @@ can the duplicate b5 Params cbuffer in TiXL mesh Draw be expanded into concrete,
 source-backed shadergraph parameter fields yet?
 ```
 
-Status: currently no. The donor mesh shader contains:
+Status: yes, for one bounded source-backed fixture. The donor mesh shader contains:
 
 ```text
 cbuffer Params : register(b5)
@@ -22,9 +22,26 @@ through `GenerateShaderGraphCode`: it calls
 parameters into `/*{FLOAT_PARAMS}*/`, and writes the runtime float values into
 the `FloatParams` buffer.
 
-The current source audit and constant-buffer layout artifacts still record b5
-`Params` with `fields: []`. Therefore this lane must stay blocked until a
-source-backed ShaderGraph parameter expansion artifact exists.
+The source audit and constant-buffer layout artifacts still record b5 `Params`
+with `fields: []`, because those artifacts describe the unexpanded mesh donor
+template. This lane adds the missing source-backed expansion artifact for a
+concrete `DrawMesh.FragmentField <- SphereSDF.Result` fixture.
+
+The current proven b5 expansion is:
+
+```text
+float3  SphereSDF_nG1CBDm_Center;  // offset 0, values -1.4845504, 0, 0.54366434
+float   SphereSDF_nG1CBDm_Radius;  // offset 12, value 0.5
+```
+
+The generated name prefix follows TiXL `ShaderGraphNode.BuildNodeId`:
+
+```text
+<CSharpTypeName>_<ShortenGuid(SymbolChildId)>_
+```
+
+For the fixture child id `04426d9c-b039-4a92-9b1f-61186b4df2e5`,
+`ShortenGuid` is `nG1CBDm`, so the prefix is `SphereSDF_nG1CBDm_`.
 
 ## Boundary
 
@@ -46,9 +63,10 @@ external/tixl/Operators/Lib/mesh/draw/DrawMesh.t3
 
 ## Fail-Closed Law
 
-If b5 fields appear in source audit or layout artifacts, each field must have
-source-backed ShaderGraph parameter provenance before this lane can accept it.
-JSON fields without provenance are treated as invented fields.
+If b5 fields appear in source audit or layout artifacts, this lane still fails
+closed. The source-backed expansion must live in this explicit ShaderGraph
+parameter expansion artifact until the source audit/layout lanes are upgraded to
+consume generated ShaderGraph fields directly.
 
 If the upstream PointLights/b5 verdict no longer proves b3 PointLights, or if
 any backend/PBR/translation/parity claim widens, this lane fails closed.
@@ -56,12 +74,12 @@ any backend/PBR/translation/parity claim widens, this lane fails closed.
 ## Current Required Next
 
 ```text
-produce_source_backed_shadergraph_param_expansion_artifact_for_b5
+prove_native_b5_packing_from_source_backed_shadergraph_params
 ```
 
-That future artifact must show the concrete ShaderGraph field source, generated
-HLSL parameter declaration, float-buffer order, and packing requirements before
-b5 can move into a native packing proof.
+The native proof must compile/read back a Metal buffer for the generated b5
+layout. This source-backed expansion does not yet prove native b5 packing,
+constant-buffer adapter completion, or backend replacement.
 
 ## First Proof
 

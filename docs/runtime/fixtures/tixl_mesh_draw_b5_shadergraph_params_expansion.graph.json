@@ -7,15 +7,38 @@
   "meshDrawTemplateSource": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
   "generateShaderGraphCodeSource": "external/tixl/Operators/Lib/field/render/_/GenerateShaderGraphCode.cs",
   "drawMeshCompositionSource": "external/tixl/Operators/Lib/mesh/draw/DrawMesh.t3",
+  "shadergraphParamExpansion": {
+    "source": "external/tixl/Operators/examples/testing/ShaderTests.t3",
+    "drawMeshFragmentField": {
+      "sourceSlot": "DrawMesh.FragmentField",
+      "targetNode": "GenerateShaderGraphCode.Field",
+      "templateHole": "FLOAT_PARAMS"
+    },
+    "rootNode": {
+      "id": "sphere_sdf_shader_tests_04426d9c",
+      "type": "tixl.field.generate.sdf.SphereSDF",
+      "title": "my_SphereSDF",
+      "tixlSymbolChildId": "04426d9c-b039-4a92-9b1f-61186b4df2e5",
+      "params": {
+        "Center": { "x": -1.4845504, "y": 0, "z": 0.54366434 },
+        "Radius": 0.5
+      },
+      "sourceEvidence": {
+        "csharp": "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs",
+        "defaults": "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.t3",
+        "example": "external/tixl/Operators/examples/testing/ShaderTests.t3"
+      }
+    }
+  },
   "expected": {
-    "status": "blocked_b5_shadergraph_params_not_expanded",
+    "status": "expanded_b5_shadergraph_params_source_backed",
     "claims": {
       "sourceAuditArtifactConsumed": true,
       "constantBufferLayoutArtifactConsumed": true,
       "pointlightsAndB5PackingArtifactConsumed": true,
       "b3PointLightsPackingProven": true,
-      "b5ShadergraphParamsExpanded": false,
-      "b5FieldsSourceBacked": false,
+      "b5ShadergraphParamsExpanded": true,
+      "b5FieldsSourceBacked": true,
       "b5NativePackingReady": false,
       "constantBufferAdapterComplete": false,
       "textureSamplerMapping": false,

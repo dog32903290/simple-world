@@ -17,7 +17,7 @@ const resultName = "tixl_mesh_draw_b5_shadergraph_params_expansion_result.json";
 const traceName = "tixl_mesh_draw_b5_shadergraph_params_expansion_trace.json";
 const errorsName = "tixl_mesh_draw_b5_shadergraph_params_expansion_errors.json";
 
-test("TiXL mesh draw b5 shadergraph params docs define a blocked expansion verdict", () => {
+test("TiXL mesh draw b5 shadergraph params docs define a source-backed expansion verdict", () => {
   const source = fs.readFileSync(contractPath, "utf8");
 
   assert.match(source, /TiXL Mesh Draw B5 ShaderGraph Params Expansion Verdict/);
@@ -25,8 +25,8 @@ test("TiXL mesh draw b5 shadergraph params docs define a blocked expansion verdi
   assert.match(source, /\/\*\{FLOAT_PARAMS\}\*\//);
   assert.match(source, /ShaderGraphNode\.CollectAllNodeParams/);
   assert.match(source, /FloatParams/);
-  assert.match(source, /currently no/);
-  assert.match(source, /produce_source_backed_shadergraph_param_expansion_artifact_for_b5/);
+  assert.match(source, /SphereSDF/);
+  assert.match(source, /prove_native_b5_packing_from_source_backed_shadergraph_params/);
 });
 
 test("TiXL mesh draw b5 shadergraph params fixture pins bounded claims", () => {
@@ -34,35 +34,114 @@ test("TiXL mesh draw b5 shadergraph params fixture pins bounded claims", () => {
 
   assert.equal(graph.graphId, "fixture.tixl_mesh_draw_b5_shadergraph_params_expansion");
   assert.equal(graph.kind, "TixlMeshDrawB5ShadergraphParamsExpansionVerdict");
-  assert.equal(graph.expected.status, "blocked_b5_shadergraph_params_not_expanded");
-  assert.deepEqual(graph.expected.claims, expectedClaims());
+  assert.equal(graph.expected.status, "expanded_b5_shadergraph_params_source_backed");
+  assert.equal(graph.shadergraphParamExpansion.rootNode.tixlSymbolChildId, "04426d9c-b039-4a92-9b1f-61186b4df2e5");
+  assert.deepEqual(graph.expected.claims, expectedClaims(true));
 });
 
-test("TiXL mesh draw b5 shadergraph params shell blocks default fieldless b5 without errors", () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tixl-b5-shadergraph-default-"));
+test("TiXL mesh draw b5 shadergraph params shell emits source-backed SphereSDF b5 fields", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tixl-b5-shadergraph-expanded-"));
   const run = spawnSync("python3", [scriptPath, fixturePath, tmpDir], {
     cwd: repoRoot,
     encoding: "utf8",
   });
 
-  assert.equal(run.status, 1, run.stderr || run.stdout);
+  assert.equal(run.status, 0, run.stderr || run.stdout);
   const result = readJson(path.join(tmpDir, resultName));
   const trace = readJson(path.join(tmpDir, traceName));
   const errors = readJson(path.join(tmpDir, errorsName));
 
   assert.deepEqual(errors, []);
   assert.equal(result.kind, "TixlMeshDrawB5ShadergraphParamsExpansionVerdict");
-  assert.equal(result.ok, false);
-  assert.equal(result.status, "blocked_b5_shadergraph_params_not_expanded");
-  assert.deepEqual(result.claims, expectedClaims());
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "expanded_b5_shadergraph_params_source_backed");
+  assert.deepEqual(result.claims, expectedClaims(true));
   assert.equal(result.expansion.register, "b5");
   assert.equal(result.expansion.templateHole, "FLOAT_PARAMS");
-  assert.deepEqual(result.expansion.sourceAuditFields, []);
-  assert.deepEqual(result.expansion.layoutFields, []);
-  assert.equal(result.nextWork.requiredNext, "produce_source_backed_shadergraph_param_expansion_artifact_for_b5");
+  assert.equal(result.expansion.rootNode.prefix, "SphereSDF_nG1CBDm_");
+  assert.deepEqual(result.expansion.fields.map((field) => [field.type, field.name, field.offsetBytes]), [
+    ["float3", "SphereSDF_nG1CBDm_Center", 0],
+    ["float", "SphereSDF_nG1CBDm_Radius", 12],
+  ]);
+  assert.deepEqual(result.expansion.floatBuffer.values, [-1.4845504, 0, 0.54366434, 0.5]);
+  assert.equal(result.expansion.floatBuffer.sizeBytes, 16);
+  assert.match(result.expansion.generatedHlsl, /float3  SphereSDF_nG1CBDm_Center;/);
+  assert.match(result.expansion.generatedHlsl, /float  SphereSDF_nG1CBDm_Radius;/);
+  assert.equal(result.expansion.proofBoundary.nativeB5PackingProven, false);
+  assert.equal(result.nextWork.requiredNext, "prove_native_b5_packing_from_source_backed_shadergraph_params");
   assert.equal(result.sourceFacts.generator.collectsParamsWith, "ShaderGraphNode.CollectAllNodeParams");
   assert.equal(trace[0].fixture, "docs/runtime/fixtures/tixl_mesh_draw_b5_shadergraph_params_expansion.graph.json");
   assertPathClean(result, trace, errors);
+});
+
+test("TiXL mesh draw b5 shadergraph params shell blocks missing FragmentField expansion graph", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tixl-b5-shadergraph-missing-expansion-"));
+  const fixture = readJson(fixturePath);
+  delete fixture.shadergraphParamExpansion;
+  const brokenFixture = path.join(tmpDir, "fixture.graph.json");
+  fs.writeFileSync(brokenFixture, JSON.stringify(fixture, null, 2));
+
+  const run = spawnSync("python3", [scriptPath, brokenFixture, tmpDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 1);
+  const result = readJson(path.join(tmpDir, resultName));
+  const errors = readJson(path.join(tmpDir, errorsName));
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked_b5_shadergraph_params_not_expanded");
+  assert.equal(result.claims.b5ShadergraphParamsExpanded, false);
+  assert.equal(errors[0].code, "tixl_mesh_draw_b5_shadergraph_params_expansion.invalid_shadergraph_param_expansion");
+  assertPathClean(result, errors);
+});
+
+test("TiXL mesh draw b5 shadergraph params shell blocks forged SphereSDF Center values", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tixl-b5-shadergraph-forged-center-"));
+  const fixture = readJson(fixturePath);
+  fixture.shadergraphParamExpansion.rootNode.params.Center.x = 123.456;
+  const brokenFixture = path.join(tmpDir, "fixture.graph.json");
+  fs.writeFileSync(brokenFixture, JSON.stringify(fixture, null, 2));
+
+  const run = spawnSync("python3", [scriptPath, brokenFixture, tmpDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 1);
+  const result = readJson(path.join(tmpDir, resultName));
+  const errors = readJson(path.join(tmpDir, errorsName));
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked_b5_shadergraph_params_not_expanded");
+  assert.equal(result.claims.b5ShadergraphParamsExpanded, false);
+  assert.equal(errors[0].code, "tixl_mesh_draw_b5_shadergraph_params_expansion.invalid_shadergraph_param_expansion");
+  const fields = errors.flatMap((error) => error.mismatches || []).map((mismatch) => mismatch.field);
+  assert.ok(fields.includes("shadergraphParamExpansion.rootNode.params.Center"));
+  assertPathClean(result, errors);
+});
+
+test("TiXL mesh draw b5 shadergraph params shell blocks forged SphereSDF Radius values", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tixl-b5-shadergraph-forged-radius-"));
+  const fixture = readJson(fixturePath);
+  fixture.shadergraphParamExpansion.rootNode.params.Radius = 9.25;
+  const brokenFixture = path.join(tmpDir, "fixture.graph.json");
+  fs.writeFileSync(brokenFixture, JSON.stringify(fixture, null, 2));
+
+  const run = spawnSync("python3", [scriptPath, brokenFixture, tmpDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 1);
+  const result = readJson(path.join(tmpDir, resultName));
+  const errors = readJson(path.join(tmpDir, errorsName));
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked_b5_shadergraph_params_not_expanded");
+  assert.equal(result.claims.b5ShadergraphParamsExpanded, false);
+  assert.equal(errors[0].code, "tixl_mesh_draw_b5_shadergraph_params_expansion.invalid_shadergraph_param_expansion");
+  const fields = errors.flatMap((error) => error.mismatches || []).map((mismatch) => mismatch.field);
+  assert.ok(fields.includes("shadergraphParamExpansion.rootNode.params.Radius"));
+  assertPathClean(result, errors);
 });
 
 test("TiXL mesh draw b5 shadergraph params shell blocks invented source-audit b5 fields", () => {
@@ -223,7 +302,7 @@ test("TiXL mesh draw b5 shadergraph params checked-in artifacts match fresh shel
     cwd: repoRoot,
     encoding: "utf8",
   });
-  assert.equal(run.status, 1, run.stderr || run.stdout);
+  assert.equal(run.status, 0, run.stderr || run.stdout);
 
   const checkedInResult = readJson(path.join(artifactDir, resultName));
   const checkedInTrace = readJson(path.join(artifactDir, traceName));
@@ -238,14 +317,14 @@ test("TiXL mesh draw b5 shadergraph params checked-in artifacts match fresh shel
   assertPathClean(checkedInResult, checkedInTrace, checkedInErrors);
 });
 
-function expectedClaims() {
+function expectedClaims(expanded) {
   return {
     sourceAuditArtifactConsumed: true,
     constantBufferLayoutArtifactConsumed: true,
     pointlightsAndB5PackingArtifactConsumed: true,
     b3PointLightsPackingProven: true,
-    b5ShadergraphParamsExpanded: false,
-    b5FieldsSourceBacked: false,
+    b5ShadergraphParamsExpanded: expanded,
+    b5FieldsSourceBacked: expanded,
     b5NativePackingReady: false,
     constantBufferAdapterComplete: false,
     textureSamplerMapping: false,

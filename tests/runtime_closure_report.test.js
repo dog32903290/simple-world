@@ -65,11 +65,12 @@ test("RuntimeClosureReport shell emits a closure ledger from existing proof arti
   assert.ok(report.bounded.includes("native_hlsl_metal_compile"));
   assert.deepEqual(report.broken, []);
   assert.deepEqual(report.requiredNext, [
-    "produce_source_backed_shadergraph_param_expansion_artifact_for_b5",
+    "prove_native_b5_packing_from_source_backed_shadergraph_params",
     "map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1",
     "expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates",
     "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof",
   ]);
+  assert.ok(!report.requiredNext.includes("produce_source_backed_shadergraph_param_expansion_artifact_for_b5"));
   assert.ok(!report.requiredNext.includes("expand_shadergraph_duplicate_params_b5_before_full_constant_buffer_adapter"));
   assert.ok(!report.requiredNext.includes("prove_or_reject_hlsl_to_msl_translation_for_mesh_draw"));
   assert.ok(!report.requiredNext.includes("bind_full_pbr_texture_sampler_set_after_hlsl_to_msl_translation"));

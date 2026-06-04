@@ -22,7 +22,13 @@
     "sourceAuditValid": true
   },
   {
+    "op": "expandB5ShadergraphParams",
+    "expanded": true,
+    "fieldCount": 2,
+    "valid": true
+  },
+  {
     "op": "publishB5ShadergraphParamsExpansionArtifacts",
-    "ok": false
+    "ok": true
   }
 ]

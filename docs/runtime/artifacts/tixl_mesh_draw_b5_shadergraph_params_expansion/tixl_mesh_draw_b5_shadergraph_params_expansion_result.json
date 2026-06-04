@@ -1,8 +1,8 @@
 {
   "kind": "TixlMeshDrawB5ShadergraphParamsExpansionVerdict",
   "graphId": "fixture.tixl_mesh_draw_b5_shadergraph_params_expansion",
-  "ok": false,
-  "status": "blocked_b5_shadergraph_params_not_expanded",
+  "ok": true,
+  "status": "expanded_b5_shadergraph_params_source_backed",
   "inputArtifacts": {
     "sourceAudit": {
       "path": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
@@ -48,21 +48,84 @@
     "name": "Params",
     "semanticRole": "shadergraph_duplicate_params",
     "templateHole": "FLOAT_PARAMS",
+    "expanded": true,
     "sourceAuditFields": [],
     "layoutFields": [],
-    "expanded": false,
-    "reason": "b5 Params is generated from ShaderGraph FLOAT_PARAMS; current artifacts do not provide concrete source-backed fields."
+    "rootNode": {
+      "type": "tixl.field.generate.sdf.SphereSDF",
+      "title": "my_SphereSDF",
+      "tixlSymbolChildId": "04426d9c-b039-4a92-9b1f-61186b4df2e5",
+      "prefix": "SphereSDF_nG1CBDm_"
+    },
+    "fields": [
+      {
+        "name": "SphereSDF_nG1CBDm_Center",
+        "type": "float3",
+        "offsetBytes": 0,
+        "componentCount": 3,
+        "floatValueRange": [
+          0,
+          3
+        ],
+        "provenance": {
+          "node": "SphereSDF",
+          "field": "Center",
+          "sourceKind": "GraphParam",
+          "sourcePaths": [
+            "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs",
+            "external/tixl/Operators/examples/testing/ShaderTests.t3"
+          ]
+        }
+      },
+      {
+        "name": "SphereSDF_nG1CBDm_Radius",
+        "type": "float",
+        "offsetBytes": 12,
+        "componentCount": 1,
+        "floatValueRange": [
+          3,
+          4
+        ],
+        "provenance": {
+          "node": "SphereSDF",
+          "field": "Radius",
+          "sourceKind": "GraphParam",
+          "sourcePaths": [
+            "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs",
+            "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.t3"
+          ]
+        }
+      }
+    ],
+    "floatBuffer": {
+      "valueType": "float",
+      "values": [
+        -1.4845504,
+        0.0,
+        0.54366434,
+        0.5
+      ],
+      "sizeBytes": 16,
+      "alignment": "ShaderParamHandling pads vector and matrix parameters to 4-float cbuffer boundaries."
+    },
+    "generatedHlsl": "float3  SphereSDF_nG1CBDm_Center;\nfloat  SphereSDF_nG1CBDm_Radius;",
+    "proofBoundary": {
+      "sourceBacked": true,
+      "runsRealTiXLGenerateShaderGraphCode": false,
+      "nativeB5PackingProven": false,
+      "residualRisk": "This manifest applies TiXL source laws to a concrete SphereSDF fixture; native packing and real TiXL execution remain separate gates."
+    }
   },
   "nextWork": {
-    "requiredNext": "produce_source_backed_shadergraph_param_expansion_artifact_for_b5"
+    "requiredNext": "prove_native_b5_packing_from_source_backed_shadergraph_params"
   },
   "claims": {
     "sourceAuditArtifactConsumed": true,
     "constantBufferLayoutArtifactConsumed": true,
     "pointlightsAndB5PackingArtifactConsumed": true,
     "b3PointLightsPackingProven": true,
-    "b5ShadergraphParamsExpanded": false,
-    "b5FieldsSourceBacked": false,
+    "b5ShadergraphParamsExpanded": true,
+    "b5FieldsSourceBacked": true,
     "b5NativePackingReady": false,
     "constantBufferAdapterComplete": false,
     "textureSamplerMapping": false,

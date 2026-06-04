@@ -85,11 +85,13 @@ full constant-buffer adapter is still not ready. The TiXL mesh draw b5
 ShaderGraph params expansion verdict now narrows that blocker: b5 is the
 `/*{FLOAT_PARAMS}*/` hole in `mesh-Draw.hlsl`, filled by
 `GenerateShaderGraphCode` through `ShaderGraphNode.CollectAllNodeParams` and
-the `FloatParams` buffer, but current artifacts still have no concrete
-source-backed field list. The next required work is therefore:
+the `FloatParams` buffer. It now provides a source-backed SphereSDF fixture
+manifest for `SphereSDF_nG1CBDm_Center` and `SphereSDF_nG1CBDm_Radius`, but
+native b5 Metal packing has not been compiled or read back yet. The next
+required work is therefore:
 
 ```text
-produce_source_backed_shadergraph_param_expansion_artifact_for_b5
+prove_native_b5_packing_from_source_backed_shadergraph_params
 map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1
 expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates
 replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof
