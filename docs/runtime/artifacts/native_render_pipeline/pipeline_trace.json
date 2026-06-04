@@ -21,6 +21,14 @@
     "status": 0
   },
   {
+    "op": "materialPbr.begin",
+    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/material_pbr_scope.graph.json"
+  },
+  {
+    "op": "materialPbr.end",
+    "status": 0
+  },
+  {
     "op": "commandStream.begin",
     "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/command_stream_pipeline.graph.json"
   },

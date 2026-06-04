@@ -53,11 +53,13 @@ def run_pipeline(
     program_fixture = resolve_repo_path(repo_root, fixture_path, fixture.get("shaderProgramFixture"))
     render_graph_fixture = resolve_repo_path(repo_root, fixture_path, fixture.get("renderGraphFixture"))
     resource_fixture = resolve_repo_path(repo_root, fixture_path, fixture.get("resourceLifetimeFixture"))
+    material_pbr_fixture = resolve_repo_path(repo_root, fixture_path, fixture.get("materialPbrFixture"))
     command_fixture = resolve_repo_path(repo_root, fixture_path, fixture.get("commandStreamFixture"))
     backend_fixture = resolve_repo_path(repo_root, fixture_path, fixture.get("nativeBackendFixture"))
 
     render_graph_dir = out_dir / "render_graph"
     resource_dir = out_dir / "resource_lifetime"
+    material_pbr_dir = out_dir / "material_pbr"
     command_dir = out_dir / "command_stream"
     uniform_dir = out_dir / "shader_uniform_binding"
     program_dir = out_dir / "shader_program"
@@ -75,7 +77,10 @@ def run_pipeline(
 
     command_summary: dict[str, Any] = {}
     command_result: dict[str, Any] = {}
-    run_command_stream_shell(repo_root, command_fixture, resource_dir / "resource_registry.json", render_graph_dir / "render_pass_plan.json", command_dir, trace, errors)
+    run_shell(repo_root, "docs/runtime/scripts/material_pbr_scope_shell.py", material_pbr_fixture, material_pbr_dir, "materialPbr", trace, errors)
+    material_pbr_errors = read_json_file(material_pbr_dir / "pbr_binding_errors.json", [])
+
+    run_command_stream_shell(repo_root, command_fixture, resource_dir / "resource_registry.json", render_graph_dir / "render_pass_plan.json", material_pbr_dir / "mesh_pbr_draw_command.json", command_dir, trace, errors)
     command_summary = read_json_file(command_dir / "command_stream_summary.json", {})
     command_result = read_json_file(command_dir / "command_stream_result.json", {})
     command_errors = read_json_file(command_dir / "command_stream_pipeline_errors.json", [])
@@ -98,6 +103,7 @@ def run_pipeline(
         resource_registry,
         render_graph_errors,
         resource_errors,
+        material_pbr_errors,
         command_summary,
         command_result,
         command_errors,
@@ -121,6 +127,7 @@ def run_pipeline(
             "shaderProgram": shader_package.get("status"),
             "resourceLifetime": "ok" if not resource_errors else "error",
             "renderGraph": "ok" if not render_graph_errors else "error",
+            "materialPbr": "ok" if not material_pbr_errors else "warning",
             "commandStream": "ok" if command_summary.get("ok") is True else "error",
             "nativeBackend": backend_status.get("status"),
             "capturedFrame": captured_frame.get("status"),
@@ -130,6 +137,8 @@ def run_pipeline(
         "renderGraphBarrierCount": resource_access_ledger.get("barrierCount", 0),
         "invalidatedViewCount": invalidation_ledger.get("count"),
         "drawCalls": command_summary.get("drawCalls", 0),
+        "commandSource": command_summary.get("commandSource"),
+        "selectedMaterialId": command_summary.get("selectedMaterialId"),
         "targetProgramId": shader_package.get("programId"),
         "loudness": frame_input.get("loudness"),
         "frameIndex": frame_input.get("frameIndex"),
@@ -179,6 +188,7 @@ def run_command_stream_shell(
     fixture_path: Path | None,
     resource_registry_path: Path,
     render_pass_plan_path: Path,
+    draw_command_path: Path,
     out_dir: Path,
     trace: list[dict[str, Any]],
     errors: list[dict[str, Any]],
@@ -189,7 +199,7 @@ def run_command_stream_shell(
     script_path = repo_root / "docs/runtime/scripts/command_stream_pipeline_shell.py"
     trace.append({"op": "commandStream.begin", "fixture": str(fixture_path)})
     result = subprocess.run(
-        ["python3", str(script_path), str(fixture_path), str(resource_registry_path), str(out_dir), str(render_pass_plan_path)],
+        ["python3", str(script_path), str(fixture_path), str(resource_registry_path), str(out_dir), str(render_pass_plan_path), str(draw_command_path)],
         cwd=repo_root,
         text=True,
         capture_output=True,
@@ -267,6 +277,7 @@ def validate_compatibility(
     resource_registry: dict[str, Any],
     render_graph_errors: list[dict[str, Any]],
     resource_errors: list[dict[str, Any]],
+    material_pbr_errors: list[dict[str, Any]],
     command_summary: dict[str, Any],
     command_result: dict[str, Any],
     command_errors: list[dict[str, Any]],
@@ -287,6 +298,12 @@ def validate_compatibility(
         errors.append({
             "code": "native_render_pipeline.resource_lifetime_failed",
             "resourceErrors": resource_errors,
+        })
+    fatal_material_errors = [error for error in material_pbr_errors if error.get("fatal") is True]
+    if fatal_material_errors:
+        errors.append({
+            "code": "native_render_pipeline.material_pbr_failed",
+            "materialPbrErrors": fatal_material_errors,
         })
     if count_live_textures(resource_registry) < 1:
         errors.append({"code": "native_render_pipeline.no_live_texture_resources"})

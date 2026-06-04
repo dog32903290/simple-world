@@ -39,14 +39,18 @@
       "vertexShader": "vsMain",
       "pixelShader": "psMain",
       "constantBuffers": [
+        "transforms",
+        "context",
+        "pointLights",
         "pbr:glass"
       ],
       "shaderResources": [
-        {
-          "id": "main.color.srv",
-          "textureId": "main.color",
-          "type": "SRV"
-        }
+        "DefaultAlbedoColorSrv",
+        "DefaultEmissiveColorSrv",
+        "DefaultRoughnessMetallicOcclusionSrv",
+        "DefaultNormalSrv",
+        "PbrLookUpTextureSrv",
+        "studio_small_08_prefiltered"
       ],
       "samplerStates": [
         {
@@ -109,7 +113,7 @@
     {
       "op": "draw",
       "meshId": "cube",
-      "material": null,
+      "material": "glass",
       "topology": "TriangleList",
       "vertexBuffer": {
         "buffer": "cube.vertexBuffer",
@@ -122,14 +126,18 @@
       "vertexShader": "vsMain",
       "pixelShader": "psMain",
       "constantBuffers": [
+        "transforms",
+        "context",
+        "pointLights",
         "pbr:glass"
       ],
       "shaderResources": [
-        {
-          "id": "main.color.srv",
-          "textureId": "main.color",
-          "type": "SRV"
-        }
+        "DefaultAlbedoColorSrv",
+        "DefaultEmissiveColorSrv",
+        "DefaultRoughnessMetallicOcclusionSrv",
+        "DefaultNormalSrv",
+        "PbrLookUpTextureSrv",
+        "studio_small_08_prefiltered"
       ],
       "samplerStates": [
         {

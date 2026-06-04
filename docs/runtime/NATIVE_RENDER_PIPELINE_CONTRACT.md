@@ -12,7 +12,7 @@ simple_world.
 ## Boundary
 
 ```text
-RenderGraph -> ResourceLifetime -> CommandStream -> ShaderUniformBinding -> ShaderProgram -> NativeRendererBackend -> CapturedFrame
+RenderGraph -> ResourceLifetime -> MaterialPbr -> CommandStream -> ShaderUniformBinding -> ShaderProgram -> NativeRendererBackend -> CapturedFrame
 ```
 
 This contract does not replace the smaller contracts. It only proves that their
@@ -25,6 +25,7 @@ The pipeline runner must call each layer through its existing shell:
 ```text
 render_graph_shell.py
 resource_lifetime_shell.py
+material_pbr_scope_shell.py
 command_stream_pipeline_shell.py
 shader_uniform_binding_shell.py
 shader_program_shell.py
@@ -35,7 +36,9 @@ It must not reimplement shader assembly, uniform evaluation, or backend status.
 It only validates artifact compatibility and passes `RenderFrameInput` forward.
 ResourceLifetime must receive RenderGraph's `resource_access_ledger.json`; the
 main pipeline may not silently allocate render targets from a separate hand-made
-resource fixture.
+resource fixture. CommandStream must receive MaterialPbr's
+`mesh_pbr_draw_command.json`; the main pipeline may not keep a hidden hand-made
+draw command once material/mesh command evidence exists.
 
 ## Compatibility Law
 
@@ -46,6 +49,7 @@ ResourceLifetime.status == ok
 ResourceLifetime live Texture2D count > 0
 RenderGraph.status == ok
 RenderGraph pass plan exposes the CommandStream pass color write
+MaterialPbr emits mesh_pbr_draw_command.json
 CommandStream.ok == true
 CommandStream.drawCalls > 0
 uniform targetProgramId == shader programId

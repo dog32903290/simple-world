@@ -3,8 +3,17 @@
   "ok": true,
   "renderGraphPassId": "mainColorPass",
   "colorViewId": "main.color.rtv",
+  "commandSource": "drawCommandArtifact",
+  "selectedMaterialId": "glass",
   "drawCalls": 1,
   "triangles": 1,
   "resourceBarriers": 0,
-  "renderTargetViews": []
+  "renderTargetViews": [
+    {
+      "ok": true,
+      "textureId": "main.color",
+      "type": "RTV",
+      "dimension": "Texture2D"
+    }
+  ]
 }

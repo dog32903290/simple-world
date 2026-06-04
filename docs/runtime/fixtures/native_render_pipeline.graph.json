@@ -8,6 +8,7 @@
   "shaderProgramFixture": "docs/runtime/fixtures/shader_program_contract.graph.json",
   "renderGraphFixture": "docs/runtime/fixtures/render_graph_passes.graph.json",
   "resourceLifetimeFixture": "docs/runtime/fixtures/resource_lifetime.graph.json",
+  "materialPbrFixture": "docs/runtime/fixtures/material_pbr_scope.graph.json",
   "commandStreamFixture": "docs/runtime/fixtures/command_stream_pipeline.graph.json",
   "nativeBackendFixture": "docs/runtime/fixtures/native_renderer_backend_interface.graph.json",
   "expected": {

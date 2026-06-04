@@ -9,8 +9,10 @@ const repoRoot = path.resolve(__dirname, "..");
 const fixturePath = path.join(repoRoot, "docs/runtime/fixtures/command_stream_pipeline.graph.json");
 const resourceFixturePath = path.join(repoRoot, "docs/runtime/fixtures/resource_lifetime.graph.json");
 const renderGraphFixturePath = path.join(repoRoot, "docs/runtime/fixtures/render_graph_passes.graph.json");
+const materialFixturePath = path.join(repoRoot, "docs/runtime/fixtures/material_pbr_scope.graph.json");
 const resourceScriptPath = path.join(repoRoot, "docs/runtime/scripts/resource_lifetime_shell.py");
 const renderGraphScriptPath = path.join(repoRoot, "docs/runtime/scripts/render_graph_shell.py");
+const materialScriptPath = path.join(repoRoot, "docs/runtime/scripts/material_pbr_scope_shell.py");
 const scriptPath = path.join(repoRoot, "docs/runtime/scripts/command_stream_pipeline_shell.py");
 const artifactDir = path.join(repoRoot, "docs/runtime/artifacts/command_stream_pipeline");
 
@@ -30,6 +32,15 @@ function runRenderGraph(outDir) {
   });
   assert.equal(run.status, 0, run.stderr || run.stdout);
   return path.join(outDir, "render_pass_plan.json");
+}
+
+function runMaterialPbr(outDir) {
+  const run = spawnSync("python3", [materialScriptPath, materialFixturePath, outDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(run.status, 0, run.stderr || run.stdout);
+  return path.join(outDir, "mesh_pbr_draw_command.json");
 }
 
 test("CommandStreamPipeline fixture declares a mesh draw command against ResourceLifetime views", () => {
@@ -71,6 +82,29 @@ test("CommandStreamPipeline shell executes draw command using ResourceLifetime v
   assert.equal(result.trace.find((entry) => entry.op === "bindOutputMerger").renderTargetViews[0].type, "RTV");
   assert.equal(result.trace.find((entry) => entry.op === "bindOutputMerger").renderTargetViews[0].textureId, "main.color");
   assert.equal(result.trace.find((entry) => entry.op === "draw").renderTargetViews[0].textureId, "main.color");
+});
+
+test("CommandStreamPipeline shell can execute a Material/PBR draw command artifact", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "command-stream-material-"));
+  const registryPath = runResourceLifetime(path.join(tmpDir, "resource_lifetime"));
+  const renderPassPlanPath = runRenderGraph(path.join(tmpDir, "render_graph"));
+  const drawCommandPath = runMaterialPbr(path.join(tmpDir, "material_pbr"));
+  const run = spawnSync("python3", [scriptPath, fixturePath, registryPath, tmpDir, renderPassPlanPath, drawCommandPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 0, run.stderr || run.stdout);
+  const summary = JSON.parse(fs.readFileSync(path.join(tmpDir, "command_stream_summary.json"), "utf8"));
+  const result = JSON.parse(fs.readFileSync(path.join(tmpDir, "command_stream_result.json"), "utf8"));
+  const shaderStage = result.trace.find((entry) => entry.op === "bindShaderStage");
+
+  assert.equal(summary.ok, true);
+  assert.equal(summary.commandSource, "drawCommandArtifact");
+  assert.equal(summary.selectedMaterialId, "glass");
+  assert.equal(summary.drawCalls, 1);
+  assert.ok(shaderStage.constantBuffers.includes("pbr:glass"));
+  assert.ok(shaderStage.shaderResources.includes("studio_small_08_prefiltered"));
 });
 
 test("CommandStreamPipeline shell refuses RenderGraph pass plans that do not expose commandStream color writes", () => {

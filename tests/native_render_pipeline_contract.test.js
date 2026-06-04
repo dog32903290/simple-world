@@ -15,8 +15,10 @@ test("NativeRenderPipeline contract connects uniform binding, shader program, an
   const source = fs.readFileSync(contractPath, "utf8");
 
   assert.match(source, /NativeRenderPipeline answers:/);
-  assert.match(source, /ResourceLifetime -> CommandStream -> ShaderUniformBinding -> ShaderProgram -> NativeRendererBackend -> CapturedFrame/);
+  assert.match(source, /RenderGraph -> ResourceLifetime -> MaterialPbr -> CommandStream -> ShaderUniformBinding -> ShaderProgram -> NativeRendererBackend -> CapturedFrame/);
+  assert.match(source, /render_graph_shell\.py/);
   assert.match(source, /resource_lifetime_shell\.py/);
+  assert.match(source, /material_pbr_scope_shell\.py/);
   assert.match(source, /command_stream_pipeline_shell\.py/);
   assert.match(source, /shader_uniform_binding_shell\.py/);
   assert.match(source, /shader_program_shell\.py/);
@@ -33,6 +35,7 @@ test("NativeRenderPipeline fixture points at the three existing layer fixtures",
   assert.equal(graph.shaderProgramFixture, "docs/runtime/fixtures/shader_program_contract.graph.json");
   assert.equal(graph.renderGraphFixture, "docs/runtime/fixtures/render_graph_passes.graph.json");
   assert.equal(graph.resourceLifetimeFixture, "docs/runtime/fixtures/resource_lifetime.graph.json");
+  assert.equal(graph.materialPbrFixture, "docs/runtime/fixtures/material_pbr_scope.graph.json");
   assert.equal(graph.commandStreamFixture, "docs/runtime/fixtures/command_stream_pipeline.graph.json");
   assert.equal(graph.nativeBackendFixture, "docs/runtime/fixtures/native_renderer_backend_interface.graph.json");
   assert.equal(graph.expected.targetProgramId, "program.sphere_sdf_raymarch.fragment");
@@ -67,6 +70,7 @@ test("NativeRenderPipeline shell emits one connected headless frame proof", () =
   assert.equal(summary.layers.shaderProgram, "ok");
   assert.equal(summary.layers.renderGraph, "ok");
   assert.equal(summary.layers.resourceLifetime, "ok");
+  assert.equal(summary.layers.materialPbr, "warning");
   assert.equal(summary.layers.commandStream, "ok");
   assert.equal(summary.layers.nativeBackend, "rendered");
   assert.equal(summary.layers.capturedFrame, "captured");
@@ -75,6 +79,8 @@ test("NativeRenderPipeline shell emits one connected headless frame proof", () =
   assert.equal(summary.renderGraphBarrierCount, 2);
   assert.equal(summary.invalidatedViewCount, 0);
   assert.equal(summary.drawCalls, 1);
+  assert.equal(summary.commandSource, "drawCommandArtifact");
+  assert.equal(summary.selectedMaterialId, "glass");
   assert.equal(summary.targetProgramId, "program.sphere_sdf_raymarch.fragment");
   assert.equal(summary.loudness, 0.37);
   assert.equal(summary.importsOldUi, false);
@@ -102,6 +108,8 @@ test("NativeRenderPipeline shell emits one connected headless frame proof", () =
     "renderGraph.end",
     "resourceLifetime.begin",
     "resourceLifetime.end",
+    "materialPbr.begin",
+    "materialPbr.end",
     "commandStream.begin",
     "commandStream.end",
     "uniform.begin",

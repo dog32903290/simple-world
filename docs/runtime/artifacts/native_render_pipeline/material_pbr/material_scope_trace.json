@@ -1,0 +1,69 @@
+[
+  {
+    "op": "defineMaterials.push",
+    "materials": [
+      "copper",
+      "glass"
+    ],
+    "previousCount": 0
+  },
+  {
+    "op": "contextTexture.push",
+    "id": "PrefilteredSpecular",
+    "texture": "studio_small_08_prefiltered",
+    "hadPrevious": true
+  },
+  {
+    "op": "drawMesh.pbrBinding",
+    "command": {
+      "ok": true,
+      "meshId": "cube",
+      "topology": "TriangleList",
+      "vertexBuffer": {
+        "buffer": "cube.vertexBuffer",
+        "srv": "cube.vertexSrv"
+      },
+      "indexBuffer": {
+        "buffer": "cube.indexBuffer",
+        "srv": "cube.indexSrv"
+      },
+      "requestedMaterialId": "glass",
+      "selectedMaterialId": "glass",
+      "unresolvedMaterialId": null,
+      "shaderSource": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+      "vertexShaderEntry": "vsMain",
+      "pixelShaderEntry": "psMain",
+      "constantBuffers": [
+        "transforms",
+        "context",
+        "pointLights",
+        "pbr:glass"
+      ],
+      "shaderResources": [
+        "DefaultAlbedoColorSrv",
+        "DefaultEmissiveColorSrv",
+        "DefaultRoughnessMetallicOcclusionSrv",
+        "DefaultNormalSrv",
+        "PbrLookUpTextureSrv",
+        "studio_small_08_prefiltered"
+      ],
+      "commandOps": [
+        "inputAssembler",
+        "shaderStage",
+        "rasterizer",
+        "outputMerger",
+        "draw"
+      ]
+    }
+  },
+  {
+    "op": "contextTexture.restore",
+    "id": "PrefilteredSpecular",
+    "restoredTexture": "default-prefiltered-specular"
+  },
+  {
+    "op": "defineMaterials.restore",
+    "restoredCount": 0,
+    "expectedCount": 0
+  }
+]
