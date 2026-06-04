@@ -8,12 +8,20 @@
     "artifactDir": "docs/runtime/artifacts/native_render_pipeline"
   },
   {
+    "op": "readShadergraphResourcesExpansionArtifact",
+    "artifact": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json"
+  },
+  {
     "op": "evaluateCoreHeadlessPipeline",
     "proven": true,
     "broken": false
   },
   {
     "op": "evaluateNativeCompileBoundary",
+    "bounded": true
+  },
+  {
+    "op": "evaluateShadergraphResourcesExpansion",
     "bounded": true
   },
   {

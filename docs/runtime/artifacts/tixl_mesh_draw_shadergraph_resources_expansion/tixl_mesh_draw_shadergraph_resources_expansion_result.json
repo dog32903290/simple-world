@@ -1,0 +1,142 @@
+{
+  "kind": "TixlMeshDrawShadergraphResourcesExpansionProof",
+  "graphId": "fixture.tixl_mesh_draw_shadergraph_resources_expansion",
+  "ok": true,
+  "status": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
+  "inputArtifacts": {
+    "b5ShadergraphParamsExpansion": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_b5_shadergraph_params_expansion/tixl_mesh_draw_b5_shadergraph_params_expansion_result.json",
+      "kind": "TixlMeshDrawB5ShadergraphParamsExpansionVerdict",
+      "ok": true,
+      "status": "expanded_b5_shadergraph_params_source_backed"
+    }
+  },
+  "sourceFacts": {
+    "meshDrawTemplate": {
+      "path": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+      "resourcesHook": "/*{RESOURCES(t8)}*/",
+      "baseResources": "t0-t7"
+    },
+    "generator": {
+      "path": "external/tixl/Operators/Lib/field/render/_/GenerateShaderGraphCode.cs",
+      "collectsResourcesWith": "ShaderGraphNode.CollectResources",
+      "injectsResourcesWith": "InjectResourcesCode",
+      "resourcesOutput": "GenerateShaderGraphCode.Resources"
+    },
+    "shaderGraphNode": {
+      "path": "external/tixl/Core/DataTypes/ShaderGraphNode.cs",
+      "recursiveCollection": "InputNodes -> CollectResources -> AppendShaderResources"
+    },
+    "graphNodeOp": {
+      "path": "external/tixl/Core/DataTypes/ShaderGraph/IGraphNodeOp.cs",
+      "defaultAppendShaderResources": "empty"
+    },
+    "sphereSdf": {
+      "path": "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs",
+      "defaults": "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.t3",
+      "shadergraphSource": "external/tixl/Operators/examples/testing/ShaderTests.t3",
+      "example": "external/tixl/Operators/examples/testing/ShaderTests.t3",
+      "graphParams": [
+        "Center",
+        "Radius"
+      ],
+      "appendShaderResourcesOverride": false
+    },
+    "stage": {
+      "drawMeshComposition": "external/tixl/Operators/Lib/mesh/draw/DrawMesh.t3",
+      "setPixelAndVertexShaderStage": "external/tixl/Operators/Lib/render/_dx11/fxsetup/SetPixelAndVertexShaderStage.cs"
+    }
+  },
+  "resourceExpansion": {
+    "registerStart": "t8",
+    "hook": "RESOURCES(t8)",
+    "baseShaderResources": [
+      {
+        "register": "t0",
+        "name": "PbrVertices",
+        "hlslType": "StructuredBuffer<PbrVertex>"
+      },
+      {
+        "register": "t1",
+        "name": "FaceIndices",
+        "hlslType": "StructuredBuffer<int3>"
+      },
+      {
+        "register": "t2",
+        "name": "BaseColorMap",
+        "hlslType": "Texture2D<float4>"
+      },
+      {
+        "register": "t3",
+        "name": "EmissiveColorMap",
+        "hlslType": "Texture2D<float4>"
+      },
+      {
+        "register": "t4",
+        "name": "RSMOMap",
+        "hlslType": "Texture2D<float4>"
+      },
+      {
+        "register": "t5",
+        "name": "NormalMap",
+        "hlslType": "Texture2D<float4>"
+      },
+      {
+        "register": "t6",
+        "name": "PrefilteredSpecular",
+        "hlslType": "TextureCube<float4>"
+      },
+      {
+        "register": "t7",
+        "name": "BRDFLookup",
+        "hlslType": "Texture2D<float4>"
+      }
+    ],
+    "baseShaderResourcesCount": 8,
+    "visitedShaderGraphNodes": [
+      "SphereSDF_nG1CBDm"
+    ],
+    "resourceTypes": [],
+    "resourceReferences": [],
+    "resourceDefinitions": [],
+    "resourceViewsCount": 0,
+    "generatedResourceHlsl": "",
+    "currentFixtureT8ResourcesEmpty": true
+  },
+  "stageAppendBehavior": {
+    "validated": true,
+    "sourceOutput": "GenerateShaderGraphCode.Resources",
+    "targetInput": "SetPixelAndVertexShaderStage.VariousResources",
+    "ordinaryShaderResourcesInput": "SetPixelAndVertexShaderStage.ShaderResources",
+    "appendedAfterOrdinaryShaderResources": true,
+    "evidence": {
+      "resourcesOutputGuid": "adf247cd-79cc-4d4e-b3c1-6a8b2d54683d",
+      "variousResourcesInputGuid": "cc866663-5bfa-4a17-9efc-e2f381767317",
+      "drawMeshConnectionFound": true,
+      "setStageAppendsAdditionalSrvsAtShaderResourcesLength": true
+    },
+    "boundary": "Source-validated stage append behavior only; no real SRV creation or renderer integration is proven."
+  },
+  "claims": {
+    "sourceFilesValidated": true,
+    "b5ExpansionArtifactConsumed": true,
+    "resourcesHookFound": true,
+    "collectResourcesPathValidated": true,
+    "sphereSdfAppendResourcesEmpty": true,
+    "currentFixtureT8ResourcesEmpty": true,
+    "shadergraphResourcesExpansionProven": true,
+    "stageAppendBehaviorSourceValidated": true,
+    "nonEmptyT8ResourcesProven": false,
+    "realSrvCreationProven": false,
+    "constantBufferAdapterComplete": false,
+    "textureSamplerMapping": false,
+    "nativeCompileParity": false,
+    "hlslToMslTranslationProven": false,
+    "fullPbrResourceBinding": false,
+    "backendReplacementReady": false,
+    "hlslToMslTranslation": false,
+    "tixlRuntimeParity": false,
+    "pbrVisualCorrectness": false,
+    "rendererIntegrationComplete": false
+  }
+}

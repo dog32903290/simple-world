@@ -7,11 +7,13 @@
     "core_headless_pipeline"
   ],
   "bounded": [
-    "native_hlsl_metal_compile"
+    "native_hlsl_metal_compile",
+    "shadergraph_t8_resources_empty_for_sphere_sdf_fixture"
   ],
   "broken": [],
   "requiredNext": [
-    "expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates",
+    "prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter",
+    "prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference",
     "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof"
   ],
   "summary": {
@@ -19,7 +21,8 @@
     "selectedMaterialId": "glass",
     "nativeDrawShaderStatus": "compileParityNotClaimed",
     "backendCanCompileNow": false,
-    "nonBlackSample": true
+    "nonBlackSample": true,
+    "shadergraphResourcesExpansionStatus": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture"
   },
   "evidence": {
     "pipelineSummary": "docs/runtime/artifacts/native_render_pipeline/pipeline_summary.json",
@@ -27,6 +30,7 @@
     "shaderProgramPackage": "docs/runtime/artifacts/native_render_pipeline/shader_program/shader_program_package.json",
     "nativeBackendInterface": "docs/runtime/artifacts/native_render_pipeline/native_backend/native_backend_interface.json",
     "backendStatus": "docs/runtime/artifacts/native_render_pipeline/native_backend/backend_status.json",
-    "pipelineErrors": "docs/runtime/artifacts/native_render_pipeline/native_render_pipeline_errors.json"
+    "pipelineErrors": "docs/runtime/artifacts/native_render_pipeline/native_render_pipeline_errors.json",
+    "shadergraphResourcesExpansion": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json"
   }
 }

@@ -11,6 +11,7 @@ const fixturePath = path.join(repoRoot, "docs/runtime/fixtures/runtime_closure_r
 const scriptPath = path.join(repoRoot, "docs/runtime/scripts/runtime_closure_report_shell.py");
 const artifactDir = path.join(repoRoot, "docs/runtime/artifacts/runtime_closure_report");
 const pipelineArtifactDir = path.join(repoRoot, "docs/runtime/artifacts/native_render_pipeline");
+const shadergraphResourcesArtifactPath = path.join(repoRoot, "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json");
 
 test("RuntimeClosureReport docs describe a bounded closure ledger, not Metal parity completion", () => {
   const source = fs.readFileSync(contractPath, "utf8");
@@ -34,7 +35,11 @@ test("RuntimeClosureReport docs describe a bounded closure ledger, not Metal par
   assert.match(source, /t7 BRDFLookup -> texture\(7\)/);
   assert.match(source, /s0 WrappedSampler -> sampler\(0\)/);
   assert.match(source, /s1 ClampedSampler -> sampler\(1\)/);
-  assert.match(source, /does not prove t3-t6,\s+t8\+ shadergraph resources, full PBR resource binding, or backend replacement/);
+  assert.match(source, /does not prove t3-t6,\s+full PBR resource binding, or backend replacement/);
+  assert.match(source, /TiXL mesh draw\s+ShaderGraph resources expansion proof now proves/);
+  assert.match(source, /current SphereSDF fixture has zero t8\+ resources/);
+  assert.match(source, /prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter/);
+  assert.match(source, /prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference/);
   assert.match(source, /does not discharge the TiXL donor HLSL\s+boundary/);
   assert.match(source, /docs\/runtime\/artifacts\/native_render_pipeline/);
 });
@@ -44,6 +49,7 @@ test("RuntimeClosureReport fixture points at the native render pipeline proof ar
 
   assert.equal(graph.graphId, "fixture.runtime_closure_report");
   assert.equal(graph.nativeRenderPipelineArtifacts, "docs/runtime/artifacts/native_render_pipeline");
+  assert.equal(graph.tixlMeshDrawShadergraphResourcesExpansionArtifact, "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json");
   assert.equal(graph.expected.overallStatus, "proven_with_bounded_native_backend");
   assert.equal(graph.expected.drawCalls, 1);
   assert.equal(graph.expected.commandSource, "drawCommandArtifact");
@@ -68,11 +74,14 @@ test("RuntimeClosureReport shell emits a closure ledger from existing proof arti
   assert.equal(report.overallStatus, "proven_with_bounded_native_backend");
   assert.ok(report.proven.includes("core_headless_pipeline"));
   assert.ok(report.bounded.includes("native_hlsl_metal_compile"));
+  assert.ok(report.bounded.includes("shadergraph_t8_resources_empty_for_sphere_sdf_fixture"));
   assert.deepEqual(report.broken, []);
   assert.deepEqual(report.requiredNext, [
-    "expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates",
+    "prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter",
+    "prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference",
     "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof",
   ]);
+  assert.ok(!report.requiredNext.includes("expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates"));
   assert.ok(!report.requiredNext.includes("map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1"));
   assert.ok(!report.requiredNext.includes("prove_native_b5_packing_from_source_backed_shadergraph_params"));
   assert.ok(!report.requiredNext.includes("produce_source_backed_shadergraph_param_expansion_artifact_for_b5"));
@@ -90,6 +99,7 @@ test("RuntimeClosureReport shell emits a closure ledger from existing proof arti
     nativeDrawShaderStatus: "compileParityNotClaimed",
     backendCanCompileNow: false,
     nonBlackSample: true,
+    shadergraphResourcesExpansionStatus: "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
   });
 
   assert.equal(report.evidence.pipelineSummary, "docs/runtime/artifacts/native_render_pipeline/pipeline_summary.json");
@@ -98,12 +108,15 @@ test("RuntimeClosureReport shell emits a closure ledger from existing proof arti
   assert.equal(report.evidence.nativeBackendInterface, "docs/runtime/artifacts/native_render_pipeline/native_backend/native_backend_interface.json");
   assert.equal(report.evidence.backendStatus, "docs/runtime/artifacts/native_render_pipeline/native_backend/backend_status.json");
   assert.equal(report.evidence.pipelineErrors, "docs/runtime/artifacts/native_render_pipeline/native_render_pipeline_errors.json");
+  assert.equal(report.evidence.shadergraphResourcesExpansion, "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json");
 
   assert.deepEqual(trace.map((entry) => entry.op), [
     "loadRuntimeClosureFixture",
     "readNativeRenderPipelineArtifacts",
+    "readShadergraphResourcesExpansionArtifact",
     "evaluateCoreHeadlessPipeline",
     "evaluateNativeCompileBoundary",
+    "evaluateShadergraphResourcesExpansion",
     "publishRuntimeClosureReport",
   ]);
 });
@@ -172,6 +185,71 @@ test("RuntimeClosureReport shell fails when native render pipeline errors are no
   const pipelineError = errors.find((error) => error.code === "runtime_closure.pipeline_errors_present");
   assert.ok(pipelineError);
   assert.equal(pipelineError.count, 1);
+});
+
+test("RuntimeClosureReport shell fails when shadergraph resources expansion artifact is missing", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-closure-missing-resources-"));
+  const badOutDir = path.join(tmpDir, "closure_report");
+  const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+  fixture.tixlMeshDrawShadergraphResourcesExpansionArtifact = path.join(tmpDir, "missing_resources_result.json");
+  const badFixturePath = path.join(tmpDir, "runtime_closure_report.graph.json");
+  fs.writeFileSync(badFixturePath, JSON.stringify(fixture, null, 2));
+
+  const run = spawnSync("python3", [scriptPath, badFixturePath, badOutDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 1);
+  const report = JSON.parse(fs.readFileSync(path.join(badOutDir, "runtime_closure_report.json"), "utf8"));
+  const errors = JSON.parse(fs.readFileSync(path.join(badOutDir, "runtime_closure_errors.json"), "utf8"));
+
+  assert.equal(report.ok, false);
+  assert.ok(!report.bounded.includes("shadergraph_t8_resources_empty_for_sphere_sdf_fixture"));
+  assert.ok(report.requiredNext.includes("expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates"));
+  assert.ok(errors.some((error) => error.code === "runtime_closure.shadergraph_resources_expansion_read_failed"));
+  assert.ok(errors.some((error) => error.code === "runtime_closure.shadergraph_resources_expansion_not_proven"));
+});
+
+test("RuntimeClosureReport shell fails when shadergraph resources expansion artifact widens claims", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-closure-bad-resources-"));
+  const badOutDir = path.join(tmpDir, "closure_report");
+  const forgedArtifact = JSON.parse(fs.readFileSync(shadergraphResourcesArtifactPath, "utf8"));
+  forgedArtifact.graphId = "fixture.some_other_shadergraph_resources_expansion";
+  forgedArtifact.resourceExpansion.visitedShaderGraphNodes = ["SomeOtherNode"];
+  forgedArtifact.resourceExpansion.resourceReferences = ["FakeTexture"];
+  forgedArtifact.resourceExpansion.resourceDefinitions = ["Texture2D FakeTexture : register(t8);"];
+  forgedArtifact.resourceExpansion.currentFixtureT8ResourcesEmpty = false;
+  forgedArtifact.claims.realSrvCreationProven = true;
+  forgedArtifact.resourceExpansion.resourceViewsCount = 1;
+  const forgedArtifactPath = path.join(tmpDir, "resources_result.json");
+  fs.writeFileSync(forgedArtifactPath, JSON.stringify(forgedArtifact, null, 2));
+
+  const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+  fixture.tixlMeshDrawShadergraphResourcesExpansionArtifact = forgedArtifactPath;
+  const badFixturePath = path.join(tmpDir, "runtime_closure_report.graph.json");
+  fs.writeFileSync(badFixturePath, JSON.stringify(fixture, null, 2));
+
+  const run = spawnSync("python3", [scriptPath, badFixturePath, badOutDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 1);
+  const report = JSON.parse(fs.readFileSync(path.join(badOutDir, "runtime_closure_report.json"), "utf8"));
+  const errors = JSON.parse(fs.readFileSync(path.join(badOutDir, "runtime_closure_errors.json"), "utf8"));
+
+  assert.equal(report.ok, false);
+  const resourcesError = errors.find((error) => error.code === "runtime_closure.shadergraph_resources_expansion_not_proven");
+  assert.ok(resourcesError);
+  const fields = resourcesError.mismatches.map((mismatch) => mismatch.field);
+  assert.ok(fields.includes("graphId"));
+  assert.ok(fields.includes("resourceExpansion.visitedShaderGraphNodes"));
+  assert.ok(fields.includes("resourceExpansion.resourceReferences"));
+  assert.ok(fields.includes("resourceExpansion.resourceDefinitions"));
+  assert.ok(fields.includes("resourceExpansion.currentFixtureT8ResourcesEmpty"));
+  assert.ok(fields.includes("claims.realSrvCreationProven"));
+  assert.ok(fields.includes("resourceExpansion.resourceViewsCount"));
 });
 
 test("RuntimeClosureReport shell fails when native compile boundary is broken instead of bounded", () => {

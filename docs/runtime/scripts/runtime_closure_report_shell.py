@@ -15,7 +15,8 @@ from typing import Any
 
 
 REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND = [
-    "expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates",
+    "prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter",
+    "prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference",
     "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof",
 ]
 
@@ -34,7 +35,7 @@ def main() -> int:
     trace: list[dict[str, Any]] = [{"op": "loadRuntimeClosureFixture", "fixture": display_path(fixture_path, repo_root)}]
     fixture = read_json(fixture_path, errors, "runtime_closure.fixture_read_failed")
     if fixture is None:
-        report = build_report({}, {}, {}, {}, {}, [], errors, {}, repo_root)
+        report = build_report({}, {}, {}, {}, {}, {}, [], errors, {}, repo_root)
         write_artifacts(out_dir, report, trace, errors)
         return 1
 
@@ -45,15 +46,33 @@ def main() -> int:
 
     artifacts = read_pipeline_artifacts(artifact_dir, repo_root, errors)
     trace.append({"op": "readNativeRenderPipelineArtifacts", "artifactDir": display_path(artifact_dir, repo_root)})
+    shadergraph_resources_path = resolve_repo_path(repo_root, fixture_path, fixture.get("tixlMeshDrawShadergraphResourcesExpansionArtifact"))
+    shadergraph_resources = read_json(
+        shadergraph_resources_path,
+        errors,
+        "runtime_closure.shadergraph_resources_expansion_read_failed",
+        fallback={},
+        repo_root=repo_root,
+    ) if shadergraph_resources_path is not None else {}
+    if shadergraph_resources_path is None:
+        errors.append({"code": "runtime_closure.missing_shadergraph_resources_expansion_artifact"})
+    trace.append({
+        "op": "readShadergraphResourcesExpansionArtifact",
+        "artifact": display_path(shadergraph_resources_path, repo_root) if shadergraph_resources_path is not None else None,
+    })
     report = build_report(
         artifacts.get("pipelineSummary", {}),
         artifacts.get("commandStreamSummary", {}),
         artifacts.get("shaderProgramPackage", {}),
         artifacts.get("nativeBackendInterface", {}),
         artifacts.get("backendStatus", {}),
+        shadergraph_resources,
         artifacts.get("pipelineErrors", []),
         errors,
-        artifacts.get("evidence", {}),
+        {
+            **artifacts.get("evidence", {}),
+            "shadergraphResourcesExpansion": display_path(shadergraph_resources_path, repo_root) if shadergraph_resources_path is not None else None,
+        },
         repo_root,
         graph_id=fixture.get("graphId"),
     )
@@ -65,6 +84,10 @@ def main() -> int:
     trace.append({
         "op": "evaluateNativeCompileBoundary",
         "bounded": "native_hlsl_metal_compile" in report["bounded"],
+    })
+    trace.append({
+        "op": "evaluateShadergraphResourcesExpansion",
+        "bounded": "shadergraph_t8_resources_empty_for_sphere_sdf_fixture" in report["bounded"],
     })
     trace.append({"op": "publishRuntimeClosureReport", "ok": report["ok"]})
     write_artifacts(out_dir, report, trace, errors)
@@ -94,6 +117,7 @@ def build_report(
     shader_program_package: dict[str, Any],
     native_backend_interface: dict[str, Any],
     backend_status: dict[str, Any],
+    shadergraph_resources: dict[str, Any],
     pipeline_errors: list[dict[str, Any]],
     errors: list[dict[str, Any]],
     evidence: dict[str, str],
@@ -126,6 +150,8 @@ def build_report(
             "pipelineErrors": pipeline_errors,
         })
 
+    shadergraph_resources_ok = validate_shadergraph_resources_expansion(shadergraph_resources, errors, evidence.get("shadergraphResourcesExpansion"))
+
     core_pipeline_proven = (
         pipeline_ok
         and pipeline_errors_ok
@@ -150,16 +176,22 @@ def build_report(
     )
     if native_compile_bounded:
         bounded.append("native_hlsl_metal_compile")
-        required_next.extend(REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND)
+        if shadergraph_resources_ok:
+            bounded.append("shadergraph_t8_resources_empty_for_sphere_sdf_fixture")
+            required_next.extend(REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND)
+        else:
+            required_next.append("expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates")
     elif native_draw_shader_status not in (None, "supported"):
         broken.append("native_hlsl_metal_compile")
 
     native_compile_is_bounded = "native_hlsl_metal_compile" in bounded
+    shadergraph_resources_are_bounded = "shadergraph_t8_resources_empty_for_sphere_sdf_fixture" in bounded
     ok = (
         not errors
         and not broken
         and "core_headless_pipeline" in proven
         and native_compile_is_bounded
+        and shadergraph_resources_are_bounded
     )
     overall_status = "proven_with_bounded_native_backend" if ok else "broken"
 
@@ -178,9 +210,76 @@ def build_report(
             "nativeDrawShaderStatus": native_draw_shader_status,
             "backendCanCompileNow": backend_can_compile_now,
             "nonBlackSample": non_black_sample,
+            "shadergraphResourcesExpansionStatus": shadergraph_resources.get("status"),
         },
         "evidence": evidence,
     }
+
+
+def validate_shadergraph_resources_expansion(artifact: dict[str, Any], errors: list[dict[str, Any]], path: str | None) -> bool:
+    claims = artifact.get("claims") if isinstance(artifact.get("claims"), dict) else {}
+    expansion = artifact.get("resourceExpansion") if isinstance(artifact.get("resourceExpansion"), dict) else {}
+    expected_true = {
+        "sourceFilesValidated",
+        "b5ExpansionArtifactConsumed",
+        "resourcesHookFound",
+        "collectResourcesPathValidated",
+        "sphereSdfAppendResourcesEmpty",
+        "currentFixtureT8ResourcesEmpty",
+        "shadergraphResourcesExpansionProven",
+        "stageAppendBehaviorSourceValidated",
+    }
+    expected_false = {
+        "nonEmptyT8ResourcesProven",
+        "realSrvCreationProven",
+        "constantBufferAdapterComplete",
+        "textureSamplerMapping",
+        "nativeCompileParity",
+        "hlslToMslTranslationProven",
+        "fullPbrResourceBinding",
+        "backendReplacementReady",
+        "hlslToMslTranslation",
+        "tixlRuntimeParity",
+        "pbrVisualCorrectness",
+        "rendererIntegrationComplete",
+    }
+    mismatches: list[dict[str, Any]] = []
+    if artifact.get("kind") != "TixlMeshDrawShadergraphResourcesExpansionProof":
+        mismatches.append({"field": "kind", "expected": "TixlMeshDrawShadergraphResourcesExpansionProof", "actual": artifact.get("kind")})
+    if artifact.get("graphId") != "fixture.tixl_mesh_draw_shadergraph_resources_expansion":
+        mismatches.append({"field": "graphId", "expected": "fixture.tixl_mesh_draw_shadergraph_resources_expansion", "actual": artifact.get("graphId")})
+    if artifact.get("ok") is not True:
+        mismatches.append({"field": "ok", "expected": True, "actual": artifact.get("ok")})
+    if artifact.get("status") != "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture":
+        mismatches.append({"field": "status", "expected": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture", "actual": artifact.get("status")})
+    for field in sorted(expected_true):
+        if claims.get(field) is not True:
+            mismatches.append({"field": f"claims.{field}", "expected": True, "actual": claims.get(field)})
+    for field in sorted(expected_false):
+        if claims.get(field) is not False:
+            mismatches.append({"field": f"claims.{field}", "expected": False, "actual": claims.get(field)})
+    if expansion.get("registerStart") != "t8":
+        mismatches.append({"field": "resourceExpansion.registerStart", "expected": "t8", "actual": expansion.get("registerStart")})
+    if expansion.get("visitedShaderGraphNodes") != ["SphereSDF_nG1CBDm"]:
+        mismatches.append({"field": "resourceExpansion.visitedShaderGraphNodes", "expected": ["SphereSDF_nG1CBDm"], "actual": expansion.get("visitedShaderGraphNodes")})
+    if expansion.get("resourceReferences") != []:
+        mismatches.append({"field": "resourceExpansion.resourceReferences", "expected": [], "actual": expansion.get("resourceReferences")})
+    if expansion.get("resourceDefinitions") != []:
+        mismatches.append({"field": "resourceExpansion.resourceDefinitions", "expected": [], "actual": expansion.get("resourceDefinitions")})
+    if expansion.get("currentFixtureT8ResourcesEmpty") is not True:
+        mismatches.append({"field": "resourceExpansion.currentFixtureT8ResourcesEmpty", "expected": True, "actual": expansion.get("currentFixtureT8ResourcesEmpty")})
+    if expansion.get("resourceViewsCount") != 0:
+        mismatches.append({"field": "resourceExpansion.resourceViewsCount", "expected": 0, "actual": expansion.get("resourceViewsCount")})
+    if expansion.get("generatedResourceHlsl") != "":
+        mismatches.append({"field": "resourceExpansion.generatedResourceHlsl", "expected": "", "actual": expansion.get("generatedResourceHlsl")})
+    if mismatches:
+        errors.append({
+            "code": "runtime_closure.shadergraph_resources_expansion_not_proven",
+            "path": path,
+            "mismatches": mismatches,
+        })
+        return False
+    return True
 
 
 def evidence_key(key: str) -> str:
@@ -206,11 +305,11 @@ def resolve_repo_path(repo_root: Path, fixture_path: Path, maybe_path: Any) -> P
     return (fixture_path.parent / path).resolve()
 
 
-def read_json(path: Path, errors: list[dict[str, Any]], code: str, fallback: Any | None = None) -> Any:
+def read_json(path: Path, errors: list[dict[str, Any]], code: str, fallback: Any | None = None, repo_root: Path | None = None) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf8"))
     except Exception as exc:
-        errors.append({"code": code, "path": str(path), "message": str(exc)})
+        errors.append({"code": code, "path": display_path(path, repo_root) if repo_root is not None else str(path), "message": str(exc)})
         return fallback
 
 

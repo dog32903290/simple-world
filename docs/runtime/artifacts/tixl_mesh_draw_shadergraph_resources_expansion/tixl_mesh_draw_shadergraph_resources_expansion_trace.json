@@ -1,0 +1,36 @@
+[
+  {
+    "op": "loadShadergraphResourcesExpansionFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_shadergraph_resources_expansion.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "b5Artifact": "docs/runtime/artifacts/tixl_mesh_draw_b5_shadergraph_params_expansion/tixl_mesh_draw_b5_shadergraph_params_expansion_result.json",
+    "meshDrawTemplate": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+    "generator": "external/tixl/Operators/Lib/field/render/_/GenerateShaderGraphCode.cs",
+    "shaderGraphNode": "external/tixl/Core/DataTypes/ShaderGraphNode.cs",
+    "graphNodeOp": "external/tixl/Core/DataTypes/ShaderGraph/IGraphNodeOp.cs",
+    "sphereSdf": "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs",
+    "drawMeshComposition": "external/tixl/Operators/Lib/mesh/draw/DrawMesh.t3",
+    "setPixelAndVertexShaderStage": "external/tixl/Operators/Lib/render/_dx11/fxsetup/SetPixelAndVertexShaderStage.cs"
+  },
+  {
+    "op": "validateShadergraphResourcesInputs",
+    "b5ArtifactValid": true,
+    "sourceFilesValidated": true,
+    "resourcesHookFound": true,
+    "collectResourcesPathValidated": true,
+    "sphereSdfAppendResourcesEmpty": true,
+    "stageAppendBehaviorSourceValidated": true
+  },
+  {
+    "op": "proveEmptyT8ShadergraphResources",
+    "rootNode": "SphereSDF_nG1CBDm",
+    "resourceReferences": 0,
+    "generatedResourceHlsl": ""
+  },
+  {
+    "op": "publishShadergraphResourcesExpansionArtifacts",
+    "ok": true
+  }
+]

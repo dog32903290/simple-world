@@ -1,0 +1,56 @@
+{
+  "graphId": "fixture.tixl_mesh_draw_shadergraph_resources_expansion",
+  "kind": "TixlMeshDrawShadergraphResourcesExpansionProof",
+  "b5ShadergraphParamsExpansionArtifact": "docs/runtime/artifacts/tixl_mesh_draw_b5_shadergraph_params_expansion/tixl_mesh_draw_b5_shadergraph_params_expansion_result.json",
+  "meshDrawTemplateSource": "external/tixl/Operators/Lib/Assets/shaders/3d/mesh/mesh-Draw.hlsl",
+  "generateShaderGraphCodeSource": "external/tixl/Operators/Lib/field/render/_/GenerateShaderGraphCode.cs",
+  "shaderGraphNodeSource": "external/tixl/Core/DataTypes/ShaderGraphNode.cs",
+  "graphNodeOpSource": "external/tixl/Core/DataTypes/ShaderGraph/IGraphNodeOp.cs",
+  "drawMeshCompositionSource": "external/tixl/Operators/Lib/mesh/draw/DrawMesh.t3",
+  "setPixelAndVertexShaderStageSource": "external/tixl/Operators/Lib/render/_dx11/fxsetup/SetPixelAndVertexShaderStage.cs",
+  "shadergraphResourceExpansion": {
+    "source": "external/tixl/Operators/examples/testing/ShaderTests.t3",
+    "drawMeshFragmentField": {
+      "sourceSlot": "DrawMesh.FragmentField",
+      "targetNode": "GenerateShaderGraphCode.Field",
+      "templateHole": "RESOURCES(t8)"
+    },
+    "rootNode": {
+      "id": "sphere_sdf_shader_tests_04426d9c",
+      "type": "tixl.field.generate.sdf.SphereSDF",
+      "title": "my_SphereSDF",
+      "tixlSymbolChildId": "04426d9c-b039-4a92-9b1f-61186b4df2e5",
+      "prefix": "SphereSDF_nG1CBDm",
+      "sourceEvidence": {
+        "csharp": "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs",
+        "defaults": "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.t3",
+        "example": "external/tixl/Operators/examples/testing/ShaderTests.t3"
+      }
+    }
+  },
+  "expected": {
+    "status": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
+    "claims": {
+      "sourceFilesValidated": true,
+      "b5ExpansionArtifactConsumed": true,
+      "resourcesHookFound": true,
+      "collectResourcesPathValidated": true,
+      "sphereSdfAppendResourcesEmpty": true,
+      "currentFixtureT8ResourcesEmpty": true,
+      "shadergraphResourcesExpansionProven": true,
+      "stageAppendBehaviorSourceValidated": true,
+      "nonEmptyT8ResourcesProven": false,
+      "realSrvCreationProven": false,
+      "constantBufferAdapterComplete": false,
+      "textureSamplerMapping": false,
+      "nativeCompileParity": false,
+      "hlslToMslTranslationProven": false,
+      "fullPbrResourceBinding": false,
+      "backendReplacementReady": false,
+      "hlslToMslTranslation": false,
+      "tixlRuntimeParity": false,
+      "pbrVisualCorrectness": false,
+      "rendererIntegrationComplete": false
+    }
+  }
+}

@@ -98,11 +98,22 @@ MSL adapter strategy, then runs a real Metal compute sentinel readback proving
 only `t2 BaseColorMap -> texture(2)`, `t7 BRDFLookup -> texture(7)`,
 `s0 WrappedSampler -> sampler(0)`, and `s1 ClampedSampler -> sampler(1)`.
 That closes the four-slot texture/sampler subset only; it does not prove t3-t6,
-t8+ shadergraph resources, full PBR resource binding, or backend replacement.
+full PBR resource binding, or backend replacement. The TiXL mesh draw
+ShaderGraph resources expansion proof now proves that the `RESOURCES(t8)` hook
+is real, that `GenerateShaderGraphCode` starts injected resources at t8, and
+that the current SphereSDF fixture has zero t8+ resources because SphereSDF does
+not override `AppendShaderResources` and the `IGraphNodeOp` default is empty.
+It also source-validates that `GenerateShaderGraphCode.Resources` is appended
+through `SetPixelAndVertexShaderStage.VariousResources` after ordinary shader
+resources, but it does not prove real SRV creation or renderer integration.
+The runtime closure report now reads that proof artifact directly before it
+removes the old combined t8 gate; if the artifact is missing, stale, or widened,
+the closure report fails instead of silently narrowing `requiredNext`.
 The next required work is therefore:
 
 ```text
-expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates
+prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter
+prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference
 replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof
 ```
 
