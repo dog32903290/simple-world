@@ -10,15 +10,23 @@ Runtime path:
 
 ```text
 shader_program_package.json requestedDrawShader -> NativeDrawShaderCompileProof -> compile result/trace/errors artifacts
+requestedDrawShader.nativeSource(MSL) -> NativeDrawShaderCompileProof -> MetalExplicitMslProof
 ```
 
 ## Boundary
 
-This lane is a compile-only diagnostic proof shell.
+This shell has two deliberately narrow paths.
 
-It is not a renderer, not Metal parity, not TiXL parity, and not PBR visual correctness.
-It does not draw pixels, inspect lighting, validate material appearance, or prove
-that TiXL donor HLSL behaves the same in a native backend.
+The donor HLSL path is a compile diagnostic only. It does not invoke Metal and
+does not draw pixels. It does not inspect lighting and must remain blocked
+without an explicit native source.
+
+The explicit native MSL path delegates to `MetalExplicitMslProof` for 8x8 compile/render/readback evidence.
+That proves only that the supplied explicit MSL source compiled and rendered
+through the proof harness.
+
+This shell is not renderer or backend/pipeline integration, not Metal parity for
+donor shaders, not TiXL parity, and not PBR visual correctness.
 
 The current `requestedDrawShader` in the ShaderProgram package is donor
 metadata:
@@ -49,10 +57,30 @@ The only success path in this shell is an explicit
 }
 ```
 
-No Metal compiler command runs in this lane. A valid explicit native source is
-therefore reported as `accepted_explicit_native_source`, which means package validation only.
-It must not be reported as `compiled` until a real compiler command runs and its
-stdout/stderr/status are captured in the artifacts.
+An explicit MSL native source is copied into a temporary
+`MetalExplicitMslProof` fixture and compiled/rendered by
+`docs/runtime/scripts/metal_explicit_msl_proof_shell.py` with an 8x8 viewport
+unless the native source or fixture specifies another viewport.
+
+If that proof succeeds, this shell reports
+`compiled_explicit_msl_with_metal_proof`, sets `actualCompilerRan`,
+`actualMetalRan`, and `explicitMslMetalProof` true, and includes a `metalProof`
+summary with status, width, height, `nonBlack`, and `varied`.
+
+`nativeCompileParity` is true only for the explicit native MSL source that Metal
+compiled in this proof. It does not claim TiXL/HLSL translation, renderer
+integration, Metal parity of a donor shader, or PBR visual correctness.
+
+If the Metal proof fails or blocks, this shell exits `1`, reports
+`native_draw_shader_compile.metal_proof_failed`, and nests the Metal proof
+errors for the caller. A missing Metal device may surface as
+`blocked_metal_device_unavailable`; it is not a fake success.
+
+If the Metal proof command/toolchain is unavailable or the child proof emits no
+result artifact, this shell exits `1` with
+`metal_explicit_msl_proof_unavailable` and
+`native_draw_shader_compile.metal_proof_unavailable`. That unavailable branch is
+structured and must not pass through traceback-shaped raw diagnostics.
 
 Changing `requestedDrawShader.language`, package `status`, or
 `compileParity` without `nativeSource` is still blocked as missing native
@@ -80,5 +108,6 @@ docs/runtime/artifacts/native_draw_shader_compile_proof/native_draw_shader_compi
 docs/runtime/artifacts/native_draw_shader_compile_proof/native_draw_shader_compile_errors.json
 ```
 
-Exit status is `0` only for `accepted_explicit_native_source`. Donor HLSL and
-missing native source cases exit `1` because no native compile proof exists yet.
+Exit status is `0` only for `compiled_explicit_msl_with_metal_proof`. Donor HLSL,
+missing native source cases, naive language/status flips, and failed Metal proof
+cases exit `1`.

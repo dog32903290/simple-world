@@ -15,18 +15,22 @@ const packageArtifactPath = path.join(
   "docs/runtime/artifacts/native_render_pipeline/shader_program/shader_program_package.json",
 );
 
-test("NativeDrawShaderCompileProof contract names the compile-only diagnostic boundary", () => {
+test("NativeDrawShaderCompileProof contract separates donor diagnostic and explicit Metal proof boundaries", () => {
   const source = fs.readFileSync(contractPath, "utf8");
 
   assert.match(source, /NativeDrawShaderCompileProof answers:/);
-  assert.match(source, /compile-only diagnostic proof/);
-  assert.match(source, /not a renderer/);
-  assert.match(source, /not Metal parity/);
+  assert.match(source, /donor HLSL path is a compile diagnostic only/);
+  assert.match(source, /does not draw pixels/);
+  assert.match(source, /explicit native MSL path delegates to `MetalExplicitMslProof`/);
+  assert.match(source, /8x8 compile\/render\/readback evidence/);
+  assert.match(source, /not renderer or backend\/pipeline integration/);
+  assert.match(source, /not Metal parity for\s+donor shaders/);
   assert.match(source, /not TiXL parity/);
   assert.match(source, /not PBR visual correctness/);
   assert.match(source, /shader_program_package\.json requestedDrawShader -> NativeDrawShaderCompileProof -> compile result\/trace\/errors artifacts/);
-  assert.match(source, /accepted_explicit_native_source/);
-  assert.match(source, /package validation only/);
+  assert.match(source, /requestedDrawShader\.nativeSource\(MSL\) -> NativeDrawShaderCompileProof -> MetalExplicitMslProof/);
+  assert.match(source, /compiled_explicit_msl_with_metal_proof/);
+  assert.match(source, /explicitMslMetalProof/);
 });
 
 test("NativeDrawShaderCompileProof fixture points at the existing ShaderProgram package artifact", () => {
@@ -154,16 +158,44 @@ test("NativeDrawShaderCompileProof blocks TiXL donor HLSL even when language/sta
   assert.equal(errors[0].code, "native_draw_shader_compile.native_source_missing");
 });
 
-test("NativeDrawShaderCompileProof accepts explicit native MSL source as package validation only", () => {
+test("NativeDrawShaderCompileProof runs actual Metal proof for explicit native MSL source", () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "native-draw-msl-source-"));
   const packagePath = path.join(tmpDir, "shader_program_package.json");
   const graphPath = path.join(tmpDir, "graph.json");
   const pkg = JSON.parse(fs.readFileSync(packageArtifactPath, "utf8"));
   pkg.requestedDrawShader.nativeSource = {
     language: "MSL",
-    vertexEntry: "vertexMain",
-    fragmentEntry: "fragmentMain",
-    sourceText: "vertex float4 vertexMain() { return float4(0.0); }\nfragment float4 fragmentMain() { return float4(1.0); }\n",
+    vertexEntry: "my_world_vertex",
+    fragmentEntry: "my_world_fragment",
+    sourceText: `#include <metal_stdlib>
+using namespace metal;
+
+struct VertexOut
+{
+    float4 position [[position]];
+    float2 uv;
+};
+
+vertex VertexOut my_world_vertex(uint vertexId [[vertex_id]])
+{
+    const float2 positions[4] = {
+        float2(-1.0, -1.0),
+        float2( 1.0, -1.0),
+        float2(-1.0,  1.0),
+        float2( 1.0,  1.0)
+    };
+
+    VertexOut out;
+    out.position = float4(positions[vertexId], 0.0, 1.0);
+    out.uv = positions[vertexId] * 0.5 + 0.5;
+    return out;
+}
+
+fragment float4 my_world_fragment(VertexOut in [[stage_in]])
+{
+    return float4(in.uv.x, 0.25 + 0.5 * in.uv.y, 1.0 - in.uv.x, 1.0);
+}
+`,
   };
   fs.writeFileSync(packagePath, JSON.stringify(pkg, null, 2));
   fs.writeFileSync(graphPath, JSON.stringify({ graphId: "fixture.native", shaderProgramPackage: packagePath }, null, 2));
@@ -173,19 +205,150 @@ test("NativeDrawShaderCompileProof accepts explicit native MSL source as package
     encoding: "utf8",
   });
 
-  assert.equal(run.status, 0, run.stderr || run.stdout);
+  assert.ok(run.status === 0 || run.status === 1, run.stderr || run.stdout);
   const result = readArtifact(tmpDir, "native_draw_shader_compile_result.json");
   const errors = readArtifact(tmpDir, "native_draw_shader_compile_errors.json");
-  assert.deepEqual(errors, []);
-  assert.equal(result.ok, true);
-  assert.equal(result.status, "accepted_explicit_native_source");
   assert.equal(result.nativeSource.language, "MSL");
-  assert.equal(result.nativeSource.vertexEntry, "vertexMain");
-  assert.equal(result.nativeSource.fragmentEntry, "fragmentMain");
+  assert.equal(result.nativeSource.vertexEntry, "my_world_vertex");
+  assert.equal(result.nativeSource.fragmentEntry, "my_world_fragment");
+
+  if (run.status === 0) {
+    assert.deepEqual(errors, []);
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "compiled_explicit_msl_with_metal_proof");
+    assert.equal(result.claims.actualCompilerRan, true);
+    assert.equal(result.claims.actualMetalRan, true);
+    assert.equal(result.claims.nativeCompileParity, true);
+    assert.equal(result.claims.explicitMslMetalProof, true);
+    assert.equal(result.claims.metalParity, false);
+    assert.equal(result.claims.tixlParity, false);
+    assert.equal(result.claims.pbrVisualCorrectness, false);
+    assert.equal(result.metalProof.status, "rendered");
+    assert.equal(result.metalProof.width, 8);
+    assert.equal(result.metalProof.height, 8);
+    assert.equal(result.metalProof.nonBlack, true);
+    assert.equal(result.metalProof.varied, true);
+    return;
+  }
+
+  assert.equal(result.ok, false);
   assert.equal(result.claims.actualCompilerRan, false);
+  assert.equal(result.claims.actualMetalRan, false);
   assert.equal(result.claims.nativeCompileParity, false);
+  assert.equal(result.claims.explicitMslMetalProof, false);
+  assertStableExplicitMslEnvironmentFailure(result, errors);
+});
+
+test("NativeDrawShaderCompileProof nests Metal proof compiler failure for invalid explicit MSL", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "native-draw-msl-invalid-"));
+  const packagePath = path.join(tmpDir, "shader_program_package.json");
+  const graphPath = path.join(tmpDir, "graph.json");
+  const pkg = JSON.parse(fs.readFileSync(packageArtifactPath, "utf8"));
+  pkg.requestedDrawShader.nativeSource = {
+    language: "MSL",
+    vertexEntry: "my_world_vertex",
+    fragmentEntry: "my_world_fragment",
+    sourceText: `#include <metal_stdlib>
+using namespace metal;
+vertex float4 my_world_vertex(uint vertexId [[vertex_id]]) { return float4(0.0); }
+fragment float4 my_world_fragment() { return float4(1.0) }
+`,
+  };
+  fs.writeFileSync(packagePath, JSON.stringify(pkg, null, 2));
+  fs.writeFileSync(graphPath, JSON.stringify({ graphId: "fixture.native.invalid", shaderProgramPackage: packagePath }, null, 2));
+
+  const run = spawnSync("python3", [scriptPath, graphPath, tmpDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 1);
+  const result = readArtifact(tmpDir, "native_draw_shader_compile_result.json");
+  const errors = readArtifact(tmpDir, "native_draw_shader_compile_errors.json");
+
+  assert.equal(result.ok, false);
+  assert.equal(result.claims.nativeCompileParity, false);
+  assert.equal(result.claims.explicitMslMetalProof, false);
+  assert.equal(result.claims.tixlParity, false);
+  assert.equal(result.claims.pbrVisualCorrectness, false);
+  assert.equal(errors[0].code, "native_draw_shader_compile.metal_proof_failed");
+
+  if (result.status === "blocked_metal_device_unavailable") {
+    assert.equal(errors[0].metalStatus, "blocked_metal_device_unavailable");
+    assert.equal(result.claims.actualCompilerRan, false);
+    assert.equal(result.claims.actualMetalRan, false);
+    return;
+  }
+
+  if (result.status === "metal_explicit_msl_proof_unavailable") {
+    assertStableExplicitMslEnvironmentFailure(result, errors);
+    return;
+  }
+
+  assert.equal(result.status, "metal_explicit_msl_proof_failed");
+  assert.equal(result.metalProof.status, "compile_failed");
+  assert.equal(errors[0].metalStatus, "compile_failed");
+  assert.ok(errors[0].metalErrors.some((error) => error.code === "metal_explicit_msl.compile_failed"));
+  assert.equal(result.claims.actualCompilerRan, true);
+  assert.equal(result.claims.actualMetalRan, false);
+});
+
+test("NativeDrawShaderCompileProof reports stable unavailable status when Metal proof command is missing", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "native-draw-msl-unavailable-"));
+  const packagePath = path.join(tmpDir, "shader_program_package.json");
+  const graphPath = path.join(tmpDir, "graph.json");
+  const pkg = JSON.parse(fs.readFileSync(packageArtifactPath, "utf8"));
+  pkg.requestedDrawShader.nativeSource = {
+    language: "MSL",
+    vertexEntry: "my_world_vertex",
+    fragmentEntry: "my_world_fragment",
+    sourceText: `#include <metal_stdlib>
+using namespace metal;
+vertex float4 my_world_vertex(uint vertexId [[vertex_id]]) { return float4(0.0); }
+fragment float4 my_world_fragment() { return float4(1.0); }
+`,
+  };
+  fs.writeFileSync(packagePath, JSON.stringify(pkg, null, 2));
+  fs.writeFileSync(graphPath, JSON.stringify({ graphId: "fixture.native.unavailable", shaderProgramPackage: packagePath }, null, 2));
+
+  const run = spawnSync("python3", [scriptPath, graphPath, tmpDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      NATIVE_DRAW_SHADER_COMPILE_METAL_PROOF_COMMAND: "definitely-not-a-metal-proof-command",
+    },
+  });
+
+  assert.equal(run.status, 1);
+  const result = readArtifact(tmpDir, "native_draw_shader_compile_result.json");
+  const errors = readArtifact(tmpDir, "native_draw_shader_compile_errors.json");
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "metal_explicit_msl_proof_unavailable");
+  assert.equal(result.claims.actualCompilerRan, false);
+  assert.equal(result.claims.actualMetalRan, false);
+  assert.equal(result.claims.nativeCompileParity, false);
+  assert.equal(result.claims.explicitMslMetalProof, false);
+  assert.equal(errors[0].code, "native_draw_shader_compile.metal_proof_unavailable");
+  assert.equal(errors[0].metalStatus, "metal_explicit_msl_proof_unavailable");
+  assert.equal(errors[0].metalErrors[0].code, "metal_explicit_msl.proof_unavailable");
+  assert.ok(!JSON.stringify({ result, errors }).includes("Traceback"));
 });
 
 function readArtifact(dir, name) {
   return JSON.parse(fs.readFileSync(path.join(dir, name), "utf8"));
+}
+
+function assertStableExplicitMslEnvironmentFailure(result, errors) {
+  if (result.status === "blocked_metal_device_unavailable") {
+    assert.equal(errors[0].code, "native_draw_shader_compile.metal_proof_failed");
+    assert.equal(errors[0].metalStatus, "blocked_metal_device_unavailable");
+    return;
+  }
+
+  assert.equal(result.status, "metal_explicit_msl_proof_unavailable");
+  assert.equal(errors[0].code, "native_draw_shader_compile.metal_proof_unavailable");
+  assert.equal(errors[0].metalStatus, "metal_explicit_msl_proof_unavailable");
+  assert.ok(!JSON.stringify({ result, errors }).includes("Traceback"));
 }

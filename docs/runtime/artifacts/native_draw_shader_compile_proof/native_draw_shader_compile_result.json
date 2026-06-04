@@ -16,7 +16,9 @@
   "status": "blocked_missing_native_source",
   "claims": {
     "actualCompilerRan": false,
+    "actualMetalRan": false,
     "nativeCompileParity": false,
+    "explicitMslMetalProof": false,
     "metalParity": false,
     "tixlParity": false,
     "pbrVisualCorrectness": false
