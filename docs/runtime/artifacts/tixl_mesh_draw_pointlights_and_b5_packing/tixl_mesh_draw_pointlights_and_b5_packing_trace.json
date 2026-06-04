@@ -1,0 +1,45 @@
+[
+  {
+    "op": "loadTixlMeshDrawPointLightsAndB5PackingFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_pointlights_and_b5_packing.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+    "layoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+    "priorNativePackingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_native_packing/tixl_mesh_draw_constant_buffer_native_packing_result.json",
+    "pointLightShaderSource": "external/tixl/Operators/Lib/Assets/shaders/shared/point-light.hlsl",
+    "pointLightHostSource": "external/tixl/Core/Rendering/PointLightStack.cs"
+  },
+  {
+    "op": "validateInputArtifacts",
+    "sourceAuditValid": true,
+    "layoutValid": true,
+    "priorNativePackingValid": true
+  },
+  {
+    "op": "validatePointLightSourceEvidence",
+    "valid": true,
+    "shaderSource": "external/tixl/Operators/Lib/Assets/shaders/shared/point-light.hlsl",
+    "hostSource": "external/tixl/Core/Rendering/PointLightStack.cs"
+  },
+  {
+    "op": "buildGeneratedPointLightsB3PackingProbe",
+    "compiler": "xcrun clang++",
+    "exitCode": 0
+  },
+  {
+    "op": "runGeneratedPointLightsB3PackingProbe",
+    "exitCode": 0
+  },
+  {
+    "op": "validatePointLightPackingProbeReadback",
+    "status": "proven_b3_pointlights_packing",
+    "ok": true,
+    "valid": true
+  },
+  {
+    "op": "publishTixlMeshDrawPointLightsAndB5PackingArtifacts",
+    "ok": true
+  }
+]

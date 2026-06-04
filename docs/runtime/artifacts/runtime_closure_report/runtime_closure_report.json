@@ -11,9 +11,10 @@
   ],
   "broken": [],
   "requiredNext": [
-    "prove_or_reject_hlsl_to_msl_translation_for_mesh_draw",
-    "bind_full_pbr_texture_sampler_set_after_hlsl_to_msl_translation",
-    "replace_bounded_backend_interface_after_resource_binding_and_hlsl_to_msl_proof"
+    "expand_shadergraph_duplicate_params_b5_before_full_constant_buffer_adapter",
+    "map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1",
+    "expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates",
+    "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof"
   ],
   "summary": {
     "drawCalls": 1,

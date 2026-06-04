@@ -1,0 +1,176 @@
+{
+  "kind": "TixlMeshDrawPointLightsAndB5PackingVerdict",
+  "graphId": "fixture.tixl_mesh_draw_pointlights_and_b5_packing",
+  "ok": true,
+  "status": "proven_b3_pointlights_packing_b5_blocked",
+  "selectedStrategy": "handwritten_explicit_msl_adapter",
+  "inputArtifacts": {
+    "sourceAudit": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+      "kind": "TixlMeshDrawShaderSourceAudit",
+      "ok": true,
+      "status": "audited_tixl_mesh_draw_source",
+      "requiredRegisters": [
+        "b0",
+        "b1",
+        "b2",
+        "b3",
+        "b4",
+        "b5"
+      ],
+      "b5FieldCount": 0
+    },
+    "constantBufferLayout": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+      "kind": "TixlMeshDrawConstantBufferLayoutProof",
+      "ok": true,
+      "status": "classified_tixl_mesh_draw_constant_buffer_layout",
+      "selectedStrategy": "handwritten_explicit_msl_adapter",
+      "bindingPolicyReadiness": "bounded_partial",
+      "reservedMetalBufferRange": [
+        2,
+        7
+      ]
+    },
+    "priorNativePacking": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_native_packing/tixl_mesh_draw_constant_buffer_native_packing_result.json",
+      "kind": "TixlMeshDrawConstantBufferNativePackingProof",
+      "ok": true,
+      "status": "proven_partial_native_constant_buffer_packing",
+      "selectedStrategy": "handwritten_explicit_msl_adapter",
+      "actualMetalPackingProbeRan": true,
+      "provenRegisters": [
+        "b0",
+        "b1",
+        "b2",
+        "b4"
+      ]
+    }
+  },
+  "sourceEvidence": {
+    "shaderStruct": {
+      "path": "external/tixl/Operators/Lib/Assets/shaders/shared/point-light.hlsl",
+      "fields": [
+        {
+          "name": "position",
+          "type": "float3",
+          "offset": 0
+        },
+        {
+          "name": "intensity",
+          "type": "float",
+          "offset": 12
+        },
+        {
+          "name": "color",
+          "type": "float4",
+          "offset": 16
+        },
+        {
+          "name": "range",
+          "type": "float",
+          "offset": 32
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "offset": 36
+        },
+        {
+          "name": "__padding",
+          "type": "float2",
+          "offset": 40
+        }
+      ]
+    },
+    "hostConstantBuffer": {
+      "path": "external/tixl/Core/Rendering/PointLightStack.cs",
+      "pointLightStructSizeBytes": 48,
+      "maxPointLights": 8,
+      "activeLightCountOffset": 384,
+      "constantBufferSizeBytes": 400
+    }
+  },
+  "probe": {
+    "backend": "Metal",
+    "generatedMslArtifact": "generated_pointlights_b3_packing_probe.metal",
+    "actualCompilerRan": true,
+    "actualMetalRan": true,
+    "roundtripReadback": true,
+    "message": "compiled generated MSL compute probe and read b3 PointLights constant buffer"
+  },
+  "provenNativePacking": [
+    {
+      "register": "b3",
+      "name": "PointLights",
+      "semanticRole": "mesh_draw_point_lights",
+      "metalBuffer": 5,
+      "sizeBytes": 400,
+      "arrayStrideBytes": 48,
+      "arrayLength": 8,
+      "activeLightCountOffset": 384,
+      "offsets": {
+        "Lights[0].position": 0,
+        "Lights[0].intensity": 12,
+        "Lights[0].color": 16,
+        "Lights[0].range": 32,
+        "Lights[0].decay": 36,
+        "Lights[0].__padding": 40,
+        "Lights[1].position": 48,
+        "Lights[7].position": 336,
+        "ActiveLightCount": 384
+      },
+      "proof": {
+        "method": "Metal compute readback from host bytes written at PointLight offsets 0, 48, 336 and ActiveLightCount offset 384",
+        "roundtripSentinelReadback": true,
+        "sourceBackedBy": [
+          "external/tixl/Operators/Lib/Assets/shaders/shared/point-light.hlsl",
+          "external/tixl/Core/Rendering/PointLightStack.cs"
+        ]
+      }
+    }
+  ],
+  "b5Verdict": {
+    "register": "b5",
+    "name": "Params",
+    "semanticRole": "shadergraph_duplicate_params",
+    "status": "b5_packing_blocked_until_shadergraph_param_expansion",
+    "fieldsFromLayout": [],
+    "fieldsKnownFromSourceAudit": false,
+    "provenNativePacking": false,
+    "reason": "The current layout/source-audit artifact records duplicate shadergraph Params at b5 but no concrete fields."
+  },
+  "semanticBlockers": [
+    {
+      "code": "b5_packing_blocked_until_shadergraph_param_expansion",
+      "reason": "b5 duplicate Params has no concrete source fields, so native packing cannot be invented in this lane."
+    },
+    {
+      "code": "constant_buffer_adapter_still_incomplete",
+      "reason": "b3 PointLights can be proven independently, but b5 keeps the b0-b5 adapter incomplete."
+    },
+    {
+      "code": "texture_sampler_mapping_not_in_scope",
+      "reason": "This verdict does not map t2-t7 textures or s0-s1 samplers."
+    },
+    {
+      "code": "backend_replacement_not_ready",
+      "reason": "A b3 packing probe plus a b5 boundary verdict is not full resource binding or a backend."
+    }
+  ],
+  "claims": {
+    "priorNativePackingArtifactConsumed": true,
+    "constantBufferLayoutArtifactConsumed": true,
+    "actualMetalPointLightProbeRan": true,
+    "b3PointLightsPackingProven": true,
+    "b5DuplicateParamsPackingProven": false,
+    "b5RequiresShadergraphParamExpansion": true,
+    "constantBufferAdapterComplete": false,
+    "textureSamplerMapping": false,
+    "fullPbrResourceBinding": false,
+    "backendReplacementReady": false,
+    "hlslToMslTranslation": false,
+    "tixlRuntimeParity": false,
+    "pbrVisualCorrectness": false
+  }
+}

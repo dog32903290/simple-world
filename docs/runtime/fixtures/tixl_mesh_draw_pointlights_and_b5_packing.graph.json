@@ -1,0 +1,50 @@
+{
+  "graphId": "fixture.tixl_mesh_draw_pointlights_and_b5_packing",
+  "kind": "TixlMeshDrawPointLightsAndB5PackingVerdict",
+  "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+  "layoutArtifact": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_layout/tixl_mesh_draw_constant_buffer_layout_result.json",
+  "priorNativePackingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_native_packing/tixl_mesh_draw_constant_buffer_native_packing_result.json",
+  "pointLightShaderSource": "external/tixl/Operators/Lib/Assets/shaders/shared/point-light.hlsl",
+  "pointLightHostSource": "external/tixl/Core/Rendering/PointLightStack.cs",
+  "probeRegisters": ["b3"],
+  "blockedRegisters": ["b5"],
+  "expected": {
+    "status": "proven_b3_pointlights_packing_b5_blocked",
+    "claims": {
+      "priorNativePackingArtifactConsumed": true,
+      "constantBufferLayoutArtifactConsumed": true,
+      "actualMetalPointLightProbeRan": false,
+      "b3PointLightsPackingProven": false,
+      "b5DuplicateParamsPackingProven": false,
+      "b5RequiresShadergraphParamExpansion": true,
+      "constantBufferAdapterComplete": false,
+      "textureSamplerMapping": false,
+      "fullPbrResourceBinding": false,
+      "backendReplacementReady": false,
+      "hlslToMslTranslation": false,
+      "tixlRuntimeParity": false,
+      "pbrVisualCorrectness": false
+    },
+    "b3PointLightsPacking": {
+      "register": "b3",
+      "name": "PointLights",
+      "semanticRole": "mesh_draw_point_lights",
+      "metalBuffer": 5,
+      "sizeBytes": 400,
+      "arrayStrideBytes": 48,
+      "arrayLength": 8,
+      "activeLightCountOffset": 384,
+      "offsets": {
+        "Lights[0].position": 0,
+        "Lights[0].intensity": 12,
+        "Lights[0].color": 16,
+        "Lights[0].range": 32,
+        "Lights[0].decay": 36,
+        "Lights[0].__padding": 40,
+        "Lights[1].position": 48,
+        "Lights[7].position": 336,
+        "ActiveLightCount": 384
+      }
+    }
+  }
+}
