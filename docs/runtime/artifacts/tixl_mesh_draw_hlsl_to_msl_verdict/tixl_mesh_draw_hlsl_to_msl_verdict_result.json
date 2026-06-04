@@ -1,0 +1,237 @@
+{
+  "kind": "TixlMeshDrawHlslToMslTranslationVerdict",
+  "graphId": "fixture.tixl_mesh_draw_hlsl_to_msl_verdict",
+  "ok": true,
+  "status": "rejected_for_mesh_draw_parity",
+  "mechanicalTranslationStatus": "rejected_for_mesh_draw_parity",
+  "verdict": "reject_mechanical_hlsl_to_msl_for_mesh_draw_parity",
+  "message": "existing source and binding proof facts reject mechanical HLSL-to-MSL mesh draw parity",
+  "inputArtifacts": {
+    "sourceAudit": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+      "kind": "TixlMeshDrawShaderSourceAudit",
+      "ok": true,
+      "status": "audited_tixl_mesh_draw_source"
+    },
+    "resourceBinding": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+      "kind": "TixlMeshDrawResourceBindingProof",
+      "ok": true,
+      "status": "summarized_tixl_mesh_draw_resource_binding"
+    }
+  },
+  "evidence": {
+    "sourceAudit": {
+      "status": "audited_tixl_mesh_draw_source",
+      "requiredBufferRegisters": [
+        "b0",
+        "b1",
+        "b2",
+        "b3",
+        "b4",
+        "b5"
+      ],
+      "resourceRegisters": [
+        "t0",
+        "t1",
+        "t2",
+        "t3",
+        "t4",
+        "t5",
+        "t6",
+        "t7"
+      ],
+      "samplerRegisters": [
+        "s0",
+        "s1"
+      ],
+      "templateHoles": [
+        "FIELD_CALL",
+        "FIELD_FUNCTIONS",
+        "FLOAT_PARAMS",
+        "GLOBALS",
+        "RESOURCES(t8)"
+      ]
+    },
+    "resourceBinding": {
+      "status": "summarized_tixl_mesh_draw_resource_binding",
+      "meshBufferBindingObserved": true,
+      "fullPbrResourceBinding": false,
+      "hlslToMslTranslation": false,
+      "backendReplacementReady": false
+    }
+  },
+  "blockerFacts": [
+    {
+      "code": "cbuffer_register_set_requires_explicit_layout_policy",
+      "registers": [
+        "b0",
+        "b1",
+        "b2",
+        "b3",
+        "b4",
+        "b5"
+      ],
+      "names": [
+        "Transforms",
+        "Params",
+        "FogParams",
+        "PointLights",
+        "PbrParams",
+        "Params"
+      ],
+      "reason": "Metal constant-buffer layout and binding policy has not been proven for the full TiXL set."
+    },
+    {
+      "code": "texture_and_cube_register_set_requires_resource_mapping",
+      "registers": [
+        "t0",
+        "t1",
+        "t2",
+        "t3",
+        "t4",
+        "t5",
+        "t6",
+        "t7"
+      ],
+      "names": [
+        "PbrVertices",
+        "FaceIndices",
+        "BaseColorMap",
+        "EmissiveColorMap",
+        "RSMOMap",
+        "NormalMap",
+        "PrefilteredSpecular",
+        "BRDFLookup"
+      ],
+      "reason": "Only t0/t1 buffer binding has been observed; texture and cube resources are not proven."
+    },
+    {
+      "code": "sampler_register_set_requires_sampler_mapping",
+      "registers": [
+        "s0",
+        "s1"
+      ],
+      "names": [
+        "WrappedSampler",
+        "ClampedSampler"
+      ],
+      "reason": "Sampler-state translation and Metal binding have not been proven."
+    },
+    {
+      "code": "template_resources_t8_plus_require_tixl_expansion",
+      "registers": [
+        "t8+"
+      ],
+      "holes": [
+        "RESOURCES(t8)"
+      ],
+      "reason": "Injected shadergraph resources require TiXL expansion before resource mapping can be complete."
+    },
+    {
+      "code": "template_holes_require_tixl_shadergraph_expansion",
+      "holes": [
+        "FLOAT_PARAMS",
+        "GLOBALS",
+        "FIELD_FUNCTIONS",
+        "FIELD_CALL"
+      ],
+      "reason": "The donor shader has unexpanded TiXL shadergraph template holes."
+    },
+    {
+      "code": "duplicate_params_cbuffer_requires_disambiguation",
+      "registers": [
+        "b1",
+        "b5"
+      ],
+      "names": [
+        "Params"
+      ],
+      "reason": "Two Params cbuffers need an explicit naming and binding policy."
+    },
+    {
+      "code": "global_frag_state_requires_rewrite",
+      "symbols": [
+        "frag"
+      ],
+      "reason": "PBR helpers rely on mutable global fragment state that needs an explicit MSL rewrite policy."
+    },
+    {
+      "code": "derivatives_require_fragment_stage_mapping",
+      "symbols": [
+        "ddx",
+        "ddy"
+      ],
+      "reason": "Derivative semantics must be proven in the Metal fragment stage."
+    },
+    {
+      "code": "discard_requires_fragment_control_flow_mapping",
+      "symbols": [
+        "discard"
+      ],
+      "reason": "Alpha-test discard needs Metal fragment control-flow parity proof."
+    },
+    {
+      "code": "mrt_sv_target_outputs_require_render_target_contract",
+      "semantics": [
+        "SV_Target0",
+        "SV_Target1"
+      ],
+      "reason": "Multiple render targets require an explicit native render target contract."
+    },
+    {
+      "code": "system_semantics_require_stage_attribute_mapping",
+      "semantics": [
+        "SV_VertexID",
+        "VPOS",
+        "SV_POSITION"
+      ],
+      "reason": "D3D system semantics require explicit Metal stage attribute mapping."
+    },
+    {
+      "code": "d3d_mul_order_requires_matrix_convention_proof",
+      "symbols": [
+        "mul(vector, matrix)"
+      ],
+      "reason": "D3D matrix/vector multiplication order must be proven against Metal conventions."
+    },
+    {
+      "code": "texturecube_samplelevel_getdimensions_requires_msl_texture_mapping",
+      "symbols": [
+        "TextureCube",
+        "SampleLevel",
+        "GetDimensions"
+      ],
+      "reason": "Cube texture sampling and mip dimension queries require Metal texture API mapping proof."
+    },
+    {
+      "code": "pbr_visual_reference_missing",
+      "sourceBlocker": "requires_pbr_visual_reference",
+      "reason": "PBR lighting and IBL resources are summarized, but no visual reference or comparison has been rendered."
+    },
+    {
+      "code": "resource_binding_proof_is_partial",
+      "boundNow": [
+        "PbrVertices t0",
+        "FaceIndices t1"
+      ],
+      "unboundFamilies": [
+        "b0-b5",
+        "t2-t7",
+        "s0-s1",
+        "t8+",
+        "template holes"
+      ],
+      "reason": "The current resource binding proof intentionally observes only packed mesh buffers."
+    }
+  ],
+  "claims": {
+    "translationRiskClassified": true,
+    "mechanicalTranslationForMeshDrawParity": false,
+    "hlslToMslTranslation": false,
+    "fullPbrResourceBinding": false,
+    "tixlRuntimeParity": false,
+    "pbrVisualCorrectness": false,
+    "backendReplacementReady": false
+  }
+}

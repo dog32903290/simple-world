@@ -1,0 +1,30 @@
+[
+  {
+    "op": "loadTixlMeshDrawHlslToMslVerdictFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_hlsl_to_msl_verdict.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+    "resourceBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json"
+  },
+  {
+    "op": "readInputArtifacts",
+    "sourceAuditRead": true,
+    "resourceBindingRead": true
+  },
+  {
+    "op": "validateInputArtifacts",
+    "sourceAuditValid": true,
+    "resourceBindingValid": true
+  },
+  {
+    "op": "buildHlslToMslVerdict",
+    "mechanicalTranslationStatus": "rejected_for_mesh_draw_parity",
+    "blockerCount": 15
+  },
+  {
+    "op": "publishTixlMeshDrawHlslToMslVerdictArtifacts",
+    "ok": true
+  }
+]

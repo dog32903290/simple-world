@@ -59,12 +59,18 @@ fixed layout can feed a tiny explicit MSL/Metal mesh draw through compile,
 render, and readback. The TiXL mesh draw resource binding proof records that
 only `PbrVertices t0 -> buffer(0)` and `FaceIndices t1 -> buffer(1)` are bound
 today; PBR cbuffers, textures, samplers, and t8+ injected resources remain
-unbound. Those lanes narrow the blocker but do not replace the remaining proof:
+unbound. The TiXL mesh draw HLSL-to-MSL verdict lane now rejects mechanical
+translation for mesh draw parity from structured blocker facts: b0-b5 cbuffers,
+t0-t7 textures/cubes, s0-s1 samplers, t8+ template resources, TiXL template
+holes, duplicate `Params`, global frag state, derivatives, discard, MRT outputs,
+D3D system semantics, D3D `mul(vector, matrix)`, and TextureCube
+`SampleLevel`/`GetDimensions`. Those lanes narrow the blocker but do not replace
+the remaining proof:
 
 ```text
-prove_or_reject_hlsl_to_msl_translation_for_mesh_draw
-bind_full_pbr_texture_sampler_set_after_hlsl_to_msl_translation
-replace_bounded_backend_interface_after_resource_binding_and_hlsl_to_msl_proof
+replace_rejected_mechanical_hlsl_to_msl_with_explicit_mesh_draw_translation_strategy
+bind_full_pbr_texture_sampler_set_after_explicit_mesh_draw_translation_strategy
+replace_bounded_backend_interface_after_resource_binding_and_explicit_translation_proof
 ```
 
 ## Failure Law

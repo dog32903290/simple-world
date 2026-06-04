@@ -1,0 +1,41 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.tixl_mesh_draw_hlsl_to_msl_verdict",
+  "kind": "TixlMeshDrawHlslToMslTranslationVerdict",
+  "metadata": {
+    "purpose": "Classify whether TiXL mesh-Draw.hlsl can be carried by mechanical HLSL-to-MSL translation using the source audit and resource binding ledger. The resource binding artifact must still prove that it consumed the buffer layout and MSL approximation artifacts."
+  },
+  "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+  "resourceBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+  "expected": {
+    "status": "rejected_for_mesh_draw_parity",
+    "mechanicalTranslationStatus": "rejected_for_mesh_draw_parity",
+    "minimumBlockerCount": 15,
+    "requiredBlockerCodes": [
+      "cbuffer_register_set_requires_explicit_layout_policy",
+      "texture_and_cube_register_set_requires_resource_mapping",
+      "sampler_register_set_requires_sampler_mapping",
+      "template_resources_t8_plus_require_tixl_expansion",
+      "template_holes_require_tixl_shadergraph_expansion",
+      "duplicate_params_cbuffer_requires_disambiguation",
+      "global_frag_state_requires_rewrite",
+      "derivatives_require_fragment_stage_mapping",
+      "discard_requires_fragment_control_flow_mapping",
+      "mrt_sv_target_outputs_require_render_target_contract",
+      "system_semantics_require_stage_attribute_mapping",
+      "d3d_mul_order_requires_matrix_convention_proof",
+      "texturecube_samplelevel_getdimensions_requires_msl_texture_mapping",
+      "pbr_visual_reference_missing",
+      "resource_binding_proof_is_partial"
+    ],
+    "claims": {
+      "translationRiskClassified": true,
+      "mechanicalTranslationForMeshDrawParity": false,
+      "hlslToMslTranslation": false,
+      "fullPbrResourceBinding": false,
+      "tixlRuntimeParity": false,
+      "pbrVisualCorrectness": false,
+      "backendReplacementReady": false
+    }
+  }
+}
