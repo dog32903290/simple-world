@@ -9,6 +9,7 @@
       "entryPoint": "raymarch_field_1"
     }
   ],
+  "requestedDrawShader": null,
   "bindings": {
     "uniforms": [],
     "samplers": [],

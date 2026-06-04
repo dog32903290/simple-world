@@ -22,17 +22,19 @@ BINDING_KINDS = ["uniforms", "samplers", "textures", "storageBuffers", "constant
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
-        print("usage: shader_program_shell.py <shader_program_contract.graph.json> <out_dir>", file=sys.stderr)
+    if len(sys.argv) not in {3, 4}:
+        print("usage: shader_program_shell.py <shader_program_contract.graph.json> <out_dir> [draw_command.json]", file=sys.stderr)
         return 2
 
     fixture_path = Path(sys.argv[1]).expanduser().resolve()
     out_dir = Path(sys.argv[2]).expanduser().resolve()
+    draw_command_path = Path(sys.argv[3]).expanduser().resolve() if len(sys.argv) == 4 else None
     out_dir.mkdir(parents=True, exist_ok=True)
 
     errors: list[dict[str, Any]] = []
     fixture = read_json(fixture_path, errors, "shader_program.fixture_read_failed")
-    if fixture is None:
+    draw_command = read_json(draw_command_path, errors, "shader_program.draw_command_read_failed") if draw_command_path else None
+    if fixture is None or errors:
         write_artifacts(out_dir, "", {}, {}, {}, default_last_valid_policy(), errors)
         return 1
 
@@ -40,6 +42,7 @@ def main() -> int:
         fixture,
         fixture_path,
         out_dir,
+        draw_command,
     )
     errors.extend(run_errors)
     write_artifacts(out_dir, shader_source, package, bindings, compile_request, last_valid_policy, errors)
@@ -50,6 +53,7 @@ def package_shader_program(
     fixture: dict[str, Any],
     fixture_path: Path,
     out_dir: Path,
+    draw_command: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any], str, list[dict[str, Any]]]:
     errors: list[dict[str, Any]] = []
     repo_root = Path(__file__).resolve().parents[3]
@@ -132,6 +136,7 @@ def package_shader_program(
 
     raw_bindings = program.get("bindings", {})
     bindings = normalize_bindings(raw_bindings, errors)
+    requested_draw_shader = normalize_draw_shader_request(draw_command, errors)
     last_valid_policy = program.get("lastValidPolicy") or default_last_valid_policy()
 
     package = {
@@ -144,6 +149,7 @@ def package_shader_program(
         "compileBackend": compile_backend,
         "compileMode": program.get("compileMode"),
         "stages": stages,
+        "requestedDrawShader": requested_draw_shader,
         "entrySymbols": program.get("entrySymbols", []),
         "status": "ok" if not errors else "error",
     }
@@ -153,11 +159,47 @@ def package_shader_program(
         "language": language,
         "sourceHash": source_hash,
         "stages": stages,
+        "requestedDrawShader": requested_draw_shader,
         "bindings": bindings,
         "mode": program.get("compileMode"),
         "actualCompileProof": "docs/runtime/scripts/check_shader_webgl.js",
     }
     return package, bindings, compile_request, last_valid_policy, shader_source, errors
+
+
+def normalize_draw_shader_request(
+    draw_command: dict[str, Any] | None,
+    errors: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if draw_command is None:
+        return None
+    if draw_command.get("ok") is not True:
+        errors.append({
+            "code": "shader_program.draw_command_not_ok",
+            "reason": draw_command.get("reason"),
+        })
+        return None
+    shader_source = draw_command.get("shaderSource")
+    vertex_entry = draw_command.get("vertexShaderEntry")
+    pixel_entry = draw_command.get("pixelShaderEntry")
+    if not shader_source:
+        errors.append({"code": "shader_program.draw_shader_source_missing"})
+    if not vertex_entry or not pixel_entry:
+        errors.append({
+            "code": "shader_program.draw_shader_stage_missing",
+            "vertexShaderEntry": vertex_entry,
+            "pixelShaderEntry": pixel_entry,
+        })
+    return {
+        "source": shader_source,
+        "language": "HLSL_TIXL_DONOR",
+        "vertexShaderEntry": vertex_entry,
+        "pixelShaderEntry": pixel_entry,
+        "selectedMaterialId": draw_command.get("selectedMaterialId"),
+        "constantBuffers": list(draw_command.get("constantBuffers", [])),
+        "shaderResources": list(draw_command.get("shaderResources", [])),
+        "compileParity": "notClaimed",
+    }
 
 
 def normalize_bindings(raw_bindings: dict[str, Any], errors: list[dict[str, Any]]) -> dict[str, Any]:

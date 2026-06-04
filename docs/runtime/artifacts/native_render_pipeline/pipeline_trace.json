@@ -46,7 +46,8 @@
   },
   {
     "op": "shaderProgram.begin",
-    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/shader_program_contract.graph.json"
+    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/shader_program_contract.graph.json",
+    "drawCommand": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/artifacts/native_render_pipeline/material_pbr/mesh_pbr_draw_command.json"
   },
   {
     "op": "shaderProgram.end",

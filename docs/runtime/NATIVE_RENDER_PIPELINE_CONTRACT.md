@@ -39,6 +39,9 @@ main pipeline may not silently allocate render targets from a separate hand-made
 resource fixture. CommandStream must receive MaterialPbr's
 `mesh_pbr_draw_command.json`; the main pipeline may not keep a hidden hand-made
 draw command once material/mesh command evidence exists.
+ShaderProgram must receive the same draw command artifact and publish the
+requested draw shader source/stage entries, while marking TiXL HLSL compile
+parity as not claimed.
 
 ## Compatibility Law
 
@@ -52,6 +55,7 @@ RenderGraph pass plan exposes the CommandStream pass color write
 MaterialPbr emits mesh_pbr_draw_command.json
 CommandStream.ok == true
 CommandStream.drawCalls > 0
+ShaderProgram requested draw VS/PS entries match CommandStream bound shader stage
 uniform targetProgramId == shader programId
 RenderFrameInput.sourceSnapshotOk == true
 ShaderProgram.status == ok

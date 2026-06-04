@@ -8,8 +8,19 @@ const test = require("node:test");
 const repoRoot = path.resolve(__dirname, "..");
 const contractPath = path.join(repoRoot, "docs/runtime/SHADER_PROGRAM_CONTRACT.md");
 const fixturePath = path.join(repoRoot, "docs/runtime/fixtures/shader_program_contract.graph.json");
+const materialFixturePath = path.join(repoRoot, "docs/runtime/fixtures/material_pbr_scope.graph.json");
 const scriptPath = path.join(repoRoot, "docs/runtime/scripts/shader_program_shell.py");
+const materialScriptPath = path.join(repoRoot, "docs/runtime/scripts/material_pbr_scope_shell.py");
 const artifactDir = path.join(repoRoot, "docs/runtime/artifacts/shader_program");
+
+function runMaterialPbr(outDir) {
+  const run = spawnSync("python3", [materialScriptPath, materialFixturePath, outDir], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(run.status, 0, run.stderr || run.stdout);
+  return path.join(outDir, "mesh_pbr_draw_command.json");
+}
 
 test("ShaderProgram contract names source, stage, binding, backend, and failure boundaries", () => {
   const source = fs.readFileSync(contractPath, "utf8");
@@ -66,6 +77,53 @@ test("ShaderProgram shell emits package, binding, compile request, and last-vali
   assert.equal(compileRequest.actualCompileProof, "docs/runtime/scripts/check_shader_webgl.js");
   assert.equal(lastValid.onCompileError, "keepLastValidProgram");
   assert.equal(lastValid.replaceLiveProgram, false);
+});
+
+test("ShaderProgram shell records Material/PBR draw shader request without claiming HLSL compile parity", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "shader-program-draw-command-"));
+  const drawCommandPath = runMaterialPbr(path.join(tmpDir, "material_pbr"));
+  const run = spawnSync("python3", [scriptPath, fixturePath, tmpDir, drawCommandPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 0, run.stderr || run.stdout);
+  const pkg = JSON.parse(fs.readFileSync(path.join(tmpDir, "shader_program_package.json"), "utf8"));
+  const compileRequest = JSON.parse(fs.readFileSync(path.join(tmpDir, "shader_program_compile_request.json"), "utf8"));
+  const errors = JSON.parse(fs.readFileSync(path.join(tmpDir, "shader_program_errors.json"), "utf8"));
+
+  assert.deepEqual(errors, []);
+  assert.equal(pkg.requestedDrawShader.source, "Lib:shaders/3d/mesh/mesh-Draw.hlsl");
+  assert.equal(pkg.requestedDrawShader.language, "HLSL_TIXL_DONOR");
+  assert.equal(pkg.requestedDrawShader.vertexShaderEntry, "vsMain");
+  assert.equal(pkg.requestedDrawShader.pixelShaderEntry, "psMain");
+  assert.equal(pkg.requestedDrawShader.selectedMaterialId, "glass");
+  assert.equal(pkg.requestedDrawShader.compileParity, "notClaimed");
+  assert.ok(pkg.requestedDrawShader.constantBuffers.includes("pbr:glass"));
+  assert.equal(compileRequest.requestedDrawShader.source, "Lib:shaders/3d/mesh/mesh-Draw.hlsl");
+});
+
+test("ShaderProgram shell refuses incomplete draw shader requests", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "shader-program-bad-draw-command-"));
+  const drawCommandPath = path.join(tmpDir, "bad-draw-command.json");
+  const drawCommand = {
+    ok: true,
+    shaderSource: "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+    vertexShaderEntry: "vsMain",
+    pixelShaderEntry: null,
+  };
+  fs.writeFileSync(drawCommandPath, JSON.stringify(drawCommand, null, 2));
+
+  const run = spawnSync("python3", [scriptPath, fixturePath, tmpDir, drawCommandPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 1);
+  const pkg = JSON.parse(fs.readFileSync(path.join(tmpDir, "shader_program_package.json"), "utf8"));
+  const errors = JSON.parse(fs.readFileSync(path.join(tmpDir, "shader_program_errors.json"), "utf8"));
+  assert.equal(pkg.status, "error");
+  assert.equal(errors[0].code, "shader_program.draw_shader_stage_missing");
 });
 
 test("ShaderProgram shell refuses missing entry symbols instead of fabricating program success", () => {

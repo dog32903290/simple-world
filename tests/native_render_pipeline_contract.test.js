@@ -81,6 +81,8 @@ test("NativeRenderPipeline shell emits one connected headless frame proof", () =
   assert.equal(summary.drawCalls, 1);
   assert.equal(summary.commandSource, "drawCommandArtifact");
   assert.equal(summary.selectedMaterialId, "glass");
+  assert.equal(summary.drawShaderSource, "Lib:shaders/3d/mesh/mesh-Draw.hlsl");
+  assert.equal(summary.drawShaderParity, "notClaimed");
   assert.equal(summary.targetProgramId, "program.sphere_sdf_raymarch.fragment");
   assert.equal(summary.loudness, 0.37);
   assert.equal(summary.importsOldUi, false);
@@ -101,6 +103,9 @@ test("NativeRenderPipeline shell emits one connected headless frame proof", () =
   assert.equal(commandSummary.drawCalls, 1);
   assert.equal(commandResult.ok, true);
   assert.equal(commandResult.stats.drawCalls, 1);
+  const shaderPackage = JSON.parse(fs.readFileSync(path.join(artifactDir, "shader_program/shader_program_package.json"), "utf8"));
+  assert.equal(shaderPackage.requestedDrawShader.vertexShaderEntry, "vsMain");
+  assert.equal(shaderPackage.requestedDrawShader.pixelShaderEntry, "psMain");
   assert.equal(capturedFrame.nonBlackSample, true);
   assert.deepEqual(trace.map((entry) => entry.op), [
     "loadNativeRenderPipeline",

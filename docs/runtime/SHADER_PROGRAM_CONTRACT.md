@@ -44,6 +44,21 @@ The source hash is part of the contract. If live controls regenerate shader
 source, the program identity changes. If live controls only update uniforms, the
 program identity stays stable and the binding values change.
 
+When a Material/Draw command artifact exists, ShaderProgram also records the
+requested draw shader source and stage entries:
+
+```text
+drawCommand.shaderSource
+drawCommand.vertexShaderEntry
+drawCommand.pixelShaderEntry
+drawCommand.constantBuffers
+drawCommand.shaderResources
+```
+
+For the current proof this is TiXL donor HLSL metadata, not a real native
+compile. The package must mark that boundary as `compileParity: notClaimed`
+until a Metal/HLSL/MSL backend can actually compile it.
+
 ## Binding Law
 
 Bindings are declared before backend compile:
@@ -87,6 +102,7 @@ Runner:
 
 ```text
 docs/runtime/scripts/shader_program_shell.py
+docs/runtime/scripts/shader_program_shell.py <shader_program_contract.graph.json> <out_dir> <mesh_pbr_draw_command.json>
 ```
 
 Artifacts:

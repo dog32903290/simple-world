@@ -90,7 +90,7 @@ def run_pipeline(
     uniform_bindings = read_json_file(uniform_dir / "shader_uniform_bindings.json", {})
     frame_input = read_json_file(uniform_dir / "render_frame_input.json", {})
 
-    run_shell(repo_root, "docs/runtime/scripts/shader_program_shell.py", program_fixture, program_dir, "shaderProgram", trace, errors)
+    run_shader_program_shell(repo_root, program_fixture, material_pbr_dir / "mesh_pbr_draw_command.json", program_dir, trace, errors)
     shader_package = read_json_file(program_dir / "shader_program_package.json", {})
 
     backend_input_fixture = write_backend_fixture_with_frame_input(backend_fixture, frame_input, program_fixture, out_dir, errors)
@@ -139,6 +139,8 @@ def run_pipeline(
         "drawCalls": command_summary.get("drawCalls", 0),
         "commandSource": command_summary.get("commandSource"),
         "selectedMaterialId": command_summary.get("selectedMaterialId"),
+        "drawShaderSource": shader_package.get("requestedDrawShader", {}).get("source") if shader_package.get("requestedDrawShader") else None,
+        "drawShaderParity": shader_package.get("requestedDrawShader", {}).get("compileParity") if shader_package.get("requestedDrawShader") else None,
         "targetProgramId": shader_package.get("programId"),
         "loudness": frame_input.get("loudness"),
         "frameIndex": frame_input.get("frameIndex"),
@@ -245,6 +247,36 @@ def run_resource_lifetime_shell(
         })
 
 
+def run_shader_program_shell(
+    repo_root: Path,
+    fixture_path: Path | None,
+    draw_command_path: Path,
+    out_dir: Path,
+    trace: list[dict[str, Any]],
+    errors: list[dict[str, Any]],
+) -> None:
+    if fixture_path is None:
+        errors.append({"code": "native_render_pipeline.missing_shaderProgram_fixture"})
+        return
+    script_path = repo_root / "docs/runtime/scripts/shader_program_shell.py"
+    trace.append({"op": "shaderProgram.begin", "fixture": str(fixture_path), "drawCommand": str(draw_command_path)})
+    result = subprocess.run(
+        ["python3", str(script_path), str(fixture_path), str(out_dir), str(draw_command_path)],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    trace.append({"op": "shaderProgram.end", "status": result.returncode})
+    if result.returncode != 0:
+        errors.append({
+            "code": "native_render_pipeline.shaderProgram_failed",
+            "status": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        })
+
+
 def write_backend_fixture_with_frame_input(
     backend_fixture_path: Path | None,
     frame_input: dict[str, Any],
@@ -332,10 +364,41 @@ def validate_compatibility(
         errors.append({"code": "native_render_pipeline.frame_input_not_from_valid_snapshot"})
     if shader_package.get("status") != "ok":
         errors.append({"code": "native_render_pipeline.shader_program_not_ok"})
+    draw_shader_errors = validate_draw_shader_request(command_result, shader_package)
+    errors.extend(draw_shader_errors)
     if native_interface.get("importsOldUi") is not False:
         errors.append({"code": "native_render_pipeline.old_ui_imported"})
     if captured_frame.get("nonBlackSample") is not True:
         errors.append({"code": "native_render_pipeline.black_or_missing_frame_sample"})
+    return errors
+
+
+def validate_draw_shader_request(
+    command_result: dict[str, Any],
+    shader_package: dict[str, Any],
+) -> list[dict[str, Any]]:
+    requested = shader_package.get("requestedDrawShader")
+    if requested is None:
+        return [{"code": "native_render_pipeline.shader_program_missing_draw_shader_request"}]
+    shader_stage = next(
+        (entry for entry in command_result.get("trace", []) if entry.get("op") == "bindShaderStage"),
+        None,
+    )
+    if shader_stage is None:
+        return [{"code": "native_render_pipeline.command_shader_stage_missing"}]
+    errors = []
+    if shader_stage.get("vertexShader") != requested.get("vertexShaderEntry"):
+        errors.append({
+            "code": "native_render_pipeline.vertex_shader_entry_mismatch",
+            "commandEntry": shader_stage.get("vertexShader"),
+            "programEntry": requested.get("vertexShaderEntry"),
+        })
+    if shader_stage.get("pixelShader") != requested.get("pixelShaderEntry"):
+        errors.append({
+            "code": "native_render_pipeline.pixel_shader_entry_mismatch",
+            "commandEntry": shader_stage.get("pixelShader"),
+            "programEntry": requested.get("pixelShaderEntry"),
+        })
     return errors
 
 

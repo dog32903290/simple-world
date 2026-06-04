@@ -23,6 +23,8 @@
   "drawCalls": 1,
   "commandSource": "drawCommandArtifact",
   "selectedMaterialId": "glass",
+  "drawShaderSource": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+  "drawShaderParity": "notClaimed",
   "targetProgramId": "program.sphere_sdf_raymarch.fragment",
   "loudness": 0.37,
   "frameIndex": 42,

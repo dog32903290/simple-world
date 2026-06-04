@@ -13,6 +13,7 @@
       "entryPoint": "raymarch_field_1"
     }
   ],
+  "requestedDrawShader": null,
   "entrySymbols": [
     "sdSphere",
     "myworld_field",
