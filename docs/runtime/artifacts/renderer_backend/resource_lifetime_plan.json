@@ -1,0 +1,43 @@
+{
+  "resources": [
+    {
+      "resourceId": "mainRenderTarget.color",
+      "kind": "Texture2D",
+      "role": "ColorBuffer",
+      "format": "R16G16B16A16_Float",
+      "resolution": {
+        "width": 3840,
+        "height": 2160
+      },
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ],
+      "ownerPass": "mainColorPass",
+      "lifetime": "frame",
+      "resizePolicy": "reallocateOnResolutionChange",
+      "disposePolicy": "endOfFrame",
+      "backendId": "softwareProof"
+    },
+    {
+      "resourceId": "mainRenderTarget.depth",
+      "kind": "Texture2D",
+      "role": "DepthBuffer",
+      "format": "D32_Float",
+      "resolution": {
+        "width": 3840,
+        "height": 2160
+      },
+      "bindFlags": [
+        "DepthStencil",
+        "ShaderResource"
+      ],
+      "ownerPass": "mainColorPass",
+      "lifetime": "frame",
+      "resizePolicy": "reallocateOnResolutionChange",
+      "disposePolicy": "endOfFrame",
+      "backendId": "softwareProof"
+    }
+  ],
+  "errors": []
+}

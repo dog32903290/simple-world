@@ -1,0 +1,53 @@
+{
+  "views": {
+    "rt.color.srv": {
+      "ok": true,
+      "textureId": "rt.color",
+      "type": "SRV",
+      "format": "R16G16B16A16_Float"
+    },
+    "rt.color.rtv": {
+      "ok": true,
+      "textureId": "rt.color",
+      "type": "RTV",
+      "dimension": "Texture2D"
+    },
+    "rt.color.uav": {
+      "ok": false,
+      "textureId": "rt.color",
+      "type": "UAV",
+      "reason": "missing UnorderedAccess bind flag"
+    },
+    "rt.color.dsv": {
+      "ok": false,
+      "textureId": "rt.color",
+      "type": "DSV",
+      "reason": "missing DepthStencil bind flag"
+    },
+    "rt.depth.srv": {
+      "ok": true,
+      "textureId": "rt.depth",
+      "type": "SRV",
+      "format": "R32_Float"
+    },
+    "rt.depth.rtv": {
+      "ok": false,
+      "textureId": "rt.depth",
+      "type": "RTV",
+      "reason": "missing RenderTarget bind flag"
+    },
+    "rt.depth.uav": {
+      "ok": false,
+      "textureId": "rt.depth",
+      "type": "UAV",
+      "reason": "missing UnorderedAccess bind flag"
+    },
+    "rt.depth.dsv": {
+      "ok": true,
+      "textureId": "rt.depth",
+      "type": "DSV",
+      "format": "D32_Float",
+      "dimension": "Texture2D"
+    }
+  }
+}

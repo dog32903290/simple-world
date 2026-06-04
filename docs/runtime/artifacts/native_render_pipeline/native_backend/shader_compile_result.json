@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "message": "compiled",
+  "status": "compiled",
+  "preservesLastValidFrame": false,
+  "backendName": "native-interface-proof",
+  "programId": "program.sphere_sdf_raymarch.fragment",
+  "sourceHash": "fe2e5758e79283b07e7fff2c12982846eeaa522f91466560f0961ccb96f7521e",
+  "language": "GLSL_ES_300"
+}

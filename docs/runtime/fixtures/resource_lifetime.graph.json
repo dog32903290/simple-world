@@ -1,0 +1,78 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.resource_lifetime",
+  "metadata": {
+    "purpose": "Prove Texture2D resources allocate, reuse, reallocate on resize, and invalidate views."
+  },
+  "frames": [
+    {
+      "frameIndex": 0,
+      "resources": [
+        {
+          "id": "main.color",
+          "kind": "Texture2D",
+          "role": "ColorBuffer",
+          "format": "R16G16B16A16_Float",
+          "resolution": { "width": 3840, "height": 2160 },
+          "bindFlags": ["RenderTarget", "ShaderResource"],
+          "lifetime": "persistent",
+          "resizePolicy": "reallocateOnResolutionChange",
+          "disposePolicy": "manual"
+        },
+        {
+          "id": "postfx.color",
+          "kind": "Texture2D",
+          "role": "ColorBuffer",
+          "format": "R16G16B16A16_Float",
+          "resolution": { "width": 3840, "height": 2160 },
+          "bindFlags": ["RenderTarget", "ShaderResource"],
+          "lifetime": "frame",
+          "resizePolicy": "reallocateOnResolutionChange",
+          "disposePolicy": "endOfFrame"
+        }
+      ]
+    },
+    {
+      "frameIndex": 1,
+      "resources": [
+        {
+          "id": "main.color",
+          "kind": "Texture2D",
+          "role": "ColorBuffer",
+          "format": "R16G16B16A16_Float",
+          "resolution": { "width": 3840, "height": 2160 },
+          "bindFlags": ["RenderTarget", "ShaderResource"],
+          "lifetime": "persistent",
+          "resizePolicy": "reallocateOnResolutionChange",
+          "disposePolicy": "manual"
+        }
+      ]
+    },
+    {
+      "frameIndex": 2,
+      "resources": [
+        {
+          "id": "main.color",
+          "kind": "Texture2D",
+          "role": "ColorBuffer",
+          "format": "R16G16B16A16_Float",
+          "resolution": { "width": 1920, "height": 1080 },
+          "bindFlags": ["RenderTarget", "ShaderResource"],
+          "lifetime": "persistent",
+          "resizePolicy": "reallocateOnResolutionChange",
+          "disposePolicy": "manual"
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "actions": [
+      { "frameIndex": 0, "resourceId": "main.color", "action": "allocate" },
+      { "frameIndex": 0, "resourceId": "postfx.color", "action": "allocate" },
+      { "frameIndex": 1, "resourceId": "main.color", "action": "reuse" },
+      { "frameIndex": 2, "resourceId": "main.color", "action": "reallocate" }
+    ],
+    "invalidatedView": "main.color.srv",
+    "finalResolution": { "width": 1920, "height": 1080 }
+  }
+}

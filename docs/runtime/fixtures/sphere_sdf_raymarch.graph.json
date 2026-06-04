@@ -1,0 +1,98 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.sphere_sdf_raymarch",
+  "metadata": {
+    "purpose": "E1 dangerous node experiment: prove ShaderGraphNode can be carried as a contract artifact before a renderer exists.",
+    "expectedArtifacts": [
+      "shader_source.glsl",
+      "errors.json",
+      "cook_order.json",
+      "webgl_compile.json",
+      "webgl_compile_batch.json",
+      "webgl_server_smoke.json"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "sphere_sdf_1",
+      "type": "tixl.field.generate.sdf.SphereSDF",
+      "title": "my_SphereSDF",
+      "family": "shader",
+      "domain": "frame",
+      "position": { "x": 0, "y": 0 },
+      "params": {
+        "center": { "x": 0, "y": 0, "z": 0 },
+        "radius": 0.5
+      },
+      "statePolicy": "stateless",
+      "diagnostics": {
+        "dangerLevel": "C",
+        "contractQuestion": "What signed distance field exists at a 3D position?"
+      },
+      "sourceEvidence": {
+        "tixlCategoryPath": "Operators/Lib/field/generate/sdf",
+        "primaryOutput": { "name": "Result", "type": "ShaderGraphNode" },
+        "typeColor": { "name": "ColorForShaderGraph", "hex": "#D142B3" },
+        "tixlFullPath": "Lib.field.generate.sdf.SphereSDF",
+        "csharp": "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs",
+        "defaults": "external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.t3"
+      }
+    },
+    {
+      "id": "raymarch_field_1",
+      "type": "tixl.field.render.RaymarchField",
+      "title": "my_RaymarchField",
+      "family": "shader",
+      "domain": "frame",
+      "position": { "x": 320, "y": 0 },
+      "params": {
+        "writeDepth": true,
+        "minDistance": 0.002,
+        "distToColor": 0.15,
+        "maxSteps": 100,
+        "uvMapping": 1,
+        "stepSize": 1,
+        "textureScale": 1,
+        "specularAA": 0.5,
+        "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+        "maxDistance": 300,
+        "ambientOcclusion": { "x": 0.000001, "y": 0.000001, "z": 0.000001, "w": 1 },
+        "normalSamplingD": 0.002,
+        "aoDistance": 1
+      },
+      "statePolicy": "externalResource",
+      "diagnostics": {
+        "dangerLevel": "C",
+        "contractQuestion": "Can a ShaderGraph field be assembled into an inspectable render shader artifact?"
+      },
+      "sourceEvidence": {
+        "tixlCategoryPath": "Operators/Lib/field/render",
+        "primaryOutput": { "name": "DrawCommand", "type": "Command" },
+        "typeColor": { "name": "ColorForCommands", "hex": "#22B8C2" },
+        "secondaryOutputs": [
+          { "name": "ShaderCode", "type": "string", "typeColor": { "name": "ColorForString", "hex": "#779552" } }
+        ],
+        "tixlFullPath": "Lib.field.render.RaymarchField",
+        "csharp": "external/tixl/Operators/Lib/field/render/RaymarchField.cs",
+        "defaults": "external/tixl/Operators/Lib/field/render/RaymarchField.t3",
+        "template": "external/tixl/Operators/Lib/Assets/shaders/img/generate/RaymarchSDFFieldWithMatTemplate.hlsl"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_sdf_to_raymarch",
+      "from": { "nodeId": "sphere_sdf_1", "port": "result" },
+      "to": { "nodeId": "raymarch_field_1", "port": "sdfField" },
+      "eventPolicy": "dataAndEvent"
+    }
+  ],
+  "publishedInputs": [],
+  "publishedOutputs": [
+    {
+      "name": "shader",
+      "type": "ShaderGraph",
+      "internal": { "nodeId": "raymarch_field_1", "port": "shaderCode" }
+    }
+  ]
+}

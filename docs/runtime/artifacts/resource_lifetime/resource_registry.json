@@ -1,0 +1,64 @@
+{
+  "resources": {
+    "main.color": {
+      "kind": "Texture2D",
+      "id": "main.color",
+      "owner": "",
+      "role": "ColorBuffer",
+      "width": 1920,
+      "height": 1080,
+      "format": "R16G16B16A16_Float",
+      "arraySize": 1,
+      "sampleCount": 1,
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ],
+      "optionFlags": [],
+      "disposed": false
+    },
+    "postfx.color": {
+      "kind": "Texture2D",
+      "id": "postfx.color",
+      "owner": "",
+      "role": "ColorBuffer",
+      "width": 3840,
+      "height": 2160,
+      "format": "R16G16B16A16_Float",
+      "arraySize": 1,
+      "sampleCount": 1,
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ],
+      "optionFlags": [],
+      "disposed": true
+    }
+  },
+  "views": {
+    "main.color.srv": {
+      "ok": true,
+      "textureId": "main.color",
+      "type": "SRV",
+      "format": "R16G16B16A16_Float"
+    },
+    "main.color.rtv": {
+      "ok": true,
+      "textureId": "main.color",
+      "type": "RTV",
+      "dimension": "Texture2D"
+    },
+    "postfx.color.srv": {
+      "ok": false,
+      "textureId": "postfx.color",
+      "type": "SRV",
+      "reason": "source texture disposed"
+    },
+    "postfx.color.rtv": {
+      "ok": false,
+      "textureId": "postfx.color",
+      "type": "RTV",
+      "reason": "source texture disposed"
+    }
+  }
+}

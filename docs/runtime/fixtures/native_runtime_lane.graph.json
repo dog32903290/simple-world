@@ -1,0 +1,31 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.native_runtime_lane",
+  "pipeline": [
+    "materialPbrScope",
+    "commandStream",
+    "renderTargetResources",
+    "textureViewIdentity",
+    "nativeRenderer"
+  ],
+  "inputs": {
+    "materialGraph": "docs/runtime/fixtures/material_pbr_scope.graph.json"
+  },
+  "renderTarget": {
+    "id": "mainRenderTarget",
+    "resolution": {
+      "width": 320,
+      "height": 180
+    },
+    "format": "R16G16B16A16_Float",
+    "multisampling": 4,
+    "colorBuffer": {
+      "id": "rt.color",
+      "bindFlags": ["RenderTarget", "ShaderResource"]
+    },
+    "depthBuffer": {
+      "id": "rt.depth",
+      "bindFlags": ["DepthStencil", "ShaderResource"]
+    }
+  }
+}

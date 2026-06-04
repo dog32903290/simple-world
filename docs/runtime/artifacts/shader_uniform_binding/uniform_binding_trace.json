@@ -1,0 +1,23 @@
+[
+  {
+    "op": "loadShaderUniformBindingGraph",
+    "graphId": "fixture.shader_uniform_binding"
+  },
+  {
+    "op": "constantFloat",
+    "nodeId": "n_loudness_value",
+    "value": 0.37
+  },
+  {
+    "op": "bindUniformFloat",
+    "nodeId": "n_loudness_uniform",
+    "bindingId": "uniform.loudness",
+    "uniformName": "u_loudness",
+    "value": 0.37
+  },
+  {
+    "op": "publishShaderUniformBindingArtifacts",
+    "ok": true,
+    "uniformCount": 1
+  }
+]

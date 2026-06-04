@@ -1,0 +1,22 @@
+{
+  "programId": "program.sphere_sdf_raymarch.fragment",
+  "graphId": "fixture.shader_program_contract",
+  "sourceGraph": "docs/runtime/fixtures/sphere_sdf_raymarch.graph.json",
+  "sourceArtifact": "shader_source.glsl",
+  "sourceHash": "fe2e5758e79283b07e7fff2c12982846eeaa522f91466560f0961ccb96f7521e",
+  "language": "GLSL_ES_300",
+  "compileBackend": "webgl2ShaderProbe",
+  "compileMode": "externalProbe",
+  "stages": [
+    {
+      "stage": "fragment",
+      "entryPoint": "raymarch_field_1"
+    }
+  ],
+  "entrySymbols": [
+    "sdSphere",
+    "myworld_field",
+    "raymarch_field_1"
+  ],
+  "status": "ok"
+}

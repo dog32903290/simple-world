@@ -1,0 +1,250 @@
+{
+  "ok": true,
+  "trace": [
+    {
+      "op": "prepare:InputAssemblerStage"
+    },
+    {
+      "op": "prepare:ShaderStage"
+    },
+    {
+      "op": "prepare:Rasterizer"
+    },
+    {
+      "op": "prepare:OutputMergerStage"
+    },
+    {
+      "op": "prepare:Draw"
+    },
+    {
+      "op": "update:InputAssemblerStage"
+    },
+    {
+      "op": "bindInputAssembler",
+      "topology": "TriangleList",
+      "vertexBuffer": {
+        "buffer": "cube.vertexBuffer",
+        "srv": "cube.vertexSrv"
+      },
+      "indexBuffer": {
+        "buffer": "cube.indexBuffer",
+        "srv": "cube.indexSrv"
+      }
+    },
+    {
+      "op": "update:ShaderStage"
+    },
+    {
+      "op": "bindShaderStage",
+      "vertexShader": "vsMain",
+      "pixelShader": "psMain",
+      "constantBuffers": [
+        "pbr:glass"
+      ],
+      "shaderResources": [
+        {
+          "id": "main.color.srv",
+          "textureId": "main.color",
+          "type": "SRV"
+        }
+      ],
+      "samplerStates": [
+        {
+          "id": "linearWrap",
+          "slot": 0
+        }
+      ]
+    },
+    {
+      "op": "update:Rasterizer"
+    },
+    {
+      "op": "bindRasterizer",
+      "rasterizerState": {
+        "fillMode": 3,
+        "culling": "Back",
+        "enableZTest": true,
+        "enableZWrite": true
+      },
+      "viewports": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "minDepth": 0,
+          "maxDepth": 1
+        }
+      ]
+    },
+    {
+      "op": "update:OutputMergerStage"
+    },
+    {
+      "op": "bindOutputMerger",
+      "renderTargetViews": [
+        {
+          "ok": true,
+          "textureId": "main.color",
+          "type": "RTV",
+          "dimension": "Texture2D"
+        }
+      ],
+      "depthStencilView": null,
+      "unorderedAccessViews": [],
+      "blendState": "opaque",
+      "depthStencilState": "defaultDepth",
+      "depthStencilReference": 0,
+      "blendFactor": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "blendSampleMask": 4294967295
+    },
+    {
+      "op": "update:Draw"
+    },
+    {
+      "op": "draw",
+      "meshId": "cube",
+      "material": null,
+      "topology": "TriangleList",
+      "vertexBuffer": {
+        "buffer": "cube.vertexBuffer",
+        "srv": "cube.vertexSrv"
+      },
+      "indexBuffer": {
+        "buffer": "cube.indexBuffer",
+        "srv": "cube.indexSrv"
+      },
+      "vertexShader": "vsMain",
+      "pixelShader": "psMain",
+      "constantBuffers": [
+        "pbr:glass"
+      ],
+      "shaderResources": [
+        {
+          "id": "main.color.srv",
+          "textureId": "main.color",
+          "type": "SRV"
+        }
+      ],
+      "samplerStates": [
+        {
+          "id": "linearWrap",
+          "slot": 0
+        }
+      ],
+      "rasterizerState": {
+        "fillMode": 3,
+        "culling": "Back",
+        "enableZTest": true,
+        "enableZWrite": true
+      },
+      "viewports": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "minDepth": 0,
+          "maxDepth": 1
+        }
+      ],
+      "renderTargetViews": [
+        {
+          "ok": true,
+          "textureId": "main.color",
+          "type": "RTV",
+          "dimension": "Texture2D"
+        }
+      ],
+      "depthStencilView": null,
+      "unorderedAccessViews": [],
+      "blendState": "opaque",
+      "depthStencilState": "defaultDepth",
+      "depthStencilReference": 0,
+      "blendFactor": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "blendSampleMask": 4294967295
+    },
+    {
+      "op": "restore:InputAssemblerStage"
+    },
+    {
+      "op": "restoreInputAssembler"
+    },
+    {
+      "op": "restore:ShaderStage"
+    },
+    {
+      "op": "restoreShaderStage"
+    },
+    {
+      "op": "restore:Rasterizer"
+    },
+    {
+      "op": "restoreRasterizer"
+    },
+    {
+      "op": "restore:OutputMergerStage"
+    },
+    {
+      "op": "restoreOutputMerger"
+    },
+    {
+      "op": "restore:Draw"
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "drawCalls": 1,
+    "triangles": 1,
+    "indirectDrawCalls": 0,
+    "computeDispatchCalls": 0,
+    "computeThreadGroups": 0,
+    "resourceBarriers": 0,
+    "clearCalls": 0
+  },
+  "finalState": {
+    "topology": null,
+    "vertexBuffer": null,
+    "indexBuffer": null,
+    "vertexShader": null,
+    "pixelShader": null,
+    "constantBuffers": [],
+    "shaderResources": [],
+    "samplerStates": [],
+    "rasterizerState": null,
+    "viewports": [],
+    "renderTargetViews": [],
+    "depthStencilView": null,
+    "outputMergerUavs": [],
+    "blendState": null,
+    "depthStencilState": null,
+    "depthStencilReference": 0,
+    "blendFactor": [],
+    "blendSampleMask": null,
+    "computeShader": null,
+    "computeConstantBuffers": [],
+    "computeShaderResources": [],
+    "computeUavs": [],
+    "computeSamplerStates": [],
+    "drawCalls": 1,
+    "triangles": 1,
+    "indirectDrawCalls": 0,
+    "computeDispatchCalls": 0,
+    "computeThreadGroups": 0,
+    "resourceAccess": {
+      "main.color": "RenderTargetWrite"
+    },
+    "resourceBarriers": 0,
+    "clearCalls": 0
+  }
+}

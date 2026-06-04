@@ -1,0 +1,139 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.value_to_shader",
+  "metadata": {
+    "purpose": "First My World runtime proof: value control reaches shader output.",
+    "expectedArtifacts": [
+      "frame.png",
+      "cook_order.json",
+      "node_stats.json",
+      "shader_source.glsl"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "n_constant",
+      "type": "my.value.constantFloat",
+      "title": "Constant Float",
+      "family": "value",
+      "domain": "frame",
+      "position": { "x": 0, "y": 0 },
+      "params": {
+        "value": 0.65
+      },
+      "statePolicy": "stateless",
+      "diagnostics": {},
+      "sourceEvidence": {
+        "kind": "native"
+      }
+    },
+    {
+      "id": "n_remap",
+      "type": "tixl.numbers.float.adjust.Remap",
+      "title": "TiXL Remap",
+      "family": "value",
+      "domain": "frame",
+      "position": { "x": 260, "y": 0 },
+      "params": {
+        "rangeInMin": 0.0,
+        "rangeInMax": 1.0,
+        "rangeOutMin": 0.0,
+        "rangeOutMax": 1.0,
+        "biasAndGain": { "x": 0.5, "y": 0.5 },
+        "mode": "Normal"
+      },
+      "statePolicy": "stateless",
+      "diagnostics": {},
+      "sourceEvidence": {
+        "tixlFullPath": "Lib.numbers.float.adjust.Remap",
+        "csharp": "external/tixl/Operators/Lib/numbers/float/adjust/Remap.cs",
+        "defaults": "external/tixl/Operators/Lib/numbers/float/adjust/Remap.t3",
+        "docs": "external/tixl/.help/docs/operators/lib/numbers/float/adjust/Remap.md"
+      }
+    },
+    {
+      "id": "n_uniform",
+      "type": "my.shader.uniformFloat",
+      "title": "Shader Uniform Float",
+      "family": "shader",
+      "domain": "frame",
+      "position": { "x": 520, "y": 0 },
+      "params": {
+        "name": "u_amount"
+      },
+      "statePolicy": "stateless",
+      "diagnostics": {},
+      "sourceEvidence": {
+        "kind": "native"
+      }
+    },
+    {
+      "id": "n_shader",
+      "type": "my.shader.fragment",
+      "title": "Fragment Shader",
+      "family": "shader",
+      "domain": "frame",
+      "position": { "x": 780, "y": 0 },
+      "params": {
+        "source": "out vec4 fragColor; uniform float u_amount; void main() { fragColor = vec4(u_amount, 0.2, 1.0 - u_amount, 1.0); }"
+      },
+      "statePolicy": "externalResource",
+      "diagnostics": {},
+      "sourceEvidence": {
+        "kind": "native"
+      }
+    },
+    {
+      "id": "n_output",
+      "type": "my.render.output",
+      "title": "Render Output",
+      "family": "texture",
+      "domain": "frame",
+      "position": { "x": 1040, "y": 0 },
+      "params": {
+        "width": 1280,
+        "height": 720,
+        "clearColor": { "r": 0, "g": 0, "b": 0, "a": 1 }
+      },
+      "statePolicy": "externalResource",
+      "diagnostics": {},
+      "sourceEvidence": {
+        "kind": "native"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_value_to_remap",
+      "from": { "nodeId": "n_constant", "port": "value" },
+      "to": { "nodeId": "n_remap", "port": "value" },
+      "eventPolicy": "dataAndEvent"
+    },
+    {
+      "id": "e_remap_to_uniform",
+      "from": { "nodeId": "n_remap", "port": "result" },
+      "to": { "nodeId": "n_uniform", "port": "value" },
+      "eventPolicy": "dataAndEvent"
+    },
+    {
+      "id": "e_uniform_to_shader",
+      "from": { "nodeId": "n_uniform", "port": "uniform" },
+      "to": { "nodeId": "n_shader", "port": "uniforms" },
+      "eventPolicy": "dataAndEvent"
+    },
+    {
+      "id": "e_shader_to_output",
+      "from": { "nodeId": "n_shader", "port": "texture" },
+      "to": { "nodeId": "n_output", "port": "texture" },
+      "eventPolicy": "dataAndEvent"
+    }
+  ],
+  "publishedInputs": [],
+  "publishedOutputs": [
+    {
+      "name": "image",
+      "type": "Texture2D",
+      "internal": { "nodeId": "n_output", "port": "image" }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+/**
+ * @file
+ * FeedbackState / PreviousFrame host-layer proof.
+ *
+ * This composition pressure-tests frame-domain image memory with Vuo's
+ * built-in feedback node. It is not exact TiXL KeepPreviousFrame parity.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Feedback Clock|<requestedFrame>requestedFrame\r" pos="-340,40" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+MakeStripeImage [type="vuo.image.make.stripe" version="1.0.0" label="Animated Texture2D Source|<refresh>refresh\l|<colorA>colorA\l|<colorB>colorB\l|<stripeWidth>stripeWidth\l|<sharpness>sharpness\l|<angle>angle\l|<coverage>coverage\l|<center>center\l|<width>width\l|<height>height\l|<image>image\r" pos="20,20" fillcolor="#9F008A" _colorA="\{\"r\":0.02,\"g\":0.05,\"b\":0.14,\"a\":1.0\}" _colorB="\{\"r\":0.95,\"g\":0.02,\"b\":0.82,\"a\":1.0\}" _stripeWidth="0.075" _sharpness="0.86" _coverage="0.5" _center="\{\"x\":0.0,\"y\":0.0\}" _width="960" _height="540"];
+
+MakeFeedbackTransform [type="vuo.transform.make.2d" version="1.0.0" label="Feedback Drift Transform|<refresh>refresh\l|<translation>translation\l|<rotation>rotation\l|<scale>scale\l|<transform>transform\r" pos="50,185" fillcolor="#9F008A" _translation="\{\"x\":0.012,\"y\":-0.006\}" _rotation="1.5" _scale="\{\"x\":0.986,\"y\":0.986\}"];
+
+BlendImageWithFeedback [type="vuo.image.feedback" version="1.1.0" label="Vuo FeedbackState Host Proof|<refresh>refresh\l|<image>image\l|<imageTransform>imageTransform\l|<feedbackTransform>feedbackTransform\l|<feedbackOpacity>feedbackOpacity\l|<feedbackBlendMode>feedbackBlendMode\l|<pixelAligned>pixelAligned\l|<imageInForeground>imageInForeground\l|<width>width\l|<height>height\l|<colorDepth>colorDepth\l|<feedbackImage>feedbackImage\r" pos="430,40" fillcolor="#9F008A" _feedbackOpacity="0.88" _feedbackBlendMode="\"normal\"" _pixelAligned="false" _imageInForeground="true" _width="960" _height="540" _colorDepth="\"8bpc\""];
+
+RenderImageToWindow [type="vuo.image.render.window2" version="4.0.0" label="Render Feedback Image to Window|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="790,40" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+Comment [type="vuo.comment" label="\"my_KeepPreviousFrame contract proof\nTiXL donor: Lib.image.use.KeepPreviousFrame\nVuo body proof: vuo.image.feedback\nThis proves frame-domain image memory, not exact two-output TiXL parity.\"" pos="255,-190" width="760" height="110"];
+
+FireOnDisplayRefresh:requestedFrame -> MakeStripeImage:refresh;
+FireOnDisplayRefresh:requestedFrame -> MakeStripeImage:angle;
+FireOnDisplayRefresh:requestedFrame -> MakeFeedbackTransform:refresh;
+FireOnDisplayRefresh:requestedFrame -> BlendImageWithFeedback:refresh;
+FireOnDisplayRefresh:requestedFrame -> RenderImageToWindow:refresh;
+MakeStripeImage:image -> BlendImageWithFeedback:image;
+MakeFeedbackTransform:transform -> BlendImageWithFeedback:feedbackTransform;
+BlendImageWithFeedback:feedbackImage -> RenderImageToWindow:image;
+}

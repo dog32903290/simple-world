@@ -1,0 +1,48 @@
+/**
+ * @file
+ * My World / TiXL Vuo wiring lab.
+ *
+ * Open this in Vuo when testing real canvas wiring.
+ * Proven live path:
+ * FireOnDisplayRefresh -> my_SphereSDF + my_BoxSDF -> my_CombineSDF -> my_RaymarchField -> Render Image to Window
+ *
+ * Try rewiring:
+ * 1. Disconnect CombineSDF:result -> RaymarchField:sdfField.
+ * 2. Connect SphereSDF:result -> RaymarchField:sdfField directly.
+ * 3. Change Combine Method / K / Sphere Radius / Box Scale while running.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="renderTick / Fire on Display Refresh|<refresh>refresh\l|<requestedFrame>requestedFrame\r" pos="-310,40" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+SphereSDF [type="my.field.generate.sdf.sphereSdf" version="1.0.0" label="my_SphereSDF|<update>Update\l|<center>Center\l|<radius>Radius\l|<result>Result\r" pos="20,-70" fillcolor="#D142B3" _center="\{\"x\":-0.32,\"y\":0.0,\"z\":0.0\}" _radius="0.64"];
+
+BoxSDF [type="my.field.generate.sdf.boxSdf" version="1.0.0" label="my_BoxSDF|<update>Update\l|<center>Center\l|<size>Size\l|<uniformScale>Uniform Scale\l|<edgeRadius>Edge Radius\l|<result>Result\r" pos="20,145" fillcolor="#D142B3" _center="\{\"x\":0.38,\"y\":0.02,\"z\":0.0\}" _size="\{\"x\":1.0,\"y\":1.0,\"z\":1.0\}" _uniformScale="0.78" _edgeRadius="0.06"];
+
+CombineSDF [type="my.field.combine.combineSdf" version="1.0.0" label="my_CombineSDF|<update>Update\l|<fieldA>FieldA\l|<fieldB>FieldB\l|<combineMethod>Combine Method\l|<k>K\l|<result>Result\r" pos="345,40" fillcolor="#D142B3" _combineMethod="2" _k="0.18"];
+
+RaymarchField [type="my.field.render.raymarchField" version="1.0.0" label="my_RaymarchField|<renderTick>renderTick\l|<sdfField>SdfField\l|<color>Color\l|<width>Width\l|<height>Height\l|<drawCommand>DrawCommand\r" pos="680,40" fillcolor="#22B8C2" _color="\{\"r\":0.42,\"g\":0.86,\"b\":1.0,\"a\":1.0\}" _width="960" _height="540"];
+
+RenderImageToWindow [type="vuo.image.render.window2" version="4.0.0" label="Render Image to Window|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="1010,40" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+CommentClock [type="vuo.comment" label="\"這條線一定要有：FireOnDisplayRefresh:requestedFrame -> RaymarchField:renderTick。\n沒有它，數值改了不會每 frame 重畫。\"" pos="-310,-170" width="520" height="88"];
+
+CommentRewire [type="vuo.comment" label="\"實際接線測試：\nA. 現在是 Sphere + Box -> Combine -> Raymarch。\nB. 拔掉 CombineSDF:result -> RaymarchField:sdfField。\nC. 改接 SphereSDF:result -> RaymarchField:sdfField，看畫面是否只剩 sphere。\"" pos="350,-190" width="700" height="118"];
+
+CommentBoundary [type="vuo.comment" label="\"邊界：這張 Vuo composition 只驗證 ShaderGraph/SDF/Raymarch live wiring。\nMaterial / PBR / DrawMesh 還沒有 Vuo node；那條目前在 headless runtime proof。\"" pos="350,225" width="700" height="88"];
+
+FireOnDisplayRefresh:requestedFrame -> SphereSDF:update;
+FireOnDisplayRefresh:requestedFrame -> BoxSDF:update;
+FireOnDisplayRefresh:requestedFrame -> CombineSDF:update;
+FireOnDisplayRefresh:requestedFrame -> RaymarchField:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderImageToWindow:refresh;
+
+SphereSDF:result -> CombineSDF:fieldA;
+BoxSDF:result -> CombineSDF:fieldB;
+CombineSDF:result -> RaymarchField:sdfField;
+RaymarchField:drawCommand -> RenderImageToWindow:image;
+}

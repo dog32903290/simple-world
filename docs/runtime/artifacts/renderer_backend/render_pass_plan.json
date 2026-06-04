@@ -1,0 +1,40 @@
+{
+  "backendId": "softwareProof",
+  "passes": [
+    {
+      "id": "mainColorPass",
+      "domain": "frame",
+      "clearPolicy": {
+        "color": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "depth": 1
+      },
+      "commands": [
+        "commandStream"
+      ],
+      "outputs": [
+        "mainRenderTarget.color",
+        "mainRenderTarget.depth"
+      ]
+    },
+    {
+      "id": "publishFrame",
+      "domain": "frame",
+      "inputs": [
+        "mainRenderTarget.color"
+      ],
+      "outputs": [
+        "frameOutput.fileFrame"
+      ]
+    }
+  ],
+  "passOrder": [
+    "mainColorPass",
+    "publishFrame"
+  ],
+  "errors": []
+}

@@ -1,0 +1,13 @@
+{
+  "kind": "RenderBackendStatus",
+  "backendName": "native-interface-proof",
+  "lastOperation": "render",
+  "status": "rendered",
+  "lastSuccessfulCompileMessage": "compiled",
+  "lastError": "",
+  "hasRenderableProgram": true,
+  "preservesLastValidFrame": false,
+  "viewportWidth": 3840,
+  "viewportHeight": 2160,
+  "viewportScale": 1
+}

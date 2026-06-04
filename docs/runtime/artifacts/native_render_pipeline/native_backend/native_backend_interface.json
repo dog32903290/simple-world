@@ -1,0 +1,28 @@
+{
+  "kind": "NativeRendererBackendInterface",
+  "sourceDonor": "my-world RenderBackend.h",
+  "importsOldUi": false,
+  "methods": [
+    "compileShader(shaderProgramPackage)",
+    "resize(width,height,scale)",
+    "renderFrame(frameInput)",
+    "captureFrame()",
+    "release()",
+    "backendStatus()"
+  ],
+  "acceptedProgramShape": [
+    "sourceHash",
+    "language",
+    "stages",
+    "entrySymbols",
+    "bindings",
+    "lastValidPolicy"
+  ],
+  "operationsRun": [
+    "compileShader",
+    "resize",
+    "renderFrame",
+    "captureFrame"
+  ],
+  "shaderProgramId": "program.sphere_sdf_raymarch.fragment"
+}

@@ -1,0 +1,75 @@
+/**
+ * @file
+ * My World high-risk Vuo node lab.
+ *
+ * Connectable proof lanes:
+ * - my_Blend -> my_KeepPreviousFrame -> Render Image to Window
+ * - Vuo scene objects -> my_RenderTarget -> Render Image to Window
+ *
+ * CLI-safe comments only inside the graph. Rich notes stay here because Vuo CLI
+ * can reject multiline/non-ASCII vuo.comment labels even when Vuo Editor opens.
+ *
+ * Boundaries:
+ * - my_Blend is a stateless Texture2D/VuoImage body adapter, not full TiXL Blend.
+ * - my_KeepPreviousFrame is stateful image memory, not a feedback FX node.
+ * - my_RenderTarget proves scene-to-image host rendering, not TextureView parity.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="renderTick|<requestedFrame>requestedFrame\r" pos="-520,60" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+MakeColorImage [type="vuo.image.make.color" version="1.0.1" label="Texture2D Background|<refresh>refresh\l|<color>color\l|<width>width\l|<height>height\l|<image>image\r" pos="-155,-95" fillcolor="#9F008A" _color="\{\"r\":0.03,\"g\":0.08,\"b\":0.38,\"a\":1.0\}" _width="960" _height="540"];
+
+MakeCheckerboardImage [type="vuo.image.make.checkerboard2" version="2.0.0" label="Texture2D Foreground|<refresh>refresh\l|<upperLeftColor>upperLeftColor\l|<upperRightColor>upperRightColor\l|<squareSize>squareSize\l|<sharpness>sharpness\l|<angle>angle\l|<coverage>coverage\l|<center>center\l|<width>width\l|<height>height\l|<image>image\r" pos="-155,95" fillcolor="#9F008A" _upperLeftColor="\{\"r\":0.94,\"g\":0.10,\"b\":0.78,\"a\":0.9\}" _upperRightColor="\{\"r\":0.02,\"g\":0.86,\"b\":1.0,\"a\":0.52\}" _squareSize="0.11" _sharpness="0.9" _angle="16.0" _coverage="\{\"x\":0.58,\"y\":0.58\}" _center="\{\"x\":0.0,\"y\":0.0\}" _width="960" _height="540"];
+
+Blend [type="my.image.use.blend" version="1.0.0" label="my_Blend|<renderTick>renderTick\l|<Background>Background\l|<Foreground>Foreground\l|<ForegroundOpacity>ForegroundOpacity\l|<ReplaceOpacity>ReplaceOpacity\l|<Blended>Blended\r" pos="230,0" fillcolor="#9F008A" _ForegroundOpacity="0.75" _ReplaceOpacity="true"];
+
+KeepPreviousFrame [type="my.image.use.keepPreviousFrame" version="1.0.0" label="my_KeepPreviousFrame|<update>Update\l|<ImageA>ImageA\l|<Keep>Keep\l|<CurrentFrame>CurrentFrame\r|<PreviousFrame>PreviousFrame\r" pos="610,0" fillcolor="#9F008A" _Keep="true"];
+
+RenderBlendWindow [type="vuo.image.render.window2" version="4.0.0" label="Render PreviousFrame|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="1000,0" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+MakeUnlitColorShader [type="vuo.shader.make.color.unlit" version="2.0.0" label="RenderTarget Shader|<refresh>refresh\l|<color>color\l|<shader>shader\r" pos="-155,340" fillcolor="#9F008A" _color="\{\"r\":0.95,\"g\":0.05,\"b\":0.72,\"a\":1.0\}"];
+
+Make3DTransform [type="vuo.transform.make" version="1.0.0" label="RenderTarget Transform|<refresh>refresh\l|<translation>translation\l|<rotation>rotation\l|<scale>scale\l|<transform>transform\r" pos="-155,510" fillcolor="#9F008A" _translation="\{\"x\":0.0,\"y\":0.0,\"z\":0.0\}" _rotation="\{\"x\":0.48,\"y\":0.74,\"z\":0.18\}" _scale="\{\"x\":0.7,\"y\":0.7,\"z\":0.7\}"];
+
+MakeCube [type="vuo.scene.make.cube.1" version="1.1.0" label="Scene Command Cube|<refresh>refresh\l|<transform>transform\l|<material>material\l|<cube>cube\r" pos="190,430" fillcolor="#9F008A"];
+
+MakeCamera [type="vuo.scene.make.camera.perspective.target" version="1.0.0" label="Scene Camera|<refresh>refresh\l|<name>name\l|<position>position\l|<target>target\l|<upDirection>upDirection\l|<fieldOfView>fieldOfView\l|<distanceMin>distanceMin\l|<distanceMax>distanceMax\l|<object>object\r" pos="190,650" fillcolor="#9F008A" _name="\"camera\"" _position="\{\"x\":0.0,\"y\":0.0,\"z\":2.6\}" _target="\{\"x\":0.0,\"y\":0.0,\"z\":0.0\}" _upDirection="\{\"x\":0.0,\"y\":1.0,\"z\":0.0\}" _fieldOfView="55.0" _distanceMin="0.1" _distanceMax="10.0"];
+
+MakeSceneList [type="vuo.list.make.2.VuoSceneObject" version="2.0.0" label="Scene Object List|<refresh>refresh\l|<1>1\l|<2>2\l|<list>list\r" pos="570,500" fillcolor="#9F008A"];
+
+RenderTarget [type="my.image.generate.basic.renderTarget" version="1.0.0" label="my_RenderTarget|<renderTick>renderTick\l|<Command>Command\l|<Width>Width\l|<Height>Height\l|<ColorDepth>ColorDepth\l|<Multisampling>Multisampling\l|<CameraName>CameraName\l|<ColorBuffer>ColorBuffer\r|<DepthBuffer>DepthBuffer\r" pos="950,500" fillcolor="#9F008A" _Width="960" _Height="540" _ColorDepth="\"8bpc\"" _Multisampling="\"4\"" _CameraName="\"camera\""];
+
+RenderTargetWindow [type="vuo.image.render.window2" version="4.0.0" label="Render ColorBuffer|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="1350,500" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+Comment [type="vuo.comment" label="\"CLI-safe comments only\"" pos="520,-220" width="300" height="42"];
+
+FireOnDisplayRefresh:requestedFrame -> MakeColorImage:refresh;
+FireOnDisplayRefresh:requestedFrame -> MakeCheckerboardImage:refresh;
+FireOnDisplayRefresh:requestedFrame -> MakeCheckerboardImage:angle;
+FireOnDisplayRefresh:requestedFrame -> Blend:renderTick;
+FireOnDisplayRefresh:requestedFrame -> KeepPreviousFrame:update;
+FireOnDisplayRefresh:requestedFrame -> RenderBlendWindow:refresh;
+MakeColorImage:image -> Blend:Background;
+MakeCheckerboardImage:image -> Blend:Foreground;
+Blend:Blended -> KeepPreviousFrame:ImageA;
+KeepPreviousFrame:PreviousFrame -> RenderBlendWindow:image;
+
+FireOnDisplayRefresh:requestedFrame -> MakeUnlitColorShader:refresh;
+FireOnDisplayRefresh:requestedFrame -> Make3DTransform:refresh;
+FireOnDisplayRefresh:requestedFrame -> MakeCube:refresh;
+FireOnDisplayRefresh:requestedFrame -> MakeCamera:refresh;
+FireOnDisplayRefresh:requestedFrame -> MakeSceneList:refresh;
+FireOnDisplayRefresh:requestedFrame -> RenderTarget:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderTargetWindow:refresh;
+MakeUnlitColorShader:shader -> MakeCube:material;
+Make3DTransform:transform -> MakeCube:transform;
+MakeCube:cube -> MakeSceneList:1;
+MakeCamera:object -> MakeSceneList:2;
+MakeSceneList:list -> RenderTarget:Command;
+RenderTarget:ColorBuffer -> RenderTargetWindow:image;
+}

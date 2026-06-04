@@ -1,0 +1,90 @@
+{
+  "frame": {
+    "frameIndex": 0,
+    "time": 0.0,
+    "deltaTime": 0.0
+  },
+  "passOrder": [
+    "mainColorPass",
+    "postFxPass",
+    "publishFrame"
+  ],
+  "passes": [
+    {
+      "passId": "mainColorPass",
+      "domain": "frame",
+      "dependsOn": [],
+      "reads": [],
+      "writes": [
+        {
+          "resource": "main.color",
+          "access": "RenderTargetWrite"
+        },
+        {
+          "resource": "main.depth",
+          "access": "DepthStencilWrite"
+        }
+      ],
+      "commands": [
+        "clear",
+        "commandStream"
+      ],
+      "clearPolicy": {
+        "color": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "depth": 1
+      },
+      "publish": null
+    },
+    {
+      "passId": "postFxPass",
+      "domain": "frame",
+      "dependsOn": [
+        "mainColorPass"
+      ],
+      "reads": [
+        {
+          "resource": "main.color",
+          "access": "ShaderResourceRead"
+        }
+      ],
+      "writes": [
+        {
+          "resource": "postfx.color",
+          "access": "RenderTargetWrite"
+        }
+      ],
+      "commands": [
+        "postFxComposite"
+      ],
+      "clearPolicy": null,
+      "publish": null
+    },
+    {
+      "passId": "publishFrame",
+      "domain": "frame",
+      "dependsOn": [
+        "postFxPass"
+      ],
+      "reads": [
+        {
+          "resource": "postfx.color",
+          "access": "FrameOutputRead"
+        }
+      ],
+      "writes": [],
+      "commands": [
+        "publish:fileFrame"
+      ],
+      "clearPolicy": null,
+      "publish": {
+        "kind": "fileFrame",
+        "path": "frame.ppm"
+      }
+    }
+  ]
+}

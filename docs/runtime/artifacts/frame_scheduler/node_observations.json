@@ -1,0 +1,137 @@
+[
+  {
+    "nodeId": "constant_a",
+    "type": "image.constant",
+    "frame": {
+      "frameIndex": 0,
+      "time": 0.0,
+      "deltaTime": 0.0
+    }
+  },
+  {
+    "nodeId": "constant_b",
+    "type": "image.constant",
+    "frame": {
+      "frameIndex": 0,
+      "time": 0.0,
+      "deltaTime": 0.0
+    }
+  },
+  {
+    "nodeId": "blend_1",
+    "type": "image.blend",
+    "frame": {
+      "frameIndex": 0,
+      "time": 0.0,
+      "deltaTime": 0.0
+    }
+  },
+  {
+    "nodeId": "keep_previous_1",
+    "type": "feedback.keepPreviousFrame",
+    "frame": {
+      "frameIndex": 0,
+      "time": 0.0,
+      "deltaTime": 0.0
+    }
+  },
+  {
+    "nodeId": "output_1",
+    "type": "output.texture_summary",
+    "frame": {
+      "frameIndex": 0,
+      "time": 0.0,
+      "deltaTime": 0.0
+    }
+  },
+  {
+    "nodeId": "constant_a",
+    "type": "image.constant",
+    "frame": {
+      "frameIndex": 1,
+      "time": 0.0166667,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "nodeId": "constant_b",
+    "type": "image.constant",
+    "frame": {
+      "frameIndex": 1,
+      "time": 0.0166667,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "nodeId": "blend_1",
+    "type": "image.blend",
+    "frame": {
+      "frameIndex": 1,
+      "time": 0.0166667,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "nodeId": "keep_previous_1",
+    "type": "feedback.keepPreviousFrame",
+    "frame": {
+      "frameIndex": 1,
+      "time": 0.0166667,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "nodeId": "output_1",
+    "type": "output.texture_summary",
+    "frame": {
+      "frameIndex": 1,
+      "time": 0.0166667,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "nodeId": "constant_a",
+    "type": "image.constant",
+    "frame": {
+      "frameIndex": 2,
+      "time": 0.0333334,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "nodeId": "constant_b",
+    "type": "image.constant",
+    "frame": {
+      "frameIndex": 2,
+      "time": 0.0333334,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "nodeId": "blend_1",
+    "type": "image.blend",
+    "frame": {
+      "frameIndex": 2,
+      "time": 0.0333334,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "nodeId": "keep_previous_1",
+    "type": "feedback.keepPreviousFrame",
+    "frame": {
+      "frameIndex": 2,
+      "time": 0.0333334,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "nodeId": "output_1",
+    "type": "output.texture_summary",
+    "frame": {
+      "frameIndex": 2,
+      "time": 0.0333334,
+      "deltaTime": 0.0166667
+    }
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "onCompileError": "keepLastValidProgram",
+  "whenNoPreviousProgram": "publishNoProgram",
+  "diagnostics": "publishErrors",
+  "replaceLiveProgram": false
+}

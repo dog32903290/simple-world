@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-world.local/schema/graph.schema.draft.json",
+  "title": "My World Runtime Graph Draft",
+  "type": "object",
+  "required": ["version", "graphId", "nodes", "edges"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "0.1"
+    },
+    "graphId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "publishedInputs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/publishedPort" },
+      "default": []
+    },
+    "publishedOutputs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/publishedPort" },
+      "default": []
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["id", "type", "title", "family", "domain", "params"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "family": {
+          "enum": [
+            "value",
+            "color",
+            "texture",
+            "scene",
+            "mesh",
+            "point",
+            "shader",
+            "audio",
+            "midi",
+            "io",
+            "flow",
+            "debug"
+          ]
+        },
+        "domain": {
+          "enum": ["setup", "frame", "audio", "event", "async"]
+        },
+        "position": {
+          "type": "object",
+          "required": ["x", "y"],
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/value" }
+        },
+        "statePolicy": {
+          "enum": ["stateless", "frameState", "persistent", "externalResource"],
+          "default": "stateless"
+        },
+        "diagnostics": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "sourceEvidence": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["id", "from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "from": { "$ref": "#/$defs/portRef" },
+        "to": { "$ref": "#/$defs/portRef" },
+        "eventPolicy": {
+          "enum": ["none", "event", "dataAndEvent"],
+          "default": "dataAndEvent"
+        }
+      }
+    },
+    "portRef": {
+      "type": "object",
+      "required": ["nodeId", "port"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": { "type": "string", "minLength": 1 },
+        "port": { "type": "string", "minLength": 1 }
+      }
+    },
+    "publishedPort": {
+      "type": "object",
+      "required": ["name", "type", "internal"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "$ref": "#/$defs/runtimeType" },
+        "internal": { "$ref": "#/$defs/portRef" }
+      }
+    },
+    "runtimeType": {
+      "enum": [
+        "Float",
+        "Int",
+        "Bool",
+        "String",
+        "Vec2",
+        "Vec3",
+        "Vec4",
+        "Color",
+        "RangeFloat",
+        "Gradient",
+        "Curve",
+        "Texture2D",
+        "Scene",
+        "Mesh",
+        "PointBuffer",
+        "ShaderGraph",
+        "Command",
+        "AudioFrame",
+        "Event"
+      ]
+    },
+    "value": {
+      "oneOf": [
+        { "type": "number" },
+        { "type": "integer" },
+        { "type": "boolean" },
+        { "type": "string" },
+        {
+          "type": "object",
+          "additionalProperties": true
+        },
+        { "type": "null" }
+      ]
+    }
+  }
+}

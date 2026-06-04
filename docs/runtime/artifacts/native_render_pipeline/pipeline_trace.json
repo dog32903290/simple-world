@@ -1,0 +1,58 @@
+[
+  {
+    "op": "loadNativeRenderPipeline",
+    "graphId": "fixture.native_render_pipeline"
+  },
+  {
+    "op": "renderGraph.begin",
+    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/render_graph_passes.graph.json"
+  },
+  {
+    "op": "renderGraph.end",
+    "status": 0
+  },
+  {
+    "op": "resourceLifetime.begin",
+    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/resource_lifetime.graph.json"
+  },
+  {
+    "op": "resourceLifetime.end",
+    "status": 0
+  },
+  {
+    "op": "commandStream.begin",
+    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/command_stream_pipeline.graph.json"
+  },
+  {
+    "op": "commandStream.end",
+    "status": 0
+  },
+  {
+    "op": "uniform.begin",
+    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/shader_uniform_binding.graph.json"
+  },
+  {
+    "op": "uniform.end",
+    "status": 0
+  },
+  {
+    "op": "shaderProgram.begin",
+    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/shader_program_contract.graph.json"
+  },
+  {
+    "op": "shaderProgram.end",
+    "status": 0
+  },
+  {
+    "op": "nativeBackend.begin",
+    "fixture": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/artifacts/native_render_pipeline/native_backend_input.graph.json"
+  },
+  {
+    "op": "nativeBackend.end",
+    "status": 0
+  },
+  {
+    "op": "publishNativeRenderPipelineArtifacts",
+    "ok": true
+  }
+]

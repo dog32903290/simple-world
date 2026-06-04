@@ -1,0 +1,117 @@
+{
+  "version": "0.1",
+  "type": "Mesh",
+  "topology": "triangles",
+  "source": {
+    "host": "vuo",
+    "type": "VuoMesh",
+    "evidence": {
+      "header": "external/vuo/type/VuoMesh.h",
+      "implementation": "external/vuo/type/VuoMesh.c"
+    }
+  },
+  "ownership": {
+    "cpu": "copied",
+    "gpu": "notShared",
+    "sourcePolicy": "copy"
+  },
+  "coordinateSystem": {
+    "handedness": "unknown",
+    "upAxis": "unknown",
+    "source": "vuo"
+  },
+  "faceCulling": "VuoMesh_CullBackfaces",
+  "primitiveSize": 1.0,
+  "vertexCount": 3,
+  "indices": [
+    0,
+    1,
+    2
+  ],
+  "attributes": {
+    "position": {
+      "semantic": "position",
+      "type": "Vec3",
+      "data": [
+        [
+          -1.0,
+          -1.0,
+          0.0
+        ],
+        [
+          1.0,
+          -1.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ]
+      ]
+    },
+    "normal": {
+      "semantic": "normal",
+      "type": "Vec3",
+      "data": [
+        [
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "uv": {
+      "semantic": "uv",
+      "type": "Vec2",
+      "data": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0
+        ],
+        [
+          0.5,
+          1.0
+        ]
+      ]
+    },
+    "color": {
+      "semantic": "color",
+      "type": "Color",
+      "data": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          1.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ]
+      ]
+    }
+  }
+}

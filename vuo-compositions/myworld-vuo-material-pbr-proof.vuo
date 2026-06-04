@@ -1,0 +1,44 @@
+/**
+ * @file
+ * My World / TiXL Material PBR Vuo wiring proof.
+ *
+ * Proven live path:
+ * FireOnDisplayRefresh -> my_SetMaterial -> my_DrawMeshPbrProof -> Render Image to Window
+ *
+ * Boundary:
+ * This tests runtime contract wiring in Vuo. It does not prove TiXL MeshBuffers,
+ * BufferWithViews, or real DrawMesh GPU parity.
+ *
+ * 實際接線測試：
+ * - 改 my_SetMaterial 的 BaseColor / Roughness / Metal。
+ * - 確認 my_DrawMeshPbrProof 畫面即時變化。
+ * - 拔掉 SetMaterial:Reference -> DrawMeshPbrProof:Material，應該回到預設 glass-like 材質。
+ *
+ * 邊界：這不是完整 my_DrawMesh。這張只把 Material/PBR runtime contract
+ * 變成 Vuo 可接線 proof node。真正 MeshBuffers / BufferWithViews /
+ * native GPU renderer 仍是下一層。
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="renderTick / Fire on Display Refresh|<refresh>refresh\l|<requestedFrame>requestedFrame\r" pos="-260,40" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+SetMaterial [type="my.render.shading.setMaterial" version="1.0.0" label="my_SetMaterial|<update>Update\l|<MaterialId>MaterialId\l|<BaseColor>BaseColor\l|<EmissiveColor>EmissiveColor\l|<Roughness>Roughness\l|<Specular>Specular\l|<Metal>Metal\l|<Reference>Reference\r" pos="80,40" fillcolor="#22B8C2" _MaterialId="\"glass\"" _BaseColor="\{\"r\":0.42,\"g\":0.82,\"b\":1.0,\"a\":1.0\}" _EmissiveColor="\{\"r\":0.0,\"g\":0.0,\"b\":0.0,\"a\":1.0\}" _Roughness="0.18" _Specular="1.4" _Metal="0.0"];
+
+DrawMeshPbrProof [type="my.mesh.draw.drawMeshPbrProof" version="1.0.0" label="my_DrawMeshPbrProof|<renderTick>renderTick\l|<Material>Material\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="470,40" fillcolor="#22B8C2" _Width="960" _Height="540"];
+
+RenderImageToWindow [type="vuo.image.render.window2" version="4.0.0" label="Render Image to Window|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="810,40" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+CommentHowToTest [type="vuo.comment" label="\"Test: change BaseColor / Roughness / Metal; unplug Material to check default fallback.\"" pos="80,-190" width="760" height="55"];
+
+CommentBoundary [type="vuo.comment" label="\"Boundary: proof adapter only; not full my_DrawMesh / MeshBuffers / BufferWithViews parity.\"" pos="80,235" width="760" height="55"];
+
+FireOnDisplayRefresh:requestedFrame -> SetMaterial:update;
+FireOnDisplayRefresh:requestedFrame -> DrawMeshPbrProof:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderImageToWindow:refresh;
+SetMaterial:Reference -> DrawMeshPbrProof:Material;
+DrawMeshPbrProof:Image -> RenderImageToWindow:image;
+}

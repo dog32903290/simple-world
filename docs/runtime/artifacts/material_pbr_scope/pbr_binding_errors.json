@@ -1,0 +1,8 @@
+[
+  {
+    "code": "material_pbr.srv_create_failed",
+    "input": "RoughnessMetallicOcclusionMap",
+    "textureId": "bad_rmo",
+    "fallback": "DefaultRoughnessMetallicOcclusionSrv"
+  }
+]

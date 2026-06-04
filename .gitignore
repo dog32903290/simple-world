@@ -1,0 +1,19 @@
+.DS_Store
+
+# Local caches
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Local proof output that may contain screenshots/executables.
+/artifacts/
+/logs/
+
+# Donor source trees and downloaded SDK/installers stay local.
+/external/
+
+# Local virtual environments and dependency caches.
+venv/
+.venv/
+node_modules/
+

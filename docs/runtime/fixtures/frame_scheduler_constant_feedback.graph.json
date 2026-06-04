@@ -1,0 +1,59 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.frame_scheduler_constant_feedback",
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "frames": [
+      { "frameIndex": 0, "time": 0.0, "deltaTime": 0.0 },
+      { "frameIndex": 1, "time": 0.0166667, "deltaTime": 0.0166667 },
+      { "frameIndex": 2, "time": 0.0333334, "deltaTime": 0.0166667 }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "constant_a",
+      "type": "image.constant",
+      "params": {
+        "color": [0.02, 0.08, 0.38, 1.0],
+        "resolution": [960, 540]
+      }
+    },
+    {
+      "id": "constant_b",
+      "type": "image.constant",
+      "params": {
+        "color": [0.92, 0.04, 0.72, 0.68],
+        "resolution": [960, 540]
+      }
+    },
+    {
+      "id": "blend_1",
+      "type": "image.blend",
+      "params": {
+        "foregroundOpacity": 0.72
+      }
+    },
+    {
+      "id": "keep_previous_1",
+      "type": "feedback.keepPreviousFrame",
+      "statePolicy": "oncePerFrameBoundary"
+    },
+    {
+      "id": "output_1",
+      "type": "output.texture_summary"
+    }
+  ],
+  "edges": [
+    { "from": ["constant_a", "image"], "to": ["blend_1", "background"] },
+    { "from": ["constant_b", "image"], "to": ["blend_1", "foreground"] },
+    { "from": ["blend_1", "image"], "to": ["keep_previous_1", "image"] },
+    { "from": ["keep_previous_1", "currentFrame"], "to": ["output_1", "input"] },
+    { "from": ["keep_previous_1", "previousFrame"], "to": ["output_1", "debugPrevious"] }
+  ],
+  "expected": {
+    "cookOrder": ["constant_a", "constant_b", "blend_1", "keep_previous_1", "output_1"],
+    "stateNodeUpdateCountPerFrame": 1,
+    "allNodesShareFrameContext": true
+  }
+}

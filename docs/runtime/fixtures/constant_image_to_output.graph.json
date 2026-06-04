@@ -1,0 +1,47 @@
+{
+  "kind": "runtimeProofFixture",
+  "version": 1,
+  "name": "constant_image_to_output",
+  "sourceDonor": "/Users/chenbaiwei/Projects/my-world/fixtures/runtime/top_constant_to_output.graph.json",
+  "purpose": "First visible Vuo runtime proof node: canonical image.constant, browser alias top.constant, mapped to my_ConstantImage.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "const1",
+        "type": "image.constant",
+        "visibleVuoNode": "my_ConstantImage",
+        "browserAlias": "top.constant",
+        "params": {
+          "color": [0.02, 0.02, 0.02, 1.0],
+          "resolution": [1280, 720]
+        }
+      },
+      {
+        "id": "out1",
+        "type": "output.texture_summary",
+        "params": {
+          "path": "debug/top-constant/texture_summary.json"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge1",
+        "from": "const1.out",
+        "to": "out1.input",
+        "dataType": "texture.rgba",
+        "streamKind": "continuous"
+      }
+    ]
+  },
+  "vuoProofs": [
+    "vuo-compositions/myworld-constant-image-pipeline-proof.vuo"
+  ],
+  "acceptance": [
+    "saved node type is image.constant; top.constant is alias only",
+    "my_ConstantImage emits a VuoImage with the requested width, height, and color",
+    "ConstantImage -> Blend proves stateless image transform input",
+    "ConstantImage -> KeepPreviousFrame proves frame state input",
+    "ConstantImage -> RenderTarget proves output boundary when paired with scene command body proof"
+  ]
+}

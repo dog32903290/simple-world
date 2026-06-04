@@ -1,0 +1,52 @@
+{
+  "resources": {
+    "main.color": {
+      "id": "main.color",
+      "kind": "Texture2D",
+      "format": "R16G16B16A16_Float",
+      "resolution": {
+        "width": 3840,
+        "height": 2160
+      },
+      "lifetime": "frame"
+    },
+    "main.depth": {
+      "id": "main.depth",
+      "kind": "Texture2D",
+      "format": "D32_Float",
+      "resolution": {
+        "width": 3840,
+        "height": 2160
+      },
+      "lifetime": "frame"
+    },
+    "postfx.color": {
+      "id": "postfx.color",
+      "kind": "Texture2D",
+      "format": "R16G16B16A16_Float",
+      "resolution": {
+        "width": 3840,
+        "height": 2160
+      },
+      "lifetime": "frame"
+    }
+  },
+  "latestAccess": {
+    "main.color": "ShaderResourceRead",
+    "main.depth": "DepthStencilWrite",
+    "postfx.color": "FrameOutputRead"
+  },
+  "resourceBarriers": [
+    {
+      "resource": "main.color",
+      "before": "RenderTargetWrite",
+      "after": "ShaderResourceRead"
+    },
+    {
+      "resource": "postfx.color",
+      "before": "RenderTargetWrite",
+      "after": "FrameOutputRead"
+    }
+  ],
+  "barrierCount": 2
+}

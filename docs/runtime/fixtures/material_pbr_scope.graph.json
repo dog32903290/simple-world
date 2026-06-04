@@ -1,0 +1,161 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.material_pbr_scope",
+  "metadata": {
+    "purpose": "Prove TiXL Material / SetMaterial / DrawMesh PBR binding as scoped runtime state before a native renderer exists.",
+    "expectedArtifacts": [
+      "material_scope_trace.json",
+      "mesh_pbr_draw_command.json",
+      "pbr_binding_errors.json"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "material_copper",
+      "type": "tixl.render.shading.SetMaterial",
+      "title": "my_SetMaterial",
+      "family": "material",
+      "domain": "frame",
+      "params": {
+        "materialId": "copper",
+        "baseColor": [1.0, 0.48, 0.22, 1.0],
+        "emissiveColor": [0.0, 0.0, 0.0, 1.0],
+        "roughness": 0.32,
+        "specular": 1.0,
+        "metal": 1.0,
+        "baseColorMap": { "id": "copper_albedo", "canCreateSrv": true },
+        "emissiveColorMap": null,
+        "roughnessMetallicOcclusionMap": { "id": "bad_rmo", "canCreateSrv": false },
+        "normalMap": { "id": "disposed_normal", "disposed": true }
+      },
+      "sourceEvidence": {
+        "tixlFullPath": "Lib.render.shading.SetMaterial",
+        "csharp": "external/tixl/Operators/Lib/render/shading/SetMaterial.cs",
+        "defaults": "external/tixl/Operators/Lib/render/shading/SetMaterial.t3"
+      }
+    },
+    {
+      "id": "material_glass",
+      "type": "tixl.render.shading.SetMaterial",
+      "title": "my_SetMaterial",
+      "family": "material",
+      "domain": "frame",
+      "params": {
+        "materialId": "glass",
+        "baseColor": [0.45, 0.8, 1.0, 0.35],
+        "emissiveColor": [0.0, 0.0, 0.0, 1.0],
+        "roughness": 0.02,
+        "specular": 1.0,
+        "metal": 0.0,
+        "baseColorMap": null,
+        "emissiveColorMap": null,
+        "roughnessMetallicOcclusionMap": null,
+        "normalMap": null
+      },
+      "sourceEvidence": {
+        "tixlFullPath": "Lib.render.shading.SetMaterial",
+        "csharp": "external/tixl/Operators/Lib/render/shading/SetMaterial.cs",
+        "defaults": "external/tixl/Operators/Lib/render/shading/SetMaterial.t3"
+      }
+    },
+    {
+      "id": "define_materials_1",
+      "type": "tixl.render.shading.DefineMaterials",
+      "title": "my_DefineMaterials",
+      "family": "material",
+      "domain": "frame",
+      "sourceEvidence": {
+        "tixlFullPath": "Lib.render.shading.DefineMaterials",
+        "csharp": "external/tixl/Operators/Lib/render/shading/DefineMaterials.cs",
+        "defaults": "external/tixl/Operators/Lib/render/shading/DefineMaterials.t3"
+      }
+    },
+    {
+      "id": "environment_1",
+      "type": "tixl.render.shading.SetEnvironment",
+      "title": "my_SetEnvironment",
+      "family": "material",
+      "domain": "frame",
+      "params": {
+        "contextTextureId": "PrefilteredSpecular",
+        "texture": { "id": "studio_small_08_prefiltered" }
+      },
+      "sourceEvidence": {
+        "tixlFullPath": "Lib.render.shading.SetEnvironment",
+        "csharp": "external/tixl/Operators/Lib/render/shading/SetEnvironment.cs",
+        "defaults": "external/tixl/Operators/Lib/render/shading/SetEnvironment.t3"
+      }
+    },
+    {
+      "id": "cube_mesh_1",
+      "type": "tixl.mesh.generate.CubeMesh",
+      "title": "my_CubeMesh",
+      "family": "mesh",
+      "domain": "frame",
+      "params": {
+        "meshId": "cube",
+        "topology": "TriangleList",
+        "hasVertexBuffer": true,
+        "hasVertexSrv": true,
+        "hasIndexBuffer": true,
+        "hasIndexSrv": true
+      },
+      "sourceEvidence": {
+        "tixlFullPath": "Lib.mesh.generate.CubeMesh",
+        "csharp": "external/tixl/Operators/Lib/mesh/generate/CubeMesh.cs"
+      }
+    },
+    {
+      "id": "draw_mesh_1",
+      "type": "tixl.mesh.draw.DrawMesh",
+      "title": "my_DrawMesh",
+      "family": "command",
+      "domain": "frame",
+      "params": {
+        "useMaterialId": "glass",
+        "shaderSource": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+        "vertexShaderEntry": "vsMain",
+        "pixelShaderEntry": "psMain"
+      },
+      "sourceEvidence": {
+        "tixlFullPath": "Lib.mesh.draw.DrawMesh",
+        "csharp": "external/tixl/Operators/Lib/mesh/draw/DrawMesh.cs",
+        "defaults": "external/tixl/Operators/Lib/mesh/draw/DrawMesh.t3"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_copper_to_define",
+      "from": { "nodeId": "material_copper", "port": "reference" },
+      "to": { "nodeId": "define_materials_1", "port": "materials" }
+    },
+    {
+      "id": "e_glass_to_define",
+      "from": { "nodeId": "material_glass", "port": "reference" },
+      "to": { "nodeId": "define_materials_1", "port": "materials" }
+    },
+    {
+      "id": "e_define_to_environment",
+      "from": { "nodeId": "define_materials_1", "port": "output" },
+      "to": { "nodeId": "environment_1", "port": "subTree" }
+    },
+    {
+      "id": "e_environment_to_draw",
+      "from": { "nodeId": "environment_1", "port": "output" },
+      "to": { "nodeId": "draw_mesh_1", "port": "commandContext" }
+    },
+    {
+      "id": "e_mesh_to_draw",
+      "from": { "nodeId": "cube_mesh_1", "port": "data" },
+      "to": { "nodeId": "draw_mesh_1", "port": "mesh" }
+    }
+  ],
+  "publishedOutputs": [
+    {
+      "name": "command",
+      "type": "Command",
+      "internal": { "nodeId": "draw_mesh_1", "port": "output" }
+    }
+  ]
+}

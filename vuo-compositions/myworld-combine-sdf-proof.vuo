@@ -1,0 +1,32 @@
+/**
+ * @file
+ * my_SphereSDF + my_BoxSDF -> my_CombineSDF -> my_RaymarchField Vuo proof.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Fire on Display Refresh|<refresh>refresh\l|<requestedFrame>requestedFrame\r" pos="-240,40" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+SphereSDF [type="my.field.generate.sdf.sphereSdf" version="1.0.0" label="my_SphereSDF|<update>Update\l|<center>Center\l|<radius>Radius\l|<result>Result\r" pos="30,-35" fillcolor="#D142B3" _center="\{\"x\":-0.35,\"y\":0.0,\"z\":0.0\}" _radius="0.62"];
+
+BoxSDF [type="my.field.generate.sdf.boxSdf" version="1.0.0" label="my_BoxSDF|<update>Update\l|<center>Center\l|<size>Size\l|<uniformScale>Uniform Scale\l|<edgeRadius>Edge Radius\l|<result>Result\r" pos="30,120" fillcolor="#D142B3" _center="\{\"x\":0.42,\"y\":0.0,\"z\":0.0\}" _size="\{\"x\":1.0,\"y\":1.0,\"z\":1.0\}" _uniformScale="0.88" _edgeRadius="0.08"];
+
+CombineSDF [type="my.field.combine.combineSdf" version="1.0.0" label="my_CombineSDF|<update>Update\l|<fieldA>FieldA\l|<fieldB>FieldB\l|<combineMethod>Combine Method\l|<k>K\l|<result>Result\r" pos="310,40" fillcolor="#D142B3" _combineMethod="2" _k="0.14"];
+
+RaymarchField [type="my.field.render.raymarchField" version="1.0.0" label="my_RaymarchField|<renderTick>renderTick\l|<sdfField>SdfField\l|<color>Color\l|<width>Width\l|<height>Height\l|<drawCommand>DrawCommand\r" pos="600,40" fillcolor="#22B8C2" _color="\{\"r\":0.50,\"g\":0.92,\"b\":1.0,\"a\":1.0\}" _width="960" _height="540"];
+
+RenderImageToWindow [type="vuo.image.render.window2" version="4.0.0" label="Render Image to Window|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="900,40" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh:requestedFrame -> SphereSDF:update;
+FireOnDisplayRefresh:requestedFrame -> BoxSDF:update;
+FireOnDisplayRefresh:requestedFrame -> CombineSDF:update;
+FireOnDisplayRefresh:requestedFrame -> RaymarchField:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderImageToWindow:refresh;
+SphereSDF:result -> CombineSDF:fieldA;
+BoxSDF:result -> CombineSDF:fieldB;
+CombineSDF:result -> RaymarchField:sdfField;
+RaymarchField:drawCommand -> RenderImageToWindow:image;
+}

@@ -1,0 +1,90 @@
+[
+  {
+    "op": "loadRenderGraph",
+    "graphId": "fixture.render_graph_passes",
+    "frame": {
+      "frameIndex": 0,
+      "time": 0.0,
+      "deltaTime": 0.0
+    },
+    "passOrder": [
+      "mainColorPass",
+      "postFxPass",
+      "publishFrame"
+    ]
+  },
+  {
+    "op": "pass.begin",
+    "passId": "mainColorPass",
+    "reads": [],
+    "writes": [
+      {
+        "resource": "main.color",
+        "access": "RenderTargetWrite"
+      },
+      {
+        "resource": "main.depth",
+        "access": "DepthStencilWrite"
+      }
+    ]
+  },
+  {
+    "op": "pass.end",
+    "passId": "mainColorPass",
+    "ok": true
+  },
+  {
+    "op": "pass.begin",
+    "passId": "postFxPass",
+    "reads": [
+      {
+        "resource": "main.color",
+        "access": "ShaderResourceRead"
+      }
+    ],
+    "writes": [
+      {
+        "resource": "postfx.color",
+        "access": "RenderTargetWrite"
+      }
+    ]
+  },
+  {
+    "op": "resourceBarrier",
+    "resource": "main.color",
+    "before": "RenderTargetWrite",
+    "after": "ShaderResourceRead"
+  },
+  {
+    "op": "pass.end",
+    "passId": "postFxPass",
+    "ok": true
+  },
+  {
+    "op": "pass.begin",
+    "passId": "publishFrame",
+    "reads": [
+      {
+        "resource": "postfx.color",
+        "access": "FrameOutputRead"
+      }
+    ],
+    "writes": []
+  },
+  {
+    "op": "resourceBarrier",
+    "resource": "postfx.color",
+    "before": "RenderTargetWrite",
+    "after": "FrameOutputRead"
+  },
+  {
+    "op": "pass.end",
+    "passId": "publishFrame",
+    "ok": true
+  },
+  {
+    "op": "publishArtifacts",
+    "ok": true,
+    "barrierCount": 2
+  }
+]

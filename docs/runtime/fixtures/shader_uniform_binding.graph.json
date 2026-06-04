@@ -1,0 +1,65 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.shader_uniform_binding",
+  "metadata": {
+    "purpose": "Carry my-world ShaderPreviewInputBridge semantics into simple_world as a proof-visible uniform binding contract.",
+    "donorEvidence": [
+      "/Users/chenbaiwei/Projects/my-world/source/render/ShaderPreviewInputBridge.h",
+      "/Users/chenbaiwei/Projects/my-world/source/render/ShaderPreviewInputBridge.cpp"
+    ]
+  },
+  "frame": {
+    "timeSeconds": 1.25,
+    "frameIndex": 42,
+    "fallbackLoudness": 0,
+    "resolution": { "width": 3840, "height": 2160 },
+    "viewportScale": 1
+  },
+  "targetProgram": {
+    "programId": "program.sphere_sdf_raymarch.fragment"
+  },
+  "nodes": [
+    {
+      "id": "n_loudness_value",
+      "type": "my.value.constantFloat",
+      "title": "my_ConstantFloat",
+      "family": "value",
+      "domain": "frame",
+      "params": {
+        "value": 0.37,
+        "sampleCounter": 4096
+      },
+      "statePolicy": "stateless"
+    },
+    {
+      "id": "n_loudness_uniform",
+      "type": "my.shader.uniformFloat",
+      "title": "my_ShaderUniformFloat",
+      "family": "shader",
+      "domain": "frame",
+      "params": {
+        "bindingId": "uniform.loudness",
+        "uniformName": "u_loudness"
+      },
+      "statePolicy": "stateless"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_loudness_to_uniform",
+      "from": { "nodeId": "n_loudness_value", "port": "value" },
+      "to": { "nodeId": "n_loudness_uniform", "port": "value" },
+      "eventPolicy": "dataAndEvent"
+    }
+  ],
+  "expected": {
+    "snapshotStatus": "ready",
+    "uniformName": "u_loudness",
+    "bindingId": "uniform.loudness",
+    "value": 0.37,
+    "renderFrameInput": {
+      "loudness": 0.37,
+      "frameIndex": 42
+    }
+  }
+}

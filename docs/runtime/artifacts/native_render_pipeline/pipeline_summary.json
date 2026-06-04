@@ -1,0 +1,28 @@
+{
+  "kind": "NativeRenderPipelineProof",
+  "graphId": "fixture.native_render_pipeline",
+  "ok": true,
+  "layers": {
+    "shaderUniformBinding": "ready",
+    "shaderProgram": "ok",
+    "resourceLifetime": "ok",
+    "renderGraph": "ok",
+    "commandStream": "ok",
+    "nativeBackend": "rendered",
+    "capturedFrame": "captured"
+  },
+  "liveTextureCount": 1,
+  "renderGraphPassOrder": [
+    "mainColorPass",
+    "postFxPass",
+    "publishFrame"
+  ],
+  "renderGraphBarrierCount": 2,
+  "invalidatedViewCount": 4,
+  "drawCalls": 1,
+  "targetProgramId": "program.sphere_sdf_raymarch.fragment",
+  "loudness": 0.37,
+  "frameIndex": 42,
+  "importsOldUi": false,
+  "nonBlackSample": true
+}

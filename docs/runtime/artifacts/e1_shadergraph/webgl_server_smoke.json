@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "ready": {
+    "type": "ready",
+    "backend": "webgl2"
+  },
+  "totalRequestMs": 419.47070899999994,
+  "responses": [
+    {
+      "id": "compile-1",
+      "ok": true,
+      "backend": "webgl2",
+      "durationMs": 414.59999990463257,
+      "vertexLog": "",
+      "fragmentLog": "",
+      "programLog": "",
+      "fragmentSourceLength": 1121
+    },
+    {
+      "id": "compile-2",
+      "ok": true,
+      "backend": "webgl2",
+      "durationMs": 2.200000047683716,
+      "vertexLog": "",
+      "fragmentLog": "",
+      "programLog": "",
+      "fragmentSourceLength": 1121
+    }
+  ]
+}

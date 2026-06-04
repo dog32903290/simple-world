@@ -1,0 +1,13 @@
+{
+  "backendId": "softwareProof",
+  "frameOutput": {
+    "kind": "fileFrame",
+    "path": "frame.ppm",
+    "requires4k": true
+  },
+  "supportedFrameOutputKinds": [
+    "fileFrame"
+  ],
+  "publishBoundary": "FrameOutput",
+  "errors": []
+}

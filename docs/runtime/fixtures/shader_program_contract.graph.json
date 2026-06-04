@@ -1,0 +1,59 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.shader_program_contract",
+  "metadata": {
+    "purpose": "Package the SphereSDF -> RaymarchField ShaderGraph artifact into an inspectable ShaderProgram contract.",
+    "sourceFixture": "docs/runtime/fixtures/sphere_sdf_raymarch.graph.json",
+    "sourceCompiler": "docs/runtime/scripts/compile_shadergraph_shell.py"
+  },
+  "shaderProgram": {
+    "programId": "program.sphere_sdf_raymarch.fragment",
+    "sourceGraph": "docs/runtime/fixtures/sphere_sdf_raymarch.graph.json",
+    "sourceCompiler": "docs/runtime/scripts/compile_shadergraph_shell.py",
+    "sourceArtifact": "shader_source.glsl",
+    "language": "GLSL_ES_300",
+    "compileBackend": "webgl2ShaderProbe",
+    "compileMode": "externalProbe",
+    "stages": [
+      {
+        "stage": "fragment",
+        "entryPoint": "raymarch_field_1"
+      }
+    ],
+    "entrySymbols": [
+      "sdSphere",
+      "myworld_field",
+      "raymarch_field_1"
+    ],
+    "bindings": {
+      "uniforms": [],
+      "samplers": [],
+      "textures": [],
+      "storageBuffers": [],
+      "constantBuffers": []
+    },
+    "lastValidPolicy": {
+      "onCompileError": "keepLastValidProgram",
+      "whenNoPreviousProgram": "publishNoProgram",
+      "diagnostics": "publishErrors",
+      "replaceLiveProgram": false
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "language": "GLSL_ES_300",
+    "compileBackend": "webgl2ShaderProbe",
+    "sourceContains": [
+      "float sdSphere(",
+      "MyWorldField myworld_field",
+      "float raymarch_field_1("
+    ],
+    "bindingCounts": {
+      "uniforms": 0,
+      "samplers": 0,
+      "textures": 0,
+      "storageBuffers": 0,
+      "constantBuffers": 0
+    }
+  }
+}

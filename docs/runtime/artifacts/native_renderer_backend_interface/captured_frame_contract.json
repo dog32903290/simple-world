@@ -1,0 +1,112 @@
+{
+  "kind": "CapturedFrame",
+  "ok": true,
+  "status": "captured",
+  "message": "deterministic interface sample, not native GPU readback",
+  "backendName": "native-interface-proof",
+  "requestedResolution": {
+    "width": 3840,
+    "height": 2160
+  },
+  "sampleWidth": 4,
+  "sampleHeight": 4,
+  "rgbaSample": [
+    [
+      107,
+      39,
+      107,
+      255
+    ],
+    [
+      107,
+      52,
+      124,
+      255
+    ],
+    [
+      107,
+      65,
+      141,
+      255
+    ],
+    [
+      107,
+      78,
+      158,
+      255
+    ],
+    [
+      107,
+      91,
+      175,
+      255
+    ],
+    [
+      107,
+      104,
+      192,
+      255
+    ],
+    [
+      107,
+      117,
+      209,
+      255
+    ],
+    [
+      107,
+      130,
+      226,
+      255
+    ],
+    [
+      107,
+      143,
+      243,
+      255
+    ],
+    [
+      107,
+      156,
+      5,
+      255
+    ],
+    [
+      107,
+      169,
+      22,
+      255
+    ],
+    [
+      107,
+      182,
+      39,
+      255
+    ],
+    [
+      107,
+      195,
+      56,
+      255
+    ],
+    [
+      107,
+      208,
+      73,
+      255
+    ],
+    [
+      107,
+      221,
+      90,
+      255
+    ],
+    [
+      107,
+      234,
+      107,
+      255
+    ]
+  ],
+  "nonBlackSample": true
+}

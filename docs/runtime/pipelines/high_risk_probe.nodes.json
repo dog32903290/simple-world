@@ -1,0 +1,308 @@
+{
+  "title": "My World High-Risk Runtime Probe",
+  "graph_version": "2026-06-04-high-risk-probe-v1",
+  "mode": "probe",
+  "nodes": [
+    {
+      "id": "shadergraph_sdf",
+      "label": "my_SphereSDF",
+      "type": "source",
+      "status": "proven",
+      "x": 80,
+      "y": 70,
+      "question": "一個 TiXL ShaderGraphNode 能不能先變成可檢查的 shader fragment？",
+      "inputs": ["center", "radius"],
+      "outputs": ["ShaderGraph field"],
+      "logic": "SphereSDF produces a structured field contract and feeds RaymarchField shell compilation.",
+      "controls": [
+        {
+          "id": "radius",
+          "label": "Radius",
+          "range": "0..∞",
+          "default": 0.5,
+          "classification": "operation",
+          "safe_to_change_live": true
+        }
+      ],
+      "failure_modes": ["unsupported ShaderGraph node becomes structured error instead of string blob"],
+      "evidence": [
+        "docs/runtime/fixtures/sphere_sdf_raymarch.graph.json",
+        "docs/runtime/artifacts/e1_shadergraph/shader_source.glsl"
+      ]
+    },
+    {
+      "id": "shadergraph_compile",
+      "label": "ShaderGraph Shell",
+      "type": "composite",
+      "status": "proven",
+      "x": 330,
+      "y": 70,
+      "question": "ShaderGraph 能不能在沒有 TiXL DX11 runtime 時編成可試壓的 shader source？",
+      "inputs": ["ShaderGraph field"],
+      "outputs": ["shader_source.glsl", "cook_order.json", "errors.json"],
+      "logic": "compile_shadergraph_shell.py writes deterministic GLSL-like source and compile diagnostics.",
+      "controls": [],
+      "failure_modes": ["missing sdfField", "unsupported SDF node", "malformed graph"],
+      "evidence": [
+        "docs/runtime/scripts/compile_shadergraph_shell.py",
+        "tests/runtime_shadergraph_shell.test.js",
+        "tests/runtime_shadergraph_webgl_compile.test.js"
+      ]
+    },
+    {
+      "id": "webgl_pressure",
+      "label": "WebGL Compile Pressure",
+      "type": "debug",
+      "status": "proven",
+      "x": 610,
+      "y": 70,
+      "question": "生成的 shader source 至少能不能被真 WebGL2 compiler 接受？",
+      "inputs": ["shader_source.glsl"],
+      "outputs": ["webgl_compile.json", "webgl_server_smoke.json"],
+      "logic": "Headless Chrome/WebGL validates syntax and warm-context compile behavior.",
+      "controls": [],
+      "failure_modes": ["GLSL ES literal/type mismatch", "Chrome/WebGL backend unavailable"],
+      "evidence": [
+        "docs/runtime/artifacts/e1_shadergraph/webgl_compile.json",
+        "docs/runtime/artifacts/e1_shadergraph/webgl_server_smoke.json"
+      ]
+    },
+    {
+      "id": "vuo_mesh_adapter",
+      "label": "Vuo Mesh Adapter",
+      "type": "source",
+      "status": "proven",
+      "x": 80,
+      "y": 270,
+      "question": "Vuo 的 CPU mesh snapshot 能不能轉成 My World Mesh contract？",
+      "inputs": ["VuoMesh snapshot"],
+      "outputs": ["Mesh contract"],
+      "logic": "convert_vuo_mesh_shell.py copies Vuo mesh data into backend-neutral My World mesh contract.",
+      "controls": [],
+      "failure_modes": ["unsupported topology", "bad element count", "index out of range"],
+      "evidence": [
+        "docs/runtime/fixtures/vuo_triangle_mesh.snapshot.json",
+        "docs/runtime/artifacts/vuo_mesh_adapter/mesh_contract.json",
+        "tests/runtime_vuo_mesh_adapter.test.js"
+      ]
+    },
+    {
+      "id": "mesh_draw_unlit",
+      "label": "my_DrawMeshUnlit",
+      "type": "composite",
+      "status": "proven",
+      "x": 330,
+      "y": 270,
+      "question": "MeshBuffers 能不能先變成可檢查的 ordered Command route？",
+      "inputs": ["MeshBuffers", "TriangleList", "VS/PS"],
+      "outputs": ["MeshDrawCommand"],
+      "logic": "Mesh buffer validation, topology gate, shader-stage gate, and commandOps are proven headlessly.",
+      "controls": [
+        {
+          "id": "topology",
+          "label": "Topology",
+          "range": "TriangleList only",
+          "default": "TriangleList",
+          "classification": "operation",
+          "safe_to_change_live": false
+        }
+      ],
+      "failure_modes": ["Undefined Mesh?", "Vertex buffer undefined", "Indices buffer undefined", "missing VS/PS"],
+      "evidence": [
+        "docs/runtime/MESH_DRAW_CONTRACT.md",
+        "tests/mesh_draw_contract.test.js"
+      ]
+    },
+    {
+      "id": "material_scope",
+      "label": "my_SetMaterial / my_DefineMaterials",
+      "type": "state",
+      "status": "proven",
+      "x": 610,
+      "y": 270,
+      "question": "PBR material 能不能用 scoped context 進入 DrawMesh，而不外洩狀態？",
+      "inputs": ["PbrMaterial refs", "PrefilteredSpecular context texture"],
+      "outputs": ["MeshPbrDrawCommand", "pbr_binding_errors.json"],
+      "logic": "material_pbr_scope_shell.py proves material list push/restore, environment scope, UseMaterialId selection, and PBR slot binding.",
+      "controls": [
+        {
+          "id": "useMaterialId",
+          "label": "Use Material Id",
+          "range": "string",
+          "default": "glass",
+          "classification": "decision",
+          "safe_to_change_live": true
+        }
+      ],
+      "failure_modes": ["unresolved material id uses current material", "texture SRV creation failure falls back to default SRV"],
+      "evidence": [
+        "docs/runtime/MATERIAL_PBR_CONTRACT.md",
+        "docs/runtime/artifacts/material_pbr_scope/mesh_pbr_draw_command.json",
+        "tests/material_pbr_contract.test.js"
+      ]
+    },
+    {
+      "id": "renderer_shell",
+      "label": "Renderer Proof Shell",
+      "type": "output",
+      "status": "proven",
+      "x": 890,
+      "y": 270,
+      "question": "MeshPbrDrawCommand 能不能真的產出可檢查的非黑 frame artifact？",
+      "inputs": ["MeshPbrDrawCommand"],
+      "outputs": ["native_render_trace.json", "frame.ppm", "frame_stats.json"],
+      "logic": "native_render_shell.py validates command shape, walks renderer-shaped ops, writes deterministic PPM and frame stats.",
+      "controls": [],
+      "failure_modes": ["invalid commandOps", "incomplete PBR binding", "black frame"],
+      "evidence": [
+        "docs/runtime/RENDERER_PROOF_CONTRACT.md",
+        "docs/runtime/artifacts/native_renderer/frame.ppm",
+        "tests/native_render_contract.test.js"
+      ]
+    },
+    {
+      "id": "texture_view",
+      "label": "TextureView / RenderTarget",
+      "type": "state",
+      "status": "proven",
+      "x": 610,
+      "y": 470,
+      "question": "Texture / RTV / SRV / UAV / DSV 的所有權和失敗語意有沒有先切乾淨？",
+      "inputs": ["Texture2D", "bind flags"],
+      "outputs": ["TextureView contract", "RenderTarget contract"],
+      "logic": "TextureView and RenderTarget contracts forbid invented GPU capabilities and separate render ownership from stateless texture filters.",
+      "controls": [],
+      "failure_modes": ["missing bind flag", "disposed texture", "fake view identity"],
+      "evidence": [
+        "docs/runtime/TEXTURE_VIEW_CONTRACT.md",
+        "docs/runtime/RENDER_TARGET_CONTRACT.md",
+        "tests/texture_view_contract.test.js",
+        "tests/render_target_contract.test.js"
+      ]
+    },
+    {
+      "id": "native_gpu_backend",
+      "label": "Native GPU Backend",
+      "type": "output",
+      "status": "broken",
+      "x": 1160,
+      "y": 270,
+      "question": "真正 Metal/DX11/低延遲 GPU backend 能不能承 TiXL parity？",
+      "inputs": ["MeshPbrDrawCommand", "TextureView handles", "GPU buffers"],
+      "outputs": ["real frame", "GPU trace", "native parity report"],
+      "logic": "Not implemented. Current renderer shell proves command-to-frame plumbing only.",
+      "controls": [],
+      "failure_modes": ["no real BufferWithViews parity", "no exact PbrMaterial constant-buffer layout", "no shader compilation parity"],
+      "evidence": [
+        "docs/runtime/RENDERER_PROOF_CONTRACT.md"
+      ]
+    },
+    {
+      "id": "vuo_host_visual",
+      "label": "Vuo Host Visual Proof",
+      "type": "debug",
+      "status": "proven",
+      "x": 890,
+      "y": 470,
+      "question": "Vuo 能不能當 host 畫布先看畫面和互動？",
+      "inputs": ["Vuo nodes", "renderTick"],
+      "outputs": ["Vuo render window", "screenshot proof"],
+      "logic": "Vuo can prove host rendering and live tick behavior, but not TiXL MeshBuffers / BufferWithViews / Command parity.",
+      "controls": [],
+      "failure_modes": ["node not installed", "black frame", "display refresh not connected"],
+      "evidence": [
+        "vuo-compositions",
+        "tools/vuo_harness.py",
+        "tests/vuo_cli_harness.test.js"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_shader_to_compile",
+      "from": "shadergraph_sdf",
+      "to": "shadergraph_compile",
+      "label": "ShaderGraph field",
+      "type": "semantic",
+      "status": "proven",
+      "reason": "RaymarchField needs the structured SDF field before shader source can be assembled."
+    },
+    {
+      "id": "e_compile_to_webgl",
+      "from": "shadergraph_compile",
+      "to": "webgl_pressure",
+      "label": "shader_source.glsl",
+      "type": "debug",
+      "status": "proven",
+      "reason": "A generated shader is not useful until a real compiler has rejected or accepted it."
+    },
+    {
+      "id": "e_mesh_adapter_to_draw",
+      "from": "vuo_mesh_adapter",
+      "to": "mesh_draw_unlit",
+      "label": "Mesh contract",
+      "type": "semantic",
+      "status": "assumed",
+      "reason": "Vuo CPU mesh contract is compatible in shape, but TiXL MeshBuffers / BufferWithViews parity remains separate."
+    },
+    {
+      "id": "e_unlit_to_material",
+      "from": "mesh_draw_unlit",
+      "to": "material_scope",
+      "label": "Command route discipline",
+      "type": "semantic",
+      "status": "proven",
+      "reason": "Material/PBR reuses the same commandOps discipline and adds scoped PBR binding."
+    },
+    {
+      "id": "e_material_to_renderer",
+      "from": "material_scope",
+      "to": "renderer_shell",
+      "label": "MeshPbrDrawCommand",
+      "type": "output",
+      "status": "proven",
+      "reason": "native_render_shell.py consumes this exact command artifact and produces frame stats."
+    },
+    {
+      "id": "e_texture_to_material",
+      "from": "texture_view",
+      "to": "material_scope",
+      "label": "SRV fallback / view rules",
+      "type": "state",
+      "status": "proven",
+      "reason": "Material texture slots use SRV semantics and must not invent missing view capabilities."
+    },
+    {
+      "id": "e_renderer_to_gpu",
+      "from": "renderer_shell",
+      "to": "native_gpu_backend",
+      "label": "replace software shell with GPU backend",
+      "type": "output",
+      "status": "broken",
+      "reason": "The next implementation must keep the same command artifact and swap only the rendering backend."
+    },
+    {
+      "id": "e_vuo_parallel",
+      "from": "vuo_host_visual",
+      "to": "renderer_shell",
+      "label": "host visual comparison only",
+      "type": "debug",
+      "status": "assumed",
+      "reason": "Vuo can compare visual presence and tick behavior, but cannot prove TiXL GPU resource parity."
+    }
+  ],
+  "parking_lot": [
+    {
+      "id": "p_native_mesh",
+      "text": "Next actual wiring: generate a single patch graph that runs material_pbr_scope_shell.py then native_render_shell.py as one command-to-frame pipeline."
+    },
+    {
+      "id": "p_gpu",
+      "text": "Native GPU backend should replace renderer_shell without changing MeshPbrDrawCommand shape."
+    },
+    {
+      "id": "p_vuo",
+      "text": "Vuo remains useful for live visual/tick tests, but should not be treated as TiXL resource parity proof."
+    }
+  ]
+}

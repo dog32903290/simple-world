@@ -1,0 +1,15 @@
+{
+  "kind": "shaderUniformBindings",
+  "targetProgramId": "program.sphere_sdf_raymarch.fragment",
+  "uniforms": [
+    {
+      "bindingId": "uniform.loudness",
+      "uniformName": "u_loudness",
+      "value": 0.37,
+      "sampleCounter": 4096,
+      "sourceNodeId": "n_loudness_value",
+      "sourcePort": "value",
+      "targetProgramId": "program.sphere_sdf_raymarch.fragment"
+    }
+  ]
+}

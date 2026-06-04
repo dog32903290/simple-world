@@ -1,0 +1,55 @@
+{
+  "requestedResolution": {
+    "width": 3840,
+    "height": 2160
+  },
+  "requiredCapabilities": [
+    "supportsOffscreenRenderTarget",
+    "supportsCommandStream",
+    "supportsFrameArtifact",
+    "supports4kOutput"
+  ],
+  "selectedBackend": "softwareProof",
+  "candidates": [
+    {
+      "backendId": "softwareProof",
+      "ok": true,
+      "missing": [],
+      "role": "deterministic artifact backend"
+    },
+    {
+      "backendId": "vuoHost",
+      "ok": false,
+      "missing": [
+        "supportsCommandStream",
+        "supportsFrameArtifact"
+      ],
+      "role": "visible Vuo body-layer host"
+    },
+    {
+      "backendId": "webgl2ShaderProbe",
+      "ok": false,
+      "missing": [
+        "supportsOffscreenRenderTarget",
+        "supportsCommandStream",
+        "supportsFrameArtifact",
+        "supports4kOutput"
+      ],
+      "role": "shader compile pressure only"
+    },
+    {
+      "backendId": "metalNative",
+      "ok": false,
+      "missing": [
+        "backend not available",
+        "supportsOffscreenRenderTarget",
+        "supportsCommandStream",
+        "supportsFrameArtifact",
+        "supports4kOutput",
+        "maxTextureSize"
+      ],
+      "role": "future low-latency native GPU backend"
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,51 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.command_stream_pipeline",
+  "metadata": {
+    "purpose": "Execute a minimal mesh draw command against ResourceLifetime texture views before NativeRenderPipeline accepts a frame."
+  },
+  "resourceRegistryArtifact": "resource_registry.json",
+  "renderGraphBinding": {
+    "passId": "mainColorPass",
+    "command": "commandStream",
+    "colorAccess": "RenderTargetWrite",
+    "colorViewType": "RTV"
+  },
+  "renderTarget": {
+    "colorViewId": "main.color.rtv",
+    "depthViewId": null
+  },
+  "command": {
+    "meshId": "cube",
+    "topology": "TriangleList",
+    "vertexBuffer": { "buffer": "cube.vertexBuffer", "srv": "cube.vertexSrv" },
+    "indexBuffer": { "buffer": "cube.indexBuffer", "srv": "cube.indexSrv" },
+    "vertexShaderEntry": "vsMain",
+    "pixelShaderEntry": "psMain",
+    "constantBuffers": ["pbr:glass"],
+    "shaderResources": [{ "id": "main.color.srv", "textureId": "main.color", "type": "SRV" }],
+    "samplerStates": [{ "id": "linearWrap", "slot": 0 }],
+    "rasterizerState": {
+      "fillMode": 3,
+      "culling": "Back",
+      "enableZTest": true,
+      "enableZWrite": true
+    },
+    "viewports": [
+      { "x": 0, "y": 0, "width": 1920, "height": 1080, "minDepth": 0, "maxDepth": 1 }
+    ],
+    "outputMergerState": {
+      "blendState": "opaque",
+      "depthStencilState": "defaultDepth",
+      "depthStencilReference": 0,
+      "blendFactor": [1, 1, 1, 1],
+      "blendSampleMask": 4294967295
+    },
+    "commandOps": ["inputAssembler", "shaderStage", "rasterizer", "outputMerger", "draw"]
+  },
+  "expected": {
+    "drawCalls": 1,
+    "triangles": 1,
+    "renderTargetTextureId": "main.color"
+  }
+}

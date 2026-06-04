@@ -1,0 +1,189 @@
+[
+  {
+    "op": "loadGraph",
+    "graphId": "fixture.frame_scheduler_constant_feedback",
+    "clockOwner": "graph",
+    "cookOrder": [
+      "constant_a",
+      "constant_b",
+      "blend_1",
+      "keep_previous_1",
+      "output_1"
+    ]
+  },
+  {
+    "op": "frame.begin",
+    "frame": {
+      "frameIndex": 0,
+      "time": 0.0,
+      "deltaTime": 0.0
+    }
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "constant_a",
+    "frameIndex": 0,
+    "outputKeys": [
+      "image"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "constant_b",
+    "frameIndex": 0,
+    "outputKeys": [
+      "image"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "blend_1",
+    "frameIndex": 0,
+    "outputKeys": [
+      "image"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "keep_previous_1",
+    "frameIndex": 0,
+    "outputKeys": [
+      "currentFrame",
+      "previousFrame"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "output_1",
+    "frameIndex": 0,
+    "outputKeys": [
+      "summary"
+    ]
+  },
+  {
+    "op": "frame.publish",
+    "frameIndex": 0,
+    "publishedNode": "output_1",
+    "ok": true
+  },
+  {
+    "op": "frame.begin",
+    "frame": {
+      "frameIndex": 1,
+      "time": 0.0166667,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "constant_a",
+    "frameIndex": 1,
+    "outputKeys": [
+      "image"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "constant_b",
+    "frameIndex": 1,
+    "outputKeys": [
+      "image"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "blend_1",
+    "frameIndex": 1,
+    "outputKeys": [
+      "image"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "keep_previous_1",
+    "frameIndex": 1,
+    "outputKeys": [
+      "currentFrame",
+      "previousFrame"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "output_1",
+    "frameIndex": 1,
+    "outputKeys": [
+      "summary"
+    ]
+  },
+  {
+    "op": "frame.publish",
+    "frameIndex": 1,
+    "publishedNode": "output_1",
+    "ok": true
+  },
+  {
+    "op": "frame.begin",
+    "frame": {
+      "frameIndex": 2,
+      "time": 0.0333334,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "constant_a",
+    "frameIndex": 2,
+    "outputKeys": [
+      "image"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "constant_b",
+    "frameIndex": 2,
+    "outputKeys": [
+      "image"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "blend_1",
+    "frameIndex": 2,
+    "outputKeys": [
+      "image"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "keep_previous_1",
+    "frameIndex": 2,
+    "outputKeys": [
+      "currentFrame",
+      "previousFrame"
+    ]
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "output_1",
+    "frameIndex": 2,
+    "outputKeys": [
+      "summary"
+    ]
+  },
+  {
+    "op": "frame.publish",
+    "frameIndex": 2,
+    "publishedNode": "output_1",
+    "ok": true
+  },
+  {
+    "op": "publishArtifacts",
+    "ok": true,
+    "artifacts": [
+      "frame_scheduler_trace.json",
+      "frame_scheduler_errors.json",
+      "node_observations.json",
+      "state_trace.json"
+    ]
+  }
+]

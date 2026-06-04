@@ -1,0 +1,70 @@
+[
+  {
+    "op": "loadCommand",
+    "path": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/artifacts/material_pbr_scope/mesh_pbr_draw_command.json",
+    "ok": true
+  },
+  {
+    "op": "validateCommand",
+    "ok": true,
+    "meshId": "cube",
+    "selectedMaterialId": "glass"
+  },
+  {
+    "op": "bindInputAssembler",
+    "meshId": "cube"
+  },
+  {
+    "op": "bindShaderStage",
+    "shaderSource": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+    "vertexShaderEntry": "vsMain",
+    "pixelShaderEntry": "psMain",
+    "constantBuffers": [
+      "transforms",
+      "context",
+      "pointLights",
+      "pbr:glass"
+    ],
+    "shaderResources": [
+      "DefaultAlbedoColorSrv",
+      "DefaultEmissiveColorSrv",
+      "DefaultRoughnessMetallicOcclusionSrv",
+      "DefaultNormalSrv",
+      "PbrLookUpTextureSrv",
+      "studio_small_08_prefiltered"
+    ]
+  },
+  {
+    "op": "bindRasterizer",
+    "mode": "solid"
+  },
+  {
+    "op": "bindOutputMerger",
+    "target": "frame.ppm"
+  },
+  {
+    "op": "draw",
+    "primitive": "triangle",
+    "material": "glass"
+  },
+  {
+    "op": "writeFrame",
+    "path": "frame.ppm",
+    "stats": {
+      "width": 320,
+      "height": 180,
+      "pixelCount": 57600,
+      "nonblackPixels": 6613,
+      "brightPixels": 6613,
+      "averageRgb": [
+        10.5677,
+        20.2543,
+        27.6192
+      ]
+    }
+  },
+  {
+    "op": "measureFrame",
+    "ok": true
+  }
+]

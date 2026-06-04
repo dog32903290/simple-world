@@ -1,0 +1,2973 @@
+{
+  "document": "BespokeSynth AI-readable manual v0",
+  "generated_at": "2026-06-02T09:13:37.841463",
+  "purpose": "Reduce hallucination when answering questions about BespokeSynth architecture and modules.",
+  "source_policy": {
+    "truth_levels": {
+      "high": "directly supported by source code or official docs lines inspected",
+      "medium": "supported by official docs excerpt but not yet cross-checked against module class",
+      "low": "module name/category listed; behavior still needs extraction from official docs or source"
+    },
+    "do_not_guess_rule": "If confidence is low, answer with the module category and say source expansion is required before giving wiring/behavior advice."
+  },
+  "repository": {
+    "repo": "BespokeSynth/BespokeSynth",
+    "default_branch_checked": "main",
+    "license": "GPL v3 per README",
+    "features_from_readme": [
+      "live-patchable environment",
+      "VST, VST3, LV2 hosting",
+      "Python livecoding",
+      "MIDI & OSC controller mapping",
+      "Works on Windows, Mac, Linux"
+    ],
+    "build_summary_from_readme": [
+      "git clone",
+      "git submodule update --init --recursive",
+      "cmake -Bignore/build -DCMAKE_BUILD_TYPE=Release",
+      "cmake --build ignore/build --parallel 4 --config Release"
+    ]
+  },
+  "architecture": {
+    "module_categories_enum": [
+      "kModuleCategory_Note",
+      "kModuleCategory_Synth",
+      "kModuleCategory_Audio",
+      "kModuleCategory_Instrument",
+      "kModuleCategory_Processor",
+      "kModuleCategory_Modulator",
+      "kModuleCategory_Pulse",
+      "kModuleCategory_Other",
+      "kModuleCategory_Unknown"
+    ],
+    "spawn_methods": [
+      "Module",
+      "EffectChain",
+      "Prefab",
+      "Plugin",
+      "MidiController",
+      "Preset"
+    ],
+    "core_classes": {
+      "IDrawableModule": "Base visible/canvas module: rendering, UI controls, patch cable sources, save/load, category, enabled/minimized/pinned state.",
+      "ModuleFactory": "Registry that maps string type names to module creator/capability/category metadata and returns spawnable modules.",
+      "IAudioSource": "Audio-producing interface with Process(double time), target lookup, viz buffer.",
+      "IAudioReceiver": "Audio-receiving interface with ChannelBuffer input buffer and input mode.",
+      "IAudioProcessor": "Combines IAudioReceiver and IAudioSource for audio effects/processors.",
+      "INoteReceiver": "Receives NoteMessage, CC, pressure, MIDI.",
+      "INoteSource": "Sends notes through NoteOutput and manages note source patching.",
+      "IPulseReceiver": "Receives OnPulse(time, velocity, flags).",
+      "IPulseSource": "Dispatches pulses to PatchCableSource destinations.",
+      "VSTPlugin": "Bespoke wrapper module for external plugin processors via JUCE AudioProcessor."
+    },
+    "new_native_module_risk": [
+      "Native modules are not pure drop-in files.",
+      "A new native module commonly requires new .h/.cpp, ModuleFactory include, REGISTER call, class Create/CanCreate/AcceptsAudio/AcceptsNotes/AcceptsPulses, category, UI controls, process path, save/load, and build integration.",
+      "For AI-generated modules, prefer external plugin template first; do not modify ModuleFactory until the module is stable."
+    ],
+    "ai_module_strategy": {
+      "recommended_v0": "BespokeSynth as host/canvas; AI generates external VST3/LV2 plugin templates, Bespoke loads them as plugin nodes.",
+      "avoid_v0": "AI directly edits Bespoke native ModuleFactory or arbitrary internal module code.",
+      "upgrade_path": "Promote only stable, frequently used external plugins into native C++ modules after manual review."
+    }
+  },
+  "basic_workflow_from_docs": {
+    "create_modules": [
+      "drag items from top bar menus",
+      "right-click and select from popup",
+      "right-click and type module name then drag from popup",
+      "hold first letter of module and drag from popup",
+      "drag a cable into space and spawn a connecting module"
+    ],
+    "patching": [
+      "drag circle from bottom of a module to target",
+      "click circle then click target",
+      "drag cable and press backspace to unpatch",
+      "shift while grabbing/releasing to split/insert",
+      "shift-drag modules/circles for quick patch behavior"
+    ],
+    "ui_controls": [
+      "click/drag slider; hold shift for fine tune",
+      "hover + mousewheel/trackpad-scroll",
+      "type numeric value/expression into slider and press enter",
+      "up/down adjust; [/] halve/double; backslash resets",
+      "right-click slider to add LFO",
+      "alt/option drag adjusts slew/smoothing"
+    ]
+  },
+  "modules": [
+    {
+      "id": "circlesequencer",
+      "display_name": "circlesequencer",
+      "official_doc_category": "instruments",
+      "description": "polyrhythmic sequencer that displays a loop as a circle",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "dotsequencer",
+      "display_name": "dotsequencer",
+      "official_doc_category": "instruments",
+      "description": "polyphonic note sequencer with adjustable note length and velocity",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "drumsequencer",
+      "display_name": "drumsequencer",
+      "official_doc_category": "instruments",
+      "description": "step sequencer intended for drums",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "euclideansequencer",
+      "display_name": "euclideansequencer",
+      "official_doc_category": "instruments",
+      "description": "euclidean sequencer displays a loop as a circle; notes are calculated with the euclidean rhythm algorithm",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "fouronthefloor",
+      "display_name": "fouronthefloor",
+      "official_doc_category": "instruments",
+      "description": "sends note 0 every beat, to trigger a kick drum",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "gridkeyboard",
+      "display_name": "gridkeyboard",
+      "official_doc_category": "instruments",
+      "description": "grid-based keyboard intended primarily for 64-pad grid controllers",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "keyboarddisplay",
+      "display_name": "keyboarddisplay",
+      "official_doc_category": "instruments",
+      "description": "displays input notes on a keyboard and allows clicking the keyboard to create notes",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "m185sequencer",
+      "display_name": "m185sequencer",
+      "official_doc_category": "instruments",
+      "description": "sequencer using the M185 / Intellijel Metropolis paradigm",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "midicontroller",
+      "display_name": "midicontroller",
+      "official_doc_category": "instruments",
+      "description": "gets MIDI input from external devices and maps MIDI / grid controller data to Bespoke controls",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notecanvas",
+      "display_name": "notecanvas",
+      "official_doc_category": "instruments",
+      "description": "looping note roll",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notechain",
+      "display_name": "notechain",
+      "official_doc_category": "instruments",
+      "description": "trigger a note followed by a pulse to trigger another note after a delay",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notecounter",
+      "display_name": "notecounter",
+      "official_doc_category": "instruments",
+      "description": "advance through pitches sequentially; useful for driving notesequencer or drumsequencer",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notecreator",
+      "display_name": "notecreator",
+      "official_doc_category": "instruments",
+      "description": "create a one-off note",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notelooper",
+      "display_name": "notelooper",
+      "official_doc_category": "instruments",
+      "description": "note loop recorder with overdubbing and replacement functionality",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notesequencer",
+      "display_name": "notesequencer",
+      "official_doc_category": "instruments",
+      "description": "looping sequence of notes at an interval",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notesinger",
+      "display_name": "notesinger",
+      "official_doc_category": "instruments",
+      "description": "output a note based on a detected pitch",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "playsequencer",
+      "display_name": "playsequencer",
+      "official_doc_category": "instruments",
+      "description": "drum sequencer for punch-in record / overdub steps, inspired by Pulsar-23",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "polyrhythms",
+      "display_name": "polyrhythms",
+      "official_doc_category": "instruments",
+      "description": "looping sequence with lines on different divisions",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "randomnote",
+      "display_name": "randomnote",
+      "official_doc_category": "instruments",
+      "description": "play a note at a given interval with a random chance",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "slidersequencer",
+      "display_name": "slidersequencer",
+      "official_doc_category": "instruments",
+      "description": "trigger notes along a continuous timeline",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "arpeggiator",
+      "display_name": "arpeggiator",
+      "official_doc_category": "note_effects",
+      "description": "arpeggiates held notes",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "capo",
+      "display_name": "capo",
+      "official_doc_category": "note_effects",
+      "description": "shifts incoming notes by semitones",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "chorddisplayer",
+      "display_name": "chorddisplayer",
+      "official_doc_category": "note_effects",
+      "description": "display which chord is playing in the context of the current scale",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "chorder",
+      "display_name": "chorder",
+      "official_doc_category": "note_effects",
+      "description": "takes an incoming pitch and plays additional notes to form chords",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "chordholder",
+      "display_name": "chordholder",
+      "official_doc_category": "note_effects",
+      "description": "keeps notes pressed at the same time sustaining until new notes are pressed",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "gridnotedisplayer",
+      "display_name": "gridnotedisplayer",
+      "official_doc_category": "note_effects",
+      "description": "use with gridkeyboard to display currently playing notes",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "midicc",
+      "display_name": "midicc",
+      "official_doc_category": "note_effects",
+      "description": "outputs MIDI control change messages to route to a midioutput module",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "midioutput",
+      "display_name": "midioutput",
+      "official_doc_category": "note_effects",
+      "description": "send MIDI to an external destination",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "modulationvizualizer",
+      "display_name": "modulationvizualizer",
+      "official_doc_category": "note_effects",
+      "description": "display MPE modulation values for notes",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "modwheel",
+      "display_name": "modwheel",
+      "official_doc_category": "note_effects",
+      "description": "adds an expression/modwheel value to a note",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "modwheeltopressure",
+      "display_name": "modwheeltopressure",
+      "official_doc_category": "note_effects",
+      "description": "swaps expression input to MIDI pressure in the output",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "modwheeltovibrato",
+      "display_name": "modwheeltovibrato",
+      "official_doc_category": "note_effects",
+      "description": "convert note mod wheel input to rhythmic pitch bend",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "mpesmoother",
+      "display_name": "mpesmoother",
+      "official_doc_category": "note_effects",
+      "description": "smooth out MPE parameters",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "mpetweaker",
+      "display_name": "mpetweaker",
+      "official_doc_category": "note_effects",
+      "description": "adjust incoming MPE modulation values",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notechance",
+      "display_name": "notechance",
+      "official_doc_category": "note_effects",
+      "description": "randomly allow notes through",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notedelayer",
+      "display_name": "notedelayer",
+      "official_doc_category": "note_effects",
+      "description": "delay input notes by a specified amount",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notedisplayer",
+      "display_name": "notedisplayer",
+      "official_doc_category": "note_effects",
+      "description": "show input note info",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "noteduration",
+      "display_name": "noteduration",
+      "official_doc_category": "note_effects",
+      "description": "sets the length a note will play, ignoring the note-off message",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "noteecho",
+      "display_name": "noteecho",
+      "official_doc_category": "note_effects",
+      "description": "output incoming notes at specified delays",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "noteexpression",
+      "display_name": "noteexpression",
+      "official_doc_category": "note_effects",
+      "description": "route notes based on evaluated expressions; p=pitch, v=velocity",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notefilter",
+      "display_name": "notefilter",
+      "official_doc_category": "note_effects",
+      "description": "only allow certain pitches through",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "noteflusher",
+      "display_name": "noteflusher",
+      "official_doc_category": "note_effects",
+      "description": "send note-off for all notes",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notegate",
+      "display_name": "notegate",
+      "official_doc_category": "note_effects",
+      "description": "allow or disallow notes to pass through",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notehocket",
+      "display_name": "notehocket",
+      "official_doc_category": "note_effects",
+      "description": "send notes to random destinations",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notehumanizer",
+      "display_name": "notehumanizer",
+      "official_doc_category": "note_effects",
+      "description": "add randomness to timing and velocity",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notelatch",
+      "display_name": "notelatch",
+      "official_doc_category": "note_effects",
+      "description": "use note-on messages to toggle notes on/off",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "noteoctaver",
+      "display_name": "noteoctaver",
+      "official_doc_category": "note_effects",
+      "description": "transpose a note by octaves",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notepanalternator",
+      "display_name": "notepanalternator",
+      "official_doc_category": "note_effects",
+      "description": "set note pan, alternating between two values",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notepanner",
+      "display_name": "notepanner",
+      "official_doc_category": "note_effects",
+      "description": "set a note's pan",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notepanrandom",
+      "display_name": "notepanrandom",
+      "official_doc_category": "note_effects",
+      "description": "set note pan to random values",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "noterangefilter",
+      "display_name": "noterangefilter",
+      "official_doc_category": "note_effects",
+      "description": "allow notes through within a pitch range",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "noteratchet",
+      "display_name": "noteratchet",
+      "official_doc_category": "note_effects",
+      "description": "rapidly repeat an input note over a duration",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "noterouter",
+      "display_name": "noterouter",
+      "official_doc_category": "note_effects",
+      "description": "control where notes are routed using a UI control",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notesorter",
+      "display_name": "notesorter",
+      "official_doc_category": "note_effects",
+      "description": "separate notes by pitch",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notestepper",
+      "display_name": "notestepper",
+      "official_doc_category": "note_effects",
+      "description": "output notes through round-robin patch cables",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notestream",
+      "display_name": "notestream",
+      "official_doc_category": "note_effects",
+      "description": "view a stream of notes as they are played",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notestrummer",
+      "display_name": "notestrummer",
+      "official_doc_category": "note_effects",
+      "description": "send a chord and move a slider to strum notes",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notetable",
+      "display_name": "notetable",
+      "official_doc_category": "note_effects",
+      "description": "map a pitch starting from zero to a scale pitch",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notewrap",
+      "display_name": "notewrap",
+      "official_doc_category": "note_effects",
+      "description": "wrap an input pitch to stay within a desired range",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pitchbender",
+      "display_name": "pitchbender",
+      "official_doc_category": "note_effects",
+      "description": "add pitch bend to notes",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pitchdive",
+      "display_name": "pitchdive",
+      "official_doc_category": "note_effects",
+      "description": "use pitchbend to settle into input pitch from a starting offset",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pitchpanner",
+      "display_name": "pitchpanner",
+      "official_doc_category": "note_effects",
+      "description": "add pan modulation based on input pitch",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pitchremap",
+      "display_name": "pitchremap",
+      "official_doc_category": "note_effects",
+      "description": "remap input pitches to output pitches",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pitchsetter",
+      "display_name": "pitchsetter",
+      "official_doc_category": "note_effects",
+      "description": "set an incoming note to a specified pitch",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "portamento",
+      "display_name": "portamento",
+      "official_doc_category": "note_effects",
+      "description": "monophonic note handling with pitch bend glide",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pressure",
+      "display_name": "pressure",
+      "official_doc_category": "note_effects",
+      "description": "add pressure modulation to notes",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pressuretomodwheel",
+      "display_name": "pressuretomodwheel",
+      "official_doc_category": "note_effects",
+      "description": "convert MIDI pressure modulation to modwheel modulation",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pressuretovibrato",
+      "display_name": "pressuretovibrato",
+      "official_doc_category": "note_effects",
+      "description": "convert MIDI pressure to vibrato using pitch bend",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "previousnote",
+      "display_name": "previousnote",
+      "official_doc_category": "note_effects",
+      "description": "when receiving note-on, output the prior note-on",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "quantizer",
+      "display_name": "quantizer",
+      "official_doc_category": "note_effects",
+      "description": "delay inputs until next quantization interval",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "rhythmsequencer",
+      "display_name": "rhythmsequencer",
+      "official_doc_category": "note_effects",
+      "description": "repeat held input notes to turn sustained notes into rhythm",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "scaledegree",
+      "display_name": "scaledegree",
+      "official_doc_category": "note_effects",
+      "description": "transpose input based on current scale",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "scaledetect",
+      "display_name": "scaledetect",
+      "official_doc_category": "note_effects",
+      "description": "detect scales that fit entered notes; last played pitch is root",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "sustainpedal",
+      "display_name": "sustainpedal",
+      "official_doc_category": "note_effects",
+      "description": "keeps input notes sustaining",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "transposefrom",
+      "display_name": "transposefrom",
+      "official_doc_category": "note_effects",
+      "description": "transpose input from specified root to the current scale root",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "unstablemodwheel",
+      "display_name": "unstablemodwheel",
+      "official_doc_category": "note_effects",
+      "description": "mutate MPE slide with Perlin noise",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "unstablepitch",
+      "display_name": "unstablepitch",
+      "official_doc_category": "note_effects",
+      "description": "mutate MPE pitchbend with Perlin noise",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "unstablepressure",
+      "display_name": "unstablepressure",
+      "official_doc_category": "note_effects",
+      "description": "mutate MPE pressure with Perlin noise",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "velocitycurve",
+      "display_name": "velocitycurve",
+      "official_doc_category": "note_effects",
+      "description": "adjust velocity based on a curve mapping",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "velocityscaler",
+      "display_name": "velocityscaler",
+      "official_doc_category": "note_effects",
+      "description": "scale note velocity",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "velocitysetter",
+      "display_name": "velocitysetter",
+      "official_doc_category": "note_effects",
+      "description": "set note velocity",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "velocitystepsequencer",
+      "display_name": "velocitystepsequencer",
+      "official_doc_category": "note_effects",
+      "description": "adjust velocity of incoming notes based on a sequence",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "velocitytochance",
+      "display_name": "velocitytochance",
+      "official_doc_category": "note_effects",
+      "description": "use note velocity to determine chance a note plays",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "vibrato",
+      "display_name": "vibrato",
+      "official_doc_category": "note_effects",
+      "description": "add rhythmic oscillating pitch bend",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "voicesetter",
+      "display_name": "voicesetter",
+      "official_doc_category": "note_effects",
+      "description": "set a specific voice/channel index for a note",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "volcabeatscontrol",
+      "display_name": "volcabeatscontrol",
+      "official_doc_category": "note_effects",
+      "description": "outputs MIDI data to control KORG Volca Beats",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "whitekeys",
+      "display_name": "whitekeys",
+      "official_doc_category": "note_effects",
+      "description": "remap white keys from C major to the current global scale",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "beats",
+      "display_name": "beats",
+      "official_doc_category": "synths",
+      "description": "multi-loop player for mixing sample layers",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "drumplayer",
+      "display_name": "drumplayer",
+      "official_doc_category": "synths",
+      "description": "sample player intended for drum playback",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "drumsynth",
+      "display_name": "drumsynth",
+      "official_doc_category": "synths",
+      "description": "oscillator plus noise drum synth",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "fmsynth",
+      "display_name": "fmsynth",
+      "official_doc_category": "synths",
+      "description": "FM synthesizer (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "karplusstrong",
+      "display_name": "karplusstrong",
+      "official_doc_category": "synths",
+      "description": "Karplus-Strong plucked string synth (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "metronome",
+      "display_name": "metronome",
+      "official_doc_category": "synths",
+      "description": "metronome synth/source (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "oscillator",
+      "display_name": "oscillator",
+      "official_doc_category": "synths",
+      "description": "signal generator oscillator with note/pulse support and many waveform parameters",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "samplecanvas",
+      "display_name": "samplecanvas",
+      "official_doc_category": "synths",
+      "description": "sample canvas synth module (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "sampleplayer",
+      "display_name": "sampleplayer",
+      "official_doc_category": "synths",
+      "description": "sample playback synth module (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "sampler",
+      "display_name": "sampler",
+      "official_doc_category": "synths",
+      "description": "sample-based synth module (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "seaofgrain",
+      "display_name": "seaofgrain",
+      "official_doc_category": "synths",
+      "description": "granular/sample synth module (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "signalgenerator",
+      "display_name": "signalgenerator",
+      "official_doc_category": "synths",
+      "description": "synth signal generator (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "audiometer",
+      "display_name": "audiometer",
+      "official_doc_category": "audio_effects",
+      "description": "sets a slider to an audio level's volume; useful to map a MIDI display value",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "audiorouter",
+      "display_name": "audiorouter",
+      "official_doc_category": "audio_effects",
+      "description": "selector for switching where audio is routed",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "audiosplitter",
+      "display_name": "audiosplitter",
+      "official_doc_category": "audio_effects",
+      "description": "send an audio signal to multiple destinations",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "buffershuffler",
+      "display_name": "buffershuffler",
+      "official_doc_category": "audio_effects",
+      "description": "use notes to play slices of a constantly recording live input buffer",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "dcoffset",
+      "display_name": "dcoffset",
+      "official_doc_category": "audio_effects",
+      "description": "add a constant offset to an audio signal",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "effectchain",
+      "display_name": "effectchain",
+      "official_doc_category": "audio_effects",
+      "description": "container holding a serial list of effects",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "eq",
+      "display_name": "eq",
+      "official_doc_category": "audio_effects",
+      "description": "multi-band equalizer",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "feedback",
+      "display_name": "feedback",
+      "official_doc_category": "audio_effects",
+      "description": "feed delayed audio back earlier in the signal chain",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "fftvocoder",
+      "display_name": "fftvocoder",
+      "official_doc_category": "audio_effects",
+      "description": "FFT-based vocoder",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "freqdelay",
+      "display_name": "freqdelay",
+      "official_doc_category": "audio_effects",
+      "description": "delay effect with delay length based on input notes",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "gain",
+      "display_name": "gain",
+      "official_doc_category": "audio_effects",
+      "description": "adjust audio signal volume",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "input",
+      "display_name": "input",
+      "official_doc_category": "audio_effects",
+      "description": "get audio from input source, e.g. microphone",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "inverter",
+      "display_name": "inverter",
+      "official_doc_category": "audio_effects",
+      "description": "multiply a signal by -1",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "lissajous",
+      "display_name": "lissajous",
+      "official_doc_category": "audio_effects",
+      "description": "draw input audio as a lissajous curve",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "looper",
+      "display_name": "looper",
+      "official_doc_category": "audio_effects",
+      "description": "loop input audio; use with looperrecorder for full functionality",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "looperrecorder",
+      "display_name": "looperrecorder",
+      "official_doc_category": "audio_effects",
+      "description": "command center for recording into multiple loopers and retroactive capture",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "looperrewriter",
+      "display_name": "looperrewriter",
+      "official_doc_category": "audio_effects",
+      "description": "rewrite contents of a looper with received input",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "multitapdelay",
+      "display_name": "multitapdelay",
+      "official_doc_category": "audio_effects",
+      "description": "delay with multiple tap points",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "output",
+      "display_name": "output",
+      "official_doc_category": "audio_effects",
+      "description": "route audio to output channel / speakers / interface",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "panner",
+      "display_name": "panner",
+      "official_doc_category": "audio_effects",
+      "description": "pan audio left/right; converts mono input to stereo output",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "ringmodulator",
+      "display_name": "ringmodulator",
+      "official_doc_category": "audio_effects",
+      "description": "modulate signal amplitude at a frequency",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "samplergrid",
+      "display_name": "samplergrid",
+      "official_doc_category": "audio_effects",
+      "description": "record input onto pads and play back pads",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "send",
+      "display_name": "send",
+      "official_doc_category": "audio_effects",
+      "description": "duplicate a signal and send it to a second destination",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "signalclamp",
+      "display_name": "signalclamp",
+      "official_doc_category": "audio_effects",
+      "description": "clamp audio signal value within a range",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "spectrum",
+      "display_name": "spectrum",
+      "official_doc_category": "audio_effects",
+      "description": "display audio signal spectral data",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "splitter",
+      "display_name": "splitter",
+      "official_doc_category": "audio_effects",
+      "description": "split stereo into two mono signals or duplicate mono",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "stutter",
+      "display_name": "stutter",
+      "official_doc_category": "audio_effects",
+      "description": "capture and stutter input",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "vocoder",
+      "display_name": "vocoder",
+      "official_doc_category": "audio_effects",
+      "description": "vocoder audio effect (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "vocodercarrier",
+      "display_name": "vocodercarrier",
+      "official_doc_category": "audio_effects",
+      "description": "carrier input for vocoder (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "waveformviewer",
+      "display_name": "waveformviewer",
+      "official_doc_category": "audio_effects",
+      "description": "waveform display of audio (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "waveshaper",
+      "display_name": "waveshaper",
+      "official_doc_category": "audio_effects",
+      "description": "waveshaping audio processor (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "accum",
+      "display_name": "accum",
+      "official_doc_category": "modulators",
+      "description": "modulator accumulator (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "add",
+      "display_name": "add",
+      "official_doc_category": "modulators",
+      "description": "outputs result of value1 + value2; intended as modulation patch targets",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "addcentered",
+      "display_name": "addcentered",
+      "official_doc_category": "modulators",
+      "description": "centered add modulator (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "audiotocv",
+      "display_name": "audiotocv",
+      "official_doc_category": "modulators",
+      "description": "audio to modulation/CV converter (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "controlrecorder",
+      "display_name": "controlrecorder",
+      "official_doc_category": "modulators",
+      "description": "record control changes (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "controlsequencer",
+      "display_name": "controlsequencer",
+      "official_doc_category": "modulators",
+      "description": "sequence control values (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "curve",
+      "display_name": "curve",
+      "official_doc_category": "modulators",
+      "description": "modulator curve mapping (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "curvelooper",
+      "display_name": "curvelooper",
+      "official_doc_category": "modulators",
+      "description": "loop control/modulation curve (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "dataprovider",
+      "display_name": "dataprovider",
+      "official_doc_category": "modulators",
+      "description": "modulator data provider (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "envelope",
+      "display_name": "envelope",
+      "official_doc_category": "modulators",
+      "description": "envelope modulator (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "expression",
+      "display_name": "expression",
+      "official_doc_category": "modulators",
+      "description": "expression-based modulator (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "fubble",
+      "display_name": "fubble",
+      "official_doc_category": "modulators",
+      "description": "modulator module registered by source; details need source expansion",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "gravity",
+      "display_name": "gravity",
+      "official_doc_category": "modulators",
+      "description": "gravity-style modulator (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "gridsliders",
+      "display_name": "gridsliders",
+      "official_doc_category": "modulators",
+      "description": "grid-driven sliders (official docs list; details need source/doc expansion)",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "leveltocv",
+      "display_name": "leveltocv",
+      "official_doc_category": "modulators",
+      "description": "convert audio level to modulation/CV",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "lfo",
+      "display_name": "lfo",
+      "official_doc_category": "modulators",
+      "description": "low-frequency oscillator control/modulation source",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "macroslider",
+      "display_name": "macroslider",
+      "official_doc_category": "modulators",
+      "description": "take one value and send scaled versions to multiple destinations",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "modwheeltocv",
+      "display_name": "modwheeltocv",
+      "official_doc_category": "modulators",
+      "description": "take note modwheel and convert to modulation value",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "mult",
+      "display_name": "mult",
+      "official_doc_category": "modulators",
+      "description": "multiply value1 by value2",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notetofreq",
+      "display_name": "notetofreq",
+      "official_doc_category": "modulators",
+      "description": "convert note pitch to frequency in Hz",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notetoms",
+      "display_name": "notetoms",
+      "official_doc_category": "modulators",
+      "description": "convert note pitch frequency to period in milliseconds",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pitchtocv",
+      "display_name": "pitchtocv",
+      "official_doc_category": "modulators",
+      "description": "convert note pitch to modulation value",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pitchtospeed",
+      "display_name": "pitchtospeed",
+      "official_doc_category": "modulators",
+      "description": "convert input pitch to speed ratio",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pitchtovalue",
+      "display_name": "pitchtovalue",
+      "official_doc_category": "modulators",
+      "description": "output MIDI pitch value",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pressuretocv",
+      "display_name": "pressuretocv",
+      "official_doc_category": "modulators",
+      "description": "convert note pressure to modulation value",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "ramper",
+      "display_name": "ramper",
+      "official_doc_category": "modulators",
+      "description": "blend a control to a target value over time",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "smoother",
+      "display_name": "smoother",
+      "official_doc_category": "modulators",
+      "description": "output a smoothed value of the input",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "subtract",
+      "display_name": "subtract",
+      "official_doc_category": "modulators",
+      "description": "subtract value2 from value1",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "valuesetter",
+      "display_name": "valuesetter",
+      "official_doc_category": "modulators",
+      "description": "set a specified value on a targeted control",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "velocitytocv",
+      "display_name": "velocitytocv",
+      "official_doc_category": "modulators",
+      "description": "convert note velocity to modulation value",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "vinylcontrol",
+      "display_name": "vinylcontrol",
+      "official_doc_category": "modulators",
+      "description": "output speed value from control vinyl input audio",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "audiotopulse",
+      "display_name": "audiotopulse",
+      "official_doc_category": "pulse",
+      "description": "send pulse when audio level exceeds threshold",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "boundstopulse",
+      "display_name": "boundstopulse",
+      "official_doc_category": "pulse",
+      "description": "send pulse when input slider hits max/min bound",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notetopulse",
+      "display_name": "notetopulse",
+      "official_doc_category": "pulse",
+      "description": "trigger a pulse when a note is received",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulsebutton",
+      "display_name": "pulsebutton",
+      "official_doc_category": "pulse",
+      "description": "trigger a pulse with a button",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulsechance",
+      "display_name": "pulsechance",
+      "official_doc_category": "pulse",
+      "description": "randomly allow pulses through",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulsedelayer",
+      "display_name": "pulsedelayer",
+      "official_doc_category": "pulse",
+      "description": "delay pulses",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulsedisplayer",
+      "display_name": "pulsedisplayer",
+      "official_doc_category": "pulse",
+      "description": "see flags on pulses",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulseflag",
+      "display_name": "pulseflag",
+      "official_doc_category": "pulse",
+      "description": "set properties/flags on pulses",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulsegate",
+      "display_name": "pulsegate",
+      "official_doc_category": "pulse",
+      "description": "allow or disallow pulses",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulsehocket",
+      "display_name": "pulsehocket",
+      "official_doc_category": "pulse",
+      "description": "send pulses to randomized destinations",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulselimit",
+      "display_name": "pulselimit",
+      "official_doc_category": "pulse",
+      "description": "limit number of pulses allowed through",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulser",
+      "display_name": "pulser",
+      "official_doc_category": "pulse",
+      "description": "send pulse messages at an interval",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulserouter",
+      "display_name": "pulserouter",
+      "official_doc_category": "pulse",
+      "description": "control where pulses are routed using UI control",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulsesequence",
+      "display_name": "pulsesequence",
+      "official_doc_category": "pulse",
+      "description": "define a looping sequence of pulses",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pulsetrain",
+      "display_name": "pulsetrain",
+      "official_doc_category": "pulse",
+      "description": "define a list of pulses to execute once pulsed",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "basiceq",
+      "display_name": "basiceq",
+      "official_doc_category": "effect_chain",
+      "description": "simple multiband EQ",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "biquad",
+      "display_name": "biquad",
+      "official_doc_category": "effect_chain",
+      "description": "filter using biquad formula",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "bitcrush",
+      "display_name": "bitcrush",
+      "official_doc_category": "effect_chain",
+      "description": "reduce sample resolution and sample rate",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "butterworth",
+      "display_name": "butterworth",
+      "official_doc_category": "effect_chain",
+      "description": "filter using Butterworth formula",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "compressor",
+      "display_name": "compressor",
+      "official_doc_category": "effect_chain",
+      "description": "dynamic compressor; lookahead introduces delay",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "dcremover",
+      "display_name": "dcremover",
+      "official_doc_category": "effect_chain",
+      "description": "10 Hz high-pass filter to remove DC offset",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "delay",
+      "display_name": "delay",
+      "official_doc_category": "effect_chain",
+      "description": "echoing delay",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "distortion",
+      "display_name": "distortion",
+      "official_doc_category": "effect_chain",
+      "description": "waveshaping distortion",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "freeverb",
+      "display_name": "freeverb",
+      "official_doc_category": "effect_chain",
+      "description": "reverb using the Freeverb algorithm",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "gainstage",
+      "display_name": "gainstage",
+      "official_doc_category": "effect_chain",
+      "description": "control volume inside an effectchain",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "gate",
+      "display_name": "gate",
+      "official_doc_category": "effect_chain",
+      "description": "only allow signal through above threshold",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "granulator",
+      "display_name": "granulator",
+      "official_doc_category": "effect_chain",
+      "description": "granulate live input",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "muter",
+      "display_name": "muter",
+      "official_doc_category": "effect_chain",
+      "description": "mute an incoming signal",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "noisify",
+      "display_name": "noisify",
+      "official_doc_category": "effect_chain",
+      "description": "multiply input by white noise",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pitchshift",
+      "display_name": "pitchshift",
+      "official_doc_category": "effect_chain",
+      "description": "shift signal pitch",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "pumper",
+      "display_name": "pumper",
+      "official_doc_category": "effect_chain",
+      "description": "rhythmic volume dip / sidechain-like pumping",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "tremolo",
+      "display_name": "tremolo",
+      "official_doc_category": "effect_chain",
+      "description": "rhythmic volume modulation",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "abletonlink",
+      "display_name": "abletonlink",
+      "official_doc_category": "other",
+      "description": "synchronize transport with Ableton Link devices/software",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "clockin",
+      "display_name": "clockin",
+      "official_doc_category": "other",
+      "description": "read clock pulses from external MIDI devices to control transport",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "clockout",
+      "display_name": "clockout",
+      "official_doc_category": "other",
+      "description": "send clock pulses to external MIDI devices",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "comment",
+      "display_name": "comment",
+      "official_doc_category": "other",
+      "description": "box to display explanatory text",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "eventcanvas",
+      "display_name": "eventcanvas",
+      "official_doc_category": "other",
+      "description": "schedule values over time",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "globalcontrols",
+      "display_name": "globalcontrols",
+      "official_doc_category": "other",
+      "description": "interface controls for MIDI/navigation/background/canvas parameters",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "grid",
+      "display_name": "grid",
+      "official_doc_category": "other",
+      "description": "generic grid used by script module and grid MIDI controllers",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "groupcontrol",
+      "display_name": "groupcontrol",
+      "official_doc_category": "other",
+      "description": "connect to several checkboxes and control them together",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "label",
+      "display_name": "label",
+      "official_doc_category": "other",
+      "description": "display a label in a large patch",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "loopergranulator",
+      "display_name": "loopergranulator",
+      "official_doc_category": "other",
+      "description": "use with looper to play loop contents with granular synthesis",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "multitrackrecorder",
+      "display_name": "multitrackrecorder",
+      "official_doc_category": "other",
+      "description": "record synchronized audio tracks to disk",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "notetoggle",
+      "display_name": "notetoggle",
+      "official_doc_category": "other",
+      "description": "turn a control on/off depending on whether input notes are held",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "oscoutput",
+      "display_name": "oscoutput",
+      "official_doc_category": "other",
+      "description": "send OSC messages when sliders change or notes are received",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "prefab",
+      "display_name": "prefab",
+      "official_doc_category": "other",
+      "description": "collection/container of modules that can be loaded from prefabs menu",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "push2control",
+      "display_name": "push2control",
+      "official_doc_category": "other",
+      "description": "use Ableton Push 2 to control Bespoke interface",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "radiosequencer",
+      "display_name": "radiosequencer",
+      "official_doc_category": "other",
+      "description": "sequence so only one value is enabled at a time",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "samplebrowser",
+      "display_name": "samplebrowser",
+      "official_doc_category": "other",
+      "description": "browse samples and drag them to modules",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "savestateloader",
+      "display_name": "savestateloader",
+      "official_doc_category": "other",
+      "description": "load other savestate files",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "scale",
+      "display_name": "scale",
+      "official_doc_category": "other",
+      "description": "control global scale/tuning",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "script",
+      "display_name": "script",
+      "official_doc_category": "other",
+      "description": "Python scripting for livecoding notes and module control",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "scriptstatus",
+      "display_name": "scriptstatus",
+      "official_doc_category": "other",
+      "description": "show current Python scope for debugging",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "selector",
+      "display_name": "selector",
+      "official_doc_category": "other",
+      "description": "radio button control to only enable one value at a time",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "snapshots",
+      "display_name": "snapshots",
+      "official_doc_category": "other",
+      "description": "save and restore sets of control values",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "songbuilder",
+      "display_name": "songbuilder",
+      "official_doc_category": "other",
+      "description": "large-scale scene/song mode organizer",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "timelinecontrol",
+      "display_name": "timelinecontrol",
+      "official_doc_category": "other",
+      "description": "control global transport position",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "timerdisplay",
+      "display_name": "timerdisplay",
+      "official_doc_category": "other",
+      "description": "display a timer",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "transport",
+      "display_name": "transport",
+      "official_doc_category": "other",
+      "description": "controls tempo/current time/play-pause/reset",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    },
+    {
+      "id": "valuestream",
+      "display_name": "valuestream",
+      "official_doc_category": "other",
+      "description": "display a control value over time",
+      "accepts": "see description and official docs; exact source capabilities should be verified from ModuleFactory + module class",
+      "confidence": "medium",
+      "evidence": {
+        "official_docs_url": "https://www.bespokesynth.com/docs/",
+        "official_docs_index_lines": "docs lines 3-10 list modules by category",
+        "module_factory_source": "Source/ModuleFactory.cpp registers native modules; effect_chain entries are EffectFactory/effectchain not normal ModuleFactory modules"
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "invalidatedViews": [
+    {
+      "frameIndex": 0,
+      "resourceId": "postfx.color",
+      "viewId": "postfx.color.srv",
+      "reason": "source texture disposed"
+    },
+    {
+      "frameIndex": 0,
+      "resourceId": "postfx.color",
+      "viewId": "postfx.color.rtv",
+      "reason": "source texture disposed"
+    },
+    {
+      "frameIndex": 2,
+      "resourceId": "main.color",
+      "viewId": "main.color.srv",
+      "reason": "source texture disposed"
+    },
+    {
+      "frameIndex": 2,
+      "resourceId": "main.color",
+      "viewId": "main.color.rtv",
+      "reason": "source texture disposed"
+    }
+  ],
+  "count": 4
+}

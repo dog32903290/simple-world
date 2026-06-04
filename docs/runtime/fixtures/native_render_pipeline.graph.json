@@ -1,0 +1,22 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.native_render_pipeline",
+  "metadata": {
+    "purpose": "Connect ShaderUniformBinding, ShaderProgram, and NativeRendererBackend into one replayable headless frame proof."
+  },
+  "shaderUniformBindingFixture": "docs/runtime/fixtures/shader_uniform_binding.graph.json",
+  "shaderProgramFixture": "docs/runtime/fixtures/shader_program_contract.graph.json",
+  "renderGraphFixture": "docs/runtime/fixtures/render_graph_passes.graph.json",
+  "resourceLifetimeFixture": "docs/runtime/fixtures/resource_lifetime.graph.json",
+  "commandStreamFixture": "docs/runtime/fixtures/command_stream_pipeline.graph.json",
+  "nativeBackendFixture": "docs/runtime/fixtures/native_renderer_backend_interface.graph.json",
+  "expected": {
+    "targetProgramId": "program.sphere_sdf_raymarch.fragment",
+    "loudness": 0.37,
+    "frameIndex": 42,
+    "resourceLifetimeOk": true,
+    "drawCalls": 1,
+    "nativeBackendImportsOldUi": false,
+    "capturedFrameNonBlack": true
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "CommandStreamPipelineProof",
+  "ok": true,
+  "renderGraphPassId": "mainColorPass",
+  "colorViewId": "main.color.rtv",
+  "drawCalls": 1,
+  "triangles": 1,
+  "resourceBarriers": 0,
+  "renderTargetViews": []
+}

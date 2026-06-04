@@ -1,0 +1,23 @@
+[
+  {
+    "nodeId": "keep_previous_1",
+    "op": "state.update",
+    "frameIndex": 0,
+    "currentFrame": 0,
+    "previousFrame": null
+  },
+  {
+    "nodeId": "keep_previous_1",
+    "op": "state.update",
+    "frameIndex": 1,
+    "currentFrame": 1,
+    "previousFrame": 0
+  },
+  {
+    "nodeId": "keep_previous_1",
+    "op": "state.update",
+    "frameIndex": 2,
+    "currentFrame": 2,
+    "previousFrame": 1
+  }
+]

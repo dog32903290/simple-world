@@ -1,0 +1,132 @@
+{
+  "kind": "vuoMainClockProofGraph",
+  "version": 1,
+  "name": "myworld-main-clock-generated-proof",
+  "purpose": "Generated proof that a My World graph fixture can auto-wire Vuo frame pressure through my_MainClock instead of hand-drawn renderTick lines.",
+  "nodes": [
+    {
+      "id": "ConstantBackground",
+      "type": "my.image.generate.basic.constantImage",
+      "label": "my_ConstantImage BG",
+      "pos": [-195, -150],
+      "fillcolor": "#9F008A",
+      "ports": {
+        "inputs": ["renderTick", "Color", "Width", "Height"],
+        "outputs": ["Image"]
+      },
+      "attrs": {
+        "Color": "\\{\\\"r\\\":0.02,\\\"g\\\":0.08,\\\"b\\\":0.38,\\\"a\\\":1.0\\}",
+        "Width": "960",
+        "Height": "540"
+      }
+    },
+    {
+      "id": "ConstantForeground",
+      "type": "my.image.generate.basic.constantImage",
+      "label": "my_ConstantImage FG",
+      "pos": [-195, 60],
+      "fillcolor": "#9F008A",
+      "ports": {
+        "inputs": ["renderTick", "Color", "Width", "Height"],
+        "outputs": ["Image"]
+      },
+      "attrs": {
+        "Color": "\\{\\\"r\\\":0.92,\\\"g\\\":0.04,\\\"b\\\":0.72,\\\"a\\\":0.68\\}",
+        "Width": "960",
+        "Height": "540"
+      }
+    },
+    {
+      "id": "Blend",
+      "type": "my.image.use.blend",
+      "label": "my_Blend",
+      "pos": [195, -40],
+      "fillcolor": "#9F008A",
+      "ports": {
+        "inputs": ["renderTick", "Background", "Foreground", "ForegroundOpacity", "ReplaceOpacity"],
+        "outputs": ["Blended"]
+      },
+      "attrs": {
+        "ForegroundOpacity": "0.72",
+        "ReplaceOpacity": "true"
+      }
+    },
+    {
+      "id": "KeepPreviousFrame",
+      "type": "my.image.use.keepPreviousFrame",
+      "label": "my_KeepPreviousFrame",
+      "pos": [580, -40],
+      "fillcolor": "#9F008A",
+      "ports": {
+        "inputs": ["update", "ImageA", "Keep"],
+        "outputs": ["CurrentFrame", "PreviousFrame"]
+      },
+      "attrs": {
+        "Keep": "true"
+      }
+    },
+    {
+      "id": "RenderBlendWindow",
+      "type": "vuo.image.render.window2",
+      "version": "4.0.0",
+      "label": "Constant Blend State",
+      "pos": [965, -40],
+      "fillcolor": "blue",
+      "ports": {
+        "inputs": ["refresh", "image", "setWindowDescription"],
+        "outputs": ["updatedWindow"]
+      },
+      "attrs": {
+        "updatedWindow_eventThrottling": "enqueue"
+      }
+    },
+    {
+      "id": "ClearRenderTarget",
+      "type": "my.render.dx11.api.clearRenderTarget",
+      "label": "my_ClearRenderTarget",
+      "pos": [195, -390],
+      "fillcolor": "#22B8C2",
+      "ports": {
+        "inputs": ["renderTick", "TargetValid", "ClearColor", "Width", "Height"],
+        "outputs": ["ClearedColorBuffer", "CommandTrace", "IsValid"]
+      },
+      "attrs": {
+        "TargetValid": "true",
+        "ClearColor": "\\{\\\"r\\\":0.02,\\\"g\\\":0.72,\\\"b\\\":0.76,\\\"a\\\":1.0\\}",
+        "Width": "960",
+        "Height": "540"
+      }
+    },
+    {
+      "id": "RenderClearWindow",
+      "type": "vuo.image.render.window2",
+      "version": "4.0.0",
+      "label": "Clear Command Body Proof",
+      "pos": [595, -390],
+      "fillcolor": "blue",
+      "ports": {
+        "inputs": ["refresh", "image", "setWindowDescription"],
+        "outputs": ["updatedWindow"]
+      },
+      "attrs": {
+        "updatedWindow_eventThrottling": "enqueue"
+      }
+    }
+  ],
+  "clockedPorts": [
+    { "node": "ConstantBackground", "port": "renderTick" },
+    { "node": "ConstantForeground", "port": "renderTick" },
+    { "node": "Blend", "port": "renderTick" },
+    { "node": "KeepPreviousFrame", "port": "update" },
+    { "node": "RenderBlendWindow", "port": "refresh" },
+    { "node": "ClearRenderTarget", "port": "renderTick" },
+    { "node": "RenderClearWindow", "port": "refresh" }
+  ],
+  "edges": [
+    { "from": ["ConstantBackground", "Image"], "to": ["Blend", "Background"] },
+    { "from": ["ConstantForeground", "Image"], "to": ["Blend", "Foreground"] },
+    { "from": ["Blend", "Blended"], "to": ["KeepPreviousFrame", "ImageA"] },
+    { "from": ["KeepPreviousFrame", "CurrentFrame"], "to": ["RenderBlendWindow", "image"] },
+    { "from": ["ClearRenderTarget", "ClearedColorBuffer"], "to": ["RenderClearWindow", "image"] }
+  ]
+}

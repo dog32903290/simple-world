@@ -1,0 +1,220 @@
+{
+  "document": "BespokeSynth Sound-In-Area Node Manual v1",
+  "generated_at": "2026-06-02T18:28:00+08:00",
+  "purpose": "Repo-specific AI-readable manual for Bespoke nodes, scripting protocol, and sound_in_area patch strategy.",
+  "source_policy": {
+    "high": "checked against upstream source or official docs",
+    "medium": "official docs checked, source class not deeply audited",
+    "low": "listed only; do not provide wiring/control details",
+    "rule": "Never invent Bespoke patch ports, control names, script methods, or save-state fields."
+  },
+  "sources": {
+    "official_docs": "https://www.bespokesynth.com/docs/",
+    "github_repo": "https://github.com/BespokeSynth/BespokeSynth",
+    "script_reference": "https://github.com/BespokeSynth/BespokeSynth/wiki/Scripting-Reference",
+    "local_upstream_clone": "/tmp/BespokeSynth"
+  },
+  "architecture_protocol": {
+    "module_registration": "ModuleFactory.cpp uses REGISTER(ClassName, moduleid, category), storing creator, CanCreate, hidden/experimental, category, and AcceptsAudio/Notes/Pulses.",
+    "core_interfaces": [
+      "IDrawableModule",
+      "IAudioSource",
+      "IAudioReceiver",
+      "IAudioProcessor",
+      "INoteReceiver",
+      "INoteSource",
+      "IPulseReceiver",
+      "IPulseSource",
+      "IModulator"
+    ],
+    "cable_families": [
+      "audio",
+      "notes",
+      "pulses",
+      "modulation/control",
+      "module-specific special cables"
+    ]
+  },
+  "script_protocol": {
+    "inputs": [
+      "on_pulse()",
+      "on_note(pitch, velocity)",
+      "on_grid_button(col, row, velocity)",
+      "on_osc(message)",
+      "on_midi(messageType, control, value, channel)"
+    ],
+    "globals": [
+      "bespoke.get_measure_time()",
+      "bespoke.get_measure()",
+      "bespoke.reset_transport()",
+      "bespoke.get_step(subdivision)",
+      "bespoke.count_per_measure(subdivision)",
+      "bespoke.time_until_subdivision(subdivision)",
+      "bespoke.get_time_sig_ratio()",
+      "bespoke.get_root()",
+      "bespoke.get_scale()",
+      "bespoke.get_scale_range(octave, count)",
+      "bespoke.tone_to_pitch(index)",
+      "bespoke.name_to_pitch(noteName)",
+      "bespoke.pitch_to_name(pitch)",
+      "bespoke.pitch_to_freq(pitch)",
+      "bespoke.get_tempo()",
+      "bespoke.random(seed, index)",
+      "bespoke.get_modules()"
+    ],
+    "me_methods": [
+      "me.play_note(...)",
+      "me.schedule_note(...)",
+      "me.schedule_call(delay, method)",
+      "me.set(path, value)",
+      "me.schedule_set(delay, path, value)",
+      "me.get(path)",
+      "me.adjust(path, amount)",
+      "me.output(obj)",
+      "me.stop()",
+      "me.set_num_note_outputs(num)",
+      "me.connect_osc_input(port)",
+      "me.send_cc(control, value, output_index)"
+    ],
+    "module_api": [
+      "module.get(path)",
+      "module.create(moduleType, x, y)",
+      "m.set_position(x, y)",
+      "m.set_target(targetOrPath)",
+      "m.set_name(name)",
+      "m.delete()",
+      "m.set(path, value)",
+      "m.get(path)",
+      "m.adjust(path, amount)"
+    ]
+  },
+  "project_boundary": {
+    "locked_sentence": "buffer selection is current sound position plus previous/next material continuity; bad phrasing usually breaks in the continuity layer, not only in the shape detector.",
+    "engineering_strategy": "Use Bespoke fork/native audio nodes first. Custom work belongs mainly in analysis, relation control, memory metadata, continuity, and arrangement modes."
+  },
+  "nodes": {
+    "input": {
+      "category": "audio",
+      "class": "InputChannel",
+      "registered_id": "input",
+      "accepts": ["audio"],
+      "controls": ["ch"],
+      "role": "Microphone/audio input source.",
+      "sound_in_area_use": "Dry melodica/mic input."
+    },
+    "leveltocv": {
+      "category": "modulator",
+      "class": "AudioLevelToCV",
+      "registered_id": "leveltocv",
+      "accepts": ["audio"],
+      "controls": ["gain", "attack", "release", "min", "max"],
+      "role": "Audio level to modulation value.",
+      "sound_in_area_use": "Loudness/pressure control source."
+    },
+    "audiotopulse": {
+      "category": "pulse",
+      "class": "AudioToPulse",
+      "registered_id": "audiotopulse",
+      "accepts": ["audio"],
+      "controls": ["threshold", "release"],
+      "role": "Pulse on level threshold crossing.",
+      "sound_in_area_use": "Attack-ish trigger; not a complete attack detector."
+    },
+    "attackamount": {
+      "category": "modulator",
+      "class": "AttackAmount",
+      "registered_id": "attackamount",
+      "accepts": ["audio"],
+      "controls": ["follow", "window", "threshold", "gain", "decay", "min", "max"],
+      "role": "Max-style continuous attack amount from positive envelope delta.",
+      "sound_in_area_use": "Attack strength control source for effects and relation patches."
+    },
+    "decayamount": {
+      "category": "modulator",
+      "class": "DecayAmount",
+      "registered_id": "decayamount",
+      "accepts": ["audio"],
+      "controls": ["follow", "window", "threshold", "gain", "decay", "min", "max"],
+      "role": "Max-style continuous decay amount from positive falling envelope delta.",
+      "sound_in_area_use": "Release/tail strength control source for effects and relation patches."
+    },
+    "densityamount": {
+      "category": "modulator",
+      "class": "DensityAmount",
+      "registered_id": "densityamount",
+      "accepts": ["modulator input via input control"],
+      "controls": ["input", "threshold", "window", "full count", "min", "max"],
+      "role": "Counts attack input threshold crossings inside a time window.",
+      "sound_in_area_use": "Attack-density control source; patch attackamount into densityamount~input."
+    },
+    "notesinger": {
+      "category": "instrument",
+      "class": "NoteSinger",
+      "registered_id": "notesinger",
+      "accepts": ["audio"],
+      "controls": ["oct"],
+      "role": "Detected pitch to note output.",
+      "sound_in_area_use": "Melodica pitch extraction and harmonic relation control."
+    },
+    "looperrecorder": {
+      "category": "audio",
+      "class": "LooperRecorder",
+      "registered_id": "looperrecorder",
+      "accepts": ["audio"],
+      "controls": ["1", "2", "4", "8", ".5tempo", "2xtempo", "auto-advance", "clear", "free rec", "length", "mode", "target", "write*"],
+      "role": "Recording command center and retroactive capture for loopers.",
+      "sound_in_area_use": "Previous 4-bar loop capture."
+    },
+    "looper": {
+      "category": "audio",
+      "class": "Looper",
+      "registered_id": "looper",
+      "accepts": ["audio", "notes"],
+      "controls": ["num bars", "volume", "mute", "passthrough", "decay", "offset", "pitch", "capture", "commit", "clear", "write", ".5x", "2x", "extend", "undo", "save", "fourtet", "fourtetslices", "scr", "scrspd", "auto"],
+      "role": "Loop input audio; use with looperrecorder.",
+      "sound_in_area_use": "Memory lane playback and previous-loop response."
+    },
+    "loopergranulator": {
+      "category": "other",
+      "class": "LooperGranulator",
+      "registered_id": "loopergranulator",
+      "accepts": [],
+      "controls": ["on", "freeze", "loop pos", "len ms", "overlap", "speed", "pos rand", "speed rand", "spacing rand", "octaves", "width"],
+      "role": "Granular playback of connected looper.",
+      "sound_in_area_use": "Fragment/residue/freeze transformation of previous loop."
+    },
+    "buffershuffler": {
+      "category": "audio",
+      "class": "BufferShuffler",
+      "registered_id": "buffershuffler",
+      "accepts": ["audio", "notes"],
+      "controls": ["num bars", "interval", "freeze input", "playback style", "fourtet", "fourtetslices", "grid"],
+      "role": "Constantly records live input buffer; notes trigger slices.",
+      "sound_in_area_use": "Native flicker/fragment module."
+    },
+    "sampleplayer": {
+      "category": "synth",
+      "class": "SamplePlayer",
+      "registered_id": "sampleplayer",
+      "accepts": ["audio", "notes", "pulses"],
+      "controls": ["play", "pause", "stop", "loop", "record", "attack", "cuepoint", "cue start", "cue len", "cue speed", "cue stop", "play cue", "auto-slice 4/8/16/32"],
+      "script_api": ["set_cue_point", "play_cue", "get_length_seconds"],
+      "role": "Sample playback with cue points, recording, slicing.",
+      "sound_in_area_use": "Curated memory buffer playback after looper prototype."
+    },
+    "script": {
+      "category": "other",
+      "class": "ScriptModule",
+      "registered_id": "script",
+      "accepts": ["notes", "pulses"],
+      "controls": ["a", "b", "c", "d", "code", "run", "stop", "loadscript", "load", "save as", "style"],
+      "role": "Python livecoding for notes and module control.",
+      "sound_in_area_use": "Control/relation/continuity proof layer."
+    }
+  },
+  "prototype_cookbooks": {
+    "previous_4_bar_loop": ["input", "looperrecorder", "looper", "leveltocv", "audiotopulse", "notesinger"],
+    "fragment_flicker": ["input", "buffershuffler", "notesinger", "script"],
+    "residue_freeze_granular": ["input", "looperrecorder", "looper", "loopergranulator", "leveltocv", "expression", "macroslider"]
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.renderer_backend_contract",
+  "requestedRenderContract": {
+    "resolution": { "width": 3840, "height": 2160 },
+    "format": "R16G16B16A16_Float",
+    "frameDomain": "visualFrame",
+    "requiredCapabilities": [
+      "supportsOffscreenRenderTarget",
+      "supportsCommandStream",
+      "supportsFrameArtifact",
+      "supports4kOutput"
+    ],
+    "optionalCapabilities": [
+      "supportsWindowOutput",
+      "supportsTextureViews",
+      "supportsShaderCompile"
+    ],
+    "frameOutput": {
+      "kind": "fileFrame",
+      "path": "frame.ppm",
+      "requires4k": true
+    }
+  },
+  "backends": [
+    {
+      "id": "softwareProof",
+      "role": "deterministic artifact backend",
+      "status": "available",
+      "capabilities": {
+        "maxTextureSize": 8192,
+        "supports4kOutput": true,
+        "supportsWindowOutput": false,
+        "supportsOffscreenRenderTarget": true,
+        "supportsTextureViews": false,
+        "supportsCommandStream": true,
+        "supportsFrameArtifact": true,
+        "supportsShaderCompile": false,
+        "shaderLanguages": [],
+        "resourceViewKinds": [],
+        "frameOutputKinds": ["fileFrame"]
+      }
+    },
+    {
+      "id": "vuoHost",
+      "role": "visible Vuo body-layer host",
+      "status": "available",
+      "capabilities": {
+        "maxTextureSize": 4096,
+        "supports4kOutput": true,
+        "supportsWindowOutput": true,
+        "supportsOffscreenRenderTarget": true,
+        "supportsTextureViews": false,
+        "supportsCommandStream": false,
+        "supportsFrameArtifact": false,
+        "supportsShaderCompile": false,
+        "shaderLanguages": [],
+        "resourceViewKinds": [],
+        "frameOutputKinds": ["previewWindow"]
+      }
+    },
+    {
+      "id": "webgl2ShaderProbe",
+      "role": "shader compile pressure only",
+      "status": "available",
+      "capabilities": {
+        "maxTextureSize": 4096,
+        "supports4kOutput": false,
+        "supportsWindowOutput": false,
+        "supportsOffscreenRenderTarget": false,
+        "supportsTextureViews": false,
+        "supportsCommandStream": false,
+        "supportsFrameArtifact": false,
+        "supportsShaderCompile": true,
+        "shaderLanguages": ["GLSL_ES_300"],
+        "resourceViewKinds": [],
+        "frameOutputKinds": []
+      }
+    },
+    {
+      "id": "metalNative",
+      "role": "future low-latency native GPU backend",
+      "status": "planned",
+      "capabilities": {
+        "maxTextureSize": null,
+        "supports4kOutput": null,
+        "supportsWindowOutput": null,
+        "supportsOffscreenRenderTarget": null,
+        "supportsTextureViews": null,
+        "supportsCommandStream": null,
+        "supportsFrameArtifact": null,
+        "supportsShaderCompile": null,
+        "shaderLanguages": ["MSL"],
+        "resourceViewKinds": ["SRV", "UAV", "RTV", "DSV"],
+        "frameOutputKinds": ["previewWindow", "fileFrame"]
+      }
+    }
+  ],
+  "renderGraph": {
+    "passes": [
+      {
+        "id": "mainColorPass",
+        "domain": "frame",
+        "clearPolicy": {
+          "color": [0, 0, 0, 1],
+          "depth": 1
+        },
+        "commands": ["commandStream"],
+        "outputs": ["mainRenderTarget.color", "mainRenderTarget.depth"]
+      },
+      {
+        "id": "publishFrame",
+        "domain": "frame",
+        "inputs": ["mainRenderTarget.color"],
+        "outputs": ["frameOutput.fileFrame"]
+      }
+    ]
+  },
+  "resources": [
+    {
+      "id": "mainRenderTarget.color",
+      "kind": "Texture2D",
+      "role": "ColorBuffer",
+      "format": "R16G16B16A16_Float",
+      "resolution": { "width": 3840, "height": 2160 },
+      "bindFlags": ["RenderTarget", "ShaderResource"],
+      "ownerPass": "mainColorPass",
+      "lifetime": "frame",
+      "resizePolicy": "reallocateOnResolutionChange",
+      "disposePolicy": "endOfFrame"
+    },
+    {
+      "id": "mainRenderTarget.depth",
+      "kind": "Texture2D",
+      "role": "DepthBuffer",
+      "format": "D32_Float",
+      "resolution": { "width": 3840, "height": 2160 },
+      "bindFlags": ["DepthStencil", "ShaderResource"],
+      "ownerPass": "mainColorPass",
+      "lifetime": "frame",
+      "resizePolicy": "reallocateOnResolutionChange",
+      "disposePolicy": "endOfFrame"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "kind": "RenderFrameInput",
+  "timeSeconds": 1.25,
+  "frameIndex": 42,
+  "loudness": 0.37,
+  "resolution": {
+    "width": 3840,
+    "height": 2160
+  },
+  "viewportScale": 1,
+  "sourceSnapshotOk": true
+}

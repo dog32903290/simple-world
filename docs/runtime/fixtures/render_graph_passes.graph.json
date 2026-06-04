@@ -1,0 +1,82 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.render_graph_passes",
+  "frame": {
+    "frameIndex": 0,
+    "time": 0.0,
+    "deltaTime": 0.0
+  },
+  "resources": [
+    {
+      "id": "main.color",
+      "kind": "Texture2D",
+      "format": "R16G16B16A16_Float",
+      "resolution": { "width": 3840, "height": 2160 },
+      "lifetime": "frame"
+    },
+    {
+      "id": "main.depth",
+      "kind": "Texture2D",
+      "format": "D32_Float",
+      "resolution": { "width": 3840, "height": 2160 },
+      "lifetime": "frame"
+    },
+    {
+      "id": "postfx.color",
+      "kind": "Texture2D",
+      "format": "R16G16B16A16_Float",
+      "resolution": { "width": 3840, "height": 2160 },
+      "lifetime": "frame"
+    }
+  ],
+  "passes": [
+    {
+      "id": "mainColorPass",
+      "domain": "frame",
+      "dependsOn": [],
+      "reads": [],
+      "writes": [
+        { "resource": "main.color", "access": "RenderTargetWrite" },
+        { "resource": "main.depth", "access": "DepthStencilWrite" }
+      ],
+      "commands": ["clear", "commandStream"],
+      "clearPolicy": {
+        "color": [0, 0, 0, 1],
+        "depth": 1
+      }
+    },
+    {
+      "id": "postFxPass",
+      "domain": "frame",
+      "dependsOn": ["mainColorPass"],
+      "reads": [
+        { "resource": "main.color", "access": "ShaderResourceRead" }
+      ],
+      "writes": [
+        { "resource": "postfx.color", "access": "RenderTargetWrite" }
+      ],
+      "commands": ["postFxComposite"]
+    },
+    {
+      "id": "publishFrame",
+      "domain": "frame",
+      "dependsOn": ["postFxPass"],
+      "reads": [
+        { "resource": "postfx.color", "access": "FrameOutputRead" }
+      ],
+      "writes": [],
+      "commands": ["publish:fileFrame"],
+      "publish": {
+        "kind": "fileFrame",
+        "path": "frame.ppm"
+      }
+    }
+  ],
+  "expected": {
+    "passOrder": ["mainColorPass", "postFxPass", "publishFrame"],
+    "resourceBarriers": [
+      { "resource": "main.color", "before": "RenderTargetWrite", "after": "ShaderResourceRead" },
+      { "resource": "postfx.color", "before": "RenderTargetWrite", "after": "FrameOutputRead" }
+    ]
+  }
+}

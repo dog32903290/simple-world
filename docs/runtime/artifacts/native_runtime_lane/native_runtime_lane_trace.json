@@ -1,0 +1,399 @@
+[
+  {
+    "op": "loadGraph",
+    "path": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/native_runtime_lane.graph.json",
+    "ok": true
+  },
+  {
+    "op": "runMaterialPbrScope",
+    "ok": true,
+    "graph": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/fixtures/material_pbr_scope.graph.json",
+    "outDir": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/artifacts/native_runtime_lane/material_pbr_scope",
+    "diagnostics": [
+      {
+        "code": "material_pbr.srv_create_failed",
+        "input": "RoughnessMetallicOcclusionMap",
+        "textureId": "bad_rmo",
+        "fallback": "DefaultRoughnessMetallicOcclusionSrv"
+      }
+    ]
+  },
+  {
+    "op": "commandStream.accept",
+    "command": {
+      "ok": true,
+      "meshId": "cube",
+      "topology": "TriangleList",
+      "vertexBuffer": {
+        "buffer": "cube.vertexBuffer",
+        "srv": "cube.vertexSrv"
+      },
+      "indexBuffer": {
+        "buffer": "cube.indexBuffer",
+        "srv": "cube.indexSrv"
+      },
+      "requestedMaterialId": "glass",
+      "selectedMaterialId": "glass",
+      "unresolvedMaterialId": null,
+      "shaderSource": "Lib:shaders/3d/mesh/mesh-Draw.hlsl",
+      "vertexShaderEntry": "vsMain",
+      "pixelShaderEntry": "psMain",
+      "constantBuffers": [
+        "transforms",
+        "context",
+        "pointLights",
+        "pbr:glass"
+      ],
+      "shaderResources": [
+        "DefaultAlbedoColorSrv",
+        "DefaultEmissiveColorSrv",
+        "DefaultRoughnessMetallicOcclusionSrv",
+        "DefaultNormalSrv",
+        "PbrLookUpTextureSrv",
+        "studio_small_08_prefiltered"
+      ],
+      "commandOps": [
+        "inputAssembler",
+        "shaderStage",
+        "rasterizer",
+        "outputMerger",
+        "draw"
+      ],
+      "rasterizerState": {
+        "fillMode": 3,
+        "culling": "Back",
+        "enableZTest": true,
+        "enableZWrite": true
+      },
+      "viewports": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 180,
+          "minDepth": 0,
+          "maxDepth": 1
+        }
+      ]
+    }
+  },
+  {
+    "op": "renderTarget.allocate",
+    "resourceId": "mainRenderTarget",
+    "resources": [
+      "rt.color",
+      "rt.depth"
+    ]
+  },
+  {
+    "op": "textureView.create",
+    "views": [
+      "rt.color.srv",
+      "rt.color.rtv",
+      "rt.color.uav",
+      "rt.color.dsv",
+      "rt.depth.srv",
+      "rt.depth.rtv",
+      "rt.depth.uav",
+      "rt.depth.dsv"
+    ],
+    "failedViews": [
+      "rt.color.uav",
+      "rt.color.dsv",
+      "rt.depth.rtv",
+      "rt.depth.uav"
+    ]
+  },
+  {
+    "op": "commandStream.execute",
+    "result": {
+      "ok": true,
+      "trace": [
+        {
+          "op": "prepare:InputAssemblerStage"
+        },
+        {
+          "op": "prepare:ShaderStage"
+        },
+        {
+          "op": "prepare:Rasterizer"
+        },
+        {
+          "op": "prepare:OutputMergerStage"
+        },
+        {
+          "op": "prepare:Draw"
+        },
+        {
+          "op": "update:InputAssemblerStage"
+        },
+        {
+          "op": "bindInputAssembler",
+          "topology": "TriangleList",
+          "vertexBuffer": {
+            "buffer": "cube.vertexBuffer",
+            "srv": "cube.vertexSrv"
+          },
+          "indexBuffer": {
+            "buffer": "cube.indexBuffer",
+            "srv": "cube.indexSrv"
+          }
+        },
+        {
+          "op": "update:ShaderStage"
+        },
+        {
+          "op": "bindShaderStage",
+          "vertexShader": "vsMain",
+          "pixelShader": "psMain",
+          "constantBuffers": [
+            "transforms",
+            "context",
+            "pointLights",
+            "pbr:glass"
+          ],
+          "shaderResources": [
+            "DefaultAlbedoColorSrv",
+            "DefaultEmissiveColorSrv",
+            "DefaultRoughnessMetallicOcclusionSrv",
+            "DefaultNormalSrv",
+            "PbrLookUpTextureSrv",
+            "studio_small_08_prefiltered"
+          ],
+          "samplerStates": []
+        },
+        {
+          "op": "update:Rasterizer"
+        },
+        {
+          "op": "bindRasterizer",
+          "rasterizerState": {
+            "fillMode": 3,
+            "culling": "Back",
+            "enableZTest": true,
+            "enableZWrite": true
+          },
+          "viewports": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 320,
+              "height": 180,
+              "minDepth": 0,
+              "maxDepth": 1
+            }
+          ]
+        },
+        {
+          "op": "update:OutputMergerStage"
+        },
+        {
+          "op": "bindOutputMerger",
+          "renderTargetViews": [
+            {
+              "ok": true,
+              "textureId": "rt.color",
+              "type": "RTV",
+              "dimension": "Texture2D"
+            }
+          ],
+          "depthStencilView": {
+            "ok": true,
+            "textureId": "rt.depth",
+            "type": "DSV",
+            "format": "D32_Float",
+            "dimension": "Texture2D"
+          },
+          "unorderedAccessViews": [],
+          "blendState": "opaque",
+          "depthStencilState": "defaultDepth",
+          "depthStencilReference": 0,
+          "blendFactor": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "blendSampleMask": 4294967295
+        },
+        {
+          "op": "update:Draw"
+        },
+        {
+          "op": "draw",
+          "meshId": "cube",
+          "material": "glass",
+          "topology": "TriangleList",
+          "vertexBuffer": {
+            "buffer": "cube.vertexBuffer",
+            "srv": "cube.vertexSrv"
+          },
+          "indexBuffer": {
+            "buffer": "cube.indexBuffer",
+            "srv": "cube.indexSrv"
+          },
+          "vertexShader": "vsMain",
+          "pixelShader": "psMain",
+          "constantBuffers": [
+            "transforms",
+            "context",
+            "pointLights",
+            "pbr:glass"
+          ],
+          "shaderResources": [
+            "DefaultAlbedoColorSrv",
+            "DefaultEmissiveColorSrv",
+            "DefaultRoughnessMetallicOcclusionSrv",
+            "DefaultNormalSrv",
+            "PbrLookUpTextureSrv",
+            "studio_small_08_prefiltered"
+          ],
+          "samplerStates": [],
+          "rasterizerState": {
+            "fillMode": 3,
+            "culling": "Back",
+            "enableZTest": true,
+            "enableZWrite": true
+          },
+          "viewports": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 320,
+              "height": 180,
+              "minDepth": 0,
+              "maxDepth": 1
+            }
+          ],
+          "renderTargetViews": [
+            {
+              "ok": true,
+              "textureId": "rt.color",
+              "type": "RTV",
+              "dimension": "Texture2D"
+            }
+          ],
+          "depthStencilView": {
+            "ok": true,
+            "textureId": "rt.depth",
+            "type": "DSV",
+            "format": "D32_Float",
+            "dimension": "Texture2D"
+          },
+          "unorderedAccessViews": [],
+          "blendState": "opaque",
+          "depthStencilState": "defaultDepth",
+          "depthStencilReference": 0,
+          "blendFactor": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "blendSampleMask": 4294967295
+        },
+        {
+          "op": "restore:InputAssemblerStage"
+        },
+        {
+          "op": "restoreInputAssembler"
+        },
+        {
+          "op": "restore:ShaderStage"
+        },
+        {
+          "op": "restoreShaderStage"
+        },
+        {
+          "op": "restore:Rasterizer"
+        },
+        {
+          "op": "restoreRasterizer"
+        },
+        {
+          "op": "restore:OutputMergerStage"
+        },
+        {
+          "op": "restoreOutputMerger"
+        },
+        {
+          "op": "restore:Draw"
+        }
+      ],
+      "errors": [],
+      "stats": {
+        "drawCalls": 1,
+        "triangles": 1,
+        "indirectDrawCalls": 0,
+        "computeDispatchCalls": 0,
+        "computeThreadGroups": 0,
+        "resourceBarriers": 0,
+        "clearCalls": 0
+      },
+      "finalState": {
+        "topology": null,
+        "vertexBuffer": null,
+        "indexBuffer": null,
+        "vertexShader": null,
+        "pixelShader": null,
+        "constantBuffers": [],
+        "shaderResources": [],
+        "samplerStates": [],
+        "rasterizerState": null,
+        "viewports": [],
+        "renderTargetViews": [],
+        "depthStencilView": null,
+        "outputMergerUavs": [],
+        "blendState": null,
+        "depthStencilState": null,
+        "depthStencilReference": 0,
+        "blendFactor": [],
+        "blendSampleMask": null,
+        "computeShader": null,
+        "computeConstantBuffers": [],
+        "computeShaderResources": [],
+        "computeUavs": [],
+        "computeSamplerStates": [],
+        "drawCalls": 1,
+        "triangles": 1,
+        "indirectDrawCalls": 0,
+        "computeDispatchCalls": 0,
+        "computeThreadGroups": 0,
+        "resourceAccess": {
+          "rt.color": "RenderTargetWrite"
+        },
+        "resourceBarriers": 0,
+        "clearCalls": 0
+      }
+    }
+  },
+  {
+    "op": "runNativeRenderer",
+    "ok": true,
+    "outDir": "/Users/chenbaiwei/Desktop/vibe coding/simple_world/docs/runtime/artifacts/native_runtime_lane/native_renderer",
+    "frameStats": {
+      "width": 320,
+      "height": 180,
+      "pixelCount": 57600,
+      "nonblackPixels": 6613,
+      "brightPixels": 6613,
+      "averageRgb": [
+        10.5677,
+        20.2543,
+        27.6192
+      ]
+    }
+  },
+  {
+    "op": "publishArtifacts",
+    "ok": true,
+    "artifacts": [
+      "native_runtime_lane_trace.json",
+      "native_runtime_lane_errors.json",
+      "resource_registry.json",
+      "texture_views.json",
+      "material_pbr_scope/mesh_pbr_draw_command.json",
+      "native_renderer/frame.ppm"
+    ]
+  }
+]

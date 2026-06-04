@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "backend": "webgl2",
+  "runs": [
+    {
+      "ok": true,
+      "durationMs": 325.037458,
+      "vertexLog": "",
+      "fragmentLog": "",
+      "programLog": "",
+      "fragmentSourceLength": 1121
+    },
+    {
+      "ok": true,
+      "durationMs": 2.9797499999999673,
+      "vertexLog": "",
+      "fragmentLog": "",
+      "programLog": "",
+      "fragmentSourceLength": 1121
+    }
+  ]
+}

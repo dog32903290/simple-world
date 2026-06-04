@@ -1,0 +1,12 @@
+[
+  {
+    "node_id": "sphere_sdf_1",
+    "type": "tixl.field.generate.sdf.SphereSDF",
+    "artifact": "field_expr"
+  },
+  {
+    "node_id": "raymarch_field_1",
+    "type": "tixl.field.render.RaymarchField",
+    "artifact": "shader_source.glsl"
+  }
+]

@@ -1,0 +1,88 @@
+{
+  "backends": {
+    "softwareProof": {
+      "role": "deterministic artifact backend",
+      "status": "available",
+      "capabilities": {
+        "maxTextureSize": 8192,
+        "supports4kOutput": true,
+        "supportsWindowOutput": false,
+        "supportsOffscreenRenderTarget": true,
+        "supportsTextureViews": false,
+        "supportsCommandStream": true,
+        "supportsFrameArtifact": true,
+        "supportsShaderCompile": false,
+        "shaderLanguages": [],
+        "resourceViewKinds": [],
+        "frameOutputKinds": [
+          "fileFrame"
+        ]
+      }
+    },
+    "vuoHost": {
+      "role": "visible Vuo body-layer host",
+      "status": "available",
+      "capabilities": {
+        "maxTextureSize": 4096,
+        "supports4kOutput": true,
+        "supportsWindowOutput": true,
+        "supportsOffscreenRenderTarget": true,
+        "supportsTextureViews": false,
+        "supportsCommandStream": false,
+        "supportsFrameArtifact": false,
+        "supportsShaderCompile": false,
+        "shaderLanguages": [],
+        "resourceViewKinds": [],
+        "frameOutputKinds": [
+          "previewWindow"
+        ]
+      }
+    },
+    "webgl2ShaderProbe": {
+      "role": "shader compile pressure only",
+      "status": "available",
+      "capabilities": {
+        "maxTextureSize": 4096,
+        "supports4kOutput": false,
+        "supportsWindowOutput": false,
+        "supportsOffscreenRenderTarget": false,
+        "supportsTextureViews": false,
+        "supportsCommandStream": false,
+        "supportsFrameArtifact": false,
+        "supportsShaderCompile": true,
+        "shaderLanguages": [
+          "GLSL_ES_300"
+        ],
+        "resourceViewKinds": [],
+        "frameOutputKinds": []
+      }
+    },
+    "metalNative": {
+      "role": "future low-latency native GPU backend",
+      "status": "planned",
+      "capabilities": {
+        "maxTextureSize": null,
+        "supports4kOutput": null,
+        "supportsWindowOutput": null,
+        "supportsOffscreenRenderTarget": null,
+        "supportsTextureViews": null,
+        "supportsCommandStream": null,
+        "supportsFrameArtifact": null,
+        "supportsShaderCompile": null,
+        "shaderLanguages": [
+          "MSL"
+        ],
+        "resourceViewKinds": [
+          "SRV",
+          "UAV",
+          "RTV",
+          "DSV"
+        ],
+        "frameOutputKinds": [
+          "previewWindow",
+          "fileFrame"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.native_renderer_backend_interface",
+  "metadata": {
+    "purpose": "Carry my-world RenderBackend boundary semantics into simple_world without importing the old UI.",
+    "donorEvidence": [
+      "/Users/chenbaiwei/Projects/my-world/source/render/RenderBackend.h",
+      "/Users/chenbaiwei/Projects/my-world/source/render/ShaderPreviewInputBridge.h"
+    ]
+  },
+  "shaderProgramFixture": "docs/runtime/fixtures/shader_program_contract.graph.json",
+  "backend": {
+    "id": "nativeInterfaceProof",
+    "role": "headless native renderer interface proof",
+    "backendName": "native-interface-proof",
+    "status": "available",
+    "capabilities": {
+      "supportsShaderProgramPackage": true,
+      "supportsLastValidFrame": true,
+      "supportsFrameCapture": true,
+      "supports4kOutput": true,
+      "shaderLanguages": ["GLSL_ES_300"],
+      "futureNativeLanguages": ["MSL"]
+    },
+    "initialState": {
+      "hasRenderableProgram": false,
+      "previousValidProgram": false
+    }
+  },
+  "requestedFrame": {
+    "resolution": { "width": 3840, "height": 2160 },
+    "viewportScale": 1,
+    "timeSeconds": 1.25,
+    "frameIndex": 42,
+    "loudness": 0.37
+  },
+  "expected": {
+    "operations": ["compileShader", "resize", "renderFrame", "captureFrame"],
+    "compileStatus": "compiled",
+    "renderStatus": "rendered",
+    "captureStatus": "captured",
+    "nonBlackSample": true
+  }
+}

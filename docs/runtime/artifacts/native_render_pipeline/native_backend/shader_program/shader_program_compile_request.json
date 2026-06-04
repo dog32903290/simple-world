@@ -1,0 +1,21 @@
+{
+  "programId": "program.sphere_sdf_raymarch.fragment",
+  "backendRole": "webgl2ShaderProbe",
+  "language": "GLSL_ES_300",
+  "sourceHash": "fe2e5758e79283b07e7fff2c12982846eeaa522f91466560f0961ccb96f7521e",
+  "stages": [
+    {
+      "stage": "fragment",
+      "entryPoint": "raymarch_field_1"
+    }
+  ],
+  "bindings": {
+    "uniforms": [],
+    "samplers": [],
+    "textures": [],
+    "storageBuffers": [],
+    "constantBuffers": []
+  },
+  "mode": "externalProbe",
+  "actualCompileProof": "docs/runtime/scripts/check_shader_webgl.js"
+}

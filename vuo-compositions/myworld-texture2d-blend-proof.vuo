@@ -1,0 +1,33 @@
+/**
+ * @file
+ * Texture2D / VuoImage body-layer proof.
+ *
+ * This is not an exact TiXL node. It pressure-tests the stateless Texture2D
+ * contract with Vuo built-ins before porting image namespace nodes.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Texture2D Clock|<requestedFrame>requestedFrame\r" pos="-300,40" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+MakeColorImage [type="vuo.image.make.color" version="1.0.1" label="Make Color Image|<refresh>refresh\l|<color>color\l|<width>width\l|<height>height\l|<image>image\r" pos="40,-50" fillcolor="#9F008A" _color="\{\"r\":0.05,\"g\":0.12,\"b\":0.42,\"a\":1.0\}" _width="960" _height="540"];
+
+MakeCheckerboardImage [type="vuo.image.make.checkerboard2" version="2.0.0" label="Make Checkerboard Image|<refresh>refresh\l|<upperLeftColor>upperLeftColor\l|<upperRightColor>upperRightColor\l|<squareSize>squareSize\l|<sharpness>sharpness\l|<angle>angle\l|<coverage>coverage\l|<center>center\l|<width>width\l|<height>height\l|<image>image\r" pos="40,135" fillcolor="#9F008A" _upperLeftColor="\{\"r\":0.95,\"g\":0.18,\"b\":0.82,\"a\":0.85\}" _upperRightColor="\{\"r\":0.0,\"g\":0.85,\"b\":1.0,\"a\":0.45\}" _squareSize="0.12" _sharpness="0.92" _angle="12.0" _coverage="\{\"x\":0.55,\"y\":0.55\}" _center="\{\"x\":0.0,\"y\":0.0\}" _width="960" _height="540"];
+
+BlendImages [type="vuo.image.blend" version="1.2.3" label="Blend Images|<refresh>refresh\l|<background>background\l|<foreground>foreground\l|<blendMode>blendMode\l|<foregroundOpacity>foregroundOpacity\l|<replaceOpacity>replaceOpacity\l|<blended>blended\r" pos="390,40" fillcolor="#9F008A" _blendMode="\"normal\"" _foregroundOpacity="0.74" _replaceOpacity="true"];
+
+RenderImageToWindow [type="vuo.image.render.window2" version="4.0.0" label="Render Image to Window|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="720,40" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+Comment [type="vuo.comment" label="\"Texture2D first-pass proof\nTiXL Texture2D maps to VuoImage only for stateless image nodes.\nRenderTarget / feedback / DX11 views are outside this contract.\"" pos="235,-180" width="680" height="92"];
+
+FireOnDisplayRefresh:requestedFrame -> MakeColorImage:refresh;
+FireOnDisplayRefresh:requestedFrame -> MakeCheckerboardImage:refresh;
+FireOnDisplayRefresh:requestedFrame -> BlendImages:refresh;
+FireOnDisplayRefresh:requestedFrame -> RenderImageToWindow:refresh;
+MakeColorImage:image -> BlendImages:background;
+MakeCheckerboardImage:image -> BlendImages:foreground;
+BlendImages:blended -> RenderImageToWindow:image;
+}
