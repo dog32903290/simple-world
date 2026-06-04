@@ -1,0 +1,120 @@
+{
+  "kind": "TixlMeshDrawTextureSamplerBindingProof",
+  "graphId": "fixture.tixl_mesh_draw_texture_sampler_binding",
+  "ok": true,
+  "status": "proven_tixl_mesh_draw_texture_sampler_binding",
+  "message": "proved a bounded handwritten MSL adapter mapping for t2/t7 textures and s0/s1 samplers with a real Metal sentinel probe",
+  "inputArtifacts": {
+    "sourceAudit": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+      "kind": "TixlMeshDrawShaderSourceAudit",
+      "status": "audited_tixl_mesh_draw_source",
+      "ok": true
+    },
+    "priorResourceBinding": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+      "kind": "TixlMeshDrawResourceBindingProof",
+      "status": "summarized_tixl_mesh_draw_resource_binding",
+      "ok": true
+    },
+    "explicitTranslationStrategy": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_explicit_translation_strategy/tixl_mesh_draw_explicit_translation_strategy_result.json",
+      "kind": "TixlMeshDrawExplicitTranslationStrategy",
+      "status": "selected_handwritten_explicit_msl_adapter",
+      "ok": true
+    }
+  },
+  "bindingLedger": {
+    "boundNow": [
+      {
+        "sourceRegister": "t2",
+        "sourceName": "BaseColorMap",
+        "sourceKind": "Texture2D<float4>",
+        "metalBinding": "texture(2)",
+        "sentinelWord": "0x11223344",
+        "observedIn": "actual Metal texture/sampler compute probe"
+      },
+      {
+        "sourceRegister": "t7",
+        "sourceName": "BRDFLookup",
+        "sourceKind": "Texture2D<float4>",
+        "metalBinding": "texture(7)",
+        "sentinelWord": "0xa1b2c3d4",
+        "observedIn": "actual Metal texture/sampler compute probe"
+      },
+      {
+        "sourceRegister": "s0",
+        "sourceName": "WrappedSampler",
+        "sourceKind": "sampler",
+        "metalBinding": "sampler(0)",
+        "sentinelWord": "0x778899aa",
+        "observedIn": "actual Metal texture/sampler compute probe"
+      },
+      {
+        "sourceRegister": "s1",
+        "sourceName": "ClampedSampler",
+        "sourceKind": "sampler",
+        "metalBinding": "sampler(1)",
+        "sentinelWord": "0x55667788",
+        "observedIn": "actual Metal texture/sampler compute probe"
+      }
+    ],
+    "boundedTextureSamplerMappingSubset": [
+      "t2",
+      "t7",
+      "s0",
+      "s1"
+    ],
+    "notProven": [
+      "t3 EmissiveColorMap",
+      "t4 RSMOMap",
+      "t5 NormalMap",
+      "t6 PrefilteredSpecular TextureCube",
+      "t8+ shadergraph resources",
+      "full texture/sampler set"
+    ]
+  },
+  "evidence": {
+    "metalProbeStatus": "proven",
+    "textureBindings": {
+      "BaseColorMap": 2,
+      "BRDFLookup": 7
+    },
+    "samplerBindings": {
+      "WrappedSampler": 0,
+      "ClampedSampler": 1
+    },
+    "sentinelReadback": {
+      "expectedWords": [
+        287454020,
+        2712847316,
+        2005440938,
+        1432778632
+      ],
+      "actualWords": [
+        287454020,
+        2712847316,
+        2005440938,
+        1432778632
+      ]
+    }
+  },
+  "claims": {
+    "sourceAuditArtifactConsumed": true,
+    "priorResourceBindingArtifactConsumed": true,
+    "actualMetalTextureSamplerProbeRan": true,
+    "t2BaseColorMapBindingProven": true,
+    "t7BrdfLookupBindingProven": true,
+    "s0WrappedSamplerBindingProven": true,
+    "s1ClampedSamplerBindingProven": true,
+    "boundedTextureSamplerMappingProven": true,
+    "fullPbrResourceBinding": false,
+    "t8ShadergraphResourcesExpanded": false,
+    "backendReplacementReady": false,
+    "hlslToMslTranslation": false,
+    "tixlRuntimeParity": false,
+    "pbrVisualCorrectness": false,
+    "rendererIntegrationComplete": false,
+    "constantBufferAdapterComplete": false
+  }
+}

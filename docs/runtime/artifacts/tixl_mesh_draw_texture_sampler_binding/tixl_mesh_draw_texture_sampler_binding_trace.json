@@ -1,0 +1,63 @@
+[
+  {
+    "op": "loadTixlMeshDrawTextureSamplerBindingFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_texture_sampler_binding.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+    "priorResourceBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+    "strategyArtifact": "docs/runtime/artifacts/tixl_mesh_draw_explicit_translation_strategy/tixl_mesh_draw_explicit_translation_strategy_result.json"
+  },
+  {
+    "op": "readInputArtifacts",
+    "sourceAuditRead": true,
+    "priorResourceBindingRead": true,
+    "strategyRead": true
+  },
+  {
+    "op": "validateInputArtifacts",
+    "sourceAuditValid": true,
+    "priorResourceBindingValid": true,
+    "strategyValid": true
+  },
+  {
+    "op": "validateFixtureExpectations",
+    "valid": true,
+    "boundSubset": [
+      "t2",
+      "t7",
+      "s0",
+      "s1"
+    ]
+  },
+  {
+    "op": "buildMetalTextureSamplerProbe",
+    "compiler": "xcrun clang++",
+    "probe": "docs/runtime/native/tixl_mesh_draw_texture_sampler_binding_probe.mm",
+    "exitCode": 0
+  },
+  {
+    "op": "runMetalTextureSamplerProbe",
+    "exitCode": 0
+  },
+  {
+    "op": "buildTextureSamplerBindingLedger",
+    "boundSubset": [
+      "t2",
+      "t7",
+      "s0",
+      "s1"
+    ],
+    "actualWords": [
+      287454020,
+      2712847316,
+      2005440938,
+      1432778632
+    ]
+  },
+  {
+    "op": "publishTixlMeshDrawTextureSamplerBindingArtifacts",
+    "ok": true
+  }
+]

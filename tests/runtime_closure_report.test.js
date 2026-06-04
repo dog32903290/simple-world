@@ -29,7 +29,12 @@ test("RuntimeClosureReport docs describe a bounded closure ledger, not Metal par
   assert.match(source, /TiXL mesh draw MSL approximation proof now shows/);
   assert.match(source, /TiXL mesh draw resource binding proof records/);
   assert.match(source, /PbrVertices t0 -> buffer\(0\)/);
-  assert.match(source, /PBR cbuffers, textures, samplers, and t8\+ injected resources remain\s+unbound/);
+  assert.match(source, /TiXL mesh draw texture\/sampler binding proof now consumes/);
+  assert.match(source, /t2 BaseColorMap -> texture\(2\)/);
+  assert.match(source, /t7 BRDFLookup -> texture\(7\)/);
+  assert.match(source, /s0 WrappedSampler -> sampler\(0\)/);
+  assert.match(source, /s1 ClampedSampler -> sampler\(1\)/);
+  assert.match(source, /does not prove t3-t6,\s+t8\+ shadergraph resources, full PBR resource binding, or backend replacement/);
   assert.match(source, /does not discharge the TiXL donor HLSL\s+boundary/);
   assert.match(source, /docs\/runtime\/artifacts\/native_render_pipeline/);
 });
@@ -65,10 +70,10 @@ test("RuntimeClosureReport shell emits a closure ledger from existing proof arti
   assert.ok(report.bounded.includes("native_hlsl_metal_compile"));
   assert.deepEqual(report.broken, []);
   assert.deepEqual(report.requiredNext, [
-    "map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1",
     "expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates",
     "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof",
   ]);
+  assert.ok(!report.requiredNext.includes("map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1"));
   assert.ok(!report.requiredNext.includes("prove_native_b5_packing_from_source_backed_shadergraph_params"));
   assert.ok(!report.requiredNext.includes("produce_source_backed_shadergraph_param_expansion_artifact_for_b5"));
   assert.ok(!report.requiredNext.includes("expand_shadergraph_duplicate_params_b5_before_full_constant_buffer_adapter"));

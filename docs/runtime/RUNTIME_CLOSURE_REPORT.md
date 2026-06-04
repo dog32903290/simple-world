@@ -92,10 +92,16 @@ draw b5 native packing proof now consumes that source-backed expansion and
 proves the exact 16-byte b5 buffer at Metal `buffer(7)` with a real compute
 readback. That closes the b5 native packing lane only; it does not prove the
 combined b0-b5 adapter, texture/sampler mapping, t8+ resources, or backend
-replacement. The next required work is therefore:
+replacement. The TiXL mesh draw texture/sampler binding proof now consumes the
+source audit, the prior unbound resource ledger, and the handwritten explicit
+MSL adapter strategy, then runs a real Metal compute sentinel readback proving
+only `t2 BaseColorMap -> texture(2)`, `t7 BRDFLookup -> texture(7)`,
+`s0 WrappedSampler -> sampler(0)`, and `s1 ClampedSampler -> sampler(1)`.
+That closes the four-slot texture/sampler subset only; it does not prove t3-t6,
+t8+ shadergraph resources, full PBR resource binding, or backend replacement.
+The next required work is therefore:
 
 ```text
-map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1
 expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates
 replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof
 ```

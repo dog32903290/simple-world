@@ -15,7 +15,6 @@ from typing import Any
 
 
 REQUIRED_NEXT_FOR_BOUNDED_NATIVE_BACKEND = [
-    "map_handwritten_explicit_msl_adapter_textures_samplers_t2_t7_s0_s1",
     "expand_t8_shadergraph_resources_and_set_mrt_stage_matrix_cube_pbr_reference_gates",
     "replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof",
 ]

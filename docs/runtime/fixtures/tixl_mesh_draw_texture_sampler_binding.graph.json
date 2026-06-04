@@ -1,0 +1,53 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.tixl_mesh_draw_texture_sampler_binding",
+  "kind": "TixlMeshDrawTextureSamplerBindingProof",
+  "metadata": {
+    "purpose": "Prove only the handwritten explicit MSL adapter mapping for TiXL mesh Draw t2/t7 textures and s0/s1 samplers."
+  },
+  "sourceAuditArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+  "priorResourceBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+  "strategyArtifact": "docs/runtime/artifacts/tixl_mesh_draw_explicit_translation_strategy/tixl_mesh_draw_explicit_translation_strategy_result.json",
+  "adapterMapping": {
+    "policy": "direct source register number maps to the same Metal texture/sampler index for this bounded handwritten adapter subset",
+    "boundSubset": [
+      "t2",
+      "t7",
+      "s0",
+      "s1"
+    ],
+    "metalBindings": {
+      "t2": "texture(2)",
+      "t7": "texture(7)",
+      "s0": "sampler(0)",
+      "s1": "sampler(1)"
+    }
+  },
+  "expected": {
+    "status": "proven_tixl_mesh_draw_texture_sampler_binding",
+    "boundedTextureSamplerMappingSubset": [
+      "t2",
+      "t7",
+      "s0",
+      "s1"
+    ],
+    "claims": {
+      "sourceAuditArtifactConsumed": true,
+      "priorResourceBindingArtifactConsumed": true,
+      "actualMetalTextureSamplerProbeRan": true,
+      "t2BaseColorMapBindingProven": true,
+      "t7BrdfLookupBindingProven": true,
+      "s0WrappedSamplerBindingProven": true,
+      "s1ClampedSamplerBindingProven": true,
+      "boundedTextureSamplerMappingProven": true,
+      "fullPbrResourceBinding": false,
+      "t8ShadergraphResourcesExpanded": false,
+      "backendReplacementReady": false,
+      "hlslToMslTranslation": false,
+      "tixlRuntimeParity": false,
+      "pbrVisualCorrectness": false,
+      "rendererIntegrationComplete": false,
+      "constantBufferAdapterComplete": false
+    }
+  }
+}
