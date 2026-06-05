@@ -354,6 +354,11 @@ test("every checked-in Vuo node has a creator-facing admission index entry", () 
     assert.ok(entry.creatorName.startsWith("my_"), `${entry.nodeId} missing creator-facing name`);
     assert.ok(["vuo", "proof-only", "blocked"].includes(entry.admission), `${entry.nodeId} has invalid admission`);
     assert.ok(entry.ports.length > 0, `${entry.nodeId} has no port contract`);
+    for (const port of entry.ports) {
+      for (const field of ["id", "direction", "type", "eventFlow", "cardinality", "default", "range"]) {
+        assert.ok(Object.hasOwn(port, field), `${entry.nodeId}.${port.id} missing port ${field}`);
+      }
+    }
     assert.ok(["stateless", "stateful", "external-state"].includes(entry.state), `${entry.nodeId} has invalid state`);
     assert.ok(["semantic-parity", "visual-proof", "body-layer-adapter", "host-layer-proof", "not-parity"].includes(entry.parity.tixl));
     assert.ok(["semantic-parity", "visual-proof", "body-layer-adapter", "host-layer-proof", "not-parity"].includes(entry.parity.vuo));

@@ -106,7 +106,9 @@ function parsePorts(source) {
     direction: "input",
     type: "Event",
     eventFlow: "event",
-    cardinality: "single"
+    cardinality: "single",
+    default: null,
+    range: null
   }];
 }
 
@@ -117,9 +119,10 @@ function buildPort(direction, id, type, metadataText) {
     direction,
     type,
     eventFlow: direction === "input" ? "data+event" : "data",
-    cardinality: "single"
+    cardinality: "single",
+    default: Object.hasOwn(metadata, "default") ? metadata.default : null,
+    range: null
   };
-  if (Object.hasOwn(metadata, "default")) port.default = metadata.default;
   const min = metadata.suggestedMin ?? metadata.min;
   const max = metadata.suggestedMax ?? metadata.max;
   if (typeof min === "number" && typeof max === "number") {
