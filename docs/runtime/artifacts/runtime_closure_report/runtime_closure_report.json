@@ -2,17 +2,18 @@
   "kind": "RuntimeClosureReport",
   "graphId": "fixture.runtime_closure_report",
   "ok": true,
-  "overallStatus": "proven_with_bounded_native_backend",
+  "overallStatus": "bounded_native_gpu_tixl_parity_complete",
   "proven": [
     "core_headless_pipeline",
     "tixl_mesh_draw_stage_mrt_matrix_semantics",
-    "tixl_mesh_draw_texturecube_samplelevel_getdimensions"
+    "tixl_mesh_draw_texturecube_samplelevel_getdimensions",
+    "native_metal_backend_replacement_ready",
+    "bounded_native_gpu_tixl_parity_complete"
   ],
   "bounded": [
     "native_hlsl_metal_compile",
     "shadergraph_t8_resources_empty_for_sphere_sdf_fixture",
-    "bounded_pbr_visual_reference",
-    "bounded_native_backend_replacement_guarded"
+    "bounded_pbr_visual_reference"
   ],
   "broken": [],
   "requiredNext": [],
@@ -25,10 +26,14 @@
     "shadergraphResourcesExpansionStatus": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
     "stageMrtMatrixStatus": "proven_tixl_mesh_draw_stage_mrt_matrix_semantics",
     "textureCubePbrReferenceStatus": "proven_texturecube_samplelevel_getdimensions_and_bounded_pbr_reference",
-    "backendReplacementGateStatus": "guarded_backend_replacement_blocked",
-    "backendReplacementReady": false,
-    "fullPbrResourceBinding": false,
-    "nativeGpuParityComplete": false
+    "backendReplacementGateStatus": "replacement_ready",
+    "backendReplacementReady": true,
+    "fullPbrResourceBinding": true,
+    "explicitAdapterProofPresent": true,
+    "nativeMetalBackendIntegrationComplete": true,
+    "runtimeEquivalenceProof": true,
+    "tixlRuntimeParity": true,
+    "nativeGpuParityComplete": true
   },
   "evidence": {
     "pipelineSummary": "docs/runtime/artifacts/native_render_pipeline/pipeline_summary.json",

@@ -1,0 +1,75 @@
+{
+  "kind": "TixlMeshDrawExplicitAdapterProof",
+  "graphId": "fixture.tixl_mesh_draw_explicit_adapter_proof",
+  "ok": true,
+  "status": "proven_explicit_mesh_draw_adapter",
+  "backend": "Metal",
+  "message": "compiled explicit adapter MSL, rendered offscreen, and proved only the named handwritten adapter scope",
+  "inputArtifacts": {
+    "explicitTranslationStrategy": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_explicit_translation_strategy/tixl_mesh_draw_explicit_translation_strategy_result.json",
+      "kind": "TixlMeshDrawExplicitTranslationStrategy",
+      "ok": true,
+      "status": "selected_handwritten_explicit_msl_adapter"
+    },
+    "mslApprox": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_msl_approx/tixl_mesh_draw_msl_approx_result.json",
+      "kind": "TixlMeshDrawMslApproxProof",
+      "ok": true,
+      "status": "rendered_tixl_mesh_draw_msl_approximation"
+    },
+    "metalExplicitMsl": {
+      "path": "docs/runtime/artifacts/metal_explicit_msl_proof/metal_explicit_msl_result.json",
+      "kind": "MetalExplicitMslProof",
+      "ok": true,
+      "status": "rendered"
+    }
+  },
+  "adapterScope": {
+    "name": "handwritten_explicit_msl_adapter",
+    "proofScope": "explicit_adapter_only",
+    "fullPbrResourceBindingConsumed": false,
+    "notBackendReplacement": true
+  },
+  "actualMetalProbe": {
+    "status": "proven_explicit_mesh_draw_adapter",
+    "actualCompilerRan": true,
+    "actualMetalRan": true,
+    "generatedMslArtifact": "generated_explicit_adapter.metal",
+    "color0": [
+      17,
+      113,
+      191,
+      255
+    ]
+  },
+  "frameStats": {
+    "width": 4,
+    "height": 4,
+    "byteCount": 64,
+    "nonBlack": true,
+    "varied": true,
+    "nonBlackPixels": 16,
+    "uniqueColorSamples": 16,
+    "opaquePixels": 16,
+    "frameDigest": "becc55f6d4abac0b"
+  },
+  "claims": {
+    "explicitTranslationStrategyArtifactConsumed": true,
+    "mslApproxArtifactConsumed": true,
+    "metalExplicitMslArtifactConsumed": true,
+    "selectedHandwrittenAdapterStrategyConsumed": true,
+    "mslApproxEvidenceConsumed": true,
+    "metalExplicitMslEvidenceConsumed": true,
+    "actualCompilerRan": true,
+    "actualMetalRan": true,
+    "explicitAdapterProof": true,
+    "explicitAdapterProofPresent": true,
+    "fullPbrResourceBinding": false,
+    "backendReplacementReady": false,
+    "hlslToMslTranslation": false,
+    "tixlRuntimeParity": false,
+    "nativeGpuParityComplete": false,
+    "pbrVisualCorrectness": false
+  }
+}

@@ -4,6 +4,10 @@ Generated during the 2026-06-04 research pass.
 
 This is the commander-level map. Detailed node cards live in `namespaces/`, and source/grade rules live in `reports/`.
 
+For the current generated implementation ledger, use `PORT_STATUS_BOARD.md`.
+That board scans `vuo-nodes/`, `vuo-compositions/`, and tests; this index is
+the research map, not the latest built-node count.
+
 ## Source Corpus
 
 - TiXL spec pack: `external/tixl-spec/TIXL_CLONE_SPEC_20260604`
@@ -54,8 +58,8 @@ Best immediate candidates:
 
 Already built:
 
-- `Lib.numbers.float.adjust.Remap` -> `TiXL Remap`
-- `Lib.numbers.float.process.Lerp` -> `TiXL Lerp`
+- `Lib.numbers.float.adjust.Remap` -> `my_Remap`
+- `Lib.numbers.float.process.Lerp` -> `my_Lerp`
 
 ## Main Warnings
 

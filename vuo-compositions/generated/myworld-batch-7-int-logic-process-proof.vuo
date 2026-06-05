@@ -1,0 +1,65 @@
+/**
+ * @file
+ * Batch 7 integer logic/process Vuo visual proof.
+ *
+ * This composition wires my_CompareInt, my_PickInt, my_ClampInt,
+ * my_FloatToInt, my_GetAPrime, my_MaxInt, and my_MinInt into
+ * my_Batch7IntLogicProcessProof, a proof-only image adapter.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-980,-130" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-980,350" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+MakeIntList [type="vuo.list.make.3.VuoInteger" version="2.0.0" label="Make Int List|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-680,20" fillcolor="#868C8D" _1="11" _2="22" _3="33"];
+
+CompareInt [type="my.numbers.int.logic.compareInt" version="1.0.0" label="my_CompareInt|<value>value\l|<testValue>testValue\l|<mode>mode\l|<resultForTrue>resultForTrue\l|<resultForFalse>resultForFalse\l|<isTrue>IsTrue\r|<resultValue>ResultValue\r" pos="-390,-315" fillcolor="#868C8D" _value="5" _testValue="4" _mode="2" _resultForTrue="10" _resultForFalse="-10"];
+
+PickInt [type="my.numbers.int.logic.pickInt" version="1.0.0" label="my_PickInt|<inputValues>inputValues\l|<index>index\l|<selected>Selected\r" pos="-390,-105" fillcolor="#868C8D" _index="-1"];
+
+ClampInt [type="my.numbers.int.process.clampInt" version="1.0.0" label="my_ClampInt|<value>value\l|<min>min\l|<max>max\l|<result>Result\r" pos="-390,75" fillcolor="#868C8D" _value="12" _min="0" _max="10"];
+
+FloatToInt [type="my.numbers.int.process.floatToInt" version="1.0.0" label="my_FloatToInt|<floatValue>floatValue\l|<integer>Integer\r" pos="-390,240" fillcolor="#868C8D" _floatValue="-3.9"];
+
+GetAPrime [type="my.numbers.int.process.getAPrime" version="1.0.0" label="my_GetAPrime|<index>index\l|<result>Result\r" pos="-390,395" fillcolor="#868C8D" _index="6"];
+
+MaxInt [type="my.numbers.int.process.maxInt" version="1.0.0" label="my_MaxInt|<ints>ints\l|<result>Result\r" pos="-90,-90" fillcolor="#868C8D"];
+
+MinInt [type="my.numbers.int.process.minInt" version="1.0.0" label="my_MinInt|<ints>ints\l|<result>Result\r" pos="-90,80" fillcolor="#868C8D"];
+
+ProofImage [type="my.numbers.batch.batch7IntLogicProcessProof" version="1.0.0" label="my_Batch7IntLogicProcessProof|<renderTick>renderTick\l|<compareIsTrue>compareIsTrue\l|<compareResultValue>compareResultValue\l|<pickIntValue>pickIntValue\l|<clampIntValue>clampIntValue\l|<floatToIntValue>floatToIntValue\l|<primeValue>primeValue\l|<maxIntValue>maxIntValue\l|<minIntValue>minIntValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="295,30" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 7 Int Logic Process|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="815,30" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="815,-185" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-7-int-logic-process-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 7 int visual proof\"" pos="115,480" width="390" height="42"];
+
+FireOnStart:started -> MakeIntList:refresh;
+FireOnStart:started -> CompareInt:value;
+FireOnStart:started -> ClampInt:value;
+FireOnStart:started -> FloatToInt:floatValue;
+FireOnStart:started -> GetAPrime:index;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+MakeIntList:list -> PickInt:inputValues;
+MakeIntList:list -> MaxInt:ints;
+MakeIntList:list -> MinInt:ints;
+CompareInt:isTrue -> ProofImage:compareIsTrue;
+CompareInt:resultValue -> ProofImage:compareResultValue;
+PickInt:selected -> ProofImage:pickIntValue;
+ClampInt:result -> ProofImage:clampIntValue;
+FloatToInt:integer -> ProofImage:floatToIntValue;
+GetAPrime:result -> ProofImage:primeValue;
+MaxInt:result -> ProofImage:maxIntValue;
+MinInt:result -> ProofImage:minIntValue;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

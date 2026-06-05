@@ -4,13 +4,15 @@ RuntimeClosureReport answers:
 
 ```text
 can the current headless runtime proof be treated as closed, while clearly
-marking the native draw shader compile boundary as bounded?
+marking the native draw shader compile boundary as bounded and proving the
+bounded TiXL Mesh Draw/PBR native Metal backend lane replacement-ready?
 ```
 
 It is a lane-scoped closure ledger over existing artifacts, not a new renderer.
-It closes only the current native_render_pipeline/headless proof lane. It is
-not repo-wide runtime completion, not Metal/native GPU parity completion, and
-not TiXL parity completion.
+It closes only the current native_render_pipeline/headless proof lane plus the
+bounded TiXL Mesh Draw/PBR backend replacement lane. This is bounded native
+GPU/Metal/TiXL parity completion for that lane, not repo-wide runtime
+completion, not generic TiXL clone parity, and not Vuo parity.
 
 ## Boundary
 
@@ -50,8 +52,9 @@ NativeDrawShaderCompileProof artifact remains `blocked_missing_native_source`.
 That explicit MSL proof exists, but it does not discharge the TiXL donor HLSL
 boundary.
 
-For the bounded backend state, `requiredNext` names the remaining draw-shader
-translation, full resource binding, and native compile proof work. The TiXL
+For the bounded backend state, the older `requiredNext` list named the remaining
+draw-shader translation, full resource binding, and native compile proof work.
+The TiXL
 donor source audit exists as a dependency map, and the TiXL mesh draw buffer
 layout proof fixes `PbrVertex`/`FaceIndices` packing facts for the next
 approximation. The TiXL mesh draw MSL approximation proof now shows that this
@@ -97,8 +100,8 @@ source audit, the prior unbound resource ledger, and the handwritten explicit
 MSL adapter strategy, then runs a real Metal compute sentinel readback proving
 only `t2 BaseColorMap -> texture(2)`, `t7 BRDFLookup -> texture(7)`,
 `s0 WrappedSampler -> sampler(0)`, and `s1 ClampedSampler -> sampler(1)`.
-That closes the four-slot texture/sampler subset only; it does not prove t3-t6,
-full PBR resource binding, or backend replacement. The TiXL mesh draw
+That closes the four-slot texture/sampler subset only; t3-t6 are resolved by
+the later full PBR resource binding proof. The TiXL mesh draw
 ShaderGraph resources expansion proof now proves that the `RESOURCES(t8)` hook
 is real, that `GenerateShaderGraphCode` starts injected resources at t8, and
 that the current SphereSDF fixture has zero t8+ resources because SphereSDF does
@@ -118,8 +121,9 @@ matrix)` order. It then runs a tiny explicit Metal adapter probe that verifies
 `[[vertex_id]]`, `[[stage_in]]`, two color attachments, and the selected
 vector-matrix convention by exact readback. It consumes the current source
 audit, t8, b5 native packing, and texture/sampler artifacts only to block stale
-or widened upstream claims. It does not translate TiXL donor HLSL to MSL, prove
-TextureCube behavior, prove full PBR, or replace the backend. The closure report
+or widened upstream claims. It does not translate TiXL donor HLSL to MSL; the
+later TextureCube, full PBR binding, explicit adapter, and native backend
+integration proofs close their own bounded lanes. The closure report
 now reads that artifact directly before removing
 `prove_stage_mrt_matrix_semantics_for_handwritten_mesh_draw_adapter` from
 `requiredNext`.
@@ -132,32 +136,43 @@ that API pair into a tiny explicit Metal
 It also establishes `boundedPbrVisualReferenceEstablished` by generating and
 comparing a deterministic analytic sentinel before removing
 `prove_texturecube_samplelevel_getdimensions_and_pbr_visual_reference` from
-`requiredNext`, but it still leaves `pbrVisualCorrectness: false`,
-`fullPbrResourceBinding: false`, `hlslToMslTranslation: false`, and
-`backendReplacementReady: false`.
+`requiredNext`, but it still leaves generic `pbrVisualCorrectness: false` and
+`hlslToMslTranslation: false`.
+The TiXL mesh draw Full PBR Resource Binding proof now consumes the b0-b5 native
+packing, t0/t1 mesh buffers, t2-t7 PBR textures/cube resources, s0/s1 samplers,
+and current empty t8+ ShaderGraph resource lane, then proves the complete
+bounded resource binding contract for this Mesh Draw/PBR fixture.
+The TiXL mesh draw Explicit Adapter proof now consumes that full binding and
+proves the handwritten explicit MSL adapter contract for the bounded lane,
+without selecting a generic HLSL-to-MSL translator.
+The TiXL mesh draw Native Metal Backend Integration proof now consumes the
+native render pipeline, backend gate prerequisites, full PBR binding, and
+explicit adapter proof, then runs a real Metal render/readback backend sentinel
+that proves native backend integration and runtime equivalence for this lane.
 The TiXL mesh draw Backend Replacement Gate proof now consumes the current
-native render pipeline, resource binding, texture/sampler binding, t8
-ShaderGraph resources, stage/MRT/matrix, and TextureCube/PBR reference
-artifacts. It evaluates the replacement gate and proves the replacement is
-guarded, not ready: `backendReplacementGateEvaluated: true`,
-`replacementBlockedBecauseFullBindingMissing: true`,
-`replacementBlockedBecauseAdapterProofMissing: true`,
-`boundedNativeBackendRemains: true`, `backendReplacementReady: false`,
-`fullPbrResourceBinding: false`, `hlslToMslTranslation: false`, and
-`tixlRuntimeParity: false`. The closure report removes
-`replace_bounded_backend_interface_only_after_full_resource_binding_and_adapter_proof`
-only when that guarded proof is valid, then records
-`bounded_native_backend_replacement_guarded` in `bounded`.
+native render pipeline, resource binding, full PBR binding, explicit adapter,
+native Metal backend integration, texture/sampler binding, t8 ShaderGraph
+resources, stage/MRT/matrix, and TextureCube/PBR reference artifacts. It
+evaluates the replacement gate and proves the bounded replacement is ready:
+`backendReplacementGateEvaluated: true`,
+`replacementBlockedBecauseFullBindingMissing: false`,
+`replacementBlockedBecauseAdapterProofMissing: false`,
+`boundedNativeBackendRemains: false`, `backendReplacementReady: true`,
+`fullPbrResourceBinding: true`, `explicitAdapterProofPresent: true`,
+`nativeMetalBackendIntegrationComplete: true`, `runtimeEquivalenceProof: true`,
+`hlslToMslTranslation: false`, `tixlRuntimeParity: true`, and
+`nativeGpuParityComplete: true`. The closure report records
+`native_metal_backend_replacement_ready` and
+`bounded_native_gpu_tixl_parity_complete` in `proven`.
 The next required work list is therefore empty for this bounded closure lane:
 
 ```text
 []
 ```
 
-That empty list is not native GPU parity completion; it means the remaining
-backend replacement lane is closed by a guard proof that keeps replacement
-blocked until a future full resource binding artifact and explicit adapter
-proof exist.
+That empty list now means the bounded Mesh Draw/PBR native GPU/Metal/TiXL lane
+has replacement-ready parity proof. It still does not claim generic
+HLSL-to-MSL translation, repo-wide TiXL clone parity, or Vuo parity.
 
 ## Failure Law
 

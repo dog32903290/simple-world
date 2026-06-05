@@ -1,0 +1,33 @@
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1100,100" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+Source [type="my.image.generate.basic.checkerBoard" version="1.0.0" label="my_CheckerBoard|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<scale>scale\l|<stretch>stretch\l|<offset>offset\l|<useAspectRatio>useAspectRatio\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-830,100" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _scale="12" _stretch="\{\"x\":1,\"y\":1\}" _offset="\{\"x\":0,\"y\":0\}" _useAspectRatio="true" _resolution="\{\"x\":160,\"y\":160\}"];
+Bloom [type="my.image.fx.blur.bloom" version="1.0.0" label="my_Bloom|<renderTick>renderTick\l|<image>image\l|<size>size\l|<samples>samples\l|<angle>angle\l|<intensity>intensity\l|<threshold>threshold\l|<resolution>resolution\l|<textureOutput>Result\r" pos="-500,-420" fillcolor="#9F008A" _size="1.0" _samples="8" _angle="0" _intensity="4" _threshold="0.38" _resolution="\{\"x\":160,\"y\":160\}"];
+Blur [type="my.image.fx.blur.blur" version="1.0.0" label="my_Blur|<renderTick>renderTick\l|<image>image\l|<size>size\l|<samples>samples\l|<angle>angle\l|<intensity>intensity\l|<threshold>threshold\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,-230" fillcolor="#9F008A" _size="1.45" _samples="8" _angle="25" _intensity="4" _threshold="0.38" _resolution="\{\"x\":160,\"y\":160\}"];
+DirectionalBlur [type="my.image.fx.blur.directionalBlur" version="1.0.0" label="my_DirectionalBlur|<renderTick>renderTick\l|<image>image\l|<size>size\l|<samples>samples\l|<angle>angle\l|<intensity>intensity\l|<threshold>threshold\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,-40" fillcolor="#9F008A" _size="1.9" _samples="8" _angle="50" _intensity="4" _threshold="0.38" _resolution="\{\"x\":160,\"y\":160\}"];
+FastBlur [type="my.image.fx.blur.fastBlur" version="1.0.0" label="my_FastBlur|<renderTick>renderTick\l|<image>image\l|<size>size\l|<samples>samples\l|<angle>angle\l|<intensity>intensity\l|<threshold>threshold\l|<resolution>resolution\l|<textureOutput>Result\r" pos="-500,150" fillcolor="#9F008A" _size="2.35" _samples="8" _angle="75" _intensity="4" _threshold="0.38" _resolution="\{\"x\":160,\"y\":160\}"];
+Sharpen [type="my.image.fx.blur.sharpen" version="1.0.0" label="my_Sharpen|<renderTick>renderTick\l|<image>image\l|<size>size\l|<samples>samples\l|<angle>angle\l|<intensity>intensity\l|<threshold>threshold\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,340" fillcolor="#9F008A" _size="2.8" _samples="8" _angle="100" _intensity="4" _threshold="0.38" _resolution="\{\"x\":160,\"y\":160\}"];
+ProofImage [type="my.image.batch.batch37BlurProof" version="1.0.0" label="my_Batch37BlurProof|<renderTick>renderTick\l|<bloomImage>bloomImage\l|<blurImage>blurImage\l|<directionalBlurImage>directionalBlurImage\l|<fastBlurImage>fastBlurImage\l|<sharpenImage>sharpenImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="120,100" fillcolor="#9F008A" _width="800" _height="160"];
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 37 Blur|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="720,100" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="720,-190" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-37-blur-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+DisplayRefresh:requestedFrame -> Source:renderTick;
+DisplayRefresh:requestedFrame -> Bloom:renderTick;
+Source:textureOutput -> Bloom:image;
+DisplayRefresh:requestedFrame -> Blur:renderTick;
+Source:textureOutput -> Blur:image;
+DisplayRefresh:requestedFrame -> DirectionalBlur:renderTick;
+Source:textureOutput -> DirectionalBlur:image;
+DisplayRefresh:requestedFrame -> FastBlur:renderTick;
+Source:textureOutput -> FastBlur:image;
+DisplayRefresh:requestedFrame -> Sharpen:renderTick;
+Source:textureOutput -> Sharpen:image;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+Bloom:textureOutput -> ProofImage:bloomImage;
+Blur:textureOutput -> ProofImage:blurImage;
+DirectionalBlur:textureOutput -> ProofImage:directionalBlurImage;
+FastBlur:textureOutput -> ProofImage:fastBlurImage;
+Sharpen:textureOutput -> ProofImage:sharpenImage;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

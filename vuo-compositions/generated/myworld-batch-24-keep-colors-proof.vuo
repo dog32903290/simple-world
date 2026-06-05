@@ -1,0 +1,34 @@
+/**
+ * @file
+ * Batch 24 KeepColors Vuo visual proof.
+ *
+ * This composition wires my_KeepColors into my_Batch24KeepColorsProof,
+ * a proof-only image adapter that exposes the stateful color-list output.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-900,40" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+KeepColors [type="my.numbers.color.keepColors" version="1.0.0" label="my_KeepColors|<update>update\l|<color>color\l|<addColorToList>addColorToList\l|<maxLength>maxLength\l|<reset>reset\l|<result>Result\r" pos="-420,40" fillcolor="#868C8D" _color="\{\"r\":0.18,\"g\":0.72,\"b\":1,\"a\":1\}" _addColorToList="true" _maxLength="16" _reset="false"];
+
+ProofImage [type="my.numbers.batch.batch24KeepColorsProof" version="1.0.0" label="my_Batch24KeepColorsProof|<renderTick>renderTick\l|<keptColors>keptColors\l|<width>width\l|<height>height\l|<image>Image\r" pos="80,40" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 24 KeepColors|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="650,40" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="650,-200" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-24-keep-colors-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 24 KeepColors proof\"" pos="-100,300" width="460" height="42"];
+
+DisplayRefresh:requestedFrame -> KeepColors:update;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+KeepColors:result -> ProofImage:keptColors;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

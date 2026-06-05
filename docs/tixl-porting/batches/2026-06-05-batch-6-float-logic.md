@@ -1,0 +1,21 @@
+# Batch 6 Float Logic Acceptance Matrix
+
+Scope: four unbuilt Grade A float logic nodes from `docs/tixl-porting/namespaces/numbers.md`: `IsGreater`, `PickFloat`, `TryParse`, and `ValueToRate`.
+
+Gate: every row needs TiXL source/default evidence, semantic edge cases, corrected Vuo C source, installation into the Vuo user module folder, and a Vuo-visible proof that consumes the exact `my_<TiXLName>` node output.
+
+| TiXL node | grade | Vuo title | Vuo source | source evidence | semantic/source tests | Vuo visual proof | status |
+|---|---|---|---|---|---|---|---|
+| `Lib.numbers.float.logic.IsGreater` | A | `my_IsGreater` | `vuo-nodes/my.numbers.float.logic.isGreater.c` | C# `external/tixl/Operators/Lib/numbers/float/logic/IsGreater.cs`; `.t3` `external/tixl/Operators/Lib/numbers/float/logic/IsGreater.t3`; docs `external/tixl/.help/docs/operators/lib/numbers/float/logic/IsGreater.md` | `tests/tixl_batch6_float_logic_semantics.test.js`; `tests/tixl_batch6_float_logic_vuo_nodes.test.js` | `vuo-compositions/generated/myworld-batch-6-float-logic-proof.vuo` -> `my_Batch6FloatLogicProof.isGreaterValue`; Vuo-saved image `artifacts/vuo_cli/batch-6-float-logic-vuo-save.png` | done |
+| `Lib.numbers.float.logic.PickFloat` | A | `my_PickFloat` | `vuo-nodes/my.numbers.float.logic.pickFloat.c` | C# `external/tixl/Operators/Lib/numbers/float/logic/PickFloat.cs`; `.t3` `external/tixl/Operators/Lib/numbers/float/logic/PickFloat.t3`; docs `external/tixl/.help/docs/operators/lib/numbers/float/logic/PickFloat.md`; helper `external/tixl/Core/Utils/MathUtils.cs: Mod` | `tests/tixl_batch6_float_logic_semantics.test.js`; `tests/tixl_batch6_float_logic_vuo_nodes.test.js` | `vuo-compositions/generated/myworld-batch-6-float-logic-proof.vuo` -> `my_Batch6FloatLogicProof.pickFloatValue`; Vuo-saved image `artifacts/vuo_cli/batch-6-float-logic-vuo-save.png` | done |
+| `Lib.numbers.float.logic.TryParse` | A | `my_TryParse` | `vuo-nodes/my.numbers.float.logic.tryParse.c` | C# `external/tixl/Operators/Lib/numbers/float/logic/TryParse.cs`; `.t3` `external/tixl/Operators/Lib/numbers/float/logic/TryParse.t3`; docs `external/tixl/.help/docs/operators/lib/numbers/float/logic/TryParse.md` | `tests/tixl_batch6_float_logic_semantics.test.js`; `tests/tixl_batch6_float_logic_vuo_nodes.test.js` | `vuo-compositions/generated/myworld-batch-6-float-logic-proof.vuo` -> `my_Batch6FloatLogicProof.tryParseValue`; Vuo-saved image `artifacts/vuo_cli/batch-6-float-logic-vuo-save.png` | done |
+| `Lib.numbers.float.logic.ValueToRate` | A | `my_ValueToRate` | `vuo-nodes/my.numbers.float.logic.valueToRate.c` | C# `external/tixl/Operators/Lib/numbers/float/logic/ValueToRate.cs`; `.t3` `external/tixl/Operators/Lib/numbers/float/logic/ValueToRate.t3`; docs `external/tixl/.help/docs/operators/lib/numbers/float/logic/ValueToRate.md` | `tests/tixl_batch6_float_logic_semantics.test.js`; `tests/tixl_batch6_float_logic_vuo_nodes.test.js` | `vuo-compositions/generated/myworld-batch-6-float-logic-proof.vuo` -> `my_Batch6FloatLogicProof.valueToRateValue`; Vuo-saved image `artifacts/vuo_cli/batch-6-float-logic-vuo-save.png` | done |
+
+## Batch Notes
+
+- `my_IsGreater` uses strict `Value > Threshold`; equality is false.
+- `my_PickFloat` uses TiXL `MathUtils.Mod`, so negative indexes wrap forward (`-1` picks the last connected float). Empty Vuo list emits `0`; TiXL's multi-input dirty-flag/previous-slot behavior is adapter-bounded.
+- `my_TryParse` returns `Default` when parsing fails. The Vuo body supports plain decimal text and is adapter-bounded for full .NET current-culture `float.TryParse` parity.
+- `my_ValueToRate` parses newline-separated numeric rates, ignores invalid lines, clamps `Value` to `0..0.99`, and chooses `(count - 1) * value + 0.5` truncated to an index.
+- Vuo CLI proof `batch-6-float-logic-save-proof` compiled and linked with return code `0`, loaded all five custom nodes, opened an onscreen runner window, and produced Vuo-rendered PNG evidence at `artifacts/vuo_cli/batch-6-float-logic-vuo-save.png`.
+- Current macOS window capture failed with `could not create image from window`, matching Batch 5 and a Batch 4 control rerun; this remains classified as a capture-layer issue. The Vuo-native saved image is non-black: `960x540`, average luma `0.141812`, bright ratio `0.287607`, `mostlyBlack=false`.

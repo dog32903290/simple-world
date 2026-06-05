@@ -1,0 +1,85 @@
+{
+  "kind": "TixlMeshDrawNativeMetalBackendIntegrationProof",
+  "graphId": "fixture.tixl_mesh_draw_native_metal_backend_integration",
+  "ok": true,
+  "status": "proven_native_metal_backend_integration_for_bounded_mesh_draw_pbr_lane",
+  "backend": "Metal",
+  "inputArtifacts": {
+    "nativeRenderPipeline": {
+      "path": "docs/runtime/artifacts/native_render_pipeline",
+      "status": "NativeRenderPipelineProof",
+      "ok": true
+    },
+    "fullPbrResourceBinding": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_full_pbr_resource_binding/tixl_mesh_draw_full_pbr_resource_binding_result.json",
+      "kind": "TixlMeshDrawFullPbrResourceBindingProof",
+      "graphId": "fixture.tixl_mesh_draw_full_pbr_resource_binding",
+      "status": "proven_full_pbr_resource_binding",
+      "ok": true
+    },
+    "explicitAdapterProof": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_explicit_adapter_proof/tixl_mesh_draw_explicit_adapter_result.json",
+      "kind": "TixlMeshDrawExplicitAdapterProof",
+      "graphId": "fixture.tixl_mesh_draw_explicit_adapter_proof",
+      "status": "proven_explicit_mesh_draw_adapter",
+      "ok": true
+    }
+  },
+  "nativeDrawBoundary": {
+    "kind": "NativeDrawShaderBoundary",
+    "present": true,
+    "status": "supported",
+    "language": "MSL_EXPLICIT_ADAPTER",
+    "vertexShaderEntry": "my_world_native_backend_vertex",
+    "pixelShaderEntry": "my_world_native_backend_fragment",
+    "backendCanCompileNow": true,
+    "hlslToMslTranslation": false
+  },
+  "equivalence": {
+    "command": {
+      "drawCalls": 1,
+      "commandSource": "drawCommandArtifact",
+      "selectedMaterialId": "glass"
+    },
+    "frame": {
+      "width": 4,
+      "height": 4,
+      "byteCount": 64,
+      "nonBlack": true,
+      "varied": true,
+      "nonBlackPixels": 16,
+      "uniqueColorSamples": 16,
+      "opaquePixels": 16,
+      "frameDigest": "2a705e6a17c629db"
+    },
+    "boundedPbrReference": {
+      "expectedRgba8": [
+        68,
+        62,
+        54,
+        255
+      ],
+      "actualRgba8": [
+        68,
+        62,
+        54,
+        255
+      ],
+      "status": "matched_bounded_sentinel"
+    }
+  },
+  "claims": {
+    "nativeRenderPipelineArtifactConsumed": true,
+    "fullPbrResourceBindingArtifactConsumed": true,
+    "explicitAdapterProofArtifactConsumed": true,
+    "actualMetalBackendProbeRan": true,
+    "nativeBackendIntegrationComplete": true,
+    "runtimeEquivalenceProof": true,
+    "backendReplacementReady": true,
+    "nativeGpuParityComplete": true,
+    "tixlRuntimeParity": true,
+    "fullPbrResourceBinding": true,
+    "explicitAdapterProofPresent": true,
+    "hlslToMslTranslation": false
+  }
+}

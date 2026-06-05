@@ -1,0 +1,66 @@
+/**
+ * @file
+ * Batch 9 Int2 Vuo visual proof.
+ *
+ * This composition wires my_AddInt2, my_Int2Components, my_MakeResolution,
+ * my_MaxInt2, my_ScaleResolution, and my_ScaleSize into
+ * my_Batch9Int2Proof, a proof-only image adapter.
+ *
+ * TiXL Int2 values are carried in this Vuo proof as point2d x/y width/height.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1120,-120" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1120,320" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+MakePointList [type="vuo.list.make.3.VuoPoint2d" version="2.0.0" label="Make Point List|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-820,110" fillcolor="#868C8D" _1="\{\"x\":640,\"y\":360\}" _2="\{\"x\":960,\"y\":300\}" _3="\{\"x\":320,\"y\":540\}"];
+
+AddInt2 [type="my.numbers.int2.basic.addInt2" version="1.0.0" label="my_AddInt2|<input1>input1\l|<input2>input2\l|<result>Result\r" pos="-555,-265" fillcolor="#868C8D" _input1="\{\"x\":320,\"y\":180\}" _input2="\{\"x\":64,\"y\":36\}"];
+
+MakeResolution [type="my.numbers.int2.process.makeResolution" version="1.0.0" label="my_MakeResolution|<width>width\l|<height>height\l|<size>Size\r" pos="-555,-80" fillcolor="#868C8D" _width="640" _height="360"];
+
+Int2Components [type="my.numbers.int2.process.int2Components" version="1.0.0" label="my_Int2Components|<resolution>resolution\l|<width>Width\l|<height>Height\l|<length>Length\l|<aspectRatio>AspectRatio\r" pos="-210,-80" fillcolor="#868C8D"];
+
+MaxInt2 [type="my.numbers.int2.process.maxInt2" version="1.0.0" label="my_MaxInt2|<sizes>sizes\l|<maxSize>MaxSize\r" pos="-555,145" fillcolor="#868C8D"];
+
+ScaleResolution [type="my.numbers.int2.process.scaleResolution" version="1.0.0" label="my_ScaleResolution|<resolution>resolution\l|<factor>factor\l|<clampToValidTextureSize>clampToValidTextureSize\l|<size>Size\r" pos="-210,150" fillcolor="#868C8D" _factor="\{\"x\":0.5,\"y\":0.5\}" _clampToValidTextureSize="false"];
+
+ScaleSize [type="my.numbers.int2.process.scaleSize" version="1.0.0" label="my_ScaleSize|<inputSize>inputSize\l|<stretch>stretch\l|<scale>scale\l|<result>Result\r" pos="-210,335" fillcolor="#868C8D" _stretch="\{\"x\":1,\"y\":0.5\}" _scale="2"];
+
+ProofImage [type="my.numbers.batch.batch9Int2Proof" version="1.0.0" label="my_Batch9Int2Proof|<renderTick>renderTick\l|<addInt2Value>addInt2Value\l|<componentWidth>componentWidth\l|<componentHeight>componentHeight\l|<componentLength>componentLength\l|<componentAspect>componentAspect\l|<makeResolutionValue>makeResolutionValue\l|<maxInt2Value>maxInt2Value\l|<scaleResolutionValue>scaleResolutionValue\l|<scaleSizeValue>scaleSizeValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="295,80" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 9 Int2|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="850,80" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="850,-165" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-9-int2-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 9 Int2 visual proof\"" pos="180,455" width="430" height="42"];
+
+FireOnStart:started -> MakePointList:refresh;
+FireOnStart:started -> AddInt2:input1;
+FireOnStart:started -> MakeResolution:width;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+MakeResolution:size -> Int2Components:resolution;
+MakeResolution:size -> ScaleResolution:resolution;
+MakeResolution:size -> ScaleSize:inputSize;
+MakePointList:list -> MaxInt2:sizes;
+
+AddInt2:result -> ProofImage:addInt2Value;
+Int2Components:width -> ProofImage:componentWidth;
+Int2Components:height -> ProofImage:componentHeight;
+Int2Components:length -> ProofImage:componentLength;
+Int2Components:aspectRatio -> ProofImage:componentAspect;
+MakeResolution:size -> ProofImage:makeResolutionValue;
+MaxInt2:maxSize -> ProofImage:maxInt2Value;
+ScaleResolution:size -> ProofImage:scaleResolutionValue;
+ScaleSize:result -> ProofImage:scaleSizeValue;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

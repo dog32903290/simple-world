@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),test=require("node:test");
+const repoRoot=path.resolve(__dirname,"..");
+test("Batch 39 proof wires all color filters to a colored checkerboard source and save path",()=>{ const s=fs.readFileSync(path.join(repoRoot,"vuo-compositions/generated/myworld-batch-39-color-proof.vuo"),"utf8"); for (const title of ["my_AdjustColors","my_ChannelMixer","my_ColorGrade","my_ColorGradeDepth","my_ConvertColors","my_ConvertFormat","my_HSE","my_KeyColor","my_RemapColor","my_Tint","my_ToneMapping","my_Batch39ColorProof"]) assert.match(s,new RegExp(title)); assert.match(s,/Source:textureOutput -> AdjustColors:texture2d/); assert.match(s,/Source:textureOutput -> RemapColor:image/); assert.match(s,/batch-39-color-vuo-save/); });

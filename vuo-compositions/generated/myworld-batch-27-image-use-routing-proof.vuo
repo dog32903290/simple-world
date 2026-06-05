@@ -1,0 +1,79 @@
+/**
+ * @file
+ * Batch 27 image/use routing Vuo visual proof.
+ *
+ * This composition wires constant VuoImage sources through my_FirstValidTexture,
+ * my_PickTexture, my_SwapTextures, and my_UseFallbackTexture. Acceptance uses
+ * Vuo-native PNG saving.
+ *
+ * Expected bands left to right:
+ * FirstValidTexture -> SourceA, PickTexture -1 -> SourceC,
+ * SwapTextures enabled A -> SourceB, SwapTextures enabled B -> SourceA,
+ * UseFallbackTexture with TextureA null -> SourceC.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1370,-130" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1370,180" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+SourceA [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1040,-330" fillcolor="#9F008A" _Color="\{\"r\":0.95,\"g\":0.08,\"b\":0.08,\"a\":1\}" _Width="160" _Height="160"];
+
+SourceB [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1040,-60" fillcolor="#9F008A" _Color="\{\"r\":0.05,\"g\":0.82,\"b\":0.14,\"a\":1\}" _Width="160" _Height="160"];
+
+SourceC [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1040,210" fillcolor="#9F008A" _Color="\{\"r\":0.07,\"g\":0.19,\"b\":0.96,\"a\":1\}" _Width="160" _Height="160"];
+
+FirstValidTexture [type="my.image.use.firstValidTexture" version="1.0.0" label="my_FirstValidTexture|<input1>input1\l|<input2>input2\l|<input3>input3\l|<inputCount>inputCount\l|<previousOutput>previousOutput\l|<output>Output\r" pos="-560,-320" fillcolor="#9F008A" _inputCount="3"];
+
+PickTexture [type="my.image.use.pickTexture" version="1.0.0" label="my_PickTexture|<input1>input1\l|<input2>input2\l|<input3>input3\l|<inputCount>inputCount\l|<index>index\l|<previousSelected>previousSelected\l|<selected>Selected\r" pos="-560,-50" fillcolor="#9F008A" _inputCount="3" _index="-1"];
+
+SwapTextures [type="my.image.use.swapTextures" version="1.0.0" label="my_SwapTextures|<textureAInput>textureAInput\l|<textureBInput>textureBInput\l|<enableSwap>enableSwap\l|<textureA>TextureA\r|<textureB>TextureB\r" pos="-560,230" fillcolor="#9F008A" _enableSwap="true"];
+
+UseFallbackTexture [type="my.image.use.useFallbackTexture" version="1.0.0" label="my_UseFallbackTexture|<textureA>textureA\l|<fallback>fallback\l|<output>Output\r" pos="-560,500" fillcolor="#9F008A"];
+
+ProofImage [type="my.image.batch.batch27ImageUseRoutingProof" version="1.0.0" label="my_Batch27ImageUseRoutingProof|<renderTick>renderTick\l|<firstValidImage>firstValidImage\l|<pickedImage>pickedImage\l|<swapAImage>swapAImage\l|<swapBImage>swapBImage\l|<fallbackImage>fallbackImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="100,40" fillcolor="#9F008A" _width="640" _height="160"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 27 Image Use Routing|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="750,40" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="750,-230" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-27-image-use-routing-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 27 image use routing proof\"" pos="-240,-590" width="520" height="42"];
+
+DisplayRefresh:requestedFrame -> SourceA:renderTick;
+DisplayRefresh:requestedFrame -> SourceB:renderTick;
+DisplayRefresh:requestedFrame -> SourceC:renderTick;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+FireOnStart:started -> FirstValidTexture:inputCount;
+FireOnStart:started -> PickTexture:index;
+FireOnStart:started -> SwapTextures:enableSwap;
+FireOnStart:started -> UseFallbackTexture:fallback;
+
+SourceA:Image -> FirstValidTexture:input2;
+SourceB:Image -> FirstValidTexture:input3;
+SourceC:Image -> FirstValidTexture:previousOutput;
+
+SourceA:Image -> PickTexture:input1;
+SourceB:Image -> PickTexture:input2;
+SourceC:Image -> PickTexture:input3;
+SourceA:Image -> PickTexture:previousSelected;
+
+SourceA:Image -> SwapTextures:textureAInput;
+SourceB:Image -> SwapTextures:textureBInput;
+
+SourceC:Image -> UseFallbackTexture:fallback;
+
+FirstValidTexture:output -> ProofImage:firstValidImage;
+PickTexture:selected -> ProofImage:pickedImage;
+SwapTextures:textureA -> ProofImage:swapAImage;
+SwapTextures:textureB -> ProofImage:swapBImage;
+UseFallbackTexture:output -> ProofImage:fallbackImage;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

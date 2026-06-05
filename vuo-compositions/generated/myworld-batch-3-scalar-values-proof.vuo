@@ -1,0 +1,110 @@
+/**
+ * @file
+ * Batch 3 scalar values Vuo visual proof.
+ *
+ * This composition wires existing manufactured bool, float-adjust, and float-basic scalar
+ * nodes into my_Batch3ScalarValuesProof, a proof-only image adapter. The
+ * adapter renders one visible row per node output. It is not a TiXL node.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-880,-90" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-880,270" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+And [type="my.numbers.bool.combine.and" version="1.0.0" label="my_And|<a>a\l|<b>b\l|<result>Result\r" pos="-620,-500" fillcolor="#868C8D" _a="true" _b="true"];
+
+Or [type="my.numbers.bool.combine.or" version="1.0.0" label="my_Or|<a>a\l|<b>b\l|<result>Result\r" pos="-620,-390" fillcolor="#868C8D" _a="false" _b="true"];
+
+Not [type="my.numbers.bool.logic.not" version="1.0.0" label="my_Not|<boolValue>boolValue\l|<result>Result\r" pos="-620,-280" fillcolor="#868C8D" _boolValue="false"];
+
+Xor [type="my.numbers.bool.logic.xor" version="1.0.0" label="my_Xor|<a>a\l|<b>b\l|<result>Result\r" pos="-620,-170" fillcolor="#868C8D" _a="true" _b="false"];
+
+BoolToFloat [type="my.numbers.bool.convert.boolToFloat" version="1.0.0" label="my_BoolToFloat|<boolValue>boolValue\l|<forFalse>forFalse\l|<forTrue>forTrue\l|<result>Result\r" pos="-620,-35" fillcolor="#868C8D" _boolValue="true" _forFalse="0.25" _forTrue="4.5"];
+
+BoolToInt [type="my.numbers.bool.convert.boolToInt" version="1.0.0" label="my_BoolToInt|<boolValue>boolValue\l|<resultForFalse>resultForFalse\l|<resultForTrue>resultForTrue\l|<result>Result\r" pos="-620,115" fillcolor="#868C8D" _boolValue="true" _resultForFalse="-3" _resultForTrue="8"];
+
+PickBool [type="my.numbers.bool.logic.pickBool" version="1.0.0" label="my_PickBool|<boolValue0>boolValue0\l|<boolValue1>boolValue1\l|<index>index\l|<selected>Selected\r" pos="-620,265" fillcolor="#868C8D" _boolValue0="false" _boolValue1="true" _index="-1"];
+
+Abs [type="my.numbers.float.adjust.abs" version="1.0.0" label="my_Abs|<value>value\l|<result>result\r" pos="-155,-500" fillcolor="#868C8D" _value="-3.5"];
+
+Ceil [type="my.numbers.float.adjust.ceil" version="1.0.0" label="my_Ceil|<value>value\l|<result>result\r" pos="-155,-390" fillcolor="#868C8D" _value="2.1"];
+
+Floor [type="my.numbers.float.adjust.floor" version="1.0.0" label="my_Floor|<value>value\l|<result>result\r" pos="-155,-280" fillcolor="#868C8D" _value="-2.9"];
+
+Round [type="my.numbers.float.adjust.round" version="1.0.0" label="my_Round|<value>value\l|<stepsPerUnit>stepsPerUnit\l|<roundRatio>roundRatio\l|<result>result\r" pos="-155,-145" fillcolor="#868C8D" _value="0.75" _stepsPerUnit="1.0" _roundRatio="0.5"];
+
+InvertFloat [type="my.numbers.float.adjust.invertFloat" version="1.0.0" label="my_InvertFloat|<a>a\l|<invert>invert\l|<result>result\r" pos="-155,5" fillcolor="#868C8D" _a="4.0" _invert="true"];
+
+Clamp [type="my.numbers.float.adjust.clamp" version="1.0.0" label="my_Clamp|<value>value\l|<min>min\l|<max>max\l|<result>result\r" pos="-155,155" fillcolor="#868C8D" _value="12.0" _min="0.0" _max="10.0"];
+
+Add [type="my.numbers.float.basic.add" version="1.0.0" label="my_Add|<Input1>Input1\l|<Input2>Input2\l|<result>Result\r" pos="165,-500" fillcolor="#868C8D" _Input1="-2.5" _Input2="10.0"];
+
+Sub [type="my.numbers.float.basic.sub" version="1.0.0" label="my_Sub|<Input1>Input1\l|<Input2>Input2\l|<result>Result\r" pos="165,-390" fillcolor="#868C8D" _Input1="2.0" _Input2="10.0"];
+
+Multiply [type="my.numbers.float.basic.multiply" version="1.0.0" label="my_Multiply|<A>A\l|<B>B\l|<result>Result\r" pos="165,-280" fillcolor="#868C8D" _A="-3.0" _B="4.0"];
+
+Div [type="my.numbers.float.basic.div" version="1.0.0" label="my_Div|<A>A\l|<B>B\l|<result>Result\r" pos="165,-170" fillcolor="#868C8D" _A="7.0" _B="2.0"];
+
+Modulo [type="my.numbers.float.basic.modulo" version="1.0.0" label="my_Modulo|<Value>Value\l|<ModuloValue>ModuloValue\l|<result>Result\r" pos="165,-35" fillcolor="#868C8D" _Value="-1.0" _ModuloValue="3.0"];
+
+Pow [type="my.numbers.float.basic.pow" version="1.0.0" label="my_Pow|<Value>Value\l|<Exponent>Exponent\l|<result>Result\r" pos="165,100" fillcolor="#868C8D" _Value="4.0" _Exponent="0.5"];
+
+Sqrt [type="my.numbers.float.basic.sqrt" version="1.0.0" label="my_Sqrt|<Value>Value\l|<result>Result\r" pos="165,235" fillcolor="#868C8D" _Value="9.0"];
+
+ProofImage [type="my.numbers.batch.scalarValuesProof" version="1.0.0" label="my_Batch3ScalarValuesProof|<renderTick>renderTick\l|<andValue>andValue\l|<orValue>orValue\l|<notValue>notValue\l|<xorValue>xorValue\l|<boolToFloatValue>boolToFloatValue\l|<boolToIntValue>boolToIntValue\l|<pickBoolValue>pickBoolValue\l|<absValue>absValue\l|<ceilValue>ceilValue\l|<floorValue>floorValue\l|<roundValue>roundValue\l|<invertFloatValue>invertFloatValue\l|<clampValue>clampValue\l|<addValue>addValue\l|<subValue>subValue\l|<multiplyValue>multiplyValue\l|<divValue>divValue\l|<moduloValue>moduloValue\l|<powValue>powValue\l|<sqrtValue>sqrtValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="580,-110" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 3 Scalar Values|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="1090,-110" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+Comment [type="vuo.comment" label="\"Batch 3 scalar values visual proof\"" pos="230,330" width="460" height="42"];
+
+FireOnStart:started -> And:a;
+FireOnStart:started -> Or:a;
+FireOnStart:started -> Not:boolValue;
+FireOnStart:started -> Xor:a;
+FireOnStart:started -> BoolToFloat:boolValue;
+FireOnStart:started -> BoolToInt:boolValue;
+FireOnStart:started -> PickBool:index;
+FireOnStart:started -> Abs:value;
+FireOnStart:started -> Ceil:value;
+FireOnStart:started -> Floor:value;
+FireOnStart:started -> Round:value;
+FireOnStart:started -> InvertFloat:a;
+FireOnStart:started -> Clamp:value;
+FireOnStart:started -> Add:Input1;
+FireOnStart:started -> Sub:Input1;
+FireOnStart:started -> Multiply:A;
+FireOnStart:started -> Div:A;
+FireOnStart:started -> Modulo:Value;
+FireOnStart:started -> Pow:Value;
+FireOnStart:started -> Sqrt:Value;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+And:result -> ProofImage:andValue;
+Or:result -> ProofImage:orValue;
+Not:result -> ProofImage:notValue;
+Xor:result -> ProofImage:xorValue;
+BoolToFloat:result -> ProofImage:boolToFloatValue;
+BoolToInt:result -> ProofImage:boolToIntValue;
+PickBool:selected -> ProofImage:pickBoolValue;
+Abs:result -> ProofImage:absValue;
+Ceil:result -> ProofImage:ceilValue;
+Floor:result -> ProofImage:floorValue;
+Round:result -> ProofImage:roundValue;
+InvertFloat:result -> ProofImage:invertFloatValue;
+Clamp:result -> ProofImage:clampValue;
+Add:result -> ProofImage:addValue;
+Sub:result -> ProofImage:subValue;
+Multiply:result -> ProofImage:multiplyValue;
+Div:result -> ProofImage:divValue;
+Modulo:result -> ProofImage:moduloValue;
+Pow:result -> ProofImage:powValue;
+Sqrt:result -> ProofImage:sqrtValue;
+ProofImage:image -> RenderWindow:image;
+}

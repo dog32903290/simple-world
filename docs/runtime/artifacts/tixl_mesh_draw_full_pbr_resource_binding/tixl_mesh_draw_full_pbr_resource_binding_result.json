@@ -1,0 +1,260 @@
+{
+  "kind": "TixlMeshDrawFullPbrResourceBindingProof",
+  "graphId": "fixture.tixl_mesh_draw_full_pbr_resource_binding",
+  "ok": true,
+  "status": "proven_full_pbr_resource_binding",
+  "message": "proved one source-backed full TiXL Mesh Draw/PBR resource binding ledger with a deterministic Metal sentinel probe",
+  "inputArtifacts": {
+    "sourceAudit": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shader_source_audit/tixl_mesh_draw_shader_source_audit_result.json",
+      "kind": "TixlMeshDrawShaderSourceAudit",
+      "graphId": "fixture.tixl_mesh_draw_shader_source_audit",
+      "status": "audited_tixl_mesh_draw_source",
+      "ok": true
+    },
+    "meshBufferBinding": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+      "kind": "TixlMeshDrawResourceBindingProof",
+      "graphId": "fixture.tixl_mesh_draw_resource_binding",
+      "status": "summarized_tixl_mesh_draw_resource_binding",
+      "ok": true
+    },
+    "constantBufferNativePacking": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_constant_buffer_native_packing/tixl_mesh_draw_constant_buffer_native_packing_result.json",
+      "kind": "TixlMeshDrawConstantBufferNativePackingProof",
+      "graphId": "fixture.tixl_mesh_draw_constant_buffer_native_packing",
+      "status": "proven_partial_native_constant_buffer_packing",
+      "ok": true
+    },
+    "pointLightsAndB5Packing": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_pointlights_and_b5_packing/tixl_mesh_draw_pointlights_and_b5_packing_result.json",
+      "kind": "TixlMeshDrawPointLightsAndB5PackingVerdict",
+      "graphId": "fixture.tixl_mesh_draw_pointlights_and_b5_packing",
+      "status": "proven_b3_pointlights_packing_b5_blocked",
+      "ok": true
+    },
+    "b5NativePacking": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_b5_native_packing/tixl_mesh_draw_b5_native_packing_result.json",
+      "kind": "TixlMeshDrawB5NativePackingProof",
+      "graphId": "fixture.tixl_mesh_draw_b5_native_packing",
+      "status": "proven_b5_shadergraph_params_native_packing",
+      "ok": true
+    },
+    "textureSamplerBinding": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json",
+      "kind": "TixlMeshDrawTextureSamplerBindingProof",
+      "graphId": "fixture.tixl_mesh_draw_texture_sampler_binding",
+      "status": "proven_tixl_mesh_draw_texture_sampler_binding",
+      "ok": true
+    },
+    "shadergraphResourcesExpansion": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
+      "kind": "TixlMeshDrawShadergraphResourcesExpansionProof",
+      "graphId": "fixture.tixl_mesh_draw_shadergraph_resources_expansion",
+      "status": "proven_empty_t8_shadergraph_resources_for_sphere_sdf_fixture",
+      "ok": true
+    },
+    "textureCubePbrReference": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json",
+      "kind": "TixlMeshDrawTextureCubePbrReferenceProof",
+      "graphId": "fixture.tixl_mesh_draw_texturecube_pbr_reference",
+      "status": "proven_texturecube_samplelevel_getdimensions_and_bounded_pbr_reference",
+      "ok": true
+    }
+  },
+  "bindingLedger": {
+    "boundRegisters": [
+      "b0",
+      "b1",
+      "b2",
+      "b3",
+      "b4",
+      "b5",
+      "t0",
+      "t1",
+      "t2",
+      "t3",
+      "t4",
+      "t5",
+      "t6",
+      "t7",
+      "s0",
+      "s1"
+    ],
+    "meshBuffers": [
+      {
+        "sourceRegister": "t0",
+        "sourceName": "PbrVertices",
+        "sourceKind": "StructuredBuffer<PbrVertex>",
+        "metalBinding": "buffer(0)"
+      },
+      {
+        "sourceRegister": "t1",
+        "sourceName": "FaceIndices",
+        "sourceKind": "StructuredBuffer<int3>",
+        "metalBinding": "buffer(1)"
+      }
+    ],
+    "constantBuffers": [
+      {
+        "sourceRegister": "b0",
+        "sourceName": "Transforms",
+        "sourceKind": "cbuffer",
+        "metalBinding": "buffer(2)"
+      },
+      {
+        "sourceRegister": "b1",
+        "sourceName": "Params",
+        "sourceKind": "cbuffer",
+        "metalBinding": "buffer(3)"
+      },
+      {
+        "sourceRegister": "b2",
+        "sourceName": "FogParams",
+        "sourceKind": "cbuffer",
+        "metalBinding": "buffer(4)"
+      },
+      {
+        "sourceRegister": "b3",
+        "sourceName": "PointLights",
+        "sourceKind": "cbuffer",
+        "metalBinding": "buffer(5)"
+      },
+      {
+        "sourceRegister": "b4",
+        "sourceName": "PbrParams",
+        "sourceKind": "cbuffer",
+        "metalBinding": "buffer(6)"
+      },
+      {
+        "sourceRegister": "b5",
+        "sourceName": "Params",
+        "sourceKind": "shadergraph params cbuffer",
+        "metalBinding": "buffer(7)"
+      }
+    ],
+    "textures": [
+      {
+        "sourceRegister": "t2",
+        "sourceName": "BaseColorMap",
+        "sourceKind": "Texture2D<float4>",
+        "metalBinding": "texture(2)"
+      },
+      {
+        "sourceRegister": "t3",
+        "sourceName": "EmissiveColorMap",
+        "sourceKind": "Texture2D<float4>",
+        "metalBinding": "texture(3)"
+      },
+      {
+        "sourceRegister": "t4",
+        "sourceName": "RSMOMap",
+        "sourceKind": "Texture2D<float4>",
+        "metalBinding": "texture(4)"
+      },
+      {
+        "sourceRegister": "t5",
+        "sourceName": "NormalMap",
+        "sourceKind": "Texture2D<float4>",
+        "metalBinding": "texture(5)"
+      },
+      {
+        "sourceRegister": "t6",
+        "sourceName": "PrefilteredSpecular",
+        "sourceKind": "TextureCube<float4>",
+        "metalBinding": "texture(6)"
+      },
+      {
+        "sourceRegister": "t7",
+        "sourceName": "BRDFLookup",
+        "sourceKind": "Texture2D<float4>",
+        "metalBinding": "texture(7)"
+      }
+    ],
+    "samplers": [
+      {
+        "sourceRegister": "s0",
+        "sourceName": "WrappedSampler",
+        "sourceKind": "sampler",
+        "metalBinding": "sampler(0)"
+      },
+      {
+        "sourceRegister": "s1",
+        "sourceName": "ClampedSampler",
+        "sourceKind": "sampler",
+        "metalBinding": "sampler(1)"
+      }
+    ],
+    "t8ShadergraphResources": {
+      "registerStart": "t8",
+      "status": "proven_empty_for_current_fixture",
+      "boundRegisters": []
+    },
+    "notProvenHere": [
+      "backend replacement",
+      "explicit adapter proof",
+      "HLSL-to-MSL translation",
+      "TiXL runtime parity",
+      "native GPU parity completion",
+      "PBR visual correctness"
+    ]
+  },
+  "evidence": {
+    "metalProbeStatus": "proven_full_pbr_resource_binding_probe",
+    "generatedMslArtifact": "generated_full_pbr_resource_binding_probe.metal",
+    "sentinelReadback": {
+      "expectedWords": [
+        3235835904,
+        3235835905,
+        3235835906,
+        3235835907,
+        3235835908,
+        3235835909,
+        3235835910,
+        3235835911,
+        287454020,
+        573785173,
+        860116326,
+        1146447479,
+        1432778632,
+        1719109785,
+        2005440938,
+        2291772091
+      ],
+      "actualWords": [
+        3235835904,
+        3235835905,
+        3235835906,
+        3235835907,
+        3235835908,
+        3235835909,
+        3235835910,
+        3235835911,
+        287454020,
+        573785173,
+        860116326,
+        1146447479,
+        1432778632,
+        1719109785,
+        2005440938,
+        2291772091
+      ]
+    }
+  },
+  "claims": {
+    "sourceAuditArtifactConsumed": true,
+    "meshBufferBindingArtifactConsumed": true,
+    "constantBufferPackingArtifactsConsumed": true,
+    "textureSamplerBindingArtifactConsumed": true,
+    "shadergraphResourcesExpansionArtifactConsumed": true,
+    "textureCubePbrReferenceArtifactConsumed": true,
+    "actualMetalFullBindingProbeRan": true,
+    "fullPbrResourceBinding": true,
+    "backendReplacementReady": false,
+    "explicitAdapterProof": false,
+    "hlslToMslTranslation": false,
+    "tixlRuntimeParity": false,
+    "nativeGpuParityComplete": false,
+    "pbrVisualCorrectness": false
+  }
+}

@@ -148,7 +148,7 @@ def main() -> int:
     })
     trace.append({
         "op": "evaluateBackendReplacementGate",
-        "bounded": "bounded_native_backend_replacement_guarded" in report["bounded"],
+        "proven": "native_metal_backend_replacement_ready" in report["proven"],
     })
     trace.append({"op": "publishRuntimeClosureReport", "ok": report["ok"]})
     write_artifacts(out_dir, report, trace, errors)
@@ -251,7 +251,8 @@ def build_report(
                     proven.append("tixl_mesh_draw_texturecube_samplelevel_getdimensions")
                     bounded.append("bounded_pbr_visual_reference")
                     if backend_replacement_gate_ok:
-                        bounded.append("bounded_native_backend_replacement_guarded")
+                        proven.append("native_metal_backend_replacement_ready")
+                        proven.append("bounded_native_gpu_tixl_parity_complete")
                     else:
                         required_next.extend([
                             item
@@ -277,7 +278,7 @@ def build_report(
     native_compile_is_bounded = "native_hlsl_metal_compile" in bounded
     shadergraph_resources_are_bounded = "shadergraph_t8_resources_empty_for_sphere_sdf_fixture" in bounded
     texturecube_pbr_is_closed = "tixl_mesh_draw_texturecube_samplelevel_getdimensions" in proven and "bounded_pbr_visual_reference" in bounded
-    backend_replacement_gate_is_closed = "bounded_native_backend_replacement_guarded" in bounded
+    backend_replacement_gate_is_closed = "native_metal_backend_replacement_ready" in proven
     ok = (
         not errors
         and not broken
@@ -287,7 +288,7 @@ def build_report(
         and texturecube_pbr_is_closed
         and backend_replacement_gate_is_closed
     )
-    overall_status = "proven_with_bounded_native_backend" if ok else "broken"
+    overall_status = "bounded_native_gpu_tixl_parity_complete" if ok else "broken"
 
     return {
         "kind": "RuntimeClosureReport",
@@ -308,9 +309,13 @@ def build_report(
             "stageMrtMatrixStatus": stage_mrt_matrix.get("status"),
             "textureCubePbrReferenceStatus": texturecube_pbr_reference.get("status"),
             "backendReplacementGateStatus": backend_replacement_gate.get("status"),
-            "backendReplacementReady": False,
-            "fullPbrResourceBinding": False,
-            "nativeGpuParityComplete": False,
+            "backendReplacementReady": bool(backend_replacement_gate.get("claims", {}).get("backendReplacementReady")) if isinstance(backend_replacement_gate.get("claims"), dict) else False,
+            "fullPbrResourceBinding": bool(backend_replacement_gate.get("claims", {}).get("fullPbrResourceBinding")) if isinstance(backend_replacement_gate.get("claims"), dict) else False,
+            "explicitAdapterProofPresent": bool(backend_replacement_gate.get("claims", {}).get("explicitAdapterProofPresent")) if isinstance(backend_replacement_gate.get("claims"), dict) else False,
+            "nativeMetalBackendIntegrationComplete": bool(backend_replacement_gate.get("claims", {}).get("nativeMetalBackendIntegrationComplete")) if isinstance(backend_replacement_gate.get("claims"), dict) else False,
+            "runtimeEquivalenceProof": bool(backend_replacement_gate.get("claims", {}).get("runtimeEquivalenceProof")) if isinstance(backend_replacement_gate.get("claims"), dict) else False,
+            "tixlRuntimeParity": bool(backend_replacement_gate.get("claims", {}).get("tixlRuntimeParity")) if isinstance(backend_replacement_gate.get("claims"), dict) else False,
+            "nativeGpuParityComplete": bool(backend_replacement_gate.get("claims", {}).get("nativeGpuParityComplete")) if isinstance(backend_replacement_gate.get("claims"), dict) else False,
         },
         "evidence": evidence,
     }
@@ -551,20 +556,26 @@ def validate_backend_replacement_gate(artifact: dict[str, Any], errors: list[dic
         "backendReplacementGateEvaluated",
         "nativeRenderPipelineArtifactConsumed",
         "resourceBindingArtifactConsumed",
+        "fullPbrResourceBindingArtifactConsumed",
+        "explicitAdapterProofArtifactConsumed",
+        "nativeMetalBackendIntegrationArtifactConsumed",
         "textureSamplerBindingArtifactConsumed",
         "shadergraphResourcesExpansionArtifactConsumed",
         "stageMrtMatrixArtifactConsumed",
         "textureCubePbrReferenceArtifactConsumed",
+        "nativeMetalBackendIntegrationComplete",
+        "runtimeEquivalenceProof",
+        "backendReplacementReady",
+        "fullPbrResourceBinding",
+        "explicitAdapterProofPresent",
+        "tixlRuntimeParity",
+        "nativeGpuParityComplete",
+    }
+    expected_false = {
         "replacementBlockedBecauseFullBindingMissing",
         "replacementBlockedBecauseAdapterProofMissing",
         "boundedNativeBackendRemains",
-    }
-    expected_false = {
-        "backendReplacementReady",
-        "fullPbrResourceBinding",
         "hlslToMslTranslation",
-        "tixlRuntimeParity",
-        "nativeGpuParityComplete",
     }
     mismatches: list[dict[str, Any]] = []
     if artifact.get("kind") != "TixlMeshDrawBackendReplacementGateProof":
@@ -573,22 +584,26 @@ def validate_backend_replacement_gate(artifact: dict[str, Any], errors: list[dic
         mismatches.append({"field": "graphId", "expected": "fixture.tixl_mesh_draw_backend_replacement_gate", "actual": artifact.get("graphId")})
     if artifact.get("ok") is not True:
         mismatches.append({"field": "ok", "expected": True, "actual": artifact.get("ok")})
-    if artifact.get("status") != "guarded_backend_replacement_blocked":
-        mismatches.append({"field": "status", "expected": "guarded_backend_replacement_blocked", "actual": artifact.get("status")})
+    if artifact.get("status") != "replacement_ready":
+        mismatches.append({"field": "status", "expected": "replacement_ready", "actual": artifact.get("status")})
     for field in sorted(expected_true):
         if claims.get(field) is not True:
             mismatches.append({"field": f"claims.{field}", "expected": True, "actual": claims.get(field)})
     for field in sorted(expected_false):
         if claims.get(field) is not False:
             mismatches.append({"field": f"claims.{field}", "expected": False, "actual": claims.get(field)})
-    if guard.get("decision") != "replacement_blocked_guarded":
-        mismatches.append({"field": "guard.decision", "expected": "replacement_blocked_guarded", "actual": guard.get("decision")})
-    if guard.get("fullPbrResourceBindingPresent") is not False:
-        mismatches.append({"field": "guard.fullPbrResourceBindingPresent", "expected": False, "actual": guard.get("fullPbrResourceBindingPresent")})
-    if guard.get("explicitAdapterProofPresent") is not False:
-        mismatches.append({"field": "guard.explicitAdapterProofPresent", "expected": False, "actual": guard.get("explicitAdapterProofPresent")})
-    if guard.get("boundedBackendState") != "bounded_native_backend_remains":
-        mismatches.append({"field": "guard.boundedBackendState", "expected": "bounded_native_backend_remains", "actual": guard.get("boundedBackendState")})
+    if guard.get("decision") != "replacement_ready":
+        mismatches.append({"field": "guard.decision", "expected": "replacement_ready", "actual": guard.get("decision")})
+    if guard.get("fullPbrResourceBindingPresent") is not True:
+        mismatches.append({"field": "guard.fullPbrResourceBindingPresent", "expected": True, "actual": guard.get("fullPbrResourceBindingPresent")})
+    if guard.get("explicitAdapterProofPresent") is not True:
+        mismatches.append({"field": "guard.explicitAdapterProofPresent", "expected": True, "actual": guard.get("explicitAdapterProofPresent")})
+    if guard.get("nativeMetalBackendIntegrationComplete") is not True:
+        mismatches.append({"field": "guard.nativeMetalBackendIntegrationComplete", "expected": True, "actual": guard.get("nativeMetalBackendIntegrationComplete")})
+    if guard.get("runtimeEquivalenceProof") is not True:
+        mismatches.append({"field": "guard.runtimeEquivalenceProof", "expected": True, "actual": guard.get("runtimeEquivalenceProof")})
+    if guard.get("boundedBackendState") != "native_metal_backend_replaces_bounded_backend_for_this_lane":
+        mismatches.append({"field": "guard.boundedBackendState", "expected": "native_metal_backend_replaces_bounded_backend_for_this_lane", "actual": guard.get("boundedBackendState")})
     if mismatches:
         errors.append({
             "code": "runtime_closure.backend_replacement_gate_not_proven",

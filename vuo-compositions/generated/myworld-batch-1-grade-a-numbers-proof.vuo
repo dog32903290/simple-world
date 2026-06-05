@@ -1,0 +1,70 @@
+/**
+ * @file
+ * Batch 1 Grade A numbers Vuo visual proof.
+ *
+ * This composition wires each manufactured Batch 1 number node into
+ * my_Batch1GradeANumbersProof, a proof-only image adapter. The adapter renders
+ * visible bars/status blocks from the node outputs. It is not a TiXL node.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-700,-120" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-700,220" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+SmoothStep [type="my.numbers.float.process.smoothStep" version="1.0.0" label="my_SmoothStep|<min>min\l|<max>max\l|<value>value\l|<result>Result\r" pos="-440,-360" fillcolor="#868C8D" _min="0.0" _max="1.0" _value="0.25"];
+
+Sin [type="my.numbers.float.trigonometry.sin" version="1.0.0" label="my_Sin|<input>input\l|<period>period\l|<phase>phase\l|<amplitude>amplitude\l|<offset>offset\l|<result>Result\r" pos="-440,-215" fillcolor="#868C8D" _input="1.57079632679" _period="1.0" _phase="0.0" _amplitude="1.0" _offset="0.0"];
+
+Cos [type="my.numbers.float.trigonometry.cos" version="1.0.0" label="my_Cos|<input>input\l|<result>Result\r" pos="-440,-70" fillcolor="#868C8D" _input="3.14159265359"];
+
+IntAdd [type="my.numbers.int.basic.intAdd" version="1.0.0" label="my_IntAdd|<value1>value1\l|<value2>value2\l|<result>Result\r" pos="-440,70" fillcolor="#868C8D" _value1="3" _value2="4"];
+
+SubInts [type="my.numbers.int.basic.subInts" version="1.0.0" label="my_SubInts|<input1>input1\l|<input2>input2\l|<result>Result\r" pos="-440,210" fillcolor="#868C8D" _input1="2" _input2="10"];
+
+MultiplyInt [type="my.numbers.int.basic.multiplyInt" version="1.0.0" label="my_MultiplyInt|<a>a\l|<b>b\l|<result>Result\r" pos="-50,-360" fillcolor="#868C8D" _a="-3" _b="4"];
+
+IntDiv [type="my.numbers.int.basic.intDiv" version="1.0.0" label="my_IntDiv|<numerator>numerator\l|<denominator>denominator\l|<result>Result\r" pos="-50,-215" fillcolor="#868C8D" _numerator="7" _denominator="2"];
+
+ModInt [type="my.numbers.int.basic.modInt" version="1.0.0" label="my_ModInt|<value>value\l|<mod>mod\l|<result>Result\r" pos="-50,-70" fillcolor="#868C8D" _value="-7" _mod="3"];
+
+IntToFloat [type="my.numbers.int.basic.intToFloat" version="1.0.0" label="my_IntToFloat|<intValue>intValue\l|<result>Result\r" pos="-50,70" fillcolor="#868C8D" _intValue="42"];
+
+IsIntEven [type="my.numbers.int.logic.isIntEven" version="1.0.0" label="my_IsIntEven|<value>value\l|<result>Result\r" pos="-50,210" fillcolor="#868C8D" _value="4"];
+
+ProofImage [type="my.numbers.batch.gradeANumbersProof" version="1.0.0" label="my_Batch1GradeANumbersProof|<renderTick>renderTick\l|<smoothStepValue>smoothStepValue\l|<sinValue>sinValue\l|<cosValue>cosValue\l|<intAddValue>intAddValue\l|<subIntsValue>subIntsValue\l|<multiplyIntValue>multiplyIntValue\l|<intDivValue>intDivValue\l|<modIntValue>modIntValue\l|<intToFloatValue>intToFloatValue\l|<isIntEvenValue>isIntEvenValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="405,-40" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 1 Grade A Numbers|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="880,-40" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+Comment [type="vuo.comment" label="\"Batch 1 numbers visual proof\"" pos="320,300" width="380" height="42"];
+
+FireOnStart:started -> SmoothStep:value;
+FireOnStart:started -> Sin:input;
+FireOnStart:started -> Cos:input;
+FireOnStart:started -> IntAdd:value1;
+FireOnStart:started -> SubInts:input1;
+FireOnStart:started -> MultiplyInt:a;
+FireOnStart:started -> IntDiv:numerator;
+FireOnStart:started -> ModInt:value;
+FireOnStart:started -> IntToFloat:intValue;
+FireOnStart:started -> IsIntEven:value;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+SmoothStep:result -> ProofImage:smoothStepValue;
+Sin:result -> ProofImage:sinValue;
+Cos:result -> ProofImage:cosValue;
+IntAdd:result -> ProofImage:intAddValue;
+SubInts:result -> ProofImage:subIntsValue;
+MultiplyInt:result -> ProofImage:multiplyIntValue;
+IntDiv:result -> ProofImage:intDivValue;
+ModInt:result -> ProofImage:modIntValue;
+IntToFloat:result -> ProofImage:intToFloatValue;
+IsIntEven:result -> ProofImage:isIntEvenValue;
+ProofImage:image -> RenderWindow:image;
+}

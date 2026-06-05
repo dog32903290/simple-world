@@ -1,0 +1,24 @@
+/**
+ * @file
+ * Batch 36 fractal/generate Vuo visual proof.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ */
+
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1120,100" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+Mandelbrot [type="my.image.generate.fractal.mandelbrotFractal" version="1.0.0" label="my_MandelbrotFractal|<renderTick>renderTick\l|<phase>phase\l|<scale>scale\l|<offset>offset\l|<colorScale>colorScale\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-620,-120" fillcolor="#9F008A" _phase="0" _scale="-0.2" _offset="\{\"x\":0.251,\"y\":0\}" _colorScale="18" _colorA="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _colorB="\{\"r\":1,\"g\":0.92,\"b\":0.65,\"a\":1\}" _resolution="\{\"x\":320,\"y\":320\}"];
+Munching [type="my.image.generate.munchingSquares2" version="1.0.0" label="my_MunchingSquares2|<renderTick>renderTick\l|<image>image\l|<shadowColor>shadowColor\l|<highlightColor>highlightColor\l|<method>method\l|<scale>scale\l|<stretch>stretch\l|<offset>offset\l|<iterations>iterations\l|<iterationFx>iterationFx\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-620,280" fillcolor="#9F008A" _shadowColor="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _highlightColor="\{\"r\":0.7,\"g\":0.95,\"b\":1,\"a\":1\}" _method="3" _scale="4" _stretch="\{\"x\":1,\"y\":1\}" _offset="\{\"x\":0,\"y\":0\}" _iterations="13" _iterationFx="0" _resolution="\{\"x\":320,\"y\":320\}"];
+ProofImage [type="my.image.batch.batch36FractalGenerateProof" version="1.0.0" label="my_Batch36FractalGenerateProof|<renderTick>renderTick\l|<mandelbrotImage>mandelbrotImage\l|<munchingImage>munchingImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="80,100" fillcolor="#9F008A" _width="640" _height="320"];
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 36 Fractal Generate|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="700,100" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="700,-190" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-36-fractal-generate-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+DisplayRefresh:requestedFrame -> Mandelbrot:renderTick;
+DisplayRefresh:requestedFrame -> Munching:renderTick;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+Mandelbrot:textureOutput -> ProofImage:mandelbrotImage;
+Munching:textureOutput -> ProofImage:munchingImage;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

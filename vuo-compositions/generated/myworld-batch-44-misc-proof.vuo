@@ -1,0 +1,25 @@
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1100,100" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+Source [type="my.image.generate.basic.checkerBoard" version="1.0.0" label="my_CheckerBoard|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<stretch>stretch\l|<scale>scale\l|<useAspectRatio>useAspectRatio\l|<offset>offset\l|<resolution>resolution\l|<generateMips>generateMips\l|<textureOutput>TextureOutput\r" pos="-830,100" fillcolor="#9F008A" _colorA="\{\"r\":0.0,\"g\":0.95,\"b\":1.0,\"a\":1\}" _colorB="\{\"r\":1.0,\"g\":0.08,\"b\":0.42,\"a\":1\}" _stretch="\{\"x\":1,\"y\":1\}" _scale="8" _useAspectRatio="true" _offset="\{\"x\":0,\"y\":0\}" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="false"];
+JumpFloodFill [type="my.image.generate.misc.jumpFloodFill" version="1.0.0" label="my_JumpFloodFill|<renderTick>renderTick\l|<image>Image\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>ImageOutput\r" pos="-500,-500" fillcolor="#9F008A" _amount="1.0" _scale="1.0" _phase="0.0" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+Sketch [type="my.image.generate.misc.sketch" version="1.0.0" label="my_Sketch|<renderTick>renderTick\l|<inputImage>InputImage\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>ColorBuffer\r" pos="-500,-380" fillcolor="#9F008A" _amount="1.08" _scale="1.12" _phase="0.07" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+SlidingHistory [type="my.image.generate.misc.slidingHistory" version="1.0.0" label="my_SlidingHistory|<renderTick>renderTick\l|<texture2d>Texture2d\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>Output\r" pos="-500,-260" fillcolor="#9F008A" _amount="1.16" _scale="1.24" _phase="0.14" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+ProofImage [type="my.image.batch.batch44MiscProof" version="1.0.0" label="my_Batch44MiscProof|<renderTick>renderTick\l|<jumpFloodFillImage>jumpFloodFillImage\l|<sketchImage>sketchImage\l|<slidingHistoryImage>slidingHistoryImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="120,100" fillcolor="#9F008A" _width="480" _height="160"];
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 44 Misc|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="720,100" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="720,-190" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-44-misc-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+DisplayRefresh:requestedFrame -> Source:renderTick;
+DisplayRefresh:requestedFrame -> JumpFloodFill:renderTick;
+Source:textureOutput -> JumpFloodFill:image;
+DisplayRefresh:requestedFrame -> Sketch:renderTick;
+Source:textureOutput -> Sketch:inputImage;
+DisplayRefresh:requestedFrame -> SlidingHistory:renderTick;
+Source:textureOutput -> SlidingHistory:texture2d;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+JumpFloodFill:textureOutput -> ProofImage:jumpFloodFillImage;
+Sketch:textureOutput -> ProofImage:sketchImage;
+SlidingHistory:textureOutput -> ProofImage:slidingHistoryImage;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

@@ -1,0 +1,42 @@
+/**
+ * @file
+ * Batch 11 boolean aggregate Vuo visual proof.
+ *
+ * This composition wires my_All and my_Any into my_Batch11BoolAggregateProof,
+ * a proof-only image adapter.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-780,-80" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-780,230" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+MakeBoolList [type="vuo.list.make.3.VuoBoolean" version="2.0.0" label="Make Bool List|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-510,40" fillcolor="#868C8D" _1="true" _2="true" _3="true"];
+
+All [type="my.numbers.bool.combine.all" version="1.0.0" label="my_All|<inputValues>inputValues\l|<result>Result\r" pos="-190,-65" fillcolor="#868C8D"];
+
+Any [type="my.numbers.bool.combine.any" version="1.0.0" label="my_Any|<inputValues>inputValues\l|<result>Result\r" pos="-190,135" fillcolor="#868C8D"];
+
+ProofImage [type="my.numbers.batch.batch11BoolAggregateProof" version="1.0.0" label="my_Batch11BoolAggregateProof|<renderTick>renderTick\l|<allValue>allValue\l|<anyValue>anyValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="250,40" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 11 Bool Aggregate|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="760,40" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="760,-180" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-11-bool-aggregate-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 11 bool aggregate proof\"" pos="120,315" width="430" height="42"];
+
+FireOnStart:started -> MakeBoolList:refresh;
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+MakeBoolList:list -> All:inputValues;
+MakeBoolList:list -> Any:inputValues;
+All:result -> ProofImage:allValue;
+Any:result -> ProofImage:anyValue;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

@@ -1,0 +1,64 @@
+/**
+ * @file
+ * Batch 15 float-list conversion Vuo visual proof.
+ *
+ * This composition wires my_IntListToFloatList, my_FloatListToIntList,
+ * and my_PickFloatList into my_Batch15FloatListConversionProof, a proof-only
+ * image adapter.
+ *
+ * my_PickFloatList uses a Vuo bounded adapter with three fixed input lists
+ * standing in for TiXL MultiInputSlot<List<float>>.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1100,-115" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1100,300" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+MakeIntList [type="vuo.list.make.3.VuoInteger" version="2.0.0" label="Make Int List|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-805,-225" fillcolor="#868C8D" _1="1" _2="-2" _3="30"];
+
+MakeFloatListA [type="vuo.list.make.3.VuoReal" version="2.0.0" label="Float List A|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-805,-35" fillcolor="#868C8D" _1="1.9" _2="-2.9" _3="3.0"];
+
+MakeFloatListB [type="vuo.list.make.2.VuoReal" version="2.0.0" label="Float List B|<refresh>refresh\l|<1>1\l|<2>2\l|<list>list\r" pos="-805,155" fillcolor="#868C8D" _1="10" _2="20"];
+
+MakeFloatListC [type="vuo.list.make.3.VuoReal" version="2.0.0" label="Float List C|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-805,335" fillcolor="#868C8D" _1="100" _2="200" _3="300"];
+
+IntListToFloatList [type="my.numbers.floats.conversion.intListToFloatList" version="1.0.0" label="my_IntListToFloatList|<intList>intList\l|<result>Result\r" pos="-410,-225" fillcolor="#868C8D"];
+
+FloatListToIntList [type="my.numbers.floats.conversion.floatListToIntList" version="1.0.0" label="my_FloatListToIntList|<floatList>floatList\l|<result>Result\r" pos="-410,-35" fillcolor="#868C8D"];
+
+PickFloatList [type="my.numbers.floats.logic.pickFloatList" version="1.0.0" label="my_PickFloatList|<inputList1>inputList1\l|<inputList2>inputList2\l|<inputList3>inputList3\l|<inputCount>inputCount\l|<index>index\l|<previousResult>previousResult\l|<selected>Selected\r" pos="-410,215" fillcolor="#868C8D" _inputCount="3" _index="-1"];
+
+ProofImage [type="my.numbers.batch.batch15FloatListConversionProof" version="1.0.0" label="my_Batch15FloatListConversionProof|<renderTick>renderTick\l|<intToFloatList>intToFloatList\l|<floatToIntList>floatToIntList\l|<pickedList>pickedList\l|<width>width\l|<height>height\l|<image>Image\r" pos="135,-35" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 15 Float List Conversion|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="745,-35" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="745,-275" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-15-float-list-conversion-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 15 float list conversion proof\"" pos="45,430" width="500" height="42"];
+
+FireOnStart:started -> MakeIntList:refresh;
+FireOnStart:started -> MakeFloatListA:refresh;
+FireOnStart:started -> MakeFloatListB:refresh;
+FireOnStart:started -> MakeFloatListC:refresh;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+MakeIntList:list -> IntListToFloatList:intList;
+MakeFloatListA:list -> FloatListToIntList:floatList;
+MakeFloatListA:list -> PickFloatList:inputList1;
+MakeFloatListB:list -> PickFloatList:inputList2;
+MakeFloatListC:list -> PickFloatList:inputList3;
+
+IntListToFloatList:result -> ProofImage:intToFloatList;
+FloatListToIntList:result -> ProofImage:floatToIntList;
+PickFloatList:selected -> ProofImage:pickedList;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

@@ -1,0 +1,42 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.tixl_mesh_draw_explicit_adapter_proof",
+  "kind": "TixlMeshDrawExplicitAdapterProof",
+  "metadata": {
+    "purpose": "Prove the selected handwritten explicit MSL adapter scope with a real Metal compile/render/readback probe."
+  },
+  "explicitTranslationStrategyArtifact": "docs/runtime/artifacts/tixl_mesh_draw_explicit_translation_strategy/tixl_mesh_draw_explicit_translation_strategy_result.json",
+  "mslApproxArtifact": "docs/runtime/artifacts/tixl_mesh_draw_msl_approx/tixl_mesh_draw_msl_approx_result.json",
+  "metalExplicitMslArtifact": "docs/runtime/artifacts/metal_explicit_msl_proof/metal_explicit_msl_result.json",
+  "adapterScope": {
+    "name": "handwritten_explicit_msl_adapter",
+    "proofScope": "explicit_adapter_only",
+    "source": "selected strategy plus existing explicit MSL and mesh draw MSL approximation evidence",
+    "fullPbrResourceBindingConsumed": false
+  },
+  "viewport": {
+    "width": 4,
+    "height": 4
+  },
+  "expected": {
+    "status": "proven_explicit_mesh_draw_adapter",
+    "claims": {
+      "explicitTranslationStrategyArtifactConsumed": true,
+      "mslApproxArtifactConsumed": true,
+      "metalExplicitMslArtifactConsumed": true,
+      "selectedHandwrittenAdapterStrategyConsumed": true,
+      "mslApproxEvidenceConsumed": true,
+      "metalExplicitMslEvidenceConsumed": true,
+      "actualCompilerRan": true,
+      "actualMetalRan": true,
+      "explicitAdapterProof": true,
+      "explicitAdapterProofPresent": true,
+      "fullPbrResourceBinding": false,
+      "backendReplacementReady": false,
+      "hlslToMslTranslation": false,
+      "tixlRuntimeParity": false,
+      "nativeGpuParityComplete": false,
+      "pbrVisualCorrectness": false
+    }
+  }
+}

@@ -1,0 +1,57 @@
+/**
+ * @file
+ * Batch 35 image/generate/pattern Vuo visual proof.
+ *
+ * This composition wires all nine Lib.image.generate.pattern nodes into a nine-band proof image.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1320,100" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+FraserGrid [type="my.image.generate.pattern.fraserGrid" version="1.0.0" label="my_FraserGrid|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<background>background\l|<scale>scale\l|<rotate>rotate\l|<density>density\l|<lineWidth>lineWidth\l|<feather>feather\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-760,-700" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _background="\{\"r\":0.02,\"g\":0.02,\"b\":0.025,\"a\":1\}" _scale="1.00" _rotate="0" _density="8" _lineWidth="0.08" _feather="0.012" _resolution="\{\"x\":160,\"y\":160\}"];
+NumberPattern [type="my.image.generate.pattern.numberPattern" version="1.0.0" label="my_NumberPattern|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<background>background\l|<scale>scale\l|<rotate>rotate\l|<density>density\l|<lineWidth>lineWidth\l|<feather>feather\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-760,-480" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _background="\{\"r\":0.02,\"g\":0.02,\"b\":0.025,\"a\":1\}" _scale="1.12" _rotate="11" _density="10" _lineWidth="0.08" _feather="0.012" _resolution="\{\"x\":160,\"y\":160\}"];
+Raster [type="my.image.generate.pattern.raster" version="1.0.0" label="my_Raster|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<background>background\l|<scale>scale\l|<rotate>rotate\l|<density>density\l|<lineWidth>lineWidth\l|<feather>feather\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-760,-260" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _background="\{\"r\":0.02,\"g\":0.02,\"b\":0.025,\"a\":1\}" _scale="1.24" _rotate="22" _density="12" _lineWidth="0.08" _feather="0.012" _resolution="\{\"x\":160,\"y\":160\}"];
+Rings [type="my.image.generate.pattern.rings" version="1.0.0" label="my_Rings|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<background>background\l|<scale>scale\l|<rotate>rotate\l|<density>density\l|<lineWidth>lineWidth\l|<feather>feather\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-760,-40" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _background="\{\"r\":0.02,\"g\":0.02,\"b\":0.025,\"a\":1\}" _scale="1.36" _rotate="33" _density="14" _lineWidth="0.08" _feather="0.012" _resolution="\{\"x\":160,\"y\":160\}"];
+RyojiPattern1 [type="my.image.generate.pattern.ryojiPattern1" version="1.0.0" label="my_RyojiPattern1|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<background>background\l|<scale>scale\l|<rotate>rotate\l|<density>density\l|<lineWidth>lineWidth\l|<feather>feather\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-760,180" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _background="\{\"r\":0.02,\"g\":0.02,\"b\":0.025,\"a\":1\}" _scale="1.48" _rotate="44" _density="16" _lineWidth="0.08" _feather="0.012" _resolution="\{\"x\":160,\"y\":160\}"];
+RyojiPattern2 [type="my.image.generate.pattern.ryojiPattern2" version="1.0.0" label="my_RyojiPattern2|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<background>background\l|<scale>scale\l|<rotate>rotate\l|<density>density\l|<lineWidth>lineWidth\l|<feather>feather\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-760,400" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _background="\{\"r\":0.02,\"g\":0.02,\"b\":0.025,\"a\":1\}" _scale="1.60" _rotate="55" _density="18" _lineWidth="0.08" _feather="0.012" _resolution="\{\"x\":160,\"y\":160\}"];
+SinForm [type="my.image.generate.pattern.sinForm" version="1.0.0" label="my_SinForm|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<background>background\l|<scale>scale\l|<rotate>rotate\l|<density>density\l|<lineWidth>lineWidth\l|<feather>feather\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-760,620" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _background="\{\"r\":0.02,\"g\":0.02,\"b\":0.025,\"a\":1\}" _scale="1.72" _rotate="66" _density="20" _lineWidth="0.08" _feather="0.012" _resolution="\{\"x\":160,\"y\":160\}"];
+ValueRaster [type="my.image.generate.pattern.valueRaster" version="1.0.0" label="my_ValueRaster|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<background>background\l|<scale>scale\l|<rotate>rotate\l|<density>density\l|<lineWidth>lineWidth\l|<feather>feather\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-760,840" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _background="\{\"r\":0.02,\"g\":0.02,\"b\":0.025,\"a\":1\}" _scale="1.84" _rotate="77" _density="22" _lineWidth="0.08" _feather="0.012" _resolution="\{\"x\":160,\"y\":160\}"];
+ZollnerPattern [type="my.image.generate.pattern.zollnerPattern" version="1.0.0" label="my_ZollnerPattern|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<background>background\l|<scale>scale\l|<rotate>rotate\l|<density>density\l|<lineWidth>lineWidth\l|<feather>feather\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-760,1060" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}" _background="\{\"r\":0.02,\"g\":0.02,\"b\":0.025,\"a\":1\}" _scale="1.96" _rotate="88" _density="24" _lineWidth="0.08" _feather="0.012" _resolution="\{\"x\":160,\"y\":160\}"];
+
+ProofImage [type="my.image.batch.batch35PatternGenerateProof" version="1.0.0" label="my_Batch35PatternGenerateProof|<renderTick>renderTick\l|<fraserGridImage>fraserGridImage\l|<numberPatternImage>numberPatternImage\l|<rasterImage>rasterImage\l|<ringsImage>ringsImage\l|<ryojiPattern1Image>ryojiPattern1Image\l|<ryojiPattern2Image>ryojiPattern2Image\l|<sinFormImage>sinFormImage\l|<valueRasterImage>valueRasterImage\l|<zollnerPatternImage>zollnerPatternImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="120,100" fillcolor="#9F008A" _width="1440" _height="160"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 35 Pattern Generate|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="780,100" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="780,-190" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-35-pattern-generate-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 35 image generate pattern proof\"" pos="-240,-540" width="540" height="42"];
+
+DisplayRefresh:requestedFrame -> FraserGrid:renderTick;
+DisplayRefresh:requestedFrame -> NumberPattern:renderTick;
+DisplayRefresh:requestedFrame -> Raster:renderTick;
+DisplayRefresh:requestedFrame -> Rings:renderTick;
+DisplayRefresh:requestedFrame -> RyojiPattern1:renderTick;
+DisplayRefresh:requestedFrame -> RyojiPattern2:renderTick;
+DisplayRefresh:requestedFrame -> SinForm:renderTick;
+DisplayRefresh:requestedFrame -> ValueRaster:renderTick;
+DisplayRefresh:requestedFrame -> ZollnerPattern:renderTick;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+FraserGrid:textureOutput -> ProofImage:fraserGridImage;
+NumberPattern:textureOutput -> ProofImage:numberPatternImage;
+Raster:textureOutput -> ProofImage:rasterImage;
+Rings:textureOutput -> ProofImage:ringsImage;
+RyojiPattern1:textureOutput -> ProofImage:ryojiPattern1Image;
+RyojiPattern2:textureOutput -> ProofImage:ryojiPattern2Image;
+SinForm:textureOutput -> ProofImage:sinFormImage;
+ValueRaster:textureOutput -> ProofImage:valueRasterImage;
+ZollnerPattern:textureOutput -> ProofImage:zollnerPatternImage;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

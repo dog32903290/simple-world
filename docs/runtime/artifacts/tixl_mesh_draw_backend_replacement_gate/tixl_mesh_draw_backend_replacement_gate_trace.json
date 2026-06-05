@@ -7,6 +7,9 @@
     "op": "resolveBackendReplacementGateInputs",
     "nativeRenderPipelineArtifacts": "docs/runtime/artifacts/native_render_pipeline",
     "resourceBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json",
+    "fullPbrResourceBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_full_pbr_resource_binding/tixl_mesh_draw_full_pbr_resource_binding_result.json",
+    "explicitAdapterProofArtifact": "docs/runtime/artifacts/tixl_mesh_draw_explicit_adapter_proof/tixl_mesh_draw_explicit_adapter_result.json",
+    "nativeMetalBackendIntegrationArtifact": "docs/runtime/artifacts/tixl_mesh_draw_native_metal_backend_integration/tixl_mesh_draw_native_metal_backend_integration_result.json",
     "textureSamplerBindingArtifact": "docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json",
     "shadergraphResourcesExpansionArtifact": "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json",
     "stageMrtMatrixArtifact": "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json",
@@ -16,6 +19,9 @@
     "op": "readBackendReplacementGateInputs",
     "nativePipelineRead": true,
     "resourceBindingRead": true,
+    "fullPbrResourceBindingRead": true,
+    "explicitAdapterProofRead": true,
+    "nativeMetalBackendIntegrationRead": true,
     "textureSamplerBindingRead": true,
     "shadergraphResourcesExpansionRead": true,
     "stageMrtMatrixRead": true,
@@ -28,9 +34,10 @@
   },
   {
     "op": "evaluateBackendReplacementGuard",
-    "backendReplacementReady": false,
-    "fullPbrResourceBinding": false,
-    "adapterProofPresent": false
+    "backendReplacementReady": true,
+    "fullPbrResourceBinding": true,
+    "adapterProofPresent": true,
+    "nativeMetalBackendIntegrationComplete": true
   },
   {
     "op": "publishTixlMeshDrawBackendReplacementGateArtifacts",

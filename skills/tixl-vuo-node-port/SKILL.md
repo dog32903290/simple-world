@@ -89,6 +89,19 @@ Rules:
 
 ## Workflow
 
+0. **Node manufacturing gate**
+   - Start from the porting construction map before choosing or building nodes:
+     - `docs/tixl-porting/TIXL_TO_VUO_PORTING.md` is the commander-level route map.
+     - `docs/tixl-porting/PORT_STATUS_BOARD.md` is the current built-node / proof ledger.
+     - `docs/tixl-porting/reports/source_inventory.md` is the 935-node source inventory.
+     - `docs/tixl-porting/reports/porting_grade_rules.md` defines A/B/C/D porting risk.
+   - Use the namespace cards in `docs/tixl-porting/namespaces/` to pick the next node batch and avoid rebuilding or over-claiming nodes already tracked.
+   - Each manufactured creator-facing node gets its own acceptance record before it is considered done.
+   - Acceptance means: TiXL source behavior is audited, our runtime harness proves the same contract, and a Vuo proof lets 柏為 see or manipulate the result.
+   - A related Vuo composition can support context, but it does not replace per-node acceptance unless the node is explicitly marked headless/adapter-only with a bounded reason.
+   - If a node cannot create a visual result by itself, build the smallest Vuo proof adapter that exposes its force visually, and label the adapter as proof-only.
+   - Do not claim "same as TiXL" until visible output, port behavior, defaults, and failure behavior have been compared against the TiXL source.
+
 1. **TiXL source audit**
    - Find the TiXL source first: `.cs`, `.t3`, shader templates, and descriptions under `external/tixl/Operators/Lib`.
    - Record donor path, category, ports, default values, output type, hidden resources, and shader/runtime stage.
@@ -106,9 +119,25 @@ Rules:
    - For GLSL/WebGL, use the persistent WebGL shader server for repeated checks; cold browser startup time is not shader compile time.
    - Save artifacts such as generated shader source, compile JSON, cook order, and error logs.
 
+3.5. **Runtime blockage gate**
+   - If node work exposes a runtime failure, stop node expansion and debug the runtime as the current blocking line.
+   - Name the smallest line first:
+     ```text
+     <graph fixture> -> <runtime component> -> <observable artifact or failure>
+     ```
+   - Reproduce the failure in the narrowest fixture before changing code. Do not patch Vuo node code to hide a broken My World runtime contract.
+   - Gather evidence at each boundary: input graph, generated shader/source, cook order, resource binding/state, compile/link/run logs, screenshot or artifact stats.
+   - Classify the break:
+     - **contract gap**: node law is unclear or missing fields/defaults; fix the contract and fixture first.
+     - **runtime bug**: fixture contract is clear but execution drifts; fix runtime with a failing test/artifact.
+     - **Vuo body-layer limit**: My World contract is valid but Vuo cannot expose it directly; build a bounded proof adapter and state what it proves.
+     - **TiXL mismatch**: source audit shows our assumed behavior is wrong; update the node contract before implementation.
+   - Resume node manufacturing only after the runtime line has an observable passing artifact, or mark the node blocked with the exact missing runtime capability.
+
 4. **Contract-to-Vuo proof gate**
    - Every new contract needs a matching Vuo trial before the contract is called done.
-   - The trial can be one exact `my_<ExactTiXLNodeName>` Vuo node, or a small proof composition that wires several related nodes together when one node alone cannot show the line.
+   - Every manufactured `my_<ExactTiXLNodeName>` node needs a Vuo-visible acceptance path for that node, not only a neighboring proof.
+   - The trial can be one exact `my_<ExactTiXLNodeName>` Vuo node, or a small proof composition that wires the node to the minimum display/adapter nodes needed to make its behavior visible.
    - The Vuo trial must answer: what can 柏為 see or manipulate that proves this contract is not just text?
    - For contracts that Vuo cannot truly prove, create a bounded body-layer adapter and say exactly what it proves and what it does not prove.
    - Do not add more headless-only command/resource contracts without either a Vuo body-layer proof, a Vuo-hosted related-node composition, or a written reason why Vuo cannot expose that force yet.
@@ -163,6 +192,8 @@ python3 tools/vuo_harness.py cli-proof vuo-compositions/<proof>.vuo --seconds 3 
 
 Accept the proof only when:
 
+- the acceptance record names the TiXL donor source and states whether parity is exact, adapter-bounded, or compound.
+- the Vuo proof exercises the manufactured node's visible behavior, port defaults, and at least one meaningful control change.
 - Vuo SDK compile and link return `0`.
 - `loadedUserNodes` includes the custom node classes.
 - the screenshot exists and `mostlyBlack` is `false`.

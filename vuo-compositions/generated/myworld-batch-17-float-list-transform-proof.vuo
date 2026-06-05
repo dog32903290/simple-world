@@ -1,0 +1,48 @@
+/**
+ * @file
+ * Batch 17 float-list transform Vuo visual proof.
+ *
+ * This composition wires my_CombineFloatLists and my_RemapFloatList into
+ * my_Batch17FloatListTransformProof, a proof-only image adapter.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1100,-130" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1100,240" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+FloatListA [type="vuo.list.make.3.VuoReal" version="2.0.0" label="Float List A|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-810,-160" fillcolor="#868C8D" _1="0" _2="0.5" _3="1"];
+
+FloatListB [type="vuo.list.make.2.VuoReal" version="2.0.0" label="Float List B|<refresh>refresh\l|<1>1\l|<2>2\l|<list>list\r" pos="-810,45" fillcolor="#868C8D" _1="0.25" _2="0.75"];
+
+CombineFloatLists [type="my.numbers.floats.process.combineFloatLists" version="1.0.0" label="my_CombineFloatLists|<inputList1>inputList1\l|<inputList2>inputList2\l|<inputList3>inputList3\l|<inputCount>inputCount\l|<selected>Selected\r" pos="-415,-55" fillcolor="#868C8D" _inputCount="2"];
+
+RemapFloatList [type="my.numbers.floats.process.remapFloatList" version="1.0.0" label="my_RemapFloatList|<floatList>floatList\l|<rangeInMin>rangeInMin\l|<rangeInMax>rangeInMax\l|<rangeOutMin>rangeOutMin\l|<rangeOutMax>rangeOutMax\l|<biasAndGain>biasAndGain\l|<mode>mode\l|<result>Result\r" pos="-50,-55" fillcolor="#868C8D" _rangeInMin="0.0" _rangeInMax="1.0" _rangeOutMin="10.0" _rangeOutMax="20.0" _biasAndGain="\{\"x\":0.5,\"y\":0.5\}" _mode="0"];
+
+ProofImage [type="my.numbers.batch.batch17FloatListTransformProof" version="1.0.0" label="my_Batch17FloatListTransformProof|<renderTick>renderTick\l|<combinedList>combinedList\l|<remappedList>remappedList\l|<width>width\l|<height>height\l|<image>Image\r" pos="345,-55" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 17 Float List Transform|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="865,-55" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="865,-285" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-17-float-list-transform-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 17 float list transform proof\"" pos="85,380" width="500" height="42"];
+
+FireOnStart:started -> FloatListA:refresh;
+FireOnStart:started -> FloatListB:refresh;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+FloatListA:list -> CombineFloatLists:inputList1;
+FloatListB:list -> CombineFloatLists:inputList2;
+CombineFloatLists:selected -> RemapFloatList:floatList;
+CombineFloatLists:selected -> ProofImage:combinedList;
+RemapFloatList:result -> ProofImage:remappedList;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

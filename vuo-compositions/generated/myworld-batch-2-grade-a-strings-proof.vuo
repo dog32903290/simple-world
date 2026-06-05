@@ -1,0 +1,73 @@
+/**
+ * @file
+ * Batch 2 strings Vuo visual proof.
+ *
+ * This composition wires each manufactured Batch 2 string node into
+ * my_Batch2GradeAStringsProof, a proof-only image adapter. The adapter renders
+ * visible bars/status blocks from the node outputs, including list fragments
+ * from my_SplitString into my_JoinStringList. It is not a TiXL node.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-760,-120" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-760,220" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+FloatToString [type="my.string.convert.floatToString" version="1.0.0" label="my_FloatToString|<value>value\l|<format>format\l|<output>Output\r" pos="-520,-390" fillcolor="#779552" _value="3.25" _format="\"value={0:0.0}\""];
+
+IntToString [type="my.string.convert.intToString" version="1.0.0" label="my_IntToString|<value>value\l|<format>format\l|<output>Output\r" pos="-520,-245" fillcolor="#779552" _value="7" _format="\"n={0:0}\""];
+
+IndexOf [type="my.string.search.indexOf" version="1.0.0" label="my_IndexOf|<originalString>originalString\l|<searchPattern>searchPattern\l|<index>Index\r" pos="-520,-100" fillcolor="#868C8D" _originalString="\"hello\"" _searchPattern="\"ell\""];
+
+SearchAndReplace [type="my.string.search.searchAndReplace" version="1.0.0" label="my_SearchAndReplace|<originalString>originalString\l|<searchPattern>searchPattern\l|<replace>replace\l|<useRegex>useRegex\l|<result>Result\r" pos="-520,70" fillcolor="#779552" _originalString="\"a-b-a\"" _searchPattern="\"a\"" _replace="\"x\"" _useRegex="false"];
+
+SubString [type="my.string.search.subString" version="1.0.0" label="my_SubString|<inputText>inputText\l|<start>start\l|<length>length\l|<result>Result\r" pos="-520,245" fillcolor="#779552" _inputText="\"abcdef\"" _start="2" _length="3"];
+
+StringLength [type="my.string.list.stringLength" version="1.0.0" label="my_StringLength|<inputString>inputString\l|<length>Length\r" pos="-95,-245" fillcolor="#868C8D" _inputString="\"ten plus eleven is 21\""];
+
+StringRepeat [type="my.string.combine.stringRepeat" version="1.0.0" label="my_StringRepeat|<fragment>fragment\l|<count>count\l|<result>Result\r" pos="-95,-70" fillcolor="#779552" _fragment="\"ha\"" _count="3"];
+
+ChangeCase [type="my.string.transform.changeCase" version="1.0.0" label="my_ChangeCase|<inputText>inputText\l|<mode>mode\l|<result>Result\r" pos="-95,105" fillcolor="#779552" _inputText="\"AbC\"" _mode="0"];
+
+SplitString [type="my.string.list.splitString" version="1.0.0" label="my_SplitString|<stringText>stringText\l|<split>split\l|<fragments>Fragments\r|<count>Count\r" pos="-95,280" fillcolor="#779552" _stringText="\"a,b,c\"" _split="\",\""];
+
+JoinStringList [type="my.string.list.joinStringList" version="1.0.0" label="my_JoinStringList|<input>input\l|<separator>separator\l|<result>Result\r" pos="160,275" fillcolor="#779552" _separator="\"|\""];
+
+ProofImage [type="my.string.batch.gradeAStringsProof" version="1.0.0" label="my_Batch2GradeAStringsProof|<renderTick>renderTick\l|<floatText>floatText\l|<intText>intText\l|<indexValue>indexValue\l|<replacedText>replacedText\l|<subStringText>subStringText\l|<stringLength>stringLength\l|<repeatedText>repeatedText\l|<changeCaseText>changeCaseText\l|<splitFragments>splitFragments\l|<splitCount>splitCount\l|<joinedText>joinedText\l|<width>width\l|<height>height\l|<image>Image\r" pos="475,-40" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 2 Grade A Strings|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="960,-40" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+Comment [type="vuo.comment" label="\"Batch 2 strings visual proof\"" pos="380,365" width="420" height="42"];
+
+FireOnStart:started -> FloatToString:value;
+FireOnStart:started -> IntToString:value;
+FireOnStart:started -> IndexOf:originalString;
+FireOnStart:started -> SearchAndReplace:originalString;
+FireOnStart:started -> SubString:inputText;
+FireOnStart:started -> StringLength:inputString;
+FireOnStart:started -> StringRepeat:fragment;
+FireOnStart:started -> ChangeCase:inputText;
+FireOnStart:started -> SplitString:stringText;
+FireOnStart:started -> JoinStringList:separator;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+FloatToString:output -> ProofImage:floatText;
+IntToString:output -> ProofImage:intText;
+IndexOf:index -> ProofImage:indexValue;
+SearchAndReplace:result -> ProofImage:replacedText;
+SubString:result -> ProofImage:subStringText;
+StringLength:length -> ProofImage:stringLength;
+StringRepeat:result -> ProofImage:repeatedText;
+ChangeCase:result -> ProofImage:changeCaseText;
+SplitString:fragments -> JoinStringList:input;
+SplitString:fragments -> ProofImage:splitFragments;
+SplitString:count -> ProofImage:splitCount;
+JoinStringList:result -> ProofImage:joinedText;
+ProofImage:image -> RenderWindow:image;
+}

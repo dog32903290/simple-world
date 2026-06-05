@@ -10,7 +10,7 @@
   "tixlMeshDrawTextureCubePbrReferenceArtifact": "docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json",
   "tixlMeshDrawBackendReplacementGateArtifact": "docs/runtime/artifacts/tixl_mesh_draw_backend_replacement_gate/tixl_mesh_draw_backend_replacement_gate_result.json",
   "expected": {
-    "overallStatus": "proven_with_bounded_native_backend",
+    "overallStatus": "bounded_native_gpu_tixl_parity_complete",
     "drawCalls": 1,
     "commandSource": "drawCommandArtifact",
     "nonBlackSample": true,

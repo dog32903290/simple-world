@@ -1,0 +1,74 @@
+/**
+ * @file
+ * Batch 29 image/use material channels Vuo visual proof.
+ *
+ * This composition wires constant VuoImage sources through
+ * my_CombineMaterialChannels2 and my_CombineMaterialChannels. Acceptance uses
+ * Vuo-native PNG saving.
+ *
+ * Expected bands left to right:
+ * CombineMaterialChannels2 defaults -> white,
+ * CombineMaterialChannels -> roughness.r / metallic.g / occlusion.r.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1360,-140" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1360,170" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+SourceA [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1040,-360" fillcolor="#9F008A" _Color="\{\"r\":1,\"g\":0,\"b\":0,\"a\":1\}" _Width="160" _Height="160"];
+
+SourceB [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1040,-110" fillcolor="#9F008A" _Color="\{\"r\":0,\"g\":1,\"b\":0,\"a\":1\}" _Width="160" _Height="160"];
+
+SourceC [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1040,140" fillcolor="#9F008A" _Color="\{\"r\":0,\"g\":0,\"b\":1,\"a\":1\}" _Width="160" _Height="160"];
+
+Roughness [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1040,390" fillcolor="#9F008A" _Color="\{\"r\":0.25,\"g\":0,\"b\":0,\"a\":1\}" _Width="160" _Height="160"];
+
+Metallic [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1040,640" fillcolor="#9F008A" _Color="\{\"r\":0,\"g\":0.75,\"b\":0,\"a\":1\}" _Width="160" _Height="160"];
+
+Occlusion [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1040,890" fillcolor="#9F008A" _Color="\{\"r\":0.5,\"g\":0,\"b\":0,\"a\":1\}" _Width="160" _Height="160"];
+
+CombineMaterialChannels2 [type="my.image.use.combineMaterialChannels2" version="1.0.0" label="my_CombineMaterialChannels2|<renderTick>renderTick\l|<imageA>imageA\l|<colorA>colorA\l|<imageB>imageB\l|<colorB>colorB\l|<imageC>imageC\l|<colorC>colorC\l|<selectChannelR>selectChannelR\l|<selectChannelG>selectChannelG\l|<selectChannelB>selectChannelB\l|<selectAlphaChannel>selectAlphaChannel\l|<generateMips>generateMips\l|<output>Output\r" pos="-460,-80" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorC="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _selectChannelR="0" _selectChannelG="6" _selectChannelB="12" _selectAlphaChannel="4" _generateMips="false"];
+
+CombineMaterialChannels [type="my.image.use.combineMaterialChannels" version="1.0.0" label="my_CombineMaterialChannels|<renderTick>renderTick\l|<roughness>roughness\l|<metallic>metallic\l|<occlusion>occlusion\l|<resolution>resolution\l|<generateMips>generateMips\l|<output>Output\r" pos="-460,500" fillcolor="#9F008A" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="true"];
+
+ProofImage [type="my.image.batch.batch29ImageUseMaterialChannelsProof" version="1.0.0" label="my_Batch29ImageUseMaterialChannelsProof|<renderTick>renderTick\l|<combineMaterialChannels2Image>combineMaterialChannels2Image\l|<combineMaterialChannelsImage>combineMaterialChannelsImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="180,180" fillcolor="#9F008A" _width="320" _height="160"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 29 Image Use Material Channels|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="780,180" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="780,-90" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-29-image-use-material-channels-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 29 image use material channels proof\"" pos="-260,-590" width="580" height="42"];
+
+DisplayRefresh:requestedFrame -> SourceA:renderTick;
+DisplayRefresh:requestedFrame -> SourceB:renderTick;
+DisplayRefresh:requestedFrame -> SourceC:renderTick;
+DisplayRefresh:requestedFrame -> Roughness:renderTick;
+DisplayRefresh:requestedFrame -> Metallic:renderTick;
+DisplayRefresh:requestedFrame -> Occlusion:renderTick;
+DisplayRefresh:requestedFrame -> CombineMaterialChannels2:renderTick;
+DisplayRefresh:requestedFrame -> CombineMaterialChannels:renderTick;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+FireOnStart:started -> CombineMaterialChannels2:selectChannelR;
+FireOnStart:started -> CombineMaterialChannels:resolution;
+
+SourceA:Image -> CombineMaterialChannels2:imageA;
+SourceB:Image -> CombineMaterialChannels2:imageB;
+SourceC:Image -> CombineMaterialChannels2:imageC;
+
+Roughness:Image -> CombineMaterialChannels:roughness;
+Metallic:Image -> CombineMaterialChannels:metallic;
+Occlusion:Image -> CombineMaterialChannels:occlusion;
+
+CombineMaterialChannels2:output -> ProofImage:combineMaterialChannels2Image;
+CombineMaterialChannels:output -> ProofImage:combineMaterialChannelsImage;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

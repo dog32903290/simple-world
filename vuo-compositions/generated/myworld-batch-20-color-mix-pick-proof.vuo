@@ -1,0 +1,44 @@
+/**
+ * @file
+ * Batch 20 color mix/pick Vuo visual proof.
+ *
+ * This composition wires my_BlendColors and my_PickColorFromList into
+ * my_Batch20ColorMixPickProof, a proof-only image adapter.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1030,-170" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1030,170" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+ColorsToList [type="my.numbers.floats.basic.colorsToList" version="1.0.0" label="my_ColorsToList|<color1>color1\l|<color2>color2\l|<color3>color3\l|<inputCount>inputCount\l|<result>Result\r" pos="-640,-40" fillcolor="#868C8D" _color1="\{\"r\":1,\"g\":0,\"b\":0,\"a\":1\}" _color2="\{\"r\":0,\"g\":1,\"b\":0,\"a\":1\}" _color3="\{\"r\":0,\"g\":0,\"b\":1,\"a\":1\}" _inputCount="3"];
+
+BlendColors [type="my.numbers.color.blendColors" version="1.0.0" label="my_BlendColors|<colorA>colorA\l|<colorB>colorB\l|<factor>factor\l|<mode>mode\l|<color>Color\r" pos="-230,-210" fillcolor="#868C8D" _colorA="\{\"r\":0.2,\"g\":0.4,\"b\":0.6,\"a\":0.5\}" _colorB="\{\"r\":1,\"g\":0.5,\"b\":0,\"a\":0.25\}" _factor="0.25" _mode="3"];
+
+PickColorFromList [type="my.numbers.color.pickColorFromList" version="1.0.0" label="my_PickColorFromList|<input>input\l|<index>index\l|<previousSelected>previousSelected\l|<selected>Selected\r" pos="-230,50" fillcolor="#868C8D" _index="-1" _previousSelected="\{\"r\":0,\"g\":0,\"b\":0,\"a\":1\}"];
+
+ProofImage [type="my.numbers.batch.batch20ColorMixPickProof" version="1.0.0" label="my_Batch20ColorMixPickProof|<renderTick>renderTick\l|<blendedColor>blendedColor\l|<pickedColor>pickedColor\l|<width>width\l|<height>height\l|<image>Image\r" pos="245,-80" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 20 Color Mix Pick|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="810,-80" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="810,-310" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-20-color-mix-pick-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 20 color mix pick proof\"" pos="60,320" width="500" height="42"];
+
+FireOnStart:started -> ColorsToList:color1;
+FireOnStart:started -> BlendColors:colorA;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+ColorsToList:result -> PickColorFromList:input;
+BlendColors:color -> ProofImage:blendedColor;
+PickColorFromList:selected -> ProofImage:pickedColor;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

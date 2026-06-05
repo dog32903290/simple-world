@@ -1,0 +1,35 @@
+[
+  {
+    "op": "loadNativeMetalBackendIntegrationFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_native_metal_backend_integration.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "nativeRenderPipeline": "docs/runtime/artifacts/native_render_pipeline",
+    "fullPbrResourceBinding": "docs/runtime/artifacts/tixl_mesh_draw_full_pbr_resource_binding/tixl_mesh_draw_full_pbr_resource_binding_result.json",
+    "explicitAdapterProof": "docs/runtime/artifacts/tixl_mesh_draw_explicit_adapter_proof/tixl_mesh_draw_explicit_adapter_result.json"
+  },
+  {
+    "op": "readInputArtifacts",
+    "nativePipelineRead": true,
+    "fullPbrResourceBindingRead": true,
+    "explicitAdapterProofRead": true
+  },
+  {
+    "op": "validateInputArtifacts",
+    "valid": true
+  },
+  {
+    "op": "runNativeMetalBackendIntegrationProbe",
+    "generatedMslArtifact": "generated_native_metal_backend.metal"
+  },
+  {
+    "op": "proveNativeMetalBackendIntegration",
+    "backendReplacementReady": true,
+    "nativeGpuParityComplete": true
+  },
+  {
+    "op": "publishNativeMetalBackendIntegrationArtifacts",
+    "ok": true
+  }
+]

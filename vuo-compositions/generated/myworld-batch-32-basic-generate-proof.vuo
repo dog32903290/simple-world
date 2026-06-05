@@ -1,0 +1,46 @@
+/**
+ * @file
+ * Batch 32 image/generate/basic Vuo visual proof.
+ *
+ * This composition wires my_CheckerBoard, my_LinearGradient,
+ * my_RadialGradient, and my_RoundedRect into a four-band proof image.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1320,100" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+CheckerBoard [type="my.image.generate.basic.checkerBoard" version="1.0.0" label="my_CheckerBoard|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<stretch>stretch\l|<scale>scale\l|<useAspectRatio>useAspectRatio\l|<offset>offset\l|<resolution>resolution\l|<generateMips>generateMips\l|<textureOutput>TextureOutput\r" pos="-720,-280" fillcolor="#9F008A" _colorA="\{\"r\":0.1,\"g\":0.1,\"b\":0.12,\"a\":1\}" _colorB="\{\"r\":0.9,\"g\":0.9,\"b\":0.86,\"a\":1\}" _stretch="\{\"x\":0.15,\"y\":0.15\}" _scale="1" _useAspectRatio="true" _offset="\{\"x\":0.1,\"y\":0\}" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="false"];
+
+LinearGradient [type="my.image.generate.basic.linearGradient" version="1.0.0" label="my_LinearGradient|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<width>width\l|<sizeMode>sizeMode\l|<offset>offset\l|<pingPong>pingPong\l|<repeat>repeat\l|<rotate>rotate\l|<center>center\l|<gainAndBias>gainAndBias\l|<resolution>resolution\l|<generateMips>generateMips\l|<textureOutput>TextureOutput\r" pos="-720,0" fillcolor="#9F008A" _colorA="\{\"r\":0,\"g\":0.000001,\"b\":0.000001,\"a\":1\}" _colorB="\{\"r\":1,\"g\":0.99999,\"b\":1,\"a\":1\}" _width="0.75" _sizeMode="0" _offset="0" _pingPong="false" _repeat="false" _rotate="35" _center="\{\"x\":0,\"y\":0\}" _gainAndBias="\{\"x\":0.5,\"y\":0.5\}" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="false"];
+
+RadialGradient [type="my.image.generate.basic.radialGradient" version="1.0.0" label="my_RadialGradient|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<width>width\l|<stretch>stretch\l|<offset>offset\l|<pingPong>pingPong\l|<repeat>repeat\l|<center>center\l|<polarOrientation>polarOrientation\l|<biasAndGain>biasAndGain\l|<noise>noise\l|<resolution>resolution\l|<generateMipMaps>generateMipMaps\l|<textureOutput>TextureOutput\r" pos="-720,300" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":0.99999,\"b\":1,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0.000001,\"b\":0.000001,\"a\":1\}" _width="1" _stretch="\{\"x\":1,\"y\":0.72\}" _offset="0" _pingPong="false" _repeat="false" _center="\{\"x\":0,\"y\":0\}" _polarOrientation="false" _biasAndGain="\{\"x\":0.5,\"y\":0.5\}" _noise="0" _resolution="\{\"x\":160,\"y\":160\}" _generateMipMaps="false"];
+
+RoundedRect [type="my.image.generate.basic.roundedRect" version="1.0.0" label="my_RoundedRect|<renderTick>renderTick\l|<color>color\l|<background>background\l|<position>position\l|<stretch>stretch\l|<scale>scale\l|<rotate>rotate\l|<round>round\l|<strokeColor>strokeColor\l|<stroke>stroke\l|<feather>feather\l|<featherBias>featherBias\l|<resolution>resolution\l|<generateMips>generateMips\l|<textureOutput>TextureOutput\r" pos="-720,630" fillcolor="#9F008A" _color="\{\"r\":0.95,\"g\":0.25,\"b\":0.12,\"a\":1\}" _background="\{\"r\":0,\"g\":0,\"b\":0,\"a\":0\}" _position="\{\"x\":0,\"y\":0\}" _stretch="\{\"x\":1.1,\"y\":0.7\}" _scale="0.65" _rotate="18" _round="0.45" _strokeColor="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _stroke="0.08" _feather="0.02" _featherBias="-0.001" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="false"];
+
+ProofImage [type="my.image.batch.batch32BasicGenerateProof" version="1.0.0" label="my_Batch32BasicGenerateProof|<renderTick>renderTick\l|<checkerImage>checkerImage\l|<linearImage>linearImage\l|<radialImage>radialImage\l|<roundedRectImage>roundedRectImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="120,100" fillcolor="#9F008A" _width="640" _height="160"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 32 Basic Generate|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="780,100" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="780,-190" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-32-basic-generate-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 32 basic generate proof\"" pos="-240,-500" width="540" height="42"];
+
+DisplayRefresh:requestedFrame -> CheckerBoard:renderTick;
+DisplayRefresh:requestedFrame -> LinearGradient:renderTick;
+DisplayRefresh:requestedFrame -> RadialGradient:renderTick;
+DisplayRefresh:requestedFrame -> RoundedRect:renderTick;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+CheckerBoard:textureOutput -> ProofImage:checkerImage;
+LinearGradient:textureOutput -> ProofImage:linearImage;
+RadialGradient:textureOutput -> ProofImage:radialImage;
+RoundedRect:textureOutput -> ProofImage:roundedRectImage;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

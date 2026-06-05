@@ -1,0 +1,51 @@
+/**
+ * @file
+ * Batch 8 mixed math Vuo visual proof.
+ *
+ * This composition wires my_Atan2, my_AddInts, my_MultiplyInts, and
+ * my_SumInts into my_Batch8MixedMathProof, a proof-only image adapter.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-870,-80" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-870,260" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+MakeIntList [type="vuo.list.make.3.VuoInteger" version="2.0.0" label="Make Int List|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-595,90" fillcolor="#868C8D" _1="2" _2="-3" _3="4"];
+
+Atan2 [type="my.numbers.float.trigonometry.atan2" version="1.0.0" label="my_Atan2|<vector>vector\l|<result>Result\r" pos="-340,-205" fillcolor="#868C8D" _vector="\{\"x\":1.0,\"y\":0.0\}"];
+
+AddInts [type="my.numbers.int.basic.addInts" version="1.0.0" label="my_AddInts|<input1>input1\l|<input2>input2\l|<result>Result\r" pos="-340,-45" fillcolor="#868C8D" _input1="2" _input2="5"];
+
+MultiplyInts [type="my.numbers.int.basic.multiplyInts" version="1.0.0" label="my_MultiplyInts|<inputValues>inputValues\l|<result>Result\r" pos="-340,120" fillcolor="#868C8D"];
+
+SumInts [type="my.numbers.int.basic.sumInts" version="1.0.0" label="my_SumInts|<inputValues>inputValues\l|<defaultValue>defaultValue\l|<result>Result\r" pos="-340,280" fillcolor="#868C8D" _defaultValue="0"];
+
+ProofImage [type="my.numbers.batch.batch8MixedMathProof" version="1.0.0" label="my_Batch8MixedMathProof|<renderTick>renderTick\l|<atan2Value>atan2Value\l|<addIntsValue>addIntsValue\l|<multiplyIntsValue>multiplyIntsValue\l|<sumIntsValue>sumIntsValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="200,35" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 8 Mixed Math|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="700,35" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="700,-180" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-8-mixed-math-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 8 mixed math visual proof\"" pos="80,385" width="430" height="42"];
+
+FireOnStart:started -> MakeIntList:refresh;
+FireOnStart:started -> Atan2:vector;
+FireOnStart:started -> AddInts:input1;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+MakeIntList:list -> MultiplyInts:inputValues;
+MakeIntList:list -> SumInts:inputValues;
+Atan2:result -> ProofImage:atan2Value;
+AddInts:result -> ProofImage:addIntsValue;
+MultiplyInts:result -> ProofImage:multiplyIntsValue;
+SumInts:result -> ProofImage:sumIntsValue;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

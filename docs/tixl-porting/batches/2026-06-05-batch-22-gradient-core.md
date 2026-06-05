@@ -1,0 +1,25 @@
+# Batch 22 Gradient Core Acceptance Matrix
+
+Scope: three gradient-core color nodes: `BuildGradient`, `DefineGradient`, and `SampleGradient`.
+
+Gate: every row needs TiXL source/default evidence, semantic edge cases, Vuo C source, installation into the Vuo user module folder, and a Vuo-visible proof that consumes the exact `my_<TiXLName>` node output.
+
+Vuo body-layer note: TiXL `Gradient` has no direct Vuo type. This batch uses a bounded adapter where a gradient is carried as `VuoList_VuoColor` + `VuoList_VuoReal` positions + `VuoInteger` interpolation enum. This proves construction and sampling behavior without pretending Vuo has TiXL's native mutable `Gradient` object.
+
+| TiXL node | grade | Vuo title | Vuo source | source evidence | semantic/source tests | Vuo visual proof | status |
+|---|---|---|---|---|---|---|---|
+| `Lib.numbers.color.BuildGradient` | B adapter | `my_BuildGradient` | `vuo-nodes/my.numbers.color.buildGradient.c` | C# `external/tixl/Operators/Lib/numbers/color/BuildGradient.cs`; `.t3` `external/tixl/Operators/Lib/numbers/color/BuildGradient.t3`; helper `external/tixl/Core/DataTypes/Gradient.cs` | `tests/tixl_batch22_gradient_core_semantics.test.js`; `tests/tixl_batch22_gradient_core_vuo_nodes.test.js` | `vuo-compositions/generated/myworld-batch-22-gradient-core-proof.vuo` -> `my_SampleGradient` and `my_Batch22GradientCoreProof.builtGradientColors`; Vuo-saved image `artifacts/vuo_cli/batch-22-gradient-core-vuo-save.png` | done |
+| `Lib.numbers.color.DefineGradient` | B adapter | `my_DefineGradient` | `vuo-nodes/my.numbers.color.defineGradient.c` | C# `external/tixl/Operators/Lib/numbers/color/DefineGradient.cs`; `.t3` `external/tixl/Operators/Lib/numbers/color/DefineGradient.t3`; helper `external/tixl/Core/DataTypes/Gradient.cs` | `tests/tixl_batch22_gradient_core_semantics.test.js`; `tests/tixl_batch22_gradient_core_vuo_nodes.test.js` | `vuo-compositions/generated/myworld-batch-22-gradient-core-proof.vuo` -> `my_SampleGradient` and `my_Batch22GradientCoreProof.definedGradientColors`; Vuo-saved image `artifacts/vuo_cli/batch-22-gradient-core-vuo-save.png` | done |
+| `Lib.numbers.color.SampleGradient` | B adapter | `my_SampleGradient` | `vuo-nodes/my.numbers.color.sampleGradient.c` | C# `external/tixl/Operators/Lib/numbers/color/SampleGradient.cs`; `.t3` `external/tixl/Operators/Lib/numbers/color/SampleGradient.t3`; helper `external/tixl/Core/DataTypes/Gradient.cs`; `external/tixl/Core/Utils/OkLab.cs`; `external/tixl/Core/Utils/MathUtils.cs` | `tests/tixl_batch22_gradient_core_semantics.test.js`; `tests/tixl_batch22_gradient_core_vuo_nodes.test.js` | `vuo-compositions/generated/myworld-batch-22-gradient-core-proof.vuo` -> `my_Batch22GradientCoreProof.builtSampleColor` and `definedSampleColor`; Vuo-saved image `artifacts/vuo_cli/batch-22-gradient-core-vuo-save.png` | done |
+
+## Batch Notes
+
+- `my_BuildGradient` preserves TiXL defaults: `Colors=[black, white]`, `Positions=[]`, `Interpolation=3`. Empty positions fall back to normalized handles: one color becomes `0`, multiple colors become `index / (count - 1)`.
+- `BuildGradient` uses the minimum of color count and position count, then sorts handles by normalized position, matching TiXL `SortHandles()`.
+- `my_DefineGradient` preserves TiXL defaults: `Color1Pos=0`, `Color2Pos=1`, `Color3Pos=-1`, `Color4Pos=-1`, `Interpolation=0`. Negative positions are skipped. If all handles are skipped, the node falls back to `Color1` at position `0`.
+- `my_SampleGradient` clamps `SamplePos` to `[0, 1]`, returns the first step before the first handle, returns the previous step after the last handle, and returns white for an empty gradient, matching `Gradient.Sample`.
+- `SampleGradient` supports TiXL interpolation modes `0=Linear`, `1=Hold`, `2=Smooth`, and `3=OkLab` in the Vuo adapter. Mode `4=Spline` is marked adapter-bounded and falls back to Linear because TiXL uses a `CubicSpline` cache object that is not yet part of the My World/Vuo gradient body-layer.
+- `SampleGradient` override behavior is preserved: when `OverrideInterpolation=true`, the output gradient interpolation becomes the requested interpolation; otherwise it passes through the incoming gradient interpolation.
+- `PickGradient` and `BlendGradients` were not included in this batch because they consume/emit the same bounded gradient payload and can now be implemented on top of this body-layer. `GradientsToTexture` remains image/resource work.
+- Vuo CLI proof `batch-22-gradient-core-proof` compiled and linked with return code `0`, loaded `my.numbers.color.buildGradient`, `my.numbers.color.defineGradient`, `my.numbers.color.sampleGradient`, `my.numbers.batch.batch22GradientCoreProof`, and supporting list nodes, opened an onscreen runner window, and produced Vuo-rendered PNG evidence at `artifacts/vuo_cli/batch-22-gradient-core-vuo-save.png`.
+- Current macOS window capture failed with `could not create image from window`, matching previous batch reruns; this remains classified as a capture-layer issue. The Vuo-native saved image is non-black: `960x540`, average luma `0.658484`, bright ratio `1.0`, `mostlyBlack=false`.

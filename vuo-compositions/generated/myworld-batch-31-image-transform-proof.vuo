@@ -1,0 +1,55 @@
+/**
+ * @file
+ * Batch 31 image/transform Vuo visual proof.
+ *
+ * This composition wires a generated source image through my_Crop,
+ * my_MakeTileableImage, my_MirrorRepeat, and my_TransformImage.
+ * Acceptance uses Vuo-native PNG saving.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1320,100" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+Source [type="my.image.batch.batch31TransformSource" version="1.0.0" label="my_Batch31TransformSource|<renderTick>renderTick\l|<width>width\l|<height>height\l|<Image>Image\r" pos="-980,100" fillcolor="#9F008A" _width="160" _height="160"];
+
+Crop [type="my.image.transform.crop" version="1.0.0" label="my_Crop|<renderTick>renderTick\l|<texture2d>texture2d\l|<leftRight>leftRight\l|<topBottom>topBottom\l|<paddingColor>paddingColor\l|<output>Output\r" pos="-520,-270" fillcolor="#9F008A" _leftRight="\{\"x\":24,\"y\":-16\}" _topBottom="\{\"x\":18,\"y\":-10\}" _paddingColor="\{\"r\":1,\"g\":1,\"b\":1,\"a\":0.25\}"];
+
+MakeTileableImage [type="my.image.transform.makeTileableImage" version="1.0.0" label="my_MakeTileableImage|<renderTick>renderTick\l|<imageA>imageA\l|<edgeFallOff>edgeFallOff\l|<tilingMode>tilingMode\l|<isEnabled>isEnabled\l|<selected>Selected\r" pos="-520,-20" fillcolor="#9F008A" _edgeFallOff="0.28" _tilingMode="3" _isEnabled="true"];
+
+MirrorRepeat [type="my.image.transform.mirrorRepeat" version="1.0.0" label="my_MirrorRepeat|<renderTick>renderTick\l|<image>image\l|<rotateMirror>rotateMirror\l|<rotateImage>rotateImage\l|<width>width\l|<offset>offset\l|<offsetEdge>offsetEdge\l|<offsetimage>offsetimage\l|<shadeAmount>shadeAmount\l|<shadeColor>shadeColor\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-520,240" fillcolor="#9F008A" _rotateMirror="25" _rotateImage="-10" _width="0.33" _offset="0.2" _offsetEdge="0.03" _offsetimage="\{\"x\":0.05,\"y\":0\}" _shadeAmount="0.35" _shadeColor="\{\"r\":0.000001,\"g\":0.000001,\"b\":0.000001,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+
+TransformImage [type="my.image.transform.transformImage" version="1.0.0" label="my_TransformImage|<renderTick>renderTick\l|<image>image\l|<offset>offset\l|<stretch>stretch\l|<scale>scale\l|<rotation>rotation\l|<resolution>resolution\l|<resolutionFactor>resolutionFactor\l|<generateMips>generateMips\l|<wrapMode>wrapMode\l|<textureOutput>TextureOutput\r" pos="-520,540" fillcolor="#9F008A" _offset="\{\"x\":0.1,\"y\":-0.08\}" _stretch="\{\"x\":1.35,\"y\":0.85\}" _scale="1.15" _rotation="28" _resolution="\{\"x\":160,\"y\":160\}" _resolutionFactor="\{\"x\":1,\"y\":1\}" _generateMips="false" _wrapMode="0"];
+
+ProofImage [type="my.image.batch.batch31ImageTransformProof" version="1.0.0" label="my_Batch31ImageTransformProof|<renderTick>renderTick\l|<cropImage>cropImage\l|<tileableImage>tileableImage\l|<mirrorImage>mirrorImage\l|<transformImage>transformImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="190,100" fillcolor="#9F008A" _width="640" _height="160"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 31 Image Transform|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="820,100" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="820,-190" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-31-image-transform-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 31 image transform proof\"" pos="-240,-500" width="540" height="42"];
+
+DisplayRefresh:requestedFrame -> Source:renderTick;
+DisplayRefresh:requestedFrame -> Crop:renderTick;
+DisplayRefresh:requestedFrame -> MakeTileableImage:renderTick;
+DisplayRefresh:requestedFrame -> MirrorRepeat:renderTick;
+DisplayRefresh:requestedFrame -> TransformImage:renderTick;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+Source:Image -> Crop:texture2d;
+Source:Image -> MakeTileableImage:imageA;
+Source:Image -> MirrorRepeat:image;
+Source:Image -> TransformImage:image;
+
+Crop:output -> ProofImage:cropImage;
+MakeTileableImage:selected -> ProofImage:tileableImage;
+MirrorRepeat:textureOutput -> ProofImage:mirrorImage;
+TransformImage:textureOutput -> ProofImage:transformImage;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

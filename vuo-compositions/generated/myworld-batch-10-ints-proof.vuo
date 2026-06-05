@@ -1,0 +1,73 @@
+/**
+ * @file
+ * Batch 10 integer-list Vuo visual proof.
+ *
+ * This composition wires my_IntListLength, my_IntsToList, my_MergeIntLists,
+ * my_PickIntFromList, and my_SetIntListValue into my_Batch10IntsProof,
+ * a proof-only image adapter.
+ *
+ * my_MergeIntLists uses a Vuo bounded adapter with three fixed input lists
+ * standing in for TiXL MultiInputSlot<List<int>>.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1180,-120" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1180,320" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+MakeListA [type="vuo.list.make.3.VuoInteger" version="2.0.0" label="Make List A|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-890,-160" fillcolor="#868C8D" _1="10" _2="20" _3="30"];
+
+MakeListB [type="vuo.list.make.2.VuoInteger" version="2.0.0" label="Make List B|<refresh>refresh\l|<1>1\l|<2>2\l|<list>list\r" pos="-890,35" fillcolor="#868C8D" _1="1" _2="2"];
+
+MakeListC [type="vuo.list.make.2.VuoInteger" version="2.0.0" label="Make List C|<refresh>refresh\l|<1>1\l|<2>2\l|<list>list\r" pos="-890,215" fillcolor="#868C8D" _1="7" _2="8"];
+
+MakeStartIndices [type="vuo.list.make.3.VuoInteger" version="2.0.0" label="Start Indices|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-890,390" fillcolor="#868C8D" _1="0" _2="3" _3="5"];
+
+IntsToList [type="my.numbers.ints.intsToList" version="1.0.0" label="my_IntsToList|<inputValues>inputValues\l|<result>Result\r" pos="-535,-170" fillcolor="#868C8D"];
+
+PickIntFromList [type="my.numbers.ints.pickIntFromList" version="1.0.0" label="my_PickIntFromList|<input>input\l|<index>index\l|<selected>Selected\r" pos="-180,-165" fillcolor="#868C8D" _index="-1"];
+
+MergeIntLists [type="my.numbers.ints.mergeIntLists" version="1.0.0" label="my_MergeIntLists|<enabled>enabled\l|<inputList1>inputList1\l|<inputList2>inputList2\l|<inputList3>inputList3\l|<startIndices>startIndices\l|<maxSize>maxSize\l|<mergeMode>mergeMode\l|<result>Result\r" pos="-535,125" fillcolor="#868C8D" _enabled="true" _maxSize="8" _mergeMode="0"];
+
+IntListLength [type="my.numbers.ints.intListLength" version="1.0.0" label="my_IntListLength|<input>input\l|<length>Length\r" pos="-180,80" fillcolor="#868C8D"];
+
+SetIntListValue [type="my.numbers.ints.setIntListValue" version="1.0.0" label="my_SetIntListValue|<intList>intList\l|<mode>mode\l|<triggerSet>triggerSet\l|<index>index\l|<value>value\l|<result>Result\r" pos="-180,290" fillcolor="#868C8D" _mode="1" _triggerSet="true" _index="-2" _value="5"];
+
+ProofImage [type="my.numbers.batch.batch10IntsProof" version="1.0.0" label="my_Batch10IntsProof|<renderTick>renderTick\l|<lengthValue>lengthValue\l|<pickedValue>pickedValue\l|<intsToList>intsToList\l|<mergedList>mergedList\l|<setList>setList\l|<width>width\l|<height>height\l|<image>Image\r" pos="325,80" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 10 Ints|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="850,80" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="850,-165" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-10-ints-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 10 ints visual proof\"" pos="150,455" width="430" height="42"];
+
+FireOnStart:started -> MakeListA:refresh;
+FireOnStart:started -> MakeListB:refresh;
+FireOnStart:started -> MakeListC:refresh;
+FireOnStart:started -> MakeStartIndices:refresh;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+MakeListA:list -> IntsToList:inputValues;
+IntsToList:result -> PickIntFromList:input;
+IntsToList:result -> ProofImage:intsToList;
+PickIntFromList:selected -> ProofImage:pickedValue;
+
+MakeListA:list -> MergeIntLists:inputList1;
+MakeListB:list -> MergeIntLists:inputList2;
+MakeListC:list -> MergeIntLists:inputList3;
+MakeStartIndices:list -> MergeIntLists:startIndices;
+MergeIntLists:result -> IntListLength:input;
+MergeIntLists:result -> SetIntListValue:intList;
+MergeIntLists:result -> ProofImage:mergedList;
+IntListLength:length -> ProofImage:lengthValue;
+SetIntListValue:result -> ProofImage:setList;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),test=require("node:test");
+const repoRoot=path.resolve(__dirname,".."); const read=p=>fs.readFileSync(path.join(repoRoot,p),"utf8");
+test("Batch 41 Lib.image.fx.stylize source namespace is audited",()=>{ for (const name of ["AsciiRender", "ChromaticAbberation", "ColorPhysarum", "DetectEdges", "Dither", "FakeLight", "Glow", "HoneyCombTiles", "LightRaysFx", "MosiacTiling", "Pixelate", "ScreenCloseUp", "StarGlowStreaks", "Steps", "VoronoiCells"]) { assert.match(read(`external/tixl/Operators/Lib/image/fx/stylize/${name}.cs`),new RegExp(`class ${name}|sealed class ${name}`)); assert.match(read(`external/tixl/Operators/Lib/image/fx/stylize/${name}.t3`),/DefaultValue|Inputs|Children|Id/); } });

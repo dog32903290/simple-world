@@ -1,0 +1,38 @@
+/**
+ * @file
+ * Batch 4 corrected Remap/Lerp Vuo visual proof.
+ *
+ * This composition wires the corrected my_Remap and my_Lerp nodes into
+ * my_Batch4RemapLerpProof, a proof-only image adapter. It uses only corrected
+ * creator-facing my_ node titles.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-760,-100" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-760,180" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+Remap [type="my.numbers.float.adjust.remap" version="1.0.0" label="my_Remap|<value>value\l|<rangeInMin>rangeInMin\l|<rangeInMax>rangeInMax\l|<rangeOutMin>rangeOutMin\l|<rangeOutMax>rangeOutMax\l|<biasAndGain>biasAndGain\l|<mode>mode\l|<result>Result\r" pos="-380,-135" fillcolor="#868C8D" _value="0.25" _rangeInMin="0.0" _rangeInMax="1.0" _rangeOutMin="10.0" _rangeOutMax="20.0" _biasAndGain="\{\"x\":0.5,\"y\":0.5\}" _mode="0"];
+
+Lerp [type="my.numbers.float.process.lerp" version="1.0.0" label="my_Lerp|<a>a\l|<b>b\l|<f>f\l|<clamp>clamp\l|<result>Result\r" pos="-380,95" fillcolor="#868C8D" _a="10.0" _b="20.0" _f="1.5" _clamp="true"];
+
+ProofImage [type="my.numbers.batch.remapLerpProof" version="1.0.0" label="my_Batch4RemapLerpProof|<renderTick>renderTick\l|<remapValue>remapValue\l|<lerpValue>lerpValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="180,-20" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 4 Remap Lerp|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="655,-20" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+Comment [type="vuo.comment" label="\"Batch 4 corrected Remap Lerp proof\"" pos="95,250" width="430" height="42"];
+
+FireOnStart:started -> Remap:value;
+FireOnStart:started -> Lerp:a;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+Remap:result -> ProofImage:remapValue;
+Lerp:result -> ProofImage:lerpValue;
+ProofImage:image -> RenderWindow:image;
+}

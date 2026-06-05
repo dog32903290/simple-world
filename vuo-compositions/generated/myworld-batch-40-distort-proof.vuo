@@ -1,0 +1,48 @@
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1100,100" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+Source [type="my.image.generate.basic.checkerBoard" version="1.0.0" label="my_CheckerBoard|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<stretch>stretch\l|<scale>scale\l|<useAspectRatio>useAspectRatio\l|<offset>offset\l|<resolution>resolution\l|<generateMips>generateMips\l|<textureOutput>TextureOutput\r" pos="-830,100" fillcolor="#9F008A" _colorA="\{\"r\":0.0,\"g\":0.95,\"b\":1.0,\"a\":1\}" _colorB="\{\"r\":1.0,\"g\":0.08,\"b\":0.42,\"a\":1\}" _stretch="\{\"x\":1,\"y\":1\}" _scale="8" _useAspectRatio="true" _offset="\{\"x\":0,\"y\":0\}" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="false"];
+BubbleZoom [type="my.image.fx.distort.bubbleZoom" version="1.0.0" label="my_BubbleZoom|<renderTick>renderTick\l|<image>Image\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,-500" fillcolor="#9F008A" _amount="1.0" _scale="1.0" _phase="0.0" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+ChromaticDistortion [type="my.image.fx.distort.chromaticDistortion" version="1.0.0" label="my_ChromaticDistortion|<renderTick>renderTick\l|<texture2d>Texture2d\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>Output\r" pos="-500,-380" fillcolor="#9F008A" _amount="1.08" _scale="1.12" _phase="0.07" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+Displace [type="my.image.fx.distort.displace" version="1.0.0" label="my_Displace|<renderTick>renderTick\l|<image>Image\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>Output\r" pos="-500,-260" fillcolor="#9F008A" _amount="1.16" _scale="1.24" _phase="0.14" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+DistortAndShade [type="my.image.fx.distort.distortAndShade" version="1.0.0" label="my_DistortAndShade|<renderTick>renderTick\l|<imageA>ImageA\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>Output\r" pos="-500,-140" fillcolor="#9F008A" _amount="1.24" _scale="1.3599999999999999" _phase="0.21000000000000002" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+EdgeRepeat [type="my.image.fx.distort.edgeRepeat" version="1.0.0" label="my_EdgeRepeat|<renderTick>renderTick\l|<image>Image\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,-20" fillcolor="#9F008A" _amount="1.32" _scale="1.48" _phase="0.28" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+FieldToImage [type="my.image.fx.distort.fieldToImage" version="1.0.0" label="my_FieldToImage|<renderTick>renderTick\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,100" fillcolor="#9F008A" _amount="1.4" _scale="1.6" _phase="0.35000000000000003" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+KochKaleidoskope [type="my.image.fx.distort.kochKaleidoskope" version="1.0.0" label="my_KochKaleidoskope|<renderTick>renderTick\l|<image>Image\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,220" fillcolor="#9F008A" _amount="1.48" _scale="1.72" _phase="0.42000000000000004" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+PolarCoordinates [type="my.image.fx.distort.polarCoordinates" version="1.0.0" label="my_PolarCoordinates|<renderTick>renderTick\l|<image>Image\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,340" fillcolor="#9F008A" _amount="1.56" _scale="1.8399999999999999" _phase="0.49000000000000005" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+TimeDisplace [type="my.image.fx.distort.timeDisplace" version="1.0.0" label="my_TimeDisplace|<renderTick>renderTick\l|<image>Image\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>Output\r" pos="-500,460" fillcolor="#9F008A" _amount="1.6400000000000001" _scale="1.96" _phase="0.56" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+ProofImage [type="my.image.batch.batch40DistortProof" version="1.0.0" label="my_Batch40DistortProof|<renderTick>renderTick\l|<bubbleZoomImage>bubbleZoomImage\l|<chromaticDistortionImage>chromaticDistortionImage\l|<displaceImage>displaceImage\l|<distortAndShadeImage>distortAndShadeImage\l|<edgeRepeatImage>edgeRepeatImage\l|<fieldToImageImage>fieldToImageImage\l|<kochKaleidoskopeImage>kochKaleidoskopeImage\l|<polarCoordinatesImage>polarCoordinatesImage\l|<timeDisplaceImage>timeDisplaceImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="120,100" fillcolor="#9F008A" _width="1440" _height="160"];
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 40 Distort|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="720,100" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="720,-190" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-40-distort-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+DisplayRefresh:requestedFrame -> Source:renderTick;
+DisplayRefresh:requestedFrame -> BubbleZoom:renderTick;
+Source:textureOutput -> BubbleZoom:image;
+DisplayRefresh:requestedFrame -> ChromaticDistortion:renderTick;
+Source:textureOutput -> ChromaticDistortion:texture2d;
+DisplayRefresh:requestedFrame -> Displace:renderTick;
+Source:textureOutput -> Displace:image;
+DisplayRefresh:requestedFrame -> DistortAndShade:renderTick;
+Source:textureOutput -> DistortAndShade:imageA;
+DisplayRefresh:requestedFrame -> EdgeRepeat:renderTick;
+Source:textureOutput -> EdgeRepeat:image;
+DisplayRefresh:requestedFrame -> FieldToImage:renderTick;
+DisplayRefresh:requestedFrame -> KochKaleidoskope:renderTick;
+Source:textureOutput -> KochKaleidoskope:image;
+DisplayRefresh:requestedFrame -> PolarCoordinates:renderTick;
+Source:textureOutput -> PolarCoordinates:image;
+DisplayRefresh:requestedFrame -> TimeDisplace:renderTick;
+Source:textureOutput -> TimeDisplace:image;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+BubbleZoom:textureOutput -> ProofImage:bubbleZoomImage;
+ChromaticDistortion:textureOutput -> ProofImage:chromaticDistortionImage;
+Displace:textureOutput -> ProofImage:displaceImage;
+DistortAndShade:textureOutput -> ProofImage:distortAndShadeImage;
+EdgeRepeat:textureOutput -> ProofImage:edgeRepeatImage;
+FieldToImage:textureOutput -> ProofImage:fieldToImageImage;
+KochKaleidoskope:textureOutput -> ProofImage:kochKaleidoskopeImage;
+PolarCoordinates:textureOutput -> ProofImage:polarCoordinatesImage;
+TimeDisplace:textureOutput -> ProofImage:timeDisplaceImage;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

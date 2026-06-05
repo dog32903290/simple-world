@@ -1,0 +1,51 @@
+/**
+ * @file
+ * Batch 6 float logic Vuo visual proof.
+ *
+ * This composition wires my_IsGreater, my_PickFloat, my_TryParse, and
+ * my_ValueToRate into my_Batch6FloatLogicProof, a proof-only image adapter.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-920,-100" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-920,270" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+MakeFloatList [type="vuo.list.make.3.VuoReal" version="2.0.0" label="Make Float List|<refresh>refresh\l|<1>1\l|<2>2\l|<3>3\l|<list>list\r" pos="-610,40" fillcolor="#868C8D" _1="2.0" _2="4.0" _3="8.0"];
+
+IsGreater [type="my.numbers.float.logic.isGreater" version="1.0.0" label="my_IsGreater|<value>value\l|<threshold>threshold\l|<result>Result\r" pos="-365,-230" fillcolor="#868C8D" _value="1.0" _threshold="0.5"];
+
+PickFloat [type="my.numbers.float.logic.pickFloat" version="1.0.0" label="my_PickFloat|<floatValues>floatValues\l|<index>index\l|<selected>Selected\r" pos="-365,-55" fillcolor="#868C8D" _index="-1"];
+
+TryParse [type="my.numbers.float.logic.tryParse" version="1.0.0" label="my_TryParse|<string>string\l|<defaultValue>Default\l|<result>Result\r" pos="-365,125" fillcolor="#868C8D" _string="\"3.25\"" _defaultValue="0.0"];
+
+ValueToRate [type="my.numbers.float.logic.valueToRate" version="1.0.0" label="my_ValueToRate|<value>value\l|<rates>rates\l|<result>Result\r" pos="-365,315" fillcolor="#868C8D" _value="0.5" _rates="\"0\\n0.0625\\n0.125\\n0.25\\n0.5\\n1\\n1\\n4\\n8\\n16\\n32\""];
+
+ProofImage [type="my.numbers.batch.batch6FloatLogicProof" version="1.0.0" label="my_Batch6FloatLogicProof|<renderTick>renderTick\l|<isGreaterValue>isGreaterValue\l|<pickFloatValue>pickFloatValue\l|<tryParseValue>tryParseValue\l|<valueToRateValue>valueToRateValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="190,35" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 6 Float Logic|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="690,35" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="690,-175" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-6-float-logic-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 6 float logic visual proof\"" pos="100,405" width="440" height="42"];
+
+FireOnStart:started -> MakeFloatList:refresh;
+FireOnStart:started -> IsGreater:value;
+FireOnStart:started -> TryParse:string;
+FireOnStart:started -> ValueToRate:value;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+MakeFloatList:list -> PickFloat:floatValues;
+IsGreater:result -> ProofImage:isGreaterValue;
+PickFloat:selected -> ProofImage:pickFloatValue;
+TryParse:result -> ProofImage:tryParseValue;
+ValueToRate:result -> ProofImage:valueToRateValue;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

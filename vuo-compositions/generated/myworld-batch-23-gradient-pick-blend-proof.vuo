@@ -1,0 +1,83 @@
+/**
+ * @file
+ * Batch 23 gradient pick/blend Vuo visual proof.
+ *
+ * This composition wires my_PickGradient and my_BlendGradients into
+ * my_Batch23GradientPickBlendProof, with my_SampleGradient exposing both
+ * gradient outputs as visible sampled colors.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1400,-170" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1400,260" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+ColorsToListA [type="my.numbers.floats.basic.colorsToList" version="1.0.0" label="Colors A|<color1>color1\l|<color2>color2\l|<color3>color3\l|<inputCount>inputCount\l|<result>Result\r" pos="-1040,-300" fillcolor="#868C8D" _color1="\{\"r\":1,\"g\":0.05,\"b\":0.04,\"a\":1\}" _color2="\{\"r\":0.08,\"g\":0.9,\"b\":0.2,\"a\":1\}" _color3="\{\"r\":0.08,\"g\":0.18,\"b\":1,\"a\":1\}" _inputCount="3"];
+
+BuildGradient [type="my.numbers.color.buildGradient" version="1.0.0" label="my_BuildGradient|<colors>colors\l|<positions>positions\l|<interpolation>interpolation\l|<gradientColors>Gradient Colors\r|<gradientPositions>Gradient Positions\r|<gradientInterpolation>Gradient Interpolation\r" pos="-640,-300" fillcolor="#868C8D" _interpolation="0"];
+
+DefineGradient [type="my.numbers.color.defineGradient" version="1.0.0" label="my_DefineGradient|<color1>color1\l|<color1Pos>color1Pos\l|<color2>color2\l|<color2Pos>color2Pos\l|<color3>color3\l|<color3Pos>color3Pos\l|<color4>color4\l|<color4Pos>color4Pos\l|<interpolation>interpolation\l|<gradientColors>Gradient Colors\r|<gradientPositions>Gradient Positions\r|<gradientInterpolation>Gradient Interpolation\r" pos="-640,55" fillcolor="#868C8D" _color1="\{\"r\":0.03,\"g\":0.03,\"b\":0.15,\"a\":1\}" _color1Pos="0.0" _color2="\{\"r\":1,\"g\":0.7,\"b\":0.18,\"a\":0.65\}" _color2Pos="0.5" _color3="\{\"r\":0.12,\"g\":0.9,\"b\":0.96,\"a\":1\}" _color3Pos="1.0" _color4="\{\"r\":1,\"g\":0,\"b\":1,\"a\":0\}" _color4Pos="-1.0" _interpolation="0"];
+
+PickGradient [type="my.numbers.color.pickGradient" version="1.0.0" label="my_PickGradient|<gradient1Colors>gradient1Colors\l|<gradient1Positions>gradient1Positions\l|<gradient1Interpolation>gradient1Interpolation\l|<gradient2Colors>gradient2Colors\l|<gradient2Positions>gradient2Positions\l|<gradient2Interpolation>gradient2Interpolation\l|<gradient3Colors>gradient3Colors\l|<gradient3Positions>gradient3Positions\l|<gradient3Interpolation>gradient3Interpolation\l|<inputCount>inputCount\l|<index>index\l|<previousSelectedColors>previousSelectedColors\l|<previousSelectedPositions>previousSelectedPositions\l|<previousSelectedInterpolation>previousSelectedInterpolation\l|<selectedColors>Selected Colors\r|<selectedPositions>Selected Positions\r|<selectedInterpolation>Selected Interpolation\r" pos="-170,-205" fillcolor="#868C8D" _inputCount="2" _index="-1" _previousSelectedInterpolation="0"];
+
+BlendGradients [type="my.numbers.color.blendGradients" version="1.0.0" label="my_BlendGradients|<gradientAColors>gradientAColors\l|<gradientAPositions>gradientAPositions\l|<gradientAInterpolation>gradientAInterpolation\l|<gradientBColors>gradientBColors\l|<gradientBPositions>gradientBPositions\l|<gradientBInterpolation>gradientBInterpolation\l|<blendMode>blendMode\l|<mixFactor>mixFactor\l|<resultColors>Result Colors\r|<resultPositions>Result Positions\r|<resultInterpolation>Result Interpolation\r" pos="-170,125" fillcolor="#868C8D" _blendMode="0" _mixFactor="0.4"];
+
+SamplePicked [type="my.numbers.color.sampleGradient" version="1.0.0" label="my_SampleGradient Picked|<samplePos>samplePos\l|<gradientColors>gradientColors\l|<gradientPositions>gradientPositions\l|<gradientInterpolation>gradientInterpolation\l|<overrideInterpolation>overrideInterpolation\l|<interpolation>interpolation\l|<color>Color\r|<outGradientColors>Out Gradient Colors\r|<outGradientPositions>Out Gradient Positions\r|<outGradientInterpolation>Out Gradient Interpolation\r" pos="290,-205" fillcolor="#868C8D" _samplePos="0.4" _overrideInterpolation="false" _interpolation="0"];
+
+SampleBlended [type="my.numbers.color.sampleGradient" version="1.0.0" label="my_SampleGradient Blended|<samplePos>samplePos\l|<gradientColors>gradientColors\l|<gradientPositions>gradientPositions\l|<gradientInterpolation>gradientInterpolation\l|<overrideInterpolation>overrideInterpolation\l|<interpolation>interpolation\l|<color>Color\r|<outGradientColors>Out Gradient Colors\r|<outGradientPositions>Out Gradient Positions\r|<outGradientInterpolation>Out Gradient Interpolation\r" pos="290,125" fillcolor="#868C8D" _samplePos="0.6" _overrideInterpolation="false" _interpolation="0"];
+
+ProofImage [type="my.numbers.batch.batch23GradientPickBlendProof" version="1.0.0" label="my_Batch23GradientPickBlendProof|<renderTick>renderTick\l|<pickedSampleColor>pickedSampleColor\l|<blendedSampleColor>blendedSampleColor\l|<pickedGradientColors>pickedGradientColors\l|<blendedGradientColors>blendedGradientColors\l|<width>width\l|<height>height\l|<image>Image\r" pos="760,-30" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 23 Gradient Pick Blend|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="1320,-30" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="1320,-270" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-23-gradient-pick-blend-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 23 gradient pick blend proof\"" pos="170,420" width="560" height="42"];
+
+FireOnStart:started -> ColorsToListA:color1;
+FireOnStart:started -> BuildGradient:colors;
+FireOnStart:started -> DefineGradient:color1;
+FireOnStart:started -> PickGradient:index;
+FireOnStart:started -> BlendGradients:blendMode;
+FireOnStart:started -> SamplePicked:samplePos;
+FireOnStart:started -> SampleBlended:samplePos;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+ColorsToListA:result -> BuildGradient:colors;
+
+BuildGradient:gradientColors -> PickGradient:gradient1Colors;
+BuildGradient:gradientPositions -> PickGradient:gradient1Positions;
+BuildGradient:gradientInterpolation -> PickGradient:gradient1Interpolation;
+DefineGradient:gradientColors -> PickGradient:gradient2Colors;
+DefineGradient:gradientPositions -> PickGradient:gradient2Positions;
+DefineGradient:gradientInterpolation -> PickGradient:gradient2Interpolation;
+
+BuildGradient:gradientColors -> BlendGradients:gradientAColors;
+BuildGradient:gradientPositions -> BlendGradients:gradientAPositions;
+BuildGradient:gradientInterpolation -> BlendGradients:gradientAInterpolation;
+DefineGradient:gradientColors -> BlendGradients:gradientBColors;
+DefineGradient:gradientPositions -> BlendGradients:gradientBPositions;
+DefineGradient:gradientInterpolation -> BlendGradients:gradientBInterpolation;
+
+PickGradient:selectedColors -> SamplePicked:gradientColors;
+PickGradient:selectedPositions -> SamplePicked:gradientPositions;
+PickGradient:selectedInterpolation -> SamplePicked:gradientInterpolation;
+
+BlendGradients:resultColors -> SampleBlended:gradientColors;
+BlendGradients:resultPositions -> SampleBlended:gradientPositions;
+BlendGradients:resultInterpolation -> SampleBlended:gradientInterpolation;
+
+SamplePicked:color -> ProofImage:pickedSampleColor;
+SampleBlended:color -> ProofImage:blendedSampleColor;
+PickGradient:selectedColors -> ProofImage:pickedGradientColors;
+BlendGradients:resultColors -> ProofImage:blendedGradientColors;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

@@ -1,0 +1,19 @@
+# Batch 31 Image Transform Acceptance Matrix
+
+Scope: `Lib.image.transform` nodes that can be shown through a bounded Vuo image body layer without claiming native DX11/compute parity.
+
+| TiXL node | acceptance | Vuo visible title | Vuo source | source evidence | tests | proof | status |
+|---|---|---|---|---|---|---|---|
+| `Lib.image.transform.Crop` | C bounded compute-shader adapter | `my_Crop` | `vuo-nodes/my.image.transform.crop.c` | C# `external/tixl/Operators/Lib/image/transform/Crop.cs`; `.t3` `external/tixl/Operators/Lib/image/transform/Crop.t3`; shader `external/tixl/Operators/Lib/Assets/shaders/img/CropImage-cs.hlsl`; docs `external/tixl/.help/docs/operators/lib/image/transform/Crop.md` | `tests/tixl_batch31_image_transform_semantics.test.js`; `tests/tixl_batch31_image_transform_vuo_nodes.test.js` | `vuo-compositions/generated/myworld-batch-31-image-transform-proof.vuo` -> first band shows source image cropped/padded with transparent white padding | done |
+| `Lib.image.transform.MakeTileableImage` | C bounded compound graph adapter | `my_MakeTileableImage` | `vuo-nodes/my.image.transform.makeTileableImage.c` | C# `external/tixl/Operators/Lib/image/transform/MakeTileableImage.cs`; `.t3` `external/tixl/Operators/Lib/image/transform/MakeTileableImage.t3`; child graph uses `TransformImage`, `LinearGradient`, `BlendWithMask`, `PickTexture` | same tests | same proof -> second band shows half-offset seam blending from the source image | done |
+| `Lib.image.transform.MirrorRepeat` | C bounded shader adapter | `my_MirrorRepeat` | `vuo-nodes/my.image.transform.mirrorRepeat.c` | C# `external/tixl/Operators/Lib/image/transform/MirrorRepeat.cs`; `.t3` `external/tixl/Operators/Lib/image/transform/MirrorRepeat.t3`; shader `external/tixl/Operators/Lib/Assets/shaders/img/fx/MirrorRepeat.hlsl`; docs `external/tixl/.help/docs/operators/lib/image/transform/MirrorRepeat.md` | same tests | same proof -> third band shows angled mirror stripes with shade amount | done |
+| `Lib.image.transform.TransformImage` | C bounded shader adapter | `my_TransformImage` | `vuo-nodes/my.image.transform.transformImage.c` | C# `external/tixl/Operators/Lib/image/transform/TransformImage.cs`; `.t3` `external/tixl/Operators/Lib/image/transform/TransformImage.t3`; shader `external/tixl/Operators/Lib/Assets/shaders/img/fx/TransformImage.hlsl`; docs `external/tixl/.help/docs/operators/lib/image/transform/TransformImage.md` | same tests | same proof -> fourth band shows rotated/scaled/wrapped source image | done |
+
+## Proof Notes
+
+- Primary output type for all four manufactured nodes is `Texture2D`, so node/cable color remains TiXL `ColorForTextures #9F008A`.
+- `Crop` is not native compute parity. It preserves visible crop/pad sampling and output sizing, but not TiXL UAV allocation, mip generation, or DX11 format behavior.
+- `MakeTileableImage` is a bounded adapter for TiXL's child graph: it exposes enabled state, edge falloff, and tiling mode branches, but not the exact internal Vuo/TiXL graph topology.
+- `MirrorRepeat` and `TransformImage` translate the HLSL sampling law into GLSL 120 through `VuoImageRenderer`; sampler filter, mipmap generation, and DX11 wrap edge details remain body-layer approximations.
+- Vuo CLI proof `batch-31-image-transform-proof` compiled and linked with return code `0`, loaded all four manufactured nodes plus proof-only `my.image.batch.batch31TransformSource` and `my.image.batch.batch31ImageTransformProof`, opened an onscreen runner window, and captured screenshot evidence at `artifacts/vuo_cli/batch-31-image-transform-proof.run.png`.
+- Screenshot visual stats: `mostlyBlack=false`, average luma `0.326335`, bright ratio `0.86326`. Non-fatal warnings were limited to missing Vuo Pro license, module/cache/runtime state noise, and a logged zero-texture warning while the proof still rendered non-black output.

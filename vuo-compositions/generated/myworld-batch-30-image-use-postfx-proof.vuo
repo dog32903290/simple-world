@@ -1,0 +1,52 @@
+/**
+ * @file
+ * Batch 30 image/use post-fx Vuo visual proof.
+ *
+ * This composition wires generated source images through my_Fxaa,
+ * my_NormalMap, and my_DepthBufferAsGrayScale. Acceptance uses Vuo-native PNG saving.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1260,120" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+SourcePattern [type="my.image.batch.batch30PostfxSource" version="1.0.0" label="my_Batch30PostfxSource|<renderTick>renderTick\l|<mode>mode\l|<width>width\l|<height>height\l|<Image>Image\r" pos="-920,-140" fillcolor="#9F008A" _mode="0" _width="160" _height="160"];
+
+SourceDepth [type="my.image.batch.batch30PostfxSource" version="1.0.0" label="my_Batch30PostfxSource|<renderTick>renderTick\l|<mode>mode\l|<width>width\l|<height>height\l|<Image>Image\r" pos="-920,300" fillcolor="#9F008A" _mode="1" _width="160" _height="160"];
+
+Fxaa [type="my.image.use.fxaa" version="1.0.0" label="my_Fxaa|<renderTick>renderTick\l|<image>image\l|<preset>preset\l|<keepAlpha>keepAlpha\l|<textureOutput>TextureOutput\r" pos="-460,-220" fillcolor="#9F008A" _preset="3" _keepAlpha="false"];
+
+NormalMap [type="my.image.use.normalMap" version="1.0.0" label="my_NormalMap|<renderTick>renderTick\l|<lightMap>lightMap\l|<impact>impact\l|<sampleRadius>sampleRadius\l|<resolution>resolution\l|<twist>twist\l|<mode>mode\l|<output>Output\r" pos="-460,90" fillcolor="#9F008A" _impact="3" _sampleRadius="2" _resolution="\{\"x\":160,\"y\":160\}" _twist="180" _mode="0"];
+
+DepthBufferAsGrayScale [type="my.image.use.depthBufferAsGrayScale" version="1.0.0" label="my_DepthBufferAsGrayScale|<renderTick>renderTick\l|<texture2d>texture2d\l|<nearFarRange>nearFarRange\l|<outputRange>outputRange\l|<clampOutput>clampOutput\l|<mode>mode\l|<output>Output\r" pos="-460,410" fillcolor="#9F008A" _nearFarRange="\{\"x\":0.01,\"y\":1000\}" _outputRange="\{\"x\":0,\"y\":0.05\}" _clampOutput="true" _mode="0"];
+
+ProofImage [type="my.image.batch.batch30ImageUsePostfxProof" version="1.0.0" label="my_Batch30ImageUsePostfxProof|<renderTick>renderTick\l|<fxaaImage>fxaaImage\l|<normalMapImage>normalMapImage\l|<depthImage>depthImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="170,90" fillcolor="#9F008A" _width="480" _height="160"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 30 Image Use Postfx|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="760,90" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="760,-190" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-30-image-use-postfx-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 30 image use postfx proof\"" pos="-220,-500" width="520" height="42"];
+
+DisplayRefresh:requestedFrame -> SourcePattern:renderTick;
+DisplayRefresh:requestedFrame -> SourceDepth:renderTick;
+DisplayRefresh:requestedFrame -> Fxaa:renderTick;
+DisplayRefresh:requestedFrame -> NormalMap:renderTick;
+DisplayRefresh:requestedFrame -> DepthBufferAsGrayScale:renderTick;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+SourcePattern:Image -> Fxaa:image;
+SourcePattern:Image -> NormalMap:lightMap;
+SourceDepth:Image -> DepthBufferAsGrayScale:texture2d;
+
+Fxaa:textureOutput -> ProofImage:fxaaImage;
+NormalMap:output -> ProofImage:normalMapImage;
+DepthBufferAsGrayScale:output -> ProofImage:depthImage;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

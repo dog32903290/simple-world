@@ -1,0 +1,26 @@
+# Batch 35 Image Generate Pattern Acceptance Matrix
+
+Scope: finish `Lib.image.generate.pattern`.
+
+| TiXL node | acceptance | Vuo visible title | Vuo source | source evidence | tests | proof | status |
+|---|---|---|---|---|---|---|---|
+| `Lib.image.generate.pattern.FraserGrid` | C bounded shader adapter | `my_FraserGrid` | `vuo-nodes/my.image.generate.pattern.fraserGrid.c` | C# `external/tixl/Operators/Lib/image/generate/pattern/FraserGrid.cs`; `.t3` `external/tixl/Operators/Lib/image/generate/pattern/FraserGrid.t3`; shader `FraserGrid.hlsl` | Batch 35 tests | `vuo-compositions/generated/myworld-batch-35-pattern-generate-proof.vuo` | done |
+| `Lib.image.generate.pattern.NumberPattern` | C bounded shader adapter | `my_NumberPattern` | `vuo-nodes/my.image.generate.pattern.numberPattern.c` | C# `external/tixl/Operators/Lib/image/generate/pattern/NumberPattern.cs`; `.t3` `external/tixl/Operators/Lib/image/generate/pattern/NumberPattern.t3`; shader `NumberPattern.hlsl` | Batch 35 tests | `vuo-compositions/generated/myworld-batch-35-pattern-generate-proof.vuo` | done |
+| `Lib.image.generate.pattern.Raster` | C bounded shader adapter | `my_Raster` | `vuo-nodes/my.image.generate.pattern.raster.c` | C# `external/tixl/Operators/Lib/image/generate/pattern/Raster.cs`; `.t3` `external/tixl/Operators/Lib/image/generate/pattern/Raster.t3`; shader `Raster.hlsl` | Batch 35 tests | `vuo-compositions/generated/myworld-batch-35-pattern-generate-proof.vuo` | done |
+| `Lib.image.generate.pattern.Rings` | C bounded shader adapter | `my_Rings` | `vuo-nodes/my.image.generate.pattern.rings.c` | C# `external/tixl/Operators/Lib/image/generate/pattern/Rings.cs`; `.t3` `external/tixl/Operators/Lib/image/generate/pattern/Rings.t3`; shader `Rings.hlsl` | Batch 35 tests | `vuo-compositions/generated/myworld-batch-35-pattern-generate-proof.vuo` | done |
+| `Lib.image.generate.pattern.RyojiPattern1` | C bounded shader adapter | `my_RyojiPattern1` | `vuo-nodes/my.image.generate.pattern.ryojiPattern1.c` | C# `external/tixl/Operators/Lib/image/generate/pattern/RyojiPattern1.cs`; `.t3` `external/tixl/Operators/Lib/image/generate/pattern/RyojiPattern1.t3`; shader `RyojiPattern1.hlsl` | Batch 35 tests | `vuo-compositions/generated/myworld-batch-35-pattern-generate-proof.vuo` | done |
+| `Lib.image.generate.pattern.RyojiPattern2` | C bounded shader adapter | `my_RyojiPattern2` | `vuo-nodes/my.image.generate.pattern.ryojiPattern2.c` | C# `external/tixl/Operators/Lib/image/generate/pattern/RyojiPattern2.cs`; `.t3` `external/tixl/Operators/Lib/image/generate/pattern/RyojiPattern2.t3`; shader `RyojiPattern2.hlsl` | Batch 35 tests | `vuo-compositions/generated/myworld-batch-35-pattern-generate-proof.vuo` | done |
+| `Lib.image.generate.pattern.SinForm` | C bounded shader adapter | `my_SinForm` | `vuo-nodes/my.image.generate.pattern.sinForm.c` | C# `external/tixl/Operators/Lib/image/generate/pattern/SinForm.cs`; `.t3` `external/tixl/Operators/Lib/image/generate/pattern/SinForm.t3`; shader `SinForm.hlsl` | Batch 35 tests | `vuo-compositions/generated/myworld-batch-35-pattern-generate-proof.vuo` | done |
+| `Lib.image.generate.pattern.ValueRaster` | C bounded shader adapter | `my_ValueRaster` | `vuo-nodes/my.image.generate.pattern.valueRaster.c` | C# `external/tixl/Operators/Lib/image/generate/pattern/ValueRaster.cs`; `.t3` `external/tixl/Operators/Lib/image/generate/pattern/ValueRaster.t3`; shader `ValueRaster.hlsl` | Batch 35 tests | `vuo-compositions/generated/myworld-batch-35-pattern-generate-proof.vuo` | done |
+| `Lib.image.generate.pattern.ZollnerPattern` | C bounded shader adapter | `my_ZollnerPattern` | `vuo-nodes/my.image.generate.pattern.zollnerPattern.c` | C# `external/tixl/Operators/Lib/image/generate/pattern/ZollnerPattern.cs`; `.t3` `external/tixl/Operators/Lib/image/generate/pattern/ZollnerPattern.t3`; shader `ZollnerGrid.hlsl` | Batch 35 tests | `vuo-compositions/generated/myworld-batch-35-pattern-generate-proof.vuo` | done |
+
+## Proof Notes
+
+- Primary output type for all nine manufactured nodes is `Texture2D`, so node/cable color remains TiXL `ColorForTextures #9F008A`.
+- Creator-facing titles preserve TiXL capitalization exactly.
+- These are bounded Vuo shader adapters: each node exposes shared pattern controls and a distinct shader branch, while complex TiXL image-input modulation, blend modes, shader-specific full parameter sets, mips, and DXGI formats are documented limits.
+- Vuo CLI proof target: `batch-35-pattern-generate-proof`.
+- Vuo compile/link/run proof passed: `compile.returncode=0`, `link.returncode=0`, `run.ok=true`; loaded user nodes included all nine pattern nodes and `my.image.batch.batch35PatternGenerateProof`.
+- Runner screenshot proof passed at `artifacts/vuo_cli/batch-35-pattern-generate-proof.run.png`; harness visual stats: average luma `0.200804`, bright ratio `0.310042`, `mostlyBlack=false`.
+- Vuo-native save node wrote `artifacts/vuo_cli/batch-35-pattern-generate-vuo-save.png`; saved PNG stats: `1440x160`, mean luma `39.742`, bright ratio `0.173689`, nontransparent ratio `1.0`, `mostly_black=false`.
+- Non-fatal Vuo stderr still includes the local no-Pro-license notice, a composition-state warning after termination, and the existing GL texture warning seen in nearby image batches.

@@ -1,0 +1,50 @@
+/**
+ * @file
+ * Batch 26 GradientsToTexture Vuo visual proof.
+ *
+ * This composition wires two bounded gradient payloads into my_GradientsToTexture.
+ * Acceptance uses Vuo-native PNG saving.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1180,-120" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1180,190" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+ColorsToList [type="my.numbers.floats.basic.colorsToList" version="1.0.0" label="my_ColorsToList|<color1>color1\l|<color2>color2\l|<color3>color3\l|<inputCount>inputCount\l|<result>Result\r" pos="-820,-230" fillcolor="#868C8D" _color1="\{\"r\":1,\"g\":0.05,\"b\":0.05,\"a\":1\}" _color2="\{\"r\":0.05,\"g\":0.85,\"b\":0.15,\"a\":1\}" _color3="\{\"r\":0.05,\"g\":0.18,\"b\":1,\"a\":1\}" _inputCount="3"];
+
+BuildGradient [type="my.numbers.color.buildGradient" version="1.0.0" label="my_BuildGradient|<colors>colors\l|<positions>positions\l|<interpolation>interpolation\l|<gradientColors>Gradient Colors\r|<gradientPositions>Gradient Positions\r|<gradientInterpolation>Gradient Interpolation\r" pos="-420,-230" fillcolor="#868C8D" _interpolation="0"];
+
+DefineGradient [type="my.numbers.color.defineGradient" version="1.0.0" label="my_DefineGradient|<color1>color1\l|<color1Pos>color1Pos\l|<color2>color2\l|<color2Pos>color2Pos\l|<color3>color3\l|<color3Pos>color3Pos\l|<color4>color4\l|<color4Pos>color4Pos\l|<interpolation>interpolation\l|<gradientColors>Gradient Colors\r|<gradientPositions>Gradient Positions\r|<gradientInterpolation>Gradient Interpolation\r" pos="-420,100" fillcolor="#868C8D" _color1="\{\"r\":0.02,\"g\":0.02,\"b\":0.12,\"a\":1\}" _color1Pos="0.0" _color2="\{\"r\":1,\"g\":0.78,\"b\":0.20,\"a\":1\}" _color2Pos="0.5" _color3="\{\"r\":0.12,\"g\":0.92,\"b\":0.98,\"a\":1\}" _color3Pos="1.0" _color4="\{\"r\":1,\"g\":0,\"b\":1,\"a\":0\}" _color4Pos="-1.0" _interpolation="0"];
+
+GradientsToTexture [type="my.numbers.color.gradientsToTexture" version="1.0.0" label="my_GradientsToTexture|<gradient1Colors>gradient1Colors\l|<gradient1Positions>gradient1Positions\l|<gradient1Interpolation>gradient1Interpolation\l|<gradient2Colors>gradient2Colors\l|<gradient2Positions>gradient2Positions\l|<gradient2Interpolation>gradient2Interpolation\l|<gradient3Colors>gradient3Colors\l|<gradient3Positions>gradient3Positions\l|<gradient3Interpolation>gradient3Interpolation\l|<inputCount>inputCount\l|<resolution>resolution\l|<direction>direction\l|<gradientsTexture>GradientsTexture\r" pos="90,-60" fillcolor="#9F008A" _inputCount="2" _resolution="256" _direction="0"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 26 GradientsToTexture|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="680,-60" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="680,-300" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-26-gradients-to-texture-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 26 GradientsToTexture proof\"" pos="-140,330" width="560" height="42"];
+
+FireOnStart:started -> ColorsToList:color1;
+FireOnStart:started -> BuildGradient:colors;
+FireOnStart:started -> DefineGradient:color1;
+FireOnStart:started -> GradientsToTexture:resolution;
+
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+ColorsToList:result -> BuildGradient:colors;
+
+BuildGradient:gradientColors -> GradientsToTexture:gradient1Colors;
+BuildGradient:gradientPositions -> GradientsToTexture:gradient1Positions;
+BuildGradient:gradientInterpolation -> GradientsToTexture:gradient1Interpolation;
+DefineGradient:gradientColors -> GradientsToTexture:gradient2Colors;
+DefineGradient:gradientPositions -> GradientsToTexture:gradient2Positions;
+DefineGradient:gradientInterpolation -> GradientsToTexture:gradient2Interpolation;
+
+GradientsToTexture:gradientsTexture -> RenderWindow:image;
+GradientsToTexture:gradientsTexture -> SaveImage:saveImage;
+}

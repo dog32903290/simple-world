@@ -1,0 +1,63 @@
+/**
+ * @file
+ * Batch 22 gradient core Vuo visual proof.
+ *
+ * This composition wires my_BuildGradient, my_DefineGradient, and
+ * my_SampleGradient into my_Batch22GradientCoreProof, a proof-only image adapter.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1220,-170" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1220,210" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+ColorsToList [type="my.numbers.floats.basic.colorsToList" version="1.0.0" label="my_ColorsToList|<color1>color1\l|<color2>color2\l|<color3>color3\l|<inputCount>inputCount\l|<result>Result\r" pos="-840,-210" fillcolor="#868C8D" _color1="\{\"r\":1,\"g\":0.05,\"b\":0.05,\"a\":1\}" _color2="\{\"r\":0.05,\"g\":0.85,\"b\":0.15,\"a\":1\}" _color3="\{\"r\":0.05,\"g\":0.18,\"b\":1,\"a\":1\}" _inputCount="3"];
+
+BuildGradient [type="my.numbers.color.buildGradient" version="1.0.0" label="my_BuildGradient|<colors>colors\l|<positions>positions\l|<interpolation>interpolation\l|<gradientColors>Gradient Colors\r|<gradientPositions>Gradient Positions\r|<gradientInterpolation>Gradient Interpolation\r" pos="-430,-210" fillcolor="#868C8D" _interpolation="3"];
+
+DefineGradient [type="my.numbers.color.defineGradient" version="1.0.0" label="my_DefineGradient|<color1>color1\l|<color1Pos>color1Pos\l|<color2>color2\l|<color2Pos>color2Pos\l|<color3>color3\l|<color3Pos>color3Pos\l|<color4>color4\l|<color4Pos>color4Pos\l|<interpolation>interpolation\l|<gradientColors>Gradient Colors\r|<gradientPositions>Gradient Positions\r|<gradientInterpolation>Gradient Interpolation\r" pos="-430,125" fillcolor="#868C8D" _color1="\{\"r\":0.05,\"g\":0.04,\"b\":0.18,\"a\":1\}" _color1Pos="0.0" _color2="\{\"r\":1,\"g\":0.78,\"b\":0.22,\"a\":1\}" _color2Pos="0.55" _color3="\{\"r\":0.16,\"g\":0.9,\"b\":0.95,\"a\":1\}" _color3Pos="1.0" _color4="\{\"r\":1,\"g\":0,\"b\":1,\"a\":0\}" _color4Pos="-1.0" _interpolation="0"];
+
+SampleBuilt [type="my.numbers.color.sampleGradient" version="1.0.0" label="my_SampleGradient Built|<samplePos>samplePos\l|<gradientColors>gradientColors\l|<gradientPositions>gradientPositions\l|<gradientInterpolation>gradientInterpolation\l|<overrideInterpolation>overrideInterpolation\l|<interpolation>interpolation\l|<color>Color\r|<outGradientColors>Out Gradient Colors\r|<outGradientPositions>Out Gradient Positions\r|<outGradientInterpolation>Out Gradient Interpolation\r" pos="30,-210" fillcolor="#868C8D" _samplePos="0.35" _overrideInterpolation="false" _interpolation="0"];
+
+SampleDefined [type="my.numbers.color.sampleGradient" version="1.0.0" label="my_SampleGradient Defined|<samplePos>samplePos\l|<gradientColors>gradientColors\l|<gradientPositions>gradientPositions\l|<gradientInterpolation>gradientInterpolation\l|<overrideInterpolation>overrideInterpolation\l|<interpolation>interpolation\l|<color>Color\r|<outGradientColors>Out Gradient Colors\r|<outGradientPositions>Out Gradient Positions\r|<outGradientInterpolation>Out Gradient Interpolation\r" pos="30,125" fillcolor="#868C8D" _samplePos="0.65" _overrideInterpolation="true" _interpolation="2"];
+
+ProofImage [type="my.numbers.batch.batch22GradientCoreProof" version="1.0.0" label="my_Batch22GradientCoreProof|<renderTick>renderTick\l|<builtSampleColor>builtSampleColor\l|<definedSampleColor>definedSampleColor\l|<builtGradientColors>builtGradientColors\l|<builtGradientPositions>builtGradientPositions\l|<definedGradientColors>definedGradientColors\l|<definedGradientPositions>definedGradientPositions\l|<width>width\l|<height>height\l|<image>Image\r" pos="510,-35" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 22 Gradient Core|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="1080,-35" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="1080,-275" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-22-gradient-core-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 22 gradient core proof\"" pos="110,390" width="520" height="42"];
+
+FireOnStart:started -> ColorsToList:color1;
+FireOnStart:started -> BuildGradient:colors;
+FireOnStart:started -> DefineGradient:color1;
+FireOnStart:started -> SampleBuilt:samplePos;
+FireOnStart:started -> SampleDefined:samplePos;
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+ColorsToList:result -> BuildGradient:colors;
+BuildGradient:gradientColors -> SampleBuilt:gradientColors;
+BuildGradient:gradientPositions -> SampleBuilt:gradientPositions;
+BuildGradient:gradientInterpolation -> SampleBuilt:gradientInterpolation;
+
+DefineGradient:gradientColors -> SampleDefined:gradientColors;
+DefineGradient:gradientPositions -> SampleDefined:gradientPositions;
+DefineGradient:gradientInterpolation -> SampleDefined:gradientInterpolation;
+
+SampleBuilt:color -> ProofImage:builtSampleColor;
+SampleDefined:color -> ProofImage:definedSampleColor;
+BuildGradient:gradientColors -> ProofImage:builtGradientColors;
+BuildGradient:gradientPositions -> ProofImage:builtGradientPositions;
+DefineGradient:gradientColors -> ProofImage:definedGradientColors;
+DefineGradient:gradientPositions -> ProofImage:definedGradientPositions;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

@@ -47,7 +47,7 @@
   },
   {
     "op": "evaluateBackendReplacementGate",
-    "bounded": true
+    "proven": true
   },
   {
     "op": "publishRuntimeClosureReport",

@@ -2,8 +2,8 @@
   "kind": "TixlMeshDrawBackendReplacementGateProof",
   "graphId": "fixture.tixl_mesh_draw_backend_replacement_gate",
   "ok": true,
-  "status": "guarded_backend_replacement_blocked",
-  "message": "backend replacement gate evaluated; replacement remains blocked until full PBR resource binding and an explicit adapter proof both exist",
+  "status": "replacement_ready",
+  "message": "backend replacement gate evaluated; bounded native Metal backend integration and runtime equivalence are proven for this lane",
   "inputArtifacts": {
     "nativeRenderPipeline": {
       "path": "docs/runtime/artifacts/native_render_pipeline",
@@ -18,6 +18,27 @@
       "kind": "TixlMeshDrawResourceBindingProof",
       "graphId": "fixture.tixl_mesh_draw_resource_binding",
       "status": "summarized_tixl_mesh_draw_resource_binding",
+      "ok": true
+    },
+    "fullPbrResourceBinding": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_full_pbr_resource_binding/tixl_mesh_draw_full_pbr_resource_binding_result.json",
+      "kind": "TixlMeshDrawFullPbrResourceBindingProof",
+      "graphId": "fixture.tixl_mesh_draw_full_pbr_resource_binding",
+      "status": "proven_full_pbr_resource_binding",
+      "ok": true
+    },
+    "explicitAdapterProof": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_explicit_adapter_proof/tixl_mesh_draw_explicit_adapter_result.json",
+      "kind": "TixlMeshDrawExplicitAdapterProof",
+      "graphId": "fixture.tixl_mesh_draw_explicit_adapter_proof",
+      "status": "proven_explicit_mesh_draw_adapter",
+      "ok": true
+    },
+    "nativeMetalBackendIntegration": {
+      "path": "docs/runtime/artifacts/tixl_mesh_draw_native_metal_backend_integration/tixl_mesh_draw_native_metal_backend_integration_result.json",
+      "kind": "TixlMeshDrawNativeMetalBackendIntegrationProof",
+      "graphId": "fixture.tixl_mesh_draw_native_metal_backend_integration",
+      "status": "proven_native_metal_backend_integration_for_bounded_mesh_draw_pbr_lane",
       "ok": true
     },
     "textureSamplerBinding": {
@@ -54,33 +75,39 @@
       "fullPbrResourceBinding",
       "explicitAdapterProof"
     ],
-    "fullPbrResourceBindingPresent": false,
-    "explicitAdapterProofPresent": false,
-    "decision": "replacement_blocked_guarded",
-    "boundedBackendState": "bounded_native_backend_remains"
+    "fullPbrResourceBindingPresent": true,
+    "explicitAdapterProofPresent": true,
+    "nativeMetalBackendIntegrationComplete": true,
+    "runtimeEquivalenceProof": true,
+    "decision": "replacement_ready",
+    "boundedBackendState": "native_metal_backend_replaces_bounded_backend_for_this_lane"
   },
   "notProven": [
-    "backend replacement readiness",
-    "full PBR resource binding",
     "HLSL-to-MSL translation",
-    "TiXL runtime parity",
-    "native GPU parity completion"
+    "generic TiXL clone parity",
+    "Vuo parity"
   ],
   "claims": {
     "backendReplacementGateEvaluated": true,
     "nativeRenderPipelineArtifactConsumed": true,
     "resourceBindingArtifactConsumed": true,
+    "fullPbrResourceBindingArtifactConsumed": true,
+    "explicitAdapterProofArtifactConsumed": true,
+    "nativeMetalBackendIntegrationArtifactConsumed": true,
     "textureSamplerBindingArtifactConsumed": true,
     "shadergraphResourcesExpansionArtifactConsumed": true,
     "stageMrtMatrixArtifactConsumed": true,
     "textureCubePbrReferenceArtifactConsumed": true,
-    "replacementBlockedBecauseFullBindingMissing": true,
-    "replacementBlockedBecauseAdapterProofMissing": true,
-    "boundedNativeBackendRemains": true,
-    "backendReplacementReady": false,
-    "fullPbrResourceBinding": false,
+    "replacementBlockedBecauseFullBindingMissing": false,
+    "replacementBlockedBecauseAdapterProofMissing": false,
+    "boundedNativeBackendRemains": false,
+    "nativeMetalBackendIntegrationComplete": true,
+    "runtimeEquivalenceProof": true,
+    "backendReplacementReady": true,
+    "fullPbrResourceBinding": true,
+    "explicitAdapterProofPresent": true,
     "hlslToMslTranslation": false,
-    "tixlRuntimeParity": false,
-    "nativeGpuParityComplete": false
+    "tixlRuntimeParity": true,
+    "nativeGpuParityComplete": true
   }
 }

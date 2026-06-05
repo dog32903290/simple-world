@@ -2,8 +2,9 @@
 """
 Publish the backend replacement gate proof for the bounded TiXL mesh draw lane.
 
-This proof is intentionally negative: it proves the replacement gate was
-evaluated and remains guarded. It never claims backend replacement readiness.
+This proof consumes the positive full PBR binding, explicit adapter, and native
+Metal backend integration proofs. It opens the bounded backend replacement gate
+only for this TiXL mesh draw/PBR lane and still does not claim HLSL translation.
 """
 
 from __future__ import annotations
@@ -20,6 +21,9 @@ ERRORS_NAME = "tixl_mesh_draw_backend_replacement_gate_errors.json"
 
 DEFAULT_NATIVE_RENDER_PIPELINE_ARTIFACTS = "docs/runtime/artifacts/native_render_pipeline"
 DEFAULT_RESOURCE_BINDING_ARTIFACT = "docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json"
+DEFAULT_FULL_PBR_RESOURCE_BINDING_ARTIFACT = "docs/runtime/artifacts/tixl_mesh_draw_full_pbr_resource_binding/tixl_mesh_draw_full_pbr_resource_binding_result.json"
+DEFAULT_EXPLICIT_ADAPTER_PROOF_ARTIFACT = "docs/runtime/artifacts/tixl_mesh_draw_explicit_adapter_proof/tixl_mesh_draw_explicit_adapter_result.json"
+DEFAULT_NATIVE_METAL_BACKEND_INTEGRATION_ARTIFACT = "docs/runtime/artifacts/tixl_mesh_draw_native_metal_backend_integration/tixl_mesh_draw_native_metal_backend_integration_result.json"
 DEFAULT_TEXTURE_SAMPLER_BINDING_ARTIFACT = "docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json"
 DEFAULT_SHADERGRAPH_RESOURCES_EXPANSION_ARTIFACT = "docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json"
 DEFAULT_STAGE_MRT_MATRIX_ARTIFACT = "docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json"
@@ -77,6 +81,9 @@ def run_gate(repo_root: Path, fixture_path: Path, fixture: dict[str, Any]) -> tu
     native_dir = resolve_path(repo_root, fixture_path, fixture.get("nativeRenderPipelineArtifacts"), DEFAULT_NATIVE_RENDER_PIPELINE_ARTIFACTS)
     paths = {
         "resourceBinding": resolve_path(repo_root, fixture_path, fixture.get("resourceBindingArtifact"), DEFAULT_RESOURCE_BINDING_ARTIFACT),
+        "fullPbrResourceBinding": resolve_path(repo_root, fixture_path, fixture.get("fullPbrResourceBindingArtifact"), DEFAULT_FULL_PBR_RESOURCE_BINDING_ARTIFACT),
+        "explicitAdapterProof": resolve_path(repo_root, fixture_path, fixture.get("explicitAdapterProofArtifact"), DEFAULT_EXPLICIT_ADAPTER_PROOF_ARTIFACT),
+        "nativeMetalBackendIntegration": resolve_path(repo_root, fixture_path, fixture.get("nativeMetalBackendIntegrationArtifact"), DEFAULT_NATIVE_METAL_BACKEND_INTEGRATION_ARTIFACT),
         "textureSamplerBinding": resolve_path(repo_root, fixture_path, fixture.get("textureSamplerBindingArtifact"), DEFAULT_TEXTURE_SAMPLER_BINDING_ARTIFACT),
         "shadergraphResourcesExpansion": resolve_path(repo_root, fixture_path, fixture.get("shadergraphResourcesExpansionArtifact"), DEFAULT_SHADERGRAPH_RESOURCES_EXPANSION_ARTIFACT),
         "stageMrtMatrix": resolve_path(repo_root, fixture_path, fixture.get("stageMrtMatrixArtifact"), DEFAULT_STAGE_MRT_MATRIX_ARTIFACT),
@@ -103,12 +110,15 @@ def run_gate(repo_root: Path, fixture_path: Path, fixture: dict[str, Any]) -> tu
     validation_errors: list[dict[str, Any]] = []
     validation_errors.extend(validate_native_pipeline(native_artifacts))
     validation_errors.extend(validate_resource_binding(artifacts.get("resourceBinding")))
+    validation_errors.extend(validate_full_pbr_resource_binding(artifacts.get("fullPbrResourceBinding")))
+    validation_errors.extend(validate_explicit_adapter_proof(artifacts.get("explicitAdapterProof")))
+    validation_errors.extend(validate_native_metal_backend_integration(artifacts.get("nativeMetalBackendIntegration")))
     validation_errors.extend(validate_texture_sampler_binding(artifacts.get("textureSamplerBinding")))
     validation_errors.extend(validate_shadergraph_resources(artifacts.get("shadergraphResourcesExpansion")))
     validation_errors.extend(validate_stage_mrt_matrix(artifacts.get("stageMrtMatrix")))
     validation_errors.extend(validate_texturecube_pbr_reference(artifacts.get("textureCubePbrReference")))
     validation_errors.extend(validate_fixture_expectations(fixture))
-    validation_errors.extend(validate_adapter_gate(fixture, artifacts.get("resourceBinding")))
+    validation_errors.extend(validate_adapter_gate(fixture, artifacts.get("fullPbrResourceBinding"), artifacts.get("explicitAdapterProof")))
     trace.append({
         "op": "validateBackendReplacementGateInputs",
         "valid": not validation_errors,
@@ -125,9 +135,10 @@ def run_gate(repo_root: Path, fixture_path: Path, fixture: dict[str, Any]) -> tu
     result = build_success_result(graph_id, input_summaries)
     trace.append({
         "op": "evaluateBackendReplacementGuard",
-        "backendReplacementReady": False,
-        "fullPbrResourceBinding": False,
-        "adapterProofPresent": False,
+        "backendReplacementReady": True,
+        "fullPbrResourceBinding": True,
+        "adapterProofPresent": True,
+        "nativeMetalBackendIntegrationComplete": True,
     })
     return result, trace, errors
 
@@ -185,6 +196,115 @@ def validate_resource_binding(artifact: Any) -> list[dict[str, Any]]:
     bound = {item.get("sourceRegister") for item in list_items(ledger.get("boundNow"))}
     if bound != {"t0", "t1"}:
         mismatches.append({"field": "resourceBinding.bindingLedger.boundNow", "expected": ["t0", "t1"], "actual": sorted(register for register in bound if register)})
+    return mismatches
+
+
+def validate_full_pbr_resource_binding(artifact: Any) -> list[dict[str, Any]]:
+    mismatches = validate_common_artifact(
+        artifact,
+        "fullPbrResourceBinding",
+        "TixlMeshDrawFullPbrResourceBindingProof",
+        "proven_full_pbr_resource_binding",
+    )
+    if not isinstance(artifact, dict):
+        return mismatches
+    claims = artifact.get("claims") if isinstance(artifact.get("claims"), dict) else {}
+    expected_true = (
+        "sourceAuditArtifactConsumed",
+        "meshBufferBindingArtifactConsumed",
+        "constantBufferPackingArtifactsConsumed",
+        "textureSamplerBindingArtifactConsumed",
+        "shadergraphResourcesExpansionArtifactConsumed",
+        "textureCubePbrReferenceArtifactConsumed",
+        "actualMetalFullBindingProbeRan",
+        "fullPbrResourceBinding",
+    )
+    for field in expected_true:
+        if claims.get(field) is not True:
+            mismatches.append({"field": f"fullPbrResourceBinding.claims.{field}", "expected": True, "actual": claims.get(field)})
+    for field in ("backendReplacementReady", "explicitAdapterProof", "hlslToMslTranslation", "tixlRuntimeParity", "nativeGpuParityComplete", "pbrVisualCorrectness"):
+        if claims.get(field) is not False:
+            mismatches.append({"field": f"fullPbrResourceBinding.claims.{field}", "expected": False, "actual": claims.get(field)})
+    ledger = artifact.get("bindingLedger") if isinstance(artifact.get("bindingLedger"), dict) else {}
+    bound_registers = set(ledger.get("boundRegisters") or [])
+    expected_bound = {"b0", "b1", "b2", "b3", "b4", "b5", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "s0", "s1"}
+    if bound_registers != expected_bound:
+        mismatches.append({"field": "fullPbrResourceBinding.bindingLedger.boundRegisters", "expected": sorted(expected_bound), "actual": sorted(bound_registers)})
+    t8 = ledger.get("t8ShadergraphResources") if isinstance(ledger.get("t8ShadergraphResources"), dict) else {}
+    if t8.get("status") != "proven_empty_for_current_fixture":
+        mismatches.append({"field": "fullPbrResourceBinding.bindingLedger.t8ShadergraphResources.status", "expected": "proven_empty_for_current_fixture", "actual": t8.get("status")})
+    return mismatches
+
+
+def validate_explicit_adapter_proof(artifact: Any) -> list[dict[str, Any]]:
+    mismatches = validate_common_artifact(
+        artifact,
+        "explicitAdapterProof",
+        "TixlMeshDrawExplicitAdapterProof",
+        "proven_explicit_mesh_draw_adapter",
+    )
+    if not isinstance(artifact, dict):
+        return mismatches
+    claims = artifact.get("claims") if isinstance(artifact.get("claims"), dict) else {}
+    for field in (
+        "explicitTranslationStrategyArtifactConsumed",
+        "mslApproxArtifactConsumed",
+        "metalExplicitMslArtifactConsumed",
+        "selectedHandwrittenAdapterStrategyConsumed",
+        "mslApproxEvidenceConsumed",
+        "metalExplicitMslEvidenceConsumed",
+        "actualCompilerRan",
+        "actualMetalRan",
+        "explicitAdapterProof",
+        "explicitAdapterProofPresent",
+    ):
+        if claims.get(field) is not True:
+            mismatches.append({"field": f"explicitAdapterProof.claims.{field}", "expected": True, "actual": claims.get(field)})
+    for field in ("fullPbrResourceBinding", "backendReplacementReady", "hlslToMslTranslation", "tixlRuntimeParity", "nativeGpuParityComplete", "pbrVisualCorrectness"):
+        if claims.get(field) is not False:
+            mismatches.append({"field": f"explicitAdapterProof.claims.{field}", "expected": False, "actual": claims.get(field)})
+    frame_stats = artifact.get("frameStats") if isinstance(artifact.get("frameStats"), dict) else {}
+    if frame_stats.get("nonBlack") is not True:
+        mismatches.append({"field": "explicitAdapterProof.frameStats.nonBlack", "expected": True, "actual": frame_stats.get("nonBlack")})
+    if frame_stats.get("varied") is not True:
+        mismatches.append({"field": "explicitAdapterProof.frameStats.varied", "expected": True, "actual": frame_stats.get("varied")})
+    return mismatches
+
+
+def validate_native_metal_backend_integration(artifact: Any) -> list[dict[str, Any]]:
+    mismatches = validate_common_artifact(
+        artifact,
+        "nativeMetalBackendIntegration",
+        "TixlMeshDrawNativeMetalBackendIntegrationProof",
+        "proven_native_metal_backend_integration_for_bounded_mesh_draw_pbr_lane",
+    )
+    if not isinstance(artifact, dict):
+        return mismatches
+    claims = artifact.get("claims") if isinstance(artifact.get("claims"), dict) else {}
+    expected = {
+        "nativeRenderPipelineArtifactConsumed": True,
+        "fullPbrResourceBindingArtifactConsumed": True,
+        "explicitAdapterProofArtifactConsumed": True,
+        "actualMetalBackendProbeRan": True,
+        "nativeBackendIntegrationComplete": True,
+        "runtimeEquivalenceProof": True,
+        "backendReplacementReady": True,
+        "nativeGpuParityComplete": True,
+        "tixlRuntimeParity": True,
+        "fullPbrResourceBinding": True,
+        "explicitAdapterProofPresent": True,
+        "hlslToMslTranslation": False,
+    }
+    for field, value in expected.items():
+        if claims.get(field) is not value:
+            mismatches.append({"field": f"nativeMetalBackendIntegration.claims.{field}", "expected": value, "actual": claims.get(field)})
+    boundary = artifact.get("nativeDrawBoundary") if isinstance(artifact.get("nativeDrawBoundary"), dict) else {}
+    if boundary.get("status") != "supported" or boundary.get("backendCanCompileNow") is not True:
+        mismatches.append({"field": "nativeMetalBackendIntegration.nativeDrawBoundary", "expected": {"status": "supported", "backendCanCompileNow": True}, "actual": boundary})
+    equivalence = artifact.get("equivalence") if isinstance(artifact.get("equivalence"), dict) else {}
+    frame = equivalence.get("frame") if isinstance(equivalence.get("frame"), dict) else {}
+    if frame.get("nonBlack") is not True or frame.get("varied") is not True:
+        mismatches.append({"field": "nativeMetalBackendIntegration.equivalence.frame", "expected": {"nonBlack": True, "varied": True}, "actual": frame})
     return mismatches
 
 
@@ -272,8 +392,14 @@ def validate_fixture_expectations(fixture: dict[str, Any]) -> list[dict[str, Any
     if fixture.get("graphId") != "fixture.tixl_mesh_draw_backend_replacement_gate":
         mismatches.append({"field": "graphId", "expected": "fixture.tixl_mesh_draw_backend_replacement_gate", "actual": fixture.get("graphId")})
     expected = fixture.get("expected") if isinstance(fixture.get("expected"), dict) else {}
-    if expected.get("status") != "guarded_backend_replacement_blocked":
-        mismatches.append({"field": "expected.status", "expected": "guarded_backend_replacement_blocked", "actual": expected.get("status")})
+    if expected.get("status") != "replacement_ready":
+        mismatches.append({"field": "expected.status", "expected": "replacement_ready", "actual": expected.get("status")})
+    if not fixture.get("fullPbrResourceBindingArtifact"):
+        mismatches.append({"field": "fullPbrResourceBinding", "expected": "fullPbrResourceBindingArtifact path", "actual": fixture.get("fullPbrResourceBindingArtifact")})
+    if not fixture.get("explicitAdapterProofArtifact"):
+        mismatches.append({"field": "explicitAdapterProof", "expected": "explicitAdapterProofArtifact path", "actual": fixture.get("explicitAdapterProofArtifact")})
+    if not fixture.get("nativeMetalBackendIntegrationArtifact"):
+        mismatches.append({"field": "nativeMetalBackendIntegration", "expected": "nativeMetalBackendIntegrationArtifact path", "actual": fixture.get("nativeMetalBackendIntegrationArtifact")})
     claims = expected.get("claims") if isinstance(expected.get("claims"), dict) else {}
     for field, value in claim_flags(True).items():
         if claims.get(field) is not value:
@@ -281,16 +407,21 @@ def validate_fixture_expectations(fixture: dict[str, Any]) -> list[dict[str, Any
     return mismatches
 
 
-def validate_adapter_gate(fixture: dict[str, Any], resource_binding: Any) -> list[dict[str, Any]]:
+def validate_adapter_gate(fixture: dict[str, Any], full_pbr_resource_binding: Any, explicit_adapter_proof: Any) -> list[dict[str, Any]]:
     mismatches: list[dict[str, Any]] = []
-    claims = resource_binding.get("claims") if isinstance(resource_binding, dict) and isinstance(resource_binding.get("claims"), dict) else {}
-    adapter_proof = fixture.get("adapterProofArtifact")
-    adapter_proof_present = isinstance(adapter_proof, str) and bool(adapter_proof)
-    if claims.get("fullPbrResourceBinding") is True and not adapter_proof_present:
+    full_claims = full_pbr_resource_binding.get("claims") if isinstance(full_pbr_resource_binding, dict) and isinstance(full_pbr_resource_binding.get("claims"), dict) else {}
+    adapter_claims = explicit_adapter_proof.get("claims") if isinstance(explicit_adapter_proof, dict) and isinstance(explicit_adapter_proof.get("claims"), dict) else {}
+    if full_claims.get("fullPbrResourceBinding") is not True:
         mismatches.append({
-            "field": "adapterProofArtifact",
-            "expected": "explicit adapter proof artifact when resourceBinding.claims.fullPbrResourceBinding is true",
-            "actual": None,
+            "field": "fullPbrResourceBinding",
+            "expected": "positive full PBR resource binding proof",
+            "actual": full_claims.get("fullPbrResourceBinding"),
+        })
+    if adapter_claims.get("explicitAdapterProofPresent") is not True:
+        mismatches.append({
+            "field": "explicitAdapterProof",
+            "expected": "positive explicit adapter proof",
+            "actual": adapter_claims.get("explicitAdapterProofPresent"),
         })
     return mismatches
 
@@ -306,25 +437,25 @@ def build_success_result(graph_id: Any, artifacts: dict[str, Any]) -> dict[str, 
         "kind": "TixlMeshDrawBackendReplacementGateProof",
         "graphId": graph_id,
         "ok": True,
-        "status": "guarded_backend_replacement_blocked",
-        "message": "backend replacement gate evaluated; replacement remains blocked until full PBR resource binding and an explicit adapter proof both exist",
+        "status": "replacement_ready",
+        "message": "backend replacement gate evaluated; bounded native Metal backend integration and runtime equivalence are proven for this lane",
         "inputArtifacts": artifacts,
         "guard": {
             "requiredBeforeReplacement": [
                 "fullPbrResourceBinding",
                 "explicitAdapterProof"
             ],
-            "fullPbrResourceBindingPresent": False,
-            "explicitAdapterProofPresent": False,
-            "decision": "replacement_blocked_guarded",
-            "boundedBackendState": "bounded_native_backend_remains"
+            "fullPbrResourceBindingPresent": True,
+            "explicitAdapterProofPresent": True,
+            "nativeMetalBackendIntegrationComplete": True,
+            "runtimeEquivalenceProof": True,
+            "decision": "replacement_ready",
+            "boundedBackendState": "native_metal_backend_replaces_bounded_backend_for_this_lane"
         },
         "notProven": [
-            "backend replacement readiness",
-            "full PBR resource binding",
             "HLSL-to-MSL translation",
-            "TiXL runtime parity",
-            "native GPU parity completion"
+            "generic TiXL clone parity",
+            "Vuo parity"
         ],
         "claims": claim_flags(True),
     }
@@ -353,18 +484,24 @@ def claim_flags(evaluated: bool) -> dict[str, bool]:
         "backendReplacementGateEvaluated": evaluated,
         "nativeRenderPipelineArtifactConsumed": evaluated,
         "resourceBindingArtifactConsumed": evaluated,
+        "fullPbrResourceBindingArtifactConsumed": evaluated,
+        "explicitAdapterProofArtifactConsumed": evaluated,
+        "nativeMetalBackendIntegrationArtifactConsumed": evaluated,
         "textureSamplerBindingArtifactConsumed": evaluated,
         "shadergraphResourcesExpansionArtifactConsumed": evaluated,
         "stageMrtMatrixArtifactConsumed": evaluated,
         "textureCubePbrReferenceArtifactConsumed": evaluated,
-        "replacementBlockedBecauseFullBindingMissing": evaluated,
-        "replacementBlockedBecauseAdapterProofMissing": evaluated,
-        "boundedNativeBackendRemains": evaluated,
-        "backendReplacementReady": False,
-        "fullPbrResourceBinding": False,
+        "replacementBlockedBecauseFullBindingMissing": False,
+        "replacementBlockedBecauseAdapterProofMissing": False,
+        "boundedNativeBackendRemains": False,
+        "nativeMetalBackendIntegrationComplete": evaluated,
+        "runtimeEquivalenceProof": evaluated,
+        "backendReplacementReady": evaluated,
+        "fullPbrResourceBinding": evaluated,
+        "explicitAdapterProofPresent": evaluated,
         "hlslToMslTranslation": False,
-        "tixlRuntimeParity": False,
-        "nativeGpuParityComplete": False,
+        "tixlRuntimeParity": evaluated,
+        "nativeGpuParityComplete": evaluated,
     }
 
 

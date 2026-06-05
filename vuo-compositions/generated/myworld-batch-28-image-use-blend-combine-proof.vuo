@@ -1,0 +1,77 @@
+/**
+ * @file
+ * Batch 28 image/use blend-combine Vuo visual proof.
+ *
+ * This composition wires constant VuoImage sources through my_BlendImages,
+ * my_BlendWithMask, and my_Combine3Images. Acceptance uses Vuo-native PNG saving.
+ *
+ * Expected bands left to right:
+ * BlendImages f=1.5 -> green/blue mix,
+ * BlendWithMask mask.r=0.5 -> red/green mix,
+ * Combine3Images defaults -> RGB from A/B/C into white.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnStart [type="vuo.event.fireOnStart" version="1.0.0" label="Fire on Start|<refresh>refresh\l|<started>started\r" pos="-1380,-140" fillcolor="lime" _started_eventThrottling="enqueue"];
+
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1380,170" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+SourceA [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1050,-360" fillcolor="#9F008A" _Color="\{\"r\":1,\"g\":0,\"b\":0,\"a\":1\}" _Width="160" _Height="160"];
+
+SourceB [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1050,-90" fillcolor="#9F008A" _Color="\{\"r\":0,\"g\":1,\"b\":0,\"a\":1\}" _Width="160" _Height="160"];
+
+SourceC [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1050,180" fillcolor="#9F008A" _Color="\{\"r\":0,\"g\":0,\"b\":1,\"a\":1\}" _Width="160" _Height="160"];
+
+SourceMask [type="my.image.generate.basic.constantImage" version="1.0.0" label="my_ConstantImage|<renderTick>renderTick\l|<Color>Color\l|<Width>Width\l|<Height>Height\l|<Image>Image\r" pos="-1050,450" fillcolor="#9F008A" _Color="\{\"r\":0.5,\"g\":0.5,\"b\":0.5,\"a\":1\}" _Width="160" _Height="160"];
+
+BlendImages [type="my.image.use.blendImages" version="1.0.0" label="my_BlendImages|<renderTick>renderTick\l|<input1>input1\l|<input2>input2\l|<input3>input3\l|<inputCount>inputCount\l|<blendFraction>blendFraction\l|<resolution>resolution\l|<outputImage>OutputImage\r" pos="-520,-250" fillcolor="#9F008A" _inputCount="3" _blendFraction="1.5" _resolution="\{\"x\":160,\"y\":160\}"];
+
+BlendWithMask [type="my.image.use.blendWithMask" version="1.0.0" label="my_BlendWithMask|<renderTick>renderTick\l|<imageA>imageA\l|<colorA>colorA\l|<imageB>imageB\l|<colorB>colorB\l|<mask>mask\l|<resolution>resolution\l|<output>Output\r" pos="-520,70" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+
+Combine3Images [type="my.image.use.combine3Images" version="1.0.0" label="my_Combine3Images|<renderTick>renderTick\l|<imageA>imageA\l|<colorA>colorA\l|<imageB>imageB\l|<colorB>colorB\l|<imageC>imageC\l|<colorC>colorC\l|<selectChannelR>selectChannelR\l|<selectChannelG>selectChannelG\l|<selectChannelB>selectChannelB\l|<selectAlphaChannel>selectAlphaChannel\l|<generateMips>generateMips\l|<output>Output\r" pos="-520,430" fillcolor="#9F008A" _colorA="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorB="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _colorC="\{\"r\":1,\"g\":1,\"b\":1,\"a\":1\}" _selectChannelR="0" _selectChannelG="6" _selectChannelB="12" _selectAlphaChannel="4" _generateMips="false"];
+
+ProofImage [type="my.image.batch.batch28ImageUseBlendCombineProof" version="1.0.0" label="my_Batch28ImageUseBlendCombineProof|<renderTick>renderTick\l|<blendImagesImage>blendImagesImage\l|<blendWithMaskImage>blendWithMaskImage\l|<combine3ImagesImage>combine3ImagesImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="120,70" fillcolor="#9F008A" _width="480" _height="160"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 28 Image Use Blend Combine|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="760,70" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="760,-210" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-28-image-use-blend-combine-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 28 image use blend combine proof\"" pos="-260,-590" width="560" height="42"];
+
+DisplayRefresh:requestedFrame -> SourceA:renderTick;
+DisplayRefresh:requestedFrame -> SourceB:renderTick;
+DisplayRefresh:requestedFrame -> SourceC:renderTick;
+DisplayRefresh:requestedFrame -> SourceMask:renderTick;
+DisplayRefresh:requestedFrame -> BlendImages:renderTick;
+DisplayRefresh:requestedFrame -> BlendWithMask:renderTick;
+DisplayRefresh:requestedFrame -> Combine3Images:renderTick;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+FireOnStart:started -> BlendImages:blendFraction;
+FireOnStart:started -> BlendWithMask:resolution;
+FireOnStart:started -> Combine3Images:selectChannelR;
+
+SourceA:Image -> BlendImages:input1;
+SourceB:Image -> BlendImages:input2;
+SourceC:Image -> BlendImages:input3;
+
+SourceA:Image -> BlendWithMask:imageA;
+SourceB:Image -> BlendWithMask:imageB;
+SourceMask:Image -> BlendWithMask:mask;
+
+SourceA:Image -> Combine3Images:imageA;
+SourceB:Image -> Combine3Images:imageB;
+SourceC:Image -> Combine3Images:imageC;
+
+BlendImages:outputImage -> ProofImage:blendImagesImage;
+BlendWithMask:output -> ProofImage:blendWithMaskImage;
+Combine3Images:output -> ProofImage:combine3ImagesImage;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

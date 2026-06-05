@@ -3,13 +3,13 @@
 TixlMeshDrawBackendReplacementGateProof answers:
 
 ```text
-has the backend replacement gate been evaluated, while keeping replacement
-blocked until full PBR resource binding and an explicit adapter proof exist?
+has the backend replacement gate been evaluated after native backend integration
+and runtime equivalence exist?
 ```
 
-This is a guarded negative proof. It does not replace the native backend, does
-not claim full PBR resource binding, and does not claim native GPU or TiXL
-runtime parity.
+This is the bounded replacement readiness proof for the TiXL Mesh Draw / PBR
+lane. It consumes the positive full PBR resource binding proof, explicit adapter
+proof, and native Metal backend integration proof.
 
 ## Boundary
 
@@ -18,30 +18,34 @@ The proof consumes the existing bounded artifacts:
 ```text
 docs/runtime/artifacts/native_render_pipeline
 docs/runtime/artifacts/tixl_mesh_draw_resource_binding/tixl_mesh_draw_resource_binding_result.json
+docs/runtime/artifacts/tixl_mesh_draw_full_pbr_resource_binding/tixl_mesh_draw_full_pbr_resource_binding_result.json
+docs/runtime/artifacts/tixl_mesh_draw_explicit_adapter_proof/tixl_mesh_draw_explicit_adapter_result.json
+docs/runtime/artifacts/tixl_mesh_draw_native_metal_backend_integration/tixl_mesh_draw_native_metal_backend_integration_result.json
 docs/runtime/artifacts/tixl_mesh_draw_texture_sampler_binding/tixl_mesh_draw_texture_sampler_binding_result.json
 docs/runtime/artifacts/tixl_mesh_draw_shadergraph_resources_expansion/tixl_mesh_draw_shadergraph_resources_expansion_result.json
 docs/runtime/artifacts/tixl_mesh_draw_stage_mrt_matrix/tixl_mesh_draw_stage_mrt_matrix_result.json
 docs/runtime/artifacts/tixl_mesh_draw_texturecube_pbr_reference/tixl_mesh_draw_texturecube_pbr_reference_result.json
 ```
 
-It proves only that the replacement gate was evaluated and remains blocked:
+It proves only bounded replacement readiness for this lane:
 
 ```text
 backendReplacementGateEvaluated: true
-replacementBlockedBecauseFullBindingMissing: true
-replacementBlockedBecauseAdapterProofMissing: true
-boundedNativeBackendRemains: true
-backendReplacementReady: false
-fullPbrResourceBinding: false
+replacementBlockedBecauseFullBindingMissing: false
+replacementBlockedBecauseAdapterProofMissing: false
+nativeMetalBackendIntegrationComplete: true
+boundedNativeBackendRemains: false
+backendReplacementReady: true
+fullPbrResourceBinding: true
+explicitAdapterProofPresent: true
 hlslToMslTranslation: false
-tixlRuntimeParity: false
-nativeGpuParityComplete: false
+tixlRuntimeParity: true
+nativeGpuParityComplete: true
 ```
 
-If any consumed artifact widens a readiness claim, the gate fails. If the
-resource binding artifact claims `fullPbrResourceBinding: true`, the gate also
-requires an explicit adapter proof artifact; this lane does not invent that
-proof, so the current fixture blocks that forged state.
+If any consumed artifact widens a readiness, parity, or translation claim, the
+gate fails. `hlslToMslTranslation` stays false because the proven route is the
+selected handwritten explicit MSL adapter, not a generic translator.
 
 ## First Proof
 

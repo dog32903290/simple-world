@@ -1,0 +1,41 @@
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1100,100" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+Source [type="my.image.generate.basic.checkerBoard" version="1.0.0" label="my_CheckerBoard|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<stretch>stretch\l|<scale>scale\l|<useAspectRatio>useAspectRatio\l|<offset>offset\l|<resolution>resolution\l|<generateMips>generateMips\l|<textureOutput>TextureOutput\r" pos="-830,100" fillcolor="#9F008A" _colorA="\{\"r\":0.0,\"g\":0.95,\"b\":1.0,\"a\":1\}" _colorB="\{\"r\":1.0,\"g\":0.08,\"b\":0.42,\"a\":1\}" _stretch="\{\"x\":1,\"y\":1\}" _scale="8" _useAspectRatio="true" _offset="\{\"x\":0,\"y\":0\}" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="false"];
+CompareImages [type="my.image.analyze.compareImages" version="1.0.0" label="my_CompareImages|<renderTick>renderTick\l|<texture2d>Texture2d\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,-500" fillcolor="#9F008A" _amount="1.0" _scale="1.0" _phase="0.0" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+DetectMotion [type="my.image.analyze.detectMotion" version="1.0.0" label="my_DetectMotion|<renderTick>renderTick\l|<videoTexture>VideoTexture\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,-380" fillcolor="#9F008A" _amount="1.08" _scale="1.12" _phase="0.07" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+GetImageBrightness [type="my.image.analyze.getImageBrightness" version="1.0.0" label="my_GetImageBrightness|<renderTick>renderTick\l|<texture2d>Texture2d\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>BrightnessImage\r" pos="-500,-260" fillcolor="#9F008A" _amount="1.16" _scale="1.24" _phase="0.14" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+ImageLevels [type="my.image.analyze.imageLevels" version="1.0.0" label="my_ImageLevels|<renderTick>renderTick\l|<texture2d>Texture2d\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>Output\r" pos="-500,-140" fillcolor="#9F008A" _amount="1.24" _scale="1.3599999999999999" _phase="0.21000000000000002" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+OpticalFlow [type="my.image.analyze.opticalFlow" version="1.0.0" label="my_OpticalFlow|<renderTick>renderTick\l|<image>Image\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>TextureOutput\r" pos="-500,-20" fillcolor="#9F008A" _amount="1.32" _scale="1.48" _phase="0.28" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+RemoveStaticBackground [type="my.image.analyze.removeStaticBackground" version="1.0.0" label="my_RemoveStaticBackground|<renderTick>renderTick\l|<texture2d>Texture2d\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>Output\r" pos="-500,100" fillcolor="#9F008A" _amount="1.4" _scale="1.6" _phase="0.35000000000000003" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+WaveForm [type="my.image.analyze.waveForm" version="1.0.0" label="my_WaveForm|<renderTick>renderTick\l|<effectTexture>EffectTexture\l|<amount>amount\l|<scale>scale\l|<phase>phase\l|<threshold>threshold\l|<center>center\l|<colorA>colorA\l|<colorB>colorB\l|<resolution>resolution\l|<textureOutput>ImgOutput\r" pos="-500,220" fillcolor="#9F008A" _amount="1.48" _scale="1.72" _phase="0.42000000000000004" _threshold="0.18" _center="\{\"x\":0,\"y\":0\}" _colorA="\{\"r\":1,\"g\":0.9,\"b\":0.25,\"a\":1\}" _colorB="\{\"r\":0.02,\"g\":0.02,\"b\":0.08,\"a\":1\}" _resolution="\{\"x\":160,\"y\":160\}"];
+ProofImage [type="my.image.batch.batch42AnalyzeProof" version="1.0.0" label="my_Batch42AnalyzeProof|<renderTick>renderTick\l|<compareImagesImage>compareImagesImage\l|<detectMotionImage>detectMotionImage\l|<getImageBrightnessImage>getImageBrightnessImage\l|<imageLevelsImage>imageLevelsImage\l|<opticalFlowImage>opticalFlowImage\l|<removeStaticBackgroundImage>removeStaticBackgroundImage\l|<waveFormImage>waveFormImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="120,100" fillcolor="#9F008A" _width="1120" _height="160"];
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 42 Analyze|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="720,100" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="720,-190" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-42-analyze-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+DisplayRefresh:requestedFrame -> Source:renderTick;
+DisplayRefresh:requestedFrame -> CompareImages:renderTick;
+Source:textureOutput -> CompareImages:texture2d;
+DisplayRefresh:requestedFrame -> DetectMotion:renderTick;
+Source:textureOutput -> DetectMotion:videoTexture;
+DisplayRefresh:requestedFrame -> GetImageBrightness:renderTick;
+Source:textureOutput -> GetImageBrightness:texture2d;
+DisplayRefresh:requestedFrame -> ImageLevels:renderTick;
+Source:textureOutput -> ImageLevels:texture2d;
+DisplayRefresh:requestedFrame -> OpticalFlow:renderTick;
+Source:textureOutput -> OpticalFlow:image;
+DisplayRefresh:requestedFrame -> RemoveStaticBackground:renderTick;
+Source:textureOutput -> RemoveStaticBackground:texture2d;
+DisplayRefresh:requestedFrame -> WaveForm:renderTick;
+Source:textureOutput -> WaveForm:effectTexture;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+CompareImages:textureOutput -> ProofImage:compareImagesImage;
+DetectMotion:textureOutput -> ProofImage:detectMotionImage;
+GetImageBrightness:textureOutput -> ProofImage:getImageBrightnessImage;
+ImageLevels:textureOutput -> ProofImage:imageLevelsImage;
+OpticalFlow:textureOutput -> ProofImage:opticalFlowImage;
+RemoveStaticBackground:textureOutput -> ProofImage:removeStaticBackgroundImage;
+WaveForm:textureOutput -> ProofImage:waveFormImage;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

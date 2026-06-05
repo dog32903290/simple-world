@@ -1,0 +1,52 @@
+[
+  {
+    "op": "loadTixlMeshDrawExplicitAdapterFixture",
+    "fixture": "docs/runtime/fixtures/tixl_mesh_draw_explicit_adapter_proof.graph.json"
+  },
+  {
+    "op": "resolveInputArtifacts",
+    "strategy": "docs/runtime/artifacts/tixl_mesh_draw_explicit_translation_strategy/tixl_mesh_draw_explicit_translation_strategy_result.json",
+    "mslApprox": "docs/runtime/artifacts/tixl_mesh_draw_msl_approx/tixl_mesh_draw_msl_approx_result.json",
+    "metalExplicitMsl": "docs/runtime/artifacts/metal_explicit_msl_proof/metal_explicit_msl_result.json"
+  },
+  {
+    "op": "readInputArtifacts",
+    "strategyRead": true,
+    "mslApproxRead": true,
+    "metalExplicitMslRead": true
+  },
+  {
+    "op": "validateInputArtifacts",
+    "strategyKind": "TixlMeshDrawExplicitTranslationStrategy",
+    "mslApproxKind": "TixlMeshDrawMslApproxProof",
+    "metalExplicitKind": "MetalExplicitMslProof",
+    "valid": true
+  },
+  {
+    "op": "writeExplicitAdapterMsl",
+    "artifact": "generated_explicit_adapter.metal"
+  },
+  {
+    "op": "buildExplicitAdapterMetalProbe",
+    "compiler": "xcrun clang++",
+    "exitCode": 0
+  },
+  {
+    "op": "runExplicitAdapterMetalProbe",
+    "exitCode": 0
+  },
+  {
+    "op": "validateExplicitAdapterMetalProbe",
+    "status": "proven_explicit_mesh_draw_adapter",
+    "valid": true
+  },
+  {
+    "op": "proveExplicitAdapterScopeOnly",
+    "scope": "handwritten_explicit_msl_adapter",
+    "backendReplacementReady": false
+  },
+  {
+    "op": "publishTixlMeshDrawExplicitAdapterArtifacts",
+    "ok": true
+  }
+]

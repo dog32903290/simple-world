@@ -1,0 +1,51 @@
+/**
+ * @file
+ * Batch 34 image/generate/noise Vuo visual proof.
+ *
+ * This composition wires my_FractalNoise, my_Grain,
+ * my_ShardNoise, my_TileableNoise, and my_WorleyNoise
+ * into a five-band proof image.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+DisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-1320,100" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+FractalNoise [type="my.image.generate.noise.fractalNoise" version="1.0.0" label="my_FractalNoise|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<gainAndBias>gainAndBias\l|<scale>scale\l|<stretch>stretch\l|<offset>offset\l|<randomPhase>randomPhase\l|<iterations>iterations\l|<warpXY>warpXY\l|<warpZ>warpZ\l|<resolution>resolution\l|<generateMips>generateMips\l|<textureOutput>TextureOutput\r" pos="-760,-460" fillcolor="#9F008A" _colorA="\{\"r\":0.04,\"g\":0.05,\"b\":0.08,\"a\":1\}" _colorB="\{\"r\":0.95,\"g\":0.98,\"b\":1,\"a\":1\}" _gainAndBias="\{\"x\":0.55,\"y\":0.45\}" _scale="1.35" _stretch="\{\"x\":2.4,\"y\":1.5\}" _offset="\{\"x\":0.1,\"y\":-0.05\}" _randomPhase="5" _iterations="4" _warpXY="\{\"x\":0.18,\"y\":0.07\}" _warpZ="0.08" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="false"];
+
+Grain [type="my.image.generate.noise.grain" version="1.0.0" label="my_Grain|<renderTick>renderTick\l|<image>image\l|<amount>amount\l|<color>color\l|<exponent>exponent\l|<brightness>brightness\l|<animate>animate\l|<randomPhase>randomPhase\l|<scale>scale\l|<resolution>resolution\l|<generateMipmaps>generateMipmaps\l|<textureOutput>TextureOutput\r" pos="-760,-150" fillcolor="#9F008A" _amount="0.12" _color="0.55" _exponent="1.2" _brightness="0" _animate="5" _randomPhase="2.5" _scale="0" _resolution="\{\"x\":160,\"y\":160\}" _generateMipmaps="false"];
+
+ShardNoise [type="my.image.generate.noise.shardNoise" version="1.0.0" label="my_ShardNoise|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<gainAndBias>gainAndBias\l|<scale>scale\l|<stretch>stretch\l|<offset>offset\l|<direction>direction\l|<phase>phase\l|<sharpen>sharpen\l|<rate>rate\l|<method>method\l|<resolution>resolution\l|<generateMips>generateMips\l|<textureOutput>TextureOutput\r" pos="-760,170" fillcolor="#9F008A" _colorA="\{\"r\":0,\"g\":0.02,\"b\":0.04,\"a\":1\}" _colorB="\{\"r\":0.9,\"g\":0.85,\"b\":0.72,\"a\":1\}" _gainAndBias="\{\"x\":0.5,\"y\":0.5\}" _scale="7" _stretch="\{\"x\":1.8,\"y\":2.3\}" _offset="\{\"x\":0,\"y\":0\}" _direction="\{\"x\":0.08,\"y\":-0.03\}" _phase="0.4" _sharpen="0.45" _rate="2" _method="1" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="false"];
+
+TileableNoise [type="my.image.generate.noise.tileableNoise" version="1.0.0" label="my_TileableNoise|<renderTick>renderTick\l|<colorA>colorA\l|<colorB>colorB\l|<detail>detail\l|<octaves>octaves\l|<gain>gain\l|<lacunarity>lacunarity\l|<randomPhase>randomPhase\l|<offset>offset\l|<contrast>contrast\l|<gainAndBias>gainAndBias\l|<scale>scale\l|<resolution>resolution\l|<generateMips>generateMips\l|<textureOutput>TextureOutput\r" pos="-760,500" fillcolor="#9F008A" _colorA="\{\"r\":0.02,\"g\":0.02,\"b\":0.02,\"a\":1\}" _colorB="\{\"r\":0.85,\"g\":0.92,\"b\":1,\"a\":1\}" _detail="4" _octaves="4" _gain="0.5" _lacunarity="2" _randomPhase="5" _offset="\{\"x\":0,\"y\":0\}" _contrast="1.7" _gainAndBias="\{\"x\":0.5,\"y\":0.5\}" _scale="1" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="false"];
+
+WorleyNoise [type="my.image.generate.noise.worleyNoise" version="1.0.0" label="my_WorleyNoise|<renderTick>renderTick\l|<texture>texture\l|<textureBlend>textureBlend\l|<colorA>colorA\l|<colorB>colorB\l|<scale>scale\l|<stretch>stretch\l|<offset>offset\l|<phase>phase\l|<randomness>randomness\l|<clamping>clamping\l|<gainAndBias>gainAndBias\l|<method>method\l|<resolution>resolution\l|<generateMips>generateMips\l|<textureOutput>TextureOutput\r" pos="-760,850" fillcolor="#9F008A" _textureBlend="1" _colorA="\{\"r\":1,\"g\":0.95,\"b\":0.78,\"a\":1\}" _colorB="\{\"r\":0,\"g\":0,\"b\":0.02,\"a\":1\}" _scale="6" _stretch="\{\"x\":1,\"y\":1\}" _offset="\{\"x\":0,\"y\":0\}" _phase="5" _randomness="12.6" _clamping="\{\"x\":0,\"y\":1\}" _gainAndBias="\{\"x\":0.5,\"y\":0.5\}" _method="3" _resolution="\{\"x\":160,\"y\":160\}" _generateMips="false"];
+
+ProofImage [type="my.image.batch.batch34NoiseGenerateProof" version="1.0.0" label="my_Batch34NoiseGenerateProof|<renderTick>renderTick\l|<fractalImage>fractalImage\l|<grainImage>grainImage\l|<shardImage>shardImage\l|<tileableImage>tileableImage\l|<worleyImage>worleyImage\l|<width>width\l|<height>height\l|<image>Image\r" pos="120,100" fillcolor="#9F008A" _width="800" _height="160"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 34 Noise Generate|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="780,100" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="780,-190" fillcolor="orange" _url="\"\\/Users\\/chenbaiwei\\/Desktop\\/vibe coding\\/simple_world\\/artifacts\\/vuo_cli\\/batch-34-noise-generate-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 34 image generate noise proof\"" pos="-240,-540" width="540" height="42"];
+
+DisplayRefresh:requestedFrame -> FractalNoise:renderTick;
+DisplayRefresh:requestedFrame -> Grain:renderTick;
+DisplayRefresh:requestedFrame -> ShardNoise:renderTick;
+DisplayRefresh:requestedFrame -> TileableNoise:renderTick;
+DisplayRefresh:requestedFrame -> WorleyNoise:renderTick;
+DisplayRefresh:requestedFrame -> ProofImage:renderTick;
+DisplayRefresh:requestedFrame -> RenderWindow:refresh;
+
+FractalNoise:textureOutput -> ProofImage:fractalImage;
+Grain:textureOutput -> ProofImage:grainImage;
+ShardNoise:textureOutput -> ProofImage:shardImage;
+TileableNoise:textureOutput -> ProofImage:tileableImage;
+WorleyNoise:textureOutput -> ProofImage:worleyImage;
+
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}
