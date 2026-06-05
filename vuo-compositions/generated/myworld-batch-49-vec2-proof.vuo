@@ -1,0 +1,68 @@
+/**
+ * @file
+ * Batch 49 Lib.numbers.vec2 Vuo visual proof.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-820,0" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+AddVec2 [type="my.numbers.vec2.addVec2" version="1.0.0" label="my_AddVec2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,310" fillcolor="#868C8D"];
+DampVec2 [type="my.numbers.vec2.dampVec2" version="1.0.0" label="my_DampVec2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,215" fillcolor="#868C8D"];
+DivideVector2 [type="my.numbers.vec2.divideVector2" version="1.0.0" label="my_DivideVector2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,120" fillcolor="#868C8D"];
+DotVec2 [type="my.numbers.vec2.dotVec2" version="1.0.0" label="my_DotVec2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,25" fillcolor="#868C8D"];
+GridPosition [type="my.numbers.vec2.gridPosition" version="1.0.0" label="my_GridPosition|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-70" fillcolor="#868C8D"];
+HasVec2Changed [type="my.numbers.vec2.hasVec2Changed" version="1.0.0" label="my_HasVec2Changed|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-165" fillcolor="#868C8D"];
+Int2ToVector2 [type="my.numbers.vec2.int2ToVector2" version="1.0.0" label="my_Int2ToVector2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-260" fillcolor="#868C8D"];
+PadVec2Range [type="my.numbers.vec2.padVec2Range" version="1.0.0" label="my_PadVec2Range|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-355" fillcolor="#868C8D"];
+PerlinNoise2 [type="my.numbers.vec2.perlinNoise2" version="1.0.0" label="my_PerlinNoise2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-450" fillcolor="#868C8D"];
+PickVector2 [type="my.numbers.vec2.pickVector2" version="1.0.0" label="my_PickVector2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-545" fillcolor="#868C8D"];
+RemapVec2 [type="my.numbers.vec2.remapVec2" version="1.0.0" label="my_RemapVec2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-640" fillcolor="#868C8D"];
+ScaleVector2 [type="my.numbers.vec2.scaleVector2" version="1.0.0" label="my_ScaleVector2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-735" fillcolor="#868C8D"];
+Vec2ToVec3 [type="my.numbers.vec2.vec2ToVec3" version="1.0.0" label="my_Vec2ToVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-830" fillcolor="#868C8D"];
+Vector2Components [type="my.numbers.vec2.vector2Components" version="1.0.0" label="my_Vector2Components|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-925" fillcolor="#868C8D"];
+
+ProofImage [type="my.numbers.batch.batch49Vec2Proof" version="1.0.0" label="my_Batch49Vec2Proof|<renderTick>renderTick\l|<addVec2Value>addVec2Value\l|<dampVec2Value>dampVec2Value\l|<divideVector2Value>divideVector2Value\l|<dotVec2Value>dotVec2Value\l|<gridPositionValue>gridPositionValue\l|<hasVec2ChangedValue>hasVec2ChangedValue\l|<int2ToVector2Value>int2ToVector2Value\l|<padVec2RangeValue>padVec2RangeValue\l|<perlinNoise2Value>perlinNoise2Value\l|<pickVector2Value>pickVector2Value\l|<remapVec2Value>remapVec2Value\l|<scaleVector2Value>scaleVector2Value\l|<vec2ToVec3Value>vec2ToVec3Value\l|<vector2ComponentsValue>vector2ComponentsValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="220,0" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 49 Vec2|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="790,80" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="790,-150" fillcolor="orange" _url="\"\/Users\/chenbaiwei\/Desktop\/vibe coding\/simple_world\/artifacts\/vuo_cli\/batch-49-vec2-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 49 Lib.numbers.vec2 visual proof\"" pos="-80,455" width="600" height="42"];
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+FireOnDisplayRefresh:requestedFrame -> AddVec2:renderTick;
+AddVec2:proofValue -> ProofImage:addVec2Value;
+FireOnDisplayRefresh:requestedFrame -> DampVec2:renderTick;
+DampVec2:proofValue -> ProofImage:dampVec2Value;
+FireOnDisplayRefresh:requestedFrame -> DivideVector2:renderTick;
+DivideVector2:proofValue -> ProofImage:divideVector2Value;
+FireOnDisplayRefresh:requestedFrame -> DotVec2:renderTick;
+DotVec2:proofValue -> ProofImage:dotVec2Value;
+FireOnDisplayRefresh:requestedFrame -> GridPosition:renderTick;
+GridPosition:proofValue -> ProofImage:gridPositionValue;
+FireOnDisplayRefresh:requestedFrame -> HasVec2Changed:renderTick;
+HasVec2Changed:proofValue -> ProofImage:hasVec2ChangedValue;
+FireOnDisplayRefresh:requestedFrame -> Int2ToVector2:renderTick;
+Int2ToVector2:proofValue -> ProofImage:int2ToVector2Value;
+FireOnDisplayRefresh:requestedFrame -> PadVec2Range:renderTick;
+PadVec2Range:proofValue -> ProofImage:padVec2RangeValue;
+FireOnDisplayRefresh:requestedFrame -> PerlinNoise2:renderTick;
+PerlinNoise2:proofValue -> ProofImage:perlinNoise2Value;
+FireOnDisplayRefresh:requestedFrame -> PickVector2:renderTick;
+PickVector2:proofValue -> ProofImage:pickVector2Value;
+FireOnDisplayRefresh:requestedFrame -> RemapVec2:renderTick;
+RemapVec2:proofValue -> ProofImage:remapVec2Value;
+FireOnDisplayRefresh:requestedFrame -> ScaleVector2:renderTick;
+ScaleVector2:proofValue -> ProofImage:scaleVector2Value;
+FireOnDisplayRefresh:requestedFrame -> Vec2ToVec3:renderTick;
+Vec2ToVec3:proofValue -> ProofImage:vec2ToVec3Value;
+FireOnDisplayRefresh:requestedFrame -> Vector2Components:renderTick;
+Vector2Components:proofValue -> ProofImage:vector2ComponentsValue;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}
