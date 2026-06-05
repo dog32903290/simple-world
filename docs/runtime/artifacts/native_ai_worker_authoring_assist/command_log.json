@@ -1,0 +1,216 @@
+[
+  {
+    "index": 0,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "createNode",
+      "id": "gradient_1",
+      "type": "image.generate.gradient"
+    }
+  },
+  {
+    "index": 1,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "setParam",
+      "id": "gradient_1",
+      "param": "startColor",
+      "value": [
+        0.04,
+        0.1,
+        0.8,
+        1
+      ]
+    }
+  },
+  {
+    "index": 2,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "setParam",
+      "id": "gradient_1",
+      "param": "endColor",
+      "value": [
+        1,
+        0.2,
+        0.48,
+        1
+      ]
+    }
+  },
+  {
+    "index": 3,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "createNode",
+      "id": "blob_1",
+      "type": "image.generate.basic.blob"
+    }
+  },
+  {
+    "index": 4,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "setParam",
+      "id": "blob_1",
+      "param": "color",
+      "value": [
+        1,
+        0.12,
+        0.58,
+        1
+      ]
+    }
+  },
+  {
+    "index": 5,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "setParam",
+      "id": "blob_1",
+      "param": "scale",
+      "value": 0.42
+    }
+  },
+  {
+    "index": 6,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "createNode",
+      "id": "blend_1",
+      "type": "image.use.blendImages"
+    }
+  },
+  {
+    "index": 7,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "setParam",
+      "id": "blend_1",
+      "param": "blendFraction",
+      "value": 0.62
+    }
+  },
+  {
+    "index": 8,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "connect",
+      "from": [
+        "gradient_1",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input1"
+      ]
+    }
+  },
+  {
+    "index": 9,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "connect",
+      "from": [
+        "blob_1",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input2"
+      ]
+    }
+  },
+  {
+    "index": 10,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "createNode",
+      "id": "feedback_1",
+      "type": "image.memory.feedback"
+    }
+  },
+  {
+    "index": 11,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "setParam",
+      "id": "feedback_1",
+      "param": "injection",
+      "value": 0.12
+    }
+  },
+  {
+    "index": 12,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "connect",
+      "from": [
+        "blend_1",
+        "outputImage"
+      ],
+      "to": [
+        "feedback_1",
+        "input"
+      ]
+    }
+  },
+  {
+    "index": 13,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "createNode",
+      "id": "render_target_1",
+      "type": "image.output.renderTarget"
+    }
+  },
+  {
+    "index": 14,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "connect",
+      "from": [
+        "feedback_1",
+        "textureOutput"
+      ],
+      "to": [
+        "render_target_1",
+        "input"
+      ]
+    }
+  },
+  {
+    "index": 15,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "createNode",
+      "id": "output_1",
+      "type": "output.texture"
+    }
+  },
+  {
+    "index": 16,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "connect",
+      "from": [
+        "render_target_1",
+        "textureOutput"
+      ],
+      "to": [
+        "output_1",
+        "image"
+      ]
+    }
+  },
+  {
+    "index": 17,
+    "source": "aiWorker.authoringAssist",
+    "command": {
+      "op": "setParam",
+      "id": "feedback_1",
+      "param": "injection",
+      "value": 0.58
+    }
+  }
+]

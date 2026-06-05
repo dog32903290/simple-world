@@ -1,0 +1,17 @@
+{
+  "kind": "RuntimeFrameArtifact",
+  "graphId": "fixture.native_ai_worker_authoring_assist",
+  "frameIndex": 1,
+  "time": 0.0166667,
+  "runtimeGraphSource": "ai_command_replay",
+  "cookOrder": [
+    "gradient_1",
+    "blob_1",
+    "blend_1",
+    "feedback_1",
+    "render_target_1",
+    "output_1"
+  ],
+  "nonBlack": true,
+  "varied": true
+}

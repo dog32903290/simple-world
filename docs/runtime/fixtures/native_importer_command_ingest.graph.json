@@ -1,0 +1,50 @@
+{
+  "graphId": "fixture.native_importer_command_ingest",
+  "kind": "NativeImporterCommandIngestProof",
+  "importer": {
+    "mode": "commandIngest",
+    "externalDocument": {
+      "kind": "simple_world.import.v1",
+      "nodes": [
+        {
+          "id": "gradient_1",
+          "type": "image.generate.gradient",
+          "position": { "x": 120, "y": 220 },
+          "params": { "endColor": [1, 0.2, 0.48, 1] }
+        },
+        {
+          "id": "blob_1",
+          "type": "image.generate.blob",
+          "position": { "x": 330, "y": 220 },
+          "params": { "radius": 0.31 }
+        },
+        {
+          "id": "blend_1",
+          "type": "image.filter.blend",
+          "position": { "x": 540, "y": 220 },
+          "params": { "opacity": 0.62 }
+        }
+      ],
+      "edges": [
+        { "from": ["gradient_1", "textureOutput"], "to": ["blend_1", "background"] },
+        { "from": ["blob_1", "textureOutput"], "to": ["blend_1", "foreground"] }
+      ]
+    }
+  },
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "frames": [
+      { "frameIndex": 0, "time": 0, "deltaTime": 0 },
+      { "frameIndex": 1, "time": 0.0166667, "deltaTime": 0.0166667 }
+    ]
+  },
+  "expected": {
+    "runtimeCookOrder": ["gradient_1", "blob_1", "blend_1", "output_1"],
+    "claims": {
+      "importerMutationUsesCommandGraph": true,
+      "externalDocumentStoredAsGraphTruth": false,
+      "runtimeGraphBuiltFromReplay": true
+    }
+  }
+}

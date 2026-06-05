@@ -1,0 +1,109 @@
+{
+  "kind": "RuntimeGraph",
+  "graphId": "fixture.native_importer_command_ingest",
+  "source": "command_replay",
+  "cookOrder": [
+    "gradient_1",
+    "blob_1",
+    "blend_1",
+    "output_1"
+  ],
+  "nodes": [
+    {
+      "id": "gradient_1",
+      "type": "image.generate.gradient",
+      "params": {
+        "endColor": [
+          1,
+          0.2,
+          0.48,
+          1
+        ]
+      },
+      "position": {
+        "x": 120,
+        "y": 220
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "blob_1",
+      "type": "image.generate.blob",
+      "params": {
+        "radius": 0.31
+      },
+      "position": {
+        "x": 330,
+        "y": 220
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "blend_1",
+      "type": "image.filter.blend",
+      "params": {
+        "opacity": 0.62
+      },
+      "position": {
+        "x": 540,
+        "y": 220
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "output_1",
+      "type": "output.texture",
+      "params": {},
+      "position": null,
+      "domain": "frame"
+    }
+  ],
+  "edges": [
+    {
+      "from": [
+        "gradient_1",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "background"
+      ]
+    },
+    {
+      "from": [
+        "blob_1",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "foreground"
+      ]
+    },
+    {
+      "from": [
+        "blend_1",
+        "textureOutput"
+      ],
+      "to": [
+        "output_1",
+        "image"
+      ]
+    }
+  ],
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "frames": [
+      {
+        "frameIndex": 0,
+        "time": 0,
+        "deltaTime": 0
+      },
+      {
+        "frameIndex": 1,
+        "time": 0.0166667,
+        "deltaTime": 0.0166667
+      }
+    ]
+  }
+}

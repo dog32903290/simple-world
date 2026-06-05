@@ -1,0 +1,57 @@
+{
+  "kind": "InteractionTrace",
+  "steps": [
+    {
+      "source": "ui.library",
+      "mutationPath": "commandGraph",
+      "command": {
+        "op": "createNode",
+        "id": "blend_1",
+        "type": "image.filter.blend"
+      }
+    },
+    {
+      "source": "ui.canvas",
+      "mutationPath": "commandGraph",
+      "command": {
+        "op": "setNodePosition",
+        "id": "blend_1",
+        "position": {
+          "x": 420,
+          "y": 240
+        }
+      }
+    },
+    {
+      "source": "ui.canvas",
+      "mutationPath": "commandGraph",
+      "command": {
+        "op": "connect",
+        "from": [
+          "gradient_1",
+          "textureOutput"
+        ],
+        "to": [
+          "blend_1",
+          "foreground"
+        ]
+      }
+    },
+    {
+      "source": "ui.inspector",
+      "mutationPath": "commandGraph",
+      "command": {
+        "op": "setParam",
+        "id": "blend_1",
+        "param": "opacity",
+        "value": 0.64
+      }
+    },
+    {
+      "source": "runtime",
+      "op": "runtime.buildFrame",
+      "runtimeGraph": "runtime_graph.json",
+      "frame": "runtime_frame_artifact.json"
+    }
+  ]
+}

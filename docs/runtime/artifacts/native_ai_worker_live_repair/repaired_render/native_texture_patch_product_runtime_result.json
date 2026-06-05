@@ -1,0 +1,16 @@
+{
+  "kind": "NativeTexturePatchProductRuntimeProof",
+  "graphId": "fixture.native_ai_worker_live_repair",
+  "ok": true,
+  "status": "rendered",
+  "claims": {
+    "commandGraphReplayed": true,
+    "runtimeGraphBuilt": true,
+    "gradientMetalPass": true,
+    "feedbackMetalPass": true,
+    "renderTargetMetalPass": true,
+    "actualMetalRan": true,
+    "completeTextureRuntime": false,
+    "completeShaderLanguage": false
+  }
+}

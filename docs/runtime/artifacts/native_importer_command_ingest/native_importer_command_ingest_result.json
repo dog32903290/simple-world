@@ -1,0 +1,11 @@
+{
+  "kind": "NativeImporterCommandIngestProof",
+  "graphId": "fixture.native_importer_command_ingest",
+  "ok": true,
+  "status": "importer_command_ingest_ready",
+  "claims": {
+    "importerMutationUsesCommandGraph": true,
+    "externalDocumentStoredAsGraphTruth": false,
+    "runtimeGraphBuiltFromReplay": true
+  }
+}

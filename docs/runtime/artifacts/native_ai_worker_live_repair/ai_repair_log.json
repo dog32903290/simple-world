@@ -1,0 +1,19 @@
+[
+  {
+    "attempt": 1,
+    "diagnostic": {
+      "code": "render.black_frame",
+      "severity": "error",
+      "sourceArtifact": "initial_render/frame_stats.json",
+      "nonBlack": false,
+      "varied": false
+    },
+    "appliedCommand": {
+      "op": "setParam",
+      "id": "feedback_1",
+      "param": "injection",
+      "value": 0.58
+    },
+    "mutationPath": "commandGraph"
+  }
+]

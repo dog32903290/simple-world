@@ -1,0 +1,110 @@
+{
+  "kind": "RuntimeGraph",
+  "graphId": "fixture.native_canvas_interaction_command_loop",
+  "cookOrder": [
+    "gradient_1",
+    "blend_1",
+    "render_target_1",
+    "output_1"
+  ],
+  "nodes": [
+    {
+      "id": "gradient_1",
+      "type": "image.generate.gradient",
+      "params": {
+        "startColor": [
+          0.04,
+          0.1,
+          0.8,
+          1
+        ],
+        "endColor": [
+          1,
+          0.2,
+          0.48,
+          1
+        ]
+      },
+      "position": {
+        "x": 140,
+        "y": 220
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "blend_1",
+      "type": "image.filter.blend",
+      "params": {
+        "opacity": 0.64
+      },
+      "position": {
+        "x": 420,
+        "y": 240
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "render_target_1",
+      "type": "image.output.renderTarget",
+      "params": {},
+      "position": {
+        "x": 680,
+        "y": 240
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "output_1",
+      "type": "output.texture",
+      "params": {},
+      "position": {
+        "x": 860,
+        "y": 240
+      },
+      "domain": "frame"
+    }
+  ],
+  "edges": [
+    {
+      "from": [
+        "render_target_1",
+        "textureOutput"
+      ],
+      "to": [
+        "output_1",
+        "image"
+      ]
+    },
+    {
+      "from": [
+        "gradient_1",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "foreground"
+      ]
+    }
+  ],
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "frames": [
+      {
+        "frameIndex": 0,
+        "time": 0,
+        "deltaTime": 0
+      },
+      {
+        "frameIndex": 1,
+        "time": 0.0166667,
+        "deltaTime": 0.0166667
+      },
+      {
+        "frameIndex": 2,
+        "time": 0.0333334,
+        "deltaTime": 0.0166667
+      }
+    ]
+  }
+}

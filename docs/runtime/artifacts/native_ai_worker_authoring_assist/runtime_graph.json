@@ -1,0 +1,150 @@
+{
+  "kind": "RuntimeGraph",
+  "graphId": "fixture.native_ai_worker_authoring_assist",
+  "source": "ai_command_replay",
+  "cookOrder": [
+    "gradient_1",
+    "blob_1",
+    "blend_1",
+    "feedback_1",
+    "render_target_1",
+    "output_1"
+  ],
+  "nodes": [
+    {
+      "id": "gradient_1",
+      "type": "image.generate.gradient",
+      "params": {
+        "startColor": [
+          0.04,
+          0.1,
+          0.8,
+          1
+        ],
+        "endColor": [
+          1,
+          0.2,
+          0.48,
+          1
+        ]
+      },
+      "position": null,
+      "domain": "frame"
+    },
+    {
+      "id": "blob_1",
+      "type": "image.generate.basic.blob",
+      "params": {
+        "color": [
+          1,
+          0.12,
+          0.58,
+          1
+        ],
+        "scale": 0.42
+      },
+      "position": null,
+      "domain": "frame"
+    },
+    {
+      "id": "blend_1",
+      "type": "image.use.blendImages",
+      "params": {
+        "blendFraction": 0.62
+      },
+      "position": null,
+      "domain": "frame"
+    },
+    {
+      "id": "feedback_1",
+      "type": "image.memory.feedback",
+      "params": {
+        "injection": 0.58
+      },
+      "position": null,
+      "domain": "frame"
+    },
+    {
+      "id": "render_target_1",
+      "type": "image.output.renderTarget",
+      "params": {},
+      "position": null,
+      "domain": "frame"
+    },
+    {
+      "id": "output_1",
+      "type": "output.texture",
+      "params": {},
+      "position": null,
+      "domain": "frame"
+    }
+  ],
+  "edges": [
+    {
+      "from": [
+        "gradient_1",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input1"
+      ]
+    },
+    {
+      "from": [
+        "blob_1",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input2"
+      ]
+    },
+    {
+      "from": [
+        "blend_1",
+        "outputImage"
+      ],
+      "to": [
+        "feedback_1",
+        "input"
+      ]
+    },
+    {
+      "from": [
+        "feedback_1",
+        "textureOutput"
+      ],
+      "to": [
+        "render_target_1",
+        "input"
+      ]
+    },
+    {
+      "from": [
+        "render_target_1",
+        "textureOutput"
+      ],
+      "to": [
+        "output_1",
+        "image"
+      ]
+    }
+  ],
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "frames": [
+      {
+        "frameIndex": 0,
+        "time": 0,
+        "deltaTime": 0
+      },
+      {
+        "frameIndex": 1,
+        "time": 0.0166667,
+        "deltaTime": 0.0166667
+      }
+    ]
+  }
+}

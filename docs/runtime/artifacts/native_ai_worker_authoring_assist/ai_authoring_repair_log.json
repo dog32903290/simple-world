@@ -1,0 +1,20 @@
+[
+  {
+    "attempt": 1,
+    "diagnostic": {
+      "code": "authoring.feedback_injection.low",
+      "severity": "warning",
+      "sourceArtifact": "ai_command_plan.json",
+      "nodeId": "feedback_1",
+      "param": "injection",
+      "value": 0.12
+    },
+    "appliedCommand": {
+      "op": "setParam",
+      "id": "feedback_1",
+      "param": "injection",
+      "value": 0.58
+    },
+    "mutationPath": "commandGraph"
+  }
+]

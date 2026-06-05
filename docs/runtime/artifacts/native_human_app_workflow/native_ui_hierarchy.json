@@ -1,0 +1,57 @@
+{
+  "kind": "NativeHumanUiHierarchy",
+  "window": {
+    "title": "simple_world human workflow proof",
+    "width": 960,
+    "height": 600,
+    "visibleRequested": true
+  },
+  "regions": [
+    {
+      "id": "toolbar",
+      "nativeClass": "NSToolbar",
+      "readsFrom": "command registry",
+      "mutatesThrough": "commandGraph"
+    },
+    {
+      "id": "library",
+      "nativeClass": "NSView",
+      "readsFrom": "NodeSpec registry",
+      "mutatesThrough": "commandGraph"
+    },
+    {
+      "id": "canvas",
+      "nativeClass": "MTKView",
+      "readsFrom": "runtime frame",
+      "mutatesThrough": "commandGraph"
+    },
+    {
+      "id": "inspector",
+      "nativeClass": "NSView",
+      "readsFrom": "NodeSpec+NodeInstance",
+      "mutatesThrough": "commandGraph"
+    },
+    {
+      "id": "diagnostics",
+      "nativeClass": "NSTextField",
+      "readsFrom": "runtime diagnostics",
+      "mutatesThrough": "none"
+    }
+  ],
+  "nativeProbe": {
+    "status": "human_workflow_ready",
+    "ok": true,
+    "actualAppKitRan": true,
+    "actualMetalDeviceCreated": true,
+    "actualMetalKitViewCreated": true,
+    "actualWindowCreated": true,
+    "actualToolbarCreated": true,
+    "actualInspectorCreated": true,
+    "actualDiagnosticsCreated": true,
+    "width": 960,
+    "height": 600,
+    "title": "simple_world human workflow proof",
+    "message": "human-facing workflow window created",
+    "returncode": 0
+  }
+}

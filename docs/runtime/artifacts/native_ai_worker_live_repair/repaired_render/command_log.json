@@ -1,0 +1,143 @@
+[
+  {
+    "index": 0,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "gradient_1",
+      "type": "image.generate.gradient"
+    }
+  },
+  {
+    "index": 1,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "gradient_1",
+      "param": "startColor",
+      "value": [
+        0.04,
+        0.1,
+        0.8,
+        1
+      ]
+    }
+  },
+  {
+    "index": 2,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "gradient_1",
+      "param": "endColor",
+      "value": [
+        1,
+        0.2,
+        0.48,
+        1
+      ]
+    }
+  },
+  {
+    "index": 3,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "feedback_1",
+      "type": "image.memory.feedback"
+    }
+  },
+  {
+    "index": 4,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "feedback_1",
+      "param": "decay",
+      "value": 0
+    }
+  },
+  {
+    "index": 5,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "feedback_1",
+      "param": "injection",
+      "value": 0
+    }
+  },
+  {
+    "index": 6,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "gradient_1",
+        "textureOutput"
+      ],
+      "to": [
+        "feedback_1",
+        "input"
+      ]
+    }
+  },
+  {
+    "index": 7,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "render_target_1",
+      "type": "image.output.renderTarget"
+    }
+  },
+  {
+    "index": 8,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "feedback_1",
+        "textureOutput"
+      ],
+      "to": [
+        "render_target_1",
+        "input"
+      ]
+    }
+  },
+  {
+    "index": 9,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "output_1",
+      "type": "output.texture"
+    }
+  },
+  {
+    "index": 10,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "render_target_1",
+        "textureOutput"
+      ],
+      "to": [
+        "output_1",
+        "image"
+      ]
+    }
+  },
+  {
+    "index": 11,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "feedback_1",
+      "param": "injection",
+      "value": 0.58
+    }
+  }
+]

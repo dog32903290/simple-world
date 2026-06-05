@@ -1,0 +1,10 @@
+{
+  "kind": "ImportDiagnostics",
+  "items": [
+    {
+      "code": "importer.command_stream.ready",
+      "severity": "info",
+      "commandCount": 13
+    }
+  ]
+}

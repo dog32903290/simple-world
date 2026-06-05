@@ -1,0 +1,12 @@
+{
+  "kind": "AICommandPlanValidation",
+  "ok": true,
+  "allowedCommands": [
+    "connect",
+    "createNode",
+    "setNodePosition",
+    "setParam"
+  ],
+  "validatedCommandCount": 17,
+  "errors": []
+}

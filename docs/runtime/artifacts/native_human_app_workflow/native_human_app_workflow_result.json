@@ -1,0 +1,12 @@
+{
+  "kind": "NativeHumanAppWorkflowProof",
+  "graphId": "fixture.native_human_app_workflow",
+  "ok": true,
+  "status": "human_workflow_ready",
+  "claims": {
+    "nativeHumanFacingUi": true,
+    "uiMutationUsesCommandGraph": true,
+    "runtimeFrameLinked": true,
+    "viewLocalGraphTruth": false
+  }
+}

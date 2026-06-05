@@ -1,0 +1,17 @@
+{
+  "kind": "NativeCanvasSurface",
+  "id": "mainCanvas",
+  "viewClass": "MTKView",
+  "backingLayer": "CAMetalLayer",
+  "pixelFormat": "RGBA8_Unorm",
+  "clearColor": [
+    0.02,
+    0.04,
+    0.08,
+    1
+  ],
+  "acceptsRuntimeFrames": true,
+  "actualMetalKitViewCreated": true,
+  "actualMetalDeviceCreated": true,
+  "layerBacked": true
+}

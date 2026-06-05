@@ -1,0 +1,22 @@
+{
+  "kind": "NativeAIWorkerLiveRepairProof",
+  "graphId": "fixture.native_ai_worker_live_repair",
+  "ok": true,
+  "status": "repaired_rendered",
+  "claims": {
+    "initialRenderRan": true,
+    "diagnosticsReadFromRenderArtifact": true,
+    "aiRepairUsedCommandGraph": true,
+    "repairedRenderRan": true,
+    "broadNaturalLanguageAuthoring": false
+  },
+  "artifactIndex": {
+    "initialRender": "initial_render",
+    "repairedRender": "repaired_render",
+    "diagnostics": "diagnostics.json",
+    "aiRepairLog": "ai_repair_log.json",
+    "commandLog": "command_log.json",
+    "repairedFixture": "repaired_texture_patch.graph.json",
+    "errors": "native_ai_worker_live_repair_errors.json"
+  }
+}

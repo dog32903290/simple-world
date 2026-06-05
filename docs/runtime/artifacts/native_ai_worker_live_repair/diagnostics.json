@@ -1,0 +1,9 @@
+[
+  {
+    "code": "render.black_frame",
+    "severity": "error",
+    "sourceArtifact": "initial_render/frame_stats.json",
+    "nonBlack": false,
+    "varied": false
+  }
+]

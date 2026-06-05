@@ -1,0 +1,10 @@
+{
+  "kind": "CanvasHitTest",
+  "point": {
+    "x": 434,
+    "y": 252
+  },
+  "selectedNodeId": "blend_1",
+  "hitRegion": "node.body",
+  "selectionOwner": "commandGraph"
+}

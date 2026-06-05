@@ -1,0 +1,20 @@
+{
+  "kind": "simple_world.intent.texture_patch.v1",
+  "requestId": "intent.texture_patch.gradient_blob_feedback",
+  "style": {
+    "background": "cool diagonal gradient",
+    "figure": "soft magenta blob",
+    "motion": "feedback trail"
+  },
+  "targetNodes": [
+    "Gradient",
+    "Blob",
+    "BlendImages",
+    "Feedback",
+    "RenderTarget"
+  ],
+  "safety": {
+    "allowDirectGraphMutation": false,
+    "allowUnknownCommands": false
+  }
+}

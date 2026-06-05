@@ -1,0 +1,15 @@
+{
+  "kind": "RuntimeFrameArtifact",
+  "graphId": "fixture.native_canvas_interaction_command_loop",
+  "frameIndex": 2,
+  "time": 0.0333334,
+  "canvasSurface": "MTKView",
+  "cookOrder": [
+    "gradient_1",
+    "blend_1",
+    "render_target_1",
+    "output_1"
+  ],
+  "nativeSurfaceReady": true,
+  "lastInteractionSource": "ui.inspector"
+}

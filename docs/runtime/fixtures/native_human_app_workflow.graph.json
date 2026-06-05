@@ -1,0 +1,64 @@
+{
+  "graphId": "fixture.native_human_app_workflow",
+  "kind": "NativeHumanAppWorkflowProof",
+  "appShell": {
+    "mode": "nativeHumanWorkflow",
+    "window": {
+      "title": "simple_world human workflow proof",
+      "width": 960,
+      "height": 600,
+      "visibleRequested": true
+    },
+    "canvas": {
+      "id": "mainCanvas",
+      "kind": "MTKView",
+      "pixelFormat": "RGBA8_Unorm",
+      "preferredFramesPerSecond": 60
+    }
+  },
+  "ui": {
+    "layout": {
+      "regions": ["toolbar", "library", "canvas", "inspector", "diagnostics"]
+    },
+    "selection": {
+      "nodeId": "gradient_1"
+    },
+    "actions": [
+      {
+        "source": "ui.inspector",
+        "kind": "command",
+        "command": { "op": "setParam", "id": "gradient_1", "param": "endColor", "value": [0.9, 0.82, 0.25, 1] }
+      }
+    ]
+  },
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "frames": [
+      { "frameIndex": 0, "time": 0, "deltaTime": 0 },
+      { "frameIndex": 1, "time": 0.0166667, "deltaTime": 0.0166667 }
+    ]
+  },
+  "commands": [
+    { "op": "createNode", "id": "gradient_1", "type": "image.generate.gradient" },
+    { "op": "setParam", "id": "gradient_1", "param": "startColor", "value": [0.04, 0.1, 0.8, 1] },
+    { "op": "setParam", "id": "gradient_1", "param": "endColor", "value": [1, 0.2, 0.48, 1] },
+    { "op": "createNode", "id": "feedback_1", "type": "image.memory.feedback" },
+    { "op": "setParam", "id": "feedback_1", "param": "decay", "value": 0.72 },
+    { "op": "setParam", "id": "feedback_1", "param": "injection", "value": 0.58 },
+    { "op": "connect", "from": ["gradient_1", "textureOutput"], "to": ["feedback_1", "input"] },
+    { "op": "createNode", "id": "render_target_1", "type": "image.output.renderTarget" },
+    { "op": "connect", "from": ["feedback_1", "textureOutput"], "to": ["render_target_1", "input"] },
+    { "op": "createNode", "id": "output_1", "type": "output.texture" },
+    { "op": "connect", "from": ["render_target_1", "textureOutput"], "to": ["output_1", "image"] }
+  ],
+  "expected": {
+    "runtimeCookOrder": ["gradient_1", "feedback_1", "render_target_1", "output_1"],
+    "claims": {
+      "nativeHumanFacingUi": true,
+      "uiMutationUsesCommandGraph": true,
+      "runtimeFrameLinked": true,
+      "viewLocalGraphTruth": false
+    }
+  }
+}

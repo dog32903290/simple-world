@@ -1,0 +1,13 @@
+{
+  "kind": "NativeCanvasInteractionCommandLoopProof",
+  "graphId": "fixture.native_canvas_interaction_command_loop",
+  "ok": true,
+  "status": "canvas_interaction_loop_ready",
+  "claims": {
+    "libraryMutationUsesCommandGraph": true,
+    "canvasMutationUsesCommandGraph": true,
+    "inspectorMutationUsesCommandGraph": true,
+    "runtimeFrameLinked": true,
+    "viewLocalGraphTruth": false
+  }
+}

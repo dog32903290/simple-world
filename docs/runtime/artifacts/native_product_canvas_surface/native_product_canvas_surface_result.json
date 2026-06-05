@@ -1,0 +1,20 @@
+{
+  "kind": "NativeProductCanvasSurfaceProof",
+  "graphId": "fixture.native_product_canvas_surface",
+  "ok": true,
+  "status": "native_surface_ready",
+  "claims": {
+    "nativeWindowCanvasSurface": true,
+    "commandGraphOnlyMutation": true,
+    "runtimeGraphAttached": true,
+    "headlessShellRenamed": false
+  },
+  "artifactIndex": {
+    "nativeAppSurface": "native_app_surface.json",
+    "canvasSurface": "canvas_surface.json",
+    "runtimeGraph": "runtime_graph.json",
+    "runtimeFrameArtifact": "runtime_frame_artifact.json",
+    "commandLog": "command_log.json",
+    "errors": "native_product_canvas_surface_errors.json"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "kind": "InspectorState",
+  "selectedNodeId": "gradient_1",
+  "readsFrom": "NodeSpec+NodeInstance",
+  "params": {
+    "startColor": {
+      "value": [
+        0.04,
+        0.1,
+        0.8,
+        1
+      ],
+      "owner": "NodeInstance",
+      "mutatesThrough": "commandGraph"
+    },
+    "endColor": {
+      "value": [
+        0.9,
+        0.82,
+        0.25,
+        1
+      ],
+      "owner": "NodeInstance",
+      "mutatesThrough": "commandGraph"
+    }
+  }
+}

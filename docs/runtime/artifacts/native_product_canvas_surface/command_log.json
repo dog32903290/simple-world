@@ -1,0 +1,143 @@
+[
+  {
+    "index": 0,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "constant_bg",
+      "type": "image.constant"
+    }
+  },
+  {
+    "index": 1,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "constant_bg",
+      "param": "color",
+      "value": [
+        0.02,
+        0.04,
+        0.09,
+        1
+      ]
+    }
+  },
+  {
+    "index": 2,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "blob_fg",
+      "type": "image.generate.basic.blob"
+    }
+  },
+  {
+    "index": 3,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "color",
+      "value": [
+        1,
+        0.12,
+        0.58,
+        1
+      ]
+    }
+  },
+  {
+    "index": 4,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "scale",
+      "value": 0.58
+    }
+  },
+  {
+    "index": 5,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "blend_1",
+      "type": "image.use.blendImages"
+    }
+  },
+  {
+    "index": 6,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "blend_1",
+      "param": "inputCount",
+      "value": 2
+    }
+  },
+  {
+    "index": 7,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "blend_1",
+      "param": "blendFraction",
+      "value": 0.65
+    }
+  },
+  {
+    "index": 8,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "constant_bg",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input1"
+      ]
+    }
+  },
+  {
+    "index": 9,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "blob_fg",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input2"
+      ]
+    }
+  },
+  {
+    "index": 10,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "output_1",
+      "type": "output.texture"
+    }
+  },
+  {
+    "index": 11,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "blend_1",
+        "outputImage"
+      ],
+      "to": [
+        "output_1",
+        "image"
+      ]
+    }
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "kind": "DiagnosticsStrip",
+  "items": [
+    {
+      "code": "runtime.frame.ready",
+      "severity": "info",
+      "source": "runtime_frame_artifact.json",
+      "visible": true
+    }
+  ]
+}

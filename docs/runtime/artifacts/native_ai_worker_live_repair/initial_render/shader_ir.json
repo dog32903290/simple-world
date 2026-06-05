@@ -1,0 +1,40 @@
+{
+  "kind": "ShaderIR",
+  "version": "0.2",
+  "nodes": [
+    {
+      "id": "gradient_1",
+      "op": "Gradient",
+      "stage": "fragment",
+      "params": {
+        "startColor": [
+          0.04,
+          0.1,
+          0.8,
+          1
+        ],
+        "endColor": [
+          1,
+          0.2,
+          0.48,
+          1
+        ]
+      }
+    },
+    {
+      "id": "feedback_1",
+      "op": "Feedback",
+      "stage": "fragment",
+      "params": {
+        "decay": 0,
+        "injection": 0
+      }
+    },
+    {
+      "id": "render_target_1",
+      "op": "RenderTarget",
+      "stage": "fragment",
+      "params": {}
+    }
+  ]
+}

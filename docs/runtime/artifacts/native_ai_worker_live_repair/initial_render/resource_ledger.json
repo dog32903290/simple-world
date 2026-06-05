@@ -1,0 +1,97 @@
+{
+  "kind": "NativeTexturePatchProductResourceLedger",
+  "resources": {
+    "gradient_1.texture": {
+      "id": "gradient_1.texture",
+      "ownerNode": "gradient_1",
+      "role": "ColorBuffer",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ]
+    },
+    "feedback_1.history": {
+      "id": "feedback_1.history",
+      "ownerNode": "feedback_1",
+      "role": "FeedbackHistory",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ]
+    },
+    "feedback_1.ping": {
+      "id": "feedback_1.ping",
+      "ownerNode": "feedback_1",
+      "role": "FeedbackState",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ]
+    },
+    "feedback_1.pong": {
+      "id": "feedback_1.pong",
+      "ownerNode": "feedback_1",
+      "role": "FeedbackState",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ]
+    },
+    "render_target_1.texture": {
+      "id": "render_target_1.texture",
+      "ownerNode": "render_target_1",
+      "role": "RenderTarget",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ]
+    }
+  },
+  "renderPasses": [
+    {
+      "name": "gradient_1_pass",
+      "nodeId": "gradient_1",
+      "reads": [],
+      "writes": [
+        "gradient_1.texture"
+      ]
+    },
+    {
+      "name": "feedback_1_pass",
+      "nodeId": "feedback_1",
+      "reads": [
+        "gradient_1.texture",
+        "feedback_1.history"
+      ],
+      "writes": [
+        "feedback_1.ping",
+        "feedback_1.pong"
+      ]
+    },
+    {
+      "name": "render_target_1_pass",
+      "nodeId": "render_target_1",
+      "reads": [
+        "feedback_1.pong"
+      ],
+      "writes": [
+        "render_target_1.texture"
+      ]
+    }
+  ]
+}

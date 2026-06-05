@@ -1,0 +1,15 @@
+{
+  "kind": "RuntimeFrameArtifact",
+  "graphId": "fixture.native_product_canvas_surface",
+  "frameIndex": 1,
+  "time": 0.0166667,
+  "canvasSurface": "MTKView",
+  "runtimeGraph": "runtime_graph.json",
+  "cookOrder": [
+    "constant_bg",
+    "blob_fg",
+    "blend_1",
+    "output_1"
+  ],
+  "nativeSurfaceReady": true
+}

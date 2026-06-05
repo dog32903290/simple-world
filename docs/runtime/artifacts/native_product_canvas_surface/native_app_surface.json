@@ -1,0 +1,56 @@
+{
+  "kind": "NativeAppWindowSurface",
+  "mode": "nativeWindowCanvas",
+  "frameworks": {
+    "app": "AppKit",
+    "canvas": "MetalKit",
+    "gpu": "Metal"
+  },
+  "window": {
+    "title": "simple_world runtime surface proof",
+    "width": 640,
+    "height": 360,
+    "visibleRequested": true,
+    "actualWindowCreated": true
+  },
+  "canvas": {
+    "id": "mainCanvas",
+    "kind": "MTKView",
+    "pixelFormat": "RGBA8_Unorm",
+    "preferredFramesPerSecond": 60,
+    "mutationPath": "commandGraph"
+  },
+  "nativeProbe": {
+    "status": "native_surface_ready",
+    "ok": true,
+    "actualAppKitRan": true,
+    "actualMetalDeviceCreated": true,
+    "actualMetalKitViewCreated": true,
+    "actualWindowCreated": true,
+    "layerBacked": true,
+    "viewClass": "MTKView",
+    "backingLayer": "CAMetalLayer",
+    "width": 640,
+    "height": 360,
+    "title": "simple_world runtime surface proof",
+    "message": "NSWindow with MTKView created",
+    "returncode": 0,
+    "compileCommand": [
+      "xcrun",
+      "--sdk",
+      "macosx",
+      "clang++",
+      "-std=c++17",
+      "-fobjc-arc",
+      "docs/runtime/native/native_product_canvas_surface_probe.mm",
+      "-framework",
+      "AppKit",
+      "-framework",
+      "Metal",
+      "-framework",
+      "MetalKit",
+      "-o",
+      "docs/runtime/artifacts/native_product_canvas_surface/native_product_canvas_surface_probe"
+    ]
+  }
+}

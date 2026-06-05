@@ -1,0 +1,52 @@
+{
+  "kind": "NativeCanvasInteractionHierarchy",
+  "window": {
+    "title": "simple_world canvas command loop proof",
+    "width": 1024,
+    "height": 640,
+    "visibleRequested": true
+  },
+  "regions": [
+    {
+      "id": "toolbar",
+      "nativeClass": "NSToolbar",
+      "mutatesThrough": "commandGraph"
+    },
+    {
+      "id": "library",
+      "nativeClass": "NSView",
+      "mutatesThrough": "commandGraph"
+    },
+    {
+      "id": "canvas",
+      "nativeClass": "MTKView",
+      "mutatesThrough": "commandGraph"
+    },
+    {
+      "id": "inspector",
+      "nativeClass": "NSView",
+      "mutatesThrough": "commandGraph"
+    },
+    {
+      "id": "diagnostics",
+      "nativeClass": "NSTextField",
+      "mutatesThrough": "none"
+    }
+  ],
+  "nativeProbe": {
+    "status": "human_workflow_ready",
+    "ok": true,
+    "actualAppKitRan": true,
+    "actualMetalDeviceCreated": true,
+    "actualMetalKitViewCreated": true,
+    "actualWindowCreated": true,
+    "actualToolbarCreated": true,
+    "actualInspectorCreated": true,
+    "actualDiagnosticsCreated": true,
+    "width": 1024,
+    "height": 640,
+    "title": "simple_world canvas command loop proof",
+    "message": "human-facing workflow window created",
+    "returncode": 0
+  }
+}

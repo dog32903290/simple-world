@@ -1,0 +1,26 @@
+{
+  "kind": "NativeAIWorkerAuthoringAssistProof",
+  "graphId": "fixture.native_ai_worker_authoring_assist",
+  "ok": true,
+  "status": "authored_render_ready",
+  "claims": {
+    "boundedIntentAuthoring": true,
+    "commandPlanValidated": true,
+    "commandGraphOnlyMutation": true,
+    "runtimeArtifactRendered": true,
+    "diagnosticFeedbackObserved": true,
+    "directGraphMutationRejected": true,
+    "broadNaturalLanguageAuthoring": false
+  },
+  "artifactIndex": {
+    "intent": "bounded_intent.json",
+    "commandPlan": "ai_command_plan.json",
+    "validation": "command_plan_validation.json",
+    "commandLog": "command_log.json",
+    "runtimeGraph": "runtime_graph.json",
+    "runtimeFrame": "runtime_frame_artifact.json",
+    "diagnostics": "diagnostics.json",
+    "repairLog": "ai_authoring_repair_log.json",
+    "errors": "native_ai_worker_authoring_assist_errors.json"
+  }
+}
