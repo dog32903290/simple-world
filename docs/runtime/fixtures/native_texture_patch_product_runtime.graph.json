@@ -1,0 +1,40 @@
+{
+  "graphId": "fixture.native_texture_patch_product_runtime",
+  "kind": "NativeTexturePatchProductRuntimeProof",
+  "viewport": { "width": 64, "height": 64 },
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "targetFps": 60,
+    "frames": [
+      { "frameIndex": 0, "time": 0, "deltaTime": 0 },
+      { "frameIndex": 1, "time": 0.0166667, "deltaTime": 0.0166667 }
+    ]
+  },
+  "commands": [
+    { "op": "createNode", "id": "gradient_1", "type": "image.generate.gradient" },
+    { "op": "setParam", "id": "gradient_1", "param": "startColor", "value": [0.04, 0.1, 0.8, 1] },
+    { "op": "setParam", "id": "gradient_1", "param": "endColor", "value": [1, 0.2, 0.48, 1] },
+    { "op": "createNode", "id": "feedback_1", "type": "image.memory.feedback" },
+    { "op": "setParam", "id": "feedback_1", "param": "decay", "value": 0.72 },
+    { "op": "setParam", "id": "feedback_1", "param": "injection", "value": 0.58 },
+    { "op": "connect", "from": ["gradient_1", "textureOutput"], "to": ["feedback_1", "input"] },
+    { "op": "createNode", "id": "render_target_1", "type": "image.output.renderTarget" },
+    { "op": "connect", "from": ["feedback_1", "textureOutput"], "to": ["render_target_1", "input"] },
+    { "op": "createNode", "id": "output_1", "type": "output.texture" },
+    { "op": "connect", "from": ["render_target_1", "textureOutput"], "to": ["output_1", "image"] }
+  ],
+  "expected": {
+    "cookOrder": ["gradient_1", "feedback_1", "render_target_1", "output_1"],
+    "claims": {
+      "commandGraphReplayed": true,
+      "runtimeGraphBuilt": true,
+      "gradientMetalPass": true,
+      "feedbackMetalPass": true,
+      "renderTargetMetalPass": true,
+      "actualMetalRan": true,
+      "completeTextureRuntime": false,
+      "completeShaderLanguage": false
+    }
+  }
+}

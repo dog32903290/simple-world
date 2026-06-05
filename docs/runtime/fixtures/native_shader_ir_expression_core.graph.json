@@ -1,0 +1,53 @@
+{
+  "graphId": "fixture.native_shader_ir_expression_core",
+  "kind": "NativeShaderIrExpressionCoreProof",
+  "shaderExpression": {
+    "name": "expression_core_fragment",
+    "uniforms": [
+      { "name": "u_time", "type": "float", "default": 0.0 },
+      { "name": "u_intensity", "type": "float", "default": 0.8 }
+    ],
+    "root": {
+      "op": "vec4",
+      "args": [
+        {
+          "op": "mix",
+          "args": [
+            { "op": "const", "type": "float3", "value": [0.04, 0.1, 0.8] },
+            { "op": "const", "type": "float3", "value": [1.0, 0.2, 0.48] },
+            {
+              "op": "smoothstep",
+              "args": [
+                { "op": "const", "type": "float", "value": 0.15 },
+                { "op": "const", "type": "float", "value": 0.95 },
+                {
+                  "op": "add",
+                  "args": [
+                    { "op": "swizzle", "field": "x", "value": { "op": "uv" } },
+                    {
+                      "op": "mul",
+                      "args": [
+                        { "op": "sin", "args": [{ "op": "uniform", "name": "u_time" }] },
+                        { "op": "uniform", "name": "u_intensity" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        { "op": "const", "type": "float", "value": 1.0 }
+      ]
+    }
+  },
+  "expected": {
+    "expressionOps": ["uniform", "uv", "swizzle", "const", "sin", "mul", "add", "smoothstep", "mix", "vec4"],
+    "claims": {
+      "coreExpressionLanguage": true,
+      "metalCompiled": true,
+      "completeShaderLanguage": false,
+      "unsafeExpressionBlocked": true
+    }
+  }
+}

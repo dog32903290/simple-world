@@ -1,0 +1,20 @@
+{
+  "kind": "NativeShaderIrCodegenRegistryProof",
+  "graphId": "fixture.native_shader_ir_codegen_registry",
+  "ok": true,
+  "status": "codegen_ready",
+  "claims": {
+    "registryDrivenCodegen": true,
+    "perShellHandAdapter": false,
+    "completeShaderLanguage": false,
+    "hlslToMslTranslation": false
+  },
+  "artifactIndex": {
+    "registry": "node_codegen_registry.json",
+    "shaderIr": "shader_ir.json",
+    "shaderCache": "shader_cache.json",
+    "source": "generated_registry_patch.metal",
+    "diagnostics": "diagnostics.json",
+    "errors": "native_shader_ir_codegen_registry_errors.json"
+  }
+}

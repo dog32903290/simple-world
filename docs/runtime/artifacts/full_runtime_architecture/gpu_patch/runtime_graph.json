@@ -1,0 +1,140 @@
+{
+  "cookOrder": [
+    "constant_bg",
+    "blob_fg",
+    "blend_1",
+    "output_1"
+  ],
+  "edges": [
+    {
+      "from": [
+        "constant_bg",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input1"
+      ]
+    },
+    {
+      "from": [
+        "blob_fg",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input2"
+      ]
+    },
+    {
+      "from": [
+        "blend_1",
+        "outputImage"
+      ],
+      "to": [
+        "output_1",
+        "image"
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "deltaTime": 0,
+      "frameIndex": 0,
+      "time": 0
+    },
+    {
+      "deltaTime": 0.0166667,
+      "frameIndex": 1,
+      "time": 0.0166667
+    }
+  ],
+  "graphId": "fixture.full_runtime_architecture",
+  "kind": "RuntimeGraph",
+  "nodes": [
+    {
+      "domain": "frame",
+      "id": "constant_bg",
+      "outputs": [
+        "textureOutput"
+      ],
+      "params": {
+        "color": [
+          0.02,
+          0.04,
+          0.09,
+          1
+        ],
+        "resolution": [
+          64,
+          64
+        ]
+      },
+      "type": "image.constant"
+    },
+    {
+      "domain": "frame",
+      "id": "blob_fg",
+      "outputs": [
+        "textureOutput"
+      ],
+      "params": {
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "color": [
+          1,
+          0.12,
+          0.58,
+          1
+        ],
+        "feather": 0.34,
+        "scale": 0.58,
+        "stretch": [
+          1.2,
+          0.72
+        ]
+      },
+      "type": "image.generate.basic.blob"
+    },
+    {
+      "domain": "frame",
+      "id": "blend_1",
+      "outputs": [
+        "outputImage"
+      ],
+      "params": {
+        "blendFraction": 0.65,
+        "inputCount": 2
+      },
+      "type": "image.use.blendImages"
+    },
+    {
+      "domain": "frame",
+      "id": "output_1",
+      "outputs": [],
+      "params": {},
+      "type": "output.texture"
+    }
+  ],
+  "scheduler": {
+    "clockOwner": "graph",
+    "frames": [
+      {
+        "deltaTime": 0,
+        "frameIndex": 0,
+        "time": 0
+      },
+      {
+        "deltaTime": 0.0166667,
+        "frameIndex": 1,
+        "time": 0.0166667
+      }
+    ],
+    "targetFps": 60,
+    "type": "FrameScheduler"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "MetalHeapReleaseLedger",
+  "released": [
+    "blur.temp",
+    "feedback.history",
+    "gradient.temp"
+  ],
+  "liveAtShutdown": []
+}

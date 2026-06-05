@@ -1,0 +1,19 @@
+[
+  {
+    "attempt": 1,
+    "diagnostic": {
+      "code": "runtime.blend_input_count_mismatch",
+      "nodeId": "blend_1",
+      "inputCount": 0,
+      "connectedInputCount": 2,
+      "severity": "error"
+    },
+    "appliedCommand": {
+      "op": "setParam",
+      "id": "blend_1",
+      "param": "inputCount",
+      "value": 2
+    },
+    "mutationPath": "commandGraph"
+  }
+]

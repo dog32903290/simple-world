@@ -1,0 +1,278 @@
+[
+  {
+    "index": 0,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "constant_bg",
+      "type": "image.constant"
+    }
+  },
+  {
+    "index": 1,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "constant_bg",
+      "param": "color",
+      "value": [
+        0.02,
+        0.04,
+        0.09,
+        1
+      ]
+    }
+  },
+  {
+    "index": 2,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "blob_fg",
+      "type": "image.generate.basic.blob"
+    }
+  },
+  {
+    "index": 3,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "color",
+      "value": [
+        1,
+        0.12,
+        0.58,
+        1
+      ]
+    }
+  },
+  {
+    "index": 4,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "background",
+      "value": [
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  {
+    "index": 5,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "scale",
+      "value": 0.58
+    }
+  },
+  {
+    "index": 6,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "stretch",
+      "value": [
+        1.2,
+        0.72
+      ]
+    }
+  },
+  {
+    "index": 7,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "feather",
+      "value": 0.34
+    }
+  },
+  {
+    "index": 8,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "blend_1",
+      "type": "image.use.blendImages"
+    }
+  },
+  {
+    "index": 9,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "blend_1",
+      "param": "blendFraction",
+      "value": 0.65
+    }
+  },
+  {
+    "index": 10,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "constant_bg",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input1"
+      ]
+    }
+  },
+  {
+    "index": 11,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "blob_fg",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input2"
+      ]
+    }
+  },
+  {
+    "index": 12,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "gradient_1",
+      "type": "image.generate.gradient"
+    }
+  },
+  {
+    "index": 13,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "gradient_1",
+      "param": "startColor",
+      "value": [
+        0.04,
+        0.1,
+        0.8,
+        1
+      ]
+    }
+  },
+  {
+    "index": 14,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "gradient_1",
+      "param": "endColor",
+      "value": [
+        1,
+        0.2,
+        0.48,
+        1
+      ]
+    }
+  },
+  {
+    "index": 15,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "feedback_1",
+      "type": "image.memory.feedback"
+    }
+  },
+  {
+    "index": 16,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "feedback_1",
+      "param": "decay",
+      "value": 0.72
+    }
+  },
+  {
+    "index": 17,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "feedback_1",
+      "param": "injection",
+      "value": 0.58
+    }
+  },
+  {
+    "index": 18,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "gradient_1",
+        "textureOutput"
+      ],
+      "to": [
+        "feedback_1",
+        "input"
+      ]
+    }
+  },
+  {
+    "index": 19,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "render_target_1",
+      "type": "image.output.renderTarget"
+    }
+  },
+  {
+    "index": 20,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "feedback_1",
+        "textureOutput"
+      ],
+      "to": [
+        "render_target_1",
+        "input"
+      ]
+    }
+  },
+  {
+    "index": 21,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "output_1",
+      "type": "output.texture"
+    }
+  },
+  {
+    "index": 22,
+    "source": "fixture",
+    "command": {
+      "op": "connect",
+      "from": [
+        "render_target_1",
+        "textureOutput"
+      ],
+      "to": [
+        "output_1",
+        "image"
+      ]
+    }
+  }
+]

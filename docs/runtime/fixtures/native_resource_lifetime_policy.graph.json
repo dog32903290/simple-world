@@ -1,0 +1,82 @@
+{
+  "graphId": "fixture.native_resource_lifetime_policy",
+  "kind": "NativeResourceLifetimePolicyProof",
+  "frames": [
+    { "frameIndex": 0 },
+    { "frameIndex": 1 },
+    { "frameIndex": 2 }
+  ],
+  "passes": [
+    { "id": "gradient_pass", "frameIndex": 0, "reads": [], "writes": ["gradient.temp"] },
+    { "id": "feedback_pass", "frameIndex": 0, "reads": ["gradient.temp", "feedback.history"], "writes": ["feedback.ping"] },
+    { "id": "blur_pass", "frameIndex": 0, "reads": ["feedback.ping"], "writes": ["blur.temp"] },
+    { "id": "present_pass", "frameIndex": 0, "reads": ["blur.temp"], "writes": ["swapchain.color"] },
+    { "id": "feedback_history_update", "frameIndex": 1, "reads": ["feedback.ping"], "writes": ["feedback.history"] },
+    { "id": "shutdown", "frameIndex": 2, "reads": ["feedback.history"], "writes": [] }
+  ],
+  "resources": [
+    {
+      "id": "gradient.temp",
+      "aliasGroup": "color.transient",
+      "lifetime": "transient",
+      "firstUse": "gradient_pass",
+      "lastUse": "feedback_pass",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "bindFlags": ["RenderTarget", "ShaderResource"]
+    },
+    {
+      "id": "feedback.history",
+      "aliasGroup": "feedback.persistent",
+      "lifetime": "persistent",
+      "firstUse": "feedback_pass",
+      "lastUse": "shutdown",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "bindFlags": ["RenderTarget", "ShaderResource"]
+    },
+    {
+      "id": "feedback.ping",
+      "aliasGroup": "feedback.state",
+      "lifetime": "frame",
+      "firstUse": "feedback_pass",
+      "lastUse": "feedback_history_update",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "bindFlags": ["RenderTarget", "ShaderResource"]
+    },
+    {
+      "id": "blur.temp",
+      "aliasGroup": "color.transient",
+      "lifetime": "transient",
+      "firstUse": "blur_pass",
+      "lastUse": "present_pass",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "bindFlags": ["RenderTarget", "ShaderResource"]
+    },
+    {
+      "id": "swapchain.color",
+      "aliasGroup": "swapchain",
+      "lifetime": "external",
+      "firstUse": "present_pass",
+      "lastUse": "present_pass",
+      "width": 64,
+      "height": 64,
+      "format": "BGRA8_Unorm",
+      "bindFlags": ["RenderTarget"]
+    }
+  ],
+  "expected": {
+    "aliasPairs": [["gradient.temp", "blur.temp"]],
+    "nonAliasReasons": [
+      { "resources": ["gradient.temp", "feedback.history"], "reason": "overlapping lifetime" },
+      { "resources": ["blur.temp", "feedback.history"], "reason": "persistent across frames" }
+    ],
+    "leaks": []
+  }
+}

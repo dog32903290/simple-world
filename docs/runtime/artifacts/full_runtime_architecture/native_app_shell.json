@@ -1,0 +1,16 @@
+{
+  "kind": "NativeAppShell",
+  "mode": "nativeHeadlessCanvas",
+  "projectFolder": "docs/runtime/artifacts/full_runtime_architecture",
+  "debugFolder": "docs/runtime/artifacts/full_runtime_architecture",
+  "canvas": {
+    "id": "mainCanvas",
+    "mutationPath": "commandGraph",
+    "surface": {
+      "kind": "MetalBackedTexture2D",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm"
+    }
+  }
+}

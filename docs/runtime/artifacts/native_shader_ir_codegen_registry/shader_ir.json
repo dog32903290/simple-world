@@ -1,0 +1,143 @@
+{
+  "kind": "ShaderIR",
+  "version": "0.3-registry",
+  "nodes": [
+    {
+      "id": "constant_bg",
+      "type": "image.constant",
+      "op": "ConstantImage",
+      "stage": "fragment",
+      "templateId": "constantImage.fragment",
+      "params": {
+        "color": [
+          0.02,
+          0.04,
+          0.09,
+          1
+        ]
+      },
+      "resources": {
+        "reads": [],
+        "writes": [
+          "constant_bg.texture"
+        ]
+      }
+    },
+    {
+      "id": "blob_fg",
+      "type": "image.generate.basic.blob",
+      "op": "Blob",
+      "stage": "fragment",
+      "templateId": "blob.fragment",
+      "params": {
+        "color": [
+          1,
+          0.12,
+          0.58,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "scale": 0.58,
+        "stretch": [
+          1.2,
+          0.72
+        ],
+        "feather": 0.34
+      },
+      "resources": {
+        "reads": [],
+        "writes": [
+          "blob_fg.texture"
+        ]
+      }
+    },
+    {
+      "id": "blend_1",
+      "type": "image.use.blendImages",
+      "op": "BlendImages",
+      "stage": "fragment",
+      "templateId": "blendImages.fragment",
+      "params": {
+        "blendFraction": 0.65
+      },
+      "resources": {
+        "reads": [
+          "constant_bg.texture",
+          "blob_fg.texture"
+        ],
+        "writes": [
+          "blend_1.output"
+        ]
+      }
+    },
+    {
+      "id": "gradient_1",
+      "type": "image.generate.gradient",
+      "op": "Gradient",
+      "stage": "fragment",
+      "templateId": "gradient.fragment",
+      "params": {
+        "startColor": [
+          0.04,
+          0.1,
+          0.8,
+          1
+        ],
+        "endColor": [
+          1,
+          0.2,
+          0.48,
+          1
+        ]
+      },
+      "resources": {
+        "reads": [],
+        "writes": [
+          "gradient_1.texture"
+        ]
+      }
+    },
+    {
+      "id": "feedback_1",
+      "type": "image.memory.feedback",
+      "op": "Feedback",
+      "stage": "fragment",
+      "templateId": "feedback.fragment",
+      "params": {
+        "decay": 0.72,
+        "injection": 0.58
+      },
+      "resources": {
+        "reads": [
+          "gradient_1.texture",
+          "feedback_1.history"
+        ],
+        "writes": [
+          "feedback_1.ping",
+          "feedback_1.pong"
+        ]
+      }
+    },
+    {
+      "id": "render_target_1",
+      "type": "image.output.renderTarget",
+      "op": "RenderTarget",
+      "stage": "fragment",
+      "templateId": "renderTarget.fragment",
+      "params": {},
+      "resources": {
+        "reads": [
+          "feedback_1.pong"
+        ],
+        "writes": [
+          "render_target_1.texture"
+        ]
+      }
+    }
+  ]
+}

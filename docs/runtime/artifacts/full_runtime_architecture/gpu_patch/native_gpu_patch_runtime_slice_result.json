@@ -1,0 +1,35 @@
+{
+  "backend": "Metal",
+  "claims": {
+    "actualCompilerRan": true,
+    "actualMetalRan": true,
+    "aiWorkerRepairLoop": false,
+    "backendReplacementReady": false,
+    "commandGraphReplayed": true,
+    "frameSchedulerRan": true,
+    "fullTixlCloneParity": false,
+    "genericShaderIrComplete": false,
+    "nativeCanvasComplete": false,
+    "resourceAllocatorRan": true,
+    "runtimeGraphBuilt": true,
+    "shaderCodegenCacheBuilt": true,
+    "vuoParity": false
+  },
+  "frameStats": {
+    "byteCount": 16384,
+    "height": 64,
+    "nonBlack": true,
+    "nonBlackPixels": 4096,
+    "uniqueColorSamples": 10,
+    "varied": true,
+    "width": 64
+  },
+  "graphId": "fixture.full_runtime_architecture",
+  "kind": "NativeGpuPatchRuntimeSliceProof",
+  "ok": true,
+  "status": "rendered",
+  "viewport": {
+    "height": 64,
+    "width": 64
+  }
+}

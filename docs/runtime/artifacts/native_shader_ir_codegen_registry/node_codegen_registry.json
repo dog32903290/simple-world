@@ -1,0 +1,100 @@
+{
+  "kind": "NodeCodegenRegistry",
+  "version": "0.3",
+  "nodeTypes": [
+    "image.constant",
+    "image.generate.basic.blob",
+    "image.use.blendImages",
+    "image.generate.gradient",
+    "image.memory.feedback",
+    "image.output.renderTarget"
+  ],
+  "entries": [
+    {
+      "nodeType": "image.constant",
+      "op": "ConstantImage",
+      "templateId": "constantImage.fragment",
+      "stage": "fragment",
+      "params": {
+        "color": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "nodeType": "image.generate.basic.blob",
+      "op": "Blob",
+      "templateId": "blob.fragment",
+      "stage": "fragment",
+      "params": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "scale": 0.5,
+        "stretch": [
+          1,
+          1
+        ],
+        "feather": 1.0
+      }
+    },
+    {
+      "nodeType": "image.use.blendImages",
+      "op": "BlendImages",
+      "templateId": "blendImages.fragment",
+      "stage": "fragment",
+      "params": {
+        "blendFraction": 0.0
+      }
+    },
+    {
+      "nodeType": "image.generate.gradient",
+      "op": "Gradient",
+      "templateId": "gradient.fragment",
+      "stage": "fragment",
+      "params": {
+        "startColor": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "endColor": [
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "nodeType": "image.memory.feedback",
+      "op": "Feedback",
+      "templateId": "feedback.fragment",
+      "stage": "fragment",
+      "params": {
+        "decay": 0.7,
+        "injection": 0.5
+      }
+    },
+    {
+      "nodeType": "image.output.renderTarget",
+      "op": "RenderTarget",
+      "templateId": "renderTarget.fragment",
+      "stage": "fragment",
+      "params": {}
+    }
+  ]
+}

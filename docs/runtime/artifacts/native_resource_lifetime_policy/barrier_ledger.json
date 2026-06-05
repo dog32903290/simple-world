@@ -1,0 +1,23 @@
+{
+  "kind": "NativeResourceBarrierLedger",
+  "barriers": [
+    {
+      "kind": "write-after-read",
+      "fromPass": "feedback_pass",
+      "toPass": "blur_pass",
+      "resourceId": "feedback.ping"
+    },
+    {
+      "kind": "alias-rebind",
+      "fromResource": "gradient.temp",
+      "toResource": "blur.temp",
+      "heapSlot": "heap.color.transient.0"
+    },
+    {
+      "kind": "read-after-write",
+      "fromPass": "feedback_history_update",
+      "toPass": "shutdown",
+      "resourceId": "feedback.history"
+    }
+  ]
+}

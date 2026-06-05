@@ -1,0 +1,78 @@
+{
+  "kind": "NativeResourceAliasPlan",
+  "slots": {
+    "gradient.temp": "heap.color.transient.0",
+    "feedback.history": "dedicated.feedback.history",
+    "feedback.ping": "heap.feedback.state.0",
+    "blur.temp": "heap.color.transient.0",
+    "swapchain.color": "dedicated.swapchain.color"
+  },
+  "aliases": [
+    {
+      "resources": [
+        "gradient.temp",
+        "blur.temp"
+      ],
+      "heapSlot": "heap.color.transient.0",
+      "reason": "non-overlapping transient lifetimes"
+    }
+  ],
+  "nonAliases": [
+    {
+      "resources": [
+        "gradient.temp",
+        "feedback.history"
+      ],
+      "reason": "overlapping lifetime"
+    },
+    {
+      "resources": [
+        "gradient.temp",
+        "feedback.history"
+      ],
+      "reason": "persistent across frames"
+    },
+    {
+      "resources": [
+        "feedback.history",
+        "feedback.ping"
+      ],
+      "reason": "overlapping lifetime"
+    },
+    {
+      "resources": [
+        "feedback.history",
+        "feedback.ping"
+      ],
+      "reason": "persistent across frames"
+    },
+    {
+      "resources": [
+        "feedback.history",
+        "blur.temp"
+      ],
+      "reason": "overlapping lifetime"
+    },
+    {
+      "resources": [
+        "feedback.history",
+        "blur.temp"
+      ],
+      "reason": "persistent across frames"
+    },
+    {
+      "resources": [
+        "feedback.history",
+        "swapchain.color"
+      ],
+      "reason": "overlapping lifetime"
+    },
+    {
+      "resources": [
+        "feedback.history",
+        "swapchain.color"
+      ],
+      "reason": "persistent across frames"
+    }
+  ]
+}

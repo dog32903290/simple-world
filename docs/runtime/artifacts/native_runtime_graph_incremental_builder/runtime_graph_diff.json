@@ -1,0 +1,23 @@
+{
+  "kind": "RuntimeGraphDiff",
+  "addedNodes": [
+    "blob_1"
+  ],
+  "removedNodes": [],
+  "affectedNodes": [
+    "blob_1",
+    "blend_1",
+    "output_1"
+  ],
+  "cookOrderBefore": [
+    "gradient_1",
+    "blend_1",
+    "output_1"
+  ],
+  "cookOrderAfter": [
+    "gradient_1",
+    "blob_1",
+    "blend_1",
+    "output_1"
+  ]
+}

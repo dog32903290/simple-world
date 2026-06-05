@@ -1,0 +1,167 @@
+{
+  "resources": {
+    "constant_bg.texture": {
+      "kind": "Texture2D",
+      "id": "constant_bg.texture",
+      "owner": "constant_bg",
+      "role": "ColorBuffer",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "arraySize": 1,
+      "sampleCount": 1,
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ],
+      "optionFlags": [],
+      "disposed": false
+    },
+    "blob_fg.texture": {
+      "kind": "Texture2D",
+      "id": "blob_fg.texture",
+      "owner": "blob_fg",
+      "role": "ColorBuffer",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "arraySize": 1,
+      "sampleCount": 1,
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ],
+      "optionFlags": [],
+      "disposed": false
+    },
+    "blend_1.output": {
+      "kind": "Texture2D",
+      "id": "blend_1.output",
+      "owner": "blend_1",
+      "role": "ColorBuffer",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "arraySize": 1,
+      "sampleCount": 1,
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ],
+      "optionFlags": [],
+      "disposed": false
+    }
+  },
+  "views": {
+    "constant_bg.texture.srv": {
+      "ok": true,
+      "textureId": "constant_bg.texture",
+      "type": "SRV",
+      "format": "RGBA8_Unorm"
+    },
+    "constant_bg.texture.rtv": {
+      "ok": true,
+      "textureId": "constant_bg.texture",
+      "type": "RTV",
+      "dimension": "Texture2D"
+    },
+    "blob_fg.texture.srv": {
+      "ok": true,
+      "textureId": "blob_fg.texture",
+      "type": "SRV",
+      "format": "RGBA8_Unorm"
+    },
+    "blob_fg.texture.rtv": {
+      "ok": true,
+      "textureId": "blob_fg.texture",
+      "type": "RTV",
+      "dimension": "Texture2D"
+    },
+    "blend_1.output.srv": {
+      "ok": true,
+      "textureId": "blend_1.output",
+      "type": "SRV",
+      "format": "RGBA8_Unorm"
+    },
+    "blend_1.output.rtv": {
+      "ok": true,
+      "textureId": "blend_1.output",
+      "type": "RTV",
+      "dimension": "Texture2D"
+    }
+  },
+  "kind": "FullRuntimeResourceLifetimeLedger",
+  "lifetimeEvents": [
+    {
+      "frameIndex": 0,
+      "action": "allocate",
+      "resource": "constant_bg.texture"
+    },
+    {
+      "frameIndex": 0,
+      "action": "allocate",
+      "resource": "blob_fg.texture"
+    },
+    {
+      "frameIndex": 0,
+      "action": "allocate",
+      "resource": "blend_1.output"
+    },
+    {
+      "frameIndex": 1,
+      "action": "reuse",
+      "resource": "constant_bg.texture"
+    },
+    {
+      "frameIndex": 1,
+      "action": "reuse",
+      "resource": "blob_fg.texture"
+    },
+    {
+      "frameIndex": 1,
+      "action": "reuse",
+      "resource": "blend_1.output"
+    },
+    {
+      "frameIndex": 2,
+      "action": "reuse",
+      "resource": "constant_bg.texture"
+    },
+    {
+      "frameIndex": 2,
+      "action": "reuse",
+      "resource": "blob_fg.texture"
+    },
+    {
+      "frameIndex": 2,
+      "action": "reuse",
+      "resource": "blend_1.output"
+    }
+  ],
+  "renderPasses": [
+    {
+      "nodeId": "constant_bg",
+      "reads": [],
+      "writes": [
+        "constant_bg.texture"
+      ]
+    },
+    {
+      "nodeId": "blob_fg",
+      "reads": [],
+      "writes": [
+        "blob_fg.texture"
+      ]
+    },
+    {
+      "nodeId": "blend_1",
+      "reads": [
+        "constant_bg.texture",
+        "blob_fg.texture"
+      ],
+      "writes": [
+        "blend_1.output"
+      ]
+    }
+  ]
+}

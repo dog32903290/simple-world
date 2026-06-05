@@ -1,0 +1,131 @@
+{
+  "graphId": "fixture.native_gpu_patch_runtime_slice",
+  "kind": "NativeGpuPatchRuntimeSlice",
+  "viewport": {
+    "width": 64,
+    "height": 64
+  },
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "frames": [
+      {
+        "frameIndex": 0,
+        "time": 0,
+        "deltaTime": 0
+      },
+      {
+        "frameIndex": 1,
+        "time": 0.0166667,
+        "deltaTime": 0.0166667
+      }
+    ]
+  },
+  "commands": [
+    {
+      "op": "createNode",
+      "id": "constant_bg",
+      "type": "image.constant"
+    },
+    {
+      "op": "setParam",
+      "id": "constant_bg",
+      "param": "color",
+      "value": [0.02, 0.04, 0.09, 1]
+    },
+    {
+      "op": "setParam",
+      "id": "constant_bg",
+      "param": "resolution",
+      "value": [64, 64]
+    },
+    {
+      "op": "createNode",
+      "id": "blob_fg",
+      "type": "image.generate.basic.blob"
+    },
+    {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "color",
+      "value": [1, 0.12, 0.58, 1]
+    },
+    {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "background",
+      "value": [0, 0, 0, 0]
+    },
+    {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "scale",
+      "value": 0.58
+    },
+    {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "stretch",
+      "value": [1.2, 0.72]
+    },
+    {
+      "op": "setParam",
+      "id": "blob_fg",
+      "param": "feather",
+      "value": 0.34
+    },
+    {
+      "op": "createNode",
+      "id": "blend_1",
+      "type": "image.use.blendImages"
+    },
+    {
+      "op": "setParam",
+      "id": "blend_1",
+      "param": "inputCount",
+      "value": 2
+    },
+    {
+      "op": "setParam",
+      "id": "blend_1",
+      "param": "blendFraction",
+      "value": 0.65
+    },
+    {
+      "op": "connect",
+      "from": ["constant_bg", "textureOutput"],
+      "to": ["blend_1", "input1"]
+    },
+    {
+      "op": "connect",
+      "from": ["blob_fg", "textureOutput"],
+      "to": ["blend_1", "input2"]
+    },
+    {
+      "op": "createNode",
+      "id": "output_1",
+      "type": "output.texture"
+    },
+    {
+      "op": "connect",
+      "from": ["blend_1", "outputImage"],
+      "to": ["output_1", "image"]
+    }
+  ],
+  "expected": {
+    "cookOrder": ["constant_bg", "blob_fg", "blend_1", "output_1"],
+    "outputNode": "output_1",
+    "claims": {
+      "commandGraphReplayed": true,
+      "runtimeGraphBuilt": true,
+      "frameSchedulerRan": true,
+      "resourceAllocatorRan": true,
+      "shaderCodegenCacheBuilt": true,
+      "nativeCanvasComplete": false,
+      "aiWorkerRepairLoop": false,
+      "genericShaderIrComplete": false,
+      "vuoParity": false,
+      "backendReplacementReady": false
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "status": "metal_heap_ready",
+  "actualMetalDeviceCreated": true,
+  "actualHeapCreated": true,
+  "actualHeapBackedTexturesCreated": true,
+  "heapSize": 49536,
+  "minimumAlignedSize": 16512,
+  "textureCount": 3,
+  "message": "heap-backed textures created",
+  "returncode": 0
+}

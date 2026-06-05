@@ -1,0 +1,129 @@
+{
+  "kind": "NativeGpuPatchResourceLedger",
+  "renderPasses": [
+    {
+      "name": "constant_bg_pass",
+      "nodeId": "constant_bg",
+      "pipelineName": "constant_bg_pipeline",
+      "reads": [],
+      "writes": [
+        "constant_bg.texture"
+      ]
+    },
+    {
+      "name": "blob_fg_pass",
+      "nodeId": "blob_fg",
+      "pipelineName": "blob_fg_pipeline",
+      "reads": [],
+      "writes": [
+        "blob_fg.texture"
+      ]
+    },
+    {
+      "name": "blend_1_pass",
+      "nodeId": "blend_1",
+      "pipelineName": "blend_1_pipeline",
+      "reads": [
+        "constant_bg.texture",
+        "blob_fg.texture"
+      ],
+      "writes": [
+        "blend_1.output"
+      ]
+    }
+  ],
+  "resources": {
+    "blend_1.output": {
+      "arraySize": 1,
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ],
+      "disposed": false,
+      "format": "RGBA8_Unorm",
+      "height": 64,
+      "id": "blend_1.output",
+      "kind": "Texture2D",
+      "optionFlags": [],
+      "owner": "blend_1",
+      "ownerNode": "blend_1",
+      "role": "ColorBuffer",
+      "sampleCount": 1,
+      "width": 64
+    },
+    "blob_fg.texture": {
+      "arraySize": 1,
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ],
+      "disposed": false,
+      "format": "RGBA8_Unorm",
+      "height": 64,
+      "id": "blob_fg.texture",
+      "kind": "Texture2D",
+      "optionFlags": [],
+      "owner": "blob_fg",
+      "ownerNode": "blob_fg",
+      "role": "ColorBuffer",
+      "sampleCount": 1,
+      "width": 64
+    },
+    "constant_bg.texture": {
+      "arraySize": 1,
+      "bindFlags": [
+        "RenderTarget",
+        "ShaderResource"
+      ],
+      "disposed": false,
+      "format": "RGBA8_Unorm",
+      "height": 64,
+      "id": "constant_bg.texture",
+      "kind": "Texture2D",
+      "optionFlags": [],
+      "owner": "constant_bg",
+      "ownerNode": "constant_bg",
+      "role": "ColorBuffer",
+      "sampleCount": 1,
+      "width": 64
+    }
+  },
+  "views": {
+    "blend_1.output.rtv": {
+      "dimension": "Texture2D",
+      "ok": true,
+      "textureId": "blend_1.output",
+      "type": "RTV"
+    },
+    "blend_1.output.srv": {
+      "format": "RGBA8_Unorm",
+      "ok": true,
+      "textureId": "blend_1.output",
+      "type": "SRV"
+    },
+    "blob_fg.texture.rtv": {
+      "dimension": "Texture2D",
+      "ok": true,
+      "textureId": "blob_fg.texture",
+      "type": "RTV"
+    },
+    "blob_fg.texture.srv": {
+      "format": "RGBA8_Unorm",
+      "ok": true,
+      "textureId": "blob_fg.texture",
+      "type": "SRV"
+    },
+    "constant_bg.texture.rtv": {
+      "dimension": "Texture2D",
+      "ok": true,
+      "textureId": "constant_bg.texture",
+      "type": "RTV"
+    },
+    "constant_bg.texture.srv": {
+      "format": "RGBA8_Unorm",
+      "ok": true,
+      "textureId": "constant_bg.texture",
+      "type": "SRV"
+    }
+  }
+}

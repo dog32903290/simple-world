@@ -1,0 +1,12 @@
+{
+  "kind": "ShaderExpressionCache",
+  "generatedSource": "generated_expression_core.metal",
+  "entries": [
+    {
+      "name": "expression_core_fragment",
+      "cacheKey": "expr:29bbee2e47fbbe2d7f026d82916e1ddc56ce78fa",
+      "stage": "fragment",
+      "source": "generated_expression_core.metal"
+    }
+  ]
+}

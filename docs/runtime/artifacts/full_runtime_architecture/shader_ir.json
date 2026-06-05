@@ -1,0 +1,57 @@
+{
+  "kind": "ShaderIR",
+  "version": "0.1",
+  "nodes": [
+    {
+      "id": "constant_bg",
+      "op": "ConstantImage",
+      "stage": "fragment",
+      "params": {
+        "color": [
+          0.02,
+          0.04,
+          0.09,
+          1
+        ],
+        "resolution": [
+          64,
+          64
+        ]
+      }
+    },
+    {
+      "id": "blob_fg",
+      "op": "Blob",
+      "stage": "fragment",
+      "params": {
+        "color": [
+          1,
+          0.12,
+          0.58,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "scale": 0.58,
+        "stretch": [
+          1.2,
+          0.72
+        ],
+        "feather": 0.34
+      }
+    },
+    {
+      "id": "blend_1",
+      "op": "BlendImages",
+      "stage": "fragment",
+      "params": {
+        "inputCount": 2,
+        "blendFraction": 0.65
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "kind": "NativeResourceReleaseFences",
+  "fences": [
+    {
+      "resourceId": "gradient.temp",
+      "releaseAfterPass": "feedback_pass"
+    },
+    {
+      "resourceId": "feedback.history",
+      "releaseAfterFrame": 2
+    },
+    {
+      "resourceId": "feedback.ping",
+      "releaseAfterPass": "feedback_history_update"
+    },
+    {
+      "resourceId": "blur.temp",
+      "releaseAfterPass": "present_pass"
+    }
+  ]
+}

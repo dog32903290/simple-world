@@ -1,0 +1,9 @@
+[
+  {
+    "code": "runtime.blend_input_count_mismatch",
+    "nodeId": "blend_1",
+    "inputCount": 0,
+    "connectedInputCount": 2,
+    "severity": "error"
+  }
+]

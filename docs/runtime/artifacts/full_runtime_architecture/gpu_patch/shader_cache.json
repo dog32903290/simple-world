@@ -1,0 +1,27 @@
+{
+  "entries": [
+    {
+      "cacheKey": "image.constant:{\"color\":[0.02,0.04,0.09,1],\"resolution\":[64,64]}",
+      "nodeId": "constant_bg",
+      "nodeType": "image.constant",
+      "pipelineName": "constant_bg_pipeline",
+      "stage": "fragment"
+    },
+    {
+      "cacheKey": "image.generate.basic.blob:{\"background\":[0,0,0,0],\"color\":[1,0.12,0.58,1],\"feather\":0.34,\"scale\":0.58,\"stretch\":[1.2,0.72]}",
+      "nodeId": "blob_fg",
+      "nodeType": "image.generate.basic.blob",
+      "pipelineName": "blob_fg_pipeline",
+      "stage": "fragment"
+    },
+    {
+      "cacheKey": "image.use.blendImages:{\"blendFraction\":0.65,\"inputCount\":2}",
+      "nodeId": "blend_1",
+      "nodeType": "image.use.blendImages",
+      "pipelineName": "blend_1_pipeline",
+      "stage": "fragment"
+    }
+  ],
+  "generatedSource": "generated_patch.metal",
+  "kind": "NativeGpuPatchShaderCache"
+}

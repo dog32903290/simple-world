@@ -1,0 +1,25 @@
+{
+  "graphId": "fixture.native_runtime_graph_incremental_builder",
+  "kind": "NativeRuntimeGraphIncrementalBuilderProof",
+  "commands": [
+    { "op": "createNode", "id": "gradient_1", "type": "image.generate.gradient" },
+    { "op": "setParam", "id": "gradient_1", "param": "endColor", "value": [1, 0.2, 0.48, 1] },
+    { "op": "createNode", "id": "blend_1", "type": "image.filter.blend" },
+    { "op": "createNode", "id": "output_1", "type": "output.texture" }
+  ],
+  "initialEdges": [
+    { "from": ["gradient_1", "textureOutput"], "to": ["blend_1", "background"] },
+    { "from": ["blend_1", "textureOutput"], "to": ["output_1", "image"] }
+  ],
+  "liveCommands": [
+    { "source": "live.importer", "kind": "command", "command": { "op": "createNode", "id": "blob_1", "type": "image.generate.blob" } },
+    { "source": "live.importer", "kind": "command", "command": { "op": "setParam", "id": "blob_1", "param": "radius", "value": 0.31 } },
+    { "source": "live.importer", "kind": "command", "command": { "op": "connect", "from": ["blob_1", "textureOutput"], "to": ["blend_1", "foreground"] } }
+  ],
+  "expected": {
+    "initialCookOrder": ["gradient_1", "blend_1", "output_1"],
+    "rebuiltCookOrder": ["gradient_1", "blob_1", "blend_1", "output_1"],
+    "affectedNodes": ["blob_1", "blend_1", "output_1"],
+    "reusedNodes": ["gradient_1"]
+  }
+}

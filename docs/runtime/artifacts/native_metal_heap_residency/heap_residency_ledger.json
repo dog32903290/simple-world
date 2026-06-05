@@ -1,0 +1,36 @@
+{
+  "kind": "MetalHeapResidencyLedger",
+  "heapId": "heap.color.product.0",
+  "storageMode": "private",
+  "heapSize": 49536,
+  "minimumAlignedSize": 16512,
+  "resources": [
+    {
+      "id": "gradient.temp",
+      "heapId": "heap.color.product.0",
+      "heapBacked": true,
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "lifetime": "transient"
+    },
+    {
+      "id": "blur.temp",
+      "heapId": "heap.color.product.0",
+      "heapBacked": true,
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "lifetime": "transient"
+    },
+    {
+      "id": "feedback.history",
+      "heapId": "heap.color.product.0",
+      "heapBacked": true,
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "lifetime": "persistent"
+    }
+  ]
+}

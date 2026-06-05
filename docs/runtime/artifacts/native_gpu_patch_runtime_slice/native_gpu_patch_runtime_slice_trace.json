@@ -1,0 +1,107 @@
+[
+  {
+    "fixture": "docs/runtime/fixtures/native_gpu_patch_runtime_slice.graph.json",
+    "op": "loadNativeGpuPatchRuntimeSlice"
+  },
+  {
+    "nodeId": "constant_bg",
+    "op": "command.createNode"
+  },
+  {
+    "nodeId": "constant_bg",
+    "op": "command.setParam"
+  },
+  {
+    "nodeId": "constant_bg",
+    "op": "command.setParam"
+  },
+  {
+    "nodeId": "blob_fg",
+    "op": "command.createNode"
+  },
+  {
+    "nodeId": "blob_fg",
+    "op": "command.setParam"
+  },
+  {
+    "nodeId": "blob_fg",
+    "op": "command.setParam"
+  },
+  {
+    "nodeId": "blob_fg",
+    "op": "command.setParam"
+  },
+  {
+    "nodeId": "blob_fg",
+    "op": "command.setParam"
+  },
+  {
+    "nodeId": "blob_fg",
+    "op": "command.setParam"
+  },
+  {
+    "nodeId": "blend_1",
+    "op": "command.createNode"
+  },
+  {
+    "nodeId": "blend_1",
+    "op": "command.setParam"
+  },
+  {
+    "nodeId": "blend_1",
+    "op": "command.setParam"
+  },
+  {
+    "nodeId": null,
+    "op": "command.connect"
+  },
+  {
+    "nodeId": null,
+    "op": "command.connect"
+  },
+  {
+    "nodeId": "output_1",
+    "op": "command.createNode"
+  },
+  {
+    "nodeId": null,
+    "op": "command.connect"
+  },
+  {
+    "cookOrder": [
+      "constant_bg",
+      "blob_fg",
+      "blend_1",
+      "output_1"
+    ],
+    "op": "buildRuntimeGraph"
+  },
+  {
+    "op": "allocatePatchResources",
+    "resourceIds": [
+      "constant_bg.texture",
+      "blob_fg.texture",
+      "blend_1.output"
+    ]
+  },
+  {
+    "entries": [
+      "constant_bg",
+      "blob_fg",
+      "blend_1"
+    ],
+    "op": "buildShaderCodegenCache"
+  },
+  {
+    "exitCode": 0,
+    "op": "buildMetalPatchProbe"
+  },
+  {
+    "exitCode": 0,
+    "op": "runMetalPatchProbe"
+  },
+  {
+    "ok": true,
+    "op": "publishNativeGpuPatchRuntimeSliceArtifacts"
+  }
+]

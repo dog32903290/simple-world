@@ -1,0 +1,61 @@
+{
+  "kind": "FrameArtifacts",
+  "frames": [
+    {
+      "kind": "RuntimeFrameArtifact",
+      "frameIndex": 0,
+      "frameUniforms": {
+        "u_frame": 0,
+        "u_time": 0,
+        "u_deltaTime": 0
+      },
+      "publishedNode": "output_1",
+      "cookedNodes": [
+        "u_time_1",
+        "gradient_1",
+        "blob_1",
+        "blend_1",
+        "output_1"
+      ],
+      "skippedCleanNodes": []
+    },
+    {
+      "kind": "RuntimeFrameArtifact",
+      "frameIndex": 1,
+      "frameUniforms": {
+        "u_frame": 1,
+        "u_time": 0.0166667,
+        "u_deltaTime": 0.0166667
+      },
+      "publishedNode": "output_1",
+      "cookedNodes": [
+        "u_time_1",
+        "gradient_1",
+        "blend_1",
+        "output_1"
+      ],
+      "skippedCleanNodes": [
+        "blob_1"
+      ]
+    },
+    {
+      "kind": "RuntimeFrameArtifact",
+      "frameIndex": 2,
+      "frameUniforms": {
+        "u_frame": 2,
+        "u_time": 0.0333334,
+        "u_deltaTime": 0.0166667
+      },
+      "publishedNode": "output_1",
+      "cookedNodes": [
+        "u_time_1",
+        "output_1"
+      ],
+      "skippedCleanNodes": [
+        "gradient_1",
+        "blob_1",
+        "blend_1"
+      ]
+    }
+  ]
+}

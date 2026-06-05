@@ -1,0 +1,29 @@
+{
+  "kind": "FullRuntimeArchitectureProof",
+  "graphId": "fixture.full_runtime_architecture",
+  "ok": true,
+  "status": "rendered",
+  "claims": {
+    "nativeAppShellCanvas": true,
+    "commandGraphOnlyMutation": true,
+    "runtimeGraphBuilt": true,
+    "frameSchedulerLive": true,
+    "gpuTextureRuntimeMetal": true,
+    "shaderIrCodegenCache": true,
+    "resourceAllocatorLifetime": true,
+    "aiWorkerRepairLoop": true
+  },
+  "repairApplied": true,
+  "artifactIndex": {
+    "nativeAppShell": "native_app_shell.json",
+    "commandLog": "command_log.json",
+    "runtimeGraph": "runtime_graph.json",
+    "frameSchedulerTrace": "frame_scheduler_trace.json",
+    "resourceLedger": "resource_ledger.json",
+    "shaderIr": "shader_ir.json",
+    "shaderCache": "shader_cache.json",
+    "diagnostics": "diagnostics.json",
+    "aiRepairLog": "ai_repair_log.json",
+    "gpuPatch": "gpu_patch/native_gpu_patch_runtime_slice_result.json"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "graphId": "fixture.native_metal_heap_residency",
+  "kind": "NativeMetalHeapResidencyProof",
+  "heap": {
+    "id": "heap.color.product.0",
+    "storageMode": "private",
+    "resourceOptions": ["storageModePrivate"],
+    "hazardTracking": "tracked"
+  },
+  "resources": [
+    {
+      "id": "gradient.temp",
+      "lifetime": "transient",
+      "heapResidency": "heap",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "usage": ["renderTarget", "shaderRead"]
+    },
+    {
+      "id": "blur.temp",
+      "lifetime": "transient",
+      "heapResidency": "heap",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "usage": ["renderTarget", "shaderRead"]
+    },
+    {
+      "id": "feedback.history",
+      "lifetime": "persistent",
+      "heapResidency": "heap",
+      "width": 64,
+      "height": 64,
+      "format": "RGBA8_Unorm",
+      "usage": ["renderTarget", "shaderRead"]
+    }
+  ],
+  "release": {
+    "gradient.temp": { "afterPass": "gradient_pass" },
+    "blur.temp": { "afterPass": "blur_pass" },
+    "feedback.history": { "afterFrame": 2 }
+  },
+  "expected": {
+    "heapBackedResources": ["gradient.temp", "blur.temp", "feedback.history"],
+    "claims": {
+      "realMetalHeapAllocator": true,
+      "heapBackedTextures": true,
+      "residencyLedgerClean": true,
+      "policyLedgerStillSeparate": true
+    }
+  }
+}

@@ -1,0 +1,53 @@
+[
+  {
+    "index": 0,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "u_time_1",
+      "type": "uniform.frame"
+    }
+  },
+  {
+    "index": 1,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "gradient_1",
+      "type": "image.generate.gradient"
+    }
+  },
+  {
+    "index": 2,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "blob_1",
+      "type": "image.generate.blob"
+    }
+  },
+  {
+    "index": 3,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "blend_1",
+      "type": "image.filter.blend"
+    }
+  },
+  {
+    "index": 4,
+    "source": "runtime.frame.1",
+    "command": {
+      "op": "setParam",
+      "id": "gradient_1",
+      "param": "endColor",
+      "value": [
+        0.9,
+        0.82,
+        0.25,
+        1
+      ]
+    }
+  }
+]

@@ -1,0 +1,117 @@
+[
+  {
+    "op": "loadFrameScheduler",
+    "clockOwner": "graph"
+  },
+  {
+    "op": "frame.begin",
+    "frame": {
+      "frameIndex": 0,
+      "time": 0,
+      "deltaTime": 0
+    }
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "constant_bg",
+    "frameIndex": 0,
+    "dirty": true
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "blob_fg",
+    "frameIndex": 0,
+    "dirty": true
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "blend_1",
+    "frameIndex": 0,
+    "dirty": true
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "output_1",
+    "frameIndex": 0,
+    "dirty": true
+  },
+  {
+    "op": "frame.publish",
+    "frameIndex": 0,
+    "ok": true
+  },
+  {
+    "op": "frame.begin",
+    "frame": {
+      "frameIndex": 1,
+      "time": 0.0166667,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "constant_bg",
+    "frameIndex": 1,
+    "dirty": false
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "blob_fg",
+    "frameIndex": 1,
+    "dirty": true
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "blend_1",
+    "frameIndex": 1,
+    "dirty": true
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "output_1",
+    "frameIndex": 1,
+    "dirty": true
+  },
+  {
+    "op": "frame.publish",
+    "frameIndex": 1,
+    "ok": true
+  },
+  {
+    "op": "frame.begin",
+    "frame": {
+      "frameIndex": 2,
+      "time": 0.0333334,
+      "deltaTime": 0.0166667
+    }
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "constant_bg",
+    "frameIndex": 2,
+    "dirty": false
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "blob_fg",
+    "frameIndex": 2,
+    "dirty": true
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "blend_1",
+    "frameIndex": 2,
+    "dirty": true
+  },
+  {
+    "op": "node.cook",
+    "nodeId": "output_1",
+    "frameIndex": 2,
+    "dirty": true
+  },
+  {
+    "op": "frame.publish",
+    "frameIndex": 2,
+    "ok": true
+  }
+]

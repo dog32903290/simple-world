@@ -1,0 +1,12 @@
+{
+  "kind": "NativeFrameSchedulerLiveDirtyProof",
+  "graphId": "fixture.native_frame_scheduler_live_dirty",
+  "ok": true,
+  "status": "live_dirty_ready",
+  "claims": {
+    "schedulerOwnsFrameUniforms": true,
+    "commandDirtyPropagation": true,
+    "staticUnchangedNodeSkipped": true,
+    "runtimeFrameLinked": true
+  }
+}

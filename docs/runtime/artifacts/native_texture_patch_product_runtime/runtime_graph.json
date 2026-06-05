@@ -1,0 +1,113 @@
+{
+  "kind": "RuntimeGraph",
+  "graphId": "fixture.native_texture_patch_product_runtime",
+  "cookOrder": [
+    "gradient_1",
+    "feedback_1",
+    "render_target_1",
+    "output_1"
+  ],
+  "frames": [
+    {
+      "frameIndex": 0,
+      "time": 0,
+      "deltaTime": 0
+    },
+    {
+      "frameIndex": 1,
+      "time": 0.0166667,
+      "deltaTime": 0.0166667
+    }
+  ],
+  "nodes": [
+    {
+      "id": "gradient_1",
+      "type": "image.generate.gradient",
+      "params": {
+        "startColor": [
+          0.04,
+          0.1,
+          0.8,
+          1
+        ],
+        "endColor": [
+          1,
+          0.2,
+          0.48,
+          1
+        ]
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "feedback_1",
+      "type": "image.memory.feedback",
+      "params": {
+        "decay": 0.72,
+        "injection": 0.58
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "render_target_1",
+      "type": "image.output.renderTarget",
+      "params": {},
+      "domain": "frame"
+    },
+    {
+      "id": "output_1",
+      "type": "output.texture",
+      "params": {},
+      "domain": "frame"
+    }
+  ],
+  "edges": [
+    {
+      "from": [
+        "gradient_1",
+        "textureOutput"
+      ],
+      "to": [
+        "feedback_1",
+        "input"
+      ]
+    },
+    {
+      "from": [
+        "feedback_1",
+        "textureOutput"
+      ],
+      "to": [
+        "render_target_1",
+        "input"
+      ]
+    },
+    {
+      "from": [
+        "render_target_1",
+        "textureOutput"
+      ],
+      "to": [
+        "output_1",
+        "image"
+      ]
+    }
+  ],
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "targetFps": 60,
+    "frames": [
+      {
+        "frameIndex": 0,
+        "time": 0,
+        "deltaTime": 0
+      },
+      {
+        "frameIndex": 1,
+        "time": 0.0166667,
+        "deltaTime": 0.0166667
+      }
+    ]
+  }
+}

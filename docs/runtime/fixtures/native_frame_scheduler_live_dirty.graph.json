@@ -1,0 +1,53 @@
+{
+  "graphId": "fixture.native_frame_scheduler_live_dirty",
+  "kind": "NativeFrameSchedulerLiveDirtyProof",
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "frames": [
+      { "frameIndex": 0, "time": 0, "deltaTime": 0, "commands": [] },
+      {
+        "frameIndex": 1,
+        "time": 0.0166667,
+        "deltaTime": 0.0166667,
+        "commands": [
+          { "source": "runtime.frame.1", "command": { "op": "setParam", "id": "gradient_1", "param": "endColor", "value": [0.9, 0.82, 0.25, 1] } }
+        ]
+      },
+      { "frameIndex": 2, "time": 0.0333334, "deltaTime": 0.0166667, "commands": [] }
+    ]
+  },
+  "nodes": [
+    { "id": "u_time_1", "type": "uniform.frame", "dirtyPolicy": "frameUniform", "params": {} },
+    { "id": "gradient_1", "type": "image.generate.gradient", "dirtyPolicy": "onCommand", "params": { "endColor": [1, 0.2, 0.48, 1] } },
+    { "id": "blob_1", "type": "image.generate.blob", "dirtyPolicy": "onCommand", "params": { "radius": 0.31 } },
+    { "id": "blend_1", "type": "image.filter.blend", "dirtyPolicy": "downstream", "params": { "opacity": 0.62 } },
+    { "id": "output_1", "type": "output.texture", "dirtyPolicy": "downstream", "params": {} }
+  ],
+  "edges": [
+    { "from": ["u_time_1", "frameUniforms"], "to": ["output_1", "frameUniforms"] },
+    { "from": ["gradient_1", "textureOutput"], "to": ["blend_1", "background"] },
+    { "from": ["blob_1", "textureOutput"], "to": ["blend_1", "foreground"] },
+    { "from": ["blend_1", "textureOutput"], "to": ["output_1", "image"] }
+  ],
+  "commands": [
+    { "op": "createNode", "id": "u_time_1", "type": "uniform.frame" },
+    { "op": "createNode", "id": "gradient_1", "type": "image.generate.gradient" },
+    { "op": "createNode", "id": "blob_1", "type": "image.generate.blob" },
+    { "op": "createNode", "id": "blend_1", "type": "image.filter.blend" }
+  ],
+  "expected": {
+    "runtimeCookOrder": ["u_time_1", "gradient_1", "blob_1", "blend_1", "output_1"],
+    "frameCookSets": [
+      { "frameIndex": 0, "dirtyRoots": ["startup"], "cookedNodes": ["u_time_1", "gradient_1", "blob_1", "blend_1", "output_1"] },
+      { "frameIndex": 1, "dirtyRoots": ["u_time_1", "gradient_1"], "cookedNodes": ["u_time_1", "gradient_1", "blend_1", "output_1"] },
+      { "frameIndex": 2, "dirtyRoots": ["u_time_1"], "cookedNodes": ["u_time_1", "output_1"] }
+    ],
+    "claims": {
+      "schedulerOwnsFrameUniforms": true,
+      "commandDirtyPropagation": true,
+      "staticUnchangedNodeSkipped": true,
+      "runtimeFrameLinked": true
+    }
+  }
+}

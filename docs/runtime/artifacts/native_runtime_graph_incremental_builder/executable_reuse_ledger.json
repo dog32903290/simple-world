@@ -1,0 +1,37 @@
+{
+  "kind": "ExecutableReuseLedger",
+  "reusedNodes": [
+    "gradient_1"
+  ],
+  "rebuiltNodes": [
+    "blob_1",
+    "blend_1",
+    "output_1"
+  ],
+  "entries": [
+    {
+      "nodeId": "gradient_1",
+      "status": "reused",
+      "structuralHashBefore": "5ade2f1238c7d26644e897695af2e0087120ead6",
+      "structuralHashAfter": "5ade2f1238c7d26644e897695af2e0087120ead6"
+    },
+    {
+      "nodeId": "blob_1",
+      "status": "rebuilt",
+      "structuralHashBefore": null,
+      "structuralHashAfter": "bf02e7361ff951fc309a326ebe7bd1dba3d50160"
+    },
+    {
+      "nodeId": "blend_1",
+      "status": "rebuilt",
+      "structuralHashBefore": "56023dfa080b8a2a3dd740ef06c662b395abec5a",
+      "structuralHashAfter": "c2a11ef08f2cab430f66d1ec3a98ba072f6b7bdb"
+    },
+    {
+      "nodeId": "output_1",
+      "status": "rebuilt",
+      "structuralHashBefore": "b7e75c8382b55d058201ff5dfb0fe959e0365ce7",
+      "structuralHashAfter": "1cd297276b1b16c119c7cdd9daf1454308f47449"
+    }
+  ]
+}

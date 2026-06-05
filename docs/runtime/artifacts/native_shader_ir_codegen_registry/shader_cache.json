@@ -1,0 +1,54 @@
+{
+  "kind": "ShaderCodegenCache",
+  "generatedSource": "generated_registry_patch.metal",
+  "entries": [
+    {
+      "nodeId": "constant_bg",
+      "op": "ConstantImage",
+      "templateId": "constantImage.fragment",
+      "pipelineName": "constant_bg_pipeline",
+      "cacheKey": "ir:fnv1a32:1b761c07",
+      "stage": "fragment"
+    },
+    {
+      "nodeId": "blob_fg",
+      "op": "Blob",
+      "templateId": "blob.fragment",
+      "pipelineName": "blob_fg_pipeline",
+      "cacheKey": "ir:fnv1a32:5faaf3bb",
+      "stage": "fragment"
+    },
+    {
+      "nodeId": "blend_1",
+      "op": "BlendImages",
+      "templateId": "blendImages.fragment",
+      "pipelineName": "blend_1_pipeline",
+      "cacheKey": "ir:fnv1a32:86868b85",
+      "stage": "fragment"
+    },
+    {
+      "nodeId": "gradient_1",
+      "op": "Gradient",
+      "templateId": "gradient.fragment",
+      "pipelineName": "gradient_1_pipeline",
+      "cacheKey": "ir:fnv1a32:ed93555c",
+      "stage": "fragment"
+    },
+    {
+      "nodeId": "feedback_1",
+      "op": "Feedback",
+      "templateId": "feedback.fragment",
+      "pipelineName": "feedback_1_pipeline",
+      "cacheKey": "ir:fnv1a32:0abb6a3f",
+      "stage": "fragment"
+    },
+    {
+      "nodeId": "render_target_1",
+      "op": "RenderTarget",
+      "templateId": "renderTarget.fragment",
+      "pipelineName": "render_target_1_pipeline",
+      "cacheKey": "ir:fnv1a32:dbd2805b",
+      "stage": "fragment"
+    }
+  ]
+}

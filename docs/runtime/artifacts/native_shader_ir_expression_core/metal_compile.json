@@ -1,0 +1,9 @@
+{
+  "kind": "MetalCompileArtifact",
+  "status": "compiled",
+  "returncode": 0,
+  "output": "native Metal library",
+  "actualMetalDeviceCreated": true,
+  "actualLibraryCreated": true,
+  "stderr": "Metal library compiled from ShaderExpressionIR source"
+}

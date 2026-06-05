@@ -1,0 +1,12 @@
+{
+  "kind": "NativeMetalHeapResidencyProof",
+  "graphId": "fixture.native_metal_heap_residency",
+  "ok": true,
+  "status": "metal_heap_ready",
+  "claims": {
+    "realMetalHeapAllocator": true,
+    "heapBackedTextures": true,
+    "residencyLedgerClean": true,
+    "policyLedgerStillSeparate": true
+  }
+}

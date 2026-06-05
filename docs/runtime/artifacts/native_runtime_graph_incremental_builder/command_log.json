@@ -1,0 +1,78 @@
+[
+  {
+    "index": 0,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "gradient_1",
+      "type": "image.generate.gradient"
+    }
+  },
+  {
+    "index": 1,
+    "source": "fixture",
+    "command": {
+      "op": "setParam",
+      "id": "gradient_1",
+      "param": "endColor",
+      "value": [
+        1,
+        0.2,
+        0.48,
+        1
+      ]
+    }
+  },
+  {
+    "index": 2,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "blend_1",
+      "type": "image.filter.blend"
+    }
+  },
+  {
+    "index": 3,
+    "source": "fixture",
+    "command": {
+      "op": "createNode",
+      "id": "output_1",
+      "type": "output.texture"
+    }
+  },
+  {
+    "index": 4,
+    "source": "live.importer",
+    "command": {
+      "op": "createNode",
+      "id": "blob_1",
+      "type": "image.generate.blob"
+    }
+  },
+  {
+    "index": 5,
+    "source": "live.importer",
+    "command": {
+      "op": "setParam",
+      "id": "blob_1",
+      "param": "radius",
+      "value": 0.31
+    }
+  },
+  {
+    "index": 6,
+    "source": "live.importer",
+    "command": {
+      "op": "connect",
+      "from": [
+        "blob_1",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "foreground"
+      ]
+    }
+  }
+]

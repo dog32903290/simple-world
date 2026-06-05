@@ -1,0 +1,12 @@
+{
+  "kind": "NativeShaderIrExpressionCoreProof",
+  "graphId": "fixture.native_shader_ir_expression_core",
+  "ok": true,
+  "status": "expression_core_ready",
+  "claims": {
+    "coreExpressionLanguage": true,
+    "metalCompiled": true,
+    "completeShaderLanguage": false,
+    "unsafeExpressionBlocked": true
+  }
+}

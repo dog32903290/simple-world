@@ -1,0 +1,27 @@
+{
+  "kind": "NativeTexturePatchShaderCache",
+  "generatedSource": "generated_texture_patch.metal",
+  "entries": [
+    {
+      "nodeId": "gradient_1",
+      "op": "Gradient",
+      "cacheKey": "{\"id\":\"gradient_1\",\"op\":\"Gradient\",\"params\":{\"endColor\":[1,0.2,0.48,1],\"startColor\":[0.04,0.1,0.8,1]},\"stage\":\"fragment\"}",
+      "pipelineName": "gradient_1_pipeline",
+      "stage": "fragment"
+    },
+    {
+      "nodeId": "feedback_1",
+      "op": "Feedback",
+      "cacheKey": "{\"id\":\"feedback_1\",\"op\":\"Feedback\",\"params\":{\"decay\":0.72,\"injection\":0.58},\"stage\":\"fragment\"}",
+      "pipelineName": "feedback_1_pipeline",
+      "stage": "fragment"
+    },
+    {
+      "nodeId": "render_target_1",
+      "op": "RenderTarget",
+      "cacheKey": "{\"id\":\"render_target_1\",\"op\":\"RenderTarget\",\"params\":{},\"stage\":\"fragment\"}",
+      "pipelineName": "render_target_1_pipeline",
+      "stage": "fragment"
+    }
+  ]
+}

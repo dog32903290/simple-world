@@ -1,0 +1,12 @@
+{
+  "kind": "NativeRuntimeGraphIncrementalBuilderProof",
+  "graphId": "fixture.native_runtime_graph_incremental_builder",
+  "ok": true,
+  "status": "incremental_builder_ready",
+  "claims": {
+    "builtFromCommandReplay": true,
+    "incrementalRebuild": true,
+    "unaffectedExecutableReused": true,
+    "cookOrderRecomputed": true
+  }
+}

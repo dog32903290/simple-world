@@ -1,0 +1,19 @@
+{
+  "kind": "NativeResourceLifetimePolicyProof",
+  "graphId": "fixture.native_resource_lifetime_policy",
+  "ok": true,
+  "status": "policy_ready",
+  "claims": {
+    "aliasPlannerRan": true,
+    "releaseFencesTracked": true,
+    "leakReportClean": true,
+    "realGpuHeapAllocator": false
+  },
+  "artifactIndex": {
+    "aliasPlan": "alias_plan.json",
+    "barrierLedger": "barrier_ledger.json",
+    "releaseFences": "release_fences.json",
+    "leakReport": "leak_report.json",
+    "errors": "native_resource_lifetime_policy_errors.json"
+  }
+}

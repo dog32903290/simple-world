@@ -1,0 +1,65 @@
+{
+  "kind": "LiveDirtyTrace",
+  "frames": [
+    {
+      "frameIndex": 0,
+      "frameUniforms": {
+        "u_frame": 0,
+        "u_time": 0,
+        "u_deltaTime": 0
+      },
+      "dirtyRoots": [
+        "startup"
+      ],
+      "cookedNodes": [
+        "u_time_1",
+        "gradient_1",
+        "blob_1",
+        "blend_1",
+        "output_1"
+      ],
+      "skippedCleanNodes": []
+    },
+    {
+      "frameIndex": 1,
+      "frameUniforms": {
+        "u_frame": 1,
+        "u_time": 0.0166667,
+        "u_deltaTime": 0.0166667
+      },
+      "dirtyRoots": [
+        "u_time_1",
+        "gradient_1"
+      ],
+      "cookedNodes": [
+        "u_time_1",
+        "gradient_1",
+        "blend_1",
+        "output_1"
+      ],
+      "skippedCleanNodes": [
+        "blob_1"
+      ]
+    },
+    {
+      "frameIndex": 2,
+      "frameUniforms": {
+        "u_frame": 2,
+        "u_time": 0.0333334,
+        "u_deltaTime": 0.0166667
+      },
+      "dirtyRoots": [
+        "u_time_1"
+      ],
+      "cookedNodes": [
+        "u_time_1",
+        "output_1"
+      ],
+      "skippedCleanNodes": [
+        "gradient_1",
+        "blob_1",
+        "blend_1"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,123 @@
+{
+  "kind": "RuntimeGraph",
+  "graphId": "fixture.full_runtime_architecture",
+  "cookOrder": [
+    "constant_bg",
+    "blob_fg",
+    "blend_1",
+    "output_1"
+  ],
+  "nodes": [
+    {
+      "id": "constant_bg",
+      "type": "image.constant",
+      "params": {
+        "color": [
+          0.02,
+          0.04,
+          0.09,
+          1
+        ],
+        "resolution": [
+          64,
+          64
+        ]
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "blob_fg",
+      "type": "image.generate.basic.blob",
+      "params": {
+        "color": [
+          1,
+          0.12,
+          0.58,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "scale": 0.58,
+        "stretch": [
+          1.2,
+          0.72
+        ],
+        "feather": 0.34
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "blend_1",
+      "type": "image.use.blendImages",
+      "params": {
+        "inputCount": 2,
+        "blendFraction": 0.65
+      },
+      "domain": "frame"
+    },
+    {
+      "id": "output_1",
+      "type": "output.texture",
+      "params": {},
+      "domain": "frame"
+    }
+  ],
+  "edges": [
+    {
+      "from": [
+        "constant_bg",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input1"
+      ]
+    },
+    {
+      "from": [
+        "blob_fg",
+        "textureOutput"
+      ],
+      "to": [
+        "blend_1",
+        "input2"
+      ]
+    },
+    {
+      "from": [
+        "blend_1",
+        "outputImage"
+      ],
+      "to": [
+        "output_1",
+        "image"
+      ]
+    }
+  ],
+  "scheduler": {
+    "type": "FrameScheduler",
+    "clockOwner": "graph",
+    "targetFps": 60,
+    "frames": [
+      {
+        "frameIndex": 0,
+        "time": 0,
+        "deltaTime": 0
+      },
+      {
+        "frameIndex": 1,
+        "time": 0.0166667,
+        "deltaTime": 0.0166667
+      },
+      {
+        "frameIndex": 2,
+        "time": 0.0333334,
+        "deltaTime": 0.0166667
+      }
+    ]
+  }
+}

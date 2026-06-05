@@ -1,0 +1,8 @@
+{
+  "width": 64,
+  "height": 64,
+  "nonBlack": true,
+  "varied": true,
+  "nonBlackPixels": 4096,
+  "uniqueColorSamples": 64
+}

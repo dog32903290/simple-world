@@ -1,0 +1,26 @@
+{
+  "kind": "ShaderCodegenCache",
+  "entries": [
+    {
+      "nodeId": "constant_bg",
+      "op": "ConstantImage",
+      "irHash": "fnv1a32:ec0e19b3",
+      "pipelineName": "constant_bg_pipeline",
+      "source": "gpu_patch/generated_patch.metal"
+    },
+    {
+      "nodeId": "blob_fg",
+      "op": "Blob",
+      "irHash": "fnv1a32:47283dca",
+      "pipelineName": "blob_fg_pipeline",
+      "source": "gpu_patch/generated_patch.metal"
+    },
+    {
+      "nodeId": "blend_1",
+      "op": "BlendImages",
+      "irHash": "fnv1a32:6b6b6f90",
+      "pipelineName": "blend_1_pipeline",
+      "source": "gpu_patch/generated_patch.metal"
+    }
+  ]
+}
