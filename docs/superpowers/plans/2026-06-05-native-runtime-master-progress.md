@@ -8,7 +8,7 @@ and proof artifacts can overrule stale plan text.
 
 - Date: 2026-06-06.
 - Branch: `main`, aligned with `origin/main`.
-- Latest known commit: `a7995a5 Add node admission contract gate`.
+- Latest known commit: `db50c98 Require explicit Vuo port defaults in admission index`.
 - Working tree safety: `AGENTS.md` and
   `skills/tixl-vuo-node-port/SKILL.md` are modified by outside work. Do not
   revert, overwrite, or casually absorb them.
