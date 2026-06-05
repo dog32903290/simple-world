@@ -1,0 +1,103 @@
+{
+  "nodeId": "image.output.renderTarget",
+  "creatorName": "RenderTarget",
+  "family": "texture-output",
+  "admission": "runtime",
+  "ports": [
+    {
+      "id": "input",
+      "direction": "input",
+      "type": "Texture2D",
+      "cardinality": "single",
+      "eventFlow": "data"
+    },
+    {
+      "id": "textureOutput",
+      "direction": "output",
+      "type": "Texture2D",
+      "cardinality": "single",
+      "eventFlow": "data"
+    }
+  ],
+  "params": [
+    {
+      "id": "format",
+      "type": "Enum",
+      "default": "RGBA8_Unorm",
+      "owner": "NodeSpec",
+      "affects": "renderTargetDescriptor",
+      "safeToChangeLive": false,
+      "saved": true
+    }
+  ],
+  "state": "external-state",
+  "color": {
+    "role": "texture-output",
+    "token": "ColorForTextureOutput"
+  },
+  "flow": {
+    "timeOwner": "FrameScheduler",
+    "frameOwner": "FrameScheduler",
+    "dirtyOwner": "runtimeGraph",
+    "seedOwner": "none",
+    "eventOrdering": "commandLogIndex-then-frameIndex",
+    "commandOwner": "commandGraph"
+  },
+  "backendPolicy": {
+    "metal": "enabled",
+    "vuo": "host-layer-proof",
+    "webgl": "proof-only",
+    "software": "fallback",
+    "missingCapability": "diagnostic-visible"
+  },
+  "parity": {
+    "tixl": "host-layer-proof",
+    "vuo": "host-layer-proof"
+  },
+  "failureCodes": [
+    "backend.capability.missing",
+    "node.port.missing",
+    "scheduler.event_order.unreplayable"
+  ],
+  "observability": {
+    "requiredContext": [
+      "graphId",
+      "frameId",
+      "commandId",
+      "nodeId",
+      "backendId",
+      "artifactPath",
+      "diagnosticCode"
+    ]
+  },
+  "proof": {
+    "id": "native_texture_patch_product_runtime.renderTarget",
+    "ownerLane": "native-runtime-core",
+    "claims": [
+      "renderTargetMetalPass",
+      "runtimeArtifactRendered",
+      "resourceLedgerEmitted"
+    ],
+    "nonclaims": [
+      "tixlDx11RenderTargetParity",
+      "completeBackendHazardTracking",
+      "fullVuoRenderTargetParity"
+    ],
+    "fixture": "docs/runtime/fixtures/native_texture_patch_product_runtime.graph.json",
+    "script": "docs/runtime/scripts/native_texture_patch_product_runtime_shell.py",
+    "artifacts": [
+      "docs/runtime/artifacts/native_texture_patch_product_runtime/runtime_graph.json",
+      "docs/runtime/artifacts/native_texture_patch_product_runtime/resource_ledger.json",
+      "docs/runtime/artifacts/native_texture_patch_product_runtime/frame_stats.json"
+    ],
+    "tests": [
+      "tests/native_texture_patch_product_runtime.test.js",
+      "tests/render_target_contract.test.js"
+    ],
+    "freshness": {
+      "generatedAt": "2026-06-06",
+      "verificationCommand": "node --test tests/native_texture_patch_product_runtime.test.js tests/render_target_contract.test.js",
+      "expectedResult": "pass"
+    }
+  }
+}

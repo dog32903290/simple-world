@@ -1,0 +1,105 @@
+{
+  "nodeId": "ai.worker.authoringAssist",
+  "creatorName": "AI Authoring Assist",
+  "family": "ai-worker",
+  "admission": "runtime",
+  "ports": [
+    {
+      "id": "intent",
+      "direction": "input",
+      "type": "StructuredIntent",
+      "cardinality": "single",
+      "eventFlow": "event"
+    },
+    {
+      "id": "commands",
+      "direction": "output",
+      "type": "CommandGraphPlan",
+      "cardinality": "single",
+      "eventFlow": "event"
+    }
+  ],
+  "params": [
+    {
+      "id": "maxRepairAttempts",
+      "type": "Integer",
+      "default": 2,
+      "range": { "min": 0, "max": 8 },
+      "owner": "NodeSpec",
+      "affects": "repairLoop",
+      "safeToChangeLive": true,
+      "saved": true
+    }
+  ],
+  "state": "stateful",
+  "color": {
+    "role": "ai-worker",
+    "token": "ColorForAIWorker"
+  },
+  "flow": {
+    "timeOwner": "FrameScheduler",
+    "frameOwner": "FrameScheduler",
+    "dirtyOwner": "commandGraph",
+    "seedOwner": "AIWorker",
+    "eventOrdering": "intentId-then-commandLogIndex-then-frameIndex",
+    "commandOwner": "commandGraph"
+  },
+  "backendPolicy": {
+    "metal": "enabled",
+    "vuo": "disabled",
+    "webgl": "disabled",
+    "software": "fallback",
+    "missingCapability": "disabled"
+  },
+  "parity": {
+    "tixl": "not-parity",
+    "vuo": "not-parity"
+  },
+  "failureCodes": [
+    "render.black_frame",
+    "ai.proposal.direct_graph_mutation",
+    "shader.compile.failed",
+    "backend.capability.missing"
+  ],
+  "observability": {
+    "requiredContext": [
+      "graphId",
+      "frameId",
+      "commandId",
+      "nodeId",
+      "backendId",
+      "artifactPath",
+      "diagnosticCode"
+    ]
+  },
+  "proof": {
+    "id": "native_ai_worker_authoring_assist",
+    "ownerLane": "native-product-ai",
+    "claims": [
+      "boundedIntentAuthoring",
+      "commandPlanValidated",
+      "commandGraphOnlyMutation",
+      "diagnosticFeedbackObserved"
+    ],
+    "nonclaims": [
+      "broadNaturalLanguagePatchAuthoring",
+      "arbitraryPromptToGraph",
+      "directGraphMutation"
+    ],
+    "fixture": "docs/runtime/fixtures/native_ai_worker_authoring_assist.graph.json",
+    "script": "docs/runtime/scripts/native_ai_worker_authoring_assist_shell.py",
+    "artifacts": [
+      "docs/runtime/artifacts/native_ai_worker_authoring_assist/ai_command_plan.json",
+      "docs/runtime/artifacts/native_ai_worker_authoring_assist/diagnostics.json",
+      "docs/runtime/artifacts/native_ai_worker_authoring_assist/runtime_graph.json"
+    ],
+    "tests": [
+      "tests/native_ai_worker_authoring_assist.test.js"
+    ],
+    "freshness": {
+      "generatedAt": "2026-06-06",
+      "verificationCommand": "node --test tests/native_ai_worker_authoring_assist.test.js",
+      "expectedResult": "pass"
+    }
+  }
+}

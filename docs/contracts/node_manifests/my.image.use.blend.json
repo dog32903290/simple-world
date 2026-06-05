@@ -1,0 +1,55 @@
+{
+  "nodeId": "my.image.use.blend",
+  "creatorName": "my_Blend",
+  "family": "texture-filter",
+  "admission": "vuo",
+  "ports": [
+    { "id": "renderTick", "direction": "input", "type": "Event", "cardinality": "single", "eventFlow": "event" },
+    { "id": "Background", "direction": "input", "type": "VuoImage", "cardinality": "single", "eventFlow": "data" },
+    { "id": "Foreground", "direction": "input", "type": "VuoImage", "cardinality": "single", "eventFlow": "data" },
+    { "id": "Blended", "direction": "output", "type": "VuoImage", "cardinality": "single", "eventFlow": "data" }
+  ],
+  "params": [
+    { "id": "ForegroundOpacity", "type": "Float", "default": 0.75, "range": { "min": 0, "max": 1 }, "owner": "NodeSpec", "affects": "foregroundMix", "safeToChangeLive": true, "saved": true }
+  ],
+  "state": "stateless",
+  "color": { "role": "texture-filter", "token": "ColorForTextures" },
+  "flow": {
+    "timeOwner": "my_MainClock",
+    "frameOwner": "my_MainClock",
+    "dirtyOwner": "commandGraph",
+    "seedOwner": "none",
+    "eventOrdering": "renderTick-then-imageBlend",
+    "commandOwner": "commandGraph"
+  },
+  "backendPolicy": {
+    "metal": "proof-only",
+    "vuo": "body-layer-adapter",
+    "webgl": "disabled",
+    "software": "fallback",
+    "missingCapability": "diagnostic-visible"
+  },
+  "parity": { "tixl": "body-layer-adapter", "vuo": "body-layer-adapter" },
+  "failureCodes": ["node.param.out_of_range", "node.port.missing", "backend.capability.missing"],
+  "observability": {
+    "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+  },
+  "proof": {
+    "id": "vuo_high_risk.blend",
+    "ownerLane": "vuo-high-risk-proof",
+    "claims": ["blendBodyLayerVisible", "statelessVuoImageAdapter", "renderTickRequired"],
+    "nonclaims": ["fullTiXLBlendClone", "fullBlendImagesRuntimeLibrary", "nativeMetalRuntimeAdmission"],
+    "fixture": "docs/runtime/fixtures/creator_constant_blend_no_clock.graph.json",
+    "script": "tests/vuo_high_risk_nodes.test.js",
+    "artifacts": ["vuo-nodes/my.image.use.blend.c", "vuo-compositions/myworld-high-risk-vuo-node-lab.vuo"],
+    "tests": ["tests/vuo_high_risk_nodes.test.js"],
+    "freshness": {
+      "generatedAt": "2026-06-06",
+      "verificationCommand": "node --test tests/vuo_high_risk_nodes.test.js",
+      "expectedResult": "pass"
+    },
+    "observability": {
+      "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+    }
+  }
+}

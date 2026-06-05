@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simple_world.artifact_observability.schema.json",
+  "title": "Simple World Artifact Observability Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "graphId",
+    "frameId",
+    "commandId",
+    "nodeId",
+    "backendId",
+    "artifactPath",
+    "diagnosticCode",
+    "layer"
+  ],
+  "properties": {
+    "graphId": { "type": "string" },
+    "frameId": { "type": ["string", "number"] },
+    "commandId": { "type": ["string", "number"] },
+    "nodeId": { "type": "string" },
+    "backendId": { "type": "string" },
+    "artifactPath": { "type": "string" },
+    "diagnosticCode": { "type": "string" },
+    "layer": {
+      "type": "string",
+      "enum": [
+        "commandGraph",
+        "runtimeGraph",
+        "scheduler",
+        "resource",
+        "shader",
+        "backend",
+        "renderer",
+        "aiWorker",
+        "importer",
+        "canvas"
+      ]
+    }
+  }
+}

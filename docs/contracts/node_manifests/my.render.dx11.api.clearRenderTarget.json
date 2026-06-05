@@ -1,0 +1,55 @@
+{
+  "nodeId": "my.render.dx11.api.clearRenderTarget",
+  "creatorName": "my_ClearRenderTarget",
+  "family": "command",
+  "admission": "vuo",
+  "ports": [
+    { "id": "renderTick", "direction": "input", "type": "Event", "cardinality": "single", "eventFlow": "event" },
+    { "id": "TargetValid", "direction": "input", "type": "Boolean", "cardinality": "single", "eventFlow": "data" },
+    { "id": "ClearedColorBuffer", "direction": "output", "type": "VuoImage", "cardinality": "single", "eventFlow": "data" },
+    { "id": "CommandTrace", "direction": "output", "type": "Text", "cardinality": "single", "eventFlow": "data" }
+  ],
+  "params": [
+    { "id": "ClearColor", "type": "ColorRGBA", "default": [0, 0, 0, 1], "owner": "NodeSpec", "affects": "clearColor", "safeToChangeLive": true, "saved": true }
+  ],
+  "state": "stateless",
+  "color": { "role": "command", "token": "ColorForCommands" },
+  "flow": {
+    "timeOwner": "my_MainClock",
+    "frameOwner": "my_MainClock",
+    "dirtyOwner": "commandGraph",
+    "seedOwner": "none",
+    "eventOrdering": "renderTick-then-prepareUpdateRestoreTrace",
+    "commandOwner": "commandGraph"
+  },
+  "backendPolicy": {
+    "metal": "proof-only",
+    "vuo": "body-layer-adapter",
+    "webgl": "disabled",
+    "software": "fallback",
+    "missingCapability": "diagnostic-visible"
+  },
+  "parity": { "tixl": "visual-proof", "vuo": "body-layer-adapter" },
+  "failureCodes": ["backend.capability.missing", "node.port.missing", "graph.edge.type_mismatch"],
+  "observability": {
+    "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+  },
+  "proof": {
+    "id": "vuo_high_risk.clearRenderTarget",
+    "ownerLane": "vuo-high-risk-proof",
+    "claims": ["clearCommandVisibleAsImage", "commandTraceVisible", "prepareUpdateRestoreTextVisible"],
+    "nonclaims": ["dx11RtvDsvIdentity", "commandStreamPrepareUpdateRestoreParity", "nativeBackendClearCommand"],
+    "fixture": "docs/runtime/fixtures/creator_constant_blend_no_clock.graph.json",
+    "script": "tests/vuo_high_risk_nodes.test.js",
+    "artifacts": ["vuo-nodes/my.render.dx11.api.clearRenderTarget.c", "vuo-compositions/myworld-constant-image-pipeline-proof.vuo"],
+    "tests": ["tests/vuo_high_risk_nodes.test.js", "tests/command_stream_contract.test.js"],
+    "freshness": {
+      "generatedAt": "2026-06-06",
+      "verificationCommand": "node --test tests/vuo_high_risk_nodes.test.js tests/command_stream_contract.test.js",
+      "expectedResult": "pass"
+    },
+    "observability": {
+      "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+    }
+  }
+}

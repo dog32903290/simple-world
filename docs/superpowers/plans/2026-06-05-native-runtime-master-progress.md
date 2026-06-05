@@ -197,6 +197,9 @@ work is complete.
 - `docs/runtime/NATIVE_RUNTIME_CLOSURE_INDEX.md`: short release/closure index
   mapping each runtime spine to its proof, fixture, shell/runtime entrypoint,
   artifacts, tests, and nonclaim boundary.
+- `docs/contracts/NODE_ADMISSION_LEVELS.md`: creator-facing admission gate for
+  runtime, Vuo, proof-only, and blocked nodes; machine-readable schemas and
+  manifests live under `docs/contracts/`.
 - `docs/superpowers/plans/2026-06-05-native-gpu-patch-runtime-slice.md`:
   active tactical plan for the current GPU patch runtime slice.
 - `docs/runtime/NATIVE_GPU_PATCH_RUNTIME_SLICE_PROOF.md`: active closure

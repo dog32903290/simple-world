@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simple_world.proof_manifest.schema.json",
+  "title": "Simple World Proof Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "ownerLane",
+    "claims",
+    "nonclaims",
+    "fixture",
+    "script",
+    "artifacts",
+    "tests",
+    "freshness",
+    "observability"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "ownerLane": { "type": "string" },
+    "claims": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "nonclaims": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "fixture": { "type": "string" },
+    "script": { "type": "string" },
+    "artifacts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "tests": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generatedAt", "verificationCommand"],
+      "properties": {
+        "generatedAt": { "type": "string" },
+        "verificationCommand": { "type": "string" },
+        "expectedResult": { "type": "string" }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiredContext"],
+      "properties": {
+        "requiredContext": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

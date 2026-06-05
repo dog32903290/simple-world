@@ -1,0 +1,55 @@
+{
+  "nodeId": "my.image.generate.basic.constantImage",
+  "creatorName": "my_ConstantImage",
+  "family": "texture-source",
+  "admission": "vuo",
+  "ports": [
+    { "id": "renderTick", "direction": "input", "type": "Event", "cardinality": "single", "eventFlow": "event" },
+    { "id": "Image", "direction": "output", "type": "VuoImage", "cardinality": "single", "eventFlow": "data" }
+  ],
+  "params": [
+    { "id": "Color", "type": "ColorRGBA", "default": [0.02, 0.02, 0.02, 1], "owner": "NodeSpec", "affects": "constantImageColor", "safeToChangeLive": true, "saved": true },
+    { "id": "Width", "type": "Integer", "default": 1280, "range": { "min": 1, "max": 8192 }, "owner": "NodeSpec", "affects": "imageResolution", "safeToChangeLive": false, "saved": true },
+    { "id": "Height", "type": "Integer", "default": 720, "range": { "min": 1, "max": 8192 }, "owner": "NodeSpec", "affects": "imageResolution", "safeToChangeLive": false, "saved": true }
+  ],
+  "state": "stateless",
+  "color": { "role": "texture-source", "token": "ColorForTextures" },
+  "flow": {
+    "timeOwner": "my_MainClock",
+    "frameOwner": "my_MainClock",
+    "dirtyOwner": "commandGraph",
+    "seedOwner": "none",
+    "eventOrdering": "renderTick-then-bodyRender",
+    "commandOwner": "commandGraph"
+  },
+  "backendPolicy": {
+    "metal": "proof-only",
+    "vuo": "body-layer-adapter",
+    "webgl": "disabled",
+    "software": "fallback",
+    "missingCapability": "diagnostic-visible"
+  },
+  "parity": { "tixl": "body-layer-adapter", "vuo": "body-layer-adapter" },
+  "failureCodes": ["node.param.out_of_range", "backend.capability.missing"],
+  "observability": {
+    "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+  },
+  "proof": {
+    "id": "vuo_high_risk.constantImage",
+    "ownerLane": "vuo-high-risk-proof",
+    "claims": ["constantImageBodyLayerVisible", "renderTickRequired", "vuoImageOutput"],
+    "nonclaims": ["semanticParityWithTiXLConstantImage", "nativeMetalRuntimeAdmission", "directDisplayRefreshOwnership"],
+    "fixture": "docs/runtime/fixtures/constant_image_to_output.graph.json",
+    "script": "tests/vuo_high_risk_nodes.test.js",
+    "artifacts": ["vuo-nodes/my.image.generate.basic.constantImage.c", "vuo-compositions/myworld-constant-image-pipeline-proof.vuo"],
+    "tests": ["tests/vuo_high_risk_nodes.test.js"],
+    "freshness": {
+      "generatedAt": "2026-06-06",
+      "verificationCommand": "node --test tests/vuo_high_risk_nodes.test.js",
+      "expectedResult": "pass"
+    },
+    "observability": {
+      "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+    }
+  }
+}

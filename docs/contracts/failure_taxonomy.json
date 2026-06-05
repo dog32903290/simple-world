@@ -1,0 +1,99 @@
+{
+  "kind": "FailureTaxonomy",
+  "version": "0.1",
+  "requiredDiagnosticContext": [
+    "graphId",
+    "frameId",
+    "commandId",
+    "nodeId",
+    "backendId",
+    "artifactPath",
+    "diagnosticCode"
+  ],
+  "handlingClasses": [
+    {
+      "id": "blocked",
+      "creatorVisible": true,
+      "mayFallback": false,
+      "mayRepair": false,
+      "meaning": "The operation must stop because continuing would fabricate graph, runtime, or proof truth."
+    },
+    {
+      "id": "fallback",
+      "creatorVisible": true,
+      "mayFallback": true,
+      "mayRepair": false,
+      "meaning": "The product may use a declared lower-capability path while surfacing the degraded behavior."
+    },
+    {
+      "id": "repairable",
+      "creatorVisible": true,
+      "mayFallback": false,
+      "mayRepair": true,
+      "meaning": "The AI worker may append commandGraph repair commands and rerun proof."
+    },
+    {
+      "id": "creator-visible",
+      "creatorVisible": true,
+      "mayFallback": false,
+      "mayRepair": false,
+      "meaning": "The creator must see the diagnostic; last-valid output policy may apply if declared."
+    }
+  ],
+  "codes": [
+    {
+      "code": "backend.capability.missing",
+      "layer": "backend",
+      "handling": "fallback",
+      "creatorMessage": "Backend is missing a required capability; use declared fallback or visible disabled state."
+    },
+    {
+      "code": "shader.compile.failed",
+      "layer": "shader",
+      "handling": "creator-visible",
+      "creatorMessage": "Shader compile failed; keep last valid output if the node declares that policy."
+    },
+    {
+      "code": "render.black_frame",
+      "layer": "renderer",
+      "handling": "repairable",
+      "creatorMessage": "Rendered frame is black; AI worker may repair only through commandGraph."
+    },
+    {
+      "code": "node.param.out_of_range",
+      "layer": "node",
+      "handling": "creator-visible",
+      "creatorMessage": "Node parameter is outside its admitted range."
+    },
+    {
+      "code": "node.port.missing",
+      "layer": "node",
+      "handling": "blocked",
+      "creatorMessage": "Required port is missing; block runtime admission."
+    },
+    {
+      "code": "graph.edge.type_mismatch",
+      "layer": "commandGraph",
+      "handling": "blocked",
+      "creatorMessage": "Connection violates admitted port type contract."
+    },
+    {
+      "code": "ai.proposal.direct_graph_mutation",
+      "layer": "aiWorker",
+      "handling": "blocked",
+      "creatorMessage": "AI proposal attempted direct graph mutation instead of commandGraph."
+    },
+    {
+      "code": "importer.direct_graph_mutation",
+      "layer": "importer",
+      "handling": "blocked",
+      "creatorMessage": "Importer attempted to install editorGraph truth directly."
+    },
+    {
+      "code": "scheduler.event_order.unreplayable",
+      "layer": "scheduler",
+      "handling": "blocked",
+      "creatorMessage": "Frame/time/dirty event order cannot be replayed."
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "id": "vuo_high_risk_nodes",
+  "ownerLane": "vuo-high-risk-proof",
+  "claims": [
+    "mainClockOwnsRenderTick",
+    "constantImageBodyLayerProof",
+    "blendBodyLayerProof",
+    "keepPreviousFrameStatefulBodyLayerProof",
+    "renderTargetHostLayerProof",
+    "clearRenderTargetVisibleCommandProof"
+  ],
+  "nonclaims": [
+    "tixlDx11RenderTargetParity",
+    "dx11RtvDsvIdentity",
+    "directDisplayRefreshPerNode",
+    "finalNativeFrameScheduler",
+    "fullTiXLFeedbackParity"
+  ],
+  "fixture": "docs/runtime/fixtures/creator_constant_blend_no_clock.graph.json",
+  "script": "tests/vuo_high_risk_nodes.test.js",
+  "artifacts": [
+    "vuo-nodes/my.runtime.clock.mainClock.c",
+    "vuo-nodes/my.image.generate.basic.constantImage.c",
+    "vuo-nodes/my.image.use.blend.c",
+    "vuo-nodes/my.image.use.keepPreviousFrame.c",
+    "vuo-nodes/my.image.generate.basic.renderTarget.c",
+    "vuo-nodes/my.render.dx11.api.clearRenderTarget.c",
+    "vuo-compositions/myworld-high-risk-vuo-node-lab.vuo",
+    "vuo-compositions/myworld-constant-image-pipeline-proof.vuo"
+  ],
+  "tests": [
+    "tests/vuo_high_risk_nodes.test.js"
+  ],
+  "freshness": {
+    "generatedAt": "2026-06-06",
+    "verificationCommand": "node --test tests/vuo_high_risk_nodes.test.js",
+    "expectedResult": "pass"
+  },
+  "observability": {
+    "requiredContext": [
+      "graphId",
+      "frameId",
+      "commandId",
+      "nodeId",
+      "backendId",
+      "artifactPath",
+      "diagnosticCode"
+    ]
+  }
+}

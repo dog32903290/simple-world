@@ -10,6 +10,20 @@ docs/superpowers/plans/2026-06-05-native-runtime-master-progress.md
 Use this file to jump from each spine to its proof, fixture, shell/runtime
 entrypoint, artifacts, and node:test guard. It is an index, not a wider claim.
 
+Creator-facing node admission is now gated by:
+
+```text
+docs/contracts/NODE_ADMISSION_LEVELS.md
+docs/contracts/node_admission.schema.json
+docs/contracts/node_manifests/*.json
+docs/contracts/proof_manifests/*.json
+docs/contracts/failure_taxonomy.json
+docs/contracts/artifact_observability.schema.json
+```
+
+Proof prose is not the product contract by itself. A node without an admission
+manifest is not admitted as a runtime/Vuo creator-facing node.
+
 ## Current Closure
 
 - Status: bounded product/runtime body closed at 100/100.

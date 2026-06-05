@@ -1,0 +1,54 @@
+{
+  "nodeId": "my.runtime.clock.mainClock",
+  "creatorName": "my_MainClock",
+  "family": "clock",
+  "admission": "vuo",
+  "ports": [
+    { "id": "HostTime", "direction": "input", "type": "Real", "cardinality": "single", "eventFlow": "data+event" },
+    { "id": "FrameIndex", "direction": "output", "type": "Integer", "cardinality": "single", "eventFlow": "data" },
+    { "id": "Time", "direction": "output", "type": "Real", "cardinality": "single", "eventFlow": "data" },
+    { "id": "DeltaTime", "direction": "output", "type": "Real", "cardinality": "single", "eventFlow": "data" },
+    { "id": "renderTick", "direction": "output", "type": "Event", "cardinality": "single", "eventFlow": "event" }
+  ],
+  "params": [],
+  "state": "stateful",
+  "color": { "role": "clock", "token": "ColorForClock" },
+  "flow": {
+    "timeOwner": "my_MainClock",
+    "frameOwner": "my_MainClock",
+    "dirtyOwner": "FrameScheduler",
+    "seedOwner": "none",
+    "eventOrdering": "hostDisplayRefresh-then-renderTick-then-frameIndex",
+    "commandOwner": "commandGraph"
+  },
+  "backendPolicy": {
+    "metal": "disabled",
+    "vuo": "host-layer-proof",
+    "webgl": "disabled",
+    "software": "fallback",
+    "missingCapability": "diagnostic-visible"
+  },
+  "parity": { "tixl": "not-parity", "vuo": "host-layer-proof" },
+  "failureCodes": ["scheduler.event_order.unreplayable", "backend.capability.missing"],
+  "observability": {
+    "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+  },
+  "proof": {
+    "id": "vuo_high_risk.mainClock",
+    "ownerLane": "vuo-high-risk-proof",
+    "claims": ["centralizedRenderTick", "hostFramePressureVisible"],
+    "nonclaims": ["finalNativeScheduler", "audioClock", "midiClock", "tixlParity"],
+    "fixture": "docs/runtime/fixtures/main_clock_constant_pipeline.vuo_graph.json",
+    "script": "docs/runtime/scripts/generate_vuo_main_clock_proof.py",
+    "artifacts": ["vuo-compositions/myworld-constant-image-pipeline-proof.vuo"],
+    "tests": ["tests/vuo_high_risk_nodes.test.js", "tests/vuo_main_clock_generator.test.js"],
+    "freshness": {
+      "generatedAt": "2026-06-06",
+      "verificationCommand": "node --test tests/vuo_high_risk_nodes.test.js tests/vuo_main_clock_generator.test.js",
+      "expectedResult": "pass"
+    },
+    "observability": {
+      "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+    }
+  }
+}

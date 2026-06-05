@@ -1,0 +1,116 @@
+{
+  "nodeId": "image.generate.basic.blob",
+  "creatorName": "Blob",
+  "family": "texture-source",
+  "admission": "runtime",
+  "ports": [
+    {
+      "id": "textureOutput",
+      "direction": "output",
+      "type": "Texture2D",
+      "cardinality": "single",
+      "eventFlow": "data"
+    }
+  ],
+  "params": [
+    {
+      "id": "color",
+      "type": "ColorRGBA",
+      "default": [1, 1, 1, 1],
+      "owner": "NodeSpec",
+      "affects": "fragmentColor",
+      "safeToChangeLive": true,
+      "saved": true
+    },
+    {
+      "id": "scale",
+      "type": "Float",
+      "default": 0.5,
+      "range": { "min": 0, "max": 1 },
+      "owner": "NodeSpec",
+      "affects": "blobRadius",
+      "safeToChangeLive": true,
+      "saved": true
+    },
+    {
+      "id": "feather",
+      "type": "Float",
+      "default": 0.3,
+      "range": { "min": 0, "max": 1 },
+      "owner": "NodeSpec",
+      "affects": "edgeFalloff",
+      "safeToChangeLive": true,
+      "saved": true
+    }
+  ],
+  "state": "stateless",
+  "color": {
+    "role": "texture-source",
+    "token": "ColorForTextureSource"
+  },
+  "flow": {
+    "timeOwner": "FrameScheduler",
+    "frameOwner": "FrameScheduler",
+    "dirtyOwner": "commandGraph",
+    "seedOwner": "NodeSpec",
+    "eventOrdering": "commandLogIndex-then-frameIndex",
+    "commandOwner": "commandGraph"
+  },
+  "backendPolicy": {
+    "metal": "enabled",
+    "vuo": "body-layer-adapter",
+    "webgl": "proof-only",
+    "software": "fallback",
+    "missingCapability": "diagnostic-visible"
+  },
+  "parity": {
+    "tixl": "visual-proof",
+    "vuo": "body-layer-adapter"
+  },
+  "failureCodes": [
+    "node.param.out_of_range",
+    "backend.capability.missing",
+    "shader.compile.failed"
+  ],
+  "observability": {
+    "requiredContext": [
+      "graphId",
+      "frameId",
+      "commandId",
+      "nodeId",
+      "backendId",
+      "artifactPath",
+      "diagnosticCode"
+    ]
+  },
+  "proof": {
+    "id": "native_gpu_patch_runtime_slice.blob",
+    "ownerLane": "native-runtime-core",
+    "claims": [
+      "blobTextureGenerated",
+      "commandGraphReplayed",
+      "shaderCodegenCacheBuilt",
+      "actualMetalRan"
+    ],
+    "nonclaims": [
+      "semanticParityWithTiXLDX11Blob",
+      "completeTextureNodeLibrary",
+      "arbitraryShaderLanguage"
+    ],
+    "fixture": "docs/runtime/fixtures/native_gpu_patch_runtime_slice.graph.json",
+    "script": "docs/runtime/scripts/native_gpu_patch_runtime_slice_shell.py",
+    "artifacts": [
+      "docs/runtime/artifacts/native_gpu_patch_runtime_slice/runtime_graph.json",
+      "docs/runtime/artifacts/native_gpu_patch_runtime_slice/frame_stats.json",
+      "docs/runtime/artifacts/native_gpu_patch_runtime_slice/shader_cache.json"
+    ],
+    "tests": [
+      "tests/native_gpu_patch_runtime_slice.test.js"
+    ],
+    "freshness": {
+      "generatedAt": "2026-06-06",
+      "verificationCommand": "node --test tests/native_gpu_patch_runtime_slice.test.js",
+      "expectedResult": "pass"
+    }
+  }
+}

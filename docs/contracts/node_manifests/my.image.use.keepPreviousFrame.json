@@ -1,0 +1,55 @@
+{
+  "nodeId": "my.image.use.keepPreviousFrame",
+  "creatorName": "my_KeepPreviousFrame",
+  "family": "texture-state",
+  "admission": "vuo",
+  "ports": [
+    { "id": "update", "direction": "input", "type": "Event", "cardinality": "single", "eventFlow": "event" },
+    { "id": "ImageA", "direction": "input", "type": "VuoImage", "cardinality": "single", "eventFlow": "data" },
+    { "id": "CurrentFrame", "direction": "output", "type": "VuoImage", "cardinality": "single", "eventFlow": "data" },
+    { "id": "PreviousFrame", "direction": "output", "type": "VuoImage", "cardinality": "single", "eventFlow": "data" }
+  ],
+  "params": [
+    { "id": "Keep", "type": "Boolean", "default": true, "owner": "NodeSpec", "affects": "previousFrameState", "safeToChangeLive": true, "saved": true }
+  ],
+  "state": "stateful",
+  "color": { "role": "texture-state", "token": "ColorForTextures" },
+  "flow": {
+    "timeOwner": "my_MainClock",
+    "frameOwner": "my_MainClock",
+    "dirtyOwner": "runtimeGraph",
+    "seedOwner": "none",
+    "eventOrdering": "renderTick-then-updateCurrentFrame-then-publishPreviousFrame",
+    "commandOwner": "commandGraph"
+  },
+  "backendPolicy": {
+    "metal": "proof-only",
+    "vuo": "body-layer-adapter",
+    "webgl": "disabled",
+    "software": "fallback",
+    "missingCapability": "diagnostic-visible"
+  },
+  "parity": { "tixl": "body-layer-adapter", "vuo": "body-layer-adapter" },
+  "failureCodes": ["node.port.missing", "scheduler.event_order.unreplayable", "backend.capability.missing"],
+  "observability": {
+    "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+  },
+  "proof": {
+    "id": "vuo_high_risk.keepPreviousFrame",
+    "ownerLane": "vuo-high-risk-proof",
+    "claims": ["statefulPreviousFrameAdapter", "currentAndPreviousOutputsVisible", "renderTickUpdateRequired"],
+    "nonclaims": ["fullTiXLFeedbackParity", "nativeFeedbackResourceResidency", "directDisplayRefreshOwnership"],
+    "fixture": "docs/runtime/fixtures/creator_constant_blend_no_clock.graph.json",
+    "script": "tests/vuo_high_risk_nodes.test.js",
+    "artifacts": ["vuo-nodes/my.image.use.keepPreviousFrame.c", "vuo-compositions/myworld-high-risk-vuo-node-lab.vuo"],
+    "tests": ["tests/vuo_high_risk_nodes.test.js", "tests/feedback_state_contract.test.js"],
+    "freshness": {
+      "generatedAt": "2026-06-06",
+      "verificationCommand": "node --test tests/vuo_high_risk_nodes.test.js tests/feedback_state_contract.test.js",
+      "expectedResult": "pass"
+    },
+    "observability": {
+      "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+    }
+  }
+}

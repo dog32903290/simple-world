@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "simple_world.node_admission.schema.json",
+  "title": "Simple World Node Admission Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "nodeId",
+    "creatorName",
+    "family",
+    "admission",
+    "ports",
+    "params",
+    "state",
+    "color",
+    "flow",
+    "backendPolicy",
+    "parity",
+    "failureCodes",
+    "observability",
+    "proof"
+  ],
+  "properties": {
+    "nodeId": { "type": "string" },
+    "creatorName": { "type": "string" },
+    "family": {
+      "type": "string",
+      "enum": ["texture-source", "texture-filter", "texture-state", "texture-output", "ai-worker", "clock", "command", "debug", "proof-only"]
+    },
+    "admission": {
+      "type": "string",
+      "enum": ["runtime", "vuo", "proof-only", "blocked"]
+    },
+    "ports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "direction", "type", "cardinality", "eventFlow"],
+        "properties": {
+          "id": { "type": "string" },
+          "direction": { "type": "string", "enum": ["input", "output"] },
+          "type": { "type": "string" },
+          "cardinality": { "type": "string", "enum": ["single", "multi", "optional"] },
+          "eventFlow": { "type": "string", "enum": ["data", "event", "data+event", "none"] }
+        }
+      }
+    },
+    "params": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "default", "owner", "affects", "safeToChangeLive", "saved"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string" },
+          "default": {},
+          "range": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["min", "max"],
+            "properties": {
+              "min": { "type": "number" },
+              "max": { "type": "number" }
+            }
+          },
+          "owner": { "type": "string", "enum": ["NodeSpec", "NodeInstance", "RuntimeOp", "UIView"] },
+          "affects": { "type": "string" },
+          "safeToChangeLive": { "type": "boolean" },
+          "saved": { "type": "boolean" }
+        }
+      }
+    },
+    "state": {
+      "type": "string",
+      "enum": ["stateless", "stateful", "external-state"]
+    },
+    "color": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "token"],
+      "properties": {
+        "role": { "type": "string" },
+        "token": { "type": "string" }
+      }
+    },
+    "flow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeOwner", "frameOwner", "dirtyOwner", "seedOwner", "eventOrdering", "commandOwner"],
+      "properties": {
+        "timeOwner": { "type": "string" },
+        "frameOwner": { "type": "string" },
+        "dirtyOwner": { "type": "string" },
+        "seedOwner": { "type": "string" },
+        "eventOrdering": { "type": "string" },
+        "commandOwner": { "type": "string" }
+      }
+    },
+    "backendPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metal", "vuo", "webgl", "software", "missingCapability"],
+      "properties": {
+        "metal": { "type": "string", "enum": ["enabled", "disabled", "fallback", "proof-only"] },
+        "vuo": { "type": "string", "enum": ["enabled", "disabled", "fallback", "body-layer-adapter", "host-layer-proof", "proof-only"] },
+        "webgl": { "type": "string", "enum": ["enabled", "disabled", "fallback", "proof-only"] },
+        "software": { "type": "string", "enum": ["enabled", "disabled", "fallback", "proof-only"] },
+        "missingCapability": { "type": "string", "enum": ["blocked", "disabled", "fallback", "diagnostic-visible", "repairable"] }
+      }
+    },
+    "parity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tixl", "vuo"],
+      "properties": {
+        "tixl": {
+          "type": "string",
+          "enum": ["semantic-parity", "visual-proof", "body-layer-adapter", "host-layer-proof", "not-parity"]
+        },
+        "vuo": {
+          "type": "string",
+          "enum": ["semantic-parity", "visual-proof", "body-layer-adapter", "host-layer-proof", "not-parity"]
+        }
+      }
+    },
+    "failureCodes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiredContext"],
+      "properties": {
+        "requiredContext": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "proof": {
+      "$ref": "proof_manifest.schema.json"
+    }
+  }
+}

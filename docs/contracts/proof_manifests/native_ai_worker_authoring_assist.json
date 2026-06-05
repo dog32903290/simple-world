@@ -1,0 +1,45 @@
+{
+  "id": "native_ai_worker_authoring_assist",
+  "ownerLane": "native-product-ai",
+  "claims": [
+    "boundedIntentAuthoring",
+    "commandPlanValidated",
+    "commandGraphOnlyMutation",
+    "runtimeArtifactRendered",
+    "diagnosticFeedbackObserved",
+    "directGraphMutationRejected"
+  ],
+  "nonclaims": [
+    "broadNaturalLanguagePatchAuthoring",
+    "arbitraryPromptToGraph",
+    "generalAutonomousArtist",
+    "directEditorGraphMutation"
+  ],
+  "fixture": "docs/runtime/fixtures/native_ai_worker_authoring_assist.graph.json",
+  "script": "docs/runtime/scripts/native_ai_worker_authoring_assist_shell.py",
+  "artifacts": [
+    "docs/runtime/artifacts/native_ai_worker_authoring_assist/native_ai_worker_authoring_assist_result.json",
+    "docs/runtime/artifacts/native_ai_worker_authoring_assist/ai_command_plan.json",
+    "docs/runtime/artifacts/native_ai_worker_authoring_assist/diagnostics.json",
+    "docs/runtime/artifacts/native_ai_worker_authoring_assist/runtime_graph.json"
+  ],
+  "tests": [
+    "tests/native_ai_worker_authoring_assist.test.js"
+  ],
+  "freshness": {
+    "generatedAt": "2026-06-06",
+    "verificationCommand": "node --test tests/native_ai_worker_authoring_assist.test.js",
+    "expectedResult": "6/6 pass"
+  },
+  "observability": {
+    "requiredContext": [
+      "graphId",
+      "frameId",
+      "commandId",
+      "nodeId",
+      "backendId",
+      "artifactPath",
+      "diagnosticCode"
+    ]
+  }
+}

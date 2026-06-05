@@ -1,0 +1,50 @@
+{
+  "id": "native_runtime_closure",
+  "ownerLane": "product_runtime_completion",
+  "claims": [
+    "boundedProductRuntimeBodyClosed",
+    "commandGraphOnlyMutationProven",
+    "runtimeGraphBuilderProven",
+    "frameSchedulerDirtyPropagationProven",
+    "metalTextureRuntimeProven",
+    "shaderIrCodegenCacheProven",
+    "resourceLifetimeAndResidencyProven"
+  ],
+  "nonclaims": [
+    "finalGuiInteractionParity",
+    "arbitraryUserShaderLanguage",
+    "completeTextureNodeLibrary",
+    "completeHeapEvictionAndHazardTracking",
+    "fullFileFormatImporter"
+  ],
+  "fixture": "docs/runtime/fixtures/full_runtime_architecture.graph.json",
+  "script": "docs/runtime/scripts/full_runtime_architecture_shell.py",
+  "artifacts": [
+    "docs/runtime/artifacts/full_runtime_architecture/full_runtime_architecture_result.json",
+    "docs/runtime/artifacts/full_runtime_architecture/runtime_graph.json",
+    "docs/runtime/artifacts/full_runtime_architecture/command_log.json",
+    "docs/runtime/NATIVE_RUNTIME_CLOSURE_INDEX.md"
+  ],
+  "tests": [
+    "tests/full_runtime_architecture.test.js",
+    "tests/native_runtime_graph_incremental_builder.test.js",
+    "tests/native_frame_scheduler_live_dirty.test.js",
+    "tests/native_shader_ir_expression_core.test.js"
+  ],
+  "freshness": {
+    "generatedAt": "2026-06-06",
+    "verificationCommand": "node --test tests/*.test.js",
+    "expectedResult": "820/820 pass"
+  },
+  "observability": {
+    "requiredContext": [
+      "graphId",
+      "frameId",
+      "commandId",
+      "nodeId",
+      "backendId",
+      "artifactPath",
+      "diagnosticCode"
+    ]
+  }
+}
