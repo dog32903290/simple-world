@@ -1,0 +1,35 @@
+/**
+ * @file
+ * Batch 52 Lib.numbers.vec3.process Vuo visual proof.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-820,0" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+EaseVec3 [type="my.numbers.vec3.process.easeVec3" version="1.0.0" label="my_EaseVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,320" fillcolor="#868C8D"];
+EaseVec3Keys [type="my.numbers.vec3.process.easeVec3Keys" version="1.0.0" label="my_EaseVec3Keys|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,230" fillcolor="#868C8D"];
+SpringVec3 [type="my.numbers.vec3.process.springVec3" version="1.0.0" label="my_SpringVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,140" fillcolor="#868C8D"];
+
+ProofImage [type="my.numbers.batch.batch52Vec3ProcessProof" version="1.0.0" label="my_Batch52Vec3ProcessProof|<renderTick>renderTick\l|<easeVec3Value>easeVec3Value\l|<easeVec3KeysValue>easeVec3KeysValue\l|<springVec3Value>springVec3Value\l|<width>width\l|<height>height\l|<image>Image\r" pos="220,0" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 52 Vec3Process|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="790,80" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="790,-150" fillcolor="orange" _url="\"\/Users\/chenbaiwei\/Desktop\/vibe coding\/simple_world\/artifacts\/vuo_cli\/batch-52-vec3-process-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 52 Lib.numbers.vec3.process visual proof\"" pos="-80,455" width="600" height="42"];
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+FireOnDisplayRefresh:requestedFrame -> EaseVec3:renderTick;
+EaseVec3:proofValue -> ProofImage:easeVec3Value;
+FireOnDisplayRefresh:requestedFrame -> EaseVec3Keys:renderTick;
+EaseVec3Keys:proofValue -> ProofImage:easeVec3KeysValue;
+FireOnDisplayRefresh:requestedFrame -> SpringVec3:renderTick;
+SpringVec3:proofValue -> ProofImage:springVec3Value;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

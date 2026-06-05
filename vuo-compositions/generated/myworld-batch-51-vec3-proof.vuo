@@ -1,0 +1,92 @@
+/**
+ * @file
+ * Batch 51 Lib.numbers.vec3 Vuo visual proof.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-820,0" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+AddVec3 [type="my.numbers.vec3.addVec3" version="1.0.0" label="my_AddVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,320" fillcolor="#868C8D"];
+BlendVector3 [type="my.numbers.vec3.blendVector3" version="1.0.0" label="my_BlendVector3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,230" fillcolor="#868C8D"];
+CrossVec3 [type="my.numbers.vec3.crossVec3" version="1.0.0" label="my_CrossVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,140" fillcolor="#868C8D"];
+DampVec3 [type="my.numbers.vec3.dampVec3" version="1.0.0" label="my_DampVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,50" fillcolor="#868C8D"];
+DotVec3 [type="my.numbers.vec3.dotVec3" version="1.0.0" label="my_DotVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-40" fillcolor="#868C8D"];
+EulerToAxisAngle [type="my.numbers.vec3.eulerToAxisAngle" version="1.0.0" label="my_EulerToAxisAngle|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-130" fillcolor="#868C8D"];
+HasVec3Changed [type="my.numbers.vec3.hasVec3Changed" version="1.0.0" label="my_HasVec3Changed|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-220" fillcolor="#868C8D"];
+LerpVec3 [type="my.numbers.vec3.lerpVec3" version="1.0.0" label="my_LerpVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-310" fillcolor="#868C8D"];
+Magnitude [type="my.numbers.vec3.magnitude" version="1.0.0" label="my_Magnitude|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-400" fillcolor="#868C8D"];
+MulMatrix [type="my.numbers.vec3.mulMatrix" version="1.0.0" label="my_MulMatrix|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-490" fillcolor="#868C8D"];
+NormalizeVector3 [type="my.numbers.vec3.normalizeVector3" version="1.0.0" label="my_NormalizeVector3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-580" fillcolor="#868C8D"];
+PerlinNoise3 [type="my.numbers.vec3.perlinNoise3" version="1.0.0" label="my_PerlinNoise3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-670" fillcolor="#868C8D"];
+PickVector3 [type="my.numbers.vec3.pickVector3" version="1.0.0" label="my_PickVector3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-760" fillcolor="#868C8D"];
+RotateVector3 [type="my.numbers.vec3.rotateVector3" version="1.0.0" label="my_RotateVector3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-850" fillcolor="#868C8D"];
+RoundVec3 [type="my.numbers.vec3.roundVec3" version="1.0.0" label="my_RoundVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-940" fillcolor="#868C8D"];
+ScaleVector3 [type="my.numbers.vec3.scaleVector3" version="1.0.0" label="my_ScaleVector3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-1030" fillcolor="#868C8D"];
+SubVec3 [type="my.numbers.vec3.subVec3" version="1.0.0" label="my_SubVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-1120" fillcolor="#868C8D"];
+TransformVec3 [type="my.numbers.vec3.transformVec3" version="1.0.0" label="my_TransformVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-1210" fillcolor="#868C8D"];
+Vec2Magnitude [type="my.numbers.vec3.vec2Magnitude" version="1.0.0" label="my_Vec2Magnitude|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-1300" fillcolor="#868C8D"];
+Vec3Distance [type="my.numbers.vec3.vec3Distance" version="1.0.0" label="my_Vec3Distance|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-1390" fillcolor="#868C8D"];
+Vector3Components [type="my.numbers.vec3.vector3Components" version="1.0.0" label="my_Vector3Components|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-1480" fillcolor="#868C8D"];
+Vector3Gizmo [type="my.numbers.vec3.vector3Gizmo" version="1.0.0" label="my_Vector3Gizmo|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-1570" fillcolor="#868C8D"];
+
+ProofImage [type="my.numbers.batch.batch51Vec3Proof" version="1.0.0" label="my_Batch51Vec3Proof|<renderTick>renderTick\l|<addVec3Value>addVec3Value\l|<blendVector3Value>blendVector3Value\l|<crossVec3Value>crossVec3Value\l|<dampVec3Value>dampVec3Value\l|<dotVec3Value>dotVec3Value\l|<eulerToAxisAngleValue>eulerToAxisAngleValue\l|<hasVec3ChangedValue>hasVec3ChangedValue\l|<lerpVec3Value>lerpVec3Value\l|<magnitudeValue>magnitudeValue\l|<mulMatrixValue>mulMatrixValue\l|<normalizeVector3Value>normalizeVector3Value\l|<perlinNoise3Value>perlinNoise3Value\l|<pickVector3Value>pickVector3Value\l|<rotateVector3Value>rotateVector3Value\l|<roundVec3Value>roundVec3Value\l|<scaleVector3Value>scaleVector3Value\l|<subVec3Value>subVec3Value\l|<transformVec3Value>transformVec3Value\l|<vec2MagnitudeValue>vec2MagnitudeValue\l|<vec3DistanceValue>vec3DistanceValue\l|<vector3ComponentsValue>vector3ComponentsValue\l|<vector3GizmoValue>vector3GizmoValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="220,0" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 51 Vec3|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="790,80" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="790,-150" fillcolor="orange" _url="\"\/Users\/chenbaiwei\/Desktop\/vibe coding\/simple_world\/artifacts\/vuo_cli\/batch-51-vec3-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 51 Lib.numbers.vec3 visual proof\"" pos="-80,455" width="600" height="42"];
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+FireOnDisplayRefresh:requestedFrame -> AddVec3:renderTick;
+AddVec3:proofValue -> ProofImage:addVec3Value;
+FireOnDisplayRefresh:requestedFrame -> BlendVector3:renderTick;
+BlendVector3:proofValue -> ProofImage:blendVector3Value;
+FireOnDisplayRefresh:requestedFrame -> CrossVec3:renderTick;
+CrossVec3:proofValue -> ProofImage:crossVec3Value;
+FireOnDisplayRefresh:requestedFrame -> DampVec3:renderTick;
+DampVec3:proofValue -> ProofImage:dampVec3Value;
+FireOnDisplayRefresh:requestedFrame -> DotVec3:renderTick;
+DotVec3:proofValue -> ProofImage:dotVec3Value;
+FireOnDisplayRefresh:requestedFrame -> EulerToAxisAngle:renderTick;
+EulerToAxisAngle:proofValue -> ProofImage:eulerToAxisAngleValue;
+FireOnDisplayRefresh:requestedFrame -> HasVec3Changed:renderTick;
+HasVec3Changed:proofValue -> ProofImage:hasVec3ChangedValue;
+FireOnDisplayRefresh:requestedFrame -> LerpVec3:renderTick;
+LerpVec3:proofValue -> ProofImage:lerpVec3Value;
+FireOnDisplayRefresh:requestedFrame -> Magnitude:renderTick;
+Magnitude:proofValue -> ProofImage:magnitudeValue;
+FireOnDisplayRefresh:requestedFrame -> MulMatrix:renderTick;
+MulMatrix:proofValue -> ProofImage:mulMatrixValue;
+FireOnDisplayRefresh:requestedFrame -> NormalizeVector3:renderTick;
+NormalizeVector3:proofValue -> ProofImage:normalizeVector3Value;
+FireOnDisplayRefresh:requestedFrame -> PerlinNoise3:renderTick;
+PerlinNoise3:proofValue -> ProofImage:perlinNoise3Value;
+FireOnDisplayRefresh:requestedFrame -> PickVector3:renderTick;
+PickVector3:proofValue -> ProofImage:pickVector3Value;
+FireOnDisplayRefresh:requestedFrame -> RotateVector3:renderTick;
+RotateVector3:proofValue -> ProofImage:rotateVector3Value;
+FireOnDisplayRefresh:requestedFrame -> RoundVec3:renderTick;
+RoundVec3:proofValue -> ProofImage:roundVec3Value;
+FireOnDisplayRefresh:requestedFrame -> ScaleVector3:renderTick;
+ScaleVector3:proofValue -> ProofImage:scaleVector3Value;
+FireOnDisplayRefresh:requestedFrame -> SubVec3:renderTick;
+SubVec3:proofValue -> ProofImage:subVec3Value;
+FireOnDisplayRefresh:requestedFrame -> TransformVec3:renderTick;
+TransformVec3:proofValue -> ProofImage:transformVec3Value;
+FireOnDisplayRefresh:requestedFrame -> Vec2Magnitude:renderTick;
+Vec2Magnitude:proofValue -> ProofImage:vec2MagnitudeValue;
+FireOnDisplayRefresh:requestedFrame -> Vec3Distance:renderTick;
+Vec3Distance:proofValue -> ProofImage:vec3DistanceValue;
+FireOnDisplayRefresh:requestedFrame -> Vector3Components:renderTick;
+Vector3Components:proofValue -> ProofImage:vector3ComponentsValue;
+FireOnDisplayRefresh:requestedFrame -> Vector3Gizmo:renderTick;
+Vector3Gizmo:proofValue -> ProofImage:vector3GizmoValue;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}

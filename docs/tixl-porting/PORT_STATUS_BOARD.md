@@ -9,8 +9,8 @@ python3 docs/tixl-porting/scripts/generate_port_status_board.py --write
 ## Summary
 
 - TiXL indexed nodes: 935
-- Vuo custom node sources: 307
-- Vuo proof compositions: 63
+- Vuo custom node sources: 354
+- Vuo proof compositions: 68
 - Source inventory: `docs/tixl-porting/reports/source_inventory.md`
 - Grade rules: `docs/tixl-porting/reports/porting_grade_rules.md`
 
@@ -125,6 +125,16 @@ python3 docs/tixl-porting/scripts/generate_port_status_board.py --write
 | my_PickTexture | Operators/Lib/image/use | Vuo node + composition proof | `vuo-nodes/my.image.use.pickTexture.c` |
 | my_SwapTextures | Operators/Lib/image/use | Vuo node + composition proof | `vuo-nodes/my.image.use.swapTextures.c` |
 | my_UseFallbackTexture | Operators/Lib/image/use | Vuo node + composition proof | `vuo-nodes/my.image.use.useFallbackTexture.c` |
+| my_AnimBoolean | Operators/Lib/numbers/anim/animators | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.animators.animBoolean.c` |
+| my_AnimFloatList | Operators/Lib/numbers/anim/animators | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.animators.animFloatList.c` |
+| my_AnimInt | Operators/Lib/numbers/anim/animators | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.animators.animInt.c` |
+| my_AnimValue | Operators/Lib/numbers/anim/animators | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.animators.animValue.c` |
+| my_AnimVec2 | Operators/Lib/numbers/anim/animators | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.animators.animVec2.c` |
+| my_AnimVec3 | Operators/Lib/numbers/anim/animators | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.animators.animVec3.c` |
+| my_OscillateVec2 | Operators/Lib/numbers/anim/animators | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.animators.oscillateVec2.c` |
+| my_OscillateVec3 | Operators/Lib/numbers/anim/animators | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.animators.oscillateVec3.c` |
+| my_SequenceAnim | Operators/Lib/numbers/anim/animators | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.animators.sequenceAnim.c` |
+| my_TriggerAnim | Operators/Lib/numbers/anim/animators | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.animators.triggerAnim.c` |
 | my_AbletonLinkSync | Operators/Lib/numbers/anim/time | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.time.abletonLinkSync.c` |
 | my_ClipTime | Operators/Lib/numbers/anim/time | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.time.clipTime.c` |
 | my_ConvertTime | Operators/Lib/numbers/anim/time | Vuo node + composition proof | `vuo-nodes/my.numbers.anim.time.convertTime.c` |
@@ -261,6 +271,38 @@ python3 docs/tixl-porting/scripts/generate_port_status_board.py --write
 | my_ScaleVector2 | Operators/Lib/numbers/vec2 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec2.scaleVector2.c` |
 | my_Vec2ToVec3 | Operators/Lib/numbers/vec2 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec2.vec2ToVec3.c` |
 | my_Vector2Components | Operators/Lib/numbers/vec2 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec2.vector2Components.c` |
+| my_EaseVec2 | Operators/Lib/numbers/vec2/process | Vuo node + composition proof | `vuo-nodes/my.numbers.vec2.process.easeVec2.c` |
+| my_EaseVec2Keys | Operators/Lib/numbers/vec2/process | Vuo node + composition proof | `vuo-nodes/my.numbers.vec2.process.easeVec2Keys.c` |
+| my_SpringVec2 | Operators/Lib/numbers/vec2/process | Vuo node + composition proof | `vuo-nodes/my.numbers.vec2.process.springVec2.c` |
+| my_AddVec3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.addVec3.c` |
+| my_BlendVector3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.blendVector3.c` |
+| my_CrossVec3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.crossVec3.c` |
+| my_DampVec3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.dampVec3.c` |
+| my_DotVec3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.dotVec3.c` |
+| my_EulerToAxisAngle | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.eulerToAxisAngle.c` |
+| my_HasVec3Changed | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.hasVec3Changed.c` |
+| my_LerpVec3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.lerpVec3.c` |
+| my_Magnitude | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.magnitude.c` |
+| my_MulMatrix | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.mulMatrix.c` |
+| my_NormalizeVector3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.normalizeVector3.c` |
+| my_PerlinNoise3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.perlinNoise3.c` |
+| my_PickVector3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.pickVector3.c` |
+| my_RotateVector3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.rotateVector3.c` |
+| my_RoundVec3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.roundVec3.c` |
+| my_ScaleVector3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.scaleVector3.c` |
+| my_SubVec3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.subVec3.c` |
+| my_TransformVec3 | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.transformVec3.c` |
+| my_Vec2Magnitude | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.vec2Magnitude.c` |
+| my_Vec3Distance | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.vec3Distance.c` |
+| my_Vector3Components | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.vector3Components.c` |
+| my_Vector3Gizmo | Operators/Lib/numbers/vec3 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.vector3Gizmo.c` |
+| my_EaseVec3 | Operators/Lib/numbers/vec3/process | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.process.easeVec3.c` |
+| my_EaseVec3Keys | Operators/Lib/numbers/vec3/process | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.process.easeVec3Keys.c` |
+| my_SpringVec3 | Operators/Lib/numbers/vec3/process | Vuo node + composition proof | `vuo-nodes/my.numbers.vec3.process.springVec3.c` |
+| my_DotVec4 | Operators/Lib/numbers/vec4 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec4.dotVec4.c` |
+| my_PickColor | Operators/Lib/numbers/vec4 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec4.pickColor.c` |
+| my_RgbaToColor | Operators/Lib/numbers/vec4 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec4.rgbaToColor.c` |
+| my_Vector4Components | Operators/Lib/numbers/vec4 | Vuo node + composition proof | `vuo-nodes/my.numbers.vec4.vector4Components.c` |
 | my_ClearRenderTarget | Operators/Lib/render/_dx11/api | Vuo node + composition proof | `vuo-nodes/my.render.dx11.api.clearRenderTarget.c` |
 | my_SetMaterial | Operators/Lib/render/shading | Vuo node + composition proof | `vuo-nodes/my.render.shading.setMaterial.c` |
 | my_StringRepeat | Operators/Lib/string/combine | Vuo node + composition proof | `vuo-nodes/my.string.combine.stringRepeat.c` |
@@ -316,6 +358,11 @@ python3 docs/tixl-porting/scripts/generate_port_status_board.py --write
 | my_Batch48FloatRandomProof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.batch48FloatRandomProof.c` |
 | my_Batch49Vec2Proof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.batch49Vec2Proof.c` |
 | my_Batch4RemapLerpProof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.remapLerpProof.c` |
+| my_Batch50Vec2ProcessProof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.batch50Vec2ProcessProof.c` |
+| my_Batch51Vec3Proof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.batch51Vec3Proof.c` |
+| my_Batch52Vec3ProcessProof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.batch52Vec3ProcessProof.c` |
+| my_Batch53Vec4Proof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.batch53Vec4Proof.c` |
+| my_Batch54AnimAnimatorsProof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.batch54AnimAnimatorsProof.c` |
 | my_Batch5ScalarProof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.batch5ScalarProof.c` |
 | my_Batch6FloatLogicProof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.batch6FloatLogicProof.c` |
 | my_Batch7IntLogicProcessProof | proof-adapter | Vuo node + composition proof | `vuo-nodes/my.numbers.batch.batch7IntLogicProcessProof.c` |

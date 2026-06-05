@@ -1,0 +1,56 @@
+/**
+ * @file
+ * Batch 54 Lib.numbers.anim.animators Vuo visual proof.
+ *
+ * @lastSavedInVuoVersion 2.4.6
+ * @license This composition may be modified and distributed under the terms of the MIT License.
+ */
+
+digraph G
+{
+FireOnDisplayRefresh [type="vuo.event.fireOnDisplayRefresh" version="1.0.0" label="Display Refresh|<requestedFrame>requestedFrame\r" pos="-820,0" fillcolor="lime" _requestedFrame_eventThrottling="drop"];
+
+AnimBoolean [type="my.numbers.anim.animators.animBoolean" version="1.0.0" label="my_AnimBoolean|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,320" fillcolor="#868C8D"];
+AnimFloatList [type="my.numbers.anim.animators.animFloatList" version="1.0.0" label="my_AnimFloatList|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,230" fillcolor="#868C8D"];
+AnimInt [type="my.numbers.anim.animators.animInt" version="1.0.0" label="my_AnimInt|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,140" fillcolor="#868C8D"];
+AnimValue [type="my.numbers.anim.animators.animValue" version="1.0.0" label="my_AnimValue|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,50" fillcolor="#868C8D"];
+AnimVec2 [type="my.numbers.anim.animators.animVec2" version="1.0.0" label="my_AnimVec2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-40" fillcolor="#868C8D"];
+AnimVec3 [type="my.numbers.anim.animators.animVec3" version="1.0.0" label="my_AnimVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-130" fillcolor="#868C8D"];
+OscillateVec2 [type="my.numbers.anim.animators.oscillateVec2" version="1.0.0" label="my_OscillateVec2|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-220" fillcolor="#868C8D"];
+OscillateVec3 [type="my.numbers.anim.animators.oscillateVec3" version="1.0.0" label="my_OscillateVec3|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-310" fillcolor="#868C8D"];
+SequenceAnim [type="my.numbers.anim.animators.sequenceAnim" version="1.0.0" label="my_SequenceAnim|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-400" fillcolor="#868C8D"];
+TriggerAnim [type="my.numbers.anim.animators.triggerAnim" version="1.0.0" label="my_TriggerAnim|<renderTick>renderTick\l|<proofValue>ProofValue\r" pos="-360,-490" fillcolor="#868C8D"];
+
+ProofImage [type="my.numbers.batch.batch54AnimAnimatorsProof" version="1.0.0" label="my_Batch54AnimAnimatorsProof|<renderTick>renderTick\l|<animBooleanValue>animBooleanValue\l|<animFloatListValue>animFloatListValue\l|<animIntValue>animIntValue\l|<animValueValue>animValueValue\l|<animVec2Value>animVec2Value\l|<animVec3Value>animVec3Value\l|<oscillateVec2Value>oscillateVec2Value\l|<oscillateVec3Value>oscillateVec3Value\l|<sequenceAnimValue>sequenceAnimValue\l|<triggerAnimValue>triggerAnimValue\l|<width>width\l|<height>height\l|<image>Image\r" pos="220,0" fillcolor="#9F008A" _width="960" _height="540"];
+
+RenderWindow [type="vuo.image.render.window2" version="4.0.0" label="Batch 54 AnimAnimators|<refresh>refresh\l|<image>image\l|<setWindowDescription>setWindowDescription\l|<updatedWindow>updatedWindow\r" pos="790,80" fillcolor="blue" _updatedWindow_eventThrottling="enqueue"];
+
+SaveImage [type="vuo.image.save2" version="2.0.0" label="Save Image|<refresh>refresh\l|<url>url\l|<saveImage>saveImage\l|<ifExists>ifExists\l|<format>format\l|<done>done\r" pos="790,-150" fillcolor="orange" _url="\"\/Users\/chenbaiwei\/Desktop\/vibe coding\/simple_world\/artifacts\/vuo_cli\/batch-54-anim-animators-vuo-save\"" _ifExists="1" _format="\"PNG\""];
+
+Comment [type="vuo.comment" label="\"Batch 54 Lib.numbers.anim.animators visual proof\"" pos="-80,455" width="600" height="42"];
+
+FireOnDisplayRefresh:requestedFrame -> ProofImage:renderTick;
+FireOnDisplayRefresh:requestedFrame -> RenderWindow:refresh;
+FireOnDisplayRefresh:requestedFrame -> AnimBoolean:renderTick;
+AnimBoolean:proofValue -> ProofImage:animBooleanValue;
+FireOnDisplayRefresh:requestedFrame -> AnimFloatList:renderTick;
+AnimFloatList:proofValue -> ProofImage:animFloatListValue;
+FireOnDisplayRefresh:requestedFrame -> AnimInt:renderTick;
+AnimInt:proofValue -> ProofImage:animIntValue;
+FireOnDisplayRefresh:requestedFrame -> AnimValue:renderTick;
+AnimValue:proofValue -> ProofImage:animValueValue;
+FireOnDisplayRefresh:requestedFrame -> AnimVec2:renderTick;
+AnimVec2:proofValue -> ProofImage:animVec2Value;
+FireOnDisplayRefresh:requestedFrame -> AnimVec3:renderTick;
+AnimVec3:proofValue -> ProofImage:animVec3Value;
+FireOnDisplayRefresh:requestedFrame -> OscillateVec2:renderTick;
+OscillateVec2:proofValue -> ProofImage:oscillateVec2Value;
+FireOnDisplayRefresh:requestedFrame -> OscillateVec3:renderTick;
+OscillateVec3:proofValue -> ProofImage:oscillateVec3Value;
+FireOnDisplayRefresh:requestedFrame -> SequenceAnim:renderTick;
+SequenceAnim:proofValue -> ProofImage:sequenceAnimValue;
+FireOnDisplayRefresh:requestedFrame -> TriggerAnim:renderTick;
+TriggerAnim:proofValue -> ProofImage:triggerAnimValue;
+ProofImage:image -> RenderWindow:image;
+ProofImage:image -> SaveImage:saveImage;
+}
