@@ -15,20 +15,23 @@ Creator-facing node admission is now gated by:
 ```text
 docs/contracts/NODE_ADMISSION_LEVELS.md
 docs/contracts/node_admission.schema.json
+docs/contracts/vuo_node_admission_index.json
 docs/contracts/node_manifests/*.json
 docs/contracts/proof_manifests/*.json
 docs/contracts/failure_taxonomy.json
 docs/contracts/artifact_observability.schema.json
 ```
 
-Proof prose is not the product contract by itself. A node without an admission
-manifest is not admitted as a runtime/Vuo creator-facing node.
+Proof prose is not the product contract by itself. A Vuo node without an entry
+in `vuo_node_admission_index.json` is not admitted as a creator-facing Vuo node.
+A runtime or high-risk node without a full manifest is not promoted beyond its
+indexed Vuo/proof level.
 
 ## Current Closure
 
 - Status: bounded product/runtime body closed at 100/100.
 - Verification command: `node --test tests/*.test.js`.
-- Latest verified result: 820/820 pass.
+- Latest verified result: 833/833 pass.
 - Boundary: broad generality remains a nonclaim. This is not final GUI parity,
   arbitrary shader language, full file import, complete node-library parity, or
   complete heap eviction/hazard tracking.

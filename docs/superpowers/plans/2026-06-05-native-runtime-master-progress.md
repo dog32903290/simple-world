@@ -7,12 +7,15 @@ and proof artifacts can overrule stale plan text.
 ## Current Snapshot
 
 - Date: 2026-06-06.
-- Branch: `main`, ahead of `origin/main` by 3 commits.
-- Latest known commit: `257d504 Port TiXL vector and animator batches to Vuo`.
-- Working tree safety: the `native_gpu_patch_runtime_slice` and
-  `full_runtime_architecture` closure lanes currently appear as untracked files;
-  `AGENTS.md` and `skills/tixl-vuo-node-port/SKILL.md` are modified. Do not
-  revert, overwrite, or casually absorb work from another session.
+- Branch: `main`, aligned with `origin/main`.
+- Latest known commit: `a7995a5 Add node admission contract gate`.
+- Working tree safety: `AGENTS.md` and
+  `skills/tixl-vuo-node-port/SKILL.md` are modified by outside work. Do not
+  revert, overwrite, or casually absorb them.
+- Latest verified full suite: `node --test tests/*.test.js` passed 833/833
+  with `docs/contracts/vuo_node_admission_index.json` generated from all 354
+  checked-in `vuo-nodes/*.c` sources. Focused gate:
+  `node --test tests/node_admission_contract.test.js` passes 13/13.
 - Current runtime claim: the native runtime architecture is at an honest
   **100/100** when the current proof lanes and artifacts are passing. The closure harness
   proves native headless app/canvas state -> command-only graph mutation ->
@@ -54,6 +57,16 @@ and proof artifacts can overrule stale plan text.
   allocator, eviction system, or backend hazard tracker.
 
 ## Active Lane
+
+`node_admission_contract` is active for centralizing creator-facing node
+contracts. The first gate commit established the schemas, failure taxonomy,
+observability envelope, proof manifests, and high-risk/runtime node manifests.
+The current follow-up adds a generated Vuo admission index so every checked-in
+Vuo node has a machine-readable creator name, source path, port/default/range
+surface, state, flow ownership, backend degradation policy, parity level,
+failure language, observability context, and evidence pointer. This does not
+mean every node is promoted to native runtime; full manifests remain the
+promotion gate for runtime and high-risk nodes.
 
 `product_runtime_completion` is now closed for the bounded full product/runtime
 body. It started from the current `full_runtime_architecture` closure evidence
@@ -189,6 +202,7 @@ work is complete.
 | Bounded Mesh Draw/PBR native Metal | closed | Replacement-ready for bounded lane only. |
 | Native app/canvas | closed | Product slices prove AppKit NSWindow, MetalKit MTKView surface, runtime frame attachment, first toolbar/library/canvas/inspector/diagnostics workflow, and a bounded library/canvas/inspector command loop; full interaction parity remains future work. |
 | AI worker repair loop | closed | Live render artifact diagnostics drive commandGraph repair and rerender; bounded authoring assist turns structured product intent into validated command plans and diagnostics-driven repair. Broad NL patch authoring remains a nonclaim. |
+| Node admission contract | active | Schemas/manifests/proof manifests/failure taxonomy/observability are closed for the first gate; Vuo-wide generated admission index now covers all checked-in Vuo node sources while full runtime/high-risk promotion still requires complete manifests. |
 
 ## Plan Inventory
 
@@ -200,6 +214,12 @@ work is complete.
 - `docs/contracts/NODE_ADMISSION_LEVELS.md`: creator-facing admission gate for
   runtime, Vuo, proof-only, and blocked nodes; machine-readable schemas and
   manifests live under `docs/contracts/`.
+- `docs/contracts/vuo_node_admission_index.json`: generated central coverage
+  index for every checked-in `vuo-nodes/*.c` source; this is the Vuo-wide
+  admission coverage gate, not native runtime promotion.
+- `tools/generate_vuo_node_admission_index.js`: generator that extracts Vuo
+  source metadata and port/default/range surfaces into the central admission
+  index.
 - `docs/superpowers/plans/2026-06-05-native-gpu-patch-runtime-slice.md`:
   active tactical plan for the current GPU patch runtime slice.
 - `docs/runtime/NATIVE_GPU_PATCH_RUNTIME_SLICE_PROOF.md`: active closure

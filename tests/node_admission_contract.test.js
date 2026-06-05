@@ -10,6 +10,7 @@ const levelsPath = path.join(contractsDir, "NODE_ADMISSION_LEVELS.md");
 const failureTaxonomyPath = path.join(contractsDir, "failure_taxonomy.json");
 const proofManifestSchemaPath = path.join(contractsDir, "proof_manifest.schema.json");
 const artifactObservabilitySchemaPath = path.join(contractsDir, "artifact_observability.schema.json");
+const vuoAdmissionIndexPath = path.join(contractsDir, "vuo_node_admission_index.json");
 const manifestsDir = path.join(contractsDir, "node_manifests");
 const proofManifestsDir = path.join(contractsDir, "proof_manifests");
 const closureIndexPath = path.join(repoRoot, "docs/runtime/NATIVE_RUNTIME_CLOSURE_INDEX.md");
@@ -113,12 +114,14 @@ test("contract docs declare manifests as the creator-facing admission gate", () 
   const levels = fs.readFileSync(levelsPath, "utf8");
   const closureIndex = fs.readFileSync(closureIndexPath, "utf8");
 
-  assert.match(levels, /No manifest means no creator-facing admission/);
+  assert.match(levels, /No admission record means no creator-facing admission/);
+  assert.match(levels, /vuo_node_admission_index\.json/);
   assert.match(levels, /node_admission\.schema\.json/);
   assert.match(levels, /artifact_observability\.schema\.json/);
   assert.match(levels, /failure_taxonomy\.json/);
   assert.match(closureIndex, /Creator-facing node admission is now gated by:/);
-  assert.match(closureIndex, /A node without an admission\s+manifest is not admitted/);
+  assert.match(closureIndex, /A Vuo node without an entry\s+in `vuo_node_admission_index\.json` is not admitted/);
+  assert.match(closureIndex, /runtime or high-risk node without a full manifest is not promoted/);
 });
 
 test("Blob node admission manifest admits a runtime node with full proof context", () => {
@@ -327,6 +330,44 @@ test("Vuo high-risk proof bundle records parity boundaries as machine-readable c
   assert.ok(manifest.tests.includes("tests/vuo_high_risk_nodes.test.js"));
   for (const field of ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]) {
     assert.ok(manifest.observability.requiredContext.includes(field), `vuo bundle missing ${field}`);
+  }
+});
+
+test("every checked-in Vuo node has a creator-facing admission index entry", () => {
+  const vuoNodeDir = path.join(repoRoot, "vuo-nodes");
+  const vuoNodes = fs.readdirSync(vuoNodeDir)
+    .filter((name) => name.endsWith(".c"))
+    .map((name) => name.replace(/\.c$/, ""))
+    .sort();
+  const index = readJson(vuoAdmissionIndexPath);
+  const indexedNodeIds = new Set(index.entries.map((entry) => entry.nodeId));
+
+  assert.ok(vuoNodes.length > 300, "expected the full checked-in Vuo node surface");
+  assert.equal(index.kind, "VuoNodeAdmissionIndex");
+  assert.equal(index.nodeCount, vuoNodes.length);
+  assert.equal(index.entries.length, vuoNodes.length);
+  const missing = vuoNodes.filter((nodeId) => !indexedNodeIds.has(nodeId));
+
+  assert.deepEqual(missing, [], `missing admission index entries for ${missing.length} Vuo nodes`);
+  for (const entry of index.entries) {
+    assertPathExists(entry.sourcePath, `${entry.nodeId} source`);
+    assert.ok(entry.creatorName.startsWith("my_"), `${entry.nodeId} missing creator-facing name`);
+    assert.ok(["vuo", "proof-only", "blocked"].includes(entry.admission), `${entry.nodeId} has invalid admission`);
+    assert.ok(entry.ports.length > 0, `${entry.nodeId} has no port contract`);
+    assert.ok(["stateless", "stateful", "external-state"].includes(entry.state), `${entry.nodeId} has invalid state`);
+    assert.ok(["semantic-parity", "visual-proof", "body-layer-adapter", "host-layer-proof", "not-parity"].includes(entry.parity.tixl));
+    assert.ok(["semantic-parity", "visual-proof", "body-layer-adapter", "host-layer-proof", "not-parity"].includes(entry.parity.vuo));
+    assert.ok(entry.flow.timeOwner, `${entry.nodeId} missing timeOwner`);
+    assert.ok(entry.flow.eventOrdering, `${entry.nodeId} missing eventOrdering`);
+    assert.ok(entry.backendPolicy.missingCapability, `${entry.nodeId} missing backend degradation policy`);
+    assert.ok(entry.failureCodes.includes("backend.capability.missing"), `${entry.nodeId} missing backend failure code`);
+    for (const field of ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]) {
+      assert.ok(entry.observability.requiredContext.includes(field), `${entry.nodeId} missing ${field}`);
+    }
+    assert.ok(entry.evidence.tests.length > 0, `${entry.nodeId} missing test evidence`);
+    for (const testPath of entry.evidence.tests) {
+      assertPathExists(testPath, `${entry.nodeId} test`);
+    }
   }
 });
 

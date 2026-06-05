@@ -2,14 +2,15 @@
 
 This file defines the creator-facing admission gate for nodes entering
 `runtime`, `vuo`, or `proof-only` lanes. Prose proof documents may explain
-context, but the machine-readable admission manifest is the gate.
+context, but machine-readable admission records are the gate.
 
-No manifest means no creator-facing admission. Existing Vuo nodes, proof-only
-adapters, generated batches, or runtime fixtures without a manifest are source
-evidence only; they are not admitted runtime/Vuo product nodes until a
-`docs/contracts/node_manifests/*.json` file declares their level, parity,
-backend degradation, failure language, event flow, observability context, and
-proof evidence.
+No admission record means no creator-facing admission. Existing Vuo nodes,
+proof-only adapters, generated batches, or runtime fixtures without a central
+record are source evidence only. The full Vuo node surface is covered by
+`docs/contracts/vuo_node_admission_index.json`; promoted runtime/high-risk nodes
+must also have a complete `docs/contracts/node_manifests/*.json` file declaring
+their level, parity, backend degradation, failure language, event flow,
+observability context, and proof evidence.
 
 ## Admission
 
@@ -50,10 +51,14 @@ promoted to creator-facing runtime admission.
 ## Contract Entrypoints
 
 - `node_admission.schema.json`: creator-facing node admission schema.
+- `vuo_node_admission_index.json`: generated central coverage index for every
+  checked-in `vuo-nodes/*.c` node. Each entry carries creator name, source path,
+  ports/defaults/ranges, state, flow ownership, backend degradation, parity,
+  failure language, observability context, and evidence.
 - `proof_manifest.schema.json`: machine-readable claim/nonclaim proof schema.
 - `artifact_observability.schema.json`: shared diagnostic envelope for command,
   runtimeGraph, scheduler, resource, shader, backend, renderer, AI worker,
   importer, and canvas artifacts.
 - `failure_taxonomy.json`: global failure codes and handling classes.
-- `node_manifests/*.json`: admitted node contracts.
+- `node_manifests/*.json`: promoted runtime/high-risk admitted node contracts.
 - `proof_manifests/*.json`: machine-readable proof claim manifests.
