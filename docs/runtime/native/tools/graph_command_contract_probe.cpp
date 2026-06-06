@@ -649,9 +649,6 @@ int runProbe(const std::string& fixturePath, const std::string& outDir) {
     const GraphDocument reloadedDocument = simple_world::graph::serializeGraphDocument(reloadedState);
     const std::string status = diagnostics.empty() ? "passed" : "diagnosed";
 
-    writeJsonFile(joinPath(outDir, "cpp_graph_command_contract_result.json"), [&](std::ostream& out) {
-        writeResult(out, fixture.graphId, status, true, state.runtimeDirty, diagnostics);
-    });
     writeJsonFile(joinPath(outDir, "graph_document.json"), [&](std::ostream& out) {
         writeGraphDocument(out, document);
     });
@@ -663,6 +660,9 @@ int runProbe(const std::string& fixturePath, const std::string& outDir) {
     });
     writeJsonFile(joinPath(outDir, "reloaded_graph_document.json"), [&](std::ostream& out) {
         writeGraphDocument(out, reloadedDocument);
+    });
+    writeJsonFile(joinPath(outDir, "cpp_graph_command_contract_result.json"), [&](std::ostream& out) {
+        writeResult(out, fixture.graphId, status, true, state.runtimeDirty, diagnostics);
     });
     return 0;
 }
