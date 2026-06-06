@@ -51,5 +51,11 @@
     "observability": {
       "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
     }
+  },
+  "maturity": {
+    "level": "runtimeReady",
+    "evidence": "docs/contracts/node_manifests/my.image.use.blend.json",
+    "nativeUse": "runtime-graph",
+    "unknowns": ["native-executable-proof-missing"]
   }
 }

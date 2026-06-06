@@ -99,5 +99,11 @@
       "verificationCommand": "node --test tests/native_texture_patch_product_runtime.test.js tests/render_target_contract.test.js",
       "expectedResult": "pass"
     }
+  },
+  "maturity": {
+    "level": "nativeExecutable",
+    "evidence": "tests/native_texture_patch_product_runtime.test.js",
+    "nativeUse": "execute-native",
+    "unknowns": []
   }
 }

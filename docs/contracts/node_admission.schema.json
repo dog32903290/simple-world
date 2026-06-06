@@ -18,6 +18,7 @@
     "parity",
     "failureCodes",
     "observability",
+    "maturity",
     "proof"
   ],
   "properties": {
@@ -135,6 +136,39 @@
       "required": ["requiredContext"],
       "properties": {
         "requiredContext": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "maturity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "evidence", "nativeUse"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "admissionReady",
+            "interactionReady",
+            "runtimeReady",
+            "nativeExecutable"
+          ]
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nativeUse": {
+          "type": "string",
+          "enum": [
+            "known-only",
+            "editor-graph",
+            "runtime-graph",
+            "execute-native"
+          ]
+        },
+        "unknowns": {
           "type": "array",
           "items": { "type": "string" }
         }

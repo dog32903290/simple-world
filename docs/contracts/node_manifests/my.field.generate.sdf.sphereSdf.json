@@ -70,5 +70,11 @@
       "verificationCommand": "node --test tests/vuo_sphere_raymarch_node.test.js tests/runtime_shadergraph_shell.test.js tests/graph_interaction_contract.test.js",
       "expectedResult": "pass"
     }
+  },
+  "maturity": {
+    "level": "runtimeReady",
+    "evidence": "docs/contracts/node_manifests/my.field.generate.sdf.sphereSdf.json",
+    "nativeUse": "runtime-graph",
+    "unknowns": ["native-executable-proof-missing"]
   }
 }

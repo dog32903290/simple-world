@@ -101,5 +101,11 @@
       "verificationCommand": "node --test tests/native_ai_worker_authoring_assist.test.js",
       "expectedResult": "pass"
     }
+  },
+  "maturity": {
+    "level": "runtimeReady",
+    "evidence": "docs/contracts/node_manifests/ai.worker.authoringAssist.json",
+    "nativeUse": "runtime-graph",
+    "unknowns": ["native-executable-proof-missing"]
   }
 }

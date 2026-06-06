@@ -116,6 +116,14 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "runtimeReady",
+        "evidence": "docs/contracts/node_manifests/my.field.combine.combineSdf.json",
+        "nativeUse": "runtime-graph",
+        "unknowns": [
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.field.combine.combineSdf.c",
         "tests": [
@@ -241,6 +249,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "interactionReady",
+        "evidence": "tests/vuo_box_combine_sdf_node.test.js",
+        "nativeUse": "editor-graph",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.field.generate.sdf.boxSdf.c",
         "tests": [
@@ -339,6 +357,14 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "runtimeReady",
+        "evidence": "docs/contracts/node_manifests/my.field.generate.sdf.sphereSdf.json",
+        "nativeUse": "runtime-graph",
+        "unknowns": [
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -463,6 +489,14 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "runtimeReady",
+        "evidence": "docs/contracts/node_manifests/my.field.render.raymarchField.json",
+        "nativeUse": "runtime-graph",
+        "unknowns": [
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -637,6 +671,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch42_analyze_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.analyze.compareImages.c",
         "tests": [
@@ -805,6 +849,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch42_analyze_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -977,6 +1031,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch42_analyze_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.analyze.getImageBrightness.c",
         "tests": [
@@ -1145,6 +1209,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch42_analyze_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -1317,6 +1391,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch42_analyze_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.analyze.opticalFlow.c",
         "tests": [
@@ -1485,6 +1569,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch42_analyze_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -1657,6 +1751,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch42_analyze_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.analyze.waveForm.c",
         "tests": [
@@ -1799,6 +1903,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch27ImageUseRoutingProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch27ImageUseRoutingProof.c",
         "tests": [
@@ -1923,6 +2037,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch28ImageUseBlendCombineProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch28ImageUseBlendCombineProof.c",
         "tests": [
@@ -2036,6 +2160,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch29ImageUseMaterialChannelsProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -2162,6 +2296,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch30ImageUsePostfxProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch30ImageUsePostfxProof.c",
         "tests": [
@@ -2269,6 +2413,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch30PostfxSource.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -2404,6 +2558,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch31ImageTransformProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch31ImageTransformProof.c",
         "tests": [
@@ -2499,6 +2663,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch31TransformSource.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -2634,6 +2808,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch32BasicGenerateProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch32BasicGenerateProof.c",
         "tests": [
@@ -2765,6 +2949,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch33BasicGenerateShapesProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -2907,6 +3101,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch34NoiseGenerateProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -3087,6 +3291,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch35PatternGenerateProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch35PatternGenerateProof.c",
         "tests": [
@@ -3194,6 +3408,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch36FractalGenerateProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -3332,6 +3556,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch37BlurProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch37BlurProof.c",
         "tests": [
@@ -3457,6 +3691,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch38GlitchProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -3649,6 +3893,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch39ColorProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch39ColorProof.c",
         "tests": [
@@ -3800,6 +4054,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch40DistortProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -4009,6 +4273,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch41StylizeProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch41StylizeProof.c",
         "tests": [
@@ -4144,6 +4418,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch42AnalyzeProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch42AnalyzeProof.c",
         "tests": [
@@ -4252,6 +4536,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch43LoadProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.batch.batch43LoadProof.c",
         "tests": [
@@ -4349,6 +4643,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.image.batch.batch44MiscProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -4660,6 +4964,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.color.adjustColors.c",
         "tests": [
@@ -4969,6 +5283,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.color.channelMixer.c",
         "tests": [
@@ -5276,6 +5600,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_semantics.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -5588,6 +5922,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_semantics.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.color.colorGradeDepth.c",
         "tests": [
@@ -5898,6 +6242,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.color.convertColors.c",
         "tests": [
@@ -6205,6 +6559,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_semantics.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -6517,6 +6881,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.color.hse.c",
         "tests": [
@@ -6824,6 +7198,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -7135,6 +7519,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.color.remapColor.c",
         "tests": [
@@ -7442,6 +7836,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -7753,6 +8157,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch39_color_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.color.toneMapping.c",
         "tests": [
@@ -7889,6 +8303,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch37_blur_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -8029,6 +8453,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch37_blur_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.blur.blur.c",
         "tests": [
@@ -8165,6 +8599,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch37_blur_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -8305,6 +8749,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch37_blur_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.blur.fastBlur.c",
         "tests": [
@@ -8441,6 +8895,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch37_blur_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -8613,6 +9077,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch40_distort_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.distort.bubbleZoom.c",
         "tests": [
@@ -8781,6 +9255,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch40_distort_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -8953,6 +9437,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch40_distort_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.distort.displace.c",
         "tests": [
@@ -9121,6 +9615,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch40_distort_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -9293,6 +9797,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch40_distort_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.distort.edgeRepeat.c",
         "tests": [
@@ -9451,6 +9965,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch40_distort_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -9623,6 +10147,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch40_distort_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.distort.kochKaleidoskope.c",
         "tests": [
@@ -9791,6 +10325,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch40_distort_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -9963,6 +10507,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "interactionReady",
+        "evidence": "tests/tixl_batch40_distort_vuo_nodes.test.js",
+        "nativeUse": "editor-graph",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -10186,6 +10740,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch38_glitch_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.glitch.glitchDisplace.c",
         "tests": [
@@ -10385,6 +10949,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch38_glitch_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -10607,6 +11181,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch38_glitch_semantics.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.glitch.sortPixelGlitch.c",
         "tests": [
@@ -10826,6 +11410,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch38_glitch_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.glitch.subdivisionStretch.c",
         "tests": [
@@ -10994,6 +11588,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -11166,6 +11770,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.stylize.chromaticAbberation.c",
         "tests": [
@@ -11334,6 +11948,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -11506,6 +12130,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.stylize.detectEdges.c",
         "tests": [
@@ -11674,6 +12308,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -11846,6 +12490,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.stylize.fakeLight.c",
         "tests": [
@@ -12014,6 +12668,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -12186,6 +12850,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.stylize.honeyCombTiles.c",
         "tests": [
@@ -12354,6 +13028,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -12526,6 +13210,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.stylize.mosiacTiling.c",
         "tests": [
@@ -12694,6 +13388,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -12866,6 +13570,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.stylize.screenCloseUp.c",
         "tests": [
@@ -13034,6 +13748,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -13206,6 +13930,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.fx.stylize.steps.c",
         "tests": [
@@ -13374,6 +14108,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch41_stylize_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -13555,6 +14299,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch33_basic_generate_shapes_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -13773,6 +14527,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch33_basic_generate_shapes_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.basic.boxGradient.c",
         "tests": [
@@ -13939,6 +14703,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch32_basic_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.basic.checkerBoard.c",
         "tests": [
@@ -14053,6 +14827,15 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "docs/contracts/node_manifests/my.image.generate.basic.constantImage.json",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -14258,6 +15041,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch32_basic_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.basic.linearGradient.c",
         "tests": [
@@ -14455,6 +15248,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch33_basic_generate_shapes_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -14686,6 +15489,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch33_basic_generate_shapes_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.basic.nGonGradient.c",
         "tests": [
@@ -14897,6 +15710,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch32_basic_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.basic.radialGradient.c",
         "tests": [
@@ -15042,6 +15865,15 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "docs/contracts/node_manifests/my.image.generate.basic.renderTarget.json",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -15258,6 +16090,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch32_basic_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.basic.roundedRect.c",
         "tests": [
@@ -15407,6 +16249,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch36_fractal_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -15571,6 +16423,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "interactionReady",
+        "evidence": "tests/tixl_batch43_load_vuo_nodes.test.js",
+        "nativeUse": "editor-graph",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.load.imageSequenceClip.c",
         "tests": [
@@ -15731,6 +16593,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "interactionReady",
+        "evidence": "tests/tixl_batch43_load_vuo_nodes.test.js",
+        "nativeUse": "editor-graph",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -15895,6 +16767,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "interactionReady",
+        "evidence": "tests/tixl_batch43_load_vuo_nodes.test.js",
+        "nativeUse": "editor-graph",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.load.loadImageFromUrl.c",
         "tests": [
@@ -16055,6 +16937,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "interactionReady",
+        "evidence": "tests/tixl_batch43_load_vuo_nodes.test.js",
+        "nativeUse": "editor-graph",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -16227,6 +17119,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch44_misc_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.misc.jumpFloodFill.c",
         "tests": [
@@ -16395,6 +17297,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch44_misc_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -16567,6 +17479,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "interactionReady",
+        "evidence": "tests/tixl_batch44_misc_vuo_nodes.test.js",
+        "nativeUse": "editor-graph",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -16754,6 +17676,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch36_fractal_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -16964,6 +17896,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch34_noise_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.noise.fractalNoise.c",
         "tests": [
@@ -17127,6 +18069,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch34_noise_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -17346,6 +18298,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch34_noise_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.noise.shardNoise.c",
         "tests": [
@@ -17558,6 +18520,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch34_noise_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -17786,6 +18758,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch34_noise_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.noise.worleyNoise.c",
         "tests": [
@@ -17955,6 +18937,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch35_pattern_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -18128,6 +19120,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch35_pattern_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.pattern.numberPattern.c",
         "tests": [
@@ -18297,6 +19299,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch35_pattern_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -18470,6 +19482,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch35_pattern_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.pattern.rings.c",
         "tests": [
@@ -18639,6 +19661,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch35_pattern_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -18812,6 +19844,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch35_pattern_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.pattern.ryojiPattern2.c",
         "tests": [
@@ -18981,6 +20023,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch35_pattern_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -19154,6 +20206,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch35_pattern_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.pattern.valueRaster.c",
         "tests": [
@@ -19325,6 +20387,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch35_pattern_generate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.generate.pattern.zollnerPattern.c",
         "tests": [
@@ -19444,6 +20516,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch31_image_transform_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.transform.crop.c",
         "tests": [
@@ -19556,6 +20638,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch31_image_transform_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -19749,6 +20841,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch31_image_transform_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.transform.mirrorRepeat.c",
         "tests": [
@@ -19923,6 +21025,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch31_image_transform_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.transform.transformImage.c",
         "tests": [
@@ -20036,6 +21148,14 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "runtimeReady",
+        "evidence": "docs/contracts/node_manifests/my.image.use.blend.json",
+        "nativeUse": "runtime-graph",
+        "unknowns": [
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -20175,6 +21295,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch28_image_use_blend_combine_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.use.blendImages.c",
         "tests": [
@@ -20312,6 +21442,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch28_image_use_blend_combine_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -20512,6 +21652,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch28_image_use_blend_combine_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.use.combine3Images.c",
         "tests": [
@@ -20630,6 +21780,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch29_image_use_material_channels_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -20830,6 +21990,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch29_image_use_material_channels_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.use.combineMaterialChannels2.c",
         "tests": [
@@ -20956,6 +22126,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch30_image_use_postfx_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.use.depthBufferAsGrayScale.c",
         "tests": [
@@ -21076,6 +22256,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch27_image_use_routing_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.use.firstValidTexture.c",
         "tests": [
@@ -21176,6 +22366,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch30_image_use_postfx_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -21281,6 +22481,14 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "runtimeReady",
+        "evidence": "docs/contracts/node_manifests/my.image.use.keepPreviousFrame.json",
+        "nativeUse": "runtime-graph",
+        "unknowns": [
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -21425,6 +22633,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch30_image_use_postfx_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.use.normalMap.c",
         "tests": [
@@ -21554,6 +22772,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch27_image_use_routing_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.use.pickTexture.c",
         "tests": [
@@ -21663,6 +22891,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch27_image_use_routing_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.image.use.swapTextures.c",
         "tests": [
@@ -21751,6 +22989,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch27_image_use_routing_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -21859,6 +23107,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_material_pbr_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -22359,6 +23617,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch54_anim_animators_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.animators.animBoolean.c",
         "tests": [
@@ -22855,6 +24123,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch54_anim_animators_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -23365,6 +24643,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch54_anim_animators_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.animators.animInt.c",
         "tests": [
@@ -23873,6 +25161,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch54_anim_animators_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.animators.animValue.c",
         "tests": [
@@ -24369,6 +25667,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch54_anim_animators_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -24869,6 +26177,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch54_anim_animators_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.animators.animVec3.c",
         "tests": [
@@ -25367,6 +26685,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch54_anim_animators_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.animators.oscillateVec2.c",
         "tests": [
@@ -25863,6 +27191,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch54_anim_animators_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -26373,6 +27711,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch54_anim_animators_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.animators.sequenceAnim.c",
         "tests": [
@@ -26881,6 +28229,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch54_anim_animators_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.animators.triggerAnim.c",
         "tests": [
@@ -27184,6 +28542,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.time.abletonLinkSync.c",
         "tests": [
@@ -27465,6 +28833,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -27750,6 +29128,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.time.convertTime.c",
         "tests": [
@@ -28033,6 +29421,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.time.dateTimeInSecs.c",
         "tests": [
@@ -28314,6 +29712,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -28609,6 +30017,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.time.hasTimeChanged.c",
         "tests": [
@@ -28890,6 +30308,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -29175,6 +30603,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.time.runTime.c",
         "tests": [
@@ -29456,6 +30894,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -29741,6 +31189,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.time.setPlaybackTime.c",
         "tests": [
@@ -30022,6 +31480,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -30317,6 +31785,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.time.stopWatch.c",
         "tests": [
@@ -30598,6 +32076,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch45_anim_time_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -30902,6 +32390,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch46_anim_utils_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.utils.findKeyframes.c",
         "tests": [
@@ -31184,6 +32682,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch46_anim_utils_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.anim.utils.setKeyframes.c",
         "tests": [
@@ -31326,6 +32834,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_10_ints_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch10IntsProof.c",
         "tests": [
@@ -31439,6 +32957,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_11_bool_aggregate_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -31563,6 +33091,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_12_float_aggregate_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -31705,6 +33243,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_13_dict_selectors_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch13DictSelectorsProof.c",
         "tests": [
@@ -31838,6 +33386,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_14_float_lists_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch14FloatListsProof.c",
         "tests": [
@@ -31960,6 +33518,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_15_float_list_conversion_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -32113,6 +33681,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_16_float_list_process_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch16FloatListProcessProof.c",
         "tests": [
@@ -32226,6 +33804,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_17_float_list_transform_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -32352,6 +33940,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_18_color_values_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch18ColorValuesProof.c",
         "tests": [
@@ -32456,6 +34054,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_19_color_list_to_ints_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -32573,6 +34181,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_20_color_mix_pick_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch20ColorMixPickProof.c",
         "tests": [
@@ -32686,6 +34304,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_21_oklch_combine_color_lists_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -32839,6 +34467,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_22_gradient_core_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch22GradientCoreProof.c",
         "tests": [
@@ -32972,6 +34610,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_23_gradient_pick_blend_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch23GradientPickBlendProof.c",
         "tests": [
@@ -33077,6 +34725,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_24_keep_colors_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -33194,6 +34852,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_25_pick_color_from_image_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch25PickColorFromImageProof.c",
         "tests": [
@@ -33289,6 +34957,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_25_pick_color_from_image_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -33506,6 +35184,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.batch45AnimTimeProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch45AnimTimeProof.c",
         "tests": [
@@ -33620,6 +35308,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.batch46AnimUtilsProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -33755,6 +35453,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.batch47BoolProcessProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch47BoolProcessProof.c",
         "tests": [
@@ -33877,6 +35585,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.batch48FloatRandomProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -34102,6 +35820,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.batch49Vec2Proof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch49Vec2Proof.c",
         "tests": [
@@ -34224,6 +35952,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.batch50Vec2ProcessProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -34521,6 +36259,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.batch51Vec3Proof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch51Vec3Proof.c",
         "tests": [
@@ -34643,6 +36391,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.batch52Vec3ProcessProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -34776,6 +36534,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.batch53Vec4Proof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -34966,6 +36734,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.batch54AnimAnimatorsProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch54AnimAnimatorsProof.c",
         "tests": [
@@ -35088,6 +36866,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_5_scalar_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -35221,6 +37009,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_6_float_logic_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -35392,6 +37190,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_7_int_logic_process_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch7IntLogicProcessProof.c",
         "tests": [
@@ -35523,6 +37331,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_8_mixed_math_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -35718,6 +37536,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_9_int2_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.batch9Int2Proof.c",
         "tests": [
@@ -35905,6 +37733,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.numbers.batch.gradeANumbersProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.gradeANumbersProof.c",
         "tests": [
@@ -36018,6 +37856,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_4_remap_lerp_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -36297,6 +38145,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/vuo_batch_3_scalar_values_composition.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.batch.scalarValuesProof.c",
         "tests": [
@@ -36376,6 +38234,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch11_bool_aggregate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -36468,6 +38336,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_bool_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.bool.combine.and.c",
         "tests": [
@@ -36547,6 +38425,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch11_bool_aggregate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -36637,6 +38525,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_bool_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -36738,6 +38636,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_bool_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.bool.convert.boolToFloat.c",
         "tests": [
@@ -36837,6 +38745,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_bool_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.bool.convert.boolToInt.c",
         "tests": [
@@ -36916,6 +38834,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_bool_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -37017,6 +38945,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_bool_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.bool.logic.pickBool.c",
         "tests": [
@@ -37105,6 +39043,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_bool_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -37389,6 +39337,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch47_bool_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.bool.process.cacheBoolean.c",
         "tests": [
@@ -37669,6 +39627,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch47_bool_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -37963,6 +39931,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch47_bool_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.bool.process.delayTriggerChange.c",
         "tests": [
@@ -38255,6 +40233,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch47_bool_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.bool.process.keepBoolean.c",
         "tests": [
@@ -38374,6 +40362,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch20_color_mix_pick_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -38552,6 +40550,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch23_gradient_pick_blend_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.color.blendGradients.c",
         "tests": [
@@ -38674,6 +40682,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch22_gradient_core_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.color.buildGradient.c",
         "tests": [
@@ -38783,6 +40801,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch21_oklch_combine_color_lists_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -38979,6 +41007,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch22_gradient_core_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -39179,6 +41217,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch26_gradients_to_texture_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.color.gradientsToTexture.c",
         "tests": [
@@ -39287,6 +41335,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch18_color_values_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.color.hsbToColor.c",
         "tests": [
@@ -39393,6 +41451,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch18_color_values_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -39511,6 +41579,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "interactionReady",
+        "evidence": "tests/tixl_batch24_keep_colors_vuo_nodes.test.js",
+        "nativeUse": "editor-graph",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -39639,6 +41717,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch21_oklch_combine_color_lists_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.color.oklchToColor.c",
         "tests": [
@@ -39739,6 +41827,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch25_pick_color_from_image_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -39843,6 +41941,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch20_color_mix_pick_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -40078,6 +42186,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch23_gradient_pick_blend_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.color.pickGradient.c",
         "tests": [
@@ -40240,6 +42358,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch22_gradient_core_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.color.sampleGradient.c",
         "tests": [
@@ -40339,6 +42467,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch13_dict_selectors_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.data.utils.selectBoolFromFloatDict.c",
         "tests": [
@@ -40436,6 +42574,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch13_dict_selectors_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -40538,6 +42686,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch13_dict_selectors_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -40643,6 +42801,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch13_dict_selectors_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.data.utils.selectVec3FromDict.c",
         "tests": [
@@ -40723,6 +42891,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_adjust_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.adjust.abs.c",
         "tests": [
@@ -40801,6 +42979,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_adjust_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -40901,6 +43089,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_adjust_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.adjust.clamp.c",
         "tests": [
@@ -40979,6 +43177,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_adjust_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -41068,6 +43276,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_adjust_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -41211,6 +43429,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_remap_lerp_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.adjust.remap.c",
         "tests": [
@@ -41309,6 +43537,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_adjust_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.adjust.round.c",
         "tests": [
@@ -41397,6 +43635,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch5_scalar_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -41489,6 +43737,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_basic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.basic.add.c",
         "tests": [
@@ -41577,6 +43835,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_basic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -41671,6 +43939,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch5_scalar_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.basic.log.c",
         "tests": [
@@ -41759,6 +44037,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_basic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -41851,6 +44139,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_basic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.basic.multiply.c",
         "tests": [
@@ -41941,6 +44239,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_basic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.basic.pow.c",
         "tests": [
@@ -42020,6 +44328,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_basic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -42112,6 +44430,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_basic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.basic.sub.c",
         "tests": [
@@ -42200,6 +44528,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch12_float_aggregate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -42313,6 +44651,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch5_scalar_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.logic.compare.c",
         "tests": [
@@ -42403,6 +44751,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch6_float_logic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.logic.isGreater.c",
         "tests": [
@@ -42491,6 +44849,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch6_float_logic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -42584,6 +44952,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch6_float_logic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.logic.tryParse.c",
         "tests": [
@@ -42674,6 +45052,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch6_float_logic_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.logic.valueToRate.c",
         "tests": [
@@ -42762,6 +45150,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch12_float_aggregate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -42872,6 +45270,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_remap_lerp_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.process.lerp.c",
         "tests": [
@@ -42960,6 +45368,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch12_float_aggregate_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -43059,6 +45477,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -43342,6 +45770,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch48_float_random_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.random.floatHash.c",
         "tests": [
@@ -43621,6 +46059,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch48_float_random_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -43904,6 +46352,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch48_float_random_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.random.random.c",
         "tests": [
@@ -43988,6 +46446,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch8_mixed_math_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.float.trigonometry.atan2.c",
         "tests": [
@@ -44067,6 +46535,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_trigonometry_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -44184,6 +46662,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_float_trigonometry_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -44312,6 +46800,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch18_color_values_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.floats.basic.colorsToList.c",
         "tests": [
@@ -44393,6 +46891,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch14_float_lists_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.floats.basic.floatListLength.c",
         "tests": [
@@ -44472,6 +46980,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch14_float_lists_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -44603,6 +47121,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch14_float_lists_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.floats.basic.setFloatListValue.c",
         "tests": [
@@ -44684,6 +47212,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch15_float_list_conversion_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.floats.conversion.floatListToIntList.c",
         "tests": [
@@ -44763,6 +47301,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch15_float_list_conversion_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -44853,6 +47401,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch14_float_lists_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -44984,6 +47542,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch15_float_list_conversion_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.floats.logic.pickFloatList.c",
         "tests": [
@@ -45093,6 +47661,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch16_float_list_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -45218,6 +47796,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch19_color_list_to_ints_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.floats.process.colorListToInts.c",
         "tests": [
@@ -45329,6 +47917,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch17_float_list_transform_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.floats.process.combineFloatLists.c",
         "tests": [
@@ -45426,6 +48024,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch16_float_list_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -45569,6 +48177,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch17_float_list_transform_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.floats.process.remapFloatList.c",
         "tests": [
@@ -45677,6 +48295,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch16_float_list_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.floats.process.sumRange.c",
         "tests": [
@@ -45765,6 +48393,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch8_mixed_math_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -45857,6 +48495,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_int_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int.basic.intAdd.c",
         "tests": [
@@ -45947,6 +48595,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_int_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int.basic.intDiv.c",
         "tests": [
@@ -46026,6 +48684,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_int_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -46118,6 +48786,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_int_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int.basic.modInt.c",
         "tests": [
@@ -46208,6 +48886,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch8_mixed_math_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int.basic.multiplyInt.c",
         "tests": [
@@ -46288,6 +48976,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch8_mixed_math_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -46380,6 +49078,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_int_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int.basic.subInts.c",
         "tests": [
@@ -46468,6 +49176,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch8_mixed_math_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -46600,6 +49318,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch7_int_logic_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int.logic.compareInt.c",
         "tests": [
@@ -46679,6 +49407,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_int_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -46769,6 +49507,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch7_int_logic_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -46870,6 +49618,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch7_int_logic_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int.process.clampInt.c",
         "tests": [
@@ -46949,6 +49707,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch7_int_logic_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -47032,6 +49800,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch7_int_logic_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int.process.getAPrime.c",
         "tests": [
@@ -47113,6 +49891,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch7_int_logic_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int.process.maxInt.c",
         "tests": [
@@ -47192,6 +49980,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch7_int_logic_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -47288,6 +50086,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch9_int2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -47404,6 +50212,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch9_int2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int2.process.int2Components.c",
         "tests": [
@@ -47494,6 +50312,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch9_int2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int2.process.makeResolution.c",
         "tests": [
@@ -47573,6 +50401,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch9_int2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -47680,6 +50518,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch9_int2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int2.process.scaleResolution.c",
         "tests": [
@@ -47785,6 +50633,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch9_int2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.int2.process.scaleSize.c",
         "tests": [
@@ -47866,6 +50724,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch10_ints_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.ints.intListLength.c",
         "tests": [
@@ -47945,6 +50813,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch10_ints_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -48085,6 +50963,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch10_ints_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.ints.mergeIntLists.c",
         "tests": [
@@ -48173,6 +51061,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch10_ints_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -48293,6 +51191,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch10_ints_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -48576,6 +51484,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec2.addVec2.c",
         "tests": [
@@ -48855,6 +51773,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -49138,6 +52066,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec2.divideVector2.c",
         "tests": [
@@ -49417,6 +52355,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -49710,6 +52658,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec2.gridPosition.c",
         "tests": [
@@ -50001,6 +52959,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec2.hasVec2Changed.c",
         "tests": [
@@ -50280,6 +53248,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -50563,6 +53541,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec2.padVec2Range.c",
         "tests": [
@@ -50844,6 +53832,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec2.perlinNoise2.c",
         "tests": [
@@ -51123,6 +54121,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -51622,6 +54630,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch50_vec2_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec2.process.easeVec2.c",
         "tests": [
@@ -52117,6 +55135,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch50_vec2_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -52616,6 +55644,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch50_vec2_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec2.process.springVec2.c",
         "tests": [
@@ -52895,6 +55933,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -53178,6 +56226,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec2.scaleVector2.c",
         "tests": [
@@ -53457,6 +56515,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -53748,6 +56816,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch49_vec2_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -54257,6 +57335,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.addVec3.c",
         "tests": [
@@ -54752,6 +57840,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -55251,6 +58349,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.crossVec3.c",
         "tests": [
@@ -55748,6 +58856,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.dampVec3.c",
         "tests": [
@@ -56243,6 +59361,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -56750,6 +59878,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -57269,6 +60407,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.hasVec3Changed.c",
         "tests": [
@@ -57764,6 +60912,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -58263,6 +61421,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.magnitude.c",
         "tests": [
@@ -58758,6 +61926,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -59257,6 +62435,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.normalizeVector3.c",
         "tests": [
@@ -59752,6 +62940,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -60251,6 +63449,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.pickVector3.c",
         "tests": [
@@ -60746,6 +63954,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch52_vec3_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -61245,6 +64463,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch52_vec3_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.process.easeVec3Keys.c",
         "tests": [
@@ -61740,6 +64968,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch52_vec3_process_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -62239,6 +65477,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.rotateVector3.c",
         "tests": [
@@ -62734,6 +65982,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -63233,6 +66491,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.scaleVector3.c",
         "tests": [
@@ -63728,6 +66996,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -64227,6 +67505,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.transformVec3.c",
         "tests": [
@@ -64724,6 +68012,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.vec2Magnitude.c",
         "tests": [
@@ -65219,6 +68517,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -65738,6 +69046,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec3.vector3Components.c",
         "tests": [
@@ -66233,6 +69551,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch51_vec3_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -66732,6 +70060,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch53_vec4_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec4.dotVec4.c",
         "tests": [
@@ -67229,6 +70567,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch53_vec4_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec4.pickColor.c",
         "tests": [
@@ -67724,6 +71072,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch53_vec4_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -68253,6 +71611,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_batch53_vec4_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.numbers.vec4.vector4Components.c",
         "tests": [
@@ -68398,6 +71766,15 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "docs/contracts/node_manifests/my.render.dx11.api.clearRenderTarget.json",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -68549,6 +71926,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "interactionReady",
+        "evidence": "tests/vuo_material_pbr_nodes.test.js",
+        "nativeUse": "editor-graph",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.render.shading.setMaterial.c",
         "tests": [
@@ -68654,6 +72041,15 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "docs/contracts/node_manifests/my.runtime.clock.mainClock.json",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -68853,6 +72249,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/my.string.batch.gradeAStringsProof.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.string.batch.gradeAStringsProof.c",
         "tests": [
@@ -68941,6 +72347,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_string_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -69033,6 +72449,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_string_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.string.convert.floatToString.c",
         "tests": [
@@ -69123,6 +72549,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_string_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.string.convert.intToString.c",
         "tests": [
@@ -69211,6 +72647,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_string_list_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -69313,6 +72759,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_string_list_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.string.list.splitString.c",
         "tests": [
@@ -69392,6 +72848,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_string_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -69482,6 +72948,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_string_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -69592,6 +73068,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_string_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.string.search.searchAndReplace.c",
         "tests": [
@@ -69691,6 +73177,16 @@
           "diagnosticCode"
         ]
       },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_string_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      },
       "evidence": {
         "source": "vuo-nodes/my.string.search.subString.c",
         "tests": [
@@ -69779,6 +73275,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_string_vuo_nodes.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -69886,6 +73392,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "tests/tixl_lerp_vuo_node.test.js",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {
@@ -70026,6 +73542,16 @@
           "backendId",
           "artifactPath",
           "diagnosticCode"
+        ]
+      },
+      "maturity": {
+        "level": "admissionReady",
+        "evidence": "vuo-nodes/myworld.tixl.remap.c",
+        "nativeUse": "known-only",
+        "unknowns": [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
         ]
       },
       "evidence": {

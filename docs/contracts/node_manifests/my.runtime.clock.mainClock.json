@@ -50,5 +50,11 @@
     "observability": {
       "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
     }
+  },
+  "maturity": {
+    "level": "admissionReady",
+    "evidence": "docs/contracts/node_manifests/my.runtime.clock.mainClock.json",
+    "nativeUse": "known-only",
+    "unknowns": ["runtime-promotion-not-proven","native-executable-proof-missing"]
   }
 }

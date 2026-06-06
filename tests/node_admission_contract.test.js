@@ -33,6 +33,7 @@ test("node admission schema centralizes creator-facing node contract fields", ()
     "parity",
     "failureCodes",
     "observability",
+    "maturity",
     "proof"
   ].forEach((field) => assert.ok(required.has(field), `missing required field ${field}`));
 
@@ -48,6 +49,20 @@ test("node admission schema centralizes creator-facing node contract fields", ()
   assert.ok(schema.properties.flow.required.includes("timeOwner"));
   assert.ok(schema.properties.flow.required.includes("eventOrdering"));
   assert.ok(schema.properties.backendPolicy.required.includes("missingCapability"));
+  assert.deepEqual(schema.properties.maturity.required, ["level", "evidence", "nativeUse"]);
+  assert.deepEqual(schema.properties.maturity.properties.level.enum, [
+    "admissionReady",
+    "interactionReady",
+    "runtimeReady",
+    "nativeExecutable"
+  ]);
+  assert.deepEqual(schema.properties.maturity.properties.nativeUse.enum, [
+    "known-only",
+    "editor-graph",
+    "runtime-graph",
+    "execute-native"
+  ]);
+  assert.equal(schema.properties.maturity.properties.evidence.minLength, 1);
 });
 
 test("proof manifest schema makes claims and nonclaims machine-readable", () => {
@@ -285,6 +300,8 @@ test("all checked-in admission manifests satisfy local schema invariants", () =>
     }
     assert.ok(manifest.proof.claims.length > 0, `${file} has no claims`);
     assert.ok(manifest.proof.nonclaims.length > 0, `${file} has no nonclaims`);
+    assertMaturityShape(manifest.maturity, file);
+    assertMaturityEvidence(manifest.maturity, file);
   }
 });
 
@@ -363,10 +380,32 @@ test("every checked-in Vuo node has a creator-facing admission index entry", () 
     assert.ok(["low", "medium", "high"].includes(entry.riskLevel), `${entry.nodeId} has invalid riskLevel`);
     assert.ok(Array.isArray(entry.riskReasons), `${entry.nodeId} missing risk reasons`);
     assert.equal(typeof entry.requiresFullManifest, "boolean", `${entry.nodeId} missing manifest gate`);
+    assert.ok(entry.maturity, `${entry.nodeId} missing maturity`);
+    assertMaturityShape(entry.maturity, entry.nodeId);
+    assertMaturityEvidence(entry.maturity, entry.nodeId);
+    if (entry.maturity.level === "admissionReady") {
+      assert.notEqual(entry.maturity.nativeUse, "execute-native", `${entry.nodeId} overclaims native execution`);
+    }
+    if (entry.maturity.level === "runtimeReady") {
+      assert.ok(
+        entry.riskReasons.length > 0 || /^docs\/contracts\/node_manifests\//.test(entry.maturity.evidence),
+        `${entry.nodeId} runtimeReady needs risk reason or full manifest evidence`
+      );
+    }
+    if (entry.admission === "proof-only") {
+      assert.equal(entry.maturity.level, "admissionReady", `${entry.nodeId} proof-only must stay admissionReady`);
+      assert.equal(entry.maturity.nativeUse, "known-only", `${entry.nodeId} proof-only must stay known-only`);
+    }
     if (entry.riskLevel === "high") {
       assert.equal(entry.requiresFullManifest, true, `${entry.nodeId} high-risk node must require full manifest`);
       assert.ok(entry.manifestPath, `${entry.nodeId} high-risk node missing manifestPath`);
       assertPathExists(entry.manifestPath, `${entry.nodeId} high-risk manifest`);
+      if (entry.admission !== "proof-only") {
+        assert.notEqual(entry.maturity.level, "admissionReady", `${entry.nodeId} high-risk node stayed admissionReady`);
+      }
+      if (entry.maturity.level === "runtimeReady") {
+        assert.equal(entry.maturity.evidence, entry.manifestPath, `${entry.nodeId} runtimeReady must cite full manifest`);
+      }
     }
     assert.ok(["semantic-parity", "visual-proof", "body-layer-adapter", "host-layer-proof", "not-parity"].includes(entry.parity.tixl));
     assert.ok(["semantic-parity", "visual-proof", "body-layer-adapter", "host-layer-proof", "not-parity"].includes(entry.parity.vuo));
@@ -428,6 +467,39 @@ function assertRequiredContext(manifest) {
   ].forEach((field) => {
     assert.ok(manifest.observability.requiredContext.includes(field), `${manifest.nodeId} missing ${field}`);
   });
+}
+
+function assertMaturityShape(maturity, label) {
+  assert.ok(
+    ["admissionReady", "interactionReady", "runtimeReady", "nativeExecutable"].includes(maturity.level),
+    `${label} has invalid maturity level`
+  );
+  assert.ok(
+    ["known-only", "editor-graph", "runtime-graph", "execute-native"].includes(maturity.nativeUse),
+    `${label} has invalid nativeUse`
+  );
+  assert.equal(typeof maturity.evidence, "string", `${label} maturity evidence is not a string`);
+  assert.ok(maturity.evidence.length > 0, `${label} maturity evidence is empty`);
+  assert.ok(Array.isArray(maturity.unknowns), `${label} maturity unknowns missing`);
+  if (maturity.nativeUse === "execute-native") {
+    assert.equal(maturity.level, "nativeExecutable", `${label} execute-native must be nativeExecutable`);
+  }
+  if (maturity.level === "nativeExecutable") {
+    assert.equal(maturity.nativeUse, "execute-native", `${label} nativeExecutable must use execute-native`);
+  }
+}
+
+function assertMaturityEvidence(maturity, label) {
+  if (maturity.level === "nativeExecutable") {
+    assert.ok(
+      /(^|\/)(tests|docs\/runtime\/artifacts)\//.test(maturity.evidence),
+      `${label} nativeExecutable needs proof artifact or test evidence`
+    );
+    assertPathExists(maturity.evidence, `${label} nativeExecutable evidence`);
+  }
+  if (maturity.level === "runtimeReady" && /^docs\/contracts\/node_manifests\//.test(maturity.evidence)) {
+    assertPathExists(maturity.evidence, `${label} runtimeReady manifest evidence`);
+  }
 }
 
 function assertPathExists(relativePath, label) {

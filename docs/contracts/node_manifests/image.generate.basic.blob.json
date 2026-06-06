@@ -112,5 +112,11 @@
       "verificationCommand": "node --test tests/native_gpu_patch_runtime_slice.test.js",
       "expectedResult": "pass"
     }
+  },
+  "maturity": {
+    "level": "nativeExecutable",
+    "evidence": "tests/native_gpu_patch_runtime_slice.test.js",
+    "nativeUse": "execute-native",
+    "unknowns": []
   }
 }

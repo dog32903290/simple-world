@@ -51,6 +51,7 @@ function buildEntry(fileName) {
   const tests = directTestCache.get(nodeId) || [];
   const risk = inferRisk(nodeId, family, state, admission);
   const manifestPath = existingManifestPaths.get(nodeId) || null;
+  const maturity = inferMaturity({ admission, risk, manifestPath, tests, sourcePath });
 
   return {
     nodeId,
@@ -86,6 +87,7 @@ function buildEntry(fileName) {
     parity,
     failureCodes: inferFailureCodes(nodeId),
     observability: { requiredContext },
+    maturity,
     evidence: {
       source: sourcePath,
       tests: tests.length > 0 ? tests : ["tests/tixl_vuo_port_status_board.test.js"],
@@ -237,6 +239,135 @@ function inferRisk(nodeId, family, state, admission) {
   return { level: "low", reasons };
 }
 
+function inferMaturity({ admission, risk, manifestPath, tests, sourcePath }) {
+  const fallbackEvidence = manifestPath || tests[0] || sourcePath;
+  const missingFullManifest = manifestPath ? [] : ["full-manifest-missing"];
+
+  if (admission === "proof-only") {
+    return {
+      level: "admissionReady",
+      evidence: fallbackEvidence,
+      nativeUse: "known-only",
+      unknowns: [
+        ...missingFullManifest,
+        "runtime-promotion-not-proven",
+        "native-executable-proof-missing"
+      ]
+    };
+  }
+
+  if (risk.level === "high") {
+    if (!manifestPath) {
+      return {
+        level: "interactionReady",
+        evidence: fallbackEvidence,
+        nativeUse: "editor-graph",
+        unknowns: [
+          "full-manifest-missing",
+          "runtime-promotion-not-proven",
+          "native-executable-proof-missing"
+        ]
+      };
+    }
+
+    const nativeEvidence = findNativeExecutionEvidence(manifestPath);
+    if (nativeEvidence) {
+      return {
+        level: "nativeExecutable",
+        evidence: nativeEvidence,
+        nativeUse: "execute-native",
+        unknowns: []
+      };
+    }
+
+    return {
+      level: "runtimeReady",
+      evidence: manifestPath,
+      nativeUse: "runtime-graph",
+      unknowns: ["native-executable-proof-missing"]
+    };
+  }
+
+  if (risk.level === "medium") {
+    const runtimeEvidence = findRuntimeGraphEvidence(manifestPath);
+    if (runtimeEvidence) {
+      return {
+        level: "runtimeReady",
+        evidence: runtimeEvidence,
+        nativeUse: "runtime-graph",
+        unknowns: ["native-executable-proof-missing"]
+      };
+    }
+
+    return {
+      level: "interactionReady",
+      evidence: fallbackEvidence,
+      nativeUse: "editor-graph",
+      unknowns: [
+        ...missingFullManifest,
+        "runtime-promotion-not-proven",
+        "native-executable-proof-missing"
+      ]
+    };
+  }
+
+  return {
+    level: "admissionReady",
+    evidence: fallbackEvidence,
+    nativeUse: "known-only",
+    unknowns: [
+      ...missingFullManifest,
+      "runtime-promotion-not-proven",
+      "native-executable-proof-missing"
+    ]
+  };
+}
+
+function findRuntimeGraphEvidence(manifestPath) {
+  if (!manifestPath) return null;
+  const manifest = readManifestOrNull(manifestPath);
+  if (!manifest) return null;
+  const claims = manifest.proof?.claims || [];
+  const hasRuntimeClaim = claims.some((claim) => (
+    claim === "runtimeGraphBuilt" ||
+    claim === "runtimeReady" ||
+    claim === "runtimeGraphScheduled"
+  ));
+  return hasRuntimeClaim ? manifestPath : null;
+}
+
+function findNativeExecutionEvidence(manifestPath) {
+  if (!manifestPath) return null;
+  const manifest = readManifestOrNull(manifestPath);
+  if (!manifest) return null;
+  const claims = manifest.proof?.claims || [];
+  const nativeExecutionClaims = new Set([
+    "nativeExecutable",
+    "executeNative",
+    "executeNativeRuntimeOp",
+    "nativeRuntimeOpExecuted",
+    "runtimeOpBackendAdapterExecuted"
+  ]);
+  const hasNativeClaim = claims.some((claim) => nativeExecutionClaims.has(claim));
+  if (!hasNativeClaim) return null;
+  const proofEvidence = [
+    ...(manifest.proof?.artifacts || []),
+    ...(manifest.proof?.tests || [])
+  ].find((relativePath) => (
+    relativePath.startsWith("docs/runtime/artifacts/") ||
+    relativePath.startsWith("tests/")
+  ));
+  return proofEvidence || null;
+}
+
+function readManifestOrNull(relativePath) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(repoRoot, relativePath), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 function nodeIdToCreatorName(nodeId) {
   const last = nodeId.split(".").at(-1) || nodeId;
   return `my_${last.replace(/(^|[^A-Za-z0-9])([A-Za-z0-9])/g, (_, __, char) => char.toUpperCase()).replace(/^[a-z]/, (char) => char.toUpperCase())}`;
@@ -251,6 +382,7 @@ function buildDirectTestCache() {
   const cache = new Map();
   const testFiles = fs.readdirSync(testsDir)
     .filter((name) => name.endsWith(".test.js"))
+    .sort()
     .map((name) => `tests/${name}`);
   const testText = testFiles.map((relativePath) => ({
     relativePath,
