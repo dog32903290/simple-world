@@ -512,7 +512,9 @@ Create `docs/runtime/native/graph/GraphDocument.hpp`:
 
 namespace simple_world::graph {
 
-using ParamValue = std::variant<double, bool, std::string>;
+using NumericArray = std::vector<double>;
+using NumericObject = std::map<std::string, double>;
+using ParamValue = std::variant<double, bool, std::string, NumericArray, NumericObject>;
 
 struct Position {
     double x = 0.0;
@@ -544,6 +546,8 @@ struct CableDragState {
 };
 
 struct GraphState {
+    std::string kind = "GraphState";
+    std::string version = "0.1";
     std::string graphId = "graph.interaction";
     std::vector<NodeInstance> nodes;
     std::vector<Edge> edges;
@@ -553,6 +557,8 @@ struct GraphState {
 };
 
 struct GraphDocument {
+    std::string kind = "GraphDocument";
+    std::string version = "0.1";
     std::string graphId = "graph.interaction";
     std::vector<NodeInstance> nodes;
     std::vector<Edge> edges;
@@ -585,6 +591,7 @@ GraphState createInitialGraphState(const std::string& graphId) {
 GraphDocument serializeGraphDocument(const GraphState& state) {
     GraphDocument document;
     document.graphId = state.graphId;
+    document.version = state.version;
     document.nodes = state.nodes;
     document.edges = state.edges;
     return document;
@@ -593,11 +600,12 @@ GraphDocument serializeGraphDocument(const GraphState& state) {
 GraphState deserializeGraphDocument(const GraphDocument& document) {
     GraphState state;
     state.graphId = document.graphId;
+    state.version = document.version;
     state.nodes = document.nodes;
     state.edges = document.edges;
     state.selectedNodeIds.clear();
     state.cableDrag.reset();
-    state.runtimeDirty = false;
+    state.runtimeDirty = true;
     return state;
 }
 
