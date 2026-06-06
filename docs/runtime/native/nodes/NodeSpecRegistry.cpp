@@ -4,13 +4,17 @@ namespace simple_world::nodes {
 
 NodeSpecRegistry NodeSpecRegistry::createSeedRegistry() {
     NodeSpecRegistry registry;
+    using simple_world::graph::NumericObject;
 
     registry.specs.push_back(NodeSpec{
         "tixl.field.generate.sdf.SphereSDF",
         "SphereSDF",
         {},
-        { PortSpec{ "result", "SdfField", true } },
-        { ParamSpec{ "radius", "float", 1.0, "NodeInstance", "runtime", true } },
+        { PortSpec{ "result", "ShaderGraphNode", true } },
+        {
+            ParamSpec{ "center", "object", NumericObject{ { "x", 0.0 }, { "y", 0.0 }, { "z", 0.0 } }, "NodeInstance", "runtime", true },
+            ParamSpec{ "radius", "float", 0.5, "NodeInstance", "runtime", true }
+        },
         true
     });
 
@@ -18,11 +22,25 @@ NodeSpecRegistry NodeSpecRegistry::createSeedRegistry() {
         "tixl.field.render.RaymarchField",
         "RaymarchField",
         {
-            PortSpec{ "sdfField", "SdfField", true },
+            PortSpec{ "sdfField", "ShaderGraphNode", true },
             PortSpec{ "color", "Color", false }
         },
-        { PortSpec{ "image", "Texture2D", true } },
-        {},
+        { PortSpec{ "shaderCode", "ShaderGraph", true } },
+        {
+            ParamSpec{ "writeDepth", "bool", true, "NodeInstance", "runtime", true },
+            ParamSpec{ "minDistance", "float", 0.002, "NodeInstance", "runtime", true },
+            ParamSpec{ "distToColor", "float", 0.15, "NodeInstance", "runtime", true },
+            ParamSpec{ "maxSteps", "float", 100.0, "NodeInstance", "runtime", true },
+            ParamSpec{ "uvMapping", "float", 1.0, "NodeInstance", "runtime", true },
+            ParamSpec{ "stepSize", "float", 1.0, "NodeInstance", "runtime", true },
+            ParamSpec{ "textureScale", "float", 1.0, "NodeInstance", "runtime", true },
+            ParamSpec{ "specularAA", "float", 0.5, "NodeInstance", "runtime", true },
+            ParamSpec{ "color", "object", NumericObject{ { "r", 1.0 }, { "g", 1.0 }, { "b", 1.0 }, { "a", 1.0 } }, "NodeInstance", "runtime", true },
+            ParamSpec{ "maxDistance", "float", 300.0, "NodeInstance", "runtime", true },
+            ParamSpec{ "ambientOcclusion", "object", NumericObject{ { "x", 0.000001 }, { "y", 0.000001 }, { "z", 0.000001 }, { "w", 1.0 } }, "NodeInstance", "runtime", true },
+            ParamSpec{ "normalSamplingD", "float", 0.002, "NodeInstance", "runtime", true },
+            ParamSpec{ "aoDistance", "float", 1.0, "NodeInstance", "runtime", true }
+        },
         true
     });
 

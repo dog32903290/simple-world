@@ -27,7 +27,7 @@ function runFixture(fixtureName) {
 
 function replayJsFixture(fixtureName) {
   const fixture = readJson(path.join(repoRoot, "docs/runtime/fixtures", fixtureName));
-  return { fixture, replay: replayInteractionCommands(fixture) };
+  return replayInteractionCommands(fixture);
 }
 
 function sortedById(items) {
@@ -62,26 +62,10 @@ function nodeById(document, nodeId) {
   return node;
 }
 
-function assertCppPersistedParamsMatchJsReference({ fixture, jsDocument, cppDocument }) {
+function assertParamsMatchJsReference({ jsDocument, cppDocument }) {
   for (const cppNode of cppDocument.nodes) {
     const jsNode = nodeById(jsDocument, cppNode.id);
-    for (const [param, value] of Object.entries(cppNode.params || {})) {
-      assert.deepEqual(value, jsNode.params[param], `param ${cppNode.id}.${param} differs from JS reference`);
-    }
-  }
-
-  // C++ has not promoted the full JS NODE_SPECS default surface yet. Until that
-  // lands, Task 7 binds the product-bearing params C++ persists plus every
-  // explicit SetParameter command in the fixture to the JS reference values.
-  for (const entry of fixture.commands) {
-    const command = entry.command;
-    if (command.type !== "SetParameter") {
-      continue;
-    }
-    const jsNode = nodeById(jsDocument, command.nodeId);
-    const cppNode = nodeById(cppDocument, command.nodeId);
-    assert.deepEqual(cppNode.params[command.param], jsNode.params[command.param]);
-    assert.deepEqual(cppNode.params[command.param], command.value);
+    assert.deepEqual(cppNode.params, jsNode.params, `params for ${cppNode.id} differ from JS reference`);
   }
 }
 
@@ -123,7 +107,7 @@ test("C++ graph command contract creates connects edits validates and builds run
 
 test("valid graph command fixture matches JS reference contract on graph and runtime semantics", () => {
   const fixtureName = "cpp_graph_command_contract.graph.json";
-  const { fixture, replay: jsReference } = replayJsFixture(fixtureName);
+  const jsReference = replayJsFixture(fixtureName);
   const { run, tmpDir } = runFixture(fixtureName);
   assert.equal(run.status, 0, run.stderr || run.stdout);
 
@@ -133,8 +117,7 @@ test("valid graph command fixture matches JS reference contract on graph and run
   const cppDiagnostics = readJson(path.join(tmpDir, "diagnostics.json"));
 
   assert.deepEqual(normalizeNodes(cppDocument), normalizeNodes(jsReference.graphDocument));
-  assertCppPersistedParamsMatchJsReference({
-    fixture,
+  assertParamsMatchJsReference({
     jsDocument: jsReference.graphDocument,
     cppDocument,
   });
