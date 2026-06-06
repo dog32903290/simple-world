@@ -1,0 +1,59 @@
+{
+  "nodeId": "my.field.combine.combineSdf",
+  "creatorName": "my_CombineSDF",
+  "family": "shader-field",
+  "admission": "vuo",
+  "ports": [
+    { "id": "update", "direction": "input", "type": "Event", "cardinality": "single", "eventFlow": "event" },
+    { "id": "fieldA", "direction": "input", "type": "ShaderGraphNode", "cardinality": "single", "eventFlow": "data+event" },
+    { "id": "fieldB", "direction": "input", "type": "ShaderGraphNode", "cardinality": "single", "eventFlow": "data+event" },
+    { "id": "combineMethod", "direction": "input", "type": "Integer", "cardinality": "single", "eventFlow": "data+event" },
+    { "id": "k", "direction": "input", "type": "Float", "cardinality": "single", "eventFlow": "data+event" },
+    { "id": "result", "direction": "output", "type": "ShaderGraphNode", "cardinality": "single", "eventFlow": "data" }
+  ],
+  "params": [
+    { "id": "combineMethod", "type": "Integer", "default": 2, "range": { "min": 0, "max": 12 }, "owner": "NodeSpec", "affects": "sdfCombineOperator", "safeToChangeLive": true, "saved": true },
+    { "id": "k", "type": "Float", "default": 0, "range": { "min": 0, "max": 2 }, "owner": "NodeSpec", "affects": "sdfBlendRadius", "safeToChangeLive": true, "saved": true }
+  ],
+  "state": "stateless",
+  "risk": {
+    "level": "high",
+    "reasons": ["shadergraph-port-semantics", "multi-input-adapter-boundary", "interaction-contract-promotion"]
+  },
+  "color": { "role": "shader-field", "token": "ColorForShaderGraph" },
+  "flow": {
+    "timeOwner": "my_MainClock",
+    "frameOwner": "my_MainClock",
+    "dirtyOwner": "commandGraph",
+    "seedOwner": "none",
+    "eventOrdering": "commandLogIndex-then-renderTick-then-nodeEvent",
+    "commandOwner": "commandGraph"
+  },
+  "backendPolicy": {
+    "metal": "proof-only",
+    "vuo": "body-layer-adapter",
+    "webgl": "proof-only",
+    "software": "fallback",
+    "missingCapability": "diagnostic-visible"
+  },
+  "parity": { "tixl": "body-layer-adapter", "vuo": "body-layer-adapter" },
+  "failureCodes": ["node.param.out_of_range", "node.port.missing", "graph.edge.type_mismatch", "shader.compile.failed", "backend.capability.missing"],
+  "observability": {
+    "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+  },
+  "proof": {
+    "id": "interaction_contract.combineSdf",
+    "ownerLane": "node-admission-contract",
+    "claims": ["combineSdfConsumesTwoShaderGraphNodes", "combineSdfProducesShaderGraphNodeContract", "boundedTwoFieldAdapterDeclared"],
+    "nonclaims": ["fullTiXLMultiInputSlotParity", "nativeMetalRuntimeAdmission", "arbitrarySdfComposition"],
+    "fixture": "docs/runtime/fixtures/sphere_sdf_raymarch.graph.json",
+    "script": "tests/vuo_box_combine_sdf_node.test.js",
+    "artifacts": ["vuo-nodes/my.field.combine.combineSdf.c", "vuo-compositions/myworld-combine-sdf-proof.vuo"],
+    "tests": ["tests/vuo_box_combine_sdf_node.test.js", "tests/graph_interaction_contract.test.js"],
+    "freshness": {
+      "generatedAt": "2026-06-06",
+      "verificationCommand": "node --test tests/vuo_box_combine_sdf_node.test.js tests/graph_interaction_contract.test.js",
+      "expectedResult": "pass"
+    }
+  }
+}

@@ -69,6 +69,13 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "high",
+      "riskReasons": [
+        "current-runtime-or-interaction-promotion-gate",
+        "shadergraph-port-semantics"
+      ],
+      "requiresFullManifest": true,
+      "manifestPath": "docs/contracts/node_manifests/my.field.combine.combineSdf.json",
       "color": {
         "role": "shader-field",
         "token": "ColorForShaderGraph"
@@ -112,6 +119,7 @@
       "evidence": {
         "source": "vuo-nodes/my.field.combine.combineSdf.c",
         "tests": [
+          "tests/node_admission_contract.test.js",
           "tests/vuo_box_combine_sdf_node.test.js"
         ],
         "proofLevel": "source-and-vuo-test-surface"
@@ -187,6 +195,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "shadergraph-port-semantics"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "shader-field",
         "token": "ColorForShaderGraph"
@@ -280,6 +294,13 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "high",
+      "riskReasons": [
+        "current-runtime-or-interaction-promotion-gate",
+        "shadergraph-port-semantics"
+      ],
+      "requiresFullManifest": true,
+      "manifestPath": "docs/contracts/node_manifests/my.field.generate.sdf.sphereSdf.json",
       "color": {
         "role": "shader-field",
         "token": "ColorForProof"
@@ -323,6 +344,7 @@
       "evidence": {
         "source": "vuo-nodes/my.field.generate.sdf.sphereSdf.c",
         "tests": [
+          "tests/node_admission_contract.test.js",
           "tests/vuo_sphere_raymarch_node.test.js"
         ],
         "proofLevel": "source-and-vuo-test-surface"
@@ -396,6 +418,13 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "high",
+      "riskReasons": [
+        "current-runtime-or-interaction-promotion-gate",
+        "command-runtime-boundary"
+      ],
+      "requiresFullManifest": true,
+      "manifestPath": "docs/contracts/node_manifests/my.field.render.raymarchField.json",
       "color": {
         "role": "command",
         "token": "ColorForProof"
@@ -439,6 +468,7 @@
       "evidence": {
         "source": "vuo-nodes/my.field.render.raymarchField.c",
         "tests": [
+          "tests/node_admission_contract.test.js",
           "tests/vuo_box_combine_sdf_node.test.js",
           "tests/vuo_sphere_raymarch_node.test.js"
         ],
@@ -563,6 +593,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "debug",
         "token": "ColorForProof"
@@ -729,6 +763,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "debug",
         "token": "ColorForProof"
@@ -895,6 +933,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "debug",
         "token": "ColorForProof"
@@ -1061,6 +1103,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "debug",
         "token": "ColorForProof"
@@ -1227,6 +1273,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "debug",
         "token": "ColorForProof"
@@ -1393,6 +1443,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "debug",
         "token": "ColorForProof"
@@ -1559,6 +1613,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "debug",
         "token": "ColorForProof"
@@ -1696,6 +1754,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -1814,6 +1878,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -1923,6 +1993,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -2041,6 +2117,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -2144,6 +2226,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -2271,6 +2359,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -2362,6 +2456,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -2489,6 +2589,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -2616,6 +2722,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -2752,6 +2864,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -2924,6 +3042,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -3027,6 +3151,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -3157,6 +3287,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -3278,6 +3414,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -3462,6 +3604,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -3609,6 +3757,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -3810,6 +3964,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -3939,6 +4099,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -4041,6 +4207,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -4134,6 +4306,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -4438,6 +4616,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -4743,6 +4925,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -5048,6 +5234,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -5354,6 +5544,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -5660,6 +5854,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -5965,6 +6163,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -6271,6 +6473,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -6576,6 +6782,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -6881,6 +7091,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -7186,6 +7400,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -7491,6 +7709,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -7625,6 +7847,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -7759,6 +7985,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -7893,6 +8123,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -8027,6 +8261,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -8161,6 +8399,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -8327,6 +8569,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -8493,6 +8739,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -8659,6 +8909,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -8825,6 +9079,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -8991,6 +9249,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -9147,6 +9409,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -9313,6 +9579,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -9479,6 +9749,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -9645,6 +9919,12 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -9862,6 +10142,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -10059,6 +10343,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -10275,6 +10563,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -10490,6 +10782,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -10656,6 +10952,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -10822,6 +11122,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -10988,6 +11292,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -11154,6 +11462,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -11320,6 +11632,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -11486,6 +11802,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -11652,6 +11972,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -11818,6 +12142,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -11984,6 +12312,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -12150,6 +12482,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -12316,6 +12652,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -12482,6 +12822,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -12648,6 +12992,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -12814,6 +13162,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -12980,6 +13332,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForProof"
@@ -13157,6 +13513,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -13369,6 +13729,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -13531,6 +13895,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -13640,6 +14008,13 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "high",
+      "riskReasons": [
+        "current-runtime-or-interaction-promotion-gate",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": true,
+      "manifestPath": "docs/contracts/node_manifests/my.image.generate.basic.constantImage.json",
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -13839,6 +14214,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -14034,6 +14413,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -14259,6 +14642,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -14466,6 +14853,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -14605,6 +14996,14 @@
         }
       ],
       "state": "external-state",
+      "riskLevel": "high",
+      "riskReasons": [
+        "current-runtime-or-interaction-promotion-gate",
+        "external-state-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": true,
+      "manifestPath": "docs/contracts/node_manifests/my.image.generate.basic.renderTarget.json",
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -14815,6 +15214,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -14962,6 +15365,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -15118,6 +15525,12 @@
         }
       ],
       "state": "external-state",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "external-state-lifetime"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForProof"
@@ -15274,6 +15687,12 @@
         }
       ],
       "state": "external-state",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "external-state-lifetime"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForProof"
@@ -15430,6 +15849,12 @@
         }
       ],
       "state": "external-state",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "external-state-lifetime"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForProof"
@@ -15586,6 +16011,12 @@
         }
       ],
       "state": "external-state",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "external-state-lifetime"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForProof"
@@ -15752,6 +16183,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForProof"
@@ -15918,6 +16353,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForProof"
@@ -16084,6 +16523,12 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForProof"
@@ -16267,6 +16712,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -16471,6 +16920,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -16632,6 +17085,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -16845,6 +17302,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -17055,6 +17516,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -17277,6 +17742,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -17444,6 +17913,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -17611,6 +18084,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -17778,6 +18255,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -17945,6 +18426,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -18112,6 +18597,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -18279,6 +18768,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -18446,6 +18939,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -18613,6 +19110,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -18780,6 +19281,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-source",
         "token": "ColorForTextures"
@@ -18895,6 +19400,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -19005,6 +19514,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -19192,6 +19705,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -19362,6 +19879,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -19471,6 +19992,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "high",
+      "riskReasons": [
+        "current-runtime-or-interaction-promotion-gate"
+      ],
+      "requiresFullManifest": true,
+      "manifestPath": "docs/contracts/node_manifests/my.image.use.blend.json",
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -19604,6 +20131,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -19739,6 +20270,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -19933,6 +20468,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -20049,6 +20588,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -20243,6 +20786,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -20365,6 +20912,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -20481,6 +21032,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -20579,6 +21134,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -20676,6 +21235,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "high",
+      "riskReasons": [
+        "current-runtime-or-interaction-promotion-gate",
+        "texture-state-runtime-boundary",
+        "stateful-lifetime"
+      ],
+      "requiresFullManifest": true,
+      "manifestPath": "docs/contracts/node_manifests/my.image.use.keepPreviousFrame.json",
       "color": {
         "role": "texture-state",
         "token": "ColorForTextures"
@@ -20814,6 +21381,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -20939,6 +21510,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -21044,6 +21619,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -21130,6 +21709,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "texture-filter",
         "token": "ColorForTextures"
@@ -21232,6 +21815,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "mesh",
         "token": "ColorForProof"
@@ -21723,6 +22312,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -22214,6 +22810,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -22715,6 +23318,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -23216,6 +23826,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -23707,6 +24324,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -24198,6 +24822,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -24689,6 +25320,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -25180,6 +25818,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -25681,6 +26326,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -26182,6 +26834,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -26477,6 +27136,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -26752,6 +27419,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -27027,6 +27702,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -27302,6 +27985,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -27577,6 +28268,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -27862,6 +28561,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -28137,6 +28844,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -28412,6 +29127,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -28687,6 +29410,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -28962,6 +29693,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -29237,6 +29976,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -29522,6 +30269,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -29797,6 +30552,14 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "clock",
         "token": "ColorForValues"
@@ -30092,6 +30855,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -30367,6 +31137,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -30504,6 +31281,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -30613,6 +31396,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -30731,6 +31520,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -30865,6 +31660,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -30992,6 +31793,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -31110,6 +31917,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -31255,6 +32068,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -31364,6 +32183,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -31482,6 +32307,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -31582,6 +32413,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -31691,6 +32528,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -31800,6 +32643,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -31945,6 +32794,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -32072,6 +32927,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -32172,6 +33033,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -32281,6 +33149,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -32372,6 +33246,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -32580,6 +33460,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -32689,6 +33576,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -32816,6 +33710,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -32934,6 +33834,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -33151,6 +34057,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -33269,6 +34181,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -33558,6 +34476,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -33676,6 +34600,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -33803,6 +34733,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -33984,6 +34920,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -34102,6 +35045,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -34229,6 +35178,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -34392,6 +35347,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -34519,6 +35480,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -34706,6 +35673,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -34887,6 +35860,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -34996,6 +35975,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -35267,6 +36252,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -35343,6 +36334,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -35429,6 +36424,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -35506,6 +36505,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -35592,6 +36595,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -35687,6 +36694,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -35782,6 +36793,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -35859,6 +36874,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -35954,6 +36973,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -36040,6 +37063,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -36315,6 +37342,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -36590,6 +37624,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -36875,6 +37916,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -37160,6 +38208,13 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -37277,6 +38332,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -37449,6 +38508,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -37567,6 +38630,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -37674,6 +38741,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -37866,6 +38937,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -38060,6 +39135,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -38164,6 +39243,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -38268,6 +39351,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -38380,6 +39467,12 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "stateful-lifetime"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -38502,6 +39595,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -38600,6 +39697,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -38700,6 +39801,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -38929,6 +40034,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -39087,6 +40196,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -39182,6 +40295,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -39277,6 +40394,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -39375,6 +40496,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -39474,6 +40599,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -39550,6 +40679,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -39626,6 +40759,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -39720,6 +40857,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -39796,6 +40937,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -39881,6 +41026,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40018,6 +41167,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40112,6 +41265,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40198,6 +41355,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40284,6 +41445,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40370,6 +41535,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40456,6 +41625,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40542,6 +41717,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40628,6 +41807,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40714,6 +41897,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40791,6 +41978,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40877,6 +42068,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -40963,6 +42158,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -41070,6 +42269,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -41156,6 +42359,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -41242,6 +42449,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -41329,6 +42540,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -41415,6 +42630,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -41501,6 +42720,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -41605,6 +42828,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -41691,6 +42918,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -41786,6 +43017,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -42061,6 +43296,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -42336,6 +43577,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -42611,6 +43858,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -42691,6 +43944,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -42768,6 +44025,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -42881,6 +44142,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -43003,6 +44268,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -43080,6 +44349,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -43157,6 +44430,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -43282,6 +44559,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -43359,6 +44640,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -43436,6 +44721,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -43522,6 +44811,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -43647,6 +44940,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -43754,6 +45051,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -43873,6 +45174,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -43980,6 +45285,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -44075,6 +45384,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -44212,6 +45525,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -44316,6 +45633,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -44402,6 +45723,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -44488,6 +45813,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -44574,6 +45903,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -44651,6 +45984,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -44737,6 +46074,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -44823,6 +46164,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -44901,6 +46246,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -44987,6 +46336,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -45073,6 +46426,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -45199,6 +46556,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -45276,6 +46637,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -45362,6 +46727,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -45457,6 +46826,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -45534,6 +46907,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -45611,6 +46988,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -45688,6 +47069,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -45765,6 +47150,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -45857,6 +47246,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -45967,6 +47360,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -46053,6 +47450,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -46130,6 +47531,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -46231,6 +47636,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -46332,6 +47741,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -46409,6 +47822,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -46486,6 +47903,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -46620,6 +48041,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -46706,6 +48131,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -46822,6 +48251,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForProof"
@@ -47097,6 +48530,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -47372,6 +48811,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -47647,6 +49092,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -47922,6 +49373,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -48207,6 +49664,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -48492,6 +49955,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -48767,6 +50236,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -49042,6 +50517,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -49317,6 +50798,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -49592,6 +51079,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -50083,6 +51576,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -50574,6 +52073,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -51065,6 +52570,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -51340,6 +52851,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -51615,6 +53132,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -51890,6 +53413,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -52175,6 +53704,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -52676,6 +54211,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -53167,6 +54708,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -53658,6 +55205,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -54149,6 +55702,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -54640,6 +56199,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -55141,6 +56706,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -55652,6 +57223,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -56143,6 +57720,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -56634,6 +58217,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -57125,6 +58714,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -57616,6 +59211,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -58107,6 +59708,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -58598,6 +60205,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -59089,6 +60702,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -59580,6 +61199,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -60071,6 +61696,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -60562,6 +62193,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -61053,6 +62690,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -61544,6 +63187,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -62035,6 +63684,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -62526,6 +64181,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -63017,6 +64678,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -63508,6 +65175,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -64019,6 +65692,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -64510,6 +66189,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -65001,6 +66686,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -65492,6 +67183,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -65983,6 +67680,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -66504,6 +68207,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "value",
         "token": "ColorForValues"
@@ -66643,6 +68352,14 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "high",
+      "riskReasons": [
+        "current-runtime-or-interaction-promotion-gate",
+        "command-runtime-boundary",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": true,
+      "manifestPath": "docs/contracts/node_manifests/my.render.dx11.api.clearRenderTarget.json",
       "color": {
         "role": "command",
         "token": "ColorForCommands"
@@ -66785,6 +68502,13 @@
         }
       ],
       "state": "external-state",
+      "riskLevel": "medium",
+      "riskReasons": [
+        "command-runtime-boundary",
+        "external-state-lifetime"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "command",
         "token": "ColorForCommands"
@@ -66883,6 +68607,15 @@
         }
       ],
       "state": "stateful",
+      "riskLevel": "high",
+      "riskReasons": [
+        "current-runtime-or-interaction-promotion-gate",
+        "clock-runtime-boundary",
+        "stateful-lifetime",
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": true,
+      "manifestPath": "docs/contracts/node_manifests/my.runtime.clock.mainClock.json",
       "color": {
         "role": "clock",
         "token": "ColorForProof"
@@ -67075,6 +68808,12 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [
+        "proof-only-not-product-promoted"
+      ],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForProof"
@@ -67160,6 +68899,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForString"
@@ -67246,6 +68989,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForString"
@@ -67332,6 +69079,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForString"
@@ -67418,6 +69169,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForString"
@@ -67514,6 +69269,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForString"
@@ -67591,6 +69350,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForValues"
@@ -67677,6 +69440,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForValues"
@@ -67781,6 +69548,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForString"
@@ -67876,6 +69647,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForString"
@@ -67962,6 +69737,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "string",
         "token": "ColorForString"
@@ -68065,6 +69844,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "proof-only",
         "token": "ColorForProof"
@@ -68201,6 +69984,10 @@
         }
       ],
       "state": "stateless",
+      "riskLevel": "low",
+      "riskReasons": [],
+      "requiresFullManifest": false,
+      "manifestPath": null,
       "color": {
         "role": "proof-only",
         "token": "ColorForProof"

@@ -25,13 +25,15 @@ docs/contracts/artifact_observability.schema.json
 Proof prose is not the product contract by itself. A Vuo node without an entry
 in `vuo_node_admission_index.json` is not admitted as a creator-facing Vuo node.
 A runtime or high-risk node without a full manifest is not promoted beyond its
-indexed Vuo/proof level.
+indexed Vuo/proof level. The generated Vuo index carries `riskLevel`,
+`riskReasons`, `requiresFullManifest`, and `manifestPath`; current high-risk
+entries must point at a full node manifest.
 
 ## Current Closure
 
 - Status: bounded product/runtime body closed at 100/100.
 - Verification command: `node --test tests/*.test.js`.
-- Latest verified result: 833/833 pass.
+- Latest verified result: 844/844 pass.
 - Boundary: broad generality remains a nonclaim. This is not final GUI parity,
   arbitrary shader language, full file import, complete node-library parity, or
   complete heap eviction/hazard tracking.
@@ -48,6 +50,7 @@ indexed Vuo/proof level.
 | Shader IR / codegen / cache | `docs/runtime/NATIVE_SHADER_IR_CODEGEN_REGISTRY_PROOF.md`; `docs/runtime/NATIVE_SHADER_IR_EXPRESSION_CORE_PROOF.md` | `docs/runtime/fixtures/native_shader_ir_codegen_registry.graph.json`; `docs/runtime/fixtures/native_shader_ir_expression_core.graph.json` | `docs/runtime/scripts/native_shader_ir_codegen_registry_shell.py`; `docs/runtime/scripts/native_shader_ir_expression_core_shell.py`; `docs/runtime/native/native_shader_ir_expression_core_compile_probe.mm` | `docs/runtime/artifacts/native_shader_ir_codegen_registry/`; `docs/runtime/artifacts/native_shader_ir_expression_core/` | `tests/native_shader_ir_codegen_registry.test.js`; `tests/native_shader_ir_expression_core.test.js` |
 | Resource allocator / lifetime / residency | `docs/runtime/NATIVE_RESOURCE_LIFETIME_POLICY_PROOF.md`; `docs/runtime/NATIVE_METAL_HEAP_RESIDENCY_PROOF.md` | `docs/runtime/fixtures/native_resource_lifetime_policy.graph.json`; `docs/runtime/fixtures/native_metal_heap_residency.graph.json` | `docs/runtime/scripts/native_resource_lifetime_policy_shell.py`; `docs/runtime/scripts/native_metal_heap_residency_shell.py`; `docs/runtime/native/native_metal_heap_residency_probe.mm` | `docs/runtime/artifacts/native_resource_lifetime_policy/`; `docs/runtime/artifacts/native_metal_heap_residency/` | `tests/native_resource_lifetime_policy.test.js`; `tests/native_metal_heap_residency.test.js` |
 | Native app / canvas surface and workflow | `docs/runtime/NATIVE_PRODUCT_CANVAS_SURFACE_PROOF.md`; `docs/runtime/NATIVE_HUMAN_APP_WORKFLOW_PROOF.md`; `docs/runtime/NATIVE_CANVAS_INTERACTION_COMMAND_LOOP_PROOF.md` | `docs/runtime/fixtures/native_product_canvas_surface.graph.json`; `docs/runtime/fixtures/native_human_app_workflow.graph.json`; `docs/runtime/fixtures/native_canvas_interaction_command_loop.graph.json` | `docs/runtime/scripts/native_product_canvas_surface_shell.py`; `docs/runtime/native/native_product_canvas_surface_probe.mm`; `docs/runtime/scripts/native_human_app_workflow_shell.py`; `docs/runtime/native/native_human_app_workflow_probe.mm`; `docs/runtime/scripts/native_canvas_interaction_command_loop_shell.py` | `docs/runtime/artifacts/native_product_canvas_surface/`; `docs/runtime/artifacts/native_human_app_workflow/`; `docs/runtime/artifacts/native_canvas_interaction_command_loop/` | `tests/native_product_canvas_surface.test.js`; `tests/native_human_app_workflow.test.js`; `tests/native_canvas_interaction_command_loop.test.js` |
+| Pure GraphState interaction contract | `docs/contracts/NODE_ADMISSION_LEVELS.md` | in-test headless SphereSDF/RaymarchField graph state | `docs/runtime/scripts/graph_interaction_contract.js` | serialized `GraphDocument` from pure commands | `tests/graph_interaction_contract.test.js` |
 | Importer command ingest | `docs/runtime/NATIVE_IMPORTER_COMMAND_INGEST_PROOF.md` | `docs/runtime/fixtures/native_importer_command_ingest.graph.json` | `docs/runtime/scripts/native_importer_command_ingest_shell.py` | `docs/runtime/artifacts/native_importer_command_ingest/` | `tests/native_importer_command_ingest.test.js` |
 | AI worker repair and authoring assist | `docs/runtime/NATIVE_AI_WORKER_LIVE_REPAIR_PROOF.md`; `docs/runtime/NATIVE_AI_WORKER_AUTHORING_ASSIST_PROOF.md` | `docs/runtime/fixtures/native_ai_worker_live_repair.graph.json`; `docs/runtime/fixtures/native_ai_worker_authoring_assist.graph.json` | `docs/runtime/scripts/native_ai_worker_live_repair_shell.py`; `docs/runtime/scripts/native_ai_worker_authoring_assist_shell.py` | `docs/runtime/artifacts/native_ai_worker_live_repair/`; `docs/runtime/artifacts/native_ai_worker_authoring_assist/` | `tests/native_ai_worker_live_repair.test.js`; `tests/native_ai_worker_authoring_assist.test.js` |
 

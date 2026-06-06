@@ -360,6 +360,14 @@ test("every checked-in Vuo node has a creator-facing admission index entry", () 
       }
     }
     assert.ok(["stateless", "stateful", "external-state"].includes(entry.state), `${entry.nodeId} has invalid state`);
+    assert.ok(["low", "medium", "high"].includes(entry.riskLevel), `${entry.nodeId} has invalid riskLevel`);
+    assert.ok(Array.isArray(entry.riskReasons), `${entry.nodeId} missing risk reasons`);
+    assert.equal(typeof entry.requiresFullManifest, "boolean", `${entry.nodeId} missing manifest gate`);
+    if (entry.riskLevel === "high") {
+      assert.equal(entry.requiresFullManifest, true, `${entry.nodeId} high-risk node must require full manifest`);
+      assert.ok(entry.manifestPath, `${entry.nodeId} high-risk node missing manifestPath`);
+      assertPathExists(entry.manifestPath, `${entry.nodeId} high-risk manifest`);
+    }
     assert.ok(["semantic-parity", "visual-proof", "body-layer-adapter", "host-layer-proof", "not-parity"].includes(entry.parity.tixl));
     assert.ok(["semantic-parity", "visual-proof", "body-layer-adapter", "host-layer-proof", "not-parity"].includes(entry.parity.vuo));
     assert.ok(entry.flow.timeOwner, `${entry.nodeId} missing timeOwner`);
@@ -373,6 +381,30 @@ test("every checked-in Vuo node has a creator-facing admission index entry", () 
     for (const testPath of entry.evidence.tests) {
       assertPathExists(testPath, `${entry.nodeId} test`);
     }
+  }
+});
+
+test("first interaction-contract SDF nodes are classified high-risk and have full manifests", () => {
+  const index = readJson(vuoAdmissionIndexPath);
+  const byId = new Map(index.entries.map((entry) => [entry.nodeId, entry]));
+
+  for (const nodeId of [
+    "my.field.generate.sdf.sphereSdf",
+    "my.field.render.raymarchField",
+    "my.field.combine.combineSdf"
+  ]) {
+    const entry = byId.get(nodeId);
+    assert.ok(entry, `${nodeId} missing from admission index`);
+    assert.equal(entry.riskLevel, "high");
+    assert.equal(entry.requiresFullManifest, true);
+    assert.match(entry.manifestPath, /^docs\/contracts\/node_manifests\//);
+    const manifest = readJson(path.join(repoRoot, entry.manifestPath));
+    assert.equal(manifest.nodeId, nodeId);
+    assert.equal(manifest.family, "shader-field");
+    assert.equal(manifest.flow.commandOwner, "commandGraph");
+    assert.ok(manifest.failureCodes.includes("graph.edge.type_mismatch"));
+    assert.ok(manifest.proof.nonclaims.length > 0);
+    assertRequiredContext(manifest);
   }
 });
 

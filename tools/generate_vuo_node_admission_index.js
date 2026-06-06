@@ -18,6 +18,7 @@ const requiredContext = [
   "diagnosticCode"
 ];
 
+const existingManifestPaths = buildExistingManifestPaths();
 const directTestCache = buildDirectTestCache();
 const entries = fs.readdirSync(vuoNodeDir)
   .filter((name) => name.endsWith(".c"))
@@ -48,6 +49,8 @@ function buildEntry(fileName) {
   const parity = inferParity(nodeId, admission);
   const ports = parsePorts(source);
   const tests = directTestCache.get(nodeId) || [];
+  const risk = inferRisk(nodeId, family, state, admission);
+  const manifestPath = existingManifestPaths.get(nodeId) || null;
 
   return {
     nodeId,
@@ -58,6 +61,10 @@ function buildEntry(fileName) {
     admission,
     ports,
     state,
+    riskLevel: risk.level,
+    riskReasons: risk.reasons,
+    requiresFullManifest: risk.level === "high",
+    manifestPath,
     color: inferColor(nodeId, description),
     flow: {
       timeOwner: nodeId === "my.runtime.clock.mainClock" ? "my_MainClock" : "my_MainClock",
@@ -191,6 +198,45 @@ function hasRandomMeaning(nodeId) {
   return /(random|noise|hash|perlin|worley|grain)/i.test(nodeId);
 }
 
+function inferRisk(nodeId, family, state, admission) {
+  const reasons = [];
+  const highRiskIds = new Set([
+    "my.field.combine.combineSdf",
+    "my.field.generate.sdf.sphereSdf",
+    "my.field.render.raymarchField",
+    "my.image.generate.basic.constantImage",
+    "my.image.generate.basic.renderTarget",
+    "my.image.use.blend",
+    "my.image.use.keepPreviousFrame",
+    "my.render.dx11.api.clearRenderTarget",
+    "my.runtime.clock.mainClock"
+  ]);
+
+  if (highRiskIds.has(nodeId)) {
+    reasons.push("current-runtime-or-interaction-promotion-gate");
+  }
+  if (family === "shader-field") {
+    reasons.push("shadergraph-port-semantics");
+  }
+  if (family === "texture-state" || family === "texture-output" || family === "command" || family === "clock") {
+    reasons.push(`${family}-runtime-boundary`);
+  }
+  if (state !== "stateless") {
+    reasons.push(`${state}-lifetime`);
+  }
+  if (admission === "proof-only") {
+    reasons.push("proof-only-not-product-promoted");
+  }
+
+  if (highRiskIds.has(nodeId)) {
+    return { level: "high", reasons };
+  }
+  if (reasons.some((reason) => reason !== "proof-only-not-product-promoted")) {
+    return { level: "medium", reasons };
+  }
+  return { level: "low", reasons };
+}
+
 function nodeIdToCreatorName(nodeId) {
   const last = nodeId.split(".").at(-1) || nodeId;
   return `my_${last.replace(/(^|[^A-Za-z0-9])([A-Za-z0-9])/g, (_, __, char) => char.toUpperCase()).replace(/^[a-z]/, (char) => char.toUpperCase())}`;
@@ -219,4 +265,24 @@ function buildDirectTestCache() {
     cache.set(nodeId, matches);
   }
   return cache;
+}
+
+function buildExistingManifestPaths() {
+  const manifestDir = path.join(repoRoot, "docs/contracts/node_manifests");
+  const paths = new Map();
+  if (!fs.existsSync(manifestDir)) {
+    return paths;
+  }
+  for (const fileName of fs.readdirSync(manifestDir).filter((name) => name.endsWith(".json"))) {
+    const manifestPath = path.join(manifestDir, fileName);
+    try {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+      if (manifest.nodeId) {
+        paths.set(manifest.nodeId, `docs/contracts/node_manifests/${fileName}`);
+      }
+    } catch {
+      // Broken manifests are caught by tests; the generator only indexes known paths.
+    }
+  }
+  return paths;
 }

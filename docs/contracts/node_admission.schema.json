@@ -25,7 +25,7 @@
     "creatorName": { "type": "string" },
     "family": {
       "type": "string",
-      "enum": ["texture-source", "texture-filter", "texture-state", "texture-output", "ai-worker", "clock", "command", "debug", "proof-only"]
+      "enum": ["texture-source", "texture-filter", "texture-state", "texture-output", "shader-field", "ai-worker", "clock", "command", "debug", "proof-only"]
     },
     "admission": {
       "type": "string",

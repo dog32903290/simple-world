@@ -12,10 +12,13 @@ and proof artifacts can overrule stale plan text.
 - Working tree safety: `AGENTS.md` and
   `skills/tixl-vuo-node-port/SKILL.md` are modified by outside work. Do not
   revert, overwrite, or casually absorb them.
-- Latest verified full suite: `node --test tests/*.test.js` passed 833/833
-  with `docs/contracts/vuo_node_admission_index.json` generated from all 354
-  checked-in `vuo-nodes/*.c` sources. Focused gate:
-  `node --test tests/node_admission_contract.test.js` passes 13/13.
+- Latest verified full suite: `node --test tests/*.test.js` passed 844/844.
+  `docs/contracts/vuo_node_admission_index.json` is generated from all 354
+  checked-in `vuo-nodes/*.c` sources and now carries risk classification:
+  9 high, 42 medium, 303 low. All high-risk entries require and point to a
+  full `docs/contracts/node_manifests/*.json` manifest. Focused gates:
+  `node --test tests/node_admission_contract.test.js` passes 14/14, and
+  `node --test tests/graph_interaction_contract.test.js` passes 6/6.
 - Current runtime claim: the native runtime architecture is at an honest
   **100/100** when the current proof lanes and artifacts are passing. The closure harness
   proves native headless app/canvas state -> command-only graph mutation ->
@@ -58,15 +61,28 @@ and proof artifacts can overrule stale plan text.
 
 ## Active Lane
 
-`node_admission_contract` is active for centralizing creator-facing node
-contracts. The first gate commit established the schemas, failure taxonomy,
-observability envelope, proof manifests, and high-risk/runtime node manifests.
-The current follow-up adds a generated Vuo admission index so every checked-in
-Vuo node has a machine-readable creator name, source path, port/default/range
-surface, state, flow ownership, backend degradation policy, parity level,
-failure language, observability context, and evidence pointer. This does not
-mean every node is promoted to native runtime; full manifests remain the
-promotion gate for runtime and high-risk nodes.
+`node_admission_contract` is closed for the current full-node contract gate.
+Every checked-in Vuo node now has a machine-readable admission entry with
+creator name, source path, port/default/range surface, state, flow ownership,
+backend degradation policy, parity level, failure language, observability
+context, evidence pointer, and risk classification. Current high-risk entries
+are `my.field.combine.combineSdf`, `my.field.generate.sdf.sphereSdf`,
+`my.field.render.raymarchField`, `my.image.generate.basic.constantImage`,
+`my.image.generate.basic.renderTarget`, `my.image.use.blend`,
+`my.image.use.keepPreviousFrame`, `my.render.dx11.api.clearRenderTarget`, and
+`my.runtime.clock.mainClock`; all require and point at full node manifests. This
+does not mean every node is promoted to native runtime; full manifests remain
+the promotion gate for runtime and high-risk nodes.
+
+`graph_interaction_contract` is closed for the first pure UI-to-runtime
+interaction layer. `docs/runtime/scripts/graph_interaction_contract.js` exposes
+pure `GraphState` commands for CreateNode, SelectNode, MoveNode,
+BeginCableDrag, HoverPort, CommitCableDrag, CancelCableDrag, DeleteSelection,
+and SetParameter. `tests/graph_interaction_contract.test.js` proves a headless
+SphereSDF -> RaymarchField flow, invalid cable diagnostics, attached-edge
+deletion, parameter dirtying, safe save/reload, cable cancel, and layout-only
+move behavior. This is not polished UI; UI remains only a view that dispatches
+commands, and runtime consumes GraphState/GraphDocument.
 
 `product_runtime_completion` is now closed for the bounded full product/runtime
 body. It started from the current `full_runtime_architecture` closure evidence
@@ -202,7 +218,8 @@ work is complete.
 | Bounded Mesh Draw/PBR native Metal | closed | Replacement-ready for bounded lane only. |
 | Native app/canvas | closed | Product slices prove AppKit NSWindow, MetalKit MTKView surface, runtime frame attachment, first toolbar/library/canvas/inspector/diagnostics workflow, and a bounded library/canvas/inspector command loop; full interaction parity remains future work. |
 | AI worker repair loop | closed | Live render artifact diagnostics drive commandGraph repair and rerender; bounded authoring assist turns structured product intent into validated command plans and diagnostics-driven repair. Broad NL patch authoring remains a nonclaim. |
-| Node admission contract | active | Schemas/manifests/proof manifests/failure taxonomy/observability are closed for the first gate; Vuo-wide generated admission index now covers all checked-in Vuo node sources while full runtime/high-risk promotion still requires complete manifests. |
+| Node admission contract | closed | Full Vuo-wide admission index covers all checked-in Vuo node sources with risk classification; current high-risk/runtime/key entries require and point to full manifests. |
+| Pure interaction contract | closed | Headless GraphState command layer proves create/select/move/connect/edit/validate/cook/save-reload before any UI polish. |
 
 ## Plan Inventory
 
@@ -218,8 +235,13 @@ work is complete.
   index for every checked-in `vuo-nodes/*.c` source; this is the Vuo-wide
   admission coverage gate, not native runtime promotion.
 - `tools/generate_vuo_node_admission_index.js`: generator that extracts Vuo
-  source metadata and port/default/range surfaces into the central admission
-  index.
+  source metadata, port/default/range surfaces, risk classification, and
+  high-risk manifest pointers into the central admission index.
+- `docs/runtime/scripts/graph_interaction_contract.js`: pure GraphState
+  interaction command layer between UI and runtime; no renderer, Vuo, WebGL,
+  Metal, or UI dependency.
+- `tests/graph_interaction_contract.test.js`: headless acceptance for
+  TiXL-like create/select/move/connect/edit/validate/cook/save-reload behavior.
 - `docs/superpowers/plans/2026-06-05-native-gpu-patch-runtime-slice.md`:
   active tactical plan for the current GPU patch runtime slice.
 - `docs/runtime/NATIVE_GPU_PATCH_RUNTIME_SLICE_PROOF.md`: active closure
@@ -327,6 +349,12 @@ work is complete.
 - Resolved stale claim: runtimeGraph builder is no longer only one-shot closure
   evidence. It now has bounded incremental rebuild proof with structural hashes,
   executable reuse, and recomputed cook order after commandGraph topology edits.
+- Resolved gap: Vuo-wide node admission no longer lacks risk classification.
+  The generated index marks low/medium/high risk and requires a full manifest for
+  current high-risk entries.
+- Resolved gap: canvas interaction no longer jumps from UI action proof directly
+  to runtime shell. A pure GraphState interaction command layer now sits between
+  input events and runtime consumption, with headless tests before UI polish.
 - Potential ownership conflict: GPU patch and full runtime architecture closure
   files are untracked. Resolution: do not edit or revert them except where this
   product-runtime lane explicitly builds on them with a new, separately named
@@ -348,7 +376,8 @@ work is complete.
 - Do not stage, commit, or clean untracked GPU slice files unless explicitly
   asked.
 - Any next worker should run focused proof tests before raising product/runtime
-  completion claims.
+  completion claims. Do not build polished UI until the pure interaction command
+  layer remains green under new interaction cases.
 
 ## Next Handoff Sentence
 
@@ -369,7 +398,8 @@ Also keep `native_shader_ir_expression_core` proof files.
 Also keep `native_ai_worker_authoring_assist` proof files.
 Keep the product/nonclaim boundaries intact: human workflow proof is not full
 interaction parity or final visual polish, the canvas command loop is not full
-interaction parity, registry/expression ShaderIR is not arbitrary user shader
+interaction parity, the pure interaction command layer is not polished UI,
+registry/expression ShaderIR is not arbitrary user shader
 language or HLSL translation, the current texture slices are not the full texture runtime, live AI
 repair and bounded authoring assist are not broad natural-language patch authoring, importer command ingest is
 not a full file-format importer, live dirty scheduling is not a full renderer

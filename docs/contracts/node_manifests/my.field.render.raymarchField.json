@@ -1,0 +1,58 @@
+{
+  "nodeId": "my.field.render.raymarchField",
+  "creatorName": "my_RaymarchField",
+  "family": "shader-field",
+  "admission": "vuo",
+  "ports": [
+    { "id": "renderTick", "direction": "input", "type": "Event", "cardinality": "single", "eventFlow": "event" },
+    { "id": "sdfField", "direction": "input", "type": "ShaderGraphNode", "cardinality": "single", "eventFlow": "data+event" },
+    { "id": "color", "direction": "input", "type": "Color", "cardinality": "single", "eventFlow": "data+event" },
+    { "id": "drawCommand", "direction": "output", "type": "VuoImage", "cardinality": "single", "eventFlow": "data" }
+  ],
+  "params": [
+    { "id": "width", "type": "Integer", "default": 960, "range": { "min": 1, "max": 8192 }, "owner": "NodeSpec", "affects": "renderResolution", "safeToChangeLive": false, "saved": true },
+    { "id": "height", "type": "Integer", "default": 540, "range": { "min": 1, "max": 8192 }, "owner": "NodeSpec", "affects": "renderResolution", "safeToChangeLive": false, "saved": true },
+    { "id": "color", "type": "ColorRGBA", "default": [1, 1, 1, 1], "owner": "NodeSpec", "affects": "fieldShading", "safeToChangeLive": true, "saved": true }
+  ],
+  "state": "external-state",
+  "risk": {
+    "level": "high",
+    "reasons": ["shadergraph-port-semantics", "host-render-adapter", "interaction-contract-promotion"]
+  },
+  "color": { "role": "shader-field", "token": "ColorForCommands" },
+  "flow": {
+    "timeOwner": "my_MainClock",
+    "frameOwner": "my_MainClock",
+    "dirtyOwner": "runtimeGraph",
+    "seedOwner": "none",
+    "eventOrdering": "commandLogIndex-then-renderTick-then-raymarchRender",
+    "commandOwner": "commandGraph"
+  },
+  "backendPolicy": {
+    "metal": "proof-only",
+    "vuo": "body-layer-adapter",
+    "webgl": "proof-only",
+    "software": "fallback",
+    "missingCapability": "diagnostic-visible"
+  },
+  "parity": { "tixl": "body-layer-adapter", "vuo": "body-layer-adapter" },
+  "failureCodes": ["node.port.missing", "graph.edge.type_mismatch", "shader.compile.failed", "backend.capability.missing"],
+  "observability": {
+    "requiredContext": ["graphId", "frameId", "commandId", "nodeId", "backendId", "artifactPath", "diagnosticCode"]
+  },
+  "proof": {
+    "id": "interaction_contract.raymarchField",
+    "ownerLane": "node-admission-contract",
+    "claims": ["raymarchFieldConsumesShaderGraphNode", "sphereSdfToRaymarchCookOrderProven", "vuoBodyLayerRenderVisible"],
+    "nonclaims": ["tixlDx11CommandParity", "nativeMetalRuntimeAdmission", "completeRaymarchTemplateParity"],
+    "fixture": "docs/runtime/fixtures/sphere_sdf_raymarch.graph.json",
+    "script": "docs/runtime/scripts/compile_shadergraph_shell.py",
+    "artifacts": ["vuo-nodes/my.field.render.raymarchField.c", "vuo-compositions/myworld-sphere-raymarch-proof.vuo"],
+    "tests": ["tests/vuo_sphere_raymarch_node.test.js", "tests/runtime_shadergraph_shell.test.js", "tests/graph_interaction_contract.test.js"],
+    "freshness": {
+      "generatedAt": "2026-06-06",
+      "verificationCommand": "node --test tests/vuo_sphere_raymarch_node.test.js tests/runtime_shadergraph_shell.test.js tests/graph_interaction_contract.test.js",
+      "expectedResult": "pass"
+    }
+  }
+}
