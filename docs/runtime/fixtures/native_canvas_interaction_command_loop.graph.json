@@ -23,29 +23,34 @@
     "expectedActionSources": ["ui.library", "ui.canvas", "ui.canvas", "ui.inspector"],
     "hitTest": {
       "point": { "x": 434, "y": 252 },
-      "selectedNodeId": "blend_1",
+      "selectedNodeId": "raymarch_field_1",
       "hitRegion": "node.body"
     },
     "actions": [
       {
         "source": "ui.library",
         "kind": "command",
-        "command": { "op": "createNode", "id": "blend_1", "type": "image.filter.blend" }
+        "command": {
+          "type": "CreateNode",
+          "nodeId": "raymarch_field_1",
+          "nodeType": "tixl.field.render.RaymarchField",
+          "position": { "x": 420, "y": 240 }
+        }
       },
       {
         "source": "ui.canvas",
         "kind": "command",
-        "command": { "op": "setNodePosition", "id": "blend_1", "position": { "x": 420, "y": 240 } }
+        "command": { "type": "MoveNode", "nodeId": "raymarch_field_1", "position": { "x": 420, "y": 240 } }
       },
       {
         "source": "ui.canvas",
         "kind": "command",
-        "command": { "op": "connect", "from": ["gradient_1", "textureOutput"], "to": ["blend_1", "foreground"] }
+        "command": { "op": "connect", "from": ["sphere_sdf_1", "result"], "to": ["raymarch_field_1", "sdfField"] }
       },
       {
         "source": "ui.inspector",
         "kind": "command",
-        "command": { "op": "setParam", "id": "blend_1", "param": "opacity", "value": 0.64 }
+        "command": { "type": "SetParameter", "nodeId": "raymarch_field_1", "param": "minDistance", "value": 0.004 }
       }
     ]
   },
@@ -59,18 +64,17 @@
     ]
   },
   "commands": [
-    { "op": "createNode", "id": "gradient_1", "type": "image.generate.gradient" },
-    { "op": "setNodePosition", "id": "gradient_1", "position": { "x": 140, "y": 220 } },
-    { "op": "setParam", "id": "gradient_1", "param": "startColor", "value": [0.04, 0.1, 0.8, 1] },
-    { "op": "setParam", "id": "gradient_1", "param": "endColor", "value": [1, 0.2, 0.48, 1] },
-    { "op": "createNode", "id": "render_target_1", "type": "image.output.renderTarget" },
-    { "op": "setNodePosition", "id": "render_target_1", "position": { "x": 680, "y": 240 } },
-    { "op": "createNode", "id": "output_1", "type": "output.texture" },
-    { "op": "setNodePosition", "id": "output_1", "position": { "x": 860, "y": 240 } },
-    { "op": "connect", "from": ["render_target_1", "textureOutput"], "to": ["output_1", "image"] }
+    {
+      "type": "CreateNode",
+      "nodeId": "sphere_sdf_1",
+      "nodeType": "tixl.field.generate.sdf.SphereSDF",
+      "position": { "x": 140, "y": 220 }
+    },
+    { "type": "MoveNode", "nodeId": "sphere_sdf_1", "position": { "x": 140, "y": 220 } },
+    { "type": "SetParameter", "nodeId": "sphere_sdf_1", "param": "radius", "value": 0.75 }
   ],
   "expected": {
-    "runtimeCookOrder": ["gradient_1", "blend_1", "render_target_1", "output_1"],
+    "runtimeCookOrder": ["sphere_sdf_1", "raymarch_field_1"],
     "claims": {
       "libraryMutationUsesCommandGraph": true,
       "canvasMutationUsesCommandGraph": true,

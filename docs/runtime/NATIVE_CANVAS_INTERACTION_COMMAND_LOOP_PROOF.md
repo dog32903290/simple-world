@@ -5,10 +5,10 @@ NativeCanvasInteractionCommandLoopProof answers:
 Can library, canvas, and inspector interactions all mutate the graph through the
 same commandGraph path before runtime execution?
 
-The proof shell consumes the shared pure interaction layer:
+The proof shell consumes the C++ graph command dispatcher through:
 
 ```text
-docs/runtime/scripts/graph_interaction_contract.js
+docs/runtime/scripts/cpp_graph_command_contract_shell.py
 ```
 
 It does not replay a separate proof-only command model.
@@ -34,6 +34,7 @@ library pick -> canvas place -> canvas connect -> inspector edit -> runtime fram
 - runtimeFrameLinked: true
 - viewLocalGraphTruth: false
 - sharedGraphStateInteractionCommands: true
+- cppCommandDispatcher: true
 
 ## Boundary
 

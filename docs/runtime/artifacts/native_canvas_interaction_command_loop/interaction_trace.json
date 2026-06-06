@@ -6,8 +6,12 @@
       "mutationPath": "GraphStateInteractionCommands",
       "command": {
         "type": "CreateNode",
-        "nodeId": "blend_1",
-        "nodeType": "image.filter.blend"
+        "nodeId": "raymarch_field_1",
+        "nodeType": "tixl.field.render.RaymarchField",
+        "position": {
+          "x": 420,
+          "y": 240
+        }
       },
       "expandedCommandTypes": [
         "CreateNode"
@@ -18,7 +22,7 @@
       "mutationPath": "GraphStateInteractionCommands",
       "command": {
         "type": "MoveNode",
-        "nodeId": "blend_1",
+        "nodeId": "raymarch_field_1",
         "position": {
           "x": 420,
           "y": 240
@@ -34,8 +38,8 @@
       "command": {
         "type": "CommitCableDrag",
         "to": {
-          "nodeId": "blend_1",
-          "port": "foreground"
+          "nodeId": "raymarch_field_1",
+          "port": "sdfField"
         }
       },
       "expandedCommandTypes": [
@@ -49,9 +53,9 @@
       "mutationPath": "GraphStateInteractionCommands",
       "command": {
         "type": "SetParameter",
-        "nodeId": "blend_1",
-        "param": "opacity",
-        "value": 0.64
+        "nodeId": "raymarch_field_1",
+        "param": "minDistance",
+        "value": 0.004
       },
       "expandedCommandTypes": [
         "SetParameter"

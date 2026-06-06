@@ -4,8 +4,12 @@
     "source": "fixture",
     "command": {
       "type": "CreateNode",
-      "nodeId": "gradient_1",
-      "nodeType": "image.generate.gradient"
+      "nodeId": "sphere_sdf_1",
+      "nodeType": "tixl.field.generate.sdf.SphereSDF",
+      "position": {
+        "x": 140,
+        "y": 220
+      }
     },
     "expandedCommandTypes": [
       "CreateNode"
@@ -17,7 +21,7 @@
     "source": "fixture",
     "command": {
       "type": "MoveNode",
-      "nodeId": "gradient_1",
+      "nodeId": "sphere_sdf_1",
       "position": {
         "x": 140,
         "y": 220
@@ -33,14 +37,9 @@
     "source": "fixture",
     "command": {
       "type": "SetParameter",
-      "nodeId": "gradient_1",
-      "param": "startColor",
-      "value": [
-        0.04,
-        0.1,
-        0.8,
-        1
-      ]
+      "nodeId": "sphere_sdf_1",
+      "param": "radius",
+      "value": 0.75
     },
     "expandedCommandTypes": [
       "SetParameter"
@@ -49,117 +48,27 @@
   },
   {
     "index": 3,
-    "source": "fixture",
+    "source": "ui.library",
     "command": {
-      "type": "SetParameter",
-      "nodeId": "gradient_1",
-      "param": "endColor",
-      "value": [
-        1,
-        0.2,
-        0.48,
-        1
-      ]
+      "type": "CreateNode",
+      "nodeId": "raymarch_field_1",
+      "nodeType": "tixl.field.render.RaymarchField",
+      "position": {
+        "x": 420,
+        "y": 240
+      }
     },
     "expandedCommandTypes": [
-      "SetParameter"
+      "CreateNode"
     ],
     "diagnostics": []
   },
   {
     "index": 4,
-    "source": "fixture",
-    "command": {
-      "type": "CreateNode",
-      "nodeId": "render_target_1",
-      "nodeType": "image.output.renderTarget"
-    },
-    "expandedCommandTypes": [
-      "CreateNode"
-    ],
-    "diagnostics": []
-  },
-  {
-    "index": 5,
-    "source": "fixture",
-    "command": {
-      "type": "MoveNode",
-      "nodeId": "render_target_1",
-      "position": {
-        "x": 680,
-        "y": 240
-      }
-    },
-    "expandedCommandTypes": [
-      "MoveNode"
-    ],
-    "diagnostics": []
-  },
-  {
-    "index": 6,
-    "source": "fixture",
-    "command": {
-      "type": "CreateNode",
-      "nodeId": "output_1",
-      "nodeType": "output.texture"
-    },
-    "expandedCommandTypes": [
-      "CreateNode"
-    ],
-    "diagnostics": []
-  },
-  {
-    "index": 7,
-    "source": "fixture",
-    "command": {
-      "type": "MoveNode",
-      "nodeId": "output_1",
-      "position": {
-        "x": 860,
-        "y": 240
-      }
-    },
-    "expandedCommandTypes": [
-      "MoveNode"
-    ],
-    "diagnostics": []
-  },
-  {
-    "index": 8,
-    "source": "fixture",
-    "command": {
-      "type": "CommitCableDrag",
-      "to": {
-        "nodeId": "output_1",
-        "port": "image"
-      }
-    },
-    "expandedCommandTypes": [
-      "BeginCableDrag",
-      "HoverPort",
-      "CommitCableDrag"
-    ],
-    "diagnostics": []
-  },
-  {
-    "index": 9,
-    "source": "ui.library",
-    "command": {
-      "type": "CreateNode",
-      "nodeId": "blend_1",
-      "nodeType": "image.filter.blend"
-    },
-    "expandedCommandTypes": [
-      "CreateNode"
-    ],
-    "diagnostics": []
-  },
-  {
-    "index": 10,
     "source": "ui.canvas",
     "command": {
       "type": "MoveNode",
-      "nodeId": "blend_1",
+      "nodeId": "raymarch_field_1",
       "position": {
         "x": 420,
         "y": 240
@@ -171,13 +80,13 @@
     "diagnostics": []
   },
   {
-    "index": 11,
+    "index": 5,
     "source": "ui.canvas",
     "command": {
       "type": "CommitCableDrag",
       "to": {
-        "nodeId": "blend_1",
-        "port": "foreground"
+        "nodeId": "raymarch_field_1",
+        "port": "sdfField"
       }
     },
     "expandedCommandTypes": [
@@ -188,13 +97,13 @@
     "diagnostics": []
   },
   {
-    "index": 12,
+    "index": 6,
     "source": "ui.inspector",
     "command": {
       "type": "SetParameter",
-      "nodeId": "blend_1",
-      "param": "opacity",
-      "value": 0.64
+      "nodeId": "raymarch_field_1",
+      "param": "minDistance",
+      "value": 0.004
     },
     "expandedCommandTypes": [
       "SetParameter"

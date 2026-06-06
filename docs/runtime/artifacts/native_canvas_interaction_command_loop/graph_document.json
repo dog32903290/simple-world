@@ -4,85 +4,67 @@
   "graphId": "fixture.native_canvas_interaction_command_loop",
   "nodes": [
     {
-      "id": "blend_1",
-      "type": "image.filter.blend",
-      "title": "Blend",
-      "position": {
-        "x": 420,
-        "y": 240
-      },
-      "params": {
-        "opacity": 0.64
-      }
-    },
-    {
-      "id": "gradient_1",
-      "type": "image.generate.gradient",
-      "title": "Gradient",
+      "id": "sphere_sdf_1",
+      "type": "tixl.field.generate.sdf.SphereSDF",
       "position": {
         "x": 140,
         "y": 220
       },
       "params": {
-        "startColor": [
-          0.04,
-          0.1,
-          0.8,
-          1
-        ],
-        "endColor": [
-          1,
-          0.2,
-          0.48,
-          1
-        ]
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.75
       }
     },
     {
-      "id": "output_1",
-      "type": "output.texture",
-      "title": "TextureOutput",
+      "id": "raymarch_field_1",
+      "type": "tixl.field.render.RaymarchField",
       "position": {
-        "x": 860,
-        "y": 240
-      },
-      "params": {}
-    },
-    {
-      "id": "render_target_1",
-      "type": "image.output.renderTarget",
-      "title": "RenderTarget",
-      "position": {
-        "x": 680,
+        "x": 420,
         "y": 240
       },
       "params": {
-        "format": "RGBA8_Unorm"
+        "ambientOcclusion": {
+          "w": 1,
+          "x": 1e-06,
+          "y": 1e-06,
+          "z": 1e-06
+        },
+        "aoDistance": 1,
+        "color": {
+          "a": 1,
+          "b": 1,
+          "g": 1,
+          "r": 1
+        },
+        "distToColor": 0.15,
+        "maxDistance": 300,
+        "maxSteps": 100,
+        "minDistance": 0.004,
+        "normalSamplingD": 0.002,
+        "specularAA": 0.5,
+        "stepSize": 1,
+        "textureScale": 1,
+        "uvMapping": 1,
+        "writeDepth": true
       }
     }
   ],
   "edges": [
     {
-      "id": "gradient_1.textureOutput->blend_1.foreground",
+      "id": "sphere_sdf_1.result->raymarch_field_1.sdfField",
       "from": {
-        "nodeId": "gradient_1",
-        "port": "textureOutput"
+        "nodeId": "sphere_sdf_1",
+        "port": "result"
       },
       "to": {
-        "nodeId": "blend_1",
-        "port": "foreground"
-      }
-    },
-    {
-      "id": "render_target_1.textureOutput->output_1.image",
-      "from": {
-        "nodeId": "render_target_1",
-        "port": "textureOutput"
+        "nodeId": "raymarch_field_1",
+        "port": "sdfField"
       },
-      "to": {
-        "nodeId": "output_1",
-        "port": "image"
-      }
+      "type": "ShaderGraphNode"
     }
   ]
 }

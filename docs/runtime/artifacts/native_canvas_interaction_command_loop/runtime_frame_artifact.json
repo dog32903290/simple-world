@@ -5,10 +5,8 @@
   "time": 0.0333334,
   "canvasSurface": "MTKView",
   "cookOrder": [
-    "gradient_1",
-    "blend_1",
-    "render_target_1",
-    "output_1"
+    "sphere_sdf_1",
+    "raymarch_field_1"
   ],
   "nativeSurfaceReady": true,
   "lastInteractionSource": "ui.inspector"

@@ -1,101 +1,35 @@
 {
   "kind": "RuntimeGraph",
   "graphId": "fixture.native_canvas_interaction_command_loop",
-  "revision": 13,
   "cookOrder": [
-    "gradient_1",
-    "blend_1",
-    "render_target_1",
-    "output_1"
+    "sphere_sdf_1",
+    "raymarch_field_1"
   ],
   "nodes": [
     {
-      "id": "gradient_1",
-      "type": "image.generate.gradient",
-      "title": "Gradient",
-      "params": {
-        "startColor": [
-          0.04,
-          0.1,
-          0.8,
-          1
-        ],
-        "endColor": [
-          1,
-          0.2,
-          0.48,
-          1
-        ]
-      },
-      "position": {
-        "x": 140,
-        "y": 220
-      },
+      "id": "sphere_sdf_1",
+      "type": "tixl.field.generate.sdf.SphereSDF",
       "domain": "frame"
     },
     {
-      "id": "blend_1",
-      "type": "image.filter.blend",
-      "title": "Blend",
-      "params": {
-        "opacity": 0.64
-      },
-      "position": {
-        "x": 420,
-        "y": 240
-      },
-      "domain": "frame"
-    },
-    {
-      "id": "render_target_1",
-      "type": "image.output.renderTarget",
-      "title": "RenderTarget",
-      "params": {
-        "format": "RGBA8_Unorm"
-      },
-      "position": {
-        "x": 680,
-        "y": 240
-      },
-      "domain": "frame"
-    },
-    {
-      "id": "output_1",
-      "type": "output.texture",
-      "title": "TextureOutput",
-      "params": {},
-      "position": {
-        "x": 860,
-        "y": 240
-      },
+      "id": "raymarch_field_1",
+      "type": "tixl.field.render.RaymarchField",
       "domain": "frame"
     }
   ],
   "edges": [
     {
-      "id": "gradient_1.textureOutput->blend_1.foreground",
       "from": {
-        "nodeId": "gradient_1",
-        "port": "textureOutput"
+        "nodeId": "sphere_sdf_1",
+        "port": "result"
       },
       "to": {
-        "nodeId": "blend_1",
-        "port": "foreground"
-      }
-    },
-    {
-      "id": "render_target_1.textureOutput->output_1.image",
-      "from": {
-        "nodeId": "render_target_1",
-        "port": "textureOutput"
+        "nodeId": "raymarch_field_1",
+        "port": "sdfField"
       },
-      "to": {
-        "nodeId": "output_1",
-        "port": "image"
-      }
+      "type": "ShaderGraphNode"
     }
   ],
-  "diagnostics": [],
   "scheduler": {
     "type": "FrameScheduler",
     "clockOwner": "graph",

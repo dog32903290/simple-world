@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,23 @@ from typing import Any
 RESULT_NAME = "native_canvas_interaction_command_loop_result.json"
 ERRORS_NAME = "native_canvas_interaction_command_loop_errors.json"
 ALLOWED_UI_SOURCES = {"ui.library", "ui.canvas", "ui.inspector", "ui.toolbar"}
+REQUIRED_UI_SOURCES = {"ui.library", "ui.canvas", "ui.inspector"}
+CPP_RESULT_NAME = "cpp_graph_command_contract_result.json"
+CPP_SUPPORTED_NODE_TYPES = {
+    "tixl.field.generate.sdf.SphereSDF",
+    "tixl.field.render.RaymarchField",
+}
+CPP_COMMAND_TYPES = {
+    "CreateNode",
+    "SelectNode",
+    "MoveNode",
+    "BeginCableDrag",
+    "HoverPort",
+    "CommitCableDrag",
+    "CancelCableDrag",
+    "DeleteSelection",
+    "SetParameter",
+}
 
 
 def main() -> int:
@@ -33,12 +51,27 @@ def main() -> int:
         return 1
 
     command_entries = [{"source": "fixture", "command": command} for command in fixture.get("commands", [])]
+    ui_sources_seen: set[str] = set()
     for action in fixture.get("ui", {}).get("actions", []):
         if action.get("kind") != "command" or "command" not in action:
             errors.append({"code": "native_canvas_interaction.ui_action_not_command", "source": action.get("source")})
             publish(out_dir, fixture.get("graphId"), False, "ui_command_contract_failed", [], {}, {}, {}, [], errors)
             return 1
-        command_entries.append({"source": action.get("source", "ui"), "command": action["command"]})
+        source = action.get("source", "ui")
+        if source not in ALLOWED_UI_SOURCES:
+            errors.append({"code": "native_canvas_interaction.ui_source_not_allowed", "source": source})
+            publish(out_dir, fixture.get("graphId"), False, "ui_command_contract_failed", [], {}, {}, {}, [], errors)
+            return 1
+        ui_sources_seen.add(source)
+        command_entries.append({"source": source, "command": action["command"]})
+    missing_sources = sorted(REQUIRED_UI_SOURCES - ui_sources_seen)
+    if missing_sources:
+        errors.append({
+            "code": "native_canvas_interaction.ui_required_source_missing",
+            "missingSources": missing_sources,
+        })
+        publish(out_dir, fixture.get("graphId"), False, "ui_command_contract_failed", [], {}, {}, {}, [], errors)
+        return 1
 
     shared = run_shared_graph_interaction(repo_root, {
         "graphId": fixture.get("graphId"),
@@ -62,6 +95,7 @@ def main() -> int:
             errors,
             shared.get("runtimeGraph", {}),
             shared.get("graphDocument", {}),
+            cpp_command_dispatcher=bool(shared.get("claims", {}).get("cppCommandDispatcher")),
         )
         return 1
 
@@ -91,34 +125,172 @@ def main() -> int:
         errors,
         runtime_graph,
         shared.get("graphDocument", {}),
+        cpp_command_dispatcher=bool(shared.get("claims", {}).get("cppCommandDispatcher")),
     )
     return 0 if ok else 1
 
 
 def run_shared_graph_interaction(repo_root: Path, payload: dict[str, Any], errors: list[dict[str, Any]]) -> dict[str, Any] | None:
-    script = repo_root / "docs/runtime/scripts/graph_interaction_contract.js"
-    run = subprocess.run(
-        ["node", str(script)],
-        input=json.dumps(payload),
-        cwd=repo_root,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if run.returncode != 0:
+    replay = build_cpp_replay_fixture(payload, errors)
+    if replay is None:
+        return None
+
+    script = repo_root / "docs/runtime/scripts/cpp_graph_command_contract_shell.py"
+    with tempfile.TemporaryDirectory(prefix="native-canvas-cpp-command-replay-") as temp_root:
+        temp_path = Path(temp_root)
+        fixture_path = temp_path / "cpp_native_canvas_command_loop.graph.json"
+        replay_out = temp_path / "out"
+        write_json(fixture_path, {
+            "graphId": payload.get("graphId"),
+            "commands": replay["fixtureCommands"],
+        })
+        run = subprocess.run(
+            ["python3", str(script), str(fixture_path), str(replay_out)],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if run.returncode != 0:
+            errors.append({
+                "code": "native_canvas_interaction.cpp_graph_command_contract_failed",
+                "message": run.stderr or run.stdout,
+            })
+            return None
+
+        result = read_json(replay_out / CPP_RESULT_NAME, errors, "native_canvas_interaction.cpp_result_read_failed")
+        graph_document = read_json(replay_out / "graph_document.json", errors, "native_canvas_interaction.cpp_graph_document_read_failed")
+        runtime_graph = read_json(replay_out / "runtime_graph.json", errors, "native_canvas_interaction.cpp_runtime_graph_read_failed")
+        diagnostics = read_json(replay_out / "diagnostics.json", errors, "native_canvas_interaction.cpp_diagnostics_read_failed")
+    if result is None or graph_document is None or runtime_graph is None or diagnostics is None:
+        return None
+    return {
+        "diagnostics": diagnostics,
+        "commandLog": replay["commandLog"],
+        "runtimeGraph": runtime_graph,
+        "graphDocument": graph_document,
+        "claims": result.get("claims", {}),
+        "cppResult": result,
+    }
+
+
+def build_cpp_replay_fixture(payload: dict[str, Any], errors: list[dict[str, Any]]) -> dict[str, Any] | None:
+    fixture_commands: list[dict[str, Any]] = []
+    command_log: list[dict[str, Any]] = []
+    retained_nodes: dict[str, dict[str, str]] = {}
+
+    for entry in payload.get("commands", []):
+        source = entry.get("source", "fixture")
+        converted = convert_command_for_cpp_replay(entry.get("command", {}), retained_nodes)
+        if converted is None:
+            errors.append({
+                "code": "native_canvas_interaction.cpp_replay_command_unsupported",
+                "source": source,
+                "command": entry.get("command", {}),
+            })
+            return None
+        for command in converted["commands"]:
+            fixture_commands.append({"source": source, "command": command})
+        command_log.append({
+            "index": len(command_log),
+            "source": source,
+            "command": converted["logCommand"],
+            "expandedCommandTypes": [command.get("type") for command in converted["commands"]],
+            "diagnostics": [],
+        })
+
+    if not fixture_commands:
         errors.append({
-            "code": "native_canvas_interaction.shared_graph_interaction_failed",
-            "message": run.stderr or run.stdout,
+            "code": "native_canvas_interaction.cpp_replay_fixture_empty",
+            "message": "no native canvas commands could be adapted to the C++ command dispatcher fixture",
         })
         return None
-    try:
-        return json.loads(run.stdout)
-    except Exception as exc:
-        errors.append({
-            "code": "native_canvas_interaction.shared_graph_interaction_invalid_json",
-            "message": str(exc),
-        })
+    return {"fixtureCommands": fixture_commands, "commandLog": command_log}
+
+
+def convert_command_for_cpp_replay(command: dict[str, Any], retained_nodes: dict[str, dict[str, str]]) -> dict[str, Any] | None:
+    if "op" not in command and command.get("type") in CPP_COMMAND_TYPES:
+        return convert_cpp_command_for_cpp_replay(command, retained_nodes)
+
+    op = command.get("op")
+    if op == "createNode":
+        node_id = command.get("id")
+        node_type = command.get("type")
+        if not node_id or node_type not in CPP_SUPPORTED_NODE_TYPES:
+            return None
+        retained_nodes[node_id] = {"type": node_type}
+        cpp_command = {
+            "type": "CreateNode",
+            "nodeId": node_id,
+            "nodeType": node_type,
+        }
+        if isinstance(command.get("position"), dict):
+            cpp_command["position"] = command["position"]
+        return {"commands": [cpp_command], "logCommand": cpp_command}
+
+    if op == "setNodePosition":
+        node_id = command.get("id")
+        if node_id not in retained_nodes:
+            return None
+        cpp_command = {
+            "type": "MoveNode",
+            "nodeId": node_id,
+            "position": command.get("position", {}),
+        }
+        return {"commands": [cpp_command], "logCommand": cpp_command}
+
+    if op == "setParam":
+        node_id = command.get("id")
+        if node_id not in retained_nodes:
+            return None
+        value = command.get("value")
+        cpp_command = {
+            "type": "SetParameter",
+            "nodeId": node_id,
+            "param": command.get("param"),
+            "value": value,
+        }
+        return {"commands": [cpp_command], "logCommand": cpp_command}
+
+    if op == "connect":
+        from_ref = command.get("from")
+        to_ref = command.get("to")
+        if not (isinstance(from_ref, list) and isinstance(to_ref, list) and len(from_ref) == 2 and len(to_ref) == 2):
+            return None
+        from_node_id, from_port = from_ref
+        to_node_id, to_port = to_ref
+        if from_node_id not in retained_nodes or to_node_id not in retained_nodes:
+            return None
+        from_cpp = {
+            "nodeId": from_node_id,
+            "port": str(from_port),
+        }
+        to_cpp = {
+            "nodeId": to_node_id,
+            "port": str(to_port),
+        }
+        commands = [
+            {"type": "BeginCableDrag", "from": from_cpp},
+            {"type": "HoverPort", "port": to_cpp},
+            {"type": "CommitCableDrag", "to": to_cpp},
+        ]
+        return {"commands": commands, "logCommand": commands[-1]}
+
+    return None
+
+
+def convert_cpp_command_for_cpp_replay(command: dict[str, Any], retained_nodes: dict[str, dict[str, str]]) -> dict[str, Any] | None:
+    command_type = command.get("type")
+    if command_type == "CreateNode":
+        node_id = command.get("nodeId")
+        node_type = command.get("nodeType")
+        if not node_id or node_type not in CPP_SUPPORTED_NODE_TYPES:
+            return None
+        retained_nodes[node_id] = {"type": node_type}
+        return {"commands": [command], "logCommand": command}
+    if command_type in {"SelectNode", "MoveNode", "SetParameter"} and command.get("nodeId") not in retained_nodes:
         return None
+    return {"commands": [command], "logCommand": command}
 
 
 def build_interaction_trace(command_log: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -170,6 +342,10 @@ def run_native_probe(repo_root: Path, out_dir: Path, fixture: dict[str, Any]) ->
     except Exception:
         payload = {"ok": False, "status": "probe_failed", "message": run.stderr or run.stdout or "probe emitted invalid JSON"}
     payload["returncode"] = run.returncode
+    if run.returncode != 0:
+        payload["ok"] = False
+        payload.setdefault("status", "probe_failed")
+        payload.setdefault("message", run.stderr or "native workflow probe exited nonzero")
     return payload
 
 
@@ -227,6 +403,7 @@ def publish(
     errors: list[dict[str, Any]],
     runtime_graph: dict[str, Any] | None = None,
     graph_document: dict[str, Any] | None = None,
+    cpp_command_dispatcher: bool = False,
 ) -> None:
     ui_sources = [entry.get("source") for entry in command_log if entry.get("source") in ALLOWED_UI_SOURCES]
     result = {
@@ -241,6 +418,7 @@ def publish(
             "runtimeFrameLinked": runtime_frame.get("nativeSurfaceReady") is True and bool(runtime_frame.get("cookOrder")),
             "viewLocalGraphTruth": False,
             "sharedGraphStateInteractionCommands": True,
+            "cppCommandDispatcher": cpp_command_dispatcher,
         },
     }
     write_json(out_dir / RESULT_NAME, result)
