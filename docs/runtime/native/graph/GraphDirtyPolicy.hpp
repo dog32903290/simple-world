@@ -4,6 +4,6 @@
 
 namespace simple_world::graph {
 
-bool commandChangesRuntimeSemantics(const GraphCommand& command);
+bool commandMayChangeRuntimeSemantics(const GraphCommand& command);
 
 } // namespace simple_world::graph

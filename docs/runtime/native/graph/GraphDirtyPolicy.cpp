@@ -4,7 +4,7 @@
 
 namespace simple_world::graph {
 
-bool commandChangesRuntimeSemantics(const GraphCommand& command) {
+bool commandMayChangeRuntimeSemantics(const GraphCommand& command) {
     return std::visit([](const auto& typedCommand) -> bool {
         using CommandType = std::decay_t<decltype(typedCommand)>;
         if constexpr (std::is_same_v<CommandType, CreateNodeCommand>) return true;
