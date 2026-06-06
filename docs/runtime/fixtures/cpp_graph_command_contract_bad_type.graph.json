@@ -1,0 +1,35 @@
+{
+  "graphId": "fixture.cpp_graph_command_contract_bad_type",
+  "commands": [
+    {
+      "source": "ui.library",
+      "command": {
+        "type": "CreateNode",
+        "nodeId": "sphere_sdf_1",
+        "nodeType": "tixl.field.generate.sdf.SphereSDF"
+      }
+    },
+    {
+      "source": "ui.library",
+      "command": {
+        "type": "CreateNode",
+        "nodeId": "raymarch_field_1",
+        "nodeType": "tixl.field.render.RaymarchField"
+      }
+    },
+    {
+      "source": "ui.canvas",
+      "command": {
+        "type": "BeginCableDrag",
+        "from": { "nodeId": "sphere_sdf_1", "port": "result" }
+      }
+    },
+    {
+      "source": "ui.canvas",
+      "command": {
+        "type": "CommitCableDrag",
+        "to": { "nodeId": "raymarch_field_1", "port": "color" }
+      }
+    }
+  ]
+}

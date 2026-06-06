@@ -1,0 +1,55 @@
+{
+  "graphId": "fixture.cpp_graph_command_contract_save_reload",
+  "commands": [
+    {
+      "source": "ui.library",
+      "command": {
+        "type": "CreateNode",
+        "nodeId": "sphere_sdf_1",
+        "nodeType": "tixl.field.generate.sdf.SphereSDF",
+        "position": { "x": 10, "y": 20 }
+      }
+    },
+    {
+      "source": "ui.library",
+      "command": {
+        "type": "CreateNode",
+        "nodeId": "raymarch_field_1",
+        "nodeType": "tixl.field.render.RaymarchField",
+        "position": { "x": 360, "y": 20 }
+      }
+    },
+    {
+      "source": "ui.canvas",
+      "command": {
+        "type": "SelectNode",
+        "nodeId": "sphere_sdf_1",
+        "mode": "replace"
+      }
+    },
+    {
+      "source": "ui.canvas",
+      "command": {
+        "type": "BeginCableDrag",
+        "from": { "nodeId": "sphere_sdf_1", "port": "result" }
+      }
+    },
+    {
+      "source": "ui.canvas",
+      "command": {
+        "type": "CommitCableDrag",
+        "to": { "nodeId": "raymarch_field_1", "port": "sdfField" }
+      }
+    },
+    {
+      "source": "ui.inspector",
+      "command": {
+        "type": "SetParameter",
+        "nodeId": "sphere_sdf_1",
+        "param": "radius",
+        "value": 0.33
+      }
+    }
+  ],
+  "assertReloadDrops": ["selectedNodeIds", "cableDrag"]
+}
