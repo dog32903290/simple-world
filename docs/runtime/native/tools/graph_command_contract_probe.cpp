@@ -1,3 +1,10 @@
+// Headless C++ probe for the JS-to-C++ graph command contract fixtures.
+//
+// The JSON parser below is intentionally bounded to the Task 1 contract
+// fixtures: a top-level object with graphId and command entries using scalar
+// fields, port refs, and position objects. It is not a general JSON API for
+// the app.
+
 #include "../graph/GraphCommandDispatcher.hpp"
 #include "../graph/GraphValidator.hpp"
 #include "../nodes/NodeSpecRegistry.hpp"
@@ -378,9 +385,6 @@ GraphCommand parseCommand(const JsonValue& value) {
 }
 
 Fixture parseFixture(const std::string& fixturePath) {
-    // This parser is intentionally bounded to the Task 1 contract fixtures:
-    // a top-level object with graphId and command entries using scalar fields,
-    // port refs, and position objects. It is not a general JSON API for the app.
     const auto root = FixtureJsonParser(readFile(fixturePath)).parse();
     const auto& object = root.object();
     Fixture fixture;
