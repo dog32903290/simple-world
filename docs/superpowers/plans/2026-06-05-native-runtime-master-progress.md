@@ -7,12 +7,12 @@ and proof artifacts can overrule stale plan text.
 ## Current Snapshot
 
 - Date: 2026-06-06.
-- Branch: `main`, aligned with `origin/main`.
-- Latest known commit: `db50c98 Require explicit Vuo port defaults in admission index`.
+- Branch: `codex/js-to-cpp-contract-migration`.
+- Latest known commit: `cd82a54 docs: define remaining JavaScript scaffolding boundary`.
 - Working tree safety: `AGENTS.md` and
   `skills/tixl-vuo-node-port/SKILL.md` are modified by outside work. Do not
   revert, overwrite, or casually absorb them.
-- Latest verified full suite: `node --test tests/*.test.js` passed 844/844.
+- Latest verified full suite: `node --test tests/*.test.js` passed 852/852.
   `docs/contracts/vuo_node_admission_index.json` is generated from all 354
   checked-in `vuo-nodes/*.c` sources and now carries risk classification:
   9 high, 42 medium, 303 low. All high-risk entries require and point to a
