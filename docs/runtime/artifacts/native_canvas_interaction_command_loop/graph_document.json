@@ -1,18 +1,28 @@
 {
-  "kind": "RuntimeGraph",
+  "kind": "GraphDocument",
+  "version": "0.1",
   "graphId": "fixture.native_canvas_interaction_command_loop",
-  "revision": 13,
-  "cookOrder": [
-    "gradient_1",
-    "blend_1",
-    "render_target_1",
-    "output_1"
-  ],
   "nodes": [
+    {
+      "id": "blend_1",
+      "type": "image.filter.blend",
+      "title": "Blend",
+      "position": {
+        "x": 420,
+        "y": 240
+      },
+      "params": {
+        "opacity": 0.64
+      }
+    },
     {
       "id": "gradient_1",
       "type": "image.generate.gradient",
       "title": "Gradient",
+      "position": {
+        "x": 140,
+        "y": 220
+      },
       "params": {
         "startColor": [
           0.04,
@@ -26,49 +36,29 @@
           0.48,
           1
         ]
-      },
-      "position": {
-        "x": 140,
-        "y": 220
-      },
-      "domain": "frame"
-    },
-    {
-      "id": "blend_1",
-      "type": "image.filter.blend",
-      "title": "Blend",
-      "params": {
-        "opacity": 0.64
-      },
-      "position": {
-        "x": 420,
-        "y": 240
-      },
-      "domain": "frame"
-    },
-    {
-      "id": "render_target_1",
-      "type": "image.output.renderTarget",
-      "title": "RenderTarget",
-      "params": {
-        "format": "RGBA8_Unorm"
-      },
-      "position": {
-        "x": 680,
-        "y": 240
-      },
-      "domain": "frame"
+      }
     },
     {
       "id": "output_1",
       "type": "output.texture",
       "title": "TextureOutput",
-      "params": {},
       "position": {
         "x": 860,
         "y": 240
       },
-      "domain": "frame"
+      "params": {}
+    },
+    {
+      "id": "render_target_1",
+      "type": "image.output.renderTarget",
+      "title": "RenderTarget",
+      "position": {
+        "x": 680,
+        "y": 240
+      },
+      "params": {
+        "format": "RGBA8_Unorm"
+      }
     }
   ],
   "edges": [
@@ -94,27 +84,5 @@
         "port": "image"
       }
     }
-  ],
-  "diagnostics": [],
-  "scheduler": {
-    "type": "FrameScheduler",
-    "clockOwner": "graph",
-    "frames": [
-      {
-        "frameIndex": 0,
-        "time": 0,
-        "deltaTime": 0
-      },
-      {
-        "frameIndex": 1,
-        "time": 0.0166667,
-        "deltaTime": 0.0166667
-      },
-      {
-        "frameIndex": 2,
-        "time": 0.0333334,
-        "deltaTime": 0.0166667
-      }
-    ]
-  }
+  ]
 }

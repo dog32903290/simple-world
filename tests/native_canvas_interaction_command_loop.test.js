@@ -16,6 +16,8 @@ test("NativeCanvasInteractionCommandLoop contract binds library canvas and inspe
 
   assert.match(source, /NativeCanvasInteractionCommandLoopProof answers:/);
   assert.match(source, /library pick -> canvas place -> canvas connect -> inspector edit -> runtime frame/);
+  assert.match(source, /graph_interaction_contract\.js/);
+  assert.match(source, /It does not replay a separate proof-only command model/);
   assert.match(source, /view-local graph truth is forbidden/);
   assert.match(source, /not final interaction parity/);
 });
@@ -44,6 +46,7 @@ test("NativeCanvasInteractionCommandLoop shell emits command-backed interaction 
   const hitTest = readArtifact(tmpDir, "canvas_hit_test.json");
   const commandLog = readArtifact(tmpDir, "command_log.json");
   const runtimeGraph = readArtifact(tmpDir, "runtime_graph.json");
+  const graphDocument = readArtifact(tmpDir, "graph_document.json");
   const runtimeFrame = readArtifact(tmpDir, "runtime_frame_artifact.json");
   const errors = readArtifact(tmpDir, "native_canvas_interaction_command_loop_errors.json");
 
@@ -55,13 +58,16 @@ test("NativeCanvasInteractionCommandLoop shell emits command-backed interaction 
   assert.equal(result.claims.canvasMutationUsesCommandGraph, true);
   assert.equal(result.claims.inspectorMutationUsesCommandGraph, true);
   assert.equal(result.claims.viewLocalGraphTruth, false);
+  assert.equal(result.claims.sharedGraphStateInteractionCommands, true);
 
   assert.deepEqual(interaction.steps.map((step) => step.source), ["ui.library", "ui.canvas", "ui.canvas", "ui.inspector", "runtime"]);
   assert.deepEqual(commandLog.slice(-4).map((entry) => entry.source), ["ui.library", "ui.canvas", "ui.canvas", "ui.inspector"]);
-  assert.equal(commandLog.at(-4).command.op, "createNode");
-  assert.equal(commandLog.at(-3).command.op, "setNodePosition");
-  assert.equal(commandLog.at(-2).command.op, "connect");
-  assert.equal(commandLog.at(-1).command.op, "setParam");
+  assert.equal(commandLog.at(-4).command.type, "CreateNode");
+  assert.equal(commandLog.at(-3).command.type, "MoveNode");
+  assert.deepEqual(commandLog.at(-2).expandedCommandTypes, ["BeginCableDrag", "HoverPort", "CommitCableDrag"]);
+  assert.equal(commandLog.at(-1).command.type, "SetParameter");
+  assert.equal(graphDocument.kind, "GraphDocument");
+  assert.equal(graphDocument.nodes.some((node) => node.id === "blend_1"), true);
   assert.equal(hitTest.selectedNodeId, "blend_1");
   assert.equal(hitTest.hitRegion, "node.body");
   assert.deepEqual(runtimeGraph.cookOrder, ["gradient_1", "blend_1", "render_target_1", "output_1"]);

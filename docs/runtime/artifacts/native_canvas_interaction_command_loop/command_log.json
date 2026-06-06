@@ -3,29 +3,37 @@
     "index": 0,
     "source": "fixture",
     "command": {
-      "op": "createNode",
-      "id": "gradient_1",
-      "type": "image.generate.gradient"
-    }
+      "type": "CreateNode",
+      "nodeId": "gradient_1",
+      "nodeType": "image.generate.gradient"
+    },
+    "expandedCommandTypes": [
+      "CreateNode"
+    ],
+    "diagnostics": []
   },
   {
     "index": 1,
     "source": "fixture",
     "command": {
-      "op": "setNodePosition",
-      "id": "gradient_1",
+      "type": "MoveNode",
+      "nodeId": "gradient_1",
       "position": {
         "x": 140,
         "y": 220
       }
-    }
+    },
+    "expandedCommandTypes": [
+      "MoveNode"
+    ],
+    "diagnostics": []
   },
   {
     "index": 2,
     "source": "fixture",
     "command": {
-      "op": "setParam",
-      "id": "gradient_1",
+      "type": "SetParameter",
+      "nodeId": "gradient_1",
       "param": "startColor",
       "value": [
         0.04,
@@ -33,14 +41,18 @@
         0.8,
         1
       ]
-    }
+    },
+    "expandedCommandTypes": [
+      "SetParameter"
+    ],
+    "diagnostics": []
   },
   {
     "index": 3,
     "source": "fixture",
     "command": {
-      "op": "setParam",
-      "id": "gradient_1",
+      "type": "SetParameter",
+      "nodeId": "gradient_1",
       "param": "endColor",
       "value": [
         1,
@@ -48,109 +60,145 @@
         0.48,
         1
       ]
-    }
+    },
+    "expandedCommandTypes": [
+      "SetParameter"
+    ],
+    "diagnostics": []
   },
   {
     "index": 4,
     "source": "fixture",
     "command": {
-      "op": "createNode",
-      "id": "render_target_1",
-      "type": "image.output.renderTarget"
-    }
+      "type": "CreateNode",
+      "nodeId": "render_target_1",
+      "nodeType": "image.output.renderTarget"
+    },
+    "expandedCommandTypes": [
+      "CreateNode"
+    ],
+    "diagnostics": []
   },
   {
     "index": 5,
     "source": "fixture",
     "command": {
-      "op": "setNodePosition",
-      "id": "render_target_1",
+      "type": "MoveNode",
+      "nodeId": "render_target_1",
       "position": {
         "x": 680,
         "y": 240
       }
-    }
+    },
+    "expandedCommandTypes": [
+      "MoveNode"
+    ],
+    "diagnostics": []
   },
   {
     "index": 6,
     "source": "fixture",
     "command": {
-      "op": "createNode",
-      "id": "output_1",
-      "type": "output.texture"
-    }
+      "type": "CreateNode",
+      "nodeId": "output_1",
+      "nodeType": "output.texture"
+    },
+    "expandedCommandTypes": [
+      "CreateNode"
+    ],
+    "diagnostics": []
   },
   {
     "index": 7,
     "source": "fixture",
     "command": {
-      "op": "setNodePosition",
-      "id": "output_1",
+      "type": "MoveNode",
+      "nodeId": "output_1",
       "position": {
         "x": 860,
         "y": 240
       }
-    }
+    },
+    "expandedCommandTypes": [
+      "MoveNode"
+    ],
+    "diagnostics": []
   },
   {
     "index": 8,
     "source": "fixture",
     "command": {
-      "op": "connect",
-      "from": [
-        "render_target_1",
-        "textureOutput"
-      ],
-      "to": [
-        "output_1",
-        "image"
-      ]
-    }
+      "type": "CommitCableDrag",
+      "to": {
+        "nodeId": "output_1",
+        "port": "image"
+      }
+    },
+    "expandedCommandTypes": [
+      "BeginCableDrag",
+      "HoverPort",
+      "CommitCableDrag"
+    ],
+    "diagnostics": []
   },
   {
     "index": 9,
     "source": "ui.library",
     "command": {
-      "op": "createNode",
-      "id": "blend_1",
-      "type": "image.filter.blend"
-    }
+      "type": "CreateNode",
+      "nodeId": "blend_1",
+      "nodeType": "image.filter.blend"
+    },
+    "expandedCommandTypes": [
+      "CreateNode"
+    ],
+    "diagnostics": []
   },
   {
     "index": 10,
     "source": "ui.canvas",
     "command": {
-      "op": "setNodePosition",
-      "id": "blend_1",
+      "type": "MoveNode",
+      "nodeId": "blend_1",
       "position": {
         "x": 420,
         "y": 240
       }
-    }
+    },
+    "expandedCommandTypes": [
+      "MoveNode"
+    ],
+    "diagnostics": []
   },
   {
     "index": 11,
     "source": "ui.canvas",
     "command": {
-      "op": "connect",
-      "from": [
-        "gradient_1",
-        "textureOutput"
-      ],
-      "to": [
-        "blend_1",
-        "foreground"
-      ]
-    }
+      "type": "CommitCableDrag",
+      "to": {
+        "nodeId": "blend_1",
+        "port": "foreground"
+      }
+    },
+    "expandedCommandTypes": [
+      "BeginCableDrag",
+      "HoverPort",
+      "CommitCableDrag"
+    ],
+    "diagnostics": []
   },
   {
     "index": 12,
     "source": "ui.inspector",
     "command": {
-      "op": "setParam",
-      "id": "blend_1",
+      "type": "SetParameter",
+      "nodeId": "blend_1",
       "param": "opacity",
       "value": 0.64
-    }
+    },
+    "expandedCommandTypes": [
+      "SetParameter"
+    ],
+    "diagnostics": []
   }
 ]

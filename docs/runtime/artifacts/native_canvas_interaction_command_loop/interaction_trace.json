@@ -3,49 +3,59 @@
   "steps": [
     {
       "source": "ui.library",
-      "mutationPath": "commandGraph",
+      "mutationPath": "GraphStateInteractionCommands",
       "command": {
-        "op": "createNode",
-        "id": "blend_1",
-        "type": "image.filter.blend"
-      }
+        "type": "CreateNode",
+        "nodeId": "blend_1",
+        "nodeType": "image.filter.blend"
+      },
+      "expandedCommandTypes": [
+        "CreateNode"
+      ]
     },
     {
       "source": "ui.canvas",
-      "mutationPath": "commandGraph",
+      "mutationPath": "GraphStateInteractionCommands",
       "command": {
-        "op": "setNodePosition",
-        "id": "blend_1",
+        "type": "MoveNode",
+        "nodeId": "blend_1",
         "position": {
           "x": 420,
           "y": 240
         }
-      }
+      },
+      "expandedCommandTypes": [
+        "MoveNode"
+      ]
     },
     {
       "source": "ui.canvas",
-      "mutationPath": "commandGraph",
+      "mutationPath": "GraphStateInteractionCommands",
       "command": {
-        "op": "connect",
-        "from": [
-          "gradient_1",
-          "textureOutput"
-        ],
-        "to": [
-          "blend_1",
-          "foreground"
-        ]
-      }
+        "type": "CommitCableDrag",
+        "to": {
+          "nodeId": "blend_1",
+          "port": "foreground"
+        }
+      },
+      "expandedCommandTypes": [
+        "BeginCableDrag",
+        "HoverPort",
+        "CommitCableDrag"
+      ]
     },
     {
       "source": "ui.inspector",
-      "mutationPath": "commandGraph",
+      "mutationPath": "GraphStateInteractionCommands",
       "command": {
-        "op": "setParam",
-        "id": "blend_1",
+        "type": "SetParameter",
+        "nodeId": "blend_1",
         "param": "opacity",
         "value": 0.64
-      }
+      },
+      "expandedCommandTypes": [
+        "SetParameter"
+      ]
     },
     {
       "source": "runtime",

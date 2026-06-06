@@ -84,6 +84,12 @@ deletion, parameter dirtying, safe save/reload, cable cancel, and layout-only
 move behavior. This is not polished UI; UI remains only a view that dispatches
 commands, and runtime consumes GraphState/GraphDocument.
 
+`native_canvas_interaction_command_loop` now consumes the shared
+`graph_interaction_contract.js` command spine instead of replaying a local
+proof-only command model. Its artifacts include `graph_document.json`,
+shared-command `command_log.json`, and a runtime graph built from the exported
+GraphDocument.
+
 `product_runtime_completion` is now closed for the bounded full product/runtime
 body. It started from the current `full_runtime_architecture` closure evidence
 and deepened the weak product spines without redoing already closed proofs. The
@@ -116,8 +122,8 @@ commandGraph commands and link back to a runtime frame artifact. It is still not
 complete interaction parity or final visual polish. The
 `native_canvas_interaction_command_loop` slice is closed for bounded
 multi-region interaction: library create, canvas place/connect, and inspector
-edit actions all enter through commandGraph before the runtimeGraph/frame
-artifact is built. The `native_importer_command_ingest` slice is closed for
+edit actions all enter through the shared GraphState command spine before the
+runtimeGraph/frame artifact is built. The `native_importer_command_ingest` slice is closed for
 bounded importer mutation law: a simple external document is converted to an
 ordered import command stream, replayed into editorGraph, and only then built as
 runtimeGraph. The `native_frame_scheduler_live_dirty` slice is closed for
@@ -355,6 +361,9 @@ work is complete.
 - Resolved gap: canvas interaction no longer jumps from UI action proof directly
   to runtime shell. A pure GraphState interaction command layer now sits between
   input events and runtime consumption, with headless tests before UI polish.
+- Resolved gap: native canvas command-loop proof shell no longer has a separate
+  local command replay model. It consumes `graph_interaction_contract.js` and
+  publishes the shared `GraphDocument`.
 - Potential ownership conflict: GPU patch and full runtime architecture closure
   files are untracked. Resolution: do not edit or revert them except where this
   product-runtime lane explicitly builds on them with a new, separately named

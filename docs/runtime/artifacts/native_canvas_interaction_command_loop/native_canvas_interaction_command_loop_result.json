@@ -8,6 +8,7 @@
     "canvasMutationUsesCommandGraph": true,
     "inspectorMutationUsesCommandGraph": true,
     "runtimeFrameLinked": true,
-    "viewLocalGraphTruth": false
+    "viewLocalGraphTruth": false,
+    "sharedGraphStateInteractionCommands": true
   }
 }

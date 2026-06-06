@@ -39,6 +39,54 @@ const NODE_SPECS = {
     },
     runtimeSemantic: true,
   },
+  "image.generate.gradient": {
+    title: "Gradient",
+    inputs: {},
+    outputs: {
+      textureOutput: { type: "Texture2D" },
+    },
+    defaults: {
+      startColor: [0, 0, 0, 1],
+      endColor: [1, 1, 1, 1],
+    },
+    runtimeSemantic: true,
+  },
+  "image.filter.blend": {
+    title: "Blend",
+    inputs: {
+      background: { type: "Texture2D" },
+      foreground: { type: "Texture2D" },
+    },
+    outputs: {
+      textureOutput: { type: "Texture2D" },
+    },
+    defaults: {
+      opacity: 1,
+    },
+    runtimeSemantic: true,
+  },
+  "image.output.renderTarget": {
+    title: "RenderTarget",
+    inputs: {
+      input: { type: "Texture2D" },
+    },
+    outputs: {
+      textureOutput: { type: "Texture2D" },
+    },
+    defaults: {
+      format: "RGBA8_Unorm",
+    },
+    runtimeSemantic: true,
+  },
+  "output.texture": {
+    title: "TextureOutput",
+    inputs: {
+      image: { type: "Texture2D" },
+    },
+    outputs: {},
+    defaults: {},
+    runtimeSemantic: true,
+  },
 };
 
 function createInitialGraphState({ graphId = "graph.interaction" } = {}) {
@@ -101,6 +149,94 @@ function dispatchGraphCommand(state, command) {
   }
   next.commandLog.push({ index: next.commandLog.length, command: clone(command), diagnostics: clone(diagnostics) });
   return { state: next, diagnostics };
+}
+
+function replayInteractionCommands({ graphId = "graph.interaction", commands = [] } = {}) {
+  let state = createInitialGraphState({ graphId });
+  const commandLog = [];
+  const diagnostics = [];
+
+  for (const entry of commands) {
+    const source = entry.source || "fixture";
+    const expanded = expandInteractionCommand(entry.command);
+    const entryDiagnostics = [];
+    for (const command of expanded) {
+      const result = dispatchGraphCommand(state, command);
+      state = result.state;
+      entryDiagnostics.push(...result.diagnostics);
+    }
+    diagnostics.push(...entryDiagnostics.map((diag) => ({ ...diag, source })));
+    commandLog.push({
+      index: commandLog.length,
+      source,
+      command: clone(expanded.at(-1)),
+      expandedCommandTypes: expanded.map((command) => command.type),
+      diagnostics: entryDiagnostics,
+    });
+  }
+
+  const validation = validateGraphState(state);
+  return {
+    state,
+    commandLog,
+    diagnostics: [...diagnostics, ...validation.diagnostics],
+    graphDocument: serializeGraphDocument(state),
+    runtimeGraph: buildRuntimeGraph(state),
+  };
+}
+
+function expandInteractionCommand(command) {
+  if (isSharedCommandType(command.type)) {
+    return [clone(command)];
+  }
+
+  switch (command.op) {
+    case "createNode":
+      return [{
+        type: "CreateNode",
+        nodeId: command.id,
+        nodeType: command.type,
+        position: command.position,
+      }];
+    case "setNodePosition":
+      return [{
+        type: "MoveNode",
+        nodeId: command.id,
+        position: command.position,
+      }];
+    case "setParam":
+      return [{
+        type: "SetParameter",
+        nodeId: command.id,
+        param: command.param,
+        value: command.value,
+      }];
+    case "connect": {
+      const from = normalizePortRef(command.from);
+      const to = normalizePortRef(command.to);
+      return [
+        { type: "BeginCableDrag", from },
+        { type: "HoverPort", port: to },
+        { type: "CommitCableDrag", to },
+      ];
+    }
+    default:
+      return [{ type: "UnsupportedLegacyCommand", op: command.op }];
+  }
+}
+
+function isSharedCommandType(type) {
+  return [
+    "CreateNode",
+    "SelectNode",
+    "MoveNode",
+    "BeginCableDrag",
+    "HoverPort",
+    "CommitCableDrag",
+    "CancelCableDrag",
+    "DeleteSelection",
+    "SetParameter",
+  ].includes(type);
 }
 
 function validateGraphState(state) {
@@ -364,6 +500,13 @@ function stableEdgeId(from, to) {
   return `${from.nodeId}.${from.port}->${to.nodeId}.${to.port}`;
 }
 
+function normalizePortRef(value) {
+  if (Array.isArray(value)) {
+    return { nodeId: value[0], port: value[1] };
+  }
+  return clone(value);
+}
+
 function diagnostic(code, fields) {
   return {
     code,
@@ -391,8 +534,26 @@ module.exports = {
   NODE_SPECS,
   createInitialGraphState,
   dispatchGraphCommand,
+  replayInteractionCommands,
   validateGraphState,
   buildRuntimeGraph,
   serializeGraphDocument,
   deserializeGraphDocument,
 };
+
+if (require.main === module) {
+  let input = "";
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", (chunk) => {
+    input += chunk;
+  });
+  process.stdin.on("end", () => {
+    try {
+      const payload = input.trim() ? JSON.parse(input) : {};
+      process.stdout.write(`${JSON.stringify(replayInteractionCommands(payload), null, 2)}\n`);
+    } catch (error) {
+      process.stderr.write(`${error.stack || error.message}\n`);
+      process.exitCode = 1;
+    }
+  });
+}

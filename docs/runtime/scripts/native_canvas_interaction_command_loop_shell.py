@@ -32,26 +32,43 @@ def main() -> int:
         publish(out_dir, None, False, "fixture_read_failed", [], {}, {}, {}, [], errors)
         return 1
 
-    editor_graph, command_log = replay_commands(fixture.get("commands", []), "fixture")
-    interaction_trace: list[dict[str, Any]] = []
-
+    command_entries = [{"source": "fixture", "command": command} for command in fixture.get("commands", [])]
     for action in fixture.get("ui", {}).get("actions", []):
         if action.get("kind") != "command" or "command" not in action:
             errors.append({"code": "native_canvas_interaction.ui_action_not_command", "source": action.get("source")})
-            publish(out_dir, fixture.get("graphId"), False, "ui_command_contract_failed", interaction_trace, {}, {}, {}, command_log, errors)
+            publish(out_dir, fixture.get("graphId"), False, "ui_command_contract_failed", [], {}, {}, {}, [], errors)
             return 1
-        source = action.get("source", "ui")
-        command = action["command"]
-        try:
-            apply_command(editor_graph, command)
-        except Exception as exc:
-            errors.append({"code": "native_canvas_interaction.command_apply_failed", "source": source, "message": str(exc)})
-            publish(out_dir, fixture.get("graphId"), False, "command_apply_failed", interaction_trace, {}, {}, {}, command_log, errors)
-            return 1
-        command_log.append({"index": len(command_log), "source": source, "command": command})
-        interaction_trace.append({"source": source, "mutationPath": "commandGraph", "command": command})
+        command_entries.append({"source": action.get("source", "ui"), "command": action["command"]})
 
-    runtime_graph = build_runtime_graph(fixture, editor_graph)
+    shared = run_shared_graph_interaction(repo_root, {
+        "graphId": fixture.get("graphId"),
+        "commands": command_entries,
+    }, errors)
+    if shared is None:
+        publish(out_dir, fixture.get("graphId"), False, "shared_graph_interaction_failed", [], {}, {}, {}, [], errors)
+        return 1
+    if shared.get("diagnostics"):
+        errors.extend({"code": f"native_canvas_interaction.{diag.get('code', 'diagnostic')}", **diag} for diag in shared["diagnostics"])
+        publish(
+            out_dir,
+            fixture.get("graphId"),
+            False,
+            "shared_graph_interaction_diagnostics",
+            build_interaction_trace(shared.get("commandLog", [])),
+            {},
+            {},
+            {},
+            shared.get("commandLog", []),
+            errors,
+            shared.get("runtimeGraph", {}),
+            shared.get("graphDocument", {}),
+        )
+        return 1
+
+    command_log = shared.get("commandLog", [])
+    interaction_trace = build_interaction_trace(command_log)
+    runtime_graph = shared.get("runtimeGraph", {})
+    runtime_graph["scheduler"] = fixture.get("scheduler", {})
     probe = run_native_probe(repo_root, out_dir, fixture)
     if not probe.get("ok"):
         errors.append({"code": f"native_canvas_interaction.{probe.get('status', 'probe_failed')}", "message": probe.get("message", "native workflow probe failed")})
@@ -61,55 +78,60 @@ def main() -> int:
     hierarchy = build_hierarchy(fixture, probe)
     runtime_frame = build_runtime_frame(fixture, runtime_graph, probe, command_log)
     ok = bool(probe.get("ok")) and not errors
-    publish(out_dir, fixture.get("graphId"), ok, "canvas_interaction_loop_ready" if ok else "probe_failed", interaction_trace, hit_test, hierarchy, runtime_frame, command_log, errors, runtime_graph)
+    publish(
+        out_dir,
+        fixture.get("graphId"),
+        ok,
+        "canvas_interaction_loop_ready" if ok else "probe_failed",
+        interaction_trace,
+        hit_test,
+        hierarchy,
+        runtime_frame,
+        command_log,
+        errors,
+        runtime_graph,
+        shared.get("graphDocument", {}),
+    )
     return 0 if ok else 1
 
 
-def replay_commands(commands: list[dict[str, Any]], source: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    graph = {"nodes": {}, "edges": []}
-    log = []
-    for index, command in enumerate(commands):
-        apply_command(graph, command)
-        log.append({"index": index, "source": source, "command": command})
-    return graph, log
+def run_shared_graph_interaction(repo_root: Path, payload: dict[str, Any], errors: list[dict[str, Any]]) -> dict[str, Any] | None:
+    script = repo_root / "docs/runtime/scripts/graph_interaction_contract.js"
+    run = subprocess.run(
+        ["node", str(script)],
+        input=json.dumps(payload),
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if run.returncode != 0:
+        errors.append({
+            "code": "native_canvas_interaction.shared_graph_interaction_failed",
+            "message": run.stderr or run.stdout,
+        })
+        return None
+    try:
+        return json.loads(run.stdout)
+    except Exception as exc:
+        errors.append({
+            "code": "native_canvas_interaction.shared_graph_interaction_invalid_json",
+            "message": str(exc),
+        })
+        return None
 
 
-def apply_command(editor_graph: dict[str, Any], command: dict[str, Any]) -> None:
-    op = command.get("op")
-    if op == "createNode":
-        editor_graph["nodes"][command["id"]] = {"id": command["id"], "type": command["type"], "params": {}, "position": None}
-        return
-    if op == "setNodePosition":
-        editor_graph["nodes"][command["id"]]["position"] = command["position"]
-        return
-    if op == "setParam":
-        editor_graph["nodes"][command["id"]]["params"][command["param"]] = command["value"]
-        return
-    if op == "connect":
-        editor_graph["edges"].append({"from": command["from"], "to": command["to"]})
-        return
-    raise ValueError(f"unsupported command op: {op}")
-
-
-def build_runtime_graph(fixture: dict[str, Any], editor_graph: dict[str, Any]) -> dict[str, Any]:
-    cook_order = fixture.get("expected", {}).get("runtimeCookOrder") or list(editor_graph["nodes"].keys())
-    return {
-        "kind": "RuntimeGraph",
-        "graphId": fixture.get("graphId"),
-        "cookOrder": cook_order,
-        "nodes": [
-            {
-                "id": node_id,
-                "type": editor_graph["nodes"][node_id]["type"],
-                "params": editor_graph["nodes"][node_id].get("params", {}),
-                "position": editor_graph["nodes"][node_id].get("position"),
-                "domain": "frame",
-            }
-            for node_id in cook_order
-        ],
-        "edges": editor_graph["edges"],
-        "scheduler": fixture.get("scheduler", {}),
-    }
+def build_interaction_trace(command_log: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "source": entry.get("source"),
+            "mutationPath": "GraphStateInteractionCommands",
+            "command": entry.get("command"),
+            "expandedCommandTypes": entry.get("expandedCommandTypes", []),
+        }
+        for entry in command_log
+        if entry.get("source") in ALLOWED_UI_SOURCES
+    ]
 
 
 def run_native_probe(repo_root: Path, out_dir: Path, fixture: dict[str, Any]) -> dict[str, Any]:
@@ -204,6 +226,7 @@ def publish(
     command_log: list[dict[str, Any]],
     errors: list[dict[str, Any]],
     runtime_graph: dict[str, Any] | None = None,
+    graph_document: dict[str, Any] | None = None,
 ) -> None:
     ui_sources = [entry.get("source") for entry in command_log if entry.get("source") in ALLOWED_UI_SOURCES]
     result = {
@@ -217,6 +240,7 @@ def publish(
             "inspectorMutationUsesCommandGraph": "ui.inspector" in ui_sources,
             "runtimeFrameLinked": runtime_frame.get("nativeSurfaceReady") is True and bool(runtime_frame.get("cookOrder")),
             "viewLocalGraphTruth": False,
+            "sharedGraphStateInteractionCommands": True,
         },
     }
     write_json(out_dir / RESULT_NAME, result)
@@ -226,6 +250,7 @@ def publish(
     write_json(out_dir / "runtime_frame_artifact.json", runtime_frame)
     write_json(out_dir / "command_log.json", command_log)
     write_json(out_dir / "runtime_graph.json", runtime_graph or {})
+    write_json(out_dir / "graph_document.json", graph_document or {})
     write_json(out_dir / ERRORS_NAME, errors)
 
 
@@ -239,6 +264,7 @@ def clear_previous(out_dir: Path) -> None:
         "runtime_frame_artifact.json",
         "command_log.json",
         "runtime_graph.json",
+        "graph_document.json",
         "native_canvas_interaction_command_loop_probe",
     ]:
         target = out_dir / name
