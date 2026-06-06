@@ -7,6 +7,9 @@ const test = require("node:test");
 
 const repoRoot = path.resolve(__dirname, "..");
 const scriptPath = path.join(repoRoot, "docs/runtime/scripts/cpp_graph_command_contract_shell.py");
+const {
+  replayInteractionCommands,
+} = require("../docs/runtime/scripts/graph_interaction_contract.js");
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -20,6 +23,66 @@ function runFixture(fixtureName) {
     encoding: "utf8"
   });
   return { run, tmpDir };
+}
+
+function replayJsFixture(fixtureName) {
+  const fixture = readJson(path.join(repoRoot, "docs/runtime/fixtures", fixtureName));
+  return { fixture, replay: replayInteractionCommands(fixture) };
+}
+
+function sortedById(items) {
+  return [...items].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function normalizeNodes(document) {
+  return sortedById(document.nodes).map((node) => ({
+    id: node.id,
+    type: node.type,
+    position: node.position,
+  }));
+}
+
+function normalizeEdgeEndpoints(document) {
+  return [...document.edges]
+    .map((edge) => ({ from: edge.from, to: edge.to }))
+    .sort((a, b) => {
+      const left = `${a.from.nodeId}.${a.from.port}->${a.to.nodeId}.${a.to.port}`;
+      const right = `${b.from.nodeId}.${b.from.port}->${b.to.nodeId}.${b.to.port}`;
+      return left.localeCompare(right);
+    });
+}
+
+function diagnosticCodes(diagnostics) {
+  return diagnostics.map((diagnostic) => diagnostic.code).sort();
+}
+
+function nodeById(document, nodeId) {
+  const node = document.nodes.find((candidate) => candidate.id === nodeId);
+  assert.ok(node, `missing node ${nodeId}`);
+  return node;
+}
+
+function assertCppPersistedParamsMatchJsReference({ fixture, jsDocument, cppDocument }) {
+  for (const cppNode of cppDocument.nodes) {
+    const jsNode = nodeById(jsDocument, cppNode.id);
+    for (const [param, value] of Object.entries(cppNode.params || {})) {
+      assert.deepEqual(value, jsNode.params[param], `param ${cppNode.id}.${param} differs from JS reference`);
+    }
+  }
+
+  // C++ has not promoted the full JS NODE_SPECS default surface yet. Until that
+  // lands, Task 7 binds the product-bearing params C++ persists plus every
+  // explicit SetParameter command in the fixture to the JS reference values.
+  for (const entry of fixture.commands) {
+    const command = entry.command;
+    if (command.type !== "SetParameter") {
+      continue;
+    }
+    const jsNode = nodeById(jsDocument, command.nodeId);
+    const cppNode = nodeById(cppDocument, command.nodeId);
+    assert.deepEqual(cppNode.params[command.param], jsNode.params[command.param]);
+    assert.deepEqual(cppNode.params[command.param], command.value);
+  }
 }
 
 function assertNoUnsafeUiState(value, unsafeKeys, pathLabel = "$") {
@@ -56,6 +119,32 @@ test("C++ graph command contract creates connects edits validates and builds run
   assert.equal(document.edges[0].from.nodeId, "sphere_sdf_1");
   assert.equal(document.edges[0].to.nodeId, "raymarch_field_1");
   assert.deepEqual(runtimeGraph.cookOrder, ["sphere_sdf_1", "raymarch_field_1"]);
+});
+
+test("valid graph command fixture matches JS reference contract on graph and runtime semantics", () => {
+  const fixtureName = "cpp_graph_command_contract.graph.json";
+  const { fixture, replay: jsReference } = replayJsFixture(fixtureName);
+  const { run, tmpDir } = runFixture(fixtureName);
+  assert.equal(run.status, 0, run.stderr || run.stdout);
+
+  const cppResult = readJson(path.join(tmpDir, "cpp_graph_command_contract_result.json"));
+  const cppDocument = readJson(path.join(tmpDir, "graph_document.json"));
+  const cppRuntimeGraph = readJson(path.join(tmpDir, "runtime_graph.json"));
+  const cppDiagnostics = readJson(path.join(tmpDir, "diagnostics.json"));
+
+  assert.deepEqual(normalizeNodes(cppDocument), normalizeNodes(jsReference.graphDocument));
+  assertCppPersistedParamsMatchJsReference({
+    fixture,
+    jsDocument: jsReference.graphDocument,
+    cppDocument,
+  });
+  assert.deepEqual(normalizeEdgeEndpoints(cppDocument), normalizeEdgeEndpoints(jsReference.graphDocument));
+  assert.deepEqual(diagnosticCodes(cppDiagnostics), diagnosticCodes(jsReference.diagnostics));
+  assert.equal(cppResult.claims.runtimeDirty, jsReference.state.runtimeDirty);
+  assert.deepEqual(cppRuntimeGraph.cookOrder, jsReference.runtimeGraph.cookOrder);
+
+  assertNoUnsafeUiState(jsReference.graphDocument, new Set(["selectedNodeIds", "cableDrag"]));
+  assertNoUnsafeUiState(cppDocument, new Set(["selectedNodeIds", "cableDrag"]));
 });
 
 test("C++ graph command contract rejects invalid cable type without creating edge", () => {
