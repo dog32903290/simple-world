@@ -2,7 +2,6 @@
 
 #include "GraphDocument.hpp"
 
-#include <optional>
 #include <string>
 #include <variant>
 

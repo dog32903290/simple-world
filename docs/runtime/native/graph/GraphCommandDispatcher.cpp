@@ -12,6 +12,13 @@ std::string makeEdgeId(const PortRef& from, const PortRef& to) {
     return from.nodeId + "." + from.port + "->" + to.nodeId + "." + to.port;
 }
 
+bool hasSameEndpoints(const Edge& edge, const PortRef& from, const PortRef& to) {
+    return edge.from.nodeId == from.nodeId
+        && edge.from.port == from.port
+        && edge.to.nodeId == to.nodeId
+        && edge.to.port == to.port;
+}
+
 bool removeAttachedEdges(GraphState& state, const std::set<std::string>& removedNodeIds) {
     const auto before = state.edges.size();
     state.edges.erase(
@@ -71,7 +78,7 @@ DispatchResult dispatchGraphCommand(
                 return;
             }
 
-            if (typedCommand.mode == "replace") {
+            if (typedCommand.mode != "add") {
                 next.selectedNodeIds.clear();
             }
             next.selectedNodeIds.insert(typedCommand.nodeId);
@@ -84,8 +91,23 @@ DispatchResult dispatchGraphCommand(
 
             node->position = typedCommand.position;
         } else if constexpr (std::is_same_v<CommandType, BeginCableDragCommand>) {
+            const auto* node = findNode(next, typedCommand.from.nodeId);
+            if (node == nullptr || !registry.findOutput(node->type, typedCommand.from.port).has_value()) {
+                diagnostics.push_back({ "graph.port.missing", "Cable source output port does not exist." });
+                return;
+            }
+
             next.cableDrag = CableDragState{ typedCommand.from, std::nullopt };
         } else if constexpr (std::is_same_v<CommandType, HoverPortCommand>) {
+            const auto* node = findNode(next, typedCommand.port.nodeId);
+            const bool hasPort = node != nullptr
+                && (registry.findInput(node->type, typedCommand.port.port).has_value()
+                    || registry.findOutput(node->type, typedCommand.port.port).has_value());
+            if (!hasPort) {
+                diagnostics.push_back({ "graph.port.missing", "Hovered port does not exist." });
+                return;
+            }
+
             if (next.cableDrag.has_value()) {
                 next.cableDrag->hover = typedCommand.port;
             }
@@ -119,6 +141,14 @@ DispatchResult dispatchGraphCommand(
                 return;
             }
 
+            const bool duplicate = std::any_of(next.edges.begin(), next.edges.end(), [&](const Edge& edge) {
+                return hasSameEndpoints(edge, from, to);
+            });
+            if (duplicate) {
+                next.cableDrag.reset();
+                return;
+            }
+
             next.edges.push_back(Edge{ makeEdgeId(from, to), from, to, fromPort->type });
             next.cableDrag.reset();
             next.runtimeDirty = true;
@@ -138,6 +168,7 @@ DispatchResult dispatchGraphCommand(
             const bool removedEdge = removeAttachedEdges(next, removedNodeIds);
 
             next.selectedNodeIds.clear();
+            next.cableDrag.reset();
             if (removedNode || removedEdge) {
                 next.runtimeDirty = true;
             }
