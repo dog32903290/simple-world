@@ -668,14 +668,13 @@ Create `docs/runtime/native/nodes/NodeSpec.hpp`:
 ```cpp
 #pragma once
 
+#include "../graph/GraphDocument.hpp"
+
 #include <map>
 #include <string>
-#include <variant>
 #include <vector>
 
 namespace simple_world::nodes {
-
-using DefaultValue = std::variant<double, bool, std::string>;
 
 struct PortSpec {
     std::string id;
@@ -686,7 +685,7 @@ struct PortSpec {
 struct ParamSpec {
     std::string id;
     std::string type;
-    DefaultValue defaultValue;
+    simple_world::graph::ParamValue defaultValue;
     std::string owner = "NodeInstance";
     std::string affects = "runtime";
     bool saved = true;
