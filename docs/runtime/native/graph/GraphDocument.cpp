@@ -10,6 +10,7 @@ GraphState createInitialGraphState(const std::string& graphId) {
 
 GraphDocument serializeGraphDocument(const GraphState& state) {
     GraphDocument document;
+    document.version = state.version;
     document.graphId = state.graphId;
     document.nodes = state.nodes;
     document.edges = state.edges;
@@ -18,12 +19,13 @@ GraphDocument serializeGraphDocument(const GraphState& state) {
 
 GraphState deserializeGraphDocument(const GraphDocument& document) {
     GraphState state;
+    state.version = document.version;
     state.graphId = document.graphId;
     state.nodes = document.nodes;
     state.edges = document.edges;
     state.selectedNodeIds.clear();
     state.cableDrag.reset();
-    state.runtimeDirty = false;
+    state.runtimeDirty = true;
     return state;
 }
 

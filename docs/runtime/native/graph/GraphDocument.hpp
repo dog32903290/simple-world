@@ -9,7 +9,9 @@
 
 namespace simple_world::graph {
 
-using ParamValue = std::variant<double, bool, std::string>;
+using NumericArray = std::vector<double>;
+using NumericObject = std::map<std::string, double>;
+using ParamValue = std::variant<double, bool, std::string, NumericArray, NumericObject>;
 
 struct Position {
     double x = 0.0;
@@ -41,6 +43,8 @@ struct CableDragState {
 };
 
 struct GraphState {
+    std::string kind = "GraphState";
+    std::string version = "0.1";
     std::string graphId = "graph.interaction";
     std::vector<NodeInstance> nodes;
     std::vector<Edge> edges;
@@ -50,6 +54,8 @@ struct GraphState {
 };
 
 struct GraphDocument {
+    std::string kind = "GraphDocument";
+    std::string version = "0.1";
     std::string graphId = "graph.interaction";
     std::vector<NodeInstance> nodes;
     std::vector<Edge> edges;
