@@ -74,21 +74,22 @@ are `my.field.combine.combineSdf`, `my.field.generate.sdf.sphereSdf`,
 does not mean every node is promoted to native runtime; full manifests remain
 the promotion gate for runtime and high-risk nodes.
 
-`graph_interaction_contract` is closed for the first pure UI-to-runtime
-interaction layer. `docs/runtime/scripts/graph_interaction_contract.js` exposes
+`graph_interaction_contract` is closed as the first pure UI-to-runtime
+reference proof. `docs/runtime/scripts/graph_interaction_contract.js` exposes
 pure `GraphState` commands for CreateNode, SelectNode, MoveNode,
 BeginCableDrag, HoverPort, CommitCableDrag, CancelCableDrag, DeleteSelection,
-and SetParameter. `tests/graph_interaction_contract.test.js` proves a headless
-SphereSDF -> RaymarchField flow, invalid cable diagnostics, attached-edge
-deletion, parameter dirtying, safe save/reload, cable cancel, and layout-only
-move behavior. This is not polished UI; UI remains only a view that dispatches
-commands, and runtime consumes GraphState/GraphDocument.
+and SetParameter, and `tests/graph_interaction_contract.test.js` proves the
+headless interaction laws. Product graph mutation is now migrating to C++;
+JavaScript remains valid for tests, generators, proof inspection, and legacy
+fixture replay during migration, but not as the final native graph truth. This
+is not polished UI; UI remains only a view that dispatches commands, and
+runtime consumes GraphState/GraphDocument.
 
-`native_canvas_interaction_command_loop` now consumes the shared
-`graph_interaction_contract.js` command spine instead of replaying a local
-proof-only command model. Its artifacts include `graph_document.json`,
-shared-command `command_log.json`, and a runtime graph built from the exported
-GraphDocument.
+`native_canvas_interaction_command_loop` now consumes the C++
+`cpp_graph_command_contract_shell.py` command dispatcher instead of replaying a
+JavaScript product command path or a local proof-only command model. Its
+artifacts include `graph_document.json`, C++ command `command_log.json`, and a
+runtime graph built from the exported GraphDocument.
 
 `product_runtime_completion` is now closed for the bounded full product/runtime
 body. It started from the current `full_runtime_architecture` closure evidence
