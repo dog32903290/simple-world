@@ -12,6 +12,13 @@ __pycache__/
 # Donor source trees and downloaded SDK/installers stay local.
 /external/
 
+# Vendored metal-cpp + imgui donor trees and CMake build output stay local.
+/app/third_party/
+/app/build/
+
+# Agent-verification output (eye/ears/hands captures) — products, not source.
+/app/.eye/
+
 # Local virtual environments and dependency caches.
 venv/
 .venv/
