@@ -22,6 +22,10 @@
 //   double <x> <y>            double click
 //   drag   <x0> <y0> <x1> <y1>  press at start, interpolate, release at end
 //   scroll <x> <y> <dx> <dy>  wheel at position
+//   key    <name>             press+release a key (e.g. backspace, delete, z, enter)
+//   keychord <mods> <name>    hold mods, press+release key, release mods.
+//                             mods joined by '+': cmd/super, ctrl, shift, alt.
+//                             e.g. "keychord cmd z" (undo), "keychord cmd+shift z" (redo)
 // A click/drag spans multiple frames (ImGui needs down and up on separate
 // frames), so commands are expanded into per-frame steps and consumed one per
 // frame. After issuing a command, give the app a few frames before reading back.

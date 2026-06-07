@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "imgui.h"
 
@@ -27,11 +28,50 @@ struct Step {
   bool btnDown = false;
   bool setWheel = false;
   float wx = 0, wy = 0;
+  bool setKey = false;
+  int key = 0;          // ImGuiKey value
+  bool keyDown = false;
 };
 
 std::deque<Step> g_pending;
 
 std::string cmdPath() { return std::string(SW_EYE_DIR) + "/hand"; }
+
+// Key-name -> ImGuiKey. Single letters a-z / A-Z and digits 0-9 map directly;
+// a handful of named keys cover what the agent needs to drive editing.
+ImGuiKey keyFromName(const std::string& n) {
+  if (n.size() == 1) {
+    char c = n[0];
+    if (c >= 'a' && c <= 'z') return (ImGuiKey)(ImGuiKey_A + (c - 'a'));
+    if (c >= 'A' && c <= 'Z') return (ImGuiKey)(ImGuiKey_A + (c - 'A'));
+    if (c >= '0' && c <= '9') return (ImGuiKey)(ImGuiKey_0 + (c - '0'));
+  }
+  if (n == "backspace") return ImGuiKey_Backspace;
+  if (n == "delete" || n == "del") return ImGuiKey_Delete;
+  if (n == "enter" || n == "return") return ImGuiKey_Enter;
+  if (n == "escape" || n == "esc") return ImGuiKey_Escape;
+  if (n == "tab") return ImGuiKey_Tab;
+  if (n == "space") return ImGuiKey_Space;
+  if (n == "left") return ImGuiKey_LeftArrow;
+  if (n == "right") return ImGuiKey_RightArrow;
+  if (n == "up") return ImGuiKey_UpArrow;
+  if (n == "down") return ImGuiKey_DownArrow;
+  return ImGuiKey_None;
+}
+
+// Modifier-name -> ImGuiMod_*. AddKeyEvent on these updates io.KeyCtrl/Super/...
+ImGuiKey modFromName(const std::string& n) {
+  if (n == "cmd" || n == "super" || n == "win" || n == "meta") return ImGuiMod_Super;
+  if (n == "ctrl" || n == "control") return ImGuiMod_Ctrl;
+  if (n == "shift") return ImGuiMod_Shift;
+  if (n == "alt" || n == "option" || n == "opt") return ImGuiMod_Alt;
+  return ImGuiKey_None;
+}
+
+void enqueueKeyStep(ImGuiKey k, bool down) {
+  Step s; s.setKey = true; s.key = (int)k; s.keyDown = down;
+  g_pending.push_back(s);
+}
 
 // Press+release at (x,y): frame 1 positions cursor AND presses (ImGui sees it
 // hovered+held that frame), frame 2 releases -> the click registers.
@@ -87,6 +127,29 @@ void parseLine(const std::string& line) {
       g_pending.push_back(pos);
       g_pending.push_back(wheel);
     }
+  } else if (op == "key") {
+    std::string name;
+    if (is >> name) {
+      ImGuiKey k = keyFromName(name);
+      if (k != ImGuiKey_None) { enqueueKeyStep(k, true); enqueueKeyStep(k, false); }
+    }
+  } else if (op == "keychord") {
+    std::string mods, name;
+    if (is >> mods >> name) {
+      ImGuiKey k = keyFromName(name);
+      if (k == ImGuiKey_None) return;
+      std::vector<ImGuiKey> mk;
+      std::stringstream ms(mods);
+      std::string tok;
+      while (std::getline(ms, tok, '+')) {
+        ImGuiKey m = modFromName(tok);
+        if (m != ImGuiKey_None) mk.push_back(m);
+      }
+      for (ImGuiKey m : mk) enqueueKeyStep(m, true);          // mods down
+      enqueueKeyStep(k, true);                                // key down (key registers here)
+      enqueueKeyStep(k, false);                               // key up
+      for (auto it = mk.rbegin(); it != mk.rend(); ++it) enqueueKeyStep(*it, false);  // mods up
+    }
   }
 }
 
@@ -114,6 +177,7 @@ void applyPendingStep() {
   if (s.setPos) io.AddMousePosEvent(s.x, s.y);
   if (s.setBtn) io.AddMouseButtonEvent(s.btn, s.btnDown);
   if (s.setWheel) io.AddMouseWheelEvent(s.wx, s.wy);
+  if (s.setKey) io.AddKeyEvent((ImGuiKey)s.key, s.keyDown);
 }
 
 int runSelfTest(bool injectBug) {
@@ -127,6 +191,7 @@ int runSelfTest(bool injectBug) {
   io.Fonts->GetTexDataAsRGBA32(&pixels, &tw, &th);  // build atlas so NewFrame won't assert
   io.Fonts->SetTexID((ImTextureID)1);
 
+  // --- mouse: click press-then-release ---
   g_pending.clear();
   if (!injectBug) parseLine("click 123 77");  // bug case: enqueue nothing -> hand does nothing
 
@@ -142,8 +207,24 @@ int runSelfTest(bool injectBug) {
   bool upOk = !io.MouseDown[0];
   ImGui::EndFrame();
 
-  bool pass = downOk && upOk;
-  printf("[selftest-hand] down=%d up=%d -> %s\n", (int)downOk, (int)upOk, pass ? "PASS" : "FAIL");
+  // --- keyboard: Cmd+Z chord; assert the modifier is held on the frame Z presses.
+  // ConfigMacOSXBehaviors (default on __APPLE__) swaps Cmd->Ctrl inside
+  // AddKeyEvent, so injecting "cmd" lands in io.KeyCtrl (imgui's cross-platform
+  // convention: ImGuiMod_Ctrl == Cmd on Mac). The real app must therefore detect
+  // Cmd+Z via Shortcut(ImGuiMod_Ctrl | ImGuiKey_Z), NOT io.KeySuper.
+  g_pending.clear();
+  if (!injectBug) parseLine("keychord cmd z");
+  bool chordOk = false;
+  while (!g_pending.empty()) {
+    applyPendingStep();
+    ImGui::NewFrame();
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) chordOk = true;
+    ImGui::EndFrame();
+  }
+
+  bool pass = downOk && upOk && chordOk;
+  printf("[selftest-hand] down=%d up=%d chord=%d -> %s\n", (int)downOk, (int)upOk, (int)chordOk,
+         pass ? "PASS" : "FAIL");
   ImGui::DestroyContext();
   return pass ? 0 : 1;
 }
