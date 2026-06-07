@@ -602,6 +602,8 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
   _pWindow->setContentView(_pMtkView);
   _pWindow->setTitle(NS::String::string("simple_world — step 0", NS::StringEncoding::UTF8StringEncoding));
   g_window = _pWindow;  // expose to updateWindowTitle()
+  sw::installCloseGuard(static_cast<void*>(g_window),
+                        []() -> bool { return confirmDiscardIfDirty(); });  // red-button guard
 
   // ---- Dear ImGui setup (OSX backend needs view.window, so init after setContentView) ----
   IMGUI_CHECKVERSION();

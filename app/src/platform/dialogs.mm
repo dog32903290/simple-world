@@ -3,7 +3,29 @@
 #import <AppKit/AppKit.h>
 #include "platform/dialogs.h"
 
+// Window-close guard: metal-cpp exposes no NSWindowDelegate, so we bridge one
+// here. The C++ side passes a function pointer; windowShouldClose: runs it and
+// vetoes the close (returns NO) when it returns false.
+static bool (*s_shouldClose)() = nullptr;
+
+@interface SWWindowDelegate : NSObject <NSWindowDelegate>
+@end
+@implementation SWWindowDelegate
+- (BOOL)windowShouldClose:(id)sender {
+  (void)sender;
+  return (s_shouldClose && !s_shouldClose()) ? NO : YES;
+}
+@end
+
 namespace sw {
+
+void installCloseGuard(void* nsWindow, bool (*shouldClose)()) {
+  s_shouldClose = shouldClose;
+  static SWWindowDelegate* delegate = nil;
+  if (!delegate) delegate = [[SWWindowDelegate alloc] init];  // retained for app lifetime
+  [(NSWindow*)nsWindow setDelegate:delegate];
+}
+
 
 UnsavedChoice askUnsaved() {
   NSAlert* alert = [[NSAlert alloc] init];
