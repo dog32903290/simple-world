@@ -63,13 +63,13 @@ add_custom_target(sw_shaders DEPENDS ${SW_METALLIB})
 # eye.mm (ObjC++): PNG encode + AppKit window geometry for the agent's eye.
 # Manual ref-counting alongside metal-cpp pointers -> compile WITHOUT ARC, like
 # the imgui backends.
-set_source_files_properties(src/eye/eye.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
+set_source_files_properties(src/verify/eye/eye.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 set_source_files_properties(src/platform/dialogs.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 
 add_executable(simple_world
   src/main.cpp
   src/metal_impl.cpp
-  src/eye/eye.mm
+  src/verify/eye/eye.mm
   src/platform/dialogs.mm
   src/runtime/particle_system.cpp
   src/runtime/graph.cpp

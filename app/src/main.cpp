@@ -25,7 +25,7 @@
 #include "imgui_node_editor.h"
 #include <nfd.hpp>
 
-#include "eye/eye.h"
+#include "verify/eye/eye.h"
 #include "platform/dialogs.h"
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
