@@ -26,6 +26,7 @@
 #include <nfd.hpp>
 
 #include "eye/eye.h"
+#include "platform/dialogs.h"
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
 #include "runtime/particle_system.h"
@@ -115,6 +116,14 @@ int g_selectedNode = 0;     // node-editor id of the selected node, 0 = none
 bool g_relayout = true;     // push graph positions to the editor (initial / add / load)
 std::string g_status = "ready";
 
+// Document state for save/load. g_documentPath empty == never-saved (Untitled).
+// g_savedSnapshot is toJson() at the last successful save/open/new; comparing it
+// to the live graph yields the dirty flag (see isDirty()).
+std::string g_documentPath;
+std::string g_savedSnapshot;
+NS::Window* g_window = nullptr;  // set in applicationDidFinishLaunching, for title updates
+std::string g_lastTitle;         // cache so we only setTitle when it actually changes
+
 // pin id <-> (node id, port index) — see sw::pinId().
 int pinNodeId(int pin) { return (pin - 1) / 100; }
 int pinPortIndex(int pin) { return (pin - 1) % 100; }
@@ -127,32 +136,90 @@ bool pinIsInput(int pin) {
   return idx >= 0 && idx < (int)s->ports.size() && s->ports[idx].isInput;
 }
 
-std::string projectPath() {
-  const char* home = std::getenv("HOME");
-  return std::string(home ? home : ".") + "/Desktop/simple_world_project.json";
-}
+bool isDirty() { return sw::toJson(g_graph) != g_savedSnapshot; }
 
-void saveProject() {
-  std::string path = projectPath();
-  std::ofstream f(path);
-  if (!f) { g_status = "SAVE FAILED: " + path; return; }
-  f << sw::toJson(g_graph);
-  g_status = "saved -> " + path;
-}
+// Forward decl: doSave is used by confirmDiscardIfDirty before it is defined.
+bool doSave();
 
-void loadProject() {
-  std::string path = projectPath();
-  std::ifstream f(path);
-  if (!f) { g_status = "LOAD FAILED (no file): " + path; return; }
-  std::string json((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-  sw::Graph g;
-  if (sw::fromJson(json, g)) {
-    g_graph = g;
-    g_relayout = true;
-    g_status = "loaded <- " + path;
-  } else {
-    g_status = "LOAD FAILED (bad json)";
+// Returns false only when the user explicitly cancels (so callers abort).
+bool confirmDiscardIfDirty() {
+  if (!isDirty()) return true;
+  switch (sw::askUnsaved()) {
+    case sw::UnsavedChoice::Save:     return doSave();   // false if Save As canceled
+    case sw::UnsavedChoice::DontSave: return true;
+    case sw::UnsavedChoice::Cancel:   return false;
   }
+  return false;
+}
+
+// Always prompts for a location. Returns true if a file was written.
+bool doSaveAs() {
+  NFD::Guard nfdGuard;
+  NFD::UniquePath outPath;
+  nfdfilteritem_t filters[1] = {{"simple_world project", "swproj"}};
+  nfdresult_t r = NFD::SaveDialog(outPath, filters, 1, nullptr, "untitled.swproj");
+  if (r != NFD_OKAY) return false;  // cancel or error
+  std::string path = outPath.get();
+  if (path.size() < 7 || path.substr(path.size() - 7) != ".swproj") path += ".swproj";
+  std::string json = sw::toJson(g_graph);
+  if (!sw::saveGraphToFile(path, g_graph)) { sw::showError("無法寫入：" + path); return false; }
+  g_documentPath = path;
+  g_savedSnapshot = json;
+  g_status = "saved -> " + path;
+  return true;
+}
+
+// Overwrites the current document; falls back to Save As when never saved.
+bool doSave() {
+  if (g_documentPath.empty()) return doSaveAs();
+  std::string json = sw::toJson(g_graph);
+  if (!sw::saveGraphToFile(g_documentPath, g_graph)) {
+    sw::showError("無法寫入：" + g_documentPath);
+    return false;
+  }
+  g_savedSnapshot = json;
+  g_status = "saved -> " + g_documentPath;
+  return true;
+}
+
+void doOpen() {
+  if (!confirmDiscardIfDirty()) return;
+  NFD::Guard nfdGuard;
+  NFD::UniquePath outPath;
+  nfdfilteritem_t filters[1] = {{"simple_world project", "swproj"}};
+  nfdresult_t r = NFD::OpenDialog(outPath, filters, 1, nullptr);
+  if (r != NFD_OKAY) return;
+  std::string path = outPath.get();
+  sw::Graph loaded;  // load into a temp graph; only swap in on success
+  if (!sw::loadGraphFromFile(path, loaded)) {
+    sw::showError("無法讀取此專案檔：" + path);
+    return;
+  }
+  g_graph = loaded;
+  g_documentPath = path;
+  g_savedSnapshot = sw::toJson(g_graph);
+  g_relayout = true;
+  g_status = "loaded <- " + path;
+}
+
+void doNew() {
+  if (!confirmDiscardIfDirty()) return;
+  g_graph = sw::defaultParticleGraph();
+  g_documentPath.clear();
+  g_savedSnapshot = sw::toJson(g_graph);
+  g_relayout = true;
+  g_status = "new project";
+}
+
+void updateWindowTitle() {
+  if (!g_window) return;
+  std::string name = g_documentPath.empty()
+      ? std::string("Untitled")
+      : g_documentPath.substr(g_documentPath.find_last_of('/') + 1);
+  std::string title = (isDirty() ? "• " : "") + name + " — simple_world";
+  if (title == g_lastTitle) return;
+  g_lastTitle = title;
+  g_window->setTitle(NS::String::string(title.c_str(), NS::StringEncoding::UTF8StringEncoding));
 }
 
 void addNode(const std::string& type) {
@@ -174,21 +241,17 @@ void drawToolbar() {
                           ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(440.0f, 0.0f), ImGuiCond_FirstUseEver);
   ImGui::Begin("Toolbar");
-  if (ImGui::Button("Save")) saveProject();
-  sw::eye::recordItem("Save");  // eye③: hand off this widget's screen rect
+  if (ImGui::Button("New")) doNew();
+  sw::eye::recordItem("New");  // eye③: hand off this widget's screen rect
   ImGui::SameLine();
-  if (ImGui::Button("Load")) loadProject();
-  sw::eye::recordItem("Load");
+  if (ImGui::Button("Open")) doOpen();
+  sw::eye::recordItem("Open");
   ImGui::SameLine();
-  if (ImGui::Button("Test Dialog")) {
-    NFD::Guard nfdGuard;
-    NFD::UniquePath outPath;
-    nfdfilteritem_t filters[1] = {{"simple_world project", "swproj"}};
-    nfdresult_t r = NFD::SaveDialog(outPath, filters, 1, nullptr, "untitled.swproj");
-    g_status = (r == NFD_OKAY) ? std::string("dialog -> ") + outPath.get()
-             : (r == NFD_CANCEL) ? "dialog canceled" : "dialog ERROR";
-  }
-  sw::eye::recordItem("Test Dialog");
+  if (ImGui::Button("Save")) doSave();
+  sw::eye::recordItem("Save");
+  ImGui::SameLine();
+  if (ImGui::Button("Save As")) doSaveAs();
+  sw::eye::recordItem("Save As");
   ImGui::SameLine();
   if (ImGui::Button("Add Node")) ImGui::OpenPopup("add_node_popup");
   sw::eye::recordItem("Add Node");
@@ -452,7 +515,8 @@ NS::Menu* AppDelegate::createMenuBar() {
   // NS::String that UBSan (correctly) flags. Use a fixed product name instead.
   NS::String* quitItemName = NS::String::string("Quit simple_world", UTF8StringEncoding);
   SEL quitCb = NS::MenuItem::registerActionCallback("appQuit", [](void*, SEL, const NS::Object* pSender) {
-    NS::Application::sharedApplication()->terminate(pSender);
+    if (confirmDiscardIfDirty())
+      NS::Application::sharedApplication()->terminate(pSender);
   });
 
   NS::MenuItem* pAppQuitItem = pAppMenu->addItem(quitItemName, quitCb, NS::String::string("q", UTF8StringEncoding));
@@ -462,7 +526,8 @@ NS::Menu* AppDelegate::createMenuBar() {
   NS::MenuItem* pWindowMenuItem = NS::MenuItem::alloc()->init();
   NS::Menu* pWindowMenu = NS::Menu::alloc()->init(NS::String::string("Window", UTF8StringEncoding));
   SEL closeWindowCb = NS::MenuItem::registerActionCallback("windowClose", [](void*, SEL, const NS::Object*) {
-    NS::Application::sharedApplication()->windows()->object<NS::Window>(0)->close();
+    if (confirmDiscardIfDirty())
+      NS::Application::sharedApplication()->windows()->object<NS::Window>(0)->close();
   });
   NS::MenuItem* pCloseWindowItem =
       pWindowMenu->addItem(NS::String::string("Close Window", UTF8StringEncoding), closeWindowCb,
@@ -470,12 +535,41 @@ NS::Menu* AppDelegate::createMenuBar() {
   pCloseWindowItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
   pWindowMenuItem->setSubmenu(pWindowMenu);
 
+  // ---- File menu: New / Open / Save / Save As, with standard shortcuts ----
+  NS::MenuItem* pFileMenuItem = NS::MenuItem::alloc()->init();
+  NS::Menu* pFileMenu = NS::Menu::alloc()->init(NS::String::string("File", UTF8StringEncoding));
+
+  SEL newCb = NS::MenuItem::registerActionCallback("fileNew", [](void*, SEL, const NS::Object*) { doNew(); });
+  NS::MenuItem* pNewItem = pFileMenu->addItem(NS::String::string("New", UTF8StringEncoding), newCb,
+                                              NS::String::string("n", UTF8StringEncoding));
+  pNewItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
+
+  SEL openCb = NS::MenuItem::registerActionCallback("fileOpen", [](void*, SEL, const NS::Object*) { doOpen(); });
+  NS::MenuItem* pOpenItem = pFileMenu->addItem(NS::String::string("Open…", UTF8StringEncoding), openCb,
+                                               NS::String::string("o", UTF8StringEncoding));
+  pOpenItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
+
+  SEL saveCb = NS::MenuItem::registerActionCallback("fileSave", [](void*, SEL, const NS::Object*) { doSave(); });
+  NS::MenuItem* pSaveItem = pFileMenu->addItem(NS::String::string("Save", UTF8StringEncoding), saveCb,
+                                               NS::String::string("s", UTF8StringEncoding));
+  pSaveItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
+
+  SEL saveAsCb = NS::MenuItem::registerActionCallback("fileSaveAs", [](void*, SEL, const NS::Object*) { doSaveAs(); });
+  NS::MenuItem* pSaveAsItem = pFileMenu->addItem(NS::String::string("Save As…", UTF8StringEncoding), saveAsCb,
+                                                 NS::String::string("s", UTF8StringEncoding));
+  pSaveAsItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand | NS::EventModifierFlagShift);
+
+  pFileMenuItem->setSubmenu(pFileMenu);
+
   pMainMenu->addItem(pAppMenuItem);
+  pMainMenu->addItem(pFileMenuItem);
   pMainMenu->addItem(pWindowMenuItem);
 
   pAppMenuItem->release();
+  pFileMenuItem->release();
   pWindowMenuItem->release();
   pAppMenu->release();
+  pFileMenu->release();
   pWindowMenu->release();
 
   return pMainMenu->autorelease();
@@ -507,6 +601,7 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
 
   _pWindow->setContentView(_pMtkView);
   _pWindow->setTitle(NS::String::string("simple_world — step 0", NS::StringEncoding::UTF8StringEncoding));
+  g_window = _pWindow;  // expose to updateWindowTitle()
 
   // ---- Dear ImGui setup (OSX backend needs view.window, so init after setContentView) ----
   IMGUI_CHECKVERSION();
@@ -519,6 +614,8 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
   ed::Config cfg;
   cfg.SettingsFile = nullptr;  // don't litter NodeEditor.json next to the binary
   g_NodeEditor = ed::CreateEditor(&cfg);
+
+  g_savedSnapshot = sw::toJson(g_graph);  // startup matches default graph -> not dirty
 
   _pWindow->makeKeyAndOrderFront(nullptr);
 
@@ -614,6 +711,7 @@ void Renderer::draw(MTK::View* pView) {
   drawToolbar();     // Save / Load / Add Node (floating)
   drawNodeCanvas();  // main workspace, fills the viewport
   drawInspector();   // floats on top
+  updateWindowTitle();  // filename + dirty star; no-op when unchanged
 
   ImGui::Render();
 
