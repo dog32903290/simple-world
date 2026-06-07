@@ -4,6 +4,7 @@
 
 #include <nfd.hpp>
 
+#include "app/command.h"
 #include "platform/dialogs.h"
 #include "runtime/graph.h"
 
@@ -82,6 +83,7 @@ void doOpen() {
   g_graph = loaded;
   g_documentPath = path;
   g_savedSnapshot = sw::toJson(g_graph);
+  sw::g_commands.clear();
   g_relayout = true;
   g_status = "loaded <- " + path;
 }
@@ -91,6 +93,7 @@ void doNew() {
   g_graph = sw::defaultParticleGraph();
   g_documentPath.clear();
   g_savedSnapshot = sw::toJson(g_graph);
+  sw::g_commands.clear();
   g_relayout = true;
   g_status = "new project";
 }
