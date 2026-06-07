@@ -23,6 +23,7 @@
 #include "imgui_impl_metal.h"
 #include "imgui_impl_osx.h"  // void* overloads via IMGUI_IMPL_METAL_CPP_EXTENSIONS
 #include "imgui_node_editor.h"
+#include <nfd.hpp>
 
 #include "eye/eye.h"
 #include "runtime/dispatch.h"
@@ -178,6 +179,16 @@ void drawToolbar() {
   ImGui::SameLine();
   if (ImGui::Button("Load")) loadProject();
   sw::eye::recordItem("Load");
+  ImGui::SameLine();
+  if (ImGui::Button("Test Dialog")) {
+    NFD::Guard nfdGuard;
+    NFD::UniquePath outPath;
+    nfdfilteritem_t filters[1] = {{"simple_world project", "swproj"}};
+    nfdresult_t r = NFD::SaveDialog(outPath, filters, 1, nullptr, "untitled.swproj");
+    g_status = (r == NFD_OKAY) ? std::string("dialog -> ") + outPath.get()
+             : (r == NFD_CANCEL) ? "dialog canceled" : "dialog ERROR";
+  }
+  sw::eye::recordItem("Test Dialog");
   ImGui::SameLine();
   if (ImGui::Button("Add Node")) ImGui::OpenPopup("add_node_popup");
   sw::eye::recordItem("Add Node");
