@@ -138,6 +138,19 @@ void drawNodeCanvas() {
     ed::EndCreate();
   }
 
+  // macOS: the key labelled "delete" sends Backspace, but the node editor only
+  // listens for forward-Delete (ImGuiKey_Delete). Route Backspace into the
+  // editor's manual-delete queue so the BeginDelete handler below picks it up.
+  if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Backspace) &&
+      !ImGui::GetIO().WantTextInput) {
+    ed::NodeId nodes[128];
+    int nn = ed::GetSelectedNodes(nodes, 128);
+    for (int i = 0; i < nn; ++i) ed::DeleteNode(nodes[i]);
+    ed::LinkId links[128];
+    int nl = ed::GetSelectedLinks(links, 128);
+    for (int i = 0; i < nl; ++i) ed::DeleteLink(links[i]);
+  }
+
   // Delete links / nodes (select + Delete key).
   if (ed::BeginDelete()) {
     ed::LinkId lid;
