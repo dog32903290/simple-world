@@ -130,8 +130,9 @@ bool confirmDiscardIfDirty(); // false = 使用者取消，呼叫端中止
 現有 Save/Load 按鈕（main.cpp:175）**改成呼叫上面同一組函式**，不另寫一份邏輯。
 
 ### 關閉攔截
-- `Cmd+Q` → `applicationShouldTerminate:` 回 `NSTerminateCancel` 直到 `confirmDiscardIfDirty()` 通過
-- 視窗紅燈 → `windowShouldClose:` 同樣先過 `confirmDiscardIfDirty()`
+metal-cpp-extensions 只暴露 `applicationShouldTerminateAfterLastWindowClosed`，**沒有** `applicationShouldTerminate` 或 `NSWindowDelegate`/`windowShouldClose`（已 grep 確認）。所以攔截走現有的 menu callback：
+- **攔得住**：`Cmd+Q` / menu Quit（改 `appQuit` callback：先 `confirmDiscardIfDirty()`，通過才 `terminate`）、`Cmd+W` / menu Close Window（改 `windowClose` callback：先 confirm，通過才 `close`）。
+- **已知缺口**：點視窗左上角紅燈關閉。要在關閉前攔需要 `windowShouldClose`，metal-cpp 未暴露；自己橋接 `NSWindowDelegate` 是獨立的原生工作（與「雙擊開檔」同類），**拆成後續一塊**，本次不做。Cmd+Q 是 Mac 主要退出方式，已涵蓋。
 
 ### 標題列
 render loop 每幀算 `titleBar()`（檔名 + dirty 星號），設給 NSWindow title。圖小，每幀比對成本可忽略。
@@ -151,5 +152,6 @@ render loop 每幀算 `titleBar()`（檔名 + dirty 星號），設給 NSWindow 
 ## 9. 風險與假設（要試壓）
 - **[承重線] Open 先進暫存、驗證成功才換** — 否則手滑選錯檔會清空正在編輯的圖。這是需求2最易被忽略的破點。
 - **[承重線] 關閉攔截用同步 NSAlert** — ImGui modal 是非同步畫的，接不住原生 terminate 流程。
+- **[已知缺口] 紅燈關窗攔不住** — metal-cpp 未暴露 `windowShouldClose`，本次只攔 Cmd+Q / Cmd+W；紅燈攔截拆為後續的 NSWindowDelegate 橋接工作。
 - **[假設] NFDe 在此 metal-cpp app 的 CMake / framework 整合** — 需加 `UniformTypeIdentifiers` framework（AppKit 已連結）。第一步先把 NFDe build 起來、單獨跳一次 Finder 驗證可行，再接流程。
 - **[假設] dirty 用每幀快照比對** — 圖小時成本可忽略；圖變大後再考慮改成 mutation 標記或 hash。
