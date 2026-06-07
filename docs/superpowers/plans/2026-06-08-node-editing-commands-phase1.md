@@ -712,20 +712,22 @@ git commit -m "feat(ui): route add/link/delete/move gestures through command sta
 
 ```cpp
   // Undo / Redo: Cmd+Z / Cmd+Shift+Z (macOS).
-  if (ImGui::IsWindowFocused() && ImGui::GetIO().KeySuper && !ImGui::GetIO().WantTextInput) {
+  // IMPORTANT: imgui's ConfigMacOSXBehaviors (default on __APPLE__) swaps
+  // Cmd->Ctrl inside AddKeyEvent, so a physical Cmd press lands in io.KeyCtrl,
+  // NOT io.KeySuper. Detect Cmd via io.KeyCtrl. (Verified by --selftest-hand.)
+  ImGuiIO& io = ImGui::GetIO();
+  if (ImGui::IsWindowFocused() && io.KeyCtrl && !io.WantTextInput) {
     if (ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
-      if (ImGui::GetIO().KeyShift) sw::g_commands.redo();
-      else                         sw::g_commands.undo();
-      sw::doc::g_status = ImGui::GetIO().KeyShift ? "redo" : "undo";
+      if (io.KeyShift) sw::g_commands.redo();
+      else             sw::g_commands.undo();
+      sw::doc::g_status = io.KeyShift ? "redo" : "undo";
+      sw::doc::g_relayout = true;  // canvas re-seeds node positions from the restored graph
     }
   }
 ```
 
-> `KeySuper` = macOS 的 Cmd 鍵。`IsKeyPressed(..., false)` 第二參 false = 不重複觸發（按一次退一格）。undo/redo 改的是 `g_graph`，下一幀 canvas 會依新圖重畫；節點位置變動需 relayout：在 undo/redo 後設 `sw::doc::g_relayout = true;`（接在上面 if 內，兩個分支共用）：
-
-```cpp
-      sw::doc::g_relayout = true;  // 讓 canvas 依還原後的圖重置節點位置
-```
+> `io.KeyCtrl` = macOS 的 Cmd 鍵（因 ConfigMacOSXBehaviors 的 Cmd↔Ctrl 對調）。`IsKeyPressed(..., false)` 第二參 false = 不重複觸發（按一次退一格）。undo/redo 改的是 `g_graph`，故設 `g_relayout=true` 讓下一幀 canvas 依還原後的圖重置節點位置。
+> 驗收用 hand：`keychord cmd z`（undo）、`keychord cmd+shift z`（redo）。
 
 - [ ] **Step 2: New / Open 清空命令堆**
 
