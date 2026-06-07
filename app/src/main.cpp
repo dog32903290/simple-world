@@ -20,6 +20,7 @@
 #include "imgui_node_editor.h"
 
 #include "app/document.h"
+#include "app/menu.h"
 #include "platform/dialogs.h"
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
@@ -129,8 +130,6 @@ class AppDelegate : public NS::ApplicationDelegate {
  public:
   ~AppDelegate() override;
 
-  NS::Menu* createMenuBar();
-
   void applicationWillFinishLaunching(NS::Notification* pNotification) override;
   void applicationDidFinishLaunching(NS::Notification* pNotification) override;
   bool applicationShouldTerminateAfterLastWindowClosed(NS::Application* pSender) override;
@@ -196,79 +195,8 @@ AppDelegate::~AppDelegate() {
   delete _pViewDelegate;
 }
 
-NS::Menu* AppDelegate::createMenuBar() {
-  using NS::StringEncoding::UTF8StringEncoding;
-
-  NS::Menu* pMainMenu = NS::Menu::alloc()->init();
-  NS::MenuItem* pAppMenuItem = NS::MenuItem::alloc()->init();
-  NS::Menu* pAppMenu = NS::Menu::alloc()->init(NS::String::string("simple_world", UTF8StringEncoding));
-
-  // Don't use localizedName(): an un-bundled CLI binary returns a misaligned/nil
-  // NS::String that UBSan (correctly) flags. Use a fixed product name instead.
-  NS::String* quitItemName = NS::String::string("Quit simple_world", UTF8StringEncoding);
-  SEL quitCb = NS::MenuItem::registerActionCallback("appQuit", [](void*, SEL, const NS::Object* pSender) {
-    if (sw::doc::confirmDiscardIfDirty())
-      NS::Application::sharedApplication()->terminate(pSender);
-  });
-
-  NS::MenuItem* pAppQuitItem = pAppMenu->addItem(quitItemName, quitCb, NS::String::string("q", UTF8StringEncoding));
-  pAppQuitItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
-  pAppMenuItem->setSubmenu(pAppMenu);
-
-  NS::MenuItem* pWindowMenuItem = NS::MenuItem::alloc()->init();
-  NS::Menu* pWindowMenu = NS::Menu::alloc()->init(NS::String::string("Window", UTF8StringEncoding));
-  SEL closeWindowCb = NS::MenuItem::registerActionCallback("windowClose", [](void*, SEL, const NS::Object*) {
-    if (sw::doc::confirmDiscardIfDirty())
-      NS::Application::sharedApplication()->windows()->object<NS::Window>(0)->close();
-  });
-  NS::MenuItem* pCloseWindowItem =
-      pWindowMenu->addItem(NS::String::string("Close Window", UTF8StringEncoding), closeWindowCb,
-                           NS::String::string("w", UTF8StringEncoding));
-  pCloseWindowItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
-  pWindowMenuItem->setSubmenu(pWindowMenu);
-
-  // ---- File menu: New / Open / Save / Save As, with standard shortcuts ----
-  NS::MenuItem* pFileMenuItem = NS::MenuItem::alloc()->init();
-  NS::Menu* pFileMenu = NS::Menu::alloc()->init(NS::String::string("File", UTF8StringEncoding));
-
-  SEL newCb = NS::MenuItem::registerActionCallback("fileNew", [](void*, SEL, const NS::Object*) { sw::doc::doNew(); });
-  NS::MenuItem* pNewItem = pFileMenu->addItem(NS::String::string("New", UTF8StringEncoding), newCb,
-                                              NS::String::string("n", UTF8StringEncoding));
-  pNewItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
-
-  SEL openCb = NS::MenuItem::registerActionCallback("fileOpen", [](void*, SEL, const NS::Object*) { sw::doc::doOpen(); });
-  NS::MenuItem* pOpenItem = pFileMenu->addItem(NS::String::string("Open…", UTF8StringEncoding), openCb,
-                                               NS::String::string("o", UTF8StringEncoding));
-  pOpenItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
-
-  SEL saveCb = NS::MenuItem::registerActionCallback("fileSave", [](void*, SEL, const NS::Object*) { sw::doc::doSave(); });
-  NS::MenuItem* pSaveItem = pFileMenu->addItem(NS::String::string("Save", UTF8StringEncoding), saveCb,
-                                               NS::String::string("s", UTF8StringEncoding));
-  pSaveItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
-
-  SEL saveAsCb = NS::MenuItem::registerActionCallback("fileSaveAs", [](void*, SEL, const NS::Object*) { sw::doc::doSaveAs(); });
-  NS::MenuItem* pSaveAsItem = pFileMenu->addItem(NS::String::string("Save As…", UTF8StringEncoding), saveAsCb,
-                                                 NS::String::string("s", UTF8StringEncoding));
-  pSaveAsItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand | NS::EventModifierFlagShift);
-
-  pFileMenuItem->setSubmenu(pFileMenu);
-
-  pMainMenu->addItem(pAppMenuItem);
-  pMainMenu->addItem(pFileMenuItem);
-  pMainMenu->addItem(pWindowMenuItem);
-
-  pAppMenuItem->release();
-  pFileMenuItem->release();
-  pWindowMenuItem->release();
-  pAppMenu->release();
-  pFileMenu->release();
-  pWindowMenu->release();
-
-  return pMainMenu->autorelease();
-}
-
 void AppDelegate::applicationWillFinishLaunching(NS::Notification* pNotification) {
-  NS::Menu* pMenu = createMenuBar();
+  NS::Menu* pMenu = sw::menu::buildMainMenu();
   NS::Application* pApp = reinterpret_cast<NS::Application*>(pNotification->object());
   pApp->setMainMenu(pMenu);
   pApp->setActivationPolicy(NS::ActivationPolicy::ActivationPolicyRegular);
