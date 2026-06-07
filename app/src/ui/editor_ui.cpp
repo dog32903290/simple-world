@@ -3,11 +3,15 @@
 #include "ui/editor_ui.h"
 
 #include <algorithm>
+#include <map>
 #include <string>
+#include <vector>
 
 #include "imgui.h"
 
+#include "app/command.h"
 #include "app/document.h"
+#include "app/graph_commands.h"
 #include "runtime/graph.h"
 #include "runtime/particle_system.h"
 #include "verify/eye/eye.h"
@@ -35,6 +39,9 @@ bool pinIsInput(int pin) {
   return idx >= 0 && idx < (int)s->ports.size() && s->ports[idx].isInput;
 }
 
+// 拖動暫存：node id -> 拖動開始時的座標。空 == 沒在拖。
+std::map<int, ImVec2> g_dragStart;
+
 void addNode(const std::string& type) {
   sw::Node n;
   n.id = sw::doc::g_graph.nextId++;
@@ -43,7 +50,7 @@ void addNode(const std::string& type) {
   n.y = 120.0f;
   if (const sw::NodeSpec* s = sw::findSpec(type))
     for (const auto& p : s->params) n.params[p.id] = p.def;
-  sw::doc::g_graph.nodes.push_back(n);
+  sw::g_commands.push(std::make_unique<sw::AddNodeCommand>(sw::doc::g_graph, n));
   sw::doc::g_relayout = true;
   sw::doc::g_status = "added " + type;
 }
@@ -128,7 +135,8 @@ void drawNodeCanvas() {
         if (ed::AcceptNewItem()) {
           int from = ia ? pb : pa;  // output pin
           int to = ia ? pa : pb;    // input pin
-          sw::doc::g_graph.connections.push_back({sw::doc::g_graph.nextId++, from, to});
+          sw::Connection c{sw::doc::g_graph.nextId++, from, to};
+          sw::g_commands.push(std::make_unique<sw::AddConnectionCommand>(sw::doc::g_graph, c));
           sw::doc::g_status = "linked";
         }
       } else {
@@ -151,44 +159,98 @@ void drawNodeCanvas() {
     for (int i = 0; i < nl; ++i) ed::DeleteLink(links[i]);
   }
 
-  // Delete links / nodes (select + Delete key).
+  // Undo / Redo: Cmd+Z / Cmd+Shift+Z (macOS).
+  // IMPORTANT: imgui's ConfigMacOSXBehaviors (default on __APPLE__) swaps
+  // Cmd->Ctrl inside AddKeyEvent, so a physical Cmd press lands in io.KeyCtrl,
+  // NOT io.KeySuper. Detect Cmd via io.KeyCtrl. (Verified by --selftest-hand.)
+  {
+    ImGuiIO& io = ImGui::GetIO();
+    if (ImGui::IsWindowFocused() && io.KeyCtrl && !io.WantTextInput) {
+      if (ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
+        if (io.KeyShift) sw::g_commands.redo();
+        else             sw::g_commands.undo();
+        sw::doc::g_status = io.KeyShift ? "redo" : "undo";
+        sw::doc::g_relayout = true;  // canvas re-seeds node positions from the restored graph
+      }
+    }
+  }
+
+  // Delete links / nodes (select + Delete key, or Backspace routed above).
   if (ed::BeginDelete()) {
+    std::vector<int> delLinks, delNodes;
     ed::LinkId lid;
-    while (ed::QueryDeletedLink(&lid)) {
-      if (ed::AcceptDeletedItem()) {
-        int id = (int)lid.Get();
-        auto& cs = sw::doc::g_graph.connections;
-        cs.erase(std::remove_if(cs.begin(), cs.end(),
-                                [id](const sw::Connection& c) { return c.id == id; }),
-                 cs.end());
-      }
-    }
+    while (ed::QueryDeletedLink(&lid))
+      if (ed::AcceptDeletedItem()) delLinks.push_back((int)lid.Get());
     ed::NodeId nid;
-    while (ed::QueryDeletedNode(&nid)) {
-      if (ed::AcceptDeletedItem()) {
-        int id = (int)nid.Get();
-        auto& ns = sw::doc::g_graph.nodes;
-        ns.erase(std::remove_if(ns.begin(), ns.end(), [id](const sw::Node& n) { return n.id == id; }),
-                 ns.end());
-        auto& cs = sw::doc::g_graph.connections;
-        cs.erase(std::remove_if(cs.begin(), cs.end(),
-                                [id](const sw::Connection& c) {
-                                  return pinNodeId(c.fromPin) == id || pinNodeId(c.toPin) == id;
-                                }),
-                 cs.end());
-      }
+    while (ed::QueryDeletedNode(&nid))
+      if (ed::AcceptDeletedItem()) delNodes.push_back((int)nid.Get());
+    ed::EndDelete();
+
+    // 入射於被刪節點的連線交給 DeleteNodesCommand 處理，從 delLinks 去重，
+    // 否則同一條線會被刪兩次（undo 也會重複還原）。
+    auto incidentToDeletedNode = [&](int linkId) {
+      for (const sw::Connection& c : sw::doc::g_graph.connections)
+        if (c.id == linkId) {
+          int fn = (c.fromPin - 1) / 100, tn = (c.toPin - 1) / 100;
+          return std::find(delNodes.begin(), delNodes.end(), fn) != delNodes.end() ||
+                 std::find(delNodes.begin(), delNodes.end(), tn) != delNodes.end();
+        }
+      return false;
+    };
+    std::vector<int> standaloneLinks;
+    for (int id : delLinks)
+      if (!incidentToDeletedNode(id)) standaloneLinks.push_back(id);
+
+    if (!delNodes.empty() || !standaloneLinks.empty()) {
+      auto macro = std::make_unique<sw::MacroCommand>("Delete");
+      if (!standaloneLinks.empty())
+        macro->add(std::make_unique<sw::DeleteConnectionsCommand>(sw::doc::g_graph, standaloneLinks));
+      if (!delNodes.empty())
+        macro->add(std::make_unique<sw::DeleteNodesCommand>(sw::doc::g_graph, delNodes));
+      sw::g_commands.push(std::move(macro));
+      sw::doc::g_status = "deleted";
     }
+  } else {
     ed::EndDelete();
   }
 
-  if (sw::doc::g_relayout) {  // initial / after add / after load: push positions to editor
-    for (const sw::Node& node : sw::doc::g_graph.nodes) ed::SetNodePosition(node.id, ImVec2(node.x, node.y));
+  if (sw::doc::g_relayout) {  // initial / after add / after load
+    for (const sw::Node& node : sw::doc::g_graph.nodes)
+      ed::SetNodePosition(node.id, ImVec2(node.x, node.y));
     sw::doc::g_relayout = false;
-  } else {  // sync editor positions back to graph so Save captures dragging
-    for (sw::Node& node : sw::doc::g_graph.nodes) {
-      ImVec2 p = ed::GetNodePosition(node.id);
-      node.x = p.x;
-      node.y = p.y;
+  } else {
+    bool dragging = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
+    if (dragging) {
+      // 拖動中：記下還沒記過的節點的起始座標，並即時把位置反映到 graph（畫面跟手）。
+      for (sw::Node& node : sw::doc::g_graph.nodes) {
+        ImVec2 p = ed::GetNodePosition(node.id);
+        if (g_dragStart.find(node.id) == g_dragStart.end())
+          g_dragStart[node.id] = ImVec2(node.x, node.y);
+        node.x = p.x;
+        node.y = p.y;
+      }
+    } else if (!g_dragStart.empty()) {
+      // 放手：把真正有位移的節點組成一個 MoveNodesCommand。
+      std::vector<sw::MoveNodesCommand::Move> moves;
+      for (auto& kv : g_dragStart) {
+        ImVec2 now = ed::GetNodePosition(kv.first);
+        if (now.x != kv.second.x || now.y != kv.second.y)
+          moves.push_back({kv.first, kv.second.x, kv.second.y, now.x, now.y});
+      }
+      g_dragStart.clear();
+      if (!moves.empty()) {
+        // 命令的 doIt 會再設一次新座標（冪等），先把 graph 設回舊座標避免雙重記錄混亂。
+        for (auto& m : moves)
+          if (sw::Node* n = sw::doc::g_graph.node(m.id)) { n->x = m.oldX; n->y = m.oldY; }
+        sw::g_commands.push(std::make_unique<sw::MoveNodesCommand>(sw::doc::g_graph, moves));
+      }
+    } else {
+      // 沒拖動：照常把 editor 位置同步回 graph（例如程式性移動）。
+      for (sw::Node& node : sw::doc::g_graph.nodes) {
+        ImVec2 p = ed::GetNodePosition(node.id);
+        node.x = p.x;
+        node.y = p.y;
+      }
     }
   }
 
