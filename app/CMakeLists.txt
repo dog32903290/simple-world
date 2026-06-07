@@ -68,6 +68,8 @@ set_source_files_properties(src/platform/dialogs.mm PROPERTIES COMPILE_OPTIONS -
 
 add_executable(simple_world
   src/main.cpp
+  src/app/document.cpp
+  src/ui/editor_ui.cpp
   src/metal_impl.cpp
   src/verify/eye/eye.mm
   src/platform/dialogs.mm

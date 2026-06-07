@@ -1,19 +1,14 @@
-// simple_world — step 0 shell (Stage A: pure metal-cpp clear screen)
+// simple_world — app entry shell (NSApplication + MTKView + Renderer + menu).
 //
 // Window/clear scaffold adapted from Apple's LearnMetalCpp 00-window
-// (LeeTeng2001/metal-cpp-cmake). Pure C++: NS::Application + MTK::View, no .mm.
-// Stages B/C/D (imgui, imgui-node-editor, --selftest) slot into Renderer::draw.
-#include <algorithm>
-#include <cassert>
+// (LeeTeng2001/metal-cpp-cmake). Pure C++: NS::Application + MTK::View.
+// Per ARCHITECTURE.md this file is the app SHELL only — product behaviour lives
+// in app/document, drawing in ui/editor_ui, verification in verify/.
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
-#include <fstream>
-#include <iterator>
 #include <string>
-#include <vector>
 
 #include <Metal/Metal.hpp>
 #include <AppKit/AppKit.hpp>
@@ -23,13 +18,14 @@
 #include "imgui_impl_metal.h"
 #include "imgui_impl_osx.h"  // void* overloads via IMGUI_IMPL_METAL_CPP_EXTENSIONS
 #include "imgui_node_editor.h"
-#include <nfd.hpp>
 
-#include "verify/eye/eye.h"
+#include "app/document.h"
 #include "platform/dialogs.h"
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
 #include "runtime/particle_system.h"
+#include "ui/editor_ui.h"
+#include "verify/eye/eye.h"
 
 #ifndef SW_SHADER_METALLIB
 #define SW_SHADER_METALLIB "shaders.metallib"
@@ -37,9 +33,18 @@
 
 namespace ed = ax::NodeEditor;
 
+// Owned by Renderer; read by ui/editor_ui (DrawPoints preview). External linkage
+// (not in the anonymous namespace) so editor_ui.cpp can `extern` it.
+sw::ParticleSystem* g_particles = nullptr;
+
 namespace {
 // Editor background. Also the color --selftest will assert against later.
 const MTL::ClearColor kClearColor = MTL::ClearColor::Make(0.12, 0.14, 0.18, 1.0);
+
+// Render-loop state owned by Renderer (internal to this TU).
+MTL::Library* g_shaderLib = nullptr;
+uint32_t g_frameIndex = 0;
+float g_time = 0.0f;
 
 // --selftest: the app's "eye". Offscreen-render the SAME kClearColor into a
 // texture we own, read the center pixel back, and assert it matches. No window,
@@ -94,319 +99,6 @@ int runSelfTest(bool injectBug) {
   dev->release();
   pool->release();
   return pass ? 0 : 1;
-}
-
-// step 0: a single node-editor context with two fake nodes + one fake link,
-// just to prove the canvas is wired to imgui + Metal and is interactive.
-ed::EditorContext* g_NodeEditor = nullptr;
-
-// Live particle slice: cooked each frame into its own target texture, displayed
-// inside the DrawPoints node. The texture is a viewport over real runtime output
-// (ui-skin-pressure-gate:皮 downstream of real data), not fake state.
-sw::ParticleSystem* g_particles = nullptr;
-MTL::Library* g_shaderLib = nullptr;
-uint32_t g_frameIndex = 0;
-float g_time = 0.0f;
-
-// The editorGraph — single source of truth for the canvas (nodes / connections /
-// params). The canvas is DRAWN from it, the Inspector EDITS into it, the runtime
-// is COOKED from it. Save/load roundtrip proven by --selftest-graph.
-sw::Graph g_graph = sw::defaultParticleGraph();
-int g_selectedNode = 0;     // node-editor id of the selected node, 0 = none
-bool g_relayout = true;     // push graph positions to the editor (initial / add / load)
-std::string g_status = "ready";
-
-// Document state for save/load. g_documentPath empty == never-saved (Untitled).
-// g_savedSnapshot is toJson() at the last successful save/open/new; comparing it
-// to the live graph yields the dirty flag (see isDirty()).
-std::string g_documentPath;
-std::string g_savedSnapshot;
-NS::Window* g_window = nullptr;  // set in applicationDidFinishLaunching, for title updates
-std::string g_lastTitle;         // cache so we only setTitle when it actually changes
-
-// pin id <-> (node id, port index) — see sw::pinId().
-int pinNodeId(int pin) { return (pin - 1) / 100; }
-int pinPortIndex(int pin) { return (pin - 1) % 100; }
-bool pinIsInput(int pin) {
-  const sw::Node* n = g_graph.node(pinNodeId(pin));
-  if (!n) return false;
-  const sw::NodeSpec* s = sw::findSpec(n->type);
-  if (!s) return false;
-  int idx = pinPortIndex(pin);
-  return idx >= 0 && idx < (int)s->ports.size() && s->ports[idx].isInput;
-}
-
-bool isDirty() { return sw::toJson(g_graph) != g_savedSnapshot; }
-
-// Forward decl: doSave is used by confirmDiscardIfDirty before it is defined.
-bool doSave();
-
-// Returns false only when the user explicitly cancels (so callers abort).
-bool confirmDiscardIfDirty() {
-  if (!isDirty()) return true;
-  switch (sw::askUnsaved()) {
-    case sw::UnsavedChoice::Save:     return doSave();   // false if Save As canceled
-    case sw::UnsavedChoice::DontSave: return true;
-    case sw::UnsavedChoice::Cancel:   return false;
-  }
-  return false;
-}
-
-// Always prompts for a location. Returns true if a file was written.
-bool doSaveAs() {
-  NFD::Guard nfdGuard;
-  NFD::UniquePath outPath;
-  nfdfilteritem_t filters[1] = {{"simple_world project", "swproj"}};
-  nfdresult_t r = NFD::SaveDialog(outPath, filters, 1, nullptr, "untitled.swproj");
-  if (r != NFD_OKAY) return false;  // cancel or error
-  std::string path = outPath.get();
-  if (path.size() < 7 || path.substr(path.size() - 7) != ".swproj") path += ".swproj";
-  std::string json = sw::toJson(g_graph);
-  if (!sw::saveGraphToFile(path, g_graph)) { sw::showError("無法寫入：" + path); return false; }
-  g_documentPath = path;
-  g_savedSnapshot = json;
-  g_status = "saved -> " + path;
-  return true;
-}
-
-// Overwrites the current document; falls back to Save As when never saved.
-bool doSave() {
-  if (g_documentPath.empty()) return doSaveAs();
-  std::string json = sw::toJson(g_graph);
-  if (!sw::saveGraphToFile(g_documentPath, g_graph)) {
-    sw::showError("無法寫入：" + g_documentPath);
-    return false;
-  }
-  g_savedSnapshot = json;
-  g_status = "saved -> " + g_documentPath;
-  return true;
-}
-
-void doOpen() {
-  if (!confirmDiscardIfDirty()) return;
-  NFD::Guard nfdGuard;
-  NFD::UniquePath outPath;
-  nfdfilteritem_t filters[1] = {{"simple_world project", "swproj"}};
-  nfdresult_t r = NFD::OpenDialog(outPath, filters, 1, nullptr);
-  if (r != NFD_OKAY) return;
-  std::string path = outPath.get();
-  sw::Graph loaded;  // load into a temp graph; only swap in on success
-  if (!sw::loadGraphFromFile(path, loaded)) {
-    sw::showError("無法讀取此專案檔：" + path);
-    return;
-  }
-  g_graph = loaded;
-  g_documentPath = path;
-  g_savedSnapshot = sw::toJson(g_graph);
-  g_relayout = true;
-  g_status = "loaded <- " + path;
-}
-
-void doNew() {
-  if (!confirmDiscardIfDirty()) return;
-  g_graph = sw::defaultParticleGraph();
-  g_documentPath.clear();
-  g_savedSnapshot = sw::toJson(g_graph);
-  g_relayout = true;
-  g_status = "new project";
-}
-
-void updateWindowTitle() {
-  if (!g_window) return;
-  std::string name = g_documentPath.empty()
-      ? std::string("Untitled")
-      : g_documentPath.substr(g_documentPath.find_last_of('/') + 1);
-  std::string title = (isDirty() ? "• " : "") + name + " — simple_world";
-  if (title == g_lastTitle) return;
-  g_lastTitle = title;
-  g_window->setTitle(NS::String::string(title.c_str(), NS::StringEncoding::UTF8StringEncoding));
-}
-
-void addNode(const std::string& type) {
-  sw::Node n;
-  n.id = g_graph.nextId++;
-  n.type = type;
-  n.x = 120.0f;
-  n.y = 120.0f;
-  if (const sw::NodeSpec* s = sw::findSpec(type))
-    for (const auto& p : s->params) n.params[p.id] = p.def;
-  g_graph.nodes.push_back(n);
-  g_relayout = true;
-  g_status = "added " + type;
-}
-
-void drawToolbar() {
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + 12.0f, vp->WorkPos.y + 12.0f),
-                          ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(440.0f, 0.0f), ImGuiCond_FirstUseEver);
-  ImGui::Begin("Toolbar");
-  if (ImGui::Button("New")) doNew();
-  sw::eye::recordItem("New");  // eye③: hand off this widget's screen rect
-  ImGui::SameLine();
-  if (ImGui::Button("Open")) doOpen();
-  sw::eye::recordItem("Open");
-  ImGui::SameLine();
-  if (ImGui::Button("Save")) doSave();
-  sw::eye::recordItem("Save");
-  ImGui::SameLine();
-  if (ImGui::Button("Save As")) doSaveAs();
-  sw::eye::recordItem("Save As");
-  ImGui::SameLine();
-  if (ImGui::Button("Add Node")) ImGui::OpenPopup("add_node_popup");
-  sw::eye::recordItem("Add Node");
-  if (ImGui::BeginPopup("add_node_popup")) {
-    for (const std::string& t : sw::specTypes())
-      if (ImGui::MenuItem(t.c_str())) addNode(t);
-    ImGui::EndPopup();
-  }
-  ImGui::TextDisabled("%s", g_status.c_str());
-  ImGui::End();
-}
-
-void drawNodeCanvas() {
-  // The node canvas IS the main workspace: a borderless host window pinned to
-  // fill the whole viewport, node editor drawn inside it. Named windows (e.g.
-  // Inspector) float on top because this host uses NoBringToFrontOnFocus.
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(vp->WorkPos);
-  ImGui::SetNextWindowSize(vp->WorkSize);
-  ImGuiWindowFlags hostFlags =
-      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus |
-      ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-  bool hostOpen = ImGui::Begin("##canvas_host", nullptr, hostFlags);
-  ImGui::PopStyleVar();
-
-  ed::SetCurrentEditor(g_NodeEditor);
-  if (hostOpen) {
-    ed::Begin("canvas");
-
-  // Draw every node from graph data, via its NodeSpec (title + ports).
-  for (const sw::Node& node : g_graph.nodes) {
-    const sw::NodeSpec* spec = sw::findSpec(node.type);
-    ed::BeginNode(node.id);
-    ImGui::TextUnformatted(spec ? spec->title.c_str() : node.type.c_str());
-    if (spec) {
-      for (size_t i = 0; i < spec->ports.size(); ++i) {
-        const sw::PortSpec& p = spec->ports[i];
-        ed::BeginPin(sw::pinId(node.id, (int)i),
-                     p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
-        ImGui::TextUnformatted(p.isInput ? ("-> " + p.name).c_str() : (p.name + " ->").c_str());
-        ed::EndPin();
-      }
-    }
-    if (node.type == "DrawPoints" && g_particles && g_particles->target())
-      ImGui::Image(reinterpret_cast<ImTextureID>(g_particles->target()), ImVec2(200, 200));
-    ed::EndNode();
-  }
-
-  for (const sw::Connection& c : g_graph.connections) ed::Link(c.id, c.fromPin, c.toPin);
-
-  // Create links by dragging pin -> pin (one input + one output, different nodes).
-  if (ed::BeginCreate()) {
-    ed::PinId a, b;
-    if (ed::QueryNewLink(&a, &b) && a && b) {
-      int pa = (int)a.Get(), pb = (int)b.Get();
-      bool ia = pinIsInput(pa), ib = pinIsInput(pb);
-      if (pa != pb && ia != ib && pinNodeId(pa) != pinNodeId(pb)) {
-        if (ed::AcceptNewItem()) {
-          int from = ia ? pb : pa;  // output pin
-          int to = ia ? pa : pb;    // input pin
-          g_graph.connections.push_back({g_graph.nextId++, from, to});
-          g_status = "linked";
-        }
-      } else {
-        ed::RejectNewItem();
-      }
-    }
-    ed::EndCreate();
-  }
-
-  // Delete links / nodes (select + Delete key).
-  if (ed::BeginDelete()) {
-    ed::LinkId lid;
-    while (ed::QueryDeletedLink(&lid)) {
-      if (ed::AcceptDeletedItem()) {
-        int id = (int)lid.Get();
-        auto& cs = g_graph.connections;
-        cs.erase(std::remove_if(cs.begin(), cs.end(),
-                                [id](const sw::Connection& c) { return c.id == id; }),
-                 cs.end());
-      }
-    }
-    ed::NodeId nid;
-    while (ed::QueryDeletedNode(&nid)) {
-      if (ed::AcceptDeletedItem()) {
-        int id = (int)nid.Get();
-        auto& ns = g_graph.nodes;
-        ns.erase(std::remove_if(ns.begin(), ns.end(), [id](const sw::Node& n) { return n.id == id; }),
-                 ns.end());
-        auto& cs = g_graph.connections;
-        cs.erase(std::remove_if(cs.begin(), cs.end(),
-                                [id](const sw::Connection& c) {
-                                  return pinNodeId(c.fromPin) == id || pinNodeId(c.toPin) == id;
-                                }),
-                 cs.end());
-      }
-    }
-    ed::EndDelete();
-  }
-
-  if (g_relayout) {  // initial / after add / after load: push graph positions to editor
-    for (const sw::Node& node : g_graph.nodes) ed::SetNodePosition(node.id, ImVec2(node.x, node.y));
-    g_relayout = false;
-  } else {  // sync editor positions back to graph so Save captures dragging
-    for (sw::Node& node : g_graph.nodes) {
-      ImVec2 p = ed::GetNodePosition(node.id);
-      node.x = p.x;
-      node.y = p.y;
-    }
-  }
-
-  // Capture selection (while the editor is current) for the Inspector.
-  ed::NodeId sel[1];
-  int nsel = ed::GetSelectedNodes(sel, 1);
-  g_selectedNode = (nsel > 0) ? (int)sel[0].Get() : 0;
-
-    ed::End();
-  }
-  ed::SetCurrentEditor(nullptr);
-
-  ImGui::End();  // ##canvas_host
-}
-
-// Inspector (shell only): future home of the selected node's parameters. Kept
-// honest per ui-skin-pressure-gate — NO fake parameter widgets until a NodeSpec/
-// param contract exists (step 1+). For now: a selection placeholder + live FPS
-// (the one real signal: proves the runtime is ticking).
-void drawInspector() {
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - 320.0f, vp->WorkPos.y + 24.0f),
-                          ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(300.0f, 180.0f), ImGuiCond_FirstUseEver);
-  ImGui::Begin("Inspector");
-  sw::Node* sel = g_graph.node(g_selectedNode);
-  if (sel) {
-    const sw::NodeSpec* spec = sw::findSpec(sel->type);
-    ImGui::TextUnformatted(spec ? spec->title.c_str() : sel->type.c_str());
-    ImGui::Separator();
-    if (spec && !spec->params.empty()) {
-      for (const sw::ParamSpec& p : spec->params) {
-        float& v = sel->params[p.id];  // seeded from defaults at construction
-        ImGui::SliderFloat(p.label.c_str(), &v, p.minV, p.maxV);
-      }
-    } else {
-      ImGui::TextDisabled("(no editable parameters)");
-    }
-  } else {
-    ImGui::TextDisabled("No node selected");
-    ImGui::TextWrapped("Click a node in the canvas to edit its parameters.");
-  }
-  ImGui::Spacing();
-  ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
-  ImGui::End();
 }
 }  // namespace
 
@@ -493,7 +185,7 @@ int main(int argc, char* argv[]) {
 
 AppDelegate::~AppDelegate() {
   // Shut imgui backends down before releasing the device they reference.
-  if (g_NodeEditor) ed::DestroyEditor(g_NodeEditor);
+  if (sw::ui::g_NodeEditor) ed::DestroyEditor(sw::ui::g_NodeEditor);
   ImGui_ImplMetal_Shutdown();
   ImGui_ImplOSX_Shutdown();
   ImGui::DestroyContext();
@@ -515,7 +207,7 @@ NS::Menu* AppDelegate::createMenuBar() {
   // NS::String that UBSan (correctly) flags. Use a fixed product name instead.
   NS::String* quitItemName = NS::String::string("Quit simple_world", UTF8StringEncoding);
   SEL quitCb = NS::MenuItem::registerActionCallback("appQuit", [](void*, SEL, const NS::Object* pSender) {
-    if (confirmDiscardIfDirty())
+    if (sw::doc::confirmDiscardIfDirty())
       NS::Application::sharedApplication()->terminate(pSender);
   });
 
@@ -526,7 +218,7 @@ NS::Menu* AppDelegate::createMenuBar() {
   NS::MenuItem* pWindowMenuItem = NS::MenuItem::alloc()->init();
   NS::Menu* pWindowMenu = NS::Menu::alloc()->init(NS::String::string("Window", UTF8StringEncoding));
   SEL closeWindowCb = NS::MenuItem::registerActionCallback("windowClose", [](void*, SEL, const NS::Object*) {
-    if (confirmDiscardIfDirty())
+    if (sw::doc::confirmDiscardIfDirty())
       NS::Application::sharedApplication()->windows()->object<NS::Window>(0)->close();
   });
   NS::MenuItem* pCloseWindowItem =
@@ -539,22 +231,22 @@ NS::Menu* AppDelegate::createMenuBar() {
   NS::MenuItem* pFileMenuItem = NS::MenuItem::alloc()->init();
   NS::Menu* pFileMenu = NS::Menu::alloc()->init(NS::String::string("File", UTF8StringEncoding));
 
-  SEL newCb = NS::MenuItem::registerActionCallback("fileNew", [](void*, SEL, const NS::Object*) { doNew(); });
+  SEL newCb = NS::MenuItem::registerActionCallback("fileNew", [](void*, SEL, const NS::Object*) { sw::doc::doNew(); });
   NS::MenuItem* pNewItem = pFileMenu->addItem(NS::String::string("New", UTF8StringEncoding), newCb,
                                               NS::String::string("n", UTF8StringEncoding));
   pNewItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
 
-  SEL openCb = NS::MenuItem::registerActionCallback("fileOpen", [](void*, SEL, const NS::Object*) { doOpen(); });
+  SEL openCb = NS::MenuItem::registerActionCallback("fileOpen", [](void*, SEL, const NS::Object*) { sw::doc::doOpen(); });
   NS::MenuItem* pOpenItem = pFileMenu->addItem(NS::String::string("Open…", UTF8StringEncoding), openCb,
                                                NS::String::string("o", UTF8StringEncoding));
   pOpenItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
 
-  SEL saveCb = NS::MenuItem::registerActionCallback("fileSave", [](void*, SEL, const NS::Object*) { doSave(); });
+  SEL saveCb = NS::MenuItem::registerActionCallback("fileSave", [](void*, SEL, const NS::Object*) { sw::doc::doSave(); });
   NS::MenuItem* pSaveItem = pFileMenu->addItem(NS::String::string("Save", UTF8StringEncoding), saveCb,
                                                NS::String::string("s", UTF8StringEncoding));
   pSaveItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand);
 
-  SEL saveAsCb = NS::MenuItem::registerActionCallback("fileSaveAs", [](void*, SEL, const NS::Object*) { doSaveAs(); });
+  SEL saveAsCb = NS::MenuItem::registerActionCallback("fileSaveAs", [](void*, SEL, const NS::Object*) { sw::doc::doSaveAs(); });
   NS::MenuItem* pSaveAsItem = pFileMenu->addItem(NS::String::string("Save As…", UTF8StringEncoding), saveAsCb,
                                                  NS::String::string("s", UTF8StringEncoding));
   pSaveAsItem->setKeyEquivalentModifierMask(NS::EventModifierFlagCommand | NS::EventModifierFlagShift);
@@ -601,9 +293,9 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
 
   _pWindow->setContentView(_pMtkView);
   _pWindow->setTitle(NS::String::string("simple_world — step 0", NS::StringEncoding::UTF8StringEncoding));
-  g_window = _pWindow;  // expose to updateWindowTitle()
-  sw::installCloseGuard(static_cast<void*>(g_window),
-                        []() -> bool { return confirmDiscardIfDirty(); });  // red-button guard
+  sw::doc::g_window = _pWindow;  // expose to sw::doc::updateWindowTitle()
+  sw::installCloseGuard(static_cast<void*>(_pWindow),
+                        []() -> bool { return sw::doc::confirmDiscardIfDirty(); });  // red-button guard
 
   // ---- Dear ImGui setup (OSX backend needs view.window, so init after setContentView) ----
   IMGUI_CHECKVERSION();
@@ -615,9 +307,9 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
 
   ed::Config cfg;
   cfg.SettingsFile = nullptr;  // don't litter NodeEditor.json next to the binary
-  g_NodeEditor = ed::CreateEditor(&cfg);
+  sw::ui::g_NodeEditor = ed::CreateEditor(&cfg);
 
-  g_savedSnapshot = sw::toJson(g_graph);  // startup matches default graph -> not dirty
+  sw::doc::initSnapshot();  // startup matches default graph -> not dirty
 
   _pWindow->makeKeyAndOrderFront(nullptr);
 
@@ -690,10 +382,10 @@ void Renderer::draw(MTK::View* pView) {
   // ---- Cook the particle slice into its own target texture (before imgui samples it) ----
   if (g_particles) {
     // Cook: graph params drive the runtime (皮 downstream of real graph data).
-    g_particles->setTurbulenceAmount(g_graph.param("TurbulenceForce", "Amount", 15.0f));
-    g_particles->setTurbulenceFrequency(g_graph.param("TurbulenceForce", "Frequency", 1.2f));
-    g_particles->setSpeed(g_graph.param("ParticleSystem", "Speed", 1.0f));
-    g_particles->setDrag(g_graph.param("ParticleSystem", "Drag", 0.02f));
+    g_particles->setTurbulenceAmount(sw::doc::g_graph.param("TurbulenceForce", "Amount", 15.0f));
+    g_particles->setTurbulenceFrequency(sw::doc::g_graph.param("TurbulenceForce", "Frequency", 1.2f));
+    g_particles->setSpeed(sw::doc::g_graph.param("ParticleSystem", "Speed", 1.0f));
+    g_particles->setDrag(sw::doc::g_graph.param("ParticleSystem", "Drag", 0.02f));
     ++g_frameIndex;
     const float dt = 1.0f / 60.0f;
     g_time += dt;
@@ -710,10 +402,10 @@ void Renderer::draw(MTK::View* pView) {
   ImGui::NewFrame();
 
   sw::eye::beginWidgetFrame();  // eye③: collect clickable widget rects this frame
-  drawToolbar();     // Save / Load / Add Node (floating)
-  drawNodeCanvas();  // main workspace, fills the viewport
-  drawInspector();   // floats on top
-  updateWindowTitle();  // filename + dirty star; no-op when unchanged
+  sw::ui::drawToolbar();     // New/Open/Save/Save As + Add Node (floating)
+  sw::ui::drawNodeCanvas();  // main workspace, fills the viewport
+  sw::ui::drawInspector();   // floats on top
+  sw::doc::updateWindowTitle();  // filename + dirty star; no-op when unchanged
 
   ImGui::Render();
 
