@@ -19,6 +19,7 @@
 #include "imgui_impl_osx.h"  // void* overloads via IMGUI_IMPL_METAL_CPP_EXTENSIONS
 #include "imgui_node_editor.h"
 
+#include "app/command.h"
 #include "app/document.h"
 #include "app/menu.h"
 #include "platform/dialogs.h"
@@ -157,6 +158,10 @@ int main(int argc, char* argv[]) {
       return sw::runSaveLoadSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-save-bug") == 0)
       return sw::runSaveLoadSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--selftest-command") == 0)
+      return sw::runCommandSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-command-bug") == 0)
+      return sw::runCommandSelfTest(/*injectBug=*/true);
     if (std::strcmp(argv[i], "--selftest-flow") == 0)
       return sw::runParticleFlowSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-flow-bug") == 0)
