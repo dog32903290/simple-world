@@ -73,6 +73,7 @@ add_executable(simple_world
   src/ui/editor_ui.cpp
   src/metal_impl.cpp
   src/verify/eye/eye.mm
+  src/verify/hand/hand.cpp
   src/platform/dialogs.mm
   src/runtime/particle_system.cpp
   src/runtime/graph.cpp

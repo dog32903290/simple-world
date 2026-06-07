@@ -27,6 +27,7 @@
 #include "runtime/particle_system.h"
 #include "ui/editor_ui.h"
 #include "verify/eye/eye.h"
+#include "verify/hand/hand.h"
 
 #ifndef SW_SHADER_METALLIB
 #define SW_SHADER_METALLIB "shaders.metallib"
@@ -166,6 +167,8 @@ int main(int argc, char* argv[]) {
       return sw::runDrawPointsSelfTest(/*injectBug=*/true);
     if (std::strcmp(argv[i], "--selftest-eye") == 0) return sw::eye::runSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-eye-bug") == 0) return sw::eye::runSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--selftest-hand") == 0) return sw::hand::runSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-hand-bug") == 0) return sw::hand::runSelfTest(/*injectBug=*/true);
   }
 
   NS::AutoreleasePool* pAutoreleasePool = NS::AutoreleasePool::alloc()->init();
@@ -300,6 +303,7 @@ void Renderer::draw(MTK::View* pView) {
 
   // eye: did the agent ask for a capture this frame? (cheap stat of 3 sentinels)
   sw::eye::Request eyeReq = sw::eye::poll();
+  sw::hand::poll();  // second hand: read agent input commands queued for this frame
 
   MTL::RenderPassDescriptor* pRpd = pView->currentRenderPassDescriptor();
   if (pRpd == nullptr) {
@@ -323,6 +327,9 @@ void Renderer::draw(MTK::View* pView) {
 
   // eye① clean: the pure render layer, BEFORE any imgui chrome touches it.
   if (eyeReq.clean && g_particles) sw::eye::dumpTextureRGBA(g_particles->target(), "clean.png");
+
+  // second hand: inject ONE queued input step before NewFrame consumes IO events.
+  sw::hand::applyPendingStep();
 
   // ---- Begin imgui frame (Metal backend uses our metal-cpp pointers directly) ----
   ImGui_ImplMetal_NewFrame(pRpd);
