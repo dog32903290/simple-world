@@ -12,14 +12,17 @@
 - 階段：**step 0 殼 → step 1 粒子線 → step 2 照 TiXL re-arch → step 3 graph 資料模型 → B0 編輯器基本可操作層
   全部 ✅（柏為親手測過）→ B2「命令層/undo-redo」Phase 1 ✅ closed（柏為 7/7 驗收）。**
   北極星 = Mac 版 TiXL（柏為選 B，視覺也追）；完成定義 = 柏為親手測得到（見下〈完成定義〉）；照〈Roadmap〉順序走。
-- **節點編輯命令層進度（2026-06-08）**：Phase 1（命令核心 + add/link/delete/move 走命令 + Cmd+Z/Cmd+Shift+Z）
-  = **closed，柏為 7/7 親手驗收**。Phase 2（reconnect / replace-on-input）= 程式碼+selftest 已完成但 **parked**
-  （GUI 拖接點驗收卡在「runtime 節點種類太少、缺型別相容節點可測」）。Phase 3–5（插入節點 / 框選多選 / 複製貼上）= queued。
-  詳見 `2026-06-08-node-editing-commands-phase1.md`（closed）/`-phase2.md`（parked banner）/spec `node-editing-commands-design.md`。
-- **下一個 active lane（柏為 2026-06-08 拍板）= 「值脊椎」**：讓 param 能被連線驅動（Time→Sine→Remap→粒子脈動）。
-  這同時解掉 Phase 2 parked 的根因（節點太少）。命門 = param/port schema：採 TiXL 式「param = 帶預設值的 input port」
-  （連線覆蓋預設），**不是** param/port 兩套互相定址；值線增刪/param 驅動切換**必須走已建好的命令層**（可 undo）。
-  下一步先只做這柱 schema 紙上對齊（去 `external/tixl` 核 input slot 真實結構）再碰 code。
+- **節點編輯命令層**：Phase 1（命令核心 + add/link/delete/move + Cmd+Z）= **closed，柏為 7/7**。
+  Phase 2（reconnect / replace-on-input）= **實戰驗證通過**（值脊椎建鏈時 Sine→Speed 那一拖觸發 reconnect 自動取代舊線，已不再 parked）。Phase 3–5（插入節點 / 框選 / 複製貼上）= queued。
+- **值脊椎（2026-06-08 ✅ 端到端打通）**：param = 帶預設的 Float input port（schema 合一，TiXL InputSlot 查證）；
+  `evalFloat` 拉動求值器 + 5 值節點（Time/Const/Multiply/Sine/Remap）；接縫 main.cpp evalParam（連線→求值/否則常數，GPU buffer 流不碰）；
+  Inspector 被驅動變灰 + 即時拖動。`--selftest-valuecook` RED→GREEN。**全自動驗證**：加 Time/Sine 節點 + 拖線建出
+  `Time→Sine→Speed`，state.json 證實鏈接，粒子由 sin(time) 驅動脈動。柏為眼球驗收（看螢幕脈動）= 唯一剩項。
+- **眼手 harness 擴充（2026-06-08 ✅）**：map.json 含 canvas pin/node 螢幕座標（`ed::CanvasToScreen`）+ popup menu 項 +
+  `state.json`（graph+selection 機器可讀）。RED→GREEN 證過。**agent 現在能全自主驅動編輯器**（加節點/拖線/驗證/重啟 app）。
+- **audio-ingest 已整合進主線（2026-06-08 merge）**：另一條 session（`claude/runtime-workflow-approach-i4BrT`）的
+  audio ingest 引擎/fixture/selftest/replay/Bespoke poller 已 merge 進本線；衝突只在 main.cpp/CMakeLists（各加各的行，已解）。
+  **現在單一工作線 = `codex/js-to-cpp-contract-migration`**。全 8 selftest 綠（graph/save/command/valuecook/hand/eye/flow/audioingest）。
 - 與柏為長談後確立的核心判斷（四個皮選項都已逐一壓過、由他拍板）：
   - **核心資產 = 自己的 Metal 粒子/3D 引擎。皮是可換外殼。**
   - 放棄整批克隆 TiXL / Vuo runtime（兩者 runtime 都搬不動，證據見 Conflict Register）。
@@ -344,6 +347,10 @@ load/store 覆蓋、語義合併衝突（git 行比對不報、memory layout 靜
 
 ## Session Safety
 
+- **（2026-06-08 已解決）一度跑出兩條平行線**：`codex/js-to-cpp-contract-migration`（值脊椎/節點編輯/harness，本線）
+  與 `claude/runtime-workflow-approach-i4BrT`（audio-ingest）從 `a54b8c0` 分岔。柏為裁示「只在一條線工作」→ 已把
+  audio-ingest **merge 進本線**（commit `a0359fe`，衝突只在 main.cpp/CMakeLists、各加各行）。**現在唯一工作線 = `codex/js-to-cpp-contract-migration`。**
+  claude branch 自此視為歷史，不要再往它加東西、也不要再分新線；要分支前先問柏為。
 - 不要照舊 100/100 plan 繼續蓋自建 graph/command/runtimeGraph/UI。
 - 不要往 354 vuo-nodes 加東西。
 - 工作樹有 `AGENTS.md`、`skills/tixl-vuo-node-port/SKILL.md` 被外部改動，別亂動。
