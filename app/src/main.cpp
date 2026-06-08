@@ -366,6 +366,13 @@ void Renderer::draw(MTK::View* pView) {
   // eye③ map: widget rects -> top-left screen points (live window geometry).
   if (eyeReq.map) sw::eye::writeWidgetMap(static_cast<void*>(pView), "map.json");
 
+  // eye④ state: graph + selection as json so the agent can machine-check mutations.
+  if (eyeReq.state) {
+    std::string s = "{\"selectedNode\": " + std::to_string(sw::ui::g_selectedNode) +
+                    ", \"graph\": " + sw::toJson(sw::doc::g_graph) + "}";
+    sw::eye::writeText("state.json", s.c_str());
+  }
+
   // eye② full: the whole presented frame (UI + render). Stall one frame so the
   // drawable's backing is finished before we read it back (BGRA8_sRGB).
   if (eyeReq.full && pDrawable) {

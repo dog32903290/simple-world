@@ -88,7 +88,17 @@ Request poll() {
   r.clean = consume(@"req_clean");
   r.full = consume(@"req_full");
   r.map = consume(@"req_map");
+  r.state = consume(@"req_state");
   return r;
+}
+
+void writeText(const char* outName, const char* content) {
+  ensureDir();
+  NSString* p = [eyeDir() stringByAppendingPathComponent:[NSString stringWithUTF8String:outName]];
+  [[NSString stringWithUTF8String:content] writeToFile:p
+                                            atomically:YES
+                                              encoding:NSUTF8StringEncoding
+                                                 error:nil];
 }
 
 void dumpTextureRGBA(MTL::Texture* tex, const char* outName) {

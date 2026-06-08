@@ -28,6 +28,7 @@ struct Request {
   bool clean = false;  // dump the pure render layer
   bool full = false;   // dump the whole presented window
   bool map = false;    // dump the widget coordinate table
+  bool state = false;  // dump graph state (caller composes json) -> state.json
 };
 
 // Check SW_EYE_DIR for req_* sentinels; delete the ones found; report which.
@@ -50,6 +51,12 @@ void recordItem(const char* label);  // grabs ImGui::GetItemRectMin/Max for `lab
 // `mtkView` is the metal-cpp MTK::View* (== ObjC MTKView*); used for window/
 // screen geometry + backing scale. No-op if there is no pending map request.
 void writeWidgetMap(void* mtkView, const char* outName);
+
+// --- generic state dump (capability 4) --------------------------------------
+// Write `content` verbatim to SW_EYE_DIR/outName. eye stays a leaf I/O sink; the
+// caller (which depends on runtime/ui) composes the json (e.g. graph + selection)
+// so the agent can machine-check mutations without OCR'ing a screenshot.
+void writeText(const char* outName, const char* content);
 
 // --- headless self-test (RED->GREEN proof the PNG pipeline can see) ----------
 // Build a known RGBA buffer, write+reload a PNG, assert the center pixel. With

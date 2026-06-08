@@ -119,12 +119,15 @@ void drawNodeCanvas() {
         ed::BeginPin(sw::pinId(node.id, (int)i),
                      p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
         ImGui::TextUnformatted(p.isInput ? ("-> " + p.name).c_str() : (p.name + " ->").c_str());
+        // eye: record the pin label's screen rect so hand can drag pin->pin.
+        sw::eye::recordItem(("pin:" + std::to_string(sw::pinId(node.id, (int)i))).c_str());
         ed::EndPin();
       }
     }
     if (node.type == "DrawPoints" && g_particles && g_particles->target())
       ImGui::Image(reinterpret_cast<ImTextureID>(g_particles->target()), ImVec2(200, 200));
     ed::EndNode();
+    sw::eye::recordItem(("node:" + std::to_string(node.id)).c_str());  // eye: node body rect
   }
 
   for (const sw::Connection& c : sw::doc::g_graph.connections) ed::Link(c.id, c.fromPin, c.toPin);
