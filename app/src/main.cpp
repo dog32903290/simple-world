@@ -31,6 +31,7 @@
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
 #include "runtime/particle_system.h"
+#include "runtime/source_registry.h"
 #include "ui/editor_ui.h"
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
@@ -53,6 +54,39 @@ const MTL::ClearColor kClearColor = MTL::ClearColor::Make(0.12, 0.14, 0.18, 1.0)
 MTL::Library* g_shaderLib = nullptr;
 uint32_t g_frameIndex = 0;
 float g_time = 0.0f;
+
+// --- World 1: live audio -> particles ---------------------------------------
+// The capture publishes an attack envelope; the registry binds it to
+// ParticleSystem.Speed as the LiveSource "audio.kick" (bound once in the cook loop).
+sw::AudioCapture g_audioCapture;
+sw::SourceRegistry g_audioReg;
+bool g_audioBound = false;
+// Mapping (v1, hardcoded — 柏為 tunes later): silent envelope 0 -> base Speed 1.0
+// (same as the old constant fallback, so no-audio == unchanged); a full kick -> 5.0.
+// Shared by the live binding and the wiring selftest so the two can't drift.
+float audioKickToSpeed(void* self, const EvaluationContext&) {
+  return 1.0f + static_cast<sw::AudioCapture*>(self)->envelope() * 4.0f;
+}
+// Headless proof of the wiring (no mic): forcing the envelope drives the bound Speed
+// through the exact registry path the render loop uses. injectBug flips the verdict.
+int runAudioParticleSelfTest(bool injectBug) {
+  sw::AudioCapture cap;
+  sw::SourceRegistry reg;
+  reg.registerSource({"audio.kick", audioKickToSpeed, &cap});
+  sw::Graph g = sw::defaultParticleGraph();
+  const sw::Node* ps = g.firstOfType("ParticleSystem");
+  bool ok = (ps != nullptr);
+  if (ps) {
+    reg.bind(ps->id, "Speed", {sw::BindingKind::LiveSource, "audio.kick"});
+    auto speed = [&] { return sw::evalParam(g, "ParticleSystem", "Speed", 0.0f, 1.0f, &reg); };
+    cap.setTestEnvelope(0.0f); ok = ok && (std::fabs(speed() - 1.0f) < 1e-4f);  // silent -> base
+    cap.setTestEnvelope(0.5f); ok = ok && (std::fabs(speed() - 3.0f) < 1e-4f);  // half kick
+    cap.setTestEnvelope(1.0f); ok = ok && (std::fabs(speed() - 5.0f) < 1e-4f);  // full kick
+  }
+  if (injectBug) ok = !ok;
+  printf("[selftest-audio-particle] env 0/0.5/1 -> Speed 1/3/5 -> %s\n", ok ? "PASS" : "FAIL");
+  return ok ? 0 : 1;
+}
 
 // --selftest: the app's "eye". Offscreen-render the SAME kClearColor into a
 // texture we own, read the center pixel back, and assert it matches. No window,
@@ -183,6 +217,10 @@ int main(int argc, char* argv[]) {
       return sw::runAudioAnalyzerSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-analyzer-bug") == 0)
       return sw::runAudioAnalyzerSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--selftest-audio-particle") == 0)
+      return runAudioParticleSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-audio-particle-bug") == 0)
+      return runAudioParticleSelfTest(/*injectBug=*/true);
     if (std::strcmp(argv[i], "--selftest-flow") == 0)
       return sw::runParticleFlowSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-flow-bug") == 0)
@@ -347,12 +385,26 @@ void Renderer::draw(MTK::View* pView) {
 
   // ---- Cook the particle slice into its own target texture (before imgui samples it) ----
   if (g_particles) {
+    // World 1: on the first cook, start mic capture and bind its attack envelope to
+    // ParticleSystem.Speed as the LiveSource "audio.kick" (one-time; default graph
+    // has a ParticleSystem). Permission is requested here; the engine starts async
+    // once 柏為 grants. Until then envelope()==0 -> Speed falls back to base (1.0).
+    if (!g_audioBound) {
+      g_audioCapture.start();
+      if (const sw::Node* ps = sw::doc::g_graph.firstOfType("ParticleSystem")) {
+        g_audioReg.registerSource({"audio.kick", audioKickToSpeed, &g_audioCapture});
+        g_audioReg.bind(ps->id, "Speed", {sw::BindingKind::LiveSource, "audio.kick"});
+      }
+      g_audioBound = true;
+    }
     // Cook: graph params drive the runtime. evalParam = if the param's input is
     // wired, evaluate the upstream value-spine; else the stored constant. GPU
     // buffer flow is untouched — only these scalar setters read the value spine.
     g_particles->setTurbulenceAmount(sw::evalParam(sw::doc::g_graph, "TurbulenceForce", "Amount", g_time, 15.0f));
     g_particles->setTurbulenceFrequency(sw::evalParam(sw::doc::g_graph, "TurbulenceForce", "Frequency", g_time, 1.2f));
-    g_particles->setSpeed(sw::evalParam(sw::doc::g_graph, "ParticleSystem", "Speed", g_time, 1.0f));
+    // Speed now resolves through g_audioReg: the "audio.kick" LiveSource (envelope ->
+    // 1.0+env*4) drives it; with no audio it returns to the 1.0 base.
+    g_particles->setSpeed(sw::evalParam(sw::doc::g_graph, "ParticleSystem", "Speed", g_time, 1.0f, &g_audioReg));
     g_particles->setDrag(sw::evalParam(sw::doc::g_graph, "ParticleSystem", "Drag", g_time, 0.02f));
     ++g_frameIndex;
     const float dt = 1.0f / 60.0f;
