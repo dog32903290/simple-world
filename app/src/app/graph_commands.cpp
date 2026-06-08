@@ -134,6 +134,44 @@ int runCommandSelfTest(bool injectBug) {
     stack.undo();  // 收回，保持乾淨
   }
 
+  // Reconnect (replace-on-input): an input that already has a connection,
+  // re-wired to a different source, must end with exactly ONE connection to
+  // that input (old removed, new added); undo restores the original.
+  {
+    const Connection* existing = g.connections.empty() ? nullptr : &g.connections.front();
+    if (existing) {
+      int inputPin = existing->toPin;
+      int oldId = existing->id;
+      int oldFrom = existing->fromPin;
+      // a different source output: reuse another connection's fromPin if distinct,
+      // else fabricate one on a different node via pinId of some other node.
+      int newFrom = oldFrom;
+      for (const Connection& c : g.connections)
+        if (c.fromPin != oldFrom) { newFrom = c.fromPin; break; }
+      ok = ok && (newFrom != oldFrom);  // default graph has >1 distinct source
+
+      auto countTo = [&](int pin) {
+        int n = 0;
+        for (const Connection& c : g.connections) if (c.toPin == pin) ++n;
+        return n;
+      };
+      ok = ok && (countTo(inputPin) == 1);
+
+      auto macro = std::make_unique<MacroCommand>("Reconnect");
+      macro->add(std::make_unique<DeleteConnectionsCommand>(g, std::vector<int>{oldId}));
+      sw::Connection nc{g.nextId++, newFrom, inputPin};
+      macro->add(std::make_unique<AddConnectionCommand>(g, nc));
+      stack.push(std::move(macro));
+
+      ok = ok && (countTo(inputPin) == 1);                 // still single-cardinality
+      ok = ok && (g.connectionToInput(inputPin) != nullptr);
+      ok = ok && (g.connectionToInput(inputPin)->fromPin == newFrom);
+      stack.undo();
+      ok = ok && (countTo(inputPin) == 1);
+      ok = ok && (g.connectionToInput(inputPin)->fromPin == oldFrom);  // original restored
+    }
+  }
+
   if (injectBug) ok = !ok;  // 反向：注 bug 時必須回報失敗
   printf("[selftest-command] add baseNodes=%zu baseConns=%zu%s -> %s\n", baseNodes, baseConns,
          injectBug ? "(bugged)" : "", ok ? "PASS" : "FAIL");

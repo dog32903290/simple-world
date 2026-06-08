@@ -46,6 +46,11 @@ struct Graph {
   const Node* node(int id) const;
   const Node* firstOfType(const std::string& type) const;
   float param(const std::string& type, const std::string& paramId, float fallback) const;
+
+  // The connection feeding this input pin, or nullptr. Inputs are single-
+  // cardinality, so there is at most one. Single source of truth for the
+  // "is this input already wired?" question (reconnect / cardinality).
+  const Connection* connectionToInput(int inputPin) const;
 };
 
 // Stable pin id from a node id + the port index in its spec.

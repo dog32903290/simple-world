@@ -66,6 +66,11 @@ const Node* Graph::firstOfType(const std::string& type) const {
     if (n.type == type) return &n;
   return nullptr;
 }
+const Connection* Graph::connectionToInput(int inputPin) const {
+  for (const Connection& c : connections)
+    if (c.toPin == inputPin) return &c;
+  return nullptr;
+}
 float Graph::param(const std::string& type, const std::string& paramId, float fallback) const {
   const Node* n = firstOfType(type);
   if (!n) return fallback;
