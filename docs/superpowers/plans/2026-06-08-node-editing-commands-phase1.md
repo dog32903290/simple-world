@@ -1,6 +1,14 @@
 # 節點編輯命令層 — 階段 1 實作計畫（地基 + undo/redo + 搬遷現有操作）
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+> ## ✅ 狀態：CLOSED（2026-06-08，柏為 7/7 親手驗收）
+>
+> Phase 1 全部完成並由柏為親手測過 Task 7 的七項驗收（加/刪/移可反悔、多步 undo、New 清空、存檔不受影響）。
+> commit：`e9e9010`(核心) `5c07af6`(add/conn) + delete/move 命令 + `bbea009`(editor_ui 路由) `3b04d75`(Cmd+Z) `1d7f548`(pinNode DRY)。
+> selftest：`--selftest-command` / `--selftest-command-bug` RED→GREEN。下面的 checkbox 全數完成（保留作紀錄）。
+>
+> ---
 
 **Goal:** 在 app 區建一個最小的 Command / CommandStack / MacroCommand 命令層，把現有的「加節點 / 接線 / 刪節點線 / 移動」全部改成走命令，接上 Cmd+Z / Cmd+Shift+Z，讓這四類編輯都能反悔。
 
@@ -34,7 +42,7 @@
 - Create: `app/src/app/command.cpp`
 - Modify: `app/CMakeLists.txt`（在 `src/app/document.cpp` 那行附近加入新檔）
 
-- [ ] **Step 1: 寫 command.h**
+- [x] **Step 1: 寫 command.h**
 
 ```cpp
 // app/command — 編輯命令層（undo/redo 的地基）。
@@ -94,7 +102,7 @@ int runCommandSelfTest(bool injectBug);
 }  // namespace sw
 ```
 
-- [ ] **Step 2: 寫 command.cpp**
+- [x] **Step 2: 寫 command.cpp**
 
 ```cpp
 // app/command — CommandStack / MacroCommand 實作。
@@ -141,7 +149,7 @@ const char* CommandStack::lastUndoName() const {
 }  // namespace sw
 ```
 
-- [ ] **Step 3: CMake 加入新檔**
+- [x] **Step 3: CMake 加入新檔**
 
 在 `app/CMakeLists.txt` 的 `add_executable(simple_world` 區塊，`src/app/document.cpp` 那行下面加兩行：
 
@@ -154,7 +162,7 @@ const char* CommandStack::lastUndoName() const {
 
 （`graph_commands.cpp` 在 Task 2 才會建檔；本步先把兩行都加進去，Task 2 結束前 build 才會成功，故本 Task 不單獨 build。）
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/app/command.h app/src/app/command.cpp app/CMakeLists.txt
@@ -169,7 +177,7 @@ git commit -m "feat(app): command layer core (Command/CommandStack/MacroCommand)
 - Create: `app/src/app/graph_commands.h`
 - Create: `app/src/app/graph_commands.cpp`
 
-- [ ] **Step 1: 寫 graph_commands.h**
+- [x] **Step 1: 寫 graph_commands.h**
 
 ```cpp
 // app/graph_commands — 改 sw::Graph 的具體命令。每個命令持有 Graph& 參照。
@@ -211,7 +219,7 @@ class AddConnectionCommand : public Command {
 }  // namespace sw
 ```
 
-- [ ] **Step 2: 寫 graph_commands.cpp（Add 命令 + 自測骨架）**
+- [x] **Step 2: 寫 graph_commands.cpp（Add 命令 + 自測骨架）**
 
 ```cpp
 // app/graph_commands — 具體命令實作 + 命令層自測。
@@ -268,7 +276,7 @@ int runCommandSelfTest(bool injectBug) {
 }  // namespace sw
 ```
 
-- [ ] **Step 3: 加 main.cpp 派發**
+- [x] **Step 3: 加 main.cpp 派發**
 
 在 `app/src/main.cpp` 的 selftest 派發區（`--selftest-save-bug` 那段附近）加入，並確保檔頭已 `#include "app/command.h"`：
 
@@ -285,7 +293,7 @@ int runCommandSelfTest(bool injectBug) {
 #include "app/command.h"
 ```
 
-- [ ] **Step 4: build + 跑自測（先紅再綠）**
+- [x] **Step 4: build + 跑自測（先紅再綠）**
 
 ```bash
 cd app && cmake --build build -j
@@ -297,7 +305,7 @@ Expected:
 - `--selftest-command` → `[selftest-command] ... -> PASS`，exit 0
 - `--selftest-command-bug` → `... -> FAIL`，exit 1（證明自測抓得到偏差）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/app/graph_commands.h app/src/app/graph_commands.cpp app/src/main.cpp
@@ -314,7 +322,7 @@ git commit -m "feat(app): AddNode/AddConnection commands + --selftest-command"
 - Modify: `app/src/app/graph_commands.h`
 - Modify: `app/src/app/graph_commands.cpp`
 
-- [ ] **Step 1: graph_commands.h 加兩個刪除命令**
+- [x] **Step 1: graph_commands.h 加兩個刪除命令**
 
 在 `AddConnectionCommand` 類別後、`}  // namespace sw` 前插入：
 
@@ -349,7 +357,7 @@ class DeleteNodesCommand : public Command {
 };
 ```
 
-- [ ] **Step 2: graph_commands.cpp 實作（放在 AddConnection 之後、`runCommandSelfTest` 之前）**
+- [x] **Step 2: graph_commands.cpp 實作（放在 AddConnection 之後、`runCommandSelfTest` 之前）**
 
 需要從某條連線推回它屬於哪個節點。`pinId(nodeId, port) = nodeId*100 + port + 1`，反推 `nodeId = (pin - 1) / 100`（與 editor_ui 的 `pinNodeId` 一致）。
 
@@ -401,7 +409,7 @@ void DeleteNodesCommand::undo() {
 }
 ```
 
-- [ ] **Step 3: 擴充 runCommandSelfTest（在現有 add 段之後、`if (injectBug)` 之前插入刪除驗證）**
+- [x] **Step 3: 擴充 runCommandSelfTest（在現有 add 段之後、`if (injectBug)` 之前插入刪除驗證）**
 
 ```cpp
   // Delete a node that has incident connections: undo must restore node + conns.
@@ -428,7 +436,7 @@ void DeleteNodesCommand::undo() {
 
 > 註：`baseConns == 3` 是 `defaultParticleGraph` 的事實（見 `--selftest-graph` 輸出 `conns=3`）。若刪 ParticleSystem 後連線非 0，表示 `connNodeOf` 反推或 cascade 有誤。
 
-- [ ] **Step 4: build + 跑自測**
+- [x] **Step 4: build + 跑自測**
 
 ```bash
 cd app && cmake --build build -j
@@ -438,7 +446,7 @@ cd app && cmake --build build -j
 
 Expected: 前者 PASS exit 0，後者 FAIL exit 1。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/app/graph_commands.h app/src/app/graph_commands.cpp
@@ -455,7 +463,7 @@ git commit -m "feat(app): DeleteNodes/DeleteConnections commands with undo snaps
 - Modify: `app/src/app/graph_commands.h`
 - Modify: `app/src/app/graph_commands.cpp`
 
-- [ ] **Step 1: graph_commands.h 加 MoveNodesCommand**
+- [x] **Step 1: graph_commands.h 加 MoveNodesCommand**
 
 ```cpp
 // 移動 N 個節點。記錄每個節點的舊/新座標；undo 設回舊，doIt/redo 設新。
@@ -473,7 +481,7 @@ class MoveNodesCommand : public Command {
 };
 ```
 
-- [ ] **Step 2: graph_commands.cpp 實作（放在刪除命令之後）**
+- [x] **Step 2: graph_commands.cpp 實作（放在刪除命令之後）**
 
 ```cpp
 void MoveNodesCommand::doIt() {
@@ -486,7 +494,7 @@ void MoveNodesCommand::undo() {
 }
 ```
 
-- [ ] **Step 3: 擴充 runCommandSelfTest（在連線刪除驗證之後、`if (injectBug)` 之前）**
+- [x] **Step 3: 擴充 runCommandSelfTest（在連線刪除驗證之後、`if (injectBug)` 之前）**
 
 ```cpp
   // Move a node: undo restores old coords, redo reapplies new.
@@ -504,7 +512,7 @@ void MoveNodesCommand::undo() {
   }
 ```
 
-- [ ] **Step 4: build + 跑自測**
+- [x] **Step 4: build + 跑自測**
 
 ```bash
 cd app && cmake --build build -j
@@ -513,7 +521,7 @@ cd app && cmake --build build -j
 
 Expected: command PASS exit 0；command-bug FAIL exit 1。
 
-- [ ] **Step 5: 全套回歸自測（確認沒弄壞既有）**
+- [x] **Step 5: 全套回歸自測（確認沒弄壞既有）**
 
 ```bash
 cd app && ./build/simple_world --selftest-graph && ./build/simple_world --selftest-save
@@ -521,7 +529,7 @@ cd app && ./build/simple_world --selftest-graph && ./build/simple_world --selfte
 
 Expected: 兩者皆 PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/app/graph_commands.h app/src/app/graph_commands.cpp
@@ -537,7 +545,7 @@ git commit -m "feat(app): MoveNodes command + selftest move/undo/redo"
 **Files:**
 - Modify: `app/src/ui/editor_ui.cpp`
 
-- [ ] **Step 1: 加 include**
+- [x] **Step 1: 加 include**
 
 在 editor_ui.cpp 既有 include 區（`#include "runtime/graph.h"` 附近）加：
 
@@ -546,7 +554,7 @@ git commit -m "feat(app): MoveNodes command + selftest move/undo/redo"
 #include "app/graph_commands.h"
 ```
 
-- [ ] **Step 2: addNode() 改走命令**
+- [x] **Step 2: addNode() 改走命令**
 
 把 `app/src/ui/editor_ui.cpp` 的 `addNode()`（目前 L38-49 直接 `g_graph.nodes.push_back(n)`）改為：
 
@@ -565,7 +573,7 @@ void addNode(const std::string& type) {
 }
 ```
 
-- [ ] **Step 3: 接線改走命令**
+- [x] **Step 3: 接線改走命令**
 
 把建立連線那段（目前 `sw::doc::g_graph.connections.push_back({...})`，約 L131）改為：
 
@@ -579,7 +587,7 @@ void addNode(const std::string& type) {
         }
 ```
 
-- [ ] **Step 4: 刪除改走命令（收集 id → push，cascade 去重）**
+- [x] **Step 4: 刪除改走命令（收集 id → push，cascade 去重）**
 
 把 `if (ed::BeginDelete()) { ... }` 整段（目前 L142-169，在裡面直接 `erase`）改為「收集 id、Accept、組命令」。Backspace 路由那段（Task 修正已加，在 BeginDelete 之前）維持不動。改寫後：
 
@@ -626,7 +634,7 @@ void addNode(const std::string& type) {
 
 > 註：`ed::BeginDelete()` 回 false 時仍須呼叫 `ed::EndDelete()`（imgui-node-editor 規約）。原碼把 EndDelete 放在 if 內，這裡補上 else 分支的 EndDelete。動手前確認 `<algorithm>` 與 `<vector>` 已 include（editor_ui.cpp 開頭已有 `<algorithm>`；加 `<vector>`）。
 
-- [ ] **Step 5: 移動改走命令（放手才記一格）**
+- [x] **Step 5: 移動改走命令（放手才記一格）**
 
 目前 L174-180 的 else 分支每幀把 editor 位置寫回 graph。改成：偵測「正在拖動」→ 拖動開始時記下舊座標；放手（不再拖動且確有位移）時 push 一個 `MoveNodesCommand`。在 `drawNodeCanvas()` 內、`namespace sw::ui` 範圍加一個 file-static 暫存，並改寫位置同步段：
 
@@ -683,7 +691,7 @@ std::map<int, ImVec2> g_dragStart;
 
 > 須在 editor_ui.cpp 開頭 include `<map>`（若尚無）。
 
-- [ ] **Step 6: build（無自動測；下一 Task 手測）**
+- [x] **Step 6: build（無自動測；下一 Task 手測）**
 
 ```bash
 cd app && cmake --build build -j
@@ -691,7 +699,7 @@ cd app && cmake --build build -j
 
 Expected: 編譯成功，無 error。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app/src/ui/editor_ui.cpp
@@ -706,7 +714,7 @@ git commit -m "feat(ui): route add/link/delete/move gestures through command sta
 - Modify: `app/src/ui/editor_ui.cpp`
 - Modify: `app/src/app/document.cpp`
 
-- [ ] **Step 1: 在 drawNodeCanvas 內接 undo/redo 快捷鍵**
+- [x] **Step 1: 在 drawNodeCanvas 內接 undo/redo 快捷鍵**
 
 在 editor_ui.cpp 的 Backspace 路由那段附近（同樣在 ed::Begin/End 之內、`ImGui::IsWindowFocused()` 為前提），加入：
 
@@ -729,7 +737,7 @@ git commit -m "feat(ui): route add/link/delete/move gestures through command sta
 > `io.KeyCtrl` = macOS 的 Cmd 鍵（因 ConfigMacOSXBehaviors 的 Cmd↔Ctrl 對調）。`IsKeyPressed(..., false)` 第二參 false = 不重複觸發（按一次退一格）。undo/redo 改的是 `g_graph`，故設 `g_relayout=true` 讓下一幀 canvas 依還原後的圖重置節點位置。
 > 驗收用 hand：`keychord cmd z`（undo）、`keychord cmd+shift z`（redo）。
 
-- [ ] **Step 2: New / Open 清空命令堆**
+- [x] **Step 2: New / Open 清空命令堆**
 
 在 `app/src/app/document.cpp` 檔頭加 `#include "app/command.h"`，並在 `doNew()` 與 `doOpen()` 成功改圖後各加一行 `sw::g_commands.clear();`：
 
@@ -745,7 +753,7 @@ git commit -m "feat(ui): route add/link/delete/move gestures through command sta
   sw::g_commands.clear();
 ```
 
-- [ ] **Step 3: build**
+- [x] **Step 3: build**
 
 ```bash
 cd app && cmake --build build -j
@@ -753,7 +761,7 @@ cd app && cmake --build build -j
 
 Expected: 編譯成功。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/ui/editor_ui.cpp app/src/app/document.cpp
@@ -766,13 +774,13 @@ git commit -m "feat(ui): Cmd+Z/Cmd+Shift+Z undo-redo; clear stack on New/Open"
 
 自測蓋不到 keypress 與畫面；這一關是「柏為親手測得到」。逐項做，任何一項失敗就退回對應 Task 用 systematic-debugging 找根因。
 
-- [ ] **驗收 1（加節點可反悔）**：Add Node 加一個 → Cmd+Z → 它消失 → Cmd+Shift+Z → 它回來。
-- [ ] **驗收 2（刪節點可反悔）**：選一個有連線的節點，按 delete → 節點與它的線一起消失 → Cmd+Z → 節點和那些線**全部**回來。
-- [ ] **驗收 3（刪線可反悔）**：選一條線 delete → 線消失 → Cmd+Z → 線回來。
-- [ ] **驗收 4（移動可反悔）**：拖動一個節點到別處放手 → Cmd+Z → 它跳回原位 → Cmd+Shift+Z → 回到拖動後的位置。
-- [ ] **驗收 5（多個 undo 連續退）**：連做加、移動、刪三個動作 → 連按三次 Cmd+Z → 逐步退回最初狀態。
-- [ ] **驗收 6（New 清空）**：做幾個編輯 → New（捨棄）→ Cmd+Z 不應把舊文件的東西叫回來（堆疊已清）。
-- [ ] **驗收 7（存檔不受影響）**：編輯後存檔、重開該檔，圖正確（沿用既有 save/load，undo 堆不入檔）。
+- [x] **驗收 1（加節點可反悔）**：Add Node 加一個 → Cmd+Z → 它消失 → Cmd+Shift+Z → 它回來。
+- [x] **驗收 2（刪節點可反悔）**：選一個有連線的節點，按 delete → 節點與它的線一起消失 → Cmd+Z → 節點和那些線**全部**回來。
+- [x] **驗收 3（刪線可反悔）**：選一條線 delete → 線消失 → Cmd+Z → 線回來。
+- [x] **驗收 4（移動可反悔）**：拖動一個節點到別處放手 → Cmd+Z → 它跳回原位 → Cmd+Shift+Z → 回到拖動後的位置。
+- [x] **驗收 5（多個 undo 連續退）**：連做加、移動、刪三個動作 → 連按三次 Cmd+Z → 逐步退回最初狀態。
+- [x] **驗收 6（New 清空）**：做幾個編輯 → New（捨棄）→ Cmd+Z 不應把舊文件的東西叫回來（堆疊已清）。
+- [x] **驗收 7（存檔不受影響）**：編輯後存檔、重開該檔，圖正確（沿用既有 save/load，undo 堆不入檔）。
 
 全部通過 → 階段 1 完成，回 spec 開階段 2（reconnect）的計畫。
 
