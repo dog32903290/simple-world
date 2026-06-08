@@ -77,4 +77,16 @@ class MoveNodesCommand : public Command {
   std::vector<Move> moves_;
 };
 
+// 改某節點某 Float input 的常數（Inspector 拉 slider）。可 undo。
+class SetInputValueCommand : public Command {
+ public:
+  SetInputValueCommand(Graph& g, int nodeId, std::string portId, float oldV, float newV)
+      : g_(g), nodeId_(nodeId), portId_(std::move(portId)), old_(oldV), new_(newV) {}
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return "Set Value"; }
+ private:
+  Graph& g_; int nodeId_; std::string portId_; float old_, new_;
+};
+
 }  // namespace sw

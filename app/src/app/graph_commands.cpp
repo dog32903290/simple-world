@@ -78,6 +78,10 @@ void MoveNodesCommand::undo() {
     if (Node* n = g_.node(m.id)) { n->x = m.oldX; n->y = m.oldY; }
 }
 
+// --- SetInputValueCommand ---
+void SetInputValueCommand::doIt() { if (Node* n = g_.node(nodeId_)) n->params[portId_] = new_; }
+void SetInputValueCommand::undo() { if (Node* n = g_.node(nodeId_)) n->params[portId_] = old_; }
+
 // --- Self-test ---
 int runCommandSelfTest(bool injectBug) {
   Graph g = defaultParticleGraph();

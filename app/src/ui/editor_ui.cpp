@@ -133,7 +133,17 @@ void drawNodeCanvas() {
       int pa = (int)a.Get(), pb = (int)b.Get();
       bool ia = pinIsInput(pa), ib = pinIsInput(pb);
       if (pa != pb && ia != ib && pinNodeId(pa) != pinNodeId(pb)) {
-        if (ed::AcceptNewItem()) {
+        // Reject if the two pins' dataType differ (Float↔Float, buffer↔same-type).
+        auto portTypeOf = [](int pin) -> std::string {
+          const sw::Node* n = sw::doc::g_graph.node(pinNodeId(pin));
+          if (!n) return "";
+          const sw::NodeSpec* s = sw::findSpec(n->type);
+          int idx = pinPortIndex(pin);
+          return (s && idx < (int)s->ports.size()) ? s->ports[idx].dataType : "";
+        };
+        if (portTypeOf(pa) != portTypeOf(pb)) {
+          ed::RejectNewItem();
+        } else if (ed::AcceptNewItem()) {
           int from = ia ? pb : pa;  // output pin
           int to = ia ? pa : pb;    // input pin
           const sw::Connection* old = sw::doc::g_graph.connectionToInput(to);
@@ -298,11 +308,26 @@ void drawInspector() {
     ImGui::Separator();
     if (spec) {
       bool any = false;
-      for (const sw::PortSpec& p : spec->ports) {
+      for (size_t i = 0; i < spec->ports.size(); ++i) {
+        const sw::PortSpec& p = spec->ports[i];
         if (!(p.isInput && p.dataType == "Float")) continue;
         any = true;
-        float& v = sel->params[p.id];  // seeded from defaults at construction
-        ImGui::SliderFloat(p.name.c_str(), &v, p.minV, p.maxV);
+        int inPin = sw::pinId(sel->id, (int)i);
+        if (const sw::Connection* c = sw::doc::g_graph.connectionToInput(inPin)) {
+          // Driven by a connection — grey out, show source type.
+          const sw::Node* src = sw::doc::g_graph.node(sw::pinNode(c->fromPin));
+          ImGui::TextDisabled("%s <- %s", p.name.c_str(), src ? src->type.c_str() : "?");
+        } else {
+          // Free constant — editable slider; push one undo command on drag-release.
+          float before = sel->params[p.id];
+          float v = before;
+          ImGui::SliderFloat(p.name.c_str(), &v, p.minV, p.maxV);
+          if (ImGui::IsItemDeactivatedAfterEdit() && v != before) {
+            sel->params[p.id] = v;  // commit into the param map
+            sw::g_commands.push(std::make_unique<sw::SetInputValueCommand>(
+                sw::doc::g_graph, sel->id, p.id, before, v));
+          }
+        }
       }
       if (!any) ImGui::TextDisabled("(no editable parameters)");
     } else {
