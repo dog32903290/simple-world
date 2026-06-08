@@ -48,6 +48,9 @@ void dumpDrawableBGRA(MTL::Texture* tex, const char* outName);
 // ImGui rects into top-left global screen points using the live window geometry.
 void beginWidgetFrame();
 void recordItem(const char* label);  // grabs ImGui::GetItemRectMin/Max for `label`
+// Like recordItem but with explicit ImGui-screen coords — for node-editor canvas
+// items whose GetItemRect is canvas-local (caller applies ed::CanvasToScreen).
+void recordRect(const char* label, float x0, float y0, float x1, float y1);
 // `mtkView` is the metal-cpp MTK::View* (== ObjC MTKView*); used for window/
 // screen geometry + backing scale. No-op if there is no pending map request.
 void writeWidgetMap(void* mtkView, const char* outName);

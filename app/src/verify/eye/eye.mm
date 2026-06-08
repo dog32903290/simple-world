@@ -130,6 +130,10 @@ void recordItem(const char* label) {
   g_items.push_back({label, mn.x, mn.y, mx.x, mx.y});
 }
 
+void recordRect(const char* label, float x0, float y0, float x1, float y1) {
+  g_items.push_back({label, x0, y0, x1, y1});
+}
+
 void writeWidgetMap(void* mtkView, const char* outName) {
   ensureDir();
   NSView* v = (NSView*)mtkView;

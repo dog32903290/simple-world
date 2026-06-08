@@ -119,15 +119,23 @@ void drawNodeCanvas() {
         ed::BeginPin(sw::pinId(node.id, (int)i),
                      p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
         ImGui::TextUnformatted(p.isInput ? ("-> " + p.name).c_str() : (p.name + " ->").c_str());
-        // eye: record the pin label's screen rect so hand can drag pin->pin.
-        sw::eye::recordItem(("pin:" + std::to_string(sw::pinId(node.id, (int)i))).c_str());
+        // eye: record the pin label's SCREEN rect so hand can drag pin->pin.
+        // GetItemRect inside Begin/EndNode is canvas-local; CanvasToScreen -> screen.
+        ImVec2 pa = ed::CanvasToScreen(ImGui::GetItemRectMin());
+        ImVec2 pb = ed::CanvasToScreen(ImGui::GetItemRectMax());
+        sw::eye::recordRect(("pin:" + std::to_string(sw::pinId(node.id, (int)i))).c_str(),
+                            pa.x, pa.y, pb.x, pb.y);
         ed::EndPin();
       }
     }
     if (node.type == "DrawPoints" && g_particles && g_particles->target())
       ImGui::Image(reinterpret_cast<ImTextureID>(g_particles->target()), ImVec2(200, 200));
     ed::EndNode();
-    sw::eye::recordItem(("node:" + std::to_string(node.id)).c_str());  // eye: node body rect
+    // eye: node body SCREEN rect via the node-editor's own position/size + transform.
+    ImVec2 na = ed::CanvasToScreen(ed::GetNodePosition(node.id));
+    ImVec2 nsz = ed::GetNodeSize(node.id);
+    sw::eye::recordRect(("node:" + std::to_string(node.id)).c_str(),
+                        na.x, na.y, na.x + nsz.x, na.y + nsz.y);
   }
 
   for (const sw::Connection& c : sw::doc::g_graph.connections) ed::Link(c.id, c.fromPin, c.toPin);
