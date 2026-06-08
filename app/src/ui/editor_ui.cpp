@@ -81,8 +81,10 @@ void drawToolbar() {
   if (ImGui::Button("Add Node")) ImGui::OpenPopup("add_node_popup");
   sw::eye::recordItem("Add Node");
   if (ImGui::BeginPopup("add_node_popup")) {
-    for (const std::string& t : sw::specTypes())
+    for (const std::string& t : sw::specTypes()) {
       if (ImGui::MenuItem(t.c_str())) addNode(t);
+      sw::eye::recordItem(("menu:" + t).c_str());  // eye: popup item rect (drawn outside canvas)
+    }
     ImGui::EndPopup();
   }
   ImGui::TextDisabled("%s", sw::doc::g_status.c_str());
