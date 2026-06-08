@@ -1,4 +1,5 @@
 #include "runtime/graph.h"
+#include "runtime/Particle.h"  // full EvaluationContext definition (forward-decl'd in graph.h)
 
 #include <cmath>
 #include <cstdio>
@@ -10,6 +11,24 @@
 
 namespace sw {
 namespace {
+
+// ----- Value-node evaluate functions (pure value, no GPU). -----
+// in[] is ordered by the Float input ports in the spec; n is the count.
+
+float evalTime(const float*, int, const EvaluationContext& ctx) { return ctx.time; }
+float evalConst(const float* in, int n, const EvaluationContext&) { return n > 0 ? in[0] : 0.0f; }
+float evalMultiply(const float* in, int n, const EvaluationContext&) {
+  return n >= 2 ? in[0] * in[1] : 0.0f;
+}
+float evalSine(const float* in, int n, const EvaluationContext&) {
+  return n > 0 ? std::sin(in[0]) : 0.0f;
+}
+float evalRemap(const float* in, int n, const EvaluationContext&) {
+  // in: [x, outMin, outMax]. x in -1..1 → outMin..outMax.
+  if (n < 3) return 0.0f;
+  float t = (in[0] + 1.0f) * 0.5f;         // -1..1 → 0..1
+  return in[1] + (in[2] - in[1]) * t;      // → outMin..outMax
+}
 
 // NodeSpec registry — params unified into Float input ports (schema spine, Task 1).
 // id kept identical to old ParamSpec.id so Node::params map + save/load stay compatible.
@@ -38,6 +57,27 @@ const std::vector<NodeSpec>& registry() {
         {"OrientTowardsVelocity", "OrientTowardsVelocity", "Float", true, 0.15f, 0.0f, 1.0f}},
        nullptr},
       {"DrawPoints", "DrawPoints", {{"points", "points", "Points", true}}, nullptr},
+      // --- Value nodes (Task 2) ---
+      {"Time", "Time", {{"out", "out", "Float", false}}, evalTime},
+      {"Const", "Const",
+       {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"out", "out", "Float", false}},
+       evalConst},
+      {"Multiply", "Multiply",
+       {{"a", "a", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"b", "b", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"out", "out", "Float", false}},
+       evalMultiply},
+      {"Sine", "Sine",
+       {{"x", "x", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"out", "out", "Float", false}},
+       evalSine},
+      {"Remap", "Remap",
+       {{"x", "x", "Float", true, 0.0f, -1.0f, 1.0f},
+        {"outMin", "outMin", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"outMax", "outMax", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"out", "out", "Float", false}},
+       evalRemap},
   };
   return specs;
 }
@@ -249,6 +289,102 @@ int runSaveLoadSelfTest(bool injectBug) {
          roundtrip ? "ok" : "MISMATCH", rejectedBad ? "ok" : "ACCEPTED-BAD",
          pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
+}
+
+// --- Value evaluation (Task 2) ---
+
+float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int depth) {
+  if (depth > 64) return 0.0f;  // cycle guard
+  int nodeId = pinNode(outPin);
+  const Node* n = g.node(nodeId);
+  if (!n) return 0.0f;
+  const NodeSpec* s = findSpec(n->type);
+  if (!s || !s->evaluate) return 0.0f;
+  // Gather Float input values in port order (only Float inputs contribute to in[]).
+  float in[8];
+  int ni = 0;
+  for (size_t i = 0; i < s->ports.size() && ni < 8; ++i) {
+    const PortSpec& p = s->ports[i];
+    if (!(p.isInput && p.dataType == "Float")) continue;
+    int inPin = pinId(nodeId, (int)i);
+    if (const Connection* c = g.connectionToInput(inPin)) {
+      in[ni++] = evalFloat(g, c->fromPin, ctx, depth + 1);  // wired: recurse upstream
+    } else {
+      auto it = n->params.find(p.id);
+      in[ni++] = (it != n->params.end()) ? it->second : p.def;  // stored constant or spec default
+    }
+  }
+  return s->evaluate(in, ni, ctx);
+}
+
+float evalParam(const Graph& g, const std::string& type, const std::string& paramId,
+                const EvaluationContext& ctx, float fallback) {
+  const Node* n = g.firstOfType(type);
+  if (!n) return fallback;
+  const NodeSpec* s = findSpec(type);
+  if (!s) return fallback;
+  for (size_t i = 0; i < s->ports.size(); ++i) {
+    const PortSpec& p = s->ports[i];
+    if (!(p.isInput && p.dataType == "Float" && p.id == paramId)) continue;
+    int inPin = pinId(n->id, (int)i);
+    if (const Connection* c = g.connectionToInput(inPin))
+      return evalFloat(g, c->fromPin, ctx, 0);  // driven by connection
+    auto it = n->params.find(paramId);
+    return (it != n->params.end()) ? it->second : p.def;  // stored constant
+  }
+  return fallback;
+}
+
+int runValueCookSelfTest(bool injectBug) {
+  Graph g;
+  // Helper: add a node seeded from spec defaults.
+  auto add = [&](const char* type) {
+    Node n;
+    n.id = g.nextId++;
+    n.type = type;
+    if (const NodeSpec* s = findSpec(type))
+      for (auto& p : s->ports)
+        if (p.isInput && p.dataType == "Float") n.params[p.id] = p.def;
+    g.nodes.push_back(n);
+    return g.nodes.back().id;
+  };
+  // Helper: port index by id within a spec.
+  auto portIdx = [&](const char* type, const char* portId) {
+    const NodeSpec* s = findSpec(type);
+    for (size_t i = 0; i < s->ports.size(); ++i)
+      if (s->ports[i].id == portId) return (int)i;
+    return -1;
+  };
+
+  // Test 1: Const(3) * Const(4) == 12
+  int c3 = add("Const");
+  g.node(c3)->params["value"] = 3.0f;
+  int c4 = add("Const");
+  g.node(c4)->params["value"] = 4.0f;
+  int mul = add("Multiply");
+  int c3out = pinId(c3, portIdx("Const", "out"));
+  int c4out = pinId(c4, portIdx("Const", "out"));
+  int mulA = pinId(mul, portIdx("Multiply", "a"));
+  int mulB = pinId(mul, portIdx("Multiply", "b"));
+  g.connections.push_back({g.nextId++, c3out, mulA});
+  g.connections.push_back({g.nextId++, c4out, mulB});
+
+  EvaluationContext ctx{};
+  ctx.time = 2.0f;
+  float mulOut = evalFloat(g, pinId(mul, portIdx("Multiply", "out")), ctx, 0);
+  bool ok = (mulOut == 12.0f);
+
+  // Test 2: Time -> Sine ; result == sin(ctx.time)
+  int t = add("Time");
+  int sn = add("Sine");
+  g.connections.push_back(
+      {g.nextId++, pinId(t, portIdx("Time", "out")), pinId(sn, portIdx("Sine", "x"))});
+  float sineOut = evalFloat(g, pinId(sn, portIdx("Sine", "out")), ctx, 0);
+  ok = ok && (std::fabs(sineOut - std::sin(2.0f)) < 1e-5f);
+
+  if (injectBug) ok = !ok;
+  printf("[selftest-valuecook] mul=%.3f sine=%.3f -> %s\n", mulOut, sineOut, ok ? "PASS" : "FAIL");
+  return ok ? 0 : 1;
 }
 
 }  // namespace sw

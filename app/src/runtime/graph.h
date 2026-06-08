@@ -7,10 +7,14 @@
 #include <string>
 #include <vector>
 
+// EvaluationContext is defined in runtime/Particle.h (global namespace).
+// Forward-declare it here so graph.h does not pull in Particle.h (which would
+// conflict with tixl_point.h when both headers end up in the same TU).
+struct EvaluationContext;
+
 namespace sw {
 
 // --- Node type definitions (NodeSpec registry, faithful to TiXL ports/params) ---
-struct EvaluationContext;  // forward decl (defined in runtime/Particle.h, used by Task 2+)
 struct PortSpec {
   std::string id, name, dataType;  // dataType: "Points" | "ParticleForce" | "Float"
   bool isInput;
@@ -21,7 +25,7 @@ struct NodeSpec {
   std::vector<PortSpec> ports;
   // params retired: original params are now dataType=="Float" && isInput ports.
   // Constants live in Node::params[port.id]. evaluate is used by Task 2+ value nodes.
-  float (*evaluate)(const float* in, int n, const struct EvaluationContext& ctx) = nullptr;
+  float (*evaluate)(const float* in, int n, const EvaluationContext& ctx) = nullptr;
 };
 const NodeSpec* findSpec(const std::string& type);
 std::vector<std::string> specTypes();  // all registered node types (for the Add menu)
@@ -81,5 +85,17 @@ int runSaveLoadSelfTest(bool injectBug);
 // L6 proof: default graph -> json -> graph, assert identical. injectBug perturbs
 // a param after the roundtrip so the comparison must FAIL.
 int runGraphRoundtripSelfTest(bool injectBug);
+
+// --- Value evaluation (Task 2+) ---
+// Pull-evaluate the float value produced by outPin, recursing through connections.
+// depth > 64 breaks cycles (returns 0). EvaluationContext supplies time/frame.
+float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int depth = 0);
+// Resolve a named Float input port on the first node of the given type: if the
+// input is wired, evalFloat the upstream; otherwise return the stored constant
+// (Node::params[paramId]) or fallback if absent.
+float evalParam(const Graph& g, const std::string& type, const std::string& paramId,
+                const EvaluationContext& ctx, float fallback);
+// Headless RED->GREEN proof for the value-cook engine. injectBug flips the result.
+int runValueCookSelfTest(bool injectBug);
 
 }  // namespace sw

@@ -162,6 +162,10 @@ int main(int argc, char* argv[]) {
       return sw::runCommandSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-command-bug") == 0)
       return sw::runCommandSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--selftest-valuecook") == 0)
+      return sw::runValueCookSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-valuecook-bug") == 0)
+      return sw::runValueCookSelfTest(/*injectBug=*/true);
     if (std::strcmp(argv[i], "--selftest-flow") == 0)
       return sw::runParticleFlowSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-flow-bug") == 0)
