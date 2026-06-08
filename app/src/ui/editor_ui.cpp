@@ -42,6 +42,9 @@ bool pinIsInput(int pin) {
 // 拖動暫存：node id -> 拖動開始時的座標。空 == 沒在拖。
 std::map<int, ImVec2> g_dragStart;
 
+// Inspector slider 拖動開始時的常數值（一次只有一個 slider 在拖）。放手時用它記 undo。
+float g_paramEditBefore = 0.0f;
+
 void addNode(const std::string& type) {
   sw::Node n;
   n.id = sw::doc::g_graph.nextId++;
@@ -318,15 +321,15 @@ void drawInspector() {
           const sw::Node* src = sw::doc::g_graph.node(sw::pinNode(c->fromPin));
           ImGui::TextDisabled("%s <- %s", p.name.c_str(), src ? src->type.c_str() : "?");
         } else {
-          // Free constant — editable slider; push one undo command on drag-release.
-          float before = sel->params[p.id];
-          float v = before;
-          ImGui::SliderFloat(p.name.c_str(), &v, p.minV, p.maxV);
-          if (ImGui::IsItemDeactivatedAfterEdit() && v != before) {
-            sel->params[p.id] = v;  // commit into the param map
+          // Free constant — slider writes LIVE into the param map so the runtime
+          // sees changes mid-drag (柏為 expects immediate feedback). One undo step
+          // per drag: capture the pre-drag value on activation, record on release.
+          float pre = sel->params[p.id];               // value at start of this frame
+          ImGui::SliderFloat(p.name.c_str(), &sel->params[p.id], p.minV, p.maxV);
+          if (ImGui::IsItemActivated()) g_paramEditBefore = pre;
+          if (ImGui::IsItemDeactivatedAfterEdit() && sel->params[p.id] != g_paramEditBefore)
             sw::g_commands.push(std::make_unique<sw::SetInputValueCommand>(
-                sw::doc::g_graph, sel->id, p.id, before, v));
-          }
+                sw::doc::g_graph, sel->id, p.id, g_paramEditBefore, sel->params[p.id]));
         }
       }
       if (!any) ImGui::TextDisabled("(no editable parameters)");
