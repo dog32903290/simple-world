@@ -10,18 +10,18 @@
 namespace sw {
 
 // --- Node type definitions (NodeSpec registry, faithful to TiXL ports/params) ---
-struct ParamSpec {
-  std::string id, label;
-  float def, minV, maxV;
-};
+struct EvaluationContext;  // forward decl (defined in runtime/Particle.h, used by Task 2+)
 struct PortSpec {
-  std::string id, name, dataType;  // dataType: "Points" | "ParticleForce"
+  std::string id, name, dataType;  // dataType: "Points" | "ParticleForce" | "Float"
   bool isInput;
+  float def = 0.0f, minV = 0.0f, maxV = 1.0f;  // Float input only
 };
 struct NodeSpec {
   std::string type, title;
   std::vector<PortSpec> ports;
-  std::vector<ParamSpec> params;
+  // params retired: original params are now dataType=="Float" && isInput ports.
+  // Constants live in Node::params[port.id]. evaluate is used by Task 2+ value nodes.
+  float (*evaluate)(const float* in, int n, const struct EvaluationContext& ctx) = nullptr;
 };
 const NodeSpec* findSpec(const std::string& type);
 std::vector<std::string> specTypes();  // all registered node types (for the Add menu)

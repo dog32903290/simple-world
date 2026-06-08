@@ -11,28 +11,33 @@
 namespace sw {
 namespace {
 
-// NodeSpec registry — ports/params faithful to TiXL (Lib.particle / Lib.point).
+// NodeSpec registry — params unified into Float input ports (schema spine, Task 1).
+// id kept identical to old ParamSpec.id so Node::params map + save/load stay compatible.
 const std::vector<NodeSpec>& registry() {
   static const std::vector<NodeSpec> specs = {
       {"RadialPoints",
        "RadialPoints",
-       {{"points", "points", "Points", false}},
-       {{"Count", "Count", 2048.0f, 16.0f, 8192.0f}, {"Radius", "Radius", 2.0f, 0.1f, 10.0f}}},
+       {{"points", "points", "Points", false},
+        {"Count", "Count", "Float", true, 2048.0f, 16.0f, 8192.0f},
+        {"Radius", "Radius", "Float", true, 2.0f, 0.1f, 10.0f}},
+       nullptr},
       {"TurbulenceForce",
        "TurbulenceForce",
-       {{"force", "force", "ParticleForce", false}},
-       {{"Amount", "Amount", 15.0f, 0.0f, 100.0f},
-        {"Frequency", "Frequency", 1.2f, 0.0f, 5.0f},
-        {"Phase", "Phase", 0.0f, 0.0f, 10.0f}}},
+       {{"force", "force", "ParticleForce", false},
+        {"Amount", "Amount", "Float", true, 15.0f, 0.0f, 100.0f},
+        {"Frequency", "Frequency", "Float", true, 1.2f, 0.0f, 5.0f},
+        {"Phase", "Phase", "Float", true, 0.0f, 0.0f, 10.0f}},
+       nullptr},
       {"ParticleSystem",
        "ParticleSystem",
        {{"emit", "emit", "Points", true},
         {"forces", "forces", "ParticleForce", true},
-        {"result", "result", "Points", false}},
-       {{"Speed", "Speed", 1.0f, 0.0f, 3.0f},
-        {"Drag", "Drag", 0.02f, 0.0f, 0.2f},
-        {"OrientTowardsVelocity", "OrientTowardsVelocity", 0.15f, 0.0f, 1.0f}}},
-      {"DrawPoints", "DrawPoints", {{"points", "points", "Points", true}}, {}},
+        {"result", "result", "Points", false},
+        {"Speed", "Speed", "Float", true, 1.0f, 0.0f, 3.0f},
+        {"Drag", "Drag", "Float", true, 0.02f, 0.0f, 0.2f},
+        {"OrientTowardsVelocity", "OrientTowardsVelocity", "Float", true, 0.15f, 0.0f, 1.0f}},
+       nullptr},
+      {"DrawPoints", "DrawPoints", {{"points", "points", "Points", true}}, nullptr},
   };
   return specs;
 }
@@ -86,7 +91,8 @@ Node makeNode(int id, const char* type, float x, float y) {
   n.x = x;
   n.y = y;
   if (const NodeSpec* s = findSpec(type))
-    for (const auto& p : s->params) n.params[p.id] = p.def;  // seed from spec defaults
+    for (const auto& p : s->ports)
+      if (p.isInput && p.dataType == "Float") n.params[p.id] = p.def;  // seed from spec defaults
   return n;
 }
 }  // namespace

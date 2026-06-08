@@ -49,7 +49,8 @@ void addNode(const std::string& type) {
   n.x = 120.0f;
   n.y = 120.0f;
   if (const sw::NodeSpec* s = sw::findSpec(type))
-    for (const auto& p : s->params) n.params[p.id] = p.def;
+    for (const sw::PortSpec& p : s->ports)
+      if (p.isInput && p.dataType == "Float") n.params[p.id] = p.def;
   sw::g_commands.push(std::make_unique<sw::AddNodeCommand>(sw::doc::g_graph, n));
   sw::doc::g_relayout = true;
   sw::doc::g_status = "added " + type;
@@ -295,11 +296,15 @@ void drawInspector() {
     const sw::NodeSpec* spec = sw::findSpec(sel->type);
     ImGui::TextUnformatted(spec ? spec->title.c_str() : sel->type.c_str());
     ImGui::Separator();
-    if (spec && !spec->params.empty()) {
-      for (const sw::ParamSpec& p : spec->params) {
+    if (spec) {
+      bool any = false;
+      for (const sw::PortSpec& p : spec->ports) {
+        if (!(p.isInput && p.dataType == "Float")) continue;
+        any = true;
         float& v = sel->params[p.id];  // seeded from defaults at construction
-        ImGui::SliderFloat(p.label.c_str(), &v, p.minV, p.maxV);
+        ImGui::SliderFloat(p.name.c_str(), &v, p.minV, p.maxV);
       }
+      if (!any) ImGui::TextDisabled("(no editable parameters)");
     } else {
       ImGui::TextDisabled("(no editable parameters)");
     }
