@@ -298,7 +298,8 @@ load/store 覆蓋、語義合併衝突（git 行比對不報、memory layout 靜
 
 - 本檔：**現行 master progress，唯一 dashboard。**
 - `specs/2026-06-08-node-editing-commands-design.md`：**節點編輯命令層 spec**（五階段：命令層→reconnect→插入→框選→複製貼上）。active 設計契約。
-- `specs/2026-06-08-value-spine-design.md`：**值脊椎 spec（current active lane 的設計契約）**：param=帶預設的 Float input port（schema 合一，TiXL InputSlot 已查證）、5 承重柱、5 起手節點（Time/Const/Multiply/Sine/Remap）、重用 Phase1/2 對照、接縫 main.cpp:322-325。schema 已釘死，待柏為過目 → 轉實作計畫。
+- `specs/2026-06-08-value-spine-design.md`：**值脊椎 spec（current active lane 的設計契約）**：param=帶預設的 Float input port（schema 合一，TiXL InputSlot 已查證）、5 承重柱、5 起手節點（Time/Const/Multiply/Sine/Remap）、重用 Phase1/2 對照、接縫 main.cpp:322-325。schema 已釘死。
+- `2026-06-08-value-spine.md`：**值脊椎實作計畫（active，柏為 2026-06-08 拍板執行中）**：5 task bite-sized TDD（schema 合一→求值引擎→接縫→UI→眼手驗），標重用 Phase1/2 vs 新碼。
 - `2026-06-08-node-editing-commands-phase1.md`：**Phase 1 實作計畫 = closed**（命令層+undo/redo，柏為 7/7 驗收，checkbox 已勾）。closure evidence。
 - `2026-06-08-node-editing-commands-phase2.md`：**Phase 2 實作計畫 = parked**（reconnect；頂部有 ⏸ 狀態 banner 說明擱置原因 + 待釐清方向）。
 - `2026-06-08-architecture-constitution.md` / `specs/2026-06-08-architecture-constitution-design.md`：架構憲法（五區/7 鐵律）= `ARCHITECTURE.md` 的來源。
