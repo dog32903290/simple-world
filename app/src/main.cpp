@@ -23,6 +23,7 @@
 #include "app/document.h"
 #include "app/menu.h"
 #include "platform/dialogs.h"
+#include "runtime/attack_detector.h"
 #include "runtime/audio_ingest.h"
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
@@ -171,6 +172,10 @@ int main(int argc, char* argv[]) {
       return sw::runResolveSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-resolve-bug") == 0)
       return sw::runResolveSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--selftest-attack") == 0)
+      return sw::runAttackSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-attack-bug") == 0)
+      return sw::runAttackSelfTest(/*injectBug=*/true);
     if (std::strcmp(argv[i], "--selftest-flow") == 0)
       return sw::runParticleFlowSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-flow-bug") == 0)
