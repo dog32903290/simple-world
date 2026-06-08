@@ -144,6 +144,15 @@ target_link_libraries(simple_world PRIVATE
 target_link_options(simple_world PRIVATE
   "-Wl,-sectcreate,__TEXT,__info_plist,${CMAKE_CURRENT_SOURCE_DIR}/Info.plist")
 
+# The linker's auto adhoc signature does NOT bind (seal) the embedded Info.plist —
+# `codesign -dvvv` shows "Info.plist=not bound", and TCC then ignores the usage
+# description (no microphone prompt). Re-sign after link so the plist is sealed
+# ("Info.plist entries=4") and TCC honors NSMicrophoneUsageDescription.
+add_custom_command(TARGET simple_world POST_BUILD
+  COMMAND codesign --force --sign - --identifier com.baiwei.simpleworld
+          $<TARGET_FILE:simple_world>
+  COMMENT "Re-sign to bind embedded Info.plist (TCC microphone)")
+
 if(SW_SANITIZE)
   target_compile_options(simple_world PRIVATE
     -fsanitize=address,undefined -fno-omit-frame-pointer)
