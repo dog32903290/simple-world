@@ -17,6 +17,8 @@
   using simd::float3;
 #endif
 
+#include "eval_context.h"  // EvaluationContext (extracted; uploaded at BI_EvalContext)
+
 // Buffer binding slots — single source of truth for CPU setBuffer/setBytes AND
 // MSL [[buffer(N)]]. Convention: particles always at slot 0.
 enum BufferIndex {
@@ -42,22 +44,10 @@ struct RadialParams {
   float speed;  // tangential speed written into velocity
 };
 
-// Per-frame evaluation context. The runtime owner of visual time supplies this
-// to every cooked node (old FRAME_SCHEDULER_CONTRACT: one frameIndex/time/
-// deltaTime per frame, every node reads the same one). Uploaded at BI_EvalContext.
-struct EvaluationContext {
-#ifdef __METAL_VERSION__
-  uint frameIndex;
-#else
-  uint32_t frameIndex;
-#endif
-  float time;       // seconds since start
-  float deltaTime;  // seconds since previous frame
-  float _pad;       // -> 16 bytes
-};
+// EvaluationContext moved to eval_context.h (included above) so callers that need
+// only the time/frame context don't drag in `struct Particle`.
 
 #ifndef __METAL_VERSION__
 static_assert(sizeof(Particle) == 32, "Particle must be 32 bytes (two 16-byte float3)");
 static_assert(sizeof(Particle) % 16 == 0, "Particle stride must be 16-aligned");
-static_assert(sizeof(EvaluationContext) == 16, "EvaluationContext must be 16 bytes");
 #endif

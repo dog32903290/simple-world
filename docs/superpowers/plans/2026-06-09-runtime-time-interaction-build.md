@@ -52,12 +52,14 @@
 
 血緣：`graph.h` 自己標了「`EvaluationContext` 在 `Particle.h`，故意不引，否則跟 `tixl_point.h` 同 TU 衝突」。S1 要擴 ctx，先拆這顆雷。
 
-- [ ] **Step 1: 盤 include 圖**（不寫碼）：grep `EvaluationContext` / `#include.*Particle.h` / `#include.*tixl_point.h` across `app/src`，畫出誰在哪個 TU 撞誰。
-- [ ] **Step 2: 決定 ctx 的家**：若衝突真存在 → 把 `EvaluationContext` 抽到獨立輕量 header（`runtime/eval_context.h`，零重依賴），Particle.h/tixl_point.h 各自 include 它。若實際不衝突（只是註解過度保守）→ 記錄「可直接擴」，跳過。
-- [ ] **Step 3: build 回歸**：`cmake --build build -j` + 全 8 selftest 綠（純結構搬移，零行為變）。
-- [ ] **Step 4: Commit**（若有動）。
+- [x] **Step 1: 盤 include 圖**（不寫碼）：grep `EvaluationContext` / `#include.*Particle.h` / `#include.*tixl_point.h` across `app/src`，畫出誰在哪個 TU 撞誰。
+- [x] **Step 2: 決定 ctx 的家**：若衝突真存在 → 把 `EvaluationContext` 抽到獨立輕量 header（`runtime/eval_context.h`，零重依賴），Particle.h/tixl_point.h 各自 include 它。若實際不衝突（只是註解過度保守）→ 記錄「可直接擴」，跳過。
+- [x] **Step 3: build 回歸**：`cmake --build build -j` + 全 8 selftest 綠（純結構搬移，零行為變）。
+- [x] **Step 4: Commit**（若有動）。
 
 > S0 純結構、無體感。完成 = 全 selftest 綠 + S1 能安全擴 ctx。
+>
+> **✓ 2026-06-09 done.** 衝突**為真**：`Particle.h`(32B `struct Particle`) 與 `tixl_point.h`(64B `struct Particle`) 同 TU 互斥；`EvaluationContext` 寄居 `Particle.h` 故被綁架。抽出 `runtime/eval_context.h`（metal-safe，裸路徑 `"eval_context.h"` 因 shader 只有 `-I src/runtime`），Particle.h **與** tixl_point.h 各自 include 它。關鍵副產品：main.cpp 經 `particle_system.h→tixl_point.h→eval_context.h` 拿到完整 `EvaluationContext` 而**不**碰 Particle.h → **S2 註冊 audio source 的解鎖點**。回歸：build 綠（雙端 static_assert 過）+ **11/11 selftest 綠**（非 8，audio_ingest 已併）+ RED 抽驗仍 exit 1。踩雷記：Metal selftest（color/draw/eye/hand）在背景 bash 迴圈會 hang，須前景單跑。
 
 ---
 

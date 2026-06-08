@@ -29,6 +29,9 @@
   #define SW_FLOAT4  simd::float4
 #endif
 
+#include "eval_context.h"  // EvaluationContext — so TUs on the tixl_point.h path
+                           // (main.cpp via particle_system.h) get it without Particle.h
+
 // Renderable point — flows through the graph as the point buffer.
 struct SwPoint {
   SW_PACKED3 Position;  // @0   (12 bytes)
