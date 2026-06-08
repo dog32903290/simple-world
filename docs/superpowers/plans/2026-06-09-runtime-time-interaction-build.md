@@ -131,6 +131,18 @@
 
 ## S2：▣ 聲音→參數（M1，第一個體感勝利）
 
+> **⚠ 動工前讀（2026-06-09 夜 1 收尾；柏為晨會先決一個叉，30 秒）：**
+> S0+S1 已完成 committed（解析模型拱心石綠，12/12 selftest）。S2 卡在**真實缺件**：audio_ingest **折疊器**已 built+測過（`AudioIngest.sampleFrame(log,t) → AudioInput{values: map<"track/param",float>}`），但 **main.cpp render loop 沒實例化它、全 src 無任何 OSC/UDP live 接收器** —「聲音→粒子」缺「餵入活 app」這一段。
+> 現成料齊：replay fixture `docs/runtime/fixtures/audio_ingest_semantic_log.json` 在、playback pattern 在（`audio_ingest_replay.cpp`：每幀 `sampleFrame((double)i/fps)`）、bind 接點在 `main.cpp:339-342` cook 迴圈、`evalParam` 已收 `reg`。
+>
+> **叉 1 — 第一個 felt win 要哪種餵入？**
+> - **(a) replay-fed**：app 載 fixture，每幀 `sampleFrame(g_time)` 把一個 audio 值接上 Speed。能直接接（約 1 段水管工 + 眼自證）。**但体感是「載檔看回放」，不是你描述的「你彈、它回應」。** 動 render loop 有風險。
+> - **(b) live OSC 接收器**：真正「你彈 Bespoke → 它回應」。要新建 UDP/OSC 接收（platform 網路層，像獨立一段，較大）。
+>
+> **叉 2 — 哪個聲音量 → 哪個參數、怎麼縮放？**（`values` 是 map，沒有單一 amplitude，要選 key；plan 建議先寫死 bind `ParticleSystem.Speed`。）**這是体感/美學 = 柏為的場，夜裡不替你猜。**
+>
+> 決完即接。以下 Step 1–6 是 (a)+寫死 Speed 的既定形狀，(b) 或不同 mapping 則照新形狀重詳。
+
 **Files:** `app/src/main.cpp`（把 audio_ingest 的值包成 LiveSource 註冊 + bind 一個參數）、`app/src/ui/editor_ui.cpp`（Inspector 顯示「← audio」來源，最小）。
 
 - [ ] **Step 1:** 把 `audio_ingest` 的 `AudioInput.value` 包成一個 `LiveSource{id="audio.main", value=…}`，啟動時 `reg.registerSource`。
