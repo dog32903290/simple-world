@@ -1,0 +1,11 @@
+{
+  "note": "Sample recorded BespokeSynth control snapshots (module.control -> value over time). Feed to tools/bespoke_to_ingest.py to produce an AUDIO_INGEST fixture. Capturing this live requires a running BespokeSynth + OSC bridge (tools/bespoke_cli).",
+  "fps": 60,
+  "snapshots": [
+    { "t": 0.00, "connected": true,  "controls": { "reverb.gain": 0.0, "filter.cutoff": 0.2 } },
+    { "t": 0.25, "connected": true,  "controls": { "reverb.gain": 0.0, "filter.cutoff": 0.6 } },
+    { "t": 0.50, "connected": true,  "controls": { "reverb.gain": 0.8, "filter.cutoff": 0.6 } },
+    { "t": 0.75, "connected": true,  "controls": { "reverb.gain": 0.8, "filter.cutoff": 0.6 } },
+    { "t": 1.00, "connected": false, "controls": {} }
+  ]
+}

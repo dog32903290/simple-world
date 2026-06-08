@@ -97,6 +97,22 @@ visual follows the sound's TEXTURE (timbre, noise, spectral shape) -> SignalPath
 Prefer `SemanticPath` (we already have `tools/bespoke_cli` + the BespokeSynth OSC
 bridge). Add `SignalPath` only when a value cannot be reconstructed from meaning.
 
+## Recording From BespokeSynth
+
+BespokeSynth exposes named scalar controls per module (`module.control -> value`)
+over its OSC bridge. A SemanticPath recording is a time series of those values:
+
+```text
+poll bespoke_cli -> snapshots.json -> tools/bespoke_to_ingest.py -> AUDIO_INGEST fixture
+                                                                  -> --audio-ingest-replay / engine
+```
+
+`tools/bespoke_to_ingest.py` diffs consecutive control snapshots into the message
+log (`setValue` on change, `connect`/`disconnect` on bridge availability), with a
+stable integer `trackId` per module (kept in `trackMap`). The converter is pure
+and host-independent; only the live poll that produces `snapshots.json` needs a
+running BespokeSynth.
+
 ## External Coupling (named exposure)
 
 This contract makes the product **incomplete standalone, by design**. It depends
@@ -112,6 +128,7 @@ engine  : app/src/runtime/audio_ingest.{h,cpp}   (pure, zero-dep, zero-Metal)
 fixture : docs/runtime/fixtures/audio_ingest_semantic_log.json
 selftest: simple_world --selftest-audioingest   (and --selftest-audioingest-bug)
 replay  : simple_world --audio-ingest-replay docs/runtime/fixtures/audio_ingest_semantic_log.json
+bespoke : tools/bespoke_to_ingest.py  (control snapshots -> fixture; tests/bespoke_to_ingest.test.js)
 gate    : tests/audio_ingest_contract.test.js    (contract + fixture shape)
 ```
 
