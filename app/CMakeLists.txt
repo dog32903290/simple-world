@@ -79,6 +79,7 @@ add_executable(simple_world
   src/platform/dialogs.mm
   src/runtime/particle_system.cpp
   src/runtime/graph.cpp
+  src/runtime/source_registry.cpp
   src/runtime/dispatch.cpp
   src/runtime/audio_ingest.cpp
   src/runtime/audio_ingest_replay.cpp

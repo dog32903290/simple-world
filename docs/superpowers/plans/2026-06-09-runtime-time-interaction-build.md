@@ -69,8 +69,8 @@
 
 血緣：**擴充** 值脊椎的 `evalParam`（現為 `連線→上游 else 常數`）。TiXL `Slot.OverrideWithAnimationAction` = 換驅動者。
 
-- [ ] **Step 0: 讀現況**（不寫碼）：精讀 `evalParam`/`evalFloat`（graph.cpp）現有簽名與 `connectionToInput`，確認擴充點。
-- [ ] **Step 1: 資料模型（source_registry.h）**
+- [x] **Step 0: 讀現況**（不寫碼）：精讀 `evalParam`/`evalFloat`（graph.cpp）現有簽名與 `connectionToInput`，確認擴充點。
+- [x] **Step 1: 資料模型（source_registry.h）**
   ```cpp
   namespace sw {
   enum class BindingKind { Constant, Connection, Automation, LiveSource };
@@ -91,7 +91,7 @@
   };
   }
   ```
-- [ ] **Step 2: evalParam 擴成 `override → binding → constant`**
+- [x] **Step 2: evalParam 擴成 `override → binding → constant`**
   在 evalParam 解析有效值時，先問 registry：
   ```cpp
   // 偽碼：
@@ -105,7 +105,7 @@
   return /* 既有常數 fallback */;                                                              // 3 constant
   ```
   > 值脊椎的「有連線→上游」自動成為 `binding=Connection`，零改、相容。
-- [ ] **Step 3: `runResolveSelfTest`（RED→GREEN）**
+- [x] **Step 3: `runResolveSelfTest`（RED→GREEN）**
   斷言：
   - constant：無 binding 無 override → 回常數。
   - connection：接線 → 回上游求值（回歸值脊椎行為）。
@@ -113,17 +113,19 @@
   - override：setOverride(9.0) → 回 9.0（蓋過 binding）；reEnableAll() → 落回 binding。
   - 一參數一 binding：bind 兩次，第二次取代第一次。
   - `injectBug` 翻一條（例 override 不蓋過 binding）→ FAIL exit 1。
-- [ ] **Step 4: main 派發 + build RED→GREEN + 回歸**
+- [x] **Step 4: main 派發 + build RED→GREEN + 回歸**
   ```bash
   cd app && cmake --build build -j
   ./build/simple_world --selftest-resolve       # PASS
   ./build/simple_world --selftest-resolve-bug   # FAIL
   ./build/simple_world --selftest-valuecook && --selftest-flow   # 回歸 PASS（值脊椎連線行為不變）
   ```
-- [ ] **Step 5: 對抗審查**：派 subagent「找 runResolveSelfTest 漏測的解析路徑」（例：override+automation 同時？binding 換 kind？），補測。
-- [ ] **Step 6: Commit**
+- [x] **Step 5: 對抗審查**：派 subagent「找 runResolveSelfTest 漏測的解析路徑」（例：override+automation 同時？binding 換 kind？），補測。
+- [x] **Step 6: Commit**
 
 > S1 純水管工：`--selftest-resolve`/`-bug` 綠/紅即完成，柏為不必看。摸的東西在 S2。
+>
+> **✓ 2026-06-09 done.** evalParam 加 optional `const SourceRegistry* reg=nullptr`（nullptr=值脊椎零改，4 個現有呼叫點不動→回歸自動綠）；解析序 override→binding(LiveSource 早回／Automation 佔位)→落回既有圖(連線=Connection else 常數)。新 `source_registry.h/.cpp`（map keyed by `(nodeId,portId)`）。`runResolveSelfTest` **11 路徑**綠／`-bug` 紅。**對抗審查**（Explore subagent）出 11 項，採納 5（override-無-binding+re-enable→常數、dangling sourceId、null value-fn、Automation 落空、壞 paramId→fallback），駁回 6 並記理由（顯式 Connection/Constant binding=冗餘未用路徑，wire 本身即 Connection binding；firstOfType／缺節點／壞 type=S1 未動的既有 guard 且 key 一致性已被 live-source 測隱含覆蓋；ctx 欄位=S5）。**12/12 selftest 綠**。S2 接點：main.cpp:339-342 cook 迴圈。
 
 ---
 

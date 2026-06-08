@@ -86,18 +86,31 @@ int runSaveLoadSelfTest(bool injectBug);
 // a param after the roundtrip so the comparison must FAIL.
 int runGraphRoundtripSelfTest(bool injectBug);
 
+// SourceRegistry (runtime/source_registry.h) holds per-param binding/override state
+// + the live-source table; evalParam consults it. Forward-declared so graph.h stays
+// light — callers that don't resolve live sources never pull the registry in.
+class SourceRegistry;
+
 // --- Value evaluation (Task 2+) ---
 // Pull-evaluate the float value produced by outPin, recursing through connections.
 // depth > 64 breaks cycles (returns 0). EvaluationContext supplies time/frame.
 float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int depth = 0);
-// Resolve a named Float input port on the first node of the given type: if the
-// input is wired, evalFloat the upstream; otherwise return the stored constant
-// (Node::params[paramId]) or fallback if absent.
+// Resolve a named Float input port on the first node of the given type. Resolution
+// order (L5 model): override → binding → constant. When reg != nullptr it is asked
+// first — a live override wins, then an explicit LiveSource/Automation binding;
+// otherwise (and always when reg == nullptr) the value-spine behavior applies: if the
+// input is wired evalFloat the upstream (binding=Connection), else the stored constant
+// (Node::params[paramId]) or fallback. reg defaults to nullptr so value-spine callers
+// are unchanged.
 // Takes `time` (not EvaluationContext&) so callers that already include
 // tixl_point.h (main.cpp) need not pull Particle.h — both define `struct Particle`.
 float evalParam(const Graph& g, const std::string& type, const std::string& paramId,
-                float time, float fallback);
+                float time, float fallback, const SourceRegistry* reg = nullptr);
 // Headless RED->GREEN proof for the value-cook engine. injectBug flips the result.
 int runValueCookSelfTest(bool injectBug);
+// L5 resolution proof: constant / connection / live-source(read via self) / override-
+// beats-binding / re-enable-falls-back / explicit-binding-beats-wire / one-binding-
+// replaces. injectBug flips one assertion so the test must FAIL.
+int runResolveSelfTest(bool injectBug);
 
 }  // namespace sw

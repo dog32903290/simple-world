@@ -1,5 +1,6 @@
 #include "runtime/graph.h"
 #include "runtime/Particle.h"  // full EvaluationContext definition (forward-decl'd in graph.h)
+#include "runtime/source_registry.h"  // BindingKind/LiveSource/SourceRegistry (L5 resolution)
 
 #include <cmath>
 #include <cstdio>
@@ -322,13 +323,33 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
 // (both define `struct Particle`; they can't coexist). ctx is built here. Value
 // nodes currently use only ctx.time; thread more fields here when a node needs them.
 float evalParam(const Graph& g, const std::string& type, const std::string& paramId,
-                float time, float fallback) {
+                float time, float fallback, const SourceRegistry* reg) {
   const Node* n = g.firstOfType(type);
   if (!n) return fallback;
   const NodeSpec* s = findSpec(type);
   if (!s) return fallback;
   EvaluationContext ctx{};
   ctx.time = time;
+
+  // L5 resolution: override → binding(live-source/automation) → [graph: connection
+  // else constant]. reg == nullptr (value-spine callers) skips straight to the graph
+  // behavior, so wiring and constants resolve exactly as before — zero regression.
+  if (reg) {
+    if (const ParamOverride* ov = reg->override_(n->id, paramId); ov && ov->active)
+      return ov->value;                                            // 1. live override (sticky)
+    if (const ParamBinding* b = reg->binding(n->id, paramId)) {    // 2. explicit binding
+      if (b->kind == BindingKind::LiveSource) {
+        if (const LiveSource* src = reg->source(b->sourceId); src && src->value)
+          return src->value(src->self, ctx);                       //    audio / hand / MIDI …
+      }
+      // BindingKind::Automation -> S4 (sample the scoreGraph curve @ playhead); until
+      // then it falls through. Connection / Constant are intentionally NOT consumed
+      // here: the graph wire IS the Connection binding and the stored value IS the
+      // Constant — both resolved by the value-spine path below.
+    }
+  }
+
+  // 3. value-spine behavior = binding=Connection (wired) else Constant (stored / def).
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& p = s->ports[i];
     if (!(p.isInput && p.dataType == "Float" && p.id == paramId)) continue;
@@ -390,6 +411,131 @@ int runValueCookSelfTest(bool injectBug) {
 
   if (injectBug) ok = !ok;
   printf("[selftest-valuecook] mul=%.3f sine=%.3f -> %s\n", mulOut, sineOut, ok ? "PASS" : "FAIL");
+  return ok ? 0 : 1;
+}
+
+int runResolveSelfTest(bool injectBug) {
+  // Build a graph with one ParticleSystem and resolve its "Speed" Float input — the
+  // same param S2 drives from audio, so this doubles as the binding-contract doc.
+  Graph g;
+  Node ps;
+  ps.id = g.nextId++;
+  ps.type = "ParticleSystem";
+  ps.params["Speed"] = 5.0f;  // stored constant (distinct from the 1.0 spec default)
+  ps.params["Drag"]  = 0.5f;  // a second un-wired param for the malformed-binding cases
+  g.nodes.push_back(ps);
+  const int psId = g.nodes.back().id;
+
+  // Port index by id (the test's only graph-shape helper).
+  auto idx = [&](const char* type, const char* port) {
+    const NodeSpec* sp = findSpec(type);
+    for (size_t i = 0; sp && i < sp->ports.size(); ++i)
+      if (sp->ports[i].id == port) return (int)i;
+    return -1;
+  };
+
+  // A live source that reads through `self` (mirrors S2: self=AudioInput*, value=
+  // latest sample) — proves the value is read live each call, not snapshotted.
+  float liveVal = 7.0f;
+  LiveSource live;
+  live.id = "test.live";
+  live.value = [](void* self, const EvaluationContext&) -> float {
+    return *static_cast<float*>(self);
+  };
+  live.self = &liveVal;
+  SourceRegistry reg;
+  reg.registerSource(live);
+
+  // Resolve "Speed" against an arbitrary registry pointer (g captured by ref, so it
+  // sees any wire added later).
+  auto speed = [&](const SourceRegistry* r) {
+    return evalParam(g, "ParticleSystem", "Speed", /*time=*/0.0f, /*fallback=*/-1.0f, r);
+  };
+
+  bool ok = true;
+
+  // 1. constant: empty reg AND reg==nullptr both return the stored constant 5.0.
+  ok = ok && (speed(&reg) == 5.0f);
+  ok = ok && (speed(nullptr) == 5.0f);
+
+  // 2. live-source: bind → returns the source value (7.0), beating the stored constant…
+  reg.bind(psId, "Speed", {BindingKind::LiveSource, "test.live"});
+  ok = ok && (speed(&reg) == 7.0f);
+  //    …and it is read live: change the backing value, resolution follows.
+  liveVal = 4.0f;
+  ok = ok && (speed(&reg) == 4.0f);
+  liveVal = 7.0f;
+
+  // 3. override beats the binding (sticky live touch).
+  reg.setOverride(psId, "Speed", 9.0f);
+  ok = ok && (speed(&reg) == 9.0f);
+
+  // 4. global re-enable clears the override → falls back to the binding (7.0).
+  reg.reEnableAll();
+  ok = ok && (speed(&reg) == 7.0f);
+
+  // 5. one parameter, one binding: re-binding replaces (now point at a 3.0 source).
+  float liveVal2 = 3.0f;
+  LiveSource live2;
+  live2.id = "test.live2";
+  live2.value = [](void* self, const EvaluationContext&) -> float {
+    return *static_cast<float*>(self);
+  };
+  live2.self = &liveVal2;
+  reg.registerSource(live2);
+  reg.bind(psId, "Speed", {BindingKind::LiveSource, "test.live2"});
+  ok = ok && (speed(&reg) == 3.0f);
+
+  // 6. connection regression + mutual exclusivity: wire Const(8.0) → ParticleSystem.Speed.
+  Node c;
+  c.id = g.nextId++;
+  c.type = "Const";
+  c.params["value"] = 8.0f;
+  g.nodes.push_back(c);
+  const int cId = g.nodes.back().id;
+  g.connections.push_back({g.nextId++, pinId(cId, idx("Const", "out")),
+                                       pinId(psId, idx("ParticleSystem", "Speed"))});
+  SourceRegistry fresh;  // no binding/override: the graph connection drives.
+  ok = ok && (speed(&fresh) == 8.0f);    // resolves through the wire (binding=Connection)
+  ok = ok && (speed(nullptr) == 8.0f);   // value-spine path unchanged by the registry
+  ok = ok && (speed(&reg) == 3.0f);      // explicit live binding still beats the wire
+
+  // --- Adversarial-review coverage (S1 Step 5). All on the un-wired "Drag" param so
+  //     the graceful fallback target is its stored constant (0.5), not a wire. ---
+  auto drag = [&](const SourceRegistry* r) {
+    return evalParam(g, "ParticleSystem", "Drag", /*time=*/0.0f, /*fallback=*/-1.0f, r);
+  };
+
+  // 7. override on a param with NO binding → override value; re-enable → constant.
+  reg.setOverride(psId, "Drag", 9.0f);
+  ok = ok && (drag(&reg) == 9.0f);
+  reg.reEnableAll();
+  ok = ok && (drag(&reg) == 0.5f);   // no binding to fall back to → stored constant
+
+  // 8. dangling LiveSource binding (sourceId never registered) → graceful constant,
+  //    not a crash: a half-configured binding must not break the render loop.
+  reg.bind(psId, "Drag", {BindingKind::LiveSource, "no.such.source"});
+  ok = ok && (drag(&reg) == 0.5f);
+
+  // 9. LiveSource registered but with a null value fn → graceful constant (the other
+  //    half of the `src && src->value` guard).
+  LiveSource nullSrc;
+  nullSrc.id = "test.null";  // value/self stay nullptr (defaults)
+  reg.registerSource(nullSrc);
+  reg.bind(psId, "Drag", {BindingKind::LiveSource, "test.null"});
+  ok = ok && (drag(&reg) == 0.5f);
+
+  // 10. Automation binding (S4 placeholder) → falls through to constant until S4 wires
+  //     it to a scoreGraph curve. Locks the interim seam contract.
+  reg.bind(psId, "Drag", {BindingKind::Automation, ""});
+  ok = ok && (drag(&reg) == 0.5f);
+
+  // 11. unknown paramId (typo'd / absent port) → fallback.
+  ok = ok && (evalParam(g, "ParticleSystem", "NoSuchParam", 0.0f, -1.0f, &reg) == -1.0f);
+
+  if (injectBug) ok = !ok;
+  printf("[selftest-resolve] const/live/override/re-enable/replace/wire + "
+         "ovr-nobind/dangling/nullfn/automation/badparam -> %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
 
