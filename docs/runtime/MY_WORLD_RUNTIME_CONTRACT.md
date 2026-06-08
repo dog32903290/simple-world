@@ -112,7 +112,7 @@ Core value types:
 | `PointBuffer` | point cloud / particle buffer | custom | TiXL `BufferWithViews` does not port directly |
 | `ShaderGraph` | generated shader function graph | custom | TiXL `ShaderGraphNode` donor only |
 | `Command` | scene/render command stream | custom | cannot be A/B direct |
-| `AudioFrame` | audio buffer slice | native audio type | later low-latency law |
+| `AudioFrame` | audio buffer slice ingested from an external host | external source, not internally computed | see `AUDIO_INGEST_CONTRACT.md` |
 | `Event` | discrete trigger | command/event domain | not value-only |
 
 ## Node Contract
@@ -184,7 +184,7 @@ Cook domains:
 |---|---|---|
 | `setup` | on load / graph change | shader compile, device open |
 | `frame` | visual frame | image, scene, shader uniform |
-| `audio` | audio callback | analyzer facts, audio output |
+| `audio` | external host (not an internal callback) | audio-derived facts ingested at a frame boundary; no internal audio output — see `AUDIO_INGEST_CONTRACT.md` |
 | `event` | trigger/message | MIDI, OSC, button, command |
 | `async` | background task | file/network/AI |
 
@@ -231,6 +231,22 @@ Cook output must include:
   "artifacts": []
 }
 ```
+
+## External Audio Boundary
+
+Sound comes from outside. The instrument / synthesis / DSP lives in an external
+host (e.g. BespokeSynth); this runtime never owns a realtime audio engine, an
+audio callback, or a sample clock.
+
+```text
+audio is an external SOURCE that publishes into the frame/event domains,
+not an internal cook domain.
+```
+
+This kills the earlier "later low-latency law" deferral: we will not build an
+internal low-latency audio domain. The single boundary where external sound
+becomes frame-domain input — its canonical representation, clock crossing, and
+source-absent failure policy — is defined in `AUDIO_INGEST_CONTRACT.md`.
 
 ## Failure Contract
 
