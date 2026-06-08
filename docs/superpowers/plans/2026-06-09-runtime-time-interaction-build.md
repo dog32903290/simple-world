@@ -160,20 +160,26 @@
 
 > **柏為選 World 1（現場原始音訊→暫態→粒子炸）當第一個 felt win，不走 S2 的 OSC 語意路**（OSC 那條退為後續一個世界）。M1 表的「聲音→參數：你放/彈聲音，粒子跟著動」由 World 1 實現。血緣：契約 L3 世界1 + L5 拱心石（`Speed ← audio.kick` = **binding=LiveSource**，非 override；override 等 S8 有 automation 可蓋時才用）+ L14 延遲閘門。
 
-**鏈：** 麥克風/BlackHole 原始音訊 → `audio_capture`(platform, AVAudioEngine tap) → `OnsetDetector`(runtime, 純計算能量包絡) → 發布 envelope → LiveSource `"audio.kick"` → `evalParam` binding 驅動 `ParticleSystem.Speed` → 粒子。
+**鏈：** 麥克風/BlackHole 原始音訊 → `audio_capture`(platform, AVAudioEngine tap) → `AudioAnalyzer.processBlock`(samples→RMS/peak，港自 my-world) → `AttackDetector.processFrame`(RMS→onset/envelope，**✓已港**) → envelope → LiveSource `"audio.kick"` → `evalParam` binding 驅動 `ParticleSystem.Speed` → 粒子。
 
-**File Structure（架構分區）：**
-- `runtime/onset_detect.{h,cpp}` — 純計算暫態偵測（能量包絡 + 自適應閾值 + debounce）。**零硬體、可完全 selftest。**
-- `platform/audio_capture.{h,mm}` — AVAudioEngine 預設輸入 tap；在 audio thread 餵 OnsetDetector；以 atomics 發布 `currentEnvelope()`/`onsetCount()`。**原生接口葉子。**（ARC：不列入 `-fno-objc-arc`。）
-- `main.cpp` — 建 `SourceRegistry`，註冊 LiveSource `"audio.kick"`(self=capture, value=envelope)，bind `ParticleSystem.Speed ← audio.kick`，cook 迴圈 evalParam 傳 `&reg`。
+**File Structure（架構分區；★ = 港自 my-world `~/Projects/my-world/source/audio`，C++ 同棧、無 JUCE 的分析層幾乎逐字可移）：**
+- `runtime/attack_detector.{h,cpp}` ★ — RMS→onset/envelope（delta-based 上升量 + 時間制 debounce/release + NaN/clip 防呆）。**✓ 已港+測（commit 5429564，13/13 綠）。** 純計算葉子。
+- `runtime/audio_analyzer.{h,cpp}` ★ — samples→RMS/peak/gate snapshot（my-world `AudioAnalyzerState`，多聲道 mono-mix + atomic）。**待港**（純計算，可 selftest）。
+- `platform/audio_capture.{h,mm}` — AVAudioEngine 預設輸入 tap；callback 餵 `AudioAnalyzer.processBlock` → snapshot；每幀 `AttackDetector.processFrame({rms,peak,timeMs})`。**原生接口葉子**（ARC：不列 `-fno-objc-arc`）。device 綁定是 my-world 用 JUCE 那塊，simple_world 改 AVAudioEngine 自接。
+- `main.cpp` — `SourceRegistry` 註冊 LiveSource `"audio.kick"`(value=`AttackDetector.envelope`)，bind `ParticleSystem.Speed ← audio.kick`，cook 迴圈 evalParam 傳 `&reg`。
 - eye(已有) 自證；hand 不需要。
 
-**鎖定的決定（非 placeholder）：** onset 演算法=能量包絡（大鼓寬頻夠用，**不用 FFT**，L3）；第一版輸入=**預設麥克風**（拍手即測，零設定），BlackHole=之後切 input device；tap bufferSize 請求小塊(256–512 samples ≈5–10ms)壓延遲；接法=**binding=LiveSource**（非 override）。
-**標出的未知/風險（到該 step 誠實面對，卡住就停）：** ①麥克風 TCC 權限（bare binary 可能算到 Terminal；可能要 .app bundle / Info.plist `NSMicrophoneUsageDescription`）②audio thread→render loop 交接（用 `std::atomic`，不鎖）③真實延遲數字（W1.6 量，全程 sound-in→photon-out 需外部設備，誠實標）。
+**鎖定的決定：** 借 my-world 證碼（不重造，柏為 2026-06-09 指）；factoring = capture 算 RMS、detector 吃 RMS frame（比吃原始樣本乾淨、好測）；onset=delta-based（**非 FFT**，大鼓夠用 L3）；第一版輸入=**預設麥克風**（拍手即測），BlackHole=之後切 device；tap bufferSize 小塊(256–512)壓延遲；接法=**binding=LiveSource**（非 override）。
+**也可借（留後）：** my-world `AudioRealtimeDelivery`（4-slot lock-free 交接，若單 atomic snapshot 不夠再港）、`LiveIOOscReceiver`（**OSC 世界**現成——解先前「OSC 接收器沒 built」的缺）、其餘 detector（sustain/silence/density/residue/aggregate-pressure）。
+**未知/風險（到該 step 誠實面對，卡住就停）：** ①麥克風 TCC 權限（bare binary 可能算到 Terminal；可能要 .app bundle / `NSMicrophoneUsageDescription`）②audio thread→render loop 用 `std::atomic` 交接 ③真實延遲（W1.6 量；全程 sound-in→photon-out 需外部設備，誠實標）。
 
-### W1.1：OnsetDetector（runtime 純計算，selftest-gated）— **今夜可自主做**
+### W1.1：AttackDetector（runtime, RMS→onset）— ✓ DONE（港自 my-world，commit 5429564）
 
-**Files:** Create `app/src/runtime/onset_detect.h`, `app/src/runtime/onset_detect.cpp`; Modify `app/src/main.cpp`(selftest 派發), `app/CMakeLists.txt`(加源).
+港 my-world `source/audio/AnalyzerAttackDetector` → `app/src/runtime/attack_detector.{h,cpp}`（namespace sw）。`--selftest-attack` 移植其 5 個 fixture 案例（quiet→0／single-clean@frame2 且 attackValue≥0.10／steady-loud→0 不重觸／micro-wiggle→0／missing-rms→detectorOk=false+診斷"missing_input:rms"），`--selftest-attack-bug` 用 rise=0 真退化→FAIL。全 13/13 回歸綠。唯一簡化：丟 my-world 的 sampleCount 驗證（simple_world capture 不傳）。
+
+> ⚠ **下方 Step 1–7 是動工前的 from-scratch 能量包絡草圖，已作廢**（被 my-world 港取代，從未 commit）。保留為歷史脈絡；實際碼看 `app/src/runtime/attack_detector.{h,cpp}`。下一塊 = W1.2 港 `AudioAnalyzer` + 接 `audio_capture`。
+
+**Files（作廢草圖）:** Create `app/src/runtime/onset_detect.h`, `app/src/runtime/onset_detect.cpp`; Modify `app/src/main.cpp`(selftest 派發), `app/CMakeLists.txt`(加源).
 
 - [ ] **Step 1: 寫 `onset_detect.h`**（介面 + selftest 宣告）
 
