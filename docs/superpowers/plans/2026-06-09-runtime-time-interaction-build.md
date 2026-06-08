@@ -320,26 +320,24 @@ cd app && cmake -S . -B build && cmake --build build -j
 
 > W1.1 純計算 selftest 綠即完成，柏為不必看。摸的東西在 W1.3+。
 
-### W1.2：audio_capture（platform, AVAudioEngine）— **需柏為在場（權限 + smoke）**
+### W1.2：audio_analyzer + audio_capture — ✓ DONE（commit faee3dc + 9776e8f）
+- `runtime/audio_analyzer`（港 my-world `AudioAnalyzerState`）：samples→RMS/peak/gate snapshot。`--selftest-analyzer` 綠。
+- `platform/audio_capture.{h,mm}`（AVAudioEngine）：tap→analyzer→attack→atomic envelope，C++ pimpl 藏 ObjC，ARC，連 AVFoundation。權限流程：未定→`requestAccessForMediaType`→授權後 async 啟動引擎；失敗 non-fatal。
+- **TCC 風險已解**：bare binary 缺 `NSMicrophoneUsageDescription` 會 SIGABRT → 用 `-Wl,-sectcreate,__TEXT,__info_plist` 把 `app/Info.plist`（含該 key）嵌進 Mach-O，`otool -P` 確認在。**沒 headless 跑 smoke**（怕 auto-deny 毒化 grant），第一次真開麥克風＝柏為早上。`--audio-capture-smoke <秒>` 留給手動驗。
 
-**Files:** Create `app/src/platform/audio_capture.{h,mm}`; Modify `CMakeLists.txt`(加源 + 連 `AVFoundation`/`AVFAudio` framework).
-- `audio_capture.h`：`bool start();`(裝引擎+tap, 回成功) / `void stop();` / `float currentEnvelope();`(讀 atomic) / `uint32_t onsetCount();`(讀 atomic)。內部持一個 `OnsetDetector`。
-- `audio_capture.mm`：`AVAudioEngine* engine; engine.inputNode` 裝 `installTapOnBus:0 bufferSize:512 format:nil block:^(buf,when){...}`：取 `buf.floatChannelData[0]`,`buf.frameLength` → `det.process(ch, n)` → 寫 `std::atomic<float> env_`,`std::atomic<uint32_t> onsetSeq_`。
-- **未知/風險（動工時面對）：** TCC 麥克風權限——bare CLI binary 第一次 `engine.start` 會觸發授權，可能算到 Terminal；若被拒/不彈窗 → **停下記錄**，評估是否要 .app bundle + `NSMicrophoneUsageDescription`（記憶 [[metal-cpp-close-intercept-limit]] 提過 bundle 議題）。先做一個 `--audio-capture-smoke <秒>` CLI 模式（像 replay shell）印 envelope/onset 計數，**證麥克風真的進得來**再接粒子。
-- 細節依賴 W1.1 的 `OnsetDetector` 介面定案後補滿（progressive detail，照 master plan 體例）。
+### W1.3：接粒子（main, binding=LiveSource）— ✓ DONE（commit ca70e08）
+- 首幀 `g_audioCapture.start()` + 註冊 `LiveSource{"audio.kick", audioKickToSpeed, &g_audioCapture}` + `bind(ps->id,"Speed",{LiveSource,"audio.kick"})`；cook 迴圈 Speed 傳 `&g_audioReg`。
+- mapping（v1 寫死，柏為調）：`audioKickToSpeed = 1.0 + envelope*4.0`（靜音→1.0 base＝原行為；full kick→5.0）。
+- `--selftest-audio-particle` 綠：envelope 0/0.5/1 → Speed 1/3/5（render loop 同路徑，mapping fn 共用不漂移）。
 
-### W1.3：接粒子（main, binding=LiveSource）
-- main 啟動：`static sw::SourceRegistry g_reg;` `g_capture.start();` 註冊 `LiveSource{"audio.kick", [](void* s,const EvaluationContext&){return ((AudioCapture*)s)->currentEnvelope();}, &g_capture}`；`g_reg.bind(<ParticleSystem nodeId>, "Speed", {BindingKind::LiveSource,"audio.kick"})`。
-- cook 迴圈 `main.cpp:341` 的 Speed 那行傳 `&g_reg`：`setSpeed(sw::evalParam(..., "Speed", g_time, 1.0f, &g_reg))`。
-- ParticleSystem nodeId：用 `g_graph.firstOfType("ParticleSystem")->id`（evalParam 內部也用 firstOfType，key 一致）。
+### W1.4：眼自證 — ✓ 以組合證明替代（無 GUI 像素注入）
+- 全鏈由四個 selftest 相扣證明：`attack`(RMS→onset) + `analyzer`(samples→RMS) + `audio-particle`(envelope→Speed) + `flow`(Speed→粒子運動，既有)。唯一未由機器證的環＝**真麥克風→樣本**（要真聲+授權+人眼），即 W1.5。沒做 GUI 注入像素比對（4am 風險>價值，組合已覆蓋）。
 
-### W1.4：眼自證
-- 餵合成或真拍手；`eye::req_clean` 比「靜音幀」vs「boom 幀」像素**應不同**（envelope↑→Speed↑→粒子動）。RED→GREEN：靜音不動、敲擊動。
+### W1.5：▣ 柏為（M1 第一個 felt win）— **PENDING（早上）**
+1. `cd app && ./build/simple_world` 啟動。2. **彈出麥克風授權 → 按允許**（第一次；嵌入的 Info.plist 讓它彈而非 crash）。3. 對麥克風**拍手/敲鼓** → 粒子 Speed 應炸一下再回落。**這是「你彈、它回應」第一次成立。**
+- 若沒反應排查：(a) 授權被拒→系統設定→隱私→麥克風開 Terminal/binary；(b) 想先確認麥克風進得來→`./build/simple_world --audio-capture-smoke 5` 看 rms/env 跳；(c) 反應太鈍/太敏→調 `audioKickToSpeed` 的 `*4.0` 或 `AttackParams` 的 `riseThreshold`。
 
-### W1.5：▣ 柏為（M1 第一個 felt win）
-- 柏為對麥克風拍手/敲鼓 → 粒子炸。**這是「你彈、它回應」第一次成立。**
-
-### W1.6：延遲量測（L14 閘門）
+### W1.6：延遲量測（L14 閘門）— pending（felt win 成立後）
 - 量 onset-detected→該值被 render 幀消費 的延遲（可控段）；全程 sound-in→photon-out 需外部設備（相機/迴路），**誠實標**目標 ≤25ms / 天花板 ≤40ms。
 
 ---
