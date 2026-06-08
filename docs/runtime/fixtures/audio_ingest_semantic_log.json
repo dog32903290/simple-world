@@ -1,0 +1,30 @@
+{
+  "version": "0.1",
+  "graphId": "fixture.audio_ingest_semantic_log",
+  "note": "Recorded SemanticPath (OSC/MIDI) log for AUDIO_INGEST_CONTRACT.md. Replayed by `simple_world --audio-ingest-replay <this>` and mirrored hermetically by `--selftest-audioingest`.",
+  "frameClock": { "fps": 60, "frames": 8 },
+  "ingest": { "policy": "hold", "smoothing": 0.6 },
+  "messages": [
+    { "t": 0.000, "kind": "connect",    "track": 0 },
+    { "t": 0.000, "kind": "setValue",   "track": 0, "param": "cutoff", "value": 0.0 },
+    { "t": 0.005, "kind": "notesState", "track": 0, "notes": [60] },
+    { "t": 0.010, "kind": "setValue",   "track": 0, "param": "cutoff", "value": 1.0 },
+    { "t": 0.012, "kind": "setValue",   "track": 0, "param": "cutoff", "value": 0.8 },
+    { "t": 0.020, "kind": "pulse",      "track": 0, "value": 1 },
+    { "t": 0.021, "kind": "pulse",      "track": 0, "value": 1 },
+    { "t": 0.070, "kind": "notesState", "track": 0, "notes": [] },
+    { "t": 0.100, "kind": "disconnect", "track": 0 }
+  ],
+  "expect": {
+    "comment": [
+      "frame1: cutoff is latest-wins (0.8 not 1.0) AND smoothed (~0.32 not 0.8); note 60 on.",
+      "the release near t=0.040 is intentionally DROPPED; the authoritative notesState {} at",
+      "t=0.070 self-heals it (state-based, not edge-based -> no stranding).",
+      "the duplicate pulse at t=0.021 must NOT double-fire (idempotent by seq).",
+      "frame7: disconnected, but still cookable (held finite values), note 60 released."
+    ],
+    "frame1": { "values": { "0/cutoff": 0.32 }, "notesOn": ["0/60"] },
+    "frame7": { "connected": false, "cookable": true, "noteHeld_0_60": false },
+    "pulseCount": 1
+  }
+}

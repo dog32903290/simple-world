@@ -105,14 +105,20 @@ bridge. This coupling is accepted, not hidden.
 
 ## Proof
 
-Status: **not yet built (proof gap)**. Per `CONTRACT_GAPS.md`, before
-implementation this contract requires:
+Status: **built** (runtime, not a proof-host shell).
 
 ```text
-fixture : a recorded SemanticPath message log + a graph that consumes AudioInput
-test    : assert source-absent stays non-black; assert latest-wins + smoothing;
-          assert a dropped discrete event does not strand state
-runner  : an ingest shell that replays the message log into frame-sampled AudioInput
+engine  : app/src/runtime/audio_ingest.{h,cpp}   (pure, zero-dep, zero-Metal)
+fixture : docs/runtime/fixtures/audio_ingest_semantic_log.json
+selftest: simple_world --selftest-audioingest   (and --selftest-audioingest-bug)
+replay  : simple_world --audio-ingest-replay docs/runtime/fixtures/audio_ingest_semantic_log.json
+gate    : tests/audio_ingest_contract.test.js    (contract + fixture shape)
 ```
 
-No visual node may be promoted to consume audio until the fixture + test exist.
+`--selftest-audioingest` is hermetic and isolated (constitution Rule 5): it
+replays a synthetic SemanticPath log over an 8-frame 60fps sweep and asserts all
+three properties; the `-bug` variant flips the engine into degenerate modes
+(stepped values, edge-based notes, absent-garbage) so every assertion must FAIL.
+
+Promotion rule still holds: no visual node may consume `AudioInput` until its own
+fixture + test extend this proof to the consuming graph.

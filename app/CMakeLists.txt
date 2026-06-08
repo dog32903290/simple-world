@@ -77,6 +77,8 @@ add_executable(simple_world
   src/runtime/particle_system.cpp
   src/runtime/graph.cpp
   src/runtime/dispatch.cpp
+  src/runtime/audio_ingest.cpp
+  src/runtime/audio_ingest_replay.cpp
   ${IMGUI_DIR}/imgui.cpp
   ${IMGUI_DIR}/imgui_draw.cpp
   ${IMGUI_DIR}/imgui_tables.cpp

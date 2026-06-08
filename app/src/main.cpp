@@ -22,6 +22,7 @@
 #include "app/document.h"
 #include "app/menu.h"
 #include "platform/dialogs.h"
+#include "runtime/audio_ingest.h"
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
 #include "runtime/particle_system.h"
@@ -166,6 +167,12 @@ int main(int argc, char* argv[]) {
       return sw::runDrawPointsSelfTest(/*injectBug=*/true);
     if (std::strcmp(argv[i], "--selftest-eye") == 0) return sw::eye::runSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-eye-bug") == 0) return sw::eye::runSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--selftest-audioingest") == 0)
+      return sw::runAudioIngestSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-audioingest-bug") == 0)
+      return sw::runAudioIngestSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--audio-ingest-replay") == 0)
+      return sw::runAudioIngestReplay(i + 1 < argc ? argv[i + 1] : "");
   }
 
   NS::AutoreleasePool* pAutoreleasePool = NS::AutoreleasePool::alloc()->init();
