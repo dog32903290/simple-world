@@ -135,9 +135,23 @@ void drawNodeCanvas() {
         if (ed::AcceptNewItem()) {
           int from = ia ? pb : pa;  // output pin
           int to = ia ? pa : pb;    // input pin
-          sw::Connection c{sw::doc::g_graph.nextId++, from, to};
-          sw::g_commands.push(std::make_unique<sw::AddConnectionCommand>(sw::doc::g_graph, c));
-          sw::doc::g_status = "linked";
+          const sw::Connection* old = sw::doc::g_graph.connectionToInput(to);
+          if (old && old->fromPin == from) {
+            // already wired to this exact source — nothing to do
+          } else if (old) {
+            // reconnect: remove the input's old link, add the new one, as one undo unit
+            auto macro = std::make_unique<sw::MacroCommand>("Reconnect");
+            macro->add(std::make_unique<sw::DeleteConnectionsCommand>(
+                sw::doc::g_graph, std::vector<int>{old->id}));
+            sw::Connection c{sw::doc::g_graph.nextId++, from, to};
+            macro->add(std::make_unique<sw::AddConnectionCommand>(sw::doc::g_graph, c));
+            sw::g_commands.push(std::move(macro));
+            sw::doc::g_status = "reconnected";
+          } else {
+            sw::Connection c{sw::doc::g_graph.nextId++, from, to};
+            sw::g_commands.push(std::make_unique<sw::AddConnectionCommand>(sw::doc::g_graph, c));
+            sw::doc::g_status = "linked";
+          }
         }
       } else {
         ed::RejectNewItem();
