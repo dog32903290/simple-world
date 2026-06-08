@@ -61,6 +61,26 @@ and proof artifacts can overrule stale plan text.
 
 ## Active Lane
 
+`audio_ingest` (external-audio boundary) is closed end-to-end on macOS as of
+2026-06-08 on branch `claude/runtime-workflow-approach-i4BrT` (HEAD `40b0bbc`).
+Sound is owned by an external host (BespokeSynth); our runtime runs no audio
+engine — it ingests external control messages at frame rate into `AudioInput`
+for visual nodes. The full Metal app links `audio_ingest.{cpp}` +
+`audio_ingest_replay.cpp` and the `--selftest-audioingest[-bug]` /
+`--audio-ingest-replay` CLI wiring; selftest is PASS/exit0 and FAIL/exit1, and
+replay traces frame-exact. The cloud could prove the pure engine + replay +
+converter under sanitizers but not the macOS Metal build or a live host; both are
+now proven locally. New this session: `tools/bespoke_live_poll.py` closes the
+last gap between the live OSC bridge (`tools/bespoke_cli`, structured `~`-path
+records) and `bespoke_to_ingest.py` (flat `module.control` snapshot schema) — its
+pure `scalar_map()` is unit-tested host-independently, `record()` is read-only by
+default with optional `--sweep/--restore`, and a live BespokeSynth run confirmed
+real control values become per-frame `AudioInput`. Contract + proof:
+`docs/runtime/AUDIO_INGEST_CONTRACT.md` ("macOS closure" section). This is the
+external coupling made explicit, not a self-contained audio runtime; promotion
+rule still holds (no visual node consumes `AudioInput` until its own fixture +
+test extend the proof to the consuming graph).
+
 `node_admission_contract` is closed for the current full-node contract gate.
 Every checked-in Vuo node now has a machine-readable admission entry with
 creator name, source path, port/default/range surface, state, flow ownership,
@@ -406,6 +426,11 @@ Also keep `native_runtime_graph_incremental_builder` proof files.
 Also keep `native_metal_heap_residency` proof files.
 Also keep `native_shader_ir_expression_core` proof files.
 Also keep `native_ai_worker_authoring_assist` proof files.
+Also keep the `audio_ingest` external-audio boundary: read
+`docs/runtime/AUDIO_INGEST_CONTRACT.md` (incl. the "macOS closure" section),
+`app/src/runtime/audio_ingest.{h,cpp}` + `audio_ingest_replay.cpp`,
+`tools/bespoke_to_ingest.py`, `tools/bespoke_live_poll.py`, and
+`tests/{audio_ingest_contract,bespoke_to_ingest,bespoke_live_poll}.test.js`.
 Keep the product/nonclaim boundaries intact: human workflow proof is not full
 interaction parity or final visual polish, the canvas command loop is not full
 interaction parity, the pure interaction command layer is not polished UI,

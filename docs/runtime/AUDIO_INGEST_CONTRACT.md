@@ -113,6 +113,16 @@ stable integer `trackId` per module (kept in `trackMap`). The converter is pure
 and host-independent; only the live poll that produces `snapshots.json` needs a
 running BespokeSynth.
 
+`tools/bespoke_live_poll.py` is that live poll. The OSC bridge's `live
+list-controls` returns *structured* records whose path uses `~`
+(`transport~tempo`), not the flat `{module.control: value}` snapshot schema this
+contract documents. `scalar_map()` is the bridge between the two: it collapses
+live records into the flat map, keeping only continuous scalars (drops buttons,
+text entries, stepped/enum controls). That mapping is pure and host-independent,
+so it is unit-tested without a running Bespoke (`map-records` mode); only
+`record()` needs the live host. Recording is read-only by default; `--sweep`
+injects motion on one control and `--restore` returns it to its original value.
+
 ## External Coupling (named exposure)
 
 This contract makes the product **incomplete standalone, by design**. It depends
@@ -129,8 +139,28 @@ fixture : docs/runtime/fixtures/audio_ingest_semantic_log.json
 selftest: simple_world --selftest-audioingest   (and --selftest-audioingest-bug)
 replay  : simple_world --audio-ingest-replay docs/runtime/fixtures/audio_ingest_semantic_log.json
 bespoke : tools/bespoke_to_ingest.py  (control snapshots -> fixture; tests/bespoke_to_ingest.test.js)
+livepoll: tools/bespoke_live_poll.py  (OSC bridge records -> snapshot schema; tests/bespoke_live_poll.test.js)
 gate    : tests/audio_ingest_contract.test.js    (contract + fixture shape)
 ```
+
+### macOS closure (2026-06-08)
+
+The whole boundary is closed on macOS, not only on the Linux sanitizer host:
+
+- Full Metal app builds with both `audio_ingest.cpp` and `audio_ingest_replay.cpp`
+  linked (`cd app && cmake -S . -B build && cmake --build build -j`).
+- `--selftest-audioingest` PASS / exit 0; `--selftest-audioingest-bug` FAIL / exit 1.
+- Replay of the semantic-log fixture traces frame-exact (noteOn 60 @f1, single
+  pulse @f2, noteOff @f5, `connected=0 cookable=1` from f6).
+- Live proof against a running BespokeSynth: `bespoke_live_poll.py record`
+  captured 24 real scalar controls/frame, a `transport~tempo` sweep
+  (147->160->175->190->...) flowed through the converter and replay into the
+  per-frame `AudioInput` value stream, and the swept control was restored.
+- JS gate 8/8 (`audio_ingest_contract` + `bespoke_to_ingest` + `bespoke_live_poll`).
+
+Observed coupling fact: the live bridge occasionally drops a `--wait` response
+under rapid calls; `bespoke_live_poll._run_cli` retries once so a sweep cannot
+leave the live patch dirty.
 
 `--selftest-audioingest` is hermetic and isolated (constitution Rule 5): it
 replays a synthetic SemanticPath log over an 8-frame 60fps sweep and asserts all
