@@ -1,0 +1,11 @@
+{
+  "note": "Sample of one frame of BespokeSynth OSC-bridge `live list-controls` records (the structured `~`-path format). Feed to `tools/bespoke_live_poll.py map-records` to collapse into the flat module.control scalar map that bespoke_to_ingest.py consumes. Captured shape mirrors a real running Bespoke; buttons / text entries / stepped controls must be dropped.",
+  "controls": [
+    { "module": "transport", "name": "tempo", "path": "transport~tempo", "value": 147.0, "is_button": false, "is_text_entry": false, "num_values": 0 },
+    { "module": "transport", "name": "swing", "path": "transport~swing", "value": 0.5, "is_button": false, "is_text_entry": false, "num_values": 0 },
+    { "module": "transport", "name": " + ", "path": "transport~ + ", "value": 0.0, "is_button": true, "is_text_entry": false, "num_values": 2 },
+    { "module": "transport", "name": "time signature", "path": "transport~time signature", "value": 1.0, "is_button": false, "is_text_entry": false, "num_values": 8 },
+    { "module": "savestate", "name": "filename", "path": "savestate~filename", "value": 0.0, "is_button": false, "is_text_entry": true, "num_values": 0 },
+    { "module": "gain", "name": "gain", "path": "gain~gain", "value": 0.4, "is_button": false, "is_text_entry": false, "num_values": 0 }
+  ]
+}
