@@ -65,6 +65,9 @@ add_custom_target(sw_shaders DEPENDS ${SW_METALLIB})
 # the imgui backends.
 set_source_files_properties(src/verify/eye/eye.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 set_source_files_properties(src/platform/dialogs.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
+# audio_capture.mm uses AVAudioEngine — ARC keeps the ObjC lifetime simple (it touches
+# no metal-cpp pointers, so the MRC convention of the other .mm files doesn't apply).
+set_source_files_properties(src/platform/audio_capture.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 
 add_executable(simple_world
   src/main.cpp
@@ -77,6 +80,7 @@ add_executable(simple_world
   src/verify/eye/eye.mm
   src/verify/hand/hand.cpp
   src/platform/dialogs.mm
+  src/platform/audio_capture.mm
   src/runtime/particle_system.cpp
   src/runtime/graph.cpp
   src/runtime/source_registry.cpp
@@ -132,7 +136,13 @@ target_link_libraries(simple_world PRIVATE
   "-framework Cocoa"
   "-framework Carbon"
   "-framework GameController"
+  "-framework AVFoundation"
 )
+
+# Embed Info.plist into the bare Mach-O so TCC can read NSMicrophoneUsageDescription
+# (required for AVAudioEngine mic capture without a .app bundle).
+target_link_options(simple_world PRIVATE
+  "-Wl,-sectcreate,__TEXT,__info_plist,${CMAKE_CURRENT_SOURCE_DIR}/Info.plist")
 
 if(SW_SANITIZE)
   target_compile_options(simple_world PRIVATE

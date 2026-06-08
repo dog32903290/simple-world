@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.baiwei.simpleworld</string>
+  <key>CFBundleName</key>
+  <string>simple_world</string>
+  <key>CFBundleDisplayName</key>
+  <string>simple_world</string>
+  <!-- TCC reads this from the embedded __TEXT,__info_plist section (sectcreate at
+       link time) so the bare binary can request the microphone without crashing. -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>simple_world listens to live audio so sound can drive the particles.</string>
+</dict>
+</plist>

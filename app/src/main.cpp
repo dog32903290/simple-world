@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -22,6 +23,7 @@
 #include "app/command.h"
 #include "app/document.h"
 #include "app/menu.h"
+#include "platform/audio_capture.h"
 #include "platform/dialogs.h"
 #include "runtime/attack_detector.h"
 #include "runtime/audio_analyzer.h"
@@ -199,6 +201,8 @@ int main(int argc, char* argv[]) {
       return sw::runAudioIngestSelfTest(/*injectBug=*/true);
     if (std::strcmp(argv[i], "--audio-ingest-replay") == 0)
       return sw::runAudioIngestReplay(i + 1 < argc ? argv[i + 1] : "");
+    if (std::strcmp(argv[i], "--audio-capture-smoke") == 0)
+      return sw::runAudioCaptureSmoke(i + 1 < argc ? atof(argv[i + 1]) : 4.0);
   }
 
   NS::AutoreleasePool* pAutoreleasePool = NS::AutoreleasePool::alloc()->init();
