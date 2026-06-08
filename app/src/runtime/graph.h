@@ -50,6 +50,9 @@ struct Graph {
 
 // Stable pin id from a node id + the port index in its spec.
 inline int pinId(int nodeId, int portIndex) { return nodeId * 100 + portIndex + 1; }
+// Inverse of pinId: recover the owning node id from a pin id. Single source of
+// truth for the pin->node mapping (callers must not re-derive (pin-1)/100).
+inline int pinNode(int pin) { return (pin - 1) / 100; }
 
 // Default particle graph: RadialPoints -> ParticleSystem <- TurbulenceForce, ParticleSystem -> DrawPoints.
 Graph defaultParticleGraph();

@@ -25,10 +25,6 @@ void AddConnectionCommand::undo() {
 }
 
 // --- DeleteConnectionsCommand ---
-namespace {
-int connNodeOf(int pin) { return (pin - 1) / 100; }  // 與 ui::pinNodeId 一致
-}  // namespace
-
 void DeleteConnectionsCommand::doIt() {
   removed_.clear();
   auto& cs = g_.connections;
@@ -54,10 +50,10 @@ void DeleteNodesCommand::doIt() {
   // 快照入射連線後刪。
   auto& cs = g_.connections;
   for (const Connection& c : cs)
-    if (inSet(connNodeOf(c.fromPin)) || inSet(connNodeOf(c.toPin))) removedConns_.push_back(c);
+    if (inSet(pinNode(c.fromPin)) || inSet(pinNode(c.toPin))) removedConns_.push_back(c);
   cs.erase(std::remove_if(cs.begin(), cs.end(),
                           [&](const Connection& c) {
-                            return inSet(connNodeOf(c.fromPin)) || inSet(connNodeOf(c.toPin));
+                            return inSet(pinNode(c.fromPin)) || inSet(pinNode(c.toPin));
                           }),
            cs.end());
   // 快照節點後刪。

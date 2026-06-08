@@ -28,7 +28,7 @@ int g_selectedNode = 0;
 
 namespace {
 // pin id <-> (node id, port index) — see sw::pinId().
-int pinNodeId(int pin) { return (pin - 1) / 100; }
+int pinNodeId(int pin) { return sw::pinNode(pin); }
 int pinPortIndex(int pin) { return (pin - 1) % 100; }
 bool pinIsInput(int pin) {
   const sw::Node* n = sw::doc::g_graph.node(pinNodeId(pin));
@@ -191,7 +191,7 @@ void drawNodeCanvas() {
     auto incidentToDeletedNode = [&](int linkId) {
       for (const sw::Connection& c : sw::doc::g_graph.connections)
         if (c.id == linkId) {
-          int fn = (c.fromPin - 1) / 100, tn = (c.toPin - 1) / 100;
+          int fn = sw::pinNode(c.fromPin), tn = sw::pinNode(c.toPin);
           return std::find(delNodes.begin(), delNodes.end(), fn) != delNodes.end() ||
                  std::find(delNodes.begin(), delNodes.end(), tn) != delNodes.end();
         }
