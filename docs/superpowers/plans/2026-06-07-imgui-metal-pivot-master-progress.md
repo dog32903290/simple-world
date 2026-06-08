@@ -23,6 +23,10 @@
 - **audio-ingest 已整合進主線（2026-06-08 merge）**：另一條 session（`claude/runtime-workflow-approach-i4BrT`）的
   audio ingest 引擎/fixture/selftest/replay/Bespoke poller 已 merge 進本線；衝突只在 main.cpp/CMakeLists（各加各的行，已解）。
   **現在單一工作線 = `codex/js-to-cpp-contract-migration`**。全 8 selftest 綠（graph/save/command/valuecook/hand/eye/flow/audioingest）。
+- **（2026-06-09）runtime 合約與柏為 13 輪重對齊（時間/聲音/交互層）**：`MY_WORLD_RUNTIME_CONTRACT` 升 **v0.2**、
+  `docs/runtime/CONTRACT_ALIGNMENT_LEDGER.md`(L1–L14) 落檔、TiXL 時間/動畫設計抽取已驗證（L8/L9/L10/L12 與 TiXL 同構）。
+  **開工 lane = runtime 時間/交互層建造**（Transport 兩鐘 / scoreGraph 第五張圖 / automation / 值解析堆疊；見 Active Lane）。
+  地基已**親證在跑**（eye 抓真 frame：Metal 粒子 + node canvas，68.8fps）。
 - 與柏為長談後確立的核心判斷（四個皮選項都已逐一壓過、由他拍板）：
   - **核心資產 = 自己的 Metal 粒子/3D 引擎。皮是可換外殼。**
   - 放棄整批克隆 TiXL / Vuo runtime（兩者 runtime 都搬不動，證據見 Conflict Register）。
@@ -98,14 +102,18 @@ DX11/WinForms 焊死的陷阱）、Web/TS（wgpu→Metal 非親手 + 丟 imgui-n
 
 ## Active Lane
 
-**目前無 active lane（2026-06-08 值脊椎剛收尾）。** 上一個 lane（值脊椎）= ✅ 端到端打通（見 Current Snapshot）。
-唯一懸著：柏為眼球確認粒子脈動（機器證據已齊）。
+**runtime 時間/交互層建造（2026-06-09 柏為拍板開工）** = `plans/2026-06-09-runtime-time-interaction-build.md`。
+設計來源 = `docs/runtime/CONTRACT_ALIGNMENT_LEDGER.md`(L1–L14) + `MY_WORLD_RUNTIME_CONTRACT.md` **v0.2**
+（2026-06-09 13 輪對齊重訂：Transport 兩鐘、scoreGraph 第五張圖、值解析堆疊+arm、override 照 Ableton、
+驗收三層、Vuo 捨棄、audio 兩世界+延遲閘門）。
+- **11 段脊椎、4 個體感關卡(▣)。2026-06-09 壓測重排 = sound-first**：S0 預清 header 雷 → S1=**解析模型（來源註冊+binding/override，拱心石）** → S2=**▣ 聲音→參數**。S0/S1/S2 已詳到可執行。
+- 節律 = **牽繩 B**：水管工夜裡自主(`/goal "段 selftest 綠"`) + 每段 selftest 派 subagent 對抗審查、▣ 體感邊界停給柏為摸。
+- 4 個早上：**M1 聲音→參數**（你彈/放聲音、粒子跟著動；零 transport、夜1=S0–S2）→ **M2** automation 播放+scrub(夜2=S3–S6) →
+  **M3** 錄製+override 黏放(夜3=S7–S8) → **M4** 兩個聲音世界(夜4=S9–S11,批)。
+- 接在「值脊椎」後面（已端到端打通）；值脊椎的連線驅動 = 解析模型的 `binding=connection`，零改自動進模型。Transport 退到 S5（automation 才需要 playhead）。
 
-**下一個 lane 待柏為挑**（queued，照 Roadmap）：
-- **A** runtime fan-out（其餘力/點生成/渲染… 照 TiXL，可 sub-agent 並行）。
-- **值→粒子更多接點**：把 audio-ingest 的值接進值脊椎 → 聲音驅動粒子（兩條線的交會點，柏為是音樂家，動機強）。
-- **Phase 3** 插入節點（TiXL 線上浮圓點）/ Phase 4 框選 / Phase 5 複製貼上。
-- **C** 視覺向 TiXL 收斂。
+> 上一個 lane（值脊椎）= ✅ 端到端打通；唯一懸著=柏為眼球確認粒子脈動（機器證據已齊）。
+> 其餘 queued（照 Roadmap，本 lane 後）：A runtime fan-out / Phase 3 插入節點 / Phase 4 框選 / C 視覺向 TiXL 收斂。
 
 > step 0→3 的起手細節（clone starter、第一條粒子線）已歸檔到 `2026-06-08-progress-history.md`（grep 用）。
 
@@ -162,7 +170,9 @@ load/store 覆蓋、語義合併衝突（git 行比對不報、memory layout 靜
 - 本檔：**現行 master progress，唯一 dashboard。**
 - `specs/2026-06-08-node-editing-commands-design.md`：**節點編輯命令層 spec**（五階段：命令層→reconnect→插入→框選→複製貼上）。active 設計契約。
 - `specs/2026-06-08-value-spine-design.md`：**值脊椎 spec（current active lane 的設計契約）**：param=帶預設的 Float input port（schema 合一，TiXL InputSlot 已查證）、5 承重柱、5 起手節點（Time/Const/Multiply/Sine/Remap）、重用 Phase1/2 對照、接縫 main.cpp:322-325。schema 已釘死。
-- `2026-06-08-value-spine.md`：**值脊椎實作計畫（active，柏為 2026-06-08 拍板執行中）**：5 task bite-sized TDD（schema 合一→求值引擎→接縫→UI→眼手驗），標重用 Phase1/2 vs 新碼。
+- `2026-06-08-value-spine.md`：**值脊椎實作計畫（✅ closed，端到端打通）**：5 task bite-sized TDD（schema 合一→求值引擎→接縫→UI→眼手驗），標重用 Phase1/2 vs 新碼。本 lane 接在它後面。
+- **`2026-06-09-runtime-time-interaction-build.md`：runtime 時間/交互層建造計畫（= current active lane）。** 11 段脊椎（S1 詳到可執行、S2–S11 條目）、4 個體感關卡、夜→晨節律、每段血緣（搬/擴充/全新）+ TiXL 源。設計來源 = 下方 CONTRACT_ALIGNMENT_LEDGER。
+- **`docs/runtime/CONTRACT_ALIGNMENT_LEDGER.md`：時間/聲音/交互層對齊底稿（L1–L14，active lane 的設計契約）。** 2026-06-09 與柏為 13 輪壓測合約含混處的逐項鎖定 + 停車 + Decision Log；TiXL 抽取證據。改約/實作前先讀。
 - `2026-06-08-node-editing-commands-phase1.md`：**Phase 1 實作計畫 = closed**（命令層+undo/redo，柏為 7/7 驗收，checkbox 已勾）。closure evidence。
 - `2026-06-08-node-editing-commands-phase2.md`：**Phase 2 實作計畫 = parked**（reconnect；頂部有 ⏸ 狀態 banner 說明擱置原因 + 待釐清方向）。
 - `2026-06-08-architecture-constitution.md` / `specs/2026-06-08-architecture-constitution-design.md`：架構憲法（五區/7 鐵律）= `ARCHITECTURE.md` 的來源。

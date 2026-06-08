@@ -1,8 +1,16 @@
 # My World Runtime Contract
 
-Version: `0.1`
+Version: `0.2`
 
-This is the first native runtime law for My World. It exists so TiXL/Vuo/TD-like node vocabulary has one place to land without inheriting any single host application's hidden assumptions.
+Amended 2026-06-09 per `CONTRACT_ALIGNMENT_LEDGER.md` (L1–L14): recentered from a
+"visual runtime" to an **interaction graph whose primary output is visual**; Vuo dropped
+as host; Transport clock + `scoreGraph` + parameter value-resolution added; "never own
+audio" downgraded to external-first.
+
+This is the native runtime law for My World. It exists so TiXL/TD-like node vocabulary has
+one place to land without inheriting any single host application's hidden assumptions. The
+host surface is imgui-node-editor (skin) + a self-built Metal engine; TiXL is the semantic
+donor (design authority), not runtime law.
 
 First proof line:
 
@@ -20,14 +28,25 @@ docs/runtime/fixtures/native_runtime_lane.graph.json
 
 ## Non-Negotiables
 
+- This is an **interaction graph whose primary output is visual** — not a visual-only
+  runtime. Visual is the main axis; audio, MIDI, OSC, and future protocols are first-class
+  live sources on the same fabric (L4, L5).
 - The graph is the source of truth.
-- UI, AI workers, importers, and scripts mutate the graph only through commands.
+- Authoring mutates the graph only through commands — **but live performance gestures are
+  not commands**; they are an ephemeral override stream, persisted only when automation
+  recording is armed (L2, L5, Port Contract).
 - Runtime state must be inspectable from text, not trapped inside GUI objects.
-- A node is not accepted because it compiles. It must produce evidence.
-- TiXL is semantic donor, not runtime law.
-- Vuo is first host/prototype surface, not final runtime law.
+- **Acceptance is three-tier (L6):** (1) the agent verifies first with its own eye+hand —
+  drive the app, observe the real behavior; (2) tests/artifacts are the regression +
+  handoff guardrail, *not* the acceptance gate; (3) 柏為's hand is final authority, invoked
+  only for genuinely risky items. "Compiles" never means "accepted."
+- TiXL is semantic donor and design authority, not runtime law.
+- The host surface is imgui-node-editor + a self-built Metal engine. **Vuo is dropped** (L7).
+- The runtime owns no synthesis/DSP/instrument engine, but **may own a playback transport
+  clock for loaded media** (L11). "External-first" is the current default, not a permanent
+  "never" — the I/O boundary is designed to absorb internal ownership later.
 
-## Four Graphs
+## Five Graphs
 
 ### editorGraph
 
@@ -89,9 +108,27 @@ Owns:
 - proof artifacts
 - final evidence
 
+### scoreGraph
+
+Authored time layer (L12). The "搭" layer; TiXL's `Animator`, generalized + versioned.
+
+Owns:
+
+- transport config (length, loop, rate, play-state policy)
+- per-`(node, parameter)` automation curves (the `Curve` primitive, L9)
+- saved versions / duplicates (multiple scores over one node graph)
+
+Does not own:
+
+- node topology (that is `editorGraph` / `runtimeGraph`)
+- live override state (ephemeral, resolved per-frame — see Port Contract)
+
+`runtimeGraph` reads `scoreGraph` at the transport playhead each cooked frame.
+
 ## Runtime Type System
 
-Core value types:
+Core value types (the "Vuo candidate" column is **historical** — Vuo is dropped (L7); the
+names remain only as rough native-type hints until the native type registry lands):
 
 | type | meaning | Vuo candidate | TiXL notes |
 |---|---|---|---|
@@ -105,7 +142,7 @@ Core value types:
 | `Color` | RGBA color | `VuoColor` | TiXL often stores color as `Vector4` |
 | `RangeFloat` | min/max float | Vuo range type or struct | TiXL range ports need explicit schema |
 | `Gradient` | color ramp | custom | no direct first-pass law |
-| `Curve` | value curve | custom | no direct first-pass law |
+| `Curve` | value-over-axis primitive (keyframes → value); used as wireable data **or** bound to (param × transport-time) as automation — L9/L10 | native (cf. TiXL `Curve`/`VDefinition`) | keyframe fields: value, in/out interpolation (Constant/Linear/Smooth/Cubic/Tangent), tangent, tension; must support live keyframe append (punch-in) |
 | `Texture2D` | image/texture | `VuoImage` | host-specific resource boundary |
 | `Scene` | renderable scene graph | `VuoSceneObject` candidate | needs My World law |
 | `Mesh` | geometry | `VuoMesh` candidate | needs ownership/resource law |
@@ -164,6 +201,41 @@ Rules:
 - `Vec4` ports must declare `semanticType: color | vector | quaternion | unknown`.
 - `Texture2D`, `Mesh`, `Scene`, `PointBuffer`, and `ShaderGraph` ports must declare resource ownership.
 
+### Parameter Value Resolution (L5)
+
+A parameter's effective value each frame is produced by exactly **one active driver**,
+resolved by priority:
+
+```text
+override   — a live source (hand/audio/MIDI/OSC) touching this param right now;
+             sticky until re-enabled (Ableton, L13). Transient; not saved unless armed.
+  else
+binding    — the param's one persistent driver, exactly ONE of (mutually exclusive):
+               · connection   (an upstream wired node — the value-spine mechanism)
+               · automation   (a scoreGraph curve sampled at the playhead, L10)
+               · live-source  (a live source persistently bound, e.g. Speed ← audio.kick)
+  else
+constant   — the port default (Node::params[id])
+```
+
+Rules (these close the connection-placement and multi-source ambiguities):
+
+- **One binding per param.** Binding a new driver replaces the old. The value-spine's existing
+  connection-drive *is* `binding = connection`; automation is `binding = automation`; a standing
+  audio bind is `binding = live-source`. The three are mutually exclusive.
+- **No mixing in the resolution layer.** To combine several sources into one param, wire them
+  through a node (Add / Max / …) — that node becomes `binding = connection`. Mixing is a *graph*
+  operation, not a resolution-stack operation (same as TiXL: one input, one upstream).
+- **override** is the momentary top layer any live source can assert; with **arm on**, the
+  override is written into a `binding = automation` curve, punch-in style — only touched params
+  written, untouched curves stay (L2, L13).
+- Mechanism per TiXL `Slot.OverrideWithAnimationAction` (swap the param's driver).
+
+**Live sources are one citizen type** — a knob, an audio value, a MIDI CC, an OSC message share
+one shape; each can serve as a `binding` or assert an `override`. The runtime exposes a single
+**source-registration** table; adding a new source kind (or protocol) is one row, not a new
+subsystem (constitution rule 7).
+
 ## Cook Contract
 
 Cook means one runtime evaluation pass.
@@ -188,10 +260,14 @@ Cook domains:
 | `event` | trigger/message | MIDI, OSC, button, command |
 | `async` | background task | file/network/AI |
 
-## Main Clock Contract
+## Clock Contract — Two Clocks, Never Merged
 
-`FrameScheduler` is the runtime owner of visual time. It supplies the shared
-frame context that visual nodes read during a cook:
+There are **two** times and they must never be collapsed into one value (L8).
+
+### FrameScheduler — wall pulse
+
+`FrameScheduler` owns the real-time frame heartbeat. It supplies the shared frame context
+every cooked node reads:
 
 ```text
 frameIndex
@@ -199,26 +275,34 @@ time
 deltaTime
 ```
 
-`my_MainClock` answers:
+- monotonic, forward, **never pauses** — runs even when the transport is stopped
+- answers: "what is the real-time frame pulse, and how much wall time passed?"
+- read by anything needing real elapsed time: particles, feedback, live smoothing
+
+### Transport — playhead
+
+`Transport` owns the composition playhead ("where am I in the piece", scrubable):
 
 ```text
-what is the graph-level frame pulse for this visual runtime?
+position     (bars / seconds)
+length       (music-derived | manual | open-ended "record until stop")
+playState    (stopped | playing | paused | recording)
+rate, loop
+fxTime       (advances while paused, for idle-motion liveness)
 ```
 
-In Vuo proofs, it is a host adapter:
+- driven **by** `FrameScheduler.deltaTime` when playing (`position += deltaTime × rate`);
+  paused = position frozen; scrub = position jumps
+- read by: automation evaluation (`scoreGraph` curves, L10), audio playback position
+- **`fxTime`** (modeled on TiXL `FxTimeInBars`): when the playhead is paused the piece must
+  not freeze dead — particles/feedback keep breathing on `fxTime`. Idle-motion is a toggle.
+- (parked) `LocalTime`: per-eval remappable time for compounds / TimeClips, modeled on TiXL
+  `EvaluationContext.LocalTime`.
 
-```text
-Fire on Display Refresh -> my_MainClock -> renderTick
-```
+**Law: wall pulse vs playhead are two questions; never one value.**
 
-Rules:
-
-- user-facing proof graphs should route live visual cooking through
-  `my_MainClock`, not direct display-refresh cables scattered across the graph
-- `renderTick` carries frame pressure only
-- `FrameIndex`, `Time`, and `DeltaTime` are semantic clock data
-- audio clock, MIDI clock, Ableton Link, and final native scheduler remain
-  separate future clock sources
+Other clock sources (MIDI clock, Ableton Link, the sample clock of an owned playback engine)
+reconcile into this model at their boundary, never by hijacking the frame pulse.
 
 Cook output must include:
 
@@ -232,21 +316,26 @@ Cook output must include:
 }
 ```
 
-## External Audio Boundary
+## Audio Boundary — External-First, Two Worlds
 
-Sound comes from outside. The instrument / synthesis / DSP lives in an external
-host (e.g. BespokeSynth); this runtime never owns a realtime audio engine, an
-audio callback, or a sample clock.
+The runtime owns **no synthesis / DSP / instrument / audio-output engine**. That rule
+stays. What changed (L3, L11): "never owns audio" is downgraded from a permanent ban to
+**external-first**, because two distinct audio worlds exist and only one is purely external:
 
-```text
-audio is an external SOURCE that publishes into the frame/event domains,
-not an internal cook domain.
-```
+- **World 2 — loaded playback (near-term core).** The runtime loads a media file and
+  **plays it** → it owns that **playback transport + sample clock**. Because it owns the
+  clock, automation, audio, and visual share one playhead → tight sync is a byproduct. This
+  is *not* an instrument; it is a clocked player + analysis.
+- **World 1 — live external (e.g. BlackHole / Bespoke).** Genuinely external; no shared
+  clock. Analyzed on our side and reconciled at the ingest boundary; bounded by a latency
+  budget (L14), never sample-accurate.
 
-This kills the earlier "later low-latency law" deferral: we will not build an
-internal low-latency audio domain. The single boundary where external sound
-becomes frame-domain input — its canonical representation, clock crossing, and
-source-absent failure policy — is defined in `AUDIO_INGEST_CONTRACT.md`.
+Both collapse into one canonical `AudioInput` shape, **source-agnostic** (external OSC /
+external signal / internal playback / future synthesis all publish the same shape), so
+future internal sound is an added producer, not an architecture rewrite (L11).
+
+Canonical representation, clock crossing, latency budget, and source-absent policy live in
+`AUDIO_INGEST_CONTRACT.md`.
 
 ## Failure Contract
 
@@ -338,7 +427,10 @@ Value nodes -> uniforms -> hand-written shader -> Output texture -> frame.png
 
 ## Command Contract
 
-All graph mutation goes through commands.
+All **authoring** graph mutation goes through commands (the "搭" layer). **Live performance
+gestures are not commands** — they are an ephemeral parameter-override stream resolved
+per-frame (Port Contract / L5), and become persisted data only when automation recording is
+armed (L2, L13).
 
 Minimum commands:
 
@@ -353,6 +445,10 @@ Minimum commands:
 - CreateCompound
 - ExposePort
 - ImportTiXLNodeSpec
+- ArmAutomation / DisarmAutomation
+- WriteAutomationKeyframe (punch-in)
+- ReEnableAutomation (clear a live override)
+- DuplicateScore (new version over the same node graph)
 ```
 
 Each command records:
@@ -407,7 +503,7 @@ Do not build:
 - `Command` nodes before command stream law exists.
 - `ShaderGraphNode` nodes before shader graph law exists.
 - `BufferWithViews` nodes before point/mesh buffer law exists.
-- DX11 nodes in Vuo first pass.
+- DX11 / Direct3D nodes (Windows-only TiXL resources) before explicit Metal wrappers exist.
 
 ## First Three Runtime Fixtures
 
@@ -463,38 +559,18 @@ Nodes:
 
 P1 may stay as a design fixture until point buffer ownership is implemented.
 
-## Current Decision
+## Host & Proof Gate
 
-Use Vuo to prototype A/B grade value and simple image/control vocabulary.
+The host surface is **imgui-node-editor (skin) + a self-built Metal engine** (L7). Vuo is
+dropped; earlier Vuo proof gates are void. TiXL remains the semantic donor / design
+authority — consult `external/tixl` for node semantics and time/animation design.
 
-Use My World runtime contract for C/D grade TiXL semantics:
+A contract is not practically useful until it has a **manipulable body in the native
+canvas** plus the regression/handoff guardrail. The proof gate (L6, three-tier acceptance):
 
-- shader graph
-- SDF/raymarch
-- particle buffers
-- render command stream
-- mesh/point scene graph
-
-This avoids wasting time building Vuo nodes that compile but cannot carry TiXL's real runtime force.
-
-## Contract-To-Vuo Proof Gate
-
-New runtime contracts should not stay as headless text unless Vuo truly cannot
-expose the force being tested.
-
-For each new contract, require one of:
-
-- an exact `my_<ExactTiXLNodeName>` Vuo custom node,
-- a small Vuo proof composition that wires several related nodes together,
-- or an explicit boundary note explaining why this contract cannot be exposed in
-  Vuo yet.
-
-The Vuo proof does not need to prove native GPU parity. It must prove that the
-contract has a visible or manipulable body in the current Vuo canvas: a value
-changes, an image changes, a feedback path holds state, a material adapter
-affects the render, or a bounded proof node makes the contract's result visible.
-
-Headless tests remain the authority for command order, resource hazards, and
-failure semantics. Vuo remains the current canvas/body-layer trial. A contract is
-not considered practically useful until those two evidence layers are linked or
-the missing Vuo link is named.
+- the contract has a visible/manipulable body in the native app — a value changes, an image
+  changes, a feedback path holds state — and **the agent verifies it first with its own
+  eye+hand** (drive the app, observe the real behavior), not by tests alone;
+- headless tests/artifacts remain the authority for command order, resource hazards, and
+  failure semantics — as the **regression + handoff guardrail**, not the acceptance gate;
+- 柏為's hand is final authority, invoked only for genuinely risky items.

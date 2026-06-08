@@ -3,14 +3,14 @@
 AudioIngest answers:
 
 ```text
-how does externally-produced sound enter this visual runtime, without the
-runtime ever owning a realtime audio engine?
+how does sound — external (live) or loaded (played) — become a value/event this
+interaction graph can react to, without the runtime owning a synthesis/DSP engine?
 ```
 
-This is the runtime law for the decision: **sound comes from outside**. The
-instrument / synthesis / DSP lives in an external host (e.g. BespokeSynth). My
-World stays a single-domain visual `frame` runtime and never grows an internal
-low-latency audio domain.
+This is the runtime law for the decision: **external-first, two worlds** (L3, L11). The
+instrument / synthesis / DSP lives elsewhere; this runtime never grows an internal synth.
+But it **may own a media playback transport + sample clock** (World 2 below), and it must
+keep live external sound (World 1) inside a stated latency budget.
 
 ## Boundary
 
@@ -22,12 +22,15 @@ SignalPath       := raw audio over a virtual device (e.g. BlackHole), analyzed o
 AudioInput       := the one canonical internal value/event a visual node consumes
 ```
 
-Hard non-ownership:
+Hard non-ownership (scoped — L3/L11):
 
-- the runtime owns **no** audio callback, **no** sample clock, **no** DSP graph
-- `domain: audio` is **not** an internal cook domain; it is an external source
-  that publishes into the `frame` and `event` domains
-- there is **no shared sample clock** across this boundary; see Clock Crossing
+- the runtime owns **no** synthesis / DSP / instrument / audio-output engine. This stays.
+- **World 1 (live external — Bespoke / BlackHole):** no audio callback, no shared sample
+  clock; `domain: audio` is an external source publishing into `frame` / `event`. (the
+  proven path today — see Proof)
+- **World 2 (loaded playback):** the runtime **may own a media playback transport + sample
+  clock** — playing a loaded file is not an instrument. Owning that clock means audio,
+  automation, and visual share one playhead (tight sync). This is the near-term core.
 
 ## Rule 1 — One Canonical Representation
 
@@ -57,9 +60,29 @@ detail.
 - discrete events are **state-based / idempotent** where possible (a dropped OSC
   packet must not strand a stuck note); events may carry an external timestamp
   for sub-frame ordering, but the runtime still publishes them at a frame boundary
-- known limit, stated not hidden: visuals are **frame-quantized** against sound.
-  Sample-accurate audio→visual sync is **out of scope by construction** (the two
-  transports have no common clock).
+- known limit (**World 1 only**): against *live external* sound the two transports have no
+  common clock, so visuals are **frame-quantized** and sample-accurate sync is out of scope.
+  The achievable target is **perceptual** simultaneity within a latency budget (below).
+  World 2 (owned playback clock) shares one playhead and is **not** subject to this limit.
+
+## Latency Budget (World 1 — live external, L14)
+
+Perceptual simultaneity, not sample-accuracy, is the target. Human audio-visual fusion sits
+~20–40 ms; the contract sets:
+
+```text
+target  : sound-in → photon-out ≤ 25 ms   (broadband transient features, e.g. kick)
+ceiling : ≤ 40 ms                          (beyond = fails "feels simultaneous")
+```
+
+- a **measurable gate**: a build that cannot hit the ceiling is a *named* failure, not a
+  silent shrug. Numbers are provisional until measured on real hardware.
+- dominant cost is the **render→present path** (compositor latency), not analysis —
+  low-latency present (high fps, near-exclusive) is a precondition.
+- **FFT / spectral / pitch features are exempt** but must declare their window latency (a
+  1024-sample window alone is ~21 ms); broadband transients are the budget-friendly case.
+- World 1 is reactive (no lookahead); World 2 (owned clock) can be scheduled and is not
+  bound by this budget.
 
 ## Rule 3 — Source-Absent Is a Defined State
 

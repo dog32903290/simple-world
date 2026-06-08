@@ -3,21 +3,26 @@
 FrameScheduler answers:
 
 ```text
-who owns visual time for this graph frame?
+who owns the WALL PULSE for this graph frame? (not the playhead — see Transport)
 ```
 
-This is the runtime law underneath `my_MainClock`.
+This is the runtime law for the wall pulse. It is **one of two clocks** (L8); the scrubable
+composition playhead is `Transport`, defined in `MY_WORLD_RUNTIME_CONTRACT.md` (Clock
+Contract), and is never merged into the frame pulse. Vuo is dropped (L7); the old
+`my_MainClock` body-layer adapter is void.
 
 ## Boundary
 
 ```text
-FrameScheduler := graph-level owner of frameIndex, time, deltaTime, and cook order
-my_MainClock := Vuo body-layer adapter for host display refresh
-renderTick := generated/internal frame pressure, not creator-facing meaning
+FrameScheduler := graph-level owner of frameIndex, time, deltaTime, and cook order;
+                  the WALL PULSE — monotonic, never pauses (runs even when Transport stops)
+Transport      := SEPARATE owner of the composition playhead (position/play/scrub/loop),
+                  driven by FrameScheduler.deltaTime; its paused-but-alive sibling time is
+                  Transport.fxTime (cf. TiXL FxTimeInBars) — see MY_WORLD_RUNTIME_CONTRACT.md
+renderTick     := generated/internal frame pressure, not creator-facing meaning
 ```
 
-Visual nodes do not own time. They read the frame context supplied by the
-scheduler:
+Nodes do not own time. They read the frame context supplied by the scheduler:
 
 ```text
 frameIndex
@@ -33,8 +38,8 @@ deltaTime
 - state nodes update once per frame boundary, even if several downstream ports
   observe them
 - publish/output nodes publish only after upstream frame work is complete
-- Vuo event cables may still exist in generated proof compositions, but creator
-  graph data should not hand-author per-node clock edges
+- creator graph data should not hand-author per-node clock edges; live cooking routes
+  through the scheduler, not scattered per-node display-refresh wiring
 
 ## First Proof
 
