@@ -322,11 +322,13 @@ void Renderer::draw(MTK::View* pView) {
 
   // ---- Cook the particle slice into its own target texture (before imgui samples it) ----
   if (g_particles) {
-    // Cook: graph params drive the runtime (皮 downstream of real graph data).
-    g_particles->setTurbulenceAmount(sw::doc::g_graph.param("TurbulenceForce", "Amount", 15.0f));
-    g_particles->setTurbulenceFrequency(sw::doc::g_graph.param("TurbulenceForce", "Frequency", 1.2f));
-    g_particles->setSpeed(sw::doc::g_graph.param("ParticleSystem", "Speed", 1.0f));
-    g_particles->setDrag(sw::doc::g_graph.param("ParticleSystem", "Drag", 0.02f));
+    // Cook: graph params drive the runtime. evalParam = if the param's input is
+    // wired, evaluate the upstream value-spine; else the stored constant. GPU
+    // buffer flow is untouched — only these scalar setters read the value spine.
+    g_particles->setTurbulenceAmount(sw::evalParam(sw::doc::g_graph, "TurbulenceForce", "Amount", g_time, 15.0f));
+    g_particles->setTurbulenceFrequency(sw::evalParam(sw::doc::g_graph, "TurbulenceForce", "Frequency", g_time, 1.2f));
+    g_particles->setSpeed(sw::evalParam(sw::doc::g_graph, "ParticleSystem", "Speed", g_time, 1.0f));
+    g_particles->setDrag(sw::evalParam(sw::doc::g_graph, "ParticleSystem", "Drag", g_time, 0.02f));
     ++g_frameIndex;
     const float dt = 1.0f / 60.0f;
     g_time += dt;

@@ -93,8 +93,10 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
 // Resolve a named Float input port on the first node of the given type: if the
 // input is wired, evalFloat the upstream; otherwise return the stored constant
 // (Node::params[paramId]) or fallback if absent.
+// Takes `time` (not EvaluationContext&) so callers that already include
+// tixl_point.h (main.cpp) need not pull Particle.h — both define `struct Particle`.
 float evalParam(const Graph& g, const std::string& type, const std::string& paramId,
-                const EvaluationContext& ctx, float fallback);
+                float time, float fallback);
 // Headless RED->GREEN proof for the value-cook engine. injectBug flips the result.
 int runValueCookSelfTest(bool injectBug);
 

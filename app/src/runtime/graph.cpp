@@ -317,12 +317,18 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
   return s->evaluate(in, ni, ctx);
 }
 
+// Seam-facing API. Takes `time` (not EvaluationContext&) so callers in translation
+// units that already pull tixl_point.h — e.g. main.cpp — need not include Particle.h
+// (both define `struct Particle`; they can't coexist). ctx is built here. Value
+// nodes currently use only ctx.time; thread more fields here when a node needs them.
 float evalParam(const Graph& g, const std::string& type, const std::string& paramId,
-                const EvaluationContext& ctx, float fallback) {
+                float time, float fallback) {
   const Node* n = g.firstOfType(type);
   if (!n) return fallback;
   const NodeSpec* s = findSpec(type);
   if (!s) return fallback;
+  EvaluationContext ctx{};
+  ctx.time = time;
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& p = s->ports[i];
     if (!(p.isInput && p.dataType == "Float" && p.id == paramId)) continue;
