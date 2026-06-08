@@ -156,6 +156,188 @@
 
 ---
 
+## World 1（= S10 提前為 M1；柏為 2026-06-09 拍板，取代 OSC 路當第一個 felt win）
+
+> **柏為選 World 1（現場原始音訊→暫態→粒子炸）當第一個 felt win，不走 S2 的 OSC 語意路**（OSC 那條退為後續一個世界）。M1 表的「聲音→參數：你放/彈聲音，粒子跟著動」由 World 1 實現。血緣：契約 L3 世界1 + L5 拱心石（`Speed ← audio.kick` = **binding=LiveSource**，非 override；override 等 S8 有 automation 可蓋時才用）+ L14 延遲閘門。
+
+**鏈：** 麥克風/BlackHole 原始音訊 → `audio_capture`(platform, AVAudioEngine tap) → `OnsetDetector`(runtime, 純計算能量包絡) → 發布 envelope → LiveSource `"audio.kick"` → `evalParam` binding 驅動 `ParticleSystem.Speed` → 粒子。
+
+**File Structure（架構分區）：**
+- `runtime/onset_detect.{h,cpp}` — 純計算暫態偵測（能量包絡 + 自適應閾值 + debounce）。**零硬體、可完全 selftest。**
+- `platform/audio_capture.{h,mm}` — AVAudioEngine 預設輸入 tap；在 audio thread 餵 OnsetDetector；以 atomics 發布 `currentEnvelope()`/`onsetCount()`。**原生接口葉子。**（ARC：不列入 `-fno-objc-arc`。）
+- `main.cpp` — 建 `SourceRegistry`，註冊 LiveSource `"audio.kick"`(self=capture, value=envelope)，bind `ParticleSystem.Speed ← audio.kick`，cook 迴圈 evalParam 傳 `&reg`。
+- eye(已有) 自證；hand 不需要。
+
+**鎖定的決定（非 placeholder）：** onset 演算法=能量包絡（大鼓寬頻夠用，**不用 FFT**，L3）；第一版輸入=**預設麥克風**（拍手即測，零設定），BlackHole=之後切 input device；tap bufferSize 請求小塊(256–512 samples ≈5–10ms)壓延遲；接法=**binding=LiveSource**（非 override）。
+**標出的未知/風險（到該 step 誠實面對，卡住就停）：** ①麥克風 TCC 權限（bare binary 可能算到 Terminal；可能要 .app bundle / Info.plist `NSMicrophoneUsageDescription`）②audio thread→render loop 交接（用 `std::atomic`，不鎖）③真實延遲數字（W1.6 量，全程 sound-in→photon-out 需外部設備，誠實標）。
+
+### W1.1：OnsetDetector（runtime 純計算，selftest-gated）— **今夜可自主做**
+
+**Files:** Create `app/src/runtime/onset_detect.h`, `app/src/runtime/onset_detect.cpp`; Modify `app/src/main.cpp`(selftest 派發), `app/CMakeLists.txt`(加源).
+
+- [ ] **Step 1: 寫 `onset_detect.h`**（介面 + selftest 宣告）
+
+```cpp
+// runtime/onset_detect — energy-based onset (transient) detector. Pure computation,
+// zero audio hardware: consumes blocks of mono float samples and reports a smoothed
+// energy envelope + a debounced onset flag. Wide-band transients (a kick) are what
+// this catches; pitch/spectral onsets (need an FFT) are out of scope (L3: 大鼓好打).
+// runtime leaf: the platform capture layer owns an instance and calls process() on
+// the audio thread; the detector is single-threaded (its caller serializes access).
+#pragma once
+
+namespace sw {
+
+struct OnsetConfig {
+  float floor          = 1e-4f;  // block energy below this = silence (no onset)
+  float riseFactor     = 1.8f;   // onset fires when block energy > running avg * this
+  float avgSmooth      = 0.95f;  // running-average inertia per block (slow tracker)
+  float envAttack      = 0.5f;   // envelope rise toward energy when rising
+  float envRelease     = 0.08f;  // envelope decay per block otherwise (boom-then-fade)
+  int   debounceSamples = 2000;  // min samples between onsets (~45ms @ 44.1k)
+};
+
+class OnsetDetector {
+ public:
+  struct Result { float energy; float envelope; bool onset; };
+  OnsetDetector() = default;
+  explicit OnsetDetector(OnsetConfig cfg) : cfg_(cfg) {}
+  // Process one block of n mono samples. Stateful across calls.
+  Result process(const float* samples, int n);
+  float envelope() const { return env_; }  // latest envelope (no-arg poll)
+ private:
+  OnsetConfig cfg_;
+  float avg_ = 0.0f;
+  float env_ = 0.0f;
+  int   sinceOnset_ = 1 << 30;
+};
+
+// Isolated proof (Rule 5): silence→no onset+env decays; loud-after-quiet→exactly one
+// onset; sustained-within-debounce→no re-fire; loud-after-window→fires again.
+// injectBug sets a real degenerate config (debounce off) so the no-re-fire assertion
+// genuinely fails — teeth, not a synthetic flip.
+int runOnsetSelfTest(bool injectBug);
+
+}  // namespace sw
+```
+
+- [ ] **Step 2: 寫 `onset_detect.cpp`**（實作 + selftest）
+
+```cpp
+#include "runtime/onset_detect.h"
+
+#include <cmath>
+#include <cstdio>
+
+namespace sw {
+
+OnsetDetector::Result OnsetDetector::process(const float* samples, int n) {
+  double sum = 0.0;
+  for (int i = 0; i < n; ++i) sum += (double)samples[i] * samples[i];
+  float energy = n > 0 ? (float)(sum / n) : 0.0f;  // block mean-square
+
+  bool onset = false;
+  sinceOnset_ += n;
+  if (energy > cfg_.floor && energy > avg_ * cfg_.riseFactor &&
+      sinceOnset_ >= cfg_.debounceSamples) {
+    onset = true;
+    sinceOnset_ = 0;
+  }
+  avg_ = avg_ * cfg_.avgSmooth + energy * (1.0f - cfg_.avgSmooth);  // adaptive base
+
+  if (onset) {
+    env_ = 1.0f;                                   // snap up on transient
+  } else if (energy > env_) {
+    env_ += (energy - env_) * cfg_.envAttack;       // fast attack
+  } else {
+    env_ -= env_ * cfg_.envRelease;                 // slow release (boom-then-fade)
+    if (env_ < 0.0f) env_ = 0.0f;
+  }
+  return Result{energy, env_, onset};
+}
+
+int runOnsetSelfTest(bool injectBug) {
+  OnsetConfig cfg;
+  if (injectBug) cfg.debounceSamples = 0;  // degenerate: no debounce -> double-fires
+  OnsetDetector det(cfg);
+
+  const int N = 512;
+  float quiet[N], loud[N];
+  for (int i = 0; i < N; ++i) { quiet[i] = 0.0f; loud[i] = 0.5f * std::sin(i * 0.3f); }
+
+  bool ok = true;
+  for (int b = 0; b < 10; ++b) { auto r = det.process(quiet, N); ok = ok && !r.onset; }
+  ok = ok && (det.envelope() < 1e-3f);                                  // 1 silence
+
+  int fires = 0; { auto r = det.process(loud, N); if (r.onset) ++fires; }
+  ok = ok && (fires == 1);                                              // 2 one onset
+
+  int refires = 0;
+  for (int b = 0; b < 3; ++b) { auto r = det.process(loud, N); if (r.onset) ++refires; }
+  ok = ok && (refires == 0);                                            // 3 no re-fire
+
+  for (int b = 0; b < 8; ++b) det.process(quiet, N);                    // gap > debounce
+  int fires2 = 0; { auto r = det.process(loud, N); if (r.onset) ++fires2; }
+  ok = ok && (fires2 == 1);                                             // 4 fires again
+
+  printf("[selftest-onset] silence/onset/debounce(%d)/refire -> %s\n",
+         cfg.debounceSamples, ok ? "PASS" : "FAIL");
+  return ok ? 0 : 1;
+}
+
+}  // namespace sw
+```
+
+- [ ] **Step 3: main.cpp 派發**（在 `--selftest-resolve-bug` 之後加）
+
+```cpp
+    if (std::strcmp(argv[i], "--selftest-onset") == 0)
+      return sw::runOnsetSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-onset-bug") == 0)
+      return sw::runOnsetSelfTest(/*injectBug=*/true);
+```
+並在 `main.cpp` 頂部 include：`#include "runtime/onset_detect.h"`
+
+- [ ] **Step 4: CMakeLists.txt 加源**（`src/runtime/graph.cpp` 行後）：`  src/runtime/onset_detect.cpp`
+
+- [ ] **Step 5: build RED→GREEN + 回歸**
+```bash
+cd app && cmake -S . -B build && cmake --build build -j
+./build/simple_world --selftest-onset       # PASS (exit 0)
+./build/simple_world --selftest-onset-bug   # FAIL (exit 1)
+# 回歸：全 12 selftest 仍綠（純新增葉子，零既有行為變）
+```
+
+- [ ] **Step 6: 對抗審查**：派 subagent「找 runOnsetSelfTest 漏測的偵測路徑」（例：漸強無突變不該誤觸？極短塊 n<debounce 的累積？env 從不歸零？），採納有牙的、駁回冗餘。
+
+- [ ] **Step 7: Commit**（`feat(runtime): energy-based onset detector + selftest (World 1 W1.1)`）
+
+> W1.1 純計算 selftest 綠即完成，柏為不必看。摸的東西在 W1.3+。
+
+### W1.2：audio_capture（platform, AVAudioEngine）— **需柏為在場（權限 + smoke）**
+
+**Files:** Create `app/src/platform/audio_capture.{h,mm}`; Modify `CMakeLists.txt`(加源 + 連 `AVFoundation`/`AVFAudio` framework).
+- `audio_capture.h`：`bool start();`(裝引擎+tap, 回成功) / `void stop();` / `float currentEnvelope();`(讀 atomic) / `uint32_t onsetCount();`(讀 atomic)。內部持一個 `OnsetDetector`。
+- `audio_capture.mm`：`AVAudioEngine* engine; engine.inputNode` 裝 `installTapOnBus:0 bufferSize:512 format:nil block:^(buf,when){...}`：取 `buf.floatChannelData[0]`,`buf.frameLength` → `det.process(ch, n)` → 寫 `std::atomic<float> env_`,`std::atomic<uint32_t> onsetSeq_`。
+- **未知/風險（動工時面對）：** TCC 麥克風權限——bare CLI binary 第一次 `engine.start` 會觸發授權，可能算到 Terminal；若被拒/不彈窗 → **停下記錄**，評估是否要 .app bundle + `NSMicrophoneUsageDescription`（記憶 [[metal-cpp-close-intercept-limit]] 提過 bundle 議題）。先做一個 `--audio-capture-smoke <秒>` CLI 模式（像 replay shell）印 envelope/onset 計數，**證麥克風真的進得來**再接粒子。
+- 細節依賴 W1.1 的 `OnsetDetector` 介面定案後補滿（progressive detail，照 master plan 體例）。
+
+### W1.3：接粒子（main, binding=LiveSource）
+- main 啟動：`static sw::SourceRegistry g_reg;` `g_capture.start();` 註冊 `LiveSource{"audio.kick", [](void* s,const EvaluationContext&){return ((AudioCapture*)s)->currentEnvelope();}, &g_capture}`；`g_reg.bind(<ParticleSystem nodeId>, "Speed", {BindingKind::LiveSource,"audio.kick"})`。
+- cook 迴圈 `main.cpp:341` 的 Speed 那行傳 `&g_reg`：`setSpeed(sw::evalParam(..., "Speed", g_time, 1.0f, &g_reg))`。
+- ParticleSystem nodeId：用 `g_graph.firstOfType("ParticleSystem")->id`（evalParam 內部也用 firstOfType，key 一致）。
+
+### W1.4：眼自證
+- 餵合成或真拍手；`eye::req_clean` 比「靜音幀」vs「boom 幀」像素**應不同**（envelope↑→Speed↑→粒子動）。RED→GREEN：靜音不動、敲擊動。
+
+### W1.5：▣ 柏為（M1 第一個 felt win）
+- 柏為對麥克風拍手/敲鼓 → 粒子炸。**這是「你彈、它回應」第一次成立。**
+
+### W1.6：延遲量測（L14 閘門）
+- 量 onset-detected→該值被 render 幀消費 的延遲（可控段）；全程 sound-in→photon-out 需外部設備（相機/迴路），**誠實標**目標 ≤25ms / 天花板 ≤40ms。
+
+---
+
 ## S3–S11：待詳（脊椎條目見上表）
 
 輪到時照值脊椎格式詳成 bite-sized TDD（File Structure → 逐 Step 碼/build/selftest/commit → ▣ 段加 eye+hand + 柏為驗收）。
