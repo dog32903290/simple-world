@@ -106,6 +106,7 @@ const SelfTest kTable[] = {
     {"draw", runDrawPointsSelfTest},
     {"pointgraph", runPointGraphSelfTest},
     {"radialop", runRadialOpSelfTest},
+    {"drawop", runDrawOpSelfTest},
     {"eye", eye::runSelfTest},
     {"hand", hand::runSelfTest},
     {"audioingest", runAudioIngestSelfTest},

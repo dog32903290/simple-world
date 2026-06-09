@@ -66,11 +66,53 @@ void cookRadialPoints(PointCookCtx& c) {
   pso->release();
 }
 
+// DrawPoints draw op: render the (final) Points bag into target() as camera-facing point
+// billboards. Faithful to ParticleSystem::render (same draw_points pipeline + viewExtent).
+// Builds the render pipeline per call for now — the live loop (A1.5) should cache it.
+void cookDrawPoints(PointCookCtx& c, MTL::Texture* target, const MTL::Buffer* points) {
+  if (!c.lib || !target) return;
+  MTL::Function* vs = c.lib->newFunction(NS::String::string("draw_points_vs", NS::UTF8StringEncoding));
+  MTL::Function* fs = c.lib->newFunction(NS::String::string("draw_points_fs", NS::UTF8StringEncoding));
+  MTL::RenderPipelineState* rps = nullptr;
+  if (vs && fs) {
+    MTL::RenderPipelineDescriptor* rpd = MTL::RenderPipelineDescriptor::alloc()->init();
+    rpd->setVertexFunction(vs);
+    rpd->setFragmentFunction(fs);
+    rpd->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormatRGBA8Unorm);
+    NS::Error* err = nullptr;
+    rps = c.dev->newRenderPipelineState(rpd, &err);
+    rpd->release();
+  }
+  if (vs) vs->release();
+  if (fs) fs->release();
+
+  MTL::RenderPassDescriptor* pass = MTL::RenderPassDescriptor::renderPassDescriptor();
+  auto* ca = pass->colorAttachments()->object(0);
+  ca->setTexture(target);
+  ca->setLoadAction(MTL::LoadActionClear);
+  ca->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 1.0));
+  ca->setStoreAction(MTL::StoreActionStore);
+  MTL::CommandBuffer* cmd = c.queue->commandBuffer();
+  MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(pass);
+  if (rps && points && c.count > 0) {
+    enc->setRenderPipelineState(rps);
+    enc->setVertexBuffer(const_cast<MTL::Buffer*>(points), 0, DRAW_Points);
+    float viewExtent = 3.5f;  // == ParticleSystem (kRadius*1.75); TODO: a DrawPoints param
+    enc->setVertexBytes(&viewExtent, sizeof(float), DRAW_ViewExtent);
+    enc->drawPrimitives(MTL::PrimitiveTypePoint, NS::UInteger(0), NS::UInteger(c.count));
+  }
+  enc->endEncoding();
+  cmd->commit();
+  cmd->waitUntilCompleted();
+  if (rps) rps->release();
+}
+
 }  // namespace
 
 void registerBuiltinPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
-  // A.1+ register here: TransformPoints, DrawPoints (draw), ParticleSystem (stateful sim) ...
+  registerDrawOp("DrawPoints", cookDrawPoints);
+  // A.1+ register here: TransformPoints, ParticleSystem (stateful sim) ...
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +183,59 @@ int runRadialOpSelfTest(bool injectBug) {
          captured.size(), R, onCircle ? 1 : 0, spread, pass ? "PASS" : "FAIL");
 
   g_cap = nullptr;
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
+// Golden proof of the DrawPoints draw op THROUGH the point-graph: cook RadialPoints ->
+// DrawPoints (the REAL renderer), read the target texture back, assert a lit ring with a
+// black center. injectBug = 0 points -> nothing drawn -> all black -> FAIL.
+int runDrawOpSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  const uint32_t N = 256, W = 256, H = 256;
+
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  MTL::Library* lib = loadLib(dev);
+  if (!lib) {
+    printf("[selftest-drawop] FAIL: no metallib\n");
+    q->release(); dev->release(); pool->release();
+    return 1;
+  }
+
+  registerBuiltinPointOps();  // RadialPoints (cook) + DrawPoints (real draw)
+  PointGraph pg(dev, lib, q, W, H);
+
+  Graph g;
+  Node gen; gen.id = 1; gen.type = "RadialPoints";
+  gen.params["Count"] = (float)(injectBug ? 0u : N);  // bug: 0 points -> nothing drawn
+  gen.params["Radius"] = 2.0f;
+  g.nodes.push_back(gen);
+  Node drw; drw.id = 2; drw.type = "DrawPoints"; g.nodes.push_back(drw);
+  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});
+
+  EvaluationContext ctx{};
+  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+  pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));
+
+  std::vector<uint8_t> px(W * H * 4, 0);
+  pg.target()->getBytes(px.data(), W * 4, MTL::Region::Make2D(0, 0, W, H), 0);
+  auto lit = [&](uint32_t x, uint32_t y) {
+    const uint8_t* p = &px[(y * W + x) * 4];
+    return p[0] > 30 || p[1] > 30 || p[2] > 30;
+  };
+  int nonBlack = 0;
+  for (uint32_t y = 0; y < H; ++y)
+    for (uint32_t x = 0; x < W; ++x)
+      if (lit(x, y)) ++nonBlack;
+  bool centerBlack = true;
+  for (uint32_t y = H / 2 - 8; y < H / 2 + 8; ++y)
+    for (uint32_t x = W / 2 - 8; x < W / 2 + 8; ++x)
+      if (lit(x, y)) centerBlack = false;
+  bool pass = nonBlack > 50 && centerBlack;
+  printf("[selftest-drawop] nonBlack=%d(need>50) centerBlack=%d -> %s\n", nonBlack,
+         centerBlack ? 1 : 0, pass ? "PASS" : "FAIL");
+
   lib->release(); q->release(); dev->release(); pool->release();
   return pass ? 0 : 1;
 }

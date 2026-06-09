@@ -11,4 +11,7 @@ namespace sw {
 // and is spread around it. injectBug sets Cycles=0 so all points collapse to one angle
 // (spread -> 0) and the test FAILS — real degenerate, not a flipped assertion.
 int runRadialOpSelfTest(bool injectBug);
+// Golden proof of the DrawPoints draw op: cook RadialPoints -> DrawPoints (real renderer),
+// assert a lit ring + black center in the target texture. injectBug (0 points) -> all black.
+int runDrawOpSelfTest(bool injectBug);
 }  // namespace sw
