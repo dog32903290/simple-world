@@ -42,9 +42,17 @@
 
 namespace ed = ax::NodeEditor;
 
-// Owned by Renderer; read by ui/editor_ui (DrawPoints preview). External linkage
-// (not in the anonymous namespace) so editor_ui.cpp can `extern` it.
+// Owned by Renderer. The UI reads the live preview indirectly through previewTexture()
+// below (a stable seam), so it no longer reaches into ParticleSystem directly.
 sw::ParticleSystem* g_particles = nullptr;
+
+// Stable preview seam for the UI (editor_ui samples this). Returns the live render output
+// without the UI knowing which engine produced it — lane A.1 swaps the body
+// (ParticleSystem monolith -> PointGraph cook) without touching editor_ui. nullptr until
+// the first render.
+namespace sw {
+MTL::Texture* previewTexture() { return ::g_particles ? ::g_particles->target() : nullptr; }
+}  // namespace sw
 
 namespace {
 // Render-loop state owned by Renderer (internal to this TU).

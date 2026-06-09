@@ -15,13 +15,16 @@
 #include "app/document.h"
 #include "app/graph_commands.h"
 #include "runtime/graph.h"
-#include "runtime/particle_system.h"
 #include "verify/eye/eye.h"
 
 namespace ed = ax::NodeEditor;
 
-// g_particles is owned by main/Renderer; the DrawPoints node previews its target.
-extern sw::ParticleSystem* g_particles;
+// The shell renders the live preview into a texture; the DrawPoints node samples it
+// through a STABLE accessor so swapping the engine (ParticleSystem monolith -> PointGraph
+// cook, lane A.1) never touches the UI. Defined in the shell (main.cpp); nullptr until
+// something has rendered.
+namespace MTL { class Texture; }
+namespace sw { MTL::Texture* previewTexture(); }
 
 namespace sw::ui {
 
@@ -162,8 +165,9 @@ void drawNodeCanvas() {
                     (int)node.outCache[2]);
       ImGui::ProgressBar(std::min(node.outCache[0], 1.0f), ImVec2(190.0f, 0.0f), lbl);
     }
-    if (node.type == "DrawPoints" && g_particles && g_particles->target())
-      ImGui::Image(reinterpret_cast<ImTextureID>(g_particles->target()), ImVec2(200, 200));
+    if (node.type == "DrawPoints")
+      if (MTL::Texture* tex = sw::previewTexture())
+        ImGui::Image(reinterpret_cast<ImTextureID>(tex), ImVec2(200, 200));
     ed::EndNode();
     // eye: node body SCREEN rect via the node-editor's own position/size + transform.
     ImVec2 na = ed::CanvasToScreen(ed::GetNodePosition(node.id));

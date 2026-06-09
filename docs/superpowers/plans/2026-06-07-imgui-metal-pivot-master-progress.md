@@ -223,6 +223,11 @@ load/store 覆蓋、語義合併衝突（git 行比對不報、memory layout 靜
 
 ## Session Safety
 
+- **（2026-06-09）平行 UI session 已批准（柏為問+拍板），切法＝靠分區不撞**：本 session（lane A，`runtime/` 節點）＋ 另一 session（UI 皮，TiXL 外觀）平行跑。
+  - **擁有權**：本 session 擁有 `runtime/**`、`graph.h` 的 `NodeSpec/PortSpec` 契約 struct、`main.cpp` render loop、`src/selftests`。UI session **只動 `ui/**`**（配色／canvas 手感／節點卡片外觀／字型／inspector 樣式；全讀既有 NodeSpec/graph＝皮閘允許的 viewport-over-real-state）。
+  - **凍結（UI 不可碰）**：① `graph.h` NodeSpec/PortSpec（要加顯示欄位→走本 session，順序、契約我擁有）② `main.cpp` render loop（A.1 在這換引擎）③ 預覽縫（已穩定成 **`sw::previewTexture()`**，A.1 換 `g_particles→pointGraph` 只動其 body、不破 UI）。
+  - **機制**：UI session 用**獨立 git worktree**（嚴禁兩 session 同一工作樹→互蓋）；檢查點 merge。凍結後唯一預期 merge 摩擦＝`CMakeLists.txt`（各加源、機械式好解）。
+  - **皮閘紅旗（UI 不准）**：做 transport/timeline（M2 未建＝空皮）、發明節點行為、把專案真相存進 imgui id／widget。
 - **（2026-06-08 已解決）一度跑出兩條平行線**：`codex/js-to-cpp-contract-migration`（值脊椎/節點編輯/harness，本線）
   與 `claude/runtime-workflow-approach-i4BrT`（audio-ingest）從 `a54b8c0` 分岔。柏為裁示「只在一條線工作」→ 已把
   audio-ingest **merge 進本線**（commit `a0359fe`，衝突只在 main.cpp/CMakeLists、各加各行）。**現在唯一工作線 = `codex/js-to-cpp-contract-migration`。**
