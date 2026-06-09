@@ -210,7 +210,8 @@ int main(int argc, char* argv[]) {
     if (std::strcmp(argv[i], "--audio-ingest-replay") == 0)
       return sw::runAudioIngestReplay(i + 1 < argc ? argv[i + 1] : "");
     if (std::strcmp(argv[i], "--audio-capture-smoke") == 0)
-      return sw::runAudioCaptureSmoke(i + 1 < argc ? atof(argv[i + 1]) : 4.0);
+      return sw::runAudioCaptureSmoke(i + 1 < argc ? atof(argv[i + 1]) : 4.0,
+                                      i + 2 < argc ? argv[i + 2] : "");
     if (std::strcmp(argv[i], "--list-audio-devices") == 0)
       return sw::runListAudioDevices();
     if (std::strcmp(argv[i], "--audio-permission-status") == 0)

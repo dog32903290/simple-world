@@ -1,12 +1,16 @@
 #include "platform/audio_capture.h"
 
+#include "platform/audio_devices.h"  // listInputDevices() for the smoke device resolve
 #include "runtime/attack_detector.h"
 #include "runtime/audio_analyzer.h"
 
 #import <AVFoundation/AVFoundation.h>
+#import <AudioToolbox/AudioToolbox.h>  // AudioUnitSetProperty, kAudioOutputUnitProperty_CurrentDevice
+#include <CoreAudio/CoreAudio.h>        // AudioObjectID
 
 #include <atomic>
 #include <cstdio>
+#include <string>
 
 namespace sw {
 
@@ -18,16 +22,28 @@ struct AudioCapture::Impl {
   std::atomic<float>              rms{0.0f};
   std::atomic<unsigned long long> blocks{0};
   std::atomic<bool>               running{false};
+  unsigned int       currentDeviceId = 0;  // CoreAudio id in use (0 = system default)
   double             sampleRate = 48000.0;
   unsigned long long sampleClock = 0;  // audio-thread only
 };
 
 // Build the engine, install the input tap, start it. Runs on whatever thread calls it
 // (main, directly or via the grant handler). Returns false on a known failure.
-bool AudioCapture::startEngine(AudioCapture::Impl* impl) {
+bool AudioCapture::startEngine(AudioCapture::Impl* impl, unsigned int deviceId) {
   @autoreleasepool {
     impl->engine = [[AVAudioEngine alloc] init];
     AVAudioInputNode* input = impl->engine.inputNode;
+    if (deviceId != 0) {
+      // Route the engine's input to the chosen CoreAudio device (built-in / 2i2 /
+      // BlackHole). Set before reading the input format / installing the tap.
+      AudioObjectID dev = (AudioObjectID)deviceId;
+      OSStatus st = AudioUnitSetProperty(input.audioUnit, kAudioOutputUnitProperty_CurrentDevice,
+                                         kAudioUnitScope_Global, 0, &dev, sizeof(dev));
+      if (st != noErr)
+        printf("[audio-capture] set input device %u failed: %d (falling back to default)\n",
+               deviceId, (int)st);
+    }
+    impl->currentDeviceId = deviceId;
     AVAudioFormat* fmt = [input inputFormatForBus:0];
     if (fmt == nil || fmt.sampleRate <= 0.0 || fmt.channelCount == 0) {
       printf("[audio-capture] no usable input format (no device?)\n");
@@ -78,18 +94,20 @@ AudioCapture::~AudioCapture() {
   delete impl_;
 }
 
-bool AudioCapture::start() {
+bool AudioCapture::start(unsigned int coreAudioDeviceId) {
+  if (impl_->engine != nil) stop();  // switching device: tear down the current engine first
   const AVAuthorizationStatus status =
       [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
-  if (status == AVAuthorizationStatusAuthorized) return startEngine(impl_);
+  if (status == AVAuthorizationStatusAuthorized) return startEngine(impl_, coreAudioDeviceId);
 
   if (status == AVAuthorizationStatusNotDetermined) {
     Impl* impl = impl_;
+    const unsigned int dev = coreAudioDeviceId;
     [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio
                              completionHandler:^(BOOL granted) {
                                if (granted)
                                  dispatch_async(dispatch_get_main_queue(),
-                                                ^{ startEngine(impl); });
+                                                ^{ startEngine(impl, dev); });
                                else
                                  printf("[audio-capture] microphone denied\n");
                              }];
@@ -113,6 +131,7 @@ void AudioCapture::stop() {
 }
 
 bool  AudioCapture::running() const { return impl_->running.load(std::memory_order_relaxed); }
+unsigned int AudioCapture::currentDeviceId() const { return impl_->currentDeviceId; }
 float AudioCapture::envelope() const { return impl_->envelope.load(std::memory_order_relaxed); }
 float AudioCapture::lastRms() const { return impl_->rms.load(std::memory_order_relaxed); }
 unsigned long long AudioCapture::blocksProcessed() const {
@@ -134,9 +153,20 @@ int runAudioPermissionStatus() {
   return 0;
 }
 
-int runAudioCaptureSmoke(double seconds) {
+int runAudioCaptureSmoke(double seconds, const std::string& deviceMatch) {
   AudioCapture cap;
-  if (!cap.start()) {
+  unsigned int devId = 0;
+  std::string  devName = "system default";
+  if (!deviceMatch.empty()) {
+    for (const AudioDevice& d : listInputDevices())
+      if (d.name.find(deviceMatch) != std::string::npos) { devId = d.coreAudioId; devName = d.name; break; }
+    if (devId == 0) {
+      printf("[audio-capture-smoke] no input device matching \"%s\"\n", deviceMatch.c_str());
+      return 1;
+    }
+  }
+  printf("[audio-capture-smoke] device: %s (id=%u)\n", devName.c_str(), devId);
+  if (!cap.start(devId)) {
     printf("[audio-capture-smoke] start() returned false (denied / no device)\n");
     return 1;
   }

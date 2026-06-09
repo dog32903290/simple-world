@@ -139,6 +139,7 @@ target_link_libraries(simple_world PRIVATE
   "-framework GameController"
   "-framework AVFoundation"
   "-framework CoreAudio"
+  "-framework AudioToolbox"
 )
 
 # Embed Info.plist into the bare Mach-O so TCC can read NSMicrophoneUsageDescription

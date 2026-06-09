@@ -9,6 +9,7 @@
 // start(); first grant is the user's (a TCC prompt). Failure is non-fatal — envelope()
 // just stays 0 and the bound param falls back to its base value.
 #pragma once
+#include <string>
 
 namespace sw {
 
@@ -19,13 +20,15 @@ class AudioCapture {
   AudioCapture(const AudioCapture&) = delete;
   AudioCapture& operator=(const AudioCapture&) = delete;
 
-  // Request mic permission and (once granted) start the input tap. Returns false only
-  // on an immediate, known failure; when permission is still undetermined it returns
-  // true and the engine starts asynchronously after the user grants. Safe to call once.
-  bool start();
+  // Request mic permission and (once granted) start the input tap on the given CoreAudio
+  // input device (0 = system default). Returns false only on an immediate, known failure;
+  // when permission is still undetermined it returns true and the engine starts
+  // asynchronously after the user grants. Calling again switches device (stop + restart).
+  bool start(unsigned int coreAudioDeviceId = 0);
   void stop();
 
-  bool  running() const;       // engine actually delivering audio
+  bool         running() const;        // engine actually delivering audio
+  unsigned int currentDeviceId() const;// CoreAudio id the engine is bound to (0 = default)
   float envelope() const;      // latest attack envelope (0..~1), thread-safe
   float lastRms() const;       // latest block RMS (smoke diagnostic)
   unsigned long long blocksProcessed() const;  // tap-callback count (smoke diagnostic)
@@ -36,14 +39,14 @@ class AudioCapture {
 
  private:
   struct Impl;
-  static bool startEngine(Impl* impl);  // build engine + install tap (defined in .mm)
+  static bool startEngine(Impl* impl, unsigned int deviceId);  // engine + tap (in .mm)
   Impl* impl_;
 };
 
-// CLI smoke: start capture, run the runloop for `seconds`, print rms/envelope so a
-// human can confirm the mic feeds through. NOT run headless at night (a denied TCC
-// prompt would poison the grant) — this is for the user / a manual session.
-int runAudioCaptureSmoke(double seconds);
+// CLI smoke: start capture on the first input device whose name contains `deviceMatch`
+// (empty = system default), run the runloop for `seconds`, print rms/envelope so a human
+// can confirm that device feeds through. Safe once the mic is authorized.
+int runAudioCaptureSmoke(double seconds, const std::string& deviceMatch = "");
 
 // CLI diagnostic: print the current TCC microphone authorization status WITHOUT
 // requesting it (safe — no prompt, no poison). NotDetermined / Denied / Restricted /
