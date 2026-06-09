@@ -218,6 +218,9 @@ void registerLinePointsOp();
 void registerGridPointsOp();
 void registerSpherePointsOp();
 void registerTransformPointsOp();
+void registerOrientPointsOp();
+void registerRandomizePointsOp();
+void registerSetPointAttributesOp();
 
 void registerBuiltinPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
@@ -227,6 +230,9 @@ void registerBuiltinPointOps() {
   registerGridPointsOp();
   registerSpherePointsOp();
   registerTransformPointsOp();
+  registerOrientPointsOp();
+  registerRandomizePointsOp();
+  registerSetPointAttributesOp();
   // A.2+ register here: more generators / modifiers ...
 }
 

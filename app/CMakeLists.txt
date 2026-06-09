@@ -35,7 +35,7 @@ set_source_files_properties(${IMGUI_OBJCXX} PROPERTIES COMPILE_OPTIONS -fno-objc
 # headers (tixl_point.h, particle_params.h, shared/*.metal.h) and the compiler
 # proves host<->GPU layout (discipline Rule 1). TiXL-ported particle pipeline.
 set(SW_METALLIB "${CMAKE_CURRENT_BINARY_DIR}/shaders.metallib")
-set(SW_SHADERS radial_emit radial_points particle_sim turbulence_force draw_points linepoints gridpoints spherepoints transformpoints)
+set(SW_SHADERS radial_emit radial_points particle_sim turbulence_force draw_points linepoints gridpoints spherepoints transformpoints orientpoints randomizepoints setpointattributes)
 set(SW_AIRS "")
 set(SW_SHADER_DEPS
   src/runtime/tixl_point.h src/runtime/particle_params.h
@@ -98,6 +98,9 @@ add_executable(simple_world
   src/runtime/point_ops_gridpoints.cpp
   src/runtime/point_ops_spherepoints.cpp
   src/runtime/point_ops_transformpoints.cpp
+  src/runtime/point_ops_orientpoints.cpp
+  src/runtime/point_ops_randomizepoints.cpp
+  src/runtime/point_ops_setpointattributes.cpp
   src/runtime/source_registry.cpp
   src/runtime/attack_detector.cpp
   src/runtime/audio_analyzer.cpp

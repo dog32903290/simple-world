@@ -30,4 +30,10 @@ int runSpherePointsSelfTest(bool injectBug);
 // TransformPoints MODIFIER golden (point_ops_transformpoints.cpp): ring -> scale+translate.
 // injectBug = Strength 0 -> identity passthrough -> ring unchanged. First modifier (in->out bag).
 int runTransformPointsSelfTest(bool injectBug);
+// OrientPoints MODIFIER golden (point_ops_orientpoints.cpp). injectBug = real degeneracy.
+int runOrientPointsSelfTest(bool injectBug);
+// RandomizePoints MODIFIER golden (point_ops_randomizepoints.cpp). injectBug = real degeneracy.
+int runRandomizePointsSelfTest(bool injectBug);
+// SetPointAttributes MODIFIER golden (point_ops_setpointattributes.cpp). injectBug = real degeneracy.
+int runSetPointAttributesSelfTest(bool injectBug);
 }  // namespace sw
