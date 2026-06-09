@@ -217,6 +217,7 @@ void cookParticleSim(PointCookCtx& c) {
 void registerLinePointsOp();
 void registerGridPointsOp();
 void registerSpherePointsOp();
+void registerTransformPointsOp();
 
 void registerBuiltinPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
@@ -225,6 +226,7 @@ void registerBuiltinPointOps() {
   registerLinePointsOp();
   registerGridPointsOp();
   registerSpherePointsOp();
+  registerTransformPointsOp();
   // A.2+ register here: more generators / modifiers ...
 }
 

@@ -27,4 +27,7 @@ int runLinePointsSelfTest(bool injectBug);
 int runGridPointsSelfTest(bool injectBug);
 // SpherePoints generator golden (point_ops_spherepoints.cpp). injectBug = real degeneracy.
 int runSpherePointsSelfTest(bool injectBug);
+// TransformPoints MODIFIER golden (point_ops_transformpoints.cpp): ring -> scale+translate.
+// injectBug = Strength 0 -> identity passthrough -> ring unchanged. First modifier (in->out bag).
+int runTransformPointsSelfTest(bool injectBug);
 }  // namespace sw
