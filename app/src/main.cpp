@@ -29,8 +29,10 @@
 #include "platform/dialogs.h"
 #include "runtime/spectrum_analyzer.h"
 #include "runtime/audio_reaction.h"
+#include "runtime/eval_context.h"  // EvaluationContext (was reaching it via particle_system.h)
 #include "runtime/graph.h"
-#include "runtime/particle_system.h"
+#include "runtime/point_graph.h"
+#include "runtime/point_ops.h"
 #include "selftests.h"
 #include "ui/editor_ui.h"
 #include "verify/eye/eye.h"
@@ -42,16 +44,16 @@
 
 namespace ed = ax::NodeEditor;
 
-// Owned by Renderer. The UI reads the live preview indirectly through previewTexture()
-// below (a stable seam), so it no longer reaches into ParticleSystem directly.
-sw::ParticleSystem* g_particles = nullptr;
+// The live point-operator graph runtime (lane A.1): cooks doc::g_graph each frame and renders
+// the chain into its target texture. Replaces the hardcoded ParticleSystem monolith — the
+// editor graph's connections now drive the GPU buffer flow (rewireable).
+sw::PointGraph* g_pointGraph = nullptr;
 
-// Stable preview seam for the UI (editor_ui samples this). Returns the live render output
-// without the UI knowing which engine produced it — lane A.1 swaps the body
-// (ParticleSystem monolith -> PointGraph cook) without touching editor_ui. nullptr until
-// the first render.
+// Stable preview seam for the UI (editor_ui samples this). The engine swap below
+// (ParticleSystem monolith -> PointGraph cook) didn't touch editor_ui — exactly what the
+// seam was for. nullptr until the first render.
 namespace sw {
-MTL::Texture* previewTexture() { return ::g_particles ? ::g_particles->target() : nullptr; }
+MTL::Texture* previewTexture() { return ::g_pointGraph ? ::g_pointGraph->target() : nullptr; }
 }  // namespace sw
 
 namespace {
@@ -210,24 +212,24 @@ void ViewDelegate::drawInMTKView(MTK::View* pView) { _pRenderer->draw(pView); }
 Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
   _pCommandQueue = _pDevice->newCommandQueue();
 
-  // Build the live particle system from the precompiled metallib and seed it.
+  // Build the point-operator graph runtime from the precompiled metallib. registerBuiltinPointOps
+  // wires the ops (RadialPoints / ParticleSystem sim / DrawPoints) into the cook table once.
   NS::Error* err = nullptr;
   g_shaderLib = _pDevice->newLibrary(
       NS::String::string(SW_SHADER_METALLIB, NS::StringEncoding::UTF8StringEncoding), &err);
   if (g_shaderLib) {
-    g_particles = new sw::ParticleSystem(_pDevice, g_shaderLib, /*count=*/2048, /*W=*/512, /*H=*/512);
-    if (g_particles->valid()) {
-      g_particles->generate(_pCommandQueue);
-    } else {
-      delete g_particles;
-      g_particles = nullptr;
+    sw::registerBuiltinPointOps();
+    g_pointGraph = new sw::PointGraph(_pDevice, g_shaderLib, _pCommandQueue, /*W=*/512, /*H=*/512);
+    if (!g_pointGraph->valid()) {
+      delete g_pointGraph;
+      g_pointGraph = nullptr;
     }
   }
 }
 
 Renderer::~Renderer() {
-  delete g_particles;
-  g_particles = nullptr;
+  delete g_pointGraph;
+  g_pointGraph = nullptr;
   if (g_shaderLib) {
     g_shaderLib->release();
     g_shaderLib = nullptr;
@@ -250,8 +252,8 @@ void Renderer::draw(MTK::View* pView) {
     return;
   }
 
-  // ---- Cook the particle slice into its own target texture (before imgui samples it) ----
-  if (g_particles) {
+  // ---- Cook the point-operator graph into its target texture (before imgui samples it) ----
+  if (g_pointGraph) {
     // World 1: capture the chosen audio input. audio_settings owns the device pick
     // (persisted by UID); loadPrefs() applies the saved device on the first frame, and
     // takePendingChange() fires whenever 柏為 picks a new device in the toolbar -> restart
@@ -302,21 +304,21 @@ void Renderer::draw(MTK::View* pView) {
         node.outCache[2] = (float)o.hitCount;
       }
     }
-    // Cook: graph params drive the runtime. evalParam = if the param's input is wired,
-    // evaluate the upstream value-spine (e.g. AudioReaction); else the stored constant.
-    // GPU buffer flow is untouched — only these scalar setters read the value spine.
-    g_particles->setTurbulenceAmount(sw::evalParam(sw::doc::g_graph, "TurbulenceForce", "Amount", ctx, 15.0f));
-    g_particles->setTurbulenceFrequency(sw::evalParam(sw::doc::g_graph, "TurbulenceForce", "Frequency", ctx, 1.2f));
-    g_particles->setSpeed(sw::evalParam(sw::doc::g_graph, "ParticleSystem", "Speed", ctx, 1.0f));
-    g_particles->setDrag(sw::evalParam(sw::doc::g_graph, "ParticleSystem", "Drag", ctx, 0.02f));
     ++g_frameIndex;
     g_time += dt;
-    g_particles->update(_pCommandQueue, g_time, dt);  // TurbulenceForce + integrator
-    g_particles->render(_pCommandQueue);               // DrawPoints -> target texture
+    ctx.frameIndex = g_frameIndex;  // advance the per-frame context for this cook
+    ctx.time = g_time;
+    // Cook the whole point-operator graph: walk Points connections back from the draw node,
+    // dispatch each op (RadialPoints -> ParticleSystem sim -> DrawPoints) into its bag, render
+    // the final bag into target(). The editor graph's connections now drive the buffer flow,
+    // so wiring + params (incl. AudioReaction via evalFloat/outCache when 柏為 wires it) change
+    // the picture live. reg=nullptr -> the value-spine path (connection else constant), as before.
+    g_pointGraph->cook(sw::doc::g_graph, ctx, /*reg=*/nullptr,
+                       g_pointGraph->defaultDrawTarget(sw::doc::g_graph));
   }
 
   // eye① clean: the pure render layer, BEFORE any imgui chrome touches it.
-  if (eyeReq.clean && g_particles) sw::eye::dumpTextureRGBA(g_particles->target(), "clean.png");
+  if (eyeReq.clean && g_pointGraph) sw::eye::dumpTextureRGBA(g_pointGraph->target(), "clean.png");
 
   // second hand: inject ONE queued input step before NewFrame consumes IO events.
   sw::hand::applyPendingStep();
