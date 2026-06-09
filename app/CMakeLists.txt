@@ -81,6 +81,7 @@ add_executable(simple_world
   src/verify/hand/hand.cpp
   src/platform/dialogs.mm
   src/platform/audio_capture.mm
+  src/platform/audio_devices.mm
   src/runtime/particle_system.cpp
   src/runtime/graph.cpp
   src/runtime/source_registry.cpp
@@ -137,6 +138,7 @@ target_link_libraries(simple_world PRIVATE
   "-framework Carbon"
   "-framework GameController"
   "-framework AVFoundation"
+  "-framework CoreAudio"
 )
 
 # Embed Info.plist into the bare Mach-O so TCC can read NSMicrophoneUsageDescription
