@@ -79,6 +79,7 @@ add_executable(simple_world
   src/app/graph_commands.cpp
   src/app/menu.cpp
   src/ui/editor_ui.cpp
+  src/ui/node_draw.cpp
   src/ui/node_faces.cpp
   src/ui/node_style.cpp
   src/ui/output_window.cpp
