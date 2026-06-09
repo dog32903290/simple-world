@@ -1,0 +1,107 @@
+// runtime/point_graph — the point-buffer cook (Metal). Parallel to graph.cpp's
+// evalFloat (which walks "Float" ports), but for "Points"/"ParticleForce" ports:
+// a connection carries a bag of points = an MTL::Buffer of SwPoint (TiXL Point,
+// 64B, tixl_point.h). Each frame PointGraph walks the Points connections back from
+// the draw node, cooks each operator into its (PointGraph-owned, reused) output
+// buffer, and renders the final bag into target().
+//
+// Lives in its OWN module so the pure data model (graph.h) stays Metal-free
+// (ARCHITECTURE.md: runtime leaf, no upward deps). The operator interface allows
+// STATEFUL ops (a sim keeps persistent buffers across frames via `state`) without
+// forcing state onto stateless generators/transforms.
+//
+// Faithful to TiXL: operators consume/produce StructuredBuffer<Point>
+// (external/tixl .../point/**). The buffer is the universal currency, exactly like
+// TiXL's BufferWithViews flowing between point operators.
+#pragma once
+#include <cstdint>
+#include <string>
+
+namespace MTL {
+class Device;
+class Library;
+class CommandQueue;
+class Buffer;
+class Texture;
+}  // namespace MTL
+
+struct EvaluationContext;  // runtime/eval_context.h (full def in point_graph.cpp)
+
+namespace sw {
+
+struct Graph;
+class SourceRegistry;
+
+// Everything an operator gets to cook one node this frame.
+//   inputs[i]  = the already-cooked output buffer of the i-th wired Points/Force
+//                input port (in spec port order); nullptr if that port is unwired.
+//   output     = this node's PointGraph-owned output buffer, pre-sized to `count`
+//                SwPoints. A cook op WRITES its result here (it does not allocate).
+//   state      = per-node persistent memory for stateful ops (sim); nullptr if the
+//                op registered no state factory. Stateless ops ignore it.
+struct PointCookCtx {
+  MTL::Device* dev = nullptr;
+  MTL::Library* lib = nullptr;
+  MTL::CommandQueue* queue = nullptr;
+  const EvaluationContext* ctx = nullptr;  // time / frameIndex / deltaTime
+  const Graph* graph = nullptr;            // to resolve Float params via evalParam
+  const SourceRegistry* reg = nullptr;     // live-source/override for Float params
+  int nodeId = 0;
+  uint32_t count = 0;                      // this node's point count
+  const MTL::Buffer* const* inputs = nullptr;
+  int inputCount = 0;
+  MTL::Buffer* output = nullptr;           // PointGraph-owned; cook writes here
+  void* state = nullptr;                   // per-node persistent state (stateful ops)
+};
+
+// A point operator: read inputs (+ Float params via evalParam) → write `output`.
+using PointCookFn = void (*)(PointCookCtx&);
+// A draw operator: render the (final) `points` bag into `target`. No buffer output.
+using PointDrawFn = void (*)(PointCookCtx&, MTL::Texture* target, const MTL::Buffer* points);
+// Per-node persistent state lifetime for stateful ops (e.g. a sim's particle buffer).
+// `count` is the node's point count at creation. Return nullptr for stateless ops.
+using PointStateNewFn = void* (*)(MTL::Device*, MTL::Library*, uint32_t count);
+using PointStateFreeFn = void (*)(void*);
+
+// Register a node type's cook/draw fn (Metal-side; separate from NodeSpec.evaluate,
+// which is the pure-float path). registerPointOp's state fns are optional (stateless
+// ops omit them). Registration is explicit (call registerBuiltinPointOps() at app
+// init) — NOT a static initializer — so --selftest-* runs see a clean table.
+void registerPointOp(const std::string& type, PointCookFn,
+                     PointStateNewFn = nullptr, PointStateFreeFn = nullptr);
+void registerDrawOp(const std::string& type, PointDrawFn);
+// Registers all built-in point operators (A.1+: RadialPoints/TransformPoints/
+// ParticleSystem/DrawPoints/…). Called once from the app (Renderer) at startup.
+void registerBuiltinPointOps();
+
+// The point-graph runtime. Owns device/lib/queue refs, per-node output buffers and
+// per-node state (both persist across frames; output buffers reuse, reallocating
+// only when a node's count changes — the RESOURCE_LIFETIME golden), and the target
+// texture the final draw renders into. Replaces the hardcoded ParticleSystem pipeline.
+class PointGraph {
+ public:
+  PointGraph(MTL::Device* dev, MTL::Library* lib, MTL::CommandQueue* queue, uint32_t width,
+             uint32_t height);
+  ~PointGraph();
+  PointGraph(const PointGraph&) = delete;
+  PointGraph& operator=(const PointGraph&) = delete;
+
+  bool valid() const;
+  // Cook the graph this frame: walk Points connections from the draw node, cook each
+  // operator into its output buffer, render the final bag into target(). Safe no-op
+  // (clears target) when there is no draw node or the chain is broken.
+  void cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg);
+  MTL::Texture* target() const;
+
+ private:
+  struct Impl;
+  Impl* p_;
+};
+
+// Headless RED→GREEN proof of the COOK MACHINERY (not any real kernel): registers
+// CPU-fill stub ops under real type names, builds RadialPoints→ParticleSystem→
+// DrawPoints, cooks, and asserts the generated bag threaded through the middle op to
+// the draw. injectBug makes the middle op ignore its input so the assertion FAILS.
+int runPointGraphSelfTest(bool injectBug);
+
+}  // namespace sw

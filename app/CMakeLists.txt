@@ -71,6 +71,7 @@ set_source_files_properties(src/platform/audio_capture.mm PROPERTIES COMPILE_OPT
 
 add_executable(simple_world
   src/main.cpp
+  src/selftests.cpp
   src/app/document.cpp
   src/app/audio_settings.cpp
   src/app/audio_monitor.cpp
@@ -87,6 +88,7 @@ add_executable(simple_world
   src/runtime/particle_system.cpp
   src/runtime/graph.cpp
   src/runtime/graph_selftest.cpp
+  src/runtime/point_graph.cpp
   src/runtime/source_registry.cpp
   src/runtime/attack_detector.cpp
   src/runtime/audio_analyzer.cpp

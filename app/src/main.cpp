@@ -26,16 +26,12 @@
 #include "app/document.h"
 #include "app/menu.h"
 #include "platform/audio_capture.h"
-#include "platform/audio_devices.h"
 #include "platform/dialogs.h"
-#include "runtime/attack_detector.h"
-#include "runtime/audio_analyzer.h"
-#include "runtime/audio_ingest.h"
 #include "runtime/spectrum_analyzer.h"
 #include "runtime/audio_reaction.h"
-#include "runtime/dispatch.h"
 #include "runtime/graph.h"
 #include "runtime/particle_system.h"
+#include "selftests.h"
 #include "ui/editor_ui.h"
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
@@ -51,9 +47,6 @@ namespace ed = ax::NodeEditor;
 sw::ParticleSystem* g_particles = nullptr;
 
 namespace {
-// Editor background. Also the color --selftest will assert against later.
-const MTL::ClearColor kClearColor = MTL::ClearColor::Make(0.12, 0.14, 0.18, 1.0);
-
 // Render-loop state owned by Renderer (internal to this TU).
 MTL::Library* g_shaderLib = nullptr;
 uint32_t g_frameIndex = 0;
@@ -64,61 +57,6 @@ float g_time = 0.0f;
 // EvaluationContext, and the AudioReaction value node surfaces it into the graph.
 // No hardcoded binding — 柏為 wires AudioReaction to a knob himself (visible in the graph).
 sw::AudioCapture g_audioCapture;
-
-// --selftest: the app's "eye". Offscreen-render the SAME kClearColor into a
-// texture we own, read the center pixel back, and assert it matches. No window,
-// no screen capture: provenance is structural (we read what THIS process drew).
-// codex-eyes method. injectBug=true clears a wrong color to prove the eye can
-// fail (RED) before we trust a PASS (GREEN). Returns process exit code.
-int runSelfTest(bool injectBug) {
-  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-  const int W = 64, H = 64;
-
-  // Expected bytes derive from kClearColor itself — single source of truth with
-  // the live window, so the test can't silently drift from what ships.
-  const int ex = (int)std::lround(kClearColor.red * 255.0);
-  const int ey = (int)std::lround(kClearColor.green * 255.0);
-  const int ez = (int)std::lround(kClearColor.blue * 255.0);
-
-  MTL::ClearColor clear = injectBug ? MTL::ClearColor::Make(0.78, 0.12, 0.12, 1.0) : kClearColor;
-
-  MTL::Device* dev = MTL::CreateSystemDefaultDevice();  // owned
-  MTL::CommandQueue* q = dev->newCommandQueue();        // owned
-
-  // Linear RGBA8Unorm (no sRGB) so stored bytes == round(component*255).
-  MTL::TextureDescriptor* td =
-      MTL::TextureDescriptor::texture2DDescriptor(MTL::PixelFormatRGBA8Unorm, W, H, false);
-  td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
-  td->setStorageMode(MTL::StorageModeShared);  // CPU-readable on Apple Silicon
-  MTL::Texture* tex = dev->newTexture(td);     // owned
-
-  MTL::RenderPassDescriptor* rpd = MTL::RenderPassDescriptor::renderPassDescriptor();
-  auto* ca = rpd->colorAttachments()->object(0);
-  ca->setTexture(tex);
-  ca->setLoadAction(MTL::LoadActionClear);
-  ca->setClearColor(clear);
-  ca->setStoreAction(MTL::StoreActionStore);
-
-  MTL::CommandBuffer* cmd = q->commandBuffer();
-  MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(rpd);
-  enc->endEncoding();  // clear only
-  cmd->commit();
-  cmd->waitUntilCompleted();
-
-  uint8_t px[4] = {0, 0, 0, 0};
-  MTL::Region region = MTL::Region::Make2D(W / 2, H / 2, 1, 1);
-  tex->getBytes(px, W * 4, region, 0);
-
-  bool pass = std::abs(px[0] - ex) <= 2 && std::abs(px[1] - ey) <= 2 && std::abs(px[2] - ez) <= 2;
-  printf("[selftest] center=(%d,%d,%d) expect=(%d,%d,%d) -> %s\n", px[0], px[1], px[2], ex, ey, ez,
-         pass ? "PASS" : "FAIL");
-
-  tex->release();
-  q->release();
-  dev->release();
-  pool->release();
-  return pass ? 0 : 1;
-}
 }  // namespace
 
 #pragma region Declarations {
@@ -162,80 +100,7 @@ class AppDelegate : public NS::ApplicationDelegate {
 #pragma endregion Declarations }
 
 int main(int argc, char* argv[]) {
-  for (int i = 1; i < argc; ++i) {
-    if (std::strcmp(argv[i], "--selftest") == 0) return runSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-bug") == 0) return runSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-dispatch") == 0) return sw::runDispatchSelfTest();
-    if (std::strcmp(argv[i], "--selftest-graph") == 0)
-      return sw::runGraphRoundtripSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-graph-bug") == 0)
-      return sw::runGraphRoundtripSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-save") == 0)
-      return sw::runSaveLoadSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-save-bug") == 0)
-      return sw::runSaveLoadSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-command") == 0)
-      return sw::runCommandSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-command-bug") == 0)
-      return sw::runCommandSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-valuecook") == 0)
-      return sw::runValueCookSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-valuecook-bug") == 0)
-      return sw::runValueCookSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-resolve") == 0)
-      return sw::runResolveSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-resolve-bug") == 0)
-      return sw::runResolveSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-audionode") == 0)
-      return sw::runAudioNodeSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-audionode-bug") == 0)
-      return sw::runAudioNodeSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-attack") == 0)
-      return sw::runAttackSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-attack-bug") == 0)
-      return sw::runAttackSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-analyzer") == 0)
-      return sw::runAudioAnalyzerSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-analyzer-bug") == 0)
-      return sw::runAudioAnalyzerSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-spectrum") == 0)
-      return sw::runSpectrumSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-spectrum-bug") == 0)
-      return sw::runSpectrumSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-audioreaction") == 0)
-      return sw::runAudioReactionSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-audioreaction-bug") == 0)
-      return sw::runAudioReactionSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-audiomonitor") == 0)
-      return sw::audio_monitor::runAudioMonitorSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-audiomonitor-bug") == 0)
-      return sw::audio_monitor::runAudioMonitorSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-flow") == 0)
-      return sw::runParticleFlowSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-flow-bug") == 0)
-      return sw::runParticleFlowSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-draw") == 0)
-      return sw::runDrawPointsSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-draw-bug") == 0)
-      return sw::runDrawPointsSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-eye") == 0) return sw::eye::runSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-eye-bug") == 0) return sw::eye::runSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-hand") == 0) return sw::hand::runSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-hand-bug") == 0) return sw::hand::runSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--selftest-audioingest") == 0)
-      return sw::runAudioIngestSelfTest(/*injectBug=*/false);
-    if (std::strcmp(argv[i], "--selftest-audioingest-bug") == 0)
-      return sw::runAudioIngestSelfTest(/*injectBug=*/true);
-    if (std::strcmp(argv[i], "--audio-ingest-replay") == 0)
-      return sw::runAudioIngestReplay(i + 1 < argc ? argv[i + 1] : "");
-    if (std::strcmp(argv[i], "--audio-capture-smoke") == 0)
-      return sw::runAudioCaptureSmoke(i + 1 < argc ? atof(argv[i + 1]) : 4.0,
-                                      i + 2 < argc ? argv[i + 2] : "");
-    if (std::strcmp(argv[i], "--list-audio-devices") == 0)
-      return sw::runListAudioDevices();
-    if (std::strcmp(argv[i], "--audio-permission-status") == 0)
-      return sw::runAudioPermissionStatus();
-  }
+  if (int rc = sw::runSelftestFromArgs(argc, argv); rc >= 0) return rc;
 
   NS::AutoreleasePool* pAutoreleasePool = NS::AutoreleasePool::alloc()->init();
 
@@ -282,7 +147,7 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
 
   _pMtkView = MTK::View::alloc()->init(frame, _pDevice);
   _pMtkView->setColorPixelFormat(MTL::PixelFormat::PixelFormatBGRA8Unorm_sRGB);
-  _pMtkView->setClearColor(kClearColor);
+  _pMtkView->setClearColor(MTL::ClearColor::Make(sw::kBgR, sw::kBgG, sw::kBgB, 1.0));
   _pMtkView->setFramebufferOnly(false);  // eye②: allow drawable readback (full.png)
 
   _pViewDelegate = new ViewDelegate(_pDevice);
