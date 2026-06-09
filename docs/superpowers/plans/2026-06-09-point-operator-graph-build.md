@@ -36,7 +36,9 @@
 
 **✓ A.2 batch-1 生成器 DONE（`1b00544`，2026-06-09，workflow fan-out 首跑）**：LinePoints / GridPoints / SpherePoints 港好，全 golden 綠 + bug 紅（真 GPU readback：linepoints 共線/等距、gridpoints 格點 bbox、spherepoints 每點離心 R）+ live Add 選單驗。**fan-out 模式已驗**：workflow 派 3 隻 agent，每隻爬 TiXL + 寫**自己的 3 個葉檔**（`<lower>_params.h`/`<lower>.metal`/`point_ops_<lower>.cpp`，互不相交=並行安全）+ **把 5 處 shared 整合改動當資料回傳**（NodeSpec literal / CMake 行 / register 行 / selftest 宣告 / kTable 行），Opus 中央套一次 + build 一次 + 跑全 golden。script 範本 = session wf_789d90f5-9ab。律法：NodeSpec 表抽到 `node_registry.cpp`（graph.cpp 404→232），check-arch 綠，全檔 <400。
 
-**RESUME 點 = A.2 batch 2（變換/modify：TransformPoints / OrientPoints / RandomizePoints / FilterPoints，照 `transform/`+`modify/`）**，同 workflow 模式。**需柏為明確「用 workflow 跑 batch 2」opt-in**（派多 agent、燒 token）。後續批 3 combine、批 4 draw 招牌（DrawMeshAtPoints2 需 mesh 資源型別）。batch-1 殘留 debt：每顆 orientation quat + Color 仍烤死（同 RadialPoints，可補）、GridPoints `"Count"`=capacity port workaround（乾淨修=PointGraph 從 CountX/Y/Z 中央導 count）、GridPoints 只港 Cartesian tiling、`editor_ui.cpp` 422>400(UI lane 拆)、eye `map.json` 多節點後回 0 widgets(verify/eye,待查)。
+**✓ modifier 範本 TransformPoints DONE（`37d13c5`）+ A.2 batch-2 modifier DONE（`00a5243`，workflow 2nd fan-out）**：modifier 形狀（Points in idx0 + out idx1、cook 讀 `c.inputs[0]`、count 繼承上游、寫 `c.output`）由 Opus 親手港 TransformPoints 鎖死，再 fan-out OrientPoints/RandomizePoints/SetPointAttributes（3 agent 照範本）。8 顆 point op 全 golden 綠+bug 紅。律法乾淨(全檔<400、node_registry 285、check-arch 綠)。另 `fba9cd8`(背景 task 加 `--selftest-map`，闢謠「map 多節點回 0」假警報)。
+
+**RESUME 點 = A.2 batch 3 combine**（CombineBuffers=多 input 串接多袋點 / BlendPoints），同 workflow 模式。**需柏為明確「用 workflow 跑 batch 3」opt-in**。批 4 draw 招牌（DrawMeshAtPoints2 需 mesh 資源型別）在後。殘留 debt：**FilterPoints 延後**(count 變動,不合 count-preserving 契約,先驗模型)、OrientPoints Screen/LookAtCamera 模式烤成 passthrough(要相機矩陣)、modifier golden 只測主路徑、生成器 orientation quat+Color 仍烤死、GridPoints `"Count"`=capacity workaround、`editor_ui.cpp` 422>400(UI lane 已在 worktree 還債到 372)。
 
 **Session safety**：平行 UI session **必須用獨立 git worktree**（本 session 同一棵樹被 UI session 的 git 操作回退過 runtime 編輯兩次 → 已救回）。見 master plan Session Safety。
 
