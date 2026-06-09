@@ -153,7 +153,9 @@ void drawNodeCanvas() {
         ed::EndPin();
       }
     }
-    if (node.type == "AudioReaction") sw::ui::drawAudioReactionFace(node);
+    sw::ui::drawNodeFace(node);  // 資料驅動 custom faces (node_faces.cpp kFaces table)
+    // DrawPoints preview is a preview-texture body (separate from draw-list faces);
+    // stays inline until previewPolicy is formalized (see UI-contract spec, 刀 A).
     if (node.type == "DrawPoints")
       if (MTL::Texture* tex = sw::previewTexture())
         ImGui::Image(reinterpret_cast<ImTextureID>(tex), ImVec2(200, 200));

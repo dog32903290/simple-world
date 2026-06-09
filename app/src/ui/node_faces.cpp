@@ -13,6 +13,7 @@
 #include "runtime/spectrum_analyzer.h"
 
 namespace sw::ui {
+namespace {  // face fns are internal — reached only via the kFaces dispatch table below
 
 void drawAudioReactionFace(const sw::Node& node) {
   // TiXL-parity audio-reaction face — faithful port of TiXL AudioReactionUi.DrawChildUi.
@@ -107,6 +108,21 @@ void drawAudioReactionFace(const sw::Node& node) {
   std::snprintf(lbl, sizeof(lbl), node.outCache[1] > 0.5f ? "HIT #%d" : "#%d",
                 (int)node.outCache[2]);
   ImGui::TextDisabled("%s", lbl);
+}
+
+// 資料驅動 dispatch: add a {type, faceFn} row here to give a node type a custom body.
+// New node types with a custom draw-list face append to this table — they never touch
+// editor_ui's canvas loop, so node-making and canvas-skinning stay collision-free.
+struct FaceEntry { const char* type; void (*draw)(const sw::Node&); };
+const FaceEntry kFaces[] = {
+    {"AudioReaction", drawAudioReactionFace},
+};
+
+}  // anonymous namespace
+
+void drawNodeFace(const sw::Node& node) {
+  for (const auto& f : kFaces)
+    if (node.type == f.type) { f.draw(node); return; }
 }
 
 }  // namespace sw::ui
