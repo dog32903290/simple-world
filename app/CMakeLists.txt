@@ -85,6 +85,7 @@ add_executable(simple_world
   src/platform/audio_devices.mm
   src/runtime/particle_system.cpp
   src/runtime/graph.cpp
+  src/runtime/graph_selftest.cpp
   src/runtime/source_registry.cpp
   src/runtime/attack_detector.cpp
   src/runtime/audio_analyzer.cpp
