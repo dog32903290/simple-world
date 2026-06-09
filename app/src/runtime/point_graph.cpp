@@ -148,15 +148,17 @@ PointGraph::~PointGraph() {
 bool PointGraph::valid() const { return p_->dev && p_->queue && p_->target; }
 MTL::Texture* PointGraph::target() const { return p_->target; }
 
-void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg) {
-  // Find the draw node (first node whose type has a registered draw fn).
-  const Node* drawNode = nullptr;
-  PointDrawFn drawFn = nullptr;
-  for (const Node& n : g.nodes) {
-    auto it = drawReg().find(n.type);
-    if (it != drawReg().end()) { drawNode = &n; drawFn = it->second; break; }
-  }
-  if (!drawNode) { p_->clearTarget(); return; }  // nothing to draw -> black, no crash
+int PointGraph::defaultDrawTarget(const Graph& g) const {
+  for (const Node& n : g.nodes)
+    if (drawReg().find(n.type) != drawReg().end()) return n.id;
+  return 0;
+}
+
+void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
+                      int targetNodeId) {
+  const Node* target = g.node(targetNodeId);
+  const NodeSpec* ts = target ? findSpec(target->type) : nullptr;
+  if (!target || !ts) { p_->clearTarget(); return; }  // no/unknown target -> black, no crash
 
   std::map<int, MTL::Buffer*> cooked;  // this-frame memo (cook each node once)
   std::function<MTL::Buffer*(int)> cookNode = [&](int id) -> MTL::Buffer* {
@@ -199,25 +201,30 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return out;
   };
 
-  // Cook the draw node's Points input, then render it into target.
-  const NodeSpec* ds = findSpec(drawNode->type);
-  MTL::Buffer* pts = nullptr;
-  uint32_t drawCount = 0;
-  if (ds) {
-    for (size_t i = 0; i < ds->ports.size(); ++i) {
-      const PortSpec& port = ds->ports[i];
+  // Realize the target. If it's a draw node, cook its Points input and render it; else it's
+  // a Points-producing op whose output bag is cooked but not yet shown (a raw Points node
+  // needs a typed-preview wrapper — future, not built).
+  auto drawIt = drawReg().find(target->type);
+  if (drawIt != drawReg().end()) {
+    MTL::Buffer* pts = nullptr;
+    uint32_t drawCount = 0;
+    for (size_t i = 0; i < ts->ports.size(); ++i) {
+      const PortSpec& port = ts->ports[i];
       if (!(port.isInput && port.dataType == "Points")) continue;
-      const Connection* c = g.connectionToInput(pinId(drawNode->id, (int)i));
+      const Connection* c = g.connectionToInput(pinId(target->id, (int)i));
       if (c) { pts = cookNode(pinNode(c->fromPin)); drawCount = p_->outCount[pinNode(c->fromPin)]; }
       break;
     }
+    PointCookCtx dc;
+    dc.dev = p_->dev; dc.lib = p_->lib; dc.queue = p_->queue;
+    dc.ctx = &ctx; dc.graph = &g; dc.reg = reg;
+    dc.nodeId = target->id; dc.count = drawCount;
+    dc.inputs = nullptr; dc.inputCount = 0; dc.output = nullptr; dc.state = nullptr;
+    drawIt->second(dc, p_->target, pts);
+  } else {
+    cookNode(targetNodeId);  // cook the op (+ inputs); its output bag is ready for a future preview
+    p_->clearTarget();       // no visualizer for a raw Points node yet
   }
-  PointCookCtx dc;
-  dc.dev = p_->dev; dc.lib = p_->lib; dc.queue = p_->queue;
-  dc.ctx = &ctx; dc.graph = &g; dc.reg = reg;
-  dc.nodeId = drawNode->id; dc.count = drawCount;
-  dc.inputs = nullptr; dc.inputCount = 0; dc.output = nullptr; dc.state = nullptr;
-  drawFn(dc, p_->target, pts);
 }
 
 // ---------------------------------------------------------------------------
@@ -290,8 +297,8 @@ int runPointGraphSelfTest(bool injectBug) {
 
   EvaluationContext ctx{};
   ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
-  pg.cook(g, ctx, nullptr);
-  pg.cook(g, ctx, nullptr);  // second cook: exercise buffer reuse (no realloc, same result)
+  pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));
+  pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));  // second cook: exercise buffer reuse (no realloc, same result)
 
   bool ok = captured.size() == 8;
   for (const SwPoint& p : captured) ok = ok && (p.Position.x == 2.0f);

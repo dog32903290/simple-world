@@ -121,7 +121,7 @@ int runRadialOpSelfTest(bool injectBug) {
 
   EvaluationContext ctx{};
   ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
-  pg.cook(g, ctx, nullptr);
+  pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));
 
   bool onCircle = captured.size() == N;
   for (const SwPoint& p : captured) {

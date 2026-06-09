@@ -87,10 +87,17 @@ class PointGraph {
   PointGraph& operator=(const PointGraph&) = delete;
 
   bool valid() const;
-  // Cook the graph this frame: walk Points connections from the draw node, cook each
-  // operator into its output buffer, render the final bag into target(). Safe no-op
-  // (clears target) when there is no draw node or the chain is broken.
-  void cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg);
+  // Cook the sub-graph feeding `targetNodeId` this frame and realize it into target():
+  //  - if the target is a draw node (registered PointDrawFn) -> render its Points input;
+  //  - else the target is a Points-producing op -> its output bag is cooked but not yet
+  //    shown (visualizing a raw Points node needs a typed-preview wrapper — future).
+  // `targetNodeId` is what the viewport shows. The single wired terminal is NOT baked in:
+  // the live loop passes defaultDrawTarget(); a future "pin any node" (view ⊥ graph, like
+  // TiXL's OutputWindow — pin is session state, not a graph edge) just passes another id.
+  void cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
+            int targetNodeId);
+  // Default viewport target = the first draw node (today's wired terminal). 0 if none.
+  int defaultDrawTarget(const Graph& g) const;
   MTL::Texture* target() const;
 
  private:
