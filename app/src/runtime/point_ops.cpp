@@ -107,137 +107,112 @@ void cookDrawPoints(PointCookCtx& c, MTL::Texture* target, const MTL::Buffer* po
   if (rps) rps->release();
 }
 
+// Compute PSO from the metallib by function name (the sim op caches its two in per-node
+// state so they aren't rebuilt every frame).
+MTL::ComputePipelineState* makeComputePSO(MTL::Device* dev, MTL::Library* lib, const char* name) {
+  if (!lib) return nullptr;
+  MTL::Function* fn = lib->newFunction(NS::String::string(name, NS::UTF8StringEncoding));
+  if (!fn) return nullptr;
+  NS::Error* err = nullptr;
+  MTL::ComputePipelineState* pso = dev->newComputePipelineState(fn, &err);
+  fn->release();
+  return pso;
+}
+
+// ParticleSystem sim op state — the stateful part (本質複雜: a GPU sim inside a dataflow
+// graph). Persistent particle buffer + the two cached PSOs (turbulence, integrate) + a
+// seeded flag. Lives across frames via PointGraph's per-node state.
+struct SimState {
+  MTL::Buffer* particles = nullptr;  // Particle[count], persists across frames
+  MTL::ComputePipelineState* psoTurb = nullptr;
+  MTL::ComputePipelineState* psoSim = nullptr;
+  bool seeded = false;
+};
+void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count) {
+  SimState* s = new SimState();
+  s->particles = dev->newBuffer((NS::UInteger)(count > 0 ? count : 1) * sizeof(Particle),
+                                MTL::ResourceStorageModeShared);
+  s->psoTurb = makeComputePSO(dev, lib, "turbulence_force");
+  s->psoSim = makeComputePSO(dev, lib, "particle_sim");
+  return s;
+}
+void simStateFree(void* p) {
+  SimState* s = static_cast<SimState*>(p);
+  if (!s) return;
+  if (s->particles) s->particles->release();
+  if (s->psoTurb) s->psoTurb->release();
+  if (s->psoSim) s->psoSim->release();
+  delete s;
+}
+
+// ParticleSystem sim op: emit bag (input[0], from RadialPoints) -> persistent particles ->
+// per-frame turbulence + integrate -> result bag (output). Faithful to ParticleSystem's
+// runTurbulence + runSim (same params/kernels). Speed/Drag + turbulence are read by TYPE via
+// evalParam — exactly as the current live loop does (TurbulenceForce as a real ParticleForce
+// buffer is a future refinement; reading-by-type matches today = no regression).
+void cookParticleSim(PointCookCtx& c) {
+  if (!c.output || c.count == 0 || !c.state || !c.ctx) return;
+  SimState* s = static_cast<SimState*>(c.state);
+  if (!s->psoTurb || !s->psoSim || !s->particles) return;
+  const MTL::Buffer* emit = (c.inputCount > 0) ? c.inputs[0] : nullptr;
+  if (!emit) return;  // no emit bag -> nothing to seed/sim
+
+  const float speed = c.graph ? evalParam(*c.graph, "ParticleSystem", "Speed", *c.ctx, 1.0f, c.reg) : 1.0f;
+  const float drag = c.graph ? evalParam(*c.graph, "ParticleSystem", "Drag", *c.ctx, 0.02f, c.reg) : 0.02f;
+  const float turbAmt = c.graph ? evalParam(*c.graph, "TurbulenceForce", "Amount", *c.ctx, 15.0f, c.reg) : 15.0f;
+  const float turbFreq = c.graph ? evalParam(*c.graph, "TurbulenceForce", "Frequency", *c.ctx, 1.2f, c.reg) : 1.2f;
+  const float time = c.ctx->time;
+  const uint32_t count = c.count;
+  const uint32_t tg = 64;
+
+  auto integrate = [&](bool emitFlag, bool resetFlag) {
+    SimParams P{};
+    P.Speed = speed; P.Drag = drag; P.InitialVelocity = 0.0f; P.Time = time;
+    P.OrientTowardsVelocity = 0.15f; P.RadiusFromW = 0.01f; P.LifeTime = -1.0f;
+    SimIntParams I{};
+    I.TriggerEmit = emitFlag ? 1 : 0; I.TriggerReset = resetFlag ? 1 : 0;
+    I.CollectCycleIndex = 0; I.SetFx1To = 0; I.SetFx2To = 0; I.EmitMode = 0;
+    I.IsAutoCount = 1; I.EmitVelocityFactor = 0;
+    I.EmitCount = (int32_t)count; I.MaxParticleCount = (int32_t)count;
+    MTL::CommandBuffer* cmd = c.queue->commandBuffer();
+    MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
+    enc->setComputePipelineState(s->psoSim);
+    enc->setBuffer(const_cast<MTL::Buffer*>(emit), 0, SIM_EmitPoints);
+    enc->setBuffer(s->particles, 0, SIM_Particles);
+    enc->setBuffer(c.output, 0, SIM_ResultPoints);
+    enc->setBytes(&P, sizeof(P), SIM_Params);
+    enc->setBytes(&I, sizeof(I), SIM_IntParams);
+    enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(count, tg), 1, 1), MTL::Size::Make(tg, 1, 1));
+    enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
+  };
+
+  if (!s->seeded) {
+    integrate(/*emit=*/true, /*reset=*/true);  // seed particles + result from the emit bag
+    s->seeded = true;
+    return;
+  }
+  TurbParams tp{};  // turbulence: vel += curlNoise
+  tp.Amount = turbAmt; tp.Frequency = turbFreq; tp.Phase = time; tp.Variation = 0.0f;
+  tp.SpeedFactor = 1.0f; tp.VariationGroupCount = 0.0f; tp.Count = count;
+  {
+    MTL::CommandBuffer* cmd = c.queue->commandBuffer();
+    MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
+    enc->setComputePipelineState(s->psoTurb);
+    enc->setBuffer(s->particles, 0, FORCE_Particles);
+    enc->setBytes(&tp, sizeof(tp), FORCE_Params);
+    enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(count, tg), 1, 1), MTL::Size::Make(tg, 1, 1));
+    enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
+  }
+  integrate(/*emit=*/false, /*reset=*/false);  // drag + integrate -> result
+}
+
 }  // namespace
 
 void registerBuiltinPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
+  registerPointOp("ParticleSystem", cookParticleSim, simStateNew, simStateFree);
   registerDrawOp("DrawPoints", cookDrawPoints);
-  // A.1+ register here: TransformPoints, ParticleSystem (stateful sim) ...
-}
-
-// ---------------------------------------------------------------------------
-// Golden proof of the RadialPoints cook op THROUGH the point-graph.
-namespace {
-std::vector<SwPoint>* g_cap = nullptr;
-void captureDraw(PointCookCtx& c, MTL::Texture*, const MTL::Buffer* pts) {
-  if (!g_cap || !pts || c.count == 0) return;
-  g_cap->assign(c.count, SwPoint{});
-  std::memcpy(g_cap->data(), const_cast<MTL::Buffer*>(pts)->contents(),
-              (size_t)c.count * sizeof(SwPoint));
-}
-MTL::Library* loadLib(MTL::Device* dev) {
-  NS::Error* err = nullptr;
-  return dev->newLibrary(NS::String::string(SW_SHADER_METALLIB, NS::UTF8StringEncoding), &err);
-}
-}  // namespace
-
-int runRadialOpSelfTest(bool injectBug) {
-  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-  const uint32_t N = 64;
-  const float R = 2.0f;
-
-  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
-  MTL::CommandQueue* q = dev->newCommandQueue();
-  MTL::Library* lib = loadLib(dev);
-  if (!lib) {
-    printf("[selftest-radialop] FAIL: no metallib\n");
-    q->release(); dev->release(); pool->release();
-    return 1;
-  }
-
-  registerBuiltinPointOps();        // registers RadialPoints
-  std::vector<SwPoint> captured;
-  g_cap = &captured;
-  registerDrawOp("DrawPoints", captureDraw);  // capture-only draw for the assertion
-
-  PointGraph pg(dev, lib, q, 64, 64);
-
-  Graph g;
-  Node gen; gen.id = 1; gen.type = "RadialPoints";
-  gen.params["Count"] = (float)N;
-  gen.params["Radius"] = R;
-  gen.params["Cycles"] = injectBug ? 0.0f : 1.0f;  // bug: 0 turns -> all points collapse
-  g.nodes.push_back(gen);
-  Node drw; drw.id = 2; drw.type = "DrawPoints"; g.nodes.push_back(drw);
-  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // RadialPoints.points -> DrawPoints.points
-
-  EvaluationContext ctx{};
-  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
-  pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));
-
-  bool onCircle = captured.size() == N;
-  for (const SwPoint& p : captured) {
-    float r = std::sqrt(p.Position.x * p.Position.x + p.Position.y * p.Position.y);
-    onCircle = onCircle && std::fabs(r - R) < 0.05f;
-  }
-  // Opposite indices are far apart on a real ring (Cycles=1); Cycles=0 collapses them.
-  float spread = 0.0f;
-  if (captured.size() == N) {
-    const SwPoint& a = captured[0];
-    const SwPoint& b = captured[N / 2];
-    float dx = a.Position.x - b.Position.x, dy = a.Position.y - b.Position.y;
-    spread = std::sqrt(dx * dx + dy * dy);
-  }
-  bool pass = onCircle && spread > 0.5f;
-  printf("[selftest-radialop] n=%zu onCircle(R=%.1f)=%d spread=%.3f(need>0.5) -> %s\n",
-         captured.size(), R, onCircle ? 1 : 0, spread, pass ? "PASS" : "FAIL");
-
-  g_cap = nullptr;
-  lib->release(); q->release(); dev->release(); pool->release();
-  return pass ? 0 : 1;
-}
-
-// Golden proof of the DrawPoints draw op THROUGH the point-graph: cook RadialPoints ->
-// DrawPoints (the REAL renderer), read the target texture back, assert a lit ring with a
-// black center. injectBug = 0 points -> nothing drawn -> all black -> FAIL.
-int runDrawOpSelfTest(bool injectBug) {
-  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-  const uint32_t N = 256, W = 256, H = 256;
-
-  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
-  MTL::CommandQueue* q = dev->newCommandQueue();
-  MTL::Library* lib = loadLib(dev);
-  if (!lib) {
-    printf("[selftest-drawop] FAIL: no metallib\n");
-    q->release(); dev->release(); pool->release();
-    return 1;
-  }
-
-  registerBuiltinPointOps();  // RadialPoints (cook) + DrawPoints (real draw)
-  PointGraph pg(dev, lib, q, W, H);
-
-  Graph g;
-  Node gen; gen.id = 1; gen.type = "RadialPoints";
-  gen.params["Count"] = (float)(injectBug ? 0u : N);  // bug: 0 points -> nothing drawn
-  gen.params["Radius"] = 2.0f;
-  g.nodes.push_back(gen);
-  Node drw; drw.id = 2; drw.type = "DrawPoints"; g.nodes.push_back(drw);
-  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});
-
-  EvaluationContext ctx{};
-  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
-  pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));
-
-  std::vector<uint8_t> px(W * H * 4, 0);
-  pg.target()->getBytes(px.data(), W * 4, MTL::Region::Make2D(0, 0, W, H), 0);
-  auto lit = [&](uint32_t x, uint32_t y) {
-    const uint8_t* p = &px[(y * W + x) * 4];
-    return p[0] > 30 || p[1] > 30 || p[2] > 30;
-  };
-  int nonBlack = 0;
-  for (uint32_t y = 0; y < H; ++y)
-    for (uint32_t x = 0; x < W; ++x)
-      if (lit(x, y)) ++nonBlack;
-  bool centerBlack = true;
-  for (uint32_t y = H / 2 - 8; y < H / 2 + 8; ++y)
-    for (uint32_t x = W / 2 - 8; x < W / 2 + 8; ++x)
-      if (lit(x, y)) centerBlack = false;
-  bool pass = nonBlack > 50 && centerBlack;
-  printf("[selftest-drawop] nonBlack=%d(need>50) centerBlack=%d -> %s\n", nonBlack,
-         centerBlack ? 1 : 0, pass ? "PASS" : "FAIL");
-
-  lib->release(); q->release(); dev->release(); pool->release();
-  return pass ? 0 : 1;
+  // A.1+ register here: TransformPoints, more generators / modifiers ...
 }
 
 }  // namespace sw

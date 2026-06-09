@@ -91,6 +91,7 @@ add_executable(simple_world
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
   src/runtime/point_ops.cpp
+  src/runtime/point_ops_selftest.cpp
   src/runtime/source_registry.cpp
   src/runtime/attack_detector.cpp
   src/runtime/audio_analyzer.cpp

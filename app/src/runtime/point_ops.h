@@ -14,4 +14,7 @@ int runRadialOpSelfTest(bool injectBug);
 // Golden proof of the DrawPoints draw op: cook RadialPoints -> DrawPoints (real renderer),
 // assert a lit ring + black center in the target texture. injectBug (0 points) -> all black.
 int runDrawOpSelfTest(bool injectBug);
+// Golden proof of the ParticleSystem sim op: cook RadialPoints->ParticleSystem(sim)->capture,
+// step N frames, assert turbulence pushed points off the ring. injectBug (Amount=0) -> no flow.
+int runSimOpSelfTest(bool injectBug);
 }  // namespace sw
