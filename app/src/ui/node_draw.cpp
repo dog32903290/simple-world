@@ -36,12 +36,20 @@ void drawNode(const sw::Node& node) {
   // 刀A · TiXL-parity skin: tint this node's background/outline/title by its category
   // color (first output's dataType, via ui/node_style). ed style is per-node; pop after
   // EndNode. Rounding/border kept small + thin for TiXL's flat-rectangle legacy look.
+  // Selection (white) + hover (soft white) outlines — TiXL UiColors.Selection, category-
+  // independent so a lit node reads the same regardless of type. Always pushed.
+  ed::PushStyleColor(ed::StyleColor_SelNodeBorder, ImGui::ColorConvertU32ToFloat4(nodeSelectedBorderColor()));
+  ed::PushStyleColor(ed::StyleColor_HovNodeBorder, ImGui::ColorConvertU32ToFloat4(nodeHoverBorderColor()));
+  int nColor = 2;
   if (spec) {
     ed::PushStyleColor(ed::StyleColor_NodeBg, ImGui::ColorConvertU32ToFloat4(nodeBgColor(*spec)));
     ed::PushStyleColor(ed::StyleColor_NodeBorder, ImGui::ColorConvertU32ToFloat4(nodeBorderColor(*spec)));
+    nColor += 2;
   }
   ed::PushStyleVar(ed::StyleVar_NodeRounding, 3.0f);
   ed::PushStyleVar(ed::StyleVar_NodeBorderWidth, 1.0f);
+  ed::PushStyleVar(ed::StyleVar_SelectedNodeBorderWidth, 2.5f);
+  ed::PushStyleVar(ed::StyleVar_HoveredNodeBorderWidth, 2.0f);
   ed::BeginNode(node.id);
   if (spec) ImGui::PushStyleColor(ImGuiCol_Text, nodeLabelColor(*spec));
   ImGui::TextUnformatted(spec ? spec->title.c_str() : node.type.c_str());
@@ -79,8 +87,8 @@ void drawNode(const sw::Node& node) {
   }
   drawNodeFace(node);  // 資料驅動 custom faces (node_faces.cpp kFaces table)
   ed::EndNode();
-  ed::PopStyleVar(2);
-  if (spec) ed::PopStyleColor(2);
+  ed::PopStyleVar(4);
+  ed::PopStyleColor(nColor);
   // eye: node body SCREEN rect via the node-editor's own position/size + transform.
   ImVec2 na = ed::CanvasToScreen(ed::GetNodePosition(node.id));
   ImVec2 nsz = ed::GetNodeSize(node.id);

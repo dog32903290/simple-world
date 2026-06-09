@@ -20,6 +20,10 @@ ImU32 nodeBgColor(const sw::NodeSpec& spec);      // OperatorBackground  b0.5  s
 ImU32 nodeBorderColor(const sw::NodeSpec& spec);  // OperatorOutline     b0.1  s0.7  a0.5
 ImU32 nodeLabelColor(const sw::NodeSpec& spec);   // OperatorLabel       b1.3  s0.4  a1.0
 
+// Selection / hover outlines (TiXL UiColors.Selection is white, category-independent).
+ImU32 nodeSelectedBorderColor();  // bright white — selected node outline
+ImU32 nodeHoverBorderColor();     // soft white — hovered node outline
+
 // Isolation test (ARCHITECTURE.md 鐵律 5): type hues + bg-darker-than-label invariant.
 int runNodeStyleSelfTest(bool injectBug);
 

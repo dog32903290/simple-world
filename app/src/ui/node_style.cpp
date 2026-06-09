@@ -52,6 +52,9 @@ ImU32 nodeBgColor(const sw::NodeSpec& spec)     { return variation(baseColor(cat
 ImU32 nodeBorderColor(const sw::NodeSpec& spec) { return variation(baseColor(categoryType(spec)), 0.1f, 0.7f, 0.5f); }
 ImU32 nodeLabelColor(const sw::NodeSpec& spec)  { return variation(baseColor(categoryType(spec)), 1.3f, 0.4f, 1.0f); }
 
+ImU32 nodeSelectedBorderColor() { return IM_COL32(255, 255, 255, 255); }  // TiXL UiColors.Selection
+ImU32 nodeHoverBorderColor()    { return IM_COL32(210, 210, 220, 170); }
+
 int runNodeStyleSelfTest(bool injectBug) {
   auto maxc = [](ImU32 c) { ImVec4 f = ImGui::ColorConvertU32ToFloat4(c); return std::max({f.x, f.y, f.z}); };
 
