@@ -6,7 +6,7 @@
 
 | 區 | 性質 | 路徑 | 例 |
 |---|---|---|---|
-| runtime | 純計算，零 UI | `app/src/runtime/` | graph, particle_system, dispatch, radial, transform |
+| runtime | 純計算，零 UI | `app/src/runtime/` | graph, particle_system, dispatch, radial, transform, audio(analyzer/spectrum/reaction/ingest) |
 | app | 產品行為 | `app/src/app/` | document(儲存)… 未來 timeline/preset |
 | ui | imgui 畫圖 | `app/src/ui/` | editor_ui(toolbar/canvas/inspector)… 未來面板 |
 | platform | 原生 macOS 接口 | `app/src/platform/` | dialogs… 未來 bundle/檔案關聯 |

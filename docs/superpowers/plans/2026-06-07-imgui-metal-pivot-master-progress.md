@@ -8,7 +8,7 @@
 
 ## Current Snapshot
 
-- 日期：2026-06-08。分支：`codex/js-to-cpp-contract-migration`（內容已與新方向脫節）。
+- 日期：2026-06-09。分支：`codex/js-to-cpp-contract-migration`（內容已與新方向脫節）。最新：`39f2d98`（TiXL AudioReaction 對齊）。
 - 階段：**step 0 殼 → step 1 粒子線 → step 2 照 TiXL re-arch → step 3 graph 資料模型 → B0 編輯器基本可操作層
   全部 ✅（柏為親手測過）→ B2「命令層/undo-redo」Phase 1 ✅ closed（柏為 7/7 驗收）。**
   北極星 = Mac 版 TiXL（柏為選 B，視覺也追）；完成定義 = 柏為親手測得到（見下〈完成定義〉）；照〈Roadmap〉順序走。
@@ -27,6 +27,12 @@
   `docs/runtime/CONTRACT_ALIGNMENT_LEDGER.md`(L1–L14) 落檔、TiXL 時間/動畫設計抽取已驗證（L8/L9/L10/L12 與 TiXL 同構）。
   **開工 lane = runtime 時間/交互層建造**（Transport 兩鐘 / scoreGraph 第五張圖 / automation / 值解析堆疊；見 Active Lane）。
   地基已**親證在跑**（eye 抓真 frame：Metal 粒子 + node canvas，68.8fps）。
+- **（2026-06-09）audio 子線 → TiXL AudioReaction 完整對齊（commit `39f2d98`，柏為定「一模一樣」）**：
+  ①裝置路由 bug 修復（選裝置收 0 blocks 真根因＝`AudioUnitSetProperty` 換 AVAudioEngine 輸入裝置會 desync tap → 改 **raw AUHAL** 輸入單元，接縫 AudioCapture 不變）；
+  ②新 `runtime/spectrum_analyzer`（**vDSP** 2048-pt FFT → 32 log-octave band 55–15kHz + peaks/attacks/onsets，移植 TiXL `AudioAnalysisContext`）；
+  ③新 `runtime/audio_reaction`（狀態 cook，移植 `AudioReaction.cs`：5 InputModes / window 加權 Sum / threshold+去抖 hit / 5 OutputModes / Reset）；
+  ④AudioReaction 節點 = **3 輸出**(Level/WasHit/HitCount) + **10 參數**(InputBand/Output enum 下拉 + Reset checkbox)，`PortSpec` 加 widget/labels/pinless，**Inspector 渲染 combo/checkbox/slider**，`Node.outCache` 帶狀態節點輸出（main 每幀 cook→outCache，evalFloat 讀它），頻譜直方圖畫在節點臉。
+  13 selftest 綠（+spectrum/audioreaction）、save/load 含新參數、inspector+節點 eye 驗、裝置路由 `--audio-capture-smoke` 驗（內建/2i2）。**逐項細節見 active plan `2026-06-09-runtime-time-interaction-build.md` 的「TiXL AudioReaction 完整對齊」段。**
 - 與柏為長談後確立的核心判斷（四個皮選項都已逐一壓過、由他拍板）：
   - **核心資產 = 自己的 Metal 粒子/3D 引擎。皮是可換外殼。**
   - 放棄整批克隆 TiXL / Vuo runtime（兩者 runtime 都搬不動，證據見 Conflict Register）。
