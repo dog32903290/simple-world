@@ -26,9 +26,10 @@ struct EvaluationContext {
 #else
   uint32_t frameIndex;
 #endif
-  float time;       // seconds since start
-  float deltaTime;  // seconds since previous frame
-  float _pad;       // -> 16 bytes
+  float time;        // seconds since start
+  float deltaTime;   // seconds since previous frame
+  float audioLevel;  // live-audio reaction value this frame (0..1); read by the
+                     // AudioReaction value node. Reuses the old _pad slot -> still 16 bytes.
 };
 
 #ifndef __METAL_VERSION__

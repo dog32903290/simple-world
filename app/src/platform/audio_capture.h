@@ -45,4 +45,9 @@ class AudioCapture {
 // prompt would poison the grant) — this is for the user / a manual session.
 int runAudioCaptureSmoke(double seconds);
 
+// CLI diagnostic: print the current TCC microphone authorization status WITHOUT
+// requesting it (safe — no prompt, no poison). NotDetermined / Denied / Restricted /
+// Authorized tells us whether the prompt path is even reachable for this binary.
+int runAudioPermissionStatus();
+
 }  // namespace sw

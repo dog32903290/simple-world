@@ -122,6 +122,18 @@ void AudioCapture::setTestEnvelope(float v) {
   impl_->envelope.store(v, std::memory_order_relaxed);
 }
 
+int runAudioPermissionStatus() {
+  const AVAuthorizationStatus s =
+      [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
+  const char* name = s == AVAuthorizationStatusNotDetermined ? "NotDetermined (never asked / was reset)"
+                   : s == AVAuthorizationStatusRestricted    ? "Restricted (policy-blocked)"
+                   : s == AVAuthorizationStatusDenied         ? "Denied (recorded a NO)"
+                   : s == AVAuthorizationStatusAuthorized     ? "Authorized (granted)"
+                                                              : "unknown";
+  printf("[audio-permission] microphone = %s [%ld]\n", name, (long)s);
+  return 0;
+}
+
 int runAudioCaptureSmoke(double seconds) {
   AudioCapture cap;
   if (!cap.start()) {

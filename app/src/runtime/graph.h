@@ -102,10 +102,11 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
 // input is wired evalFloat the upstream (binding=Connection), else the stored constant
 // (Node::params[paramId]) or fallback. reg defaults to nullptr so value-spine callers
 // are unchanged.
-// Takes `time` (not EvaluationContext&) so callers that already include
-// tixl_point.h (main.cpp) need not pull Particle.h — both define `struct Particle`.
+// Takes the full per-frame EvaluationContext (time/frame/deltaTime/audioLevel) — the
+// caller builds it once per frame, like TiXL's Update(EvaluationContext). main can hold
+// EvaluationContext now (it arrives via tixl_point.h -> eval_context.h, the S0 split).
 float evalParam(const Graph& g, const std::string& type, const std::string& paramId,
-                float time, float fallback, const SourceRegistry* reg = nullptr);
+                const EvaluationContext& ctx, float fallback, const SourceRegistry* reg = nullptr);
 // Headless RED->GREEN proof for the value-cook engine. injectBug flips the result.
 int runValueCookSelfTest(bool injectBug);
 // L5 resolution proof: constant / connection / live-source(read via self) / override-

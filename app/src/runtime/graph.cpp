@@ -17,6 +17,11 @@ namespace {
 // in[] is ordered by the Float input ports in the spec; n is the count.
 
 float evalTime(const float*, int, const EvaluationContext& ctx) { return ctx.time; }
+// AudioReaction: the live-audio reaction value this frame. Symmetric with evalTime —
+// both are "animated" sources (recomputed every frame) that just read the per-frame
+// ctx. The DSP (envelope/attack) lives in the capture/analyzer; this node only surfaces
+// the current value into the graph (TiXL Operators/Lib/io/audio/AudioReaction.cs).
+float evalAudioReaction(const float*, int, const EvaluationContext& ctx) { return ctx.audioLevel; }
 float evalConst(const float* in, int n, const EvaluationContext&) { return n > 0 ? in[0] : 0.0f; }
 float evalMultiply(const float* in, int n, const EvaluationContext&) {
   return n >= 2 ? in[0] * in[1] : 0.0f;
@@ -60,6 +65,9 @@ const std::vector<NodeSpec>& registry() {
       {"DrawPoints", "DrawPoints", {{"points", "points", "Points", true}}, nullptr},
       // --- Value nodes (Task 2) ---
       {"Time", "Time", {{"out", "out", "Float", false}}, evalTime},
+      // Live-audio reaction value (TiXL AudioReaction, v1): one Float output, recomputed
+      // every frame from ctx.audioLevel. Wire it into any param; scale with Multiply/Remap.
+      {"AudioReaction", "AudioReaction", {{"level", "level", "Float", false}}, evalAudioReaction},
       {"Const", "Const",
        {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
@@ -144,6 +152,9 @@ Graph defaultParticleGraph() {
   g.nodes.push_back(makeNode(2, "ParticleSystem", 260, 90));
   g.nodes.push_back(makeNode(6, "TurbulenceForce", 20, 160));
   g.nodes.push_back(makeNode(7, "DrawPoints", 560, 50));
+  // AudioReaction present but UNWIRED: 柏為 drags level -> a knob (e.g. via Multiply) to
+  // map sound to it. No hidden auto-drive — the wire is his to make and to see.
+  g.nodes.push_back(makeNode(8, "AudioReaction", 20, 300));
   // RadialPoints.points(1,0) -> ParticleSystem.emit(2,0)
   g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});
   // TurbulenceForce.force(6,0) -> ParticleSystem.forces(2,1)
@@ -323,13 +334,11 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
 // (both define `struct Particle`; they can't coexist). ctx is built here. Value
 // nodes currently use only ctx.time; thread more fields here when a node needs them.
 float evalParam(const Graph& g, const std::string& type, const std::string& paramId,
-                float time, float fallback, const SourceRegistry* reg) {
+                const EvaluationContext& ctx, float fallback, const SourceRegistry* reg) {
   const Node* n = g.firstOfType(type);
   if (!n) return fallback;
   const NodeSpec* s = findSpec(type);
   if (!s) return fallback;
-  EvaluationContext ctx{};
-  ctx.time = time;
 
   // L5 resolution: override → binding(live-source/automation) → [graph: connection
   // else constant]. reg == nullptr (value-spine callers) skips straight to the graph
@@ -409,8 +418,16 @@ int runValueCookSelfTest(bool injectBug) {
   float sineOut = evalFloat(g, pinId(sn, portIdx("Sine", "out")), ctx, 0);
   ok = ok && (std::fabs(sineOut - std::sin(2.0f)) < 1e-5f);
 
+  // Test 3: AudioReaction -> reads ctx.audioLevel (the "animated" live-audio source,
+  // symmetric with Time reading ctx.time).
+  ctx.audioLevel = 0.42f;
+  int ar = add("AudioReaction");
+  float audioOut = evalFloat(g, pinId(ar, portIdx("AudioReaction", "level")), ctx, 0);
+  ok = ok && (std::fabs(audioOut - 0.42f) < 1e-5f);
+
   if (injectBug) ok = !ok;
-  printf("[selftest-valuecook] mul=%.3f sine=%.3f -> %s\n", mulOut, sineOut, ok ? "PASS" : "FAIL");
+  printf("[selftest-valuecook] mul=%.3f sine=%.3f audio=%.3f -> %s\n", mulOut, sineOut, audioOut,
+         ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
 
@@ -446,10 +463,12 @@ int runResolveSelfTest(bool injectBug) {
   SourceRegistry reg;
   reg.registerSource(live);
 
+  EvaluationContext ctx{};  // resolution test is time/audio-agnostic; a zero ctx suffices
+
   // Resolve "Speed" against an arbitrary registry pointer (g captured by ref, so it
   // sees any wire added later).
   auto speed = [&](const SourceRegistry* r) {
-    return evalParam(g, "ParticleSystem", "Speed", /*time=*/0.0f, /*fallback=*/-1.0f, r);
+    return evalParam(g, "ParticleSystem", "Speed", ctx, /*fallback=*/-1.0f, r);
   };
 
   bool ok = true;
@@ -503,7 +522,7 @@ int runResolveSelfTest(bool injectBug) {
   // --- Adversarial-review coverage (S1 Step 5). All on the un-wired "Drag" param so
   //     the graceful fallback target is its stored constant (0.5), not a wire. ---
   auto drag = [&](const SourceRegistry* r) {
-    return evalParam(g, "ParticleSystem", "Drag", /*time=*/0.0f, /*fallback=*/-1.0f, r);
+    return evalParam(g, "ParticleSystem", "Drag", ctx, /*fallback=*/-1.0f, r);
   };
 
   // 7. override on a param with NO binding → override value; re-enable → constant.
@@ -531,7 +550,7 @@ int runResolveSelfTest(bool injectBug) {
   ok = ok && (drag(&reg) == 0.5f);
 
   // 11. unknown paramId (typo'd / absent port) → fallback.
-  ok = ok && (evalParam(g, "ParticleSystem", "NoSuchParam", 0.0f, -1.0f, &reg) == -1.0f);
+  ok = ok && (evalParam(g, "ParticleSystem", "NoSuchParam", ctx, -1.0f, &reg) == -1.0f);
 
   if (injectBug) ok = !ok;
   printf("[selftest-resolve] const/live/override/re-enable/replace/wire + "
