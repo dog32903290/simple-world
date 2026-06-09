@@ -205,6 +205,16 @@ const std::vector<NodeSpec>& registry() {
         {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
        nullptr},
+      {"CombineBuffers",
+       "CombineBuffers",
+       // COMBINE op: up to 4 Points inputs concatenated into one output bag (TiXL MultiInput).
+       // Output count = sum of wired inputs (PointGraph::nodeCount sumPointsCount contract).
+       {{"input0", "input0", "Points", true},
+        {"input1", "input1", "Points", true},
+        {"input2", "input2", "Points", true},
+        {"input3", "input3", "Points", true},
+        {"out", "out", "Points", false}},
+       nullptr},
       {"TurbulenceForce",
        "TurbulenceForce",
        {{"force", "force", "ParticleForce", false},

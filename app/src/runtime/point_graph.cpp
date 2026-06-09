@@ -37,9 +37,12 @@ bool isBufferInput(const PortSpec& p) {
   return p.isInput && (p.dataType == "Points" || p.dataType == "ParticleForce");
 }
 
-// A node's output point count: a generator's explicit "Count" Float param, else
-// (modifier) the count inherited from its first wired Points input.
-uint32_t nodeCount(const Node& n, const NodeSpec& s, uint32_t firstPointsCount) {
+// A node's output point count: a generator's explicit "Count" Float param, else the SUM of
+// all wired Points-input counts. The sum generalizes all three op shapes: generator (0 Points
+// inputs -> falls to "Count"), modifier (1 Points input -> that input's count, unchanged), and
+// combine (N Points inputs -> the concatenated total). A node with a "Count" param wins
+// regardless (generators only).
+uint32_t nodeCount(const Node& n, const NodeSpec& s, uint32_t sumPointsCount) {
   for (const PortSpec& p : s.ports) {
     if (p.isInput && p.dataType == "Float" && p.id == "Count") {
       auto it = n.params.find("Count");
@@ -47,7 +50,7 @@ uint32_t nodeCount(const Node& n, const NodeSpec& s, uint32_t firstPointsCount) 
       return v > 0.0f ? (uint32_t)(v + 0.5f) : 0u;
     }
   }
-  return firstPointsCount;
+  return sumPointsCount;
 }
 
 }  // namespace
@@ -169,23 +172,24 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     const NodeSpec* s = findSpec(n->type);
     if (!s) return nullptr;
 
-    // Gather buffer inputs (Points + ParticleForce input ports, in spec order).
+    // Gather buffer inputs (Points + ParticleForce input ports, in spec order) + their counts.
+    // sumPointsCount = total over ALL wired Points inputs (combine concatenates; modifier/
+    // generator have <=1 so it equals the old first-input behavior).
     std::vector<const MTL::Buffer*> ins;
-    uint32_t firstPointsCount = 0;
-    bool haveFirstPoints = false;
+    std::vector<uint32_t> insCounts;
+    uint32_t sumPointsCount = 0;
     for (size_t i = 0; i < s->ports.size(); ++i) {
       const PortSpec& port = s->ports[i];
       if (!isBufferInput(port)) continue;
       const Connection* c = g.connectionToInput(pinId(id, (int)i));
       MTL::Buffer* ub = c ? cookNode(pinNode(c->fromPin)) : nullptr;
+      uint32_t inCount = (c && ub) ? p_->outCount[pinNode(c->fromPin)] : 0u;
       ins.push_back(ub);
-      if (port.dataType == "Points" && !haveFirstPoints) {
-        haveFirstPoints = true;
-        firstPointsCount = (c && ub) ? p_->outCount[pinNode(c->fromPin)] : 0u;
-      }
+      insCounts.push_back(inCount);
+      if (port.dataType == "Points") sumPointsCount += inCount;
     }
 
-    uint32_t count = nodeCount(*n, *s, firstPointsCount);
+    uint32_t count = nodeCount(*n, *s, sumPointsCount);
     MTL::Buffer* out = p_->ensureOut(id, count);
     void* st = p_->ensureState(id, n->type, count);
 
@@ -193,7 +197,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.dev = p_->dev; cc.lib = p_->lib; cc.queue = p_->queue;
     cc.ctx = &ctx; cc.graph = &g; cc.reg = reg;
     cc.nodeId = id; cc.count = count;
-    cc.inputs = ins.data(); cc.inputCount = (int)ins.size();
+    cc.inputs = ins.data(); cc.inputCounts = insCounts.data(); cc.inputCount = (int)ins.size();
     cc.output = out; cc.state = st;
     auto r = cookReg().find(n->type);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);

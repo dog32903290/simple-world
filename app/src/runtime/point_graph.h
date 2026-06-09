@@ -49,6 +49,8 @@ struct PointCookCtx {
   int nodeId = 0;
   uint32_t count = 0;                      // this node's point count
   const MTL::Buffer* const* inputs = nullptr;
+  const uint32_t* inputCounts = nullptr;   // per-input point count (parallel to inputs[]; combine ops
+                                           // concat by these offsets; unwired input = 0)
   int inputCount = 0;
   MTL::Buffer* output = nullptr;           // PointGraph-owned; cook writes here
   void* state = nullptr;                   // per-node persistent state (stateful ops)

@@ -103,6 +103,7 @@ add_executable(simple_world
   src/runtime/point_ops_orientpoints.cpp
   src/runtime/point_ops_randomizepoints.cpp
   src/runtime/point_ops_setpointattributes.cpp
+  src/runtime/point_ops_combinebuffers.cpp
   src/runtime/source_registry.cpp
   src/runtime/attack_detector.cpp
   src/runtime/audio_analyzer.cpp

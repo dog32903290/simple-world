@@ -117,6 +117,7 @@ const SelfTest kTable[] = {
     {"orientpoints", runOrientPointsSelfTest},
     {"randomizepoints", runRandomizePointsSelfTest},
     {"setpointattributes", runSetPointAttributesSelfTest},
+    {"combinebuffers", runCombineBuffersSelfTest},
     {"nodestyle", ui::runNodeStyleSelfTest},
     {"eye", eye::runSelfTest},
     {"map", eye::runMapSelfTest},

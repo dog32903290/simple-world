@@ -36,4 +36,7 @@ int runOrientPointsSelfTest(bool injectBug);
 int runRandomizePointsSelfTest(bool injectBug);
 // SetPointAttributes MODIFIER golden (point_ops_setpointattributes.cpp). injectBug = real degeneracy.
 int runSetPointAttributesSelfTest(bool injectBug);
+// CombineBuffers COMBINE golden (point_ops_combinebuffers.cpp): concat N bags, count = sum.
+// injectBug = drop one input -> count != sum. First combine op (multi-input -> one bag).
+int runCombineBuffersSelfTest(bool injectBug);
 }  // namespace sw
