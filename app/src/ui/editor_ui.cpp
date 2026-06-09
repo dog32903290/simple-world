@@ -1,7 +1,7 @@
 // ui/editor_ui — toolbar / node canvas / inspector (imgui draw).
 // Zone: ui. Depends on app(document) + runtime + verify(thin hook). Never the reverse.
 #include "ui/editor_ui.h"
-#include "ui/node_faces.h"
+#include "ui/node_draw.h"
 
 #include <algorithm>
 #include <map>
@@ -129,39 +129,11 @@ void drawNodeCanvas() {
   if (hostOpen) {
     ed::Begin("canvas");
 
-  // Draw every node from graph data, via its NodeSpec (title + ports).
-  for (const sw::Node& node : sw::doc::g_graph.nodes) {
-    const sw::NodeSpec* spec = sw::findSpec(node.type);
-    ed::BeginNode(node.id);
-    ImGui::TextUnformatted(spec ? spec->title.c_str() : node.type.c_str());
-    if (spec) {
-      for (size_t i = 0; i < spec->ports.size(); ++i) {
-        const sw::PortSpec& p = spec->ports[i];
-        if (p.pinless) continue;  // param-only port: edited in the Inspector, no canvas pin
-        ed::BeginPin(sw::pinId(node.id, (int)i),
-                     p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
-        ImGui::TextUnformatted(p.isInput ? ("-> " + p.name).c_str() : (p.name + " ->").c_str());
-        // eye: record the pin label's SCREEN rect so hand can drag pin->pin.
-        // GetItemRect inside Begin/EndNode is canvas-local; CanvasToScreen -> screen.
-        ImVec2 pa = ed::CanvasToScreen(ImGui::GetItemRectMin());
-        ImVec2 pb = ed::CanvasToScreen(ImGui::GetItemRectMax());
-        sw::eye::recordRect(("pin:" + std::to_string(sw::pinId(node.id, (int)i))).c_str(),
-                            pa.x, pa.y, pb.x, pb.y);
-        ed::EndPin();
-      }
-    }
-    sw::ui::drawNodeFace(node);  // 資料驅動 custom faces (node_faces.cpp kFaces table)
-    // previewPolicy formalized (view ⊥ graph): the live preview is NO LONGER welded to
-    // the DrawPoints node body. It lives in the Output window (ui/output_window.cpp),
-    // which shows ANY pinned node's output — not just the wired terminal. (TiXL
-    // OutputWindow + ViewSelectionPinning; OUTPUT_PIN_VIEWER_CONTRACT §4-A.)
-    ed::EndNode();
-    // eye: node body SCREEN rect via the node-editor's own position/size + transform.
-    ImVec2 na = ed::CanvasToScreen(ed::GetNodePosition(node.id));
-    ImVec2 nsz = ed::GetNodeSize(node.id);
-    sw::eye::recordRect(("node:" + std::to_string(node.id)).c_str(),
-                        na.x, na.y, na.x + nsz.x, na.y + nsz.y);
-  }
+  // Draw every node from graph data. The TiXL skin (category color, port columns,
+  // type-colored slots, custom face) + eye rects live in ui/node_draw. The live preview is
+  // NOT welded to any node body — it lives in the Output window (ui/output_window.cpp),
+  // which shows ANY pinned node's output (view ⊥ graph; OUTPUT_PIN_VIEWER_CONTRACT §4-A).
+  for (const sw::Node& node : sw::doc::g_graph.nodes) sw::ui::drawNode(node);
 
   for (const sw::Connection& c : sw::doc::g_graph.connections) ed::Link(c.id, c.fromPin, c.toPin);
 

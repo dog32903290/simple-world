@@ -27,6 +27,7 @@
 #include "runtime/point_graph.h"
 #include "runtime/point_ops.h"
 #include "runtime/spectrum_analyzer.h"
+#include "ui/node_style.h"
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
 
@@ -116,6 +117,7 @@ const SelfTest kTable[] = {
     {"orientpoints", runOrientPointsSelfTest},
     {"randomizepoints", runRandomizePointsSelfTest},
     {"setpointattributes", runSetPointAttributesSelfTest},
+    {"nodestyle", ui::runNodeStyleSelfTest},
     {"eye", eye::runSelfTest},
     {"map", eye::runMapSelfTest},
     {"hand", hand::runSelfTest},
