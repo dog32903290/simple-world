@@ -72,6 +72,7 @@ set_source_files_properties(src/platform/audio_capture.mm PROPERTIES COMPILE_OPT
 add_executable(simple_world
   src/main.cpp
   src/app/document.cpp
+  src/app/audio_settings.cpp
   src/app/command.cpp
   src/app/graph_commands.cpp
   src/app/menu.cpp

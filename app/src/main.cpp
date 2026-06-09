@@ -20,6 +20,7 @@
 #include "imgui_impl_osx.h"  // void* overloads via IMGUI_IMPL_METAL_CPP_EXTENSIONS
 #include "imgui_node_editor.h"
 
+#include "app/audio_settings.h"
 #include "app/command.h"
 #include "app/document.h"
 #include "app/menu.h"
@@ -60,7 +61,6 @@ float g_time = 0.0f;
 // EvaluationContext, and the AudioReaction value node surfaces it into the graph.
 // No hardcoded binding — 柏為 wires AudioReaction to a knob himself (visible in the graph).
 sw::AudioCapture g_audioCapture;
-bool g_audioStarted = false;
 
 // --selftest: the app's "eye". Offscreen-render the SAME kClearColor into a
 // texture we own, read the center pixel back, and assert it matches. No window,
@@ -360,13 +360,18 @@ void Renderer::draw(MTK::View* pView) {
 
   // ---- Cook the particle slice into its own target texture (before imgui samples it) ----
   if (g_particles) {
-    // World 1: start mic capture once. Permission is requested here; the engine starts
-    // async after 柏為 grants. The captured level flows into ctx.audioLevel below; the
-    // AudioReaction node reads it. No hidden binding — 柏為 wires AudioReaction in the graph.
-    if (!g_audioStarted) {
-      g_audioCapture.start();
-      g_audioStarted = true;
+    // World 1: capture the chosen audio input. audio_settings owns the device pick
+    // (persisted by UID); loadPrefs() applies the saved device on the first frame, and
+    // takePendingChange() fires whenever 柏為 picks a new device in the toolbar -> restart
+    // capture on it. Permission is requested in start(); the engine starts async after
+    // 柏為 grants. The captured level flows into ctx.audioLevel; the AudioReaction node reads it.
+    static bool s_audioPrefsLoaded = false;
+    if (!s_audioPrefsLoaded) {
+      sw::audio::loadPrefs();
+      s_audioPrefsLoaded = true;
     }
+    unsigned int audioDev = 0;
+    if (sw::audio::takePendingChange(audioDev)) g_audioCapture.start(audioDev);
     const float dt = 1.0f / 60.0f;
     // One EvaluationContext per frame (TiXL Update(EvaluationContext) style): time/frame/
     // deltaTime + the live audio level that the AudioReaction value node surfaces.

@@ -9,6 +9,7 @@
 
 #include "imgui.h"
 
+#include "app/audio_settings.h"
 #include "app/command.h"
 #include "app/document.h"
 #include "app/graph_commands.h"
@@ -87,6 +88,20 @@ void drawToolbar() {
     }
     ImGui::EndPopup();
   }
+  // Audio input device picker (Ableton-style): list the machine's inputs and route
+  // capture to the chosen one. ui -> app(audio_settings) -> platform; the pick persists.
+  ImGui::SetNextItemWidth(240.0f);
+  if (ImGui::BeginCombo("Audio In", sw::audio::selectedName().c_str())) {
+    if (ImGui::Selectable("System Default", sw::audio::selectedUid().empty()))
+      sw::audio::selectByUid("");
+    for (const sw::audio::DeviceInfo& d : sw::audio::inputDevices()) {
+      const bool sel = (d.uid == sw::audio::selectedUid());
+      std::string label = d.name + (d.isDefault ? "  (default)" : "");
+      if (ImGui::Selectable(label.c_str(), sel)) sw::audio::selectByUid(d.uid);
+    }
+    ImGui::EndCombo();
+  }
+  sw::eye::recordItem("Audio In");  // eye③: hand off this widget's screen rect
   ImGui::TextDisabled("%s", sw::doc::g_status.c_str());
   ImGui::End();
 }
