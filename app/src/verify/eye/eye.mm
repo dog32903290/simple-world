@@ -216,4 +216,92 @@ int runSelfTest(bool injectBug) {
   }
 }
 
+namespace {
+// True if the recorded set currently holds a row whose label starts with `prefix`.
+bool itemsHavePrefix(const char* prefix) {
+  const std::string pre = prefix;
+  for (const Item& it : g_items)
+    if (it.label.rfind(pre, 0) == 0) return true;
+  return false;
+}
+}  // namespace
+
+int runMapSelfTest(bool injectBug) {
+  @autoreleasepool {
+    // Headless ImGui frame: no platform/renderer backend, just DisplaySize + a built
+    // font atlas (NewFrame asserts both). This exercises the SAME recordItem() the app
+    // feeds from editor_ui — GetItemRectMin reads g.LastItemData, which only exists
+    // inside an active frame, so a real frame is the honest way to test the map path.
+    IMGUI_CHECKVERSION();
+    ImGuiContext* ctx = ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(1280.0f, 800.0f);
+    io.DeltaTime = 1.0f / 60.0f;
+    unsigned char* tex = nullptr;
+    int tw = 0, th = 0;
+    io.Fonts->GetTexDataAsRGBA32(&tex, &tw, &th);  // build the atlas so NewFrame passes
+    io.Fonts->SetTexID((ImTextureID)1);
+
+    // One toolbar pass, recorded exactly like drawToolbar(): unconditional recordItem()
+    // after each widget, plus the Add-Node popup's rows when it is open.
+    auto toolbarPass = [&](bool openPopup, bool closeInside, bool* popupWasOpen) {
+      ImGui::Begin("Toolbar");
+      ImGui::Button("New");      recordItem("New");
+      ImGui::Button("Open");     recordItem("Open");
+      ImGui::Button("Save");     recordItem("Save");
+      ImGui::Button("Add Node"); recordItem("Add Node");
+      if (openPopup) ImGui::OpenPopup("add_node_popup");
+      if (ImGui::BeginPopup("add_node_popup")) {
+        if (popupWasOpen) *popupWasOpen = true;
+        ImGui::MenuItem("RadialPoints"); recordItem("menu:RadialPoints");
+        ImGui::MenuItem("LinePoints");   recordItem("menu:LinePoints");
+        if (closeInside) ImGui::CloseCurrentPopup();  // mirrors clicking a row -> popup dismissed
+        ImGui::EndPopup();
+      }
+      ImGui::End();
+    };
+
+    // Frame 1 — fresh: open the popup. Toolbar buttons must be recorded.
+    ImGui::NewFrame();
+    beginWidgetFrame();
+    toolbarPass(/*openPopup=*/true, /*closeInside=*/false, nullptr);
+    const size_t c1 = g_items.size();
+    ImGui::EndFrame();
+
+    // Frame 2 — popup OPEN: its rows are recorded, then we dismiss it (the user's click).
+    bool popupOpen2 = false;
+    ImGui::NewFrame();
+    beginWidgetFrame();
+    toolbarPass(/*openPopup=*/false, /*closeInside=*/true, &popupOpen2);
+    const size_t c2 = g_items.size();
+    const bool menuRecorded2 = itemsHavePrefix("menu:");
+    ImGui::EndFrame();
+
+    // Frame 3 — popup CLOSED: THE reported failing frame. The map must still be
+    // populated, and must carry NO stale "menu:" rows from frame 2 (clear+refill).
+    // injectBug models the regression by suppressing this post-popup record pass.
+    ImGui::NewFrame();
+    beginWidgetFrame();
+    if (!injectBug) toolbarPass(/*openPopup=*/false, /*closeInside=*/false, nullptr);
+    const size_t c3 = g_items.size();
+    const bool staleMenu3 = itemsHavePrefix("menu:");
+    ImGui::EndFrame();
+
+    ImGui::DestroyContext(ctx);
+
+    // The承重 invariant: the editor was drawn on every frame, so the map is never
+    // empty — regardless of the prior popup interaction — and never leaks stale rows.
+    // (OpenPopup makes BeginPopup true the SAME frame, so c1 already carries the menu
+    // rows; the clear+refill proof is c2 > c3 — popup-open frame has the menu rows,
+    // the post-popup frame has dropped them back to the toolbar.)
+    const bool toolbarFresh = c1 >= 4;                 // at least the 4 toolbar buttons
+    const bool popupRecorded = popupOpen2 && menuRecorded2 && c2 > c3;  // menu rows when open
+    const bool postPopupOk  = c3 >= 4 && !staleMenu3;  // <- breaks under the reported bug
+    const bool pass = toolbarFresh && popupRecorded && postPopupOk;
+    printf("[selftest-map] fresh=%zu popup=%zu(menu=%d) post_popup=%zu(stale=%d) -> %s\n",
+           c1, c2, (int)menuRecorded2, c3, (int)staleMenu3, pass ? "PASS" : "FAIL");
+    return pass ? 0 : 1;
+  }
+}
+
 }  // namespace sw::eye

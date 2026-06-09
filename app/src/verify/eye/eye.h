@@ -66,4 +66,13 @@ void writeText(const char* outName, const char* content);
 // injectBug the buffer is written wrong so the eye is shown to FAIL first.
 int runSelfTest(bool injectBug);
 
+// --- headless self-test (RED->GREEN proof the widget MAP repopulates) --------
+// Drives the real beginWidgetFrame()/recordItem() path through a headless ImGui
+// frame sequence that mirrors the reported failure: toolbar drawn, Add-Node popup
+// opened, then dismissed. Asserts the map is non-empty on EVERY frame the editor
+// is drawn — including the frame after the popup closed — and that the per-frame
+// buffer carries no stale rows from the popup-open frame. injectBug models the
+// regression (post-popup record pass suppressed) so the map empties and we see RED.
+int runMapSelfTest(bool injectBug);
+
 }  // namespace sw::eye

@@ -114,6 +114,7 @@ const SelfTest kTable[] = {
     {"spherepoints", runSpherePointsSelfTest},
     {"transformpoints", runTransformPointsSelfTest},
     {"eye", eye::runSelfTest},
+    {"map", eye::runMapSelfTest},
     {"hand", hand::runSelfTest},
     {"audioingest", runAudioIngestSelfTest},
 };
