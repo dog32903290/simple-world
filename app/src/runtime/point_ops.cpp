@@ -212,11 +212,20 @@ void cookParticleSim(PointCookCtx& c) {
 
 }  // namespace
 
+// Generators ported in their own leaf files (point_ops_<name>.cpp); forward-declared
+// here so registerBuiltinPointOps() can wire them. Keeps each operator in one file.
+void registerLinePointsOp();
+void registerGridPointsOp();
+void registerSpherePointsOp();
+
 void registerBuiltinPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
   registerPointOp("ParticleSystem", cookParticleSim, simStateNew, simStateFree);
   registerDrawOp("DrawPoints", cookDrawPoints);
-  // A.1+ register here: TransformPoints, more generators / modifiers ...
+  registerLinePointsOp();
+  registerGridPointsOp();
+  registerSpherePointsOp();
+  // A.2+ register here: more generators / modifiers ...
 }
 
 }  // namespace sw

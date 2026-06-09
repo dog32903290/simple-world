@@ -21,4 +21,10 @@ int runDrawOpSelfTest(bool injectBug);
 // Golden proof of the ParticleSystem sim op: cook RadialPoints->ParticleSystem(sim)->capture,
 // step N frames, assert turbulence pushed points off the ring. injectBug (Amount=0) -> no flow.
 int runSimOpSelfTest(bool injectBug);
+// LinePoints generator golden (point_ops_linepoints.cpp). injectBug = real degeneracy.
+int runLinePointsSelfTest(bool injectBug);
+// GridPoints generator golden (point_ops_gridpoints.cpp). injectBug = real degeneracy.
+int runGridPointsSelfTest(bool injectBug);
+// SpherePoints generator golden (point_ops_spherepoints.cpp). injectBug = real degeneracy.
+int runSpherePointsSelfTest(bool injectBug);
 }  // namespace sw
