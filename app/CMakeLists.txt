@@ -79,6 +79,7 @@ add_executable(simple_world
   src/app/graph_commands.cpp
   src/app/menu.cpp
   src/ui/editor_ui.cpp
+  src/ui/node_faces.cpp
   src/metal_impl.cpp
   src/verify/eye/eye.mm
   src/verify/hand/hand.cpp

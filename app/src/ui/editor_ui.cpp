@@ -1,6 +1,7 @@
 // ui/editor_ui — toolbar / node canvas / inspector (imgui draw).
 // Zone: ui. Depends on app(document) + runtime + verify(thin hook). Never the reverse.
 #include "ui/editor_ui.h"
+#include "ui/node_faces.h"
 
 #include <algorithm>
 #include <map>
@@ -152,19 +153,7 @@ void drawNodeCanvas() {
         ed::EndPin();
       }
     }
-    if (node.type == "AudioReaction") {
-      // TiXL-parity spectrum on the node face: 32 log-octave frequency bands (55Hz–15kHz),
-      // live from the FFT analyzer. 柏為 plays -> the bands dance.
-      const sw::SpectrumSnapshot sp = sw::audio_monitor::spectrum();
-      ImGui::PlotHistogram("##spectrum", sp.bands.data(), sw::kBandCount, 0, "spectrum (32 bands)",
-                           0.0f, 1.0f, ImVec2(190.0f, 60.0f));
-      // The node's computed Level output (after InputBand / window / Output mode + Amplitude),
-      // and a WasHit flash — exactly what the Level / WasHit output pins carry this frame.
-      char lbl[32];
-      std::snprintf(lbl, sizeof(lbl), node.outCache[1] > 0.5f ? "HIT  #%d" : "Level #%d",
-                    (int)node.outCache[2]);
-      ImGui::ProgressBar(std::min(node.outCache[0], 1.0f), ImVec2(190.0f, 0.0f), lbl);
-    }
+    if (node.type == "AudioReaction") sw::ui::drawAudioReactionFace(node);
     if (node.type == "DrawPoints")
       if (MTL::Texture* tex = sw::previewTexture())
         ImGui::Image(reinterpret_cast<ImTextureID>(tex), ImVec2(200, 200));
