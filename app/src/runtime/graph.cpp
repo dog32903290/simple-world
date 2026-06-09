@@ -431,6 +431,33 @@ int runValueCookSelfTest(bool injectBug) {
   return ok ? 0 : 1;
 }
 
+int runAudioNodeSelfTest(bool injectBug) {
+  // AudioReaction.level -> ParticleSystem.Speed, driven by ctx.audioLevel. Proves the
+  // wired path resolves (does NOT hang) and documents the gotcha: a raw 0..1 level wired
+  // straight to Speed makes Speed 0 when silent -> particles freeze (looks "stuck").
+  Graph g;
+  Node ps; ps.id = g.nextId++; ps.type = "ParticleSystem"; g.nodes.push_back(ps);
+  Node ar; ar.id = g.nextId++; ar.type = "AudioReaction"; g.nodes.push_back(ar);
+  const int psId = g.nodes[0].id, arId = g.nodes[1].id;
+  auto idx = [&](const char* t, const char* p) {
+    const NodeSpec* s = findSpec(t);
+    for (size_t i = 0; s && i < s->ports.size(); ++i)
+      if (s->ports[i].id == p) return (int)i;
+    return -1;
+  };
+  g.connections.push_back({g.nextId++, pinId(arId, idx("AudioReaction", "level")),
+                                       pinId(psId, idx("ParticleSystem", "Speed"))});
+  EvaluationContext ctx{};
+  bool ok = true;
+  ctx.audioLevel = 0.0f; ok = ok && (evalParam(g, "ParticleSystem", "Speed", ctx, 1.0f) == 0.0f);
+  ctx.audioLevel = 0.5f; ok = ok && (evalParam(g, "ParticleSystem", "Speed", ctx, 1.0f) == 0.5f);
+  ctx.audioLevel = 1.0f; ok = ok && (evalParam(g, "ParticleSystem", "Speed", ctx, 1.0f) == 1.0f);
+  if (injectBug) ok = !ok;
+  printf("[selftest-audionode] AudioReaction->Speed resolves (silent=0 -> freeze) /0.5/1 -> %s\n",
+         ok ? "PASS" : "FAIL");
+  return ok ? 0 : 1;
+}
+
 int runResolveSelfTest(bool injectBug) {
   // Build a graph with one ParticleSystem and resolve its "Speed" Float input — the
   // same param S2 drives from audio, so this doubles as the binding-contract doc.

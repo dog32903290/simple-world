@@ -34,4 +34,11 @@ std::string selectedName();  // human label of the current pick (for the menu bu
 void loadPrefs();
 bool takePendingChange(unsigned int& outDeviceId);
 
+// Live input level for the toolbar meter: main publishes the captured rms (any sound)
+// and attack envelope (transients/hits) each frame; the UI reads them. Single-threaded
+// (main writes, UI reads, both on the render thread).
+void  publishMonitor(float rms, float envelope);
+float monitorRms();
+float monitorEnvelope();
+
 }  // namespace sw::audio

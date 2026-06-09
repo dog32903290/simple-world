@@ -183,6 +183,10 @@ int main(int argc, char* argv[]) {
       return sw::runResolveSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-resolve-bug") == 0)
       return sw::runResolveSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--selftest-audionode") == 0)
+      return sw::runAudioNodeSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-audionode-bug") == 0)
+      return sw::runAudioNodeSelfTest(/*injectBug=*/true);
     if (std::strcmp(argv[i], "--selftest-attack") == 0)
       return sw::runAttackSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-attack-bug") == 0)
@@ -380,6 +384,7 @@ void Renderer::draw(MTK::View* pView) {
     ctx.time = g_time;
     ctx.deltaTime = dt;
     ctx.audioLevel = g_audioCapture.envelope();
+    sw::audio::publishMonitor(g_audioCapture.lastRms(), g_audioCapture.envelope());  // toolbar meter
     // Cook: graph params drive the runtime. evalParam = if the param's input is wired,
     // evaluate the upstream value-spine (e.g. AudioReaction); else the stored constant.
     // GPU buffer flow is untouched — only these scalar setters read the value spine.

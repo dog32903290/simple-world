@@ -102,6 +102,16 @@ void drawToolbar() {
     ImGui::EndCombo();
   }
   sw::eye::recordItem("Audio In");  // eye③: hand off this widget's screen rect
+  // Live input meter (cheapest visualization): "level" = any sound coming in (rms);
+  // "hit" = transients (what AudioReaction.level currently outputs). If you select 2i2
+  // and speak, the level bar moves -> sound is getting in. hit only jumps on attacks.
+  ImGui::Text("level");
+  ImGui::SameLine();
+  ImGui::ProgressBar(std::min(sw::audio::monitorRms() * 8.0f, 1.0f), ImVec2(120.0f, 0.0f), "");
+  ImGui::SameLine();
+  ImGui::Text("hit");
+  ImGui::SameLine();
+  ImGui::ProgressBar(std::min(sw::audio::monitorEnvelope(), 1.0f), ImVec2(80.0f, 0.0f), "");
   ImGui::TextDisabled("%s", sw::doc::g_status.c_str());
   ImGui::End();
 }

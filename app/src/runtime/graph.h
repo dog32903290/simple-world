@@ -113,5 +113,8 @@ int runValueCookSelfTest(bool injectBug);
 // beats-binding / re-enable-falls-back / explicit-binding-beats-wire / one-binding-
 // replaces. injectBug flips one assertion so the test must FAIL.
 int runResolveSelfTest(bool injectBug);
+// Proof that wiring AudioReaction.level -> ParticleSystem.Speed resolves (no hang) and
+// that a raw level wired to Speed reads 0 when silent (the "particles freeze" gotcha).
+int runAudioNodeSelfTest(bool injectBug);
 
 }  // namespace sw

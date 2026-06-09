@@ -11,6 +11,8 @@ namespace {
 std::string g_selectedUid;                  // "" = system default
 std::string g_selectedName = "System Default";  // cached label (avoid per-frame enum)
 bool        g_pending = false;               // a selection (or load) waiting for main to apply
+float       g_monitorRms = 0.0f;             // live input level for the UI meter
+float       g_monitorEnv = 0.0f;
 
 // Persist the picked device by UID in the home dir — it's a machine-level choice
 // (his 2i2 / BlackHole), not per-project, so it lives outside the .swproj.
@@ -75,5 +77,9 @@ bool takePendingChange(unsigned int& outDeviceId) {
   outDeviceId = idForUid(g_selectedUid);
   return true;
 }
+
+void  publishMonitor(float rms, float envelope) { g_monitorRms = rms; g_monitorEnv = envelope; }
+float monitorRms() { return g_monitorRms; }
+float monitorEnvelope() { return g_monitorEnv; }
 
 }  // namespace sw::audio
