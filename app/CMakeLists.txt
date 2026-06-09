@@ -80,6 +80,7 @@ add_executable(simple_world
   src/app/menu.cpp
   src/ui/editor_ui.cpp
   src/ui/node_faces.cpp
+  src/ui/output_window.cpp
   src/metal_impl.cpp
   src/verify/eye/eye.mm
   src/verify/hand/hand.cpp

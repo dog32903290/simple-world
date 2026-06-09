@@ -1,6 +1,6 @@
 # OUTPUT PIN VIEWER — 接縫契約 (view ⊥ graph)
 
-狀態：**規格 / 未實作**。此文件只定義接縫與可驗收條件，不含實作。
+狀態：**已實作 + 眼驗（2026-06-09）**。原為規格，§6 全項已親手驗收（見文末「落地註記」）。
 對齊：TiXL `OutputWindow` + `ViewSelectionPinning`（pin 是 session 狀態、不是圖裡的一條線）。
 北極星：「我在組什麼」（graph）與「我在看什麼」（view）是兩件事。
 
@@ -119,4 +119,34 @@ C 通電後，實作分支完成的判準：
 ## 9. 落地時的觸發信號
 
 當 `app/src/main.cpp:54` 的 `previewTexture()` 改成回傳 PointGraph 的 target（= C 落地、A.1 通電），
-即可開實作分支，照 §4 接 A+B、§6 驗收。在此之前，本文件是唯一交付。
+即可開實作分支，照 §4 接 A+B、§6 驗收。**C 已於 A.1 落地通電，本契約已實作。**
+
+---
+
+## 10. 落地註記（2026-06-09）
+
+實作分支照 §4 接好 A+B，C 沿用 A.1 的 seam。檔案：
+- **A（pin 狀態 + Output 視窗）**：`g_pinnedNode` 在 `ui/editor_ui`（對位 `g_selectedNode`，永不進 `.swproj`）。
+  新 `ui/output_window.{h,cpp}`（editor_ui 已 ~400 行，觀景窗是獨立職責）。預覽圖**從 DrawPoints 節點 body 移出**，
+  改成獨立浮動 Output 視窗（照 TiXL，view 不焊在圖節點上）。live loop 在 `main.cpp` 用
+  `g_pinnedNode ? g_pinnedNode : defaultDrawTarget()` 挑 cook target。
+- **B（typed-preview 包裝）**：`point_graph.cpp` 的「畫黑」else 分支改成查被 pin 節點第一個輸出 port 的 `dataType`：
+  `Points` → 重用 `drawReg()["DrawPoints"]` 對其 output buffer 畫；其餘 → `clearTarget()`（§5）。`outputType→previewFn`
+  的口 = 那個 if/else，未蓋 registry、未加 shader。
+
+**與規格的偏差（刻意，已驗）：**
+1. **「不 pin」= 圖終端（`defaultDrawTarget`），非 TiXL 的「跟選取跑」。** 守 §6.3 零行為改變 + 現場盯一個螢幕；
+   pin 的手勢仍照 TiXL（選節點→Pin→鎖死）。要翻成 follow-selection 是一行。
+2. **「尚無預覽」提示用英文**（`no preview for output type "X" yet`）：imgui 預設字型無 CJK glyph，
+   中文會渲染成 `?????`。全 app UI 本就英文，故一致用英文。
+3. **單鍵切換**（TiXL `PinSelectionToView`）：pinned 時選別的節點，Pin 鈕直接切過去，不必先 Unpin（§6.5 更順手）。
+4. **Output 視窗預設位**：右下角，避開工具列(左上)/Inspector(右上)/預設節點。柏為可自由拖。
+5. **eye hook**：Output 視窗的 Pin 鈕加一行 `eye::recordItem("output_pin_btn")`（讓 agent/hand 能驅動）。
+
+**§6 驗收證據（眼手自驗，非 selftest 綠）：**
+- §6.1 pin RadialPoints → 原始 emitter 點環（clean.png 圓環，非模擬雲）✅
+- §6.2 pin ParticleSystem → 模擬雲 + 標籤「ParticleSystem (pinned)」✅
+- §6.3 不 pin → 終端畫面（搬進 Output 視窗，內容零變）✅
+- §6.4 pin TurbulenceForce → clean 全黑 (0,0) + 標籤「TurbulenceForce (pinned)」+「no preview for output type "ParticleForce" yet」✅
+- §6.5 單鍵切換 ParticleSystem→TurbulenceForce（雲→黑，標籤即時換）✅
+- §6.6 pin 不進 `.swproj`（存檔只走 `toJson(g_graph)`，靜態核對無 pin 欄位）✅

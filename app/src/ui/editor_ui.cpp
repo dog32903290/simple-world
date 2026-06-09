@@ -20,17 +20,11 @@
 
 namespace ed = ax::NodeEditor;
 
-// The shell renders the live preview into a texture; the DrawPoints node samples it
-// through a STABLE accessor so swapping the engine (ParticleSystem monolith -> PointGraph
-// cook, lane A.1) never touches the UI. Defined in the shell (main.cpp); nullptr until
-// something has rendered.
-namespace MTL { class Texture; }
-namespace sw { MTL::Texture* previewTexture(); }
-
 namespace sw::ui {
 
 ax::NodeEditor::EditorContext* g_NodeEditor = nullptr;
 int g_selectedNode = 0;
+int g_pinnedNode = 0;  // view ⊥ graph (see editor_ui.h); set by ui/output_window.cpp
 
 namespace {
 // pin id <-> (node id, port index) — see sw::pinId().
@@ -154,11 +148,10 @@ void drawNodeCanvas() {
       }
     }
     sw::ui::drawNodeFace(node);  // 資料驅動 custom faces (node_faces.cpp kFaces table)
-    // DrawPoints preview is a preview-texture body (separate from draw-list faces);
-    // stays inline until previewPolicy is formalized (see UI-contract spec, 刀 A).
-    if (node.type == "DrawPoints")
-      if (MTL::Texture* tex = sw::previewTexture())
-        ImGui::Image(reinterpret_cast<ImTextureID>(tex), ImVec2(200, 200));
+    // previewPolicy formalized (view ⊥ graph): the live preview is NO LONGER welded to
+    // the DrawPoints node body. It lives in the Output window (ui/output_window.cpp),
+    // which shows ANY pinned node's output — not just the wired terminal. (TiXL
+    // OutputWindow + ViewSelectionPinning; OUTPUT_PIN_VIEWER_CONTRACT §4-A.)
     ed::EndNode();
     // eye: node body SCREEN rect via the node-editor's own position/size + transform.
     ImVec2 na = ed::CanvasToScreen(ed::GetNodePosition(node.id));

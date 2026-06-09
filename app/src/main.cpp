@@ -35,6 +35,7 @@
 #include "runtime/point_ops.h"
 #include "selftests.h"
 #include "ui/editor_ui.h"
+#include "ui/output_window.h"
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
 
@@ -313,8 +314,15 @@ void Renderer::draw(MTK::View* pView) {
     // the final bag into target(). The editor graph's connections now drive the buffer flow,
     // so wiring + params (incl. AudioReaction via evalFloat/outCache when 柏為 wires it) change
     // the picture live. reg=nullptr -> the value-spine path (connection else constant), as before.
-    g_pointGraph->cook(sw::doc::g_graph, ctx, /*reg=*/nullptr,
-                       g_pointGraph->defaultDrawTarget(sw::doc::g_graph));
+    // view ⊥ graph: the viewport shows the PINNED node (session state, owned by
+    // ui/output_window), or the graph terminal when nothing is pinned (today's final
+    // picture — zero behaviour change). A stale pin (deleted node) also falls back to the
+    // terminal. The pin is NOT a graph edge: it never enters .swproj.
+    // (OUTPUT_PIN_VIEWER_CONTRACT §4-A / §6.3.)
+    int viewTarget = sw::ui::g_pinnedNode;
+    if (viewTarget == 0 || !sw::doc::g_graph.node(viewTarget))
+      viewTarget = g_pointGraph->defaultDrawTarget(sw::doc::g_graph);
+    g_pointGraph->cook(sw::doc::g_graph, ctx, /*reg=*/nullptr, viewTarget);
   }
 
   // eye① clean: the pure render layer, BEFORE any imgui chrome touches it.
@@ -331,7 +339,8 @@ void Renderer::draw(MTK::View* pView) {
   sw::eye::beginWidgetFrame();  // eye③: collect clickable widget rects this frame
   sw::ui::drawToolbar();     // New/Open/Save/Save As + Add Node (floating)
   sw::ui::drawNodeCanvas();  // main workspace, fills the viewport
-  sw::ui::drawInspector();   // floats on top
+  sw::ui::drawInspector();    // floats on top
+  sw::ui::drawOutputWindow(); // the live preview viewport (view ⊥ graph, pinned/terminal)
   sw::doc::updateWindowTitle();  // filename + dirty star; no-op when unchanged
 
   ImGui::Render();

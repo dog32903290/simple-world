@@ -222,8 +222,27 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     dc.inputs = nullptr; dc.inputCount = 0; dc.output = nullptr; dc.state = nullptr;
     drawIt->second(dc, p_->target, pts);
   } else {
-    cookNode(targetNodeId);  // cook the op (+ inputs); its output bag is ready for a future preview
-    p_->clearTarget();       // no visualizer for a raw Points node yet
+    // Typed-preview wrapper (view ⊥ graph): the target is a Points-producing op, NOT a draw
+    // node — so pick a default visualizer by its OUTPUT type. v1 fills one cell: Points ->
+    // reuse the DrawPoints draw op on the cooked bag (no new registry, no new shader). Other
+    // output types (ParticleForce/Float) have no visualizer yet -> black, no crash, no stale
+    // frame (OUTPUT_PIN_VIEWER_CONTRACT §5). The outputType->previewFn seam IS this if/else;
+    // promote it to a table only when a 2nd type needs it.
+    MTL::Buffer* out = cookNode(targetNodeId);
+    const PortSpec* outPort = nullptr;
+    for (const PortSpec& port : ts->ports)
+      if (!port.isInput) { outPort = &port; break; }
+    auto dp = drawReg().find("DrawPoints");
+    if (out && outPort && outPort->dataType == "Points" && dp != drawReg().end()) {
+      PointCookCtx pc;
+      pc.dev = p_->dev; pc.lib = p_->lib; pc.queue = p_->queue;
+      pc.ctx = &ctx; pc.graph = &g; pc.reg = reg;
+      pc.nodeId = targetNodeId; pc.count = p_->outCount[targetNodeId];
+      pc.inputs = nullptr; pc.inputCount = 0; pc.output = nullptr; pc.state = nullptr;
+      dp->second(pc, p_->target, out);
+    } else {
+      p_->clearTarget();  // no visualizer for this output type yet (§5)
+    }
   }
 }
 
