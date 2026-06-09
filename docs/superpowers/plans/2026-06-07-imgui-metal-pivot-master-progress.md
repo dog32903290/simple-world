@@ -108,18 +108,17 @@ DX11/WinForms 焊死的陷阱）、Web/TS（wgpu→Metal 非親手 + 丟 imgui-n
 
 ## Active Lane
 
-**runtime 時間/交互層建造（2026-06-09 柏為拍板開工）** = `plans/2026-06-09-runtime-time-interaction-build.md`。
-設計來源 = `docs/runtime/CONTRACT_ALIGNMENT_LEDGER.md`(L1–L14) + `MY_WORLD_RUNTIME_CONTRACT.md` **v0.2**
-（2026-06-09 13 輪對齊重訂：Transport 兩鐘、scoreGraph 第五張圖、值解析堆疊+arm、override 照 Ableton、
-驗收三層、Vuo 捨棄、audio 兩世界+延遲閘門）。
-- **11 段脊椎、4 個體感關卡(▣)。2026-06-09 壓測重排 = sound-first**：S0 預清 header 雷 → S1=**解析模型（來源註冊+binding/override，拱心石）** → S2=**▣ 聲音→參數**。S0/S1/S2 已詳到可執行。
-- 節律 = **牽繩 B**：水管工夜裡自主(`/goal "段 selftest 綠"`) + 每段 selftest 派 subagent 對抗審查、▣ 體感邊界停給柏為摸。
-- 4 個早上：**M1 聲音→參數**（你彈/放聲音、粒子跟著動；零 transport、夜1=S0–S2）→ **M2** automation 播放+scrub(夜2=S3–S6) →
-  **M3** 錄製+override 黏放(夜3=S7–S8) → **M4** 兩個聲音世界(夜4=S9–S11,批)。
-- 接在「值脊椎」後面（已端到端打通）；值脊椎的連線驅動 = 解析模型的 `binding=connection`，零改自動進模型。Transport 退到 S5（automation 才需要 playhead）。
+**A — TiXL 點 operator 圖 runtime（2026-06-09 柏為拍板，接在 audio M1 後）** = 設計 `specs/2026-06-09-point-operator-graph-design.md`（實作計畫待 writing-plans 產）。
+把現行**焊死的單一 ParticleSystem**（`main.cpp:340-436`，圖連線只驅動參數、不驅動 buffer 流）拆成 TiXL 那樣的點 operator 圖：
+一條連線扛**一袋點**（`MTL::Buffer` of `Point[count]`，原子 = 已港的 `tixl_point.h` 64B = TiXL `point.hlsl`）；每顆 operator = compute kernel 讀進→寫出。
+照 TiXL `Operators/Lib/point/{generate,transform,modify,combine,draw}`（90+ 顆）逐批港。
+- **三拍**：**A.0 鎖契約 + 節點登記資料驅動**（順序、Opus 自己做；buffer 鏈 API + 把「加一顆=加一行+一葉檔+一 selftest」收斂，否則並行 fan-out 撞 graph.cpp/main.cpp/CMake）→ **A.1 第一刀拆出最小真鏈**（RadialPoints→TransformPoints→DrawPoints，連線真扛點、改線畫面變；現有粒子怪物折成 emit生成器/PointSimulation modifier/TurbulenceForce 力/DrawPoints）→ **A.2+ 一批一批並行 fan-out**（workflow 派批 agent，每隻認領一顆 operator）。
+- **每顆節點固定流程（柏為定，不可跳；fan-out 不偷工）**：爬 TiXL `.cs`+`.hlsl`+`.help/docs/.../point/*.md` → port metal-cpp/MSL → 抓 TiXL 公式寫成 golden selftest（TiXL 在 Win/DX11 跑不動，用公式當標準答案）→ port/參數/enum 對齊 .cs + eye 比對文件長相 + subagent 對抗審查。
+- **commit 律法閘（柏為 2026-06-09 定）**：每做完一大步 commit，但 commit 前對照 `ARCHITECTURE.md` 自檢動到的碼，有違反先改完再 commit，law debt 不過夜。見 memory `[[simple-world-commit-law-check-ritual]]`。
+- **地基現況（2026-06-09 驗）**：律法乾淨（graph.cpp **333 行**、`graph_selftest` 已拆、platform→runtime 已修、DSP 在 `app/audio_monitor`）；點原子已對齊；現行管線是單一 ParticleSystem 怪物 = A.0 要拆的對象；`radial_points`/`transform_points` 有 selftest-only kernel = A.1 可複用。
 
-> 上一個 lane（值脊椎）= ✅ 端到端打通；唯一懸著=柏為眼球確認粒子脈動（機器證據已齊）。
-> 其餘 queued（照 Roadmap，本 lane 後）：A runtime fan-out / Phase 3 插入節點 / Phase 4 框選 / C 視覺向 TiXL 收斂。
+> **時間/交互層 lane（前一 active）= M1 ✅ 完成**（聲音→參數 + TiXL AudioReaction 完整對齊，commit `39f2d98`，柏為定「一模一樣」）。**M2–M4 → queued**（柏為 2026-06-09 選先做 A 把畫面詞彙長厚，再回來把時間做可作曲）：M2 automation+scrub(S3–S6)、M3 錄製+override(S7–S8)、M4 兩聲音世界(S9–S11)。設計仍在 plan `2026-06-09-runtime-time-interaction-build.md`。唯一懸著=柏為眼球確認粒子脈動（機器證據已齊）。
+> 其餘 queued：Phase 3 插入節點 / Phase 4 框選 / C 視覺向 TiXL 收斂。
 
 > step 0→3 的起手細節（clone starter、第一條粒子線）已歸檔到 `2026-06-08-progress-history.md`（grep 用）。
 
@@ -174,10 +173,11 @@ load/store 覆蓋、語義合併衝突（git 行比對不報、memory layout 靜
 ## Plan Inventory
 
 - 本檔：**現行 master progress，唯一 dashboard。**
+- **`specs/2026-06-09-point-operator-graph-design.md`：點 operator 圖 runtime 設計（= current active lane A 的設計契約）。** TiXL 點系統爬取結果（Point 64B/BufferWithViews→MTL::Buffer/operator 模式/90+ 顆分類/命名校正）、三拍(A.0鎖契約+資料驅動登記 / A.1拆最小真鏈 / A.2批次fan-out)、每顆固定流程、parity 驗證法、地基現況。實作計畫待 writing-plans 產。
 - `specs/2026-06-08-node-editing-commands-design.md`：**節點編輯命令層 spec**（五階段：命令層→reconnect→插入→框選→複製貼上）。active 設計契約。
 - `specs/2026-06-08-value-spine-design.md`：**值脊椎 spec（current active lane 的設計契約）**：param=帶預設的 Float input port（schema 合一，TiXL InputSlot 已查證）、5 承重柱、5 起手節點（Time/Const/Multiply/Sine/Remap）、重用 Phase1/2 對照、接縫 main.cpp:322-325。schema 已釘死。
 - `2026-06-08-value-spine.md`：**值脊椎實作計畫（✅ closed，端到端打通）**：5 task bite-sized TDD（schema 合一→求值引擎→接縫→UI→眼手驗），標重用 Phase1/2 vs 新碼。本 lane 接在它後面。
-- **`2026-06-09-runtime-time-interaction-build.md`：runtime 時間/交互層建造計畫（= current active lane）。** 11 段脊椎（S1 詳到可執行、S2–S11 條目）、4 個體感關卡、夜→晨節律、每段血緣（搬/擴充/全新）+ TiXL 源。設計來源 = 下方 CONTRACT_ALIGNMENT_LEDGER。
+- **`2026-06-09-runtime-time-interaction-build.md`：runtime 時間/交互層建造計畫（M1 ✅ done；M2–M4 queued，等 A lane 後）。** 11 段脊椎（S1 詳到可執行、S2–S11 條目）、4 個體感關卡、夜→晨節律、每段血緣（搬/擴充/全新）+ TiXL 源。設計來源 = 下方 CONTRACT_ALIGNMENT_LEDGER。
 - **`docs/runtime/CONTRACT_ALIGNMENT_LEDGER.md`：時間/聲音/交互層對齊底稿（L1–L14，active lane 的設計契約）。** 2026-06-09 與柏為 13 輪壓測合約含混處的逐項鎖定 + 停車 + Decision Log；TiXL 抽取證據。改約/實作前先讀。
 - `2026-06-08-node-editing-commands-phase1.md`：**Phase 1 實作計畫 = closed**（命令層+undo/redo，柏為 7/7 驗收，checkbox 已勾）。closure evidence。
 - `2026-06-08-node-editing-commands-phase2.md`：**Phase 2 實作計畫 = parked**（reconnect；頂部有 ⏸ 狀態 banner 說明擱置原因 + 待釐清方向）。
@@ -240,8 +240,10 @@ load/store 覆蓋、語義合併衝突（git 行比對不報、memory layout 靜
 
 **現況（2026-06-08）：step 0→3 + B0 + 命令層 Phase 1 + 值脊椎 全 ✅；audio-ingest 已 merge；單一線 = `codex/js-to-cpp-contract-migration`（已 push）。全 8 selftest 綠。**
 眼手 harness 可全自主驅動編輯器（加節點/拖線/驗證/重啟 app）——驗收不必再靠柏為的手。
-**第一個動作 = 跟柏為確認他要挑哪個下一 lane**（見〈Active Lane〉queued：A runtime fan-out / 聲音驅動粒子 / Phase 3 插入節點 / C 視覺）。
-唯一懸著的驗收：柏為眼球看粒子脈動（機器證據已齊）。**先問柏為，別自己挑 lane 開幹。**
+**下一 lane 已定（2026-06-09 柏為拍板）= A 點 operator 圖 runtime**（見〈Active Lane〉+ `specs/2026-06-09-point-operator-graph-design.md`）。
+**第一個動作 = writing-plans 產 A 的實作計畫，然後做 A.0（鎖點 buffer 鏈契約 + 節點登記資料驅動，順序、Opus 自己做、禁 fan-out）。** A.0+A.1 過了才放並行批次 fan-out。
+**commit 律法閘已生效**：每大步 commit 前對照 ARCHITECTURE.md 自檢，有違反先改完（memory `[[simple-world-commit-law-check-ritual]]`）。
+每顆節點照 TiXL（爬 .cs/.hlsl/.help → port → golden selftest → 驗 parity），不問柏為、問 TiXL。
 
 **文件導讀（省 token）：開場只讀 memory index + 本檔（薄 dashboard）。逐條史在 `2026-06-08-progress-history.md`、
 細節在各 spec/plan/contract/個別 memory——要時 grep 關鍵字再讀那段，不要每次全載。RAG 對這規模是殺雞牛刀（見柏為 2026-06-08 討論）。**
