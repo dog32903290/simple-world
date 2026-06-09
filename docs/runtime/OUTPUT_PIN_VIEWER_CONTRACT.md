@@ -135,8 +135,10 @@ C 通電後，實作分支完成的判準：
   的口 = 那個 if/else，未蓋 registry、未加 shader。
 
 **與規格的偏差（刻意，已驗）：**
-1. **「不 pin」= 圖終端（`defaultDrawTarget`），非 TiXL 的「跟選取跑」。** 守 §6.3 零行為改變 + 現場盯一個螢幕；
-   pin 的手勢仍照 TiXL（選節點→Pin→鎖死）。要翻成 follow-selection 是一行。
+1. **「不 pin」= 跟選取跑（TiXL `ViewSelectionPinning`），沒選任何節點才退回圖終端。**
+   cook target 優先序（`main.cpp`）：pinned → selected → `defaultDrawTarget`。選節點 → 觀景窗即時跟著換（不必 Pin）；
+   Pin → 鎖住停止跟隨（選別的節點畫面不動）；沒選 → 終端（啟動/清空選取時零行為改變）。
+   〔沿革：初版選了「不 pin=終端」守現場盯一個螢幕；2026-06-09 柏為要求翻回 TiXL 本來的「跟選取跑」，已改+眼驗。〕
 2. **「尚無預覽」提示用英文**（`no preview for output type "X" yet`）：imgui 預設字型無 CJK glyph，
    中文會渲染成 `?????`。全 app UI 本就英文，故一致用英文。
 3. **單鍵切換**（TiXL `PinSelectionToView`）：pinned 時選別的節點，Pin 鈕直接切過去，不必先 Unpin（§6.5 更順手）。

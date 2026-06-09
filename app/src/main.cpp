@@ -314,14 +314,15 @@ void Renderer::draw(MTK::View* pView) {
     // the final bag into target(). The editor graph's connections now drive the buffer flow,
     // so wiring + params (incl. AudioReaction via evalFloat/outCache when 柏為 wires it) change
     // the picture live. reg=nullptr -> the value-spine path (connection else constant), as before.
-    // view ⊥ graph: the viewport shows the PINNED node (session state, owned by
-    // ui/output_window), or the graph terminal when nothing is pinned (today's final
-    // picture — zero behaviour change). A stale pin (deleted node) also falls back to the
-    // terminal. The pin is NOT a graph edge: it never enters .swproj.
-    // (OUTPUT_PIN_VIEWER_CONTRACT §4-A / §6.3.)
+    // view ⊥ graph (TiXL ViewSelectionPinning): the viewport shows the PINNED node; else it
+    // FOLLOWS the selected node; else the graph terminal (today's final picture, so an empty
+    // selection = zero behaviour change). All three are session state (ui) — never a graph
+    // edge, never in .swproj. (OUTPUT_PIN_VIEWER_CONTRACT §4-A.)
     int viewTarget = sw::ui::g_pinnedNode;
     if (viewTarget == 0 || !sw::doc::g_graph.node(viewTarget))
-      viewTarget = g_pointGraph->defaultDrawTarget(sw::doc::g_graph);
+      viewTarget = sw::ui::g_selectedNode;                              // follow selection
+    if (viewTarget == 0 || !sw::doc::g_graph.node(viewTarget))
+      viewTarget = g_pointGraph->defaultDrawTarget(sw::doc::g_graph);   // terminal fallback
     g_pointGraph->cook(sw::doc::g_graph, ctx, /*reg=*/nullptr, viewTarget);
   }
 

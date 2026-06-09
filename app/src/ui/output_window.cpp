@@ -46,41 +46,48 @@ void drawOutputWindow() {
                           ImGuiCond_FirstUseEver);
   ImGui::Begin("Output");
 
-  // Drop a stale pin (the pinned node was deleted) -> fall back to the terminal.
+  // Drop a stale pin (the pinned node was deleted) -> resume following selection.
   if (g_pinnedNode != 0 && !sw::doc::g_graph.node(g_pinnedNode)) g_pinnedNode = 0;
   const bool pinned = g_pinnedNode != 0;
   const sw::Node* pinnedNode = pinned ? sw::doc::g_graph.node(g_pinnedNode) : nullptr;
 
   // --- toolbar: Pin / switch / Unpin, on the active op (TiXL Icon.Pin + PinSelectionToView).
-  // One button, three states so switching what you watch is a SINGLE click (§6.5):
-  //   - a node is selected that isn't the pinned one -> "Pin selected" pins / switches to it
-  //   - otherwise, if pinned -> "Unpin" drops back to the graph terminal ---
+  // Unpinned, the viewport FOLLOWS the selected node (TiXL); Pin LOCKS it so it stops
+  // following (and clicking other nodes no longer changes the view). One button:
+  //   - a node is selected that isn't the pinned one -> "Pin selected" locks / switches to it
+  //   - otherwise, if pinned -> "Unpin" resumes following selection ---
   const bool canPinSelection = g_selectedNode != 0 && g_selectedNode != g_pinnedNode;
   if (ImGui::Button(canPinSelection ? "Pin selected" : (pinned ? "Unpin" : "Pin selected"))) {
     if (canPinSelection)
-      g_pinnedNode = g_selectedNode;                 // pin or switch to the active op
+      g_pinnedNode = g_selectedNode;                 // lock / switch to the active op
     else if (pinned)
-      g_pinnedNode = 0;                              // back to the graph terminal
+      g_pinnedNode = 0;                              // resume following selection
   }
   sw::eye::recordItem("output_pin_btn");             // eye: hand off this button's screen rect
   ImGui::SameLine();
-  if (pinned) {
-    const sw::NodeSpec* ps = pinnedNode ? sw::findSpec(pinnedNode->type) : nullptr;
-    ImGui::TextDisabled("%s (pinned)", ps ? ps->title.c_str() : "?");
-  } else {
-    ImGui::TextDisabled("Terminal (select a node, then Pin)");
-  }
+
+  // What the viewport is actually showing (mirror the shell's cook-target priority in
+  // main.cpp): the pinned node wins; else the selected node (follow); else the terminal.
+  const sw::Node* viewNode = pinnedNode;
+  if (!viewNode && g_selectedNode != 0) viewNode = sw::doc::g_graph.node(g_selectedNode);
+  const sw::NodeSpec* vs = viewNode ? sw::findSpec(viewNode->type) : nullptr;
+  if (pinned)
+    ImGui::TextDisabled("%s (pinned)", vs ? vs->title.c_str() : "?");
+  else if (viewNode)
+    ImGui::TextDisabled("%s (selected)", vs ? vs->title.c_str() : "?");
+  else
+    ImGui::TextDisabled("Terminal (select a node to preview it)");
 
   // --- type honesty (§5): v1 only visualizes Points. A draw node (DrawPoints) is always
-  // drawable (it renders its own input). Unpinned = the terminal draw node = drawable. ---
+  // drawable (renders its own input). Nothing pinned/selected = the terminal draw node. ---
   bool drawable;
   std::string outType;
-  if (!pinned)
+  if (!viewNode)
     drawable = true;                                 // terminal draw node -> today's picture
-  else if (pinnedNode && pinnedNode->type == "DrawPoints")
-    drawable = true;                                 // pinned a draw node -> renders its input
+  else if (viewNode->type == "DrawPoints")
+    drawable = true;                                 // a draw node -> renders its input
   else {
-    outType = outputTypeOf(pinnedNode);
+    outType = outputTypeOf(viewNode);
     drawable = (outType == "Points");                // the one cell v1 fills
   }
   if (!drawable)
