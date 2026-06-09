@@ -28,17 +28,13 @@ struct EvaluationContext {
 #endif
   float time;        // seconds since start
   float deltaTime;   // seconds since previous frame
-  float audioLevel;  // live RMS this frame (0..1) — "how loud / sustained". AudioReaction's
-                     // `level` output. CPU value-cook only; the GPU instance leaves it 0.
-  float audioHit;    // live attack-envelope this frame (0..1) — "transient / kick".
-                     // AudioReaction's `hit` output. Also CPU-only (no shader reads it).
+  float _pad;        // reserved; keeps the BI_EvalContext constant buffer at 16 bytes.
 };
 
 #ifndef __METAL_VERSION__
 // Single shared header (host + .metal) so the layout is identical on both sides by
-// construction; this assert is just a drift tripwire, not the proof (see metal-cpp-discipline).
-// 20 bytes: one constant uploaded via sizeof() (transform_points.cpp), not an array, so no
-// 16-byte stride rule. Shaders read only frameIndex/time/deltaTime (offsets 0/4/8, unchanged);
-// the audio fields ride along for the CPU value-cook.
-static_assert(sizeof(EvaluationContext) == 20, "EvaluationContext layout changed — sync shaders/upload");
+// construction; this assert is a drift tripwire (see metal-cpp-discipline). Shaders read
+// frameIndex/time/deltaTime (offsets 0/4/8); _pad keeps the constant buffer 16-byte sized.
+// (Audio reaches the graph via the SpectrumSnapshot cook -> Node::outCache, not through ctx.)
+static_assert(sizeof(EvaluationContext) == 16, "EvaluationContext layout changed — sync shaders/upload");
 #endif

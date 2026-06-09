@@ -114,7 +114,7 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
 // input is wired evalFloat the upstream (binding=Connection), else the stored constant
 // (Node::params[paramId]) or fallback. reg defaults to nullptr so value-spine callers
 // are unchanged.
-// Takes the full per-frame EvaluationContext (time/frame/deltaTime/audioLevel) — the
+// Takes the full per-frame EvaluationContext (time/frame/deltaTime) — the
 // caller builds it once per frame, like TiXL's Update(EvaluationContext). main can hold
 // EvaluationContext now (it arrives via tixl_point.h -> eval_context.h, the S0 split).
 float evalParam(const Graph& g, const std::string& type, const std::string& paramId,

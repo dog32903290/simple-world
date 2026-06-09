@@ -378,8 +378,8 @@ void Renderer::draw(MTK::View* pView) {
     // (persisted by UID); loadPrefs() applies the saved device on the first frame, and
     // takePendingChange() fires whenever 柏為 picks a new device in the toolbar -> restart
     // capture on it. Permission is requested in start(); the engine starts async after
-    // 柏為 grants. RMS -> ctx.audioLevel and the attack envelope -> ctx.audioHit; the
-    // AudioReaction node surfaces them as its `level` / `hit` outputs.
+    // 柏為 grants. The tap feeds the per-band SpectrumAnalyzer; each AudioReaction node
+    // cooks from that snapshot into its outCache below (Level/WasHit/HitCount).
     static bool s_audioPrefsLoaded = false;
     if (!s_audioPrefsLoaded) {
       sw::audio::loadPrefs();

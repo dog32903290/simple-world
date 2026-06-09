@@ -80,8 +80,8 @@ int runTransformPointsSelfTest(bool injectBug) {
   std::vector<Particle> before(N);
   std::memcpy(before.data(), buf->contents(), N * sizeof(Particle));
 
-  // 2) evolve once with a known frame context (audio fields unused on the GPU side)
-  EvaluationContext ctx{1u, dt, dt, 0.0f, 0.0f};
+  // 2) evolve once with a known frame context (_pad reserved)
+  EvaluationContext ctx{1u, dt, dt, 0.0f};
   uint32_t count = N;
   dispatch1D(q, psoT, N, buf, &ctx, sizeof(ctx), BI_EvalContext, &count, sizeof(count), BI_GenParams);
 
