@@ -38,7 +38,9 @@
 
 **✓ modifier 範本 TransformPoints DONE（`37d13c5`）+ A.2 batch-2 modifier DONE（`00a5243`，workflow 2nd fan-out）**：modifier 形狀（Points in idx0 + out idx1、cook 讀 `c.inputs[0]`、count 繼承上游、寫 `c.output`）由 Opus 親手港 TransformPoints 鎖死，再 fan-out OrientPoints/RandomizePoints/SetPointAttributes（3 agent 照範本）。8 顆 point op 全 golden 綠+bug 紅。律法乾淨(全檔<400、node_registry 285、check-arch 綠)。另 `fba9cd8`(背景 task 加 `--selftest-map`，闢謠「map 多節點回 0」假警報)。
 
-**RESUME 點 = A.2 batch 3 combine**（CombineBuffers=多 input 串接多袋點 / BlendPoints），同 workflow 模式。**需柏為明確「用 workflow 跑 batch 3」opt-in**。批 4 draw 招牌（DrawMeshAtPoints2 需 mesh 資源型別）在後。殘留 debt：**FilterPoints 延後**(count 變動,不合 count-preserving 契約,先驗模型)、OrientPoints Screen/LookAtCamera 模式烤成 passthrough(要相機矩陣)、modifier golden 只測主路徑、生成器 orientation quat+Color 仍烤死、GridPoints `"Count"`=capacity workaround、`editor_ui.cpp` 422>400(UI lane 已在 worktree 還債到 372)。
+**✓ CombineBuffers DONE（combine 契約+範本，`6fd07bf`）**：combine = 第三種形狀(N Points 輸入→一袋)。承重契約改：`nodeCount` 改成「所有 Points 輸入 count 之和」(gen=0→Count param/mod=單一/combine=總和,零回歸)、`PointCookCtx`+`inputCounts[]`。CombineBuffers=純 blit 串接(無 shader/參數)。golden ring(64)+sphere(128)→192。**✓ UI 分支 merge 進 main(`e97f472`)**：node_draw/node_style、editor_ui 422→394(debt 解)、孤兒清(`8454a90`)、全推 origin、全 selftest 32/32。
+
+**RESUME 點 = A.2 batch 3 blend 子家族**(BlendPoints/PickPointList)。**⚠ 先做 count-policy 承重契約**：sum 只合串接；BlendPoints count=A、PickPointList count=選中那袋、Pair*/Spline* 各異 → NodeSpec 要標 countPolicy(sum/first/selected) 才能正確 fan-out（同 vector 契約/modifier 範本/combine 求和 的順序鎖，Opus 自己做再 fan-out，**別盲派 count 會錯**）。批 4 draw 招牌(DrawMeshAtPoints2 需 mesh)在後。其餘 debt：FilterPoints 延後(count 變動)、OrientPoints 相機模式 baked、modifier golden 只測主路徑、生成器 orientation+Color 烤死、GridPoints Count=capacity workaround。
 
 **Session safety**：平行 UI session **必須用獨立 git worktree**（本 session 同一棵樹被 UI session 的 git 操作回退過 runtime 編輯兩次 → 已救回）。見 master plan Session Safety。
 
