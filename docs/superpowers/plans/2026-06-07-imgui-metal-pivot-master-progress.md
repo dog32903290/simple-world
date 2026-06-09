@@ -86,6 +86,8 @@ selftest 綠是必要不充分。每個功能都要有「non-technical handle」
   - ⏸ **reconnect（replace-on-input）= Phase 2 parked**：碼+selftest 完成，GUI 驗收待節點變多再做。
   - ⬜ queued：Phase 3 插入節點（TiXL 線上浮圓點）/ Phase 4 框選多選刪移 / Phase 5 複製貼上；compound 群組、通用 topological evaluator、型別/port 檢查。
 - **C 視覺（北極星 B）**：TiXL 配色/節點外觀/canvas 手感、時間軸+keyframe、中文字型
+  - ✅ **Output pin viewer（view ⊥ graph，commits `8691afb`+`a556d56`，眼驗）**：浮動 Output 視窗，pin 任一節點看其產出不動接線、不 pin 跟選取跑（TiXL `ViewSelectionPinning`）、pin 不進 `.swproj`。Points→重用 DrawPoints 畫，其餘型別誠實標「no preview」。契約 `docs/runtime/OUTPUT_PIN_VIEWER_CONTRACT.md`。
+  - ⬜ queued：**Output pin viewer §8 後續**（柏為 2026-06-09「排後續」）：① pin/view 持久化 sidecar（對應 TiXL `.t3ui`，重開同專案記得上次看哪——v1 是 in-memory，關 app 歸零）；② Force/Float 的 typed-preview 格（力場箭頭 / 純量波形或數字 overlay，填 `outputType→previewFn` 的其餘格——v1 只填 Points 一格）；③ 多 draw 節點時 `defaultDrawTarget` 取捨 + pin 指定任一。見契約 §8。
 - **D 基建（持續）**：效能（非阻塞/PSO 快取）、檔案格式版本
 
 ## 語言/後端（2026-06-07 拍板，已壓過，不要重議）
