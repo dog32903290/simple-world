@@ -13,6 +13,33 @@
 
 ---
 
+## ⬛ 進度 + 交接（2026-06-09 · A.0 + A.1 DONE，resume 先讀這段；下方 Step 清單是歷史）
+
+**狀態：A.0 ✓ + A.1 ✓ — 可改線的點 operator 鏈已切進 live loop + eye 驗證（流動粒子雲、非靜環 = cook 驅動、零回歸）。** commits：`e800ab1`(A.0) → `58a6e5d`(A1.1 RadialPoints) → `8da3073`(cook 參數化) → `5a1bce9`(A1.2 DrawPoints) → `419fda0`(A1.4 sim op) → `a909c17`(A1.5 切 live)。dashboard：`de6d461`/`215f2d3`。
+
+**實際落地的形狀（與下方原 Step 清單的偏差，以這段為準）：**
+- **A.0：** `runtime/point_graph.{h,cpp}` = 點 buffer cook（"Points"/"ParticleForce" port 求值器，與 graph.cpp 的 evalFloat 平行）。連線currency = `MTL::Buffer` of `SwPoint`(64B)。operator 介面：`PointCookFn`(寫進 PointGraph 擁有的 `ctx.output`，**非回傳**；跨幀複用) + `PointDrawFn` + `PointStateNewFn/FreeFn`(有狀態 op)。登記表 `registerPointOp/registerDrawOp` + `registerBuiltinPointOps()`（在 `point_ops.cpp`，Renderer init + 每個 op selftest 呼叫）。selftest 抽成資料驅動表（`src/selftests.cpp` kTable + 色彩 selftest）→ **main.cpp 497→357**。
+- **cook 參數化（`8da3073`，柏為經 UI session 提的 output-page 需求）：** `cook(graph, ctx, reg, targetNodeId)` 從**任意目標節點**往回煮（不是焊死「找 draw 節點」）。`defaultDrawTarget(graph)` = 今天的 wired terminal。**view⊥graph 的門開著**：未來 pin 任意節點 = 丟不同 id。target 非 draw 節點時 cook 它但不畫（raw Points 預覽要 typed-preview wrapper，未做）。
+- **A1.1 RadialPoints**（`runtime/point_ops.cpp` `cookRadialPoints` + `shaders/radial_points.metal`）：忠實港 TiXL `RadialPoints.hlsl` 的**位置/scale 數學**（Rodrigues 旋轉）。`RadialParams`(32B,**全 scalar**) 在 `particle_params.h`。**覆寫了 pre-pivot 同名孤兒 kernel**（舊 32B Particle 世界）。golden `--selftest-radialop`(圓上+散開；bug=Cycles0)。
+- **A1.2 DrawPoints**（`cookDrawPoints`）：複用 `draw_points` render pipeline 畫進 target。golden `--selftest-drawop`(亮環+黑心；bug=0點)。
+- **A1.4 ParticleSystem sim op**（`cookParticleSim` + `SimState`：持久 particles buffer + 2 快取 PSO + seeded flag）：**emit 從 input[0]（RadialPoints）來**（不是內部 radial_emit）→ 連線是真的。Speed/Drag/turb **照 type 用 evalParam 讀**=與舊 live loop 同(無回歸)。**`ParticleSystem` class 沒動**(flow/draw selftest + 舊路仍用它)。golden `--selftest-simop`(30幀流離環；bug=Amount0)。selftest 拆出 `point_ops_selftest.cpp`(point_ops.cpp 403→218,≤400)。
+- **A1.5 切 live**（`main.cpp`）：Renderer 持 `g_pointGraph`、`registerBuiltinPointOps()`、每幀 `cook(g_graph, ctx, nullptr, defaultDrawTarget)`。**`g_particles` 移除**、`previewTexture()`/eye → `g_pointGraph->target()`。main 需 `#include "runtime/eval_context.h"`(原靠 particle_system.h 帶 EvaluationContext)。eye 驗：clean.png 流動雲。
+
+**加一顆新 op 的步驟（A.2 fan-out 落點，已驗的模式）：** ① `graph.cpp registry()` 加 NodeSpec literal（float port/參數）② `point_ops.cpp` 寫 cook fn + `registerBuiltinPointOps()` 加一行 register ③ `shaders/<name>.metal` kernel + `CMakeLists SW_SHADERS` 加一字 ④ `point_ops_selftest.cpp` 加 golden + `src/selftests.cpp` kTable 加一行 ⑤ 律法自檢 + commit。
+
+**⚠ 延後（resume backlog，誠實標）：**
+1. **A1.3 TransformPoints** → A.2 首批（覆寫 pre-pivot 孤兒 `shaders/transform_points.metal`，照 A1.1 RadialPoints 模式）。
+2. **★ vector 型參數（Vec2/3/4）= 契約 sub-step**：忠實 TiXL 節點要 Axis/Center/Color/GainAndBias 等向量參數，但 `NodeSpec` 只有 `"Float"`。現在 RadialPoints 等把向量參數**烤死預設**(Axis=+Z/Center=0/Color=white)。要擴 `graph.h NodeSpec`+`evalParam`+Inspector+存檔成向量型 → 做一次、所有節點受益。**這是 fan-out 全忠實前的承重 sub-step（Opus 自己做）。**
+3. **quat 朝向**（RadialPoints `OrientationMode` 2 模式）：要 vector 參數 + `shaders/shared/quat.metal.h`(已有 qFromAngleAxis/qMul/qLookAt)。現在 identity。
+4. **PSO 快取（live perf，非正確）**：`cookRadialPoints`/`cookDrawPoints` 每幀建 pipeline（sim op 已在 state 快取）。量大前改 PointGraph-owned 快取。
+5. **清 pre-pivot 孤兒**：`runtime/radial_points.cpp/.h`、`transform_points.cpp/.h`、`shaders/transform_points.metal`（舊 32B Particle 世界、未 build）。
+
+**RESUME 點 = A.2 批次並行 fan-out（workflow）**：照〈A.2+〉段 + design spec 的「每顆固定流程」+批次順序。**需柏為明確「用 workflow 跑 A.2」opt-in**（會派多 agent、燒 token）。建議：vector 參數 sub-step 可排在第一批之前或與生成器首批並行（看柏為）。
+
+**Session safety**：平行 UI session **必須用獨立 git worktree**（本 session 同一棵樹被 UI session 的 git 操作回退過 runtime 編輯兩次 → 已救回）。見 master plan Session Safety。
+
+---
+
 ## File Structure
 
 - **新 `runtime/point_graph.h` / `.cpp`**（runtime 葉子，Metal）：點 operator 介面 + cook fn 登記表 + `PointGraph` cook（拓撲走 Points 連線、per-node buffer/state、render 末端）。**這是 A.0 的承重檔。**
@@ -123,6 +150,7 @@ int runPointGraphSelfTest(bool injectBug);
 - **A1.4 ParticleSystem 折成有狀態 sim op**：把 monolith 的 emit+turbulence+sim 包成一個 `PointCookFn`（input=emit buffer、state=particles_ 持久、複用既有三 kernel）+ TurbulenceForce 走 `"ParticleForce"` input。**這是本拍最難（本質的醜：有狀態 GPU sim 進 dataflow），隔離在這一步、保持可單測。**
 - **A1.5 切 live loop**：`main.cpp` Renderer 用 `PointGraph` 取代 `g_particles`；cook 迴圈呼叫 `pointGraph.cook(g_graph, ctx, &reg)`；editor_ui 預覽改讀 `pointGraph.target()`。**驗無回歸**：畫面仍流動粒子（eye full 比對切換前後）。
 - **A1.6 ▣ 柏為摸**：在編輯器改接線（繞過 TransformPoints / 換生成器 / 改參數）→ 畫面跟著變。第一次「連線真的驅動畫面」。
+- **▸ A1.5 落地 = 下游 pin viewer 觸發信號**（2026-06-09 定）：`main.cpp:54` previewTexture 回 `pointGraph.target()` 那刻起，「pin 任意節點到觀景窗」(view ⊥ graph、TiXL OutputWindow 形狀) 即可開實作分支（worktree）。契約已備：`docs/runtime/OUTPUT_PIN_VIEWER_CONTRACT.md`（pin = session 狀態**不進 .swproj** / Points 重用 DrawPoints / Force 型別 v1 畫黑標示）。**A1.5 通電前不開**（承重面壓在 main.cpp render loop + point_graph.cpp，會撞）。
 - 每步末律法自檢 + commit。每顆 op 後對抗審查 golden 是否真對上 TiXL `.hlsl`。
 
 > 詳細 bite-sized（逐 Step 碼/build/selftest）在 A.0 落地、介面定型後補（依賴 A.0 確切簽名，現在寫會是猜）。

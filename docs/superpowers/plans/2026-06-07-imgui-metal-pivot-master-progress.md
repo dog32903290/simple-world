@@ -246,7 +246,8 @@ load/store 覆蓋、語義合併衝突（git 行比對不報、memory layout 靜
 **現況（2026-06-08）：step 0→3 + B0 + 命令層 Phase 1 + 值脊椎 全 ✅；audio-ingest 已 merge；單一線 = `codex/js-to-cpp-contract-migration`（已 push）。全 8 selftest 綠。**
 眼手 harness 可全自主驅動編輯器（加節點/拖線/驗證/重啟 app）——驗收不必再靠柏為的手。
 **下一 lane 已定（2026-06-09 柏為拍板）= A 點 operator 圖 runtime**（見〈Active Lane〉+ `specs/2026-06-09-point-operator-graph-design.md`）。
-**第一個動作 = writing-plans 產 A 的實作計畫，然後做 A.0（鎖點 buffer 鏈契約 + 節點登記資料驅動，順序、Opus 自己做、禁 fan-out）。** A.0+A.1 過了才放並行批次 fan-out。
+**A.0 + A.1 ✓ DONE（2026-06-09，commits e800ab1→a909c17）= 可改線的點 operator 鏈已 live + eye 驗證**（RadialPoints→ParticleSystem(sim)→DrawPoints 透過 cook 每幀煮、g_particles 怪物移除）。**完整交接在 `plans/2026-06-09-point-operator-graph-build.md` 最上方「⬛ 進度+交接」段（resume 先讀那段）。**
+**第一個動作 = 等柏為摸過鏈（▣：啟動 app 改接線/參數看畫面變）+ 明確「用 workflow 跑 A.2」opt-in → 開 A.2 批次並行 fan-out**（照 design spec「每顆固定流程」+批次順序逐批港 TiXL op）。**承重 sub-step：vector 型參數（NodeSpec 目前只 Float，忠實節點要 Axis/Center/Color 向量）= Opus 自己做，排在 fan-out 全忠實前。** 延後清單見 build plan 交接段。
 **commit 律法閘已生效**：每大步 commit 前對照 ARCHITECTURE.md 自檢，有違反先改完（memory `[[simple-world-commit-law-check-ritual]]`）。
 每顆節點照 TiXL（爬 .cs/.hlsl/.help → port → golden selftest → 驗 parity），不問柏為、問 TiXL。
 
