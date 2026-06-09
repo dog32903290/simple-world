@@ -112,7 +112,7 @@ DX11/WinForms 焊死的陷阱）、Web/TS（wgpu→Metal 非親手 + 丟 imgui-n
 把現行**焊死的單一 ParticleSystem**（`main.cpp:340-436`，圖連線只驅動參數、不驅動 buffer 流）拆成 TiXL 那樣的點 operator 圖：
 一條連線扛**一袋點**（`MTL::Buffer` of `Point[count]`，原子 = 已港的 `tixl_point.h` 64B = TiXL `point.hlsl`）；每顆 operator = compute kernel 讀進→寫出。
 照 TiXL `Operators/Lib/point/{generate,transform,modify,combine,draw}`（90+ 顆）逐批港。
-- **三拍**：**A.0 鎖契約 + 節點登記資料驅動**（順序、Opus 自己做；buffer 鏈 API + 把「加一顆=加一行+一葉檔+一 selftest」收斂，否則並行 fan-out 撞 graph.cpp/main.cpp/CMake）→ **A.1 第一刀拆出最小真鏈**（RadialPoints→TransformPoints→DrawPoints，連線真扛點、改線畫面變；現有粒子怪物折成 emit生成器/PointSimulation modifier/TurbulenceForce 力/DrawPoints）→ **A.2+ 一批一批並行 fan-out**（workflow 派批 agent，每隻認領一顆 operator）。
+- **三拍**：**A.0 ✓（commit `e800ab1`）鎖契約 + 節點登記資料驅動**：`runtime/point_graph` cook（一袋點=`MTL::Buffer` of SwPoint、operator 介面允許有狀態、`--selftest-pointgraph` 證機器；**不動 live loop=零回歸**）+ selftest 抽成資料驅動表 `src/selftests`（main.cpp 497→357，每顆 selftest=加一行、fan-out 不撞）。→ **A.1（下一步）第一刀拆出最小真鏈**（RadialPoints→TransformPoints→DrawPoints，連線真扛點、改線畫面變；現有粒子怪物折成 emit生成器/PointSimulation modifier/TurbulenceForce 力/DrawPoints）→ **A.2+ 一批一批並行 fan-out**（workflow 派批 agent，每隻認領一顆 operator）。
 - **每顆節點固定流程（柏為定，不可跳；fan-out 不偷工）**：爬 TiXL `.cs`+`.hlsl`+`.help/docs/.../point/*.md` → port metal-cpp/MSL → 抓 TiXL 公式寫成 golden selftest（TiXL 在 Win/DX11 跑不動，用公式當標準答案）→ port/參數/enum 對齊 .cs + eye 比對文件長相 + subagent 對抗審查。
 - **commit 律法閘（柏為 2026-06-09 定）**：每做完一大步 commit，但 commit 前對照 `ARCHITECTURE.md` 自檢動到的碼，有違反先改完再 commit，law debt 不過夜。見 memory `[[simple-world-commit-law-check-ritual]]`。
 - **地基現況（2026-06-09 驗）**：律法乾淨（graph.cpp **333 行**、`graph_selftest` 已拆、platform→runtime 已修、DSP 在 `app/audio_monitor`）；點原子已對齊；現行管線是單一 ParticleSystem 怪物 = A.0 要拆的對象；`radial_points`/`transform_points` 有 selftest-only kernel = A.1 可複用。
