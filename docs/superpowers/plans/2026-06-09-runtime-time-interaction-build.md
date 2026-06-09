@@ -17,6 +17,41 @@
 
 ---
 
+## ⬛ 交接（2026-06-09 session 收尾，clear 前必讀；resume 先讀這段）
+
+### 做到哪
+- **S0 ✓**（`6062da9`）header de-mine：`EvaluationContext`→`runtime/eval_context.h`。
+- **S1 ✓**（`274e72a`）解析模型拱心石：`override→binding→constant` + `SourceRegistry`，對抗審查過。
+- **World 1 形狀大改**：柏為拍板「**audio 全照 TiXL，有疑問查 TiXL，系統穩再議自創**」。最終形狀＝**audio 是值節點，不是 hidden binding**（柏為指出「炸了卻沒連線」的醜，重織掉）：
+  - 鏈：選定裝置 → `capture` → `ctx.audioLevel` → **`AudioReaction` 值節點**（輸出 `level` Float，每幀重算，與 `Time` 對稱）→ 柏為**拉線**到任何參數，中間插 `Multiply`/`Remap` scale。照 TiXL `Slot<float>`+`Animated`，無特殊音訊型別。
+  - 港自 my-world（`~/Projects/my-world/source/audio`）：`AttackDetector`(暫態)、`AudioAnalyzer`(RMS)。
+  - `platform/audio_capture`(AVAudioEngine 收音) + **Info.plist `-sectcreate` + POST_BUILD `codesign` 重簽**解 TCC（否則 bare binary 碰麥克風 SIGABRT / 提示不跳）。
+  - **裝置選單 ✓**（項目 1）：Toolbar「Audio In」下拉，選內建/2i2/BlackHole/aggregate → route(`kAudioOutputUnitProperty_CurrentDevice`) + 持久化(`~/.simple_world_audio_device`)。`app/audio_settings` 協調(`ui→app→platform`)。
+  - **input meter ✓**：Toolbar `level`(RMS,有沒有聲音)/`hit`(暫態) 條。
+  - selftest：`--selftest-attack/analyzer/audionode/resolve/valuecook/...` 全綠。commits 到 `e35d567`。
+
+### 關鍵狀態 / 踩雷（接手必知）
+- **`AudioReaction` 目前只輸出「暫態」**(attack envelope)；持續音(喊/長音)≈0。`level→Speed` 直連時靜音/持續音 Speed=0 → **粒子凍結（非當機；`--selftest-audionode` 證求值不 hang）**。要 mapping(Multiply+base) 或**項目 2 選「電平」特徵**才解。
+- TCC：麥克風已 **Authorized**；沒提示是因為已授權(非 bug，多半繼承 Terminal)。`--audio-permission-status` 可查。
+- BlackHole 沒東西播進去時 0 blocks(正常 loopback)；2i2/內建一直有 blocks。
+- 北極星不變：Mac 版 TiXL；audio 子系統照 TiXL（`external/tixl/Core/Audio` + `Operators/Lib/io/audio/AudioReaction.cs`），不自創。
+
+### 下一步：**項目 2（柏為排序的最後一塊，in-progress 的下一步）**
+**`AudioReaction` 長出 TiXL 參數**（照 `AudioReaction.cs`）：
+1. **選特徵**：電平(RMS,持續音有值)／暫態(attack)／頻段。**電平特徵直接解「喊了粒子不動」**——優先。
+2. **選頻段**(低頻=鼓)：需 **FFT/頻譜分析**（新 DSP，照 TiXL `FrequencyBands[32]`）——目前只有 RMS+attack，**缺 FFT**。
+3. **節點非-Float 參數機制**：`NodeSpec` 目前只有 Float ports；要照 TiXL `InputBand`/`Output` enum 擴節點契約。
+（項目 1 裝置選單 ✓、項目 3 Add 選單相容 ✓——`AudioReaction` 已註冊進 spec 表、Add 選單資料驅動。）
+
+### ⚠ 律法 debt（2026-06-09 review，**柏為決定**）
+1. **platform→runtime 違律**：`audio_capture.mm`(platform) include `runtime/attack_detector`+`audio_analyzer`，違「葉子互不依賴」。因＝audio-rate DSP 在 tap callback(最低延遲)。叉：(a) 放寬律法(IO 葉子可單向用 runtime 純計算工具，無環) 保延遲；(b) **callback 反轉**：`capture` 只發布原始樣本+回呼(只存 fn-ptr 不 include runtime)，DSP 由 app/main 驅動 — 律法乾淨且仍 audio-rate。**建議 (b)**。
+2. **`graph.cpp` 588 行 > 400**：混了 node registry+圖模型+eval+json+selftests。建議拆(`graph_selftests.cpp`/`graph_json.cpp`)。
+3. `main.cpp` 448 行(外殼，邊緣警訊)。
+4. ~~setTestEnvelope dead code~~ 已清。
+5. 其餘依賴方向、verify 葉子、資料驅動(node/device menu) ✓ 乾淨。
+
+---
+
 ## 完整脊椎（▣ = 柏為體感關卡 = 早上；其餘 = 機器可驗水管工，夜裡自主）
 
 | # | 段 | 性質 | 血緣 | TiXL/合約源 | 鏈式/兄弟 |

@@ -137,9 +137,6 @@ float AudioCapture::lastRms() const { return impl_->rms.load(std::memory_order_r
 unsigned long long AudioCapture::blocksProcessed() const {
   return impl_->blocks.load(std::memory_order_relaxed);
 }
-void AudioCapture::setTestEnvelope(float v) {
-  impl_->envelope.store(v, std::memory_order_relaxed);
-}
 
 int runAudioPermissionStatus() {
   const AVAuthorizationStatus s =

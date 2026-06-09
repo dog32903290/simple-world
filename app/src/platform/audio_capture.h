@@ -33,10 +33,6 @@ class AudioCapture {
   float lastRms() const;       // latest block RMS (smoke diagnostic)
   unsigned long long blocksProcessed() const;  // tap-callback count (smoke diagnostic)
 
-  // Test-only: force the published envelope (no audio device). Lets the headless
-  // wiring selftest prove envelope -> LiveSource -> Speed without touching the mic.
-  void setTestEnvelope(float v);
-
  private:
   struct Impl;
   static bool startEngine(Impl* impl, unsigned int deviceId);  // engine + tap (in .mm)
