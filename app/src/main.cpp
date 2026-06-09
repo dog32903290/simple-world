@@ -30,6 +30,8 @@
 #include "runtime/attack_detector.h"
 #include "runtime/audio_analyzer.h"
 #include "runtime/audio_ingest.h"
+#include "runtime/spectrum_analyzer.h"
+#include "runtime/audio_reaction.h"
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
 #include "runtime/particle_system.h"
@@ -195,6 +197,14 @@ int main(int argc, char* argv[]) {
       return sw::runAudioAnalyzerSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-analyzer-bug") == 0)
       return sw::runAudioAnalyzerSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--selftest-spectrum") == 0)
+      return sw::runSpectrumSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-spectrum-bug") == 0)
+      return sw::runSpectrumSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--selftest-audioreaction") == 0)
+      return sw::runAudioReactionSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-audioreaction-bug") == 0)
+      return sw::runAudioReactionSelfTest(/*injectBug=*/true);
     if (std::strcmp(argv[i], "--selftest-flow") == 0)
       return sw::runParticleFlowSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-flow-bug") == 0)
@@ -368,7 +378,8 @@ void Renderer::draw(MTK::View* pView) {
     // (persisted by UID); loadPrefs() applies the saved device on the first frame, and
     // takePendingChange() fires whenever 柏為 picks a new device in the toolbar -> restart
     // capture on it. Permission is requested in start(); the engine starts async after
-    // 柏為 grants. The captured level flows into ctx.audioLevel; the AudioReaction node reads it.
+    // 柏為 grants. RMS -> ctx.audioLevel and the attack envelope -> ctx.audioHit; the
+    // AudioReaction node surfaces them as its `level` / `hit` outputs.
     static bool s_audioPrefsLoaded = false;
     if (!s_audioPrefsLoaded) {
       sw::audio::loadPrefs();
@@ -377,14 +388,41 @@ void Renderer::draw(MTK::View* pView) {
     unsigned int audioDev = 0;
     if (sw::audio::takePendingChange(audioDev)) g_audioCapture.start(audioDev);
     const float dt = 1.0f / 60.0f;
-    // One EvaluationContext per frame (TiXL Update(EvaluationContext) style): time/frame/
-    // deltaTime + the live audio level that the AudioReaction value node surfaces.
+    // One EvaluationContext per frame (TiXL Update(EvaluationContext) style): time/frame/deltaTime.
     EvaluationContext ctx{};
     ctx.frameIndex = g_frameIndex;
     ctx.time = g_time;
     ctx.deltaTime = dt;
-    ctx.audioLevel = g_audioCapture.envelope();
-    sw::audio::publishMonitor(g_audioCapture.lastRms(), g_audioCapture.envelope());  // toolbar meter
+    sw::audio::publishMonitor(g_audioCapture.lastRms(), g_audioCapture.envelope());  // node input meter
+    const sw::SpectrumSnapshot spec = g_audioCapture.spectrumSnapshot();
+    sw::audio::publishSpectrum(spec);  // 32-band spectrum on the AudioReaction node face
+    // Cook every AudioReaction node (TiXL parity): gather its params, run the stateful
+    // algorithm on the live spectrum, write its 3 outputs into outCache for evalFloat.
+    {
+      static std::map<int, sw::AudioReactionState> s_arState;
+      for (sw::Node& node : sw::doc::g_graph.nodes) {
+        if (node.type != "AudioReaction") continue;
+        auto P = [&](const char* id, float def) {
+          auto it = node.params.find(id);
+          return it != node.params.end() ? it->second : def;
+        };
+        sw::AudioReactionParams p;
+        p.amplitude = P("Amplitude", 1.0f);
+        p.inputBand = (int)(P("InputBand", 2.0f) + 0.5f);
+        p.windowCenter = P("WindowCenter", 0.0f);
+        p.windowWidth = P("WindowWidth", 1.0f);
+        p.windowEdge = P("WindowEdge", 1.0f);
+        p.threshold = P("Threshold", 0.5f);
+        p.minTimeBetweenHits = P("MinTimeBetweenHits", 0.1f);
+        p.output = (int)(P("Output", 3.0f) + 0.5f);
+        p.bias = P("Bias", 1.0f);
+        p.reset = P("Reset", 0.0f) > 0.5f;
+        const sw::AudioReactionOut o = sw::cookAudioReaction(spec, p, g_time, s_arState[node.id]);
+        node.outCache[0] = o.level;
+        node.outCache[1] = o.wasHit ? 1.0f : 0.0f;
+        node.outCache[2] = (float)o.hitCount;
+      }
+    }
     // Cook: graph params drive the runtime. evalParam = if the param's input is wired,
     // evaluate the upstream value-spine (e.g. AudioReaction); else the stored constant.
     // GPU buffer flow is untouched — only these scalar setters read the value spine.

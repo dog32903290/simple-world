@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "runtime/spectrum_analyzer.h"  // SpectrumSnapshot — published for the node spectrum
+
 namespace sw::audio {
 
 // One selectable input (app's view of platform/audio_devices::AudioDevice, so the UI
@@ -40,5 +42,10 @@ bool takePendingChange(unsigned int& outDeviceId);
 void  publishMonitor(float rms, float envelope);
 float monitorRms();
 float monitorEnvelope();
+
+// Per-band spectrum for the AudioReaction node face (TiXL parity). main publishes the
+// capture's latest snapshot each frame; the UI reads it. Single-threaded (render thread).
+void                    publishSpectrum(const SpectrumSnapshot& s);
+const SpectrumSnapshot& spectrum();
 
 }  // namespace sw::audio

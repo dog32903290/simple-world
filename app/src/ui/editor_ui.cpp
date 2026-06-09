@@ -102,16 +102,8 @@ void drawToolbar() {
     ImGui::EndCombo();
   }
   sw::eye::recordItem("Audio In");  // eye③: hand off this widget's screen rect
-  // Live input meter (cheapest visualization): "level" = any sound coming in (rms);
-  // "hit" = transients (what AudioReaction.level currently outputs). If you select 2i2
-  // and speak, the level bar moves -> sound is getting in. hit only jumps on attacks.
-  ImGui::Text("level");
-  ImGui::SameLine();
-  ImGui::ProgressBar(std::min(sw::audio::monitorRms() * 8.0f, 1.0f), ImVec2(120.0f, 0.0f), "");
-  ImGui::SameLine();
-  ImGui::Text("hit");
-  ImGui::SameLine();
-  ImGui::ProgressBar(std::min(sw::audio::monitorEnvelope(), 1.0f), ImVec2(80.0f, 0.0f), "");
+  // The live input meter now lives inside the AudioReaction node (level/hit on its face) —
+  // see drawNodeCanvas; the toolbar just picks the device.
   ImGui::TextDisabled("%s", sw::doc::g_status.c_str());
   ImGui::End();
 }
@@ -143,6 +135,7 @@ void drawNodeCanvas() {
     if (spec) {
       for (size_t i = 0; i < spec->ports.size(); ++i) {
         const sw::PortSpec& p = spec->ports[i];
+        if (p.pinless) continue;  // param-only port: edited in the Inspector, no canvas pin
         ed::BeginPin(sw::pinId(node.id, (int)i),
                      p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
         ImGui::TextUnformatted(p.isInput ? ("-> " + p.name).c_str() : (p.name + " ->").c_str());
@@ -154,6 +147,19 @@ void drawNodeCanvas() {
                             pa.x, pa.y, pb.x, pb.y);
         ed::EndPin();
       }
+    }
+    if (node.type == "AudioReaction") {
+      // TiXL-parity spectrum on the node face: 32 log-octave frequency bands (55Hz–15kHz),
+      // live from the FFT analyzer. 柏為 plays -> the bands dance.
+      const sw::SpectrumSnapshot& sp = sw::audio::spectrum();
+      ImGui::PlotHistogram("##spectrum", sp.bands.data(), sw::kBandCount, 0, "spectrum (32 bands)",
+                           0.0f, 1.0f, ImVec2(190.0f, 60.0f));
+      // The node's computed Level output (after InputBand / window / Output mode + Amplitude),
+      // and a WasHit flash — exactly what the Level / WasHit output pins carry this frame.
+      char lbl[32];
+      std::snprintf(lbl, sizeof(lbl), node.outCache[1] > 0.5f ? "HIT  #%d" : "Level #%d",
+                    (int)node.outCache[2]);
+      ImGui::ProgressBar(std::min(node.outCache[0], 1.0f), ImVec2(190.0f, 0.0f), lbl);
     }
     if (node.type == "DrawPoints" && g_particles && g_particles->target())
       ImGui::Image(reinterpret_cast<ImTextureID>(g_particles->target()), ImVec2(200, 200));
@@ -358,6 +364,25 @@ void drawInspector() {
           // Driven by a connection — grey out, show source type.
           const sw::Node* src = sw::doc::g_graph.node(sw::pinNode(c->fromPin));
           ImGui::TextDisabled("%s <- %s", p.name.c_str(), src ? src->type.c_str() : "?");
+        } else if (p.widget == sw::Widget::Enum) {
+          // Enum param (e.g. InputBand / Output): a dropdown; the value stored is the index.
+          int cur = (int)(sel->params[p.id] + 0.5f);
+          std::vector<const char*> items;
+          for (const std::string& s : p.labels) items.push_back(s.c_str());
+          const float pre = sel->params[p.id];
+          if (!items.empty() && ImGui::Combo(p.name.c_str(), &cur, items.data(), (int)items.size())) {
+            sel->params[p.id] = (float)cur;
+            sw::g_commands.push(std::make_unique<sw::SetInputValueCommand>(
+                sw::doc::g_graph, sel->id, p.id, pre, sel->params[p.id]));
+          }
+        } else if (p.widget == sw::Widget::Bool) {
+          bool b = sel->params[p.id] > 0.5f;
+          const float pre = sel->params[p.id];
+          if (ImGui::Checkbox(p.name.c_str(), &b)) {
+            sel->params[p.id] = b ? 1.0f : 0.0f;
+            sw::g_commands.push(std::make_unique<sw::SetInputValueCommand>(
+                sw::doc::g_graph, sel->id, p.id, pre, sel->params[p.id]));
+          }
         } else {
           // Free constant — slider writes LIVE into the param map so the runtime
           // sees changes mid-drag (柏為 expects immediate feedback). One undo step

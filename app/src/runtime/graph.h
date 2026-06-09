@@ -15,17 +15,25 @@ struct EvaluationContext;
 namespace sw {
 
 // --- Node type definitions (NodeSpec registry, faithful to TiXL ports/params) ---
+// How a Float input param is edited in the Inspector. Enum/Bool still store a float in
+// Node::params (the enum index / 0|1) — the widget only changes presentation + edit.
+enum class Widget { Slider, Enum, Bool };
 struct PortSpec {
   std::string id, name, dataType;  // dataType: "Points" | "ParticleForce" | "Float"
   bool isInput;
   float def = 0.0f, minV = 0.0f, maxV = 1.0f;  // Float input only
+  Widget widget = Widget::Slider;              // Inspector affordance (Float input only)
+  std::vector<std::string> labels;             // Widget::Enum option labels (index = value)
+  bool pinless = false;                        // param-only: editable in Inspector, no canvas pin
 };
 struct NodeSpec {
   std::string type, title;
   std::vector<PortSpec> ports;
   // params retired: original params are now dataType=="Float" && isInput ports.
   // Constants live in Node::params[port.id]. evaluate is used by Task 2+ value nodes.
-  float (*evaluate)(const float* in, int n, const EvaluationContext& ctx) = nullptr;
+  // outIdx = which output port (the port index within this spec) is being pulled — lets a
+  // node expose several outputs (e.g. AudioReaction's level vs hit); single-output nodes ignore it.
+  float (*evaluate)(int outIdx, const float* in, int n, const EvaluationContext& ctx) = nullptr;
 };
 const NodeSpec* findSpec(const std::string& type);
 std::vector<std::string> specTypes();  // all registered node types (for the Add menu)
@@ -36,6 +44,10 @@ struct Node {
   std::string type;
   float x = 0.0f, y = 0.0f;
   std::map<std::string, float> params;  // param id -> value
+  // Transient (not serialized): outputs for stateful nodes whose value can't come from the
+  // pure evaluate() — e.g. AudioReaction, cooked in main from the live spectrum each frame.
+  // evalFloat returns outCache[outPortIndex] for such nodes. Index by the node's output port.
+  float outCache[3] = {0.0f, 0.0f, 0.0f};
 };
 struct Connection {
   int id = 0;

@@ -19,6 +19,30 @@
 
 ## ⬛ 交接（2026-06-09 session 收尾，clear 前必讀；resume 先讀這段）
 
+### 🔵 2026-06-09 續（裝置路由 bug + 項目2 核心，已驗收）
+- **根因修復：選裝置收不到音**。柏為回報 level/hit 都不動。根因＝**不是沒插線**，是 `AudioUnitSetProperty(CurrentDevice)` 在 AVAudioEngine.inputNode 的 AUHAL 上換裝置會**desync engine→tap 收 0 buffer**（DIAG 證：裝置設對、格式對、引擎在跑、blocks=0；任何顯式裝置都中，連內建麥用自己 id 都 0；只有 default 路徑活）。AVAudioInputNode 又不暴露 auAudioUnit(v3 deviceID setter 走不通)。**正解＝把 capture 後端整個換成 raw AUHAL(kAudioUnitSubType_HALOutput) 輸入單元**（`audio_capture.mm` 重寫；接縫 AudioCapture 不變）。smoke 證：內建/default/2i2 全 blocks 流；`say` 疊測證 rms 隨聲音 5–10×。
+- **項目2 核心完成**：`AudioReaction` 改成**兩個輸出** `level`(RMS 持續音) + `hit`(暫態)，柏為用空間直覺抓哪個接哪個（不是「打 0/1」）。`ctx` 多帶 `audioHit`(CPU-only，GPU 忽略，20 bytes)。`evalAudioReaction` 照 outIdx 選；evaluate 簽名加 outIdx（多輸出值節點，6 個 eval fn）。**meter 從 toolbar 移進 AudioReaction 節點臉**（照 DrawPoints 前例）。`--selftest-valuecook` 加 level/hit 路由斷言。eye 證節點畫出兩 pin+兩 meter、粒子照渲染、14 selftest 全綠。
+- **持續音凍結 bug 解了**：`level` 現在輸出 RMS，握著的口風琴長音會驅動粒子（不再只在敲擊瞬間跳）。
+- 律法 debt 未變：platform→runtime 違律仍在（AUHAL 仍 include runtime DSP）；graph.cpp 已 600+ 行（雙輸出後更該拆）。
+
+### 🟢 進行中（2026-06-09）：TiXL AudioReaction 完整對齊（柏為定目標「一模一樣」）
+**權威契約已從 TiXL 源碼挖出**（`external/tixl/Operators/Lib/io/audio/AudioReaction.cs` + `Core/Audio/AudioAnalysisContext.cs` + `AudioConfig.cs`）：
+- **3 輸出**：`Level`(float,主值)、`WasHit`(bool)、`HitCount`(int)。
+- **10 參數**：`Amplitude`、`InputBand`(enum5:RawFft/NormalizedFft/FrequencyBands/Peaks/Attacks)、`WindowCenter/WindowWidth/WindowEdge`(頻率視窗)、`Threshold`、`MinTimeBetweenHits`(去抖)、`Output`(enum5:Pulse/TimeSinceHit/Count/Level/AccumulatedLevel)、`Bias`、`Reset`。
+- **演算法**：選 bins → 頻率視窗加權 Sum（windowCenter/Width/Edge）→ `Sum>Threshold` 升緣 + `MinTimeBetweenHits` 去抖 = hit → 5 種 Output 塑形（pow/bias/amplitude）；AccumulatedLevel 累加。
+- **DSP 後端**（`AudioAnalysisContext`）：**2048-pt FFT→1024 bins**（TiXL 用 BASS；我們用 **Accelerate/vDSP** 自算）→ dB 正規化 → **log octave 55Hz–15kHz 映射成 32 bands**（`FrequencyBandCount=32`，max-pool）→ peaks(decay)/attacks(增率×4)/attackPeaks/onsets/sliding-average。常數：FftBufferSize=1024、48kHz。
+- 節點臉**頻譜視覺化**（`AudioReactionUi.cs` 266行）：即時 32 條頻譜 + peak 疊 + windowed Sum 條 + threshold 線。
+
+**鎖定順序（契約層順序鎖，每刀=柏為可親手測）：**
+1. **【刀1·DSP 後端】✓** 新 `runtime/spectrum_analyzer.{h,cpp}`(runtime 葉子,純算+Accelerate)：vDSP 2048-pt FFT + 32 log-octave band(55–15kHz) + peaks/attacks(×4)/attackPeaks/onsets/sliding-avg,照 `AudioAnalysisContext` 移植;lock-free 雙緩衝 snapshot。`--selftest-spectrum` 綠(1000Hz→band16/level0.99/遠端0/靜音衰減/step→attack0.34;bug 變體 FAIL)。CMake 加 Accelerate。
+2. **【刀2·頻譜上節點】✓** AUHAL tap mono-mix 餵 spectrum;`audio_capture.spectrumSnapshot()`→`audio_settings.publishSpectrum/spectrum()`(ui→app)→main 每幀 publish→editor_ui 用 `ImGui::PlotHistogram` 在 AudioReaction 節點臉畫 32 band(level/hit meter 保留)。eye 證 widget 畫出、粒子照渲染、12 selftest 全綠。app 留著跑(2i2),柏為彈樂器看頻譜跳。
+3. **【刀3·完整節點契約】✓** 新 `runtime/audio_reaction.{h,cpp}`(狀態 cook,忠實移植 `AudioReaction.cs`):選 bins(5 InputModes)→window(center/width/edge)加權 Sum→threshold+minTime 去抖 hit→5 OutputModes(Pulse/TimeSinceHit/Count/Level/AccumulatedLevel)+累加+Reset。`--selftest-audioreaction` 綠(level/hit/去抖/hit#2/reset)。整合:`PortSpec` 加 widget(Slider/Enum/Bool)+labels+pinless;AudioReaction spec=3 輸出(Level/WasHit/HitCount)+10 pinless 參數;`Node.outCache[3]`,main 每幀 cook 各節點→outCache,`evalFloat` 讀它;**Inspector 依 widget 渲染 Combo/Checkbox/Slider**(eye 證 InputBand 下拉「FrequencyBands」);節點臉=頻譜+Level 輸出條+3 輸出 pin(參數無 pin)。valuecook/audionode 改用 outCache;graph roundtrip jsonLen 1123→1386(參數有存檔);13 selftest 全綠。
+- **刀1+2+3 ✓ — TiXL AudioReaction 功能對齊完成(柏為「一模一樣」目標達成)。**
+- **殘留(小/裝飾,非功能):** ①TiXL 節點 UI 的 peak 疊/window/threshold 線未畫(只有基本頻譜直方圖) ②TiXL 參數可接線,我們 pinless(inspector-only) ③`ctx.audioLevel/audioHit` 變 vestigial(AudioReaction 改吃 outCache,可清) ④反應性由組合證(DSP selftest+capture 餵法+say/rms),GUI 內「彈下去頻譜亮」是柏為親測。
+- 律法注意:DSP/cook 是 runtime 葉子;capture(platform) 餵它仍是現有 platform→runtime 違律的延伸(柏為待決)。
+
+
+
 ### 做到哪
 - **S0 ✓**（`6062da9`）header de-mine：`EvaluationContext`→`runtime/eval_context.h`。
 - **S1 ✓**（`274e72a`）解析模型拱心石：`override→binding→constant` + `SourceRegistry`，對抗審查過。

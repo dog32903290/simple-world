@@ -88,6 +88,8 @@ add_executable(simple_world
   src/runtime/source_registry.cpp
   src/runtime/attack_detector.cpp
   src/runtime/audio_analyzer.cpp
+  src/runtime/spectrum_analyzer.cpp
+  src/runtime/audio_reaction.cpp
   src/runtime/dispatch.cpp
   src/runtime/audio_ingest.cpp
   src/runtime/audio_ingest_replay.cpp
@@ -141,6 +143,7 @@ target_link_libraries(simple_world PRIVATE
   "-framework AVFoundation"
   "-framework CoreAudio"
   "-framework AudioToolbox"
+  "-framework Accelerate"
 )
 
 # Embed Info.plist into the bare Mach-O so TCC can read NSMicrophoneUsageDescription

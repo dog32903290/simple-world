@@ -16,20 +16,17 @@ namespace {
 // ----- Value-node evaluate functions (pure value, no GPU). -----
 // in[] is ordered by the Float input ports in the spec; n is the count.
 
-float evalTime(const float*, int, const EvaluationContext& ctx) { return ctx.time; }
-// AudioReaction: the live-audio reaction value this frame. Symmetric with evalTime —
-// both are "animated" sources (recomputed every frame) that just read the per-frame
-// ctx. The DSP (envelope/attack) lives in the capture/analyzer; this node only surfaces
-// the current value into the graph (TiXL Operators/Lib/io/audio/AudioReaction.cs).
-float evalAudioReaction(const float*, int, const EvaluationContext& ctx) { return ctx.audioLevel; }
-float evalConst(const float* in, int n, const EvaluationContext&) { return n > 0 ? in[0] : 0.0f; }
-float evalMultiply(const float* in, int n, const EvaluationContext&) {
+float evalTime(int, const float*, int, const EvaluationContext& ctx) { return ctx.time; }
+// AudioReaction is stateful (TiXL parity) and has no pure evaluate — it's cooked in main from
+// the live spectrum into Node::outCache, which evalFloat returns directly (see below).
+float evalConst(int, const float* in, int n, const EvaluationContext&) { return n > 0 ? in[0] : 0.0f; }
+float evalMultiply(int, const float* in, int n, const EvaluationContext&) {
   return n >= 2 ? in[0] * in[1] : 0.0f;
 }
-float evalSine(const float* in, int n, const EvaluationContext&) {
+float evalSine(int, const float* in, int n, const EvaluationContext&) {
   return n > 0 ? std::sin(in[0]) : 0.0f;
 }
-float evalRemap(const float* in, int n, const EvaluationContext&) {
+float evalRemap(int, const float* in, int n, const EvaluationContext&) {
   // in: [x, outMin, outMax]. x in -1..1 → outMin..outMax.
   if (n < 3) return 0.0f;
   float t = (in[0] + 1.0f) * 0.5f;         // -1..1 → 0..1
@@ -65,9 +62,27 @@ const std::vector<NodeSpec>& registry() {
       {"DrawPoints", "DrawPoints", {{"points", "points", "Points", true}}, nullptr},
       // --- Value nodes (Task 2) ---
       {"Time", "Time", {{"out", "out", "Float", false}}, evalTime},
-      // Live-audio reaction value (TiXL AudioReaction, v1): one Float output, recomputed
-      // every frame from ctx.audioLevel. Wire it into any param; scale with Multiply/Remap.
-      {"AudioReaction", "AudioReaction", {{"level", "level", "Float", false}}, evalAudioReaction},
+      // TiXL AudioReaction (full parity): 3 outputs + 10 params. STATEFUL — cooked in main
+      // from the live spectrum (runtime/audio_reaction) because it needs the whole spectrum
+      // (too big for ctx) + per-node memory; so it has no pure evaluate() and evalFloat reads
+      // its outputs from Node::outCache. Params are pinless (Inspector knobs, no canvas pins).
+      {"AudioReaction", "AudioReaction",
+       {{"Level", "Level", "Float", false},
+        {"WasHit", "WasHit", "Float", false},
+        {"HitCount", "HitCount", "Float", false},
+        {"Amplitude", "Amplitude", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Slider, {}, true},
+        {"InputBand", "InputBand", "Float", true, 2.0f, 0.0f, 4.0f, Widget::Enum,
+         {"RawFft", "NormalizedFft", "FrequencyBands", "Peaks", "Attacks"}, true},
+        {"WindowCenter", "WindowCenter", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, true},
+        {"WindowWidth", "WindowWidth", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Slider, {}, true},
+        {"WindowEdge", "WindowEdge", "Float", true, 1.0f, 0.0001f, 1.0f, Widget::Slider, {}, true},
+        {"Threshold", "Threshold", "Float", true, 0.5f, 0.0f, 2.0f, Widget::Slider, {}, true},
+        {"MinTimeBetweenHits", "MinTimeBetweenHits", "Float", true, 0.1f, 0.0f, 2.0f, Widget::Slider, {}, true},
+        {"Output", "Output", "Float", true, 3.0f, 0.0f, 4.0f, Widget::Enum,
+         {"Pulse", "TimeSinceHit", "Count", "Level", "AccumulatedLevel"}, true},
+        {"Bias", "Bias", "Float", true, 1.0f, 0.0f, 4.0f, Widget::Slider, {}, true},
+        {"Reset", "Reset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr},
       {"Const", "Const",
        {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
@@ -311,7 +326,14 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
   const Node* n = g.node(nodeId);
   if (!n) return 0.0f;
   const NodeSpec* s = findSpec(n->type);
-  if (!s || !s->evaluate) return 0.0f;
+  if (!s) return 0.0f;
+  // Stateful nodes (AudioReaction) carry no pure evaluate; their output pins read the value
+  // main cooked into outCache this frame. outIdx = the output port index (inverse of pinId).
+  if (s->evaluate == nullptr && !n->type.empty() && n->type == "AudioReaction") {
+    const int oi = (outPin - 1) - nodeId * 100;
+    return (oi >= 0 && oi < 3) ? n->outCache[oi] : 0.0f;
+  }
+  if (!s->evaluate) return 0.0f;
   // Gather Float input values in port order (only Float inputs contribute to in[]).
   float in[8];
   int ni = 0;
@@ -326,7 +348,10 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
       in[ni++] = (it != n->params.end()) ? it->second : p.def;  // stored constant or spec default
     }
   }
-  return s->evaluate(in, ni, ctx);
+  // Which output port of this node is being pulled (inverse of pinId): lets multi-output
+  // nodes (AudioReaction level vs hit) return the right value; single-output nodes ignore it.
+  const int outIdx = (outPin - 1) - nodeId * 100;
+  return s->evaluate(outIdx, in, ni, ctx);
 }
 
 // Seam-facing API. Takes `time` (not EvaluationContext&) so callers in translation
@@ -418,23 +443,25 @@ int runValueCookSelfTest(bool injectBug) {
   float sineOut = evalFloat(g, pinId(sn, portIdx("Sine", "out")), ctx, 0);
   ok = ok && (std::fabs(sineOut - std::sin(2.0f)) < 1e-5f);
 
-  // Test 3: AudioReaction -> reads ctx.audioLevel (the "animated" live-audio source,
-  // symmetric with Time reading ctx.time).
-  ctx.audioLevel = 0.42f;
+  // Test 3: AudioReaction is stateful (cooked in main into Node::outCache) — its 3 output
+  // pins (Level/WasHit/HitCount) read that cache. Prove evalFloat returns it by output port.
   int ar = add("AudioReaction");
-  float audioOut = evalFloat(g, pinId(ar, portIdx("AudioReaction", "level")), ctx, 0);
-  ok = ok && (std::fabs(audioOut - 0.42f) < 1e-5f);
+  if (Node* arn = g.node(ar)) { arn->outCache[0] = 0.42f; arn->outCache[1] = 1.0f; arn->outCache[2] = 7.0f; }
+  float levelOut = evalFloat(g, pinId(ar, portIdx("AudioReaction", "Level")), ctx, 0);
+  float wasHitOut = evalFloat(g, pinId(ar, portIdx("AudioReaction", "WasHit")), ctx, 0);
+  float hitCountOut = evalFloat(g, pinId(ar, portIdx("AudioReaction", "HitCount")), ctx, 0);
+  ok = ok && (std::fabs(levelOut - 0.42f) < 1e-5f) && (wasHitOut == 1.0f) && (hitCountOut == 7.0f);
 
   if (injectBug) ok = !ok;
-  printf("[selftest-valuecook] mul=%.3f sine=%.3f audio=%.3f -> %s\n", mulOut, sineOut, audioOut,
-         ok ? "PASS" : "FAIL");
+  printf("[selftest-valuecook] mul=%.3f sine=%.3f level=%.3f wasHit=%.0f count=%.0f -> %s\n",
+         mulOut, sineOut, levelOut, wasHitOut, hitCountOut, ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
 
 int runAudioNodeSelfTest(bool injectBug) {
-  // AudioReaction.level -> ParticleSystem.Speed, driven by ctx.audioLevel. Proves the
-  // wired path resolves (does NOT hang) and documents the gotcha: a raw 0..1 level wired
-  // straight to Speed makes Speed 0 when silent -> particles freeze (looks "stuck").
+  // AudioReaction.Level -> ParticleSystem.Speed, driven by the node's cooked outCache.
+  // Proves the wired path resolves (does NOT hang) and documents the gotcha: a raw 0..1
+  // Level wired straight to Speed makes Speed 0 when silent -> particles freeze ("stuck").
   Graph g;
   Node ps; ps.id = g.nextId++; ps.type = "ParticleSystem"; g.nodes.push_back(ps);
   Node ar; ar.id = g.nextId++; ar.type = "AudioReaction"; g.nodes.push_back(ar);
@@ -445,13 +472,14 @@ int runAudioNodeSelfTest(bool injectBug) {
       if (s->ports[i].id == p) return (int)i;
     return -1;
   };
-  g.connections.push_back({g.nextId++, pinId(arId, idx("AudioReaction", "level")),
+  g.connections.push_back({g.nextId++, pinId(arId, idx("AudioReaction", "Level")),
                                        pinId(psId, idx("ParticleSystem", "Speed"))});
   EvaluationContext ctx{};
   bool ok = true;
-  ctx.audioLevel = 0.0f; ok = ok && (evalParam(g, "ParticleSystem", "Speed", ctx, 1.0f) == 0.0f);
-  ctx.audioLevel = 0.5f; ok = ok && (evalParam(g, "ParticleSystem", "Speed", ctx, 1.0f) == 0.5f);
-  ctx.audioLevel = 1.0f; ok = ok && (evalParam(g, "ParticleSystem", "Speed", ctx, 1.0f) == 1.0f);
+  auto setLevel = [&](float v) { if (Node* n = g.node(arId)) n->outCache[0] = v; };  // main's cook, simulated
+  setLevel(0.0f); ok = ok && (evalParam(g, "ParticleSystem", "Speed", ctx, 1.0f) == 0.0f);
+  setLevel(0.5f); ok = ok && (evalParam(g, "ParticleSystem", "Speed", ctx, 1.0f) == 0.5f);
+  setLevel(1.0f); ok = ok && (evalParam(g, "ParticleSystem", "Speed", ctx, 1.0f) == 1.0f);
   if (injectBug) ok = !ok;
   printf("[selftest-audionode] AudioReaction->Speed resolves (silent=0 -> freeze) /0.5/1 -> %s\n",
          ok ? "PASS" : "FAIL");

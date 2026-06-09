@@ -11,6 +11,8 @@
 #pragma once
 #include <string>
 
+#include "runtime/spectrum_analyzer.h"  // SpectrumSnapshot (per-band FFT analysis, TiXL parity)
+
 namespace sw {
 
 class AudioCapture {
@@ -31,6 +33,7 @@ class AudioCapture {
   unsigned int currentDeviceId() const;// CoreAudio id the engine is bound to (0 = default)
   float envelope() const;      // latest attack envelope (0..~1), thread-safe
   float lastRms() const;       // latest block RMS (smoke diagnostic)
+  SpectrumSnapshot spectrumSnapshot() const;  // latest per-band FFT analysis (lock-free copy)
   unsigned long long blocksProcessed() const;  // tap-callback count (smoke diagnostic)
 
  private:
