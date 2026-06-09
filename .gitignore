@@ -27,3 +27,8 @@ venv/
 .venv/
 node_modules/
 
+# Git worktrees for isolated parallel feature branches (UI branch etc.). The
+# vendored deps (app/third_party) + donor trees (external/) are gitignored, so
+# each worktree symlinks them back to the main checkout after creation.
+/.worktrees/
+
