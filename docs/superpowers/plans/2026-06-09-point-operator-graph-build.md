@@ -29,7 +29,7 @@
 
 **⚠ 延後（resume backlog，誠實標）：**
 1. **A1.3 TransformPoints** → A.2 首批（覆寫 pre-pivot 孤兒 `shaders/transform_points.metal`，照 A1.1 RadialPoints 模式）。
-2. **★ vector 型參數（Vec2/3/4）= 契約 sub-step**：忠實 TiXL 節點要 Axis/Center/Color/GainAndBias 等向量參數，但 `NodeSpec` 只有 `"Float"`。現在 RadialPoints 等把向量參數**烤死預設**(Axis=+Z/Center=0/Color=white)。要擴 `graph.h NodeSpec`+`evalParam`+Inspector+存檔成向量型 → 做一次、所有節點受益。**這是 fan-out 全忠實前的承重 sub-step（Opus 自己做）。**
+2. ~~**★ vector 型參數（Vec2/3/4）= 契約 sub-step**~~ **✓ DONE（`a75428e`，2026-06-09）**：向量參數 = N 個連續 Float port（`<base>.x/.y/.z/.w`）+ Inspector 一個 `DragScalarN` 排。存檔/evalParam/值脊椎**全不動**——向量 = N 個 scalar 戴一個 widget。新增：`graph.h Widget::Vec` + `PortSpec.vecArity` + `readVecN(node,base,fallback,n,out)`（**per-node 不是 first-of-type**——生成器會多 instance，first-of-type 會餵第 2 顆第 1 顆的向量＝靜默錯位）。RadialPoints 加 `Center(Vec3)` 端到端證明：NodeSpec Vec ports → readVecN → `RadialParams.CenterXYZ`(all-scalar 48B) → `radial_points.metal`。`--selftest-radialcenter` 綠 / -bug 紅。**Axis/Color/quat orientation 仍烤死**（同模式可補）。**law-debt：`editor_ui.cpp` 422>400**，拆(toolbar/canvas/inspector)是 UI lane 的事（`.worktrees/ui-node-skin` 持有該面），從 runtime lane 拆會撞。
 3. **quat 朝向**（RadialPoints `OrientationMode` 2 模式）：要 vector 參數 + `shaders/shared/quat.metal.h`(已有 qFromAngleAxis/qMul/qLookAt)。現在 identity。
 4. **PSO 快取（live perf，非正確）**：`cookRadialPoints`/`cookDrawPoints` 每幀建 pipeline（sim op 已在 state 快取）。量大前改 PointGraph-owned 快取。
 5. **清 pre-pivot 孤兒**：`runtime/radial_points.cpp/.h`、`transform_points.cpp/.h`、`shaders/transform_points.metal`（舊 32B Particle 世界、未 build）。
