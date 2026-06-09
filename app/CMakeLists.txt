@@ -162,6 +162,16 @@ add_custom_command(TARGET simple_world POST_BUILD
           $<TARGET_FILE:simple_world>
   COMMENT "Re-sign to bind embedded Info.plist (TCC microphone)")
 
+# Architecture tripwire (ARCHITECTURE.md 鐵律 2): fail the build if any zone crosses a
+# forbidden dependency boundary (leaf->leaf, leaf->up, ui->platform, app->ui). A rule nobody
+# checks gets violated — this catches drift at compile time, not in a late human review.
+# Runs before every simple_world build; standalone: cmake --build build --target check-arch.
+add_custom_target(check-arch
+  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check_arch.sh ${CMAKE_CURRENT_SOURCE_DIR}/src
+  COMMENT "Checking zone dependency direction (ARCHITECTURE.md)"
+  VERBATIM)
+add_dependencies(simple_world check-arch)
+
 if(SW_SANITIZE)
   target_compile_options(simple_world PRIVATE
     -fsanitize=address,undefined -fno-omit-frame-pointer)
