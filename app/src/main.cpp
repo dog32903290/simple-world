@@ -21,6 +21,7 @@
 #include "imgui_node_editor.h"
 
 #include "app/audio_settings.h"
+#include "app/audio_monitor.h"
 #include "app/command.h"
 #include "app/document.h"
 #include "app/menu.h"
@@ -205,6 +206,10 @@ int main(int argc, char* argv[]) {
       return sw::runAudioReactionSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-audioreaction-bug") == 0)
       return sw::runAudioReactionSelfTest(/*injectBug=*/true);
+    if (std::strcmp(argv[i], "--selftest-audiomonitor") == 0)
+      return sw::audio_monitor::runAudioMonitorSelfTest(/*injectBug=*/false);
+    if (std::strcmp(argv[i], "--selftest-audiomonitor-bug") == 0)
+      return sw::audio_monitor::runAudioMonitorSelfTest(/*injectBug=*/true);
     if (std::strcmp(argv[i], "--selftest-flow") == 0)
       return sw::runParticleFlowSelfTest(/*injectBug=*/false);
     if (std::strcmp(argv[i], "--selftest-flow-bug") == 0)
@@ -382,6 +387,9 @@ void Renderer::draw(MTK::View* pView) {
     // cooks from that snapshot into its outCache below (Level/WasHit/HitCount).
     static bool s_audioPrefsLoaded = false;
     if (!s_audioPrefsLoaded) {
+      // Register the DSP sink before the first start() (the audio thread reads it once
+      // streaming begins → set-before-start is race-free). Keeps capture a runtime-free leaf.
+      g_audioCapture.setBlockCallback(&sw::audio_monitor::onBlock, nullptr);
       sw::audio::loadPrefs();
       s_audioPrefsLoaded = true;
     }
@@ -393,9 +401,7 @@ void Renderer::draw(MTK::View* pView) {
     ctx.frameIndex = g_frameIndex;
     ctx.time = g_time;
     ctx.deltaTime = dt;
-    sw::audio::publishMonitor(g_audioCapture.lastRms(), g_audioCapture.envelope());  // node input meter
-    const sw::SpectrumSnapshot spec = g_audioCapture.spectrumSnapshot();
-    sw::audio::publishSpectrum(spec);  // 32-band spectrum on the AudioReaction node face
+    const sw::SpectrumSnapshot spec = sw::audio_monitor::spectrum();  // DSP fed by the capture callback
     // Cook every AudioReaction node (TiXL parity): gather its params, run the stateful
     // algorithm on the live spectrum, write its 3 outputs into outCache for evalFloat.
     {

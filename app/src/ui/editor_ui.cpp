@@ -10,6 +10,7 @@
 #include "imgui.h"
 
 #include "app/audio_settings.h"
+#include "app/audio_monitor.h"
 #include "app/command.h"
 #include "app/document.h"
 #include "app/graph_commands.h"
@@ -151,7 +152,7 @@ void drawNodeCanvas() {
     if (node.type == "AudioReaction") {
       // TiXL-parity spectrum on the node face: 32 log-octave frequency bands (55Hz–15kHz),
       // live from the FFT analyzer. 柏為 plays -> the bands dance.
-      const sw::SpectrumSnapshot& sp = sw::audio::spectrum();
+      const sw::SpectrumSnapshot sp = sw::audio_monitor::spectrum();
       ImGui::PlotHistogram("##spectrum", sp.bands.data(), sw::kBandCount, 0, "spectrum (32 bands)",
                            0.0f, 1.0f, ImVec2(190.0f, 60.0f));
       // The node's computed Level output (after InputBand / window / Output mode + Amplitude),

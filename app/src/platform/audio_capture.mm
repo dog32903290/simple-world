@@ -1,14 +1,13 @@
 #include "platform/audio_capture.h"
 
 #include "platform/audio_devices.h"  // listInputDevices() for the smoke device resolve
-#include "runtime/attack_detector.h"
-#include "runtime/audio_analyzer.h"
 
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>  // AudioUnitSetProperty, kAudioOutputUnitProperty_CurrentDevice
 #include <CoreAudio/CoreAudio.h>        // AudioObjectID
 
 #include <atomic>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -18,36 +17,31 @@
 namespace sw {
 
 struct AudioCapture::Impl {
-  AudioUnit      au = nullptr;          // AUHAL input unit (we do NOT use AVAudioEngine — see startEngine)
-  AudioAnalyzer  analyzer;
-  AttackDetector attack;
-  std::atomic<float>              envelope{0.0f};
-  std::atomic<float>              rms{0.0f};
+  AudioUnit      au = nullptr;          // AUHAL input unit (raw Core Audio; see startEngine)
   std::atomic<unsigned long long> blocks{0};
   std::atomic<bool>               running{false};
   unsigned int       currentDeviceId = 0;  // CoreAudio id in use (0 = system default)
   double             sampleRate = 48000.0;
-  unsigned long long sampleClock = 0;  // audio-thread only
-  // Capture scratch (audio thread): non-interleaved float32, one buffer per channel sized
-  // to maxFrames; abl points its mBuffers at chBuf[i] each render. Allocated in startEngine.
+  // Capture scratch (audio thread): non-interleaved float32, one buffer per channel sized to
+  // maxFrames; abl points its mBuffers at chBuf[i] each render. Allocated in startEngine.
   int                channels = 0;
   UInt32             maxFrames = 4096;
   std::vector<std::vector<float>> chBuf;
-  std::vector<float*>             chPtr;       // stable pointers into chBuf for processBlock
   std::vector<uint8_t>            ablStorage;  // backs the variable-length AudioBufferList
   AudioBufferList*                abl = nullptr;
-  SpectrumAnalyzer                spectrum;     // per-band FFT analysis (TiXL parity), fed below
-  std::vector<float>              monoScratch;  // audio thread: channel mono-mix for the FFT
-  // AUHAL input callback — a static member so it can touch these (private) Impl fields while
-  // matching the C AURenderCallback signature; the header stays Core Audio-free for main.
+  std::vector<float>              monoScratch; // audio thread: channel mono-mix handed to cb
+  BlockCallback cb = nullptr;                  // app-registered DSP sink (audio thread)
+  void*         cbUser = nullptr;
+  // AUHAL input callback — a static member matching the C AURenderCallback signature; the
+  // header stays Core Audio-free for main.
   static OSStatus inputProc(void* inRefCon, AudioUnitRenderActionFlags* ioActionFlags,
                             const AudioTimeStamp* inTimeStamp, UInt32 inBusNumber,
                             UInt32 inNumberFrames, AudioBufferList* ioData);
 };
 
-// AUHAL input callback (audio thread). Pulls the just-captured block via AudioUnitRender
-// into impl's per-channel buffers, then drives the pure-compute analyzer + attack detector
-// and publishes the results via atomics — same contract the old AVAudioEngine tap had.
+// AUHAL input callback (audio thread). Pulls the just-captured block via AudioUnitRender into
+// impl's per-channel buffers, mono-mixes it, and hands the mono block to the registered
+// callback. No DSP here — the analysis lives above platform (app/audio_monitor).
 OSStatus AudioCapture::Impl::inputProc(void* inRefCon, AudioUnitRenderActionFlags* ioActionFlags,
                                        const AudioTimeStamp* inTimeStamp, UInt32 inBusNumber,
                                        UInt32 inNumberFrames, AudioBufferList* /*ioData (null for input)*/) {
@@ -62,27 +56,16 @@ OSStatus AudioCapture::Impl::inputProc(void* inRefCon, AudioUnitRenderActionFlag
   const OSStatus r =
       AudioUnitRender(impl->au, ioActionFlags, inTimeStamp, inBusNumber, frames, impl->abl);
   if (r != noErr) return r;
-  impl->analyzer.processBlock(impl->chPtr.data(), impl->channels, (int)frames, 1.0f);
-  // Feed the per-band spectrum analyzer (TiXL AudioReaction parity) with a mono mix.
-  if ((int)impl->monoScratch.size() >= (int)frames && impl->channels > 0) {
+  // Mono-mix the channels and hand the block to the registered DSP callback (app side).
+  if (impl->cb != nullptr && (int)impl->monoScratch.size() >= (int)frames && impl->channels > 0) {
     const float inv = 1.0f / (float)impl->channels;
     for (UInt32 i = 0; i < frames; ++i) {
       float acc = 0.0f;
       for (int c = 0; c < impl->channels; ++c) acc += impl->chBuf[c][i];
       impl->monoScratch[i] = acc * inv;
     }
-    impl->spectrum.processBlock(impl->monoScratch.data(), (int)frames, (float)impl->sampleRate);
+    impl->cb(impl->cbUser, impl->monoScratch.data(), (int)frames, (float)impl->sampleRate);
   }
-  const AudioSnapshot snap = impl->analyzer.snapshot();
-  impl->sampleClock += frames;
-  const double timeMs = (double)impl->sampleClock / impl->sampleRate * 1000.0;
-  AttackFrameInput in;
-  in.hasRms = true;  in.rms = snap.rms;
-  in.hasPeak = true; in.peak = snap.peak;
-  in.timeMs = timeMs;
-  const AttackFrameOutput out = impl->attack.processFrame(in);
-  impl->envelope.store((float)out.envelope, std::memory_order_relaxed);
-  impl->rms.store(snap.rms, std::memory_order_relaxed);
   impl->blocks.fetch_add(1, std::memory_order_relaxed);
   return noErr;
 }
@@ -165,8 +148,6 @@ bool AudioCapture::startEngine(AudioCapture::Impl* impl, unsigned int deviceId) 
   impl->maxFrames = maxF;
   impl->chBuf.assign(ch, std::vector<float>(maxF, 0.0f));
   impl->monoScratch.assign(maxF, 0.0f);
-  impl->chPtr.resize(ch);
-  for (int c = 0; c < ch; ++c) impl->chPtr[c] = impl->chBuf[c].data();
   impl->ablStorage.assign(offsetof(AudioBufferList, mBuffers) + (size_t)ch * sizeof(AudioBuffer), 0);
   impl->abl = reinterpret_cast<AudioBufferList*>(impl->ablStorage.data());
   impl->abl->mNumberBuffers = (UInt32)ch;
@@ -179,7 +160,6 @@ bool AudioCapture::startEngine(AudioCapture::Impl* impl, unsigned int deviceId) 
     AudioComponentInstanceDispose(impl->au); impl->au = nullptr; return false;
   }
 
-  impl->sampleClock = 0;
   st = AudioUnitInitialize(impl->au);
   if (st != noErr) {
     printf("[audio-capture] AU init failed: %d\n", (int)st);
@@ -240,11 +220,12 @@ void AudioCapture::stop() {
   impl_->running.store(false, std::memory_order_relaxed);
 }
 
+void AudioCapture::setBlockCallback(BlockCallback cb, void* user) {
+  impl_->cb = cb;  // set before start(): the audio thread only reads it once streaming begins
+  impl_->cbUser = user;
+}
 bool  AudioCapture::running() const { return impl_->running.load(std::memory_order_relaxed); }
 unsigned int AudioCapture::currentDeviceId() const { return impl_->currentDeviceId; }
-float AudioCapture::envelope() const { return impl_->envelope.load(std::memory_order_relaxed); }
-float AudioCapture::lastRms() const { return impl_->rms.load(std::memory_order_relaxed); }
-SpectrumSnapshot AudioCapture::spectrumSnapshot() const { return impl_->spectrum.snapshot(); }
 unsigned long long AudioCapture::blocksProcessed() const {
   return impl_->blocks.load(std::memory_order_relaxed);
 }
@@ -273,6 +254,15 @@ int runAudioCaptureSmoke(double seconds, const std::string& deviceMatch) {
       return 1;
     }
   }
+  // Inline block RMS (no runtime DSP) so the smoke stays a pure platform diagnostic. A
+  // function-local static lets the captureless callback (a C fn-ptr) publish to the loop.
+  static std::atomic<float> s_smokeRms{0.0f};
+  s_smokeRms.store(0.0f, std::memory_order_relaxed);
+  cap.setBlockCallback([](void*, const float* mono, int n, float) {
+    double sum = 0.0;
+    for (int i = 0; i < n; ++i) sum += (double)mono[i] * mono[i];
+    s_smokeRms.store(n > 0 ? (float)std::sqrt(sum / n) : 0.0f, std::memory_order_relaxed);
+  }, nullptr);
   printf("[audio-capture-smoke] device: %s (id=%u)\n", devName.c_str(), devId);
   if (!cap.start(devId)) {
     printf("[audio-capture-smoke] start() returned false (denied / no device)\n");
@@ -284,8 +274,8 @@ int runAudioCaptureSmoke(double seconds, const std::string& deviceMatch) {
     while ([deadline timeIntervalSinceNow] > 0.0) {
       [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
                                beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
-      printf("  blocks=%llu rms=%.4f env=%.4f running=%d\n", cap.blocksProcessed(),
-             cap.lastRms(), cap.envelope(), cap.running() ? 1 : 0);
+      printf("  blocks=%llu rms=%.4f running=%d\n", cap.blocksProcessed(),
+             s_smokeRms.load(std::memory_order_relaxed), cap.running() ? 1 : 0);
     }
   }
   cap.stop();

@@ -6,8 +6,6 @@
 #include <string>
 #include <vector>
 
-#include "runtime/spectrum_analyzer.h"  // SpectrumSnapshot — published for the node spectrum
-
 namespace sw::audio {
 
 // One selectable input (app's view of platform/audio_devices::AudioDevice, so the UI
@@ -36,16 +34,7 @@ std::string selectedName();  // human label of the current pick (for the menu bu
 void loadPrefs();
 bool takePendingChange(unsigned int& outDeviceId);
 
-// Live input level for the toolbar meter: main publishes the captured rms (any sound)
-// and attack envelope (transients/hits) each frame; the UI reads them. Single-threaded
-// (main writes, UI reads, both on the render thread).
-void  publishMonitor(float rms, float envelope);
-float monitorRms();
-float monitorEnvelope();
-
-// Per-band spectrum for the AudioReaction node face (TiXL parity). main publishes the
-// capture's latest snapshot each frame; the UI reads it. Single-threaded (render thread).
-void                    publishSpectrum(const SpectrumSnapshot& s);
-const SpectrumSnapshot& spectrum();
+// (Live analysis — rms / envelope / spectrum — moved to app/audio_monitor, which owns the DSP
+// and is fed by the capture callback. This file is now purely device selection + persistence.)
 
 }  // namespace sw::audio

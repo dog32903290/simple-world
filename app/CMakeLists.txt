@@ -73,6 +73,7 @@ add_executable(simple_world
   src/main.cpp
   src/app/document.cpp
   src/app/audio_settings.cpp
+  src/app/audio_monitor.cpp
   src/app/command.cpp
   src/app/graph_commands.cpp
   src/app/menu.cpp
