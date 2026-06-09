@@ -40,6 +40,17 @@ bool pinIsInput(int pin) {
   return idx >= 0 && idx < (int)s->ports.size() && s->ports[idx].isInput;
 }
 
+// 刀A: a type-colored slot marker (TiXL's left/right port bars). Draws a small filled
+// square in the node's draw list and reserves its box so SameLine+label sit beside it.
+void drawSlot(ImU32 col) {
+  const float s = 9.0f;
+  ImVec2 p = ImGui::GetCursorScreenPos();
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s), col, 2.0f);
+  dl->AddRect(p, ImVec2(p.x + s, p.y + s), IM_COL32(0, 0, 0, 130), 2.0f);
+  ImGui::Dummy(ImVec2(s, s));
+}
+
 // 拖動暫存：node id -> 拖動開始時的座標。空 == 沒在拖。
 std::map<int, ImVec2> g_dragStart;
 
@@ -144,20 +155,35 @@ void drawNodeCanvas() {
     ImGui::TextUnformatted(spec ? spec->title.c_str() : node.type.c_str());
     if (spec) ImGui::PopStyleColor();
     if (spec) {
-      for (size_t i = 0; i < spec->ports.size(); ++i) {
-        const sw::PortSpec& p = spec->ports[i];
-        if (p.pinless) continue;  // param-only port: edited in the Inspector, no canvas pin
-        ed::BeginPin(sw::pinId(node.id, (int)i),
-                     p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
-        ImGui::TextUnformatted(p.isInput ? ("-> " + p.name).c_str() : (p.name + " ->").c_str());
-        // eye: record the pin label's SCREEN rect so hand can drag pin->pin.
-        // GetItemRect inside Begin/EndNode is canvas-local; CanvasToScreen -> screen.
+      // 刀A · TiXL port columns: inputs (type-colored slot + label) on the LEFT,
+      // outputs (label + slot) on the RIGHT. Each pin wrapped in a group so eye records
+      // the whole pin rect (marker + label) for hand pin-dragging. (Link pivot stays at
+      // content centre for now; edge-pinned pivots are a later refinement.)
+      auto pinRow = [&](int i, const sw::PortSpec& p) {
+        ed::BeginPin(sw::pinId(node.id, i), p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
+        ImGui::BeginGroup();
+        if (p.isInput) { drawSlot(sw::ui::typeColor(p.dataType)); ImGui::SameLine();
+                         ImGui::TextUnformatted(p.name.c_str()); }
+        else           { ImGui::TextUnformatted(p.name.c_str()); ImGui::SameLine();
+                         drawSlot(sw::ui::typeColor(p.dataType)); }
+        ImGui::EndGroup();
         ImVec2 pa = ed::CanvasToScreen(ImGui::GetItemRectMin());
         ImVec2 pb = ed::CanvasToScreen(ImGui::GetItemRectMax());
-        sw::eye::recordRect(("pin:" + std::to_string(sw::pinId(node.id, (int)i))).c_str(),
+        sw::eye::recordRect(("pin:" + std::to_string(sw::pinId(node.id, i))).c_str(),
                             pa.x, pa.y, pb.x, pb.y);
         ed::EndPin();
-      }
+      };
+      int nInputs = 0;
+      for (const sw::PortSpec& p : spec->ports) if (!p.pinless && p.isInput) ++nInputs;
+      ImGui::BeginGroup();  // left = inputs
+      for (size_t i = 0; i < spec->ports.size(); ++i)
+        if (!spec->ports[i].pinless && spec->ports[i].isInput) pinRow((int)i, spec->ports[i]);
+      ImGui::EndGroup();
+      if (nInputs > 0) ImGui::SameLine(0.0f, 28.0f);
+      ImGui::BeginGroup();  // right = outputs
+      for (size_t i = 0; i < spec->ports.size(); ++i)
+        if (!spec->ports[i].pinless && !spec->ports[i].isInput) pinRow((int)i, spec->ports[i]);
+      ImGui::EndGroup();
     }
     sw::ui::drawNodeFace(node);  // 資料驅動 custom faces (node_faces.cpp kFaces table)
     // previewPolicy formalized (view ⊥ graph): the live preview is NO LONGER welded to
