@@ -25,6 +25,7 @@
 #include "runtime/graph.h"
 #include "runtime/particle_system.h"
 #include "runtime/point_graph.h"
+#include "runtime/point_ops.h"
 #include "runtime/spectrum_analyzer.h"
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
@@ -104,6 +105,7 @@ const SelfTest kTable[] = {
     {"flow", runParticleFlowSelfTest},
     {"draw", runDrawPointsSelfTest},
     {"pointgraph", runPointGraphSelfTest},
+    {"radialop", runRadialOpSelfTest},
     {"eye", eye::runSelfTest},
     {"hand", hand::runSelfTest},
     {"audioingest", runAudioIngestSelfTest},

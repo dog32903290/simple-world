@@ -58,10 +58,7 @@ void registerPointOp(const std::string& type, PointCookFn cook, PointStateNewFn 
 }
 void registerDrawOp(const std::string& type, PointDrawFn draw) { drawReg()[type] = draw; }
 
-// Real operators (RadialPoints/TransformPoints/ParticleSystem/DrawPoints/…) register
-// here in A.1+. A.0 ships the cook machinery only, so this is intentionally empty —
-// the live render loop still runs the existing ParticleSystem monolith (no regression).
-void registerBuiltinPointOps() {}
+// registerBuiltinPointOps() is defined in point_ops.cpp (the real operators).
 
 // ---------------------------------------------------------------------------
 

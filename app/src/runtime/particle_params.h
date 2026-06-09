@@ -104,6 +104,31 @@ enum EmitBinding {
   EMIT_Params = 1,  // constant EmitParams& (b0)
 };
 
+// RadialPoints (point-operator graph, lane A) — faithful port of TiXL
+// .../points/generate/RadialPoints.hlsl SHAPE math (spiral around an axis). Scalar params
+// only; TiXL's Vector inputs (Axis/Center/Color) + quaternion orientation are baked to
+// TiXL-equivalent defaults in radial_points.metal until vector params land in NodeSpec.
+// All-scalar layout (no packed_float3) so there are zero cbuffer alignment traps.
+struct RadialParams {
+#ifdef __METAL_VERSION__
+  uint Count;
+#else
+  uint32_t Count;
+#endif
+  float Radius;
+  float RadiusOffset;
+  float StartAngle;  // degrees
+  float Cycles;      // turns around the axis (TiXL "Cycles")
+  float ScaleBase;   // TiXL PointScaleRange.x
+  float ScaleByF;    // TiXL PointScaleRange.y (x normalized index)
+  float _pad;        // -> 32 bytes (16-byte multiple, like Sim/TurbParams)
+};
+
+enum RadialBinding {
+  RADIAL_Points = 0,  // device Point* (u0)
+  RADIAL_Params = 1,  // constant RadialParams& (b0)
+};
+
 enum DrawBinding {
   DRAW_Points = 0,      // device const Point* (vertex buffer)
   DRAW_ViewExtent = 1,  // constant float&
@@ -112,4 +137,5 @@ enum DrawBinding {
 #ifndef __METAL_VERSION__
 static_assert(sizeof(TurbParams) == 32, "TurbParams 32 bytes");
 static_assert(sizeof(EmitParams) == 16, "EmitParams 16 bytes");
+static_assert(sizeof(RadialParams) == 32, "RadialParams 32 bytes");
 #endif
