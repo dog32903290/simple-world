@@ -2,6 +2,7 @@
 // Zone: ui. Depends on app(document) + runtime + verify(thin hook). Never the reverse.
 #include "ui/editor_ui.h"
 #include "ui/node_faces.h"
+#include "ui/node_style.h"
 
 #include <algorithm>
 #include <map>
@@ -129,8 +130,19 @@ void drawNodeCanvas() {
   // Draw every node from graph data, via its NodeSpec (title + ports).
   for (const sw::Node& node : sw::doc::g_graph.nodes) {
     const sw::NodeSpec* spec = sw::findSpec(node.type);
+    // 刀A · TiXL-parity skin: tint this node's background/outline/title by its category
+    // color (first output's dataType, via ui/node_style). ed style is per-node; pop after
+    // EndNode. Rounding/border kept small + thin for TiXL's flat-rectangle legacy look.
+    if (spec) {
+      ed::PushStyleColor(ed::StyleColor_NodeBg, ImGui::ColorConvertU32ToFloat4(sw::ui::nodeBgColor(*spec)));
+      ed::PushStyleColor(ed::StyleColor_NodeBorder, ImGui::ColorConvertU32ToFloat4(sw::ui::nodeBorderColor(*spec)));
+    }
+    ed::PushStyleVar(ed::StyleVar_NodeRounding, 3.0f);
+    ed::PushStyleVar(ed::StyleVar_NodeBorderWidth, 1.0f);
     ed::BeginNode(node.id);
+    if (spec) ImGui::PushStyleColor(ImGuiCol_Text, sw::ui::nodeLabelColor(*spec));
     ImGui::TextUnformatted(spec ? spec->title.c_str() : node.type.c_str());
+    if (spec) ImGui::PopStyleColor();
     if (spec) {
       for (size_t i = 0; i < spec->ports.size(); ++i) {
         const sw::PortSpec& p = spec->ports[i];
@@ -153,6 +165,8 @@ void drawNodeCanvas() {
     // which shows ANY pinned node's output — not just the wired terminal. (TiXL
     // OutputWindow + ViewSelectionPinning; OUTPUT_PIN_VIEWER_CONTRACT §4-A.)
     ed::EndNode();
+    ed::PopStyleVar(2);
+    if (spec) ed::PopStyleColor(2);
     // eye: node body SCREEN rect via the node-editor's own position/size + transform.
     ImVec2 na = ed::CanvasToScreen(ed::GetNodePosition(node.id));
     ImVec2 nsz = ed::GetNodeSize(node.id);
