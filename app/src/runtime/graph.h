@@ -17,7 +17,11 @@ namespace sw {
 // --- Node type definitions (NodeSpec registry, faithful to TiXL ports/params) ---
 // How a Float input param is edited in the Inspector. Enum/Bool still store a float in
 // Node::params (the enum index / 0|1) — the widget only changes presentation + edit.
-enum class Widget { Slider, Enum, Bool };
+// Vec = the head of a vector param: a run of `vecArity` consecutive Float ports
+// (ids "<base>.x"/".y"/".z"/".w") drawn as ONE DragFloatN row. Each component is a plain
+// Float port (own constant, own evalParam path) so the buffer/save/value-spine model is
+// unchanged — a vector is just N scalars wearing one widget. See evalVecN.
+enum class Widget { Slider, Enum, Bool, Vec };
 struct PortSpec {
   std::string id, name, dataType;  // dataType: "Points" | "ParticleForce" | "Float"
   bool isInput;
@@ -25,6 +29,7 @@ struct PortSpec {
   Widget widget = Widget::Slider;              // Inspector affordance (Float input only)
   std::vector<std::string> labels;             // Widget::Enum option labels (index = value)
   bool pinless = false;                        // param-only: editable in Inspector, no canvas pin
+  int vecArity = 1;                            // Widget::Vec head: # of components (2/3/4); 1 = scalar
 };
 struct NodeSpec {
   std::string type, title;
@@ -119,6 +124,15 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
 // EvaluationContext now (it arrives via tixl_point.h -> eval_context.h, the S0 split).
 float evalParam(const Graph& g, const std::string& type, const std::string& paramId,
                 const EvaluationContext& ctx, float fallback, const SourceRegistry* reg = nullptr);
+// Read a vector param off a SPECIFIC node: its `n` components are Float ports stored as
+// params["<base>.x"/".y"/".z"/".w"]. Cook fns read the node they are cooking (c.nodeId),
+// NOT first-of-type — generators get instanced many times, so first-of-type would feed the
+// 2nd instance the 1st's vector (silent corruption). v1 reads the stored constant (vector
+// components are pinless = unwired); when component wiring lands this grows an evalParam
+// resolution path and every cook upgrades together. Writes `n` floats into out[]; fallback[]
+// is the per-component default. SSOT for "read a vector param" — cooks must not re-derive
+// the ".x"/".y" suffixing.
+void readVecN(const Node& node, const std::string& base, const float* fallback, int n, float* out);
 // Headless RED->GREEN proof for the value-cook engine. injectBug flips the result.
 int runValueCookSelfTest(bool injectBug);
 // L5 resolution proof: constant / connection / live-source(read via self) / override-

@@ -41,7 +41,12 @@ const std::vector<NodeSpec>& registry() {
        "RadialPoints",
        {{"points", "points", "Points", false},
         {"Count", "Count", "Float", true, 2048.0f, 16.0f, 8192.0f},
-        {"Radius", "Radius", "Float", true, 2.0f, 0.1f, 10.0f}},
+        {"Radius", "Radius", "Float", true, 2.0f, 0.1f, 10.0f},
+        // Center (TiXL Vector3 TranslationInput) — first vector param on the contract.
+        // Three Float components drawn as one DragFloat3; read via evalVecN("Center").
+        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}},
        nullptr},
       {"TurbulenceForce",
        "TurbulenceForce",
@@ -328,6 +333,14 @@ float evalParam(const Graph& g, const std::string& type, const std::string& para
     return (it != n->params.end()) ? it->second : p.def;  // stored constant
   }
   return fallback;
+}
+
+void readVecN(const Node& node, const std::string& base, const float* fallback, int n, float* out) {
+  static const char* kSuffix[4] = {".x", ".y", ".z", ".w"};
+  for (int i = 0; i < n && i < 4; ++i) {
+    auto it = node.params.find(base + kSuffix[i]);
+    out[i] = (it != node.params.end()) ? it->second : fallback[i];
+  }
 }
 
 }  // namespace sw

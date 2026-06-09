@@ -90,6 +90,64 @@ int runRadialOpSelfTest(bool injectBug) {
   return pass ? 0 : 1;
 }
 
+// Vector-param contract golden: cook RadialPoints with Center=(5,0,0), assert the WHOLE ring
+// translated — mean x ~= 5 and each point still sits radius R from the new center. Proves the
+// Center vector param (NodeSpec Vec ports -> readVecN -> RadialParams.CenterXYZ -> shader)
+// flows end to end. injectBug: don't set Center (stays 0) so the mean-x==5 assertion FAILs —
+// teeth proving the test checks translation, not something trivially true.
+int runRadialCenterSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  const uint32_t N = 64;
+  const float R = 2.0f;
+  const float CX = 5.0f;
+
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  MTL::Library* lib = loadLib(dev);
+  if (!lib) {
+    printf("[selftest-radialcenter] FAIL: no metallib\n");
+    q->release(); dev->release(); pool->release();
+    return 1;
+  }
+
+  registerBuiltinPointOps();
+  std::vector<SwPoint> captured;
+  g_cap = &captured;
+  registerDrawOp("DrawPoints", captureDraw);
+
+  PointGraph pg(dev, lib, q, 64, 64);
+
+  Graph g;
+  Node gen; gen.id = 1; gen.type = "RadialPoints";
+  gen.params["Count"] = (float)N;
+  gen.params["Radius"] = R;
+  gen.params["Cycles"] = 1.0f;
+  if (!injectBug) gen.params["Center.x"] = CX;  // bug: leave Center at 0 -> no translation
+  g.nodes.push_back(gen);
+  Node drw; drw.id = 2; drw.type = "DrawPoints"; g.nodes.push_back(drw);
+  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});
+
+  EvaluationContext ctx{};
+  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+  pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));
+
+  float meanX = 0.0f;
+  bool ringOK = captured.size() == N;
+  for (const SwPoint& p : captured) {
+    meanX += p.Position.x;
+    float dx = p.Position.x - CX, dy = p.Position.y;  // distance from the TRANSLATED center
+    ringOK = ringOK && std::fabs(std::sqrt(dx * dx + dy * dy) - R) < 0.05f;
+  }
+  if (!captured.empty()) meanX /= (float)captured.size();
+  bool pass = (captured.size() == N) && std::fabs(meanX - CX) < 0.1f && ringOK;
+  printf("[selftest-radialcenter] n=%zu meanX=%.3f(need~%.1f) ringAtCenter=%d -> %s\n",
+         captured.size(), meanX, CX, ringOK ? 1 : 0, pass ? "PASS" : "FAIL");
+
+  g_cap = nullptr;
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
 // cook RadialPoints -> DrawPoints (REAL renderer), readback target, assert lit ring + black
 // center. injectBug = 0 points -> nothing drawn -> all black -> FAIL.
 int runDrawOpSelfTest(bool injectBug) {

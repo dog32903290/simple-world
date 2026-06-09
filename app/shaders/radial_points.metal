@@ -33,7 +33,7 @@ kernel void radial_points(device SwPoint*        pts [[buffer(RADIAL_Points)]],
   float f = P.Count > 1u ? float(i) / float(P.Count) : 0.0f;  // GainAndBias default = identity
 
   const float3 axis = float3(0.0f, 0.0f, 1.0f);  // TiXL Axis default (+Z); baked until vec params
-  const float3 center = float3(0.0f);
+  const float3 center = float3(P.CenterX, P.CenterY, P.CenterZ);  // TiXL Center (vector param, live)
   float3 up = axis.y > 0.7f ? float3(0.0f, 0.0f, 1.0f) : float3(0.0f, 1.0f, 0.0f);
 
   float angle = P.StartAngle * (M_PI_F / 180.0f) + P.Cycles * 2.0f * M_PI_F * f;

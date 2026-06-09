@@ -121,7 +121,11 @@ struct RadialParams {
   float Cycles;      // turns around the axis (TiXL "Cycles")
   float ScaleBase;   // TiXL PointScaleRange.x
   float ScaleByF;    // TiXL PointScaleRange.y (x normalized index)
-  float _pad;        // -> 32 bytes (16-byte multiple, like Sim/TurbParams)
+  float CenterX;     // TiXL Center (Vector3) — translation added to every point. All-scalar
+  float CenterY;     // (no packed_float3) so there are zero cbuffer alignment traps; the
+  float CenterZ;     // shader reassembles float3(CenterX,Y,Z). First vector param on the contract.
+  float _pad0;
+  float _pad1;       // -> 48 bytes (16-byte multiple, like Sim/TurbParams)
 };
 
 enum RadialBinding {
@@ -137,5 +141,5 @@ enum DrawBinding {
 #ifndef __METAL_VERSION__
 static_assert(sizeof(TurbParams) == 32, "TurbParams 32 bytes");
 static_assert(sizeof(EmitParams) == 16, "EmitParams 16 bytes");
-static_assert(sizeof(RadialParams) == 32, "RadialParams 32 bytes");
+static_assert(sizeof(RadialParams) == 48, "RadialParams 48 bytes");
 #endif

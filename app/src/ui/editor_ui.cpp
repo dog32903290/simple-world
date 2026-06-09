@@ -44,6 +44,9 @@ std::map<int, ImVec2> g_dragStart;
 
 // Inspector slider 拖動開始時的常數值（一次只有一個 slider 在拖）。放手時用它記 undo。
 float g_paramEditBefore = 0.0f;
+// Same, for a Vec param's components (DragScalarN edits up to 4 at once). One undo step per
+// drag: snapshot all components on activation, push a command per changed component on release.
+float g_vecEditBefore[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
 void addNode(const std::string& type) {
   sw::Node n;
@@ -349,6 +352,25 @@ void drawInspector() {
         if (!(p.isInput && p.dataType == "Float")) continue;
         any = true;
         int inPin = sw::pinId(sel->id, (int)i);
+        if (p.widget == sw::Widget::Vec && p.vecArity >= 2) {
+          // Vector param head: draw its `vecArity` components ("<base>.x/.y/.z/.w") as ONE
+          // DragScalarN row. Components are pinless (unwired) so no connection branch.
+          int N = p.vecArity > 4 ? 4 : p.vecArity;
+          float vals[4] = {0, 0, 0, 0};
+          for (int k = 0; k < N; ++k) vals[k] = sel->params[spec->ports[i + k].id];
+          ImGui::DragScalarN(p.name.c_str(), ImGuiDataType_Float, vals, N, 0.01f, &p.minV,
+                             &p.maxV, "%.2f");
+          if (ImGui::IsItemActivated())
+            for (int k = 0; k < N; ++k) g_vecEditBefore[k] = sel->params[spec->ports[i + k].id];
+          for (int k = 0; k < N; ++k) sel->params[spec->ports[i + k].id] = vals[k];  // live write
+          if (ImGui::IsItemDeactivatedAfterEdit())
+            for (int k = 0; k < N; ++k)
+              if (vals[k] != g_vecEditBefore[k])
+                sw::g_commands.push(std::make_unique<sw::SetInputValueCommand>(
+                    sw::doc::g_graph, sel->id, spec->ports[i + k].id, g_vecEditBefore[k], vals[k]));
+          i += N - 1;  // skip the consumed component ports (for-loop ++i moves past the group)
+          continue;
+        }
         if (const sw::Connection* c = sw::doc::g_graph.connectionToInput(inPin)) {
           // Driven by a connection — grey out, show source type.
           const sw::Node* src = sw::doc::g_graph.node(sw::pinNode(c->fromPin));

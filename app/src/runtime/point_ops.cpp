@@ -29,8 +29,9 @@ float paramOr(const Node* n, const char* id, float def) {
 
 // RadialPoints generator: dispatch the radial_points kernel into the node's output bag.
 // Reads the Float params it has today (Count via ctx.count; Radius/RadiusOffset/StartAngle/
-// Cycles from the node); TiXL's vector params (Axis/Center/Color) + orientation are baked
-// TiXL defaults in the kernel until vector params land in NodeSpec.
+// Cycles from the node) + Center via readVecN (first vector param on the contract). TiXL's
+// remaining vector params (Axis/Color) + quat orientation are still baked to TiXL defaults
+// in the kernel until they are added the same way.
 // NOTE: builds the PSO per cook — fine for the headless golden (one cook). The live loop
 // (A1.5) must cache PSOs; flagged there, not here.
 void cookRadialPoints(PointCookCtx& c) {
@@ -51,6 +52,9 @@ void cookRadialPoints(PointCookCtx& c) {
   P.Cycles = paramOr(n, "Cycles", 1.0f);
   P.ScaleBase = 1.0f;
   P.ScaleByF = 0.0f;
+  float center[3] = {0.0f, 0.0f, 0.0f};
+  if (n) readVecN(*n, "Center", center, 3, center);  // TiXL Center (Vector3), per-node
+  P.CenterX = center[0]; P.CenterY = center[1]; P.CenterZ = center[2];
 
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
