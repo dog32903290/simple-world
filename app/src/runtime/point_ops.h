@@ -45,12 +45,16 @@ int runCombineBuffersSelfTest(bool injectBug);
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a
 // fixed/custom size. The resolution PIN. Used by the cook driver (batch 3) + its golden.
-RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowSize);
+// (resolveRenderResolution is declared in point_graph.h, next to RenderResolution.)
 // Register the RenderTarget op into the texture stream (texReg). Wired into the live cook
-// in batch 2/3; until then only the golden calls it.
+// (cook() tex terminal) since batch 2; registerBuiltinPointOps registers it for production.
 void registerRenderTargetOp();
 // RenderTarget golden: a CPU point bag -> 1-item RenderCommand -> RenderTarget texture,
 // assert lit (non-black) + the resolution contract (HD1080->1920x1080, WindowFollow->win).
 // injectBug = 0 points -> all black -> FAIL.
 int runRenderTargetSelfTest(bool injectBug);
+// RenderTarget WIRED golden (batch 3): RadialPoints->DrawPoints(Command)->RenderTarget(Custom
+// 256x256) cooked through PointGraph as the terminal — proves tex-terminal selection, the
+// resolution pin sizing its own texture, and the Command wire. injectBug drops the wire -> FAIL.
+int runRenderTargetWiredSelfTest(bool injectBug);
 }  // namespace sw

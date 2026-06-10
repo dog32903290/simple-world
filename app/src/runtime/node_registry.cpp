@@ -231,7 +231,28 @@ const std::vector<NodeSpec>& registry() {
         {"Drag", "Drag", "Float", true, 0.02f, 0.0f, 0.2f},
         {"OrientTowardsVelocity", "OrientTowardsVelocity", "Float", true, 0.15f, 0.0f, 1.0f}},
        nullptr},
-      {"DrawPoints", "DrawPoints", {{"points", "points", "Points", true}}, nullptr},
+      // DrawPoints (TiXL Slot<Command> out): points bag in -> a render Command out. The Command
+      // output wires into a RenderTarget, which executes it into a Texture2D.
+      {"DrawPoints", "DrawPoints",
+       {{"points", "points", "Points", true},
+        {"out", "out", "Command", false}},
+       nullptr},
+      // RenderTarget (TiXL Lib.image.generate.basic.RenderTarget): executes a Command chain into a
+      // sized Texture2D — the RESOLUTION PIN. Command in, Texture2D out; Resolution enum picks the
+      // output size (WindowFollow tracks the viewport, fixed modes pin a standard size, Custom reads
+      // CustomW/H); ClearColor is the background. See docs/runtime/RENDER_TARGET_CONTRACT.md.
+      {"RenderTarget", "RenderTarget",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Texture2D", false},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"ClearColor.x", "ClearColor", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"ClearColor.y", "ClearColor.y", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ClearColor.z", "ClearColor.z", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ClearColor.w", "ClearColor.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
       // --- Value nodes (Task 2) ---
       {"Time", "Time", {{"out", "out", "Float", false}}, evalTime},
       // TiXL AudioReaction (full parity): 3 outputs + 10 params. STATEFUL — cooked in main

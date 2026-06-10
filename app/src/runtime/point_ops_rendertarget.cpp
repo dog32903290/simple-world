@@ -66,7 +66,11 @@ void cookRenderTarget(TexCookCtx& c) {
   auto* ca = pass->colorAttachments()->object(0);
   ca->setTexture(c.output);
   ca->setLoadAction(MTL::LoadActionClear);
-  ca->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 1.0));  // batch 3: ClearColor param
+  float cc[4] = {0.0f, 0.0f, 0.0f, 1.0f};  // ClearColor param (Vec4); default black, opaque.
+  if (c.graph) {
+    if (const Node* n = c.graph->node(c.nodeId)) readVecN(*n, "ClearColor", cc, 4, cc);
+  }
+  ca->setClearColor(MTL::ClearColor::Make(cc[0], cc[1], cc[2], cc[3]));
   ca->setStoreAction(MTL::StoreActionStore);
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(pass);
@@ -171,6 +175,62 @@ int runRenderTargetSelfTest(bool injectBug) {
          nonBlack, hd.w, hd.h, wf.w, wf.h, resOK ? 1 : 0, pass ? "PASS" : "FAIL");
 
   pts->release(); tex->release();
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
+// Batch 3 golden (the WIRED three-flow): build RadialPoints -> DrawPoints(Command) ->
+// RenderTarget(Custom 256x256) and cook it THROUGH PointGraph as the terminal. Proves: (1) the
+// tex node wins defaultDrawTarget, (2) cook sizes RenderTarget's own texture to the Resolution
+// pin (256x256, not the 64x64 window), (3) the DrawPoints->RenderTarget Command wire threads the
+// bag into a lit image. injectBug omits the Command connection -> empty chain -> black -> FAIL.
+int runRenderTargetWiredSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  const uint32_t N = 128, RW = 256, RH = 256;
+
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  NS::Error* err = nullptr;
+  MTL::Library* lib =
+      dev->newLibrary(NS::String::string(SW_SHADER_METALLIB, NS::UTF8StringEncoding), &err);
+  if (!lib) {
+    printf("[selftest-rendertargetwired] FAIL: no metallib\n");
+    q->release(); dev->release(); pool->release();
+    return 1;
+  }
+  registerBuiltinPointOps();  // RadialPoints(cook) + DrawPoints(cmd) + RenderTarget(tex) + ...
+
+  PointGraph pg(dev, lib, q, 64, 64);  // window 64x64; the RenderTarget pins its own 256x256
+  Graph g;
+  Node gen; gen.id = 1; gen.type = "RadialPoints";
+  gen.params["Count"] = (float)N; gen.params["Radius"] = 2.0f; g.nodes.push_back(gen);
+  Node drw; drw.id = 2; drw.type = "DrawPoints"; g.nodes.push_back(drw);
+  Node rt; rt.id = 3; rt.type = "RenderTarget";
+  rt.params["Resolution"] = 4.0f;  // Custom
+  rt.params["CustomW"] = (float)RW; rt.params["CustomH"] = (float)RH; g.nodes.push_back(rt);
+  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // RadialPoints.points -> DrawPoints.points
+  if (!injectBug)
+    g.connections.push_back({102, pinId(2, 1), pinId(3, 0)});  // DrawPoints.out(Command) -> RenderTarget.command
+
+  EvaluationContext ctx{};
+  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+  int term = pg.defaultDrawTarget(g);  // tex preferred -> the RenderTarget node (id 3)
+  pg.cook(g, ctx, nullptr, term);
+
+  MTL::Texture* tex = pg.target();
+  bool sized = tex && (uint32_t)tex->width() == RW && (uint32_t)tex->height() == RH;
+  int nonBlack = 0;
+  if (sized) {
+    std::vector<uint8_t> px((size_t)RW * RH * 4, 0);
+    tex->getBytes(px.data(), RW * 4, MTL::Region::Make2D(0, 0, RW, RH), 0);
+    for (size_t i = 0; i < (size_t)RW * RH; ++i)
+      if (px[i * 4] > 30 || px[i * 4 + 1] > 30 || px[i * 4 + 2] > 30) ++nonBlack;
+  }
+  bool pass = term == 3 && sized && nonBlack > 50;
+  printf("[selftest-rendertargetwired] term=%d(want 3) size=%lux%lu(want %ux%u) nonBlack=%d(need>50) -> %s\n",
+         term, tex ? tex->width() : 0, tex ? tex->height() : 0, RW, RH, nonBlack,
+         pass ? "PASS" : "FAIL");
+
   lib->release(); q->release(); dev->release(); pool->release();
   return pass ? 0 : 1;
 }

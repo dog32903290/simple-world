@@ -90,6 +90,13 @@ struct PointGraph::Impl {
   std::map<int, void*> state;            // node id -> stateful-op memory
   std::map<int, PointStateFreeFn> stateFree;
 
+  // Per-node RenderTarget textures (the Texture2D stream's resources; realloc on resolution
+  // change — RESOURCE_LIFETIME). displayTex = the texture target() shows this frame: a tex
+  // terminal's own resolution-sized texture, or null -> fall back to the window-sized `target`.
+  std::map<int, MTL::Texture*> texBuf;
+  std::map<int, uint32_t> texW, texH;
+  MTL::Texture* displayTex = nullptr;
+
   MTL::Buffer* ensureOut(int id, uint32_t count) {
     MTL::Buffer*& b = outBuf[id];
     if (!b || outCap[id] < count) {
@@ -100,6 +107,26 @@ struct PointGraph::Impl {
     }
     outCount[id] = count;
     return b;
+  }
+
+  // The RenderTarget node's own output texture, sized to its resolved resolution. Reused across
+  // frames; reallocated only when w/h change (RESOURCE_LIFETIME). Owned (newTexture) -> released
+  // on realloc + in the destructor; the descriptor is an autoreleased factory (frame pool owns it).
+  MTL::Texture* ensureTex(int id, uint32_t w, uint32_t h) {
+    if (w == 0) w = 1;
+    if (h == 0) h = 1;
+    MTL::Texture*& t = texBuf[id];
+    if (!t || texW[id] != w || texH[id] != h) {
+      if (t) t->release();
+      MTL::TextureDescriptor* td =
+          MTL::TextureDescriptor::texture2DDescriptor(kTargetFormat, w, h, false);
+      td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+      td->setStorageMode(MTL::StorageModeShared);
+      t = dev->newTexture(td);
+      texW[id] = w;
+      texH[id] = h;
+    }
+    return t;
   }
 
   void* ensureState(int id, const std::string& type, uint32_t count) {
@@ -151,6 +178,8 @@ PointGraph::~PointGraph() {
       p_->stateFree[kv.first](kv.second);
   for (auto& kv : p_->outBuf)
     if (kv.second) kv.second->release();
+  for (auto& kv : p_->texBuf)
+    if (kv.second) kv.second->release();
   if (p_->target) p_->target->release();
   if (p_->queue) p_->queue->release();
   if (p_->lib) p_->lib->release();
@@ -159,7 +188,10 @@ PointGraph::~PointGraph() {
 }
 
 bool PointGraph::valid() const { return p_->dev && p_->queue && p_->target; }
-MTL::Texture* PointGraph::target() const { return p_->target; }
+// The texture the viewport shows: a RenderTarget terminal's own resolution-sized texture when one
+// cooked this frame, else the window-sized fallback. Consumers (OutputWindow ImGui::Image, eye
+// readback) re-read this each frame and handle arbitrary size — so a tex terminal can be any res.
+MTL::Texture* PointGraph::target() const { return p_->displayTex ? p_->displayTex : p_->target; }
 
 int PointGraph::defaultDrawTarget(const Graph& g) const {
   // The terminal is the most-downstream realizable node: a RenderTarget (Texture2D) wins, else
@@ -178,6 +210,7 @@ int PointGraph::defaultDrawTarget(const Graph& g) const {
 
 void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
                       int targetNodeId) {
+  p_->displayTex = nullptr;  // default: target() shows the window-sized texture (cmd/preview paths)
   const Node* target = g.node(targetNodeId);
   const NodeSpec* ts = target ? findSpec(target->type) : nullptr;
   if (!target || !ts) { p_->clearTarget(); return; }  // no/unknown target -> black, no crash
@@ -295,8 +328,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return;
   }
 
-  if (texReg().find(target->type) != texReg().end()) {
-    // Texture terminal (RenderTarget): concat all upstream Command inputs, run its own tex op.
+  auto texIt = texReg().find(target->type);
+  if (texIt != texReg().end() && texIt->second) {
+    // Texture terminal (RenderTarget): size its OWN texture from the Resolution pin (the live
+    // window size is WindowFollow's source), concat all upstream Command inputs, run its tex op
+    // into that texture, and show it. p_->target stays the window-sized fallback for cmd/preview.
+    RenderResolution res = resolveRenderResolution(target, RenderResolution{p_->width, p_->height});
+    MTL::Texture* tex = p_->ensureTex(target->id, res.w, res.h);
     RenderCommand chain;
     for (size_t i = 0; i < ts->ports.size(); ++i) {
       const PortSpec& port = ts->ports[i];
@@ -306,7 +344,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       RenderCommand up = cookCommand(pinNode(c->fromPin));
       chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
     }
-    execIntoTarget(chain, target->type, target->id);
+    TexCookCtx tc;
+    tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
+    tc.ctx = &ctx; tc.graph = &g; tc.reg = reg;
+    tc.nodeId = target->id; tc.command = &chain; tc.output = tex;
+    texIt->second(tc);
+    p_->displayTex = tex;  // viewport shows the resolution-sized texture
   } else if (cmdReg().find(target->type) != cmdReg().end()) {
     // Command terminal (DrawPoints): cook its 1-item chain, run the RenderTarget executor.
     RenderCommand chain = cookCommand(target->id);

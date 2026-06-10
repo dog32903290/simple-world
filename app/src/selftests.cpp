@@ -119,6 +119,7 @@ const SelfTest kTable[] = {
     {"setpointattributes", runSetPointAttributesSelfTest},
     {"combinebuffers", runCombineBuffersSelfTest},
     {"rendertarget", runRenderTargetSelfTest},
+    {"rendertargetwired", runRenderTargetWiredSelfTest},
     {"nodestyle", ui::runNodeStyleSelfTest},
     {"eye", eye::runSelfTest},
     {"map", eye::runMapSelfTest},

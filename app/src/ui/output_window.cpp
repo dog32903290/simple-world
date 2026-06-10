@@ -85,10 +85,11 @@ void drawOutputWindow() {
   if (!viewNode)
     drawable = true;                                 // terminal draw node -> today's picture
   else if (viewNode->type == "DrawPoints")
-    drawable = true;                                 // a draw node -> renders its input
+    drawable = true;                                 // a draw/command node -> renders its input
   else {
     outType = outputTypeOf(viewNode);
-    drawable = (outType == "Points");                // the one cell v1 fills
+    // Points -> reuse DrawPoints preview; Texture2D (RenderTarget) -> show the texture directly.
+    drawable = (outType == "Points" || outType == "Texture2D");
   }
   if (!drawable)
     ImGui::TextDisabled("no preview for output type \"%s\" yet",

@@ -10,11 +10,13 @@
 namespace sw::ui {
 namespace {
 
-// TiXL base colors per dataType (Editor/Gui/Styling/UiColors.cs). Our dataTypes today:
-// Float, Points, ParticleForce. Unknown → ColorForValues gray (TiXL default-ish).
+// TiXL base colors per dataType (Editor/Gui/Styling/UiColors.cs). Our dataTypes:
+// Float, Points, ParticleForce, Command, Texture2D. Unknown → ColorForValues gray.
 ImVec4 baseColor(const std::string& dt) {
   if (dt == "Points")        return ImVec4(0.72f, 0.20f, 0.18f, 1.0f);   // ColorForGpuData (red)
   if (dt == "ParticleForce") return ImVec4(0.132f, 0.722f, 0.762f, 1.0f);// ColorForCommands (cyan)
+  if (dt == "Command")       return ImVec4(0.132f, 0.722f, 0.762f, 1.0f);// ColorForCommands (cyan)
+  if (dt == "Texture2D")     return ImVec4(0.624f, 0.0f, 0.541f, 1.0f);  // ColorForTextures (#9F008A magenta)
   return ImVec4(0.525f, 0.550f, 0.554f, 1.0f);                            // ColorForValues (gray)
 }
 

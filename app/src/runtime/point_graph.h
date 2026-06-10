@@ -32,6 +32,7 @@ struct EvaluationContext;  // runtime/eval_context.h (full def in point_graph.cp
 namespace sw {
 
 struct Graph;
+struct Node;
 class SourceRegistry;
 
 // Everything an operator gets to cook one node this frame.
@@ -128,6 +129,11 @@ void registerDrawOp(const std::string& type, PointDrawFn);
 void registerCmdOp(const std::string& type, PointCmdFn);
 // Register a texture op (the Texture2D stream — RenderTarget). Third table.
 void registerTexOp(const std::string& type, PointTexFn);
+
+// Resolve a RenderTarget node's output resolution from its Resolution enum param (+ CustomW/H);
+// WindowFollow (default) returns `windowSize`. Defined in point_ops_rendertarget.cpp; declared
+// here so the cook driver can size the node's own texture (the RESOLUTION PIN) before the tex op.
+RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowSize);
 // Registers all built-in point operators (A.1+: RadialPoints/TransformPoints/
 // ParticleSystem/DrawPoints/…). Called once from the app (Renderer) at startup.
 void registerBuiltinPointOps();
