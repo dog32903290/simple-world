@@ -108,6 +108,7 @@ const SelfTest kTable[] = {
     {"flow", runParticleFlowSelfTest},
     {"draw", runDrawPointsSelfTest},
     {"pointgraph", runPointGraphSelfTest},
+    {"residentcook", runResidentCookSelfTest},
     {"compoundmodel", runCompoundModelSelfTest},
     {"residenteval", runResidentEvalSelfTest},
     {"radialop", runRadialOpSelfTest},

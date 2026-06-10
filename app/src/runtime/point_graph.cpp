@@ -10,8 +10,9 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
-#include "runtime/graph.h"        // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
-#include "runtime/tixl_point.h"   // SwPoint (64B) + EvaluationContext (via eval_context.h)
+#include "runtime/graph.h"               // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
+#include "runtime/resident_eval_graph.h" // ResidentEvalGraph / ResidentNode / ResidentInput
+#include "runtime/tixl_point.h"         // SwPoint (64B) + EvaluationContext (via eval_context.h)
 
 namespace sw {
 namespace {
@@ -370,6 +371,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       p_->clearTarget();  // no visualizer for this output type yet (§5)
     }
   }
+}
+
+void PointGraph::cookResident(const ResidentEvalGraph&, const EvaluationContext&,
+                              const SourceRegistry*, const std::string&) {
+  // STUB (Task 2 implements the buffer-flow walk). Empty -> the golden's resident bag stays
+  // empty -> RED until Task 2.
 }
 
 }  // namespace sw

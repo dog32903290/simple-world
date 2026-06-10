@@ -160,6 +160,12 @@ class PointGraph {
   // TiXL's OutputWindow — pin is session state, not a graph edge) just passes another id.
   void cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
             int targetNodeId);
+  // Resident-graph cook (batch 1 slice 2): walk a ResidentEvalGraph by path-qualified id and
+  // realize the bag feeding `targetPath`, identical to cook()'s flat walk. Buffer flow only;
+  // the cmd/texture executor + stateful state + cross-frame cache are later slices. Additive —
+  // production still calls cook(Graph&). Proven by --selftest-residentcook (== flat cook).
+  void cookResident(const struct ResidentEvalGraph& rg, const EvaluationContext& ctx,
+                    const SourceRegistry* reg, const std::string& targetPath);
   // Default viewport target = the first draw node (today's wired terminal). 0 if none.
   int defaultDrawTarget(const Graph& g) const;
   MTL::Texture* target() const;
@@ -174,5 +180,10 @@ class PointGraph {
 // DrawPoints, cooks, and asserts the generated bag threaded through the middle op to
 // the draw. injectBug makes the middle op ignore its input so the assertion FAILS.
 int runPointGraphSelfTest(bool injectBug);
+
+// Headless RED→GREEN proof that cookResident (resident-graph walk) yields the SAME point bag as
+// cook (flat-graph walk) for an equivalent graph. injectBug makes the resident walk drop a driver
+// so the bags diverge. (resident_cook_selftest.cpp)
+int runResidentCookSelfTest(bool injectBug);
 
 }  // namespace sw
