@@ -32,6 +32,10 @@ std::map<std::string, PointDrawFn>& drawReg() {
   static std::map<std::string, PointDrawFn> m;
   return m;
 }
+std::map<std::string, PointCmdFn>& cmdReg() {
+  static std::map<std::string, PointCmdFn> m;
+  return m;
+}
 
 bool isBufferInput(const PortSpec& p) {
   return p.isInput && (p.dataType == "Points" || p.dataType == "ParticleForce");
@@ -60,6 +64,7 @@ void registerPointOp(const std::string& type, PointCookFn cook, PointStateNewFn 
   cookReg()[type] = OpReg{cook, stNew, stFree};
 }
 void registerDrawOp(const std::string& type, PointDrawFn draw) { drawReg()[type] = draw; }
+void registerCmdOp(const std::string& type, PointCmdFn cmd) { cmdReg()[type] = cmd; }
 
 // registerBuiltinPointOps() is defined in point_ops.cpp (the real operators).
 
@@ -290,6 +295,16 @@ void stubDraw(PointCookCtx& c, MTL::Texture*, const MTL::Buffer* points) {
               (size_t)c.count * sizeof(SwPoint));
 }
 
+// Command-stream stub: wrap the upstream count into a 1-item RenderCommand (what the
+// real DrawPoints cmd op will do in batch 2). Bug variant drops the item so the size
+// assertion fails.
+bool g_cmdInjectBug = false;
+RenderCommand stubCmdOp(CmdCookCtx& c) {
+  RenderCommand rc;
+  if (!g_cmdInjectBug) rc.items.push_back(RenderDrawItem{c.points, c.count, 3.5f});
+  return rc;
+}
+
 }  // namespace
 
 int runPointGraphSelfTest(bool injectBug) {
@@ -333,6 +348,27 @@ int runPointGraphSelfTest(bool injectBug) {
   q->release();
   dev->release();
   pool->release();
+  return ok ? 0 : 1;
+}
+
+// Batch 0 proof: the Command stream registers, gets called, and returns a record —
+// without a Metal device (pure CPU) and without touching cook() or the buffer flow.
+int runCommandStreamSelfTest(bool injectBug) {
+  g_cmdInjectBug = injectBug;
+  registerCmdOp("DrawPoints", stubCmdOp);  // selftest registers its own stub (clean table)
+
+  CmdCookCtx c;
+  c.nodeId = 1;
+  c.points = nullptr;  // we assert the count; the borrowed buffer may be null in this fixture
+  c.count = 8;
+  auto it = cmdReg().find("DrawPoints");
+  RenderCommand rc = (it != cmdReg().end() && it->second) ? it->second(c) : RenderCommand{};
+
+  bool ok = rc.items.size() == 1 && rc.items[0].count == 8;
+  printf("[selftest-cmdstream] items=%zu (want 1) count=%u (want 8) -> %s\n", rc.items.size(),
+         rc.items.empty() ? 0u : rc.items[0].count, ok ? "PASS" : "FAIL");
+
+  g_cmdInjectBug = false;
   return ok ? 0 : 1;
 }
 

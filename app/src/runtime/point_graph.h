@@ -17,6 +17,8 @@
 #include <cstdint>
 #include <string>
 
+#include "runtime/render_command.h"  // RenderCommand (the Command stream's currency)
+
 namespace MTL {
 class Device;
 class Library;
@@ -59,7 +61,28 @@ struct PointCookCtx {
 // A point operator: read inputs (+ Float params via evalParam) → write `output`.
 using PointCookFn = void (*)(PointCookCtx&);
 // A draw operator: render the (final) `points` bag into `target`. No buffer output.
+// LEGACY: the folded "buffer → pixels directly" model. Being replaced by the Command
+// stream (cmd op → RenderCommand → RenderTarget). Retired in batch 4.
 using PointDrawFn = void (*)(PointCookCtx&, MTL::Texture* target, const MTL::Buffer* points);
+
+// --- Command stream (TiXL's Slot<Command>): the SECOND cook flow, parallel to the
+// buffer flow above. A command op (DrawPoints) reads its upstream point bag and emits
+// a RenderCommand; it does NOT touch a texture. The buffer flow (PointCookFn, 9 ops)
+// is untouched — port dataType decides which flow a connection walks. ---
+//
+// Everything a command op gets to cook one node this frame. `points`/`count` are the
+// already-cooked upstream Points bag (the cook driver resolves the buffer flow first,
+// then hands it here). A command op reads its own Float params via evalParam(graph,...).
+struct CmdCookCtx {
+  const EvaluationContext* ctx = nullptr;
+  const Graph* graph = nullptr;
+  const SourceRegistry* reg = nullptr;
+  int nodeId = 0;
+  const MTL::Buffer* points = nullptr;  // upstream point bag (buffer flow already cooked)
+  uint32_t count = 0;                   // upstream point count
+};
+// A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.
+using PointCmdFn = RenderCommand (*)(CmdCookCtx&);
 // Per-node persistent state lifetime for stateful ops (e.g. a sim's particle buffer).
 // `count` is the node's point count at creation. Return nullptr for stateless ops.
 using PointStateNewFn = void* (*)(MTL::Device*, MTL::Library*, uint32_t count);
@@ -72,6 +95,9 @@ using PointStateFreeFn = void (*)(void*);
 void registerPointOp(const std::string& type, PointCookFn,
                      PointStateNewFn = nullptr, PointStateFreeFn = nullptr);
 void registerDrawOp(const std::string& type, PointDrawFn);
+// Register a command op (the Command stream). Separate table from cook/draw — exactly
+// as TiXL keeps Slot<Command> distinct from Slot<BufferWithViews>.
+void registerCmdOp(const std::string& type, PointCmdFn);
 // Registers all built-in point operators (A.1+: RadialPoints/TransformPoints/
 // ParticleSystem/DrawPoints/…). Called once from the app (Renderer) at startup.
 void registerBuiltinPointOps();
@@ -112,5 +138,12 @@ class PointGraph {
 // DrawPoints, cooks, and asserts the generated bag threaded through the middle op to
 // the draw. injectBug makes the middle op ignore its input so the assertion FAILS.
 int runPointGraphSelfTest(bool injectBug);
+
+// Headless proof of the COMMAND STREAM machinery (batch 0 of the render-target pivot):
+// registers a stub command op, cooks it via a CmdCookCtx, and asserts it returns a
+// 1-item RenderCommand carrying the upstream count. Proves the cmd registry + call +
+// record return work WITHOUT touching cook() or the buffer flow. injectBug drops the
+// item so the size assertion FAILS (RED) before we trust GREEN.
+int runCommandStreamSelfTest(bool injectBug);
 
 }  // namespace sw

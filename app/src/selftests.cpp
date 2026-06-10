@@ -106,6 +106,7 @@ const SelfTest kTable[] = {
     {"flow", runParticleFlowSelfTest},
     {"draw", runDrawPointsSelfTest},
     {"pointgraph", runPointGraphSelfTest},
+    {"cmdstream", runCommandStreamSelfTest},
     {"radialop", runRadialOpSelfTest},
     {"radialcenter", runRadialCenterSelfTest},
     {"drawop", runDrawOpSelfTest},
