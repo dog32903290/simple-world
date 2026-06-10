@@ -110,14 +110,18 @@ DX11/WinForms 焊死的陷阱）、Web/TS（wgpu→Metal 非親手 + 丟 imgui-n
 
 ## Active Lane
 
-**COMPOUND — 完整 TiXL compound 圖模型（2026-06-10 柏為拍板，最高優先，暫停其餘製作）** = 設計契約 `specs/2026-06-10-compound-graph-design.md`（實作計畫待 writing-plans 產）。
+**COMPOUND + 常駐增量求值 — 一條地基（2026-06-10 柏為兩次拍板，最高優先，暫停其餘製作）** = 設計契約 `specs/2026-06-10-compound-graph-design.md`（實作計畫待 writing-plans 產）。
 柏為定：**這是 simple_world 成立的根本**——TiXL 整個圖模型本質巢狀(沒有 flat 圖)，我們現在的 flat 圖只等於 TiXL 最外層那張；地基趁上面還輕時改。**功能 100% 照 TiXL、所有設計決策權威=`external/tixl` 源碼(不自創)**。
 - **TiXL compound 精華（4 隻 agent 深讀源碼綜合）**：`Symbol`(定義)/`Symbol.Child`(實例,reuse=多 Child 引用同 Symbol)/`Connection`(四元組)+**`Guid.Empty` sentinel 表跨邊界連線**；**無 Input/Output proxy 節點**(對外 port=Symbol 的 inputDefs/outputDefs)；**求值期邊界透明**(接線期解析掉)。
-- **★ 核心架構決策（唯一不能直接照搬 TiXL 處）**：TiXL 是 persistent instance tree+dirty-pull；我們是 stateless re-cook。→ **compound 是「圖模型/編輯/存檔」層概念，cook 前先「展平」成 flat working graph(path-qualified id)，runtime cook(剛 land 的 render-target pivot)完全不動**=TiXL「接線期解析邊界」的 stateless 等價物；reuse 狀態隔離自然成立。
-- **實作批次(contract 先葉子後)**：0 資料模型鎖(Graph→Symbol/Node→Child/Connection 四元組+sentinel) → 1 展平器(golden:巢狀==等價 flat) → 2 存檔 v2+migration(兩階段 load) → 3 編輯導航(compositionPath 進出層級,單 EditorContext 切層) → 4 combine-into-symbol(邊界偵測) → 5 跨層 undo+reuse。
-- **完成定義(柏為親手)**：選節點 combine 成 compound→雙擊進子圖→出來→母節點接線渲染→複製第二份(reuse)→改定義一處兩份都變→存檔重開還在。
-- **今天(2026-06-10)交付**：設計契約鎖死(本 spec)，不動碼。實作是接下來的大 lane(多 session,本質複雜,誠實標)。
-- **⏸ parked（等 compound 地基）**：點 operator fan-out(batch 3 blend 等)、render-target batch 3.5/4、TiXL parity 修正。連線定址從 pin-id 改四元組會掃到這些,趁節點少時先改地基正是此因。
+- **★ 第二次拍板（2026-06-10 側議壓測 + 源碼複驗）：目標規模 = 跟 TiXL 一樣大（幾千節點/深度巢狀/滿屏靜態）。在此規模 compound 與增量求值不是兩條正交地基、是同一條** = 「一個常駐的、可增量更新的求值圖，上面跑 version/dirty + per-node cache」。
+- **❌ 原核心決策作廢（「cook 前每幀展平成 throwaway flat graph、runtime 不動」）**：每幀重建幾千節點=配置churn+丟失跨幀身份，而 **cache 必須掛在跨幀活著的常駐節點上**→「每幀展平」與「要 cache」在 TiXL 規模互斥。改成：**展平結果常駐住、編輯時增量 patch、cache 掛常駐節點**。path-qualified id 一鑰三用(身份/cache key/buffer map 鍵)。批次 0 資料模型**不受影響**(改的只是求值怎麼跑,批次 1 才動)。
+- **TiXL 求值機制已對源碼複驗**(契約 2.0)：version-chasing(`SourceVersion`/`ValueVersion`,非 hash) + time=Trigger.Always + **每幀 `InvalidateGraph()` 走訪連到輸出的整個子圖(但走訪便宜、不重算,重算被 `IsDirty` 擋)** + editor-only dirty 統計(可不抄)。複驗修正側議一條轉述:「雙軌 invalidate」**REFUTED**(同一個 method 兩呼叫點)。
+- **「更好更簡單」誠實重定義(契約 2.4–2.8,底層複驗後)**：地基=照搬 TiXL version-chasing dirty+cache+Command-always(`_valueIsCommand`)+LIVE-source-trigger,**邏輯 100% 對齊**。retract「pull 不閃/用 version/不用常駐」(TiXL 本來就有/也要)。唯一正當簡化=**eager 一趟取代 TiXL lazy 兩趟**(我們從終端 eager 後序、版本傳播+重算同趟;TiXL 兩趟是被 lazy-from-top 逼的;等價可 golden 驗、低風險)。**❌ 自我修正:原把「LIVE/STATIC 分區 pull 短路」當地基承重+我們的 edge 是錯的——TiXL 沒做、二階(省走訪非省重算、microsecond 級)、扛最重 stale-frame 風險→降可選 E 階,profiler 證瓶頸才做(契約 2.6)。你的「滿屏靜態白燒」痛點由決策 6 的 cache 全解、與 TiXL 對齊。**
+- **★ 第三次拍板(2026-06-10 柏為壓時間軸底層,拍板 A,契約決策 9/2.5b)：compound、增量求值、時間 binding 三條原本當並列 lane 的東西,地基是同一個物件——TiXL `Slot` 一個物件扛 接線/dirty/driver 三件事(無獨立 binding 解析層,源碼複驗)。→ batch 1 的 resident 節點直接=slot:input 帶 `driver{Constant|Connection|Automation|LiveSource|Override}`、`isLiveSource` 從 driver 推導不另存、時間 lane 的 S1 SourceRegistry 收編、`EvaluationContext` 即刻長兩鐘形狀(`localTime` 播放頭/`localFxTime` 牆鐘,automation 取播放頭、有狀態 sim 取牆鐘)。** 時間 lane(`2026-06-09-runtime-time-interaction-build.md`)排序不動,只 S3–S6 automation 往下接 resident driver、不接平行 registry(已加 banner)。
+- **實作批次(求值穿插,與 compound 巢狀正交,可先在現行 flat 圖做)**：0 ✅資料模型(`38dde11`) → **1 常駐求值圖+resident 節點=slot(driver+S1 收編+兩鐘 ctx;增量 patch==全重建 golden、driver 解析==S1 selftest)** → **1b 地基核心:version-chasing+cache+Command-always+diamond+LIVE 每幀 bump+eager 一趟+isLiveSource 從 driver 推導(count 有牙:靜態第2幀 cook 0 次/🪤漏 bump→卡舊 RED/Const↔Automation toggle→LIVE/STATIC 同步翻/一趟==TiXL 兩趟 golden)** → 2 存檔 v2 → 3 導航 → 4 combine → 5 跨層 undo+reuse。**○E2(可選降級)=LIVE/STATIC 分區短路+5條失效清單(profiler 證瓶頸才做)；○E3(可選)=靜態 RT 貼圖跨幀 cache。**
+- **完成定義(柏為親手)**：①compound:選節點 combine→進子圖→出來→母節點接線渲染→複製第二份(reuse)→改定義兩份都變→存檔重開還在。②增量求值:放貴的靜態塊+動的粒子,看 perf 表——靜態第2幀起時間趨近 0、動的照跑、拖靜態參數卡一格重算回 0。
+- **今天(2026-06-10)交付**：設計契約鎖死(本 spec,含求值決策修正)，不動碼。實作是接下來的大 lane(多 session,本質複雜=增量正確性,誠實標)。
+- **⏸ parked（等地基）**：點 operator fan-out(batch 3 blend 等)、render-target batch 3.5/4、TiXL parity 修正。連線定址從 pin-id 改四元組會掃到這些,趁節點少時先改地基正是此因。
 
 ---
 

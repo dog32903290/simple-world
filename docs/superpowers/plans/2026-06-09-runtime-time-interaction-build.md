@@ -1,5 +1,10 @@
 # Runtime 時間/交互層 建造計畫（解析模型 · sound-first · scoreGraph · transport）
 
+> **⚠ 2026-06-10 邊界移動（柏為拍板 A，壓時間軸底層後）— resume 本 lane 前必讀：**
+> 底層複驗（對 `external/tixl`）確認：TiXL 的 `Slot` 一個物件扛 接線 / dirty / **driver(binding)** 三件事——**沒有獨立 binding 解析層**。所以本 lane 的 **S1 `SourceRegistry`（已建、12 selftest 綠）是「stateless era 的對的暫態」，現被 compound lane 的 batch 1「常駐求值圖」收編**：binding/override 從 `(nodeId,portId)` 獨立 map **遷移到 resident 節點 input 的 `driver` 欄位**（= TiXL slot），`isLiveSource`/dirty 從 driver 推導、不另存。
+> **影響本 lane：**①S3 Curve / S4 scoreGraph / S5 Transport **排序不動、仍是上半部 authoring**；②但 automation 往下**接 resident 節點 input 的 driver（= TiXL `Animator.OverrideWithAnimationAction`）**，不接平行 SourceRegistry；③ctx 兩鐘（`localTime` 播放頭 / `localFxTime` 牆鐘）由 compound batch 1 先長好形狀，S5 Transport 才造真兩鐘填值。
+> 權威設計 = `specs/2026-06-10-compound-graph-design.md` 決策 9 / 契約 2.5b。**本 lane 仍 parked（等 compound 地基），resume 時 binding 接點已改。**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans。Steps 用 `- [ ]` 追蹤。
 > 設計來源 = `docs/runtime/CONTRACT_ALIGNMENT_LEDGER.md`（L1–L14，**L5 解析模型 round-3 已釘**）+ `MY_WORLD_RUNTIME_CONTRACT.md` v0.2。
 > 北極星：Mac 版 TiXL。每段對應 TiXL 既有設計（Slot/Playback/Animator/Curve），不自創。
