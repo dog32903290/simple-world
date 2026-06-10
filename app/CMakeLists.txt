@@ -97,6 +97,8 @@ add_executable(simple_world
   src/runtime/point_graph_selftest.cpp
   src/runtime/compound_graph.cpp
   src/runtime/compound_graph_selftest.cpp
+  src/runtime/resident_eval_graph.cpp
+  src/runtime/resident_eval_graph_selftest.cpp
   src/runtime/point_ops.cpp
   src/runtime/point_ops_selftest.cpp
   src/runtime/point_ops_linepoints.cpp

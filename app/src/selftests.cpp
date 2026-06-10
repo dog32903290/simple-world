@@ -19,6 +19,7 @@
 #include "platform/audio_devices.h"
 #include "runtime/attack_detector.h"
 #include "runtime/compound_graph.h"
+#include "runtime/resident_eval_graph.h"
 #include "runtime/audio_analyzer.h"
 #include "runtime/audio_ingest.h"
 #include "runtime/audio_reaction.h"
@@ -108,6 +109,7 @@ const SelfTest kTable[] = {
     {"draw", runDrawPointsSelfTest},
     {"pointgraph", runPointGraphSelfTest},
     {"compoundmodel", runCompoundModelSelfTest},
+    {"residenteval", runResidentEvalSelfTest},
     {"radialop", runRadialOpSelfTest},
     {"radialcenter", runRadialCenterSelfTest},
     {"drawop", runDrawOpSelfTest},
