@@ -111,25 +111,43 @@ int runResidentCookSelfTest(bool injectBug) {
 
   ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
   std::vector<SwPoint> resBag; g_resCap = &resBag;
-  pg.cookResident(rg, ctx, nullptr, /*targetPath=*/"3");  // DrawPoints resident node path
+  pg.cookResident(rg, ctx, nullptr, injectBug ? "999" : "3");  // bug: bogus target path -> empty bag -> mismatch
 
-  // Compare: same count (8) and same per-point Position.x (1 * 2 = 2). injectBug flips the
-  // expectation so any real divergence (or the deliberate bug) FAILS.
+  // Compare: same count (8) and same per-point Position.x (1 * 2 = 2).
   bool sizeOk = (flatBag.size() == 8) && (resBag.size() == flatBag.size());
   bool valOk = sizeOk;
   for (size_t i = 0; i < resBag.size() && i < flatBag.size(); ++i)
     valOk = valOk && (resBag[i].Position.x == flatBag[i].Position.x) && (resBag[i].Position.x == 2.0f);
   bool match = sizeOk && valOk;
-  if (injectBug) match = !match;  // bug variant must observe a MISMATCH to "pass" its RED intent
+
+  // reuse isolation: two RadialPoints instances, different Count, cook independently.
+  SymbolLibrary rl;
+  rl.symbols["RadialPoints"] = atomicOp("RadialPoints", {{"Count", "Count", "Float", 8.0f}},
+                                        {{"points", "points", "Points", 0.0f}});
+  rl.symbols["DrawPoints"] = atomicOp("DrawPoints", {{"points", "points", "Points", 0.0f}},
+                                      {{"out", "out", "Command", 0.0f}});
+  Symbol r2; r2.id = "R2"; r2.name = "R2"; r2.atomic = false;
+  r2.outputDefs = {{"out", "out", "Command", 0.0f}};
+  SymbolChild g4; g4.id = 1; g4.symbolId = "RadialPoints"; g4.overrides["Count"] = 4.0f;
+  SymbolChild g8; g8.id = 2; g8.symbolId = "RadialPoints";  // default 8
+  SymbolChild d1; d1.id = 3; d1.symbolId = "DrawPoints";
+  r2.children = {g4, g8, d1};
+  r2.connections = {{1, "points", 3, "points"}, {3, "out", kSymbolBoundary, "out"}};  // draw the Count=4 one
+  rl.symbols["R2"] = r2; rl.rootId = "R2";
+  ResidentEvalGraph rg2 = buildEvalGraph(rl, "R2");
+  std::vector<SwPoint> bag4; g_resCap = &bag4;
+  pg.cookResident(rg2, ctx, nullptr, "3");
+  bool reuseOk = (bag4.size() == 4);  // the override-4 instance, not the default-8 sibling
 
   float fx = flatBag.empty() ? -1.0f : flatBag[0].Position.x;
   float rx = resBag.empty() ? -1.0f : resBag[0].Position.x;
-  printf("[selftest-residentcook] flat=%zu(x=%.1f) resident=%zu(x=%.1f) match=%d -> %s\n",
-         flatBag.size(), fx, resBag.size(), rx, (sizeOk && valOk), match ? "PASS" : "FAIL");
+  bool pass = match && reuseOk;
+  printf("[selftest-residentcook] flat=%zu(x=%.1f) resident=%zu(x=%.1f) match=%d reuse(=4)=%zu -> %s\n",
+         flatBag.size(), fx, resBag.size(), rx, match, bag4.size(), pass ? "PASS" : "FAIL");
 
   g_resCap = nullptr;
   q->release(); dev->release(); pool->release();
-  return match ? 0 : 1;
+  return pass ? 0 : 1;
 }
 
 }  // namespace sw
