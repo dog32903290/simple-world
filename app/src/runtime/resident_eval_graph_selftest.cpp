@@ -1,13 +1,14 @@
 // Headless RED->GREEN proof of the resident eval engine (resident_eval_graph.*). Builds:
-//   atomic "Const"   : value(def 0) -> out
+//   atomic "Const"   : value(def 4) -> out
 //   atomic "Multiply": a(def 1), b(def 1) -> out
 //   compound "Scaler": two Const children (reuse: c1.value=3, c2.value=4) + Multiply,
 //                      wired c1.out->Mul.a, c2.out->Mul.b, Mul.out -> boundary output "out".
 //   root "Root"      : one Scaler child, Scaler.out -> Root boundary output "out".
 // Expected: Root.out resolves to 3*4 = 12. The EQUIVALENT FLAT library (Const,Const,Multiply
 // at root, no nesting) must evaluate to the same 12 (same evaluate fns, two structures).
-// injectBug pollutes the Const definition (value def 0 -> 99) AND leaks via reuse so the
-// un-overridden path diverges -> the equivalence/expected assertion FAILS (teeth).
+// injectBug pollutes the Const definition (value def 4 -> 99); the second Const child has NO
+// override, so it reads the polluted def -> nested=flat=3*99=297 and the reuse probe sees (3,99),
+// failing expected/reuse -> the golden FAILS (teeth). The first child keeps its override (3).
 #include "runtime/resident_eval_graph.h"
 
 #include <cstdio>
