@@ -21,7 +21,6 @@ namespace sw {
 namespace {
 
 std::vector<SwPoint>* g_resCap = nullptr;   // capture target for whichever cook runs
-bool g_resBug = false;
 
 // Generator: fill `count` points, Position.x = 1.
 void rcGen(PointCookCtx& c) {
@@ -63,7 +62,6 @@ Symbol atomicOp(const char* id, std::vector<SlotDef> ins, std::vector<SlotDef> o
 
 int runResidentCookSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-  g_resBug = injectBug;
 
   registerPointOp("RadialPoints", rcGen);
   registerPointOp("ParticleSystem", rcMul);
