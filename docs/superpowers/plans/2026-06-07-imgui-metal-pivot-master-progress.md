@@ -110,7 +110,18 @@ DX11/WinForms 焊死的陷阱）、Web/TS（wgpu→Metal 非親手 + 丟 imgui-n
 
 ## Active Lane
 
-**A — TiXL 點 operator 圖 runtime（2026-06-09 柏為拍板，接在 audio M1 後）** = 設計 `specs/2026-06-09-point-operator-graph-design.md`（實作計畫待 writing-plans 產）。
+**COMPOUND — 完整 TiXL compound 圖模型（2026-06-10 柏為拍板，最高優先，暫停其餘製作）** = 設計契約 `specs/2026-06-10-compound-graph-design.md`（實作計畫待 writing-plans 產）。
+柏為定：**這是 simple_world 成立的根本**——TiXL 整個圖模型本質巢狀(沒有 flat 圖)，我們現在的 flat 圖只等於 TiXL 最外層那張；地基趁上面還輕時改。**功能 100% 照 TiXL、所有設計決策權威=`external/tixl` 源碼(不自創)**。
+- **TiXL compound 精華（4 隻 agent 深讀源碼綜合）**：`Symbol`(定義)/`Symbol.Child`(實例,reuse=多 Child 引用同 Symbol)/`Connection`(四元組)+**`Guid.Empty` sentinel 表跨邊界連線**；**無 Input/Output proxy 節點**(對外 port=Symbol 的 inputDefs/outputDefs)；**求值期邊界透明**(接線期解析掉)。
+- **★ 核心架構決策（唯一不能直接照搬 TiXL 處）**：TiXL 是 persistent instance tree+dirty-pull；我們是 stateless re-cook。→ **compound 是「圖模型/編輯/存檔」層概念，cook 前先「展平」成 flat working graph(path-qualified id)，runtime cook(剛 land 的 render-target pivot)完全不動**=TiXL「接線期解析邊界」的 stateless 等價物；reuse 狀態隔離自然成立。
+- **實作批次(contract 先葉子後)**：0 資料模型鎖(Graph→Symbol/Node→Child/Connection 四元組+sentinel) → 1 展平器(golden:巢狀==等價 flat) → 2 存檔 v2+migration(兩階段 load) → 3 編輯導航(compositionPath 進出層級,單 EditorContext 切層) → 4 combine-into-symbol(邊界偵測) → 5 跨層 undo+reuse。
+- **完成定義(柏為親手)**：選節點 combine 成 compound→雙擊進子圖→出來→母節點接線渲染→複製第二份(reuse)→改定義一處兩份都變→存檔重開還在。
+- **今天(2026-06-10)交付**：設計契約鎖死(本 spec)，不動碼。實作是接下來的大 lane(多 session,本質複雜,誠實標)。
+- **⏸ parked（等 compound 地基）**：點 operator fan-out(batch 3 blend 等)、render-target batch 3.5/4、TiXL parity 修正。連線定址從 pin-id 改四元組會掃到這些,趁節點少時先改地基正是此因。
+
+---
+
+> **⏸ A — TiXL 點 operator 圖 runtime（parked，等 compound）** = 設計 `specs/2026-06-09-point-operator-graph-design.md`（實作計畫待 writing-plans 產）。
 把現行**焊死的單一 ParticleSystem**（`main.cpp:340-436`，圖連線只驅動參數、不驅動 buffer 流）拆成 TiXL 那樣的點 operator 圖：
 一條連線扛**一袋點**（`MTL::Buffer` of `Point[count]`，原子 = 已港的 `tixl_point.h` 64B = TiXL `point.hlsl`）；每顆 operator = compute kernel 讀進→寫出。
 照 TiXL `Operators/Lib/point/{generate,transform,modify,combine,draw}`（90+ 顆）逐批港。
