@@ -70,45 +70,16 @@ void cookRadialPoints(PointCookCtx& c) {
   pso->release();
 }
 
-// DrawPoints draw op: render the (final) Points bag into target() as camera-facing point
-// billboards. Faithful to ParticleSystem::render (same draw_points pipeline + viewExtent).
-// Builds the render pipeline per call for now — the live loop (A1.5) should cache it.
-void cookDrawPoints(PointCookCtx& c, MTL::Texture* target, const MTL::Buffer* points) {
-  if (!c.lib || !target) return;
-  MTL::Function* vs = c.lib->newFunction(NS::String::string("draw_points_vs", NS::UTF8StringEncoding));
-  MTL::Function* fs = c.lib->newFunction(NS::String::string("draw_points_fs", NS::UTF8StringEncoding));
-  MTL::RenderPipelineState* rps = nullptr;
-  if (vs && fs) {
-    MTL::RenderPipelineDescriptor* rpd = MTL::RenderPipelineDescriptor::alloc()->init();
-    rpd->setVertexFunction(vs);
-    rpd->setFragmentFunction(fs);
-    rpd->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormatRGBA8Unorm);
-    NS::Error* err = nullptr;
-    rps = c.dev->newRenderPipelineState(rpd, &err);
-    rpd->release();
-  }
-  if (vs) vs->release();
-  if (fs) fs->release();
-
-  MTL::RenderPassDescriptor* pass = MTL::RenderPassDescriptor::renderPassDescriptor();
-  auto* ca = pass->colorAttachments()->object(0);
-  ca->setTexture(target);
-  ca->setLoadAction(MTL::LoadActionClear);
-  ca->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 1.0));
-  ca->setStoreAction(MTL::StoreActionStore);
-  MTL::CommandBuffer* cmd = c.queue->commandBuffer();
-  MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(pass);
-  if (rps && points && c.count > 0) {
-    enc->setRenderPipelineState(rps);
-    enc->setVertexBuffer(const_cast<MTL::Buffer*>(points), 0, DRAW_Points);
-    float viewExtent = 3.5f;  // == ParticleSystem (kRadius*1.75); TODO: a DrawPoints param
-    enc->setVertexBytes(&viewExtent, sizeof(float), DRAW_ViewExtent);
-    enc->drawPrimitives(MTL::PrimitiveTypePoint, NS::UInteger(0), NS::UInteger(c.count));
-  }
-  enc->endEncoding();
-  cmd->commit();
-  cmd->waitUntilCompleted();
-  if (rps) rps->release();
+// DrawPoints command op (Points → Command): emit a 1-item RenderCommand describing how to
+// draw the upstream bag. No render pass here anymore — RenderTarget executes the chain (the
+// render pass/pipeline moved to cookRenderTarget). This is TiXL's DrawPoints: Slot<Command>
+// out, not pixels. viewExtent is the camera half-extent (== ParticleSystem kRadius*1.75);
+// it becomes a DrawPoints param in batch 3's draw-param family.
+RenderCommand cookDrawPoints(CmdCookCtx& c) {
+  RenderCommand rc;
+  if (c.points && c.count > 0)
+    rc.items.push_back(RenderDrawItem{c.points, c.count, 3.5f});
+  return rc;
 }
 
 // Compute PSO from the metallib by function name (the sim op caches its two in per-node
@@ -226,7 +197,8 @@ void registerCombineBuffersOp();
 void registerBuiltinPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
   registerPointOp("ParticleSystem", cookParticleSim, simStateNew, simStateFree);
-  registerDrawOp("DrawPoints", cookDrawPoints);
+  registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
+  registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
   registerLinePointsOp();
   registerGridPointsOp();
   registerSpherePointsOp();

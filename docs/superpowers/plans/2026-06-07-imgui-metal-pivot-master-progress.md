@@ -118,6 +118,8 @@ DX11/WinForms 焊死的陷阱）、Web/TS（wgpu→Metal 非親手 + 丟 imgui-n
 - **每顆節點固定流程（柏為定，不可跳；fan-out 不偷工）**：爬 TiXL `.cs`+`.hlsl`+`.help/docs/.../point/*.md` → port metal-cpp/MSL → 抓 TiXL 公式寫成 golden selftest（TiXL 在 Win/DX11 跑不動，用公式當標準答案）→ port/參數/enum 對齊 .cs + eye 比對文件長相 + subagent 對抗審查。
 - **commit 律法閘（柏為 2026-06-09 定）**：每做完一大步 commit，但 commit 前對照 `ARCHITECTURE.md` 自檢動到的碼，有違反先改完再 commit，law debt 不過夜。見 memory `[[simple-world-commit-law-check-ritual]]`。
 - **地基現況（2026-06-09 驗）**：律法乾淨（graph.cpp **333 行**、`graph_selftest` 已拆、platform→runtime 已修、DSP 在 `app/audio_monitor`）；點原子已對齊；現行管線是單一 ParticleSystem 怪物 = A.0 要拆的對象；`radial_points`/`transform_points` 有 selftest-only kernel = A.1 可複用。
+- **（2026-06-10）draw/render 子家族 = render-target pivot，batch 2 ✓ 落地修好**：把 `DrawPoints` 對齊 TiXL 真三流（BufferWithViews→**Command**→**Texture2D**）：DrawPoints 改 cmd op、新 `RenderTarget` tex op（解析度釘）、`cook()` 終端調度接上 cmd/tex/preview/legacy 四路。**batch 0/1 ✓（commits `4620f3a`/`4ebe350` 孤立證明）→ batch 2 ✓ 本 session（前一 session 半接，留 11 顆 op golden red + DrawPoints 終端黑屏；根因＝legacy draw 感知被從 cook()+defaultDrawTarget 拔掉但設計要活到 batch 4）**。修法+過渡不變式+batch 3/4 待辦 = sub-ledger **`docs/runtime/RENDER_TARGET_PIVOT_HANDOFF.md`**（resume 先讀）。全 32 selftest 綠、pivot 5 bug 變體 red。**柏為 ▣ = batch 3 後能親手加+接 RenderTarget 節點（= 完成定義）**。
+- **point op parity 債（2026-06-10 驗，9 隻 subagent 逐 port）**：9 顆 op 沒一顆對 TiXL 100% 一模一樣（生成器偷 attribute、modifier 較忠實、多顆 default 漂）。逐顆缺項+施工批 A/B/C = `docs/runtime/POINT_OP_PARITY_LEDGER.md`。**綠燈只證 position 對、不證 attribute 對**——別被騙。
 
 > **時間/交互層 lane（前一 active）= M1 ✅ 完成**（聲音→參數 + TiXL AudioReaction 完整對齊，commit `39f2d98`，柏為定「一模一樣」）。**M2–M4 → queued**（柏為 2026-06-09 選先做 A 把畫面詞彙長厚，再回來把時間做可作曲）：M2 automation+scrub(S3–S6)、M3 錄製+override(S7–S8)、M4 兩聲音世界(S9–S11)。設計仍在 plan `2026-06-09-runtime-time-interaction-build.md`。唯一懸著=柏為眼球確認粒子脈動（機器證據已齊）。
 > 其餘 queued：Phase 3 插入節點 / Phase 4 框選 / C 視覺向 TiXL 收斂。
@@ -210,6 +212,7 @@ load/store 覆蓋、語義合併衝突（git 行比對不報、memory layout 靜
 
 ## Conflict Register
 
+- **（2026-06-10）lane A 內的順序漂：render-target pivot 搶在「batch 3 blend 子家族」前面做。** 舊 resume 句（memory + build plan）寫 resume = batch 3 blend（BlendPoints/Pick，需 count-policy 契約）；但實際有 session 先做了 draw/render 子家族（DrawPoints→Command→RenderTarget）。**兩者都是 lane A 的合法子家族（draw 屬 `point/{...,draw}`），不是跳出 lane A**；只是排序被重挑。判定：可接受（render 脊椎解鎖「看得到合成輸出」，blend 還卡在 count-policy 契約）。**blend 子家族仍 queued、未消失。** 該 pivot 之前無 plan 檔、master plan 未記、handoff 檔（柏為這 session 找的）也沒寫 → 已補 `RENDER_TARGET_PIVOT_HANDOFF.md` + 本檔 Active Lane。剩餘風險：batch 3（NodeSpec/port/UI）是柏為的開批決策點，別自動衝。
 - 舊 master plan 宣稱 100/100 ↔ 實際沒有能打開的 app。解決：本檔取代它；100/100 只是 headless 證明。
 - **（2026-06-07，柏為提醒觸發）本檔前一版把舊 native-runtime 的「graph/command/runtimeGraph 層」整批判成
   「新方向用不到」= 判太狠的錯。** 把「TiXL/Vuo **runtime 實作**搬不動」過度推廣成「**契約規格**也用不到」。

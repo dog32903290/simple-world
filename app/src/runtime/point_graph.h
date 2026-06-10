@@ -169,11 +169,4 @@ class PointGraph {
 // the draw. injectBug makes the middle op ignore its input so the assertion FAILS.
 int runPointGraphSelfTest(bool injectBug);
 
-// Headless proof of the COMMAND STREAM machinery (batch 0 of the render-target pivot):
-// registers a stub command op, cooks it via a CmdCookCtx, and asserts it returns a
-// 1-item RenderCommand carrying the upstream count. Proves the cmd registry + call +
-// record return work WITHOUT touching cook() or the buffer flow. injectBug drops the
-// item so the size assertion FAILS (RED) before we trust GREEN.
-int runCommandStreamSelfTest(bool injectBug);
-
 }  // namespace sw

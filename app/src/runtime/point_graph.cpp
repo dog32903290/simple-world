@@ -162,6 +162,15 @@ bool PointGraph::valid() const { return p_->dev && p_->queue && p_->target; }
 MTL::Texture* PointGraph::target() const { return p_->target; }
 
 int PointGraph::defaultDrawTarget(const Graph& g) const {
+  // The terminal is the most-downstream realizable node: a RenderTarget (Texture2D) wins, else
+  // a DrawPoints (Command). Both replaced the old drawReg draw node in production.
+  for (const Node& n : g.nodes)
+    if (texReg().find(n.type) != texReg().end()) return n.id;
+  for (const Node& n : g.nodes)
+    if (cmdReg().find(n.type) != cmdReg().end()) return n.id;
+  // Legacy draw terminal (PointDrawFn, retired in batch 4): production registers none, but
+  // self-contained golden selftests register a capture-only draw op as their terminal — keep it
+  // discoverable so cook() can dispatch it, until the draw model is fully retired.
   for (const Node& n : g.nodes)
     if (drawReg().find(n.type) != drawReg().end()) return n.id;
   return 0;
@@ -215,11 +224,59 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return out;
   };
 
-  // Realize the target. If it's a draw node, cook its Points input and render it; else it's
-  // a Points-producing op whose output bag is cooked but not yet shown (a raw Points node
-  // needs a typed-preview wrapper — future, not built).
+  // Realize the terminal into target() via the Command→Texture executor (the render-target
+  // pivot's three-flow cook). DrawPoints is now a COMMAND op and RenderTarget a TEXTURE op
+  // (point_ops.cpp); the legacy "buffer→pixels" draw flow is gone. The terminal is one of:
+  //   • a texture op (RenderTarget): gather its upstream Command chain, execute into target;
+  //   • a command op (DrawPoints): cook its 1-item Command, execute into target;
+  //   • a Points-producing op (preview pin, view⊥graph §5): synthesize a 1-item Command from
+  //     the cooked bag, execute it — reuses the same executor, no separate draw path.
+  // All paths run through a registered texture op = the single executor that owns the render
+  // pass (render_command.h: the executor owns Prepare/Restore, the op only carries data).
+
+  // Cook a command node: resolve its upstream Points bag, then call its cmd fn -> RenderCommand.
+  auto cookCommand = [&](int id) -> RenderCommand {
+    RenderCommand rc;
+    const Node* n = g.node(id);
+    const NodeSpec* s = n ? findSpec(n->type) : nullptr;
+    if (!n || !s) return rc;
+    auto cm = cmdReg().find(n->type);
+    if (cm == cmdReg().end() || !cm->second) return rc;
+    MTL::Buffer* pts = nullptr;
+    uint32_t cnt = 0;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!(port.isInput && port.dataType == "Points")) continue;
+      const Connection* c = g.connectionToInput(pinId(id, (int)i));
+      if (c) { pts = cookNode(pinNode(c->fromPin)); cnt = p_->outCount[pinNode(c->fromPin)]; }
+      break;
+    }
+    CmdCookCtx cc;
+    cc.ctx = &ctx; cc.graph = &g; cc.reg = reg;
+    cc.nodeId = id; cc.points = pts; cc.count = cnt;
+    return cm->second(cc);
+  };
+
+  // Execute a Command chain into target() via a named texture executor. The live target IS the
+  // display texture, so the op draws straight into it (batch 3 adds resolution-pinned
+  // RenderTarget textures + the Command/Texture2D node ports). Missing executor -> black, no crash.
+  auto execIntoTarget = [&](const RenderCommand& chain, const std::string& execType, int nodeId) {
+    auto tx = texReg().find(execType);
+    if (tx == texReg().end() || !tx->second) { p_->clearTarget(); return; }
+    TexCookCtx tc;
+    tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
+    tc.ctx = &ctx; tc.graph = &g; tc.reg = reg;
+    tc.nodeId = nodeId; tc.command = &chain; tc.output = p_->target;
+    tx->second(tc);
+  };
+
+  // Legacy draw terminal (PointDrawFn, retired in batch 4): if a draw op is registered for this
+  // terminal type, render via it and stop. Production registers NONE — DrawPoints is a cmd op now
+  // (point_ops.cpp) — so this branch is dead in the live app (drawReg empty -> falls through to the
+  // three-flow below, zero regression). It survives only for golden selftests that capture the
+  // final cooked bag by registering a capture-only draw op; the two models coexist until batch 4.
   auto drawIt = drawReg().find(target->type);
-  if (drawIt != drawReg().end()) {
+  if (drawIt != drawReg().end() && drawIt->second) {
     MTL::Buffer* pts = nullptr;
     uint32_t drawCount = 0;
     for (size_t i = 0; i < ts->ports.size(); ++i) {
@@ -235,146 +292,41 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     dc.nodeId = target->id; dc.count = drawCount;
     dc.inputs = nullptr; dc.inputCount = 0; dc.output = nullptr; dc.state = nullptr;
     drawIt->second(dc, p_->target, pts);
+    return;
+  }
+
+  if (texReg().find(target->type) != texReg().end()) {
+    // Texture terminal (RenderTarget): concat all upstream Command inputs, run its own tex op.
+    RenderCommand chain;
+    for (size_t i = 0; i < ts->ports.size(); ++i) {
+      const PortSpec& port = ts->ports[i];
+      if (!(port.isInput && port.dataType == "Command")) continue;
+      const Connection* c = g.connectionToInput(pinId(target->id, (int)i));
+      if (!c) continue;
+      RenderCommand up = cookCommand(pinNode(c->fromPin));
+      chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
+    }
+    execIntoTarget(chain, target->type, target->id);
+  } else if (cmdReg().find(target->type) != cmdReg().end()) {
+    // Command terminal (DrawPoints): cook its 1-item chain, run the RenderTarget executor.
+    RenderCommand chain = cookCommand(target->id);
+    execIntoTarget(chain, "RenderTarget", target->id);
   } else {
-    // Typed-preview wrapper (view ⊥ graph): the target is a Points-producing op, NOT a draw
-    // node — so pick a default visualizer by its OUTPUT type. v1 fills one cell: Points ->
-    // reuse the DrawPoints draw op on the cooked bag (no new registry, no new shader). Other
-    // output types (ParticleForce/Float) have no visualizer yet -> black, no crash, no stale
-    // frame (OUTPUT_PIN_VIEWER_CONTRACT §5). The outputType->previewFn seam IS this if/else;
-    // promote it to a table only when a 2nd type needs it.
+    // Points-producing terminal (preview pin): synthesize a 1-item chain from the cooked bag.
+    // Other output types (ParticleForce/Float) have no visualizer yet -> black, no crash, no
+    // stale frame (OUTPUT_PIN_VIEWER_CONTRACT §5).
     MTL::Buffer* out = cookNode(targetNodeId);
     const PortSpec* outPort = nullptr;
     for (const PortSpec& port : ts->ports)
       if (!port.isInput) { outPort = &port; break; }
-    auto dp = drawReg().find("DrawPoints");
-    if (out && outPort && outPort->dataType == "Points" && dp != drawReg().end()) {
-      PointCookCtx pc;
-      pc.dev = p_->dev; pc.lib = p_->lib; pc.queue = p_->queue;
-      pc.ctx = &ctx; pc.graph = &g; pc.reg = reg;
-      pc.nodeId = targetNodeId; pc.count = p_->outCount[targetNodeId];
-      pc.inputs = nullptr; pc.inputCount = 0; pc.output = nullptr; pc.state = nullptr;
-      dp->second(pc, p_->target, out);
+    if (out && outPort && outPort->dataType == "Points") {
+      RenderCommand chain;
+      chain.items.push_back(RenderDrawItem{out, p_->outCount[targetNodeId], 3.5f});
+      execIntoTarget(chain, "RenderTarget", targetNodeId);
     } else {
       p_->clearTarget();  // no visualizer for this output type yet (§5)
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Headless proof of the cook MACHINERY (not any real kernel). CPU-fill stub ops are
-// registered under real type names; the chain RadialPoints→ParticleSystem→DrawPoints
-// must thread the generated bag through the middle op to the draw. injectBug makes the
-// middle op ignore its input so the (x==2) assertion fails.
-namespace {
-
-bool g_injectBug = false;
-std::vector<SwPoint>* g_capture = nullptr;
-
-// Generator: fill `count` points, Position.x = 1.
-void stubGen(PointCookCtx& c) {
-  if (!c.output || c.count == 0) return;
-  SwPoint* dst = (SwPoint*)c.output->contents();
-  for (uint32_t i = 0; i < c.count; ++i) {
-    dst[i] = SwPoint{};
-    dst[i].Position = {1.0f, 0.0f, 0.0f};
-  }
-}
-// Modifier: copy input[0] -> output, Position.x *= 2 (proves input threading).
-// Bug variant ignores the input and writes x = 0 so the x==2 assertion fails.
-void stubMul(PointCookCtx& c) {
-  if (!c.output || c.count == 0) return;
-  SwPoint* dst = (SwPoint*)c.output->contents();
-  const MTL::Buffer* in0 = (c.inputCount > 0) ? c.inputs[0] : nullptr;
-  const SwPoint* src = in0 ? (const SwPoint*)const_cast<MTL::Buffer*>(in0)->contents() : nullptr;
-  for (uint32_t i = 0; i < c.count; ++i) {
-    if (g_injectBug || !src) { dst[i] = SwPoint{}; dst[i].Position = {0.0f, 0.0f, 0.0f}; continue; }
-    dst[i] = src[i];
-    dst[i].Position.x = src[i].Position.x * 2.0f;
-  }
-}
-// Draw: capture the final bag for assertion (no real rendering).
-void stubDraw(PointCookCtx& c, MTL::Texture*, const MTL::Buffer* points) {
-  if (!g_capture || !points || c.count == 0) return;
-  g_capture->assign(c.count, SwPoint{});
-  std::memcpy(g_capture->data(), const_cast<MTL::Buffer*>(points)->contents(),
-              (size_t)c.count * sizeof(SwPoint));
-}
-
-// Command-stream stub: wrap the upstream count into a 1-item RenderCommand (what the
-// real DrawPoints cmd op will do in batch 2). Bug variant drops the item so the size
-// assertion fails.
-bool g_cmdInjectBug = false;
-RenderCommand stubCmdOp(CmdCookCtx& c) {
-  RenderCommand rc;
-  if (!g_cmdInjectBug) rc.items.push_back(RenderDrawItem{c.points, c.count, 3.5f});
-  return rc;
-}
-
-}  // namespace
-
-int runPointGraphSelfTest(bool injectBug) {
-  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-  g_injectBug = injectBug;
-  std::vector<SwPoint> captured;
-  g_capture = &captured;
-
-  // Register CPU-fill stubs under real type names (clean: builtin ops aren't registered
-  // during a --selftest run — main dispatches selftests before app init).
-  registerPointOp("RadialPoints", stubGen);
-  registerPointOp("ParticleSystem", stubMul);
-  registerDrawOp("DrawPoints", stubDraw);
-
-  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
-  MTL::CommandQueue* q = dev->newCommandQueue();
-  PointGraph pg(dev, /*lib=*/nullptr, q, 64, 64);
-
-  // Build RadialPoints(Count=8) -> ParticleSystem -> DrawPoints.
-  Graph g;
-  Node gen; gen.id = 1; gen.type = "RadialPoints"; gen.params["Count"] = 8.0f; g.nodes.push_back(gen);
-  Node mid; mid.id = 2; mid.type = "ParticleSystem"; g.nodes.push_back(mid);
-  Node drw; drw.id = 3; drw.type = "DrawPoints"; g.nodes.push_back(drw);
-  // RadialPoints.points(port0) -> ParticleSystem.emit(port0)
-  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});
-  // ParticleSystem.result(port2) -> DrawPoints.points(port0)
-  g.connections.push_back({102, pinId(2, 2), pinId(3, 0)});
-
-  EvaluationContext ctx{};
-  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
-  pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));
-  pg.cook(g, ctx, nullptr, pg.defaultDrawTarget(g));  // second cook: exercise buffer reuse (no realloc, same result)
-
-  bool ok = captured.size() == 8;
-  for (const SwPoint& p : captured) ok = ok && (p.Position.x == 2.0f);
-
-  printf("[selftest-pointgraph] cooked=%zu (want 8) x[0]=%.1f (want 2.0) -> %s\n", captured.size(),
-         captured.empty() ? -1.0f : captured[0].Position.x, ok ? "PASS" : "FAIL");
-
-  g_capture = nullptr;
-  q->release();
-  dev->release();
-  pool->release();
-  return ok ? 0 : 1;
-}
-
-// Batch 0 proof: the Command stream registers, gets called, and returns a record —
-// without a Metal device (pure CPU) and without touching cook() or the buffer flow.
-int runCommandStreamSelfTest(bool injectBug) {
-  g_cmdInjectBug = injectBug;
-  registerCmdOp("DrawPoints", stubCmdOp);  // selftest registers its own stub (clean table)
-
-  CmdCookCtx c;
-  c.nodeId = 1;
-  c.points = nullptr;  // we assert the count; the borrowed buffer may be null in this fixture
-  c.count = 8;
-  auto it = cmdReg().find("DrawPoints");
-  RenderCommand rc = (it != cmdReg().end() && it->second) ? it->second(c) : RenderCommand{};
-
-  bool ok = rc.items.size() == 1 && rc.items[0].count == 8;
-  printf("[selftest-cmdstream] items=%zu (want 1) count=%u (want 8) -> %s\n", rc.items.size(),
-         rc.items.empty() ? 0u : rc.items[0].count, ok ? "PASS" : "FAIL");
-
-  g_cmdInjectBug = false;
-  return ok ? 0 : 1;
 }
 
 }  // namespace sw

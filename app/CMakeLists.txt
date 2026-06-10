@@ -94,6 +94,7 @@ add_executable(simple_world
   src/runtime/node_registry.cpp
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
+  src/runtime/point_graph_selftest.cpp
   src/runtime/point_ops.cpp
   src/runtime/point_ops_selftest.cpp
   src/runtime/point_ops_linepoints.cpp
