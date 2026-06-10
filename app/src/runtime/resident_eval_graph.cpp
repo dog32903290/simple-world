@@ -63,9 +63,138 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
 
 namespace {
 
-// Resolve one connection's SOURCE side to a (residentPath, slotId) value producer, for wires
-// whose source is a local atomic child (Task 3) — boundary-input + compound sources come in Task 4.
-struct SrcRef { bool ok = false; std::string path, slot; };
+// Inline one symbol's subgraph at `prefix`, given how its OWN input defs are driven from the
+// outer graph (`inBindings`: inputDefId -> the resolved driver to copy onto inner consumers).
+// Appends resident nodes to g, returns this symbol's output producers (outputDefId ->
+// (residentPath, slotId)). `onPath` carries the symbol ids active on the current path for the
+// self-nesting guard (TiXL does NOT guard this — contract S14). depth bounds runaway recursion.
+std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
+    const SymbolLibrary& lib, const Symbol& sym, const std::string& prefix,
+    const std::map<std::string, ResidentInput>& inBindings, ResidentEvalGraph& g,
+    std::vector<std::string>& onPath, int depth) {
+
+  std::map<std::string, std::pair<std::string, std::string>> outProducers;
+  if (depth > 64) return outProducers;
+
+  // Per-child output producers for COMPOUND children (filled by recursion), keyed by child id.
+  std::map<int, std::map<std::string, std::pair<std::string, std::string>>> childOuts;
+
+  // 1. Recurse compound children first (their outputs are needed to resolve wires reading them);
+  //    emit atomic children as resident nodes with Constant drivers.
+  for (const SymbolChild& c : sym.children) {
+    const Symbol* def = lib.find(c.symbolId);
+    if (!def) continue;
+
+    if (def->atomic) {
+      ResidentNode rn;
+      rn.path = prefix + std::to_string(c.id);
+      rn.opType = c.symbolId;
+      for (const SlotDef& d : def->inputDefs) {
+        ResidentInput in;
+        in.slotId = d.id;
+        in.driver = ResidentInput::Driver::Constant;
+        in.constant = effectiveInput(lib, c, d.id, d.def);
+        rn.inputs.push_back(in);
+      }
+      g.byPath[rn.path] = (int)g.nodes.size();
+      g.nodes.push_back(std::move(rn));
+    } else {
+      // self-nesting / cycle guard: skip if this symbol id is already active on the path.
+      bool nested = false;
+      for (const std::string& id : onPath)
+        if (id == c.symbolId) { nested = true; break; }
+      if (nested) continue;
+
+      // Gather how THIS compound child's input defs are driven by the current symbol's wires.
+      std::map<std::string, ResidentInput> childIn;
+      for (const SymbolConnection& w : sym.connections) {
+        if (w.dstChild != c.id) continue;  // wires feeding this compound child's inputs
+        ResidentInput in;
+        in.slotId = w.dstSlot;
+        if (sourceIsSymbolInput(w)) {
+          // source = parent's own input def -> copy the driver the outer graph gave us.
+          auto bit = inBindings.find(w.srcSlot);
+          if (bit != inBindings.end()) { in = bit->second; in.slotId = w.dstSlot; }
+        } else {
+          const Symbol* sdef = lib.find(/*src child's symbol*/ "");  // resolved below
+          (void)sdef;
+          // source is a sibling child: resolve to its resident producer.
+          // atomic sibling -> (prefix+srcChild, srcSlot); compound sibling -> its childOuts.
+          auto sibling = [&](int childId, const std::string& slot) -> std::pair<std::string,std::string> {
+            auto cit = childOuts.find(childId);
+            if (cit != childOuts.end()) {
+              auto pit = cit->second.find(slot);
+              if (pit != cit->second.end()) return pit->second;
+            }
+            return {prefix + std::to_string(childId), slot};
+          };
+          auto pr = sibling(w.srcChild, w.srcSlot);
+          in.driver = ResidentInput::Driver::Connection;
+          in.srcNodePath = pr.first;
+          in.srcSlotId = pr.second;
+        }
+        childIn[w.dstSlot] = in;
+      }
+
+      onPath.push_back(c.symbolId);
+      childOuts[c.id] = inlineSymbol(lib, *def, prefix + std::to_string(c.id) + "/", childIn, g,
+                                     onPath, depth + 1);
+      onPath.pop_back();
+    }
+  }
+
+  // 2. Resolve this symbol's wires onto atomic dst inputs + collect this symbol's output producers.
+  auto resolveSrc = [&](const SymbolConnection& w) -> std::pair<std::string, std::string> {
+    if (sourceIsSymbolInput(w)) {  // shouldn't reach here for value resolution; handled via inBindings
+      return {"", ""};
+    }
+    auto cit = childOuts.find(w.srcChild);  // compound sibling output
+    if (cit != childOuts.end()) {
+      auto pit = cit->second.find(w.srcSlot);
+      if (pit != cit->second.end()) return pit->second;
+    }
+    return {prefix + std::to_string(w.srcChild), w.srcSlot};  // atomic sibling
+  };
+
+  for (const SymbolConnection& w : sym.connections) {
+    if (targetIsSymbolOutput(w)) {                 // child -> this symbol's external output
+      if (sourceIsSymbolInput(w)) continue;        // pass-through input->output (rare); skip in slice 1
+      outProducers[w.dstSlot] = resolveSrc(w);
+      continue;
+    }
+    if (sourceIsSymbolInput(w)) continue;          // boundary-input already applied via childIn above
+    // child -> child: only ATOMIC dst gets a resident input here (compound dst handled via childIn).
+    std::string dstPath = prefix + std::to_string(w.dstChild);
+    auto it = g.byPath.find(dstPath);
+    if (it == g.byPath.end()) continue;            // dst is compound (driven via childIn) -> skip
+    auto pr = resolveSrc(w);
+    for (ResidentInput& in : g.nodes[it->second].inputs)
+      if (in.slotId == w.dstSlot) {
+        in.driver = ResidentInput::Driver::Connection;
+        in.srcNodePath = pr.first;
+        in.srcSlotId = pr.second;
+      }
+  }
+
+  // 3. Apply boundary-INPUT bindings onto atomic children that read this symbol's input defs
+  //    (a wire srcChild==boundary, dstChild==atomic): copy the outer driver onto the inner input.
+  for (const SymbolConnection& w : sym.connections) {
+    if (!sourceIsSymbolInput(w) || targetIsSymbolOutput(w)) continue;
+    std::string dstPath = prefix + std::to_string(w.dstChild);
+    auto it = g.byPath.find(dstPath);
+    if (it == g.byPath.end()) continue;            // dst compound: bound via childIn already
+    auto bit = inBindings.find(w.srcSlot);
+    if (bit == inBindings.end()) continue;
+    for (ResidentInput& in : g.nodes[it->second].inputs)
+      if (in.slotId == w.dstSlot) {
+        ResidentInput b = bit->second;
+        b.slotId = w.dstSlot;
+        in = b;
+      }
+  }
+
+  return outProducers;
+}
 
 }  // namespace
 
@@ -73,52 +202,9 @@ ResidentEvalGraph buildEvalGraph(const SymbolLibrary& lib, const std::string& ro
   ResidentEvalGraph g;
   const Symbol* root = lib.find(rootId);
   if (!root) return g;
-
-  const std::string prefix;  // root prefix is empty; Task 4 grows it per nesting level
-
-  // 1. Emit a resident node for each atomic child, seeding Constant drivers from effectiveInput.
-  for (const SymbolChild& c : root->children) {
-    const Symbol* def = lib.find(c.symbolId);
-    if (!def) continue;
-    // Task 4 handles compound children; until then, only atomic children are inlined.
-    if (!def->atomic) continue;
-
-    ResidentNode rn;
-    rn.path = prefix + std::to_string(c.id);
-    rn.opType = c.symbolId;
-    for (const SlotDef& d : def->inputDefs) {
-      ResidentInput in;
-      in.slotId = d.id;
-      in.driver = ResidentInput::Driver::Constant;
-      in.constant = effectiveInput(lib, c, d.id, d.def);  // instance override else def default
-      rn.inputs.push_back(in);
-    }
-    g.byPath[rn.path] = (int)g.nodes.size();
-    g.nodes.push_back(std::move(rn));
-  }
-
-  // 2. Apply connections: a local child->child wire becomes a Connection driver on the dst input;
-  //    a child->boundary-output wire records the graph's external output producer.
-  for (const SymbolConnection& conn : root->connections) {
-    if (sourceIsSymbolInput(conn)) continue;  // boundary-INPUT source -> Task 4 (needs parent bindings)
-    std::string srcPath = prefix + std::to_string(conn.srcChild);
-    if (!g.node(srcPath)) continue;           // src not (yet) inlined (e.g. compound) -> Task 4
-
-    if (targetIsSymbolOutput(conn)) {
-      g.outputs[conn.dstSlot] = {srcPath, conn.srcSlot};  // -> root external output
-      continue;
-    }
-    std::string dstPath = prefix + std::to_string(conn.dstChild);
-    auto it = g.byPath.find(dstPath);
-    if (it == g.byPath.end()) continue;
-    ResidentNode& dst = g.nodes[it->second];
-    for (ResidentInput& in : dst.inputs)
-      if (in.slotId == conn.dstSlot) {
-        in.driver = ResidentInput::Driver::Connection;
-        in.srcNodePath = srcPath;
-        in.srcSlotId = conn.srcSlot;
-      }
-  }
+  std::vector<std::string> onPath = {rootId};
+  std::map<std::string, ResidentInput> noBindings;  // root has no outer driver
+  g.outputs = inlineSymbol(lib, *root, "", noBindings, g, onPath, 0);
   return g;
 }
 
