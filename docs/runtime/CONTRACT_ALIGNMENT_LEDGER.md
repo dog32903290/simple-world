@@ -1,6 +1,21 @@
 # Runtime Contract Alignment Ledger
 
-Last updated: 2026-06-09 01:00 Asia/Taipei
+Last updated: 2026-06-10 16:00 Asia/Taipei
+
+> **⚠ 2026-06-10 parity 健檢 + 柏為拍板 P1–P3，本底稿多條被取代/重審——改約前先讀
+> `docs/runtime/TIXL_PARITY_HEALTH_2026-06-10.md` §4（D1–D12 分岔全表）**：
+> - **P1 拍板**：參數編輯/錄製預設手感**照 TiXL**（播放中動到已動畫參數=當場寫 key、無 override 概念、無參數錄製）。
+>   → **L2 的「彈」層、L13 黏著 override+re-enable、S7/S8 punch-in 錄製（D1/D2/D3）= 停車**，之後做成可開關的
+>   「表演模式」蓋在 slot override 縫上（TiXL `Slot.cs:91-117`），不是預設行為。
+> - **P2 拍板**：automation 權威 = **Symbol 定義層 Animator（照 TiXL）**。→ **L12 scoreGraph 第五張圖（D4）作廢**；
+>   「一 patch 多版本 score」停車（之後用 TiXL Variations/Snapshots 概念接）。每層 compound 自帶 timeline。
+> - **P3 拍板**：時間單位 = **bars 原生**（曲線 key/TimeClip/loop 以小節存、BPM 進 transport+存檔；D9 補洞）。
+> - **D5**：binding 種類 `live-source` 作廢（live 輸入一律節點；audio 已是 AudioReaction 節點）。L5 解析模型的
+>   三選一收斂為 `connection｜automation`＋constant。
+> - **仍開放（M2/M4 前要拍）**：D6 transport length、D7 音檔時鐘主從（TiXL=播放頭 master+0.04s resync）、
+>   D8 AudioFrame 值型別（TiXL=ambient context）。**D12**：S3 抄 Curve 時的四個洞（Horizontal 內插/Pre-Post
+>   外插/雙邊張力/TimePrecision=4）從源碼抄、別從本底稿抄。
+> - **同構確認不動**：L1/L8/L9/L10/L5 子集/L3 實質/L7/S6 scrub——健檢複核過、保留。
 
 這不是合約本身，是**改約前的對齊底稿**。記錄一次跟柏為的長對話（8+ 輪）中，
 針對 runtime 合約「時間 / 聲音 / 交互層」含混處的逐項壓力測試與鎖定決定。

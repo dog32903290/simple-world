@@ -1,5 +1,8 @@
 # TiXL -> Vuo Port Status Board
 
+> **⚰ 歷史時代文件（Vuo 路線已捨棄）——這不是現行 dashboard。** 現行唯一進度進入點 =
+> `docs/superpowers/plans/2026-06-07-imgui-metal-pivot-master-progress.md`。別照本表開工。
+
 Generated from current repo evidence. Do not hand-edit table rows; run:
 
 ```bash

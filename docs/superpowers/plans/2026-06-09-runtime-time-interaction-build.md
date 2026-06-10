@@ -4,6 +4,19 @@
 > 底層複驗（對 `external/tixl`）確認：TiXL 的 `Slot` 一個物件扛 接線 / dirty / **driver(binding)** 三件事——**沒有獨立 binding 解析層**。所以本 lane 的 **S1 `SourceRegistry`（已建、12 selftest 綠）是「stateless era 的對的暫態」，現被 compound lane 的 batch 1「常駐求值圖」收編**：binding/override 從 `(nodeId,portId)` 獨立 map **遷移到 resident 節點 input 的 `driver` 欄位**（= TiXL slot），`isLiveSource`/dirty 從 driver 推導、不另存。
 > **影響本 lane：**①S3 Curve / S4 scoreGraph / S5 Transport **排序不動、仍是上半部 authoring**；②但 automation 往下**接 resident 節點 input 的 driver（= TiXL `Animator.OverrideWithAnimationAction`）**，不接平行 SourceRegistry；③ctx 兩鐘（`localTime` 播放頭 / `localFxTime` 牆鐘）由 compound batch 1 先長好形狀，S5 Transport 才造真兩鐘填值。
 > 權威設計 = `specs/2026-06-10-compound-graph-design.md` 決策 9 / 契約 2.5b。**本 lane 仍 parked（等 compound 地基），resume 時 binding 接點已改。**
+>
+> **⚠⚠ 2026-06-10（晚）parity 健檢 + 柏為拍板 P1–P3，本 lane 範圍再移——resume 前必讀
+> `docs/runtime/TIXL_PARITY_HEALTH_2026-06-10.md`：**
+> ① **S4 scoreGraph 作廢（P2 拍板）**：automation 權威=**Symbol 定義層 Animator（照 TiXL）**，每層 compound 自帶
+> timeline；「多版本 score」停車（之後走 TiXL Variations/Snapshots 概念）。S4 重塑為「per-Symbol Animator 容器
+> + timeline 視窗（view 不是資料體）」。
+> ② **S3 Curve：時間單位=bars（P3 拍板）**；抄源碼別抄 ledger——四個洞（D12）：6 種內插含 Horizontal、
+> Pre/PostCurveMapping 外插、雙邊張力 TensionIn/Out+Weighted gate、TimePrecision=4 捨入。
+> ③ **S7/S8（punch-in 錄製/黏著 override）停車（P1 拍板）**：預設手感照 TiXL（動到已動畫參數=播放頭寫 key）；
+> Ableton 三件套之後做成可開關表演模式。
+> ④ **L5 的 `live-source` binding kind 作廢（D5）**：live 輸入一律節點（AudioReaction 前例）；driver enum=
+> `Constant|Connection|Automation`。
+> ⑤ BPM/soundtrack 持久化的家=CompositionSettings 等價段（契約 3 健檢修正），S5 Transport 接它、不另立。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans。Steps 用 `- [ ]` 追蹤。
 > 設計來源 = `docs/runtime/CONTRACT_ALIGNMENT_LEDGER.md`（L1–L14，**L5 解析模型 round-3 已釘**）+ `MY_WORLD_RUNTIME_CONTRACT.md` v0.2。

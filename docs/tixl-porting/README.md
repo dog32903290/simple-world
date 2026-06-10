@@ -1,5 +1,10 @@
 # TiXL to Vuo Porting Research
 
+> **⚰ 歷史時代文件（Vuo 路線，2026-06-07 已捨棄）。** 本資料夾（含 PORT_STATUS_BOARD.md）屬
+> TiXL→Vuo 時代，**不是現行法律**。現行世界 = imgui-node-editor + 自建 Metal（北極星見
+> `docs/superpowers/plans/2026-06-07-imgui-metal-pivot-master-progress.md`）。
+> 這裡的 TiXL 節點研究筆記仍可當參考資料，Vuo 相關結論一律失效。
+
 This folder is the working knowledge base for porting TiXL node vocabulary into Vuo / My World.
 
 Source evidence:

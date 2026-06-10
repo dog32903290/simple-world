@@ -111,6 +111,8 @@ DX11/WinForms 焊死的陷阱）、Web/TS（wgpu→Metal 非親手 + 丟 imgui-n
 ## Active Lane
 
 **COMPOUND + 常駐增量求值 — 一條地基（2026-06-10 柏為兩次拍板，最高優先，暫停其餘製作）** = 設計契約 `specs/2026-06-10-compound-graph-design.md`（實作計畫待 writing-plans 產）。
+
+> **✅ 批次 1 動工閘已過（2026-06-10 晚收線）**：全 repo parity 健檢（發現 C1–C5 地基級誤讀）→ 柏為拍板 P1（手感照 TiXL，Ableton 停車成未來表演模式）/P2（automation 權威=Symbol 定義層 Animator，scoreGraph 作廢）/P3（時間單位=bars）→ 契約修正 26 處 → **refuter 二輪否證複掃（12 項二修全收）→ 解凍**。健檢+二輪結果 SSOT=`docs/runtime/TIXL_PARITY_HEALTH_2026-06-10.md`；TiXL 戶口=`docs/runtime/PARITY_TARGET.md`（鎖 SHA 395c4c55，**嚴禁在 external/tixl 順手 git pull**）。批次 0 資料模型經稽核確認忠實。**批次 1 動工以修正後的 compound spec 為唯一藍圖（讀任何一段都連帶讀它的「健檢修正」標記）。** P4 工作系統已採：閘 0✓、閘 1/2 生效；Tier 1b 等 lane A 解凍、Tier 1 dotnet 等 S3 前、Tier 0 等有 Windows 機。
 柏為定：**這是 simple_world 成立的根本**——TiXL 整個圖模型本質巢狀(沒有 flat 圖)，我們現在的 flat 圖只等於 TiXL 最外層那張；地基趁上面還輕時改。**功能 100% 照 TiXL、所有設計決策權威=`external/tixl` 源碼(不自創)**。
 - **TiXL compound 精華（4 隻 agent 深讀源碼綜合）**：`Symbol`(定義)/`Symbol.Child`(實例,reuse=多 Child 引用同 Symbol)/`Connection`(四元組)+**`Guid.Empty` sentinel 表跨邊界連線**；**無 Input/Output proxy 節點**(對外 port=Symbol 的 inputDefs/outputDefs)；**求值期邊界透明**(接線期解析掉)。
 - **★ 第二次拍板（2026-06-10 側議壓測 + 源碼複驗）：目標規模 = 跟 TiXL 一樣大（幾千節點/深度巢狀/滿屏靜態）。在此規模 compound 與增量求值不是兩條正交地基、是同一條** = 「一個常駐的、可增量更新的求值圖，上面跑 version/dirty + per-node cache」。
@@ -236,6 +238,8 @@ load/store 覆蓋、語義合併衝突（git 行比對不報、memory layout 靜
   （SPEC/MIXED/IMPL），background agent 盤點中。**Session Safety 那條「不要照舊 100/100 蓋 graph/command/UI」
   仍成立**——指的是不要重蓋舊**實作**，不是不准讀契約規格。
 - 「克隆九百多個 TiXL 節點」是幻覺：TiXL 是 net10.0-windows、SharpDX 177/DX11 133 散進節點本體無抽象層；節點主體是 915 個 C#(.cs 2464)，shader 只 424 且半數是 compute(218)+RWStructuredBuffer(182)，且常是 template 靠 C# runtime 填洞（repo 內 `tixl_mesh_draw_hlsl_to_msl_verdict` 已 reject 機械翻譯）。→ 不克隆，借報告書當藍圖。
+- **（2026-06-10 健檢，open）compound 契約 2/2.5b 含地基級誤讀（eager 等價範圍、diamond×Command、Animator 擁有權層、multi-input、per-output-slot 粒度）**：發現+修法+拍板佇列 = `docs/runtime/TIXL_PARITY_HEALTH_2026-06-10.md`。契約修正待過目、P1–P4 待柏為拍板；**在那之前批次 1 不動工**。同檔記載：時間契約 vs「一模一樣」的 12 條分岔（D1–D12）、點 op 語意債（ledger×1.5~2）、repo 衛生 5 條（external/tixl 未鎖 SHA、文件地層無分界、本分支領先 origin 8 commit 未 push）。
+- **（2026-06-10 健檢修正）本檔末行原寫「不照搬 TiXL Symbol schema（graph 用自己 native 版）」已被 compound 契約 1（Graph 升 Symbol、照 TiXL）取代**——末行已改，此處記 drift 來源。
 - SPIRV-Cross 直接 HLSL→MSL：只解 pixel/vertex shader 那一小塊，不解 C# 節點語意與 DX11 runtime，不是主線解法。
 - **（2026-06-07）北極星「Mac 版 TiXL」vs Spine「克隆 TiXL editor ❌ 假路」表面衝突，實則一致。** 澄清：
   北極星要的是**功能/邏輯/體驗對等**（imgui-node-editor 皮 + metal runtime **重現** TiXL），**不是**逐行翻 TiXL 的
@@ -279,4 +283,4 @@ load/store 覆蓋、語義合併衝突（git 行比對不報、memory layout 靜
 GPU 輸出用 `codex-eyes` offscreen readback 驗、**每根線先注 bug 證眼睛**；契約層順序鎖、葉子並行 fan-out。
 踩雷清單見 memory northstar 那條（imgui 1.91.8 / MRC -fno-objc-arc / SwPoint 撞 Carbon / ed::EndCreate 在 if 內）。
 
-**不是**接舊 JS/Python runtime；舊 JS 契約**規格**可複用（語言中立）、實作不搬；**不照搬 TiXL Symbol schema**（graph 用自己 native 版）。
+**不是**接舊 JS/Python runtime；舊 JS 契約**規格**可複用（語言中立）、實作不搬；graph 資料模型**照 TiXL Symbol/Child/Connection**（2026-06-10 compound 契約 1 拍板，取代本行舊句「不照搬 TiXL Symbol schema」——那是 compound lane 之前的世界）。
