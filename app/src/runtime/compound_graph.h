@@ -1,9 +1,11 @@
 // runtime/compound_graph — the NESTED graph model (TiXL compound). This is the
 // graph-model layer ONLY: pure CPU data, no Metal, no upward deps (ARCHITECTURE.md
 // runtime leaf). It coexists with the flat `Graph` (graph.h) — the flat graph is
-// what cook()/evalFloat already consume, and the batch-1 flattener turns a nested
-// SymbolLibrary into that flat graph. So this header adds the nested types WITHOUT
-// touching the stable runtime.
+// what cook()/evalFloat consume TODAY. The batch-1 flattener (resident_eval_graph.*)
+// inlines a nested SymbolLibrary into a RESIDENT eval graph (build-once, frame-stable,
+// edit-time patched) — NOT a per-frame throwaway flat graph (that route was 作廢, see
+// compound contract §2.2: cache must hang on a node with stable cross-frame identity).
+// This header adds only the nested data types; the resident engine is a separate module.
 //
 // Faithful to TiXL (Core/Operator/Symbol.cs, Symbol.Child.cs, Symbol.Connection):
 //   Symbol          = a definition (id + input/output defs + child instances + connections)

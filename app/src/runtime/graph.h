@@ -1,7 +1,9 @@
 // Native node-graph data model — the source of truth for the canvas (the
-// editorGraph + cook params). Per tooll3-interaction-compatibility: we borrow
-// Tooll3's command vocabulary + save/load behavior, but the schema is our own
-// clean native model, NOT TiXL's Symbol/Instance system.
+// editorGraph + cook params) on the CURRENT flat path. NOTE: the compound contract
+// (契約 1, 照 TiXL) supersedes the old "NOT TiXL's Symbol/Instance system" stance —
+// the nested model lives in compound_graph.h (Symbol/Child/Connection) and the
+// resident eval engine in resident_eval_graph.*; this flat Graph remains the editor/
+// save/UI representation until the batch-2 production swap migrates them.
 #pragma once
 #include <map>
 #include <string>
