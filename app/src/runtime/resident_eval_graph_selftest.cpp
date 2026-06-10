@@ -26,7 +26,7 @@ Symbol atomic(const char* id, std::vector<SlotDef> ins, std::vector<SlotDef> out
 
 int runResidentEvalSelfTest(bool injectBug) {
   // --- shared atomics ---
-  Symbol cst = atomic("Const", {{"value", "value", "Float", 0.0f}}, {{"out", "out", "Float", 0.0f}});
+  Symbol cst = atomic("Const", {{"value", "value", "Float", 4.0f}}, {{"out", "out", "Float", 0.0f}});
   Symbol mul = atomic("Multiply", {{"a", "a", "Float", 1.0f}, {"b", "b", "Float", 1.0f}},
                       {{"out", "out", "Float", 0.0f}});
   if (injectBug) cst.inputDefs[0].def = 99.0f;  // pollute shared def: un-overridden reads leak
@@ -39,7 +39,7 @@ int runResidentEvalSelfTest(bool injectBug) {
   Symbol scaler; scaler.id = "Scaler"; scaler.name = "Scaler"; scaler.atomic = false;
   scaler.outputDefs = {{"out", "out", "Float", 0.0f}};
   SymbolChild sc1; sc1.id = 1; sc1.symbolId = "Const"; sc1.overrides["value"] = 3.0f;
-  SymbolChild sc2; sc2.id = 2; sc2.symbolId = "Const"; sc2.overrides["value"] = 4.0f;  // reuse, diff override
+  SymbolChild sc2; sc2.id = 2; sc2.symbolId = "Const";  // reuse, NO override -> reads def (4); bug pollutes def -> surfaces here (teeth)
   SymbolChild sm;  sm.id = 3;  sm.symbolId = "Multiply";
   scaler.children = {sc1, sc2, sm};
   scaler.connections = {
@@ -64,7 +64,7 @@ int runResidentEvalSelfTest(bool injectBug) {
   Symbol root2; root2.id = "Root2"; root2.name = "Root2"; root2.atomic = false;
   root2.outputDefs = {{"out", "out", "Float", 0.0f}};
   SymbolChild f1; f1.id = 1; f1.symbolId = "Const"; f1.overrides["value"] = 3.0f;
-  SymbolChild f2; f2.id = 2; f2.symbolId = "Const"; f2.overrides["value"] = 4.0f;
+  SymbolChild f2; f2.id = 2; f2.symbolId = "Const";  // no override -> reads def (4), same as nested sc2
   SymbolChild f3; f3.id = 3; f3.symbolId = "Multiply";
   root2.children = {f1, f2, f3};
   root2.connections = {{1, "out", 3, "a"}, {2, "out", 3, "b"}, {3, "out", kSymbolBoundary, "out"}};
