@@ -97,6 +97,26 @@ int runPointGraphSelfTest(bool injectBug) {
   printf("[selftest-pointgraph] cooked=%zu (want 8) x[0]=%.1f (want 2.0) -> %s\n", captured.size(),
          captured.empty() ? -1.0f : captured[0].Position.x, ok ? "PASS" : "FAIL");
 
+  // COUNT_WIRE golden: a CONNECTION into a generator's "Count" Float pin must win over the
+  // spec default (RadialPoints def = 2048), matching evalParam's value spine. Wire Const(6)
+  // -> RadialPoints.Count and cook; the bag must hold 6 points, not 2048. (Pre-fix, the
+  // wire-blind nodeCount ignored the wire and produced 2048.)
+  std::vector<SwPoint> countCap;
+  g_capture = &countCap;
+  Graph cg;
+  Node cst; cst.id = 10; cst.type = "Const"; cst.params["value"] = 6.0f; cg.nodes.push_back(cst);
+  Node cgen; cgen.id = 20; cgen.type = "RadialPoints"; cg.nodes.push_back(cgen);  // no params["Count"]
+  Node cdrw; cdrw.id = 30; cdrw.type = "DrawPoints"; cg.nodes.push_back(cdrw);
+  // Const.out(port1) -> RadialPoints.Count(port1)
+  cg.connections.push_back({201, pinId(10, 1), pinId(20, 1)});
+  // RadialPoints.points(port0) -> DrawPoints.points(port0)
+  cg.connections.push_back({202, pinId(20, 0), pinId(30, 0)});
+  pg.cook(cg, ctx, nullptr, pg.defaultDrawTarget(cg));
+  bool countOk = countCap.size() == 6;
+  printf("[selftest-pointgraph] count-wire cooked=%zu (want 6, wire wins over def 2048) -> %s\n",
+         countCap.size(), countOk ? "PASS" : "FAIL");
+  ok = ok && countOk;
+
   g_capture = nullptr;
   q->release();
   dev->release();

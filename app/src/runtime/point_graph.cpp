@@ -46,18 +46,30 @@ bool isBufferInput(const PortSpec& p) {
   return p.isInput && (p.dataType == "Points" || p.dataType == "ParticleForce");
 }
 
-// A node's output point count: a generator's explicit "Count" Float param, else the SUM of
-// all wired Points-input counts. The sum generalizes all three op shapes: generator (0 Points
-// inputs -> falls to "Count"), modifier (1 Points input -> that input's count, unchanged), and
-// combine (N Points inputs -> the concatenated total). A node with a "Count" param wins
-// regardless (generators only).
-uint32_t nodeCount(const Node& n, const NodeSpec& s, uint32_t sumPointsCount) {
-  for (const PortSpec& p : s.ports) {
-    if (p.isInput && p.dataType == "Float" && p.id == "Count") {
+// A node's output point count: a generator's "Count" Float input resolved through the value
+// spine, else the SUM of all wired Points-input counts. The sum generalizes all three op shapes:
+// generator (0 Points inputs -> falls to "Count"), modifier (1 Points input -> that input's
+// count, unchanged), and combine (N Points inputs -> the concatenated total). A node with a
+// "Count" port wins regardless (generators only).
+//
+// "Count" resolves exactly like evalParam's value spine (graph.cpp), scoped to THIS node:
+// a CONNECTION into the Count pin wins (recurse evalFloat upstream) — so wiring a value node
+// (Const, AudioReaction.level, …) into Count drives the bag size — else the stored param, else
+// the spec default. Pre-fix this was wire-blind (param/default only), silently using e.g. 2048
+// for an audio-reactive Count wire; cookResident's resolveFloat already does the right thing.
+uint32_t nodeCount(const Graph& g, const Node& n, const NodeSpec& s,
+                   const EvaluationContext& ctx, uint32_t sumPointsCount) {
+  for (size_t i = 0; i < s.ports.size(); ++i) {
+    const PortSpec& p = s.ports[i];
+    if (!(p.isInput && p.dataType == "Float" && p.id == "Count")) continue;
+    float v;
+    if (const Connection* c = g.connectionToInput(pinId(n.id, (int)i)))
+      v = evalFloat(g, c->fromPin, ctx, 0);  // wired: resolve through the value spine
+    else {
       auto it = n.params.find("Count");
-      float v = (it != n.params.end()) ? it->second : p.def;
-      return v > 0.0f ? (uint32_t)(v + 0.5f) : 0u;
+      v = (it != n.params.end()) ? it->second : p.def;  // stored constant else spec default
     }
+    return v > 0.0f ? (uint32_t)(v + 0.5f) : 0u;
   }
   return sumPointsCount;
 }
@@ -242,7 +254,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       if (port.dataType == "Points") sumPointsCount += inCount;
     }
 
-    uint32_t count = nodeCount(*n, *s, sumPointsCount);
+    uint32_t count = nodeCount(g, *n, *s, ctx, sumPointsCount);
     MTL::Buffer* out = p_->ensureOut(id, count);
     void* st = p_->ensureState(id, n->type, count);
 
