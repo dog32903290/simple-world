@@ -36,6 +36,10 @@ std::map<std::string, PointCmdFn>& cmdReg() {
   static std::map<std::string, PointCmdFn> m;
   return m;
 }
+std::map<std::string, PointTexFn>& texReg() {
+  static std::map<std::string, PointTexFn> m;
+  return m;
+}
 
 bool isBufferInput(const PortSpec& p) {
   return p.isInput && (p.dataType == "Points" || p.dataType == "ParticleForce");
@@ -65,6 +69,7 @@ void registerPointOp(const std::string& type, PointCookFn cook, PointStateNewFn 
 }
 void registerDrawOp(const std::string& type, PointDrawFn draw) { drawReg()[type] = draw; }
 void registerCmdOp(const std::string& type, PointCmdFn cmd) { cmdReg()[type] = cmd; }
+void registerTexOp(const std::string& type, PointTexFn tex) { texReg()[type] = tex; }
 
 // registerBuiltinPointOps() is defined in point_ops.cpp (the real operators).
 

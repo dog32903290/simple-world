@@ -83,6 +83,34 @@ struct CmdCookCtx {
 };
 // A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.
 using PointCmdFn = RenderCommand (*)(CmdCookCtx&);
+
+// --- Texture stream (TiXL's Slot<Texture2D>): the THIRD cook flow. A texture op
+// (RenderTarget) executes an upstream RenderCommand into a sized texture — this is the
+// RESOLUTION PIN point. Output texture is PointGraph-owned (pre-sized, like a buffer op's
+// output bag); the op draws into it, does not allocate. ---
+//
+// A CPU-side render resolution (NOT the 16-byte GPU EvaluationContext — that stays pure
+// time/frame). WindowFollow resolves to this; fixed modes ignore it.
+struct RenderResolution {
+  uint32_t w = 512;
+  uint32_t h = 512;
+};
+// Everything a texture op gets to cook one node this frame. `command` is the upstream
+// chain (already concatenated across multi-inputs by the cook driver). `output` is the
+// PointGraph-owned texture, pre-sized to the resolved resolution.
+struct TexCookCtx {
+  MTL::Device* dev = nullptr;
+  MTL::Library* lib = nullptr;
+  MTL::CommandQueue* queue = nullptr;
+  const EvaluationContext* ctx = nullptr;
+  const Graph* graph = nullptr;
+  const SourceRegistry* reg = nullptr;
+  int nodeId = 0;
+  const RenderCommand* command = nullptr;  // upstream chain (concatenated); may be null/empty
+  MTL::Texture* output = nullptr;          // PointGraph-owned, pre-sized; op draws here
+};
+// A texture operator: execute `command` into `output`. No buffer/command return.
+using PointTexFn = void (*)(TexCookCtx&);
 // Per-node persistent state lifetime for stateful ops (e.g. a sim's particle buffer).
 // `count` is the node's point count at creation. Return nullptr for stateless ops.
 using PointStateNewFn = void* (*)(MTL::Device*, MTL::Library*, uint32_t count);
@@ -98,6 +126,8 @@ void registerDrawOp(const std::string& type, PointDrawFn);
 // Register a command op (the Command stream). Separate table from cook/draw — exactly
 // as TiXL keeps Slot<Command> distinct from Slot<BufferWithViews>.
 void registerCmdOp(const std::string& type, PointCmdFn);
+// Register a texture op (the Texture2D stream — RenderTarget). Third table.
+void registerTexOp(const std::string& type, PointTexFn);
 // Registers all built-in point operators (A.1+: RadialPoints/TransformPoints/
 // ParticleSystem/DrawPoints/…). Called once from the app (Renderer) at startup.
 void registerBuiltinPointOps();

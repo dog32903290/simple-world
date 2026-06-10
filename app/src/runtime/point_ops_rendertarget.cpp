@@ -1,0 +1,178 @@
+// RenderTarget texture op (lane A render-target pivot, batch 1) — the THIRD cook flow.
+// Executes an upstream RenderCommand (Command stream) into a sized texture: TiXL's
+// RenderTarget (external/tixl .../image/generate/basic/RenderTarget.cs). This is the
+// RESOLUTION PIN point — Resolution param decides the output texture size; WindowFollow
+// tracks the output window (dynamic, no squash), fixed modes pin 16:9 / HD / 4K.
+//
+// Self-contained leaf: cookRenderTarget + resolveRenderResolution + registerRenderTargetOp()
+// + runRenderTargetSelfTest(). Batch 1 lands the op + texture-stream machinery and proves
+// it in isolation; the cook() terminal dispatch wires it in batch 2/3 (until then texReg is
+// empty in production — zero behavior change, exactly like batch 0's cmd stream).
+//
+// The draw is faithful to cookDrawPoints (same draw_points pipeline + DRAW_* bindings),
+// but loops the RenderCommand's items into ONE render pass: clear once, draw each item.
+// That single-pass-N-draws is the payoff of RenderCommand being a data record, not a
+// closure (compositing = the executor walks the chain; layers don't clear each other).
+#include "runtime/point_ops.h"
+
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <vector>
+
+#include <Foundation/Foundation.hpp>
+#include <Metal/Metal.hpp>
+
+#include "runtime/graph.h"            // Graph/Node
+#include "runtime/particle_params.h"  // DRAW_Points, DRAW_ViewExtent
+#include "runtime/point_graph.h"      // TexCookCtx, RenderResolution, registerTexOp
+#include "runtime/render_command.h"   // RenderCommand / RenderDrawItem
+#include "runtime/tixl_point.h"       // SwPoint (64B)
+
+#ifndef SW_SHADER_METALLIB
+#define SW_SHADER_METALLIB "shaders.metallib"
+#endif
+
+namespace sw {
+namespace {
+
+float paramOr(const Node* n, const char* id, float def) {
+  if (!n) return def;
+  auto it = n->params.find(id);
+  return it != n->params.end() ? it->second : def;
+}
+
+// RenderTarget draw: build the draw_points pipeline, open one render pass on `output`,
+// clear it once, then draw every item in the command chain in order (later items
+// composite on top). Builds the PSO per call for now — the live loop (batch 3+) caches it.
+void cookRenderTarget(TexCookCtx& c) {
+  if (!c.lib || !c.output) return;
+  MTL::Function* vs = c.lib->newFunction(NS::String::string("draw_points_vs", NS::UTF8StringEncoding));
+  MTL::Function* fs = c.lib->newFunction(NS::String::string("draw_points_fs", NS::UTF8StringEncoding));
+  MTL::RenderPipelineState* rps = nullptr;
+  if (vs && fs) {
+    MTL::RenderPipelineDescriptor* rpd = MTL::RenderPipelineDescriptor::alloc()->init();
+    rpd->setVertexFunction(vs);
+    rpd->setFragmentFunction(fs);
+    rpd->colorAttachments()->object(0)->setPixelFormat(c.output->pixelFormat());
+    NS::Error* err = nullptr;
+    rps = c.dev->newRenderPipelineState(rpd, &err);
+    rpd->release();
+  }
+  if (vs) vs->release();
+  if (fs) fs->release();
+
+  MTL::RenderPassDescriptor* pass = MTL::RenderPassDescriptor::renderPassDescriptor();
+  auto* ca = pass->colorAttachments()->object(0);
+  ca->setTexture(c.output);
+  ca->setLoadAction(MTL::LoadActionClear);
+  ca->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 1.0));  // batch 3: ClearColor param
+  ca->setStoreAction(MTL::StoreActionStore);
+  MTL::CommandBuffer* cmd = c.queue->commandBuffer();
+  MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(pass);
+  if (rps && c.command) {
+    enc->setRenderPipelineState(rps);
+    for (const RenderDrawItem& it : c.command->items) {
+      if (!it.points || it.count == 0) continue;
+      enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAW_Points);
+      float viewExtent = it.viewExtent;
+      enc->setVertexBytes(&viewExtent, sizeof(float), DRAW_ViewExtent);
+      enc->drawPrimitives(MTL::PrimitiveTypePoint, NS::UInteger(0), NS::UInteger(it.count));
+    }
+  }
+  enc->endEncoding();
+  cmd->commit();
+  cmd->waitUntilCompleted();
+  if (rps) rps->release();
+}
+
+}  // namespace
+
+// Resolution enum (Float param + Widget::Enum): WindowFollow tracks `windowSize`; the
+// fixed modes ignore it and pin a standard output size; Custom reads CustomW/H.
+RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowSize) {
+  int mode = (int)std::lround(paramOr(n, "Resolution", 0.0f));
+  switch (mode) {
+    case 1: return {1280, 720};    // HD720
+    case 2: return {1920, 1080};   // HD1080
+    case 3: return {3840, 2160};   // UHD4K
+    case 4: {                      // Custom
+      uint32_t w = (uint32_t)std::lround(std::fmax(1.0f, paramOr(n, "CustomW", 512.0f)));
+      uint32_t h = (uint32_t)std::lround(std::fmax(1.0f, paramOr(n, "CustomH", 512.0f)));
+      return {w, h};
+    }
+    default: return windowSize;    // WindowFollow (0)
+  }
+}
+
+void registerRenderTargetOp() { registerTexOp("RenderTarget", cookRenderTarget); }
+
+// Batch 1 golden: drive a CPU-filled point bag through a 1-item RenderCommand into a
+// RenderTarget texture, readback, assert lit (non-black). Plus the resolution contract:
+// HD1080 -> 1920x1080, WindowFollow -> windowSize. injectBug = 0 points -> all black -> FAIL.
+int runRenderTargetSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  const uint32_t N = 64, W = 256, H = 256;
+
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  NS::Error* err = nullptr;
+  MTL::Library* lib =
+      dev->newLibrary(NS::String::string(SW_SHADER_METALLIB, NS::UTF8StringEncoding), &err);
+  if (!lib) {
+    printf("[selftest-rendertarget] FAIL: no metallib\n");
+    q->release(); dev->release(); pool->release();
+    return 1;
+  }
+  registerRenderTargetOp();
+
+  // CPU-fill a ring of white points inside the view (radius 1.5 < viewExtent 3.5).
+  MTL::Buffer* pts = dev->newBuffer((NS::UInteger)N * sizeof(SwPoint), MTL::ResourceStorageModeShared);
+  SwPoint* d = (SwPoint*)pts->contents();
+  for (uint32_t i = 0; i < N; ++i) {
+    d[i] = SwPoint{};
+    float a = 6.2831853f * (float)i / (float)N;
+    d[i].Position = {1.5f * std::cos(a), 1.5f * std::sin(a), 0.0f};
+    d[i].Color = {1.0f, 1.0f, 1.0f, 1.0f};
+    d[i].Scale = {1.0f, 1.0f, 1.0f};
+  }
+
+  // Output texture (256² for a cheap readback; resolution contract is checked separately).
+  MTL::TextureDescriptor* td =
+      MTL::TextureDescriptor::texture2DDescriptor(MTL::PixelFormatRGBA8Unorm, W, H, false);
+  td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+  td->setStorageMode(MTL::StorageModeShared);
+  MTL::Texture* tex = dev->newTexture(td);
+
+  RenderCommand rc;
+  rc.items.push_back(RenderDrawItem{pts, injectBug ? 0u : N, 3.5f});
+
+  TexCookCtx c;
+  c.dev = dev; c.lib = lib; c.queue = q;
+  c.nodeId = 1; c.command = &rc; c.output = tex;
+  cookRenderTarget(c);
+
+  std::vector<uint8_t> px((size_t)W * H * 4, 0);
+  tex->getBytes(px.data(), W * 4, MTL::Region::Make2D(0, 0, W, H), 0);
+  int nonBlack = 0;
+  for (size_t i = 0; i < (size_t)W * H; ++i)
+    if (px[i * 4] > 30 || px[i * 4 + 1] > 30 || px[i * 4 + 2] > 30) ++nonBlack;
+
+  // Resolution contract (pure function, no giant texture needed).
+  Node rt; rt.id = 2; rt.type = "RenderTarget"; rt.params["Resolution"] = 2.0f;  // HD1080
+  RenderResolution win{800, 600};
+  RenderResolution hd = resolveRenderResolution(&rt, win);
+  Node rtw; rtw.id = 3; rtw.type = "RenderTarget"; rtw.params["Resolution"] = 0.0f;  // WindowFollow
+  RenderResolution wf = resolveRenderResolution(&rtw, win);
+  bool resOK = hd.w == 1920 && hd.h == 1080 && wf.w == 800 && wf.h == 600;
+
+  bool pass = nonBlack > 50 && resOK;
+  printf("[selftest-rendertarget] nonBlack=%d(need>50) hd=%ux%u wf=%ux%u resOK=%d -> %s\n",
+         nonBlack, hd.w, hd.h, wf.w, wf.h, resOK ? 1 : 0, pass ? "PASS" : "FAIL");
+
+  pts->release(); tex->release();
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
+}  // namespace sw

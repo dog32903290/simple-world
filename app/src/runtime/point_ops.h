@@ -5,7 +5,9 @@
 // (declared in point_graph.h) — called once at app startup and by each cook selftest.
 // Adding an operator = one cook fn + one registerPointOp line + its .metal + its golden.
 #pragma once
+#include "runtime/point_graph.h"  // RenderResolution (RenderTarget op contract)
 namespace sw {
+struct Node;
 // Headless golden proof of the RadialPoints cook op THROUGH the point-graph: cook
 // RadialPoints -> a capture draw, assert the bag lies on a circle of the requested radius
 // and is spread around it. injectBug sets Cycles=0 so all points collapse to one angle
@@ -39,4 +41,16 @@ int runSetPointAttributesSelfTest(bool injectBug);
 // CombineBuffers COMBINE golden (point_ops_combinebuffers.cpp): concat N bags, count = sum.
 // injectBug = drop one input -> count != sum. First combine op (multi-input -> one bag).
 int runCombineBuffersSelfTest(bool injectBug);
+
+// --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
+// Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a
+// fixed/custom size. The resolution PIN. Used by the cook driver (batch 3) + its golden.
+RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowSize);
+// Register the RenderTarget op into the texture stream (texReg). Wired into the live cook
+// in batch 2/3; until then only the golden calls it.
+void registerRenderTargetOp();
+// RenderTarget golden: a CPU point bag -> 1-item RenderCommand -> RenderTarget texture,
+// assert lit (non-black) + the resolution contract (HD1080->1920x1080, WindowFollow->win).
+// injectBug = 0 points -> all black -> FAIL.
+int runRenderTargetSelfTest(bool injectBug);
 }  // namespace sw
