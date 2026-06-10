@@ -18,6 +18,7 @@
 #include "platform/audio_capture.h"
 #include "platform/audio_devices.h"
 #include "runtime/attack_detector.h"
+#include "runtime/compound_graph.h"
 #include "runtime/audio_analyzer.h"
 #include "runtime/audio_ingest.h"
 #include "runtime/audio_reaction.h"
@@ -106,6 +107,7 @@ const SelfTest kTable[] = {
     {"flow", runParticleFlowSelfTest},
     {"draw", runDrawPointsSelfTest},
     {"pointgraph", runPointGraphSelfTest},
+    {"compoundmodel", runCompoundModelSelfTest},
     {"radialop", runRadialOpSelfTest},
     {"radialcenter", runRadialCenterSelfTest},
     {"drawop", runDrawOpSelfTest},
