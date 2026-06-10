@@ -106,7 +106,18 @@ std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
       if (nested) continue;
 
       // Gather how THIS compound child's input defs are driven by the current symbol's wires.
+      // Seed every compound input def with its effective Constant driver (override else def),
+      // so boundary-INPUT consumers that are NOT wire-driven still receive the value. The wire
+      // loop below overwrites the slots that ARE wired. (Mirrors the atomic branch's effectiveInput
+      // seeding; refuter Finding 1: without this, override/default-driven compound inputs are dropped.)
       std::map<std::string, ResidentInput> childIn;
+      for (const SlotDef& d : def->inputDefs) {
+        ResidentInput ci;
+        ci.slotId = d.id;
+        ci.driver = ResidentInput::Driver::Constant;
+        ci.constant = effectiveInput(lib, c, d.id, d.def);
+        childIn[d.id] = ci;
+      }
       for (const SymbolConnection& w : sym.connections) {
         if (w.dstChild != c.id) continue;  // wires feeding this compound child's inputs
         ResidentInput in;

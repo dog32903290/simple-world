@@ -135,12 +135,58 @@ int runResidentEvalSelfTest(bool injectBug) {
   ResidentInput autoTest; autoTest.driver = ResidentInput::Driver::Automation; autoTest.curveRef = "x";
   bool autoStubOk = true;  // structural: Driver::Automation compiles + evalResidentFloat returns 0 for it.
 
+  // --- Finding-1 regression: compound child input driven by OVERRIDE and by inputDef DEFAULT ---
+  // compound "Scale": in(def 6) ; inside boundary.in -> Mul.a, Const(2) -> Mul.b, Mul.out -> boundary.out.
+  SymbolLibrary bl;
+  bl.symbols["Const"] = cst;       // value def 4 (irrelevant: the inner Const overrides to 2)
+  bl.symbols["Multiply"] = mul;
+  Symbol scale; scale.id = "Scale"; scale.name = "Scale"; scale.atomic = false;
+  scale.inputDefs = {{"in", "in", "Float", 6.0f}};
+  scale.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild si; si.id = 1; si.symbolId = "Multiply";
+  SymbolChild sk; sk.id = 2; sk.symbolId = "Const"; sk.overrides["value"] = 2.0f;
+  scale.children = {si, sk};
+  scale.connections = {
+      {kSymbolBoundary, "in", 1, "a"},      // compound input -> Multiply.a (boundary INPUT)
+      {2, "out", 1, "b"},                   // Const(2) -> Multiply.b
+      {1, "out", kSymbolBoundary, "out"},   // Multiply.out -> compound output
+  };
+  bl.symbols["Scale"] = scale;
+  // Root_ov: one Scale child with override in=5  -> expect 5*2=10.
+  Symbol rov; rov.id = "Rov"; rov.name = "Rov"; rov.atomic = false;
+  rov.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild so; so.id = 9; so.symbolId = "Scale"; so.overrides["in"] = 5.0f;
+  rov.children = {so};
+  rov.connections = {{9, "out", kSymbolBoundary, "out"}};
+  bl.symbols["Rov"] = rov;
+  // Root_def: one Scale child, NO override -> reads inputDef default 6 -> expect 6*2=12.
+  Symbol rdf; rdf.id = "Rdf"; rdf.name = "Rdf"; rdf.atomic = false;
+  rdf.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild sd; sd.id = 9; sd.symbolId = "Scale";
+  rdf.children = {sd};
+  rdf.connections = {{9, "out", kSymbolBoundary, "out"}};
+  bl.symbols["Rdf"] = rdf;
+
+  auto evalNamed = [&](const std::string& rootId) -> float {
+    bl.rootId = rootId;
+    ResidentEvalGraph g = buildEvalGraph(bl, rootId);
+    auto it = g.outputs.find("out");
+    if (it == g.outputs.end()) return -1.0f;
+    ResidentEvalCtx c0;
+    return evalResidentFloat(g, it->second.first, it->second.second, c0);
+  };
+  float ovVal = evalNamed("Rov");   // expect 10 (override 5 * 2)
+  float defVal = evalNamed("Rdf");  // expect 12 (inputDef default 6 * 2)
+  bool boundaryInOk = (ovVal == 10.0f && defVal == 12.0f);
+
   bool pass = expectedOk && equivOk && reuseIsolated && pathOk &&
-              constOk && connOk && clockOk && autoStubOk;
+              constOk && connOk && clockOk && autoStubOk && boundaryInOk;
   printf("[selftest-residenteval] nested=%.1f flat=%.1f expected(12)=%d equiv=%d "
-         "reuse(c1=%.1f,c2=%.1f)=%d path=%d | const=%d conn=%d clock(%.1f want14)=%d -> %s\n",
+         "reuse(c1=%.1f,c2=%.1f)=%d path=%d | const=%d conn=%d clock(%.1f want14)=%d "
+         "boundaryIn(ov=%.1f,def=%.1f)=%d -> %s\n",
          nestedVal, flatVal, expectedOk, equivOk, c1v, c2v, reuseIsolated, pathOk,
-         constOk, connOk, driven, clockOk, pass ? "PASS" : "FAIL");
+         constOk, connOk, driven, clockOk, ovVal, defVal, boundaryInOk,
+         pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }
 
