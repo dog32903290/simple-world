@@ -373,10 +373,105 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   }
 }
 
-void PointGraph::cookResident(const ResidentEvalGraph&, const EvaluationContext&,
-                              const SourceRegistry*, const std::string&) {
-  // STUB (Task 2 implements the buffer-flow walk). Empty -> the golden's resident bag stays
-  // empty -> RED until Task 2.
+void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationContext& ctx,
+                              const SourceRegistry* reg, const std::string& targetPath) {
+  std::map<std::string, MTL::Buffer*> cooked;       // per-cook memo (cook each path once)
+  std::map<std::string, uint32_t> cookedCount;      // path -> cooked point count
+  std::vector<MTL::Buffer*> owned;                  // buffers allocated this cook (released at end)
+
+  // Resolve a Float input's value through its driver (mirrors evalResidentFloat's input switch).
+  auto resolveFloat = [&](const ResidentNode& n, const PortSpec& port) -> float {
+    const ResidentInput* ri = n.input(port.id);
+    if (!ri) return port.def;
+    if (ri->driver == ResidentInput::Driver::Connection) {
+      ResidentEvalCtx rc; rc.frameIndex = ctx.frameIndex; rc.localFxTime = ctx.time; rc.localTime = ctx.time;
+      return evalResidentFloat(rg, ri->srcNodePath, ri->srcSlotId, rc);
+    }
+    if (ri->driver == ResidentInput::Driver::Automation) return 0.0f;  // S3 stub
+    return ri->constant;  // Constant
+  };
+
+  std::function<MTL::Buffer*(const std::string&)> cookNode = [&](const std::string& path) -> MTL::Buffer* {
+    auto m = cooked.find(path);
+    if (m != cooked.end()) return m->second;
+    const ResidentNode* n = rg.node(path);
+    if (!n) return nullptr;
+    const NodeSpec* s = findSpec(n->opType);
+    if (!s) return nullptr;
+
+    // Gather buffer inputs (Points + ParticleForce, spec order) via Connection drivers.
+    std::vector<const MTL::Buffer*> ins;
+    std::vector<uint32_t> insCounts;
+    uint32_t sumPointsCount = 0;
+    for (const PortSpec& port : s->ports) {
+      if (!isBufferInput(port)) continue;
+      const ResidentInput* ri = n->input(port.id);
+      MTL::Buffer* ub = nullptr;
+      uint32_t inCount = 0;
+      if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        ub = cookNode(ri->srcNodePath);
+        inCount = ub ? cookedCount[ri->srcNodePath] : 0u;
+      }
+      ins.push_back(ub);
+      insCounts.push_back(inCount);
+      if (port.dataType == "Points") sumPointsCount += inCount;
+    }
+
+    // count: a "Count" Float input (generators) resolved through its driver, else sum of Points.
+    uint32_t count = sumPointsCount;
+    for (const PortSpec& port : s->ports)
+      if (port.isInput && port.dataType == "Float" && port.id == "Count") {
+        float v = resolveFloat(*n, port);
+        count = v > 0.0f ? (uint32_t)(v + 0.5f) : 0u;
+        break;
+      }
+
+    uint32_t cap = count > 0 ? count : 1;  // never alloc zero
+    MTL::Buffer* out = p_->dev->newBuffer((NS::UInteger)cap * sizeof(SwPoint),
+                                          MTL::ResourceStorageModeShared);
+    owned.push_back(out);
+
+    PointCookCtx cc;
+    cc.dev = p_->dev; cc.lib = p_->lib; cc.queue = p_->queue;
+    cc.ctx = &ctx; cc.graph = nullptr; cc.reg = reg;  // resident path: ops read no flat graph (slice 2 stubs)
+    cc.nodeId = 0; cc.count = count;
+    cc.inputs = ins.data(); cc.inputCounts = insCounts.data(); cc.inputCount = (int)ins.size();
+    cc.output = out; cc.state = nullptr;               // stateful resident ops = slice 2b
+    auto r = cookReg().find(n->opType);
+    if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
+    cooked[path] = out;
+    cookedCount[path] = count;
+    return out;
+  };
+
+  // Terminal. Slice 2 supports a COMMAND terminal (capture op): resolve its Points input bag and
+  // call the cmd op. (Texture executor + preview = slice 2b.) Unknown terminal -> nothing captured.
+  const ResidentNode* tn = rg.node(targetPath);
+  const NodeSpec* ts = tn ? findSpec(tn->opType) : nullptr;
+  if (tn && ts) {
+    auto cm = cmdReg().find(tn->opType);
+    if (cm != cmdReg().end() && cm->second) {
+      MTL::Buffer* pts = nullptr;
+      uint32_t cnt = 0;
+      for (const PortSpec& port : ts->ports) {
+        if (!(port.isInput && port.dataType == "Points")) continue;
+        const ResidentInput* ri = tn->input(port.id);
+        if (ri && ri->driver == ResidentInput::Driver::Connection) {
+          pts = cookNode(ri->srcNodePath);
+          cnt = cookedCount[ri->srcNodePath];
+        }
+        break;
+      }
+      CmdCookCtx cc;
+      cc.ctx = &ctx; cc.graph = nullptr; cc.reg = reg;
+      cc.nodeId = 0; cc.points = pts; cc.count = cnt;
+      cm->second(cc);
+    } else {
+      cookNode(targetPath);  // buffer-producing terminal (preview): cook it; visualizer = slice 2b
+    }
+  }
+
+  for (MTL::Buffer* b : owned) b->release();  // slice 2 = single-cook; cross-frame cache = slice 4
 }
 
 }  // namespace sw
