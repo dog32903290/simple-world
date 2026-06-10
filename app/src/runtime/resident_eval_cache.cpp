@@ -74,10 +74,17 @@ float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,
         case ResidentInput::Driver::Connection: {
           v = pullResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx, depth + 1);
           hasConnInput = true;
+          // 取和. An UNRESOLVABLE upstream (dangling path / missing out slot) still contributes a
+          // fixed version 1, never 0 — so a fully-dangling derived slot stays initially-dirty
+          // (sourceVersion >= 1 != valueVersion 0), computes once with the upstream treated as 0
+          // (matching the no-cache evalResidentFloat), and doesn't freeze on its uninitialized
+          // cache (refuter D1: sum==0 colliding with valueVersion==0 = permanent false-clean 卡舊).
+          uint64_t upSv = 1;
           if (const ResidentNode* up = g.node(ri->srcNodePath)) {
             auto uc = up->outCache.find(ri->srcSlotId);
-            if (uc != up->outCache.end()) upstreamSum += uc->second.sourceVersion;  // 取和
+            if (uc != up->outCache.end()) upSv = uc->second.sourceVersion;
           }
+          upstreamSum += upSv;
           break;
         }
         case ResidentInput::Driver::Automation:
