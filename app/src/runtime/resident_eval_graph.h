@@ -44,6 +44,18 @@ struct ResidentInput {
   std::string curveRef;               // Driver::Automation: def-layer animator key (S3 samples it)
 };
 
+// --- batch 1b: version-chasing dirty + per-output-slot cache (承重決策 6/7, TiXL DirtyFlag) ---
+// One output slot's incremental-eval state, living ON the resident node (= TiXL Slot — cache
+// has a frame-stable home, 拍板「節點 = slot」; not a parallel structure). C5: per-output-slot
+// granularity. initially dirty: valueVersion(0) != sourceVersion(1) so the first pull computes
+// (DirtyFlag.cs:62). dirty == valueVersion != sourceVersion (version-chasing, NOT content hash).
+struct ResidentOutputCache {
+  uint64_t sourceVersion = 1;  // bumped by: LIVE 每幀 / edit-time push / 上游版本取和(derived)
+  uint64_t valueVersion = 0;   // = sourceVersion at last recompute; dirty when they differ
+  float cachedFloat = 0.0f;    // last computed value (returned while not dirty — 算一次存著)
+  bool isLiveSource = false;   // op 宣告恆髒 (Time…); bumped every frame (決策 7 / 🪤#1)
+};
+
 // One inlined operator instance. `path` is the path-qualified id (join of the child-id
 // chain, e.g. "5/2/1") — unique AND frame-stable, so cache (slice 4) and the per-node
 // buffer map (slice 2) key off it. opType = the atomic symbol id = the operator type.
@@ -51,6 +63,7 @@ struct ResidentNode {
   std::string path;
   std::string opType;
   std::vector<ResidentInput> inputs;
+  std::map<std::string, ResidentOutputCache> outCache;  // outSlotId -> cache (1b; per-output)
   const ResidentInput* input(const std::string& slotId) const;
 };
 
@@ -78,10 +91,33 @@ ResidentEvalGraph buildEvalGraph(const SymbolLibrary& lib, const std::string& ro
 float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
                         const std::string& outSlotId, const ResidentEvalCtx& ctx, int depth = 0);
 
+// --- batch 1b cache API (resident_eval_cache.cpp) ---
+// Populate each node's per-output cache (one entry per NodeSpec output port) and mark live
+// sources (ops that declare an always-dirty output, e.g. Time). Call once after buildEvalGraph.
+void initResidentCache(ResidentEvalGraph& g);
+// Bump every live source's sourceVersion (= TiXL DirtyFlagTrigger.Always 每幀). 🪤#1 (決策 7):
+// the per-frame correctness invariant — call at the START of every frame, before pulling.
+// Miss one live source -> downstream reads stale cache (卡舊畫面). Wired into the -bug teeth.
+void bumpLiveSources(ResidentEvalGraph& g);
+// Pull a float through the version-chasing cache (eager post-order, one pass — 決策 6): recurse
+// Connection inputs first (always walks the cone — cheap), a DERIVED slot adopts the SUM of its
+// upstream sourceVersions (multi-input combine: any input changes -> dirty), recompute+cache only
+// when dirty (valueVersion != sourceVersion), else return cachedFloat WITHOUT recomputing (省重算).
+// Mutates g — the cache is resident state. depth>64 breaks cycles. Automation driver -> 0 (S3 stub).
+float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,
+                        const std::string& outSlotId, const ResidentEvalCtx& ctx, int depth = 0);
+
 // Headless RED->GREEN proof: builds a nested library (compound w/ reuse) + the equivalent
 // flat library, asserts resident eval matches AND matches the hand-computed value, asserts
 // reuse isolation, driver resolve, and the two-clock shape. injectBug pollutes a definition
 // so reuse leaks -> the equivalence assertion FAILS (teeth).
 int runResidentEvalSelfTest(bool injectBug);
+
+// Headless RED->GREEN proof of the 1b version-chasing cache: a STATIC subgraph recomputes once
+// then returns cache (mutating an upstream constant WITHOUT an edit-time bump stays stale —
+// proving the short-circuit), an edit-time bump propagates (sum) and forces recompute, and a
+// LIVE source (Time) recomputes every frame. injectBug skips bumpLiveSources -> the LIVE node
+// stays frozen on frame 1 (卡舊) -> the per-frame assertion FAILS (teeth, spec 🪤#1).
+int runResidentCacheSelfTest(bool injectBug);
 
 }  // namespace sw

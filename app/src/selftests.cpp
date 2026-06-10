@@ -111,6 +111,7 @@ const SelfTest kTable[] = {
     {"residentcook", runResidentCookSelfTest},
     {"compoundmodel", runCompoundModelSelfTest},
     {"residenteval", runResidentEvalSelfTest},
+    {"residentcache", runResidentCacheSelfTest},
     {"radialop", runRadialOpSelfTest},
     {"radialcenter", runRadialCenterSelfTest},
     {"drawop", runDrawOpSelfTest},
