@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include "runtime/curve_animator.h"  // Animator (S3 definition-layer automation authority)
+
 namespace sw {
 
 // A Symbol's external input/output slot (= TiXL InputDefinition / OutputDefinition).
@@ -84,6 +86,10 @@ struct Symbol {
   // runtime state (GPU sim buffers, AudioReaction hit counts — refuter N2 #2). Bumped by
   // AddChildCommand (never decremented, undo included); nextFreeChildId() reads it.
   int nextChildId = 1;
+  // S3: the definition-layer Animator — per-(childId,inputId) automation curves owned by THIS
+  // symbol's subgraph (= TiXL Symbol.Animator, Symbol.cs). Editing a curve here broadcasts to every
+  // instance (reuse). The resident projection's Automation drivers resolve curveRefs INTO this.
+  Animator animator;
 };
 
 // A project = a library of Symbol definitions + which one is the root (= TiXL SymbolPackage +

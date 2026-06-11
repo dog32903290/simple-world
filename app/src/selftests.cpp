@@ -23,6 +23,8 @@
 #include "runtime/compound_graph.h"
 #include "runtime/combine.h"
 #include "runtime/compound_save.h"
+#include "runtime/curve.h"
+#include "runtime/curve_animator.h"
 #include "runtime/graph_bridge.h"
 #include "runtime/resident_eval_graph.h"
 #include "runtime/audio_analyzer.h"
@@ -128,6 +130,8 @@ const SelfTest kTable[] = {
     {"compoundspec", runCompoundSpecSelfTest},
     {"compoundmodel", runCompoundModelSelfTest},
     {"cycleguard", runCycleGuardSelfTest},
+    {"curve", runCurveSelfTest},
+    {"animator", runCurveAnimatorSelfTest},
     {"residenteval", runResidentEvalSelfTest},
     {"residentcache", runResidentCacheSelfTest},
     {"residentpatch", runResidentPatchSelfTest},

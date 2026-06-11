@@ -7,6 +7,7 @@
 #include <map>
 
 #include "crude_json.h"
+#include "runtime/curve_json.h"    // curveToJson / curveFromJson (S3 animator segment)
 #include "runtime/graph.h"         // findSpec (atomic regeneration) + fromJson (legacy)
 #include "runtime/graph_bridge.h"  // atomicSymbolFromSpec + libFromGraph (legacy migration)
 
@@ -148,6 +149,27 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
       conns.push_back(crude_json::value(wo));
     }
     o["connections"] = crude_json::value(conns);
+
+    // S3 animator segment (= TiXL Animator.Write cs:371-408). Flatten childId -> inputId -> Curve[]
+    // into a sorted array of {childId, inputId, index, curve}. Sorted by (childId, inputId, index)
+    // for a stable file (clean diffs, same intent as the symbols/connections ordering). Omitted
+    // entirely when the symbol has no animations (= TiXL early-return on empty, cs:373).
+    if (!s->animator.empty()) {
+      crude_json::array anim;
+      for (const auto& [childId, inputDict] : s->animator.all()) {
+        for (const auto& [inputId, arr] : inputDict) {
+          for (size_t i = 0; i < arr.size(); ++i) {
+            crude_json::object ao;
+            ao["childId"] = (crude_json::number)childId;
+            ao["inputId"] = inputId;
+            if (i != 0) ao["index"] = (crude_json::number)(int)i;
+            ao["curve"] = curveToJson(arr[i]);
+            anim.push_back(crude_json::value(ao));
+          }
+        }
+      }
+      o["animator"] = crude_json::value(anim);
+    }
     symbols.push_back(crude_json::value(o));
   }
   root["symbols"] = crude_json::value(symbols);
@@ -326,6 +348,59 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
           continue;  // self-heal: gone from the in-memory model, gone on next save
         }
         s.connections.push_back(w);
+      }
+    }
+
+    // ---- S3 animator segment: resolve curves AFTER children exist (so childId/inputId validate).
+    // S15 tolerance: an entry pointing at a missing child, or at an input def that no child's
+    // referenced symbol owns, is dropped LOCALLY with a warning (next save self-heals) — a malformed
+    // animator never fails the whole file. Curves group into arrays by (childId, inputId), index
+    // placing each channel (gaps default-fill with empty curves, same as TiXL's curveArray[maxIndex+1]).
+    if (sv["animator"].is_array()) {
+      auto childOf = [&](int id) -> const SymbolChild* {
+        for (const SymbolChild& c : s.children)
+          if (c.id == id) return &c;
+        return nullptr;
+      };
+      // Collect by (childId,inputId) -> index -> Curve so multi-channel arrays land in order.
+      std::map<std::pair<int, std::string>, std::map<int, Curve>> grouped;
+      for (auto& av : sv["animator"].get<crude_json::array>()) {
+        if (!av["childId"].is_number() || !av["inputId"].is_string()) {
+          appendWarn(warnings, "animator entry without childId/inputId in '" + s.id + "' — dropped");
+          continue;
+        }
+        int childId = (int)av["childId"].get<crude_json::number>();
+        std::string inputId = av["inputId"].get<crude_json::string>();
+        int index = av["index"].is_number() ? (int)av["index"].get<crude_json::number>() : 0;
+        const SymbolChild* c = childOf(childId);
+        if (!c) {
+          appendWarn(warnings, "animator on missing child " + std::to_string(childId) + " in '" +
+                                   s.id + "' — dropped");
+          continue;
+        }
+        const Symbol* ref = out.find(c->symbolId);
+        bool known = false;
+        if (ref)
+          for (const SlotDef& d : ref->inputDefs)
+            if (d.id == inputId) { known = true; break; }
+        if (!known) {
+          appendWarn(warnings, "animator on unknown input '" + inputId + "' of child " +
+                                   std::to_string(childId) + " in '" + s.id + "' — dropped");
+          continue;
+        }
+        if (index < 0 || index > 16) {  // sane channel ceiling (S15: a crafted file can't allocate huge)
+          appendWarn(warnings, "animator channel index " + std::to_string(index) + " out of range in '" +
+                                   s.id + "' — dropped");
+          continue;
+        }
+        if (av["curve"].is_object()) grouped[{childId, inputId}][index] = curveFromJson(av["curve"]);
+      }
+      for (auto& [key, byIndex] : grouped) {
+        int maxIndex = 0;
+        for (auto& [idx, cv] : byIndex) maxIndex = idx > maxIndex ? idx : maxIndex;
+        Animator::CurveArray arr(maxIndex + 1);  // gaps default-fill (= TiXL curveArray[maxIndex+1])
+        for (auto& [idx, cv] : byIndex) arr[idx] = std::move(cv);
+        s.animator.setCurves(key.first, key.second, std::move(arr));
       }
     }
   }

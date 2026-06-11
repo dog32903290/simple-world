@@ -29,6 +29,11 @@ struct ResidentEvalCtx {
   float localTime = 0.0f;    // playhead, bars
   float localFxTime = 0.0f;  // wall clock, bars
   uint32_t frameIndex = 0;
+  // S3: the library whose definition-layer Animators back the Automation drivers. Sampling an
+  // Automation input resolves (animSymbolId, curveRef) -> Curve* THROUGH this, then samples @
+  // localTime (the playhead). nullptr (default) = no automation resolvable -> Automation drivers
+  // fall back to the projected constant (the pre-S3 flat behavior — paths never diverge).
+  const SymbolLibrary* lib = nullptr;
 };
 
 // How one resident input is driven (= TiXL Slot's UpdateAction). The PROJECTION of the
@@ -42,6 +47,7 @@ struct ResidentInput {
   std::string srcNodePath;            // Driver::Connection: upstream resident node path
   std::string srcSlotId;              // Driver::Connection: upstream output slot id
   std::string curveRef;               // Driver::Automation: def-layer animator key (S3 samples it)
+  std::string animSymbolId;           // Driver::Automation: which Symbol's Animator owns curveRef
 };
 
 // --- batch 1b: version-chasing dirty + per-output-slot cache (承重決策 6/7, TiXL DirtyFlag) ---
@@ -82,6 +88,14 @@ struct ResidentEvalGraph {
   std::map<std::string, std::pair<std::string, std::string>> outputs;  // rootOutputDefId -> (path, slotId)
   const ResidentNode* node(const std::string& path) const;
 };
+
+// S3: sample an Automation-driven input through the definition-layer Animator. Resolves
+// (ri.animSymbolId, ri.curveRef) -> Curve* via ctx.lib, then samples @ ctx.localTime (the playhead,
+// 拍板 取樣時鐘 = localTime). Falls back to ri.constant when ctx.lib is null or the curveRef is
+// unresolvable (= the pre-S3 flat fallback — an Automation binding with no live curve reads the
+// stored constant, so the resident and flat paths never diverge). The ONE automation sampling
+// codepath the three eval sites (eval/resolve/pull) share.
+float sampleAutomation(const ResidentEvalCtx& ctx, const ResidentInput& ri);
 
 // Flatten a nested SymbolLibrary rooted at rootId into a resident eval graph. Inlines every
 // compound child recursively (path prefix grows), resolves boundary-crossing wires via the

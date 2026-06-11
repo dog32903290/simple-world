@@ -20,9 +20,19 @@ namespace {
 
 // Ops that declare an always-dirty output (= TiXL DirtyFlagTrigger.Always/Animated). slice-1b
 // scope: Time (RunTime.cs:8 declares Animated). Audio-reactive nodes join here once the value
-// graph drives them; automation-driven LIVE arrives with the S3 curve store (both named-deferred).
+// graph drives them; automation-driven LIVE arrives with the S3 curve store (now wired below).
 bool opDeclaresLiveOutput(const std::string& opType) {
   return opType == "Time";
+}
+
+// S3 (slice 1b named-deferred leg, now open): an Automation-driven input makes the node's outputs
+// LIVE — the playhead moves every frame so the sampled value must re-cook every pass (=
+// DirtyFlagTrigger.Animated on an animated Slot, Animator.cs:189). This is the mechanism behind the
+// 拍板 selftest leg: driver Constant<->Automation toggle => isLiveSource STATIC<->LIVE same flip.
+bool nodeHasAutomationInput(const ResidentNode& n) {
+  for (const ResidentInput& in : n.inputs)
+    if (in.driver == ResidentInput::Driver::Automation) return true;
+  return false;
 }
 
 }  // namespace
@@ -30,11 +40,11 @@ bool opDeclaresLiveOutput(const std::string& opType) {
 void initResidentNodeCache(ResidentNode& n) {
   const NodeSpec* s = findSpec(n.opType);
   if (!s) return;
-  const bool live = opDeclaresLiveOutput(n.opType);
+  const bool live = opDeclaresLiveOutput(n.opType) || nodeHasAutomationInput(n);
   for (const PortSpec& p : s->ports)
     if (!p.isInput) {
       ResidentOutputCache c;
-      c.isLiveSource = live;  // leaf live source: bumped every frame (決策 7 / 🪤#1)
+      c.isLiveSource = live;  // leaf live source OR automation-driven: bumped every frame (決策 7 / 🪤#1)
       n.outCache[p.id] = c;
     }
 }
@@ -88,7 +98,7 @@ float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,
           break;
         }
         case ResidentInput::Driver::Automation:
-          v = 0.0f;  // S3 stub
+          v = sampleAutomation(ctx, *ri);  // S3 sample @ localTime (the playhead)
           break;
       }
     }

@@ -10,6 +10,19 @@ const ResidentInput* ResidentNode::input(const std::string& slotId) const {
     if (i.slotId == slotId) return &i;
   return nullptr;
 }
+
+float sampleAutomation(const ResidentEvalCtx& ctx, const ResidentInput& ri) {
+  // Resolve the curve through the def-layer Animator on ri.animSymbolId, sample @ localTime (the
+  // playhead). No lib / no symbol / no curve -> the projected constant (flat-parity fallback).
+  if (ctx.lib) {
+    const Symbol* sym = ctx.lib->find(ri.animSymbolId);
+    if (sym) {
+      const Curve* c = sym->animator.resolveRef(ri.curveRef);
+      if (c && !c->empty()) return (float)c->sample((double)ctx.localTime);
+    }
+  }
+  return ri.constant;
+}
 const ResidentNode* ResidentEvalGraph::node(const std::string& path) const {
   auto it = byPath.find(path);
   return it != byPath.end() ? &nodes[it->second] : nullptr;
@@ -48,11 +61,10 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
           v = evalResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx, depth + 1);
           break;
         case ResidentInput::Driver::Automation:
-          // S3 samples the def-layer curve `ri->curveRef` @ ctx.localTime. Until then fall
-          // back to the projected CONSTANT — the same fallback flat resolvePortValue uses
-          // (an Automation binding falls through to the stored constant), so the two paths
-          // can't diverge the day S3 wires this (refuter-2b analysis finding 1).
-          v = ri->constant;
+          // S3: sample the def-layer curve `ri->curveRef` @ ctx.localTime (the playhead). Falls
+          // back to the projected CONSTANT when unresolvable — the same fallback flat
+          // resolvePortValue uses, so the two paths can't diverge (refuter-2b analysis finding 1).
+          v = sampleAutomation(ctx, *ri);
           break;
       }
     }
@@ -89,7 +101,7 @@ std::map<std::string, float> resolveResidentFloatInputs(const ResidentEvalGraph&
         case ResidentInput::Driver::Connection:
           v = evalResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx);
           break;
-        case ResidentInput::Driver::Automation: v = ri->constant; break;  // S3 stub; same fallback as flat (see evalResidentFloat)
+        case ResidentInput::Driver::Automation: v = sampleAutomation(ctx, *ri); break;  // S3 sample @ localTime
       }
     }
     out[p.id] = v;
@@ -128,8 +140,19 @@ std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
       for (const SlotDef& d : def->inputDefs) {
         ResidentInput in;
         in.slotId = d.id;
-        in.driver = ResidentInput::Driver::Constant;
+        // S3: an Automation driver projects from the PARENT symbol's Animator (the def owning this
+        // child). The constant is still the KEPT fallback a future un-animate restores (= TiXL reads
+        // the default live; same kept-fallback rule as patchLibSetDefault). If not animated, plain
+        // Constant. A wire feeding this slot overwrites the driver below (loop 2/3) — automation and
+        // a connection don't coexist on one input (single-cardinality), connection wins on a clash.
         in.constant = effectiveInput(lib, c, d.id, d.def);
+        if (sym.animator.isAnimated(c.id, d.id)) {
+          in.driver = ResidentInput::Driver::Automation;
+          in.curveRef = Animator::makeRef(c.id, d.id, 0);
+          in.animSymbolId = sym.id;
+        } else {
+          in.driver = ResidentInput::Driver::Constant;
+        }
         rn.inputs.push_back(in);
       }
       g.byPath[rn.path] = (int)g.nodes.size();
