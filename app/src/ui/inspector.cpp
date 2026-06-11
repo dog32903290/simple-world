@@ -16,6 +16,8 @@
 #include "app/command.h"
 #include "app/document.h"
 #include "app/graph_commands.h"
+#include "app/animation_commands.h"  // Animate gesture: Add/Remove Animation + playhead-write (P1)
+#include "app/frame_cook.h"          // transportPosition (the playhead the Animate gesture writes at)
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec (a compound child resolves like an atomic, N1)
 #include "verify/eye/eye.h"  // one-line hooks: param widget rects for the hand
@@ -31,6 +33,42 @@ bool g_paramEditHadOverride = false;
 // drag: snapshot all components on activation, push a command per changed component on release.
 float g_vecEditBefore[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 bool g_vecEditHadOverride[4] = {false, false, false, false};
+
+// The Animate gesture's context menu, attached to the LAST drawn Float widget (its slider).
+// = TiXL InputValueUi ContextMenuForItem: a right-click on the parameter offers Animate (build a
+// curve + first key at the current value) or, when already animated, Remove Animation. Both go
+// through undoable commands; the first key lands at the playhead with the input's current value.
+void animateContextMenu(const std::string& symbolId, int childId, const std::string& slotId,
+                        bool animated) {
+  if (!ImGui::BeginPopupContextItem(("##anim_" + slotId).c_str())) return;
+  if (!animated) {
+    if (ImGui::MenuItem("Animate")) {
+      const double t = sw::framecook::transportPosition();
+      sw::SymbolChild* c = sw::childById(*sw::doc::currentSymbol(), childId);
+      float curVal = 0.0f;
+      if (c) {
+        if (const sw::NodeSpec* spec = sw::findSpec(c->symbolId))
+          for (const sw::PortSpec& pp : spec->ports)
+            if (pp.isInput && pp.id == slotId) {
+              curVal = sw::effectiveInput(sw::doc::g_lib, *c, slotId, pp.def);
+              break;
+            }
+      }
+      auto cmd = std::make_unique<sw::AddAnimationCommand>(sw::doc::g_lib, symbolId, childId,
+                                                           slotId, t, curVal);
+      if (!cmd->refused()) {  // doIt runs in push; refused (already animated) -> skip stack
+        sw::g_commands.push(std::move(cmd));
+      }
+    }
+  } else {
+    if (ImGui::MenuItem("Remove Animation")) {
+      auto cmd = std::make_unique<sw::RemoveAnimationCommand>(sw::doc::g_lib, symbolId, childId,
+                                                              slotId);
+      if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
+    }
+  }
+  ImGui::EndPopup();
+}
 
 }  // namespace
 
@@ -134,6 +172,29 @@ void drawInspector() {
             pushSet(p.id, had, preV, b ? 1.0f : 0.0f);
           }
           sw::eye::recordItem(("param:" + p.id).c_str());
+        } else if (cur->animator.isAnimated(sel->id, p.id)) {
+          // ANIMATED Float (S3): the slider shows the curve's value AT THE PLAYHEAD, and editing
+          // it writes/updates a key there (P1 拍板: 動已動畫參數 = 在播放頭寫 key). One undo step per
+          // drag — push a WriteKeyAtPlayheadCommand on release. = TiXL FloatInputUi.DrawAnimatedValue
+          // -> ApplyValueToAnimation. Drawn in the StatusAnimated tint to read as automated.
+          const double playhead = sw::framecook::transportPosition();
+          const sw::Animator::CurveArray* arr = cur->animator.curvesFor(sel->id, p.id);
+          float v = (arr && !arr->empty()) ? (float)(*arr)[0].sample(playhead) : eff(p);
+          const float preV = v;
+          ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 200, 90, 255));
+          ImGui::SliderFloat(p.name.c_str(), &v, p.minV, p.maxV);
+          ImGui::PopStyleColor();
+          sw::eye::recordItem(("param:" + p.id).c_str());
+          if (ImGui::IsItemActivated()) g_paramEditBefore = preV;
+          // On release, write ONE undoable key at the playhead (= TiXL ApplyValueToAnimation). The
+          // command snapshots the prior key for byte-faithful undo; live feedback during the drag is
+          // the slider's own value (the runtime picks up the curve change on release — first cut,
+          // mid-drag streaming-to-curve is a later refinement, 報告具名).
+          if (ImGui::IsItemDeactivatedAfterEdit() && v != g_paramEditBefore) {
+            sw::g_commands.push(std::make_unique<sw::WriteKeyAtPlayheadCommand>(
+                sw::doc::g_lib, cur->id, sel->id, p.id, 0, playhead, v));
+          }
+          animateContextMenu(cur->id, sel->id, p.id, /*animated=*/true);
         } else {
           // Free constant — slider writes LIVE into the override so the runtime sees
           // changes mid-drag (柏為 expects immediate feedback). One undo step per drag:
@@ -159,6 +220,7 @@ void drawInspector() {
               if (sel->overrides.erase(p.id)) sw::doc::bumpLibRevision();
             }
           }
+          animateContextMenu(cur->id, sel->id, p.id, /*animated=*/false);
         }
       }
       if (!any) ImGui::TextDisabled("(no editable parameters)");

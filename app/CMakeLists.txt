@@ -77,6 +77,7 @@ add_executable(simple_world
   src/app/audio_monitor.cpp
   src/app/command.cpp
   src/app/graph_commands.cpp
+  src/app/animation_commands.cpp
   src/app/rename_commands.cpp
   src/app/child_state_commands.cpp
   src/app/def_removal_selftest.cpp
@@ -90,6 +91,7 @@ add_executable(simple_world
   src/ui/combine_dialog.cpp
   src/ui/copy_paste_ui.cpp
   src/ui/inspector.cpp
+  src/ui/timeline_window.cpp
   src/ui/node_draw.cpp
   src/ui/node_faces.cpp
   src/ui/node_style.cpp

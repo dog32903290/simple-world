@@ -17,6 +17,7 @@
 #include "app/command.h"
 #include "app/document.h"  // runNavigationSelfTest (composition-path semantics)
 #include "app/graph_commands.h"  // runDefRemovalSelfTest (S13 boundary-def removal)
+#include "app/animation_commands.h"  // runAnimGuiSelfTest (S3 GUI 動畫命令層)
 #include "platform/audio_capture.h"
 #include "platform/audio_devices.h"
 #include "runtime/attack_detector.h"
@@ -136,6 +137,7 @@ const SelfTest kTable[] = {
     {"transport", runTransportSelfTest},
     {"curve", runCurveSelfTest},
     {"animator", runCurveAnimatorSelfTest},
+    {"animgui", runAnimGuiSelfTest},
     {"residenteval", runResidentEvalSelfTest},
     {"residentcache", runResidentCacheSelfTest},
     {"residentpatch", runResidentPatchSelfTest},

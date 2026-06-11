@@ -37,6 +37,7 @@
 #include "ui/cjk_font.h"
 #include "ui/editor_ui.h"
 #include "ui/output_window.h"
+#include "ui/timeline_window.h"
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
 
@@ -325,6 +326,7 @@ void Renderer::draw(MTK::View* pView) {
   sw::ui::drawToolbar();     // New/Open/Save/Save As + Add Node (floating)
   sw::ui::drawNodeCanvas();  // main workspace, fills the viewport
   sw::ui::drawInspector();    // floats on top
+  sw::ui::drawTimelineWindow(); // S3 dope-sheet (animator lanes + playhead + key gestures)
   sw::ui::drawOutputWindow(); // the live preview viewport (view ⊥ graph, pinned/terminal)
   sw::doc::updateWindowTitle();  // filename + dirty star; no-op when unchanged
 
