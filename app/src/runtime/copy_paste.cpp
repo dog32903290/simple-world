@@ -93,6 +93,10 @@ bool clipboardFromJson(const std::string& json, ClipboardData& out) {
 
   if (v["children"].is_array()) {
     for (auto& cv : v["children"].get<crude_json::array>()) {
+      // A non-object array element (scalar/string) would hit crude_json operator[]'s
+      // std::terminate — NOT NDEBUG-guarded, so a hostile OS clipboard aborts release builds
+      // too (refuter-A probe 1). Skip it: foreign clipboard stays a clean no-op.
+      if (!cv.is_object()) continue;
       ClipboardChild c;
       c.id = cv["id"].is_number() ? (int)cv["id"].get<crude_json::number>() : 0;
       if (c.id <= 0) continue;  // boundary sentinel / garbage id
@@ -108,6 +112,7 @@ bool clipboardFromJson(const std::string& json, ClipboardData& out) {
   }
   if (v["wires"].is_array()) {
     for (auto& wv : v["wires"].get<crude_json::array>()) {
+      if (!wv.is_object()) continue;  // same terminate hazard as the children loop above
       SymbolConnection w;
       w.srcChild = wv["srcChild"].is_number() ? (int)wv["srcChild"].get<crude_json::number>() : -1;
       w.dstChild = wv["dstChild"].is_number() ? (int)wv["dstChild"].get<crude_json::number>() : -1;

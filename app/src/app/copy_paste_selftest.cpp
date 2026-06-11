@@ -245,6 +245,12 @@ int runCopyPasteSelfTest(bool injectBug) {
     ClipboardData none;
     CHK(!clipboardFromJson("just some text", none));
     CHK(!clipboardFromJson("{\"hello\":1}", none)); // valid JSON, wrong shape
+    // Hostile clipboard: OUR version tag but type-confused arrays (scalar/string elements).
+    // Before the is_object() gates these hit crude_json operator[]'s std::terminate — a
+    // production-reachable Cmd+V abort, release builds included (refuter-A probe 1, repro→golden).
+    CHK(!clipboardFromJson("{\"clipboardVersion\":1,\"children\":[123]}", none));
+    CHK(!clipboardFromJson("{\"clipboardVersion\":1,\"children\":[\"x\"]}", none));
+    CHK(!clipboardFromJson("{\"clipboardVersion\":1,\"children\":[],\"wires\":[42]}", none));
   }
 
   // --- Leg 7b: cycle gate drops a self-nesting paste. Build A ⊃ B; copy a B instance from A; try
