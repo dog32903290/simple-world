@@ -36,8 +36,11 @@ bool popComposition();                // up one level; false at root
 void truncateComposition(size_t depth);  // breadcrumb jump: keep first `depth` entries
 
 // Resident path of a child in the CURRENT symbol (join of compositionPath + childId) —
-// what frame_cook cooks / the per-path state keys off. Root-only today: "<childId>".
+// what frame_cook cooks / the per-path state keys off.
 std::string residentPathFor(int childId);
+// Just the composition prefix: "" at root, else "1/4/" (trailing slash; valid prefix walk).
+// Callers composing their own paths (viewProducerPath) take this + a child id.
+std::string residentPathPrefix();
 
 extern NS::Window* g_window;   // set by main at launch; used by updateWindowTitle()
 extern bool g_relayout;        // load/new/add asks the editor to re-layout positions

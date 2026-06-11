@@ -287,14 +287,20 @@ void Renderer::draw(MTK::View* pView) {
     // RESIDENT PATH — app/frame_cook must not depend on ui.
     const sw::Symbol* curSym = sw::doc::currentSymbolConst();
     auto inCurrent = [&](int id) { return id != 0 && curSym && sw::childById(*curSym, id); };
+    // A COMPOUND child inlines away — its resident path doesn't exist. Viewing it means
+    // viewing its primary output's PRODUCER (viewProducerPath; atomic children resolve to
+    // themselves). Empty result (no output / unwired) falls through to the terminals.
+    auto viewPathOf = [&](int id) {
+      return sw::viewProducerPath(sw::doc::g_lib, sw::doc::residentPathPrefix(), id);
+    };
     std::string targetPath;
-    if (inCurrent(sw::ui::g_pinnedNode))
-      targetPath = sw::doc::residentPathFor(sw::ui::g_pinnedNode);
-    else if (inCurrent(sw::ui::g_selectedNode))
-      targetPath = sw::doc::residentPathFor(sw::ui::g_selectedNode);    // follow selection
-    else if (int t = g_pointGraph->defaultDrawTarget(sw::doc::g_lib, sw::doc::currentSymbolId()))
-      targetPath = sw::doc::residentPathFor(t);                         // current terminal
-    else
+    if (inCurrent(sw::ui::g_pinnedNode)) targetPath = viewPathOf(sw::ui::g_pinnedNode);
+    if (targetPath.empty() && inCurrent(sw::ui::g_selectedNode))
+      targetPath = viewPathOf(sw::ui::g_selectedNode);                  // follow selection
+    if (targetPath.empty())
+      if (int t = g_pointGraph->defaultDrawTarget(sw::doc::g_lib, sw::doc::currentSymbolId()))
+        targetPath = sw::doc::residentPathFor(t);                       // current terminal
+    if (targetPath.empty())
       targetPath = std::to_string(
           g_pointGraph->defaultDrawTarget(sw::doc::g_lib, sw::doc::g_lib.rootId));  // root terminal
     // The production cook (projection rebuild + AudioReaction + RESIDENT graph cook) lives

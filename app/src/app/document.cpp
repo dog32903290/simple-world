@@ -109,14 +109,18 @@ void truncateComposition(size_t depth) {
   g_status = "up";
 }
 
-std::string residentPathFor(int childId) {
+std::string residentPathPrefix() {
   // Walk the VALID prefix only — main resolves the cook target before this frame's
   // validateCompositionPath, so a dangling tail must not leak into the path string
   // (one black frame + the "navigation never blanks" invariant broken — refuter N3 B3).
   std::string p;
   const size_t n = validPathPrefix();
   for (size_t i = 0; i < n; ++i) p += std::to_string(g_compositionPath[i]) + "/";
-  return p + std::to_string(childId);
+  return p;
+}
+
+std::string residentPathFor(int childId) {
+  return residentPathPrefix() + std::to_string(childId);
 }
 
 bool isDirty() { return sw::libToJsonV2(g_lib) != g_savedSnapshot; }

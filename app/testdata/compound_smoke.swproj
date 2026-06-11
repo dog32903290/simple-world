@@ -1,0 +1,46 @@
+{
+  "formatVersion": 2,
+  "rootSymbolId": "Root",
+  "symbols": [
+    {
+      "id": "EmitterComp",
+      "name": "Emitter",
+      "nextChildId": 2,
+      "inputDefs": [
+        {"id": "Radius", "name": "Radius", "dataType": "Float", "def": 3.0, "x": 60, "y": 300}
+      ],
+      "outputDefs": [
+        {"id": "points", "name": "points", "dataType": "Points", "x": 620, "y": 300}
+      ],
+      "children": [
+        {"id": 1, "symbolId": "5d3a9c1e-7b42-4f0e-9a11-c2e84d6f0a01", "overrides": {}, "x": 300, "y": 280}
+      ],
+      "connections": [
+        {"srcChild": 0, "srcSlot": "Radius", "dstChild": 1, "dstSlot": "Radius"},
+        {"srcChild": 1, "srcSlot": "points", "dstChild": 0, "dstSlot": "points"}
+      ]
+    },
+    {
+      "id": "Root",
+      "name": "Root",
+      "nextChildId": 7,
+      "inputDefs": [],
+      "outputDefs": [],
+      "children": [
+        {"id": 1, "symbolId": "EmitterComp", "overrides": {}, "x": 120, "y": 200},
+        {"id": 2, "symbolId": "EmitterComp", "overrides": {"Radius": 4.0}, "x": 120, "y": 360},
+        {"id": 3, "symbolId": "ad95e041-b37f-4628-95a2-16e83c7d2209", "overrides": {}, "x": 400, "y": 280},
+        {"id": 4, "symbolId": "f04c79e6-25d1-4b98-ae37-68915cfa440b", "overrides": {}, "x": 640, "y": 280},
+        {"id": 5, "symbolId": "61f8ba2d-c490-47e1-8d53-a02b9e64330a", "overrides": {}, "x": 400, "y": 480},
+        {"id": 6, "symbolId": "7a2e58c1-9f06-4374-b1d9-3ce5a0b2550c", "overrides": {}, "x": 920, "y": 300}
+      ],
+      "connections": [
+        {"srcChild": 1, "srcSlot": "points", "dstChild": 3, "dstSlot": "input0"},
+        {"srcChild": 2, "srcSlot": "points", "dstChild": 3, "dstSlot": "input1"},
+        {"srcChild": 3, "srcSlot": "out", "dstChild": 4, "dstSlot": "emit"},
+        {"srcChild": 5, "srcSlot": "force", "dstChild": 4, "dstSlot": "forces"},
+        {"srcChild": 4, "srcSlot": "result", "dstChild": 6, "dstSlot": "points"}
+      ]
+    }
+  ]
+}

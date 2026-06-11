@@ -104,6 +104,7 @@ add_executable(simple_world
   src/runtime/compound_graph_selftest.cpp
   src/runtime/compound_save.cpp
   src/runtime/compound_save_selftest.cpp
+  src/runtime/testproj_selftest.cpp
   src/app/frame_cook.cpp
   src/runtime/graph_bridge.cpp
   src/runtime/graph_bridge_selftest.cpp
@@ -166,6 +167,7 @@ target_compile_definitions(simple_world PRIVATE
   IMGUI_IMPL_METAL_CPP_EXTENSIONS
   SW_SHADER_METALLIB="${SW_METALLIB}"
   SW_EYE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.eye"
+  SW_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/testdata"
 )
 
 # The executable needs the metallib built before it runs.

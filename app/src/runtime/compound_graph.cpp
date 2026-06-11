@@ -1,5 +1,7 @@
 #include "runtime/compound_graph.h"
 
+#include <cstdlib>
+
 namespace sw {
 
 const Symbol* SymbolLibrary::find(const std::string& id) const {
@@ -38,6 +40,53 @@ const SymbolConnection* connectionToInput(const Symbol& s, int dstChild,
   for (const SymbolConnection& w : s.connections)
     if (w.dstChild == dstChild && w.dstSlot == dstSlot) return &w;
   return nullptr;
+}
+
+std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefixPath,
+                             int childId) {
+  std::string path = prefixPath + std::to_string(childId);
+  // Re-derive the scope symbol by walking prefixPath from the root (each "/"-terminated
+  // segment is a child id) — childId must be a child of the symbol the prefix reaches.
+  // The walk also collects the chain's symbol ids: the follow loop below must MIRROR the
+  // resident builder's S14 guard (a symbol id repeating on the path is skipped at inline
+  // time) — otherwise a mutual-recursive chain that happens to END at an atomic returns a
+  // NON-EMPTY path the builder never built, which bypasses the caller's fallback and cooks
+  // black (refuter N4 #1, reproduced).
+  std::vector<std::string> chain;
+  chain.push_back(lib.rootId);
+  const Symbol* scope = lib.find(lib.rootId);
+  {
+    size_t pos = 0;
+    while (scope && pos < prefixPath.size()) {
+      size_t slash = prefixPath.find('/', pos);
+      if (slash == std::string::npos) break;
+      int id = std::atoi(prefixPath.substr(pos, slash - pos).c_str());
+      const SymbolChild* c = childById(*scope, id);
+      scope = c ? lib.find(c->symbolId) : nullptr;
+      if (scope) chain.push_back(scope->id);
+      pos = slash + 1;
+    }
+  }
+  auto onChain = [&](const std::string& id) {
+    for (const std::string& cid : chain)
+      if (cid == id) return true;
+    return false;
+  };
+  const SymbolChild* child = scope ? childById(*scope, childId) : nullptr;
+  const Symbol* s = child ? lib.find(child->symbolId) : nullptr;
+  for (int depth = 0; s; ++depth) {
+    if (s->atomic) return path;             // an atomic child IS the producer
+    if (onChain(s->id)) return "";          // S14 mirror: the builder skipped this subtree
+    chain.push_back(s->id);
+    if ((int)chain.size() > 64 || depth > 64) return "";  // belt: ABSOLUTE depth, like the builder
+    if (s->outputDefs.empty()) return "";   // nothing to view
+    const SymbolConnection* w = connectionToInput(*s, kSymbolBoundary, s->outputDefs[0].id);
+    if (!w || w->srcChild == kSymbolBoundary) return "";  // unwired / input passthrough
+    path += "/" + std::to_string(w->srcChild);
+    child = childById(*s, w->srcChild);
+    s = child ? lib.find(child->symbolId) : nullptr;
+  }
+  return "";
 }
 
 float effectiveInput(const SymbolLibrary& lib, const SymbolChild& child,

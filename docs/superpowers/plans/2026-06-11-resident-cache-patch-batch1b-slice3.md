@@ -349,14 +349,48 @@ GraphTitleAndBreadCrumbs, InputNode/OutputNode boundary items, ViewedCanvasAreaF
 fallback), background double-click exits, breadcrumb Root jumps out, wire boundary->child
 Count lands in the lib as (0,Radius,1,Count), Cmd+Z removes it inside the compound.
 
-## Resume — 批次 3 remaining cuts (in order)
-- **N4: 眼手驗 + goldens.** Enter subgraph -> exit -> canvas correct (req_state already
-  carries compositionPath); add/wire/undo INSIDE a compound (wire-to-boundary already
-  live-smoked in N3); reuse: edit definition once, both instances change on screen (柏為
-  完成定義 item). Inspector UAF repro from N2 refuter #1 becomes live-testable here
-  (compound with Float inputDef + slider drag). Consider a checked-in test .swproj
-  (today's /tmp/nav_test.swproj shape) so the smoke is repeatable.
-- Then 批次 4 combine (boundary detection + create Symbol + rewire; ⚠ CJK-name crude_json
-  named risk must be resolved before user-named symbols; generated ids must avoid the
-  "sw-type:"/uuid namespaces), 批次 5 cross-layer undo + reuse 收尾 (+S13 def removal —
-  boundary items become deletable then).
+## Cut 9 — 批次 3 N4: 眼手驗收 + goldens ✅ (2026-06-11) — 批次 3 CLOSED
+
+Checked-in drill asset `app/testdata/compound_smoke.swproj` (TWO EmitterComp instances ->
+CombineBuffers -> ParticleSystem <- Turbulence -> DrawPoints; inputDef Radius def=3.0 — ON
+PURPOSE ≠ registry default 2.0, so a dead boundary binding can't pass as "default flowed").
+Golden `--selftest-testproj` (+teeth): zero-warning load (asset-rot guard), reuse isolation
+through the REAL file (3.0/4.0), viewProducerPath legs incl. the S14-mirror recursion case.
+Inspector grew one-line eye hooks (`param:<id>` rects) — the hand can drive sliders forever.
+
+**The drill itself found a real bug**: selecting/pinning a COMPOUND instance cooked its own
+resident path — which doesn't exist (compounds inline away) -> black viewport. Fix =
+`viewProducerPath` (runtime): viewing a compound child resolves to its first outputDef's
+producer, recursively; empty -> terminal fallback. main's chain became sequential
+fall-through (pinned -> selected -> current terminal -> root terminal).
+
+**Refuter: 1 BROKEN (reproduced with a scratch binary) + 1 low SUSPECT, fixed:**
+1. viewProducerPath lacked the S14 symbol-on-path mirror — a MUTUAL-recursive chain ending
+   at an atomic returned a non-empty path the builder skipped -> bypassed the fallback ->
+   sticky black while pinned. Fixed (chain collected during prefix walk; golden leg added:
+   in-code A⊃B⊃A lib, view-from-inside returns "", legit path "9/2" still resolves).
+2. Combo recordItem grabbed the open popup's last Selectable rect (hand mis-click risk) ->
+   pre-widget rect via GetCursorScreenPos+CalcItemWidth.
+
+**柏為 完成定義 item — PROVEN LIVE (eye/hand, ASan on):**
+- instance override: select Em#2, drag Radius slider -> only ITS ring changes (em1
+  untouched), undo restores the old override value; the drag+release IS the N2 UAF repro
+  scenario — ASan silent.
+- definition edit: enter Emitter via instance 1, drag inner RadialPoints Count to min,
+  exit -> WHOLE picture collapses 10181->96 bright px (both instances; one-instance-only
+  would leave ~half), Cmd+Z FROM ROOT undoes the definition edit (commands keyed by
+  symbolId work cross-composition) -> erase path -> picture recovers.
+- compound preview: selecting an Emitter shows its inner producer's points preview (3376
+  bright), deselect -> terminal sim picture (27623). Never black.
+
+46 selftests green + all -bug teeth + check-arch.
+
+## Resume — next
+- **批次 4 combine**: boundary detection + create Symbol + rewire (selection -> new compound
+  symbol + instance; 必搬曲線/automation 歸定義層 per 拍板 P2). ⚠ MUST resolve first:
+  crude_json non-ASCII assert (CJK compound names write-but-don't-read — 柏為 WILL name one
+  in Chinese); generated symbol ids must avoid the "sw-type:"/uuid namespaces.
+- 批次 5: cross-layer undo + reuse 收尾 + S13 def removal (boundary items become deletable).
+- Parked smaller debts: per-instance view-area memory (TiXL UserSettings analog); boundary
+  moves have no undo step; per-path op state leaks until app close; CommandStack hardwires
+  the single global doc; boundary↔boundary passthrough wire blocked by the same-node guard.

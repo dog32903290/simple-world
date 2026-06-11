@@ -18,6 +18,7 @@
 #include "app/graph_commands.h"
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec (a compound child resolves like an atomic, N1)
+#include "verify/eye/eye.h"  // one-line hooks: param widget rects for the hand
 
 namespace sw::ui {
 namespace {
@@ -73,6 +74,7 @@ void drawInspector() {
           for (int k = 0; k < N; ++k) pre[k] = vals[k];
           ImGui::DragScalarN(p.name.c_str(), ImGuiDataType_Float, vals, N, 0.01f, &p.minV,
                              &p.maxV, "%.2f");
+          sw::eye::recordItem(("param:" + p.id).c_str());
           if (ImGui::IsItemActivated())
             for (int k = 0; k < N; ++k) {
               g_vecEditBefore[k] = pre[k];
@@ -110,10 +112,18 @@ void drawInspector() {
           int curIdx = (int)(preV + 0.5f);
           std::vector<const char*> items;
           for (const std::string& s : p.labels) items.push_back(s.c_str());
-          if (!items.empty() &&
-              ImGui::Combo(p.name.c_str(), &curIdx, items.data(), (int)items.size())) {
-            sel->overrides[p.id] = (float)curIdx;
-            pushSet(p.id, had, preV, (float)curIdx);
+          // Record the combo's rect from PRE-widget geometry: while its popup is open,
+          // GetItemRect refers to the popup's last Selectable, and a hand reading the map
+          // mid-interaction would click that instead (refuter N4 #2).
+          const ImVec2 comboPos = ImGui::GetCursorScreenPos();
+          const float comboW = ImGui::CalcItemWidth();
+          if (!items.empty()) {
+            if (ImGui::Combo(p.name.c_str(), &curIdx, items.data(), (int)items.size())) {
+              sel->overrides[p.id] = (float)curIdx;
+              pushSet(p.id, had, preV, (float)curIdx);
+            }
+            sw::eye::recordRect(("param:" + p.id).c_str(), comboPos.x, comboPos.y,
+                                comboPos.x + comboW, comboPos.y + ImGui::GetFrameHeight());
           }
         } else if (p.widget == sw::Widget::Bool) {
           const float preV = eff(p);
@@ -123,6 +133,7 @@ void drawInspector() {
             sel->overrides[p.id] = b ? 1.0f : 0.0f;
             pushSet(p.id, had, preV, b ? 1.0f : 0.0f);
           }
+          sw::eye::recordItem(("param:" + p.id).c_str());
         } else {
           // Free constant — slider writes LIVE into the override so the runtime sees
           // changes mid-drag (柏為 expects immediate feedback). One undo step per drag:
@@ -134,6 +145,7 @@ void drawInspector() {
             sel->overrides[p.id] = v;
             sw::doc::bumpLibRevision();  // projection contract (document.h)
           }
+          sw::eye::recordItem(("param:" + p.id).c_str());
           if (ImGui::IsItemActivated()) {
             g_paramEditBefore = preV;
             g_paramEditHadOverride = had;

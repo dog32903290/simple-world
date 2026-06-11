@@ -54,4 +54,10 @@ bool loadLibFromFile(const std::string& path, SymbolLibrary& out,
 // override after reload -> the evaluation-identical assertion FAILS (teeth).
 int runSaveV2SelfTest(bool injectBug);
 
+// Guards the checked-in N4 drill asset (testdata/compound_smoke.swproj): loads with zero
+// repair warnings; the two Emitter instances resolve Radius 2.0 (definition default through
+// the boundary wire) and 4.0 (instance override) — reuse isolation through the REAL file.
+// injectBug pollutes the definition so isolation breaks -> FAILS (teeth).
+int runTestProjSelfTest(bool injectBug);
+
 }  // namespace sw

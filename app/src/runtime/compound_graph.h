@@ -101,6 +101,16 @@ int nextFreeChildId(const Symbol& s);
 const SymbolConnection* connectionToInput(const Symbol& s, int dstChild,
                                           const std::string& dstSlot);
 
+// The RESIDENT path that PRODUCES child `childId`'s primary output, viewed from the symbol
+// subgraph at `prefixPath` ("" = root scope, else "1/4/"-style with trailing slash).
+// An ATOMIC child is its own producer (prefix + id). A COMPOUND child inlines away — its
+// resident path doesn't exist — so "view it" = follow its FIRST outputDef's boundary wire
+// inward, recursively (TiXL: viewing an op shows its output slot; for a composition that
+// slot is fed by an inner producer). Returns "" when unresolvable (no output def, unwired,
+// input-passthrough, dangling, or depth/cycle overflow) — callers fall back to a terminal.
+std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefixPath,
+                             int childId);
+
 // --- resolve helpers (behavior the flattener in batch 1 builds on) ---
 
 // The effective value of a child's input slot: the instance override if present, else the
