@@ -202,20 +202,51 @@ Golden `--selftest-graphbridge`: real default graph + Const→Radius + AudioReac
 3 frames, flat vs resident BYTE-IDENTICAL (stateful GPU sim included). Full sweep 30+ green,
 all -bug teeth bite.
 
-**⚠ Pending live smoke:** 柏為's display was asleep all session (pmset: Display off 11:31) →
-MTKView gets no display link → the app cannot tick in background. NOT a code issue. When the
-screen is awake: launch app, eye req_clean × 2 (particles moving), drag a param via hand
-(picture changes), exercise add-node/wire/undo (mirror rebuild correctness live).
+**✅ Live smoke (display woke 12:16, eye/hand driven):** resident cook renders + animates
+live (clean.png readback, frames differ); GUI add-node (Const) → revision → mirror rebuild ✓;
+GUI wire Const.out→RadialPoints.Radius → picture changed the SAME frame (206→69 lit — the
+resolved-param seam live in production) ✓; Cmd+Z removed the wire and the SIM STATE SURVIVED
+the rebuild (per-path identity working as designed) ✓; RadialPoints' new ports + AudioReaction
+live meter visible in the canvas. (Node-click selection missed = the known zoom≠1 map-drift
+trap, unrelated to the swap.) Diagnosis recorded: display asleep → window server gives MTKView
+no display link → app can't tick in background; check `pmset -g log | grep Display` FIRST.
 
 **Named-deferred:** command layer pairs patch*/patchLib* instead of rebuild (semantics pinned
 by patch goldens); cookResident → pullResidentFloat (consume the 1b float cache + bumpLiveSources
 per frame); S1 SourceRegistry 收編 (AudioReaction LIVE authority to definition layer);
 defaultDrawTarget/viewTarget still read flat (shell-level, dies with g_graph).
 
+## Resume (after Cut 5)
+~~批次 2 存檔 v2~~ ✅ DONE same session (Cut 5 below).
+
+---
+
+## Cut 5 — 批次 2 存檔 v2 (2026-06-11, same session) ✅
+
+`runtime/compound_save.{h,cpp}` + golden `--selftest-savev2` + app wiring (doSave writes v2,
+doOpen reads v2+v1 with S15 repair warnings) + `graphFromLib` inverse (transitional flat-editor
+leg). Key decisions: v2 serializes ONLY compounds (atomics = registry + fixed UUID refs, 決策 4,
+TiXL-isomorphic); S16 self-describing compound defs (array order == definition order); S15
+local-drop tolerance (whole-file failure only for unparseable JSON); v1 auto-migrates via
+libFromGraph. Refuter: 4 BROKEN fixed (NaN-safe writer / sw-type: namespace hijack -> compound-
+first resolution / inverse contract made honest = SEMANTIC roundtrip, conn ids normalize / dup-id
+first-wins), repros promoted to golden legs (nanClamp/nsNoHijack/oddIdSemantic).
+
+**⚠ Named risk for 批次 4:** crude_json asserts (debug abort) on non-ASCII at PARSE — a CJK
+compound name (柏為 WILL type one) = a file that kills the load. Resolve before combine ships
+user-named symbols: escape on write, or swap/patch the parser, or sanitize names.
+
+**Live smoke of the production swap** also completed this session (see the amended Cut 4 note):
+add-node/wire/undo via eye+hand, picture reacts same-frame, sim state survives rebuilds.
+
 ## Resume (next cut — pick one)
-1. **批次 2 存檔 v2** (recommended): symbols[] schema + animator section + two-phase load +
-   migration (loader = libFromGraph for old flat files — already exists). This makes the
-   SymbolLibrary the real document, unblocking 導航 (批次 3) which needs compound docs to exist.
-2. **Incremental mirror** — commands pair patch*/patchLib* calls instead of rebuild-on-edit
-   (cheap now, the APIs are golden-pinned; do it when graphs get big or with 批次 5 undo).
-3. **1b rest** — Command/flow four primitives; needed before the render graph deepens.
+1. **批次 3 編輯導航** (the editor-experience spine): editor goes lib-native — the document
+   becomes SymbolLibrary, canvas renders the symbol at `compositionPath` (single
+   ed::EditorContext, view state swapped per layer), double-click enters a compound / breadcrumb
+   exits. Kills graphFromLib + the flat g_graph + the mirror (doc = lib directly; commands pair
+   patchLib* per the named contract duty). 眼手驗: enter subgraph -> exit -> canvas correct.
+   Big cut — start with the doc-model swap (lib + compositionPath in app/document), keep the
+   canvas rendering root-level first, then add navigation.
+2. **1b rest** — Command/flow four primitives; needed before the render graph deepens.
+3. **Incremental mirror** — commands pair patch*/patchLib* instead of rebuild-on-edit (folds
+   naturally into 批次 3's command work).
