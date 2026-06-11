@@ -239,14 +239,36 @@ user-named symbols: escape on write, or swap/patch the parser, or sanitize names
 **Live smoke of the production swap** also completed this session (see the amended Cut 4 note):
 add-node/wire/undo via eye+hand, picture reacts same-frame, sim state survives rebuilds.
 
-## Resume (next cut — pick one)
-1. **批次 3 編輯導航** (the editor-experience spine): editor goes lib-native — the document
-   becomes SymbolLibrary, canvas renders the symbol at `compositionPath` (single
-   ed::EditorContext, view state swapped per layer), double-click enters a compound / breadcrumb
-   exits. Kills graphFromLib + the flat g_graph + the mirror (doc = lib directly; commands pair
-   patchLib* per the named contract duty). 眼手驗: enter subgraph -> exit -> canvas correct.
-   Big cut — start with the doc-model swap (lib + compositionPath in app/document), keep the
-   canvas rendering root-level first, then add navigation.
-2. **1b rest** — Command/flow four primitives; needed before the render graph deepens.
-3. **Incremental mirror** — commands pair patch*/patchLib* instead of rebuild-on-edit (folds
-   naturally into 批次 3's command work).
+## Cut 6 — 批次 3 N1: compounds as operators ✅ (2026-06-11, `ec92d77`)
+
+Architecture decision for 批次 3 (照 TiXL, no projection layer): the canvas reads the CURRENT
+Symbol directly — TiXL's GraphCanvas renders Symbol children, composition switch = same canvas
+different symbol. The flat Graph/g_graph/mirror/graphFromLib all die at the end of this batch.
+
+N1 (landed): `specFromSymbol` + `refreshCompoundSpecs` + findSpec dynamic-table fallthrough
+(built-ins win on clash). A compound child now resolves ports/inspector exactly like an atomic
+node. Golden `--selftest-compoundspec` (+teeth).
+
+## Resume — 批次 3 remaining cuts (in order)
+- **N2 (app, the heavy one): doc = SymbolLibrary + compositionPath.** app/document grows
+  `g_lib` + `compositionPath` (vector<int> of child ids from root; current symbol = the one the
+  last child references, empty = root). Commands REWRITTEN as lib edits keyed by
+  (symbolId, …): AddChild / RemoveChild(+touching wires) / AddWire / RemoveWire / SetOverride /
+  MoveChild — each doIt/undo mutates the LIB and (named contract duty from slice 3) pairs the
+  resident patch (first cut may rebuild-on-revision like today's mirror — semantics pinned by
+  patch goldens). frame_cook drops libFromGraph (reads doc lib directly); save/load drop the
+  graphFromLib leg (doc IS a lib — files with compounds now open). refreshCompoundSpecs on
+  every structural edit. Command selftest rewritten against the lib.
+- **N3 (ui): canvas iterates the current symbol.** editor_ui/node_draw render
+  `currentSymbol().children` (pin id = pinId(childId, portIdx of specForSymbol(child.symbolId))
+  — the EXISTING int pin scheme works unchanged on top of child ids); inspector edits
+  child.overrides; double-click a compound child pushes compositionPath; breadcrumb bar pops;
+  per-layer view state (ed config save/restore or one EditorContext per visited symbol — TiXL
+  uses one canvas + swapped view; check ed::Config). viewTarget becomes a resident PATH
+  (join of compositionPath + child id) — frame_cook already takes a path string.
+- **N4: 眼手驗 + goldens.** Enter subgraph -> exit -> canvas correct (req_state must grow a
+  composition field); add/wire/undo INSIDE a compound; reuse: edit definition once, both
+  instances change on screen (柏為 完成定義 item).
+- Then 批次 4 combine (boundary detection + create Symbol + rewire; ⚠ CJK-name crude_json
+  named risk must be resolved before user-named symbols; generated ids must avoid the
+  "sw-type:"/uuid namespaces), 批次 5 cross-layer undo + reuse 收尾.
