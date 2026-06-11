@@ -107,6 +107,9 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
     crude_json::object o;
     o["id"] = s->id;
     o["name"] = s->name;
+    // Monotonic child-id floor (compound_graph.h): without it a reload would recompute
+    // max+1 and resurrect freed ids (= a new child inheriting dead per-path state).
+    o["nextChildId"] = (crude_json::number)s->nextChildId;
     crude_json::array ins, outs;  // array order == definition order (S16)
     for (const SlotDef& d : s->inputDefs) ins.push_back(slotDefToJson(d, /*isInput=*/true));
     for (const SlotDef& d : s->outputDefs) outs.push_back(slotDefToJson(d, /*isInput=*/false));
@@ -177,6 +180,9 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
     }
     s.name = sv["name"].is_string() ? sv["name"].get<crude_json::string>() : s.id;
     s.atomic = false;
+    // Absent in pre-N2 files: leave the default floor (1); nextFreeChildId's max+1 covers.
+    if (sv["nextChildId"].is_number())
+      s.nextChildId = (int)sv["nextChildId"].get<crude_json::number>();
     if (sv["inputDefs"].is_array())
       for (auto& dv : sv["inputDefs"].get<crude_json::array>()) s.inputDefs.push_back(slotDefFromJson(dv));
     if (sv["outputDefs"].is_array())

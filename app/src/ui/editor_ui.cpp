@@ -1,9 +1,14 @@
-// ui/editor_ui — toolbar / node canvas / inspector (imgui draw).
+// ui/editor_ui — toolbar / node canvas (imgui draw); the Inspector lives in ui/inspector.cpp.
 // Zone: ui. Depends on app(document) + runtime + verify(thin hook). Never the reverse.
+//
+// Lib-native canvas (批次 3, 照 TiXL GraphCanvas): the canvas renders the CURRENT Symbol's
+// children/connections straight off doc::g_lib — no flat Graph, no projection layer.
+// Composition switch (N3) = same canvas, different symbol.
 #include "ui/editor_ui.h"
 #include "ui/node_draw.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
@@ -15,7 +20,8 @@
 #include "app/command.h"
 #include "app/document.h"
 #include "app/graph_commands.h"
-#include "runtime/graph.h"
+#include "runtime/compound_graph.h"
+#include "runtime/graph.h"  // findSpec / pinId / pinNode (the int pin scheme rides on child ids)
 #include "verify/eye/eye.h"
 
 namespace ed = ax::NodeEditor;
@@ -27,37 +33,69 @@ int g_selectedNode = 0;
 int g_pinnedNode = 0;  // view ⊥ graph (see editor_ui.h); set by ui/output_window.cpp
 
 namespace {
-// pin id <-> (node id, port index) — see sw::pinId().
-int pinNodeId(int pin) { return sw::pinNode(pin); }
+// pin id <-> (child id, port index) — see sw::pinId().
+int pinChildId(int pin) { return sw::pinNode(pin); }
 int pinPortIndex(int pin) { return (pin - 1) % 100; }
-bool pinIsInput(int pin) {
-  const sw::Node* n = sw::doc::g_graph.node(pinNodeId(pin));
-  if (!n) return false;
-  const sw::NodeSpec* s = sw::findSpec(n->type);
-  if (!s) return false;
+
+const sw::PortSpec* portOfPin(int pin) {
+  const sw::Symbol* cur = sw::doc::currentSymbolConst();
+  const sw::SymbolChild* c = cur ? sw::childById(*cur, pinChildId(pin)) : nullptr;
+  const sw::NodeSpec* s = c ? sw::findSpec(c->symbolId) : nullptr;
+  if (!s) return nullptr;
   int idx = pinPortIndex(pin);
-  return idx >= 0 && idx < (int)s->ports.size() && s->ports[idx].isInput;
+  return (idx >= 0 && idx < (int)s->ports.size()) ? &s->ports[idx] : nullptr;
+}
+bool pinIsInput(int pin) {
+  const sw::PortSpec* p = portOfPin(pin);
+  return p && p->isInput;
 }
 
-// 拖動暫存：node id -> 拖動開始時的座標。空 == 沒在拖。
+// (childId, slotId) -> absolute pin id via the spec's port index; -1 when unresolvable.
+int pinOfSlot(int childId, const std::string& slotId, bool isInput) {
+  const sw::Symbol* cur = sw::doc::currentSymbolConst();
+  const sw::SymbolChild* c = cur ? sw::childById(*cur, childId) : nullptr;
+  const sw::NodeSpec* s = c ? sw::findSpec(c->symbolId) : nullptr;
+  if (!s) return -1;
+  for (size_t i = 0; i < s->ports.size(); ++i)
+    if (s->ports[i].isInput == isInput && s->ports[i].id == slotId) return sw::pinId(childId, (int)i);
+  return -1;
+}
+
+// Link ids are STATELESS: both pins packed into one 64-bit id (SymbolConnection has no id —
+// rightly, TiXL wires are bare 4-tuples). Decode gives back the exact wire endpoints, so
+// delete-by-link-id needs no side table. Disjoint from node/pin id ranges (>= 2^32).
+uint64_t linkIdOf(int srcPin, int dstPin) {
+  return ((uint64_t)(uint32_t)srcPin << 32) | (uint32_t)dstPin;
+}
+int linkSrcPin(uint64_t id) { return (int)(id >> 32); }
+int linkDstPin(uint64_t id) { return (int)(id & 0xffffffffu); }
+
+// Reconstruct the 4-tuple a link id names. False if either pin no longer resolves.
+bool wireOfLink(uint64_t id, sw::SymbolConnection& out) {
+  const sw::PortSpec* sp = portOfPin(linkSrcPin(id));
+  const sw::PortSpec* dp = portOfPin(linkDstPin(id));
+  if (!sp || !dp) return false;
+  out.srcChild = pinChildId(linkSrcPin(id));
+  out.srcSlot = sp->id;
+  out.dstChild = pinChildId(linkDstPin(id));
+  out.dstSlot = dp->id;
+  return true;
+}
+
+// 拖動暫存：child id -> 拖動開始時的座標。空 == 沒在拖。
 std::map<int, ImVec2> g_dragStart;
 
-// Inspector slider 拖動開始時的常數值（一次只有一個 slider 在拖）。放手時用它記 undo。
-float g_paramEditBefore = 0.0f;
-// Same, for a Vec param's components (DragScalarN edits up to 4 at once). One undo step per
-// drag: snapshot all components on activation, push a command per changed component on release.
-float g_vecEditBefore[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-
 void addNode(const std::string& type) {
-  sw::Node n;
-  n.id = sw::doc::g_graph.nextId++;
-  n.type = type;
-  n.x = 120.0f;
-  n.y = 120.0f;
-  if (const sw::NodeSpec* s = sw::findSpec(type))
-    for (const sw::PortSpec& p : s->ports)
-      if (p.isInput && p.dataType == "Float") n.params[p.id] = p.def;
-  sw::g_commands.push(std::make_unique<sw::AddNodeCommand>(sw::doc::g_graph, n));
+  sw::Symbol* cur = sw::doc::currentSymbol();
+  if (!cur) return;
+  sw::SymbolChild c;
+  c.id = sw::nextFreeChildId(*cur);
+  c.symbolId = type;
+  c.x = 120.0f;
+  c.y = 120.0f;
+  // overrides stay EMPTY — the instance reads the definition's defaults until edited
+  // (TiXL Symbol.Child semantics; the flat editor's params-prefill died with it).
+  sw::g_commands.push(std::make_unique<sw::AddChildCommand>(sw::doc::g_lib, cur->id, c));
   sw::doc::g_relayout = true;
   sw::doc::g_status = "added " + type;
 }
@@ -125,17 +163,28 @@ void drawNodeCanvas() {
   bool hostOpen = ImGui::Begin("##canvas_host", nullptr, hostFlags);
   ImGui::PopStyleVar();
 
+  sw::Symbol* cur = sw::doc::currentSymbol();
+
   ed::SetCurrentEditor(g_NodeEditor);
-  if (hostOpen) {
+  if (hostOpen && cur) {
     ed::Begin("canvas");
 
-  // Draw every node from graph data. The TiXL skin (category color, port columns,
-  // type-colored slots, custom face) + eye rects live in ui/node_draw. The live preview is
-  // NOT welded to any node body — it lives in the Output window (ui/output_window.cpp),
-  // which shows ANY pinned node's output (view ⊥ graph; OUTPUT_PIN_VIEWER_CONTRACT §4-A).
-  for (const sw::Node& node : sw::doc::g_graph.nodes) sw::ui::drawNode(node);
+  // Draw every child of the CURRENT symbol (= TiXL GraphCanvas renders Symbol children).
+  // The TiXL skin (category color, port columns, type-colored slots, custom face) + eye
+  // rects live in ui/node_draw. The live preview is NOT welded to any node body — it lives
+  // in the Output window (ui/output_window.cpp), which shows ANY pinned node's output
+  // (view ⊥ graph; OUTPUT_PIN_VIEWER_CONTRACT §4-A).
+  for (const sw::SymbolChild& child : cur->children) sw::ui::drawChild(child);
 
-  for (const sw::Connection& c : sw::doc::g_graph.connections) ed::Link(c.id, c.fromPin, c.toPin);
+  // Wires. Boundary-sentinel wires (the symbol's own external ports) get their pins in N3
+  // (the root has none today); skip them rather than draw a dangling link.
+  for (const sw::SymbolConnection& w : cur->connections) {
+    if (w.srcChild == sw::kSymbolBoundary || w.dstChild == sw::kSymbolBoundary) continue;
+    int from = pinOfSlot(w.srcChild, w.srcSlot, /*isInput=*/false);
+    int to = pinOfSlot(w.dstChild, w.dstSlot, /*isInput=*/true);
+    if (from < 0 || to < 0) continue;  // unresolvable wire: cook tolerance, canvas tolerance
+    ed::Link(linkIdOf(from, to), from, to);
+  }
 
   // Create links by dragging pin -> pin (one input + one output, different nodes).
   if (ed::BeginCreate()) {
@@ -143,35 +192,36 @@ void drawNodeCanvas() {
     if (ed::QueryNewLink(&a, &b) && a && b) {
       int pa = (int)a.Get(), pb = (int)b.Get();
       bool ia = pinIsInput(pa), ib = pinIsInput(pb);
-      if (pa != pb && ia != ib && pinNodeId(pa) != pinNodeId(pb)) {
+      if (pa != pb && ia != ib && pinChildId(pa) != pinChildId(pb)) {
         // Reject if the two pins' dataType differ (Float↔Float, buffer↔same-type).
         auto portTypeOf = [](int pin) -> std::string {
-          const sw::Node* n = sw::doc::g_graph.node(pinNodeId(pin));
-          if (!n) return "";
-          const sw::NodeSpec* s = sw::findSpec(n->type);
-          int idx = pinPortIndex(pin);
-          return (s && idx < (int)s->ports.size()) ? s->ports[idx].dataType : "";
+          const sw::PortSpec* p = portOfPin(pin);
+          return p ? p->dataType : "";
         };
         if (portTypeOf(pa) != portTypeOf(pb)) {
           ed::RejectNewItem();
         } else if (ed::AcceptNewItem()) {
           int from = ia ? pb : pa;  // output pin
           int to = ia ? pa : pb;    // input pin
-          const sw::Connection* old = sw::doc::g_graph.connectionToInput(to);
-          if (old && old->fromPin == from) {
+          sw::SymbolConnection nw;
+          nw.srcChild = pinChildId(from);
+          nw.srcSlot = portOfPin(from)->id;
+          nw.dstChild = pinChildId(to);
+          nw.dstSlot = portOfPin(to)->id;
+          const sw::SymbolConnection* old =
+              sw::connectionToInput(*cur, nw.dstChild, nw.dstSlot);
+          if (old && old->srcChild == nw.srcChild && old->srcSlot == nw.srcSlot) {
             // already wired to this exact source — nothing to do
           } else if (old) {
-            // reconnect: remove the input's old link, add the new one, as one undo unit
+            // reconnect: remove the input's old wire, add the new one, as one undo unit
             auto macro = std::make_unique<sw::MacroCommand>("Reconnect");
-            macro->add(std::make_unique<sw::DeleteConnectionsCommand>(
-                sw::doc::g_graph, std::vector<int>{old->id}));
-            sw::Connection c{sw::doc::g_graph.nextId++, from, to};
-            macro->add(std::make_unique<sw::AddConnectionCommand>(sw::doc::g_graph, c));
+            macro->add(std::make_unique<sw::DeleteWiresCommand>(
+                sw::doc::g_lib, cur->id, std::vector<sw::SymbolConnection>{*old}));
+            macro->add(std::make_unique<sw::AddWireCommand>(sw::doc::g_lib, cur->id, nw));
             sw::g_commands.push(std::move(macro));
             sw::doc::g_status = "reconnected";
           } else {
-            sw::Connection c{sw::doc::g_graph.nextId++, from, to};
-            sw::g_commands.push(std::make_unique<sw::AddConnectionCommand>(sw::doc::g_graph, c));
+            sw::g_commands.push(std::make_unique<sw::AddWireCommand>(sw::doc::g_lib, cur->id, nw));
             sw::doc::g_status = "linked";
           }
         }
@@ -206,43 +256,43 @@ void drawNodeCanvas() {
         if (io.KeyShift) sw::g_commands.redo();
         else             sw::g_commands.undo();
         sw::doc::g_status = io.KeyShift ? "redo" : "undo";
-        sw::doc::g_relayout = true;  // canvas re-seeds node positions from the restored graph
+        sw::doc::g_relayout = true;  // canvas re-seeds node positions from the restored lib
       }
     }
   }
 
   // Delete links / nodes (select + Delete key, or Backspace routed above).
   if (ed::BeginDelete()) {
-    std::vector<int> delLinks, delNodes;
+    std::vector<sw::SymbolConnection> delWires;
+    std::vector<int> delNodes;
     ed::LinkId lid;
     while (ed::QueryDeletedLink(&lid))
-      if (ed::AcceptDeletedItem()) delLinks.push_back((int)lid.Get());
+      if (ed::AcceptDeletedItem()) {
+        sw::SymbolConnection w;
+        if (wireOfLink(lid.Get(), w)) delWires.push_back(w);
+      }
     ed::NodeId nid;
     while (ed::QueryDeletedNode(&nid))
       if (ed::AcceptDeletedItem()) delNodes.push_back((int)nid.Get());
     ed::EndDelete();
 
-    // 入射於被刪節點的連線交給 DeleteNodesCommand 處理，從 delLinks 去重，
+    // 入射於被刪 child 的連線交給 DeleteChildrenCommand 處理，從 delWires 去重，
     // 否則同一條線會被刪兩次（undo 也會重複還原）。
-    auto incidentToDeletedNode = [&](int linkId) {
-      for (const sw::Connection& c : sw::doc::g_graph.connections)
-        if (c.id == linkId) {
-          int fn = sw::pinNode(c.fromPin), tn = sw::pinNode(c.toPin);
-          return std::find(delNodes.begin(), delNodes.end(), fn) != delNodes.end() ||
-                 std::find(delNodes.begin(), delNodes.end(), tn) != delNodes.end();
-        }
-      return false;
+    auto incidentToDeletedNode = [&](const sw::SymbolConnection& w) {
+      return std::find(delNodes.begin(), delNodes.end(), w.srcChild) != delNodes.end() ||
+             std::find(delNodes.begin(), delNodes.end(), w.dstChild) != delNodes.end();
     };
-    std::vector<int> standaloneLinks;
-    for (int id : delLinks)
-      if (!incidentToDeletedNode(id)) standaloneLinks.push_back(id);
+    std::vector<sw::SymbolConnection> standaloneWires;
+    for (const sw::SymbolConnection& w : delWires)
+      if (!incidentToDeletedNode(w)) standaloneWires.push_back(w);
 
-    if (!delNodes.empty() || !standaloneLinks.empty()) {
+    if (!delNodes.empty() || !standaloneWires.empty()) {
       auto macro = std::make_unique<sw::MacroCommand>("Delete");
-      if (!standaloneLinks.empty())
-        macro->add(std::make_unique<sw::DeleteConnectionsCommand>(sw::doc::g_graph, standaloneLinks));
+      if (!standaloneWires.empty())
+        macro->add(std::make_unique<sw::DeleteWiresCommand>(sw::doc::g_lib, cur->id,
+                                                            standaloneWires));
       if (!delNodes.empty())
-        macro->add(std::make_unique<sw::DeleteNodesCommand>(sw::doc::g_graph, delNodes));
+        macro->add(std::make_unique<sw::DeleteChildrenCommand>(sw::doc::g_lib, cur->id, delNodes));
       sw::g_commands.push(std::move(macro));
       sw::doc::g_status = "deleted";
     }
@@ -251,23 +301,23 @@ void drawNodeCanvas() {
   }
 
   if (sw::doc::g_relayout) {  // initial / after add / after load
-    for (const sw::Node& node : sw::doc::g_graph.nodes)
-      ed::SetNodePosition(node.id, ImVec2(node.x, node.y));
+    for (const sw::SymbolChild& child : cur->children)
+      ed::SetNodePosition(child.id, ImVec2(child.x, child.y));
     sw::doc::g_relayout = false;
   } else {
     bool dragging = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
     if (dragging) {
-      // 拖動中：記下還沒記過的節點的起始座標，並即時把位置反映到 graph（畫面跟手）。
-      for (sw::Node& node : sw::doc::g_graph.nodes) {
-        ImVec2 p = ed::GetNodePosition(node.id);
-        if (g_dragStart.find(node.id) == g_dragStart.end())
-          g_dragStart[node.id] = ImVec2(node.x, node.y);
-        node.x = p.x;
-        node.y = p.y;
+      // 拖動中：記下還沒記過的 child 的起始座標，並即時把位置反映到 lib（畫面跟手）。
+      for (sw::SymbolChild& child : cur->children) {
+        ImVec2 p = ed::GetNodePosition(child.id);
+        if (g_dragStart.find(child.id) == g_dragStart.end())
+          g_dragStart[child.id] = ImVec2(child.x, child.y);
+        child.x = p.x;
+        child.y = p.y;
       }
     } else if (!g_dragStart.empty()) {
-      // 放手：把真正有位移的節點組成一個 MoveNodesCommand。
-      std::vector<sw::MoveNodesCommand::Move> moves;
+      // 放手：把真正有位移的 child 組成一個 MoveChildrenCommand。
+      std::vector<sw::MoveChildrenCommand::Move> moves;
       for (auto& kv : g_dragStart) {
         ImVec2 now = ed::GetNodePosition(kv.first);
         if (now.x != kv.second.x || now.y != kv.second.y)
@@ -275,17 +325,17 @@ void drawNodeCanvas() {
       }
       g_dragStart.clear();
       if (!moves.empty()) {
-        // 命令的 doIt 會再設一次新座標（冪等），先把 graph 設回舊座標避免雙重記錄混亂。
+        // 命令的 doIt 會再設一次新座標（冪等），先把 lib 設回舊座標避免雙重記錄混亂。
         for (auto& m : moves)
-          if (sw::Node* n = sw::doc::g_graph.node(m.id)) { n->x = m.oldX; n->y = m.oldY; }
-        sw::g_commands.push(std::make_unique<sw::MoveNodesCommand>(sw::doc::g_graph, moves));
+          if (sw::SymbolChild* c = sw::childById(*cur, m.id)) { c->x = m.oldX; c->y = m.oldY; }
+        sw::g_commands.push(std::make_unique<sw::MoveChildrenCommand>(sw::doc::g_lib, cur->id, moves));
       }
     } else {
-      // 沒拖動：照常把 editor 位置同步回 graph（例如程式性移動）。
-      for (sw::Node& node : sw::doc::g_graph.nodes) {
-        ImVec2 p = ed::GetNodePosition(node.id);
-        node.x = p.x;
-        node.y = p.y;
+      // 沒拖動：照常把 editor 位置同步回 lib（例如程式性移動）。
+      for (sw::SymbolChild& child : cur->children) {
+        ImVec2 p = ed::GetNodePosition(child.id);
+        child.x = p.x;
+        child.y = p.y;
       }
     }
   }
@@ -300,97 +350,6 @@ void drawNodeCanvas() {
   ed::SetCurrentEditor(nullptr);
 
   ImGui::End();  // ##canvas_host
-}
-
-// Inspector (shell only): future home of the selected node's parameters. Kept
-// honest per ui-skin-pressure-gate — NO fake parameter widgets until a NodeSpec/
-// param contract exists (step 1+). For now: a selection placeholder + live FPS
-// (the one real signal: proves the runtime is ticking).
-void drawInspector() {
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - 320.0f, vp->WorkPos.y + 24.0f),
-                          ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(300.0f, 180.0f), ImGuiCond_FirstUseEver);
-  ImGui::Begin("Inspector");
-  sw::Node* sel = sw::doc::g_graph.node(g_selectedNode);
-  if (sel) {
-    const sw::NodeSpec* spec = sw::findSpec(sel->type);
-    ImGui::TextUnformatted(spec ? spec->title.c_str() : sel->type.c_str());
-    ImGui::Separator();
-    if (spec) {
-      bool any = false;
-      for (size_t i = 0; i < spec->ports.size(); ++i) {
-        const sw::PortSpec& p = spec->ports[i];
-        if (!(p.isInput && p.dataType == "Float")) continue;
-        any = true;
-        int inPin = sw::pinId(sel->id, (int)i);
-        if (p.widget == sw::Widget::Vec && p.vecArity >= 2) {
-          // Vector param head: draw its `vecArity` components ("<base>.x/.y/.z/.w") as ONE
-          // DragScalarN row. Components are pinless (unwired) so no connection branch.
-          int N = p.vecArity > 4 ? 4 : p.vecArity;
-          float vals[4] = {0, 0, 0, 0};
-          for (int k = 0; k < N; ++k) vals[k] = sel->params[spec->ports[i + k].id];
-          ImGui::DragScalarN(p.name.c_str(), ImGuiDataType_Float, vals, N, 0.01f, &p.minV,
-                             &p.maxV, "%.2f");
-          if (ImGui::IsItemActivated())
-            for (int k = 0; k < N; ++k) g_vecEditBefore[k] = sel->params[spec->ports[i + k].id];
-          for (int k = 0; k < N; ++k) sel->params[spec->ports[i + k].id] = vals[k];  // live write
-          if (ImGui::IsItemEdited()) sw::doc::bumpGraphRevision();  // mirror contract (document.h)
-          if (ImGui::IsItemDeactivatedAfterEdit())
-            for (int k = 0; k < N; ++k)
-              if (vals[k] != g_vecEditBefore[k])
-                sw::g_commands.push(std::make_unique<sw::SetInputValueCommand>(
-                    sw::doc::g_graph, sel->id, spec->ports[i + k].id, g_vecEditBefore[k], vals[k]));
-          i += N - 1;  // skip the consumed component ports (for-loop ++i moves past the group)
-          continue;
-        }
-        if (const sw::Connection* c = sw::doc::g_graph.connectionToInput(inPin)) {
-          // Driven by a connection — grey out, show source type.
-          const sw::Node* src = sw::doc::g_graph.node(sw::pinNode(c->fromPin));
-          ImGui::TextDisabled("%s <- %s", p.name.c_str(), src ? src->type.c_str() : "?");
-        } else if (p.widget == sw::Widget::Enum) {
-          // Enum param (e.g. InputBand / Output): a dropdown; the value stored is the index.
-          int cur = (int)(sel->params[p.id] + 0.5f);
-          std::vector<const char*> items;
-          for (const std::string& s : p.labels) items.push_back(s.c_str());
-          const float pre = sel->params[p.id];
-          if (!items.empty() && ImGui::Combo(p.name.c_str(), &cur, items.data(), (int)items.size())) {
-            sel->params[p.id] = (float)cur;
-            sw::g_commands.push(std::make_unique<sw::SetInputValueCommand>(
-                sw::doc::g_graph, sel->id, p.id, pre, sel->params[p.id]));
-          }
-        } else if (p.widget == sw::Widget::Bool) {
-          bool b = sel->params[p.id] > 0.5f;
-          const float pre = sel->params[p.id];
-          if (ImGui::Checkbox(p.name.c_str(), &b)) {
-            sel->params[p.id] = b ? 1.0f : 0.0f;
-            sw::g_commands.push(std::make_unique<sw::SetInputValueCommand>(
-                sw::doc::g_graph, sel->id, p.id, pre, sel->params[p.id]));
-          }
-        } else {
-          // Free constant — slider writes LIVE into the param map so the runtime
-          // sees changes mid-drag (柏為 expects immediate feedback). One undo step
-          // per drag: capture the pre-drag value on activation, record on release.
-          float pre = sel->params[p.id];               // value at start of this frame
-          ImGui::SliderFloat(p.name.c_str(), &sel->params[p.id], p.minV, p.maxV);
-          if (ImGui::IsItemEdited()) sw::doc::bumpGraphRevision();  // mirror contract (document.h)
-          if (ImGui::IsItemActivated()) g_paramEditBefore = pre;
-          if (ImGui::IsItemDeactivatedAfterEdit() && sel->params[p.id] != g_paramEditBefore)
-            sw::g_commands.push(std::make_unique<sw::SetInputValueCommand>(
-                sw::doc::g_graph, sel->id, p.id, g_paramEditBefore, sel->params[p.id]));
-        }
-      }
-      if (!any) ImGui::TextDisabled("(no editable parameters)");
-    } else {
-      ImGui::TextDisabled("(no editable parameters)");
-    }
-  } else {
-    ImGui::TextDisabled("No node selected");
-    ImGui::TextWrapped("Click a node in the canvas to edit its parameters.");
-  }
-  ImGui::Spacing();
-  ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
-  ImGui::End();
 }
 
 }  // namespace sw::ui

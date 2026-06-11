@@ -1,184 +1,322 @@
-// app/graph_commands — 具體命令實作 + 命令層自測。
+// app/graph_commands — lib 編輯命令實作 + 命令層自測（對 SymbolLibrary，批次 3 N2）。
 #include "app/graph_commands.h"
 
 #include <algorithm>
 #include <cstdio>
+#include <memory>
+
+#include "runtime/graph.h"         // defaultParticleGraph (selftest seed)
+#include "runtime/graph_bridge.h"  // libFromGraph (selftest seed)
 
 namespace sw {
+namespace {
 
-// --- AddNodeCommand ---
-void AddNodeCommand::doIt() { g_.nodes.push_back(node_); }
-void AddNodeCommand::undo() {
-  auto& ns = g_.nodes;
-  ns.erase(std::remove_if(ns.begin(), ns.end(),
-                          [this](const Node& n) { return n.id == node_.id; }),
-           ns.end());
+Symbol* sym(SymbolLibrary& lib, const std::string& id) { return lib.find(id); }
+
+bool sameWire(const SymbolConnection& a, const SymbolConnection& b) {
+  return a.srcChild == b.srcChild && a.srcSlot == b.srcSlot &&
+         a.dstChild == b.dstChild && a.dstSlot == b.dstSlot;
 }
 
-// --- AddConnectionCommand ---
-void AddConnectionCommand::doIt() { g_.connections.push_back(conn_); }
-void AddConnectionCommand::undo() {
-  auto& cs = g_.connections;
+// Restore snapshot wires at their ORIGINAL indices (ascending = each insert position is
+// already valid) — the S字段 multi-input order contract: undo leaves the array order
+// exactly as before the delete.
+void restoreWires(Symbol& s, const std::vector<std::pair<size_t, SymbolConnection>>& removed) {
+  for (const auto& [idx, w] : removed) {
+    size_t at = idx < s.connections.size() ? idx : s.connections.size();
+    s.connections.insert(s.connections.begin() + at, w);
+  }
+}
+
+}  // namespace
+
+// --- AddChildCommand ---
+void AddChildCommand::doIt() {
+  // 照 TiXL：child 永遠引用一個存在的 Symbol。第一次用到某 atomic op 型別時，從 registry
+  // 匯入它的 atomic Symbol（buildEvalGraph/effectiveInput 都靠它解析 defaults）。undo 不收
+  // 屍——atomic Symbol 是 registry 形狀的快取，v2 存檔只序列化 compounds，留著無害。
+  if (!lib_.symbols.count(child_.symbolId))
+    if (const NodeSpec* spec = findSpec(child_.symbolId))
+      lib_.symbols[child_.symbolId] = atomicSymbolFromSpec(*spec);
+  if (Symbol* s = sym(lib_, symbolId_)) {
+    s->children.push_back(child_);
+    // Monotonic floor: this id is burned forever (undo does NOT lower it — a freed id must
+    // never be reused or the new child inherits dead per-path runtime state).
+    if (child_.id + 1 > s->nextChildId) s->nextChildId = child_.id + 1;
+  }
+}
+void AddChildCommand::undo() {
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) return;
+  auto& cs = s->children;
   cs.erase(std::remove_if(cs.begin(), cs.end(),
-                          [this](const Connection& c) { return c.id == conn_.id; }),
+                          [this](const SymbolChild& c) { return c.id == child_.id; }),
            cs.end());
 }
 
-// --- DeleteConnectionsCommand ---
-void DeleteConnectionsCommand::doIt() {
+// --- AddWireCommand ---
+void AddWireCommand::doIt() {
+  if (Symbol* s = sym(lib_, symbolId_)) s->connections.push_back(wire_);
+}
+void AddWireCommand::undo() {
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) return;
+  auto& ws = s->connections;
+  for (auto it = ws.begin(); it != ws.end(); ++it)
+    if (sameWire(*it, wire_)) { ws.erase(it); return; }
+}
+
+// --- DeleteWiresCommand ---
+void DeleteWiresCommand::doIt() {
   removed_.clear();
-  auto& cs = g_.connections;
-  for (const Connection& c : cs)
-    if (std::find(ids_.begin(), ids_.end(), c.id) != ids_.end()) removed_.push_back(c);
-  cs.erase(std::remove_if(cs.begin(), cs.end(),
-                          [this](const Connection& c) {
-                            return std::find(ids_.begin(), ids_.end(), c.id) != ids_.end();
-                          }),
-           cs.end());
-}
-void DeleteConnectionsCommand::undo() {
-  for (const Connection& c : removed_) g_.connections.push_back(c);
-}
-
-// --- DeleteNodesCommand ---
-void DeleteNodesCommand::doIt() {
-  removedNodes_.clear();
-  removedConns_.clear();
-  auto inSet = [this](int nodeId) {
-    return std::find(ids_.begin(), ids_.end(), nodeId) != ids_.end();
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) return;
+  auto hit = [this](const SymbolConnection& w) {
+    for (const SymbolConnection& t : wires_)
+      if (sameWire(w, t)) return true;
+    return false;
   };
-  // 快照入射連線後刪。
-  auto& cs = g_.connections;
-  for (const Connection& c : cs)
-    if (inSet(pinNode(c.fromPin)) || inSet(pinNode(c.toPin))) removedConns_.push_back(c);
+  for (size_t i = 0; i < s->connections.size(); ++i)
+    if (hit(s->connections[i])) removed_.push_back({i, s->connections[i]});
+  auto& ws = s->connections;
+  ws.erase(std::remove_if(ws.begin(), ws.end(), hit), ws.end());
+}
+void DeleteWiresCommand::undo() {
+  if (Symbol* s = sym(lib_, symbolId_)) restoreWires(*s, removed_);
+}
+
+// --- DeleteChildrenCommand ---
+void DeleteChildrenCommand::doIt() {
+  removedChildren_.clear();
+  removedWires_.clear();
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) return;
+  auto inSet = [this](int childId) {
+    return std::find(ids_.begin(), ids_.end(), childId) != ids_.end();
+  };
+  // 快照入射連線後刪（boundary sentinel 0 永遠不在 ids_ 裡：real child ids >= 1）。
+  auto incident = [&](const SymbolConnection& w) { return inSet(w.srcChild) || inSet(w.dstChild); };
+  for (size_t i = 0; i < s->connections.size(); ++i)
+    if (incident(s->connections[i])) removedWires_.push_back({i, s->connections[i]});
+  auto& ws = s->connections;
+  ws.erase(std::remove_if(ws.begin(), ws.end(), incident), ws.end());
+  // 快照 children（原 index）後刪——undo 要按原位還原，否則序列化順序變了、
+  // byte-identity dirty 永遠擦不掉（refuter N2 #3），terminal 揀選也可能換人。
+  auto& cs = s->children;
+  for (size_t i = 0; i < cs.size(); ++i)
+    if (inSet(cs[i].id)) removedChildren_.push_back({i, cs[i]});
   cs.erase(std::remove_if(cs.begin(), cs.end(),
-                          [&](const Connection& c) {
-                            return inSet(pinNode(c.fromPin)) || inSet(pinNode(c.toPin));
-                          }),
+                          [&](const SymbolChild& c) { return inSet(c.id); }),
            cs.end());
-  // 快照節點後刪。
-  auto& ns = g_.nodes;
-  for (const Node& n : ns)
-    if (inSet(n.id)) removedNodes_.push_back(n);
-  ns.erase(std::remove_if(ns.begin(), ns.end(), [&](const Node& n) { return inSet(n.id); }),
-           ns.end());
 }
-void DeleteNodesCommand::undo() {
-  for (const Node& n : removedNodes_) g_.nodes.push_back(n);
-  for (const Connection& c : removedConns_) g_.connections.push_back(c);
+void DeleteChildrenCommand::undo() {
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) return;
+  for (const auto& [idx, c] : removedChildren_) {  // ascending = each insert position valid
+    size_t at = idx < s->children.size() ? idx : s->children.size();
+    s->children.insert(s->children.begin() + at, c);
+  }
+  restoreWires(*s, removedWires_);
 }
 
-// --- MoveNodesCommand ---
-void MoveNodesCommand::doIt() {
+// --- MoveChildrenCommand ---
+void MoveChildrenCommand::doIt() {
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) return;
   for (const Move& m : moves_)
-    if (Node* n = g_.node(m.id)) { n->x = m.newX; n->y = m.newY; }
+    if (SymbolChild* c = childById(*s, m.id)) { c->x = m.newX; c->y = m.newY; }
 }
-void MoveNodesCommand::undo() {
+void MoveChildrenCommand::undo() {
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) return;
   for (const Move& m : moves_)
-    if (Node* n = g_.node(m.id)) { n->x = m.oldX; n->y = m.oldY; }
+    if (SymbolChild* c = childById(*s, m.id)) { c->x = m.oldX; c->y = m.oldY; }
 }
 
-// --- SetInputValueCommand ---
-void SetInputValueCommand::doIt() { if (Node* n = g_.node(nodeId_)) n->params[portId_] = new_; }
-void SetInputValueCommand::undo() { if (Node* n = g_.node(nodeId_)) n->params[portId_] = old_; }
+// --- SetOverrideCommand ---
+void SetOverrideCommand::doIt() {
+  Symbol* s = sym(lib_, symbolId_);
+  if (SymbolChild* c = s ? childById(*s, childId_) : nullptr) c->overrides[slotId_] = new_;
+}
+void SetOverrideCommand::undo() {
+  Symbol* s = sym(lib_, symbolId_);
+  SymbolChild* c = s ? childById(*s, childId_) : nullptr;
+  if (!c) return;
+  if (hadOld_) c->overrides[slotId_] = old_;
+  else c->overrides.erase(slotId_);
+}
 
-// --- Self-test ---
+// --- Self-test (against the LIB — the flat-graph version died with the flat editor) ---
 int runCommandSelfTest(bool injectBug) {
-  Graph g = defaultParticleGraph();
-  const size_t baseNodes = g.nodes.size();
-  const size_t baseConns = g.connections.size();
+  SymbolLibrary lib = libFromGraph(defaultParticleGraph());
+  Symbol* root = lib.find(lib.rootId);
+  if (!root) { printf("[selftest-command] no root -> FAIL\n"); return 1; }
+  const size_t baseChildren = root->children.size();
+  const size_t baseWires = root->connections.size();
+  const std::vector<SymbolConnection> baseWireSnapshot = root->connections;
   CommandStack stack;
 
-  // Add node: push 後 +1，undo 後回 base，redo 後再 +1。
-  Node n;
-  n.id = g.nextId++;
-  n.type = "RadialPoints";
-  stack.push(std::make_unique<AddNodeCommand>(g, n));
-  bool ok = (g.nodes.size() == baseNodes + 1);
-  stack.undo();
-  ok = ok && (g.nodes.size() == baseNodes);
-  stack.redo();
-  ok = ok && (g.nodes.size() == baseNodes + 1);
-  // 留作後續 Task 擴充的尾巴：本步先把 add 收掉，回到乾淨狀態。
-  stack.undo();
-  ok = ok && (g.nodes.size() == baseNodes);
+  auto firstOfType = [&](const char* type) -> const SymbolChild* {
+    for (const SymbolChild& c : root->children)
+      if (c.symbolId == type) return &c;
+    return nullptr;
+  };
+  auto wiresEqualBase = [&]() {
+    if (root->connections.size() != baseWireSnapshot.size()) return false;
+    for (size_t i = 0; i < baseWireSnapshot.size(); ++i)
+      if (!sameWire(root->connections[i], baseWireSnapshot[i])) return false;
+    return true;  // 保序：undo 還原後順序必須一字不差（multi-input order contract）
+  };
+  std::vector<int> baseChildOrder;
+  for (const SymbolChild& c : root->children) baseChildOrder.push_back(c.id);
+  auto childOrderEqualBase = [&]() {
+    if (root->children.size() != baseChildOrder.size()) return false;
+    for (size_t i = 0; i < baseChildOrder.size(); ++i)
+      if (root->children[i].id != baseChildOrder[i]) return false;
+    return true;  // 保序：序列化順序 == array 順序，undo 不還原順序 = dirty 擦不掉
+  };
 
-  // Delete a node that has incident connections: undo must restore node + conns.
-  // defaultParticleGraph: ParticleSystem 連著 3 條線，刪它應移除 1 節點 + 3 連線。
-  const Node* ps = g.firstOfType("ParticleSystem");
-  ok = ok && (ps != nullptr);
+  // Add child: push 後 +1，undo 後回 base，redo 後再 +1，收尾 undo。加上 monotonic floor:
+  // add+undo 後再取 id 必須是個沒用過的（freed id 永不復活 = per-path state 不被繼承）。
+  SymbolChild n;
+  n.id = nextFreeChildId(*root);
+  const int firstId = n.id;
+  n.symbolId = "RadialPoints";
+  stack.push(std::make_unique<AddChildCommand>(lib, lib.rootId, n));
+  bool ok = (root->children.size() == baseChildren + 1);
+  stack.undo();
+  ok = ok && (root->children.size() == baseChildren);
+  stack.redo();
+  ok = ok && (root->children.size() == baseChildren + 1);
+  stack.undo();
+  ok = ok && (root->children.size() == baseChildren);
+  ok = ok && (nextFreeChildId(*root) > firstId);  // the undone id stays burned
+
+  // Delete a child with incident wires: 預設圖的 ParticleSystem 牽 3 條線（中段 child），
+  // 刪它應 -1 child、-3 wires；undo 必須還原 child + 全部線 + 兩個陣列的原順序。
+  const SymbolChild* ps = firstOfType("ParticleSystem");
+  ok = ok && (ps != nullptr) && (baseWires == 3);
   if (ps) {
     int psId = ps->id;
-    stack.push(std::make_unique<DeleteNodesCommand>(g, std::vector<int>{psId}));
-    ok = ok && (g.nodes.size() == baseNodes - 1) && (g.connections.size() == 0);
+    stack.push(std::make_unique<DeleteChildrenCommand>(lib, lib.rootId, std::vector<int>{psId}));
+    ok = ok && (root->children.size() == baseChildren - 1) && (root->connections.empty());
     stack.undo();
-    ok = ok && (g.nodes.size() == baseNodes) && (g.connections.size() == baseConns);
+    ok = ok && (root->children.size() == baseChildren) && wiresEqualBase() && childOrderEqualBase();
   }
 
-  // Delete a single connection: undo restores it.
-  if (!g.connections.empty()) {
-    int cid = g.connections.front().id;
-    stack.push(std::make_unique<DeleteConnectionsCommand>(g, std::vector<int>{cid}));
-    ok = ok && (g.connections.size() == baseConns - 1);
+  // Delete a single wire (the FIRST one, so order restoration is actually exercised):
+  // undo restores it at index 0, not appended at the back.
+  if (!root->connections.empty()) {
+    SymbolConnection w0 = root->connections.front();
+    stack.push(std::make_unique<DeleteWiresCommand>(lib, lib.rootId,
+                                                    std::vector<SymbolConnection>{w0}));
+    ok = ok && (root->connections.size() == baseWires - 1);
     stack.undo();
-    ok = ok && (g.connections.size() == baseConns);
+    ok = ok && wiresEqualBase();
   }
 
-  // Move a node: undo restores old coords, redo reapplies new.
-  if (!g.nodes.empty()) {
-    int mid = g.nodes.front().id;
-    float ox = g.node(mid)->x, oy = g.node(mid)->y;
-    std::vector<MoveNodesCommand::Move> mv{{mid, ox, oy, ox + 50.0f, oy + 30.0f}};
-    stack.push(std::make_unique<MoveNodesCommand>(g, mv));
-    ok = ok && (g.node(mid)->x == ox + 50.0f) && (g.node(mid)->y == oy + 30.0f);
+  // Move a child: undo restores old coords, redo reapplies new.
+  if (!root->children.empty()) {
+    int mid = root->children.front().id;
+    SymbolChild* mc = childById(*root, mid);
+    float ox = mc->x, oy = mc->y;
+    std::vector<MoveChildrenCommand::Move> mv{{mid, ox, oy, ox + 50.0f, oy + 30.0f}};
+    stack.push(std::make_unique<MoveChildrenCommand>(lib, lib.rootId, mv));
+    mc = childById(*root, mid);
+    ok = ok && (mc->x == ox + 50.0f) && (mc->y == oy + 30.0f);
     stack.undo();
-    ok = ok && (g.node(mid)->x == ox) && (g.node(mid)->y == oy);
+    mc = childById(*root, mid);
+    ok = ok && (mc->x == ox) && (mc->y == oy);
     stack.redo();
-    ok = ok && (g.node(mid)->x == ox + 50.0f);
+    ok = ok && (childById(*root, mid)->x == ox + 50.0f);
     stack.undo();  // 收回，保持乾淨
   }
 
-  // Reconnect (replace-on-input): an input that already has a connection,
-  // re-wired to a different source, must end with exactly ONE connection to
-  // that input (old removed, new added); undo restores the original.
+  // Reconnect (replace-on-input): an input that already has a wire, re-wired to a different
+  // source, must end with exactly ONE wire to that input; undo restores the original.
   {
-    const Connection* existing = g.connections.empty() ? nullptr : &g.connections.front();
+    const SymbolConnection* existing =
+        root->connections.empty() ? nullptr : &root->connections.front();
     if (existing) {
-      int inputPin = existing->toPin;
-      int oldId = existing->id;
-      int oldFrom = existing->fromPin;
-      // a different source output: reuse another connection's fromPin if distinct,
-      // else fabricate one on a different node via pinId of some other node.
-      int newFrom = oldFrom;
-      for (const Connection& c : g.connections)
-        if (c.fromPin != oldFrom) { newFrom = c.fromPin; break; }
-      ok = ok && (newFrom != oldFrom);  // default graph has >1 distinct source
+      const int dstChild = existing->dstChild;
+      const std::string dstSlot = existing->dstSlot;
+      const SymbolConnection oldWire = *existing;
+      // a different source: reuse another wire's src if distinct (default graph has >1).
+      int newSrc = oldWire.srcChild;
+      std::string newSrcSlot = oldWire.srcSlot;
+      for (const SymbolConnection& w : root->connections)
+        if (w.srcChild != oldWire.srcChild) { newSrc = w.srcChild; newSrcSlot = w.srcSlot; break; }
+      ok = ok && (newSrc != oldWire.srcChild);
 
-      auto countTo = [&](int pin) {
-        int n = 0;
-        for (const Connection& c : g.connections) if (c.toPin == pin) ++n;
-        return n;
+      auto countTo = [&]() {
+        int cnt = 0;
+        for (const SymbolConnection& w : root->connections)
+          if (w.dstChild == dstChild && w.dstSlot == dstSlot) ++cnt;
+        return cnt;
       };
-      ok = ok && (countTo(inputPin) == 1);
+      ok = ok && (countTo() == 1);
 
       auto macro = std::make_unique<MacroCommand>("Reconnect");
-      macro->add(std::make_unique<DeleteConnectionsCommand>(g, std::vector<int>{oldId}));
-      sw::Connection nc{g.nextId++, newFrom, inputPin};
-      macro->add(std::make_unique<AddConnectionCommand>(g, nc));
+      macro->add(std::make_unique<DeleteWiresCommand>(lib, lib.rootId,
+                                                      std::vector<SymbolConnection>{oldWire}));
+      SymbolConnection nw{newSrc, newSrcSlot, dstChild, dstSlot};
+      macro->add(std::make_unique<AddWireCommand>(lib, lib.rootId, nw));
       stack.push(std::move(macro));
 
-      ok = ok && (countTo(inputPin) == 1);                 // still single-cardinality
-      ok = ok && (g.connectionToInput(inputPin) != nullptr);
-      ok = ok && (g.connectionToInput(inputPin)->fromPin == newFrom);
+      ok = ok && (countTo() == 1);  // still single-cardinality
+      const SymbolConnection* now = connectionToInput(*root, dstChild, dstSlot);
+      ok = ok && now && (now->srcChild == newSrc);
       stack.undo();
-      ok = ok && (countTo(inputPin) == 1);
-      ok = ok && (g.connectionToInput(inputPin)->fromPin == oldFrom);  // original restored
+      now = connectionToInput(*root, dstChild, dstSlot);
+      ok = ok && (countTo() == 1) && now && (now->srcChild == oldWire.srcChild);
     }
   }
 
+  // SetOverride: a child with NO prior override gets one; undo must ERASE it (the
+  // definition default shines through again, never a 0-residue) — reuse stays isolated.
+  if (const SymbolChild* rc = firstOfType("RadialPoints")) {
+    int rid = rc->id;
+    const std::string slot = "Radius";
+    SymbolChild* c = childById(*root, rid);
+    const bool had = c->overrides.count(slot) > 0;
+    const float oldV = had ? c->overrides[slot] : 0.0f;
+    // libFromGraph seeds overrides == stored params, so "had" is normally true; exercise
+    // BOTH branches: first the restore-old path, then the erase path on a fresh slot.
+    stack.push(std::make_unique<SetOverrideCommand>(lib, lib.rootId, rid, slot, had, oldV, 9.5f));
+    ok = ok && (childById(*root, rid)->overrides[slot] == 9.5f);
+    stack.undo();
+    c = childById(*root, rid);
+    ok = ok && (c->overrides.count(slot) == (had ? 1u : 0u));
+    if (had) ok = ok && (c->overrides[slot] == oldV);
+
+    const std::string freshSlot = "__cmdtest_fresh";
+    stack.push(std::make_unique<SetOverrideCommand>(lib, lib.rootId, rid, freshSlot,
+                                                    /*hadOld=*/false, 0.0f, 1.0f));
+    ok = ok && (childById(*root, rid)->overrides.count(freshSlot) == 1u);
+    stack.undo();
+    ok = ok && (childById(*root, rid)->overrides.count(freshSlot) == 0u);
+  }
+
+  // Commands are keyed by symbolId, NOT by "what the canvas is looking at": editing a
+  // NON-root symbol works and undoes correctly while root stays untouched.
+  {
+    Symbol comp;
+    comp.id = "TestCompound";
+    comp.name = "TestCompound";
+    lib.symbols[comp.id] = comp;
+    SymbolChild cc;
+    cc.id = 1;
+    cc.symbolId = "RadialPoints";
+    stack.push(std::make_unique<AddChildCommand>(lib, "TestCompound", cc));
+    ok = ok && (lib.find("TestCompound")->children.size() == 1u) &&
+         (root->children.size() == baseChildren);
+    stack.undo();
+    ok = ok && lib.find("TestCompound")->children.empty();
+  }
+
   if (injectBug) ok = !ok;  // 反向：注 bug 時必須回報失敗
-  printf("[selftest-command] add baseNodes=%zu baseConns=%zu%s -> %s\n", baseNodes, baseConns,
-         injectBug ? "(bugged)" : "", ok ? "PASS" : "FAIL");
+  printf("[selftest-command] lib baseChildren=%zu baseWires=%zu%s -> %s\n", baseChildren,
+         baseWires, injectBug ? "(bugged)" : "", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
 

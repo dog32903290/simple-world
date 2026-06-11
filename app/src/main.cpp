@@ -28,6 +28,8 @@
 #include "app/menu.h"
 #include "platform/audio_capture.h"
 #include "platform/dialogs.h"
+#include "runtime/compound_graph.h"
+#include "runtime/compound_save.h"  // libToJsonV2 (eye state dump)
 #include "runtime/graph.h"
 #include "runtime/point_graph.h"
 #include "runtime/point_ops.h"
@@ -271,12 +273,14 @@ void Renderer::draw(MTK::View* pView) {
     // FOLLOWS the selected node; else the graph terminal (today's final picture, so an empty
     // selection = zero behaviour change). All three are session state (ui) — never a graph
     // edge, never in .swproj. (OUTPUT_PIN_VIEWER_CONTRACT §4-A.) Resolved HERE (the shell may
-    // read ui) and passed as a plain id — app/frame_cook must not depend on ui.
+    // read ui) and passed as a plain child id — app/frame_cook must not depend on ui.
+    const sw::Symbol* curSym = sw::doc::currentSymbolConst();
+    auto inCurrent = [&](int id) { return id != 0 && curSym && sw::childById(*curSym, id); };
     int viewTarget = sw::ui::g_pinnedNode;
-    if (viewTarget == 0 || !sw::doc::g_graph.node(viewTarget))
+    if (!inCurrent(viewTarget))
       viewTarget = sw::ui::g_selectedNode;                              // follow selection
-    if (viewTarget == 0 || !sw::doc::g_graph.node(viewTarget))
-      viewTarget = g_pointGraph->defaultDrawTarget(sw::doc::g_graph);   // terminal fallback
+    if (!inCurrent(viewTarget))                                         // terminal fallback
+      viewTarget = g_pointGraph->defaultDrawTarget(sw::doc::g_lib, sw::doc::currentSymbolId());
     // The production cook (mirror rebuild + AudioReaction + RESIDENT graph cook) lives in
     // app/frame_cook.cpp — product behaviour, not shell.
     sw::framecook::run(*g_pointGraph, viewTarget);
@@ -313,10 +317,17 @@ void Renderer::draw(MTK::View* pView) {
   // eye③ map: widget rects -> top-left screen points (live window geometry).
   if (eyeReq.map) sw::eye::writeWidgetMap(static_cast<void*>(pView), "map.json");
 
-  // eye④ state: graph + selection as json so the agent can machine-check mutations.
+  // eye④ state: lib + composition + selection as json so the agent can machine-check
+  // mutations. (Was {selectedNode, graph:<flat>} — lib-native since 批次 3 N2; the lib json
+  // serializes compounds only, so the root compound carries the canvas children/wires.)
   if (eyeReq.state) {
+    std::string comp = "[";
+    for (size_t i = 0; i < sw::doc::g_compositionPath.size(); ++i)
+      comp += (i ? ", " : "") + std::to_string(sw::doc::g_compositionPath[i]);
+    comp += "]";
     std::string s = "{\"selectedNode\": " + std::to_string(sw::ui::g_selectedNode) +
-                    ", \"graph\": " + sw::toJson(sw::doc::g_graph) + "}";
+                    ", \"compositionPath\": " + comp +
+                    ", \"lib\": " + sw::libToJsonV2(sw::doc::g_lib) + "}";
     sw::eye::writeText("state.json", s.c_str());
   }
 

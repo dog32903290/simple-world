@@ -1,4 +1,4 @@
-// ui/node_draw — see node_draw.h. Zone: ui. The per-node body of the canvas loop, moved
+// ui/node_draw — see node_draw.h. Zone: ui. The per-child body of the canvas loop, moved
 // out of editor_ui so the TiXL node skin (style + ports + slots + face) lives in one place
 // and editor_ui stays focused on canvas/toolbar/inspector wiring.
 #include "ui/node_draw.h"
@@ -8,7 +8,8 @@
 #include "imgui.h"
 #include "imgui_node_editor.h"
 
-#include "runtime/graph.h"
+#include "runtime/compound_graph.h"
+#include "runtime/graph.h"  // findSpec / pinId — a compound child resolves like an atomic (N1)
 #include "ui/node_faces.h"
 #include "ui/node_style.h"
 #include "verify/eye/eye.h"
@@ -31,8 +32,10 @@ void drawSlot(ImU32 col) {
 
 }  // namespace
 
-void drawNode(const sw::Node& node) {
-  const sw::NodeSpec* spec = sw::findSpec(node.type);
+void drawChild(const sw::SymbolChild& child) {
+  // findSpec resolves atomics from the registry AND compounds from the dynamic spec table
+  // (批次 3 N1) — a compound child gets pins/title exactly like an atomic node.
+  const sw::NodeSpec* spec = sw::findSpec(child.symbolId);
   // 刀A · TiXL-parity skin: tint this node's background/outline/title by its category
   // color (first output's dataType, via ui/node_style). ed style is per-node; pop after
   // EndNode. Rounding/border kept small + thin for TiXL's flat-rectangle legacy look.
@@ -50,9 +53,9 @@ void drawNode(const sw::Node& node) {
   ed::PushStyleVar(ed::StyleVar_NodeBorderWidth, 1.0f);
   ed::PushStyleVar(ed::StyleVar_SelectedNodeBorderWidth, 2.5f);
   ed::PushStyleVar(ed::StyleVar_HoveredNodeBorderWidth, 2.0f);
-  ed::BeginNode(node.id);
+  ed::BeginNode(child.id);
   if (spec) ImGui::PushStyleColor(ImGuiCol_Text, nodeLabelColor(*spec));
-  ImGui::TextUnformatted(spec ? spec->title.c_str() : node.type.c_str());
+  ImGui::TextUnformatted(spec ? spec->title.c_str() : child.symbolId.c_str());
   if (spec) ImGui::PopStyleColor();
   if (spec) {
     // TiXL port columns: inputs (type-colored slot + label) on the LEFT, outputs
@@ -60,7 +63,7 @@ void drawNode(const sw::Node& node) {
     // pin rect (marker + label) for hand pin-dragging. (Link pivot stays at content
     // centre for now; edge-pinned pivots are a later refinement.)
     auto pinRow = [&](int i, const sw::PortSpec& p) {
-      ed::BeginPin(sw::pinId(node.id, i), p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
+      ed::BeginPin(sw::pinId(child.id, i), p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
       ImGui::BeginGroup();
       if (p.isInput) { drawSlot(typeColor(p.dataType)); ImGui::SameLine();
                        ImGui::TextUnformatted(p.name.c_str()); }
@@ -69,7 +72,7 @@ void drawNode(const sw::Node& node) {
       ImGui::EndGroup();
       ImVec2 pa = ed::CanvasToScreen(ImGui::GetItemRectMin());
       ImVec2 pb = ed::CanvasToScreen(ImGui::GetItemRectMax());
-      sw::eye::recordRect(("pin:" + std::to_string(sw::pinId(node.id, i))).c_str(),
+      sw::eye::recordRect(("pin:" + std::to_string(sw::pinId(child.id, i))).c_str(),
                           pa.x, pa.y, pb.x, pb.y);
       ed::EndPin();
     };
@@ -85,14 +88,14 @@ void drawNode(const sw::Node& node) {
       if (!spec->ports[i].pinless && !spec->ports[i].isInput) pinRow((int)i, spec->ports[i]);
     ImGui::EndGroup();
   }
-  drawNodeFace(node);  // 資料驅動 custom faces (node_faces.cpp kFaces table)
+  drawNodeFace(child);  // 資料驅動 custom faces (node_faces.cpp kFaces table)
   ed::EndNode();
   ed::PopStyleVar(4);
   ed::PopStyleColor(nColor);
   // eye: node body SCREEN rect via the node-editor's own position/size + transform.
-  ImVec2 na = ed::CanvasToScreen(ed::GetNodePosition(node.id));
-  ImVec2 nsz = ed::GetNodeSize(node.id);
-  sw::eye::recordRect(("node:" + std::to_string(node.id)).c_str(),
+  ImVec2 na = ed::CanvasToScreen(ed::GetNodePosition(child.id));
+  ImVec2 nsz = ed::GetNodeSize(child.id);
+  sw::eye::recordRect(("node:" + std::to_string(child.id)).c_str(),
                       na.x, na.y, na.x + nsz.x, na.y + nsz.y);
 }
 

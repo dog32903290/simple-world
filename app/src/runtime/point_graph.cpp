@@ -10,6 +10,7 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
+#include "runtime/compound_graph.h"       // SymbolLibrary/Symbol/SymbolChild (lib defaultDrawTarget)
 #include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
 #include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
@@ -131,6 +132,19 @@ int PointGraph::defaultDrawTarget(const Graph& g) const {
   // discoverable so cook() can dispatch it, until the draw model is fully retired.
   for (const Node& n : g.nodes)
     if (drawReg().find(n.type) != drawReg().end()) return n.id;
+  return 0;
+}
+
+int PointGraph::defaultDrawTarget(const SymbolLibrary& lib, const std::string& symbolId) const {
+  // Same terminal priority as the flat overload, scanning one symbol's children.
+  const Symbol* s = lib.find(symbolId);
+  if (!s) return 0;
+  for (const SymbolChild& c : s->children)
+    if (texReg().find(c.symbolId) != texReg().end()) return c.id;
+  for (const SymbolChild& c : s->children)
+    if (cmdReg().find(c.symbolId) != cmdReg().end()) return c.id;
+  for (const SymbolChild& c : s->children)
+    if (drawReg().find(c.symbolId) != drawReg().end()) return c.id;
   return 0;
 }
 

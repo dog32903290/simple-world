@@ -9,28 +9,56 @@
 
 #include "app/command.h"
 #include "platform/dialogs.h"
-#include "runtime/compound_save.h"  // .swproj v2 (SymbolLibrary) save/load + legacy migration
-#include "runtime/graph.h"
-#include "runtime/graph_bridge.h"   // libFromGraph / graphFromLib (transitional flat editor leg)
+#include "runtime/compound_save.h"  // .swproj v2 (SymbolLibrary) save/load + v1 migration
+#include "runtime/graph.h"          // defaultParticleGraph (seed only)
+#include "runtime/graph_bridge.h"   // libFromGraph (default-lib seed) + refreshCompoundSpecs
 
 namespace sw::doc {
 
-Graph g_graph = sw::defaultParticleGraph();
+// Default document = the default particle graph imported once through the forever-importer.
+SymbolLibrary g_lib = sw::libFromGraph(sw::defaultParticleGraph());
+std::vector<int> g_compositionPath;
 NS::Window* g_window = nullptr;
 bool g_relayout = true;
 std::string g_status = "ready";
 
 namespace {
 std::string g_documentPath;    // empty == never saved
-std::string g_savedSnapshot;   // toJson() at last save/open/new
+std::string g_savedSnapshot;   // libToJsonV2() at last save/open/new
 std::string g_lastTitle;       // cache so we only setTitle when it changes
-uint64_t g_graphRevision = 1;  // bumped on every g_graph mutation (mirror contract, document.h)
+uint64_t g_libRevision = 1;    // bumped on every g_lib mutation (projection contract, document.h)
 }  // namespace
 
-bool isDirty() { return sw::toJson(g_graph) != g_savedSnapshot; }
+const std::string& currentSymbolId() {
+  // Walk the path: each element is a child id; the current symbol = what the last child
+  // references. A dangling element (deleted child) truncates honestly to the valid prefix.
+  static std::string s_cur;
+  s_cur = g_lib.rootId;
+  for (size_t i = 0; i < g_compositionPath.size(); ++i) {
+    const Symbol* s = g_lib.find(s_cur);
+    const SymbolChild* c = s ? childById(*s, g_compositionPath[i]) : nullptr;
+    if (!c) {
+      g_compositionPath.resize(i);
+      break;
+    }
+    s_cur = c->symbolId;
+  }
+  return s_cur;
+}
 
-uint64_t graphRevision() { return g_graphRevision; }
-void bumpGraphRevision() { ++g_graphRevision; }
+Symbol* currentSymbol() { return g_lib.find(currentSymbolId()); }
+const Symbol* currentSymbolConst() { return g_lib.find(currentSymbolId()); }
+
+std::string residentPathFor(int childId) {
+  std::string p;
+  for (int id : g_compositionPath) p += std::to_string(id) + "/";
+  return p + std::to_string(childId);
+}
+
+bool isDirty() { return sw::libToJsonV2(g_lib) != g_savedSnapshot; }
+
+uint64_t libRevision() { return g_libRevision; }
+void bumpLibRevision() { ++g_libRevision; }
 
 // Forward decl: doSave is used by confirmDiscardIfDirty before it is defined.
 bool doSave();
@@ -55,10 +83,8 @@ bool doSaveAs() {
   if (r != NFD_OKAY) return false;  // cancel or error
   std::string path = outPath.get();
   if (path.size() < 7 || path.substr(path.size() - 7) != ".swproj") path += ".swproj";
-  std::string json = sw::toJson(g_graph);
-  // v2 on disk (契約 3: SymbolLibrary, compounds-only + atomic UUID refs); the dirty
-  // snapshot stays the flat json — same identity, cheaper compare, dies with g_graph.
-  if (!sw::saveLibToFile(path, sw::libFromGraph(g_graph))) {
+  std::string json = sw::libToJsonV2(g_lib);
+  if (!sw::saveLibToFile(path, g_lib)) {
     sw::showError("無法寫入：" + path);
     return false;
   }
@@ -71,8 +97,8 @@ bool doSaveAs() {
 // Overwrites the current document; falls back to Save As when never saved.
 bool doSave() {
   if (g_documentPath.empty()) return doSaveAs();
-  std::string json = sw::toJson(g_graph);
-  if (!sw::saveLibToFile(g_documentPath, sw::libFromGraph(g_graph))) {  // v2 on disk
+  std::string json = sw::libToJsonV2(g_lib);
+  if (!sw::saveLibToFile(g_documentPath, g_lib)) {
     sw::showError("無法寫入：" + g_documentPath);
     return false;
   }
@@ -90,25 +116,21 @@ void doOpen() {
   if (r != NFD_OKAY) return;
   std::string path = outPath.get();
   // Tolerant two-phase loader (S15): reads v2 AND legacy v1 (auto-migrated through the
-  // bridge); local problems are dropped with warnings, shown on the status line. Only swap
-  // the live graph in on success.
+  // bridge); local problems are dropped with warnings, shown on the status line. The doc IS
+  // a lib now — files with compound children open directly (the graphFromLib refusal died
+  // with the flat editor). Only swap the live lib in on success.
   sw::SymbolLibrary lib;
   std::vector<std::string> warnings;
   if (!sw::loadLibFromFile(path, lib, &warnings)) {
     sw::showError("無法讀取此專案檔：" + path);
     return;
   }
-  sw::Graph loaded;
-  if (!sw::graphFromLib(lib, loaded, &warnings)) {
-    // A root with compound children needs the lib-native editor (批次 3) — refuse honestly
-    // rather than silently flattening the file.
-    sw::showError("此專案含 compound 節點，目前版本的編輯器還打不開：" + path);
-    return;
-  }
-  g_graph = loaded;
-  bumpGraphRevision();
+  g_lib = std::move(lib);
+  g_compositionPath.clear();
+  sw::refreshCompoundSpecs(g_lib);
+  bumpLibRevision();
   g_documentPath = path;
-  g_savedSnapshot = sw::toJson(g_graph);
+  g_savedSnapshot = sw::libToJsonV2(g_lib);
   sw::g_commands.clear();
   g_relayout = true;
   g_status = "loaded <- " + path;
@@ -120,10 +142,12 @@ void doOpen() {
 
 void doNew() {
   if (!confirmDiscardIfDirty()) return;
-  g_graph = sw::defaultParticleGraph();
-  bumpGraphRevision();
+  g_lib = sw::libFromGraph(sw::defaultParticleGraph());
+  g_compositionPath.clear();
+  sw::refreshCompoundSpecs(g_lib);
+  bumpLibRevision();
   g_documentPath.clear();
-  g_savedSnapshot = sw::toJson(g_graph);
+  g_savedSnapshot = sw::libToJsonV2(g_lib);
   sw::g_commands.clear();
   g_relayout = true;
   g_status = "new project";
@@ -140,6 +164,9 @@ void updateWindowTitle() {
   g_window->setTitle(NS::String::string(title.c_str(), NS::StringEncoding::UTF8StringEncoding));
 }
 
-void initSnapshot() { g_savedSnapshot = sw::toJson(g_graph); }
+void initSnapshot() {
+  sw::refreshCompoundSpecs(g_lib);  // dynamic spec table live from frame one
+  g_savedSnapshot = sw::libToJsonV2(g_lib);
+}
 
 }  // namespace sw::doc

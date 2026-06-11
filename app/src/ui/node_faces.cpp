@@ -1,34 +1,41 @@
-// ui/node_faces — see node_faces.h. Zone: ui (imgui draw). Depends on app(audio_monitor)
-// + runtime(graph/spectrum). Never the reverse; never mutates the graph.
+// ui/node_faces — see node_faces.h. Zone: ui (imgui draw). Depends on app(audio_monitor/
+// document/frame_cook) + runtime(compound_graph/spectrum). Never the reverse; never mutates
+// the lib.
 #include "ui/node_faces.h"
 
 #include <algorithm>
 #include <cstdio>
 #include <map>
+#include <string>
 
 #include "imgui.h"
 
 #include "app/audio_monitor.h"
-#include "runtime/graph.h"
+#include "app/document.h"
+#include "app/frame_cook.h"  // residentOut: live extOut values by resident path
+#include "runtime/compound_graph.h"
 #include "runtime/spectrum_analyzer.h"
 
 namespace sw::ui {
 namespace {  // face fns are internal — reached only via the kFaces dispatch table below
 
-void drawAudioReactionFace(const sw::Node& node) {
+void drawAudioReactionFace(const sw::SymbolChild& child) {
   // TiXL-parity audio-reaction face — faithful port of TiXL AudioReactionUi.DrawChildUi.
   // The 32 FFT bands are drawn as bars COLORED by whether each band sits inside the
   // detection window (WindowCenter ± WindowWidth, with WindowEdge falloff): bars inside
   // the window glow, bars outside fade to gray — so 柏為 SEES the frequency range he is
   // listening to, and it moves live as he drags the Inspector sliders. A threshold line +
   // a level meter that flashes on a hit show the "got louder -> fired" moment.
-  // Reads live data only (spectrum + node.params + outCache); the flash decay is the one
-  // bit of view-local transient state (keyed by node id, never persisted).
+  // Reads live data only (spectrum + effective params + resident extOut); the flash decay
+  // is the one bit of view-local transient state (keyed by child id, never persisted).
   const sw::SpectrumSnapshot sp = sw::audio_monitor::spectrum();
   auto par = [&](const char* id, float def) {
-    auto it = node.params.find(id);
-    return it != node.params.end() ? it->second : def;
+    return sw::effectiveInput(sw::doc::g_lib, child, id, def);
   };
+  // Live outputs (level / wasHit / hitCount) off the resident node this child projects to.
+  static const float kZero[3] = {0.0f, 0.0f, 0.0f};
+  const float* out = sw::framecook::residentOut(sw::doc::residentPathFor(child.id).c_str());
+  if (!out) out = kZero;
   const float windowCenter = par("WindowCenter", 0.0f);
   const float windowWidth  = par("WindowWidth", 1.0f);
   const float windowEdge   = std::max(par("WindowEdge", 1.0f), 1e-4f);
@@ -79,14 +86,14 @@ void drawAudioReactionFace(const sw::Node& node) {
   // bar COLOR flashes orange on a hit. Flash decays from the WasHit edge (view-local).
   static std::map<int, float> s_lastHit;
   const float now = (float)ImGui::GetTime();
-  if (node.outCache[1] > 0.5f) s_lastHit[node.id] = now;
-  float since = now - s_lastHit[node.id];
+  if (out[1] > 0.5f) s_lastHit[child.id] = now;
+  float since = now - s_lastHit[child.id];
   float fl = 1.0f - since * 3.0f;
   fl = fl < 0.0f ? 0.0f : (fl > 1.0f ? 1.0f : fl);
   const float flash = fl * fl * fl * fl;
   const float mx = rmin.x + graphW + 6.0f;
   const float meterW = w - graphW - 8.0f;
-  const float lvl = std::min(node.outCache[0], 1.0f);
+  const float lvl = std::min(out[0], 1.0f);
   dl->AddRect(ImVec2(mx, rmin.y), ImVec2(mx + meterW, rmax.y), IM_COL32(90, 90, 100, 180));
   dl->AddRectFilled(ImVec2(mx + 1.0f, bottom - lvl * headroom), ImVec2(mx + meterW - 1.0f, bottom),
                     mix(cGray, cHi, flash));
@@ -96,7 +103,7 @@ void drawAudioReactionFace(const sw::Node& node) {
   // accumulator — the one honest readout for this mode. Hidden in every other Output mode.
   if ((int)par("Output", 3.0f) == 4) {
     const float twoPi = 6.2831853f;
-    float a = node.outCache[0];
+    float a = out[0];
     a -= (float)((long)(a / twoPi)) * twoPi;  // mod 2π without <cmath>
     const ImVec2 c(mx + meterW * 0.5f, rmin.y + (rmax.y - rmin.y) * 0.5f);
     dl->PathClear();
@@ -105,24 +112,23 @@ void drawAudioReactionFace(const sw::Node& node) {
   }
 
   char lbl[32];
-  std::snprintf(lbl, sizeof(lbl), node.outCache[1] > 0.5f ? "HIT #%d" : "#%d",
-                (int)node.outCache[2]);
+  std::snprintf(lbl, sizeof(lbl), out[1] > 0.5f ? "HIT #%d" : "#%d", (int)out[2]);
   ImGui::TextDisabled("%s", lbl);
 }
 
-// 資料驅動 dispatch: add a {type, faceFn} row here to give a node type a custom body.
+// 資料驅動 dispatch: add a {type, faceFn} row here to give an operator a custom body.
 // New node types with a custom draw-list face append to this table — they never touch
 // editor_ui's canvas loop, so node-making and canvas-skinning stay collision-free.
-struct FaceEntry { const char* type; void (*draw)(const sw::Node&); };
+struct FaceEntry { const char* type; void (*draw)(const sw::SymbolChild&); };
 const FaceEntry kFaces[] = {
     {"AudioReaction", drawAudioReactionFace},
 };
 
 }  // anonymous namespace
 
-void drawNodeFace(const sw::Node& node) {
+void drawNodeFace(const sw::SymbolChild& child) {
   for (const auto& f : kFaces)
-    if (node.type == f.type) { f.draw(node); return; }
+    if (child.symbolId == f.type) { f.draw(child); return; }
 }
 
 }  // namespace sw::ui

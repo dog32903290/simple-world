@@ -13,7 +13,8 @@
 
 #include "app/document.h"
 #include "ui/editor_ui.h"  // g_pinnedNode (the session pin) + g_selectedNode (what Pin grabs)
-#include "runtime/graph.h"
+#include "runtime/compound_graph.h"
+#include "runtime/graph.h"  // findSpec (a compound child resolves like an atomic, N1)
 #include "verify/eye/eye.h"  // one-line hook: record the Pin button rect for the hand
 
 // The shell renders the live preview into a texture and exposes it through this STABLE
@@ -24,11 +25,11 @@ namespace sw { MTL::Texture* previewTexture(); }
 namespace sw::ui {
 
 namespace {
-// A node's primary output type ("Points" | "ParticleForce" | "Float"). Empty if the node
+// A child's primary output type ("Points" | "ParticleForce" | "Float"). Empty if it
 // has no output port (a draw node like DrawPoints) or no spec — exactly TiXL's typed
 // OutputUi lookup: no OutputUi for the type -> nothing to show.
-std::string outputTypeOf(const sw::Node* n) {
-  const sw::NodeSpec* s = n ? sw::findSpec(n->type) : nullptr;
+std::string outputTypeOf(const sw::SymbolChild* c) {
+  const sw::NodeSpec* s = c ? sw::findSpec(c->symbolId) : nullptr;
   if (!s) return "";
   for (const sw::PortSpec& p : s->ports)
     if (!p.isInput) return p.dataType;
@@ -47,9 +48,10 @@ void drawOutputWindow() {
   ImGui::Begin("Output");
 
   // Drop a stale pin (the pinned node was deleted) -> resume following selection.
-  if (g_pinnedNode != 0 && !sw::doc::g_graph.node(g_pinnedNode)) g_pinnedNode = 0;
+  const sw::Symbol* cur = sw::doc::currentSymbolConst();
+  if (g_pinnedNode != 0 && (!cur || !sw::childById(*cur, g_pinnedNode))) g_pinnedNode = 0;
   const bool pinned = g_pinnedNode != 0;
-  const sw::Node* pinnedNode = pinned ? sw::doc::g_graph.node(g_pinnedNode) : nullptr;
+  const sw::SymbolChild* pinnedNode = pinned ? sw::childById(*cur, g_pinnedNode) : nullptr;
 
   // --- toolbar: Pin / switch / Unpin, on the active op (TiXL Icon.Pin + PinSelectionToView).
   // Unpinned, the viewport FOLLOWS the selected node (TiXL); Pin LOCKS it so it stops
@@ -68,9 +70,9 @@ void drawOutputWindow() {
 
   // What the viewport is actually showing (mirror the shell's cook-target priority in
   // main.cpp): the pinned node wins; else the selected node (follow); else the terminal.
-  const sw::Node* viewNode = pinnedNode;
-  if (!viewNode && g_selectedNode != 0) viewNode = sw::doc::g_graph.node(g_selectedNode);
-  const sw::NodeSpec* vs = viewNode ? sw::findSpec(viewNode->type) : nullptr;
+  const sw::SymbolChild* viewNode = pinnedNode;
+  if (!viewNode && g_selectedNode != 0 && cur) viewNode = sw::childById(*cur, g_selectedNode);
+  const sw::NodeSpec* vs = viewNode ? sw::findSpec(viewNode->symbolId) : nullptr;
   if (pinned)
     ImGui::TextDisabled("%s (pinned)", vs ? vs->title.c_str() : "?");
   else if (viewNode)
@@ -84,7 +86,7 @@ void drawOutputWindow() {
   std::string outType;
   if (!viewNode)
     drawable = true;                                 // terminal draw node -> today's picture
-  else if (viewNode->type == "DrawPoints")
+  else if (viewNode->symbolId == "DrawPoints")
     drawable = true;                                 // a draw/command node -> renders its input
   else {
     outType = outputTypeOf(viewNode);

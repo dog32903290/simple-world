@@ -1,7 +1,7 @@
 // app/command — CommandStack / MacroCommand 實作。
 #include "app/command.h"
 
-#include "app/document.h"  // bumpGraphRevision: every executed/undone command mutated the graph
+#include "app/document.h"  // bumpLibRevision: every executed/undone command mutated the lib
 
 namespace sw {
 
@@ -14,11 +14,16 @@ void MacroCommand::undo() {
   for (auto it = children_.rbegin(); it != children_.rend(); ++it) (*it)->undo();
 }
 
+// The revision bump is the ONLY side channel here. The dynamic compound-spec table is
+// deliberately NOT refreshed per-push: commands fire mid-frame while the inspector/canvas
+// hold NodeSpec* into that table — swapping it here is a use-after-free (refuter N2 #1).
+// frame_cook refreshes it at the frame boundary, keyed off the same revision.
+
 void CommandStack::push(std::unique_ptr<Command> cmd) {
   cmd->doIt();
   undo_.push_back(std::move(cmd));
   redo_.clear();
-  doc::bumpGraphRevision();  // mirror contract (document.h): the command just mutated the graph
+  doc::bumpLibRevision();  // resident-projection contract (document.h)
 }
 void CommandStack::undo() {
   if (undo_.empty()) return;
@@ -26,7 +31,7 @@ void CommandStack::undo() {
   undo_.pop_back();
   c->undo();
   redo_.push_back(std::move(c));
-  doc::bumpGraphRevision();
+  doc::bumpLibRevision();
 }
 void CommandStack::redo() {
   if (redo_.empty()) return;
@@ -34,7 +39,7 @@ void CommandStack::redo() {
   redo_.pop_back();
   c->doIt();
   undo_.push_back(std::move(c));
-  doc::bumpGraphRevision();
+  doc::bumpLibRevision();
 }
 void CommandStack::clear() {
   undo_.clear();

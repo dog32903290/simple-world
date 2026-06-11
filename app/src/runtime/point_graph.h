@@ -34,6 +34,7 @@ namespace sw {
 
 struct Graph;
 struct Node;
+struct SymbolLibrary;  // runtime/compound_graph.h (lib-native canvas, 批次 3)
 class SourceRegistry;
 
 // Everything an operator gets to cook one node this frame.
@@ -202,6 +203,9 @@ class PointGraph {
                     const SourceRegistry* reg, const std::string& targetPath);
   // Default viewport target = the first draw node (today's wired terminal). 0 if none.
   int defaultDrawTarget(const Graph& g) const;
+  // Same, inside ONE symbol's subgraph (the lib-native canvas, 批次 3): the first child
+  // whose op realizes (RenderTarget tex > DrawPoints cmd > legacy draw). 0 if none.
+  int defaultDrawTarget(const SymbolLibrary& lib, const std::string& symbolId) const;
   MTL::Texture* target() const;
 
  private:

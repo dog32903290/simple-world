@@ -66,6 +66,11 @@ struct Symbol {
   std::vector<SlotDef> outputDefs;
   std::vector<SymbolChild> children;        // compound subgraph instances (empty if atomic)
   std::vector<SymbolConnection> connections;  // compound subgraph wires (empty if atomic)
+  // MONOTONIC child-id floor (serialized in v2). TiXL never reuses a child id (GUIDs); our
+  // int-id fork must emulate that or a new child resurrects a deleted child's per-path
+  // runtime state (GPU sim buffers, AudioReaction hit counts — refuter N2 #2). Bumped by
+  // AddChildCommand (never decremented, undo included); nextFreeChildId() reads it.
+  int nextChildId = 1;
 };
 
 // A project = a library of Symbol definitions + which one is the root (= TiXL SymbolPackage +
@@ -75,7 +80,22 @@ struct SymbolLibrary {
   std::string rootId;
 
   const Symbol* find(const std::string& id) const;
+  Symbol* find(const std::string& id);  // mutable — the editing model (批次 3 lib-native doc)
 };
+
+// Child lookup within one Symbol's subgraph (mirror of Graph::node(id)). nullptr if absent.
+SymbolChild* childById(Symbol& s, int id);
+const SymbolChild* childById(const Symbol& s, int id);
+
+// Next free instance id in this subgraph: max(monotonic floor, max existing id + 1) — never
+// reuses a freed id (>= 1; kSymbolBoundary==0 stays reserved). See Symbol::nextChildId.
+int nextFreeChildId(const Symbol& s);
+
+// The wire feeding (dstChild, dstSlot), or nullptr. Inputs are single-cardinality (multi-
+// input order is a pinned-but-unused contract today), so at most one — the SSOT for
+// "is this input already wired?" in the lib world (mirror of Graph::connectionToInput).
+const SymbolConnection* connectionToInput(const Symbol& s, int dstChild,
+                                          const std::string& dstSlot);
 
 // --- resolve helpers (behavior the flattener in batch 1 builds on) ---
 

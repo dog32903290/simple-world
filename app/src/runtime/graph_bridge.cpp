@@ -56,6 +56,9 @@ SymbolLibrary libFromGraph(const Graph& g, const std::string& rootId) {
   root.id = rootId;
   root.name = rootId;
   root.atomic = false;
+  // Carry the flat graph's monotonic counter over as the child-id floor (v1 nextId was
+  // serialized for exactly this never-reuse guarantee; ≥ every node id by construction).
+  root.nextChildId = g.nextId;
 
   for (const Node& n : g.nodes) {
     const NodeSpec* s = findSpec(n.type);

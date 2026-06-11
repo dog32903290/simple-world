@@ -249,26 +249,73 @@ N1 (landed): `specFromSymbol` + `refreshCompoundSpecs` + findSpec dynamic-table 
 (built-ins win on clash). A compound child now resolves ports/inspector exactly like an atomic
 node. Golden `--selftest-compoundspec` (+teeth).
 
+## Cut 7 — 批次 3 N2: lib-native document ✅ (2026-06-11)
+
+The flat `Graph g_graph` DIED as the editing model. doc = `g_lib` (SymbolLibrary) +
+`g_compositionPath` (root-only in N2; `currentSymbol()` walks it, truncating dangling
+prefixes). The cut had to carry the minimal canvas re-point too (commands edit the lib →
+a canvas still reading g_graph wouldn't even compile): editor_ui/node_draw render
+`currentSymbol()->children`, int pin scheme unchanged on child ids. TiXL shape exactly:
+canvas reads Symbol, commands edit Symbol, NO flat layer between.
+
+What landed:
+- **Commands rewritten as lib edits** keyed by (lib, symbolId) — AddChild (lazy-imports the
+  referenced atomic Symbol from the registry, 照 TiXL "a child always references an existing
+  Symbol") / DeleteChildren (+incident wires, (index,item) snapshots both arrays) / AddWire /
+  DeleteWires ((index,wire) snapshot = multi-input order survives undo) / SetOverride
+  (hadOld ? restore : ERASE — definition defaults never polluted by 0-residue) / MoveChildren.
+  `--selftest-command` rewritten against the lib (incl. child-ORDER restore + non-root-symbol
+  keying + override-erase).
+- **frame_cook lib-native**: resident graph built straight from doc::g_lib on
+  doc::libRevision() change (graphRevision renamed; rebuild-on-revision stays, patch wiring
+  later). AudioReaction cooker iterates RESIDENT nodes (params via resolveResidentFloatInputs
+  — registry defaults verified == old hardcoded fallbacks), state keyed by PATH, extOut read
+  back by the UI face through `framecook::residentOut(path)`.
+- **save/load straight lib<->v2**: doOpen's graphFromLib refusal died — files with compound
+  children now open. graphFromLib survives selftest-only (migration goldens). isDirty =
+  libToJsonV2 byte-compare.
+- **UI re-point**: node_draw draws SymbolChild; node_faces reads effectiveInput + residentOut;
+  inspector (split to ui/inspector.cpp, 鐵律 4) edits overrides; stateless 64-bit link ids
+  (srcPin<<32|dstPin — SymbolConnection rightly has no id); output_window/main viewTarget via
+  currentSymbol; eye state.json now {selectedNode, compositionPath, lib:<v2>} (agent tooling
+  note: `.graph` is GONE from state.json).
+
+**Refuter (independent agent): 4 BROKEN all fixed, repros promoted where testable:**
+1. Inspector UAF — per-push refreshCompoundSpecs swapped the dynamic spec table mid-frame
+   under live NodeSpec*; refresh moved to frame boundary (frame_cook rebuild branch).
+2. child-id reuse — nextChildId(max+1) resurrected dead per-path state (GPU sim buffers /
+   AudioReaction hitCount). Fix: Symbol.nextChildId monotonic floor, serialized in v2
+   (tolerant: absent → max+1), v1 migration carries Graph.nextId; AddChildCommand burns ids
+   (undo does NOT lower). Proven live: add(104)→delete→add = 105. Cost (accepted, == old
+   flat nextId behavior): add+undo leaves the counter bumped → dirty star stays on.
+3. DeleteChildren undo appended children (order lost → byte-dirty forever) — (index,child)
+   restore, golden asserts child order.
+4. Vec DragScalarN live-write materialized overrides for UNTOUCHED components (no undo
+   entry) — only write moved components; + erase-residue when a drag releases at its exact
+   start value (scalar + vec).
+SUSPECT deferred, named: currentSymbolId() truncates the path inside a getter (dead in N2,
+N3 must validate the path once per frame at a defined point); CommandStack hardwires the
+global doc (single-document world); per-path op state for deleted paths leaks until app
+close (pre-existing, bounded; prune when it matters).
+
+43 selftests green, all -bug variants bite, check-arch OK. Live (eye/hand): add Const →
+lib child; drag wire Const.out→ParticleSystem.Speed → particles FREEZE same-frame (Const
+default 0); Cmd+Z → wire gone, particles move again, sim state alive (not reset).
+
 ## Resume — 批次 3 remaining cuts (in order)
-- **N2 (app, the heavy one): doc = SymbolLibrary + compositionPath.** app/document grows
-  `g_lib` + `compositionPath` (vector<int> of child ids from root; current symbol = the one the
-  last child references, empty = root). Commands REWRITTEN as lib edits keyed by
-  (symbolId, …): AddChild / RemoveChild(+touching wires) / AddWire / RemoveWire / SetOverride /
-  MoveChild — each doIt/undo mutates the LIB and (named contract duty from slice 3) pairs the
-  resident patch (first cut may rebuild-on-revision like today's mirror — semantics pinned by
-  patch goldens). frame_cook drops libFromGraph (reads doc lib directly); save/load drop the
-  graphFromLib leg (doc IS a lib — files with compounds now open). refreshCompoundSpecs on
-  every structural edit. Command selftest rewritten against the lib.
-- **N3 (ui): canvas iterates the current symbol.** editor_ui/node_draw render
-  `currentSymbol().children` (pin id = pinId(childId, portIdx of specForSymbol(child.symbolId))
-  — the EXISTING int pin scheme works unchanged on top of child ids); inspector edits
-  child.overrides; double-click a compound child pushes compositionPath; breadcrumb bar pops;
+- **N3 (ui): composition navigation.** Canvas already iterates currentSymbol() (N2 carried
+  it); N3 adds: double-click a compound child pushes compositionPath; breadcrumb bar pops;
   per-layer view state (ed config save/restore or one EditorContext per visited symbol — TiXL
-  uses one canvas + swapped view; check ed::Config). viewTarget becomes a resident PATH
-  (join of compositionPath + child id) — frame_cook already takes a path string.
-- **N4: 眼手驗 + goldens.** Enter subgraph -> exit -> canvas correct (req_state must grow a
-  composition field); add/wire/undo INSIDE a compound; reuse: edit definition once, both
-  instances change on screen (柏為 完成定義 item).
+  uses one canvas + swapped view; check ed::Config). viewTarget already cooks
+  doc::residentPathFor(childId) — nested paths come free. ⚠ named from refuter: validate/
+  truncate g_compositionPath ONCE per frame at a defined point (currently a getter side
+  effect — two panels could see two symbols within one frame after a mid-frame delete).
+  Boundary-sentinel wires need their pins drawn (canvas currently skips them; root has none
+  but compound interiors will).
+- **N4: 眼手驗 + goldens.** Enter subgraph -> exit -> canvas correct (req_state already
+  carries compositionPath); add/wire/undo INSIDE a compound; reuse: edit definition once,
+  both instances change on screen (柏為 完成定義 item). Inspector UAF repro from refuter #1
+  becomes live-testable here (compound with Float inputDef + slider drag).
 - Then 批次 4 combine (boundary detection + create Symbol + rewire; ⚠ CJK-name crude_json
   named risk must be resolved before user-named symbols; generated ids must avoid the
   "sw-type:"/uuid namespaces), 批次 5 cross-layer undo + reuse 收尾.
