@@ -426,13 +426,86 @@ cannot reach them, drive the toolbar buttons instead; floating windows (Output/I
 eat right-clicks — pick node spots clear of them; popup items need hover-frame before the
 click (first click after open may miss).
 
+## Cut 11 — 批次 5: S13 def removal + CJK atlas + compounds-in-Add-menu ✅ (2026-06-11,
+`0b67ca5`→`6d191de`; dispatcher-mode session: opus implementers/refuters, Fable review+commit)
+
+**S13 def removal (`0b67ca5`) — boundary items deletable, 照 TiXL UNDOABLE (fork from combine):**
+TiXL research overturned the working assumption: `RemoveInputsOrOutputsCommand.IsUndoable => true`
+(Editor/UiModel/Commands/Graph/RemoveInputsOrOutputsCommand.cs:22); combine's history-clear reason
+(orphaned new symbol) does NOT apply to def removal (creates nothing). ONE lib-surgery codepath
+`removeInput/OutputDefFromLib` + `restoreSlotDefToLib` (compound_graph): def + inner sentinel wires
++ lib-wide parent wires ((index,wire) capture, multi-input order) + instance overrides; snapshot
+restore = byte-faithful undo. `patchLibRemoveInputDef` collapsed onto the same codepath (-39);
++`patchLibRemoveOutputDef`. Mixed delete macro children-first (照 Modifications.cs:184-191; the
+capture-in-Do rationale survives macro REVERSAL too — per-command snapshots are self-symmetric).
+Golden `--selftest-defremoval` 7+2 legs (+teeth). Refuter (6 ASan probes): 7 SURVIVE, **1 BROKEN
+fixed = ZOMBIE OVERRIDE**: loader never scrubbed overrides keyed to dead defs (wires yes,
+overrides no) → never self-heals, resurrects into eval if same-id def returns (10→495 probe).
+Fix: phase-2 scrub mirrors wire scrub (drop+warn+self-heal); the golden's false comment
+("effectiveInput ignores it" — it does NOT) rewritten; teeth proven by neutering production scrub
+→ RED.
+
+**CJK font atlas (`b31b104`) — the named gap closed:** ui/cjk_font.{h,cpp}, system font MergeMode
+over default (ASCII metrics bit-identical), GetGlyphRangesChineseFull 21484 glyphs, atlas
+2048x4096 +8.36MB. Terrain fact: NO PingFang.ttc on this machine → candidate chain landed on
+STHeiti Light.ttc face 0 (real Heiti TC); 52-byte Arial-Unicode redirector stub guarded by size
+check; all-fonts-missing → ASCII fallback + one stderr line. Golden `--selftest-cjkfont`
+(FindGlyph 中灣體測 / ASCII unpolluted / fallback; -bug stays RED even on font-less machines).
+Worktree-built (zero file overlap with S13), patch applied post-N1. ⚠ atlas build ~2.6s at
+startup under debug+ASan (named, accepted; release will shrink).
+
+**Compounds in Add menu + cycle guard (`fe3ac5a`) — reuse GUI path opened:** toolbar popup grew a
+compound section (s.atomic flag, Separator, name||id label — CJK renders now, eye key = ASCII id).
+TiXL truth: cycle prevention is UI-FILTER-ONLY on the OPEN ancestor chain (SymbolFilter.cs:107-120),
+core AddChild unguarded (Symbol.Instantiation.cs:14) — i.e. TiXL itself can be tricked into
+transitive cycles. Named fork (spec-mandated, S14 silent-skip is the cost of a miss):
+`addChildWouldCycle` = transitive subtree reachability vs edit target, DFS+visited (total on
+already-cyclic libs). Grey-out+tooltip instead of TiXL's omission (flat menu: omission reads as
+"missing"). Three gates: menu grey / addNode pre-push hard refuse + status line / command doIt
+defensive early-out (did_ flag, no no-op on undo stack). Goldens `--selftest-cycleguard` (+command
+legs: refused push = libToJsonV2 byte-identical, undo inert). Narrow-charter refuter: BROKEN 0 —
+every SymbolChild write-path constructively acyclic or gated; the ungated loader is NAMED behavior
+(cyclic file accepted silently; 4-topology ASan probe: build/view/save/reload/gate all total,
+roundtrip byte-stable, S14 skips only the cyclic child, siblings survive).
+
+**Live acceptance (eye/hand drill, 6/6 PASS)**: CJK titles real glyphs; S13 delete live (render
+band moved, status spoke) + same-layer undo; **cross-layer undo from ROOT restores an inner def
+edit**; reuse heart-loop: Add-menu 3rd EmitterComp instance → inner def edit → ALL THREE rings
+change (1732→80433 px) while instance override survives → undo chain; cycle guard greys + no-op
+clicks; full save→kill→reopen zero-warning loop. Drill found **boundary single-click+Delete dead**
+(box-select worked) → fixed same session (`6d191de`): root cause was ONE bug not two —
+pinId(0,0)=1 collided with child node id 1 in imgui's ID pool → conflict tooltip stole focus →
+IsWindowFocused gated the delete key out. (The "boundary never enters ed selection" theory was the
+collision's artifact; vendored selection is id-agnostic.) Fix: kBoundaryPinBase=1<<20 own band,
+decode helpers boundary-aware, disk untouched (slot strings). 99-cap behavior kept; comments now
+honest (OUR conservative ceiling — TiXL has NO port cap; no longer an encoding constraint).
+
+**Dispatcher-mode notes (this session's working method, 柏為-sanctioned):** big chunks → opus
+implementers with full-contract work orders (spec text verbatim + TiXL pointers + laws + traps);
+independent opus refuters per load-bearing cut (narrow charters for narrow surfaces); Fable reads
+every diff, spot-runs evidence, owns forks + commits. Token cost ≈ 1.27M subagent + lean main
+context. New traps for the next agent: **zsh does NOT word-split unquoted $vars** (a multiline
+selftest list became ONE arg → app booted GUI silently); **unknown --selftest-* flags boot the GUI
+instead of erroring** (looks like a hang; kill it) — worth a 3-line arg-guard next batch.
+
 ## Resume — next
-- **批次 5**: cross-layer undo + reuse 收尾 + S13 def removal (boundary items become
-  deletable). Compounds in the Add Node menu need a cycle guard on AddChild (named:
-  the resident builder silently skips self-nested subtrees today).
-- **CJK FONT atlas** (named gap): CJK names persist + roundtrip, but imgui's default font
-  renders them as ????? — 柏為 typing a Chinese name sees garbage on the node title.
-  Load a system CJK font (PingFang) into the atlas; memory imgui-default-font-no-cjk.
-- Parked: per-instance view-area memory; boundary moves no undo; per-path op state leaks
-  until app close; CommandStack hardwires single doc; boundary↔boundary passthrough;
-  crude_json never escapes object KEYS (unreachable today — our keys are ids/ints).
+- **批次 5 leftovers: NONE.** Cross-layer undo (S13 command keyed by symbolId, proven live from
+  root), reuse (Add-menu second instance + definition broadcast, proven live), S13 (deletable
+  boundary defs, undoable) all closed. 批次 5 CLOSED.
+- **⚠ Session Safety**: live-acceptance agent spawned a fix chip for the boundary-click bug
+  BEFORE the same-session fix landed; 柏為 already clicked it → a parallel worktree session may
+  be re-fixing the already-fixed `6d191de` bug. That session is redundant — close it, or harvest
+  nothing from it.
+- **Candidate next batches** (pick by 柏為 priority):
+  1. **copy/paste** (契約 4 third knife, CopySymbolChildrenCommand.cs:90-317 semantics fully
+     specced: new ids + oldToNew remap, inside-only connections, multi-input reverse+insert-at-0,
+     bypass-after-wire, curves follow) — the OTHER reuse gesture 柏為 will reach for day one.
+  2. **rename compound** (no UI exists; CJK names render now but only combine's dialog sets them).
+  3. **S3 animator/curves** (driver authority at definition layer is specced; Curve primitive
+     shared with audio lane).
+  4. perf observation from drill: particle render bright-px decays monotonically over minutes
+     with ZERO edits (22003→~1700) — sim aging suspicion, needs a clean repro before it's a lane.
+- Parked (unchanged): per-instance view-area memory; boundary moves no undo; per-path op state
+  leaks until app close; CommandStack hardwires single doc; boundary↔boundary passthrough;
+  crude_json never escapes object KEYS; loader accepts cyclic files silently (S14 catches, named);
+  editor_ui.cpp 443 lines (>400 debt, carried).
