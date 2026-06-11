@@ -21,7 +21,16 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
   const ResidentNode* n = g.node(nodePath);
   if (!n) return 0.0f;
   const NodeSpec* s = findSpec(n->opType);
-  if (!s || !s->evaluate) return 0.0f;
+  if (!s) return 0.0f;
+  if (!s->evaluate) {
+    // Stateful externally-cooked value nodes (AudioReaction): mirror flat evalFloat's
+    // outCache read — the app's per-frame cooker wrote extOut; index = output port index
+    // (same numbering as flat: outputs are the leading ports).
+    for (size_t i = 0; i < s->ports.size(); ++i)
+      if (!s->ports[i].isInput && s->ports[i].id == outSlotId)
+        return i < 3 ? n->extOut[i] : 0.0f;
+    return 0.0f;
+  }
 
   // Gather Float input values in spec port order (mirrors flat evalFloat).
   float in[8];

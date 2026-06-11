@@ -67,6 +67,10 @@ struct ResidentNode {
   std::string opType;
   std::vector<ResidentInput> inputs;
   std::map<std::string, ResidentOutputCache> outCache;  // outSlotId -> cache (1b; per-output)
+  // Externally-cooked outputs (mirror of flat Node::outCache): stateful value ops with no pure
+  // evaluate() — AudioReaction — are cooked by the app's per-frame cooker, which writes the
+  // results here; evalResidentFloat returns extOut[output port index] for such nodes.
+  float extOut[3] = {0.0f, 0.0f, 0.0f};
   const ResidentInput* input(const std::string& slotId) const;
 };
 

@@ -41,18 +41,21 @@ const std::vector<NodeSpec>& registry() {
        {{"points", "points", "Points", false},
         {"Count", "Count", "Float", true, 2048.0f, 16.0f, 8192.0f},
         {"Radius", "Radius", "Float", true, 2.0f, 0.1f, 10.0f},
-        // TiXL RadialPoints scalars the kernel already consumes (radial_points.metal:
-        // angle = StartAngle° + Cycles·2π·f, length = Radius + RadiusOffset·f). Declared as
-        // ports because the resolved-param seam (cookParam) reads ONLY spec ports — an
-        // undeclared op-read silently falls to its default (caught by radialop-bug teeth).
-        {"RadiusOffset", "RadiusOffset", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"StartAngle", "StartAngle", "Float", true, 0.0f, 0.0f, 360.0f},
-        {"Cycles", "Cycles", "Float", true, 1.0f, 0.0f, 10.0f},
         // Center (TiXL Vector3 TranslationInput) — first vector param on the contract.
         // Three Float components drawn as one DragFloat3; read via evalVecN("Center").
         {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
         {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}},
+        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // TiXL RadialPoints scalars the kernel already consumes (radial_points.metal:
+        // angle = StartAngle° + Cycles·2π·f, length = Radius + RadiusOffset·f). Declared as
+        // ports because the resolved-param seam (cookParam) reads ONLY spec ports — an
+        // undeclared op-read silently falls to its default (caught by radialop-bug teeth).
+        // ⚠ APPENDED, not inserted: pin ids are port-INDEX based (pinId), so saved .swproj
+        // wires into Center.* would silently re-target if indices shift. v2 schema (批次 2)
+        // moves connections to slot IDS, which retires this hazard.
+        {"RadiusOffset", "RadiusOffset", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"StartAngle", "StartAngle", "Float", true, 0.0f, 0.0f, 360.0f},
+        {"Cycles", "Cycles", "Float", true, 1.0f, 0.0f, 10.0f}},
        nullptr},
       {"LinePoints",
        "LinePoints",

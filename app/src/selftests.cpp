@@ -19,6 +19,7 @@
 #include "platform/audio_devices.h"
 #include "runtime/attack_detector.h"
 #include "runtime/compound_graph.h"
+#include "runtime/graph_bridge.h"
 #include "runtime/resident_eval_graph.h"
 #include "runtime/audio_analyzer.h"
 #include "runtime/audio_ingest.h"
@@ -110,6 +111,7 @@ const SelfTest kTable[] = {
     {"pointgraph", runPointGraphSelfTest},
     {"residentcook", runResidentCookSelfTest},
     {"residentparity", runResidentCookParitySelfTest},
+    {"graphbridge", runGraphBridgeSelfTest},
     {"compoundmodel", runCompoundModelSelfTest},
     {"residenteval", runResidentEvalSelfTest},
     {"residentcache", runResidentCacheSelfTest},
