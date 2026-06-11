@@ -241,9 +241,31 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
           continue;
         }
         if (c.id <= 0) { appendWarn(warnings, "child with invalid id in '" + s.id + "' dropped"); continue; }
-        if (cv["overrides"].is_object())
-          for (auto& kv : cv["overrides"].get<crude_json::object>())
-            if (kv.second.is_number()) c.overrides[kv.first] = (float)kv.second.get<crude_json::number>();
+        if (cv["overrides"].is_object()) {
+          // Scrub ZOMBIE overrides the SAME way phase-2 scrubs dangling wires: an override keys an
+          // inputDef on the child's referenced symbol — if that def no longer exists (a def was
+          // removed but a stale/hand-edited file still carries the override) it can never matter and
+          // would otherwise re-save forever (S15: local drop + warn, next save self-heals). Worse,
+          // left in place it可借屍還魂 — if a def of the same id later reappears, effectiveInput
+          // returns the dead override instead of the new default. c.symbolId already resolves to a
+          // symbol present in `out` (atomic regenerated above, compound from phase 1), so its
+          // inputDefs are the authority (refuter probe6).
+          const Symbol* refSym = out.find(c.symbolId);
+          for (auto& kv : cv["overrides"].get<crude_json::object>()) {
+            if (!kv.second.is_number()) continue;
+            bool known = false;
+            if (refSym)
+              for (const SlotDef& d : refSym->inputDefs)
+                if (d.id == kv.first) { known = true; break; }
+            if (!known) {
+              appendWarn(warnings, "obsolete override '" + kv.first + "' on child " +
+                                       std::to_string(c.id) + " in '" + s.id +
+                                       "' (no such input def) — dropped");
+              continue;  // self-heal: gone from the in-memory model, gone on next save
+            }
+            c.overrides[kv.first] = (float)kv.second.get<crude_json::number>();
+          }
+        }
         if (cv["x"].is_number()) c.x = (float)cv["x"].get<crude_json::number>();
         if (cv["y"].is_number()) c.y = (float)cv["y"].get<crude_json::number>();
         s.children.push_back(c);

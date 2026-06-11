@@ -201,6 +201,10 @@ bool patchLibRemoveChild(SymbolLibrary& lib, ResidentEvalGraph& g, const std::st
 // Inner consumers fall back to their own effectiveInput.
 bool patchLibRemoveInputDef(SymbolLibrary& lib, ResidentEvalGraph& g, const std::string& symbolId,
                             const std::string& slotId);
+// Symmetric output-def removal (scrubs the symbol's own SINK boundary wire + every parent's wire OUT
+// of that output slot; outputs carry no overrides). Same rebuild-on-edit contract as the input case.
+bool patchLibRemoveOutputDef(SymbolLibrary& lib, ResidentEvalGraph& g, const std::string& symbolId,
+                             const std::string& slotId);
 
 // Headless RED->GREEN proof of the slice-3 first cut: after patchSetConstant / patchAddConnection,
 // the graph evaluates identically to one rebuilt with the edit baked in (patch == rebuild), AND

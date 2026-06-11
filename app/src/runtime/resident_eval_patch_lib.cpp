@@ -19,7 +19,6 @@
 //         and are caught by rule 2.
 // runtime leaf: resident_eval_graph.h (+ compound_graph.h via it) only.
 #include <algorithm>
-#include <set>
 
 #include "runtime/resident_eval_graph.h"
 
@@ -210,38 +209,20 @@ bool patchLibRemoveChild(SymbolLibrary& lib, ResidentEvalGraph& g, const std::st
 
 bool patchLibRemoveInputDef(SymbolLibrary& lib, ResidentEvalGraph& g, const std::string& symbolId,
                             const std::string& slotId) {
-  auto sit = lib.symbols.find(symbolId);
-  if (sit == lib.symbols.end()) return false;
-  Symbol& sym = sit->second;
-  int idx = -1;
-  for (size_t i = 0; i < sym.inputDefs.size(); ++i)
-    if (sym.inputDefs[i].id == slotId) idx = (int)i;
-  if (idx < 0) return false;
-  sym.inputDefs.erase(sym.inputDefs.begin() + idx);
-  // 收屍 (S13, Symbol.TypeUpdating.cs:99-132): inside the symbol, wires FROM the removed boundary
-  // input; in EVERY symbol, wires INTO (child-of-symbolId, slotId) and now-obsolete overrides.
-  auto& inner = sym.connections;
-  inner.erase(std::remove_if(inner.begin(), inner.end(),
-                             [&](const SymbolConnection& c) {
-                               return sourceIsSymbolInput(c) && c.srcSlot == slotId;
-                             }),
-              inner.end());
-  for (auto& kv : lib.symbols) {
-    Symbol& host = kv.second;
-    std::set<int> affected;
-    for (SymbolChild& c : host.children)
-      if (c.symbolId == symbolId) {
-        c.overrides.erase(slotId);
-        affected.insert(c.id);
-      }
-    if (affected.empty()) continue;
-    auto& hc = host.connections;
-    hc.erase(std::remove_if(hc.begin(), hc.end(),
-                            [&](const SymbolConnection& c) {
-                              return affected.count(c.dstChild) && c.dstSlot == slotId;
-                            }),
-             hc.end());
-  }
+  // 收屍 (S13, Symbol.TypeUpdating.cs:99-132,213-261) lives in the ONE lib-surgery codepath
+  // (compound_graph). Here we only project: edit the definition, then rebuild + migrate caches so
+  // patch == rebuild. The command layer calls the SAME removeInputDefFromLib (with a snapshot for
+  // undo); patchLib* rebuilds so it needs no snapshot.
+  if (!removeInputDefFromLib(lib, symbolId, slotId)) return false;
+  rebuildWithCacheMigration(lib, g);
+  return true;
+}
+
+bool patchLibRemoveOutputDef(SymbolLibrary& lib, ResidentEvalGraph& g, const std::string& symbolId,
+                             const std::string& slotId) {
+  // Symmetric to the input case: removeOutputDefFromLib scrubs the symbol's own boundary SINK wire
+  // and every parent's wire OUT of that output slot (outputs carry no instance overrides).
+  if (!removeOutputDefFromLib(lib, symbolId, slotId)) return false;
   rebuildWithCacheMigration(lib, g);
   return true;
 }

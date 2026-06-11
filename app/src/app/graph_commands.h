@@ -92,6 +92,28 @@ class MoveChildrenCommand : public Command {
   std::vector<Move> moves_;
 };
 
+// 刪一個 compound 的 input/output definition（畫布上的 boundary 節點按 Delete）。這是改 Symbol
+// 定義的契約變更，波及 lib 內所有引用此 compound 的實例：母圖指向該 slot 的線、實例 override、
+// 內部 boundary 線全收屍（單一 runtime codepath removeInput/OutputDefFromLib）。照 TiXL 可 undo
+// （RemoveInputsOrOutputsCommand.IsUndoable=true）——doIt 快照全部被刪物，undo 按原 index 還原。
+// isInput 區分輸入/輸出 def（資料驅動：一個命令兩用，非兩個近乎相同的類）。
+class DeleteInputOrOutputDefCommand : public Command {
+ public:
+  DeleteInputOrOutputDefCommand(SymbolLibrary& lib, std::string symbolId, std::string slotId,
+                                bool isInput)
+      : lib_(lib), symbolId_(std::move(symbolId)), slotId_(std::move(slotId)), isInput_(isInput) {}
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return isInput_ ? "Delete Input" : "Delete Output"; }
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  std::string slotId_;
+  bool isInput_;
+  RemovedSlotDef removed_;  // doIt snapshot (def + scrubbed wires/overrides at original indices)
+};
+
 // 改某 child 某 input slot 的 instance override（Inspector 拉 slider）。undo 還原成
 // 「之前有 override 就設回舊值、本來沒有就 erase」——定義層 default 永不被污染。
 class SetOverrideCommand : public Command {
@@ -112,5 +134,10 @@ class SetOverrideCommand : public Command {
   bool hadOld_;
   float old_, new_;
 };
+
+// S13 DeleteBoundaryDefs golden (def_removal_selftest.cpp): removing a compound's input/output def
+// scrubs dangling wires + obsolete overrides lib-wide, is undoable, survives a v2 roundtrip, and
+// tolerates a tampered file. injectBug skips the parent-wire scrub -> FAIL (teeth).
+int runDefRemovalSelfTest(bool injectBug);
 
 }  // namespace sw

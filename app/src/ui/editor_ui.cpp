@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "imgui.h"
@@ -127,6 +128,20 @@ bool wireOfLink(uint64_t id, sw::SymbolConnection& out) {
 int edIdForInputDef(int i) { return -(i + 1); }
 int edIdForOutputDef(int j) { return -(1001 + j); }
 bool edIdIsBoundary(int id) { return id < 0; }
+// Invert the boundary-id scheme: input defs occupy [-1000,-1], output defs <= -1001. Returns the
+// def's slotId in the current symbol (empty if the index no longer resolves), and sets isInput.
+std::string boundaryDefSlot(const sw::Symbol& cur, int edId, bool& isInput) {
+  if (edId <= -1001) {  // output def j = -id - 1001
+    isInput = false;
+    int j = -edId - 1001;
+    if (j >= 0 && j < (int)cur.outputDefs.size()) return cur.outputDefs[j].id;
+  } else if (edId < 0) {  // input def i = -id - 1
+    isInput = true;
+    int i = -edId - 1;
+    if (i >= 0 && i < (int)cur.inputDefs.size()) return cur.inputDefs[i].id;
+  }
+  return "";
+}
 
 // 拖動暫存：child id -> 拖動開始時的座標。空 == 沒在拖。
 std::map<int, ImVec2> g_dragStart;
@@ -261,6 +276,7 @@ void drawNodeCanvas() {
   if (ed::BeginDelete()) {
     std::vector<sw::SymbolConnection> delWires;
     std::vector<int> delNodes;
+    std::vector<std::pair<std::string, bool>> delDefs;  // (slotId, isInput) boundary defs to remove (S13)
     ed::LinkId lid;
     while (ed::QueryDeletedLink(&lid))
       if (ed::AcceptDeletedItem()) {
@@ -269,10 +285,18 @@ void drawNodeCanvas() {
       }
     ed::NodeId nid;
     while (ed::QueryDeletedNode(&nid)) {
-      // Boundary items are NOT deletable here (removing a def = the S13 IO-change edit,
-      // 批次 5 territory) — REJECT so ed keeps them alive.
-      if (edIdIsBoundary((int)nid.Get())) { ed::RejectDeletedItem(); continue; }
-      if (ed::AcceptDeletedItem()) delNodes.push_back((int)nid.Get());
+      // Boundary items = the symbol's own input/output defs. Deleting one = the S13 收屍 contract
+      // edit (removes the def + every wire/override across the lib that referenced it). Decode which
+      // def, ACCEPT so ed drops the canvas item; the macro below applies the lib surgery.
+      int edId = (int)nid.Get();
+      if (edIdIsBoundary(edId)) {
+        bool isInput = false;
+        std::string slot = boundaryDefSlot(*cur, edId, isInput);
+        if (!slot.empty() && ed::AcceptDeletedItem()) delDefs.push_back({slot, isInput});
+        else ed::RejectDeletedItem();  // unresolved index (mid-frame retype): keep it alive
+        continue;
+      }
+      if (ed::AcceptDeletedItem()) delNodes.push_back(edId);
     }
     ed::EndDelete();
 
@@ -286,15 +310,21 @@ void drawNodeCanvas() {
     for (const sw::SymbolConnection& w : delWires)
       if (!incidentToDeletedNode(w)) standaloneWires.push_back(w);
 
-    if (!delNodes.empty() || !standaloneWires.empty()) {
+    if (!delNodes.empty() || !standaloneWires.empty() || !delDefs.empty()) {
       auto macro = std::make_unique<sw::MacroCommand>("Delete");
       if (!standaloneWires.empty())
         macro->add(std::make_unique<sw::DeleteWiresCommand>(sw::doc::g_lib, cur->id,
                                                             standaloneWires));
       if (!delNodes.empty())
         macro->add(std::make_unique<sw::DeleteChildrenCommand>(sw::doc::g_lib, cur->id, delNodes));
+      // Def removals LAST (mirror TiXL Modifications.cs:184-191: children deleted first so the def
+      // scrub only touches connections still present — though our snapshot captures whatever it hits).
+      for (const auto& [slot, isInput] : delDefs)
+        macro->add(std::make_unique<sw::DeleteInputOrOutputDefCommand>(sw::doc::g_lib, cur->id, slot,
+                                                                       isInput));
       sw::g_commands.push(std::move(macro));
-      sw::doc::g_status = "deleted";
+      // Removing a def is a contract change — SAY so (柏為: silent edits read as broken). ASCII only.
+      sw::doc::g_status = delDefs.empty() ? "deleted" : "removed boundary def (def edit, broadcasts)";
     }
   } else {
     ed::EndDelete();

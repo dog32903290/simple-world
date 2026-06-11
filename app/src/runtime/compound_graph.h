@@ -123,6 +123,54 @@ float effectiveInput(const SymbolLibrary& lib, const SymbolChild& child,
 inline bool sourceIsSymbolInput(const SymbolConnection& c) { return c.srcChild == kSymbolBoundary; }
 inline bool targetIsSymbolOutput(const SymbolConnection& c) { return c.dstChild == kSymbolBoundary; }
 
+// --- S13 收屍: remove a Symbol's external input/output definition (the ONE lib-surgery codepath) ---
+// Removing a def is a CONTRACT change on the Symbol that broadcasts to every instance everywhere in
+// the lib (= TiXL Symbol.TypeUpdating.cs:99-132 inner boundary wires + Symbol.Child.cs:217-223
+// per-instance override scrub + Symbol.Child.cs:424-451 parent-side connection scrub). Both the
+// resident patch (patchLibRemoveInputDef) AND the command layer (DeleteInputDefCommand) call this so
+// the surgery never forks. `removed` (optional out) captures EXACTLY what was deleted, with original
+// indices, so an undoable command can restore byte-identically; pass nullptr when you only need the
+// forward edit (the resident path rebuilds, it doesn't undo).
+
+// One parent symbol's connection that pointed INTO the deleted slot of one instance (host symbol id +
+// the wire + its original index in that host's connection list, for order-preserving restore).
+struct RemovedHostWire {
+  std::string hostSymbolId;
+  size_t index = 0;
+  SymbolConnection wire;
+};
+// One instance's override on the deleted slot that was scrubbed (host symbol id + child id + value).
+struct RemovedOverride {
+  std::string hostSymbolId;
+  int childId = 0;
+  float value = 0.0f;
+};
+// The full undo snapshot of one def removal (def + its index + every wire/override the scrub touched).
+struct RemovedSlotDef {
+  SlotDef def;                              // the removed definition itself
+  size_t index = 0;                         // its original position in inputDefs/outputDefs
+  bool isInput = true;                      // which list it came from
+  std::vector<std::pair<size_t, SymbolConnection>> innerWires;  // edited symbol's boundary wires (idx+wire)
+  std::vector<RemovedHostWire> hostWires;   // parent symbols' wires into/out of that slot, every instance
+  std::vector<RemovedOverride> overrides;   // scrubbed instance overrides (inputs only)
+};
+
+// Remove input def `slotId` from Symbol `symbolId`: erase the def, scrub the symbol's own boundary
+// wires whose SOURCE is that input, scrub every parent symbol's wires INTO (childOfSymbol, slotId)
+// preserving multi-input order, and drop now-obsolete instance overrides on that slot. Returns false
+// (lib untouched) if the symbol or def is absent. Fills `removed` when non-null.
+bool removeInputDefFromLib(SymbolLibrary& lib, const std::string& symbolId, const std::string& slotId,
+                           RemovedSlotDef* removed = nullptr);
+// Remove output def `slotId`: erase the def, scrub the symbol's own boundary wires whose TARGET is
+// that output, scrub every parent symbol's wires OUT of (childOfSymbol, slotId). Outputs carry no
+// instance overrides. Same return/`removed` contract as removeInputDefFromLib.
+bool removeOutputDefFromLib(SymbolLibrary& lib, const std::string& symbolId, const std::string& slotId,
+                            RemovedSlotDef* removed = nullptr);
+// Re-insert a def removed by the two functions above, restoring the def, its boundary wires, parent
+// wires, and overrides at their original indices (= the command-layer undo, order-faithful). No-op if
+// the symbol is gone. The lib edit is the authority; callers bump the projection revision separately.
+void restoreSlotDefToLib(SymbolLibrary& lib, const std::string& symbolId, const RemovedSlotDef& removed);
+
 // Headless RED->GREEN proof of the nested model: builds a small library with an atomic + a
 // compound symbol (reuse: two children of the same symbol), and asserts reuse isolation,
 // override vs default, and the boundary sentinel. injectBug pollutes a definition so the

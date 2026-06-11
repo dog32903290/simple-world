@@ -119,6 +119,16 @@ void DeleteChildrenCommand::undo() {
   restoreWires(*s, removedWires_);
 }
 
+// --- DeleteInputOrOutputDefCommand (S13 收屍) ---
+void DeleteInputOrOutputDefCommand::doIt() {
+  removed_ = RemovedSlotDef{};
+  if (isInput_) removeInputDefFromLib(lib_, symbolId_, slotId_, &removed_);
+  else          removeOutputDefFromLib(lib_, symbolId_, slotId_, &removed_);
+}
+void DeleteInputOrOutputDefCommand::undo() {
+  restoreSlotDefToLib(lib_, symbolId_, removed_);
+}
+
 // --- MoveChildrenCommand ---
 void MoveChildrenCommand::doIt() {
   Symbol* s = sym(lib_, symbolId_);
