@@ -120,4 +120,28 @@ int runResidentEvalSelfTest(bool injectBug);
 // stays frozen on frame 1 (卡舊) -> the per-frame assertion FAILS (teeth, spec 🪤#1).
 int runResidentCacheSelfTest(bool injectBug);
 
+// --- batch 1b / slice-3 first cut: incremental patch (resident_eval_patch.cpp) ---
+// Edit the resident graph IN PLACE, preserving cache on untouched nodes (增量, 不每幀重建 —
+// the structural half of "resident"). Cache versions follow TiXL's edit rules exactly so that a
+// patched graph evaluates identically to one rebuilt with the edit baked in (patch == rebuild).
+//
+// S1 value edit (Slot.cs / InputSlot.cs:57-63, ChangeInputValueCommand.cs:122): change a Constant
+// input's value, then edit-time push by bumping THIS node's output sourceVersions. Downstream goes
+// dirty via the pull-time upstream-sum; untouched siblings keep their cache.
+void patchSetConstant(ResidentEvalGraph& g, const std::string& path, const std::string& slotId,
+                      float value);
+// S11① add connection (Slot.cs:198-205): rewire a Constant input to a Connection, then force the
+// dst's outputs to first-pull-recompute by setting valueVersion to the never-matching sentinel
+// (= TiXL ValueVersion=-1). NOT a sourceVersion bump — that would corrupt the derived multi-input
+// sum arithmetic (spec 健檢二補 ②). Untouched nodes keep their cache.
+void patchAddConnection(ResidentEvalGraph& g, const std::string& dstPath, const std::string& dstSlot,
+                        const std::string& srcPath, const std::string& srcSlot);
+
+// Headless RED->GREEN proof of the slice-3 first cut: after patchSetConstant / patchAddConnection,
+// the graph evaluates identically to one rebuilt with the edit baked in (patch == rebuild), AND
+// untouched nodes keep their cache (a sibling whose constant was mutated out-of-band is NOT
+// recomputed — only the edited cone is). injectBug skips the edit-time invalidation -> the patched
+// value stays stale (卡舊) -> the assertion FAILS (teeth).
+int runResidentPatchSelfTest(bool injectBug);
+
 }  // namespace sw
