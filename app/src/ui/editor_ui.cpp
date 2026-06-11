@@ -6,6 +6,7 @@
 // Composition switch (N3) = same canvas, different symbol.
 #include "ui/editor_ui.h"
 #include "ui/combine_dialog.h"
+#include "ui/copy_paste_ui.h"
 #include "ui/node_draw.h"
 
 #include <algorithm>
@@ -283,6 +284,17 @@ void drawNodeCanvas() {
         else             sw::g_commands.undo();
         sw::doc::g_status = io.KeyShift ? "redo" : "undo";
         sw::doc::g_relayout = true;  // canvas re-seeds node positions from the restored lib
+      }
+      // Cmd+C / Cmd+V (copy/paste 契約 4). Same io.KeyCtrl detection as Cmd+Z (ConfigMacOSX
+      // swaps Cmd->Ctrl). NSMenu has NO Edit menu here so these aren't OS-intercepted like Cmd+S
+      // was — but the context-menu Copy/Paste below is the guaranteed-reachable path regardless.
+      else if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
+        sw::ui::copySelectionToClipboard();
+      } else if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
+        // Keyboard paste anchors at the canvas point under the mouse (TiXL pastes at the target
+        // position); ed::ScreenToCanvas needs the editor current, which it is inside ed::Begin.
+        ImVec2 c = ed::ScreenToCanvas(ImGui::GetMousePos());
+        sw::ui::pasteClipboardAt(c.x, c.y);
       }
     }
   }

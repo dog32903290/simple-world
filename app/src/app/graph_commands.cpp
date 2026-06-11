@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <memory>
+#include <set>
 
 #include "runtime/compound_save.h"  // libToJsonV2 (selftest: byte-identity after a refused add)
 #include "runtime/graph.h"         // defaultParticleGraph (selftest seed)
@@ -137,6 +138,40 @@ void DeleteInputOrOutputDefCommand::doIt() {
 }
 void DeleteInputOrOutputDefCommand::undo() {
   restoreSlotDefToLib(lib_, symbolId_, removed_);
+}
+
+// --- CopyPasteChildrenCommand (copy/paste 契約 4) ---
+void CopyPasteChildrenCommand::doIt() {
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) return;
+  // 1) children first (TiXL .cs:203-261). Each new id was pre-allocated by planPaste from the
+  //    monotonic floor — burn the floor as we add so it never resurrects (照 AddChild).
+  for (const PastedChild& pc : plan_.children) {
+    s->children.push_back(pc.child);
+    if (pc.child.id + 1 > s->nextChildId) s->nextChildId = pc.child.id + 1;
+  }
+  // 2) wires after children (TiXL .cs:263-267). Plan order == source order (no-reverse FORK,
+  //    see copy_paste.cpp planPaste) — append lays it down verbatim, multi-input order intact.
+  for (const SymbolConnection& w : plan_.wires) s->connections.push_back(w);
+  // 3) [bypass seam] TiXL .cs:269-276 applies deferred bypass HERE, now that wires exist
+  //    (SetBypassed no-ops on an unwired fresh instance). Our model has no IsBypassed field yet
+  //    (named FORK) — when it lands, set it on plan_.children here, AFTER the wires above.
+}
+void CopyPasteChildrenCommand::undo() {
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) return;
+  // Reverse order: wires first, then children (an isolated child has no incident wires left).
+  auto& ws = s->connections;
+  for (const SymbolConnection& w : plan_.wires)
+    for (auto it = ws.begin(); it != ws.end(); ++it)
+      if (sameWire(*it, w)) { ws.erase(it); break; }
+  std::set<int> newIds;
+  for (const PastedChild& pc : plan_.children) newIds.insert(pc.child.id);
+  auto& cs = s->children;
+  cs.erase(std::remove_if(cs.begin(), cs.end(),
+                          [&](const SymbolChild& c) { return newIds.count(c.id) > 0; }),
+           cs.end());
+  // Monotonic floor NOT lowered (a freed id stays burned — per-path state never inherited).
 }
 
 // --- MoveChildrenCommand ---

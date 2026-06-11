@@ -78,11 +78,13 @@ add_executable(simple_world
   src/app/command.cpp
   src/app/graph_commands.cpp
   src/app/def_removal_selftest.cpp
+  src/app/copy_paste_selftest.cpp
   src/app/menu.cpp
   src/ui/cjk_font.cpp
   src/ui/editor_ui.cpp
   src/ui/toolbar.cpp
   src/ui/combine_dialog.cpp
+  src/ui/copy_paste_ui.cpp
   src/ui/inspector.cpp
   src/ui/node_draw.cpp
   src/ui/node_faces.cpp
@@ -110,6 +112,7 @@ add_executable(simple_world
   src/runtime/testproj_selftest.cpp
   src/runtime/combine.cpp
   src/runtime/combine_selftest.cpp
+  src/runtime/copy_paste.cpp
   src/app/frame_cook.cpp
   src/runtime/graph_bridge.cpp
   src/runtime/graph_bridge_selftest.cpp

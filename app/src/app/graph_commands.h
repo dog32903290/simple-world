@@ -8,6 +8,7 @@
 
 #include "app/command.h"
 #include "runtime/compound_graph.h"
+#include "runtime/copy_paste.h"  // PastePlan (CopyPasteChildrenCommand carries a precomputed plan)
 
 namespace sw {
 
@@ -136,9 +137,37 @@ class SetOverrideCommand : public Command {
   float old_, new_;
 };
 
+// 貼上一批 child + 它們的內部連線（copy/paste 契約 4, 照 TiXL CopySymbolChildrenCommand）。
+// 命令在 BUILD 時拿一個 PastePlan（planPaste 已配好新 id + oldToNew 重映射 + 重映射後的連線，
+// = TiXL 在 ctor 就算好 _childrenToCopy/NewChildIds）。doIt 依序 append children -> append wires
+// （-> bypass 套用，本model尚無 bypass 欄位，留接縫；見 .cpp）。undo 反序：移除連線、再移除 child
+// （按 NEW id 比對，move-by-id 安全）。child 永不撞號（plan 從 monotonic floor 配），monotonic
+// floor 隨之燒掉（undo 不降，照 AddChild 同律——freed id 不復活以免繼承 dead per-path state）。
+class CopyPasteChildrenCommand : public Command {
+ public:
+  CopyPasteChildrenCommand(SymbolLibrary& lib, std::string symbolId, PastePlan plan)
+      : lib_(lib), symbolId_(std::move(symbolId)), plan_(std::move(plan)) {}
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return "Paste"; }
+  bool empty() const { return plan_.children.empty(); }  // nothing accepted -> caller skips push
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  PastePlan plan_;
+};
+
 // S13 DeleteBoundaryDefs golden (def_removal_selftest.cpp): removing a compound's input/output def
 // scrubs dangling wires + obsolete overrides lib-wide, is undoable, survives a v2 roundtrip, and
 // tolerates a tampered file. injectBug skips the parent-wire scrub -> FAIL (teeth).
 int runDefRemovalSelfTest(bool injectBug);
+
+// copy/paste golden (copy_paste_selftest.cpp): extract a selection (only both-ends-internal wires
+// survive, external cut), plan a paste (new ids + oldToNew remap, no id collision, multi-input
+// order, full per-child state), apply through the undoable command (undo restores byte-identity),
+// cross-symbol paste via clipboard JSON, and the cycle gate dropping a self-nesting paste.
+// injectBug breaks the external-wire-cut so a dangling wire survives -> FAIL (teeth).
+int runCopyPasteSelfTest(bool injectBug);
 
 }  // namespace sw

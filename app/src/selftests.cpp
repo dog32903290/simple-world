@@ -104,6 +104,7 @@ const SelfTest kTable[] = {
     {"save", runSaveLoadSelfTest},
     {"command", runCommandSelfTest},
     {"defremoval", runDefRemovalSelfTest},
+    {"copypaste", runCopyPasteSelfTest},
     {"navigation", doc::runNavigationSelfTest},
     {"valuecook", runValueCookSelfTest},
     {"resolve", runResolveSelfTest},
@@ -174,6 +175,14 @@ int runSelftestFromArgs(int argc, char** argv) {
                                   i + 2 < argc ? argv[i + 2] : "");
     if (std::strcmp(a, "--list-audio-devices") == 0) return runListAudioDevices();
     if (std::strcmp(a, "--audio-permission-status") == 0) return runAudioPermissionStatus();
+
+    // 順手債: an UNKNOWN --selftest* flag used to fall through and launch the GUI — which reads as
+    // a hung headless run (the binary opens a window instead of printing/exiting). Reject it loudly
+    // with a nonzero exit so a typo'd selftest name fails fast instead of looking dead.
+    if (std::strncmp(a, "--selftest", 10) == 0) {
+      std::fprintf(stderr, "unknown self-test flag: %s\n", a);
+      return 2;
+    }
   }
   return -1;  // no self-test flag -> launch the GUI
 }
