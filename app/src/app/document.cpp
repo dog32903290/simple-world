@@ -2,11 +2,16 @@
 // Zone: app (product behaviour). Depends on runtime + platform only (never ui).
 #include "app/document.h"
 
+#include <cstdio>
+#include <vector>
+
 #include <nfd.hpp>
 
 #include "app/command.h"
 #include "platform/dialogs.h"
+#include "runtime/compound_save.h"  // .swproj v2 (SymbolLibrary) save/load + legacy migration
 #include "runtime/graph.h"
+#include "runtime/graph_bridge.h"   // libFromGraph / graphFromLib (transitional flat editor leg)
 
 namespace sw::doc {
 
@@ -51,7 +56,12 @@ bool doSaveAs() {
   std::string path = outPath.get();
   if (path.size() < 7 || path.substr(path.size() - 7) != ".swproj") path += ".swproj";
   std::string json = sw::toJson(g_graph);
-  if (!sw::saveGraphToFile(path, g_graph)) { sw::showError("無法寫入：" + path); return false; }
+  // v2 on disk (契約 3: SymbolLibrary, compounds-only + atomic UUID refs); the dirty
+  // snapshot stays the flat json — same identity, cheaper compare, dies with g_graph.
+  if (!sw::saveLibToFile(path, sw::libFromGraph(g_graph))) {
+    sw::showError("無法寫入：" + path);
+    return false;
+  }
   g_documentPath = path;
   g_savedSnapshot = json;
   g_status = "saved -> " + path;
@@ -62,7 +72,7 @@ bool doSaveAs() {
 bool doSave() {
   if (g_documentPath.empty()) return doSaveAs();
   std::string json = sw::toJson(g_graph);
-  if (!sw::saveGraphToFile(g_documentPath, g_graph)) {
+  if (!sw::saveLibToFile(g_documentPath, sw::libFromGraph(g_graph))) {  // v2 on disk
     sw::showError("無法寫入：" + g_documentPath);
     return false;
   }
@@ -79,9 +89,20 @@ void doOpen() {
   nfdresult_t r = NFD::OpenDialog(outPath, filters, 1, nullptr);
   if (r != NFD_OKAY) return;
   std::string path = outPath.get();
-  sw::Graph loaded;  // load into a temp graph; only swap in on success
-  if (!sw::loadGraphFromFile(path, loaded)) {
+  // Tolerant two-phase loader (S15): reads v2 AND legacy v1 (auto-migrated through the
+  // bridge); local problems are dropped with warnings, shown on the status line. Only swap
+  // the live graph in on success.
+  sw::SymbolLibrary lib;
+  std::vector<std::string> warnings;
+  if (!sw::loadLibFromFile(path, lib, &warnings)) {
     sw::showError("無法讀取此專案檔：" + path);
+    return;
+  }
+  sw::Graph loaded;
+  if (!sw::graphFromLib(lib, loaded, &warnings)) {
+    // A root with compound children needs the lib-native editor (批次 3) — refuse honestly
+    // rather than silently flattening the file.
+    sw::showError("此專案含 compound 節點，目前版本的編輯器還打不開：" + path);
     return;
   }
   g_graph = loaded;
@@ -91,6 +112,10 @@ void doOpen() {
   sw::g_commands.clear();
   g_relayout = true;
   g_status = "loaded <- " + path;
+  if (!warnings.empty()) {
+    for (const std::string& w : warnings) std::fprintf(stderr, "[open] %s\n", w.c_str());
+    g_status += " (" + std::to_string(warnings.size()) + " repaired, see console)";
+  }
 }
 
 void doNew() {

@@ -10,6 +10,9 @@
 // This is NOT throwaway: libFromGraph is also the flat-.swproj importer — batch 2's v2
 // loader uses it to migrate old files, forever.
 #pragma once
+#include <string>
+#include <vector>
+
 #include "runtime/compound_graph.h"  // SymbolLibrary / Symbol
 #include "runtime/graph.h"           // Graph / NodeSpec
 
@@ -24,6 +27,15 @@ Symbol atomicSymbolFromSpec(const NodeSpec& s);
 // the registry; unknown types are skipped) + one compound root. Wires whose endpoints or
 // port indices don't resolve are skipped (same tolerance as the flat cook).
 SymbolLibrary libFromGraph(const Graph& g, const std::string& rootId = "Root");
+
+// Inverse: the lib's ROOT symbol back to a flat editor Graph (the TRANSITIONAL leg — the
+// editor still edits flat; dies when the editor goes lib-native in 批次 3). Children become
+// nodes (id/type/params=overrides/x,y), wires become pin connections. Returns false when the
+// root contains a COMPOUND child (a flat graph cannot represent it — the caller refuses the
+// file honestly instead of silently flattening). Boundary-sentinel wires (root's own
+// input/output defs) have no flat equivalent and are skipped with a warning.
+bool graphFromLib(const SymbolLibrary& lib, Graph& out,
+                  std::vector<std::string>* warnings = nullptr);
 
 // Headless RED->GREEN proof (REAL ops, real metallib): the default particle graph + a
 // Const->Radius value wire + an AudioReaction->Speed wire, cooked N frames flat AND

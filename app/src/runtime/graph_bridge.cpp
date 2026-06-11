@@ -62,4 +62,60 @@ SymbolLibrary libFromGraph(const Graph& g, const std::string& rootId) {
   return lib;
 }
 
+bool graphFromLib(const SymbolLibrary& lib, Graph& out, std::vector<std::string>* warnings) {
+  const Symbol* root = lib.find(lib.rootId);
+  if (!root || root->atomic) return false;
+
+  auto warn = [&](const std::string& m) {
+    if (warnings) warnings->push_back(m);
+  };
+
+  out = Graph{};
+  int maxId = 0;
+  for (const SymbolChild& c : root->children) {
+    const Symbol* ref = lib.find(c.symbolId);
+    if (ref && !ref->atomic) return false;  // compound child: a flat graph cannot hold it (批次 3)
+    if (!findSpec(c.symbolId)) {
+      warn("child " + std::to_string(c.id) + " references unknown operator '" + c.symbolId +
+           "' — dropped");
+      continue;
+    }
+    Node n;
+    n.id = c.id;
+    n.type = c.symbolId;
+    n.params = c.overrides;
+    n.x = c.x;
+    n.y = c.y;
+    out.nodes.push_back(n);
+    if (c.id > maxId) maxId = c.id;
+  }
+
+  // (childId, slotId) -> absolute pin id, via the spec's port index. -1 when unresolvable.
+  auto pinOf = [&](int childId, const std::string& slot) -> int {
+    const Node* n = out.node(childId);
+    const NodeSpec* s = n ? findSpec(n->type) : nullptr;
+    if (!s) return -1;
+    for (size_t i = 0; i < s->ports.size(); ++i)
+      if (s->ports[i].id == slot) return pinId(childId, (int)i);
+    return -1;
+  };
+  int nextConnId = ((maxId / 100) + 1) * 100 + 1;  // past every node's pin range (pinId scheme)
+  for (const SymbolConnection& w : root->connections) {
+    if (w.srcChild == kSymbolBoundary || w.dstChild == kSymbolBoundary) {
+      warn("boundary wire (" + w.srcSlot + " -> " + w.dstSlot + ") has no flat equivalent — skipped");
+      continue;
+    }
+    int from = pinOf(w.srcChild, w.srcSlot);
+    int to = pinOf(w.dstChild, w.dstSlot);
+    if (from < 0 || to < 0) {
+      warn("wire " + std::to_string(w.srcChild) + ":" + w.srcSlot + " -> " +
+           std::to_string(w.dstChild) + ":" + w.dstSlot + " unresolvable — dropped");
+      continue;
+    }
+    out.connections.push_back({nextConnId++, from, to});
+  }
+  out.nextId = nextConnId;
+  return true;
+}
+
 }  // namespace sw

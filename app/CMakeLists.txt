@@ -100,6 +100,8 @@ add_executable(simple_world
   src/runtime/resident_cook_parity_selftest.cpp
   src/runtime/compound_graph.cpp
   src/runtime/compound_graph_selftest.cpp
+  src/runtime/compound_save.cpp
+  src/runtime/compound_save_selftest.cpp
   src/app/frame_cook.cpp
   src/runtime/graph_bridge.cpp
   src/runtime/graph_bridge_selftest.cpp
