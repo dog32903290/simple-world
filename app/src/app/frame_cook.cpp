@@ -35,7 +35,12 @@ const float* residentOut(const char* path) {
   return n ? n->extOut : nullptr;
 }
 
-void run(PointGraph& pg, int viewTarget) {
+void run(PointGraph& pg, const std::string& targetPath) {
+  // Frame start = THE defined point where the composition path is validated (document.h):
+  // every panel drawn after this agrees on the current symbol; mid-frame edits dangle the
+  // tail at most until the next frame.
+  doc::validateCompositionPath();
+
   // Projection rebuild BEFORE the AudioReaction cooker, so extOut lands on the fresh graph.
   if (g_builtRev != doc::libRevision()) {
     // Refresh the dynamic compound-spec table HERE, at the frame boundary — never from the
@@ -90,10 +95,10 @@ void run(PointGraph& pg, int viewTarget) {
   ctx.time = g_time;
   ctx.deltaTime = dt;
 
-  // Cook the RESIDENT graph at the viewed child's path. The flat cook(g_graph,...) stays
-  // compiled for the goldens; --selftest-graphbridge pins the two byte-identical on the
-  // real default graph + value/audio wires.
-  pg.cookResident(g_residentGraph, ctx, /*reg=*/nullptr, doc::residentPathFor(viewTarget));
+  // Cook the RESIDENT graph at the viewed path. The flat cook(g_graph,...) stays compiled
+  // for the goldens; --selftest-graphbridge pins the two byte-identical on the real
+  // default graph + value/audio wires.
+  pg.cookResident(g_residentGraph, ctx, /*reg=*/nullptr, targetPath);
 }
 
 }  // namespace sw::framecook

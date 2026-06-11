@@ -15,14 +15,11 @@
 
 #include "imgui.h"
 
-#include "app/audio_settings.h"
-#include "app/audio_monitor.h"
 #include "app/command.h"
 #include "app/document.h"
 #include "app/graph_commands.h"
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec / pinId / pinNode (the int pin scheme rides on child ids)
-#include "verify/eye/eye.h"
 
 namespace ed = ax::NodeEditor;
 
@@ -30,30 +27,70 @@ namespace sw::ui {
 
 ax::NodeEditor::EditorContext* g_NodeEditor = nullptr;
 int g_selectedNode = 0;
-int g_pinnedNode = 0;  // view ⊥ graph (see editor_ui.h); set by ui/output_window.cpp
+int g_pinnedNode = 0;       // view ⊥ graph (see editor_ui.h); set by ui/output_window.cpp
+bool g_navPending = false;  // see editor_ui.h (set by canvas gestures + toolbar breadcrumbs)
 
 namespace {
 // pin id <-> (child id, port index) — see sw::pinId().
 int pinChildId(int pin) { return sw::pinNode(pin); }
 int pinPortIndex(int pin) { return (pin - 1) % 100; }
 
-const sw::PortSpec* portOfPin(int pin) {
+// What a pin IS, child or boundary. Child pins resolve through the spec; BOUNDARY pins
+// (pinChildId == kSymbolBoundary == 0, ids 1..99 — disjoint from child pins >= 101) resolve
+// through the CURRENT symbol's own defs: combined index = inputDefs then outputDefs. Inside
+// the symbol an inputDef is a SOURCE (isInput=false) and an outputDef is a SINK — TiXL's
+// Input/Output boundary items exactly.
+struct PinInfo {
+  bool valid = false;
+  bool isInput = false;  // canvas perspective: is this pin a sink?
+  std::string slotId;
+  std::string dataType;
+};
+
+PinInfo pinInfoOf(int pin) {
+  PinInfo r;
   const sw::Symbol* cur = sw::doc::currentSymbolConst();
-  const sw::SymbolChild* c = cur ? sw::childById(*cur, pinChildId(pin)) : nullptr;
+  if (!cur) return r;
+  const int childId = pinChildId(pin);
+  const int idx = pinPortIndex(pin);
+  if (childId == sw::kSymbolBoundary) {
+    const int nIn = (int)cur->inputDefs.size();
+    if (idx >= 0 && idx < nIn) {
+      r = {true, /*isInput=*/false, cur->inputDefs[idx].id, cur->inputDefs[idx].dataType};
+    } else if (idx >= nIn && idx < nIn + (int)cur->outputDefs.size()) {
+      const sw::SlotDef& d = cur->outputDefs[idx - nIn];
+      r = {true, /*isInput=*/true, d.id, d.dataType};
+    }
+    return r;
+  }
+  const sw::SymbolChild* c = sw::childById(*cur, childId);
   const sw::NodeSpec* s = c ? sw::findSpec(c->symbolId) : nullptr;
-  if (!s) return nullptr;
-  int idx = pinPortIndex(pin);
-  return (idx >= 0 && idx < (int)s->ports.size()) ? &s->ports[idx] : nullptr;
+  if (!s || idx < 0 || idx >= (int)s->ports.size()) return r;
+  const sw::PortSpec& p = s->ports[idx];
+  return {true, p.isInput, p.id, p.dataType};
 }
 bool pinIsInput(int pin) {
-  const sw::PortSpec* p = portOfPin(pin);
-  return p && p->isInput;
+  PinInfo p = pinInfoOf(pin);
+  return p.valid && p.isInput;
 }
 
-// (childId, slotId) -> absolute pin id via the spec's port index; -1 when unresolvable.
+// (childId, slotId) -> absolute pin id; childId 0 = the boundary (slot among the current
+// symbol's own defs). -1 when unresolvable.
 int pinOfSlot(int childId, const std::string& slotId, bool isInput) {
   const sw::Symbol* cur = sw::doc::currentSymbolConst();
-  const sw::SymbolChild* c = cur ? sw::childById(*cur, childId) : nullptr;
+  if (!cur) return -1;
+  if (childId == sw::kSymbolBoundary) {
+    const int nIn = (int)cur->inputDefs.size();
+    if (!isInput) {  // a wire SOURCE at the boundary = one of the symbol's inputDefs
+      for (int i = 0; i < nIn; ++i)
+        if (cur->inputDefs[i].id == slotId) return sw::pinId(sw::kSymbolBoundary, i);
+    } else {  // a wire SINK at the boundary = one of the symbol's outputDefs
+      for (size_t j = 0; j < cur->outputDefs.size(); ++j)
+        if (cur->outputDefs[j].id == slotId) return sw::pinId(sw::kSymbolBoundary, nIn + (int)j);
+    }
+    return -1;
+  }
+  const sw::SymbolChild* c = sw::childById(*cur, childId);
   const sw::NodeSpec* s = c ? sw::findSpec(c->symbolId) : nullptr;
   if (!s) return -1;
   for (size_t i = 0; i < s->ports.size(); ++i)
@@ -71,82 +108,29 @@ int linkSrcPin(uint64_t id) { return (int)(id >> 32); }
 int linkDstPin(uint64_t id) { return (int)(id & 0xffffffffu); }
 
 // Reconstruct the 4-tuple a link id names. False if either pin no longer resolves.
+// Boundary pins decode to the kSymbolBoundary sentinel side naturally.
 bool wireOfLink(uint64_t id, sw::SymbolConnection& out) {
-  const sw::PortSpec* sp = portOfPin(linkSrcPin(id));
-  const sw::PortSpec* dp = portOfPin(linkDstPin(id));
-  if (!sp || !dp) return false;
+  PinInfo sp = pinInfoOf(linkSrcPin(id));
+  PinInfo dp = pinInfoOf(linkDstPin(id));
+  if (!sp.valid || !dp.valid) return false;
   out.srcChild = pinChildId(linkSrcPin(id));
-  out.srcSlot = sp->id;
+  out.srcSlot = sp.slotId;
   out.dstChild = pinChildId(linkDstPin(id));
-  out.dstSlot = dp->id;
+  out.dstSlot = dp.slotId;
   return true;
 }
+
+// Boundary nodes carry NEGATIVE editor ids (child ids are >= 1; the boundary pin scheme
+// uses childId 0, but ed needs one id PER def item — TiXL draws each input/output as its
+// own movable canvas item). inputDef i -> -(i+1); outputDef j -> -(1001+j).
+int edIdForInputDef(int i) { return -(i + 1); }
+int edIdForOutputDef(int j) { return -(1001 + j); }
+bool edIdIsBoundary(int id) { return id < 0; }
 
 // 拖動暫存：child id -> 拖動開始時的座標。空 == 沒在拖。
 std::map<int, ImVec2> g_dragStart;
 
-void addNode(const std::string& type) {
-  sw::Symbol* cur = sw::doc::currentSymbol();
-  if (!cur) return;
-  sw::SymbolChild c;
-  c.id = sw::nextFreeChildId(*cur);
-  c.symbolId = type;
-  c.x = 120.0f;
-  c.y = 120.0f;
-  // overrides stay EMPTY — the instance reads the definition's defaults until edited
-  // (TiXL Symbol.Child semantics; the flat editor's params-prefill died with it).
-  sw::g_commands.push(std::make_unique<sw::AddChildCommand>(sw::doc::g_lib, cur->id, c));
-  sw::doc::g_relayout = true;
-  sw::doc::g_status = "added " + type;
-}
 }  // namespace
-
-void drawToolbar() {
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + 12.0f, vp->WorkPos.y + 12.0f),
-                          ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(440.0f, 0.0f), ImGuiCond_FirstUseEver);
-  ImGui::Begin("Toolbar");
-  if (ImGui::Button("New")) sw::doc::doNew();
-  sw::eye::recordItem("New");  // eye③: hand off this widget's screen rect
-  ImGui::SameLine();
-  if (ImGui::Button("Open")) sw::doc::doOpen();
-  sw::eye::recordItem("Open");
-  ImGui::SameLine();
-  if (ImGui::Button("Save")) sw::doc::doSave();
-  sw::eye::recordItem("Save");
-  ImGui::SameLine();
-  if (ImGui::Button("Save As")) sw::doc::doSaveAs();
-  sw::eye::recordItem("Save As");
-  ImGui::SameLine();
-  if (ImGui::Button("Add Node")) ImGui::OpenPopup("add_node_popup");
-  sw::eye::recordItem("Add Node");
-  if (ImGui::BeginPopup("add_node_popup")) {
-    for (const std::string& t : sw::specTypes()) {
-      if (ImGui::MenuItem(t.c_str())) addNode(t);
-      sw::eye::recordItem(("menu:" + t).c_str());  // eye: popup item rect (drawn outside canvas)
-    }
-    ImGui::EndPopup();
-  }
-  // Audio input device picker (Ableton-style): list the machine's inputs and route
-  // capture to the chosen one. ui -> app(audio_settings) -> platform; the pick persists.
-  ImGui::SetNextItemWidth(240.0f);
-  if (ImGui::BeginCombo("Audio In", sw::audio::selectedName().c_str())) {
-    if (ImGui::Selectable("System Default", sw::audio::selectedUid().empty()))
-      sw::audio::selectByUid("");
-    for (const sw::audio::DeviceInfo& d : sw::audio::inputDevices()) {
-      const bool sel = (d.uid == sw::audio::selectedUid());
-      std::string label = d.name + (d.isDefault ? "  (default)" : "");
-      if (ImGui::Selectable(label.c_str(), sel)) sw::audio::selectByUid(d.uid);
-    }
-    ImGui::EndCombo();
-  }
-  sw::eye::recordItem("Audio In");  // eye③: hand off this widget's screen rect
-  // The live input meter now lives inside the AudioReaction node (level/hit on its face) —
-  // see drawNodeCanvas; the toolbar just picks the device.
-  ImGui::TextDisabled("%s", sw::doc::g_status.c_str());
-  ImGui::End();
-}
 
 void drawNodeCanvas() {
   // The node canvas IS the main workspace: a borderless host window pinned to
@@ -176,10 +160,18 @@ void drawNodeCanvas() {
   // (view ⊥ graph; OUTPUT_PIN_VIEWER_CONTRACT §4-A).
   for (const sw::SymbolChild& child : cur->children) sw::ui::drawChild(child);
 
-  // Wires. Boundary-sentinel wires (the symbol's own external ports) get their pins in N3
-  // (the root has none today); skip them rather than draw a dangling link.
+  // The symbol's OWN external ports as movable boundary items (TiXL Input/Output canvas
+  // items): inputDefs are sources inside, outputDefs are sinks. node_draw renders them.
+  for (size_t i = 0; i < cur->inputDefs.size(); ++i)
+    sw::ui::drawBoundaryDef(cur->inputDefs[i], edIdForInputDef((int)i),
+                            sw::pinId(sw::kSymbolBoundary, (int)i), /*isSource=*/true);
+  for (size_t j = 0; j < cur->outputDefs.size(); ++j)
+    sw::ui::drawBoundaryDef(cur->outputDefs[j], edIdForOutputDef((int)j),
+                            sw::pinId(sw::kSymbolBoundary, (int)(cur->inputDefs.size() + j)),
+                            /*isSource=*/false);
+
+  // Wires — boundary-sentinel sides resolve to the boundary items' pins.
   for (const sw::SymbolConnection& w : cur->connections) {
-    if (w.srcChild == sw::kSymbolBoundary || w.dstChild == sw::kSymbolBoundary) continue;
     int from = pinOfSlot(w.srcChild, w.srcSlot, /*isInput=*/false);
     int to = pinOfSlot(w.dstChild, w.dstSlot, /*isInput=*/true);
     if (from < 0 || to < 0) continue;  // unresolvable wire: cook tolerance, canvas tolerance
@@ -192,11 +184,14 @@ void drawNodeCanvas() {
     if (ed::QueryNewLink(&a, &b) && a && b) {
       int pa = (int)a.Get(), pb = (int)b.Get();
       bool ia = pinIsInput(pa), ib = pinIsInput(pb);
+      // NOTE: both boundary item kinds share pin-childId 0, so this same-node guard also
+      // blocks a direct inputDef->outputDef passthrough wire (legal in TiXL, rare; named
+      // limitation until someone needs it).
       if (pa != pb && ia != ib && pinChildId(pa) != pinChildId(pb)) {
         // Reject if the two pins' dataType differ (Float↔Float, buffer↔same-type).
         auto portTypeOf = [](int pin) -> std::string {
-          const sw::PortSpec* p = portOfPin(pin);
-          return p ? p->dataType : "";
+          PinInfo p = pinInfoOf(pin);
+          return p.valid ? p.dataType : "";
         };
         if (portTypeOf(pa) != portTypeOf(pb)) {
           ed::RejectNewItem();
@@ -205,9 +200,9 @@ void drawNodeCanvas() {
           int to = ia ? pa : pb;    // input pin
           sw::SymbolConnection nw;
           nw.srcChild = pinChildId(from);
-          nw.srcSlot = portOfPin(from)->id;
+          nw.srcSlot = pinInfoOf(from).slotId;
           nw.dstChild = pinChildId(to);
-          nw.dstSlot = portOfPin(to)->id;
+          nw.dstSlot = pinInfoOf(to).slotId;
           const sw::SymbolConnection* old =
               sw::connectionToInput(*cur, nw.dstChild, nw.dstSlot);
           if (old && old->srcChild == nw.srcChild && old->srcSlot == nw.srcSlot) {
@@ -272,8 +267,12 @@ void drawNodeCanvas() {
         if (wireOfLink(lid.Get(), w)) delWires.push_back(w);
       }
     ed::NodeId nid;
-    while (ed::QueryDeletedNode(&nid))
+    while (ed::QueryDeletedNode(&nid)) {
+      // Boundary items are NOT deletable here (removing a def = the S13 IO-change edit,
+      // 批次 5 territory) — REJECT so ed keeps them alive.
+      if (edIdIsBoundary((int)nid.Get())) { ed::RejectDeletedItem(); continue; }
       if (ed::AcceptDeletedItem()) delNodes.push_back((int)nid.Get());
+    }
     ed::EndDelete();
 
     // 入射於被刪 child 的連線交給 DeleteChildrenCommand 處理，從 delWires 去重，
@@ -300,10 +299,47 @@ void drawNodeCanvas() {
     ed::EndDelete();
   }
 
-  if (sw::doc::g_relayout) {  // initial / after add / after load
+  // Navigation gestures (TiXL MagGraph GraphStates.cs): double-click a COMPOUND child ->
+  // enter its subgraph; double-click the background -> up one level. The doc refuses
+  // atomic children, so plain double-clicks on operators stay inert. `cur` still points at
+  // the symbol we LEFT for the rest of this frame — so the layout section below is skipped
+  // this frame (g_relayout stays pending) and runs next frame against the new symbol.
+  bool navThisFrame = false;
+  {
+    int dn = (int)ed::GetDoubleClickedNode().Get();
+    if (dn > 0) {
+      navThisFrame = sw::doc::pushComposition(dn);
+    } else if (ed::IsBackgroundDoubleClicked()) {
+      navThisFrame = sw::doc::popComposition();
+    }
+    if (navThisFrame) {
+      g_navPending = true;
+      // Pin/selection are bare child ids — across a composition switch they'd ALIAS a
+      // same-id child of the new symbol (viewport silently shows the wrong node, refuter
+      // N3 B2/S3). Clear immediately; ed selection cleared now too (capture below reads 0).
+      g_pinnedNode = 0;
+      g_selectedNode = 0;
+      ed::ClearSelection();
+    }
+  }
+
+  if (navThisFrame) {
+    // skip layout/sync this frame (see above)
+  } else if (sw::doc::g_relayout) {  // initial / after add / after load / composition switch
     for (const sw::SymbolChild& child : cur->children)
       ed::SetNodePosition(child.id, ImVec2(child.x, child.y));
+    for (size_t i = 0; i < cur->inputDefs.size(); ++i)
+      ed::SetNodePosition(edIdForInputDef((int)i),
+                          ImVec2(cur->inputDefs[i].x, cur->inputDefs[i].y));
+    for (size_t j = 0; j < cur->outputDefs.size(); ++j)
+      ed::SetNodePosition(edIdForOutputDef((int)j),
+                          ImVec2(cur->outputDefs[j].x, cur->outputDefs[j].y));
     sw::doc::g_relayout = false;
+    if (g_navPending) {  // composition switched LAST frame; positions are seeded now
+      ed::ClearSelection();           // TiXL clears selection on composition change
+      ed::NavigateToContent(0.0f);    // = TiXL's saved-view fallback (frame the content)
+      g_navPending = false;
+    }
   } else {
     bool dragging = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
     if (dragging) {
@@ -337,6 +373,21 @@ void drawNodeCanvas() {
         child.x = p.x;
         child.y = p.y;
       }
+    }
+  }
+
+  // Boundary items: positions sync straight back to the defs (movable + persisted like
+  // TiXL IInputUi.PosOnCanvas; no undo step for def moves — named asymmetry vs child moves).
+  if (!navThisFrame) {
+    for (size_t i = 0; i < cur->inputDefs.size(); ++i) {
+      ImVec2 p = ed::GetNodePosition(edIdForInputDef((int)i));
+      cur->inputDefs[i].x = p.x;
+      cur->inputDefs[i].y = p.y;
+    }
+    for (size_t j = 0; j < cur->outputDefs.size(); ++j) {
+      ImVec2 p = ed::GetNodePosition(edIdForOutputDef((int)j));
+      cur->outputDefs[j].x = p.x;
+      cur->outputDefs[j].y = p.y;
     }
   }
 

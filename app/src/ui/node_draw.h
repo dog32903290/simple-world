@@ -5,10 +5,16 @@
 // canvas itself, not here. Zone: ui. Must be called between ed::Begin("canvas") and ed::End().
 #pragma once
 
-namespace sw { struct SymbolChild; }
+namespace sw { struct SymbolChild; struct SlotDef; }
 
 namespace sw::ui {
 
 void drawChild(const sw::SymbolChild& child);
+
+// One BOUNDARY item — the current symbol's own external port drawn as a movable canvas
+// node (= TiXL Legacy InputNode/OutputNode). `isSource`: an inputDef feeds the subgraph
+// (pin on the right); an outputDef drains it (pin on the left). The caller owns the ed/pin
+// id scheme (negative ed ids; pins ride pinId(kSymbolBoundary, defIndex)).
+void drawBoundaryDef(const sw::SlotDef& def, int edNodeId, int pinId, bool isSource);
 
 }  // namespace sw::ui

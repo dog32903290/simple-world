@@ -111,6 +111,15 @@ class AppDelegate : public NS::ApplicationDelegate {
 int main(int argc, char* argv[]) {
   if (int rc = sw::runSelftestFromArgs(argc, argv); rc >= 0) return rc;
 
+  // `--open <file.swproj>`: load a project before the GUI starts (no dialogs) — 柏為's
+  // double-click-adjacent path AND the agent's only dialog-free way to load a test file
+  // (the hand cannot click into an NFD modal). quiet=true: a failure must report on stderr
+  // and fall through to the default doc — an NSAlert pre-NSApplication hangs forever.
+  // initSnapshot later re-snapshots the loaded lib, so the file opens clean (not dirty).
+  for (int i = 1; i + 1 < argc; ++i)
+    if (std::strcmp(argv[i], "--open") == 0 && !sw::doc::doOpenPath(argv[i + 1], /*quiet=*/true))
+      std::fprintf(stderr, "[open] falling back to the default project\n");
+
   NS::AutoreleasePool* pAutoreleasePool = NS::AutoreleasePool::alloc()->init();
 
   AppDelegate del;
@@ -270,20 +279,27 @@ void Renderer::draw(MTK::View* pView) {
     unsigned int audioDev = 0;
     if (sw::audio::takePendingChange(audioDev)) g_audioCapture.start(audioDev);
     // view ⊥ graph (TiXL ViewSelectionPinning): the viewport shows the PINNED node; else it
-    // FOLLOWS the selected node; else the graph terminal (today's final picture, so an empty
-    // selection = zero behaviour change). All three are session state (ui) — never a graph
-    // edge, never in .swproj. (OUTPUT_PIN_VIEWER_CONTRACT §4-A.) Resolved HERE (the shell may
-    // read ui) and passed as a plain child id — app/frame_cook must not depend on ui.
+    // FOLLOWS the selected node; else the CURRENT symbol's terminal; else the ROOT terminal
+    // — entering a compound with no realizable child keeps showing the whole composition's
+    // picture instead of going black (TiXL: navigation never blanks the output window).
+    // All session state (ui) — never a graph edge, never in .swproj.
+    // (OUTPUT_PIN_VIEWER_CONTRACT §4-A.) Resolved HERE (the shell may read ui) into a
+    // RESIDENT PATH — app/frame_cook must not depend on ui.
     const sw::Symbol* curSym = sw::doc::currentSymbolConst();
     auto inCurrent = [&](int id) { return id != 0 && curSym && sw::childById(*curSym, id); };
-    int viewTarget = sw::ui::g_pinnedNode;
-    if (!inCurrent(viewTarget))
-      viewTarget = sw::ui::g_selectedNode;                              // follow selection
-    if (!inCurrent(viewTarget))                                         // terminal fallback
-      viewTarget = g_pointGraph->defaultDrawTarget(sw::doc::g_lib, sw::doc::currentSymbolId());
-    // The production cook (mirror rebuild + AudioReaction + RESIDENT graph cook) lives in
-    // app/frame_cook.cpp — product behaviour, not shell.
-    sw::framecook::run(*g_pointGraph, viewTarget);
+    std::string targetPath;
+    if (inCurrent(sw::ui::g_pinnedNode))
+      targetPath = sw::doc::residentPathFor(sw::ui::g_pinnedNode);
+    else if (inCurrent(sw::ui::g_selectedNode))
+      targetPath = sw::doc::residentPathFor(sw::ui::g_selectedNode);    // follow selection
+    else if (int t = g_pointGraph->defaultDrawTarget(sw::doc::g_lib, sw::doc::currentSymbolId()))
+      targetPath = sw::doc::residentPathFor(t);                         // current terminal
+    else
+      targetPath = std::to_string(
+          g_pointGraph->defaultDrawTarget(sw::doc::g_lib, sw::doc::g_lib.rootId));  // root terminal
+    // The production cook (projection rebuild + AudioReaction + RESIDENT graph cook) lives
+    // in app/frame_cook.cpp — product behaviour, not shell.
+    sw::framecook::run(*g_pointGraph, targetPath);
   }
 
   // eye① clean: the pure render layer, BEFORE any imgui chrome touches it.

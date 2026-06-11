@@ -14,13 +14,26 @@ namespace sw::doc {
 extern SymbolLibrary g_lib;
 
 // Where the canvas is looking: child ids walked from the root symbol (= TiXL composition
-// path). Empty = the root symbol itself. The CURRENT symbol = the one the last child
-// references. Session/view state — never serialized. N2 keeps it root-only; N3 (navigation)
-// pushes/pops it.
+// path, ProjectView._compositionPath). Empty = the root symbol itself. The CURRENT symbol =
+// the one the last child references. Session/view state — never serialized.
 extern std::vector<int> g_compositionPath;
+
+// PURE walk of the path (no mutation): the deepest symbol the path's valid prefix reaches.
+// All panels in one frame therefore agree on the current symbol even if a mid-frame edit
+// dangled the tail. The actual TRUNCATION happens once per frame in validateCompositionPath
+// (called by frame_cook at frame start) — never as a getter side effect (refuter N2 S-6).
 const std::string& currentSymbolId();
 Symbol* currentSymbol();              // nullptr only if the lib is broken (missing symbol)
 const Symbol* currentSymbolConst();
+// Trim dangling tail entries (deleted/retyped children). Call once per frame, frame start.
+void validateCompositionPath();
+
+// Navigation (= TiXL TrySetCompositionOpToChild / ToParent / breadcrumb jump). push refuses
+// non-compound children (TiXL: only items with children open). All three ask the canvas to
+// re-seed positions (g_relayout) — the caller clears ed selection + frames content (ui state).
+bool pushComposition(int childId);    // enter a compound child of the CURRENT symbol
+bool popComposition();                // up one level; false at root
+void truncateComposition(size_t depth);  // breadcrumb jump: keep first `depth` entries
 
 // Resident path of a child in the CURRENT symbol (join of compositionPath + childId) —
 // what frame_cook cooks / the per-path state keys off. Root-only today: "<childId>".
@@ -42,10 +55,20 @@ uint64_t libRevision();
 void bumpLibRevision();
 bool doSave();                  // overwrite current; falls back to Save As; false if canceled
 bool doSaveAs();                // always prompt; true if written
-void doOpen();                  // unsaved-guard -> Finder -> temp-load -> swap on success
+void doOpen();                  // unsaved-guard -> Finder -> doOpenPath
+// Load+swap without a file picker (doOpen body; also the `--open <file>` CLI seam).
+// quiet=true reports failure on stderr ONLY — the CLI seam runs before NSApplication
+// exists, where showError's NSAlert runModal hangs forever (refuter N3 B1).
+bool doOpenPath(const std::string& path, bool quiet = false);
 void doNew();                   // unsaved-guard -> reset to default graph
 bool confirmDiscardIfDirty();   // false == user canceled (caller aborts)
 void updateWindowTitle();       // filename + dirty • ; no-op when unchanged (uses g_window)
 void initSnapshot();            // call at startup: snapshot := serialized default lib
+
+// Headless RED->GREEN proof of composition-path semantics: push/pop/truncate rules (atomic
+// children refuse push), validate-trims-dangling-tail (delete mid-path child -> valid prefix
+// kept), pure-getter consistency. injectBug skips the validation so the stale path survives
+// and the assertion FAILS (teeth).
+int runNavigationSelfTest(bool injectBug);
 
 }  // namespace sw::doc

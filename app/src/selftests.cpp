@@ -15,6 +15,7 @@
 
 #include "app/audio_monitor.h"
 #include "app/command.h"
+#include "app/document.h"  // runNavigationSelfTest (composition-path semantics)
 #include "platform/audio_capture.h"
 #include "platform/audio_devices.h"
 #include "runtime/attack_detector.h"
@@ -99,6 +100,7 @@ const SelfTest kTable[] = {
     {"graph", runGraphRoundtripSelfTest},
     {"save", runSaveLoadSelfTest},
     {"command", runCommandSelfTest},
+    {"navigation", doc::runNavigationSelfTest},
     {"valuecook", runValueCookSelfTest},
     {"resolve", runResolveSelfTest},
     {"audionode", runAudioNodeSelfTest},

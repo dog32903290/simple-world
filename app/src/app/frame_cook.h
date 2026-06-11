@@ -6,6 +6,7 @@
 // revision changed (document.h contract), cook every AudioReaction instance from the live
 // spectrum (resident extOut), then cook the RESIDENT eval graph into pg's target.
 #pragma once
+#include <string>
 
 namespace sw {
 class PointGraph;
@@ -13,10 +14,11 @@ class PointGraph;
 
 namespace sw::framecook {
 
-// Cook one production frame into `pg`. `viewTarget` = the current-symbol child id the
-// viewport shows (pin/selection/terminal — resolved by the shell); the resident target
-// path is doc::residentPathFor(viewTarget).
-void run(PointGraph& pg, int viewTarget);
+// Cook one production frame into `pg`. `targetPath` = the RESIDENT path the viewport shows
+// (pin/selection/terminal — resolved by the shell, composition-aware: usually
+// doc::residentPathFor(childId), but the terminal fallback may live at the root while the
+// canvas is deep inside a compound).
+void run(PointGraph& pg, const std::string& targetPath);
 
 // Read a resident node's externally-cooked outputs (AudioReaction level/hit/count) by
 // resident path — the UI's window into live values (node faces). Returns nullptr when the

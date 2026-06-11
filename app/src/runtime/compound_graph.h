@@ -28,6 +28,10 @@ struct SlotDef {
   std::string name;      // display label
   std::string dataType;  // "Points" / "Command" / "Texture2D" / "Float" / ...
   float def = 0.0f;      // default value for an input slot (outputs ignore it)
+  // Canvas position of this slot's BOUNDARY node when viewing inside the symbol (= TiXL
+  // IInputUi/IOutputUi.PosOnCanvas, persisted there in .t3ui — our v2 is single-file so it
+  // lives inline, same precedent as SymbolChild.x/y). Movable on canvas, serialized in v2.
+  float x = 0.0f, y = 0.0f;
 };
 
 // Sentinel child id meaning "the parent Symbol's own external port" (= TiXL Guid.Empty).

@@ -56,6 +56,9 @@ crude_json::value slotDefToJson(const SlotDef& d, bool isInput) {
   o["name"] = d.name;
   o["dataType"] = d.dataType;
   if (isInput) o["def"] = finiteOr0(d.def);
+  // boundary-node canvas position (TiXL keeps it in .t3ui; our single-file inline analog)
+  o["x"] = finiteOr0(d.x);
+  o["y"] = finiteOr0(d.y);
   return crude_json::value(o);
 }
 
@@ -65,6 +68,8 @@ SlotDef slotDefFromJson(crude_json::value& v) {
   if (v["name"].is_string()) d.name = v["name"].get<crude_json::string>();
   if (v["dataType"].is_string()) d.dataType = v["dataType"].get<crude_json::string>();
   if (v["def"].is_number()) d.def = (float)v["def"].get<crude_json::number>();
+  if (v["x"].is_number()) d.x = (float)v["x"].get<crude_json::number>();
+  if (v["y"].is_number()) d.y = (float)v["y"].get<crude_json::number>();
   return d;
 }
 
@@ -187,6 +192,17 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
       for (auto& dv : sv["inputDefs"].get<crude_json::array>()) s.inputDefs.push_back(slotDefFromJson(dv));
     if (sv["outputDefs"].is_array())
       for (auto& dv : sv["outputDefs"].get<crude_json::array>()) s.outputDefs.push_back(slotDefFromJson(dv));
+    // Boundary pins ride pinId(0, combinedIndex) — index 100 would alias child 1's first
+    // pin (wrong wire drawn/DELETED, refuter N3 S1). No UI can create defs yet; only a
+    // crafted file can — drop the excess locally (S15 tolerance), never let it alias.
+    while (s.inputDefs.size() + s.outputDefs.size() > 99) {
+      appendWarn(warnings, "symbol '" + s.id + "': boundary def limit (99) exceeded — '" +
+                               (s.outputDefs.empty() ? s.inputDefs.back().id
+                                                     : s.outputDefs.back().id) +
+                               "' dropped");
+      if (!s.outputDefs.empty()) s.outputDefs.pop_back();
+      else s.inputDefs.pop_back();
+    }
     out.symbols[s.id] = s;
   }
 

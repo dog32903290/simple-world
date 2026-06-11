@@ -29,29 +29,93 @@ std::string g_lastTitle;       // cache so we only setTitle when it changes
 uint64_t g_libRevision = 1;    // bumped on every g_lib mutation (projection contract, document.h)
 }  // namespace
 
+namespace {
+// The number of leading path entries that still resolve (each element a child id in the
+// symbol the previous prefix reaches). Shared by the pure getter (walks the valid prefix)
+// and the per-frame validator (the only place that truncates).
+size_t validPathPrefix() {
+  std::string cur = g_lib.rootId;
+  for (size_t i = 0; i < g_compositionPath.size(); ++i) {
+    const Symbol* s = g_lib.find(cur);
+    const SymbolChild* c = s ? childById(*s, g_compositionPath[i]) : nullptr;
+    if (!c) return i;
+    cur = c->symbolId;
+  }
+  return g_compositionPath.size();
+}
+}  // namespace
+
 const std::string& currentSymbolId() {
-  // Walk the path: each element is a child id; the current symbol = what the last child
-  // references. A dangling element (deleted child) truncates honestly to the valid prefix.
+  // PURE: walks the valid prefix only, never mutates the path (document.h contract).
   static std::string s_cur;
   s_cur = g_lib.rootId;
-  for (size_t i = 0; i < g_compositionPath.size(); ++i) {
-    const Symbol* s = g_lib.find(s_cur);
-    const SymbolChild* c = s ? childById(*s, g_compositionPath[i]) : nullptr;
-    if (!c) {
-      g_compositionPath.resize(i);
-      break;
-    }
-    s_cur = c->symbolId;
-  }
+  const size_t n = validPathPrefix();
+  for (size_t i = 0; i < n; ++i)
+    s_cur = childById(*g_lib.find(s_cur), g_compositionPath[i])->symbolId;
   return s_cur;
 }
 
 Symbol* currentSymbol() { return g_lib.find(currentSymbolId()); }
 const Symbol* currentSymbolConst() { return g_lib.find(currentSymbolId()); }
 
+void validateCompositionPath() {
+  const size_t n = validPathPrefix();
+  if (n < g_compositionPath.size()) {
+    g_compositionPath.resize(n);  // a path child was deleted/retyped: fall back honestly
+    g_relayout = true;            // the canvas is suddenly showing a different symbol
+  }
+}
+
+bool pushComposition(int childId) {
+  validateCompositionPath();  // never push onto a dangling tail (refuter N3 B3)
+  const Symbol* cur = currentSymbolConst();
+  const SymbolChild* c = cur ? childById(*cur, childId) : nullptr;
+  const Symbol* target = c ? g_lib.find(c->symbolId) : nullptr;
+  if (!target || target->atomic) return false;  // TiXL: only items with children open
+  // Refuse entering a SELF-NESTED instance (target symbol already on the chain): the
+  // resident build skips such children (S14 guard), so inside it the "current terminal"
+  // resolves to paths that don't exist -> permanent black (refuter N3 S2). Mirror the guard.
+  {
+    std::string walk = g_lib.rootId;
+    for (size_t i = 0;; ++i) {
+      if (walk == target->id) {
+        g_status = "recursive composition — not entered";
+        return false;
+      }
+      if (i >= g_compositionPath.size()) break;
+      walk = childById(*g_lib.find(walk), g_compositionPath[i])->symbolId;
+    }
+  }
+  g_compositionPath.push_back(childId);
+  g_relayout = true;
+  g_status = "entered " + (target->name.empty() ? target->id : target->name);
+  return true;
+}
+
+bool popComposition() {
+  validateCompositionPath();
+  if (g_compositionPath.empty()) return false;
+  g_compositionPath.pop_back();
+  g_relayout = true;
+  g_status = "up";
+  return true;
+}
+
+void truncateComposition(size_t depth) {
+  validateCompositionPath();
+  if (depth >= g_compositionPath.size()) return;
+  g_compositionPath.resize(depth);
+  g_relayout = true;
+  g_status = "up";
+}
+
 std::string residentPathFor(int childId) {
+  // Walk the VALID prefix only — main resolves the cook target before this frame's
+  // validateCompositionPath, so a dangling tail must not leak into the path string
+  // (one black frame + the "navigation never blanks" invariant broken — refuter N3 B3).
   std::string p;
-  for (int id : g_compositionPath) p += std::to_string(id) + "/";
+  const size_t n = validPathPrefix();
+  for (size_t i = 0; i < n; ++i) p += std::to_string(g_compositionPath[i]) + "/";
   return p + std::to_string(childId);
 }
 
@@ -107,23 +171,20 @@ bool doSave() {
   return true;
 }
 
-void doOpen() {
-  if (!confirmDiscardIfDirty()) return;
-  NFD::Guard nfdGuard;
-  NFD::UniquePath outPath;
-  nfdfilteritem_t filters[1] = {{"simple_world project", "swproj"}};
-  nfdresult_t r = NFD::OpenDialog(outPath, filters, 1, nullptr);
-  if (r != NFD_OKAY) return;
-  std::string path = outPath.get();
-  // Tolerant two-phase loader (S15): reads v2 AND legacy v1 (auto-migrated through the
-  // bridge); local problems are dropped with warnings, shown on the status line. The doc IS
-  // a lib now — files with compound children open directly (the graphFromLib refusal died
-  // with the flat editor). Only swap the live lib in on success.
+// Dialog-free load+swap: the shared body of doOpen and the `--open <file>` CLI seam.
+// Tolerant two-phase loader (S15): reads v2 AND legacy v1 (auto-migrated through the
+// bridge); local problems are dropped with warnings, shown on the status line. The doc IS
+// a lib now — files with compound children open directly (the graphFromLib refusal died
+// with the flat editor). Only swaps the live lib in on success.
+bool doOpenPath(const std::string& path, bool quiet) {
   sw::SymbolLibrary lib;
   std::vector<std::string> warnings;
   if (!sw::loadLibFromFile(path, lib, &warnings)) {
-    sw::showError("無法讀取此專案檔：" + path);
-    return;
+    if (quiet)  // pre-GUI callers: an NSAlert here would hang before the app runs
+      std::fprintf(stderr, "[open] cannot read project file: %s\n", path.c_str());
+    else
+      sw::showError("無法讀取此專案檔：" + path);
+    return false;
   }
   g_lib = std::move(lib);
   g_compositionPath.clear();
@@ -138,6 +199,17 @@ void doOpen() {
     for (const std::string& w : warnings) std::fprintf(stderr, "[open] %s\n", w.c_str());
     g_status += " (" + std::to_string(warnings.size()) + " repaired, see console)";
   }
+  return true;
+}
+
+void doOpen() {
+  if (!confirmDiscardIfDirty()) return;
+  NFD::Guard nfdGuard;
+  NFD::UniquePath outPath;
+  nfdfilteritem_t filters[1] = {{"simple_world project", "swproj"}};
+  nfdresult_t r = NFD::OpenDialog(outPath, filters, 1, nullptr);
+  if (r != NFD_OKAY) return;
+  doOpenPath(outPath.get());
 }
 
 void doNew() {
@@ -167,6 +239,74 @@ void updateWindowTitle() {
 void initSnapshot() {
   sw::refreshCompoundSpecs(g_lib);  // dynamic spec table live from frame one
   g_savedSnapshot = sw::libToJsonV2(g_lib);
+}
+
+// --- navigation selftest (document.h) ---
+int runNavigationSelfTest(bool injectBug) {
+  // The doc API is global-bound; snapshot + restore so the test leaves no residue.
+  SymbolLibrary savedLib = g_lib;
+  std::vector<int> savedPath = g_compositionPath;
+
+  // root{1:CompA, 2:RadialPoints} / CompA{1:CompB, 2:RadialPoints} / CompB{1:RadialPoints}
+  SymbolLibrary lib;
+  lib.rootId = "Root";
+  Symbol radial;
+  radial.id = "RadialPoints";
+  radial.atomic = true;
+  Symbol compB;
+  compB.id = "CompB";
+  compB.children.push_back({1, "RadialPoints"});
+  Symbol compA;
+  compA.id = "CompA";
+  compA.children.push_back({1, "CompB"});
+  compA.children.push_back({2, "RadialPoints"});
+  Symbol root;
+  root.id = "Root";
+  root.children.push_back({1, "CompA"});
+  root.children.push_back({2, "RadialPoints"});
+  lib.symbols = {{"RadialPoints", radial}, {"CompB", compB}, {"CompA", compA}, {"Root", root}};
+  g_lib = lib;
+  g_compositionPath.clear();
+
+  bool ok = currentSymbolId() == "Root";
+  ok = ok && !pushComposition(2);                       // atomic child refuses (TiXL rule)
+  ok = ok && currentSymbolId() == "Root";
+  ok = ok && pushComposition(1) && currentSymbolId() == "CompA";
+  ok = ok && pushComposition(1) && currentSymbolId() == "CompB";
+  ok = ok && g_compositionPath.size() == 2;
+
+  // Delete the CompB instance out from under the path (simulating a mid-frame edit): the
+  // PURE getter falls back to the valid prefix WITHOUT mutating the path...
+  g_lib.find("CompA")->children.erase(g_lib.find("CompA")->children.begin());
+  ok = ok && currentSymbolId() == "CompA" && g_compositionPath.size() == 2;
+  // ...and the per-frame validator is the one place that trims (teeth: skipping it leaves
+  // the stale tail alive and the size assertion FAILS).
+  if (!injectBug) validateCompositionPath();
+  ok = ok && g_compositionPath.size() == 1 && currentSymbolId() == "CompA";
+
+  ok = ok && popComposition() && currentSymbolId() == "Root";
+  ok = ok && !popComposition();  // already at root
+
+  // breadcrumb jump: rebuild depth 2 (restore the deleted child first), truncate to root.
+  g_lib.find("CompA")->children.insert(g_lib.find("CompA")->children.begin(), {1, "CompB"});
+  ok = ok && pushComposition(1) && pushComposition(1) && g_compositionPath.size() == 2;
+  truncateComposition(0);
+  ok = ok && g_compositionPath.empty() && currentSymbolId() == "Root";
+
+  // Self-nesting refusal (mirror of the resident build's S14 guard): give CompB a child
+  // referencing CompA — entering it from Root>CompA>CompB would put CompA on the chain
+  // twice, a subtree the resident graph deliberately skips (= permanent black inside).
+  g_lib.find("CompB")->children.push_back({2, "CompA"});
+  ok = ok && pushComposition(1) && pushComposition(1);  // Root > CompA > CompB
+  ok = ok && !pushComposition(2);                       // the CompA instance: refused
+  ok = ok && g_compositionPath.size() == 2;
+  truncateComposition(0);
+
+  g_lib = std::move(savedLib);
+  g_compositionPath = std::move(savedPath);
+  printf("[selftest-navigation] push/pop/truncate + dangling-trim%s -> %s\n",
+         injectBug ? "(bugged)" : "", ok ? "PASS" : "FAIL");
+  return ok ? 0 : 1;
 }
 
 }  // namespace sw::doc

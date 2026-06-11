@@ -99,4 +99,42 @@ void drawChild(const sw::SymbolChild& child) {
                       na.x, na.y, na.x + nsz.x, na.y + nsz.y);
 }
 
+void drawBoundaryDef(const sw::SlotDef& def, int edNodeId, int pinId, bool isSource) {
+  // Dimmer than operator nodes — boundary items are plumbing, not operators (TiXL renders
+  // them as plain labelled boxes). Type-colored slot marker matches the wires it accepts.
+  ed::PushStyleColor(ed::StyleColor_NodeBg, ImVec4(0.13f, 0.13f, 0.16f, 0.9f));
+  ed::PushStyleColor(ed::StyleColor_NodeBorder, ImVec4(0.45f, 0.45f, 0.5f, 0.6f));
+  ed::PushStyleVar(ed::StyleVar_NodeRounding, 6.0f);
+  ed::PushStyleVar(ed::StyleVar_NodeBorderWidth, 1.0f);
+  ed::BeginNode(edNodeId);
+  const std::string& label = def.name.empty() ? def.id : def.name;
+  ed::BeginPin(pinId, isSource ? ed::PinKind::Output : ed::PinKind::Input);
+  ImGui::BeginGroup();
+  if (isSource) {  // inputDef: label, slot on the right (it feeds the subgraph)
+    ImGui::TextDisabled("in:");
+    ImGui::SameLine();
+    ImGui::TextUnformatted(label.c_str());
+    ImGui::SameLine();
+    drawSlot(typeColor(def.dataType));
+  } else {  // outputDef: slot on the left (children drain into it)
+    drawSlot(typeColor(def.dataType));
+    ImGui::SameLine();
+    ImGui::TextDisabled("out:");
+    ImGui::SameLine();
+    ImGui::TextUnformatted(label.c_str());
+  }
+  ImGui::EndGroup();
+  ImVec2 pa = ed::CanvasToScreen(ImGui::GetItemRectMin());
+  ImVec2 pb = ed::CanvasToScreen(ImGui::GetItemRectMax());
+  sw::eye::recordRect(("pin:" + std::to_string(pinId)).c_str(), pa.x, pa.y, pb.x, pb.y);
+  ed::EndPin();
+  ed::EndNode();
+  ed::PopStyleVar(2);
+  ed::PopStyleColor(2);
+  ImVec2 na = ed::CanvasToScreen(ed::GetNodePosition(edNodeId));
+  ImVec2 nsz = ed::GetNodeSize(edNodeId);
+  sw::eye::recordRect(("node:" + std::to_string(edNodeId)).c_str(),
+                      na.x, na.y, na.x + nsz.x, na.y + nsz.y);
+}
+
 }  // namespace sw::ui

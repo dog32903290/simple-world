@@ -302,20 +302,61 @@ close (pre-existing, bounded; prune when it matters).
 lib child; drag wire Const.out→ParticleSystem.Speed → particles FREEZE same-frame (Const
 default 0); Cmd+Z → wire gone, particles move again, sim state alive (not reset).
 
+## Cut 8 — 批次 3 N3: composition navigation ✅ (2026-06-11)
+
+TiXL semantics researched at source (ProjectView/_compositionPath, GraphStates double-click,
+GraphTitleAndBreadCrumbs, InputNode/OutputNode boundary items, ViewedCanvasAreaForSymbolChildId):
+- **Gestures (照 TiXL MagGraph)**: double-click a COMPOUND child = pushComposition (atomics
+  refuse); double-click background = popComposition; breadcrumbs in the toolbar jump to any
+  level. Selection + pin CLEAR on every switch (bare child ids alias across symbols).
+- **doc**: currentSymbolId() now a PURE walk (validPathPrefix); truncation happens ONCE per
+  frame in validateCompositionPath (frame_cook frame start) — the N2 getter-side-effect
+  SUSPECT closed. push/pop/truncate validate first. residentPathFor walks the VALID prefix.
+- **Boundary items**: a compound's own inputDefs/outputDefs draw as movable canvas nodes
+  (= TiXL Input/OutputNode); SlotDef grew x/y (serialized in v2). Pins ride
+  pinId(0, combinedIndex) (1..99, disjoint from child pins >= 101); ed node ids negative.
+  inputDef = source inside, outputDef = sink; sentinel wires now draw + create + delete +
+  undo through the same command path. Boundary items NOT deletable (def removal = S13, 批次5);
+  positions sync directly (no undo step — named asymmetry). Per-instance view-area memory
+  (TiXL UserSettings) simplified to NavigateToContent-on-switch (= TiXL's no-saved-view
+  fallback) — named simplification, revisit if 柏為 misses it.
+- **viewTarget became a resident PATH** (frame_cook::run(pg, targetPath)); fallback chain
+  pinned -> selected -> current symbol terminal -> ROOT terminal, so entering a compound
+  with no realizable child keeps showing the composition's picture (TiXL: navigation never
+  blanks the output window).
+- **--open <file> CLI seam** (doOpenPath, quiet failure to stderr): 柏為-adjacent direct
+  open AND the agent's only dialog-free test-file loader.
+- New golden `--selftest-navigation` (+teeth): push/pop/truncate, atomic-refuse,
+  dangling-trim (pure getter vs validator), self-nesting refusal.
+
+**Refuter: 3 BROKEN + 3 SUSPECT, all fixed, all live-verified:**
+1. B1 `--open` bad path hung forever in pre-NSApp NSAlert runModal (stack-sample proven) →
+   quiet stderr failure + default-doc fallback (proven live: app boots, 2 stderr lines).
+2. B2/S3 pin/selection alias across switch (same child id, different symbol → viewport
+   silently shows wrong node) → cleared on every nav trigger (proven live: selected 1 -> 0).
+3. B3 residentPathFor used the un-validated path; main resolves the cook target BEFORE the
+   frame validator → one black frame after an ancestor-undo → valid-prefix walk + ops
+   validate first.
+4. S2 entering a SELF-NESTED compound instance = permanent black (resident build's S14 guard
+   skips the subtree; the "current terminal" branch wins over the root fallback) →
+   pushComposition mirrors the S14 guard (golden leg added).
+5. S1 ≥101 combined defs alias boundary pins onto child 1 (crafted file only) → load-time
+   limit (99) with S15 local-drop warnings.
+
+45 selftests green + all -bug teeth + check-arch. Live (eye/hand, hand-crafted
+/tmp/nav_test.swproj with an Emitter compound): --open loads, double-click enters
+(boundary in/out items + breadcrumbs appear), picture stays alive inside (root-terminal
+fallback), background double-click exits, breadcrumb Root jumps out, wire boundary->child
+Count lands in the lib as (0,Radius,1,Count), Cmd+Z removes it inside the compound.
+
 ## Resume — 批次 3 remaining cuts (in order)
-- **N3 (ui): composition navigation.** Canvas already iterates currentSymbol() (N2 carried
-  it); N3 adds: double-click a compound child pushes compositionPath; breadcrumb bar pops;
-  per-layer view state (ed config save/restore or one EditorContext per visited symbol — TiXL
-  uses one canvas + swapped view; check ed::Config). viewTarget already cooks
-  doc::residentPathFor(childId) — nested paths come free. ⚠ named from refuter: validate/
-  truncate g_compositionPath ONCE per frame at a defined point (currently a getter side
-  effect — two panels could see two symbols within one frame after a mid-frame delete).
-  Boundary-sentinel wires need their pins drawn (canvas currently skips them; root has none
-  but compound interiors will).
 - **N4: 眼手驗 + goldens.** Enter subgraph -> exit -> canvas correct (req_state already
-  carries compositionPath); add/wire/undo INSIDE a compound; reuse: edit definition once,
-  both instances change on screen (柏為 完成定義 item). Inspector UAF repro from refuter #1
-  becomes live-testable here (compound with Float inputDef + slider drag).
+  carries compositionPath); add/wire/undo INSIDE a compound (wire-to-boundary already
+  live-smoked in N3); reuse: edit definition once, both instances change on screen (柏為
+  完成定義 item). Inspector UAF repro from N2 refuter #1 becomes live-testable here
+  (compound with Float inputDef + slider drag). Consider a checked-in test .swproj
+  (today's /tmp/nav_test.swproj shape) so the smoke is repeatable.
 - Then 批次 4 combine (boundary detection + create Symbol + rewire; ⚠ CJK-name crude_json
   named risk must be resolved before user-named symbols; generated ids must avoid the
-  "sw-type:"/uuid namespaces), 批次 5 cross-layer undo + reuse 收尾.
+  "sw-type:"/uuid namespaces), 批次 5 cross-layer undo + reuse 收尾 (+S13 def removal —
+  boundary items become deletable then).
