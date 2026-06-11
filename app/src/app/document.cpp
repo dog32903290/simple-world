@@ -71,7 +71,12 @@ bool pushComposition(int childId) {
   const Symbol* cur = currentSymbolConst();
   const SymbolChild* c = cur ? childById(*cur, childId) : nullptr;
   const Symbol* target = c ? g_lib.find(c->symbolId) : nullptr;
-  if (!target || target->atomic) return false;  // TiXL: only items with children open
+  if (!target || target->atomic) {
+    // TiXL: only items with children open. SAY so — a silent refusal reads as "double-click
+    // is broken" (柏為 2026-06-11). UI string stays ASCII (imgui default font has no CJK).
+    if (c) g_status = c->symbolId + " is a native operator - no subgraph inside";
+    return false;
+  }
   // Refuse entering a SELF-NESTED instance (target symbol already on the chain): the
   // resident build skips such children (S14 guard), so inside it the "current terminal"
   // resolves to paths that don't exist -> permanent black (refuter N3 S2). Mirror the guard.
