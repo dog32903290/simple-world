@@ -192,6 +192,62 @@ int runChildStateSelfTest(bool injectBug) {
       return fail("leg4b: Command output disable not recorded");
   }
 
+  // ===== Leg 4c: freeze survives a projection REBUILD via the REAL projection path. =====
+  // (refuter-S2 blind spot 2 + the P1×P7 combination: production toggles disable through the
+  // model -> libRevision bump -> buildEvalGraph rebuilds COLD -> without the transplant the
+  // "frozen at last result" value snaps to 0. This leg drives model -> projection -> transplant.)
+  {
+    SymbolLibrary sl = makeLib(V);
+    ResidentEvalGraph g = buildEvalGraph(sl, sl.rootId);
+    initResidentCache(g);
+    ResidentEvalCtx ctx; ctx.lib = &sl;
+    auto outP = g.outputs["out"];
+    float warm = pullResidentFloat(g, outP.first, outP.second, ctx);
+    if (!approx(warm, SIN_V)) return fail("leg4c: warm-up out != sin(v)");
+
+    SetOutputDisabledCommand dis(sl, "S", 2, "out", true);
+    dis.doIt();  // model edit (production would bump libRevision here)
+    ResidentEvalGraph fresh = buildEvalGraph(sl, sl.rootId);  // projection path carries the flag
+    initResidentCache(fresh);
+    transplantDisabledCaches(g, fresh);  // = frame_cook's rebuild seam
+    float frozen = pullResidentFloat(fresh, outP.first, outP.second, ctx);
+    if (!approx(frozen, SIN_V))
+      return fail("leg4c: frozen value did not survive the rebuild (snapped off last result)");
+    // Upstream change must NOT thaw it.
+    sl.symbols["S"].children[0].overrides["value"] = 9.0f;
+    ResidentEvalGraph fresh2 = buildEvalGraph(sl, sl.rootId);
+    initResidentCache(fresh2);
+    transplantDisabledCaches(fresh, fresh2);
+    if (!approx(pullResidentFloat(fresh2, outP.first, outP.second, ctx), SIN_V))
+      return fail("leg4c: frozen value moved after an upstream edit across rebuild");
+    // Thaw -> recompute against the NEW upstream.
+    SetOutputDisabledCommand en(sl, "S", 2, "out", false);
+    en.doIt();
+    ResidentEvalGraph fresh3 = buildEvalGraph(sl, sl.rootId);
+    initResidentCache(fresh3);
+    transplantDisabledCaches(fresh2, fresh3);
+    if (!approx(pullResidentFloat(fresh3, outP.first, outP.second, ctx), std::sin(9.0f)))
+      return fail("leg4c: thawed output did not recompute against new upstream");
+  }
+
+  // ===== Leg 8: bypass × disable mutual exclusion (= TiXL Slot.cs:50-53, second op refused). =====
+  {
+    SymbolLibrary sl = makeLib(V);
+    // disable main output first -> bypass enable must refuse.
+    SetOutputDisabledCommand dis(sl, "S", 2, "out", true);
+    dis.doIt();
+    SetBypassChildCommand byp(sl, "S", 2, true);
+    if (!byp.refused()) return fail("leg8: bypass over a disabled main output was NOT refused");
+    // clear; bypass first -> disable of the MAIN output must refuse.
+    SetOutputDisabledCommand en(sl, "S", 2, "out", false);
+    en.doIt();
+    SetBypassChildCommand byp2(sl, "S", 2, true);
+    if (byp2.refused()) return fail("leg8: legit bypass refused after thaw");
+    byp2.doIt();
+    SetOutputDisabledCommand dis2(sl, "S", 2, "out", true);
+    if (!dis2.refused()) return fail("leg8: disable of a bypassed main output was NOT refused");
+  }
+
   // ===== Leg 5: triggerOverride Always -> LIVE; clear -> STATIC =====
   {
     SymbolLibrary sl = makeLib(V);

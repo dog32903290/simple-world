@@ -121,15 +121,17 @@ TriggerOverride triggerOverrideFromName(const std::string& s) {
 // The bypass type whitelist, mapped from TiXL's EXECUTOR (Instance.Connections.cs SetBypassFor: 8
 // switch cases) onto OUR port dataType vocabulary. TiXL's 8 executor types are Command, Texture2D,
 // BufferWithViews, MeshBuffers, float, Vector2, Vector3, string. Our model carries: "Command",
-// "Texture2D", "Float", "Points", "ParticleForce". Mapping: Command->Command, Texture2D->Texture2D,
-// float->Float. BufferWithViews/MeshBuffers are TiXL's GPU buffer handles — our nearest analog is the
-// point/force buffer ports, so "Points"/"ParticleForce" map onto them (a bypassed point op passes its
-// upstream buffer straight through). Vector2/Vector3/string have NO port-type analog in our model yet
-// (no such ports exist) — named gap, not a silent drop. ShaderGraphNode is whitelisted in TiXL but has
-// no executor case (the FORK reason): we omit it.
+// Float ONLY for now. The honest rule (refuter-S2 P8): a type enters this whitelist when its
+// EXECUTOR passes through too, not when the flag merely persists. Float redirect is implemented
+// in both eval paths (resident_eval_cache pull / resident_eval_graph eval). Command/Texture2D/
+// Points/ParticleForce have TiXL analogs (Instance.Connections.cs 8-case executor; BufferWith-
+// Views/MeshBuffers ≈ our buffer ports) but our GPU cook (point_graph_resident cookNode/
+// cookCommand) does not read the bypass flag yet — whitelisting them here made the menu offer a
+// knob that visibly did nothing. NAMED GAP alongside Vector2/Vector3/string; widen this list
+// only together with the buffer-path passthrough. ShaderGraphNode: TiXL whitelists it but its
+// executor has no case (the FORK reason) — we omit it permanently.
 bool compoundBypassableType(const std::string& dataType) {
-  return dataType == "Command" || dataType == "Texture2D" || dataType == "Float" ||
-         dataType == "Points" || dataType == "ParticleForce";
+  return dataType == "Float";
 }
 
 bool childIsBypassable(const SymbolLibrary& lib, const SymbolChild& c) {

@@ -59,6 +59,30 @@ void initResidentCache(ResidentEvalGraph& g) {
   for (ResidentNode& n : g.nodes) initResidentNodeCache(n);
 }
 
+void transplantDisabledCaches(const ResidentEvalGraph& oldG, ResidentEvalGraph& newG) {
+  // A projection REBUILD (libRevision bump) starts every cache cold — but "disabled" means
+  // FROZEN AT THE LAST RESULT, and TiXL has no rebuild artifact (its slots persist, Value and
+  // all). Without this transplant, toggling disable in the GUI snaps the frozen value to 0 on
+  // the very next frame (refuter-S2 P1×P7 combined). Carry the old cache verbatim for outputs
+  // that are disabled in the NEW graph; everything else stays cold (normal recompute).
+  for (ResidentNode& n : newG.nodes) {
+    auto oldIt = oldG.byPath.find(n.path);
+    if (oldIt == oldG.byPath.end()) continue;
+    const ResidentNode& on = oldG.nodes[oldIt->second];
+    for (auto& kv : n.outCache) {
+      if (!kv.second.isDisabled) continue;
+      auto oc = on.outCache.find(kv.first);
+      if (oc != on.outCache.end()) {
+        const bool wasDisabled = kv.second.isDisabled;
+        const bool wasLive = kv.second.isLiveSource;
+        kv.second = oc->second;          // frozen value + versions ride across the rebuild
+        kv.second.isDisabled = wasDisabled;   // flags follow the NEW model, not the old
+        kv.second.isLiveSource = wasLive;
+      }
+    }
+  }
+}
+
 void bumpLiveSources(ResidentEvalGraph& g) {
   for (ResidentNode& n : g.nodes)
     for (auto& kv : n.outCache)

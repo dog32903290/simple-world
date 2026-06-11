@@ -70,7 +70,11 @@ void run(PointGraph& pg, const std::string& targetPath) {
     // (swap = use-after-free, refuter N2 #1). The UI reads one-frame-stale compound specs
     // after an edit, same frame semantics as TiXL.
     refreshCompoundSpecs(doc::g_lib);
-    g_residentGraph = buildEvalGraph(doc::g_lib, doc::g_lib.rootId);
+    ResidentEvalGraph fresh = buildEvalGraph(doc::g_lib, doc::g_lib.rootId);
+    // Frozen (disabled) outputs keep their last result across the rebuild — TiXL slots persist,
+    // ours are re-projected, so the freeze value must ride over (refuter-S2 P1×P7).
+    transplantDisabledCaches(g_residentGraph, fresh);
+    g_residentGraph = std::move(fresh);
     g_builtRev = doc::libRevision();
   }
 

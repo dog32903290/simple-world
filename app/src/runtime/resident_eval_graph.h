@@ -144,6 +144,10 @@ std::map<std::string, float> resolveResidentFloatInputs(const ResidentEvalGraph&
 void initResidentCache(ResidentEvalGraph& g);
 // Same, for ONE node (used by the patch layer when it creates nodes incrementally).
 void initResidentNodeCache(ResidentNode& n);
+// Carry frozen (isDisabled) output values across a projection REBUILD — TiXL has no rebuild
+// artifact (its slots persist, Value and all), so "frozen at the last result" must survive
+// ours; without this the GUI disable-toggle snaps the value to 0 next frame (refuter-S2 P1×P7).
+void transplantDisabledCaches(const ResidentEvalGraph& oldG, ResidentEvalGraph& newG);
 // Bump every live source's sourceVersion (= TiXL DirtyFlagTrigger.Always 每幀). 🪤#1 (決策 7):
 // the per-frame correctness invariant — call at the START of every frame, before pulling.
 // Miss one live source -> downstream reads stale cache (卡舊畫面). Wired into the -bug teeth.

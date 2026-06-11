@@ -39,6 +39,18 @@ bool hasOutputDef(const SymbolLibrary& lib, const SymbolChild& c, const std::str
   return false;
 }
 
+// The child's MAIN output slot id ("" when unresolvable) — the slot bypass redirects.
+std::string mainOutputSlot(const SymbolLibrary& lib, const SymbolChild& c) {
+  const Symbol* def = lib.find(c.symbolId);
+  return (def && !def->outputDefs.empty()) ? def->outputDefs[0].id : std::string();
+}
+
+// Is the child's main output currently disabled (frozen)?
+bool mainOutputDisabled(const SymbolLibrary& lib, const SymbolChild& c) {
+  auto it = c.disabledOutputs.find(mainOutputSlot(lib, c));
+  return it != c.disabledOutputs.end() && it->second;
+}
+
 }  // namespace
 
 // ---- SetBypassChildCommand ----
@@ -57,6 +69,9 @@ SetBypassChildCommand::SetBypassChildCommand(SymbolLibrary& lib, std::string sym
   if (new_) {
     if (!childIsBypassable(lib_, *c)) { refused_ = true; return; }
     if (!mainOutputWired(lib_, *s, *c)) { refused_ = true; return; }
+    // Mutual exclusion with disable (= TiXL Slot.cs:50-53: the SECOND op is refused — bypass and
+    // freeze both replace the update action; stacking them makes one a dead knob).
+    if (mainOutputDisabled(lib_, *c)) { refused_ = true; return; }
   }
 }
 void SetBypassChildCommand::doIt() {
@@ -84,6 +99,9 @@ SetOutputDisabledCommand::SetOutputDisabledCommand(SymbolLibrary& lib, std::stri
   old_ = hadOld_ && it->second;
   // Effective current state (absent key == enabled == false). No-op if unchanged.
   if ((hadOld_ ? it->second : false) == new_) { refused_ = true; return; }
+  // Mutual exclusion with bypass on the MAIN output (= TiXL Slot.cs:50-53, second op refused):
+  // disabling the redirected slot of a bypassed child would be a knob with no visible effect.
+  if (new_ && c->isBypassed && outputSlot_ == mainOutputSlot(lib_, *c)) { refused_ = true; return; }
 }
 void SetOutputDisabledCommand::doIt() {
   if (refused_) return;
