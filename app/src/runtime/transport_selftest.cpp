@@ -248,6 +248,23 @@ int runTransportSelfTest(bool injectBug) {
     expect("S15: bad-bpm file still loads", badLoaded);
     expectNear("S15: bad bpm falls back to default 120", bl.composition.bpm, 120.0);
     expect("S15: a warning was emitted for the bad bpm", !bw.empty());
+
+    // S15: tiny-POSITIVE bpm (1e-300, legal JSON) passed the old >0 gate and made
+    // secondsFromBars blow to inf downstream (refuter-S5 BROKEN-B repro → golden).
+    std::string tiny = json1;
+    p = tiny.find("\"bpm\":");
+    if (p != std::string::npos) {
+      auto colon = tiny.find(':', p);
+      auto comma = tiny.find(',', colon);
+      tiny = tiny.substr(0, colon + 1) + " 1e-300" + tiny.substr(comma);
+    }
+    SymbolLibrary tl;
+    std::vector<std::string> tw;
+    expect("S15: tiny-positive-bpm file still loads", libFromJsonAny(tiny, tl, &tw));
+    expectNear("S15: tiny-positive bpm clamped to default 120", tl.composition.bpm, 120.0);
+    Transport tt; tt.bpm = tl.composition.bpm;
+    expect("S15: secondsFromBars stays finite under loaded bpm",
+           std::isfinite(tt.secondsFromBars(4.0)));
   }
 
   printf("[selftest] transport %s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);

@@ -268,10 +268,12 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
   if (crude_json::value& comp = v["composition"]; comp.is_object()) {
     if (comp["bpm"].is_number()) {
       double b = comp["bpm"].get<crude_json::number>();
-      if (b > 0.0)
+      // Sane range, not just >0: a tiny-positive bpm (1e-300, legal JSON) passes a >0 gate but
+      // makes secondsFromBars explode to inf downstream (refuter-S5 BROKEN-B). Clamp at load.
+      if (b >= 1.0 && b <= 999.0)
         out.composition.bpm = b;
       else
-        appendWarn(warnings, "composition bpm <= 0 dropped — using default 120");
+        appendWarn(warnings, "composition bpm outside [1,999] dropped — using default 120");
     }
     if (comp["soundtrackPath"].is_string())
       out.composition.soundtrackPath = comp["soundtrackPath"].get<crude_json::string>();

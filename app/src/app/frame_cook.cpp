@@ -83,11 +83,14 @@ void run(PointGraph& pg, const std::string& targetPath) {
 
   // Both clocks in BARS (P3, the resident eval ctx is bars-native): localTime = the PLAYHEAD
   // (automation samples this), localFxTime = the WALL CLOCK (stateful sims sample this; keeps
-  // running while paused). AudioReaction wants its time in SECONDS (TiXL LocalFxTime, seconds) so
-  // it reads fxTime converted back through the BPM — a paused composition keeps its hit timing live.
+  // running while paused). AudioReaction eats fxTime in BARS — TiXL's LocalFxTime IS
+  // Playback.FxTimeInBars (EvaluationContext.cs:49) and MinTimeBetweenHits compares in the same
+  // domain; feeding seconds skews the debounce window at any BPM != 240 (refuter-S5 BROKEN-A).
+  // ctx.time (the Metal sim uniform) stays in SECONDS — the pre-transport flat-sim contract the
+  // shaders were tuned against; that is OUR unit fork, named, not TiXL's context.
   const double posBars = g_transport.position;
   const double fxBars = g_transport.fxTime;
-  const double fxSecs = g_transport.secondsFromBars(fxBars);
+  const double fxSecs = g_transport.secondsFromBars(fxBars);  // ctx.time only (sane-floored bpm)
 
   const SpectrumSnapshot spec = audio_monitor::spectrum();
 
@@ -120,7 +123,7 @@ void run(PointGraph& pg, const std::string& targetPath) {
       p.reset = P["Reset"] > 0.5f;
       // Wall clock (seconds): AudioReaction is a stateful sim — its hit timing must NOT freeze on
       // pause (L8 fxTime brother). Frozen only when both clocks frozen (no idle motion).
-      const AudioReactionOut o = cookAudioReaction(spec, p, fxSecs, s_arState[rn.path]);
+      const AudioReactionOut o = cookAudioReaction(spec, p, fxBars, s_arState[rn.path]);
       rn.extOut[0] = o.level;
       rn.extOut[1] = o.wasHit ? 1.0f : 0.0f;
       rn.extOut[2] = (float)o.hitCount;
@@ -153,7 +156,8 @@ double transportPosition() { return g_transport.position; }
 double transportFxTime() { return g_transport.fxTime; }
 double transportBpm() { return doc::g_lib.composition.bpm; }
 void transportSetBpm(double bpm) {
-  if (bpm <= 0.0) return;                 // guard div-by-zero; the inspector clamps too
+  if (bpm < 1.0 || bpm > 999.0) return;   // sane range, same gate as the loader (tiny-positive
+                                          // bpm makes secondsFromBars blow to inf — BROKEN-B)
   doc::g_lib.composition.bpm = bpm;       // the persistence home (saved in the v2 file)
   g_transport.bpm = bpm;
 }
