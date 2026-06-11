@@ -165,3 +165,57 @@ optimization over O(graph) migration (semantics are pinned by the goldens).
    arch debt).
 3. **Batch 2 存檔 v2** — symbols[] library + two-phase load + migration (schema per the spec's
    健檢修正 S15-S20 block).
+
+---
+
+## Cut 4 — Slice 2b + PRODUCTION SWAP (2026-06-11, third session) ✅
+
+Goal re-anchored by 柏為: 把 compound editor 體驗做完 (decisions follow TiXL, no asks). Chosen
+route: 2b → swap (option 2), because every editor-experience batch (導航/combine/render) needs
+production actually running on the resident graph.
+
+**Slice 2b (`df88aa1`):** the resolved-param seam — drivers pre-resolve ALL Float ports
+(flat `resolveNodeParams` full spine / resident `resolveResidentFloatInputs` drivers), ops read
+`cc.params` via cookParam/cookVecN/cookInputParam and never touch a graph model. Kills the
+wire-blind param class across all ops; force params travel with the wire (no more firstOfType);
+cookResident gets the full three-flow terminal + per-path persistent buffers + stateful state
+(Impl keys converged to strings: path / "#id"). point_graph.cpp 489→343 (debt paid; Impl+regs →
+point_graph_internal.h, resident → point_graph_resident.cpp). Teeth caught a spec gap:
+RadialPoints' RadiusOffset/StartAngle/Cycles weren't spec ports → appended (NOT inserted — pin
+ids are port-index based; insertion re-targets saved wires; v2 schema moves to slot ids).
+Golden `--selftest-residentparity`.
+
+**Refuter (independent opus, executable repro):** 1 BROKEN fixed — `ensureState` never resized
+on count growth → GPU OOB over the sim's persistent particle buffer (production-reachable via
+Count drag). Fix: re-create state when count grows (mirror of ensureOut). Promoted golden
+`--selftest-statecount` (flat+resident legs). Plus 2 alignments: resident Automation stub now
+falls back to the projected constant (== flat's fall-through; S3 can't inherit a divergence);
+vec-inputDefs omission closed structurally by the bridge generating inputDefs from NodeSpec.
+
+**Production swap (`1e64afe`→`635e1c1`):** `graph_bridge.{h,cpp}` (`libFromGraph`: flat → lib,
+child id == node id → paths == ids → per-path GPU state survives rebuild; doubles as batch-2's
+old-file importer). `ResidentNode::extOut[3]` mirrors flat outCache for AudioReaction.
+`app/frame_cook.{h,cpp}` (main back to 333): mirror rebuild-on-revision → AudioReaction cook →
+`cookResident`. **The live app no longer runs flat cook.** Mirror contract: every g_graph
+mutation bumps `doc::graphRevision()` (commands + doOpen/doNew + 2 Inspector live-drag sites).
+Golden `--selftest-graphbridge`: real default graph + Const→Radius + AudioReaction→Speed wires,
+3 frames, flat vs resident BYTE-IDENTICAL (stateful GPU sim included). Full sweep 30+ green,
+all -bug teeth bite.
+
+**⚠ Pending live smoke:** 柏為's display was asleep all session (pmset: Display off 11:31) →
+MTKView gets no display link → the app cannot tick in background. NOT a code issue. When the
+screen is awake: launch app, eye req_clean × 2 (particles moving), drag a param via hand
+(picture changes), exercise add-node/wire/undo (mirror rebuild correctness live).
+
+**Named-deferred:** command layer pairs patch*/patchLib* instead of rebuild (semantics pinned
+by patch goldens); cookResident → pullResidentFloat (consume the 1b float cache + bumpLiveSources
+per frame); S1 SourceRegistry 收編 (AudioReaction LIVE authority to definition layer);
+defaultDrawTarget/viewTarget still read flat (shell-level, dies with g_graph).
+
+## Resume (next cut — pick one)
+1. **批次 2 存檔 v2** (recommended): symbols[] schema + animator section + two-phase load +
+   migration (loader = libFromGraph for old flat files — already exists). This makes the
+   SymbolLibrary the real document, unblocking 導航 (批次 3) which needs compound docs to exist.
+2. **Incremental mirror** — commands pair patch*/patchLib* calls instead of rebuild-on-edit
+   (cheap now, the APIs are golden-pinned; do it when graphs get big or with 批次 5 undo).
+3. **1b rest** — Command/flow four primitives; needed before the render graph deepens.
