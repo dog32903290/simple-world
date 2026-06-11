@@ -23,6 +23,24 @@ namespace sw {
 // output ports. The symbol id IS the op type (atomic contract, compound_graph.h).
 Symbol atomicSymbolFromSpec(const NodeSpec& s);
 
+// The inverse for COMPOUNDS (批次 3, the lib-native canvas): a NodeSpec whose ports mirror
+// the symbol's input/output defs, so a compound child gets pins/inspector exactly like an
+// atomic node (= TiXL: a Symbol IS an operator). evaluate stays null — compounds evaluate by
+// INLINE in the resident graph, never atomically. Float inputs get a placeholder ±10 slider
+// range until the per-input Min/Max sidecar lands (S19, 批次 3 對表).
+NodeSpec specFromSymbol(const Symbol& s);
+
+// Rebuild the registry's DYNAMIC spec table from every compound in the lib (call after any
+// edit that changes a compound's defs — cheap, a handful of compounds). findSpec resolves
+// built-ins first, then these; stale entries vanish wholesale on each refresh.
+void refreshCompoundSpecs(const SymbolLibrary& lib);
+
+// Headless RED->GREEN proof: a compound's spec mirrors its defs (ports/dataType/def), atomic
+// lookups stay registry-served (a compound named like an atomic cannot shadow it), refresh
+// drops stale entries. injectBug skips the refresh after a def edit -> stale-port assertion
+// FAILS (teeth).
+int runCompoundSpecSelfTest(bool injectBug);
+
 // Mirror a flat Graph into a SymbolLibrary: one atomic symbol per node type present (from
 // the registry; unknown types are skipped) + one compound root. Wires whose endpoints or
 // port indices don't resolve are skipped (same tolerance as the flat cook).

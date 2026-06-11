@@ -105,6 +105,7 @@ add_executable(simple_world
   src/app/frame_cook.cpp
   src/runtime/graph_bridge.cpp
   src/runtime/graph_bridge_selftest.cpp
+  src/runtime/compound_spec_selftest.cpp
   src/runtime/state_count_selftest.cpp
   src/runtime/resident_eval_graph.cpp
   src/runtime/resident_eval_graph_selftest.cpp

@@ -6,6 +6,7 @@
 #include "runtime/Particle.h"  // full EvaluationContext definition (for the evaluate fns)
 
 #include <cmath>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -311,10 +312,23 @@ const std::vector<NodeSpec>& registry() {
 
 }  // namespace
 
+// Dynamic spec table (批次 3): NodeSpecs generated from COMPOUND symbols so the canvas /
+// inspector / cook treat a compound child like any node. Rebuilt wholesale by
+// refreshCompoundSpecs (graph_bridge) after lib edits; built-ins always win on id clash so
+// a compound can never shadow an operator. std::map keeps pointer stability per entry
+// across lookups within a frame (the table itself is only swapped between frames).
+std::map<std::string, NodeSpec>& dynamicSpecs() {
+  static std::map<std::string, NodeSpec> m;
+  return m;
+}
+
+void setDynamicSpecs(std::map<std::string, NodeSpec> specs) { dynamicSpecs() = std::move(specs); }
+
 const NodeSpec* findSpec(const std::string& type) {
   for (const auto& s : registry())
     if (s.type == type) return &s;
-  return nullptr;
+  auto it = dynamicSpecs().find(type);
+  return it != dynamicSpecs().end() ? &it->second : nullptr;
 }
 
 std::vector<std::string> specTypes() {

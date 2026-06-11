@@ -115,6 +115,7 @@ const SelfTest kTable[] = {
     {"graphbridge", runGraphBridgeSelfTest},
     {"statecount", runStateCountSelfTest},
     {"savev2", runSaveV2SelfTest},
+    {"compoundspec", runCompoundSpecSelfTest},
     {"compoundmodel", runCompoundModelSelfTest},
     {"residenteval", runResidentEvalSelfTest},
     {"residentcache", runResidentCacheSelfTest},

@@ -2,6 +2,40 @@
 
 namespace sw {
 
+NodeSpec specFromSymbol(const Symbol& s) {
+  NodeSpec spec;
+  spec.type = s.id;
+  spec.title = s.name.empty() ? s.id : s.name;
+  spec.evaluate = nullptr;  // compounds evaluate by INLINE (resident graph), never atomically
+  for (const SlotDef& d : s.inputDefs) {
+    PortSpec p;
+    p.id = d.id;
+    p.name = d.name.empty() ? d.id : d.name;
+    p.dataType = d.dataType;
+    p.isInput = true;
+    p.def = d.def;
+    p.minV = -10.0f;  // placeholder slider range until the per-input Min/Max sidecar (S19)
+    p.maxV = 10.0f;
+    spec.ports.push_back(p);
+  }
+  for (const SlotDef& d : s.outputDefs) {
+    PortSpec p;
+    p.id = d.id;
+    p.name = d.name.empty() ? d.id : d.name;
+    p.dataType = d.dataType;
+    p.isInput = false;
+    spec.ports.push_back(p);
+  }
+  return spec;
+}
+
+void refreshCompoundSpecs(const SymbolLibrary& lib) {
+  std::map<std::string, NodeSpec> dyn;
+  for (const auto& kv : lib.symbols)
+    if (!kv.second.atomic) dyn[kv.first] = specFromSymbol(kv.second);
+  setDynamicSpecs(std::move(dyn));
+}
+
 Symbol atomicSymbolFromSpec(const NodeSpec& s) {
   Symbol sym;
   sym.id = s.type;
