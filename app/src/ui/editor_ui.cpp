@@ -335,6 +335,7 @@ void drawInspector() {
           if (ImGui::IsItemActivated())
             for (int k = 0; k < N; ++k) g_vecEditBefore[k] = sel->params[spec->ports[i + k].id];
           for (int k = 0; k < N; ++k) sel->params[spec->ports[i + k].id] = vals[k];  // live write
+          if (ImGui::IsItemEdited()) sw::doc::bumpGraphRevision();  // mirror contract (document.h)
           if (ImGui::IsItemDeactivatedAfterEdit())
             for (int k = 0; k < N; ++k)
               if (vals[k] != g_vecEditBefore[k])
@@ -372,6 +373,7 @@ void drawInspector() {
           // per drag: capture the pre-drag value on activation, record on release.
           float pre = sel->params[p.id];               // value at start of this frame
           ImGui::SliderFloat(p.name.c_str(), &sel->params[p.id], p.minV, p.maxV);
+          if (ImGui::IsItemEdited()) sw::doc::bumpGraphRevision();  // mirror contract (document.h)
           if (ImGui::IsItemActivated()) g_paramEditBefore = pre;
           if (ImGui::IsItemDeactivatedAfterEdit() && sel->params[p.id] != g_paramEditBefore)
             sw::g_commands.push(std::make_unique<sw::SetInputValueCommand>(

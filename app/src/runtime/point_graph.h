@@ -220,6 +220,12 @@ int runPointGraphSelfTest(bool injectBug);
 // so the bags diverge. (resident_cook_selftest.cpp)
 int runResidentCookSelfTest(bool injectBug);
 
+// Golden for the ensureState grow rule (state_count_selftest.cpp, refuter-2b promoted repro):
+// a stateful op's persistent state must be re-created when the node's count grows past the
+// capacity it was born with (else: GPU OOB write over the undersized state buffer), on BOTH
+// cook paths. injectBug = the op's stateNew under-allocates -> the overrun detector fires.
+int runStateCountSelfTest(bool injectBug);
+
 // Headless RED→GREEN proof of slice-2b parity (resident_cook_parity_selftest.cpp): for each of
 // (a) driver-resolved params (stored/override AND wire-driven), (b) stateful op state persisting
 // across cooks per path, (c) force params resolved via the WIRED input (not by-type), (d) the

@@ -1,6 +1,8 @@
 // app/command — CommandStack / MacroCommand 實作。
 #include "app/command.h"
 
+#include "app/document.h"  // bumpGraphRevision: every executed/undone command mutated the graph
+
 namespace sw {
 
 CommandStack g_commands;
@@ -16,6 +18,7 @@ void CommandStack::push(std::unique_ptr<Command> cmd) {
   cmd->doIt();
   undo_.push_back(std::move(cmd));
   redo_.clear();
+  doc::bumpGraphRevision();  // mirror contract (document.h): the command just mutated the graph
 }
 void CommandStack::undo() {
   if (undo_.empty()) return;
@@ -23,6 +26,7 @@ void CommandStack::undo() {
   undo_.pop_back();
   c->undo();
   redo_.push_back(std::move(c));
+  doc::bumpGraphRevision();
 }
 void CommandStack::redo() {
   if (redo_.empty()) return;
@@ -30,6 +34,7 @@ void CommandStack::redo() {
   redo_.pop_back();
   c->doIt();
   undo_.push_back(std::move(c));
+  doc::bumpGraphRevision();
 }
 void CommandStack::clear() {
   undo_.clear();

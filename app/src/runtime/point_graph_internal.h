@@ -59,6 +59,7 @@ struct PointGraph::Impl {
   std::map<std::string, uint32_t> outCount;      // key -> last cooked count (points)
   std::map<std::string, void*> state;            // key -> stateful-op memory
   std::map<std::string, PointStateFreeFn> stateFree;
+  std::map<std::string, uint32_t> stateCap;      // key -> count the state was created for
 
   // Per-node RenderTarget textures (the Texture2D stream's resources; realloc on resolution
   // change — RESOURCE_LIFETIME). displayTex = the texture target() shows this frame: a tex
@@ -99,14 +100,24 @@ struct PointGraph::Impl {
     return t;
   }
 
+  // Per-node stateful-op memory. Re-created (free + new) when `count` GROWS past what the
+  // state was sized for — stateNew sizes internal buffers (e.g. the sim's particle buffer)
+  // to the creation-time count, so dispatching a larger count over stale state is a GPU
+  // out-of-bounds write (refuter 2b finding 1; mirror of ensureOut's grow rule). Growing
+  // resets the sim's continuity — correctness over continuity, same as a buffer realloc.
   void* ensureState(const std::string& key, const std::string& type, uint32_t count) {
     auto it = state.find(key);
-    if (it != state.end()) return it->second;
+    if (it != state.end()) {
+      if (!it->second || count <= stateCap[key]) return it->second;
+      if (stateFree.count(key) && stateFree[key]) stateFree[key](it->second);  // grew: rebuild
+      state.erase(it);
+    }
     auto r = pgdetail::cookReg().find(type);
     if (r != pgdetail::cookReg().end() && r->second.stateNew) {
       void* st = r->second.stateNew(dev, lib, count);
       state[key] = st;
       stateFree[key] = r->second.stateFree;
+      stateCap[key] = count;
       return st;
     }
     state[key] = nullptr;

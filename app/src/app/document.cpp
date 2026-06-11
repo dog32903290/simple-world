@@ -19,9 +19,13 @@ namespace {
 std::string g_documentPath;    // empty == never saved
 std::string g_savedSnapshot;   // toJson() at last save/open/new
 std::string g_lastTitle;       // cache so we only setTitle when it changes
+uint64_t g_graphRevision = 1;  // bumped on every g_graph mutation (mirror contract, document.h)
 }  // namespace
 
 bool isDirty() { return sw::toJson(g_graph) != g_savedSnapshot; }
+
+uint64_t graphRevision() { return g_graphRevision; }
+void bumpGraphRevision() { ++g_graphRevision; }
 
 // Forward decl: doSave is used by confirmDiscardIfDirty before it is defined.
 bool doSave();
@@ -81,6 +85,7 @@ void doOpen() {
     return;
   }
   g_graph = loaded;
+  bumpGraphRevision();
   g_documentPath = path;
   g_savedSnapshot = sw::toJson(g_graph);
   sw::g_commands.clear();
@@ -91,6 +96,7 @@ void doOpen() {
 void doNew() {
   if (!confirmDiscardIfDirty()) return;
   g_graph = sw::defaultParticleGraph();
+  bumpGraphRevision();
   g_documentPath.clear();
   g_savedSnapshot = sw::toJson(g_graph);
   sw::g_commands.clear();

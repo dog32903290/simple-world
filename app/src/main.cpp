@@ -24,12 +24,10 @@
 #include "app/audio_monitor.h"
 #include "app/command.h"
 #include "app/document.h"
+#include "app/frame_cook.h"  // the per-frame production cook (mirror + audio + resident)
 #include "app/menu.h"
 #include "platform/audio_capture.h"
 #include "platform/dialogs.h"
-#include "runtime/spectrum_analyzer.h"
-#include "runtime/audio_reaction.h"
-#include "runtime/eval_context.h"  // EvaluationContext (was reaching it via particle_system.h)
 #include "runtime/graph.h"
 #include "runtime/point_graph.h"
 #include "runtime/point_ops.h"
@@ -60,8 +58,6 @@ MTL::Texture* previewTexture() { return ::g_pointGraph ? ::g_pointGraph->target(
 namespace {
 // Render-loop state owned by Renderer (internal to this TU).
 MTL::Library* g_shaderLib = nullptr;
-uint32_t g_frameIndex = 0;
-float g_time = 0.0f;
 
 // --- World 1: live audio -> particles ---------------------------------------
 // Capture publishes a per-frame audio level; the cook loop feeds it into the
@@ -271,59 +267,19 @@ void Renderer::draw(MTK::View* pView) {
     }
     unsigned int audioDev = 0;
     if (sw::audio::takePendingChange(audioDev)) g_audioCapture.start(audioDev);
-    const float dt = 1.0f / 60.0f;
-    // One EvaluationContext per frame (TiXL Update(EvaluationContext) style): time/frame/deltaTime.
-    EvaluationContext ctx{};
-    ctx.frameIndex = g_frameIndex;
-    ctx.time = g_time;
-    ctx.deltaTime = dt;
-    const sw::SpectrumSnapshot spec = sw::audio_monitor::spectrum();  // DSP fed by the capture callback
-    // Cook every AudioReaction node (TiXL parity): gather its params, run the stateful
-    // algorithm on the live spectrum, write its 3 outputs into outCache for evalFloat.
-    {
-      static std::map<int, sw::AudioReactionState> s_arState;
-      for (sw::Node& node : sw::doc::g_graph.nodes) {
-        if (node.type != "AudioReaction") continue;
-        auto P = [&](const char* id, float def) {
-          auto it = node.params.find(id);
-          return it != node.params.end() ? it->second : def;
-        };
-        sw::AudioReactionParams p;
-        p.amplitude = P("Amplitude", 1.0f);
-        p.inputBand = (int)(P("InputBand", 2.0f) + 0.5f);
-        p.windowCenter = P("WindowCenter", 0.0f);
-        p.windowWidth = P("WindowWidth", 1.0f);
-        p.windowEdge = P("WindowEdge", 1.0f);
-        p.threshold = P("Threshold", 0.5f);
-        p.minTimeBetweenHits = P("MinTimeBetweenHits", 0.1f);
-        p.output = (int)(P("Output", 3.0f) + 0.5f);
-        p.bias = P("Bias", 1.0f);
-        p.reset = P("Reset", 0.0f) > 0.5f;
-        const sw::AudioReactionOut o = sw::cookAudioReaction(spec, p, g_time, s_arState[node.id]);
-        node.outCache[0] = o.level;
-        node.outCache[1] = o.wasHit ? 1.0f : 0.0f;
-        node.outCache[2] = (float)o.hitCount;
-      }
-    }
-    ++g_frameIndex;
-    g_time += dt;
-    ctx.frameIndex = g_frameIndex;  // advance the per-frame context for this cook
-    ctx.time = g_time;
-    // Cook the whole point-operator graph: walk Points connections back from the draw node,
-    // dispatch each op (RadialPoints -> ParticleSystem sim -> DrawPoints) into its bag, render
-    // the final bag into target(). The editor graph's connections now drive the buffer flow,
-    // so wiring + params (incl. AudioReaction via evalFloat/outCache when 柏為 wires it) change
-    // the picture live. reg=nullptr -> the value-spine path (connection else constant), as before.
     // view ⊥ graph (TiXL ViewSelectionPinning): the viewport shows the PINNED node; else it
     // FOLLOWS the selected node; else the graph terminal (today's final picture, so an empty
     // selection = zero behaviour change). All three are session state (ui) — never a graph
-    // edge, never in .swproj. (OUTPUT_PIN_VIEWER_CONTRACT §4-A.)
+    // edge, never in .swproj. (OUTPUT_PIN_VIEWER_CONTRACT §4-A.) Resolved HERE (the shell may
+    // read ui) and passed as a plain id — app/frame_cook must not depend on ui.
     int viewTarget = sw::ui::g_pinnedNode;
     if (viewTarget == 0 || !sw::doc::g_graph.node(viewTarget))
       viewTarget = sw::ui::g_selectedNode;                              // follow selection
     if (viewTarget == 0 || !sw::doc::g_graph.node(viewTarget))
       viewTarget = g_pointGraph->defaultDrawTarget(sw::doc::g_graph);   // terminal fallback
-    g_pointGraph->cook(sw::doc::g_graph, ctx, /*reg=*/nullptr, viewTarget);
+    // The production cook (mirror rebuild + AudioReaction + RESIDENT graph cook) lives in
+    // app/frame_cook.cpp — product behaviour, not shell.
+    sw::framecook::run(*g_pointGraph, viewTarget);
   }
 
   // eye① clean: the pure render layer, BEFORE any imgui chrome touches it.

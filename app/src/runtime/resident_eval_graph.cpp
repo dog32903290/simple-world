@@ -48,7 +48,11 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
           v = evalResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx, depth + 1);
           break;
         case ResidentInput::Driver::Automation:
-          v = 0.0f;  // S3: sample def-layer curve `ri->curveRef` @ ctx.localTime. Stub for slice 1.
+          // S3 samples the def-layer curve `ri->curveRef` @ ctx.localTime. Until then fall
+          // back to the projected CONSTANT — the same fallback flat resolvePortValue uses
+          // (an Automation binding falls through to the stored constant), so the two paths
+          // can't diverge the day S3 wires this (refuter-2b analysis finding 1).
+          v = ri->constant;
           break;
       }
     }
@@ -85,7 +89,7 @@ std::map<std::string, float> resolveResidentFloatInputs(const ResidentEvalGraph&
         case ResidentInput::Driver::Connection:
           v = evalResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx);
           break;
-        case ResidentInput::Driver::Automation: v = 0.0f; break;  // S3 stub (same as evalResidentFloat)
+        case ResidentInput::Driver::Automation: v = ri->constant; break;  // S3 stub; same fallback as flat (see evalResidentFloat)
       }
     }
     out[p.id] = v;
