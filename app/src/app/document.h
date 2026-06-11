@@ -35,6 +35,11 @@ bool pushComposition(int childId);    // enter a compound child of the CURRENT s
 bool popComposition();                // up one level; false at root
 void truncateComposition(size_t depth);  // breadcrumb jump: keep first `depth` entries
 
+// Combine the CURRENT symbol's selected children into a new compound (runtime/combine.h).
+// 照 TiXL (Combine.cs:257): NOT undoable — clears the command stack on success (undoing
+// the children-delete would orphan the new definition).
+bool doCombine(const std::vector<int>& childIds, const std::string& name);
+
 // Resident path of a child in the CURRENT symbol (join of compositionPath + childId) —
 // what frame_cook cooks / the per-path state keys off.
 std::string residentPathFor(int childId);

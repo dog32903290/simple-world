@@ -80,6 +80,7 @@ add_executable(simple_world
   src/app/menu.cpp
   src/ui/editor_ui.cpp
   src/ui/toolbar.cpp
+  src/ui/combine_dialog.cpp
   src/ui/inspector.cpp
   src/ui/node_draw.cpp
   src/ui/node_faces.cpp
@@ -105,6 +106,8 @@ add_executable(simple_world
   src/runtime/compound_save.cpp
   src/runtime/compound_save_selftest.cpp
   src/runtime/testproj_selftest.cpp
+  src/runtime/combine.cpp
+  src/runtime/combine_selftest.cpp
   src/app/frame_cook.cpp
   src/runtime/graph_bridge.cpp
   src/runtime/graph_bridge_selftest.cpp

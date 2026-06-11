@@ -9,6 +9,7 @@
 
 #include "app/command.h"
 #include "platform/dialogs.h"
+#include "runtime/combine.h"        // combineChildren (批次 4)
 #include "runtime/compound_save.h"  // .swproj v2 (SymbolLibrary) save/load + v1 migration
 #include "runtime/graph.h"          // defaultParticleGraph (seed only)
 #include "runtime/graph_bridge.h"   // libFromGraph (default-lib seed) + refreshCompoundSpecs
@@ -112,6 +113,24 @@ void truncateComposition(size_t depth) {
   g_compositionPath.resize(depth);
   g_relayout = true;
   g_status = "up";
+}
+
+bool doCombine(const std::vector<int>& childIds, const std::string& name) {
+  Symbol* cur = currentSymbol();
+  if (!cur) return false;
+  sw::CombineResult r = sw::combineChildren(g_lib, cur->id, childIds, name);
+  if (!r.ok) {
+    g_status = "combine failed: " + r.error;
+    return false;
+  }
+  // 照 TiXL: not undoable. The spec table refreshes at the next frame boundary
+  // (frame_cook, keyed off the revision) — never mid-frame (N2 UAF lesson).
+  sw::g_commands.clear();
+  bumpLibRevision();
+  g_relayout = true;
+  g_status = "combined " + std::to_string(childIds.size()) + " into " +
+             (name.empty() ? r.newSymbolId : name) + " (not undoable)";
+  return true;
 }
 
 std::string residentPathPrefix() {

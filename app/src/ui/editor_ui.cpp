@@ -5,6 +5,7 @@
 // children/connections straight off doc::g_lib — no flat Graph, no projection layer.
 // Composition switch (N3) = same canvas, different symbol.
 #include "ui/editor_ui.h"
+#include "ui/combine_dialog.h"
 #include "ui/node_draw.h"
 
 #include <algorithm>
@@ -299,6 +300,10 @@ void drawNodeCanvas() {
     ed::EndDelete();
   }
 
+  // Context menu (批次 4): right-click a node -> "Combine into new symbol..." (the modal
+  // itself draws after the editor scope, drawCombineDialog below).
+  sw::ui::drawCanvasContextMenu();
+
   // Navigation gestures (TiXL MagGraph GraphStates.cs): double-click a COMPOUND child ->
   // enter its subgraph; double-click the background -> up one level. The doc refuses
   // atomic children, so plain double-clicks on operators stay inert. `cur` still points at
@@ -399,6 +404,8 @@ void drawNodeCanvas() {
     ed::End();
   }
   ed::SetCurrentEditor(nullptr);
+
+  sw::ui::drawCombineDialog();  // modal naming dialog (canvas host window scope)
 
   ImGui::End();  // ##canvas_host
 }

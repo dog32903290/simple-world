@@ -385,12 +385,54 @@ fall-through (pinned -> selected -> current terminal -> root terminal).
 
 46 selftests green + all -bug teeth + check-arch.
 
+## Cut 10 — 批次 4: combine ✅ (2026-06-11)
+
+**Prerequisite landed first — crude_json UTF-8 (the named CJK risk, root cause sharper than
+filed):** the writer was fine (raw UTF-8 out); the PARSER died — `const char*` peek sign-
+extends bytes ≥0x80 on arm64 (string parse fails wholesale) and the \uXXXX path asserted
+c<128. sw-patch(utf8) in vendored crude_json: unsigned peek, raw bytes pass through, \u
+escapes encode to UTF-8 incl. SURROGATE PAIRS (refuter: standard tools like python
+json.dumps emit non-BMP as pairs — a file run through them must not die). Goldens in
+--selftest-savev2: CJK raw byte-stable, 中文 decodes, 😀 -> 😀.
+
+**Combine (照 TiXL Combine.cs, research at source; forks named in combine.h):**
+- runtime/combine.{h,cpp}: moves selection into new "Compound-N" (ASCII id outside
+  sw-type:/uuid namespaces; name = user UTF-8); child ids regenerated 1..N; overrides
+  verbatim; internal wires remapped; inbound crossing -> inputDef (id from target slot,
+  deduped; def from target's SlotDef — fork, TiXL uses type default) + boundary wire +
+  parent rewire; outbound -> one outputDef per DISTINCT (src,slot) (fork: TiXL one per
+  connection) + N rewires; parent gets ONE instance at selection bbox center; refused
+  >99 defs (boundary pin scheme limit, mirror of the loader guard — refuter #1).
+- doc::doCombine: NOT undoable (照 TiXL UndoRedoStack.Clear) — clears our stack; spec
+  refresh stays at the frame boundary (N2 UAF lesson). COST (named, TiXL same): moved
+  children's resident paths change -> per-path sim state resets on combine.
+- ui/combine_dialog.{h,cpp}: right-click node -> context menu (ed::Suspend) -> modal name
+  dialog; failure keeps the dialog + shows the reason; success clears ed's stale selection.
+- Goldens: --selftest-combine (+teeth): structure on the real default graph (CJK name,
+  2 children/3 wires/1 in/1 out def), eval-identical pre/post (Const->Multiply), v2
+  roundtrip, 99-cap refusal leaves the lib untouched.
+
+**Refuter (probe binaries, 17 probes): 1 BROKEN (99-def cap) + 1 SUSPECT (surrogate pairs)
+fixed + UI nits (stale ed selection / failure wipes name) fixed; parity drifts named in
+combine.h. Confirmed safe: parent-boundary crossings eval-identical through double
+indirection; combine cannot CREATE self-nesting; dup slot names pair correctly.**
+
+Live (eye/hand): right-click Turb -> Combine -> Compound-1 in lib; enter it (boundary
+items + child correct); full user loop open -> combine -> toolbar-Save -> restart --open ->
+clean reload (zero repair warnings), picture alive. 47 selftests + teeth + check-arch.
+
+**Drill 經驗 (agent notes):** native menu accelerators (Cmd+S) are NSMenu-level — the hand
+cannot reach them, drive the toolbar buttons instead; floating windows (Output/Inspector)
+eat right-clicks — pick node spots clear of them; popup items need hover-frame before the
+click (first click after open may miss).
+
 ## Resume — next
-- **批次 4 combine**: boundary detection + create Symbol + rewire (selection -> new compound
-  symbol + instance; 必搬曲線/automation 歸定義層 per 拍板 P2). ⚠ MUST resolve first:
-  crude_json non-ASCII assert (CJK compound names write-but-don't-read — 柏為 WILL name one
-  in Chinese); generated symbol ids must avoid the "sw-type:"/uuid namespaces.
-- 批次 5: cross-layer undo + reuse 收尾 + S13 def removal (boundary items become deletable).
-- Parked smaller debts: per-instance view-area memory (TiXL UserSettings analog); boundary
-  moves have no undo step; per-path op state leaks until app close; CommandStack hardwires
-  the single global doc; boundary↔boundary passthrough wire blocked by the same-node guard.
+- **批次 5**: cross-layer undo + reuse 收尾 + S13 def removal (boundary items become
+  deletable). Compounds in the Add Node menu need a cycle guard on AddChild (named:
+  the resident builder silently skips self-nested subtrees today).
+- **CJK FONT atlas** (named gap): CJK names persist + roundtrip, but imgui's default font
+  renders them as ????? — 柏為 typing a Chinese name sees garbage on the node title.
+  Load a system CJK font (PingFang) into the atlas; memory imgui-default-font-no-cjk.
+- Parked: per-instance view-area memory; boundary moves no undo; per-path op state leaks
+  until app close; CommandStack hardwires single doc; boundary↔boundary passthrough;
+  crude_json never escapes object KEYS (unreachable today — our keys are ids/ints).

@@ -163,15 +163,49 @@ int runSaveV2SelfTest(bool injectBug) {
               nsBack.symbols["Root"].children[0].symbolId == "sw-type:Const" &&
               nsBack.find("sw-type:Const") && !nsBack.symbols["sw-type:Const"].atomic;
 
+  // 5d. CJK survives the roundtrip (批次 4 prerequisite: 柏為 WILL name a compound in
+  // Chinese). The writer emits raw UTF-8; the PARSER needed the sw-patch(utf8) in vendored
+  // crude_json (signed-char peek + the c<128 assert killed any non-ASCII at read time).
+  // Both legs: raw UTF-8 bytes roundtrip byte-stable, and hand-written \uXXXX escapes
+  // decode to the same UTF-8 string.
+  SymbolLibrary cjk;
+  Symbol cjkSym; cjkSym.id = "Compound-1"; cjkSym.name = "粒子發射器"; cjkSym.atomic = false;
+  cjkSym.outputDefs = {{"out", "out", "Float", 0.0f}};
+  cjk.symbols[cjkSym.id] = cjkSym;
+  Symbol cjkRoot; cjkRoot.id = "Root"; cjkRoot.name = "Root";
+  SymbolChild cjkChild; cjkChild.id = 1; cjkChild.symbolId = "Compound-1";
+  cjkRoot.children = {cjkChild};
+  cjk.symbols["Root"] = cjkRoot; cjk.rootId = "Root";
+  const std::string cjkJson = libToJsonV2(cjk);
+  SymbolLibrary cjkBack;
+  bool cjkOk = libFromJsonAny(cjkJson, cjkBack, nullptr) &&
+               cjkBack.find("Compound-1") &&
+               cjkBack.symbols["Compound-1"].name == "粒子發射器" &&
+               libToJsonV2(cjkBack) == cjkJson;  // byte-stable through the patched parser
+  {
+    SymbolLibrary esc;
+    bool escLoaded = libFromJsonAny(
+        "{\"formatVersion\": 2, \"rootSymbolId\": \"R\", \"symbols\": ["
+        "{\"id\": \"R\", \"name\": \"\\u4e2d\\u6587\"}]}", esc, nullptr);
+    cjkOk = cjkOk && escLoaded && esc.find("R") && esc.symbols["R"].name == "中文";
+    // surrogate PAIR (how standard JSON tools escape non-BMP, e.g. python json.dumps):
+    // must decode to 4-byte UTF-8, not kill the file (refuter 批次4 #2).
+    SymbolLibrary emoji;
+    bool emojiLoaded = libFromJsonAny(
+        "{\"formatVersion\": 2, \"rootSymbolId\": \"R\", \"symbols\": ["
+        "{\"id\": \"R\", \"name\": \"\\ud83d\\ude00\"}]}", emoji, nullptr);
+    cjkOk = cjkOk && emojiLoaded && emoji.find("R") && emoji.symbols["R"].name == "😀";
+  }
+
   bool pass = loadOk && byteStable && evalOk && reuseOk && atomicOk && migOk && tolOk &&
-              nanOk && oddOk && nsOk;
+              nanOk && oddOk && nsOk && cjkOk;
   printf("[selftest-savev2] roundtrip(byte=%d eval %.0f==%.0f)=%d reuse=%d atomicRegen=%d "
          "legacyMig(%zu ch/%zu wires)=%d tolerance(drop child+wire, %zu warns)=%d "
-         "nanClamp=%d oddIdSemantic=%d nsNoHijack=%d -> %s\n",
+         "nanClamp=%d oddIdSemantic=%d nsNoHijack=%d cjk=%d -> %s\n",
          byteStable ? 1 : 0, v0, v1, (loadOk && evalOk) ? 1 : 0, reuseOk ? 1 : 0,
          atomicOk ? 1 : 0, mroot ? mroot->children.size() : 0,
          mroot ? mroot->connections.size() : 0, migOk ? 1 : 0, warn3.size(), tolOk ? 1 : 0,
-         nanOk ? 1 : 0, oddOk ? 1 : 0, nsOk ? 1 : 0, pass ? "PASS" : "FAIL");
+         nanOk ? 1 : 0, oddOk ? 1 : 0, nsOk ? 1 : 0, cjkOk ? 1 : 0, pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }
 
