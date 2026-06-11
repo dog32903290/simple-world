@@ -393,7 +393,20 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
                                    s.id + "' — dropped");
           continue;
         }
-        if (av["curve"].is_object()) grouped[{childId, inputId}][index] = curveFromJson(av["curve"]);
+        if (av["curve"].is_object()) {
+          auto& slot = grouped[{childId, inputId}];
+          if (slot.count(index))  // duplicate (childId,inputId,index): later wins, but warn (was silent)
+            appendWarn(warnings, "duplicate animator channel (child " + std::to_string(childId) +
+                                     ", input '" + inputId + "', index " + std::to_string(index) +
+                                     ") in '" + s.id + "' — later overwrites earlier");
+          int droppedKeys = 0;
+          Curve cv = curveFromJson(av["curve"], &droppedKeys);
+          if (droppedKeys > 0)  // key-time NaN / malformed key dropped inside the curve (was silent)
+            appendWarn(warnings, std::to_string(droppedKeys) + " malformed/NaN key(s) dropped from "
+                                     "animator curve (child " + std::to_string(childId) + ", input '" +
+                                     inputId + "') in '" + s.id + "'");
+          slot[index] = std::move(cv);
+        }
       }
       for (auto& [key, byIndex] : grouped) {
         int maxIndex = 0;

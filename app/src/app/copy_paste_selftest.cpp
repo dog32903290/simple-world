@@ -16,11 +16,15 @@
 #include <string>
 #include <vector>
 
+#include <cmath>
+
 #include "app/command.h"
 #include "app/graph_commands.h"
 #include "runtime/compound_graph.h"
 #include "runtime/compound_save.h"
 #include "runtime/copy_paste.h"
+#include "runtime/curve.h"           // animation-follows-paste legs
+#include "runtime/curve_animator.h"
 
 namespace sw {
 namespace {
@@ -273,6 +277,105 @@ int runCopyPasteSelfTest(bool injectBug) {
     // And a LEGAL paste into A (a SECOND B reuse) is accepted.
     PastePlan ok2 = planPaste(lib, "A", clip, 0.0f, 0.0f);
     CHK(ok2.children.size() == 1);
+  }
+
+  // --- Leg 8 (曲线 / S3): copy/paste carries animation curves. Build a root where Const(1).value is
+  // animated (ramp 0..8 over t=0..4, @t=2 -> 4.0). Four sub-legs:
+  //   ① same-symbol paste -> the pasted child's curve follows, sampling equal.
+  //   ② cross-symbol paste via clipboard JSON -> curve survives the roundtrip.
+  //   ③ undo -> the target animator is clean (no殭屍 curve on the freed paste id).
+  //   ④ hostile curves segment (type-confused) -> clean discard, child still pastes (no animation).
+  auto makeAnimRoot = []() {
+    SymbolLibrary lib = baseLib();
+    SymbolChild c1{1, "Const", {{"value", 5.0f}}, 10.0f, 20.0f};
+    SymbolChild m3{3, "Multiply", {{"b", 2.0f}}, 200.0f, 50.0f};
+    lib.symbols["Root"] = compound("Root", {}, {{"out", "out", "Float", 0.0f}}, {c1, m3},
+                                   {{1, "out", 3, "a"}});
+    // animate Const(1).value: linear ramp t=0->0, t=4->8.
+    Curve ramp;
+    VDefinition k0; k0.value = 0.0;
+    k0.inInterpolation = k0.outInterpolation = KeyInterpolation::Linear;
+    VDefinition k1; k1.value = 8.0;
+    k1.inInterpolation = k1.outInterpolation = KeyInterpolation::Linear;
+    ramp.addOrUpdate(0.0, k0);
+    ramp.addOrUpdate(4.0, k1);
+    Animator::CurveArray arr; arr.push_back(ramp);
+    lib.symbols["Root"].animator.setCurves(1, "value", arr);
+    lib.rootId = "Root";
+    return lib;
+  };
+  {
+    // ① same-symbol paste.
+    SymbolLibrary lib = makeAnimRoot();
+    Symbol& root = *lib.find("Root");
+    const float srcSample = root.animator.curvesFor(1, "value")->front().sample(2.0);
+    ClipboardData clip = extractClipboard(root, {1, 3});
+    CHK(clip.children.size() == 2);
+    // the animated Const carries its curve onto the clipboard.
+    bool clipHasCurve = false;
+    for (const ClipboardChild& cc : clip.children)
+      if (cc.id == 1) clipHasCurve = cc.curves.count("value") && !cc.curves.at("value").empty();
+    CHK(clipHasCurve);
+
+    PastePlan plan = planPaste(lib, "Root", clip, 1000.0f, 1000.0f);
+    const int newC1 = plan.oldToNew[1];
+    CHK(plan.curves.count(newC1) && plan.curves[newC1].count("value")); // remapped onto the new id
+    CommandStack stack;
+    stack.push(std::make_unique<CopyPasteChildrenCommand>(lib, "Root", plan));
+    const Animator::CurveArray* pasted = root.animator.curvesFor(newC1, "value");
+    bool followed = pasted && !pasted->empty() &&
+                    std::abs(pasted->front().sample(2.0) - srcSample) <= 1e-5;
+    CHK(followed);  // golden: a regression that stops curves traveling -> RED here (own teeth)
+
+    // ③ undo -> the freshly-pasted child's animator entry is gone (no殭屍), original child 1 intact.
+    stack.undo();
+    CHK(!root.animator.isInstanceAnimated(newC1)); // pasted curve removed
+    CHK(root.animator.isInstanceAnimated(1));      // source child's animation untouched
+  }
+  {
+    // ② cross-symbol paste via clipboard JSON -> curve survives.
+    SymbolLibrary lib = makeAnimRoot();
+    lib.symbols["Other"] = compound("Other", {}, {{"out", "out", "Float", 0.0f}}, {}, {});
+    Symbol& root = *lib.find("Root");
+    const float srcSample = root.animator.curvesFor(1, "value")->front().sample(2.0);
+    ClipboardData clip = extractClipboard(root, {1, 3});
+    std::string json = clipboardToJson(clip);
+    ClipboardData parsed;
+    CHK(clipboardFromJson(json, parsed));
+    bool parsedHasCurve = false;
+    for (const ClipboardChild& cc : parsed.children)
+      if (cc.id == 1) parsedHasCurve = cc.curves.count("value") && !cc.curves.at("value").empty();
+    CHK(parsedHasCurve); // curve survived JSON roundtrip
+
+    PastePlan plan = planPaste(lib, "Other", parsed, 0.0f, 0.0f);
+    const int newC1 = plan.oldToNew[1];
+    CommandStack stack;
+    stack.push(std::make_unique<CopyPasteChildrenCommand>(lib, "Other", plan));
+    Symbol& other = *lib.find("Other");
+    const Animator::CurveArray* pasted = other.animator.curvesFor(newC1, "value");
+    CHK(pasted && !pasted->empty() && std::abs(pasted->front().sample(2.0) - srcSample) <= 1e-5);
+  }
+  {
+    // ④ hostile curves segment: our version tag, a child with a type-confused "curves" payload.
+    // Must NOT abort (the is_array gate) and the child still pastes — just without animation.
+    ClipboardData none;
+    // curves is a scalar (not an object) -> ignored.
+    CHK(clipboardFromJson(
+        "{\"clipboardVersion\":1,\"children\":[{\"id\":1,\"symbolId\":\"Const\",\"curves\":42}]}", none));
+    CHK(none.children.size() == 1 && none.children[0].curves.empty());
+    // curves.value is a scalar (not an array) -> that channel skipped, child unanimated.
+    ClipboardData none2;
+    CHK(clipboardFromJson(
+        "{\"clipboardVersion\":1,\"children\":[{\"id\":1,\"symbolId\":\"Const\","
+        "\"curves\":{\"value\":\"garbage\"}}]}", none2));
+    CHK(none2.children.size() == 1 && none2.children[0].curves.empty());
+    // curves.value is an array of type-confused (scalar) elements -> curveArrayFromJson skips them,
+    // array empties out, channel dropped. No std::terminate (the is_object gate inside the helper).
+    ClipboardData none3;
+    CHK(clipboardFromJson(
+        "{\"clipboardVersion\":1,\"children\":[{\"id\":1,\"symbolId\":\"Const\","
+        "\"curves\":{\"value\":[123,\"x\"]}}]}", none3));
+    CHK(none3.children.size() == 1 && none3.children[0].curves.empty());
   }
 
   // No inversion: injectBug leaks the external wire (Leg 2) -> externalLeak != 0 -> ok=false -> FAIL.

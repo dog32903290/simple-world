@@ -11,15 +11,9 @@ namespace {
 
 constexpr double kPi = 3.14159265358979323846;
 
-// = TiXL Curve.cs Math.Round(u, TimePrecision) — banker's rounding to 4 decimals. std::round is
-// round-half-away; TiXL's Math.Round is round-half-to-even (banker's). Match it: the difference
-// only bites exactly on .xxxx5 ties, but D12 hole #4 demands the SAME quantization as TiXL.
-double roundT(double u) {
-  const double scale = 10000.0;  // 10^TimePrecision
-  double scaled = u * scale;
-  double r = std::nearbyint(scaled);  // honors the current rounding mode = round-half-even default
-  return r / scale;
-}
+// roundT now forwards to Curve::roundTime (single quantization truth point, defined below) so the
+// live edit path, the sampler, and the JSON loader (curve_json.cpp) all quantize identically.
+double roundT(double u) { return Curve::roundTime(u); }
 
 // = SplineInterpolator.SlopFromAngle (SplineInterpolator.cs:83-87 / Bezier:141-146): tan(angle)
 // with a near-zero snap so flat curves don't wobble from tan(PI)≈-1.22e-16.
@@ -300,6 +294,15 @@ double calcOutTangent(double prevKey, const VDefinition& prevDef, double curKey,
 }
 
 }  // namespace
+
+double Curve::roundTime(double u) {
+  // = TiXL Curve.cs Math.Round(u, TimePrecision): banker's rounding (round-half-to-EVEN) to 4
+  // decimals. std::round is round-half-AWAY; the difference bites only on exact .xxxx5 ties, but
+  // D12 hole #4 demands the SAME quantization as TiXL on EVERY path (live + load).
+  const double scale = 10000.0;  // 10^TimePrecision
+  double r = std::nearbyint(u * scale);  // honors the current rounding mode = round-half-even default
+  return r / scale;
+}
 
 void Curve::updateTangents() {
   // = SplineInterpolator.UpdateTangents (SplineInterpolator.cs:8-51). std::map preserves key order

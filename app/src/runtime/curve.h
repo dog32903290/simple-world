@@ -66,6 +66,13 @@ class Curve {
   OutsideBehavior preCurveMapping = OutsideBehavior::Constant;
   OutsideBehavior postCurveMapping = OutsideBehavior::Constant;
 
+  // = TiXL Curve.cs Math.Round(u, TimePrecision) — banker's rounding (round-half-to-EVEN) to
+  // TimePrecision(4) decimals. THE single quantization truth point: every time-key-in (live edit,
+  // sampler, JSON load) rounds through THIS so a tie-time key (e.g. 0.00005) lands in the SAME slot
+  // on every path. (curve_json.cpp loads keys through this; std::round was round-half-AWAY = a slot
+  // divergence vs the live roundT — BROKEN-2.)
+  static double roundTime(double u);
+
   // Insert or replace the key at time u (rounded). Recomputes spline tangents after the edit
   // (= Curve.AddOrUpdateV -> SplineInterpolator.UpdateTangents, Curve.cs:213-229). This is also
   // the LIVE-append entry point (Animator records playhead values through it).

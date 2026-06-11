@@ -33,9 +33,9 @@
 //     CJK survives since the crude_json sw-patch).
 //   • NOT undoable (照 TiXL: UndoRedoStack.Clear() — undoing the delete would orphan the
 //     new symbol). The CALLER must clear the command stack.
-//   • TiXL also moves Animator curves bound to moved children into the new Symbol's
-//     Animator (Combine.cs:190 + CopySymbolChildrenCommand.cs:196) — our animator lands
-//     in the time lane (S3); this contract note is the hook for it.
+//   • Animator curves bound to moved children MOVE into the new Symbol's Animator and are
+//     scrubbed off the parent (= TiXL Combine.cs:170-190: CopyAnimationsTo + RemoveAnimations-
+//     FromInstances). Done in combineChildren after the children move (BROKEN-1 fix, S3 landed).
 #pragma once
 #include <string>
 #include <vector>

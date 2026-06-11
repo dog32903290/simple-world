@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <string>
 
+#include "runtime/curve_json.h"  // BROKEN-2: tie-time key JSON roundtrip lands the same slot
+
 namespace sw {
 namespace {
 
@@ -155,6 +157,41 @@ int runCurveSelfTest(bool injectBug) {
     check("Post Oscillate @2.5", os.sample(2.5), 5.0, T);
     // @3.5 -> delta 2.5, a=(byte)2 even -> newU = lastU - fmod(2.5,1) = 1-0.5 = 0.5 -> 5.0.
     check("Post Oscillate @3.5", os.sample(3.5), 5.0, T);
+
+    // 補牙: extreme-u Oscillate, exercising the (unsigned char) cycle-count cast at
+    // OscillateCurveMapper.cs:37. NOTE (truthful): the cast result `a` is used ONLY in `(a & 1)`, and
+    // (byte)n and int n share the low bit — so byte-vs-int is parity-EQUIVALENT here; this leg is a
+    // large-u VALUE golden (pins the fold direction at u far outside the key range), not a byte/int
+    // differentiator. The cast region had ZERO golden coverage at large u before this (refuter-C
+    // mutation blind spot). @260 (span=1): delta=259 (odd cycle) -> fold to firstU side -> first val 0.
+    check("Oscillate @260 (extreme-u fold)", os.sample(260.0), 0.0, T);
+    // @261: delta=260 (even cycle) -> fold to lastU side -> newU = lastU - fmod(260,1) = 1 -> last val
+    // 10. The even/odd cycle alternation is what the leg pins across the 256 boundary.
+    check("Oscillate @261 (extreme-u fold, even cycle)", os.sample(261.0), 10.0, T);
+  }
+
+  // --- 補牙: 3-key ASYMMETRIC Smooth — the middle key's tangent hits the overshoot-clamp branches
+  // (calcInTangent/calcOutTangent, the ~50-line clamp region). Keys @0(v=0), @1(v=10), @2(v=2):
+  // the middle is a local MAX (prev=0 < cur=10 > next=2), so the smooth tangent would overshoot
+  // and the clamp branches re-derive the angle. We assert the sampled curve stays within the key
+  // value envelope (no wild overshoot) AND the midpoint of each segment is bounded — exercising the
+  // clamp code that the symmetric legs above never reach. ---
+  {
+    Curve c;
+    c.addOrUpdate(0.0, key(0.0, KeyInterpolation::Smooth, KeyInterpolation::Smooth));
+    c.addOrUpdate(1.0, key(10.0, KeyInterpolation::Smooth, KeyInterpolation::Smooth));
+    c.addOrUpdate(2.0, key(2.0, KeyInterpolation::Smooth, KeyInterpolation::Smooth));
+    // at the keys themselves the value is exact (sampler returns the key value).
+    check("AsymSmooth @0", c.sample(0.0), 0.0, T);
+    check("AsymSmooth @1 (local max)", c.sample(1.0), 10.0, T);
+    check("AsymSmooth @2", c.sample(2.0), 2.0, T);
+    // mid of first segment: rising toward the peak, must stay between the two key values [0,10].
+    double mid1 = c.sample(0.5);
+    check("AsymSmooth @0.5 in [0,10]", (mid1 >= -1e-6 && mid1 <= 10.0 + 1e-6) ? 1.0 : 0.0, 1.0, T);
+    // mid of second segment: falling from the peak, must stay between [2,10] (clamp prevents an
+    // undershoot below the lower key when the incoming tangent is steep).
+    double mid2 = c.sample(1.5);
+    check("AsymSmooth @1.5 in [2,10]", (mid2 >= 2.0 - 1e-6 && mid2 <= 10.0 + 1e-6) ? 1.0 : 0.0, 1.0, T);
   }
 
   // --- D12 #4: TimePrecision=4 rounding. A key inserted at 0.12345 rounds to 0.1235 (round-half-
@@ -175,6 +212,28 @@ int runCurveSelfTest(bool injectBug) {
     check("pre-append (single key)", c.sample(2.0), 0.0, T);
     c.addOrUpdate(4.0, key(8.0, KeyInterpolation::Linear, KeyInterpolation::Linear));
     check("post-append linear @2", c.sample(2.0), 4.0, T);  // line 0..8 over 0..4 -> @2 = 4
+  }
+
+  // --- BROKEN-2: tie-time key JSON roundtrip quantizes with the SAME banker's-round as the live
+  // path. A key serialized at t=0.00005 is a TimePrecision tie: 0.00005*10000 = 0.5 -> nearbyint
+  // (round-half-to-EVEN) = 0 -> slot 0.0000. std::round (round-half-AWAY) would push it to slot
+  // 0.0001 — a different slot than addOrUpdate(0.00005) lands live. Assert the loaded key sits in
+  // the SAME slot the live path uses, and that the two paths agree. ---
+  {
+    Curve live;
+    live.addOrUpdate(0.00005, key(7.0, KeyInterpolation::Linear, KeyInterpolation::Linear));
+    // the live tie lands at the banker's-rounded slot; capture it as the truth.
+    double liveSlot = live.table().begin()->first;
+    check("tie-time live slot == 0.0 (round-half-even)", liveSlot, 0.0, T);
+
+    // hand-built curve JSON with the tie-time key; load it through curveFromJson (the BROKEN-2 path).
+    Curve src;
+    src.addOrUpdate(0.00005, key(7.0, KeyInterpolation::Linear, KeyInterpolation::Linear));
+    crude_json::value j = curveToJson(src);
+    Curve loaded = curveFromJson(j);
+    double loadSlot = loaded.table().empty() ? -999.0 : loaded.table().begin()->first;
+    check("tie-time JSON load slot == live slot", loadSlot, liveSlot, T);
+    check("tie-time loaded key present at 0.0", loaded.hasKeyAt(0.0) ? 1.0 : 0.0, 1.0, T);
   }
 
   // teeth: corrupt one expectation. If the sampler ever regresses to this wrong value, -bug GREENs

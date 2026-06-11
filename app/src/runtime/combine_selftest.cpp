@@ -1,4 +1,5 @@
 // runtime/combine_selftest — headless RED->GREEN proof of combineChildren (combine.h).
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -6,6 +7,8 @@
 #include "runtime/combine.h"
 #include "runtime/compound_graph.h"
 #include "runtime/compound_save.h"  // v2 roundtrip leg
+#include "runtime/curve.h"          // animation-survival leg
+#include "runtime/curve_animator.h"
 #include "runtime/graph.h"         // defaultParticleGraph (structural leg seed)
 #include "runtime/graph_bridge.h"  // libFromGraph / atomicSymbolFromSpec
 #include "runtime/resident_eval_graph.h"
@@ -115,7 +118,76 @@ int runCombineSelfTest(bool injectBug) {
          lib.find("Root")->children.size() == 200;  // refused = untouched
   }
 
-  printf("[selftest-combine] structure+rewire+overrides+eval-identical%s -> %s\n",
+  // --- leg 4: ANIMATION moves with the combined children (BROKEN-1). Const(1).value animated
+  // (ramp 0..8 over t=0..4) -> Multiply.a. Combine {Const(1)}: (a) the new compound's animator
+  // carries the curve under the REMAPPED child id, sampling equal to the original; (b) the parent
+  // has NO殭屍 entry on the removed child 1; (c) snapshot-restore (combine is NOT undoable — the
+  // command stack is cleared — so "undo" = restore the pre-combine parent animator snapshot) puts
+  // the curve back on parent child 1 at the original sample value. ---
+  {
+    SymbolLibrary lib;
+    lib.rootId = "Root";
+    lib.symbols["Const"] = atomicSymbolFromSpec(*findSpec("Const"));
+    lib.symbols["Multiply"] = atomicSymbolFromSpec(*findSpec("Multiply"));
+    Symbol root;
+    root.id = "Root";
+    SymbolChild c1; c1.id = 1; c1.symbolId = "Const";
+    SymbolChild m;  m.id = 2;  m.symbolId = "Multiply";
+    root.children = {c1, m};
+    root.connections = {{1, "out", 2, "a"}};
+    root.nextChildId = 3;
+    // animate Const(1).value: linear ramp t=0->0, t=4->8. @t=2 -> 4.0.
+    Curve ramp;
+    VDefinition k0; k0.value = 0.0;
+    k0.inInterpolation = k0.outInterpolation = KeyInterpolation::Linear;
+    VDefinition k1; k1.value = 8.0;
+    k1.inInterpolation = k1.outInterpolation = KeyInterpolation::Linear;
+    ramp.addOrUpdate(0.0, k0);
+    ramp.addOrUpdate(4.0, k1);
+    Animator::CurveArray arr; arr.push_back(ramp);
+    root.animator.setCurves(1, "value", arr);
+    lib.symbols["Root"] = root;
+
+    const float sampleBefore = lib.symbols["Root"].animator.curvesFor(1, "value")->front().sample(2.0);
+
+    // snapshot the parent animator BEFORE combine (the not-undoable "undo" mechanism = snapshot-restore).
+    Animator parentSnapshot = lib.symbols["Root"].animator;
+
+    CombineResult r = combineChildren(lib, "Root", {1}, "");
+    ok = ok && r.ok;
+    const Symbol* comp = r.ok ? lib.find(r.newSymbolId) : nullptr;
+    Symbol* rt = lib.find("Root");
+
+    // (a) the moved Const's NEW id inside the compound carries the curve, equal sample.
+    bool curveMoved = false;
+    if (comp) {
+      // the moved Const got a regenerated id (1..N); find it by type.
+      for (const SymbolChild& cc : comp->children)
+        if (cc.symbolId == "Const") {
+          const Animator::CurveArray* a = comp->animator.curvesFor(cc.id, "value");
+          if (a && !a->empty() && std::abs(a->front().sample(2.0) - sampleBefore) <= 1e-5)
+            curveMoved = true;
+        }
+    }
+    ok = ok && curveMoved;
+
+    // (b) parent has NO殭屍 entry on the removed child 1.
+    const bool parentZombie = rt && rt->animator.isInstanceAnimated(1);
+    if (injectBug) {
+      // teeth: assert the WRONG thing (a zombie SHOULD remain) — must FAIL when the fix is in.
+      ok = ok && parentZombie;
+    } else {
+      ok = ok && !parentZombie;
+    }
+
+    // (c) snapshot-restore returns the curve to parent child 1 at the original sample value.
+    rt->animator = parentSnapshot;
+    const Animator::CurveArray* restored = rt->animator.curvesFor(1, "value");
+    ok = ok && restored && !restored->empty() &&
+         std::abs(restored->front().sample(2.0) - sampleBefore) <= 1e-5;
+  }
+
+  printf("[selftest-combine] structure+rewire+overrides+eval-identical+anim-move%s -> %s\n",
          injectBug ? "(bugged)" : "", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

@@ -43,7 +43,7 @@ crude_json::value curveToJson(const Curve& c) {
   return crude_json::value(o);
 }
 
-Curve curveFromJson(crude_json::value& v) {
+Curve curveFromJson(crude_json::value& v, int* droppedKeys) {
   Curve c;
   if (v["preCurve"].is_number())
     c.preCurveMapping = outsideFromInt((int)v["preCurve"].get<crude_json::number>());
@@ -51,7 +51,15 @@ Curve curveFromJson(crude_json::value& v) {
     c.postCurveMapping = outsideFromInt((int)v["postCurve"].get<crude_json::number>());
   if (v["keys"].is_array()) {
     for (auto& kv : v["keys"].get<crude_json::array>()) {
-      if (!kv["t"].is_number() || !kv["v"].is_number()) continue;  // malformed key dropped
+      // Drop a key whose time/value is missing OR non-finite (NaN/Inf). The writer clamps non-finite
+      // to 0, but a hand-crafted/tampered file (S15) can carry NaN — skip it and count the drop so the
+      // loader can warn (was a silent skip).
+      if (!kv["t"].is_number() || !kv["v"].is_number() ||
+          !std::isfinite(kv["t"].get<crude_json::number>()) ||
+          !std::isfinite(kv["v"].get<crude_json::number>())) {
+        if (droppedKeys) ++*droppedKeys;
+        continue;  // malformed/NaN key dropped
+      }
       VDefinition d;
       d.value = kv["v"].get<crude_json::number>();
       if (kv["in"].is_number()) d.inInterpolation = interpFromInt((int)kv["in"].get<crude_json::number>());
@@ -65,13 +73,34 @@ Curve curveFromJson(crude_json::value& v) {
       // Round the time key to TimePrecision (= CurveState.Read Math.Round) then raw-insert: this
       // preserves serialized Tangent-mode angles; the single updateTangents pass below recomputes
       // spline-mode angles (= TiXL: Tangent keys use stored angles, spline modes derive live).
-      double t = std::round(kv["t"].get<crude_json::number>() * 10000.0) / 10000.0;
+      // Quantize through Curve::roundTime — the SAME banker's-round the live path (roundT) uses, so a
+      // tie-time key (0.00005) loads into the same slot it would live-edit into (BROKEN-2 fix; was
+      // std::round = round-half-away, a slot divergence vs nearbyint).
+      double t = Curve::roundTime(kv["t"].get<crude_json::number>());
       d.u = t;
       c.table()[t] = d;
     }
     c.updateTangents();
   }
   return c;
+}
+
+crude_json::value curveArrayToJson(const std::vector<Curve>& arr) {
+  crude_json::array out;
+  for (const Curve& c : arr) out.push_back(curveToJson(c));
+  return crude_json::value(out);
+}
+
+std::vector<Curve> curveArrayFromJson(crude_json::value& v, int* droppedKeys) {
+  std::vector<Curve> out;
+  if (!v.is_array()) return out;  // not an array -> empty (clean: clipboard tolerance)
+  for (auto& cv : v.get<crude_json::array>()) {
+    // A non-object element would hit crude_json operator[]'s std::terminate (a hostile clipboard
+    // can craft scalar/string array elements) — skip it, same gate as copy_paste's child/wire loops.
+    if (!cv.is_object()) continue;
+    out.push_back(curveFromJson(cv, droppedKeys));
+  }
+  return out;
 }
 
 }  // namespace sw

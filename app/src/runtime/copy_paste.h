@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "runtime/compound_graph.h"  // SymbolChild, SymbolConnection
+#include "runtime/curve_animator.h"  // Animator::CurveArray (copy/paste carries animation curves)
 
 namespace sw {
 
@@ -34,6 +35,10 @@ struct ClipboardChild {
   std::string symbolId;                    // which Symbol this instantiates
   std::map<std::string, float> overrides;  // per-instance overrides (= override + IsDefault, see .cpp FORK)
   float relX = 0.0f, relY = 0.0f;          // position relative to selection upper-left
+  // The animation curves bound to THIS child on the source symbol's Animator, keyed by inputId
+  // (= TiXL CopySymbolChildrenCommand.cs:196-199 CopyAnimationsTo: the curves travel WITH the copied
+  // child so a paste reproduces the animation). Empty when the child is unanimated.
+  std::map<std::string, Animator::CurveArray> curves;
 };
 
 struct ClipboardData {
@@ -73,6 +78,11 @@ struct PastePlan {
   std::vector<PastedChild> children;
   std::vector<SymbolConnection> wires;     // remapped to new ids, in source (multi-input) order
   std::map<int, int> oldToNew;             // original child id -> new child id
+  // Animation curves to install on the TARGET symbol's Animator, keyed by NEW childId -> inputId ->
+  // curves (remapped through oldToNew). The command installs these in doIt and removes the same
+  // (newChildId,inputId) entries in undo (= TiXL CopyAnimationsTo before child instantiation; our
+  // command applies them alongside the children so undo cleans up without leaving殭屍 curves).
+  std::map<int, std::map<std::string, Animator::CurveArray>> curves;
 };
 
 // Plan pasting `clip` into Symbol `targetId` of `lib`, anchoring the selection's upper-left at
@@ -82,10 +92,10 @@ struct PastePlan {
 // them) — reuses addChildWouldCycle, the SSOT gate (a compound pasted into its own ancestor =
 // a cycle). Returns an empty plan if the target symbol is absent or every child was dropped.
 //
-// FORK seam (曲线 / S3): in TiXL CopyAnimationsTo runs FIRST, BEFORE the child instances are
-// created (.cs:196-199), so the new instances bind to copied curves at construction. Our model
-// has no Animator yet (S3 Curve is in a parallel worktree). The seam is HERE: when curves land,
-// copy them keyed by oldToNew BEFORE the caller applies the returned children. See .cpp comment.
+// 曲线 / S3 (CLOSED): the curves bound to each copied child (carried on the clipboard) are remapped
+// through oldToNew into plan.curves, keyed by NEW childId (= TiXL CopyAnimationsTo .cs:196-199,
+// keyed by OldToNewChildIds). The command installs them on the target Animator alongside the
+// children; undo removes them. Curves for a child dropped by the cycle gate are dropped with it.
 PastePlan planPaste(const SymbolLibrary& lib, const std::string& targetId,
                     const ClipboardData& clip, float pasteX, float pasteY);
 

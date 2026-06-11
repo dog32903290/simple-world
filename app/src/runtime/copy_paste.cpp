@@ -5,6 +5,7 @@
 #include <cfloat>
 
 #include "crude_json.h"
+#include "runtime/curve_json.h"  // curveArray <-> json (clipboard curve segment, the curve SSOT)
 
 namespace sw {
 namespace {
@@ -38,6 +39,11 @@ ClipboardData extractClipboard(const Symbol& src, const std::vector<int>& childI
     cc.overrides = c.overrides;     // FULL per-instance state our model carries (see header FORK)
     cc.relX = c.x - ulX;
     cc.relY = c.y - ulY;
+    // Carry the child's animation curves off the source symbol's Animator (= TiXL CopyAnimationsTo
+    // source side). Deep-copied (CurveArray is value-type) so the clipboard is self-contained.
+    if (src.animator.isInstanceAnimated(c.id))
+      for (const auto& [inputId, arr] : src.animator.all().at(c.id))
+        if (!arr.empty()) cc.curves[inputId] = arr;
     clip.children.push_back(std::move(cc));
   }
 
@@ -66,6 +72,13 @@ std::string clipboardToJson(const ClipboardData& clip) {
     co["overrides"] = crude_json::value(ov);
     co["relX"] = (crude_json::number)c.relX;
     co["relY"] = (crude_json::number)c.relY;
+    // 曲线 segment: inputId -> array-of-curves (one Curve per scalar channel). Only emitted for an
+    // animated child. Reuses curveArrayToJson (the curve serialization SSOT, shared with .swproj).
+    if (!c.curves.empty()) {
+      crude_json::object cu;
+      for (const auto& [inputId, arr] : c.curves) cu[inputId] = curveArrayToJson(arr);
+      co["curves"] = crude_json::value(cu);
+    }
     children.push_back(crude_json::value(co));
   }
   root["children"] = crude_json::value(children);
@@ -107,6 +120,18 @@ bool clipboardFromJson(const std::string& json, ClipboardData& out) {
           if (kv.second.is_number()) c.overrides[kv.first] = (float)kv.second.get<crude_json::number>();
       if (cv["relX"].is_number()) c.relX = (float)cv["relX"].get<crude_json::number>();
       if (cv["relY"].is_number()) c.relY = (float)cv["relY"].get<crude_json::number>();
+      // 曲线 segment (S15-tolerant): a missing/non-object "curves" -> child stays unanimated; each
+      // inputId's value must be an array (curveArrayFromJson skips non-object elements and tolerates
+      // garbage without aborting). A curves entry that parses to an empty array is dropped (no
+      // animation), so a junk curve segment degrades to "paste the child without animation", never
+      // an abort and never a殭屍 empty curve.
+      if (cv["curves"].is_object()) {
+        for (auto& kv : cv["curves"].get<crude_json::object>()) {
+          if (!kv.second.is_array()) continue;  // non-array channel payload -> skip (clean)
+          Animator::CurveArray arr = curveArrayFromJson(kv.second);
+          if (!arr.empty()) c.curves[kv.first] = std::move(arr);
+        }
+      }
       out.children.push_back(std::move(c));
     }
   }
@@ -130,13 +155,13 @@ PastePlan planPaste(const SymbolLibrary& lib, const std::string& targetId,
   const Symbol* target = lib.find(targetId);
   if (!target) return plan;
 
-  // ── 曲线 / S3 SEAM ──────────────────────────────────────────────────────────────────────
-  // TiXL copies animations HERE (CopySymbolChildrenCommand.cs:196-199), BEFORE creating the
-  // child instances, keyed by the oldToNew map below, so new instances bind copied curves at
-  // construction. Our model has no Animator yet (S3 Curve/Animator is a parallel worktree).
-  // When it lands: build oldToNew first (it is already built per-child just below), then call
-  // the curve-copy here passing oldToNew, before the caller applies plan.children. Leaving the
-  // seam at this exact point keeps TiXL's ordering invariant intact.
+  // ── 曲线 / S3 (CLOSED) ───────────────────────────────────────────────────────────────────
+  // TiXL copies animations in the command ctor (CopySymbolChildrenCommand.cs:196-199), keyed by
+  // OldToNewChildIds, BEFORE the child instances exist. Our planPaste mirrors that: as each child
+  // earns its newId below, its carried curves (clip child.curves) are remapped into plan.curves
+  // under that newId. A child dropped by the cycle gate never gets a newId, so its curves are
+  // dropped with it — no orphan curve on the target. The command installs plan.curves on the
+  // target Animator alongside the children (and undo removes them).
 
   // Allocate new ids from the target's monotonic floor — strictly increasing, never colliding
   // with existing OR freed-but-burned ids (TiXL: Guid.NewGuid()). We can't mutate the real
@@ -153,6 +178,10 @@ PastePlan planPaste(const SymbolLibrary& lib, const std::string& targetId,
 
     const int newId = floor++;
     plan.oldToNew[cc.id] = newId;
+
+    // Remap this child's carried curves onto its newId (= TiXL CopyAnimationsTo keyed by oldToNew).
+    if (!cc.curves.empty())
+      for (const auto& [inputId, arr] : cc.curves) plan.curves[newId][inputId] = arr;
 
     SymbolChild nc;
     nc.id = newId;

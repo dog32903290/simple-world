@@ -94,6 +94,15 @@ CombineResult combineChildren(SymbolLibrary& lib, const std::string& parentSymbo
   }
   sym.nextChildId = (int)oldToNew.size() + 1;
 
+  // --- move the moved children's ANIMATOR curves into the new compound, then scrub them off the
+  // parent (BROKEN-1 fix; = TiXL Combine.cs:170-190: CopyAnimationsTo into the new Symbol +
+  // RemoveAnimationsFromInstances on the parent). Without this the new compound has no curves AND
+  // the parent keeps殭屍 entries keyed on now-removed children (in-memory leak; a re-save scrubs
+  // them via S15 but never self-heals in-memory). copyAnimationsTo remaps childId through oldToNew;
+  // removeChild drops the parent's whole bucket per moved child. childIds is the moved set. ---
+  parent->animator.copyAnimationsTo(sym.animator, childIds, oldToNew);
+  for (int id : childIds) parent->animator.removeChild(id);
+
   // --- classify the parent's wires in ORDER (multi-input order contract) ---
   std::vector<SymbolConnection> internalWires, inbound, outbound, kept;
   for (const SymbolConnection& w : parent->connections) {

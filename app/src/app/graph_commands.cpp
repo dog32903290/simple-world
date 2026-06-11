@@ -153,6 +153,10 @@ void CopyPasteChildrenCommand::doIt() {
   // 2) wires after children (TiXL .cs:263-267). Plan order == source order (no-reverse FORK,
   //    see copy_paste.cpp planPaste) — append lays it down verbatim, multi-input order intact.
   for (const SymbolConnection& w : plan_.wires) s->connections.push_back(w);
+  // 2b) 曲线: install the copied animation curves on the target Animator under the NEW childIds
+  //    (= TiXL CopyAnimationsTo .cs:196-199). setCurves keyed by (newChildId, inputId).
+  for (const auto& [newChildId, byInput] : plan_.curves)
+    for (const auto& [inputId, arr] : byInput) s->animator.setCurves(newChildId, inputId, arr);
   // 3) [bypass seam] TiXL .cs:269-276 applies deferred bypass HERE, now that wires exist
   //    (SetBypassed no-ops on an unwired fresh instance). Our model has no IsBypassed field yet
   //    (named FORK) — when it lands, set it on plan_.children here, AFTER the wires above.
@@ -160,7 +164,10 @@ void CopyPasteChildrenCommand::doIt() {
 void CopyPasteChildrenCommand::undo() {
   Symbol* s = sym(lib_, symbolId_);
   if (!s) return;
-  // Reverse order: wires first, then children (an isolated child has no incident wires left).
+  // Reverse order: curves first, then wires, then children. Remove exactly the (newChildId,inputId)
+  // animator entries we installed — removeChild drops the whole bucket per pasted child, so a paste
+  // onto an unanimated target leaves NO殭屍 curve (the pasted ids are fresh, never pre-animated).
+  for (const auto& [newChildId, byInput] : plan_.curves) s->animator.removeChild(newChildId);
   auto& ws = s->connections;
   for (const SymbolConnection& w : plan_.wires)
     for (auto it = ws.begin(); it != ws.end(); ++it)

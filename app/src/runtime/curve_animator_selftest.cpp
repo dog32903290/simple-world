@@ -229,6 +229,40 @@ int runCurveAnimatorSelfTest(bool injectBug) {
     expect("S15: bogus animator entry dropped + warned", droppedWithWarn);
     expect("S15: the GOOD animator entry survived the tamper",
            bl.symbols["S"].animator.isAnimated(1, "value"));
+
+    // 順手債 (Task 4 warn sites): a malformed key (missing "t") inside an animator curve is now
+    // dropped WITH a warn (was silent). Inject a second key with no "t" into child 1's curve.
+    {
+      std::string nankey = json1;
+      auto kp = nankey.find("\"keys\":");
+      auto kpos = kp == std::string::npos ? std::string::npos : nankey.find('[', kp);
+      if (kpos != std::string::npos)
+        nankey.insert(kpos + 1, "\n          { \"v\": 1.0, \"in\": 1, \"out\": 1 },");  // no "t" -> dropped
+      SymbolLibrary nl; std::vector<std::string> nwarns;
+      bool nok = libFromJsonAny(nankey, nl, &nwarns);
+      bool keyWarn = false;
+      for (const std::string& w : nwarns)
+        if (w.find("malformed/NaN key") != std::string::npos) keyWarn = true;
+      expect("Task4: malformed animator key dropped + warned", nok && keyWarn);
+    }
+
+    // 順手債: a DUPLICATE (childId,inputId,index) animator entry now warns (later overwrites earlier,
+    // was silent). Inject a second {childId:1,inputId:"value",index:0} entry.
+    {
+      std::string dup = json1;
+      auto kp2 = dup.find("\"animator\":");
+      auto p2 = kp2 == std::string::npos ? std::string::npos : dup.find('[', kp2);
+      if (p2 != std::string::npos)
+        dup.insert(p2 + 1,
+                   "\n        { \"childId\": 1, \"inputId\": \"value\", \"index\": 0,"
+                   " \"curve\": { \"preCurve\": 0, \"postCurve\": 0, \"keys\": [] } },");
+      SymbolLibrary dl; std::vector<std::string> dwarns;
+      bool dok = libFromJsonAny(dup, dl, &dwarns);
+      bool dupWarn = false;
+      for (const std::string& w : dwarns)
+        if (w.find("duplicate animator channel") != std::string::npos) dupWarn = true;
+      expect("Task4: duplicate animator channel warned", dok && dupWarn);
+    }
   }
 
   // teeth: a deliberately wrong expectation must FAIL under -bug.
