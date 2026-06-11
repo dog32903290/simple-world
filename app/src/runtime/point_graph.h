@@ -205,8 +205,14 @@ class PointGraph {
   // cook(Graph&) — the swap is the next cut. Float reads go through evalResidentFloat (no
   // version cache yet: wiring pullResidentFloat in = the swap cut, named-deferred).
   // Proven by --selftest-residentcook (slice-2 walk) + --selftest-residentparity (2b).
+  // S5: localTime/localFxTime (BARS) come from the Transport (frame_cook). localTime = playhead
+  // (automation samples it); localFxTime = wall clock. `lib` lets the resident eval's Automation
+  // drivers resolve curves through the definition-layer Animators (S3 接通). All three default to
+  // the pre-S5 placeholder (ctx.time as both clocks, no lib) so the selftest callers are unchanged.
   void cookResident(const struct ResidentEvalGraph& rg, const EvaluationContext& ctx,
-                    const SourceRegistry* reg, const std::string& targetPath);
+                    const SourceRegistry* reg, const std::string& targetPath,
+                    float localTimeBars = -1.0f, float localFxTimeBars = -1.0f,
+                    const SymbolLibrary* lib = nullptr);
   // Default viewport target = the first draw node (today's wired terminal). 0 if none.
   int defaultDrawTarget(const Graph& g) const;
   // Same, inside ONE symbol's subgraph (the lib-native canvas, 批次 3): the first child

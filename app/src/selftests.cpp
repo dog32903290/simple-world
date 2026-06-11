@@ -36,6 +36,7 @@
 #include "runtime/point_graph.h"
 #include "runtime/point_ops.h"
 #include "runtime/spectrum_analyzer.h"
+#include "runtime/transport.h"
 #include "ui/cjk_font.h"
 #include "ui/node_style.h"
 #include "verify/eye/eye.h"
@@ -131,6 +132,7 @@ const SelfTest kTable[] = {
     {"compoundspec", runCompoundSpecSelfTest},
     {"compoundmodel", runCompoundModelSelfTest},
     {"cycleguard", runCycleGuardSelfTest},
+    {"transport", runTransportSelfTest},
     {"curve", runCurveSelfTest},
     {"animator", runCurveAnimatorSelfTest},
     {"residenteval", runResidentEvalSelfTest},

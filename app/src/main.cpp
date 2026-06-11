@@ -349,8 +349,16 @@ void Renderer::draw(MTK::View* pView) {
     for (size_t i = 0; i < sw::doc::g_compositionPath.size(); ++i)
       comp += (i ? ", " : "") + std::to_string(sw::doc::g_compositionPath[i]);
     comp += "]";
+    // Transport state (S5): the verify agent reads the two-clock playhead here (one-line hook;
+    // the values come from app/frame_cook, no verify logic in business code — 鐵律 3).
+    std::string transport =
+        "{\"playing\": " + std::string(sw::framecook::transportPlaying() ? "true" : "false") +
+        ", \"position\": " + std::to_string(sw::framecook::transportPosition()) +
+        ", \"fxTime\": " + std::to_string(sw::framecook::transportFxTime()) +
+        ", \"bpm\": " + std::to_string(sw::framecook::transportBpm()) + "}";
     std::string s = "{\"selectedNode\": " + std::to_string(sw::ui::g_selectedNode) +
                     ", \"compositionPath\": " + comp +
+                    ", \"transport\": " + transport +
                     ", \"lib\": " + sw::libToJsonV2(sw::doc::g_lib) + "}";
     sw::eye::writeText("state.json", s.c_str());
   }

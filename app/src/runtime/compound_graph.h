@@ -92,11 +92,22 @@ struct Symbol {
   Animator animator;
 };
 
+// Project-level playback/audio settings (= TiXL CompositionSettings / Playback.Settings —
+// Playback.cs:32). The HOME of BPM + soundtrack persistence (契約3 健檢修正 — these live on the
+// composition, not a separate file). Saved in the v2 .swproj "composition" segment; defaults are
+// the new-document values, so an OLD file with no segment loads cleanly at 120 BPM (S15).
+struct CompositionSettings {
+  double bpm = 120.0;            // = Playback.Bpm. Drives the Transport's bars<->secs.
+  std::string soundtrackPath;    // optional audio file backing the composition ("" = none).
+  double soundtrackVolume = 1.0; // linear gain for the soundtrack (placeholder until S-audio lands).
+};
+
 // A project = a library of Symbol definitions + which one is the root (= TiXL SymbolPackage +
 // root composition). reuse is expressed here: multiple children across symbols share a symbolId.
 struct SymbolLibrary {
   std::map<std::string, Symbol> symbols;  // id -> definition
   std::string rootId;
+  CompositionSettings composition;        // BPM/soundtrack home (S5; saved in the v2 file).
 
   const Symbol* find(const std::string& id) const;
   Symbol* find(const std::string& id);  // mutable — the editing model (批次 3 lib-native doc)

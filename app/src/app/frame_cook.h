@@ -25,4 +25,17 @@ void run(PointGraph& pg, const std::string& targetPath);
 // path isn't resident (e.g. just deleted). Pointer is valid this frame only (rebuild-on-edit).
 const float* residentOut(const char* path);
 
+// --- Transport (S5): the two-clock playback head, owned HERE (app: the per-frame driver hands
+// it a real wall-clock deltaTime each run()). The UI/toolbar drives it through these; the cook
+// reads position (playhead -> automation) and fxTime (wall clock -> stateful sims) off it. ---
+void transportPlay();
+void transportPause();
+void transportToggle();   // play <-> pause (toolbar button)
+void transportScrub(double bars);  // jump the playhead (timeline drag / numeric scrub)
+bool transportPlaying();
+double transportPosition();  // playhead, bars (the displayed/scrubbed value)
+double transportFxTime();    // wall clock, bars (runs while paused)
+double transportBpm();
+void   transportSetBpm(double bpm);  // also writes lib.composition.bpm (the persistence home)
+
 }  // namespace sw::framecook

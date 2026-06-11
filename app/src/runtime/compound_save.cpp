@@ -101,6 +101,17 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
   root["formatVersion"] = (crude_json::number)2;
   root["rootSymbolId"] = lib.rootId;
 
+  // Composition settings segment (S5): BPM + soundtrack live on the composition, not a sidecar
+  // file (契約3 健檢修正). ALWAYS written (a fixed-shape object keeps the file deterministic /
+  // diffs clean) — an old file lacking it still loads at the defaults (S15, the read side below).
+  {
+    crude_json::object comp;
+    comp["bpm"] = finiteOr0(lib.composition.bpm);
+    comp["soundtrackPath"] = lib.composition.soundtrackPath;
+    comp["soundtrackVolume"] = finiteOr0(lib.composition.soundtrackVolume);
+    root["composition"] = crude_json::value(comp);
+  }
+
   // Only compound symbols, sorted by id (stable file = clean diffs, TiXL OrderBy(Id)).
   std::vector<const Symbol*> compounds;
   for (const auto& kv : lib.symbols)
@@ -197,6 +208,22 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
                              " is newer than this app (2) — loading what is understood");
 
   out = SymbolLibrary{};
+
+  // Composition settings (S5): tolerant read — absent segment OR a bad/non-positive bpm falls back
+  // to the struct default (120 bpm), file still loads (S15, 世界觀級 — bad data dropped locally).
+  if (crude_json::value& comp = v["composition"]; comp.is_object()) {
+    if (comp["bpm"].is_number()) {
+      double b = comp["bpm"].get<crude_json::number>();
+      if (b > 0.0)
+        out.composition.bpm = b;
+      else
+        appendWarn(warnings, "composition bpm <= 0 dropped — using default 120");
+    }
+    if (comp["soundtrackPath"].is_string())
+      out.composition.soundtrackPath = comp["soundtrackPath"].get<crude_json::string>();
+    if (comp["soundtrackVolume"].is_number())
+      out.composition.soundtrackVolume = comp["soundtrackVolume"].get<crude_json::number>();
+  }
 
   // ---- phase 1: register every compound symbol DEFINITION (no reference resolution yet,
   // 兩階段 load 照搬 — children/connections resolve only after every definition exists). ----

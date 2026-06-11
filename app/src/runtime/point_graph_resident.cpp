@@ -33,13 +33,21 @@ using pgdetail::isBufferInput;
 using pgdetail::texReg;
 
 void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationContext& ctx,
-                              const SourceRegistry* reg, const std::string& targetPath) {
+                              const SourceRegistry* reg, const std::string& targetPath,
+                              float localTimeBars, float localFxTimeBars,
+                              const SymbolLibrary* lib) {
   p_->displayTex = nullptr;  // default: target() shows the window-sized texture (cmd/preview paths)
 
   ResidentEvalCtx rc;
   rc.frameIndex = ctx.frameIndex;
-  rc.localFxTime = ctx.time;  // both clocks read the wall clock until the time lane lands (S1)
-  rc.localTime = ctx.time;
+  // S5: the two clocks now come from the Transport (frame_cook), in BARS. localTime = playhead
+  // (automation samples THIS — a scrubbed/paused playhead freezes the sampled value); localFxTime
+  // = wall clock (the Time op's evaluate reads THIS — keeps running while paused). The negative
+  // sentinel (selftest callers that don't pass them) falls back to the pre-S5 placeholder so the
+  // resident*/parity goldens are byte-unchanged.
+  rc.localTime = localTimeBars >= 0.0f ? localTimeBars : ctx.time;
+  rc.localFxTime = localFxTimeBars >= 0.0f ? localFxTimeBars : ctx.time;
+  rc.lib = lib;  // S3 接通: Automation drivers resolve their curve THROUGH this (nullptr = fallback)
 
   std::map<std::string, MTL::Buffer*> cooked;  // this-cook memo (cook each path once)
 

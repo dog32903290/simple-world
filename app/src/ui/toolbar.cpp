@@ -12,6 +12,7 @@
 #include "app/audio_monitor.h"
 #include "app/command.h"
 #include "app/document.h"
+#include "app/frame_cook.h"  // transport play/pause/scrub/bpm (the two-clock head, S5)
 #include "app/graph_commands.h"
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // specTypes / findSpec
@@ -108,6 +109,29 @@ void drawToolbar() {
     ImGui::EndCombo();
   }
   sw::eye::recordItem("Audio In");  // eye③: hand off this widget's screen rect
+
+  // Transport (S5): play/pause toggle + a scrubbable playhead position + BPM. Drives the two-clock
+  // head in app/frame_cook. Strings stay ASCII (eye keys ASCII-stable; CJK atlas exists but the
+  // toolbar deliberately stays English, per the lane雷). Position/BPM use DragDouble for scrub-by-drag.
+  {
+    const bool playing = sw::framecook::transportPlaying();
+    if (ImGui::Button(playing ? "Pause" : "Play")) sw::framecook::transportToggle();
+    sw::eye::recordItem("Play");  // stable key regardless of label (hand targets it)
+    ImGui::SameLine();
+
+    double pos = sw::framecook::transportPosition();
+    ImGui::SetNextItemWidth(120.0f);
+    if (ImGui::DragScalar("Pos (bars)", ImGuiDataType_Double, &pos, 0.01f))
+      sw::framecook::transportScrub(pos);  // drag the playhead = scrub (freezes it there)
+    sw::eye::recordItem("Pos (bars)");
+    ImGui::SameLine();
+
+    double bpm = sw::framecook::transportBpm();
+    ImGui::SetNextItemWidth(90.0f);
+    if (ImGui::DragScalar("BPM", ImGuiDataType_Double, &bpm, 0.5f, nullptr, nullptr, "%.1f"))
+      sw::framecook::transportSetBpm(bpm);  // writes lib.composition.bpm (the persistence home)
+    sw::eye::recordItem("BPM");
+  }
 
   // Breadcrumbs (= TiXL GraphTitleAndBreadCrumbs): one button per composition level;
   // clicking jumps back to that level. Hidden at root (nothing to climb out of).
