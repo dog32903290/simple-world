@@ -488,24 +488,83 @@ context. New traps for the next agent: **zsh does NOT word-split unquoted $vars*
 selftest list became ONE arg → app booted GUI silently); **unknown --selftest-* flags boot the GUI
 instead of erroring** (looks like a hang; kill it) — worth a 3-line arg-guard next batch.
 
+## Cut 12 — 批次 6: copy/paste + rename + S3 curves + 粒子衰減根治 ✅ (2026-06-11 晚,
+`28145b4`→`44c210d` 六 commit; dispatcher-mode 2nd run: 7 opus 工單 + Fable review/forks/commits)
+
+**copy/paste (`28145b4`+`9c42882`, 契約 4 第三刀):** runtime/copy_paste extract(兩端內選/外線剪)
++clipboard JSON(transient 不進 registry, imgui OS clipboard)+planPaste(oldToNew/環檢丟 self-nest)。
+Fork 四條全過 refuter 覆核: **multi-input 不 reverse**(TiXL reverse 補償其 insert-at-front, 我們
+append 模型=combine 同招)/overrides=全 per-child 狀態(bypass/outputData 欄位未生, 接縫具名)/floor
+燒掉 undo 不降(jsonNoFloor 證實質 byte-identity)/paste 傳遞環檢比 TiXL 強(既定 fork)。GUI 雙路:
+Cmd+C/V(io.KeyCtrl; **活體判決: NSMenu 不攔, 通**)+node/背景右鍵。Refuter-A 9 probe: 8 SURVIVE,
+**1 BROKEN 修=敵意 clipboard abort**(type-confused array 元素直通 crude_json operator[] 的
+std::terminate, 不受 NDEBUG 保護 release 也炸, Cmd+V production 可達 → 兩個 is_object() 閘+repro
+轉 golden 3 腿)。順手債修: 未知 --selftest-* 旗標 exit 2 不再默開 GUI。
+
+**rename (`d962312`):** SymbolChild.name(尾端擺位=既有 positional init 零 churn)+childReadableName
+(空名 fallback def 名, 照 Symbol.Child.cs:35)+RenameSymbol/RenameChild 命令(新檔 rename_commands,
+refused 不上 stack)+右鍵 Rename Node/Definition modal。**Fork(承重): 定義名不做 IsIdentifierValid
+—— TiXL 限制源自 C# 動態編譯, 資料驅動不存在, CJK 放寬是本單存在理由。**
+**★具名風險解除: crude_json 非 ASCII「寫得出讀不回」已被前批 sw-patch 解掉**(dump raw UTF-8/parse
+c<128 assert 已拆/孤代理乾淨拒/arm64 unsigned char patch), CJK「粒子發射器」savev2 roundtrip 位元
+等同 PASS。雙擊改名手勢未做(右鍵代替, 具名); IME 打字流程需柏為親手測(hand 無法注字, 見下)。
+
+**S3 Curve/Animator (`45dd52f`+`b73e239`):** curve.{h,cpp} 全抄 TiXL(Curve.cs/VDefinition.cs/
+SplineInterpolator.cs), **D12 四洞全蓋**(6 內插含 Horizontal/Pre+Post 4 mapper/Tension+Weighted
+gate Newton+bisect/TimePrecision=4 banker's round); 定義層 Animator(P2: scoreGraph 作廢)+curveRef
+"<childId>:<inputId>[#index]"; resident flattener 投影 Automation driver, sampleAutomation@
+ctx.localTime(播放頭佔位=自由 time, S5 落地改一行), 三 eval 路共用; **isLiveSource 補 Automation
+推導(1b 具名延後關閉), Constant↔Automation toggle=STATIC↔LIVE 同翻(cache-count 證)**; savev2
+animator 段(寫滿欄位換無條件 byte-stable)。Refuter-C: **2 BROKEN 修**——①combine 蒸發定義層動畫
+(copyAnimationsTo 零呼叫點+parent 殭屍; TiXL Combine.cs:170-190 兩頭都做; 修+golden; combine 本就
+not-undoable 照 UndoRedoStack.Clear, 曲線還原走 snapshot)②load 量化器 half-away vs live/TiXL
+half-even(tie-time 落錯 slot; Curve::roundTime 升單一真理點)。Mutation 實證牙盲區補:3鍵非對稱
+Smooth(中鍵 tangent clamp 死碼區)+Oscillate 極大-u fold。**copy/paste 曲線接縫同批閉合**(spec
+「曲線跟著 copy」: ClipboardData 帶 curves/JSON S15 容錯/doIt 裝 target animator+undo 乾淨清)。
+GUI 無(timeline/Animate 手勢=下批 lane); Vec 多通道投影只取 #0(具名)。
+
+**粒子衰減根治 (`44c210d`, 批次5 drill 的 22003→1700 嫌疑):** investigator D 先行(bit-for-bit
+repro+五假設排除表): 根因=移植時刻意簡化「只發一次/IsAutoCount 寫死 1=永生/CollectCycleIndex
+寫死 0」, turbulence 持續注入+drag 2% → 無界外漂出 viewExtent(maxR 2→85)。shader 無罪(TiXL 忠實
+移植), 病在 host dispatch 政策。**拍板走「分岔預設照 TiXL」規則直接決**(TiXL 有直接對應物=
+ParticleSystem.t3 內部子圖, 非品味級)。D2 修: 逐幀 emit+cycle=frame*emitCount%pool+IsAutoCount=0
+(CompareInt: Max=100000>0)+**關鍵 parity 缺口=pool≫emit 才能轉**(pool=emit×180 cap 262144,
+countTransform flat/resident 對稱), 政策 SSOT 收 particle_params.h。D 的 repro 翻面=
+--selftest-decay(5min 快轉穩定帶; -bug 注入舊政策完整重現衰減 RED)。**graphbridge 牙鈍連帶修**
+(Fable 全表掃出): pool 變大亮斑飽和, 3 幀次像素位移被淹→假綠; 拉 20 幀讓位移跨像素, 牙咬回。
+
+**活體驗收 5/5 PASS** (eye/hand drill): 右鍵 Copy/Paste 節點 5→6→7、Cmd+C/V 鍵盤通(NSMenu 不攔)、
+敵意 clipboard(中文+crafted JSON×3) app 全存活 no-op、rename dialog 開/關+compound-gating 對
+(atomic 無 rename_def)、**粒子 98s 亮像素震盪帶 216k–234k 無單調崩**、save→kill→reopen 零警告+
+活粒子 58FPS。全表 selftest 全綠+全牙(零 TOOTHLESS)+check-arch。
+
+**New traps (this session):** ①**isolation worktree 可能開在舊 main 基底**(a54b8c0, 兩個 agent
+中招)——工單第零步必帶 `git log -1` 基底自檢+`git reset --hard <sha>`; worktree 缺 third_party
+(gitignored)→symlink 主樹。②**stale binary 驗收陷阱**: 活體驗收前 pkill+確認 relink, 跑舊 binary
+會誤判功能缺失。③**hand 無 AddInputCharacter**→打不了字進 InputText(rename/combine 命名活體閉環
+打不滿), 下批補 `text <utf8>` 指令(io.AddInputCharactersUTF8)。④**hand 左鍵點節點不選中**(down→up
+跨幀被判 drag; 右鍵 capture 不受影響)。⑤pipe 後 `$?` 是 tail 的——驗 exit code 別過 pipe。
+⑥`git apply -3` 會 stage 進 index——commit 前先 `git reset HEAD` 再選擇性 add(本批踩過一次
+誤掃 commit, soft reset 救回)。
+
+**律法債帳(具名續背):** graph_commands.cpp 419/compound_save.cpp 449/editor_ui.cpp 470(>400;
+integrator 已開機械拆分 chip)。Token 帳: ~1.4M subagent(7 工單)+lean main。
+
 ## Resume — next
-- **批次 5 leftovers: NONE.** Cross-layer undo (S13 command keyed by symbolId, proven live from
-  root), reuse (Add-menu second instance + definition broadcast, proven live), S13 (deletable
-  boundary defs, undoable) all closed. 批次 5 CLOSED.
-- **⚠ Session Safety**: live-acceptance agent spawned a fix chip for the boundary-click bug
-  BEFORE the same-session fix landed; 柏為 already clicked it → a parallel worktree session may
-  be re-fixing the already-fixed `6d191de` bug. That session is redundant — close it, or harvest
-  nothing from it.
+- **批次 6 leftovers: NONE.** 四大項全閉環(copy/paste 含曲線跟走/rename 含 CJK/S3 含 refuter 修/
+  粒子根治含活體 98s 證據)。
 - **Candidate next batches** (pick by 柏為 priority):
-  1. **copy/paste** (契約 4 third knife, CopySymbolChildrenCommand.cs:90-317 semantics fully
-     specced: new ids + oldToNew remap, inside-only connections, multi-input reverse+insert-at-0,
-     bypass-after-wire, curves follow) — the OTHER reuse gesture 柏為 will reach for day one.
-  2. **rename compound** (no UI exists; CJK names render now but only combine's dialog sets them).
-  3. **S3 animator/curves** (driver authority at definition layer is specced; Curve primitive
-     shared with audio lane).
-  4. perf observation from drill: particle render bright-px decays monotonically over minutes
-     with ZERO edits (22003→~1700) — sim aging suspicion, needs a clean repro before it's a lane.
+  1. **S3 GUI**: timeline 視窗+Inspector「Animate」手勢+curve 編輯(S4 重塑=per-Symbol Animator
+     container 的 view; runtime 全在了, 純 ui/app 接線)+animate 命令層(undo 包)。
+  2. **S5 Transport 真兩鐘**(localTime 播放頭+localFxTime 牆鐘填真值; sampleAutomation 改一行;
+     play/pause/scrub UI)——S3 落地後這條解鎖「可作曲的時間」主線。
+  3. **S2 殘欄**: isBypassed(白名單以執行端 8 型為準)+per-output isDisabled/triggerOverride——
+     copy/paste 的 bypass 接縫+1b 的 triggerOverride 推導都在等它。
+  4. **verify 層補刀**: hand `text <utf8>` 注字+左鍵選中修——下批任何「打字」活體驗收的前提。
+  5. >400 三檔機械拆分(chip 已開)。
 - Parked (unchanged): per-instance view-area memory; boundary moves no undo; per-path op state
   leaks until app close; CommandStack hardwires single doc; boundary↔boundary passthrough;
-  crude_json never escapes object KEYS; loader accepts cyclic files silently (S14 catches, named);
-  editor_ui.cpp 443 lines (>400 debt, carried).
+  crude_json never escapes object KEYS (我們的 name 是 value, 未觸); loader accepts cyclic files
+  silently (S14 catches, named); Vec 多通道動畫投影只取 #0; 粒子 pool 政策是常數非旋鈕
+  (particle_params.h 單點接縫, 要開「壽命」旋鈕時擴)。
+- ~~crude_json 非 ASCII 寫得出讀不回~~ **已解除**(前批 sw-patch, 本批 rename leg3 證實)。
