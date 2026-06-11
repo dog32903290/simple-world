@@ -1,6 +1,7 @@
 #include "runtime/compound_save.h"
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <iterator>
 #include <map>
@@ -43,12 +44,18 @@ void appendWarn(std::vector<std::string>* w, const std::string& msg) {
   if (w) w->push_back(msg);
 }
 
+// A non-finite float dumped by crude_json becomes the bare token `nan`/`inf` — INVALID JSON
+// that the parser then rejects WHOLESALE, so one bad number would make a file the app wrote
+// unreadable by the app (refuter-savev2 finding B/C/N, an S15 contract violation). The writer
+// is the gate: never emit a non-finite number.
+crude_json::number finiteOr0(float v) { return std::isfinite(v) ? (crude_json::number)v : 0.0; }
+
 crude_json::value slotDefToJson(const SlotDef& d, bool isInput) {
   crude_json::object o;
   o["id"] = d.id;
   o["name"] = d.name;
   o["dataType"] = d.dataType;
-  if (isInput) o["def"] = (crude_json::number)d.def;
+  if (isInput) o["def"] = finiteOr0(d.def);
   return crude_json::value(o);
 }
 
@@ -111,10 +118,10 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
       co["id"] = (crude_json::number)c.id;
       co["symbolId"] = refOf(c.symbolId);
       crude_json::object ov;
-      for (const auto& kv : c.overrides) ov[kv.first] = (crude_json::number)kv.second;
+      for (const auto& kv : c.overrides) ov[kv.first] = finiteOr0(kv.second);
       co["overrides"] = crude_json::value(ov);
-      co["x"] = (crude_json::number)c.x;
-      co["y"] = (crude_json::number)c.y;
+      co["x"] = finiteOr0(c.x);
+      co["y"] = finiteOr0(c.y);
       children.push_back(crude_json::value(co));
     }
     o["children"] = crude_json::value(children);
@@ -164,6 +171,10 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
     if (!sv["id"].is_string()) { appendWarn(warnings, "symbol without id dropped"); continue; }
     Symbol s;
     s.id = sv["id"].get<crude_json::string>();
+    if (out.symbols.count(s.id)) {  // duplicate definition: first wins, deterministic (refuter G)
+      appendWarn(warnings, "duplicate symbol '" + s.id + "' — later definition dropped");
+      continue;
+    }
     s.name = sv["name"].is_string() ? sv["name"].get<crude_json::string>() : s.id;
     s.atomic = false;
     if (sv["inputDefs"].is_array())
@@ -175,17 +186,25 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
 
   // ---- phase 2: resolve children (atomic uuid -> registry regeneration; unknown -> drop)
   // and scrub unresolvable wires (S15: local drop + warn, next save self-heals). ----
+  std::vector<std::string> phase2Done;  // first-wins guard must hold here too (refuter G)
   for (auto& sv : symbols.get<crude_json::array>()) {
     if (!sv["id"].is_string()) continue;
-    Symbol& s = out.symbols[sv["id"].get<crude_json::string>()];
+    const std::string sid = sv["id"].get<crude_json::string>();
+    if (std::find(phase2Done.begin(), phase2Done.end(), sid) != phase2Done.end()) continue;
+    phase2Done.push_back(sid);
+    Symbol& s = out.symbols[sid];
 
     if (sv["children"].is_array()) {
       for (auto& cv : sv["children"].get<crude_json::array>()) {
         SymbolChild c;
         c.id = cv["id"].is_number() ? (int)cv["id"].get<crude_json::number>() : 0;
         std::string ref = cv["symbolId"].is_string() ? cv["symbolId"].get<crude_json::string>() : "";
-        std::string atomicType = typeForAtomicUuid(ref);
-        if (!atomicType.empty()) {
+        // COMPOUND ids resolve FIRST: a compound named inside the atomic namespaces (e.g.
+        // a literal "sw-type:Const" id) must never be hijacked into an atomic reference
+        // (refuter-savev2 finding J). Only unmatched refs fall to the atomic tables.
+        if (out.symbols.count(ref) && !out.symbols[ref].atomic) {
+          c.symbolId = ref;
+        } else if (std::string atomicType = typeForAtomicUuid(ref); !atomicType.empty()) {
           const NodeSpec* spec = findSpec(atomicType);
           if (!spec) {
             appendWarn(warnings, "child " + std::to_string(c.id) + " in '" + s.id +
@@ -194,8 +213,6 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
           }
           if (!out.symbols.count(atomicType)) out.symbols[atomicType] = atomicSymbolFromSpec(*spec);
           c.symbolId = atomicType;
-        } else if (out.symbols.count(ref) && !out.symbols[ref].atomic) {
-          c.symbolId = ref;  // compound reference
         } else {
           appendWarn(warnings, "child " + std::to_string(c.id) + " in '" + s.id +
                                    "' references missing symbol '" + ref + "' — dropped");

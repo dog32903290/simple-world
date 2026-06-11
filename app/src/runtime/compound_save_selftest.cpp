@@ -11,6 +11,7 @@
 // injectBug tampers an override after reload -> the eval-identical assertion FAILS (teeth).
 #include "runtime/compound_save.h"
 
+#include <cmath>
 #include <cstdio>
 
 #include "runtime/graph.h"                // defaultParticleGraph + toJson (legacy source)
@@ -119,13 +120,58 @@ int runSaveV2SelfTest(bool injectBug) {
                troot->children.size() == 2 &&                        // the bad child dropped
                tol.find("c-scale") && !tol.symbols["c-scale"].children.empty();  // rest intact
 
-  bool pass = loadOk && byteStable && evalOk && reuseOk && atomicOk && migOk && tolOk;
+  // --- 5 (refuter-savev2 promoted repros) ---
+  // 5a. NaN/inf override: the WRITER must clamp (a bare `nan` token is invalid JSON and
+  // would make a file the app wrote unreadable — whole-load failure, S15 violation).
+  SymbolLibrary nanLib = lib;
+  nanLib.symbols["Root"].children[0].overrides["value"] = std::nanf("");
+  SymbolLibrary nanBack;
+  bool nanOk = libFromJsonAny(libToJsonV2(nanLib), nanBack, nullptr) &&
+               nanBack.symbols["Root"].children[0].overrides.at("value") == 0.0f;
+  // 5b. flat inverse with NON-standard conn ids: ids NORMALIZE (v2 stores no conn ids);
+  // topology/params must survive exactly. (The old byte-equal golden was self-fulfilling —
+  // defaultParticleGraph's ids happen to equal the regenerator's output.)
+  Graph odd;
+  Node oa; oa.id = 1; oa.type = "Const"; oa.params["value"] = 2.0f; odd.nodes.push_back(oa);
+  Node ob; ob.id = 7; ob.type = "Multiply"; odd.nodes.push_back(ob);
+  odd.connections.push_back({999, pinId(1, 1), pinId(7, 0)});  // Const.out -> Multiply.a, odd id
+  odd.nextId = 1000;
+  Graph oddBack;
+  bool oddOk = graphFromLib(libFromGraph(odd), oddBack) && oddBack.nodes.size() == 2 &&
+               oddBack.connections.size() == 1 &&
+               oddBack.connections[0].fromPin == pinId(1, 1) &&
+               oddBack.connections[0].toPin == pinId(7, 0) &&
+               oddBack.node(1)->params.at("value") == 2.0f &&
+               oddBack.connections[0].id != 999;  // normalized — pinned as EXPECTED behavior
+  // 5c. a compound whose id sits in the atomic fallback namespace must NOT be hijacked
+  // into an atomic reference (loader resolves compounds first).
+  SymbolLibrary ns;
+  Symbol nsc; nsc.id = "sw-type:Const"; nsc.name = "UserCompound"; nsc.atomic = false;
+  nsc.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild inner; inner.id = 1; inner.symbolId = "Const"; inner.overrides["value"] = 8.0f;
+  nsc.children = {inner};
+  nsc.connections = {{1, "out", kSymbolBoundary, "out"}};
+  ns.symbols["Const"] = atomicSymbolFromSpec(*findSpec("Const"));
+  ns.symbols[nsc.id] = nsc;
+  Symbol nsRoot; nsRoot.id = "Root"; nsRoot.name = "Root"; nsRoot.atomic = false;
+  SymbolChild nsu; nsu.id = 1; nsu.symbolId = "sw-type:Const";
+  nsRoot.children = {nsu};
+  ns.symbols["Root"] = nsRoot; ns.rootId = "Root";
+  SymbolLibrary nsBack;
+  bool nsOk = libFromJsonAny(libToJsonV2(ns), nsBack, nullptr) &&
+              nsBack.find("Root") && nsBack.symbols["Root"].children.size() == 1 &&
+              nsBack.symbols["Root"].children[0].symbolId == "sw-type:Const" &&
+              nsBack.find("sw-type:Const") && !nsBack.symbols["sw-type:Const"].atomic;
+
+  bool pass = loadOk && byteStable && evalOk && reuseOk && atomicOk && migOk && tolOk &&
+              nanOk && oddOk && nsOk;
   printf("[selftest-savev2] roundtrip(byte=%d eval %.0f==%.0f)=%d reuse=%d atomicRegen=%d "
-         "legacyMig(%zu ch/%zu wires)=%d tolerance(drop child+wire, %zu warns)=%d -> %s\n",
+         "legacyMig(%zu ch/%zu wires)=%d tolerance(drop child+wire, %zu warns)=%d "
+         "nanClamp=%d oddIdSemantic=%d nsNoHijack=%d -> %s\n",
          byteStable ? 1 : 0, v0, v1, (loadOk && evalOk) ? 1 : 0, reuseOk ? 1 : 0,
          atomicOk ? 1 : 0, mroot ? mroot->children.size() : 0,
          mroot ? mroot->connections.size() : 0, migOk ? 1 : 0, warn3.size(), tolOk ? 1 : 0,
-         pass ? "PASS" : "FAIL");
+         nanOk ? 1 : 0, oddOk ? 1 : 0, nsOk ? 1 : 0, pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }
 

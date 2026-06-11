@@ -34,6 +34,12 @@ SymbolLibrary libFromGraph(const Graph& g, const std::string& rootId = "Root");
 // root contains a COMPOUND child (a flat graph cannot represent it — the caller refuses the
 // file honestly instead of silently flattening). Boundary-sentinel wires (root's own
 // input/output defs) have no flat equivalent and are skipped with a warning.
+//
+// ⚠ Contract is SEMANTIC, not byte-level (refuter-savev2 Q/R): v2 stores TiXL-shape 4-tuple
+// wires with NO connection ids (rightly — flat conn ids are a v1 artifact), so this inverse
+// REGENERATES conn ids + nextId deterministically. Topology/params/positions roundtrip
+// exactly; identifiers normalize. Within a session nothing observes them across a save
+// (doOpen re-snapshots + clears undo); the wart dies with the flat editor.
 bool graphFromLib(const SymbolLibrary& lib, Graph& out,
                   std::vector<std::string>* warnings = nullptr);
 
