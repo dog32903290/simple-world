@@ -10,21 +10,20 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
-#include "runtime/graph.h"               // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
-#include "runtime/resident_eval_graph.h" // ResidentEvalGraph / ResidentNode / ResidentInput
-#include "runtime/tixl_point.h"         // SwPoint (64B) + EvaluationContext (via eval_context.h)
+#include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
+#include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
+#include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
 
 namespace sw {
-namespace {
 
-constexpr MTL::PixelFormat kTargetFormat = MTL::PixelFormatRGBA8Unorm;
+using pgdetail::cmdReg;
+using pgdetail::cookReg;
+using pgdetail::drawReg;
+using pgdetail::flatKey;
+using pgdetail::isBufferInput;
+using pgdetail::texReg;
 
-// --- Operator registries (Metal-side; separate from NodeSpec.evaluate float path) ---
-struct OpReg {
-  PointCookFn cook = nullptr;
-  PointStateNewFn stateNew = nullptr;
-  PointStateFreeFn stateFree = nullptr;
-};
+namespace pgdetail {
 std::map<std::string, OpReg>& cookReg() {
   static std::map<std::string, OpReg> m;
   return m;
@@ -41,44 +40,11 @@ std::map<std::string, PointTexFn>& texReg() {
   static std::map<std::string, PointTexFn> m;
   return m;
 }
-
-bool isBufferInput(const PortSpec& p) {
-  return p.isInput && (p.dataType == "Points" || p.dataType == "ParticleForce");
-}
-
-// A node's output point count: a generator's "Count" Float input resolved through the value
-// spine, else the SUM of all wired Points-input counts. The sum generalizes all three op shapes:
-// generator (0 Points inputs -> falls to "Count"), modifier (1 Points input -> that input's
-// count, unchanged), and combine (N Points inputs -> the concatenated total). A node with a
-// "Count" port wins regardless (generators only).
-//
-// "Count" resolves exactly like evalParam's value spine (graph.cpp), scoped to THIS node:
-// a CONNECTION into the Count pin wins (recurse evalFloat upstream) — so wiring a value node
-// (Const, AudioReaction.level, …) into Count drives the bag size — else the stored param, else
-// the spec default. Pre-fix this was wire-blind (param/default only), silently using e.g. 2048
-// for an audio-reactive Count wire; cookResident's resolveFloat already does the right thing.
-uint32_t nodeCount(const Graph& g, const Node& n, const NodeSpec& s,
-                   const EvaluationContext& ctx, uint32_t sumPointsCount) {
-  for (size_t i = 0; i < s.ports.size(); ++i) {
-    const PortSpec& p = s.ports[i];
-    if (!(p.isInput && p.dataType == "Float" && p.id == "Count")) continue;
-    float v;
-    if (const Connection* c = g.connectionToInput(pinId(n.id, (int)i)))
-      v = evalFloat(g, c->fromPin, ctx, 0);  // wired: resolve through the value spine
-    else {
-      auto it = n.params.find("Count");
-      v = (it != n.params.end()) ? it->second : p.def;  // stored constant else spec default
-    }
-    return v > 0.0f ? (uint32_t)(v + 0.5f) : 0u;
-  }
-  return sumPointsCount;
-}
-
-}  // namespace
+}  // namespace pgdetail
 
 void registerPointOp(const std::string& type, PointCookFn cook, PointStateNewFn stNew,
                      PointStateFreeFn stFree) {
-  cookReg()[type] = OpReg{cook, stNew, stFree};
+  cookReg()[type] = pgdetail::OpReg{cook, stNew, stFree};
 }
 void registerDrawOp(const std::string& type, PointDrawFn draw) { drawReg()[type] = draw; }
 void registerCmdOp(const std::string& type, PointCmdFn cmd) { cmdReg()[type] = cmd; }
@@ -86,89 +52,36 @@ void registerTexOp(const std::string& type, PointTexFn tex) { texReg()[type] = t
 
 // registerBuiltinPointOps() is defined in point_ops.cpp (the real operators).
 
+// --- resolved-param accessors (the slice-2b seam; PointCookCtx::params docs) ---
+namespace {
+float mapParam(const std::map<std::string, float>* m, const char* id, float def) {
+  if (!m) return def;
+  auto it = m->find(id);
+  return it != m->end() ? it->second : def;
+}
+void mapVecN(const std::map<std::string, float>* m, const char* base, const float* fallback,
+             int n, float* out) {
+  static const char* kSuffix[4] = {".x", ".y", ".z", ".w"};
+  for (int i = 0; i < n && i < 4; ++i)
+    out[i] = mapParam(m, (std::string(base) + kSuffix[i]).c_str(), fallback[i]);
+}
+}  // namespace
+
+float cookParam(const PointCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
+float cookParam(const CmdCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
+float cookParam(const TexCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
+void cookVecN(const PointCookCtx& c, const char* base, const float* fallback, int n, float* out) {
+  mapVecN(c.params, base, fallback, n, out);
+}
+void cookVecN(const TexCookCtx& c, const char* base, const float* fallback, int n, float* out) {
+  mapVecN(c.params, base, fallback, n, out);
+}
+float cookInputParam(const PointCookCtx& c, int input, const char* id, float def) {
+  if (!c.inputParams || input < 0 || input >= c.inputCount) return def;
+  return mapParam(c.inputParams[input], id, def);
+}
+
 // ---------------------------------------------------------------------------
-
-struct PointGraph::Impl {
-  MTL::Device* dev = nullptr;
-  MTL::Library* lib = nullptr;
-  MTL::CommandQueue* queue = nullptr;
-  MTL::Texture* target = nullptr;
-  uint32_t width = 0, height = 0;
-
-  // Per-node persistent resources (reused across frames; the RESOURCE_LIFETIME golden:
-  // allocate → reuse (count unchanged) → reallocate (count grew)).
-  std::map<int, MTL::Buffer*> outBuf;    // node id -> output point buffer
-  std::map<int, uint32_t> outCap;        // node id -> allocated capacity (points)
-  std::map<int, uint32_t> outCount;      // node id -> last cooked count (points)
-  std::map<int, void*> state;            // node id -> stateful-op memory
-  std::map<int, PointStateFreeFn> stateFree;
-
-  // Per-node RenderTarget textures (the Texture2D stream's resources; realloc on resolution
-  // change — RESOURCE_LIFETIME). displayTex = the texture target() shows this frame: a tex
-  // terminal's own resolution-sized texture, or null -> fall back to the window-sized `target`.
-  std::map<int, MTL::Texture*> texBuf;
-  std::map<int, uint32_t> texW, texH;
-  MTL::Texture* displayTex = nullptr;
-
-  MTL::Buffer* ensureOut(int id, uint32_t count) {
-    MTL::Buffer*& b = outBuf[id];
-    if (!b || outCap[id] < count) {
-      if (b) b->release();
-      uint32_t cap = count > 0 ? count : 1;  // never alloc zero
-      b = dev->newBuffer((NS::UInteger)cap * sizeof(SwPoint), MTL::ResourceStorageModeShared);
-      outCap[id] = cap;
-    }
-    outCount[id] = count;
-    return b;
-  }
-
-  // The RenderTarget node's own output texture, sized to its resolved resolution. Reused across
-  // frames; reallocated only when w/h change (RESOURCE_LIFETIME). Owned (newTexture) -> released
-  // on realloc + in the destructor; the descriptor is an autoreleased factory (frame pool owns it).
-  MTL::Texture* ensureTex(int id, uint32_t w, uint32_t h) {
-    if (w == 0) w = 1;
-    if (h == 0) h = 1;
-    MTL::Texture*& t = texBuf[id];
-    if (!t || texW[id] != w || texH[id] != h) {
-      if (t) t->release();
-      MTL::TextureDescriptor* td =
-          MTL::TextureDescriptor::texture2DDescriptor(kTargetFormat, w, h, false);
-      td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
-      td->setStorageMode(MTL::StorageModeShared);
-      t = dev->newTexture(td);
-      texW[id] = w;
-      texH[id] = h;
-    }
-    return t;
-  }
-
-  void* ensureState(int id, const std::string& type, uint32_t count) {
-    auto it = state.find(id);
-    if (it != state.end()) return it->second;
-    auto r = cookReg().find(type);
-    if (r != cookReg().end() && r->second.stateNew) {
-      void* st = r->second.stateNew(dev, lib, count);
-      state[id] = st;
-      stateFree[id] = r->second.stateFree;
-      return st;
-    }
-    state[id] = nullptr;
-    return nullptr;
-  }
-
-  void clearTarget() {
-    MTL::RenderPassDescriptor* rpd = MTL::RenderPassDescriptor::renderPassDescriptor();
-    auto* ca = rpd->colorAttachments()->object(0);
-    ca->setTexture(target);
-    ca->setLoadAction(MTL::LoadActionClear);
-    ca->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 1.0));
-    ca->setStoreAction(MTL::StoreActionStore);
-    MTL::CommandBuffer* cmd = queue->commandBuffer();
-    cmd->renderCommandEncoder(rpd)->endEncoding();
-    cmd->commit();
-    cmd->waitUntilCompleted();
-  }
-};
 
 PointGraph::PointGraph(MTL::Device* dev, MTL::Library* lib, MTL::CommandQueue* queue, uint32_t width,
                        uint32_t height)
@@ -179,7 +92,7 @@ PointGraph::PointGraph(MTL::Device* dev, MTL::Library* lib, MTL::CommandQueue* q
   p_->width = width;
   p_->height = height;
   MTL::TextureDescriptor* td =
-      MTL::TextureDescriptor::texture2DDescriptor(kTargetFormat, width, height, false);
+      MTL::TextureDescriptor::texture2DDescriptor(kPointTargetFormat, width, height, false);
   td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
   td->setStorageMode(MTL::StorageModeShared);
   p_->target = dev->newTexture(td);
@@ -229,6 +142,21 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   if (!target || !ts) { p_->clearTarget(); return; }  // no/unknown target -> black, no crash
 
   std::map<int, MTL::Buffer*> cooked;  // this-frame memo (cook each node once)
+
+  // Per-node resolved Float params (the 2b seam): resolved ONCE per node per cook through the
+  // full value spine (override → binding → wire → stored → default, graph.cpp), then handed to
+  // the op via PointCookCtx::params. Stored in a node-keyed memo so pointers stay stable for
+  // the whole cook (ops + inputParams point into it).
+  std::map<int, std::map<std::string, float>> paramsMemo;
+  std::function<const std::map<std::string, float>*(int)> nodeParams =
+      [&](int id) -> const std::map<std::string, float>* {
+    auto it = paramsMemo.find(id);
+    if (it != paramsMemo.end()) return &it->second;
+    const Node* n = g.node(id);
+    if (!n) return nullptr;
+    return &(paramsMemo[id] = resolveNodeParams(g, *n, ctx, reg));
+  };
+
   std::function<MTL::Buffer*(int)> cookNode = [&](int id) -> MTL::Buffer* {
     auto m = cooked.find(id);
     if (m != cooked.end()) return m->second;
@@ -237,26 +165,41 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     const NodeSpec* s = findSpec(n->type);
     if (!s) return nullptr;
 
-    // Gather buffer inputs (Points + ParticleForce input ports, in spec order) + their counts.
+    // Gather buffer inputs (Points + ParticleForce input ports, in spec order) + their counts
+    // + the feeding node's resolved params (force ops read these via cookInputParam).
     // sumPointsCount = total over ALL wired Points inputs (combine concatenates; modifier/
     // generator have <=1 so it equals the old first-input behavior).
     std::vector<const MTL::Buffer*> ins;
     std::vector<uint32_t> insCounts;
+    std::vector<const std::map<std::string, float>*> insParams;
     uint32_t sumPointsCount = 0;
     for (size_t i = 0; i < s->ports.size(); ++i) {
       const PortSpec& port = s->ports[i];
       if (!isBufferInput(port)) continue;
       const Connection* c = g.connectionToInput(pinId(id, (int)i));
       MTL::Buffer* ub = c ? cookNode(pinNode(c->fromPin)) : nullptr;
-      uint32_t inCount = (c && ub) ? p_->outCount[pinNode(c->fromPin)] : 0u;
+      uint32_t inCount = (c && ub) ? p_->outCount[flatKey(pinNode(c->fromPin))] : 0u;
       ins.push_back(ub);
       insCounts.push_back(inCount);
+      insParams.push_back(c ? nodeParams(pinNode(c->fromPin)) : nullptr);
       if (port.dataType == "Points") sumPointsCount += inCount;
     }
 
-    uint32_t count = nodeCount(g, *n, *s, ctx, sumPointsCount);
-    MTL::Buffer* out = p_->ensureOut(id, count);
-    void* st = p_->ensureState(id, n->type, count);
+    const std::map<std::string, float>* params = nodeParams(id);
+
+    // count: a "Count" Float input (generators) resolved through the value spine (the resolved
+    // map already holds wire/stored/default — the 7d4b34e contract), else the sum of all wired
+    // Points inputs (modifier passes through, combine concatenates).
+    uint32_t count = sumPointsCount;
+    for (const PortSpec& port : s->ports)
+      if (port.isInput && port.dataType == "Float" && port.id == "Count") {
+        float v = mapParam(params, "Count", port.def);
+        count = v > 0.0f ? (uint32_t)(v + 0.5f) : 0u;
+        break;
+      }
+
+    MTL::Buffer* out = p_->ensureOut(flatKey(id), count);
+    void* st = p_->ensureState(flatKey(id), n->type, count);
 
     PointCookCtx cc;
     cc.dev = p_->dev; cc.lib = p_->lib; cc.queue = p_->queue;
@@ -264,6 +207,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.nodeId = id; cc.count = count;
     cc.inputs = ins.data(); cc.inputCounts = insCounts.data(); cc.inputCount = (int)ins.size();
     cc.output = out; cc.state = st;
+    cc.params = params; cc.inputParams = insParams.data();
     auto r = cookReg().find(n->type);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[id] = out;
@@ -294,12 +238,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       const PortSpec& port = s->ports[i];
       if (!(port.isInput && port.dataType == "Points")) continue;
       const Connection* c = g.connectionToInput(pinId(id, (int)i));
-      if (c) { pts = cookNode(pinNode(c->fromPin)); cnt = p_->outCount[pinNode(c->fromPin)]; }
+      if (c) { pts = cookNode(pinNode(c->fromPin)); cnt = p_->outCount[flatKey(pinNode(c->fromPin))]; }
       break;
     }
     CmdCookCtx cc;
     cc.ctx = &ctx; cc.graph = &g; cc.reg = reg;
     cc.nodeId = id; cc.points = pts; cc.count = cnt;
+    cc.params = nodeParams(id);
     return cm->second(cc);
   };
 
@@ -313,6 +258,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
     tc.ctx = &ctx; tc.graph = &g; tc.reg = reg;
     tc.nodeId = nodeId; tc.command = &chain; tc.output = p_->target;
+    tc.params = nodeParams(nodeId);
     tx->second(tc);
   };
 
@@ -329,7 +275,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       const PortSpec& port = ts->ports[i];
       if (!(port.isInput && port.dataType == "Points")) continue;
       const Connection* c = g.connectionToInput(pinId(target->id, (int)i));
-      if (c) { pts = cookNode(pinNode(c->fromPin)); drawCount = p_->outCount[pinNode(c->fromPin)]; }
+      if (c) {
+        pts = cookNode(pinNode(c->fromPin));
+        drawCount = p_->outCount[flatKey(pinNode(c->fromPin))];
+      }
       break;
     }
     PointCookCtx dc;
@@ -337,6 +286,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     dc.ctx = &ctx; dc.graph = &g; dc.reg = reg;
     dc.nodeId = target->id; dc.count = drawCount;
     dc.inputs = nullptr; dc.inputCount = 0; dc.output = nullptr; dc.state = nullptr;
+    dc.params = nodeParams(target->id);
     drawIt->second(dc, p_->target, pts);
     return;
   }
@@ -346,8 +296,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     // Texture terminal (RenderTarget): size its OWN texture from the Resolution pin (the live
     // window size is WindowFollow's source), concat all upstream Command inputs, run its tex op
     // into that texture, and show it. p_->target stays the window-sized fallback for cmd/preview.
-    RenderResolution res = resolveRenderResolution(target, RenderResolution{p_->width, p_->height});
-    MTL::Texture* tex = p_->ensureTex(target->id, res.w, res.h);
+    const std::map<std::string, float>* tp = nodeParams(target->id);
+    RenderResolution res = resolveRenderResolution(
+        tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
+    MTL::Texture* tex = p_->ensureTex(flatKey(target->id), res.w, res.h);
     RenderCommand chain;
     for (size_t i = 0; i < ts->ports.size(); ++i) {
       const PortSpec& port = ts->ports[i];
@@ -361,6 +313,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
     tc.ctx = &ctx; tc.graph = &g; tc.reg = reg;
     tc.nodeId = target->id; tc.command = &chain; tc.output = tex;
+    tc.params = tp;
     texIt->second(tc);
     p_->displayTex = tex;  // viewport shows the resolution-sized texture
   } else if (cmdReg().find(target->type) != cmdReg().end()) {
@@ -377,7 +330,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       if (!port.isInput) { outPort = &port; break; }
     if (out && outPort && outPort->dataType == "Points") {
       RenderCommand chain;
-      chain.items.push_back(RenderDrawItem{out, p_->outCount[targetNodeId], 3.5f});
+      chain.items.push_back(RenderDrawItem{out, p_->outCount[flatKey(targetNodeId)], 3.5f});
       execIntoTarget(chain, "RenderTarget", targetNodeId);
     } else {
       p_->clearTarget();  // no visualizer for this output type yet (§5)
@@ -385,105 +338,6 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   }
 }
 
-void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationContext& ctx,
-                              const SourceRegistry* reg, const std::string& targetPath) {
-  std::map<std::string, MTL::Buffer*> cooked;       // per-cook memo (cook each path once)
-  std::map<std::string, uint32_t> cookedCount;      // path -> cooked point count
-  std::vector<MTL::Buffer*> owned;                  // buffers allocated this cook (released at end)
-
-  // Resolve a Float input's value through its driver (mirrors evalResidentFloat's input switch).
-  auto resolveFloat = [&](const ResidentNode& n, const PortSpec& port) -> float {
-    const ResidentInput* ri = n.input(port.id);
-    if (!ri) return port.def;
-    if (ri->driver == ResidentInput::Driver::Connection) {
-      ResidentEvalCtx rc; rc.frameIndex = ctx.frameIndex; rc.localFxTime = ctx.time; rc.localTime = ctx.time;
-      return evalResidentFloat(rg, ri->srcNodePath, ri->srcSlotId, rc);
-    }
-    if (ri->driver == ResidentInput::Driver::Automation) return 0.0f;  // S3 stub
-    return ri->constant;  // Constant
-  };
-
-  std::function<MTL::Buffer*(const std::string&)> cookNode = [&](const std::string& path) -> MTL::Buffer* {
-    auto m = cooked.find(path);
-    if (m != cooked.end()) return m->second;
-    const ResidentNode* n = rg.node(path);
-    if (!n) return nullptr;
-    const NodeSpec* s = findSpec(n->opType);
-    if (!s) return nullptr;
-
-    // Gather buffer inputs (Points + ParticleForce, spec order) via Connection drivers.
-    std::vector<const MTL::Buffer*> ins;
-    std::vector<uint32_t> insCounts;
-    uint32_t sumPointsCount = 0;
-    for (const PortSpec& port : s->ports) {
-      if (!isBufferInput(port)) continue;
-      const ResidentInput* ri = n->input(port.id);
-      MTL::Buffer* ub = nullptr;
-      uint32_t inCount = 0;
-      if (ri && ri->driver == ResidentInput::Driver::Connection) {
-        ub = cookNode(ri->srcNodePath);
-        inCount = ub ? cookedCount[ri->srcNodePath] : 0u;
-      }
-      ins.push_back(ub);
-      insCounts.push_back(inCount);
-      if (port.dataType == "Points") sumPointsCount += inCount;
-    }
-
-    // count: a "Count" Float input (generators) resolved through its driver, else sum of Points.
-    uint32_t count = sumPointsCount;
-    for (const PortSpec& port : s->ports)
-      if (port.isInput && port.dataType == "Float" && port.id == "Count") {
-        float v = resolveFloat(*n, port);
-        count = v > 0.0f ? (uint32_t)(v + 0.5f) : 0u;
-        break;
-      }
-
-    uint32_t cap = count > 0 ? count : 1;  // never alloc zero
-    MTL::Buffer* out = p_->dev->newBuffer((NS::UInteger)cap * sizeof(SwPoint),
-                                          MTL::ResourceStorageModeShared);
-    owned.push_back(out);
-
-    PointCookCtx cc;
-    cc.dev = p_->dev; cc.lib = p_->lib; cc.queue = p_->queue;
-    cc.ctx = &ctx; cc.graph = nullptr; cc.reg = reg;  // resident path: ops read no flat graph (slice 2 stubs)
-    cc.nodeId = 0; cc.count = count;
-    cc.inputs = ins.data(); cc.inputCounts = insCounts.data(); cc.inputCount = (int)ins.size();
-    cc.output = out; cc.state = nullptr;               // stateful resident ops = slice 2b
-    auto r = cookReg().find(n->opType);
-    if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
-    cooked[path] = out;
-    cookedCount[path] = count;
-    return out;
-  };
-
-  // Terminal. Slice 2 supports a COMMAND terminal (capture op): resolve its Points input bag and
-  // call the cmd op. (Texture executor + preview = slice 2b.) Unknown terminal -> nothing captured.
-  const ResidentNode* tn = rg.node(targetPath);
-  const NodeSpec* ts = tn ? findSpec(tn->opType) : nullptr;
-  if (tn && ts) {
-    auto cm = cmdReg().find(tn->opType);
-    if (cm != cmdReg().end() && cm->second) {
-      MTL::Buffer* pts = nullptr;
-      uint32_t cnt = 0;
-      for (const PortSpec& port : ts->ports) {
-        if (!(port.isInput && port.dataType == "Points")) continue;
-        const ResidentInput* ri = tn->input(port.id);
-        if (ri && ri->driver == ResidentInput::Driver::Connection) {
-          pts = cookNode(ri->srcNodePath);
-          cnt = cookedCount[ri->srcNodePath];
-        }
-        break;
-      }
-      CmdCookCtx cc;
-      cc.ctx = &ctx; cc.graph = nullptr; cc.reg = reg;
-      cc.nodeId = 0; cc.points = pts; cc.count = cnt;
-      cm->second(cc);
-    } else {
-      cookNode(targetPath);  // buffer-producing terminal (preview): cook it; visualizer = slice 2b
-    }
-  }
-
-  for (MTL::Buffer* b : owned) b->release();  // slice 2 = single-cook; cross-frame cache = slice 4
-}
+// cookResident lives in point_graph_resident.cpp (same Impl via point_graph_internal.h).
 
 }  // namespace sw

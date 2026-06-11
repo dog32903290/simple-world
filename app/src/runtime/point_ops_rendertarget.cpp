@@ -36,10 +36,9 @@
 namespace sw {
 namespace {
 
-float paramOr(const Node* n, const char* id, float def) {
-  if (!n) return def;
-  auto it = n->params.find(id);
-  return it != n->params.end() ? it->second : def;
+float paramOr(const std::map<std::string, float>& params, const char* id, float def) {
+  auto it = params.find(id);
+  return it != params.end() ? it->second : def;
 }
 
 // RenderTarget draw: build the draw_points pipeline, open one render pass on `output`,
@@ -67,9 +66,7 @@ void cookRenderTarget(TexCookCtx& c) {
   ca->setTexture(c.output);
   ca->setLoadAction(MTL::LoadActionClear);
   float cc[4] = {0.0f, 0.0f, 0.0f, 1.0f};  // ClearColor param (Vec4); default black, opaque.
-  if (c.graph) {
-    if (const Node* n = c.graph->node(c.nodeId)) readVecN(*n, "ClearColor", cc, 4, cc);
-  }
+  cookVecN(c, "ClearColor", cc, 4, cc);
   ca->setClearColor(MTL::ClearColor::Make(cc[0], cc[1], cc[2], cc[3]));
   ca->setStoreAction(MTL::StoreActionStore);
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
@@ -93,20 +90,27 @@ void cookRenderTarget(TexCookCtx& c) {
 }  // namespace
 
 // Resolution enum (Float param + Widget::Enum): WindowFollow tracks `windowSize`; the
-// fixed modes ignore it and pin a standard output size; Custom reads CustomW/H.
-RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowSize) {
-  int mode = (int)std::lround(paramOr(n, "Resolution", 0.0f));
+// fixed modes ignore it and pin a standard output size; Custom reads CustomW/H. The map
+// overload is the core (flat AND resident drivers pass their resolved params); the Node*
+// overload wraps it (a node's stored params ARE a map) for flat callers/selftests.
+RenderResolution resolveRenderResolution(const std::map<std::string, float>& params,
+                                         RenderResolution windowSize) {
+  int mode = (int)std::lround(paramOr(params, "Resolution", 0.0f));
   switch (mode) {
     case 1: return {1280, 720};    // HD720
     case 2: return {1920, 1080};   // HD1080
     case 3: return {3840, 2160};   // UHD4K
     case 4: {                      // Custom
-      uint32_t w = (uint32_t)std::lround(std::fmax(1.0f, paramOr(n, "CustomW", 512.0f)));
-      uint32_t h = (uint32_t)std::lround(std::fmax(1.0f, paramOr(n, "CustomH", 512.0f)));
+      uint32_t w = (uint32_t)std::lround(std::fmax(1.0f, paramOr(params, "CustomW", 512.0f)));
+      uint32_t h = (uint32_t)std::lround(std::fmax(1.0f, paramOr(params, "CustomH", 512.0f)));
       return {w, h};
     }
     default: return windowSize;    // WindowFollow (0)
   }
+}
+RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowSize) {
+  static const std::map<std::string, float> kEmpty;
+  return resolveRenderResolution(n ? n->params : kEmpty, windowSize);
 }
 
 void registerRenderTargetOp() { registerTexOp("RenderTarget", cookRenderTarget); }

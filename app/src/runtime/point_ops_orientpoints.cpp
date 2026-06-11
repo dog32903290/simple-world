@@ -30,12 +30,6 @@
 namespace sw {
 namespace {
 
-float paramOr(const Node* n, const char* id, float def) {
-  if (!n) return def;
-  auto it = n->params.find(id);
-  return it != n->params.end() ? it->second : def;
-}
-
 // OrientPoints modifier: dispatch the orientpoints kernel input bag -> output bag.
 // count comes from c.count (inherited from the upstream Points bag). No input bag = safe no-op.
 void cookOrientPoints(PointCookCtx& c) {
@@ -50,18 +44,15 @@ void cookOrientPoints(PointCookCtx& c) {
   fn->release();
   if (!pso) return;
 
-  const Node* n = c.graph ? c.graph->node(c.nodeId) : nullptr;
   OrientParams P{};
   P.Count = c.count;
-  P.AmountFactor = (int)(paramOr(n, "AmountFactor", 0.0f) + 0.5f);
-  P.Flip = (int)(paramOr(n, "Flip", 0.0f) + 0.5f);
-  P.OrientationMode = (int)(paramOr(n, "OrientationMode", 0.0f) + 0.5f);
-  P.Amount = paramOr(n, "Amount", 1.0f);
+  P.AmountFactor = (int)(cookParam(c, "AmountFactor", 0.0f) + 0.5f);
+  P.Flip = (int)(cookParam(c, "Flip", 0.0f) + 0.5f);
+  P.OrientationMode = (int)(cookParam(c, "OrientationMode", 0.0f) + 0.5f);
+  P.Amount = cookParam(c, "Amount", 1.0f);
   float target[3] = {0, 0, 0}, up[3] = {0, 1, 0};
-  if (n) {
-    readVecN(*n, "Target", target, 3, target);
-    readVecN(*n, "UpVector", up, 3, up);
-  }
+  cookVecN(c, "Target", target, 3, target);
+  cookVecN(c, "UpVector", up, 3, up);
   P.TargetX = target[0]; P.TargetY = target[1]; P.TargetZ = target[2];
   P.UpVectorX = up[0]; P.UpVectorY = up[1]; P.UpVectorZ = up[2];
 

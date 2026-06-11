@@ -94,8 +94,10 @@ add_executable(simple_world
   src/runtime/node_registry.cpp
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
+  src/runtime/point_graph_resident.cpp
   src/runtime/point_graph_selftest.cpp
   src/runtime/resident_cook_selftest.cpp
+  src/runtime/resident_cook_parity_selftest.cpp
   src/runtime/compound_graph.cpp
   src/runtime/compound_graph_selftest.cpp
   src/runtime/resident_eval_graph.cpp

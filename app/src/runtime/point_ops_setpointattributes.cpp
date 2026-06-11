@@ -30,12 +30,6 @@
 namespace sw {
 namespace {
 
-float paramOr(const Node* n, const char* id, float def) {
-  if (!n) return def;
-  auto it = n->params.find(id);
-  return it != n->params.end() ? it->second : def;
-}
-
 // SetPointAttributes modifier: dispatch the setpointattributes kernel input bag -> output bag.
 // count comes from c.count (inherited from the upstream Points bag). No input bag = safe no-op.
 void cookSetPointAttributes(PointCookCtx& c) {
@@ -51,32 +45,29 @@ void cookSetPointAttributes(PointCookCtx& c) {
   fn->release();
   if (!pso) return;
 
-  const Node* n = c.graph ? c.graph->node(c.nodeId) : nullptr;
   SetPointAttributesParams P{};
   P.Count = c.count;
-  P.Amount = paramOr(n, "Amount", 1.0f);
-  P.AmountFactor = (int)(paramOr(n, "AmountFactor", 0.0f) + 0.5f);
+  P.Amount = cookParam(c, "Amount", 1.0f);
+  P.AmountFactor = (int)(cookParam(c, "AmountFactor", 0.0f) + 0.5f);
 
-  P.SetPosition = paramOr(n, "SetPosition", 0.0f) > 0.5f ? 1 : 0;
-  P.SetRotation = paramOr(n, "SetRotation", 0.0f) > 0.5f ? 1 : 0;
-  P.SetStretch = paramOr(n, "SetStretch", 0.0f) > 0.5f ? 1 : 0;
-  P.SetFx1 = paramOr(n, "SetFx1", 0.0f) > 0.5f ? 1 : 0;
-  P.SetFx2 = paramOr(n, "SetFx2", 0.0f) > 0.5f ? 1 : 0;
-  P.SetColor = paramOr(n, "SetColor", 0.0f) > 0.5f ? 1 : 0;
+  P.SetPosition = cookParam(c, "SetPosition", 0.0f) > 0.5f ? 1 : 0;
+  P.SetRotation = cookParam(c, "SetRotation", 0.0f) > 0.5f ? 1 : 0;
+  P.SetStretch = cookParam(c, "SetStretch", 0.0f) > 0.5f ? 1 : 0;
+  P.SetFx1 = cookParam(c, "SetFx1", 0.0f) > 0.5f ? 1 : 0;
+  P.SetFx2 = cookParam(c, "SetFx2", 0.0f) > 0.5f ? 1 : 0;
+  P.SetColor = cookParam(c, "SetColor", 0.0f) > 0.5f ? 1 : 0;
 
   float pos[3] = {0, 0, 0}, axis[3] = {0, 1, 0}, str[3] = {1, 1, 1}, col[4] = {1, 1, 1, 1};
-  if (n) {
-    readVecN(*n, "Position", pos, 3, pos);
-    readVecN(*n, "RotationAxis", axis, 3, axis);
-    readVecN(*n, "Stretch", str, 3, str);
-    readVecN(*n, "Color", col, 4, col);
-  }
+  cookVecN(c, "Position", pos, 3, pos);
+  cookVecN(c, "RotationAxis", axis, 3, axis);
+  cookVecN(c, "Stretch", str, 3, str);
+  cookVecN(c, "Color", col, 4, col);
   P.PositionX = pos[0]; P.PositionY = pos[1]; P.PositionZ = pos[2];
   P.RotationAxisX = axis[0]; P.RotationAxisY = axis[1]; P.RotationAxisZ = axis[2];
-  P.RotationAngle = paramOr(n, "RotationAngle", 0.0f);
+  P.RotationAngle = cookParam(c, "RotationAngle", 0.0f);
   P.StretchX = str[0]; P.StretchY = str[1]; P.StretchZ = str[2];
-  P.Fx1 = paramOr(n, "Fx1", 0.0f);
-  P.Fx2 = paramOr(n, "Fx2", 0.0f);
+  P.Fx1 = cookParam(c, "Fx1", 0.0f);
+  P.Fx2 = cookParam(c, "Fx2", 0.0f);
   P.ColorR = col[0]; P.ColorG = col[1]; P.ColorB = col[2]; P.ColorA = col[3];
 
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();

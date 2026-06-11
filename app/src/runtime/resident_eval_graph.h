@@ -93,6 +93,13 @@ ResidentEvalGraph buildEvalGraph(const SymbolLibrary& lib, const std::string& ro
 // breaks cycles. Automation driver returns 0 (S3 stub).
 float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
                         const std::string& outSlotId, const ResidentEvalCtx& ctx, int depth = 0);
+// Resolve EVERY Float input port of one resident node through its driver (Constant value /
+// Connection -> evalResidentFloat / Automation -> S3 stub), keyed by port id. The resident
+// cook driver hands this map to ops (PointCookCtx::params — the slice-2b seam, mirror of
+// flat resolveNodeParams). Ports with no resident input fall back to the spec default.
+std::map<std::string, float> resolveResidentFloatInputs(const ResidentEvalGraph& g,
+                                                        const ResidentNode& n,
+                                                        const ResidentEvalCtx& ctx);
 
 // --- batch 1b cache API (resident_eval_cache.cpp) ---
 // Populate each node's per-output cache (one entry per NodeSpec output port) and mark live

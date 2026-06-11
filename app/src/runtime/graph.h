@@ -126,6 +126,14 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
 // EvaluationContext now (it arrives via tixl_point.h -> eval_context.h, the S0 split).
 float evalParam(const Graph& g, const std::string& type, const std::string& paramId,
                 const EvaluationContext& ctx, float fallback, const SourceRegistry* reg = nullptr);
+// Resolve EVERY Float input port of a SPECIFIC node through the same value spine as evalParam
+// (override → binding → wire → stored → spec default), keyed by port id. The cook drivers hand
+// this map to ops (PointCookCtx::params, the slice-2b seam) so op bodies never walk the graph —
+// and so a Connection into ANY Float param drives it (per-node, reuse-safe; evalParam stays the
+// legacy first-of-type read for value-spine callers).
+std::map<std::string, float> resolveNodeParams(const Graph& g, const Node& n,
+                                               const EvaluationContext& ctx,
+                                               const SourceRegistry* reg = nullptr);
 // Read a vector param off a SPECIFIC node: its `n` components are Float ports stored as
 // params["<base>.x"/".y"/".z"/".w"]. Cook fns read the node they are cooking (c.nodeId),
 // NOT first-of-type — generators get instanced many times, so first-of-type would feed the

@@ -33,14 +33,8 @@
 namespace sw {
 namespace {
 
-float paramOr(const Node* n, const char* id, float def) {
-  if (!n) return def;
-  auto it = n->params.find(id);
-  return it != n->params.end() ? it->second : def;
-}
-
 // GridPoints generator: writes a 3D grid of SwPoints. Counts per axis (scalar Float),
-// Size/Center/Pivot via readVecN (vector params), SizeMode (Cell|Bounds) scalar.
+// Size/Center/Pivot via cookVecN (vector params), SizeMode (Cell|Bounds) scalar.
 void cookGridPoints(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.lib) return;
   MTL::Function* fn = c.lib->newFunction(NS::String::string("gridpoints", NS::UTF8StringEncoding));
@@ -50,22 +44,19 @@ void cookGridPoints(PointCookCtx& c) {
   fn->release();
   if (!pso) return;
 
-  const Node* n = c.graph ? c.graph->node(c.nodeId) : nullptr;
   GridParams P{};
-  P.CountX = (uint32_t)std::lround(std::fmax(1.0f, paramOr(n, "CountX", 10.0f)));
-  P.CountY = (uint32_t)std::lround(std::fmax(1.0f, paramOr(n, "CountY", 10.0f)));
-  P.CountZ = (uint32_t)std::lround(std::fmax(1.0f, paramOr(n, "CountZ", 1.0f)));
-  P.SizeMode = (uint32_t)(paramOr(n, "SizeMode", 0.0f) > 0.5f ? 1u : 0u);
-  P.PointScale = paramOr(n, "PointScale", 1.0f);
+  P.CountX = (uint32_t)std::lround(std::fmax(1.0f, cookParam(c, "CountX", 10.0f)));
+  P.CountY = (uint32_t)std::lround(std::fmax(1.0f, cookParam(c, "CountY", 10.0f)));
+  P.CountZ = (uint32_t)std::lround(std::fmax(1.0f, cookParam(c, "CountZ", 1.0f)));
+  P.SizeMode = (uint32_t)(cookParam(c, "SizeMode", 0.0f) > 0.5f ? 1u : 0u);
+  P.PointScale = cookParam(c, "PointScale", 1.0f);
 
   float size[3] = {1.0f, 1.0f, 1.0f};
   float center[3] = {0.0f, 0.0f, 0.0f};
   float pivot[3] = {0.0f, 0.0f, 0.0f};
-  if (n) {
-    readVecN(*n, "Size", size, 3, size);
-    readVecN(*n, "Center", center, 3, center);
-    readVecN(*n, "Pivot", pivot, 3, pivot);
-  }
+  cookVecN(c, "Size", size, 3, size);
+  cookVecN(c, "Center", center, 3, center);
+  cookVecN(c, "Pivot", pivot, 3, pivot);
   P.SizeX = size[0]; P.SizeY = size[1]; P.SizeZ = size[2];
   P.CenterX = center[0]; P.CenterY = center[1]; P.CenterZ = center[2];
   P.PivotX = pivot[0]; P.PivotY = pivot[1]; P.PivotZ = pivot[2];

@@ -21,12 +21,6 @@
 namespace sw {
 namespace {
 
-float paramOr(const Node* n, const char* id, float def) {
-  if (!n) return def;
-  auto it = n->params.find(id);
-  return it != n->params.end() ? it->second : def;
-}
-
 // RadialPoints generator: dispatch the radial_points kernel into the node's output bag.
 // Reads the Float params it has today (Count via ctx.count; Radius/RadiusOffset/StartAngle/
 // Cycles from the node) + Center via readVecN (first vector param on the contract). TiXL's
@@ -43,17 +37,16 @@ void cookRadialPoints(PointCookCtx& c) {
   fn->release();
   if (!pso) return;
 
-  const Node* n = c.graph ? c.graph->node(c.nodeId) : nullptr;
   RadialParams P{};
   P.Count = c.count;
-  P.Radius = paramOr(n, "Radius", 2.0f);
-  P.RadiusOffset = paramOr(n, "RadiusOffset", 0.0f);
-  P.StartAngle = paramOr(n, "StartAngle", 0.0f);
-  P.Cycles = paramOr(n, "Cycles", 1.0f);
+  P.Radius = cookParam(c, "Radius", 2.0f);
+  P.RadiusOffset = cookParam(c, "RadiusOffset", 0.0f);
+  P.StartAngle = cookParam(c, "StartAngle", 0.0f);
+  P.Cycles = cookParam(c, "Cycles", 1.0f);
   P.ScaleBase = 1.0f;
   P.ScaleByF = 0.0f;
   float center[3] = {0.0f, 0.0f, 0.0f};
-  if (n) readVecN(*n, "Center", center, 3, center);  // TiXL Center (Vector3), per-node
+  cookVecN(c, "Center", center, 3, center);  // TiXL Center (Vector3), per-node
   P.CenterX = center[0]; P.CenterY = center[1]; P.CenterZ = center[2];
 
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
@@ -122,9 +115,10 @@ void simStateFree(void* p) {
 
 // ParticleSystem sim op: emit bag (input[0], from RadialPoints) -> persistent particles ->
 // per-frame turbulence + integrate -> result bag (output). Faithful to ParticleSystem's
-// runTurbulence + runSim (same params/kernels). Speed/Drag + turbulence are read by TYPE via
-// evalParam — exactly as the current live loop does (TurbulenceForce as a real ParticleForce
-// buffer is a future refinement; reading-by-type matches today = no regression).
+// runTurbulence + runSim (same params/kernels). Speed/Drag come from THIS node's resolved
+// params; turbulence params from the node WIRED into the forces input (cookInputParam — the
+// 2b seam; replaces the legacy read-by-TYPE evalParam, which breaks under reuse). No force
+// wired -> no turbulence pass (TiXL: a force is an input, not an ambient global).
 void cookParticleSim(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.state || !c.ctx) return;
   SimState* s = static_cast<SimState*>(c.state);
@@ -132,10 +126,12 @@ void cookParticleSim(PointCookCtx& c) {
   const MTL::Buffer* emit = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   if (!emit) return;  // no emit bag -> nothing to seed/sim
 
-  const float speed = c.graph ? evalParam(*c.graph, "ParticleSystem", "Speed", *c.ctx, 1.0f, c.reg) : 1.0f;
-  const float drag = c.graph ? evalParam(*c.graph, "ParticleSystem", "Drag", *c.ctx, 0.02f, c.reg) : 0.02f;
-  const float turbAmt = c.graph ? evalParam(*c.graph, "TurbulenceForce", "Amount", *c.ctx, 15.0f, c.reg) : 15.0f;
-  const float turbFreq = c.graph ? evalParam(*c.graph, "TurbulenceForce", "Frequency", *c.ctx, 1.2f, c.reg) : 1.2f;
+  const float speed = cookParam(c, "Speed", 1.0f);
+  const float drag = cookParam(c, "Drag", 0.02f);
+  // forces = buffer input 1 (spec order: emit, forces). Wired iff its params map is present.
+  const bool hasForce = c.inputParams && c.inputCount > 1 && c.inputParams[1] != nullptr;
+  const float turbAmt = cookInputParam(c, 1, "Amount", 15.0f);
+  const float turbFreq = cookInputParam(c, 1, "Frequency", 1.2f);
   const float time = c.ctx->time;
   const uint32_t count = c.count;
   const uint32_t tg = 64;
@@ -166,10 +162,10 @@ void cookParticleSim(PointCookCtx& c) {
     s->seeded = true;
     return;
   }
-  TurbParams tp{};  // turbulence: vel += curlNoise
-  tp.Amount = turbAmt; tp.Frequency = turbFreq; tp.Phase = time; tp.Variation = 0.0f;
-  tp.SpeedFactor = 1.0f; tp.VariationGroupCount = 0.0f; tp.Count = count;
-  {
+  if (hasForce) {  // turbulence: vel += curlNoise (only when a force is wired in)
+    TurbParams tp{};
+    tp.Amount = turbAmt; tp.Frequency = turbFreq; tp.Phase = time; tp.Variation = 0.0f;
+    tp.SpeedFactor = 1.0f; tp.VariationGroupCount = 0.0f; tp.Count = count;
     MTL::CommandBuffer* cmd = c.queue->commandBuffer();
     MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
     enc->setComputePipelineState(s->psoTurb);

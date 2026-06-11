@@ -29,12 +29,6 @@
 namespace sw {
 namespace {
 
-float paramOr(const Node* n, const char* id, float def) {
-  if (!n) return def;
-  auto it = n->params.find(id);
-  return it != n->params.end() ? it->second : def;
-}
-
 // TransformPoints modifier: dispatch the transformpoints kernel input bag -> output bag.
 // count comes from c.count (inherited from the upstream Points bag). No input bag = safe no-op.
 void cookTransformPoints(PointCookCtx& c) {
@@ -49,23 +43,20 @@ void cookTransformPoints(PointCookCtx& c) {
   fn->release();
   if (!pso) return;
 
-  const Node* n = c.graph ? c.graph->node(c.nodeId) : nullptr;
   TransformParams P{};
   P.Count = c.count;
-  P.Space = (int)(paramOr(n, "Space", 0.0f) + 0.5f);
+  P.Space = (int)(cookParam(c, "Space", 0.0f) + 0.5f);
   float t[3] = {0, 0, 0}, r[3] = {0, 0, 0}, s[3] = {1, 1, 1}, pv[3] = {0, 0, 0};
-  if (n) {
-    readVecN(*n, "Translation", t, 3, t);
-    readVecN(*n, "Rotation", r, 3, r);
-    readVecN(*n, "Stretch", s, 3, s);
-    readVecN(*n, "Pivot", pv, 3, pv);
-  }
+  cookVecN(c, "Translation", t, 3, t);
+  cookVecN(c, "Rotation", r, 3, r);
+  cookVecN(c, "Stretch", s, 3, s);
+  cookVecN(c, "Pivot", pv, 3, pv);
   P.TranslationX = t[0]; P.TranslationY = t[1]; P.TranslationZ = t[2];
   P.RotationX = r[0]; P.RotationY = r[1]; P.RotationZ = r[2];
   P.StretchX = s[0]; P.StretchY = s[1]; P.StretchZ = s[2];
   P.PivotX = pv[0]; P.PivotY = pv[1]; P.PivotZ = pv[2];
-  P.Scale = paramOr(n, "Scale", 1.0f);
-  P.Strength = paramOr(n, "Strength", 1.0f);
+  P.Scale = cookParam(c, "Scale", 1.0f);
+  P.Strength = cookParam(c, "Strength", 1.0f);
 
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();

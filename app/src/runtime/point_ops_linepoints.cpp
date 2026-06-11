@@ -28,17 +28,11 @@
 namespace sw {
 namespace {
 
-float paramOr(const Node* n, const char* id, float def) {
-  if (!n) return def;
-  auto it = n->params.find(id);
-  return it != n->params.end() ? it->second : def;
-}
-
 // LinePoints generator: dispatch the linepoints kernel into the node's output bag.
-// Reads scalar Float params (Count via ctx.count; Length/Pivot/Scale*/GainBias* from
-// the node) + the two vector params Center & Direction via readVecN (per-node, like
-// cookRadialPoints reads Center). TiXL's Color/orientation-quat/F1/F2 are baked to
-// defaults in linepoints.metal until those param kinds land in NodeSpec.
+// Reads scalar Float params (Count via ctx.count; Length/Pivot/Scale*/GainBias* via
+// cookParam) + the two vector params Center & Direction via cookVecN. TiXL's
+// Color/orientation-quat/F1/F2 are baked to defaults in linepoints.metal until those
+// param kinds land in NodeSpec.
 void cookLinePoints(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.lib) return;
   MTL::Function* fn = c.lib->newFunction(NS::String::string("linepoints", NS::UTF8StringEncoding));
@@ -48,21 +42,20 @@ void cookLinePoints(PointCookCtx& c) {
   fn->release();
   if (!pso) return;
 
-  const Node* n = c.graph ? c.graph->node(c.nodeId) : nullptr;
   LineParams P{};
   P.Count = c.count;
-  P.LengthFactor = paramOr(n, "Length", 5.0f);
-  P.Pivot = paramOr(n, "Pivot", 0.5f);
-  P.GainBiasX = paramOr(n, "GainAndBias.x", 0.5f);  // TiXL GainAndBias default (identity)
-  P.GainBiasY = paramOr(n, "GainAndBias.y", 0.5f);
-  P.ScaleBase = paramOr(n, "Scale.x", 1.0f);        // TiXL PointSize.x
-  P.ScaleByF = paramOr(n, "Scale.y", 0.0f);         // TiXL PointSize.y
+  P.LengthFactor = cookParam(c, "Length", 5.0f);
+  P.Pivot = cookParam(c, "Pivot", 0.5f);
+  P.GainBiasX = cookParam(c, "GainAndBias.x", 0.5f);  // TiXL GainAndBias default (identity)
+  P.GainBiasY = cookParam(c, "GainAndBias.y", 0.5f);
+  P.ScaleBase = cookParam(c, "Scale.x", 1.0f);        // TiXL PointSize.x
+  P.ScaleByF = cookParam(c, "Scale.y", 0.0f);         // TiXL PointSize.y
   float center[3] = {0.0f, 0.0f, 0.0f};
-  if (n) readVecN(*n, "Center", center, 3, center);
+  cookVecN(c, "Center", center, 3, center);
   P.CenterX = center[0]; P.CenterY = center[1]; P.CenterZ = center[2];
   float dirFallback[3] = {0.0f, 1.0f, 0.0f};        // TiXL .md: 0,1,0 points the line up
   float direction[3] = {0.0f, 1.0f, 0.0f};
-  if (n) readVecN(*n, "Direction", dirFallback, 3, direction);
+  cookVecN(c, "Direction", dirFallback, 3, direction);
   P.DirectionX = direction[0]; P.DirectionY = direction[1]; P.DirectionZ = direction[2];
 
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();

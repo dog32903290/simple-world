@@ -29,14 +29,8 @@
 namespace sw {
 namespace {
 
-float paramOr(const Node* n, const char* id, float def) {
-  if (!n) return def;
-  auto it = n->params.find(id);
-  return it != n->params.end() ? it->second : def;
-}
-
 // SpherePoints generator: dispatch the spherepoints kernel into the node's output bag.
-// Reads Radius/StartAngle/Scatter (scalar) + Center (Vec3 via readVecN). Count comes from
+// Reads Radius/StartAngle/Scatter (scalar) + Center (Vec3 via cookVecN). Count comes from
 // ctx.count (PointGraph sizes the bag). TiXL's orientation quaternion + Color are baked to
 // defaults in the kernel (see spherepoints.metal header).
 // NOTE: builds the PSO per cook — fine for the headless golden (one cook). The live loop
@@ -50,14 +44,13 @@ void cookSpherePoints(PointCookCtx& c) {
   fn->release();
   if (!pso) return;
 
-  const Node* n = c.graph ? c.graph->node(c.nodeId) : nullptr;
   SphereParams P{};
   P.Count = c.count;
-  P.Radius = paramOr(n, "Radius", 2.0f);
-  P.StartAngle = paramOr(n, "StartAngle", 0.0f);
-  P.Scatter = paramOr(n, "Scatter", 0.0f);
+  P.Radius = cookParam(c, "Radius", 2.0f);
+  P.StartAngle = cookParam(c, "StartAngle", 0.0f);
+  P.Scatter = cookParam(c, "Scatter", 0.0f);
   float center[3] = {0.0f, 0.0f, 0.0f};
-  if (n) readVecN(*n, "Center", center, 3, center);  // TiXL Center (Vector3), per-node
+  cookVecN(c, "Center", center, 3, center);  // TiXL Center (Vector3), per-node
   P.CenterX = center[0]; P.CenterY = center[1]; P.CenterZ = center[2];
 
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();

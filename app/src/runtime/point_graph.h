@@ -15,6 +15,7 @@
 // TiXL's BufferWithViews flowing between point operators.
 #pragma once
 #include <cstdint>
+#include <map>
 #include <string>
 
 #include "runtime/render_command.h"  // RenderCommand (the Command stream's currency)
@@ -47,7 +48,7 @@ struct PointCookCtx {
   MTL::Library* lib = nullptr;
   MTL::CommandQueue* queue = nullptr;
   const EvaluationContext* ctx = nullptr;  // time / frameIndex / deltaTime
-  const Graph* graph = nullptr;            // to resolve Float params via evalParam
+  const Graph* graph = nullptr;            // flat-cook only; ops must NOT read it (params below)
   const SourceRegistry* reg = nullptr;     // live-source/override for Float params
   int nodeId = 0;
   uint32_t count = 0;                      // this node's point count
@@ -57,6 +58,17 @@ struct PointCookCtx {
   int inputCount = 0;
   MTL::Buffer* output = nullptr;           // PointGraph-owned; cook writes here
   void* state = nullptr;                   // per-node persistent state (stateful ops)
+  // RESOLVED Float params of THIS node (slice 2b seam): the cook DRIVER resolves every Float
+  // input port through the full value spine — override → binding → wire → stored → spec default
+  // (flat), or the resident input's driver (resident) — and hands the result here. Ops read via
+  // cookParam/cookVecN and stay graph-model-agnostic (= TiXL: the slot system resolves inputs,
+  // the op body never walks the graph). Also fixes wire-blind param reads: a Connection into ANY
+  // Float param now drives it, same class as the Count fix (7d4b34e).
+  const std::map<std::string, float>* params = nullptr;
+  // Resolved params of the node feeding buffer input i (parallel to inputs[]; null if unwired).
+  // Replaces the legacy read-by-TYPE evalParam for force ops (firstOfType breaks under reuse):
+  // a force op's params travel WITH the wire, like TiXL's force buffer carrying its params.
+  const std::map<std::string, float>* const* inputParams = nullptr;
 };
 
 // A point operator: read inputs (+ Float params via evalParam) → write `output`.
@@ -81,6 +93,7 @@ struct CmdCookCtx {
   int nodeId = 0;
   const MTL::Buffer* points = nullptr;  // upstream point bag (buffer flow already cooked)
   uint32_t count = 0;                   // upstream point count
+  const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
 };
 // A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.
 using PointCmdFn = RenderCommand (*)(CmdCookCtx&);
@@ -109,6 +122,7 @@ struct TexCookCtx {
   int nodeId = 0;
   const RenderCommand* command = nullptr;  // upstream chain (concatenated); may be null/empty
   MTL::Texture* output = nullptr;          // PointGraph-owned, pre-sized; op draws here
+  const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
 };
 // A texture operator: execute `command` into `output`. No buffer/command return.
 using PointTexFn = void (*)(TexCookCtx&);
@@ -133,7 +147,24 @@ void registerTexOp(const std::string& type, PointTexFn);
 // Resolve a RenderTarget node's output resolution from its Resolution enum param (+ CustomW/H);
 // WindowFollow (default) returns `windowSize`. Defined in point_ops_rendertarget.cpp; declared
 // here so the cook driver can size the node's own texture (the RESOLUTION PIN) before the tex op.
+// The map overload is the core (works for flat AND resident resolved params); the Node* overload
+// wraps it for flat callers.
+RenderResolution resolveRenderResolution(const std::map<std::string, float>& params,
+                                         RenderResolution windowSize);
 RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowSize);
+
+// --- resolved-param accessors (slice 2b seam; defined in point_graph.cpp) ---
+// Read a Float param from the ctx's RESOLVED map; falls back to `def` when the driver supplied
+// no map (ops invoked outside a cook driver, e.g. hand-built ctx in op selftests).
+float cookParam(const PointCookCtx& c, const char* id, float def);
+float cookParam(const CmdCookCtx& c, const char* id, float def);
+float cookParam(const TexCookCtx& c, const char* id, float def);
+// Vector params (mirrors graph.h readVecN: components "<base>.x"/".y"/".z"/".w").
+// Missing component -> fallback[i].
+void cookVecN(const PointCookCtx& c, const char* base, const float* fallback, int n, float* out);
+void cookVecN(const TexCookCtx& c, const char* base, const float* fallback, int n, float* out);
+// A Float param of the node feeding buffer input `input` (force ops); def when unwired/missing.
+float cookInputParam(const PointCookCtx& c, int input, const char* id, float def);
 // Registers all built-in point operators (A.1+: RadialPoints/TransformPoints/
 // ParticleSystem/DrawPoints/…). Called once from the app (Renderer) at startup.
 void registerBuiltinPointOps();
@@ -160,10 +191,13 @@ class PointGraph {
   // TiXL's OutputWindow — pin is session state, not a graph edge) just passes another id.
   void cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
             int targetNodeId);
-  // Resident-graph cook (batch 1 slice 2): walk a ResidentEvalGraph by path-qualified id and
-  // realize the bag feeding `targetPath`, identical to cook()'s flat walk. Buffer flow only;
-  // the cmd/texture executor + stateful state + cross-frame cache are later slices. Additive —
-  // production still calls cook(Graph&). Proven by --selftest-residentcook (== flat cook).
+  // Resident-graph cook (slice 2 walk + slice 2b parity): walk a ResidentEvalGraph by
+  // path-qualified id and realize `targetPath` into target() with the SAME three-flow terminal
+  // as cook() (tex / cmd / preview), per-path persistent output buffers + stateful op state,
+  // and driver-resolved Float params handed to ops (the 2b seam). Production still calls
+  // cook(Graph&) — the swap is the next cut. Float reads go through evalResidentFloat (no
+  // version cache yet: wiring pullResidentFloat in = the swap cut, named-deferred).
+  // Proven by --selftest-residentcook (slice-2 walk) + --selftest-residentparity (2b).
   void cookResident(const struct ResidentEvalGraph& rg, const EvaluationContext& ctx,
                     const SourceRegistry* reg, const std::string& targetPath);
   // Default viewport target = the first draw node (today's wired terminal). 0 if none.
@@ -185,5 +219,13 @@ int runPointGraphSelfTest(bool injectBug);
 // cook (flat-graph walk) for an equivalent graph. injectBug makes the resident walk drop a driver
 // so the bags diverge. (resident_cook_selftest.cpp)
 int runResidentCookSelfTest(bool injectBug);
+
+// Headless RED→GREEN proof of slice-2b parity (resident_cook_parity_selftest.cpp): for each of
+// (a) driver-resolved params (stored/override AND wire-driven), (b) stateful op state persisting
+// across cooks per path, (c) force params resolved via the WIRED input (not by-type), (d) the
+// tex terminal (RenderTarget executor + displayTex), (e) the preview terminal (synthesized
+// 1-item chain) — resident cook == flat cook == hand-computed. injectBug makes the stateful stub
+// ignore its persistent state -> the across-cooks assertion FAILS (teeth).
+int runResidentCookParitySelfTest(bool injectBug);
 
 }  // namespace sw

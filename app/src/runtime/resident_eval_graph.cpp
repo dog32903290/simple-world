@@ -61,6 +61,29 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
   return s->evaluate(outIdx, in, ni, ec);
 }
 
+std::map<std::string, float> resolveResidentFloatInputs(const ResidentEvalGraph& g,
+                                                        const ResidentNode& n,
+                                                        const ResidentEvalCtx& ctx) {
+  std::map<std::string, float> out;
+  const NodeSpec* s = findSpec(n.opType);
+  if (!s) return out;
+  for (const PortSpec& p : s->ports) {
+    if (!(p.isInput && p.dataType == "Float")) continue;
+    float v = p.def;
+    if (const ResidentInput* ri = n.input(p.id)) {
+      switch (ri->driver) {
+        case ResidentInput::Driver::Constant:   v = ri->constant; break;
+        case ResidentInput::Driver::Connection:
+          v = evalResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx);
+          break;
+        case ResidentInput::Driver::Automation: v = 0.0f; break;  // S3 stub (same as evalResidentFloat)
+      }
+    }
+    out[p.id] = v;
+  }
+  return out;
+}
+
 namespace {
 
 // Inline one symbol's subgraph at `prefix`, given how its OWN input defs are driven from the

@@ -30,12 +30,6 @@
 namespace sw {
 namespace {
 
-float paramOr(const Node* n, const char* id, float def) {
-  if (!n) return def;
-  auto it = n->params.find(id);
-  return it != n->params.end() ? it->second : def;
-}
-
 // RandomizePoints modifier: dispatch the randomizepoints kernel input bag -> output bag.
 // count comes from c.count (inherited from the upstream Points bag). No input bag = safe no-op.
 void cookRandomizePoints(PointCookCtx& c) {
@@ -50,20 +44,17 @@ void cookRandomizePoints(PointCookCtx& c) {
   fn->release();
   if (!pso) return;
 
-  const Node* n = c.graph ? c.graph->node(c.nodeId) : nullptr;
   RandomizeParams P{};
   P.Count = c.count;
-  P.Strength = paramOr(n, "Strength", 1.0f);
+  P.Strength = cookParam(c, "Strength", 1.0f);
 
   float pos[3] = {0, 0, 0}, rot[3] = {0, 0, 0}, str[3] = {0, 0, 0};
   float col[4] = {0, 0, 0, 0}, gb[2] = {0.5f, 0.5f};
-  if (n) {
-    readVecN(*n, "Position", pos, 3, pos);
-    readVecN(*n, "Rotation", rot, 3, rot);
-    readVecN(*n, "Stretch", str, 3, str);
-    readVecN(*n, "ColorHSB", col, 4, col);
-    readVecN(*n, "GainAndBias", gb, 2, gb);
-  }
+  cookVecN(c, "Position", pos, 3, pos);
+  cookVecN(c, "Rotation", rot, 3, rot);
+  cookVecN(c, "Stretch", str, 3, str);
+  cookVecN(c, "ColorHSB", col, 4, col);
+  cookVecN(c, "GainAndBias", gb, 2, gb);
   P.RandomizePositionX = pos[0]; P.RandomizePositionY = pos[1]; P.RandomizePositionZ = pos[2];
   P.RandomizeRotationX = rot[0]; P.RandomizeRotationY = rot[1]; P.RandomizeRotationZ = rot[2];
   P.StretchX = str[0]; P.StretchY = str[1]; P.StretchZ = str[2];
@@ -71,17 +62,17 @@ void cookRandomizePoints(PointCookCtx& c) {
   P.RandomizeColorZ = col[2]; P.RandomizeColorW = col[3];
   P.GainAndBiasX = gb[0]; P.GainAndBiasY = gb[1];
 
-  P.Scale = paramOr(n, "Scale", 0.0f);
-  P.RandomizeF1 = paramOr(n, "F1", 0.0f);
-  P.RandomizeF2 = paramOr(n, "F2", 0.0f);
-  P.RandomSeed = paramOr(n, "RandomPhase", 0.0f);
+  P.Scale = cookParam(c, "Scale", 0.0f);
+  P.RandomizeF1 = cookParam(c, "F1", 0.0f);
+  P.RandomizeF2 = cookParam(c, "F2", 0.0f);
+  P.RandomSeed = cookParam(c, "RandomPhase", 0.0f);
 
-  P.OffsetMode = (uint32_t)(paramOr(n, "OffsetMode", 0.0f) + 0.5f);
-  P.UsePointSpace = (uint32_t)(paramOr(n, "Space", 0.0f) + 0.5f);
-  P.Interpolation = (uint32_t)(paramOr(n, "Interpolation", 1.0f) + 0.5f);
-  P.ClampColorsEtc = paramOr(n, "ClampColorsEtc", 0.0f) > 0.5f ? 1 : 0;
-  P.Repeat = (int32_t)(paramOr(n, "Repeat", 0.0f) + 0.5f);
-  P.StrengthFactor = (int32_t)(paramOr(n, "StrengthFactor", 0.0f) + 0.5f);
+  P.OffsetMode = (uint32_t)(cookParam(c, "OffsetMode", 0.0f) + 0.5f);
+  P.UsePointSpace = (uint32_t)(cookParam(c, "Space", 0.0f) + 0.5f);
+  P.Interpolation = (uint32_t)(cookParam(c, "Interpolation", 1.0f) + 0.5f);
+  P.ClampColorsEtc = cookParam(c, "ClampColorsEtc", 0.0f) > 0.5f ? 1 : 0;
+  P.Repeat = (int32_t)(cookParam(c, "Repeat", 0.0f) + 0.5f);
+  P.StrengthFactor = (int32_t)(cookParam(c, "StrengthFactor", 0.0f) + 0.5f);
 
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();

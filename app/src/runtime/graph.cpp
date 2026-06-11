@@ -179,6 +179,33 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
   return s->evaluate(outIdx, in, ni, ctx);
 }
 
+namespace {
+// One Float input port's value through the L5 spine. The SSOT for per-port resolution —
+// evalParam (first-of-type, single param) and resolveNodeParams (per-node, all params)
+// both delegate here so the resolution order can never fork:
+//   1. live override (sticky)  2. explicit binding (live-source; Automation -> S4 samples
+//   the curve, until then falls through — the graph wire IS the Connection binding and the
+//   stored value IS the Constant, both resolved by step 3)  3. wired -> evalFloat upstream,
+//   else stored constant, else spec default.
+float resolvePortValue(const Graph& g, const Node& n, size_t portIdx, const PortSpec& p,
+                       const EvaluationContext& ctx, const SourceRegistry* reg) {
+  if (reg) {
+    if (const ParamOverride* ov = reg->override_(n.id, p.id); ov && ov->active)
+      return ov->value;
+    if (const ParamBinding* b = reg->binding(n.id, p.id)) {
+      if (b->kind == BindingKind::LiveSource) {
+        if (const LiveSource* src = reg->source(b->sourceId); src && src->value)
+          return src->value(src->self, ctx);  // audio / hand / MIDI …
+      }
+    }
+  }
+  if (const Connection* c = g.connectionToInput(pinId(n.id, (int)portIdx)))
+    return evalFloat(g, c->fromPin, ctx, 0);  // driven by connection
+  auto it = n.params.find(p.id);
+  return (it != n.params.end()) ? it->second : p.def;  // stored constant
+}
+}  // namespace
+
 // Seam-facing API. Takes `time` (not EvaluationContext&) so callers in translation
 // units that already pull tixl_point.h — e.g. main.cpp — need not include Particle.h
 // (both define `struct Particle`; they can't coexist). ctx is built here. Value
@@ -189,36 +216,26 @@ float evalParam(const Graph& g, const std::string& type, const std::string& para
   if (!n) return fallback;
   const NodeSpec* s = findSpec(type);
   if (!s) return fallback;
-
-  // L5 resolution: override → binding(live-source/automation) → [graph: connection
-  // else constant]. reg == nullptr (value-spine callers) skips straight to the graph
-  // behavior, so wiring and constants resolve exactly as before — zero regression.
-  if (reg) {
-    if (const ParamOverride* ov = reg->override_(n->id, paramId); ov && ov->active)
-      return ov->value;                                            // 1. live override (sticky)
-    if (const ParamBinding* b = reg->binding(n->id, paramId)) {    // 2. explicit binding
-      if (b->kind == BindingKind::LiveSource) {
-        if (const LiveSource* src = reg->source(b->sourceId); src && src->value)
-          return src->value(src->self, ctx);                       //    audio / hand / MIDI …
-      }
-      // BindingKind::Automation -> S4 (sample the scoreGraph curve @ playhead); until
-      // then it falls through. Connection / Constant are intentionally NOT consumed
-      // here: the graph wire IS the Connection binding and the stored value IS the
-      // Constant — both resolved by the value-spine path below.
-    }
-  }
-
-  // 3. value-spine behavior = binding=Connection (wired) else Constant (stored / def).
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& p = s->ports[i];
     if (!(p.isInput && p.dataType == "Float" && p.id == paramId)) continue;
-    int inPin = pinId(n->id, (int)i);
-    if (const Connection* c = g.connectionToInput(inPin))
-      return evalFloat(g, c->fromPin, ctx, 0);  // driven by connection
-    auto it = n->params.find(paramId);
-    return (it != n->params.end()) ? it->second : p.def;  // stored constant
+    return resolvePortValue(g, *n, i, p, ctx, reg);
   }
   return fallback;
+}
+
+std::map<std::string, float> resolveNodeParams(const Graph& g, const Node& n,
+                                               const EvaluationContext& ctx,
+                                               const SourceRegistry* reg) {
+  std::map<std::string, float> out;
+  const NodeSpec* s = findSpec(n.type);
+  if (!s) return out;
+  for (size_t i = 0; i < s->ports.size(); ++i) {
+    const PortSpec& p = s->ports[i];
+    if (!(p.isInput && p.dataType == "Float")) continue;
+    out[p.id] = resolvePortValue(g, n, i, p, ctx, reg);
+  }
+  return out;
 }
 
 void readVecN(const Node& node, const std::string& base, const float* fallback, int n, float* out) {
