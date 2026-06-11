@@ -19,9 +19,10 @@ void patchSetConstant(ResidentEvalGraph& g, const std::string& path, const std::
   ResidentNode& n = g.nodes[it->second];
   for (ResidentInput& in : n.inputs)
     if (in.slotId == slotId && in.driver == ResidentInput::Driver::Constant) in.constant = value;
-  // S1 value edit = edit-time push: bump THIS node's output versions so it (and, via the pull-time
-  // upstream sum, its downstream cone) recomputes. Untouched nodes are not bumped -> cache kept.
-  for (auto& kv : n.outCache) kv.second.sourceVersion++;
+  // S1 value edit = edit-time push: bump THIS node's own baseVersion so it (and, via the pull-time
+  // upstream sum, its downstream cone) recomputes. baseVersion is never overwritten by the upstream
+  // sum, so this survives even when the node is derived (refuter A4). Untouched nodes keep cache.
+  for (auto& kv : n.outCache) kv.second.baseVersion++;
 }
 
 void patchAddConnection(ResidentEvalGraph& g, const std::string& dstPath, const std::string& dstSlot,

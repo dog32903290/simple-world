@@ -50,7 +50,10 @@ struct ResidentInput {
 // granularity. initially dirty: valueVersion(0) != sourceVersion(1) so the first pull computes
 // (DirtyFlag.cs:62). dirty == valueVersion != sourceVersion (version-chasing, NOT content hash).
 struct ResidentOutputCache {
-  uint64_t sourceVersion = 1;  // bumped by: LIVE 每幀 / edit-time push / 上游版本取和(derived)
+  uint64_t baseVersion = 1;    // THIS slot's own accumulated version (LIVE 每幀 / edit-time push
+                               //   ++ this — monotonic, never overwritten, = TiXL SourceVersion++)
+  uint64_t sourceVersion = 1;  // effective version, recomputed each pull = baseVersion + 上游和
+                               //   (derived adopts the upstream sum ON TOP of its own baseVersion)
   uint64_t valueVersion = 0;   // = sourceVersion at last recompute; dirty when they differ
   float cachedFloat = 0.0f;    // last computed value (returned while not dirty — 算一次存著)
   bool isLiveSource = false;   // op 宣告恆髒 (Time…); bumped every frame (決策 7 / 🪤#1)

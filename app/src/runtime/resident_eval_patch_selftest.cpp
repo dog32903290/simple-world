@@ -79,6 +79,20 @@ int runResidentPatchSelfTest(bool injectBug) {
   float rv = pullResidentFloat(gR, gR.outputs["out"].first, gR.outputs["out"].second, ctx);
   bool setRebuildMatch = (rv == 27.0f && pv == rv);
 
+  // === 1b. patchSetConstant on a DERIVED node (refuter A4) — the edit must survive the pull-time
+  // upstream-sum that owns a derived slot's sourceVersion. Const#1(5)->Mul.a (Connection),
+  // Mul.b=Constant(3) -> 15. Edit Mul.b to 10: Mul must recompute to 5*10=50, even though Mul is
+  // derived. (Pre-fix: ++sourceVersion is overwritten by sourceVersion=upstreamSum -> stale 15.)
+  SymbolChild d1; d1.id = 1; d1.symbolId = "Const"; d1.overrides["value"] = 5.0f;
+  SymbolChild dmb; dmb.id = 3; dmb.symbolId = "Multiply"; dmb.overrides["b"] = 3.0f;
+  std::vector<SymbolConnection> derivedConns = {{1, "out", 3, "a"}, {3, "out", kSymbolBoundary, "out"}};
+  ResidentEvalGraph gd = buildFlat("D", {d1, dmb}, derivedConns, cst, mul, tim);
+  auto doutP = gd.outputs["out"];
+  float d0 = pullResidentFloat(gd, doutP.first, doutP.second, ctx);  // 5*3 = 15
+  patchSetConstant(gd, "3", "b", 10.0f);                            // edit a Constant input of a derived node
+  float dpv = pullResidentFloat(gd, doutP.first, doutP.second, ctx);  // want 5*10 = 50
+  bool derivedOk = (d0 == 15.0f && dpv == 50.0f);
+
   // === 2. patchAddConnection — add a Connection, force first-pull recompute ===
   SymbolChild lt; lt.id = 1; lt.symbolId = "Time";
   SymbolChild lc; lc.id = 2; lc.symbolId = "Const"; lc.overrides["value"] = 7.0f;
@@ -103,10 +117,11 @@ int runResidentPatchSelfTest(bool injectBug) {
   float ar = pullResidentFloat(lgR, lgR.outputs["out"].first, lgR.outputs["out"].second, t5);
   bool addRebuildMatch = (ar == 35.0f && A1 == ar);
 
-  bool pass = setOk && setRebuildMatch && addOk && addRebuildMatch;
+  bool pass = setOk && setRebuildMatch && derivedOk && addOk && addRebuildMatch;
   printf("[selftest-residentpatch] setConst(f0=%.1f pv=%.1f want27 cachePreserved)=%d "
-         "rebuild(rv=%.1f)=%d | addConn(A0=%.1f A1=%.1f want35)=%d rebuild(ar=%.1f)=%d -> %s\n",
-         f0, pv, setOk, rv, setRebuildMatch, A0, A1, addOk, ar, addRebuildMatch,
+         "rebuild(rv=%.1f)=%d derived(d0=%.1f dpv=%.1f want50)=%d | addConn(A0=%.1f A1=%.1f want35)=%d "
+         "rebuild(ar=%.1f)=%d -> %s\n",
+         f0, pv, setOk, rv, setRebuildMatch, d0, dpv, derivedOk, A0, A1, addOk, ar, addRebuildMatch,
          pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }

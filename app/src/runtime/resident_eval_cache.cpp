@@ -44,7 +44,7 @@ void initResidentCache(ResidentEvalGraph& g) {
 void bumpLiveSources(ResidentEvalGraph& g) {
   for (ResidentNode& n : g.nodes)
     for (auto& kv : n.outCache)
-      if (kv.second.isLiveSource) kv.second.sourceVersion++;  // Trigger=Always 字面行為
+      if (kv.second.isLiveSource) kv.second.baseVersion++;  // Trigger=Always; ++ own version
 }
 
 float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,
@@ -61,7 +61,6 @@ float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,
   float in[8];
   int ni = 0;
   uint64_t upstreamSum = 0;
-  bool hasConnInput = false;
   for (size_t i = 0; i < s->ports.size() && ni < 8; ++i) {
     const PortSpec& p = s->ports[i];
     if (!(p.isInput && p.dataType == "Float")) continue;
@@ -73,7 +72,6 @@ float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,
           break;
         case ResidentInput::Driver::Connection: {
           v = pullResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx, depth + 1);
-          hasConnInput = true;
           // 取和. An UNRESOLVABLE upstream (dangling path / missing out slot) still contributes a
           // fixed version 1, never 0 — so a fully-dangling derived slot stays initially-dirty
           // (sourceVersion >= 1 != valueVersion 0), computes once with the upstream treated as 0
@@ -96,9 +94,11 @@ float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,
   }
 
   ResidentOutputCache& cache = g.nodes[idx].outCache[outSlotId];
-  // A derived slot adopts its summed upstream version; a leaf keeps its externally-owned version
-  // (LIVE bump / edit-time push). Either way: dirty iff valueVersion != sourceVersion.
-  if (hasConnInput) cache.sourceVersion = upstreamSum;
+  // Effective version = this slot's own accumulated baseVersion (LIVE bump / edit-time push) PLUS
+  // the summed upstream versions (a leaf has upstreamSum 0 -> sourceVersion = baseVersion). baseVersion
+  // is monotonic and never overwritten, so an edit-time bump on a DERIVED node survives to dirty it
+  // (refuter A4: the old `sourceVersion = upstreamSum` overwrite erased the bump -> stale value edit).
+  cache.sourceVersion = cache.baseVersion + upstreamSum;
   if (cache.valueVersion == cache.sourceVersion) return cache.cachedFloat;  // not dirty -> cache
 
   int outIdx = 0;

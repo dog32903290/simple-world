@@ -56,8 +56,8 @@ int runResidentCacheSelfTest(bool injectBug) {
   float f1 = pullResidentFloat(g, outP.first, outP.second, ctx);  // still 15 (short-circuit)
   bool cacheHolds = (f0 == 15.0f && f1 == 15.0f);
 
-  // Edit-time push: bump Const#1.out sourceVersion -> dirty -> propagates (sum) -> 9*3 = 27.
-  g.nodes[g.byPath["1"]].outCache["out"].sourceVersion++;
+  // Edit-time push: bump Const#1.out baseVersion -> dirty -> propagates (sum) -> 9*3 = 27.
+  g.nodes[g.byPath["1"]].outCache["out"].baseVersion++;
   float f2 = pullResidentFloat(g, outP.first, outP.second, ctx);
   bool editPush = (f2 == 27.0f);
 
