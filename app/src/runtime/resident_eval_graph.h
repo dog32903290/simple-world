@@ -98,6 +98,8 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
 // Populate each node's per-output cache (one entry per NodeSpec output port) and mark live
 // sources (ops that declare an always-dirty output, e.g. Time). Call once after buildEvalGraph.
 void initResidentCache(ResidentEvalGraph& g);
+// Same, for ONE node (used by the patch layer when it creates nodes incrementally).
+void initResidentNodeCache(ResidentNode& n);
 // Bump every live source's sourceVersion (= TiXL DirtyFlagTrigger.Always 每幀). 🪤#1 (決策 7):
 // the per-frame correctness invariant — call at the START of every frame, before pulling.
 // Miss one live source -> downstream reads stale cache (卡舊畫面). Wired into the -bug teeth.
@@ -139,6 +141,55 @@ void patchSetConstant(ResidentEvalGraph& g, const std::string& path, const std::
 // sum arithmetic (spec 健檢二補 ②). Untouched nodes keep their cache.
 void patchAddConnection(ResidentEvalGraph& g, const std::string& dstPath, const std::string& dstSlot,
                         const std::string& srcPath, const std::string& srcSlot);
+// S11② remove connection (Slot.cs:233-245): restore the pre-connection driver — the input falls back
+// to Constant with the KEPT value (in.constant survives under a Connection, = TiXL
+// _actionBeforeAddingConnecting / SymbolChild.Input.Value persisting while wired) — then
+// ForceInvalidate. 🪤 version monotonicity (generalizes refuter D1/A4): the dropped upstream's
+// contribution is ABSORBED into baseVersion before the force-bump, so this slot's sourceVersion
+// NEVER DECREASES across the edit — otherwise the derived upstream-sum arithmetic has false-clean
+// collisions (e.g. dropped contribution exactly 1 cancels the ++).
+void patchRemoveConnection(ResidentEvalGraph& g, const std::string& dstPath, const std::string& dstSlot);
+
+// --- slice 3 rest: DEFINITION-level patches (resident_eval_patch_lib.cpp) ---
+// TiXL edits live on the Symbol (definition) and broadcast to every instance (Symbol.cs:222-330,
+// _childrenCreatedFromMe). These mutate the LIBRARY first (definition = authority, contract C3),
+// then incrementally patch the resident projection so that patch == rebuild (the golden).
+// Value-level edits are O(1)-ish surgery; STRUCTURAL edits (add/remove child, IO change) re-derive
+// the wiring through the ONE canonical codepath (buildEvalGraph) and MIGRATE caches: nodes whose
+// path+opType+inputs (incl. Connection resolvability) are unchanged keep their cache wholesale;
+// changed nodes are forced with baseVersion >= old sourceVersion + 1 (monotonic — no false-clean).
+// Edits are rare; O(graph) at edit time matches TiXL's own broadcast-reconnect cost. Returns false
+// if the edit's preconditions fail (missing symbol/slot/child, duplicate id, ...).
+
+// S11⑤ change a definition input's default (Symbol.cs:375-386 + Symbol.Child.cs:677-698): updates
+// the SlotDef, then bumps ONLY resident instances still using the default — children with an
+// override on that slot are untouched and keep their cache (the IsDefault filter). Wired inputs
+// refresh their KEPT fallback without a bump (TiXL reads defaults live at eval; a later disconnect
+// must restore the NEW default — refuter A-2). Compound symbols route through rebuild+migration
+// (the filter emerges from rule 1/2).
+bool patchLibSetDefault(SymbolLibrary& lib, ResidentEvalGraph& g, const std::string& symbolId,
+                        const std::string& slotId, float newDef);
+// S11③ add child (Symbol.Instantiation.cs:14-39): appends the child to the parent definition and
+// instantiates one resident node per resident instance of the parent (reuse: N parents -> N new
+// nodes). Atomic child symbols only for now (compound add = recursive inline, named-deferred).
+// A pre-existing DANGLING reference to the new path becomes resolvable -> its consumers are forced
+// (resolvability change counts as an input change; the dangling fixed-1 contribution would
+// otherwise alias the fresh node's sourceVersion 1 -> false-clean).
+bool patchLibAddChild(SymbolLibrary& lib, ResidentEvalGraph& g, const std::string& parentSymbolId,
+                      int childId, const std::string& childSymbolId);
+// S11④ remove child (Symbol.cs:311-330): removes the parent definition's connections touching the
+// child (牽涉連線清除) then the child itself; every resident instance of the subtree disappears.
+// Same-scope sibling consumers (their wire was just erased) fall back to Constant effectiveInput;
+// cross-boundary consumers (their wire lives in ANOTHER symbol, now unresolvable) go dangling and
+// evaluate the upstream as 0 — both exactly what a rebuild yields, both force-invalidated.
+bool patchLibRemoveChild(SymbolLibrary& lib, ResidentEvalGraph& g, const std::string& parentSymbolId,
+                         int childId);
+// S11⑥ IO change / S13 收屍 (Symbol.TypeUpdating.cs:99-132,213-261): removes an input def from a
+// symbol, scrubs orphaned wires (inside: boundary->consumer; outside: parent wires INTO that slot
+// of every child referencing the symbol) and drops now-obsolete child overrides on that slot.
+// Inner consumers fall back to their own effectiveInput.
+bool patchLibRemoveInputDef(SymbolLibrary& lib, ResidentEvalGraph& g, const std::string& symbolId,
+                            const std::string& slotId);
 
 // Headless RED->GREEN proof of the slice-3 first cut: after patchSetConstant / patchAddConnection,
 // the graph evaluates identically to one rebuilt with the edit baked in (patch == rebuild), AND
@@ -146,5 +197,14 @@ void patchAddConnection(ResidentEvalGraph& g, const std::string& dstPath, const 
 // recomputed — only the edited cone is). injectBug skips the edit-time invalidation -> the patched
 // value stays stale (卡舊) -> the assertion FAILS (teeth).
 int runResidentPatchSelfTest(bool injectBug);
+
+// Headless RED->GREEN proof of slice-3 rest (the remaining S11 edits; with the existing
+// set-const/add-connection goldens this completes the six-edit patch == rebuild sweep):
+// remove-connection restore + force, change-default with the IsDefault filter (overriding child
+// keeps cache — probed out-of-band), add-child broadcast across reuse + dangling-ref resolution
+// forcing, remove-child (same-scope restore AND cross-boundary dangling, cache preserved on
+// untouched branches), remove-input-def fallback. injectBug applies the default edit without the
+// edit-time bump -> stale (卡舊) -> FAILS (teeth).
+int runResidentLibPatchSelfTest(bool injectBug);
 
 }  // namespace sw

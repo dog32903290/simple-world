@@ -113,6 +113,7 @@ const SelfTest kTable[] = {
     {"residenteval", runResidentEvalSelfTest},
     {"residentcache", runResidentCacheSelfTest},
     {"residentpatch", runResidentPatchSelfTest},
+    {"residentlibpatch", runResidentLibPatchSelfTest},
     {"radialop", runRadialOpSelfTest},
     {"radialcenter", runRadialCenterSelfTest},
     {"drawop", runDrawOpSelfTest},

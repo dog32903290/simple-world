@@ -126,3 +126,42 @@ cache.cpp 118, patch.cpp 45, resident_eval_graph.h 150 (all < 400).
    test headless).
 3. **Slice 2b** — cmd/texture executor parity for cookResident + stateful op state on resident nodes
    (production-swap prep).
+
+---
+
+## Cut 3 — Slice 3 REST: the remaining S11 edits (2026-06-11, second session) ✅
+
+**Files:** `resident_eval_patch.cpp` (+`patchRemoveConnection`), NEW `resident_eval_patch_lib.cpp`
+(definition-level broadcast: `patchLibSetDefault` surgery w/ IsDefault filter;
+`patchLibAddChild/RemoveChild/RemoveInputDef` = lib edit + `rebuildWithCacheMigration` — ONE
+canonical wiring codepath, 3 migration rules incl. Connection-RESOLVABILITY as an input-diff),
+golden `resident_eval_patch_lib_selftest.cpp`, `--selftest-residentlibpatch` (11 asserts, all
+patch == rebuild + cache probes; `-bug` teeth).
+
+**New invariant (generalizes D1/A4):** a slot's sourceVersion must NEVER DECREASE across an edit
+*sequence* — disconnects ABSORB the dropped upstream contribution into baseVersion; migration
+rule 2 uses the monotonic floor `max(baseVersion, sourceVersion)+1` AND mirrors it into the
+sourceVersion field (the field only refreshes on pull — back-to-back edits with no pull between,
+i.e. a batch-4 command group, read it stale).
+
+**Refuter (independent, EXECUTABLE repros):** 8 survive, 4 BROKEN — all fixed, each repro now a
+golden: A-1 stale-field regression (editSeqNoPull), A-2 stale kept-default under a wire
+(keptDefault=27), A-3 set-constant dropped on wired slots vs TiXL SetTypedInputValue
+(wiredStore=21), A-4 compound setDefault silent lib/g desync (compoundDefault=720).
+
+**Named contract duty (now in code comments):** resident-level patches edit the PROJECTION only —
+the command layer must pair the matching lib edit, or a later structural patchLib* discards it.
+
+**Named-deferred:** per-output precise invalidation; compound-child AddChild (recursive inline);
+isLiveSource OR-stickiness under future type-swap edits; per-edit surgical patch as a later
+optimization over O(graph) migration (semantics are pinned by the goldens).
+
+## Resume (next cut — pick one)
+1. **1b rest** — Command/flow layer: Command-always (`_valueIsCommand`), the four op primitives
+   (dirty-as-event / Loop re-eval / ForceInvalidate push / stateful FxTime gate), count-based
+   diamond selftest split by type (value=1/pass, Command=per-pull).
+2. **Slice 2b / production swap prep** — cmd/texture executor parity for cookResident + stateful
+   op state on resident nodes; converge cook/cookResident (also pays the point_graph.cpp 477-line
+   arch debt).
+3. **Batch 2 存檔 v2** — symbols[] library + two-phase load + migration (schema per the spec's
+   健檢修正 S15-S20 block).

@@ -27,18 +27,20 @@ bool opDeclaresLiveOutput(const std::string& opType) {
 
 }  // namespace
 
+void initResidentNodeCache(ResidentNode& n) {
+  const NodeSpec* s = findSpec(n.opType);
+  if (!s) return;
+  const bool live = opDeclaresLiveOutput(n.opType);
+  for (const PortSpec& p : s->ports)
+    if (!p.isInput) {
+      ResidentOutputCache c;
+      c.isLiveSource = live;  // leaf live source: bumped every frame (決策 7 / 🪤#1)
+      n.outCache[p.id] = c;
+    }
+}
+
 void initResidentCache(ResidentEvalGraph& g) {
-  for (ResidentNode& n : g.nodes) {
-    const NodeSpec* s = findSpec(n.opType);
-    if (!s) continue;
-    const bool live = opDeclaresLiveOutput(n.opType);
-    for (const PortSpec& p : s->ports)
-      if (!p.isInput) {
-        ResidentOutputCache c;
-        c.isLiveSource = live;  // leaf live source: bumped every frame (決策 7 / 🪤#1)
-        n.outCache[p.id] = c;
-      }
-  }
+  for (ResidentNode& n : g.nodes) initResidentNodeCache(n);
 }
 
 void bumpLiveSources(ResidentEvalGraph& g) {
