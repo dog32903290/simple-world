@@ -14,7 +14,7 @@ void drawChild(const sw::SymbolChild& child);
 // One BOUNDARY item — the current symbol's own external port drawn as a movable canvas
 // node (= TiXL Legacy InputNode/OutputNode). `isSource`: an inputDef feeds the subgraph
 // (pin on the right); an outputDef drains it (pin on the left). The caller owns the ed/pin
-// id scheme (negative ed ids; pins ride pinId(kSymbolBoundary, defIndex)).
+// id scheme (negative ed node ids; boundary pins ride a high disjoint band, see editor_ui).
 void drawBoundaryDef(const sw::SlotDef& def, int edNodeId, int pinId, bool isSource);
 
 }  // namespace sw::ui

@@ -33,15 +33,30 @@ int g_pinnedNode = 0;       // view ⊥ graph (see editor_ui.h); set by ui/outpu
 bool g_navPending = false;  // see editor_ui.h (set by canvas gestures + toolbar breadcrumbs)
 
 namespace {
-// pin id <-> (child id, port index) — see sw::pinId().
-int pinChildId(int pin) { return sw::pinNode(pin); }
-int pinPortIndex(int pin) { return (pin - 1) % 100; }
+// Boundary pins live in their OWN high integer band, disjoint from BOTH child node ids and
+// child pins — because imgui-node-editor hashes node ids AND pin ids into one ImGui ID pool
+// per canvas, so the old encoding (boundary pin = combinedIndex+1, i.e. 1..99) collided pin 1
+// with child node id 1 → imgui's "conflicting ID" tooltip stole window focus → the Backspace
+// delete gate (IsWindowFocused) went dead and boundary nodes couldn't be deleted. The band
+// base is huge so a child id / child pin would have to reach ~1M to clash (the def cap below
+// keeps the boundary index tiny, so it never approaches the band edge). NOTE: boundary pins
+// must stay POSITIVE — negative ids would collide with the negative boundary NODE id scheme
+// (edIdForInputDef/edIdForOutputDef). Boundary pins are UI-only (per-frame); wires/save key off
+// slot strings, link ids pack two pins, so moving this base touches nothing on disk.
+constexpr int kBoundaryPinBase = 1 << 20;  // 1048576
+inline int boundaryPinId(int combinedIndex) { return kBoundaryPinBase + combinedIndex; }
+inline bool pinIsBoundary(int pin) { return pin >= kBoundaryPinBase; }
+
+// pin id <-> (child id, port index). Boundary pins decode to the kSymbolBoundary sentinel +
+// their combined index; child pins go through the sw::pinId scheme. See sw::pinId().
+int pinChildId(int pin) { return pinIsBoundary(pin) ? sw::kSymbolBoundary : sw::pinNode(pin); }
+int pinPortIndex(int pin) { return pinIsBoundary(pin) ? (pin - kBoundaryPinBase) : (pin - 1) % 100; }
 
 // What a pin IS, child or boundary. Child pins resolve through the spec; BOUNDARY pins
-// (pinChildId == kSymbolBoundary == 0, ids 1..99 — disjoint from child pins >= 101) resolve
-// through the CURRENT symbol's own defs: combined index = inputDefs then outputDefs. Inside
-// the symbol an inputDef is a SOURCE (isInput=false) and an outputDef is a SINK — TiXL's
-// Input/Output boundary items exactly.
+// (pinChildId == kSymbolBoundary == 0; ids in the high band above, disjoint from child node
+// ids and child pins) resolve through the CURRENT symbol's own defs: combined index =
+// inputDefs then outputDefs. Inside the symbol an inputDef is a SOURCE (isInput=false) and an
+// outputDef is a SINK — TiXL's Input/Output boundary items exactly.
 struct PinInfo {
   bool valid = false;
   bool isInput = false;  // canvas perspective: is this pin a sink?
@@ -85,10 +100,10 @@ int pinOfSlot(int childId, const std::string& slotId, bool isInput) {
     const int nIn = (int)cur->inputDefs.size();
     if (!isInput) {  // a wire SOURCE at the boundary = one of the symbol's inputDefs
       for (int i = 0; i < nIn; ++i)
-        if (cur->inputDefs[i].id == slotId) return sw::pinId(sw::kSymbolBoundary, i);
+        if (cur->inputDefs[i].id == slotId) return boundaryPinId(i);
     } else {  // a wire SINK at the boundary = one of the symbol's outputDefs
       for (size_t j = 0; j < cur->outputDefs.size(); ++j)
-        if (cur->outputDefs[j].id == slotId) return sw::pinId(sw::kSymbolBoundary, nIn + (int)j);
+        if (cur->outputDefs[j].id == slotId) return boundaryPinId(nIn + (int)j);
     }
     return -1;
   }
@@ -180,10 +195,10 @@ void drawNodeCanvas() {
   // items): inputDefs are sources inside, outputDefs are sinks. node_draw renders them.
   for (size_t i = 0; i < cur->inputDefs.size(); ++i)
     sw::ui::drawBoundaryDef(cur->inputDefs[i], edIdForInputDef((int)i),
-                            sw::pinId(sw::kSymbolBoundary, (int)i), /*isSource=*/true);
+                            boundaryPinId((int)i), /*isSource=*/true);
   for (size_t j = 0; j < cur->outputDefs.size(); ++j)
     sw::ui::drawBoundaryDef(cur->outputDefs[j], edIdForOutputDef((int)j),
-                            sw::pinId(sw::kSymbolBoundary, (int)(cur->inputDefs.size() + j)),
+                            boundaryPinId((int)(cur->inputDefs.size() + j)),
                             /*isSource=*/false);
 
   // Wires — boundary-sentinel sides resolve to the boundary items' pins.

@@ -16,8 +16,10 @@
 //     one inner output feeding N outside targets shares one outputDef, N parent rewires.
 //     FORK: TiXL makes one outputDef PER outbound connection; sharing is eval-identical
 //     and avoids duplicate defs.
-//   • refused when inputDefs+outputDefs would exceed 99 (boundary pins ride
-//     pinId(0, idx); idx >= 100 aliases child pins — same limit the loader enforces).
+//   • refused when inputDefs+outputDefs would exceed 99 — a kept practical cap on a symbol's
+//     external ports (OURS, not TiXL's — TiXL has no port ceiling; same limit the loader
+//     enforces). NOT an encoding constraint anymore: the editor's boundary pins sit in their
+//     own high id band. Safe to lift later if a real graph ever needs it.
 //   • COST (TiXL has the same, via Guid regen): moved children's resident paths change,
 //     so per-path runtime state (GPU sim buffers, AudioReaction counters) RESETS on
 //     combine — particles visibly restart. Expected, not a bug.

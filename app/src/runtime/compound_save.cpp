@@ -192,9 +192,12 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
       for (auto& dv : sv["inputDefs"].get<crude_json::array>()) s.inputDefs.push_back(slotDefFromJson(dv));
     if (sv["outputDefs"].is_array())
       for (auto& dv : sv["outputDefs"].get<crude_json::array>()) s.outputDefs.push_back(slotDefFromJson(dv));
-    // Boundary pins ride pinId(0, combinedIndex) — index 100 would alias child 1's first
-    // pin (wrong wire drawn/DELETED, refuter N3 S1). No UI can create defs yet; only a
-    // crafted file can — drop the excess locally (S15 tolerance), never let it alias.
+    // Boundary-def count cap (99): the kept practical ceiling on a symbol's external ports
+    // (mirrors combine.cpp's refuse guard; OURS, not TiXL's — TiXL has no port ceiling). The
+    // editor's boundary pin
+    // encoding now lives in its own high band so > 99 no longer ALIASES child 1's pins — but we
+    // still drop the excess locally (S15 tolerance) so a crafted file can't smuggle in more
+    // ports than combine would ever produce. No UI can create defs yet; only a crafted file can.
     while (s.inputDefs.size() + s.outputDefs.size() > 99) {
       appendWarn(warnings, "symbol '" + s.id + "': boundary def limit (99) exceeded — '" +
                                (s.outputDefs.empty() ? s.inputDefs.back().id

@@ -105,9 +105,11 @@ CombineResult combineChildren(SymbolLibrary& lib, const std::string& parentSymbo
     else kept.push_back(w);
   }
 
-  // Boundary pins ride pinId(0, combinedIndex): index >= 100 aliases child 1's pins (and
-  // the loader amputates defs > 99 on reload anyway) — refuse BEFORE surgery, mirror of the
-  // compound_save load guard (refuter 批次4 #1).
+  // Boundary-def count cap (99): a deliberate, kept practical limit on how many external ports
+  // one symbol may expose — mirrors TiXL and keeps the combined-index space tiny. (The editor's
+  // boundary pin encoding now sits in its own high band, so this is no longer the old "index >= 100
+  // aliases child 1's pins" arithmetic; the cap is a parity/sanity ceiling, not an encoding floor.)
+  // Refuse BEFORE surgery, mirror of the compound_save load guard (refuter 批次4 #1).
   {
     std::map<std::pair<int, std::string>, bool> distinctOut;
     for (const SymbolConnection& w : outbound) distinctOut[{w.srcChild, w.srcSlot}] = true;

@@ -88,7 +88,8 @@ int runCombineSelfTest(bool injectBug) {
          libToJsonV2(back) == libToJsonV2(lib);
   }
 
-  // --- leg 3: the 99-def cap refuses BEFORE surgery (boundary pin scheme limit). 100
+  // --- leg 3: the 99-def cap refuses BEFORE surgery (kept practical port ceiling, parity
+  // with TiXL; no longer a pin-encoding limit since boundary pins moved to their own band). 100
   // Consts all feeding one Multiply... impossible (single-cardinality); instead 100
   // selected Consts each feeding its own outside Multiply = 100 OUTBOUND crossings. ---
   {
