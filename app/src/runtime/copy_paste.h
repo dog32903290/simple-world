@@ -39,6 +39,12 @@ struct ClipboardChild {
   // (= TiXL CopySymbolChildrenCommand.cs:196-199 CopyAnimationsTo: the curves travel WITH the copied
   // child so a paste reproduces the animation). Empty when the child is unanimated.
   std::map<std::string, Animator::CurveArray> curves;
+  // S2 (批次7) child structural state carried with the copy (= TiXL CopySymbolChildrenCommand.cs:223-243
+  // full per-child state). isBypassed is applied AFTER the wires exist (the deferred bypass seam,
+  // .cs:245-251,269-276); the per-output maps copy verbatim with the child.
+  bool isBypassed = false;
+  std::map<std::string, bool> disabledOutputs;
+  std::map<std::string, TriggerOverride> triggerOverrides;
 };
 
 struct ClipboardData {
@@ -68,6 +74,11 @@ bool clipboardFromJson(const std::string& json, ClipboardData& out);
 // absolute position). The command appends these and removes them by id on undo.
 struct PastedChild {
   SymbolChild child;  // .id is the NEW id; ready to push into the target symbol
+  // S2 deferred bypass (= TiXL .cs:245-251,269-276): the COPIED isBypassed is NOT baked into `child`
+  // above — SetBypassed no-ops on an unwired fresh instance, so the bypass seam in
+  // CopyPasteChildrenCommand::doIt applies it AFTER the wires are laid (and only when the pasted child
+  // is actually bypassable + its main output got a wire). This field carries the intent to that seam.
+  bool wantBypass = false;
 };
 
 // The deterministic result of planning a paste: the new children (with fresh ids), the wires

@@ -74,6 +74,52 @@ SlotDef slotDefFromJson(crude_json::value& v) {
   return d;
 }
 
+// S2 (批次7): the per-output child-state segment (= TiXL SymbolJson.cs outputs[]). One entry per output
+// that has a non-default disabled/trigger, keyed by output slot id, sorted (std::map) for a stable
+// file. Returns the array (empty -> caller omits "outputs"). Factored out so the child write loop stays
+// readable (compound_save was already over the soft size line — ARCHITECTURE rule 4).
+crude_json::array childOutputStateToJson(const SymbolChild& c) {
+  std::map<std::string, crude_json::object> perOut;  // sorted by slotId
+  for (const auto& kv : c.disabledOutputs)
+    if (kv.second) perOut[kv.first]["isDisabled"] = true;
+  for (const auto& kv : c.triggerOverrides)
+    if (kv.second != TriggerOverride::None)
+      perOut[kv.first]["trigger"] = std::string(triggerOverrideName(kv.second));
+  crude_json::array outs;
+  for (auto& kv : perOut) {
+    crude_json::object oo = kv.second;
+    oo["id"] = kv.first;
+    outs.push_back(crude_json::value(oo));
+  }
+  return outs;
+}
+
+// S2: read the per-output child-state segment back onto `c`. S15-tolerant — an entry whose `id` is not
+// a real outputDef of `refSym` is dropped LOCALLY (next save self-heals; mirrors the zombie-override
+// scrub), garbage elements skipped, garbage trigger strings -> None (dropped). `warnSink` appends drops.
+void childOutputStateFromJson(crude_json::value& outsv, const Symbol* refSym, SymbolChild& c,
+                              const std::string& symId, std::vector<std::string>* warnSink) {
+  for (auto& outv : outsv.get<crude_json::array>()) {
+    if (!outv.is_object() || !outv["id"].is_string()) continue;  // garbage element -> skip
+    const std::string oid = outv["id"].get<crude_json::string>();
+    bool known = false;
+    if (refSym)
+      for (const SlotDef& d : refSym->outputDefs)
+        if (d.id == oid) { known = true; break; }
+    if (!known) {
+      appendWarn(warnSink, "output state for unknown output '" + oid + "' on child " +
+                               std::to_string(c.id) + " in '" + symId + "' — dropped");
+      continue;
+    }
+    if (outv["isDisabled"].is_boolean() && outv["isDisabled"].get<bool>())
+      c.disabledOutputs[oid] = true;
+    if (outv["trigger"].is_string()) {
+      TriggerOverride t = triggerOverrideFromName(outv["trigger"].get<crude_json::string>());
+      if (t != TriggerOverride::None) c.triggerOverrides[oid] = t;
+    }
+  }
+}
+
 }  // namespace
 
 std::string atomicUuidForType(const std::string& type) {
@@ -147,6 +193,14 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
       co["overrides"] = crude_json::value(ov);
       co["x"] = finiteOr0(c.x);
       co["y"] = finiteOr0(c.y);
+      // S2 (批次7) child structural补欄, all 照 TiXL SymbolJson.cs, all OMITTED at default so the
+      // file stays minimal + diffs clean (= TiXL only persists non-default state). isBypassed: a
+      // child-level bool (.cs:83-85). outputs[]: per-output {id, [isDisabled], [trigger]} — an entry
+      // is written ONLY when that output has a non-default disabled/trigger (.cs:117-143), keyed by
+      // the output slot id (sorted for a stable file, same intent as the symbols/connections order).
+      if (c.isBypassed) co["isBypassed"] = true;
+      crude_json::array outState = childOutputStateToJson(c);
+      if (!outState.empty()) co["outputs"] = crude_json::value(outState);
       children.push_back(crude_json::value(co));
     }
     o["children"] = crude_json::value(children);
@@ -328,6 +382,12 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
         if (cv["name"].is_string()) c.name = cv["name"].get<crude_json::string>();
         if (cv["x"].is_number()) c.x = (float)cv["x"].get<crude_json::number>();
         if (cv["y"].is_number()) c.y = (float)cv["y"].get<crude_json::number>();
+        // S2 (批次7) structural补欄. isBypassed: a non-bool/garbage value is ignored (stays false).
+        // The per-output disabled/trigger segment is read by the helper (S15-tolerant: unknown output
+        // ids dropped locally, = the zombie-override scrub; refSym is the slot-existence authority).
+        if (cv["isBypassed"].is_boolean()) c.isBypassed = cv["isBypassed"].get<bool>();
+        if (cv["outputs"].is_array())
+          childOutputStateFromJson(cv["outputs"], out.find(c.symbolId), c, s.id, warnings);
         s.children.push_back(c);
       }
     }

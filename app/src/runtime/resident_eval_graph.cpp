@@ -33,6 +33,22 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
   if (depth > 64) return 0.0f;  // cycle guard
   const ResidentNode* n = g.node(nodePath);
   if (!n) return 0.0f;
+
+  // S2 BYPASS (= TiXL Slot.ByPassUpdate): the no-cache twin of pullResidentFloat's redirect. A
+  // bypassed node's MAIN output returns its MAIN input's upstream value. (isDisabled is a CACHE
+  // semantic — freeze the last computed value — so it has no meaning on this stateless path, which
+  // recomputes from scratch each call; the cache path pullResidentFloat owns disable.)
+  if (n->bypassed && outSlotId == n->bypassOutSlot) {
+    const ResidentInput* ri = n->input(n->bypassInSlot);
+    if (!ri) return 0.0f;
+    switch (ri->driver) {
+      case ResidentInput::Driver::Constant:   return ri->constant;
+      case ResidentInput::Driver::Automation: return sampleAutomation(ctx, *ri);
+      case ResidentInput::Driver::Connection:
+        return evalResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx, depth + 1);
+    }
+  }
+
   const NodeSpec* s = findSpec(n->opType);
   if (!s) return 0.0f;
   if (!s->evaluate) {
@@ -137,6 +153,26 @@ std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
       ResidentNode rn;
       rn.path = prefix + std::to_string(c.id);
       rn.opType = c.symbolId;
+      // S2 bypass: an atomic child whose MAIN I/O type is bypassable (childIsBypassable) and that is
+      // marked isBypassed has its MAIN output redirected to its MAIN input's upstream at eval time
+      // (= TiXL ByPassUpdate). Record the main-slot ids now; the redirect itself lives in pull/eval.
+      // Whitelist/refusal mirrors SetBypassed — a non-bypassable type leaves bypassed=false (silent
+      // no-op, like TiXL's IsBypassable() guard). Output-connectedness is enforced by the COMMAND
+      // layer (SetBypassChildCommand) before the flag is ever set, so the builder trusts the flag.
+      if (c.isBypassed && childIsBypassable(lib, c)) {
+        rn.bypassed = true;
+        rn.bypassInSlot = def->inputDefs[0].id;
+        rn.bypassOutSlot = def->outputDefs[0].id;
+      }
+      // S2 per-output isDisabled / triggerOverride: project the child's sparse maps onto the resident
+      // node (the cache reads them in initResidentNodeCache). Only outputs the referenced symbol
+      // actually defines are carried (a stale slot id would be ignored downstream, but filter here
+      // for cleanliness). Only Always matters for the LIVE-source derivation; None/Animated leave the
+      // default chase (Animated arrives via the Automation driver path, not a per-output trigger here).
+      for (const auto& kv : c.disabledOutputs)
+        if (kv.second) rn.disabledOut[kv.first] = true;
+      for (const auto& kv : c.triggerOverrides)
+        if (kv.second == TriggerOverride::Always) rn.triggerAlwaysOut[kv.first] = true;
       for (const SlotDef& d : def->inputDefs) {
         ResidentInput in;
         in.slotId = d.id;

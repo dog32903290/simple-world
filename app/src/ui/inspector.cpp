@@ -162,6 +162,49 @@ void drawInspector() {
         }
       }
       if (!any) ImGui::TextDisabled("(no editable parameters)");
+
+      // S2 (批次7) per-output controls (= TiXL EditNodeOutputDialog, the minimal output-dimension UI).
+      // For each output the referenced symbol defines: a "Disabled" checkbox (freeze the value /
+      // Command no-op) + a "Trigger" dropdown (None/Always/Animated DirtyFlagTrigger override). Both
+      // push undoable, sparse commands (back-to-default erases the key). Output dimension lives here,
+      // NOT the node-context menu — bypass is node-dimension (right-click), these are per-output.
+      const sw::Symbol* def = sw::doc::g_lib.find(sel->symbolId);
+      if (def && !def->outputDefs.empty()) {
+        ImGui::Separator();
+        ImGui::TextDisabled("Outputs");
+        static const char* kTrig[] = {"None", "Always", "Animated"};
+        for (const sw::SlotDef& od : def->outputDefs) {
+          ImGui::PushID(od.id.c_str());
+          ImGui::TextUnformatted(od.name.c_str());
+          // Disabled checkbox
+          auto dit = sel->disabledOutputs.find(od.id);
+          bool disabled = dit != sel->disabledOutputs.end() && dit->second;
+          if (ImGui::Checkbox("Disabled", &disabled)) {
+            auto cmd = std::make_unique<sw::SetOutputDisabledCommand>(sw::doc::g_lib, cur->id, sel->id,
+                                                                      od.id, disabled);
+            if (!cmd->refused()) {
+              sw::g_commands.push(std::move(cmd));
+              sw::doc::bumpLibRevision();
+            }
+          }
+          sw::eye::recordItem(("outdisable:" + od.id).c_str());
+          // Trigger dropdown
+          auto tit = sel->triggerOverrides.find(od.id);
+          sw::TriggerOverride curT =
+              tit != sel->triggerOverrides.end() ? tit->second : sw::TriggerOverride::None;
+          int ti = (int)curT;
+          if (ImGui::Combo("Trigger", &ti, kTrig, 3)) {
+            auto cmd = std::make_unique<sw::SetOutputTriggerCommand>(
+                sw::doc::g_lib, cur->id, sel->id, od.id, (sw::TriggerOverride)ti);
+            if (!cmd->refused()) {
+              sw::g_commands.push(std::move(cmd));
+              sw::doc::bumpLibRevision();
+            }
+          }
+          sw::eye::recordItem(("outtrigger:" + od.id).c_str());
+          ImGui::PopID();
+        }
+      }
     } else {
       ImGui::TextDisabled("(no editable parameters)");
     }

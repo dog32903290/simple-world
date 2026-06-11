@@ -200,6 +200,81 @@ class RenameChildCommand : public Command {
   bool refused_ = false;
 };
 
+// --- S2 (批次7) Child structural补欄 commands (child_state_commands.cpp), all undoable, all 照 TiXL ---
+
+// Toggle a child's isBypassed (= TiXL right-click Bypass / SetBypassed, Symbol.Child.cs:263-310). REFUSES
+// (refused()=true, caller skips push — no dead undo entry, 照環檢前例) when: missing symbol/child, the
+// child's MAIN I/O type is not bypassable (childIsBypassable false = TiXL IsBypassable guard), the
+// child's MAIN output is NOT wired (= TiXL .cs:287-300 isOutputConnected refusal — bypass of an
+// unconnected output is meaningless), or no-op (already in the requested state). Stores only the bool;
+// undo flips it back.
+class SetBypassChildCommand : public Command {
+ public:
+  SetBypassChildCommand(SymbolLibrary& lib, std::string symbolId, int childId, bool bypass);
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return "Bypass Node"; }
+  bool refused() const { return refused_; }
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  int childId_;
+  bool new_ = false, old_ = false;
+  bool refused_ = false;
+};
+
+// Toggle ONE output's isDisabled (= TiXL Symbol.Child.SetDisabled per-output, .cs:106-149). REFUSES on
+// missing symbol/child, an outputSlot the referenced symbol does not define, or no-op. Sparse map:
+// disabling sets disabledOutputs[slot]=true; enabling ERASES the key (so a never-disabled output leaves
+// no residue, like the override model). undo restores the prior presence/value.
+class SetOutputDisabledCommand : public Command {
+ public:
+  SetOutputDisabledCommand(SymbolLibrary& lib, std::string symbolId, int childId,
+                           std::string outputSlot, bool disabled);
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return "Disable Output"; }
+  bool refused() const { return refused_; }
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  int childId_;
+  std::string outputSlot_;
+  bool new_ = false, hadOld_ = false, old_ = false;
+  bool refused_ = false;
+};
+
+// Set ONE output's DirtyFlagTrigger override (= TiXL EditNodeOutputDialog dropdown, .cs:35-52). REFUSES
+// on missing symbol/child, an outputSlot the symbol does not define, or no-op. Sparse: a None value
+// ERASES the key (= follow the def); Always/Animated set it. undo restores the prior presence/value.
+class SetOutputTriggerCommand : public Command {
+ public:
+  SetOutputTriggerCommand(SymbolLibrary& lib, std::string symbolId, int childId,
+                          std::string outputSlot, TriggerOverride trigger);
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return "Set Output Trigger"; }
+  bool refused() const { return refused_; }
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  int childId_;
+  std::string outputSlot_;
+  TriggerOverride new_ = TriggerOverride::None;
+  bool hadOld_ = false;
+  TriggerOverride old_ = TriggerOverride::None;
+  bool refused_ = false;
+};
+
+// S2 child-state golden (child_state_selftest.cpp): bypass passthrough + unwired/non-whitelist refusal,
+// per-output isDisabled freeze (Command no-op) + thaw, triggerOverride Always LIVE flip + clear, the
+// three fields' savev2 byte-stable roundtrip + S15 tolerance, and copy/paste bypass-after-wire. injectBug
+// breaks one承重 leg -> FAIL (teeth).
+int runChildStateSelfTest(bool injectBug);
+
 // rename golden (rename_selftest.cpp): def-name change flows to spec title + all instances + undo;
 // instance-name change is isolated + empty falls back to def name + undo; a CJK instance name
 // roundtrips byte-identically through savev2 WITHOUT aborting the parser; a tampered name field is

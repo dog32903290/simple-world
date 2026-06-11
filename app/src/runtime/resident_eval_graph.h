@@ -62,7 +62,13 @@ struct ResidentOutputCache {
                                //   (derived adopts the upstream sum ON TOP of its own baseVersion)
   uint64_t valueVersion = 0;   // = sourceVersion at last recompute; dirty when they differ
   float cachedFloat = 0.0f;    // last computed value (returned while not dirty — 算一次存著)
-  bool isLiveSource = false;   // op 宣告恆髒 (Time…); bumped every frame (決策 7 / 🪤#1)
+  bool isLiveSource = false;   // op 宣告恆髒 (Time…) ∨ Automation-driven ∨ per-output triggerOverride=
+                               //   Always (S2); bumped every frame (決策 7 / 🪤#1)
+  // S2 per-output isDisabled (= TiXL Slot.SetDisabled, Slot.cs:43-67): the value FREEZES at its last
+  // result. In this version-chasing cache that means "stop chasing": pullResidentFloat sees this flag,
+  // skips the version compare + recompute, and returns cachedFloat verbatim — so an upstream change can
+  // never thaw it. NOT a default, NOT a node skip. Cleared (false) restores normal version-chasing.
+  bool isDisabled = false;
 };
 
 // One inlined operator instance. `path` is the path-qualified id (join of the child-id
@@ -77,6 +83,19 @@ struct ResidentNode {
   // evaluate() — AudioReaction — are cooked by the app's per-frame cooker, which writes the
   // results here; evalResidentFloat returns extOut[output port index] for such nodes.
   float extOut[3] = {0.0f, 0.0f, 0.0f};
+  // S2 bypass (= TiXL Slot.ByPassUpdate, Slot.cs:176-179): when bypassed AND bypassable, this node's
+  // MAIN output (bypassOutSlot) returns its MAIN input's (bypassInSlot) upstream value instead of
+  // cooking. Set at build time (mirrors how a wire feeding a slot is resolved at build, not eval).
+  // bypassed==false (default) => the op cooks normally. Empty slot ids when not bypassable.
+  bool bypassed = false;
+  std::string bypassInSlot;   // MAIN input slot id (Inputs[0]) the output passes through to
+  std::string bypassOutSlot;  // MAIN output slot id (Outputs[0]) that becomes a passthrough
+  // S2 per-output state projected from the SymbolChild at build time (sparse: only non-default
+  // outputs present). initResidentNodeCache reads these onto each output's cache: a triggerAlways
+  // output is a LIVE source (bumped每幀); a disabled output freezes (pull returns cachedFloat). Keyed
+  // by output slot id (= NodeSpec output port id). Empty = every output default.
+  std::map<std::string, bool> disabledOut;          // outSlotId -> true (frozen)
+  std::map<std::string, bool> triggerAlwaysOut;     // outSlotId -> true (DirtyFlagTrigger.Always)
   const ResidentInput* input(const std::string& slotId) const;
 };
 

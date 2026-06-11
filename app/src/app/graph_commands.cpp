@@ -158,8 +158,21 @@ void CopyPasteChildrenCommand::doIt() {
   for (const auto& [newChildId, byInput] : plan_.curves)
     for (const auto& [inputId, arr] : byInput) s->animator.setCurves(newChildId, inputId, arr);
   // 3) [bypass seam] TiXL .cs:269-276 applies deferred bypass HERE, now that wires exist
-  //    (SetBypassed no-ops on an unwired fresh instance). Our model has no IsBypassed field yet
-  //    (named FORK) — when it lands, set it on plan_.children here, AFTER the wires above.
+  //    (SetBypassed no-ops on an unwired fresh instance). For each pasted child that wanted bypass,
+  //    apply it ONLY if the pasted child is bypassable AND its MAIN output got a wire (= TiXL's
+  //    SetBypassed guards re-checked now that the wires are in). An unwired/non-bypassable paste keeps
+  //    isBypassed=false — exactly what TiXL's deferred SetBypassed yields. (S2 seam closure.)
+  for (const PastedChild& pc : plan_.children) {
+    if (!pc.wantBypass) continue;
+    SymbolChild* c = childById(*s, pc.child.id);
+    if (!c || !childIsBypassable(lib_, *c)) continue;
+    const Symbol* def = lib_.find(c->symbolId);
+    const std::string mainOut = (def && !def->outputDefs.empty()) ? def->outputDefs[0].id : "";
+    bool wired = false;
+    for (const SymbolConnection& w : s->connections)
+      if (w.srcChild == c->id && w.srcSlot == mainOut) { wired = true; break; }
+    if (wired) c->isBypassed = true;
+  }
 }
 void CopyPasteChildrenCommand::undo() {
   Symbol* s = sym(lib_, symbolId_);

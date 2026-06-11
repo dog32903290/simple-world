@@ -50,6 +50,15 @@ struct SymbolConnection {
   std::string dstSlot;  // dstChild==0 -> parent outputDef id; else child's input slot id
 };
 
+// Per-output dirty-flag trigger override (= TiXL DirtyFlagTrigger, DirtyFlagTrigger.cs). None is
+// the unset state (= follow the output def's own trigger, which our atomics never declare so it is
+// effectively STATIC); Always = recompute every pass (the value-graph "LIVE" flip, S2 selftest);
+// Animated = animation-driven. Stored per (childId, outputSlotId) and serialized as the enum NAME
+// (= TiXL SymbolJson.cs:134 Enum string) so the file is self-describing across enum reorders.
+enum class TriggerOverride { None = 0, Always = 1, Animated = 2 };
+const char* triggerOverrideName(TriggerOverride t);             // enum -> "None"/"Always"/"Animated"
+TriggerOverride triggerOverrideFromName(const std::string& s);  // name -> enum (unknown -> None)
+
 // An instance of a Symbol inside a parent Symbol's subgraph (= TiXL Symbol.Child).
 // `overrides` holds ONLY non-default input values for THIS instance — everything else
 // falls back to the referenced Symbol's inputDef.def, so the definition is never polluted.
@@ -60,9 +69,23 @@ struct SymbolChild {
   float x = 0.0f, y = 0.0f;                // canvas position (UI; moves to a sidecar later)
   // Custom instance name (= TiXL Symbol.Child.Name). EMPTY = fall back to the referenced Symbol's
   // name (TiXL ReadableName); non-empty overrides ONLY this instance's title, never the definition.
-  // May hold CJK. LAST member on purpose: existing positional aggregate inits ({id, symbolId,
-  // overrides, x, y}) stay valid (default-empty name) — no churn across the selftest call sites.
+  // May hold CJK.
   std::string name;
+  // S2 (批次7) — Child structural补欄, all 照 TiXL Symbol.Child.cs, all serialized into .t3:
+  //   isBypassed      — type-whitelisted passthrough Inputs[0]->Outputs[0] (.cs:38,232-310). One bool
+  //                     on the child (= TiXL IsBypassed). Only effective when the child's main I/O type
+  //                     is bypassable AND the main output is wired (refusal mirrors SetBypassed).
+  //   disabledOutputs — per-output isDisabled (.cs:106-149, Slot.cs:43-67). SPARSE map keyed by the
+  //                     referenced symbol's outputDef slotId -> true. Semantics: the output's value
+  //                     freezes at its last result (Command becomes a no-op) — NOT a default, NOT a
+  //                     node skip. Absent key = enabled (the common case → minimal file/diff).
+  //   triggerOverrides— per-output DirtyFlagTrigger override (.cs:157-163, EditNodeOutputDialog.cs).
+  //                     SPARSE map outputSlotId -> TriggerOverride. Absent = None (follow the def).
+  // All THREE are LAST members + default-empty so existing positional aggregate inits
+  // ({id, symbolId, overrides, x, y[, name]}) stay valid — no churn at the selftest call sites.
+  bool isBypassed = false;
+  std::map<std::string, bool> disabledOutputs;
+  std::map<std::string, TriggerOverride> triggerOverrides;
 };
 
 // The display title of an instance = its custom name, or the referenced Symbol's name if blank
@@ -144,6 +167,14 @@ std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefix
 // Returns `fallback` if neither the override nor a matching inputDef exists.
 float effectiveInput(const SymbolLibrary& lib, const SymbolChild& child,
                      const std::string& slotId, float fallback = 0.0f);
+
+// Can child `c` be bypassed (= TiXL Symbol.Child.IsBypassable, .cs:232-248)? Requires the referenced
+// symbol to have ≥1 input AND ≥1 output, the MAIN input[0] dataType == MAIN output[0] dataType, and
+// that type be in the bypass whitelist. FORK (named): TiXL's _bypassableTypes lists 9 types but its
+// EXECUTOR (Instance.Connections.cs SetBypassFor) has cases for only 8 — ShaderGraphNode silently
+// no-ops. We follow the EXECUTOR (8 types), mapped onto our port dataType vocabulary
+// (compoundBypassableType, in the .cpp). Returns false if the symbol is missing.
+bool childIsBypassable(const SymbolLibrary& lib, const SymbolChild& c);
 
 // Would instantiating Symbol `symbolId` inside Symbol `parentId` close a containment cycle?
 // True iff symbolId == parentId (direct self-nest) OR parentId is reachable from symbolId's

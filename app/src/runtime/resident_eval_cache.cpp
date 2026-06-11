@@ -40,11 +40,17 @@ bool nodeHasAutomationInput(const ResidentNode& n) {
 void initResidentNodeCache(ResidentNode& n) {
   const NodeSpec* s = findSpec(n.opType);
   if (!s) return;
-  const bool live = opDeclaresLiveOutput(n.opType) || nodeHasAutomationInput(n);
+  // 拍板 1b: isLiveSource = driver(Automation) ∨ op 宣告 ∨ per-output triggerOverride=Always (S2, the
+  // third term wired here). The first two are node-wide; the third is PER-OUTPUT (an EditNodeOutput
+  // trigger sets one output Always, not the whole node — = TiXL Output.DirtyFlagTrigger). So the
+  // node-wide part is OR'd per output with that output's own triggerAlways flag.
+  const bool nodeLive = opDeclaresLiveOutput(n.opType) || nodeHasAutomationInput(n);
   for (const PortSpec& p : s->ports)
     if (!p.isInput) {
       ResidentOutputCache c;
-      c.isLiveSource = live;  // leaf live source OR automation-driven: bumped every frame (決策 7 / 🪤#1)
+      const bool triggerAlways = n.triggerAlwaysOut.count(p.id) > 0;
+      c.isLiveSource = nodeLive || triggerAlways;  // bumped every frame (決策 7 / 🪤#1)
+      c.isDisabled = n.disabledOut.count(p.id) > 0;  // S2: frozen -> pull returns cachedFloat verbatim
       n.outCache[p.id] = c;
     }
 }
@@ -65,8 +71,36 @@ float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,
   auto it = g.byPath.find(nodePath);
   if (it == g.byPath.end()) return 0.0f;
   const int idx = it->second;
+
+  // S2 BYPASS (= TiXL Slot.ByPassUpdate, Slot.cs:176-179): a bypassed node's MAIN output returns its
+  // MAIN input's value instead of cooking. Read the main input's driver and resolve THROUGH it (a
+  // Connection chases upstream; a Constant/Automation reads that value). Done BEFORE the cache lookup:
+  // a bypassed output doesn't cook, so it has no meaningful own-cache; its dirtiness is the upstream's.
+  // depth+1 keeps the cycle guard honest. Only the MAIN output is bypassed; other outputs cook normally.
+  if (g.nodes[idx].bypassed && outSlotId == g.nodes[idx].bypassOutSlot) {
+    const ResidentInput* ri = g.nodes[idx].input(g.nodes[idx].bypassInSlot);
+    if (!ri) return 0.0f;  // no main input driver -> nothing to pass through
+    switch (ri->driver) {
+      case ResidentInput::Driver::Constant:   return ri->constant;
+      case ResidentInput::Driver::Automation: return sampleAutomation(ctx, *ri);
+      case ResidentInput::Driver::Connection:
+        return pullResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx, depth + 1);
+    }
+  }
+
   const NodeSpec* s = findSpec(g.nodes[idx].opType);
   if (!s || !s->evaluate) return 0.0f;
+
+  // S2 DISABLED (= TiXL Slot.SetDisabled, Slot.cs:43-67): a disabled output FREEZES at its last
+  // result. In this version-chasing cache that means stop chasing — return cachedFloat verbatim,
+  // WITHOUT touching valueVersion/sourceVersion, so a later upstream change can never thaw it. The
+  // frozen value is whatever was last computed before disable (or the cache default 0 if never cooked,
+  // which is the faithful "last result" for a never-evaluated slot). Clearing isDisabled resumes the
+  // normal version compare below, which finds it stale (versions diverged while frozen) and recomputes.
+  {
+    auto dc = g.nodes[idx].outCache.find(outSlotId);
+    if (dc != g.nodes[idx].outCache.end() && dc->second.isDisabled) return dc->second.cachedFloat;
+  }
 
   // Gather Float inputs in spec port order (mirrors evalResidentFloat) AND sum upstream versions.
   // Recursion can grow g.nodes? No — pull never appends nodes, so `idx` stays valid across calls.

@@ -104,6 +104,44 @@ std::string childReadableName(const SymbolChild& c, const std::string& defName) 
   return c.name.empty() ? defName : c.name;  // = TiXL Symbol.Child.ReadableName
 }
 
+const char* triggerOverrideName(TriggerOverride t) {
+  switch (t) {
+    case TriggerOverride::Always: return "Always";
+    case TriggerOverride::Animated: return "Animated";
+    case TriggerOverride::None: break;
+  }
+  return "None";
+}
+TriggerOverride triggerOverrideFromName(const std::string& s) {
+  if (s == "Always") return TriggerOverride::Always;
+  if (s == "Animated") return TriggerOverride::Animated;
+  return TriggerOverride::None;  // unknown/garbage -> None (S15 tolerant)
+}
+
+// The bypass type whitelist, mapped from TiXL's EXECUTOR (Instance.Connections.cs SetBypassFor: 8
+// switch cases) onto OUR port dataType vocabulary. TiXL's 8 executor types are Command, Texture2D,
+// BufferWithViews, MeshBuffers, float, Vector2, Vector3, string. Our model carries: "Command",
+// "Texture2D", "Float", "Points", "ParticleForce". Mapping: Command->Command, Texture2D->Texture2D,
+// float->Float. BufferWithViews/MeshBuffers are TiXL's GPU buffer handles — our nearest analog is the
+// point/force buffer ports, so "Points"/"ParticleForce" map onto them (a bypassed point op passes its
+// upstream buffer straight through). Vector2/Vector3/string have NO port-type analog in our model yet
+// (no such ports exist) — named gap, not a silent drop. ShaderGraphNode is whitelisted in TiXL but has
+// no executor case (the FORK reason): we omit it.
+bool compoundBypassableType(const std::string& dataType) {
+  return dataType == "Command" || dataType == "Texture2D" || dataType == "Float" ||
+         dataType == "Points" || dataType == "ParticleForce";
+}
+
+bool childIsBypassable(const SymbolLibrary& lib, const SymbolChild& c) {
+  const Symbol* def = lib.find(c.symbolId);
+  if (!def) return false;
+  if (def->inputDefs.empty() || def->outputDefs.empty()) return false;  // = TiXL .cs:234-238
+  const SlotDef& mainIn = def->inputDefs[0];
+  const SlotDef& mainOut = def->outputDefs[0];
+  if (mainIn.dataType != mainOut.dataType) return false;  // = TiXL .cs:243-245 (type match)
+  return compoundBypassableType(mainIn.dataType);
+}
+
 int nextFreeChildId(const Symbol& s) {
   int maxId = 0;
   for (const SymbolChild& c : s.children)

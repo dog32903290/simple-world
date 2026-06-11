@@ -124,6 +124,26 @@ void drawCanvasContextMenu() {
       sw::eye::recordItem("ctx:rename_def");
     }
     ImGui::Separator();
+    // S2 (批次7) Bypass toggle (= TiXL right-click Bypass, the minimal node-dimension UI). Enabled only
+    // for a single bypassable child; the checkmark shows current state. The command itself re-checks the
+    // wiring/whitelist guards and refuses when bypass can't take (no dead undo entry). The "Disable
+    // Output" / output-trigger controls are output-dimension and live in the Inspector (per-output rows).
+    if (renameTarget > 0) {
+      const sw::Symbol* cur = sw::doc::currentSymbolConst();
+      const sw::SymbolChild* c = cur ? sw::childById(*cur, renameTarget) : nullptr;
+      const bool canBypass = c && sw::childIsBypassable(sw::doc::g_lib, *c);
+      const bool isBp = c && c->isBypassed;
+      if (ImGui::MenuItem("Bypass", nullptr, isBp, canBypass || isBp)) {
+        auto cmd = std::make_unique<sw::SetBypassChildCommand>(sw::doc::g_lib, cur->id, renameTarget,
+                                                              !isBp);
+        if (!cmd->refused()) {
+          sw::g_commands.push(std::move(cmd));
+          sw::doc::bumpLibRevision();  // projection rebuilds the resident graph next frame
+        }
+      }
+      sw::eye::recordItem("ctx:bypass");
+    }
+    ImGui::Separator();
     std::string label = "Combine " + std::to_string(g_combineIds.size()) +
                         " into new symbol...";
     if (ImGui::MenuItem(label.c_str(), nullptr, false, !g_combineIds.empty()))

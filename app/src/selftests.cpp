@@ -109,6 +109,7 @@ const SelfTest kTable[] = {
     {"defremoval", runDefRemovalSelfTest},
     {"copypaste", runCopyPasteSelfTest},
     {"rename", runRenameSelfTest},
+    {"childstate", runChildStateSelfTest},
     {"navigation", doc::runNavigationSelfTest},
     {"valuecook", runValueCookSelfTest},
     {"resolve", runResolveSelfTest},

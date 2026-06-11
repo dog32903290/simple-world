@@ -39,6 +39,9 @@ ClipboardData extractClipboard(const Symbol& src, const std::vector<int>& childI
     cc.overrides = c.overrides;     // FULL per-instance state our model carries (see header FORK)
     cc.relX = c.x - ulX;
     cc.relY = c.y - ulY;
+    cc.isBypassed = c.isBypassed;          // S2: carried; applied after wires (the bypass seam)
+    cc.disabledOutputs = c.disabledOutputs;  // S2 per-output state copies verbatim
+    cc.triggerOverrides = c.triggerOverrides;
     // Carry the child's animation curves off the source symbol's Animator (= TiXL CopyAnimationsTo
     // source side). Deep-copied (CurveArray is value-type) so the clipboard is self-contained.
     if (src.animator.isInstanceAnimated(c.id))
@@ -78,6 +81,26 @@ std::string clipboardToJson(const ClipboardData& clip) {
       crude_json::object cu;
       for (const auto& [inputId, arr] : c.curves) cu[inputId] = curveArrayToJson(arr);
       co["curves"] = crude_json::value(cu);
+    }
+    // S2 child structural state — same shape as the .t3 save (isBypassed bool + outputs[] of
+    // {id,[isDisabled],[trigger]}), omitted at default so the clipboard JSON stays minimal.
+    if (c.isBypassed) co["isBypassed"] = true;
+    {
+      std::map<std::string, crude_json::object> perOut;  // sorted by slotId
+      for (const auto& kv : c.disabledOutputs)
+        if (kv.second) perOut[kv.first]["isDisabled"] = true;
+      for (const auto& kv : c.triggerOverrides)
+        if (kv.second != TriggerOverride::None)
+          perOut[kv.first]["trigger"] = std::string(triggerOverrideName(kv.second));
+      if (!perOut.empty()) {
+        crude_json::array outs;
+        for (auto& kv : perOut) {
+          crude_json::object oo = kv.second;
+          oo["id"] = kv.first;
+          outs.push_back(crude_json::value(oo));
+        }
+        co["outputs"] = crude_json::value(outs);
+      }
     }
     children.push_back(crude_json::value(co));
   }
@@ -130,6 +153,23 @@ bool clipboardFromJson(const std::string& json, ClipboardData& out) {
           if (!kv.second.is_array()) continue;  // non-array channel payload -> skip (clean)
           Animator::CurveArray arr = curveArrayFromJson(kv.second);
           if (!arr.empty()) c.curves[kv.first] = std::move(arr);
+        }
+      }
+      // S2 child structural state (S15-tolerant, like the curve segment). A foreign clipboard with no
+      // such keys leaves the defaults; a garbage element is skipped. Output slot ids are NOT validated
+      // here against a symbol (clipboard is symbol-agnostic) — planPaste's target symbol is the eventual
+      // authority, and a stale per-output id simply never matches a real output downstream (inert).
+      if (cv["isBypassed"].is_boolean()) c.isBypassed = cv["isBypassed"].get<bool>();
+      if (cv["outputs"].is_array()) {
+        for (auto& outv : cv["outputs"].get<crude_json::array>()) {
+          if (!outv.is_object() || !outv["id"].is_string()) continue;
+          const std::string oid = outv["id"].get<crude_json::string>();
+          if (outv["isDisabled"].is_boolean() && outv["isDisabled"].get<bool>())
+            c.disabledOutputs[oid] = true;
+          if (outv["trigger"].is_string()) {
+            TriggerOverride t = triggerOverrideFromName(outv["trigger"].get<crude_json::string>());
+            if (t != TriggerOverride::None) c.triggerOverrides[oid] = t;
+          }
         }
       }
       out.children.push_back(std::move(c));
@@ -189,7 +229,11 @@ PastePlan planPaste(const SymbolLibrary& lib, const std::string& targetId,
     nc.overrides = cc.overrides;          // full per-instance state carried (header FORK)
     nc.x = pasteX + cc.relX;
     nc.y = pasteY + cc.relY;
-    plan.children.push_back({std::move(nc)});
+    // S2 per-output state (isDisabled/triggerOverride) does NOT depend on wires — bake it straight
+    // onto the child. isBypassed is the EXCEPTION: deferred to the command's bypass seam (wantBypass).
+    nc.disabledOutputs = cc.disabledOutputs;
+    nc.triggerOverrides = cc.triggerOverrides;
+    plan.children.push_back({std::move(nc), cc.isBypassed});
   }
 
   // Remap wires onto the new ids. A wire survives only if BOTH endpoints were accepted (a child
