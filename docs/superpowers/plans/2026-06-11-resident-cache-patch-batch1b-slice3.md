@@ -1,0 +1,128 @@
+# Resident Cache (Batch 1b first cut) + Incremental Patch (Slice 3 first cut) — Progress / Handoff
+
+> **Status: ✅ DONE (two cuts, headless, additive).** 2026-06-11. Branch
+> `codex/js-to-cpp-contract-migration`. This is a progress/handoff record (work already landed),
+> not a to-run plan. Both cuts are headless, pure-CPU, NOT wired to production, NOT touching Metal.
+
+**Goal of these two cuts:** make "resident" actually resident. Slice 1 flattens a nested
+`SymbolLibrary` into a frame-stable `ResidentEvalGraph`; slice 2 cooks point buffers off it. But
+the graph was rebuilt-able only by `buildEvalGraph` and re-evaluated from scratch every pull — so
+the two reasons a resident graph exists over a per-frame-rebuilt one were both unfulfilled:
+
+- **value not recomputed** (incremental evaluation / cache) → **batch 1b first cut**
+- **structure not rebuilt** (incremental edit / patch) → **slice 3 first cut**
+
+**Authority:** `external/tixl` @ SHA `395c4c55` (`docs/runtime/PARITY_TARGET.md` — do NOT pull).
+**Blueprint (SSOT):** `specs/2026-06-10-compound-graph-design.md` — 承重決策 6 (version-chasing
+dirty + per-output cache), 決策 7 (LIVE = always-dirty), 健檢二補 (patch version 規則組). The
+slice ✅ notes there carry the canonical summary; this file is the longer handoff.
+
+**Scope discipline:** the float **value graph only** (決策 6: 值圖 = eager 後序一趟, safe &
+equivalent). Command/flow graph cache (pull-driven, Command-always) is deliberately untouched and
+must not be contradicted (spec line 120 boundary). Engine `resident_eval_graph.*` (slice 1) and
+production `cook` are zero-changed by both cuts.
+
+---
+
+## Cut 1 — Batch 1b: version-chasing dirty + per-output cache
+
+**Files:** `app/src/runtime/resident_eval_cache.cpp` (+ decls in `resident_eval_graph.h`),
+golden `resident_eval_cache_selftest.cpp`, `--selftest-residentcache`.
+
+**Mechanism (TiXL `DirtyFlag` version-chasing, NOT content hash):**
+- `ResidentOutputCache { baseVersion, sourceVersion, valueVersion, cachedFloat, isLiveSource }`
+  lives ON the resident node, per output slot (C5; 拍板「節點 = slot」, not a parallel layer).
+  `dirty == valueVersion != sourceVersion`. Initially dirty (valueVersion 0 != sourceVersion 1).
+- **`baseVersion`** = the slot's OWN accumulated version (LIVE bump / edit-time push `++` this).
+  Monotonic, never overwritten. **`sourceVersion = baseVersion + Σ upstream sourceVersions`**,
+  recomputed each pull (multi-input combine = sum, so any input change dirties it). A leaf has
+  upstreamSum 0 → sourceVersion = baseVersion. *(This base/sum split is the A4 fix — see Cut 2.
+  The original was a pure `sourceVersion = upstreamSum` overwrite that erased a node's own version.)*
+- `pullResidentFloat(g, path, slot, ctx)`: eager post-order, one pass. Recurses Connection inputs
+  (always walks the cone — cheap), computes sourceVersion, recomputes + caches ONLY when dirty,
+  else returns `cachedFloat` with no evaluate (the skip IS the win — 貴的靜態 op 算一次存著).
+  An unresolvable upstream contributes a fixed version 1 (never 0 — D1 fix).
+- `bumpLiveSources(g)`: `++baseVersion` for every `isLiveSource` slot, each frame (Trigger=Always,
+  決策 7 / 🪤#1 per-frame invariant). `initResidentCache(g)`: per-output cache + isLiveSource
+  (op declares always-dirty; slice scope = `Time`).
+
+**Golden `--selftest-residentcache`** (all teeth): STATIC short-circuit (mutate an upstream const
+WITHOUT a bump → stays cached 15, proving recompute is skipped), edit-push (bump → propagate sum →
+27), LIVE per-frame (Time 14→35), dangling (orphaned upstream → computes 5, not frozen). `-bug`
+skips `bumpLiveSources` → LIVE frozen at 14 (卡舊).
+
+**Refuter (independent opus):** 5 SURVIVE (diamond / same-frame repeat pull / deep LIVE chain /
+partial-dirty / sum-aliasing), 1 BROKEN+fixed:
+- **D1** (`cecdaba`): a derived slot whose Connection upstream doesn't resolve summed to
+  sourceVersion 0, colliding with initial valueVersion 0 → permanent false-clean (卡舊), even an
+  edit-push couldn't rescue it. Broke TiXL's invariant (sourceVersion from 1, only ++, never 0).
+  Fix: unresolvable upstream contributes fixed version 1.
+
+**Commits:** `371e8ab` (feat) → `cecdaba` (D1 fix) → `badd58c` (spec). Mechanism later revised by
+`5561e42` (A4, Cut 2).
+
+---
+
+## Cut 2 — Slice 3: incremental patch (the structural half)
+
+**Files:** `app/src/runtime/resident_eval_patch.cpp` (+ decls in `resident_eval_graph.h`),
+golden `resident_eval_patch_selftest.cpp`, `--selftest-residentpatch`.
+
+**Two of the six S11 edits** (edit in place, preserve cache on untouched nodes, so patch == a
+freshly rebuilt graph with the edit baked in):
+- **`patchSetConstant`** (S1 value edit, `InputSlot.cs:57-63` / `ChangeInputValueCommand.cs:122`):
+  set a Constant input's value, then `++baseVersion` on this node's outputs (edit-time push).
+  Downstream goes dirty via the pull-time upstream sum; untouched siblings keep their cache.
+- **`patchAddConnection`** (S11①, `Slot.cs:198-205`): rewire a Constant input to a Connection,
+  then set `valueVersion = UINT64_MAX` sentinel (= TiXL `ValueVersion=-1`) to force a first-pull
+  recompute. NOT a sourceVersion bump (would corrupt the derived sum — 健檢二補 ②).
+
+**Golden `--selftest-residentpatch`** (all == rebuild): set-const (poison an untouched sibling's
+const out-of-band, patch the other → 9×cached-3 = 27, NOT 9×99 — proves only the edited cone
+recomputes), **derived-node value edit** (edit Multiply.b while Multiply.a is wired → 5×10 = 50),
+add-connection (wire Time→Multiply.a → 7→35). `-bug` edits the constant skipping the patch's
+invalidation → frozen at 15 (卡舊).
+
+**Refuter (independent opus):** 6 SURVIVE (rewire / patch sequences / diamond / wrong-target /
+multi-output over-invalidation / dangling-add), 1 BROKEN+fixed:
+- **A4** (`5561e42`): `patchSetConstant` on a DERIVED node (one with a Connection input) was
+  silently dropped — its `++sourceVersion` was destroyed at pull time by the `sourceVersion =
+  upstreamSum` overwrite → stale value edit, patch != rebuild (15 vs 50). The golden missed it
+  (it only edited a pure leaf). **Root cause in the 1b cache mechanism, not patch alone** — the
+  overwrite discarded a node's own version contribution. Fix (root, not patch-local): split
+  `baseVersion` (own, monotonic) from `sourceVersion = baseVersion + upstream sum`. Brings us
+  closer to TiXL (SourceVersion is accumulated, never overwritten). This is why Cut 1's mechanism
+  description above already reflects base/sum.
+
+**Commits:** `b526e1f` (feat) → `5561e42` (A4 fix, also revises Cut 1's cache.cpp) → `415ce17` (spec).
+
+---
+
+## Verification (both cuts, at `5561e42`)
+`--selftest-residentcache` PASS, `--selftest-residentpatch` PASS, both `-bug` variants FAIL (teeth).
+Regression green: residenteval / residentcook / compoundmodel / graph / valuecook / pointgraph /
+radialop. `check-arch` OK (all four new files are runtime leaves). File sizes healthy:
+cache.cpp 118, patch.cpp 45, resident_eval_graph.h 150 (all < 400).
+
+## Named-deferred (not silently dropped)
+- **Slice 3 rest:** the other four S11 edits — disconnect (③ restore prior update action +
+  ForceInvalidate, `Slot.cs:233-245`), add/remove child, change-definition-default (IsDefault
+  filter, `Symbol.Child.cs:677-698`), IO change (orphan-connection cleanup); the full six-edit
+  `patch == rebuild` golden; per-output precise invalidation (currently bumps ALL outputs);
+  topological-order robustness for compound siblings.
+- **1b rest (Command/flow layer):** Command-always (C2, `_valueIsCommand`), the four op primitives
+  (trigger dirty-as-event / Loop re-eval / ForceInvalidate external push / stateful FxTime
+  time-gate), diamond count-based selftest, one-pass == TiXL two-pass golden, TimeClip time-remap
+  re-entry, automation-driven LIVE (S3 curve store), derived-and-LIVE.
+- **Not started:** production swap + GPU buffer cross-frame cache (cookResident) = batch 2 / slice 4.
+
+## Resume (next cut — pick one)
+1. **Slice 3 rest** (recommended): finish the structural half — the other four S11 edits + the
+   six-edit patch==rebuild golden. "Disconnect" brings in spec ③ (restore the pre-connection update
+   action + ForceInvalidate), an un-touched load-bearing line. The patch machinery is hot and its
+   version rules are refuter-verified for the first two edits.
+2. **1b rest** — the Command/flow graph layer (pull-driven, Command-always, four primitives). Higher
+   value once cookResident's cache lands, but the objects live in the GPU/stateful graph (harder to
+   test headless).
+3. **Slice 2b** — cmd/texture executor parity for cookResident + stateful op state on resident nodes
+   (production-swap prep).
