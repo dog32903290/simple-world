@@ -163,6 +163,33 @@ std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefix
   return "";
 }
 
+bool addChildWouldCycle(const SymbolLibrary& lib, const std::string& parentId,
+                        const std::string& symbolId) {
+  // Adding an instance of `symbolId` into `parentId` closes a cycle iff parentId is reachable
+  // from symbolId via the children->symbolId edges (or they're the same symbol = direct
+  // self-nest). TiXL prevents this in the UI filter only (SymbolFilter.cs:118-120 drops every
+  // ANCESTOR-of-the-open-composition from the browser; Symbol.Instantiation.cs:14 AddChild has
+  // NO core guard). FORK (named, stronger): we test transitive subtree-reachability against the
+  // EDIT TARGET, not just the open ancestor chain — so A⊃B⊃C refuses A-into-C even when neither
+  // A nor B is on the open path. The visited set also makes us total over an ALREADY-cyclic lib
+  // (a crafted/legacy file): we answer the question without spinning.
+  if (symbolId == parentId) return true;
+  std::set<std::string> seen;
+  std::vector<std::string> stack{symbolId};
+  while (!stack.empty()) {
+    std::string id = stack.back();
+    stack.pop_back();
+    if (!seen.insert(id).second) continue;  // already expanded (or a pre-existing lib cycle)
+    const Symbol* s = lib.find(id);
+    if (!s) continue;
+    for (const SymbolChild& c : s->children) {
+      if (c.symbolId == parentId) return true;  // parent sits inside symbolId's subtree
+      if (!seen.count(c.symbolId)) stack.push_back(c.symbolId);
+    }
+  }
+  return false;
+}
+
 float effectiveInput(const SymbolLibrary& lib, const SymbolChild& child,
                      const std::string& slotId, float fallback) {
   auto ov = child.overrides.find(slotId);

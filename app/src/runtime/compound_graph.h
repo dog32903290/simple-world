@@ -119,6 +119,16 @@ std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefix
 float effectiveInput(const SymbolLibrary& lib, const SymbolChild& child,
                      const std::string& slotId, float fallback = 0.0f);
 
+// Would instantiating Symbol `symbolId` inside Symbol `parentId` close a containment cycle?
+// True iff symbolId == parentId (direct self-nest) OR parentId is reachable from symbolId's
+// subtree (children->symbolId, transitively). The SSOT cycle gate for adding a compound from
+// the Add Node menu (toolbar pre-filters with it) and AddChildCommand's defensive early-out.
+// Atomic symbols have no children, so adding an atomic never cycles (returns false). Total even
+// over an already-cyclic lib (crafted file) — visited-set bounded. = TiXL's "prevent graph
+// cycles" intent (SymbolFilter.cs:118), made transitive (FORK noted in the .cpp).
+bool addChildWouldCycle(const SymbolLibrary& lib, const std::string& parentId,
+                        const std::string& symbolId);
+
 // Sentinel predicates: is this wire's endpoint the parent Symbol's own external port?
 inline bool sourceIsSymbolInput(const SymbolConnection& c) { return c.srcChild == kSymbolBoundary; }
 inline bool targetIsSymbolOutput(const SymbolConnection& c) { return c.dstChild == kSymbolBoundary; }
@@ -176,5 +186,10 @@ void restoreSlotDefToLib(SymbolLibrary& lib, const std::string& symbolId, const 
 // override vs default, and the boundary sentinel. injectBug pollutes a definition so the
 // reuse-isolation assertion FAILS (teeth).
 int runCompoundModelSelfTest(bool injectBug);
+
+// Headless RED->GREEN proof of the AddChild cycle gate (addChildWouldCycle): builds an A⊃B⊃C
+// containment chain + an atomic leaf and asserts every self-nest (direct + transitive) is refused
+// while legal reuse / atomic adds are allowed. injectBug blinds the predicate -> refuse legs FAIL.
+int runCycleGuardSelfTest(bool injectBug);
 
 }  // namespace sw

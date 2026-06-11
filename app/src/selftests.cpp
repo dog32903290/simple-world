@@ -125,6 +125,7 @@ const SelfTest kTable[] = {
     {"combine", runCombineSelfTest},
     {"compoundspec", runCompoundSpecSelfTest},
     {"compoundmodel", runCompoundModelSelfTest},
+    {"cycleguard", runCycleGuardSelfTest},
     {"residenteval", runResidentEvalSelfTest},
     {"residentcache", runResidentCacheSelfTest},
     {"residentpatch", runResidentPatchSelfTest},

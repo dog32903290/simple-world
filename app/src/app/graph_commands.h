@@ -24,6 +24,7 @@ class AddChildCommand : public Command {
   SymbolLibrary& lib_;
   std::string symbolId_;
   SymbolChild child_;
+  bool did_ = false;  // doIt's cycle gate may refuse: undo must then be a true no-op
 };
 
 // 加一條已建好的 4-tuple 連線（append = multi-input 保序契約的尾端）。undo 移除同一條。

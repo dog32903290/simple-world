@@ -23,6 +23,15 @@ namespace {
 void addNode(const std::string& type) {
   sw::Symbol* cur = sw::doc::currentSymbol();
   if (!cur) return;
+  // Cycle gate BEFORE push: a compound that contains (transitively) the current symbol — or the
+  // current symbol itself — would self-nest, which the resident builder skips in silence (S14).
+  // Refuse here so NO no-op command reaches the undo stack, and SAY why (反沉默拒絕鐵律). The
+  // menu already greys these out; this guards the programmatic/keyboard path too. Atomics never
+  // trip it. = TiXL "prevent graph cycles" (SymbolFilter.cs:118), made a hard refusal + message.
+  if (sw::addChildWouldCycle(sw::doc::g_lib, cur->id, type)) {
+    sw::doc::g_status = "cannot add " + type + " here - would nest a composition in itself";
+    return;
+  }
   sw::SymbolChild c;
   c.id = sw::nextFreeChildId(*cur);
   c.symbolId = type;
@@ -61,6 +70,27 @@ void drawToolbar() {
     for (const std::string& t : sw::specTypes()) {
       if (ImGui::MenuItem(t.c_str())) addNode(t);
       sw::eye::recordItem(("menu:" + t).c_str());  // eye: popup item rect (drawn outside canvas)
+    }
+    // Compound definitions in the lib (= TiXL user symbols). Separated from native ops; the
+    // ONLY place to place a SECOND instance of a compound, so reuse stops needing combine.
+    // The current symbol's id is the cycle target: greying (not omitting — TiXL omits in a
+    // searchable browser; a flat list must show the item so it doesn't look "missing") any
+    // compound that contains the current symbol mirrors SymbolFilter.cs:118 "prevent graph
+    // cycles". The eye key stays the symbol id (ASCII-stable) even when the label is a CJK name.
+    const std::string& curId = sw::doc::currentSymbolId();
+    bool first = true;
+    for (const auto& kv : sw::doc::g_lib.symbols) {
+      const sw::Symbol& s = kv.second;
+      if (s.atomic) continue;
+      if (first) { ImGui::Separator(); first = false; }
+      const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib, curId, s.id);
+      const std::string label = s.name.empty() ? s.id : s.name;
+      ImGui::BeginDisabled(cyclic);
+      if (ImGui::MenuItem(label.c_str())) addNode(s.id);
+      ImGui::EndDisabled();
+      if (cyclic && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("would nest this composition inside itself");
+      sw::eye::recordItem(("menu:" + s.id).c_str());  // key = id (ASCII): hand targets it stably
     }
     ImGui::EndPopup();
   }

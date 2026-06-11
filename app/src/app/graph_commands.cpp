@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <memory>
 
+#include "runtime/compound_save.h"  // libToJsonV2 (selftest: byte-identity after a refused add)
 #include "runtime/graph.h"         // defaultParticleGraph (selftest seed)
 #include "runtime/graph_bridge.h"  // libFromGraph (selftest seed)
 
@@ -32,6 +33,14 @@ void restoreWires(Symbol& s, const std::vector<std::pair<size_t, SymbolConnectio
 
 // --- AddChildCommand ---
 void AddChildCommand::doIt() {
+  // Defensive cycle gate: adding a COMPOUND into one of its own ancestors (or itself) would
+  // self-nest, and the resident builder then SILENTLY skips that subtree (S14) = a hole on
+  // canvas with no word. The normal path (toolbar) blocks BEFORE push so no no-op lands on the
+  // undo stack; this early-out only covers a programmatic/stale push — lib stays byte-untouched,
+  // undo is a safe no-op (nothing was added). Atomic adds never trip this (no children).
+  did_ = false;
+  if (addChildWouldCycle(lib_, symbolId_, child_.symbolId)) return;
+  did_ = true;
   // 照 TiXL：child 永遠引用一個存在的 Symbol。第一次用到某 atomic op 型別時，從 registry
   // 匯入它的 atomic Symbol（buildEvalGraph/effectiveInput 都靠它解析 defaults）。undo 不收
   // 屍——atomic Symbol 是 registry 形狀的快取，v2 存檔只序列化 compounds，留著無害。
@@ -46,6 +55,7 @@ void AddChildCommand::doIt() {
   }
 }
 void AddChildCommand::undo() {
+  if (!did_) return;  // doIt refused (cycle gate): there is nothing to remove
   Symbol* s = sym(lib_, symbolId_);
   if (!s) return;
   auto& cs = s->children;
@@ -322,6 +332,40 @@ int runCommandSelfTest(bool injectBug) {
          (root->children.size() == baseChildren);
     stack.undo();
     ok = ok && lib.find("TestCompound")->children.empty();
+  }
+
+  // AddChild cycle gate at the COMMAND layer (the predicate's golden lives in
+  // compound_graph_selftest; here we prove the command HONORS it): a legal compound instance
+  // adds + undoes; a SELF-NEST push is a no-op (lib byte-identical, monotonic floor unmoved,
+  // undo inert). Build a tiny chain Outer ⊃ Inner so transitivity is exercised too.
+  {
+    Symbol inner; inner.id = "InnerC"; inner.name = "InnerC"; lib.symbols[inner.id] = inner;
+    Symbol outer; outer.id = "OuterC"; outer.name = "OuterC";
+    { SymbolChild k; k.id = 1; k.symbolId = "InnerC"; outer.children = {k}; outer.nextChildId = 2; }
+    lib.symbols[outer.id] = outer;
+
+    // Legal: a SECOND instance of InnerC inside OuterC (reuse) — adds, then undo removes it.
+    const int floorBefore = lib.find("OuterC")->nextChildId;
+    SymbolChild second; second.id = nextFreeChildId(*lib.find("OuterC")); second.symbolId = "InnerC";
+    stack.push(std::make_unique<AddChildCommand>(lib, "OuterC", second));
+    ok = ok && (lib.find("OuterC")->children.size() == 2u);
+    stack.undo();
+    ok = ok && (lib.find("OuterC")->children.size() == 1u);
+    ok = ok && (lib.find("OuterC")->nextChildId > floorBefore);  // floor stays burned (undo no-op on it)
+
+    // Self-nest refusals: capture OuterC's exact bytes, push a direct (Outer-into-Outer) and a
+    // transitive (Outer-into-Inner) add — both must leave OuterC AND InnerC untouched and put
+    // nothing real on the stack (undo restores nothing). Compare via the v2 serializer (the
+    // dirty-bit's own authority): identical dump == lib bits did not move.
+    const std::string libDump = libToJsonV2(lib);
+    SymbolChild selfNest; selfNest.id = 99; selfNest.symbolId = "OuterC";
+    stack.push(std::make_unique<AddChildCommand>(lib, "OuterC", selfNest));   // Outer into Outer
+    ok = ok && (libToJsonV2(lib) == libDump);                                 // refused, no mutation
+    SymbolChild transNest; transNest.id = 98; transNest.symbolId = "OuterC";
+    stack.push(std::make_unique<AddChildCommand>(lib, "InnerC", transNest));  // Outer into Inner
+    ok = ok && (libToJsonV2(lib) == libDump);                                 // refused (transitive)
+    stack.undo(); stack.undo();                                               // both inert
+    ok = ok && (libToJsonV2(lib) == libDump);
   }
 
   if (injectBug) ok = !ok;  // 反向：注 bug 時必須回報失敗
