@@ -34,6 +34,7 @@
 #include "runtime/point_graph.h"
 #include "runtime/point_ops.h"
 #include "selftests.h"
+#include "ui/cjk_font.h"
 #include "ui/editor_ui.h"
 #include "ui/output_window.h"
 #include "verify/eye/eye.h"
@@ -182,6 +183,7 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
   ImGui::CreateContext();
   ImGui::GetIO().IniFilename = nullptr;  // don't litter imgui.ini next to the binary
   ImGui::StyleColorsDark();
+  sw::ui::loadCjkFont();  // merge a macOS CJK face onto the atlas so Chinese names render (ui zone)
   ImGui_ImplOSX_Init(static_cast<void*>(_pMtkView));
   ImGui_ImplMetal_Init(_pDevice);
 

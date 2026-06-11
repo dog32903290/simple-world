@@ -1,0 +1,31 @@
+{
+  "formatVersion": 2,
+  "rootSymbolId": "Root",
+  "symbols": [
+    {
+      "id": "ZhComp",
+      "name": "中文測試節點",
+      "nextChildId": 1,
+      "inputDefs": [
+        {"id": "Radius", "name": "半徑", "dataType": "Float", "def": 3.0, "x": 60, "y": 300}
+      ],
+      "outputDefs": [
+        {"id": "points", "name": "點輸出", "dataType": "Points", "x": 620, "y": 300}
+      ],
+      "children": [],
+      "connections": []
+    },
+    {
+      "id": "Root",
+      "name": "臺灣字形驗證",
+      "nextChildId": 4,
+      "inputDefs": [],
+      "outputDefs": [],
+      "children": [
+        {"id": 1, "symbolId": "ZhComp", "overrides": {}, "x": 360, "y": 220},
+        {"id": 2, "symbolId": "ZhComp", "overrides": {"Radius": 4.0}, "x": 360, "y": 420}
+      ],
+      "connections": []
+    }
+  ]
+}
