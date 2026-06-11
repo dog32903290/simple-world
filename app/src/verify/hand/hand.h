@@ -17,7 +17,8 @@
 //
 // Trigger: agent writes a command file at SW_EYE_DIR/hand, one command per line:
 //   move   <x> <y>
-//   click  <x> <y>            left click (down then up)
+//   click  <x> <y>            left click (move->down->up; the move frame settles
+//                             hover at the target so node-editor selection registers)
 //   rclick <x> <y>            right click
 //   double <x> <y>            double click
 //   drag   <x0> <y0> <x1> <y1>  press at start, interpolate, release at end
@@ -26,6 +27,10 @@
 //   keychord <mods> <name>    hold mods, press+release key, release mods.
 //                             mods joined by '+': cmd/super, ctrl, shift, alt.
 //                             e.g. "keychord cmd z" (undo), "keychord cmd+shift z" (redo)
+//   text   <utf8...>          type the REST of the line into the focused InputText
+//                             via io.AddInputCharactersUTF8 — keeps spaces, accepts
+//                             multibyte UTF-8 (CJK: e.g. "text 心跳偵測" for a node
+//                             rename). Inject after the field has keyboard focus.
 // A click/drag spans multiple frames (ImGui needs down and up on separate
 // frames), so commands are expanded into per-frame steps and consumed one per
 // frame. After issuing a command, give the app a few frames before reading back.
@@ -41,9 +46,16 @@ void poll();
 // ImGui::NewFrame() (IO events are consumed by NewFrame). No-op if queue empty.
 void applyPendingStep();
 
-// Headless self-test (ARCHITECTURE.md rule 5): enqueue a click, pump a minimal
-// ImGui context, assert the IO reflects press-then-release. injectBug skips the
-// command so the hand is shown to do NOTHING (RED) before trusting a PASS.
+// Headless self-test (ARCHITECTURE.md rule 5). Drives a minimal ImGui context
+// through every hand capability and asserts the effect:
+//   move/down/up — click expands to move->press->release; cursor parks, button
+//                  toggles, releases.
+//   chord        — Cmd+Z lands the modifier on the Z-press frame (Mac Cmd->Ctrl).
+//   text         — `text 測試hi` reaches a focused InputText buffer (CJK via UTF-8).
+//   select       — a `click` on a real ax::NodeEditor node body selects it
+//                  (GetSelectedNodes reports the node) — the gap-2 regression guard.
+// injectBug enqueues NOTHING so the hand is shown to do nothing (every leg RED)
+// before trusting a PASS.
 int runSelfTest(bool injectBug);
 
 }  // namespace sw::hand

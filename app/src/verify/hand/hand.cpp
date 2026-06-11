@@ -9,6 +9,9 @@
 #include <vector>
 
 #include "imgui.h"
+#include "imgui_node_editor.h"
+
+namespace ed = ax::NodeEditor;
 
 #ifndef SW_EYE_DIR
 #define SW_EYE_DIR "/tmp/sw_eye"
@@ -31,6 +34,8 @@ struct Step {
   bool setKey = false;
   int key = 0;          // ImGuiKey value
   bool keyDown = false;
+  bool setText = false;
+  std::string text;     // UTF-8 to push via io.AddInputCharactersUTF8
 };
 
 std::deque<Step> g_pending;
@@ -73,14 +78,31 @@ void enqueueKeyStep(ImGuiKey k, bool down) {
   g_pending.push_back(s);
 }
 
-// Press+release at (x,y): frame 1 positions cursor AND presses (ImGui sees it
-// hovered+held that frame), frame 2 releases -> the click registers.
+// Press+release at (x,y), expanded over THREE frames:
+//   frame 1: MOVE the cursor to (x,y) only — no button. This settles ImGui's
+//            HoveredWindow + the node-editor's per-frame hover/hit state AT the
+//            target before any button transition.
+//   frame 2: button DOWN (cursor already there & hovered).
+//   frame 3: button UP -> the click registers.
+//
+// Why the separate move frame (the gap-2 fix): imgui-node-editor's BuildControl
+// hit-tests via ImGui::IsWindowHovered()/IsMouseHoveringRect, which read the
+// HoveredWindow resolved at NewFrame from io.MousePos. When a click TELEPORTS the
+// cursor and presses on the SAME frame, that frame's hover state was computed
+// from the PREVIOUS (far-away) position, so the node isn't hovered when the press
+// lands — ClickedNode stays null and SelectAction selects nothing. Observed live
+// as a non-deterministic "click sometimes doesn't select" (selectedNode stuck).
+// Moving first, pressing next, makes selection deterministic. (rclick/double reuse
+// this, so right-click context + double-click open get the same settled hover.)
 void enqueueClick(int btn, float x, float y) {
+  Step move;
+  move.setPos = true; move.x = x; move.y = y;     // settle hover at target first
   Step down;
-  down.setPos = true; down.x = x; down.y = y;
+  down.setPos = true; down.x = x; down.y = y;     // keep cursor pinned (no drift)
   down.setBtn = true; down.btn = btn; down.btnDown = true;
   Step up;
   up.setBtn = true; up.btn = btn; up.btnDown = false;
+  g_pending.push_back(move);
   g_pending.push_back(down);
   g_pending.push_back(up);
 }
@@ -126,6 +148,21 @@ void parseLine(const std::string& line) {
       Step wheel; wheel.setWheel = true; wheel.wx = dx; wheel.wy = dy;
       g_pending.push_back(pos);
       g_pending.push_back(wheel);
+    }
+  } else if (op == "text") {
+    // text <utf8...> — push the REST of the line (after "text ") into the focused
+    // InputText via io.AddInputCharactersUTF8. The remainder is taken verbatim, so
+    // it keeps embedded spaces AND multibyte UTF-8 (CJK: the rename dialog's first
+    // user is a Chinese node name). One Step carries the whole string; it is灌'd in
+    // applyPendingStep right before NewFrame, same timing as key steps, so ImGui's
+    // input queue trickles the chars into the active text widget this frame.
+    std::string rest;
+    std::getline(is, rest);
+    // drop exactly one leading space (the delimiter after "text"); keep the rest.
+    if (!rest.empty() && rest[0] == ' ') rest.erase(0, 1);
+    if (!rest.empty()) {
+      Step s; s.setText = true; s.text = rest;
+      g_pending.push_back(s);
     }
   } else if (op == "key") {
     std::string name;
@@ -178,6 +215,19 @@ void applyPendingStep() {
   if (s.setBtn) io.AddMouseButtonEvent(s.btn, s.btnDown);
   if (s.setWheel) io.AddMouseWheelEvent(s.wx, s.wy);
   if (s.setKey) io.AddKeyEvent((ImGuiKey)s.key, s.keyDown);
+  if (s.setText) io.AddInputCharactersUTF8(s.text.c_str());
+}
+
+// Render one headless ImGui frame, consuming one queued hand Step before it.
+// `body` runs inside the live frame (between NewFrame and Render). Render() is
+// called so node-editor's deferred draw/control bookkeeping advances exactly as
+// in the real app loop.
+template <class Body>
+static void pumpFrame(const Body& body) {
+  applyPendingStep();
+  ImGui::NewFrame();
+  body();
+  ImGui::Render();  // node-editor finalizes draw channels here; mirrors app loop
 }
 
 int runSelfTest(bool injectBug) {
@@ -186,22 +236,33 @@ int runSelfTest(bool injectBug) {
   ImGuiIO& io = ImGui::GetIO();
   io.DisplaySize = ImVec2(400, 300);
   io.DeltaTime = 1.0f / 60.0f;
+  // Minimal renderer backend so ImGui::Render() has a texture to bind to and the
+  // node-editor's GetWindowDrawList path is happy in a headless run.
+  io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
   unsigned char* pixels;
   int tw, th;
   io.Fonts->GetTexDataAsRGBA32(&pixels, &tw, &th);  // build atlas so NewFrame won't assert
   io.Fonts->SetTexID((ImTextureID)1);
 
-  // --- mouse: click press-then-release ---
+  // --- mouse: click expands to move -> press -> release (the gap-2 fix). Assert
+  // the cursor is parked at the target on the move frame, the button is held on
+  // the press frame, and released after.
   g_pending.clear();
   if (!injectBug) parseLine("click 123 77");  // bug case: enqueue nothing -> hand does nothing
 
-  // Frame 1: position + press. NewFrame consumes the queued IO events.
+  // Frame 1: MOVE only (settle hover). Cursor at target, button NOT yet down.
+  applyPendingStep();
+  ImGui::NewFrame();
+  bool moveOk = io.MousePos.x == 123 && io.MousePos.y == 77 && !io.MouseDown[0];
+  ImGui::EndFrame();
+
+  // Frame 2: press. Cursor still at target, button now held.
   applyPendingStep();
   ImGui::NewFrame();
   bool downOk = io.MouseDown[0] && io.MousePos.x == 123 && io.MousePos.y == 77;
   ImGui::EndFrame();
 
-  // Frame 2: release.
+  // Frame 3: release.
   applyPendingStep();
   ImGui::NewFrame();
   bool upOk = !io.MouseDown[0];
@@ -222,8 +283,94 @@ int runSelfTest(bool injectBug) {
     ImGui::EndFrame();
   }
 
-  bool pass = downOk && upOk && chordOk;
-  printf("[selftest-hand] down=%d up=%d chord=%d -> %s\n", (int)downOk, (int)upOk, (int)chordOk,
+  // --- text: type into a real ImGui::InputText (gap 1). Click to focus it, then
+  // inject UTF-8 (incl. CJK 「測試」) via the `text` command; assert the buffer
+  // receives the bytes. This is the rename-dialog path (CJK node name).
+  char buf[64] = {0};
+  bool textOk = false;
+  {
+    // Click the field to focus it (InputText activates on click, needs WantTextInput).
+    ImVec2 fieldMin, fieldMax;
+    auto drawField = [&]() {
+      ImGui::SetNextWindowPos(ImVec2(0, 0));
+      ImGui::SetNextWindowSize(ImVec2(400, 300));
+      ImGui::Begin("textwin", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
+      ImGui::InputText("##name", buf, sizeof(buf));
+      fieldMin = ImGui::GetItemRectMin();
+      fieldMax = ImGui::GetItemRectMax();
+      ImGui::End();
+    };
+    pumpFrame(drawField);  // frame 0: lay the field out so we learn its rect
+    float fx = (fieldMin.x + fieldMax.x) * 0.5f;
+    float fy = (fieldMin.y + fieldMax.y) * 0.5f;
+    g_pending.clear();
+    if (!injectBug) { char c[64]; snprintf(c, 64, "click %g %g", fx, fy); parseLine(c); }
+    pumpFrame(drawField);  // frame A: position + press
+    pumpFrame(drawField);  // frame B: release -> field becomes active (WantTextInput next frame)
+    pumpFrame(drawField);  // frame C: settle activation
+    g_pending.clear();
+    if (!injectBug) parseLine("text 測試hi");  // CJK + ascii, exercises AddInputCharactersUTF8
+    // drain all text steps (one step carries the whole string)
+    while (!g_pending.empty()) pumpFrame(drawField);
+    pumpFrame(drawField);  // let InputText commit the queued chars into buf
+    textOk = (std::string(buf).find("測試") != std::string::npos) &&
+             (std::string(buf).find("hi") != std::string::npos);
+  }
+
+  // --- click -> node-editor selection (gap 2). Drive the REAL ed:: selection path
+  // headlessly: one node drawn, then a `click` on its body; assert GetSelectedNodes
+  // reports it. This reproduces the live failure (selectedNode stuck at 0) and
+  // proves the fix. injectBug enqueues nothing -> selection stays empty (RED).
+  bool selOk = false;
+  {
+    ed::Config cfg;
+    cfg.SettingsFile = nullptr;  // no .json persistence in the headless harness
+    ed::EditorContext* ctx = ed::CreateEditor(&cfg);
+    const int kNodeId = 7;
+    const float kNodeX = 60, kNodeY = 60;
+    auto drawCanvas = [&]() {
+      ImGui::SetNextWindowPos(ImVec2(0, 0));
+      ImGui::SetNextWindowSize(ImVec2(400, 300));
+      ImGui::Begin("canvashost", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
+      ed::SetCurrentEditor(ctx);
+      ed::Begin("canvas");
+      ed::SetNodePosition(kNodeId, ImVec2(kNodeX, kNodeY));
+      ed::BeginNode(kNodeId);
+      ImGui::TextUnformatted("NodeTitleAAAA");  // give the node a real, wide body to hit
+      ed::EndNode();
+      ed::End();
+      ed::SetCurrentEditor(nullptr);
+      ImGui::End();
+    };
+    // Warm-up: lay the node out + settle the canvas window focused, but park the
+    // cursor AWAY from the node (300,250). This is the gap-2 condition: the click
+    // must teleport onto the node from elsewhere. The fix's move-frame is what
+    // settles hover at the target; without it the press lands on a stale hover and
+    // selection misses. So this leg fails on the OLD 2-frame click and passes on
+    // the new 3-frame one — a real regression guard, not a tautology.
+    g_pending.clear();
+    parseLine("move 300 250");  // cursor far from the node
+    pumpFrame(drawCanvas);
+    pumpFrame(drawCanvas);
+    pumpFrame(drawCanvas);
+    // Now click the node body (cursor teleports from 300,250). (bug: enqueue nothing.)
+    g_pending.clear();
+    if (!injectBug) parseLine("click 90 75");
+    // Drain the click + a few settle frames; check selection after each.
+    for (int i = 0; i < 6; ++i) {
+      pumpFrame(drawCanvas);
+      ed::SetCurrentEditor(ctx);
+      ed::NodeId sel[4];
+      int n = ed::GetSelectedNodes(sel, 4);
+      ed::SetCurrentEditor(nullptr);
+      if (n > 0 && (int)sel[0].Get() == kNodeId) selOk = true;
+    }
+    ed::DestroyEditor(ctx);
+  }
+
+  bool pass = moveOk && downOk && upOk && chordOk && textOk && selOk;
+  printf("[selftest-hand] move=%d down=%d up=%d chord=%d text=%d select=%d -> %s\n",
+         (int)moveOk, (int)downOk, (int)upOk, (int)chordOk, (int)textOk, (int)selOk,
          pass ? "PASS" : "FAIL");
   ImGui::DestroyContext();
   return pass ? 0 : 1;
