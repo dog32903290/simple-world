@@ -158,6 +158,55 @@ class CopyPasteChildrenCommand : public Command {
   PastePlan plan_;
 };
 
+// 改一個 compound 的 DEFINITION 名（= TiXL RenameSymbol / ChangeSymbolName）。改的是 Symbol.name，
+// 波及全部：findSpec 的 title (graph_bridge specFromSymbol)、所有實例顯示名（無自訂名者）、Add 選單
+// 標籤 — 全部走 refreshCompoundSpecs 在 libRevision 變動的下一幀自動同步，命令本身只動 name 欄。
+// undoable（TiXL RenameSymbol 透過 undo stack）。空名/同名/找不到 symbol = no-op（refused()=true，
+// 呼叫端不 push，照環檢前例）。CJK 放寬：TiXL 的 C# identifier 限制源自動態編譯，本 fork 資料驅動無此
+// 約束，名字只做「非空」檢查 — CJK 取名是本單存在理由（FORK，報告具名）。
+class RenameSymbolCommand : public Command {
+ public:
+  RenameSymbolCommand(SymbolLibrary& lib, std::string symbolId, std::string newName);
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return "Rename Definition"; }
+  bool refused() const { return refused_; }  // empty/same/missing -> caller skips push
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  std::string newName_;
+  std::string oldName_;
+  bool refused_ = false;
+};
+
+// 改一個 child 的 INSTANCE 名（= TiXL ChangeSymbolChildNameCommand）。只動那一顆的顯示名；空名
+// fallback 定義名（childReadableName）。改定義名不會動實例名，兩者正交。undoable。同名/找不到
+// child = no-op（refused()）。空名是合法值（= 清除自訂名、回到 fallback），不算 refuse。CJK 同放寬。
+class RenameChildCommand : public Command {
+ public:
+  RenameChildCommand(SymbolLibrary& lib, std::string symbolId, int childId, std::string newName);
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return "Rename Node"; }
+  bool refused() const { return refused_; }
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  int childId_;
+  std::string newName_;
+  std::string oldName_;
+  bool refused_ = false;
+};
+
+// rename golden (rename_selftest.cpp): def-name change flows to spec title + all instances + undo;
+// instance-name change is isolated + empty falls back to def name + undo; a CJK instance name
+// roundtrips byte-identically through savev2 WITHOUT aborting the parser; a tampered name field is
+// dropped locally (S15); empty/same/missing renames are refused (no undo entry). injectBug disables
+// the writer's raw-UTF-8 path so the CJK roundtrip breaks -> FAIL (teeth).
+int runRenameSelfTest(bool injectBug);
+
 // S13 DeleteBoundaryDefs golden (def_removal_selftest.cpp): removing a compound's input/output def
 // scrubs dangling wires + obsolete overrides lib-wide, is undoable, survives a v2 roundtrip, and
 // tolerates a tampered file. injectBug skips the parent-wire scrub -> FAIL (teeth).

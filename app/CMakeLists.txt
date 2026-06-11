@@ -77,8 +77,10 @@ add_executable(simple_world
   src/app/audio_monitor.cpp
   src/app/command.cpp
   src/app/graph_commands.cpp
+  src/app/rename_commands.cpp
   src/app/def_removal_selftest.cpp
   src/app/copy_paste_selftest.cpp
+  src/app/rename_selftest.cpp
   src/app/menu.cpp
   src/ui/cjk_font.cpp
   src/ui/editor_ui.cpp

@@ -55,7 +55,10 @@ void drawChild(const sw::SymbolChild& child) {
   ed::PushStyleVar(ed::StyleVar_HoveredNodeBorderWidth, 2.0f);
   ed::BeginNode(child.id);
   if (spec) ImGui::PushStyleColor(ImGuiCol_Text, nodeLabelColor(*spec));
-  ImGui::TextUnformatted(spec ? spec->title.c_str() : child.symbolId.c_str());
+  // Title = the instance's custom name, else the definition title (spec->title = def name via
+  // specFromSymbol), else the raw symbolId for an unresolved ref (= TiXL Symbol.Child.ReadableName).
+  const std::string defTitle = spec ? spec->title : child.symbolId;
+  ImGui::TextUnformatted(childReadableName(child, defTitle).c_str());
   if (spec) ImGui::PopStyleColor();
   if (spec) {
     // TiXL port columns: inputs (type-colored slot + label) on the LEFT, outputs

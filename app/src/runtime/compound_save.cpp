@@ -125,6 +125,11 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
       crude_json::object co;
       co["id"] = (crude_json::number)c.id;
       co["symbolId"] = refOf(c.symbolId);
+      // Custom instance name (rename, 契約 rename). OMITTED when empty (= the common case, the
+      // child falls back to the def name) so the file stays minimal + diffs stay clean — TiXL
+      // likewise only persists a non-default Name. May be CJK: crude_json dumps raw UTF-8 bytes
+      // (sw-patch utf8) and parses them back verbatim, so the roundtrip is byte-stable.
+      if (!c.name.empty()) co["name"] = c.name;
       crude_json::object ov;
       for (const auto& kv : c.overrides) ov[kv.first] = finiteOr0(kv.second);
       co["overrides"] = crude_json::value(ov);
@@ -269,6 +274,9 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
             c.overrides[kv.first] = (float)kv.second.get<crude_json::number>();
           }
         }
+        // Custom instance name (rename). S15-tolerant: a non-string/garbage `name` is simply
+        // dropped (the child keeps loading, falls back to the def name) — never fails the child.
+        if (cv["name"].is_string()) c.name = cv["name"].get<crude_json::string>();
         if (cv["x"].is_number()) c.x = (float)cv["x"].get<crude_json::number>();
         if (cv["y"].is_number()) c.y = (float)cv["y"].get<crude_json::number>();
         s.children.push_back(c);

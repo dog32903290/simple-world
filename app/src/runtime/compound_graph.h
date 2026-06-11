@@ -56,7 +56,16 @@ struct SymbolChild {
   std::string symbolId;                    // which Symbol definition this instantiates
   std::map<std::string, float> overrides;  // slotId -> overridden value (non-default only)
   float x = 0.0f, y = 0.0f;                // canvas position (UI; moves to a sidecar later)
+  // Custom instance name (= TiXL Symbol.Child.Name). EMPTY = fall back to the referenced Symbol's
+  // name (TiXL ReadableName); non-empty overrides ONLY this instance's title, never the definition.
+  // May hold CJK. LAST member on purpose: existing positional aggregate inits ({id, symbolId,
+  // overrides, x, y}) stay valid (default-empty name) — no churn across the selftest call sites.
+  std::string name;
 };
+
+// The display title of an instance = its custom name, or the referenced Symbol's name if blank
+// (= TiXL Symbol.Child.ReadableName). `defName` is the resolved definition title to fall back to.
+std::string childReadableName(const SymbolChild& c, const std::string& defName);
 
 // A Symbol definition (= TiXL Symbol). An ATOMIC symbol has no subgraph — it is a leaf
 // operator whose cook comes from the op registry (its id doubles as the operator type, e.g.

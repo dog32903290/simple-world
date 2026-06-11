@@ -100,6 +100,10 @@ const SymbolChild* childById(const Symbol& s, int id) {
   return nullptr;
 }
 
+std::string childReadableName(const SymbolChild& c, const std::string& defName) {
+  return c.name.empty() ? defName : c.name;  // = TiXL Symbol.Child.ReadableName
+}
+
 int nextFreeChildId(const Symbol& s) {
   int maxId = 0;
   for (const SymbolChild& c : s.children)
