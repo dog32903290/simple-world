@@ -64,6 +64,60 @@ enum SimBinding {
   SIM_IntParams = 4,     // constant SimIntParams& (b1)
 };
 
+#ifndef __METAL_VERSION__
+// ---------------------------------------------------------------------------
+// Host emission/recycle policy — the parity gap batch 6 closed.
+//
+// TiXL's ParticleSystem (external/tixl .../particle/ParticleSystem.t3) drives the
+// integrator every frame as a CYCLE BUFFER, not a one-shot:
+//   * Emit input default = true  -> TriggerEmit fires EVERY frame, not just on seed.
+//   * A CountInt advances CollectCycleIndex by `newPointCount` (the emit-bag size) each
+//     frame (.t3 CountInt.Delta <- GetBufferComponents of EmitPoints), so a fresh block
+//     of pool slots gets (re-)emitted while the rest keep integrating.
+//   * MaxParticleCount defaults to 100000 >> newPointCount, and IsAutoCount = (Max < 0)
+//     -> 0 by default. With IsAutoCount=0 the shader ages particles out
+//     (lifeTime = maxParticleCount/(newPointCount*60) s) right as the cycle wraps back to
+//     overwrite them. Emit-per-frame + cycle-advance + aging = the closed recycle loop.
+//
+// Our graph wires RadialPoints(emitCount) -> ParticleSystem; the faithful behaviour is a
+// pool LARGER than the emit ring so the cycle can rotate (with pool==emit every slot
+// re-emits every frame and motion freezes). kPoolLifeFrames sets that ratio: pool =
+// emitCount * kPoolLifeFrames, giving a recycle period (== particle lifetime) of
+// kPoolLifeFrames/60 s. Capped by kMaxPool so a large ring stays within a memory budget
+// (the lifetime shortens past the cap, recycle still holds).
+constexpr int   kPoolLifeFrames = 180;     // ~3 s recycle period at 60 fps
+constexpr int   kMaxPool = 262144;         // pool particle cap (~16 MB at 64 B/Particle)
+
+// Pool (= MaxParticleCount) for an emit ring of `emitCount` points. >= emitCount always.
+inline uint32_t particlePoolCount(uint32_t emitCount) {
+  if (emitCount == 0) return 0;
+  uint64_t pool = (uint64_t)emitCount * (uint64_t)kPoolLifeFrames;
+  if (pool > (uint64_t)kMaxPool) pool = (uint64_t)kMaxPool;
+  return pool < emitCount ? emitCount : (uint32_t)pool;
+}
+
+// Build the per-frame IntParams for the cycle buffer. `frame` is this system's own
+// monotonic step count (drives CollectCycleIndex = frame*emitCount, the shader wraps it
+// mod pool). emit/reset are the seed/teardown triggers; on steady frames emit stays true.
+inline SimIntParams makeSimIntParams(bool emit, bool reset, uint32_t frame, uint32_t emitCount,
+                                     uint32_t poolCount) {
+  SimIntParams I{};
+  I.TriggerEmit = emit ? 1 : 0;
+  I.TriggerReset = reset ? 1 : 0;
+  // Advance one emit-block per frame; the shader takes (gi + cyc) % poolCount, so this is
+  // the rolling write head. int32 wrap after ~years of frames is harmless (shader re-mods).
+  I.CollectCycleIndex = (int32_t)((uint64_t)frame * (uint64_t)emitCount % (poolCount ? poolCount : 1));
+  I.SetFx1To = 0;
+  I.SetFx2To = 0;
+  I.EmitMode = 0;
+  I.IsAutoCount = 0;  // TiXL default (Max>=0): age particles out so the cycle recycles
+  I.EmitVelocityFactor = 0;
+  I.EmitCount = (int32_t)emitCount;        // newPointCount = the full emit ring (sampled fully)
+  I.MaxParticleCount = (int32_t)poolCount;  // pool capacity (> emitCount -> cycle rotates)
+  return I;
+}
+#endif  // !__METAL_VERSION__
+
 // TurbulenceForce params — mirrors TurbulanceForce.hlsl cbuffer Params (b0),
 // + Count (no GetDimensions in MSL). The field/shader-graph inputs are omitted
 // (a plain TurbulenceForce with no field: GetField()==1 -> fieldAmount==1).

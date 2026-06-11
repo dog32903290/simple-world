@@ -44,8 +44,8 @@ std::map<std::string, PointTexFn>& texReg() {
 }  // namespace pgdetail
 
 void registerPointOp(const std::string& type, PointCookFn cook, PointStateNewFn stNew,
-                     PointStateFreeFn stFree) {
-  cookReg()[type] = pgdetail::OpReg{cook, stNew, stFree};
+                     PointStateFreeFn stFree, PointCountFn countTransform) {
+  cookReg()[type] = pgdetail::OpReg{cook, stNew, stFree, countTransform};
 }
 void registerDrawOp(const std::string& type, PointDrawFn draw) { drawReg()[type] = draw; }
 void registerCmdOp(const std::string& type, PointCmdFn cmd) { cmdReg()[type] = cmd; }
@@ -211,6 +211,11 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         count = v > 0.0f ? (uint32_t)(v + 0.5f) : 0u;
         break;
       }
+
+    // Op may remap count (ParticleSystem grows a pool > its emit ring; emit count stays
+    // available to the op as inputCounts[0]). Output + state size to the remapped count.
+    if (auto rr = cookReg().find(n->type); rr != cookReg().end() && rr->second.countTransform)
+      count = rr->second.countTransform(count);
 
     MTL::Buffer* out = p_->ensureOut(flatKey(id), count);
     void* st = p_->ensureState(flatKey(id), n->type, count);

@@ -31,7 +31,10 @@ namespace sw {
 int runGraphBridgeSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   const uint32_t W = 128, H = 128;
-  const int FRAMES = 3;
+  // 20 frames, not 3: since the recycle-loop fix the pool is emit×life (≫ the old 2048), the view
+  // blob saturates, and a dropped-turbulence divergence needs ~F²-accumulated drift to cross a
+  // pixel and break byte-identity — at 3 frames the tooth went toothless (sub-pixel masked).
+  const int FRAMES = 20;
   const float kRadius = 3.0f, kLevel = 0.6f;
 
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();

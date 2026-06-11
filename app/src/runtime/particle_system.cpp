@@ -45,6 +45,7 @@ ParticleSystem::ParticleSystem(MTL::Device* dev, MTL::Library* lib, uint32_t cou
       count_(count),
       width_(width),
       height_(height),
+      pool_(particlePoolCount(count)),
       viewExtent_(kRadius * 1.75f) {
   psoEmit_ = makeCompute(dev_, lib, "radial_emit");
   psoTurb_ = makeCompute(dev_, lib, "turbulence_force");
@@ -62,9 +63,11 @@ ParticleSystem::ParticleSystem(MTL::Device* dev, MTL::Library* lib, uint32_t cou
   if (vs) vs->release();
   if (fs) fs->release();
 
+  // Emit ring sized to count_ (newPointCount); pool sized to pool_ (MaxParticleCount) so the
+  // cycle buffer can rotate (particle_params.h: pool > emit is what makes recycling possible).
   emitPoints_ = dev_->newBuffer(count_ * sizeof(SwPoint), MTL::ResourceStorageModeShared);
-  particles_ = dev_->newBuffer(count_ * sizeof(Particle), MTL::ResourceStorageModeShared);
-  resultPoints_ = dev_->newBuffer(count_ * sizeof(SwPoint), MTL::ResourceStorageModeShared);
+  particles_ = dev_->newBuffer(pool_ * sizeof(Particle), MTL::ResourceStorageModeShared);
+  resultPoints_ = dev_->newBuffer(pool_ * sizeof(SwPoint), MTL::ResourceStorageModeShared);
 
   MTL::TextureDescriptor* td =
       MTL::TextureDescriptor::texture2DDescriptor(kTargetFormat, width_, height_, false);
@@ -111,13 +114,14 @@ void ParticleSystem::runTurbulence(MTL::CommandQueue* q, float time) {
   tp.Variation = 0.0f;
   tp.SpeedFactor = 1.0f;
   tp.VariationGroupCount = 0.0f;
-  tp.Count = count_;
+  const uint32_t turbCount = legacyPolicy_ ? count_ : pool_;
+  tp.Count = turbCount;  // turbulence integrates the whole pool (fix) / emit ring (legacy)
   MTL::CommandBuffer* cmd = q->commandBuffer();
   MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
   enc->setComputePipelineState(psoTurb_);
   enc->setBuffer(particles_, 0, FORCE_Particles);
   enc->setBytes(&tp, sizeof(tp), FORCE_Params);
-  dispatch1D(enc, count_);
+  dispatch1D(enc, turbCount);
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
@@ -133,17 +137,22 @@ void ParticleSystem::runSim(MTL::CommandQueue* q, float time, bool emit, bool re
   P.RadiusFromW = 0.01f;
   P.LifeTime = -1.0f;
 
-  SimIntParams I{};
-  I.TriggerEmit = emit ? 1 : 0;
-  I.TriggerReset = reset ? 1 : 0;
-  I.CollectCycleIndex = 0;
-  I.SetFx1To = 0;
-  I.SetFx2To = 0;
-  I.EmitMode = 0;
-  I.IsAutoCount = 1;  // persistent (never tooOld)
-  I.EmitVelocityFactor = 0;
-  I.EmitCount = (int32_t)count_;
-  I.MaxParticleCount = (int32_t)count_;
+  // Shared host policy (particle_params.h): per-frame emit + CollectCycleIndex advance +
+  // IsAutoCount=0 aging = TiXL's cycle-buffer recycle. frame_ is this system's step head.
+  SimIntParams I;
+  if (legacyPolicy_) {  // test seam: the pre-fix broken policy (decay selftest -bug)
+    I = SimIntParams{};
+    I.TriggerEmit = emit ? 1 : 0;
+    I.TriggerReset = reset ? 1 : 0;
+    I.CollectCycleIndex = 0;   // frozen: cycle buffer never advances
+    I.IsAutoCount = 1;         // persistent: particles never age out
+    I.EmitCount = (int32_t)count_;
+    I.MaxParticleCount = (int32_t)count_;  // pool == emit: every slot re-emits if emit fires
+  } else {
+    I = makeSimIntParams(emit, reset, frame_, count_, pool_);
+  }
+  // Legacy pool == emit (count_); fixed pool == pool_. Dispatch over whatever the buffers hold.
+  const uint32_t simCount = legacyPolicy_ ? count_ : pool_;
 
   MTL::CommandBuffer* cmd = q->commandBuffer();
   MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
@@ -153,20 +162,27 @@ void ParticleSystem::runSim(MTL::CommandQueue* q, float time, bool emit, bool re
   enc->setBuffer(resultPoints_, 0, SIM_ResultPoints);
   enc->setBytes(&P, sizeof(P), SIM_Params);
   enc->setBytes(&I, sizeof(I), SIM_IntParams);
-  dispatch1D(enc, count_);
+  dispatch1D(enc, simCount);  // fix: whole pool (cycle buffer); legacy: emit-sized only
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
 }
 
 void ParticleSystem::generate(MTL::CommandQueue* q) {
+  frame_ = 0;                                                // cycle write head at origin
   runEmit(q);
-  runSim(q, /*time=*/0.0f, /*emit=*/true, /*reset=*/true);  // seed particles + result from emit ring
+  runSim(q, /*time=*/0.0f, /*emit=*/true, /*reset=*/true);   // seed first emit block + reset pool
 }
 
 void ParticleSystem::update(MTL::CommandQueue* q, float time, float /*dt*/) {
-  runTurbulence(q, time);                                    // vel += curlNoise
-  runSim(q, time, /*emit=*/false, /*reset=*/false);          // drag + integrate -> result
+  if (legacyPolicy_) {  // pre-fix: emit ONCE (seed only), never again; cycle frozen at 0
+    runTurbulence(q, time);
+    runSim(q, time, /*emit=*/false, /*reset=*/false);        // drag + integrate, no re-emit
+    return;
+  }
+  ++frame_;                                                  // advance CollectCycleIndex one block
+  runTurbulence(q, time);                                    // vel += curlNoise (whole pool)
+  runSim(q, time, /*emit=*/true, /*reset=*/false);           // per-frame emit + drag/integrate
 }
 
 MTL::Texture* ParticleSystem::render(MTL::CommandQueue* q, uint32_t drawCount) {
@@ -190,7 +206,7 @@ MTL::Texture* ParticleSystem::render(MTL::CommandQueue* q, uint32_t drawCount) {
   return target_;
 }
 
-MTL::Texture* ParticleSystem::render(MTL::CommandQueue* q) { return render(q, count_); }
+MTL::Texture* ParticleSystem::render(MTL::CommandQueue* q) { return render(q, pool_); }
 
 // ---------------------------------------------------------------------------
 // Self-tests

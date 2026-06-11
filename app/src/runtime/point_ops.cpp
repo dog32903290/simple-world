@@ -91,10 +91,11 @@ MTL::ComputePipelineState* makeComputePSO(MTL::Device* dev, MTL::Library* lib, c
 // graph). Persistent particle buffer + the two cached PSOs (turbulence, integrate) + a
 // seeded flag. Lives across frames via PointGraph's per-node state.
 struct SimState {
-  MTL::Buffer* particles = nullptr;  // Particle[count], persists across frames
+  MTL::Buffer* particles = nullptr;  // Particle[poolCount], persists across frames (cycle buffer)
   MTL::ComputePipelineState* psoTurb = nullptr;
   MTL::ComputePipelineState* psoSim = nullptr;
   bool seeded = false;
+  uint32_t frame = 0;                // monotonic step head -> CollectCycleIndex
 };
 void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count) {
   SimState* s = new SimState();
@@ -133,18 +134,18 @@ void cookParticleSim(PointCookCtx& c) {
   const float turbAmt = cookInputParam(c, 1, "Amount", 15.0f);
   const float turbFreq = cookInputParam(c, 1, "Frequency", 1.2f);
   const float time = c.ctx->time;
-  const uint32_t count = c.count;
+  // pool = this node's (remapped) count; emit ring = the wired emit bag's count. pool > emit
+  // is what lets the cycle buffer rotate (particle_params.h: the recycle parity gap).
+  const uint32_t pool = c.count;
+  const uint32_t emitCount = (c.inputCount > 0 && c.inputCounts) ? c.inputCounts[0] : pool;
   const uint32_t tg = 64;
 
   auto integrate = [&](bool emitFlag, bool resetFlag) {
     SimParams P{};
     P.Speed = speed; P.Drag = drag; P.InitialVelocity = 0.0f; P.Time = time;
     P.OrientTowardsVelocity = 0.15f; P.RadiusFromW = 0.01f; P.LifeTime = -1.0f;
-    SimIntParams I{};
-    I.TriggerEmit = emitFlag ? 1 : 0; I.TriggerReset = resetFlag ? 1 : 0;
-    I.CollectCycleIndex = 0; I.SetFx1To = 0; I.SetFx2To = 0; I.EmitMode = 0;
-    I.IsAutoCount = 1; I.EmitVelocityFactor = 0;
-    I.EmitCount = (int32_t)count; I.MaxParticleCount = (int32_t)count;
+    // Shared host policy (particle_params.h): per-frame emit + cycle advance + aging.
+    SimIntParams I = makeSimIntParams(emitFlag, resetFlag, s->frame, emitCount, pool);
     MTL::CommandBuffer* cmd = c.queue->commandBuffer();
     MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
     enc->setComputePipelineState(s->psoSim);
@@ -153,28 +154,30 @@ void cookParticleSim(PointCookCtx& c) {
     enc->setBuffer(c.output, 0, SIM_ResultPoints);
     enc->setBytes(&P, sizeof(P), SIM_Params);
     enc->setBytes(&I, sizeof(I), SIM_IntParams);
-    enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(count, tg), 1, 1), MTL::Size::Make(tg, 1, 1));
+    enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(pool, tg), 1, 1), MTL::Size::Make(tg, 1, 1));
     enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
   };
 
   if (!s->seeded) {
-    integrate(/*emit=*/true, /*reset=*/true);  // seed particles + result from the emit bag
+    s->frame = 0;
+    integrate(/*emit=*/true, /*reset=*/true);  // seed first emit block + reset the pool
     s->seeded = true;
     return;
   }
+  ++s->frame;                                  // advance CollectCycleIndex one emit block
   if (hasForce) {  // turbulence: vel += curlNoise (only when a force is wired in)
     TurbParams tp{};
     tp.Amount = turbAmt; tp.Frequency = turbFreq; tp.Phase = time; tp.Variation = 0.0f;
-    tp.SpeedFactor = 1.0f; tp.VariationGroupCount = 0.0f; tp.Count = count;
+    tp.SpeedFactor = 1.0f; tp.VariationGroupCount = 0.0f; tp.Count = pool;
     MTL::CommandBuffer* cmd = c.queue->commandBuffer();
     MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
     enc->setComputePipelineState(s->psoTurb);
     enc->setBuffer(s->particles, 0, FORCE_Particles);
     enc->setBytes(&tp, sizeof(tp), FORCE_Params);
-    enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(count, tg), 1, 1), MTL::Size::Make(tg, 1, 1));
+    enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(pool, tg), 1, 1), MTL::Size::Make(tg, 1, 1));
     enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
   }
-  integrate(/*emit=*/false, /*reset=*/false);  // drag + integrate -> result
+  integrate(/*emit=*/true, /*reset=*/false);   // per-frame emit + drag/integrate -> result
 }
 
 }  // namespace
@@ -192,7 +195,10 @@ void registerCombineBuffersOp();
 
 void registerBuiltinPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
-  registerPointOp("ParticleSystem", cookParticleSim, simStateNew, simStateFree);
+  // ParticleSystem grows a particle POOL (particlePoolCount) larger than its emit ring so the
+  // cycle buffer can rotate and recycle (the batch-6 decay fix). The pool is what its output +
+  // persistent particle buffer size to; emit count reaches cook() via inputCounts[0].
+  registerPointOp("ParticleSystem", cookParticleSim, simStateNew, simStateFree, &particlePoolCount);
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
   registerLinePointsOp();

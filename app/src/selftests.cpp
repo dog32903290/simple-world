@@ -119,6 +119,7 @@ const SelfTest kTable[] = {
     {"audiomonitor", audio_monitor::runAudioMonitorSelfTest},
     {"flow", runParticleFlowSelfTest},
     {"draw", runDrawPointsSelfTest},
+    {"decay", runParticleDecaySelfTest},
     {"pointgraph", runPointGraphSelfTest},
     {"residentcook", runResidentCookSelfTest},
     {"residentparity", runResidentCookParitySelfTest},

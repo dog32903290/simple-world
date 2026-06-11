@@ -12,9 +12,10 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
-#include "runtime/graph.h"        // Graph/Node/pinId
-#include "runtime/point_graph.h"  // PointCookCtx, registerBuiltinPointOps/DrawOp, PointGraph
-#include "runtime/tixl_point.h"   // SwPoint (64B) + EvaluationContext
+#include "runtime/graph.h"            // Graph/Node/pinId
+#include "runtime/particle_params.h"  // particlePoolCount (ParticleSystem pool sizing)
+#include "runtime/point_graph.h"      // PointCookCtx, registerBuiltinPointOps/DrawOp, PointGraph
+#include "runtime/tixl_point.h"       // SwPoint (64B) + EvaluationContext
 
 #ifndef SW_SHADER_METALLIB
 #define SW_SHADER_METALLIB "shaders.metallib"
@@ -249,9 +250,12 @@ int runSimOpSelfTest(bool injectBug) {
     float dev = std::fabs(r - R);
     if (!std::isnan(dev) && dev > maxDev) maxDev = dev;
   }
-  bool pass = captured.size() == N && maxDev > 0.1f;  // turbulence flowed off the ring
-  printf("[selftest-simop] n=%zu steps=%d maxDevFromRing=%.4f(need>0.1) amt=%.0f -> %s\n",
-         captured.size(), STEPS, maxDev, injectBug ? 0.0f : 15.0f, pass ? "PASS" : "FAIL");
+  // ParticleSystem now sizes its output to the particle POOL (= particlePoolCount(emitCount)),
+  // not the emit ring — the cycle buffer that makes recycling possible (batch-6 decay fix).
+  const uint32_t expectPool = particlePoolCount(N);
+  bool pass = captured.size() == expectPool && maxDev > 0.1f;  // turbulence flowed off the ring
+  printf("[selftest-simop] n=%zu(pool want %u) steps=%d maxDevFromRing=%.4f(need>0.1) amt=%.0f -> %s\n",
+         captured.size(), expectPool, STEPS, maxDev, injectBug ? 0.0f : 15.0f, pass ? "PASS" : "FAIL");
 
   g_cap = nullptr;
   lib->release(); q->release(); dev->release(); pool->release();

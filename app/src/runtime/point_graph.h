@@ -132,12 +132,18 @@ using PointTexFn = void (*)(TexCookCtx&);
 using PointStateNewFn = void* (*)(MTL::Device*, MTL::Library*, uint32_t count);
 using PointStateFreeFn = void (*)(void*);
 
+// Optional count remap: natural count (Points-input sum / Count param) -> the count the
+// node's output + persistent state are sized to. Lets a stateful op (ParticleSystem) own a
+// pool larger than its emit ring. null = identity.
+using PointCountFn = uint32_t (*)(uint32_t);
+
 // Register a node type's cook/draw fn (Metal-side; separate from NodeSpec.evaluate,
 // which is the pure-float path). registerPointOp's state fns are optional (stateless
 // ops omit them). Registration is explicit (call registerBuiltinPointOps() at app
 // init) — NOT a static initializer — so --selftest-* runs see a clean table.
 void registerPointOp(const std::string& type, PointCookFn,
-                     PointStateNewFn = nullptr, PointStateFreeFn = nullptr);
+                     PointStateNewFn = nullptr, PointStateFreeFn = nullptr,
+                     PointCountFn countTransform = nullptr);
 void registerDrawOp(const std::string& type, PointDrawFn);
 // Register a command op (the Command stream). Separate table from cook/draw — exactly
 // as TiXL keeps Slot<Command> distinct from Slot<BufferWithViews>.

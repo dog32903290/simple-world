@@ -27,6 +27,11 @@ struct OpReg {
   PointCookFn cook = nullptr;
   PointStateNewFn stateNew = nullptr;
   PointStateFreeFn stateFree = nullptr;
+  // Optional: map the natural count (sum of Points inputs / Count param) to the count the
+  // node's output + state are sized to. ParticleSystem uses it to grow a particle POOL larger
+  // than its emit ring (particle_params.h: pool > emit is what lets the cycle buffer recycle).
+  // null = identity. Applied in BOTH cooks right before ensureOut/ensureState.
+  PointCountFn countTransform = nullptr;
 };
 std::map<std::string, OpReg>& cookReg();
 std::map<std::string, PointDrawFn>& drawReg();

@@ -99,6 +99,7 @@ add_executable(simple_world
   src/platform/audio_capture.mm
   src/platform/audio_devices.mm
   src/runtime/particle_system.cpp
+  src/runtime/particle_decay_selftest.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/graph_selftest.cpp

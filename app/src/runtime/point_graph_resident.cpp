@@ -103,6 +103,11 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
         break;
       }
 
+    // Op may remap count (ParticleSystem grows a pool > its emit ring; emit count stays
+    // available to the op as inputCounts[0]). Output + state size to the remapped count.
+    if (auto rr = cookReg().find(n->opType); rr != cookReg().end() && rr->second.countTransform)
+      count = rr->second.countTransform(count);
+
     MTL::Buffer* out = p_->ensureOut(path, count);          // per-path persistent (reused across cooks)
     void* st = p_->ensureState(path, n->opType, count);     // stateful ops live on the resident path
 
