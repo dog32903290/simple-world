@@ -45,8 +45,10 @@ struct NodeSpec {
 const NodeSpec* findSpec(const std::string& type);
 std::vector<std::string> specTypes();  // all registered node types (for the Add menu)
 // Swap the DYNAMIC spec table (compound symbols as operators, 批次 3). Owned by the registry;
-// callers build it via graph_bridge::refreshCompoundSpecs — do not call this directly except
-// from there (single producer keeps stale-entry reasoning trivial). Built-ins win on clash.
+// in the LIVE app the single producer is graph_bridge::refreshCompoundSpecs — product code must
+// not call this directly (single producer keeps stale-entry reasoning trivial). HEADLESS
+// --selftest-* processes may inject isolated test-op specs through it (they never run
+// refreshCompoundSpecs, so the invariant holds per process). Built-ins win on clash.
 void setDynamicSpecs(std::map<std::string, NodeSpec> specs);
 
 // --- Graph instances (editorGraph) ---

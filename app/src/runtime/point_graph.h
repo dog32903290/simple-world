@@ -242,6 +242,13 @@ int runResidentCookSelfTest(bool injectBug);
 // cook paths. injectBug = the op's stateNew under-allocates -> the overrun detector fires.
 int runStateCountSelfTest(bool injectBug);
 
+// Headless RED→GREEN proof of S2 bypass on the GPU cook flows (bypass_cook_selftest.cpp, 修B):
+// a bypassed node's MAIN output passes its MAIN input's upstream value through on the Points
+// (buffer), Command (chain) and Texture2D (terminal) flows of cookResident — the executor half
+// of the honest whitelist (compoundBypassableType). injectBug emulates a cook that ignores the
+// flag so the Points passthrough assertion FAILS (teeth).
+int runBypassCookSelfTest(bool injectBug);
+
 // Headless RED→GREEN proof of slice-2b parity (resident_cook_parity_selftest.cpp): for each of
 // (a) driver-resolved params (stored/override AND wire-driven), (b) stateful op state persisting
 // across cooks per path, (c) force params resolved via the WIRED input (not by-type), (d) the

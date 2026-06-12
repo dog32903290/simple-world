@@ -120,18 +120,24 @@ TriggerOverride triggerOverrideFromName(const std::string& s) {
 
 // The bypass type whitelist, mapped from TiXL's EXECUTOR (Instance.Connections.cs SetBypassFor: 8
 // switch cases) onto OUR port dataType vocabulary. TiXL's 8 executor types are Command, Texture2D,
-// BufferWithViews, MeshBuffers, float, Vector2, Vector3, string. Our model carries: "Command",
-// Float ONLY for now. The honest rule (refuter-S2 P8): a type enters this whitelist when its
-// EXECUTOR passes through too, not when the flag merely persists. Float redirect is implemented
-// in both eval paths (resident_eval_cache pull / resident_eval_graph eval). Command/Texture2D/
-// Points/ParticleForce have TiXL analogs (Instance.Connections.cs 8-case executor; BufferWith-
-// Views/MeshBuffers ≈ our buffer ports) but our GPU cook (point_graph_resident cookNode/
-// cookCommand) does not read the bypass flag yet — whitelisting them here made the menu offer a
-// knob that visibly did nothing. NAMED GAP alongside Vector2/Vector3/string; widen this list
-// only together with the buffer-path passthrough. ShaderGraphNode: TiXL whitelists it but its
-// executor has no case (the FORK reason) — we omit it permanently.
+// BufferWithViews, MeshBuffers, float, Vector2, Vector3, string. The honest rule (refuter-S2 P8):
+// a type enters this whitelist when its EXECUTOR passes through too, not when the flag merely
+// persists. Each entry's executor proof (修B, 批次8):
+//   Float     — value-path redirect (resident_eval_cache pull / resident_eval_graph eval);
+//               proven by --selftest-childstate leg 1.
+//   Points    — ≈ TiXL BufferWithViews. cookResident's cookNode redirects the buffer flow
+//               (point_graph_resident.cpp); proven by --selftest-bypasscook leg P.
+//   Command   — cookResident's cookCommand returns the upstream chain unchanged (= ByPassUpdate
+//               pulling Slot<Command>, Slot.cs:176-179); proven by --selftest-bypasscook leg C.
+//   Texture2D — cookResident's terminal dispatch follows the bypass chain to the upstream
+//               texture producer; proven by --selftest-bypasscook leg T.
+// NAMED GAPS: ParticleForce (≈ MeshBuffers' role, but no op is shaped force->force today, so no
+// executor leg exists to prove — widen with the first such op), Vector2/Vector3 (our vectors are
+// component Floats, a vec-typed PORT doesn't exist), string (no string ports). ShaderGraphNode:
+// TiXL whitelists it but its executor has no case (the FORK reason) — we omit it permanently.
 bool compoundBypassableType(const std::string& dataType) {
-  return dataType == "Float";
+  return dataType == "Float" || dataType == "Points" || dataType == "Command" ||
+         dataType == "Texture2D";
 }
 
 bool childIsBypassable(const SymbolLibrary& lib, const SymbolChild& c) {
