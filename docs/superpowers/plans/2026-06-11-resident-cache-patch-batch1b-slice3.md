@@ -550,21 +550,69 @@ countTransform flat/resident 對稱), 政策 SSOT 收 particle_params.h。D 的 
 **律法債帳(具名續背):** graph_commands.cpp 419/compound_save.cpp 449/editor_ui.cpp 470(>400;
 integrator 已開機械拆分 chip)。Token 帳: ~1.4M subagent(7 工單)+lean main。
 
+## Cut 13 — 批次 7: hand 注字 + S5 Transport + S2 殘欄 + S3 GUI ✅ (2026-06-11 夜→06-12 晨,
+`21756d5`→`ac11871` 七 commit; dispatcher 三航: 4 implementer + 2 refuter + 2 drill + 1 fixer)
+
+**hand 注字+選中修 (`21756d5`, verify 葉):** `text <utf8>` 指令(AddInputCharactersUTF8, CJK 可注)
++cold-click 競態真根因(按下幀 hover=上一幀游標位置→BuildControl 早退→ClickedNode=null)→click 展開
+3 幀 move→down→up。活體自驗=rename dialog 注「心跳偵測」真渲染。**agent 從此能打字+可靠選中。**
+
+**S5 Transport 真兩鐘 (`c40bdaf`+refuter修 `9f5cd25`):** runtime/transport 葉子(advance 純公式),
+fxTime 規則逐條抄 Playback.cs(播放=兩鐘鎖/暫停+scrub=fx 跟跳/暫停 idle=fx 續跑)=ledger 待釘項釘掉;
+ctx 兩鐘填真值(point_graph_resident 佔位砍, S3 sampleAutomation 自動接上);CompositionSettings(BPM)
+入 savev2;FRAME_SCHEDULER golden 三語義搬運;toolbar Play/Pause/Pos/BPM。refuter 13 probe 11 SURVIVE
+(Playback.cs 逐條對齊含播放中 scrub 真相/resume fx 倒退=TiXL 既定/double 萬幀 drift 1.2e-11),
+**2 BROKEN 同關節修=bars→secs 換算**: ①AudioReaction 該吃 bars(TiXL LocalFxTime=FxTimeInBars,
+EvaluationContext.cs:49)卻吃秒→BPM≠240 debounce 縮放錯 ②bpm=1e-300 穿 >0 閘→secondsFromBars=inf
+(敵意檔可達)→[1,999] sane 閘+repro 轉 golden。ctx.time 留秒=我方 Metal sim 單位 fork 具名。
+**活體 PASS: Pause 後 position 三取樣全同凍住、fxTime 續走 16.40、粒子 diff 52340px 還在動=
+L8 兩鐘分離肉眼可證。**
+
+**S2 殘欄 (`54f3853`+refuter修 `3fefed1`):** isBypassed(直通 Inputs[0]→Outputs[0], pull+eval 兩路;
+未連線拒絕;白名單)+per-output isDisabled(凍結=停止追版,不碰 valueVersion→解凍自然追上;Command 同
+機制 no-op)+triggerOverride(isLiveSource 第三項推導接上=1b 關閉)+copy/paste bypass 接縫閉合+savev2
+outputs[] 段。refuter 11 SURVIVE+**1 BROKEN=假旋鈕**(白名單收 5 型但 GPU cook 不讀 bypass 旗→
+Points bypass 鈕按了畫面不動)→**白名單收窄到 Float**(誠實規則:型別進白名單的條件=執行端也直通;
+buffer 直通=修B 排下批)。**自查咬出 refuter 沒組合的洞 P1×P7**: production toggle→rebuild→cache
+冷→「凍結在最後結果」變凍結在 0(TiXL 無 rebuild artifact)→transplantDisabledCaches 騎 rebuild 縫
++leg4c 真投影路全鏈證。互斥閘補(TiXL Slot.cs:50-53 第二 op 拒絕, 雙向+leg8)。
+
+**S3 GUI (`25f2e96`+活體修 `ac11871`, 本批主刀):** Inspector Float 右鍵 Animate(建曲線+首key=當前值;
+driver 翻 Automation=flattener isAnimated 同源不可能 drift)/Remove Animation/P1 手感(拖已動畫
+slider=播放頭寫 key);timeline 浮窗(dope-sheet: lane per (child,input)/playhead 豎線可 scrub/單擊選
+/拖 key 改時間/雙擊加/Delete+Backspace 刪);六命令 undo 包(keyframe undo=整條 Curve 快照, fork 具名:
+單-key tangent 殘渣使 per-key undo 非 byte-faithful)。範圍鎖死具名(無 TimeClip/Layer/loop/變速/
+bezier 把手/內插切換/多選/縮放)。**活體驗收兩輪+fixer 咬出三刺全修(headless 全綠但手一摸就斷)**:
+①右鍵路由劫持—canvas Show*ContextMenu 吃浮窗上的右鍵(Animate 出成 Paste)→canvasOwnsMouse 閘
+(imgui hover 算遮擋=判別器),三向複證 ②BUG-A P1 手感死—已動畫 slider 每幀被 sample(playhead) 重置
+→live-write(批次3 vec 同款:拖曳中直寫 key、放手 push SetCurveSnapshotCommand before/after 快照)
+③BUG-B heap-UAF—timeline range-for 迭代 curve.table() 迴圈內 push 命令→map::erase 砍迭代中節點
+(ASan 134)→PendingAction 延遲執行。**活體全鏈閉環(Fable 親手 eye/hand 跑完 fixer 被砍剩的尾):**
+Animate→scrub bar4→拖 slider 寫 key(3.000→2.514)→值隨曲線直讀(bar0=3.000/bar4=2.514)→雙擊加 key
+→拖 key 474→560 不崩→Delete 刪 key→一步 undo(要先點 canvas 取焦點=Cmd+Z 既有焦點閘)→Play 畫面活。
+
+**New traps (批次7):** ①**eye 輸出會凍**(app 失去前景/顯示鏈暫停)→讀前 re-touch req_* + 驗 mtime,
+凍了重啟 app;殭屍 state.json 會給昨天的值 ②**點 canvas 空白取焦點會反選節點**→Inspector 變空,
+後續 param 操作全落空(先選回來) ③popup 選單項多數無 eye hook→rclick 後立即 req_full 截圖找座標
+④full.png 是 retina 2x, crop 座標要 ×2 ⑤undo/Delete 鍵需 canvas 視窗焦點(批次5 Delete 同款)。
+
+**律法債帳:** animation_commands.cpp 488/compound_save.cpp ~520/graph_commands.cpp 419/
+editor_ui.cpp 483(>400; 機械拆分 chip 已開)。Token 帳: ~1.3M subagent(9 工單)。
+
 ## Resume — next
-- **批次 6 leftovers: NONE.** 四大項全閉環(copy/paste 含曲線跟走/rename 含 CJK/S3 含 refuter 修/
-  粒子根治含活體 98s 證據)。
+- **批次 7 leftovers: NONE.** 四大項全閉環, S3 GUI 活體全鏈手勢逐一證畢。
+- **「可作曲的時間」主線已通**: Animate→曲線→真播放頭→畫面動 全鏈活; 柏為可親手作曲了
+  (Inspector 右鍵 Animate / timeline 拖 key / Play)。
 - **Candidate next batches** (pick by 柏為 priority):
-  1. **S3 GUI**: timeline 視窗+Inspector「Animate」手勢+curve 編輯(S4 重塑=per-Symbol Animator
-     container 的 view; runtime 全在了, 純 ui/app 接線)+animate 命令層(undo 包)。
-  2. **S5 Transport 真兩鐘**(localTime 播放頭+localFxTime 牆鐘填真值; sampleAutomation 改一行;
-     play/pause/scrub UI)——S3 落地後這條解鎖「可作曲的時間」主線。
-  3. **S2 殘欄**: isBypassed(白名單以執行端 8 型為準)+per-output isDisabled/triggerOverride——
-     copy/paste 的 bypass 接縫+1b 的 triggerOverride 推導都在等它。
-  4. **verify 層補刀**: hand `text <utf8>` 注字+左鍵選中修——下批任何「打字」活體驗收的前提。
-  5. >400 三檔機械拆分(chip 已開)。
+  1. **S6 scrub 體感收尾+timeline 視窗成熟**: 縮放/捲動/多選/內插 enum 切換/bezier 把手/key 垂直
+     拖值——現在是 16-bar 固定窗第一刀。
+  2. **buffer-path bypass(修B)**: cookNode/cookCommand 讀 bypass 旗→Points/Command/Texture2D 白名單
+     重開(要 Metal 牙)。
+  3. **>400 四檔機械拆分**(chip 已開)+AR 時鐘域 pin 牙(refuter-S5 盲區 3)。
+  4. **soundtrack 載入**(CompositionSettings.soundtrackPath 欄已在, S5 拍板的家)+音畫對時。
+  5. **Vec 多通道動畫**(curve #index 結構在, resident 投影只取 #0)。
 - Parked (unchanged): per-instance view-area memory; boundary moves no undo; per-path op state
   leaks until app close; CommandStack hardwires single doc; boundary↔boundary passthrough;
-  crude_json never escapes object KEYS (我們的 name 是 value, 未觸); loader accepts cyclic files
-  silently (S14 catches, named); Vec 多通道動畫投影只取 #0; 粒子 pool 政策是常數非旋鈕
-  (particle_params.h 單點接縫, 要開「壽命」旋鈕時擴)。
-- ~~crude_json 非 ASCII 寫得出讀不回~~ **已解除**(前批 sw-patch, 本批 rename leg3 證實)。
+  crude_json never escapes object KEYS; loader accepts cyclic files silently (S14 catches);
+  粒子 pool 政策常數非旋鈕; dt ceiling 0.25 selftest 不可達(frame_cook 層); 負 rate 倒播無斷言;
+  BPM 改值非 undoable; resume 後 fx 倒退=TiXL 既定無明示斷言鎖。
