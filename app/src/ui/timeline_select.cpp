@@ -14,6 +14,27 @@
 #include "runtime/compound_graph.h"
 #include "runtime/curve.h"
 #include "ui/timeline_internal.h"
+#include "ui/timeline_window.h"  // timelineSelectionJson (the eye state.json surface)
+
+namespace sw::ui {
+
+// eye state.json surface (批次9): the selection as machine-checkable json, so a driver can
+// PROVE "that click selected the key" instead of guessing from pixel color (D2 k1 懸案).
+// Composed here — the selection owner — and handed to main's state composer as one string
+// (eye.h: the caller composes the json; verify stays a leaf).
+std::string timelineSelectionJson() {
+  const tl::State& s = tl::state();
+  std::string j = "{\"count\": " + std::to_string(s.selection.size()) + ", \"keys\": [";
+  for (size_t i = 0; i < s.selection.size(); ++i) {
+    const tl::SelKey& k = s.selection[i];
+    j += std::string(i ? ", " : "") + "{\"childId\": " + std::to_string(k.childId) +
+         ", \"inputId\": \"" + k.inputId + "\", \"index\": " + std::to_string(k.index) +
+         ", \"time\": " + std::to_string(Curve::roundTime(k.time)) + "}";
+  }
+  return j + "]}";
+}
+
+}  // namespace sw::ui
 
 namespace sw::ui::tl {
 namespace {

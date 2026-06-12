@@ -46,13 +46,35 @@ void dumpDrawableBGRA(MTL::Texture* tex, const char* outName);
 // Call once at the top of the imgui frame, then recordItem() after each widget
 // whose screen position the hand may need. writeWidgetMap() turns the collected
 // ImGui rects into top-left global screen points using the live window geometry.
+//
+// Label naming convention (one prefix per popup/widget scope, so the driver can
+// query map.json instead of screenshot-hunting coordinates):
+//   "New", "Add Node", ...   toolbar / dialog widgets (plain label)
+//   menu:<id>                Add-Node popup rows (toolbar.cpp; id = ASCII symbol id)
+//   ctx:<action>             canvas right-click menus (combine_dialog.cpp node_ctx/bg_ctx)
+//   tlctx:<label>            timeline key right-click interpolation menu (timeline_window.cpp)
+//   insp:<action>            Inspector parameter right-click (inspector.cpp Animate/Remove)
+//   param:<id> / node:<id> / pin:<id> / tl_* / tlc_*   rows recorded via recordRect
+//   nsmenu:<menu>:<title>    native NSMenu rows (menu.cpp) — metadata only (shortcut,
+//                            no rect): NSMenu items have no imgui rect and the in-process
+//                            hand cannot reach them; drive them via their key equivalent
+//                            at the OS level. Emitted as "native_menu_items" in map.json.
+// Popup rows exist in the map ONLY on frames the popup is open (clear+refill per frame),
+// so the driver flow is: rclick/click to open -> req_map -> read rects -> click the row.
 void beginWidgetFrame();
 void recordItem(const char* label);  // grabs ImGui::GetItemRectMin/Max for `label`
 // Like recordItem but with explicit ImGui-screen coords — for node-editor canvas
 // items whose GetItemRect is canvas-local (caller applies ed::CanvasToScreen).
 void recordRect(const char* label, float x0, float y0, float x1, float y1);
+// Register one NATIVE menu-bar item (NSMenu — outside imgui). Persistent rows
+// (registered once at startup by the menu builder, NOT cleared per frame); they
+// surface in map.json as "native_menu_items" with the shortcut, no rect. `shift`
+// = the key equivalent carries Shift on top of Cmd (all rows are Cmd-based).
+void recordNativeMenuItem(const char* menu, const char* title, const char* key, bool shift);
 // `mtkView` is the metal-cpp MTK::View* (== ObjC MTKView*); used for window/
 // screen geometry + backing scale. No-op if there is no pending map request.
+// The json also carries "hand_pending" (queued hand input steps not yet applied)
+// so a driver can wait for a multi-frame gesture to finish via map round-trips.
 void writeWidgetMap(void* mtkView, const char* outName);
 
 // --- generic state dump (capability 4) --------------------------------------

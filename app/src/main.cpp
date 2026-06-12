@@ -398,6 +398,7 @@ void Renderer::draw(MTK::View* pView) {
     std::string s = "{\"selectedNode\": " + std::to_string(sw::ui::g_selectedNode) +
                     ", \"compositionPath\": " + comp +
                     ", \"transport\": " + transport +
+                    ", \"timelineSelection\": " + sw::ui::timelineSelectionJson() +
                     ", \"lib\": " + sw::libToJsonV2(sw::doc::g_lib) + "}";
     sw::eye::writeText("state.json", s.c_str());
   }

@@ -19,8 +19,11 @@
 //   move   <x> <y>
 //   click  <x> <y>            left click (move->down->up; the move frame settles
 //                             hover at the target so node-editor selection registers)
-//   rclick <x> <y>            right click
-//   double <x> <y>            double click
+//   rclick <x> <y>            right click (same 3-frame settle pattern as click —
+//                             node-editor's context menu latches the hot object at
+//                             PRESS, so the press must land on a settled hover)
+//   double <x> <y>            double click (two settled clicks; both reuse the
+//                             click expansion, so each press hovers first)
 //   drag   <x0> <y0> <x1> <y1>  press at start, interpolate, release at end
 //   scroll <x> <y> <dx> <dy>  wheel at position
 //   key    <name>             press+release a key (e.g. backspace, delete, z, enter)
@@ -50,17 +53,29 @@ void applyPendingStep();
 // reads this to pump frames at gesture speed when the display link stalls:
 // steps drain one per frame, and ImGui's double-click window (~0.30s, real-time
 // DeltaTime via ImGui_ImplOSX_NewFrame) closes between idle keep-alive frames
-// (~4fps) — a queued `double` could never register.
+// (~4fps) — a queued `double` could never register. Also surfaced in map.json as
+// "hand_pending" so a driver can wait for a gesture to finish (sw_drive.sh do).
 bool hasPending();
 
-// Headless self-test (ARCHITECTURE.md rule 5). Drives a minimal ImGui context
-// through every hand capability and asserts the effect:
+// Parse ONE command line (same grammar as the SW_EYE_DIR/hand file) straight into
+// the step queue — the in-process seam the self-test drives; the file path is a
+// thin wrapper over this. clearPending() drops whatever steps are still queued.
+void feedLine(const char* line);
+void clearPending();
+
+// Headless self-test (ARCHITECTURE.md rule 5; lives in hand_selftest.cpp).
+// Drives a minimal ImGui context through every hand capability and asserts the effect:
 //   move/down/up — click expands to move->press->release; cursor parks, button
 //                  toggles, releases.
 //   chord        — Cmd+Z lands the modifier on the Z-press frame (Mac Cmd->Ctrl).
+//   double       — `double` registers an ImGui double-click (two 3-frame clicks
+//                  land inside the 0.30s window at one spot).
 //   text         — `text 測試hi` reaches a focused InputText buffer (CJK via UTF-8).
 //   select       — a `click` on a real ax::NodeEditor node body selects it
 //                  (GetSelectedNodes reports the node) — the gap-2 regression guard.
+//   rclick ctx   — a cold `rclick` on a node body fires ed::ShowNodeContextMenu
+//                  with that node (批次9: the D3 "rclick 注入不穩" probe — proves
+//                  the 3-frame settle suffices for the context-menu latch).
 // injectBug enqueues NOTHING so the hand is shown to do nothing (every leg RED)
 // before trusting a PASS.
 int runSelfTest(bool injectBug);

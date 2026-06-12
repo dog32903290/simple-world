@@ -14,6 +14,8 @@
 
 #include "imgui.h"           // GetItemRectMin/Max for the widget map
 
+#include "verify/hand/hand.h"  // hand_pending in map.json (verify-internal sibling, same leaf)
+
 #ifndef SW_EYE_DIR
 #define SW_EYE_DIR "/tmp/sw_eye"  // overridden by CMake to <source>/.eye
 #endif
@@ -70,6 +72,14 @@ struct Item {
   float x0, y0, x1, y1;
 };
 std::vector<Item> g_items;
+
+// Native NSMenu rows: registered ONCE by the menu builder at startup; persistent
+// (beginWidgetFrame never clears them — they don't live inside an imgui frame).
+struct NativeMenuItem {
+  std::string label;     // "nsmenu:<menu>:<title>"
+  std::string shortcut;  // "cmd+s" / "cmd+shift+s"
+};
+std::vector<NativeMenuItem> g_nativeItems;
 
 }  // namespace
 
@@ -134,6 +144,11 @@ void recordRect(const char* label, float x0, float y0, float x1, float y1) {
   g_items.push_back({label, x0, y0, x1, y1});
 }
 
+void recordNativeMenuItem(const char* menu, const char* title, const char* key, bool shift) {
+  g_nativeItems.push_back({std::string("nsmenu:") + menu + ":" + title,
+                           std::string("cmd+") + (shift ? "shift+" : "") + key});
+}
+
 void writeWidgetMap(void* mtkView, const char* outName) {
   ensureDir();
   NSView* v = (NSView*)mtkView;
@@ -158,6 +173,19 @@ void writeWidgetMap(void* mtkView, const char* outName) {
   [j appendFormat:@"  \"window\": {\"number\": %ld, \"content_topleft_pt\": {\"x\": %.1f, \"y\": %.1f}, \"content_size_pt\": {\"w\": %.1f, \"h\": %.1f}},\n",
                   (long)[win windowNumber], cx, cy, content.size.width, content.size.height];
   [j appendFormat:@"  \"imgui_viewport_pos\": {\"x\": %.1f, \"y\": %.1f},\n", vp.x, vp.y];
+  // Queued hand steps not yet applied: a driver polls map round-trips until 0 to
+  // know a multi-frame gesture (click=3 steps, drag=15) actually finished.
+  [j appendFormat:@"  \"hand_pending\": %s,\n", sw::hand::hasPending() ? "true" : "false"];
+  // Native NSMenu rows (metadata only — see eye.h: no rect, drive via shortcut).
+  // %@ via stringWithUTF8String, NOT %s: NSString's %s decodes in the SYSTEM encoding,
+  // which silently empties labels with multibyte UTF-8 (e.g. the "Open…" ellipsis).
+  [j appendString:@"  \"native_menu_items\": [\n"];
+  for (size_t i = 0; i < g_nativeItems.size(); ++i)
+    [j appendFormat:@"    {\"label\": \"%@\", \"shortcut\": \"%@\"}%s\n",
+                    [NSString stringWithUTF8String:g_nativeItems[i].label.c_str()],
+                    [NSString stringWithUTF8String:g_nativeItems[i].shortcut.c_str()],
+                    (i + 1 < g_nativeItems.size()) ? "," : ""];
+  [j appendString:@"  ],\n"];
   [j appendString:@"  \"items\": [\n"];
   for (size_t i = 0; i < g_items.size(); ++i) {
     const Item& it = g_items[i];
@@ -287,6 +315,38 @@ int runMapSelfTest(bool injectBug) {
     const bool staleMenu3 = itemsHavePrefix("menu:");
     ImGui::EndFrame();
 
+    // Frame 4 — BeginPopupContextItem path (批次9: the Inspector param right-click menu,
+    // "popup rows must be findable in the map" live pain). The popup is keyed to the LAST
+    // item's id; headless can't right-click, so OpenPopup on the SAME str_id (same window
+    // scope -> same ImGuiID) stands in for it — the RECORD path is what's under test, not
+    // the right-click mechanics. injectBug suppresses the row's record -> leg goes RED.
+    ImGui::NewFrame();
+    beginWidgetFrame();
+    ImGui::Begin("Inspector");
+    ImGui::Button("Center");
+    recordItem("param:center");
+    ImGui::OpenPopup("##anim_center");
+    bool ctxPopupSeen = false;
+    if (ImGui::BeginPopupContextItem("##anim_center")) {
+      ctxPopupSeen = true;
+      ImGui::MenuItem("Animate");
+      if (!injectBug) recordItem("insp:Animate");
+      ImGui::EndPopup();
+    }
+    ImGui::End();
+    const bool inspRecorded = ctxPopupSeen && itemsHavePrefix("insp:");
+    ImGui::EndFrame();
+
+    // Native NSMenu rows (批次9): registered once at startup, must SURVIVE the per-frame
+    // clear (they're not imgui widgets) and never leak into the rect items.
+    g_nativeItems.clear();
+    if (!injectBug) recordNativeMenuItem("File", "Save", "s", false);
+    beginWidgetFrame();
+    const bool nativeOk = g_nativeItems.size() == 1 &&
+                          g_nativeItems[0].label == "nsmenu:File:Save" &&
+                          g_nativeItems[0].shortcut == "cmd+s";
+    g_nativeItems.clear();  // don't leak test rows into a live map
+
     ImGui::DestroyContext(ctx);
 
     // The承重 invariant: the editor was drawn on every frame, so the map is never
@@ -297,9 +357,11 @@ int runMapSelfTest(bool injectBug) {
     const bool toolbarFresh = c1 >= 4;                 // at least the 4 toolbar buttons
     const bool popupRecorded = popupOpen2 && menuRecorded2 && c2 > c3;  // menu rows when open
     const bool postPopupOk  = c3 >= 4 && !staleMenu3;  // <- breaks under the reported bug
-    const bool pass = toolbarFresh && popupRecorded && postPopupOk;
-    printf("[selftest-map] fresh=%zu popup=%zu(menu=%d) post_popup=%zu(stale=%d) -> %s\n",
-           c1, c2, (int)menuRecorded2, c3, (int)staleMenu3, pass ? "PASS" : "FAIL");
+    const bool pass = toolbarFresh && popupRecorded && postPopupOk && inspRecorded && nativeOk;
+    printf("[selftest-map] fresh=%zu popup=%zu(menu=%d) post_popup=%zu(stale=%d) ctxitem=%d "
+           "native=%d -> %s\n",
+           c1, c2, (int)menuRecorded2, c3, (int)staleMenu3, (int)inspRecorded, (int)nativeOk,
+           pass ? "PASS" : "FAIL");
     return pass ? 0 : 1;
   }
 }

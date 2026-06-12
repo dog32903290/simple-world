@@ -13,10 +13,18 @@
 // Zone: ui. Depends on app(document/command/frame_cook/animation_commands) + runtime. Never reverse.
 #pragma once
 
+#include <string>
+
 namespace sw::ui {
 
 // Draw the Timeline window. Call once per frame alongside drawToolbar/drawInspector/etc.
 void drawTimelineWindow();
+
+// The timeline's key selection as json — `{"count": N, "keys": [{childId,inputId,index,time}...]}`
+// — for eye state.json (批次9: D2's k1 "is the key actually selected" had only pixels to guess
+// from). Reads the session singleton, so it's safe (count 0) before the timeline ever draws.
+// Implemented in timeline_select.cpp (the selection owner).
+std::string timelineSelectionJson();
 
 // Headless RED->GREEN teeth for the S6 gesture core (--selftest-timeline): rigid group drag
 // clamp, ghost-selection dedupe, delete misroute guard, boundary tangent roundtrip, Linear->

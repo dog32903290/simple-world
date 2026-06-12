@@ -4,6 +4,7 @@
 #include "app/menu.h"
 
 #include "app/document.h"
+#include "verify/eye/eye.h"  // one-line hook: native menu rows -> map.json (鐵律 3)
 
 namespace sw::menu {
 namespace {
@@ -34,6 +35,9 @@ NS::Menu* buildMenu(const char* title, const MenuItemDef (&items)[N]) {
     SEL cb = NS::MenuItem::registerActionCallback(items[i].cbName, items[i].cb);
     NS::MenuItem* it = menu->addItem(str(items[i].title), cb, str(items[i].key));
     it->setKeyEquivalentModifierMask(items[i].mods);
+    // one central hook = the whole data table lands in map.json (builder pattern, 鐵律 7)
+    sw::eye::recordNativeMenuItem(title, items[i].title, items[i].key,
+                                  (items[i].mods & NS::EventModifierFlagShift) != 0);
   }
   return menu;
 }

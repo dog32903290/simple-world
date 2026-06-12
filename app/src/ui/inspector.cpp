@@ -72,12 +72,14 @@ void animateContextMenu(const std::string& symbolId, int childId, const std::str
         sw::g_commands.push(std::move(cmd));
       }
     }
+    sw::eye::recordItem("insp:Animate");
   } else {
     if (ImGui::MenuItem("Remove Animation")) {
       auto cmd = std::make_unique<sw::RemoveAnimationCommand>(sw::doc::g_lib, symbolId, childId,
                                                               slotId);
       if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
     }
+    sw::eye::recordItem("insp:Remove Animation");
   }
   ImGui::EndPopup();
 }

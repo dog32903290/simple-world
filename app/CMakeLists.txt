@@ -109,6 +109,7 @@ add_executable(simple_world
   src/metal_impl.cpp
   src/verify/eye/eye.mm
   src/verify/hand/hand.cpp
+  src/verify/hand/hand_selftest.cpp
   src/platform/dialogs.mm
   src/platform/audio_capture.mm
   src/platform/audio_playback.mm

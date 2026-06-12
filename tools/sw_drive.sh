@@ -19,12 +19,15 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EYE="${SW_EYE_DIR:-$ROOT/app/.eye}"
 TIMEOUT="${SW_DRIVE_TIMEOUT:-5}"
 
-mtime() { stat -f %m "$1" 2>/dev/null || echo 0; }
+# FRACTIONAL mtime (%Fm, ns on APFS), compared by inequality. %m (whole seconds) deadlocked
+# the moment two app responses landed inside the same second — which the do-loop's fast map
+# round-trips (<100ms each) do every time (批次9 first live use of this tool caught it).
+mtime() { stat -f %Fm "$1" 2>/dev/null || echo 0; }
 
-# wait_fresh <file> <since>: until file's mtime > since, or die after $TIMEOUT.
+# wait_fresh <file> <since>: until file's mtime CHANGES from since, or die after $TIMEOUT.
 wait_fresh() {
   local f="$1" since="$2" t=0
-  while [ "$(mtime "$f")" -le "$since" ]; do
+  while [ "$(mtime "$f")" = "$since" ]; do
     sleep 0.1; t=$((t+1))
     if [ $((t % 10)) -eq 0 ] && [ $((t / 10)) -ge "$TIMEOUT" ]; then
       echo "[sw_drive] TIMEOUT waiting for $f — app frozen or not running" >&2
@@ -44,21 +47,35 @@ case "$cmd" in
     echo "$out"
     ;;
   state)
+    # 批次9 fix: this used to touch req_map and wait on state.json — which req_map NEVER
+    # produces, so it always fell through to the map fallback and echoed a STALE state.json
+    # (the zombie-state trap, now structural instead of luck). req_state is the producer.
     out="$EYE/state.json"; since="$(mtime "$out")"
-    touch "$EYE/req_map"
-    wait_fresh "$out" "$since" || wait_fresh "$EYE/map.json" "$since" || exit 1
+    touch "$EYE/req_state"
+    wait_fresh "$out" "$since" || exit 1
     echo "$out"
     ;;
   do)
     [ $# -ge 1 ] || { echo "usage: sw_drive.sh do \"<hand line>\" [...]" >&2; exit 2; }
     for line in "$@"; do
       printf '%s\n' "$line" > "$EYE/hand"
-      # hand commands span several frames (click = move+down+up, drag = 12 steps);
-      # prove liveness via a cheap map round-trip rather than a guessed sleep.
-      since="$(mtime "$EYE/map.json")"
-      touch "$EYE/req_map"
-      wait_fresh "$EYE/map.json" "$since" || exit 1
-      # one extra settle frame for multi-frame gestures
+      # hand commands span several frames (click = 3 steps, drag = 15). A fixed number of
+      # map round-trips returned while long gestures were still mid-flight (批次9 fix);
+      # map.json now carries "hand_pending" — round-trip until the queue reports drained.
+      tries=0
+      while :; do
+        since="$(mtime "$EYE/map.json")"
+        touch "$EYE/req_map"
+        wait_fresh "$EYE/map.json" "$since" || exit 1
+        grep -q '"hand_pending": false' "$EYE/map.json" && break
+        tries=$((tries+1))
+        if [ "$tries" -ge 100 ]; then
+          echo "[sw_drive] hand queue never drained (100 frames) — gesture stuck?" >&2
+          exit 1
+        fi
+      done
+      # one extra settle frame: the LAST step (e.g. mouse-up) lands the same frame the
+      # queue empties; effects (selection, popups) surface the frame after.
       since="$(mtime "$EYE/map.json")"; touch "$EYE/req_map"; wait_fresh "$EYE/map.json" "$since" || exit 1
     done
     echo "[sw_drive] done: $# command(s)"
