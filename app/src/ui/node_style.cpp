@@ -6,6 +6,8 @@
 #include <cstdio>
 
 #include "runtime/graph.h"  // NodeSpec / PortSpec
+// Note: blinkValue() uses ImGui::GetTime() which requires an active ImGui context (only
+// valid when the editor is running; not called from headless selftests).
 
 namespace sw::ui {
 namespace {
@@ -56,6 +58,35 @@ ImU32 nodeLabelColor(const sw::NodeSpec& spec)  { return variation(baseColor(cat
 
 ImU32 nodeSelectedBorderColor() { return IM_COL32(255, 255, 255, 255); }  // TiXL UiColors.Selection
 ImU32 nodeHoverBorderColor()    { return IM_COL32(210, 210, 220, 170); }
+
+// V2: TiXL DrawConnection.cs:32-42 — line color = ConnectionLines variation (b1,s1,op0.8)
+// applied to the type's base color. When selected/hovered TiXL uses OperatorLabel variation
+// (b1.3,s0.4,op1.0) first then ConnectionLines on top — simplified here to just OperatorLabel
+// (brighter) without the second application, which matches the visible result closely enough.
+ImU32 connectionLineColor(const std::string& dataType, bool selected) {
+  ImVec4 base = baseColor(dataType);
+  if (selected) {
+    // selected/hovered: OperatorLabel (b1.3, s0.4, a1.0) — distinct from normal
+    return variation(base, 1.3f, 0.4f, 1.0f);
+  }
+  // normal: ConnectionLines (b1.0, s1.0, a0.8) — TiXL ColorVariations.ConnectionLines
+  return variation(base, 1.0f, 1.0f, 0.8f);
+}
+
+// V3: TiXL DrawNode.cs:126 — rounding = 5 * CanvasScale, 0 if CanvasScale < 0.5.
+// tixlScale = ViewScale (= 1/GetCurrentZoom() in imgui-node-editor), clamped.
+float nodeRounding(float tixlScale) {
+  if (tixlScale < 0.5f) return 0.0f;
+  float r = 5.0f * tixlScale;
+  if (r > 20.0f) r = 20.0f;  // cap to avoid overly large radius at high zoom
+  return r;
+}
+
+// V4: TiXL MagGraphCanvas.Drawing.cs:459
+//   internal static float Blink => MathF.Sin((float)ImGui.GetTime() * 10) * 0.5f + 0.5f;
+float blinkValue() {
+  return std::sin((float)ImGui::GetTime() * 10.0f) * 0.5f + 0.5f;
+}
 
 int runNodeStyleSelfTest(bool injectBug) {
   auto maxc = [](ImU32 c) { ImVec4 f = ImGui::ColorConvertU32ToFloat4(c); return std::max({f.x, f.y, f.z}); };

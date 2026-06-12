@@ -42,18 +42,26 @@ void drawChild(const sw::SymbolChild& child) {
   // EndNode. Rounding/border kept small + thin for TiXL's flat-rectangle legacy look.
   // Selection (white) + hover (soft white) outlines — TiXL UiColors.Selection, category-
   // independent so a lit node reads the same regardless of type. Always pushed.
+  //
+  // V3: rounding = 5*CanvasScale, 0 if scale<0.5x (TiXL DrawNode.cs:126).
+  // GetCurrentZoom() = InvScale; tixlScale = ViewScale = 1/InvScale.
+  float tixlScale = (ed::GetCurrentZoom() > 0.0001f) ? (1.0f / ed::GetCurrentZoom()) : 1.0f;
+  float rounding = nodeRounding(tixlScale);
+
   ed::PushStyleColor(ed::StyleColor_SelNodeBorder, ImGui::ColorConvertU32ToFloat4(nodeSelectedBorderColor()));
-  ed::PushStyleColor(ed::StyleColor_HovNodeBorder, ImGui::ColorConvertU32ToFloat4(nodeHoverBorderColor()));
+  // V4: hover blink border is drawn manually below (not via ed's HovNodeBorder) to animate.
+  // Keep ed's built-in hover color dim so the custom blink rect dominates.
+  ed::PushStyleColor(ed::StyleColor_HovNodeBorder, ImVec4(0, 0, 0, 0));  // invisible: manual blink
   int nColor = 2;
   if (spec) {
     ed::PushStyleColor(ed::StyleColor_NodeBg, ImGui::ColorConvertU32ToFloat4(nodeBgColor(*spec)));
     ed::PushStyleColor(ed::StyleColor_NodeBorder, ImGui::ColorConvertU32ToFloat4(nodeBorderColor(*spec)));
     nColor += 2;
   }
-  ed::PushStyleVar(ed::StyleVar_NodeRounding, 3.0f);
+  ed::PushStyleVar(ed::StyleVar_NodeRounding, rounding);  // V3: zoom-aware (was 3.0f)
   ed::PushStyleVar(ed::StyleVar_NodeBorderWidth, 1.0f);
   ed::PushStyleVar(ed::StyleVar_SelectedNodeBorderWidth, 2.5f);
-  ed::PushStyleVar(ed::StyleVar_HoveredNodeBorderWidth, 2.0f);
+  ed::PushStyleVar(ed::StyleVar_HoveredNodeBorderWidth, 0.0f);  // V4: manual blink; suppress ed's border
   ed::BeginNode(child.id);
   if (spec) ImGui::PushStyleColor(ImGuiCol_Text, nodeLabelColor(*spec));
   // Title = the instance's custom name, else the definition title (spec->title = def name via
@@ -97,6 +105,24 @@ void drawChild(const sw::SymbolChild& child) {
   }
   drawNodeFace(child);  // 資料驅動 custom faces (node_faces.cpp kFaces table)
   ed::EndNode();
+
+  // V4: hover blink border (TiXL DrawNode.cs:156 — UiColors.ForegroundFull.Fade(Blink)).
+  // ed's built-in HovNodeBorder is suppressed (alpha=0 above); we draw manually so the
+  // border animates per-frame with Blink. GetNodeBackgroundDrawList draws into the node's
+  // background layer (still inside ed::Begin/End scope, valid after EndNode).
+  if ((int)ed::GetHoveredNode().Get() == child.id) {
+    ImDrawList* bgdl = ed::GetNodeBackgroundDrawList(child.id);
+    if (bgdl) {
+      ImVec2 npos = ed::GetNodePosition(child.id);
+      ImVec2 nsz2 = ed::GetNodeSize(child.id);
+      ImVec2 pMin = ed::CanvasToScreen(npos);
+      ImVec2 pMax = ed::CanvasToScreen(ImVec2(npos.x + nsz2.x, npos.y + nsz2.y));
+      float blink = blinkValue();  // TiXL: MathF.Sin(time*10)*0.5f+0.5f
+      ImU32 blinkCol = IM_COL32(255, 255, 255, (int)(blink * 255.0f));
+      bgdl->AddRect(pMin, pMax, blinkCol, rounding, 0, 2.0f);
+    }
+  }
+
   ed::PopStyleVar(4);
   ed::PopStyleColor(nColor);
   // eye: node body SCREEN rect via the node-editor's own position/size + transform.

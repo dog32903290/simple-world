@@ -24,6 +24,19 @@ ImU32 nodeLabelColor(const sw::NodeSpec& spec);   // OperatorLabel       b1.3  s
 ImU32 nodeSelectedBorderColor();  // bright white — selected node outline
 ImU32 nodeHoverBorderColor();     // soft white — hovered node outline
 
+// V2: Connection line color (TiXL DrawConnection.cs:32-42 ConnectionLines variation b1 s1 a0.8).
+// selected=true (or hovered) uses OperatorLabel variation instead (slightly brighter).
+ImU32 connectionLineColor(const std::string& dataType, bool selected);
+
+// V3: Node corner rounding scaled with zoom (TiXL DrawNode.cs:126 — 5*CanvasScale, 0 if <0.5x).
+// tixlScale = 1/GetCurrentZoom() in imgui-node-editor coords.
+float nodeRounding(float tixlScale);
+
+// V4: Blink animation value — TiXL MagGraphCanvas.Drawing.cs:459:
+//   internal static float Blink => MathF.Sin((float)ImGui.GetTime() * 10) * 0.5f + 0.5f;
+// (period = 2pi/10 ≈ 0.628s). Returns [0,1].
+float blinkValue();
+
 // Isolation test (ARCHITECTURE.md 鐵律 5): type hues + bg-darker-than-label invariant.
 int runNodeStyleSelfTest(bool injectBug);
 
