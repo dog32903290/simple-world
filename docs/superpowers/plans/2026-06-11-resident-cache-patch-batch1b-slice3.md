@@ -599,18 +599,93 @@ Animate→scrub bar4→拖 slider 寫 key(3.000→2.514)→值隨曲線直讀(ba
 **律法債帳:** animation_commands.cpp 488/compound_save.cpp ~520/graph_commands.cpp 419/
 editor_ui.cpp 483(>400; 機械拆分 chip 已開)。Token 帳: ~1.3M subagent(9 工單)。
 
+## Cut 14 — 批次 8: 五項全開 (2026-06-12 晨→, 柏為「走」全單) 🔄 verdict 回填中
+`eeca2b1`→`c6e426a` 五 commit; dispatcher 編隊: 5 implementer + 3 refuter + 1 live-driver。
+施工順序由檔案重疊決定: A1 拆檔先行(獨佔 CMakeLists) ∥ B/C worktree 並行 → A2 → A3 序列
+(同咬 timeline/curve); 活體集中尾段(eye/hand singleton)。
+
+**A1 >400 四檔拆+AR pin (`eeca2b1`):** compound_save 538→210+compound_load 349 (serialize/
+deserialize 縫); animation_commands/graph_commands 各拆 selftest TU; editor_ui 470→348+
+canvas_ids (pin/link ID 編碼內聚)。frame_cook 抽 cookAudioReactionNodes 接縫+arclock 牙
+(bars 域: debounce 按 BPM 縮放, 改回秒域立紅=真回歸證過)。
+
+**C soundtrack (`66d1c87`):** platform/audio_playback 葉 (AVAudioEngine+PlayerNode; 輸出端
+不踩 capture 的 AUHAL 輸入雷, 理由具名)。follow rule 抄 TiXL SoundtrackClipStream.cs:157-229:
+wall clock master, |drift|>0.04s×|speed| 才 hard-seek, pause 不 seek, 越界 pause。target 用
+playhead position 非 fxTime (timeline audio 跟播放頭凍)。fork 具名: 無變速/無 BASS offset 補償
+(AVAudioEngine 延遲不同, 活體校)/暫停 seek 立即。--selftest-soundtrack 六腿。
+
+**A2 S6 timeline 成熟 (`a94b409`):** zoom 游標錨 (ScalableCanvas.cs:382-415)+右拖 pan; 多選
+(點選/rubber-band 三模式 DopeSheetArea.cs:941-1049)+群組拖移一步 undo
+(SetCurveGroupSnapshotCommand); 內插右鍵選單五項逐字 CurveEditing.cs:98-462; Curves 第二視圖
+(值軸+polyline+2軸拖+垂直 fit)+tangent 把手逐式 CurvePoint.cs (折斷/鏡像)。dope 垂直
+value-nudge=fork 具名 (TiXL dope 鎖水平), 活體手感不對可砍。沿視圖縫拆 5 TU; 突變中央化
+timeline_edit::executePending (批次7 UAF 律); 拖曳 liveness 改 raw mouse-down (key 重排換
+imgui id, 自查洞)。
+
+**B bypass 修B (`49933c9`):** cookResident 三流 redirect — Points (cookNode 主輸出=上游
+cooked buffer)/Command (skip-self chain 穿過)/Texture2D (終端 dispatch 前 bypass-chain 解析
++depth 64 閘) = TiXL ByPassUpdate (Slot.cs:176-179)。白名單 Float+Points+Command+Texture2D,
+GAP 具名留外 (ParticleForce/Vec/string 無執行 leg=誠實規則)。flat cook() 不動具名 (flat Node
+無 bypass 欄, production 走 cookResident)。--selftest-bypasscook 三 leg+contrast。
+既知 gap: Texture2D 直通=終端限定 (無 image filter 消費者, 第一顆進場時 gather 處補);
+compound child bypass 不投影 (批次7 既定)。
+
+**A3 Vec 多通道 (`c6e426a`):** animateFloatVector=Animator.cs:97-126; 同源分組關節
+AnimGroup/animGroupForSlot (Inspector/投影/牙三方共用 positional consume=不可能 drift);
+fork 具名: 我方 Vec=N 連續 Float port→群組收在 HEAD slot id 下。resident 投影過
+animGroupForSlot→makeRef(#channel), patch 路自動繼承。timeline lane label .x/.y/.z
+(TableView.cs:17-20), 手勢零 Vec 特例。拖單 component 只寫該通道 key。
+
+**refuter 壓測 (3 航 11 BROKEN → 3 commit 全修, 每條 RED 證牙):**
+- **refuter-B** (2 BROKEN→`677de07`): ①compound child bypass=死旋鈕 (childIsBypassable 只比
+  邊界型別, cook inline 分支不讀旗; 修B 把 Points 入白名單反而讓最常見的自製點濾鏡 compound
+  長出死旋鈕)→照批次7 判例收窄: compound 回 false, cook 級實作=修C 排下批, leg X=修C 要翻的
+  明文契約 ②redirect 註解稱 depth-capped 實際只蓋 terminal→kCookDepthCap=64 穿全 7 呼叫邊,
+  bypass 環不再 ASan 爆 (正常 wire 環 incidental 蓋住, parked 帳不動)。SURVIVE 帳: 鏈式
+  atomic bypass/型別閘/互斥/count 動態 alias/Command skip-self。盲區記帳: Command/Texture2D
+  在 production 無同型 atomic, 唯一入口=compound→收窄後暫無處出現, 修C 落地自然接通。
+- **refuter-C** (4 BROKEN→`2a2cde9`): ①engine 一停永死 (engineStarted 一次性旗+零 observer;
+  拔耳機=無聲到重開 app)→每次查 isRunning+AVAudioEngineConfigurationChangeNotification
+  (atomic 旗+主執行緒重活) ②dt 夾 0.25×audio 自由跑=卡頓倒帶 (卡 2s 音樂倒 1.75s)→dt 分流:
+  transport 吃真 wall dt (TiXL Stopwatch parity), 0.25 限縮 sim-only ③seek(duration) playing
+  旗卡死→早退清旗 ④失敗 cache 重選同路徑救不回+引錯權威→applySoundtrackPick 明確重選必重試,
+  真權威=PlaybackUtils.cs:35 (每幀重試), 我方不每幀重試=具名 fork。SURVIVE 帳: resync 公式
+  speed 相消等價/敵意檔/換檔/BPM 跳變 parity/target=position。潛伏雷入 parked: decide() 無
+  rate 輸入 (變速 UI 接上時無聲爆)。
+- **refuter-A2** (5 BROKEN→`2a675b6`): ①②負時間 per-key 夾鉗→併鍵毀資料+幽靈 selection+
+  Delete 計數膨脹誤滅整條動畫 (三連環)→剛體平移 clamp+每幀去重+數去重實存鍵 ③tangent 拖被
+  每幀 updateTangents 打回 (TiXL HandleTangentDrag 全程不呼)→拖曳路徑不跑, 只留結構路徑
+  ④漏搬 Linear→Tangent 升格 (CurvePoint.cs:289-298)→補 ⑤zoom 小數 wheel 分岔→整數步
+  1.2^⌈|wheel|⌉+clamp [0.02,100]; 跨 composition selection 滲漏順手堵 (symbolId 變更清)。
+  新 --selftest-timeline 27 legs (-bug 17 翻紅)。
+- **live-driver 三輪**: D1 砍前咬三刺+修全收 (`5c1e424`): dope/curve lane bg 偷 press→點 key
+  選不中 (SetNextItemAllowOverlap)/timeline 焦點 Cmd+Z 死 (canvas handler window-scoped,
+  timeline 自帶)/eye 凍根治 (MTKView display-link 停轉>250ms keep-alive 手動 draw); hand 長出
+  rdrag+keydown/keyup。D2 砍前懸案: k1 點選 key 顏色淡黃≠選中黃 (功能 vs 視覺待裁)。
+- [ ] **D3 (Fable) 活體收尾跑中**: k1 懸案+17 項全清單
+- [ ] **柏為親測項**: ①拔耳機復活 (播放中拔→一秒內回聲+不倒帶) ②soundtrack 真出聲+音畫齊
+  ③dope 垂直 nudge 手感 (fork 項, 不對直接砍)
+
+**柏為親手玩法 (批次8 新東西):** ①Timeline 滾輪 zoom/右拖 pan/框選多 key 拖/右鍵切內插/
+"Curves" 鈕進曲線視圖拖 tangent 把手 ②Inspector 對 Vec 參數 (如 Center) 右鍵 Animate→
+三條 .x/.y/.z lane, 拖單一分量只長該通道 key ③節點右鍵 Bypass (Points 修飾 op 現在真的動)
+④toolbar Soundtrack 鈕載音檔→Play 音畫同走。
+
 ## Resume — next
-- **批次 7 leftovers: NONE.** 四大項全閉環, S3 GUI 活體全鏈手勢逐一證畢。
-- **「可作曲的時間」主線已通**: Animate→曲線→真播放頭→畫面動 全鏈活; 柏為可親手作曲了
-  (Inspector 右鍵 Animate / timeline 拖 key / Play)。
-- **Candidate next batches** (pick by 柏為 priority):
-  1. **S6 scrub 體感收尾+timeline 視窗成熟**: 縮放/捲動/多選/內插 enum 切換/bezier 把手/key 垂直
-     拖值——現在是 16-bar 固定窗第一刀。
-  2. **buffer-path bypass(修B)**: cookNode/cookCommand 讀 bypass 旗→Points/Command/Texture2D 白名單
-     重開(要 Metal 牙)。
-  3. **>400 四檔機械拆分**(chip 已開)+AR 時鐘域 pin 牙(refuter-S5 盲區 3)。
-  4. **soundtrack 載入**(CompositionSettings.soundtrackPath 欄已在, S5 拍板的家)+音畫對時。
-  5. **Vec 多通道動畫**(curve #index 結構在, resident 投影只取 #0)。
+- 批次 8 程式帳已結: 5 implementer + 3 refuter (11 BROKEN 全修) + live 三輪, 計 9 commit
+  (`eeca2b1` `66d1c87` `a94b409` `49933c9` `c6e426a` `5c1e424` `677de07` `2a2cde9` `2a675b6`)。
+  懸欄: D3 活體收尾 + 柏為親測三項 (上方驗收狀態欄)。
+- Candidate next (pick by 柏為 priority):
+  1. **修C: compound child bypass 真實作** (cook 級 inline 分支讀旗→passthrough; leg X 翻面;
+     Command/Texture2D production 入口隨之打開; bypass_cook_selftest 396 行先拆)
+  2. **S6 殘項**: snap/beat 細分/curve 視圖雙擊加 key/zoom 阻尼 (damping fork 帳)
+  3. **soundtrack 收尾**: offset 校時旋鈕 (柏為聽出延遲才開)/變速 (要 transport rate 先長,
+     連動 decide() rate 輸入的潛伏雷)
+  4. **Texture2D gather 直通** (第一顆 image filter op 進場時)
+- 新 parked (批次8): cookNode 正常 wire 環 fail-safe 是 incidental 非 contracted (>64 深
+  合法鏈也被蓋); decide() 無 rate 輸入; soundtrack 選檔不進 undo; SelKey (lane,roundTime)
+  識別殘留限制 (header 具名); Y 軸 clamp [1e-4,1e6] fork; dope value-nudge fork 待柏為手感。
 - Parked (unchanged): per-instance view-area memory; boundary moves no undo; per-path op state
   leaks until app close; CommandStack hardwires single doc; boundary↔boundary passthrough;
   crude_json never escapes object KEYS; loader accepts cyclic files silently (S14 catches);
