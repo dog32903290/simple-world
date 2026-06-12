@@ -203,6 +203,8 @@ bool doSaveAs() {
   }
   g_documentPath = path;
   g_savedSnapshot = json;
+  invalidateDirtyCache();  // snapshot changed but the revision didn't — a stale cached
+                           // `true` would keep the title's • lit until the next command
   g_status = "saved -> " + path;
   return true;
 }
@@ -216,6 +218,7 @@ bool doSave() {
     return false;
   }
   g_savedSnapshot = json;
+  invalidateDirtyCache();  // same stale-• hazard as doSaveAs
   g_status = "saved -> " + g_documentPath;
   return true;
 }
@@ -351,9 +354,29 @@ int runNavigationSelfTest(bool injectBug) {
   ok = ok && g_compositionPath.size() == 2;
   truncateComposition(0);
 
+  // Dirty-cache save leg (refuter-R2 of 批次10-B4): doSave updates g_savedSnapshot but NOT
+  // g_libRevision, so the revision-keyed isDirty cache must be explicitly invalidated there —
+  // a save that leaves the cached `true` alive keeps the title's • lit until the next command.
+  // This bites doSave ITSELF (real /tmp write), not a hand-rolled simulation.
+  {
+    std::string savedDoc = g_documentPath;
+    std::string savedSnap = g_savedSnapshot;
+    g_documentPath = "/tmp/sw_dirtycache_selftest.swproj";
+    g_savedSnapshot = "<stale>";   // pretend the file differs -> dirty
+    invalidateDirtyCache();
+    ok = ok && isDirty();          // primed: cache now holds `true` for this revision
+    ok = ok && doSave();           // must wash the dirty bit同 frame (no revision bump happens)
+    if (injectBug) { g_dirtyCache = true; g_dirtyCheckedRev = g_libRevision; }  // the stale-• bug
+    ok = ok && !isDirty();
+    std::remove(g_documentPath.c_str());
+    g_documentPath = std::move(savedDoc);
+    g_savedSnapshot = std::move(savedSnap);
+    invalidateDirtyCache();
+  }
+
   g_lib = std::move(savedLib);
   g_compositionPath = std::move(savedPath);
-  printf("[selftest-navigation] push/pop/truncate + dangling-trim%s -> %s\n",
+  printf("[selftest-navigation] push/pop/truncate + dangling-trim + dirty-cache-save%s -> %s\n",
          injectBug ? "(bugged)" : "", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
