@@ -156,7 +156,17 @@ run_line() {
       local src="${rest%% *}" dst="${rest#* }"
       cp "$ROOT/$src" "$ROOT/$dst" || fail "$ln" "fixture: cp $src -> $dst failed" ;;
     do)
-      local resolved; resolved="$(resolve_syms "$rest")"
+      # @SYM resolution gets a BOUNDED retry (3×0.7s, re-fetching the map each time): under
+      # back-to-back sweep churn a popup/inspector item can lag a few frames behind the click
+      # that opens it (the known first-click-miss/hover-frame trap) — solo runs never see it,
+      # sweeps lost 3-4 scenarios per pass to it. Retries are LOGGED, never silent: a symbol
+      # that truly never appears still fails after the window, so real reds stay red.
+      local resolved attempt
+      for attempt in 1 2 3; do
+        resolved="$(resolve_syms "$rest")"
+        [[ "$resolved" == __RESOLVE_FAIL__* ]] || break
+        [ "$attempt" -lt 3 ] && { note "(resolve retry $attempt: ${resolved#__RESOLVE_FAIL__ })"; sleep 0.7; }
+      done
       if [[ "$resolved" == __RESOLVE_FAIL__* ]]; then
         fail "$ln" "do: cannot resolve ${resolved#__RESOLVE_FAIL__ } in map.json"; return; fi
       resolved="$(apply_offsets "$resolved")"
