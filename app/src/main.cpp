@@ -219,7 +219,13 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
   dispatch_source_set_timer(s_keepAlive, DISPATCH_TIME_NOW, NSEC_PER_SEC / 30, NSEC_PER_SEC / 100);
   dispatch_set_context(s_keepAlive, _pMtkView);
   dispatch_source_set_event_handler_f(s_keepAlive, [](void* ctx) {
-    if (nowSec() - g_lastDrawSec.load(std::memory_order_relaxed) > 0.25)
+    // Idle stall: redraw at the timer's pace once the display link is clearly dead (>250ms).
+    // Hand-driving stall: queued hand steps drain ONE per frame, and ImGui's double-click
+    // window (~0.30s real time) closes between 250ms frames — a queued `double` could never
+    // register. So while hand steps are pending, pump at gesture speed; 0.05s still exceeds
+    // any live display-link interval (120/60/30Hz), so the guard stays silent when frames flow.
+    const double stale = nowSec() - g_lastDrawSec.load(std::memory_order_relaxed);
+    if (stale > 0.25 || (sw::hand::hasPending() && stale > 0.05))
       static_cast<MTK::View*>(ctx)->draw();
   });
   dispatch_resume(s_keepAlive);

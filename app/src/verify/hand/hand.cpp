@@ -132,6 +132,14 @@ void parseLine(const std::string& line) {
     float x0, y0, x1, y1;
     if (is >> x0 >> y0 >> x1 >> y1) {
       const int N = 12;  // interpolation steps so ImGui's drag tracking follows smoothly
+      // Same gap-2 fix as enqueueClick: a pure MOVE frame settles HoveredId at the start
+      // point BEFORE the press. Without it, a drag teleporting from far presses while the
+      // PREVIOUS frame's hover owner still holds HoveredId — under stacked AllowOverlap
+      // widgets (timeline lane bg vs key diamonds) the stale owner steals the press and the
+      // gesture lands on the wrong widget (key drag became a rubber-band fence, 批次8).
+      Step move;
+      move.setPos = true; move.x = x0; move.y = y0;
+      g_pending.push_back(move);
       Step down;
       down.setPos = true; down.x = x0; down.y = y0;
       down.setBtn = true; down.btn = btn; down.btnDown = true;
@@ -220,6 +228,8 @@ void poll() {
   std::string line;
   while (std::getline(lines, line)) parseLine(line);
 }
+
+bool hasPending() { return !g_pending.empty(); }
 
 void applyPendingStep() {
   if (g_pending.empty()) return;

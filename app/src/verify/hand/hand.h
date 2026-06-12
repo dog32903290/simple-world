@@ -46,6 +46,13 @@ void poll();
 // ImGui::NewFrame() (IO events are consumed by NewFrame). No-op if queue empty.
 void applyPendingStep();
 
+// True while queued input steps await frames. The verify keep-alive (main.cpp)
+// reads this to pump frames at gesture speed when the display link stalls:
+// steps drain one per frame, and ImGui's double-click window (~0.30s, real-time
+// DeltaTime via ImGui_ImplOSX_NewFrame) closes between idle keep-alive frames
+// (~4fps) — a queued `double` could never register.
+bool hasPending();
+
 // Headless self-test (ARCHITECTURE.md rule 5). Drives a minimal ImGui context
 // through every hand capability and asserts the effect:
 //   move/down/up — click expands to move->press->release; cursor parks, button
