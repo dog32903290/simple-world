@@ -209,5 +209,6 @@ void transportSetBpm(double bpm) {
 }
 double transportRate() { return g_transport.rate; }
 void transportSetRate(double rate) { g_transport.setRate(rate); }  // gate lives in the Transport
+void transportPlayBackwards() { g_transport.playBackwards(); }
 
 }  // namespace sw::framecook

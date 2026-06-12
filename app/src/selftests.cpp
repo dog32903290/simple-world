@@ -42,6 +42,7 @@
 #include "runtime/transport.h"
 #include "ui/cjk_font.h"
 #include "ui/canvas_ids.h"  // runCanvasIdsSelfTest (ed pin/node id bands)
+#include "ui/keymap.h"      // runKeymapSelfTest (K0 table completeness)
 #include "ui/node_style.h"
 #include "ui/timeline_window.h"  // runTimelineSelfTest (S6 timeline gesture core)
 #include "verify/eye/eye.h"
@@ -172,6 +173,7 @@ const SelfTest kTable[] = {
     {"hand", hand::runSelfTest},
     {"audioingest", runAudioIngestSelfTest},
     {"soundtrack", soundtrack::runSoundtrackSelfTest},
+    {"keymap", ui::km::runKeymapSelfTest},
 };
 
 }  // namespace

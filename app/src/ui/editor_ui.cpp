@@ -8,6 +8,7 @@
 #include "ui/canvas_ids.h"  // pin/link/boundary id scheme (mechanical split, rule 4)
 #include "ui/combine_dialog.h"
 #include "ui/copy_paste_ui.h"
+#include "ui/keymap.h"
 #include "ui/node_draw.h"
 
 #include <algorithm>
@@ -62,6 +63,12 @@ void drawNodeCanvas() {
   ed::SetCurrentEditor(g_NodeEditor);
   if (hostOpen && cur) {
     ed::Begin("canvas");
+
+  // Keyboard shortcut dispatch (K0 table: Space/L/J/K/Shift+←→/Cmd+D/F).
+  // Must be called with the node editor current (NavigateToSelection etc. need it)
+  // and inside the canvas host window (focus/hover queries read its state).
+  // Guard: processFrame() skips everything when io.WantTextInput (text widgets).
+  sw::ui::km::processFrame();
 
   // Draw every child of the CURRENT symbol (= TiXL GraphCanvas renders Symbol children).
   // The TiXL skin (category color, port columns, type-colored slots, custom face) + eye

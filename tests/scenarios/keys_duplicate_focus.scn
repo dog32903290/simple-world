@@ -1,0 +1,66 @@
+# keys_duplicate_focus.scn — 活體牙 K2+K3: Cmd+D duplicate + F focus selection
+#
+# K2: Cmd+D duplicate (FactoryKeyMap.cs:14, TiXL: copy+paste in-place).
+#   Selects node:2, presses Cmd+D, asserts Root children count goes from 6 → 7.
+#   Undo (Cmd+Z) rolls it back to 6.
+#
+# K3: F focus (FactoryKeyMap.cs:13, ed::NavigateToSelection / NavigateToContent).
+#   Visual change: the canvas viewport shifts. assert_diff confirms pixels changed.
+#
+# RED proof for K2: change child count assertion from 7 to 8 -> FAIL (only 7 after one dupe).
+# RED proof for K3: change before_focus to after the focus -> assert_diff sees no change -> FAIL.
+
+open app/testdata/compound_smoke.swproj
+
+# Baseline: Root has 6 children.
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+echo baseline-root-has-6-children
+
+# --- K2: Cmd+D duplicate ---
+# Select node:2 (click its title strip).
+do click @node:2^
+assert_state '.selectedNode == 2'
+echo node2-selected
+
+# Capture canvas before duplicate.
+capture full before_dupe
+
+# Cmd+D = duplicate (Mac: io.KeyCtrl = physical Cmd).
+do keychord cmd d
+# After duplicate: Root should have 7 children.
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 7'
+echo cmd-d-duplicated-child-count-7
+
+# Canvas should look different (new node appeared).
+assert_diff before_dupe
+echo canvas-changed-after-duplicate
+
+# --- Undo one step (Cmd+Z) — duplicate must be rolled back to 6 ---
+do keychord cmd z
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+echo undo-rolled-back-to-6
+
+# --- K3: F focus selection ---
+# Select node:2 again so NavigateToSelection has a target.
+do click @node:2^
+assert_state '.selectedNode == 2'
+echo node2-re-selected-for-focus
+
+# Capture canvas before focus.
+capture full before_focus
+
+# First navigate away from selection (zoom way out) so F has something visible to do.
+# We don't have a zoom gesture yet, so instead deselect -> F -> NavigateToContent
+# to verify F at minimum fires without crash and the canvas reacts.
+# Press F with node:2 selected -> NavigateToSelection (frames around node:2).
+do key f
+# Give the animation time to settle (ed:: duration 0.3s).
+wait 0.4
+# Canvas should differ from before (viewport panned/zoomed to frame selection).
+assert_diff before_focus
+echo f-focus-changed-canvas-viewport
+
+# (NavigateToContent leg dropped: needs a reliable empty-canvas deselect point, and
+# F-with-selection above already proves the key fires and moves the viewport. The capture
+# kind here is FULL (window incl. node editor) — `clean` is the Metal render output, which
+# an unwired duplicate / a viewport pan never changes (first live run's lesson).)

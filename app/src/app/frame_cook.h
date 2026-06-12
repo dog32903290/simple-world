@@ -77,5 +77,9 @@ void   transportSetBpm(double bpm);  // also writes lib.composition.bpm (the per
 // knobs that multiply in advance(); neither setter writes the other.
 double transportRate();
 void   transportSetRate(double rate);
+// Play backwards toggle (= TiXL J key path, Transport::playBackwards() semantics):
+//   playing-backwards -> stop; else (stopped or forward) -> rate=-1, playing.
+// Named fork vs TiXL ×2 ladder: see keymap.cpp and transport.h.
+void   transportPlayBackwards();
 
 }  // namespace sw::framecook

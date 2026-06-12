@@ -96,6 +96,7 @@ add_executable(simple_world
   src/ui/toolbar.cpp
   src/ui/combine_dialog.cpp
   src/ui/copy_paste_ui.cpp
+  src/ui/keymap.cpp
   src/ui/inspector.cpp
   src/ui/timeline_window.cpp
   src/ui/timeline_dopesheet.cpp
