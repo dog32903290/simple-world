@@ -101,6 +101,8 @@ add_executable(simple_world
   src/ui/timeline_curve_editor.cpp
   src/ui/timeline_select.cpp
   src/ui/timeline_edit.cpp
+  src/ui/timeline_canvas.cpp
+  src/ui/timeline_raster.cpp
   src/ui/timeline_selftest.cpp
   src/ui/node_draw.cpp
   src/ui/node_faces.cpp

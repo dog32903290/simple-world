@@ -102,7 +102,7 @@ void applyDragLive(State& s, Symbol& sym, const Geom& g, ImVec2 mouse) {
   const bool both = s.view.curveMode && io.KeyCtrl;  // cmd allows both (TimelineCurveEditor.cs:453)
   const bool allowH = both || s.drag.axis == 1;
   const bool allowV = both || s.drag.axis == 2;
-  const double dt = allowH ? (double)dxPx / g.pxPerBar : 0.0;
+  double dt = allowH ? (double)dxPx / g.pxPerBar : 0.0;
   double dv = 0.0;
   if (allowV) {
     if (s.view.curveMode) {
@@ -111,6 +111,21 @@ void applyDragLive(State& s, Symbol& sym, const Geom& g, ImVec2 mouse) {
       // dope value-nudge fork (header comment): rate scales with the first key's magnitude.
       const double v0 = s.drag.keys.empty() ? 0.0 : s.drag.keys[0].startValue;
       dv = -(double)dyPx * 0.01 * std::max(1.0, std::fabs(v0));
+    }
+  }
+  // Time snap (= DopeSheetArea.HandleCurvePointDragging cs:925-936): the grabbed key's tentative
+  // time is pulled to raster ticks / playhead / non-selected keys, Shift disables; the snapped
+  // offset moves the whole rigid group (修1 contract intact — one dt for everyone).
+  if (allowH && !s.drag.keys.empty()) {
+    static std::vector<double> anchors;
+    collectSnapAnchors(sym, s, g, /*excludeSelected=*/true, anchors);
+    bool did = false;
+    const double snapped =
+        snapDragTime(s.drag.refStartTime + dt, g.pxPerBar, anchors, io.KeyShift, &did);
+    if (did) {
+      dt = snapped - s.drag.refStartTime;
+      s.snapStamp = ImGui::GetTime();  // window draws the fading indicator (ValueSnapHandler)
+      s.snapBars = snapped;
     }
   }
   applyDragOffset(s, sym, dt, dv);
@@ -294,6 +309,17 @@ void runDeleteSelected(State& s, SymbolLibrary& lib, CommandStack& stack,
   s.selection.clear();
 }
 
+void runInsertKeys(SymbolLibrary& lib, CommandStack& stack, const std::string& symbolId,
+                   const std::vector<SelKey>& at) {
+  // = TiXL HandleCreateNewKeyframes: one AddKeyframesCommand per visible curve, wrapped in a
+  // MacroCommand "Insert keyframes" (TimelineCurveEditor.cs:242-247) -> single undo step.
+  auto macro = std::make_unique<MacroCommand>("Insert keyframes");
+  for (const SelKey& k : at)
+    macro->add(std::make_unique<AddKeyframeCommand>(lib, symbolId, k.childId, k.inputId, k.index,
+                                                    k.time));  // refused-safe: doIt no-ops
+  if (!macro->empty()) stack.push(std::move(macro));
+}
+
 void executePending(const std::string& symbolId, Symbol& sym, const Geom& g) {
   State& s = state();
   Pending p = s.pending;
@@ -319,6 +345,8 @@ void executePending(const std::string& symbolId, Symbol& sym, const Geom& g) {
                                                     p.addAt.inputId, p.addAt.index, p.addAt.time);
     sw::g_commands.push(std::move(cmd));  // refused-safe: doIt no-ops, undo no-ops
   }
+  if (!p.insertKeys.empty())
+    runInsertKeys(sw::doc::g_lib, sw::g_commands, symbolId, p.insertKeys);
   if (p.deleteSelected && !s.selection.empty())
     runDeleteSelected(s, sw::doc::g_lib, sw::g_commands, symbolId, sym);
   if (p.setInterp >= 0 && !s.selection.empty()) runSetInterpolation(s, sym, symbolId, p.setInterp);

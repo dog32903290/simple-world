@@ -105,7 +105,7 @@ void pruneSelection(State& s, const Symbol& sym) {
   if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) s.suppressDragFromClick = false;
 }
 
-void stageDrag(State& s, const Symbol& sym, ImVec2 mouseStart) {
+void stageDrag(State& s, const Symbol& sym, ImVec2 mouseStart, const SelKey* grab) {
   s.drag = DragState{};
   s.drag.mouseStart = mouseStart;
   std::map<std::pair<int, std::string>, bool> seen;
@@ -126,6 +126,10 @@ void stageDrag(State& s, const Symbol& sym, ImVec2 mouseStart) {
     }
   }
   s.drag.active = !s.drag.keys.empty();
+  // Snap reference = the grabbed key's original time (= TiXL snaps the dragged vDef's U,
+  // DopeSheetArea.cs:925-936); fall back to the first staged key.
+  if (s.drag.active)
+    s.drag.refStartTime = grab ? Curve::roundTime(grab->time) : s.drag.keys[0].startTime;
 }
 
 void stageTangentDrag(State& s, const Symbol& sym, const SelKey& k, bool inSide) {

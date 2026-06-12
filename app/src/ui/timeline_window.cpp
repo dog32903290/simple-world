@@ -24,21 +24,6 @@
 
 namespace sw::ui {
 
-namespace tl {
-// = TiXL ScalableCanvas.ComputeZoomDeltaFromMouseWheel (ScalableCanvas.cs:453-477): INTEGER-step
-// loop — every wheel notch (or fractional remainder of one) multiplies/divides by 1.2 once, i.e.
-// 1.2^ceil(|wheel|). Mac touchpads send fractional wheel constantly; the previous pow(1.2, wheel)
-// drifted from TiXL's feel on every flick (refuter 修4). Factor clamped [0.02,100] (cs:476).
-double zoomDeltaFromWheel(float wheel) {
-  double sum = 1.0;
-  if (wheel < 0.0f)
-    for (float z = wheel; z < 0.0f; z += 1.0f) sum /= 1.2;
-  if (wheel > 0.0f)
-    for (float z = wheel; z > 0.0f; z -= 1.0f) sum *= 1.2;
-  return std::clamp(sum, 0.02, 100.0);
-}
-}  // namespace tl
-
 namespace {
 
 constexpr float kLaneLabelW = 150.0f;  // left gutter width for "child.input" labels
@@ -61,11 +46,15 @@ std::string laneLabel(const Symbol& sym, int childId, const std::string& inputId
   return childName + "." + inputName;
 }
 
-// Wheel zoom + right-drag pan (= TiXL ScalableCanvas, fork: no scale/scroll damping).
+// Wheel zoom + right-drag pan. ALL input writes the *T targets; tl::dampView eases the drawn
+// values toward them each frame (= TiXL ScalableCanvas: HandleInteraction mutates ScaleTarget/
+// ScrollTarget, DampScaling animates Scale/Scroll — 批次9 closes the "no damping" fork).
 // Zoom factor = tl::zoomDeltaFromWheel (integer 1.2 steps, [0.02,100] — cs:453-477), anchored at
-// the cursor (ApplyZoomDelta cs:382-415). Dope view zooms X only (TimeLineCanvas.ApplyZoomDelta
+// the cursor (ApplyZoomDelta cs:382-415: focus from the DRAWN transform, target-anchor formula
+// ScrollTarget += (focus - ScrollTarget) * (z-1)/z). Dope view zooms X only (TimeLineCanvas
 // override cs:335-357); curve view zooms both, Alt = Y-only, Shift = X-only (cs:396-406).
-// Pan: right-drag (cs:261-274); horizontal wheel pans X (touchpad path cs:283, speed fork 60px).
+// Pan: right-drag -> ScrollTarget -= delta / ScaleTarget (cs:261-274); horizontal wheel pans X
+// (touchpad path cs:283, speed fork 60px).
 void handleZoomPan(tl::ViewState& v, const tl::Geom& g) {
   ImGuiIO& io = ImGui::GetIO();
   const ImVec2 m = ImGui::GetMousePos();
@@ -76,43 +65,49 @@ void handleZoomPan(tl::ViewState& v, const tl::Geom& g) {
     const bool zoomX = !(v.curveMode && io.KeyAlt);
     const bool zoomY = v.curveMode && !io.KeyShift;
     if (zoomX) {
-      const double focus = g.xToTime(m.x);
-      // Scale clamp [0.01,5000] = TimeLineCanvas branch of ClampScaleToValidRange (cs:303-311).
-      v.pxPerBar = std::clamp(v.pxPerBar * z, 0.01, 5000.0);
-      v.scrollBars = focus - (double)(m.x - g.x0) / v.pxPerBar;  // keep the bar under the cursor
+      // Scale clamp [0.01,5000] = TimeLineCanvas branch of ClampScaleToValidRange (cs:303-311);
+      // no-change-after-clamp skips the scroll anchor too (ApplyZoomDelta early-out, cs:388-390).
+      const double clamped = std::clamp(v.pxPerBarT * z, 0.01, 5000.0);
+      if (clamped != v.pxPerBarT) {
+        const double focus = g.xToTime(m.x);  // drawn transform (= InverseTransformPositionFloat)
+        v.pxPerBarT = clamped;
+        v.scrollBarsT += (focus - v.scrollBarsT) * (z - 1.0) / z;
+      }
     }
     if (zoomY) {
-      const double focus = g.yToValue(m.y);
       // FORK 具名: TiXL's curve canvas skips the scale clamp (IsCurveCanvas early-out, cs:305-306);
       // ours keeps [1e-4,1e6] as a NaN guard on pxPerUnit.
-      v.pxPerUnit = std::clamp(v.pxPerUnit * z, 1e-4, 1e6);
-      v.valueBottom = focus - (double)(g.y1 - m.y) / v.pxPerUnit;
+      const double clamped = std::clamp(v.pxPerUnitT * z, 1e-4, 1e6);
+      if (clamped != v.pxPerUnitT) {
+        const double focus = g.yToValue(m.y);
+        v.pxPerUnitT = clamped;
+        v.valueBottomT += (focus - v.valueBottomT) * (z - 1.0) / z;
+      }
     }
   }
   if (inContent && io.MouseWheelH != 0.0f)
-    v.scrollBars += (double)io.MouseWheelH * 60.0 / v.pxPerBar;
+    v.scrollBarsT += (double)io.MouseWheelH * 60.0 / v.pxPerBarT;
   if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Right)) {
-    v.scrollBars -= (double)io.MouseDelta.x / v.pxPerBar;
-    if (v.curveMode) v.valueBottom += (double)io.MouseDelta.y / v.pxPerUnit;
+    v.scrollBarsT -= (double)io.MouseDelta.x / v.pxPerBarT;
+    if (v.curveMode) v.valueBottomT += (double)io.MouseDelta.y / v.pxPerUnitT;
   }
 }
 
-// Adaptive bar ruler: pick the smallest step from {…,0.25,0.5,1,2,4,…} that keeps ticks >= 50px
-// apart (= TiXL TimeRaster idea, implementation fork 具名: pow2 ladder, no beat subdivision).
+// Bar/beat/tick ruler (= TiXL BeatTimeRaster via tl::computeRaster; replaces the 批次8 pow2-ladder
+// fork). Lines run the full content height (TiXL DrawTimeTicks), labels sit in the ruler strip.
 void drawRuler(ImDrawList* dl, const tl::Geom& g, float rulerY) {
   dl->AddRectFilled(ImVec2(g.x0, rulerY), ImVec2(g.x1, rulerY + kRulerH), IM_COL32(28, 30, 38, 255));
-  double step = 0.25;
-  while (step * g.pxPerBar < 50.0 && step < 1e6) step *= 2.0;
-  const double tStart = std::floor(g.xToTime(g.x0) / step) * step;
-  const double tEnd = g.xToTime(g.x1);
-  for (double t = tStart; t <= tEnd + step * 0.5; t += step) {
-    const float x = g.timeToX(t);
+  static std::vector<tl::RasterTick> ticks;
+  tl::computeRaster(g.pxPerBar, g.scrollBars, (double)(g.x1 - g.x0), ticks);
+  for (const tl::RasterTick& t : ticks) {
+    const float x = g.timeToX(t.bars);
     if (x < g.x0 - 1 || x > g.x1 + 1) continue;
-    dl->AddLine(ImVec2(x, rulerY), ImVec2(x, g.y1), IM_COL32(60, 64, 76, 255));
-    char buf[24];
-    if (step < 1.0) snprintf(buf, sizeof(buf), "%.2f", t);
-    else snprintf(buf, sizeof(buf), "%d", (int)std::llround(t));
-    dl->AddText(ImVec2(x + 2, rulerY + 2), IM_COL32(150, 154, 166, 255), buf);
+    const int la = (int)(t.lineAlpha * 255.0f);
+    dl->AddLine(ImVec2(x, rulerY), ImVec2(x, g.y1), IM_COL32(60, 64, 76, la));
+    if (t.label[0]) {
+      const int ta = (int)(t.labelAlpha * 255.0f);
+      dl->AddText(ImVec2(x + 2, rulerY + 2), IM_COL32(150, 154, 166, ta), t.label);
+    }
   }
 }
 
@@ -228,8 +223,12 @@ void drawTimelineWindow() {
     s.view.lastLaneCount = (int)lanes.size();
     s.view.needFit = true;
   }
+  // Damp the drawn canvas toward the input targets BEFORE building the frame's geometry
+  // (= TiXL UpdateCanvas order: DampScaling first, HandleInteraction after — ScalableCanvas.cs:44).
+  tl::dampView(s.view, std::max(50.0, (double)availW - kLaneLabelW), (double)kCurveAreaH,
+               (double)ImGui::GetIO().DeltaTime);
   // Vertical fit on curve-view entry / lane-set change (= TiXL SetVerticalScopeToCanvasArea,
-  // paddingFraction 0.15, TimelineCurveEditor.cs:47-56).
+  // paddingFraction 0.15, TimelineCurveEditor.cs:47-56 — writes the TARGETS, the fit animates in).
   if (s.view.curveMode && s.view.needFit) {
     double mn = 1e300, mx = -1e300;
     for (const tl::Lane& ln : lanes) {
@@ -245,8 +244,8 @@ void drawTimelineWindow() {
     if (mx - mn < 1e-6) { mn -= 0.5; mx += 0.5; }
     const double pad = (mx - mn) * 0.15;
     mn -= pad; mx += pad;
-    s.view.pxPerUnit = kCurveAreaH / (mx - mn);
-    s.view.valueBottom = mn;
+    s.view.pxPerUnitT = kCurveAreaH / (mx - mn);
+    s.view.valueBottomT = mn;
     s.view.needFit = false;
   }
   tl::Geom g;
@@ -282,6 +281,18 @@ void drawTimelineWindow() {
   if (ImGui::IsItemActive()) {
     double t = std::max(0.0, g.xToTime(ImGui::GetMousePos().x));
     sw::framecook::transportScrub(t);  // SAME control surface as the toolbar Pos drag
+  }
+
+  // Snap indicator: 1s-fading vertical line at the last snap target (= ValueSnapHandler.
+  // DrawSnapIndicator: opacity (1 - age) * 0.4, color StatusAnimated orange 255/117/0).
+  if (ImGui::GetTime() - s.snapStamp < 1.0) {
+    const float a = (1.0f - (float)(ImGui::GetTime() - s.snapStamp)) * 0.4f;
+    const float sx = g.timeToX(s.snapBars);
+    if (sx >= g.x0 - 1 && sx <= g.x1 + 1) {
+      dl->AddRectFilled(ImVec2(sx, origin.y), ImVec2(sx + 1, g.y1),
+                        IM_COL32(255, 117, 0, (int)(a * 255.0f)));
+      sw::eye::recordRect("tl_snap", sx, origin.y, sx + 1, g.y1);
+    }
   }
 
   // Reserve the laid-out height so the window scrolls/sizes correctly.

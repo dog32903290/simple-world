@@ -126,10 +126,13 @@ void drawDopeSheet(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g, I
         s.suppressDragFromClick = selectOnClickOrDrag(s, k, isSel, modShift, modCmd);
       }
       // Drag start -> stage a multi-key drag of the WHOLE selection (= TiXL StartDragCommand).
-      // Axis latch + dt/dv application happen in executePending; here we only stage.
+      // Axis latch + dt/dv application happen in executePending; here we only stage. The grabbed
+      // key rides along as the snap reference (批次9 snap).
       if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, kDragLatchPx) &&
-          !s.drag.active && !s.suppressDragFromClick)
-        stageDrag(s, sym, io.MouseClickedPos[ImGuiMouseButton_Left]);
+          !s.drag.active && !s.suppressDragFromClick) {
+        const SelKey grab{ln.childId, ln.inputId, ln.index, u};
+        stageDrag(s, sym, io.MouseClickedPos[ImGuiMouseButton_Left], &grab);
+      }
 
       // Diamond (square for Constant-out keys = TiXL's distinct dope icon, simplified).
       ImU32 col = isSel ? IM_COL32(255, 210, 90, 255)

@@ -10,6 +10,11 @@
 //   ④ boundary tangent roundtrip (修2: no updateTangents mid-drag)
 //   ⑤ Linear->Tangent promotion on broken drag (修3)
 //   ⑥ wheel-zoom integer-step pins (修4)
+// 批次9 S6 四殘項 legs:
+//   ⑦ time snap math (snapDragTime: in-radius snaps / out stays / Shift disables / nearest wins)
+//   ⑧ beat raster ladder (computeRaster: gear change across zoom + fade + label format)
+//   ⑨ curve-view insert keys (runInsertKeys: sampled value + one-macro undo roundtrip)
+//   ⑩ canvas damping (dampView: damped intermediate frame + N-frame convergence + NaN guard)
 // injectBug re-introduces each bug's data shape -> the same CHKs must FAIL (teeth proof).
 #include <cmath>
 #include <cstdio>
@@ -243,6 +248,115 @@ int runTimelineSelfTest(bool injectBug) {
     CHK(near(zoom(-2.5f), 1.0 / (1.2 * 1.2 * 1.2)), "⑥ wheel -2.5 -> three steps down");
     CHK(near(zoom(0.0f), 1.0), "⑥ wheel 0 -> identity");
     CHK(near(zoom(40.0f), 100.0) && near(zoom(-40.0f), 0.02), "⑥ factor clamped to [0.02,100]");
+  }
+
+  // ⑦ Time snap math (= ValueSnapHandler/SnapResult + DopeSheetArea.cs:927 Shift gate):
+  //    threshold = 5px / pxPerBar; in-radius snaps, outside stays, Shift disables, nearest wins.
+  //    injectBug = ignore the Shift gate + double the radius (the "snap always grabs" shape).
+  {
+    auto snap = [&](double target, double pxPerBar, const std::vector<double>& anchors,
+                    bool shiftHeld, bool* did) {
+      return tl::snapDragTime(target, injectBug ? pxPerBar / 2.0 : pxPerBar, anchors,
+                              injectBug ? false : shiftHeld, did);
+    };
+    const std::vector<double> anchors = {1.0, 2.0};
+    bool did = false;
+    CHK(near(snap(1.05, 40.0, anchors, false, &did), 1.0) && did,
+        "⑦ in radius (5px/scale): 1.05 @40px/bar snaps to beat 1.0");
+    CHK(near(snap(1.5, 40.0, anchors, false, &did), 1.5) && !did,
+        "⑦ outside radius: 1.5 stays (no anchor within 0.125 bars)");
+    CHK(near(snap(1.05, 1000.0, anchors, false, &did), 1.05) && !did,
+        "⑦ radius shrinks with zoom: 1.05 @1000px/bar stays (threshold 0.005)");
+    CHK(near(snap(1.05, 40.0, anchors, true, &did), 1.05) && !did,
+        "⑦ Shift disables snapping (DopeSheetArea.cs:927)");
+    const std::vector<double> pair = {1.0, 1.08};
+    CHK(near(snap(1.05, 40.0, pair, false, &did), 1.08),
+        "⑦ nearest anchor wins (best force, SnapResult)");
+  }
+
+  // ⑧ Beat raster ladder (= BeatTimeRaster ScaleRanges): 16th ticks at high zoom, measure+bar
+  //    gear at default, phrase+measure at far zoom; finest level fades; labels "bar.beat".
+  //    injectBug = the OLD pow2 ladder (one spacing, no beats/fade) -> gear CHKs FAIL.
+  {
+    std::vector<tl::RasterTick> ticks;
+    auto raster = [&](double px, double w) {
+      if (!injectBug) { tl::computeRaster(px, 0.0, w, ticks); return; }
+      ticks.clear();  // re-enact the 批次8 pow2 fork: single step >= 50px, plain numeric labels
+      double step = 0.25;
+      while (step * px < 50.0 && step < 1e6) step *= 2.0;
+      for (double t = step; t * px < w; t += step) {
+        tl::RasterTick k; k.bars = t; snprintf(k.label, sizeof(k.label), "%g", t);
+        ticks.push_back(k);
+      }
+    };
+    auto find = [&](double bars) -> const tl::RasterTick* {
+      for (const tl::RasterTick& t : ticks)
+        if (std::fabs(t.bars - bars) < 1e-9) return &t;
+      return nullptr;
+    };
+    raster(2000.0, 1000.0);  // invertedScale 0.0005 -> finest gear (bar+beat+16th)
+    CHK(find(0.0625) != nullptr, "⑧ high zoom gear: 16th ticks present (spacing 1/16 bar)");
+    const tl::RasterTick* beat = find(0.25);
+    CHK(beat && std::string(beat->label) == "0.1", "⑧ beat label format 'bar.beat' (BuildLabel)");
+    raster(40.0, 400.0);  // invertedScale 0.025 -> measure+bar gear (range 0.012-0.03)
+    CHK(find(0.25) == nullptr, "⑧ default zoom gear: no beat ticks (gear changed)");
+    const tl::RasterTick* bar1 = find(1.0);
+    const tl::RasterTick* meas = find(4.0);
+    CHK(bar1 && meas && std::string(meas->label) == "4", "⑧ measure+bar ticks present");
+    CHK(bar1 && bar1->labelAlpha < 1.0f && meas && near(meas->labelAlpha, 1.0),
+        "⑧ finest level fades as you zoom away (fadeFactor)");
+    raster(5.0, 400.0);  // invertedScale 0.2 -> phrase+measure gear (range 0.15-0.3)
+    const tl::RasterTick* phrase = find(16.0);
+    const tl::RasterTick* m4 = find(4.0);
+    CHK(phrase && std::string(phrase->label) == "16" && m4 && m4->label[0] == '\0' &&
+            m4->lineAlpha < 1.0f,
+        "⑧ far zoom gear: labeled phrases + fading unlabeled measures");
+  }
+
+  // ⑨ Curve-view insert keys (= TiXL "Insert keyframes" macro): key lands ON the curve (sampled
+  //    value, NOT the click v), one undo step restores byte-faithful.
+  //    injectBug = the "value from the click point" shape -> the sampled-value CHK FAILS.
+  {
+    SymbolLibrary lib = libFromGraph(defaultParticleGraph());
+    AnimTarget t = findFloatTarget(lib);
+    CommandStack stack;
+    seedThreeKeys(lib, stack, t);  // keys @1/@3/@5 = 1/3/1 (linear)
+    Symbol* sym = lib.find(lib.rootId);
+    const std::string preInsert = libToJsonV2(lib);
+    tl::runInsertKeys(lib, stack, lib.rootId, {SelKey{t.childId, t.slotId, 0, 2.0}});
+    Animator::CurveArray* arr = sym->animator.curvesFor(t.childId, t.slotId);
+    if (injectBug)  // re-enact "value = double-click v": overwrite with the (wrong) click value
+      (*arr)[0].table().at(Curve::roundTime(2.0)).value = 99.0;
+    CHK((*arr)[0].count() == 4 && (*arr)[0].hasKeyAt(2.0), "⑨ insert lands a key at the time");
+    CHK(near((*arr)[0].table().at(Curve::roundTime(2.0)).value, 2.0),
+        "⑨ value = curve's SAMPLED value (TiXL InsertNewKeyframe), not the click v");
+    stack.undo();
+    CHK(libToJsonV2(lib) == preInsert, "⑨ ONE undo removes the whole insert, byte-faithful");
+    stack.redo();
+    CHK((*sym->animator.curvesFor(t.childId, t.slotId))[0].hasKeyAt(2.0), "⑨ redo re-inserts");
+  }
+
+  // ⑩ Canvas damping (= ScalableCanvas.DampScaling): the drawn scale/scroll EASE toward the
+  //    targets (intermediate frame strictly between), converge to the exact target within ~1s of
+  //    frames (completed snap), and NaN targets are guarded.
+  //    injectBug = the 批次8 "no damping" fork (drawn jumps to target) -> the eased CHK FAILS.
+  {
+    tl::ViewState v;
+    v.pxPerBarT = 80.0;   // wheel zoom wrote the target...
+    v.scrollBarsT = 5.0;  // ...and an anchored scroll
+    auto step = [&]() {
+      if (injectBug) { v.pxPerBar = v.pxPerBarT; v.scrollBars = v.scrollBarsT; return; }
+      tl::dampView(v, 600.0, 180.0, 1.0 / 60.0);
+    };
+    step();
+    CHK(v.pxPerBar > 40.0 + 1e-6 && v.pxPerBar < 80.0 - 1e-6,
+        "⑩ one frame in, the drawn scale is BETWEEN start and target (damped, not a jump)");
+    for (int i = 0; i < 200; ++i) step();
+    CHK(near(v.pxPerBar, 80.0) && near(v.scrollBars, 5.0),
+        "⑩ converges to the exact target (completed snap, cs:192-201)");
+    v.pxPerBarT = std::nan("");
+    tl::dampView(v, 600.0, 180.0, 1.0 / 60.0);
+    CHK(std::isfinite(v.pxPerBar) && std::isfinite(v.pxPerBarT), "⑩ NaN target guarded (cs:217)");
   }
 
   printf("[timeline] %s (%d failure%s)\n", failures ? "FAIL" : "PASS", failures,

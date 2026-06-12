@@ -5,6 +5,8 @@
 //   timeline_curve_editor.cpp curve-editor view (value axis + curve lines + 2-axis drag + tangents)
 //   timeline_select.cpp       selection state + helpers (session singleton)
 //   timeline_edit.cpp         gesture core + executePending (the ONLY place curves mutate)
+//   timeline_canvas.cpp       ScalableCanvas/ValueSnapHandler math ports (damping, zoom, snap)
+//   timeline_raster.cpp       BeatTimeRaster port (zoom-adaptive bar/beat/tick ruler ladder)
 //   timeline_selftest.cpp     --selftest-timeline teeth on the exported gesture-core seams
 //
 // 鐵律（批次7 BUG-B 前科）：視圖迴圈裡迭代 curve.table() 時絕不 addOrUpdate/removeAt——視圖只
@@ -53,12 +55,19 @@ struct SelKey {
 // ClampScaleToValidRange, ScalableCanvas.cs:303-311). Value axis only meaningful in curve mode;
 // TiXL's curve canvas skips the scale clamp entirely (IsCurveCanvas early-out) — our pxPerUnit
 // clamp [1e-4,1e6] is a 具名 fork (NaN guard).
+// Damped canvas (= TiXL Scale/Scroll vs ScaleTarget/ScrollTarget, ScalableCanvas.cs:182-188):
+// input handlers write the *T targets; dampView eases the drawn values toward them every frame
+// (DampScaling, cs:190-235). All geometry/transforms read the DRAWN values.
 struct ViewState {
-  double pxPerBar = 40.0;     // = TiXL Scale.X (px per bar)
-  double scrollBars = 0.0;    // = TiXL Scroll.X (bars at the content left edge)
+  double pxPerBar = 40.0;     // = TiXL Scale.X (px per bar, drawn/damped)
+  double scrollBars = 0.0;    // = TiXL Scroll.X (bars at the content left edge, drawn/damped)
+  double pxPerBarT = 40.0;    // = TiXL ScaleTarget.X
+  double scrollBarsT = 0.0;   // = TiXL ScrollTarget.X
   bool curveMode = false;     // = TiXL TimeLineCanvas.Modes DopeView/CurveEditor
-  double pxPerUnit = 40.0;    // curve view: px per value unit (= Scale.Y)
-  double valueBottom = -1.0;  // curve view: value at the content BOTTOM edge
+  double pxPerUnit = 40.0;    // curve view: px per value unit (= Scale.Y, drawn/damped)
+  double valueBottom = -1.0;  // curve view: value at the content BOTTOM edge (drawn/damped)
+  double pxPerUnitT = 40.0;   // = TiXL ScaleTarget.Y
+  double valueBottomT = -1.0; // = TiXL ScrollTarget.Y
   bool needFit = true;        // refit V on mode entry / lane-set change (TimelineCurveEditor.cs:47-56)
   int lastLaneCount = -1;
 };
@@ -78,6 +87,8 @@ struct DragState {
   int axis = 0;            // 0 undecided / 1 horizontal(time) / 2 vertical(value) — TiXL
                            // CurveInputEditing.MoveDirections latch (TimelineCurveEditor.cs:439-449)
   ImVec2 mouseStart{};
+  double refStartTime = 0.0;  // grabbed key's ORIGINAL time — the snap reference (= TiXL snaps the
+                              // dragged vDef's U, DopeSheetArea.cs:925-936)
   std::vector<DragKey> keys;
   std::vector<GroupSnap> before;
 };
@@ -98,6 +109,8 @@ struct Fence { bool active = false; ImVec2 start{}, end{}; int mode = 0; };  // 
 // executor drives update/finish from raw mouse-down, because item ids are unstable mid-drag.)
 struct Pending {
   bool addKey = false; SelKey addAt{};  // double-click empty lane
+  std::vector<SelKey> insertKeys;       // curve-view double-click: one key per visible lane curve
+                                        // (= TiXL "Insert keyframes" macro, TimelineCurveEditor.cs)
   bool deleteSelected = false;          // Delete/Backspace or context menu
   int setInterp = -1;                   // KeyInterpolation int (context menu)
 };
@@ -115,6 +128,10 @@ struct State {
   // 修5: selection scope guard — the window clears `selection` whenever the composition changes,
   // so (childId,inputId) pairs never leak into a foreign symbol's lanes.
   std::string lastSymbolId;
+  // Snap indicator (= TiXL ValueSnapHandler._lastSnapTime/_lastSnapValue): the window draws a
+  // 1s-fading vertical line at snapBars while ImGui::GetTime() - snapStamp < 1 (DrawSnapIndicator).
+  double snapStamp = -1e9;
+  double snapBars = 0.0;
 };
 State& state();  // session singleton (timeline_select.cpp)
 
@@ -146,7 +163,9 @@ void dedupeSelection(std::vector<SelKey>& sel);
 // then dedupe (one key = one entry, always).
 void pruneSelection(State& s, const Symbol& sym);
 // Stage a key drag: fills drag.keys (selection w/ original time+value) + before snapshots.
-void stageDrag(State& s, const Symbol& sym, ImVec2 mouseStart);
+// `grab` = the key whose button started the drag — recorded as drag.refStartTime, the time the
+// snap handler pulls toward beats/keys (= TiXL's dragged vDef). nullptr -> first staged key.
+void stageDrag(State& s, const Symbol& sym, ImVec2 mouseStart, const SelKey* grab = nullptr);
 // Stage a tangent drag on one key (curve view).
 void stageTangentDrag(State& s, const Symbol& sym, const SelKey& k, bool inSide);
 
@@ -175,9 +194,45 @@ void applyTangentDrag(Curve& c, double keyTime, bool inSide, double angle, bool 
 // selection entries can never misroute a partial delete into RemoveAnimation (修1③).
 void runDeleteSelected(State& s, SymbolLibrary& lib, CommandStack& stack,
                        const std::string& symbolId, Symbol& sym);
+// Insert one keyframe per entry (curve-view double-click; = TiXL HandleCreateNewKeyframes ->
+// "Insert keyframes" MacroCommand, TimelineCurveEditor.cs:299-348). Each key lands ON the curve
+// (sampled value — AddKeyframeCommand semantics), Linear; selection untouched (TiXL parity).
+void runInsertKeys(SymbolLibrary& lib, CommandStack& stack, const std::string& symbolId,
+                   const std::vector<SelKey>& at);
 // = TiXL ScalableCanvas.ComputeZoomDeltaFromMouseWheel (ScalableCanvas.cs:453-477): integer-step
 // 1.2 loop (a fractional notch counts as one full step), clamped [0.02,100] (修4).
 double zoomDeltaFromWheel(float wheel);
+
+// --- canvas damping + snap (timeline_canvas.cpp; pure of imgui so the selftest bites them) ---
+// = TiXL ScalableCanvas.DampScaling (ScalableCanvas.cs:190-235): ease the drawn pxPerBar/scroll/
+// pxPerUnit/valueBottom toward their *T targets by lerping the viewport EXTENTS in canvas space,
+// f = min(dt / ScrollSmoothing 0.06 (UserSettings.cs:98), 1). Completed (snap-to-target) when
+// pxPerBar > 1000 OR |scroll-target| < 1 (both axes) AND |scale-target| < 0.05 (both axes).
+void dampView(ViewState& v, double widthPx, double heightPx, double dt);
+// = TiXL SnapResult.TryToImproveWithAnchorValue: threshold = SnapStrength 5px (UserSettings.cs:95)
+// / pxPerBar, force = threshold - |anchor-target|, forces < 1e-5 rejected, best force wins.
+// `snappingDisabled` = Shift held (DopeSheetArea.cs:927: snap only when !KeyShift). Returns the
+// snapped time (or `target` untouched); *didSnap reports whether an anchor won.
+double snapDragTime(double target, double pxPerBar, const std::vector<double>& anchors,
+                    bool snappingDisabled, bool* didSnap = nullptr);
+// Anchor set for time snapping (= TiXL SnapHandlerForU attractors, TimeLineCanvas.cs:48-54):
+// visible raster ticks + playhead + every keyframe time (excludeSelected drops the dragged
+// selection = TiXL SelectionDragSnapExclusions).
+void collectSnapAnchors(const Symbol& sym, const State& s, const Geom& g, bool excludeSelected,
+                        std::vector<double>& out);
+
+// --- adaptive ruler raster (timeline_raster.cpp) ---
+// = TiXL BeatTimeRaster (BeatTimeRaster.cs): zoom ladder of bar/beat/16th-tick rasters picked by
+// invertedScale = 1/pxPerBar; the finest level fades out as you zoom away (fadeFactor =
+// 1 - remap(invertedScale, ScaleMin, ScaleMax)). Labels: "b"=bar, "b.b"=bar.beat, ":t"=tick.
+// Ticks are px-deduped (TiXL _usedPositions) and double as the raster's snap anchors.
+struct RasterTick {
+  double bars = 0.0;
+  float lineAlpha = 1.0f;   // 0..1, multiplied into the grid-line color
+  float labelAlpha = 1.0f;  // 0..1 for the label text (label[0]=='\0' -> no label)
+  char label[16] = {0};
+};
+void computeRaster(double pxPerBar, double scrollBars, double widthPx, std::vector<RasterTick>& out);
 
 // --- views (record-only; NO curve mutation inside) ---
 void drawDopeSheet(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g, ImDrawList* dl);

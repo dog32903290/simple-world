@@ -94,6 +94,20 @@ void drawCurveEditor(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g,
   ImGui::SetCursorScreenPos(ImVec2(g.x0, g.y0));
   ImGui::SetNextItemAllowOverlap();
   ImGui::InvisibleButton("##curvebg", ImVec2(g.x1 - g.x0, g.y1 - g.y0));
+  // Double-click empty curve area = insert a keyframe on EVERY visible lane curve at that time
+  // (batch 9; gesture FORK 具名: TiXL uses Alt+click, TimelineCurveEditor.cs:299-313 — ours mirrors
+  // the dope view's double-click). Semantics = TiXL InsertNewKeyframe: time snapped via the U snap
+  // handler (cs:440-443, all attractors, no exclusions), value = the curve's SAMPLED value at that
+  // time — NOT the clicked v (cs:337, AddKeyframeCommand same law). Record-only; executePending
+  // pushes one "Insert keyframes" macro (undo = one step).
+  if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+    static std::vector<double> anchors;
+    collectSnapAnchors(sym, s, g, /*excludeSelected=*/false, anchors);
+    double t = std::max(0.0, g.xToTime(ImGui::GetMousePos().x));
+    t = std::max(0.0, snapDragTime(t, g.pxPerBar, anchors, /*snappingDisabled=*/false));
+    for (const Lane& ln : lanes)
+      s.pending.insertKeys.push_back(SelKey{ln.childId, ln.inputId, ln.index, t});
+  }
   if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, kDragLatchPx) &&
       !s.fence.active && !s.drag.active && !s.tan.active) {
     s.fence.active = true;
@@ -160,7 +174,7 @@ void drawCurveEditor(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g,
         s.suppressDragFromClick = selectOnClickOrDrag(s, k, isSel, modShift, modCmd);
       if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, kDragLatchPx) &&
           !s.drag.active && !s.tan.active && !s.suppressDragFromClick)
-        stageDrag(s, sym, io.MouseClickedPos[ImGuiMouseButton_Left]);
+        stageDrag(s, sym, io.MouseClickedPos[ImGuiMouseButton_Left], &k);  // k = snap reference
       dl->AddCircleFilled(kp, isSel ? 5.0f : 3.5f,
                           isSel ? IM_COL32(255, 210, 90, 255)
                                 : hovered ? IM_COL32(235, 238, 245, 255) : col);
