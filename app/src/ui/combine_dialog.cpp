@@ -13,8 +13,9 @@
 #include "app/command.h"        // g_commands (rename push)
 #include "app/document.h"
 #include "app/graph_commands.h"  // RenameSymbolCommand / RenameChildCommand
+#include "runtime/graph.h"       // specTypes / addChildWouldCycle (Add Node submenu)
 #include "ui/copy_paste_ui.h"  // copy/paste 契約 4: context-menu Copy/Paste (guaranteed path)
-#include "ui/editor_ui.h"   // g_selectedNode (single-selection capture)
+#include "ui/editor_ui.h"   // g_selectedNode + spawnNodeAt (single-selection / spawn)
 #include "verify/eye/eye.h" // one-line hooks: menu/dialog rects for the hand
 
 namespace ed = ax::NodeEditor;
@@ -58,6 +59,37 @@ bool armRename(int childId, bool isDef) {
   std::snprintf(g_renameBuf, sizeof(g_renameBuf), "%s", seed.c_str());
   g_openRename = true;
   return true;
+}
+
+// Draw the "Add Node" sub-menu items, spawning at `anchor` (canvas coords).
+// = TiXL GraphView.cs:857-861 "if (ImGui.BeginMenu("Add...")) / MenuItem("Add Node...") /
+//   SymbolBrowser.OpenAt(InverseTransformPositionFloat(clickPosition), ...)".
+// Called from bg_ctx so right-clicking the canvas background offers this path.
+void drawAddNodeSubmenu(ImVec2 anchor) {
+  const bool open = ImGui::BeginMenu("Add Node");
+  sw::eye::recordItem("ctx:add_node_bg");  // eye: header item (always rendered, hand hovers it)
+  if (!open) return;
+  const std::string& curId = sw::doc::currentSymbolId();
+  for (const std::string& t : sw::specTypes()) {
+    if (ImGui::MenuItem(t.c_str())) sw::ui::spawnNodeAt(t, anchor.x, anchor.y);
+    sw::eye::recordItem(("bgctx:add:" + t).c_str());
+  }
+  // Compound definitions (same list as toolbar popup, same cycle-guard styling).
+  bool first = true;
+  for (const auto& kv : sw::doc::g_lib.symbols) {
+    const sw::Symbol& s = kv.second;
+    if (s.atomic) continue;
+    if (first) { ImGui::Separator(); first = false; }
+    const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib, curId, s.id);
+    const std::string label = s.name.empty() ? s.id : s.name;
+    ImGui::BeginDisabled(cyclic);
+    if (ImGui::MenuItem(label.c_str())) sw::ui::spawnNodeAt(s.id, anchor.x, anchor.y);
+    ImGui::EndDisabled();
+    if (cyclic && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+      ImGui::SetTooltip("would nest this composition inside itself");
+    sw::eye::recordItem(("bgctx:add:" + s.id).c_str());
+  }
+  ImGui::EndMenu();
 }
 
 // Is `childId`'s referenced symbol a (renamable) compound? Atomic names are operator types and
@@ -168,6 +200,8 @@ void drawCanvasContextMenu() {
     if (ImGui::MenuItem("Paste"))
       sw::ui::pasteClipboardAt(g_pasteAnchor.x, g_pasteAnchor.y);
     sw::eye::recordItem("ctx:paste_bg");
+    ImGui::Separator();
+    drawAddNodeSubmenu(g_pasteAnchor);
     ImGui::EndPopup();
   }
   ed::Resume();

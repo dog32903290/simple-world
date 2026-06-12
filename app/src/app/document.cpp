@@ -28,6 +28,12 @@ std::string g_documentPath;    // empty == never saved
 std::string g_savedSnapshot;   // libToJsonV2() at last save/open/new
 std::string g_lastTitle;       // cache so we only setTitle when it changes
 uint64_t g_libRevision = 1;    // bumped on every g_lib mutation (projection contract, document.h)
+// B4 fix: isDirty() was calling libToJsonV2(g_lib) EVERY FRAME (via updateWindowTitle).
+// For a project with animation curves this JSON serialization can consume 5-30ms/frame,
+// dropping FPS from 30→3. Fix: cache the dirty result keyed off g_libRevision — recompute
+// at most once per revision bump (only when the lib actually changed), O(1) otherwise.
+uint64_t g_dirtyCheckedRev = 0;  // g_libRevision value when we last ran the full comparison
+bool g_dirtyCache = false;        // cached result of libToJsonV2 != g_savedSnapshot
 }  // namespace
 
 namespace {
@@ -147,7 +153,22 @@ std::string residentPathFor(int childId) {
   return residentPathPrefix() + std::to_string(childId);
 }
 
-bool isDirty() { return sw::libToJsonV2(g_lib) != g_savedSnapshot; }
+bool isDirty() {
+  // B4 fix: cache the serialisation result keyed off g_libRevision — recompute only when
+  // the lib actually changed (O(1) on every frame the lib is idle). The full JSON comparison
+  // still happens on each revision bump so mutations that bypass bumpLibRevision (soundtrack
+  // path, bpm drag) are still caught — they all ultimately bump at the next command commit.
+  if (g_dirtyCheckedRev != g_libRevision) {
+    g_dirtyCache = (sw::libToJsonV2(g_lib) != g_savedSnapshot);
+    g_dirtyCheckedRev = g_libRevision;
+  }
+  return g_dirtyCache;
+}
+
+// Mark the dirty cache stale — call after any g_lib write that bypasses bumpLibRevision,
+// so the next isDirty() call reruns the JSON comparison even if the revision didn't change.
+// (Currently: soundtrack path update + bpm drag both write g_lib directly.)
+void invalidateDirtyCache() { g_dirtyCheckedRev = 0; }
 
 uint64_t libRevision() { return g_libRevision; }
 void bumpLibRevision() { ++g_libRevision; }

@@ -204,6 +204,7 @@ void transportSetBpm(double bpm) {
   if (bpm < 1.0 || bpm > 999.0) return;   // sane range, same gate as the loader (tiny-positive
                                           // bpm makes secondsFromBars blow to inf — BROKEN-B)
   doc::g_lib.composition.bpm = bpm;       // the persistence home (saved in the v2 file)
+  doc::invalidateDirtyCache();            // direct g_lib write bypasses bumpLibRevision (B4 fix)
   g_transport.bpm = bpm;
 }
 double transportRate() { return g_transport.rate; }

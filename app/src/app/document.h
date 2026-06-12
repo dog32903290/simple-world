@@ -51,7 +51,8 @@ extern NS::Window* g_window;   // set by main at launch; used by updateWindowTit
 extern bool g_relayout;        // load/new/add asks the editor to re-layout positions
 extern std::string g_status;   // status-line text shown by the toolbar
 
-bool isDirty();                 // libToJsonV2(g_lib) != saved snapshot
+bool isDirty();                 // cached: libToJsonV2(g_lib) != saved snapshot (recomputed on libRevision change)
+void invalidateDirtyCache();    // call when g_lib is written without bumpLibRevision (soundtrack path, bpm drag)
 
 // --- resident-projection contract (was the g_graph mirror contract) ---
 // g_lib is the EDITING model; production cook walks a RESIDENT eval graph rebuilt (in

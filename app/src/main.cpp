@@ -198,7 +198,15 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
   // ---- Dear ImGui setup (OSX backend needs view.window, so init after setContentView) ----
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
-  ImGui::GetIO().IniFilename = nullptr;  // don't litter imgui.ini next to the binary
+  {
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr;  // don't litter imgui.ini next to the binary
+    // B2: restrict all floating windows (Output/Inspector/Timeline) to title-bar drag only —
+    // prevents accidental body-drag while interacting with the canvas. The canvas host window
+    // (drawNodeCanvas) is ImGuiWindowFlags_NoMove so this flag doesn't affect it.
+    // = imgui ConfigWindowsMoveFromTitleBarOnly (bool, default false).
+    io.ConfigWindowsMoveFromTitleBarOnly = true;
+  }
   ImGui::StyleColorsDark();
   sw::ui::loadCjkFont();  // merge a macOS CJK face onto the atlas so Chinese names render (ui zone)
   ImGui_ImplOSX_Init(static_cast<void*>(_pMtkView));

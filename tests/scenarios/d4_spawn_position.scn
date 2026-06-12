@@ -1,0 +1,40 @@
+# d4_spawn_position.scn — 活體牙 B1: canvas right-click "Add Node" spawns at menu-open position
+#
+# 驗收準則:
+#   node A: toolbar "Add Node" popup → fixed (120,120) (toolbar path unchanged)
+#   node B: canvas bg right-click at imgui (400,400) → "Add Node" submenu → spawns at (400,400)
+#   assert A.pos ≠ B.pos (不重疊; B 在選單打開點非 120,120)
+#
+# RED 面: 把 line 35 的 == 400 改成 == 120 → 必紅
+#         (spawn 在滑鼠點的直接證據; 舊行為兩個節點都在 120,120 則 assert_state x==400 紅)
+#
+# Default project: nextChildId=104 (root has children 1,2,6,7,8).
+
+# --- node A: toolbar "Add Node" → fixed (120,120) ---
+do click 242 48
+wait 0.5
+assert_map_has menu:RadialPoints
+do click @menu:RadialPoints
+wait 0.3
+assert_state '[.lib.symbols[].children[] | select(.id == 104)] | length == 1'
+assert_state '[.lib.symbols[].children[] | select(.id == 104)][0].x == 120'
+assert_state '[.lib.symbols[].children[] | select(.id == 104)][0].y == 120'
+echo node-A-at-120-120-via-toolbar
+
+# --- node B: canvas right-click at (400,400) → submenu → spawns at (400,400) ---
+do rclick 400 400
+wait 0.3
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.3
+assert_map_has bgctx:add:RadialPoints
+do click @bgctx:add:RadialPoints
+wait 0.3
+assert_state '[.lib.symbols[].children[] | select(.id == 105)] | length == 1'
+assert_state '[.lib.symbols[].children[] | select(.id == 105)][0].x == 400'
+assert_state '[.lib.symbols[].children[] | select(.id == 105)][0].y == 400'
+echo node-B-at-rclick-point-400-400
+
+# --- 不重疊: A(120,120) ≠ B(400,400) ---
+assert_state '([.lib.symbols[].children[] | select(.id == 104)][0].x) != ([.lib.symbols[].children[] | select(.id == 105)][0].x)'
+echo nodes-do-not-overlap

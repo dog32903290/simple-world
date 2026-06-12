@@ -20,4 +20,9 @@ void drawToolbar();      // ui/toolbar.cpp: file ops + Add Node + audio pick + b
 void drawNodeCanvas();   // ui/editor_ui.cpp: the main node graph workspace
 void drawInspector();    // ui/inspector.cpp: selected node's parameters + FPS
 
+// Spawn a node of `type` at the given canvas coordinates. Used by the canvas right-click
+// "Add Node" submenu (combine_dialog) so spawn lands at the menu-open point — not (120,120).
+// = TiXL GraphView.cs:861 "SymbolBrowser.OpenAt(InverseTransformPositionFloat(clickPosition))"
+void spawnNodeAt(const std::string& type, float cx, float cy);
+
 }  // namespace sw::ui

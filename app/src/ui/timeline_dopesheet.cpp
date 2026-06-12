@@ -77,7 +77,11 @@ void drawDopeSheet(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g, I
     dl->AddRectFilled(ImVec2(g.x0, laneY), ImVec2(g.x1, laneY + kLaneH),
                       (li & 1) ? IM_COL32(24, 26, 33, 255) : IM_COL32(20, 22, 28, 255));
     // eye hook: the lane row rect (hand targets the empty lane to double-click-add).
-    sw::eye::recordRect(("tl_lane:" + std::to_string(ln.childId) + ":" + ln.inputId).c_str(),
+    // Include ln.index so Vec channels (Center.x/Center.y/Center.z) get distinct keys —
+    // B3 fix: without the index all three channels share the same eye key and map/state.json
+    // cannot tell them apart (鐵律3: one-line hook, impl stays in verify/).
+    sw::eye::recordRect(("tl_lane:" + std::to_string(ln.childId) + ":" + ln.inputId + ":" +
+                         std::to_string(ln.index)).c_str(),
                         g.x0, laneY, g.x1, laneY + kLaneH);
 
     const Animator::CurveArray* arr = sym.animator.curvesFor(ln.childId, ln.inputId);

@@ -20,9 +20,11 @@
 #include "verify/eye/eye.h"
 
 namespace sw::ui {
-namespace {
 
-void addNode(const std::string& type) {
+// Spawn a node of `type` at the given canvas coordinates. Exported via editor_ui.h so the
+// canvas context menu (combine_dialog) can spawn at the right-click point — not (120,120).
+// = TiXL GraphView.cs:861 "SymbolBrowser.OpenAt(InverseTransformPositionFloat(clickPosition))".
+void spawnNodeAt(const std::string& type, float cx, float cy) {
   sw::Symbol* cur = sw::doc::currentSymbol();
   if (!cur) return;
   // Cycle gate BEFORE push: a compound that contains (transitively) the current symbol — or the
@@ -37,14 +39,21 @@ void addNode(const std::string& type) {
   sw::SymbolChild c;
   c.id = sw::nextFreeChildId(*cur);
   c.symbolId = type;
-  c.x = 120.0f;
-  c.y = 120.0f;
+  c.x = cx;
+  c.y = cy;
   // overrides stay EMPTY — the instance reads the definition's defaults until edited
   // (TiXL Symbol.Child semantics; the flat editor's params-prefill died with it).
   sw::g_commands.push(std::make_unique<sw::AddChildCommand>(sw::doc::g_lib, cur->id, c));
   sw::doc::g_relayout = true;
   sw::doc::g_status = "added " + type;
 }
+
+namespace {
+
+// Toolbar "Add Node" popup: spawns at a fixed offset (no canvas context available from the
+// floating toolbar window). For mouse-position spawn, use the canvas right-click "Add Node"
+// submenu (combine_dialog, uses the right-click canvas coordinate — B1 fix).
+void addNode(const std::string& type) { spawnNodeAt(type, 120.0f, 120.0f); }
 
 }  // namespace
 

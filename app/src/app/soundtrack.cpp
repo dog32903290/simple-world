@@ -178,6 +178,8 @@ void syncFrame(bool transportPlaying, double speed, double targetSecs) {
 
 void applySoundtrackPick(const std::string& path) {
   doc::g_lib.composition.soundtrackPath = path;  // savev2 home; dirty via snapshot
+  doc::invalidateDirtyCache();  // direct g_lib write bypasses bumpLibRevision — invalidate so
+                                // isDirty() re-serialises on the next call (B4 fix)
   g_failedPath.clear();  // an explicit pick ALWAYS retries, even a previously failed same path
 }
 
