@@ -57,6 +57,48 @@ const float* residentOut(const char* path) {
   return n ? n->extOut : nullptr;
 }
 
+// Cook every AudioReaction instance (TiXL parity): resolve its params through the resident
+// drivers (override/default/wire — the slice-2b seam), run the stateful algorithm on the
+// live spectrum, write its 3 outputs onto the resident node's extOut — the resident cook's
+// value wires read these (evalResidentFloat's no-evaluate path), and the UI face reads
+// them back through residentOut(). State keys off the resident PATH, so it survives
+// rebuilds AND stays per-instance inside compounds.
+void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
+                            const Transport& t, uint32_t frameIndex, const SymbolLibrary* lib,
+                            std::map<std::string, AudioReactionState>& state) {
+  ResidentEvalCtx rctx;
+  rctx.localTime = (float)t.position;  // playhead (bars) — automation sampling reads this
+  rctx.localFxTime = (float)t.fxTime;  // wall clock (bars) — the Time op's evaluate() reads this
+  rctx.frameIndex = frameIndex;
+  rctx.lib = lib;                      // S3 接通: Automation drivers resolve curves THROUGH the lib
+  // AudioReaction eats fxTime in BARS — TiXL's LocalFxTime IS Playback.FxTimeInBars
+  // (EvaluationContext.cs:49) and MinTimeBetweenHits compares in the same domain; feeding
+  // seconds skews the debounce window at any BPM != 240 (refuter-S5 BROKEN-A). Pinned by
+  // --selftest-arclock — change this domain and that tooth bites.
+  const double fxBars = t.fxTime;
+  for (ResidentNode& rn : g.nodes) {
+    if (rn.opType != "AudioReaction") continue;
+    std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
+    AudioReactionParams p;
+    p.amplitude = P["Amplitude"];
+    p.inputBand = (int)(P["InputBand"] + 0.5f);
+    p.windowCenter = P["WindowCenter"];
+    p.windowWidth = P["WindowWidth"];
+    p.windowEdge = P["WindowEdge"];
+    p.threshold = P["Threshold"];
+    p.minTimeBetweenHits = P["MinTimeBetweenHits"];
+    p.output = (int)(P["Output"] + 0.5f);
+    p.bias = P["Bias"];
+    p.reset = P["Reset"] > 0.5f;
+    // Wall clock: AudioReaction is a stateful sim — its hit timing must NOT freeze on
+    // pause (L8 fxTime brother). Frozen only when both clocks frozen (no idle motion).
+    const AudioReactionOut o = cookAudioReaction(spec, p, fxBars, state[rn.path]);
+    rn.extOut[0] = o.level;
+    rn.extOut[1] = o.wasHit ? 1.0f : 0.0f;
+    rn.extOut[2] = (float)o.hitCount;
+  }
+}
+
 void run(PointGraph& pg, const std::string& targetPath) {
   // Frame start = THE defined point where the composition path is validated (document.h):
   // every panel drawn after this agrees on the current symbol; mid-frame edits dangle the
@@ -98,40 +140,13 @@ void run(PointGraph& pg, const std::string& targetPath) {
 
   const SpectrumSnapshot spec = audio_monitor::spectrum();
 
-  // Cook every AudioReaction instance (TiXL parity): resolve its params through the resident
-  // drivers (override/default/wire — the slice-2b seam), run the stateful algorithm on the
-  // live spectrum, write its 3 outputs onto the resident node's extOut — the resident cook's
-  // value wires read these (evalResidentFloat's no-evaluate path), and the UI face reads
-  // them back through residentOut(). State keys off the resident PATH, so it survives
-  // rebuilds AND stays per-instance inside compounds.
+  // Cook every AudioReaction instance — the seam itself (cookAudioReactionNodes below) derives
+  // the AR clock from the transport, so the bars-domain decision has ONE home and the arclock
+  // selftest exercises the very joint run() uses.
   {
     static std::map<std::string, AudioReactionState> s_arState;
-    ResidentEvalCtx rctx;
-    rctx.localTime = (float)posBars;    // playhead (bars) — automation sampling reads this
-    rctx.localFxTime = (float)fxBars;   // wall clock (bars) — the Time op's evaluate() reads this
-    rctx.frameIndex = g_frameIndex;
-    rctx.lib = &doc::g_lib;             // S3 接通: Automation drivers resolve curves THROUGH the lib
-    for (ResidentNode& rn : g_residentGraph.nodes) {
-      if (rn.opType != "AudioReaction") continue;
-      std::map<std::string, float> P = resolveResidentFloatInputs(g_residentGraph, rn, rctx);
-      AudioReactionParams p;
-      p.amplitude = P["Amplitude"];
-      p.inputBand = (int)(P["InputBand"] + 0.5f);
-      p.windowCenter = P["WindowCenter"];
-      p.windowWidth = P["WindowWidth"];
-      p.windowEdge = P["WindowEdge"];
-      p.threshold = P["Threshold"];
-      p.minTimeBetweenHits = P["MinTimeBetweenHits"];
-      p.output = (int)(P["Output"] + 0.5f);
-      p.bias = P["Bias"];
-      p.reset = P["Reset"] > 0.5f;
-      // Wall clock (seconds): AudioReaction is a stateful sim — its hit timing must NOT freeze on
-      // pause (L8 fxTime brother). Frozen only when both clocks frozen (no idle motion).
-      const AudioReactionOut o = cookAudioReaction(spec, p, fxBars, s_arState[rn.path]);
-      rn.extOut[0] = o.level;
-      rn.extOut[1] = o.wasHit ? 1.0f : 0.0f;
-      rn.extOut[2] = (float)o.hitCount;
-    }
+    cookAudioReactionNodes(g_residentGraph, spec, g_transport, g_frameIndex, &doc::g_lib,
+                           s_arState);
   }
 
   ++g_frameIndex;

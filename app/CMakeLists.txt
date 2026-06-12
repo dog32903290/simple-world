@@ -77,7 +77,9 @@ add_executable(simple_world
   src/app/audio_monitor.cpp
   src/app/command.cpp
   src/app/graph_commands.cpp
+  src/app/graph_commands_selftest.cpp
   src/app/animation_commands.cpp
+  src/app/animation_commands_selftest.cpp
   src/app/rename_commands.cpp
   src/app/child_state_commands.cpp
   src/app/def_removal_selftest.cpp
@@ -86,6 +88,7 @@ add_executable(simple_world
   src/app/child_state_selftest.cpp
   src/app/menu.cpp
   src/ui/cjk_font.cpp
+  src/ui/canvas_ids.cpp
   src/ui/editor_ui.cpp
   src/ui/toolbar.cpp
   src/ui/combine_dialog.cpp
@@ -122,12 +125,14 @@ add_executable(simple_world
   src/runtime/compound_graph.cpp
   src/runtime/compound_graph_selftest.cpp
   src/runtime/compound_save.cpp
+  src/runtime/compound_load.cpp
   src/runtime/compound_save_selftest.cpp
   src/runtime/testproj_selftest.cpp
   src/runtime/combine.cpp
   src/runtime/combine_selftest.cpp
   src/runtime/copy_paste.cpp
   src/app/frame_cook.cpp
+  src/app/frame_cook_selftest.cpp
   src/runtime/graph_bridge.cpp
   src/runtime/graph_bridge_selftest.cpp
   src/runtime/compound_spec_selftest.cpp

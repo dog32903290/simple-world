@@ -5,6 +5,7 @@
 // children/connections straight off doc::g_lib — no flat Graph, no projection layer.
 // Composition switch (N3) = same canvas, different symbol.
 #include "ui/editor_ui.h"
+#include "ui/canvas_ids.h"  // pin/link/boundary id scheme (mechanical split, rule 4)
 #include "ui/combine_dialog.h"
 #include "ui/copy_paste_ui.h"
 #include "ui/node_draw.h"
@@ -34,130 +35,7 @@ int g_pinnedNode = 0;       // view ⊥ graph (see editor_ui.h); set by ui/outpu
 bool g_navPending = false;  // see editor_ui.h (set by canvas gestures + toolbar breadcrumbs)
 
 namespace {
-// Boundary pins live in their OWN high integer band, disjoint from BOTH child node ids and
-// child pins — because imgui-node-editor hashes node ids AND pin ids into one ImGui ID pool
-// per canvas, so the old encoding (boundary pin = combinedIndex+1, i.e. 1..99) collided pin 1
-// with child node id 1 → imgui's "conflicting ID" tooltip stole window focus → the Backspace
-// delete gate (IsWindowFocused) went dead and boundary nodes couldn't be deleted. The band
-// base is huge so a child id / child pin would have to reach ~1M to clash (the def cap below
-// keeps the boundary index tiny, so it never approaches the band edge). NOTE: boundary pins
-// must stay POSITIVE — negative ids would collide with the negative boundary NODE id scheme
-// (edIdForInputDef/edIdForOutputDef). Boundary pins are UI-only (per-frame); wires/save key off
-// slot strings, link ids pack two pins, so moving this base touches nothing on disk.
-constexpr int kBoundaryPinBase = 1 << 20;  // 1048576
-inline int boundaryPinId(int combinedIndex) { return kBoundaryPinBase + combinedIndex; }
-inline bool pinIsBoundary(int pin) { return pin >= kBoundaryPinBase; }
-
-// pin id <-> (child id, port index). Boundary pins decode to the kSymbolBoundary sentinel +
-// their combined index; child pins go through the sw::pinId scheme. See sw::pinId().
-int pinChildId(int pin) { return pinIsBoundary(pin) ? sw::kSymbolBoundary : sw::pinNode(pin); }
-int pinPortIndex(int pin) { return pinIsBoundary(pin) ? (pin - kBoundaryPinBase) : (pin - 1) % 100; }
-
-// What a pin IS, child or boundary. Child pins resolve through the spec; BOUNDARY pins
-// (pinChildId == kSymbolBoundary == 0; ids in the high band above, disjoint from child node
-// ids and child pins) resolve through the CURRENT symbol's own defs: combined index =
-// inputDefs then outputDefs. Inside the symbol an inputDef is a SOURCE (isInput=false) and an
-// outputDef is a SINK — TiXL's Input/Output boundary items exactly.
-struct PinInfo {
-  bool valid = false;
-  bool isInput = false;  // canvas perspective: is this pin a sink?
-  std::string slotId;
-  std::string dataType;
-};
-
-PinInfo pinInfoOf(int pin) {
-  PinInfo r;
-  const sw::Symbol* cur = sw::doc::currentSymbolConst();
-  if (!cur) return r;
-  const int childId = pinChildId(pin);
-  const int idx = pinPortIndex(pin);
-  if (childId == sw::kSymbolBoundary) {
-    const int nIn = (int)cur->inputDefs.size();
-    if (idx >= 0 && idx < nIn) {
-      r = {true, /*isInput=*/false, cur->inputDefs[idx].id, cur->inputDefs[idx].dataType};
-    } else if (idx >= nIn && idx < nIn + (int)cur->outputDefs.size()) {
-      const sw::SlotDef& d = cur->outputDefs[idx - nIn];
-      r = {true, /*isInput=*/true, d.id, d.dataType};
-    }
-    return r;
-  }
-  const sw::SymbolChild* c = sw::childById(*cur, childId);
-  const sw::NodeSpec* s = c ? sw::findSpec(c->symbolId) : nullptr;
-  if (!s || idx < 0 || idx >= (int)s->ports.size()) return r;
-  const sw::PortSpec& p = s->ports[idx];
-  return {true, p.isInput, p.id, p.dataType};
-}
-bool pinIsInput(int pin) {
-  PinInfo p = pinInfoOf(pin);
-  return p.valid && p.isInput;
-}
-
-// (childId, slotId) -> absolute pin id; childId 0 = the boundary (slot among the current
-// symbol's own defs). -1 when unresolvable.
-int pinOfSlot(int childId, const std::string& slotId, bool isInput) {
-  const sw::Symbol* cur = sw::doc::currentSymbolConst();
-  if (!cur) return -1;
-  if (childId == sw::kSymbolBoundary) {
-    const int nIn = (int)cur->inputDefs.size();
-    if (!isInput) {  // a wire SOURCE at the boundary = one of the symbol's inputDefs
-      for (int i = 0; i < nIn; ++i)
-        if (cur->inputDefs[i].id == slotId) return boundaryPinId(i);
-    } else {  // a wire SINK at the boundary = one of the symbol's outputDefs
-      for (size_t j = 0; j < cur->outputDefs.size(); ++j)
-        if (cur->outputDefs[j].id == slotId) return boundaryPinId(nIn + (int)j);
-    }
-    return -1;
-  }
-  const sw::SymbolChild* c = sw::childById(*cur, childId);
-  const sw::NodeSpec* s = c ? sw::findSpec(c->symbolId) : nullptr;
-  if (!s) return -1;
-  for (size_t i = 0; i < s->ports.size(); ++i)
-    if (s->ports[i].isInput == isInput && s->ports[i].id == slotId) return sw::pinId(childId, (int)i);
-  return -1;
-}
-
-// Link ids are STATELESS: both pins packed into one 64-bit id (SymbolConnection has no id —
-// rightly, TiXL wires are bare 4-tuples). Decode gives back the exact wire endpoints, so
-// delete-by-link-id needs no side table. Disjoint from node/pin id ranges (>= 2^32).
-uint64_t linkIdOf(int srcPin, int dstPin) {
-  return ((uint64_t)(uint32_t)srcPin << 32) | (uint32_t)dstPin;
-}
-int linkSrcPin(uint64_t id) { return (int)(id >> 32); }
-int linkDstPin(uint64_t id) { return (int)(id & 0xffffffffu); }
-
-// Reconstruct the 4-tuple a link id names. False if either pin no longer resolves.
-// Boundary pins decode to the kSymbolBoundary sentinel side naturally.
-bool wireOfLink(uint64_t id, sw::SymbolConnection& out) {
-  PinInfo sp = pinInfoOf(linkSrcPin(id));
-  PinInfo dp = pinInfoOf(linkDstPin(id));
-  if (!sp.valid || !dp.valid) return false;
-  out.srcChild = pinChildId(linkSrcPin(id));
-  out.srcSlot = sp.slotId;
-  out.dstChild = pinChildId(linkDstPin(id));
-  out.dstSlot = dp.slotId;
-  return true;
-}
-
-// Boundary nodes carry NEGATIVE editor ids (child ids are >= 1; the boundary pin scheme
-// uses childId 0, but ed needs one id PER def item — TiXL draws each input/output as its
-// own movable canvas item). inputDef i -> -(i+1); outputDef j -> -(1001+j).
-int edIdForInputDef(int i) { return -(i + 1); }
-int edIdForOutputDef(int j) { return -(1001 + j); }
-bool edIdIsBoundary(int id) { return id < 0; }
-// Invert the boundary-id scheme: input defs occupy [-1000,-1], output defs <= -1001. Returns the
-// def's slotId in the current symbol (empty if the index no longer resolves), and sets isInput.
-std::string boundaryDefSlot(const sw::Symbol& cur, int edId, bool& isInput) {
-  if (edId <= -1001) {  // output def j = -id - 1001
-    isInput = false;
-    int j = -edId - 1001;
-    if (j >= 0 && j < (int)cur.outputDefs.size()) return cur.outputDefs[j].id;
-  } else if (edId < 0) {  // input def i = -id - 1
-    isInput = true;
-    int i = -edId - 1;
-    if (i >= 0 && i < (int)cur.inputDefs.size()) return cur.inputDefs[i].id;
-  }
-  return "";
-}
+// (pin/link/boundary id scheme moved to ui/canvas_ids.{h,cpp} — mechanical split, rule 4)
 
 // 拖動暫存：child id -> 拖動開始時的座標。空 == 沒在拖。
 std::map<int, ImVec2> g_dragStart;
