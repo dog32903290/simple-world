@@ -147,6 +147,14 @@ void drawToolbar() {
     // draggable knob, same toolbar idiom as Pos/BPM). INDEPENDENT of BPM (two knobs, they
     // multiply in the transport; neither writes the other). Negative = visuals run backwards;
     // the soundtrack pauses outside [0.25, 4] (varispeed window, named fork — see soundtrack.h).
+    // C3 (negspeed UI entry) — NAMED FORK: TiXL's reverse entry is the Play-Backwards icon BUTTON
+    // (TimeControls.cs:457-471, with ×2 doubling to -16 on the keyboard PlaybackBackwards). WE put
+    // it on this Speed knob instead: dragging left through 0 reaches any negative rate directly,
+    // ±16 included — one control surface for the whole speed line, consistent with Pos/BPM. The
+    // button's exact semantics still live as a runtime helper (Transport::playBackwards, toothed in
+    // --selftest-transport ①d) for whoever later wants the discrete TiXL button; it's deliberately
+    // NOT drawn here because inserting it shifts this knob's screen rect and breaks the accepted
+    // Speed-drag scenarios. The knob IS the negspeed entry.
     double rate = sw::framecook::transportRate();
     const double rateMin = -16.0, rateMax = 16.0;  // = the Transport::setRate clamp
     ImGui::SetNextItemWidth(70.0f);

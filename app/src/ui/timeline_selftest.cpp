@@ -313,6 +313,32 @@ int runTimelineSelfTest(bool injectBug) {
     CHK(phrase && std::string(phrase->label) == "16" && m4 && m4->label[0] == '\0' &&
             m4->lineAlpha < 1.0f,
         "⑧ far zoom gear: labeled phrases + fading unlabeled measures");
+
+    // C2 negative-bars ruler: reverse playback drives the playhead < 0; panning the timeline left
+    // of bar 0 must show NEGATIVE bar labels (the ruler is NOT floored at 0 — only user scrub() is,
+    // a 具名 fork). computeRaster steps t = fmod(-scroll, spacing) and labels tick.bars = t+scroll,
+    // so a negative scrollBars surfaces negative bars. = TiXL DrawTimeTicks (no zero floor in the
+    // raster; Scroll.X is free to go negative). injectBug's pow2 fork only emits POSITIVE ticks
+    // (t starts at +step), so it shows no negative bar -> this CHK FAILs (teeth).
+    {
+      std::vector<tl::RasterTick> negTicks;
+      if (!injectBug) tl::computeRaster(40.0, -3.0, 400.0, negTicks);  // left edge at bar -3
+      else {  // re-enact the pow2 fork's positive-only ticks (scroll ignored)
+        negTicks.clear();
+        for (double tt = 1.0; tt * 40.0 < 400.0; tt += 1.0) {
+          tl::RasterTick k; k.bars = tt; snprintf(k.label, sizeof(k.label), "%g", tt); negTicks.push_back(k);
+        }
+      }
+      bool sawNegBar = false, sawNegLabel = false;
+      for (const tl::RasterTick& tk : negTicks) {
+        if (tk.bars < -0.5) {
+          sawNegBar = true;
+          if (tk.label[0] == '-') sawNegLabel = true;  // BuildLabel "%d" of a negative bar -> "-2"
+        }
+      }
+      CHK(sawNegBar, "⑧neg ruler surfaces NEGATIVE bars when panned left of 0 (reverse-play view)");
+      CHK(sawNegLabel, "⑧neg negative bar carries a '-' label (BuildLabel int, no zero floor)");
+    }
   }
 
   // ⑨ Curve-view insert keys (= TiXL "Insert keyframes" macro): key lands ON the curve (sampled

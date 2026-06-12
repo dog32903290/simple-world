@@ -83,6 +83,27 @@ struct Transport {
   void pause() { playState = PlayState::Stopped; }
   void toggle() { playing() ? pause() : play(); }  // through play(): dead-rate revive applies
 
+  // REVERSE entry = TiXL's Play-Backwards icon button (TimeControls.cs:457-471): one toggle.
+  //   • already playing IN REVERSE -> stop   (the button stops, cs:464-466)
+  //   • otherwise (stopped, OR playing forward) -> rate = -1, Playing  (cs:468-470)
+  // The button drives BOTH fields because of our named two-field fork: TiXL's PlaybackSpeed==0
+  // IS its stopped state, but ours keeps a STICKY nonzero rate even while Stopped (a fresh project
+  // opens Stopped with rate 1.0). So "is it running backwards" must read playState AND sign — NOT
+  // just |rate|>eps (cs:464 tests PlaybackSpeed!=0, valid only because TiXL has no separate state).
+  // From forward play the button flips straight to reverse (one press = "go backwards now"), which
+  // is friendlier than TiXL's stop-first-then-press-again for a single labeled button. The ±16
+  // doubling (cs:88-95 keyboard) stays the Speed knob's job (toolbar fork).
+  void playBackwards() {
+    const bool playingReverse = playing() && rate < -0.001;
+    if (playingReverse) {
+      rate = 0.0;
+      playState = PlayState::Stopped;
+    } else {
+      rate = -1.0;                         // cs:470 PlaybackSpeed = -1
+      playState = PlayState::Playing;
+    }
+  }
+
  private:
   bool scrubbedThisFrame_ = false;  // = Playback._previousTimeInBars != TimeInBars detection.
 };

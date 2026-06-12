@@ -201,6 +201,57 @@ int runTransportSelfTest(bool injectBug) {
     expectNear("advance = dt*rate*bpm/240 (knobs independent, multiplied)", t.position, 0.5);
   }
 
+  // ===== leg ①d: REVERSE playback crosses 0 into NEGATIVE bars with NO lower clamp (C2 拍板). =====
+  // Playback.cs:116 `TimeInBars += dt*PlaybackSpeed*Bpm/240` is signed and has NO lower bound — past
+  // 0 it just keeps going negative (the loop branch cs:133 requires PlaybackSpeed > 0.1, so it never
+  // fires in reverse). advance() MIRRORS this: it does NOT clamp. The ONE asymmetry is 具名 FORK
+  // "rigid clamp at 0" on scrub() (transport.h:55): the user-driven timeline drag / numeric scrub
+  // floors at 0 (our timeline starts at 0), but free-running REVERSE play is unclamped — the playhead
+  // sails through 0 and fxTime rides it. If advance() ever grew a >=0 clamp, reverse play would jam
+  // at bar 0 while the (paused) soundtrack stayed put -> the visuals would freeze mid-rewind.
+  {
+    Transport t; t.bpm = 120.0; t.setRate(-1.0); t.play();
+    t.scrub(0.5);          // start just past 0 (scrub clamps >=0, fine — 0.5 is positive). The
+                           // scrub flag is irrelevant here: we're PLAYING, so advance() takes the
+                           // isPlaying branch (ignores + clears the flag).
+    t.advance(dt);         // -1 rate @ 120 BPM, 1s frame -> -0.5 bars: lands EXACTLY at 0
+    expectNear("reverse play: position reaches 0", t.position, 0.0);
+    t.advance(dt);         // next 1s frame: crosses 0 into NEGATIVE, UNclamped
+    // injectBug: pretend advance() clamped at 0 (the fork-creep bug this leg forbids).
+    double observedPos = injectBug ? std::max(0.0, t.position) : t.position;
+    expectNear("reverse play: position crosses 0 UNCLAMPED (= Playback.cs:116 no lower bound)",
+               observedPos, -0.5);
+    expectNear("reverse play: fxTime rides the negative playhead (cs:117)", t.fxTime, -0.5);
+
+    // The asymmetry, pinned: scrub() FLOORS at 0 (具名 fork) even when advance() has gone negative.
+    // A user grab can't drag the playhead below 0; reverse PLAY can. Both behaviors coexist by design.
+    t.scrub(-3.0);
+    expectNear("scrub() clamps a negative target to 0 (具名 fork, transport.h:55)", t.position, 0.0);
+
+    // playBackwards() = the TiXL Play-Backwards BUTTON (TimeControls.cs:457-471, C3 UI entry): one
+    // labeled toggle. "Playing in reverse" is the ONLY stop condition (playState AND rate<0) —
+    // because of the two-field fork a fresh project sits at rate 1.0 / Stopped, where the button
+    // must START reverse, not read the sticky 1.0 as "running" and stop.
+    Transport b; b.bpm = 120.0;  // fresh default: rate 1.0, Stopped (the sticky-rate trap)
+    b.playBackwards();
+    expectNear("playBackwards from fresh(rate1,Stopped): rate -> -1 (NOT fooled by sticky rate)",
+               b.rate, -1.0);
+    expect("playBackwards from fresh: now Playing", b.playing());
+    b.playBackwards();           // pressed again while playing IN REVERSE -> stop (cs:464-466)
+    expectNear("playBackwards while reversing: rate -> 0 (cs:465)", b.rate, 0.0);
+    expect("playBackwards while reversing: now Stopped", !b.playing());
+    // From FORWARD play: one press flips straight to reverse (single labeled button = "go back now").
+    b.setRate(2.0); b.play();
+    b.playBackwards();
+    expectNear("playBackwards from forward-play: flips to reverse -1", b.rate, -1.0);
+    expect("playBackwards from forward-play: Playing (in reverse)", b.playing());
+    // From a true stop (rate 0): starts reverse (cs:468-470).
+    b.setRate(0.0); b.pause();
+    b.playBackwards();
+    expectNear("playBackwards from true stop(rate0): rate -> -1 (cs:470)", b.rate, -1.0);
+    expect("playBackwards from true stop: Playing", b.playing());
+  }
+
   // ===== leg ②: scrub jumps the playhead; next-frame fxTime snaps; later advance never rewinds fx. =====
   {
     Transport t; t.bpm = 120.0;
@@ -257,6 +308,17 @@ int runTransportSelfTest(bool injectBug) {
     // would NOT reach the curve point (the exact wrong-clock bug L8 forbids).
     float sampled = injectBug ? sampleAtPlayhead(sl, g, t.fxTime) : vScrub;
     expectNear("scrub reaches the curve (automation samples playhead, not fxTime)", sampled, 1.0f, 1e-4);
+
+    // C2: reverse play can drive the playhead NEGATIVE — automation must still sample cleanly there.
+    // The ramp's first key is @0 (value 0) with default outside behavior = Constant pre-mapping
+    // (Curve.cs GetSampledValue: uRounded <= firstU returns firstVal). So @ a negative playhead the
+    // automated value clamps to the first key's value (0), NOT garbage/NaN. This is the resident
+    // graph's reverse-playback read path: the curve evaluator handles u<0 by design (curve.cpp:362).
+    float vNeg = sampleAtPlayhead(sl, g, -2.0);
+    expectNear("automation @ NEGATIVE playhead = first-key value (Constant pre-map, no NaN)",
+               vNeg, 0.0f, 1e-4);
+    expect("automation @ negative playhead stays finite (reverse-play read path)",
+           std::isfinite(vNeg));
   }
 
   // ===== leg ⑤: FRAME_SCHEDULER three semantics (golden搬運 from frame_scheduler_contract.test.js). =====

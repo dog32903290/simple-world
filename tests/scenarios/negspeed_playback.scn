@@ -1,0 +1,50 @@
+# negspeed_playback.scn — 活體牙 (C2 negspeed 定案): NEGATIVE playback speed runs the whole chain
+# BACKWARDS, UNCLAMPED below bar 0. TiXL Playback.cs:116 advances TimeInBars by
+# dt*PlaybackSpeed*Bpm/240 (signed, no lower clamp); our Transport::advance mirrors it
+# (transport.cpp). The ONLY clamp-at-0 is the user scrub() (具名 fork, transport.h:55) — free-running
+# reverse play sails the playhead DOWN through 0 into negative bars, and the render follows (curve
+# sampling handles u<0; the timeline ruler/playhead carry negative bars unfloored).
+#
+# This drives the gesture live: set a NEGATIVE Speed on the toolbar knob, Play from 0, and assert the
+# machine-readable playhead goes NEGATIVE (and keeps decreasing), plus the canvas actually re-renders.
+#
+# RED face: change the "position < 0.0" assertion to "position > 0.0" (expect forward) — it goes red
+# the instant the playhead actually runs backwards past 0 (= the negative chain working unclamped).
+open app/testdata/compound_smoke.swproj
+
+# Fresh project opens paused at 0.
+assert_state '.transport.playing == false'
+assert_state '.transport.position == 0.0'
+echo opened-paused-at-zero
+
+# Drag the Speed knob hard LEFT. The toolbar Speed DragScalar steps 0.01 units/px; from the default
+# 1.0 a -300px drag lands near -2.0 (clamped at -16 by setRate). The knob center resolves @Speed.
+do drag @Speed -300 +0
+assert_state '.transport.rate < -0.5'
+echo speed-set-negative
+
+# Capture the canvas, then Play. At a negative rate the transport is genuinely playing (|rate| > the
+# 0.001 eps); from position 0 the playhead must run BACKWARDS — straight into negative bars, with no
+# lower clamp on advance() (= Playback.cs:116; only scrub() floors at 0).
+capture clean before_reverse
+do click @Play
+assert_state '.transport.playing == true'
+echo playing-in-reverse
+
+# Let wall-clock time pass. At rate ~-2 / 120 BPM the playhead retreats ~1 bar/s. From 0 it crosses
+# straight into NEGATIVE territory — the core C2 assertion. "Forward" (the bug) or a clamp-at-0 (the
+# fork-creep bug) would keep position >= 0.
+wait 1.5
+assert_state '.transport.position < 0.0'
+echo playhead-crossed-into-negative-bars
+
+# Still genuinely running backwards: a second sample is strictly MORE negative (continuous reverse
+# motion, not a one-frame artifact). -0.5 is a tiny floor far above where it should be by now.
+wait 1.0
+assert_state '.transport.position < -0.5'
+echo playhead-still-running-backwards
+
+# Screen layer: the canvas re-rendered as the playhead swept backwards (automation re-sampled at the
+# moving — now negative — playhead). Pixels must differ from the pre-play capture.
+assert_diff before_reverse
+echo reverse-playback-changed-pixels
