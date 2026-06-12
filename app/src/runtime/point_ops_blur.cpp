@@ -25,7 +25,9 @@
 #include "runtime/blur_params.h"   // BlurParams, BLUR_Params
 #include "runtime/eval_context.h"  // EvaluationContext (chain selftest builds one)
 #include "runtime/graph.h"         // Graph/Node/pinId
+#include "runtime/graph_bridge.h"  // libFromGraph (chain selftest's resident leg)
 #include "runtime/point_graph.h"   // TexCookCtx, cookParam, registerTexOp
+#include "runtime/resident_eval_graph.h"  // buildEvalGraph (chain selftest's resident leg)
 
 #ifndef SW_SHADER_METALLIB
 #define SW_SHADER_METALLIB "shaders.metallib"
@@ -243,8 +245,9 @@ int runBlurChainSelfTest(bool injectBug) {
 
   // defaultDrawTarget must pick the SINK tex node (Blur, id 4), not the upstream RenderTarget
   // (id 3) — else the live app shows the un-filtered image and the filter is invisible. injectBug
-  // omits the RT->Blur wire so Blur's input is unwired (still a sink) -> terminal stays 4, but the
-  // gather finds no input texture -> black (the nonBlack assertion is what catches the bug).
+  // omits the RT->Blur wire, which leaves BOTH tex nodes as unconsumed sinks — defaultDrawTarget
+  // then returns the first in node order (the RenderTarget, 3), so the bug trips on termOK
+  // (the live symptom: the canvas shows the UN-filtered image; refuter-R-I corrected this note).
   int term = pg.defaultDrawTarget(g);
 
   EvaluationContext ctx{};
@@ -266,8 +269,38 @@ int runBlurChainSelfTest(bool injectBug) {
          term, tex ? tex->width() : 0, tex ? tex->height() : 0, RW, RH, nonBlack,
          pass ? "PASS" : "FAIL");
 
+  // --- resident leg (refuter-R-I 修1: production walks cookResident, not flat cook(); the flat
+  // leg above would keep passing even if the resident gather went deaf). Same chain through the
+  // ONE canonical lib path (libFromGraph -> buildEvalGraph) on a FRESH PointGraph, cooked at the
+  // Blur terminal; same nonBlack assertion. injectBug reuses the missing-wire graph, where the
+  // resident gather hands Blur no input texture.
+  bool residentPass = false;
+  {
+    PointGraph rpg(dev, lib, q, 64, 64);
+    SymbolLibrary slib = libFromGraph(g);
+    ResidentEvalGraph rg = buildEvalGraph(slib, slib.rootId);
+    EvaluationContext rctx{};
+    rctx.frameIndex = 0; rctx.time = 0.0f; rctx.deltaTime = 1.0f / 60.0f;
+    rpg.cookResident(rg, rctx, nullptr, "4");
+    MTL::Texture* rtex = rpg.target();
+    int rNonBlack = 0;
+    bool rSized = rtex && (uint32_t)rtex->width() == RW && (uint32_t)rtex->height() == RH;
+    if (rSized) {
+      std::vector<uint8_t> px((size_t)RW * RH * 4, 0);
+      rtex->getBytes(px.data(), RW * 4, MTL::Region::Make2D(0, 0, RW, RH), 0);
+      for (size_t i = 0; i < (size_t)RW * RH; ++i)
+        if (px[i * 4] > 20 || px[i * 4 + 1] > 20 || px[i * 4 + 2] > 20) ++rNonBlack;
+    }
+    // Same assertion as the flat leg — under injectBug the missing wire leaves the resident
+    // Blur with no input texture (cooks black), so this leg goes red on its own merit.
+    residentPass = rSized && rNonBlack > 50;
+    printf("[selftest-blurchain] resident nonBlack=%d (need>50) -> %s\n", rNonBlack,
+           residentPass ? "PASS" : "FAIL");
+  }
+
+  bool allPass = pass && residentPass;
   lib->release(); q->release(); dev->release(); pool->release();
-  return pass ? 0 : 1;
+  return allPass ? 0 : 1;
 }
 
 }  // namespace sw
