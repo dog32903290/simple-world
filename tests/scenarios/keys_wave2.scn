@@ -1,0 +1,101 @@
+# keys_wave2.scn — 活體牙 K4/K5/K6/K7: keymap wave-2 shortcuts
+#
+# K4: C = InsertKeyframe (FactoryKeyMap.cs:37, DopeSheetArea.cs:63-70)
+#   Animate Radius on node:2 -> key count = 1 -> press C at position 0 -> count stays 1
+#   (addOrUpdate is idempotent at the same time slot). Then step forward 5 frames (Shift+→),
+#   press C -> key count must be 2.
+#
+# K5/K6: . / , = PlaybackJumpToNextKeyframe / JumpToPreviousKeyframe
+#   (FactoryKeyMap.cs:32-33, TimeLineCanvas.cs:445-488)
+#   From position 0, . jumps to the second key (t>0). Then , jumps back to t≈0.
+#
+# K7: Alt+← = NavigateBackwards (FactoryKeyMap.cs:63, NavigationHistory)
+#   Double-click into compound node:1 (EmitterComp) -> compositionPath=[1].
+#   Alt+← -> compositionPath=[].
+#
+# SKIP: B/N (SetStartTime/SetEndTime) — no LoopRange subsystem. Named skip, no stub.
+#
+# RED proof for K4: change key-count assert from 2 to 3 -> FAIL (only 2 keys inserted).
+# RED proof for K5: assert position > 0 after '.'; change to position < 0 -> FAIL.
+# RED proof for K7: assert compositionPath length == 0 after Alt+<-; change to == 2 -> FAIL.
+
+open app/testdata/compound_smoke.swproj
+
+# -----------------------------------------------------------------------
+# Setup: Animate Radius on node:2 (creates the timeline lane + first key at t=0).
+# -----------------------------------------------------------------------
+do click @node:2^
+do rclick @param:Radius
+do click @insp:Animate
+assert_map_has tl_key:2:Radius:0
+echo animate-created-timeline-lane-key-at-0
+
+# Confirm initial key count = 1.
+assert_state '([.lib.symbols[] | select(.id == "Root") | .animator[]? | select(.childId == 2 and .inputId == "Radius") | .curve.keys | length] | add // 0) == 1'
+echo key-count-1-after-animate
+
+# -----------------------------------------------------------------------
+# K4: C = InsertKeyframe — advance playhead then insert second key.
+# -----------------------------------------------------------------------
+# Stop transport (K) to prevent the playhead from drifting between steps.
+do key k
+assert_state '.transport.playing == false'
+echo transport-stopped
+
+# Advance 5 frame steps (Shift+→ x5) to get to a non-zero time.
+do keychord shift right
+do keychord shift right
+do keychord shift right
+do keychord shift right
+do keychord shift right
+# Playhead should now be > 0 (5 * 1/60 bar ≈ 0.083 bars at 120 BPM).
+assert_state '.transport.position > 0.0'
+echo playhead-advanced-by-5-frames
+
+# Press C = InsertKeyframe. Should insert a second key at the current position.
+do key c
+# Key count must be 2 now.
+assert_state '([.lib.symbols[] | select(.id == "Root") | .animator[]? | select(.childId == 2 and .inputId == "Radius") | .curve.keys | length] | add // 0) == 2'
+echo k4-insert-keyframe-count-is-2
+
+# -----------------------------------------------------------------------
+# K5/K6: . (next keyframe) / , (prev keyframe)
+# -----------------------------------------------------------------------
+# Scrub back to t=0 via Shift+← (5 steps back) to land before the second key.
+do keychord shift left
+do keychord shift left
+do keychord shift left
+do keychord shift left
+do keychord shift left
+assert_state '.transport.position < 0.002'
+echo scrubbed-back-to-near-0
+
+# Press . (period) = PlaybackJumpToNextKeyframe.
+# Expected: jumps from t≈0 to the second key (t>0 inserted above).
+do key period
+assert_state '.transport.position > 0.001'
+echo k5-dot-jumped-to-next-key
+
+# Press , (comma) = PlaybackJumpToPreviousKeyframe.
+# Expected: jumps from second key back to first key at t=0.
+do key comma
+assert_state '.transport.position < 0.002'
+echo k6-comma-jumped-to-prev-key
+
+# -----------------------------------------------------------------------
+# K7: Alt+← = NavigateBackwards
+# Navigate into node:1 (EmitterComp compound) via double-click.
+# -----------------------------------------------------------------------
+# Click canvas background to deselect (avoid node-editor blocking double-click).
+do key escape
+# Double-click on node:1 (the first EmitterComp compound node) to drill in.
+do double @node:1^
+# After entering the compound, compositionPath should contain [1].
+assert_state '(.compositionPath | length) == 1'
+assert_state '.compositionPath[0] == 1'
+echo k7-navigated-into-compound-path-is-1
+
+# Press Alt+← = NavigateBackwards -> should restore compositionPath to [].
+do keychord alt left
+assert_state '(.compositionPath | length) == 0'
+echo k7-alt-left-navigated-back-to-root

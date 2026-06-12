@@ -1,17 +1,25 @@
 // ui/keymap — see keymap.h.
-// Zone: ui. Depends on app(frame_cook/document/graph_commands/copy_paste_ui) + imgui + node-editor.
+// Zone: ui. Depends on app(frame_cook/document/animation_commands/command/copy_paste_ui) + imgui.
 // All new shortcuts go through the table below (鐵律7). Existing Cmd+Z/C/V/Delete remain in
 // editor_ui.cpp (散打保留 — named fork, risk asymmetry: touching that code path mid-batch).
 #include "ui/keymap.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <limits>
+#include <memory>
+#include <vector>
 
 #include "imgui.h"
 #include "imgui_node_editor.h"
 
+#include "app/animation_commands.h"  // AddKeyframeCommand / WriteKeyAtPlayheadCommand / MacroCommand
+#include "app/command.h"             // g_commands
 #include "app/document.h"
+#include "ui/editor_ui.h"        // g_selectedNode/g_pinnedNode (layer-switch hygiene)
 #include "app/frame_cook.h"
+#include "runtime/compound_graph.h"  // Symbol / Animator iteration
 #include "ui/copy_paste_ui.h"
 #include "ui/quick_add.h"  // SearchGraph (Cmd+F) handler
 
@@ -158,6 +166,228 @@ static bool handleSearchGraph() {
 }
 
 // ---------------------------------------------------------------------------
+// InsertKeyframe (C) / InsertKeyframeWithIncrement (Shift+C)
+// = TiXL FactoryKeyMap.cs:37-38, DopeSheetArea.cs:63-80.
+// Target: ALL animated lanes in the current symbol (= TiXL AnimationParameters, every
+// channel of every animated input). One undo step via MacroCommand.
+// ---------------------------------------------------------------------------
+// Named fork "insert-all-lanes": TiXL inserts on AnimationParameters which = the lanes visible
+// in the active DopeSheetArea. We insert on ALL animated inputs in the current symbol.
+// Rationale: our timeline always shows all animated inputs (no per-lane selection in the dope
+// sheet header yet); matching TiXL's scope would require a lane-selection system we don't have.
+static bool handleInsertKeyframe() {
+  const ImGuiIO& io = ImGui::GetIO();
+  if (io.KeyCtrl || io.KeyAlt || io.KeyShift) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_C, false)) return false;
+  const sw::Symbol* sym = sw::doc::currentSymbolConst();
+  if (!sym) return true;
+  const double time = sw::framecook::transportPosition();
+  const std::string symId = sw::doc::currentSymbolId();
+  auto macro = std::make_unique<sw::MacroCommand>("Insert Keyframe");
+  for (const auto& [childId, byInput] : sym->animator.all()) {
+    for (const auto& [inputId, curves] : byInput) {
+      for (int idx = 0; idx < (int)curves.size(); ++idx) {
+        macro->add(std::make_unique<sw::AddKeyframeCommand>(
+            sw::doc::g_lib, symId, childId, inputId, idx, time));
+      }
+    }
+  }
+  if (!macro->empty()) {
+    sw::g_commands.push(std::move(macro));
+    sw::doc::g_status = "insert keyframe";
+  }
+  return true;
+}
+
+// InsertKeyframeWithIncrement (Shift+C): same as C but each new key gets value+1.
+// = TiXL DopeSheetArea.cs:72-80: InsertNewKeyframe(p, time, false, 1) where the last arg is
+// `increment` — AnimationOperations.InsertKeyframeToCurves sets newKey.Value = sample(t)+1.
+// Two-command macro per channel: AddKeyframeCommand (clone-previous style + sample(t) value),
+// then WriteKeyAtPlayheadCommand(sample(t)+1) to nudge the value. One macro = one undo step.
+static bool handleInsertKeyframeWithIncrement() {
+  const ImGuiIO& io = ImGui::GetIO();
+  if (!io.KeyShift || io.KeyCtrl || io.KeyAlt) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_C, false)) return false;
+  const sw::Symbol* sym = sw::doc::currentSymbolConst();
+  if (!sym) return true;
+  const double time = sw::framecook::transportPosition();
+  const std::string symId = sw::doc::currentSymbolId();
+  auto macro = std::make_unique<sw::MacroCommand>("Insert Keyframe +1");
+  for (const auto& [childId, byInput] : sym->animator.all()) {
+    for (const auto& [inputId, curves] : byInput) {
+      for (int idx = 0; idx < (int)curves.size(); ++idx) {
+        // Compute sample(t)+1 now (before mutation). Curve::sample is const.
+        const float sampledPlus1 = (float)curves[idx].sample(time) + 1.0f;
+        // Step 1: insert key (clone-previous style, value=sample(t)).
+        macro->add(std::make_unique<sw::AddKeyframeCommand>(
+            sw::doc::g_lib, symId, childId, inputId, idx, time));
+        // Step 2: bump the value to sample(t)+1 (WriteKeyAtPlayhead updates in-place).
+        macro->add(std::make_unique<sw::WriteKeyAtPlayheadCommand>(
+            sw::doc::g_lib, symId, childId, inputId, idx, time, sampledPlus1));
+      }
+    }
+  }
+  if (!macro->empty()) {
+    sw::g_commands.push(std::move(macro));
+    sw::doc::g_status = "insert keyframe +1";
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// PlaybackJumpToNextKeyframe (.) / PlaybackJumpToPreviousKeyframe (,)
+// = TiXL FactoryKeyMap.cs:32-33, TimeLineCanvas.cs:445-488.
+// Scan ALL animated inputs in the current symbol (union of all lanes, = TiXL
+// _selectedAnimationParameters which holds every animated input in the composition).
+// Named fork "all-lanes": TiXL filters by selected animation parameters; we scan all because
+// we have no per-lane selection concept yet.
+// ---------------------------------------------------------------------------
+static bool handleJumpToNextKeyframe() {
+  // . (Period) — no modifiers (TiXL FactoryKeyMap.cs:32)
+  const ImGuiIO& io = ImGui::GetIO();
+  if (io.KeyCtrl || io.KeyAlt || io.KeyShift) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_Period, false)) return false;
+  const sw::Symbol* sym = sw::doc::currentSymbolConst();
+  if (!sym) return true;
+  const double time = sw::framecook::transportPosition() + 1e-6;  // small epsilon (= TiXL +0.001f)
+  double best = std::numeric_limits<double>::infinity();
+  bool found = false;
+  for (const auto& [childId, byInput] : sym->animator.all()) {
+    for (const auto& [inputId, curves] : byInput) {
+      for (const sw::Curve& c : curves) {
+        // Find the first key with u > time+epsilon (= TiXL TryGetNextKey(time)).
+        for (const auto& [u, vdef] : c.table()) {
+          (void)vdef;
+          if (u > time && u < best) { best = u; found = true; }
+        }
+      }
+    }
+  }
+  if (found) {
+    sw::framecook::transportScrub(best);
+    sw::doc::g_status = "next keyframe";
+  }
+  return true;
+}
+
+static bool handleJumpToPrevKeyframe() {
+  // , (Comma) — no modifiers (TiXL FactoryKeyMap.cs:33)
+  const ImGuiIO& io = ImGui::GetIO();
+  if (io.KeyCtrl || io.KeyAlt || io.KeyShift) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_Comma, false)) return false;
+  const sw::Symbol* sym = sw::doc::currentSymbolConst();
+  if (!sym) return true;
+  const double time = sw::framecook::transportPosition() - 1e-6;  // small epsilon (= TiXL -0.001f)
+  double best = -std::numeric_limits<double>::infinity();
+  bool found = false;
+  for (const auto& [childId, byInput] : sym->animator.all()) {
+    for (const auto& [inputId, curves] : byInput) {
+      for (const sw::Curve& c : curves) {
+        // Find the last key with u < time-epsilon (= TiXL TryGetPreviousKey(time)).
+        for (const auto& [u, vdef] : c.table()) {
+          (void)vdef;
+          if (u < time && u > best) { best = u; found = true; }
+        }
+      }
+    }
+  }
+  if (found) {
+    sw::framecook::transportScrub(best);
+    sw::doc::g_status = "prev keyframe";
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// NavigateBackwards (Alt+←) / NavigateForward (Alt+→)
+// = TiXL FactoryKeyMap.cs:63-64, MagGraph/Interaction/KeyboardActions.cs:65-72,
+//   NavigationHistory.cs (browser-style back/forward over composition path snapshots).
+//
+// Implementation: browser-history pattern with two stacks (back / forward).
+// On each processFrame call, compare the current g_compositionPath to the last known path;
+// if it changed (user navigated via double-click / breadcrumb / etc.), push the OLD path
+// onto the back-stack and clear the forward-stack (same semantics as a browser navigating
+// to a new page). Alt+← restores the previous path; Alt+→ re-applies the next path.
+// Cap both stacks at kNavHistMax to bound memory (named fork "capped history").
+// ---------------------------------------------------------------------------
+static constexpr int kNavHistMax = 32;
+static std::vector<std::vector<int>> s_navBack;   // [0] = most-recent past
+static std::vector<std::vector<int>> s_navFwd;    // [0] = most-recent future
+static std::vector<int> s_navLastPath;            // the path we saw last frame
+static bool s_navInitialized = false;
+
+// Called from processFrame BEFORE the key-table loop to track path changes.
+static void updateNavHistory() {
+  if (!s_navInitialized) {
+    s_navLastPath = sw::doc::g_compositionPath;
+    s_navInitialized = true;
+    return;
+  }
+  const auto& cur = sw::doc::g_compositionPath;
+  if (cur != s_navLastPath) {
+    // Path changed from some OTHER source (double-click compound, breadcrumb, etc.).
+    // Push the OLD path onto the back-stack; clear forward (same as browser navigation).
+    s_navBack.insert(s_navBack.begin(), s_navLastPath);
+    if ((int)s_navBack.size() > kNavHistMax) s_navBack.resize(kNavHistMax);
+    s_navFwd.clear();
+    s_navLastPath = cur;
+  }
+}
+
+static bool handleNavigateBackwards() {
+  // Alt+← = navigate back (TiXL FactoryKeyMap.cs:63, NavigationHistory.NavigateBackwards)
+  // Mac: io.KeyAlt = physical Option/Alt (NOT swapped by ConfigMacOSXBehaviors — only Cmd/Ctrl swap).
+  const ImGuiIO& io = ImGui::GetIO();
+  if (!io.KeyAlt || io.KeyCtrl || io.KeyShift) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false)) return false;
+  if (s_navBack.empty()) return true;  // nothing to go back to — consume the key
+  // Save current path to forward-stack.
+  s_navFwd.insert(s_navFwd.begin(), sw::doc::g_compositionPath);
+  if ((int)s_navFwd.size() > kNavHistMax) s_navFwd.resize(kNavHistMax);
+  // Restore the previous path.
+  std::vector<int> prev = s_navBack.front();
+  s_navBack.erase(s_navBack.begin());
+  sw::doc::g_compositionPath = prev;
+  sw::doc::validateCompositionPath();  // trim if any child was deleted
+  // Layer-switch hygiene (refuter N3 B2/S3 trap, orchestrator 合流補): pin/selection are
+  // BARE child ids — across a composition switch they alias a same-id child of the new
+  // symbol. Mirror editor_ui's navThisFrame block: clear both + ed selection.
+  g_pinnedNode = 0;
+  g_selectedNode = 0;
+  ed::ClearSelection();
+  s_navLastPath = sw::doc::g_compositionPath;  // suppress the change-detector this frame
+  sw::doc::g_relayout = true;
+  sw::doc::g_status = "navigate back";
+  return true;
+}
+
+static bool handleNavigateForward() {
+  // Alt+→ = navigate forward (TiXL FactoryKeyMap.cs:64, NavigationHistory.NavigateForward)
+  const ImGuiIO& io = ImGui::GetIO();
+  if (!io.KeyAlt || io.KeyCtrl || io.KeyShift) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_RightArrow, false)) return false;
+  if (s_navFwd.empty()) return true;  // nothing to go forward to — consume the key
+  // Save current path to back-stack.
+  s_navBack.insert(s_navBack.begin(), sw::doc::g_compositionPath);
+  if ((int)s_navBack.size() > kNavHistMax) s_navBack.resize(kNavHistMax);
+  // Restore the next path.
+  std::vector<int> next = s_navFwd.front();
+  s_navFwd.erase(s_navFwd.begin());
+  sw::doc::g_compositionPath = next;
+  sw::doc::validateCompositionPath();  // trim if any child was deleted
+  // Layer-switch hygiene (refuter N3 B2/S3 trap, orchestrator 合流補): pin/selection are
+  // BARE child ids — across a composition switch they alias a same-id child of the new
+  // symbol. Mirror editor_ui's navThisFrame block: clear both + ed selection.
+  g_pinnedNode = 0;
+  g_selectedNode = 0;
+  ed::ClearSelection();
+  s_navLastPath = sw::doc::g_compositionPath;  // suppress the change-detector this frame
+  sw::doc::g_relayout = true;
+  sw::doc::g_status = "navigate forward";
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // The data-driven table.
 // One row = (key label for diagnostics, context, handler fn).
 // 鐵律7: adding a shortcut = adding one row here, not scattering an io.KeyCtrl check elsewhere.
@@ -171,16 +401,24 @@ struct KeyEntry {
 // Internal table. processFrame() iterates this.
 static const KeyEntry kKeyTable[] = {
     // --- Playback (TiXL FactoryKeyMap.cs:23-34; global, !WantTextInput guarded in processFrame) ---
-    {"PlaybackToggle",   Context::Global,      handlePlaybackToggle},
-    {"PlaybackForward",  Context::Global,      handlePlaybackForward},
-    {"PlaybackBackwards",Context::Global,      handlePlaybackBackwards},
-    {"PlaybackStop",     Context::Global,      handlePlaybackStop},
-    {"FramePrev",        Context::Global,      handleFramePrev},
-    {"FrameNext",        Context::Global,      handleFrameNext},
+    {"PlaybackToggle",              Context::Global,      handlePlaybackToggle},
+    {"PlaybackForward",             Context::Global,      handlePlaybackForward},
+    {"PlaybackBackwards",           Context::Global,      handlePlaybackBackwards},
+    {"PlaybackStop",                Context::Global,      handlePlaybackStop},
+    {"FramePrev",                   Context::Global,      handleFramePrev},
+    {"FrameNext",                   Context::Global,      handleFrameNext},
+    // --- Keyframe (TiXL FactoryKeyMap.cs:32-33, 37-38; global) ---
+    {"JumpToNextKeyframe",          Context::Global,      handleJumpToNextKeyframe},
+    {"JumpToPrevKeyframe",          Context::Global,      handleJumpToPrevKeyframe},
+    {"InsertKeyframeWithIncrement", Context::Global,      handleInsertKeyframeWithIncrement},
+    {"InsertKeyframe",              Context::Global,      handleInsertKeyframe},
+    // --- Navigation (TiXL FactoryKeyMap.cs:63-64; global) ---
+    {"NavigateBackwards",           Context::Global,      handleNavigateBackwards},
+    {"NavigateForward",             Context::Global,      handleNavigateForward},
     // --- Graph window (TiXL FactoryKeyMap.cs:13-14, :56) ---
-    {"Duplicate",        Context::CanvasFocus, handleDuplicate},
-    {"FocusSelection",   Context::CanvasHover, handleFocusSelection},
-    {"SearchGraph",      Context::CanvasFocus, handleSearchGraph},
+    {"Duplicate",                   Context::CanvasFocus, handleDuplicate},
+    {"FocusSelection",              Context::CanvasHover, handleFocusSelection},
+    {"SearchGraph",                 Context::CanvasFocus, handleSearchGraph},
 };
 
 static constexpr int kTableSize = (int)(sizeof(kKeyTable) / sizeof(kKeyTable[0]));
@@ -194,6 +432,10 @@ void processFrame() {
   // Text-input guard: skip ALL shortcuts when imgui wants text (= TiXL's WantTextInput / AnyItemActive
   // inhibit, KeyActionHandling.cs InitializeFrame + IsTriggered).
   if (io.WantTextInput) return;
+
+  // Track composition-path changes for the navigation history (must run every frame, regardless
+  // of context, so external navigation (double-click into compound, breadcrumb) is captured).
+  updateNavHistory();
 
   // Determine canvas-host focus/hover state (the host window is "##canvas_host").
   // We test generic IsWindowFocused/IsWindowHovered while the canvas host is the active window;
