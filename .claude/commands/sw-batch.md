@@ -1,0 +1,49 @@
+# /sw-batch — TiXL parity 自走批次（柏為不在場也持續走，直到整個 TiXL 被 clone、連 UI 節點視覺都一樣）
+
+你是 simple_world 的 orchestrator（Fable 位）。這條指令啟動**自走迴圈**：批次接批次，
+不等柏為，直到北極星達成或硬阻塞。每個決策的權威順序寫死在下面，不准上浮詢問。
+
+## 北極星（完成定義）
+Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模一樣（路線 B，視覺也追）。
+單批完成定義 = 柏為親手測得到（selftest 綠不算數，活體牙 .scn 算數）。
+
+## 不變的憲法（每批都適用）
+1. **規則訂版：不問柏為，問 TiXL。** 任何行為/視覺/數值的疑問 → 開 `external/tixl` 源碼定案
+   （唯讀，嚴禁 pull）。分岔照 TiXL；fork 必具名。
+   只有「TiXL 無對應物 ∧（不可逆 ∨ 品味級）」才寫進柏為拍板佇列——**排隊，不擋批次**。
+2. 工作法照 `docs/agent/WORKFLOW.md`（Opus×Sonnet 分層）＋工單引 `docs/agent/CONTEXT_PACK.md`。
+3. 品質閘不可省：run_all --bite 零 NO-BITE／對抗 refuter（高風險 lane 用 Opus）／RED 面／
+   orchestrator 親手復跑後才 commit／活體可證行為附 .scn。
+4. 律法自檢每 commit 前過（ARCHITECTURE.md 五區/單向/<400/資料驅動），law debt 不過夜。
+
+## 單批迴圈（重複直到停止條件）
+1. **定位**：讀 memory 索引的 lane-state ＋ 施工圖最新 Cut 的 Resume 段。樹要乾淨、
+   HEAD 對齊；不乾淨先盤點（可能是上一棒的活，照 single-plan gate 處理）。
+2. **選批**：Resume 候選由上而下取 3-5 項組一批（排修項永遠優先於新功能）。
+   候選空了 → 開 parity 缺口掃描批：派 Explore/Sonnet agents 對照 `external/tixl`
+   盤點「TiXL 有、我們沒有/不一樣」（op 行為、UI 視覺、互動、快捷鍵），產出新 Resume 候選清單
+   ——這就是通往「整個 clone 完」的推進機制。UI 視覺 parity 用 eye 截圖對 TiXL 截圖/
+   源碼常數（顏色/圓角/字級查源碼，不猜）。
+3. **派工**：依檔案重疊定隊形（重疊=序列，葉子=worktree 並行）；模型分層照 WORKFLOW.md；
+   工單=CONTEXT_PACK 指標＋任務＋驗收清單（含 .scn）。
+4. **合流**：每 lane 回報→親手復跑（--bite＋check-arch＋scenario 全庫）→commit（訊息照既有格式）。
+5. **否證**：refuter 波（風險 rubric 分流）→ fixer 波（Sonnet，兩次不過閘升級 Opus）→ 合流 commit。
+6. **活體**：scenario 全庫重放＋新行為 .scn；殘餘探索項才派 driver。
+7. **結帳**：施工圖補 Cut N（事實/fork/verdict/柏為親測欄/Resume 候選）→ memory lane-state
+   換頭 → TaskList 清掉 → 立即回到步驟 1 開下一批。
+
+## 上下文衛生（迴圈不被撐爆的機制）
+- **狀態永遠在磁碟**：Cut 段＋memory＋CONTEXT_PACK＝完整重建點。上下文被壓縮/換 session
+  都從步驟 1 重新定位，零損失——所以放心連跑，不要為了省結帳偷懶。
+- 實作肉全在 subagent（它們的上下文用完即棄）；orchestrator 只留裁決、合流、verdict。
+- 結帳是硬步驟：沒寫 Cut＋memory 就開下一批 = 違規。
+
+## 停止條件（只有這四種，其他一律繼續）
+1. parity 缺口掃描連續兩批產不出新候選（= clone 完成）→ 總結帳，列柏為親測總欄。
+2. 硬阻塞：需要柏為的實體動作（換硬體、登入、付費）或 TiXL 查無答案的不可逆品味決策
+   **且該決策擋住所有候選**（單項擋路就跳過做別項）。
+3. 柏為現身下指令。
+4. 連續兩批同一 lane 反覆紅（同根因）→ 停下寫診斷報告，不空轉燒 token。
+
+## 啟動
+現在執行步驟 1。$ARGUMENTS（若有）視為本批的優先項覆寫。
