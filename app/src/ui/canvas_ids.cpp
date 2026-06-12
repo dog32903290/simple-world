@@ -2,13 +2,21 @@
 // Moved verbatim out of editor_ui.cpp's anonymous namespace (mechanical split, rule 4).
 #include "ui/canvas_ids.h"
 
+#include <cstdio>
+
 #include "app/document.h"
 #include "runtime/graph.h"  // findSpec / pinId / pinNode (the int pin scheme rides on child ids)
 
 namespace sw::ui {
 
-int pinChildId(int pin) { return pinIsBoundary(pin) ? sw::kSymbolBoundary : sw::pinNode(pin); }
-int pinPortIndex(int pin) { return pinIsBoundary(pin) ? (pin - kBoundaryPinBase) : (pin - 1) % 100; }
+int childPinId(int childId, int portIndex) { return kChildPinBase + sw::pinId(childId, portIndex); }
+
+int pinChildId(int pin) {
+  return pinIsBoundary(pin) ? sw::kSymbolBoundary : sw::pinNode(pin - kChildPinBase);
+}
+int pinPortIndex(int pin) {
+  return pinIsBoundary(pin) ? (pin - kBoundaryPinBase) : (pin - kChildPinBase - 1) % 100;
+}
 
 PinInfo pinInfoOf(int pin) {
   PinInfo r;
@@ -56,7 +64,7 @@ int pinOfSlot(int childId, const std::string& slotId, bool isInput) {
   const sw::NodeSpec* s = c ? sw::findSpec(c->symbolId) : nullptr;
   if (!s) return -1;
   for (size_t i = 0; i < s->ports.size(); ++i)
-    if (s->ports[i].isInput == isInput && s->ports[i].id == slotId) return sw::pinId(childId, (int)i);
+    if (s->ports[i].isInput == isInput && s->ports[i].id == slotId) return childPinId(childId, (int)i);
   return -1;
 }
 
@@ -82,6 +90,31 @@ std::string boundaryDefSlot(const sw::Symbol& cur, int edId, bool& isInput) {
     if (i >= 0 && i < (int)cur.inputDefs.size()) return cur.inputDefs[i].id;
   }
   return "";
+}
+
+int runCanvasIdsSelfTest(bool injectBug) {
+  // 1) Child-pin ed ids live strictly inside [kChildPinBase, kBoundaryPinBase) — they can
+  //    never equal a child NODE id (small positive ints) or a boundary pin. Sweep past the
+  //    regression point (child ids >= 101, the 批次9 D4 freeze: node 109 == raw pin 109).
+  bool banded = true;
+  for (int c = 1; c <= 200 && banded; ++c)
+    for (int k = 0; k < 12 && banded; ++k) {
+      const int pin = injectBug ? sw::pinId(c, k) : childPinId(c, k);  // bug = the OLD raw scheme
+      banded = pin >= kChildPinBase && pin < kBoundaryPinBase && pin != c;
+    }
+  // 2) Decode inverts encode for child pins…
+  bool inverts = true;
+  for (int c = 1; c <= 200 && inverts; ++c)
+    for (int k = 0; k < 12 && inverts; ++k)
+      inverts = pinChildId(childPinId(c, k)) == c && pinPortIndex(childPinId(c, k)) == k;
+  // 3) …and the boundary band still decodes to the sentinel + combined index.
+  const bool boundary = pinChildId(boundaryPinId(3)) == sw::kSymbolBoundary &&
+                        pinPortIndex(boundaryPinId(3)) == 3 && pinIsBoundary(boundaryPinId(0)) &&
+                        !pinIsBoundary(childPinId(200, 11));
+  const bool ok = banded && inverts && boundary;
+  std::printf("[selftest-canvasids] banded=%d inverts=%d boundary=%d -> %s\n", banded, inverts,
+              boundary, ok ? "PASS" : "FAIL");
+  return ok ? 0 : 1;
 }
 
 }  // namespace sw::ui

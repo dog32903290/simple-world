@@ -41,6 +41,7 @@
 #include "runtime/spectrum_analyzer.h"
 #include "runtime/transport.h"
 #include "ui/cjk_font.h"
+#include "ui/canvas_ids.h"  // runCanvasIdsSelfTest (ed pin/node id bands)
 #include "ui/node_style.h"
 #include "ui/timeline_window.h"  // runTimelineSelfTest (S6 timeline gesture core)
 #include "verify/eye/eye.h"
@@ -164,6 +165,7 @@ const SelfTest kTable[] = {
     {"rendertargetwired", runRenderTargetWiredSelfTest},
     {"timeline", ui::runTimelineSelfTest},
     {"nodestyle", ui::runNodeStyleSelfTest},
+    {"canvasids", ui::runCanvasIdsSelfTest},
     {"cjkfont", ui::runCjkFontSelfTest},
     {"eye", eye::runSelfTest},
     {"map", eye::runMapSelfTest},

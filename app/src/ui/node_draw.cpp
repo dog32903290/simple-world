@@ -10,6 +10,7 @@
 
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec / pinId — a compound child resolves like an atomic (N1)
+#include "ui/canvas_ids.h"  // childPinId: ed-facing banded pin id
 #include "ui/node_faces.h"
 #include "ui/node_style.h"
 #include "verify/eye/eye.h"
@@ -66,7 +67,10 @@ void drawChild(const sw::SymbolChild& child) {
     // pin rect (marker + label) for hand pin-dragging. (Link pivot stays at content
     // centre for now; edge-pinned pivots are a later refinement.)
     auto pinRow = [&](int i, const sw::PortSpec& p) {
-      ed::BeginPin(sw::pinId(child.id, i), p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
+      // ed id is BANDED (ui/canvas_ids childPinId) so a child pin can never hash-collide with
+      // a child NODE id; the eye label below stays on raw sw::pinId (driver-facing, stable).
+      ed::BeginPin(sw::ui::childPinId(child.id, i),
+                   p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
       ImGui::BeginGroup();
       if (p.isInput) { drawSlot(typeColor(p.dataType)); ImGui::SameLine();
                        ImGui::TextUnformatted(p.name.c_str()); }

@@ -24,8 +24,20 @@ constexpr int kBoundaryPinBase = 1 << 20;  // 1048576
 inline int boundaryPinId(int combinedIndex) { return kBoundaryPinBase + combinedIndex; }
 inline bool pinIsBoundary(int pin) { return pin >= kBoundaryPinBase; }
 
+// CHILD pins get the same treatment, one band lower: the raw sw::pinId(childId, port) =
+// childId*100+port+1 re-enters the CHILD NODE ID range as soon as a child id passes 100 —
+// child node 109 == child 1's pin 109 (Cycles) — and imgui's "conflicting ID" error makes the
+// stacked node unhittable: clicks still resolve but node drags die (批次9 D4 live: spawned
+// nodes 107/109 froze while 104-106 moved fine — node 1 happens to own no pins 104-106).
+// Only the ed-facing id is banded; sw::pinId itself stays raw because the legacy Graph json
+// persists absolute pin ints and the eye labels ("pin:10901") key off it. Band:
+// [kChildPinBase+101, kBoundaryPinBase) — decode breaks if a child id ever exceeds ~5242
+// ((1<<19)/100), far past the per-symbol child counts this app sees.
+constexpr int kChildPinBase = 1 << 19;  // 524288
+int childPinId(int childId, int portIndex);  // kChildPinBase + sw::pinId(childId, portIndex)
+
 // pin id <-> (child id, port index). Boundary pins decode to the kSymbolBoundary sentinel +
-// their combined index; child pins go through the sw::pinId scheme. See sw::pinId().
+// their combined index; child pins subtract kChildPinBase then invert sw::pinId.
 int pinChildId(int pin);
 int pinPortIndex(int pin);
 
@@ -70,5 +82,9 @@ inline bool edIdIsBoundary(int id) { return id < 0; }
 // Invert the boundary-id scheme: input defs occupy [-1000,-1], output defs <= -1001. Returns the
 // def's slotId in the current symbol (empty if the index no longer resolves), and sets isInput.
 std::string boundaryDefSlot(const sw::Symbol& cur, int edId, bool& isInput);
+
+// --selftest-canvasids: band disjointness + decode inversion (the child-pin/child-node id
+// collision regression, 批次9 D4). Pure int math, no doc/imgui needed.
+int runCanvasIdsSelfTest(bool injectBug);
 
 }  // namespace sw::ui
