@@ -72,6 +72,7 @@ set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OP
 
 add_executable(simple_world
   src/main.cpp
+  src/app_delegate.cpp
   src/selftests.cpp
   src/app/document.cpp
   src/app/audio_settings.cpp
