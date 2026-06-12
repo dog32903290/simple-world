@@ -249,7 +249,7 @@ static bool handleJumpToNextKeyframe() {
   if (!ImGui::IsKeyPressed(ImGuiKey_Period, false)) return false;
   const sw::Symbol* sym = sw::doc::currentSymbolConst();
   if (!sym) return true;
-  const double time = sw::framecook::transportPosition() + 1e-6;  // small epsilon (= TiXL +0.001f)
+  const double time = sw::framecook::transportPosition() + 1e-6;  // epsilon: NAMED FORK — 1e-6 (< TiXL's +0.001f, TimeLineCanvas.cs:449); same on-key-jump semantics, finer sub-bar precision
   double best = std::numeric_limits<double>::infinity();
   bool found = false;
   for (const auto& [childId, byInput] : sym->animator.all()) {
@@ -277,7 +277,7 @@ static bool handleJumpToPrevKeyframe() {
   if (!ImGui::IsKeyPressed(ImGuiKey_Comma, false)) return false;
   const sw::Symbol* sym = sw::doc::currentSymbolConst();
   if (!sym) return true;
-  const double time = sw::framecook::transportPosition() - 1e-6;  // small epsilon (= TiXL -0.001f)
+  const double time = sw::framecook::transportPosition() - 1e-6;  // epsilon: NAMED FORK — 1e-6 (< TiXL, see JumpToNext above)
   double best = -std::numeric_limits<double>::infinity();
   bool found = false;
   for (const auto& [childId, byInput] : sym->animator.all()) {

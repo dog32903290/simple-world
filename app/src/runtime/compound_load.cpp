@@ -84,7 +84,14 @@ void annotationsFromJson(crude_json::value& annsv, Symbol& s, std::vector<std::s
     if (av["y"].is_number()) a.y = (float)av["y"].get<crude_json::number>();
     if (av["w"].is_number()) a.w = (float)av["w"].get<crude_json::number>();
     if (av["h"].is_number()) a.h = (float)av["h"].get<crude_json::number>();
-    s.annotations.push_back(a);
+    // Duplicate id -> LAST WINS, mirroring TiXL's ReadAnnotations dict semantics
+    // (SymbolUiJson.cs:530 annotationDict[id]=annotation). Without this the command layer's
+    // id-uniqueness invariant (Add refuses dups) was bypassable from disk: Delete/ChangeText
+    // by-id would hit only the first twin, leaving a ghost (refuter-R-AN B1).
+    bool replaced = false;
+    for (Annotation& existing : s.annotations)
+      if (existing.id == a.id) { existing = a; replaced = true; break; }
+    if (!replaced) s.annotations.push_back(a);
   }
 }
 

@@ -224,6 +224,32 @@ int runAnnotationSelfTest(bool injectBug) {
     }
   }
 
+  // --- 4c: duplicate id on disk -> LAST WINS (TiXL ReadAnnotations dict semantics,
+  // SymbolUiJson.cs:530; refuter-R-AN B1: a vector push let twin ids bypass the command
+  // layer's uniqueness invariant — Delete/ChangeText by-id then hit only the first twin) ---
+  {
+    std::string crafted =
+        "{\"formatVersion\":2,\"rootSymbolId\":\"Root\","
+        "\"composition\":{\"bpm\":120,\"soundtrackPath\":\"\",\"soundtrackVolume\":1},"
+        "\"symbols\":[{\"id\":\"Root\",\"name\":\"Root\",\"nextChildId\":1,"
+        "\"inputDefs\":[],\"outputDefs\":[],\"children\":[],\"connections\":[],"
+        "\"annotations\":["
+        "  {\"id\":\"dup\",\"title\":\"first\",\"x\":0,\"y\":0,\"w\":10,\"h\":10},"
+        "  {\"id\":\"dup\",\"title\":\"second\",\"x\":5,\"y\":5,\"w\":20,\"h\":20}"
+        "]}]}";
+    SymbolLibrary back;
+    std::vector<std::string> warn;
+    bool loadOk = libFromJsonAny(crafted, back, &warn);
+    const Symbol* r = back.find("Root");
+    bool lastWins = r && r->annotations.size() == 1 && r->annotations[0].title == "second" &&
+                    r->annotations[0].w == 20.0f;
+    if (!(loadOk && lastWins)) {
+      printf("[annotation] dup-id-last-wins (loadOk=%d n=%zu) FAIL\n", loadOk,
+             r ? r->annotations.size() : 0);
+      ok = false;
+    }
+  }
+
   // --- 5: per-symbol isolation (two compounds, annotations don't bleed) ---
   {
     SymbolLibrary lib = makeLib();
