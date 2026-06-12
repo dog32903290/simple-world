@@ -2,6 +2,7 @@
 // animation_commands_selftest.cpp (mechanical split, ARCHITECTURE rule 4).
 #include "app/animation_commands.h"
 
+#include <iterator>
 #include <utility>
 
 namespace sw {
@@ -92,13 +93,29 @@ void AddKeyframeCommand::doIt() {
   Curve* c = resolve();
   if (!c) { refused_ = true; return; }
   before_ = *c;  // whole-curve snapshot -> byte-faithful undo (see header rationale)
-  // = TiXL InsertKeyframeToCurves: the new key lands ON the curve (sampled value), Linear.
+  // = TiXL InsertNewKeyframe (TimelineCurveEditor.cs:339-341 / AnimationOperations.cs:22-24):
+  // the new key lands ON the curve (sampled value) and CLONES the previous key's whole style
+  // (interpolation/tangent angles/tension/weighted/broken). 修1 (批次9): the old hard-wired
+  // Linear nuked an authored Smooth/Tangent key whenever the (snapped) insert time collided with
+  // it — clone-previous makes the collision near-lossless (value = sample(t) = the key's own
+  // value; style = its neighbor's, which an authored run shares). FORK 具名 "clone-next when no
+  // previous": TiXL falls back to a default VDefinition (plain Linear) in front of the first key;
+  // we clone the NEXT key (= TiXL's TryGetNextKey index: first key at/after t, so a collision on
+  // the FIRST key clones itself = lossless). Empty curve -> the Linear law shape.
+  const double rt = Curve::roundTime(time_);
   VDefinition k;
+  auto nextIt = c->table().lower_bound(rt);  // first key at/after rt
+  if (nextIt != c->table().begin()) {
+    k = std::prev(nextIt)->second;  // previous key (largest u < rt) — the TiXL clone source
+  } else if (nextIt != c->table().end()) {
+    k = nextIt->second;  // fork: clone the next key (incl. the collided first key)
+  } else {
+    k.inInterpolation = KeyInterpolation::Linear;  // empty curve: = applyInterpSemantics(Linear)
+    k.outInterpolation = KeyInterpolation::Linear;
+    k.brokenTangents = true;
+  }
   k.value = c->sample(time_);
-  k.u = Curve::roundTime(time_);
-  k.inInterpolation = KeyInterpolation::Linear;
-  k.outInterpolation = KeyInterpolation::Linear;
-  k.brokenTangents = true;
+  k.u = rt;
   c->addOrUpdate(time_, k);
 }
 void AddKeyframeCommand::undo() {

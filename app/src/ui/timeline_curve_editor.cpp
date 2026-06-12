@@ -170,11 +170,13 @@ void drawCurveEditor(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g,
       sw::eye::recordRect(("tlc_key:" + std::to_string(ln.childId) + ":" + ln.inputId + ":" +
                            std::to_string(kiSeq)).c_str(),
                           kp.x - 6, kp.y - 6, kp.x + 6, kp.y + 6);
+      // Per-key selection here (修4 fork 具名: = TiXL TimelineCurveEditor adds just the clicked
+      // vDef — the all-channel group semantics is the DOPE view's, timeline_internal.h).
       if (ImGui::IsItemActivated())
         s.suppressDragFromClick = selectOnClickOrDrag(s, k, isSel, modShift, modCmd);
       if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, kDragLatchPx) &&
           !s.drag.active && !s.tan.active && !s.suppressDragFromClick)
-        stageDrag(s, sym, io.MouseClickedPos[ImGuiMouseButton_Left], &k);  // k = snap reference
+        stageDrag(s, sym, g, io.MouseClickedPos[ImGuiMouseButton_Left], &k);  // k = snap reference
       dl->AddCircleFilled(kp, isSel ? 5.0f : 3.5f,
                           isSel ? IM_COL32(255, 210, 90, 255)
                                 : hovered ? IM_COL32(235, 238, 245, 255) : col);

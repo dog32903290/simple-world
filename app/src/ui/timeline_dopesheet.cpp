@@ -36,19 +36,24 @@ void applyFence(State& s, const Symbol& sym, const std::vector<Lane>& lanes, con
     for (const auto& [u, vdef] : (*arr)[ln.index].table()) {
       (void)vdef;
       if (u < t0 || u > t1) continue;
-      SelKey k{ln.childId, ln.inputId, ln.index, u};
-      const bool already = isSelected(s, k.childId, k.inputId, k.index, k.time);
-      if (s.fence.mode == 2) {
-        if (already)
-          s.selection.erase(std::remove_if(s.selection.begin(), s.selection.end(),
-                                           [&](const SelKey& e) {
-                                             return e.childId == k.childId && e.inputId == k.inputId &&
-                                                    e.index == k.index &&
-                                                    Curve::roundTime(e.time) == Curve::roundTime(k.time);
-                                           }),
-                            s.selection.end());
-      } else if (!already) {
-        s.selection.push_back(k);
+      // 修4: the fence acts on the whole channel group at this time (= TiXL's layered dope lane:
+      // its fence catches the .x/.y/.z siblings in the same row; contract in timeline_internal.h).
+      static std::vector<SelKey> group;
+      paramKeysAtTime(sym, ln.childId, ln.inputId, u, group);
+      for (const SelKey& k : group) {
+        const bool already = isSelected(s, k.childId, k.inputId, k.index, k.time);
+        if (s.fence.mode == 2) {
+          if (already)
+            s.selection.erase(std::remove_if(s.selection.begin(), s.selection.end(),
+                                             [&](const SelKey& e) {
+                                               return e.childId == k.childId && e.inputId == k.inputId &&
+                                                      e.index == k.index &&
+                                                      Curve::roundTime(e.time) == Curve::roundTime(k.time);
+                                             }),
+                              s.selection.end());
+        } else if (!already) {
+          s.selection.push_back(k);
+        }
       }
     }
   }
@@ -120,10 +125,12 @@ void drawDopeSheet(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g, I
                            std::to_string(kiSeq)).c_str(),
                           kx - kKeyR, laneMidY - kKeyR, kx + kKeyR, laneMidY + kKeyR);
 
-      // Click -> TiXL selection semantics (cmd=deselect / shift=add / plain=replace-unless-selected).
+      // Click -> TiXL selection semantics (cmd=deselect / shift=add / plain=replace-unless-
+      // selected), applied to the WHOLE channel group at this time (修4: = TiXL
+      // FindParameterKeysAtPosition — dope view only; the curve editor stays per-key).
       if (ImGui::IsItemActivated()) {
         SelKey k{ln.childId, ln.inputId, ln.index, u};
-        s.suppressDragFromClick = selectOnClickOrDrag(s, k, isSel, modShift, modCmd);
+        s.suppressDragFromClick = selectParamKeysOnClickOrDrag(s, sym, k, isSel, modShift, modCmd);
       }
       // Drag start -> stage a multi-key drag of the WHOLE selection (= TiXL StartDragCommand).
       // Axis latch + dt/dv application happen in executePending; here we only stage. The grabbed
@@ -131,7 +138,7 @@ void drawDopeSheet(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g, I
       if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, kDragLatchPx) &&
           !s.drag.active && !s.suppressDragFromClick) {
         const SelKey grab{ln.childId, ln.inputId, ln.index, u};
-        stageDrag(s, sym, io.MouseClickedPos[ImGuiMouseButton_Left], &grab);
+        stageDrag(s, sym, g, io.MouseClickedPos[ImGuiMouseButton_Left], &grab);
       }
 
       // Diamond (square for Constant-out keys = TiXL's distinct dope icon, simplified).

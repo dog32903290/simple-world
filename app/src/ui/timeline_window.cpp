@@ -314,7 +314,11 @@ void drawTimelineWindow() {
   // so an undone command may be a graph command -> g_relayout, same as the canvas handler.
   {
     ImGuiIO& io = ImGui::GetIO();
+    // Dead while a key/tangent drag is live (批次9 順手): the live drag restores/re-applies from
+    // its own pre-drag snapshot every frame, so a mid-drag undo gets stomped immediately and the
+    // release would push a STALE before/after pair on top of the rewound stack.
     if (ImGui::IsWindowFocused() && io.KeyCtrl && !io.WantTextInput &&
+        !s.drag.active && !s.tan.active &&
         ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
       if (io.KeyShift) sw::g_commands.redo();
       else             sw::g_commands.undo();

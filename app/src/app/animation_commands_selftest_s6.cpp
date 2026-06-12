@@ -205,6 +205,88 @@ int runAnimGuiS6Legs(bool injectBug) {
         "⑩ tangent edit redo re-applies the bend");
   }
 
+  // ⑪ 批次9 修1 — AddKeyframeCommand clones the previous key's style (= TiXL InsertNewKeyframe,
+  //    TimelineCurveEditor.cs:339-341 / AnimationOperations.cs:22-24). The old hard-wired Linear
+  //    nuked an authored Smooth/Tangent key whenever the (snapped) insert time collided with it.
+  //    injectBug re-enacts the hard-Linear shape -> the inheritance/survival CHKs FAIL.
+  {
+    SymbolLibrary libB = libFromGraph(defaultParticleGraph());
+    AnimTarget tB = findFloatTarget(libB);
+    const std::string rB = libB.rootId;
+    CommandStack sB;
+    // Seed keys @1=1 / @3=3 / @5=1 so the collision target (@3) is a MIDDLE key — boundary keys'
+    // angles are re-mirrored unconditionally by updateTangents (curve.cpp:316-332), middle keys
+    // in Tangent mode keep their authored angles.
+    sB.push(std::make_unique<AddAnimationCommand>(libB, rB, tB.childId, tB.slotId, 1.0, 1.0f));
+    sB.push(std::make_unique<AddKeyframeCommand>(libB, rB, tB.childId, tB.slotId, 0, 3.0));
+    sB.push(std::make_unique<WriteKeyAtPlayheadCommand>(libB, rB, tB.childId, tB.slotId, 0, 3.0, 3.0f));
+    sB.push(std::make_unique<AddKeyframeCommand>(libB, rB, tB.childId, tB.slotId, 0, 5.0));
+    sB.push(std::make_unique<WriteKeyAtPlayheadCommand>(libB, rB, tB.childId, tB.slotId, 0, 5.0, 1.0f));
+    Animator::CurveArray* live = libB.find(rB)->animator.curvesFor(tB.childId, tB.slotId);
+    // Author the FIRST key: broken Tangent both sides (the handle-drag end state). Its OUT angle
+    // is preserved by updateTangents (Tangent mode); its IN settles to out-π (boundary law).
+    {
+      VDefinition& k1 = (*live)[0].table().at(Curve::roundTime(1.0));
+      k1.inInterpolation = KeyInterpolation::Tangent;
+      k1.outInterpolation = KeyInterpolation::Tangent;
+      k1.inTangentAngle = -1.234;
+      k1.outTangentAngle = 0.777;
+      k1.brokenTangents = true;
+      (*live)[0].updateTangents();
+    }
+    const VDefinition authored = (*live)[0].table().at(Curve::roundTime(1.0));  // settled clone source
+    auto hardLinear = [&](double u) {  // the 修1 bug shape, re-enacted on the inserted key
+      VDefinition& k = (*live)[0].table().at(Curve::roundTime(u));
+      k.inInterpolation = KeyInterpolation::Linear;
+      k.outInterpolation = KeyInterpolation::Linear;
+      k.brokenTangents = true;
+      k.inTangentAngle = 0.0; k.outTangentAngle = 0.0;
+    };
+    // (a) collision: insert exactly ON key@3 (= a snapped double-click landing on it). The clone
+    //     of the previous (authored) key keeps the curve authored: style/angles ride in, value
+    //     stays the key's own (sample at its own time). Middle key + Tangent mode -> the cloned
+    //     angles survive the insert's updateTangents.
+    const std::string preCollision = libToJsonV2(libB);
+    sB.push(std::make_unique<AddKeyframeCommand>(libB, rB, tB.childId, tB.slotId, 0, 3.0));
+    if (injectBug) hardLinear(3.0);
+    {
+      const VDefinition& k3 = (*live)[0].table().at(Curve::roundTime(3.0));
+      CHK(k3.inInterpolation == KeyInterpolation::Tangent &&
+              k3.outInterpolation == KeyInterpolation::Tangent && k3.brokenTangents &&
+              std::fabs(k3.inTangentAngle - authored.inTangentAngle) < 1e-9 &&
+              std::fabs(k3.outTangentAngle - authored.outTangentAngle) < 1e-9,
+          "⑪ collision insert: authored tangent style/angles survive (clone-previous)");
+      CHK((float)k3.value == 3.0f, "⑪ collision insert: value preserved (sample at own time)");
+    }
+    sB.undo();
+    CHK(libToJsonV2(libB) == preCollision, "⑪ collision insert undo byte-faithful");
+    // (b) inheritance: previous key Smooth -> the fresh key inherits Smooth (not Linear).
+    {
+      VDefinition& k1 = (*live)[0].table().at(Curve::roundTime(1.0));
+      k1.inInterpolation = KeyInterpolation::Smooth;
+      k1.outInterpolation = KeyInterpolation::Smooth;
+      k1.brokenTangents = false;
+      (*live)[0].updateTangents();
+    }
+    sB.push(std::make_unique<AddKeyframeCommand>(libB, rB, tB.childId, tB.slotId, 0, 2.0));
+    if (injectBug) hardLinear(2.0);
+    {
+      const VDefinition& k2 = (*live)[0].table().at(Curve::roundTime(2.0));
+      CHK(k2.inInterpolation == KeyInterpolation::Smooth &&
+              k2.outInterpolation == KeyInterpolation::Smooth && !k2.brokenTangents,
+          "⑪ fresh insert inherits the previous key's Smooth (no hard-wired Linear)");
+    }
+    // (c) FORK 具名 "clone-next when no previous": inserting in FRONT of the first key inherits
+    //     the run's style from the next key (TiXL falls back to plain Linear here).
+    sB.push(std::make_unique<AddKeyframeCommand>(libB, rB, tB.childId, tB.slotId, 0, 0.5));
+    {
+      const VDefinition& k0 = (*live)[0].table().at(Curve::roundTime(0.5));
+      CHK(k0.inInterpolation == KeyInterpolation::Smooth &&
+              k0.outInterpolation == KeyInterpolation::Smooth,
+          "⑪ insert before the first key clones the NEXT key's style (fork 具名)");
+    }
+  }
+
   return failures;
 }
 

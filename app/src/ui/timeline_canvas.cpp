@@ -73,6 +73,18 @@ void dampView(ViewState& v, double widthPx, double heightPx, double dt) {
   }
 }
 
+bool snapEnabledForView(bool curveMode, bool shiftHeld) {
+  // 修2: dope = snap default-ON, Shift off (DopeSheetArea.cs:927); curve editor = snap default-
+  // OFF, Shift on (TimelineCurveEditor.cs:461). Contract in timeline_internal.h.
+  return curveMode ? shiftHeld : !shiftHeld;
+}
+
+bool snapIndicatorShouldStamp(bool didSnap, double dtSnapped, double dtApplied) {
+  // 修3: the rigid clamp either keeps dt or replaces it outright (max(dt, -minStart)), so exact
+  // compare is the right test — a clamp-eaten snap must NOT light the indicator / hit eye tl_snap.
+  return didSnap && dtApplied == dtSnapped;
+}
+
 double snapDragTime(double target, double pxPerBar, const std::vector<double>& anchors,
                     bool snappingDisabled, bool* didSnap) {
   if (didSnap) *didSnap = false;

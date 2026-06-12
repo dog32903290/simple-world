@@ -102,33 +102,30 @@ void applyDragLive(State& s, Symbol& sym, const Geom& g, ImVec2 mouse) {
   const bool both = s.view.curveMode && io.KeyCtrl;  // cmd allows both (TimelineCurveEditor.cs:453)
   const bool allowH = both || s.drag.axis == 1;
   const bool allowV = both || s.drag.axis == 2;
-  double dt = allowH ? (double)dxPx / g.pxPerBar : 0.0;
-  double dv = 0.0;
-  if (allowV) {
-    if (s.view.curveMode) {
-      dv = -(double)dyPx / g.pxPerUnit;
-    } else {
-      // dope value-nudge fork (header comment): rate scales with the first key's magnitude.
-      const double v0 = s.drag.keys.empty() ? 0.0 : s.drag.keys[0].startValue;
-      dv = -(double)dyPx * 0.01 * std::max(1.0, std::fabs(v0));
-    }
-  }
+  // 修5: absolute inverse-transform mapping (drift-free under canvas damping) — seam contract in
+  // timeline_internal.h, implementation below (pure, so the selftest bites it).
+  double dt = 0.0, dv = 0.0;
+  dragDeltaFromMouse(s, g, mouse, allowH, allowV, &dt, &dv);
   // Time snap (= DopeSheetArea.HandleCurvePointDragging cs:925-936): the grabbed key's tentative
-  // time is pulled to raster ticks / playhead / non-selected keys, Shift disables; the snapped
-  // offset moves the whole rigid group (修1 contract intact — one dt for everyone).
+  // time is pulled to raster ticks / playhead / non-selected keys; per-view polarity (修2):
+  // dope = Shift disables, curve editor = Shift enables. The snapped offset moves the whole rigid
+  // group (one dt for everyone).
+  bool did = false;
   if (allowH && !s.drag.keys.empty()) {
     static std::vector<double> anchors;
     collectSnapAnchors(sym, s, g, /*excludeSelected=*/true, anchors);
-    bool did = false;
     const double snapped =
-        snapDragTime(s.drag.refStartTime + dt, g.pxPerBar, anchors, io.KeyShift, &did);
-    if (did) {
-      dt = snapped - s.drag.refStartTime;
-      s.snapStamp = ImGui::GetTime();  // window draws the fading indicator (ValueSnapHandler)
-      s.snapBars = snapped;
-    }
+        snapDragTime(s.drag.refStartTime + dt, g.pxPerBar, anchors,
+                     !snapEnabledForView(s.view.curveMode, io.KeyShift), &did);
+    if (did) dt = snapped - s.drag.refStartTime;
   }
-  applyDragOffset(s, sym, dt, dv);
+  const double applied = applyDragOffset(s, sym, dt, dv);
+  // 修3: stamp AFTER the rigid clamp, only when the applied offset really landed on the anchor —
+  // a clamp-eaten snap must not light the indicator / record eye tl_snap (verification honesty).
+  if (snapIndicatorShouldStamp(did, dt, applied)) {
+    s.snapStamp = ImGui::GetTime();  // window draws the fading indicator (ValueSnapHandler)
+    s.snapBars = s.drag.refStartTime + applied;
+  }
   sw::doc::bumpLibRevision();  // resident projection follows the live drag (Inspector precedent)
 }
 
@@ -191,6 +188,23 @@ void runSetInterpolation(State& s, Symbol& sym, const std::string& symbolId, int
 }  // namespace
 
 // --- gesture core (exported seams, contract in timeline_internal.h) ---
+
+void dragDeltaFromMouse(const State& s, const Geom& g, ImVec2 mouse, bool allowH, bool allowV,
+                        double* dt, double* dv) {
+  // 修5 (contract in timeline_internal.h): dt = time-under-cursor minus time-under-grab-point
+  // (frozen at stage time) = TiXL's per-frame InverseTransformX(MousePos) structure.
+  *dt = allowH ? g.xToTime(mouse.x) - s.drag.mouseStartTime : 0.0;
+  *dv = 0.0;
+  if (allowV) {
+    if (s.view.curveMode) {
+      *dv = g.yToValue(mouse.y) - s.drag.mouseStartValue;  // same absolute form on the value axis
+    } else {
+      // dope value-nudge fork (header comment): pixel-rate, scale-free -> damp-immune as is.
+      const double v0 = s.drag.keys.empty() ? 0.0 : s.drag.keys[0].startValue;
+      *dv = -(double)(mouse.y - s.drag.mouseStart.y) * 0.01 * std::max(1.0, std::fabs(v0));
+    }
+  }
+}
 
 double applyDragOffset(State& s, Symbol& sym, double dt, double dv) {
   // ONE clamp for the whole group (rigid translation, fork 具名 in the header): the most-left

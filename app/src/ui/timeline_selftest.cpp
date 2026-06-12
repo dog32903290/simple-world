@@ -15,6 +15,8 @@
 //   ⑧ beat raster ladder (computeRaster: gear change across zoom + fade + label format)
 //   ⑨ curve-view insert keys (runInsertKeys: sampled value + one-macro undo roundtrip)
 //   ⑩ canvas damping (dampView: damped intermediate frame + N-frame convergence + NaN guard)
+// 批次9 fixer-E2 legs ⑪-⑮ live in timeline_selftest_b9.cpp (runTimelineSelfTestB9Legs): snap
+// polarity / stamp honesty / sibling-channel selection / damp-drag drift / anchor composition.
 // injectBug re-introduces each bug's data shape -> the same CHKs must FAIL (teeth proof).
 #include <cmath>
 #include <cstdio>
@@ -88,7 +90,7 @@ int runTimelineSelfTest(bool injectBug) {
     const std::string preDrag = libToJsonV2(lib);
     State st;
     st.selection = {SelKey{t.childId, t.slotId, 0, 3.0}, SelKey{t.childId, t.slotId, 0, 5.0}};
-    tl::stageDrag(st, *sym, ImVec2(0, 0));
+    tl::stageDrag(st, *sym, tl::Geom{}, ImVec2(0, 0));
     double applied = tl::applyDragOffset(st, *sym, -8.0, 0.0);
     if (injectBug) {  // re-enact the per-key clamp (the 修1 bug shape)
       for (const tl::GroupSnap& gs : st.drag.before)
@@ -358,6 +360,9 @@ int runTimelineSelfTest(bool injectBug) {
     tl::dampView(v, 600.0, 180.0, 1.0 / 60.0);
     CHK(std::isfinite(v.pxPerBar) && std::isfinite(v.pxPerBarT), "⑩ NaN target guarded (cs:217)");
   }
+
+  // ⑪-⑮ batch-9 fixer-E2 legs (timeline_selftest_b9.cpp; the runAnimGuiS6Legs split precedent).
+  failures += tl::runTimelineSelfTestB9Legs(injectBug);
 
   printf("[timeline] %s (%d failure%s)\n", failures ? "FAIL" : "PASS", failures,
          failures == 1 ? "" : "s");

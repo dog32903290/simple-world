@@ -75,6 +75,43 @@ bool selectOnClickOrDrag(State& s, const SelKey& k, bool alreadySelected, bool s
   return false;
 }
 
+void paramKeysAtTime(const Symbol& sym, int childId, const std::string& inputId, double time,
+                     std::vector<SelKey>& out) {
+  // 修4: the channel group at one rounded time (= TiXL FindParameterKeysAtPosition,
+  // DopeSheetArea.cs:976-987; contract in timeline_internal.h). FORK 具名 "roundTime equality":
+  // TiXL matches |U-u| < 1/120 — ours uses the TimePrecision slot, the same identity every other
+  // selection structure (SelKey/isSelected/dedupe) already keys on.
+  out.clear();
+  const double rt = Curve::roundTime(time);
+  const Animator::CurveArray* arr = sym.animator.curvesFor(childId, inputId);
+  if (!arr) return;
+  for (int idx = 0; idx < (int)arr->size(); ++idx)
+    if ((*arr)[idx].hasKeyAt(rt)) out.push_back(SelKey{childId, inputId, idx, rt});
+}
+
+bool selectParamKeysOnClickOrDrag(State& s, const Symbol& sym, const SelKey& k,
+                                  bool alreadySelected, bool shift, bool cmd) {
+  // 修4 (contract in timeline_internal.h): dope-view selection acts on the WHOLE channel group —
+  // same modifier semantics as selectOnClickOrDrag, applied to every sibling key at k's time.
+  std::vector<SelKey> group;
+  paramKeysAtTime(sym, k.childId, k.inputId, k.time, group);
+  if (group.empty()) group.push_back(k);
+  if (cmd) {  // cmd-deselect drops the whole group (= TiXL's FindParameterKeysAtPosition loop)
+    if (alreadySelected)
+      for (const SelKey& gk : group)
+        s.selection.erase(std::remove_if(s.selection.begin(), s.selection.end(),
+                                         [&](const SelKey& e) { return sameKey(e, gk); }),
+                          s.selection.end());
+    return true;
+  }
+  if (!alreadySelected) {
+    if (!shift) s.selection.clear();
+    for (const SelKey& gk : group)
+      if (!isSelected(s, gk.childId, gk.inputId, gk.index, gk.time)) s.selection.push_back(gk);
+  }
+  return false;
+}
+
 void dedupeSelection(std::vector<SelKey>& sel) {
   // O(n^2) over the selection — n is human-scale. Keeps first occurrence, preserves order.
   std::vector<SelKey> out;
@@ -105,9 +142,13 @@ void pruneSelection(State& s, const Symbol& sym) {
   if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) s.suppressDragFromClick = false;
 }
 
-void stageDrag(State& s, const Symbol& sym, ImVec2 mouseStart, const SelKey* grab) {
+void stageDrag(State& s, const Symbol& sym, const Geom& g, ImVec2 mouseStart, const SelKey* grab) {
   s.drag = DragState{};
   s.drag.mouseStart = mouseStart;
+  // 修5: freeze the grab point in time/value space with the DRAWN transform of the stage frame —
+  // the per-frame mapping is then absolute (dragDeltaFromMouse), drift-free under damping.
+  s.drag.mouseStartTime = g.xToTime(mouseStart.x);
+  s.drag.mouseStartValue = g.yToValue(mouseStart.y);
   std::map<std::pair<int, std::string>, bool> seen;
   for (const SelKey& k : s.selection) {
     const Animator::CurveArray* arr = sym.animator.curvesFor(k.childId, k.inputId);

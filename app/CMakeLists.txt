@@ -104,6 +104,7 @@ add_executable(simple_world
   src/ui/timeline_canvas.cpp
   src/ui/timeline_raster.cpp
   src/ui/timeline_selftest.cpp
+  src/ui/timeline_selftest_b9.cpp
   src/ui/node_draw.cpp
   src/ui/node_faces.cpp
   src/ui/node_style.cpp

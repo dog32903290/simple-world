@@ -87,6 +87,12 @@ struct DragState {
   int axis = 0;            // 0 undecided / 1 horizontal(time) / 2 vertical(value) — TiXL
                            // CurveInputEditing.MoveDirections latch (TimelineCurveEditor.cs:439-449)
   ImVec2 mouseStart{};
+  // 修5 (批次9 drift): the grab point frozen in TIME/VALUE space at stage time. The drag mapping
+  // is ABSOLUTE — dt = xToTime(mouse) - mouseStartTime — like TiXL's per-frame
+  // InverseTransformX(MousePos) (DopeSheetArea.cs:925). The old relative dxPx/drawn-scale form
+  // re-priced the same pixel distance every damp frame, so keys drifted while the mouse held still.
+  double mouseStartTime = 0.0;
+  double mouseStartValue = 0.0;
   double refStartTime = 0.0;  // grabbed key's ORIGINAL time — the snap reference (= TiXL snaps the
                               // dragged vDef's U, DopeSheetArea.cs:925-936)
   std::vector<DragKey> keys;
@@ -157,6 +163,20 @@ bool isSelected(const State& s, int childId, const std::string& inputId, int ind
 // shift=add, plain=replace-unless-already-selected. Returns true if the click was a pure
 // deselect (caller must NOT start a drag from it).
 bool selectOnClickOrDrag(State& s, const SelKey& k, bool alreadySelected, bool shift, bool cmd);
+// 修4 (批次9): ALL channels of (childId,inputId) carrying a key at `time`'s rounded slot.
+// = TiXL FindParameterKeysAtPosition (DopeSheetArea.cs:976-987) — TiXL's dope lane LAYERS the
+// channels in one row, so its click/fence naturally catches the .x/.y/.z siblings together.
+void paramKeysAtTime(const Symbol& sym, int childId, const std::string& inputId, double time,
+                     std::vector<SelKey>& out);
+// 修4: dope-view click semantics — selectOnClickOrDrag applied to the WHOLE channel group at the
+// clicked time (= TiXL DopeSheetArea.UpdateSelectionOnClickOrDrag, cs:941-974). With the siblings
+// selected they leave the snap-anchor set (SelectionDragSnapExclusions), so dragging .x is no
+// longer sucked back to its own original time by the .y key. FORK 具名 "per-channel lanes": only
+// the SELECTION semantics follow TiXL's layered lane; our lanes stay one row per channel. The
+// curve editor keeps per-key selection (= TiXL TimelineCurveEditor.UpdateSelectionOnClickOrDrag
+// adds just the clicked vDef — per-channel there too).
+bool selectParamKeysOnClickOrDrag(State& s, const Symbol& sym, const SelKey& k,
+                                  bool alreadySelected, bool shift, bool cmd);
 // Drop duplicate entries naming the same (lane, rounded time) — merge/clobber ghosts (修1②/修5).
 void dedupeSelection(std::vector<SelKey>& sel);
 // Drop selection entries whose key no longer exists on the animator (undo/load can orphan them),
@@ -165,7 +185,9 @@ void pruneSelection(State& s, const Symbol& sym);
 // Stage a key drag: fills drag.keys (selection w/ original time+value) + before snapshots.
 // `grab` = the key whose button started the drag — recorded as drag.refStartTime, the time the
 // snap handler pulls toward beats/keys (= TiXL's dragged vDef). nullptr -> first staged key.
-void stageDrag(State& s, const Symbol& sym, ImVec2 mouseStart, const SelKey* grab = nullptr);
+// `g` freezes the grab point in time/value space (drag.mouseStartTime/Value, 修5 批次9 drift).
+void stageDrag(State& s, const Symbol& sym, const Geom& g, ImVec2 mouseStart,
+               const SelKey* grab = nullptr);
 // Stage a tangent drag on one key (curve view).
 void stageTangentDrag(State& s, const Symbol& sym, const SelKey& k, bool inSide);
 
@@ -179,6 +201,15 @@ void stageTangentDrag(State& s, const Symbol& sym, const SelKey& k, bool inSide)
 // actually applied. FORK 具名 "rigid clamp at 0": TiXL applies the offset unclamped
 // (UpdateDragCommand: U += dt, DopeSheetArea.cs:1056-1066); our timeline starts at 0 (既定).
 double applyDragOffset(State& s, Symbol& sym, double dt, double dv);
+// 修5 (批次9 drift): mouse -> (dt,dv) by ABSOLUTE inverse transform: dt = xToTime(mouse.x) -
+// drag.mouseStartTime (= TiXL InverseTransformX(MousePos) every frame, DopeSheetArea.cs:925).
+// Cursor-anchored zoom keeps the time under a stationary cursor invariant while the canvas damps,
+// so this form is drift-free by construction; the old dxPx/drawn-scale form re-priced the same
+// pixel distance every damp frame (~0.347 bar/frame drift with the mouse still). Curve-view dv is
+// the same structure on the value axis; the dope value-nudge fork stays pixel-rate (scale-free =
+// damp-immune as is). Pure of imgui context so the selftest bites it with two damped geometries.
+void dragDeltaFromMouse(const State& s, const Geom& g, ImVec2 mouse, bool allowH, bool allowV,
+                        double* dt, double* dv);
 // Complete a key drag: push ONE SetCurveGroupSnapshotCommand (before/after) onto `stack`.
 void finishDrag(State& s, SymbolLibrary& lib, CommandStack& stack, const std::string& symbolId,
                 Symbol& sym);
@@ -215,6 +246,16 @@ void dampView(ViewState& v, double widthPx, double heightPx, double dt);
 // snapped time (or `target` untouched); *didSnap reports whether an anchor won.
 double snapDragTime(double target, double pxPerBar, const std::vector<double>& anchors,
                     bool snappingDisabled, bool* didSnap = nullptr);
+// 修2 (批次9): per-view snap polarity. Dope sheet snaps by DEFAULT, Shift disables
+// (DopeSheetArea.cs:927 `if (!KeyShift)`); the curve editor is the OPPOSITE — snap only while
+// Shift is held (TimelineCurveEditor.cs:461 `enableSnapping = KeyShift`). Both views shared the
+// dope polarity before. Returns whether snapping is ENABLED for the view.
+bool snapEnabledForView(bool curveMode, bool shiftHeld);
+// 修3 (批次9): snap-indicator honesty — stamp only when the offset that was actually APPLIED is
+// the snapped one. The rigid clamp (applyDragOffset) can eat the snapped dt (group contains a
+// key@0 dragged left); stamping then lights the orange line + records eye `tl_snap` for a snap
+// that never landed (= lying to the verification surface).
+bool snapIndicatorShouldStamp(bool didSnap, double dtSnapped, double dtApplied);
 // Anchor set for time snapping (= TiXL SnapHandlerForU attractors, TimeLineCanvas.cs:48-54):
 // visible raster ticks + playhead + every keyframe time (excludeSelected drops the dragged
 // selection = TiXL SelectionDragSnapExclusions).
@@ -240,5 +281,11 @@ void drawCurveEditor(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g,
 
 // Execute everything recorded in state().pending; pushes undoable commands (timeline_edit.cpp).
 void executePending(const std::string& symbolId, Symbol& sym, const Geom& g);
+
+// 批次9 fixer-E2 legs of --selftest-timeline (timeline_selftest_b9.cpp, split along the batch
+// seam — ARCHITECTURE rule 4): snap polarity / stamp honesty / sibling-channel selection /
+// damp-drag drift / collectSnapAnchors composition. Returns its failure count; aggregated by
+// runTimelineSelfTest (= the runAnimGuiS6Legs precedent).
+int runTimelineSelfTestB9Legs(bool injectBug);
 
 }  // namespace sw::ui::tl
