@@ -151,6 +151,7 @@ const SelfTest kTable[] = {
     {"animgui", runAnimGuiSelfTest},
     {"residenteval", runResidentEvalSelfTest},
     {"residentcache", runResidentCacheSelfTest},
+    {"idlefade", runIdleFadeSelfTest},
     {"residentpatch", runResidentPatchSelfTest},
     {"residentlibpatch", runResidentLibPatchSelfTest},
     {"radialop", runRadialOpSelfTest},

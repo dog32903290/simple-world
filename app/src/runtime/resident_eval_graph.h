@@ -69,6 +69,12 @@ struct ResidentOutputCache {
   // skips the version compare + recompute, and returns cachedFloat verbatim — so an upstream change can
   // never thaw it. NOT a default, NOT a node skip. Cleared (false) restores normal version-chasing.
   bool isDisabled = false;
+  // editor-only: the frameIndex (ResidentEvalCtx::frameIndex) of the last REAL recompute on this slot
+  // (= TiXL DirtyFlag._lastUpdateTick, DirtyFlag.cs:48 "editor-specific"). Written by pullResidentFloat
+  // ONLY when valueVersion advances (a true recompute). 0 = never recomputed (treat as just-updated,
+  // no fade). UI reads this to compute idle fade: node's max(lastUpdatePass across outputs) -> framesSince
+  // -> RemapAndClamp(0,60,1.0,0.6) (TiXL DrawNode.cs:49-50). Does NOT affect cook semantics.
+  uint32_t lastUpdatePass = 0;
 };
 
 // One inlined operator instance. `path` is the path-qualified id (join of the child-id
@@ -172,6 +178,14 @@ int runResidentEvalSelfTest(bool injectBug);
 // LIVE source (Time) recomputes every frame. injectBug skips bumpLiveSources -> the LIVE node
 // stays frozen on frame 1 (卡舊) -> the per-frame assertion FAILS (teeth, spec 🪤#1).
 int runResidentCacheSelfTest(bool injectBug);
+
+// Headless RED->GREEN proof of the idle fade signal (批次14 lane IF):
+// P1 pullResidentFloat writes cache.lastUpdatePass = ctx.frameIndex on each true recompute;
+// P2 a cache-hit (short-circuit) does NOT update lastUpdatePass (idle node detected);
+// P3 cook output (cachedFloat) is bit-identical whether or not idle tracking is present (iron line);
+// P4 (in ui/node_style) nodeBgColorIdle(1.0)=active=nodeBgColor; nodeBgColorIdle(0.6)!=active.
+// injectBug zeroes lastUpdatePass after the active cook -> the active-vs-idle distinction FAILS.
+int runIdleFadeSelfTest(bool injectBug);
 
 // --- batch 1b / slice-3 first cut: incremental patch (resident_eval_patch.cpp) ---
 // Edit the resident graph IN PLACE, preserving cache on untouched nodes (增量, 不每幀重建 —

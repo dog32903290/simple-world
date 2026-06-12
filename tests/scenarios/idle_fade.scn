@@ -1,0 +1,55 @@
+# idle_fade.scn — 活體牙: 節點 idle fade 視覺 parity (批次14 lane IF)
+# 行為: 靜態節點(非 live source)60 幀無 output 更新 → bg 暗至 60%
+#        live source 節點(Automation-driven)每幀 stamp → bg 維持活躍色
+# TiXL: DrawNode.cs:42-50 RemapAndClamp(framesSince,0,60,1.0,0.6)
+#
+# 構造:
+#   1. 開 compound_smoke.swproj (全靜態節點, lastUpdatePass=0)
+#   2. 等 2 秒 (>60 幀 @ 60fps → 靜態節點完全 idle, bg=0.6 factor)
+#   3. 截 idle_static (全靜態暗色)
+#   4. Animate node:2 Radius → node:2 變 Automation-driven (live source)
+#      → stampLiveLastUpdatePass 每幀更新 → idleFadeFactor 回到 1.0 (活躍亮色)
+#   5. 截 after_animate → node:2 bg 比 idle_static 亮 → assert_diff 通過
+#
+# 鐵線驗證(值/版本鏈不變): assert_state 確認 transport state 正常
+#   + 改 Radius 值截圖前後有 diff (cook 路徑沒被 idle fade 破壞)
+#
+# RED 證法: 移除 wait 2 (< 60 幀 → 靜態節點未 idle) + 移除 Animate 步驟
+#   → idle_static 和 after_animate 顏色相同 → assert_diff FAIL
+#   或: 把 assert_diff 改成 assert_same → 直接 FAIL
+
+open app/testdata/compound_smoke.swproj
+
+# 鐵線: transport 正常運作、值鏈沒有被 idle fade 破壞
+assert_state '.transport.bpm > 0'
+echo iron-line-cook-path-intact
+
+# 等超過 60 幀讓靜態節點進入 idle 狀態
+wait 2
+capture full idle_static
+echo idle-static-captured
+
+# Animate node:2 (EmitterComp) 的 Radius → 變成 Automation-driven (live source)
+# live source 每幀被 stampLiveLastUpdatePass 更新 → idleFadeFactor=1.0 (活躍亮色)
+do click @node:2^
+do rclick @param:Radius
+do click @insp:Animate
+echo node2-is-now-live-source
+
+# 等幾幀讓 stamp 生效 (1 幀已夠，0.1s 安全邊際)
+wait 0.5
+capture full after_animate
+echo after-animate-captured
+
+# node:2 的 bg 從 idle 暗色回到活躍亮色 → 畫面必然有 diff
+assert_diff idle_static
+echo idle-fade-visual-verified
+
+# 鐵線驗證: idle fade 不影響 cook 結果
+# 選 node:2 → 在 Inspector 改 Radius → 截圖前後 output 視圖變化 (geometry 改了)
+capture full before_param_change
+do click @node:2^
+do drag @param:Radius +40 +0
+capture full after_param_change
+assert_diff before_param_change
+echo cook-path-not-broken-by-idle-fade

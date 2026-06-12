@@ -41,6 +41,18 @@ double simDeltaFromWall(double dtSecs);
 // path isn't resident (e.g. just deleted). Pointer is valid this frame only (rebuild-on-edit).
 const float* residentOut(const char* path);
 
+// editor-only: idle fade signal (TiXL DrawNode.cs:42-50 / DirtyFlag.cs:48 "editor-specific").
+// Returns the max lastUpdatePass across all output slots of the resident node at `path`.
+// Returns currentFrameIndex() (= just-updated) when the node is not resident or has no outputs
+// (誠實邊界: unknown / first-frame nodes never fade). UI computes framesSince = currentFrameIndex()
+// - result, then remaps to [1.0, 0.6] over [0, 60] frames (照 TiXL RemapAndClamp). Does NOT
+// affect cook semantics — pure editor-only signal.
+uint32_t residentNodeLastUpdatePass(const char* path);
+
+// Current production frame counter (advanced once per framecook::run() call). UI uses this
+// to compute framesSince = currentFrameIndex() - residentNodeLastUpdatePass(path).
+uint32_t currentFrameIndex();
+
 // Cook every AudioReaction instance in `g` for this frame (TiXL parity): resolve its params
 // through the resident drivers, run the stateful algorithm on `spec`, write the 3 outputs onto
 // the node's extOut. ★時鐘域 SEAM (refuter-S5 BROKEN-A): the time AudioReaction eats is derived

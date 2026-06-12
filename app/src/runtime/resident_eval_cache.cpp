@@ -182,6 +182,7 @@ float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,
   float v = s->evaluate(outIdx, in, ni, ec);
   cache.cachedFloat = v;
   cache.valueVersion = cache.sourceVersion;  // Clear(): valueVersion = sourceVersion
+  cache.lastUpdatePass = ctx.frameIndex;     // editor-only: record when this output last recomputed
   return v;
 }
 

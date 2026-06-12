@@ -71,6 +71,35 @@ const float* residentOut(const char* path) {
   return n ? n->extOut : nullptr;
 }
 
+// editor-only: max lastUpdatePass across ALL outputs of the node at `path`.
+// Returns currentFrameIndex() (= just-updated) when the node is not resident or has no
+// output cache — treating unknown nodes as freshly updated so they never fade (誠實邊界).
+uint32_t residentNodeLastUpdatePass(const char* path) {
+  const ResidentNode* n = g_residentGraph.node(path);
+  if (!n || n->outCache.empty()) return g_frameIndex;  // no resident record -> treat as fresh
+  uint32_t maxPass = 0;
+  for (const auto& kv : n->outCache) {
+    if (kv.second.lastUpdatePass > maxPass) maxPass = kv.second.lastUpdatePass;
+  }
+  return maxPass;
+}
+
+uint32_t currentFrameIndex() { return g_frameIndex; }
+
+// editor-only: stamp lastUpdatePass = g_frameIndex on every LIVE output (isLiveSource=true)
+// in the resident graph. Live nodes (Time / Automation-driven) recompute every frame via
+// cookResident's evalResidentFloat path — that stateless path can't write the cache itself
+// (it doesn't mutate the graph), so we stamp HERE, once per frame, after cookResident runs.
+// Static nodes keep their lastUpdatePass from build-time (0 = never, or from pullResidentFloat
+// if that path is active in selftests) — which makes them idle-fade as soon as the 60-frame
+// window expires. Non-resident nodes return currentFrameIndex() via residentNodeLastUpdatePass()
+// (誠實邊界 = always fresh, never fades).
+void stampLiveLastUpdatePass(ResidentEvalGraph& g, uint32_t frameIndex) {
+  for (ResidentNode& n : g.nodes)
+    for (auto& kv : n.outCache)
+      if (kv.second.isLiveSource) kv.second.lastUpdatePass = frameIndex;
+}
+
 // Cook every AudioReaction instance (TiXL parity): resolve its params through the resident
 // drivers (override/default/wire — the slice-2b seam), run the stateful algorithm on the
 // live spectrum, write its 3 outputs onto the resident node's extOut — the resident cook's
@@ -189,6 +218,9 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // the playhead. (point_graph_resident reads them off the args — no more ctx.time placeholder.)
   pg.cookResident(g_residentGraph, ctx, /*reg=*/nullptr, targetPath,
                   (float)posBars, (float)fxBars, &doc::g_lib);
+  // editor-only: stamp lastUpdatePass on live nodes (Time/Automation-driven) so the UI's idle
+  // fade signal is accurate. Static nodes keep their old lastUpdatePass (idle after 60 frames).
+  stampLiveLastUpdatePass(g_residentGraph, g_frameIndex);
 }
 
 // --- Transport control surface (UI/selftest drive the playback head through these) ---

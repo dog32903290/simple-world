@@ -8,6 +8,8 @@
 #include "imgui.h"
 #include "imgui_node_editor.h"
 
+#include "app/document.h"    // residentPathFor (idle fade resident lookup)
+#include "app/frame_cook.h"  // residentNodeLastUpdatePass / currentFrameIndex (idle fade signal)
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec / pinId — a compound child resolves like an atomic (N1)
 #include "ui/canvas_ids.h"  // childPinId: ed-facing banded pin id
@@ -54,7 +56,21 @@ void drawChild(const sw::SymbolChild& child) {
   ed::PushStyleColor(ed::StyleColor_HovNodeBorder, ImVec4(0, 0, 0, 0));  // invisible: manual blink
   int nColor = 2;
   if (spec) {
-    ed::PushStyleColor(ed::StyleColor_NodeBg, ImGui::ColorConvertU32ToFloat4(nodeBgColor(*spec)));
+    // Idle fade (TiXL DrawNode.cs:42-50, DirtyFlag.cs:48 "editor-specific"):
+    //   framesSince = currentFrameIndex - max(lastUpdatePass across outputs)
+    //   idleFadeFactor = RemapAndClamp(framesSince, 0, 60, 1.0, 0.6)
+    // Nodes not in the resident graph (unsaved, first-frame) return currentFrameIndex as their
+    // lastUpdatePass (誠實邊界: treat as just-updated, no fade).
+    const std::string rpath = doc::residentPathFor(child.id);
+    const uint32_t curPass  = framecook::currentFrameIndex();
+    const uint32_t lastPass = framecook::residentNodeLastUpdatePass(rpath.c_str());
+    // framesSince as float; guard unsigned underflow (lastPass may exceed curPass on first frame)
+    const float framesSince = (curPass >= lastPass) ? (float)(curPass - lastPass) : 0.0f;
+    // TiXL RemapAndClamp(framesSince, 0, 60, 1.0, 0.6): 0 frames=1.0(active), 60+frames=0.6(idle)
+    float idleFadeFactor = 1.0f - (framesSince / 60.0f) * 0.4f;
+    if (idleFadeFactor < 0.6f) idleFadeFactor = 0.6f;
+    if (idleFadeFactor > 1.0f) idleFadeFactor = 1.0f;
+    ed::PushStyleColor(ed::StyleColor_NodeBg, ImGui::ColorConvertU32ToFloat4(nodeBgColorIdle(*spec, idleFadeFactor)));
     ed::PushStyleColor(ed::StyleColor_NodeBorder, ImGui::ColorConvertU32ToFloat4(nodeBorderColor(*spec)));
     nColor += 2;
   }

@@ -167,6 +167,7 @@ add_executable(simple_world
   src/runtime/resident_eval_graph_selftest.cpp
   src/runtime/resident_eval_cache.cpp
   src/runtime/resident_eval_cache_selftest.cpp
+  src/runtime/resident_eval_idlefade_selftest.cpp
   src/runtime/resident_eval_patch.cpp
   src/runtime/resident_eval_patch_selftest.cpp
   src/runtime/resident_eval_patch_lib.cpp

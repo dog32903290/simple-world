@@ -65,6 +65,28 @@ ImU32 nodeBgColor(const sw::NodeSpec& spec)     { return variation(baseColor(cat
 ImU32 nodeBorderColor(const sw::NodeSpec& spec) { return variation(baseColor(categoryType(spec)), 0.1f, 0.7f, 0.5f); }
 ImU32 nodeLabelColor(const sw::NodeSpec& spec)  { return variation(baseColor(categoryType(spec)), 1.3f, 0.4f, 1.0f); }
 
+// Idle-fade background (TiXL DrawNode.cs:121-127 Color.Mix + OperatorBackgroundIdle.Apply):
+//   active   = OperatorBackground.Apply(typeColor)  = variation(b=0.5, s=0.7, op=1.0)
+//   idle     = OperatorBackgroundIdle.Apply(typeColor) = variation(b=0.71, s=1.0, op=0.3)
+//   idleFadeFactor = RemapAndClamp(framesSince, 0, 60, 1.0, 0.6)  (1.0=active, 0.6=idle)
+//   idleFactor     = 1 - idleFadeFactor (0=active, 1=idle)
+//   result = Mix(active, idle, idleFactor) = RGBA linear lerp
+ImU32 nodeBgColorIdle(const sw::NodeSpec& spec, float idleFadeFactor) {
+  const ImVec4 typeCol = baseColor(categoryType(spec));
+  const ImVec4 active  = variation4(typeCol, 0.5f, 0.7f, 1.0f);  // OperatorBackground
+  const ImVec4 idle    = variation4(typeCol, 0.71f, 1.0f, 0.3f); // OperatorBackgroundIdle
+  // idleFadeFactor is [1.0 (active) → 0.6 (fully idle)]; idleFactor is [0→1]
+  const float t = 1.0f - idleFadeFactor;  // t=0 -> active, t=1 -> idle
+  // Clamp t to [0,1] for safety (idleFadeFactor is clamped at call site but guard here too)
+  const float tc = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+  return packU32(ImVec4(
+      active.x + (idle.x - active.x) * tc,
+      active.y + (idle.y - active.y) * tc,
+      active.z + (idle.z - active.z) * tc,
+      active.w + (idle.w - active.w) * tc
+  ));
+}
+
 ImU32 nodeSelectedBorderColor() { return IM_COL32(255, 255, 255, 255); }  // TiXL UiColors.Selection
 ImU32 nodeHoverBorderColor()    { return IM_COL32(210, 210, 220, 170); }
 
@@ -99,6 +121,7 @@ float blinkValue() {
 
 int runNodeStyleSelfTest(bool injectBug) {
   auto maxc = [](ImU32 c) { ImVec4 f = ImGui::ColorConvertU32ToFloat4(c); return std::max({f.x, f.y, f.z}); };
+  auto alpha = [](ImU32 c) { return ImGui::ColorConvertU32ToFloat4(c).w; };
 
   // Type hues: Float is gray (r≈g≈b); Points is red-dominant.
   ImVec4 fl = ImGui::ColorConvertU32ToFloat4(typeColor("Float"));
@@ -111,14 +134,30 @@ int runNodeStyleSelfTest(bool injectBug) {
   const sw::NodeSpec* s = sw::findSpec("AudioReaction");
   bool specFound = s != nullptr;
   bool bgDarkerThanLabel = false;
+  // P4 (idle fade color): nodeBgColorIdle(1.0) == nodeBgColor (fully active = no fade),
+  // nodeBgColorIdle(0.6) has lower alpha (OperatorBackgroundIdle op=0.3 lerp reduces alpha),
+  // and the idle color differs from the active color (they must not be equal).
+  bool idleFadeActive = false;
+  bool idleColorDiffers = false;
   if (s) {
     bgDarkerThanLabel = maxc(nodeBgColor(*s)) < maxc(nodeLabelColor(*s));
     if (injectBug) bgDarkerThanLabel = !bgDarkerThanLabel;  // flip → must FAIL
+
+    ImU32 active = nodeBgColorIdle(*s, 1.0f);  // idleFadeFactor=1.0 -> fully active
+    ImU32 idle   = nodeBgColorIdle(*s, 0.6f);  // idleFadeFactor=0.6 -> fully idle
+    ImU32 normal = nodeBgColor(*s);
+    // Active (idleFadeFactor=1.0) should equal the plain nodeBgColor (t=0 → no idle mixing)
+    idleFadeActive = (active == normal);
+    // The idle variant must have lower alpha (OperatorBackgroundIdle op=0.3 lowers the mix alpha)
+    idleColorDiffers = (alpha(idle) < alpha(active));
+    if (injectBug) idleColorDiffers = !idleColorDiffers;  // flip → must FAIL
   }
 
-  bool ok = grayFloat && redPoints && specFound && bgDarkerThanLabel;
-  std::printf("[selftest-nodestyle] grayFloat=%d redPoints=%d spec=%d bgDarkerThanLabel=%d -> %s\n",
-              grayFloat, redPoints, specFound, bgDarkerThanLabel, ok ? "PASS" : "FAIL");
+  bool ok = grayFloat && redPoints && specFound && bgDarkerThanLabel && idleFadeActive && idleColorDiffers;
+  std::printf("[selftest-nodestyle] grayFloat=%d redPoints=%d spec=%d bgDarkerThanLabel=%d "
+              "idleFadeActive=%d idleColorDiffers=%d -> %s\n",
+              grayFloat, redPoints, specFound, bgDarkerThanLabel,
+              idleFadeActive, idleColorDiffers, ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
 

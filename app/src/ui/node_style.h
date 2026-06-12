@@ -20,6 +20,12 @@ ImU32 nodeBgColor(const sw::NodeSpec& spec);      // OperatorBackground  b0.5  s
 ImU32 nodeBorderColor(const sw::NodeSpec& spec);  // OperatorOutline     b0.1  s0.7  a0.5
 ImU32 nodeLabelColor(const sw::NodeSpec& spec);   // OperatorLabel       b1.3  s0.4  a1.0
 
+// Idle-fade variant (TiXL DrawNode.cs:49-50 + OperatorBackgroundIdle ColorVariation b=0.71,s=1.0,op=0.3):
+// idleFadeFactor = RemapAndClamp(framesSince, 0, 60, 1.0, 0.6). When idleFadeFactor==1.0 returns
+// nodeBgColor (fully active); when 0.6 lerps toward the idle (dark) variant. Caller computes
+// idleFadeFactor from framecook::currentFrameIndex() - framecook::residentNodeLastUpdatePass(path).
+ImU32 nodeBgColorIdle(const sw::NodeSpec& spec, float idleFadeFactor);
+
 // Selection / hover outlines (TiXL UiColors.Selection is white, category-independent).
 ImU32 nodeSelectedBorderColor();  // bright white — selected node outline
 ImU32 nodeHoverBorderColor();     // soft white — hovered node outline
