@@ -57,6 +57,37 @@ void childOutputStateFromJson(crude_json::value& outsv, const Symbol* refSym, Sy
   }
 }
 
+// Annotation 批A (契約2): read the optional "annotations" segment onto `s`. S15-tolerant exactly like
+// TiXL ReadAnnotations (SymbolUiJson.cs:505-530): a missing/non-string id -> SKIP that entry + warn,
+// never fails the symbol; missing title/label -> ""; missing color -> default gray; missing pos/size
+// -> 0; missing collapsed -> false. An absent or non-array "annotations" key = the common old-file
+// case -> zero annotations, ZERO warning (matches TiXL "not JArray -> return empty", :503-504).
+void annotationsFromJson(crude_json::value& annsv, Symbol& s, std::vector<std::string>* warnSink) {
+  if (!annsv.is_array()) return;  // absent / garbage type -> empty, no warning (old files)
+  for (auto& av : annsv.get<crude_json::array>()) {
+    if (!av.is_object() || !av["id"].is_string() || av["id"].get<crude_json::string>().empty()) {
+      appendWarn(warnSink, "annotation with missing/invalid id in '" + s.id + "' — dropped");
+      continue;
+    }
+    Annotation a;
+    a.id = av["id"].get<crude_json::string>();
+    if (av["title"].is_string()) a.title = av["title"].get<crude_json::string>();
+    if (av["label"].is_string()) a.label = av["label"].get<crude_json::string>();
+    if (av["collapsed"].is_boolean()) a.collapsed = av["collapsed"].get<bool>();
+    // Color: present -> read 4 floats; absent -> keep the struct's default gray (TiXL :522-526).
+    if (av["color"].is_array()) {
+      auto& c = av["color"].get<crude_json::array>();
+      for (int i = 0; i < 4 && i < (int)c.size(); ++i)
+        if (c[i].is_number()) a.color[i] = (float)c[i].get<crude_json::number>();
+    }
+    if (av["x"].is_number()) a.x = (float)av["x"].get<crude_json::number>();
+    if (av["y"].is_number()) a.y = (float)av["y"].get<crude_json::number>();
+    if (av["w"].is_number()) a.w = (float)av["w"].get<crude_json::number>();
+    if (av["h"].is_number()) a.h = (float)av["h"].get<crude_json::number>();
+    s.annotations.push_back(a);
+  }
+}
+
 }  // namespace
 
 bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
@@ -326,6 +357,11 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
         s.animator.setCurves(key.first, key.second, std::move(arr));
       }
     }
+
+    // Annotation 批A (契約2): the optional UI-only annotations segment (= TiXL ReadAnnotations). No
+    // cross-reference to children/connections (annotation framing is a live geometric query, never a
+    // persisted membership — 契約1), so it resolves independently here in phase 2. Absent = empty.
+    if (sv.contains("annotations")) annotationsFromJson(sv["annotations"], s, warnings);
   }
 
   // Root resolve: missing/unknown root falls back to the first compound (load 不死).

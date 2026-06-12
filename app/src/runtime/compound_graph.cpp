@@ -326,4 +326,13 @@ void restoreSlotDefToLib(SymbolLibrary& lib, const std::string& symbolId, const 
   }
 }
 
+// Annotation 批A: the one definition of "is this the default gray color" — shared by the save side
+// (omit a default color, keeping the file minimal/diff-clean like every other "omit at default" knob
+// in compound_save) and any future inspector. Exact equality is fine: the default is set from the
+// SAME literal table (kAnnotationGrayRGBA), never computed.
+bool annotationColorIsDefault(const Annotation& a) {
+  return a.color[0] == kAnnotationGrayRGBA[0] && a.color[1] == kAnnotationGrayRGBA[1] &&
+         a.color[2] == kAnnotationGrayRGBA[2] && a.color[3] == kAnnotationGrayRGBA[3];
+}
+
 }  // namespace sw

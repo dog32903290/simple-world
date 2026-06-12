@@ -1,0 +1,26 @@
+{
+  "formatVersion": 2,
+  "rootSymbolId": "Root",
+  "composition": {
+    "bpm": 120,
+    "soundtrackPath": "",
+    "soundtrackVolume": 1
+  },
+  "symbols": [
+    {
+      "id": "Root",
+      "name": "Root",
+      "nextChildId": 2,
+      "inputDefs": [],
+      "outputDefs": [],
+      "children": [
+        {"id": 1, "symbolId": "5d3a9c1e-7b42-4f0e-9a11-c2e84d6f0a01", "overrides": {}, "x": 200, "y": 200}
+      ],
+      "connections": [],
+      "annotations": [
+        {"id": "ann-smoke-1", "title": "# 框住一群點", "label": "Group A", "color": [0.2, 0.5, 0.9, 1.0], "x": 120, "y": 140, "w": 320, "h": 260},
+        {"id": "ann-smoke-2", "x": 480, "y": 140, "w": 160, "h": 120}
+      ]
+    }
+  ]
+}

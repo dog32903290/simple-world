@@ -79,6 +79,32 @@ crude_json::array childOutputStateToJson(const SymbolChild& c) {
   return outs;
 }
 
+// Annotation 批A (契約2): one annotation -> {id, [title], [label], [collapsed], [color], x,y,w,h}.
+// Mirrors TiXL SymbolUiJson.cs:178-203 omission discipline — empty title/label and false collapsed
+// are OMITTED (the common case → minimal file/diff). Color: TiXL ALWAYS writes it; we OMIT a default
+// gray (named fork-A2, low risk) to match every other "omit at default" knob in this writer — the id
+// (always present) keeps the entry identifiable, and load restores gray when the key is absent. pos/
+// size always written (a frame without geometry is meaningless; matches GetVec2OrDefault on read).
+// title/label may be CJK: crude_json dumps raw UTF-8 byte-stable (sw-patch utf8), so the roundtrip
+// holds (golden covers a 中文 title). NaN-guarded via finiteOr0 (the whole-file abort gate).
+crude_json::value annotationToJson(const Annotation& a) {
+  crude_json::object o;
+  o["id"] = a.id;
+  if (!a.title.empty()) o["title"] = a.title;
+  if (!a.label.empty()) o["label"] = a.label;
+  if (a.collapsed) o["collapsed"] = true;
+  if (!annotationColorIsDefault(a)) {
+    crude_json::array c;
+    for (int i = 0; i < 4; ++i) c.push_back(finiteOr0(a.color[i]));
+    o["color"] = crude_json::value(c);
+  }
+  o["x"] = finiteOr0(a.x);
+  o["y"] = finiteOr0(a.y);
+  o["w"] = finiteOr0(a.w);
+  o["h"] = finiteOr0(a.h);
+  return crude_json::value(o);
+}
+
 }  // namespace
 
 std::string atomicUuidForType(const std::string& type) {
@@ -193,6 +219,20 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
         }
       }
       o["animator"] = crude_json::value(anim);
+    }
+
+    // Annotation 批A (契約2): the optional "annotations" segment, sorted by id (= TiXL OrderBy(Id),
+    // SymbolUiJson.cs:178 — a stable file = clean diffs, same intent as the symbols/connections sort).
+    // OMITTED entirely when the symbol has none, so an old file with no annotations stays byte-identical
+    // and a reader without the segment is the common case (S15: absent = empty, zero warning).
+    if (!s->annotations.empty()) {
+      std::vector<const Annotation*> sorted;
+      for (const Annotation& a : s->annotations) sorted.push_back(&a);
+      std::sort(sorted.begin(), sorted.end(),
+                [](const Annotation* a, const Annotation* b) { return a->id < b->id; });
+      crude_json::array anns;
+      for (const Annotation* a : sorted) anns.push_back(annotationToJson(*a));
+      o["annotations"] = crude_json::value(anns);
     }
     symbols.push_back(crude_json::value(o));
   }

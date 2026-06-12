@@ -85,6 +85,8 @@ add_executable(simple_world
   src/app/animation_commands_selftest_s6.cpp
   src/app/rename_commands.cpp
   src/app/child_state_commands.cpp
+  src/app/annotation_commands.cpp
+  src/app/annotation_selftest.cpp
   src/app/def_removal_selftest.cpp
   src/app/copy_paste_selftest.cpp
   src/app/rename_selftest.cpp

@@ -33,3 +33,4 @@ node_modules/
 /.worktrees/
 
 tests/scenarios/d4_save_tmp.swproj
+tests/scenarios/*_save_tmp.swproj

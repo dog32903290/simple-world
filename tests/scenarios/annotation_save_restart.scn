@@ -1,0 +1,42 @@
+# annotation_save_restart.scn — Annotation 批A 活體牙: a seeded annotations segment survives
+#   open -> Save -> relaunch -> open. Proves the savev2 "annotations" round-trip is LIVE (not just
+#   the headless --selftest-annotation roundtrip): the running app loads it, persists it through the
+#   real Save path, and re-reads it in a fresh process.
+#
+# 批A has NO annotation create/draw UI yet (Shift+A create + drawing = 批B/C territory), so we seed
+# the frames from a pristine fixture instead of building them by hand. state.json's .lib field IS
+# libToJsonV2(g_lib) (main.cpp:244), so the annotations segment shows up in assert_state with zero new
+# eye hooks — the same single seam the rest of save/load is verified through.
+#
+# File: tests/scenarios/annotation_save_tmp.swproj — regenerated from app/testdata/annotation_smoke.swproj
+#   every run (gitignored, never checked in). The smoke file seeds two annotations on Root:
+#   ann-smoke-1 (custom blue, "# 框住一群點"/"Group A") and ann-smoke-2 (all-default, minimal).
+#
+# RED proof: change the post-restart count assert to `== 3` -> RED (only 2 annotations exist).
+
+fixture app/testdata/annotation_smoke.swproj tests/scenarios/annotation_save_tmp.swproj
+open tests/scenarios/annotation_save_tmp.swproj
+
+# 1. After load: both seeded annotations present on Root, with their fields intact.
+#    NOTE: the .scn preprocessor strips everything after a literal '#' (comment marker), and
+#    ann-smoke-1's title begins with "# " — so an assert can't contain that literal title. We match
+#    its CJK BODY with endswith (no '#') + label here; the exact "# " prefix byte is covered by the
+#    headless --selftest-annotation byte-stable golden instead. Floats use a tolerance (state.json
+#    dumps float32, so 0.2 reads back as 0.2000000298...).
+assert_state '[.lib.symbols[] | select(.id=="Root") | .annotations[]] | length == 2'
+assert_state '.lib.symbols[] | select(.id=="Root") | .annotations[] | select(.id=="ann-smoke-1") | (.title | endswith("框住一群點")) and .label == "Group A"'
+assert_state '.lib.symbols[] | select(.id=="Root") | .annotations[] | select(.id=="ann-smoke-1") | (.color[0] - 0.2 | if . < 0 then -. else . end) < 0.001 and (.collapsed // false) == false'
+echo annotation-loaded
+
+# 2. Save via toolbar Save button (path already known from open -> no file dialog).
+do click @Save
+echo annotation-saved
+
+# 3. Relaunch with the same file (open directive kills app, restarts with --open).
+open tests/scenarios/annotation_save_tmp.swproj
+
+# 4. After fresh launch: the annotations are still there, fields byte-faithful through the roundtrip.
+assert_state '[.lib.symbols[] | select(.id=="Root") | .annotations[]] | length == 2'
+assert_state '.lib.symbols[] | select(.id=="Root") | .annotations[] | select(.id=="ann-smoke-1") | (.title | endswith("框住一群點")) and .label == "Group A" and .w == 320'
+assert_state '.lib.symbols[] | select(.id=="Root") | .annotations[] | select(.id=="ann-smoke-2") | .w == 160 and (has("title") | not) and (has("color") | not)'
+echo annotation-persisted-after-restart

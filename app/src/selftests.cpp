@@ -13,6 +13,7 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
+#include "app/annotation_commands.h"  // runAnnotationSelfTest (Annotation 批A 資料/存讀/命令)
 #include "app/audio_monitor.h"
 #include "app/command.h"
 #include "app/document.h"  // runNavigationSelfTest (composition-path semantics)
@@ -117,6 +118,7 @@ const SelfTest kTable[] = {
     {"copypaste", runCopyPasteSelfTest},
     {"rename", runRenameSelfTest},
     {"childstate", runChildStateSelfTest},
+    {"annotation", runAnnotationSelfTest},
     {"navigation", doc::runNavigationSelfTest},
     {"valuecook", runValueCookSelfTest},
     {"resolve", runResolveSelfTest},

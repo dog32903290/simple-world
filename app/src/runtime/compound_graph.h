@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "runtime/annotation.h"      // Annotation (UI-only canvas frame; Symbol carries a list)
 #include "runtime/curve_animator.h"  // Animator (S3 definition-layer automation authority)
 
 namespace sw {
@@ -113,6 +114,13 @@ struct Symbol {
   // symbol's subgraph (= TiXL Symbol.Animator, Symbol.cs). Editing a curve here broadcasts to every
   // instance (reuse). The resident projection's Automation drivers resolve curveRefs INTO this.
   Animator animator;
+  // Annotation 批A: the canvas annotation frames owned by THIS symbol's composition (= TiXL
+  // SymbolUi.Annotations, SymbolUi.cs:321). UI-ONLY — cook/Slot/DirtyFlag never read it (契約 0).
+  // We have no separate SymbolUi layer, so the list rides on the Symbol but stays out of every
+  // evaluation path (fork-A0, named). LAST member + default-empty so positional aggregate inits
+  // ({id, name, atomic, ...}) at the selftest call sites keep compiling. Serialized as the v2
+  // "annotations" segment (compound_save), never into inputDefs/outputDefs/children/connections.
+  std::vector<Annotation> annotations;
 };
 
 // Project-level playback/audio settings (= TiXL CompositionSettings / Playback.Settings —
