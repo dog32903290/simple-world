@@ -3,7 +3,9 @@
 //   timeline_window.cpp       window shell: lanes, ruler, playhead, zoom/pan, context menu
 //   timeline_dopesheet.cpp    dope-sheet view (lanes + key diamonds + fence + multi-drag)
 //   timeline_curve_editor.cpp curve-editor view (value axis + curve lines + 2-axis drag + tangents)
-//   timeline_edit.cpp         selection helpers + executePending (the ONLY place curves mutate)
+//   timeline_select.cpp       selection state + helpers (session singleton)
+//   timeline_edit.cpp         gesture core + executePending (the ONLY place curves mutate)
+//   timeline_selftest.cpp     --selftest-timeline teeth on the exported gesture-core seams
 //
 // 鐵律（批次7 BUG-B 前科）：視圖迴圈裡迭代 curve.table() 時絕不 addOrUpdate/removeAt——視圖只
 // 「記錄」手勢進 Pending，timeline_edit::executePending 在所有迭代器收掉之後才執行。In-place 改
@@ -18,6 +20,10 @@
 #include "runtime/compound_graph.h"
 #include "runtime/curve.h"
 
+namespace sw {
+class CommandStack;  // app/command.h — timeline_edit pushes undoable gesture commands onto it
+}
+
 namespace sw::ui::tl {
 
 // One animated channel to draw: which (child,input) + array index, plus its resolved label.
@@ -29,6 +35,11 @@ struct Lane {
 };
 
 // A selected key, identified by (lane, rounded time) — session-only, like node selection.
+// 殘留限制具名 (修5): (childId,inputId,index,roundTime) is NOT a stable key identity — a drag that
+// clobbers an unselected key, or an undo that reorders the table, can leave two entries naming the
+// same key. Guards in place: drag re-applies are RIGID (no intra-selection merge, timeline_edit),
+// pruneSelection dedupes every frame, runDeleteSelected counts UNIQUE existing keys, and the
+// window clears the selection on composition switch (cross-composition leak = refuter 盲區3).
 struct SelKey {
   int childId = -1;
   std::string inputId;
@@ -36,8 +47,12 @@ struct SelKey {
   double time = 0.0;
 };
 
-// View transform state. Time axis = TiXL ScalableCanvas Scale.X/Scroll.X (TimeLineCanvas clamps
-// X to [0.01,5000], ScalableCanvas.cs:308-310); value axis only meaningful in curve mode.
+// View transform state. Time axis = TiXL ScalableCanvas Scale.X/Scroll.X. Wheel zoom factor =
+// ComputeZoomDeltaFromMouseWheel (ScalableCanvas.cs:453-477): integer 1.2 steps, factor clamped
+// [0.02,100]; the resulting Scale.X is clamped [0.01,5000] (TimeLineCanvas branch of
+// ClampScaleToValidRange, ScalableCanvas.cs:303-311). Value axis only meaningful in curve mode;
+// TiXL's curve canvas skips the scale clamp entirely (IsCurveCanvas early-out) — our pxPerUnit
+// clamp [1e-4,1e6] is a 具名 fork (NaN guard).
 struct ViewState {
   double pxPerBar = 40.0;     // = TiXL Scale.X (px per bar)
   double scrollBars = 0.0;    // = TiXL Scroll.X (bars at the content left edge)
@@ -97,8 +112,11 @@ struct State {
   // Set when a key click was a pure cmd-deselect: that press must not turn into a drag
   // (TiXL UpdateSelectionOnClickOrDrag's early-return, DopeSheetArea.cs:947-957). Cleared on release.
   bool suppressDragFromClick = false;
+  // 修5: selection scope guard — the window clears `selection` whenever the composition changes,
+  // so (childId,inputId) pairs never leak into a foreign symbol's lanes.
+  std::string lastSymbolId;
 };
-State& state();  // session singleton (timeline_edit.cpp)
+State& state();  // session singleton (timeline_select.cpp)
 
 // Per-frame content geometry + the time/value <-> screen transforms both views share.
 struct Geom {
@@ -116,18 +134,50 @@ constexpr float kLaneH = 22.0f;   // per-lane height (dope view)
 constexpr float kKeyR = 5.0f;     // key diamond half-size (hit + draw)
 constexpr float kDragLatchPx = 4.0f;  // axis-latch threshold (= TiXL MoveDirectionThreshold风格)
 
-// --- selection helpers (timeline_edit.cpp) ---
+// --- selection helpers (timeline_select.cpp) ---
 bool isSelected(const State& s, int childId, const std::string& inputId, int index, double time);
 // = TiXL DopeSheetArea.UpdateSelectionOnClickOrDrag (cs:941-974): cmd(io.KeyCtrl)=deselect,
 // shift=add, plain=replace-unless-already-selected. Returns true if the click was a pure
 // deselect (caller must NOT start a drag from it).
 bool selectOnClickOrDrag(State& s, const SelKey& k, bool alreadySelected, bool shift, bool cmd);
-// Drop selection entries whose key no longer exists on the animator (undo/load can orphan them).
+// Drop duplicate entries naming the same (lane, rounded time) — merge/clobber ghosts (修1②/修5).
+void dedupeSelection(std::vector<SelKey>& sel);
+// Drop selection entries whose key no longer exists on the animator (undo/load can orphan them),
+// then dedupe (one key = one entry, always).
 void pruneSelection(State& s, const Symbol& sym);
 // Stage a key drag: fills drag.keys (selection w/ original time+value) + before snapshots.
 void stageDrag(State& s, const Symbol& sym, ImVec2 mouseStart);
 // Stage a tangent drag on one key (curve view).
 void stageTangentDrag(State& s, const Symbol& sym, const SelKey& k, bool inSide);
+
+// --- gesture core (timeline_edit.cpp / timeline_window.cpp) ---
+// Pure of imgui INPUT state (the views/executor compute dt/dv/angle from the mouse) so
+// --selftest-timeline can bite the real mutation code headless.
+//
+// Rigid-group translation: restore the pre-drag arrays, then re-apply ONE (dt,dv) offset to every
+// staged key. dt is clamped ONCE for the whole group so min(selected times)+dt >= 0 — relative
+// spacing is preserved, selected keys can never merge into each other (修1①). Returns the dt
+// actually applied. FORK 具名 "rigid clamp at 0": TiXL applies the offset unclamped
+// (UpdateDragCommand: U += dt, DopeSheetArea.cs:1056-1066); our timeline starts at 0 (既定).
+double applyDragOffset(State& s, Symbol& sym, double dt, double dv);
+// Complete a key drag: push ONE SetCurveGroupSnapshotCommand (before/after) onto `stack`.
+void finishDrag(State& s, SymbolLibrary& lib, CommandStack& stack, const std::string& symbolId,
+                Symbol& sym);
+// Tangent-drag write on one key's side (= TiXL CurvePoint.HandleTangentDrag write phase,
+// CurvePoint.cs:176-300): side -> Tangent + angle, cmd breaks, mirror when linked, broken
+// promotes the OPPOSITE side Linear -> Tangent (cs:289-298, 修3). Deliberately NO updateTangents
+// (修2): TiXL never calls UpdateTangents mid-drag, and ours unconditionally re-mirrors boundary
+// keys (curve.cpp updateTangents), which would punch the authored broken angle right back.
+void applyTangentDrag(Curve& c, double keyTime, bool inSide, double angle, bool breakTangents);
+// Delete the selected keys (= TiXL AnimationOperations.DeleteSelectedKeyframesFromAnimation-
+// Parameters, cs:57-99): all keys of an input selected -> RemoveAnimation (driver back to
+// Constant), else per-key delete. Counts UNIQUE EXISTING selected keys so duplicate/ghost
+// selection entries can never misroute a partial delete into RemoveAnimation (修1③).
+void runDeleteSelected(State& s, SymbolLibrary& lib, CommandStack& stack,
+                       const std::string& symbolId, Symbol& sym);
+// = TiXL ScalableCanvas.ComputeZoomDeltaFromMouseWheel (ScalableCanvas.cs:453-477): integer-step
+// 1.2 loop (a fractional notch counts as one full step), clamped [0.02,100] (修4).
+double zoomDeltaFromWheel(float wheel);
 
 // --- views (record-only; NO curve mutation inside) ---
 void drawDopeSheet(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g, ImDrawList* dl);

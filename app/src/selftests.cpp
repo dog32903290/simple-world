@@ -42,6 +42,7 @@
 #include "runtime/transport.h"
 #include "ui/cjk_font.h"
 #include "ui/node_style.h"
+#include "ui/timeline_window.h"  // runTimelineSelfTest (S6 timeline gesture core)
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
 
@@ -160,6 +161,7 @@ const SelfTest kTable[] = {
     {"combinebuffers", runCombineBuffersSelfTest},
     {"rendertarget", runRenderTargetSelfTest},
     {"rendertargetwired", runRenderTargetWiredSelfTest},
+    {"timeline", ui::runTimelineSelfTest},
     {"nodestyle", ui::runNodeStyleSelfTest},
     {"cjkfont", ui::runCjkFontSelfTest},
     {"eye", eye::runSelfTest},

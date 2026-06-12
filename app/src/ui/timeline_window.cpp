@@ -23,6 +23,22 @@
 #include "verify/eye/eye.h"  // one-line hooks: content/playhead/mode rects for the hand
 
 namespace sw::ui {
+
+namespace tl {
+// = TiXL ScalableCanvas.ComputeZoomDeltaFromMouseWheel (ScalableCanvas.cs:453-477): INTEGER-step
+// loop — every wheel notch (or fractional remainder of one) multiplies/divides by 1.2 once, i.e.
+// 1.2^ceil(|wheel|). Mac touchpads send fractional wheel constantly; the previous pow(1.2, wheel)
+// drifted from TiXL's feel on every flick (refuter 修4). Factor clamped [0.02,100] (cs:476).
+double zoomDeltaFromWheel(float wheel) {
+  double sum = 1.0;
+  if (wheel < 0.0f)
+    for (float z = wheel; z < 0.0f; z += 1.0f) sum /= 1.2;
+  if (wheel > 0.0f)
+    for (float z = wheel; z > 0.0f; z -= 1.0f) sum *= 1.2;
+  return std::clamp(sum, 0.02, 100.0);
+}
+}  // namespace tl
+
 namespace {
 
 constexpr float kLaneLabelW = 150.0f;  // left gutter width for "child.input" labels
@@ -46,7 +62,7 @@ std::string laneLabel(const Symbol& sym, int childId, const std::string& inputId
 }
 
 // Wheel zoom + right-drag pan (= TiXL ScalableCanvas, fork: no scale/scroll damping).
-// Zoom factor 1.2^wheel = ComputeZoomDeltaFromMouseWheel (ScalableCanvas.cs:454-470), anchored at
+// Zoom factor = tl::zoomDeltaFromWheel (integer 1.2 steps, [0.02,100] — cs:453-477), anchored at
 // the cursor (ApplyZoomDelta cs:382-415). Dope view zooms X only (TimeLineCanvas.ApplyZoomDelta
 // override cs:335-357); curve view zooms both, Alt = Y-only, Shift = X-only (cs:396-406).
 // Pan: right-drag (cs:261-274); horizontal wheel pans X (touchpad path cs:283, speed fork 60px).
@@ -56,16 +72,19 @@ void handleZoomPan(tl::ViewState& v, const tl::Geom& g) {
   const bool inContent = ImGui::IsWindowHovered() &&
                          m.x >= g.x0 && m.x <= g.x1 && m.y >= g.y0 - kRulerH && m.y <= g.y1;
   if (inContent && io.MouseWheel != 0.0f) {
-    const double z = std::pow(1.2, (double)io.MouseWheel);
+    const double z = tl::zoomDeltaFromWheel(io.MouseWheel);
     const bool zoomX = !(v.curveMode && io.KeyAlt);
     const bool zoomY = v.curveMode && !io.KeyShift;
     if (zoomX) {
       const double focus = g.xToTime(m.x);
-      v.pxPerBar = std::clamp(v.pxPerBar * z, 0.05, 5000.0);
+      // Scale clamp [0.01,5000] = TimeLineCanvas branch of ClampScaleToValidRange (cs:303-311).
+      v.pxPerBar = std::clamp(v.pxPerBar * z, 0.01, 5000.0);
       v.scrollBars = focus - (double)(m.x - g.x0) / v.pxPerBar;  // keep the bar under the cursor
     }
     if (zoomY) {
       const double focus = g.yToValue(m.y);
+      // FORK 具名: TiXL's curve canvas skips the scale clamp (IsCurveCanvas early-out, cs:305-306);
+      // ours keeps [1e-4,1e6] as a NaN guard on pxPerUnit.
       v.pxPerUnit = std::clamp(v.pxPerUnit * z, 1e-4, 1e6);
       v.valueBottom = focus - (double)(g.y1 - m.y) / v.pxPerUnit;
     }
@@ -156,6 +175,13 @@ void drawTimelineWindow() {
   if (!sym) { ImGui::TextDisabled("(no composition)"); ImGui::End(); return; }
   const std::string symbolId = sym->id;
   tl::State& s = tl::state();
+  // Selection is scoped to ONE composition (修5): switching symbols drops it, otherwise stale
+  // (childId,inputId) pairs leak across compositions and silently select foreign keys whose ids
+  // happen to coincide (refuter 盲區3).
+  if (s.lastSymbolId != symbolId) {
+    s.selection.clear();
+    s.lastSymbolId = symbolId;
+  }
   tl::pruneSelection(s, *sym);
 
   // Collect the lanes from the current symbol's Animator (one per channel of each animated input).

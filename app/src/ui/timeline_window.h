@@ -18,4 +18,10 @@ namespace sw::ui {
 // Draw the Timeline window. Call once per frame alongside drawToolbar/drawInspector/etc.
 void drawTimelineWindow();
 
+// Headless RED->GREEN teeth for the S6 gesture core (--selftest-timeline): rigid group drag
+// clamp, ghost-selection dedupe, delete misroute guard, boundary tangent roundtrip, Linear->
+// Tangent promotion, wheel-zoom pins (refuter 批次8 五條 BROKEN 轉正式 leg). Lives in
+// timeline_selftest.cpp; injectBug re-introduces each bug's data shape -> the legs must FAIL.
+int runTimelineSelfTest(bool injectBug);
+
 }  // namespace sw::ui

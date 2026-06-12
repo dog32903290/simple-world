@@ -8,6 +8,10 @@
 //   drag lifecycle         = ITimeObjectManipulation Start/Update/CompleteDragCommand
 //                            (DopeSheetArea.cs:1051-1083); restore+reapply replaces TiXL's
 //                            "mutate U then RebuildCurveTables" (no incremental drift, fork 具名)
+//   drag clamp             = FORK 具名 "rigid clamp at 0": TiXL moves keys unclamped (U += dt,
+//                            cs:1056-1066, negative times allowed); our timeline starts at 0, so
+//                            the GROUP offset is clamped once (applyDragOffset) — per-key clamping
+//                            piled dragged keys onto t=0 and merged them (refuter 修1, 資料毀損鏈)
 //   axis latch             = CurveInputEditing.MoveDirections (TimelineCurveEditor.cs:439-449);
 //                            cmd(io.KeyCtrl) allows both axes (cs:453-459)
 //   dope vertical drag     = FORK 具名 "value-nudge": TiXL keeps the dope drag horizontal-only
@@ -15,16 +19,19 @@
 //                            vertical to dv = -dyPx * 0.01 * max(1,|v0|) so 柏為 can nudge values
 //                            without switching views. Full-value editing = the Curves view.
 //   tangent drag           = CurvePoint.HandleTangentDrag (CurvePoint.cs:171-300): side -> Tangent,
-//                            mirror when !broken, cmd breaks; weighted/tension/snaps stay locked
+//                            mirror when !broken, cmd breaks, broken promotes the other side
+//                            Linear -> Tangent; NO UpdateTangents mid-drag (修2/修3);
+//                            weighted/tension/snaps stay locked
 //   interpolation switch   = CurveEditing.OnLinear/OnSmooth/OnCubic/OnHorizontal/OnConstant
 //                            (CurveEditing.cs:397-462) + UpdateAllTangents
 //   delete selection       = AnimationOperations.DeleteSelectedKeyframesFromAnimationParameters
-//                            (AnimationOperations.cs:57-95): ALL keys of an input selected ->
+//                            (AnimationOperations.cs:57-99): ALL keys of an input selected ->
 //                            RemoveAnimation (driver back to Constant), else delete keys
 #include <algorithm>
 #include <cmath>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -47,11 +54,6 @@ Curve* curveAt(Symbol& sym, const SelKey& k) {
   Animator::CurveArray* arr = sym.animator.curvesFor(k.childId, k.inputId);
   if (!arr || k.index < 0 || k.index >= (int)arr->size()) return nullptr;
   return &(*arr)[k.index];
-}
-
-bool sameKey(const SelKey& a, const SelKey& b) {
-  return a.childId == b.childId && a.inputId == b.inputId && a.index == b.index &&
-         Curve::roundTime(a.time) == Curve::roundTime(b.time);
 }
 
 // = TiXL CurveEditing.On* (CurveEditing.cs:397-462), field-for-field.
@@ -87,7 +89,7 @@ void applyInterpSemantics(VDefinition& v, KeyInterpolation mode) {
   }
 }
 
-// --- multi-key drag (live) ---
+// --- multi-key drag (live wrapper: mouse -> dt/dv, core in applyDragOffset) ---
 
 void applyDragLive(State& s, Symbol& sym, const Geom& g, ImVec2 mouse) {
   ImGuiIO& io = ImGui::GetIO();
@@ -111,74 +113,26 @@ void applyDragLive(State& s, Symbol& sym, const Geom& g, ImVec2 mouse) {
       dv = -(double)dyPx * 0.01 * std::max(1.0, std::fabs(v0));
     }
   }
-
-  // Restore the pre-drag arrays, then re-apply the full offset (no incremental drift).
-  for (const GroupSnap& gs : s.drag.before)
-    sym.animator.setCurves(gs.childId, gs.inputId, gs.before);
-  for (const DragKey& dk : s.drag.keys)
-    if (Curve* c = curveAt(sym, dk.key)) c->removeAt(dk.startTime);
-  s.selection.clear();
-  for (const DragKey& dk : s.drag.keys) {
-    Curve* c = curveAt(sym, dk.key);
-    if (!c) continue;
-    const double newT = std::max(0.0, Curve::roundTime(dk.startTime + dt));
-    VDefinition v = dk.def;
-    v.u = newT;
-    v.value = dk.startValue + dv;
-    c->addOrUpdate(newT, v);  // collision with an unselected key clobbers it (= AddOrUpdateV 律)
-    s.selection.push_back(SelKey{dk.key.childId, dk.key.inputId, dk.key.index, newT});
-  }
+  applyDragOffset(s, sym, dt, dv);
   sw::doc::bumpLibRevision();  // resident projection follows the live drag (Inspector precedent)
 }
 
-void finishDrag(State& s, Symbol& sym, const std::string& symbolId) {
-  std::vector<CurveGroupEdit> edits;
-  for (const GroupSnap& gs : s.drag.before) {
-    const Animator::CurveArray* now = sym.animator.curvesFor(gs.childId, gs.inputId);
-    if (!now) continue;
-    edits.push_back(CurveGroupEdit{gs.childId, gs.inputId, gs.before, *now});
-  }
-  auto cmd = std::make_unique<SetCurveGroupSnapshotCommand>(sw::doc::g_lib, symbolId,
-                                                            std::move(edits), "Move Keys");
-  if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
-  s.drag = DragState{};
-}
-
-// --- tangent drag (live, one key + side) ---
+// --- tangent drag (live wrapper: mouse -> angle, write in applyTangentDrag) ---
 
 void applyTangentLive(State& s, Symbol& sym, const Geom& g, ImVec2 mouse) {
   Curve* c = curveAt(sym, s.tan.key);
   if (!c) return;
   auto it = c->table().find(Curve::roundTime(s.tan.key.time));
   if (it == c->table().end()) return;
-  VDefinition& v = it->second;  // in-place field mutation: map structure untouched (safe)
 
-  const ImVec2 kp(g.timeToX(it->first), g.valueToY(v.value));
+  const ImVec2 kp(g.timeToX(it->first), g.valueToY(it->second.value));
   // Canvas-space mouse vector (value axis up). = CurvePoint.HandleTangentDrag (cs:189-193).
   const double vx = (double)(mouse.x - kp.x) / g.pxPerBar;
   const double vy = -(double)(mouse.y - kp.y) / g.pxPerUnit;
   const double angle = s.tan.inSide ? kPi / 2.0 - std::atan2(-vx, -vy)
                                     : -kPi / 2.0 - std::atan2(vx, vy);
-
-  if (s.tan.inSide) {
-    v.inInterpolation = KeyInterpolation::Tangent;
-    v.inTangentAngle = angle;
-  } else {
-    v.outInterpolation = KeyInterpolation::Tangent;
-    v.outTangentAngle = angle;
-  }
-  if (ImGui::GetIO().KeyCtrl) v.brokenTangents = true;  // cmd breaks tangents (cs:257)
-  if (!v.brokenTangents) {
-    // Mirror the angle to the opposite side (cs:273-287); tensions stay (unweighted fork).
-    if (s.tan.inSide) {
-      v.outInterpolation = KeyInterpolation::Tangent;
-      v.outTangentAngle = v.inTangentAngle + kPi;
-    } else {
-      v.inInterpolation = KeyInterpolation::Tangent;
-      v.inTangentAngle = v.outTangentAngle + kPi;
-    }
-  }
-  c->updateTangents();  // recompute neighbors' auto tangents; Tangent-mode angles are preserved
+  applyTangentDrag(*c, s.tan.key.time, s.tan.inSide, angle,
+                   ImGui::GetIO().KeyCtrl);  // cmd breaks tangents (cs:257)
   sw::doc::bumpLibRevision();
 }
 
@@ -196,38 +150,6 @@ void finishTangent(State& s, Symbol& sym, const std::string& symbolId) {
 }
 
 // --- one-shot ops (pure command construction; after-states computed on COPIES) ---
-
-void runDeleteSelected(State& s, Symbol& sym, const std::string& symbolId) {
-  // Group the selection by (childId, inputId).
-  std::map<std::pair<int, std::string>, std::vector<SelKey>> groups;
-  for (const SelKey& k : s.selection) groups[{k.childId, k.inputId}].push_back(k);
-  auto macro = std::make_unique<MacroCommand>("Delete Keyframes");
-  for (auto& [gid, keys] : groups) {
-    const Animator::CurveArray* arr = sym.animator.curvesFor(gid.first, gid.second);
-    if (!arr) continue;
-    size_t total = 0;
-    for (const Curve& c : *arr) total += c.count();
-    if (keys.size() >= total) {
-      // Every key of the input selected -> remove the whole animation (driver back to Constant,
-      // = TiXL RemoveAnimationsCommand branch, AnimationOperations.cs:80-84).
-      auto rm = std::make_unique<RemoveAnimationCommand>(sw::doc::g_lib, symbolId, gid.first,
-                                                         gid.second);
-      if (!rm->refused()) macro->add(std::move(rm));
-    } else {
-      Animator::CurveArray after = *arr;
-      for (const SelKey& k : keys)
-        if (k.index >= 0 && k.index < (int)after.size()) after[k.index].removeAt(k.time);
-      for (Curve& c : after) c.updateTangents();
-      auto ed = std::make_unique<SetCurveGroupSnapshotCommand>(
-          sw::doc::g_lib, symbolId,
-          std::vector<CurveGroupEdit>{CurveGroupEdit{gid.first, gid.second, *arr, std::move(after)}},
-          "Delete Keyframes");
-      if (!ed->refused()) macro->add(std::move(ed));
-    }
-  }
-  if (!macro->empty()) sw::g_commands.push(std::move(macro));
-  s.selection.clear();
-}
 
 void runSetInterpolation(State& s, Symbol& sym, const std::string& symbolId, int mode) {
   std::map<std::pair<int, std::string>, std::vector<SelKey>> groups;
@@ -253,79 +175,123 @@ void runSetInterpolation(State& s, Symbol& sym, const std::string& symbolId, int
 
 }  // namespace
 
-State& state() {
-  static State s;
-  return s;
-}
+// --- gesture core (exported seams, contract in timeline_internal.h) ---
 
-bool isSelected(const State& s, int childId, const std::string& inputId, int index, double time) {
-  const double rt = Curve::roundTime(time);
-  for (const SelKey& k : s.selection)
-    if (k.childId == childId && k.index == index && Curve::roundTime(k.time) == rt &&
-        k.inputId == inputId)
-      return true;
-  return false;
-}
-
-bool selectOnClickOrDrag(State& s, const SelKey& k, bool alreadySelected, bool shift, bool cmd) {
-  if (cmd) {  // = TiXL: ctrl(cmd) click deselects; either way the press can't start a drag
-    if (alreadySelected)
-      s.selection.erase(std::remove_if(s.selection.begin(), s.selection.end(),
-                                       [&](const SelKey& e) { return sameKey(e, k); }),
-                        s.selection.end());
-    return true;
+double applyDragOffset(State& s, Symbol& sym, double dt, double dv) {
+  // ONE clamp for the whole group (rigid translation, fork 具名 in the header): the most-left
+  // selected key stops at 0 and everyone keeps their relative spacing — selected keys can never
+  // merge into each other, so the selection stays one-entry-per-key (修1①②).
+  if (!s.drag.keys.empty()) {
+    double minStart = s.drag.keys[0].startTime;
+    for (const DragKey& dk : s.drag.keys) minStart = std::min(minStart, dk.startTime);
+    dt = std::max(dt, -minStart);
   }
-  if (!alreadySelected) {
-    if (!shift) s.selection.clear();
-    s.selection.push_back(k);
+  // Restore the pre-drag arrays, then re-apply the full offset (no incremental drift).
+  for (const GroupSnap& gs : s.drag.before)
+    sym.animator.setCurves(gs.childId, gs.inputId, gs.before);
+  for (const DragKey& dk : s.drag.keys)
+    if (Curve* c = curveAt(sym, dk.key)) c->removeAt(dk.startTime);
+  s.selection.clear();
+  for (const DragKey& dk : s.drag.keys) {
+    Curve* c = curveAt(sym, dk.key);
+    if (!c) continue;
+    const double newT = Curve::roundTime(dk.startTime + dt);
+    VDefinition v = dk.def;
+    v.u = newT;
+    v.value = dk.startValue + dv;
+    c->addOrUpdate(newT, v);  // collision with an UNSELECTED key clobbers it (= AddOrUpdateV 律)
+    s.selection.push_back(SelKey{dk.key.childId, dk.key.inputId, dk.key.index, newT});
   }
-  return false;
+  return dt;
 }
 
-void pruneSelection(State& s, const Symbol& sym) {
-  s.selection.erase(std::remove_if(s.selection.begin(), s.selection.end(),
-                                   [&](const SelKey& k) {
-                                     const Animator::CurveArray* arr =
-                                         sym.animator.curvesFor(k.childId, k.inputId);
-                                     if (!arr || k.index < 0 || k.index >= (int)arr->size())
-                                       return true;
-                                     return !(*arr)[k.index].hasKeyAt(Curve::roundTime(k.time));
-                                   }),
-                    s.selection.end());
-  if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) s.suppressDragFromClick = false;
-}
-
-void stageDrag(State& s, const Symbol& sym, ImVec2 mouseStart) {
+void finishDrag(State& s, SymbolLibrary& lib, CommandStack& stack, const std::string& symbolId,
+                Symbol& sym) {
+  std::vector<CurveGroupEdit> edits;
+  for (const GroupSnap& gs : s.drag.before) {
+    const Animator::CurveArray* now = sym.animator.curvesFor(gs.childId, gs.inputId);
+    if (!now) continue;
+    edits.push_back(CurveGroupEdit{gs.childId, gs.inputId, gs.before, *now});
+  }
+  auto cmd = std::make_unique<SetCurveGroupSnapshotCommand>(lib, symbolId, std::move(edits),
+                                                            "Move Keys");
+  if (!cmd->refused()) stack.push(std::move(cmd));
   s.drag = DragState{};
-  s.drag.mouseStart = mouseStart;
-  std::map<std::pair<int, std::string>, bool> seen;
-  for (const SelKey& k : s.selection) {
-    const Animator::CurveArray* arr = sym.animator.curvesFor(k.childId, k.inputId);
-    if (!arr || k.index < 0 || k.index >= (int)arr->size()) continue;
-    auto it = (*arr)[k.index].table().find(Curve::roundTime(k.time));
-    if (it == (*arr)[k.index].table().end()) continue;
-    DragKey dk;
-    dk.key = k;
-    dk.startTime = it->first;
-    dk.startValue = it->second.value;
-    dk.def = it->second;
-    s.drag.keys.push_back(std::move(dk));
-    if (!seen[{k.childId, k.inputId}]) {
-      seen[{k.childId, k.inputId}] = true;
-      s.drag.before.push_back(GroupSnap{k.childId, k.inputId, *arr});
+}
+
+void applyTangentDrag(Curve& c, double keyTime, bool inSide, double angle, bool breakTangents) {
+  auto it = c.table().find(Curve::roundTime(keyTime));
+  if (it == c.table().end()) return;
+  VDefinition& v = it->second;  // in-place field mutation: map structure untouched (safe)
+
+  if (inSide) {
+    v.inInterpolation = KeyInterpolation::Tangent;
+    v.inTangentAngle = angle;
+  } else {
+    v.outInterpolation = KeyInterpolation::Tangent;
+    v.outTangentAngle = angle;
+  }
+  if (breakTangents) v.brokenTangents = true;
+  if (!v.brokenTangents) {
+    // Mirror the angle to the opposite side (cs:273-287); tensions stay (unweighted fork).
+    if (inSide) {
+      v.outInterpolation = KeyInterpolation::Tangent;
+      v.outTangentAngle = v.inTangentAngle + kPi;
+    } else {
+      v.inInterpolation = KeyInterpolation::Tangent;
+      v.inTangentAngle = v.outTangentAngle + kPi;
+    }
+  } else {
+    // Broken: promote the opposite side Linear -> Tangent (cs:289-298) so the segment leaves the
+    // linear fast path and the side keeps an authored angle from here on (修3).
+    KeyInterpolation& other = inSide ? v.outInterpolation : v.inInterpolation;
+    if (other == KeyInterpolation::Linear) other = KeyInterpolation::Tangent;
+  }
+  // NO updateTangents here (修2, contract in timeline_internal.h): it would re-mirror boundary
+  // keys and destroy the authored angle. Tangent-mode angles only; neighbors are untouched
+  // (their auto angles depend on values/times, which a tangent drag never changes).
+}
+
+void runDeleteSelected(State& s, SymbolLibrary& lib, CommandStack& stack,
+                       const std::string& symbolId, Symbol& sym) {
+  // Group the selection by (childId, inputId).
+  std::map<std::pair<int, std::string>, std::vector<SelKey>> groups;
+  for (const SelKey& k : s.selection) groups[{k.childId, k.inputId}].push_back(k);
+  auto macro = std::make_unique<MacroCommand>("Delete Keyframes");
+  for (auto& [gid, keys] : groups) {
+    const Animator::CurveArray* arr = sym.animator.curvesFor(gid.first, gid.second);
+    if (!arr) continue;
+    size_t total = 0;
+    for (const Curve& c : *arr) total += c.count();
+    // UNIQUE existing selected keys only (修1③): raw selection can carry duplicates/ghosts after
+    // merges — size() would inflate past `total` and misroute a PARTIAL delete into
+    // RemoveAnimation, killing the unselected keys too. FORK 具名: TiXL tests all-selected
+    // per CURVE (AnimationOperations.cs:81-84); ours per (child,input) group — a Vec input only
+    // collapses to RemoveAnimation when EVERY channel's keys are selected (safer, kept).
+    std::set<std::pair<int, double>> uniq;
+    for (const SelKey& k : keys)
+      if (k.index >= 0 && k.index < (int)arr->size() &&
+          (*arr)[k.index].hasKeyAt(Curve::roundTime(k.time)))
+        uniq.insert({k.index, Curve::roundTime(k.time)});
+    if (!uniq.empty() && uniq.size() >= total) {
+      // Every key of the input selected -> remove the whole animation (driver back to Constant,
+      // = TiXL RemoveAnimationsCommand branch, AnimationOperations.cs:80-84).
+      auto rm = std::make_unique<RemoveAnimationCommand>(lib, symbolId, gid.first, gid.second);
+      if (!rm->refused()) macro->add(std::move(rm));
+    } else {
+      Animator::CurveArray after = *arr;
+      for (const SelKey& k : keys)
+        if (k.index >= 0 && k.index < (int)after.size()) after[k.index].removeAt(k.time);
+      for (Curve& c : after) c.updateTangents();
+      auto ed = std::make_unique<SetCurveGroupSnapshotCommand>(
+          lib, symbolId,
+          std::vector<CurveGroupEdit>{CurveGroupEdit{gid.first, gid.second, *arr, std::move(after)}},
+          "Delete Keyframes");
+      if (!ed->refused()) macro->add(std::move(ed));
     }
   }
-  s.drag.active = !s.drag.keys.empty();
-}
-
-void stageTangentDrag(State& s, const Symbol& sym, const SelKey& k, bool inSide) {
-  s.tan = TangentDrag{};
-  const Animator::CurveArray* arr = sym.animator.curvesFor(k.childId, k.inputId);
-  if (!arr) return;
-  s.tan.key = k;
-  s.tan.inSide = inSide;
-  s.tan.before.push_back(GroupSnap{k.childId, k.inputId, *arr});
-  s.tan.active = true;
+  if (!macro->empty()) stack.push(std::move(macro));
+  s.selection.clear();
 }
 
 void executePending(const std::string& symbolId, Symbol& sym, const Geom& g) {
@@ -339,7 +305,7 @@ void executePending(const std::string& symbolId, Symbol& sym, const Geom& g) {
     if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
       applyDragLive(s, sym, g, ImGui::GetMousePos());
     else
-      finishDrag(s, sym, symbolId);
+      finishDrag(s, sw::doc::g_lib, sw::g_commands, symbolId, sym);
   }
   if (s.tan.active) {
     if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -353,7 +319,8 @@ void executePending(const std::string& symbolId, Symbol& sym, const Geom& g) {
                                                     p.addAt.inputId, p.addAt.index, p.addAt.time);
     sw::g_commands.push(std::move(cmd));  // refused-safe: doIt no-ops, undo no-ops
   }
-  if (p.deleteSelected && !s.selection.empty()) runDeleteSelected(s, sym, symbolId);
+  if (p.deleteSelected && !s.selection.empty())
+    runDeleteSelected(s, sw::doc::g_lib, sw::g_commands, symbolId, sym);
   if (p.setInterp >= 0 && !s.selection.empty()) runSetInterpolation(s, sym, symbolId, p.setInterp);
 }
 

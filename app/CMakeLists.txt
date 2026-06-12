@@ -99,7 +99,9 @@ add_executable(simple_world
   src/ui/timeline_window.cpp
   src/ui/timeline_dopesheet.cpp
   src/ui/timeline_curve_editor.cpp
+  src/ui/timeline_select.cpp
   src/ui/timeline_edit.cpp
+  src/ui/timeline_selftest.cpp
   src/ui/node_draw.cpp
   src/ui/node_faces.cpp
   src/ui/node_style.cpp
