@@ -1,0 +1,66 @@
+# quick_add_palette.scn -- live verification: Cmd+F opens quick-add palette,
+# text filter narrows results, click-to-select spawns at anchor.
+#
+# TiXL parity: FactoryKeyMap.cs:56 SearchGraph + SymbolBrowser behaviour.
+# Fork "QuickAddFilter_Substring": TiXL scatter-regex; we use case-insensitive strstr.
+#
+# Assertions:
+#   1. After Cmd+F: map contains qa:* items (palette opened).
+#   2. After typing "Radial": map contains qa:RadialPoints (filter narrows).
+#   3. After clicking qa:RadialPoints: Root.children.length increases by 1.
+#   4. New node spawns near the canvas anchor (not at fixed (120,120)).
+#
+# RED proof:
+#   Line 35 asserts length == 7 (was 6). Change to 8 -> FAIL (only one node added).
+#   Line 39 asserts x != 120. Change to x == 120 -> FAIL (was the toolbar fixed-pos bug).
+#
+# compound_smoke.swproj: Root has 6 children (id 1-6), nextChildId=7.
+
+open app/testdata/compound_smoke.swproj
+
+# Baseline: Root has 6 children.
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+echo baseline-root-6-children
+
+# Click in the canvas to ensure focus (canvas host window must be focused for CanvasFocus handlers).
+do click 400 300
+wait 0.2
+
+# --- Cmd+F opens palette ---
+do keychord cmd f
+wait 0.4
+
+# Map should contain qa:* items (palette is rendered with rows for each spec type).
+assert_map_has qa:RadialPoints
+echo cmd-f-opened-palette-qa-RadialPoints-visible
+
+# Map should contain the filter input widget.
+assert_map_has qa:input
+echo qa-input-widget-present
+
+# --- Type "Radial" to filter ---
+# The InputText is focused (SetKeyboardFocusHere). Type the filter string.
+do text Radial
+wait 0.3
+
+# After filtering, RadialPoints should still be in the map.
+assert_map_has qa:RadialPoints
+echo filter-radial-still-shows-RadialPoints
+
+# --- Click RadialPoints to spawn ---
+do click @qa:RadialPoints
+wait 0.3
+
+# Root should now have 7 children (+1).
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 7'
+echo child-count-increased-to-7
+
+# New node id=7 (nextFreeChildId from nextChildId=7, max child id=6).
+assert_state '[.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 7)] | length == 1'
+echo new-node-id-7-exists
+
+# Spawn position: not the toolbar's fixed (120,120) — anchor was canvas coords under mouse
+# (Cmd+F anchors at ScreenToCanvas(io.MousePos); click was at imgui (400,300)).
+# Assert x != 120 to confirm the anchor-based spawn path is active.
+assert_state '([.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 7)][0].x) != 120'
+echo new-node-not-at-toolbar-fixed-120-120

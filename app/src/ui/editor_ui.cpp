@@ -11,6 +11,7 @@
 #include "ui/keymap.h"
 #include "ui/node_draw.h"
 #include "ui/node_style.h"  // V1 grid color helpers, V2 connection line colors
+#include "ui/quick_add.h"   // Cmd+F palette (SearchGraph)
 
 #include <algorithm>
 #include <cmath>
@@ -344,6 +345,11 @@ void drawNodeCanvas() {
   // Context menu (批次 4): right-click a node -> "Combine into new symbol..." (the modal
   // itself draws after the editor scope, drawCombineDialog below).
   sw::ui::drawCanvasContextMenu();
+
+  // Cmd+F quick-add palette (SearchGraph, TiXL FactoryKeyMap.cs:56 + SymbolBrowser.Draw).
+  // Must be inside ed::Begin...End so ed::Suspend/Resume are valid (palette spawns via
+  // spawnNodeAt which needs the canvas state). Suspension wraps the popup panel.
+  sw::ui::drawQuickAdd();
 
   // Navigation gestures (TiXL MagGraph GraphStates.cs): double-click a COMPOUND child ->
   // enter its subgraph; double-click the background -> up one level. The doc refuses

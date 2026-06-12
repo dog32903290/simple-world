@@ -13,6 +13,7 @@
 #include "app/document.h"
 #include "app/frame_cook.h"
 #include "ui/copy_paste_ui.h"
+#include "ui/quick_add.h"  // SearchGraph (Cmd+F) handler
 
 namespace ed = ax::NodeEditor;
 
@@ -142,6 +143,20 @@ static bool handleFocusSelection() {
   return true;
 }
 
+static bool handleSearchGraph() {
+  // Cmd+F = SearchGraph / open quick-add palette (FactoryKeyMap.cs:56).
+  // Mac: io.KeyCtrl = physical Cmd (ConfigMacOSXBehaviors swaps Cmd->Ctrl in AddKeyEvent).
+  // Anchor: canvas coords under the mouse at trigger time (mirrors TiXL SymbolBrowser.OpenAt
+  // with InverseTransformPositionFloat(MousePos) — GraphView.cs:392).
+  const ImGuiIO& io = ImGui::GetIO();
+  if (!io.KeyCtrl) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_F, false)) return false;
+  ImVec2 canvasPos = ed::ScreenToCanvas(io.MousePos);
+  sw::ui::openQuickAdd(canvasPos.x, canvasPos.y);
+  sw::doc::g_status = "search";
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // The data-driven table.
 // One row = (key label for diagnostics, context, handler fn).
@@ -162,9 +177,10 @@ static const KeyEntry kKeyTable[] = {
     {"PlaybackStop",     Context::Global,      handlePlaybackStop},
     {"FramePrev",        Context::Global,      handleFramePrev},
     {"FrameNext",        Context::Global,      handleFrameNext},
-    // --- Graph window (TiXL FactoryKeyMap.cs:13-14) ---
+    // --- Graph window (TiXL FactoryKeyMap.cs:13-14, :56) ---
     {"Duplicate",        Context::CanvasFocus, handleDuplicate},
     {"FocusSelection",   Context::CanvasHover, handleFocusSelection},
+    {"SearchGraph",      Context::CanvasFocus, handleSearchGraph},
 };
 
 static constexpr int kTableSize = (int)(sizeof(kKeyTable) / sizeof(kKeyTable[0]));
