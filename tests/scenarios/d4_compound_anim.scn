@@ -1,0 +1,44 @@
+# d4_compound_anim.scn — D4 item: compound inputDef Animate plays and position advances
+# Covers D4 list items:
+#   - compound inputDef Animate: animate a compound's own inputDef (Radius on EmitterComp)
+#   - playback advances: transport plays (position > 0 after play)
+# The batch-9 fix (B2 fix, E1 fixer): compound childIn now queries animator and injects
+# a seed, so the compound's input Animate is "heard" by the resident eval graph projection.
+# GUI verification: we can confirm (a) the timeline lane is created for the compound input,
+# and (b) transport plays (position advances). The resident value change is proven headless
+# by --selftest-residentcook / --selftest-bypasscook.
+# RED proof: remove "do click @Play" -> assert_state playing==true fails.
+#
+# Nodes used: Root/node:2 (EmitterComp, has Radius inputDef with default 4.0 override).
+
+open app/testdata/compound_smoke.swproj
+
+# 1. Select node:2 (EmitterComp instance in Root) and Animate its Radius inputDef
+do click @node:2^
+do rclick @param:Radius
+do click @insp:Animate
+assert_map_has tl_lane:2:Radius:0
+assert_map_has tl_key:2:Radius:0
+echo compound-anim-lane-created
+
+# 2. Add a second key at a non-zero time so the curve is non-trivial
+# The first key is at t=0; drag it right by ~100px to create some extent
+# Then double-click in the dope canvas to add key at a later time
+do double @tl_content +200 +0
+assert_state '([ (.lib.symbols[] | .animator[]? | select(.childId == 2) | .curve.keys) | length ] | max) >= 2'
+echo compound-anim-second-key-added
+
+# 3. Play transport: position must advance (compound Animate is NOT deaf anymore)
+do click @Play
+assert_state '.transport.playing == true'
+echo compound-anim-playing
+
+# 4. Wait a moment and confirm position advanced
+wait 0.5
+assert_state '.transport.position > 0'
+echo compound-anim-position-advanced
+
+# 5. Stop
+do click @Play
+assert_state '.transport.playing == false'
+echo compound-anim-stopped

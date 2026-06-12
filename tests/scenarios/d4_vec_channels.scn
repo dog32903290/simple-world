@@ -1,0 +1,43 @@
+# d4_vec_channels.scn — D4 item: Vec siblings all-channel select and co-move (同移)
+# Covers D4 list items:
+#   - Vec sibling auto-select (dope view): clicking one key selects all 3 channels
+#   - Co-move: dragging the selection moves all 3 channel keys to the same new time
+# RED proof: change count assertion to == 1 -> must FAIL (we'd see count == 3).
+#
+# Nodes used: Root/node:1 (EmitterComp compound) -> inside: RadialPoints (node:1).
+# RadialPoints has Center.x inputDef with Widget::Vec spanning 3 indices (.x/.y/.z).
+# We enter the compound, select RadialPoints, Animate Center.x (all 3 channels get lanes).
+
+open app/testdata/compound_smoke.swproj
+
+# 1. Enter EmitterComp (node:1 in Root) via double-click
+do double @node:1^
+assert_state '(.compositionPath | length) == 1'
+echo vec-channels-entered-compound
+
+# 2. Select RadialPoints (node:1 inside compound) and Animate Center.x
+do click @node:1^
+do rclick @param:Center.x
+do click @insp:Animate
+# Three lanes appear (one per channel); all share the tl_key label "tl_key:1:Center.x:0"
+assert_map_has tl_key:1:Center.x:0
+echo vec-channels-animate-created-3-lanes
+
+# 3. Click one of the three tl_key:1:Center.x:0 keys -> all 3 channels selected (count == 3)
+do click @tl_key:1:Center.x:0
+assert_state '.timelineSelection.count == 3'
+assert_state '.timelineSelection.keys[0].inputId == "Center.x"'
+assert_state '.timelineSelection.keys[1].inputId == "Center.x"'
+assert_state '.timelineSelection.keys[2].inputId == "Center.x"'
+echo vec-channels-all-selected
+
+# 4. Drag the selection right -> all 3 channels move to the same new time (co-move)
+# Keys start at t=0 (leftmost position x~345); drag +130px right to snap to a beat.
+do drag @tl_key:1:Center.x:0 +130 +0
+assert_state '.timelineSelection.count == 3'
+assert_state '.timelineSelection.keys[0].time > 0'
+assert_state '.timelineSelection.keys[1].time > 0'
+assert_state '.timelineSelection.keys[2].time > 0'
+assert_state '.timelineSelection.keys[0].time == .timelineSelection.keys[1].time'
+assert_state '.timelineSelection.keys[1].time == .timelineSelection.keys[2].time'
+echo vec-channels-co-moved-to-same-time

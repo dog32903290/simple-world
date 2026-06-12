@@ -32,3 +32,4 @@ node_modules/
 # each worktree symlinks them back to the main checkout after creation.
 /.worktrees/
 
+tests/scenarios/d4_save_tmp.swproj

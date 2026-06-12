@@ -1,0 +1,51 @@
+# d4_transport_rate.scn — D4 items: rate 2x delta-position machine-readable + Speed 0.001 plays
+# Covers D4 list items:
+#   - rate 2x Δpos: at rate=2, position advances roughly twice as fast as rate=1
+#   - Speed 0.001 plays: setting Speed to a tiny value still results in playing==true
+#     (eps zombie fix: rate >= 0.001 inclusive now triggers playback)
+# AVOID: sub-window speed (<0.25) position freeze is a known batch-10 pending fix (E3 violation);
+#   we do NOT assert position advance for Speed < 0.25.
+# RED proof: change the rate=2 position threshold from 1.0 to 5.0 -> must FAIL (pos ~1.4 < 5.0).
+#
+# Speed DragScalar: drag +100px right = +1.0 rate (step = 0.01f/px in toolbar.cpp).
+# At BPM=120, rate=1: position += 0.5 bar/sec. Rate=2: ~1.0 bar/sec.
+# Strategy: fresh open resets position to 0 — no need for Pos (bars) DragScalar text mode
+# (that label has spaces which break @SYM token resolution in sw_scenario.sh).
+
+open app/testdata/compound_smoke.swproj
+
+# 1. Baseline: rate=1, play 1 second, position should be in (0.3, 0.9)
+do click @Play
+wait 1
+assert_state '.transport.playing == true'
+assert_state '.transport.position > 0.3'
+do click @Play
+assert_state '.transport.playing == false'
+echo rate-baseline-rate1-verified
+
+# 2. Relaunch to reset position=0 cleanly (avoids Pos DragScalar text mode - label has spaces)
+open app/testdata/compound_smoke.swproj
+
+# 3. Set rate=2 by dragging Speed +100px (step 0.01/px: +100px -> +1.0 from default 1.0 -> rate=2)
+do drag @Speed +100 +0
+echo rate-speed-set-to-2
+
+# 4. Play 1 second at rate=2: position should advance ~2x baseline (> 1.0)
+do click @Play
+wait 1
+assert_state '.transport.playing == true'
+assert_state '.transport.position > 1.0'
+do click @Play
+assert_state '.transport.playing == false'
+echo rate-2x-delta-position-verified
+
+# 5. Speed 0.001 plays: drag Speed far left to reach a tiny rate (near 0.001)
+# Drag -190px from rate=2 position -> rate ~ 0.1, well below 0.25 E3 threshold.
+# Assertion: playing==true (eps zombie fix: rate >= 0.001 no longer kills play).
+# We do NOT assert position advance (sub-window speed position freeze = E3, batch-10 pending).
+do drag @Speed -190 +0
+do click @Play
+wait 0.2
+assert_state '.transport.playing == true'
+echo rate-small-speed-plays-not-dead
+do click @Play

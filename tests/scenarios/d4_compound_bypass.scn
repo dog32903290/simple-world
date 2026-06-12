@@ -1,0 +1,36 @@
+# d4_compound_bypass.scn — D4 item: compound bypass GUI roundtrip (pixels change -> restore)
+# Covers D4 list items:
+#   - compound bypass GUI roundtrip: bypass -> pixels change; undo -> pixels change back
+# Note: "declaration-order counterproof" (宣告序反證) is proven headless by
+# --selftest-bypasscompound (Kahn topological sort); not GUI-verifiable.
+# RED proof: comment out "do click @ctx:bypass" -> assert_diff fails (frames byte-identical).
+#
+# Nodes used: Root/node:2 (EmitterComp compound at y~360, not obscured by timeline panel).
+# node:1 at y~200 is often obscured by the timeline float window; node:2 at y~360 is clear.
+
+open app/testdata/compound_smoke.swproj
+
+# 1. Capture baseline clean frame (both EmitterComp instances contributing points)
+capture clean before_bypass
+echo compound-bypass-baseline-captured
+
+# 2. Right-click node:2 title to open context menu, then click Bypass
+# Use @node:2^ (imgui title-center, y0+8) for stable resolution.
+do rclick @node:2^
+assert_map_has ctx:bypass
+do click @ctx:bypass
+echo compound-bypass-node2-bypassed
+
+# 3. Assert that the rendered frame changed (one emitter's points now bypassed)
+assert_diff before_bypass
+capture clean after_bypass
+echo compound-bypass-frame-changed
+
+# 4. Undo bypass to restore (canvas must have focus; click canvas blank area first)
+do click 700 400
+do keychord cmd Z
+echo compound-bypass-undo-applied
+
+# 5. Assert that the frame changed again (different from the bypassed frame)
+assert_diff after_bypass
+echo compound-bypass-frame-restored

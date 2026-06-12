@@ -1,0 +1,43 @@
+# d4_save_restart.scn — D4 item: save + restart restores all state
+# Covers D4 list items:
+#   - save+restart: animate a compound inputDef, save, relaunch with same file,
+#     confirm the animator lane and key are restored in the fresh session.
+# File used: tests/scenarios/d4_save_tmp.swproj — regenerated from the pristine
+#   app/testdata/compound_smoke.swproj by the `fixture` directive below EVERY run
+#   (this scenario SAVES into it; without the reset the second run opens a mutated
+#   file where Radius is already animated and insp:Animate no longer exists).
+#   The tmp file is gitignored, never checked in.
+# RED proof: remove the final assert_map_has line -> RED (nothing asserted after restart).
+#   (Or: assert_map_has tl_key:2:Radius:99 -> RED immediately.)
+#
+# Sequence:
+#   1. Open d4_save_tmp.swproj
+#   2. Select node:2 (EmitterComp) -> Animate its Radius input
+#   3. Confirm lane + key exist
+#   4. Click Save (toolbar button; works without file dialog since path already known)
+#   5. Relaunch with the same file (open directive kills+restarts app with --open)
+#   6. Confirm animator lane + key are present in the reloaded session
+
+fixture app/testdata/compound_smoke.swproj tests/scenarios/d4_save_tmp.swproj
+open tests/scenarios/d4_save_tmp.swproj
+
+# 1. Select node:2 (EmitterComp in Root) and Animate its Radius input
+do click @node:2^
+do rclick @param:Radius
+do click @insp:Animate
+assert_map_has tl_lane:2:Radius:0
+assert_map_has tl_key:2:Radius:0
+echo save-restart-animate-created
+
+# 2. Save via toolbar Save button
+do click @Save
+echo save-restart-file-saved
+
+# 3. Relaunch with the same file (open directive: kills app, restarts with --open)
+open tests/scenarios/d4_save_tmp.swproj
+
+# 4. After fresh launch: confirm the animator lane and key are still present
+#    (proves that save/load roundtrip preserves animator data)
+assert_map_has tl_lane:2:Radius:0
+assert_map_has tl_key:2:Radius:0
+echo save-restart-animator-persisted

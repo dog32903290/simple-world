@@ -66,6 +66,11 @@ app_kill() {
 }
 app_launch() {  # $1 = optional file to open
   app_kill
+  # Ensure .eye dir exists BEFORE sw_drive tries to `touch req_map` inside it.
+  # The app creates it via ensureDir() on first write, but sw_drive's probe touches
+  # req_map first — which fails silently when the directory doesn't exist yet,
+  # making the wait loop spin to timeout. mkdir -p is idempotent and harmless.
+  mkdir -p "$EYE"
   ( cd "$ROOT/app" && ASAN_OPTIONS=detect_leaks=0 "$BIN" ${1:+--open "$1"} >/dev/null 2>&1 & disown ) 2>/dev/null
   # eye answers only once the frame loop is up — probe with a map request.
   for _ in $(seq 1 40); do
@@ -143,6 +148,13 @@ run_line() {
   case "$cmd" in
     open)
       app_launch "$ROOT/$rest" ;;
+    fixture)
+      # fixture <src> <dst> — reset a writable fixture from a pristine source (repo-relative).
+      # A scenario that SAVES into its project file mutates it; without this reset the second
+      # run opens the mutated file and every state-dependent resolve drifts (D4 save_restart:
+      # Radius already animated -> menu says "Remove Animation" -> insp:Animate unresolvable).
+      local src="${rest%% *}" dst="${rest#* }"
+      cp "$ROOT/$src" "$ROOT/$dst" || fail "$ln" "fixture: cp $src -> $dst failed" ;;
     do)
       local resolved; resolved="$(resolve_syms "$rest")"
       if [[ "$resolved" == __RESOLVE_FAIL__* ]]; then

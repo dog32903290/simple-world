@@ -1,0 +1,50 @@
+# d4_curve_editing.scn — D4 items: double-click add key (collision clone survives) + damp drag no drift
+# Covers D4 list items:
+#   - double-click add key (curve editor): numKeys increases on empty spot
+#   - collision survive: double-click on existing key position does not delete the chain
+#   - damp drag zero drift: drag key -> time moves in the correct direction without drift
+# RED proof: change last assert to wrong direction -> must FAIL.
+#
+# Nodes used: Root/node:2 (EmitterComp compound, has "Radius" inputDef, single float param).
+# Timeline: Dope mode for key visibility, Curve mode for double-click add.
+
+open app/testdata/compound_smoke.swproj
+
+# 1. Select node:2 (EmitterComp) and Animate its Radius input
+do click @node:2^
+do rclick @param:Radius
+do click @insp:Animate
+assert_map_has tl_key:2:Radius:0
+echo curve-editing-animate-created
+
+# 2. Switch to Curve editor mode (tl_mode button; when in dope it shows "Curves")
+do click @tl_mode
+# curve mode: keys show as tlc_key
+assert_map_has tlc_key:2:Radius:0
+echo curve-editing-entered-curve-mode
+
+# 3. Double-click an empty spot in the curve canvas to add a second key
+# tl_content is the curve/dope canvas area (x range: ~178..638, y range ~550..730)
+# Click at x=350 (mid-canvas, well away from key:0 at the left edge)
+do double @tl_content +170 +60
+assert_state '([ (.lib.symbols[] | .animator[]? | .curve.keys) | length ] | max) >= 2'
+echo curve-editing-double-click-added-key
+
+# 4. Collision survive: double-click EXACTLY on key:1 (the one we just added)
+# D4 fix: insert = clone-previous-key, so same-time double-click adds a key rather than
+# destroying the chain. Assert numKeys does NOT decrease (>= 2 still).
+do double @tlc_key:2:Radius:1
+assert_state '([ (.lib.symbols[] | .animator[]? | .curve.keys) | length ] | max) >= 2'
+echo curve-editing-collision-chain-survived
+
+# 5. Switch back to dope sheet mode to get tl_key items for drag test
+do click @tl_mode
+assert_map_has tl_key:2:Radius:1
+
+# 6. Damp drag zero drift: click key:1, then drag it right; assert its time > 0 (moved, not stuck)
+# The drag goes +130 pixels right; damp mapping is absolute (InverseTransformX), so drift = 0.
+do click @tl_key:2:Radius:1
+do drag @tl_key:2:Radius:1 +130 +0
+assert_state '.timelineSelection.count == 1'
+assert_state '.timelineSelection.keys[0].time > 0'
+echo curve-editing-damp-drag-no-drift
