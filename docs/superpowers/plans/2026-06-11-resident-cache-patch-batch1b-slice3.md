@@ -746,7 +746,23 @@ f=min(dt/0.06,1)); timeline 牙 27→45 CHK。
   永死)→inclusive; 4.0 窗界遲滯 (re-entry 3.8)。
 
 **驗收欄 (回填):**
-- [ ] D4 (Fable) 活體 12 項跑中
+- [x] **D4 (Fable) 活體 12/12 PASS ✓** + 一修 (`50d781f`: child pin ed-ID 撞號, id≥101 節點
+  拖不動 → kChildPinBase=1<<19 獨立 band + --selftest-canvasids)。要點: dope/curve 吸附極性
+  各自對/雙擊撞號 key 風格存活/damp 中拖零漂移/Vec 全通道入選同移/compound bypass GUI 畫面
+  roundtrip (362.3→255.4→362.3)/宣告序反證/compound 輸入 Animate 播放爬升/rate 2× Δpos 機讀
+  /Speed 0.001 起播/存檔重啟全回。
+  **D4 咬出未修 (批次10 排修):** ①E3 違約: speed < varispeed 窗 (0.25) 時 position 完全凍結,
+  違反「窗外 Pause 但視覺照全速」具名 fork (soundtrack.h:31-33); 窗內 0.5 正常 ②position 過
+  soundtrack EOF 後突跳 (109→129)。
+  **D4 殘刺 (記帳):** 疊放節點命中順序 (繪製舊蓋新, z 模型可疑); 新節點固定 spawn (120,120)
+  必疊 node:1; 浮窗 body-drag 誤拖三次 (建議 ConfigWindowsMoveFromTitleBarOnly); 重啟同圖
+  FPS 30→3 未查根因; eye lane 標籤無通道後綴 (.x/.y/.z 都叫 Center.x)。
+  **hand 雷新增:** keychord ctrl Z 無聲 no-op (Mac 要 cmd Z); DragScalar text 是附加不覆蓋
+  (先 cmd+a); 浮窗被誤拖後 map 全是幻影 (碰窗 drag 後必重抓 map)。
+- [x] **sw_scenario 活體牙 runner ✓ (`d267118`)**: 確定性活體進腳本 (do @SYM/assert_state jq/
+  assert_diff 像素), agent 只看紅項。timeline_snap.scn 12.9s 跑完 D4 清單 1/6 段 (vs agent
+  迴圈十幾分鐘); RED 面證過。app 生命週期=cwd 歸屬判定 (pkill cmdline 三度燒傷的正解)。
+  **流程新規 (批次10 起): implementer 活體可證的行為要附 .scn (與 selftest 牙同地位)。**
 - [ ] 柏為親測: ①Speed 拖 2×/4× 聽變速變調 (高八度) ②變速中拔耳機 ③藍牙耳機 rate 1 會不會
   風暴 (offset 常數=Scarlett 實測, 藍牙延遲更高) ④雙擊毀滅鏈修後手感 ⑤批次8 四項若未測續欄
 
@@ -757,7 +773,10 @@ childIn 種子 anim group=scalar identity (compound SlotDef 今日皆 scalar); B
 拒絕應在 command 層 (同 addChildWouldCycle 位置)。
 
 ## Resume — next (批次10 候選)
+0. **D4 咬出的兩條排修**: sub-window speed 凍結 position (E3 違約) + soundtrack EOF position
+   突跳; 順手評估殘刺 (spawn 疊放/浮窗 body-drag/FPS 30→3/eye lane 通道後綴)
 1. Texture2D gather 直通 (第一顆 image filter op 進場時) — 修C 後 production 入口已開
 2. soundtrack offset 校時旋鈕 (柏為聽出延遲才開; 藍牙風暴若實證→offset 常數要變旋鈕或自動量測)
 3. 負速倒播全鏈 (timeline/curve/shader 吃負 bars 的 UI+渲染行為, 現無牙)
 4. dope value-nudge 手感拍板後續 (柏為親測④)
+5. scenario 庫擴編 (D4 清單其餘段→.scn; implementer 新規=活體可證行為附 .scn)
