@@ -264,6 +264,24 @@ const std::vector<NodeSpec>& registry() {
         {"ClearColor.z", "ClearColor.z", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"ClearColor.w", "ClearColor.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
        nullptr},
+      // Blur (TiXL Lib.image.fx.blur.Blur): the FIRST image filter — Texture2D in -> Texture2D out,
+      // a 2-pass directional Gaussian (point_ops_blur.cpp). Params mirror Blur.cs: Size (reach),
+      // Samples (taps), Offset (added constant), Opacity (rgb intensity -> shader Glow2). Resolution
+      // picks the output texture size (same enum as RenderTarget; default WindowFollow). FORK
+      // (named): TiXL's Wrap (TextureAddressMode) input is omitted — the op uses a fixed clamp
+      // sampler (= MirrorOnce default for blur); non-default Wrap is a follow-up.
+      {"Blur", "Blur",
+       {{"Image", "Image", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        {"Size", "Size", "Float", true, 1.0f, 0.0f, 100.0f},
+        {"Samples", "Samples", "Float", true, 8.0f, 1.0f, 10.0f},
+        {"Offset", "Offset", "Float", true, 0.0f, -1.0f, 1.0f},
+        {"Opacity", "Opacity", "Float", true, 1.0f, 0.0f, 4.0f},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
       // --- Value nodes (Task 2) ---
       {"Time", "Time", {{"out", "out", "Float", false}}, evalTime},
       // TiXL AudioReaction (full parity): 3 outputs + 10 params. STATEFUL — cooked in main

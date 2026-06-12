@@ -57,4 +57,11 @@ int runRenderTargetSelfTest(bool injectBug);
 // 256x256) cooked through PointGraph as the terminal — proves tex-terminal selection, the
 // resolution pin sizing its own texture, and the Command wire. injectBug drops the wire -> FAIL.
 int runRenderTargetWiredSelfTest(bool injectBug);
+
+// --- Blur image filter texture op (point_ops_blur.cpp, lane I) ---
+// The FIRST image filter (Texture2D in -> Texture2D out): a 2-pass directional Gaussian blur
+// (TiXL image/fx/blur/Blur). Register into the texture stream (texReg). Wired into the cook tex
+// terminal AND mid-walk via cookTexNode's Texture2D gather (TexCookCtx::inputTexture).
+void registerBlurOp();
+// (runBlurSelfTest / runBlurChainSelfTest are declared in point_graph.h next to the other goldens.)
 }  // namespace sw

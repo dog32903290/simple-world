@@ -201,6 +201,7 @@ void registerBuiltinPointOps() {
   registerPointOp("ParticleSystem", cookParticleSim, simStateNew, simStateFree, &particlePoolCount);
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
+  registerBlurOp();                             // Texture2D → Texture2D (first image filter, lane I)
   registerLinePointsOp();
   registerGridPointsOp();
   registerSpherePointsOp();

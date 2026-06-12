@@ -4,6 +4,7 @@
 #include <cstring>
 #include <functional>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -121,10 +122,23 @@ bool PointGraph::valid() const { return p_->dev && p_->queue && p_->target; }
 MTL::Texture* PointGraph::target() const { return p_->displayTex ? p_->displayTex : p_->target; }
 
 int PointGraph::defaultDrawTarget(const Graph& g) const {
-  // The terminal is the most-downstream realizable node: a RenderTarget (Texture2D) wins, else
-  // a DrawPoints (Command). Both replaced the old drawReg draw node in production.
+  // The terminal is the most-downstream realizable node: a tex node (RenderTarget/Blur) wins, else
+  // a DrawPoints (Command). With image filters (lane I) a graph can hold SEVERAL tex nodes chained
+  // (RenderTarget -> Blur -> ...); the live terminal must be the LAST one — the tex node whose own
+  // output is not consumed by another node (a sink). Falling back to the first tex node would show
+  // the un-filtered RenderTarget and make every image filter invisible in the live app.
+  auto outputConsumed = [&](int id) {
+    for (const Connection& c : g.connections)
+      if (pinNode(c.fromPin) == id) return true;
+    return false;
+  };
+  int firstTex = 0;
   for (const Node& n : g.nodes)
-    if (texReg().find(n.type) != texReg().end()) return n.id;
+    if (texReg().find(n.type) != texReg().end()) {
+      if (!firstTex) firstTex = n.id;
+      if (!outputConsumed(n.id)) return n.id;  // a sink tex node = the real terminal
+    }
+  if (firstTex) return firstTex;  // all tex nodes feed each other (cycle): fall back to the first
   for (const Node& n : g.nodes)
     if (cmdReg().find(n.type) != cmdReg().end()) return n.id;
   // Legacy draw terminal (PointDrawFn, retired in batch 4): production registers none, but
@@ -136,11 +150,23 @@ int PointGraph::defaultDrawTarget(const Graph& g) const {
 }
 
 int PointGraph::defaultDrawTarget(const SymbolLibrary& lib, const std::string& symbolId) const {
-  // Same terminal priority as the flat overload, scanning one symbol's children.
+  // Same terminal priority as the flat overload, scanning one symbol's children. With chained tex
+  // nodes (RenderTarget -> Blur), prefer the SINK — the tex child whose output no connection
+  // consumes — so the live viewport shows the last filter, not the un-filtered RenderTarget.
   const Symbol* s = lib.find(symbolId);
   if (!s) return 0;
+  auto outputConsumed = [&](int id) {
+    for (const SymbolConnection& c : s->connections)
+      if (c.srcChild == id) return true;
+    return false;
+  };
+  int firstTex = 0;
   for (const SymbolChild& c : s->children)
-    if (texReg().find(c.symbolId) != texReg().end()) return c.id;
+    if (texReg().find(c.symbolId) != texReg().end()) {
+      if (!firstTex) firstTex = c.id;
+      if (!outputConsumed(c.id)) return c.id;
+    }
+  if (firstTex) return firstTex;
   for (const SymbolChild& c : s->children)
     if (cmdReg().find(c.symbolId) != cmdReg().end()) return c.id;
   for (const SymbolChild& c : s->children)
@@ -281,6 +307,58 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     tx->second(tc);
   };
 
+  // Cook a TEXTURE-flow node (RenderTarget executor OR an image filter like Blur) into its OWN
+  // resolution-sized texture (ensureTex, keyed by flat id) and return it. This is the Texture2D
+  // gather direct-through (lane I): a filter's Texture2D input is resolved by RECURSIVELY cooking
+  // the upstream tex node here — exactly how cookNode resolves a Points input by cooking upstream.
+  //   • Command inputs  → concatenated into one chain (RenderTarget executes a draw chain).
+  //   • Texture2D input → the first wired one is cooked here and handed in via tc.inputTexture
+  //     (an image filter samples it; RenderTarget has no Texture2D input so this stays null).
+  // Cycle-safe via the `cooked` Points memo is NOT shared here, so guard with a per-cook visiting
+  // set: a Texture2D cycle would otherwise recurse forever (the canvas forbids cycles, but cook
+  // must not hang if a malformed graph slips one in).
+  std::set<int> texVisiting;
+  std::function<MTL::Texture*(int)> cookTexNode = [&](int id) -> MTL::Texture* {
+    const Node* n = g.node(id);
+    const NodeSpec* s = n ? findSpec(n->type) : nullptr;
+    if (!n || !s) return nullptr;
+    auto tx = texReg().find(n->type);
+    if (tx == texReg().end() || !tx->second) return nullptr;
+    if (!texVisiting.insert(id).second) return nullptr;  // cycle guard: already on the stack
+
+    // Size this node's own output texture from its Resolution pin (the window size is
+    // WindowFollow's source). Image filters with no Resolution param fall back to WindowFollow.
+    const std::map<std::string, float>* tp = nodeParams(id);
+    RenderResolution res = resolveRenderResolution(
+        tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
+    MTL::Texture* tex = p_->ensureTex(flatKey(id), res.w, res.h);
+
+    // Gather inputs in spec order: concat Command inputs, recurse the first Texture2D input.
+    RenderCommand chain;
+    MTL::Texture* inTex = nullptr;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!port.isInput) continue;
+      const Connection* c = g.connectionToInput(pinId(id, (int)i));
+      if (!c) continue;
+      if (port.dataType == "Command") {
+        RenderCommand up = cookCommand(pinNode(c->fromPin));
+        chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
+      } else if (port.dataType == "Texture2D" && !inTex) {
+        inTex = cookTexNode(pinNode(c->fromPin));
+      }
+    }
+
+    TexCookCtx tc;
+    tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
+    tc.ctx = &ctx; tc.graph = &g; tc.reg = reg;
+    tc.nodeId = id; tc.command = &chain; tc.inputTexture = inTex; tc.output = tex;
+    tc.params = tp;
+    tx->second(tc);
+    texVisiting.erase(id);
+    return tex;
+  };
+
   // Legacy draw terminal (PointDrawFn, retired in batch 4): if a draw op is registered for this
   // terminal type, render via it and stop. Production registers NONE — DrawPoints is a cmd op now
   // (point_ops.cpp) — so this branch is dead in the live app (drawReg empty -> falls through to the
@@ -312,29 +390,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
 
   auto texIt = texReg().find(target->type);
   if (texIt != texReg().end() && texIt->second) {
-    // Texture terminal (RenderTarget): size its OWN texture from the Resolution pin (the live
-    // window size is WindowFollow's source), concat all upstream Command inputs, run its tex op
-    // into that texture, and show it. p_->target stays the window-sized fallback for cmd/preview.
-    const std::map<std::string, float>* tp = nodeParams(target->id);
-    RenderResolution res = resolveRenderResolution(
-        tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
-    MTL::Texture* tex = p_->ensureTex(flatKey(target->id), res.w, res.h);
-    RenderCommand chain;
-    for (size_t i = 0; i < ts->ports.size(); ++i) {
-      const PortSpec& port = ts->ports[i];
-      if (!(port.isInput && port.dataType == "Command")) continue;
-      const Connection* c = g.connectionToInput(pinId(target->id, (int)i));
-      if (!c) continue;
-      RenderCommand up = cookCommand(pinNode(c->fromPin));
-      chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
-    }
-    TexCookCtx tc;
-    tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
-    tc.ctx = &ctx; tc.graph = &g; tc.reg = reg;
-    tc.nodeId = target->id; tc.command = &chain; tc.output = tex;
-    tc.params = tp;
-    texIt->second(tc);
-    p_->displayTex = tex;  // viewport shows the resolution-sized texture
+    // Texture terminal (RenderTarget OR an image filter like Blur): cook it (and its upstream
+    // tex/command chain) into its OWN resolution-sized texture via the recursive tex walker, and
+    // show that. p_->target stays the window-sized fallback for the cmd/preview terminals.
+    MTL::Texture* tex = cookTexNode(target->id);
+    if (tex) p_->displayTex = tex;  // viewport shows the resolution-sized texture
+    else p_->clearTarget();
   } else if (cmdReg().find(target->type) != cmdReg().end()) {
     // Command terminal (DrawPoints): cook its 1-item chain, run the RenderTarget executor.
     RenderCommand chain = cookCommand(target->id);

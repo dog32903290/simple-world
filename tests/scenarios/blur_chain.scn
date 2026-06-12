@@ -1,0 +1,56 @@
+# blur_chain.scn — 活體牙: 親手在 canvas 接 RenderTarget→Blur 鏈, 證 lane I 兩條承重線:
+#   (1) Texture2D gather 直通真的通到 Blur 輸入 → 改 Blur Size 畫面像素變 (assert_diff);
+#   (2) defaultDrawTarget 選最下游 tex sink (Blur) 而非上游 RenderTarget (否則 filter 看不見)。
+#
+# default 圖 = defaultParticleGraph (RadialPoints#1 / ParticleSystem#2 / Turbulence#6 /
+# DrawPoints#7 / AudioReaction#8, nextChildId=104)。我們在空白處加 RenderTarget#104 + Blur#105,
+# 把既有 DrawPoints#7.out → RenderTarget#104.command → Blur#105.Image, Blur 成為最下游 tex sink。
+#
+# RED 面: 把最後 assert_diff 改成 assert_same → 必紅 (改 Size 像素變 = blur gather 在跑的直接證據)。
+
+# --- 加 RenderTarget (空白右鍵, clear 區 250,240 — node1/node2 之間下方) ---
+do rclick 250 240
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:RenderTarget
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 104)] | length == 1'
+echo rendertarget-104-spawned
+
+# --- 加 Blur (空白右鍵, clear 區 470,250 — node2 下方右側) ---
+do rclick 470 250
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:Blur
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 105)] | length == 1'
+echo blur-105-spawned
+
+# --- 接線 (output pin → input pin) ---
+# DrawPoints#7.out[pin 702] → RenderTarget#104.command[pin 10401]
+do drag @pin:702 @pin:10401
+wait 0.3
+# RenderTarget#104.out[pin 10402] → Blur#105.Image[pin 10501]
+do drag @pin:10402 @pin:10501
+wait 0.3
+# 兩條新連線都建立 (root 連線數: default 3 + 2 = 5)
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[]] | length == 5'
+echo chain-connected-7to104to105
+
+# --- 畫面: Blur 是最下游 tex sink → output window 顯示 blur 後畫面, 捕一幀 ---
+wait 0.6
+capture clean blurred
+echo captured-blurred-output
+
+# --- 改 Blur Size → 畫面像素必變 (blur 半徑變 = gather 真的在跑) ---
+# 選 Blur#105 (標題列) → Inspector 拖 Size 滑桿往右 (param:Size)
+do click @node:105^
+wait 0.4
+do drag @param:Size +60 +0
+wait 0.6
+assert_diff blurred
+echo size-change-moves-pixels

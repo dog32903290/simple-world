@@ -231,19 +231,57 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     tx->second(tc);
   };
 
+  // Cook a TEXTURE-flow node (RenderTarget OR an image filter like Blur) into its OWN
+  // resolution-sized texture and return it (resident mirror of cook()'s cookTexNode). The
+  // Texture2D gather direct-through (lane I): a filter's Texture2D input recurses to the upstream
+  // tex node here. `depth` shares the cook recursion cap. Cycle/depth-safe.
+  std::function<MTL::Texture*(const std::string&, int)> cookTexNode =
+      [&](const std::string& path, int depth) -> MTL::Texture* {
+    if (depth > kCookDepthCap) return nullptr;
+    const ResidentNode* n = rg.node(path);
+    const NodeSpec* s = n ? findSpec(n->opType) : nullptr;
+    if (!n || !s) return nullptr;
+    auto tx = texReg().find(n->opType);
+    if (tx == texReg().end() || !tx->second) return nullptr;
+    const std::map<std::string, float>* tp = nodeParams(path);
+    RenderResolution res = resolveRenderResolution(
+        tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
+    MTL::Texture* tex = p_->ensureTex(path, res.w, res.h);
+    RenderCommand chain;
+    MTL::Texture* inTex = nullptr;
+    for (const PortSpec& port : s->ports) {
+      if (!port.isInput) continue;
+      const ResidentInput* ri = n->input(port.id);
+      if (!(ri && ri->driver == ResidentInput::Driver::Connection)) continue;
+      if (port.dataType == "Command") {
+        RenderCommand up = cookCommand(ri->srcNodePath, depth + 1);
+        chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
+      } else if (port.dataType == "Texture2D" && !inTex) {
+        inTex = cookTexNode(ri->srcNodePath, depth + 1);
+      }
+    }
+    TexCookCtx tc;
+    tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
+    tc.ctx = &ctx; tc.graph = nullptr; tc.reg = reg;
+    tc.nodeId = 0; tc.command = &chain; tc.inputTexture = inTex; tc.output = tex;
+    tc.params = tp;
+    tx->second(tc);
+    return tex;
+  };
+
   // Terminal three-flow (parity with cook()): tex (RenderTarget executes its Command chain into
   // its own resolution-sized texture) / cmd (1-item chain into the window target) / preview
   // (Points-producing op -> synthesized 1-item chain). No legacy draw flow here — the resident
   // era starts after the render-target pivot. Unknown target -> black, no crash.
   //
   // S2 BYPASS at the TERMINAL (修B): a bypassed terminal realizes its MAIN input's upstream
-  // producer instead (= viewing TiXL's bypassed slot shows the passed-through value). This is
-  // the ONLY site where the Texture2D flow can redirect — textures exist solely at the terminal
-  // (a Texture2D-input gather doesn't exist in the cook walk), so a bypassed Texture2D node
-  // shows the upstream texture producer's own texture, at the UPSTREAM's resolution (TiXL: the
-  // value IS the upstream texture). The loop walks chained bypasses (depth-capped to match the
-  // eval paths' cycle guard); the redirect target then dispatches by ITS own flow below. An
-  // unwired main input = the input slot's default = nothing to show -> black.
+  // producer instead (= viewing TiXL's bypassed slot shows the passed-through value). Since lane I
+  // a Texture2D-input gather DOES exist mid-walk (cookTexNode recurses image filters into their
+  // upstream tex producer), but the terminal bypass loop still only redirects the displayed node;
+  // a bypassed Texture2D node shows the upstream texture producer's own texture, at the UPSTREAM's
+  // resolution (TiXL: the value IS the upstream texture). The loop walks chained bypasses
+  // (depth-capped to match the eval paths' cycle guard); the redirect target then dispatches by
+  // ITS own flow below. An unwired main input = the input slot's default = nothing to show -> black.
   std::string termPath = targetPath;
   const ResidentNode* tn = rg.node(termPath);
   for (int guard = 0; tn && tn->bypassed; ++guard) {
@@ -258,25 +296,11 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
 
   auto texIt = texReg().find(tn->opType);
   if (texIt != texReg().end() && texIt->second) {
-    const std::map<std::string, float>* tp = nodeParams(termPath);
-    RenderResolution res = resolveRenderResolution(
-        tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
-    MTL::Texture* tex = p_->ensureTex(termPath, res.w, res.h);
-    RenderCommand chain;
-    for (const PortSpec& port : ts->ports) {
-      if (!(port.isInput && port.dataType == "Command")) continue;
-      const ResidentInput* ri = tn->input(port.id);
-      if (!(ri && ri->driver == ResidentInput::Driver::Connection)) continue;
-      RenderCommand up = cookCommand(ri->srcNodePath, 0);
-      chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
-    }
-    TexCookCtx tc;
-    tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
-    tc.ctx = &ctx; tc.graph = nullptr; tc.reg = reg;
-    tc.nodeId = 0; tc.command = &chain; tc.output = tex;
-    tc.params = tp;
-    texIt->second(tc);
-    p_->displayTex = tex;  // viewport shows the resolution-sized texture
+    // Texture terminal (RenderTarget OR an image filter like Blur): cook it + its upstream
+    // tex/command chain into its own resolution-sized texture via the recursive tex walker.
+    MTL::Texture* tex = cookTexNode(termPath, 0);
+    if (tex) p_->displayTex = tex;  // viewport shows the resolution-sized texture
+    else p_->clearTarget();
   } else if (cmdReg().find(tn->opType) != cmdReg().end()) {
     RenderCommand chain = cookCommand(termPath, 0);
     execIntoTarget(chain, "RenderTarget", termPath);

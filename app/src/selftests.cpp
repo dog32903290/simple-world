@@ -164,6 +164,8 @@ const SelfTest kTable[] = {
     {"combinebuffers", runCombineBuffersSelfTest},
     {"rendertarget", runRenderTargetSelfTest},
     {"rendertargetwired", runRenderTargetWiredSelfTest},
+    {"blur", runBlurSelfTest},
+    {"blurchain", runBlurChainSelfTest},
     {"timeline", ui::runTimelineSelfTest},
     {"nodestyle", ui::runNodeStyleSelfTest},
     {"canvasids", ui::runCanvasIdsSelfTest},

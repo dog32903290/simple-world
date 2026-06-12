@@ -122,6 +122,12 @@ struct TexCookCtx {
   const SourceRegistry* reg = nullptr;
   int nodeId = 0;
   const RenderCommand* command = nullptr;  // upstream chain (concatenated); may be null/empty
+  // First wired Texture2D input (the gather direct-through, lane I): the cook driver cooks the
+  // upstream texture op (RenderTarget/Blur) into ITS own ensureTex texture and hands the result
+  // here. An image-filter op (Blur) samples this; a RenderTarget executor ignores it. null when
+  // no Texture2D input is wired. This is the Texture2D flow's "input bag" — parallel to how
+  // PointCookCtx::inputs carries the already-cooked upstream Points buffer.
+  const MTL::Texture* inputTexture = nullptr;
   MTL::Texture* output = nullptr;          // PointGraph-owned, pre-sized; op draws here
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
 };
@@ -256,5 +262,15 @@ int runBypassCookSelfTest(bool injectBug);
 // 1-item chain) — resident cook == flat cook == hand-computed. injectBug makes the stateful stub
 // ignore its persistent state -> the across-cooks assertion FAILS (teeth).
 int runResidentCookParitySelfTest(bool injectBug);
+
+// Blur image-filter golden (point_ops_blur.cpp, lane I): the FIRST image filter (Texture2D in ->
+// Texture2D out). (a) BLUR MATH: fill a source texture with a hard 1px-wide vertical white line on
+// black, run Blur, assert the line SPREADS horizontally (neighbouring columns lit) — a no-op /
+// passthrough leaves them black. (b) GATHER DIRECT-THROUGH: build RadialPoints->DrawPoints->
+// RenderTarget->Blur through PointGraph::cook and assert the terminal texture is non-empty (the
+// RenderTarget's Texture2D output really reached the Blur input). injectBug makes the blur write
+// the center tap only (Size 0) so the spread assertion FAILS (teeth).
+int runBlurSelfTest(bool injectBug);
+int runBlurChainSelfTest(bool injectBug);
 
 }  // namespace sw
