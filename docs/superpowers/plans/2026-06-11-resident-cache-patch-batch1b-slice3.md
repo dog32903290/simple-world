@@ -700,3 +700,64 @@ animGroupForSlot→makeRef(#channel), patch 路自動繼承。timeline lane labe
   crude_json never escapes object KEYS; loader accepts cyclic files silently (S14 catches);
   粒子 pool 政策常數非旋鈕; dt ceiling 0.25 selftest 不可達(frame_cook 層); 負 rate 倒播無斷言;
   BPM 改值非 undoable; resume 後 fx 倒退=TiXL 既定無明示斷言鎖。
+
+## Cut 15 — 批次 9: E0 工具+修C+rate 變速+S6 殘項 (2026-06-12 晚) 🔄 D4 活體回填中
+`33110a7`→`d90da1d` 七 commit; 編隊 4 implementer + 3 refuter + 3 fixer + D4 live(跑中)。
+工具三件套 (`9882f87`, 批次間隙落地) 全程服役: worktree setup ccache 熱編 3s/run_all --bite/
+sw_drive mtime-wait。
+
+**E0 eye/hand 升級 (`33110a7`):** popup 選單項進 map (insp:*/native_menu_items; ctx:*/tlctx:*
+批次8 已有); timelineSelectionJson 進 state.json (k1 類問題機讀); rclick settle 假設被牙否證
+(D3 不穩真因=節點被浮窗壓住, 遮擋閘照設計); hand.cpp 404→248 拆 selftest TU; sw_drive 活體
+首用抓三蟲 (state 子命令 touch 錯 req/mtime 整秒死鎖→%Fm/do 提早返回→hand_pending 輪詢)。
+
+**E1 修C compound bypass (`23f857b`):** flattener bypassed compound 不 inline, main output
+別名 main input driver (ProducerMap 通貨, 三態統一) = Slot.cs:176-179 Instance 級; 內部零
+resident 足跡; childIsBypassable 拆 atomic 閘 (Symbol.Child.cs:232-248 逐字); viewProducerPath
+橫向走防黑屏; --selftest-bypasscompound 五腿 (leg X 翻面/roundtrip/Cmd+Tex production 入口/
+巢狀/undo-redo)。
+
+**E3 rate+變速 (`7a8f36e`):** transport setRate (±16/死 rate 復活=TimeControls.cs:130-133);
+decide() speed 輸入 (refuter-C 潛伏雷正法); AVAudioUnitVarispeed (變速變調=BASS Frequency
+parity); toolbar Speed; fork: 負速 soundtrack=Pause (AVAudio 無倒放)/|speed| 窗外 [0.25,4]
+=Pause/rate sticky 不持久化。
+
+**E2 S6 殘項 (`7f7dd9a`):** snap (SnapResult 數學/anchors=raster+playhead+非選中 keys/指示器
+1s 淡出+tl_snap hook); ruler=BeatTimeRaster 15 段 ladder 逐行 (換檔/bar.beat/fade); curve
+雙擊加 key (值=取樣 cs:337, fork=雙擊 vs Alt+click); zoom 阻尼=DampScaling 逐行 (雙態/
+f=min(dt/0.06,1)); timeline 牙 27→45 CHK。
+
+**refuter 三航 10 BROKEN → 3 fixer commit 全修:**
+- **E1 (`9aade66`):** B1 宣告序幽靈路徑→Kahn 拓撲序 (連批次5 非 bypass compound→compound
+  舊傷治根; 環殘餘=宣告序補走具名); B2 compound childIn 不查 animator→補種子, compound 輸入
+  動畫從全聾變真投影 (GUI Animate 假旋鈕家族); B3 patch 靜默 no-op→void→bool 訊號化 (false=
+  零足跡須 rebuild, 'patch==rebuild' 破翼變可斷言); 盲區=viewProducerPath 橫步帶 srcSlot;
+  resident_eval_graph 爆 400→拆 flatten.cpp (295)。
+- **E2 (`ea9087b`):** 雙擊毀滅鏈→insert 改 clone-previous-key (cs:339-341, 撞號自然無損,
+  fork=clone-next when no previous); curve 視圖 Shift 極性反了→per-view (TiXL 兩視圖本就相反
+  cs:461 vs :927); snap indicator stamp 移 clamp 後 (驗證面去污染); Vec 兄弟自吸→dope 全通道
+  同 roundTime 入選 (cs:976-987) exclusion 自然蓋; damp 中拖漂移→絕對座標映射 (InverseTransformX
+  結構天然免疫); 順手 drag active 擋 Cmd+Z (stale snapshot)。
+- **E3 (`d90da1d`):** 窗內變速 resync 機關槍 (rate≥1.5 → 81-99% 幀 hard-seek)→真兇=批次8 漏抄
+  cs:226 第三個 speed (resyncOffset=TriggerDelay×speed, speed=1 恰 0 隱形)+我方獨有 seek-settle
+  guard (position 重啟窗凍結 vs BASS mixer 不停=結構差, 光抄 offset 不夠); offset 常數=本機實測
+  0.030 (Scarlett median 42ms) 非 BASS 2/60 具名; 閉環追逐牙 rate{1,1.5,2,4} 全 0 hard-seeks
+  (injectBug 重演 81/98% 簽名); 順帶 rate1 穩態 drift −35→−10ms; eps 殭屍 (0.001 兩閘縫→Play
+  永死)→inclusive; 4.0 窗界遲滯 (re-entry 3.8)。
+
+**驗收欄 (回填):**
+- [ ] D4 (Fable) 活體 12 項跑中
+- [ ] 柏為親測: ①Speed 拖 2×/4× 聽變速變調 (高八度) ②變速中拔耳機 ③藍牙耳機 rate 1 會不會
+  風暴 (offset 常數=Scarlett 實測, 藍牙延遲更高) ④雙擊毀滅鏈修後手感 ⑤批次8 四項若未測續欄
+
+**新 parked (批次9):** 負速 position 無下界 (advance 不 clamp vs scrub ≥0 不對稱); 0.25 下窗
+界同形 flutter 未加遲滯; 多輸出 compound 次要輸出 dangling (兩處同命: builder+viewProducerPath);
+root Constant redirect 表達缺口; patch 三態訊號 (landed/no-op/unpatchable) 留修D; compound
+childIn 種子 anim group=scalar identity (compound SlotDef 今日皆 scalar); B1 環殘餘 wire-cycle
+拒絕應在 command 層 (同 addChildWouldCycle 位置)。
+
+## Resume — next (批次10 候選)
+1. Texture2D gather 直通 (第一顆 image filter op 進場時) — 修C 後 production 入口已開
+2. soundtrack offset 校時旋鈕 (柏為聽出延遲才開; 藍牙風暴若實證→offset 常數要變旋鈕或自動量測)
+3. 負速倒播全鏈 (timeline/curve/shader 吃負 bars 的 UI+渲染行為, 現無牙)
+4. dope value-nudge 手感拍板後續 (柏為親測④)
