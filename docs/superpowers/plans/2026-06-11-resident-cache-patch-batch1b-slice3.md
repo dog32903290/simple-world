@@ -663,9 +663,18 @@ animGroupForSlot→makeRef(#channel), patch 路自動繼承。timeline lane labe
   選不中 (SetNextItemAllowOverlap)/timeline 焦點 Cmd+Z 死 (canvas handler window-scoped,
   timeline 自帶)/eye 凍根治 (MTKView display-link 停轉>250ms keep-alive 手動 draw); hand 長出
   rdrag+keydown/keyup。D2 砍前懸案: k1 點選 key 顏色淡黃≠選中黃 (功能 vs 視覺待裁)。
-- [ ] **D3 (Fable) 活體收尾跑中**: k1 懸案+17 項全清單
+- [x] **D3 (Fable) 活體收尾 ✓ (`95b53a1`)**: 17 項清單 16 PASS。**k1 懸案破案=功能全對非路由洞**
+  (拖/刪/undo 三證綠; 淡黃=選中色過 sRGB framebuffer gamma 抬升 (255,210,90)→(255,234,160),
+  與未選/hover 清楚可分——選中黃要不要更飽和=柏為品味拍板, 非 FAIL)。兩個根因修:
+  ①keep-alive 餓死 double-click (display-link 停轉下 ~4fps 重畫湊不齊 ImGui 雙擊窗→有 hand
+  step 即 0.05s 手勢速; 前兩輪雙擊漏的真因) ②drag 缺 settle 起手幀 (press 沿用前幀 HoveredId,
+  AllowOverlap 下被 lane-bg 偷走變框選)。唯一活體受阻項具名: node-editor 右鍵選單對 hand
+  rclick 注入不穩定 (hit-test 脆, 手冊既有「點標題非中心」同族)——bypass 語義由
+  --selftest-bypasscook+命令層拒絕碼雙證, 「右鍵→Bypass→旗標翻」的 GUI 示範缺活體穩定重現。
+  **新環境雷: `pkill -f "simple_world$"` 殺不掉 `--open x.swproj` 實例 (cmdline 尾不是
+  simple_world)→多實例同寫 .eye 致 pos/map 亂跳; 正解 `pkill -f "build/simple_world"`**。
 - [ ] **柏為親測項**: ①拔耳機復活 (播放中拔→一秒內回聲+不倒帶) ②soundtrack 真出聲+音畫齊
-  ③dope 垂直 nudge 手感 (fork 項, 不對直接砍)
+  ③dope 垂直 nudge 手感 (fork 項, 不對直接砍) ④選中黃飽和度品味拍板 (k1)
 
 **柏為親手玩法 (批次8 新東西):** ①Timeline 滾輪 zoom/右拖 pan/框選多 key 拖/右鍵切內插/
 "Curves" 鈕進曲線視圖拖 tangent 把手 ②Inspector 對 Vec 參數 (如 Center) 右鍵 Animate→
