@@ -780,3 +780,78 @@ childIn 種子 anim group=scalar identity (compound SlotDef 今日皆 scalar); B
 3. 負速倒播全鏈 (timeline/curve/shader 吃負 bars 的 UI+渲染行為, 現無牙)
 4. dope value-nudge 手感拍板後續 (柏為親測④)
 5. scenario 庫擴編 (D4 清單其餘段→.scn; implementer 新規=活體可證行為附 .scn)
+
+## Cut 16 — 批次 10: D4 排修+殘刺+負速定案+scenario 庫成軍 (2026-06-13 凌晨) ✅
+`980e2dd`→`fb4d569` 六 commit; /sw-batch 自走首航 + WORKFLOW 分層首用 (2 Opus impl +
+2 Sonnet impl + Opus/Sonnet refuter 各一 + fixer 由 orchestrator 親收)。候選 0/3/5 組批,
+1 (Texture2D gather) 閘 image-filter-op 進場、2/4 閘柏為親測 → 跳過不擋批。
+
+**A — D4-E3 兩條咬帳 (`980e2dd`): 查證不重現, 契約鎖牙。** position 寫入者全樹只有
+transport.advance + 使用者 scrub, 無音訊回寫路徑。不捏造修補: soundtrack leg ⑪
+(playhead-isolation 不變量, soundtrack_selftest_d4.cpp 照 runAnimGuiS6Legs 拆分前例,
+selftest TU 398→501 破 400 線被 commit 律法自檢咬住→拆) + e3_subwindow_speed/
+e3_eof_position.scn + state.json 露 .transport.rate。
+**refuter-R1 (Opus) 判決補完: 109→129 突跳可構造 = 單次 10s stall × rate4 × unclamped
+dt, 數字嚴絲合縫——但 TiXL Playback.cs:104-118 raw Stopwatch 同樣無上限 = 逐字 parity
+非 bug; B4 治穩態 FPS≠治單次長 stall (拖窗/debugger)。A1 凍結 = D4 把 soundtrack 窗
+Pause 誤讀成 playhead 凍 (唯一真凍結=rate≤0.001=TiXL eps pause)。兩條咬帳正式銷案。**
+
+**B — D4 殘刺四項 (`8dc866c`):** ①spawn 跟右鍵點 (= GraphView.cs:861 InverseTransform
+語義; fork=submenu 直列型別非 SymbolBrowser 搜尋面板) + d4_spawn_position.scn ②浮窗
+io.ConfigWindowsMoveFromTitleBarOnly=true (canvas NoMove 不受影響; 日後要拖的浮窗不可
+NoTitleBar) ③tl_lane key 補 :ln.index 通道後綴 (Vec 多通道同 key 互踩; UI 人讀面本就
+各自 .x/.y/.z, R2 雙面驗證) ④**FPS 30→3 根因 = isDirty() 每幀 libToJsonV2 全序列化**
+(updateWindowTitle 觸發) → g_libRevision-keyed cache + 兩個繞 revision 直寫點
+(soundtrackPath/bpm) 接 invalidateDirtyCache。
+**refuter-R2 (Sonnet) 咬出 1 BROKEN→fixer (`de7abb7`): doSave/doSaveAs 更新快照不 bump
+revision → 存檔後 isDirty() 殘留 stale true (標題 • 不滅)。修=兩出口接 invalidate +
+navigation selftest dirty-cache-save leg (咬 doSave 本體真寫檔, injectBug 紅證)。**
+假引文記帳: B3 真路徑 Editor/Gui/TableView/TableView.cs (內容對); B4 引 UndoRedoQueue.cs
+查無對應, 真依據=Core/Animation/CurveSampleCache.cs ChangeCount/_revision 模式。
+FPS root-cause 鏈活體未重現 (testdata 2.9KB 太小, 序列化 <1μs; cache 正確無害, 因果鏈
+誠實記為未實證)。
+
+**C — 負速倒播全鏈 (`6c1b278`): TiXL 研究定案=鏈本已對齊, 零程式碼改, 補牙釘死。**
+①advance 不 clamp (Playback.cs:114-118 PlaybackSpeed 有號無下界) — parked「負速 position
+無下界」拍板: 照 TiXL 不 clamp; scrub ≥0 維持既有 fork, 兩者並存是設計 ②倒播入口:
+TiXL=BUTTON (TimeControls.cs:464-470); fork=我方用 Speed 旋鈕拖過 0 (插鈕會位移 Speed
+rect 弄紅兩條 Speed-drag scn); Transport::playBackwards() 留 TiXL 按鈕語義做 helper
+(四態上牙, 未接 UI; 其 forward→-1 一步到位 vs TiXL stop-first 已具名) ③負刻度: raster
+fmod 自然浮出。牙=transport ①d (過 0 UNCLAMPED/scrub 不對稱/playBackwards 四態) + ④擴
+(automation @ 負 playhead=首鍵值) + timeline ⑧ 負刻度兩牙 + negspeed_playback.scn。
+**refuter-R1: 全 SURVIVE。負域 ruler label "0.-1" 醜 = TiXL BeatTimeRaster.BuildLabel
+位元等同地醜 (繼承的本質醜, 修了才是 fork, 不修)。**
+
+**D — scenario 庫成軍 (`612733e`): 1→11 條。** 六條 d4_*.scn (curve_editing/vec_channels/
+compound_bypass/compound_anim/transport_rate/save_restart) 每條綠+RED 證。runner 三修:
+app_launch mkdir -p $EYE (雞蛋問題, lane C 獨立撞到雙重確認)/fixture <src> <dst> 指令
+(會 Save 的 scenario 必須每跑重置——合流咬出 save_restart 非冪等: 第二跑 Radius 已有動畫
+insp:Animate 解析不到)/@SYM 解析有界重試 ×3 留痕 (`fb4d569`, sweep 連跑掉 3-4 條單跑
+全綠的 churn 假紅, 修後兩輪 sweep 11/11 零 retry)。
+不可 scenario 化具名: 音訊出聲/拔耳機/藍牙=實體; 雙擊手感=主觀; 宣告序=headless 已證。
+
+**驗收欄:**
+- [x] 每 commit orchestrator 親手復跑 66/66 --bite 零 NO-BITE + check-arch + scenario 庫
+- [x] refuter 波 9 SURVIVE + 1 BROKEN (修畢); A no-repro 判決過 Opus 對抗
+- [x] scenario 全庫兩輪 sweep 11/11
+- [ ] 柏為親測 (批次10 新增): ①Speed 旋鈕拖到負值倒播手感 (fork=旋鈕非 TiXL 按鈕, 不順
+  手再議接 playBackwards 鈕) ②右鍵加節點 spawn 落點手感 ③浮窗改 title-bar-only 拖動的
+  操作慣性 ④存檔後標題 • 即滅 (de7abb7)
+- [ ] 柏為親測 (批次9 繼承): Speed 2×/4× 變調/變速拔耳機/藍牙 rate1 風暴/雙擊手感/批次8 四項
+
+**新 parked (批次10):** main.cpp 425 行第二刀拆分 (law debt, 排批次11 首位); leg ⑪ 走
+followFrame 非 production syncFrame (coverage gap, 修=frame lambda 改 routed, 小);
+sweep 連續區段 flake 根因未深究 (retry 治標留痕, retry 觸發率>0 時回來看); B4 FPS
+root-cause 活體實證需 >1MB animator 重 project fixture; 負域 ruler label "0.-1" (TiXL
+等同, 上游醜); D4 殘刺餘項: 疊放節點命中順序 (z 模型) 未動。
+**繼承 parked (批次9):** 0.25 下窗界 flutter 遲滯; 多輸出 compound 次要輸出 dangling;
+root Constant redirect; patch 三態訊號; B1 wire-cycle 拒絕 command 層化。
+
+## Resume — next (批次11 候選)
+0. main.cpp 第二刀拆分 (law debt 首位; 425 行, 沿職責縫)
+1. leg ⑪ 改走 syncFrame (R1 coverage gap, 小)
+2. **parity 缺口掃描批**: 候選見底——派 Explore 編隊對照 external/tixl 盤點「TiXL 有、
+   我們沒有/不一樣」(op 庫/UI 視覺/互動/快捷鍵), 產出新 Resume 候選清單。Texture2D
+   gather + 第一顆 image filter op 自然在此入列 (修C 後 production 入口已開)
+3. soundtrack offset 校時旋鈕 (柏為聽出延遲才開) — 閘柏為
+4. dope value-nudge 手感拍板後續 — 閘柏為
