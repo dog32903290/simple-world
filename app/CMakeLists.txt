@@ -81,6 +81,7 @@ add_executable(simple_world
   src/app/graph_commands_selftest.cpp
   src/app/animation_commands.cpp
   src/app/animation_commands_selftest.cpp
+  src/app/animation_commands_selftest_s6.cpp
   src/app/rename_commands.cpp
   src/app/child_state_commands.cpp
   src/app/def_removal_selftest.cpp
@@ -96,6 +97,9 @@ add_executable(simple_world
   src/ui/copy_paste_ui.cpp
   src/ui/inspector.cpp
   src/ui/timeline_window.cpp
+  src/ui/timeline_dopesheet.cpp
+  src/ui/timeline_curve_editor.cpp
+  src/ui/timeline_edit.cpp
   src/ui/node_draw.cpp
   src/ui/node_faces.cpp
   src/ui/node_style.cpp

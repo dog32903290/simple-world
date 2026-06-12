@@ -14,8 +14,8 @@
 //   WriteKeyAtPlayheadCommand    = InputValueUi.DrawAnimatedParameter + FloatInputUi.ApplyValueToAnimation
 //                                  （動已動畫參數 = 在當前播放頭寫/更新 key，P1 拍板）
 // FORK：childId 是 int 實例 id（非 Guid）、inputId 是 string slotId、scalar Float = 單通道（index 0）。
-// 範圍鎖死（第一刀）：dope-sheet 式；不做 TimeClip/Layer/loop range/變速/bezier 把手；key 內插固定
-//   Linear（animateFloat 預設），內插 enum 之後再開。
+// 批次8 S6 解鎖：多選/內插 enum 切換/tangent 把手（SetCurveGroupSnapshotCommand，見下）。
+// 仍鎖死：TimeClip/Layer/loop range/變速。
 // Zone: app. 依賴 runtime/compound_graph + curve_animator + curve。
 #pragma once
 #include <string>
@@ -199,6 +199,42 @@ class SetCurveSnapshotCommand : public Command {
   bool refused_ = false;
 };
 
+// S6 multi-lane 快照命令：一個手勢動到「多個 (childId, slotId) 的曲線陣列」（多選拖移/多選刪/
+// 內插切換/tangent 拖）時，整組 before/after 包成一步 undo。= TiXL 的 ChangeKeyframesCommand
+// （跨曲線收一份 _originalDefForReferences/StoreCurrentValues）/ MacroCommand("Delete keyframes")。
+// FORK 具名：TiXL per-VDefinition 記 diff；我方沿批次7 拍板「keyframe undo = 整條 Curve 快照」
+// （單-key tangent 殘渣使 per-key undo 非 byte-faithful），群組版 = 快照的 vector。
+// 用法（兩型）：①即發手勢（內插切換/多選刪）—在「副本」上算 after，push 後 doIt 安裝 after。
+// ②live-write 手勢（多選拖/tangent 拖）—拖曳中直寫 live 曲線，放手 push（doIt 重套 after = 冪等）。
+// refused 若每組 before==after（空手勢不污染 undo 堆）。
+struct CurveGroupEdit {
+  int childId = 0;
+  std::string slotId;
+  Animator::CurveArray before;
+  Animator::CurveArray after;
+};
+class SetCurveGroupSnapshotCommand : public Command {
+ public:
+  SetCurveGroupSnapshotCommand(SymbolLibrary& lib, std::string symbolId,
+                               std::vector<CurveGroupEdit> edits, std::string name);
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return name_.c_str(); }
+  bool refused() const { return refused_; }
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  std::vector<CurveGroupEdit> edits_;
+  std::string name_;
+  bool refused_ = false;
+};
+
+// 「這次手勢有沒有真的改到東西」的判別器（SetCurve*SnapshotCommand 的 refused 共用）。
+// 全欄位比對：u/value/in/out interp/in/out tangent angle/tension/weighted/broken + pre/post
+// mapping——tangent 拖曳只動 angle 欄，比較器漏看 angle 會把真編輯誤判成空手勢（S6 牙）。
+bool curveArraysEqual(const Animator::CurveArray& a, const Animator::CurveArray& b);
+
 // Headless RED->GREEN proof of the S3 GUI command layer (--selftest-animgui):
 //   ① Animate: curve生 + 首 key=當前值 + driver 翻 Automation（resident 投影驗）+ undo 全還原
 //      （driver 回 Constant、曲線消失、無殭屍）
@@ -208,5 +244,8 @@ class SetCurveSnapshotCommand : public Command {
 //   ⑤ savev2 全鏈：Animate 後存 -> 讀回 -> 曲線 + driver 都在
 // injectBug 破壞一個期望（undo 留殭屍）-> 斷言 FAIL（teeth）。
 int runAnimGuiSelfTest(bool injectBug);
+// S6 legs（⑧群組快照 / ⑨內插切換 / ⑩tangent 寫入），機械拆分 TU
+// （animation_commands_selftest_s6.cpp）。由 runAnimGuiSelfTest 呼叫，回傳 failure 數。
+int runAnimGuiS6Legs(bool injectBug);
 
 }  // namespace sw

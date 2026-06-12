@@ -168,12 +168,16 @@ void WriteKeyAtPlayheadCommand::undo() {
 }
 
 // --- SetCurveSnapshotCommand (P1 live-write 收尾) ---
-namespace {
-// Two curve arrays are equal for undo purposes iff same shape + every key's (u, value, interp) match.
-// Tangent angles are derived from those, so this is a faithful "did the drag change anything?" test.
+// "Did the gesture change anything?" — FULL-field compare. S3 first cut compared only
+// (u, value, interp) because tangents were derived; S6's tangent-handle drag AUTHORS
+// inTangentAngle/outTangentAngle/tension/weighted/broken directly, so a narrow compare would
+// misread a real tangent edit as a no-op gesture and refuse the undo step (S6 teeth leg).
 bool curveArraysEqual(const Animator::CurveArray& a, const Animator::CurveArray& b) {
   if (a.size() != b.size()) return false;
   for (size_t i = 0; i < a.size(); ++i) {
+    if (a[i].preCurveMapping != b[i].preCurveMapping ||
+        a[i].postCurveMapping != b[i].postCurveMapping)
+      return false;
     const std::map<double, VDefinition>& ta = a[i].table();
     const std::map<double, VDefinition>& tb = b[i].table();
     if (ta.size() != tb.size()) return false;
@@ -183,13 +187,15 @@ bool curveArraysEqual(const Animator::CurveArray& a, const Animator::CurveArray&
       const VDefinition& va = ia->second;
       const VDefinition& vb = ib->second;
       if (va.value != vb.value || va.inInterpolation != vb.inInterpolation ||
-          va.outInterpolation != vb.outInterpolation)
+          va.outInterpolation != vb.outInterpolation ||
+          va.inTangentAngle != vb.inTangentAngle || va.outTangentAngle != vb.outTangentAngle ||
+          va.tensionIn != vb.tensionIn || va.tensionOut != vb.tensionOut ||
+          va.weighted != vb.weighted || va.brokenTangents != vb.brokenTangents)
         return false;
     }
   }
   return true;
 }
-}  // namespace
 SetCurveSnapshotCommand::SetCurveSnapshotCommand(SymbolLibrary& lib, std::string symbolId,
                                                  int childId, std::string slotId,
                                                  Animator::CurveArray before,
@@ -211,6 +217,30 @@ void SetCurveSnapshotCommand::doIt() {
 void SetCurveSnapshotCommand::undo() {
   if (refused_) return;
   if (Symbol* s = sym(lib_, symbolId_)) s->animator.setCurves(childId_, slotId_, before_);
+}
+
+// --- SetCurveGroupSnapshotCommand (S6 multi-lane gestures) ---
+// Drops no-op entries at construction; refuses if NOTHING changed (= the single-snapshot
+// precedent: an empty gesture must not pollute the undo stack).
+SetCurveGroupSnapshotCommand::SetCurveGroupSnapshotCommand(SymbolLibrary& lib, std::string symbolId,
+                                                           std::vector<CurveGroupEdit> edits,
+                                                           std::string name)
+    : lib_(lib), symbolId_(std::move(symbolId)), name_(std::move(name)) {
+  for (CurveGroupEdit& e : edits)
+    if (!curveArraysEqual(e.before, e.after)) edits_.push_back(std::move(e));
+  if (edits_.empty()) refused_ = true;
+}
+void SetCurveGroupSnapshotCommand::doIt() {
+  if (refused_) return;
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) { refused_ = true; return; }
+  for (const CurveGroupEdit& e : edits_) s->animator.setCurves(e.childId, e.slotId, e.after);
+}
+void SetCurveGroupSnapshotCommand::undo() {
+  if (refused_) return;
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) return;
+  for (const CurveGroupEdit& e : edits_) s->animator.setCurves(e.childId, e.slotId, e.before);
 }
 
 }  // namespace sw

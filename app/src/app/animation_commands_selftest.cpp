@@ -264,6 +264,10 @@ int runAnimGuiSelfTest(bool injectBug) {
     CHK(refusedOk, "⑦ empty snapshot (before == after) refuses (this fails under injectBug)");
   }
 
+  // ⑧⑨⑩ S6 legs (group snapshot / interpolation switch / tangent write) live in
+  // animation_commands_selftest_s6.cpp (mechanical split, ARCHITECTURE rule 4).
+  failures += runAnimGuiS6Legs(injectBug);
+
   // teeth: injectBug leaves a zombie curve after the Animate undo.
   if (injectBug) {
     SymbolLibrary lib2 = libFromGraph(defaultParticleGraph());

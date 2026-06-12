@@ -1,0 +1,139 @@
+// ui/timeline_internal — shared state/geometry/pending-action contract between the timeline's
+// views (S6 split along the view seam, ARCHITECTURE rule 4):
+//   timeline_window.cpp       window shell: lanes, ruler, playhead, zoom/pan, context menu
+//   timeline_dopesheet.cpp    dope-sheet view (lanes + key diamonds + fence + multi-drag)
+//   timeline_curve_editor.cpp curve-editor view (value axis + curve lines + 2-axis drag + tangents)
+//   timeline_edit.cpp         selection helpers + executePending (the ONLY place curves mutate)
+//
+// 鐵律（批次7 BUG-B 前科）：視圖迴圈裡迭代 curve.table() 時絕不 addOrUpdate/removeAt——視圖只
+// 「記錄」手勢進 Pending，timeline_edit::executePending 在所有迭代器收掉之後才執行。In-place 改
+// VDefinition 欄位（value/tangent）不動 map 結構，但為了一條律全走 Pending。
+// Zone: ui (internal header — only the timeline_*.cpp TUs include this).
+#pragma once
+#include <string>
+#include <vector>
+
+#include "imgui.h"
+
+#include "runtime/compound_graph.h"
+#include "runtime/curve.h"
+
+namespace sw::ui::tl {
+
+// One animated channel to draw: which (child,input) + array index, plus its resolved label.
+struct Lane {
+  int childId;
+  std::string inputId;
+  int index;
+  std::string label;
+};
+
+// A selected key, identified by (lane, rounded time) — session-only, like node selection.
+struct SelKey {
+  int childId = -1;
+  std::string inputId;
+  int index = 0;
+  double time = 0.0;
+};
+
+// View transform state. Time axis = TiXL ScalableCanvas Scale.X/Scroll.X (TimeLineCanvas clamps
+// X to [0.01,5000], ScalableCanvas.cs:308-310); value axis only meaningful in curve mode.
+struct ViewState {
+  double pxPerBar = 40.0;     // = TiXL Scale.X (px per bar)
+  double scrollBars = 0.0;    // = TiXL Scroll.X (bars at the content left edge)
+  bool curveMode = false;     // = TiXL TimeLineCanvas.Modes DopeView/CurveEditor
+  double pxPerUnit = 40.0;    // curve view: px per value unit (= Scale.Y)
+  double valueBottom = -1.0;  // curve view: value at the content BOTTOM edge
+  bool needFit = true;        // refit V on mode entry / lane-set change (TimelineCurveEditor.cs:47-56)
+  int lastLaneCount = -1;
+};
+
+// Multi-key drag in flight (= TiXL StartDragCommand/UpdateDragCommand/CompleteDragCommand,
+// DopeSheetArea.cs:1051-1083). `keys` snapshots the dragged set with ORIGINAL time/value; each
+// frame executePending restores `before` and re-applies (dt,dv) — no incremental drift.
+struct DragKey {
+  SelKey key;
+  double startTime = 0.0;
+  double startValue = 0.0;
+  VDefinition def;  // full pre-drag keyframe (interp/tangents ride along the move)
+};
+struct GroupSnap { int childId = 0; std::string inputId; Animator::CurveArray before; };
+struct DragState {
+  bool active = false;
+  int axis = 0;            // 0 undecided / 1 horizontal(time) / 2 vertical(value) — TiXL
+                           // CurveInputEditing.MoveDirections latch (TimelineCurveEditor.cs:439-449)
+  ImVec2 mouseStart{};
+  std::vector<DragKey> keys;
+  std::vector<GroupSnap> before;
+};
+
+// Tangent-handle drag in flight (curve view; one key+side at a time = TiXL CurvePoint.cs).
+struct TangentDrag {
+  bool active = false;
+  SelKey key;
+  bool inSide = false;
+  std::vector<GroupSnap> before;  // the single affected group
+};
+
+// Rubber-band fence (= TiXL SelectionFence; modes Replace/Add/Remove from modifiers at start).
+struct Fence { bool active = false; ImVec2 start{}, end{}; int mode = 0; };  // 0=replace 1=add 2=remove
+
+// What the views RECORDED this frame. Executed by executePending after all iteration closed.
+// (Drag/tangent liveness is NOT recorded here — views only stageDrag/stageTangentDrag; the
+// executor drives update/finish from raw mouse-down, because item ids are unstable mid-drag.)
+struct Pending {
+  bool addKey = false; SelKey addAt{};  // double-click empty lane
+  bool deleteSelected = false;          // Delete/Backspace or context menu
+  int setInterp = -1;                   // KeyInterpolation int (context menu)
+};
+
+struct State {
+  ViewState view;
+  std::vector<SelKey> selection;
+  DragState drag;
+  TangentDrag tan;
+  Fence fence;
+  Pending pending;
+  // Set when a key click was a pure cmd-deselect: that press must not turn into a drag
+  // (TiXL UpdateSelectionOnClickOrDrag's early-return, DopeSheetArea.cs:947-957). Cleared on release.
+  bool suppressDragFromClick = false;
+};
+State& state();  // session singleton (timeline_edit.cpp)
+
+// Per-frame content geometry + the time/value <-> screen transforms both views share.
+struct Geom {
+  float x0 = 0, x1 = 0;  // content rect horizontal (right of the label gutter)
+  float y0 = 0, y1 = 0;  // lanes / curve area vertical
+  double pxPerBar = 40.0, scrollBars = 0.0;
+  double pxPerUnit = 40.0, valueBottom = 0.0;
+  float timeToX(double bars) const { return x0 + (float)((bars - scrollBars) * pxPerBar); }
+  double xToTime(float x) const { return scrollBars + (double)(x - x0) / pxPerBar; }
+  float valueToY(double v) const { return y1 - (float)((v - valueBottom) * pxPerUnit); }
+  double yToValue(float y) const { return valueBottom + (double)(y1 - y) / pxPerUnit; }
+};
+
+constexpr float kLaneH = 22.0f;   // per-lane height (dope view)
+constexpr float kKeyR = 5.0f;     // key diamond half-size (hit + draw)
+constexpr float kDragLatchPx = 4.0f;  // axis-latch threshold (= TiXL MoveDirectionThreshold风格)
+
+// --- selection helpers (timeline_edit.cpp) ---
+bool isSelected(const State& s, int childId, const std::string& inputId, int index, double time);
+// = TiXL DopeSheetArea.UpdateSelectionOnClickOrDrag (cs:941-974): cmd(io.KeyCtrl)=deselect,
+// shift=add, plain=replace-unless-already-selected. Returns true if the click was a pure
+// deselect (caller must NOT start a drag from it).
+bool selectOnClickOrDrag(State& s, const SelKey& k, bool alreadySelected, bool shift, bool cmd);
+// Drop selection entries whose key no longer exists on the animator (undo/load can orphan them).
+void pruneSelection(State& s, const Symbol& sym);
+// Stage a key drag: fills drag.keys (selection w/ original time+value) + before snapshots.
+void stageDrag(State& s, const Symbol& sym, ImVec2 mouseStart);
+// Stage a tangent drag on one key (curve view).
+void stageTangentDrag(State& s, const Symbol& sym, const SelKey& k, bool inSide);
+
+// --- views (record-only; NO curve mutation inside) ---
+void drawDopeSheet(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g, ImDrawList* dl);
+void drawCurveEditor(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g, ImDrawList* dl);
+
+// Execute everything recorded in state().pending; pushes undoable commands (timeline_edit.cpp).
+void executePending(const std::string& symbolId, Symbol& sym, const Geom& g);
+
+}  // namespace sw::ui::tl

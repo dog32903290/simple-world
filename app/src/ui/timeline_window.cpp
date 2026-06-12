@@ -1,68 +1,32 @@
-// ui/timeline_window — dope-sheet timeline draw + key gestures (S3 GUI). See header for范圍.
+// ui/timeline_window — timeline window SHELL (S6): lane collection, view-mode toggle, zoom/pan,
+// adaptive ruler, playhead scrub, context menu, Delete routing. The two views live in
+// timeline_dopesheet.cpp / timeline_curve_editor.cpp; ALL curve mutation in timeline_edit.cpp
+// (executePending — 批次7 BUG-B 律). See timeline_internal.h for the contract.
 #include "ui/timeline_window.h"
 
 #include <algorithm>
 #include <cmath>
-#include <memory>
+#include <cstdio>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "imgui.h"
 
-#include "app/animation_commands.h"
-#include "app/command.h"
 #include "app/document.h"
-#include "app/frame_cook.h"        // transportPosition / transportScrub (the shared playhead surface)
+#include "app/frame_cook.h"  // transportPosition / transportScrub (the shared playhead surface)
 #include "runtime/compound_graph.h"
 #include "runtime/curve.h"
-#include "runtime/graph.h"          // findSpec (port display names)
-#include "verify/eye/eye.h"         // one-line hooks: lane/key rects + playhead for the hand
+#include "runtime/graph.h"  // findSpec (port display names)
+#include "ui/timeline_internal.h"
+#include "verify/eye/eye.h"  // one-line hooks: content/playhead/mode rects for the hand
 
 namespace sw::ui {
 namespace {
 
-// --- Layout constants (pixels) ---
 constexpr float kLaneLabelW = 150.0f;  // left gutter width for "child.input" labels
-constexpr float kLaneH = 22.0f;        // per-lane height
 constexpr float kRulerH = 20.0f;       // time ruler height at the top
-constexpr float kKeyR = 5.0f;          // keyframe diamond half-size (hit + draw)
-constexpr double kBarsPerScreen = 16.0; // how many bars the content area shows (no zoom yet — first cut)
-
-// One animated channel to draw: which (child,input) + array index, plus its resolved label.
-struct Lane {
-  int childId;
-  std::string inputId;
-  int index;
-  std::string label;
-};
-
-// Selected key (session-only): identifies a (lane, time) in the current symbol. -1 childId = none.
-int g_selChild = -1;
-std::string g_selInput;
-int g_selIndex = 0;
-double g_selTime = 0.0;
-bool g_hasSel = false;
-
-// Drag state for moving the selected key (one MoveKeyframe command per drag, pushed on release).
-bool g_dragging = false;
-double g_dragOrigTime = 0.0;   // the key's time when the drag started (command's oldTime)
-float g_dragOrigValue = 0.0f;  // its value at drag start (so a pure horizontal drag keeps value)
-
-void clearSelection() { g_hasSel = false; g_selChild = -1; g_selInput.clear(); }
-
-// Deferred mutation (BUG-B 修): a key gesture's command mutates the very std::map we're iterating
-// (MoveKeyframe -> removeAt -> map::erase; AddKeyframe -> addOrUpdate -> map::insert), invalidating
-// the range-for iterator -> heap-use-after-free on ++it. Standard imgui pattern: the per-lane loop
-// only RECORDS one pending action; we push the command AFTER the loop closes, when no iterator is live.
-struct PendingAction {
-  enum Kind { None, Move, Add } kind = None;
-  int childId = -1;
-  std::string inputId;
-  int index = 0;
-  double oldTime = 0.0;   // Move: the key's original time / Add: the new key's time
-  double newTime = 0.0;   // Move only
-  float value = 0.0f;     // Move only (the value carried across)
-};
+constexpr float kCurveAreaH = 180.0f;  // curve-editor content height (fixed strip, fork 具名)
 
 // Resolve a lane's human label "<childTitle>.<inputName>" (English on screen; eye keys ASCII).
 std::string laneLabel(const Symbol& sym, int childId, const std::string& inputId) {
@@ -80,6 +44,104 @@ std::string laneLabel(const Symbol& sym, int childId, const std::string& inputId
   return childName + "." + inputName;
 }
 
+// Wheel zoom + right-drag pan (= TiXL ScalableCanvas, fork: no scale/scroll damping).
+// Zoom factor 1.2^wheel = ComputeZoomDeltaFromMouseWheel (ScalableCanvas.cs:454-470), anchored at
+// the cursor (ApplyZoomDelta cs:382-415). Dope view zooms X only (TimeLineCanvas.ApplyZoomDelta
+// override cs:335-357); curve view zooms both, Alt = Y-only, Shift = X-only (cs:396-406).
+// Pan: right-drag (cs:261-274); horizontal wheel pans X (touchpad path cs:283, speed fork 60px).
+void handleZoomPan(tl::ViewState& v, const tl::Geom& g) {
+  ImGuiIO& io = ImGui::GetIO();
+  const ImVec2 m = ImGui::GetMousePos();
+  const bool inContent = ImGui::IsWindowHovered() &&
+                         m.x >= g.x0 && m.x <= g.x1 && m.y >= g.y0 - kRulerH && m.y <= g.y1;
+  if (inContent && io.MouseWheel != 0.0f) {
+    const double z = std::pow(1.2, (double)io.MouseWheel);
+    const bool zoomX = !(v.curveMode && io.KeyAlt);
+    const bool zoomY = v.curveMode && !io.KeyShift;
+    if (zoomX) {
+      const double focus = g.xToTime(m.x);
+      v.pxPerBar = std::clamp(v.pxPerBar * z, 0.05, 5000.0);
+      v.scrollBars = focus - (double)(m.x - g.x0) / v.pxPerBar;  // keep the bar under the cursor
+    }
+    if (zoomY) {
+      const double focus = g.yToValue(m.y);
+      v.pxPerUnit = std::clamp(v.pxPerUnit * z, 1e-4, 1e6);
+      v.valueBottom = focus - (double)(g.y1 - m.y) / v.pxPerUnit;
+    }
+  }
+  if (inContent && io.MouseWheelH != 0.0f)
+    v.scrollBars += (double)io.MouseWheelH * 60.0 / v.pxPerBar;
+  if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Right)) {
+    v.scrollBars -= (double)io.MouseDelta.x / v.pxPerBar;
+    if (v.curveMode) v.valueBottom += (double)io.MouseDelta.y / v.pxPerUnit;
+  }
+}
+
+// Adaptive bar ruler: pick the smallest step from {…,0.25,0.5,1,2,4,…} that keeps ticks >= 50px
+// apart (= TiXL TimeRaster idea, implementation fork 具名: pow2 ladder, no beat subdivision).
+void drawRuler(ImDrawList* dl, const tl::Geom& g, float rulerY) {
+  dl->AddRectFilled(ImVec2(g.x0, rulerY), ImVec2(g.x1, rulerY + kRulerH), IM_COL32(28, 30, 38, 255));
+  double step = 0.25;
+  while (step * g.pxPerBar < 50.0 && step < 1e6) step *= 2.0;
+  const double tStart = std::floor(g.xToTime(g.x0) / step) * step;
+  const double tEnd = g.xToTime(g.x1);
+  for (double t = tStart; t <= tEnd + step * 0.5; t += step) {
+    const float x = g.timeToX(t);
+    if (x < g.x0 - 1 || x > g.x1 + 1) continue;
+    dl->AddLine(ImVec2(x, rulerY), ImVec2(x, g.y1), IM_COL32(60, 64, 76, 255));
+    char buf[24];
+    if (step < 1.0) snprintf(buf, sizeof(buf), "%.2f", t);
+    else snprintf(buf, sizeof(buf), "%d", (int)std::llround(t));
+    dl->AddText(ImVec2(x + 2, rulerY + 2), IM_COL32(150, 154, 166, 255), buf);
+  }
+}
+
+// Gather the in/out interpolation modes present in the selection (= TiXL
+// GetSelectedKeyframeInterpolationTypes, CurveEditing.cs:480-490) for the menu checkmarks.
+std::set<int> selectedInterps(const Symbol& sym, const std::vector<tl::SelKey>& sel) {
+  std::set<int> out;
+  for (const tl::SelKey& k : sel) {
+    const Animator::CurveArray* arr = sym.animator.curvesFor(k.childId, k.inputId);
+    if (!arr || k.index >= (int)arr->size()) continue;
+    auto it = (*arr)[k.index].table().find(Curve::roundTime(k.time));
+    if (it == (*arr)[k.index].table().end()) continue;
+    out.insert((int)it->second.inInterpolation);
+    out.insert((int)it->second.outInterpolation);
+  }
+  return out;
+}
+
+// Context menu (= TiXL CurveEditing.DrawContextMenu, CurveEditing.cs:98-295, trimmed to the S6
+// scope: interpolation switch + delete; copy/paste/space-evenly stay locked). Items only RECORD
+// into pending. Right-DRAG (pan) must not open it (CustomComponents.Menus.cs:138 gate).
+// FORK 具名: Tangent has no menu item, same as TiXL — it's authored by dragging the handles.
+void drawContextMenu(tl::State& s, const Symbol& sym) {
+  ImGuiIO& io = ImGui::GetIO();
+  if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Right) &&
+      io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Right] < 16.0f && !s.selection.empty())
+    ImGui::OpenPopup("tl_ctx");
+  if (!ImGui::BeginPopup("tl_ctx")) return;
+  const std::set<int> modes = selectedInterps(sym, s.selection);
+  ImGui::TextDisabled("Interpolation...");
+  // (label, KeyInterpolation) rows = TiXL menu order; "Smooth (Clamped)"=Smooth, "Smooth"=Cubic.
+  static const struct { const char* label; KeyInterpolation mode; } kRows[] = {
+      {"Linear", KeyInterpolation::Linear},
+      {"Smooth (Clamped)", KeyInterpolation::Smooth},
+      {"Smooth", KeyInterpolation::Cubic},
+      {"Horizontal", KeyInterpolation::Horizontal},
+      {"Constant", KeyInterpolation::Constant},
+  };
+  for (const auto& r : kRows) {
+    if (ImGui::MenuItem(r.label, nullptr, modes.count((int)r.mode) > 0))
+      s.pending.setInterp = (int)r.mode;
+    sw::eye::recordItem((std::string("tlctx:") + r.label).c_str());
+  }
+  ImGui::Separator();
+  if (ImGui::MenuItem("Delete Keyframes")) s.pending.deleteSelected = true;
+  sw::eye::recordItem("tlctx:Delete Keyframes");
+  ImGui::EndPopup();
+}
+
 }  // namespace
 
 void drawTimelineWindow() {
@@ -92,13 +154,15 @@ void drawTimelineWindow() {
   sw::Symbol* sym = sw::doc::currentSymbol();
   if (!sym) { ImGui::TextDisabled("(no composition)"); ImGui::End(); return; }
   const std::string symbolId = sym->id;
+  tl::State& s = tl::state();
+  tl::pruneSelection(s, *sym);
 
   // Collect the lanes from the current symbol's Animator (one per channel of each animated input).
-  std::vector<Lane> lanes;
+  std::vector<tl::Lane> lanes;
   for (const auto& [childId, byInput] : sym->animator.all()) {
     for (const auto& [inputId, curves] : byInput) {
       for (int idx = 0; idx < (int)curves.size(); ++idx) {
-        Lane ln;
+        tl::Lane ln;
         ln.childId = childId;
         ln.inputId = inputId;
         ln.index = idx;
@@ -108,7 +172,6 @@ void drawTimelineWindow() {
       }
     }
   }
-
   if (lanes.empty()) {
     ImGui::TextDisabled("No animated parameters in this composition.");
     ImGui::TextWrapped("Right-click a parameter in the Inspector and choose Animate.");
@@ -116,169 +179,93 @@ void drawTimelineWindow() {
     return;
   }
 
-  // --- geometry: content rect (right of the label gutter, below the ruler) ---
+  // --- toolbar row: view-mode toggle (= TiXL TimeLineCanvas.Modes switch) ---
+  if (ImGui::Button(s.view.curveMode ? "Dope Sheet" : "Curves")) {
+    s.view.curveMode = !s.view.curveMode;
+    s.view.needFit = true;  // refit V on every entry (TimelineCurveEditor fitVerticalOnly)
+  }
+  sw::eye::recordItem("tl_mode");
+  ImGui::SameLine();
+  ImGui::TextDisabled(s.view.curveMode ? "wheel zoom (alt=Y shift=X) / right-drag pan"
+                                       : "wheel zoom / right-drag pan");
+
+  // --- geometry ---
   const ImVec2 origin = ImGui::GetCursorScreenPos();
   const float availW = ImGui::GetContentRegionAvail().x;
-  const float contentX0 = origin.x + kLaneLabelW;
-  const float contentX1 = origin.x + availW;
-  const float contentW = std::max(50.0f, contentX1 - contentX0);
-  const float rulerY = origin.y;
-  const float lanesY0 = rulerY + kRulerH;
-
-  // time(bars) <-> screen X. Fixed window [0, kBarsPerScreen] across contentW (no scroll/zoom yet).
-  auto timeToX = [&](double bars) { return contentX0 + (float)(bars / kBarsPerScreen) * contentW; };
-  auto xToTime = [&](float x) { return (double)((x - contentX0) / contentW) * kBarsPerScreen; };
-
+  if (s.view.lastLaneCount != (int)lanes.size()) {
+    s.view.lastLaneCount = (int)lanes.size();
+    s.view.needFit = true;
+  }
+  // Vertical fit on curve-view entry / lane-set change (= TiXL SetVerticalScopeToCanvasArea,
+  // paddingFraction 0.15, TimelineCurveEditor.cs:47-56).
+  if (s.view.curveMode && s.view.needFit) {
+    double mn = 1e300, mx = -1e300;
+    for (const tl::Lane& ln : lanes) {
+      const Animator::CurveArray* arr = sym->animator.curvesFor(ln.childId, ln.inputId);
+      if (!arr || ln.index >= (int)arr->size()) continue;
+      for (const auto& [u, vdef] : (*arr)[ln.index].table()) {
+        (void)u;
+        mn = std::min(mn, vdef.value);
+        mx = std::max(mx, vdef.value);
+      }
+    }
+    if (mn > mx) { mn = 0.0; mx = 1.0; }
+    if (mx - mn < 1e-6) { mn -= 0.5; mx += 0.5; }
+    const double pad = (mx - mn) * 0.15;
+    mn -= pad; mx += pad;
+    s.view.pxPerUnit = kCurveAreaH / (mx - mn);
+    s.view.valueBottom = mn;
+    s.view.needFit = false;
+  }
+  tl::Geom g;
+  g.x0 = origin.x + kLaneLabelW;
+  g.x1 = origin.x + std::max(50.0f + kLaneLabelW, availW);
+  g.y0 = origin.y + kRulerH;
+  g.y1 = g.y0 + (s.view.curveMode ? kCurveAreaH : lanes.size() * tl::kLaneH);
+  g.pxPerBar = s.view.pxPerBar;
+  g.scrollBars = s.view.scrollBars;
+  g.pxPerUnit = s.view.pxPerUnit;
+  g.valueBottom = s.view.valueBottom;
   ImDrawList* dl = ImGui::GetWindowDrawList();
+  // eye hook: the content rect (hand aims wheel-zoom / pan / fence gestures here).
+  sw::eye::recordRect("tl_content", g.x0, g.y0, g.x1, g.y1);
 
-  // BUG-B: any keyframe mutation is deferred to here, executed only after the per-lane loop closes.
-  PendingAction pending;
+  drawRuler(dl, g, origin.y);
 
-  // Ruler: a bar tick + label every bar.
-  dl->AddRectFilled(ImVec2(contentX0, rulerY), ImVec2(contentX1, lanesY0),
-                    IM_COL32(28, 30, 38, 255));
-  for (int bar = 0; bar <= (int)kBarsPerScreen; ++bar) {
-    float x = timeToX((double)bar);
-    dl->AddLine(ImVec2(x, rulerY), ImVec2(x, lanesY0 + lanes.size() * kLaneH),
-                IM_COL32(60, 64, 76, 255));
-    if (bar % 2 == 0) {
-      char buf[16];
-      snprintf(buf, sizeof(buf), "%d", bar);
-      dl->AddText(ImVec2(x + 2, rulerY + 2), IM_COL32(150, 154, 166, 255), buf);
-    }
-  }
+  // --- the active view (record-only; mutations land in executePending below) ---
+  if (s.view.curveMode) tl::drawCurveEditor(*sym, lanes, g, dl);
+  else tl::drawDopeSheet(*sym, lanes, g, dl);
 
-  // --- lanes + keyframes ---
-  for (size_t li = 0; li < lanes.size(); ++li) {
-    const Lane& ln = lanes[li];
-    const float laneY = lanesY0 + li * kLaneH;
-    const float laneMidY = laneY + kLaneH * 0.5f;
-
-    // Label gutter.
-    dl->AddText(ImVec2(origin.x + 2, laneY + 3), IM_COL32(210, 214, 224, 255), ln.label.c_str());
-    // Lane background stripe (alternating).
-    dl->AddRectFilled(ImVec2(contentX0, laneY), ImVec2(contentX1, laneY + kLaneH),
-                      (li & 1) ? IM_COL32(24, 26, 33, 255) : IM_COL32(20, 22, 28, 255));
-
-    // eye hook: the lane row rect (hand can target the empty lane to double-click-add).
-    sw::eye::recordRect(("tl_lane:" + std::to_string(ln.childId) + ":" + ln.inputId).c_str(),
-                        contentX0, laneY, contentX1, laneY + kLaneH);
-
-    const Animator::CurveArray* arr = sym->animator.curvesFor(ln.childId, ln.inputId);
-    if (!arr || ln.index >= (int)arr->size()) continue;
-    const Curve& curve = (*arr)[ln.index];
-
-    // Each key = a clickable diamond at (timeToX(u), laneMidY).
-    int kiSeq = 0;
-    for (const auto& [u, vdef] : curve.table()) {
-      float kx = timeToX(u);
-      ImVec2 kpos(kx, laneMidY);
-      const bool isSel = g_hasSel && g_selChild == ln.childId && g_selInput == ln.inputId &&
-                         g_selIndex == ln.index && Curve::roundTime(g_selTime) == u;
-
-      // Invisible button for hit-test (Mac/imgui-stable; no OS mouse needed for the hand).
-      ImGui::SetCursorScreenPos(ImVec2(kx - kKeyR, laneMidY - kKeyR));
-      ImGui::PushID((int)(li * 1000 + kiSeq));
-      ImGui::InvisibleButton("##key", ImVec2(kKeyR * 2, kKeyR * 2));
-      const bool hovered = ImGui::IsItemHovered();
-      // eye hook: this key's rect, keyed by lane+sequence (ASCII-stable).
-      sw::eye::recordRect(("tl_key:" + std::to_string(ln.childId) + ":" + ln.inputId + ":" +
-                           std::to_string(kiSeq)).c_str(),
-                          kx - kKeyR, laneMidY - kKeyR, kx + kKeyR, laneMidY + kKeyR);
-
-      // Single click -> select this key (and the selected lane).
-      if (ImGui::IsItemActivated()) {
-        g_hasSel = true;
-        g_selChild = ln.childId; g_selInput = ln.inputId; g_selIndex = ln.index; g_selTime = u;
-        g_dragging = false;
-        g_dragOrigTime = u;
-        g_dragOrigValue = (float)vdef.value;
-      }
-      // Drag -> move time (horizontal). Value stays put (no vertical-value drag in the first cut —
-      // value editing is the Inspector's slider / playhead-write path, 報告具名).
-      if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-        g_dragging = true;
-      }
-      // Release after a drag -> RECORD a MoveKeyframe (deferred; the command erases this map node,
-      // so it must not run while we're iterating curve.table() — BUG-B).
-      if (g_dragging && ImGui::IsItemDeactivated()) {
-        double newTime = std::max(0.0, xToTime(ImGui::GetMousePos().x));
-        if (Curve::roundTime(newTime) != Curve::roundTime(g_dragOrigTime)) {
-          pending.kind = PendingAction::Move;
-          pending.childId = ln.childId; pending.inputId = ln.inputId; pending.index = ln.index;
-          pending.oldTime = g_dragOrigTime; pending.newTime = newTime; pending.value = g_dragOrigValue;
-          g_selTime = newTime;  // keep the selection on the moved key
-        }
-        g_dragging = false;
-      }
-
-      // Draw the diamond.
-      ImU32 col = isSel ? IM_COL32(255, 210, 90, 255)
-                        : hovered ? IM_COL32(220, 224, 235, 255) : IM_COL32(150, 180, 240, 255);
-      ImVec2 c = kpos;
-      dl->AddQuadFilled(ImVec2(c.x, c.y - kKeyR), ImVec2(c.x + kKeyR, c.y),
-                        ImVec2(c.x, c.y + kKeyR), ImVec2(c.x - kKeyR, c.y), col);
-      ImGui::PopID();
-      ++kiSeq;
-    }
-
-    // Double-click on the empty lane background = add a key at that time (on the curve's value there).
-    ImGui::SetCursorScreenPos(ImVec2(contentX0, laneY));
-    ImGui::PushID((int)(li + 9000));
-    ImGui::InvisibleButton("##lanebg", ImVec2(contentW, kLaneH));
-    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-      double t = std::max(0.0, xToTime(ImGui::GetMousePos().x));
-      // RECORD an Add (deferred): the command's addOrUpdate mutates the curve whose table() we just
-      // iterated above; `curve` is still a live reference here. Run it after the lane loop (BUG-B).
-      pending.kind = PendingAction::Add;
-      pending.childId = ln.childId; pending.inputId = ln.inputId; pending.index = ln.index;
-      pending.oldTime = t;
-      g_hasSel = true;
-      g_selChild = ln.childId; g_selInput = ln.inputId; g_selIndex = ln.index; g_selTime = t;
-    }
-    ImGui::PopID();
-  }
-
-  // BUG-B: execute the single recorded mutation now that the per-lane loop (and its curve.table()
-  // iterators) have all gone out of scope. At most one key gesture fires per frame.
-  if (pending.kind == PendingAction::Move) {
-    sw::g_commands.push(std::make_unique<sw::MoveKeyframeCommand>(
-        sw::doc::g_lib, symbolId, pending.childId, pending.inputId, pending.index, pending.oldTime,
-        pending.newTime, pending.value));
-  } else if (pending.kind == PendingAction::Add) {
-    sw::g_commands.push(std::make_unique<sw::AddKeyframeCommand>(
-        sw::doc::g_lib, symbolId, pending.childId, pending.inputId, pending.index, pending.oldTime));
-  }
-
-  // --- playhead: a vertical line at transport.position, draggable to scrub (shared surface) ---
-  const float lanesY1 = lanesY0 + lanes.size() * kLaneH;
+  // --- playhead: vertical line at transport.position, ruler strip drags it (shared surface) ---
   const double playPos = sw::framecook::transportPosition();
-  const float playX = timeToX(playPos);
-  if (playX >= contentX0 - 2 && playX <= contentX1 + 2) {
-    dl->AddLine(ImVec2(playX, rulerY), ImVec2(playX, lanesY1), IM_COL32(255, 90, 90, 255), 1.5f);
-    dl->AddTriangleFilled(ImVec2(playX - 5, rulerY), ImVec2(playX + 5, rulerY),
-                          ImVec2(playX, rulerY + 7), IM_COL32(255, 90, 90, 255));
+  const float playX = g.timeToX(playPos);
+  if (playX >= g.x0 - 2 && playX <= g.x1 + 2) {
+    dl->AddLine(ImVec2(playX, origin.y), ImVec2(playX, g.y1), IM_COL32(255, 90, 90, 255), 1.5f);
+    dl->AddTriangleFilled(ImVec2(playX - 5, origin.y), ImVec2(playX + 5, origin.y),
+                          ImVec2(playX, origin.y + 7), IM_COL32(255, 90, 90, 255));
   }
-  // A grab strip over the ruler = drag to scrub (= toolbar's transportScrub, can't drift).
-  ImGui::SetCursorScreenPos(ImVec2(contentX0, rulerY));
-  ImGui::InvisibleButton("##playhead", ImVec2(contentW, kRulerH));
-  sw::eye::recordRect("tl_playhead", contentX0, rulerY, contentX1, rulerY + kRulerH);
+  ImGui::SetCursorScreenPos(ImVec2(g.x0, origin.y));
+  ImGui::InvisibleButton("##playhead", ImVec2(g.x1 - g.x0, kRulerH));
+  sw::eye::recordRect("tl_playhead", g.x0, origin.y, g.x1, origin.y + kRulerH);
   if (ImGui::IsItemActive()) {
-    double t = std::max(0.0, xToTime(ImGui::GetMousePos().x));
+    double t = std::max(0.0, g.xToTime(ImGui::GetMousePos().x));
     sw::framecook::transportScrub(t);  // SAME control surface as the toolbar Pos drag
   }
 
   // Reserve the laid-out height so the window scrolls/sizes correctly.
-  ImGui::SetCursorScreenPos(ImVec2(origin.x, lanesY1 + 4));
+  ImGui::SetCursorScreenPos(ImVec2(origin.x, g.y1 + 4));
   ImGui::Dummy(ImVec2(1, 1));
 
-  // --- Delete (and Backspace, the Mac雷) removes the selected key via an undoable command ---
-  if (g_hasSel && ImGui::IsWindowFocused() &&
-      (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace))) {
-    sw::g_commands.push(std::make_unique<sw::DeleteKeyframeCommand>(
-        sw::doc::g_lib, symbolId, g_selChild, g_selInput, g_selIndex, g_selTime));
-    clearSelection();
-  }
+  drawContextMenu(s, *sym);
+  handleZoomPan(s.view, g);
+
+  // Delete / Backspace (Mac 雷) removes ALL selected keys via one undoable group command.
+  if (!s.selection.empty() && ImGui::IsWindowFocused() &&
+      (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)))
+    s.pending.deleteSelected = true;
+
+  // BUG-B 律: every recorded mutation executes HERE, after all curve.table() iterators closed.
+  tl::executePending(symbolId, *sym, g);
 
   ImGui::End();
 }
