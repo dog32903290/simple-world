@@ -31,6 +31,15 @@ ImU32 packU32(ImVec4 c) {
 }
 
 // TiXL ColorVariation: HSV with s*=sat, v*=bri (both clamped), a*=op (ColorVariation.cs).
+ImVec4 variation4(ImVec4 c, float bri, float sat, float op) {
+  float h, s, v;
+  ImGui::ColorConvertRGBtoHSV(c.x, c.y, c.z, h, s, v);
+  s = std::min(s * sat, 1.0f);
+  v = std::min(v * bri, 1.0f);
+  float r, g, b;
+  ImGui::ColorConvertHSVtoRGB(h, s, v, r, g, b);
+  return ImVec4(r, g, b, std::min(c.w * op, 1.0f));
+}
 ImU32 variation(ImVec4 c, float bri, float sat, float op) {
   float h, s, v;
   ImGui::ColorConvertRGBtoHSV(c.x, c.y, c.z, h, s, v);
@@ -60,17 +69,17 @@ ImU32 nodeSelectedBorderColor() { return IM_COL32(255, 255, 255, 255); }  // TiX
 ImU32 nodeHoverBorderColor()    { return IM_COL32(210, 210, 220, 170); }
 
 // V2: TiXL DrawConnection.cs:32-42 — line color = ConnectionLines variation (b1,s1,op0.8)
-// applied to the type's base color. When selected/hovered TiXL uses OperatorLabel variation
-// (b1.3,s0.4,op1.0) first then ConnectionLines on top — simplified here to just OperatorLabel
-// (brighter) without the second application, which matches the visible result closely enough.
+// applied to the type's base color. DrawConnection.cs:40-44 applies TWO variations:
+//   typeColor = ConnectionLines.Apply(selectedColor)
+//   selectedColor = (selected||hovered) ? OperatorLabel.Apply(color) : ConnectionLines.Apply(color)
+// so a normal line is ConnectionLines TWICE (alpha 0.8*0.8 = 0.64) and a hovered line is
+// ConnectionLines over OperatorLabel. (refuter-R-VK V2: the single application shipped first
+// read 20% too bright.)
 ImU32 connectionLineColor(const std::string& dataType, bool selected) {
   ImVec4 base = baseColor(dataType);
-  if (selected) {
-    // selected/hovered: OperatorLabel (b1.3, s0.4, a1.0) — distinct from normal
-    return variation(base, 1.3f, 0.4f, 1.0f);
-  }
-  // normal: ConnectionLines (b1.0, s1.0, a0.8) — TiXL ColorVariations.ConnectionLines
-  return variation(base, 1.0f, 1.0f, 0.8f);
+  ImVec4 sel = selected ? variation4(base, 1.3f, 0.4f, 1.0f)   // OperatorLabel
+                        : variation4(base, 1.0f, 1.0f, 0.8f);  // ConnectionLines (first pass)
+  return variation(sel, 1.0f, 1.0f, 0.8f);                     // ConnectionLines (cs:44, on top)
 }
 
 // V3: TiXL DrawNode.cs:126 — rounding = 5 * CanvasScale, 0 if CanvasScale < 0.5.

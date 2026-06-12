@@ -144,10 +144,14 @@ void drawNodeCanvas() {
   sw::Symbol* cur = sw::doc::currentSymbol();
 
   ed::SetCurrentEditor(g_NodeEditor);
+  // Kill imgui-node-editor's BUILT-IN gray grid (default StyleColor_Grid=(120,120,120,40)) —
+  // it drew OVER the faithful TiXL grid below and dominated it (refuter-R-VK V3: the canvas
+  // showed ed's gray cells, not the TiXL black ones). TiXL has no such built-in layer.
+  ed::GetStyle().Colors[ed::StyleColor_Grid] = ImVec4(0, 0, 0, 0);
   if (hostOpen && cur) {
-    // V1: canvas background grid (TiXL DrawBackgroundGrids, Drawing.cs:377-396).
-    // Called BEFORE ed::Begin so our draws land on the base draw-list channel; the
-    // node-editor splits channels on top starting from Begin().
+    // V1: canvas background grid (TiXL DrawBackgroundGrids, Drawing.cs:377-396 multi-layer +
+    // :398-426 single-layer loop). Called BEFORE ed::Begin so our draws land on the base
+    // draw-list channel; the node-editor splits channels on top starting from Begin().
     drawCanvasBackgroundGrids();
 
     ed::Begin("canvas");
