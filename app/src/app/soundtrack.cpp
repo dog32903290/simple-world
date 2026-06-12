@@ -36,6 +36,10 @@ AudioPlayback& playback() {
 std::string g_loadedPath;
 std::string g_failedPath;
 
+// The production follow-rule state (the soundtrack singleton's). Reset whenever the loaded
+// file changes — a pending seek / lockout from the previous file means nothing to the new one.
+FollowState g_followState;
+
 std::string baseName(const std::string& path) {
   const size_t slash = path.find_last_of('/');
   return slash == std::string::npos ? path : path.substr(slash + 1);
@@ -49,6 +53,7 @@ void reloadIfPathChanged() {
   if (want == g_loadedPath) return;
   if (!want.empty() && want == g_failedPath) return;  // cached failure: don't retry-spam
   playback().unload();
+  g_followState = FollowState{};  // stale pending-seek/lockout belongs to the old file
   g_loadedPath.clear();
   if (want.empty()) { g_failedPath.clear(); return; }
   if (playback().load(want)) {
@@ -63,8 +68,15 @@ void reloadIfPathChanged() {
 
 }  // namespace
 
+// Ceiling-hysteresis step (refuter-E3 修3, named fork — see header). Pure so the flutter
+// sequence is headless-testable; the state itself lives in FollowState.
+bool speedLockoutStep(bool lockedOut, double speed) {
+  if (speed > kAudibleSpeedMax) return true;            // excursion above the ceiling locks out
+  return lockedOut && speed > kAudibleSpeedReentry;     // hold through the (3.8, 4.0] band
+}
+
 Action decide(bool transportPlaying, double speed, double targetSecs, double durationSecs,
-              bool audioPlaying, double audioPosSecs) {
+              bool audioPlaying, double audioPosSecs, bool speedLockedOut) {
   // Transport paused -> stream paused, NO seek (TiXL UpdateSoundtrackTime:159-163). Scrubbing
   // while paused only moves the target; the stream stays silent until play.
   // Same leg covers every speed the chain can't voice:
@@ -77,7 +89,11 @@ Action decide(bool transportPlaying, double speed, double targetSecs, double dur
   //   • |speed| outside [0.25, 4]: NAMED FORK — BASS frequency-scales to ±16 (TimeControls.cs:
   //     106 caps the UI there); varispeed stops at 4x/0.25x. Chasing a 16x playhead with 4x
   //     audio would resync-glitch every few frames — pause instead, deterministically silent.
-  const bool voiceable = speed >= kAudibleSpeedMin && speed <= kAudibleSpeedMax;
+  //   • speedLockedOut: the 修3 hysteresis — after an excursion above the ceiling, in-window
+  //     speeds in (3.8, 4.0] stay silent so a knob fluttering across 4.0 can't machine-gun
+  //     Pause/PlayAtTarget (named fork, no TiXL window edge to flutter on).
+  const bool voiceable =
+      !speedLockedOut && speed >= kAudibleSpeedMin && speed <= kAudibleSpeedMax;
   if (!transportPlaying || !voiceable) return audioPlaying ? Action::Pause : Action::None;
 
   // Target outside the file (playhead before bar 0 can't happen here, but past the end can):
@@ -97,6 +113,54 @@ Action decide(bool transportPlaying, double speed, double targetSecs, double dur
   return std::fabs(soundDelta) > maxSoundDelta ? Action::Resync : Action::None;
 }
 
+Action followFrame(FollowState& st, AudioPlayback& p, bool transportPlaying, double speed,
+                   double targetSecs) {
+  st.speedLockedOut = speedLockoutStep(st.speedLockedOut, speed);
+  Action a = decide(transportPlaying, speed, targetSecs, p.durationSeconds(), p.playing(),
+                    p.positionSeconds(), st.speedLockedOut);
+
+  // Seek-settle guard (named fork, see header): while our last seek's render restart is still
+  // in flight, positionSeconds() is frozen at the seek readback — drift is unmeasurable and the
+  // aimed-ahead target shows up as fake +offset×rate drift. Hold Resync until the render clock
+  // actually moves (a real restart = 2-3 frames), or give up after kSeekSettleMaxFrames so a
+  // zombie engine still gets bounded retry instead of eternal silence.
+  if (a == Action::Resync && st.pendingSeekPos >= 0.0) {
+    const bool rendered = p.positionSeconds() > st.pendingSeekPos + 1e-6;
+    if (!rendered && st.settleFrames < kSeekSettleMaxFrames) {
+      ++st.settleFrames;
+      return Action::None;
+    }
+    st.pendingSeekPos = -1.0;  // render confirmed (or bound tripped): drift rule resumes
+    st.settleFrames = 0;
+  }
+
+  switch (a) {
+    case Action::None: break;
+    case Action::Pause:
+      p.pause();
+      st.pendingSeekPos = -1.0;  // nothing in flight once the stream is stopped
+      st.settleFrames = 0;
+      break;
+    case Action::Resync:
+      // The third speed (修1): aim AHEAD by the restart delay × rate (TiXL cs:226) so the
+      // stream re-enters in sync instead of late by delay×rate (the resync machine gun).
+      p.seek(targetSecs + resyncOffsetSecs(speed));
+      st.pendingSeekPos = p.positionSeconds();  // post-clamp readback, the settle anchor
+      st.settleFrames = 0;
+      break;
+    case Action::PlayAtTarget:
+      // Entry IS a seek+start — TiXL unpauses then the same-frame drift check resyncs with the
+      // same offset (UpdateSoundtrackTime:200-228 folded); carrying it here also kills the
+      // permanent -restartDelay drift a 1x entry used to park on the stream.
+      p.seek(targetSecs + resyncOffsetSecs(speed));
+      p.play();
+      st.pendingSeekPos = p.positionSeconds();
+      st.settleFrames = 0;
+      break;
+  }
+  return a;
+}
+
 void syncFrame(bool transportPlaying, double speed, double targetSecs) {
   reloadIfPathChanged();
   AudioPlayback& p = playback();
@@ -109,16 +173,7 @@ void syncFrame(bool transportPlaying, double speed, double targetSecs) {
       std::fabs(speed - p.rate()) > 0.001) {
     p.setRate(speed);
   }
-  switch (decide(transportPlaying, speed, targetSecs, p.durationSeconds(), p.playing(),
-                 p.positionSeconds())) {
-    case Action::None: break;
-    case Action::Pause: p.pause(); break;
-    case Action::Resync: p.seek(targetSecs); break;
-    case Action::PlayAtTarget:
-      p.seek(targetSecs);
-      p.play();
-      break;
-  }
+  followFrame(g_followState, p, transportPlaying, speed, targetSecs);
 }
 
 void applySoundtrackPick(const std::string& path) {

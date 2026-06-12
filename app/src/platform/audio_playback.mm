@@ -195,6 +195,14 @@ void AudioPlayback::pause() {
   impl_->stopPlayer();
 }
 
+// NOTE (fixer-E3 修1③, evaluated & named): there is NO lighter seek on AVAudioPlayerNode. The
+// only way to replace a pending schedule is [player stop] (scheduleSegment without it QUEUES
+// after the current segment; there is no flush/jump API), and stop both resets the player's
+// sample clock and costs a full render-cycle re-engage — the measured 24-47ms restart delay is
+// inherent to this node. The app layer compensates instead (soundtrack resyncOffsetSecs aims
+// the seek ahead by delay×rate; its settle guard holds the drift rule while the restart is in
+// flight). Going lighter would mean replacing the player with our own source node + ring
+// buffer (the AUHAL-style route capture took) — a different instrument, not a tweak.
 void AudioPlayback::seek(double seconds) {
   if (impl_->file == nil) return;
   if (seconds < 0.0) seconds = 0.0;

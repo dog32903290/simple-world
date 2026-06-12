@@ -16,6 +16,10 @@
 #pragma once
 #include <string>
 
+namespace sw {
+class AudioPlayback;  // platform leaf (app -> platform legal); full header only in the .cpp
+}
+
 namespace sw::soundtrack {
 
 // = TiXL CompositionSettings.AudioResyncThreshold default (CompositionSettings.cs:82).
@@ -28,6 +32,47 @@ inline constexpr double kResyncThresholdSecs = 0.04;
 // and stops at 4x/0.25x — outside the window the stream PAUSES (visuals keep the full rate).
 inline constexpr double kAudibleSpeedMin = 0.25;
 inline constexpr double kAudibleSpeedMax = 4.0;
+
+// Ceiling hysteresis (refuter-E3 修3, NAMED FORK — TiXL has no counterpart: BASS voices ±16 so
+// there is no window edge to flutter on). A rate jittering across 4.0 (knob drag 3.99↔4.01)
+// would otherwise alternate Pause/PlayAtTarget EVERY frame — an audible start/stop machine gun.
+// Once the speed EXITS above kAudibleSpeedMax the stream stays locked silent until the speed
+// comes back DOWN to kAudibleSpeedReentry. Exact 4.0 (a UI doubling target) never locks out.
+inline constexpr double kAudibleSpeedReentry = 3.8;
+
+// One step of the lockout state machine (pure; the state lives in FollowState):
+//   speed > kAudibleSpeedMax        -> locked out
+//   locked && speed > kReentry      -> stays locked (the hysteresis band (3.8, 4.0])
+//   otherwise                       -> unlocked
+bool speedLockoutStep(bool lockedOut, double speed);
+
+// === The resync offset — TiXL's THIRD speed, the one 批次8 missed (refuter-E3 修1) ===
+// SoundtrackClipStream.cs:226: resyncOffset = AudioTriggerDelayOffset*speed + AudioSyncingOffset.
+// A hard-seek does not land instantly: by the time the stream actually plays from the seek
+// target, the wall clock has moved on by the restart delay — so the seek must AIM AHEAD by
+// delay×speed source-seconds or the audio re-enters already late by exactly that much, and at
+// |late| > threshold (delay×rate > 0.04 ⇔ rate ≳ 1.4 here) every resync begets the next: the
+// 窗內變速 resync machine gun (rate 1.5 = 81% / rate 2 = 98% hard-seek frames, refuter-E3).
+// NAMED FORK on the CONSTANTS — they are transport-chain measurements, not portable numbers:
+//   • TiXL's 2/60 / −2/60 are BASS mixer-pipeline figures (TriggerDelay = mixer reaction time;
+//     SyncingOffset also corrects BASS's position READBACK, cs:207). Copying 2/60 onto AVAudio
+//     mis-aims every seek.
+//   • kAudioTriggerDelayOffset here = the MEASURED AVAudioPlayerNode seek restart delay (stop +
+//     reschedule + play until the render clock moves), probed on real hardware (Scarlett 2i2,
+//     15 trials/rate): median 42ms @1x, 41ms @2x, 28ms @4x, full range 24–47ms. 0.030 is the
+//     conservative low-middle: aiming SHORT degrades into a small bounded lateness (worst
+//     measured residual ≈0.034 source-secs at the window edges, under the 0.04 threshold);
+//     aiming LONG would overshoot at 4x into a +lead that re-trips the gate from the other side.
+//   • kAudioSyncingOffset = 0: our positionSeconds() reads the player's own render clock
+//     directly — there is no BASS-style mixer readback lag to pair-correct, and in our freeze-
+//     then-advance readback model the term cancels out of both the transient and the steady
+//     drift (it shifts seek target and readback equally). Kept as a term so the formula stays
+//     line-mappable to cs:226.
+inline constexpr double kAudioTriggerDelayOffset = 0.030;
+inline constexpr double kAudioSyncingOffset = 0.0;
+inline double resyncOffsetSecs(double speed) {
+  return kAudioTriggerDelayOffset * speed + kAudioSyncingOffset;  // = cs:226 verbatim shape
+}
 
 // One frame's follow decision — the pure heart of the sync, headless-testable. Inputs are the
 // transport state (is the playhead moving; at what speed; where is it, mapped to SECONDS) and
@@ -43,9 +88,36 @@ inline constexpr double kAudibleSpeedMax = 4.0;
 //     |speed| cs:221) — they cancel for speed≠0, so the OBSERVABLE is that the gate is
 //     speed-invariant; we mirror the formula anyway (parity over cleverness).
 //   • negative / out-of-window speed -> Pause (named fork above; TiXL would reverse/scale).
+//   • speedLockedOut (the 修3 hysteresis state, stepped by speedLockoutStep) makes an in-window
+//     speed count as unvoiceable — the (3.8, 4.0] band stays silent after an excursion above 4.
 enum class Action { None, Pause, Resync, PlayAtTarget };
 Action decide(bool transportPlaying, double speed, double targetSecs, double durationSecs,
-              bool audioPlaying, double audioPosSecs);
+              bool audioPlaying, double audioPosSecs, bool speedLockedOut = false);
+
+// The follow rule's cross-frame state (one per playback instance; production keeps one for the
+// soundtrack singleton, the closed-loop selftest keeps its own).
+struct FollowState {
+  bool speedLockedOut = false;   // 修3 ceiling hysteresis (speedLockoutStep)
+  double pendingSeekPos = -1.0;  // readback right after our last seek; -1 = no seek settling
+  int settleFrames = 0;          // frames spent waiting for that seek's render restart
+};
+
+// Frames the settle guard will wait for a seek's render clock to move before giving up and
+// letting the drift rule try again (zombie-engine bound: ~0.5s @60Hz; a real restart takes 2-3).
+inline constexpr int kSeekSettleMaxFrames = 30;
+
+// One frame of the follow rule against a concrete playback: hysteresis step -> decide() ->
+// seek-settle guard -> apply (seeks carry resyncOffsetSecs). Returns the action it APPLIED
+// (None when the guard suppressed a Resync) so the closed-loop selftest can count hard-seeks.
+// The seek-settle guard is a NAMED FORK with no TiXL line: BASS's position readback keeps
+// advancing straight through a ChannelSetPosition (the mixer never stops), so TiXL's gate never
+// sees a seek in flight — our AVAudioPlayerNode restart freezes positionSeconds() at the seek
+// target for the restart delay (24-47ms measured), during which drift is UNMEASURABLE and the
+// freshly-aimed-ahead target reads as +offset×rate of fake drift (at 4x that alone re-trips the
+// gate every frame). Resync is therefore held until the render clock moves past the seek
+// readback (or kSeekSettleMaxFrames passes — then the drift rule resumes, bounded recovery).
+Action followFrame(FollowState& st, AudioPlayback& p, bool transportPlaying, double speed,
+                   double targetSecs);
 
 // Apply one frame of the follow rule. Called from app/frame_cook::run AFTER the transport
 // advanced. Also the (re)load watcher: when lib.composition.soundtrackPath changed (open/new/
@@ -57,7 +129,8 @@ Action decide(bool transportPlaying, double speed, double targetSecs, double dur
 // applySoundtrackPick is the explicit-retry escape hatch.
 // targetSecs = transport.secondsFromBars(position); transportPlaying = transport.playing();
 // speed = transport.rate. A changed in-window speed is pushed onto the platform varispeed
-// (only on change — TiXL AudioEngine.cs:236-254 playbackSpeedChanged gate) before the action.
+// (only on change — TiXL AudioEngine.cs:236-254 playbackSpeedChanged gate), then the frame is
+// handed to followFrame (the hysteresis + decide + settle-guard + apply seam above).
 void syncFrame(bool transportPlaying, double speed, double targetSecs);
 
 // Write `path` as the composition soundtrack (savev2 persists it; the dirty flag is
@@ -81,8 +154,12 @@ std::string statusText();
 // the platform load() failure path (missing file -> false, no crash) +
 // a real tiny WAV roundtrip (load -> duration -> seek -> position readback, no audio device
 // needed), the live engine legs (修1 config-change restart / 修3 end-seek playing-flag drop —
-// need an output device, SKIP without one), and the 修4 failure-cache retry seam (explicit
-// re-pick retries, per-frame does not). injectBug flips the drift comparison -> FAIL.
+// need an output device, SKIP without one), the 修4 failure-cache retry seam (explicit
+// re-pick retries, per-frame does not), the E3-修3 ceiling hysteresis (flutter across 4.0 =
+// one Pause, zero re-plays), and the E3-修1 closed-loop chase harness (real AudioPlayback
+// through the production followFrame @60Hz×2.5s per rate {1,1.5,2,4}: hard-seek rate < 5% —
+// live, SKIPs without a device). injectBug flips leg ①'s drift comparison AND runs the chase
+// loop pre-fix (no resyncOffset/settle guard, rate 2 storms) -> FAIL.
 int runSoundtrackSelfTest(bool injectBug);
 
 }  // namespace sw::soundtrack

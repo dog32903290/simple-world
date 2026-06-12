@@ -64,12 +64,20 @@ struct Transport {
   // playState (established two-field model), so rate is a sticky knob: pause/play round-trips
   // do NOT reset a NONZERO rate to 1 (TiXL's spacebar always writes PlaybackSpeed=1,
   // TimeControls.cs:132 — resetting a knob the user deliberately set would make it useless).
+  // Stickiness reaches across PROJECT OPEN/NEW too (also a named fork, refuter-E3 盲區): rate
+  // is a SESSION knob on the process-global transport, not document state — composition
+  // settings persist BPM/soundtrack, never rate, so a 4x left on the toolbar survives into a
+  // freshly opened project. Deliberate: the knob belongs to the operator, not the file.
   // The one TiXL branch we keep verbatim: play from a DEAD rate (|rate|<=eps) revives it to 1
   // (TimeControls.cs:130-133) — otherwise the Play button silently does nothing.
   void setRate(double r);
 
   void play() {
-    if (rate > -0.001 && rate < 0.001) rate = 1.0;  // revive from dead rate (cs:130-133)
+    // Revive from a dead rate (cs:130-133). INCLUSIVE bounds: advance() treats |rate| <= 0.001
+    // as not-playing (cs:108 eps is a strict >), so the revive window must cover the SAME set —
+    // a strict < here left rate == ±0.001 a zombie both gates disowned: advance() says paused,
+    // play() says alive-enough — Play forever dead (refuter-E3 修2).
+    if (rate >= -0.001 && rate <= 0.001) rate = 1.0;
     playState = PlayState::Playing;
   }
   void pause() { playState = PlayState::Stopped; }

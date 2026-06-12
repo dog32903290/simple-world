@@ -17,10 +17,15 @@
 //      (the [player stop] early-out used to leave it wedged true); play() after that resurrects
 //   ⑦b varispeed race (live, SKIPs without a device): rate 4 position outruns the wall clock;
 //      rate clamp [0.25,4] itself is headless in leg ⑥
-//   ⑧ failure-cache retry seam (refuter-C 修4): a missing path fails once and is NOT retried
-//      when the file later appears (named fork vs TiXL's per-frame retry, PlaybackUtils.cs:35);
-//      an EXPLICIT re-pick of the SAME path (applySoundtrackPick) retries and loads
-// injectBug shrinks leg ①'s drift below the threshold while still expecting Resync -> FAIL (teeth).
+//   ⑧ failure-cache retry seam (refuter-C 修4): a missing path fails once, is NOT retried when
+//      the file appears (named fork vs TiXL per-frame retry); an EXPLICIT same-path re-pick loads
+//   ⑨ ceiling hysteresis (refuter-E3 修3, headless): excursion above 4.0 locks the stream out
+//      until 3.8; a 3.99↔4.01 flutter = ONE Pause, zero re-plays; exact 4.0 never locks out
+//   ⑩ closed-loop chase harness (refuter-E3 修1, probe_c made permanent — live, SKIPs without
+//      an output device): a REAL AudioPlayback chased through the production followFrame at
+//      60Hz × 2.5s per rate {1,1.5,2,4}; hard-seek rate < 5% of frames, audible, drift bounded
+// injectBug shrinks leg ①'s drift below the threshold while still expecting Resync -> FAIL, and
+// runs leg ⑩'s loop WITHOUT resyncOffset/settle-guard (the pre-fix code) -> rate 2 storms red.
 #include "app/soundtrack.h"
 
 #include <chrono>
@@ -290,6 +295,104 @@ int runSoundtrackSelfTest(bool injectBug) {
     doc::g_lib.composition.soundtrackPath = savedPath;  // restore + unload for later tests
     syncFrame(false, 1.0, 0.0);
     std::remove(path.c_str());
+  }
+
+  // ⑨ ceiling hysteresis (修3, named fork — BASS voices ±16, no edge to flutter on). Headless.
+  {
+    bool lock = false;
+    lock = speedLockoutStep(lock, 4.01);
+    expect("4.01 exits above the ceiling -> locked out", lock);
+    lock = speedLockoutStep(lock, 3.99);
+    expect("3.99 stays locked (re-entry needs <= 3.8)", lock);
+    expectAction("locked out + audible -> Pause (hysteresis silences an in-window speed)",
+                 decide(true, 3.99, 5.0, dur, true, 5.0, true), Action::Pause);
+    expectAction("locked out + already silent -> None (holds, no re-play)",
+                 decide(true, 3.99, 5.0, dur, false, 5.0, true), Action::None);
+    lock = speedLockoutStep(lock, 3.8);
+    expect("3.8 re-enters (lockout clears)", !lock);
+    expectAction("after re-entry the stream resumes",
+                 decide(true, 3.8, 5.0, dur, false, 5.0, false), Action::PlayAtTarget);
+    expect("exact 4.0 (a UI doubling target) never locks out", !speedLockoutStep(false, 4.0));
+
+    // the refuter flutter: 4.01↔3.99 every frame — ONE Pause, ZERO re-plays (no machine gun)
+    bool l = false;
+    bool audioOn = true;
+    int plays = 0, pauses = 0;
+    for (int i = 0; i < 20; ++i) {
+      const double sp = (i % 2 == 0) ? 4.01 : 3.99;
+      l = speedLockoutStep(l, sp);
+      const Action a = decide(true, sp, 5.0, dur, audioOn, 5.0, l);
+      if (a == Action::Pause) { ++pauses; audioOn = false; }
+      if (a == Action::PlayAtTarget) { ++plays; audioOn = true; }
+    }
+    expect("flutter across 4.0: exactly one Pause", pauses == 1);
+    expect("flutter across 4.0: zero re-plays while jittering (hysteresis holds)", plays == 0);
+  }
+
+  // ⑩ closed-loop chase harness (修1 — refuter probe_c made permanent; live, SKIPs without an
+  // output device). A real AudioPlayback chased by a simulated transport target at ~60Hz for
+  // 2.5s per rate through the PRODUCTION followFrame. Kill assertion: Resync rate < 5% of
+  // frames — pre-fix every resync landed restartDelay×rate late and begat the next storm.
+  {
+    const std::string wav = "/tmp/sw_soundtrack_chase.wav";
+    expect("fixture wav (12s) written", writeTinyWav(wav, 48000, 48000 * 12));
+    AudioPlayback p;
+    expect("load(chase wav) succeeds", p.load(wav));
+    p.play();
+    if (!p.playing()) {
+      printf("  [soundtrack] SKIP leg ⑩ (engine start failed: no output device on this machine"
+             " — the chase loop needs live render)\n");
+    } else {
+      p.pause();
+      for (const double rate : {1.0, 1.5, 2.0, 4.0}) {
+        p.setRate(rate);  // = syncFrame's speed push (constant for the whole run)
+        p.seek(0.0);
+        FollowState st;
+        double target = 0.0;
+        int frames = 0, resyncs = 0;
+        auto prev = std::chrono::steady_clock::now();
+        const auto t0 = prev;
+        for (;;) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(16));
+          const auto now = std::chrono::steady_clock::now();
+          const double dt = std::chrono::duration<double>(now - prev).count();
+          prev = now;
+          target += dt * rate;  // the transport: wall clock is master, audio chases
+          ++frames;
+          Action a;
+          if (injectBug) {
+            // pre-fix loop: decide + raw apply, no third speed, no settle guard (批次8 as-was)
+            a = decide(true, rate, target, p.durationSeconds(), p.playing(),
+                       p.positionSeconds());
+            switch (a) {
+              case Action::None: case Action::Pause: break;
+              case Action::Resync: p.seek(target); break;
+              case Action::PlayAtTarget: p.seek(target); p.play(); break;
+            }
+          } else {
+            a = followFrame(st, p, true, rate, target);
+          }
+          if (a == Action::Resync) ++resyncs;
+          if (std::chrono::duration<double>(now - t0).count() >= 2.5) break;
+        }
+        char what[160];
+        snprintf(what, sizeof what, "chase @%.2fx: resync storm dead (%d/%d hard-seeks < 5%%)",
+                 rate, resyncs, frames);
+        expect(what, resyncs * 20 < frames);
+        snprintf(what, sizeof what, "chase @%.2fx: still audible at the end", rate);
+        expect(what, p.playing());
+        // End drift bounded — unless a seek is mid-restart (readback frozen at the seek target
+        // = drift unmeasurable; that window belongs to the settle guard).
+        const double endDrift = p.positionSeconds() - target;
+        const bool settling =
+            st.pendingSeekPos >= 0.0 && p.positionSeconds() <= st.pendingSeekPos + 1e-6;
+        snprintf(what, sizeof what, "chase @%.2fx: end drift %+.0fms within 2x threshold",
+                 rate, endDrift * 1000.0);
+        expect(what, settling || std::fabs(endDrift) <= 2.0 * kResyncThresholdSecs);
+        p.pause();
+      }
+    }
+    std::remove(wav.c_str());
   }
 
   printf("[selftest-soundtrack] %s\n", g_fail == 0 ? "PASS" : "FAIL");

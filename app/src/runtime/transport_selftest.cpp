@@ -164,6 +164,22 @@ int runTransportSelfTest(bool injectBug) {
     t.toggle();  // toggle goes through play(): nonzero rate must SURVIVE (sticky knob)
     expectNear("pause/play round-trip keeps a deliberate nonzero rate", t.rate, 0.5);
 
+    // eps boundary zombie (refuter-E3 修2): rate EXACTLY ±0.001 is not-playing to advance()
+    // (strict > eps) so play() must treat it as dead too — a strict < in the revive gate left
+    // it disowned by both (advance: paused; play: no revive) -> Play forever dead.
+    t.pause();
+    t.setRate(0.001);
+    t.play();
+    expectNear("play() from rate exactly +eps (0.001) revives to 1 (boundary zombie)", t.rate, 1.0);
+    t.pause();
+    t.setRate(-0.001);
+    t.play();
+    expectNear("play() from rate exactly -eps revives to 1", t.rate, 1.0);
+    t.pause();
+    t.setRate(0.0011);  // just OUTSIDE the dead window: a deliberate (tiny) rate stays sticky
+    t.play();
+    expectNear("rate just past eps is alive -> NOT reset by play()", t.rate, 0.0011);
+
     // setRate sane gate: non-finite refused (rate keeps its last value), clamp at ±16 — TiXL's
     // UI doubling stops there (TimeControls.cs:92 backwards, cs:106 forward).
     t.setRate(1.5);
