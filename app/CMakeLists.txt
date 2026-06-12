@@ -151,6 +151,7 @@ add_executable(simple_world
   src/app/frame_cook_selftest.cpp
   src/app/soundtrack.cpp
   src/app/soundtrack_selftest.cpp
+  src/app/soundtrack_selftest_d4.cpp
   src/runtime/graph_bridge.cpp
   src/runtime/graph_bridge_selftest.cpp
   src/runtime/compound_spec_selftest.cpp

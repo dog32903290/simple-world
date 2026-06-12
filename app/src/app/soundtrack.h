@@ -156,10 +156,18 @@ std::string statusText();
 // needed), the live engine legs (修1 config-change restart / 修3 end-seek playing-flag drop —
 // need an output device, SKIP without one), the 修4 failure-cache retry seam (explicit
 // re-pick retries, per-frame does not), the E3-修3 ceiling hysteresis (flutter across 4.0 =
-// one Pause, zero re-plays), and the E3-修1 closed-loop chase harness (real AudioPlayback
+// one Pause, zero re-plays), the E3-修1 closed-loop chase harness (real AudioPlayback
 // through the production followFrame @60Hz×2.5s per rate {1,1.5,2,4}: hard-seek rate < 5% —
-// live, SKIPs without a device). injectBug flips leg ①'s drift comparison AND runs the chase
-// loop pre-fix (no resyncOffset/settle guard, rate 2 storms) -> FAIL.
+// live, SKIPs without a device), and the D4-E3 playhead-isolation invariant (headless, no
+// device): the frame cook's transport.advance+followFrame two-step must add ZERO bars to the
+// playhead — sub-window speed 0.1 keeps advancing (not frozen, 咬帳 #1), the playhead sails
+// through soundtrack EOF with no per-frame 突跳 (咬帳 #2). injectBug flips leg ①'s drift
+// comparison, runs the chase loop pre-fix (no resyncOffset/settle guard, rate 2 storms), AND
+// bleeds the audio clock back onto the playhead (the D4 regression: freeze/snap) -> FAIL.
 int runSoundtrackSelfTest(bool injectBug);
+
+// Leg ⑪ (playhead-isolation invariant) body — soundtrack_selftest_d4.cpp (mechanical split,
+// the runAnimGuiS6Legs precedent). Returns its failure count; the parent aggregates one verdict.
+int runSoundtrackPlayheadIsoLeg(bool injectBug);
 
 }  // namespace sw::soundtrack

@@ -24,8 +24,11 @@
 //   ⑩ closed-loop chase harness (refuter-E3 修1, probe_c made permanent — live, SKIPs without
 //      an output device): a REAL AudioPlayback chased through the production followFrame at
 //      60Hz × 2.5s per rate {1,1.5,2,4}; hard-seek rate < 5% of frames, audible, drift bounded
-// injectBug shrinks leg ①'s drift below the threshold while still expecting Resync -> FAIL, and
-// runs leg ⑩'s loop WITHOUT resyncOffset/settle-guard (the pre-fix code) -> rate 2 storms red.
+//   ⑪ playhead-isolation invariant (D4-E3 咬帳 made executable; full description + body in
+//      soundtrack_selftest_d4.cpp — mechanical split, ARCHITECTURE rule 4)
+// injectBug shrinks leg ①'s drift below the threshold while still expecting Resync -> FAIL,
+// runs leg ⑩'s loop WITHOUT resyncOffset/settle-guard (the pre-fix code) -> rate 2 storms red,
+// AND bleeds the audio clock back onto the playhead in leg ⑪ -> freeze/snap -> red.
 #include "app/soundtrack.h"
 
 #include <chrono>
@@ -394,6 +397,12 @@ int runSoundtrackSelfTest(bool injectBug) {
     }
     std::remove(wav.c_str());
   }
+
+  // ⑪ playhead-isolation invariant (D4-E3 咬帳 #1/#2 made executable) lives in
+  // soundtrack_selftest_d4.cpp (mechanical split, ARCHITECTURE rule 4 — the
+  // runAnimGuiS6Legs precedent). injectBug bleeds the audio clock back onto the
+  // playhead there -> freeze/snap -> red.
+  g_fail += runSoundtrackPlayheadIsoLeg(injectBug);
 
   printf("[selftest-soundtrack] %s\n", g_fail == 0 ? "PASS" : "FAIL");
   return g_fail == 0 ? 0 : 1;

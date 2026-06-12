@@ -1,0 +1,42 @@
+# e3_subwindow_speed.scn — 活體牙 (D4-E3 咬帳 #1): sub-window playback speed must NOT freeze
+# the playhead. The contract (soundtrack.h:30-34 named fork): a speed below the AVAudioUnitVarispeed
+# window [0.25, 4] PAUSES the audio stream, but the VISUAL playhead keeps advancing at that rate.
+# D4 drove this live and saw position COMPLETELY FROZEN at speed 0.1 — this scenario reproduces
+# the exact gesture and asserts the playhead actually moves. (No soundtrack needed: the bite is a
+# transport/playhead phenomenon; the audio side just pauses. The soundtrack-EOF half of the bite
+# is the headless leg ⑪ in --selftest-soundtrack, which needs a real WAV.)
+#
+# RED face: change the final "position > startPos" assertion to "position == startPos" (expect
+# frozen) — it goes red the moment the playhead actually advances (= the bug being absent).
+open app/testdata/compound_smoke.swproj
+
+# Make sure we start paused at position 0 (a fresh project opens stopped at 0; scrub to be safe).
+assert_state '.transport.playing == false'
+echo opened-paused
+
+# Drag the Speed knob LEFT by 90px. The toolbar Speed DragScalar steps 0.01 units/px, so from the
+# default 1.0 this lands ~0.1 — well below the 0.25 varispeed floor (the sub-window the bite is
+# about). The @Speed item resolves to the knob's center; -90 +0 is the drag delta from there.
+do drag @Speed -90 +0
+assert_state '.transport.rate < 0.25'
+assert_state '.transport.rate > 0.001'
+echo speed-set-below-window
+
+# Press Play. At rate 0.1 (> the 0.001 eps) the transport is genuinely playing — the playhead must
+# advance, NOT freeze (the D4 bite). 0.1 is NOT revived to 1.0 by play() (that only catches |rate|
+# <= 0.001), so this really exercises the sub-window rate.
+do click @Play
+assert_state '.transport.playing == true'
+echo playing-at-subwindow-speed
+
+# Let real wall-clock time pass, then prove the playhead moved. At rate 0.1 / 120 BPM the playhead
+# crawls ~0.05 bars/s — small but strictly nonzero. "Frozen" (the bug) would keep it at 0.
+wait 1.5
+assert_state '.transport.position > 0.0'
+echo playhead-advanced-not-frozen
+
+# And it is still genuinely advancing (a second sample strictly greater than a tiny floor), so this
+# is continuous motion, not a one-frame artifact.
+wait 1.0
+assert_state '.transport.position > 0.05'
+echo playhead-still-advancing

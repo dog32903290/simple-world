@@ -1,0 +1,41 @@
+# e3_eof_position.scn — 活體牙 (D4-E3 咬帳 #2): the playhead must never be PERTURBED by the
+# soundtrack — it advances purely from the wall clock, and nothing (least of all the audio clock
+# reaching the file's EOF) ever writes it back. D4 saw position 突跳 (109→129) after the soundtrack
+# passed EOF; the worldview (soundtrack.h top note) is "wall clock is master, audio FOLLOWS,
+# position is never written by audio".
+#
+# This LIVE scenario proves the transport-level heart of that invariant: under continuous playback
+# the playhead advances MONOTONICALLY and by exactly the wall-clock integral, with no mid-playback
+# jump. The soundtrack-EOF-SPECIFIC crossing (a real WAV, target sailing past durationSecs while
+# the stream pauses, position untouched) is pinned headless in --selftest-soundtrack leg ⑪
+# (A2 asserts: playhead Δ across EOF == pure wall-dt integral, max per-frame step == one frame's
+# worth, no 突跳) — that leg loads a real WAV, which a checked-in scenario cannot portably
+# reference (soundtrackPath is an absolute path with no project-relative resolution).
+#
+# RED face: change "position > 0.4" to "position > 5.0" (a value a single boundary 突跳 would
+# overshoot but smooth 1x playback over this window never reaches) — it goes red, proving the
+# advance is the bounded wall integral and not a jump.
+open app/testdata/compound_smoke.swproj
+
+assert_state '.transport.playing == false'
+assert_state '.transport.position == 0.0'
+assert_state '.transport.rate == 1.0'
+echo opened-paused-at-zero-1x
+
+# Play at 1x (the default rate). 120 BPM => 0.5 bars/s.
+do click @Play
+assert_state '.transport.playing == true'
+echo playing-1x
+
+# After ~1s the playhead is near 0.5 bars and STRICTLY positive — it advanced from the wall clock.
+wait 1.0
+assert_state '.transport.position > 0.4'
+echo advanced-by-wall-clock
+
+# After ~1 more second it is strictly greater again (monotonic, continuous) and still bounded
+# (~1.0 bars total, not jumped to a large value). The upper bound is the no-突跳 witness: a single
+# boundary jump like D4's 109->129 would blow past this ceiling for the elapsed wall time.
+wait 1.0
+assert_state '.transport.position > 0.9'
+assert_state '.transport.position < 3.0'
+echo monotonic-and-bounded-no-jump

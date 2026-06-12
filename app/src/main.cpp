@@ -394,6 +394,7 @@ void Renderer::draw(MTK::View* pView) {
         "{\"playing\": " + std::string(sw::framecook::transportPlaying() ? "true" : "false") +
         ", \"position\": " + std::to_string(sw::framecook::transportPosition()) +
         ", \"fxTime\": " + std::to_string(sw::framecook::transportFxTime()) +
+        ", \"rate\": " + std::to_string(sw::framecook::transportRate()) +
         ", \"bpm\": " + std::to_string(sw::framecook::transportBpm()) + "}";
     std::string s = "{\"selectedNode\": " + std::to_string(sw::ui::g_selectedNode) +
                     ", \"compositionPath\": " + comp +
