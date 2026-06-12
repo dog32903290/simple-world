@@ -143,6 +143,16 @@ bool compoundBypassableType(const std::string& dataType) {
 bool childIsBypassable(const SymbolLibrary& lib, const SymbolChild& c) {
   const Symbol* def = lib.find(c.symbolId);
   if (!def) return false;
+  // COMPOUND child -> false (修B 裁決, 批次8; same honest rule as the type whitelist above: a knob
+  // exists ⇔ the executor passes through). The resident builder INLINES a compound child away
+  // (resident_eval_graph.cpp inlineSymbol's non-atomic branch never reads isBypassed — no resident
+  // node carries the flag), so the inner ops cook regardless = the knob would be dead. FORK from
+  // TiXL (its Instance-level ByPassUpdate covers compositions): cook-level compound bypass is 修C,
+  // queued for the next batch. Until then this single gate keeps GUI (combine_dialog), the command
+  // layer (SetBypassChildCommand) and paste-bypass re-apply (CopyPasteChildrenCommand) converged.
+  // An OLD v2 file carrying compound isBypassed=true still LOADS the flag (compound_load) —
+  // harmless: cook never read it, and the context menu stays clickable to un-bypass (isBp leg).
+  if (!def->atomic) return false;
   if (def->inputDefs.empty() || def->outputDefs.empty()) return false;  // = TiXL .cs:234-238
   const SlotDef& mainIn = def->inputDefs[0];
   const SlotDef& mainOut = def->outputDefs[0];

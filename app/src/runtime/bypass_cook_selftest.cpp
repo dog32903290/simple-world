@@ -16,6 +16,13 @@
 //                     displayed texture is the UPSTREAM RenderTarget's own texture and the
 //                     filter's tex fn never runs; un-bypassed contrast: the filter cooks and its
 //                     own texture is displayed.
+//   Leg X (compound)  修1 收窄 (批次8): a COMPOUND child is NOT bypassable (childIsBypassable
+//                     false — the one gate GUI + command layer consult, so no knob is offered
+//                     anywhere) AND a force-set flag is明文 ineffective (the inlined subgraph
+//                     cooks regardless). Cook-level compound bypass = 修C, next batch.
+//   Leg R (cycle)     修2 (批次8): a bypass redirect CYCLE (A↔B mutually bypassed) on the buffer
+//                     and command flows fail-safes at the depth cap (null buffer / empty chain,
+//                     one stderr warn) instead of the pre-修2 bare-recursion stack overflow.
 // Test-only op shapes with no builtin spec (CmdJam Command->Command, TexFilter Texture2D->
 // Texture2D) get their NodeSpec via specFromSymbol + setDynamicSpecs (blessed for headless
 // selftests, graph.h). injectBug emulates a cook that ignores the bypass flag (clears it on the
@@ -286,9 +293,102 @@ int runBypassCookSelfTest(bool injectBug) {
       rc |= fail("leg T contrast: un-bypassed tex op did not cook/display its own texture");
   }
 
+  // ===== Leg X: COMPOUND child bypass = refused knob + ineffective flag (修1 收窄, 批次8) =====
+  {
+    SymbolLibrary lib;
+    lib.symbols["RadialPoints"] = symGen;
+    lib.symbols["ParticleSystem"] = symMod;
+    lib.symbols["DrawPoints"] = symDraw;
+    // Comp (Points -> Points): wraps the x*2 mod (boundary in -> mod -> boundary out). Type-wise it
+    // WOULD pass the whitelist — only the compound 收窄 refuses it.
+    Symbol comp; comp.id = "Comp"; comp.name = "Comp";
+    comp.inputDefs = {{"in", "in", "Points", 0.0f}};
+    comp.outputDefs = {{"out", "out", "Points", 0.0f}};
+    SymbolChild im; im.id = 1; im.symbolId = "ParticleSystem";
+    comp.children = {im};
+    comp.connections = {{kSymbolBoundary, "in", 1, "emit"}, {1, "result", kSymbolBoundary, "out"}};
+    lib.symbols["Comp"] = comp;
+    Symbol root; root.id = "Root"; root.name = "Root";
+    SymbolChild cg; cg.id = 1; cg.symbolId = "RadialPoints";
+    SymbolChild cc; cc.id = 2; cc.symbolId = "Comp"; cc.isBypassed = true;  // forced (old-file shape)
+    SymbolChild cd; cd.id = 3; cd.symbolId = "DrawPoints";
+    root.children = {cg, cc, cd};
+    root.connections = {{1, "points", 2, "in"}, {2, "out", 3, "points"}};
+    lib.symbols["Root"] = root; lib.rootId = "Root";
+
+    // The knob gate: childIsBypassable is the ONE function the GUI (combine_dialog) and the command
+    // layer (SetBypassChildCommand) consult — false HERE means no knob is offered anywhere.
+    if (childIsBypassable(lib, root.children[1]))
+      rc |= fail("leg X: compound child reported bypassable (dead knob is back — 修1 regressed)");
+
+    // The cook contract,明文: the flag on a compound child does NOTHING — the subgraph inlines and
+    // its ops cook (x*2 lands). When 修C implements cook-level compound bypass, THIS assertion is
+    // the one it must flip (together with re-widening childIsBypassable).
+    ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+    std::vector<SwPoint> bag; g_bag = &bag; g_modRuns = 0;
+    pg.cookResident(rg, ctx, nullptr, "3");
+    g_bag = nullptr;
+    bool cookedThrough = bag.size() == 6 && g_modRuns == 1;
+    for (size_t i = 0; cookedThrough && i < bag.size(); ++i)
+      cookedThrough = bag[i].Position.x == (1.0f + 10.0f * (float)i) * 2.0f;
+    if (!cookedThrough)
+      rc |= fail("leg X: compound isBypassed affected the cook (contract: flag must be inert)");
+  }
+
+  // ===== Leg R: bypass redirect cycle -> safe fail, no crash (修2, 批次8) =====
+  // Pre-修2 both flows recursed bare (cookNode's memo lands only after the recursion returns;
+  // cookCommand has no memo at all) = stack overflow. The contract is "returns, with safe empty
+  // output" — REACHING the assertions below is the load-bearing half of the proof.
+  {
+    // Buffer flow: A↔B mutually bypassed Points ops, pulled by a Draw terminal.
+    SymbolLibrary lib;
+    lib.symbols["RadialPoints"] = symGen;
+    lib.symbols["ParticleSystem"] = symMod;
+    lib.symbols["DrawPoints"] = symDraw;
+    Symbol root; root.id = "Root"; root.name = "Root";
+    SymbolChild a; a.id = 1; a.symbolId = "ParticleSystem"; a.isBypassed = true;
+    SymbolChild b; b.id = 2; b.symbolId = "ParticleSystem"; b.isBypassed = true;
+    SymbolChild cd; cd.id = 3; cd.symbolId = "DrawPoints";
+    root.children = {a, b, cd};
+    root.connections = {{2, "result", 1, "emit"}, {1, "result", 2, "emit"},  // the A↔B cycle
+                        {1, "result", 3, "points"}};
+    lib.symbols["Root"] = root; lib.rootId = "Root";
+    ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+    std::vector<SwPoint> bag; g_bag = &bag; g_modRuns = 0; g_rtRuns = 0; g_chain = RenderCommand{};
+    pg.cookResident(rg, ctx, nullptr, "3");
+    g_bag = nullptr;
+    if (g_modRuns != 0) rc |= fail("leg R: a bypassed op in the cycle cooked");
+    if (!bag.empty()) rc |= fail("leg R: cycle produced a bag (expected null buffer / empty)");
+    if (g_rtRuns != 1 || g_chain.items.size() != 1 || g_chain.items[0].points != nullptr ||
+        g_chain.items[0].count != 0)
+      rc |= fail("leg R: draw over the cycle did not yield the safe null/0 item");
+  }
+  {
+    // Command flow: jam1↔jam2 mutually bypassed Command ops, pulled by a RenderTarget terminal.
+    SymbolLibrary lib;
+    lib.symbols["CmdJam"] = symJam;
+    lib.symbols["RenderTarget"] = symRT;
+    Symbol root; root.id = "Root"; root.name = "Root";
+    SymbolChild j1; j1.id = 1; j1.symbolId = "CmdJam"; j1.isBypassed = true;
+    SymbolChild j2; j2.id = 2; j2.symbolId = "CmdJam"; j2.isBypassed = true;
+    SymbolChild rt; rt.id = 3; rt.symbolId = "RenderTarget";
+    root.children = {j1, j2, rt};
+    root.connections = {{2, "out", 1, "command"}, {1, "out", 2, "command"},  // the cycle
+                        {1, "out", 3, "command"}};
+    lib.symbols["Root"] = root; lib.rootId = "Root";
+    ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+    g_chain = RenderCommand{}; g_jamRuns = 0; g_rtRuns = 0;
+    pg.cookResident(rg, ctx, nullptr, "3");
+    if (g_jamRuns != 0) rc |= fail("leg R cmd: a bypassed cmd op in the cycle cooked");
+    if (g_rtRuns != 1) rc |= fail("leg R cmd: tex terminal did not execute");
+    if (!g_chain.items.empty())
+      rc |= fail("leg R cmd: cycle produced chain items (expected the safe empty chain)");
+  }
+
   setDynamicSpecs({});  // drop the injected test specs (leave the table as the process found it)
-  std::printf("[selftest-bypasscook] Points/Command/Texture2D passthrough + contrasts -> %s\n",
-              rc == 0 ? "PASS" : "FAIL");
+  std::printf(
+      "[selftest-bypasscook] P/C/T passthrough + contrasts + compound-knob + cycle-cap -> %s\n",
+      rc == 0 ? "PASS" : "FAIL");
   q->release(); dev->release(); pool->release();
   return rc;
 }

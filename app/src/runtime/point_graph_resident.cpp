@@ -32,6 +32,26 @@ using pgdetail::cookReg;
 using pgdetail::isBufferInput;
 using pgdetail::texReg;
 
+namespace {
+// Recursion cap for the cook walk (修2, 批次8): the SAME 64 every other walk in the resident era
+// uses (builder inlineSymbol depth, eval cycle guard, terminal bypass loop below). Before this,
+// only the TERMINAL bypass loop was capped — a bypass redirect CYCLE inside cookNode/cookCommand
+// (A↔B both bypassed) recursed bare = ASan stack-overflow. Exceeding the cap is a SAFE FAIL:
+// null buffer / empty chain + one stderr warn per process, never a crash. The cap threads through
+// ALL cookNode/cookCommand recursion (the bypass redirect shares the call edge with the normal
+// input gather), so a plain non-bypass wire cycle now also fail-safes instead of overflowing —
+// covered incidentally, not contracted (the parked normal-cycle account stays parked).
+constexpr int kCookDepthCap = 64;
+bool g_warnedCookDepth = false;
+void warnCookDepthOnce() {
+  if (g_warnedCookDepth) return;
+  g_warnedCookDepth = true;
+  std::fprintf(stderr,
+               "[cookResident] cook depth > %d (bypass/wire cycle?) — returning safe empty\n",
+               kCookDepthCap);
+}
+}  // namespace
+
 void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationContext& ctx,
                               const SourceRegistry* reg, const std::string& targetPath,
                               float localTimeBars, float localFxTimeBars,
@@ -64,10 +84,13 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     return &(paramsMemo[path] = resolveResidentFloatInputs(rg, *n, rc));
   };
 
-  std::function<MTL::Buffer*(const std::string&)> cookNode =
-      [&](const std::string& path) -> MTL::Buffer* {
+  // `depth` counts cookNode/cookCommand call-edges from the terminal; > kCookDepthCap = safe fail
+  // (修2: the bypass redirect recursion was bare before — only the terminal loop had the cap).
+  std::function<MTL::Buffer*(const std::string&, int)> cookNode =
+      [&](const std::string& path, int depth) -> MTL::Buffer* {
     auto m = cooked.find(path);
     if (m != cooked.end()) return m->second;
+    if (depth > kCookDepthCap) { warnCookDepthOnce(); return nullptr; }
     const ResidentNode* n = rg.node(path);
     if (!n) return nullptr;
 
@@ -82,7 +105,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     if (n->bypassed) {
       const ResidentInput* ri = n->input(n->bypassInSlot);
       MTL::Buffer* b = nullptr;
-      if (ri && ri->driver == ResidentInput::Driver::Connection) b = cookNode(ri->srcNodePath);
+      if (ri && ri->driver == ResidentInput::Driver::Connection)
+        b = cookNode(ri->srcNodePath, depth + 1);
       p_->outCount[path] = b ? p_->outCount[ri->srcNodePath] : 0u;
       cooked[path] = b;
       return b;
@@ -104,7 +128,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       uint32_t inCount = 0;
       const std::map<std::string, float>* up = nullptr;
       if (ri && ri->driver == ResidentInput::Driver::Connection) {
-        ub = cookNode(ri->srcNodePath);
+        ub = cookNode(ri->srcNodePath, depth + 1);
         inCount = ub ? p_->outCount[ri->srcNodePath] : 0u;
         up = nodeParams(ri->srcNodePath);
       }
@@ -152,9 +176,11 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
 
   // Cook a command node: resolve its upstream Points bag, then call its cmd fn -> RenderCommand.
   // std::function (not auto) so the bypass redirect can self-recurse through chained bypasses.
-  std::function<RenderCommand(const std::string&)> cookCommand =
-      [&](const std::string& path) -> RenderCommand {
+  // Same depth cap as cookNode (no memo here, so a bypass cycle recursed bare before 修2).
+  std::function<RenderCommand(const std::string&, int)> cookCommand =
+      [&](const std::string& path, int depth) -> RenderCommand {
     RenderCommand rcmd;
+    if (depth > kCookDepthCap) { warnCookDepthOnce(); return rcmd; }  // safe fail: empty chain
     const ResidentNode* n = rg.node(path);
     if (!n) return rcmd;
 
@@ -165,7 +191,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     // the input slot's default = an empty chain.
     if (n->bypassed) {
       const ResidentInput* ri = n->input(n->bypassInSlot);
-      if (ri && ri->driver == ResidentInput::Driver::Connection) return cookCommand(ri->srcNodePath);
+      if (ri && ri->driver == ResidentInput::Driver::Connection)
+        return cookCommand(ri->srcNodePath, depth + 1);
       return rcmd;
     }
 
@@ -179,7 +206,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       if (!(port.isInput && port.dataType == "Points")) continue;
       const ResidentInput* ri = n->input(port.id);
       if (ri && ri->driver == ResidentInput::Driver::Connection) {
-        pts = cookNode(ri->srcNodePath);
+        pts = cookNode(ri->srcNodePath, depth + 1);
         cnt = p_->outCount[ri->srcNodePath];
       }
       break;
@@ -240,7 +267,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       if (!(port.isInput && port.dataType == "Command")) continue;
       const ResidentInput* ri = tn->input(port.id);
       if (!(ri && ri->driver == ResidentInput::Driver::Connection)) continue;
-      RenderCommand up = cookCommand(ri->srcNodePath);
+      RenderCommand up = cookCommand(ri->srcNodePath, 0);
       chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
     }
     TexCookCtx tc;
@@ -251,10 +278,10 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     texIt->second(tc);
     p_->displayTex = tex;  // viewport shows the resolution-sized texture
   } else if (cmdReg().find(tn->opType) != cmdReg().end()) {
-    RenderCommand chain = cookCommand(termPath);
+    RenderCommand chain = cookCommand(termPath, 0);
     execIntoTarget(chain, "RenderTarget", termPath);
   } else {
-    MTL::Buffer* out = cookNode(termPath);
+    MTL::Buffer* out = cookNode(termPath, 0);
     const PortSpec* outPort = nullptr;
     for (const PortSpec& port : ts->ports)
       if (!port.isInput) { outPort = &port; break; }
