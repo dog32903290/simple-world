@@ -18,7 +18,13 @@ AudioPlayback& playback() {
 }
 
 // (Re)load watcher state: the path the playback currently has open, and the path that last
-// failed (not retried until it changes — TiXL caches load failures, AudioEngine.cs:776-831).
+// failed. NAMED FORK (refuter-C 修4): TiXL's soundtrack path retries EVERY frame —
+// PlaybackUtils.cs:35 hands AudioEngine.UseSoundtrackClip a fresh handle per frame, so a bad
+// file is re-attempted at 60Hz. (AudioEngine.HandleFileChange's FailedFilePath cache is the
+// OPERATOR-audio path, and its skip condition is `... || true` — always true, dead letter.)
+// We deliberately do NOT retry per frame (no 60Hz open() churn on a missing file); the cache
+// clears when the path changes OR when 柏為 explicitly re-picks via the dialog
+// (applySoundtrackPick), which always retries even the same path.
 std::string g_loadedPath;
 std::string g_failedPath;
 
@@ -85,14 +91,18 @@ void syncFrame(bool transportPlaying, double targetSecs) {
   }
 }
 
+void applySoundtrackPick(const std::string& path) {
+  doc::g_lib.composition.soundtrackPath = path;  // savev2 home; dirty via snapshot
+  g_failedPath.clear();  // an explicit pick ALWAYS retries, even a previously failed same path
+}
+
 bool promptAndLoad() {
   NFD::Guard nfdGuard;
   NFD::UniquePath outPath;
   nfdfilteritem_t filters[1] = {{"audio file", "wav,aiff,aif,mp3,m4a,flac,caf"}};
   nfdresult_t r = NFD::OpenDialog(outPath, filters, 1, nullptr);
   if (r != NFD_OKAY) return false;  // cancel or error
-  doc::g_lib.composition.soundtrackPath = outPath.get();  // savev2 home; dirty via snapshot
-  g_failedPath.clear();  // an explicit pick always retries, even a previously failed path
+  applySoundtrackPick(outPath.get());
   return true;
 }
 

@@ -9,6 +9,13 @@
 //   ⑤ platform load() failure: missing file -> false, instance stays empty, controls no-op (no crash)
 //   ⑥ real WAV roundtrip: tiny PCM16 file -> load -> exact duration -> paused seek -> position
 //      readback -> clamp past the end -> unload (no audio device needed: never play()ed)
+//   ⑦ live engine legs (refuter-C 修1/修3 — needs a default output device; SKIPs gracefully
+//      without one): a simulated device-config change mid-play recovers on the next schedule
+//      (engine restarted, still playing); seek(duration) while playing drops the playing flag
+//      (the [player stop] early-out used to leave it wedged true); play() after that resurrects
+//   ⑧ failure-cache retry seam (refuter-C 修4): a missing path fails once and is NOT retried
+//      when the file later appears (named fork vs TiXL's per-frame retry, PlaybackUtils.cs:35);
+//      an EXPLICIT re-pick of the SAME path (applySoundtrackPick) retries and loads
 // injectBug shrinks leg ①'s drift below the threshold while still expecting Resync -> FAIL (teeth).
 #include "app/soundtrack.h"
 
@@ -18,6 +25,7 @@
 #include <cstring>
 #include <string>
 
+#include "app/document.h"
 #include "platform/audio_playback.h"
 #include "runtime/transport.h"
 
@@ -149,6 +157,61 @@ int runSoundtrackSelfTest(bool injectBug) {
     p.unload();
     expectNear("unload empties the instance", p.durationSeconds(), 0.0);
     std::remove(wav.c_str());
+  }
+
+  // ⑦ live engine legs (修1 engine liveness / 修3 playing flag). These really start the engine,
+  // so they need an output device — on a machine without one, skip loudly instead of failing.
+  {
+    const std::string wav = "/tmp/sw_soundtrack_selftest_live.wav";
+    expect("fixture wav (1s) written", writeTinyWav(wav, 48000, 48000));
+    AudioPlayback p;
+    expect("load(live wav) succeeds", p.load(wav));
+    p.play();
+    if (!p.playing()) {
+      printf("  [soundtrack] SKIP leg ⑦ (engine start failed: no output device on this machine"
+             " — 修1 live recovery needs the 拔耳機 hand test, see report)\n");
+    } else {
+      // 修1: engine liveness is re-checked per start (engine.isRunning, not a one-shot flag).
+      // Simulate the device-config-change notification, then drive the next schedule path the
+      // way the follow rule would (a seek while playing) — playback must survive the restart.
+      p.debugSimulateConfigChange();
+      p.seek(0.25);
+      expect("config change mid-play + reschedule keeps playing (engine restarted)", p.playing());
+      expectNear("position resumes from the reschedule target", p.positionSeconds(), 0.25, 0.05);
+      // 修3: seek to the very end while playing -> the early-out already [player stop]ped, so
+      // playing() must read false (was: wedged true forever).
+      p.seek(p.durationSeconds());
+      expect("seek(duration) while playing drops the playing flag", !p.playing());
+      // Resurrection: a paused seek back + play() works again (the follow rule's PlayAtTarget).
+      p.seek(0.0);
+      p.play();
+      expect("play() after the end-seek resurrects", p.playing());
+      p.pause();
+      expect("pause() lands", !p.playing());
+    }
+    std::remove(wav.c_str());
+  }
+
+  // ⑧ failure-cache retry seam (修4), through the REAL production watcher (syncFrame pulls
+  // lib.composition.soundtrackPath). Observable = statusText(): "load failed: ..." vs basename.
+  {
+    const std::string path = "/tmp/sw_soundtrack_retry.wav";
+    const std::string base = "sw_soundtrack_retry.wav";
+    std::remove(path.c_str());
+    const std::string savedPath = doc::g_lib.composition.soundtrackPath;
+    doc::g_lib.composition.soundtrackPath = path;     // path set while the file is MISSING
+    syncFrame(false, 0.0);                            // watcher: load fails -> cached
+    expect("missing file fails and is cached", statusText() == "load failed: " + base);
+    expect("fixture appears at the SAME path", writeTinyWav(path, 48000, 4800));
+    syncFrame(false, 0.0);                            // same path, file now valid
+    expect("same path NOT retried per frame (named fork vs TiXL PlaybackUtils.cs:35)",
+           statusText() == "load failed: " + base);
+    applySoundtrackPick(path);                        // 柏為 explicitly re-picks the same path
+    syncFrame(false, 0.0);
+    expect("explicit re-pick of the SAME path retries and loads", statusText() == base);
+    doc::g_lib.composition.soundtrackPath = savedPath;  // restore + unload for later tests
+    syncFrame(false, 0.0);
+    std::remove(path.c_str());
   }
 
   printf("[selftest-soundtrack] %s\n", g_fail == 0 ? "PASS" : "FAIL");

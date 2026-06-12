@@ -2,6 +2,7 @@
 
 #import <AVFoundation/AVFoundation.h>
 
+#include <atomic>
 #include <cstdio>
 
 namespace sw {
@@ -21,7 +22,23 @@ struct AudioPlayback::Impl {
   long long lengthFrames = 0;
   long long baseFrame = 0;   // file frame the current/next schedule starts at
   bool playing = false;
-  bool engineStarted = false;
+
+  // Engine liveness is read from engine.isRunning at every start decision — NEVER cached in a
+  // one-shot flag. macOS stops the engine behind our back (default output device switch /
+  // headphones unplugged); a cached "started" bit froze positionSeconds() at baseFrame and the
+  // app churned silent resyncs until restart (refuter-C 修1).
+  //
+  // startWarned = engine-start fail-cache: when start fails (no output device) we warn ONCE and
+  // stop retrying — a 60Hz [engine start] + printf storm helps nobody. The cache clears on the
+  // next configuration change (a device appeared/changed = the state actually moved, retry then).
+  bool startWarned = false;
+
+  // Set by the AVAudioEngineConfigurationChangeNotification observer — which fires on an
+  // ARBITRARY thread, so it ONLY flips this atomic. The heavy recovery (engine stop, reconnect,
+  // restart, reschedule) runs on the main thread inside scheduleAndPlay, reached next frame by
+  // the app's follow rule (position froze -> drift > threshold -> Resync -> seek -> here).
+  std::atomic<bool> configChanged{false};
+  id configObserver = nil;
 
   // Frames the player has rendered since the last schedule+play (0 when not playing or no
   // render has happened yet — e.g. the first frames right after play()).
@@ -45,18 +62,35 @@ struct AudioPlayback::Impl {
   // here so play() and a mid-play seek() behave identically.
   void scheduleAndPlay() {
     if (file == nil) return;
-    if (!engineStarted) {
+    // Device/config change since the last start: the engine already stopped itself. Take it to a
+    // clean stop, re-pin the player->mixer edge (the mixer's output format may have changed with
+    // the device), and clear the fail-cache — a config change IS the state change that earns a
+    // fresh start attempt (and a fresh log line if it fails again).
+    if (configChanged.exchange(false)) {
+      [engine stop];
+      [engine connect:player to:engine.mainMixerNode format:file.processingFormat];
+      startWarned = false;
+    }
+    if (!engine.isRunning) {
+      if (startWarned) { playing = false; return; }  // cached failure: wait for a config change
       NSError* err = nil;
       if (![engine startAndReturnError:&err]) {
         printf("[audio-playback] engine start failed: %s\n",
                err ? err.localizedDescription.UTF8String : "unknown");
-        return;  // stay paused; positionSeconds() keeps reporting baseFrame
+        startWarned = true;  // warn on the TRANSITION only, no 60Hz retry/printf storm
+        playing = false;     // we are audibly paused; don't claim otherwise
+        return;              // positionSeconds() keeps reporting baseFrame
       }
-      engineStarted = true;
     }
     [player stop];  // clears any previous schedule AND resets the player's sample clock to 0
     const long long remaining = lengthFrames - baseFrame;
-    if (remaining <= 0) return;  // at/after the end: nothing to schedule (app pauses us anyway)
+    if (remaining <= 0) {
+      // At/after the end: nothing to schedule. [player stop] above already executed, so the
+      // playing flag MUST drop with it — leaving it set wedged playing()==true forever and the
+      // app-side follow rule never re-entered (refuter-C 修3).
+      playing = false;
+      return;
+    }
     [player scheduleSegment:file
               startingFrame:(AVAudioFramePosition)baseFrame
                  frameCount:(AVAudioFrameCount)remaining
@@ -76,14 +110,26 @@ AudioPlayback::AudioPlayback() : impl_(new Impl) {
   impl_->engine = [[AVAudioEngine alloc] init];
   impl_->player = [[AVAudioPlayerNode alloc] init];
   [impl_->engine attachNode:impl_->player];
+  // Output device switched / headphones unplugged: macOS stops the engine and posts this. The
+  // block runs on an arbitrary thread — flip the atomic ONLY; recovery happens on the main
+  // thread in scheduleAndPlay (see Impl::configChanged).
+  Impl* impl = impl_;  // raw capture; the observer is removed before impl_ is deleted
+  impl_->configObserver = [[NSNotificationCenter defaultCenter]
+      addObserverForName:AVAudioEngineConfigurationChangeNotification
+                  object:impl_->engine
+                   queue:nil
+              usingBlock:^(NSNotification*) { impl->configChanged.store(true); }];
 }
 
 AudioPlayback::~AudioPlayback() {
+  if (impl_->configObserver != nil)
+    [[NSNotificationCenter defaultCenter] removeObserver:impl_->configObserver];
   unload();
-  if (impl_->engineStarted) [impl_->engine stop];
+  if (impl_->engine.isRunning) [impl_->engine stop];
   [impl_->engine detachNode:impl_->player];
   impl_->engine = nil;  // ARC releases
   impl_->player = nil;
+  impl_->configObserver = nil;
   delete impl_;
 }
 
@@ -146,6 +192,8 @@ void AudioPlayback::seek(double seconds) {
 }
 
 bool AudioPlayback::playing() const { return impl_->playing; }
+
+void AudioPlayback::debugSimulateConfigChange() { impl_->configChanged.store(true); }
 
 double AudioPlayback::positionSeconds() const {
   if (impl_->file == nil || impl_->sampleRate <= 0.0) return 0.0;

@@ -34,13 +34,22 @@ Action decide(bool transportPlaying, double targetSecs, double durationSecs, boo
 // Apply one frame of the follow rule. Called from app/frame_cook::run AFTER the transport
 // advanced. Also the (re)load watcher: when lib.composition.soundtrackPath changed (open/new/
 // undo/dialog) it loads the new file — a failed path warns into doc::g_status once and is not
-// retried until the path changes (TiXL AudioEngine.HandleFileChange:776-831 caches failures).
+// retried until the path changes or the dialog re-picks it. NAMED FORK: TiXL's soundtrack path
+// retries every frame (PlaybackUtils.cs:35 builds a fresh clip handle per frame; the
+// HandleFileChange fail-cache lives in the OPERATOR-audio path and its skip condition is
+// `|| true` — never skips). Our no-per-frame-retry is deliberate (no 60Hz open() churn);
+// applySoundtrackPick is the explicit-retry escape hatch.
 // targetSecs = transport.secondsFromBars(position); transportPlaying = transport.playing().
 void syncFrame(bool transportPlaying, double targetSecs);
 
-// Open-file dialog (NFDe) -> write lib.composition.soundtrackPath (savev2 persists it; the
-// dirty flag is snapshot-derived so the write alone marks the doc dirty). The actual load
-// happens in the next syncFrame, same seam as open/undo. Returns false on cancel.
+// Write `path` as the composition soundtrack (savev2 persists it; the dirty flag is
+// snapshot-derived so the write alone marks the doc dirty) and clear the failure cache — an
+// EXPLICIT pick always retries, even the exact path that just failed (柏為 fixes the file on
+// disk and re-picks it: must work, refuter-C 修4). The actual load happens in the next
+// syncFrame, same seam as open/undo.
+void applySoundtrackPick(const std::string& path);
+
+// Open-file dialog (NFDe) -> applySoundtrackPick(picked). Returns false on cancel.
 bool promptAndLoad();
 
 // Toolbar status: loaded file name, last load error, or "" when no soundtrack is set.
@@ -48,9 +57,11 @@ std::string statusText();
 
 // Headless teeth (--selftest-soundtrack): the decide() state machine over play/pause/scrub/
 // drift/out-of-bounds sequences, the bars->secs targeting at two BPMs (audio stays in the
-// seconds domain), and the platform load() failure path (missing file -> false, no crash) +
+// seconds domain), the platform load() failure path (missing file -> false, no crash) +
 // a real tiny WAV roundtrip (load -> duration -> seek -> position readback, no audio device
-// needed). injectBug flips the drift comparison -> FAIL.
+// needed), the live engine legs (修1 config-change restart / 修3 end-seek playing-flag drop —
+// need an output device, SKIP without one), and the 修4 failure-cache retry seam (explicit
+// re-pick retries, per-frame does not). injectBug flips the drift comparison -> FAIL.
 int runSoundtrackSelfTest(bool injectBug);
 
 }  // namespace sw::soundtrack

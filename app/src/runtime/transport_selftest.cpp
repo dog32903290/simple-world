@@ -108,6 +108,20 @@ int runTransportSelfTest(bool injectBug) {
     expectNear("pause: position frozen", observedPos, posFrozen);
   }
 
+  // ===== leg ①b: a stalled frame advances the playhead by the FULL wall dt (refuter-C 修2). =====
+  // The 0.25s ceiling that used to clamp this lives ONLY on the sim leg (framecook::
+  // simDeltaFromWall); the transport is the master clock the soundtrack FOLLOWS — clamp it and a
+  // 2s stall leaves the playhead 1.75s behind the free-running audio -> audible backwards seek.
+  {
+    Transport t; t.bpm = 120.0; t.rate = 1.0;
+    t.play();
+    t.advance(2.0);  // one stalled frame, dt = 2.0s >> the old 0.25 ceiling
+    // injectBug: expect the old clamped advance (0.25s worth) — an unclamped transport FAILs it.
+    const double want = injectBug ? t.barsFromSeconds(0.25) : t.barsFromSeconds(2.0);
+    expectNear("stalled frame: position += barsFromSeconds(2.0), UNclamped", t.position, want);
+    expectNear("stalled frame: fxTime rides the same full dt", t.fxTime, want);
+  }
+
   // ===== leg ②: scrub jumps the playhead; next-frame fxTime snaps; later advance never rewinds fx. =====
   {
     Transport t; t.bpm = 120.0;

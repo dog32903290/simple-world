@@ -28,6 +28,14 @@ namespace sw::framecook {
 // canvas is deep inside a compound).
 void run(PointGraph& pg, const std::string& targetPath);
 
+// dt 分流 seam (refuter-C 修2): the per-frame wall dt is measured ONCE, then split — the
+// TRANSPORT eats it raw (TiXL Playback advances from a Stopwatch, unclamped; clamping it made
+// the playhead lag a stalled frame while the audio free-ran, and the follow rule seeked
+// BACKWARDS audibly), while the Metal sim's ctx.deltaTime gets this clamped copy (≤ 0.25s —
+// an integration-stability ceiling, never a playhead rule). Exposed so the seam itself is
+// headless-bitable (--selftest-arclock leg ③).
+double simDeltaFromWall(double dtSecs);
+
 // Read a resident node's externally-cooked outputs (AudioReaction level/hit/count) by
 // resident path — the UI's window into live values (node faces). Returns nullptr when the
 // path isn't resident (e.g. just deleted). Pointer is valid this frame only (rebuild-on-edit).

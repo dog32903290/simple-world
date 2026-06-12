@@ -10,6 +10,9 @@
 //      MinTimeBetweenHits = 1.0 yields EVERY pulse at BPM 240 (1.5s == 1.5 bars >= 1.0) but
 //      only every OTHER pulse at BPM 120 (1.5s == 0.75 bars < 1.0) — halve the BPM, halve the
 //      hits. Feeding seconds makes the count BPM-invariant (4 everywhere).
+//   ③ dt 分流接縫 (refuter-C 修2): simDeltaFromWall clamps a stalled frame to 0.25 (sim
+//      integration stability) while the SAME wall dt advances the transport unclamped — the two
+//      legs visibly split on a 2s stall (the seam frame_cook::run feeds ctx.deltaTime from).
 // injectBug expects the seconds-domain numbers instead -> FAIL (teeth: whoever reverts the
 // seam to seconds gets bitten by both legs).
 #include "app/frame_cook.h"
@@ -119,6 +122,20 @@ int runArClockSelfTest(bool injectBug) {
     expect(msg, slow.hits == wantSlow);
     expect("halving BPM halves the accepted hits (proportional scaling, bars domain)",
            injectBug ? (slow.hits * 2 == fast.hits) == false : slow.hits * 2 == fast.hits);
+  }
+
+  // ===== leg ③: dt 分流接縫 — sim dt clamps at 0.25s, the transport eats the raw wall dt. =====
+  {
+    expect("normal frame passes through the sim leg untouched",
+           std::abs(simDeltaFromWall(1.0 / 60.0) - 1.0 / 60.0) < 1e-12);
+    const double simDt = simDeltaFromWall(2.0);  // a 2s stall (debugger / window drag)
+    const double wantSim = injectBug ? 2.0 : 0.25;  // bug = no ceiling -> sim explodes
+    expect("2s stall clamps to 0.25 on the SIM leg only", std::abs(simDt - wantSim) < 1e-12);
+    Transport t; t.bpm = 240.0; t.rate = 1.0; t.play();
+    t.advance(2.0);  // the SAME stall on the transport leg
+    expect("the SAME stall advances the transport UNclamped (2s @ 240 BPM = 2 bars)",
+           std::abs(t.position - 2.0) < 1e-9);
+    expect("the two legs actually split on a stall (seam is live)", simDt < t.secondsFromBars(t.position));
   }
 
   printf("[selftest] arclock %s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);

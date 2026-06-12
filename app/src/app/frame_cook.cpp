@@ -31,15 +31,18 @@ bool g_haveLastFrame = false;
 std::chrono::steady_clock::time_point g_lastFrameTp;
 
 // Pull dt from the wall clock (steady_clock — monotonic, immune to NTP). First frame has no prior
-// timestamp -> dt = 0 (no spurious jump). Clamped to a sane ceiling so a stalled frame (debugger
-// breakpoint, window drag) doesn't teleport the playhead.
+// timestamp -> dt = 0 (no spurious jump). NO ceiling here: this is the TRUE wall dt and the
+// transport must eat it whole — TiXL Playback advances TimeInBars from a Stopwatch, unclamped.
+// Clamping it made a stalled frame (window drag, debugger) advance the playhead only 0.25s while
+// the audio free-ran the full stall on its own thread, so drift = stall−0.25 and the follow rule
+// hard-seeked the soundtrack BACKWARDS, audibly (refuter-C 修2). The 0.25 ceiling survives only
+// on the SIM leg — see simDeltaFromWall below.
 double measureDeltaSeconds() {
   auto now = std::chrono::steady_clock::now();
   if (!g_haveLastFrame) { g_lastFrameTp = now; g_haveLastFrame = true; return 0.0; }
   double dt = std::chrono::duration<double>(now - g_lastFrameTp).count();
   g_lastFrameTp = now;
   if (dt < 0.0) dt = 0.0;
-  if (dt > 0.25) dt = 0.25;  // ceiling: never advance > 1/4s of composition time in one frame.
   return dt;
 }
 
@@ -52,6 +55,16 @@ ResidentEvalGraph g_residentGraph;
 uint64_t g_builtRev = 0;  // doc::libRevision() the projection was built from (0 = never)
 
 }  // namespace
+
+// The dt 分流 seam (refuter-C 修2): one wall measurement, two consumers with different physics.
+// The TRANSPORT gets the raw dt (playhead truth — audio follows it, so it must cover the whole
+// stall); the Metal SIM integration step gets this clamped copy (a 2s Euler step explodes
+// particles; 0.25 was always a sim-stability number, never a playhead rule). Pinned headless by
+// --selftest-arclock leg ③ + --selftest-transport (unclamped advance).
+double simDeltaFromWall(double dtSecs) {
+  if (dtSecs < 0.0) return 0.0;
+  return dtSecs > 0.25 ? 0.25 : dtSecs;
+}
 
 const float* residentOut(const char* path) {
   const ResidentNode* n = g_residentGraph.node(path);
@@ -121,11 +134,14 @@ void run(PointGraph& pg, const std::string& targetPath) {
     g_builtRev = doc::libRevision();
   }
 
-  // Advance the two-clock transport by the REAL frame duration (S5). The BPM home is the lib's
-  // composition settings (saved/loaded) — pull it onto the transport each frame so a load /
-  // inspector edit takes effect (cheap, no edge to chase).
+  // Advance the two-clock transport by the REAL frame duration (S5) — RAW, no ceiling: the
+  // transport is the master clock audio follows, so a stalled frame advances the playhead by the
+  // full stall (TiXL Stopwatch semantics). Only the sim leg (ctx.deltaTime below) is clamped.
+  // The BPM home is the lib's composition settings (saved/loaded) — pull it onto the transport
+  // each frame so a load / inspector edit takes effect (cheap, no edge to chase).
   g_transport.bpm = doc::g_lib.composition.bpm;
-  const double dtSecs = measureDeltaSeconds();
+  const double dtSecs = measureDeltaSeconds();        // true wall dt -> transport
+  const double dtSimSecs = simDeltaFromWall(dtSecs);  // clamped copy  -> Metal sim only
   g_transport.advance(dtSecs);
 
   // Soundtrack follows the transport (TiXL: wall clock is master, audio chases — drift past
@@ -163,8 +179,8 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // reads the playhead via the resident ctx above — it never reaches the shader through here.
   EvaluationContext ctx{};
   ctx.frameIndex = g_frameIndex;
-  ctx.time = (float)fxSecs;       // wall clock, seconds (sims keep running while paused)
-  ctx.deltaTime = (float)dtSecs;
+  ctx.time = (float)fxSecs;          // wall clock, seconds (sims keep running while paused)
+  ctx.deltaTime = (float)dtSimSecs;  // SIM dt: clamped (integration stability), NOT the wall dt
 
   // The resident cook fills ITS two-clock ctx (localTime/localFxTime, bars) from the transport
   // via these params, so automation-driven Float inputs sampled inside the cook walk the curve at

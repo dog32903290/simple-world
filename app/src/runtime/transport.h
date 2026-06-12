@@ -65,6 +65,8 @@ struct Transport {
 
 // Headless RED->GREEN proof of the two-clock advance (--selftest-transport):
 //   ① play advances position by dt*rate*BPM/240 ; pause freezes position ; fxTime tracks both states
+//   ①b a stalled frame (dt=2.0) advances position by the FULL barsFromSeconds(2.0) — the transport
+//      is never dt-clamped (the 0.25 ceiling is sim-only, framecook::simDeltaFromWall; refuter-C 修2)
 //   ② scrub jumps position -> fxTime snaps to it ; a later non-scrub advance does NOT rewind fxTime
 //   ③ two-clock separation: paused, fxTime keeps advancing while position is frozen (粒子時間門活)
 //   ④ automation 接通: an Automation-driven resident input reads its curve @ transport.position

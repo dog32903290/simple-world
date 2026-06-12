@@ -30,14 +30,25 @@ class AudioPlayback {
   void unload();          // stop + release the file (no-op when nothing loaded)
   bool loaded() const;
 
-  // Transport controls. play() starts the engine lazily on first use; if the engine cannot
-  // start (no output device) it warns and stays paused. pause() captures the position so a
-  // later play() resumes from it. seek() clamps to [0, duration] and takes effect immediately
-  // (also while paused — position() then reads back the seek target, audio stays silent).
+  // Transport controls. play() starts the engine lazily whenever it isn't running (checked via
+  // engine.isRunning each time — macOS stops the engine on a default-device switch, so "started
+  // once" is never cached). If the engine cannot start (no output device) it warns ONCE and
+  // stays paused; the failure is cached (no per-frame retry/log storm) until the next device
+  // configuration change. A configuration change while playing recovers on the next play()/
+  // seek(): the engine restarts and the schedule resumes from the requested position — the
+  // app-side drift rule reaches that path within one resync threshold. pause() captures the
+  // position so a later play() resumes from it. seek() clamps to [0, duration] and takes effect
+  // immediately (also while paused — position() then reads back the seek target, audio stays
+  // silent).
   void play();
   void pause();
   void seek(double seconds);
   bool playing() const;
+
+  // Teeth-only (--selftest-soundtrack): pretend macOS posted a configuration-change
+  // notification (device switch) so the headless selftest can exercise the restart path
+  // without unplugging hardware. Production code never calls this.
+  void debugSimulateConfigChange();
 
   // The audio clock, in seconds into the file. While playing this advances with the actual
   // rendered samples (player time), so the app's follow rule can measure drift against the
