@@ -23,10 +23,11 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
+#include "runtime/draw_params.h"      // DrawLineParams/DrawBillboardParams + bindings
 #include "runtime/graph.h"            // Graph/Node
 #include "runtime/particle_params.h"  // DRAW_Points, DRAW_ViewExtent
 #include "runtime/point_graph.h"      // TexCookCtx, RenderResolution, registerTexOp
-#include "runtime/render_command.h"   // RenderCommand / RenderDrawItem
+#include "runtime/render_command.h"   // RenderCommand / RenderDrawItem / DrawKind
 #include "runtime/tixl_point.h"       // SwPoint (64B)
 
 #ifndef SW_SHADER_METALLIB
@@ -41,25 +42,54 @@ float paramOr(const std::map<std::string, float>& params, const char* id, float 
   return it != params.end() ? it->second : def;
 }
 
-// RenderTarget draw: build the draw_points pipeline, open one render pass on `output`,
-// clear it once, then draw every item in the command chain in order (later items
-// composite on top). Builds the PSO per call for now — the live loop (batch 3+) caches it.
-void cookRenderTarget(TexCookCtx& c) {
-  if (!c.lib || !c.output) return;
-  MTL::Function* vs = c.lib->newFunction(NS::String::string("draw_points_vs", NS::UTF8StringEncoding));
-  MTL::Function* fs = c.lib->newFunction(NS::String::string("draw_points_fs", NS::UTF8StringEncoding));
+// Build a render PSO for a vs/fs function pair into `pixelFormat`. `blend` turns on standard
+// premultiplied-style src-alpha blending (lines/billboards composite over what's drawn before);
+// DrawPoints stays opaque (blend=false), matching its pre-batch-13 behavior. Returns nullptr (and
+// the caller skips that kind) if either function is missing.
+MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const char* vsName,
+                                      const char* fsName, MTL::PixelFormat pf, bool blend) {
+  MTL::Function* vs = lib->newFunction(NS::String::string(vsName, NS::UTF8StringEncoding));
+  MTL::Function* fs = lib->newFunction(NS::String::string(fsName, NS::UTF8StringEncoding));
   MTL::RenderPipelineState* rps = nullptr;
   if (vs && fs) {
     MTL::RenderPipelineDescriptor* rpd = MTL::RenderPipelineDescriptor::alloc()->init();
     rpd->setVertexFunction(vs);
     rpd->setFragmentFunction(fs);
-    rpd->colorAttachments()->object(0)->setPixelFormat(c.output->pixelFormat());
+    auto* att = rpd->colorAttachments()->object(0);
+    att->setPixelFormat(pf);
+    if (blend) {
+      att->setBlendingEnabled(true);
+      att->setRgbBlendOperation(MTL::BlendOperationAdd);
+      att->setAlphaBlendOperation(MTL::BlendOperationAdd);
+      att->setSourceRGBBlendFactor(MTL::BlendFactorSourceAlpha);
+      att->setSourceAlphaBlendFactor(MTL::BlendFactorSourceAlpha);
+      att->setDestinationRGBBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
+      att->setDestinationAlphaBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
+    }
     NS::Error* err = nullptr;
-    rps = c.dev->newRenderPipelineState(rpd, &err);
+    rps = dev->newRenderPipelineState(rpd, &err);
     rpd->release();
   }
   if (vs) vs->release();
   if (fs) fs->release();
+  return rps;
+}
+
+}  // namespace
+
+// RenderTarget draw: open one render pass on `output`, clear it once, then draw every item in the
+// command chain in order (later items composite on top). The chain can MIX draw kinds (DrawPoints /
+// DrawLines / DrawBillboards): each item names its DrawKind, the executor selects the matching PSO
+// + primitive type. PSOs are built lazily per kind per call (only the kinds actually present) — the
+// live loop's per-frame caching is a follow-up (same posture as batch 1's per-call note).
+// NOT file-local (out of the anon namespace) so the draw-op leaf selftests can drive a chain
+// straight through it (point_ops_drawlines.cpp / point_ops_drawbillboards.cpp).
+void cookRenderTarget(TexCookCtx& c) {
+  if (!c.lib || !c.output) return;
+  MTL::PixelFormat pf = c.output->pixelFormat();
+  MTL::RenderPipelineState* psoPoints = nullptr;
+  MTL::RenderPipelineState* psoLines = nullptr;
+  MTL::RenderPipelineState* psoBb = nullptr;
 
   MTL::RenderPassDescriptor* pass = MTL::RenderPassDescriptor::renderPassDescriptor();
   auto* ca = pass->colorAttachments()->object(0);
@@ -71,23 +101,66 @@ void cookRenderTarget(TexCookCtx& c) {
   ca->setStoreAction(MTL::StoreActionStore);
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(pass);
-  if (rps && c.command) {
-    enc->setRenderPipelineState(rps);
+  if (c.command) {
     for (const RenderDrawItem& it : c.command->items) {
       if (!it.points || it.count == 0) continue;
-      enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAW_Points);
-      float viewExtent = it.viewExtent;
-      enc->setVertexBytes(&viewExtent, sizeof(float), DRAW_ViewExtent);
-      enc->drawPrimitives(MTL::PrimitiveTypePoint, NS::UInteger(0), NS::UInteger(it.count));
+      switch (it.kind) {
+        case DrawKind::Points: {
+          if (!psoPoints)
+            psoPoints = makeDrawPSO(c.dev, c.lib, "draw_points_vs", "draw_points_fs", pf, false);
+          if (!psoPoints) break;
+          enc->setRenderPipelineState(psoPoints);
+          enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAW_Points);
+          float viewExtent = it.viewExtent;
+          enc->setVertexBytes(&viewExtent, sizeof(float), DRAW_ViewExtent);
+          enc->drawPrimitives(MTL::PrimitiveTypePoint, NS::UInteger(0), NS::UInteger(it.count));
+          break;
+        }
+        case DrawKind::Lines: {
+          if (it.count < 2) break;  // need ≥2 points to form one segment
+          if (!psoLines)
+            psoLines = makeDrawPSO(c.dev, c.lib, "draw_lines_vs", "draw_lines_fs", pf, true);
+          if (!psoLines) break;
+          enc->setRenderPipelineState(psoLines);
+          enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAWLINE_Points);
+          DrawLineParams lp{};
+          lp.color[0] = it.color[0]; lp.color[1] = it.color[1];
+          lp.color[2] = it.color[2]; lp.color[3] = it.color[3];
+          lp.lineWidth = it.lineWidth;
+          lp.viewExtent = it.viewExtent;
+          enc->setVertexBytes(&lp, sizeof(lp), DRAWLINE_Params);
+          // (count-1) segments × 6 verts (screen-space quad). Sequential adjacency (TiXL).
+          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
+                              NS::UInteger((it.count - 1) * 6));
+          break;
+        }
+        case DrawKind::Billboards: {
+          if (!psoBb)
+            psoBb = makeDrawPSO(c.dev, c.lib, "draw_billboards_vs", "draw_billboards_fs", pf, true);
+          if (!psoBb) break;
+          enc->setRenderPipelineState(psoBb);
+          enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAWBB_Points);
+          DrawBillboardParams bp{};
+          bp.color[0] = it.color[0]; bp.color[1] = it.color[1];
+          bp.color[2] = it.color[2]; bp.color[3] = it.color[3];
+          bp.size = it.size;
+          bp.viewExtent = it.viewExtent;
+          enc->setVertexBytes(&bp, sizeof(bp), DRAWBB_Params);
+          // N points × 6 verts (camera-facing quad → here screen-facing).
+          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
+                              NS::UInteger(it.count * 6));
+          break;
+        }
+      }
     }
   }
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  if (rps) rps->release();
+  if (psoPoints) psoPoints->release();
+  if (psoLines) psoLines->release();
+  if (psoBb) psoBb->release();
 }
-
-}  // namespace
 
 // Resolution enum (Float param + Widget::Enum): WindowFollow tracks `windowSize`; the
 // fixed modes ignore it and pin a standard output size; Custom reads CustomW/H. The map

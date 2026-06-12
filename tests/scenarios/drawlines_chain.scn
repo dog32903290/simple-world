@@ -1,0 +1,79 @@
+# drawlines_chain.scn — 活體牙 (lane L): 親手在 canvas 接 RadialPoints → DrawLines → RenderTarget,
+# 證兩顆 draw op 的承重線:
+#   (1) DrawLines 把點袋連成線 (Command 流, draw_lines.metal) → 接進 RenderTarget 後畫面有像素;
+#   (2) 把同一條鏈的 draw op 換成 DrawBillboards → 畫面像素再變 (不同 raster 形狀, 同 Command 介面)。
+#
+# default 圖 = defaultParticleGraph (RadialPoints#1 / ParticleSystem#2 / TurbulenceForce#6 /
+# DrawPoints#7 / AudioReaction#8, nextChildId=104, Root 3 connections)。
+# ParticleSystem#2.result(pin 203) 已餵 DrawPoints#7; 它可 fan-out 再餵 DrawLines (mid-canvas
+# 取點源, 同 DrawPoints 用的那條, 比邊角的 RadialPoints#1 更穩拖)。
+#
+# 加 DrawLines#104 + RenderTarget#105 + DrawBillboards#106。
+#   ParticleSystem#2.result(203) → DrawLines#104.points(10401)
+#   DrawLines#104.out(10402) → RenderTarget#105.command(10501)  → RenderTarget 成最下游 tex sink。
+# capture clean = Metal render 輸出 (draw 鏈接進 render)。
+# RED 面: 把第一個 assert_diff (line-render-lights) 的前一幀 baseline 故意設成已渲染態,
+# 或把 swap 後的 assert_diff 改 assert_same → 必紅 (換 draw op 像素變 = 兩顆 op 各自在 raster)。
+
+# --- 加 DrawLines#104 (空白右鍵) ---
+do rclick 300 230
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:DrawLines
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 104)] | length == 1'
+echo drawlines-104-spawned
+
+# --- 加 RenderTarget#105 (空白右鍵) ---
+do rclick 520 230
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:RenderTarget
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 105)] | length == 1'
+echo rendertarget-105-spawned
+
+# --- 加 DrawBillboards#106 (空白右鍵, 備用作 swap) ---
+do rclick 300 380
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:DrawBillboards
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 106)] | length == 1'
+echo drawbillboards-106-spawned
+
+# --- 接線: ParticleSystem#2.result(203) → DrawLines#104.points(10401) ---
+do drag @pin:203 @pin:10401
+wait 0.3
+# DrawLines#104.out(10402) → RenderTarget#105.command(10501)
+do drag @pin:10402 @pin:10501
+wait 0.3
+# 兩條新連線 (Root: default 3 + 2 = 5)
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[]] | length == 5'
+echo drawlines-chain-connected
+
+# --- 畫面: RenderTarget#105 是最下游 tex sink → output window 顯示 DrawLines 後畫面, 捕基準幀 ---
+wait 0.6
+capture clean lines_baseline
+echo captured-lines-output
+
+# --- swap: 把 RenderTarget 的 command 來源從 DrawLines 改接 DrawBillboards ---
+# 先接 ParticleSystem#2.result(203) → DrawBillboards#106.points(10601)
+do drag @pin:203 @pin:10601
+wait 0.3
+# DrawBillboards#106.out(10602) → RenderTarget#105.command(10501)
+# (同一輸入 port 重接 = 取代 DrawLines 來源; RenderTarget.command 單輸入)
+do drag @pin:10602 @pin:10501
+wait 0.5
+echo swapped-to-billboards
+
+# --- 畫面像素必變 (DrawLines 細線 vs DrawBillboards 方塊 = 不同 raster) ---
+wait 0.6
+assert_diff lines_baseline
+echo billboards-differ-from-lines

@@ -184,6 +184,7 @@ float cookParam(const TexCookCtx& c, const char* id, float def);
 // Missing component -> fallback[i].
 void cookVecN(const PointCookCtx& c, const char* base, const float* fallback, int n, float* out);
 void cookVecN(const TexCookCtx& c, const char* base, const float* fallback, int n, float* out);
+void cookVecN(const CmdCookCtx& c, const char* base, const float* fallback, int n, float* out);
 // A Float param of the node feeding buffer input `input` (force ops); def when unwired/missing.
 float cookInputParam(const PointCookCtx& c, int input, const char* id, float def);
 // Registers all built-in point operators (A.1+: RadialPoints/TransformPoints/

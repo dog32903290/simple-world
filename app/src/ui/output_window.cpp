@@ -86,12 +86,12 @@ void drawOutputWindow() {
   std::string outType;
   if (!viewNode)
     drawable = true;                                 // terminal draw node -> today's picture
-  else if (viewNode->symbolId == "DrawPoints")
-    drawable = true;                                 // a draw/command node -> renders its input
   else {
     outType = outputTypeOf(viewNode);
-    // Points -> reuse DrawPoints preview; Texture2D (RenderTarget) -> show the texture directly.
-    drawable = (outType == "Points" || outType == "Texture2D");
+    // A command op (DrawPoints/DrawLines/DrawBillboards: Command out) renders its own input via
+    // the RenderTarget executor when terminal; Points -> reuse DrawPoints preview; Texture2D
+    // (RenderTarget) -> show the texture directly.
+    drawable = (outType == "Command" || outType == "Points" || outType == "Texture2D");
   }
   if (!drawable)
     ImGui::TextDisabled("no preview for output type \"%s\" yet",

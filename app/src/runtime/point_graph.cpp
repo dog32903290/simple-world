@@ -78,6 +78,9 @@ void cookVecN(const PointCookCtx& c, const char* base, const float* fallback, in
 void cookVecN(const TexCookCtx& c, const char* base, const float* fallback, int n, float* out) {
   mapVecN(c.params, base, fallback, n, out);
 }
+void cookVecN(const CmdCookCtx& c, const char* base, const float* fallback, int n, float* out) {
+  mapVecN(c.params, base, fallback, n, out);
+}
 float cookInputParam(const PointCookCtx& c, int input, const char* id, float def) {
   if (!c.inputParams || input < 0 || input >= c.inputCount) return def;
   return mapParam(c.inputParams[input], id, def);

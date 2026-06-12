@@ -192,6 +192,8 @@ void registerOrientPointsOp();
 void registerRandomizePointsOp();
 void registerSetPointAttributesOp();
 void registerCombineBuffersOp();
+void registerDrawLinesOp();
+void registerDrawBillboardsOp();
 
 void registerBuiltinPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
@@ -200,6 +202,8 @@ void registerBuiltinPointOps() {
   // persistent particle buffer size to; emit count reaches cook() via inputCounts[0].
   registerPointOp("ParticleSystem", cookParticleSim, simStateNew, simStateFree, &particlePoolCount);
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
+  registerDrawLinesOp();                        // Points → Command (DrawKind::Lines, lane L)
+  registerDrawBillboardsOp();                   // Points → Command (DrawKind::Billboards, lane L)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
   registerBlurOp();                             // Texture2D → Texture2D (first image filter, lane I)
   registerDisplaceOp();                         // Image + DisplaceMap → Texture2D (lane D2, dual tex in)

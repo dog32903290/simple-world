@@ -49,6 +49,11 @@ int runCombineBuffersSelfTest(bool injectBug);
 // Register the RenderTarget op into the texture stream (texReg). Wired into the live cook
 // (cook() tex terminal) since batch 2; registerBuiltinPointOps registers it for production.
 void registerRenderTargetOp();
+// The RenderCommand executor (rasterizes a draw chain into TexCookCtx::output). The texReg entry
+// for "RenderTarget" AND the shared rasterizer for every draw-op leaf selftest (DrawPoints/
+// DrawLines/DrawBillboards drive a CPU-built chain straight through it).
+struct TexCookCtx;
+void cookRenderTarget(TexCookCtx& c);
 // RenderTarget golden: a CPU point bag -> 1-item RenderCommand -> RenderTarget texture,
 // assert lit (non-black) + the resolution contract (HD1080->1920x1080, WindowFollow->win).
 // injectBug = 0 points -> all black -> FAIL.
@@ -71,4 +76,16 @@ void registerBlurOp();
 // gather承重線). Register into the texture stream (texReg).
 void registerDisplaceOp();
 // (runDisplaceSelfTest / runDisplaceChainSelfTest are declared in point_graph.h next to the goldens.)
+
+// --- DrawLines / DrawBillboards command ops (point_ops_drawlines.cpp / point_ops_drawbillboards.cpp,
+// lane L). Both Points→Command producers (DrawKind::Lines / ::Billboards); the executor
+// cookRenderTarget rasterizes them. Register into the command stream (cmdReg). ---
+void registerDrawLinesOp();
+void registerDrawBillboardsOp();
+// DrawLines golden: a row of points with a W=NaN break → assert the segment body is lit between
+// the kept endpoints AND the broken half stays dark. injectBug = LineWidth 0 → no band → FAIL.
+int runDrawLinesSelfTest(bool injectBug);
+// DrawBillboards golden: a single point → assert the sprite quad covers an AREA (>1px).
+// injectBug = Scale 0 → zero-area quad → ~no lit pixels → FAIL.
+int runDrawBillboardsSelfTest(bool injectBug);
 }  // namespace sw

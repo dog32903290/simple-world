@@ -231,6 +231,35 @@ const std::vector<NodeSpec>& registry() {
        {{"points", "points", "Points", true},
         {"out", "out", "Command", false}},
        nullptr},
+      // DrawLines (TiXL Lib.point.draw.DrawLines): connects the point bag into a polyline —
+      // Points[i]→Points[i+1], each segment a screen-space-thickened quad (draw_lines.metal).
+      // Points in → Command out (same cmd flow as DrawPoints). Params mirror DrawLines.t3:
+      // Color (Vec4, white) + LineWidth (0.02). A Point with W(FX1)=NaN breaks the polyline.
+      // FORK (named): TiXL's camera/texture/UV/ShrinkWithDistance/Fog/Blend/ZTest are dropped
+      // (no camera system — DrawPoints' baked-ortho fork class); flat untextured band.
+      {"DrawLines", "DrawLines",
+       {{"points", "points", "Points", true},
+        {"out", "out", "Command", false},
+        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"LineWidth", "LineWidth", "Float", true, 0.02f, 0.0f, 1.0f}},
+       nullptr},
+      // DrawBillboards (TiXL Lib.point.draw.DrawBillboards): expands each Point into a
+      // screen-facing quad sprite (draw_billboards.metal). Points in → Command out. Params mirror
+      // DrawBillboards.t3: Scale (1.0) + Color (Vec4, white); per-point Scale.xy stretch kept
+      // (UsePointScale default true). FORK (named): camera/atlas/sprite-texture/scatter/rotation/
+      // curves dropped (no camera system); flat untextured screen-facing quad.
+      {"DrawBillboards", "DrawBillboards",
+       {{"points", "points", "Points", true},
+        {"out", "out", "Command", false},
+        {"Scale", "Scale", "Float", true, 1.0f, 0.0f, 1000.0f},
+        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
       // RenderTarget (TiXL Lib.image.generate.basic.RenderTarget): executes a Command chain into a
       // sized Texture2D — the RESOLUTION PIN. Command in, Texture2D out; Resolution enum picks the
       // output size (WindowFollow tracks the viewport, fixed modes pin a standard size, Custom reads

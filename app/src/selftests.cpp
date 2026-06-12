@@ -170,6 +170,8 @@ const SelfTest kTable[] = {
     {"blurchain", runBlurChainSelfTest},
     {"displace", runDisplaceSelfTest},
     {"displacechain", runDisplaceChainSelfTest},
+    {"drawlines", runDrawLinesSelfTest},
+    {"drawbillboards", runDrawBillboardsSelfTest},
     {"timeline", ui::runTimelineSelfTest},
     {"nodestyle", ui::runNodeStyleSelfTest},
     {"canvasids", ui::runCanvasIdsSelfTest},
