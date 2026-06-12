@@ -337,4 +337,23 @@ std::vector<std::string> specTypes() {
   return out;
 }
 
+// Vec group walk: POSITIONAL, the exact same consume-the-run walk the Inspector row uses
+// (a head at i owns ports[i..i+N-1]) — one grouping rule, two consumers (同源, graph.h).
+AnimGroup animGroupForSlot(const NodeSpec& spec, const std::string& slotId) {
+  AnimGroup g{slotId, 0, 1};
+  for (size_t i = 0; i < spec.ports.size(); ++i) {
+    const PortSpec& p = spec.ports[i];
+    if (!p.isInput) continue;
+    if (p.widget == Widget::Vec && p.vecArity >= 2) {
+      const int n = p.vecArity > 4 ? 4 : p.vecArity;  // same clamp as the Inspector row
+      for (int k = 0; k < n && i + (size_t)k < spec.ports.size(); ++k)
+        if (spec.ports[i + (size_t)k].id == slotId) return {p.id, k, n};
+      i += (size_t)(n - 1);  // consume the group's component ports
+      continue;
+    }
+    if (p.id == slotId) return g;  // scalar: its own group of 1
+  }
+  return g;  // unknown slot: behaves like a scalar (projection falls back to index 0)
+}
+
 }  // namespace sw

@@ -41,8 +41,12 @@ class Animator {
   // animation = this + the resident input's driver flipping to Automation (the two are one act, the
   // driver decides BOTH the resolved value and LIVE/STATIC — 拍板 driver enum).
   void setCurves(int childId, const std::string& inputId, CurveArray curves);
-  // Convenience: animate a scalar Float input with one live key at `time` (= the playhead capture
-  // entry, Animator.AddCurvesForFloatVector cs:97-126 single-channel). Returns the curveRef string.
+  // Animate an input with `n` channels (Float n=1, Vec2/3/4 n=2..4): one curve PER channel, each
+  // with one live key at `time` valued values[k] (= Animator.AddCurvesForFloatVector cs:97-126:
+  // Linear in/out, brokenTangents). Returns the channel-0 curveRef string.
+  std::string animateFloatVector(int childId, const std::string& inputId, double time,
+                                 const float* values, int n);
+  // Convenience: the scalar (n=1) entry — kept as the existing callers' name.
   std::string animateFloat(int childId, const std::string& inputId, double time, float value);
 
   // Remove the animation on (childId, inputId) = RemoveAnimationFrom (cs:278-291). Drops the empty
@@ -80,5 +84,9 @@ class Animator {
 // carries the animator bit-stable + a tampered animator entry is dropped locally (S15). injectBug
 // breaks one expectation -> the assertion FAILS (teeth).
 int runCurveAnimatorSelfTest(bool injectBug);
+// ⑤vec leg (批次8 Vec multi-channel: build/projection golden/savev2 index roundtrip/remove),
+// mechanical TU split (curve_animator_selftest_vec.cpp, ARCHITECTURE rule 4). Called by
+// runCurveAnimatorSelfTest; returns the failure count.
+int runCurveAnimatorVecLeg(bool injectBug);
 
 }  // namespace sw

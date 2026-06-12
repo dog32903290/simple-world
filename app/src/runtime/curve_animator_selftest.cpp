@@ -3,6 +3,8 @@
 //   ② Constant<->Automation toggle flips the cache LIVE<->STATIC in lockstep (cache-count proof)
 //   ③ a definition-layer curve edit changes EVERY instance (reuse broadcast — same as override/S13)
 //   ④ savev2 roundtrip carries the animator bit-stable + a tampered animator entry drops (S15)
+//   ⑤vec (批次8) Vec3 multi-channel: N curves under the HEAD id, projection reads EVERY channel
+//        (#0..#N-1, each component follows ITS OWN curve), savev2 index column roundtrips
 // injectBug breaks one expectation -> FAIL (teeth).
 #include "runtime/curve_animator.h"
 
@@ -10,6 +12,8 @@
 #include <string>
 
 #include "runtime/compound_save.h"
+#include "runtime/graph.h"         // findSpec / animGroupForSlot (Vec leg targets a REAL spec)
+#include "runtime/graph_bridge.h"  // libFromGraph (Vec leg seeds from the default graph)
 #include "runtime/resident_eval_graph.h"
 
 namespace sw {
@@ -264,6 +268,10 @@ int runCurveAnimatorSelfTest(bool injectBug) {
       expect("Task4: duplicate animator channel warned", dok && dupWarn);
     }
   }
+
+  // ===== leg ⑤vec (批次8): Vec3 multi-channel — mechanical TU split (ARCHITECTURE rule 4),
+  // see curve_animator_selftest_vec.cpp. =====
+  g_fail += runCurveAnimatorVecLeg(injectBug);
 
   // teeth: a deliberately wrong expectation must FAIL under -bug.
   if (injectBug) {

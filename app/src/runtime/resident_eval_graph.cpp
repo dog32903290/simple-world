@@ -173,6 +173,7 @@ std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
         if (kv.second) rn.disabledOut[kv.first] = true;
       for (const auto& kv : c.triggerOverrides)
         if (kv.second == TriggerOverride::Always) rn.triggerAlwaysOut[kv.first] = true;
+      const NodeSpec* spec = findSpec(c.symbolId);  // anim-group lookup (Vec multi-channel)
       for (const SlotDef& d : def->inputDefs) {
         ResidentInput in;
         in.slotId = d.id;
@@ -181,10 +182,16 @@ std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
         // the default live; same kept-fallback rule as patchLibSetDefault). If not animated, plain
         // Constant. A wire feeding this slot overwrites the driver below (loop 2/3) — automation and
         // a connection don't coexist on one input (single-cardinality), connection wins on a clash.
+        //
+        // Vec multi-channel (批次8): the Animator keys a vector param's curves under the group
+        // HEAD's slot id (= TiXL one inputId -> Curve[N]); each component slot resolves its OWN
+        // channel index. animGroupForSlot is the SAME grouping the Inspector gesture uses (同源,
+        // graph.h) — a scalar resolves to {d.id, 0, 1}, identical to the pre-Vec projection.
         in.constant = effectiveInput(lib, c, d.id, d.def);
-        if (sym.animator.isAnimated(c.id, d.id)) {
+        const AnimGroup ag = spec ? animGroupForSlot(*spec, d.id) : AnimGroup{d.id, 0, 1};
+        if (sym.animator.isAnimated(c.id, ag.headId)) {
           in.driver = ResidentInput::Driver::Automation;
-          in.curveRef = Animator::makeRef(c.id, d.id, 0);
+          in.curveRef = Animator::makeRef(c.id, ag.headId, ag.channel);
           in.animSymbolId = sym.id;
         } else {
           in.driver = ResidentInput::Driver::Constant;

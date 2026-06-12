@@ -39,18 +39,20 @@ bool keyAt(const Curve& c, double t, VDefinition& out) {
 // refused decided in the ctor (pure read) so the caller can check it BEFORE push (= TiXL
 // RenameSymbol precedent): missing symbol or already-animated input.
 AddAnimationCommand::AddAnimationCommand(SymbolLibrary& lib, std::string symbolId, int childId,
-                                         std::string slotId, double time, float currentValue)
+                                         std::string slotId, double time,
+                                         std::vector<float> currentValues)
     : lib_(lib), symbolId_(std::move(symbolId)), childId_(childId), slotId_(std::move(slotId)),
-      time_(time), value_(currentValue) {
+      time_(time), values_(std::move(currentValues)) {
   Symbol* s = sym(lib_, symbolId_);
-  if (!s || s->animator.isAnimated(childId_, slotId_)) refused_ = true;
+  if (!s || s->animator.isAnimated(childId_, slotId_) || values_.empty()) refused_ = true;
 }
 void AddAnimationCommand::doIt() {
   if (refused_) return;
   Symbol* s = sym(lib_, symbolId_);
   if (!s) { refused_ = true; return; }
   if (kept_.empty()) {
-    s->animator.animateFloat(childId_, slotId_, time_, value_);
+    // One curve per channel (= AddCurvesForFloatVector; Float = 1, Vec = the group arity).
+    s->animator.animateFloatVector(childId_, slotId_, time_, values_.data(), (int)values_.size());
   } else {
     // Redo: restore the exact curve array we created (byte-faithful, = TiXL _keepCurves).
     s->animator.setCurves(childId_, slotId_, kept_);

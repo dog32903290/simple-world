@@ -27,14 +27,20 @@
 
 namespace sw {
 
-// Animate 手勢：在 (childId, slotId) 上建一條單通道 Float 曲線，首 key 落在 `time`、值 = 當前解析值
-// （= TiXL AddAnimationCommand：建曲線 + 首 key 取當前 live 值；resident driver 隨之翻 Automation）。
-// undo 移除曲線（driver 回 Constant、無殭屍）。redo 還原同一條曲線（_keepCurves，byte-faithful）。
-// 已動畫的 input 重複 Animate = refused（呼叫端不 push）。
+// Animate 手勢：在 (childId, slotId) 上建 N 條通道曲線（Float N=1、Vec2/3/4 N=2..4，slotId = 群組
+// HEAD 的 slot id，= TiXL 一個 inputId 持 Curve[N]），首 key 全落在 `time`、值 = 各通道當前解析值
+// （= TiXL AddAnimationCommand + Animator.AddCurvesForFloatVector：建曲線 + 首 key 取當前 live 值；
+// resident driver 隨之翻 Automation）。undo 移除全部通道（driver 回 Constant、無殭屍）。redo 還原
+// 同一組曲線（_keepCurves，byte-faithful）。已動畫的 input 重複 Animate = refused（呼叫端不 push）。
 class AddAnimationCommand : public Command {
  public:
   AddAnimationCommand(SymbolLibrary& lib, std::string symbolId, int childId, std::string slotId,
-                      double time, float currentValue);
+                      double time, std::vector<float> currentValues);
+  // Scalar convenience (the existing Float-slider caller shape): one channel.
+  AddAnimationCommand(SymbolLibrary& lib, std::string symbolId, int childId, std::string slotId,
+                      double time, float currentValue)
+      : AddAnimationCommand(lib, std::move(symbolId), childId, std::move(slotId), time,
+                            std::vector<float>{currentValue}) {}
   void doIt() override;
   void undo() override;
   const char* name() const override { return "Add Animation"; }
@@ -46,7 +52,7 @@ class AddAnimationCommand : public Command {
   int childId_;
   std::string slotId_;
   double time_;
-  float value_;
+  std::vector<float> values_;  // one entry per channel (size = the group's arity)
   std::vector<Curve> kept_;  // doIt snapshots the curve(s) it created -> redo restores byte-identically
   bool refused_ = false;
 };

@@ -44,6 +44,20 @@ struct NodeSpec {
 };
 const NodeSpec* findSpec(const std::string& type);
 std::vector<std::string> specTypes();  // all registered node types (for the Add menu)
+
+// Animation-group resolution (S3 Vec multi-channel). = TiXL Animator: a vector input owns ONE
+// inputId with Curve[N] (Animator.AddCurvesForFloatVector, Animator.cs:97-126). Our Vec param is
+// N consecutive Float ports (head Widget::Vec, vecArity>=2; components follow positionally), so
+// the WHOLE group's curves live under the HEAD port's id and channel k = curve index k. A scalar
+// Float is a group of 1 (head = itself, channel 0) — identical to TiXL's float = Curve[1].
+// SINGLE SOURCE for the Inspector gesture AND the resident projection (批次7 同源拍板: both
+// consult the same grouping, so the isAnimated/driver flip cannot drift).
+struct AnimGroup {
+  std::string headId;  // the Animator inputId this slot's curves live under
+  int channel = 0;     // this slot's curve index within the group
+  int arity = 1;       // total channels in the group
+};
+AnimGroup animGroupForSlot(const NodeSpec& spec, const std::string& slotId);
 // Swap the DYNAMIC spec table (compound symbols as operators, 批次 3). Owned by the registry;
 // in the LIVE app the single producer is graph_bridge::refreshCompoundSpecs — product code must
 // not call this directly (single producer keeps stale-entry reasoning trivial). HEADLESS

@@ -129,6 +129,7 @@ add_executable(simple_world
   src/runtime/curve_json.cpp
   src/runtime/curve_animator.cpp
   src/runtime/curve_animator_selftest.cpp
+  src/runtime/curve_animator_selftest_vec.cpp
   src/runtime/compound_graph.cpp
   src/runtime/compound_graph_selftest.cpp
   src/runtime/compound_save.cpp

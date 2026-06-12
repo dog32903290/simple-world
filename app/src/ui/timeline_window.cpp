@@ -167,7 +167,12 @@ void drawTimelineWindow() {
         ln.inputId = inputId;
         ln.index = idx;
         ln.label = laneLabel(*sym, childId, inputId);
-        if (curves.size() > 1) ln.label += "[" + std::to_string(idx) + "]";
+        // Multi-channel (Vec) group: channel suffix per TiXL convention (.x/.y/.z/.w =
+        // TableView.cs:17-20; same X/Y/Z/W order as DopeSheetArea.CurveNames, cs:549-552).
+        if (curves.size() > 1) {
+          static const char* kChan[4] = {".x", ".y", ".z", ".w"};
+          ln.label += idx < 4 ? std::string(kChan[idx]) : "[" + std::to_string(idx) + "]";
+        }
         lanes.push_back(std::move(ln));
       }
     }

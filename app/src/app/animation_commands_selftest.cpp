@@ -264,6 +264,68 @@ int runAnimGuiSelfTest(bool injectBug) {
     CHK(refusedOk, "⑦ empty snapshot (before == after) refuses (this fails under injectBug)");
   }
 
+  // ⑪ Vec multi-channel Animate (批次8): one command builds N curves under the group HEAD's id
+  //    (= TiXL AddCurvesForFloatVector), the resident projection flips EVERY component slot to
+  //    Automation with channel-indexed refs, and undo removes the whole group in one step.
+  {
+    SymbolLibrary libv = libFromGraph(defaultParticleGraph());
+    const std::string rv = libv.rootId;
+    // Find a Vec3 group head on a root child (RadialPoints.Center on the default graph).
+    int vchild = -1; std::string headId; std::vector<std::string> comp; std::vector<float> cur;
+    Symbol* vroot = libv.find(rv);
+    for (const SymbolChild& c : vroot->children) {
+      const NodeSpec* spec = findSpec(c.symbolId);
+      if (!spec) continue;
+      for (size_t i = 0; i < spec->ports.size() && vchild == -1; ++i) {
+        const PortSpec& p = spec->ports[i];
+        if (!(p.isInput && p.widget == Widget::Vec && p.vecArity == 3)) continue;
+        vchild = c.id; headId = p.id;
+        for (int k = 0; k < 3; ++k) {
+          comp.push_back(spec->ports[i + (size_t)k].id);
+          cur.push_back(effectiveInput(libv, c, comp.back(), spec->ports[i + (size_t)k].def));
+        }
+      }
+      if (vchild != -1) break;
+    }
+    CHK(vchild != -1, "⑪ found a Vec3 group target on the default graph");
+    const std::string preJson = libToJsonV2(libv);
+    CommandStack sv;
+    cur[1] += 2.5f;  // make the channels' first keys distinct from each other
+    sv.push(std::make_unique<AddAnimationCommand>(libv, rv, vchild, headId, 0.0,
+                                                  std::vector<float>{cur[0], cur[1], cur[2]}));
+    const Animator::CurveArray* arr = libv.find(rv)->animator.curvesFor(vchild, headId);
+    bool seeded = arr && arr->size() == 3;
+    for (int k = 0; seeded && k < 3; ++k)
+      seeded = (*arr)[k].count() == 1 && (float)(*arr)[k].sample(0.0) == cur[(size_t)k];
+    CHK(seeded, "⑪ Vec Animate built 3 curves, first keys = each channel's current value");
+    // Projection: ALL components Automation, channel-indexed (the承重關節).
+    ResidentEvalGraph vg = buildEvalGraph(libv, rv);
+    const ResidentNode* vn = vg.node(std::to_string(vchild));
+    if (injectBug && vn)  // BUG: lose a channel after the command -> the all-channels CHK bites
+      libv.find(rv)->animator.curvesFor(vchild, headId)->pop_back();
+    const Animator::CurveArray* parr = libv.find(rv)->animator.curvesFor(vchild, headId);
+    bool chOk = vn && parr && parr->size() == 3;
+    for (int k = 0; vn && k < 3; ++k) {
+      const ResidentInput* ri = vn->input(comp[(size_t)k]);
+      chOk = chOk && ri && ri->driver == ResidentInput::Driver::Automation &&
+             ri->curveRef == Animator::makeRef(vchild, headId, k);
+    }
+    CHK(chOk, "⑪ all 3 component slots project Automation w/ channel refs (bites under -bug)");
+    // Undo: whole group gone in ONE step, every component back to Constant, byte-faithful.
+    sv.undo();
+    CHK(libToJsonV2(libv) == preJson, "⑪ one undo removes the whole Vec group (byte-faithful)");
+    CHK(!residentDriverIsAutomation(libv, vchild, comp[0]),
+        "⑪ undo: component drivers back to Constant");
+    // Remove Animation on the head drops all channels in one step; undo restores them.
+    sv.redo();
+    const std::string animatedJson = libToJsonV2(libv);
+    sv.push(std::make_unique<RemoveAnimationCommand>(libv, rv, vchild, headId));
+    CHK(!libv.find(rv)->animator.isAnimated(vchild, headId),
+        "⑪ Remove Animation drops every channel");
+    sv.undo();
+    CHK(libToJsonV2(libv) == animatedJson, "⑪ undo Remove restores all 3 channels byte-faithful");
+  }
+
   // ⑧⑨⑩ S6 legs (group snapshot / interpolation switch / tangent write) live in
   // animation_commands_selftest_s6.cpp (mechanical split, ARCHITECTURE rule 4).
   failures += runAnimGuiS6Legs(injectBug);

@@ -37,10 +37,13 @@ bool g_vecEditHadOverride[4] = {false, false, false, false};
 // SetCurveSnapshotCommand。一次只有一個 slider 在拖。
 sw::Animator::CurveArray g_curveSnapBefore;
 
-// The Animate gesture's context menu, attached to the LAST drawn Float widget (its slider).
-// = TiXL InputValueUi ContextMenuForItem: a right-click on the parameter offers Animate (build a
-// curve + first key at the current value) or, when already animated, Remove Animation. Both go
-// through undoable commands; the first key lands at the playhead with the input's current value.
+// The Animate gesture's context menu, attached to the LAST drawn Float widget (its slider /
+// DragScalarN row). = TiXL InputValueUi ContextMenuForItem: a right-click on the parameter offers
+// Animate (build curves + first keys at the current values) or, when already animated, Remove
+// Animation. Both go through undoable commands; first keys land at the playhead. `slotId` is the
+// anim-GROUP HEAD's id (scalar = the port itself, Vec = the Widget::Vec head, graph.h 同源): a
+// Vec head builds one curve PER component (= TiXL AddCurvesForFloatVector), and Remove drops the
+// whole channel group in one step (the Animator bucket IS the group).
 void animateContextMenu(const std::string& symbolId, int childId, const std::string& slotId,
                         bool animated) {
   if (!ImGui::BeginPopupContextItem(("##anim_" + slotId).c_str())) return;
@@ -48,17 +51,23 @@ void animateContextMenu(const std::string& symbolId, int childId, const std::str
     if (ImGui::MenuItem("Animate")) {
       const double t = sw::framecook::transportPosition();
       sw::SymbolChild* c = sw::childById(*sw::doc::currentSymbol(), childId);
-      float curVal = 0.0f;
+      std::vector<float> curVals;  // one entry per channel, port order from the head
       if (c) {
-        if (const sw::NodeSpec* spec = sw::findSpec(c->symbolId))
-          for (const sw::PortSpec& pp : spec->ports)
-            if (pp.isInput && pp.id == slotId) {
-              curVal = sw::effectiveInput(sw::doc::g_lib, *c, slotId, pp.def);
+        if (const sw::NodeSpec* spec = sw::findSpec(c->symbolId)) {
+          const sw::AnimGroup ag = sw::animGroupForSlot(*spec, slotId);
+          for (size_t i = 0; i < spec->ports.size(); ++i)
+            if (spec->ports[i].isInput && spec->ports[i].id == ag.headId) {
+              for (int k = 0; k < ag.arity && i + (size_t)k < spec->ports.size(); ++k) {
+                const sw::PortSpec& pp = spec->ports[i + (size_t)k];
+                curVals.push_back(sw::effectiveInput(sw::doc::g_lib, *c, pp.id, pp.def));
+              }
               break;
             }
+        }
       }
+      if (curVals.empty()) curVals.push_back(0.0f);  // unknown spec: scalar fallback
       auto cmd = std::make_unique<sw::AddAnimationCommand>(sw::doc::g_lib, symbolId, childId,
-                                                           slotId, t, curVal);
+                                                           slotId, t, std::move(curVals));
       if (!cmd->refused()) {  // doIt runs in push; refused (already animated) -> skip stack
         sw::g_commands.push(std::move(cmd));
       }
@@ -105,6 +114,58 @@ void drawInspector() {
           // Vector param head: draw its `vecArity` components ("<base>.x/.y/.z/.w") as ONE
           // DragScalarN row. Components are pinless (unwired) so no connection branch.
           int N = p.vecArity > 4 ? 4 : p.vecArity;
+          // Animated group? Curves live under the HEAD's id (= animGroupForSlot 同源 grouping —
+          // the resident projection asks the exact same question on the exact same key).
+          const bool vecAnimated = cur->animator.isAnimated(sel->id, p.id);
+          if (vecAnimated) {
+            // ANIMATED Vec (批次8): each component shows ITS channel curve @ the playhead; dragging
+            // a component live-writes a key on ONLY that channel (per-channel curve, 批次3 vec
+            // live-write 樣式 + the scalar animated-slider precedent above/below). One undo step
+            // per drag: whole-CurveArray snapshot on activation, SetCurveSnapshot on release.
+            const double playhead = sw::framecook::transportPosition();
+            sw::Animator::CurveArray* arr = cur->animator.curvesFor(sel->id, p.id);
+            float vals[4] = {0, 0, 0, 0};
+            float pre[4];
+            for (int k = 0; k < N; ++k) {
+              vals[k] = (arr && k < (int)arr->size() && !(*arr)[k].empty())
+                            ? (float)(*arr)[k].sample(playhead)
+                            : eff(spec->ports[i + k]);  // short array: constant fallback (projection同)
+              pre[k] = vals[k];
+            }
+            ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 200, 90, 255));
+            ImGui::DragScalarN(p.name.c_str(), ImGuiDataType_Float, vals, N, 0.01f, &p.minV,
+                               &p.maxV, "%.2f");
+            ImGui::PopStyleColor();
+            sw::eye::recordItem(("param:" + p.id).c_str());
+            if (ImGui::IsItemActivated() && arr) g_curveSnapBefore = *arr;
+            if (ImGui::IsItemActive() && ImGui::IsItemEdited() && arr) {
+              for (int k = 0; k < N && k < (int)arr->size(); ++k) {
+                if (vals[k] == pre[k]) continue;  // only the channel that moved this frame
+                sw::Curve& c = (*arr)[k];
+                sw::VDefinition kd;
+                if (c.hasKeyAt(sw::Curve::roundTime(playhead))) {
+                  kd = c.table().at(sw::Curve::roundTime(playhead));  // keep interp/tangents
+                  kd.value = vals[k];
+                } else {
+                  kd.value = vals[k];
+                  kd.u = sw::Curve::roundTime(playhead);
+                  kd.inInterpolation = sw::KeyInterpolation::Linear;
+                  kd.outInterpolation = sw::KeyInterpolation::Linear;
+                  kd.brokenTangents = true;
+                }
+                c.addOrUpdate(playhead, kd);
+              }
+              sw::doc::bumpLibRevision();  // projection contract: resident driver follows live
+            }
+            if (ImGui::IsItemDeactivatedAfterEdit() && arr) {
+              auto cmd = std::make_unique<sw::SetCurveSnapshotCommand>(
+                  sw::doc::g_lib, cur->id, sel->id, p.id, g_curveSnapBefore, *arr);
+              if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
+            }
+            animateContextMenu(cur->id, sel->id, p.id, /*animated=*/true);
+            i += N - 1;  // skip the consumed component ports
+            continue;
+          }
           float vals[4] = {0, 0, 0, 0};
           bool had[4] = {false, false, false, false};
           for (int k = 0; k < N; ++k) {
@@ -139,6 +200,7 @@ void drawInspector() {
                 if (sel->overrides.erase(spec->ports[i + k].id)) sw::doc::bumpLibRevision();
               }
             }
+          animateContextMenu(cur->id, sel->id, p.id, /*animated=*/false);
           i += N - 1;  // skip the consumed component ports (for-loop ++i moves past the group)
           continue;
         }

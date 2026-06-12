@@ -31,20 +31,28 @@ void Animator::setCurves(int childId, const std::string& inputId, CurveArray cur
   curves_[childId][inputId] = std::move(curves);
 }
 
-std::string Animator::animateFloat(int childId, const std::string& inputId, double time,
-                                   float value) {
+std::string Animator::animateFloatVector(int childId, const std::string& inputId, double time,
+                                         const float* values, int n) {
+  // = Animator.AddCurvesForFloatVector (cs:97-126): one curve per channel, each seeded with one
+  // key at `time` (Linear in/out, brokenTangents=true) valued from the live input.
   CurveArray arr;
-  Curve c;
-  // = Animator.AddCurvesForFloatVector (cs:114-121): one key, Linear in/out, brokenTangents=true.
-  VDefinition key;
-  key.value = value;
-  key.inInterpolation = KeyInterpolation::Linear;
-  key.outInterpolation = KeyInterpolation::Linear;
-  key.brokenTangents = true;
-  c.addOrUpdate(time, key);
-  arr.push_back(std::move(c));
+  for (int i = 0; i < n; ++i) {
+    Curve c;
+    VDefinition key;
+    key.value = values[i];
+    key.inInterpolation = KeyInterpolation::Linear;
+    key.outInterpolation = KeyInterpolation::Linear;
+    key.brokenTangents = true;
+    c.addOrUpdate(time, key);
+    arr.push_back(std::move(c));
+  }
   setCurves(childId, inputId, std::move(arr));
   return makeRef(childId, inputId, 0);
+}
+
+std::string Animator::animateFloat(int childId, const std::string& inputId, double time,
+                                   float value) {
+  return animateFloatVector(childId, inputId, time, &value, 1);
 }
 
 void Animator::remove(int childId, const std::string& inputId) {
