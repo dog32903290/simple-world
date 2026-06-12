@@ -1,0 +1,29 @@
+# timeline_snap.scn — 活體牙 #1: Animate → timeline lane → click key → selection 機讀 → 拖 key 吸附 beat
+# 蓋住 D4 清單的 1/6 段 (dope snap + selection machine-readable)。RED 面: 把最後的
+# assert 改成期望非 0.25 倍數 → 必紅 (snap 在做事的直接證據)。
+open app/testdata/compound_smoke.swproj
+
+# 建一條動畫: 選 node:2 (標題列) → Inspector 右鍵 Radius → Animate
+do click @node:2^
+do rclick @param:Radius
+do click @insp:Animate
+assert_map_has tl_key:2:Radius:0
+echo animate-created-timeline-lane
+
+# 點 key → selection 機讀證選中
+do click @tl_key:2:Radius:0
+assert_state '.timelineSelection.count == 1'
+assert_state '.timelineSelection.keys[0].inputId == "Radius"'
+echo key-selected-machine-readable
+
+# 拖 key 往右 ~3 bar (預設 zoom 下) → snap 到 beat 格 → time 必為 0.25 的整數倍且 > 0
+do drag @tl_key:2:Radius:0 +130 +0
+assert_state '.timelineSelection.keys[0].time > 0'
+assert_state '(.timelineSelection.keys[0].time * 4) == ((.timelineSelection.keys[0].time * 4) | floor)'
+echo key-dragged-and-snapped
+
+# 畫面層: 垂直 nudge 改 key 值 (單 key 曲線=常數, 值變 → 渲染立即跟) → 像素必變
+capture clean before_nudge
+do drag @tl_key:2:Radius:0 +0 +35
+assert_diff before_nudge
+echo value-nudge-changes-pixels
