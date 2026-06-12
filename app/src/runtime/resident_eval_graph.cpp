@@ -127,21 +127,47 @@ std::map<std::string, float> resolveResidentFloatInputs(const ResidentEvalGraph&
 
 namespace {
 
+// A symbol/child's output producers: outputDefId -> the DRIVER a consumer of that output copies.
+// A real inner producer is a Connection (srcNodePath, srcSlotId); a BYPASSED compound child's
+// main output aliases whatever drives its main input (修C) — which can be Constant / Automation /
+// Connection — so the producer currency is the full ResidentInput, not a (path, slot) pair.
+using ProducerMap = std::map<std::string, ResidentInput>;
+
 // Inline one symbol's subgraph at `prefix`, given how its OWN input defs are driven from the
 // outer graph (`inBindings`: inputDefId -> the resolved driver to copy onto inner consumers).
-// Appends resident nodes to g, returns this symbol's output producers (outputDefId ->
-// (residentPath, slotId)). `onPath` carries the symbol ids active on the current path for the
-// self-nesting guard (TiXL does NOT guard this — contract S14). depth bounds runaway recursion.
-std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
+// Appends resident nodes to g, returns this symbol's output producers (ProducerMap above).
+// `onPath` carries the symbol ids active on the current path for the self-nesting guard (TiXL
+// does NOT guard this — contract S14). depth bounds runaway recursion.
+ProducerMap inlineSymbol(
     const SymbolLibrary& lib, const Symbol& sym, const std::string& prefix,
     const std::map<std::string, ResidentInput>& inBindings, ResidentEvalGraph& g,
     std::vector<std::string>& onPath, int depth) {
 
-  std::map<std::string, std::pair<std::string, std::string>> outProducers;
+  ProducerMap outProducers;
   if (depth > 64) return outProducers;
 
-  // Per-child output producers for COMPOUND children (filled by recursion), keyed by child id.
-  std::map<int, std::map<std::string, std::pair<std::string, std::string>>> childOuts;
+  // Per-child output producers for COMPOUND children (filled by recursion — or, for a bypassed
+  // compound child, by the 修C redirect), keyed by child id.
+  std::map<int, ProducerMap> childOuts;
+
+  // Resolve "sibling child srcChild's output srcSlot" to the driver a consumer copies. A compound
+  // sibling resolves through its ProducerMap (for a BYPASSED compound that map aliases the main
+  // input's own driver — the 修C rewire); an atomic sibling is a Connection to its resident path.
+  // A compound sibling slot with NO producer entry (secondary output of a bypassed compound,
+  // unwired boundary output, skipped self-nest) falls back to the same dangling Connection the
+  // old (path, slot)-pair fallback produced — consumers evaluate it as 0 / null buffer.
+  auto producerOf = [&](int childId, const std::string& slot) -> ResidentInput {
+    auto cit = childOuts.find(childId);
+    if (cit != childOuts.end()) {
+      auto pit = cit->second.find(slot);
+      if (pit != cit->second.end()) return pit->second;
+    }
+    ResidentInput r;
+    r.driver = ResidentInput::Driver::Connection;
+    r.srcNodePath = prefix + std::to_string(childId);
+    r.srcSlotId = slot;
+    return r;
+  };
 
   // 1. Recurse compound children first (their outputs are needed to resolve wires reading them);
   //    emit atomic children as resident nodes with Constant drivers.
@@ -201,13 +227,8 @@ std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
       g.byPath[rn.path] = (int)g.nodes.size();
       g.nodes.push_back(std::move(rn));
     } else {
-      // self-nesting / cycle guard: skip if this symbol id is already active on the path.
-      bool nested = false;
-      for (const std::string& id : onPath)
-        if (id == c.symbolId) { nested = true; break; }
-      if (nested) continue;
-
-      // Gather how THIS compound child's input defs are driven by the current symbol's wires.
+      // Gather how THIS compound child's input defs are driven by the current symbol's wires
+      // (ahead of the guards: the 修C bypass redirect below consumes childIn too).
       // Seed every compound input def with its effective Constant driver (override else def),
       // so boundary-INPUT consumers that are NOT wire-driven still receive the value. The wire
       // loop below overwrites the slots that ARE wired. (Mirrors the atomic branch's effectiveInput
@@ -229,25 +250,38 @@ std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
           auto bit = inBindings.find(w.srcSlot);
           if (bit != inBindings.end()) { in = bit->second; in.slotId = w.dstSlot; }
         } else {
-          const Symbol* sdef = lib.find(/*src child's symbol*/ "");  // resolved below
-          (void)sdef;
-          // source is a sibling child: resolve to its resident producer.
-          // atomic sibling -> (prefix+srcChild, srcSlot); compound sibling -> its childOuts.
-          auto sibling = [&](int childId, const std::string& slot) -> std::pair<std::string,std::string> {
-            auto cit = childOuts.find(childId);
-            if (cit != childOuts.end()) {
-              auto pit = cit->second.find(slot);
-              if (pit != cit->second.end()) return pit->second;
-            }
-            return {prefix + std::to_string(childId), slot};
-          };
-          auto pr = sibling(w.srcChild, w.srcSlot);
-          in.driver = ResidentInput::Driver::Connection;
-          in.srcNodePath = pr.first;
-          in.srcSlotId = pr.second;
+          // source is a sibling child: resolve to its producer driver (atomic Connection /
+          // compound ProducerMap / bypassed-compound redirect — producerOf owns all three).
+          in = producerOf(w.srcChild, w.srcSlot);
+          in.slotId = w.dstSlot;
         }
         childIn[w.dstSlot] = in;
       }
+
+      // 修C (批次9) cook-level COMPOUND bypass = TiXL SetBypassFor on a composition Instance
+      // (Instance.Connections.cs:265-267: Outputs[0].TrySetBypassToInput(Inputs[0]); Slot.cs:176-179
+      // ByPassUpdate: Value = the main INPUT's GetValue — the subgraph behind Outputs[0] is never
+      // pulled). Flattened analog: the child's main output PRODUCER becomes whatever drives its
+      // main input — a rewire-level passthrough. The subgraph is NOT inlined: zero resident
+      // footprint = zero cook, zero per-path state (= TiXL never pulling the inner ops).
+      // childIsBypassable guarantees inputDefs[0]/outputDefs[0] exist + main I/O types match the
+      // whitelist; an unwired main input stays the Constant seed (Float passes the value through =
+      // TiXL input default; buffer-shaped types cook null/empty — same as any unwired input).
+      // NAMED FORK: TiXL redirects ONLY Outputs[0]; its secondary outputs still pull the live
+      // subgraph. With zero footprint our secondary outputs go DANGLING (cook 0 / null) — accepted
+      // until a multi-output compound bypass user appears (no production op family needs it yet).
+      if (c.isBypassed && childIsBypassable(lib, c)) {
+        ProducerMap red;
+        red[def->outputDefs[0].id] = childIn[def->inputDefs[0].id];
+        childOuts[c.id] = std::move(red);
+        continue;
+      }
+
+      // self-nesting / cycle guard: skip if this symbol id is already active on the path.
+      bool nested = false;
+      for (const std::string& id : onPath)
+        if (id == c.symbolId) { nested = true; break; }
+      if (nested) continue;
 
       onPath.push_back(c.symbolId);
       childOuts[c.id] = inlineSymbol(lib, *def, prefix + std::to_string(c.id) + "/", childIn, g,
@@ -256,23 +290,13 @@ std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
     }
   }
 
-  // 2. Resolve this symbol's wires onto atomic dst inputs + collect this symbol's output producers.
-  auto resolveSrc = [&](const SymbolConnection& w) -> std::pair<std::string, std::string> {
-    if (sourceIsSymbolInput(w)) {  // shouldn't reach here for value resolution; handled via inBindings
-      return {"", ""};
-    }
-    auto cit = childOuts.find(w.srcChild);  // compound sibling output
-    if (cit != childOuts.end()) {
-      auto pit = cit->second.find(w.srcSlot);
-      if (pit != cit->second.end()) return pit->second;
-    }
-    return {prefix + std::to_string(w.srcChild), w.srcSlot};  // atomic sibling
-  };
-
+  // 2. Resolve this symbol's wires onto atomic dst inputs + collect this symbol's output
+  //    producers. producerOf is the ONE source resolver (atomic Connection / compound
+  //    ProducerMap / 修C bypassed-compound redirect).
   for (const SymbolConnection& w : sym.connections) {
     if (targetIsSymbolOutput(w)) {                 // child -> this symbol's external output
       if (sourceIsSymbolInput(w)) continue;        // pass-through input->output (rare); skip in slice 1
-      outProducers[w.dstSlot] = resolveSrc(w);
+      outProducers[w.dstSlot] = producerOf(w.srcChild, w.srcSlot);
       continue;
     }
     if (sourceIsSymbolInput(w)) continue;          // boundary-input already applied via childIn above
@@ -280,12 +304,14 @@ std::map<std::string, std::pair<std::string, std::string>> inlineSymbol(
     std::string dstPath = prefix + std::to_string(w.dstChild);
     auto it = g.byPath.find(dstPath);
     if (it == g.byPath.end()) continue;            // dst is compound (driven via childIn) -> skip
-    auto pr = resolveSrc(w);
+    ResidentInput pr = producerOf(w.srcChild, w.srcSlot);
+    pr.slotId = w.dstSlot;
     for (ResidentInput& in : g.nodes[it->second].inputs)
       if (in.slotId == w.dstSlot) {
-        in.driver = ResidentInput::Driver::Connection;
-        in.srcNodePath = pr.first;
-        in.srcSlotId = pr.second;
+        // A Connection keeps the input's KEPT Constant fallback (in.constant survives under a wire
+        // — patchRemoveConnection restores it); a Constant/Automation redirect replaces it whole.
+        if (pr.driver == ResidentInput::Driver::Connection) pr.constant = in.constant;
+        in = pr;
       }
   }
 
@@ -317,7 +343,12 @@ ResidentEvalGraph buildEvalGraph(const SymbolLibrary& lib, const std::string& ro
   if (!root) return g;
   std::vector<std::string> onPath = {rootId};
   std::map<std::string, ResidentInput> noBindings;  // root has no outer driver
-  g.outputs = inlineSymbol(lib, *root, "", noBindings, g, onPath, 0);
+  // The public outputs map stays (path, slot)-shaped; only Connection producers are expressible
+  // there (a root output whose producer is a bypassed compound's Constant redirect is dropped —
+  // same expressiveness gap as the input->output passthrough skip, named in inlineSymbol).
+  for (const auto& [outId, ri] : inlineSymbol(lib, *root, "", noBindings, g, onPath, 0))
+    if (ri.driver == ResidentInput::Driver::Connection)
+      g.outputs[outId] = {ri.srcNodePath, ri.srcSlotId};
   return g;
 }
 

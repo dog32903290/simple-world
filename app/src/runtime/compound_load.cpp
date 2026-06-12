@@ -203,9 +203,9 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
         if (cv["x"].is_number()) c.x = (float)cv["x"].get<crude_json::number>();
         if (cv["y"].is_number()) c.y = (float)cv["y"].get<crude_json::number>();
         // S2 (批次7) structural补欄. isBypassed: a non-bool/garbage value is ignored (stays false).
-        // A COMPOUND child carrying isBypassed=true (old file, pre-修B 收窄) loads as-is — harmless:
-        // childIsBypassable refuses compounds so no knob is offered, and the cook always inlined the
-        // subgraph without reading the flag; un-bypass stays reachable (combine_dialog isBp leg).
+        // A COMPOUND child carrying isBypassed=true loads as-is and is LIVE since 修C (批次9): the
+        // resident builder rewires the child away (passthrough). Files saved during the 批次8
+        // atomic-only 收窄 carried the flag inert; loading them now applies the bypass they asked for.
         // The per-output disabled/trigger segment is read by the helper (S15-tolerant: unknown output
         // ids dropped locally, = the zombie-override scrub; refSym is the slot-existence authority).
         if (cv["isBypassed"].is_boolean()) c.isBypassed = cv["isBypassed"].get<bool>();

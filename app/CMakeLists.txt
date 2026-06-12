@@ -124,7 +124,9 @@ add_executable(simple_world
   src/runtime/point_graph_selftest.cpp
   src/runtime/resident_cook_selftest.cpp
   src/runtime/resident_cook_parity_selftest.cpp
+  src/runtime/bypass_selftest_shared.cpp
   src/runtime/bypass_cook_selftest.cpp
+  src/app/bypass_compound_selftest.cpp
   src/runtime/transport.cpp
   src/runtime/transport_selftest.cpp
   src/runtime/curve.cpp

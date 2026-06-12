@@ -143,16 +143,15 @@ bool compoundBypassableType(const std::string& dataType) {
 bool childIsBypassable(const SymbolLibrary& lib, const SymbolChild& c) {
   const Symbol* def = lib.find(c.symbolId);
   if (!def) return false;
-  // COMPOUND child -> false (修B 裁決, 批次8; same honest rule as the type whitelist above: a knob
-  // exists ⇔ the executor passes through). The resident builder INLINES a compound child away
-  // (resident_eval_graph.cpp inlineSymbol's non-atomic branch never reads isBypassed — no resident
-  // node carries the flag), so the inner ops cook regardless = the knob would be dead. FORK from
-  // TiXL (its Instance-level ByPassUpdate covers compositions): cook-level compound bypass is 修C,
-  // queued for the next batch. Until then this single gate keeps GUI (combine_dialog), the command
-  // layer (SetBypassChildCommand) and paste-bypass re-apply (CopyPasteChildrenCommand) converged.
-  // An OLD v2 file carrying compound isBypassed=true still LOADS the flag (compound_load) —
-  // harmless: cook never read it, and the context menu stays clickable to un-bypass (isBp leg).
-  if (!def->atomic) return false;
+  // ATOMIC and COMPOUND alike (修C, 批次9 — the 批次8 atomic-only 收窄 is lifted): = TiXL
+  // Symbol.Child.IsBypassable (.cs:232-248), which never distinguishes compositions —
+  // SetBypassFor redirects Instance.Outputs[0] to Inputs[0] (Instance.Connections.cs:265-267)
+  // whatever lives inside. The honest rule (knob exists ⇔ the executor passes through) now HOLDS
+  // for compounds: the resident builder rewires a bypassed compound child away (resident_eval_
+  // graph.cpp inlineSymbol — consumers of outputDefs[0] adopt the driver feeding inputDefs[0];
+  // the subgraph leaves zero resident footprint), proven by --selftest-bypasscompound. This one
+  // gate keeps GUI (combine_dialog), the command layer (SetBypassChildCommand) and paste-bypass
+  // re-apply (CopyPasteChildrenCommand) converged.
   if (def->inputDefs.empty() || def->outputDefs.empty()) return false;  // = TiXL .cs:234-238
   const SlotDef& mainIn = def->inputDefs[0];
   const SlotDef& mainOut = def->outputDefs[0];
@@ -206,17 +205,36 @@ std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefix
       if (cid == id) return true;
     return false;
   };
+  const Symbol* host = scope;  // the symbol whose subgraph contains `child` (for 修C sideways steps)
   const SymbolChild* child = scope ? childById(*scope, childId) : nullptr;
   const Symbol* s = child ? lib.find(child->symbolId) : nullptr;
   for (int depth = 0; s; ++depth) {
+    if (depth > 64) return "";              // belt for the sideways walk too (crafted wire cycles)
+    // 修C: a bypassed compound child has NO resident footprint (the builder rewires it away), so
+    // "view it" = view whatever feeds its MAIN input in the HOST scope — a SIDEWAYS step (= TiXL:
+    // a bypassed slot's value IS the passed-through upstream). Unwired / boundary-input-fed main
+    // input -> nothing realizable, fall back ("" -> caller's terminal), mirroring the builder's
+    // Constant redirect (null buffer / no texture). Atomic bypassed children keep their own path —
+    // their resident node carries the flag and cookResident's terminal redirect handles them.
+    if (!s->atomic && child->isBypassed && childIsBypassable(lib, *child)) {
+      const SymbolConnection* w = connectionToInput(*host, child->id, s->inputDefs[0].id);
+      if (!w || w->srcChild == kSymbolBoundary) return "";  // unwired / input passthrough
+      size_t cut = path.find_last_of('/');
+      path = (cut == std::string::npos ? std::string() : path.substr(0, cut + 1)) +
+             std::to_string(w->srcChild);
+      child = childById(*host, w->srcChild);
+      s = child ? lib.find(child->symbolId) : nullptr;
+      continue;  // host unchanged — we stepped sideways, not inward
+    }
     if (s->atomic) return path;             // an atomic child IS the producer
     if (onChain(s->id)) return "";          // S14 mirror: the builder skipped this subtree
     chain.push_back(s->id);
-    if ((int)chain.size() > 64 || depth > 64) return "";  // belt: ABSOLUTE depth, like the builder
+    if ((int)chain.size() > 64) return "";  // belt: ABSOLUTE depth, like the builder
     if (s->outputDefs.empty()) return "";   // nothing to view
     const SymbolConnection* w = connectionToInput(*s, kSymbolBoundary, s->outputDefs[0].id);
     if (!w || w->srcChild == kSymbolBoundary) return "";  // unwired / input passthrough
     path += "/" + std::to_string(w->srcChild);
+    host = s;
     child = childById(*s, w->srcChild);
     s = child ? lib.find(child->symbolId) : nullptr;
   }

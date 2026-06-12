@@ -130,6 +130,7 @@ const SelfTest kTable[] = {
     {"residentcook", runResidentCookSelfTest},
     {"residentparity", runResidentCookParitySelfTest},
     {"bypasscook", runBypassCookSelfTest},
+    {"bypasscompound", runBypassCompoundSelfTest},
     {"graphbridge", runGraphBridgeSelfTest},
     {"statecount", runStateCountSelfTest},
     {"savev2", runSaveV2SelfTest},

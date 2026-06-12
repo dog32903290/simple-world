@@ -275,6 +275,15 @@ class SetOutputTriggerCommand : public Command {
 // breaks one承重 leg -> FAIL (teeth).
 int runChildStateSelfTest(bool injectBug);
 
+// 修C compound-bypass golden (bypass_compound_selftest.cpp, 批次9): a bypassed COMPOUND child is
+// rewired away by the resident builder (consumers of its main output adopt its main input's
+// driver; zero resident footprint) — Points passthrough + zero inner cook, savev2 roundtrip,
+// Command/Texture2D BOUNDARY compounds (the production entry for those types) incl. the
+// viewProducerPath sideways step, nested bypassed-compound-in-compound, and the
+// SetBypassChildCommand doIt/undo/redo projection through the rebuild path. injectBug emulates a
+// flattener that ignores the compound flag -> the passthrough legs FAIL (teeth).
+int runBypassCompoundSelfTest(bool injectBug);
+
 // rename golden (rename_selftest.cpp): def-name change flows to spec title + all instances + undo;
 // instance-name change is isolated + empty falls back to def name + undo; a CJK instance name
 // roundtrips byte-identically through savev2 WITHOUT aborting the parser; a tampered name field is
