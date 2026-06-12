@@ -21,15 +21,31 @@ namespace sw::soundtrack {
 // = TiXL CompositionSettings.AudioResyncThreshold default (CompositionSettings.cs:82).
 inline constexpr double kResyncThresholdSecs = 0.04;
 
+// The speed window this audio chain can voice = the AVAudioUnitVarispeed parameter range
+// (mirrors platform AudioPlayback::kRateMin/kRateMax — static_assert-pinned in soundtrack.cpp).
+// NAMED FORK vs TiXL: BASS frequency scaling voices the full ±16 incl. BACKWARDS
+// (SoundtrackClipStream.cs:49-54 ReverseDirection + Frequency*-speed); varispeed can't reverse
+// and stops at 4x/0.25x — outside the window the stream PAUSES (visuals keep the full rate).
+inline constexpr double kAudibleSpeedMin = 0.25;
+inline constexpr double kAudibleSpeedMax = 4.0;
+
 // One frame's follow decision — the pure heart of the sync, headless-testable. Inputs are the
-// transport state (is the playhead moving; where is it, mapped to SECONDS) and the audio state.
+// transport state (is the playhead moving; at what speed; where is it, mapped to SECONDS) and
+// the audio state.
 //   None         keep going (drift within threshold, or correctly silent)
-//   Pause        stop the stream (transport paused, or target outside the file)
+//   Pause        stop the stream (transport paused, speed==0/unvoiceable, or target outside file)
 //   Resync       hard-seek the playing stream to targetSecs (drift exceeded threshold)
 //   PlayAtTarget seek to targetSecs and start the stream (transport playing, audio wasn't)
+// speed semantics (TiXL UpdateSoundtrackTime):
+//   • speed==0 == pause (cs:159-163) — even with the transport nominally Playing, a zero rate
+//     freezes the playhead (Playback.cs:108 eps), so the stream must pause with it.
+//   • drift gate carries the speed factor on BOTH sides (soundDelta×speed cs:208, threshold×
+//     |speed| cs:221) — they cancel for speed≠0, so the OBSERVABLE is that the gate is
+//     speed-invariant; we mirror the formula anyway (parity over cleverness).
+//   • negative / out-of-window speed -> Pause (named fork above; TiXL would reverse/scale).
 enum class Action { None, Pause, Resync, PlayAtTarget };
-Action decide(bool transportPlaying, double targetSecs, double durationSecs, bool audioPlaying,
-              double audioPosSecs);
+Action decide(bool transportPlaying, double speed, double targetSecs, double durationSecs,
+              bool audioPlaying, double audioPosSecs);
 
 // Apply one frame of the follow rule. Called from app/frame_cook::run AFTER the transport
 // advanced. Also the (re)load watcher: when lib.composition.soundtrackPath changed (open/new/
@@ -39,8 +55,10 @@ Action decide(bool transportPlaying, double targetSecs, double durationSecs, boo
 // HandleFileChange fail-cache lives in the OPERATOR-audio path and its skip condition is
 // `|| true` — never skips). Our no-per-frame-retry is deliberate (no 60Hz open() churn);
 // applySoundtrackPick is the explicit-retry escape hatch.
-// targetSecs = transport.secondsFromBars(position); transportPlaying = transport.playing().
-void syncFrame(bool transportPlaying, double targetSecs);
+// targetSecs = transport.secondsFromBars(position); transportPlaying = transport.playing();
+// speed = transport.rate. A changed in-window speed is pushed onto the platform varispeed
+// (only on change — TiXL AudioEngine.cs:236-254 playbackSpeedChanged gate) before the action.
+void syncFrame(bool transportPlaying, double speed, double targetSecs);
 
 // Write `path` as the composition soundtrack (savev2 persists it; the dirty flag is
 // snapshot-derived so the write alone marks the doc dirty) and clear the failure cache — an
@@ -56,8 +74,11 @@ bool promptAndLoad();
 std::string statusText();
 
 // Headless teeth (--selftest-soundtrack): the decide() state machine over play/pause/scrub/
-// drift/out-of-bounds sequences, the bars->secs targeting at two BPMs (audio stays in the
-// seconds domain), the platform load() failure path (missing file -> false, no crash) +
+// drift/out-of-bounds/speed sequences (speed-invariant drift gate, speed==0=pause — the
+// refuter-C "rate=0+Playing" trap, negative & out-of-window speed pause as the named fork),
+// the bars->secs targeting at two BPMs (audio stays in the seconds domain), the varispeed
+// rate clamp + a live 4x-outruns-the-wall-clock race (needs an output device, SKIPs without),
+// the platform load() failure path (missing file -> false, no crash) +
 // a real tiny WAV roundtrip (load -> duration -> seek -> position readback, no audio device
 // needed), the live engine legs (修1 config-change restart / 修3 end-seek playing-flag drop —
 // need an output device, SKIP without one), and the 修4 failure-cache retry seam (explicit

@@ -71,5 +71,11 @@ double transportPosition();  // playhead, bars (the displayed/scrubbed value)
 double transportFxTime();    // wall clock, bars (runs while paused)
 double transportBpm();
 void   transportSetBpm(double bpm);  // also writes lib.composition.bpm (the persistence home)
+// Playback speed (= TiXL Playback.PlaybackSpeed). Gate lives in Transport::setRate (NaN
+// refused, clamp ±16 = TimeControls.cs:92/106). NOT persisted — TiXL never saves PlaybackSpeed
+// either (runtime playback state, not a composition setting). BPM and speed are two independent
+// knobs that multiply in advance(); neither setter writes the other.
+double transportRate();
+void   transportSetRate(double rate);
 
 }  // namespace sw::framecook

@@ -9,6 +9,14 @@
 #include "platform/audio_playback.h"   // the platform leaf this module drives
 
 namespace sw::soundtrack {
+
+// The audible window in the header is a mirror of the platform varispeed range — if the
+// platform constant ever moves, this trips at compile time instead of silently de-syncing
+// the pause window from what the hardware can voice.
+static_assert(kAudibleSpeedMin == AudioPlayback::kRateMin &&
+                  kAudibleSpeedMax == AudioPlayback::kRateMax,
+              "soundtrack audible-speed window must mirror AudioPlayback's varispeed range");
+
 namespace {
 
 // The one playback instance (the soundtrack is a singleton resource, like the capture unit).
@@ -55,11 +63,22 @@ void reloadIfPathChanged() {
 
 }  // namespace
 
-Action decide(bool transportPlaying, double targetSecs, double durationSecs, bool audioPlaying,
-              double audioPosSecs) {
+Action decide(bool transportPlaying, double speed, double targetSecs, double durationSecs,
+              bool audioPlaying, double audioPosSecs) {
   // Transport paused -> stream paused, NO seek (TiXL UpdateSoundtrackTime:159-163). Scrubbing
   // while paused only moves the target; the stream stays silent until play.
-  if (!transportPlaying) return audioPlaying ? Action::Pause : Action::None;
+  // Same leg covers every speed the chain can't voice:
+  //   • speed==0 == pause (cs:159-163) — the playhead is frozen by Playback.cs:108's eps gate
+  //     even when the play STATE says Playing (the refuter-C "rate=0 freezes the playhead while
+  //     the music keeps running" trap dies here).
+  //   • speed < 0: NAMED FORK — TiXL plays the soundtrack BACKWARDS (BASS ReverseDirection +
+  //     Frequency*-speed, SoundtrackClipStream.cs:49-54); AVAudioUnitVarispeed cannot reverse,
+  //     so the stream pauses while the visuals run backwards at full rate.
+  //   • |speed| outside [0.25, 4]: NAMED FORK — BASS frequency-scales to ±16 (TimeControls.cs:
+  //     106 caps the UI there); varispeed stops at 4x/0.25x. Chasing a 16x playhead with 4x
+  //     audio would resync-glitch every few frames — pause instead, deterministically silent.
+  const bool voiceable = speed >= kAudibleSpeedMin && speed <= kAudibleSpeedMax;
+  if (!transportPlaying || !voiceable) return audioPlaying ? Action::Pause : Action::None;
 
   // Target outside the file (playhead before bar 0 can't happen here, but past the end can):
   // pause the stream rather than letting it dangle (UpdateSoundtrackTime:183-198).
@@ -70,16 +89,27 @@ Action decide(bool transportPlaying, double targetSecs, double durationSecs, boo
   if (!audioPlaying) return Action::PlayAtTarget;
 
   // Both running: let the audio free-run; hard-seek only past the drift threshold, because
-  // frequent resync = audible glitches (SoundtrackClipStream.cs:149-156).
-  const double drift = std::fabs(audioPosSecs - targetSecs);
-  return drift > kResyncThresholdSecs ? Action::Resync : Action::None;
+  // frequent resync = audible glitches (SoundtrackClipStream.cs:149-156). The speed factor
+  // rides BOTH sides — soundDelta×speed (cs:208) vs threshold×|speed| (cs:221) — which cancels
+  // for any voiceable speed; mirrored verbatim anyway so the formula stays line-mappable.
+  const double soundDelta = (audioPosSecs - targetSecs) * speed;
+  const double maxSoundDelta = kResyncThresholdSecs * std::fabs(speed);
+  return std::fabs(soundDelta) > maxSoundDelta ? Action::Resync : Action::None;
 }
 
-void syncFrame(bool transportPlaying, double targetSecs) {
+void syncFrame(bool transportPlaying, double speed, double targetSecs) {
   reloadIfPathChanged();
   AudioPlayback& p = playback();
   if (!p.loaded()) return;
-  switch (decide(transportPlaying, targetSecs, p.durationSeconds(), p.playing(),
+  // Push a changed IN-WINDOW speed onto the varispeed (= TiXL's playbackSpeedChanged gate,
+  // AudioEngine.cs:236-254: UpdateSoundtrackPlaybackSpeed only when |Δspeed| > 0.001).
+  // Out-of-window speeds never reach the platform — decide() expresses them as Pause, and the
+  // last in-window rate stays parked on the unit for the return.
+  if (speed >= kAudibleSpeedMin && speed <= kAudibleSpeedMax &&
+      std::fabs(speed - p.rate()) > 0.001) {
+    p.setRate(speed);
+  }
+  switch (decide(transportPlaying, speed, targetSecs, p.durationSeconds(), p.playing(),
                  p.positionSeconds())) {
     case Action::None: break;
     case Action::Pause: p.pause(); break;

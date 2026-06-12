@@ -1,6 +1,8 @@
 // app/soundtrack_selftest — soundtrack<->transport follow rule, headless (--selftest-soundtrack).
 // Legs:
 //   ① decide() drift core: free-run inside the threshold, hard-seek past it (both sides of 0.04)
+//   ①b-e speed input: drift gate speed-invariant (TiXL's ×speed factors cancel); speed 0 = pause
+//      (the refuter-C rate=0+Playing trap); negative & out-of-window [0.25,4] pause (named forks)
 //   ② play/pause/scrub sequence: pause = stream pause NO seek; scrub-while-paused stays silent;
 //      play re-enters at the target (TiXL UpdateSoundtrackTime:159-228 semantics)
 //   ③ out-of-bounds target (past the file end / negative) -> stream pauses, never dangles
@@ -13,17 +15,21 @@
 //      without one): a simulated device-config change mid-play recovers on the next schedule
 //      (engine restarted, still playing); seek(duration) while playing drops the playing flag
 //      (the [player stop] early-out used to leave it wedged true); play() after that resurrects
+//   ⑦b varispeed race (live, SKIPs without a device): rate 4 position outruns the wall clock;
+//      rate clamp [0.25,4] itself is headless in leg ⑥
 //   ⑧ failure-cache retry seam (refuter-C 修4): a missing path fails once and is NOT retried
 //      when the file later appears (named fork vs TiXL's per-frame retry, PlaybackUtils.cs:35);
 //      an EXPLICIT re-pick of the SAME path (applySoundtrackPick) retries and loads
 // injectBug shrinks leg ①'s drift below the threshold while still expecting Resync -> FAIL (teeth).
 #include "app/soundtrack.h"
 
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <thread>
 
 #include "app/document.h"
 #include "platform/audio_playback.h"
@@ -85,37 +91,73 @@ int runSoundtrackSelfTest(bool injectBug) {
   g_fail = 0;
   const double dur = 10.0;  // pretend file length for the decide() legs (seconds)
 
-  // ① drift core. The teeth: injectBug feeds a drift INSIDE the threshold but still expects a
-  // hard-seek — a decide() that always (or never) resyncs dies on one of the two probes.
+  // ① drift core (speed 1). The teeth: injectBug feeds a drift INSIDE the threshold but still
+  // expects a hard-seek — a decide() that always (or never) resyncs dies on one of the two probes.
   expectAction("playing + drift 0.02 (inside 0.04) free-runs",
-               decide(true, 5.0, dur, true, 5.02), Action::None);
+               decide(true, 1.0, 5.0, dur, true, 5.02), Action::None);
   const double bigDrift = injectBug ? 0.03 : 0.10;
   expectAction("playing + drift past threshold hard-seeks",
-               decide(true, 5.0, dur, true, 5.0 + bigDrift), Action::Resync);
+               decide(true, 1.0, 5.0, dur, true, 5.0 + bigDrift), Action::Resync);
   expectAction("drift is symmetric (audio BEHIND the target)",
-               decide(true, 5.0, dur, true, 4.85), Action::Resync);
+               decide(true, 1.0, 5.0, dur, true, 4.85), Action::Resync);
+
+  // ①b the speed factor rides BOTH sides of the drift gate (soundDelta×speed cs:208, threshold×
+  // |speed| cs:221) — the factors cancel, so the TiXL-observable is speed-INVARIANCE: the same
+  // drift decides the same way at any voiceable speed.
+  expectAction("speed 2: drift 0.02 still free-runs (gate is speed-invariant)",
+               decide(true, 2.0, 5.0, dur, true, 5.02), Action::None);
+  expectAction("speed 2: drift 0.10 still resyncs",
+               decide(true, 2.0, 5.0, dur, true, 5.10), Action::Resync);
+  expectAction("speed 0.5: drift symmetric behind, still resyncs",
+               decide(true, 0.5, 5.0, dur, true, 4.85), Action::Resync);
+
+  // ①c speed==0 == pause (TiXL UpdateSoundtrackTime:159-163) — THE refuter-C trap: transport
+  // state Playing + rate 0 freezes the playhead (Playback.cs:108 eps); the music MUST freeze
+  // with it, not keep running into a 0.04s-jitter rewind fight.
+  const double zeroSpeed = injectBug ? 1.0 : 0.0;  // bug = ignore the rate input -> FAIL
+  expectAction("speed 0 while transport 'Playing' -> stream pauses (refuter-C trap)",
+               decide(true, zeroSpeed, 5.0, dur, true, 5.0), Action::Pause);
+  expectAction("speed 0, already silent -> nothing",
+               decide(true, 0.0, 5.0, dur, false, 5.0), Action::None);
+
+  // ①d negative speed: NAMED FORK — TiXL plays the soundtrack BACKWARDS (BASS ReverseDirection
+  // + Frequency*-speed, SoundtrackClipStream.cs:49-54); AVAudioUnitVarispeed cannot reverse, so
+  // the stream pauses while the transport/visuals run backwards.
+  expectAction("negative speed -> Pause (named fork: no reverse audio on AVAudio)",
+               decide(true, -1.0, 5.0, dur, true, 5.0), Action::Pause);
+
+  // ①e outside the varispeed window [0.25, 4] (named fork vs BASS's ±16): pause, not a
+  // resync-glitch storm chasing a playhead the audio chain can't match.
+  expectAction("speed 8 (above varispeed max 4) -> Pause",
+               decide(true, 8.0, 5.0, dur, true, 5.0), Action::Pause);
+  expectAction("speed 0.1 (below varispeed min 0.25) -> Pause",
+               decide(true, 0.1, 5.0, dur, true, 5.0), Action::Pause);
+  expectAction("speed 4.0 (the ceiling itself) is voiceable",
+               decide(true, 4.0, 5.0, dur, true, 5.01), Action::None);
+  expectAction("speed 0.25 (the floor itself) is voiceable",
+               decide(true, 0.25, 5.0, dur, true, 5.01), Action::None);
 
   // ② play/pause/scrub sequence (the TiXL pause/scrub semantics, one frame per row).
   expectAction("frame1: transport plays, audio idle -> enter at target",
-               decide(true, 0.0, dur, false, 0.0), Action::PlayAtTarget);
+               decide(true, 1.0, 0.0, dur, false, 0.0), Action::PlayAtTarget);
   expectAction("frame2: both running in sync -> hands off",
-               decide(true, 1.0, dur, true, 1.01), Action::None);
+               decide(true, 1.0, 1.0, dur, true, 1.01), Action::None);
   expectAction("frame3: transport pauses -> stream pauses, NO seek",
-               decide(false, 1.0, dur, true, 1.01), Action::Pause);
+               decide(false, 1.0, 1.0, dur, true, 1.01), Action::Pause);
   expectAction("frame4: scrub while paused -> target jumps, stream STAYS silent",
-               decide(false, 7.5, dur, false, 1.01), Action::None);
+               decide(false, 1.0, 7.5, dur, false, 1.01), Action::None);
   expectAction("frame5: play after scrub -> re-enter at the scrubbed target",
-               decide(true, 7.5, dur, false, 1.01), Action::PlayAtTarget);
+               decide(true, 1.0, 7.5, dur, false, 1.01), Action::PlayAtTarget);
 
   // ③ out-of-bounds target: pause, never dangle (and stay silent once paused).
   expectAction("playhead past the file end while playing -> pause",
-               decide(true, dur + 0.5, dur, true, 9.99), Action::Pause);
+               decide(true, 1.0, dur + 0.5, dur, true, 9.99), Action::Pause);
   expectAction("still past the end, already silent -> nothing",
-               decide(true, dur + 0.6, dur, false, 9.99), Action::None);
+               decide(true, 1.0, dur + 0.6, dur, false, 9.99), Action::None);
   expectAction("negative target -> pause (defensive: scrub clamps at 0 upstream)",
-               decide(true, -0.1, dur, true, 0.0), Action::Pause);
+               decide(true, 1.0, -0.1, dur, true, 0.0), Action::Pause);
   expectAction("target exactly at duration counts as out (half-open file)",
-               decide(true, dur, dur, true, 9.99), Action::Pause);
+               decide(true, 1.0, dur, dur, true, 9.99), Action::Pause);
 
   // ④ bars->secs targeting: same playhead BAR maps to different SECONDS as BPM changes —
   // that mapping is the ONLY thing BPM touches; the audio clock stays in seconds.
@@ -128,7 +170,7 @@ int runSoundtrackSelfTest(bool injectBug) {
     // the follow rule at the SAME audio position: in sync at 240, a hard drift at 120 —
     // i.e. a BPM change re-targets (seek), it never bends the audio rate.
     expectAction("BPM change shows up as a TARGET jump, handled by resync",
-                 decide(true, 4.0, dur, true, 2.0), Action::Resync);
+                 decide(true, 1.0, 4.0, dur, true, 2.0), Action::Resync);
   }
 
   // ⑤ load failure: missing file -> false, the instance stays empty and every control no-ops.
@@ -154,6 +196,15 @@ int runSoundtrackSelfTest(bool injectBug) {
     expectNear("paused seek reads back", p.positionSeconds(), 0.05);
     p.seek(99.0);  // past the end: clamps to duration
     expectNear("seek past the end clamps", p.positionSeconds(), 0.1);
+    // varispeed rate clamp (no engine start needed — the AU property is settable headless):
+    // the platform setter pins the AVAudioUnitVarispeed parameter range [0.25, 4].
+    expectNear("default rate is 1.0", p.rate(), 1.0);
+    p.setRate(99.0);
+    expectNear("setRate clamps to varispeed max 4.0", p.rate(), 4.0);
+    p.setRate(0.01);
+    expectNear("setRate clamps to varispeed min 0.25", p.rate(), 0.25);
+    p.setRate(1.0);
+    expectNear("in-range rate lands exactly", p.rate(), 1.0);
     p.unload();
     expectNear("unload empties the instance", p.durationSeconds(), 0.0);
     std::remove(wav.c_str());
@@ -192,6 +243,33 @@ int runSoundtrackSelfTest(bool injectBug) {
     std::remove(wav.c_str());
   }
 
+  // ⑦b varispeed engages in the real render chain (live — needs an output device, SKIPs
+  // without one). At rate 4 the player's sample clock must cross 1.2s of source within 0.6s
+  // of WALL time; a 1x chain tops out at ~0.6s, so crossing proves the 4x resample really sits
+  // in the signal path. (真變速聽感 stays 柏為's ears; this pins the clock side headless.)
+  {
+    const std::string wav = "/tmp/sw_soundtrack_selftest_vari.wav";
+    expect("fixture wav (4s) written", writeTinyWav(wav, 48000, 192000));
+    AudioPlayback p;
+    expect("load(vari wav) succeeds", p.load(wav));
+    p.setRate(4.0);
+    p.play();
+    if (!p.playing()) {
+      printf("  [soundtrack] SKIP leg ⑦b (engine start failed: no output device on this"
+             " machine — varispeed race needs live render)\n");
+    } else {
+      const auto t0 = std::chrono::steady_clock::now();
+      bool crossed = false;
+      while (std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() < 0.6) {
+        if (p.positionSeconds() >= 1.2) { crossed = true; break; }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
+      expect("rate 4 outruns the wall clock (varispeed engaged in the render chain)", crossed);
+      p.pause();
+    }
+    std::remove(wav.c_str());
+  }
+
   // ⑧ failure-cache retry seam (修4), through the REAL production watcher (syncFrame pulls
   // lib.composition.soundtrackPath). Observable = statusText(): "load failed: ..." vs basename.
   {
@@ -200,17 +278,17 @@ int runSoundtrackSelfTest(bool injectBug) {
     std::remove(path.c_str());
     const std::string savedPath = doc::g_lib.composition.soundtrackPath;
     doc::g_lib.composition.soundtrackPath = path;     // path set while the file is MISSING
-    syncFrame(false, 0.0);                            // watcher: load fails -> cached
+    syncFrame(false, 1.0, 0.0);                            // watcher: load fails -> cached
     expect("missing file fails and is cached", statusText() == "load failed: " + base);
     expect("fixture appears at the SAME path", writeTinyWav(path, 48000, 4800));
-    syncFrame(false, 0.0);                            // same path, file now valid
+    syncFrame(false, 1.0, 0.0);                            // same path, file now valid
     expect("same path NOT retried per frame (named fork vs TiXL PlaybackUtils.cs:35)",
            statusText() == "load failed: " + base);
     applySoundtrackPick(path);                        // 柏為 explicitly re-picks the same path
-    syncFrame(false, 0.0);
+    syncFrame(false, 1.0, 0.0);
     expect("explicit re-pick of the SAME path retries and loads", statusText() == base);
     doc::g_lib.composition.soundtrackPath = savedPath;  // restore + unload for later tests
-    syncFrame(false, 0.0);
+    syncFrame(false, 1.0, 0.0);
     std::remove(path.c_str());
   }
 

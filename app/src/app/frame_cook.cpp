@@ -147,8 +147,10 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // Soundtrack follows the transport (TiXL: wall clock is master, audio chases — drift past
   // 0.04s hard-seeks, pause = stream pause, scrub-while-paused stays silent). The TARGET is the
   // PLAYHEAD in seconds: the soundtrack is timeline audio, frozen with the playhead on pause —
-  // fxTime (the keeps-running brother) belongs to sims, never to the backing track.
-  soundtrack::syncFrame(g_transport.playing(),
+  // fxTime (the keeps-running brother) belongs to sims, never to the backing track. The rate
+  // rides along so speed==0/negative/out-of-window pause the stream and in-window speeds reach
+  // the varispeed (the refuter-C "rate=0+Playing = frozen playhead, music keeps running" trap).
+  soundtrack::syncFrame(g_transport.playing(), g_transport.rate,
                         g_transport.secondsFromBars(g_transport.position));
 
   // Both clocks in BARS (P3, the resident eval ctx is bars-native): localTime = the PLAYHEAD
@@ -204,5 +206,7 @@ void transportSetBpm(double bpm) {
   doc::g_lib.composition.bpm = bpm;       // the persistence home (saved in the v2 file)
   g_transport.bpm = bpm;
 }
+double transportRate() { return g_transport.rate; }
+void transportSetRate(double rate) { g_transport.setRate(rate); }  // gate lives in the Transport
 
 }  // namespace sw::framecook

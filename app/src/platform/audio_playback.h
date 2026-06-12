@@ -9,6 +9,13 @@
 // no device override, so the documented AVAudioEngine failure mode never applies, and the
 // player node gives load/seek/position for free instead of an ExtAudioFile ring buffer.
 //
+// Variable speed: an AVAudioUnitVarispeed sits in the chain (player -> varispeed -> mixer).
+// Varispeed = resampling = speed changes pitch — the SAME philosophy as TiXL's BASS
+// ChannelAttribute.Frequency scaling (SoundtrackClipStream.cs:53/60); TimePitch (preserve
+// pitch) would be a different instrument, deliberately not used. At rate r the player's
+// sample clock advances at r× wall speed, so positionSeconds() keeps measuring true source
+// position and the app-side drift rule stays valid unchanged.
+//
 // platform leaf: ObjC behind a C++ pimpl — callers include no ObjC, no runtime/app/ui headers.
 // All methods are main-thread; load failure is non-fatal (returns false, instance stays empty).
 #pragma once
@@ -18,6 +25,12 @@ namespace sw {
 
 class AudioPlayback {
  public:
+  // The varispeed AU's hardware parameter range (AVAudioUnitVarispeed.rate: 0.25–4.0). TiXL's
+  // BASS frequency scaling reaches ±16; this chain can only voice [0.25, 4] forward — the app
+  // layer (soundtrack follow rule) pauses the stream outside this window (named fork).
+  static constexpr double kRateMin = 0.25;
+  static constexpr double kRateMax = 4.0;
+
   AudioPlayback();
   ~AudioPlayback();
   AudioPlayback(const AudioPlayback&) = delete;
@@ -44,6 +57,15 @@ class AudioPlayback {
   void pause();
   void seek(double seconds);
   bool playing() const;
+
+  // Playback rate through the varispeed unit (= TiXL UpdateSoundtrackPlaybackSpeed's Frequency
+  // scaling, SoundtrackClipStream.cs:42-63 — minus the reverse leg: BASS plays backwards via
+  // ReverseDirection (cs:52), AVAudio cannot; negative/zero/out-of-range speed is the APP's
+  // job to express as pause). Clamped to [kRateMin, kRateMax]; takes effect live (no
+  // reschedule) and survives the config-change engine rebuild (the varispeed edge is re-pinned
+  // with the player edge and the stored rate re-applied).
+  void setRate(double rate);
+  double rate() const;
 
   // Teeth-only (--selftest-soundtrack): pretend macOS posted a configuration-change
   // notification (device switch) so the headless selftest can exercise the restart path

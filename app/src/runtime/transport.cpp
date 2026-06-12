@@ -4,6 +4,14 @@
 
 namespace sw {
 
+void Transport::setRate(double r) {
+  if (!std::isfinite(r)) return;  // refuse garbage, keep the last sane rate (BPM-gate style)
+  // Clamp to TiXL's UI reach: speed doubling stops at ±16 (TimeControls.cs:92/106).
+  if (r > 16.0) r = 16.0;
+  if (r < -16.0) r = -16.0;
+  rate = r;
+}
+
 void Transport::scrub(double bars) {
   position = bars < 0.0 ? 0.0 : bars;
   scrubbedThisFrame_ = true;  // next advance() snaps fxTime to position (Playback.cs:121)

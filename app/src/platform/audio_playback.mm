@@ -17,7 +17,9 @@ namespace sw {
 struct AudioPlayback::Impl {
   AVAudioEngine* engine = nil;
   AVAudioPlayerNode* player = nil;
+  AVAudioUnitVarispeed* varispeed = nil;  // player -> varispeed -> mixer (speed=pitch, BASS parity)
   AVAudioFile* file = nil;
+  double rate = 1.0;  // the clamped rate currently on the varispeed (re-applied after rebuilds)
   double sampleRate = 0.0;
   long long lengthFrames = 0;
   long long baseFrame = 0;   // file frame the current/next schedule starts at
@@ -58,17 +60,27 @@ struct AudioPlayback::Impl {
     return f;
   }
 
+  // (Re)pin the whole render chain in the file's processing format: player -> varispeed ->
+  // mixer. connect: replaces any previous connection, so this is both the load() wiring and
+  // the config-change rebuild. The stored rate rides over every re-pin.
+  void connectChain() {
+    [engine connect:player to:varispeed format:file.processingFormat];
+    [engine connect:varispeed to:engine.mainMixerNode format:file.processingFormat];
+    varispeed.rate = (float)rate;
+  }
+
   // Schedule one segment [baseFrame, end) and start the player. The whole start path lives
   // here so play() and a mid-play seek() behave identically.
   void scheduleAndPlay() {
     if (file == nil) return;
     // Device/config change since the last start: the engine already stopped itself. Take it to a
-    // clean stop, re-pin the player->mixer edge (the mixer's output format may have changed with
-    // the device), and clear the fail-cache — a config change IS the state change that earns a
-    // fresh start attempt (and a fresh log line if it fails again).
+    // clean stop, re-pin the player->varispeed->mixer chain (the mixer's output format may have
+    // changed with the device; the varispeed rides along, rate re-applied), and clear the
+    // fail-cache — a config change IS the state change that earns a fresh start attempt (and a
+    // fresh log line if it fails again).
     if (configChanged.exchange(false)) {
       [engine stop];
-      [engine connect:player to:engine.mainMixerNode format:file.processingFormat];
+      connectChain();
       startWarned = false;
     }
     if (!engine.isRunning) {
@@ -109,7 +121,9 @@ struct AudioPlayback::Impl {
 AudioPlayback::AudioPlayback() : impl_(new Impl) {
   impl_->engine = [[AVAudioEngine alloc] init];
   impl_->player = [[AVAudioPlayerNode alloc] init];
+  impl_->varispeed = [[AVAudioUnitVarispeed alloc] init];
   [impl_->engine attachNode:impl_->player];
+  [impl_->engine attachNode:impl_->varispeed];
   // Output device switched / headphones unplugged: macOS stops the engine and posts this. The
   // block runs on an arbitrary thread — flip the atomic ONLY; recovery happens on the main
   // thread in scheduleAndPlay (see Impl::configChanged).
@@ -127,8 +141,10 @@ AudioPlayback::~AudioPlayback() {
   unload();
   if (impl_->engine.isRunning) [impl_->engine stop];
   [impl_->engine detachNode:impl_->player];
+  [impl_->engine detachNode:impl_->varispeed];
   impl_->engine = nil;  // ARC releases
   impl_->player = nil;
+  impl_->varispeed = nil;
   impl_->configObserver = nil;
   delete impl_;
 }
@@ -147,12 +163,10 @@ bool AudioPlayback::load(const std::string& path) {
     printf("[audio-playback] '%s' has no audible content\n", path.c_str());
     return false;
   }
-  // (Re)connect the player in the file's processing format — connect replaces any previous
-  // connection, so switching files with a different sample rate just rewires the mixer edge.
-  [impl_->engine connect:impl_->player
-                      to:impl_->engine.mainMixerNode
-                  format:file.processingFormat];
+  // (Re)connect the chain in the file's processing format — connect replaces any previous
+  // connection, so switching files with a different sample rate just rewires the edges.
   impl_->file = file;
+  impl_->connectChain();
   impl_->sampleRate = file.processingFormat.sampleRate;
   impl_->lengthFrames = (long long)file.length;
   impl_->baseFrame = 0;
@@ -192,6 +206,17 @@ void AudioPlayback::seek(double seconds) {
 }
 
 bool AudioPlayback::playing() const { return impl_->playing; }
+
+void AudioPlayback::setRate(double rate) {
+  // Clamp to the varispeed AU's parameter range (also swallows NaN -> kRateMin via the
+  // comparison ordering: NaN fails both <,> so guard it explicitly).
+  if (!(rate >= kRateMin)) rate = kRateMin;
+  if (rate > kRateMax) rate = kRateMax;
+  impl_->rate = rate;
+  impl_->varispeed.rate = (float)rate;  // live: varispeed resamples mid-render, no reschedule
+}
+
+double AudioPlayback::rate() const { return impl_->rate; }
 
 void AudioPlayback::debugSimulateConfigChange() { impl_->configChanged.store(true); }
 

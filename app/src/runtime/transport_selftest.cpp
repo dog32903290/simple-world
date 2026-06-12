@@ -1,6 +1,8 @@
 // runtime/transport_selftest — S5 two-clock transport, headless RED->GREEN (--selftest-transport).
 // Six legs (spec S5 selftest table):
 //   ① advance: play -> position += dt*rate*BPM/240 ; pause freezes position ; fxTime tracks both
+//   ①c rate: 2x doubles, -1 runs backwards, 0-while-Playing freezes the playhead (fxTime still
+//      runs); setRate gate (NaN refused, ±16 clamp); BPM × rate orthogonal
 //   ② scrub: position jumps -> next-frame fxTime snaps to it ; a later non-scrub advance never rewinds fx
 //   ③ two-clock separation: paused, fxTime keeps advancing while position is frozen (粒子時間門活)
 //   ④ automation 接通: an Automation-driven resident input reads its curve @ transport.position
@@ -13,6 +15,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -120,6 +123,66 @@ int runTransportSelfTest(bool injectBug) {
     const double want = injectBug ? t.barsFromSeconds(0.25) : t.barsFromSeconds(2.0);
     expectNear("stalled frame: position += barsFromSeconds(2.0), UNclamped", t.position, want);
     expectNear("stalled frame: fxTime rides the same full dt", t.fxTime, want);
+  }
+
+  // ===== leg ①c: rate (PlaybackSpeed) scales the playhead advance (Playback.cs:116). =====
+  {
+    Transport t; t.bpm = 120.0; t.setRate(2.0);
+    t.play();
+    t.advance(dt);
+    expectNear("rate 2: position += dt*2*BPM/240", t.position, 1.0);
+    expectNear("rate 2: fxTime locked to the rate-scaled playhead (cs:117)", t.fxTime, 1.0);
+
+    // Negative speed runs the playhead BACKWARDS — cs:116 is signed, Update has no lower clamp
+    // (only our scrub() clamps at 0; advance mirrors TiXL).
+    t.setRate(-1.0);
+    t.advance(dt);
+    expectNear("rate -1: position runs backwards", t.position, 0.5);
+    expectNear("rate -1: fxTime follows the backwards playhead", t.fxTime, 0.5);
+
+    // rate 0 while the play STATE says Playing: |PlaybackSpeed| <= 0.001 is NOT playing
+    // (cs:108 eps) — the playhead freezes but fxTime keeps running (idle-motion leg,
+    // cs:126-129). THE refuter-C trap: a rate=0 transport must read as paused everywhere.
+    t.setRate(0.0);
+    const double posHeld = t.position;
+    const double fxBefore = t.fxTime;
+    t.advance(dt);
+    // injectBug: pretend rate 0 still advanced the playhead (the "frozen playhead, music keeps
+    // running" half of the trap — the soundtrack selftest bites the other half).
+    double observedPos = injectBug ? t.position + 0.5 : t.position;
+    expectNear("rate 0 while Playing: playhead frozen (cs:108 eps gate)", observedPos, posHeld);
+    expect("rate 0: fxTime keeps running (idle-motion, cs:126-129)", t.fxTime > fxBefore);
+
+    // Play from a DEAD rate revives it to 1 (TimeControls.cs:130-133: toggle from speed 0 sets
+    // speed 1) — without this the Play button silently does nothing after a Speed-to-0 drag.
+    // A deliberate NONZERO rate stays sticky across pause/play (our knob fork, see transport.h).
+    t.pause();
+    t.play();
+    expectNear("play() from rate 0 revives rate to 1 (cs:130-133)", t.rate, 1.0);
+    t.setRate(0.5);
+    t.pause();
+    t.toggle();  // toggle goes through play(): nonzero rate must SURVIVE (sticky knob)
+    expectNear("pause/play round-trip keeps a deliberate nonzero rate", t.rate, 0.5);
+
+    // setRate sane gate: non-finite refused (rate keeps its last value), clamp at ±16 — TiXL's
+    // UI doubling stops there (TimeControls.cs:92 backwards, cs:106 forward).
+    t.setRate(1.5);
+    t.setRate(std::numeric_limits<double>::quiet_NaN());
+    expectNear("setRate(NaN) refused, rate keeps last", t.rate, 1.5);
+    t.setRate(100.0);
+    expectNear("setRate clamps to +16 (TimeControls.cs:106)", t.rate, 16.0);
+    t.setRate(-100.0);
+    expectNear("setRate clamps to -16 (TimeControls.cs:92)", t.rate, -16.0);
+
+    // BPM × speed orthogonality (牙釘): two independent knobs that MULTIPLY in advance();
+    // setting one never writes the other.
+    t.setRate(2.0);
+    t.bpm = 60.0;
+    expectNear("setRate never touched bpm", t.bpm, 60.0);
+    expectNear("bpm write never touched rate", t.rate, 2.0);
+    t.scrub(0.0);
+    t.advance(dt);  // playing + rate 2 @ 60 BPM: dt*rate*bpm/240 = 1*2*60/240 = 0.5
+    expectNear("advance = dt*rate*bpm/240 (knobs independent, multiplied)", t.position, 0.5);
   }
 
   // ===== leg ②: scrub jumps the playhead; next-frame fxTime snaps; later advance never rewinds fx. =====

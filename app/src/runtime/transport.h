@@ -55,9 +55,25 @@ struct Transport {
   // clamped to >= 0 (no negative bars; TiXL has no lower clamp but our timeline starts at 0).
   void scrub(double bars);
 
-  void play()  { playState = PlayState::Playing; }
+  // Set the playback speed (= Playback.PlaybackSpeed). Sane gate, BPM-gate style: non-finite is
+  // REFUSED (rate keeps its last value); otherwise clamped to ±16 — TiXL's UI never exceeds it
+  // (TimeControls.cs:92 backwards doubling stops at -16; cs:106 forward doubling stops at <16,
+  // "Bass can't play much faster anyways"). |rate| <= 0.001 still advances nothing — the
+  // isPlaying eps in advance() (Playback.cs:108) treats it as paused; rate 0 IS TiXL's pause.
+  // NAMED FORK: TiXL has no separate play/pause state — speed==0 is the pause. We keep
+  // playState (established two-field model), so rate is a sticky knob: pause/play round-trips
+  // do NOT reset a NONZERO rate to 1 (TiXL's spacebar always writes PlaybackSpeed=1,
+  // TimeControls.cs:132 — resetting a knob the user deliberately set would make it useless).
+  // The one TiXL branch we keep verbatim: play from a DEAD rate (|rate|<=eps) revives it to 1
+  // (TimeControls.cs:130-133) — otherwise the Play button silently does nothing.
+  void setRate(double r);
+
+  void play() {
+    if (rate > -0.001 && rate < 0.001) rate = 1.0;  // revive from dead rate (cs:130-133)
+    playState = PlayState::Playing;
+  }
   void pause() { playState = PlayState::Stopped; }
-  void toggle() { playState = playing() ? PlayState::Stopped : PlayState::Playing; }
+  void toggle() { playing() ? pause() : play(); }  // through play(): dead-rate revive applies
 
  private:
   bool scrubbedThisFrame_ = false;  // = Playback._previousTimeInBars != TimeInBars detection.
@@ -67,6 +83,9 @@ struct Transport {
 //   ① play advances position by dt*rate*BPM/240 ; pause freezes position ; fxTime tracks both states
 //   ①b a stalled frame (dt=2.0) advances position by the FULL barsFromSeconds(2.0) — the transport
 //      is never dt-clamped (the 0.25 ceiling is sim-only, framecook::simDeltaFromWall; refuter-C 修2)
+//   ①c rate (PlaybackSpeed): position += dt*rate*BPM/240 (rate 2 doubles, rate -1 runs backwards,
+//      Playback.cs:116 signed); rate 0 while Playing = paused (cs:108 eps) with fxTime still
+//      running; setRate gate (NaN refused, clamp ±16); BPM × rate orthogonal (two knobs multiply)
 //   ② scrub jumps position -> fxTime snaps to it ; a later non-scrub advance does NOT rewind fxTime
 //   ③ two-clock separation: paused, fxTime keeps advancing while position is frozen (粒子時間門活)
 //   ④ automation 接通: an Automation-driven resident input reads its curve @ transport.position

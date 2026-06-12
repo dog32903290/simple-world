@@ -132,6 +132,19 @@ void drawToolbar() {
     if (ImGui::DragScalar("BPM", ImGuiDataType_Double, &bpm, 0.5f, nullptr, nullptr, "%.1f"))
       sw::framecook::transportSetBpm(bpm);  // writes lib.composition.bpm (the persistence home)
     sw::eye::recordItem("BPM");
+    ImGui::SameLine();
+
+    // Playback speed (= TiXL PlaybackSpeed; TimeControls.cs reaches ±16 by doubling — here one
+    // draggable knob, same toolbar idiom as Pos/BPM). INDEPENDENT of BPM (two knobs, they
+    // multiply in the transport; neither writes the other). Negative = visuals run backwards;
+    // the soundtrack pauses outside [0.25, 4] (varispeed window, named fork — see soundtrack.h).
+    double rate = sw::framecook::transportRate();
+    const double rateMin = -16.0, rateMax = 16.0;  // = the Transport::setRate clamp
+    ImGui::SetNextItemWidth(70.0f);
+    if (ImGui::DragScalar("Speed", ImGuiDataType_Double, &rate, 0.01f, &rateMin, &rateMax,
+                          "%.2f"))
+      sw::framecook::transportSetRate(rate);
+    sw::eye::recordItem("Speed");
 
     // Soundtrack pick: writes lib.composition.soundtrackPath (savev2 persists it); the actual
     // load + transport-follow happens in app/soundtrack's frame sync, not here.
