@@ -89,17 +89,30 @@ void drawCanvasContextMenu() {
   // the editor current, which it is in the canvas scope that calls us.
   const ImVec2 anchorOnOpen = ed::ScreenToCanvas(ImGui::GetMousePos());
 
+  // Right-click ROUTING gate: node-editor's Show*ContextMenu fires for any right-click it saw,
+  // INCLUDING ones that land on a floating imgui window (Inspector/Output/Timeline) hovering
+  // above the canvas — which hijacked the Inspector's own per-param context menu (live drill:
+  // right-click "Animate" came up as canvas "Paste"). imgui's hover resolution DOES account for
+  // occlusion, so "is the canvas window the hovered one" is the discriminator. We still CALL
+  // Show*ContextMenu (it consumes node-editor's internal click state) but only open our popups
+  // when the canvas truly owns the mouse.
+  const bool canvasOwnsMouse = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+
   ed::Suspend();  // imgui popups live outside the canvas transform
   ed::NodeId ctxNode;
   if (ed::ShowNodeContextMenu(&ctxNode)) {
-    g_combineIds = captureSelection((int)ctxNode.Get());
-    g_pasteAnchor = anchorOnOpen;
-    ImGui::OpenPopup("node_ctx");
+    if (canvasOwnsMouse) {
+      g_combineIds = captureSelection((int)ctxNode.Get());
+      g_pasteAnchor = anchorOnOpen;
+      ImGui::OpenPopup("node_ctx");
+    }
   } else if (ed::ShowBackgroundContextMenu()) {
     // Right-click on empty canvas: a Paste-only menu (no node under cursor). Guaranteed-reachable
     // paste path even if Cmd+V is ever OS-intercepted (NSMenu trap, named in the report).
-    g_pasteAnchor = anchorOnOpen;
-    ImGui::OpenPopup("bg_ctx");
+    if (canvasOwnsMouse) {
+      g_pasteAnchor = anchorOnOpen;
+      ImGui::OpenPopup("bg_ctx");
+    }
   }
   if (ImGui::BeginPopup("node_ctx")) {
     // Copy: the guaranteed Copy path (Cmd+C is the fast path). Captured selection = the ids the

@@ -33,6 +33,9 @@ bool g_paramEditHadOverride = false;
 // drag: snapshot all components on activation, push a command per changed component on release.
 float g_vecEditBefore[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 bool g_vecEditHadOverride[4] = {false, false, false, false};
+// P1 動已動畫 slider 的 live-write 收尾：拖曳開始快照整條 CurveArray，放手時把 before/after 兩份交給
+// SetCurveSnapshotCommand。一次只有一個 slider 在拖。
+sw::Animator::CurveArray g_curveSnapBefore;
 
 // The Animate gesture's context menu, attached to the LAST drawn Float widget (its slider).
 // = TiXL InputValueUi ContextMenuForItem: a right-click on the parameter offers Animate (build a
@@ -173,26 +176,48 @@ void drawInspector() {
           }
           sw::eye::recordItem(("param:" + p.id).c_str());
         } else if (cur->animator.isAnimated(sel->id, p.id)) {
-          // ANIMATED Float (S3): the slider shows the curve's value AT THE PLAYHEAD, and editing
-          // it writes/updates a key there (P1 拍板: 動已動畫參數 = 在播放頭寫 key). One undo step per
-          // drag — push a WriteKeyAtPlayheadCommand on release. = TiXL FloatInputUi.DrawAnimatedValue
-          // -> ApplyValueToAnimation. Drawn in the StatusAnimated tint to read as automated.
+          // ANIMATED Float (S3): the slider shows the curve's value AT THE PLAYHEAD, and editing it
+          // writes/updates a key there (P1 拍板: 動已動畫參數 = 在播放頭寫 key). = TiXL
+          // FloatInputUi.DrawAnimatedValue -> ApplyValueToAnimation. Drawn in the StatusAnimated tint.
+          //
+          // LIVE-WRITE (BUG-A 修, 批次3 vec live-write 同款): the slider seeds v from sample(playhead)
+          // EVERY frame. If we only pushed a command on release, mid-drag the slider would bounce back
+          // to the (unchanged) sampled value each frame and the edit could never accumulate. So during
+          // the drag we write v straight into the definition curve @ the playhead — next frame's
+          // sample(playhead) then returns the dragged value and the drag accumulates naturally; bumping
+          // libRevision re-projects the resident graph so the preview follows live. One undo step per
+          // drag: snapshot the whole CurveArray on activation, push SetCurveSnapshot on release.
           const double playhead = sw::framecook::transportPosition();
-          const sw::Animator::CurveArray* arr = cur->animator.curvesFor(sel->id, p.id);
+          sw::Animator::CurveArray* arr = cur->animator.curvesFor(sel->id, p.id);
           float v = (arr && !arr->empty()) ? (float)(*arr)[0].sample(playhead) : eff(p);
-          const float preV = v;
           ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 200, 90, 255));
           ImGui::SliderFloat(p.name.c_str(), &v, p.minV, p.maxV);
           ImGui::PopStyleColor();
           sw::eye::recordItem(("param:" + p.id).c_str());
-          if (ImGui::IsItemActivated()) g_paramEditBefore = preV;
-          // On release, write ONE undoable key at the playhead (= TiXL ApplyValueToAnimation). The
-          // command snapshots the prior key for byte-faithful undo; live feedback during the drag is
-          // the slider's own value (the runtime picks up the curve change on release — first cut,
-          // mid-drag streaming-to-curve is a later refinement, 報告具名).
-          if (ImGui::IsItemDeactivatedAfterEdit() && v != g_paramEditBefore) {
-            sw::g_commands.push(std::make_unique<sw::WriteKeyAtPlayheadCommand>(
-                sw::doc::g_lib, cur->id, sel->id, p.id, 0, playhead, v));
+          if (ImGui::IsItemActivated() && arr) g_curveSnapBefore = *arr;  // whole-curve pre-drag snapshot
+          // Mid-drag: write the slider value as a key @ the playhead (addOrUpdate = TiXL
+          // ApplyValueToAnimation -> Curve.UpdateCurveValues). bumpLibRevision -> resident re-project.
+          if (ImGui::IsItemActive() && ImGui::IsItemEdited() && arr && !arr->empty()) {
+            sw::Curve& c = (*arr)[0];
+            sw::VDefinition k;
+            if (c.hasKeyAt(sw::Curve::roundTime(playhead))) {
+              k = c.table().at(sw::Curve::roundTime(playhead));  // keep interpolation/tangents
+              k.value = v;
+            } else {
+              k.value = v;
+              k.u = sw::Curve::roundTime(playhead);
+              k.inInterpolation = sw::KeyInterpolation::Linear;
+              k.outInterpolation = sw::KeyInterpolation::Linear;
+              k.brokenTangents = true;
+            }
+            c.addOrUpdate(playhead, k);
+            sw::doc::bumpLibRevision();  // projection contract: resident driver picks up the key live
+          }
+          // Release: hand the pre-drag + post-drag snapshots to one undoable command (refused if equal).
+          if (ImGui::IsItemDeactivatedAfterEdit() && arr) {
+            auto cmd = std::make_unique<sw::SetCurveSnapshotCommand>(
+                sw::doc::g_lib, cur->id, sel->id, p.id, g_curveSnapBefore, *arr);
+            if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
           }
           animateContextMenu(cur->id, sel->id, p.id, /*animated=*/true);
         } else {

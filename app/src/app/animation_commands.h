@@ -175,6 +175,30 @@ class WriteKeyAtPlayheadCommand : public Command {
   bool refused_ = false;
 };
 
+// P1 live-write 收尾命令：一次 slider 拖曳期間 Inspector 已把 key 直寫進曲線（每幀 sample(playhead)
+// 自然累積，= TiXL FloatInputUi.DrawAnimatedValue 連續 ApplyValueToAnimation）；放手時 push 這個命令
+// 把整條 CurveArray 的「拖之前/放手時」兩份快照交給 undo/redo —— undo 還原 before、redo 套 after，
+// byte-faithful。和 WriteKeyAtPlayhead 的差別：那個是「一下寫一個 key」的單筆命令（drag 期間沒有 live
+// 反饋）；這個包住整段 live-write，承重線是「拖曳中即時跟 + 放手才上 undo」（批次3 vec live-write 同款）。
+class SetCurveSnapshotCommand : public Command {
+ public:
+  SetCurveSnapshotCommand(SymbolLibrary& lib, std::string symbolId, int childId, std::string slotId,
+                          Animator::CurveArray before, Animator::CurveArray after);
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return "Edit Animation"; }
+  bool refused() const { return refused_; }  // before == after -> nothing changed
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  int childId_;
+  std::string slotId_;
+  Animator::CurveArray before_;
+  Animator::CurveArray after_;
+  bool refused_ = false;
+};
+
 // Headless RED->GREEN proof of the S3 GUI command layer (--selftest-animgui):
 //   ① Animate: curve生 + 首 key=當前值 + driver 翻 Automation（resident 投影驗）+ undo 全還原
 //      （driver 回 Constant、曲線消失、無殭屍）

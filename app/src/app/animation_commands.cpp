@@ -174,6 +174,52 @@ void WriteKeyAtPlayheadCommand::undo() {
   if (Curve* c = resolve()) *c = before_;
 }
 
+// --- SetCurveSnapshotCommand (P1 live-write 收尾) ---
+namespace {
+// Two curve arrays are equal for undo purposes iff same shape + every key's (u, value, interp) match.
+// Tangent angles are derived from those, so this is a faithful "did the drag change anything?" test.
+bool curveArraysEqual(const Animator::CurveArray& a, const Animator::CurveArray& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i) {
+    const std::map<double, VDefinition>& ta = a[i].table();
+    const std::map<double, VDefinition>& tb = b[i].table();
+    if (ta.size() != tb.size()) return false;
+    auto ia = ta.begin(), ib = tb.begin();
+    for (; ia != ta.end(); ++ia, ++ib) {
+      if (ia->first != ib->first) return false;
+      const VDefinition& va = ia->second;
+      const VDefinition& vb = ib->second;
+      if (va.value != vb.value || va.inInterpolation != vb.inInterpolation ||
+          va.outInterpolation != vb.outInterpolation)
+        return false;
+    }
+  }
+  return true;
+}
+}  // namespace
+SetCurveSnapshotCommand::SetCurveSnapshotCommand(SymbolLibrary& lib, std::string symbolId,
+                                                 int childId, std::string slotId,
+                                                 Animator::CurveArray before,
+                                                 Animator::CurveArray after)
+    : lib_(lib), symbolId_(std::move(symbolId)), childId_(childId), slotId_(std::move(slotId)),
+      before_(std::move(before)), after_(std::move(after)) {
+  // No-op drag (click without moving the value): the slot is unchanged -> refuse so the caller
+  // doesn't pollute the undo stack with an empty step (= the free-slider erase-residue precedent).
+  if (curveArraysEqual(before_, after_)) refused_ = true;
+}
+// doIt/undo install whichever array. The whole-array setCurves keeps the resident driver's curveRef
+// resolution intact (same store), and bumpLibRevision rides on the CommandStack push.
+void SetCurveSnapshotCommand::doIt() {
+  if (refused_) return;
+  Symbol* s = sym(lib_, symbolId_);
+  if (!s) { refused_ = true; return; }
+  s->animator.setCurves(childId_, slotId_, after_);
+}
+void SetCurveSnapshotCommand::undo() {
+  if (refused_) return;
+  if (Symbol* s = sym(lib_, symbolId_)) s->animator.setCurves(childId_, slotId_, before_);
+}
+
 // =================== Self-test (against the LIB; resident projection驗 driver 翻轉) ===================
 namespace {
 
@@ -333,6 +379,95 @@ int runAnimGuiSelfTest(bool injectBug) {
         "⑤ curve survived save+load");
     CHK(residentDriverIsAutomation(loaded, t2.childId, t2.slotId),
         "⑤ driver still Automation after load (resident 重投影)");
+  }
+
+  // ⑥ BUG-B (timeline deferred mutation): on a MULTI-key curve, moving ONE key must leave the
+  //    OTHER keys untouched and undo byte-faithful. The timeline_window loop iterates curve.table()
+  //    while choosing the move; if the command ran mid-iteration it would erase the node being walked
+  //    (UAF). The data-layer invariant we can assert headless: a move on a 3-key curve preserves the
+  //    two neighbours exactly + count stays 3. injectBug corrupts a neighbour (mirrors a botched
+  //    in-iteration erase) -> the assertion FAILS (teeth).
+  {
+    SymbolLibrary lib6 = libFromGraph(defaultParticleGraph());
+    AnimTarget t6 = findFloatTarget(lib6);
+    const std::string r6 = lib6.rootId;
+    CommandStack s6;
+    // Build a clean 3-key curve via the command layer (keys @ 1.0 / 2.0 / 3.0).
+    s6.push(std::make_unique<AddAnimationCommand>(lib6, r6, t6.childId, t6.slotId, 1.0, 1.0f));
+    s6.push(std::make_unique<AddKeyframeCommand>(lib6, r6, t6.childId, t6.slotId, 0, 2.0));
+    s6.push(std::make_unique<AddKeyframeCommand>(lib6, r6, t6.childId, t6.slotId, 0, 3.0));
+    const Curve* c0 = &(*lib6.find(r6)->animator.curvesFor(t6.childId, t6.slotId))[0];
+    CHK(c0->count() == 3, "⑥ seeded 3-key curve (1.0/2.0/3.0)");
+    const double v1 = c0->sample(1.0), v3 = c0->sample(3.0);
+    const std::string threeKeys = libToJsonV2(lib6);
+
+    // Simulate timeline's gesture: copy the iterated (time) list FIRST, then move the middle key.
+    std::vector<double> times;
+    for (const auto& [u, vdef] : c0->table()) { (void)vdef; times.push_back(u); }
+    CHK(times.size() == 3, "⑥ iterated 3 key times into a copy (deferred-list shape)");
+    // Deferred move of the MIDDLE key 2.0 -> 2.5 (executed after the 'iteration' above, like the UI).
+    s6.push(std::make_unique<MoveKeyframeCommand>(lib6, r6, t6.childId, t6.slotId, 0, 2.0, 2.5, 5.0f));
+    const Curve* c1 = &(*lib6.find(r6)->animator.curvesFor(t6.childId, t6.slotId))[0];
+    bool neighboursOk = c1->count() == 3 && c1->hasKeyAt(Curve::roundTime(2.5)) &&
+                        !c1->hasKeyAt(Curve::roundTime(2.0)) &&
+                        (float)c1->sample(1.0) == (float)v1 && (float)c1->sample(3.0) == (float)v3;
+    if (injectBug) {
+      // BUG: a botched in-iteration erase drops the 3.0 neighbour while moving the middle key.
+      lib6.find(r6)->animator.curvesFor(t6.childId, t6.slotId)->at(0).removeAt(3.0);
+      const Curve* cb = &(*lib6.find(r6)->animator.curvesFor(t6.childId, t6.slotId))[0];
+      neighboursOk = cb->count() == 3 && cb->hasKeyAt(Curve::roundTime(3.0));
+    }
+    CHK(neighboursOk, "⑥ deferred move keeps both neighbours intact (this fails under injectBug)");
+    s6.undo();
+    CHK(libToJsonV2(lib6) == threeKeys, "⑥ deferred move undo byte-faithful (3 keys restored)");
+  }
+
+  // ⑦ BUG-A (Inspector live-write 收尾, SetCurveSnapshotCommand): a slider drag on an animated input
+  //    writes keys @ the playhead DURING the drag (so sample(playhead) accumulates), then on release
+  //    pushes one before/after snapshot command. Headless proof: snapshot before, mutate the curve
+  //    like the live-write does (addOrUpdate @ playhead), push SetCurveSnapshot(before, after) ->
+  //    sample(playhead) holds the final value + undo restores before byte-faithful. A no-op (before
+  //    == after) refuses. injectBug pushes a stale 'after' (== before) and asserts the playhead value
+  //    changed anyway -> FAILS (teeth: an empty snapshot must NOT look like a real edit).
+  {
+    SymbolLibrary lib7 = libFromGraph(defaultParticleGraph());
+    AnimTarget t7 = findFloatTarget(lib7);
+    const std::string r7 = lib7.rootId;
+    CommandStack s7;
+    s7.push(std::make_unique<AddAnimationCommand>(lib7, r7, t7.childId, t7.slotId, 0.0, 1.0f));
+    const std::string before = libToJsonV2(lib7);
+    Animator::CurveArray snapBefore = *lib7.find(r7)->animator.curvesFor(t7.childId, t7.slotId);
+
+    // Live-write: drag at playhead=2.0, the value sweeps 1->...->6 (only the final write survives @2.0).
+    const double playhead = 2.0;
+    Animator::CurveArray* live = lib7.find(r7)->animator.curvesFor(t7.childId, t7.slotId);
+    for (float frame : {3.0f, 4.5f, 6.0f}) {
+      VDefinition k;
+      k.value = frame; k.u = Curve::roundTime(playhead);
+      k.inInterpolation = KeyInterpolation::Linear; k.outInterpolation = KeyInterpolation::Linear;
+      k.brokenTangents = true;
+      (*live)[0].addOrUpdate(playhead, k);
+    }
+    Animator::CurveArray snapAfter = *lib7.find(r7)->animator.curvesFor(t7.childId, t7.slotId);
+    CHK((float)(*lib7.find(r7)->animator.curvesFor(t7.childId, t7.slotId))[0].sample(playhead) == 6.0f,
+        "⑦ live-write accumulated to the final dragged value @ playhead");
+
+    // Reset to before, then drive the WHOLE thing through the command (push runs doIt = re-apply after).
+    lib7.find(r7)->animator.setCurves(t7.childId, t7.slotId, snapBefore);
+    auto cmd = std::make_unique<SetCurveSnapshotCommand>(lib7, r7, t7.childId, t7.slotId,
+                                                         snapBefore, snapAfter);
+    CHK(!cmd->refused(), "⑦ SetCurveSnapshot not refused (before != after)");
+    s7.push(std::move(cmd));
+    CHK((float)(*lib7.find(r7)->animator.curvesFor(t7.childId, t7.slotId))[0].sample(playhead) == 6.0f,
+        "⑦ command applied the post-drag snapshot");
+    s7.undo();
+    CHK(libToJsonV2(lib7) == before, "⑦ SetCurveSnapshot undo byte-faithful (pre-drag restored)");
+
+    // A no-op drag (released at the same value) refuses -> no empty undo step.
+    SetCurveSnapshotCommand noop(lib7, r7, t7.childId, t7.slotId, snapBefore, snapBefore);
+    bool refusedOk = noop.refused();
+    if (injectBug) refusedOk = !noop.refused();  // BUG: treat an empty snapshot as a real edit.
+    CHK(refusedOk, "⑦ empty snapshot (before == after) refuses (this fails under injectBug)");
   }
 
   // teeth: injectBug leaves a zombie curve after the Animate undo.

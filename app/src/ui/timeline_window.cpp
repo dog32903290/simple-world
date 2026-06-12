@@ -50,6 +50,20 @@ float g_dragOrigValue = 0.0f;  // its value at drag start (so a pure horizontal 
 
 void clearSelection() { g_hasSel = false; g_selChild = -1; g_selInput.clear(); }
 
+// Deferred mutation (BUG-B 修): a key gesture's command mutates the very std::map we're iterating
+// (MoveKeyframe -> removeAt -> map::erase; AddKeyframe -> addOrUpdate -> map::insert), invalidating
+// the range-for iterator -> heap-use-after-free on ++it. Standard imgui pattern: the per-lane loop
+// only RECORDS one pending action; we push the command AFTER the loop closes, when no iterator is live.
+struct PendingAction {
+  enum Kind { None, Move, Add } kind = None;
+  int childId = -1;
+  std::string inputId;
+  int index = 0;
+  double oldTime = 0.0;   // Move: the key's original time / Add: the new key's time
+  double newTime = 0.0;   // Move only
+  float value = 0.0f;     // Move only (the value carried across)
+};
+
 // Resolve a lane's human label "<childTitle>.<inputName>" (English on screen; eye keys ASCII).
 std::string laneLabel(const Symbol& sym, int childId, const std::string& inputId) {
   const SymbolChild* c = childById(sym, childId);
@@ -117,6 +131,9 @@ void drawTimelineWindow() {
 
   ImDrawList* dl = ImGui::GetWindowDrawList();
 
+  // BUG-B: any keyframe mutation is deferred to here, executed only after the per-lane loop closes.
+  PendingAction pending;
+
   // Ruler: a bar tick + label every bar.
   dl->AddRectFilled(ImVec2(contentX0, rulerY), ImVec2(contentX1, lanesY0),
                     IM_COL32(28, 30, 38, 255));
@@ -182,13 +199,14 @@ void drawTimelineWindow() {
       if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
         g_dragging = true;
       }
-      // Release after a drag -> push ONE MoveKeyframe command (old -> new time).
+      // Release after a drag -> RECORD a MoveKeyframe (deferred; the command erases this map node,
+      // so it must not run while we're iterating curve.table() — BUG-B).
       if (g_dragging && ImGui::IsItemDeactivated()) {
         double newTime = std::max(0.0, xToTime(ImGui::GetMousePos().x));
         if (Curve::roundTime(newTime) != Curve::roundTime(g_dragOrigTime)) {
-          sw::g_commands.push(std::make_unique<sw::MoveKeyframeCommand>(
-              sw::doc::g_lib, symbolId, ln.childId, ln.inputId, ln.index, g_dragOrigTime,
-              newTime, g_dragOrigValue));
+          pending.kind = PendingAction::Move;
+          pending.childId = ln.childId; pending.inputId = ln.inputId; pending.index = ln.index;
+          pending.oldTime = g_dragOrigTime; pending.newTime = newTime; pending.value = g_dragOrigValue;
           g_selTime = newTime;  // keep the selection on the moved key
         }
         g_dragging = false;
@@ -210,12 +228,26 @@ void drawTimelineWindow() {
     ImGui::InvisibleButton("##lanebg", ImVec2(contentW, kLaneH));
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
       double t = std::max(0.0, xToTime(ImGui::GetMousePos().x));
-      sw::g_commands.push(std::make_unique<sw::AddKeyframeCommand>(
-          sw::doc::g_lib, symbolId, ln.childId, ln.inputId, ln.index, t));
+      // RECORD an Add (deferred): the command's addOrUpdate mutates the curve whose table() we just
+      // iterated above; `curve` is still a live reference here. Run it after the lane loop (BUG-B).
+      pending.kind = PendingAction::Add;
+      pending.childId = ln.childId; pending.inputId = ln.inputId; pending.index = ln.index;
+      pending.oldTime = t;
       g_hasSel = true;
       g_selChild = ln.childId; g_selInput = ln.inputId; g_selIndex = ln.index; g_selTime = t;
     }
     ImGui::PopID();
+  }
+
+  // BUG-B: execute the single recorded mutation now that the per-lane loop (and its curve.table()
+  // iterators) have all gone out of scope. At most one key gesture fires per frame.
+  if (pending.kind == PendingAction::Move) {
+    sw::g_commands.push(std::make_unique<sw::MoveKeyframeCommand>(
+        sw::doc::g_lib, symbolId, pending.childId, pending.inputId, pending.index, pending.oldTime,
+        pending.newTime, pending.value));
+  } else if (pending.kind == PendingAction::Add) {
+    sw::g_commands.push(std::make_unique<sw::AddKeyframeCommand>(
+        sw::doc::g_lib, symbolId, pending.childId, pending.inputId, pending.index, pending.oldTime));
   }
 
   // --- playhead: a vertical line at transport.position, draggable to scrub (shared surface) ---
