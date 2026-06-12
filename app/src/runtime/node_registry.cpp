@@ -234,7 +234,8 @@ const std::vector<NodeSpec>& registry() {
       // DrawLines (TiXL Lib.point.draw.DrawLines): connects the point bag into a polyline —
       // Points[i]→Points[i+1], each segment a screen-space-thickened quad (draw_lines.metal).
       // Points in → Command out (same cmd flow as DrawPoints). Params mirror DrawLines.t3:
-      // Color (Vec4, white) + LineWidth (0.02). A Point with W(FX1)=NaN breaks the polyline.
+      // Color (Vec4, white) + LineWidth (0.02). W(FX1)=NaN breaks the polyline — forward
+      // parity: no production op writes the NaN separator yet (fork named in draw_lines.metal).
       // FORK (named): TiXL's camera/texture/UV/ShrinkWithDistance/Fog/Blend/ZTest are dropped
       // (no camera system — DrawPoints' baked-ortho fork class); flat untextured band.
       {"DrawLines", "DrawLines",

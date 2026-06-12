@@ -8,9 +8,12 @@
 // texture/UV, and miter-join math are dropped — we have no camera system (same fork class as
 // DrawPoints' baked ortho). The quad is a flat screen-space band of constant half-width.
 //
-// SEPARATOR (TiXL parity): TiXL marks line breaks with Point.W = NaN (our SwPoint.FX1 @offset 12;
-// AppendPoints.hlsl sets ResultPoints[i].W = NAN at bag boundaries). A segment whose endpoint A
-// or B has FX1 == NaN is a break → collapse it offscreen so disjoint polylines don't get bridged.
+// SEPARATOR (NAMED FORK — forward parity, refuter-R-L 修帳): TiXL marks line breaks with
+// Point.W = NaN (AppendPoints.hlsl writes ResultPoints[i].W = NAN at bag boundaries). Our
+// CombineBuffers is a pure byte-blit and does NOT inject NaN separators today, so this break
+// logic is dead-but-harmless in production — kept so the day a NaN-writing op lands (TiXL
+// parity), disjoint polylines don't get bridged. A segment whose endpoint A or B has
+// FX1 == NaN collapses offscreen. (The selftest exercises it by hand-writing the NaN.)
 #include <metal_stdlib>
 #include "tixl_point.h"      // SwPoint
 #include "draw_params.h"     // DrawLineBinding, DrawLineParams

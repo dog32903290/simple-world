@@ -73,6 +73,13 @@ do drag @pin:10602 @pin:10501
 wait 0.5
 echo swapped-to-billboards
 
+# swap = REPLACE not coexist (editor Reconnect macro deletes the old wire; refuter-R-L 釘帳):
+# if the editor ever regresses to coexisting wires, the diff below would still pass (double
+# overlay also differs) — this count assert is the honest tooth for the replace semantics.
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[] | select(.dstChild == 105 and .dstSlot == "command")] | length == 1'
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[] | select(.dstChild == 105 and .dstSlot == "command")][0].srcChild == 106'
+echo swap-replaced-not-coexisted
+
 # --- 畫面像素必變 (DrawLines 細線 vs DrawBillboards 方塊 = 不同 raster) ---
 wait 0.6
 assert_diff lines_baseline
