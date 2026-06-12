@@ -13,6 +13,7 @@
 
 #include "imgui.h"
 
+#include "app/command.h"     // g_commands: timeline-focused Cmd+Z/Cmd+Shift+Z (undo/redo)
 #include "app/document.h"
 #include "app/frame_cook.h"  // transportPosition / transportScrub (the shared playhead surface)
 #include "runtime/compound_graph.h"
@@ -268,6 +269,22 @@ void drawTimelineWindow() {
   if (!s.selection.empty() && ImGui::IsWindowFocused() &&
       (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)))
     s.pending.deleteSelected = true;
+
+  // Cmd+Z / Cmd+Shift+Z while the TIMELINE is focused. The canvas handler (editor_ui.cpp) is
+  // window-scoped by IsWindowFocused, so after a timeline gesture the undo key was dead until
+  // 柏為 clicked back into the canvas (批次8 活體驗收 bug). Same io.KeyCtrl detection as
+  // editor_ui (ConfigMacOSXBehaviors swaps Cmd into io.KeyCtrl); the command stack is shared,
+  // so an undone command may be a graph command -> g_relayout, same as the canvas handler.
+  {
+    ImGuiIO& io = ImGui::GetIO();
+    if (ImGui::IsWindowFocused() && io.KeyCtrl && !io.WantTextInput &&
+        ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
+      if (io.KeyShift) sw::g_commands.redo();
+      else             sw::g_commands.undo();
+      sw::doc::g_status = io.KeyShift ? "redo" : "undo";
+      sw::doc::g_relayout = true;
+    }
+  }
 
   // BUG-B 律: every recorded mutation executes HERE, after all curve.table() iterators closed.
   tl::executePending(symbolId, *sym, g);

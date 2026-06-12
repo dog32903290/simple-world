@@ -4,12 +4,16 @@
 // (LeeTeng2001/metal-cpp-cmake). Pure C++: NS::Application + MTK::View.
 // Per ARCHITECTURE.md this file is the app SHELL only — product behaviour lives
 // in app/document, drawing in ui/editor_ui, verification in verify/.
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+
+#include <dispatch/dispatch.h>  // verify keep-alive timer (display sleep / lock stalls MTKView)
 
 #include <Metal/Metal.hpp>
 #include <AppKit/AppKit.hpp>
@@ -68,6 +72,18 @@ MTL::Library* g_shaderLib = nullptr;
 // EvaluationContext, and the AudioReaction value node surfaces it into the graph.
 // No hardcoded binding — 柏為 wires AudioReaction to a knob himself (visible in the graph).
 sw::AudioCapture g_audioCapture;
+
+// --- verify keep-alive ------------------------------------------------------
+// MTKView is driven by a CVDisplayLink, which stops when the display sleeps or the session
+// locks. That froze the whole eye/hand verify loop exactly when it matters most: the agent
+// driving the app unattended (the in-process hand exists so 柏為 does NOT have to sit at the
+// desk). drawInMTKView stamps this every frame; a main-queue timer (installed at launch)
+// redraws manually only when the stamp goes stale — the guard never fires while the display
+// link ticks, so the normal path is untouched.
+std::atomic<double> g_lastDrawSec{0.0};
+double nowSec() {
+  return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 }  // namespace
 
 #pragma region Declarations {
@@ -196,6 +212,18 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
 
   _pWindow->makeKeyAndOrderFront(nullptr);
 
+  // verify keep-alive (see g_lastDrawSec): manual draw when the display link stalls >250ms.
+  // The source is created once and lives for the app's lifetime (never released by design).
+  static dispatch_source_t s_keepAlive =
+      dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+  dispatch_source_set_timer(s_keepAlive, DISPATCH_TIME_NOW, NSEC_PER_SEC / 30, NSEC_PER_SEC / 100);
+  dispatch_set_context(s_keepAlive, _pMtkView);
+  dispatch_source_set_event_handler_f(s_keepAlive, [](void* ctx) {
+    if (nowSec() - g_lastDrawSec.load(std::memory_order_relaxed) > 0.25)
+      static_cast<MTK::View*>(ctx)->draw();
+  });
+  dispatch_resume(s_keepAlive);
+
   NS::Application* pApp = reinterpret_cast<NS::Application*>(pNotification->object());
   pApp->activateIgnoringOtherApps(true);
 }
@@ -213,7 +241,10 @@ ViewDelegate::ViewDelegate(MTL::Device* pDevice) : MTK::ViewDelegate(), _pRender
 
 ViewDelegate::~ViewDelegate() { delete _pRenderer; }
 
-void ViewDelegate::drawInMTKView(MTK::View* pView) { _pRenderer->draw(pView); }
+void ViewDelegate::drawInMTKView(MTK::View* pView) {
+  g_lastDrawSec.store(nowSec(), std::memory_order_relaxed);  // verify keep-alive heartbeat
+  _pRenderer->draw(pView);
+}
 
 #pragma endregion ViewDelegate }
 

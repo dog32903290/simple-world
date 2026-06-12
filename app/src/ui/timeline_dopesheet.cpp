@@ -81,8 +81,13 @@ void drawDopeSheet(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g, I
 
     // Lane background FIRST (so key buttons drawn after take hover precedence via z-order):
     // double-click = add key; click-drag = rubber-band fence (= TiXL dope fence).
+    // AllowOverlap is LOAD-BEARING: without it the bg (submitted first) claims ActiveId on the
+    // press frame and the key buttons never see IsItemActivated — clicking a key selected
+    // nothing (批次8 活體驗收 bug). With it the bg yields presses to whoever held HoveredId
+    // last frame (= the key under the cursor), keeping fence/double-click on true empty space.
     ImGui::SetCursorScreenPos(ImVec2(g.x0, laneY));
     ImGui::PushID((int)(li + 9000));
+    ImGui::SetNextItemAllowOverlap();
     ImGui::InvisibleButton("##lanebg", ImVec2(g.x1 - g.x0, kLaneH));
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
       double t = std::max(0.0, g.xToTime(ImGui::GetMousePos().x));

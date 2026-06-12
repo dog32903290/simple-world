@@ -124,13 +124,17 @@ void parseLine(const std::string& line) {
   } else if (op == "double") {
     float x, y;
     if (is >> x >> y) { enqueueClick(0, x, y); enqueueClick(0, x, y); }  // two clicks within double-click time
-  } else if (op == "drag") {
+  } else if (op == "drag" || op == "rdrag") {
+    // drag = left-button; rdrag = right-button (first user: timeline right-drag PAN — the
+    // pan gesture and the right-click context menu share the button, so verifying "pan
+    // doesn't open the menu" needs a real right-drag).
+    const int btn = (op == "rdrag") ? 1 : 0;
     float x0, y0, x1, y1;
     if (is >> x0 >> y0 >> x1 >> y1) {
       const int N = 12;  // interpolation steps so ImGui's drag tracking follows smoothly
       Step down;
       down.setPos = true; down.x = x0; down.y = y0;
-      down.setBtn = true; down.btn = 0; down.btnDown = true;
+      down.setBtn = true; down.btn = btn; down.btnDown = true;
       g_pending.push_back(down);
       for (int i = 1; i <= N; ++i) {
         float t = (float)i / (float)N;
@@ -138,7 +142,7 @@ void parseLine(const std::string& line) {
         g_pending.push_back(s);
       }
       Step up;
-      up.setBtn = true; up.btn = 0; up.btnDown = false;
+      up.setBtn = true; up.btn = btn; up.btnDown = false;
       g_pending.push_back(up);
     }
   } else if (op == "scroll") {
@@ -169,6 +173,17 @@ void parseLine(const std::string& line) {
     if (is >> name) {
       ImGuiKey k = keyFromName(name);
       if (k != ImGuiKey_None) { enqueueKeyStep(k, true); enqueueKeyStep(k, false); }
+    }
+  } else if (op == "keydown" || op == "keyup") {
+    // keydown/keyup <name> — half a key press, held across subsequent lines. The first
+    // user is modifier-held MOUSE gestures (shift-click add-select, cmd-click deselect in
+    // the timeline): keychord wraps mods around one KEY, but a mod held over a CLICK has
+    // no single-line form. Accepts modifier names (shift/cmd/...) and regular key names.
+    std::string name;
+    if (is >> name) {
+      ImGuiKey k = modFromName(name);
+      if (k == ImGuiKey_None) k = keyFromName(name);
+      if (k != ImGuiKey_None) enqueueKeyStep(k, op == "keydown");
     }
   } else if (op == "keychord") {
     std::string mods, name;

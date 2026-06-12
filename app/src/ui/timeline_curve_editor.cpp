@@ -89,7 +89,10 @@ void drawCurveEditor(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g,
 
   // Background fence: drag on empty area = rubber-band over (t,v) points (= TiXL fence in
   // CurveEditor mode, UpdateSelectionForCanvasArea cs:507-529).
+  // AllowOverlap is LOAD-BEARING (same press-steal as the dope lane bg): without it this bg
+  // claims ActiveId on the press frame and key/tangent buttons never activate.
   ImGui::SetCursorScreenPos(ImVec2(g.x0, g.y0));
+  ImGui::SetNextItemAllowOverlap();
   ImGui::InvisibleButton("##curvebg", ImVec2(g.x1 - g.x0, g.y1 - g.y0));
   if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, kDragLatchPx) &&
       !s.fence.active && !s.drag.active && !s.tan.active) {
