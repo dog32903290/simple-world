@@ -333,26 +333,36 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
     MTL::Texture* tex = p_->ensureTex(flatKey(id), res.w, res.h);
 
-    // Gather inputs in spec order: concat Command inputs, recurse the first Texture2D input.
+    // Gather inputs in spec order: concat Command inputs, recurse EACH Texture2D input (lane D2:
+    // Displace needs Image + DisplaceMap; texInputs[] indexes by Texture2D-input port order).
     RenderCommand chain;
-    MTL::Texture* inTex = nullptr;
+    const MTL::Texture* texInputs[TexCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
+    int texInputCount = 0;
     for (size_t i = 0; i < s->ports.size(); ++i) {
       const PortSpec& port = s->ports[i];
       if (!port.isInput) continue;
-      const Connection* c = g.connectionToInput(pinId(id, (int)i));
-      if (!c) continue;
       if (port.dataType == "Command") {
+        const Connection* c = g.connectionToInput(pinId(id, (int)i));
+        if (!c) continue;
         RenderCommand up = cookCommand(pinNode(c->fromPin));
         chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
-      } else if (port.dataType == "Texture2D" && !inTex) {
-        inTex = cookTexNode(pinNode(c->fromPin));
+      } else if (port.dataType == "Texture2D") {
+        int slot = texInputCount;  // wired or not, this port occupies the next Texture2D slot
+        if (slot < TexCookCtx::kMaxTexInputs) {
+          const Connection* c = g.connectionToInput(pinId(id, (int)i));
+          texInputs[slot] = c ? cookTexNode(pinNode(c->fromPin)) : nullptr;
+          texInputCount = slot + 1;
+        }
       }
     }
 
     TexCookCtx tc;
     tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
     tc.ctx = &ctx; tc.graph = &g; tc.reg = reg;
-    tc.nodeId = id; tc.command = &chain; tc.inputTexture = inTex; tc.output = tex;
+    tc.nodeId = id; tc.command = &chain; tc.output = tex;
+    for (int k = 0; k < texInputCount; ++k) tc.inputTextures[k] = texInputs[k];
+    tc.inputTextureCount = texInputCount;
+    tc.inputTexture = texInputs[0];  // back-compat: single-input ops (Blur) read inputTexture
     tc.params = tp;
     tx->second(tc);
     texVisiting.erase(id);

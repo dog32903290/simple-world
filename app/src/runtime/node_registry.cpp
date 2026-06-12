@@ -265,6 +265,32 @@ const std::vector<NodeSpec>& registry() {
         {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
         {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
        nullptr},
+      // Displace (TiXL Lib.image.fx.distort.Displace): the SECOND image filter and FIRST op with TWO
+      // Texture2D inputs (Image + DisplaceMap). Warps Image by a direction read from DisplaceMap
+      // (point_ops_displace.cpp). Params mirror Displace.cs/.t3 defaults: Displacement/
+      // DisplacementOffset/Twist/Shade/SampleRadius/DisplaceMapOffset(Vec2)/DisplaceMode(enum)/
+      // RGSS_4xAA(bool). Resolution picks the output texture size (same enum as RenderTarget/Blur).
+      // FORKS (named): TiXL's Wrap/TextureFiltering/GenerateMips host plumbing is omitted (fixed clamp
+      // + linear sampler, no mips, same fork class as Blur); an unwired DisplaceMap samples Image.
+      {"Displace", "Displace",
+       {{"Image", "Image", "Texture2D", true},
+        {"DisplaceMap", "DisplaceMap", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        {"Displacement", "Displacement", "Float", true, 0.0f, -2.0f, 2.0f},
+        {"DisplacementOffset", "DisplacementOffset", "Float", true, 0.0f, -1.0f, 1.0f},
+        {"Twist", "Twist", "Float", true, 0.0f, -180.0f, 180.0f},
+        {"Shade", "Shade", "Float", true, 0.0f, -1.0f, 1.0f},
+        {"SampleRadius", "SampleRadius", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"DisplaceMode", "DisplaceMode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+         {"IntensityGradient", "Intensity", "NormalMap", "SignedNormalMap"}, true},
+        {"DisplaceMapOffset.x", "DisplaceMapOffset", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"DisplaceMapOffset.y", "DisplaceMapOffset.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"RGSS_4xAA", "RGSS_4xAA", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
       // --- Value nodes (Task 2) ---
       {"Time", "Time", {{"out", "out", "Float", false}}, evalTime},
       // TiXL AudioReaction (full parity): 3 outputs + 10 params. STATEFUL — cooked in main

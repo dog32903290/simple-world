@@ -128,6 +128,14 @@ struct TexCookCtx {
   // no Texture2D input is wired. This is the Texture2D flow's "input bag" — parallel to how
   // PointCookCtx::inputs carries the already-cooked upstream Points buffer.
   const MTL::Texture* inputTexture = nullptr;
+  // ALL wired Texture2D inputs in spec port order (lane D2: Displace = Image + DisplaceMap, the
+  // first op with two Texture2D inputs). inputTextures[i] = the cooked upstream texture of the
+  // i-th Texture2D input PORT (in spec order), or null if that port is unwired. inputTexture above
+  // mirrors inputTextures[0] (single-input ops like Blur stay untouched). Parallel to how
+  // PointCookCtx::inputs carries each Points input by port order.
+  static constexpr int kMaxTexInputs = 4;
+  const MTL::Texture* inputTextures[kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
+  int inputTextureCount = 0;  // number of Texture2D INPUT ports (wired or not), capped at kMaxTexInputs
   MTL::Texture* output = nullptr;          // PointGraph-owned, pre-sized; op draws here
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
 };
@@ -272,5 +280,15 @@ int runResidentCookParitySelfTest(bool injectBug);
 // the center tap only (Size 0) so the spread assertion FAILS (teeth).
 int runBlurSelfTest(bool injectBug);
 int runBlurChainSelfTest(bool injectBug);
+
+// Displace image-filter golden (point_ops_displace.cpp, lane D2): the SECOND image filter and the
+// FIRST op with TWO Texture2D inputs (Image + DisplaceMap). (a) DISPLACE MATH: Image = a vertical
+// edge, DisplaceMap = a horizontal ramp; with Displacement!=0 the edge MOVES vs a no-warp baseline
+// (passthrough leaves it put). (b) MULTI-INPUT GATHER: build two RenderTarget legs feeding Displace's
+// Image + DisplaceMap and cook through PointGraph::cook (flat + resident); assert the terminal texture
+// is sized + non-empty (both RenderTargets threaded into Displace's two inputs). injectBug zeroes
+// Displacement (math) / drops the Image wire (chain) so the assertion FAILS (teeth).
+int runDisplaceSelfTest(bool injectBug);
+int runDisplaceChainSelfTest(bool injectBug);
 
 }  // namespace sw

@@ -1,0 +1,77 @@
+# displace_chain.scn — 活體牙 (lane D2): 親手在 canvas 接 兩條 RenderTarget → Displace 的兩個
+# Texture2D 輸入 (Image + DisplaceMap), 證 D2 的兩條承重線:
+#   (1) 多 Texture2D 輸入 gather 真的把 BOTH RenderTarget 的 Texture2D 輸出餵進 Displace 的
+#       Image port + DisplaceMap port (TexCookCtx::inputTextures[0..1]) → 改 Displacement 像素變;
+#   (2) defaultDrawTarget 選最下游 tex sink (Displace) 而非上游 RenderTarget。
+#
+# default 圖 = defaultParticleGraph (RadialPoints#1 / ParticleSystem#2 / TurbulenceForce#6 /
+# DrawPoints#7 / AudioReaction#8, nextChildId=104)。加 RenderTarget#104 (Image leg) +
+# RenderTarget#105 (DisplaceMap leg) + Displace#106;DrawPoints#7.out 餵兩條 RT.command,
+# 兩條 RT.out 分別接 Displace#106.Image / .DisplaceMap。Displace 成為最下游 tex sink。
+#
+# capture clean = Metal render 輸出 (此 filter 鏈接進 render, 故 clean 對, 同 blur_chain 範式)。
+# RED 面: 把最後 assert_diff 改成 assert_same → 必紅 (改 Displacement 像素變 = 雙輸入 gather 在跑)。
+
+# --- 加 RenderTarget#104 (Image leg, 空白右鍵) ---
+do rclick 250 230
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:RenderTarget
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 104)] | length == 1'
+echo rendertarget-104-spawned
+
+# --- 加 RenderTarget#105 (DisplaceMap leg, 空白右鍵) ---
+do rclick 250 360
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:RenderTarget
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 105)] | length == 1'
+echo rendertarget-105-spawned
+
+# --- 加 Displace#106 (空白右鍵) ---
+do rclick 470 290
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:Displace
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 106)] | length == 1'
+echo displace-106-spawned
+
+# --- 接線 ---
+# DrawPoints#7.out[702] → RenderTarget#104.command[10401]
+do drag @pin:702 @pin:10401
+wait 0.3
+# DrawPoints#7.out[702] → RenderTarget#105.command[10501]
+do drag @pin:702 @pin:10501
+wait 0.3
+# RenderTarget#104.out[10402] → Displace#106.Image[10601]
+do drag @pin:10402 @pin:10601
+wait 0.3
+# RenderTarget#105.out[10502] → Displace#106.DisplaceMap[10602]
+do drag @pin:10502 @pin:10602
+wait 0.3
+# 四條新連線都建立 (root 連線數: default 3 + 4 = 7)
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[]] | length == 7'
+echo chain-connected-dual-tex-in
+
+# --- 畫面: Displace 是最下游 tex sink → output window 顯示 displace 後畫面, 捕一幀 ---
+wait 0.6
+capture clean displaced
+echo captured-displaced-output
+
+# --- 改 Displace Displacement → 畫面像素必變 (warp 強度變 = 雙輸入 gather 真的在跑) ---
+# 選 Displace#106 (標題列) → Inspector 拖 Displacement 滑桿往右 (param:Displacement)
+do click @node:106^
+wait 0.4
+do drag @param:Displacement +60 +0
+wait 0.6
+assert_diff displaced
+echo displacement-change-moves-pixels

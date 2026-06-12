@@ -64,4 +64,11 @@ int runRenderTargetWiredSelfTest(bool injectBug);
 // terminal AND mid-walk via cookTexNode's Texture2D gather (TexCookCtx::inputTexture).
 void registerBlurOp();
 // (runBlurSelfTest / runBlurChainSelfTest are declared in point_graph.h next to the other goldens.)
+
+// --- Displace image filter texture op (point_ops_displace.cpp, lane D2) ---
+// The SECOND image filter and the FIRST op with TWO Texture2D inputs (Image + DisplaceMap): a TiXL
+// image warp (image/fx/distort/Displace). Reads TexCookCtx::inputTextures[0..1] (the multi-input
+// gather承重線). Register into the texture stream (texReg).
+void registerDisplaceOp();
+// (runDisplaceSelfTest / runDisplaceChainSelfTest are declared in point_graph.h next to the goldens.)
 }  // namespace sw

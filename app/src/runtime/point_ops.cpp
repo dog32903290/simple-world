@@ -202,6 +202,7 @@ void registerBuiltinPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
   registerBlurOp();                             // Texture2D → Texture2D (first image filter, lane I)
+  registerDisplaceOp();                         // Image + DisplaceMap → Texture2D (lane D2, dual tex in)
   registerLinePointsOp();
   registerGridPointsOp();
   registerSpherePointsOp();

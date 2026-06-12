@@ -248,22 +248,31 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
         tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
     MTL::Texture* tex = p_->ensureTex(path, res.w, res.h);
     RenderCommand chain;
-    MTL::Texture* inTex = nullptr;
+    const MTL::Texture* texInputs[TexCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
+    int texInputCount = 0;
     for (const PortSpec& port : s->ports) {
       if (!port.isInput) continue;
       const ResidentInput* ri = n->input(port.id);
-      if (!(ri && ri->driver == ResidentInput::Driver::Connection)) continue;
+      bool wired = ri && ri->driver == ResidentInput::Driver::Connection;
       if (port.dataType == "Command") {
+        if (!wired) continue;
         RenderCommand up = cookCommand(ri->srcNodePath, depth + 1);
         chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
-      } else if (port.dataType == "Texture2D" && !inTex) {
-        inTex = cookTexNode(ri->srcNodePath, depth + 1);
+      } else if (port.dataType == "Texture2D") {
+        int slot = texInputCount;  // each Texture2D port occupies the next slot (wired or not)
+        if (slot < TexCookCtx::kMaxTexInputs) {
+          texInputs[slot] = wired ? cookTexNode(ri->srcNodePath, depth + 1) : nullptr;
+          texInputCount = slot + 1;
+        }
       }
     }
     TexCookCtx tc;
     tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
     tc.ctx = &ctx; tc.graph = nullptr; tc.reg = reg;
-    tc.nodeId = 0; tc.command = &chain; tc.inputTexture = inTex; tc.output = tex;
+    tc.nodeId = 0; tc.command = &chain; tc.output = tex;
+    for (int k = 0; k < texInputCount; ++k) tc.inputTextures[k] = texInputs[k];
+    tc.inputTextureCount = texInputCount;
+    tc.inputTexture = texInputs[0];
     tc.params = tp;
     tx->second(tc);
     return tex;

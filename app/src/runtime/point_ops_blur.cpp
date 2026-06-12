@@ -28,6 +28,7 @@
 #include "runtime/graph_bridge.h"  // libFromGraph (chain selftest's resident leg)
 #include "runtime/point_graph.h"   // TexCookCtx, cookParam, registerTexOp
 #include "runtime/resident_eval_graph.h"  // buildEvalGraph (chain selftest's resident leg)
+#include "runtime/tex_op_cache.h"  // cachedTexPSO/cachedScratchTex (D2-2 PSO+scratch reuse)
 
 #ifndef SW_SHADER_METALLIB
 #define SW_SHADER_METALLIB "shaders.metallib"
@@ -35,25 +36,6 @@
 
 namespace sw {
 namespace {
-
-// Build the blur render pipeline (blur_vs/blur_fs) for a pixel format. Caller releases.
-MTL::RenderPipelineState* makeBlurPSO(MTL::Device* dev, MTL::Library* lib, MTL::PixelFormat fmt) {
-  MTL::Function* vs = lib->newFunction(NS::String::string("blur_vs", NS::UTF8StringEncoding));
-  MTL::Function* fs = lib->newFunction(NS::String::string("blur_fs", NS::UTF8StringEncoding));
-  MTL::RenderPipelineState* rps = nullptr;
-  if (vs && fs) {
-    MTL::RenderPipelineDescriptor* rpd = MTL::RenderPipelineDescriptor::alloc()->init();
-    rpd->setVertexFunction(vs);
-    rpd->setFragmentFunction(fs);
-    rpd->colorAttachments()->object(0)->setPixelFormat(fmt);
-    NS::Error* err = nullptr;
-    rps = dev->newRenderPipelineState(rpd, &err);
-    rpd->release();
-  }
-  if (vs) vs->release();
-  if (fs) fs->release();
-  return rps;
-}
 
 // One blur pass: sample `src` along (dirX,dirY) with the given params, render into `dst`.
 void blurPass(MTL::Device* dev, MTL::CommandQueue* q, MTL::RenderPipelineState* rps,
@@ -98,7 +80,7 @@ void cookBlur(TexCookCtx& c) {
   }
 
   const uint32_t W = (uint32_t)c.output->width(), H = (uint32_t)c.output->height();
-  MTL::RenderPipelineState* rps = makeBlurPSO(c.dev, c.lib, fmt);
+  MTL::RenderPipelineState* rps = cachedTexPSO(c.dev, c.lib, "blur_vs", "blur_fs", fmt);  // D2-2 reuse
   if (!rps) return;
 
   MTL::SamplerDescriptor* sd = MTL::SamplerDescriptor::alloc()->init();
@@ -109,12 +91,8 @@ void cookBlur(TexCookCtx& c) {
   MTL::SamplerState* samp = c.dev->newSamplerState(sd);
   sd->release();
 
-  // Scratch intermediate for the H pass result (same size/format as output).
-  MTL::TextureDescriptor* td =
-      MTL::TextureDescriptor::texture2DDescriptor(fmt, W ? W : 1, H ? H : 1, false);
-  td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
-  td->setStorageMode(MTL::StorageModeShared);
-  MTL::Texture* scratch = c.dev->newTexture(td);
+  // Scratch intermediate for the H pass result (same size/format as output); reused across frames.
+  MTL::Texture* scratch = cachedScratchTex(c.dev, fmt, W ? W : 1, H ? H : 1, "blur.h");  // D2-2 reuse
 
   // TiXL params: Size/Samples/Offset/Opacity(->Glow2). widthToHeight keeps the blur circular.
   BlurParams p{};
@@ -131,9 +109,7 @@ void cookBlur(TexCookCtx& c) {
   p.DirectionX = 0.0f; p.DirectionY = 1.0f;
   blurPass(c.dev, c.queue, rps, samp, scratch, c.output, p);
 
-  scratch->release();
-  samp->release();
-  rps->release();
+  samp->release();  // scratch + rps are cache-owned (tex_op_cache), not released here
 }
 
 }  // namespace
@@ -150,6 +126,7 @@ int runBlurSelfTest(bool injectBug) {
   const uint32_t W = 64, H = 64;
 
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  clearTexOpCache();  // fresh device: drop PSOs/scratch built on a now-released device
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;
   MTL::Library* lib =
@@ -216,6 +193,7 @@ int runBlurChainSelfTest(bool injectBug) {
   const uint32_t N = 128, RW = 256, RH = 256;
 
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  clearTexOpCache();  // fresh device: drop PSOs/scratch built on a now-released device
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;
   MTL::Library* lib =
