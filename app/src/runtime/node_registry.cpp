@@ -3,7 +3,8 @@
 // grow with each fan-out batch without bloating the graph model/eval code (graph.cpp
 // kept < 400; this is the data-driven registry, ARCHITECTURE rule 7). runtime leaf.
 #include "runtime/graph.h"
-#include "runtime/Particle.h"  // full EvaluationContext definition (for the evaluate fns)
+#include "runtime/Particle.h"      // full EvaluationContext definition
+#include "runtime/value_eval_ops.h"  // value-node evaluate fns (mechanical split, 批次12-F)
 
 #include <cmath>
 #include <map>
@@ -13,26 +14,8 @@
 namespace sw {
 namespace {
 
-// ----- Value-node evaluate functions (pure value, no GPU). -----
-// in[] is ordered by the Float input ports in the spec; n is the count.
-
-float evalTime(int, const float*, int, const EvaluationContext& ctx) { return ctx.time; }
-// AudioReaction is stateful (TiXL parity) and has no pure evaluate — it's cooked in main from
-// the live spectrum into Node::outCache, which evalFloat returns directly (see below).
-float evalConst(int, const float* in, int n, const EvaluationContext&) { return n > 0 ? in[0] : 0.0f; }
-float evalMultiply(int, const float* in, int n, const EvaluationContext&) {
-  return n >= 2 ? in[0] * in[1] : 0.0f;
-}
-float evalSine(int, const float* in, int n, const EvaluationContext&) {
-  return n > 0 ? std::sin(in[0]) : 0.0f;
-}
-float evalRemap(int, const float* in, int n, const EvaluationContext&) {
-  // in: [x, outMin, outMax]. x in -1..1 → outMin..outMax.
-  if (n < 3) return 0.0f;
-  float t = (in[0] + 1.0f) * 0.5f;         // -1..1 → 0..1
-  return in[1] + (in[2] - in[1]) * t;      // → outMin..outMax
-}
-
+// Value-node evaluate fns (pure value, no GPU) live in value_eval_ops.{h,cpp} — mechanically
+// split out 批次12-F when the math fan-out pushed this file past the 400-line law (rule 4).
 // NodeSpec registry — params unified into Float input ports (schema spine, Task 1).
 // id kept identical to old ParamSpec.id so Node::params map + save/load stay compatible.
 const std::vector<NodeSpec>& registry() {
@@ -318,12 +301,59 @@ const std::vector<NodeSpec>& registry() {
        {{"x", "x", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
        evalSine},
+      // --- Math value ops (批次12 lane F; TiXL: Operators/Lib/numbers/float/{basic,adjust,process}/) ---
+      // Add: Input1 + Input2 (TiXL Add.cs)
+      {"Add", "Add",
+       {{"Input1", "Input1", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Input2", "Input2", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"out", "out", "Float", false}},
+       evalAdd},
+      // Sub: Input1 - Input2 (TiXL Sub.cs)
+      {"Sub", "Sub",
+       {{"Input1", "Input1", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Input2", "Input2", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"out", "out", "Float", false}},
+       evalSub},
+      // Div: A / B; B==0 → 0 (TiXL Div.cs; fork: NaN→0, see evalDiv comment)
+      {"Div", "Div",
+       {{"A", "A", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"B", "B", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"out", "out", "Float", false}},
+       evalDiv},
+      // Clamp: clamp(Value, Min, Max) (TiXL Clamp.cs; MathUtils.Clamp = Min(Max(v,min),max))
+      {"Clamp", "Clamp",
+       {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Min", "Min", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Max", "Max", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"out", "out", "Float", false}},
+       evalClamp},
+      // Remap: linear remap [RangeInMin..RangeInMax] → [RangeOutMin..RangeOutMax]
+      // (TiXL adjust/Remap.cs; fork: BiasAndGain+Mode omitted — see evalRemap comment)
       {"Remap", "Remap",
-       {{"x", "x", "Float", true, 0.0f, -1.0f, 1.0f},
-        {"outMin", "outMin", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"outMax", "outMax", "Float", true, 1.0f, -10.0f, 10.0f},
+       {{"Value",       "Value",       "Float", true, 0.0f, -10.0f, 10.0f},
+        {"RangeInMin",  "RangeInMin",  "Float", true, 0.0f, -10.0f, 10.0f},
+        {"RangeInMax",  "RangeInMax",  "Float", true, 1.0f, -10.0f, 10.0f},
+        {"RangeOutMin", "RangeOutMin", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"RangeOutMax", "RangeOutMax", "Float", true, 1.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
        evalRemap},
+      // Abs: |Value| (TiXL adjust/Abs.cs)
+      {"Abs", "Abs",
+       {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"out", "out", "Float", false}},
+       evalAbs},
+      // Floor: truncate toward zero via (int) cast (TiXL adjust/Floor.cs; fork: trunc not floor)
+      {"Floor", "Floor",
+       {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"out", "out", "Float", false}},
+       evalFloor},
+      // Lerp: A + (B-A)*F (TiXL process/Lerp.cs; fork: Clamp bool input omitted, always unclamped)
+      {"Lerp", "Lerp",
+       {{"A", "A", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"B", "B", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"F", "F", "Float", true, 0.5f, 0.0f,   1.0f},
+        {"out", "out", "Float", false}},
+       evalLerp},
   };
   return specs;
 }

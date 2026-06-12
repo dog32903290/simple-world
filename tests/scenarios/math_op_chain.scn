@@ -1,0 +1,38 @@
+# math_op_chain.scn — 活體牙 (批次12 lane F): 在 canvas 加 Add 節點, Inspector 拖 Input2,
+# assert_state 查 Add 節點存在於 Root, assert_diff 查 Inspector 像素變化 (param 真改了).
+#
+# default 圖 = defaultParticleGraph (RadialPoints#1 / ParticleSystem#2 / TurbulenceForce#6 /
+# DrawPoints#7 / AudioReaction#8, nextChildId=104).
+# 我們在空白處加 Add#104, 選中它, 讓 Inspector 顯示, 再拖 Input2 改值,
+# 證 Add 節點確實存在且 Inspector 有感知到改動 (畫面像素 != before).
+#
+# RED 面: 把最後 assert_diff 改成 assert_same → 必紅 (Inspector repaint = 改動被接收).
+
+# --- 加 Add 節點 (空白 canvas 區, node1/2 下方右側空白) ---
+do rclick 400 320
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:Add
+wait 0.5
+assert_state '[.lib.symbols[] | select(.id == "Root") | .children[] | select(.symbolId == "sw-type:Add")] | length == 1'
+echo add-104-spawned
+
+# --- 選中 Add#104 → Inspector 顯示 ---
+do click @node:104^
+wait 0.3
+assert_state '.selectedNode == 104'
+echo add-selected-inspector-visible
+
+# --- 捕 full UI 畫面 before (full = entire window including Inspector UI) ---
+capture full before_drag
+echo captured-before-drag
+
+# --- 拖 Inspector Input2 往右 (增大數值) → Inspector repaint (visible in full shot) ---
+# Larger drag (+120) to reliably activate DragScalar and change the override.
+do drag @param:Input2 +120 +0
+wait 0.6
+# assert_diff on full shot: Inspector widget redraws (param value text changes) = pixel diff
+assert_diff before_drag
+echo input2-change-repaints-inspector

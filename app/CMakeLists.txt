@@ -123,6 +123,7 @@ add_executable(simple_world
   src/runtime/particle_decay_selftest.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
+  src/runtime/value_eval_ops.cpp
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
   src/runtime/point_graph_resident.cpp
@@ -167,6 +168,7 @@ add_executable(simple_world
   src/runtime/resident_eval_patch_selftest.cpp
   src/runtime/resident_eval_patch_lib.cpp
   src/runtime/resident_eval_patch_lib_selftest.cpp
+  src/runtime/math_ops_selftest.cpp
   src/runtime/point_ops.cpp
   src/runtime/point_ops_selftest.cpp
   src/runtime/point_ops_linepoints.cpp

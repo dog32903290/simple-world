@@ -93,34 +93,43 @@ int runResidentCacheSelfTest(bool injectBug) {
   // uninitialized cache. The version-chasing invariant: a slot's sourceVersion is never 0 (TiXL
   // starts at 1, only ++); a fully-dangling derived slot summing to 0 would collide with the
   // initial valueVersion 0 -> false-clean -> permanent 卡舊 (even an edit bump can't rescue it).
-  // Remap(x, outMin=0, outMax=10): t=(x+1)/2, out=outMin+(outMax-outMin)*t. x=0 -> 5. A frozen
-  // uninitialized cache returns 0 -> distinguishable from the computed 5.
+  // Remap(Value=dangling→0, RangeInMin=-10, RangeInMax=10, RangeOutMin=0, RangeOutMax=100):
+  //   t=(0-(-10))/(10-(-10))=0.5 → out=50. A frozen uninitialized cache returns 0
+  //   (distinguishable from 50). Port names match TiXL adjust/Remap.cs (批次12 lane F).
   SymbolLibrary dl;
   dl.symbols["Const"] = cst;
-  Symbol rmp = atomic("Remap", {{"x", "x", "Float", 0.0f}, {"outMin", "outMin", "Float", 0.0f},
-                               {"outMax", "outMax", "Float", 0.0f}},
+  Symbol rmp = atomic("Remap",
+                      {{"Value",       "Value",       "Float", 0.0f},
+                       {"RangeInMin",  "RangeInMin",  "Float", 0.0f},
+                       {"RangeInMax",  "RangeInMax",  "Float", 1.0f},
+                       {"RangeOutMin", "RangeOutMin", "Float", 0.0f},
+                       {"RangeOutMax", "RangeOutMax", "Float", 1.0f}},
                       {{"out", "out", "Float", 0.0f}});
   dl.symbols["Remap"] = rmp;
   Symbol droot; droot.id = "D"; droot.name = "D"; droot.atomic = false;
   droot.outputDefs = {{"out", "out", "Float", 0.0f}};
-  SymbolChild dc; dc.id = 1; dc.symbolId = "Const"; dc.overrides["value"] = 2.0f;
+  SymbolChild dc; dc.id = 1; dc.symbolId = "Const"; dc.overrides["value"] = 4.0f;
   SymbolChild dr; dr.id = 2; dr.symbolId = "Remap";
-  dr.overrides["outMin"] = 0.0f; dr.overrides["outMax"] = 10.0f;
+  dr.overrides["RangeInMin"]  = -10.0f;
+  dr.overrides["RangeInMax"]  =  10.0f;
+  dr.overrides["RangeOutMin"] =   0.0f;
+  dr.overrides["RangeOutMax"] = 100.0f;
   droot.children = {dc, dr};
-  droot.connections = {{1, "out", 2, "x"}, {2, "out", kSymbolBoundary, "out"}};
+  droot.connections = {{1, "out", 2, "Value"}, {2, "out", kSymbolBoundary, "out"}};
   dl.symbols["D"] = droot; dl.rootId = "D";
 
   ResidentEvalGraph dg = buildEvalGraph(dl, "D");
   for (ResidentInput& in : dg.nodes[dg.byPath["2"]].inputs)
-    if (in.slotId == "x") in.srcNodePath = "999";  // orphan the upstream (unresolvable path)
+    if (in.slotId == "Value") in.srcNodePath = "999";  // orphan upstream (unresolvable)
   initResidentCache(dg);
   auto doutP = dg.outputs["out"];
-  float D0 = pullResidentFloat(dg, doutP.first, doutP.second, ctx);  // x=0 -> Remap = 5 (computed)
-  bool danglingComputes = (D0 == 5.0f);  // bug: frozen uninitialized cache 0 -> false-clean
+  // Value=0 (dangling→0), RangeIn=-10..10, RangeOut=0..100: t=(0-(-10))/20=0.5 → out=50.
+  float D0 = pullResidentFloat(dg, doutP.first, doutP.second, ctx);
+  bool danglingComputes = (D0 == 50.0f);  // bug: frozen uninitialized cache 0 → false-clean
 
   bool pass = cacheHolds && editPush && liveTracks && danglingComputes;
   printf("[selftest-residentcache] static(f0=%.1f f1=%.1f cache@15)=%d editPush(f2=%.1f want27)=%d "
-         "live(L0=%.1f L1=%.1f want35)=%d dangling(D0=%.1f want5)=%d -> %s\n",
+         "live(L0=%.1f L1=%.1f want35)=%d dangling(D0=%.1f want50)=%d -> %s\n",
          f0, f1, cacheHolds, f2, editPush, L0, L1, liveTracks, D0, danglingComputes,
          pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
