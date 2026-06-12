@@ -28,6 +28,12 @@ namespace {
 // Palette state
 // ---------------------------------------------------------------------------
 bool  g_isOpen     = false;
+// Focus the filter InputText on the next drawQuickAdd frame. Set UNCONDITIONALLY by every
+// openQuickAdd (fresh open AND re-open): the old in-Begin static edge-detection only fired
+// once per process — after the first close, s_wasOpen stayed true (early return skipped the
+// update), the input never re-focused, WantTextInput stayed false, and Space/global keys
+// pierced the open panel straight into the transport (refuter-R-P BROKEN, live-proven).
+bool  g_focusNextFrame = false;
 float g_anchorX    = 120.0f;   // canvas coords for spawn
 float g_anchorY    = 120.0f;
 char  g_filterBuf[64] = "";    // imgui input text buffer
@@ -120,6 +126,7 @@ void openQuickAdd(float cx, float cy) {
         rebuildDisplayItems();
         g_isOpen = true;
     }
+    g_focusNextFrame = true;  // every open/re-open re-focuses the input (refuter-R-P 修)
     // ImGui SetNextWindowFocus doesn't work here (we're inside ed::Begin scope);
     // we use a per-frame flag approach in drawQuickAdd instead.
 }
@@ -167,16 +174,12 @@ void drawQuickAdd() {
 
     bool windowOpen = true;
     if (ImGui::Begin("##quick_add", &windowOpen, flags)) {
-        // Focus the text input on the frame after open.
-        // (TiXL SymbolBrowser.cs:190-192 _focusInputNextTime -> SetKeyboardFocusHere)
-        static bool s_focusNext = false;
-        if (s_focusNext) {
+        // Focus the text input when openQuickAdd asked for it (TiXL SymbolBrowser.cs:190-192
+        // _focusInputNextTime -> SetKeyboardFocusHere; module-level flag, refuter-R-P 修).
+        if (g_focusNextFrame) {
             ImGui::SetKeyboardFocusHere();
-            s_focusNext = false;
+            g_focusNextFrame = false;
         }
-        static bool s_wasOpen = false;
-        if (!s_wasOpen && g_isOpen) s_focusNext = true;
-        s_wasOpen = g_isOpen;
 
         // Search input.
         // (TiXL SymbolBrowser.cs:202 ImGui.InputText "##symbolBrowserFilter")

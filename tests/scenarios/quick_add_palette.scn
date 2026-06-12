@@ -64,3 +64,21 @@ echo new-node-id-7-exists
 # Assert x != 120 to confirm the anchor-based spawn path is active.
 assert_state '([.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 7)][0].x) != 120'
 echo new-node-not-at-toolbar-fixed-120-120
+
+# --- Re-open + Space shield (refuter-R-P BROKEN -> 永久牙) ---
+# The first open above ended by SPAWNING (panel closed). Re-open via Cmd+F: the focus flag
+# must fire AGAIN (module-level g_focusNextFrame; the old in-Begin static edge-detection
+# died after the first close). With the InputText focused, WantTextInput=true shields the
+# keymap -> Space must NOT start the transport.
+# RED proof: revert the focus fix (static edge-detection) -> transport-playing assert flips.
+do keychord cmd f
+wait 0.4
+assert_map_has qa:input
+echo reopened-palette
+do key space
+wait 0.3
+assert_state '.transport.playing == false'
+echo space-shielded-while-palette-open
+do key escape
+wait 0.3
+echo esc-closed-panel
