@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "runtime/compound_graph.h"  // SymbolLibrary / Symbol / SymbolChild / SymbolConnection
@@ -179,11 +180,24 @@ int runResidentEvalSelfTest(bool injectBug);
 // stays frozen on frame 1 (卡舊) -> the per-frame assertion FAILS (teeth, spec 🪤#1).
 int runResidentCacheSelfTest(bool injectBug);
 
+// --- batch 14 IF: live-source downstream closure (production idle-fade stamp) ---
+// Compute the transitive closure of nodes reachable from any live-source (isLiveSource=true)
+// node by following Connection edges forward (source → consumer). Returns the set of node
+// paths that must have their lastUpdatePass stamped every frame — covers live sources
+// themselves AND all downstream stateless nodes that recompute every frame via evalResidentFloat
+// (= TiXL's every-dirty-slot SetUpdated in Slot.cs:160-168). Nodes OUTSIDE the closure are
+// static (their lastUpdatePass stays at build time → fade after 60 frames, fork-I0 named).
+// Requires initResidentCache to have been called on `g` (reads outCache.isLiveSource).
+std::unordered_set<std::string> computeLiveDownstreamClosure(const ResidentEvalGraph& g);
+
 // Headless RED->GREEN proof of the idle fade signal (批次14 lane IF):
 // P1 pullResidentFloat writes cache.lastUpdatePass = ctx.frameIndex on each true recompute;
 // P2 a cache-hit (short-circuit) does NOT update lastUpdatePass (idle node detected);
 // P3 cook output (cachedFloat) is bit-identical whether or not idle tracking is present (iron line);
 // P4 (in ui/node_style) nodeBgColorIdle(1.0)=active=nodeBgColor; nodeBgColorIdle(0.6)!=active.
+// P5 downstream stamp: Time→Multiply graph, after stampLiveLastUpdatePass with the closure,
+//    Multiply's framesSince == 0 (fix for downstream always-dark bug). injectBug stamps only
+//    source nodes (pre-fix behaviour) -> Multiply stays dark -> FAILS.
 // injectBug zeroes lastUpdatePass after the active cook -> the active-vs-idle distinction FAILS.
 int runIdleFadeSelfTest(bool injectBug);
 

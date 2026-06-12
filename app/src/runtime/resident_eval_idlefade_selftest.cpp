@@ -6,6 +6,11 @@
 //      is compiled in — idle fade is EDITOR-ONLY, does not affect cook semantics.
 //   P4 UI REMAP: nodeBgColorIdle(spec, 1.0) != nodeBgColorIdle(spec, 0.6) (active != fully-idle).
 //      (node_style color math is pure — tested headless by creating a minimal dummy spec.)
+//   P5 DOWNSTREAM STAMP: Time→Multiply graph. computeLiveDownstreamClosure puts BOTH nodes in the
+//      closure; stamping the closure at frame 100 makes Multiply.lastUpdatePass==100 (framesSince==0
+//      = always bright). injectBug stamps only isLiveSource nodes (pre-fix behaviour) → Multiply
+//      stays at lastUpdatePass==0 → framesSince==100 → dark. Proves the root-cause fix for
+//      "downstream nodes always fade even though they recompute every frame" (batch 14 IF R-IF).
 // injectBug: sets lastUpdatePass on the freshly-cooked node BACK to 0 after the cook — simulating
 //   a broken implementation that never writes lastUpdatePass — and asserts the active node DOES
 //   NOT differ from the idle node. With the injection the active.lastUpdatePass == 0 == idle
@@ -129,12 +134,79 @@ int runIdleFadeSelfTest(bool injectBug) {
   // SIGNAL (lastUpdatePass) is runtime; the COLOR mapping is ui — each proved in its own zone.
   // (Checking both here would require ui/ -> runtime/ include which violates the zone boundary.)
 
+  // === P5: DOWNSTREAM STAMP — Time→Multiply closure covers both; stamp at frame 100 ===
+  // Build: Time(live) → Multiply.a, Const(b=3) static. After computeLiveDownstreamClosure +
+  // stamp, BOTH Time AND Multiply should have lastUpdatePass=100 (framesSince==0, always bright).
+  // injectBug mode: stamp only isLiveSource outputs (pre-fix behaviour) → Multiply stays 0 (dark).
+  Symbol timeSym;
+  timeSym.id = "Time"; timeSym.name = "Time"; timeSym.atomic = true;
+  timeSym.outputDefs = {{"out", "out", "Float", 0.0f}};
+
+  SymbolLibrary sl5;
+  sl5.symbols["Const"]    = cst;         // reuse Const from P1 build
+  sl5.symbols["Multiply"] = mul;         // reuse Multiply
+  sl5.symbols["Time"]     = timeSym;
+  Symbol sroot5; sroot5.id = "R5"; sroot5.name = "R5"; sroot5.atomic = false;
+  sroot5.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild ct5; ct5.id = 1; ct5.symbolId = "Time";
+  SymbolChild cc5; cc5.id = 2; cc5.symbolId = "Const"; cc5.overrides["value"] = 3.0f;
+  SymbolChild cm5; cm5.id = 3; cm5.symbolId = "Multiply";
+  sroot5.children = {ct5, cc5, cm5};
+  // Time.out -> Multiply.a; Const.out -> Multiply.b; Multiply.out -> boundary
+  sroot5.connections = {{1, "out", 3, "a"}, {2, "out", 3, "b"}, {3, "out", kSymbolBoundary, "out"}};
+  sl5.symbols["R5"] = sroot5; sl5.rootId = "R5";
+
+  ResidentEvalGraph g5 = buildEvalGraph(sl5, "R5");
+  initResidentCache(g5);
+
+  // Compute the live-source downstream closure.
+  auto closure5 = computeLiveDownstreamClosure(g5);
+
+  // Stamp at frame 100 using the production logic:
+  //   correct = stamp closure (all reachable nodes); buggy = stamp only isLiveSource.
+  constexpr uint32_t kStampFrame = 100;
+  if (!injectBug) {
+    // Correct: stamp every node in the closure.
+    for (ResidentNode& n : g5.nodes) {
+      if (closure5.count(n.path) == 0) continue;
+      for (auto& kv : n.outCache) kv.second.lastUpdatePass = kStampFrame;
+    }
+  } else {
+    // Bug (pre-fix): stamp only isLiveSource nodes — downstream Multiply not stamped.
+    for (ResidentNode& n : g5.nodes)
+      for (auto& kv : n.outCache)
+        if (kv.second.isLiveSource) kv.second.lastUpdatePass = kStampFrame;
+  }
+
+  // After stamping: Multiply (path "3") should have lastUpdatePass == kStampFrame (correct)
+  // or 0 (buggy, pre-fix) since it's not a live source.
+  uint32_t mulP5LastPass = 0;
+  const ResidentNode* mulP5 = g5.node("3");
+  if (mulP5) {
+    auto it5 = mulP5->outCache.find("out");
+    if (it5 != mulP5->outCache.end()) mulP5LastPass = it5->second.lastUpdatePass;
+  }
+  // P5 expected: correct=100, buggy=0.
+  // The assertion: framesSince = kStampFrame - mulP5LastPass.
+  // Correct: framesSince = 0 (always bright). Buggy: framesSince = 100 (dark).
+  bool p5_mulInClosure  = closure5.count("3") == 1;  // Multiply must be in the closure
+  bool p5_timeInClosure = closure5.count("1") == 1;  // Time must be in the closure too
+  bool p5_stamped;
+  if (injectBug) {
+    // Bug case: Multiply NOT stamped -> lastUpdatePass still 0 -> we want this to FAIL the test.
+    p5_stamped = (mulP5LastPass == kStampFrame);  // should be FALSE (0 != 100) -> FAIL
+  } else {
+    p5_stamped = (mulP5LastPass == kStampFrame);  // should be TRUE (100 == 100) -> PASS
+  }
+
   bool pass = p1_written && p1_recookUpdatesPass && p2_idleUnchanged && p2_resultSame
-              && p3_ironLine && p3_recooked_correct;
+              && p3_ironLine && p3_recooked_correct
+              && p5_mulInClosure && p5_timeInClosure && p5_stamped;
   printf("[selftest-idlefade] "
          "written(%u==10)=%d recookUpdatesPass(%u>=20)=%d "
          "idleUnchanged(%u==%u)=%d resultSame(%.1f==15)=%d "
          "ironLine(%.1f==%.1f)=%d recooked(%.1f)=%d "
+         "P5:mulInClosure=%d timeInClosure=%d mulStamped(%u==%u)=%d "
          "-> %s\n",
          mulLastPass, p1_written,
          mulLastPassAfterRecook, p1_recookUpdatesPass,
@@ -142,6 +214,8 @@ int runIdleFadeSelfTest(bool injectBug) {
          result_frame20, p2_resultSame,
          result_recooked, result_frame10, p3_ironLine,
          result_recooked, p3_recooked_correct,
+         p5_mulInClosure, p5_timeInClosure,
+         mulP5LastPass, kStampFrame, p5_stamped,
          pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }

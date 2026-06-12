@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <unordered_set>
 
 #include "app/audio_monitor.h"            // live spectrum snapshot (DSP fed by capture)
 #include "app/document.h"                 // g_lib + libRevision (projection contract)
@@ -54,6 +55,22 @@ double measureDeltaSeconds() {
 ResidentEvalGraph g_residentGraph;
 uint64_t g_builtRev = 0;  // doc::libRevision() the projection was built from (0 = never)
 
+// editor-only: the transitive closure of live-source nodes (Time/Automation) along the
+// ResidentEvalGraph's Connection graph. Rebuilt once per lib revision (same cadence as the
+// graph itself). Used by stampLiveLastUpdatePass to stamp EVERY node reachable from a live
+// source, not just the source itself — so Time→Multiply: Multiply is in this set and gets
+// stamped every frame (= TiXL DirtyFlag.SetUpdated on every dirty slot in Slot.cs:160-168).
+// Static nodes (outside the closure) keep lastUpdatePass=0 → fade after 60 frames (fork-I0,
+// named; TiXL never has rebuild so its every-dirty-slot stamp is exact; ours approximates by
+// pre-computing reachability once rather than tracking which nodes actually recomputed).
+std::unordered_set<std::string> g_liveDownstreamPaths;  // node paths reachable from a live source
+
+// Rebuild g_liveDownstreamPaths by delegating to the runtime computeLiveDownstreamClosure.
+// Called once per lib revision, after initResidentCache (which sets isLiveSource).
+void rebuildLiveDownstreamClosure(const ResidentEvalGraph& g) {
+  g_liveDownstreamPaths = computeLiveDownstreamClosure(g);
+}
+
 }  // namespace
 
 // The dt 分流 seam (refuter-C 修2): one wall measurement, two consumers with different physics.
@@ -86,18 +103,27 @@ uint32_t residentNodeLastUpdatePass(const char* path) {
 
 uint32_t currentFrameIndex() { return g_frameIndex; }
 
-// editor-only: stamp lastUpdatePass = g_frameIndex on every LIVE output (isLiveSource=true)
-// in the resident graph. Live nodes (Time / Automation-driven) recompute every frame via
-// cookResident's evalResidentFloat path — that stateless path can't write the cache itself
-// (it doesn't mutate the graph), so we stamp HERE, once per frame, after cookResident runs.
-// Static nodes keep their lastUpdatePass from build-time (0 = never, or from pullResidentFloat
-// if that path is active in selftests) — which makes them idle-fade as soon as the 60-frame
-// window expires. Non-resident nodes return currentFrameIndex() via residentNodeLastUpdatePass()
-// (誠實邊界 = always fresh, never fades).
+// editor-only: stamp lastUpdatePass = frameIndex on every output of nodes in the live-source
+// downstream closure (g_liveDownstreamPaths). This covers BOTH the live sources themselves
+// (Time / Automation-driven) AND every downstream node reachable via Connection edges —
+// e.g. Time→Multiply: Multiply is in the closure and gets stamped every frame.
+//
+// Without the closure, only isLiveSource nodes were stamped; downstream stateless nodes
+// (evalResidentFloat path, no cache write) kept lastUpdatePass=0 and faded after 60 frames
+// even though they recompute every frame (root cause: TiXL Slot.cs:160-168 calls SetUpdated
+// on every dirty slot, not only live sources; our stateless eval path has no equivalent).
+//
+// Static nodes (outside the closure) keep their lastUpdatePass (0 = never, or from
+// pullResidentFloat in selftests) → fade after 60 frames. Fork-I0: TiXL has no rebuild so
+// its every-dirty-slot stamp is exact; we approximate by pre-computing reachability once per
+// revision, which is equivalent for the production evalResidentFloat path (stateless, so every
+// node reachable from a live source truly recomputes every frame).
 void stampLiveLastUpdatePass(ResidentEvalGraph& g, uint32_t frameIndex) {
-  for (ResidentNode& n : g.nodes)
+  for (ResidentNode& n : g.nodes) {
+    if (g_liveDownstreamPaths.count(n.path) == 0) continue;
     for (auto& kv : n.outCache)
-      if (kv.second.isLiveSource) kv.second.lastUpdatePass = frameIndex;
+      kv.second.lastUpdatePass = frameIndex;
+  }
 }
 
 // Cook every AudioReaction instance (TiXL parity): resolve its params through the resident
@@ -156,11 +182,21 @@ void run(PointGraph& pg, const std::string& targetPath) {
     // after an edit, same frame semantics as TiXL.
     refreshCompoundSpecs(doc::g_lib);
     ResidentEvalGraph fresh = buildEvalGraph(doc::g_lib, doc::g_lib.rootId);
+    // Initialise per-output caches (sets isLiveSource, base/source/value versions) BEFORE
+    // transplantDisabledCaches — transplant reads outCache.isDisabled, which is 0-initialized
+    // without this call (meaning no frozen values would ever ride across a rebuild, silently
+    // breaking the S2 disable-freeze guarantee). The production path walks evalResidentFloat
+    // (stateless, no version-chasing pull), so bumpLiveSources is NOT needed here — the cache
+    // is used only for the idle-fade signal (lastUpdatePass) and the disable-freeze.
+    initResidentCache(fresh);
     // Frozen (disabled) outputs keep their last result across the rebuild — TiXL slots persist,
     // ours are re-projected, so the freeze value must ride over (refuter-S2 P1×P7).
     transplantDisabledCaches(g_residentGraph, fresh);
     g_residentGraph = std::move(fresh);
     g_builtRev = doc::libRevision();
+    // Rebuild the live-source downstream closure in lockstep with the graph projection.
+    // Seeds from outCache.isLiveSource (set by initResidentCache above).
+    rebuildLiveDownstreamClosure(g_residentGraph);
   }
 
   // Advance the two-clock transport by the REAL frame duration (S5) — RAW, no ceiling: the

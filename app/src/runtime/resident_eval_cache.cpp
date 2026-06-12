@@ -12,6 +12,9 @@
 // the cached value is returned with no evaluate — that skip IS the win (貴的靜態 op 算一次存著).
 #include "runtime/resident_eval_graph.h"
 
+#include <queue>
+#include <unordered_map>
+
 #include "runtime/graph.h"     // NodeSpec / findSpec / PortSpec
 #include "runtime/Particle.h"  // full EvaluationContext definition (for evaluate())
 
@@ -87,6 +90,37 @@ void bumpLiveSources(ResidentEvalGraph& g) {
   for (ResidentNode& n : g.nodes)
     for (auto& kv : n.outCache)
       if (kv.second.isLiveSource) kv.second.baseVersion++;  // Trigger=Always; ++ own version
+}
+
+std::unordered_set<std::string> computeLiveDownstreamClosure(const ResidentEvalGraph& g) {
+  // Build forward adjacency: srcPath -> vector of dst paths (from Connection input drivers).
+  std::unordered_map<std::string, std::vector<std::string>> fwd;
+  fwd.reserve(g.nodes.size() * 2);
+  for (const ResidentNode& n : g.nodes)
+    for (const ResidentInput& ri : n.inputs)
+      if (ri.driver == ResidentInput::Driver::Connection)
+        fwd[ri.srcNodePath].push_back(n.path);
+
+  // Seed BFS from every node with at least one live-source output.
+  std::unordered_set<std::string> closure;
+  std::queue<std::string> q;
+  for (const ResidentNode& n : g.nodes)
+    for (const auto& kv : n.outCache)
+      if (kv.second.isLiveSource) {
+        if (closure.insert(n.path).second) q.push(n.path);
+        break;  // one live output is enough
+      }
+
+  // BFS forward along Connection edges.
+  while (!q.empty()) {
+    const std::string cur = std::move(q.front());
+    q.pop();
+    auto it = fwd.find(cur);
+    if (it == fwd.end()) continue;
+    for (const std::string& dst : it->second)
+      if (closure.insert(dst).second) q.push(dst);
+  }
+  return closure;
 }
 
 float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,

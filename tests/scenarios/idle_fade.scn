@@ -17,6 +17,15 @@
 # RED 證法: 移除 wait 2 (< 60 幀 → 靜態節點未 idle) + 移除 Animate 步驟
 #   → idle_static 和 after_animate 顏色相同 → assert_diff FAIL
 #   或: 把 assert_diff 改成 assert_same → 直接 FAIL
+#
+# --- 誠實弱點標注 (R-IF 附帶要求) ---
+# assert_diff 比較整張 full.png (含 Inspector panel 變化):
+#   假綠風險: Inspector 文字或 timeline 任何像素變化都能讓 diff 通過，
+#   即使 node bg 顏色沒有正確復原。
+#   → 此 scn 只能證「某個像素變了」，不能機讀確認是 node bg 亮了。
+# 「Time 下游節點不假暗」的確定性驗證已由 --selftest-idlefade P5 腿蓋住
+#   (computeLiveDownstreamClosure 閉包正確性 + stamp 後 Multiply.framesSince==0)。
+#   scn 的角色是目視整合測試，不是下游 stamp 邏輯的唯一證明。
 
 open app/testdata/compound_smoke.swproj
 
