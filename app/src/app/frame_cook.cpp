@@ -7,6 +7,7 @@
 
 #include "app/audio_monitor.h"            // live spectrum snapshot (DSP fed by capture)
 #include "app/document.h"                 // g_lib + libRevision (projection contract)
+#include "app/soundtrack.h"               // soundtrack follow rule (audio chases the transport)
 #include "runtime/audio_reaction.h"       // cookAudioReaction (TiXL AudioReaction parity)
 #include "runtime/graph_bridge.h"         // refreshCompoundSpecs (frame-boundary spec swap)
 #include "runtime/eval_context.h"         // EvaluationContext
@@ -126,6 +127,13 @@ void run(PointGraph& pg, const std::string& targetPath) {
   g_transport.bpm = doc::g_lib.composition.bpm;
   const double dtSecs = measureDeltaSeconds();
   g_transport.advance(dtSecs);
+
+  // Soundtrack follows the transport (TiXL: wall clock is master, audio chases — drift past
+  // 0.04s hard-seeks, pause = stream pause, scrub-while-paused stays silent). The TARGET is the
+  // PLAYHEAD in seconds: the soundtrack is timeline audio, frozen with the playhead on pause —
+  // fxTime (the keeps-running brother) belongs to sims, never to the backing track.
+  soundtrack::syncFrame(g_transport.playing(),
+                        g_transport.secondsFromBars(g_transport.position));
 
   // Both clocks in BARS (P3, the resident eval ctx is bars-native): localTime = the PLAYHEAD
   // (automation samples this), localFxTime = the WALL CLOCK (stateful sims sample this; keeps

@@ -14,6 +14,7 @@
 #include "app/document.h"
 #include "app/frame_cook.h"  // transport play/pause/scrub/bpm (the two-clock head, S5)
 #include "app/graph_commands.h"
+#include "app/soundtrack.h"  // soundtrack pick (file dialog) + status label
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // specTypes / findSpec
 #include "verify/eye/eye.h"
@@ -131,6 +132,13 @@ void drawToolbar() {
     if (ImGui::DragScalar("BPM", ImGuiDataType_Double, &bpm, 0.5f, nullptr, nullptr, "%.1f"))
       sw::framecook::transportSetBpm(bpm);  // writes lib.composition.bpm (the persistence home)
     sw::eye::recordItem("BPM");
+
+    // Soundtrack pick: writes lib.composition.soundtrackPath (savev2 persists it); the actual
+    // load + transport-follow happens in app/soundtrack's frame sync, not here.
+    if (ImGui::Button("Soundtrack")) sw::soundtrack::promptAndLoad();
+    sw::eye::recordItem("Soundtrack");
+    ImGui::SameLine();
+    ImGui::TextDisabled("%s", sw::soundtrack::statusText().c_str());
   }
 
   // Breadcrumbs (= TiXL GraphTitleAndBreadCrumbs): one button per composition level;

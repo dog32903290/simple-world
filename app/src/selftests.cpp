@@ -19,6 +19,7 @@
 #include "app/graph_commands.h"  // runDefRemovalSelfTest (S13 boundary-def removal)
 #include "app/animation_commands.h"  // runAnimGuiSelfTest (S3 GUI 動畫命令層)
 #include "app/frame_cook.h"  // framecook::runArClockSelfTest (AR 時鐘域 pin 牙)
+#include "app/soundtrack.h"  // runSoundtrackSelfTest (soundtrack<->transport follow rule)
 #include "platform/audio_capture.h"
 #include "platform/audio_devices.h"
 #include "runtime/attack_detector.h"
@@ -164,6 +165,7 @@ const SelfTest kTable[] = {
     {"map", eye::runMapSelfTest},
     {"hand", hand::runSelfTest},
     {"audioingest", runAudioIngestSelfTest},
+    {"soundtrack", soundtrack::runSoundtrackSelfTest},
 };
 
 }  // namespace

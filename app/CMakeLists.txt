@@ -65,9 +65,10 @@ add_custom_target(sw_shaders DEPENDS ${SW_METALLIB})
 # the imgui backends.
 set_source_files_properties(src/verify/eye/eye.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 set_source_files_properties(src/platform/dialogs.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
-# audio_capture.mm uses AVAudioEngine — ARC keeps the ObjC lifetime simple (it touches
-# no metal-cpp pointers, so the MRC convention of the other .mm files doesn't apply).
+# audio_capture.mm / audio_playback.mm use AVFoundation — ARC keeps the ObjC lifetime simple
+# (they touch no metal-cpp pointers, so the MRC convention of the other .mm files doesn't apply).
 set_source_files_properties(src/platform/audio_capture.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 
 add_executable(simple_world
   src/main.cpp
@@ -104,6 +105,7 @@ add_executable(simple_world
   src/verify/hand/hand.cpp
   src/platform/dialogs.mm
   src/platform/audio_capture.mm
+  src/platform/audio_playback.mm
   src/platform/audio_devices.mm
   src/runtime/particle_system.cpp
   src/runtime/particle_decay_selftest.cpp
@@ -133,6 +135,8 @@ add_executable(simple_world
   src/runtime/copy_paste.cpp
   src/app/frame_cook.cpp
   src/app/frame_cook_selftest.cpp
+  src/app/soundtrack.cpp
+  src/app/soundtrack_selftest.cpp
   src/runtime/graph_bridge.cpp
   src/runtime/graph_bridge_selftest.cpp
   src/runtime/compound_spec_selftest.cpp
