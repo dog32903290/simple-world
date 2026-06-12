@@ -7,6 +7,9 @@
 //      Const#2=3) also yields 27 -> patch == rebuild.
 //   2. patchAddConnection (S11①): Mul.a = Constant(1), Mul.b <- Const(7) -> 1*7=7 cached. Wire
 //      Time -> Mul.a, bump live, pull at t=5 -> 5*7=35. A rebuilt graph wired the same way -> 35.
+//   3. B3 (批次9): patch* on a BYPASSED COMPOUND child (zero resident footprint) must REPORT
+//      "not patchable" (return false) and leave the graph untouched; the same edit realized on
+//      the lib + rebuild moves the value (only rebuild can represent it).
 // injectBug edits the constant directly WITHOUT the patch's edit-time invalidation -> the patched
 // value stays frozen at the cached 15 (卡舊) -> the assertion FAILS (teeth).
 #include "runtime/resident_eval_graph.h"
@@ -117,11 +120,59 @@ int runResidentPatchSelfTest(bool injectBug) {
   float ar = pullResidentFloat(lgR, lgR.outputs["out"].first, lgR.outputs["out"].second, t5);
   bool addRebuildMatch = (ar == 35.0f && A1 == ar);
 
-  bool pass = setOk && setRebuildMatch && derivedOk && addOk && addRebuildMatch;
+  // === 3. B3 (批次9): an edit addressed at a BYPASSED COMPOUND child is NOT patchable — the 修C
+  // rewire leaves zero resident footprint, so the patch functions cannot represent the edit in
+  // place. They must SAY so (return false -> the caller rebuilds), not silently no-op while the
+  // contract claims patch == rebuild. Shape: Const#1(5) -> Twice#2(BYPASSED) -> Mul#3(b=3) ->
+  // out = 5*3 = 15 (the redirect feeds Mul.a straight from Const#1).
+  Symbol twice; twice.id = "Twice"; twice.name = "Twice"; twice.atomic = false;
+  twice.inputDefs = {{"in", "in", "Float", 0.0f}};
+  twice.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild tw1; tw1.id = 1; tw1.symbolId = "Multiply";
+  SymbolChild tw2; tw2.id = 2; tw2.symbolId = "Const"; tw2.overrides["value"] = 2.0f;
+  twice.children = {tw1, tw2};
+  twice.connections = {{kSymbolBoundary, "in", 1, "a"}, {2, "out", 1, "b"},
+                       {1, "out", kSymbolBoundary, "out"}};
+  SymbolLibrary bl;
+  bl.symbols["Const"] = cst; bl.symbols["Multiply"] = mul; bl.symbols["Twice"] = twice;
+  Symbol br; br.id = "B"; br.name = "B"; br.atomic = false;
+  br.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild b1; b1.id = 1; b1.symbolId = "Const"; b1.overrides["value"] = 5.0f;
+  SymbolChild b2; b2.id = 2; b2.symbolId = "Twice"; b2.isBypassed = true;
+  SymbolChild b3; b3.id = 3; b3.symbolId = "Multiply"; b3.overrides["b"] = 3.0f;
+  br.children = {b1, b2, b3};
+  br.connections = {{1, "out", 2, "in"}, {2, "out", 3, "a"}, {3, "out", kSymbolBoundary, "out"}};
+  bl.symbols["B"] = br; bl.rootId = "B";
+  ResidentEvalGraph bg = buildEvalGraph(bl, "B");
+  initResidentCache(bg);
+  auto boutP = bg.outputs["out"];
+  float B0 = pullResidentFloat(bg, boutP.first, boutP.second, ctx);          // 5*3 = 15
+  bool sNot = patchSetConstant(bg, "2", "in", 7.0f);                         // zero footprint
+  bool aNot = patchAddConnection(bg, "2", "in", "1", "out");                 // zero footprint
+  bool rNot = patchRemoveConnection(bg, "2", "in");                          // zero footprint
+  float B1 = pullResidentFloat(bg, boutP.first, boutP.second, ctx);          // untouched: 15
+  bool realLanded = patchSetConstant(bg, "3", "b", 4.0f);                    // a real input lands
+  float B2 = pullResidentFloat(bg, boutP.first, boutP.second, ctx);          // 5*4 = 20
+  // Rebuild contrast: the edit the patch REFUSED (disconnect 1->2.in + set the compound input to
+  // 7) realized on the LIB moves the value — proving the refusal was honest, not a no-op edit:
+  // only a rebuild can realize it (production's path today).
+  SymbolLibrary blR = bl;
+  blR.symbols["B"].connections.erase(blR.symbols["B"].connections.begin());  // drop 1 -> 2.in
+  blR.symbols["B"].children[1].overrides["in"] = 7.0f;   // the value patchSetConstant carried
+  ResidentEvalGraph bgR = buildEvalGraph(blR, "B");
+  initResidentCache(bgR);
+  float BR = pullResidentFloat(bgR, bgR.outputs["out"].first, bgR.outputs["out"].second, ctx);
+  bool bypassNotPatchable = (B0 == 15.0f && !sNot && !aNot && !rNot && B1 == 15.0f &&
+                             realLanded && B2 == 20.0f && BR == 21.0f);  // 7 * 3 = 21
+
+  bool pass = setOk && setRebuildMatch && derivedOk && addOk && addRebuildMatch &&
+              bypassNotPatchable;
   printf("[selftest-residentpatch] setConst(f0=%.1f pv=%.1f want27 cachePreserved)=%d "
          "rebuild(rv=%.1f)=%d derived(d0=%.1f dpv=%.1f want50)=%d | addConn(A0=%.1f A1=%.1f want35)=%d "
-         "rebuild(ar=%.1f)=%d -> %s\n",
+         "rebuild(ar=%.1f)=%d | bypassCompoundNotPatchable(B0=%.1f reported=%d%d%d held=%.1f "
+         "real=%d B2=%.1f rebuild=%.1f want21)=%d -> %s\n",
          f0, pv, setOk, rv, setRebuildMatch, d0, dpv, derivedOk, A0, A1, addOk, ar, addRebuildMatch,
+         B0, !sNot, !aNot, !rNot, B1, realLanded, B2, BR, bypassNotPatchable,
          pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }

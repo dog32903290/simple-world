@@ -155,6 +155,7 @@ add_executable(simple_world
   src/runtime/compound_spec_selftest.cpp
   src/runtime/state_count_selftest.cpp
   src/runtime/resident_eval_graph.cpp
+  src/runtime/resident_eval_flatten.cpp
   src/runtime/resident_eval_graph_selftest.cpp
   src/runtime/resident_eval_cache.cpp
   src/runtime/resident_eval_cache_selftest.cpp

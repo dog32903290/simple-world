@@ -208,6 +208,11 @@ std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefix
   const Symbol* host = scope;  // the symbol whose subgraph contains `child` (for 修C sideways steps)
   const SymbolChild* child = scope ? childById(*scope, childId) : nullptr;
   const Symbol* s = child ? lib.find(child->symbolId) : nullptr;
+  // The OUTPUT slot of `child` being viewed; empty = the main output (outputDefs[0], the top-level
+  // "view this node" meaning). Every step that follows a wire (修C sideways AND the inward dive)
+  // re-threads this to w->srcSlot — refuter-E1 blind spot 1: dropping the slot and blindly diving
+  // outputDefs[0] resolves the WRONG producer when a step arrives via a secondary output.
+  std::string viewSlot;
   for (int depth = 0; s; ++depth) {
     if (depth > 64) return "";              // belt for the sideways walk too (crafted wire cycles)
     // 修C: a bypassed compound child has NO resident footprint (the builder rewires it away), so
@@ -217,6 +222,9 @@ std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefix
     // Constant redirect (null buffer / no texture). Atomic bypassed children keep their own path —
     // their resident node carries the flag and cookResident's terminal redirect handles them.
     if (!s->atomic && child->isBypassed && childIsBypassable(lib, *child)) {
+      // Only the MAIN output is redirected (= TiXL Outputs[0]); arriving via a SECONDARY output
+      // mirrors the builder's named fork (it leaves secondary outputs dangling) -> nothing to view.
+      if (!viewSlot.empty() && viewSlot != s->outputDefs[0].id) return "";
       const SymbolConnection* w = connectionToInput(*host, child->id, s->inputDefs[0].id);
       if (!w || w->srcChild == kSymbolBoundary) return "";  // unwired / input passthrough
       size_t cut = path.find_last_of('/');
@@ -224,6 +232,7 @@ std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefix
              std::to_string(w->srcChild);
       child = childById(*host, w->srcChild);
       s = child ? lib.find(child->symbolId) : nullptr;
+      viewSlot = w->srcSlot;  // the sideways wire names WHICH upstream output feeds the bypass
       continue;  // host unchanged — we stepped sideways, not inward
     }
     if (s->atomic) return path;             // an atomic child IS the producer
@@ -231,12 +240,14 @@ std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefix
     chain.push_back(s->id);
     if ((int)chain.size() > 64) return "";  // belt: ABSOLUTE depth, like the builder
     if (s->outputDefs.empty()) return "";   // nothing to view
-    const SymbolConnection* w = connectionToInput(*s, kSymbolBoundary, s->outputDefs[0].id);
+    const SymbolConnection* w = connectionToInput(
+        *s, kSymbolBoundary, viewSlot.empty() ? s->outputDefs[0].id : viewSlot);
     if (!w || w->srcChild == kSymbolBoundary) return "";  // unwired / input passthrough
     path += "/" + std::to_string(w->srcChild);
     host = s;
     child = childById(*s, w->srcChild);
     s = child ? lib.find(child->symbolId) : nullptr;
+    viewSlot = w->srcSlot;  // keep following the wire's source slot, not blindly outputDefs[0]
   }
   return "";
 }

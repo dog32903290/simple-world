@@ -9,6 +9,9 @@
 // injectBug pollutes the Const definition (value def 4 -> 99); the second Const child has NO
 // override, so it reads the polluted def -> nested=flat=3*99=297 and the reuse probe sees (3,99),
 // failing expected/reuse -> the golden FAILS (teeth). The first child keeps its override (3).
+// injectBug ALSO arms the 批次9 legs: B1 declaration-order (ghost-wire the consumer compound =
+// the pre-B1 single-pass dangling shape) and B2 compound-input animation (strip the compound
+// child's curve = the pre-B2 frozen-constant projection) — each leg's assertion goes red.
 #include "runtime/resident_eval_graph.h"
 
 #include <cstdio>
@@ -179,13 +182,123 @@ int runResidentEvalSelfTest(bool injectBug) {
   float defVal = evalNamed("Rdf");  // expect 12 (inputDef default 6 * 2)
   bool boundaryInOk = (ovVal == 10.0f && defVal == 12.0f);
 
+  // --- B1 (批次9): declaration order != dataflow order. A consumer compound DECLARED BEFORE its
+  // producer compound must still bind through the producer's ProducerMap — the builder orders
+  // compound children topologically along compound->compound wires. Pre-B1 single-pass reality:
+  // producerOf() ran before childOuts had the producer, so the binding fell back to a Connection
+  // at the compound's OWN path (a ghost — no resident node ever lives there) and the consumer
+  // subtree read 0. injectBug emulates exactly that reality by pointing the consumer's wire at a
+  // nonexistent sibling (id 99) — the IDENTICAL dangling-Connection shape the declaration-order
+  // walk produced — so these legs FAIL (teeth).
+  // compound "Twice": in -> Mul.a, Const(2) -> Mul.b, Mul.out -> out  (out = in * 2).
+  SymbolLibrary tl;
+  tl.symbols["Const"] = cst;  // injectBug's def pollution is irrelevant: every Const here overrides
+  tl.symbols["Multiply"] = mul;
+  Symbol twice; twice.id = "Twice"; twice.name = "Twice"; twice.atomic = false;
+  twice.inputDefs = {{"in", "in", "Float", 0.0f}};
+  twice.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild tw1; tw1.id = 1; tw1.symbolId = "Multiply";
+  SymbolChild tw2; tw2.id = 2; tw2.symbolId = "Const"; tw2.overrides["value"] = 2.0f;
+  twice.children = {tw1, tw2};
+  twice.connections = {{kSymbolBoundary, "in", 1, "a"}, {2, "out", 1, "b"},
+                       {1, "out", kSymbolBoundary, "out"}};
+  tl.symbols["Twice"] = twice;
+  // Root "Rev2": children DECLARED [gen(1), B(2)=consumer, A(3)=producer]; flow 1->3->2->out.
+  // bypassB additionally flags the CONSUMER (B) — its 修C redirect consumes the same childIn that
+  // dangled pre-B1, so both arms (inline and bypass) prove the ordering.
+  auto rev2 = [&](bool bypassB) -> float {
+    Symbol r; r.id = "Rev2"; r.name = "Rev2"; r.atomic = false;
+    r.outputDefs = {{"out", "out", "Float", 0.0f}};
+    SymbolChild gn; gn.id = 1; gn.symbolId = "Const"; gn.overrides["value"] = 5.0f;
+    SymbolChild cb; cb.id = 2; cb.symbolId = "Twice"; cb.isBypassed = bypassB;
+    SymbolChild ca; ca.id = 3; ca.symbolId = "Twice";
+    r.children = {gn, cb, ca};  // consumer (2) declared BEFORE producer (3)
+    r.connections = {{1, "out", 3, "in"}, {3, "out", 2, "in"}, {2, "out", kSymbolBoundary, "out"}};
+    if (injectBug) r.connections[1] = {99, "out", 2, "in"};  // ghost producer (pre-B1 shape)
+    tl.symbols["Rev2"] = r;
+    ResidentEvalGraph g = buildEvalGraph(tl, "Rev2");
+    auto it = g.outputs.find("out");
+    if (it == g.outputs.end()) return -1.0f;
+    ResidentEvalCtx c0;
+    return evalResidentFloat(g, it->second.first, it->second.second, c0);
+  };
+  float revVal = rev2(false);       // 5 *2 (A) *2 (B) = 20
+  float revBypassVal = rev2(true);  // B bypassed: its redirect chases A's inner producer -> 10
+  // three-compound chain FULLY reversed: children [C(2), B(3), A(4), gen(1)]; flow 1->4->3->2->out.
+  Symbol r3; r3.id = "Rev3"; r3.name = "Rev3"; r3.atomic = false;
+  r3.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild q2; q2.id = 2; q2.symbolId = "Twice";
+  SymbolChild q3; q3.id = 3; q3.symbolId = "Twice";
+  SymbolChild q4; q4.id = 4; q4.symbolId = "Twice";
+  SymbolChild q1; q1.id = 1; q1.symbolId = "Const"; q1.overrides["value"] = 5.0f;
+  r3.children = {q2, q3, q4, q1};
+  r3.connections = {{1, "out", 4, "in"}, {4, "out", 3, "in"}, {3, "out", 2, "in"},
+                    {2, "out", kSymbolBoundary, "out"}};
+  if (injectBug) r3.connections[1] = {99, "out", 3, "in"};  // ghost mid-chain (pre-B1 shape)
+  tl.symbols["Rev3"] = r3;
+  ResidentEvalGraph rg3 = buildEvalGraph(tl, "Rev3");
+  float rev3Val = -1.0f;
+  if (auto it3 = rg3.outputs.find("out"); it3 != rg3.outputs.end()) {
+    ResidentEvalCtx c0;
+    rev3Val = evalResidentFloat(rg3, it3->second.first, it3->second.second, c0);
+  }
+  bool declOrderOk = (revVal == 20.0f && revBypassVal == 10.0f && rev3Val == 40.0f);
+
+  // --- B2 (批次9): a COMPOUND child's input def can be Animated — the childIn seed must consult
+  // the parent's Animator (the GUI's Animate has no atomic gate; TiXL ByPassUpdate evaluates the
+  // animated Inputs[0] all the same). Both arms are proven against an ATOMIC control on the SAME
+  // curve: inline (the binding projects onto inner consumers) and bypassed (the 修C redirect
+  // samples it). injectBug emulates the pre-B2 reality — the compound's animation ignored, frozen
+  // at the constant seed — by stripping ONLY the compound child's curve; the atomic control keeps
+  // its own, so the equality legs FAIL (teeth).
+  SymbolLibrary al;
+  al.symbols["Const"] = cst; al.symbols["Multiply"] = mul; al.symbols["Twice"] = twice;
+  Symbol ar; ar.id = "ARoot"; ar.name = "ARoot"; ar.atomic = false;
+  ar.outputDefs = {{"out", "out", "Float", 0.0f}, {"ctl", "ctl", "Float", 0.0f}};
+  SymbolChild a7; a7.id = 7; a7.symbolId = "Twice";     // compound, input "in" animated below
+  SymbolChild a8; a8.id = 8; a8.symbolId = "Multiply";  // consumer (b stays def 1)
+  SymbolChild a9; a9.id = 9; a9.symbolId = "Multiply";  // ATOMIC control: same curve on .a, b=1
+  ar.children = {a7, a8, a9};
+  ar.connections = {{7, "out", 8, "a"}, {8, "out", kSymbolBoundary, "out"},
+                    {9, "out", kSymbolBoundary, "ctl"}};
+  // curve: Linear keys (0 -> 2) and (4 -> 6)  =>  t=1 -> 3, t=3 -> 5 (the projection must MOVE).
+  Curve cv;
+  VDefinition k0; k0.u = 0.0; k0.value = 2.0;
+  VDefinition k4; k4.u = 4.0; k4.value = 6.0;
+  cv.addOrUpdate(0.0, k0); cv.addOrUpdate(4.0, k4);
+  ar.animator.setCurves(7, "in", {cv});  // compound input def animated (B2's subject)
+  ar.animator.setCurves(9, "a", {cv});   // atomic control, same curve
+  if (injectBug) ar.animator.removeChild(7);  // pre-B2 reality: compound animation never projected
+  al.symbols["ARoot"] = ar;
+  auto sampleBoth = [&](bool bypass, float t, float& outV, float& ctlV) {
+    al.symbols["ARoot"].children[0].isBypassed = bypass;
+    ResidentEvalGraph g = buildEvalGraph(al, "ARoot");
+    ResidentEvalCtx c; c.localTime = t; c.lib = &al;  // playhead drives the curve (S3)
+    outV = ctlV = -1.0f;
+    if (auto it = g.outputs.find("out"); it != g.outputs.end())
+      outV = evalResidentFloat(g, it->second.first, it->second.second, c);
+    if (auto it = g.outputs.find("ctl"); it != g.outputs.end())
+      ctlV = evalResidentFloat(g, it->second.first, it->second.second, c);
+  };
+  float in1, ic1, in3, ic3, by1, bc1, by3, bc3;
+  sampleBoth(false, 1.0f, in1, ic1);  // inline: out = curve(1)*2 = 6, ctl = curve(1) = 3
+  sampleBoth(false, 3.0f, in3, ic3);  // inline: out = 10, ctl = 5
+  sampleBoth(true, 1.0f, by1, bc1);   // bypassed: out = redirect = curve(1) = 3 = ctl
+  sampleBoth(true, 3.0f, by3, bc3);   // bypassed: out = 5 = ctl
+  bool animCompoundOk = (in1 == 6.0f && in3 == 10.0f && ic1 == 3.0f && ic3 == 5.0f &&
+                         by1 == 3.0f && by3 == 5.0f && by1 == bc1 && by3 == bc3 &&
+                         in1 == 2.0f * ic1 && in3 == 2.0f * ic3);
+
   bool pass = expectedOk && equivOk && reuseIsolated && pathOk &&
-              constOk && connOk && clockOk && autoStubOk && boundaryInOk;
+              constOk && connOk && clockOk && autoStubOk && boundaryInOk &&
+              declOrderOk && animCompoundOk;
   printf("[selftest-residenteval] nested=%.1f flat=%.1f expected(12)=%d equiv=%d "
          "reuse(c1=%.1f,c2=%.1f)=%d path=%d | const=%d conn=%d clock(%.1f want14)=%d "
-         "boundaryIn(ov=%.1f,def=%.1f)=%d -> %s\n",
+         "boundaryIn(ov=%.1f,def=%.1f)=%d | declOrder(rev2=%.1f want20,byp=%.1f want10,"
+         "rev3=%.1f want40)=%d animCompound(in=%.1f,%.1f byp=%.1f,%.1f)=%d -> %s\n",
          nestedVal, flatVal, expectedOk, equivOk, c1v, c2v, reuseIsolated, pathOk,
          constOk, connOk, driven, clockOk, ovVal, defVal, boundaryInOk,
+         revVal, revBypassVal, rev3Val, declOrderOk, in1, in3, by1, by3, animCompoundOk,
          pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }

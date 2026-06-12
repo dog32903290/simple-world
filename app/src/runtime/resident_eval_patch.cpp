@@ -12,17 +12,25 @@
 // command layer must apply the matching SymbolLibrary edit alongside, or a later structural
 // patchLib* (which re-derives the projection from the lib) will silently discard the resident-only
 // edit. The goldens simulate the pairing; production commands own it.
+//
+// B3 (批次9): each returns whether the edit LANDED on a resident input (path resolves to a node
+// AND the slot exists there). false = "not patchable at the resident level — rebuild required".
+// The named case: a BYPASSED COMPOUND child has ZERO resident footprint (修C rewires it away), so
+// an edit addressed at its path cannot be represented in place; silently no-op'ing here broke the
+// patch == rebuild contract one-sided (refuter-E1 B3). Production cooks via full rebuild today
+// (patch* has zero production callers); when patch goes live, a false return routes to rebuild.
 #include "runtime/resident_eval_graph.h"
 
 #include <cstdint>
 
 namespace sw {
 
-void patchSetConstant(ResidentEvalGraph& g, const std::string& path, const std::string& slotId,
+bool patchSetConstant(ResidentEvalGraph& g, const std::string& path, const std::string& slotId,
                       float value) {
   auto it = g.byPath.find(path);
-  if (it == g.byPath.end()) return;
+  if (it == g.byPath.end()) return false;
   ResidentNode& n = g.nodes[it->second];
+  bool matched = false;
   bool consumed = false;
   for (ResidentInput& in : n.inputs)
     if (in.slotId == slotId) {
@@ -30,43 +38,52 @@ void patchSetConstant(ResidentEvalGraph& g, const std::string& path, const std::
       // the typed value is stored even while wired; a later disconnect falls back to it — refuter
       // A-3: filtering on Constant silently dropped the value and disconnect restored a stale one).
       in.constant = value;
+      matched = true;
       consumed = consumed || in.driver == ResidentInput::Driver::Constant;
     }
   // S1 value edit = edit-time push, ONLY when the value is actually consumed (Constant-driven).
   // A wired input stores the fallback without invalidating (nothing it feeds changed); a missing
   // slot bumps nothing (the old unconditional bump was a per-edit false-dirty). baseVersion is
   // never overwritten by the upstream sum, so this survives on derived nodes (refuter A4).
-  if (!consumed) return;
-  for (auto& kv : n.outCache) kv.second.baseVersion++;
+  if (consumed)
+    for (auto& kv : n.outCache) kv.second.baseVersion++;
+  return matched;
 }
 
-void patchAddConnection(ResidentEvalGraph& g, const std::string& dstPath, const std::string& dstSlot,
+bool patchAddConnection(ResidentEvalGraph& g, const std::string& dstPath, const std::string& dstSlot,
                         const std::string& srcPath, const std::string& srcSlot) {
   auto it = g.byPath.find(dstPath);
-  if (it == g.byPath.end()) return;
+  if (it == g.byPath.end()) return false;
   ResidentNode& n = g.nodes[it->second];
+  bool matched = false;
   for (ResidentInput& in : n.inputs)
     if (in.slotId == dstSlot) {
       in.driver = ResidentInput::Driver::Connection;
       in.srcNodePath = srcPath;
       in.srcSlotId = srcSlot;
+      matched = true;
     }
+  if (!matched) return false;
   // S11① add connection (spec 健檢二補 ②): force the dst's outputs to first-pull-recompute by
   // setting valueVersion to the never-matching sentinel (= TiXL ValueVersion=-1). NOT a
   // sourceVersion bump — a derived slot's sourceVersion is the pull-time upstream sum, and bumping
   // it here would corrupt that arithmetic. The next pull adopts the real summed version and clears.
   for (auto& kv : n.outCache) kv.second.valueVersion = UINT64_MAX;
+  return true;
 }
 
-void patchRemoveConnection(ResidentEvalGraph& g, const std::string& dstPath,
+bool patchRemoveConnection(ResidentEvalGraph& g, const std::string& dstPath,
                            const std::string& dstSlot) {
   auto it = g.byPath.find(dstPath);
-  if (it == g.byPath.end()) return;
+  if (it == g.byPath.end()) return false;
   ResidentNode& n = g.nodes[it->second];
   uint64_t dropped = 0;
+  bool matched = false;
   bool changed = false;
-  for (ResidentInput& in : n.inputs)
-    if (in.slotId == dstSlot && in.driver == ResidentInput::Driver::Connection) {
+  for (ResidentInput& in : n.inputs) {
+    if (in.slotId != dstSlot) continue;
+    matched = true;  // slot exists: a not-wired slot is a representable no-op (== rebuild no-op)
+    if (in.driver == ResidentInput::Driver::Connection) {
       // The contribution this upstream was making to our pull-time sum (dangling counts as the
       // fixed 1, mirroring pullResidentFloat's D1 rule) — absorbed below so sourceVersion can't
       // decrease across the disconnect (monotonicity; see header 🪤).
@@ -83,11 +100,13 @@ void patchRemoveConnection(ResidentEvalGraph& g, const std::string& dstPath,
       in.srcSlotId.clear();
       changed = true;
     }
-  if (!changed) return;
-  for (auto& kv : n.outCache) {
-    kv.second.baseVersion += dropped + 1;  // absorb dropped contribution, then ForceInvalidate (++)
-    kv.second.valueVersion = UINT64_MAX;   // belt & suspenders: never false-clean on the next pull
   }
+  if (changed)
+    for (auto& kv : n.outCache) {
+      kv.second.baseVersion += dropped + 1;  // absorb dropped contribution, then ForceInvalidate (++)
+      kv.second.valueVersion = UINT64_MAX;   // belt & suspenders: never false-clean on the next pull
+    }
+  return matched;
 }
 
 }  // namespace sw

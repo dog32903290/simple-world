@@ -178,25 +178,32 @@ int runResidentCacheSelfTest(bool injectBug);
 // the structural half of "resident"). Cache versions follow TiXL's edit rules exactly so that a
 // patched graph evaluates identically to one rebuilt with the edit baked in (patch == rebuild).
 //
+// B3 (批次9): each returns whether the edit LANDED (path resolves to a resident node AND the slot
+// exists on it). false = NOT PATCHABLE at the resident level — the caller must rebuild. The named
+// unrepresentable case: a BYPASSED COMPOUND child has zero resident footprint (修C rewires it
+// away), so an edit addressed at its path can only be realized by rebuild; the old silent no-op
+// broke patch == rebuild one-sided (refuter-E1 B3, --selftest-residentpatch leg 3).
+//
 // S1 value edit (Slot.cs / InputSlot.cs:57-63, ChangeInputValueCommand.cs:122): change a Constant
 // input's value, then edit-time push by bumping THIS node's output sourceVersions. Downstream goes
 // dirty via the pull-time upstream-sum; untouched siblings keep their cache.
-void patchSetConstant(ResidentEvalGraph& g, const std::string& path, const std::string& slotId,
+bool patchSetConstant(ResidentEvalGraph& g, const std::string& path, const std::string& slotId,
                       float value);
 // S11① add connection (Slot.cs:198-205): rewire a Constant input to a Connection, then force the
 // dst's outputs to first-pull-recompute by setting valueVersion to the never-matching sentinel
 // (= TiXL ValueVersion=-1). NOT a sourceVersion bump — that would corrupt the derived multi-input
 // sum arithmetic (spec 健檢二補 ②). Untouched nodes keep their cache.
-void patchAddConnection(ResidentEvalGraph& g, const std::string& dstPath, const std::string& dstSlot,
+bool patchAddConnection(ResidentEvalGraph& g, const std::string& dstPath, const std::string& dstSlot,
                         const std::string& srcPath, const std::string& srcSlot);
 // S11② remove connection (Slot.cs:233-245): restore the pre-connection driver — the input falls back
 // to Constant with the KEPT value (in.constant survives under a Connection, = TiXL
 // _actionBeforeAddingConnecting / SymbolChild.Input.Value persisting while wired) — then
-// ForceInvalidate. 🪤 version monotonicity (generalizes refuter D1/A4): the dropped upstream's
+// ForceInvalidate. A found-but-not-wired slot returns true (a representable no-op == rebuild no-op).
+// 🪤 version monotonicity (generalizes refuter D1/A4): the dropped upstream's
 // contribution is ABSORBED into baseVersion before the force-bump, so this slot's sourceVersion
 // NEVER DECREASES across the edit — otherwise the derived upstream-sum arithmetic has false-clean
 // collisions (e.g. dropped contribution exactly 1 cancels the ++).
-void patchRemoveConnection(ResidentEvalGraph& g, const std::string& dstPath, const std::string& dstSlot);
+bool patchRemoveConnection(ResidentEvalGraph& g, const std::string& dstPath, const std::string& dstSlot);
 
 // --- slice 3 rest: DEFINITION-level patches (resident_eval_patch_lib.cpp) ---
 // TiXL edits live on the Symbol (definition) and broadcast to every instance (Symbol.cs:222-330,
