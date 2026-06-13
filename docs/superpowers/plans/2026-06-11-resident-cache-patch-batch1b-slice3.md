@@ -1152,3 +1152,32 @@ headless 圍欄 (續)/AddNoise Rotation 顯式牙。
 4. particle 深化(force 鏈/field-graph)= subsystem(§D ShaderGraphNode 前置)排後。
 5. soundtrack @4x(task_adc40d12 已派 chip)——柏為域,非阻塞。
 6. 掃描第四輪(原料見底再派)。
+
+## Cut 25 — 批次 19: 3 顆 cheap point op (killed-agent salvage) + fence 脆牙修 (2026-06-13 晚; Opus orchestrator 四航) ✅
+`552aff4` 一 commit。--bite **100 中 99 綠**(唯一紅 soundtrack @4x 預存環境 flake)/check-arch OK/scenario **28/28**。實作=背景 Sonnet fan-out agent(漏設 isolation:worktree→**直接在主樹幹活**);完工過 check-arch 後被 session 閒置收割(killed,未交 dossier)。
+
+**事實(交付)**:
+- **WrapPointPosition**(transform): box-fold,**≠我方 WrapPoints(torus)**。逐字照 WrapPointPosition.hlsl(Padding=Size.x*0.1/offsetFactor/W edge-fade/NaN recovery)。fork: UseCamera/WriteLineBreaks baked 0。
+- **SnapPointsToGrid**(transform): grid-round,floored-mod(非 MSL fmod)/4 modes(Center/Corners/AxisCenter/AxisEdge)/ApplyGainAndBias。fork: Scatter/UseWAsWeight/UseSelection baked。**🟡CONCERN(待後批 refuter)**: ApplyGainAndBias 是從 bias-functions.hlsl **重建非逐字**,預設 GainAndBias 近 identity 低風險。
+- **HexGridPoints**(generate): Pattern=2 Hexa 逐字(HexOffsetsAndAngles 12 表/hexAttrIndex/HexScale=0.578)。fork: Pattern baked 2;**Count port=我方 generator 輸出容量慣例(非 TiXL 旋鈕,TiXL 用 CountX×Y×Z)**。
+- **(計畫 vs 實際)**: Cut 24 Resume item 1 寫 ClearSomePoints,但實際換成 SnapPointsToGrid——ClearSomePoints 需 Take/Skip selection 邏輯(clear SOME=moderate-impl),非 trivial,移後批。
+
+**orchestrator 合流自驗(killed agent 無 dossier→更嚴格)**:
+- 逐顆對 TiXL .hlsl 復查 fidelity + NodeSpec ports vs TiXL .cs(ours⊆TiXL,無發明行為旋鈕)+ 3 顆 golden 親手 RED 證(normal exit0/injectBug exit1)。
+- **修 1 真缺陷**: HexGridPoints PI 常數 `3.141578f`(killed agent 打錯)→`M_PI_F`(兩處,角度微偏非忠實;siblings 用 M_PI_F)。
+- **fence_preview 回歸=脆牙非 code bug(clean-base 證偽)**: `.selectedNode==1` 假設 ed 選取序 id-sorted,但 `=ed::GetSelectedNodes(...,1)[0]` 是 **hash-ordered**;批次19 registry 變大→hash 序翻轉 1→2(**SAME committed set**——`partial-overlap-matches-commit` 仍綠證集合正確,`fenceLastCovered==[1,2]` 仍綠)。修=放寬成 order-independent(`==1 or ==2`)+ 註解記因。
+
+**事故與制度(四航血)**:
+- **背景 agent 漏設 isolation:worktree → 在主樹幹活**: 反而省了 harvest(成品直接在主樹),但 killed 後沒 dossier。**教訓: 派背景 implementer 必設 isolation:worktree(否則主樹被佔+被殺無隔離);或接受主樹模式但要快收**。killed-agent 成品=gates 過≠fidelity 過,合流自驗補回 dossier(抓到 PI 缺陷+fence 脆牙真因)。
+- **fence 脆牙**: 任何對 `.selectedNode`(單值 cap-1,ed hash 序)的多選斷言都脆;後批若多選驗證頻繁→考慮 eye 露 `.selectedNodes` 全集(order-independent)。
+
+**🟡 柏為親測 (批次19 新增)**:
+- 3 顆點 op 拖參數: WrapPointPosition(box 摺疊,點超出盒子折回)/SnapPointsToGrid(點吸附網格)/HexGridPoints(生成六角格點雲)
+
+## Resume — next (批次20 候選; 無 🔴 排修, 純推進)
+1. **cheap point op 第三批**(25-pool 剩餘 verified cheap,先 grep input 型別二確認 sim-state): SubdivideLinePoints(線細分)/ReorientLinePoints(切線算 rot,Y·X·Z 注意)/SimNoiseOffset·SimForceOffset(⚠先確認 stateless 非需 sim-state buffer)/BlendPoints·PickPointList(combine 雙 buffer,照 CombineBuffers pattern)。ClearSomePoints/SelectPoints=moderate(selection 邏輯)各自 lane。
+2. **UI 視覺第三刀**(S2 緩做): 標題字級 13→18(CJK atlas/node 尺寸連動,先評估)/連線 idle-fade(editor_ui.cpp:201-203)/pin 方→三角(node_draw.cpp:31)。bezier major 再議。
+3. **互動 S3 二梯隊**: fence Shift/Ctrl 三模式/雙擊 annotation rename/G layout(moderate)。
+4. **SnapPointsToGrid gain/bias refuter**(Cut 25 CONCERN): 對 bias-functions.hlsl 逐字復查重建的 applyGainAndBias。
+5. particle 深化=subsystem(§D)排後。soundtrack @4x=task_adc40d12 chip 柏為域。
+6. **派背景 implementer 記得設 isolation:worktree**(四航教訓)。
