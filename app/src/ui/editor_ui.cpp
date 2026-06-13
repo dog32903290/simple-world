@@ -378,6 +378,7 @@ void drawNodeCanvas() {
       g_pinnedNode = 0;
       g_selectedNode = 0;
       ed::ClearSelection();
+      resetAnnotationGesture();  // annotation ids alias across symbols too (refuter-R-ANB 攻擊2)
     }
   }
 

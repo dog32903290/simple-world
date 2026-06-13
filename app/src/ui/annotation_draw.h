@@ -28,6 +28,12 @@ void drawAnnotations(sw::Symbol* cur);
 // + KeyboardActions.cs:138 SetState(RenameAnnotation) right after.
 void requestCreateAnnotation();
 
+// Layer-switch hygiene (refuter-R-ANB 攻擊2, the N3 alias family): annotation ids are minted
+// per-symbol ("ann-c1" exists in MANY symbols), so a gesture/rename/selection surviving a
+// composition switch retargets a SAME-ID annotation of the new symbol (rename would write A's
+// text into B's frame). editor_ui's navThisFrame block calls this with its selection clearing.
+void resetAnnotationGesture();
+
 // Is an inline annotation rename currently open? editor_ui asks so it can suppress the Backspace->
 // DeleteNode routing + Cmd shortcuts while the user is typing into the rename text fields (the imgui
 // io.WantTextInput guard already covers most of it; this is the belt-and-suspenders for node deletion).

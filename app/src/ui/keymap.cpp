@@ -356,6 +356,7 @@ static bool handleNavigateBackwards() {
   g_pinnedNode = 0;
   g_selectedNode = 0;
   ed::ClearSelection();
+  resetAnnotationGesture();  // annotation ids alias across symbols too (refuter-R-ANB 攻擊2)
   s_navLastPath = sw::doc::g_compositionPath;  // suppress the change-detector this frame
   sw::doc::g_relayout = true;
   sw::doc::g_status = "navigate back";
@@ -382,6 +383,7 @@ static bool handleNavigateForward() {
   g_pinnedNode = 0;
   g_selectedNode = 0;
   ed::ClearSelection();
+  resetAnnotationGesture();  // annotation ids alias across symbols too (refuter-R-ANB 攻擊2)
   s_navLastPath = sw::doc::g_compositionPath;  // suppress the change-detector this frame
   sw::doc::g_relayout = true;
   sw::doc::g_status = "navigate forward";

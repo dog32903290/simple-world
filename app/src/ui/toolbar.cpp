@@ -1,6 +1,7 @@
 // ui/toolbar — file ops / Add Node / audio device pick / composition breadcrumbs, split
 // from editor_ui (one file one duty: editor_ui = canvas, this = the floating toolbar).
 // Zone: ui. Depends on app(document/command/audio) + runtime + verify(thin hook).
+#include "ui/annotation_draw.h"  // resetAnnotationGesture (N3 hygiene)
 #include "ui/editor_ui.h"
 
 #include <memory>
@@ -201,6 +202,7 @@ void drawToolbar() {
       g_navPending = true;  // toolbar draws before the canvas: consumed there this frame
       g_pinnedNode = 0;     // bare child ids alias across symbols (refuter N3 B2)
       g_selectedNode = 0;
+      sw::ui::resetAnnotationGesture();  // annotation ids alias too (refuter-R-ANB 攻擊2)
     }
   }
 

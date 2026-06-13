@@ -291,6 +291,20 @@ int runAnnotationDrawSelfTest(bool injectBug) {
     if (!contained) { std::printf("[anndraw] inner annotation should be contained -> FAIL\n"); ++fail; }
   }
 
+  // 5) collapsed frame carries NOTHING (refuter-R-ANB 攻擊5: visual-only collapse must not
+  //    drag the expanded area's nodes via a one-line header). Real framedChildren, real Symbol.
+  {
+    Symbol sym;
+    sym.id = "AnnT";
+    SymbolChild c; c.id = 1; c.symbolId = "X"; c.x = 50; c.y = 50;
+    sym.children.push_back(c);
+    Annotation a; a.id = "ann-c1"; a.x = 0; a.y = 0; a.w = 100; a.h = 140;
+    a.collapsed = injectBug ? false : true;  // bug face: pretend expanded -> carries -> FAIL
+    std::vector<DragNode> out;
+    framedChildren(&sym, a, out);
+    if (!out.empty()) { std::printf("[anndraw] collapsed frame must carry nothing -> FAIL\n"); ++fail; }
+  }
+
   std::printf("[anndraw] fail=%d -> %s\n", fail, fail == 0 ? "PASS" : "FAIL");
   // injectBug must make this nonzero (red-proof). Without the bug, fail must be 0.
   return fail;

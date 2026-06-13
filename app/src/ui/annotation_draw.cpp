@@ -8,7 +8,10 @@
 // InputText) compose with the canvas is inside ed::Suspend/Resume — which lands ON TOP of the node
 // layer. We accept on-top here: the bg fill is the faithful translucent tint (op0.7 * Fade0.8 ≈ a
 // 0.56-alpha wash) so nodes underneath still read, and a frame that needs to sit UNDER its nodes is
-// a visual nicety, not a correctness leg. Same Suspend/Resume招 as quick_add.cpp. If柏為 wants the
+// a visual nicety, not a correctness leg. THE REAL COST (refuter-R-ANB 攻擊3, named): the
+// header strip (16px) / chevron (14px) / resize corner (10px) are live InvisibleButtons ON TOP —
+// when they overlap a node, they steal that sliver's clicks from it (frame body has no hit and
+// stays click-through). Same Suspend/Resume招 as quick_add.cpp. If柏為 wants the
 // under-layer look later, it moves to a pre-Begin base-drawlist pass (transform is available there,
 // cf. drawCanvasBackgroundGrids) — the gesture state below stays put.
 //
@@ -105,9 +108,14 @@ std::string freshAnnotationId(const Symbol* s) {
 }
 
 void framedChildren(const Symbol* cur, const Annotation& a, std::vector<DragNode>& out) {
-  // Children of `cur` whose top-left lies inside the annotation rect (= TiXL FindAnnotatedOps).
+  // Children whose top-left POINT lies inside the annotation rect. TWO NAMED FORKS
+  // (refuter-R-ANB 攻擊1/5): ① TiXL FindAnnotatedOps tests aRect.Contains(nRect) = the node's
+  // WHOLE rect (a node poking out is NOT carried); SymbolChild has no size so we point-test,
+  // which DOES carry a poking-out node — same口徑 as combine/copy. ② a collapsed frame carries
+  // NOTHING: our collapse is visual-only (no child hiding yet — real-collapse batch later);
+  // a one-line header silently grabbing the expanded area's nodes would be a lie.
   out.clear();
-  if (!cur) return;
+  if (!cur || a.collapsed) return;
   float x0 = a.x, y0 = a.y, x1 = a.x + a.w, y1 = a.y + a.h;
   for (const SymbolChild& c : cur->children) {
     if (c.id == kSymbolBoundary) continue;
@@ -264,6 +272,16 @@ static void drawOne(Symbol* cur, const std::string& symId, Annotation& a, ImDraw
 // ---------------------------------------------------------------------------
 
 void requestCreateAnnotation() { ann::g_createPending = true; }
+
+void resetAnnotationGesture() {
+  // N3 alias hygiene (refuter-R-ANB 攻擊2): ids are per-symbol, a surviving gesture retargets
+  // the new symbol's same-id frame. Drop everything mid-flight; pending create dies too (its
+  // anchor was the OLD symbol's canvas pos).
+  ann::g_state = ann::State::Default;
+  ann::g_activeId.clear();
+  ann::g_selectedId.clear();
+  ann::g_createPending = false;
+}
 
 bool annotationRenameActive() { return ann::g_state == ann::State::Rename; }
 
