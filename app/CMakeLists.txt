@@ -35,7 +35,15 @@ set_source_files_properties(${IMGUI_OBJCXX} PROPERTIES COMPILE_OPTIONS -fno-objc
 # headers (tixl_point.h, particle_params.h, shared/*.metal.h) and the compiler
 # proves host<->GPU layout (discipline Rule 1). TiXL-ported particle pipeline.
 set(SW_METALLIB "${CMAKE_CURRENT_BINARY_DIR}/shaders.metallib")
-set(SW_SHADERS radial_emit radial_points particle_sim turbulence_force directional_force vector_field_force draw_points draw_lines draw_billboards linepoints gridpoints spherepoints transformpoints orientpoints randomizepoints setpointattributes blur displace addnoise filterpoints polartransformpoints wrappoints boundpoints transformsomepoints tint chromab adjustcolors wrappointposition snaptogrid hexgridpoints)
+# Glob every shaders/*.metal (excludes shaders/shared/*.metal.h — those are #include-only
+# headers, not top-level .metal). Adding an op's .metal needs no CMake edit; reconfigure picks
+# it up. SW_SHADERS holds basenames (NAME_WE) for the per-file compile foreach below.
+file(GLOB SW_SHADER_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.metal")
+set(SW_SHADERS "")
+foreach(_mf ${SW_SHADER_FILES})
+  get_filename_component(_mn ${_mf} NAME_WE)
+  list(APPEND SW_SHADERS ${_mn})
+endforeach()
 set(SW_AIRS "")
 set(SW_SHADER_DEPS
   src/runtime/tixl_point.h src/runtime/particle_params.h src/runtime/blur_params.h src/runtime/displace_params.h src/runtime/draw_params.h
@@ -73,6 +81,11 @@ set_source_files_properties(src/platform/dialogs.mm PROPERTIES COMPILE_OPTIONS -
 # (they touch no metal-cpp pointers, so the MRC convention of the other .mm files doesn't apply).
 set_source_files_properties(src/platform/audio_capture.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+
+# Point-op leaf sources — globbed so a family lane adding point_ops_<name>.cpp (or a new
+# point_ops_register_<family>.cpp) needs no CMake edit (just reconfigure). Covers the central
+# point_ops.cpp, point_ops_selftest.cpp, every per-op leaf, and the per-family registrars.
+file(GLOB SW_POINT_OP_SRCS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/point_ops*.cpp")
 
 add_executable(simple_world
   src/main.cpp
@@ -187,33 +200,7 @@ add_executable(simple_world
   src/runtime/resident_eval_patch_lib.cpp
   src/runtime/resident_eval_patch_lib_selftest.cpp
   src/runtime/math_ops_selftest.cpp
-  src/runtime/point_ops.cpp
-  src/runtime/point_ops_selftest.cpp
-  src/runtime/point_ops_linepoints.cpp
-  src/runtime/point_ops_gridpoints.cpp
-  src/runtime/point_ops_spherepoints.cpp
-  src/runtime/point_ops_transformpoints.cpp
-  src/runtime/point_ops_orientpoints.cpp
-  src/runtime/point_ops_randomizepoints.cpp
-  src/runtime/point_ops_setpointattributes.cpp
-  src/runtime/point_ops_combinebuffers.cpp
-  src/runtime/point_ops_addnoise.cpp
-  src/runtime/point_ops_filterpoints.cpp
-  src/runtime/point_ops_polartransformpoints.cpp
-  src/runtime/point_ops_wrappoints.cpp
-  src/runtime/point_ops_boundpoints.cpp
-  src/runtime/point_ops_transformsomepoints.cpp
-  src/runtime/point_ops_wrappointposition.cpp
-  src/runtime/point_ops_snaptogrid.cpp
-  src/runtime/point_ops_hexgridpoints.cpp
-  src/runtime/point_ops_rendertarget.cpp
-  src/runtime/point_ops_blur.cpp
-  src/runtime/point_ops_displace.cpp
-  src/runtime/point_ops_tint.cpp
-  src/runtime/point_ops_chromab.cpp
-  src/runtime/point_ops_adjustcolors.cpp
-  src/runtime/point_ops_drawlines.cpp
-  src/runtime/point_ops_drawbillboards.cpp
+  ${SW_POINT_OP_SRCS}  # globbed: point_ops.cpp + _selftest + every per-op leaf + per-family registrars
   src/runtime/tex_op_cache.cpp
   src/runtime/source_registry.cpp
   src/runtime/attack_detector.cpp

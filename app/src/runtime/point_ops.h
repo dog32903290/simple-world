@@ -5,9 +5,32 @@
 // (declared in point_graph.h) — called once at app startup and by each cook selftest.
 // Adding an operator = one cook fn + one registerPointOp line + its .metal + its golden.
 #pragma once
-#include "runtime/point_graph.h"  // RenderResolution (RenderTarget op contract)
+#include "runtime/point_graph.h"  // RenderResolution (RenderTarget op contract) + ctx structs
 namespace sw {
 struct Node;
+
+// --- Per-family point-op registrars (point_ops_register_<family>.cpp) -------------------
+// registerBuiltinPointOps() (point_ops.cpp) calls these in family order. Each registrar owns
+// one family's registration lines; adding an op to a family edits only its registrar, never
+// the central builder. Family split mirrors node_registry_<family>.cpp (avoids the shared
+// collision点 so family lanes produce ops in parallel without merge conflicts).
+void registerGeneratorPointOps();     // RadialPoints, LinePoints, GridPoints, SpherePoints, HexGridPoints
+void registerPointModifyPointOps();   // TransformPoints, OrientPoints, RandomizePoints, SetPointAttributes,
+                                      // AddNoise, FilterPoints, PolarTransform, Wrap, Bound,
+                                      // TransformSomePoints, WrapPointPosition, SnapToGrid
+void registerPointCombinePointOps();  // CombineBuffers
+void registerParticlePointOps();      // ParticleSystem
+void registerDrawPointOps();          // DrawPoints, DrawLines, DrawBillboards, RenderTarget
+void registerImageFilterPointOps();   // Blur, Displace, Tint, ChromaticAbberation, AdjustColors
+
+// Inline cook fns defined in point_ops.cpp (the ops whose kernels live in the central file:
+// RadialPoints/ParticleSystem/DrawPoints). Declared here so their family registrars can wire
+// them. simStateNew/simStateFree are ParticleSystem's per-node state lifecycle hooks.
+void cookRadialPoints(PointCookCtx& c);
+void cookParticleSim(PointCookCtx& c);
+RenderCommand cookDrawPoints(CmdCookCtx& c);
+void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count);
+void simStateFree(void* p);
 // Headless golden proof of the RadialPoints cook op THROUGH the point-graph: cook
 // RadialPoints -> a capture draw, assert the bag lies on a circle of the requested radius
 // and is spread around it. injectBug sets Cycles=0 so all points collapse to one angle

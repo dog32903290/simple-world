@@ -19,7 +19,6 @@
 #endif
 
 namespace sw {
-namespace {
 
 // RadialPoints generator: dispatch the radial_points kernel into the node's output bag.
 // Reads the Float params it has today (Count via ctx.count; Radius/RadiusOffset/StartAngle/
@@ -75,6 +74,7 @@ RenderCommand cookDrawPoints(CmdCookCtx& c) {
   return rc;
 }
 
+namespace {
 // Compute PSO from the metallib by function name (the sim op caches its two in per-node
 // state so they aren't rebuilt every frame).
 MTL::ComputePipelineState* makeComputePSO(MTL::Device* dev, MTL::Library* lib, const char* name) {
@@ -99,6 +99,8 @@ struct SimState {
   bool seeded = false;
   uint32_t frame = 0;                // monotonic step head -> CollectCycleIndex
 };
+}  // namespace (file-local sim helpers: makeComputePSO, SimState)
+
 void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count) {
   SimState* s = new SimState();
   s->particles = dev->newBuffer((NS::UInteger)(count > 0 ? count : 1) * sizeof(Particle),
@@ -219,66 +221,21 @@ void cookParticleSim(PointCookCtx& c) {
   integrate(/*emit=*/true, /*reset=*/false);   // per-frame emit + drag/integrate -> result
 }
 
-}  // namespace
-
-// Generators ported in their own leaf files (point_ops_<name>.cpp); forward-declared
-// here so registerBuiltinPointOps() can wire them. Keeps each operator in one file.
-void registerLinePointsOp();
-void registerGridPointsOp();
-void registerSpherePointsOp();
-void registerTransformPointsOp();
-void registerOrientPointsOp();
-void registerRandomizePointsOp();
-void registerSetPointAttributesOp();
-void registerCombineBuffersOp();
-void registerAddNoiseOp();
-void registerFilterPointsOp();
-void registerPolarTransformPointsOp();
-void registerWrapPointsOp();
-void registerBoundPointsOp();
-void registerTransformSomePointsOp();
-void registerWrapPointPositionOp();
-void registerSnapToGridOp();
-void registerHexGridPointsOp();
-void registerDrawLinesOp();
-void registerDrawBillboardsOp();
-void registerTintOp();
-void registerChromaBAOp();
-void registerAdjustColorsOp();
-
+// Central builder — FROZEN (node_registry.cpp pattern, ARCHITECTURE rule 7). Each line wires
+// one per-family registrar (point_ops_register_<family>.cpp). Adding an op to a family touches
+// ONLY that family's registrar — never this central function. Family order mirrors
+// node_registry.cpp's registry() so any registration-order assumption stays aligned. The three
+// inline cooks above (cookRadialPoints / cookParticleSim / cookDrawPoints) are passed by the
+// generators / particle / draw registrars via point_ops.h declarations.
 void registerBuiltinPointOps() {
-  registerPointOp("RadialPoints", cookRadialPoints);
-  // ParticleSystem grows a particle POOL (particlePoolCount) larger than its emit ring so the
-  // cycle buffer can rotate and recycle (the batch-6 decay fix). The pool is what its output +
-  // persistent particle buffer size to; emit count reaches cook() via inputCounts[0].
-  registerPointOp("ParticleSystem", cookParticleSim, simStateNew, simStateFree, &particlePoolCount);
-  registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
-  registerDrawLinesOp();                        // Points → Command (DrawKind::Lines, lane L)
-  registerDrawBillboardsOp();                   // Points → Command (DrawKind::Billboards, lane L)
-  registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
-  registerBlurOp();                             // Texture2D → Texture2D (first image filter, lane I)
-  registerDisplaceOp();                         // Image + DisplaceMap → Texture2D (lane D2, dual tex in)
-  registerTintOp();                             // Texture2D → Texture2D (color tint/remap, lane F3-1)
-  registerChromaBAOp();                         // Texture2D → Texture2D (chromatic fringe, lane F3-2)
-  registerAdjustColorsOp();                     // Texture2D → Texture2D (color grading, lane F3-3)
-  registerLinePointsOp();
-  registerGridPointsOp();
-  registerSpherePointsOp();
-  registerTransformPointsOp();
-  registerOrientPointsOp();
-  registerRandomizePointsOp();
-  registerSetPointAttributesOp();
-  registerCombineBuffersOp();
-  registerAddNoiseOp();
-  registerFilterPointsOp();
-  registerPolarTransformPointsOp();  // Points → Points (TRS + cartesian->polar warp, lane P, batch 16)
-  registerWrapPointsOp();            // Points → Points (floored-mod box wrap, lane P, batch 16)
-  registerBoundPointsOp();           // Points → Points (clamp into AABB, lane P, batch 16)
-  registerTransformSomePointsOp();   // Points → Points (TRS weighted by W channel, lane P, batch 18)
-  registerWrapPointPositionOp();     // Points → Points (cube-fold box wrap, batch 19)
-  registerSnapToGridOp();            // Points → Points (lerp to grid center, batch 19)
-  registerHexGridPointsOp();         // (generator) hex tiling grid, batch 19
-  // A.2+ register here: more generators / modifiers ...
+  registerGeneratorPointOps();    // RadialPoints, LinePoints, GridPoints, SpherePoints, HexGridPoints
+  registerPointModifyPointOps();  // TransformPoints, OrientPoints, RandomizePoints, SetPointAttributes,
+                                  // AddNoise, FilterPoints, PolarTransform, Wrap, Bound,
+                                  // TransformSomePoints, WrapPointPosition, SnapToGrid
+  registerPointCombinePointOps(); // CombineBuffers
+  registerParticlePointOps();     // ParticleSystem
+  registerDrawPointOps();         // DrawPoints, DrawLines, DrawBillboards, RenderTarget
+  registerImageFilterPointOps();  // Blur, Displace, Tint, ChromaticAbberation, AdjustColors
 }
 
 }  // namespace sw
