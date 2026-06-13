@@ -180,6 +180,8 @@ const SelfTest kTable[] = {
     {"polarprobe", runPolarTransformPointsParityProbe},
     {"wrappoints", runWrapPointsSelfTest},
     {"boundpoints", runBoundPointsSelfTest},
+    {"transformsomepoints", runTransformSomePointsSelfTest},
+    {"xfsomeprobe", runTransformSomePointsParityProbe},
     {"rendertarget", runRenderTargetSelfTest},
     {"rendertargetwired", runRenderTargetWiredSelfTest},
     {"mathops", runMathOpsSelfTest},

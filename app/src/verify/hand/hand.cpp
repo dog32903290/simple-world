@@ -61,6 +61,7 @@ ImGuiKey keyFromName(const std::string& n) {
   if (n == "down") return ImGuiKey_DownArrow;
   if (n == "period" || n == ".") return ImGuiKey_Period;
   if (n == "comma" || n == ",") return ImGuiKey_Comma;
+  if (n == "home") return ImGuiKey_Home;
   return ImGuiKey_None;
 }
 

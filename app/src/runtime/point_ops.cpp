@@ -236,6 +236,7 @@ void registerFilterPointsOp();
 void registerPolarTransformPointsOp();
 void registerWrapPointsOp();
 void registerBoundPointsOp();
+void registerTransformSomePointsOp();
 void registerDrawLinesOp();
 void registerDrawBillboardsOp();
 void registerTintOp();
@@ -270,6 +271,7 @@ void registerBuiltinPointOps() {
   registerPolarTransformPointsOp();  // Points → Points (TRS + cartesian->polar warp, lane P, batch 16)
   registerWrapPointsOp();            // Points → Points (floored-mod box wrap, lane P, batch 16)
   registerBoundPointsOp();           // Points → Points (clamp into AABB, lane P, batch 16)
+  registerTransformSomePointsOp();   // Points → Points (TRS weighted by W channel, lane P, batch 18)
   // A.2+ register here: more generators / modifiers ...
 }
 

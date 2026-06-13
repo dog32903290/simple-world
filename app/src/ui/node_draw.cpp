@@ -75,8 +75,8 @@ void drawChild(const sw::SymbolChild& child) {
     nColor += 2;
   }
   ed::PushStyleVar(ed::StyleVar_NodeRounding, rounding);  // V3: zoom-aware (was 3.0f)
-  ed::PushStyleVar(ed::StyleVar_NodeBorderWidth, 1.0f);
-  ed::PushStyleVar(ed::StyleVar_SelectedNodeBorderWidth, 2.5f);
+  ed::PushStyleVar(ed::StyleVar_NodeBorderWidth, 0.0f);          // V5: TiXL DrawNode.cs:121-127 body fill only, no AddRect outline on normal nodes
+  ed::PushStyleVar(ed::StyleVar_SelectedNodeBorderWidth, 1.0f);  // V5: TiXL DrawNode.cs:147 AddRect default thickness = 1.0px (was 2.5f)
   ed::PushStyleVar(ed::StyleVar_HoveredNodeBorderWidth, 0.0f);  // V4: manual blink; suppress ed's border
   ed::BeginNode(child.id);
   if (spec) ImGui::PushStyleColor(ImGuiCol_Text, nodeLabelColor(*spec));
@@ -135,7 +135,7 @@ void drawChild(const sw::SymbolChild& child) {
       ImVec2 pMax = ed::CanvasToScreen(ImVec2(npos.x + nsz2.x, npos.y + nsz2.y));
       float blink = blinkValue();  // TiXL: MathF.Sin(time*10)*0.5f+0.5f
       ImU32 blinkCol = IM_COL32(255, 255, 255, (int)(blink * 255.0f));
-      bgdl->AddRect(pMin, pMax, blinkCol, rounding, 0, 2.0f);
+      bgdl->AddRect(pMin, pMax, blinkCol, rounding, 0, 1.0f);  // V5: TiXL DrawNode.cs:156 AddRect default thickness = 1.0px (was 2.0f)
     }
   }
 

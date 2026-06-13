@@ -10,7 +10,7 @@ namespace sw {
 // Editor background color as plain components, so both the live MTKView clear (shell)
 // and the color self-test assert against the SAME source of truth — without dragging
 // Metal into this header.
-constexpr double kBgR = 0.12, kBgG = 0.14, kBgB = 0.18;
+constexpr double kBgR = 0.12, kBgG = 0.12, kBgB = 0.12;  // V5: TiXL UiColors.cs:29 CanvasBackground=(0.12,0.12,0.12,0.98) pure grey (was G=0.14,B=0.18)
 
 // If argv carries a recognized --selftest-* / --audio-* flag, run it and return its
 // process exit code. Returns -1 when no flag matched (caller proceeds to launch the GUI).

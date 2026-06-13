@@ -225,6 +225,39 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"Size.z", "Size.z", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
         {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f}},
        nullptr},
+      // ---- batch 18 (lane P): point transform — TransformSomePoints -------------------
+      // TiXL parity: external/tixl .../point/transform/TransformSomePoints.cs + .hlsl
+      // A count-preserving MODIFIER: applies a TRS transform to each point, lerp-weighted by
+      // the point's W channel (selection weight) when WIsWeight=true.
+      // Defaults from TransformSomePoints.t3 (GUID-keyed):
+      //   Translation=(0,0,0), Rotation=(0,0,0), Scale=(1,1,1), UniformScale=1.0,
+      //   Space=PointSpace(0), WIsWeight=false(0), UpdateRotation=true(baked).
+      // FORK (transformsomepoints_params.h / .metal):
+      //   - TRS matrix composed in-shader from raw scalars (pivot=0/shear=0; no such ports).
+      //   - Euler order Y·X·Z = CreateFromYawPitchRoll(yaw=Y,pitch=X,roll=Z).
+      //   - Strength port added (not in TiXL TransformSomePoints); defaults to 1.0.
+      //   - UpdateRotation baked to true; ScaleW/OffsetW baked to identity (1/0).
+      //   - Take/Skip/RangeStart/LengthFactor/Scatter/OnlyKeepTakes baked (all points transformed).
+      //   - Space=WorldSpace(2) baked to ObjectSpace (no view transform in cook ctx).
+      {"TransformSomePoints",
+       "TransformSomePoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // transformed output bag (port 1)
+        {"Space", "Space", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Point", "Object"}},
+        {"WIsWeight", "WIsWeight", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f},
+        // Translation / Rotation(Euler°) / Scale — TiXL Vector3 inputs (Widget::Vec).
+        {"Translation.x", "Translation", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Translation.y", "Translation.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Translation.z", "Translation.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Rotation.x", "Rotation", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"Rotation.y", "Rotation.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"Rotation.z", "Rotation.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"Scale.x", "Scale", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Scale.y", "Scale.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Scale.z", "Scale.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f}},
+       nullptr},
   };
   return specs;
 }

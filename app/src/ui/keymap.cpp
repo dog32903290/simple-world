@@ -17,8 +17,9 @@
 #include "app/animation_commands.h"  // AddKeyframeCommand / WriteKeyAtPlayheadCommand / MacroCommand
 #include "app/command.h"             // g_commands
 #include "app/document.h"
-#include "ui/editor_ui.h"        // g_selectedNode/g_pinnedNode (layer-switch hygiene)
+#include "ui/editor_ui.h"        // g_selectedNode/g_pinnedNode/g_navPending (layer-switch hygiene)
 #include "app/frame_cook.h"
+#include "app/graph_commands.h"      // SetOutputDisabledCommand (Shift+D handler)
 #include "runtime/compound_graph.h"  // Symbol / Animator iteration
 #include "ui/annotation_draw.h"  // requestCreateAnnotation (Shift+A)
 #include "ui/copy_paste_ui.h"
@@ -60,6 +61,10 @@ static bool handlePlaybackToggle() {
 static bool handlePlaybackForward() {
   // L = play forward (FactoryKeyMap.cs:24, TimeControls.cs:99-110)
   // TiXL doubles speed on repeated press; we mirror: if speed<=0 set to 1, else double up to 16.
+  // !KeyShift guard: Shift+L is PlaybackForwardHalfSpeed (handled above in kKeyTable order; this
+  // guard is a belt-and-suspenders fallback in case table ordering ever shifts).
+  const ImGuiIO& io = ImGui::GetIO();
+  if (io.KeyShift) return false;
   if (!ImGui::IsKeyPressed(ImGuiKey_L, false)) return false;
   double r = sw::framecook::transportRate();
   if (r <= 0.0) {
@@ -453,6 +458,130 @@ static bool handleAddAnnotation() {
 }
 
 // ---------------------------------------------------------------------------
+// PlaybackJumpToStartTime (Home)
+// = TiXL FactoryKeyMap.cs:31  new(UserActions.PlaybackJumpToStartTime, new KeyCombination(Key.Home))
+//   TimeControls.cs:42-43:    playback.TimeInBars = playback.IsLooping ? playback.LoopRange.Start : 0
+// Named fork "no-loop-range": we have no LoopRange concept; always scrub to 0.
+// ---------------------------------------------------------------------------
+static bool handleJumpToStartTime() {
+  const ImGuiIO& io = ImGui::GetIO();
+  if (io.KeyCtrl || io.KeyAlt || io.KeyShift) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_Home, false)) return false;
+  sw::framecook::transportScrub(0.0);
+  sw::doc::g_status = "jump to start";
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// PlaybackForwardHalfSpeed (Shift+L)
+// = TiXL FactoryKeyMap.cs:25  new(UserActions.PlaybackForwardHalfSpeed, new KeyCombination(Key.L, shift: true))
+//   TimeControls.cs:112-118:  if (speed > 0 && speed < 1) speed *= 0.5; else speed = 0.5;
+// No modifier clash with bare L (handlePlaybackForward checks !Shift implicitly — it fires on L
+// with any modifier; we add a Shift guard here AND add a !Shift guard to handlePlaybackForward).
+// Named fork "no-ladder-below-half": TiXL halves repeatedly below 1x; we don't — matching inspector
+// Speed knob minimum of 0.5 (no sub-half UI yet). If already at 0.5, keeps 0.5 (no-op by TiXL rule).
+// ---------------------------------------------------------------------------
+static bool handlePlaybackForwardHalfSpeed() {
+  // Shift+L (FactoryKeyMap.cs:25, TimeControls.cs:112-118)
+  const ImGuiIO& io = ImGui::GetIO();
+  if (!io.KeyShift || io.KeyCtrl || io.KeyAlt) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_L, false)) return false;
+  double r = sw::framecook::transportRate();
+  if (r > 0.0 && r < 1.0) {
+    sw::framecook::transportSetRate(r * 0.5);  // halve if already in (0,1) sub-speed range
+  } else {
+    sw::framecook::transportSetRate(0.5);
+  }
+  sw::framecook::transportPlay();
+  sw::doc::g_status = "half speed";
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// OpenOperator (I) / CloseOperator (U)
+// = TiXL FactoryKeyMap.cs:57-58
+//   new(UserActions.OpenOperator,  new KeyCombination(Key.I))
+//   new(UserActions.CloseOperator, new KeyCombination(Key.U))
+//   GraphStates.cs:88-108: CloseOperator -> TrySetCompositionOpToParent (= popComposition)
+//                           OpenOperator  -> TrySetCompositionOpToChild (= pushComposition)
+// We reuse the SAME path as editor_ui.cpp double-click (pushComposition/popComposition), so the
+// nav history in keymap.cpp's s_navBack/s_navFwd captures these changes via updateNavHistory().
+// Layer-switch hygiene: clear pin/selection + g_navPending exactly as double-click does.
+// Named fork "I-requires-selection": TiXL also checks context.HoveredItem (the op under cursor);
+// we only have g_selectedNode (single-select model), so I fires only when a node is selected.
+// ---------------------------------------------------------------------------
+static bool handleOpenOperator() {
+  // I = enter compound child (FactoryKeyMap.cs:57, NeedsWindowFocus, KeyActionHandling.cs:143)
+  const ImGuiIO& io = ImGui::GetIO();
+  if (io.KeyCtrl || io.KeyAlt || io.KeyShift) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_I, false)) return false;
+  if (g_selectedNode <= 0) return true;  // consume key; nothing selected to enter
+  if (!sw::doc::pushComposition(g_selectedNode)) return true;  // refused (non-compound)
+  // Mirror editor_ui.cpp navThisFrame block (refuter N3 B2/S3 + R-ANB 攻擊2).
+  g_navPending = true;
+  g_pinnedNode = 0;
+  g_selectedNode = 0;
+  ed::ClearSelection();
+  resetAnnotationGesture();
+  sw::doc::g_status = "open operator";
+  return true;
+}
+
+static bool handleCloseOperator() {
+  // U = exit compound / go up one level (FactoryKeyMap.cs:58, NeedsWindowFocus, KeyActionHandling.cs:144)
+  const ImGuiIO& io = ImGui::GetIO();
+  if (io.KeyCtrl || io.KeyAlt || io.KeyShift) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_U, false)) return false;
+  if (!sw::doc::popComposition()) return true;  // refused (already at root)
+  // Mirror editor_ui.cpp navThisFrame block (refuter N3 B2/S3 + R-ANB 攻擊2).
+  g_navPending = true;
+  g_pinnedNode = 0;
+  g_selectedNode = 0;
+  ed::ClearSelection();
+  resetAnnotationGesture();
+  sw::doc::g_status = "close operator";
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// ToggleDisabled (Shift+D)
+// = TiXL FactoryKeyMap.cs:47  new(UserActions.ToggleDisabled, new KeyCombination(Key.D, shift: true))
+//   KeyboardActions.cs:51-53:  NodeActions.ToggleDisabledForSelectedElements(context.Selector)
+//   NodeActions.cs:51-65: allSelectedDisabled = all.TrueForAll(isDisabled); shouldDisable = !allSelectedDisabled
+// We have a single-select model (g_selectedNode only). Toggle the MAIN output (outputDefs[0]) of
+// the selected child. Command path: SetOutputDisabledCommand — same as inspector.cpp:339-345.
+// Named fork "single-select-main-output": TiXL toggles ALL selected nodes across all their outputs.
+// We toggle the main output of the ONE selected node (matching our inspector Disabled checkbox).
+// ---------------------------------------------------------------------------
+static bool handleToggleDisabled() {
+  // Shift+D (FactoryKeyMap.cs:47, NeedsWindowFocus, KeyActionHandling.cs:136)
+  const ImGuiIO& io = ImGui::GetIO();
+  if (!io.KeyShift || io.KeyCtrl || io.KeyAlt) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_D, false)) return false;
+  if (g_selectedNode <= 0) return true;  // consume; nothing selected
+  const sw::Symbol* cur = sw::doc::currentSymbolConst();
+  if (!cur) return true;
+  const sw::SymbolChild* child = sw::childById(*cur, g_selectedNode);
+  if (!child) return true;
+  // Find main output slot (outputDefs[0] of the child's referenced symbol).
+  const sw::Symbol* def = sw::doc::g_lib.find(child->symbolId);
+  if (!def || def->outputDefs.empty()) return true;  // no output to disable
+  const std::string mainSlot = def->outputDefs[0].id;
+  // Current disabled state.
+  auto dit = child->disabledOutputs.find(mainSlot);
+  bool curDisabled = dit != child->disabledOutputs.end() && dit->second;
+  bool newDisabled = !curDisabled;
+  auto cmd = std::make_unique<sw::SetOutputDisabledCommand>(
+      sw::doc::g_lib, cur->id, g_selectedNode, mainSlot, newDisabled);
+  if (!cmd->refused()) {
+    sw::g_commands.push(std::move(cmd));
+    sw::doc::bumpLibRevision();
+    sw::doc::g_status = newDisabled ? "disabled" : "enabled";
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // The data-driven table.
 // One row = (key label for diagnostics, context, handler fn).
 // 鐵律7: adding a shortcut = adding one row here, not scattering an io.KeyCtrl check elsewhere.
@@ -467,11 +596,15 @@ struct KeyEntry {
 static const KeyEntry kKeyTable[] = {
     // --- Playback (TiXL FactoryKeyMap.cs:23-34; global, !WantTextInput guarded in processFrame) ---
     {"PlaybackToggle",              Context::Global,      handlePlaybackToggle},
+    // Shift+L MUST appear before PlaybackForward (bare L) so it fires first when Shift is held
+    // (table stops on first hit — processFrame break-on-fire). Shift+L also guards !io.KeyCtrl etc.
+    {"PlaybackForwardHalfSpeed",    Context::Global,      handlePlaybackForwardHalfSpeed},
     {"PlaybackForward",             Context::Global,      handlePlaybackForward},
     {"PlaybackBackwards",           Context::Global,      handlePlaybackBackwards},
     {"PlaybackStop",                Context::Global,      handlePlaybackStop},
     {"FramePrev",                   Context::Global,      handleFramePrev},
     {"FrameNext",                   Context::Global,      handleFrameNext},
+    {"JumpToStartTime",             Context::Global,      handleJumpToStartTime},
     // --- Keyframe (TiXL FactoryKeyMap.cs:32-33, 37-38; global) ---
     {"JumpToNextKeyframe",          Context::Global,      handleJumpToNextKeyframe},
     {"JumpToPrevKeyframe",          Context::Global,      handleJumpToPrevKeyframe},
@@ -480,7 +613,7 @@ static const KeyEntry kKeyTable[] = {
     // --- Navigation (TiXL FactoryKeyMap.cs:63-64; global) ---
     {"NavigateBackwards",           Context::Global,      handleNavigateBackwards},
     {"NavigateForward",             Context::Global,      handleNavigateForward},
-    // --- Graph window (TiXL FactoryKeyMap.cs:13-14, :56) ---
+    // --- Graph window (TiXL FactoryKeyMap.cs:13-14, :47, :56-58) ---
     {"Duplicate",                   Context::CanvasFocus, handleDuplicate},
     {"FocusSelection",              Context::CanvasHover, handleFocusSelection},
     {"SearchGraph",                 Context::CanvasFocus, handleSearchGraph},
@@ -488,6 +621,11 @@ static const KeyEntry kKeyTable[] = {
     {"PinToOutput",                 Context::CanvasFocus, handlePinToOutput},
     // --- Annotation (TiXL FactoryKeyMap.cs:53; CanvasFocus = NeedsWindowFocus) ---
     {"AddAnnotation",               Context::CanvasFocus, handleAddAnnotation},
+    // --- Compound navigation (TiXL FactoryKeyMap.cs:57-58; NeedsWindowFocus) ---
+    {"OpenOperator",                Context::CanvasFocus, handleOpenOperator},
+    {"CloseOperator",               Context::CanvasFocus, handleCloseOperator},
+    // --- Toggle disabled (TiXL FactoryKeyMap.cs:47; NeedsWindowFocus) ---
+    {"ToggleDisabled",              Context::CanvasFocus, handleToggleDisabled},
 };
 
 static constexpr int kTableSize = (int)(sizeof(kKeyTable) / sizeof(kKeyTable[0]));
@@ -529,7 +667,8 @@ void processFrame() {
 // runKeymapSelfTest — table completeness + injectBug red-proof
 // ---------------------------------------------------------------------------
 // Checks:
-//   1. Every row has a non-null handler (completeness).
+//   1. Every row has a non-null handler (completeness) — covers all 4 new Lane K rows:
+//      JumpToStartTime / PlaybackForwardHalfSpeed / OpenOperator / CloseOperator / ToggleDisabled.
 //   2. Every row has a non-empty label (readable diagnostics).
 //   3. No two rows with the same label (unique identity).
 //   4. PinToOutput (P) toggle truth table — pinTargetForP (= output_window.cpp:61-67).

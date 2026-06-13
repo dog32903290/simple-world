@@ -92,6 +92,18 @@ int runWrapPointsSelfTest(bool injectBug);
 // BoundPoints MODIFIER golden (point_ops_boundpoints.cpp): clamp positions into an AABB.
 // injectBug = box larger than the input line -> no clamping -> points stay outside -> FAIL.
 int runBoundPointsSelfTest(bool injectBug);
+// TransformSomePoints MODIFIER golden (point_ops_transformsomepoints.cpp): TRS transform weighted
+// by point W channel (selection). Three teeth: (1) graph golden ring shift, (2) multi-axis rotation
+// order lock (Rot=37/53/71°, catches Z·Y·X regression), (3) WIsWeight lerp (W=0.5 -> movement halved).
+// injectBug = Strength=0 -> identity passthrough -> all three assertions FAIL.
+int runTransformSomePointsSelfTest(bool injectBug);
+// refuter-XfSome GPU adversarial probe (batch 18, point_ops_transformsomepoints.cpp): drives the REAL
+// transformsomepoints kernel with Rotation=(37,53,71)° + non-uniform Scale + Translation + non-identity
+// per-point orgRot, captures GPU Position+Rotation, compares against the TiXL C++ reference path
+// (Scale*CreateFromQuaternion(CreateFromYawPitchRoll(yaw=Y,pitch=X,roll=Z))*Translation). Gates
+// PointSpace AND ObjectSpace; also gates WIsWeight=true with W=0.5 (lerp sub-probe).
+// injectBug=true uses the old Z·Y·X reference -> mismatches the Y·X·Z shader -> FAIL (bite).
+int runTransformSomePointsParityProbe(bool injectBug);
 
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a

@@ -1,0 +1,87 @@
+# keys_lane_k.scn — 活體牙 Lane K: Home / I / U / Shift+D
+#
+# TiXL references (FactoryKeyMap.cs):
+#   :31 Home    = PlaybackJumpToStartTime -> transportScrub(0)
+#   :57 I       = OpenOperator  -> pushComposition(selectedNode)
+#   :58 U       = CloseOperator -> popComposition()
+#   :47 Shift+D = ToggleDisabled -> SetOutputDisabledCommand main output
+#
+# compound_smoke.swproj: Root children [1..6]; children 1+2 = EmitterComp (compound).
+# EmitterComp main output slot = "points". After Shift+D the serialized child has
+# "outputs": [{"id": "points", "isDisabled": true}].
+#
+# RED proofs:
+#   Home:    change `position == 0.0` to `> 0.0` -> FAIL (we scrubbed to 0).
+#   I:       change `length == 1` to `== 0` -> FAIL (entered compound).
+#   U:       change `length == 0` to `== 1` -> FAIL (returned to root).
+#   Shift+D: change `isDisabled == true` to `== false` -> FAIL.
+
+open app/testdata/compound_smoke.swproj
+
+# Wait for app to fully settle after launch before hitting keys.
+wait 0.3
+
+# Baseline: root level, paused, position 0.
+assert_state '(.compositionPath | length) == 0'
+assert_state '.transport.playing == false'
+assert_state '.transport.position == 0.0'
+echo opened-at-root-position-zero
+
+# --- Space = start playing, let transport advance ---
+do key space
+wait 0.2
+assert_state '.transport.playing == true'
+wait 0.4
+assert_state '.transport.position > 0.0'
+echo playhead-advanced
+
+# --- Home = jump to start time (position back to 0) ---
+# Stop first so position doesn't keep advancing while we assert.
+do key k
+assert_state '.transport.playing == false'
+echo stopped-for-home-test
+
+# Now press Home -> scrub to 0. Wait one tick for the frame to process.
+do key home
+wait 0.1
+assert_state '.transport.position == 0.0'
+echo home-jumped-to-start
+
+# --- I = open operator (enter compound child) ---
+# node:1 in Root has symbolId=EmitterComp (a compound with its own children).
+do click @node:1^
+assert_state '.selectedNode == 1'
+echo node1-selected
+
+# Press I -> pushComposition(1) -> compositionPath becomes [1].
+do key i
+assert_state '(.compositionPath | length) == 1'
+assert_state '.compositionPath[0] == 1'
+echo i-entered-compound
+
+# --- U = close operator (exit compound, back to root) ---
+do key u
+assert_state '(.compositionPath | length) == 0'
+echo u-returned-to-root
+
+# --- Shift+D = toggle disabled on selected node ---
+# Re-select node:1 (back at root level after U).
+do click @node:1^
+assert_state '.selectedNode == 1'
+echo node1-reselected-for-disabled
+
+# Confirm node:1 is currently enabled (no "outputs" array with isDisabled entry).
+# The serialized child: .lib.symbols[] -> Root -> .children[] id==1 -> .outputs array.
+# When enabled, either "outputs" key is absent or the points entry has no isDisabled==true.
+assert_state '((.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 1)) | (.outputs // []) | map(select(.id == "points" and .isDisabled == true)) | length) == 0'
+echo node1-initially-enabled
+
+# Shift+D -> SetOutputDisabledCommand -> outputs[{id:"points", isDisabled:true}].
+do keychord shift d
+assert_state '((.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 1)) | (.outputs // []) | map(select(.id == "points" and .isDisabled == true)) | length) == 1'
+echo shift-d-disabled-node1
+
+# Shift+D again -> toggle back to enabled (outputs array empty / no isDisabled entry).
+do keychord shift d
+assert_state '((.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 1)) | (.outputs // []) | map(select(.id == "points" and .isDisabled == true)) | length) == 0'
+echo shift-d-reenabled-node1
