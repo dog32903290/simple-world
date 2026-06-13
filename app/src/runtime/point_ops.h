@@ -105,6 +105,16 @@ int runTransformSomePointsSelfTest(bool injectBug);
 // injectBug=true uses the old Z·Y·X reference -> mismatches the Y·X·Z shader -> FAIL (bite).
 int runTransformSomePointsParityProbe(bool injectBug);
 
+// WrapPointPosition MODIFIER golden (point_ops_wrappointposition.cpp): cube-fold box wrap.
+// injectBug = box size 20 (> input extent) -> no fold -> points stay outside unit box -> FAIL.
+int runWrapPointPositionSelfTest(bool injectBug);
+// SnapPointsToGrid MODIFIER golden (point_ops_snaptogrid.cpp): lerp points to grid centers.
+// injectBug = Amount=0 (no snap) -> radial positions not integer -> FAIL.
+int runSnapToGridSelfTest(bool injectBug);
+// HexGridPoints GENERATOR golden (point_ops_hexgridpoints.cpp): hex tiling grid.
+// injectBug = Size=0 -> all points collapse to center -> no distinct X values -> FAIL.
+int runHexGridPointsSelfTest(bool injectBug);
+
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a
 // fixed/custom size. The resolution PIN. Used by the cook driver (batch 3) + its golden.

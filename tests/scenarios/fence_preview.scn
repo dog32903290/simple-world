@@ -40,9 +40,13 @@ assert_state '.fenceActive == false'
 echo fence-inactive-after-release
 
 # The built-in fence ALSO committed the selection on release: node:1 + node:2 are selected.
-# state.json reports only the first selected id (sel[1]); with {1,2} selected that is the
-# lower id, 1 — independent confirmation the same box drove the real selection.
-assert_state '.selectedNode == 1'
+# state.json .selectedNode = ed::GetSelectedNodes(...,1)[0] — the FIRST node in imgui-node-
+# editor's internal selection list, which is HASH-ordered, NOT id-sorted. Which of {1,2} is
+# "first" is not guaranteed: the ed hash order shifts with registry size (batch19's 3 new op
+# NodeSpecs flipped it 1->2 with the SAME committed set). Set correctness is verified by
+# .fenceLastCovered==[1,2] above + the partial-overlap-matches-commit case below; here we only
+# confirm a COVERED node is the committed primary, order-independent (was brittle `== 1`).
+assert_state '(.selectedNode == 1 or .selectedNode == 2)'
 echo builtin-fence-committed-selection
 
 # --- Drag an EMPTY box (no node under it): covers nothing ---

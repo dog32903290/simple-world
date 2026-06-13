@@ -88,6 +88,45 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"StartAngle", "StartAngle", "Float", true, 0.0f, 0.0f, 360.0f},
         {"Scatter", "Scatter", "Float", true, 0.0f, 0.0f, 3.14159f}},
        nullptr},
+      // ---- batch 19: point generate — HexGridPoints --------------------------------
+      // TiXL parity: external/tixl .../point/generate/HexGridPoints.cs + .hlsl (Pattern=2 Hexa)
+      // A GENERATOR op: no input bag. Writes a hexagonal tiling grid of SwPoints.
+      // Math: same cell->clampedCount->zeroAdjustedSize->SizeMode base as GridPoints,
+      // then applies hex X-offset = HexOffsetsAndAngles[hexAttrIndex].x * sizeX * 0.3333
+      // and rescales pos.x *= 0.578 * 3 (HexScale), with per-cell rotation rotDelta.
+      // Defaults: CountX=4, CountY=4, CountZ=1, Size=(1,1,1), Center=(0,0,0),
+      //   W=1.0, OrientationAxis=(0,1,0), OrientationAngle=0, Pivot=(0,0,0), SizeMode=Cell.
+      // NOTE: Count = buffer CAPACITY = CountX * CountY * CountZ (host responsibility).
+      // FORK: Pattern baked to 2 (Hexa); Triangular (1) and default (3) branches deferred.
+      //       Color baked white; Scale baked 1.
+      {"HexGridPoints",
+       "HexGridPoints",
+       {{"points", "points", "Points", false},
+        // Count = output buffer capacity (host sets = CountX*CountY*CountZ)
+        {"Count", "Count", "Float", true, 16.0f, 1.0f, 65536.0f},
+        {"CountX", "CountX", "Float", true, 4.0f, 1.0f, 256.0f, Widget::Slider},
+        {"CountY", "CountY", "Float", true, 4.0f, 1.0f, 256.0f, Widget::Slider},
+        {"CountZ", "CountZ", "Float", true, 1.0f, 1.0f, 256.0f, Widget::Slider},
+        {"SizeMode", "SizeMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Cell", "Bounds"}},
+        // Size (TiXL Vector3) — per-axis cell extent
+        {"Size.x", "Size", "Float", true, 1.0f, 0.01f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Size.y", "Size.y", "Float", true, 1.0f, 0.01f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Size.z", "Size.z", "Float", true, 1.0f, 0.01f, 10.0f, Widget::Vec, {}, true, 1},
+        // Center (TiXL Vector3) — global translation
+        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // Pivot (TiXL Vector3) — grid anchor offset
+        {"Pivot.x", "Pivot", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 3},
+        {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+        {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+        {"W", "W", "Float", true, 1.0f, 0.0f, 1.0f},
+        // OrientationAxis (TiXL Vector3, default 0,1,0) + OrientationAngle (degrees)
+        {"OrientationAxis.x", "OrientationAxis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"OrientationAxis.y", "OrientationAxis.y", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f}},
+       nullptr},
   };
   return specs;
 }

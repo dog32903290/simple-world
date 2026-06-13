@@ -257,6 +257,55 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"Scale.z", "Scale.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f}},
        nullptr},
+      // ---- batch 19: point transform — WrapPointPosition --------------------------
+      // TiXL parity: external/tixl .../point/transform/WrapPointPosition.cs + .hlsl
+      // A count-preserving MODIFIER: CUBE FOLD wrap (offset-factor trick) — distinct from
+      // WrapPoints (floored-mod torus). For each axis, if |p-center| > halfSize+padding,
+      // apply offsetFactor ±1 -> wrappedP = p + Size * offsetFactor. W = edge-fade.
+      // Defaults: Position/Center=(0,0,0), Size=(2,2,2) [TiXL default].
+      // FORK: UseCamera baked 0 (no camera matrix in cook ctx).
+      //       AddLineBreaks baked 0 (W edge-fade path only; line-break variant deferred).
+      {"WrapPointPosition",
+       "WrapPointPosition",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // cube-folded output bag (port 1)
+        // .cs slot "Position" = box center in world space
+        {"Position.x", "Position", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Position.y", "Position.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Position.z", "Position.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // .cs slot "Size" = box extents; default (2,2,2) per TiXL
+        {"Size.x", "Size", "Float", true, 2.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 3},
+        {"Size.y", "Size.y", "Float", true, 2.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
+        {"Size.z", "Size.z", "Float", true, 2.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
+      // ---- batch 19: point transform — SnapPointsToGrid ---------------------------
+      // TiXL parity: external/tixl .../point/transform/SnapPointsToGrid.cs + .hlsl
+      // A count-preserving MODIFIER: lerps each point's position toward the nearest
+      // grid-cell center with blend Amount, shaped by Mode (4 modes) + GainAndBias.
+      // Defaults from SnapPointsToGrid.t3: Amount=1.0, GridScale=1.0, GridStretch=1,1,1,
+      //   GridOffset=0,0,0, Mode=CenterDistance(0), BiasAndGain=0.5,0.5.
+      // FORK: Scatter baked 0 (hash jitter deferred); StrengthFactor=None baked;
+      //       UseWAsWeight/UseSelection baked 0.
+      {"SnapPointsToGrid",
+       "SnapPointsToGrid",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // snapped output bag (port 1)
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 2.0f},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+         {"CenterDistance", "CornersDistance", "AxisCenterDistance", "AxisEdgeDistance"}},
+        {"GridScale", "GridScale", "Float", true, 1.0f, 0.01f, 10.0f},
+        // GridStretch (TiXL Vector3, default 1,1,1) — per-axis grid cell scale
+        {"GridStretch.x", "GridStretch", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"GridStretch.y", "GridStretch.y", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"GridStretch.z", "GridStretch.z", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // GridOffset (TiXL Vector3, default 0,0,0) — phase offset within grid
+        {"GridOffset.x", "GridOffset", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"GridOffset.y", "GridOffset.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"GridOffset.z", "GridOffset.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // BiasAndGain (TiXL Vector2, default 0.5,0.5) — shapes the snap blend curve
+        {"BiasAndGain.x", "BiasAndGain", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"BiasAndGain.y", "BiasAndGain.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
   };
   return specs;
 }

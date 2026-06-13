@@ -237,6 +237,9 @@ void registerPolarTransformPointsOp();
 void registerWrapPointsOp();
 void registerBoundPointsOp();
 void registerTransformSomePointsOp();
+void registerWrapPointPositionOp();
+void registerSnapToGridOp();
+void registerHexGridPointsOp();
 void registerDrawLinesOp();
 void registerDrawBillboardsOp();
 void registerTintOp();
@@ -272,6 +275,9 @@ void registerBuiltinPointOps() {
   registerWrapPointsOp();            // Points → Points (floored-mod box wrap, lane P, batch 16)
   registerBoundPointsOp();           // Points → Points (clamp into AABB, lane P, batch 16)
   registerTransformSomePointsOp();   // Points → Points (TRS weighted by W channel, lane P, batch 18)
+  registerWrapPointPositionOp();     // Points → Points (cube-fold box wrap, batch 19)
+  registerSnapToGridOp();            // Points → Points (lerp to grid center, batch 19)
+  registerHexGridPointsOp();         // (generator) hex tiling grid, batch 19
   // A.2+ register here: more generators / modifiers ...
 }
 

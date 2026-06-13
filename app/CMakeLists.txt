@@ -35,12 +35,13 @@ set_source_files_properties(${IMGUI_OBJCXX} PROPERTIES COMPILE_OPTIONS -fno-objc
 # headers (tixl_point.h, particle_params.h, shared/*.metal.h) and the compiler
 # proves host<->GPU layout (discipline Rule 1). TiXL-ported particle pipeline.
 set(SW_METALLIB "${CMAKE_CURRENT_BINARY_DIR}/shaders.metallib")
-set(SW_SHADERS radial_emit radial_points particle_sim turbulence_force directional_force vector_field_force draw_points draw_lines draw_billboards linepoints gridpoints spherepoints transformpoints orientpoints randomizepoints setpointattributes blur displace addnoise filterpoints polartransformpoints wrappoints boundpoints transformsomepoints tint chromab adjustcolors)
+set(SW_SHADERS radial_emit radial_points particle_sim turbulence_force directional_force vector_field_force draw_points draw_lines draw_billboards linepoints gridpoints spherepoints transformpoints orientpoints randomizepoints setpointattributes blur displace addnoise filterpoints polartransformpoints wrappoints boundpoints transformsomepoints tint chromab adjustcolors wrappointposition snaptogrid hexgridpoints)
 set(SW_AIRS "")
 set(SW_SHADER_DEPS
   src/runtime/tixl_point.h src/runtime/particle_params.h src/runtime/blur_params.h src/runtime/displace_params.h src/runtime/draw_params.h
   src/runtime/addnoise_params.h src/runtime/filterpoints_params.h
   src/runtime/polartransformpoints_params.h src/runtime/wrappoints_params.h src/runtime/boundpoints_params.h src/runtime/transformsomepoints_params.h
+  src/runtime/wrappointposition_params.h src/runtime/snaptogrid_params.h src/runtime/hexgridpoints_params.h
   src/runtime/tint_params.h src/runtime/chromab_params.h src/runtime/adjustcolors_params.h
   shaders/shared/noise.metal.h shaders/shared/quat.metal.h shaders/shared/hash.metal.h)
 set(SW_COMPILE_CMDS "")
@@ -202,6 +203,9 @@ add_executable(simple_world
   src/runtime/point_ops_wrappoints.cpp
   src/runtime/point_ops_boundpoints.cpp
   src/runtime/point_ops_transformsomepoints.cpp
+  src/runtime/point_ops_wrappointposition.cpp
+  src/runtime/point_ops_snaptogrid.cpp
+  src/runtime/point_ops_hexgridpoints.cpp
   src/runtime/point_ops_rendertarget.cpp
   src/runtime/point_ops_blur.cpp
   src/runtime/point_ops_displace.cpp
