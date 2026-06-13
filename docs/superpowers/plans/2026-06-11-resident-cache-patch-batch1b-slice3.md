@@ -1058,16 +1058,38 @@ headless 圍欄 (續)/AddNoise Rotation 顯式牙。
 3. 互動殘項 (P pin-to-output/fence selection 活預覽)
 4. 掃描第二輪 (第一輪原料庫快見底)
 
-## 批次16 進行中 (2026-06-13 上午; orchestrator=Opus 接手首批) 🔄
-**選批** (排修優先): Lane R(機械) + Lane X(互動) Phase A 並行 → Phase B point/particle 並行(R 合流後)。
-**依賴律**: registry 中央套撞檔(§A55 前例)——拆表動 registry, 新增 op 也動 registry → op lane 序列在 R 後;
-互動 lane 不碰 registry → 與 R 並行。拆表把 registry 切成各家族表後, point/particle 改不同檔→Phase B 並行。
-- **Lane R** (Sonnet, worktree, dispatched): registry 按家族拆表 (law debt; 597 行超標; 切點 L263/L457;
-  零行為變化; 要求 point-family/particle-family 各獨立檔=Phase B 並行使能)。狀態: dossier 待回。
-- **Lane X** (Opus, worktree, dispatched): 互動殘項 P pin-output(§C5) + fence selection 活預覽。
-  狀態: dossier 待回。
-- **Phase B** (待 R 合流後開): Lane P=point 變換族(PolarTransform/Wrap/BoundPoints, §A 次梯隊)
-  ∥ Lane F=particle 力族(DirectionalForce/VectorFieldForce, §A4)。
-**換 session/壓縮接手指南**: 兩 worktree 在 .claude/worktrees/(本批最新兩個), 活不丟。查死活=看門狗(背景)
-或 `git -C <worktree> diff`(R=registry 拆分 diff / X=互動 diff 可辨)。**R 合流前禁開 Phase B**(撞 registry)。
-結帳寫 Cut 22 時刪本 in-flight 段。
+## Cut 22 — 批次 16: registry 拆表 + 互動殘項 + point 變換族 + particle 力族 (2026-06-13 午; **Opus orchestrator 首批**) ✅
+`118695e`→`7fefb44` 六 commit。--bite **93 FAILED:[]NO-BITE:[]** / check-arch / scenario **27/27**(kill+wait)。Fable 不可用→Opus 接 orchestrator 首航(見 WORKFLOW §七)。
+
+**事實(交付)**:
+- **R**(`118695e`): node_registry 600→7 家族表+中央 builder, 全<400, 35 op 零位移。point/particle 各獨立家族檔=Phase B 並行使能。
+- **X**(`40f5ca9`): P=pin 選取節點輸出(g_pinnedNode 視圖層不序列化, 驅動 Output 顯示源+shell cook target, 0選取→toggle unpin); fence 拖框即時高亮預覽。2 .scn 活體牙。
+- **P**(`4742203`): PolarTransform/Wrap/BoundPoints 3 顆 point 變換, 照 AddNoise 配方(shader+params+葉檔+register+家族表), 各 golden。
+- **F**(`8eeb36d`): DirectionalForce/VectorFieldForce, 走 cookParticleSim 的 `_ForceKind` pinless 判別子派發(舊 TurbulenceForce 圖 byte 等價), inspector.cpp +1 藏 `_` 埠。
+
+**refuter verdict(對抗波抓到真 bug)**:
+- refuter-P **BROKEN→修**(`0c2b201`): PolarTransform 旋轉建 Z·Y·X ≠ TiXL `CreateFromYawPitchRoll`=Y·X·Z(Hamilton 非交換), 真機 GPU maxPosErr 3.3-4.76→0。polarprobe 升永久牙(Rot≠0+非均勻Scale 防回歸)。golden 漏因只測 Rot=0(任何序塌 identity)。
+- refuter-檢核 **CONCERN→修**(`7fefb44`): fence rectsOverlap 非嚴格`<` vs ed commit 嚴格 imgui `ImRect::Overlaps` 邊緣相切分歧(selftest case3 瞎牙斷錯 parity)→`<=`+case3 want=false。5 op 邊界(NaN/0/empty guard 全有)+NO-BITE PASS。
+- refuter-F **SURVIVE**(3 牙落地 `7fefb44`): 舊圖 byte 等價(FNV 差分 184320 粒子×30 幀逐 byte 同)/`_ForceKind` 不洩漏 UI/存檔。probe: simop FNV/forcekindcorrupt/forcekindoob。
+
+**fork 具名(本批與 TiXL 分岔)**: X[P鍵 no-FocusMode/no-Cmd-P/single-select; fence preview-only-overlay(內建 ed 放開才 commit)/screen-space/strict-overlap]; P[PolarTransform TRS in-shader 純量組 pivot=0/shear=0≡host TransformMatrix/Euler Y·X·Z/WrapPoints floored-mod 非 MSL fmod=負側承重]; F[`_ForceKind` 判別子(TiXL 靠節點 type)/VectorFieldForce 無 field-graph 退化(1,1,1)對角/hash 葉檔內聯避撞 filterpoints]。
+
+**🟡 柏為親測 (批次16 新增)**:
+- ① 3 顆點變換 op 拖參數: PolarTransform(Mode 圓柱↔球面 + Rotation/Scale)、WrapPoints(box 摺疊)、BoundPoints(box 夾)
+- ② 2 顆力場接粒子鏈: DirectionalForce(預設下沉)、VectorFieldForce(對角推; 無場時退化, 嫌怪=訊號待 field-graph)
+- ③ 按 **P** 釘選取節點輸出=顯示源(再按同一顆 unpin)
+- ④ 拖框選取看**即時高亮預覽**(放開後選取應與拖動中預覽一致)
+- 繼承未測: 批次15(Shift+A 框/AddNoise/三濾鏡)、14/13/12/10/9 各欄
+
+**事故與制度(Opus orchestrator 首航血)**:
+- **看門狗假死×2**: X(57min 長 Opus lane)與 F 都在 >30min 安靜段被 30min 閾值誤判死亡。X 被早摘半飛快照——**gate 紀律「不在 red 上 commit」擋住, 沒封錯版**(decay 假紅意外救場), X 真完工後改用權威 worktree。→ WORKFLOW §六 修: 30→60min + 「STALE≠死, 先等 harness 完工通知/查 process 活性, 別急 harvest 活樹」。
+- **並行 GPU/eye 爭用**: 多 agent 同跑 GPU selftest 跨樹 SIGKILL decay(solo exit0); 連發 scenario 不等 app 真死→.eye 爭用假紅。→ 合流驗證必待 agent 靜默; scenario sweep 加 kill+wait 間隔。
+- **soundtrack intrinsic flake**: timing-sensitive 對系統排程抖動敏感, 偶發紅, solo 重跑過(非 batch 引入)。
+
+## Resume — next (批次17 候選)
+0. **🔴 排修頭位: 旋轉序共病** — `transformpoints.metal`+`randomizepoints.metal` 複製同 Z·Y·X bug(既有出貨 op, golden 不測 Rot→隱形)。修 Y·X·Z + 全旋轉 op golden 補多軸旋轉牙。(refuter-P 外溢, 背景 task_eef5757e)
+1. **🔴 排修: compound_load override clamp** — load.cpp:235 對 known-def override 夾 PortSpec [minV,maxV](治所有 `_` 判別子/enum 的 OOB 載入, 非只 _ForceKind)。(refuter-F 外溢)
+2. particle 深化: force 鏈多顆串接(TiXL force→force; 現單 port)/field-graph 子系統(解 VectorFieldForce 退化)。
+3. point 族補完(SelectPoints/draw 族; PARITY_GAP_SCAN §A3)。
+4. 互動殘(PARITY_GAP_SCAN §C: F focus/G auto-layout/playback 鍵第二梯隊/Cmd+F quick-add)。
+5. 掃描第三輪(原料庫見底時派 Explore 對 external/tixl)。
