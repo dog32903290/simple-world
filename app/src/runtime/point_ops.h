@@ -47,6 +47,16 @@ int runAddNoiseSelfTest(bool injectBug);
 // FilterPoints op golden (point_ops_filterpoints.cpp): re-samples input bag to Count points.
 // injectBug = flips sphere-membership predicate sense -> FAIL.
 int runFilterPointsSelfTest(bool injectBug);
+// PolarTransformPoints MODIFIER golden (point_ops_polartransformpoints.cpp): TRS pre-transform +
+// cartesian->cylindrical warp maps a line to a circle of radius R in XZ.
+// injectBug = Translation.z=0 -> warp collapses every point to the origin (radius 0) -> FAIL.
+int runPolarTransformPointsSelfTest(bool injectBug);
+// WrapPoints MODIFIER golden (point_ops_wrappoints.cpp): floored-mod box-wrap of positions.
+// injectBug = box larger than the input line -> no point wraps inside the unit box -> FAIL.
+int runWrapPointsSelfTest(bool injectBug);
+// BoundPoints MODIFIER golden (point_ops_boundpoints.cpp): clamp positions into an AABB.
+// injectBug = box larger than the input line -> no clamping -> points stay outside -> FAIL.
+int runBoundPointsSelfTest(bool injectBug);
 
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a

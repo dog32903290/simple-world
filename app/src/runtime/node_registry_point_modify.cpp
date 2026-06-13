@@ -163,6 +163,68 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"ScatterSelect", "ScatterSelect", "Float", true, 0.0f, 0.0f, 1.0f},
         {"Seed", "Seed", "Float", true, 0.0f, 0.0f, 100.0f}},
        nullptr},
+      // ---- batch 16 (lane P): point transform — PolarTransformPoints -------------------
+      // TiXL parity: external/tixl .../point/transform/PolarTransformPoints.cs + .hlsl
+      // A count-preserving MODIFIER: TRS pre-transform (Translation/Rotation/Scale·UniformScale)
+      // then a cartesian->cylindrical (Mode 0) or ->spherical (Mode 1) polar warp, composing the
+      // point's rotation with the polar-angle rotations.
+      // Defaults from PolarTransformPoints.t3 (GUID-keyed):
+      //   Translation=(0,0,0), Rotation=(0,0,0), Scale=(1,1,1), UniformScale=1.0, Mode=0.
+      // FORK (point_ops_polartransformpoints.cpp / .metal): TRS matrix composed in-shader from raw
+      // scalars; PolarTransform exposes NO Pivot/Shear/Invert ports (pivot=0/shear=0/invert=false).
+      {"PolarTransformPoints",
+       "PolarTransformPoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // warped output bag (port 1)
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"CartesianToCylindrical", "CartesianToSpherical"}},
+        // Translation / Rotation(Euler°) / Scale — TiXL Vector3 inputs (Widget::Vec).
+        {"Translation.x", "Translation", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Translation.y", "Translation.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Translation.z", "Translation.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Rotation.x", "Rotation", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"Rotation.y", "Rotation.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"Rotation.z", "Rotation.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"Scale.x", "Scale", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Scale.y", "Scale.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Scale.z", "Scale.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f}},
+       nullptr},
+      // ---- batch 16 (lane P): point transform — WrapPoints ----------------------------
+      // TiXL parity: external/tixl .../point/transform/WrapPoints.cs + .hlsl
+      // A count-preserving MODIFIER: wraps each point's position (toroidally) into a box of Size
+      // centered at Position, via FLOORED modulo (see wrappoints.metal FORK note).
+      // Defaults from WrapPoints.t3 (GUID-keyed): Position=(0,0,0), Size=(1,1,1).
+      // NOTE: the .cs `Spaces` enum is NOT an [Input] in TiXL -> no Mode port (matched).
+      {"WrapPoints",
+       "WrapPoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // wrapped output bag (port 1)
+        {"Position.x", "Position", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Position.y", "Position.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Position.z", "Position.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Size.x", "Size", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 3},
+        {"Size.y", "Size.y", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
+        {"Size.z", "Size.z", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
+      // ---- batch 16 (lane P): point transform — BoundPoints ---------------------------
+      // TiXL parity: external/tixl .../point/transform/BoundPoints.cs + .hlsl
+      // A count-preserving MODIFIER: clamps each point's position into an AABB of
+      // (Size * UniformScale) centered at Position.
+      // Defaults from BoundPoints.t3 (GUID-keyed): Position=(0,0,0), Size=(1,1,1), UniformScale=1.0.
+      // NOTE: the .cs `Spaces` enum is NOT an [Input] in TiXL -> no Mode port (matched).
+      {"BoundPoints",
+       "BoundPoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // clamped output bag (port 1)
+        {"Position.x", "Position", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Position.y", "Position.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Position.z", "Position.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Size.x", "Size", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 3},
+        {"Size.y", "Size.y", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
+        {"Size.z", "Size.z", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
+        {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f}},
+       nullptr},
   };
   return specs;
 }
