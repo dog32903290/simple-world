@@ -6,9 +6,18 @@
 // TiXL parity (TransformPoints.hlsl):
 //  - Builds a TRS transform from Translation / Rotation(Euler) / Stretch·Scale about Pivot,
 //    applied to position. The .hlsl receives a prebuilt float4x4 + extracts the rotation quat
-//    via qFromMatrix3Precise; we compose the rotation quat directly from the Euler angles
-//    (qFromAngleAxis, X then Y then Z) — algebraically identical for a pure rotation, and it
-//    skips qFromMatrix3 (not in our quat helpers).
+//    via qFromMatrix3Precise(transpose(rotationMatrix)) (TransformPoints.hlsl:70); we compose the
+//    rotation quat directly from the Euler angles (qMul of qFromAngleAxis), which is
+//    algebraically identical for a pure rotation and skips passing a packed float4x4 host param.
+//  - NAMED FORK — Euler order. The host builds TransformMatrix via the TransformMatrix child op
+//    (render/_/TransformMatrix.cs:30-39): yaw=Rotation.Y, pitch=Rotation.X, roll=Rotation.Z, then
+//    Quaternion.CreateFromYawPitchRoll(yaw,pitch,roll). .NET CreateFromYawPitchRoll = the Hamilton
+//    product Y·X·Z (yaw first, then pitch, then roll), so R = qMul(Ry, qMul(Rx, Rz)) below —
+//    mirrors the (batch-16-corrected) polartransformpoints.metal:53-55. The PREVIOUS code built
+//    qMul(Rz, qMul(Ry, Rx)) (Z·Y·X) with a comment claiming "X, then Y, then Z" — WRONG; the GPU
+//    parity probe (runTransformPointsParityProbe) falsified Z·Y·X and verifies Y·X·Z < 1e-3.
+//    (Aside: the CPU-only TransformCpuPoint.cs:67 uses CreateFromYawPitchRoll(Rotation.X,Y,Z) =
+//    yaw=X — a DIFFERENT operator with a different binding; not the path TransformPoints.hlsl uses.)
 //  - transform(v) = qRotate((v - Pivot) * scale, R) + Pivot + Translation. PointSpace feeds
 //    v=0 (the offset is then rotated into the point's own frame and added to its position,
 //    TiXL lines 53/87-90); ObjectSpace feeds v=Position (world transform, lines 58/96).
@@ -32,9 +41,9 @@ kernel void transformpoints(const device SwPoint*       src [[buffer(TRANSFORM_S
   SwPoint p = src[tid];
 
   float3 rad = float3(P.RotationX, P.RotationY, P.RotationZ) * (M_PI_F / 180.0f);
-  float4 R = qMul(qFromAngleAxis(rad.z, float3(0, 0, 1)),
-                  qMul(qFromAngleAxis(rad.y, float3(0, 1, 0)),
-                       qFromAngleAxis(rad.x, float3(1, 0, 0))));  // X, then Y, then Z
+  float4 R = qMul(qFromAngleAxis(rad.y, float3(0, 1, 0)),
+                  qMul(qFromAngleAxis(rad.x, float3(1, 0, 0)),
+                       qFromAngleAxis(rad.z, float3(0, 0, 1))));  // Y·X·Z = CreateFromYawPitchRoll(yaw=Y,pitch=X,roll=Z); see header fork. probe-verified
   float3 scale = float3(P.StretchX, P.StretchY, P.StretchZ) * P.Scale;
   float3 pivot = float3(P.PivotX, P.PivotY, P.PivotZ);
   float3 trans = float3(P.TranslationX, P.TranslationY, P.TranslationZ);

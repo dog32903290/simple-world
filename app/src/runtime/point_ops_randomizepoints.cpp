@@ -196,4 +196,152 @@ int runRandomizePointsSelfTest(bool injectBug) {
   return pass ? 0 : 1;
 }
 
+// ============================================================================
+// ROTATION-ORDER REGRESSION LOCK (batch 17, permanent bite tooth). RandomizePoints.hlsl:124-128
+// applies the per-point rotation jitter as THREE successive, individually-re-normalized axis
+// rotations, accumulated by RIGHT-multiplying onto the running rot:
+//     rot = normalize(qMul(rot, qFromAngleAxis(a.x, X)))   // then Y, then Z
+// This is the INCREMENTAL form (order- and renormalize-dependent), NOT a single combined Euler
+// quaternion. We verified app/shaders/randomizepoints.metal:169-171 is byte-identical to the .hlsl
+// (the batch-16 transformpoints "Z·Y·X combined" bug does NOT apply here — different shape).
+// This lock pins that shape: if anyone reorders the three axes OR collapses them into one combined
+// quaternion (qMul(Rz,qMul(Ry,Rx)) etc.), this tooth turns RED.
+//
+// Trick to avoid re-implementing TiXL's hash chain: with input Position=(0,0,0), identity Rotation,
+// UsePointSpace=ObjectSpace (raw, position offset NOT rotated), OffsetMode=Add (no [-1,1] remap),
+// RandomizePosition=(1,1,1), neutral GainAndBias, Strength=1, StrengthFactor=None, Interpolation=
+// None, the kernel writes p.Position = biasedA.xyz EXACTLY. So we recover each point's biasedA.xyz
+// straight from the captured Position, then REPLAY the incremental composition in C++ from those
+// recovered values and compare against the captured Rotation (double-cover-safe).
+//   injectBug=true replays a COMBINED single quaternion qMul(Ry,qMul(Rx,Rz)) instead of the
+//   incremental product -> mismatches the faithful incremental shader -> FAIL (proves the lock
+//   discriminates incremental-vs-combined, the exact regression it guards).
+// ============================================================================
+namespace {
+struct RV4 { double x, y, z, w; };
+static RV4 rqFromAngleAxis(double angle, double ax, double ay, double az) {
+  double s = std::sin(angle * 0.5), c = std::cos(angle * 0.5);
+  return { ax * s, ay * s, az * s, c };
+}
+static RV4 rqMul(RV4 a, RV4 b) {
+  return { b.x*a.w + a.x*b.w + (a.y*b.z - a.z*b.y),
+           b.y*a.w + a.y*b.w + (a.z*b.x - a.x*b.z),
+           b.z*a.w + a.z*b.w + (a.x*b.y - a.y*b.x),
+           a.w*b.w - (a.x*b.x + a.y*b.y + a.z*b.z) };
+}
+static RV4 rqNorm(RV4 q) {
+  double n = std::sqrt(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+  if (n <= 0.0) return { 0, 0, 0, 1 };
+  return { q.x/n, q.y/n, q.z/n, q.w/n };
+}
+static double rDot4(RV4 a, RV4 b) { return a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w; }
+}  // namespace
+
+int runRandomizePointsRotationLock(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  const uint32_t N = 256;
+  const float PI = 3.14159265358979323846f;
+  // Large, UNEQUAL per-axis rotation magnitudes -> the three axis rotations strongly non-commute,
+  // so incremental X→Y→Z differs sharply from any reorder or combined product.
+  const float RROT[3] = {140.0f, 95.0f, 65.0f};  // degrees, RandomizeRotation per axis
+
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  NS::Error* err = nullptr;
+  MTL::Library* lib =
+      dev->newLibrary(NS::String::string(SW_SHADER_METALLIB, NS::UTF8StringEncoding), &err);
+  if (!lib) {
+    printf("[rndrotlock] FAIL: no metallib\n");
+    q->release(); dev->release(); pool->release();
+    return 1;
+  }
+
+  // Dispatch randomizepoints directly over a bag of N identity points at the origin.
+  std::vector<SwPoint> in(N);
+  for (uint32_t i = 0; i < N; ++i) {
+    in[i] = SwPoint{};
+    in[i].Position = SW_PACKED3{0.0f, 0.0f, 0.0f};
+    in[i].Rotation = SW_FLOAT4{0.0f, 0.0f, 0.0f, 1.0f};  // identity orgRot
+  }
+  RandomizeParams P{};
+  P.Count = N; P.Strength = 1.0f; P.StrengthFactor = 0;  // None -> raw Strength
+  P.RandomizePositionX = 1.0f; P.RandomizePositionY = 1.0f; P.RandomizePositionZ = 1.0f;  // readback biasedA
+  P.RandomizeRotationX = RROT[0]; P.RandomizeRotationY = RROT[1]; P.RandomizeRotationZ = RROT[2];
+  P.GainAndBiasX = 0.5f; P.GainAndBiasY = 0.5f;  // neutral remap
+  P.OffsetMode = 0u;       // Add -> biasedA stays [0,1] (no [-1,1] scatter remap)
+  P.UsePointSpace = 1u;    // ObjectSpace -> position offset is RAW (NOT rotated) -> Position==biasedA
+  P.Interpolation = 0u;    // None -> deterministic per-point, t=0
+  P.ClampColorsEtc = 0; P.Repeat = 0;
+
+  MTL::Function* fn = lib->newFunction(NS::String::string("randomizepoints", NS::UTF8StringEncoding));
+  MTL::ComputePipelineState* pso = fn ? dev->newComputePipelineState(fn, &err) : nullptr;
+  if (fn) fn->release();
+  if (!pso) {
+    printf("[rndrotlock] FAIL: no pipeline\n");
+    lib->release(); q->release(); dev->release(); pool->release();
+    return 1;
+  }
+  const size_t bytes = (size_t)N * sizeof(SwPoint);
+  MTL::Buffer* src = dev->newBuffer(in.data(), bytes, MTL::ResourceStorageModeShared);
+  MTL::Buffer* dst = dev->newBuffer(bytes, MTL::ResourceStorageModeShared);
+  MTL::CommandBuffer* cmd = q->commandBuffer();
+  MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
+  enc->setComputePipelineState(pso);
+  enc->setBuffer(src, 0, RANDOMIZE_SourcePoints);
+  enc->setBuffer(dst, 0, RANDOMIZE_ResultPoints);
+  enc->setBytes(&P, sizeof(P), RANDOMIZE_Params);
+  const uint32_t tg = 64;
+  enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(N, tg), 1, 1),
+                            MTL::Size::Make(tg, 1, 1));
+  enc->endEncoding();
+  cmd->commit();
+  cmd->waitUntilCompleted();
+  std::vector<SwPoint> out(N);
+  std::memcpy(out.data(), dst->contents(), bytes);
+  src->release(); dst->release(); pso->release();
+
+  // Replay the incremental composition from the recovered biasedA (== captured Position), compare to
+  // the captured Rotation. injectBug replays a COMBINED product instead -> mismatch.
+  const double DEG = M_PI / 180.0;
+  double maxRotErr = 0.0; int worstI = -1;
+  double anyAngle = 0.0;  // sanity: the jitter must actually rotate (not a no-op lock)
+  for (uint32_t i = 0; i < N; ++i) {
+    double bx = out[i].Position.x, by = out[i].Position.y, bz = out[i].Position.z;  // biasedA.xyz
+    double ax = RROT[0]*DEG * 1.0 * bx;  // randomRotate = RandomizeRotation*deg * strength(1) * biasedA
+    double ay = RROT[1]*DEG * 1.0 * by;
+    double az = RROT[2]*DEG * 1.0 * bz;
+    RV4 ref;
+    if (!injectBug) {
+      // FAITHFUL incremental: ((I·Rx)·Ry)·Rz, renormalized each step (matches shader 169-171).
+      RV4 r = { 0, 0, 0, 1 };
+      r = rqNorm(rqMul(r, rqFromAngleAxis(ax, 1, 0, 0)));
+      r = rqNorm(rqMul(r, rqFromAngleAxis(ay, 0, 1, 0)));
+      r = rqNorm(rqMul(r, rqFromAngleAxis(az, 0, 0, 1)));
+      ref = r;
+    } else {
+      // BUGGY combined single quaternion (the kind of "cleanup" the lock must reject).
+      ref = rqNorm(rqMul(rqFromAngleAxis(ay, 0, 1, 0),
+                         rqMul(rqFromAngleAxis(ax, 1, 0, 0), rqFromAngleAxis(az, 0, 0, 1))));
+    }
+    RV4 got = { out[i].Rotation.x, out[i].Rotation.y, out[i].Rotation.z, out[i].Rotation.w };
+    double er = 1.0 - std::fabs(rDot4(ref, got));  // double-cover-safe
+    if (er > maxRotErr) { maxRotErr = er; worstI = (int)i; }
+    anyAngle += std::fabs(ax) + std::fabs(ay) + std::fabs(az);
+  }
+  anyAngle /= (double)N;
+
+  // Lock passes when the captured rotation matches the FAITHFUL incremental replay AND the jitter is
+  // non-trivial (the rotation actually moved). injectBug's combined replay won't match -> FAIL.
+  bool matches = (maxRotErr < 1e-4);
+  bool nonTrivial = (anyAngle > 0.1);  // guards a degenerate "everything identity" false-green
+  bool pass = matches && nonTrivial;
+  printf("[rndrotlock] n=%u maxRotErr=%.7f(need<1e-4) worstI=%d mean|angle|=%.3frad ref=%s -> %s "
+         "(PASS=shader matches INCREMENTAL X→Y→Z; FAIL=order/shape regressed)\n",
+         N, maxRotErr, worstI, anyAngle, injectBug ? "COMBINED(bug)" : "incremental",
+         pass ? "PASS" : "FAIL");
+
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
 }  // namespace sw

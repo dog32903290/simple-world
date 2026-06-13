@@ -40,13 +40,29 @@ int runLinePointsSelfTest(bool injectBug);
 int runGridPointsSelfTest(bool injectBug);
 // SpherePoints generator golden (point_ops_spherepoints.cpp). injectBug = real degeneracy.
 int runSpherePointsSelfTest(bool injectBug);
-// TransformPoints MODIFIER golden (point_ops_transformpoints.cpp): ring -> scale+translate.
+// TransformPoints MODIFIER golden (point_ops_transformpoints.cpp): ring -> scale+translate, PLUS a
+// multi-axis rotation tooth (a known point under Rot!=0 lands where the Y·X·Z order predicts).
 // injectBug = Strength 0 -> identity passthrough -> ring unchanged. First modifier (in->out bag).
 int runTransformPointsSelfTest(bool injectBug);
+// refuter-T GPU adversarial probe (batch 17, point_ops_transformpoints.cpp): drives the REAL
+// transformpoints kernel directly over a hand-built bag (non-identity Position AND Rotation) with
+// MULTI-AXIS non-equal Rotation + non-uniform Scale, captures GPU Position+Rotation, compares each
+// against the TiXL host TransformMatrix path (Scale*CreateFromQuaternion(CreateFromYawPitchRoll(
+// yaw=Y,pitch=X,roll=Z))*Translation, render/_/TransformMatrix.cs) recomputed in C++. Gates PointSpace
+// AND ObjectSpace at Pivot=0; reports Pivot!=0 as a non-gated diagnostic. injectBug=true uses the old
+// Z·Y·X reference -> mismatches the fixed Y·X·Z shader -> FAIL (bite). Permanent bite tooth.
+int runTransformPointsParityProbe(bool injectBug);
 // OrientPoints MODIFIER golden (point_ops_orientpoints.cpp). injectBug = real degeneracy.
 int runOrientPointsSelfTest(bool injectBug);
 // RandomizePoints MODIFIER golden (point_ops_randomizepoints.cpp). injectBug = real degeneracy.
 int runRandomizePointsSelfTest(bool injectBug);
+// RandomizePoints rotation-ORDER regression lock (point_ops_randomizepoints.cpp, batch 17): drives
+// the REAL randomizepoints kernel with identity origin points, recovers each point's biasedA.xyz
+// from the (raw) position offset, then replays the INCREMENTAL X→Y→Z qMul(rot,axis) composition
+// (RandomizePoints.hlsl:124-128, byte-identical to our shader) in C++ and compares to the captured
+// Rotation. Pins the incremental shape: a reorder or collapse-to-combined turns it RED. injectBug
+// replays a COMBINED single quaternion -> mismatches the faithful shader -> FAIL. Permanent tooth.
+int runRandomizePointsRotationLock(bool injectBug);
 // SetPointAttributes MODIFIER golden (point_ops_setpointattributes.cpp). injectBug = real degeneracy.
 int runSetPointAttributesSelfTest(bool injectBug);
 // CombineBuffers COMBINE golden (point_ops_combinebuffers.cpp): concat N bags, count = sum.
