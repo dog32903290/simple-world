@@ -1,0 +1,59 @@
+# point_modify_chain.scn — 活體牙 (batch 15): AddNoise 插進既有粒子鏈, 拖 Strength → render 像素變.
+# 承重線:
+#   (1) AddNoise 可被 GUI spawn 並接進 Points 流 (ParticleSystem.result → AddNoise → DrawPoints).
+#   (2) 拖 AddNoise.Strength 改值 → snoiseVec3 擾動量變 → DrawPoints 渲染出來的點座標變 → 畫面像素變.
+#
+# default 圖 = defaultParticleGraph (RadialPoints#1 / ParticleSystem#2 / TurbulenceForce#6 /
+# DrawPoints#7 / AudioReaction#8, nextChildId=104, Root 3 connections):
+#   RadialPoints#1.out(101) → ParticleSystem#2.emit(201)
+#   TurbulenceForce#6.force(601) → ParticleSystem#2.forces(202)
+#   ParticleSystem#2.result(203) → DrawPoints#7.points(701)
+#
+# 操作: 加 AddNoise#104, 接 ParticleSystem#2.result(203) → AddNoise#104.points(10401),
+#        再接 AddNoise#104.out(10402) → DrawPoints#7.points(701) (取代舊連線).
+# 接完後 Root 連線: 舊 3 - 1(取代 PS→DP) + 2(PS→AN + AN→DP) = 4.
+#
+# capture clean = DrawPoints#7 的 Metal render 輸出 (DrawPoints 仍是 cmdReg 第一個).
+# RED 面: 把最後 assert_diff 改成 assert_same → 必紅 (拖 Strength 改擾動量 = 點座標變 = 像素變).
+
+# --- 加 AddNoise#104 (空白 canvas 右鍵) ---
+do rclick 380 320
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:AddNoise
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 104)] | length == 1'
+echo addnoise-104-spawned
+
+# --- 接線 1: ParticleSystem#2.result(203) → AddNoise#104.points(10401) ---
+do drag @pin:203 @pin:10401
+wait 0.4
+
+# --- 接線 2: AddNoise#104.out(10402) → DrawPoints#7.points(701) ---
+# (取代舊的 ParticleSystem#2.result → DrawPoints#7.points, 單輸入 port 重接 = replace)
+do drag @pin:10402 @pin:701
+wait 0.4
+
+# 連線數: 舊 3 + 新 PS→AN(1) + 新 AN→DP(1) - 取代舊 PS→DP(1) = 4
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[]] | length == 4'
+echo chain-connected-ps-addnoise-dp
+
+# --- 等一幀: DrawPoints 開始渲染 AddNoise 後的點 ---
+wait 0.6
+capture clean before_strength
+echo captured-addnoise-render-baseline
+
+# --- 選 AddNoise#104 → Inspector 顯示 Strength 滑桿 ---
+do click @node:104^
+wait 0.3
+assert_state '.selectedNode == 104'
+echo addnoise-selected
+
+# --- 拖 Inspector Strength 往右 (增大擾動量) → 渲染像素必變 ---
+do drag @param:Strength +80 +0
+wait 0.6
+# assert_diff on clean shot: DrawPoints 的 render 輸出面像素變 (點被推離更遠 = 顆粒移動)
+assert_diff before_strength
+echo strength-change-moves-rendered-points

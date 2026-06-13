@@ -199,6 +199,58 @@ const std::vector<NodeSpec>& registry() {
         {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
        nullptr},
+      // ---- batch 15: point modify — AddNoise ----------------------------------------
+      // TiXL parity: external/tixl .../point/modify/AddNoise.cs + AddNoise.hlsl
+      // A count-preserving MODIFIER: displaces Position by snoiseVec3 field and updates
+      // Rotation to follow the displaced tangent frame (RotationLookupDistance probe).
+      // Defaults from AddNoise.t3 (GUID-keyed):
+      //   Strength=1.0, StrengthFactor=None, Frequency=1.0, Phase=0.0, Variation=0.0,
+      //   AmountDistribution=(1,1,1), RotationLookupDistance=0.25, NoiseOffset=(0,0,0)
+      {"AddNoise",
+       "AddNoise",
+       {{"points", "points", "Points", true},   // input bag (port 0)
+        {"out", "out", "Points", false},         // displaced output bag (port 1)
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 5.0f},
+        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f,
+         Widget::Enum, {"None", "F1", "F2"}},
+        {"Frequency", "Frequency", "Float", true, 1.0f, 0.0f, 20.0f},
+        {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Variation", "Variation", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"AmountDistribution.x", "AmountDistribution", "Float", true, 1.0f, 0.0f, 2.0f,
+         Widget::Vec, {}, true, 3},
+        {"AmountDistribution.y", "AmountDistribution.y", "Float", true, 1.0f, 0.0f, 2.0f,
+         Widget::Vec, {}, true, 1},
+        {"AmountDistribution.z", "AmountDistribution.z", "Float", true, 1.0f, 0.0f, 2.0f,
+         Widget::Vec, {}, true, 1},
+        {"RotationLookupDistance", "RotationLookupDistance", "Float", true, 0.25f, 0.0f, 2.0f},
+        {"NoiseOffset.x", "NoiseOffset", "Float", true, 0.0f, -10.0f, 10.0f,
+         Widget::Vec, {}, true, 3},
+        {"NoiseOffset.y", "NoiseOffset.y", "Float", true, 0.0f, -10.0f, 10.0f,
+         Widget::Vec, {}, true, 1},
+        {"NoiseOffset.z", "NoiseOffset.z", "Float", true, 0.0f, -10.0f, 10.0f,
+         Widget::Vec, {}, true, 1}},
+       nullptr},
+      // ---- batch 15: point modify — FilterPoints -------------------------------------
+      // TiXL parity: external/tixl .../point/modify/FilterPoints.cs + FilterPoints.hlsl
+      // Re-samples/re-indexes the input bag into a new fixed-size output buffer (Count port).
+      // Output COUNT = Count port (not the input bag count) — this op changes count.
+      // Shader does scatter-copy: ResultPoints[i] = SourcePoints[imod2(StartIndex +
+      //   (i*StepSize) + scatterOffset, SourceCount)] where scatterOffset = Scatter>0 ?
+      //   SourceCount*Scatter*hash11u(i+Seed*SourceCount+StartIndex) : 0.
+      // Defaults from FilterPoints.t3: Count=1, StartIndex=0, Step=1.0, ScatterSelect=0.0, Seed=0
+      // Fork from TiXL: Count is a Float port (not Int) to match the resolved-param spine
+      // contract; the shader receives it cast to int. TiXL clamps to [0,1000000] — we do too.
+      {"FilterPoints",
+       "FilterPoints",
+       {{"points", "points", "Points", true},   // input bag (port 0)
+        {"out", "out", "Points", false},         // resampled output bag (port 1)
+        // Count drives the OUTPUT buffer size (changes point count — not a modifier!).
+        {"Count", "Count", "Float", true, 1.0f, 0.0f, 8192.0f},
+        {"StartIndex", "StartIndex", "Float", true, 0.0f, 0.0f, 8191.0f},
+        {"Step", "Step", "Float", true, 1.0f, 0.0f, 100.0f},
+        {"ScatterSelect", "ScatterSelect", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"Seed", "Seed", "Float", true, 0.0f, 0.0f, 100.0f}},
+       nullptr},
       {"CombineBuffers",
        "CombineBuffers",
        // COMBINE op: up to 4 Points inputs concatenated into one output bag (TiXL MultiInput).

@@ -41,6 +41,12 @@ int runSetPointAttributesSelfTest(bool injectBug);
 // CombineBuffers COMBINE golden (point_ops_combinebuffers.cpp): concat N bags, count = sum.
 // injectBug = drop one input -> count != sum. First combine op (multi-input -> one bag).
 int runCombineBuffersSelfTest(bool injectBug);
+// AddNoise MODIFIER golden (point_ops_addnoise.cpp): simplex noise displaces sphere points.
+// injectBug = Strength=0 -> identity passthrough -> no displacement -> FAIL.
+int runAddNoiseSelfTest(bool injectBug);
+// FilterPoints op golden (point_ops_filterpoints.cpp): re-samples input bag to Count points.
+// injectBug = flips sphere-membership predicate sense -> FAIL.
+int runFilterPointsSelfTest(bool injectBug);
 
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a

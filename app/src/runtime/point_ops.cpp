@@ -192,6 +192,8 @@ void registerOrientPointsOp();
 void registerRandomizePointsOp();
 void registerSetPointAttributesOp();
 void registerCombineBuffersOp();
+void registerAddNoiseOp();
+void registerFilterPointsOp();
 void registerDrawLinesOp();
 void registerDrawBillboardsOp();
 
@@ -215,6 +217,8 @@ void registerBuiltinPointOps() {
   registerRandomizePointsOp();
   registerSetPointAttributesOp();
   registerCombineBuffersOp();
+  registerAddNoiseOp();
+  registerFilterPointsOp();
   // A.2+ register here: more generators / modifiers ...
 }
 

@@ -209,3 +209,44 @@ inline float4 qLookAt(float3 forward, float3 up)
     q.w = (m01 - m10) * num2;
     return q;
 }
+
+// qFromMatrix3Precise — rotation matrix (column-major float3x3) to unit quaternion.
+// Direct port of TiXL quat-functions.hlsl qFromMatrix3Precise (Shepperd's method).
+// MSL float3x3 is column-major: m[col][row]. HLSL _mRC = m[C][R] -> same indexing.
+// Convention: float4(x, y, z, w) — matches the rest of this file.
+inline float4 qFromMatrix3Precise(float3x3 m)
+{
+    // m[col][row]: m00=m[0][0], m01=m[0][1], m02=m[0][2],
+    //              m10=m[1][0], m11=m[1][1], m12=m[1][2],
+    //              m20=m[2][0], m21=m[2][1], m22=m[2][2]
+    float tr = m[0][0] + m[1][1] + m[2][2];
+    if (tr > 0.0f) {
+        float S = sqrt(tr + 1.0f) * 2.0f;  // S = 4*qw
+        return float4(
+            (m[1][2] - m[2][1]) / S,
+            (m[2][0] - m[0][2]) / S,
+            (m[0][1] - m[1][0]) / S,
+            0.25f * S);
+    } else if ((m[0][0] > m[1][1]) && (m[0][0] > m[2][2])) {
+        float S = sqrt(1.0f + m[0][0] - m[1][1] - m[2][2]) * 2.0f;  // S = 4*qx
+        return float4(
+            0.25f * S,
+            (m[0][1] + m[1][0]) / S,
+            (m[2][0] + m[0][2]) / S,
+            (m[1][2] - m[2][1]) / S);
+    } else if (m[1][1] > m[2][2]) {
+        float S = sqrt(1.0f + m[1][1] - m[0][0] - m[2][2]) * 2.0f;  // S = 4*qy
+        return float4(
+            (m[0][1] + m[1][0]) / S,
+            0.25f * S,
+            (m[1][2] + m[2][1]) / S,
+            (m[2][0] - m[0][2]) / S);
+    } else {
+        float S = sqrt(1.0f + m[2][2] - m[0][0] - m[1][1]) * 2.0f;  // S = 4*qz
+        return float4(
+            (m[2][0] + m[0][2]) / S,
+            (m[1][2] + m[2][1]) / S,
+            0.25f * S,
+            (m[0][1] - m[1][0]) / S);
+    }
+}

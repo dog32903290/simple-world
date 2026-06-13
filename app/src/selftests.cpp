@@ -166,6 +166,8 @@ const SelfTest kTable[] = {
     {"randomizepoints", runRandomizePointsSelfTest},
     {"setpointattributes", runSetPointAttributesSelfTest},
     {"combinebuffers", runCombineBuffersSelfTest},
+    {"addnoise", runAddNoiseSelfTest},
+    {"filterpoints", runFilterPointsSelfTest},
     {"rendertarget", runRenderTargetSelfTest},
     {"rendertargetwired", runRenderTargetWiredSelfTest},
     {"mathops", runMathOpsSelfTest},

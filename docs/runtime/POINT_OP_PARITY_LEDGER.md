@@ -29,6 +29,8 @@
 | 7 | RandomizePoints | modify | 0 | **OffsetMode, Interpolation, ClampColorsEtc** | 🟡 port 全對、3 default 漂 |
 | 8 | SetPointAttributes | modify | 0 | **RotationAxis, Fx1, Fx2** + 命名 SetExtend/Extend→SetStretch/Stretch | 🟡 命名+3 default 漂 |
 | 9 | CombineBuffers | combine | 0（結構簡化：固定 4 路 vs MultiInput 動態 N） | — | 🟡 設計簡化 |
+| 10 | AddNoise | modify | 0 | 0（全對齊） | 🟢 近忠實（fork: MSL matrix 無需 transpose） |
+| 11 | FilterPoints | modify | 0 | Count type: Int→Float（fork） | 🟢 近忠實（fork: Count Float vs Int） |
 
 **關鍵訊息：沒有一顆是 100% 一模一樣。** 連我們以為「忠實」的 Sphere/Randomize/SetPointAttributes 都有 default 偷偷漂掉——這種漂移最陰，因為 port 在、selftest 綠、但柏為一拉就是錯的手感（球生成 20 倍點、Randomize 預設插值/模式不對、SetAttr 旋轉軸轉錯方向）。
 
@@ -122,6 +124,20 @@ port 集合/type/enum 全對齊。**3 個 default 錯**：
 
 ### 9. CombineBuffers（combine）— 🟡 結構簡化
 TiXL = 1 個 `MultiInputSlot`（動態 N 路，無上限）；我們 = 固定 input0..3（4 路上限）。語意等價（純 concat 串接，count=Σ inputs）。4 路夠用，要 5+ 路時得改成動態 port 列表（別硬加 input4/5）。TiXL 有 stride 校驗+skip warning，我們 CPU blit 無（SwPoint 固定 stride，暫不追）。
+
+### 10. AddNoise（modify）— 🟢 近忠實（batch 15）
+TiXL parity: `Operators/Lib/point/modify/AddNoise.cs` + `Assets/shaders/points/modify/AddNoise.hlsl`
+port 集合 / type / enum 全對齊（.cs 對照）：Points / Strength / StrengthFactor(enum None/F1/F2) / Frequency / Phase / Variation / AmountDistribution(v3) / RotationLookupDistance / NoiseOffset(v3)。
+defaults 全對（.t3 GUID 對照）：Strength=1.0 Frequency=1.0 Phase=0.0 Variation=0.0 AmountDistribution=(1,1,1) RotationLookupDistance=0.25 NoiseOffset=(0,0,0) StrengthFactor=0(None)。
+**Fork（具名）：** MSL `float3x3(ex,ey,ez)` 是 column-major（三個 cols）；HLSL `float3x3(ex,ey,ez)` 是 row-major（三個 rows）+ `transpose()`；兩者等價，不需要在 MSL 做 transpose。addnoise.metal:93-96 行有 comment 說明。
+牙：`--selftest-addnoise` + `--selftest-addnoise-bug`（PASS/FAIL 已驗）。
+
+### 11. FilterPoints（modify）— 🟢 近忠實（batch 15）
+TiXL parity: `Operators/Lib/point/modify/FilterPoints.cs` + `Assets/shaders/points/generate/FilterPoints.hlsl`
+port 集合 / type 全對齊：Points / Count(Int→見 fork) / StartIndex / Step / ScatterSelect / Seed。
+defaults 全對（.t3 GUID 對照）：Count=1 StartIndex=0 Step=1.0 ScatterSelect=0.0 Seed=0。
+**Fork（具名）：** TiXL Count 是 `InputSlot<int>` 通過 `ClampInt(0,1000000)` 再進 shader。我們 Count 是 Float port（resolved-param 脊椎合約要求）；`cookFilterPoints` cast 成 `int32_t` 傳 shader，範圍由 NodeSpec max=8192 限制（不是 TiXL 的 1000000）。語意等價，最大值偏保守。
+牙：`--selftest-filterpoints` + `--selftest-filterpoints-bug`（PASS/FAIL 已驗）。
 
 ---
 
