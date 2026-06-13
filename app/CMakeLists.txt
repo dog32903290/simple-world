@@ -35,11 +35,12 @@ set_source_files_properties(${IMGUI_OBJCXX} PROPERTIES COMPILE_OPTIONS -fno-objc
 # headers (tixl_point.h, particle_params.h, shared/*.metal.h) and the compiler
 # proves host<->GPU layout (discipline Rule 1). TiXL-ported particle pipeline.
 set(SW_METALLIB "${CMAKE_CURRENT_BINARY_DIR}/shaders.metallib")
-set(SW_SHADERS radial_emit radial_points particle_sim turbulence_force draw_points draw_lines draw_billboards linepoints gridpoints spherepoints transformpoints orientpoints randomizepoints setpointattributes blur displace addnoise filterpoints)
+set(SW_SHADERS radial_emit radial_points particle_sim turbulence_force draw_points draw_lines draw_billboards linepoints gridpoints spherepoints transformpoints orientpoints randomizepoints setpointattributes blur displace addnoise filterpoints tint chromab adjustcolors)
 set(SW_AIRS "")
 set(SW_SHADER_DEPS
   src/runtime/tixl_point.h src/runtime/particle_params.h src/runtime/blur_params.h src/runtime/displace_params.h src/runtime/draw_params.h
   src/runtime/addnoise_params.h src/runtime/filterpoints_params.h
+  src/runtime/tint_params.h src/runtime/chromab_params.h src/runtime/adjustcolors_params.h
   shaders/shared/noise.metal.h shaders/shared/quat.metal.h shaders/shared/hash.metal.h)
 set(SW_COMPILE_CMDS "")
 foreach(s ${SW_SHADERS})
@@ -190,6 +191,9 @@ add_executable(simple_world
   src/runtime/point_ops_rendertarget.cpp
   src/runtime/point_ops_blur.cpp
   src/runtime/point_ops_displace.cpp
+  src/runtime/point_ops_tint.cpp
+  src/runtime/point_ops_chromab.cpp
+  src/runtime/point_ops_adjustcolors.cpp
   src/runtime/point_ops_drawlines.cpp
   src/runtime/point_ops_drawbillboards.cpp
   src/runtime/tex_op_cache.cpp

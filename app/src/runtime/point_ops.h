@@ -83,6 +83,35 @@ void registerBlurOp();
 void registerDisplaceOp();
 // (runDisplaceSelfTest / runDisplaceChainSelfTest are declared in point_graph.h next to the goldens.)
 
+// --- Tint image filter texture op (point_ops_tint.cpp, lane F3-1) ---
+// Single-pass color tint/remap (TiXL image/color/Tint). Reads upstream Texture2D, remaps
+// luminance via ChannelWeights->GainAndBias->lerp(MapBlackTo,MapWhiteTo), blends by Amount.
+// Register into the texture stream (texReg).
+void registerTintOp();
+// MATH golden: solid grey -> red ramp tint (Amount=1, MapWhite=red); center pixel R>64 & G<96.
+// injectBug Amount=0 (passthrough) -> grey out -> FAIL.
+int runTintSelfTest(bool injectBug);
+// CHAIN golden: RadialPoints->DrawPoints->RenderTarget->Tint chain through cook (flat+resident);
+// assert Tint is the terminal and the texture is non-black. injectBug drops RT->Tint wire -> FAIL.
+int runTintChainSelfTest(bool injectBug);
+
+// --- ChromaticAbberation image filter texture op (point_ops_chromab.cpp, lane F3-2) ---
+// Single-pass radial chromatic fringe (TiXL image/fx/stylize/ChromaticAbberation). Splits R/B
+// in opposite radial directions with barrel distortion. Register into the texture stream (texReg).
+void registerChromaBAOp();
+// MATH golden: white center stripe; R and B channels differ between left-of-center and
+// right-of-center pixels inside the stripe (radial fringe asymmetry). injectBug Size=0 -> FAIL.
+int runChromaBAShiftSelfTest(bool injectBug);
+
+// --- AdjustColors image filter texture op (point_ops_adjustcolors.cpp, lane F3-3) ---
+// Single-pass comprehensive color grading (TiXL image/color/AdjustColors): HSB ops, vignette,
+// colorize, contrast S-curve, brightness, background composite.
+// Register into the texture stream (texReg).
+void registerAdjustColorsOp();
+// MATH golden: solid red -> Saturation=0 -> greyscale (R≈G≈B within 30). injectBug Sat=1 ->
+// red stays red (R>>G) -> equality FAILS.
+int runAdjustColorsSelfTest(bool injectBug);
+
 // --- DrawLines / DrawBillboards command ops (point_ops_drawlines.cpp / point_ops_drawbillboards.cpp,
 // lane L). Both Points→Command producers (DrawKind::Lines / ::Billboards); the executor
 // cookRenderTarget rasterizes them. Register into the command stream (cmdReg). ---

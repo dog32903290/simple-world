@@ -196,6 +196,9 @@ void registerAddNoiseOp();
 void registerFilterPointsOp();
 void registerDrawLinesOp();
 void registerDrawBillboardsOp();
+void registerTintOp();
+void registerChromaBAOp();
+void registerAdjustColorsOp();
 
 void registerBuiltinPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
@@ -209,6 +212,9 @@ void registerBuiltinPointOps() {
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
   registerBlurOp();                             // Texture2D → Texture2D (first image filter, lane I)
   registerDisplaceOp();                         // Image + DisplaceMap → Texture2D (lane D2, dual tex in)
+  registerTintOp();                             // Texture2D → Texture2D (color tint/remap, lane F3-1)
+  registerChromaBAOp();                         // Texture2D → Texture2D (chromatic fringe, lane F3-2)
+  registerAdjustColorsOp();                     // Texture2D → Texture2D (color grading, lane F3-3)
   registerLinePointsOp();
   registerGridPointsOp();
   registerSpherePointsOp();

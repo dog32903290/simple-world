@@ -292,4 +292,21 @@ int runBlurChainSelfTest(bool injectBug);
 int runDisplaceSelfTest(bool injectBug);
 int runDisplaceChainSelfTest(bool injectBug);
 
+// Tint image-filter golden (point_ops_tint.cpp, lane F3-1): (a) TINT MATH: solid grey ->
+// red-ramp tint (Amount=1, MapWhite=(1,0,0,1)); center R>64 & G<96. injectBug Amount=0 ->
+// passthrough grey -> FAIL. (b) TINT CHAIN: RadialPoints->DrawPoints->RenderTarget->Tint through
+// cook (flat + resident); Tint is terminal, texture non-black. injectBug drops RT->Tint wire -> FAIL.
+int runTintSelfTest(bool injectBug);
+int runTintChainSelfTest(bool injectBug);
+
+// ChromaticAbberation image-filter golden (point_ops_chromab.cpp, lane F3-2): (a) SHIFT MATH:
+// white center stripe; R and B channels inside the stripe become asymmetric (left vs right)
+// due to the radial fringe offset. injectBug Size=0 (no fringe) -> symmetric -> FAIL.
+int runChromaBAShiftSelfTest(bool injectBug);
+
+// AdjustColors image-filter golden (point_ops_adjustcolors.cpp, lane F3-3): (a) HSB MATH:
+// solid red input; Saturation=0 -> greyscale (R≈G≈B within 30, all >60). injectBug Sat=1 ->
+// red stays red (R>>G) -> FAIL.
+int runAdjustColorsSelfTest(bool injectBug);
+
 }  // namespace sw

@@ -1,0 +1,58 @@
+# filter_wave3.scn — 活體牙 (lane F3): 親手接 RenderTarget→Tint 鏈 (Tint = filter wave 3 代表),
+# 證 F3 的單輸入 Texture2D gather 直通線和 defaultDrawTarget 選最下游 tex sink:
+#   (1) Texture2D gather 直通把 RenderTarget 的輸出餵進 Tint.Image → 改 Tint Amount 畫面像素變;
+#   (2) defaultDrawTarget 選最下游 tex sink (Tint#105) 而非上游 RenderTarget#104.
+#
+# default 圖 = defaultParticleGraph (RadialPoints#1 / ParticleSystem#2 / TurbulenceForce#6 /
+# DrawPoints#7 / AudioReaction#8, nextChildId=104). 加 RenderTarget#104 + Tint#105;
+# DrawPoints#7.out → RenderTarget#104.command → Tint#105.Image. Tint 成為最下游 tex sink.
+#
+# capture clean = Metal render 輸出 (filter 鏈接進 render, 同 blur_chain 範式).
+# RED 面: 把最後 assert_diff 改成 assert_same → 必紅 (改 Amount 像素變 = gather 在跑的直接證據).
+
+# --- 加 RenderTarget#104 (空白右鍵) ---
+do rclick 250 240
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:RenderTarget
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 104)] | length == 1'
+echo rendertarget-104-spawned
+
+# --- 加 Tint#105 (空白右鍵) ---
+do rclick 470 250
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:Tint
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 105)] | length == 1'
+echo tint-105-spawned
+
+# --- 接線 ---
+# DrawPoints#7.out[pin 702] → RenderTarget#104.command[pin 10401]
+do drag @pin:702 @pin:10401
+wait 0.3
+# RenderTarget#104.out[pin 10402] → Tint#105.Image[pin 10501]
+do drag @pin:10402 @pin:10501
+wait 0.3
+# 兩條新連線建立 (root 連線數: default 3 + 2 = 5)
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[]] | length == 5'
+echo chain-connected-7to104to105-tint
+
+# --- 畫面: Tint 是最下游 tex sink → output window 顯示 tint 後畫面, 捕一幀 ---
+wait 0.6
+capture clean tinted_base
+echo captured-tint-base-output
+
+# --- 改 Tint Amount → 畫面像素必變 (tint 強度變 = gather 真的在跑) ---
+# 選 Tint#105 (標題列) → Inspector 拖 Amount 滑桿往右 (param:Amount)
+do click @node:105^
+wait 0.4
+do drag @param:Amount +60 +0
+wait 0.6
+assert_diff tinted_base
+echo amount-change-moves-pixels

@@ -373,6 +373,88 @@ const std::vector<NodeSpec>& registry() {
         {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
         {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
        nullptr},
+      // Tint (TiXL Lib.image.color.Tint): remaps input luminance through a black->white color
+      // range and blends by Amount. Single Texture2D in → Texture2D out (point_ops_tint.cpp).
+      // Params mirror Tint.cs: Amount/MapBlackTo(Vec4)/MapWhiteTo(Vec4)/Exposure/
+      // ChannelWeights(Vec4)/GainAndBias(Vec2). Resolution = same enum as Blur. FORKS (named):
+      // TiXL's Wrap omitted (fixed clamp sampler); bias-functions.hlsl inlined in tint.metal.
+      {"Tint", "Tint",
+       {{"Image", "Image", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Slider},
+        // MapBlackTo (Vec4, TiXL default ~(0,0,0,1))
+        {"MapBlackTo.r", "MapBlackTo", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"MapBlackTo.g", "MapBlackTo.g", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"MapBlackTo.b", "MapBlackTo.b", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"MapBlackTo.a", "MapBlackTo.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // MapWhiteTo (Vec4, TiXL default (1,1,1,1))
+        {"MapWhiteTo.r", "MapWhiteTo", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"MapWhiteTo.g", "MapWhiteTo.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"MapWhiteTo.b", "MapWhiteTo.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"MapWhiteTo.a", "MapWhiteTo.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // ChannelWeights (Vec4, TiXL default (1,1,1,0))
+        {"ChannelWeights.r", "ChannelWeights", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"ChannelWeights.g", "ChannelWeights.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ChannelWeights.b", "ChannelWeights.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ChannelWeights.a", "ChannelWeights.a", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // GainAndBias (Vec2, TiXL default (0.5,0.5) = identity)
+        {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Exposure", "Exposure", "Float", true, 1.0f, 0.0f, 4.0f},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
+      // ChromaticAbberation (TiXL Lib.image.fx.stylize.ChromaticAbberation): radial chromatic
+      // fringe effect splitting R and B channels outward from center. Single Texture2D in →
+      // Texture2D out (point_ops_chromab.cpp). Params mirror ChromaticAbberation.cs: Image/Size/
+      // Strength/SampleCount/Distort. Resolution = same enum. FORK (named): TiXL's host provides
+      // TargetWidth/TargetHeight via a Resolution cbuffer; we fill it from c.output->width/height.
+      {"ChromaticAbberation", "ChromaticAbberation",
+       {{"Image", "Image", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        {"Size", "Size", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"Strength", "Strength", "Float", true, 0.3f, 0.0f, 1.0f, Widget::Slider},
+        {"SampleCount", "SampleCount", "Float", true, 8.0f, 3.0f, 20.0f, Widget::Slider},
+        {"Distort", "Distort", "Float", true, 0.0f, -2.0f, 2.0f},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
+      // AdjustColors (TiXL Lib.image.color.AdjustColors): comprehensive color grading — HSB ops
+      // (hue/saturation/exposure/brightness/contrast), vignette, colorize, background composite.
+      // Single Texture2D in → Texture2D out (point_ops_adjustcolors.cpp). Params mirror
+      // AdjustColors.cs. Resolution = same enum. FORK (named): TiXL's Wrap omitted (fixed clamp).
+      {"AdjustColors", "AdjustColors",
+       {{"Image", "Image", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        {"Exposure", "Exposure", "Float", true, 1.0f, 0.0f, 4.0f},
+        {"Contrast", "Contrast", "Float", true, 0.0f, -1.0f, 2.0f},
+        {"Saturation", "Saturation", "Float", true, 1.0f, 0.0f, 4.0f, Widget::Slider},
+        {"Brightness", "Brightness", "Float", true, 0.0f, -1.0f, 1.0f},
+        {"Hue", "Hue", "Float", true, 0.0f, -180.0f, 180.0f},
+        {"Vignette", "Vignette", "Float", true, 0.0f, 0.0f, 5.0f, Widget::Slider},
+        {"OrangeTeal", "OrangeTeal", "Float", true, 0.0f, -1.0f, 1.0f},
+        // Colorize (Vec4, TiXL default (1,1,1,0) — alpha=0 means no colorize)
+        {"Colorize.r", "Colorize", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Colorize.g", "Colorize.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Colorize.b", "Colorize.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Colorize.a", "Colorize.a", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // PreventClamping (Vec2, TiXL default (0, 5))
+        {"PreventClamping.x", "PreventClamping", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"PreventClamping.y", "PreventClamping.y", "Float", true, 5.0f, 1.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // Background (Vec4, TiXL default ~(0,0,0,1) — near-zero rgb transparent black)
+        {"Background.r", "Background", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Background.g", "Background.g", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Background.b", "Background.b", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Background.a", "Background.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
       // --- Value nodes (Task 2) ---
       {"Time", "Time", {{"out", "out", "Float", false}}, evalTime},
       // TiXL AudioReaction (full parity): 3 outputs + 10 params. STATEFUL — cooked in main
