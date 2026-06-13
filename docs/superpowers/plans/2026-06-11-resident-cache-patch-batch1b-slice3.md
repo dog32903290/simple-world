@@ -1093,3 +1093,34 @@ headless 圍欄 (續)/AddNoise Rotation 顯式牙。
 3. point 族補完(SelectPoints/draw 族; PARITY_GAP_SCAN §A3)。
 4. 互動殘(PARITY_GAP_SCAN §C: F focus/G auto-layout/playback 鍵第二梯隊/Cmd+F quick-add)。
 5. 掃描第三輪(原料庫見底時派 Explore 對 external/tixl)。
+
+## Cut 23 — 批次 17: 旋轉序共病修 + override-clamp premise 證偽 + 缺口掃描第三輪 (2026-06-13 午後; Opus orchestrator 二航) ✅
+`871464a` 一 commit(fix Lane T)+ 本 docs commit。--bite **95 中 94 綠**(唯一紅=soundtrack @4x 預存環境 flake,見下)/check-arch OK/scenario **27/27**。Lane T(Opus impl)+ Lane L(Sonnet, 證偽棄)+ Lane S(Explore×3 掃描)+ refuter(Opus, SURVIVE)。
+
+**事實(交付)**:
+- **Lane T**(`871464a`, 🔴 真 bug): `transformpoints.metal` 旋轉四元數 Z·Y·X→**Y·X·Z**(鏡射批次16 PolarTransform 修)。承重引文=`external/tixl/Operators/Lib/render/_/TransformMatrix.cs:30-39`(GPU TransformPoints 走的 host matrix child op: yaw=Rotation.Y/pitch=Rotation.X/roll=Rotation.Z → `Quaternion.CreateFromYawPitchRoll` = Hamilton Y·X·Z),shader `TransformPoints.hlsl:70` 由 `qFromMatrix3Precise` 抽出。只動旋轉組法;pivot/scale/space 套用結構不變(pivot≠0 對完整 host CreateTransformationMatrix maxPosErr=2e-6,GraphicsMath.cs scalingRotation=Identity+scalingCenter==rotationCenter==pivot 抵消化簡)。golden 漏因=只測 Rot=0。牙: **xfprobe**(多軸非等角{37,53,71}+非均勻 scale,CPU CreateFromYawPitchRoll 期望對 GPU)/**rndrotlock**(incremental 序鎖)。
+- **randomizepoints 共病假設證偽**: `RandomizePoints.hlsl:124-128` = incremental `qMul(rot,axis)` X→Y→Z 逐步 renormalize,與我方 `:168-171` **逐字相同** = 忠實。**不改 shader**,加 rndrotlock 鎖序。blast radius = **transformpoints only**(orient/sphere/setattr 查無同病,refuter 復查確認)。
+- **Lane L(override load-clamp, 候選 item-1)premise 證偽 → 棄(零 code)**: orchestrator 讀 `point_ops.cpp:193-217` 確認 `cookParticleSim` 派發是 **if/else-if/else**,OOB `_ForceKind`(99/負/任意)落 `else`=Turbulence,**結構上無 misroute/UB**(refuter-F 批次16 SURVIVE 即此故);`forcekindoob` 牙(point_ops_selftest.cpp:410-436)已鎖此安全行為(kind99/kindNeg→symmetric turbulence,no crash,injectBug=99 變 down-push→FAIL)。TiXL 亦不 load-clamp(`SymbolJson.cs:269` `SetValueFromJson` 無 clamp,range 純 UI)。**memory 寫的「🔴 排修」是 batch16 防禦性假設(外溢),非 RED-proven bug——讀源碼即證偽。**
+- **Lane S 缺口掃描第三輪**(三維度,候選見下 Resume): S1 op 庫(27 顆,前 10 cheap point modifier)/ S2 UI 視覺源碼常數 / S3 互動快捷鍵。**S1 sizing 不可盡信**(把已做的 DirectionalForce/VectorFieldForce 列為缺口、把 SelectPoints[5 shape+discard]稱 trivial)——當原料,逐顆復核。
+
+**fork 具名**: Lane T[Euler Y·X·Z ≡ `CreateFromYawPitchRoll(yaw=Y,pitch=X,roll=Z)`;shader 直接 qMul 組旋轉跳過 host float4x4+qFromMatrix3,純旋轉等價]。`TransformCpuPoint.cs:67` 用 yaw=X(不同綁定,CPU-only,非 GPU 路徑,不影響)。
+
+**refuter verdict(Opus 對抗,SURVIVE)**: ① Y·X·Z 是 TiXL 序(numpy/scipy 獨立重推 quat-dist=0;double-transpose 陷阱 4e-16 死)② xfprobe 真牙——**6 種錯序逐一改 shader 重編全 RED**(Z·X·Y=3.34/Z·Y·X=3.16/X·Y·Z=1.42/Y·Z·X=1.86/X·Z·Y=2.28),只 Y·X·Z 綠 ③ rndrotlock 真鎖(combined-quat bug-face 0.929 RED)④ pivot 2e-6 真交叉驗證(host-matrix oracle 獨立)⑤ 邊界(Strength0/1/PointSpace/負角/>360/NaN)全過 ⑥ randomize byte-faithful。**2 非阻塞 CONCERN(defense-in-depth,未修,具名)**: (C1) 既有 `runTransformPointsSelfTest` golden 用 90,90,90 等角→Z·X·Y 也碰巧過(但 xfprobe 大聲抓 Z·X·Y,牙**集合**健全,僅 golden 註解樂觀;未來若要可改非等角)(C2) pivot 忠實依賴 TiXL scalingCenter==rotationCenter(現恆真,probe 診斷會抓變動)。
+
+**事故與制度(本批最重要)**:
+- **bypasscompound 回歸險些出貨——orchestrator clean-base 診斷攔下**: Lane L 的 load-clamp 把合法 Float override(PortSpec range=UI hint 非硬約束)夾壞→破 bypasscompound leg2(reload 後 bypass flag inert)。合流後 --bite 紅,orchestrator `git stash` 退到 clean base b818c74 跑→bypasscompound **綠**(clamp 是元兇),Lane T 單獨也綠→定位 100% Lane L。**教訓: 「問 TiXL 不問假設」是命脈——memory 的防禦性候選未經 RED-proven 就當 🔴,差點賠一個回歸。親手復跑(clean-base 隔離)是攔截閘。**(Lane L dossier 宣稱「git stash 證 pre-existing」是錯的——它 stash 不完整。)
+- **並行 GPU 爭用假紅再現**: 我同訊息併發 Lane T+L,Lane L worktree 的 bypasscompound 紅含 contention 成分→**clean-base 單跑才是權威**(批次16 同雷)。
+- **soundtrack @4.00x chase resync storm(102/117 hard-seeks)**: clean base b818c74 同紅,solo 5/5 一致(批次16 是偶發,**今降級為一致**),1x/1.5x/2x 全綠。AVAudioUnitVarispeed 4x 在本機當前音訊排程撐不住=環境敏感,**與本批零關係**(871464a 零 audio 檔)。→ 柏為域(聲音永遠是人的),已記柏為欄。
+
+**🟡 柏為親測 (批次17 新增)**:
+- ① TransformPoints 節點轉非軸對齊角度(如 X37 Y53 Z71)→ 現在旋轉序對了(批次16 前 Z·Y·X 會轉歪);肉眼對 TiXL 同參數應一致
+- ② **soundtrack 4x 變速播放**: @4x chase 在本機現在會 resync 風暴(1x/2x 正常)——是退步還是環境?要你的耳朵判(可能 BT/裝置狀態)
+- 繼承未測: 批次16(3 點變換 op/2 力場/P 釘選/拖框預覽)、批次15–9 各欄
+
+## Resume — next (批次18 候選; 無 🔴 排修待辦, 純推進——缺口掃描三維度原料已備)
+施工序=三條不重疊 lane 的「便宜平行」(op shader ∥ ui draw ∥ ui keymap;WORKFLOW §八)。**S1 sizing 逐顆復核(原料非定論)**。
+1. **point modifier 量產(S1 tier1, 最划算)**: 照 AddNoise 配方挑 3-5 顆 count-preserving 無外部依賴的——`SnapPointsToGrid`/`ClearSomePoints`(W→NaN 邏輯刪)/`MapPointAttributes`/`PointAttributeFromNoise`/`SamplePointsByCameraDistance`/`TransformSomePoints`(F-mask TRS)/`SnapToPoints`。**SelectPoints/SoftTransformPoints 非 trivial**(5 volume shape/falloff/discard)→各自一條 Opus lane,別塞。
+2. **UI 視覺第二刀(S2, 服務北極星路線 B「節點視覺一樣」)**: 源碼常數對齊——連線粗細 idle-fade(0.25–2px 動態 vs 我方固定 1.5; editor_ui.cpp:202)/節點標題字級(我方 13px vs TiXL 18px×scale; cjk_font.cpp:16)/節點多餘 1px 邊框拿掉(TiXL 常態無邊框; node_draw.cpp:74)/選取邊框 2.5→1px/canvas bg 去藍(0.12,0.14,0.18→0.12,0.12,0.12)。**連線 bezier 形狀(S 型 vs TiXL 混合弧+snap 三角)= moderate/major**,單獨評估。pin 方→三角 moderate。
+3. **互動 trivial 第三梯隊(S3)**: `Home`=jump to start time / `Shift+L`=half-speed / `I`·`U`=open/close operator(雙擊邏輯已有,各一行 keymap)/ 雙擊 annotation rename(inline rename widget 已有)/ `Shift+D`=toggle disabled(inspector 已有 checkbox)。**fence Shift/Ctrl 三模式= moderate**(需 modifier 傳進 ed SelectionCommit)。**G auto-layout / shake-to-disconnect / Alt-drag pan = moderate,各自評估**(TiXL G 自己也是 TODO)。
+4. particle 深化(force 鏈/field-graph)= subsystem 級(§D),需 ShaderGraphNode 子系統前置,排後(WORKFLOW §八:子系統才升 session 平行)。
+5. 掃描第四輪(本批三維度原料夠 2-3 批用,候選見底再派)。
