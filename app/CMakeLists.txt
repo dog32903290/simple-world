@@ -130,6 +130,13 @@ add_executable(simple_world
   src/runtime/particle_decay_selftest.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
+  src/runtime/node_registry_generators.cpp
+  src/runtime/node_registry_point_modify.cpp
+  src/runtime/node_registry_point_combine.cpp
+  src/runtime/node_registry_particle.cpp
+  src/runtime/node_registry_draw.cpp
+  src/runtime/node_registry_image_filter.cpp
+  src/runtime/node_registry_math.cpp
   src/runtime/value_eval_ops.cpp
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp

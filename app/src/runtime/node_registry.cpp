@@ -1,12 +1,39 @@
-// runtime/node_registry — the NodeSpec table (one row per node type) + the pure
-// value-node evaluate fns it points at. Split out of graph.cpp so the data table can
-// grow with each fan-out batch without bloating the graph model/eval code (graph.cpp
-// kept < 400; this is the data-driven registry, ARCHITECTURE rule 7). runtime leaf.
+// runtime/node_registry — central builder: assembles all per-family NodeSpec sub-tables into
+// the single registry() vector consumed by findSpec / specTypes / animGroupForSlot.
+//
+// ARCHITECTURE rule 7 (data-driven): adding an op = add one row to the matching family file.
+// Adding a NEW FAMILY = create node_registry_<family>.{h,cpp}, include it here, add one line.
+//
+// Sub-table files (each < 400 lines, runtime leaf):
+//   node_registry_generators.cpp    — RadialPoints, LinePoints, GridPoints, SpherePoints
+//   node_registry_point_modify.cpp  — TransformPoints, OrientPoints, RandomizePoints,
+//                                     SetPointAttributes, AddNoise, FilterPoints
+//   node_registry_point_combine.cpp — CombineBuffers
+//   node_registry_particle.cpp      — TurbulenceForce, ParticleSystem
+//   node_registry_draw.cpp          — DrawPoints, DrawLines, DrawBillboards, RenderTarget
+//   node_registry_image_filter.cpp  — Blur, Displace, Tint, ChromaticAbberation, AdjustColors
+//   node_registry_math.cpp          — Time, AudioReaction, Const, Multiply, Sine,
+//                                     Add, Sub, Div, Clamp, Remap, Abs, Floor, Lerp
+//
+// Phase B parallel lanes:
+//   point-transform lane  → extend node_registry_point_modify.cpp
+//   particle-force lane   → extend node_registry_particle.cpp
+//
+// Split from the 600-line monolith (批次16-R, law debt: ARCHITECTURE rule 4 <400 lines).
+// Zero behaviour change: op names/ports/cook bindings are verbatim copies.
 #include "runtime/graph.h"
 #include "runtime/Particle.h"      // full EvaluationContext definition
 #include "runtime/value_eval_ops.h"  // value-node evaluate fns (mechanical split, 批次12-F)
 
-#include <cmath>
+// Family sub-tables (批次16-R split)
+#include "runtime/node_registry_generators.h"
+#include "runtime/node_registry_point_modify.h"
+#include "runtime/node_registry_point_combine.h"
+#include "runtime/node_registry_particle.h"
+#include "runtime/node_registry_draw.h"
+#include "runtime/node_registry_image_filter.h"
+#include "runtime/node_registry_math.h"
+
 #include <map>
 #include <string>
 #include <vector>
@@ -14,540 +41,24 @@
 namespace sw {
 namespace {
 
-// Value-node evaluate fns (pure value, no GPU) live in value_eval_ops.{h,cpp} — mechanically
-// split out 批次12-F when the math fan-out pushed this file past the 400-line law (rule 4).
-// NodeSpec registry — params unified into Float input ports (schema spine, Task 1).
-// id kept identical to old ParamSpec.id so Node::params map + save/load stay compatible.
+// registry() — flat concatenation of all family sub-tables, in the same order as the
+// original monolith so pin-index based .swproj wires remain stable.
 const std::vector<NodeSpec>& registry() {
-  static const std::vector<NodeSpec> specs = {
-      {"RadialPoints",
-       "RadialPoints",
-       {{"points", "points", "Points", false},
-        {"Count", "Count", "Float", true, 2048.0f, 16.0f, 8192.0f},
-        {"Radius", "Radius", "Float", true, 2.0f, 0.1f, 10.0f},
-        // Center (TiXL Vector3 TranslationInput) — first vector param on the contract.
-        // Three Float components drawn as one DragFloat3; read via evalVecN("Center").
-        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // TiXL RadialPoints scalars the kernel already consumes (radial_points.metal:
-        // angle = StartAngle° + Cycles·2π·f, length = Radius + RadiusOffset·f). Declared as
-        // ports because the resolved-param seam (cookParam) reads ONLY spec ports — an
-        // undeclared op-read silently falls to its default (caught by radialop-bug teeth).
-        // ⚠ APPENDED, not inserted: pin ids are port-INDEX based (pinId), so saved .swproj
-        // wires into Center.* would silently re-target if indices shift. v2 schema (批次 2)
-        // moves connections to slot IDS, which retires this hazard.
-        {"RadiusOffset", "RadiusOffset", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"StartAngle", "StartAngle", "Float", true, 0.0f, 0.0f, 360.0f},
-        {"Cycles", "Cycles", "Float", true, 1.0f, 0.0f, 10.0f}},
-       nullptr},
-      {"LinePoints",
-       "LinePoints",
-       {{"points", "points", "Points", false},
-        {"Count", "Count", "Float", true, 64.0f, 2.0f, 8192.0f},
-        {"Length", "Length", "Float", true, 5.0f, 0.0f, 50.0f},
-        {"Pivot", "Pivot", "Float", true, 0.5f, 0.0f, 1.0f},
-        // Center (TiXL Vector3 TranslationInput) — line start before pivot/length.
-        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // Direction (TiXL Vector3) — line orientation; .md default 0,1,0 (points up).
-        {"Direction.x", "Direction", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Direction.y", "Direction.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Direction.z", "Direction.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // GainAndBias (TiXL Vector2) — distribution along the line; 0.5,0.5 = identity.
-        {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
-        {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        // Scale (TiXL Vector2 / PointSize) — base + per-index scale.
-        {"Scale.x", "Scale", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 2},
-        {"Scale.y", "Scale.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
-      {"GridPoints",
-       "GridPoints",
-       {{"points", "points", "Points", false},
-        // Count = output buffer CAPACITY (host sets = CountX*CountY*CountZ; PointGraph::nodeCount
-        // sizes the bag from this single \"Count\" port). CountX/Y/Z below are the real grid dims.
-        {"Count", "Count", "Float", true, 100.0f, 1.0f, 65536.0f},
-        {"CountX", "CountX", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
-        {"CountY", "CountY", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
-        {"CountZ", "CountZ", "Float", true, 1.0f, 1.0f, 256.0f, Widget::Slider},
-        {"SizeMode", "SizeMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Cell", "Bounds"}},
-        // Size (TiXL Vector3) — per-axis extent (Cell: spacing, Bounds: total volume).
-        {"Size.x", "Size", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Size.y", "Size.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Size.z", "Size.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // Center (TiXL Vector3 TranslationInput) — translation added to every point.
-        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // Pivot (TiXL Vector3) — grid anchor offset; 0 centers the grid on Center.
-        {"Pivot.x", "Pivot", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 3},
-        {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
-        {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
-        {"PointScale", "PointScale", "Float", true, 1.0f, 0.0f, 5.0f, Widget::Slider}},
-       nullptr},
-      {"SpherePoints",
-       "SpherePoints",
-       {{"points", "points", "Points", false},
-        {"Count", "Count", "Float", true, 2048.0f, 16.0f, 8192.0f},
-        {"Radius", "Radius", "Float", true, 2.0f, 0.1f, 10.0f},
-        // Center (TiXL Vector3) — vector param: 3 Float components drawn as one DragFloat3,
-        // read via readVecN("Center"). Head port id "Center.x", name "Center", Vec/arity 3.
-        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"StartAngle", "StartAngle", "Float", true, 0.0f, 0.0f, 360.0f},
-        {"Scatter", "Scatter", "Float", true, 0.0f, 0.0f, 3.14159f}},
-       nullptr},
-      {"TransformPoints",
-       "TransformPoints",
-       {{"points", "points", "Points", true},    // input bag (port 0)
-        {"out", "out", "Points", false},          // transformed output bag (port 1)
-        {"Space", "Space", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Point", "Object"}},
-        // Translation / Rotation(Euler°) / Stretch / Pivot — TiXL Vector3 inputs (Widget::Vec).
-        {"Translation.x", "Translation", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Translation.y", "Translation.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Translation.z", "Translation.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Rotation.x", "Rotation", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
-        {"Rotation.y", "Rotation.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
-        {"Rotation.z", "Rotation.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
-        {"Stretch.x", "Stretch", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Stretch.y", "Stretch.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Stretch.z", "Stretch.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Scale", "Scale", "Float", true, 1.0f, 0.0f, 10.0f},
-        {"Pivot.x", "Pivot", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f}},
-       nullptr},
-      {"OrientPoints",
-       "OrientPoints",
-       {{"points", "points", "Points", true},    // input bag (port 0)
-        {"out", "out", "Points", false},          // re-oriented output bag (port 1)
-        {"OrientationMode", "OrientationMode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum, {"LookAtTarget", "Screen", "LookAtCamera"}},
-        {"AmountFactor", "AmountFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum, {"None", "F1", "F2"}},
-        {"Flip", "Flip", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
-        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f},
-        // Target / UpVector — TiXL Vector3 inputs (Widget::Vec, read via readVecN).
-        {"Target.x", "Target", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Target.y", "Target.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Target.z", "Target.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"UpVector.x", "UpVector", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"UpVector.y", "UpVector.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"UpVector.z", "UpVector.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
-      {"RandomizePoints",
-       "RandomizePoints",
-       {{"points", "points", "Points", true},   // input bag (port 0)
-        {"out", "out", "Points", false},         // jittered output bag (port 1)
-        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f},
-        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum, {"None", "F1", "F2"}},
-        // Position / Rotation(Euler°) / Stretch / ColorHSB / GainAndBias — TiXL vector inputs (Widget::Vec).
-        {"Position.x", "Position", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Position.y", "Position.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Position.z", "Position.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Rotation.x", "Rotation", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
-        {"Rotation.y", "Rotation.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
-        {"Rotation.z", "Rotation.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
-        {"F1", "F1", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"F2", "F2", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"ColorHSB.x", "ColorHSB", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"ColorHSB.y", "ColorHSB.y", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"ColorHSB.z", "ColorHSB.z", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"ColorHSB.w", "ColorHSB.w", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Scale", "Scale", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"Stretch.x", "Stretch", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Stretch.y", "Stretch.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Stretch.z", "Stretch.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"RandomPhase", "RandomPhase", "Float", true, 0.0f, 0.0f, 100.0f},
-        {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
-        {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"OffsetMode", "OffsetMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Add", "Scatter"}},
-        {"Space", "Space", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Point", "Object"}},
-        {"Interpolation", "Interpolation", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum, {"None", "Linear", "Smooth"}},
-        {"Repeat", "Repeat", "Float", true, 0.0f, 0.0f, 100000.0f},
-        {"ClampColorsEtc", "ClampColorsEtc", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr},
-      {"SetPointAttributes",
-       "SetPointAttributes",
-       {{"points", "points", "Points", true},    // input bag (port 0)
-        {"out", "out", "Points", false},          // modified output bag (port 1)
-        // strength controls — Amount (Single) * factor(AmountFactor: None/F1/F2).
-        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f},
-        {"AmountFactor", "AmountFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum, {"None", "F1", "F2"}},
-        // each attribute: a Set* gate (Widget::Bool) + its target value.
-        {"SetPosition", "SetPosition", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
-        {"Position.x", "Position", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Position.y", "Position.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Position.z", "Position.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"SetRotation", "SetRotation", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
-        {"RotationAxis.x", "RotationAxis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
-        {"RotationAxis.y", "RotationAxis.y", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"RotationAxis.z", "RotationAxis.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"RotationAngle", "RotationAngle", "Float", true, 0.0f, -360.0f, 360.0f},
-        {"SetStretch", "SetStretch", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
-        {"Stretch.x", "Stretch", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Stretch.y", "Stretch.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Stretch.z", "Stretch.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"SetFx1", "SetFx1", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
-        {"Fx1", "Fx1", "Float", true, 0.0f, 0.0f, 1.0f},
-        {"SetFx2", "SetFx2", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
-        {"Fx2", "Fx2", "Float", true, 0.0f, 0.0f, 1.0f},
-        {"SetColor", "SetColor", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
-        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
-      // ---- batch 15: point modify — AddNoise ----------------------------------------
-      // TiXL parity: external/tixl .../point/modify/AddNoise.cs + AddNoise.hlsl
-      // A count-preserving MODIFIER: displaces Position by snoiseVec3 field and updates
-      // Rotation to follow the displaced tangent frame (RotationLookupDistance probe).
-      // Defaults from AddNoise.t3 (GUID-keyed):
-      //   Strength=1.0, StrengthFactor=None, Frequency=1.0, Phase=0.0, Variation=0.0,
-      //   AmountDistribution=(1,1,1), RotationLookupDistance=0.25, NoiseOffset=(0,0,0)
-      {"AddNoise",
-       "AddNoise",
-       {{"points", "points", "Points", true},   // input bag (port 0)
-        {"out", "out", "Points", false},         // displaced output bag (port 1)
-        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 5.0f},
-        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f,
-         Widget::Enum, {"None", "F1", "F2"}},
-        {"Frequency", "Frequency", "Float", true, 1.0f, 0.0f, 20.0f},
-        {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"Variation", "Variation", "Float", true, 0.0f, 0.0f, 1.0f},
-        {"AmountDistribution.x", "AmountDistribution", "Float", true, 1.0f, 0.0f, 2.0f,
-         Widget::Vec, {}, true, 3},
-        {"AmountDistribution.y", "AmountDistribution.y", "Float", true, 1.0f, 0.0f, 2.0f,
-         Widget::Vec, {}, true, 1},
-        {"AmountDistribution.z", "AmountDistribution.z", "Float", true, 1.0f, 0.0f, 2.0f,
-         Widget::Vec, {}, true, 1},
-        {"RotationLookupDistance", "RotationLookupDistance", "Float", true, 0.25f, 0.0f, 2.0f},
-        {"NoiseOffset.x", "NoiseOffset", "Float", true, 0.0f, -10.0f, 10.0f,
-         Widget::Vec, {}, true, 3},
-        {"NoiseOffset.y", "NoiseOffset.y", "Float", true, 0.0f, -10.0f, 10.0f,
-         Widget::Vec, {}, true, 1},
-        {"NoiseOffset.z", "NoiseOffset.z", "Float", true, 0.0f, -10.0f, 10.0f,
-         Widget::Vec, {}, true, 1}},
-       nullptr},
-      // ---- batch 15: point modify — FilterPoints -------------------------------------
-      // TiXL parity: external/tixl .../point/modify/FilterPoints.cs + FilterPoints.hlsl
-      // Re-samples/re-indexes the input bag into a new fixed-size output buffer (Count port).
-      // Output COUNT = Count port (not the input bag count) — this op changes count.
-      // Shader does scatter-copy: ResultPoints[i] = SourcePoints[imod2(StartIndex +
-      //   (i*StepSize) + scatterOffset, SourceCount)] where scatterOffset = Scatter>0 ?
-      //   SourceCount*Scatter*hash11u(i+Seed*SourceCount+StartIndex) : 0.
-      // Defaults from FilterPoints.t3: Count=1, StartIndex=0, Step=1.0, ScatterSelect=0.0, Seed=0
-      // Fork from TiXL: Count is a Float port (not Int) to match the resolved-param spine
-      // contract; the shader receives it cast to int. NAMED FORK (refuter-R-PMF3 修帳): TiXL clamps
-      // to [0,1000000]; we have NO runtime cap — only the port UI max (8192, conservative).
-      {"FilterPoints",
-       "FilterPoints",
-       {{"points", "points", "Points", true},   // input bag (port 0)
-        {"out", "out", "Points", false},         // resampled output bag (port 1)
-        // Count drives the OUTPUT buffer size (changes point count — not a modifier!).
-        {"Count", "Count", "Float", true, 1.0f, 0.0f, 8192.0f},
-        {"StartIndex", "StartIndex", "Float", true, 0.0f, 0.0f, 8191.0f},
-        {"Step", "Step", "Float", true, 1.0f, 0.0f, 100.0f},
-        {"ScatterSelect", "ScatterSelect", "Float", true, 0.0f, 0.0f, 1.0f},
-        {"Seed", "Seed", "Float", true, 0.0f, 0.0f, 100.0f}},
-       nullptr},
-      {"CombineBuffers",
-       "CombineBuffers",
-       // COMBINE op: up to 4 Points inputs concatenated into one output bag (TiXL MultiInput).
-       // Output count = sum of wired inputs (PointGraph::nodeCount sumPointsCount contract).
-       {{"input0", "input0", "Points", true},
-        {"input1", "input1", "Points", true},
-        {"input2", "input2", "Points", true},
-        {"input3", "input3", "Points", true},
-        {"out", "out", "Points", false}},
-       nullptr},
-      {"TurbulenceForce",
-       "TurbulenceForce",
-       {{"force", "force", "ParticleForce", false},
-        {"Amount", "Amount", "Float", true, 15.0f, 0.0f, 100.0f},
-        {"Frequency", "Frequency", "Float", true, 1.2f, 0.0f, 5.0f},
-        {"Phase", "Phase", "Float", true, 0.0f, 0.0f, 10.0f}},
-       nullptr},
-      {"ParticleSystem",
-       "ParticleSystem",
-       {{"emit", "emit", "Points", true},
-        {"forces", "forces", "ParticleForce", true},
-        {"result", "result", "Points", false},
-        {"Speed", "Speed", "Float", true, 1.0f, 0.0f, 3.0f},
-        {"Drag", "Drag", "Float", true, 0.02f, 0.0f, 0.2f},
-        {"OrientTowardsVelocity", "OrientTowardsVelocity", "Float", true, 0.15f, 0.0f, 1.0f}},
-       nullptr},
-      // DrawPoints (TiXL Slot<Command> out): points bag in -> a render Command out. The Command
-      // output wires into a RenderTarget, which executes it into a Texture2D.
-      {"DrawPoints", "DrawPoints",
-       {{"points", "points", "Points", true},
-        {"out", "out", "Command", false}},
-       nullptr},
-      // DrawLines (TiXL Lib.point.draw.DrawLines): connects the point bag into a polyline —
-      // Points[i]→Points[i+1], each segment a screen-space-thickened quad (draw_lines.metal).
-      // Points in → Command out (same cmd flow as DrawPoints). Params mirror DrawLines.t3:
-      // Color (Vec4, white) + LineWidth (0.02). W(FX1)=NaN breaks the polyline — forward
-      // parity: no production op writes the NaN separator yet (fork named in draw_lines.metal).
-      // FORK (named): TiXL's camera/texture/UV/ShrinkWithDistance/Fog/Blend/ZTest are dropped
-      // (no camera system — DrawPoints' baked-ortho fork class); flat untextured band.
-      {"DrawLines", "DrawLines",
-       {{"points", "points", "Points", true},
-        {"out", "out", "Command", false},
-        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"LineWidth", "LineWidth", "Float", true, 0.02f, 0.0f, 1.0f}},
-       nullptr},
-      // DrawBillboards (TiXL Lib.point.draw.DrawBillboards): expands each Point into a
-      // screen-facing quad sprite (draw_billboards.metal). Points in → Command out. Params mirror
-      // DrawBillboards.t3: Scale (1.0) + Color (Vec4, white); per-point Scale.xy stretch kept
-      // (UsePointScale default true). FORK (named): camera/atlas/sprite-texture/scatter/rotation/
-      // curves dropped (no camera system); flat untextured screen-facing quad.
-      {"DrawBillboards", "DrawBillboards",
-       {{"points", "points", "Points", true},
-        {"out", "out", "Command", false},
-        {"Scale", "Scale", "Float", true, 1.0f, 0.0f, 1000.0f},
-        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
-      // RenderTarget (TiXL Lib.image.generate.basic.RenderTarget): executes a Command chain into a
-      // sized Texture2D — the RESOLUTION PIN. Command in, Texture2D out; Resolution enum picks the
-      // output size (WindowFollow tracks the viewport, fixed modes pin a standard size, Custom reads
-      // CustomW/H); ClearColor is the background. See docs/runtime/RENDER_TARGET_CONTRACT.md.
-      {"RenderTarget", "RenderTarget",
-       {{"command", "command", "Command", true},
-        {"out", "out", "Texture2D", false},
-        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
-         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
-        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
-        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f},
-        {"ClearColor.x", "ClearColor", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"ClearColor.y", "ClearColor.y", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"ClearColor.z", "ClearColor.z", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"ClearColor.w", "ClearColor.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
-      // Blur (TiXL Lib.image.fx.blur.Blur): the FIRST image filter — Texture2D in -> Texture2D out,
-      // a 2-pass directional Gaussian (point_ops_blur.cpp). Params mirror Blur.cs: Size (reach),
-      // Samples (taps), Offset (added constant), Opacity (rgb intensity -> shader Glow2). Resolution
-      // picks the output texture size (same enum as RenderTarget; default WindowFollow). FORK
-      // (named): TiXL's Wrap (TextureAddressMode) input is omitted — the op uses a fixed clamp
-      // sampler (= MirrorOnce default for blur); non-default Wrap is a follow-up.
-      {"Blur", "Blur",
-       {{"Image", "Image", "Texture2D", true},
-        {"out", "out", "Texture2D", false},
-        {"Size", "Size", "Float", true, 1.0f, 0.0f, 100.0f},
-        {"Samples", "Samples", "Float", true, 8.0f, 1.0f, 10.0f},
-        {"Offset", "Offset", "Float", true, 0.0f, -1.0f, 1.0f},
-        {"Opacity", "Opacity", "Float", true, 1.0f, 0.0f, 4.0f},
-        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
-         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
-        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
-        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
-       nullptr},
-      // Displace (TiXL Lib.image.fx.distort.Displace): the SECOND image filter and FIRST op with TWO
-      // Texture2D inputs (Image + DisplaceMap). Warps Image by a direction read from DisplaceMap
-      // (point_ops_displace.cpp). Params mirror Displace.cs/.t3 defaults: Displacement/
-      // DisplacementOffset/Twist/Shade/SampleRadius/DisplaceMapOffset(Vec2)/DisplaceMode(enum)/
-      // RGSS_4xAA(bool). Resolution picks the output texture size (same enum as RenderTarget/Blur).
-      // FORKS (named): TiXL's Wrap/TextureFiltering/GenerateMips host plumbing is omitted (fixed clamp
-      // + linear sampler, no mips, same fork class as Blur); an unwired DisplaceMap samples Image.
-      {"Displace", "Displace",
-       {{"Image", "Image", "Texture2D", true},
-        {"DisplaceMap", "DisplaceMap", "Texture2D", true},
-        {"out", "out", "Texture2D", false},
-        {"Displacement", "Displacement", "Float", true, 0.0f, -2.0f, 2.0f},
-        {"DisplacementOffset", "DisplacementOffset", "Float", true, 0.0f, -1.0f, 1.0f},
-        {"Twist", "Twist", "Float", true, 0.0f, -180.0f, 180.0f},
-        {"Shade", "Shade", "Float", true, 0.0f, -1.0f, 1.0f},
-        {"SampleRadius", "SampleRadius", "Float", true, 1.0f, 0.0f, 10.0f},
-        {"DisplaceMode", "DisplaceMode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
-         {"IntensityGradient", "Intensity", "NormalMap", "SignedNormalMap"}, true},
-        {"DisplaceMapOffset.x", "DisplaceMapOffset", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 2},
-        {"DisplaceMapOffset.y", "DisplaceMapOffset.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"RGSS_4xAA", "RGSS_4xAA", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
-        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
-         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
-        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
-        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
-       nullptr},
-      // Tint (TiXL Lib.image.color.Tint): remaps input luminance through a black->white color
-      // range and blends by Amount. Single Texture2D in → Texture2D out (point_ops_tint.cpp).
-      // Params mirror Tint.cs: Amount/MapBlackTo(Vec4)/MapWhiteTo(Vec4)/Exposure/
-      // ChannelWeights(Vec4)/GainAndBias(Vec2). Resolution = same enum as Blur. FORKS (named):
-      // TiXL's Wrap omitted (fixed clamp sampler); bias-functions.hlsl inlined in tint.metal.
-      {"Tint", "Tint",
-       {{"Image", "Image", "Texture2D", true},
-        {"out", "out", "Texture2D", false},
-        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Slider},
-        // MapBlackTo (Vec4, TiXL default ~(0,0,0,1))
-        {"MapBlackTo.r", "MapBlackTo", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"MapBlackTo.g", "MapBlackTo.g", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"MapBlackTo.b", "MapBlackTo.b", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"MapBlackTo.a", "MapBlackTo.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        // MapWhiteTo (Vec4, TiXL default (1,1,1,1))
-        {"MapWhiteTo.r", "MapWhiteTo", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"MapWhiteTo.g", "MapWhiteTo.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"MapWhiteTo.b", "MapWhiteTo.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"MapWhiteTo.a", "MapWhiteTo.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        // ChannelWeights (Vec4, TiXL default (1,1,1,0))
-        {"ChannelWeights.r", "ChannelWeights", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"ChannelWeights.g", "ChannelWeights.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"ChannelWeights.b", "ChannelWeights.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"ChannelWeights.a", "ChannelWeights.a", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        // GainAndBias (Vec2, TiXL default (0.5,0.5) = identity)
-        {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
-        {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Exposure", "Exposure", "Float", true, 1.0f, 0.0f, 4.0f},
-        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
-         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
-        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
-        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
-       nullptr},
-      // ChromaticAbberation (TiXL Lib.image.fx.stylize.ChromaticAbberation): radial chromatic
-      // fringe effect splitting R and B channels outward from center. Single Texture2D in →
-      // Texture2D out (point_ops_chromab.cpp). Params mirror ChromaticAbberation.cs: Image/Size/
-      // Strength/SampleCount/Distort. Resolution = same enum. FORK (named): TiXL's host provides
-      // TargetWidth/TargetHeight via a Resolution cbuffer; we fill it from c.output->width/height.
-      {"ChromaticAbberation", "ChromaticAbberation",
-       {{"Image", "Image", "Texture2D", true},
-        {"out", "out", "Texture2D", false},
-        // Defaults = ChromaticAbberation.t3 verbatim (refuter-R-PMF3: the first cut shipped
-        // 1.0/0.3/8/0 — a freshly added node looked nothing like TiXL's).
-        {"Size", "Size", "Float", true, 5.0f, 0.0f, 10.0f},
-        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Slider},
-        {"SampleCount", "SampleCount", "Float", true, 3.0f, 3.0f, 20.0f, Widget::Slider},
-        {"Distort", "Distort", "Float", true, -0.1f, -2.0f, 2.0f},
-        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
-         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
-        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
-        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
-       nullptr},
-      // AdjustColors (TiXL Lib.image.color.AdjustColors): comprehensive color grading — HSB ops
-      // (hue/saturation/exposure/brightness/contrast), vignette, colorize, background composite.
-      // Single Texture2D in → Texture2D out (point_ops_adjustcolors.cpp). Params mirror
-      // AdjustColors.cs. Resolution = same enum. FORK (named): TiXL's Wrap omitted (fixed clamp).
-      {"AdjustColors", "AdjustColors",
-       {{"Image", "Image", "Texture2D", true},
-        {"out", "out", "Texture2D", false},
-        {"Exposure", "Exposure", "Float", true, 1.0f, 0.0f, 4.0f},
-        {"Contrast", "Contrast", "Float", true, 0.0f, -1.0f, 2.0f},
-        {"Saturation", "Saturation", "Float", true, 1.0f, 0.0f, 4.0f, Widget::Slider},
-        {"Brightness", "Brightness", "Float", true, 0.0f, -1.0f, 1.0f},
-        {"Hue", "Hue", "Float", true, 0.0f, -180.0f, 180.0f},
-        {"Vignette", "Vignette", "Float", true, 0.0f, 0.0f, 5.0f, Widget::Slider},
-        {"OrangeTeal", "OrangeTeal", "Float", true, 0.0f, -1.0f, 1.0f},
-        // Colorize (Vec4, TiXL default (1,1,1,0) — alpha=0 means no colorize)
-        {"Colorize.r", "Colorize", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"Colorize.g", "Colorize.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Colorize.b", "Colorize.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Colorize.a", "Colorize.a", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        // PreventClamping (Vec2, TiXL default (0, 5))
-        {"PreventClamping.x", "PreventClamping", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
-        {"PreventClamping.y", "PreventClamping.y", "Float", true, 5.0f, 1.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // Background (Vec4, TiXL default ~(0,0,0,1) — near-zero rgb transparent black)
-        {"Background.r", "Background", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"Background.g", "Background.g", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Background.b", "Background.b", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Background.a", "Background.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
-         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
-        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
-        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
-       nullptr},
-      // --- Value nodes (Task 2) ---
-      {"Time", "Time", {{"out", "out", "Float", false}}, evalTime},
-      // TiXL AudioReaction (full parity): 3 outputs + 10 params. STATEFUL — cooked in main
-      // from the live spectrum (runtime/audio_reaction) because it needs the whole spectrum
-      // (too big for ctx) + per-node memory; so it has no pure evaluate() and evalFloat reads
-      // its outputs from Node::outCache. Params are pinless (Inspector knobs, no canvas pins).
-      {"AudioReaction", "AudioReaction",
-       {{"Level", "Level", "Float", false},
-        {"WasHit", "WasHit", "Float", false},
-        {"HitCount", "HitCount", "Float", false},
-        {"Amplitude", "Amplitude", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Slider, {}, true},
-        {"InputBand", "InputBand", "Float", true, 2.0f, 0.0f, 4.0f, Widget::Enum,
-         {"RawFft", "NormalizedFft", "FrequencyBands", "Peaks", "Attacks"}, true},
-        {"WindowCenter", "WindowCenter", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, true},
-        {"WindowWidth", "WindowWidth", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Slider, {}, true},
-        {"WindowEdge", "WindowEdge", "Float", true, 1.0f, 0.0001f, 1.0f, Widget::Slider, {}, true},
-        {"Threshold", "Threshold", "Float", true, 0.5f, 0.0f, 2.0f, Widget::Slider, {}, true},
-        {"MinTimeBetweenHits", "MinTimeBetweenHits", "Float", true, 0.1f, 0.0f, 2.0f, Widget::Slider, {}, true},
-        {"Output", "Output", "Float", true, 3.0f, 0.0f, 4.0f, Widget::Enum,
-         {"Pulse", "TimeSinceHit", "Count", "Level", "AccumulatedLevel"}, true},
-        {"Bias", "Bias", "Float", true, 1.0f, 0.0f, 4.0f, Widget::Slider, {}, true},
-        {"Reset", "Reset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
-       nullptr},
-      {"Const", "Const",
-       {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
-       evalConst},
-      {"Multiply", "Multiply",
-       {{"a", "a", "Float", true, 1.0f, -10.0f, 10.0f},
-        {"b", "b", "Float", true, 1.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
-       evalMultiply},
-      {"Sine", "Sine",
-       {{"x", "x", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
-       evalSine},
-      // --- Math value ops (批次12 lane F; TiXL: Operators/Lib/numbers/float/{basic,adjust,process}/) ---
-      // Add: Input1 + Input2 (TiXL Add.cs)
-      {"Add", "Add",
-       {{"Input1", "Input1", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"Input2", "Input2", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
-       evalAdd},
-      // Sub: Input1 - Input2 (TiXL Sub.cs)
-      {"Sub", "Sub",
-       {{"Input1", "Input1", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"Input2", "Input2", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
-       evalSub},
-      // Div: A / B; B==0 → 0 (TiXL Div.cs; fork: NaN→0, see evalDiv comment)
-      {"Div", "Div",
-       {{"A", "A", "Float", true, 1.0f, -10.0f, 10.0f},
-        {"B", "B", "Float", true, 1.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
-       evalDiv},
-      // Clamp: clamp(Value, Min, Max) (TiXL Clamp.cs; MathUtils.Clamp = Min(Max(v,min),max))
-      {"Clamp", "Clamp",
-       {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"Min", "Min", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"Max", "Max", "Float", true, 1.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
-       evalClamp},
-      // Remap: linear remap [RangeInMin..RangeInMax] → [RangeOutMin..RangeOutMax]
-      // (TiXL adjust/Remap.cs; fork: BiasAndGain+Mode omitted — see evalRemap comment)
-      {"Remap", "Remap",
-       {{"Value",       "Value",       "Float", true, 0.0f, -10.0f, 10.0f},
-        {"RangeInMin",  "RangeInMin",  "Float", true, 0.0f, -10.0f, 10.0f},
-        {"RangeInMax",  "RangeInMax",  "Float", true, 1.0f, -10.0f, 10.0f},
-        {"RangeOutMin", "RangeOutMin", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"RangeOutMax", "RangeOutMax", "Float", true, 1.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
-       evalRemap},
-      // Abs: |Value| (TiXL adjust/Abs.cs)
-      {"Abs", "Abs",
-       {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
-       evalAbs},
-      // Floor: truncate toward zero via (int) cast (TiXL adjust/Floor.cs; fork: trunc not floor)
-      {"Floor", "Floor",
-       {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
-       evalFloor},
-      // Lerp: A + (B-A)*F (TiXL process/Lerp.cs; fork: Clamp bool input omitted, always unclamped)
-      {"Lerp", "Lerp",
-       {{"A", "A", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"B", "B", "Float", true, 1.0f, -10.0f, 10.0f},
-        {"F", "F", "Float", true, 0.5f, 0.0f,   1.0f},
-        {"out", "out", "Float", false}},
-       evalLerp},
-  };
+  static const std::vector<NodeSpec> specs = [] {
+    std::vector<NodeSpec> v;
+    auto append = [&](const std::vector<NodeSpec>& src) {
+      v.insert(v.end(), src.begin(), src.end());
+    };
+    append(generatorSpecs());       // RadialPoints, LinePoints, GridPoints, SpherePoints
+    append(pointModifySpecs());     // TransformPoints, OrientPoints, RandomizePoints,
+                                    // SetPointAttributes, AddNoise, FilterPoints
+    append(pointCombineSpecs());    // CombineBuffers
+    append(particleSpecs());        // TurbulenceForce, ParticleSystem
+    append(drawSpecs());            // DrawPoints, DrawLines, DrawBillboards, RenderTarget
+    append(imageFilterSpecs());     // Blur, Displace, Tint, ChromaticAbberation, AdjustColors
+    append(mathSpecs());            // Time, AudioReaction, Const, Multiply, Sine, ...
+    return v;
+  }();
   return specs;
 }
 
