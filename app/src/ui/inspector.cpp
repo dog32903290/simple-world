@@ -111,6 +111,12 @@ void drawInspector() {
       for (size_t i = 0; i < spec->ports.size(); ++i) {
         const sw::PortSpec& p = spec->ports[i];
         if (!(p.isInput && p.dataType == "Float")) continue;
+        // `_`-prefixed Float params are INTERNAL/hidden (no Inspector knob): they carry machine
+        // state through the value spine, not a user dial. First user = the particle-force lane's
+        // `_ForceKind` discriminator (particle_params.h ForceKind) — exposing it would let a drag
+        // switch a force node's kernel out from under its params. pinless already drops the canvas
+        // pin (node_draw.cpp); this drops the Inspector row too. (particle-force lane addition.)
+        if (!p.id.empty() && p.id[0] == '_') continue;
         any = true;
         if (p.widget == sw::Widget::Vec && p.vecArity >= 2) {
           // Vector param head: draw its `vecArity` components ("<base>.x/.y/.z/.w") as ONE

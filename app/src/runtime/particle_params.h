@@ -136,9 +136,57 @@ struct TurbParams {
   float _pad;  // -> 32 bytes
 };
 
+// DirectionalForce params — mirrors DirectionalForce.hlsl cbuffer Params (b0):
+//   float3 Direction; float Amount; float RandomAmount; float SpeedFactor;
+// + Count (no GetDimensions in MSL). Direction is split into 3 scalars (Dir{X,Y,Z}) — same
+// all-scalar discipline as RadialParams: NO packed_float3 in a cbuffer, so zero alignment
+// traps; the shader reassembles float3(DirX,DirY,DirZ). The .hlsl declares Direction first,
+// but cbuffer field ORDER is irrelevant once both sides agree on this struct (it IS the
+// contract); we lead with the scalars so the layout reads like TurbParams. NO field path
+// (DirectionalForce.hlsl has none) — a plain directional push.
+struct DirForceParams {
+  float DirX;
+  float DirY;
+  float DirZ;
+  float Amount;
+  float RandomAmount;
+  float SpeedFactor;
+#ifdef __METAL_VERSION__
+  uint Count;
+#else
+  uint32_t Count;
+#endif
+  float _pad;  // -> 32 bytes
+};
+
+// VectorFieldForce params — mirrors VectorFieldForce-sg.hlsl cbuffer Params (b0):
+//   float Amount; float Variation;  (+ ParticleCount from b2). NO ShaderGraph field bound
+// (fork-VFF, see below): GetField() returns f=1, so the field vector is the constant (1,1,1)
+// and field.w==1. The shader bakes that default; Amount/Variation/SpeedFactor stay live.
+struct VecFieldForceParams {
+  float Amount;
+  float Variation;
+  float SpeedFactor;
+#ifdef __METAL_VERSION__
+  uint Count;
+#else
+  uint32_t Count;
+#endif
+};
+
 enum ForceBinding {
-  FORCE_Particles = 0,  // device Particle* (u0)
-  FORCE_Params = 1,     // constant TurbParams& (b0)
+  FORCE_Particles = 0,  // device Particle* (u0) — shared by all force kernels
+  FORCE_Params = 1,     // constant {Turb,DirForce,VecFieldForce}Params& (b0)
+};
+
+// Force-op discriminator. A ParticleForce node carries a pinless `_ForceKind` Float whose spec
+// default tags which kernel cookParticleSim dispatches for the wired force (the cook ctx hides
+// node TYPE on purpose — ops are graph-agnostic — so the kind travels through the param map,
+// the only channel available). Absent/0 -> Turbulence keeps every pre-existing graph correct.
+enum ForceKind {
+  FORCE_KIND_TURBULENCE = 0,
+  FORCE_KIND_DIRECTIONAL = 1,
+  FORCE_KIND_VECTORFIELD = 2,
 };
 
 // RadialPoints emitter — generates a ring of Points to feed ParticleSystem.
@@ -194,6 +242,8 @@ enum DrawBinding {
 
 #ifndef __METAL_VERSION__
 static_assert(sizeof(TurbParams) == 32, "TurbParams 32 bytes");
+static_assert(sizeof(DirForceParams) == 32, "DirForceParams 32 bytes");
+static_assert(sizeof(VecFieldForceParams) == 16, "VecFieldForceParams 16 bytes");
 static_assert(sizeof(EmitParams) == 16, "EmitParams 16 bytes");
 static_assert(sizeof(RadialParams) == 48, "RadialParams 48 bytes");
 #endif

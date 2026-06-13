@@ -92,7 +92,9 @@ MTL::ComputePipelineState* makeComputePSO(MTL::Device* dev, MTL::Library* lib, c
 // seeded flag. Lives across frames via PointGraph's per-node state.
 struct SimState {
   MTL::Buffer* particles = nullptr;  // Particle[poolCount], persists across frames (cycle buffer)
-  MTL::ComputePipelineState* psoTurb = nullptr;
+  MTL::ComputePipelineState* psoTurb = nullptr;   // FORCE_KIND_TURBULENCE
+  MTL::ComputePipelineState* psoDir = nullptr;    // FORCE_KIND_DIRECTIONAL
+  MTL::ComputePipelineState* psoVecField = nullptr;  // FORCE_KIND_VECTORFIELD
   MTL::ComputePipelineState* psoSim = nullptr;
   bool seeded = false;
   uint32_t frame = 0;                // monotonic step head -> CollectCycleIndex
@@ -101,7 +103,11 @@ void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count) {
   SimState* s = new SimState();
   s->particles = dev->newBuffer((NS::UInteger)(count > 0 ? count : 1) * sizeof(Particle),
                                 MTL::ResourceStorageModeShared);
+  // One PSO per force kernel — cached once per node, selected per-frame by the wired force's
+  // _ForceKind (a force is an input; the system runs whichever kernel it carries).
   s->psoTurb = makeComputePSO(dev, lib, "turbulence_force");
+  s->psoDir = makeComputePSO(dev, lib, "directional_force");
+  s->psoVecField = makeComputePSO(dev, lib, "vector_field_force");
   s->psoSim = makeComputePSO(dev, lib, "particle_sim");
   return s;
 }
@@ -110,6 +116,8 @@ void simStateFree(void* p) {
   if (!s) return;
   if (s->particles) s->particles->release();
   if (s->psoTurb) s->psoTurb->release();
+  if (s->psoDir) s->psoDir->release();
+  if (s->psoVecField) s->psoVecField->release();
   if (s->psoSim) s->psoSim->release();
   delete s;
 }
@@ -131,8 +139,10 @@ void cookParticleSim(PointCookCtx& c) {
   const float drag = cookParam(c, "Drag", 0.02f);
   // forces = buffer input 1 (spec order: emit, forces). Wired iff its params map is present.
   const bool hasForce = c.inputParams && c.inputCount > 1 && c.inputParams[1] != nullptr;
-  const float turbAmt = cookInputParam(c, 1, "Amount", 15.0f);
-  const float turbFreq = cookInputParam(c, 1, "Frequency", 1.2f);
+  // _ForceKind tags which kernel the wired force runs (particle_params.h ForceKind). The cook
+  // ctx hides node TYPE (ops are graph-agnostic), so the kind travels in the force's param map;
+  // absent/0 -> Turbulence (every pre-existing TurbulenceForce graph stays correct).
+  const int forceKind = (int)(cookInputParam(c, 1, "_ForceKind", (float)FORCE_KIND_TURBULENCE) + 0.5f);
   const float time = c.ctx->time;
   // pool = this node's (remapped) count; emit ring = the wired emit bag's count. pool > emit
   // is what lets the cycle buffer rotate (particle_params.h: the recycle parity gap).
@@ -165,17 +175,46 @@ void cookParticleSim(PointCookCtx& c) {
     return;
   }
   ++s->frame;                                  // advance CollectCycleIndex one emit block
-  if (hasForce) {  // turbulence: vel += curlNoise (only when a force is wired in)
-    TurbParams tp{};
-    tp.Amount = turbAmt; tp.Frequency = turbFreq; tp.Phase = time; tp.Variation = 0.0f;
-    tp.SpeedFactor = 1.0f; tp.VariationGroupCount = 0.0f; tp.Count = pool;
-    MTL::CommandBuffer* cmd = c.queue->commandBuffer();
-    MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
-    enc->setComputePipelineState(s->psoTurb);
-    enc->setBuffer(s->particles, 0, FORCE_Particles);
-    enc->setBytes(&tp, sizeof(tp), FORCE_Params);
-    enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(pool, tg), 1, 1), MTL::Size::Make(tg, 1, 1));
-    enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
+  if (hasForce) {  // a force is an input (TiXL): run whichever kernel its _ForceKind selects.
+    // Dispatch helper — every force kernel shares the FORCE_Particles/FORCE_Params binding, so
+    // only the PSO + the bytes blob differ. SpeedFactor is the system's global speed multiplier
+    // (== the legacy turbulence pass's hardcoded 1.0; no field/speed context in the cook).
+    auto runForce = [&](MTL::ComputePipelineState* pso, const void* params, size_t size) {
+      if (!pso) return;
+      MTL::CommandBuffer* cmd = c.queue->commandBuffer();
+      MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
+      enc->setComputePipelineState(pso);
+      enc->setBuffer(s->particles, 0, FORCE_Particles);
+      enc->setBytes(params, size, FORCE_Params);
+      enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(pool, tg), 1, 1),
+                                MTL::Size::Make(tg, 1, 1));
+      enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
+    };
+    if (forceKind == FORCE_KIND_DIRECTIONAL) {
+      // Defaults = TiXL DirectionalForce.t3: Direction=(0,-1,0) push down, Amount=0.007.
+      DirForceParams dp{};
+      dp.DirX = cookInputParam(c, 1, "Direction.x", 0.0f);
+      dp.DirY = cookInputParam(c, 1, "Direction.y", -1.0f);
+      dp.DirZ = cookInputParam(c, 1, "Direction.z", 0.0f);
+      dp.Amount = cookInputParam(c, 1, "Amount", 0.007f);
+      dp.RandomAmount = cookInputParam(c, 1, "RandomAmount", 0.0f);
+      dp.SpeedFactor = 1.0f; dp.Count = pool;
+      runForce(s->psoDir, &dp, sizeof(dp));
+    } else if (forceKind == FORCE_KIND_VECTORFIELD) {
+      // Defaults = TiXL VectorFieldForce.t3: Amount=1.0, Randomize=0.0.
+      VecFieldForceParams vp{};
+      vp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
+      vp.Variation = cookInputParam(c, 1, "Randomize", 0.0f);  // TiXL slot name "Randomize"
+      vp.SpeedFactor = 1.0f; vp.Count = pool;
+      runForce(s->psoVecField, &vp, sizeof(vp));
+    } else {  // FORCE_KIND_TURBULENCE (default)
+      TurbParams tp{};
+      tp.Amount = cookInputParam(c, 1, "Amount", 15.0f);
+      tp.Frequency = cookInputParam(c, 1, "Frequency", 1.2f);
+      tp.Phase = time; tp.Variation = 0.0f;
+      tp.SpeedFactor = 1.0f; tp.VariationGroupCount = 0.0f; tp.Count = pool;
+      runForce(s->psoTurb, &tp, sizeof(tp));
+    }
   }
   integrate(/*emit=*/true, /*reset=*/false);   // per-frame emit + drag/integrate -> result
 }

@@ -23,6 +23,12 @@ int runDrawOpSelfTest(bool injectBug);
 // Golden proof of the ParticleSystem sim op: cook RadialPoints->ParticleSystem(sim)->capture,
 // step N frames, assert turbulence pushed points off the ring. injectBug (Amount=0) -> no flow.
 int runSimOpSelfTest(bool injectBug);
+// DirectionalForce golden (particle-force lane): a constant Direction=(0,-1,0) push drags the
+// pool's center-of-mass down (meanY<0). injectBug (Amount=0) -> symmetric ring -> FAIL.
+int runDirectionalForceSelfTest(bool injectBug);
+// VectorFieldForce golden (particle-force lane, fork-VFF): no field bound -> constant (1,1,1)
+// push -> the pool drifts diagonally (every mean component >0 + isotropic). injectBug Amount=0 -> FAIL.
+int runVectorFieldForceSelfTest(bool injectBug);
 // LinePoints generator golden (point_ops_linepoints.cpp). injectBug = real degeneracy.
 int runLinePointsSelfTest(bool injectBug);
 // GridPoints generator golden (point_ops_gridpoints.cpp). injectBug = real degeneracy.

@@ -262,4 +262,98 @@ int runSimOpSelfTest(bool injectBug) {
   return pass ? 0 : 1;
 }
 
+// Shared force-op golden body: cook RadialPoints -> ParticleSystem(forceType wired) -> capture,
+// step N frames, return the mean position of the live pool. The force pushes particles in a
+// known direction; each force's own assertion checks the mean shifted that way (deterministic —
+// the force is constant, so the pool's center-of-mass tracks it). injectBug sets Amount=0 so the
+// pass leaves the ring symmetric (mean ~ 0) and the directional assertion FAILs. forceType is
+// the NodeSpec type string ("DirectionalForce"/"VectorFieldForce"); the wired node's params map
+// (incl. its pinless _ForceKind default) selects the kernel in cookParticleSim.
+namespace {
+struct ForceMean { float mx, my, mz; size_t n; };
+ForceMean cookForceMean(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
+                        const char* forceType, float amount, uint32_t N, int steps) {
+  registerBuiltinPointOps();
+  std::vector<SwPoint> captured;
+  g_cap = &captured;
+  registerDrawOp("DrawPoints", captureDraw);
+  PointGraph pg(dev, lib, q, 64, 64);
+
+  Graph g;
+  Node gen; gen.id = 1; gen.type = "RadialPoints";
+  gen.params["Count"] = (float)N; gen.params["Radius"] = 2.0f;
+  Node sim; sim.id = 2; sim.type = "ParticleSystem";
+  Node force; force.id = 4; force.type = forceType;
+  force.params["Amount"] = amount;  // the only knob the test drives; _ForceKind = spec default
+  Node drw; drw.id = 3; drw.type = "DrawPoints";
+  g.nodes.push_back(gen); g.nodes.push_back(sim); g.nodes.push_back(force); g.nodes.push_back(drw);
+  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // RadialPoints.points -> emit
+  g.connections.push_back({102, pinId(4, 0), pinId(2, 1)});  // <force>.force -> forces
+  g.connections.push_back({103, pinId(2, 2), pinId(3, 0)});  // result -> DrawPoints
+
+  const int targetId = pg.defaultDrawTarget(g);
+  for (int i = 0; i < steps; ++i) {
+    EvaluationContext ctx{};
+    ctx.frameIndex = (uint32_t)i; ctx.time = 0.05f * (float)i; ctx.deltaTime = 1.0f / 60.0f;
+    pg.cook(g, ctx, nullptr, targetId);
+  }
+  double sx = 0, sy = 0, sz = 0; size_t n = 0;
+  for (const SwPoint& p : captured) {
+    if (std::isnan(p.Position.x) || std::isnan(p.Position.y) || std::isnan(p.Position.z)) continue;
+    sx += p.Position.x; sy += p.Position.y; sz += p.Position.z; ++n;
+  }
+  g_cap = nullptr;
+  if (n == 0) return {0, 0, 0, 0};
+  return {(float)(sx / n), (float)(sy / n), (float)(sz / n), n};
+}
+}  // namespace
+
+// DirectionalForce golden: a constant push along the (default) Direction=(0,-1,0) drags the
+// pool's center-of-mass DOWN (mean Y << 0). injectBug Amount=0 -> no push -> ring stays
+// symmetric (|mean Y| ~ 0) -> the assertion FAILs (RED). Direction default is faithful to
+// DirectionalForce.t3; the test drives only Amount (large, to clear drag over the window).
+int runDirectionalForceSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  MTL::Library* lib = loadLib(dev);
+  if (!lib) { printf("[selftest-directionalforce] FAIL: no metallib\n");
+              q->release(); dev->release(); pool->release(); return 1; }
+
+  ForceMean m = cookForceMean(dev, q, lib, "DirectionalForce", injectBug ? 0.0f : 60.0f, 1024, 30);
+  // Default Direction=(0,-1,0): the force is purely -Y, so the signal is meanY (X/Z stay ~0).
+  bool pass = m.n > 0 && m.my < -0.05f;
+  printf("[selftest-directionalforce] n=%zu meanPos=(%.3f,%.3f,%.3f) (need meanY<-0.05) amt=%.0f -> %s\n",
+         m.n, m.mx, m.my, m.mz, injectBug ? 0.0f : 60.0f, pass ? "PASS" : "FAIL");
+
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
+// VectorFieldForce golden: with no field bound (fork-VFF), GetField()=(1,1,1,1), so the force is
+// a constant diagonal (1,1,1) push -> the pool's center-of-mass drifts along +X+Y+Z equally
+// (each mean component > 0, and they track each other). injectBug Amount=0 -> no drift -> means
+// stay ~0 -> FAILs (RED). This asserts BOTH the magnitude AND the diagonal isotropy ((1,1,1)).
+int runVectorFieldForceSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  MTL::Library* lib = loadLib(dev);
+  if (!lib) { printf("[selftest-vectorfieldforce] FAIL: no metallib\n");
+              q->release(); dev->release(); pool->release(); return 1; }
+
+  ForceMean m = cookForceMean(dev, q, lib, "VectorFieldForce", injectBug ? 0.0f : 6.0f, 1024, 30);
+  // (1,1,1) push: every component drifts positive AND they stay close to each other (isotropy).
+  bool drifted = m.n > 0 && m.mx > 0.05f && m.my > 0.05f && m.mz > 0.05f;
+  float spread = std::fmax(std::fmax(std::fabs(m.mx - m.my), std::fabs(m.my - m.mz)),
+                           std::fabs(m.mx - m.mz));
+  bool isotropic = spread < 0.5f * std::fabs(m.mx);  // components track (1,1,1), not one axis
+  bool pass = drifted && isotropic;
+  printf("[selftest-vectorfieldforce] n=%zu meanPos=(%.3f,%.3f,%.3f) spread=%.3f (need all>0.05 & iso) amt=%.0f -> %s\n",
+         m.n, m.mx, m.my, m.mz, spread, injectBug ? 0.0f : 6.0f, pass ? "PASS" : "FAIL");
+
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
 }  // namespace sw

@@ -83,6 +83,42 @@ int runSaveV2SelfTest(bool injectBug) {
                   back.symbols["Const"].outputDefs.size() == 1 &&
                   j1.find("\"Const\"") == std::string::npos;  // atomics not serialized
 
+  // Particle-force lane: the new force types serialize via the same atomicUuidTable path as
+  // TurbulenceForce (their params ride the generic child `overrides` map, already round-trip
+  // proven above). The load-bearing new state is the UUID<->type mapping; assert it round-trips
+  // for both new types (a rename of the C++ string must keep old files loading). distinct = no
+  // accidental UUID collision with each other / TurbulenceForce.
+  bool forceUuidOk =
+      typeForAtomicUuid(atomicUuidForType("DirectionalForce")) == "DirectionalForce" &&
+      typeForAtomicUuid(atomicUuidForType("VectorFieldForce")) == "VectorFieldForce" &&
+      atomicUuidForType("DirectionalForce") != atomicUuidForType("VectorFieldForce") &&
+      atomicUuidForType("DirectionalForce") != atomicUuidForType("TurbulenceForce");
+  // The DirectionalForce child's edited params (Amount + a Vec component) survived the round-
+  // trip — the force param serialization the lane delivers. children[3] is the df child above.
+  // Force param round-trip — a standalone mini-lib (kept off the shared `root` lib so the
+  // tolerance test's token-position assumptions stay intact). A DirectionalForce child with an
+  // edited Amount + a Vec component (Direction.y) must survive save->reload via the generic
+  // `overrides` map (the force param spine). On reload the atomic UUID resolves back to the type
+  // string, so the symbolId is "DirectionalForce".
+  bool forceParamOk = false;
+  {
+    SymbolLibrary fl;
+    fl.symbols["DirectionalForce"] = atomicSymbolFromSpec(*findSpec("DirectionalForce"));
+    Symbol fr; fr.id = "FRoot"; fr.name = "FRoot"; fr.atomic = false;
+    SymbolChild df; df.id = 1; df.symbolId = "DirectionalForce";
+    df.overrides["Amount"] = 0.42f; df.overrides["Direction.y"] = -0.5f;
+    fr.children = {df};
+    fl.symbols[fr.id] = fr; fl.rootId = "FRoot";
+    SymbolLibrary fb; std::vector<std::string> fw;
+    if (libFromJsonAny(libToJsonV2(fl), fb, &fw) && fb.find("FRoot") &&
+        fb.symbols["FRoot"].children.size() == 1) {
+      const SymbolChild& rc = fb.symbols["FRoot"].children[0];
+      forceParamOk = rc.symbolId == "DirectionalForce" &&
+                     rc.overrides.count("Amount") && rc.overrides.at("Amount") == 0.42f &&
+                     rc.overrides.count("Direction.y") && rc.overrides.at("Direction.y") == -0.5f;
+    }
+  }
+
   // --- 3: legacy v1 migration ---
   Graph flat = defaultParticleGraph();
   SymbolLibrary mig;
@@ -197,13 +233,13 @@ int runSaveV2SelfTest(bool injectBug) {
     cjkOk = cjkOk && emojiLoaded && emoji.find("R") && emoji.symbols["R"].name == "😀";
   }
 
-  bool pass = loadOk && byteStable && evalOk && reuseOk && atomicOk && migOk && tolOk &&
-              nanOk && oddOk && nsOk && cjkOk;
+  bool pass = loadOk && byteStable && evalOk && reuseOk && atomicOk && forceUuidOk &&
+              forceParamOk && migOk && tolOk && nanOk && oddOk && nsOk && cjkOk;
   printf("[selftest-savev2] roundtrip(byte=%d eval %.0f==%.0f)=%d reuse=%d atomicRegen=%d "
-         "legacyMig(%zu ch/%zu wires)=%d tolerance(drop child+wire, %zu warns)=%d "
+         "forceUuid=%d forceParam=%d legacyMig(%zu ch/%zu wires)=%d tolerance(drop child+wire, %zu warns)=%d "
          "nanClamp=%d oddIdSemantic=%d nsNoHijack=%d cjk=%d -> %s\n",
          byteStable ? 1 : 0, v0, v1, (loadOk && evalOk) ? 1 : 0, reuseOk ? 1 : 0,
-         atomicOk ? 1 : 0, mroot ? mroot->children.size() : 0,
+         atomicOk ? 1 : 0, forceUuidOk ? 1 : 0, forceParamOk ? 1 : 0, mroot ? mroot->children.size() : 0,
          mroot ? mroot->connections.size() : 0, migOk ? 1 : 0, warn3.size(), tolOk ? 1 : 0,
          nanOk ? 1 : 0, oddOk ? 1 : 0, nsOk ? 1 : 0, cjkOk ? 1 : 0, pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;

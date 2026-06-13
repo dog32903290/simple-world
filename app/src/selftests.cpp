@@ -160,6 +160,8 @@ const SelfTest kTable[] = {
     {"radialcenter", runRadialCenterSelfTest},
     {"drawop", runDrawOpSelfTest},
     {"simop", runSimOpSelfTest},
+    {"directionalforce", runDirectionalForceSelfTest},
+    {"vectorfieldforce", runVectorFieldForceSelfTest},
     {"linepoints", runLinePointsSelfTest},
     {"gridpoints", runGridPointsSelfTest},
     {"spherepoints", runSpherePointsSelfTest},

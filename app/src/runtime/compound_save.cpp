@@ -28,6 +28,8 @@ const std::map<std::string, std::string>& atomicUuidTable() {
       {"SetPointAttributes", "3e60c2f8-71a9-4d35-82eb-c49d08361108"},
       {"CombineBuffers", "ad95e041-b37f-4628-95a2-16e83c7d2209"},
       {"TurbulenceForce", "61f8ba2d-c490-47e1-8d53-a02b9e64330a"},
+      {"DirectionalForce", "980b71de-9502-44b1-8b93-21c7e6c47bb2"},
+      {"VectorFieldForce", "1595572f-adcd-4146-9e39-3778104847e9"},
       {"ParticleSystem", "f04c79e6-25d1-4b98-ae37-68915cfa440b"},
       {"DrawPoints", "7a2e58c1-9f06-4374-b1d9-3ce5a0b2550c"},
       {"RenderTarget", "c8b1f3a7-46e2-4d09-92c5-eb7480d3660d"},
