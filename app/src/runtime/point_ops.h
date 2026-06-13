@@ -29,6 +29,11 @@ int runDirectionalForceSelfTest(bool injectBug);
 // VectorFieldForce golden (particle-force lane, fork-VFF): no field bound -> constant (1,1,1)
 // push -> the pool drifts diagonally (every mean component >0 + isotropic). injectBug Amount=0 -> FAIL.
 int runVectorFieldForceSelfTest(bool injectBug);
+// REFUTER-F probe (assertion 2 cook side): drive an OUT-OF-RANGE _ForceKind (99 / -5, as a
+// corrupted .swproj would) into a DirectionalForce node and cook — proves no crash / no OOB
+// kernel; an unrecognized kind falls to the turbulence else (bounded misroute). injectBug makes
+// kind=99 the working directional value -> the "fell to turbulence" assertion FAILS (teeth).
+int runForceKindOobSelfTest(bool injectBug);
 // LinePoints generator golden (point_ops_linepoints.cpp). injectBug = real degeneracy.
 int runLinePointsSelfTest(bool injectBug);
 // GridPoints generator golden (point_ops_gridpoints.cpp). injectBug = real degeneracy.

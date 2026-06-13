@@ -60,4 +60,10 @@ int runSaveV2SelfTest(bool injectBug);
 // injectBug pollutes the definition so isolation breaks -> FAILS (teeth).
 int runTestProjSelfTest(bool injectBug);
 
+// REFUTER-F probe (批次16 Lane F assertion 2): does the pinless `_ForceKind` discriminator leak
+// to a user-corruptable surface via .swproj? Asserts it is NOT serialized at the spawn default,
+// that a hand-corrupted `_ForceKind=99` override loads UNCLAMPED (documents the load gap), and
+// that a non-numeric override is dropped. See compound_save_selftest.cpp for the three sub-checks.
+int runForceKindCorruptProbe(bool injectBug);
+
 }  // namespace sw

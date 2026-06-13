@@ -29,8 +29,12 @@ namespace sw::ui {
 // ---------------------------------------------------------------------------
 static bool rectsOverlap(const ImVec2& aMin, const ImVec2& aMax,
                          const ImVec2& bMin, const ImVec2& bMax) {
-  if (aMax.x < bMin.x || bMax.x < aMin.x) return false;
-  if (aMax.y < bMin.y || bMax.y < aMin.y) return false;
+  // Strict overlap, matching imgui ImRect::Overlaps (imgui_internal.h) — which the vendored
+  // node-editor's fence uses to commit the selection on release. Edge-touch (a.Max == b.Min)
+  // is NOT an overlap, so the drag preview stays byte-consistent with what release commits
+  // (refuter-檢核 R-檢-1: non-strict < here disagreed with ed's strict commit on edge-touch).
+  if (aMax.x <= bMin.x || bMax.x <= aMin.x) return false;
+  if (aMax.y <= bMin.y || bMax.y <= aMin.y) return false;
   return true;
 }
 
@@ -149,7 +153,7 @@ int runFenceSelfTest(bool injectBug) {
   const Case cases[] = {
       {{10, 10}, {40, 40},   true,  "fully inside"},
       {{80, 80}, {140, 140}, true,  "partial corner overlap"},
-      {{-20, 40}, {0, 60},   true,  "edge-touch on the left (x: -20..0 meets 0)"},
+      {{-20, 40}, {0, 60},   false, "edge-touch on the left (x: -20..0 meets 0) — strict: NOT overlap"},
       {{200, 0}, {260, 100}, false, "clearly to the right (gap on x)"},
       {{0, 200}, {100, 260}, false, "clearly below (gap on y)"},
       {{-60, -60}, {-10, -10}, false, "clearly above-left"},

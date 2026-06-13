@@ -254,8 +254,17 @@ int runSimOpSelfTest(bool injectBug) {
   // not the emit ring — the cycle buffer that makes recycling possible (batch-6 decay fix).
   const uint32_t expectPool = particlePoolCount(N);
   bool pass = captured.size() == expectPool && maxDev > 0.1f;  // turbulence flowed off the ring
-  printf("[selftest-simop] n=%zu(pool want %u) steps=%d maxDevFromRing=%.4f(need>0.1) amt=%.0f -> %s\n",
-         captured.size(), expectPool, STEPS, maxDev, injectBug ? 0.0f : 15.0f, pass ? "PASS" : "FAIL");
+  // REFUTER-F probe (byte-equivalence差分): a high-precision checksum of the FULL captured
+  // turbulence buffer. Identical between parent 4742203 (old inline turbulence) and HEAD
+  // (new _ForceKind else-branch) iff the turbulence path is byte-equivalent. Not asserted —
+  // diffed across builds by the refuter. Sum-of-bits is order-stable (capture order fixed).
+  unsigned long long chk = 1469598103934665603ULL;  // FNV-1a over raw position bytes
+  for (const SwPoint& p : captured) {
+    const unsigned char* b = reinterpret_cast<const unsigned char*>(&p.Position);
+    for (size_t k = 0; k < 3 * sizeof(float); ++k) { chk ^= b[k]; chk *= 1099511628211ULL; }
+  }
+  printf("[selftest-simop] n=%zu(pool want %u) steps=%d maxDevFromRing=%.4f(need>0.1) amt=%.0f chk=%016llx -> %s\n",
+         captured.size(), expectPool, STEPS, maxDev, injectBug ? 0.0f : 15.0f, chk, pass ? "PASS" : "FAIL");
 
   g_cap = nullptr;
   lib->release(); q->release(); dev->release(); pool->release();
@@ -351,6 +360,76 @@ int runVectorFieldForceSelfTest(bool injectBug) {
   bool pass = drifted && isotropic;
   printf("[selftest-vectorfieldforce] n=%zu meanPos=(%.3f,%.3f,%.3f) spread=%.3f (need all>0.05 & iso) amt=%.0f -> %s\n",
          m.n, m.mx, m.my, m.mz, spread, injectBug ? 0.0f : 6.0f, pass ? "PASS" : "FAIL");
+
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
+// REFUTER-F probe (批次16 Lane F assertion 2 — cook side of the corruption path). A .swproj can be
+// hand-edited / corrupted to carry an OUT-OF-RANGE `_ForceKind` override (compound_load keeps it
+// UNCLAMPED; proven by forcekindcorrupt). This drives that value into the runtime Node.params and
+// cooks a DirectionalForce, asking: does an out-of-range kind CRASH or select an out-of-bounds
+// kernel? It does NOT — cookParticleSim's dispatch is `if(==DIR) elif(==VECFIELD) else{turbulence}`,
+// so ANY unrecognized kind falls to the turbulence else (a safe, bounded MISROUTE: a DirectionalForce
+// graph silently runs turbulence). This probe proves no-crash AND documents that misroute.
+namespace {
+// Cook a DirectionalForce with an explicit _ForceKind override + a strong down-push Amount; return
+// meanY of the live pool. Direction default (0,-1,0) -> a working directional pass drags meanY << 0.
+float cookDirForceKindMeanY(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, float forceKind) {
+  registerBuiltinPointOps();
+  std::vector<SwPoint> captured;
+  g_cap = &captured;
+  registerDrawOp("DrawPoints", captureDraw);
+  PointGraph pg(dev, lib, q, 64, 64);
+  Graph g;
+  Node gen; gen.id = 1; gen.type = "RadialPoints";
+  gen.params["Count"] = 1024.0f; gen.params["Radius"] = 2.0f;
+  Node sim; sim.id = 2; sim.type = "ParticleSystem";
+  Node force; force.id = 4; force.type = "DirectionalForce";
+  force.params["Amount"] = 60.0f;            // strong push so the signal clears drag
+  force.params["_ForceKind"] = forceKind;    // <-- the corrupted discriminator under test
+  Node drw; drw.id = 3; drw.type = "DrawPoints";
+  g.nodes.push_back(gen); g.nodes.push_back(sim); g.nodes.push_back(force); g.nodes.push_back(drw);
+  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});
+  g.connections.push_back({102, pinId(4, 0), pinId(2, 1)});
+  g.connections.push_back({103, pinId(2, 2), pinId(3, 0)});
+  const int targetId = pg.defaultDrawTarget(g);
+  for (int i = 0; i < 30; ++i) {
+    EvaluationContext ctx{};
+    ctx.frameIndex = (uint32_t)i; ctx.time = 0.05f * (float)i; ctx.deltaTime = 1.0f / 60.0f;
+    pg.cook(g, ctx, nullptr, targetId);
+  }
+  double sy = 0; size_t n = 0;
+  for (const SwPoint& p : captured)
+    if (!std::isnan(p.Position.y)) { sy += p.Position.y; ++n; }
+  g_cap = nullptr;
+  return n ? (float)(sy / n) : 0.0f;
+}
+}  // namespace
+
+int runForceKindOobSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  MTL::Library* lib = loadLib(dev);
+  if (!lib) { printf("[selftest-forcekindoob] FAIL: no metallib\n");
+              q->release(); dev->release(); pool->release(); return 1; }
+
+  // kind=1 (DIRECTIONAL): the down-push works -> meanY << 0 (the control).
+  float yDir = cookDirForceKindMeanY(dev, q, lib, 1.0f);
+  // kind=99 (corrupt high): unrecognized -> falls to turbulence else -> NOT a directional down-push
+  // -> meanY ~ 0 (turbulence is symmetric about the ring). No crash = we returned at all.
+  float y99 = cookDirForceKindMeanY(dev, q, lib, injectBug ? 1.0f : 99.0f);
+  // kind=-5 (corrupt negative): (int)(-5+0.5) = -4 -> else -> turbulence. No crash.
+  float yNeg = cookDirForceKindMeanY(dev, q, lib, -5.0f);
+
+  bool dirWorks = yDir < -0.05f;                 // kind=1 really pushes down (sanity control)
+  bool oobIsTurbulence = std::fabs(y99) < 0.05f; // kind=99 misroutes to symmetric turbulence
+  bool negIsTurbulence = std::fabs(yNeg) < 0.05f;
+  bool pass = dirWorks && oobIsTurbulence && negIsTurbulence;  // injectBug makes y99 a down-push -> FAIL
+  printf("[selftest-forcekindoob] meanY: kind1=%.3f(need<-.05) kind99=%.3f(need~0, fell to turb) "
+         "kindNeg=%.3f(need~0) NO-CRASH -> %s\n",
+         yDir, y99, yNeg, pass ? "PASS" : "FAIL");
 
   lib->release(); q->release(); dev->release(); pool->release();
   return pass ? 0 : 1;

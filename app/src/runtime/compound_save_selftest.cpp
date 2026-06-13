@@ -245,4 +245,65 @@ int runSaveV2SelfTest(bool injectBug) {
   return pass ? 0 : 1;
 }
 
+// REFUTER-F probe (批次16 Lane F, assertion 2 — does `_ForceKind` leak to a user-corruptable
+// surface via .swproj?). Three serialization-面 checks, NOT a feature test:
+//   A. A DirectionalForce child with EMPTY overrides (the spawn state) must NOT emit `_ForceKind`
+//      into the file — the discriminator lives in the NodeSpec default, not the child overrides.
+//   B. If a hand-edited / corrupted file DOES carry `overrides["_ForceKind"]`, the loader keeps
+//      it. Probe whether the loaded value is range-CLAMPED to the port's [0,2] (it is NOT — load
+//      copies the number verbatim, compound_load.cpp:235), so a `99` survives into the model.
+//   C. A garbage NON-numeric `_ForceKind` override is dropped by the loader's is_number guard.
+// injectBug flips A's expectation (pretend leaking is fine) so the assertion FAILs (teeth).
+int runForceKindCorruptProbe(bool injectBug) {
+  bool aHidden = false, bSurvivesUnclamped = false, cGarbageDropped = false;
+
+  // --- A: empty-override DirectionalForce must not serialize _ForceKind ---
+  {
+    SymbolLibrary fl;
+    fl.symbols["DirectionalForce"] = atomicSymbolFromSpec(*findSpec("DirectionalForce"));
+    Symbol fr; fr.id = "FRoot"; fr.name = "FRoot"; fr.atomic = false;
+    SymbolChild df; df.id = 1; df.symbolId = "DirectionalForce";  // NO overrides (spawn state)
+    fr.children = {df};
+    fl.symbols[fr.id] = fr; fl.rootId = "FRoot";
+    const std::string js = libToJsonV2(fl);
+    aHidden = js.find("_ForceKind") == std::string::npos;
+    if (injectBug) aHidden = js.find("_ForceKind") != std::string::npos;  // flip -> FAIL
+  }
+
+  // --- B: a corrupted file carrying _ForceKind=99 loads UNCLAMPED (越界值 survives) ---
+  {
+    SymbolLibrary fb; std::vector<std::string> fw;
+    const std::string corrupt =
+        "{\"formatVersion\": 2, \"rootSymbolId\": \"FR\", \"symbols\": ["
+        "{\"id\": \"FR\", \"name\": \"FR\", \"children\": ["
+        "{\"id\": 1, \"symbolId\": \"980b71de-9502-44b1-8b93-21c7e6c47bb2\","  // DirectionalForce UUID
+        " \"overrides\": {\"_ForceKind\": 99.0}}]}]}";
+    if (libFromJsonAny(corrupt, fb, &fw) && fb.find("FR") && fb.symbols["FR"].children.size() == 1) {
+      const SymbolChild& rc = fb.symbols["FR"].children[0];
+      // _ForceKind IS a real inputDef on DirectionalForce, so the loader's "known def" scrub keeps
+      // it; verbatim copy means 99, NOT clamped to the spec max (2.0). This documents the gap.
+      bSurvivesUnclamped = rc.symbolId == "DirectionalForce" &&
+                           rc.overrides.count("_ForceKind") && rc.overrides.at("_ForceKind") == 99.0f;
+    }
+  }
+
+  // --- C: a non-numeric _ForceKind override is dropped (is_number guard, compound_load.cpp:224) ---
+  {
+    SymbolLibrary fc; std::vector<std::string> fw;
+    const std::string garbage =
+        "{\"formatVersion\": 2, \"rootSymbolId\": \"GR\", \"symbols\": ["
+        "{\"id\": \"GR\", \"name\": \"GR\", \"children\": ["
+        "{\"id\": 1, \"symbolId\": \"980b71de-9502-44b1-8b93-21c7e6c47bb2\","
+        " \"overrides\": {\"_ForceKind\": \"haha\"}}]}]}";
+    if (libFromJsonAny(garbage, fc, &fw) && fc.find("GR") && fc.symbols["GR"].children.size() == 1)
+      cGarbageDropped = !fc.symbols["GR"].children[0].overrides.count("_ForceKind");
+  }
+
+  bool pass = aHidden && bSurvivesUnclamped && cGarbageDropped;
+  printf("[selftest-forcekindcorrupt] hiddenWhenDefault=%d corrupt99SurvivesUNCLAMPED=%d "
+         "garbageDropped=%d -> %s\n",
+         aHidden ? 1 : 0, bSurvivesUnclamped ? 1 : 0, cGarbageDropped ? 1 : 0, pass ? "PASS" : "FAIL");
+  return pass ? 0 : 1;
+}
+
 }  // namespace sw
