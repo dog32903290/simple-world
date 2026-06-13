@@ -38,6 +38,7 @@
 #include "selftests.h"
 #include "ui/cjk_font.h"
 #include "ui/editor_ui.h"
+#include "ui/fence_preview.h"  // fenceLastCoveredJson (eye state surface for the live .scn)
 #include "ui/output_window.h"
 #include "ui/timeline_window.h"
 #include "verify/eye/eye.h"
@@ -238,9 +239,12 @@ void Renderer::draw(MTK::View* pView) {
         ", \"rate\": " + std::to_string(sw::framecook::transportRate()) +
         ", \"bpm\": " + std::to_string(sw::framecook::transportBpm()) + "}";
     std::string s = "{\"selectedNode\": " + std::to_string(sw::ui::g_selectedNode) +
+                    ", \"pinnedNode\": " + std::to_string(sw::ui::g_pinnedNode) +
                     ", \"compositionPath\": " + comp +
                     ", \"transport\": " + transport +
                     ", \"timelineSelection\": " + sw::ui::timelineSelectionJson() +
+                    ", \"fenceActive\": " + (sw::ui::fenceActive() ? "true" : "false") +
+                    ", \"fenceLastCovered\": " + sw::ui::fenceLastCoveredJson() +
                     ", \"lib\": " + sw::libToJsonV2(sw::doc::g_lib) + "}";
     sw::eye::writeText("state.json", s.c_str());
   }

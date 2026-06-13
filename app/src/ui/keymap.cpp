@@ -390,6 +390,55 @@ static bool handleNavigateForward() {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// PinToOutputWindow (P) = pin the SELECTED node's output as the Output window's
+// display source (and the shell's cook target). TiXL FactoryKeyMap.cs:49
+//   new(UserActions.PinToOutputWindow, new KeyCombination(Key.P))
+// handled in MagGraph/Interaction/KeyboardActions.cs:75-90 ->
+//   NodeActions.PinSelectedToOutputWindow(NodeActions.cs:149-179):
+//     • >1 selected -> refuse ("Please select only one operator to pin")
+//     • 0 selected  -> PinInstance(compositionOp)  (pin the composition itself)
+//     • 1 selected  -> PinInstance(child)
+// We mirror the Output window's own Pin button (output_window.cpp:61-67): the pin
+// is the session-only g_pinnedNode (view ⊥ graph; never serialized). Setting it
+// changes BOTH the Output window's shown source (output_window.cpp:73-79) and the
+// shell's cook target (main.cpp:178). Toggle semantics match the button:
+//   selected != pinned  -> g_pinnedNode = g_selectedNode   (pin / switch)
+//   else (already pinned to it, or nothing usable to pin) -> g_pinnedNode = 0 (unpin)
+//
+// Named forks vs TiXL:
+//   • "no-FocusMode": TiXL P in FocusMode sets the BACKGROUND output instead
+//     (KeyboardActions.cs:77-83). We have no FocusMode, so P always pins.
+//   • "no-Cmd-P-background": TiXL Cmd+P / Cmd+Shift+P = DisplayImageAsBackground /
+//     ClearBackgroundImage (FactoryKeyMap.cs:50-51). Out of scope; we only bind bare P.
+//   • "single-select model": our canvas captures one selection id (g_selectedNode,
+//     editor_ui.cpp:454-456 reads sel[1]); TiXL's >1-selected refusal is structurally
+//     N/A here. 0-selected pins nothing (we have no composition-as-pinnable-node);
+//     instead 0-selected toggles unpin, matching the button's "Unpin" leg.
+// Pure toggle decision (testable, no imgui/globals): given the current selection and pin,
+// return the pin id P should produce. Mirrors output_window.cpp:61-67 exactly.
+//   selected present and != pinned -> pin/switch to selected
+//   else (already pinned to it, or nothing usable) -> unpin (0)
+static int pinTargetForP(int selectedNode, int pinnedNode) {
+  if (selectedNode != 0 && selectedNode != pinnedNode) return selectedNode;
+  if (pinnedNode != 0) return 0;
+  return pinnedNode;  // nothing selected and nothing pinned: no-op (stays 0)
+}
+
+static bool handlePinToOutput() {
+  // Bare P, no modifiers (FactoryKeyMap.cs:49 KeyCombination(Key.P) has no ctrl/shift/alt).
+  // Cmd+P / Cmd+Shift+P are TiXL background-image actions (out of scope) — exclude them.
+  const ImGuiIO& io = ImGui::GetIO();
+  if (io.KeyCtrl || io.KeyAlt || io.KeyShift) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_P, false)) return false;
+  const int next = pinTargetForP(g_selectedNode, g_pinnedNode);
+  if (next != g_pinnedNode) {
+    g_pinnedNode = next;
+    sw::doc::g_status = (next != 0) ? "pinned output" : "unpinned output";
+  }
+  return true;
+}
+
 static bool handleAddAnnotation() {
   // Shift+A = add annotation (TiXL FactoryKeyMap.cs:53, KeyActionHandling.cs:141 flags
   // NeedsWindowFocus|KeyPressOnly). Shift+A has NO Cmd, so it does not touch the Cmd<->Ctrl swap.
@@ -435,6 +484,8 @@ static const KeyEntry kKeyTable[] = {
     {"Duplicate",                   Context::CanvasFocus, handleDuplicate},
     {"FocusSelection",              Context::CanvasHover, handleFocusSelection},
     {"SearchGraph",                 Context::CanvasFocus, handleSearchGraph},
+    // --- Output pinning (TiXL FactoryKeyMap.cs:49; graph-window context) ---
+    {"PinToOutput",                 Context::CanvasFocus, handlePinToOutput},
     // --- Annotation (TiXL FactoryKeyMap.cs:53; CanvasFocus = NeedsWindowFocus) ---
     {"AddAnnotation",               Context::CanvasFocus, handleAddAnnotation},
 };
@@ -481,7 +532,8 @@ void processFrame() {
 //   1. Every row has a non-null handler (completeness).
 //   2. Every row has a non-empty label (readable diagnostics).
 //   3. No two rows with the same label (unique identity).
-//   4. injectBug: inject one null handler -> expect FAIL (red-proof).
+//   4. PinToOutput (P) toggle truth table — pinTargetForP (= output_window.cpp:61-67).
+//   5. injectBug: a wrong pin-switch answer AND a synthetic null handler -> expect FAIL.
 int runKeymapSelfTest(bool injectBug) {
   int fail = 0;
 
@@ -507,6 +559,26 @@ int runKeymapSelfTest(bool injectBug) {
                     kKeyTable[i].label, i, j);
         ++fail;
       }
+    }
+  }
+
+  // PinToOutput (P) toggle truth table — pure decision pinTargetForP (= output_window.cpp:61-67).
+  // injectBug flips the "switch to a different selected node" case to a wrong answer.
+  struct PinCase { int sel, pin, want; const char* note; };
+  const PinCase pinCases[] = {
+      {2, 0, 2, "select 2, unpinned -> pin 2"},
+      {3, 2, 3, "select 3 while pinned to 2 -> switch to 3"},
+      {2, 2, 0, "select == pinned -> unpin"},
+      {0, 2, 0, "nothing selected, pinned to 2 -> unpin"},
+      {0, 0, 0, "nothing selected, nothing pinned -> no-op"},
+  };
+  for (const PinCase& c : pinCases) {
+    int got = pinTargetForP(c.sel, c.pin);
+    if (injectBug && c.sel == 3 && c.pin == 2) got = c.pin;  // BUG: fail to switch to the new selection
+    if (got != c.want) {
+      std::printf("[keymap] pinTargetForP(sel=%d,pin=%d)=%d expect=%d (%s) -> FAIL\n",
+                  c.sel, c.pin, got, c.want, c.note);
+      ++fail;
     }
   }
 

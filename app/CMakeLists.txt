@@ -96,6 +96,7 @@ add_executable(simple_world
   src/app/menu.cpp
   src/ui/cjk_font.cpp
   src/ui/canvas_ids.cpp
+  src/ui/fence_preview.cpp
   src/ui/editor_ui.cpp
   src/ui/toolbar.cpp
   src/ui/combine_dialog.cpp

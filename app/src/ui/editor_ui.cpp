@@ -9,6 +9,7 @@
 #include "ui/canvas_ids.h"  // pin/link/boundary id scheme (mechanical split, rule 4)
 #include "ui/combine_dialog.h"
 #include "ui/copy_paste_ui.h"
+#include "ui/fence_preview.h"  // live rubber-band selection highlight (TiXL SelectionFence)
 #include "ui/keymap.h"
 #include "ui/node_draw.h"
 #include "ui/node_style.h"  // V1 grid color helpers, V2 connection line colors
@@ -143,6 +144,12 @@ void drawNodeCanvas() {
   bool hostOpen = ImGui::Begin("##canvas_host", nullptr, hostFlags);
   ImGui::PopStyleVar();
 
+  // Is the mouse over the canvas host (NOT over a floating Inspector/Output/Timeline window)?
+  // Must be read HERE, while ##canvas_host is the current window — inside ed::Begin the current
+  // window is the node-editor's internal child and this query returns the wrong answer. Fed to
+  // the fence-selection preview's press gate (ui/fence_preview).
+  const bool canvasHostHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+
   sw::Symbol* cur = sw::doc::currentSymbol();
 
   ed::SetCurrentEditor(g_NodeEditor);
@@ -200,6 +207,13 @@ void drawNodeCanvas() {
   // see annotation_draw.cpp). Placed after the node/wire draw so its InvisibleButtons can claim
   // hover for drag/resize/rename before ed's own background gestures. Pushes its own undo commands.
   sw::ui::drawAnnotations(cur);
+
+  // LIVE fence-selection preview (TiXL SelectionFence): while a rubber-band drag is in
+  // progress on empty canvas, outline every node the box currently covers (= what releasing
+  // now would select). The node-editor's built-in fence still commits the real selection on
+  // release; this only adds the live highlight it lacks (preview-only fork, see fence_preview).
+  // Drawn after nodes/wires/annotations so the outlines + box land on top.
+  sw::ui::drawFenceSelectionPreview(cur, canvasHostHovered);
 
   // Create links by dragging pin -> pin (one input + one output, different nodes).
   if (ed::BeginCreate()) {

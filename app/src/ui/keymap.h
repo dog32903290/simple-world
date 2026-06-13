@@ -11,6 +11,9 @@
 //   • Playback keys (Space/L/J/K/Shift+←→): global-context, guard = !io.WantTextInput.
 //   • Cmd+D (duplicate): canvas-focus context.
 //   • F (focus selection): canvas-hover context.
+//   • P (pin selected output): canvas-focus context. Sets g_pinnedNode = g_selectedNode
+//     (the Output window's display source + the shell's cook target). Named forks vs TiXL
+//     in keymap.cpp handlePinToOutput (no-FocusMode / no-Cmd-P-background / single-select).
 //   • Mac Cmd↔Ctrl: ConfigMacOSXBehaviors swaps them; io.KeyCtrl detects physical Cmd (see memory).
 //     The playback keys here are all bare unmodified keys — WantTextInput is the only guard needed.
 //

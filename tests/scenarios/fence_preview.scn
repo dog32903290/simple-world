@@ -1,0 +1,69 @@
+# fence_preview.scn — 活體牙: LIVE rubber-band (fence) selection preview.
+#
+# TiXL Editor/UiModel/Selection/SelectionFence.cs + MagGraphView.HandleSelectionFenceUpdate
+# (cs:302-336): while a selection box is dragged on empty canvas, every node whose rect
+# OVERLAPS the box is highlighted live (TiXL re-AddSelection's them every Updated frame).
+# Our ui/fence_preview.cpp outlines exactly those nodes during the drag (preview-only fork:
+# the vendored node-editor's built-in fence commits the real selection on release; we add
+# the live highlight it lacks). The covered set the highlight drew on the final drag frame
+# is LATCHED into state.json .fenceLastCovered (eye surface) so a script can assert it
+# without a mid-drag screenshot.
+#
+# IMPORTANT — fence drags must START on OPEN canvas (not over a floating window): the press
+# gate requires IsWindowHovered("##canvas_host"). In this fixture the Toolbar (top-left),
+# Inspector (top-right), Output + Timeline (lower-right) float OVER the canvas; their areas
+# return host-hover=false (verified live). The start points below were probed to be open
+# canvas (host=1): (320,180), (60,250), (360,250). Fixture node imgui rects (1:1 zoom):
+#   node:1 (120,200)-(282,246)   node:2 (120,360)-(282,406)
+#   node:3 (400,280)-(541,377)   node:5 (400,480)-(576,560) [under Output] ...
+#
+# RED proof: change the covered assertion `[1, 2]` to `[1, 2, 3]` -> FAIL (the box max-x=320,
+# node:3 starts at x=400, so 3 is NOT covered). RED proof for the empty case: change
+# `.fenceLastCovered == []` to `== [1]` -> FAIL (the empty-area drag covers nothing).
+
+open app/testdata/compound_smoke.swproj
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+assert_state '.fenceActive == false'
+echo opened
+
+# --- Drag a fence box over the LEFT column (covers exactly node:1 + node:2) ---
+# Start at (320,180): OPEN canvas (right of node:1 x-end 282, left of node:3 x0 400, below the
+# Toolbar). Drag to (50,420): box (50,180)-(320,420) contains node:1 (120-282,200-246) and
+# node:2 (120-282,360-406) but stops short of node:3 (x0=400). drag = press@start -> interp ->
+# release@end; the live highlight outlined {1,2} on its final Active frame, latched here.
+do drag 320 180 50 420
+assert_state '.fenceLastCovered == [1, 2]'
+echo fence-covered-left-column-1-and-2
+
+# Fence is no longer active after release (transient flag).
+assert_state '.fenceActive == false'
+echo fence-inactive-after-release
+
+# The built-in fence ALSO committed the selection on release: node:1 + node:2 are selected.
+# state.json reports only the first selected id (sel[1]); with {1,2} selected that is the
+# lower id, 1 — independent confirmation the same box drove the real selection.
+assert_state '.selectedNode == 1'
+echo builtin-fence-committed-selection
+
+# --- Drag an EMPTY box (no node under it): covers nothing ---
+# Start (60,250): OPEN canvas, left of node:1 (x<120), below node:1's top (y>246) and above
+# node:2 (y<360). Drag to (110,290): box (60,250)-(110,290) overlaps no node.
+do drag 60 250 110 290
+assert_state '.fenceLastCovered == []'
+echo empty-fence-covers-nothing
+
+# --- Drag a box over node:3 only: start (360,250) OPEN (left of node:3 x0 400), drag to
+# (560,400): box (360,250)-(560,400) covers node:3 (400-541,280-377), excludes 1/2 (x<320). ---
+do drag 360 250 560 400
+assert_state '.fenceLastCovered == [3]'
+echo fence-covered-node3-only
+
+# --- PARTIAL overlap: the preview must agree with the built-in fence's commit (never lie). ---
+# Box (200,180)-(320,300): left edge x200 cuts THROUGH node:1 (x120-282), so node:1 only
+# PARTIALLY overlaps; node:2 (y360-406) is below the box (y<=300) -> excluded. The preview
+# highlights node:1 (overlap, not containment) AND the built-in fence commits node:1 too —
+# proving the overlap predicate matches what release actually selects.
+do drag 320 180 200 300
+assert_state '.fenceLastCovered == [1]'
+assert_state '.selectedNode == 1'
+echo partial-overlap-preview-matches-commit

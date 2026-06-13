@@ -1,0 +1,47 @@
+# keys_pin_output.scn — 活體牙: P = pin selected node's output as the Output window source.
+#
+# TiXL FactoryKeyMap.cs:49  new(UserActions.PinToOutputWindow, new KeyCombination(Key.P))
+#   -> NodeActions.PinSelectedToOutputWindow (1 selected -> pin that child).
+# Our P (ui/keymap.cpp handlePinToOutput) sets g_pinnedNode = g_selectedNode, which is
+# BOTH the Output window's display source (output_window.cpp) and the shell's cook target
+# (main.cpp:178). The pin is machine-readable via state.json .pinnedNode (added this batch).
+#
+# Toggle (= output_window.cpp Pin button): select node -> P pins it; P again (selected ==
+# pinned) -> unpin (0). RED proof for the pin leg: change `.pinnedNode == 3` to `== 4`
+# (P pinned node:3, not node:4) -> FAIL. RED proof for the unpin leg: change the final
+# `.pinnedNode == 0` to `== 3` (the second P actually unpinned) -> FAIL.
+
+open app/testdata/compound_smoke.swproj
+
+# Fresh project: nothing pinned (the Output window is following selection / terminal).
+assert_state '.pinnedNode == 0'
+echo opened-with-no-pin
+
+# Select node:3 (click its title strip; @SYM^ = title, not center — node body select).
+do click @node:3^
+assert_state '.selectedNode == 3'
+echo node3-selected
+
+# --- P = pin the selected node's output ---
+# Bare P, no modifier (Cmd+P would be the TiXL background-image action, which we don't bind).
+do key p
+assert_state '.pinnedNode == 3'
+echo p-pinned-node3-as-output-source
+
+# Selection still on node:3; the pin now leads the cook target (pinned wins over selection).
+assert_state '.selectedNode == 3'
+echo selection-unchanged-pin-leads
+
+# Switch the pin to a different node: select node:1, press P -> pin moves to 1.
+# (node:1/2/3 sit in the open upper canvas; node:5/6 are under the Output/Timeline windows
+#  in this fixture's default layout, so clicks there are swallowed — pick uncovered nodes.)
+do click @node:1^
+assert_state '.selectedNode == 1'
+do key p
+assert_state '.pinnedNode == 1'
+echo p-switched-pin-to-node1
+
+# --- P again with selection == pinned (both node:1) -> unpin (resume following selection) ---
+do key p
+assert_state '.pinnedNode == 0'
+echo p-toggled-unpin
