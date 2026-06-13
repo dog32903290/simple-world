@@ -239,7 +239,8 @@ const std::vector<NodeSpec>& registry() {
       //   SourceCount*Scatter*hash11u(i+Seed*SourceCount+StartIndex) : 0.
       // Defaults from FilterPoints.t3: Count=1, StartIndex=0, Step=1.0, ScatterSelect=0.0, Seed=0
       // Fork from TiXL: Count is a Float port (not Int) to match the resolved-param spine
-      // contract; the shader receives it cast to int. TiXL clamps to [0,1000000] — we do too.
+      // contract; the shader receives it cast to int. NAMED FORK (refuter-R-PMF3 修帳): TiXL clamps
+      // to [0,1000000]; we have NO runtime cap — only the port UI max (8192, conservative).
       {"FilterPoints",
        "FilterPoints",
        {{"points", "points", "Points", true},   // input bag (port 0)
@@ -414,10 +415,12 @@ const std::vector<NodeSpec>& registry() {
       {"ChromaticAbberation", "ChromaticAbberation",
        {{"Image", "Image", "Texture2D", true},
         {"out", "out", "Texture2D", false},
-        {"Size", "Size", "Float", true, 1.0f, 0.0f, 10.0f},
-        {"Strength", "Strength", "Float", true, 0.3f, 0.0f, 1.0f, Widget::Slider},
-        {"SampleCount", "SampleCount", "Float", true, 8.0f, 3.0f, 20.0f, Widget::Slider},
-        {"Distort", "Distort", "Float", true, 0.0f, -2.0f, 2.0f},
+        // Defaults = ChromaticAbberation.t3 verbatim (refuter-R-PMF3: the first cut shipped
+        // 1.0/0.3/8/0 — a freshly added node looked nothing like TiXL's).
+        {"Size", "Size", "Float", true, 5.0f, 0.0f, 10.0f},
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Slider},
+        {"SampleCount", "SampleCount", "Float", true, 3.0f, 3.0f, 20.0f, Widget::Slider},
+        {"Distort", "Distort", "Float", true, -0.1f, -2.0f, 2.0f},
         {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
          {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
         {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
