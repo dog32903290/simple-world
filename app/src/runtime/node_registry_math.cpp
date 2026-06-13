@@ -99,6 +99,49 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"F", "F", "Float", true, 0.5f, 0.0f,   1.0f},
         {"out", "out", "Float", false}},
        evalLerp},
+      // [overnight-math] BEGIN specs
+      // Sqrt: MathF.Sqrt(Value). TiXL Sqrt.cs. Fork: negative input → 0 (not NaN).
+      {"Sqrt", "Sqrt",
+       {{"Value", "Value", "Float", true, 1.0f, 0.0f, 100.0f},  // TiXL Sqrt.t3 DefaultValue=1.0
+        {"Result", "Result", "Float", false}},
+       evalSqrt},
+      // Pow: Math.Pow(Value, Exponent). TiXL Pow.cs. No fork from TiXL logic.
+      {"Pow", "Pow",
+       {{"Value",    "Value",    "Float", true, 1.0f, -10.0f, 10.0f},  // TiXL Pow.t3 DefaultValue=1.0
+        {"Exponent", "Exponent", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"Result",   "Result",   "Float", false}},
+       evalPow},
+      // Modulo: floor-modulo. TiXL Modulo.cs. ModuloValue==0 → 0.
+      {"Modulo", "Modulo",
+       {{"Value",       "Value",       "Float", true, 0.0f, -100.0f, 100.0f},
+        {"ModuloValue", "ModuloValue", "Float", true, 1.0f, -100.0f, 100.0f},
+        {"Result",      "Result",      "Float", false}},
+       evalModulo},
+      // Ceil: Math.Ceiling(Value). TiXL Ceil.cs. No fork.
+      {"Ceil", "Ceil",
+       {{"Value",  "Value",  "Float", true, 0.0f, -100.0f, 100.0f},
+        {"Result", "Result", "Float", false}},
+       evalCeil},
+      // SmoothStep: SmootherStep(Min,Max,Value) = Perlin fade t^3(6t^2-15t+10).
+      // TiXL SmoothStep.cs uses MathUtils.SmootherStep (= Fade, NOT classic smoothstep).
+      {"SmoothStep", "SmoothStep",
+       {{"Min",    "Min",    "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Max",    "Max",    "Float", true, 1.0f, -10.0f, 10.0f},
+        {"Value",  "Value",  "Float", true, 1.0f, -10.0f, 10.0f},  // TiXL SmoothStep.t3 DefaultValue=1.0
+        {"Result", "Result", "Float", false}},
+       evalSmoothStep},
+      // Log: Math.Log(Value, Base). TiXL Log.cs. Fork: value≤0/base≤0/base=1 → 0 (not NaN).
+      {"Log", "Log",
+       {{"Value",  "Value",  "Float", true, 1.0f, 0.0f, 100.0f},
+        {"Base",   "Base",   "Float", true, 1.0f, 0.0f, 100.0f},  // TiXL Log.t3 DefaultValue=1.0 (base=1 caught by fork below)
+        {"Result", "Result", "Float", false}},
+       evalLog},
+      // Cos: Math.Cos(Input). TiXL Cos.cs. No fork.
+      {"Cos", "Cos",
+       {{"Input",  "Input",  "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Result", "Result", "Float", false}},
+       evalCos},
+      // [overnight-math] END specs
   };
   return specs;
 }

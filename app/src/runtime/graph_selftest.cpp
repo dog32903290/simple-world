@@ -297,4 +297,7 @@ int runResolveSelfTest(bool injectBug) {
   return ok ? 0 : 1;
 }
 
+// [overnight-math] NOTE: runMathOpsSelfTest is defined in math_ops_selftest.cpp.
+// New 7-op teeth (Sqrt/Pow/Modulo/Ceil/SmoothStep/Log/Cos) are appended there.
+
 }  // namespace sw

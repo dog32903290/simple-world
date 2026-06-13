@@ -319,6 +319,170 @@ int runMathOpsSelfTest(bool injectBug) {
     printf("[selftest-mathops] Lerp(0,10,1.5)=%.4f want=15.000 (unclamped-fork) -> %s\n", r, pass ? "PASS" : "FAIL");
   }
 
+  // [overnight-math] BEGIN new-op teeth (Sqrt/Pow/Modulo/Ceil/SmoothStep/Log/Cos)
+  // Helper: evaluate any op by param injection (no wiring needed — params drive directly).
+  // Supports ops whose output port is named "Result" (overnight batch naming convention).
+  // params: pairs of {portId, value} to set; outPortId: name of the output port.
+  auto evalOpParams = [&](const char* type,
+                          std::initializer_list<std::pair<const char*, float>> params,
+                          const char* outPortId) -> float {
+    const NodeSpec* spec = findSpec(type);
+    if (!spec) return -999.0f;
+    Graph g;
+    Node nd; nd.id = g.nextId++;
+    nd.type = type;
+    for (const auto& p : spec->ports)
+      if (p.isInput && p.dataType == "Float") nd.params[p.id] = p.def;
+    g.nodes.push_back(nd);
+    int nid = g.nodes.back().id;
+    for (auto& kv : params) g.node(nid)->params[kv.first] = kv.second;
+    int outIdx = -1;
+    for (size_t i = 0; i < spec->ports.size(); ++i)
+      if (spec->ports[i].id == outPortId) { outIdx = (int)i; break; }
+    EvaluationContext ctx{}; ctx.time = 0.0f;
+    return outIdx < 0 ? -997.0f : evalFloat(g, pinId(nid, outIdx), ctx, 0);
+  };
+
+  // ----- Sqrt -----
+  // TiXL Sqrt.cs: "Result.Value = MathF.Sqrt(v);"
+  // Sqrt(9) == 3; Sqrt(-4) == 0 (FORK: negative → 0 not NaN)
+  {
+    float r = evalOpParams("Sqrt", {{"Value", 9.0f}}, "Result");
+    bool pass = std::fabs(r - 3.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Sqrt(9)=%.4f want=3.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalOpParams("Sqrt", {{"Value", -4.0f}}, "Result");
+    bool pass = (r == 0.0f);
+    ok = ok && pass;
+    printf("[selftest-mathops] Sqrt(-4)=%.4f want=0.0000 (fork:neg->0) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- Pow -----
+  // TiXL Pow.cs: "Result.Value = (float)Math.Pow(v, pow);"
+  // Pow(2, 10) == 1024; Pow(3, 0) == 1
+  {
+    float r = evalOpParams("Pow", {{"Value", 2.0f}, {"Exponent", 10.0f}}, "Result");
+    bool pass = std::fabs(r - 1024.0f) < 0.01f;
+    ok = ok && pass;
+    printf("[selftest-mathops] Pow(2,10)=%.2f want=1024.00 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalOpParams("Pow", {{"Value", 3.0f}, {"Exponent", 0.0f}}, "Result");
+    bool pass = std::fabs(r - 1.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Pow(3,0)=%.4f want=1.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- Modulo -----
+  // TiXL Modulo.cs: "v - mod2 * (float)Math.Floor(v/mod2)"
+  // Modulo(10, 3) == 1; Modulo(-1, 3) == 2 (floor-mod); Modulo(5, 0) == 0
+  {
+    float r = evalOpParams("Modulo", {{"Value", 10.0f}, {"ModuloValue", 3.0f}}, "Result");
+    bool pass = std::fabs(r - 1.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Modulo(10,3)=%.4f want=1.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    // floor-mod: -1 mod 3 = 2 (not -1 as in C truncation mod)
+    float r = evalOpParams("Modulo", {{"Value", -1.0f}, {"ModuloValue", 3.0f}}, "Result");
+    bool pass = std::fabs(r - 2.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Modulo(-1,3)=%.4f want=2.0000 (floor-mod) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalOpParams("Modulo", {{"Value", 5.0f}, {"ModuloValue", 0.0f}}, "Result");
+    bool pass = (r == 0.0f);
+    ok = ok && pass;
+    printf("[selftest-mathops] Modulo(5,0)=%.4f want=0.0000 (div-zero->0) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- Ceil -----
+  // TiXL Ceil.cs: "(float)Math.Ceiling(v)"
+  // Ceil(1.1) == 2; Ceil(-1.1) == -1
+  {
+    float r = evalOpParams("Ceil", {{"Value", 1.1f}}, "Result");
+    bool pass = (r == 2.0f);
+    ok = ok && pass;
+    printf("[selftest-mathops] Ceil(1.1)=%.4f want=2.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalOpParams("Ceil", {{"Value", -1.1f}}, "Result");
+    bool pass = (r == -1.0f);
+    ok = ok && pass;
+    printf("[selftest-mathops] Ceil(-1.1)=%.4f want=-1.000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- SmoothStep -----
+  // TiXL SmoothStep.cs uses MathUtils.SmootherStep (= Perlin Fade, NOT classic smoothstep).
+  // Fade(t) = t^3*(6t^2 - 15t + 10). SmootherStep(0,1,0.5): t=0.5 → 0.5^3*(6*0.25-7.5+10)=0.5
+  {
+    float r = evalOpParams("SmoothStep", {{"Min", 0.0f}, {"Max", 1.0f}, {"Value", 0.5f}}, "Result");
+    bool pass = std::fabs(r - 0.5f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] SmoothStep(0,1,0.5)=%.6f want=0.5000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    // boundary: Value=0 → 0
+    float r = evalOpParams("SmoothStep", {{"Min", 0.0f}, {"Max", 1.0f}, {"Value", 0.0f}}, "Result");
+    bool pass = std::fabs(r) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] SmoothStep(0,1,0)=%.6f want=0.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    // boundary: Value=1 → 1
+    float r = evalOpParams("SmoothStep", {{"Min", 0.0f}, {"Max", 1.0f}, {"Value", 1.0f}}, "Result");
+    bool pass = std::fabs(r - 1.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] SmoothStep(0,1,1)=%.6f want=1.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- Log -----
+  // TiXL Log.cs: "(float)Math.Log(v, newBase)"
+  // Log(8, 2) == 3; Log(0, 2) == 0 (FORK: ≤0 → 0); Log(8, 1) == 0 (FORK: base=1 → 0)
+  {
+    float r = evalOpParams("Log", {{"Value", 8.0f}, {"Base", 2.0f}}, "Result");
+    bool pass = std::fabs(r - 3.0f) < 1e-4f;
+    ok = ok && pass;
+    printf("[selftest-mathops] Log(8,2)=%.4f want=3.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalOpParams("Log", {{"Value", 0.0f}, {"Base", 2.0f}}, "Result");
+    bool pass = (r == 0.0f);
+    ok = ok && pass;
+    printf("[selftest-mathops] Log(0,2)=%.4f want=0.0000 (fork:<=0->0) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalOpParams("Log", {{"Value", 8.0f}, {"Base", 1.0f}}, "Result");
+    bool pass = (r == 0.0f);
+    ok = ok && pass;
+    printf("[selftest-mathops] Log(8,1)=%.4f want=0.0000 (fork:base=1->0) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- Cos -----
+  // TiXL Cos.cs: "(float)Math.Cos(Input.GetValue(context))"
+  // Cos(0) == 1; Cos(π) ≈ -1; Cos(π/2) ≈ 0
+  {
+    float r = evalOpParams("Cos", {{"Input", 0.0f}}, "Result");
+    bool pass = std::fabs(r - 1.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Cos(0)=%.6f want=1.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalOpParams("Cos", {{"Input", 3.14159265f}}, "Result");
+    bool pass = std::fabs(r - (-1.0f)) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Cos(pi)=%.6f want=-1.000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalOpParams("Cos", {{"Input", 3.14159265f / 2.0f}}, "Result");
+    bool pass = std::fabs(r) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Cos(pi/2)=%.6f want=0.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  // [overnight-math] END new-op teeth
+
   printf("[selftest-mathops] -> %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

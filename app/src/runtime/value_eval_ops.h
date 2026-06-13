@@ -22,4 +22,13 @@ float evalRemap(int, const float* in, int n, const EvaluationContext&);
 float evalAbs(int, const float* in, int n, const EvaluationContext&);
 float evalFloor(int, const float* in, int n, const EvaluationContext&);
 float evalLerp(int, const float* in, int n, const EvaluationContext&);
+// [overnight-math] BEGIN declarations
+float evalSqrt(int, const float* in, int n, const EvaluationContext&);
+float evalPow(int, const float* in, int n, const EvaluationContext&);
+float evalModulo(int, const float* in, int n, const EvaluationContext&);
+float evalCeil(int, const float* in, int n, const EvaluationContext&);
+float evalSmoothStep(int, const float* in, int n, const EvaluationContext&);
+float evalLog(int, const float* in, int n, const EvaluationContext&);
+float evalCos(int, const float* in, int n, const EvaluationContext&);
+// [overnight-math] END declarations
 }  // namespace sw

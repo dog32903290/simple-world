@@ -172,8 +172,8 @@ int runResolveSelfTest(bool injectBug);
 // Proof that wiring AudioReaction.level -> ParticleSystem.Speed resolves (no hang) and
 // that a raw level wired to Speed reads 0 when silent (the "particles freeze" gotcha).
 int runAudioNodeSelfTest(bool injectBug);
-// Proof for the 8 math value ops (批次12 lane F):
-// Add / Sub / Div / Clamp / Remap / Abs / Floor / Lerp.
+// Proof for math value ops: 8 original (批次12 lane F: Add/Sub/Div/Clamp/Remap/Abs/Floor/Lerp)
+// + 7 overnight batch (Sqrt/Pow/Modulo/Ceil/SmoothStep/Log/Cos).
 // Each op: ≥1 typical value + ≥1 boundary; injectBug swaps Div inputs → suite fails.
 int runMathOpsSelfTest(bool injectBug);
 

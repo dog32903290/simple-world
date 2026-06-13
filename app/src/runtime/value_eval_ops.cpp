@@ -89,4 +89,73 @@ float evalLerp(int, const float* in, int n, const EvaluationContext&) {
 }
 
 
+// [overnight-math] BEGIN implementations
+// Sqrt: MathF.Sqrt(v). TiXL Sqrt.cs: "Result.Value = MathF.Sqrt(v);"
+// FORK (named): negative input → 0.0f instead of NaN; avoids NaN propagation through
+// inspector/Metal uniforms. If a NaN-passthrough mode is needed downstream, add a flag.
+float evalSqrt(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 1) return 0.0f;
+  float v = in[0];
+  return v < 0.0f ? 0.0f : std::sqrt(v);
+}
+
+// Pow: Math.Pow(value, exponent). TiXL Pow.cs: "Result.Value = (float)Math.Pow(v,pow);"
+// No fork: C++ std::pow matches C# Math.Pow IEEE semantics (Pow(0,0)=1, etc.).
+// in: [Value, Exponent]
+float evalPow(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 2) return 0.0f;
+  return std::pow(in[0], in[1]);
+}
+
+// Modulo: floor-modulo, v - mod*floor(v/mod). TiXL Modulo.cs:
+//   "Result.Value = v - mod2 * (float)Math.Floor(v/mod2);"
+// /0 → 0.0f (TiXL logs warning and returns 0; we match the output, not the log).
+// in: [Value, ModuloValue]
+float evalModulo(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 2) return 0.0f;
+  float v = in[0], m = in[1];
+  if (m == 0.0f) return 0.0f;
+  return v - m * std::floor(v / m);
+}
+
+// Ceil: Math.Ceiling(v). TiXL Ceil.cs: "Result.Value = (float)Math.Ceiling(v);"
+// No fork: std::ceil matches C# Math.Ceiling exactly.
+float evalCeil(int, const float* in, int n, const EvaluationContext&) {
+  return n > 0 ? std::ceil(in[0]) : 0.0f;
+}
+
+// SmoothStep: Ken Perlin smootherstep (TiXL calls MathUtils.SmootherStep, which uses Fade).
+// TiXL SmoothStep.cs: "Result.Value = MathUtils.SmootherStep(Min, Max, Value);"
+// MathUtils.SmootherStep → t=clamp((v-min)/(max-min),0,1); Fade(t)=t^3*(6t^2-15t+10).
+// in: [Min, Max, Value]
+float evalSmoothStep(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 3) return 0.0f;
+  float lo = in[0], hi = in[1], v = in[2];
+  float denom = hi - lo;
+  // FORK: min==max → t=0 (TiXL divides by zero here → NaN; we clamp to 0 for GPU/UI safety).
+  float t = (denom == 0.0f) ? 0.0f : (v - lo) / denom;
+  if (t < 0.0f) t = 0.0f;
+  if (t > 1.0f) t = 1.0f;
+  // Perlin's smootherstep (Fade): t^3*(6t^2 - 15t + 10)
+  return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+}
+
+// Log: Math.Log(value, base). TiXL Log.cs: "Result.Value = (float)Math.Log(v,newBase);"
+// FORK (named): value ≤ 0 → 0.0f; base ≤ 0 or base == 1 → 0.0f.
+// Avoids -inf/NaN/+inf propagation; C# Math.Log returns NaN for these same edge cases.
+// in: [Value, Base]
+float evalLog(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 2) return 0.0f;
+  float v = in[0], b = in[1];
+  if (v <= 0.0f || b <= 0.0f || b == 1.0f) return 0.0f;
+  return std::log(v) / std::log(b);
+}
+
+// Cos: Math.Cos(input). TiXL Cos.cs: "Result.Value = (float)Math.Cos(Input.GetValue(context));"
+// No fork: std::cos matches exactly.
+float evalCos(int, const float* in, int n, const EvaluationContext&) {
+  return n > 0 ? std::cos(in[0]) : 0.0f;
+}
+// [overnight-math] END implementations
+
 }  // namespace sw
