@@ -1057,3 +1057,17 @@ headless 圍欄 (續)/AddNoise Rotation 顯式牙。
 2. particle 力族頭批 (DirectionalForce/VectorFieldForce)
 3. 互動殘項 (P pin-to-output/fence selection 活預覽)
 4. 掃描第二輪 (第一輪原料庫快見底)
+
+## 批次16 進行中 (2026-06-13 上午; orchestrator=Opus 接手首批) 🔄
+**選批** (排修優先): Lane R(機械) + Lane X(互動) Phase A 並行 → Phase B point/particle 並行(R 合流後)。
+**依賴律**: registry 中央套撞檔(§A55 前例)——拆表動 registry, 新增 op 也動 registry → op lane 序列在 R 後;
+互動 lane 不碰 registry → 與 R 並行。拆表把 registry 切成各家族表後, point/particle 改不同檔→Phase B 並行。
+- **Lane R** (Sonnet, worktree, dispatched): registry 按家族拆表 (law debt; 597 行超標; 切點 L263/L457;
+  零行為變化; 要求 point-family/particle-family 各獨立檔=Phase B 並行使能)。狀態: dossier 待回。
+- **Lane X** (Opus, worktree, dispatched): 互動殘項 P pin-output(§C5) + fence selection 活預覽。
+  狀態: dossier 待回。
+- **Phase B** (待 R 合流後開): Lane P=point 變換族(PolarTransform/Wrap/BoundPoints, §A 次梯隊)
+  ∥ Lane F=particle 力族(DirectionalForce/VectorFieldForce, §A4)。
+**換 session/壓縮接手指南**: 兩 worktree 在 .claude/worktrees/(本批最新兩個), 活不丟。查死活=看門狗(背景)
+或 `git -C <worktree> diff`(R=registry 拆分 diff / X=互動 diff 可辨)。**R 合流前禁開 Phase B**(撞 registry)。
+結帳寫 Cut 22 時刪本 in-flight 段。

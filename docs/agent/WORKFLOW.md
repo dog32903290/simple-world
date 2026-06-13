@@ -97,3 +97,22 @@ context/output 與 Fable 同（1M/128K），價更低（$5/$25 vs $10/$50），*
 
 參數：effort 預設 **high**（長程 agentic／合流否證吃判斷，full task spec 本就在 /sw-batch 給足）；
 adaptive thinking 開。子 agent 仍照 §一分層派（Sonnet 機械／Opus 對抗），與本體是 Opus 無關。
+
+## 八、平行化的單位是「子系統」不是「op 批次」——加層時機與形式（2026-06-13 柏為問「能不能再加一層」）
+
+問題：把 orchestrator 再升一層（我派 N 個 session 各跑一批，我只盯活死＋調度），能不能加速克隆？
+**答案：現在不能，到 §D 子系統時能，且形式是磁碟帳本不是活監工。**
+
+- **為什麼現在不能（脊椎序列）**：TiXL clone 不是 embarrassingly parallel——有中央承重脊椎
+  （node_registry／共享契約／trunk）。加 op 全撞 registry（§A55 撞檔律的根）。多 N 個 orchestrator-session
+  ＝撞檔放大成批次級＋N 路合併集中到頂層＋頂層 context 揣 N 份活狀態爆更快。**加管理層平行不掉序列脊椎
+  （Amdahl）**。「盯活死＋調度」是輕的 10%，合流／否證／衝突解決是重的 90% 且變 N 路更難。
+- **平行化的真單位＝子系統，不是 op 批次**：op 庫被脊椎序列住；但 §D 子系統（Fullscreen Output／
+  真實資源載入／獨立 Player／MIDI-OSC）互相獨立、多週級、幾乎不撞脊椎——這裡 session 級平行才賺錢。
+- **加層時機**：一條 lane 長成一個 §D 子系統、大到會獨佔一個 orchestrator 的 context／合流頻寬時，
+  才升 session。在那之前：**拉寬每批的非重疊 lane**（op ∥ §B 視覺 ∥ §C 互動，改不同檔；批次12 已實證）
+  ——便宜的平行，不加層。
+- **加層的形式＝磁碟派工帳本，不是活監工**：此 harness 裡 agent 盯 agent 盯 agent 支援差＋context 算不過。
+  更穩：N 個獨立 /sw-batch session 各擁一個 §D 子系統，全靠磁碟協調（一張 assignment ledger：誰擁哪個
+  子系統／整合順序／契約接縫），順「狀態永遠在磁碟」世界觀，各自 worktree（「多 session 同樹互擾」雷）。
+  meta 角色守的不是「他們在不在工作」，是**子系統之間的契約接縫**（合流／否證）——那才是難的部分。
