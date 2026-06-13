@@ -123,4 +123,30 @@ void ChangeAnnotationColorCommand::undo() {
   if (Annotation* a = annById(sym(lib_, symbolId_), annotationId_)) copyRgba(a->color, old_);
 }
 
+// ---- MoveResizeAnnotationCommand (pos+size, one undo step) ----
+
+MoveResizeAnnotationCommand::MoveResizeAnnotationCommand(SymbolLibrary& lib, std::string symbolId,
+                                                         std::string annotationId, float newX,
+                                                         float newY, float newW, float newH)
+    : lib_(lib), symbolId_(std::move(symbolId)), annotationId_(std::move(annotationId)),
+      newX_(newX), newY_(newY), newW_(newW), newH_(newH) {
+  Annotation* a = annById(sym(lib_, symbolId_), annotationId_);
+  if (!a) { refused_ = true; return; }
+  oldX_ = a->x; oldY_ = a->y; oldW_ = a->w; oldH_ = a->h;
+  if (oldX_ == newX_ && oldY_ == newY_ && oldW_ == newW_ && oldH_ == newH_)
+    refused_ = true;  // no-op drag (clicked without moving) -> caller drops it, no dead undo entry
+}
+void MoveResizeAnnotationCommand::doIt() {
+  if (refused_) return;
+  if (Annotation* a = annById(sym(lib_, symbolId_), annotationId_)) {
+    a->x = newX_; a->y = newY_; a->w = newW_; a->h = newH_;
+  }
+}
+void MoveResizeAnnotationCommand::undo() {
+  if (refused_) return;
+  if (Annotation* a = annById(sym(lib_, symbolId_), annotationId_)) {
+    a->x = oldX_; a->y = oldY_; a->w = oldW_; a->h = oldH_;
+  }
+}
+
 }  // namespace sw

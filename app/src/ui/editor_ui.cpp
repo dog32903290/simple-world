@@ -5,6 +5,7 @@
 // children/connections straight off doc::g_lib — no flat Graph, no projection layer.
 // Composition switch (N3) = same canvas, different symbol.
 #include "ui/editor_ui.h"
+#include "ui/annotation_draw.h"  // Annotation frames (批B/C): canvas draw + drag/resize/rename
 #include "ui/canvas_ids.h"  // pin/link/boundary id scheme (mechanical split, rule 4)
 #include "ui/combine_dialog.h"
 #include "ui/copy_paste_ui.h"
@@ -194,6 +195,11 @@ void drawNodeCanvas() {
     float lthick = sel ? 3.0f : 1.5f;  // TiXL DrawConnection.cs:170 — hover/sel +2px
     ed::Link(lid, from, to, ImGui::ColorConvertU32ToFloat4(lcol), lthick);
   }
+
+  // Annotation frames (批B/C): drawn + interacted over the canvas via ed::Suspend/Resume (fork-G,
+  // see annotation_draw.cpp). Placed after the node/wire draw so its InvisibleButtons can claim
+  // hover for drag/resize/rename before ed's own background gestures. Pushes its own undo commands.
+  sw::ui::drawAnnotations(cur);
 
   // Create links by dragging pin -> pin (one input + one output, different nodes).
   if (ed::BeginCreate()) {

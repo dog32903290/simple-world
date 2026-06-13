@@ -103,6 +103,32 @@ class ChangeAnnotationColorCommand : public Command {
   bool refused_ = false;
 };
 
+// Move and/or resize an annotation in one undoable step (= TiXL's ModifyCanvasElementsCommand path,
+// AnnotationDragging.cs:62 / AnnotationResizing.cs:42 — TiXL has NO annotation-specific move/resize
+// command; pos/size edits ride the generic "modify canvas elements" command shared with nodes). We
+// have no such generic command, so 批B adds this small dedicated one (spec 契約3: "移動/縮放各自一個小
+// command 帶 (oldPos/Size, newPos/Size)" — named fork "dedicated annotation move/resize"). One command
+// carries BOTH pos and size so a drag-move (size unchanged) and a corner-resize (pos unchanged) share
+// the same undo unit shape. REFUSES on missing symbol/annotation or a true no-op (pos+size unchanged).
+// by-id located (fork-C), like the other annotation commands.
+class MoveResizeAnnotationCommand : public Command {
+ public:
+  MoveResizeAnnotationCommand(SymbolLibrary& lib, std::string symbolId, std::string annotationId,
+                              float newX, float newY, float newW, float newH);
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return "Move/Resize Annotation"; }
+  bool refused() const { return refused_; }
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  std::string annotationId_;
+  float newX_, newY_, newW_, newH_;
+  float oldX_ = 0, oldY_ = 0, oldW_ = 0, oldH_ = 0;
+  bool refused_ = false;
+};
+
 // Annotation 批A golden (annotation_selftest.cpp): the struct defaults (gray color, empty text, not
 // collapsed); the four commands' do->undo->redo symmetry (add/delete mirror, text incl. fork-F Label
 // undo, color); refusal on missing/dup/no-op; the savev2 "annotations" segment roundtrips BYTE-STABLE

@@ -22,12 +22,14 @@ ClipboardData extractClipboard(const Symbol& src, const std::vector<int>& childI
   // 1) Gather the selected children (in the symbol's child order so paste numbering is stable),
   //    and compute the selection's upper-left corner for relative positioning (TiXL .cs:77-95).
   std::vector<int> picked;
-  float ulX = FLT_MAX, ulY = FLT_MAX;
+  float ulX = FLT_MAX, ulY = FLT_MAX, lrX = -FLT_MAX, lrY = -FLT_MAX;
   for (const SymbolChild& c : src.children) {
     if (c.id == kSymbolBoundary || !inSet(childIds, c.id)) continue;
     picked.push_back(c.id);
     ulX = std::min(ulX, c.x);
     ulY = std::min(ulY, c.y);
+    lrX = std::max(lrX, c.x);
+    lrY = std::max(lrY, c.y);
   }
   if (picked.empty()) return clip;  // nothing selected -> empty clipboard
 
@@ -57,6 +59,22 @@ ClipboardData extractClipboard(const Symbol& src, const std::vector<int>& childI
   for (const SymbolConnection& w : src.connections)
     if (inSet(picked, w.srcChild) && inSet(picked, w.dstChild))
       clip.wires.push_back(w);
+
+  // 3) Annotations that FRAME the selection travel with the copy (R-AN #1, = TiXL
+  //    CopySymbolChildrenCommand selectedAnnotations). TiXL's set is the user's marked annotations;
+  //    copy here derives it geometrically (same招 as combine.cpp): an annotation joins iff its rect
+  //    CONTAINS the selected children's point-bbox (a frame surrounds its nodes = annotationContainsBox).
+  //    FORK: the bbox is over child TOP-LEFT POINTS (the runtime model has no node size — combine uses
+  //    the same point-bbox). relX/relY can be NEGATIVE (the frame's top-left sits above/left of the
+  //    selection corner), re-anchoring with the SAME corner ulX/ulY as the children below.
+  for (const Annotation& a : src.annotations) {
+    if (!annotationContainsBox(a, ulX, ulY, lrX, lrY)) continue;
+    ClipboardAnnotation ca;
+    ca.ann = a;                 // title/label/color/size/collapsed verbatim; id kept for clone seeding
+    ca.relX = a.x - ulX;
+    ca.relY = a.y - ulY;
+    clip.annotations.push_back(std::move(ca));
+  }
 
   return clip;
 }
@@ -116,6 +134,31 @@ std::string clipboardToJson(const ClipboardData& clip) {
     wires.push_back(crude_json::value(wo));
   }
   root["wires"] = crude_json::value(wires);
+
+  // Annotation segment (R-AN #1): id (the clone seed) + relX/relY + the carried text/color/size/
+  // collapsed, omitting empty/default fields like the savev2 annotation segment so the clipboard stays
+  // minimal. title/label may hold CJK — crude_json dumps raw UTF-8 byte-stable (sw-patch utf8, 批次4).
+  if (!clip.annotations.empty()) {
+    crude_json::array anns;
+    for (const ClipboardAnnotation& ca : clip.annotations) {
+      crude_json::object ao;
+      ao["id"] = ca.ann.id;
+      ao["relX"] = (crude_json::number)ca.relX;
+      ao["relY"] = (crude_json::number)ca.relY;
+      ao["w"] = (crude_json::number)ca.ann.w;
+      ao["h"] = (crude_json::number)ca.ann.h;
+      if (!ca.ann.title.empty()) ao["title"] = ca.ann.title;
+      if (!ca.ann.label.empty()) ao["label"] = ca.ann.label;
+      if (ca.ann.collapsed) ao["collapsed"] = true;
+      if (!annotationColorIsDefault(ca.ann)) {
+        crude_json::array col;
+        for (int i = 0; i < 4; ++i) col.push_back(crude_json::value((crude_json::number)ca.ann.color[i]));
+        ao["color"] = crude_json::value(col);
+      }
+      anns.push_back(crude_json::value(ao));
+    }
+    root["annotations"] = crude_json::value(anns);
+  }
 
   return crude_json::value(root).dump(2);
 }
@@ -186,7 +229,34 @@ bool clipboardFromJson(const std::string& json, ClipboardData& out) {
       out.wires.push_back(w);
     }
   }
-  return !out.children.empty();
+  // Annotation segment (S15-tolerant): a missing/non-array key -> no annotations; an element with a
+  // missing/empty id is skipped (the id seeds the clone, so a blank one is useless); missing text/
+  // color/size fall back to the struct defaults (empty/gray/0). Never aborts on garbage.
+  if (v["annotations"].is_array()) {
+    for (auto& av : v["annotations"].get<crude_json::array>()) {
+      if (!av.is_object()) continue;  // same terminate hazard as the loops above
+      ClipboardAnnotation ca;
+      ca.ann.id = av["id"].is_string() ? av["id"].get<crude_json::string>() : "";
+      if (ca.ann.id.empty()) continue;
+      if (av["relX"].is_number()) ca.relX = (float)av["relX"].get<crude_json::number>();
+      if (av["relY"].is_number()) ca.relY = (float)av["relY"].get<crude_json::number>();
+      if (av["w"].is_number()) ca.ann.w = (float)av["w"].get<crude_json::number>();
+      if (av["h"].is_number()) ca.ann.h = (float)av["h"].get<crude_json::number>();
+      if (av["title"].is_string()) ca.ann.title = av["title"].get<crude_json::string>();
+      if (av["label"].is_string()) ca.ann.label = av["label"].get<crude_json::string>();
+      if (av["collapsed"].is_boolean()) ca.ann.collapsed = av["collapsed"].get<bool>();
+      if (av["color"].is_array()) {
+        auto& col = av["color"].get<crude_json::array>();
+        for (int i = 0; i < 4 && i < (int)col.size(); ++i)
+          if (col[i].is_number()) ca.ann.color[i] = (float)col[i].get<crude_json::number>();
+      }
+      out.annotations.push_back(std::move(ca));
+    }
+  }
+  // A clipboard with ONLY annotations (no children) is still a paste — annotations can travel alone if
+  // a future copy ever selects a bare frame. Today copy always picks children first, but accepting an
+  // annotation-only clipboard keeps the predicate honest.
+  return !out.children.empty() || !out.annotations.empty();
 }
 
 PastePlan planPaste(const SymbolLibrary& lib, const std::string& targetId,
@@ -256,6 +326,23 @@ PastePlan planPaste(const SymbolLibrary& lib, const std::string& targetId,
     nw.dstChild = d->second;
     nw.dstSlot = w.dstSlot;
     plan.wires.push_back(nw);
+  }
+
+  // Annotations (R-AN #1, = TiXL CopySymbolChildrenCommand.cs:113-119 _annotationsToCopy): each clone
+  // gets a fresh id minted against the TARGET's existing annotations + the clones already planned (so
+  // two pasted frames never collide and a paste-into-the-source never merges onto the original via the
+  // loader's last-wins dedup). Position re-anchored at the paste point (relX/relY from the same corner
+  // the children used). No cycle gate — annotations don't reference symbols, so they always paste.
+  {
+    std::vector<Annotation> existing = target->annotations;  // running set for collision-free ids
+    for (const ClipboardAnnotation& ca : clip.annotations) {
+      Annotation clone = ca.ann;
+      clone.id = uniqueAnnotationId(ca.ann.id, existing);
+      clone.x = pasteX + ca.relX;
+      clone.y = pasteY + ca.relY;
+      existing.push_back(clone);            // so the NEXT clone avoids this id too
+      plan.annotations.push_back(clone);
+    }
   }
 
   return plan;

@@ -187,7 +187,48 @@ int runCombineSelfTest(bool injectBug) {
          std::abs(restored->front().sample(2.0) - sampleBefore) <= 1e-5;
   }
 
-  printf("[selftest-combine] structure+rewire+overrides+eval-identical+anim-move%s -> %s\n",
+  // --- leg 5: ANNOTATIONS travel with combine (R-AN #1, = TiXL Combine.cs:170,250-254). Two children
+  // at (0,0) and (300,0); a frame CONTAINING both (the children's point-bbox 0,0..300,0) moves into
+  // the new compound with a FRESH id (distinct from the original) re-based to the new canvas, and is
+  // REMOVED from the parent. A second frame OUTSIDE the bbox stays on the parent untouched. ---
+  {
+    SymbolLibrary lib;
+    lib.rootId = "Root";
+    lib.symbols["Const"] = atomicSymbolFromSpec(*findSpec("Const"));
+    Symbol root;
+    root.id = "Root";
+    SymbolChild a; a.id = 1; a.symbolId = "Const"; a.x = 0;   a.y = 0;
+    SymbolChild b; b.id = 2; b.symbolId = "Const"; b.x = 300; b.y = 0;
+    root.children = {a, b};
+    root.nextChildId = 3;
+    Annotation framing;  // contains the selected children's point-bbox 0,0..300,0
+    framing.id = "frame-inside"; framing.title = "群"; framing.x = -10; framing.y = -10;
+    framing.w = 330; framing.h = 60;
+    Annotation outside;  // far away, contains neither child
+    outside.id = "frame-outside"; outside.x = 1000; outside.y = 1000; outside.w = 50; outside.h = 50;
+    root.annotations = {framing, outside};
+    lib.symbols["Root"] = root;
+
+    CombineResult r = combineChildren(lib, "Root", {1, 2}, "群組");
+    ok = ok && r.ok;
+    const Symbol* comp = r.ok ? lib.find(r.newSymbolId) : nullptr;
+    Symbol* rt = lib.find("Root");
+
+    // (a) the new compound carries exactly one annotation, with a FRESH id (not "frame-inside")
+    //     and the carried text verbatim.
+    bool movedOk = comp && comp->annotations.size() == 1 &&
+                   comp->annotations[0].id != "frame-inside" &&
+                   comp->annotations[0].title == "群";
+    // (b) the parent keeps ONLY the outside frame.
+    bool parentOk = rt && rt->annotations.size() == 1 && rt->annotations[0].id == "frame-outside";
+    if (injectBug) {  // teeth: assert the WRONG thing (compound keeps the ORIGINAL id) — fails when correct
+      ok = ok && comp && comp->annotations.size() == 1 && comp->annotations[0].id == "frame-inside";
+    } else {
+      ok = ok && movedOk && parentOk;
+    }
+  }
+
+  printf("[selftest-combine] structure+rewire+overrides+eval-identical+anim-move+annotation%s -> %s\n",
          injectBug ? "(bugged)" : "", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

@@ -10,6 +10,7 @@
 // the CHILD (written on collapse) — that lives on SymbolChild's UI side, not here (批 B/C territory).
 #pragma once
 #include <string>
+#include <vector>
 
 namespace sw {
 
@@ -38,5 +39,25 @@ struct Annotation {
 // Is this annotation's color the (omittable) default gray? (= the save-side "省略預設灰" gate, kept
 // here so save/load share one definition of "default".)
 bool annotationColorIsDefault(const Annotation& a);
+
+// Is the annotation's rect [x,y]..[x+w,y+h] fully CONTAINED in the axis-aligned box
+// [bx0,by0]..[bx1,by1]? (= TiXL aRect.Contains(nRect) spirit, AnnotationDragging.cs:193-233, the
+// "is this NESTED annotation inside that frame" case). Inclusive on all four edges. Pure geometry.
+bool annotationRectContainedIn(const Annotation& a, float bx0, float by0, float bx1, float by1);
+
+// Does the annotation's rect [x,y]..[x+w,y+h] CONTAIN the axis-aligned box [bx0,by0]..[bx1,by1]?
+// (= the FRAMING direction: a frame travels with a selection iff it surrounds the selected children's
+// point-bbox, AnnotationDragging.cs FindAnnotatedOps aRect.Contains(nRect) with the FRAME as outer).
+// combine/copy use THIS to decide which annotations travel with a selection (R-AN #1): a real frame
+// surrounds its nodes, so it is LARGER than the children's bbox — it contains the box, not vice versa.
+// Inclusive on all four edges. Pure geometry, no model deps.
+bool annotationContainsBox(const Annotation& a, float bx0, float by0, float bx1, float by1);
+
+// Mint an annotation id that does NOT collide with any id already in `existing`. TiXL Clone() mints a
+// fresh Guid; the runtime leaf has no Guid generator, so we derive a deterministic, collision-free id
+// from `base` (the clone source's id) + a counter suffix. Deterministic = golden-friendly; distinct
+// from the original = the loader's last-wins dedup (compound_load.cpp:87-94) never merges a clone back
+// onto its source. Used by combine/copy clone.
+std::string uniqueAnnotationId(const std::string& base, const std::vector<Annotation>& existing);
 
 }  // namespace sw

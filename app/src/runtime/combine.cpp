@@ -103,6 +103,33 @@ CombineResult combineChildren(SymbolLibrary& lib, const std::string& parentSymbo
   parent->animator.copyAnimationsTo(sym.animator, childIds, oldToNew);
   for (int id : childIds) parent->animator.removeChild(id);
 
+  // --- annotations that FRAME the selection travel into the new compound (R-AN #1, = TiXL
+  // Combine.cs:170,250-254: selectedAnnotations are CopySymbolChildrenCommand'd into the new symbol
+  // then DeleteAnnotationCommand'd off the parent). TiXL's selection set is whatever the user marked;
+  // our combine takes only childIds, so we derive it geometrically: an annotation joins iff its rect
+  // CONTAINS the selected children's point-bbox (a real frame SURROUNDS its nodes, so it is bigger
+  // than the bbox — annotationContainsBox, not the inverse). Each clone gets a fresh id
+  // (uniqueAnnotationId) re-based to the new canvas (same -minX+320/-minY+160 offset the children got)
+  // so it overlays the moved children identically. The parent's framing annotations are then erased. ---
+  std::vector<Annotation> movedAnnotations;
+  for (const Annotation& a : parent->annotations)
+    if (annotationContainsBox(a, minX, minY, maxX, maxY)) movedAnnotations.push_back(a);
+  for (const Annotation& a : movedAnnotations) {
+    Annotation clone = a;
+    clone.id = uniqueAnnotationId(a.id, sym.annotations);  // fresh id, distinct from the original
+    clone.x = a.x - minX + 320.0f;
+    clone.y = a.y - minY + 160.0f;
+    sym.annotations.push_back(clone);
+  }
+  {
+    auto& pa = parent->annotations;
+    pa.erase(std::remove_if(pa.begin(), pa.end(),
+                            [&](const Annotation& a) {
+                              return annotationContainsBox(a, minX, minY, maxX, maxY);
+                            }),
+             pa.end());
+  }
+
   // --- classify the parent's wires in ORDER (multi-input order contract) ---
   std::vector<SymbolConnection> internalWires, inbound, outbound, kept;
   for (const SymbolConnection& w : parent->connections) {

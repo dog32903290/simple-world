@@ -50,9 +50,10 @@ void pasteClipboardAt(float canvasX, float canvasY) {
     return;
   }
   sw::PastePlan plan = sw::planPaste(sw::doc::g_lib, cur->id, clip, canvasX, canvasY);
-  if (plan.children.empty()) {
+  if (plan.children.empty() && plan.annotations.empty()) {
     // Every child was cycle-dropped (e.g. pasting a compound into its own ancestor) or the
-    // target vanished. SAY so — a silent paste reads as broken (柏為). ASCII only.
+    // target vanished, and no annotation rode along. SAY so — a silent paste reads as broken
+    // (柏為). ASCII only.
     sw::doc::g_status = "nothing pasted (cycle or empty)";
     return;
   }

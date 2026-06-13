@@ -171,10 +171,22 @@ void CopyPasteChildrenCommand::doIt() {
       if (w.srcChild == c->id && w.srcSlot == mainOut) { wired = true; break; }
     if (wired) c->isBypassed = true;
   }
+  // 4) annotations (R-AN #1): each clone carries a fresh id (planPaste minted it against the target +
+  //    the other clones) — push them last. Undo removes them by exactly these ids.
+  for (const Annotation& a : plan_.annotations) s->annotations.push_back(a);
 }
 void CopyPasteChildrenCommand::undo() {
   Symbol* s = sym(lib_, symbolId_);
   if (!s) return;
+  // Pasted annotations first (mirror of the doIt tail): remove by the planned ids.
+  if (!plan_.annotations.empty()) {
+    std::set<std::string> annIds;
+    for (const Annotation& a : plan_.annotations) annIds.insert(a.id);
+    auto& as = s->annotations;
+    as.erase(std::remove_if(as.begin(), as.end(),
+                            [&](const Annotation& a) { return annIds.count(a.id) > 0; }),
+             as.end());
+  }
   // Reverse order: curves first, then wires, then children. Remove exactly the (newChildId,inputId)
   // animator entries we installed — removeChild drops the whole bucket per pasted child, so a paste
   // onto an unanimated target leaves NO殭屍 curve (the pasted ids are fresh, never pre-animated).

@@ -378,6 +378,62 @@ int runCopyPasteSelfTest(bool injectBug) {
     CHK(none3.children.size() == 1 && none3.children[0].curves.empty());
   }
 
+  // --- Leg 9 (R-AN #1): copy/paste carries a CONTAINED annotation, cloned with a FRESH id, surviving
+  // the JSON roundtrip, re-anchored at the paste point, removed cleanly on undo. The selection's
+  // child point-bbox is (10,20)..(200,50) (Const1 upper-left, Mul3 lower-right); a frame at (0,0)
+  // sized 250x100 CONTAINS it and travels; a frame outside does NOT. ---
+  {
+    SymbolLibrary lib = makeRoot();
+    Symbol& root = *lib.find("Root");
+    Annotation framing;  // contains the {1,2,3} child point-bbox
+    framing.id = "src-frame"; framing.title = "選取"; framing.label = "g";
+    framing.x = 0; framing.y = 0; framing.w = 250; framing.h = 100;
+    Annotation outside;  // far away
+    outside.id = "out-frame"; outside.x = 5000; outside.y = 5000; outside.w = 30; outside.h = 30;
+    root.annotations = {framing, outside};
+
+    ClipboardData clip = extractClipboard(root, selection);
+    CHK(clip.annotations.size() == 1);                               // only the contained frame copied
+    CHK(clip.annotations.empty() || clip.annotations[0].ann.title == "選取");  // CJK text carried verbatim
+    // relative-to-corner anchoring (selection upper-left = (10,20)): relX = 0-10 = -10, relY = -20.
+    CHK(clip.annotations.empty() ||
+        (clip.annotations[0].relX == -10.0f && clip.annotations[0].relY == -20.0f));
+
+    // JSON roundtrip (the OS-clipboard payload) preserves the annotation incl. CJK.
+    std::string json = clipboardToJson(clip);
+    ClipboardData parsed;
+    CHK(clipboardFromJson(json, parsed));
+    CHK(parsed.annotations.size() == 1);
+    CHK(parsed.annotations.empty() || parsed.annotations[0].ann.title == "選取");
+
+    // Plan + apply into the SAME symbol: the clone gets a FRESH id (not "src-frame") and pastes at
+    // the anchor + rel.
+    PastePlan plan = planPaste(lib, "Root", parsed, 1000.0f, 1000.0f);
+    CHK(plan.annotations.size() == 1);
+    CHK(plan.annotations.empty() || plan.annotations[0].id != "src-frame");   // clone换id (TEETH-able)
+    CHK(plan.annotations.empty() ||
+        (plan.annotations[0].x == 990.0f && plan.annotations[0].y == 980.0f)); // 1000+(-10),1000+(-20)
+    const std::string clonedId = plan.annotations.empty() ? "" : plan.annotations[0].id;
+
+    const size_t annBefore = root.annotations.size();  // 2 (src-frame + out-frame)
+    CommandStack stack;
+    stack.push(std::make_unique<CopyPasteChildrenCommand>(lib, "Root", plan));
+    CHK(root.annotations.size() == annBefore + 1);     // the clone landed
+    bool cloneLanded = false;
+    for (const Annotation& a : root.annotations) if (a.id == clonedId) cloneLanded = true;
+    CHK(cloneLanded);
+    // undo removes EXACTLY the clone (by id), leaving the two originals.
+    stack.undo();
+    CHK(root.annotations.size() == annBefore);
+    bool cloneGone = true;
+    for (const Annotation& a : root.annotations) if (a.id == clonedId) cloneGone = false;
+    CHK(cloneGone);
+
+    if (injectBug) {  // teeth: assert the clone kept the ORIGINAL id (it must NOT) -> FAIL when correct.
+      CHK(!plan.annotations.empty() && plan.annotations[0].id == "src-frame");
+    }
+  }
+
   // No inversion: injectBug leaks the external wire (Leg 2) -> externalLeak != 0 -> ok=false -> FAIL.
   printf("[selftest-copypaste]%s -> %s\n", injectBug ? "(bugged)" : "", ok ? "PASS" : "FAIL");
 #undef CHK

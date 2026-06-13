@@ -42,6 +42,7 @@
 #include "runtime/spectrum_analyzer.h"
 #include "runtime/transport.h"
 #include "ui/cjk_font.h"
+#include "ui/annotation_draw.h"  // runAnnotationDrawSelfTest (annotation draw/interaction geometry)
 #include "ui/canvas_ids.h"  // runCanvasIdsSelfTest (ed pin/node id bands)
 #include "ui/keymap.h"      // runKeymapSelfTest (K0 table completeness)
 #include "ui/quick_add.h"   // runQuickAddSelfTest (palette filter + eye hook naming)
@@ -179,6 +180,7 @@ const SelfTest kTable[] = {
     {"drawbillboards", runDrawBillboardsSelfTest},
     {"timeline", ui::runTimelineSelfTest},
     {"nodestyle", ui::runNodeStyleSelfTest},
+    {"anndraw",   ui::runAnnotationDrawSelfTest},
     {"canvasids", ui::runCanvasIdsSelfTest},
     {"cjkfont", ui::runCjkFontSelfTest},
     {"eye", eye::runSelfTest},

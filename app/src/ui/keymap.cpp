@@ -20,6 +20,7 @@
 #include "ui/editor_ui.h"        // g_selectedNode/g_pinnedNode (layer-switch hygiene)
 #include "app/frame_cook.h"
 #include "runtime/compound_graph.h"  // Symbol / Animator iteration
+#include "ui/annotation_draw.h"  // requestCreateAnnotation (Shift+A)
 #include "ui/copy_paste_ui.h"
 #include "ui/quick_add.h"  // SearchGraph (Cmd+F) handler
 
@@ -387,6 +388,19 @@ static bool handleNavigateForward() {
   return true;
 }
 
+static bool handleAddAnnotation() {
+  // Shift+A = add annotation (TiXL FactoryKeyMap.cs:53, KeyActionHandling.cs:141 flags
+  // NeedsWindowFocus|KeyPressOnly). Shift+A has NO Cmd, so it does not touch the Cmd<->Ctrl swap.
+  // The create itself is deferred to the next annotation draw (it reads the mouse canvas pos + seeds
+  // the inline rename, both of which live in ui/annotation_draw) — here we just request it.
+  const ImGuiIO& io = ImGui::GetIO();
+  if (!io.KeyShift || io.KeyCtrl || io.KeyAlt) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_A, false)) return false;
+  sw::ui::requestCreateAnnotation();
+  sw::doc::g_status = "add annotation";
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // The data-driven table.
 // One row = (key label for diagnostics, context, handler fn).
@@ -419,6 +433,8 @@ static const KeyEntry kKeyTable[] = {
     {"Duplicate",                   Context::CanvasFocus, handleDuplicate},
     {"FocusSelection",              Context::CanvasHover, handleFocusSelection},
     {"SearchGraph",                 Context::CanvasFocus, handleSearchGraph},
+    // --- Annotation (TiXL FactoryKeyMap.cs:53; CanvasFocus = NeedsWindowFocus) ---
+    {"AddAnnotation",               Context::CanvasFocus, handleAddAnnotation},
 };
 
 static constexpr int kTableSize = (int)(sizeof(kKeyTable) / sizeof(kKeyTable[0]));

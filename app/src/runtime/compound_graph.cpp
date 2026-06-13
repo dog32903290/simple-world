@@ -335,4 +335,41 @@ bool annotationColorIsDefault(const Annotation& a) {
          a.color[2] == kAnnotationGrayRGBA[2] && a.color[3] == kAnnotationGrayRGBA[3];
 }
 
+bool annotationRectContainedIn(const Annotation& a, float bx0, float by0, float bx1, float by1) {
+  // Normalize the box (callers compute min/max already, but be robust to a flipped box).
+  float lo_x = std::min(bx0, bx1), hi_x = std::max(bx0, bx1);
+  float lo_y = std::min(by0, by1), hi_y = std::max(by0, by1);
+  float ax0 = a.x, ay0 = a.y, ax1 = a.x + a.w, ay1 = a.y + a.h;
+  return ax0 >= lo_x && ay0 >= lo_y && ax1 <= hi_x && ay1 <= hi_y;
+}
+
+bool annotationContainsBox(const Annotation& a, float bx0, float by0, float bx1, float by1) {
+  // Normalize the box (a degenerate point-bbox has bx0==bx1 — still valid: a point inside the frame).
+  float lo_x = std::min(bx0, bx1), hi_x = std::max(bx0, bx1);
+  float lo_y = std::min(by0, by1), hi_y = std::max(by0, by1);
+  float ax0 = a.x, ay0 = a.y, ax1 = a.x + a.w, ay1 = a.y + a.h;
+  return lo_x >= ax0 && lo_y >= ay0 && hi_x <= ax1 && hi_y <= ay1;
+}
+
+std::string uniqueAnnotationId(const std::string& base, const std::vector<Annotation>& existing) {
+  auto taken = [&](const std::string& id) {
+    for (const Annotation& a : existing)
+      if (a.id == id) return true;
+    return false;
+  };
+  // Strip a prior "-cN" clone suffix so re-cloning a clone doesn't stack suffixes endlessly.
+  std::string root = base;
+  size_t cpos = root.rfind("-c");
+  if (cpos != std::string::npos && cpos + 2 < root.size()) {
+    bool allDigits = true;
+    for (size_t i = cpos + 2; i < root.size(); ++i)
+      if (root[i] < '0' || root[i] > '9') { allDigits = false; break; }
+    if (allDigits) root = root.substr(0, cpos);
+  }
+  for (int n = 1;; ++n) {
+    std::string cand = root + "-c" + std::to_string(n);
+    if (!taken(cand)) return cand;
+  }
+}
+
 }  // namespace sw

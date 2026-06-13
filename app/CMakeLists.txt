@@ -113,6 +113,7 @@ add_executable(simple_world
   src/ui/timeline_selftest_b9.cpp
   src/ui/node_draw.cpp
   src/ui/node_faces.cpp
+  src/ui/annotation_draw.cpp
   src/ui/node_style.cpp
   src/ui/output_window.cpp
   src/metal_impl.cpp

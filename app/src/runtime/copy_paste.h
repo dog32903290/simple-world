@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "runtime/annotation.h"      // Annotation (copy/paste carries contained annotation frames)
 #include "runtime/compound_graph.h"  // SymbolChild, SymbolConnection
 #include "runtime/curve_animator.h"  // Animator::CurveArray (copy/paste carries animation curves)
 
@@ -47,12 +48,25 @@ struct ClipboardChild {
   std::map<std::string, TriggerOverride> triggerOverrides;
 };
 
+// One annotation carried on the clipboard (R-AN #1, = TiXL CopySymbolChildrenCommand.cs:113-119:
+// _annotationsToCopy each Clone()'d with a fresh Guid + PosOnCanvas += PositionOffset). We store the
+// full struct minus its persisted absolute position, which becomes RELATIVE to the selection's
+// upper-left (same re-anchor招 as ClipboardChild.relX/Y) so paste can drop it at any target. The
+// original id is kept so paste can mint a fresh, collision-free clone id at the target.
+struct ClipboardAnnotation {
+  Annotation ann;                 // title/label/color/size/collapsed verbatim; .id = the SOURCE id
+  float relX = 0.0f, relY = 0.0f; // top-left relative to the selection upper-left corner
+};
+
 struct ClipboardData {
   std::vector<ClipboardChild> children;
   // Wires whose BOTH endpoints are in `children` (boundary-sentinel wires are external by
   // definition and never captured). srcChild/dstChild reference ORIGINAL ids; paste remaps
   // them. Order is the source symbol's connection order (multi-input order preserved on write).
   std::vector<SymbolConnection> wires;
+  // Annotations whose rect is CONTAINED in the selection bbox (R-AN #1). Captured in source order;
+  // paste clones each with a fresh id + re-anchored position. Empty when the selection frames none.
+  std::vector<ClipboardAnnotation> annotations;
 };
 
 // Build a clipboard from a selection of child ids inside `src`. Ignores ids not present and the
@@ -94,6 +108,11 @@ struct PastePlan {
   // (newChildId,inputId) entries in undo (= TiXL CopyAnimationsTo before child instantiation; our
   // command applies them alongside the children so undo cleans up without leaving殭屍 curves).
   std::map<int, std::map<std::string, Animator::CurveArray>> curves;
+  // Annotations to add to the TARGET symbol (R-AN #1): each clone already carries a fresh id (minted
+  // against the target's existing + the clones already planned, so two pasted frames never collide)
+  // and an absolute position at the paste anchor. The command pushes these in doIt and removes them
+  // by id in undo (mirrors the children's add/remove). Empty when the clipboard framed no annotation.
+  std::vector<Annotation> annotations;
 };
 
 // Plan pasting `clip` into Symbol `targetId` of `lib`, anchoring the selection's upper-left at

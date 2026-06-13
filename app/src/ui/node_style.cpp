@@ -119,6 +119,44 @@ float blinkValue() {
   return std::sin((float)ImGui::GetTime() * 10.0f) * 0.5f + 0.5f;
 }
 
+namespace {
+ImVec4 rgbaVec(const float c[4]) { return ImVec4(c[0], c[1], c[2], c[3]); }
+// TiXL Color.Fade(f) = new alpha = alpha * f (clamped). Applied on TOP of a variation.
+ImU32 fadeU32(ImVec4 c, float f) { c.w = std::min(std::max(c.w * f, 0.0f), 1.0f); return packU32(c); }
+}  // namespace
+
+// = ColorVariations.AnnotationBackground.Apply(color).Fade(0.8) (DrawAnnotation.cs:38, ColorVariations
+// .cs:19: AnnotationBackground b0.12 s1.0 op0.7). variation4 already multiplies alpha by op=0.7; Fade
+// multiplies by another 0.8.
+ImU32 annotationBgColor(const float rgba[4]) {
+  ImVec4 v = variation4(rgbaVec(rgba), 0.12f, 1.0f, 0.7f);
+  return fadeU32(v, 0.8f);
+}
+
+// = isSelected ? UiColors.ForegroundFull : AnnotationOutline.Apply(color) (DrawAnnotation.cs:52-53,
+// ColorVariations.cs:20: AnnotationOutline b1.0 s0.0 op0.0 — fully desaturated, alpha*0 makes it a
+// hairline... TiXL then draws AddRect with .Fade(GraphOpacity) on top, so the EFFECTIVE outline alpha
+// comes from GraphOpacity, not op0.0). To get a visible-but-faint edge faithful to the on-screen result
+// we keep op at a small floor (the desaturated hue at a low alpha = TiXL's faint outline). Selected =
+// pure white (ForegroundFull = (1,1,1,1)).
+ImU32 annotationOutlineColor(const float rgba[4], bool selected) {
+  if (selected) return IM_COL32(255, 255, 255, 255);  // UiColors.ForegroundFull
+  // AnnotationOutline desaturates the color (s*0 -> gray of the same brightness); op0 would make it
+  // invisible, but TiXL paints it under GraphOpacity. Use a faint alpha floor so the edge reads.
+  ImVec4 v = variation4(rgbaVec(rgba), 1.0f, 0.0f, 1.0f);
+  v.w = 0.45f;  // GraphOpacity stand-in (named: our editor has no per-frame graph opacity ramp yet)
+  return packU32(v);
+}
+
+// = ColorVariations.OperatorLabel.Apply(color.Fade(fade)) (DrawAnnotation.cs:178,206; ColorVariations
+// .cs:15: OperatorLabel b1.3 s0.4 op1.0). fade is the zoom-driven SmootherStep value the caller computes
+// (multiplied into the color's alpha before the variation, = TiXL annotation.Color.Fade(fade)).
+ImU32 annotationTextColor(const float rgba[4], float fade) {
+  ImVec4 c = rgbaVec(rgba);
+  c.w = std::min(std::max(c.w * fade, 0.0f), 1.0f);  // Color.Fade(fade) first
+  return variation(c, 1.3f, 0.4f, 1.0f);             // then OperatorLabel
+}
+
 int runNodeStyleSelfTest(bool injectBug) {
   auto maxc = [](ImU32 c) { ImVec4 f = ImGui::ColorConvertU32ToFloat4(c); return std::max({f.x, f.y, f.z}); };
   auto alpha = [](ImU32 c) { return ImGui::ColorConvertU32ToFloat4(c).w; };

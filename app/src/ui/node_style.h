@@ -43,6 +43,15 @@ float nodeRounding(float tixlScale);
 // (period = 2pi/10 ≈ 0.628s). Returns [0,1].
 float blinkValue();
 
+// Annotation frame colors (= TiXL DrawAnnotation.cs:38-56 + ColorVariations.cs:19-20). The base is the
+// annotation's OWN color[4] (NOT a node category). bg = AnnotationBackground(b0.12,s1,op0.7).Fade(0.8);
+// outline = AnnotationOutline(b1,s0,op0) when unselected (desaturates to a faint edge) or pure white
+// (ForegroundFull) when selected. text = OperatorLabel(b1.3,s0.4,op1) of the color faded by zoom
+// (caller supplies `fade`, multiplied into the color's alpha = TiXL annotation.Color.Fade(fade)).
+ImU32 annotationBgColor(const float rgba[4]);
+ImU32 annotationOutlineColor(const float rgba[4], bool selected);
+ImU32 annotationTextColor(const float rgba[4], float fade);
+
 // Isolation test (ARCHITECTURE.md 鐵律 5): type hues + bg-darker-than-label invariant.
 int runNodeStyleSelfTest(bool injectBug);
 
