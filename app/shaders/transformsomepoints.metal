@@ -113,12 +113,11 @@ kernel void transformsomepoints(
         pos = qRotateVec3(pos, orgRot) + pOrg;
     }
 
-    // --- Strength: overall lerp old->new (on top of WIsWeight lerp) ---
-    // TiXL TransformSomePoints does NOT have a Strength port; this is a FORK for usability parity
-    // with TransformPoints.  Defaults to 1.0 (no effect by default, full transform applied).
-    // NAMED FORK: TransformSomePoints.cs has no Strength input; we add it as a convenience alias.
-    p.Position = mix(pOrg, pos, P.Strength);
-    p.Rotation = qSlerp(orgRot, newRotation, P.Strength);
+    // Write results — TiXL TransformSomePoints.cs has no Strength port; weighting is solely
+    // via WIsWeight × W channel (already applied above, HLSL:125-130).  Direct write matches
+    // TiXL semantics exactly (p.Position = pos; p.Rotation = newRotation;).
+    p.Position = pos;
+    p.Rotation = newRotation;
 
     // W-channel (FX1): ScaleW/OffsetW baked to identity (ScaleW=1, OffsetW=0 -> FX1 unchanged).
     // BAKED FORK: TiXL line 139: p.W = w * ScaleW + OffsetW (W == FX1 in our layout).

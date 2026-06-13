@@ -16,6 +16,8 @@
 // (the only supported Pivot on TransformSomePoints, which has no Pivot input port), and it avoids
 // a packed float4x4 host param.  Euler order Y·X·Z (= CreateFromYawPitchRoll(yaw=Y,pitch=X,roll=Z)),
 // proven correct by refuter-T and refuter-P in batches 16-17.
+// NOTE: TiXL has no Strength port (grep "Strength" in TransformSomePoints.cs = 0 hits).
+// Per-point weighting is handled exclusively by WIsWeight × W channel (TiXL HLSL:125-130).
 //
 // BAKED / DEFERRED (flagged, not yet ported):
 //   - Take / Skip / OnlyKeepTakes / RangeStart / LengthFactor / Scatter — selection range indexing;
@@ -41,12 +43,12 @@ struct TransformSomeParams {
   uint  Count;          // inherited from the input bag (modifier: count from upstream Points)
   int   Space;          // 0=PointSpace, 1=ObjectSpace (WorldSpace baked to ObjectSpace)
   float WIsWeight;      // >0.5 -> lerp pos and slerp rot by point.W (TiXL WIsWeight)
-  float Strength;       // overall lerp weight old->new (applied on top of W when WIsWeight)
+  float _pad_w;         // padding to keep Translation row at 16-byte boundary
 #else
   uint32_t Count;
   int32_t  Space;
   float    WIsWeight;
-  float    Strength;
+  float    _pad_w;      // alignment padding (no Strength in TiXL TransformSomePoints.cs)
 #endif
   float TranslationX, TranslationY, TranslationZ;  // .cs Translation (Vector3), default (0,0,0)
   float _pad0;                                     // -> 16 bytes
@@ -63,7 +65,7 @@ enum TransformSomeBinding {
 };
 
 #ifndef __METAL_VERSION__
-// Count(4)+Space(4)+WIsWeight(4)+Strength(4)=16 | Translation(12)+pad(4)=16 |
-// Rotation(12)+pad(4)=16 | Stretch(12)+UniformScale(4)=16 = 64 bytes
+// Count(4)+Space(4)+WIsWeight(4)+_pad_w(4)=16 | Translation(12)+_pad0(4)=16 |
+// Rotation(12)+_pad1(4)=16 | Stretch(12)+UniformScale(4)=16 = 64 bytes
 static_assert(sizeof(TransformSomeParams) == 64, "TransformSomeParams must be 64 bytes (4x16)");
 #endif

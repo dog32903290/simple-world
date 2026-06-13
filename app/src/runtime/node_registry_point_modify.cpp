@@ -235,7 +235,7 @@ const std::vector<NodeSpec>& pointModifySpecs() {
       // FORK (transformsomepoints_params.h / .metal):
       //   - TRS matrix composed in-shader from raw scalars (pivot=0/shear=0; no such ports).
       //   - Euler order Y·X·Z = CreateFromYawPitchRoll(yaw=Y,pitch=X,roll=Z).
-      //   - Strength port added (not in TiXL TransformSomePoints); defaults to 1.0.
+      //   - No Strength port (TiXL TransformSomePoints.cs has none; per-point weighting via WIsWeight×W).
       //   - UpdateRotation baked to true; ScaleW/OffsetW baked to identity (1/0).
       //   - Take/Skip/RangeStart/LengthFactor/Scatter/OnlyKeepTakes baked (all points transformed).
       //   - Space=WorldSpace(2) baked to ObjectSpace (no view transform in cook ctx).
@@ -245,7 +245,6 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"out", "out", "Points", false},          // transformed output bag (port 1)
         {"Space", "Space", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Point", "Object"}},
         {"WIsWeight", "WIsWeight", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
-        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f},
         // Translation / Rotation(Euler°) / Scale — TiXL Vector3 inputs (Widget::Vec).
         {"Translation.x", "Translation", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
         {"Translation.y", "Translation.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},

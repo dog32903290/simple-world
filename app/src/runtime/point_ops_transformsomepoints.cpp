@@ -11,8 +11,8 @@
 //   - math: TRS (pivot=0), then WIsWeight lerp, then PointSpace back-to-world.
 //   - FORK (see transformsomepoints.metal): TRS matrix composed in-shader from raw scalars.
 //   - BAKED: Take/Skip/RangeStart/LengthFactor/Scatter/OnlyKeepTakes/ScaleW/OffsetW/TestParam.
-//   - ADDED FORK: Strength port (not in TiXL TransformSomePoints) for usability parity with
-//     TransformPoints; defaults to 1.0 (no behavioral change when unset).
+//   - No Strength port: TiXL TransformSomePoints.cs has no Strength input; per-point weighting
+//     is handled exclusively by WIsWeight × W channel (HLSL:125-130).
 //
 // Self-contained leaf: own capture vector + registerDrawOp.
 #include "runtime/point_ops.h"
@@ -57,7 +57,6 @@ void cookTransformSomePoints(PointCookCtx& c) {
   P.Count      = c.count;
   P.Space      = (int)(cookParam(c, "Space", 0.0f) + 0.5f);
   P.WIsWeight  = cookParam(c, "WIsWeight", 0.0f);
-  P.Strength   = cookParam(c, "Strength", 1.0f);
   P.UniformScale = cookParam(c, "UniformScale", 1.0f);
   float t[3] = {0, 0, 0}, r[3] = {0, 0, 0}, s[3] = {1, 1, 1};
   cookVecN(c, "Translation", t, 3, t);
@@ -104,21 +103,27 @@ static bool runXfSomeKernelDirect(MTL::Device* dev, MTL::CommandQueue* q, MTL::L
 
 // =============================================================================
 // Golden: RadialPoints(ring at origin, W=1 by default from generator) -> TransformSomePoints(
-//   ObjectSpace, WIsWeight=true, Stretch=1.5/0.7/1.5, Translation=(3,0,0), Strength=1)
-//   -> capture. With W=1 and Strength=1 the selection fully applies: ring scales by (1.5,0.7,1.5)
+//   ObjectSpace, WIsWeight=true, Stretch=1.5/0.7/1.5, Translation=(3,0,0))
+//   -> capture. With W=1 the selection fully applies: ring scales by (1.5,0.7,1.5)
 //   and shifts +3 in x.  Mean x ~= 3, every point closer to x=3 than x=0.
-// TEETH:
+// TEETH (injectBug NEW mechanism — Strength removed, per TiXL TransformSomePoints.cs):
 //   (1) count preserved.
-//   (2) mean x shifts to ~3 (the Translation.x).
+//   (2) graph golden: Translation=(3,0,0), Scale=(1.5,0.7,1.5).
+//       injectBug: inject Scale=identity (Scale.x=1,y=1,z=1) + Translation=(0,0,0) -> point
+//       set stays at origin -> mean x ~= 0, NOT ~3 -> FAIL.
 //   (3) MULTI-AXIS ROTATION TOOTH: drive ONE point at (0,1,0) with orgRot=identity through
-//       ObjectSpace Rot=(37,53,71)°, Scale=(1,1,1), Trans=(0,0,0), WIsWeight=false, Strength=1.
+//       ObjectSpace Rot=(37,53,71)°, Scale=(1,1,1), Trans=(0,0,0), WIsWeight=false.
 //       The correct Y·X·Z order lands at the analytically computed expectation; the old Z·Y·X
 //       order produces a DIFFERENT result -> assertion catches rotation-order regression.
-//       injectBug: Strength=0 -> identity passthrough -> point stays at (0,1,0) -> FAIL.
+//       injectBug: inject Z·Y·X ordering in the C++ reference (yaw=Z,pitch=X,roll=Y), which
+//       disagrees with the shader's Y·X·Z -> expected != got -> FAIL.
 //   (4) SELECTION WEIGHT TOOTH: WIsWeight=true, W=0.5 -> movement halved.
-//       Drive ONE point: ObjectSpace Rot=0 Trans=(4,0,0) Stretch=1 Strength=1 WIsWeight=true W=0.5.
+//       Drive ONE point: ObjectSpace Rot=0 Trans=(4,0,0) Stretch=1 WIsWeight=true W=0.5.
 //       Expected output.Position.x = 0 + (4-0)*0.5 = 2.0. Checks lerp path separately.
-//       injectBug (Strength=0): movement=0 -> x stays 0 -> assertion FAILS.
+//       injectBug: inject TranslationX=0 -> pos stays at origin -> expected x=0, got=0 -> PASS?
+//       Better: inject UniformScale=0 -> newPos=(0,0,0), weightedOffset=(0-0)*0.5=(0,0,0) -> x=0.
+//       Actually: inject WIsWeight=false in params (disable the lerp path) -> full transform
+//       applied, got x=4, expected x=2 -> mismatch -> FAIL.
 // =============================================================================
 int runTransformSomePointsSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
@@ -153,13 +158,14 @@ int runTransformSomePointsSelfTest(bool injectBug) {
   Node xfs; xfs.id = 2; xfs.type = "TransformSomePoints";
   xfs.params["Space"]          = 1.0f;  // ObjectSpace
   xfs.params["WIsWeight"]      = 0.0f;  // disabled for graph golden (W may vary by generator)
-  xfs.params["Strength"]       = injectBug ? 0.0f : 1.0f;  // bug: identity passthrough
-  xfs.params["Translation.x"]  = 3.0f;
+  // injectBug: zero out Translation + Scale -> identity transform -> ring stays at origin
+  // -> mean x ~= 0, not ~3 -> graph tooth FAILS. Normal: Translation=(3,0,0) + Scale=(1.5,0.7,1.5).
+  xfs.params["Translation.x"]  = injectBug ? 0.0f : 3.0f;
   xfs.params["Translation.y"]  = 0.0f;
   xfs.params["Translation.z"]  = 0.0f;
-  xfs.params["Scale.x"]        = 1.5f;
-  xfs.params["Scale.y"]        = 0.7f;
-  xfs.params["Scale.z"]        = 1.5f;
+  xfs.params["Scale.x"]        = injectBug ? 1.0f : 1.5f;
+  xfs.params["Scale.y"]        = injectBug ? 1.0f : 0.7f;
+  xfs.params["Scale.z"]        = injectBug ? 1.0f : 1.5f;
   xfs.params["UniformScale"]   = 1.0f;
   g.nodes.push_back(xfs);
   Node drw; drw.id = 3; drw.type = "DrawPoints"; g.nodes.push_back(drw);
@@ -177,7 +183,7 @@ int runTransformSomePointsSelfTest(bool injectBug) {
   bool graphPass = countOk && std::fabs(meanX - 3.0f) < 0.2f;
 
   // --- TOOTH 1: multi-axis rotation (Y·X·Z vs Z·Y·X) ---
-  // Drive (0,1,0) through Rot=(37,53,71)°, ObjectSpace, no scale/translation, Strength=1.
+  // Drive (0,1,0) through Rot=(37,53,71)°, ObjectSpace, no scale/translation.
   // Expected result computed analytically below via the same tCfypr helper as refuter-T.
   bool rotPass = false;
   float rotErr = 9.9f;
@@ -185,7 +191,9 @@ int runTransformSomePointsSelfTest(bool injectBug) {
     // Inline C++ reference: CreateFromYawPitchRoll(yaw=Y°, pitch=X°, roll=Z°)
     const double DEG = M_PI / 180.0;
     const double rx = 37.0 * DEG, ry = 53.0 * DEG, rz = 71.0 * DEG;
-    // Y·X·Z qMul(Ry, qMul(Rx, Rz))
+    // injectBug: use Z·Y·X ordering in the C++ reference (old buggy order).
+    // Shader always uses Y·X·Z. Bug reference disagrees -> expXYZ != shader output -> FAIL.
+    // Normal: Y·X·Z qMul(Ry, qMul(Rx, Rz)) matches the shader.
     auto qFromAxisAngle = [](double a, double ax, double ay, double az)
         -> std::array<double,4> {
       double s = std::sin(a*0.5), c = std::cos(a*0.5);
@@ -207,7 +215,11 @@ int runTransformSomePointsSelfTest(bool injectBug) {
     auto Ry = qFromAxisAngle(ry, 0,1,0);
     auto Rx = qFromAxisAngle(rx, 1,0,0);
     auto Rz = qFromAxisAngle(rz, 0,0,1);
-    auto R  = qMulRef(Ry, qMulRef(Rx, Rz));  // Y·X·Z
+    // injectBug: Z·Y·X reference (buggy: yaw=Z, pitch=X, roll=Y — old batch-16 error)
+    // normal:    Y·X·Z reference (correct: yaw=Y, pitch=X, roll=Z — CreateFromYawPitchRoll)
+    auto R  = injectBug
+              ? qMulRef(Rz, qMulRef(Ry, Rx))   // BUGGY Z·Y·X
+              : qMulRef(Ry, qMulRef(Rx, Rz));  // correct Y·X·Z
     auto expXYZ = qRotRef(0.0, 1.0, 0.0, R);  // ObjectSpace Rot applied to (0,1,0)
 
     std::vector<SwPoint> one(1);
@@ -218,7 +230,7 @@ int runTransformSomePointsSelfTest(bool injectBug) {
     TransformSomeParams RP{};
     RP.Count = 1; RP.Space = 1;  // ObjectSpace
     RP.WIsWeight = 0.0f;
-    RP.Strength  = injectBug ? 0.0f : 1.0f;  // bug: identity -> stays (0,1,0) -> FAIL
+    // Params always correct (Y·X·Z shader); injectBug is in the C++ reference above -> mismatch.
     RP.RotationX = 37.0f; RP.RotationY = 53.0f; RP.RotationZ = 71.0f;  // multi-axis, non-equal
     RP.StretchX = 1.0f; RP.StretchY = 1.0f; RP.StretchZ = 1.0f;
     RP.UniformScale = 1.0f;
@@ -250,8 +262,9 @@ int runTransformSomePointsSelfTest(bool injectBug) {
     one[0].FX1      = 0.5f;  // W==FX1 in SwPoint; selection weight
     TransformSomeParams WP{};
     WP.Count = 1; WP.Space = 1;  // ObjectSpace
-    WP.WIsWeight  = 1.0f;        // enabled
-    WP.Strength   = injectBug ? 0.0f : 1.0f;  // bug: zero Strength -> x stays 0 -> FAIL
+    // injectBug: disable WIsWeight in params -> full transform applied (pos becomes (4,0,0))
+    // -> got x=4, expected x=2 -> wTooth FAILS.  Normal: WIsWeight=1 -> lerp by W=0.5.
+    WP.WIsWeight  = injectBug ? 0.0f : 1.0f;
     WP.RotationX  = 0.0f; WP.RotationY = 0.0f; WP.RotationZ = 0.0f;
     WP.StretchX   = 1.0f; WP.StretchY = 1.0f; WP.StretchZ = 1.0f;
     WP.UniformScale = 1.0f;
@@ -259,7 +272,7 @@ int runTransformSomePointsSelfTest(bool injectBug) {
     std::vector<SwPoint> wo;
     if (runXfSomeKernelDirect(dev, q, lib, one, WP, wo) && wo.size() == 1) {
       // expected: pLocal=(0,0,0), newPos=(4,0,0), weightedOffset=(4-0)*0.5=(2,0,0)
-      //           pos = pLocal + weightedOffset = (2,0,0). Then Strength=1 -> mix(0,2,1)=2.
+      //           pos = pLocal + weightedOffset = (2,0,0) -> WIsWeight lerp path correct.
       const float expX = 2.0f;
       wErr = std::fabs(wo[0].Position.x - expX);
     }
@@ -443,7 +456,6 @@ int runTransformSomePointsParityProbe(bool injectBug) {
     TransformSomeParams P{};
     P.Count      = N; P.Space = cs.space;
     P.WIsWeight  = 0.0f;   // disabled: all points fully transformed (test Euler order only)
-    P.Strength   = 1.0f;
     P.RotationX  = ROT[0]; P.RotationY = ROT[1]; P.RotationZ = ROT[2];
     P.StretchX   = SCL[0]; P.StretchY  = SCL[1]; P.StretchZ  = SCL[2];
     P.UniformScale = 1.0f;
@@ -497,7 +509,7 @@ int runTransformSomePointsParityProbe(bool injectBug) {
     std::vector<SwPoint> winIn = in;
     for (auto& p : winIn) p.FX1 = 0.5f;  // W==FX1 in SwPoint
     TransformSomeParams WP{};
-    WP.Count=N; WP.Space=1; WP.WIsWeight=1.0f; WP.Strength=1.0f;
+    WP.Count=N; WP.Space=1; WP.WIsWeight=1.0f;
     WP.RotationX=ROT[0]; WP.RotationY=ROT[1]; WP.RotationZ=ROT[2];
     WP.StretchX=SCL[0]; WP.StretchY=SCL[1]; WP.StretchZ=SCL[2];
     WP.UniformScale=1.0f;
