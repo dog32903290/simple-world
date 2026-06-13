@@ -1124,3 +1124,31 @@ headless 圍欄 (續)/AddNoise Rotation 顯式牙。
 3. **互動 trivial 第三梯隊(S3)**: `Home`=jump to start time / `Shift+L`=half-speed / `I`·`U`=open/close operator(雙擊邏輯已有,各一行 keymap)/ 雙擊 annotation rename(inline rename widget 已有)/ `Shift+D`=toggle disabled(inspector 已有 checkbox)。**fence Shift/Ctrl 三模式= moderate**(需 modifier 傳進 ed SelectionCommit)。**G auto-layout / shake-to-disconnect / Alt-drag pan = moderate,各自評估**(TiXL G 自己也是 TODO)。
 4. particle 深化(force 鏈/field-graph)= subsystem 級(§D),需 ShaderGraphNode 子系統前置,排後(WORKFLOW §八:子系統才升 session 平行)。
 5. 掃描第四輪(本批三維度原料夠 2-3 批用,候選見底再派)。
+
+## Cut 24 — 批次 18: TransformSomePoints + UI 視覺常數 + 互動快捷鍵 (2026-06-13 午後; Opus orchestrator 三航) ✅
+`edc8cfe`(三 lane)+`680848d`(Lane P fixer)二 commit。--bite **97 中 96 綠**(唯一紅 soundtrack @4x 預存環境 flake)/check-arch OK/scenario **28/28**。三條不重疊 lane 便宜平行(op∥ui draw∥ui keymap, WORKFLOW §八),全 Sonnet implementer。
+
+**事實(交付)**:
+- **Lane P — TransformSomePoints**(point/transform count-preserving modifier): shader+params+leaf+register+家族表+golden+xfsomeprobe。旋轉 **Y·X·Z**(繼承批次17,RED 證 Z·Y·X→maxPosErr 1.44)。WIsWeight×W channel 加權(TiXL 機制)。**預設 transform-all 查證忠實**: TiXL .t3 DefaultValue Take=1/Skip=0/LengthFactor=1.0/WIsWeight=false → group 邏輯 indexInGroup 0<Take 1 → 全部點被變換。selection-range(Take/Skip/RangeStart/OnlyKeepTake/Scatter)誠實 deferred——**NodeSpec 不暴露=無死旋鈕**(批次8 假旋鈕雷的反面)。
+- **Lane V — UI 視覺常數對齊 TiXL**(路線B): 節點常態邊框 1px→0(DrawNode.cs:121-127 只 AddRectFilled)/選取邊框 2.5→1px(DrawNode.cs:147)/hover 邊框 2→1px(DrawNode.cs:156)/canvas bg 去藍 0.12,0.14,0.18→0.12,0.12,0.12(UiColors.cs:29)。color selftest 動態讀 kBg 仍綠。eye 佐證生效。
+- **Lane K — 互動快捷鍵**(S3): Home=jump to start(FactoryKeyMap.cs:31)/Shift+L=half-speed(:25)/I·U=open·close operator(:57-58 複用雙擊進出 compound)/Shift+D=toggle disabled(:47)。keymap.cpp 資料表加列+handler,hand.cpp 補 "home"。活體 keys_lane_k.scn 12 步全 PASS。
+
+**orchestrator 合流復查 verdict(本批的牙)**: **Lane P 抓出憑空發明的 Strength port**(TiXL TransformSomePoints.cs `grep Strength`=0)——違反 UI parity 北極星。fixer 移除三處(NodeSpec/params→_pad_w 維 64B/shader lerp)+golden injectBug 重做(Strength=0 → Z·Y·X/identity/WIsWeight=0,全 RED 證)。**這是批次8「假旋鈕」雷的變種——憑空加 TiXL 沒有的旋鈕,合流讀 NodeSpec+TiXL .cs 對照才抓到。** Lane V/K 低風險(rubric 複核級)由結構閘覆蓋(scenario 28/28+color/keymap selftest+TiXL 源碼引文),未派獨立 refuter。
+
+**fork 具名**: P[TRS in-shader 無 Pivot/Shear port·Euler Y·X·Z·Space WorldSpace baked→ObjectSpace(cook ctx 無 view transform)·selection-range deferred(NodeSpec 不暴露)·WIsWeight×W=TiXL 加權]; V[節點無常態邊框=照 TiXL]; K[I-requires-selection(我方 single-select 無 HoveredItem)·Shift+L no-ladder-below-half(Inspector Speed 最小 0.5)·Shift+D single-select main-output]。
+
+**S1 缺口掃描 sizing 復核(重要,原料校正)**: S1 tier1 估值**不可盡信**——逐顆查 TiXL .cs input 型別發現: 僅 **TransformSomePoints** 真 cheap standalone(Points+scalar TRS+F-mask); **SnapPointsToGrid**(2nd BufferWithViews)/**MapPointAttributes**(Texture2D+Curve+Gradient)/**ClearSomePoints**(2nd buffer) 皆有隱藏 buffer/texture/curve 依賴=非 trivial。下批挑 cheap point op 必先 grep .cs input 型別,別信掃描估值。
+
+**🟡 柏為親測 (批次18 新增)**:
+- ① TransformSomePoints 節點: 拖 TRS 變換點雲;WIsWeight 開→用點的 W 當權重 lerp(選擇性變換的雛形,完整 Take/Skip selection 待後批)
+- ② **節點視覺變了**(對齊 TiXL): 節點無邊框(扁平)/選取線變細(1px)/畫布背景純灰不帶藍——順眼嗎?還是邊框拿掉太空?(品味你定)
+- ③ 新快捷鍵: Home=播放頭歸零 / Shift+L=半速 / I=進節點(選中時) U=出 / Shift+D=停用節點
+- 繼承未測: 批次17(TransformPoints 旋轉/soundtrack 4x)、16–9 各欄
+
+## Resume — next (批次19 候選; 無 🔴 排修, 純推進)
+1. **cheap point op 第二批**: S1 原料已知不可信→先 grep `external/tixl/.../point/**/*.cs` 的 InputSlot 型別,挑**只有 Points buffer + scalar**的(無 Texture2D/Curve/Gradient/2nd-buffer)。已知真 cheap: 暫無確認(S1 前 6 顆多有隱藏 dep)→**派一個快速 Explore 先 grep input 型別篩 cheap 清單**,再挑 3-5 顆。或挑 moderate 但高值(SoftTransformPoints=falloff-sphere TRS,單 Points buffer)。
+2. **UI 視覺第三刀(S2 緩做項)**: 節點標題字級 13→18px(需評估 CJK atlas/node 尺寸連動)/連線 idle-fade 粗細(0.25–2px,editor_ui.cpp:201-203 connectionLineColor+lthick 要接 dt/idle factor)/pin 方→三角(node_draw.cpp:31 AddRectFilled→AddTriangleFilled,moderate)。連線 bezier 形狀=major 再議。
+3. **互動 S3 第二梯隊**: fence Shift=add/Ctrl=remove 三模式(moderate,modifier 傳進 ed SelectionCommit)/雙擊 annotation rename(inline rename widget 已有)/G auto-layout(moderate,TiXL 自己也 TODO,演算法要先定)。
+4. particle 深化(force 鏈/field-graph)= subsystem(§D ShaderGraphNode 前置)排後。
+5. soundtrack @4x(task_adc40d12 已派 chip)——柏為域,非阻塞。
+6. 掃描第四輪(原料見底再派)。
