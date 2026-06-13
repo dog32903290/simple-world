@@ -115,6 +115,7 @@ add_executable(simple_world
   src/ui/node_draw.cpp
   src/ui/node_faces.cpp
   src/ui/annotation_draw.cpp
+  src/ui/annotation_interact.cpp
   src/ui/node_style.cpp
   src/ui/output_window.cpp
   src/metal_impl.cpp
