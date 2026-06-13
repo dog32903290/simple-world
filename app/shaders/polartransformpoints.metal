@@ -23,8 +23,12 @@
 //   SAME composition the existing transformpoints.metal uses. We reproduce it directly from the raw
 //   TRS scalars, which avoids passing a packed float4x4 host param (the particle_params.h
 //   discipline) and reuses the project's qFromAngleAxis Euler order (X then Y then Z).
-//   Euler convention: TiXL uses Quaternion.CreateFromYawPitchRoll(yaw=Y, pitch=X, roll=Z), which
-//   equals qMul(Z, qMul(Y, X)) about world axes — matched here, identical to transformpoints.metal.
+//   Euler convention: TiXL uses Quaternion.CreateFromYawPitchRoll(yaw=Y, pitch=X, roll=Z).
+//   .NET source (Quaternion.CreateFromYawPitchRoll) builds quaternions for yaw/pitch/roll separately
+//   and returns cy*cp*cr+sy*sp*sr / cy*sp*cr+sy*cp*sr / cy*cp*sr-sy*sp*cr / cy*cp*cr+sy*sp*sr,
+//   which is equivalent to the Hamilton product Y·X·Z (Yaw first, then Pitch, then Roll).
+//   Previous comment claimed "equals qMul(Z,qMul(Y,X))" — WRONG; refuter-P falsified that.
+//   Corrected to Y·X·Z below (verified by refuter-P GPU probe, batch 16).
 #include <metal_stdlib>
 #include "tixl_point.h"                    // SwPoint (64B layout)
 #include "polartransformpoints_params.h"   // PolarTransformParams, PolarTransformBinding
@@ -46,9 +50,9 @@ kernel void polartransformpoints(
 
     // --- TRS pre-transform (== mul(float4(pos,1), TransformMatrix), pivot=0/shear=0) ---
     float3 rad = float3(P.RotationX, P.RotationY, P.RotationZ) * (M_PI_F / 180.0f);
-    float4 R = qMul(qFromAngleAxis(rad.z, float3(0, 0, 1)),
-                    qMul(qFromAngleAxis(rad.y, float3(0, 1, 0)),
-                         qFromAngleAxis(rad.x, float3(1, 0, 0))));  // X, then Y, then Z
+    float4 R = qMul(qFromAngleAxis(rad.y, float3(0, 1, 0)),
+                    qMul(qFromAngleAxis(rad.x, float3(1, 0, 0)),
+                         qFromAngleAxis(rad.z, float3(0, 0, 1))));  // Y·X·Z = CreateFromYawPitchRoll(yaw=Y,pitch=X,roll=Z); refuter-P verified
     float3 scale = float3(P.ScaleX, P.ScaleY, P.ScaleZ) * P.UniformScale;
     float3 trans = float3(P.TranslationX, P.TranslationY, P.TranslationZ);
     pos = qRotateVec3(pos * scale, R) + trans;

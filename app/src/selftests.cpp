@@ -173,6 +173,7 @@ const SelfTest kTable[] = {
     {"addnoise", runAddNoiseSelfTest},
     {"filterpoints", runFilterPointsSelfTest},
     {"polartransform", runPolarTransformPointsSelfTest},
+    {"polarprobe", runPolarTransformPointsParityProbe},
     {"wrappoints", runWrapPointsSelfTest},
     {"boundpoints", runBoundPointsSelfTest},
     {"rendertarget", runRenderTargetSelfTest},

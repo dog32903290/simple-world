@@ -57,6 +57,14 @@ int runFilterPointsSelfTest(bool injectBug);
 // cartesian->cylindrical warp maps a line to a circle of radius R in XZ.
 // injectBug = Translation.z=0 -> warp collapses every point to the origin (radius 0) -> FAIL.
 int runPolarTransformPointsSelfTest(bool injectBug);
+// refuter-P GPU adversarial probe (batch 16, point_ops_polartransformpoints.cpp): runs the REAL
+// polartransformpoints kernel with Rotation!=0 + non-uniform Scale + Translation!=0, captures GPU
+// positions, and compares each against the TiXL host TransformMatrix path (Scale *
+// CreateFromQuaternion(CreateFromYawPitchRoll(yaw=Y,pitch=X,roll=Z)) * Translation) recomputed in
+// C++. Prints maxPosErr. injectBug=true swaps yaw/roll in the C++ reference to simulate the old
+// Z·Y·X bug, forcing a mismatch against the correct Y·X·Z shader -> FAIL (bite tooth).
+// Permanent bite tooth (refuter-P verified, batch 16).
+int runPolarTransformPointsParityProbe(bool injectBug);
 // WrapPoints MODIFIER golden (point_ops_wrappoints.cpp): floored-mod box-wrap of positions.
 // injectBug = box larger than the input line -> no point wraps inside the unit box -> FAIL.
 int runWrapPointsSelfTest(bool injectBug);
