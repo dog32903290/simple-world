@@ -160,9 +160,11 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
   }
   if (!s->evaluate) return 0.0f;
   // Gather Float input values in port order (only Float inputs contribute to in[]).
-  float in[8];
+  // Cap 16 (was 8): RemapVec2 has 11 Float inputs (5 Vec2 + Mode); the resident gather already
+  // expanded to 32 (batch26 MultiInput), so the legacy flat path matches that headroom additively.
+  float in[16];
   int ni = 0;
-  for (size_t i = 0; i < s->ports.size() && ni < 8; ++i) {
+  for (size_t i = 0; i < s->ports.size() && ni < 16; ++i) {
     const PortSpec& p = s->ports[i];
     if (!(p.isInput && p.dataType == "Float")) continue;
     int inPin = pinId(nodeId, (int)i);

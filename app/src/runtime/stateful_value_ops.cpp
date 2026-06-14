@@ -573,6 +573,36 @@ void stepAccumulator(const std::map<std::string, float>& in, float dt, float /*t
   out[0] = modulo > 0.0f ? std::fmod(st.s[0], modulo) : st.s[0];  // TiXL: modulo>0 ? _v % modulo : _v
 }
 
+// --- HasVec2Changed (TiXL vec2/HasVec2Changed.cs) — fires when Value moves > Threshold (Euclidean
+// distance). Outputs: HasChanged(Bool→Float 0/1), Delta.x, Delta.y (signed newValue−lastValue).
+// State: s[0]=lastValue.x, s[1]=lastValue.y, s[2]=lastHitTime, s[3]=wasHit. Mirrors HasValueChanged.
+// Fork (same as HasValueChanged): drop the Playback.RunTimeInSecs 0.010 dedup early-return; use the
+// seam `time` (wall seconds) for the MinTimeBetweenHits gate (TiXL context.LocalFxTime).
+void stepHasVec2Changed(const std::map<std::string, float>& in, float /*dt*/, float time,
+                        StatefulValueState& st, float out[3]) {
+  const float nx = getInC(in, "Value", 0), ny = getInC(in, "Value", 1);
+  const float threshold = getIn(in, "Threshold", 0.0f);
+  const float minTime = getIn(in, "MinTimeBetweenHits", 0.0f);
+  const bool prevent = getIn(in, "PreventContinuedChanges", 0.0f) > 0.5f;
+  float& lx = st.s[0];
+  float& ly = st.s[1];
+  const float dx = nx - lx, dy = ny - ly;
+  const float dist = std::sqrt(dx * dx + dy * dy);  // TiXL Vector2.Distance
+  bool hasChanged = dist > threshold;
+  const bool prevWasHit = st.s[3] > 0.5f;
+  const bool wasTriggered = hasChanged && !prevWasHit;  // MathUtils.WasTriggered
+  st.s[3] = hasChanged ? 1.0f : 0.0f;
+  if (hasChanged && (prevent || wasTriggered)) {
+    if (time - st.s[2] >= minTime) st.s[2] = time;
+    else hasChanged = false;
+  }
+  out[0] = hasChanged ? 1.0f : 0.0f;
+  out[1] = dx;  // Delta = newValue - lastValue (signed)
+  out[2] = dy;
+  lx = nx;
+  ly = ny;
+}
+
 struct StatefulOp {
   const char* type;
   void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[3]);
@@ -596,6 +626,7 @@ const StatefulOp kStatefulValueOps[] = {
     {"HasValueChanged", stepHasValueChanged},
     {"DetectPulse", stepDetectPulse},
     {"Accumulator", stepAccumulator},
+    {"HasVec2Changed", stepHasVec2Changed},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -1064,6 +1095,24 @@ int runStatefulValueSelfTest(bool injectBug) {
       bool pass = std::fabs(out[0] - w) < eps;
       ok = ok && pass;
       printf("[selftest-statefulvalue] Accum.perSec step%d=%.2f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- HasVec2Changed, Threshold=0.5: moves (0,0)→(1,0)→(1,0)→(1,1) → HasChanged 0,1,0,1 -----
+  // Delta(signed) = newValue-lastValue: (0,0),(1,0),(0,0),(0,1). (Euclidean dist > 0.5 fires.)
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float vx[4] = {0.0f, 1.0f, 1.0f, 1.0f};
+    const float vy[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    const float wHC[4] = {0.0f, 1.0f, 0.0f, 1.0f};
+    const float wDy[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("HasVec2Changed", {{"Value.x", vx[i]}, {"Value.y", vy[i]}, {"Threshold", 0.5f}}, dt60, 0.0f, st, out);
+      float whc = (injectBug && i == 1) ? 0.0f : wHC[i];  // bug: misses the move
+      bool pass = std::fabs(out[0] - whc) < eps && std::fabs(out[2] - wDy[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasVec2Changed step%d HC=%.1f(want %.1f) Dy=%.1f -> %s\n", i + 1, out[0], whc, out[2], pass ? "PASS" : "FAIL");
     }
   }
 

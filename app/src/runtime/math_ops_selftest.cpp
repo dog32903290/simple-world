@@ -1305,6 +1305,19 @@ int runMathOpsSelfTest(bool injectBug) {
   }
   // [vec-batch31] END teeth
 
+  // [vec-batch32] RemapVec2 x-component: in(0,10) out(0,100). Normal:5→50; Clamped:20→100; Modulo:15→50.
+  {
+    auto rmx = [&](float v, float mode) {
+      return evalOpParams("RemapVec2", {{"Value.x", v}, {"RangeInMin.x", 0.0f}, {"RangeInMax.x", 10.0f},
+                                        {"RangeOutMin.x", 0.0f}, {"RangeOutMax.x", 100.0f}, {"Mode", mode}}, "Result.x");
+    };
+    float nrm = rmx(5.0f, 0.0f), clp = rmx(20.0f, 1.0f), mod = rmx(15.0f, 2.0f);
+    float wN = injectBug ? 5.0f : 50.0f;  // bug: forgot to scale to out-range
+    bool pass = std::fabs(nrm - wN) < eps && std::fabs(clp - 100.0f) < eps && std::fabs(mod - 50.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] RemapVec2 normal=%.1f(want %.1f) clamped=%.1f mod=%.1f -> %s\n", nrm, wN, clp, mod, pass ? "PASS" : "FAIL");
+  }
+
   printf("[selftest-mathops] -> %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

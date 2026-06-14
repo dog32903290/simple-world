@@ -671,4 +671,30 @@ float evalEulerToAxisAngle(int outIdx, const float* in, int n, const EvaluationC
 }
 // [vec-batch31] END implementations
 
+// [vec-batch32] BEGIN implementations.
+// RemapVec2 — component-wise remap with Mode(Normal/Clamped/Modulo). TiXL vec2/RemapVec2.cs.
+// in: Value.xy(0,1), RangeInMin.xy(2,3), RangeInMax.xy(4,5), RangeOutMin.xy(6,7), RangeOutMax.xy(8,9),
+// Mode(10). Per component: factor=(v-inMin)/(inMax-inMin); out=factor*(outMax-outMin)+outMin; then mode.
+// Fork: inMax==inMin → factor 0 (TiXL would div-by-zero); Modulo delta==0 → passthrough.
+float evalRemapVec2(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 11) return 0.0f;
+  const int k = outIdx - n;  // 0=x, 1=y
+  if (k < 0 || k > 1) return 0.0f;
+  const float value = in[k];
+  const float inMin = in[2 + k], inMax = in[4 + k];
+  const float outMin = in[6 + k], outMax = in[8 + k];
+  const int mode = (int)std::lround(in[10]);
+  const float denom = inMax - inMin;
+  const float factor = (denom != 0.0f) ? (value - inMin) / denom : 0.0f;
+  float v = factor * (outMax - outMin) + outMin;
+  if (mode == 1) {  // Clamped (TiXL MathUtils.Clamp(v, outMin, outMax) — assumes outMin<outMax, faithful)
+    v = v < outMin ? outMin : (v > outMax ? outMax : v);
+  } else if (mode == 2) {  // Modulo: MathUtils.Fmod(v, outMax-outMin)
+    const float delta = outMax - outMin;
+    if (delta != 0.0f) v = v - delta * std::floor(v / delta);
+  }
+  return v;  // Normal(0): unclamped passthrough
+}
+// [vec-batch32] END implementations
+
 }  // namespace sw

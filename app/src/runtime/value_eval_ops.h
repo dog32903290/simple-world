@@ -125,4 +125,6 @@ float evalDivideVector2(int outIdx, const float* in, int n, const EvaluationCont
 float evalVec2ToVec3(int outIdx, const float* in, int n, const EvaluationContext&);
 float evalEulerToAxisAngle(int outIdx, const float* in, int n, const EvaluationContext&);
 // [vec-batch31] END declarations
+// [vec-batch32]
+float evalRemapVec2(int outIdx, const float* in, int n, const EvaluationContext&);
 }  // namespace sw
