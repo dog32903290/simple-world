@@ -410,6 +410,73 @@ void stepHasValueChanged(const std::map<std::string, float>& in, float /*dt*/, f
   out[2] = lastHitDelta;
 }
 
+// --- DetectPulse (TiXL float/process/DetectPulse.cs) ---
+// Detects a downward "pulse": when the input drops fast enough that (damped − new) exceeds
+// Threshold, fires HasChanged once on the rising edge of that condition, gated by MinTimeBetweenHits.
+// Bool output dissolves to Float 0/1 (Cut 32: no Bool port type). Outputs:
+//   HasChanged(0/1) = isHit ; DebugValue = deltaToDamped (= dampedValue − newValue, PRE-update).
+// Ports/inputs (TiXL decl order): Value, Threshold, Damping, MinTimeBetweenHits.
+//   .t3 source defaults (DetectPulse.t3): Value=1.0, Threshold=0.0, Damping=0.95, MinTimeBetweenHits=0.075.
+// State: s[0]=lastHitTime, s[1]=wasHit(0/1), s[2]=dampedValue.
+//   TiXL inits _lastHitTime = double.NegativeInfinity → represented as -1e30f so the first qualifying
+//   pulse always clears the gate (time − (−1e30) ≫ minTime). _wasHit=false(0), _dampedValue=0.
+//   The `init` flag seeds s[0]=-1e30 once (zero-init would otherwise put it at 0).
+// Time: TiXL uses context.LocalFxTime for the hasTimeDecreased reset + the MinTimeBetweenHits gate;
+//   frame_cook hands wall seconds via `time`, the same substitution Ease/HasValueChanged use. `dt` unused.
+// Fork (named) — same precedent as Damp/Ease/HasValueChanged:
+//   • context.LocalFxTime → the seam's `time` param (wall seconds). DetectPulse has NO sub-ms
+//     early-return guard, so there is nothing else to drop (no _lastEvalTime exists in the .cs).
+//   • TiXL's Log.Debug(...) diagnostic line is a pure side-effect-free logging call → dropped (no
+//     behavior change to any output).
+// MathUtils.WasTriggered(cur, ref prev) = rising edge: result = cur && !prev; then prev = cur.
+// QUIRK kept VERBATIM: the inner `if (timeSinceLastHit >= minTimeBetweenHits)` is a redundant
+//   re-check of the SAME condition already in the outer `if` — a TiXL source quirk, preserved as-is.
+void stepDetectPulse(const std::map<std::string, float>& in, float /*dt*/, float time,
+                     StatefulValueState& st, float out[3]) {
+  const float newValue = getIn(in, "Value", 1.0f);
+  const float threshold = getIn(in, "Threshold", 0.0f);
+  const float minTimeBetweenHits = getIn(in, "MinTimeBetweenHits", 0.075f);
+
+  if (!st.init) {
+    st.s[0] = -1e30f;  // TiXL _lastHitTime = double.NegativeInfinity
+    st.init = true;
+  }
+  float& lastHitTime = st.s[0];
+  float& dampedValue = st.s[2];
+
+  // hasTimeDecreased = context.LocalFxTime < _lastHitTime; if so _lastHitTime = 0.
+  if (time < lastHitTime) lastHitTime = 0.0f;
+
+  // deltaToDamped uses the PRE-update damped value.
+  const float deltaToDamped = dampedValue - newValue;
+
+  // dampFactor = Damping.Clamp(0,1); _dampedValue = Lerp(newValue, _dampedValue, dampFactor).
+  float dampFactor = getIn(in, "Damping", 0.95f);
+  if (dampFactor < 0.0f) dampFactor = 0.0f;
+  else if (dampFactor > 1.0f) dampFactor = 1.0f;
+  dampedValue = lerpf(newValue, dampedValue, dampFactor);
+
+  out[1] = deltaToDamped;  // DebugValue.Value = deltaToDamped
+
+  const bool exceedsThreshold = deltaToDamped > threshold;
+  // MathUtils.WasTriggered(exceedsThreshold, ref _wasHit): rising edge, then store current.
+  const bool prevWasHit = st.s[1] > 0.5f;
+  const bool wasTriggered = exceedsThreshold && !prevWasHit;
+  st.s[1] = exceedsThreshold ? 1.0f : 0.0f;
+
+  bool isHit = false;
+  const float timeSinceLastHit = time - lastHitTime;
+  if (wasTriggered && timeSinceLastHit >= minTimeBetweenHits) {
+    // VERBATIM TiXL quirk: redundant re-check of the same condition as the outer if.
+    if (timeSinceLastHit >= minTimeBetweenHits) {
+      lastHitTime = time;
+      isHit = true;
+    }
+  }
+
+  out[0] = isHit ? 1.0f : 0.0f;  // HasChanged.Value = isHit
+}
+
 inline int enumOf(const std::map<std::string, float>& in, const char* k) {
   return (int)std::lround(getIn(in, k, 0.0f));
 }
@@ -503,6 +570,7 @@ const StatefulOp kStatefulValueOps[] = {
     {"HasValueIncreased", stepHasValueIncreased},
     {"HasValueDecreased", stepHasValueDecreased},
     {"HasValueChanged", stepHasValueChanged},
+    {"DetectPulse", stepDetectPulse},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -879,6 +947,49 @@ int runStatefulValueSelfTest(bool injectBug) {
         printf("[selftest-statefulvalue] HasChanged.prevent1 step%d HC=%.1f want=%.1f -> %s\n",
                i + 1, out[0], hc, pass ? "PASS" : "FAIL");
       }
+    }
+  }
+
+  // ===== DetectPulse (TiXL float/process/DetectPulse.cs) =====
+  // Damping=0.5, Threshold=0.5, MinTimeBetweenHits=2.0. dampedValue inits 0, lastHitTime=−∞, wasHit=F.
+  // Hand-computed trajectory (delta=dampedPre−new; damped'=Lerp(new,dampedPre,0.5)=new+(dampedPre−new)*0.5):
+  //   f1 t=10  V=10: delta=0−10=−10  (no exceed); damped→Lerp(10,0,.5)=5 ;            HC=0 Dbg=−10
+  //   f2 t=10.5 V=0 : delta=5−0=5    exceed,edge(prevHit F)→T; gate huge≥2 → HIT;
+  //                     damped→Lerp(0,5,.5)=2.5 ; lastHit=10.5 ;                        HC=1 Dbg=5
+  //   f3 t=10.5 V=0 : delta=2.5      exceed but edge=F (wasHit T) → no fire (rising-edge only);
+  //                     damped→Lerp(0,2.5,.5)=1.25 ;                                    HC=0 Dbg=2.5
+  //   f4 t=11   V=5 : delta=1.25−5=−3.75 (no exceed, re-arm wasHit→F);
+  //                     damped→Lerp(5,1.25,.5)=3.125 ;                                  HC=0 Dbg=−3.75
+  //   f5 t=11.5 V=0 : delta=3.125    exceed,edge T; gate |11.5−10.5|=1<2 → SUPPRESSED;
+  //                     damped→Lerp(0,3.125,.5)=1.5625 ;                                HC=0 Dbg=3.125
+  //   f6 t=11.5 V=5 : delta=1.5625−5=−3.4375 (no exceed, re-arm);
+  //                     damped→Lerp(5,1.5625,.5)=3.28125 ;                              HC=0 Dbg=−3.4375
+  //   f7 t=13   V=0 : delta=3.28125  exceed,edge T; gate |13−10.5|=2.5≥2 → HIT;
+  //                     damped→Lerp(0,3.28125,.5)=1.640625 ; lastHit=13 ;              HC=1 Dbg=3.28125
+  // f3 proves rising-edge-only (sustained exceed fires once); f5 proves the MinTime gate; f7 proves it
+  // re-fires after the window. DebugValue is asserted = pre-update damped − new on every frame.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    auto cook = [&](float time, float val) {
+      cookStatefulValueOp("DetectPulse",
+                          {{"Value", val}, {"Threshold", 0.5f}, {"Damping", 0.5f},
+                           {"MinTimeBetweenHits", 2.0f}},
+                          dt60, time, st, out);
+    };
+    const float tm[7]  = {10.0f, 10.5f, 10.5f, 11.0f,  11.5f, 11.5f,   13.0f};
+    const float val[7] = {10.0f,  0.0f,  0.0f,  5.0f,   0.0f,  5.0f,    0.0f};
+    const float wHC[7] = { 0.0f,  1.0f,  0.0f,  0.0f,   0.0f,  0.0f,    1.0f};
+    const float wDbg[7]= {-10.0f, 5.0f,  2.5f, -3.75f,  3.125f,-3.4375f,3.28125f};
+    for (int i = 0; i < 7; ++i) {
+      cook(tm[i], val[i]);
+      // injectBug on f5: corrupts the MinTime-gate expectation so the gate-suppression frame is
+      // asserted to FIRE — the live (correct) HC=0 then mismatches and FAILS.
+      float hc = (injectBug && i == 4) ? 1.0f : wHC[i];
+      bool pass = std::fabs(out[0] - hc) < eps && std::fabs(out[1] - wDbg[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] DetectPulse step%d HC=%.1f(want %.1f) Dbg=%.4f(want %.4f) -> %s\n",
+             i + 1, out[0], hc, out[1], wDbg[i], pass ? "PASS" : "FAIL");
     }
   }
 

@@ -206,6 +206,19 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"MinTimeBetweenHits", "MinTimeBetweenHits", "Float", true, 0.0f, 0.0f, 10.0f},
         {"PreventContinuedChanges", "PreventContinuedChanges", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
        nullptr},
+      // DetectPulse — fires HasChanged(0/1) on the rising edge of (damped−new) > Threshold, gated by
+      // MinTimeBetweenHits; DebugValue = that pre-update delta. TiXL float/process/DetectPulse.cs.
+      // Outputs FIRST (stateful extOut-by-index path), then inputs in TiXL decl order. Defaults from
+      // DetectPulse.t3: Value=1.0, Threshold=0.0, Damping=0.95, MinTimeBetweenHits=0.075. _lastHitTime
+      // inits to −∞ (−1e30f) in the step fn. Bool HasChanged dissolves to Float 0/1. Stateful: eval=nullptr.
+      {"DetectPulse", "DetectPulse",
+       {{"HasChanged", "HasChanged", "Float", false},
+        {"DebugValue", "DebugValue", "Float", false},
+        {"Value", "Value", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f},
+        {"Damping", "Damping", "Float", true, 0.95f, 0.0f, 1.0f},
+        {"MinTimeBetweenHits", "MinTimeBetweenHits", "Float", true, 0.075f, 0.0f, 2.0f}},
+       nullptr},
       {"Const", "Const",
        {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
