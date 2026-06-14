@@ -1450,3 +1450,10 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 - **需柏為 authoring/眼睛(high-value)**:Gradient(SampleGradient op machine→主線 + Inspector gradient-bar widget 柏為畫色帶);雙texture 視覺 filter(位移圖);批次24/25/27 視覺+手感顆親測回收。
 
 **柏為回來的 steer 選項**:①Gradient widget(我接 op、你畫色帶=完成定義)②指定開哪條 seam(>3-out / mixed-multiInput / camera)③MinInt/MaxInt 型別決定 ④視覺 filter 批 ⑤親測回收。**自走已把所有不需要你的 value/math parity 補滿,loop 停在這裡等你。**
+
+## Cut 40 — 批次 34: >3-output seam 開通 + HasVec3Changed(7-out) + PeakLevel(4-out) (2026-06-14 夜; /loop 柏為 steer「開 seam」) ✅
+**commit `e3062ce`**: 柏為打 /loop 指目標=開兩條 seam(>3-output / mixed-multiInput)。本批做第一條。
+**seam 加寬(additive 零回歸,先驗後裝)**: ResidentNode::extOut[3]→[8](resident_eval_graph.h)+evalResidentFloat read cap i<3→i<8(.cpp)+frame_cook out[3]→out[8]+copy loop;cookStatefulValueOp 簽名 out[3]→out[8](float* 不變)。先 build+--bite 驗既有 ≤3-out 顆(Damp/AudioReaction…)零回歸,再裝新顆。
+**裝 2 顆**:HasVec3Changed(7 輸出 HasChanged+Delta.xyz signed+DeltaOnHit.xyz abs,Mode Changed/Increased/Decreased;state s[0..7])+PeakLevel(4 輸出 AttackLevel/FoundPeak/TimeSincePeak/MovingSum;MovingSum=feedback 累加器讀自身上幀,±30000 wrap;state s[0..2],lastPeakTime init −∞)。named fork 砍 Playback/FxTime dedup,seam time 替。selftest HasVec3Changed DeltaOnHit.y(out[5])+PeakLevel MovingSum(out[3])證 >3-out 讀回。--bite PASS=125/check-arch 綠。
+🟡 端到端:evalResidentFloat 讀 extOut[4..6] by-construction 正確,需柏為 GUI 接 HasVec3Changed 讀 DeltaOnHit 親驗一次。
+**Resume = 第二條 seam: mixed-multiInput**(BlendValues=MultiInput<float>Values+regular F;BlendVector3=MultiInput<Vec3>;PickVector2/3;RemapValues=MultiInput<Vec2>pairs)。承重難點(批次30 已勘):①flat-path gather(graph.cpp:165)每 port 一槽不展開 multiInput→需教它展開 ②eval in[] 要能分離變長 multiInput 段與其後 regular port ③TiXL count==0→0 語義(connected count)我方 gather 未暴露。解法雛形:multiInput 段展開後其長度需傳給 eval(或約定 multiInput 必在尾/在首+count 旁路)。**這條比 output seam murky+碰 gather 載重線,要先讀世界觀再動。** 之後解鎖 ~5 顆 combine/blend op。
