@@ -22,6 +22,7 @@ void registerBoundPointsOp();
 void registerTransformSomePointsOp();
 void registerWrapPointPositionOp();
 void registerSnapToGridOp();
+void registerClearSomePointsOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -36,6 +37,7 @@ void registerPointModifyPointOps() {
   registerTransformSomePointsOp();   // Points → Points (TRS weighted by W channel, lane P, batch 18)
   registerWrapPointPositionOp();     // Points → Points (cube-fold box wrap, batch 19)
   registerSnapToGridOp();            // Points → Points (lerp to grid center, batch 19)
+  registerClearSomePointsOp();       // Points → Points (per-point hash kill, batch 20)
 }
 
 }  // namespace sw

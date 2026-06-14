@@ -127,6 +127,52 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f}},
        nullptr},
+      // ---- point generate — DoyleSpiralPoints2 -------------------------------------
+      // TiXL parity: external/tixl .../point/generate/DoyleSpiralPoints2.cs (.t3 compound) +
+      //   _DoyleSpiralRoot.cs (CPU Newton-Raphson) + .../shaders/.../DoyleSpiralPoints.hlsl.
+      // A GENERATOR op: no input bag. Produces a Doyle circle-packing spiral (logarithmic arms
+      // of exponentially growing circles). The cook clamps PointsPerStep->P, takes SpiralSteepness
+      // ->Q, runs the Newton-Raphson root finder to derive A/B/R, then dispatches the kernel.
+      // Defaults verbatim from the .t3 InputValues: Steps=1000, Offset=100, PointsPerStep=8,
+      //   SpiralSteepness=31, Scale=1, ScaleBias=1, CenterPositionScale=0, W=1, WBias=1,
+      //   CenterSizeScale=0, Center=(0,0,0), OrientationAxis=(0,0,1), OrientationAngle=0.
+      // NOTE: Count = output buffer CAPACITY = the spiral's point count (TiXL: clamp(Steps,..)).
+      //   The user-facing "Steps" semantic maps to this single Count port (host responsibility),
+      //   mirroring the HexGridPoints Count-as-capacity convention.
+      // FORK: kernel guards steps>=1 (div/mod) for the degenerate Count<=PointsPerStep case.
+      {"DoyleSpiralPoints",
+       "DoyleSpiralPoints",
+       {{"points", "points", "Points", false},
+        // Count = output buffer capacity = total spiral points (TiXL Steps, clamp 1..10000000).
+        {"Count", "Count", "Float", true, 1000.0f, 1.0f, 100000.0f},
+        // PointsPerStep (TiXL Int, default 8) — clamped 1..100 -> P (arms count).
+        {"PointsPerStep", "PointsPerStep", "Float", true, 8.0f, 1.0f, 100.0f, Widget::Slider},
+        // SpiralSteepness (TiXL Int, default 31) -> Q (winding / size-growth intensity).
+        {"SpiralSteepness", "SpiralSteepness", "Float", true, 31.0f, 1.0f, 100.0f, Widget::Slider},
+        // Offset (TiXL Single, default 100) — shifts which points sit on the spiral.
+        {"Offset", "Offset", "Float", true, 100.0f, -500.0f, 500.0f},
+        // Scale (TiXL Single, default 1) — uniform size of the spiral.
+        {"Scale", "Scale", "Float", true, 1.0f, 0.0f, 10.0f},
+        // ScaleBias (TiXL Single, default 1) -> kernel Bias2 (position-on-spiral compression).
+        {"ScaleBias", "ScaleBias", "Float", true, 1.0f, 0.0f, 5.0f},
+        // CenterPositionScale (TiXL Single, default 0) -> kernel CutOff (center cut-off).
+        {"CenterPositionScale", "CenterPositionScale", "Float", true, 0.0f, -10.0f, 10.0f},
+        // W (TiXL Single, default 1) — scales the per-point W (size) channel.
+        {"W", "W", "Float", true, 1.0f, 0.0f, 10.0f},
+        // WBias (TiXL Single, default 1) -> kernel Bias (outer-point growth exponent).
+        {"WBias", "WBias", "Float", true, 1.0f, 0.0f, 5.0f},
+        // CenterSizeScale (TiXL Single, default 0) -> kernel CutOff2 (inner-size cut-off).
+        {"CenterSizeScale", "CenterSizeScale", "Float", true, 0.0f, -10.0f, 10.0f},
+        // Center (TiXL Vector3, default 0,0,0) — translation/pivot.
+        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // OrientationAxis (TiXL Vector3, default 0,0,1) + OrientationAngle (degrees).
+        {"OrientationAxis.x", "OrientationAxis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"OrientationAxis.y", "OrientationAxis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f}},
+       nullptr},
   };
   return specs;
 }

@@ -15,6 +15,7 @@ void registerLinePointsOp();
 void registerGridPointsOp();
 void registerSpherePointsOp();
 void registerHexGridPointsOp();
+void registerDoyleSpiralPointsOp();
 
 void registerGeneratorPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
@@ -22,6 +23,7 @@ void registerGeneratorPointOps() {
   registerGridPointsOp();
   registerSpherePointsOp();
   registerHexGridPointsOp();  // (generator) hex tiling grid, batch 19
+  registerDoyleSpiralPointsOp();  // (generator) Doyle circle-packing spiral
 }
 
 }  // namespace sw

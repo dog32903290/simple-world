@@ -306,6 +306,28 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"BiasAndGain.x", "BiasAndGain", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
         {"BiasAndGain.y", "BiasAndGain.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
        nullptr},
+      // ---- batch 20 (lane point_modify): ClearSomePoints -------------------------
+      // TiXL parity: external/tixl .../point/modify/ClearSomePoints.cs + .hlsl
+      // A count-preserving MODIFIER: per-point hash(Resolution,Seed,Repeat,blockIdx) <= Ratio
+      // kills the point by setting p.Scale = NAN. Ratio=0 → no kill; Ratio=1 → all killed.
+      // Defaults from ClearSomePoints.t3 (GUID-keyed):
+      //   Ratio=0.0, Seed=0, Repeat=0, Resolution=0.
+      // NOTE: the .cs defines Spaces/OffsetModes/Interpolations enums but NONE are [Input] slots
+      // in the .cs source — they are leftover dead code (the .hlsl kernel has no such branches).
+      // We match: no enum ports.
+      {"ClearSomePoints",
+       "ClearSomePoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // killed output bag (port 1)
+        // .cs Ratio (float, default 0.0) — fraction of points to kill; 0=none, 1=all
+        {"Ratio", "Ratio", "Float", true, 0.0f, 0.0f, 1.0f},
+        // .cs Seed (int, default 0) — hash seed
+        {"Seed", "Seed", "Float", true, 0.0f, 0.0f, 100.0f},
+        // .cs Repeat (int, default 0) — period for the hash pattern; 0 = aperiodic
+        {"Repeat", "Repeat", "Float", true, 0.0f, 0.0f, 1000.0f},
+        // .cs Resolution (int, default 0) — block size; points in same block share one hash
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 100.0f}},
+       nullptr},
   };
   return specs;
 }

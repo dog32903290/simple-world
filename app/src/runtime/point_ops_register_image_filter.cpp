@@ -5,7 +5,7 @@
 //
 // Zero behaviour change: op names + cook bindings verbatim from the original central function
 // (all registrars declared in point_ops.h).
-#include "runtime/point_ops.h"  // registerBlurOp/Displace/Tint/ChromaBA/AdjustColors
+#include "runtime/point_ops.h"  // registerBlurOp/Displace/Tint/ChromaBA/AdjustColors/ChannelMixer
 
 namespace sw {
 
@@ -15,6 +15,7 @@ void registerImageFilterPointOps() {
   registerTintOp();          // Texture2D → Texture2D (color tint/remap, lane F3-1)
   registerChromaBAOp();      // Texture2D → Texture2D (chromatic fringe, lane F3-2)
   registerAdjustColorsOp();  // Texture2D → Texture2D (color grading, lane F3-3)
+  registerChannelMixerOp();  // Texture2D → Texture2D (channel matrix mix, lane image_filter)
 }
 
 }  // namespace sw

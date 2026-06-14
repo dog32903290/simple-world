@@ -137,6 +137,16 @@ int runSnapToGridSelfTest(bool injectBug);
 // HexGridPoints GENERATOR golden (point_ops_hexgridpoints.cpp): hex tiling grid.
 // injectBug = Size=0 -> all points collapse to center -> no distinct X values -> FAIL.
 int runHexGridPointsSelfTest(bool injectBug);
+// DoyleSpiralPoints2 GENERATOR golden (point_ops_doylespiralpoints.cpp): Doyle circle-packing
+// spiral (CPU Newton-Raphson A/B/R -> GPU kernel). injectBug = ScaleBias(Bias2)=0 -> mag constant.
+int runDoyleSpiralPointsSelfTest(bool injectBug);
+// ClearSomePoints MODIFIER golden (point_ops_clearsomepoints.cpp): per-point hash kill.
+// injectBug flips the Ratio=0 assertion to expect at least 1 kill -> correct shader FAILS -> RED.
+int runClearSomePointsSelfTest(bool injectBug);
+// ChannelMixer image filter (point_ops_channelmixer.cpp, lane image_filter): 4x4 channel matrix
+// mix (TiXL image/color/ChannelMixer / MixChannels.hlsl). injectBug = identity -> no swap -> FAIL.
+void registerChannelMixerOp();
+int runChannelMixerSelfTest(bool injectBug);
 
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a
