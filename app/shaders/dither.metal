@@ -45,10 +45,12 @@ vertex VSOut dither_vs(uint vid [[vertex_id]]) {
 }
 
 // --- shared helpers, ported verbatim ----------------------------------------------------------
-// hash-functions.hlsl hash11u (lines 115-123). _PRIME0 = 1597334677u (TiXL hash constants).
+// hash-functions.hlsl hash11u (lines 115-123). _PRIME0 = 13331u (hash-functions.hlsl:4).
+// [batch24 refuter fix] 原港的 1597334677u 是憑空常數,非 TiXL 值——只影響 Method>=0.5 hash 分支
+// (Bayer 預設路徑不走 hash,故 golden 沒抓到)。權威 external/tixl .../hash-functions.hlsl:4。
 static inline float hash11u(uint x) {
   const uint k = 1103515245u;  // GLIB C
-  const uint _PRIME0 = 1597334677u;
+  const uint _PRIME0 = 13331u;
   x *= _PRIME0;
   x = ((x >> 8u) ^ x) * k;
   x = ((x >> 8u) ^ x) * k;
