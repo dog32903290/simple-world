@@ -18,6 +18,7 @@ void registerHexGridPointsOp();
 void registerDoyleSpiralPointsOp();
 void registerRepetitionPointsOp();
 void registerCommonPointSetsOp();
+void registerBoundingBoxPointsOp();
 
 void registerGeneratorPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
@@ -28,6 +29,7 @@ void registerGeneratorPointOps() {
   registerDoyleSpiralPointsOp();  // (generator) Doyle circle-packing spiral
   registerRepetitionPointsOp();  // (generator) GPU fork of CPU RepetitionPoints, batch 36
   registerCommonPointSetsOp();  // (generator) CPU-fill fork of CommonPointSets, batch 37
+  registerBoundingBoxPointsOp();  // (generator) CPU-readback AABB fork; reads Points -> 1 point, batch 38
 }
 
 }  // namespace sw

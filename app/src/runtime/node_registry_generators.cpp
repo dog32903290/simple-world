@@ -230,6 +230,19 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"Set", "Set", "Float", true, 0.0f, 0.0f, 6.0f, Widget::Enum,
          {"Cross", "CrossXY", "Cube", "Quad", "ArrowX", "ArrowY", "ArrowZ"}}},
        nullptr},
+      // BoundingBoxPoints (batch 38) — CPU-readback fork of external/tixl .../point/generate/
+      // BoundingBoxPoints. Reads a Points input bag, computes the axis-aligned bounding box of all
+      // VALID (non-NaN-position) source points, emits exactly ONE output point: Position=center=
+      // (min+max)/2, Scale=box size=max-min, FX2(Selected)=1, FX1(W)=1, Color=1, Rotation=identity
+      // (BoundingBoxPoints.hlsl:118-127). The .cs has EXACTLY ONE [Input]: Points (BufferWithViews);
+      // its SampleModes/RotationModes enums are dead copy-paste, NOT [Input]s -> no knob. So this
+      // node has ONE input port (Points, port 0) + ONE output port (out, port 1). No params.
+      // Output count is always 1 (bbCountTransform in the cook).
+      {"BoundingBoxPoints",
+       "BoundingBoxPoints",
+       {{"points", "points", "Points", true},   // input bag (port 0) — source points to bound
+        {"out", "out", "Points", false}},        // single AABB point (port 1)
+       nullptr},
   };
   return specs;
 }

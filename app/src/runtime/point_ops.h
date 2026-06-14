@@ -81,6 +81,13 @@ int runRepetitionPointsSelfTest(bool injectBug);
 // injectBug = assert the WRONG Cross row-0 coordinate -> faithful fill mismatches -> FAIL.
 void registerCommonPointSetsOp();
 int runCommonPointSetsSelfTest(bool injectBug);
+// BoundingBoxPoints GENERATOR golden (point_ops_boundingboxpoints.cpp, batch 38): CPU-readback fork
+// of external/tixl .../point/generate/BoundingBoxPoints. Reads a Points input bag, computes its AABB
+// (skipping NaN-position points per .hlsl:61), and emits ONE point: Position=center=(min+max)/2,
+// Scale=box size=max-min (TiXL Stretch@48==Scale@48), FX2=1 (Selected@60==FX2@60), FX1=1 (W@12).
+// injectBug = assert the WRONG center law (center==max) -> faithful (min+max)/2 mismatches -> FAIL.
+void registerBoundingBoxPointsOp();
+int runBoundingBoxPointsSelfTest(bool injectBug);
 // TransformPoints MODIFIER golden (point_ops_transformpoints.cpp): ring -> scale+translate, PLUS a
 // multi-axis rotation tooth (a known point under Rot!=0 lands where the Y·X·Z order predicts).
 // injectBug = Strength 0 -> identity passthrough -> ring unchanged. First modifier (in->out bag).
