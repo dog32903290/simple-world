@@ -303,4 +303,59 @@ int runResidentEvalSelfTest(bool injectBug) {
   return pass ? 0 : 1;
 }
 
+// MultiInput seam (批次25): Root { Const(2), Const(3), Const(5), Sum }, all three Const.out wired
+// to Sum's ONE multiInput slot "Input" → Sum.Result = 10. A broken gather (reading only the primary
+// wire) would give 2, so the assertion guards the seam directly; injectBug flips the expected to that
+// broken value so the tooth bites. Also checks an unwired Sum = 0 (primary default, TiXL empty→0).
+int runMultiInputSelfTest(bool injectBug) {
+  Symbol cst = atomic("Const", {{"value", "value", "Float", 0.0f}}, {{"out", "out", "Float", 0.0f}});
+  Symbol sum = atomic("Sum", {{"Input", "Input", "Float", 0.0f}}, {{"Result", "Result", "Float", 0.0f}});
+
+  SymbolLibrary lib;
+  lib.symbols[cst.id] = cst;
+  lib.symbols[sum.id] = sum;
+  Symbol root; root.id = "Root"; root.name = "Root"; root.atomic = false;
+  root.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild c1; c1.id = 1; c1.symbolId = "Const"; c1.overrides["value"] = 2.0f;
+  SymbolChild c2; c2.id = 2; c2.symbolId = "Const"; c2.overrides["value"] = 3.0f;
+  SymbolChild c3; c3.id = 3; c3.symbolId = "Const"; c3.overrides["value"] = 5.0f;
+  SymbolChild sm; sm.id = 4; sm.symbolId = "Sum";
+  root.children = {c1, c2, c3, sm};
+  root.connections = {
+      {1, "out", 4, "Input"},                 // primary multiInput source
+      {2, "out", 4, "Input"},                 // extra (appended to extraConns)
+      {3, "out", 4, "Input"},                 // extra
+      {4, "Result", kSymbolBoundary, "out"},  // Sum.Result -> Root output
+  };
+  lib.symbols[root.id] = root; lib.rootId = "Root";
+
+  ResidentEvalCtx ctx;
+  ResidentEvalGraph g = buildEvalGraph(lib, "Root");
+  auto it = g.outputs.find("out");
+  float sumVal = (it == g.outputs.end())
+                     ? -1.0f
+                     : evalResidentFloat(g, it->second.first, it->second.second, ctx);
+
+  // Unwired Sum = the primary default (0) -> 0 (TiXL Sum empty -> 0).
+  SymbolLibrary lib0;
+  lib0.symbols[sum.id] = sum;
+  Symbol root0; root0.id = "R0"; root0.name = "R0"; root0.atomic = false;
+  root0.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild s0; s0.id = 1; s0.symbolId = "Sum";
+  root0.children = {s0};
+  root0.connections = {{1, "Result", kSymbolBoundary, "out"}};
+  lib0.symbols[root0.id] = root0; lib0.rootId = "R0";
+  ResidentEvalGraph g0 = buildEvalGraph(lib0, "R0");
+  auto it0 = g0.outputs.find("out");
+  float emptyVal = (it0 == g0.outputs.end())
+                       ? -1.0f
+                       : evalResidentFloat(g0, it0->second.first, it0->second.second, ctx);
+
+  float wantSum = injectBug ? 2.0f : 10.0f;  // 2 = the only-primary (broken-gather) failure mode
+  bool pass = (sumVal == wantSum) && (emptyVal == 0.0f);
+  printf("[selftest-multiinput] Sum(2,3,5)=%.1f want=%.1f empty=%.1f(want 0) -> %s\n",
+         sumVal, wantSum, emptyVal, pass ? "PASS" : "FAIL");
+  return pass ? 0 : 1;
+}
+
 }  // namespace sw

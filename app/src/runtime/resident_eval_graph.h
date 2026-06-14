@@ -49,6 +49,10 @@ struct ResidentInput {
   std::string srcSlotId;              // Driver::Connection: upstream output slot id
   std::string curveRef;               // Driver::Automation: def-layer animator key (S3 samples it)
   std::string animSymbolId;           // Driver::Automation: which Symbol's Animator owns curveRef
+  // MultiInput (批次25 seam): EXTRA Connection sources beyond the primary (srcNodePath/srcSlotId),
+  // for a port flagged PortSpec.multiInput. Empty for every single-cardinality input (the primary
+  // fields hold the one driver, exactly as before). Order = wire declaration order in the Symbol.
+  std::vector<std::pair<std::string, std::string>> extraConns;  // (srcNodePath, srcSlotId) each
 };
 
 // --- batch 1b: version-chasing dirty + per-output-slot cache (承重決策 6/7, TiXL DirtyFlag) ---
@@ -172,6 +176,8 @@ float pullResidentFloat(ResidentEvalGraph& g, const std::string& nodePath,
 // reuse isolation, driver resolve, and the two-clock shape. injectBug pollutes a definition
 // so reuse leaks -> the equivalence assertion FAILS (teeth).
 int runResidentEvalSelfTest(bool injectBug);
+// MultiInput seam proof (批次25): N wires into one multiInput slot reduce via Sum. See the .cpp.
+int runMultiInputSelfTest(bool injectBug);
 
 // Headless RED->GREEN proof of the 1b version-chasing cache: a STATIC subgraph recomputes once
 // then returns cache (mutating an upstream constant WITHOUT an edit-time bump stays stale —

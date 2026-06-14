@@ -65,14 +65,17 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
     return 0.0f;
   }
 
-  // Gather Float input values in spec port order (mirrors flat evalFloat).
-  float in[8];
+  // Gather Float input values in spec port order (mirrors flat evalFloat). in[32]: a MultiInput
+  // port (批次25 seam) expands its primary + every extraConn into consecutive in[] slots, so a
+  // reducer (Sum) can take many sources — 32 caps it (silently truncates beyond, like the old 8).
+  float in[32];
   int ni = 0;
-  for (size_t i = 0; i < s->ports.size() && ni < 8; ++i) {
+  for (size_t i = 0; i < s->ports.size() && ni < 32; ++i) {
     const PortSpec& p = s->ports[i];
     if (!(p.isInput && p.dataType == "Float")) continue;
+    const ResidentInput* ri = n->input(p.id);
     float v = p.def;
-    if (const ResidentInput* ri = n->input(p.id)) {
+    if (ri) {
       switch (ri->driver) {
         case ResidentInput::Driver::Constant:
           v = ri->constant;
@@ -89,6 +92,13 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
       }
     }
     in[ni++] = v;
+    // MultiInput: append the extra wired sources (always Connection producers) after the primary.
+    if (p.multiInput && ri) {
+      for (const auto& ec : ri->extraConns) {
+        if (ni >= 32) break;
+        in[ni++] = evalResidentFloat(g, ec.first, ec.second, ctx, depth + 1);
+      }
+    }
   }
 
   // outIdx = index of the pulled OUTPUT port in spec.ports (matches flat evalFloat's outIdx).

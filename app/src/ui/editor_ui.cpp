@@ -240,9 +240,29 @@ void drawNodeCanvas() {
           nw.srcSlot = pinInfoOf(from).slotId;
           nw.dstChild = pinChildId(to);
           nw.dstSlot = pinInfoOf(to).slotId;
+          // Is the destination a MultiInput slot (批次25 seam)? Then a new wire ADDS (the slot keeps
+          // N sources), instead of reconnecting. Look up the dst child's NodeSpec port.multiInput.
+          bool dstMulti = false;
+          for (const sw::SymbolChild& ch : cur->children)
+            if (ch.id == nw.dstChild) {
+              if (const sw::NodeSpec* sp = sw::findSpec(ch.symbolId))
+                for (const sw::PortSpec& p : sp->ports)
+                  if (p.id == nw.dstSlot) { dstMulti = p.multiInput; break; }
+              break;
+            }
           const sw::SymbolConnection* old =
               sw::connectionToInput(*cur, nw.dstChild, nw.dstSlot);
-          if (old && old->srcChild == nw.srcChild && old->srcSlot == nw.srcSlot) {
+          if (dstMulti) {
+            // MultiInput: allow many wires; only skip an EXACT duplicate (same src + dst).
+            bool dup = false;
+            for (const sw::SymbolConnection& w : cur->connections)
+              if (w.dstChild == nw.dstChild && w.dstSlot == nw.dstSlot &&
+                  w.srcChild == nw.srcChild && w.srcSlot == nw.srcSlot) { dup = true; break; }
+            if (!dup) {
+              sw::g_commands.push(std::make_unique<sw::AddWireCommand>(sw::doc::g_lib, cur->id, nw));
+              sw::doc::g_status = "linked (multi)";
+            }
+          } else if (old && old->srcChild == nw.srcChild && old->srcSlot == nw.srcSlot) {
             // already wired to this exact source — nothing to do
           } else if (old) {
             // reconnect: remove the input's old wire, add the new one, as one undo unit

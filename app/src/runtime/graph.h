@@ -32,6 +32,10 @@ struct PortSpec {
   std::vector<std::string> labels;             // Widget::Enum option labels (index = value)
   bool pinless = false;                        // param-only: editable in Inspector, no canvas pin
   int vecArity = 1;                            // Widget::Vec head: # of components (2/3/4); 1 = scalar
+  // MultiInput (批次25 seam, = TiXL MultiInputSlot): this ONE input port accepts N wires; eval
+  // expands all connected sources into in[] consecutively (reducer ops like Sum consume in[0..n-1]).
+  // Single-input ports leave this false → exactly the prior single-cardinality behaviour.
+  bool multiInput = false;
 };
 struct NodeSpec {
   std::string type, title;

@@ -107,4 +107,10 @@ float evalVector2Components(int outIdx, const float* in, int n, const Evaluation
 // in: [A.x, A.y, B.x, B.y, UniformScale]; outIdx → component k = outIdx - n (n=5); Result.x/y
 float evalScaleVector2(int outIdx, const float* in, int n, const EvaluationContext&);
 // [math-batch24] END declarations
+// [math-batch25] BEGIN declarations
+// Sum: Result = Σ in[0..n-1] over a MultiInput Float port (TiXL float/basic/Sum.cs: foreach
+// collected input, Result += input; empty → 0). n = number of wired sources (1 = the unwired
+// default 0). outIdx unused (single output). Needs the MultiInput seam (PortSpec.multiInput).
+float evalSum(int outIdx, const float* in, int n, const EvaluationContext&);
+// [math-batch25] END declarations
 }  // namespace sw

@@ -128,6 +128,13 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"b", "b", "Float", true, 1.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
        evalMultiply},
+      // Sum — Σ of a MultiInput Float port (批次25 MultiInput seam). TiXL float/basic/Sum.cs.
+      // The single "Input" port accepts N wires; eval expands them into in[] and evalSum reduces.
+      // (PortSpec field 12 = multiInput=true.)
+      {"Sum", "Sum",
+       {{"Result", "Result", "Float", false},
+        {"Input", "Input", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Slider, {}, false, 1, true}},
+       evalSum},
       {"Sine", "Sine",
        {{"x", "x", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},

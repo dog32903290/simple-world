@@ -154,6 +154,7 @@ const SelfTest kTable[] = {
     {"animator", runCurveAnimatorSelfTest},
     {"animgui", runAnimGuiSelfTest},
     {"residenteval", runResidentEvalSelfTest},
+    {"multiinput", runMultiInputSelfTest},
     {"residentcache", runResidentCacheSelfTest},
     {"idlefade", runIdleFadeSelfTest},
     {"residentpatch", runResidentPatchSelfTest},

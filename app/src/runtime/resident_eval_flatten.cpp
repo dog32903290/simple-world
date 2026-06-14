@@ -244,14 +244,26 @@ ProducerMap inlineSymbol(
     std::string dstPath = prefix + std::to_string(w.dstChild);
     auto it = g.byPath.find(dstPath);
     if (it == g.byPath.end()) continue;            // dst is compound (driven via childIn) -> skip
+    // Is the dst slot a MultiInput port? (批次25 seam) — then a 2nd+ Connection wire APPENDS to the
+    // slot's extraConns instead of overwriting the primary, so eval can expand all N into in[].
+    bool dstMulti = false;
+    if (const NodeSpec* dspec = findSpec(g.nodes[it->second].opType))
+      for (const PortSpec& p : dspec->ports)
+        if (p.id == w.dstSlot) { dstMulti = p.multiInput; break; }
     ResidentInput pr = producerOf(w.srcChild, w.srcSlot);
     pr.slotId = w.dstSlot;
     for (ResidentInput& in : g.nodes[it->second].inputs)
       if (in.slotId == w.dstSlot) {
-        // A Connection keeps the input's KEPT Constant fallback (in.constant survives under a wire
-        // — patchRemoveConnection restores it); a Constant/Automation redirect replaces it whole.
-        if (pr.driver == ResidentInput::Driver::Connection) pr.constant = in.constant;
-        in = pr;
+        if (dstMulti && in.driver == ResidentInput::Driver::Connection &&
+            pr.driver == ResidentInput::Driver::Connection) {
+          // primary already set by an earlier wire → this wire is an extra MultiInput source.
+          in.extraConns.emplace_back(pr.srcNodePath, pr.srcSlotId);
+        } else {
+          // A Connection keeps the input's KEPT Constant fallback (in.constant survives under a wire
+          // — patchRemoveConnection restores it); a Constant/Automation redirect replaces it whole.
+          if (pr.driver == ResidentInput::Driver::Connection) pr.constant = in.constant;
+          in = pr;  // first wire (or non-multi / non-Connection) sets the primary driver
+        }
       }
   }
 

@@ -540,4 +540,14 @@ float evalScaleVector2(int outIdx, const float* in, int n, const EvaluationConte
 
 // [math-batch24] END implementations
 
+// [math-batch25] BEGIN implementations
+// Sum: Σ of all gathered MultiInput values. The resident gather expands the one multiInput port
+// into in[0..n-1] (primary + extraConns). TiXL float/basic/Sum.cs: Result=0; foreach += input.
+float evalSum(int, const float* in, int n, const EvaluationContext&) {
+  float s = 0.0f;
+  for (int i = 0; i < n; ++i) s += in[i];
+  return s;
+}
+// [math-batch25] END implementations
+
 }  // namespace sw
