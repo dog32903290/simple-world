@@ -9,6 +9,158 @@ namespace {
 // TiXL MathUtils.Lerp(a,b,t) = a + (b-a)*t (standard lerp). Used by Damp(Linear) and Spring.
 inline float lerpf(float a, float b, float t) { return a + (b - a) * t; }
 
+// === EasingFunctions (TiXL Core/Utils/EasingFunctions.cs) — ported VERBATIM ===
+// Only needed by Ease/EaseVec2/EaseVec3, so the 30 curve fns + ApplyEasing live here as static free
+// functions (not a shared header). Constants for Back/Elastic/Bounce match the .cs exactly.
+constexpr float kPi = 3.14159265358979323846f;  // MathF.PI
+// Sine
+inline float inSine(float t) { return 1.0f - std::cos((t * kPi) / 2.0f); }
+inline float outSine(float t) { return std::sin((t * kPi) / 2.0f); }
+inline float inOutSine(float t) { return -(std::cos(kPi * t) - 1.0f) / 2.0f; }
+// Quad
+inline float inQuad(float t) { return t * t; }
+inline float outQuad(float t) { return t * (2.0f - t); }
+inline float inOutQuad(float t) { return t < 0.5f ? 2.0f * t * t : -1.0f + (4.0f - 2.0f * t) * t; }
+// Cubic
+inline float inCubic(float t) { return t * t * t; }
+inline float outCubic(float t) { return 1.0f - std::pow(1.0f - t, 3.0f); }
+inline float inOutCubic(float t) { return t < 0.5f ? 4.0f * t * t * t : (t - 1.0f) * (2.0f * t - 2.0f) * (2.0f * t - 2.0f) + 1.0f; }
+// Quart
+inline float inQuart(float t) { return t * t * t * t; }
+inline float outQuart(float t) { return 1.0f - std::pow(1.0f - t, 4.0f); }
+inline float inOutQuart(float t) { return t < 0.5f ? 8.0f * t * t * t * t : 1.0f - std::pow(-2.0f * t + 2.0f, 4.0f) / 2.0f; }
+// Quint
+inline float inQuint(float t) { return t * t * t * t * t; }
+inline float outQuint(float t) { return 1.0f - std::pow(1.0f - t, 5.0f); }
+inline float inOutQuint(float t) { return t < 0.5f ? 16.0f * t * t * t * t * t : 1.0f - std::pow(-2.0f * t + 2.0f, 5.0f) / 2.0f; }
+// Expo
+inline float inExpo(float t) { return t == 0.0f ? 0.0f : std::pow(2.0f, 10.0f * t - 10.0f); }
+inline float outExpo(float t) { return t == 1.0f ? 1.0f : 1.0f - std::pow(2.0f, -10.0f * t); }
+inline float inOutExpo(float t) {
+  return t == 0.0f ? 0.0f
+         : t == 1.0f ? 1.0f
+         : t < 0.5f ? std::pow(2.0f, 20.0f * t - 10.0f) / 2.0f
+                    : (2.0f - std::pow(2.0f, -20.0f * t + 10.0f)) / 2.0f;
+}
+// Circ
+inline float inCirc(float t) { return 1.0f - std::sqrt(1.0f - std::pow(t, 2.0f)); }
+inline float outCirc(float t) { return std::sqrt(1.0f - std::pow(t - 1.0f, 2.0f)); }
+inline float inOutCirc(float t) {
+  return t < 0.5f ? (1.0f - std::sqrt(1.0f - std::pow(2.0f * t, 2.0f))) / 2.0f
+                  : (std::sqrt(1.0f - std::pow(-2.0f * t + 2.0f, 2.0f)) + 1.0f) / 2.0f;
+}
+// Back
+inline float inBack(float t) {
+  const float c1 = 1.70158f, c3 = c1 + 1.0f;
+  return c3 * t * t * t - c1 * t * t;
+}
+inline float outBack(float t) {
+  const float c1 = 1.70158f, c3 = c1 + 1.0f;
+  return 1.0f + c3 * std::pow(t - 1.0f, 3.0f) + c1 * std::pow(t - 1.0f, 2.0f);
+}
+inline float inOutBack(float t) {
+  const float c1 = 1.70158f, c2 = c1 * 1.525f;
+  return t < 0.5f ? (std::pow(2.0f * t, 2.0f) * ((c2 + 1.0f) * 2.0f * t - c2)) / 2.0f
+                  : (std::pow(2.0f * t - 2.0f, 2.0f) * ((c2 + 1.0f) * (t * 2.0f - 2.0f) + c2) + 2.0f) / 2.0f;
+}
+// Elastic
+inline float inElastic(float t) {
+  const float c4 = (2.0f * kPi) / 3.0f;
+  return t == 0.0f ? 0.0f
+         : t == 1.0f ? 1.0f
+                     : -std::pow(2.0f, 10.0f * t - 10.0f) * std::sin((t * 10.0f - 10.75f) * c4);
+}
+inline float outElastic(float t) {
+  const float c4 = (2.0f * kPi) / 3.0f;
+  return t == 0.0f ? 0.0f
+         : t == 1.0f ? 1.0f
+                     : std::pow(2.0f, -10.0f * t) * std::sin((t * 10.0f - 0.75f) * c4) + 1.0f;
+}
+inline float inOutElastic(float t) {
+  const float c5 = (2.0f * kPi) / 4.5f;
+  return t == 0.0f ? 0.0f
+         : t == 1.0f ? 1.0f
+         : t < 0.5f ? -(std::pow(2.0f, 20.0f * t - 10.0f) * std::sin((20.0f * t - 11.125f) * c5)) / 2.0f
+                    : (std::pow(2.0f, -20.0f * t + 10.0f) * std::sin((20.0f * t - 11.125f) * c5)) / 2.0f + 1.0f;
+}
+// Bounce
+inline float outBounce(float t) {
+  const float n1 = 7.5625f, d1 = 2.75f;
+  if (t < 1.0f / d1) {
+    return n1 * t * t;
+  } else if (t < 2.0f / d1) {
+    t -= 1.5f / d1;
+    return n1 * t * t + 0.75f;
+  } else if (t < 2.5f / d1) {
+    t -= 2.25f / d1;
+    return n1 * t * t + 0.9375f;
+  } else {
+    t -= 2.625f / d1;
+    return n1 * t * t + 0.984375f;
+  }
+}
+inline float inBounce(float t) { return 1.0f - outBounce(1.0f - t); }
+inline float inOutBounce(float t) {
+  return t < 0.5f ? (1.0f - outBounce(1.0f - 2.0f * t)) / 2.0f
+                  : (1.0f + outBounce(2.0f * t - 1.0f)) / 2.0f;
+}
+
+// Interpolations enum (0=Linear..10=Bounce) / EaseDirection (0=In,1=Out,2=InOut), TiXL EasingFunctions.cs.
+float applyEaseIn(float p, int mode) {
+  switch (mode) {
+    case 1:  return inSine(p);
+    case 2:  return inQuad(p);
+    case 3:  return inCubic(p);
+    case 4:  return inQuart(p);
+    case 5:  return inQuint(p);
+    case 6:  return inExpo(p);
+    case 7:  return inCirc(p);
+    case 8:  return inBack(p);
+    case 9:  return inElastic(p);
+    case 10: return inBounce(p);
+    default: return p;  // Linear (0) + unknown
+  }
+}
+float applyEaseOut(float p, int mode) {
+  switch (mode) {
+    case 1:  return outSine(p);
+    case 2:  return outQuad(p);
+    case 3:  return outCubic(p);
+    case 4:  return outQuart(p);
+    case 5:  return outQuint(p);
+    case 6:  return outExpo(p);
+    case 7:  return outCirc(p);
+    case 8:  return outBack(p);
+    case 9:  return outElastic(p);
+    case 10: return outBounce(p);
+    default: return p;
+  }
+}
+float applyEaseInOut(float p, int mode) {
+  switch (mode) {
+    case 1:  return inOutSine(p);
+    case 2:  return inOutQuad(p);
+    case 3:  return inOutCubic(p);
+    case 4:  return inOutQuart(p);
+    case 5:  return inOutQuint(p);
+    case 6:  return inOutExpo(p);
+    case 7:  return inOutCirc(p);
+    case 8:  return inOutBack(p);
+    case 9:  return inOutElastic(p);
+    case 10: return inOutBounce(p);
+    default: return p;
+  }
+}
+// TiXL EasingFunctions.ApplyEasing(progress, direction, easeMode).
+float applyEasing(float progress, int direction, int easeMode) {
+  switch (direction) {
+    case 0:  return applyEaseIn(progress, easeMode);
+    case 1:  return applyEaseOut(progress, easeMode);
+    case 2:  return applyEaseInOut(progress, easeMode);
+    default: return progress;
+  }
+}
+
 inline float getIn(const std::map<std::string, float>& in, const char* k, float dflt) {
   auto it = in.find(k);
   return it != in.end() ? it->second : dflt;
@@ -178,6 +330,78 @@ void springVecImpl(const std::map<std::string, float>& in, StatefulValueState& s
 void stepSpringVec2(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3]) { springVecImpl(in, st, out, 2); }
 void stepSpringVec3(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3]) { springVecImpl(in, st, out, 3); }
 
+inline int enumOf(const std::map<std::string, float>& in, const char* k) {
+  return (int)std::lround(getIn(in, k, 0.0f));
+}
+inline float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
+
+// --- Ease / EaseVec2 / EaseVec3 (TiXL float/process/Ease.cs, vec2/EaseVec2.cs, vec3/EaseVec3.cs) ---
+// Time-based eased re-target: when the input changes by >0.001 the animation RESTARTS from the
+// current output toward the new target over `Duration` seconds, shaped by Interpolation×Direction
+// (EasingFunctions). Uses the wall `time` param as TiXL's currentTime; `dt` unused (absolute-time).
+// State (per spec) packs startTime + initial/target/prevInput per component, PLUS one shared
+// `prevEased` float at the END (see below):
+//   Ease     s[0]=startTime, s[1]=initial, s[2]=target, s[3]=prevInput, s[4]=prevEased
+//   EaseVec2 s[0]=startTime, s[1..2]=initial, s[3..4]=target, s[5..6]=prevInput, s[7]=prevEased
+//   EaseVec3 s[0]=startTime, s[1..3]=initial, s[4..6]=target, s[7..9]=prevInput, s[10]=prevEased (≤12)
+// Why prevEased: TiXL captures `_initialValue = Result.Value` on restart — i.e. LAST frame's output.
+// frame_cook hands easeImpl a freshly-zeroed out[] each frame (it does NOT carry the prior Result),
+// so we must reconstruct it. Between restarts initial/target are fixed, so last-frame's Result is
+// exactly lerp(initial,target,prevEased) — and easing is scalar (one t for all components), so ONE
+// stored float reconstructs the previous Result for any N. This is faithful to TiXL and fits s[12]
+// (the spec's "out[] carries prior Result" assumption is broken by frame_cook's zeroing; this is the
+// minimal correct substitute — flagged in the dossier).
+// Fork (named) — same precedent as Damp/Spring (batch25):
+//   • UseAppRunTime input DROPPED — frame_cook always cooks once per frame with wall time (TiXL's
+//     non-default RunTimeInSecs branch has no analog here; we always use context-time = `time`).
+//   • The 1ms MinTimeElapsedBeforeEvaluation early-return DROPPED — frame_cook cooks exactly once
+//     per frame, so the sub-ms double-eval that guard prevents cannot occur.
+//   • The __MotionBlurPass skip DROPPED — no motion-blur pass system in this runtime.
+// Faithful: _previousInput field-inits to 0, so on frame 1 a nonzero input triggers an immediate
+// restart capturing initialValue=prevResult=0 (matches TiXL's exact first-frame behavior).
+void easeImpl(const std::map<std::string, float>& in, float time, StatefulValueState& st,
+              float out[3], int N) {
+  float duration = getIn(in, "Duration", 1.0f);
+  if (duration == 0.0f) duration = 0.0001f;  // TiXL guard
+  const int direction = enumOf(in, "Direction");
+  const int easeMode = enumOf(in, "Interpolation");
+
+  float input[3] = {0, 0, 0};
+  for (int c = 0; c < N; ++c) input[c] = (N == 1) ? getIn(in, "Value", 0.0f) : getInC(in, "Value", c);
+
+  float& startTime = st.s[0];
+  float* initial = &st.s[1];           // s[1..N]
+  float* target = &st.s[1 + N];        // s[1+N..1+2N-1]
+  float* prevInput = &st.s[1 + 2 * N]; // s[1+2N..1+3N-1]
+  float& prevEased = st.s[1 + 3 * N];  // shared scalar t of last frame's output
+
+  // Restart trigger: scalar abs() / vec Distance() > 0.001 (TiXL Math.Abs / VectorN.Distance).
+  float distSq = 0.0f;
+  for (int c = 0; c < N; ++c) {
+    const float d = input[c] - prevInput[c];
+    distSq += d * d;
+  }
+  if (std::sqrt(distSq) > 0.001f) {
+    startTime = time;
+    for (int c = 0; c < N; ++c) {
+      initial[c] = lerpf(initial[c], target[c], prevEased);  // TiXL _initialValue = Result.Value (last frame)
+      target[c] = input[c];
+    }
+  }
+
+  const float elapsed = time - startTime;
+  const float progress = clamp01(elapsed / duration);
+  const float eased = applyEasing(progress, direction, easeMode);
+  for (int c = 0; c < N; ++c) {
+    out[c] = lerpf(initial[c], target[c], eased);
+    prevInput[c] = input[c];
+  }
+  prevEased = eased;
+}
+void stepEase(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3]) { easeImpl(in, time, st, out, 1); }
+void stepEaseVec2(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3]) { easeImpl(in, time, st, out, 2); }
+void stepEaseVec3(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3]) { easeImpl(in, time, st, out, 3); }
+
 struct StatefulOp {
   const char* type;
   void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[3]);
@@ -193,6 +417,9 @@ const StatefulOp kStatefulValueOps[] = {
     {"Spring", stepSpring},
     {"SpringVec2", stepSpringVec2},
     {"SpringVec3", stepSpringVec3},
+    {"Ease", stepEase},
+    {"EaseVec2", stepEaseVec2},
+    {"EaseVec3", stepEaseVec3},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -367,6 +594,69 @@ int runStatefulValueSelfTest(bool injectBug) {
     bool p2 = std::fabs(out[0] - w2[0]) < eps && std::fabs(out[1] - w2[1]) < eps;
     ok = ok && p2;
     printf("[selftest-statefulvalue] SpringVec2 step2=(%.3f,%.3f) -> %s\n", out[0], out[1], p2 ? "PASS" : "FAIL");
+  }
+
+  // ----- Ease, Linear (Interpolation 0, Direction In), Duration=1.0 -----
+  // Cook1 time=0 input=0: seeds (no restart, dist=0) → 0. Cook2 time=0 input=1: dist=1>0.001 →
+  // RESTART startTime=0, initial=0, target=1; progress=0 → 0. Then sample the SAME animation as
+  // wall time advances: t=0.25/0.5/1.0 → progress=0.25/0.5/1.0 → Result=0.25/0.5/1.0 (linear).
+  // Proves elapsed/duration progress + restart capture.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    auto cook = [&](float time, float val) {
+      cookStatefulValueOp("Ease", {{"Value", val}, {"Duration", 1.0f}, {"Direction", 0.0f}, {"Interpolation", 0.0f}}, dt60, time, st, out);
+    };
+    cook(0.0f, 0.0f);  // seed prevInput=0
+    cook(0.0f, 1.0f);  // restart at t=0
+    bool p0 = std::fabs(out[0] - 0.0f) < eps;  // progress 0 at restart
+    ok = ok && p0;
+    printf("[selftest-statefulvalue] Ease.lin restart=%.4f want=0.0000 -> %s\n", out[0], p0 ? "PASS" : "FAIL");
+    const float t[3] = {0.25f, 0.5f, 1.0f};
+    const float want[3] = {0.25f, 0.5f, 1.0f};
+    for (int i = 0; i < 3; ++i) {
+      cook(t[i], 1.0f);
+      float w = (injectBug && i == 0) ? 0.5f : want[i];  // bug: progress not driven by elapsed/duration
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] Ease.lin t=%.2f=%.4f want=%.4f -> %s\n", t[i], out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- Ease, Quad + Out (Interpolation 2, Direction 1), Duration=1.0, at progress=0.5 -----
+  // Restart toward 1 at t=0, then sample t=0.5 → OutQuad(0.5)=0.5*(2-0.5)=0.75 → Result=0.75.
+  // A linear curve would give 0.5 here — so 0.75 PROVES the EasingFunctions dispatch is wired.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    auto cook = [&](float time, float val) {
+      cookStatefulValueOp("Ease", {{"Value", val}, {"Duration", 1.0f}, {"Direction", 1.0f}, {"Interpolation", 2.0f}}, dt60, time, st, out);
+    };
+    cook(0.0f, 0.0f);
+    cook(0.0f, 1.0f);          // restart
+    cook(0.5f, 1.0f);          // progress 0.5 → OutQuad(0.5)=0.75
+    float w = injectBug ? 0.5f : 0.75f;  // bug: linear (ignores the easing curve)
+    bool pass = std::fabs(out[0] - w) < eps;
+    ok = ok && pass;
+    printf("[selftest-statefulvalue] Ease.outQuad p=0.5=%.4f want=%.4f -> %s\n", out[0], w, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- EaseVec3, Linear, Duration=1.0, input (1,2,4): per-channel, NO cross-channel bleed -----
+  // Cook1 t=0 restart: initial=(0,0,0), target=(1,2,4), progress=0 → (0,0,0). Cook2 t=0.5: progress
+  // 0.5 → (0.5,1.0,2.0). Each component eases on its OWN initial/target (proves the s[12] layout).
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    auto cook = [&](float time) {
+      cookStatefulValueOp("EaseVec3", {{"Value.x", 1.0f}, {"Value.y", 2.0f}, {"Value.z", 4.0f}, {"Duration", 1.0f}, {"Direction", 0.0f}, {"Interpolation", 0.0f}}, dt60, time, st, out);
+    };
+    cook(0.0f);  // restart, progress 0 → (0,0,0)
+    cook(0.5f);  // progress 0.5 → (0.5,1.0,2.0)
+    // injectBug: a channel-bleed bug (e.g. y using x's target) would break the .y expectation.
+    float wy = injectBug ? 0.5f : 1.0f;
+    bool pass = std::fabs(out[0] - 0.5f) < eps && std::fabs(out[1] - wy) < eps && std::fabs(out[2] - 2.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-statefulvalue] EaseVec3 p=0.5=(%.3f,%.3f,%.3f) want=(0.500,%.3f,2.000) -> %s\n", out[0], out[1], out[2], wy, pass ? "PASS" : "FAIL");
   }
 
   printf("[selftest-statefulvalue] %s%s\n", ok ? "PASS" : "FAIL", injectBug ? " (injectBug)" : "");

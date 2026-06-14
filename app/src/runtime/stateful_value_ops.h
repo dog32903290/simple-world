@@ -19,14 +19,21 @@ namespace sw {
 
 // Per-instance memory across frames (TiXL private fields). One per node instance, keyed upstream
 // by the resident node PATH (survives projection rebuilds + stays per-instance inside compounds,
-// like AudioReactionState). A generic 8-float scratch covers every stateful value op (incl. vec3):
+// like AudioReactionState). A generic 12-float scratch covers every stateful value op (incl. vec3):
 //   Damp:       s[0]=dampedValue, s[1]=velocity
 //   Spring:     s[0]=springedValue, s[1]=result (the previous output)
 //   DampVecN:   s[0..N-1]=damped per component, s[N..2N-1]=velocity per component
 //   SpringVecN: s[0..N-1]=springed per component, s[N..2N-1]=result per component
+//   Ease:       s[0]=startTime, s[1]=initial, s[2]=target, s[3]=prevInput, s[4]=prevEased
+//   EaseVec2:   s[0]=startTime, s[1..2]=initial.xy, s[3..4]=target.xy, s[5..6]=prevInput.xy, s[7]=prevEased
+//   EaseVec3:   s[0]=startTime, s[1..3]=initial.xyz, s[4..6]=target.xyz, s[7..9]=prevInput.xyz, s[10]=prevEased
+// (prevEased = last frame's eased-t, one shared scalar — reconstructs the prior Result on restart
+//  since frame_cook hands a zeroed out[] each frame; see stateful_value_ops.cpp easeImpl.)
 // `init` = TiXL's _isFirstEval: the first cook seeds state from the input (no smoothing yet).
+// (Widened s[8]→s[12] in batch26 for EaseVec3's 10 floats of state; additive, zero behavior
+// change for the s[0..3] ops above.)
 struct StatefulValueState {
-  float s[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+  float s[12] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
   bool  init = false;
 };
 
