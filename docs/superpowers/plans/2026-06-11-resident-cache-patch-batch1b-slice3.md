@@ -1457,3 +1457,14 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 **裝 2 顆**:HasVec3Changed(7 輸出 HasChanged+Delta.xyz signed+DeltaOnHit.xyz abs,Mode Changed/Increased/Decreased;state s[0..7])+PeakLevel(4 輸出 AttackLevel/FoundPeak/TimeSincePeak/MovingSum;MovingSum=feedback 累加器讀自身上幀,±30000 wrap;state s[0..2],lastPeakTime init −∞)。named fork 砍 Playback/FxTime dedup,seam time 替。selftest HasVec3Changed DeltaOnHit.y(out[5])+PeakLevel MovingSum(out[3])證 >3-out 讀回。--bite PASS=125/check-arch 綠。
 🟡 端到端:evalResidentFloat 讀 extOut[4..6] by-construction 正確,需柏為 GUI 接 HasVec3Changed 讀 DeltaOnHit 親驗一次。
 **Resume = 第二條 seam: mixed-multiInput**(BlendValues=MultiInput<float>Values+regular F;BlendVector3=MultiInput<Vec3>;PickVector2/3;RemapValues=MultiInput<Vec2>pairs)。承重難點(批次30 已勘):①flat-path gather(graph.cpp:165)每 port 一槽不展開 multiInput→需教它展開 ②eval in[] 要能分離變長 multiInput 段與其後 regular port ③TiXL count==0→0 語義(connected count)我方 gather 未暴露。解法雛形:multiInput 段展開後其長度需傳給 eval(或約定 multiInput 必在尾/在首+count 旁路)。**這條比 output seam murky+碰 gather 載重線,要先讀世界觀再動。** 之後解鎖 ~5 顆 combine/blend op。
+
+## Cut 41 — 批次 35: BlendValues (mixed-multiInput seam, eval-side 解) + 自走收口 (2026-06-14 夜; /loop 柏為 steer) ✅⏹
+**commit `ecbae35`**: 柏為 steer 的 seam 第二條=mixed-multiInput。**承重發現:不需動 gather**——resident gather(resident_eval_graph.cpp:88-110)早已「展開 multiInput prefix→append 後續 regular port」,只要 eval 約定「multiInput 是 prefix,K trailing regular → 段長 n-K」即可。BlendValues(K=1,F=in[n-1])。selftest 走 resident graph(Const 10,20,30→Values + Const 1.5→F=25),flat path 不展開故不可用。--bite PASS=125/check-arch 綠。批次30 把它判 "需開接縫" 是過度保守(沒讀夠 gather 世界觀)。
+
+**⏹ 自走 loop 停手(柏為 steer 的安全部分做完)**: 柏為 /loop 指「開兩條 seam」:
+- **seam 1 >3-output ✅ 全做**(批次34 extOut[3]→[8],裝 HasVec3Changed+PeakLevel)。
+- **seam 2 mixed-multiInput ◑ 安全部分做完**:float 情形(BlendValues)✅;**vec 情形(BlendVector3/PickVector2,3/RemapValues)= 需開「Vec-multiInput」較大 seam→柏為級結構/UX 決定,非自走**。
+
+**為何 Vec-multiInput 是柏為級(不自走)**: 我方 Float-decomposed 模型每 connection=1 float wire,無 Vec3 wire。Vec3 multiInput 要嘛(a)每 vec 源 3 connections 進 3 個 sub-multiInput(.x/.y/.z),eval 跨步 3;要嘛(b)引入真 Vec connection 型別。兩者都是模型/GUI 怎麼接的 UX 決定,碰 gather+連線模型載重線,不該自走拍板。
+
+**柏為 steer 選項(回來定)**: ①Vec-multiInput seam 走哪個模型(sub-multiInput 跨步 vs 真 Vec wire)→解鎖 BlendVector3/PickVector/RemapValues ②Gradient widget(我接 op 你畫色帶,high-value)③GridPosition 的 context.RequestedResolution seam ④MinInt/MaxInt float Min/Max 型別決定 ⑤Field/SDF 大子系統 ⑥視覺/手感顆親測回收(批次24/25/27/34 累積)。**自走已把所有不需要你決定的 value/math parity + 兩條 seam 的安全部分做完(批次27-35,九批),loop 停這裡等你。**
