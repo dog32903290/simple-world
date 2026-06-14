@@ -1321,3 +1321,42 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 4. **覆蓋缺口補牙**(若取得 resident TiXL): Dither hash 分支 + PointAttributeFromNoise Rotate 路徑 parity 牙。
 5. **UI 視覺第三刀**(同 Cut29 Resume): 標題字級 13→18/連線 idle-fade/pin 三角。
 6. **柏為親測回收**: 批次24 的 8 顆視覺 op 親驗結果回收(預設值/視覺手感)。
+
+## Cut 31 — 批次 25: cheap-leaf 礦脈挖盡判決 + 開「stateful value op」接縫 + 9 顆 (2026-06-14 傍晚→夜; Opus orchestrator, `/sw-node-batch` 第六航) ✅
+**柏為指令**: 一次做 50 顆 → 掃描後判定 cheap-leaf 不存在 50 顆 → 柏為「走你推薦的」→ 開 stateful seam。
+**commit**: `b52bbfd`(Phase 0 seam+Damp/Spring)+`ed54c62`(DampAngle/DeltaSinceLastFrame/FreezeValue)+`561598c`(DampVec2/3 SpringVec2/3)。--bite **PASS=123**/NO-BITE:[](statefulvalue 8 齒)/check-arch 綠。soundtrack=已知 @4x 環境紅。
+
+**承重判決(本批最重要的事,非節點數)**: 五條獨立 Explore 掃描(math/image/point_modify+transform/particle/combine+generators)對 `external/tixl` 全家族 → **cheap-leaf(加葉子不動接縫)礦脈已挖盡,真剩 ~0-2 顆**:
+- math 0(剩全是 stateful/Bool 輸出/MultiInput/vec4/context-dependent)
+- image_filter 0(剩全是 compound .t3/Gradient/Curve/2nd-texture/multi-pass)
+- point_modify+transform 0(剩全要 Texture2D/Gradient/Field/2nd-buffer/Mesh/camera/改數量)
+- particle force 0(4 顆 stateless 全做完,剩全要 field/SDF/mesh/target/state/spatial-hash)
+- combine 0 / generators 1-2(RepetitionPoints/CommonPointSets,且需 CPU-gen map-buffer 接縫)
+→ 結論:批次 1-24 的生產模式(織 cheap leaf)結束。往下每顆節點必先**開一條架構接縫**,每縫解鎖一族。
+
+**開的縫 = stateful value op(沿用 AudioReaction 模式,resident 核心零改動)**: 輸出依賴前幾幀記憶的 value 節點 → evaluate=nullptr,frame_cook 每幀 cook 一次寫 ResidentNode::extOut,evalResidentFloat 走 **generic no-evaluate 路徑**(resident_eval_graph.cpp:58-65 早已非 type-specific,故核心免改)。新增:`runtime/stateful_value_ops.{h,cpp}`(per-instance state keyed by path=survives rebuild+per-instance in compound;data-driven opType→stepFn 表=rule 7,加 op 不動 frame_cook)+ `frame_cook.cpp::cookStatefulValueNodes`(AudioReaction 的 value-graph 兄弟)。
+
+**裝的 9 顆**(全 TiXL Lib/numbers/.../process 逐字):
+- **Damp**(float/process/Damp.cs+DampFunctions/MathUtils.SpringDamp): method 0=Lerp(target,current,damping)/1=critically-damped k=0.5/(damping+0.001),dt clamp[0,1/60]。first-eval seed=Value。
+- **DampAngle**(float/process/DampAngle.cs): 經最短角差 re-target 再 damp;**無 _isFirstEval**(從 0 damp)。
+- **DampVec2/3**(vec2/vec3): 逐分量 dampenFloat;**無 _isFirstEval**(與 scalar Damp 不對稱,faithful)。
+- **Spring/SpringVec2/3**(float|vec/process/Spring*.cs): _springed=Lerp(_springed,(target-result)*Strength,Tension);result+=_springed。**無 dt**(frame-rate dependent,忠實)。
+- **DeltaSinceLastFrame**(floats/process): Value−上幀;Threshold port 存在但 TiXL math 未用→保留 port parity。
+- **FreezeValue**(float/process): sample-hold,2 輸出(Result+DeltaSinceFreeze),Mode 0=FreezeWhileTrue/1=上升沿取樣。
+
+**named fork**(全): UseAppRunTime 輸入 + 1ms MinTimeElapsedBeforeEvaluation guard 砍掉(frame_cook 每幀 cook 一次=無 sub-ms double-eval 可防,該 guard 在 TiXL 的存在理由消失)。dt 用 raw wall delta(這些是 CPU value sim,frame-rate dependent 如 TiXL Playback.LastFrameDuration),各 op 內部 clamp。
+
+**selftest**(frame-driven golden,hand-computed 軌跡;8 齒咬): Damp linear 0.2/0.36/0.488 + DampedSpring dt=10 **clamp 證**0.000277 + Spring overshoot 0.5/1.0/1.25→settle + DampAngle wrap -5/-7.5(證最短角差非追+350)+ Delta 5/3/0 + Freeze mode0 hold + mode1 上升沿 + DampVec3(1,2,4)逐分量(證無 channel bleed)+ SpringVec2。
+
+**誠實 BLOCKED(非缺陷)**: PeakLevel=4 輸出(>extOut[3])+FoundPeak 是 Bool 輸出 → 需 Bool seam(第二條未開的縫)。Has*Changed/Was*Trigger 同卡 Bool。
+
+**🟡 柏為親測**: 9 顆全有「手感」維度(拖 Damping/Tension 看平滑/彈跳速度、FreezeValue 凍結時機、DampAngle 繞角),selftest 數值級已入主線,柏為自測手感對不對。
+
+## Resume — next (批次26 候選; 無 🔴 排修, 純推進——但每條都是「開縫」非「織葉」)
+**批次25 已消化**: stateful value seam 開通 + 9 顆(Damp/DampAngle/DampVec2/3/Spring/SpringVec2/3/DeltaSinceLastFrame/FreezeValue)。
+0. **Ease 族(同 stateful seam,最近的下一塊)**: Ease/EaseVec2/EaseVec3(TiXL float|vec/process/Ease*.cs)。需先港 `Core/Utils/EasingFunctions.cs`(305 行=10 curve×3 direction=30 fn,標準 easing 公式,可委 codex)+ 絕對時間 state(startTime/initial/target/prevInput,用 frame_cook 傳的 timeSecs)+ input-changed restart 邏輯。state s[8] 夠(4 floats)。**這是最乾淨的下一 tranche,seam 已在,只缺 EasingFunctions 子港**。
+1. **Bool 輸出 port 接縫(第二條縫)**: 解鎖 ~20 顆 math 邏輯(Compare/IsGreater/HasValueChanged/HasValueIncreased/HasValueDecreased/WasTrigger)+ PeakLevel 的 FoundPeak。⚠ 先確認有 Bool consumer(否則=織沒人踩的線);TiXL Bool 餵 trigger/switch——需同時開一個 Bool 消費端才有意義。
+2. **第二 texture 輸入接縫(第三條縫)**: 解鎖 displace-with-map/TimeDisplace/HSE 等視覺 filter。柏為域(位移圖最直接看得到)。
+3. **Gradient/Curve 接縫**: 解鎖 RemapColor/ColorGrade/Steps(image)+MapPointAttributes(point)。
+4. **Field/SDF 子系統 + camera matrix 接縫**(大): 解鎖整個 particle field-force 族 + TransformFromClipSpace/BoundingBoxPoints/SnapToAngles CameraSpace。
+5. **柏為親測回收**: 批次24 八顆視覺 + 批次25 九顆手感。
