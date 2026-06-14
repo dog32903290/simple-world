@@ -1269,6 +1269,42 @@ int runMathOpsSelfTest(bool injectBug) {
   }
   // [logic-batch27] END teeth
 
+  // [vec-batch31] BEGIN teeth — clean stateless vec value ops.
+  // DivideVector2: A=(6,8) B=(2,4) U=2 → (3,4)/2 = (1.5,1.0); B.x=0 → Result.x guard 0.
+  {
+    float rx = evalOpParams("DivideVector2", {{"A.x", 6.0f}, {"A.y", 8.0f}, {"B.x", 2.0f}, {"B.y", 4.0f}, {"UniformScale", 2.0f}}, "Result.x");
+    float ry = evalOpParams("DivideVector2", {{"A.x", 6.0f}, {"A.y", 8.0f}, {"B.x", 2.0f}, {"B.y", 4.0f}, {"UniformScale", 2.0f}}, "Result.y");
+    float rz = evalOpParams("DivideVector2", {{"A.x", 6.0f}, {"B.x", 0.0f}, {"UniformScale", 2.0f}}, "Result.x");  // div-by-zero guard
+    float wx = injectBug ? 3.0f : 1.5f;  // bug: forgot the /UniformScale
+    bool pass = std::fabs(rx - wx) < eps && std::fabs(ry - 1.0f) < eps && std::fabs(rz - 0.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] DivideVector2 x=%.2f(want %.2f) y=%.2f z(b=0)=%.1f -> %s\n", rx, wx, ry, rz, pass ? "PASS" : "FAIL");
+  }
+  // Vec2ToVec3: XY=(3,5) Z=7 → (3,5,7).
+  {
+    float x = evalOpParams("Vec2ToVec3", {{"XY.x", 3.0f}, {"XY.y", 5.0f}, {"Z", 7.0f}}, "Result.x");
+    float y = evalOpParams("Vec2ToVec3", {{"XY.x", 3.0f}, {"XY.y", 5.0f}, {"Z", 7.0f}}, "Result.y");
+    float z = evalOpParams("Vec2ToVec3", {{"XY.x", 3.0f}, {"XY.y", 5.0f}, {"Z", 7.0f}}, "Result.z");
+    float wz = injectBug ? 0.0f : 7.0f;  // bug: drops Z
+    bool pass = std::fabs(x - 3.0f) < eps && std::fabs(y - 5.0f) < eps && std::fabs(z - wz) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Vec2ToVec3 (%.0f,%.0f,%.0f) wantZ=%.0f -> %s\n", x, y, z, wz, pass ? "PASS" : "FAIL");
+  }
+  // EulerToAxisAngle: (0,0,0)→ Axis(1,0,0) Angle 0 (gimbal guard); (PI/2,0,0)→ Axis(0,1,0) Angle PI/2.
+  {
+    const float HALF_PI = 1.57079633f;
+    float ax0 = evalOpParams("EulerToAxisAngle", {{"Rotation.x", 0.0f}, {"Rotation.y", 0.0f}, {"Rotation.z", 0.0f}}, "Axis.x");
+    float an0 = evalOpParams("EulerToAxisAngle", {{"Rotation.x", 0.0f}, {"Rotation.y", 0.0f}, {"Rotation.z", 0.0f}}, "Angle");
+    float ay1 = evalOpParams("EulerToAxisAngle", {{"Rotation.x", HALF_PI}, {"Rotation.y", 0.0f}, {"Rotation.z", 0.0f}}, "Axis.y");
+    float an1 = evalOpParams("EulerToAxisAngle", {{"Rotation.x", HALF_PI}, {"Rotation.y", 0.0f}, {"Rotation.z", 0.0f}}, "Angle");
+    float way = injectBug ? 0.0f : 1.0f;  // bug: axis not normalized / wrong component
+    bool pass = std::fabs(ax0 - 1.0f) < 1e-3f && std::fabs(an0 - 0.0f) < 1e-3f
+                && std::fabs(ay1 - way) < 1e-3f && std::fabs(an1 - HALF_PI) < 1e-3f;
+    ok = ok && pass;
+    printf("[selftest-mathops] EulerToAxisAngle zero(ax=%.2f,an=%.2f) halfpiX(ay=%.2f want %.2f,an=%.3f) -> %s\n", ax0, an0, ay1, way, an1, pass ? "PASS" : "FAIL");
+  }
+  // [vec-batch31] END teeth
+
   printf("[selftest-mathops] -> %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

@@ -119,4 +119,10 @@ float evalSum(int outIdx, const float* in, int n, const EvaluationContext&);
 float evalIsGreater(int outIdx, const float* in, int n, const EvaluationContext&);
 float evalCompare(int outIdx, const float* in, int n, const EvaluationContext&);
 // [logic-batch27] END declarations
+
+// [vec-batch31] clean stateless vec value ops (completeness tier). TiXL vec2/vec3.
+float evalDivideVector2(int outIdx, const float* in, int n, const EvaluationContext&);
+float evalVec2ToVec3(int outIdx, const float* in, int n, const EvaluationContext&);
+float evalEulerToAxisAngle(int outIdx, const float* in, int n, const EvaluationContext&);
+// [vec-batch31] END declarations
 }  // namespace sw

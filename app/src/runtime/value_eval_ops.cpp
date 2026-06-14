@@ -616,4 +616,59 @@ float evalCompare(int, const float* in, int n, const EvaluationContext&) {
 
 // [logic-batch27] END implementations
 
+// [vec-batch31] BEGIN implementations — clean stateless vec value ops (completeness tier).
+// Multi-output vec convention (same as evalAddVec3): inputs gathered into in[] in port order,
+// outputs declared AFTER inputs, so component k = outIdx - n.
+
+// DivideVector2 — Result = (A / B) / UniformScale, component-wise. TiXL vec2/DivideVector2.cs.
+// in: A.x,A.y,B.x,B.y,UniformScale. Fork (fork-divvec2-divzero): B component==0 or U==0 → 0
+// (same precedent as evalDiv; TiXL would yield ±inf/NaN).
+float evalDivideVector2(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 5) return 0.0f;
+  const int k = outIdx - n;  // 0=x, 1=y
+  if (k < 0 || k > 1) return 0.0f;
+  const float a = in[k];
+  const float b = in[2 + k];
+  const float u = in[4];
+  if (b == 0.0f || u == 0.0f) return 0.0f;
+  return (a / b) / u;
+}
+
+// Vec2ToVec3 — Result = (XY.x, XY.y, Z). TiXL vec2/Vec2ToVec3.cs. in: XY.x,XY.y,Z.
+float evalVec2ToVec3(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 3) return 0.0f;
+  const int k = outIdx - n;  // 0=x,1=y,2=z
+  if (k < 0 || k > 2) return 0.0f;
+  return in[k];  // in[0]=XY.x, in[1]=XY.y, in[2]=Z map straight through
+}
+
+// EulerToAxisAngle — Rotation(radians: heading=X, attitude=Y, bank=Z) → Axis(unit vec3) + Angle(rad).
+// TiXL vec3/EulerToAxisAngle.cs (euclideanspace conversion). Outputs: Axis.x/.y/.z (k 0/1/2), Angle (k 3).
+// Computed in double like TiXL (Math.Cos/Sin/Acos/Sqrt) for parity. norm<0.001 → axis=(1,0,0) (gimbal guard).
+float evalEulerToAxisAngle(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 3) return 0.0f;
+  const int k = outIdx - n;  // 0=Axis.x,1=Axis.y,2=Axis.z,3=Angle
+  if (k < 0 || k > 3) return 0.0f;
+  const double heading = in[0], attitude = in[1], bank = in[2];
+  const double c1 = std::cos(heading / 2), s1 = std::sin(heading / 2);
+  const double c2 = std::cos(attitude / 2), s2 = std::sin(attitude / 2);
+  const double c3 = std::cos(bank / 2), s3 = std::sin(bank / 2);
+  const double c1c2 = c1 * c2, s1s2 = s1 * s2;
+  const double w = c1c2 * c3 - s1s2 * s3;
+  double x = c1c2 * s3 + s1s2 * c3;
+  double y = s1 * c2 * c3 + c1 * s2 * s3;
+  double z = c1 * s2 * c3 - s1 * c2 * s3;
+  const double angle = 2.0 * std::acos(w);
+  double norm = x * x + y * y + z * z;
+  if (norm < 0.001) { x = 1; y = 0; z = 0; }
+  else { norm = std::sqrt(norm); x /= norm; y /= norm; z /= norm; }
+  switch (k) {
+    case 0: return (float)x;
+    case 1: return (float)y;
+    case 2: return (float)z;
+    default: return (float)angle;  // k==3
+  }
+}
+// [vec-batch31] END implementations
+
 }  // namespace sw
