@@ -14,45 +14,104 @@ inline float getIn(const std::map<std::string, float>& in, const char* k, float 
   return it != in.end() ? it->second : dflt;
 }
 
-// --- Damp (TiXL Lib/numbers/float/process/Damp.cs + DampFunctions.DampenFloat / MathUtils.SpringDamp) ---
-// Ports: Value, Damping, Method(enum 0=LinearInterpolation, 1=DampedSpring).
-// State: s[0]=dampedValue, s[1]=velocity. First cook seeds dampedValue=Value (TiXL _isFirstEval).
-// Fork (named): TiXL's UseAppRunTime input + the 1ms MinTimeElapsedBeforeEvaluation guard are
-//   DROPPED — frame_cook cooks each node exactly once per frame, so there is no sub-millisecond
-//   double-eval to guard against (the whole reason that guard exists in TiXL). The dt clamp to
-//   [0, 1/60] is TiXL's own (DampFunctions.SpringDampFloat: Playback.LastFrameDuration.Clamp(0,1/60)).
-void stepDamp(const std::map<std::string, float>& in, float dt, float /*time*/,
-              StatefulValueState& st, float out[3]) {
-  const float value = getIn(in, "Value", 0.0f);
-  const float damping = getIn(in, "Damping", 0.9f);
-  int method = (int)std::lround(getIn(in, "Method", 0.0f));
-  if (method < 0) method = 0;
-  else if (method > 1) method = 1;  // TiXL: Method.GetValue(context).Clamp(0,1)
-
-  float& damped = st.s[0];
-  float& velocity = st.s[1];
-  if (!st.init) {
-    damped = value;  // TiXL: _dampedValue = inputValue on the first eval
-    st.init = true;
-  } else if (method == 0) {
-    // LinearDamp: Lerp(target, current, damping) = target + (current-target)*damping.
-    damped = lerpf(value, damped, damping);
+// The shared damp core (TiXL DampFunctions.DampenFloat / MathUtils.SpringDamp, MathUtils.cs). Single
+// source so Damp and DampAngle can't drift. method 0=LinearInterpolation (Lerp(target,current,d) =
+// target+(current-target)*d), 1=DampedSpring (critically-damped, k=0.5/(damping+0.001), dt∈[0,1/60]).
+// dt clamp is TiXL's (DampFunctions.SpringDampFloat: Playback.LastFrameDuration.Clamp(0,1/60)).
+float dampenFloat(float target, float prev, float damping, float& velocity, int method, float dt) {
+  float r;
+  if (method == 0) {
+    r = lerpf(target, prev, damping);
   } else {
-    // DampedSpring: MathUtils.SpringDamp(target, current, ref vel, k=0.5/(damping+0.001), dt∈[0,1/60]).
     const float k = 0.5f / (damping + 0.001f);
     float ts = dt;
     if (ts < 0.0f) ts = 0.0f;
     else if (ts > 1.0f / 60.0f) ts = 1.0f / 60.0f;
-    const float toTarget = value - damped;
-    const float springForce = toTarget * k;
-    const float dampingForce = -velocity * 2.0f * std::sqrt(k);
-    const float force = springForce + dampingForce;
+    const float toTarget = target - prev;
+    const float force = toTarget * k - velocity * 2.0f * std::sqrt(k);
     velocity += force * ts;
-    damped += velocity * ts;
+    r = prev + velocity * ts;
   }
-  if (!std::isfinite(damped)) damped = 0.0f;      // TiXL MathUtils.ApplyDefaultIfInvalid(_dampedValue,0)
+  if (!std::isfinite(r)) r = 0.0f;                // TiXL MathUtils.ApplyDefaultIfInvalid(_dampedValue,0)
   if (!std::isfinite(velocity)) velocity = 0.0f;  // ...and _velocity
+  return r;
+}
+
+inline int methodOf(const std::map<std::string, float>& in) {
+  int m = (int)std::lround(getIn(in, "Method", 0.0f));
+  return m < 0 ? 0 : (m > 1 ? 1 : m);  // TiXL: Method.GetValue(context).Clamp(0,1)
+}
+
+// --- Damp (TiXL Lib/numbers/float/process/Damp.cs) ---
+// Ports: Value, Damping, Method(enum 0=LinearInterpolation, 1=DampedSpring).
+// State: s[0]=dampedValue, s[1]=velocity. First cook seeds dampedValue=Value (TiXL _isFirstEval).
+// Fork (named): TiXL's UseAppRunTime input + the 1ms MinTimeElapsedBeforeEvaluation guard are
+//   DROPPED — frame_cook cooks each node exactly once per frame, so there is no sub-millisecond
+//   double-eval to guard against (the whole reason that guard exists in TiXL).
+void stepDamp(const std::map<std::string, float>& in, float dt, float /*time*/,
+              StatefulValueState& st, float out[3]) {
+  const float value = getIn(in, "Value", 0.0f);
+  const float damping = getIn(in, "Damping", 0.9f);
+  if (!st.init) {
+    st.s[0] = value;  // TiXL: _dampedValue = inputValue on the first eval
+    st.init = true;
+  } else {
+    st.s[0] = dampenFloat(value, st.s[0], damping, st.s[1], methodOf(in), dt);
+  }
+  out[0] = st.s[0];
+}
+
+// --- DampAngle (TiXL Lib/numbers/float/process/DampAngle.cs) ---
+// Like Damp but in angle space: first re-target through the SHORTEST angular delta so 359°→1°
+// damps +2° not -358°. Ports: Value, Damping, Method. State: s[0]=dampedValue, s[1]=velocity.
+// Fork (named): UseAppRunTime + 1ms guard dropped (same once-per-frame reason). NOTE TiXL DampAngle
+// has NO _isFirstEval — it damps from 0 on frame 1 (faithful: no init seeding here).
+void stepDampAngle(const std::map<std::string, float>& in, float dt, float /*time*/,
+                   StatefulValueState& st, float out[3]) {
+  const float value = getIn(in, "Value", 0.0f);
+  const float damping = getIn(in, "Damping", 0.9f);
+  float& damped = st.s[0];
+  // DeltaAngle(current=damped, target=value): Repeat(target-current,360); >180 → -360.
+  float d = value - damped;
+  d = d - std::floor(d / 360.0f) * 360.0f;  // TiXL Repeat(t,360)
+  if (d < 0.0f) d = 0.0f;                    // Repeat clamps to [0,360]
+  else if (d > 360.0f) d = 360.0f;
+  if (d > 180.0f) d -= 360.0f;
+  const float targetAngle = damped + d;
+  damped = dampenFloat(targetAngle, damped, damping, st.s[1], methodOf(in), dt);
   out[0] = damped;
+}
+
+// --- DeltaSinceLastFrame (TiXL Lib/numbers/floats/process/DeltaSinceLastFrame.cs) ---
+// Output = Value − previousValue. State: s[0]=lastValue (init 0 → first frame delta = Value).
+// Ports: Value, Threshold (declared in TiXL but UNUSED in its math — kept for port parity, no fork).
+void stepDeltaSinceLastFrame(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                             StatefulValueState& st, float out[3]) {
+  const float value = getIn(in, "Value", 0.0f);
+  out[0] = value - st.s[0];
+  st.s[0] = value;
+}
+
+// --- FreezeValue (TiXL Lib/numbers/float/process/FreezeValue.cs) ---
+// Sample-and-hold. Ports: Value, Freeze(Bool as Float 0/1), Mode(enum 0=FreezeWhileTrue,
+// 1=UpdateWhenSwitchingToTrue). State: s[0]=frozenValue, s[1]=prevFreeze(0/1). Outputs:
+// Result(frozen), DeltaSinceFreeze(Value−frozen). TiXL updates _freeze (the WasTriggered current)
+// every frame on change, BEFORE the mode branch — replicated.
+void stepFreezeValue(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                     StatefulValueState& st, float out[3]) {
+  const float value = getIn(in, "Value", 0.0f);
+  const bool freeze = getIn(in, "Freeze", 0.0f) > 0.5f;
+  const int mode = (int)std::lround(getIn(in, "Mode", 0.0f));
+  const bool prevFreeze = st.s[1] > 0.5f;
+  const bool wasTriggered = (freeze != prevFreeze) && freeze;  // TiXL WasTriggered
+  st.s[1] = freeze ? 1.0f : 0.0f;
+  if (mode == 0) {
+    if (!freeze) st.s[0] = value;          // FreezeWhileTrue: track while not frozen
+  } else if (wasTriggered) {
+    st.s[0] = value;                       // UpdateWhenSwitchingToTrue: sample on the rising edge
+  }
+  out[0] = st.s[0];
+  out[1] = value - st.s[0];
 }
 
 // --- Spring (TiXL Lib/numbers/float/process/Spring.cs) ---
@@ -81,6 +140,9 @@ struct StatefulOp {
 // The data-driven table (rule 7): add a row to extend; frame_cook + the resident path stay untouched.
 const StatefulOp kStatefulValueOps[] = {
     {"Damp", stepDamp},
+    {"DampAngle", stepDampAngle},
+    {"DeltaSinceLastFrame", stepDeltaSinceLastFrame},
+    {"FreezeValue", stepFreezeValue},
     {"Spring", stepSpring},
 };
 
@@ -155,6 +217,72 @@ int runStatefulValueSelfTest(bool injectBug) {
       bool pass = std::fabs(out[0] - w) < eps;
       ok = ok && pass;
       printf("[selftest-statefulvalue] Spring step%d=%.4f want=%.4f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- DampAngle, Linear (Method 0), Damping=0.5, Value=350° (shortest-path wrap) -----
+  // No init seeding (damped=0). DeltaAngle(0,350) = -10 (short way), targetAngle=-10;
+  //   d1 = Lerp(-10,0,0.5) = -5. Then DeltaAngle(-5,350)=-5, targetAngle=-10; d2 = Lerp(-10,-5,0.5)=-7.5.
+  // A naive damp (no wrap) would chase +350 — so -5/-7.5 proves the angular re-target.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float want[2] = {-5.0f, -7.5f};
+    for (int i = 0; i < 2; ++i) {
+      cookStatefulValueOp("DampAngle", {{"Value", 350.0f}, {"Damping", 0.5f}, {"Method", 0.0f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 0) ? 175.0f : want[i];  // bug: no wrap → chases +350
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] DampAngle step%d=%.4f want=%.4f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- DeltaSinceLastFrame: Value 5,8,8 → delta 5,3,0 (lastValue init 0) -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float vals[3] = {5.0f, 8.0f, 8.0f};
+    const float want[3] = {5.0f, 3.0f, 0.0f};
+    for (int i = 0; i < 3; ++i) {
+      cookStatefulValueOp("DeltaSinceLastFrame", {{"Value", vals[i]}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 1) ? 8.0f : want[i];  // bug: returns raw value, not the delta
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] Delta step%d=%.4f want=%.4f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- FreezeValue, Mode 0 (FreezeWhileTrue): track while Freeze=0, hold while Freeze=1 -----
+  // frames (Value,Freeze): (2,0)(5,1)(9,1)(9,0) → Result 2,2,2,9 ; DeltaSinceFreeze 0,3,7,0.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[4] = {2.0f, 5.0f, 9.0f, 9.0f};
+    const float frz[4] = {0.0f, 1.0f, 1.0f, 0.0f};
+    const float wantR[4] = {2.0f, 2.0f, 2.0f, 9.0f};
+    const float wantD[4] = {0.0f, 3.0f, 7.0f, 0.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("FreezeValue", {{"Value", val[i]}, {"Freeze", frz[i]}, {"Mode", 0.0f}}, dt60, 0.0f, st, out);
+      float wr = (injectBug && i == 2) ? 9.0f : wantR[i];  // bug: doesn't hold (tracks while frozen)
+      bool pass = std::fabs(out[0] - wr) < eps && std::fabs(out[1] - wantD[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] Freeze0 step%d R=%.4f(want %.4f) D=%.4f -> %s\n", i + 1, out[0], wr, out[1], pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- FreezeValue, Mode 1 (UpdateWhenSwitchingToTrue): sample only on the Freeze rising edge -----
+  // frames (Value,Freeze): (2,0)(5,1)(8,1) → Result 0,5,5 (samples 5 when Freeze goes 0→1).
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[3] = {2.0f, 5.0f, 8.0f};
+    const float frz[3] = {0.0f, 1.0f, 1.0f};
+    const float wantR[3] = {0.0f, 5.0f, 5.0f};
+    for (int i = 0; i < 3; ++i) {
+      cookStatefulValueOp("FreezeValue", {{"Value", val[i]}, {"Freeze", frz[i]}, {"Mode", 1.0f}}, dt60, 0.0f, st, out);
+      bool pass = std::fabs(out[0] - wantR[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] Freeze1 step%d R=%.4f want=%.4f -> %s\n", i + 1, out[0], wantR[i], pass ? "PASS" : "FAIL");
     }
   }
 

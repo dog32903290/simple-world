@@ -46,6 +46,31 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"LinearInterpolation", "DampedSpring"}}},
        nullptr},
+      // DampAngle — Damp in angle space (re-targets through the shortest angular delta). TiXL
+      // float/process/DampAngle.cs.
+      {"DampAngle", "DampAngle",
+       {{"Result", "Result", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, -360.0f, 360.0f},
+        {"Damping", "Damping", "Float", true, 0.9f, 0.0f, 1.0f},
+        {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"LinearInterpolation", "DampedSpring"}}},
+       nullptr},
+      // DeltaSinceLastFrame — Value minus its value last frame. TiXL floats/process/DeltaSinceLastFrame.cs.
+      // (Threshold port exists in TiXL but is unused by its math — kept for port parity.)
+      {"DeltaSinceLastFrame", "DeltaSinceLastFrame",
+       {{"Change", "Change", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f}},
+       nullptr},
+      // FreezeValue — sample-and-hold; DeltaSinceFreeze = Value−frozen. TiXL float/process/FreezeValue.cs.
+      {"FreezeValue", "FreezeValue",
+       {{"Result", "Result", "Float", false},
+        {"DeltaSinceFreeze", "DeltaSinceFreeze", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Freeze", "Freeze", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"FreezeWhileTrue", "UpdateWhenSwitchingToTrue"}}},
+       nullptr},
       // Spring — spring physics toward a target (overshoots, settles). TiXL float/process/Spring.cs.
       {"Spring", "Spring",
        {{"Result", "Result", "Float", false},
