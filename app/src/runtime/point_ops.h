@@ -74,6 +74,8 @@ int runLinePointsSelfTest(bool injectBug);
 int runGridPointsSelfTest(bool injectBug);
 // SpherePoints generator golden (point_ops_spherepoints.cpp). injectBug = real degeneracy.
 int runSpherePointsSelfTest(bool injectBug);
+// RepetitionPoints generator golden (point_ops_repetitionpoints.cpp). injectBug = u=i not i+1.
+int runRepetitionPointsSelfTest(bool injectBug);
 // TransformPoints MODIFIER golden (point_ops_transformpoints.cpp): ring -> scale+translate, PLUS a
 // multi-axis rotation tooth (a known point under Rot!=0 lands where the Y·X·Z order predicts).
 // injectBug = Strength 0 -> identity passthrough -> ring unchanged. First modifier (in->out bag).

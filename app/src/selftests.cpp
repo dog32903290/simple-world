@@ -172,6 +172,7 @@ const SelfTest kTable[] = {
     {"linepoints", runLinePointsSelfTest},
     {"gridpoints", runGridPointsSelfTest},
     {"spherepoints", runSpherePointsSelfTest},
+    {"repetitionpoints", runRepetitionPointsSelfTest},
     {"transformpoints", runTransformPointsSelfTest},
     {"xfprobe", runTransformPointsParityProbe},
     {"orientpoints", runOrientPointsSelfTest},

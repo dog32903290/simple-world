@@ -16,6 +16,7 @@ void registerGridPointsOp();
 void registerSpherePointsOp();
 void registerHexGridPointsOp();
 void registerDoyleSpiralPointsOp();
+void registerRepetitionPointsOp();
 
 void registerGeneratorPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
@@ -24,6 +25,7 @@ void registerGeneratorPointOps() {
   registerSpherePointsOp();
   registerHexGridPointsOp();  // (generator) hex tiling grid, batch 19
   registerDoyleSpiralPointsOp();  // (generator) Doyle circle-packing spiral
+  registerRepetitionPointsOp();  // (generator) GPU fork of CPU RepetitionPoints, batch 36
 }
 
 }  // namespace sw

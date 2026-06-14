@@ -173,6 +173,51 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f}},
        nullptr},
+      // ---- batch 36: point generate — RepetitionPoints -----------------------------
+      // TiXL parity: external/tixl .../point/generate/RepetitionPoints.cs (CPU StructuredList
+      // generator; NO .hlsl). GPU NAMED FORK: thread i computes the i-th transformed point.
+      // Per-point recipe verbatim in repetitionpoints.metal (CreateTransformationMatrix ported
+      // from Core/Utils/Geometry/GraphicsMath.cs:56-97, row-vector System.Numerics convention).
+      //
+      // Port order = .cs [Input] declaration order (APPEND not insert; pin ids are index-based):
+      //   Count, StartPosition, StartW, Translate, Scale, Rotate, Pivot, Phase, AddSeparator.
+      // Defaults from RepetitionPoints.t3 (NOT guessed): Count=0 (UI hint 16; TiXL clamps 1..10000),
+      //   StartPosition=0, StartW=0, Translate=0, Scale=1 (float), Rotate=0, Pivot=0, Phase=0,
+      //   AddSeparator=true. Scale is a single float broadcast to Vector3 (note the commented-out
+      //   Vector3 Scale in the .cs — TiXL kept the float port).
+      // NOTE: Count = real point count; the bag grows to Count+1 when AddSeparator (the
+      //   repCountTransform in point_ops_repetitionpoints.cpp, reading the cook-set global).
+      {"RepetitionPoints",
+       "RepetitionPoints",
+       {{"points", "points", "Points", false},
+        // Count (TiXL Int, .t3 default 0; clamped 1..10000 by the cook). UI default 16 = a usable
+        // hint, not load-bearing — the .cs clamps it regardless.
+        {"Count", "Count", "Float", true, 16.0f, 1.0f, 10000.0f},
+        // StartPosition (TiXL Vector3, default 0) — added to translateStep*u.
+        {"StartPosition.x", "StartPosition", "Float", true, 0.0f, -50.0f, 50.0f, Widget::Vec, {}, true, 3},
+        {"StartPosition.y", "StartPosition.y", "Float", true, 0.0f, -50.0f, 50.0f, Widget::Vec, {}, true, 1},
+        {"StartPosition.z", "StartPosition.z", "Float", true, 0.0f, -50.0f, 50.0f, Widget::Vec, {}, true, 1},
+        // StartW (TiXL Single, default 0) — added to scale.Length()/sqrt(3) for F1 (point W/size).
+        {"StartW", "StartW", "Float", true, 0.0f, -10.0f, 10.0f},
+        // Translate (TiXL Vector3, default 0) — per-step translation increment.
+        {"Translate.x", "Translate", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Translate.y", "Translate.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Translate.z", "Translate.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // Scale (TiXL Single, default 1) — broadcast to Vector3 in scale = (1-Scale)*u + 1.
+        {"Scale", "Scale", "Float", true, 1.0f, -5.0f, 5.0f},
+        // Rotate (TiXL Vector3, default 0, degrees/step): X=yaw Y=pitch Z=roll (YawPitchRoll).
+        {"Rotate.x", "Rotate", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"Rotate.y", "Rotate.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"Rotate.z", "Rotate.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        // Pivot (TiXL Vector3, default 0) — rotationCenter in CreateTransformationMatrix.
+        {"Pivot.x", "Pivot", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // Phase (TiXL Single, default 0) — added to (i+1) -> u, sliding the whole series.
+        {"Phase", "Phase", "Float", true, 0.0f, -100.0f, 100.0f},
+        // AddSeparator (TiXL Bool, .t3 default true) — append one NaN-Scale Point.Separator().
+        {"AddSeparator", "AddSeparator", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr},
   };
   return specs;
 }
