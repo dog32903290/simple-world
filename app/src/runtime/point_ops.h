@@ -148,6 +148,13 @@ int runClearSomePointsSelfTest(bool injectBug);
 void registerChannelMixerOp();
 int runChannelMixerSelfTest(bool injectBug);
 
+// ToneMapping image filter (point_ops_tonemapping.cpp, lane image_filter): per-mode tone curve
+// (TiXL image/color/ToneMapping / ToneMap.hlsl). Supports Aces/Reinhard/Filmic/Uncharted2/AgX/
+// AgX_Punchy(unreachable TiXL bug)/None. injectBug = Mode=None (no compression) -> HDR output
+// stays >0.95 -> FAIL. Green path = Reinhard compresses 4.0 HDR -> 0.8 -> PASS.
+void registerToneMappingOp();
+int runToneMappingSelfTest(bool injectBug);
+
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a
 // fixed/custom size. The resolution PIN. Used by the cook driver (batch 3) + its golden.

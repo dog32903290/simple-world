@@ -51,7 +51,7 @@ set(SW_SHADER_DEPS
   src/runtime/polartransformpoints_params.h src/runtime/wrappoints_params.h src/runtime/boundpoints_params.h src/runtime/transformsomepoints_params.h
   src/runtime/wrappointposition_params.h src/runtime/snaptogrid_params.h src/runtime/hexgridpoints_params.h
   src/runtime/clearsomepoints_params.h src/runtime/doylespiralpoints_params.h
-  src/runtime/tint_params.h src/runtime/chromab_params.h src/runtime/adjustcolors_params.h src/runtime/channelmixer_params.h
+  src/runtime/tint_params.h src/runtime/chromab_params.h src/runtime/adjustcolors_params.h src/runtime/channelmixer_params.h src/runtime/tonemapping_params.h
   shaders/shared/noise.metal.h shaders/shared/quat.metal.h shaders/shared/hash.metal.h)
 set(SW_COMPILE_CMDS "")
 foreach(s ${SW_SHADERS})
