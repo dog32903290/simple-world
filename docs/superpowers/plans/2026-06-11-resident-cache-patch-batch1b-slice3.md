@@ -1360,3 +1360,17 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 3. **Gradient/Curve 接縫**: 解鎖 RemapColor/ColorGrade/Steps(image)+MapPointAttributes(point)。
 4. **Field/SDF 子系統 + camera matrix 接縫**(大): 解鎖整個 particle field-force 族 + TransformFromClipSpace/BoundingBoxPoints/SnapToAngles CameraSpace。
 5. **柏為親測回收**: 批次24 八顆視覺 + 批次25 九顆手感。
+
+## Cut 32 — 批次 26: 接縫期(柏為定「先把縫都織完整再大量做節點」) — 進行中
+**柏為指令**: 先織完接縫,再一次大量做節點。→ orchestrator 先驗哪些是真接縫(讀地形,別織不承重的線)。
+
+**承重修正(4 條候選接縫 → 2 條真的)**:
+- **Bool ✗ 不是接縫**: float logic op(IsGreater/Compare/IsLess)就是 pure `float→float` 回 0/1(我們本就 Bool=Float 0/1);stateful logic(HasValueChanged/Increased/Decreased/WasTrigger)騎批次25 stateful seam。→ logic 全族零基建可做。
+- **2nd-texture ✗ 已織好**: resident cook 早有 `TexCookCtx::kMaxTexInputs=4` + 每個 Texture2D port 自動綁下一槽。雙texture filter 只要宣告 port + shader。
+- **Gradient ◑ 非深結構接縫(修正:初判子系統,實則 op+UI)**: gradient 資料可騎現有 float-param 模型(stops = pinless Float params「stop0.pos/r/g/b/a」→ 跟其他 param 一樣被 gather 進 in[],零新型別/儲存/序列化/cooked 路徑——與 Bool/2nd-texture 同樣 dissolve)。`SampleGradient(SamplePos,stops…)→RGBA`(4 Float vec 輸出)=pure evaluate。**真正要的 = Inspector gradient-bar 編輯器 widget**(柏為 是視覺藝術家,gradient 是核心色彩工具;塞進 40 條編號 slider = 把本質複雜翻成假直覺的反模式,不可)。→ Gradient = 一個 op + 一個編輯器 widget(UI 重,非深 infra)。權威=Core/DataTypes/Gradient.cs(Sample 內插)+ color/SampleGradient.cs。⚠ in[] gather 上限 32:stops 上限 ~6(6×5+1=31)或 bump in[]。
+- **MultiInput ✓ 真接縫** → **本 cut 已織完**。
+- **Field/SDF+camera**: 獨立大子系統,排 mass pass 之後(非 port-seam)。
+
+**MultiInput seam ✅ commit `1879f34`**(= TiXL MultiInputSlot,additive 零回歸): PortSpec.multiInput + ResidentInput.extraConns(單線恆空);flatten loop2 對 multiInput slot 第 2+ Connection APPEND;resident gather 展開 primary+extras 成 in[](in[8]→in[32]);Sum(TiXL float/basic/Sum.cs evalSum=Σ,空=0);editor_ui dst 是 multiInput 則 ADD 非 reconnect(柏為可接 N 線);selftest multiinput(resident Root{Const2,3,5→Sum}=10,壞 gather=2 證齒)。--bite **PASS=125**/NO-BITE:[]/check-arch 綠。named 限制:flat path 單線(legacy)/跨 compound 邊界 multiInput/picker(list+index)/inspector 顯首線。🟡 柏為親驗:加 2-3 Const + Sum 全接 Sum.Input 看和。
+
+**下一步 = Gradient(op + 編輯器 widget,非深 infra)**:①SampleGradient pure evaluate op(stops=pinless Float params,SamplePos→RGBA 4 輸出,內插照 Gradient.cs)②Inspector gradient-bar 編輯器 widget(柏為 authoring=完成定義關鍵;非編號 sliders)③消費 op:SampleGradient(+ 後續 RemapColor 類)。**結論:四條候選接縫只 MultiInput 是真深結構縫(已織);Bool/2nd-texture/Gradient 都 dissolve 成 op/UI**。→ Gradient widget 後即 **mass node pass**(logic 全族+Ease 全族+雙texture filter+gradient 族+Sum/Min/Max+PeakLevel)。Field/SDF+camera = 之後獨立子系統。
