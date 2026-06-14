@@ -1288,3 +1288,36 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 5. DoyleSpiral 視覺/數值 ground-truth: 可外包 Windows TiXL lane(`to_windows_tixl` kit)Player 截圖對照(柏為暫認可不做)。
 
 **`/sw-node-batch` 教訓沉澱(第二航)**: ①orchestrator 前置掃缺口必親讀 .cs/.hlsl 認 compound(單.cs+單.hlsl+全參數一個 cbuffer 才真 cheap),ledger sizing 不可信。②agent 完工≠正確:矩陣轉置/count-policy 這種 selftest 沒覆蓋的承重點,orchestrator 親手復查抓得到(AgX 經驗性牙+count graph golden)。③shared-runtime 修(count-policy driver)是 orchestrator 域,加 per-op 旗標 default 不變舊行為。
+
+## Cut 30 — 批次 24: 一次 20 顆 (math 10 + point_modify 2 + image 3 + particle 3 + combine 2) (2026-06-14 午後→傍晚; Opus orchestrator, `/sw-node-batch` 第五航) ✅
+**柏為指令**: 一次做 20 顆。**commit**: `1be97a4`(feat 20 顆,squash 自固化/檢查點/merge 雜訊) + `0281c77`(fix Dither _PRIME0,refuter BROKEN→修)。--bite **PASS=122**/NO-BITE:[]/check-arch 綠。soundtrack=已知 @4x 並行環境紅(standalone PASS),非本批。
+
+**事實(20 顆,5 家族;generators 本批 0=誠實放棄,TiXL 剩餘 generator 全需 input points/mesh)**:
+- **math 10**(value_eval_ops,無 shader): InvertFloat/CrossVec3/LerpVec3/NormalizeVector3/RoundVec3/AddVec2/DotVec2/Vec2Magnitude/Vector2Components/ScaleVector2。vec2 走 Atan2 的「拆兩 Float port」慣例;MultiInput 不支援故砍 Sum/PickFloat。
+- **point_modify 2**: OffsetPoints(qRotateVec3 沿點朝向平移,無新旋轉序)/PointAttributeFromNoise(旋轉序 X→Y→Z;RemapNoise gradient 為 TiXL optional port 具名少接)。
+- **image_filter 3**(per-pixel single-pass,HLSL→Metal 逐行): Dither/NormalMap/ChromaKey。NormalMap/ChromaKey **無 .cs**(port 權威=cbuffer)+無 .t3 預設(預設值推定,待柏為)。
+- **particle force 3**(_ForceKind 判別子 append=3/4/5): VelocityForce/AxisStepForce/SnapToAnglesForce,全 stateless。
+- **point_combine 2**: PairPointsForLines(count=max(A,B)×3 含 NaN divider)/PickPointList(Index%N 直通選中 buffer)。
+
+**refuter(3 Opus 對 .hlsl/.cs 逐行,聚焦旋轉序+HLSL→Metal 忠實度)**: particle 3 SURVIVE(hash 兩輪/f² 雙乘 quirk/atan2 arg 序/4 平面模式/角度量化全對)+point_modify 2 SURVIVE(qRotateVec3/X→Y→Z/simplex 全常數 0.91·1234·0.123·42.0·0.6/enum 路由/Center 正負/RemapNoise fork 全 verbatim)+image **NormalMap·ChromaKey SURVIVE**(splat 化簡/swizzle 展開/4 分支/min 鄰域全對)。**Dither BROKEN→修**: hash11u `_PRIME0` 港成憑空 1597334677u,權威=13331u(hash-functions.hlsl:4);只影響 Method≥0.5 hash 分支,Bayer 預設路徑+golden 抓不到→`0281c77` 對權威逐字修。
+
+**named fork / parity 註記**: PointAttributeFromNoise RemapNoise optional 少接(else 分支=預設路徑,行為等價)/SnapToAngles CameraSpace=identity bake(解析還原,待 camera seam 還原 b2 矩陣)+RandomSeed `(int)` 轉型 latent(Seed 永 baked 0,.cs 不暴露)/image_filter 3 視覺正確性無 resident TiXL 可對。
+
+**覆蓋缺口(誠實,非缺陷;數學 verbatim 但無 runtime 牙)**: ①Dither hash 分支無 parity 牙(錯常數仍會產生追亮度抖動→smoke 牙抓不到此類,須 resident TiXL 才驗得了,靠 refuter 逐行+verbatim 常數確立)。②PointAttributeFromNoise Rotate_X/Y/Z 屬性路徑只逐行讀驗、無 runtime 牙。
+
+**🟡 柏為親測**: image_filter 3(Dither 抖動圖樣/NormalMap 法線/ChromaKey 去背)+point_modify 2(OffsetPoints 朝向平移/PointAttributeFromNoise noise 密度)+particle 3(粒子運動)=全視覺,selftest 像素/數值級已入主線,柏為自測畫面。math 10+combine 2 無視覺=完成。NormalMap/ChromaKey 推定預設也請柏為驗。
+
+**流程事故(重大,已沉澱記憶)**:
+- **worktree base 陷阱**[[worktree-base-main-trap]]: `isolation:worktree` 從 `main`(a54b8c0,落後 262 commit,無批次10-23 接縫)切而非活躍分支 719e8f1。3 條 implementer 自救 `git reset --hard codex/js-to-cpp-contract-migration`+symlink external;particle/combine 重派 step-0 fail-fast 攔下(~15s 零造假)→改**非隔離主樹序列**跑繞過(主 checkout 永遠正確 base)。
+- **particle agent 被 harness kill** 死在「正要驗 RED」前一刻,但非隔離=活兒留主樹未被收割→orchestrator 接力補 RED 驗證收尾(非重做)。
+- **通知漏接空耗**[[subagent-death-detection]](柏為點出): kill 通知有送到但 orchestrator 回「No response requested」閒置 40min。三防護=①每通知必動作②背景派工配 agent_watchdog.sh(純 run_in_background,**nohup/& 雙背景化會切斷叫醒訊號**——踩過)③單序列 lane 用前景不背景。
+
+## Resume — next (批次25 候選; 無 🔴 排修, 純推進)
+**批次24 已消化**: math 10(vec2/vec3 純算術見底大半)+point_modify 2+image 3+particle 3+combine 2。
+0. **基建解鎖(開新礦脈前置,仍卡)**: ①TransformFromClipSpace/BoundingBoxPoints 需 PointCookCtx camera matrix+count-policy(N→1)接縫——SnapToAngles CameraSpace 也等這個還原 b2。②CommonPointSets/RepetitionPoints CPU 生成需 map-buffer 接縫。
+1. **math 第三梯隊**(若還有純算術 cheap): DotVec4/CrossVec2 類/Vec2ToVec3/EulerToAxisAngle/Compare(需 Bool 輸出 port 接縫先確認)/IsGreater。多數需新 port 型別(Bool/vec4)接縫,非純 leaf。
+2. **image_filter 第三梯隊**(逐顆驗單 cbuffer 單 texture): ConvertColors/Posterize/Levels/HueSaturation——多數要先確認非 Gradient/雙 texture。
+3. **particle force 第二梯隊**: 需查 stateless 候選(多數 force 需 sim-state/target buffer/curl noise field)。
+4. **覆蓋缺口補牙**(若取得 resident TiXL): Dither hash 分支 + PointAttributeFromNoise Rotate 路徑 parity 牙。
+5. **UI 視覺第三刀**(同 Cut29 Resume): 標題字級 13→18/連線 idle-fade/pin 三角。
+6. **柏為親測回收**: 批次24 的 8 顆視覺 op 親驗結果回收(預設值/視覺手感)。
