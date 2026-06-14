@@ -25,6 +25,7 @@ void registerImageFilterPointOps() {
   registerDitherOp();              // Texture2D → Texture2D (Bayer/hash dither, lane image_filter)
   registerNormalMapOp();           // Texture2D → Texture2D (gradient normal map, lane image_filter)
   registerChromaKeyOp();           // Texture2D → Texture2D (HSB chroma key, lane image_filter)
+  registerConvertColorsOp();       // Texture2D → Texture2D (RGB<->OkLab/LCh convert, lane image_filter)
 }
 
 }  // namespace sw

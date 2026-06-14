@@ -227,6 +227,7 @@ const SelfTest kTable[] = {
     {"dither", runDitherSelfTest},
     {"normalmap", runNormalMapSelfTest},
     {"chromakey", runChromaKeySelfTest},
+    {"convertcolors", runConvertColorsSelfTest},
     {"drawlines", runDrawLinesSelfTest},
     {"drawbillboards", runDrawBillboardsSelfTest},
     {"timeline", ui::runTimelineSelfTest},

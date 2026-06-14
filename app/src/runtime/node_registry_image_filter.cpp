@@ -451,6 +451,32 @@ const std::vector<NodeSpec>& imageFilterSpecs() {
         {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
         {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
        nullptr},
+      // ConvertColors (TiXL Lib.image.color.ConvertColors): RGB<->OkLab / RGB<->LCh color-space
+      // converter. Single Texture2D in → Texture2D out (point_ops_convertcolors.cpp). Kernel:
+      // img-fx-ConvertColors.hlsl Mode<0.5/<1.5/<2.5/<3.5 branches calling color-functions.hlsl
+      // (RgbToOkLab/OklabToRgb/RgbToLCh/LChToRgb; the four float3x3 fwdA/fwdB/invA/invB ported
+      // per-mul-direction — see convertcolors.metal). Ports mirror ConvertColors.cs [Input] order
+      // verbatim: Texture2d→Mode→GenerateMipmaps→OutputFormat. FORKS (named):
+      //  - GenerateMipmaps (bool, .cs:16-17) LISTED but NO-OP (TexCookCtx has no mip seam).
+      //  - OutputFormat (Format, .cs:19-20, t3 default R32G32B32A32_Float) LISTED but NO-OP
+      //    (op writes c.output's existing format; no format seam). Enum shows the t3 default first.
+      //  - Fixed point(nearest)+clamp sampler = ConvertColors.t3 Filter=MinMagMipPoint (verbatim).
+      {"ConvertColors", "ConvertColors",
+       {{"Image", "Image", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        // Mode (int enum Modes, TiXL t3 default 0 = RgbToOKLab).
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+         {"RgbToOKLab", "OKLabToRgb", "RgbToLCh", "LChToRgb"}, true},
+        // GenerateMipmaps (bool, TiXL t3 default false) — LISTED per .cs [Input] order, NO-OP fork.
+        {"GenerateMipmaps", "GenerateMipmaps", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        // OutputFormat (Format, TiXL t3 default R32G32B32A32_Float) — LISTED, NO-OP fork.
+        {"OutputFormat", "OutputFormat", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"R32G32B32A32_Float", "(output format follows pipeline)"}, true},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
   };
   return specs;
 }

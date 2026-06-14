@@ -211,6 +211,13 @@ int runChannelMixerSelfTest(bool injectBug);
 // stays >0.95 -> FAIL. Green path = Reinhard compresses 4.0 HDR -> 0.8 -> PASS.
 void registerToneMappingOp();
 int runToneMappingSelfTest(bool injectBug);
+// ConvertColors image filter (point_ops_convertcolors.cpp, lane image_filter): RGB<->OkLab /
+// RGB<->LCh color-space converter (TiXL image/color/ConvertColors / img-fx-ConvertColors.hlsl +
+// color-functions.hlsl). Mode enum (0 RgbToOKLab/1 OKLabToRgb/2 RgbToLCh/3 LChToRgb) dispatched by
+// float thresholds. injectBug = flip the CPU-expected RgbToLCh matrix mul direction -> Test A
+// (hand-computed forward LCh) FAILS. Test B = Mode0->Mode1 round-trip back to original.
+void registerConvertColorsOp();
+int runConvertColorsSelfTest(bool injectBug);
 // SnapToPoints COMBINE op (point_ops_snaptopoints.cpp, batch 21): index-paired lerp of Points1
 // toward Points2 using distance-based smoothstep * MaxAmount. TiXL SnapToPoints.hlsl port.
 // injectBug = MaxAmount=0 -> no snap -> Points1 positions unchanged -> near-P2 assertion FAILS.
