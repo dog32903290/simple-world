@@ -188,6 +188,7 @@ const SelfTest kTable[] = {
     {"doylespiral", runDoyleSpiralPointsSelfTest},
     {"clearsomepoints", runClearSomePointsSelfTest},
     {"channelmixer", runChannelMixerSelfTest},
+    {"tonemapping", runToneMappingSelfTest},
     {"rendertarget", runRenderTargetSelfTest},
     {"rendertargetwired", runRenderTargetWiredSelfTest},
     {"mathops", runMathOpsSelfTest},
