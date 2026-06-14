@@ -1517,3 +1517,20 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 - **(b) 柏為級 steer(Cut 41 六選項仍掛)**: ①Vec-multiInput seam(模型/UX 拍板)②**Gradient widget(我接 op 你畫色帶=high-value 真貨)**③camera seam(解鎖 TransformFromClipSpace/SortPoints/SamplePointsByCameraDistance + Field/SDF)④MinInt/MaxInt 型別 liberty ⑤Field/SDF 大子系統 ⑥視覺/手感親測回收(批24/25/27/34/36/37/38 累積:Ease 手感/point 變形視覺/CommonPointSets 7 預設形/SubdivideLinePoints 線細分/BoundingBox 框)。
 
 **為何停在這(非機械續 image filter)**: image-filter 是「降驗證門檻(自洽非交叉驗)+進柏為視覺域+建新基建」三合一的 pivot,不是同類 cheap leaf 續挖——這是品質/方向決策,柏為 steer 比我猜更對。Cut 41 六選項(尤其 Gradient widget)價值高於機械磨自洽門檻的 image filter。**自走已把所有「不需柏為、能對 TiXL 嚴格驗」的 parity 補滿(批27-38,十二批),loop 停這裡等柏為 steer:(a) 授權我開 image-golden 接縫走視覺 filter 批(接受自洽門檻+你事後肉眼驗) 還是 (b) 挑 Cut 41 某條(Gradient widget 我最推)。**
+
+## Cut 45 — 自癒 workflow 機制 + image-filter 方向選定 + ConvertColors 首跑栽 args(2026-06-15 晨; 柏為 steer) ⏹
+**柏為 steer**: 「自己判斷 agent 死掉,在 workflow 增加自己檢查的能力,死掉再派一個,繼續走」→ 兩件:①把 agent 死亡韌性做進 workflow ②繼續走(=選 image filter 方向 a)。
+
+**承重修正(Cut 44 的 (a) 框錯)**: 「image-filter 驗證門檻較弱」是**看錯**——point-op 也從沒跑 TiXL,是對 TiXL 公式手算斷言。image-filter 同理:port `.hlsl` → golden 斷言手算像素值 → refuter 對 `.hlsl` 否證,**同等嚴格**。且 image-golden 基建**批次12 早建好**(`TexCookCtx`/`registerTexOp`/`cachedTexPSO`/`runTintSelfTest` MATH golden,模板=`point_ops_tint.cpp`)→ 加 filter = 乾淨鏡 Tint,非新基建。故 image filter = 乾淨自走礦,方向 a 成立。
+
+**做了①自癒 workflow(已 commit,持久可重用)**: `tools/workflows/self_healing_node_batch.js`(commit `71e1eee`+防呆 `e5813bc`)。核心 `resilient(prompt,opts,label,maxTries)` 包每次 `agent()`:回 `null`=終端死亡 → 帶 salvage 提示換一個再派,implementer 3 次/refuter 2 次,全死才放棄繼續下一 op。sequential 隊形(implementer 寫主樹共享,不可並行寫);每 op implementer(schema)→refuter(schema);Workflow agent 預設非隔離=主樹=正確 base(自動避 worktree-trap)。最終 build/--bite/親核/commit 仍 orchestrator。寫進 `WORKFLOW.md §六補遺3` + [[subagent-death-detection]]。
+
+**做了②首跑 ConvertColors — 栽在 args 傳法(非 agent 死,零損害)**: 我把 op 陣列傳成 **JSON 字串**而非真 JSON 值(Workflow 工具警告過)→ 腳本 `for...of` 對字串**逐字元**跑 → 55 個 "undefined" 工單,全被 step-0 地基檢查 `ls undefined` 擋成 wrong_base、**零檔寫出、樹乾淨**(step-0 守衛紀律完美生效)。已加防呆(string→JSON.parse/非陣列→空/壞項丟棄+log)。**誠實:`resilient()` 死亡重派路徑首跑沒踩到(沒 agent 真死)=untested live。**
+
+**⏹ session 收尾(柏為要進下個 session)**: 工作樹乾淨,HEAD `e5813bc`,全 commit。memory(lane-state 頭/MEMORY.md 索引/subagent-death-detection)+本 Cut 全更新。
+
+**Resume — next (下個 session 直接接)**:
+1. **跑 image-filter 批(方向 a,自走礦)**: 用 `Workflow({scriptPath:"tools/workflows/self_healing_node_batch.js", args:[{...}]})`——**args 傳真 JSON 陣列別 stringify**(首跑教訓)。首顆 = **ConvertColors**(已勘乾淨:單 `Texture2d`+Mode enum[RgbToOKLab/OKLabToRgb/RgbToLCh/LChToRgb...逐行讀 `img/adjust/img-fx-ConvertColors.hlsl`];模板 `point_ops_tint.cpp`;GenerateMipmaps/OutputFormat 若不支援 baked+具名 fork)。op spec 範本見上次呼叫(op/kind/baseProbe/template/tixlCs/tixlHlsl/selftest/fn/notes/outputs/golden/refuteFocus 十二欄)。
+2. **image-filter [AUTO] 礦池(~15,gap-scan 過 false-positive 已濾)**: ConvertColors/FastBlur(mip-chain 較重)/KeyColor/HoneyCombTiles/RgbTV/Glow/glitch 族——逐顆開 `.cs` 確認單 Texture2d+純量參數(非 2nd-texture/gradient)。
+3. **驗 `resilient()` 死亡路徑**: 真跑一批就會踩到(若有 agent 死);沒死也無妨,機制邏輯已在。
+4. **柏為域待回收**: Gradient widget(高價值,需你畫色帶)+ 批24-38 視覺/手感親測 + Cut 41 其餘 steer。
