@@ -7,11 +7,13 @@
 
 namespace sw {
 
-// Leaf register fn (defined in point_ops_combinebuffers.cpp, no header).
+// Leaf register fns (defined in their respective leaf cpp files, no shared header).
 void registerCombineBuffersOp();
+void registerSnapToPointsOp();  // batch 21: index-paired Points1->Points2 lerp
 
 void registerPointCombinePointOps() {
   registerCombineBuffersOp();
+  registerSnapToPointsOp();
 }
 
 }  // namespace sw

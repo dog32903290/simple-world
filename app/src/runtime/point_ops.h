@@ -148,6 +148,12 @@ int runClearSomePointsSelfTest(bool injectBug);
 void registerChannelMixerOp();
 int runChannelMixerSelfTest(bool injectBug);
 
+// SnapToPoints COMBINE op (point_ops_snaptopoints.cpp, batch 21): index-paired lerp of Points1
+// toward Points2 using distance-based smoothstep * MaxAmount. TiXL SnapToPoints.hlsl port.
+// injectBug = MaxAmount=0 -> no snap -> Points1 positions unchanged -> near-P2 assertion FAILS.
+void registerSnapToPointsOp();
+int runSnapToPointsSelfTest(bool injectBug);
+
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a
 // fixed/custom size. The resolution PIN. Used by the cook driver (batch 3) + its golden.
