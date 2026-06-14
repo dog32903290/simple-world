@@ -1374,3 +1374,31 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 **MultiInput seam ✅ commit `1879f34`**(= TiXL MultiInputSlot,additive 零回歸): PortSpec.multiInput + ResidentInput.extraConns(單線恆空);flatten loop2 對 multiInput slot 第 2+ Connection APPEND;resident gather 展開 primary+extras 成 in[](in[8]→in[32]);Sum(TiXL float/basic/Sum.cs evalSum=Σ,空=0);editor_ui dst 是 multiInput 則 ADD 非 reconnect(柏為可接 N 線);selftest multiinput(resident Root{Const2,3,5→Sum}=10,壞 gather=2 證齒)。--bite **PASS=125**/NO-BITE:[]/check-arch 綠。named 限制:flat path 單線(legacy)/跨 compound 邊界 multiInput/picker(list+index)/inspector 顯首線。🟡 柏為親驗:加 2-3 Const + Sum 全接 Sum.Input 看和。
 
 **下一步 = Gradient(op + 編輯器 widget,非深 infra)**:①SampleGradient pure evaluate op(stops=pinless Float params,SamplePos→RGBA 4 輸出,內插照 Gradient.cs)②Inspector gradient-bar 編輯器 widget(柏為 authoring=完成定義關鍵;非編號 sliders)③消費 op:SampleGradient(+ 後續 RemapColor 類)。**結論:四條候選接縫只 MultiInput 是真深結構縫(已織);Bool/2nd-texture/Gradient 都 dissolve 成 op/UI**。→ Gradient widget 後即 **mass node pass**(logic 全族+Ease 全族+雙texture filter+gradient 族+Sum/Min/Max+PeakLevel)。Field/SDF+camera = 之後獨立子系統。
+
+## Cut 33 — 批次 27: mass node pass 起點 — Ease 族 + logic 族 7 顆 (2026-06-14 夜; Opus orchestrator, `/sw-node-batch` 第七航) ✅
+**柏為指令**: `/sw-node-batch`(無 args)。**接縫期已收**(Cut 31-32:深縫只 MultiInput,已織;Bool/2nd-texture/Gradient dissolve)→ orchestrator 判定 = 不再掃 cheap leaf(已盡,re-scan = 重推已結之論),而是**開 mass node pass**,挑已解鎖且 machine-verifiable 的家族並行。
+**commit**: `9fa1d80`(Ease 族)+`175e0dc`(logic 族)。--bite **PASS=124**/NO-BITE:[]/check-arch 綠。soundtrack=既有 AVAudio @4x 環境紅(非本批)。
+
+**承重判決(本批最重要,非節點數)= `/sw-node-batch` 的並行模型對 value/math 家族不成立**: 該指令的並行靠 point op 有 per-op leaf 檔(`point_ops_<name>.cpp`)——這是它自己的承重洞見。但 **value/math 家族沒有 per-op leaf 檔**:每顆 op 都灌進共享的 `stateful_value_ops.cpp` + `node_registry_math.cpp` + 單一 selftest fn(`runStatefulValueSelfTest`/`runMathOpsSelfTest`,kTable 連動都不必)。強開 6 並行 worktree lane = 必撞共享檔。→ 本批改 **sequential 前景 lane,非 isolation(在活躍分支幹活)**:零盲區([[subagent-death-detection]]「單條序列 lane 用前景」)、避開 worktree-from-main 陷阱([[worktree-base-main-trap]])。**教訓沉澱:value 家族若未來要大量 op,才值得做 value-family Phase 0(per-op 檔+GLOB+per-sub-family registrar);現在 7 顆 sequential 就夠,別為假想批次預先重構(Karpathy 先求簡單)。**
+
+**裝的 7 顆**(全 TiXL 逐字):
+- **Ease/EaseVec2/EaseVec3**(float|vec2|vec3/process/Ease*.cs,Opus lane):騎批次25 stateful seam。EasingFunctions.cs 30 curve + ApplyEasing 逐字港(Back c1=1.70158/Elastic c4=2π/3,c5=2π/4.5/Bounce n1=7.5625,d1=2.75)。`StatefulValueState s[8]→s[12]`(EaseVec3 需 11 槽,additive 零回歸)。**承重判斷=frame_cook 每幀給零 out[]**(frame_cook.cpp:190)→ TiXL `_initialValue=Result.Value`(上幀輸出)無法從 out[] 取→存 scalar `prevEased` 重建 `lerp(initial,target,prevEased)`=上幀 Result(N 通道共用 scalar t,一 float 夠,faithful 且 fit s[12])。named fork 同 Damp/Spring:UseAppRunTime 輸入/1ms MinTimeElapsed guard/__MotionBlurPass skip 全砍。
+- **Compare/IsGreater**(float/logic,stateless,value_eval_ops.cpp):Bool→Float 0/1(Cut 32)。IsGreater named fork `fork-isgreater-stateless`:TiXL `_lastResult` change-gate 是 dirty-flag 優化非值承重→純 stateless。Compare 4 mode + Precision band。
+- **HasValueIncreased/Decreased**(float/logic+process,stateful,s[0]=lastValue):v 比上幀,輸出 Float 0/1 flag。
+
+**selftest**: Ease linear 軌跡 + OutQuad p=0.5=0.75(證 EasingFunctions dispatch)+ EaseVec3 通道獨立(證 s[12] layout);IsGreater 邊界 + Compare 四 mode + Precision band;HasIncreased/Decreased threshold band(+0.2 不過 0.5 閾值)。各 injectBug 齒咬,四條 proof(mathops/statefulvalue × normal/bug)orchestrator 親手復跑全綠。
+
+**誠實 BLOCKED(非缺陷)**: HasValueChanged(3 輸出+LocalFxTime min-time gate+PreventContinuedChanges+edge-detect→排後當自己一顆)、WasTrigger/Trigger(需 `context.FloatVariables` trigger-variable 子系統 + Playback.RunTimeInSecs,本 runtime 無→第 N 條縫)。
+
+**事故 salvage**: Lane 2(logic)implementer agent socket 死(15 tool-use 後 API Error)。非隔離→活兒留主樹(只寫了 value_eval_ops.cpp 的 IsGreater/Compare eval fn,66 行)→ orchestrator 接手親手補完(header decl/registry 4 row/stateful 2 step+table/mathops+statefulvalue selftest)+復跑,不重派(spec 已全精確,機械活直接收尾更快)。
+
+**🟡 柏為親測**: Ease 族有「手感」維度(拖 Duration/Direction/Interpolation 看緩動曲線、輸入跳變看 re-target 平滑);logic 族 selftest 數值級已完成,Compare/IsGreater 接 switch/觸發看 0/1。
+
+## Resume — next (批次28 候選; mass node pass 續推)
+**批次27 已消化**: Ease 族 3 + logic 族 4。mass pass 啟動。
+0. **Gradient(op + Inspector widget)**: Cut 32 點名的 UI-heavy 接縫尾。SampleGradient pure evaluate(stops=pinless Float params,SamplePos→RGBA 4 輸出,內插 Gradient.cs)+ **Inspector gradient-bar 編輯器 widget(柏為 authoring=完成定義,需柏為在場肉眼驗,非無人值守可結)**。⚠ in[] gather 上限 32:stops ≤6。
+1. **雙texture filter**(2nd-texture 已織,kMaxTexInputs=4):displace-with-map/TimeDisplace/HSE 等。柏為域(位移圖直接看)。
+2. **HasValueChanged**(自己一顆,小心):3 輸出+LocalFxTime min-time gate+PreventContinuedChanges,seam 的 time 已有。
+3. **Bool seam(若要 PeakLevel/Trigger 類)**: WasTrigger/Trigger 需 context.FloatVariables trigger-variable 子系統——先確認有消費端再開(否則織沒人踩的線)。
+4. **Field/SDF+camera 子系統**(大,獨立): particle field-force 全族 + TransformFromClipSpace。
+5. **柏為親測回收**: 批次24 八顆視覺 + 批次25 九顆手感 + 批次27 Ease 手感。
