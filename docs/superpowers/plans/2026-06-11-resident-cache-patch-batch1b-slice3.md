@@ -1437,3 +1437,16 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 **commit `70859a8`**: RemapVec2(stateless component remap,Mode Normal/Clamped/Modulo,TiXL vec2/RemapVec2.cs)+HasVec2Changed(stateful,Euclidean dist>Threshold,HasChanged+Delta.x/.y,鏡 HasValueChanged,seam time fork)。.t3 預設自查。**承重小修:flat-path gather `in[8]→in[16]`(graph.cpp)**——RemapVec2 11 Float 輸入超過 flat in[8]→截斷→n<11 回 0(selftest 抓到),resident 路批次26 已 in[32],flat 補齊 additive。--bite PASS=125/NO-BITE:[]/check-arch 綠。skip Int2ToVector2(Float-world 無意義 trivia)。
 **HasVec3Changed BLOCKED**(7 輸出 HasChanged+Delta3+DeltaOnHit3 > out[3],同 PeakLevel 需 >3 輸出 seam)。
 **礦況:completeness vec 近底**。剩 clean 候選:PadVec2Range/GridPosition(待驗 pure)/MinInt·MaxInt(int 但=我方缺的 float Min/Max 語義,可借但略型別 liberty)。其餘 blocked(HasVec3Changed/PeakLevel >3-out seam;BlendValues/BlendVector3/PickVector mixed-multiInput seam)或 trivia(Int2ToVector2 類)。**批次33=最後 1 批 clean op(PadVec2Range/GridPosition/MinMax 驗後挑)→ 若只剩 trivia/blocked 即撞「礦挖盡」停手條件回報柏為(完成度層該收口,剩高價值=Gradient widget/視覺/Field-SDF/>3-out seam/mixed-multiInput seam 全需柏為或開大縫)。**
+
+## Cut 39 — 批次 33: PadVec2Range + 自走收口(machine-verifiable 礦挖盡,loop 停手) (2026-06-14 夜; /loop 自走) ✅⏹
+**commit `0dd93ce`**: PadVec2Range(stateless,pad/scale range 繞中心,Result.x/y 不對稱公式)。--bite PASS=125/NO-BITE:[]/check-arch 綠。
+**⏹ 自走 loop 停手(柏為停手條件①「礦挖盡」觸發,非放棄)**: 自走 6 批(28 HasValueChanged / 29 DetectPulse / 30 Accumulator / 31 DivideVector2·Vec2ToVec3·EulerToAxisAngle / 32 RemapVec2·HasVec2Changed+in[8]→in[16] / 33 PadVec2Range)全進主線,--bite 124→125。掃完 float/vec2/vec3/int 全 numbers 家族,clean machine-verifiable pure/stateful leaf **挖盡**。
+
+**剩貨分類(全需柏為在場或開大縫,自走碰不了)**:
+- **需開 seam**:HasVec3Changed/PeakLevel(>3 輸出,seam out[3]→out[N]);BlendValues/BlendVector3/PickVector2,3/RemapValues(mixed MultiInput+regular,或 MultiInput<Vec> gather)。
+- **context-dependent**:GridPosition(需 context.RequestedResolution aspect seam)。
+- **大子系統**:Field/SDF+camera(particle field-force 全族+TransformFromClipSpace);PerlinNoise2,3(noise impl 港);anim/animators(Curve seam)。
+- **品味/modeling call(該柏為定)**:MinInt/MaxInt 借作 float Min/Max(Int→Float 型別 liberty);Int 家族整體(Float-world 截斷語義)。
+- **需柏為 authoring/眼睛(high-value)**:Gradient(SampleGradient op machine→主線 + Inspector gradient-bar widget 柏為畫色帶);雙texture 視覺 filter(位移圖);批次24/25/27 視覺+手感顆親測回收。
+
+**柏為回來的 steer 選項**:①Gradient widget(我接 op、你畫色帶=完成定義)②指定開哪條 seam(>3-out / mixed-multiInput / camera)③MinInt/MaxInt 型別決定 ④視覺 filter 批 ⑤親測回收。**自走已把所有不需要你的 value/math parity 補滿,loop 停在這裡等你。**
