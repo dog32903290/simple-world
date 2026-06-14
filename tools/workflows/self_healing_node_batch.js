@@ -87,8 +87,17 @@ implementer 自報的 fork（重點攻擊這些）：${(impl.forks || []).join('
 裁決：SURVIVE（逐行對齊+手算一致，附證據）或 BROKEN（指出具體哪行/哪值錯+TiXL 行+正確 vs 實際）。預設 refuted，除非拿出逐行比對+手算。**不留任何改動**。回報 StructuredOutput：verdict / evidence / issues。`
 }
 
-const ops = (args && args.length) ? args : []
-if (!ops.length) { log('no ops in args — nothing to do'); return [] }
+// Robustness: args may arrive as a real array (correct) OR — if the caller stringified
+// it — as a JSON string. Without this guard, `for...of` over a string iterates CHARACTERS,
+// spawning one garbage "undefined" work order per char (2026-06-15: 55 wasted wrong_base
+// agents before the bug was caught). Parse strings; refuse anything that isn't an op array.
+let ops = args
+if (typeof ops === 'string') { try { ops = JSON.parse(ops) } catch (e) { ops = [] } }
+if (!Array.isArray(ops)) ops = []
+const valid = ops.filter(o => o && typeof o === 'object' && typeof o.op === 'string')
+if (valid.length !== ops.length) log(`⚠ ${ops.length - valid.length} bad op entr(ies) dropped — each op needs {op, ...}`)
+ops = valid
+if (!ops.length) { log('no valid ops in args — nothing to do (pass args as a real JSON array of op specs)'); return [] }
 
 const results = []
 for (const o of ops) {
