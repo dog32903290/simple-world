@@ -349,6 +349,67 @@ void stepHasValueDecreased(const std::map<std::string, float>& in, float, float,
   st.s[0] = v;
 }
 
+// --- HasValueChanged (TiXL float/logic/HasValueChanged.cs) ---
+// Compares this frame's Value to last frame's and emits a change flag + delta + the delta captured
+// on the last "hit". Bool outputs/inputs dissolve to Float 0/1 (Cut 32: no Bool port type).
+// Outputs: HasChanged(0/1), Delta(=Value−lastValue, signed), DeltaOnHit(absDelta of last accepted hit).
+// Ports/inputs (TiXL decl order): Value, Threshold(0), Mode(enum Changed/Increased/Decreased, 0),
+//   MinTimeBetweenHits(0), PreventContinuedChanges(Bool→Float 0/1, default 0).
+//   (No InputSlot ctor supplies a default in the .cs → every default is the type-zero, confirmed.)
+// State: s[0]=lastValue, s[1]=lastHitTime, s[2]=lastHitDelta, s[3]=wasHit(0/1). All init 0 = TiXL
+//   field defaults (_lastValue/_lastHitDelta=0, _wasHit=false; _lastHitTime=0 — see fork below).
+// Time: TiXL uses context.LocalFxTime for the MinTimeBetweenHits gate; frame_cook hands wall seconds
+//   via `time`, the same substitution Ease used. `dt` unused.
+// Fork (named) — same precedent as Damp/Spring/Ease:
+//   • The _lastEvalTime + `Math.Abs(LocalFxTime - _lastEvalTime) < 0.0002f` early-return is DROPPED.
+//     frame_cook cooks each node exactly once per frame, so the sub-ms double-eval that guard
+//     prevents cannot occur. We therefore store NO _lastEvalTime.
+//   • TiXL inits _lastHitTime = 0 (default double). With wall `time` starting at 0, the very first
+//     qualifying change has timeSinceLastHit = |time - 0| = time ≥ minTimeBetweenHits only once
+//     `time` has advanced past it — faithful to TiXL's own first-hit timing (both start the clock
+//     at 0). No fork; just noting the shared origin.
+// MathUtils.WasTriggered(cur, ref prev) = rising edge: result = cur && !prev; then prev = cur.
+void stepHasValueChanged(const std::map<std::string, float>& in, float /*dt*/, float time,
+                         StatefulValueState& st, float out[3]) {
+  const float newValue = getIn(in, "Value", 0.0f);
+  const float threshold = getIn(in, "Threshold", 0.0f);
+  const float minTimeBetweenHits = getIn(in, "MinTimeBetweenHits", 0.0f);
+  const bool preventContinuedChanges = getIn(in, "PreventContinuedChanges", 0.0f) > 0.5f;
+  const int mode = (int)std::lround(getIn(in, "Mode", 0.0f));
+
+  float& lastValue = st.s[0];
+  float& lastHitTime = st.s[1];
+  float& lastHitDelta = st.s[2];
+
+  const float absDelta = std::fabs(newValue - lastValue);
+  bool hasChanged = false;
+  switch (mode) {
+    case 1:  hasChanged = newValue > lastValue + threshold; break;  // Increased
+    case 2:  hasChanged = newValue < lastValue - threshold; break;  // Decreased
+    default: hasChanged = absDelta > threshold; break;              // Changed (0)
+  }
+
+  // MathUtils.WasTriggered(hasChanged, ref _wasHit): rising edge, then store current.
+  const bool prevWasHit = st.s[3] > 0.5f;
+  const bool wasTriggered = hasChanged && !prevWasHit;
+  st.s[3] = hasChanged ? 1.0f : 0.0f;
+
+  if (hasChanged && (preventContinuedChanges || wasTriggered)) {
+    const float timeSinceLastHit = std::fabs(time - lastHitTime);
+    if (timeSinceLastHit >= minTimeBetweenHits) {
+      lastHitTime = time;
+      lastHitDelta = absDelta;
+    } else {
+      hasChanged = false;
+    }
+  }
+
+  out[0] = hasChanged ? 1.0f : 0.0f;
+  out[1] = newValue - lastValue;
+  lastValue = newValue;
+  out[2] = lastHitDelta;
+}
+
 inline int enumOf(const std::map<std::string, float>& in, const char* k) {
   return (int)std::lround(getIn(in, k, 0.0f));
 }
@@ -441,6 +502,7 @@ const StatefulOp kStatefulValueOps[] = {
     {"EaseVec3", stepEaseVec3},
     {"HasValueIncreased", stepHasValueIncreased},
     {"HasValueDecreased", stepHasValueDecreased},
+    {"HasValueChanged", stepHasValueChanged},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -711,6 +773,112 @@ int runStatefulValueSelfTest(bool injectBug) {
       bool pass = std::fabs(out[0] - w) < eps;
       ok = ok && pass;
       printf("[selftest-statefulvalue] HasDecreased step%d=%.1f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ===== HasValueChanged (TiXL float/logic/HasValueChanged.cs) =====
+  // Helper to cook one HasValueChanged frame; checks HasChanged(out0), Delta(out1), DeltaOnHit(out2).
+  // ----- (A) Mode=Increased, Threshold=0.5, time=0, MinTime=0, Prevent=0: cross/no-cross + Delta -----
+  // lastValue inits 0. f1 V=1: 1>0+0.5 → HC=1, Delta=1, DeltaOnHit=|1-0|=1. f2 V=1.2: 1.2>1+0.5(1.5)?
+  // no → HC=0, Delta=0.2. f3 V=2: 2>1.2+0.5(1.7)? yes → HC=1, Delta=0.8, DeltaOnHit=|2-1.2|=0.8.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    auto cook = [&](float val) {
+      cookStatefulValueOp("HasValueChanged",
+                          {{"Value", val}, {"Threshold", 0.5f}, {"Mode", 1.0f},
+                           {"MinTimeBetweenHits", 0.0f}, {"PreventContinuedChanges", 0.0f}},
+                          dt60, 0.0f, st, out);
+    };
+    const float val[3] = {1.0f, 1.2f, 2.0f};
+    const float wHC[3] = {1.0f, 0.0f, 1.0f};
+    const float wDelta[3] = {1.0f, 0.2f, 0.8f};
+    const float wHit[3] = {1.0f, 1.0f, 0.8f};
+    for (int i = 0; i < 3; ++i) {
+      cook(val[i]);
+      float hc = (injectBug && i == 1) ? 1.0f : wHC[i];  // bug: ignores Threshold → +0.2 falsely fires
+      bool pass = std::fabs(out[0] - hc) < eps && std::fabs(out[1] - wDelta[i]) < eps &&
+                  std::fabs(out[2] - wHit[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasChanged.inc step%d HC=%.1f(want %.1f) D=%.3f Hit=%.3f -> %s\n",
+             i + 1, out[0], hc, out[1], out[2], pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- (B) MinTimeBetweenHits gate, Mode=Changed, Threshold=0.5, MinTime=2.0, Prevent=0 -----
+  // Two qualifying changes within < MinTime → the 2nd is suppressed (HC forced 0); after the gate
+  // elapses it fires again. A false frame between rising edges re-arms wasHit so wasTriggered fires.
+  // f1 t=10 V=3: absΔ3>0.5 T, edge(prev F)→T, gate|10-0|=10≥2 → HIT, lastHitTime=10, lastHitDelta=3, HC=1.
+  // f2 t=10.5 V=3: absΔ0 → HC=0 (re-arm). f3 t=10.5 V=6: absΔ3 T, edge T, gate|10.5-10|=0.5≥2? no →
+  //   HC FORCED 0 (suppressed), DeltaOnHit stays 3. f4 t=13 V=6: absΔ0 → HC=0 (re-arm).
+  // f5 t=13 V=9: absΔ3 T, edge T, gate|13-10|=3≥2 → HIT, lastHitTime=13, lastHitDelta=3, HC=1.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    auto cook = [&](float time, float val) {
+      cookStatefulValueOp("HasValueChanged",
+                          {{"Value", val}, {"Threshold", 0.5f}, {"Mode", 0.0f},
+                           {"MinTimeBetweenHits", 2.0f}, {"PreventContinuedChanges", 0.0f}},
+                          dt60, time, st, out);
+    };
+    const float tm[5] = {10.0f, 10.5f, 10.5f, 13.0f, 13.0f};
+    const float val[5] = {3.0f, 3.0f, 6.0f, 6.0f, 9.0f};
+    const float wHC[5] = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+    const float wHit[5] = {3.0f, 3.0f, 3.0f, 3.0f, 3.0f};  // DeltaOnHit holds last accepted absDelta
+    for (int i = 0; i < 5; ++i) {
+      cook(tm[i], val[i]);
+      float hc = (injectBug && i == 2) ? 1.0f : wHC[i];  // bug: gate not enforced → 2nd hit fires early
+      bool pass = std::fabs(out[0] - hc) < eps && std::fabs(out[2] - wHit[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasChanged.gate step%d HC=%.1f(want %.1f) Hit=%.3f -> %s\n",
+             i + 1, out[0], hc, out[2], pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- (C) WasTriggered edge + PreventContinuedChanges semantics (FAITHFUL TiXL, NOT the brief) -----
+  // Sustained increase, Mode=Increased, Threshold=0, MinTime=2.0. The gate body runs only when
+  // `hasChanged && (prevent || wasTriggered)`. So:
+  //   Prevent=0: a CONTINUED change (wasTriggered=F) SKIPS the gate → HC passes through raw=1 each
+  //     frame. Sequence HC = 1,1,1,1 (continued raw changes get through).
+  //   Prevent=1: EVERY qualifying frame enters the gate → continued frames within MinTime are FORCED
+  //     0 (this is what "prevent continued changes" means); only frames past MinTime fire.
+  //     Sequence HC = 1,0,0,1. (NOTE: the brief described these two inverted — TiXL is authority;
+  //     flagged in the dossier. _wasHit stores the raw hasChanged BEFORE the gate, per TiXL order.)
+  {
+    const float tm[4] = {10.0f, 10.5f, 11.0f, 13.0f};
+    const float val[4] = {1.0f, 2.0f, 3.0f, 4.0f};
+    // Prevent=0 → all raw changes pass.
+    {
+      StatefulValueState st;
+      float out[3] = {0, 0, 0};
+      const float wHC[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+      for (int i = 0; i < 4; ++i) {
+        cookStatefulValueOp("HasValueChanged",
+                            {{"Value", val[i]}, {"Threshold", 0.0f}, {"Mode", 1.0f},
+                             {"MinTimeBetweenHits", 2.0f}, {"PreventContinuedChanges", 0.0f}},
+                            dt60, tm[i], st, out);
+        bool pass = std::fabs(out[0] - wHC[i]) < eps;
+        ok = ok && pass;
+        printf("[selftest-statefulvalue] HasChanged.prevent0 step%d HC=%.1f want=%.1f -> %s\n",
+               i + 1, out[0], wHC[i], pass ? "PASS" : "FAIL");
+      }
+    }
+    // Prevent=1 → continued changes within MinTime suppressed; fires only after gate elapses.
+    {
+      StatefulValueState st;
+      float out[3] = {0, 0, 0};
+      const float wHC[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+      for (int i = 0; i < 4; ++i) {
+        cookStatefulValueOp("HasValueChanged",
+                            {{"Value", val[i]}, {"Threshold", 0.0f}, {"Mode", 1.0f},
+                             {"MinTimeBetweenHits", 2.0f}, {"PreventContinuedChanges", 1.0f}},
+                            dt60, tm[i], st, out);
+        float hc = (injectBug && i == 3) ? 0.0f : wHC[i];  // bug: gate never re-fires after suppression
+        bool pass = std::fabs(out[0] - hc) < eps;
+        ok = ok && pass;
+        printf("[selftest-statefulvalue] HasChanged.prevent1 step%d HC=%.1f want=%.1f -> %s\n",
+               i + 1, out[0], hc, pass ? "PASS" : "FAIL");
+      }
     }
   }
 

@@ -190,6 +190,22 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f}},
        nullptr},
+      // HasValueChanged — 3 outputs (HasChanged 0/1, Delta signed, DeltaOnHit) + change detection by
+      // Mode with a MinTimeBetweenHits gate + rising-edge WasTriggered. TiXL float/logic/
+      // HasValueChanged.cs. Outputs FIRST (stateful extOut-by-index); inputs in TiXL decl order. All
+      // input defaults are type-zero (no InputSlot ctor default in the .cs). Bool dissolves to Float
+      // 0/1: HasChanged out = 1/0; PreventContinuedChanges in = Float read as >0.5. Stateful: eval=nullptr.
+      {"HasValueChanged", "HasValueChanged",
+       {{"HasChanged", "HasChanged", "Float", false},
+        {"Delta", "Delta", "Float", false},
+        {"DeltaOnHit", "DeltaOnHit", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"Changed", "Increased", "Decreased"}},
+        {"MinTimeBetweenHits", "MinTimeBetweenHits", "Float", true, 0.0f, 0.0f, 10.0f},
+        {"PreventContinuedChanges", "PreventContinuedChanges", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr},
       {"Const", "Const",
        {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
