@@ -182,6 +182,12 @@ int runPointAttributeFromNoiseSelfTest(bool injectBug);
 // resample law (x == source index, not sourceF*(SourceCount-1)) -> mismatch -> FAIL.
 void registerResampleLinePointsOp();
 int runResampleLinePointsSelfTest(bool injectBug);
+// SubdivideLinePoints (point_ops_subdividelinepoints.cpp, lane point_modify): per-segment subdivide,
+// InsertCount interpolated points inserted per segment (count-change = sourceCount*(InsertCount+1));
+// ClosedShape adds a closing segment, separators carve closed segments (TiXL .../SubdivideLinePoints).
+// injectBug = wrong subdivision law (sub-points sit on segment start, no f-interpolation) -> FAIL.
+void registerSubdivideLinePointsOp();
+int runSubdivideLinePointsSelfTest(bool injectBug);
 // ChannelMixer image filter (point_ops_channelmixer.cpp, lane image_filter): 4x4 channel matrix
 // mix (TiXL image/color/ChannelMixer / MixChannels.hlsl). injectBug = identity -> no swap -> FAIL.
 void registerChannelMixerOp();

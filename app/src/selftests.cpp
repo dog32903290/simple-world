@@ -195,6 +195,7 @@ const SelfTest kTable[] = {
     {"clearsomepoints", runClearSomePointsSelfTest},
     {"reorientlinepoints", runReorientLinePointsSelfTest},
     {"resamplelinepoints", runResampleLinePointsSelfTest},
+    {"subdividelinepoints", runSubdivideLinePointsSelfTest},
     {"selectpoints", runSelectPointsSelfTest},
     {"softtransformpoints", runSoftTransformPointsSelfTest},
     {"offsetpoints", runOffsetPointsSelfTest},

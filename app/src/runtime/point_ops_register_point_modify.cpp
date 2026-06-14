@@ -29,6 +29,7 @@ void registerSoftTransformPointsOp();
 void registerOffsetPointsOp();
 void registerPointAttributeFromNoiseOp();
 void registerResampleLinePointsOp();
+void registerSubdivideLinePointsOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -50,6 +51,7 @@ void registerPointModifyPointOps() {
   registerOffsetPointsOp();          // Points → Points (offset along Dir*Dist rotated by point Rotation, batch 24)
   registerPointAttributeFromNoiseOp();// Points → Points (3D noise -> position/rotation attributes, batch 24)
   registerResampleLinePointsOp();    // Points → Points (arc-param resample to Count points, batch 36)
+  registerSubdivideLinePointsOp();   // Points → Points (per-segment subdivide, InsertCount inserts, batch 37)
 }
 
 }  // namespace sw

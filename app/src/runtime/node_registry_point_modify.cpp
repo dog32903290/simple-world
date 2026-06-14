@@ -373,6 +373,30 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"RotationUpVector.y", "RotationUpVector.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"RotationUpVector.z", "RotationUpVector.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}},
        nullptr},
+      // ---- batch 37 (lane point_modify): SubdivideLinePoints ----------------------
+      // TiXL parity: external/tixl .../point/generate/SubdivideLinePoints.cs + .hlsl
+      // A COUNT-CHANGING MODIFIER: subdivides every line SEGMENT, inserting InsertCount interpolated
+      // points per segment (subdiv = InsertCount + 1). Open line of SourceCount points ->
+      // SourceCount * subdiv outputs; ClosedShape adds a closing segment (lastValid -> firstValid)
+      // and separators (NaN Scale) carve the closed segments. Output count = clamp(sourceCount*subdiv,
+      // 1, 1000000) via the cook's static-stash countTransform (see point_ops_subdividelinepoints.cpp).
+      // Defaults from SubdivideLinePoints.t3: Count(InsertCount)=100, ClosedShape=false.
+      // Ports in .cs [Input] order: Points, Count, ClosedShape.
+      // NAMED FORK [port-id=InsertCount]: the .cs port is named "Count" but the cook driver hijacks any
+      //   Float port whose id == "Count" as the OUTPUT point count. SubdivideLinePoints' Count is
+      //   per-segment InsertCount, NOT the output count, so the port id is "InsertCount" (inspector
+      //   label "Count" matches TiXL); the driver then uses the source bag count and countTransform
+      //   multiplies by subdiv. See point_ops_subdividelinepoints.cpp COUNT POLICY.
+      {"SubdivideLinePoints",
+       "SubdivideLinePoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // subdivided output bag (port 1)
+        // .cs Count (int, default 100) = InsertCount: points inserted per segment. Port id forked to
+        //   "InsertCount" to dodge the driver's "Count"==output-count hijack (see fork note above).
+        {"InsertCount", "Count", "Float", true, 100.0f, 0.0f, 1000.0f},
+        // .cs ClosedShape (bool, default false) — add a closing segment (last -> first).
+        {"ClosedShape", "ClosedShape", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr},
       // ---- batch 21 (lane point_modify): SelectPoints ----------------------------
       // TiXL parity: external/tixl .../point/modify/SelectPoints.cs + .hlsl
       // A count-preserving MODIFIER: computes a per-point volume-selection scalar (Sphere/Box/
