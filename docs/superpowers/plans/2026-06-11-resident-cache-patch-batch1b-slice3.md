@@ -1402,3 +1402,10 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 3. **Bool seam(若要 PeakLevel/Trigger 類)**: WasTrigger/Trigger 需 context.FloatVariables trigger-variable 子系統——先確認有消費端再開(否則織沒人踩的線)。
 4. **Field/SDF+camera 子系統**(大,獨立): particle field-force 全族 + TransformFromClipSpace。
 5. **柏為親測回收**: 批次24 八顆視覺 + 批次25 九顆手感 + 批次27 Ease 手感。
+
+## Cut 34 — 批次 28: HasValueChanged (mass pass 自走第一顆) (2026-06-14 夜; Opus orchestrator, /loop 自走) ✅
+**柏為授權自走模式**(22:24「我沒喊停你就往下做」)→ machine-verifiable 顆自走進主線/需眼顆堆待驗清單/真停只在礦盡·大子系統·品味拍板。批次27 誠實 deferred 的 HasValueChanged(machine-verifiable)= 自走第一顆。
+**commit `eedb46c`**: TiXL float/logic/HasValueChanged.cs 逐字,騎批次25 stateful seam。3 輸出(HasChanged Bool→Float 0/1·Delta signed·DeltaOnHit)+5 輸入(Value/Threshold/Mode enum Changed/Increased/Decreased/MinTimeBetweenHits/PreventContinuedChanges Bool→Float)。state s[0]=lastValue/s[1]=lastHitTime/s[2]=lastHitDelta/s[3]=wasHit。WasTriggered 上升沿復刻;gate=hasChanged&&(prevent||wasTriggered)→MinTimeBetweenHits 用 wall time。named fork 同 Damp/Ease 砍 _lastEvalTime+0.0002 dedup(每幀一 cook)。--selftest-statefulvalue PASS/-bug FAIL(rc=1,3 齒)/--bite PASS=124 NO-BITE:[]/check-arch 綠。
+**工單筆誤校正(查 TiXL 不發明的價值)**: orchestrator 工單把 PreventContinuedChanges 語義寫反(說=1 放行)→implementer agent 抓出+照 TiXL 源碼(非工單)實作=1 抑制連續/0 放行,selftest 證真語義。權威永遠是 external/tixl。
+🟡 柏為親測:Mode/Threshold/MinTimeBetweenHits 接觸發看 0/1 脈衝時機。
+**Resume 更新**: #2 HasValueChanged ✅ 已消化。剩 #0 Gradient(op machine→主線/widget→待驗清單)/#1 雙texture filter(柏為域)/#3 Bool seam(需消費端)/#4 Field/SDF+camera(大子系統=停手條件)。自走下一顆候選=Gradient SampleGradient op(machine-verifiable pure evaluate,widget 堆清單)或掃 TiXL 找剩餘 machine-verifiable value/math leaf。
