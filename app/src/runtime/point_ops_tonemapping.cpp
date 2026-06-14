@@ -232,7 +232,66 @@ int runToneMappingSelfTest(bool injectBug) {
          compressed ? 1 : 0,
          compressed ? "PASS" : "FAIL");
 
-  bool allPass = compressed;
+  // --- AgX matrix-parity sub-check (green path only) -----------------------------------
+  // AgX (Mode 4) is the ONLY mode that uses matrix multiplies; the Reinhard assertion above
+  // never exercises them. The HLSL `mul(rowVec, M)` -> Metal `M * colVec` translation is the
+  // classic metal-cpp transpose trap. We cook AgX on a NON-GRAY input (so off-diagonal terms
+  // matter) and compare the GPU center pixel to a C++ replica of ToneMap.hlsl's tonemapAgX
+  // computed with the correct row-vector convention. A transposed matrix -> GPU != ref -> FAIL.
+  // Permanent bite tooth (locks the AgX transpose forever).
+  bool agxOk = true;
+  if (!injectBug) {
+    const float in0 = 0.30f, in1 = 0.50f, in2 = 0.20f;
+    {
+      MTL::RenderPassDescriptor* rpd = MTL::RenderPassDescriptor::renderPassDescriptor();
+      auto* ca = rpd->colorAttachments()->object(0);
+      ca->setTexture(src);
+      ca->setLoadAction(MTL::LoadActionClear);
+      ca->setClearColor(MTL::ClearColor::Make(in0, in1, in2, 1.0));
+      ca->setStoreAction(MTL::StoreActionStore);
+      MTL::CommandBuffer* cmd = q->commandBuffer();
+      cmd->renderCommandEncoder(rpd)->endEncoding();
+      cmd->commit();
+      cmd->waitUntilCompleted();
+    }
+    std::map<std::string, float> ap;
+    ap["Mode"] = 4.0f;  // AgX
+    ap["CorrectGamma"] = 0.0f;
+    ap["Gamma"] = 2.2f;
+    ap["Exposure"] = 1.0f;
+    clearTexOpCache();
+    TexCookCtx ac;
+    ac.dev = dev; ac.lib = lib; ac.queue = q;
+    ac.nodeId = 2; ac.inputTexture = src; ac.output = dst; ac.params = &ap;
+    cookToneMapping(ac);
+    std::vector<uint16_t> ab((size_t)W * H * 4, 0);
+    dst->getBytes(ab.data(), W * 8, MTL::Region::Make2D(0, 0, W, H), 0);
+    float gR = halfToFloat(ab[idx + 0]);
+    float gG = halfToFloat(ab[idx + 1]);
+    float gB = halfToFloat(ab[idx + 2]);
+    // C++ reference: pow 2.2 -> tonemapAgX(.,false) (ToneMap.hlsl:58-77), row-vector mul.
+    auto p22 = [](float v) { return std::pow(v < 0.0f ? 0.0f : v, 2.2f); };
+    float r0 = p22(in0), r1 = p22(in1), r2 = p22(in2);
+    // m0 rows (ToneMap.hlsl:61), out[j] = sum_i in[i]*M0[i][j]
+    float a0 = r0 * 0.842f  + r1 * 0.0784f + r2 * 0.0792f;
+    float a1 = r0 * 0.0423f + r1 * 0.878f  + r2 * 0.0792f;
+    float a2 = r0 * 0.0424f + r1 * 0.0784f + r2 * 0.879f;
+    auto enc = [](float v) { float x = (std::log2(v) + 12.47393f) / 16.5f; return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); };
+    a0 = enc(a0); a1 = enc(a1); a2 = enc(a2);
+    auto sig = [](float v) { return 0.5f + 0.5f * std::sin(((-3.11f * v + 6.42f) * v - 0.378f) * v - 1.44f); };
+    a0 = sig(a0); a1 = sig(a1); a2 = sig(a2);
+    // m1 rows (ToneMap.hlsl:75), out[j] = sum_i a[i]*M1[i][j]
+    float e0 = a0 * 1.2f     + a1 * (-0.1f)   + a2 * (-0.1f);
+    float e1 = a0 * (-0.053f) + a1 * 1.15f    + a2 * (-0.1f);
+    float e2 = a0 * (-0.053f) + a1 * (-0.1f)  + a2 * 1.15f;
+    float dr = std::fabs(gR - e0), dg = std::fabs(gG - e1), db = std::fabs(gB - e2);
+    float maxErr = dr > dg ? (dr > db ? dr : db) : (dg > db ? dg : db);
+    agxOk = maxErr < 0.01f;
+    printf("[selftest-tonemapping] AgX parity gpu=(%.4f,%.4f,%.4f) ref=(%.4f,%.4f,%.4f) maxErr=%.5f(need<0.01) -> %s\n",
+           gR, gG, gB, e0, e1, e2, maxErr, agxOk ? "PASS" : "FAIL");
+  }
+
+  bool allPass = compressed && agxOk;
 
   src->release(); dst->release();
   lib->release(); q->release(); dev->release(); pool->release();

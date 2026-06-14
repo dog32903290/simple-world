@@ -91,11 +91,13 @@ static float3 _tonemapReinhard(float3 color) {
 static float3 _tonemapAgX(float3 col, bool punchy) {
   // ToneMap.hlsl:61: mul(col, float3x3(0.842, 0.0423, 0.0424, 0.0784, 0.878, 0.0784, 0.0792, 0.0792, 0.879))
   // HLSL row layout: row0=(0.842,0.0423,0.0424) row1=(0.0784,0.878,0.0784) row2=(0.0792,0.0792,0.879)
-  // Metal columns (transposed): col0=(0.842,0.0784,0.0792) col1=(0.0423,0.878,0.0792) col2=(0.0424,0.0784,0.879)
-  // fork[DX11->Metal-mul-transpose]: HLSL mul(vec,mat) = row*rows; Metal = explicit transpose layout
-  float3x3 m0 = float3x3(float3(0.842f,  0.0784f, 0.0792f),
-                          float3(0.0423f, 0.878f,  0.0792f),
-                          float3(0.0424f, 0.0784f, 0.879f));
+  // fork[DX11->Metal-mul]: HLSL mul(rowVec, M) == M^T * colVec. We apply M * col below, so the
+  // Metal matrix must BE M^T, i.e. its columns are HLSL's ROWS. Metal's float3x3(c0,c1,c2) takes
+  // COLUMNS, so we pass HLSL row0/row1/row2 verbatim as Metal col0/col1/col2 (no extra transpose —
+  // the column-major read of the row-major data IS the transpose). Locked by AgX parity tooth.
+  float3x3 m0 = float3x3(float3(0.842f,  0.0423f, 0.0424f),
+                          float3(0.0784f, 0.878f,  0.0784f),
+                          float3(0.0792f, 0.0792f, 0.879f));
   col = m0 * col;
 
   // ToneMap.hlsl:64: col = clamp((log2(col)+12.47393)/16.5, 0.0, 1.0)
@@ -112,11 +114,10 @@ static float3 _tonemapAgX(float3 col, bool punchy) {
 
   // ToneMap.hlsl:75-76: mul(col, float3x3(1.2,-0.053,-0.053,-0.1,1.15,-0.1,-0.1,-0.1,1.15))
   // HLSL rows: row0=(1.2,-0.053,-0.053) row1=(-0.1,1.15,-0.1) row2=(-0.1,-0.1,1.15)
-  // Metal columns: col0=(1.2,-0.1,-0.1) col1=(-0.053,1.15,-0.1) col2=(-0.053,-0.1,1.15)
-  // fork[DX11->Metal-mul-transpose]: same transpose rationale as m0 above.
-  float3x3 m1 = float3x3(float3( 1.2f,   -0.1f,  -0.1f),
-                          float3(-0.053f,  1.15f, -0.1f),
-                          float3(-0.053f, -0.1f,   1.15f));
+  // fork[DX11->Metal-mul]: same as m0 — HLSL rows become Metal columns verbatim (M * col == mul(col,M)).
+  float3x3 m1 = float3x3(float3( 1.2f,   -0.053f, -0.053f),
+                          float3(-0.1f,    1.15f,  -0.1f),
+                          float3(-0.1f,   -0.1f,    1.15f));
   col = m1 * col;
   return col;
 }
