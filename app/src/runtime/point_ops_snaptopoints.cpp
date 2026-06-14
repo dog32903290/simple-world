@@ -30,16 +30,13 @@
 //     (Points2Count-1).  When Points2 is empty (Points2Count==0) the point passes through
 //     unchanged.  See snaptopoints.metal for the GPU implementation.
 //
-//   fork[count-policy-known-limit]: This op is index-paired (output count = Points1 count),
-//     but point_graph's cook driver sums ALL Points input counts into sumPointsCount (the
-//     CombineBuffers contract).  As a result c.count = inputCounts[0]+inputCounts[1] = 2N
-//     (when equal-length), the output buffer is over-allocated, and outCount[this node] = 2N.
-//     The cook fn dispatches only inputCounts[0] GPU threads so only output[0..N-1] is
-//     written; output[N..2N-1] is stale/uninitialised buffer data.  Downstream draw ops
-//     read outCount=2N and pass 2N points to the GPU renderer; the extra N points are
-//     garbage.  Resolving this cleanly requires a per-port "noCount" flag in point_graph's
-//     count driver (a shared-runtime change) — deferred to orchestrator.  The selftest
-//     golden verifies only output[0..N-1] (the semantically correct region).
+//   fork[count-policy]: This op is index-paired (output count = Points1 count), but point_graph's
+//     cook driver defaults to summing ALL Points input counts (the CombineBuffers concat contract).
+//     SnapToPoints opts into OpReg.countFromFirstPointsInput=true (registerSnapToPointsOp below), so
+//     the driver sizes the output to inputCounts[0] (Points1) only — Points2 is a snap TARGET, not
+//     concatenated. Without the flag the driver would size to 2N, leaving N stale garbage points that
+//     downstream DrawPoints would render. The flag was added to point_graph.cpp/_resident.cpp this
+//     batch; locked by the -countpolicy graph golden (cooked==N, not 2N) below.
 //
 // Self-contained leaf: own capture + registerDrawOp.
 #include "runtime/point_ops.h"
@@ -53,6 +50,7 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/dispatch.h"              // calcDispatchCount
+#include "runtime/eval_context.h"          // EvaluationContext (graph count golden)
 #include "runtime/graph.h"                 // Graph/Node/pinId
 #include "runtime/point_graph.h"           // PointCookCtx, registerPointOp/DrawOp, PointGraph
 #include "runtime/tixl_point.h"            // SwPoint (64B)
@@ -68,16 +66,16 @@ namespace {
 // cookSnapToPoints: index-paired lerp from Points1 toward Points2.
 // c.inputs[0] = Points1 (primary bag, sets output semantic count)
 // c.inputs[1] = Points2 (snap targets; may have fewer elements -> clamp in shader)
-// c.count     = sumPointsCount (= pts1+pts2 in equal-length case; see fork[count-policy-known-limit])
-// We dispatch only inputCounts[0] threads so only the correct N output points are written.
+// c.count     = Points1 count (driver sizes output to inputCounts[0] via countFromFirstPointsInput)
+// We dispatch inputCounts[0] threads so exactly the N output points are written.
 void cookSnapToPoints(PointCookCtx& c) {
   if (!c.output || !c.lib) return;
   const MTL::Buffer* pts1 = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   const MTL::Buffer* pts2 = (c.inputCount > 1) ? c.inputs[1] : nullptr;
   if (!pts1) return;
 
-  // fork[count-policy-known-limit]: use inputCounts[0] (Points1 semantic count) for the
-  // GPU dispatch count rather than c.count (= sumPointsCount from the cook driver).
+  // Dispatch over Points1 count (inputCounts[0]); c.count already == Points1 count via the
+  // driver's countFromFirstPointsInput policy, but read inputCounts[0] directly to be explicit.
   uint32_t pts1Count = (c.inputCounts && c.inputCount > 0) ? c.inputCounts[0] : c.count;
   uint32_t pts2Count = (c.inputCounts && c.inputCount > 1) ? c.inputCounts[1] : 0u;
   if (pts1Count == 0) return;
@@ -131,7 +129,14 @@ void captureDrawSnap2(PointCookCtx& c, MTL::Texture*, const MTL::Buffer* pts) {
 
 }  // namespace
 
-void registerSnapToPointsOp() { registerPointOp("SnapToPoints", cookSnapToPoints); }
+void registerSnapToPointsOp() {
+  // countFromFirstPointsInput=true: output count = Points1 count (Points2 is a snap TARGET, not
+  // concatenated). Without this the graph driver SUMS both Points inputs -> 2N output, leaving N
+  // stale garbage points that downstream DrawPoints would render. TiXL SnapToPoints out == Points1.
+  registerPointOp("SnapToPoints", cookSnapToPoints,
+                  /*stateNew=*/nullptr, /*stateFree=*/nullptr, /*countTransform=*/nullptr,
+                  /*countFromFirstPointsInput=*/true);
+}
 
 // Golden: Two bags of N=32 points.
 //   Points1: a row of points at x = i * 1.0f, y=0, z=0.
@@ -324,6 +329,30 @@ int runSnapToPointsSelfTest(bool injectBug) {
     printf("[selftest-snaptopoints-countguard] snapLast=%.1f guardOK=%s\n",
            snapLast, guardOK ? "yes" : "NO");
     if (!guardOK) pass = false;
+  }
+
+  // --- graph count-policy golden (normal path only) -------------------------------------
+  // Locks the driver fix (point_graph.cpp/_resident.cpp countFromFirstPointsInput): a SnapToPoints
+  // node fed by TWO equal-N Points generators must cook to N points, NOT 2N. Without the flag the
+  // driver SUMS both Points inputs -> 2N, leaving N stale garbage points that downstream DrawPoints
+  // would render. RadialPoints(N) + RadialPoints(N) -> SnapToPoints, cook through PointGraph, assert
+  // the node's cooked count == N. Regress (flag dropped) -> cooked=2N -> FAIL (permanent tooth).
+  if (!injectBug) {
+    registerBuiltinPointOps();
+    Graph g;
+    Node a; a.id = 1; a.type = "RadialPoints"; a.params["Count"] = (float)N; g.nodes.push_back(a);
+    Node b; b.id = 2; b.type = "RadialPoints"; b.params["Count"] = (float)N; g.nodes.push_back(b);
+    Node sp; sp.id = 3; sp.type = "SnapToPoints"; g.nodes.push_back(sp);
+    g.connections.push_back({101, pinId(1, 0), pinId(3, 0)});  // A -> SnapToPoints Points1 (port 0)
+    g.connections.push_back({102, pinId(2, 0), pinId(3, 1)});  // B -> SnapToPoints Points2 (port 1)
+    PointGraph pg(dev, lib, q, 64, 64);
+    EvaluationContext ctx;
+    pg.cook(g, ctx, nullptr, 3);
+    uint32_t cookedN = pg.debugCookedCount(3);
+    bool countOK = (cookedN == N);
+    printf("[selftest-snaptopoints-countpolicy] cooked=%u expect=%u (sum would be %u) -> %s\n",
+           cookedN, N, 2u * N, countOK ? "PASS" : "FAIL");
+    if (!countOK) pass = false;
   }
 
   outBuf->release();

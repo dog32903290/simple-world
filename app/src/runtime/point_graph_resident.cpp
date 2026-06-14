@@ -121,6 +121,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     std::vector<uint32_t> insCounts;
     std::vector<const std::map<std::string, float>*> insParams;
     uint32_t sumPointsCount = 0;
+    uint32_t firstPointsCount = 0;
+    bool haveFirstPoints = false;
     for (const PortSpec& port : s->ports) {
       if (!isBufferInput(port)) continue;
       const ResidentInput* ri = n->input(port.id);
@@ -135,13 +137,21 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       ins.push_back(ub);
       insCounts.push_back(inCount);
       insParams.push_back(up);
-      if (port.dataType == "Points") sumPointsCount += inCount;
+      if (port.dataType == "Points") {
+        sumPointsCount += inCount;
+        if (!haveFirstPoints) { firstPointsCount = inCount; haveFirstPoints = true; }
+      }
     }
 
     const std::map<std::string, float>* params = nodeParams(path);
 
-    // count: a "Count" Float input (generators) resolved through its driver, else sum of Points.
+    // count: a "Count" Float input (generators) resolved through its driver, else sum of Points
+    // (combine concatenates), or the first Points input only for reference-transform ops
+    // (SnapToPoints opts into countFromFirstPointsInput — Points2 is a target, not concatenated).
     uint32_t count = sumPointsCount;
+    if (auto cr = cookReg().find(n->opType);
+        cr != cookReg().end() && cr->second.countFromFirstPointsInput)
+      count = firstPointsCount;
     for (const PortSpec& port : s->ports)
       if (port.isInput && port.dataType == "Float" && port.id == "Count") {
         float v = port.def;

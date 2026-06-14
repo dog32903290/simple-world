@@ -45,8 +45,10 @@ std::map<std::string, PointTexFn>& texReg() {
 }  // namespace pgdetail
 
 void registerPointOp(const std::string& type, PointCookFn cook, PointStateNewFn stNew,
-                     PointStateFreeFn stFree, PointCountFn countTransform) {
-  cookReg()[type] = pgdetail::OpReg{cook, stNew, stFree, countTransform};
+                     PointStateFreeFn stFree, PointCountFn countTransform,
+                     bool countFromFirstPointsInput) {
+  cookReg()[type] =
+      pgdetail::OpReg{cook, stNew, stFree, countTransform, countFromFirstPointsInput};
 }
 void registerDrawOp(const std::string& type, PointDrawFn draw) { drawReg()[type] = draw; }
 void registerCmdOp(const std::string& type, PointCmdFn cmd) { cmdReg()[type] = cmd; }
@@ -123,6 +125,11 @@ bool PointGraph::valid() const { return p_->dev && p_->queue && p_->target; }
 // cooked this frame, else the window-sized fallback. Consumers (OutputWindow ImGui::Image, eye
 // readback) re-read this each frame and handle arbitrary size — so a tex terminal can be any res.
 MTL::Texture* PointGraph::target() const { return p_->displayTex ? p_->displayTex : p_->target; }
+
+uint32_t PointGraph::debugCookedCount(int nodeId) const {
+  auto it = p_->outCount.find(flatKey(nodeId));
+  return it != p_->outCount.end() ? it->second : 0u;
+}
 
 int PointGraph::defaultDrawTarget(const Graph& g) const {
   // The terminal is the most-downstream realizable node: a tex node (RenderTarget/Blur) wins, else
@@ -216,6 +223,8 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     std::vector<uint32_t> insCounts;
     std::vector<const std::map<std::string, float>*> insParams;
     uint32_t sumPointsCount = 0;
+    uint32_t firstPointsCount = 0;
+    bool haveFirstPoints = false;
     for (size_t i = 0; i < s->ports.size(); ++i) {
       const PortSpec& port = s->ports[i];
       if (!isBufferInput(port)) continue;
@@ -225,7 +234,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       ins.push_back(ub);
       insCounts.push_back(inCount);
       insParams.push_back(c ? nodeParams(pinNode(c->fromPin)) : nullptr);
-      if (port.dataType == "Points") sumPointsCount += inCount;
+      if (port.dataType == "Points") {
+        sumPointsCount += inCount;
+        if (!haveFirstPoints) { firstPointsCount = inCount; haveFirstPoints = true; }
+      }
     }
 
     const std::map<std::string, float>* params = nodeParams(id);
@@ -233,7 +245,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     // count: a "Count" Float input (generators) resolved through the value spine (the resolved
     // map already holds wire/stored/default — the 7d4b34e contract), else the sum of all wired
     // Points inputs (modifier passes through, combine concatenates).
+    // Default: sum of Points inputs (combine concatenates). Ops that transform a primary bag
+    // using extra Points inputs as references (SnapToPoints) opt into first-input-count instead.
     uint32_t count = sumPointsCount;
+    if (auto cr = cookReg().find(n->type);
+        cr != cookReg().end() && cr->second.countFromFirstPointsInput)
+      count = firstPointsCount;
     for (const PortSpec& port : s->ports)
       if (port.isInput && port.dataType == "Float" && port.id == "Count") {
         float v = mapParam(params, "Count", port.def);

@@ -32,6 +32,12 @@ struct OpReg {
   // than its emit ring (particle_params.h: pool > emit is what lets the cycle buffer recycle).
   // null = identity. Applied in BOTH cooks right before ensureOut/ensureState.
   PointCountFn countTransform = nullptr;
+  // Count policy for ops with >1 Points input. Default false = output count is the SUM of all
+  // wired Points inputs (CombineBuffers concatenates). true = output count is the FIRST Points
+  // input's count only (the op transforms Points1 using the remaining Points inputs as references,
+  // not concatenation — e.g. SnapToPoints: out count = Points1 count, Points2 is a snap target).
+  // No-op for ops with <=1 Points input (sum == first). Applied in BOTH cooks.
+  bool countFromFirstPointsInput = false;
 };
 std::map<std::string, OpReg>& cookReg();
 std::map<std::string, PointDrawFn>& drawReg();

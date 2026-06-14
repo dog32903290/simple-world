@@ -157,7 +157,8 @@ using PointCountFn = uint32_t (*)(uint32_t);
 // init) — NOT a static initializer — so --selftest-* runs see a clean table.
 void registerPointOp(const std::string& type, PointCookFn,
                      PointStateNewFn = nullptr, PointStateFreeFn = nullptr,
-                     PointCountFn countTransform = nullptr);
+                     PointCountFn countTransform = nullptr,
+                     bool countFromFirstPointsInput = false);
 void registerDrawOp(const std::string& type, PointDrawFn);
 // Register a command op (the Command stream). Separate table from cook/draw — exactly
 // as TiXL keeps Slot<Command> distinct from Slot<BufferWithViews>.
@@ -234,6 +235,10 @@ class PointGraph {
   // whose op realizes (RenderTarget tex > DrawPoints cmd > legacy draw). 0 if none.
   int defaultDrawTarget(const SymbolLibrary& lib, const std::string& symbolId) const;
   MTL::Texture* target() const;
+  // Test-support: the count a flat-cooked node's output bag was sized to last cook (0 if never
+  // cooked). Lets goldens assert the count-policy driver (e.g. SnapToPoints out == Points1, not
+  // sum). flatKey(nodeId) internally.
+  uint32_t debugCookedCount(int nodeId) const;
 
  private:
   struct Impl;

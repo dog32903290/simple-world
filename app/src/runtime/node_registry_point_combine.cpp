@@ -31,9 +31,9 @@ const std::vector<NodeSpec>& pointCombineSpecs() {
       //   Position    = lerp(A.Position, SnapPoint.Position, blendFactor)
       //   W (FX1)     = lerp(A.W, SnapPoint.W, BlendFactor)   // raw BlendFactor, not scaled
       //
-      // FORK[count-policy-known-limit]: outCount = sumPointsCount (pts1+pts2) due to
-      //   point_graph's count driver; cook dispatches only inputCounts[0] GPU threads.
-      //   See point_ops_snaptopoints.cpp for details.
+      // FORK[count-policy]: outCount = Points1 count (NOT sum). SnapToPoints opts into
+      //   OpReg.countFromFirstPointsInput (Points2 is a snap target, not concatenated);
+      //   locked by the -countpolicy graph golden. See point_ops_snaptopoints.cpp.
       // FORK[count-guard]: Points2 index clamped to (Points2Count-1) when i >= Points2Count.
       //
       // Ports (append after CombineBuffers, do NOT insert before it):
