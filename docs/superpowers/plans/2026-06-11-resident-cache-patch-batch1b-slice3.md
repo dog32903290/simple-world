@@ -1205,14 +1205,36 @@ headless 圍欄 (續)/AddNoise Rotation 顯式牙。
 **🟡 柏為親測 (批次20)**: 三顆 op app 開好在 palette(DoyleSpiralPoints 搜尋可見),柏為認可視覺+DoyleSpiral 處理方式。
   完整親手玩(拖 DoyleSpiral→DrawPoints 看螺旋/ClearSomePoints 拉 Ratio/ChannelMixer 拉通道)=隨手。
 
-## Resume — next (批次21 候選; 無 🔴 排修, 純推進)
-1. **cheap point op(家族並行,用 `/sw-node-batch`)**——候選庫=`docs/agent/overnight/lane_*.md`(三家族缺口掃描):
-   - generators: CommonPointSets/RepetitionPoints(⚠CPU 生成=新接縫,非 GPU kernel,先評估 PointCookCtx map buffer 寫法)。
-   - point_modify: SnapToPoints(2-buffer 照 CombineBuffers)/PointAttributeFromNoise(⚠UseRemapCurve=false 才 cheap)/
-     SubdivideLinePoints/ReorientLinePoints(切線 rot Y·X·Z)。SelectPoints=moderate(selection state)。
-   - image_filter 第一梯隊(per-pixel,貼 Tint/AdjustColors): HSE/ToneMapping/ColorGrade/KeyColor/Pixelate(先單顆驗綠再擴)。
-2. **SnapPointsToGrid gain/bias refuter**(Cut 25 CONCERN 未清): 對 bias-functions.hlsl 逐字復查重建的 applyGainAndBias。
-3. **UI 視覺第三刀**: 標題字級 13→18(CJK atlas/node 尺寸連動)/連線 idle-fade(editor_ui.cpp:201-203)/pin 方→三角(node_draw.cpp:31)。
-4. **互動 S3 二梯隊**: fence Shift/Ctrl 三模式/雙擊 annotation rename/G layout(moderate)。
-5. particle 深化=subsystem(§D)排後。soundtrack @4x=task_adc40d12 chip 柏為域。
-6. DoyleSpiral 視覺/數值 ground-truth: 可外包 Windows TiXL lane(`to_windows_tixl` kit)Player 截圖對照(柏為暫認可不做)。
+## Cut 27 — 批次 21: 2 顆家族並行 op (ToneMapping/SnapToPoints) + count-policy driver 修 + Cut25 CONCERN 清 (2026-06-14 午; Opus orchestrator, `/sw-node-batch` 第二航) ✅
+三條 worktree lane 並行(2 implementer Sonnet + 1 refuter Opus),家族 disjoint 零衝突;merge 共享檔(point_ops.h/selftests.cpp/CMakeLists)純加性兩邊留。
+commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5eb)→14e90ff(SnapToPoints merge)→c58f487(count-policy driver 修)。
+--bite **PASS=104**(批20 102→+2:tonemapping/snaptopoints;refuter parity 併進既有 snaptogrid golden 不增數)/NO-BITE:[]/check-arch 綠/scenario point_modify_chain+blur_chain PASS。soundtrack @4x 既有環境紅非本批。
+
+**前置掃缺口攔下三個 compound 陷阱(問 TiXL 不問假設這關擋住,沒丟給 agent)**:
+- **HSE**(ledger 標「最純 per-pixel」)實有 `FxTexture` 第二輸入 + `.cs` 無 shader 路徑 = compound(.t3 圖接線),非單 .hlsl。
+- **ColorGrade** vignette 參數在 `.cs` 但不在 `compute-ColorGrade.hlsl` cbuffer → vignette 是 compound 內另一 op。
+- **PointAttributeFromNoise** 無 .hlsl + Gradient curve + 8-way attribute enum × 4 通道路由 = moderate-compound(即使關 UseRemapCurve)。
+→ 教訓:ledger 的 cheap 判定 sizing 不可信(承襲批18/DoyleSpiral),orchestrator 必親讀 .cs/.hlsl 確認「單 .cs + 單 .hlsl + 全參數在一個 cbuffer」才算真 cheap。
+
+**事實(兩顆 op)**:
+- **ToneMapping**(image_filter): 單 texture per-pixel,enum Mode(Aces/Reinhard/Filmic/Uncharted2/AgX/AgX_Punchy/None)用 float if/else 判別子(貼 _ForceKind)。fork[verbatim-TiXL-bug]:`ToneMap.hlsl:105 'Mode<4.5'` 應為 5.5→AgX_Punchy(5)在 TiXL 也不可達,逐字保留。**orchestrator 復查抓到真 bug**:agent 在 `m*col` 約定下又把 AgX 兩個矩陣額外轉置一次→抵銷成錯(metal-cpp 轉置陷阱,過度修正),Reinhard selftest 沒覆蓋矩陣故漏咬。正解=Metal 欄=HLSL 列原序(column-major 讀 row-major data 即轉置)。經驗證實:AgX parity maxErr 0.01375(broken)→0.00044(fixed)。補 AgX parity 牙(C++ row-vector 復算 ToneMap.hlsl)鎖死。
+- **SnapToPoints**(point_combine): 2-buffer 索引配對 lerp(A=Points1[i]→Snap=Points2[i],smoothstep(BF+D,D,dist)*MaxAmount),模板 CombineBuffers。fork[count-guard]:Points2 index clamp 防 OOB(TiXL 假設等長無 guard)。**agent 誠實標出真 production bug→orchestrator 修 shared-runtime**:SnapToPoints 落 point_combine 家族,但語義是 transform Points1(Points2 當 snap target),輸出筆數=Points1 非 sum。原 cook driver 對多 Points 輸入一律 sum(CombineBuffers concat 合約)→output buffer=2N、kernel 只寫前 N、後 N 垃圾→下游 DrawPoints 畫 N 個垃圾點(柏為一接就見=不是忠實 clone)。selftest bypass graph 沒咬到。修:OpReg 加 `countFromFirstPointsInput`(default false=sum 不變,CombineBuffers 不動),flat+resident 兩處 driver 套,SnapToPoints opt-in;加 `PointGraph::debugCookedCount` accessor + graph golden(RadialPoints×2→SnapToPoints 斷言 cooked==N 非 2N),驗牙:關旗標→cooked=64 FAIL,開→32 PASS。
+
+**Cut 25 CONCERN 清(refuter BROKEN→修)**: SnapPointsToGrid 的 `applyGainAndBias` 重建非逐字——漏 TiXL `g` 分支(`g>=0.5` 應 schlick→bias,我們永遠 bias→schlick)+ 漏兩個 hard early-out(value>0.9999→1/<0.00001→0)。舊 golden 只跑 neutral(0.5,0.5)=恒等故全盲。逐字重寫對齊 bias-functions.hlsl scalar form + 加 parity 牙(gain=0.8/bias=0.3 命中 g>=0.5 分岔支):maxErr 0.032(broken)→0.000(fixed)。
+
+**流程驗證(`/sw-node-batch` 第二航,固化先於驗證生效)**: 每條完工通知到即進 worktree commit 快照到 branch([固化快照]),三條都沒被收割蒸發。orchestrator 親手復跑每顆 green/bug(agent 說綠不算數)→抓到 AgX 轉置 bug(agent 漏)→自修。合流後 merge 衝突=三共享檔純加性手解。
+
+**🟡 柏為親測待辦 (批次21)**: ①ToneMapping app 拖→接 RenderTarget→看 Mode 切換(Aces/Reinhard/AgX 色調曲線差異)+Exposure 拉。②SnapToPoints 拖兩個生成器→接 Points1/Points2→拉 MaxAmount/Distance 看點被吸過去,**確認下游 DrawPoints 無垃圾點**(count-policy 修的肉眼驗收)。两顆都 selftest 強驗+refuter,過閘已入主線,視覺驗收非阻塞。
+
+## Resume — next (批次22 候選; 無 🔴 排修, 純推進)
+1. **cheap point op(家族並行,用 `/sw-node-batch`)**——候選庫=`docs/agent/overnight/lane_*.md`,但 **image_filter 第一梯隊已被掃描誤判**(HSE/ColorGrade=compound,見 Cut27),剩真 cheap:
+   - image_filter: **ToneMapping 已做**;真單-.hlsl 候選待逐顆親驗(KeyColor/Pixelate/ConvertColors 先確認單 cbuffer)。Tint/AdjustColors/ChannelMixer/ToneMapping=已做。
+   - point_modify: SubdivideLinePoints/ReorientLinePoints(切線 rot Y·X·Z,W weight)。PointAttributeFromNoise=compound 排除。SelectPoints=moderate。
+   - point_combine: **SnapToPoints 已做**(count-policy 機制現成,後續 2-input op 可重用 countFromFirstPointsInput)。
+   - generators: CommonPointSets/RepetitionPoints(⚠CPU 生成=新接縫,先做 PointCookCtx map buffer 接縫探針再開)。
+2. **UI 視覺第三刀**: 標題字級 13→18(CJK atlas/node 尺寸連動)/連線 idle-fade(editor_ui.cpp:201-203)/pin 方→三角(node_draw.cpp:31)。
+3. **互動 S3 二梯隊**: fence Shift/Ctrl 三模式/雙擊 annotation rename/G layout(moderate)。
+4. particle 深化=subsystem(§D)排後。soundtrack @4x=task_adc40d12 chip 柏為域。
+5. DoyleSpiral 視覺/數值 ground-truth: 可外包 Windows TiXL lane(`to_windows_tixl` kit)Player 截圖對照(柏為暫認可不做)。
+
+**`/sw-node-batch` 教訓沉澱(第二航)**: ①orchestrator 前置掃缺口必親讀 .cs/.hlsl 認 compound(單.cs+單.hlsl+全參數一個 cbuffer 才真 cheap),ledger sizing 不可信。②agent 完工≠正確:矩陣轉置/count-policy 這種 selftest 沒覆蓋的承重點,orchestrator 親手復查抓得到(AgX 經驗性牙+count graph golden)。③shared-runtime 修(count-policy driver)是 orchestrator 域,加 per-op 旗標 default 不變舊行為。
