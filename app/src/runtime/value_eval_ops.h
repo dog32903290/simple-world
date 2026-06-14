@@ -113,4 +113,10 @@ float evalScaleVector2(int outIdx, const float* in, int n, const EvaluationConte
 // default 0). outIdx unused (single output). Needs the MultiInput seam (PortSpec.multiInput).
 float evalSum(int outIdx, const float* in, int n, const EvaluationContext&);
 // [math-batch25] END declarations
+
+// [logic-batch27] BEGIN declarations — stateless float→bool(0/1) logic. Bool output dissolves to
+// Float 0/1 (Cut 32: no Bool port type). TiXL float/logic/{IsGreater,Compare}.cs.
+float evalIsGreater(int outIdx, const float* in, int n, const EvaluationContext&);
+float evalCompare(int outIdx, const float* in, int n, const EvaluationContext&);
+// [logic-batch27] END declarations
 }  // namespace sw

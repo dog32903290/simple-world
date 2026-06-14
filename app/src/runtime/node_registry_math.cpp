@@ -159,6 +159,37 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Interpolation", "Interpolation", "Float", true, 0.0f, 0.0f, 10.0f, Widget::Enum,
          {"Linear", "Sine", "Quad", "Cubic", "Quart", "Quint", "Expo", "Circ", "Back", "Elastic", "Bounce"}}},
        nullptr},
+      // --- logic family (batch27). Bool outputs dissolve to Float 0/1 (Cut 32: no Bool port type). ---
+      // IsGreater — Result = Value > Threshold. TiXL float/logic/IsGreater.cs (stateless; its
+      // _lastResult change-gate is a dirty-flag opt, not load-bearing — see evalIsGreater fork note).
+      {"IsGreater", "IsGreater",
+       {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Threshold", "Threshold", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Result", "Result", "Float", false}},
+       evalIsGreater},
+      // Compare — IsTrue per Mode(IsSmaller/IsEqual/IsLarger/IsNotEqual). TiXL float/logic/Compare.cs.
+      {"Compare", "Compare",
+       {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"TestValue", "TestValue", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+         {"IsSmaller", "IsEqual", "IsLarger", "IsNotEqual"}},
+        {"Precision", "Precision", "Float", true, 0.001f, 0.0f, 1.0f},
+        {"IsTrue", "IsTrue", "Float", false}},
+       evalCompare},
+      // HasValueIncreased — HasIncreased = Value > lastValue + Threshold. TiXL float/logic/
+      // HasValueIncreased.cs (stateful; output FIRST for the extOut-by-index path; nullptr eval).
+      {"HasValueIncreased", "HasValueIncreased",
+       {{"HasIncreased", "HasIncreased", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f}},
+       nullptr},
+      // HasValueDecreased — HasDecreased = Value < lastValue - Threshold. TiXL float/process/
+      // HasValueDecreased.cs (stateful; output FIRST; nullptr eval).
+      {"HasValueDecreased", "HasValueDecreased",
+       {{"HasDecreased", "HasDecreased", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f}},
+       nullptr},
       {"Const", "Const",
        {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},

@@ -330,6 +330,25 @@ void springVecImpl(const std::map<std::string, float>& in, StatefulValueState& s
 void stepSpringVec2(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3]) { springVecImpl(in, st, out, 2); }
 void stepSpringVec3(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3]) { springVecImpl(in, st, out, 3); }
 
+// --- HasValueIncreased / HasValueDecreased (TiXL float/logic/HasValueIncreased.cs,
+// float/process/HasValueDecreased.cs). Compare this frame's Value to last frame's; output a Float
+// 0/1 flag (Bool dissolves to Float 0/1, Cut 32). State: s[0]=lastValue (init 0 → frame 1 compares
+// against 0). Stateful because the flag needs the PRIOR frame's value. Verbatim:
+//   Increased: HasIncreased = v > _lastValue + Threshold;  _lastValue = v;
+//   Decreased: HasDecreased = v < _lastValue - Threshold;  _lastValue = v;
+void stepHasValueIncreased(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3]) {
+  const float v = getIn(in, "Value", 0.0f);
+  const float threshold = getIn(in, "Threshold", 0.0f);
+  out[0] = (v > st.s[0] + threshold) ? 1.0f : 0.0f;
+  st.s[0] = v;
+}
+void stepHasValueDecreased(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3]) {
+  const float v = getIn(in, "Value", 0.0f);
+  const float threshold = getIn(in, "Threshold", 0.0f);
+  out[0] = (v < st.s[0] - threshold) ? 1.0f : 0.0f;
+  st.s[0] = v;
+}
+
 inline int enumOf(const std::map<std::string, float>& in, const char* k) {
   return (int)std::lround(getIn(in, k, 0.0f));
 }
@@ -420,6 +439,8 @@ const StatefulOp kStatefulValueOps[] = {
     {"Ease", stepEase},
     {"EaseVec2", stepEaseVec2},
     {"EaseVec3", stepEaseVec3},
+    {"HasValueIncreased", stepHasValueIncreased},
+    {"HasValueDecreased", stepHasValueDecreased},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -657,6 +678,40 @@ int runStatefulValueSelfTest(bool injectBug) {
     bool pass = std::fabs(out[0] - 0.5f) < eps && std::fabs(out[1] - wy) < eps && std::fabs(out[2] - 2.0f) < eps;
     ok = ok && pass;
     printf("[selftest-statefulvalue] EaseVec3 p=0.5=(%.3f,%.3f,%.3f) want=(0.500,%.3f,2.000) -> %s\n", out[0], out[1], out[2], wy, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- HasValueIncreased, Threshold=0.5: Value 1,3,3.2,2 → flag 1,1,0,0 -----
+  // lastValue inits 0. f1: 1>0+0.5 → 1. f2: 3>1+0.5 → 1. f3: 3.2>3+0.5? (3.5) no → 0. f4: 2>3.2+0.5 no → 0.
+  // (f3 proves the Threshold band — a +0.2 rise under the 0.5 threshold does NOT trigger.)
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[4] = {1.0f, 3.0f, 3.2f, 2.0f};
+    const float want[4] = {1.0f, 1.0f, 0.0f, 0.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("HasValueIncreased", {{"Value", val[i]}, {"Threshold", 0.5f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 2) ? 1.0f : want[i];  // bug: ignores Threshold → +0.2 falsely fires
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasIncreased step%d=%.1f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- HasValueDecreased, Threshold=0.5: Value 5,2,1.9,3 → flag 1,1,0,0 -----
+  // lastValue inits 0. f1: 5<0-0.5 no → 0. Wait: f1 5<-0.5 false → 0. So expect 0,1,0,0.
+  // f1: 5 < 0-0.5? no → 0. f2: 2 < 5-0.5 (4.5)? yes → 1. f3: 1.9 < 2-0.5 (1.5)? no → 0. f4: 3 < 1.9-0.5 no → 0.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[4] = {5.0f, 2.0f, 1.9f, 3.0f};
+    const float want[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("HasValueDecreased", {{"Value", val[i]}, {"Threshold", 0.5f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 1) ? 0.0f : want[i];  // bug: never fires
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasDecreased step%d=%.1f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
   }
 
   printf("[selftest-statefulvalue] %s%s\n", ok ? "PASS" : "FAIL", injectBug ? " (injectBug)" : "");

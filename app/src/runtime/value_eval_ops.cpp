@@ -550,4 +550,70 @@ float evalSum(int, const float* in, int n, const EvaluationContext&) {
 }
 // [math-batch25] END implementations
 
+// [logic-batch27] BEGIN implementations
+
+// IsGreater: Result = (Value > Threshold) ? 1.0f : 0.0f.
+// TiXL float/logic/IsGreater.cs: "var result = v > t; Result.Value = result;"
+// Bool output dissolved to Float 0/1 (Cut 32 decision: no Bool port type in this runtime).
+//
+// NAMED FORK — fork-isgreater-stateless:
+//   TiXL keeps a _lastResult field and only writes Result.Value when the bool flips
+//   (lines 22-26: "if (result == _lastResult) return;"). This is a dirty-flag
+//   optimization to avoid re-triggering downstream subscribers — NOT load-bearing
+//   for the output value itself. Our frame model evaluates every node every frame
+//   and produces the identical value regardless; storing _lastResult across frames
+//   would require stateful infrastructure for what is semantically a pure function.
+//   Therefore: implemented as pure STATELESS (no _lastResult), output is identical
+//   every frame to what TiXL would emit once it has written the value.
+//
+// TiXL ports (IsGreater.cs):
+//   Input:  Value (Float, no source default → 0.0f); Threshold (Float, no source default → 0.0f)
+//   Output: Result (Slot<bool> → Float 0/1 here)
+// in[0]=Value, in[1]=Threshold
+float evalIsGreater(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 2) return 0.0f;
+  // TiXL IsGreater.cs line 20: "var result = v > t;"
+  return (in[0] > in[1]) ? 1.0f : 0.0f;
+}
+
+// Compare: IsTrue = compare(Value, TestValue) based on Mode. Output 1.0f/0.0f.
+// TiXL float/logic/Compare.cs: switch on Mode clamped to [0, len-1].
+// Bool output dissolved to Float 0/1 (Cut 32 decision).
+// Modes (TiXL Compare.Modes enum, zero-indexed):
+//   0=IsSmaller: v < test
+//   1=IsEqual:   fabs(v-test) < Precision
+//   2=IsLarger:  v > test
+//   3=IsNotEqual: fabs(v-test) >= Precision
+//
+// TiXL ports (Compare.cs):
+//   Input:  Value (Float, no source default → 0.0f)
+//           TestValue (Float, no source default → 0.0f)
+//           Mode (InputSlot<int> mapped to Modes enum, default 0 = IsSmaller)
+//           Precision (Float, default 0.001f — from InputSlot<float> ctor in .cs)
+//   Output: IsTrue (Slot<bool> → Float 0/1 here)
+// in[0]=Value, in[1]=TestValue, in[2]=Mode(as float enum index), in[3]=Precision
+float evalCompare(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 4) return 0.0f;
+  float v = in[0], test = in[1], precision = in[3];
+  // TiXL Compare.cs line 21: "(Modes)Mode.GetValue(context).Clamp(0, Enum.GetValues(...).Length-1)"
+  // Length=4, so clamp to [0,3].
+  int mode = (int)std::round(in[2]);
+  if (mode < 0) mode = 0;
+  if (mode > 3) mode = 3;
+  switch (mode) {
+    case 0:  // IsSmaller: v < test
+      return (v < test) ? 1.0f : 0.0f;
+    case 1:  // IsEqual: fabs(v-test) < Precision
+      return (std::fabs(v - test) < precision) ? 1.0f : 0.0f;
+    case 2:  // IsLarger: v > test
+      return (v > test) ? 1.0f : 0.0f;
+    case 3:  // IsNotEqual: fabs(v-test) >= Precision
+      return (std::fabs(v - test) >= precision) ? 1.0f : 0.0f;
+    default:
+      return 0.0f;
+  }
+}
+
+// [logic-batch27] END implementations
+
 }  // namespace sw

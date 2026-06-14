@@ -1241,6 +1241,34 @@ int runMathOpsSelfTest(bool injectBug) {
 
   // [math-batch24] END teeth
 
+  // [logic-batch27] BEGIN teeth — stateless logic (IsGreater / Compare). Bool → Float 0/1.
+  // ----- IsGreater: 5>3 → 1; 2>3 → 0 (boundary). TiXL float/logic/IsGreater.cs: v > t.
+  {
+    float r1 = evalOpParams("IsGreater", {{"Value", 5.0f}, {"Threshold", 3.0f}}, "Result");
+    float r0 = evalOpParams("IsGreater", {{"Value", 2.0f}, {"Threshold", 3.0f}}, "Result");
+    float want1 = injectBug ? 0.0f : 1.0f;  // bug flips the expected true case
+    bool pass = std::fabs(r1 - want1) < eps && std::fabs(r0 - 0.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] IsGreater 5>3=%.0f(want %.0f) 2>3=%.0f -> %s\n", r1, want1, r0, pass ? "PASS" : "FAIL");
+  }
+  // ----- Compare all 4 modes. TiXL float/logic/Compare.cs (Mode 0..3, Precision band on Eq/NotEq).
+  // v=2,test=3: IsSmaller→1, IsEqual(prec .001)→0, IsLarger→0, IsNotEqual→1.
+  // v=3,test=3.0005,prec=.001: IsEqual→1 (within band); v=3,test=3.5: IsEqual→0 (outside band).
+  {
+    float sm = evalOpParams("Compare", {{"Value", 2.0f}, {"TestValue", 3.0f}, {"Mode", 0.0f}}, "IsTrue");
+    float lg = evalOpParams("Compare", {{"Value", 2.0f}, {"TestValue", 3.0f}, {"Mode", 2.0f}}, "IsTrue");
+    float ne = evalOpParams("Compare", {{"Value", 2.0f}, {"TestValue", 3.0f}, {"Mode", 3.0f}}, "IsTrue");
+    float eqIn  = evalOpParams("Compare", {{"Value", 3.0f}, {"TestValue", 3.0005f}, {"Mode", 1.0f}, {"Precision", 0.001f}}, "IsTrue");
+    float eqOut = evalOpParams("Compare", {{"Value", 3.0f}, {"TestValue", 3.5f}, {"Mode", 1.0f}, {"Precision", 0.001f}}, "IsTrue");
+    float wantEqIn = injectBug ? 0.0f : 1.0f;  // bug breaks the within-Precision equality
+    bool pass = std::fabs(sm - 1.0f) < eps && std::fabs(lg - 0.0f) < eps && std::fabs(ne - 1.0f) < eps
+                && std::fabs(eqIn - wantEqIn) < eps && std::fabs(eqOut - 0.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Compare sm=%.0f lg=%.0f ne=%.0f eqIn=%.0f(want %.0f) eqOut=%.0f -> %s\n",
+           sm, lg, ne, eqIn, wantEqIn, eqOut, pass ? "PASS" : "FAIL");
+  }
+  // [logic-batch27] END teeth
+
   printf("[selftest-mathops] -> %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
