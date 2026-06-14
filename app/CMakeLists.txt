@@ -161,6 +161,7 @@ add_executable(simple_world
   src/runtime/node_registry_image_filter.cpp
   src/runtime/node_registry_math.cpp
   src/runtime/value_eval_ops.cpp
+  src/runtime/stateful_value_ops.cpp
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
   src/runtime/point_graph_resident.cpp

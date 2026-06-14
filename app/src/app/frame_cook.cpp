@@ -15,6 +15,7 @@
 #include "runtime/point_graph.h"          // PointGraph::cookResident
 #include "runtime/resident_eval_graph.h"  // ResidentEvalGraph / buildEvalGraph
 #include "runtime/spectrum_analyzer.h"    // SpectrumSnapshot
+#include "runtime/stateful_value_ops.h"   // cookStatefulValueOp (Damp/Spring/... value-graph sims)
 #include "runtime/transport.h"            // Transport (two-clock playback head, S5)
 
 namespace sw::framecook {
@@ -168,6 +169,32 @@ void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
   }
 }
 
+// Cook every stateful value node (Damp/Spring/...) — the value-graph sibling of
+// cookAudioReactionNodes. Same shape: resolve each node's Float inputs through the resident drivers
+// (so a Damp.Value wired from Time/Automation walks the curve), step the per-instance state (keyed
+// by resident PATH so it survives projection rebuilds AND stays per-instance inside compounds),
+// write the outputs onto extOut. evalResidentFloat reads them back via the generic no-evaluate path.
+// `dtSecs` is the RAW wall delta (TiXL Damp/Spring sample Playback.LastFrameDuration); each op
+// clamps internally as TiXL does (Damp's spring branch clamps to 1/60; Spring uses no dt).
+void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs,
+                            const Transport& t, uint32_t frameIndex, const SymbolLibrary* lib,
+                            std::map<std::string, StatefulValueState>& state) {
+  ResidentEvalCtx rctx;
+  rctx.localTime = (float)t.position;    // playhead (bars) — automation sampling reads this
+  rctx.localFxTime = (float)t.fxTime;    // wall clock (bars)
+  rctx.frameIndex = frameIndex;
+  rctx.lib = lib;
+  for (ResidentNode& rn : g.nodes) {
+    if (!isStatefulValueOp(rn.opType)) continue;
+    std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
+    float out[3] = {0.0f, 0.0f, 0.0f};
+    cookStatefulValueOp(rn.opType, P, dtSecs, timeSecs, state[rn.path], out);
+    rn.extOut[0] = out[0];
+    rn.extOut[1] = out[1];
+    rn.extOut[2] = out[2];
+  }
+}
+
 void run(PointGraph& pg, const std::string& targetPath) {
   // Frame start = THE defined point where the composition path is validated (document.h):
   // every panel drawn after this agrees on the current symbol; mid-frame edits dangle the
@@ -238,6 +265,16 @@ void run(PointGraph& pg, const std::string& targetPath) {
     static std::map<std::string, AudioReactionState> s_arState;
     cookAudioReactionNodes(g_residentGraph, spec, g_transport, g_frameIndex, &doc::g_lib,
                            s_arState);
+  }
+
+  // Cook stateful value ops (Damp/Spring/...) right after AudioReaction — same once-per-frame slot,
+  // same extOut-mirror contract. dtSecs is the RAW wall delta (these are CPU value sims, frame-rate
+  // dependent like TiXL Playback.LastFrameDuration); each op clamps internally. State keys off the
+  // resident path, so it rides projection rebuilds and stays per-instance inside compounds.
+  {
+    static std::map<std::string, StatefulValueState> s_svState;
+    cookStatefulValueNodes(g_residentGraph, (float)dtSecs, (float)fxSecs, g_transport, g_frameIndex,
+                           &doc::g_lib, s_svState);
   }
 
   ++g_frameIndex;

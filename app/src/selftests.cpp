@@ -34,6 +34,7 @@
 #include "runtime/audio_analyzer.h"
 #include "runtime/audio_ingest.h"
 #include "runtime/audio_reaction.h"
+#include "runtime/stateful_value_ops.h"  // runStatefulValueSelfTest (Damp/Spring value-graph sims)
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
 #include "runtime/particle_system.h"
@@ -203,6 +204,7 @@ const SelfTest kTable[] = {
     {"rendertarget", runRenderTargetSelfTest},
     {"rendertargetwired", runRenderTargetWiredSelfTest},
     {"mathops", runMathOpsSelfTest},
+    {"statefulvalue", runStatefulValueSelfTest},
     {"blur", runBlurSelfTest},
     {"blurchain", runBlurChainSelfTest},
     {"displace", runDisplaceSelfTest},

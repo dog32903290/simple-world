@@ -33,6 +33,26 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Bias", "Bias", "Float", true, 1.0f, 0.0f, 4.0f, Widget::Slider, {}, true},
         {"Reset", "Reset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr},
+      // --- Stateful value ops (批次25 stateful-value seam) ---
+      // Like AudioReaction: evaluate==nullptr (no pure fn — they keep per-instance memory across
+      // frames); cooked once per frame by frame_cook::cookStatefulValueNodes into ResidentNode::
+      // extOut; evalResidentFloat reads extOut[outputPortIndex] (generic no-evaluate path). The
+      // step math + parity citations live in runtime/stateful_value_ops.cpp.
+      // Damp — exponential / critically-damped smoothing toward a target. TiXL float/process/Damp.cs.
+      {"Damp", "Damp",
+       {{"Result", "Result", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Damping", "Damping", "Float", true, 0.9f, 0.0f, 1.0f},
+        {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"LinearInterpolation", "DampedSpring"}}},
+       nullptr},
+      // Spring — spring physics toward a target (overshoots, settles). TiXL float/process/Spring.cs.
+      {"Spring", "Spring",
+       {{"Result", "Result", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Tension", "Tension", "Float", true, 0.1f, 0.0f, 1.0f},
+        {"Strength", "Strength", "Float", true, 0.5f, 0.0f, 4.0f}},
+       nullptr},
       {"Const", "Const",
        {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
