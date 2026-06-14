@@ -341,6 +341,38 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"out", "out", "Points", false},          // re-oriented output bag (port 1)
         {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f}},
        nullptr},
+      // ---- batch 36 (lane point_modify): ResampleLinePoints ----------------------
+      // TiXL parity: external/tixl .../point/modify/ResampleLinePoints.cs + .hlsl
+      // A COUNT-CHANGING MODIFIER: resamples the source line bag into `Count` points along the
+      // source's normalized PARAMETER f in [0,1] (TiXL samples by linear-index parameter, NOT true
+      // arc-length — see SamplePosAtF). Each output is a SmoothDistance-weighted average over
+      // (1 + 2*Samples) parameter taps; SEPARATOR points (NaN Scale) break the line into segments.
+      // Defaults from ResampleLinePoints.t3: Count=100, RangeMode=StartEnd(0), SampleRange=(0,1),
+      //   SmoothDistance=0.5, Samples=3, Rotation=Interpolate(0), RotationUpVector=(0,0,1).
+      // Ports in .cs [Input] order: Points, Count, RangeMode, SampleRange, SmoothDistance, Samples,
+      //   Rotation, RotationUpVector. EVERY port is read by the kernel — no dead port dropped.
+      // NAMED FORK: Count is a Float port (resolved-param spine), cast to int in the cook (clamp
+      //   1..100000 per the .t3 ClampInt). Samples clamped 1..10 (.t3 ClampInt). Same Float-port
+      //   convention as FilterPoints.
+      {"ResampleLinePoints",
+       "ResampleLinePoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // resampled output bag (port 1)
+        {"Count", "Count", "Float", true, 100.0f, 1.0f, 8192.0f},  // output point count (.t3 default 100)
+        {"RangeMode", "RangeMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"StartEnd", "StartLength"}},
+        // SampleRange (TiXL Vector2, default (0,1)) — (start, end-or-length) of the f sweep.
+        {"SampleRange.x", "SampleRange", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"SampleRange.y", "SampleRange.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"SmoothDistance", "SmoothDistance", "Float", true, 0.5f, 0.0f, 10.0f},
+        {"Samples", "Samples", "Float", true, 3.0f, 1.0f, 10.0f},
+        {"Rotation", "Rotation", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Interpolate", "Recompute"}},
+        // RotationUpVector (TiXL Vector3, default (0,0,1)) — up vector for Recompute(qLookAt).
+        {"RotationUpVector.x", "RotationUpVector", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"RotationUpVector.y", "RotationUpVector.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"RotationUpVector.z", "RotationUpVector.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
       // ---- batch 21 (lane point_modify): SelectPoints ----------------------------
       // TiXL parity: external/tixl .../point/modify/SelectPoints.cs + .hlsl
       // A count-preserving MODIFIER: computes a per-point volume-selection scalar (Sphere/Box/

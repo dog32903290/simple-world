@@ -176,6 +176,12 @@ int runOffsetPointsSelfTest(bool injectBug);
 // + determinism. injectBug = Amount=0 -> c*=0 -> no displacement -> FAIL. RemapNoise port not wired (FORK).
 void registerPointAttributeFromNoiseOp();
 int runPointAttributeFromNoiseSelfTest(bool injectBug);
+// ResampleLinePoints MODIFIER golden (point_ops_resamplelinepoints.cpp, batch 36): count-changing
+// arc-PARAMETER resample of a line into Count points (TiXL point/modify/ResampleLinePoints .hlsl).
+// Separator (NaN-Scale) points break the line into segments. injectBug asserts the no-scaling
+// resample law (x == source index, not sourceF*(SourceCount-1)) -> mismatch -> FAIL.
+void registerResampleLinePointsOp();
+int runResampleLinePointsSelfTest(bool injectBug);
 // ChannelMixer image filter (point_ops_channelmixer.cpp, lane image_filter): 4x4 channel matrix
 // mix (TiXL image/color/ChannelMixer / MixChannels.hlsl). injectBug = identity -> no swap -> FAIL.
 void registerChannelMixerOp();

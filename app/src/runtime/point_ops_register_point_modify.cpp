@@ -28,6 +28,7 @@ void registerSelectPointsOp();
 void registerSoftTransformPointsOp();
 void registerOffsetPointsOp();
 void registerPointAttributeFromNoiseOp();
+void registerResampleLinePointsOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -48,6 +49,7 @@ void registerPointModifyPointOps() {
   registerSoftTransformPointsOp();   // Points → Points (volume falloff soft transform, batch 21)
   registerOffsetPointsOp();          // Points → Points (offset along Dir*Dist rotated by point Rotation, batch 24)
   registerPointAttributeFromNoiseOp();// Points → Points (3D noise -> position/rotation attributes, batch 24)
+  registerResampleLinePointsOp();    // Points → Points (arc-param resample to Count points, batch 36)
 }
 
 }  // namespace sw

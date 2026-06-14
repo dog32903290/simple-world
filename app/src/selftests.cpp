@@ -194,6 +194,7 @@ const SelfTest kTable[] = {
     {"doylespiral", runDoyleSpiralPointsSelfTest},
     {"clearsomepoints", runClearSomePointsSelfTest},
     {"reorientlinepoints", runReorientLinePointsSelfTest},
+    {"resamplelinepoints", runResampleLinePointsSelfTest},
     {"selectpoints", runSelectPointsSelfTest},
     {"softtransformpoints", runSoftTransformPointsSelfTest},
     {"offsetpoints", runOffsetPointsSelfTest},
