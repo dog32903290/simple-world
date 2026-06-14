@@ -1409,3 +1409,10 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 **工單筆誤校正(查 TiXL 不發明的價值)**: orchestrator 工單把 PreventContinuedChanges 語義寫反(說=1 放行)→implementer agent 抓出+照 TiXL 源碼(非工單)實作=1 抑制連續/0 放行,selftest 證真語義。權威永遠是 external/tixl。
 🟡 柏為親測:Mode/Threshold/MinTimeBetweenHits 接觸發看 0/1 脈衝時機。
 **Resume 更新**: #2 HasValueChanged ✅ 已消化。剩 #0 Gradient(op machine→主線/widget→待驗清單)/#1 雙texture filter(柏為域)/#3 Bool seam(需消費端)/#4 Field/SDF+camera(大子系統=停手條件)。自走下一顆候選=Gradient SampleGradient op(machine-verifiable pure evaluate,widget 堆清單)或掃 TiXL 找剩餘 machine-verifiable value/math leaf。
+
+## Cut 35 — 批次 29: DetectPulse (mass pass 自走第二顆) + 間隔修正 (2026-06-14 夜; Opus orchestrator, /loop 自走) ✅
+**柏為點「沒往下走」→ 根因=我把 /loop 間隔設 1200s(20min)idle,體感像死。修=間隔縮到 ~90s(productive tick 非 poll,turn 本身已長 cache 冷,短間隔合理)+ 當下手動先做一批證明在動。**
+**commit `8fe1512`**: DetectPulse(TiXL float/process/DetectPulse.cs 逐字,stateful seam)。2 輸出 HasChanged(Bool→Float)/DebugValue(=dampedValue−newValue 更新前);4 輸入 Value/Threshold/Damping(clamp01)/MinTimeBetweenHits。state s[0]=lastHitTime(init -1e30f)/s[1]=wasHit/s[2]=dampedValue。dampedValue=Lerp(newValue,dampedValue,Damping);WasTriggered 上升沿;gate 含 TiXL 冗餘內層 re-check 逐字。named fork=LocalFxTime→seam time。selftest 7 幀 damped 軌跡+齒咬。--bite PASS=125 FAILED:[]/NO-BITE:[]/check-arch 綠。
+**TiXL .t3 預設權威(查不發明×2)**: agent 抓出工單兩處筆誤——①Log Base 工單說無預設用 10→實際 Log.t3 Base=1.0(且 base=1 落 degenerate→0 guard);②DetectPulse Damping 工單猜 0→實際 DetectPulse.t3 Damping=0.95/Value=1/Threshold=0/MinTime=0.075。**教訓沉澱:value op 預設權威=`external/tixl` 的 `.t3`(SymbolJson),工單別猜,implementer 自己查 .t3。** Log 本身早批次已落地(本批確認 faithful 未動)。
+🟡 柏為親測:Damping/Threshold/MinTime 接訊號看脈衝偵測。
+**Resume(批次30 候選,machine-verifiable 礦剩薄)**: BlendValues(stateless,MultiInput<float> Values + F regular input,Fmod index+Lerp;⚠混 MultiInput+regular port,gather 順序要驗)/Accumulator(stateful,_v 累加,SecondsFromBars bars-time→可用 seam dt 直接替=named fork,enum AccumulationModes+bool Running/ResetTrigger)。**PeakLevel BLOCKED**(4 輸出>out[3]+FoundPeak Bool→需 >3 輸出 seam 小改)。這兩顆後 float/numbers machine-verifiable leaf 近見底→往下=Gradient op-half(widget 堆清單)或撞停手條件(需眼/大子系統)回報柏為。
