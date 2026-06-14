@@ -351,10 +351,41 @@ int runMultiInputSelfTest(bool injectBug) {
                        ? -1.0f
                        : evalResidentFloat(g0, it0->second.first, it0->second.second, ctx);
 
+  // Mixed MultiInput + trailing regular port (批次35): Root { Const(10),Const(20),Const(30) → BlendValues
+  // .Values (multiInput), Const(1.5) → BlendValues.F }. f=1.5 → i1=Fmod(1,3)=1, i2=Fmod(2,3)=2,
+  // mix=0.5 → Lerp(Values[1],Values[2],0.5) = Lerp(20,30,0.5) = 25. Proves the eval separates the
+  // variable-length Values prefix from the trailing F (= in[n-1]). A gather that mis-placed F (or
+  // folded it into Values) would NOT give 25.
+  Symbol blend = atomic("BlendValues", {{"Values", "Values", "Float", 0.0f}, {"F", "F", "Float", 0.0f}},
+                        {{"Result", "Result", "Float", 0.0f}});
+  SymbolLibrary libB;
+  libB.symbols[cst.id] = cst;
+  libB.symbols[blend.id] = blend;
+  Symbol rootB; rootB.id = "RB"; rootB.name = "RB"; rootB.atomic = false;
+  rootB.outputDefs = {{"out", "out", "Float", 0.0f}};
+  SymbolChild b1; b1.id = 1; b1.symbolId = "Const"; b1.overrides["value"] = 10.0f;
+  SymbolChild b2; b2.id = 2; b2.symbolId = "Const"; b2.overrides["value"] = 20.0f;
+  SymbolChild b3; b3.id = 3; b3.symbolId = "Const"; b3.overrides["value"] = 30.0f;
+  SymbolChild bf; bf.id = 5; bf.symbolId = "Const"; bf.overrides["value"] = 1.5f;
+  SymbolChild bl; bl.id = 4; bl.symbolId = "BlendValues";
+  rootB.children = {b1, b2, b3, bf, bl};
+  rootB.connections = {
+      {1, "out", 4, "Values"},                // primary multiInput source
+      {2, "out", 4, "Values"},                // extra
+      {3, "out", 4, "Values"},                // extra
+      {5, "out", 4, "F"},                     // trailing regular port (must NOT join the Values segment)
+      {4, "Result", kSymbolBoundary, "out"},
+  };
+  libB.symbols[rootB.id] = rootB; libB.rootId = "RB";
+  ResidentEvalGraph gB = buildEvalGraph(libB, "RB");
+  auto itB = gB.outputs.find("out");
+  float blendVal = (itB == gB.outputs.end()) ? -1.0f : evalResidentFloat(gB, itB->second.first, itB->second.second, ctx);
+
   float wantSum = injectBug ? 2.0f : 10.0f;  // 2 = the only-primary (broken-gather) failure mode
-  bool pass = (sumVal == wantSum) && (emptyVal == 0.0f);
-  printf("[selftest-multiinput] Sum(2,3,5)=%.1f want=%.1f empty=%.1f(want 0) -> %s\n",
-         sumVal, wantSum, emptyVal, pass ? "PASS" : "FAIL");
+  float wantBlend = injectBug ? 20.0f : 25.0f;  // 20 = F folded into Values / wrong boundary
+  bool pass = (sumVal == wantSum) && (emptyVal == 0.0f) && (std::fabs(blendVal - wantBlend) < 1e-4f);
+  printf("[selftest-multiinput] Sum(2,3,5)=%.1f want=%.1f empty=%.1f(want 0) Blend(10,20,30;f1.5)=%.1f(want %.1f) -> %s\n",
+         sumVal, wantSum, emptyVal, blendVal, wantBlend, pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }
 

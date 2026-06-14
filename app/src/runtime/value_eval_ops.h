@@ -128,4 +128,6 @@ float evalEulerToAxisAngle(int outIdx, const float* in, int n, const EvaluationC
 // [vec-batch32]
 float evalRemapVec2(int outIdx, const float* in, int n, const EvaluationContext&);
 float evalPadVec2Range(int outIdx, const float* in, int n, const EvaluationContext&);
+// [blend-batch35] mixed MultiInput<float> prefix + trailing regular port (F).
+float evalBlendValues(int outIdx, const float* in, int n, const EvaluationContext&);
 }  // namespace sw

@@ -717,4 +717,24 @@ float evalPadVec2Range(int outIdx, const float* in, int n, const EvaluationConte
 }
 // [vec-batch32] END implementations
 
+// [blend-batch35] BlendValues — blend between a MultiInput<float> list by F. TiXL float/process/
+// BlendValues.cs. The resident gather lays out in[] = [Values… (multiInput prefix), F (trailing
+// regular port)], so the Values count = n-1 and F = in[n-1] (the eval-side mixed-multiInput
+// convention: multiInput is the prefix, K trailing regular ports → segment = n-K). No gather change.
+// count==0 (nothing wired) can't occur here — the gather always yields the primary default slot
+// (in[0]=0) → blends to 0 = TiXL's empty→0, faithful. Fmod is the positive modulo (MathUtils.Fmod).
+float evalBlendValues(int /*outIdx*/, const float* in, int n, const EvaluationContext&) {
+  if (n < 2) return n == 1 ? in[0] : 0.0f;  // need ≥1 Value + F
+  const int count = n - 1;                   // exclude the trailing F
+  const float f = in[n - 1];
+  auto fmodPos = [](float v, float m) { return m != 0.0f ? v - m * std::floor(v / m) : 0.0f; };
+  int i1 = (int)fmodPos((float)(int)f, (float)count);
+  int i2 = (int)fmodPos((float)((int)f + 1), (float)count);
+  const float mix = fmodPos(f, 1.0f);
+  if (i1 < 0) i1 = 0; else if (i1 >= count) i1 = count - 1;  // safety clamp
+  if (i2 < 0) i2 = 0; else if (i2 >= count) i2 = count - 1;
+  return in[i1] + (in[i2] - in[i1]) * mix;  // MathUtils.Lerp(Values[i1], Values[i2], mix)
+}
+// [blend-batch35] END
+
 }  // namespace sw

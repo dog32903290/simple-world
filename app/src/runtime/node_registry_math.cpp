@@ -332,6 +332,14 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f},
         {"MinTimeBetweenPeaks", "MinTimeBetweenPeaks", "Float", true, 0.0f, 0.0f, 2.0f}},
        nullptr},
+      // BlendValues — blend between a MultiInput<float> list by F. TiXL float/process/BlendValues.cs.
+      // Values (multiInput) MUST precede the trailing regular F — the eval reads F as in[n-1] and the
+      // Values segment as in[0..n-2] (mixed-multiInput convention; no gather change, batch35).
+      {"BlendValues", "BlendValues",
+       {{"Result", "Result", "Float", false},
+        {"Values", "Values", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Slider, {}, false, 1, true},
+        {"F", "F", "Float", true, 0.0f, 0.0f, 100.0f}},
+       evalBlendValues},
       {"Const", "Const",
        {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
