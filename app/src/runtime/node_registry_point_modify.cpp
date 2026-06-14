@@ -452,6 +452,67 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f,
          Widget::Enum, {"None", "F1", "F2"}}},
        nullptr},
+      // ---- batch 24 (lane point_modify): OffsetPoints ----------------------------
+      // TiXL parity: external/tixl .../point/_internal/_OffsetPoints.cs (.cs ports lines 10-17) +
+      //              .../Assets/shaders/points/modify/OffsetPoints.hlsl (.hlsl math lines 30-45)
+      // The cleanest count-preserving modifier (no simplification): per point
+      //   Position += qRotateVec3(Direction * Distance, Point.Rotation)   (.hlsl line 40)
+      // The offset is rotated by the point's OWN existing Rotation — no new rotation is built, so
+      // there is no Euler/rotation-order question here. Rotation/Color/Scale/W preserved verbatim.
+      // .cs ports: Points / Direction(Vector3) / Distance(float). Op name drops TiXL's internal-
+      // namespace leading underscore (class is _OffsetPoints in Lib.point._internal).
+      // Defaults: Direction=(0,0,1), Distance=0 (Distance 0 -> identity no-op until the user dials it).
+      {"OffsetPoints",
+       "OffsetPoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // offset output bag (port 1)
+        // Direction (TiXL Vector3) — offset direction in each point's LOCAL frame (rotated by its Rotation).
+        {"Direction.x", "Direction", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Direction.y", "Direction.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Direction.z", "Direction.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Distance", "Distance", "Float", true, 0.0f, -10.0f, 10.0f}},
+       nullptr},
+      // ---- batch 24 (lane point_modify): PointAttributeFromNoise ------------------
+      // TiXL parity: external/tixl .../point/modify/PointAttributeFromNoise.cs +
+      //              .../Assets/shaders/points/modify/PointAttributesFromNoise.hlsl
+      // A count-preserving MODIFIER: samples a 3D simplex-noise field per point and routes it into
+      // chosen attributes via 4 channels (Brightness/L, Red, Green, Blue), each with its own
+      // attribute target (Attributes enum) + Factor + Offset. enum: NotUsed=0, For_X/Y/Z/W=1/2/3/4,
+      // Rotate_X/Y/Z=5/6/7. Position += routed channels; rotation accumulates X->Y->Z (qMul order).
+      // Defaults: all selectors NotUsed(0), Factors=1, Offsets=0, Center=(0,0,0), Phase=0,
+      //   Frequency=1, Amount=1, Variation=0.
+      // FORK (named): TiXL's optional RemapNoise(Gradient)/UseRemapCurve/remapCurveTexture branch is
+      //   NOT wired (work order); UseRemapCurve baked false -> always `c *= Amount/100`. No such ports.
+      {"PointAttributeFromNoise",
+       "PointAttributeFromNoise",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // noise-driven output bag (port 1)
+        // .cs Brightness/Red/Green/Blue = int attribute enum (MappedType=Attributes); each + Factor + Offset.
+        {"Brightness", "Brightness", "Float", true, 0.0f, 0.0f, 7.0f, Widget::Enum,
+         {"NotUsed", "For_X", "For_Y", "For_Z", "For_W", "Rotate_X", "Rotate_Y", "Rotate_Z"}},
+        {"BrightnessFactor", "BrightnessFactor", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"BrightnessOffset", "BrightnessOffset", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Red", "Red", "Float", true, 0.0f, 0.0f, 7.0f, Widget::Enum,
+         {"NotUsed", "For_X", "For_Y", "For_Z", "For_W", "Rotate_X", "Rotate_Y", "Rotate_Z"}},
+        {"RedFactor", "RedFactor", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"RedOffset", "RedOffset", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Green", "Green", "Float", true, 0.0f, 0.0f, 7.0f, Widget::Enum,
+         {"NotUsed", "For_X", "For_Y", "For_Z", "For_W", "Rotate_X", "Rotate_Y", "Rotate_Z"}},
+        {"GreenFactor", "GreenFactor", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"GreenOffset", "GreenOffset", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Blue", "Blue", "Float", true, 0.0f, 0.0f, 7.0f, Widget::Enum,
+         {"NotUsed", "For_X", "For_Y", "For_Z", "For_W", "Rotate_X", "Rotate_Y", "Rotate_Z"}},
+        {"BlueFactor", "BlueFactor", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"BlueOffset", "BlueOffset", "Float", true, 0.0f, -10.0f, 10.0f},
+        // Center (TiXL Vector3) — added to position before the noise lookup (.hlsl line 91).
+        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Frequency", "Frequency", "Float", true, 1.0f, 0.0f, 20.0f},
+        {"Amount", "Amount", "Float", true, 1.0f, -200.0f, 200.0f},
+        {"Variation", "Variation", "Float", true, 0.0f, 0.0f, 100.0f}},
+       nullptr},
   };
   return specs;
 }

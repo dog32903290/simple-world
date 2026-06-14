@@ -174,9 +174,100 @@ struct VecFieldForceParams {
 #endif
 };
 
+// VelocityForce params — mirrors TiXL VelocityForce.hlsl cbuffer Params (b0):
+//   float Amount; float Acelleration; float MinSpeed; float MaxSpeed;
+//   float Variation; float2 VariationGainAndBias;
+// (external/tixl .../particle/force/VelocityForce.cs + .../shaders/particles/VelocityForce.hlsl.)
+// Reads each particle's CURRENT velocity, rescales its SPEED (magnitude) along its existing
+// direction, clamping to [MinSpeed,MaxSpeed]. Pure value params, no field/buffer. +Count
+// (no GetDimensions in MSL). float2 VariationGainAndBias carried as 2 scalars (no vec2 in a
+// cbuffer = zero alignment traps); the shader reassembles float2(GainBiasX,GainBiasY).
+struct VelForceParams {
+  float Amount;
+  float Accelerate;   // .hlsl cbuffer field "Acelleration" (TiXL's spelling); .cs slot "Accelerate"
+  float MinSpeed;
+  float MaxSpeed;
+  float Variation;
+  float GainBiasX;    // VariationGainAndBias.x
+  float GainBiasY;    // VariationGainAndBias.y
+#ifdef __METAL_VERSION__
+  uint Count;
+#else
+  uint32_t Count;
+#endif
+};
+
+// AxisStepForce params — mirrors TiXL AxisStepForce.hlsl cbuffer Params (b0):
+//   float ApplyTrigger; float Strength; float RandomizeStrength; float SelectRatio;
+//   float3 AxisDistribution; float AddOriginalVelocity;
+//   float3 StrengthDistribution; float Seed; float AxisSpace;
+// (external/tixl .../particle/force/AxisStepForce.cs + .../shaders/particles/AxisStepForce.hlsl.)
+// hash41u(index + Seed*k) per-particle picks a random dominant axis + signed strength; SelectRatio
+// gates which particles get hit; velocity is lerp'd toward (origVel*AddOriginalVelocity + dir*f).
+// Pure value params + per-particle hash, stateless (no sim buffer). Vec3 inputs carried as 3
+// scalars each (no packed in a cbuffer). AxisSpace int mode: 0=ObjectSpace, 1=RotationSpace
+// (rotates the chosen axis by the particle's own Rotation quat — uses Particle.Rotation, already
+// in the shared buffer, so still stateless). Seed/AxisSpace are float here (host casts int->float;
+// the .hlsl reads them as float and casts (uint)Seed / compares AxisSpace<0.5,<1.5).
+struct AxisStepForceParams {
+  float ApplyTrigger;
+  float Strength;
+  float RandomizeStrength;
+  float SelectRatio;
+  float AxisDistributionX;
+  float AxisDistributionY;
+  float AxisDistributionZ;
+  float AddOriginalVelocity;
+  float StrengthDistributionX;
+  float StrengthDistributionY;
+  float StrengthDistributionZ;
+  float Seed;
+  float AxisSpace;
+#ifdef __METAL_VERSION__
+  uint Count;
+#else
+  uint32_t Count;
+#endif
+  float _pad0;
+  float _pad1;  // -> 64 bytes (16-byte multiple)
+};
+
+// SnapToAnglesForce params — mirrors TiXL SnapOrientationForce.hlsl cbuffer Params (b0) AND the
+// SnapToAnglesForce.t3 input->cbuffer wiring (the .cs slot names differ from the .hlsl cbuffer
+// field names; the .t3 FloatsToBuffer connection ORDER is the authority — see NAMED FORK in
+// snaptoanglesforce.metal). Positional map (FloatsToBuffer order in SnapToAnglesForce.t3):
+//   [0] Amount             -> Amount
+//   [1] AngleCount         -> SnapAngle     (degrees per step; subdivisions = 360/AngleCount)
+//   [2] Twist              -> PhaseAngle    (degrees, added to the aligned angle every frame)
+//   [3] Variation          -> Variation
+//   [4] VariationThreshold -> VariationRatio
+//   [5] KeepPlanar         -> KeepPlanar
+//   [6] Mode(int->float)   -> SpaceAndPlane (0=CameraSpace,1=WorldXY,2=WorldXZ,3=WorldYZ)
+// + RandomSeed (b1 in .hlsl); + Count. Quantizes each particle's velocity DIRECTION on a plane to
+// the nearest of (360/AngleCount) discrete angles, lerp'd by Amount. Pure value params + per-
+// particle hash41u, stateless.
+struct SnapAnglesForceParams {
+  float Amount;
+  float SnapAngle;       // = AngleCount (.cs)
+  float PhaseAngle;      // = Twist (.cs), in degrees
+  float Variation;
+  float VariationRatio;  // = VariationThreshold (.cs)
+  float KeepPlanar;
+  float SpaceAndPlane;   // = Mode (.cs): 0..3
+  float RandomSeed;      // .hlsl b1 (host casts int->float; shader casts (uint))
+#ifdef __METAL_VERSION__
+  uint Count;
+#else
+  uint32_t Count;
+#endif
+  float _pad0;
+  float _pad1;
+  float _pad2;  // -> 48 bytes (16-byte multiple)
+};
+
 enum ForceBinding {
   FORCE_Particles = 0,  // device Particle* (u0) — shared by all force kernels
-  FORCE_Params = 1,     // constant {Turb,DirForce,VecFieldForce}Params& (b0)
+  FORCE_Params = 1,     // constant {Turb,DirForce,VecFieldForce,Vel,AxisStep,SnapAngles}Params& (b0)
 };
 
 // Force-op discriminator. A ParticleForce node carries a pinless `_ForceKind` Float whose spec
@@ -187,6 +278,10 @@ enum ForceKind {
   FORCE_KIND_TURBULENCE = 0,
   FORCE_KIND_DIRECTIONAL = 1,
   FORCE_KIND_VECTORFIELD = 2,
+  // 批次24 — appended (NOT inserted: pre-existing .swproj _ForceKind overrides keep their meaning).
+  FORCE_KIND_VELOCITY = 3,    // VelocityForce
+  FORCE_KIND_AXISSTEP = 4,    // AxisStepForce
+  FORCE_KIND_SNAPANGLES = 5,  // SnapToAnglesForce
 };
 
 // RadialPoints emitter — generates a ring of Points to feed ParticleSystem.
@@ -244,6 +339,9 @@ enum DrawBinding {
 static_assert(sizeof(TurbParams) == 32, "TurbParams 32 bytes");
 static_assert(sizeof(DirForceParams) == 32, "DirForceParams 32 bytes");
 static_assert(sizeof(VecFieldForceParams) == 16, "VecFieldForceParams 16 bytes");
+static_assert(sizeof(VelForceParams) == 32, "VelForceParams 32 bytes");
+static_assert(sizeof(AxisStepForceParams) == 64, "AxisStepForceParams 64 bytes");
+static_assert(sizeof(SnapAnglesForceParams) == 48, "SnapAnglesForceParams 48 bytes");
 static_assert(sizeof(EmitParams) == 16, "EmitParams 16 bytes");
 static_assert(sizeof(RadialParams) == 48, "RadialParams 48 bytes");
 #endif

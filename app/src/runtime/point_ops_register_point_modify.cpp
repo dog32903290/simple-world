@@ -26,6 +26,8 @@ void registerClearSomePointsOp();
 void registerReorientLinePointsOp();
 void registerSelectPointsOp();
 void registerSoftTransformPointsOp();
+void registerOffsetPointsOp();
+void registerPointAttributeFromNoiseOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -44,6 +46,8 @@ void registerPointModifyPointOps() {
   registerReorientLinePointsOp();    // Points → Points (align rotation to line tangent, batch 21)
   registerSelectPointsOp();          // Points → Points (volume selection -> FX1/FX2, batch 21)
   registerSoftTransformPointsOp();   // Points → Points (volume falloff soft transform, batch 21)
+  registerOffsetPointsOp();          // Points → Points (offset along Dir*Dist rotated by point Rotation, batch 24)
+  registerPointAttributeFromNoiseOp();// Points → Points (3D noise -> position/rotation attributes, batch 24)
 }
 
 }  // namespace sw

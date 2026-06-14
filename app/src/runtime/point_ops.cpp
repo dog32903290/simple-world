@@ -95,6 +95,9 @@ struct SimState {
   MTL::ComputePipelineState* psoTurb = nullptr;   // FORCE_KIND_TURBULENCE
   MTL::ComputePipelineState* psoDir = nullptr;    // FORCE_KIND_DIRECTIONAL
   MTL::ComputePipelineState* psoVecField = nullptr;  // FORCE_KIND_VECTORFIELD
+  MTL::ComputePipelineState* psoVel = nullptr;       // FORCE_KIND_VELOCITY (批次24)
+  MTL::ComputePipelineState* psoAxisStep = nullptr;  // FORCE_KIND_AXISSTEP (批次24)
+  MTL::ComputePipelineState* psoSnapAngles = nullptr;  // FORCE_KIND_SNAPANGLES (批次24)
   MTL::ComputePipelineState* psoSim = nullptr;
   bool seeded = false;
   uint32_t frame = 0;                // monotonic step head -> CollectCycleIndex
@@ -110,6 +113,9 @@ void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count) {
   s->psoTurb = makeComputePSO(dev, lib, "turbulence_force");
   s->psoDir = makeComputePSO(dev, lib, "directional_force");
   s->psoVecField = makeComputePSO(dev, lib, "vector_field_force");
+  s->psoVel = makeComputePSO(dev, lib, "velocity_force");          // 批次24
+  s->psoAxisStep = makeComputePSO(dev, lib, "axis_step_force");    // 批次24
+  s->psoSnapAngles = makeComputePSO(dev, lib, "snaptoanglesforce"); // 批次24
   s->psoSim = makeComputePSO(dev, lib, "particle_sim");
   return s;
 }
@@ -120,6 +126,9 @@ void simStateFree(void* p) {
   if (s->psoTurb) s->psoTurb->release();
   if (s->psoDir) s->psoDir->release();
   if (s->psoVecField) s->psoVecField->release();
+  if (s->psoVel) s->psoVel->release();
+  if (s->psoAxisStep) s->psoAxisStep->release();
+  if (s->psoSnapAngles) s->psoSnapAngles->release();
   if (s->psoSim) s->psoSim->release();
   delete s;
 }
@@ -209,6 +218,57 @@ void cookParticleSim(PointCookCtx& c) {
       vp.Variation = cookInputParam(c, 1, "Randomize", 0.0f);  // TiXL slot name "Randomize"
       vp.SpeedFactor = 1.0f; vp.Count = pool;
       runForce(s->psoVecField, &vp, sizeof(vp));
+    } else if (forceKind == FORCE_KIND_VELOCITY) {
+      // 批次24 VelocityForce — defaults照 VelocityForce.t3: Amount=1, Accelerate=1, MinSpeed=0,
+      // MaxSpeed=1000, Variation=0, VariationGainAndBias=(0.5,0.5).
+      VelForceParams vp{};
+      vp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
+      vp.Accelerate = cookInputParam(c, 1, "Accelerate", 1.0f);
+      vp.MinSpeed = cookInputParam(c, 1, "MinSpeed", 0.0f);
+      vp.MaxSpeed = cookInputParam(c, 1, "MaxSpeed", 1000.0f);
+      vp.Variation = cookInputParam(c, 1, "Variation", 0.0f);
+      vp.GainBiasX = cookInputParam(c, 1, "VariationGainAndBias.x", 0.5f);
+      vp.GainBiasY = cookInputParam(c, 1, "VariationGainAndBias.y", 0.5f);
+      vp.Count = pool;
+      runForce(s->psoVel, &vp, sizeof(vp));
+    } else if (forceKind == FORCE_KIND_AXISSTEP) {
+      // 批次24 AxisStepForce — defaults照 AxisStepForce.t3: ApplyTrigger=true(->1), Strength=1,
+      // RandomizeStrength=0, SelectRatio=0.1, AxisDistribution=(1,1,1), AddOriginalVelocity=0,
+      // StrengthDistribution=(1,1,1), AxisSpace=0(ObjectSpace), Seed=0.
+      AxisStepForceParams ap{};
+      ap.ApplyTrigger = cookInputParam(c, 1, "ApplyTrigger", 1.0f);
+      ap.Strength = cookInputParam(c, 1, "Strength", 1.0f);
+      ap.RandomizeStrength = cookInputParam(c, 1, "RandomizeStrength", 0.0f);
+      ap.SelectRatio = cookInputParam(c, 1, "SelectRatio", 0.1f);
+      ap.AxisDistributionX = cookInputParam(c, 1, "AxisDistribution.x", 1.0f);
+      ap.AxisDistributionY = cookInputParam(c, 1, "AxisDistribution.y", 1.0f);
+      ap.AxisDistributionZ = cookInputParam(c, 1, "AxisDistribution.z", 1.0f);
+      ap.AddOriginalVelocity = cookInputParam(c, 1, "AddOriginalVelocity", 0.0f);
+      ap.StrengthDistributionX = cookInputParam(c, 1, "StrengthDistribution.x", 1.0f);
+      ap.StrengthDistributionY = cookInputParam(c, 1, "StrengthDistribution.y", 1.0f);
+      ap.StrengthDistributionZ = cookInputParam(c, 1, "StrengthDistribution.z", 1.0f);
+      ap.Seed = cookInputParam(c, 1, "Seed", 0.0f);
+      ap.AxisSpace = cookInputParam(c, 1, "AxisSpace", 0.0f);
+      ap.Count = pool;
+      runForce(s->psoAxisStep, &ap, sizeof(ap));
+    } else if (forceKind == FORCE_KIND_SNAPANGLES) {
+      // 批次24 SnapToAnglesForce — defaults照 SnapToAnglesForce.t3: Amount=1, AngleCount=45,
+      // Twist=0, Variation=0.2, VariationThreshold=0.1, KeepPlanar=0.5, Mode=0(CameraSpace, baked
+      // to WorldXY via the named camera fork in snaptoanglesforce.metal), Seed=0.
+      SnapAnglesForceParams sp{};
+      sp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
+      sp.SnapAngle = cookInputParam(c, 1, "AngleCount", 45.0f);
+      sp.PhaseAngle = cookInputParam(c, 1, "Twist", 0.0f);
+      sp.Variation = cookInputParam(c, 1, "Variation", 0.2f);
+      sp.VariationRatio = cookInputParam(c, 1, "VariationThreshold", 0.1f);
+      sp.KeepPlanar = cookInputParam(c, 1, "KeepPlanar", 0.5f);
+      sp.SpaceAndPlane = cookInputParam(c, 1, "Mode", 0.0f);
+      // RandomSeed (.hlsl b1) is NOT an operator input on SnapToAnglesForce (the .cs exposes no
+      // Seed slot; the .t3 feeds b1 from an internal child, not the operator surface). No invented
+      // port — baked to a fixed 0 (the variation hash is still per-particle via the index).
+      sp.RandomSeed = 0.0f;
+      sp.Count = pool;
+      runForce(s->psoSnapAngles, &sp, sizeof(sp));
     } else {  // FORCE_KIND_TURBULENCE (default)
       TurbParams tp{};
       tp.Amount = cookInputParam(c, 1, "Amount", 15.0f);

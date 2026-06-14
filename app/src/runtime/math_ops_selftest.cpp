@@ -881,6 +881,366 @@ int runMathOpsSelfTest(bool injectBug) {
 
   // [math-batch23] END teeth
 
+  // [math-batch24] BEGIN teeth (InvertFloat/CrossVec3/LerpVec3/NormalizeVector3/RoundVec3/
+  //                              AddVec2/DotVec2/Vec2Magnitude/Vector2Components/ScaleVector2)
+
+  // ----- InvertFloat -----
+  // TiXL float/adjust/InvertFloat.cs: "var sign = shouldInvert ? -1 : 1; Result.Value = sign * value;"
+  // Invert=1(true): Result = -A; Invert=0(false): Result = A
+  {
+    float r = evalOpParams("InvertFloat", {{"A", 5.0f}, {"Invert", 1.0f}}, "Result");
+    bool pass = std::fabs(r - (-5.0f)) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] InvertFloat(A=5,Invert=1)=%.4f want=-5.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalOpParams("InvertFloat", {{"A", 5.0f}, {"Invert", 0.0f}}, "Result");
+    bool pass = std::fabs(r - 5.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] InvertFloat(A=5,Invert=0)=%.4f want=5.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if Invert were ignored (always positive sign), Invert=1 would give +5 not -5.
+  if (injectBug) {
+    float r = evalOpParams("InvertFloat", {{"A", 5.0f}, {"Invert", 1.0f}}, "Result");
+    // Assert wrong: positive result (5.0) → FAIL since actual is (-5.0).
+    bool pass = std::fabs(r - 5.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] InvertFloat inject-ignore-invert=%.4f assert=5 (INJECT BUG) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- CrossVec3 -----
+  // TiXL vec3/CrossVec3.cs: "Result.Value = Vector3.Cross(Input1, Input2);"
+  // Cross((1,0,0),(0,1,0)) = (0,0,1); Cross((0,1,0),(1,0,0)) = (0,0,-1) (anti-commutative)
+  {
+    float vx = evalVec3Op("CrossVec3",
+      {{"Input1.x",1.0f},{"Input1.y",0.0f},{"Input1.z",0.0f},
+       {"Input2.x",0.0f},{"Input2.y",1.0f},{"Input2.z",0.0f}}, "Result.x");
+    float vy = evalVec3Op("CrossVec3",
+      {{"Input1.x",1.0f},{"Input1.y",0.0f},{"Input1.z",0.0f},
+       {"Input2.x",0.0f},{"Input2.y",1.0f},{"Input2.z",0.0f}}, "Result.y");
+    float vz = evalVec3Op("CrossVec3",
+      {{"Input1.x",1.0f},{"Input1.y",0.0f},{"Input1.z",0.0f},
+       {"Input2.x",0.0f},{"Input2.y",1.0f},{"Input2.z",0.0f}}, "Result.z");
+    bool pass = std::fabs(vx)<eps && std::fabs(vy)<eps && std::fabs(vz-1.0f)<eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] CrossVec3((1,0,0)x(0,1,0))=(%.2f,%.2f,%.2f) want=(0,0,1) -> %s\n",
+           vx, vy, vz, pass ? "PASS" : "FAIL");
+  }
+  // Anti-commutative: Cross(b,a) = -Cross(a,b): Cross((0,1,0),(1,0,0)).z should be -1
+  {
+    float vz = evalVec3Op("CrossVec3",
+      {{"Input1.x",0.0f},{"Input1.y",1.0f},{"Input1.z",0.0f},
+       {"Input2.x",1.0f},{"Input2.y",0.0f},{"Input2.z",0.0f}}, "Result.z");
+    bool pass = std::fabs(vz - (-1.0f)) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] CrossVec3((0,1,0)x(1,0,0)).z=%.2f want=-1.00 -> %s\n", vz, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if dot product were used instead of cross, Cross((1,0,0),(0,1,0)).z would be 0 (dot=0), not 1.
+  // More distinguishable: Cross((1,2,3),(4,5,6)).x = 2*6-3*5=12-15=-3; dot would give 1*4+2*5+3*6=32.
+  if (injectBug) {
+    float vz = evalVec3Op("CrossVec3",
+      {{"Input1.x",1.0f},{"Input1.y",0.0f},{"Input1.z",0.0f},
+       {"Input2.x",0.0f},{"Input2.y",1.0f},{"Input2.z",0.0f}}, "Result.z");
+    // Assert dot-result (0.0) → FAIL since actual cross result is 1.0.
+    bool pass = std::fabs(vz) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] CrossVec3 inject-as-dot z=%.4f assert=0 (INJECT BUG) -> %s\n", vz, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- LerpVec3 -----
+  // TiXL vec3/LerpVec3.cs: Vector3.Lerp(A,B,F) = A+(B-A)*F; Clamp bool.
+  // LerpVec3(A=(0,0,0), B=(10,20,30), F=0.5, Clamp=0) → Result=(5,10,15)
+  {
+    float vx = evalVec3Op("LerpVec3",
+      {{"A.x",0.0f},{"A.y",0.0f},{"A.z",0.0f},
+       {"B.x",10.0f},{"B.y",20.0f},{"B.z",30.0f},
+       {"F",0.5f},{"Clamp",0.0f}}, "Result.x");
+    float vy = evalVec3Op("LerpVec3",
+      {{"A.x",0.0f},{"A.y",0.0f},{"A.z",0.0f},
+       {"B.x",10.0f},{"B.y",20.0f},{"B.z",30.0f},
+       {"F",0.5f},{"Clamp",0.0f}}, "Result.y");
+    float vz = evalVec3Op("LerpVec3",
+      {{"A.x",0.0f},{"A.y",0.0f},{"A.z",0.0f},
+       {"B.x",10.0f},{"B.y",20.0f},{"B.z",30.0f},
+       {"F",0.5f},{"Clamp",0.0f}}, "Result.z");
+    bool pass = std::fabs(vx-5.0f)<eps && std::fabs(vy-10.0f)<eps && std::fabs(vz-15.0f)<eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] LerpVec3((0,0,0),(10,20,30),0.5)=(%.1f,%.1f,%.1f) want=(5,10,15) -> %s\n",
+           vx, vy, vz, pass ? "PASS" : "FAIL");
+  }
+  // Clamp=1: F=2.0 clamped to 1.0 → Result=B
+  {
+    float vx = evalVec3Op("LerpVec3",
+      {{"A.x",0.0f},{"A.y",0.0f},{"A.z",0.0f},
+       {"B.x",10.0f},{"B.y",20.0f},{"B.z",30.0f},
+       {"F",2.0f},{"Clamp",1.0f}}, "Result.x");
+    bool pass = std::fabs(vx - 10.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] LerpVec3 Clamp=1 F=2.0 → x=%.1f want=10.0 -> %s\n", vx, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if Clamp were always applied (ignoring the bool), unclamped F=-1 would give A+(-1)*(B-A).
+  //   LerpVec3((0,0,0),(10,0,0),F=-1,Clamp=0) → x = 0+(-1)*10 = -10; if clamped, x=0.
+  if (injectBug) {
+    float vx = evalVec3Op("LerpVec3",
+      {{"A.x",0.0f},{"A.y",0.0f},{"A.z",0.0f},
+       {"B.x",10.0f},{"B.y",0.0f},{"B.z",0.0f},
+       {"F",-1.0f},{"Clamp",0.0f}}, "Result.x");
+    // Assert clamp-enforced result (0.0) → FAIL since actual is unclamped (-10.0).
+    bool pass = std::fabs(vx) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] LerpVec3 inject-force-clamp x=%.1f assert=0 (INJECT BUG) -> %s\n", vx, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- NormalizeVector3 -----
+  // TiXL vec3/NormalizeVector3.cs: normalize(A)*Factor; guard length>0.001.
+  // NormalizeVector3((3,4,0), Factor=1) → Result=(3/5,4/5,0)=(0.6,0.8,0)
+  {
+    float vx = evalVec3Op("NormalizeVector3",
+      {{"A.x",3.0f},{"A.y",4.0f},{"A.z",0.0f},{"Factor",1.0f}}, "Result.x");
+    float vy = evalVec3Op("NormalizeVector3",
+      {{"A.x",3.0f},{"A.y",4.0f},{"A.z",0.0f},{"Factor",1.0f}}, "Result.y");
+    bool pass = std::fabs(vx-0.6f)<1e-5f && std::fabs(vy-0.8f)<1e-5f;
+    ok = ok && pass;
+    printf("[selftest-mathops] NormalizeVector3((3,4,0),Factor=1)=(%.5f,%.5f) want=(0.6,0.8) -> %s\n",
+           vx, vy, pass ? "PASS" : "FAIL");
+  }
+  // Factor=2: multiplies result
+  {
+    float vx = evalVec3Op("NormalizeVector3",
+      {{"A.x",1.0f},{"A.y",0.0f},{"A.z",0.0f},{"Factor",2.0f}}, "Result.x");
+    bool pass = std::fabs(vx - 2.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] NormalizeVector3((1,0,0),Factor=2) x=%.4f want=2.0000 -> %s\n", vx, pass ? "PASS" : "FAIL");
+  }
+  // Zero-guard: near-zero vector passes through unchanged
+  {
+    float vx = evalVec3Op("NormalizeVector3",
+      {{"A.x",0.0f},{"A.y",0.0f},{"A.z",0.0f},{"Factor",1.0f}}, "Result.x");
+    bool pass = (vx == 0.0f);
+    ok = ok && pass;
+    printf("[selftest-mathops] NormalizeVector3(zero,Factor=1) x=%.4f want=0 (zero-guard) -> %s\n", vx, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if Factor were ignored (always 1), NormalizeVector3((1,0,0),Factor=3) would give 1.0 not 3.0.
+  if (injectBug) {
+    float vx = evalVec3Op("NormalizeVector3",
+      {{"A.x",1.0f},{"A.y",0.0f},{"A.z",0.0f},{"Factor",3.0f}}, "Result.x");
+    // Assert Factor-ignored result (1.0) → FAIL since actual is (3.0).
+    bool pass = std::fabs(vx - 1.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] NormalizeVector3 inject-ignore-factor x=%.4f assert=1 (INJECT BUG) -> %s\n", vx, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- RoundVec3 -----
+  // TiXL vec3/RoundVec3.cs: per-component Round(v*p)/p (Mode=0); Floor/Ceil for other modes.
+  // RoundVec3(Value=(1.6,2.4,3.5), Precision=(1,1,1), Mode=0/Round) → (2,2,4) (banker's round or round-half-up)
+  // Note: std::round uses round-half-away-from-zero; C# MathF.Round uses round-half-to-even (banker's).
+  // For x=1.6: round(1.6)=2, x=2.4: round(2.4)=2, x=3.5: MathF.Round=4 (banker), std::round=4 → same.
+  {
+    float vx = evalVec3Op("RoundVec3",
+      {{"Value.x",1.6f},{"Value.y",2.4f},{"Value.z",3.5f},
+       {"Precision.x",1.0f},{"Precision.y",1.0f},{"Precision.z",1.0f},
+       {"Mode",0.0f}}, "Result.x");
+    float vy = evalVec3Op("RoundVec3",
+      {{"Value.x",1.6f},{"Value.y",2.4f},{"Value.z",3.5f},
+       {"Precision.x",1.0f},{"Precision.y",1.0f},{"Precision.z",1.0f},
+       {"Mode",0.0f}}, "Result.y");
+    bool pass = std::fabs(vx-2.0f)<eps && std::fabs(vy-2.0f)<eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] RoundVec3((1.6,2.4,*),P=1,Mode=Round)=(%.1f,%.1f) want=(2,2) -> %s\n",
+           vx, vy, pass ? "PASS" : "FAIL");
+  }
+  // Mode=1 Floor: Floor(1.9)=1, Floor(-0.1)=-1
+  {
+    float vx = evalVec3Op("RoundVec3",
+      {{"Value.x",1.9f},{"Value.y",-0.1f},{"Value.z",0.0f},
+       {"Precision.x",1.0f},{"Precision.y",1.0f},{"Precision.z",1.0f},
+       {"Mode",1.0f}}, "Result.x");
+    float vy = evalVec3Op("RoundVec3",
+      {{"Value.x",1.9f},{"Value.y",-0.1f},{"Value.z",0.0f},
+       {"Precision.x",1.0f},{"Precision.y",1.0f},{"Precision.z",1.0f},
+       {"Mode",1.0f}}, "Result.y");
+    bool pass = std::fabs(vx-1.0f)<eps && std::fabs(vy-(-1.0f))<eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] RoundVec3((1.9,-0.1),P=1,Mode=Floor)=(%.1f,%.1f) want=(1,-1) -> %s\n",
+           vx, vy, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if Floor were used for Mode=0 instead of Round, Floor(1.6)=1 not 2.
+  if (injectBug) {
+    float vx = evalVec3Op("RoundVec3",
+      {{"Value.x",1.6f},{"Value.y",0.0f},{"Value.z",0.0f},
+       {"Precision.x",1.0f},{"Precision.y",1.0f},{"Precision.z",1.0f},
+       {"Mode",0.0f}}, "Result.x");
+    // Assert floor result (1.0) → FAIL since actual is round (2.0).
+    bool pass = std::fabs(vx - 1.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] RoundVec3 inject-floor-as-round x=%.1f assert=1 (INJECT BUG) -> %s\n", vx, pass ? "PASS" : "FAIL");
+  }
+
+  // Helper: evaluate a Vec2 op with named float params and a named output pin.
+  auto evalVec2Op = [&](const char* type,
+                        std::initializer_list<std::pair<const char*, float>> params,
+                        const char* outPortId) -> float {
+    const NodeSpec* spec = findSpec(type);
+    if (!spec) return -999.0f;
+    Graph g;
+    Node nd; nd.id = g.nextId++;
+    nd.type = type;
+    for (const auto& p : spec->ports)
+      if (p.isInput && p.dataType == "Float") nd.params[p.id] = p.def;
+    g.nodes.push_back(nd);
+    int nid = g.nodes.back().id;
+    for (auto& kv : params) g.node(nid)->params[kv.first] = kv.second;
+    int outIdx = -1;
+    for (size_t i = 0; i < spec->ports.size(); ++i)
+      if (spec->ports[i].id == outPortId) { outIdx = (int)i; break; }
+    EvaluationContext ctx{}; ctx.time = 0.0f;
+    return outIdx < 0 ? -997.0f : evalFloat(g, pinId(nid, outIdx), ctx, 0);
+  };
+
+  // ----- AddVec2 -----
+  // TiXL vec2/AddVec2.cs: "Result.Value = Input1.GetValue(context) + Input2.GetValue(context);"
+  // AddVec2((3,4)+(1,2)) → Result=(4,6)
+  {
+    float rx = evalVec2Op("AddVec2",
+      {{"Input1.x",3.0f},{"Input1.y",4.0f},
+       {"Input2.x",1.0f},{"Input2.y",2.0f}}, "Result.x");
+    float ry = evalVec2Op("AddVec2",
+      {{"Input1.x",3.0f},{"Input1.y",4.0f},
+       {"Input2.x",1.0f},{"Input2.y",2.0f}}, "Result.y");
+    bool pass = std::fabs(rx-4.0f)<eps && std::fabs(ry-6.0f)<eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] AddVec2((3,4)+(1,2))=(%.1f,%.1f) want=(4,6) -> %s\n", rx, ry, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if subtraction were used, AddVec2((3,4),(1,2)).x = 3-1 = 2, not 4.
+  if (injectBug) {
+    float rx = evalVec2Op("AddVec2",
+      {{"Input1.x",3.0f},{"Input1.y",4.0f},
+       {"Input2.x",1.0f},{"Input2.y",2.0f}}, "Result.x");
+    // Assert subtraction result (2.0) → FAIL since actual is addition (4.0).
+    bool pass = std::fabs(rx - 2.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] AddVec2 inject-sub x=%.1f assert=2 (INJECT BUG) -> %s\n", rx, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- DotVec2 -----
+  // TiXL vec2/DotVec2.cs: "Result.Value = Vector2.Dot(Input1, Input2);"
+  // DotVec2((3,4),(1,2)) = 3+8 = 11; DotVec2((1,0),(0,1)) = 0 (perpendicular)
+  {
+    float r = evalVec2Op("DotVec2",
+      {{"Input1.x",3.0f},{"Input1.y",4.0f},
+       {"Input2.x",1.0f},{"Input2.y",2.0f}}, "Result");
+    bool pass = std::fabs(r - 11.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] DotVec2((3,4).(1,2))=%.4f want=11.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalVec2Op("DotVec2",
+      {{"Input1.x",1.0f},{"Input1.y",0.0f},
+       {"Input2.x",0.0f},{"Input2.y",1.0f}}, "Result");
+    bool pass = std::fabs(r) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] DotVec2((1,0).(0,1))=%.4f want=0.0000 (perp) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if x-term only were used (missing y*y2), DotVec2((3,4),(1,2)) = 3, not 11.
+  if (injectBug) {
+    float r = evalVec2Op("DotVec2",
+      {{"Input1.x",3.0f},{"Input1.y",4.0f},
+       {"Input2.x",1.0f},{"Input2.y",2.0f}}, "Result");
+    // Assert missing-y result (3.0) → FAIL since actual is (11.0).
+    bool pass = std::fabs(r - 3.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] DotVec2 inject-missing-y=%.4f assert=3 (INJECT BUG) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- Vec2Magnitude -----
+  // TiXL vec3/Vec2Magnitude.cs: "Result.Value = Input.GetValue(context).Length();"
+  // Vec2Magnitude((3,4)) = 5; Vec2Magnitude((0,0)) = 0
+  {
+    float r = evalVec2Op("Vec2Magnitude",
+      {{"Input.x",3.0f},{"Input.y",4.0f}}, "Result");
+    bool pass = std::fabs(r - 5.0f) < 1e-5f;
+    ok = ok && pass;
+    printf("[selftest-mathops] Vec2Magnitude(3,4)=%.5f want=5.00000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  {
+    float r = evalVec2Op("Vec2Magnitude",
+      {{"Input.x",0.0f},{"Input.y",0.0f}}, "Result");
+    bool pass = (r == 0.0f);
+    ok = ok && pass;
+    printf("[selftest-mathops] Vec2Magnitude(0,0)=%.5f want=0.00000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if squared magnitude used instead of length, Vec2Magnitude((3,4)) = 25, not 5.
+  if (injectBug) {
+    float r = evalVec2Op("Vec2Magnitude",
+      {{"Input.x",3.0f},{"Input.y",4.0f}}, "Result");
+    // Assert squared result (25.0) → FAIL since actual is length (5.0).
+    bool pass = std::fabs(r - 25.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Vec2Magnitude inject-no-sqrt=%.5f assert=25 (INJECT BUG) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- Vector2Components -----
+  // TiXL vec2/Vector2Components.cs: "X.Value = value.X; Y.Value = value.Y;"
+  // Vector2Components((7,11)) → X=7, Y=11
+  {
+    float vx = evalVec2Op("Vector2Components",
+      {{"Value.x",7.0f},{"Value.y",11.0f}}, "X");
+    float vy = evalVec2Op("Vector2Components",
+      {{"Value.x",7.0f},{"Value.y",11.0f}}, "Y");
+    bool pass = std::fabs(vx-7.0f)<eps && std::fabs(vy-11.0f)<eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Vector2Components((7,11))=(%.1f,%.1f) want=(7,11) -> %s\n", vx, vy, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if X and Y were swapped, X would output 11 not 7.
+  if (injectBug) {
+    float vx = evalVec2Op("Vector2Components",
+      {{"Value.x",7.0f},{"Value.y",11.0f}}, "X");
+    // Assert Y-value (11.0) at X output → FAIL since actual is (7.0).
+    bool pass = std::fabs(vx - 11.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Vector2Components inject-xy-swap X=%.1f assert=11 (INJECT BUG) -> %s\n", vx, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- ScaleVector2 -----
+  // TiXL vec2/ScaleVector2.cs: "Result.Value = a * b * u;"
+  // ScaleVector2(A=(3,4), B=(2,2), UniformScale=0.5) → (3*2*0.5, 4*2*0.5) = (3,4)
+  {
+    float rx = evalVec2Op("ScaleVector2",
+      {{"A.x",3.0f},{"A.y",4.0f},
+       {"B.x",2.0f},{"B.y",2.0f},
+       {"UniformScale",0.5f}}, "Result.x");
+    float ry = evalVec2Op("ScaleVector2",
+      {{"A.x",3.0f},{"A.y",4.0f},
+       {"B.x",2.0f},{"B.y",2.0f},
+       {"UniformScale",0.5f}}, "Result.y");
+    bool pass = std::fabs(rx-3.0f)<eps && std::fabs(ry-4.0f)<eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] ScaleVector2((3,4)*(2,2)*0.5)=(%.1f,%.1f) want=(3,4) -> %s\n", rx, ry, pass ? "PASS" : "FAIL");
+  }
+  // UniformScale only: A=(1,1), B=(1,1), U=7 → Result=(7,7)
+  {
+    float rx = evalVec2Op("ScaleVector2",
+      {{"A.x",1.0f},{"A.y",1.0f},
+       {"B.x",1.0f},{"B.y",1.0f},
+       {"UniformScale",7.0f}}, "Result.x");
+    bool pass = std::fabs(rx - 7.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] ScaleVector2(A=B=(1,1),U=7) x=%.1f want=7.0 -> %s\n", rx, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if UniformScale were ignored, ScaleVector2((3,4),(2,2),0.5).x = 3*2 = 6, not 3.
+  if (injectBug) {
+    float rx = evalVec2Op("ScaleVector2",
+      {{"A.x",3.0f},{"A.y",4.0f},
+       {"B.x",2.0f},{"B.y",2.0f},
+       {"UniformScale",0.5f}}, "Result.x");
+    // Assert no-uniform result (6.0) → FAIL since actual is (3.0).
+    bool pass = std::fabs(rx - 6.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] ScaleVector2 inject-no-uniform x=%.1f assert=6 (INJECT BUG) -> %s\n", rx, pass ? "PASS" : "FAIL");
+  }
+
+  // [math-batch24] END teeth
+
   printf("[selftest-mathops] -> %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

@@ -52,6 +52,72 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_VECTORFIELD, 0.0f, 2.0f,
          Widget::Slider, {}, /*pinless=*/true}},
        nullptr},
+      // VelocityForce — TiXL particle/force/VelocityForce. Reads each particle's CURRENT velocity,
+      // keeps its DIRECTION, rescales its SPEED (speed += Accelerate*0.02*strength, clamp[Min,Max]).
+      // Stateless (velocity_force.metal). Defaults照 VelocityForce.t3: Amount=1, Accelerate=1,
+      // MinSpeed=0, MaxSpeed=1000, Variation=0, VariationGainAndBias=(0.5,0.5). The Vec2
+      // VariationGainAndBias is 2 pinless Float components (head Widget::Vec) = TiXL's Vector2.
+      {"VelocityForce",
+       "VelocityForce",
+       {{"force", "force", "ParticleForce", false},
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"Accelerate", "Accelerate", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"MinSpeed", "MinSpeed", "Float", true, 0.0f, 0.0f, 100.0f},
+        {"MaxSpeed", "MaxSpeed", "Float", true, 1000.0f, 0.0f, 1000.0f},
+        {"Variation", "Variation", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"VariationGainAndBias.x", "VariationGainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"VariationGainAndBias.y", "VariationGainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_VELOCITY, 0.0f, 5.0f,
+         Widget::Slider, {}, /*pinless=*/true}},
+       nullptr},
+      // AxisStepForce — TiXL particle/force/AxisStepForce. Per-particle hash picks a random dominant
+      // axis (weighted by AxisDistribution) + signed strength; SelectRatio gates which particles are
+      // hit; velocity lerp'd toward (origVel*AddOriginalVelocity + dir*f) by (ApplyTrigger*selected).
+      // Stateless (axis_step_force.metal). Defaults照 AxisStepForce.t3: ApplyTrigger=true(1),
+      // Strength=1, RandomizeStrength=0, SelectRatio=0.1, AxisDistribution=(1,1,1),
+      // AddOriginalVelocity=0, StrengthDistribution=(1,1,1), AxisSpace=0(ObjectSpace), Seed=0.
+      // ApplyTrigger/AxisSpace/Seed are Float here (the cook casts; the kernel reads as float).
+      {"AxisStepForce",
+       "AxisStepForce",
+       {{"force", "force", "ParticleForce", false},
+        {"ApplyTrigger", "ApplyTrigger", "Float", true, 1.0f, 0.0f, 1.0f},
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"RandomizeStrength", "RandomizeStrength", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"SelectRatio", "SelectRatio", "Float", true, 0.1f, 0.0f, 1.0f},
+        {"AxisDistribution.x", "AxisDistribution", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"AxisDistribution.y", "AxisDistribution.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"AxisDistribution.z", "AxisDistribution.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"AddOriginalVelocity", "AddOriginalVelocity", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"StrengthDistribution.x", "StrengthDistribution", "Float", true, 1.0f, 0.0f, 5.0f, Widget::Vec, {}, true, 3},
+        {"StrengthDistribution.y", "StrengthDistribution.y", "Float", true, 1.0f, 0.0f, 5.0f, Widget::Vec, {}, true, 1},
+        {"StrengthDistribution.z", "StrengthDistribution.z", "Float", true, 1.0f, 0.0f, 5.0f, Widget::Vec, {}, true, 1},
+        {"AxisSpace", "AxisSpace", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"Seed", "Seed", "Float", true, 0.0f, 0.0f, 1000.0f},
+        {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_AXISSTEP, 0.0f, 5.0f,
+         Widget::Slider, {}, /*pinless=*/true}},
+       nullptr},
+      // SnapToAnglesForce — TiXL particle/force/SnapToAnglesForce. Quantizes each particle's velocity
+      // DIRECTION (projected on a plane) to the nearest of (360/AngleCount) discrete angles, lerp'd by
+      // Amount; Twist adds a per-frame phase, KeepPlanar damps the off-plane axis, Variation jitters
+      // via a per-particle hash gate. Stateless (snaptoanglesforce.metal). NAMED FORK snapangles-
+      // camera: Mode=0(CameraSpace) needs view matrices not in the cook ctx -> baked identity camera,
+      // which reduces CameraSpace EXACTLY to WorldXY (full snap math still runs); modes 1/2/3
+      // (WorldXY/XZ/YZ) are 1:1. Defaults照 SnapToAnglesForce.t3: Amount=1, AngleCount=45, Twist=0,
+      // VariationThreshold=0.1, Variation=0.2, KeepPlanar=0.5, Mode=0. No Seed port (the .cs exposes
+      // none — RandomSeed baked 0 in the cook, see point_ops.cpp).
+      {"SnapToAnglesForce",
+       "SnapToAnglesForce",
+       {{"force", "force", "ParticleForce", false},
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f},
+        {"AngleCount", "AngleCount", "Float", true, 45.0f, 1.0f, 360.0f},
+        {"Twist", "Twist", "Float", true, 0.0f, -360.0f, 360.0f},
+        {"VariationThreshold", "VariationThreshold", "Float", true, 0.1f, 0.0f, 1.0f},
+        {"Variation", "Variation", "Float", true, 0.2f, 0.0f, 1.0f},
+        {"KeepPlanar", "KeepPlanar", "Float", true, 0.5f, 0.0f, 1.0f},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 3.0f},
+        {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_SNAPANGLES, 0.0f, 5.0f,
+         Widget::Slider, {}, /*pinless=*/true}},
+       nullptr},
       {"ParticleSystem",
        "ParticleSystem",
        {{"emit", "emit", "Points", true},

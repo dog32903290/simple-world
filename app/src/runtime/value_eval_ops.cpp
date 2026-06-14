@@ -355,4 +355,189 @@ float evalRotateVector3(int outIdx, const float* in, int n, const EvaluationCont
 
 // [math-batch23] END implementations
 
+// [math-batch24] BEGIN implementations
+
+// InvertFloat: sign * A, sign = Invert ? -1 : 1. TiXL float/adjust/InvertFloat.cs:
+//   "var sign = shouldInvert ? -1 : 1; Result.Value = sign * value;"
+// Invert is a bool port (TiXL InputSlot<bool>); we store as float, interpret non-zero = true.
+// TiXL InvertFloat.t3: A default=1.0, Invert default=true (1.0).
+// in: [A, Invert]; outIdx unused (single scalar output "Result").
+float evalInvertFloat(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 2) return 0.0f;
+  float a = in[0];
+  // TiXL InvertFloat.cs line 17: "var sign = shouldInvert ? -1 : 1;"
+  bool shouldInvert = (in[1] != 0.0f);
+  float sign = shouldInvert ? -1.0f : 1.0f;
+  return sign * a;
+}
+
+// CrossVec3: Vector3.Cross(Input1, Input2). TiXL vec3/CrossVec3.cs:
+//   "Result.Value = Vector3.Cross(Input1.GetValue(context), Input2.GetValue(context));"
+// C# Vector3.Cross: (a.Y*b.Z - a.Z*b.Y, a.Z*b.X - a.X*b.Z, a.X*b.Y - a.Y*b.X).
+// TiXL CrossVec3.t3: both inputs default {X:0, Y:0, Z:0}.
+// in: [Input1.x, Input1.y, Input1.z, Input2.x, Input2.y, Input2.z]
+// outIdx → component k = outIdx - n (n=6); Result.x/y/z
+float evalCrossVec3(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 6) return 0.0f;
+  int k = outIdx - n;
+  if (k < 0 || k > 2) return 0.0f;
+  float a[3] = {in[0], in[1], in[2]};
+  float b[3] = {in[3], in[4], in[5]};
+  // TiXL CrossVec3.cs: Vector3.Cross follows right-hand rule:
+  // cross.x = a.y*b.z - a.z*b.y
+  // cross.y = a.z*b.x - a.x*b.z
+  // cross.z = a.x*b.y - a.y*b.x
+  float cross[3] = {
+    a[1]*b[2] - a[2]*b[1],
+    a[2]*b[0] - a[0]*b[2],
+    a[0]*b[1] - a[1]*b[0]
+  };
+  return cross[k];
+}
+
+// LerpVec3: Vector3.Lerp(A, B, F) with optional Clamp on F. TiXL vec3/LerpVec3.cs:
+//   "if (Clamp.GetValue(context)) { f = f.Clamp(0, 1); }"
+//   "Result.Value = Vector3.Lerp(A.GetValue(context), B.GetValue(context), f);"
+// C# Vector3.Lerp = A + (B-A)*f (unclamped when Clamp=false).
+// TiXL LerpVec3.t3: A default {0,0,0}, B default {0,0,0}, F default=0, Clamp default=false(0).
+// in: [A.x,A.y,A.z, B.x,B.y,B.z, F, Clamp]
+// outIdx → component k = outIdx - n (n=8); Result.x/y/z
+float evalLerpVec3(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 8) return 0.0f;
+  int k = outIdx - n;
+  if (k < 0 || k > 2) return 0.0f;
+  float ax = in[0], ay = in[1], az = in[2];
+  float bx = in[3], by = in[4], bz = in[5];
+  float f = in[6];
+  bool clamp = (in[7] != 0.0f);
+  // TiXL LerpVec3.cs line 20-22: "if (Clamp.GetValue(context)) { f = f.Clamp(0, 1); }"
+  if (clamp) {
+    if (f < 0.0f) f = 0.0f;
+    if (f > 1.0f) f = 1.0f;
+  }
+  // TiXL: Vector3.Lerp = A + (B-A)*f
+  float res[3] = {ax + (bx-ax)*f, ay + (by-ay)*f, az + (bz-az)*f};
+  return res[k];
+}
+
+// NormalizeVector3: normalize(A)*Factor with zero-guard. TiXL vec3/NormalizeVector3.cs:
+//   "var length = a.Length();"
+//   "if (length > 0.001f) { a /= length; }"
+//   "Result.Value = a * f;"
+// FORK (named): fork-normalize-zero-guard: length ≤ 0.001f → return A*Factor unchanged (no divide).
+//   TiXL uses > 0.001f threshold explicitly. This preserves A as-is for near-zero vectors.
+// TiXL NormalizeVector3.t3: A default {0,0,0}, Factor default=1.0.
+// in: [A.x, A.y, A.z, Factor]; outIdx → component k = outIdx - n (n=4); Result.x/y/z
+float evalNormalizeVector3(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 4) return 0.0f;
+  int k = outIdx - n;
+  if (k < 0 || k > 2) return 0.0f;
+  float ax = in[0], ay = in[1], az = in[2];
+  float factor = in[3];
+  float length = std::sqrt(ax*ax + ay*ay + az*az);
+  // TiXL NormalizeVector3.cs line 22: "if (length > 0.001f) { a /= length; }"
+  // fork-normalize-zero-guard: TiXL's explicit 0.001 threshold.
+  if (length > 0.001f) {
+    ax /= length;
+    ay /= length;
+    az /= length;
+  }
+  float res[3] = {ax * factor, ay * factor, az * factor};
+  return res[k];
+}
+
+// RoundVec3: per-component Round/Floor/Ceil scaled by Precision. TiXL vec3/RoundVec3.cs:
+//   "MathF.Round(v.X * precision.X) / precision.X"  (Mode=0 Round)
+//   "MathF.Floor(v.X * precision.X) / precision.X"  (Mode=1 Floor)
+//   "MathF.Ceiling(v.X * precision.X) / precision.X" (Mode=2 Ceiling)
+// FORK (named): fork-roundvec3-precision-zero: Precision component==0 → return 0
+//   (TiXL: Precision=0 → scale by 0 → div-by-zero → NaN; we return 0 for GPU/UI safety).
+// TiXL RoundVec3.t3: Value default {0,0,0}, Precision default {1,1,1}, Mode default=0 (Round).
+// in: [Value.x,Value.y,Value.z, Precision.x,Precision.y,Precision.z, Mode]
+// outIdx → component k = outIdx - n (n=7); Result.x/y/z
+float evalRoundVec3(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 7) return 0.0f;
+  int k = outIdx - n;
+  if (k < 0 || k > 2) return 0.0f;
+  float v = in[k];
+  float p = in[3 + k];
+  int mode = (int)in[6];
+  // fork-roundvec3-precision-zero: Precision=0 → NaN in TiXL; return 0 here.
+  if (p == 0.0f) return 0.0f;
+  float scaled = v * p;
+  float result;
+  switch (mode) {
+    case 0:  // Round — TiXL RoundVec3.cs: MathF.Round(v.X * precision.X) / precision.X
+      result = std::round(scaled) / p;
+      break;
+    case 1:  // Floor
+      result = std::floor(scaled) / p;
+      break;
+    case 2:  // Ceiling
+      result = std::ceil(scaled) / p;
+      break;
+    default:
+      result = 0.0f;
+      break;
+  }
+  return result;
+}
+
+// AddVec2: Input1+Input2 (component-wise). TiXL vec2/AddVec2.cs:
+//   "Result.Value = Input1.GetValue(context) + Input2.GetValue(context);"
+// TiXL AddVec2.t3: both inputs default {X:0, Y:0}.
+// in: [Input1.x, Input1.y, Input2.x, Input2.y]; outIdx → component k = outIdx - n (n=4); Result.x/y
+float evalAddVec2(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 4) return 0.0f;
+  int k = outIdx - n;
+  if (k < 0 || k > 1) return 0.0f;
+  return in[k] + in[k + 2];
+}
+
+// DotVec2: Vector2.Dot(Input1, Input2). TiXL vec2/DotVec2.cs:
+//   "Result.Value = Vector2.Dot(Input1.GetValue(context), Input2.GetValue(context));"
+// C# Vector2.Dot = x1*x2 + y1*y2. No fork.
+// TiXL DotVec2.t3: both inputs default {X:0, Y:0}.
+// in: [Input1.x, Input1.y, Input2.x, Input2.y]; outIdx unused (single scalar output).
+float evalDotVec2(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 4) return 0.0f;
+  return in[0]*in[2] + in[1]*in[3];
+}
+
+// Vec2Magnitude: length(Input). TiXL vec3/Vec2Magnitude.cs (lives in vec3/ folder in TiXL):
+//   "Result.Value = Input.GetValue(context).Length();"
+// C# Vector2.Length() = sqrt(x^2+y^2). No fork.
+// TiXL Vec2Magnitude.t3: Input default {X:0, Y:0}.
+// in: [Input.x, Input.y]; outIdx unused (single scalar output "Result").
+float evalVec2Magnitude(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 2) return 0.0f;
+  float x = in[0], y = in[1];
+  return std::sqrt(x*x + y*y);
+}
+
+// Vector2Components: decompose Vec2 → X, Y. TiXL vec2/Vector2Components.cs:
+//   "X.Value = value.X; Y.Value = value.Y;"
+// TiXL Vector2Components.t3: Value default {X:0, Y:0}.
+// in: [Value.x, Value.y]; outIdx → component k = outIdx - n (n=2); X output = port 2, Y = port 3.
+float evalVector2Components(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 2) return 0.0f;
+  int k = outIdx - n;  // 0 = X, 1 = Y
+  if (k < 0 || k > 1) return 0.0f;
+  return in[k];
+}
+
+// ScaleVector2: A*B*UniformScale (component-wise). TiXL vec2/ScaleVector2.cs:
+//   "Result.Value = a * b * u;"
+// TiXL ScaleVector2.t3: A default {0,0}, B default {1,1}, UniformScale default=1.0.
+// in: [A.x, A.y, B.x, B.y, UniformScale]; outIdx → component k = outIdx - n (n=5); Result.x/y
+float evalScaleVector2(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 5) return 0.0f;
+  int k = outIdx - n;
+  if (k < 0 || k > 1) return 0.0f;
+  float u = in[4];
+  return in[k] * in[k + 2] * u;
+}
+
+// [math-batch24] END implementations
+
 }  // namespace sw

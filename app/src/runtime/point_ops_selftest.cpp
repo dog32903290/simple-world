@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <map>
+#include <string>
 #include <vector>
 
 #include <Foundation/Foundation.hpp>
@@ -360,6 +362,180 @@ int runVectorFieldForceSelfTest(bool injectBug) {
   bool pass = drifted && isotropic;
   printf("[selftest-vectorfieldforce] n=%zu meanPos=(%.3f,%.3f,%.3f) spread=%.3f (need all>0.05 & iso) amt=%.0f -> %s\n",
          m.n, m.mx, m.my, m.mz, spread, injectBug ? 0.0f : 6.0f, pass ? "PASS" : "FAIL");
+
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
+// ---------------------------------------------------------------------------------------------
+// 批次24 — VelocityForce / AxisStepForce / SnapToAnglesForce goldens.
+//
+// These forces TRANSFORM existing velocity (Velocity rescales speed; SnapToAngles snaps the
+// velocity direction) — unlike Turbulence/Directional/VectorField/AxisStep which CREATE velocity.
+// In the full RadialPoints->ParticleSystem rig the emitted particles start with ZERO velocity
+// (the cook bakes EmitVelocity/InitialVelocity = 0; TiXL's default is 1.0 — a pre-existing parity
+// gap in the integrator, NOT introduced here). With zero velocity Velocity/SnapToAngles are
+// correctly NO-OPS (VelocityForce.hlsl `if(speed<0.0001) return`; SnapOrientationForce.hlsl
+// `if(lengthXY<0.00001) return`), so the integrator rig can't exercise their math.
+//
+// So these goldens dispatch the force kernel DIRECTLY on a synthetic Particle buffer with KNOWN
+// nonzero velocities (a precise unit test of the ported math, stronger teeth than a drift bound).
+// AxisStepForce CREATES velocity from zero, so it also unit-tests cleanly here.
+namespace {
+MTL::ComputePipelineState* makeForcePSO(MTL::Device* dev, MTL::Library* lib, const char* name) {
+  if (!lib) return nullptr;
+  MTL::Function* fn = lib->newFunction(NS::String::string(name, NS::UTF8StringEncoding));
+  if (!fn) return nullptr;
+  NS::Error* err = nullptr;
+  MTL::ComputePipelineState* pso = dev->newComputePipelineState(fn, &err);
+  fn->release();
+  return pso;
+}
+// Build N particles, write velocities via `seed(i)`, dispatch `kernelName` with `params`, read back.
+template <typename ParamsT, typename SeedFn>
+std::vector<Particle> dispatchForce(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
+                                    const char* kernelName, const ParamsT& params, uint32_t N,
+                                    SeedFn seed) {
+  std::vector<Particle> out;
+  MTL::ComputePipelineState* pso = makeForcePSO(dev, lib, kernelName);
+  if (!pso) return out;
+  MTL::Buffer* buf = dev->newBuffer((NS::UInteger)N * sizeof(Particle), MTL::ResourceStorageModeShared);
+  Particle* p = static_cast<Particle*>(buf->contents());
+  for (uint32_t i = 0; i < N; ++i) {
+    p[i] = Particle{};
+    p[i].Rotation = SW_FLOAT4{0.0f, 0.0f, 0.0f, 1.0f};  // identity quat
+    p[i].BirthTime = 0.0f;                               // emitted (not NaN) — passes VFF/snap guards
+    seed(i, p[i]);
+  }
+  const uint32_t tg = 64;
+  MTL::CommandBuffer* cmd = q->commandBuffer();
+  MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
+  enc->setComputePipelineState(pso);
+  enc->setBuffer(buf, 0, FORCE_Particles);
+  enc->setBytes(&params, sizeof(params), FORCE_Params);
+  enc->dispatchThreadgroups(MTL::Size::Make((N + tg - 1) / tg, 1, 1), MTL::Size::Make(tg, 1, 1));
+  enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
+  out.assign(N, Particle{});
+  std::memcpy(out.data(), buf->contents(), (size_t)N * sizeof(Particle));
+  buf->release(); pso->release();
+  return out;
+}
+inline float vlen3(SW_PACKED3 v) { return std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z); }
+}  // namespace
+
+// VelocityForce golden (direct kernel unit test): seed every particle with velocity (1,0,0)
+// (speed=1). With Accelerate>0 + Amount>0 the kernel does speed += Accelerate*0.02*strength, so
+// speed grows ABOVE 1 (along the same +X direction). injectBug Amount=0 -> strength=0 -> speed
+// stays 1 -> FAIL (teeth). MinSpeed/MaxSpeed wide so the clamp doesn't gate. Variation=0 so the
+// per-particle hash/GainAndBias term collapses to variationFactor=1 (deterministic).
+int runVelocityForceSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  MTL::Library* lib = loadLib(dev);
+  if (!lib) { printf("[selftest-velocityforce] FAIL: no metallib\n");
+              q->release(); dev->release(); pool->release(); return 1; }
+
+  const uint32_t N = 256;
+  VelForceParams P{};
+  P.Amount = injectBug ? 0.0f : 1.0f;  // bug: strength 0 -> no acceleration
+  P.Accelerate = 50.0f; P.MinSpeed = 0.0f; P.MaxSpeed = 1000.0f; P.Variation = 0.0f;
+  P.GainBiasX = 0.5f; P.GainBiasY = 0.5f; P.Count = N;
+  auto res = dispatchForce(dev, q, lib, "velocity_force", P, N,
+      [](uint32_t, Particle& pt){ pt.Velocity = SW_PACKED3{1.0f, 0.0f, 0.0f}; });
+
+  // Expected non-bug: speed = 1 + Accelerate*0.02*Amount = 1 + 50*0.02*1 = 2.0, direction +X kept.
+  bool ok = !res.empty();
+  float speed = res.empty() ? 0.0f : vlen3(res[0].Velocity);
+  bool dirKept = !res.empty() && res[0].Velocity.x > 0.0f &&
+                 std::fabs(res[0].Velocity.y) < 1e-4f && std::fabs(res[0].Velocity.z) < 1e-4f;
+  bool pass = ok && dirKept && (speed > 1.10f);  // accelerated past the seed speed of 1
+  printf("[selftest-velocityforce] N=%u speed=%.3f (seed=1.0, need>1.10 & +X) amt=%.1f -> %s\n",
+         N, speed, injectBug ? 0.0f : 1.0f, pass ? "PASS" : "FAIL");
+
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
+// AxisStepForce golden (direct kernel unit test): seed every particle with ZERO velocity (the op
+// CREATES velocity). SelectRatio=1 (all selected) + Strength large + ApplyTrigger=1 -> every
+// particle gets a strong axis-aligned kick -> mean |velocity| >> 0. injectBug ApplyTrigger=0 ->
+// lerp factor 0 -> velocity stays 0 -> FAIL (teeth). AddOriginalVelocity=0 isolates the kick.
+int runAxisStepForceSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  MTL::Library* lib = loadLib(dev);
+  if (!lib) { printf("[selftest-axisstepforce] FAIL: no metallib\n");
+              q->release(); dev->release(); pool->release(); return 1; }
+
+  const uint32_t N = 1024;
+  AxisStepForceParams P{};
+  P.ApplyTrigger = injectBug ? 0.0f : 1.0f;  // bug: trigger off -> lerp 0 -> no kick
+  P.Strength = 5.0f; P.RandomizeStrength = 0.0f; P.SelectRatio = 1.0f;
+  P.AxisDistributionX = 1.0f; P.AxisDistributionY = 1.0f; P.AxisDistributionZ = 1.0f;
+  P.AddOriginalVelocity = 0.0f;
+  P.StrengthDistributionX = 1.0f; P.StrengthDistributionY = 1.0f; P.StrengthDistributionZ = 1.0f;
+  P.Seed = 0.0f; P.AxisSpace = 0.0f; P.Count = N;
+  auto res = dispatchForce(dev, q, lib, "axis_step_force", P, N,
+      [](uint32_t, Particle& pt){ pt.Velocity = SW_PACKED3{0.0f, 0.0f, 0.0f}; });
+
+  double sumSpeed = 0; size_t n = 0;
+  for (const Particle& pt : res) { sumSpeed += vlen3(pt.Velocity); ++n; }
+  float meanSpeed = n ? (float)(sumSpeed / n) : 0.0f;
+  bool pass = n > 0 && meanSpeed > 0.5f;  // kicked particles carry real speed; bug -> ~0
+  printf("[selftest-axisstepforce] N=%u meanSpeed=%.3f (need>0.5) trig=%.0f -> %s\n",
+         N, meanSpeed, injectBug ? 0.0f : 1.0f, pass ? "PASS" : "FAIL");
+
+  lib->release(); q->release(); dev->release(); pool->release();
+  return pass ? 0 : 1;
+}
+
+// SnapToAnglesForce golden (direct kernel unit test): seed each particle with a DIFFERENT planar
+// velocity direction (angles spread around the xy circle, speed=1). With AngleCount=360
+// (subdivisions = 360/360 = 1, a SINGLE allowed angle) + Amount=1 + Variation=0 + Mode=1
+// (WorldXY, camera-free), EVERY velocity direction snaps to the SAME angle -> all output planar
+// directions become collinear -> they all point the same way (dot with the first ~ +1). injectBug
+// Amount=0 -> no snap -> directions stay spread (mean pairwise dot low) -> FAIL (teeth).
+int runSnapToAnglesForceSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  MTL::Library* lib = loadLib(dev);
+  if (!lib) { printf("[selftest-snaptoanglesforce] FAIL: no metallib\n");
+              q->release(); dev->release(); pool->release(); return 1; }
+
+  const uint32_t N = 256;
+  SnapAnglesForceParams P{};
+  P.Amount = injectBug ? 0.0f : 1.0f;  // bug: no snap
+  P.SnapAngle = 360.0f;                // one allowed angle -> all snap collinear
+  P.PhaseAngle = 0.0f; P.Variation = 0.0f; P.VariationRatio = 0.0f; P.KeepPlanar = 0.0f;
+  P.SpaceAndPlane = 1.0f;              // WorldXY (camera-free path)
+  P.RandomSeed = 0.0f; P.Count = N;
+  auto res = dispatchForce(dev, q, lib, "snaptoanglesforce", P, N,
+      [N](uint32_t i, Particle& pt){
+        float a = 6.2831853f * (float)i / (float)N;  // spread directions around the xy circle
+        pt.Velocity = SW_PACKED3{std::cos(a), std::sin(a), 0.0f};
+      });
+
+  // After a collinear snap every planar direction is identical -> dot(dir_i, dir_0) ~ +1 for all.
+  // injectBug keeps them spread -> mean dot ~ 0.
+  bool ok = res.size() == N;
+  float n0 = ok ? std::sqrt(res[0].Velocity.x * res[0].Velocity.x + res[0].Velocity.y * res[0].Velocity.y) : 0.0f;
+  double sumDot = 0; size_t cnt = 0;
+  if (ok && n0 > 1e-5f) {
+    float d0x = res[0].Velocity.x / n0, d0y = res[0].Velocity.y / n0;
+    for (const Particle& pt : res) {
+      float n = std::sqrt(pt.Velocity.x * pt.Velocity.x + pt.Velocity.y * pt.Velocity.y);
+      if (n < 1e-5f) continue;
+      sumDot += (pt.Velocity.x / n) * d0x + (pt.Velocity.y / n) * d0y;
+      ++cnt;
+    }
+  }
+  float meanDot = cnt ? (float)(sumDot / cnt) : 0.0f;
+  bool pass = ok && cnt > 0 && meanDot > 0.95f;  // all collinear -> ~1.0; bug (spread) -> ~0
+  printf("[selftest-snaptoanglesforce] N=%u meanDot=%.3f (collinear need>0.95) amt=%.0f -> %s\n",
+         N, meanDot, injectBug ? 0.0f : 1.0f, pass ? "PASS" : "FAIL");
 
   lib->release(); q->release(); dev->release(); pool->release();
   return pass ? 0 : 1;

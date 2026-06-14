@@ -52,6 +52,17 @@ int runDirectionalForceSelfTest(bool injectBug);
 // VectorFieldForce golden (particle-force lane, fork-VFF): no field bound -> constant (1,1,1)
 // push -> the pool drifts diagonally (every mean component >0 + isotropic). injectBug Amount=0 -> FAIL.
 int runVectorFieldForceSelfTest(bool injectBug);
+// VelocityForce golden (批次24): the op rescales each particle's SPEED along its existing
+// direction; Accelerate>0 + Amount>0 -> the pool accelerates outward (RMS radius > baseline).
+// injectBug (Amount=0) -> no acceleration -> RMS matches baseline -> FAIL.
+int runVelocityForceSelfTest(bool injectBug);
+// AxisStepForce golden (批次24): SelectRatio=1 + Strength large + ApplyTrigger=1 kicks every
+// particle along a random axis -> RMS radius > baseline. injectBug (ApplyTrigger=0) -> no kick.
+int runAxisStepForceSelfTest(bool injectBug);
+// SnapToAnglesForce golden (批次24): AngleCount=360 (one allowed angle) + Amount=1 snaps every
+// planar velocity to the same direction -> strong collinear drift (|mean xy|>0.1). injectBug
+// (Amount=0) -> no snap -> isotropic -> mean ~0 -> FAIL. Mode=1 (WorldXY, camera-free path).
+int runSnapToAnglesForceSelfTest(bool injectBug);
 // REFUTER-F probe (assertion 2 cook side): drive an OUT-OF-RANGE _ForceKind (99 / -5, as a
 // corrupted .swproj would) into a DirectionalForce node and cook — proves no crash / no OOB
 // kernel; an unrecognized kind falls to the turbulence else (bounded misroute). injectBug makes
@@ -152,6 +163,17 @@ int runSelectPointsSelfTest(bool injectBug);
 // SoftTransformPoints MODIFIER golden (point_ops_softtransformpoints.cpp): volume-falloff weighted
 // soft transform of Position/Rotation/FX1. injectBug disables the falloff -> wrong weight -> FAIL.
 int runSoftTransformPointsSelfTest(bool injectBug);
+// OffsetPoints MODIFIER golden (point_ops_offsetpoints.cpp, batch 24): hand-built probe drives the
+// REAL offsetpoints kernel over points with distinct non-identity Rotation; recomputes the TiXL
+// .hlsl formula (Position + qRotateVec3(Direction*Distance, Rotation)) in C++ and compares per point.
+// injectBug = expected reference DROPS the rotation (un-rotated offset) -> mismatches GPU -> FAIL.
+void registerOffsetPointsOp();
+int runOffsetPointsSelfTest(bool injectBug);
+// PointAttributeFromNoise MODIFIER golden (point_ops_pointattributefromnoise.cpp, batch 24): route
+// 3D simplex noise into position X/Y/Z; assert displacement off a clean sphere + per-point variation
+// + determinism. injectBug = Amount=0 -> c*=0 -> no displacement -> FAIL. RemapNoise port not wired (FORK).
+void registerPointAttributeFromNoiseOp();
+int runPointAttributeFromNoiseSelfTest(bool injectBug);
 // ChannelMixer image filter (point_ops_channelmixer.cpp, lane image_filter): 4x4 channel matrix
 // mix (TiXL image/color/ChannelMixer / MixChannels.hlsl). injectBug = identity -> no swap -> FAIL.
 void registerChannelMixerOp();
@@ -168,6 +190,18 @@ int runToneMappingSelfTest(bool injectBug);
 // injectBug = MaxAmount=0 -> no snap -> Points1 positions unchanged -> near-P2 assertion FAILS.
 void registerSnapToPointsOp();
 int runSnapToPointsSelfTest(bool injectBug);
+// PairPointsForLines COMBINE op (point_ops_pairpointsforlines.cpp, batch 24): pairs GPoints[i]
+// with GTargets[i] (cyclic modulo), emits 3 output points per pair [A, B, NaN divider] for use
+// with DrawLines. Output count = max(CountA, CountB) * 3. SetWTo01 sets FX1=0/1 on A/B.
+// injectBug = asserts B slot has GPoints range (wrong) -> real shader writes GTargets -> FAIL.
+void registerPairPointsForLinesOp();
+int runPairPointsForLinesSelfTest(bool injectBug);
+// PickPointList COMBINE op (point_ops_pickpointlist.cpp, batch 24): selects one buffer from a
+// multi-input list by Index (modulo count). GPU blit of selected input into output buffer.
+// Output count = selected input count. TiXL PickPointList.cs pure C# logic port.
+// injectBug = asserts wrong input range (index 0 range) -> real cook selects index 1 -> FAIL.
+void registerPickPointListOp();
+int runPickPointListSelfTest(bool injectBug);
 
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a
@@ -280,6 +314,33 @@ void registerVoronoiCellsOp();
 // MATH golden: gradient source -> red-edged white-cell mosaic; the frame contains many red edge
 // pixels (R>150,G/B<80). injectBug Scale=1 -> single huge cell -> ~0 borders -> FAIL.
 int runVoronoiCellsSelfTest(bool injectBug);
+
+// --- Dither image filter texture op (point_ops_dither.cpp, lane image_filter) ---
+// Single-pass Bayer/hash ordered-dither quantizer (TiXL image/fx/stylize/Dither): resample on a
+// Scale/Offset grid, gain/bias to grayscale, Bayer64 threshold -> binary, lerp ShadowColor<->
+// HighlightColor, optional BlendColors over the source. Register into the texture stream (texReg).
+void registerDitherOp();
+// MATH golden: bright-top/dark-bottom source; dither density tracks brightness so mean luminance
+// (top) > (bottom). injectBug Scale=0 -> grid collapse -> source-independent -> means converge -> FAIL.
+int runDitherSelfTest(bool injectBug);
+
+// --- NormalMap image filter texture op (point_ops_normalmap.cpp, lane image_filter) ---
+// Single-pass finite-difference gradient -> normal encoder (TiXL image/fx/NormalMap, no .cs):
+// ±SampleRadius neighbour gradient d -> angle+Twist -> normalize((len*dir*Impact,1)) per Mode.
+// Register into the texture stream (texReg).
+void registerNormalMapOp();
+// MATH golden: vertical step edge; the seam pixel's encoded R departs from 128 (X tilt) while a
+// flat interior pixel stays R≈128. injectBug Impact=0 -> normal=(0,0,1) -> seam R≈128 -> FAIL.
+int runNormalMapSelfTest(bool injectBug);
+
+// --- ChromaKey image filter texture op (point_ops_chromakey.cpp, lane image_filter) ---
+// Single-pass HSB-distance chroma keyer (TiXL image/fx/ChromaKey, no .cs): center+4 (±ChokeRadius)
+// neighbours -> rgb2hsb -> weighted distance to KeyColor -> min (choke) -> composite per Mode.
+// Register into the texture stream (texReg).
+void registerChromaKeyOp();
+// MATH golden: green(key)/red(keep) split; Mode=0 alpha keying -> green alpha LOW, red alpha HIGH.
+// injectBug Amplify=10 -> distance saturates to 0 everywhere -> red alpha collapses -> FAIL.
+int runChromaKeySelfTest(bool injectBug);
 
 // --- DrawLines / DrawBillboards command ops (point_ops_drawlines.cpp / point_ops_drawbillboards.cpp,
 // lane L). Both Points→Command producers (DrawKind::Lines / ::Billboards); the executor

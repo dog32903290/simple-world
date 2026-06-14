@@ -22,6 +22,9 @@ void registerImageFilterPointOps() {
   registerDetectEdgesOp();         // Texture2D → Texture2D (4-neighbour edge detect, lane image_filter)
   registerChromaticDistortionOp(); // Texture2D → Texture2D (radial chromatic blur, lane image_filter)
   registerVoronoiCellsOp();        // Texture2D → Texture2D (iq Voronoi mosaic, lane image_filter)
+  registerDitherOp();              // Texture2D → Texture2D (Bayer/hash dither, lane image_filter)
+  registerNormalMapOp();           // Texture2D → Texture2D (gradient normal map, lane image_filter)
+  registerChromaKeyOp();           // Texture2D → Texture2D (HSB chroma key, lane image_filter)
 }
 
 }  // namespace sw

@@ -282,6 +282,120 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Result.z",  "Result.z",  "Float", false}},
        evalRotateVector3},
       // [math-batch23] END specs
+      // [math-batch24] BEGIN specs
+      // InvertFloat: (Invert?-1:1)*A. TiXL float/adjust/InvertFloat.cs.
+      // TiXL InvertFloat.t3: A default=1.0, Invert default=true(1.0).
+      // Invert is a bool input (TiXL InputSlot<bool>); mapped as Float with Widget::Bool.
+      {"InvertFloat", "InvertFloat",
+       {{"A",      "A",      "Float", true, 1.0f, -100.0f, 100.0f},
+        {"Invert", "Invert", "Float", true, 1.0f, 0.0f,    1.0f, Widget::Bool},
+        {"Result", "Result", "Float", false}},
+       evalInvertFloat},
+      // CrossVec3: Vector3.Cross(Input1, Input2). TiXL vec3/CrossVec3.cs.
+      // TiXL CrossVec3.t3: both inputs default {X:0, Y:0, Z:0}.
+      {"CrossVec3", "CrossVec3",
+       {{"Input1.x", "Input1",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input1.y", "Input1.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input1.z", "Input1.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.x", "Input2",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input2.y", "Input2.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.z", "Input2.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Result.x", "Result.x", "Float", false},
+        {"Result.y", "Result.y", "Float", false},
+        {"Result.z", "Result.z", "Float", false}},
+       evalCrossVec3},
+      // LerpVec3: Vector3.Lerp(A,B,F) with Clamp bool. TiXL vec3/LerpVec3.cs.
+      // TiXL LerpVec3.t3: A default {0,0,0}, B default {0,0,0}, F default=0, Clamp default=false(0).
+      // Clamp is a bool input (TiXL InputSlot<bool>); mapped as Float with Widget::Bool.
+      {"LerpVec3", "LerpVec3",
+       {{"A.x",   "A",     "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"A.y",   "A.y",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"A.z",   "A.z",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"B.x",   "B",     "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"B.y",   "B.y",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"B.z",   "B.z",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"F",     "F",     "Float", true, 0.0f, 0.0f,    1.0f},
+        {"Clamp", "Clamp", "Float", true, 0.0f, 0.0f,    1.0f, Widget::Bool},
+        {"Result.x", "Result.x", "Float", false},
+        {"Result.y", "Result.y", "Float", false},
+        {"Result.z", "Result.z", "Float", false}},
+       evalLerpVec3},
+      // NormalizeVector3: normalize(A)*Factor; guard: length<=0.001 passthrough. TiXL vec3/NormalizeVector3.cs.
+      // TiXL NormalizeVector3.t3: A default {0,0,0}, Factor default=1.0.
+      // Fork: fork-normalize-zero-guard: TiXL's explicit >0.001f threshold.
+      {"NormalizeVector3", "NormalizeVector3",
+       {{"A.x",    "A",      "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"A.y",    "A.y",    "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"A.z",    "A.z",    "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Factor", "Factor", "Float", true, 1.0f, -10.0f,  10.0f},
+        {"Result.x", "Result.x", "Float", false},
+        {"Result.y", "Result.y", "Float", false},
+        {"Result.z", "Result.z", "Float", false}},
+       evalNormalizeVector3},
+      // RoundVec3: per-component Round/Floor/Ceil scaled by Precision. TiXL vec3/RoundVec3.cs.
+      // TiXL RoundVec3.t3: Value default {0,0,0}, Precision default {1,1,1}, Mode default=0 (Round).
+      // Mode is an Enum input (TiXL: Modes {Round,Floor,Ceiling}).
+      // Fork: fork-roundvec3-precision-zero: Precision==0 → 0 (TiXL: NaN).
+      {"RoundVec3", "RoundVec3",
+       {{"Value.x",     "Value",       "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Value.y",     "Value.y",     "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Value.z",     "Value.z",     "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Precision.x", "Precision",   "Float", true, 1.0f, 0.001f,  100.0f, Widget::Vec, {}, false, 3},
+        {"Precision.y", "Precision.y", "Float", true, 1.0f, 0.001f,  100.0f, Widget::Vec, {}, false, 1},
+        {"Precision.z", "Precision.z", "Float", true, 1.0f, 0.001f,  100.0f, Widget::Vec, {}, false, 1},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum, {"Round","Floor","Ceiling"}},
+        {"Result.x", "Result.x", "Float", false},
+        {"Result.y", "Result.y", "Float", false},
+        {"Result.z", "Result.z", "Float", false}},
+       evalRoundVec3},
+      // AddVec2: Input1+Input2 (component-wise). TiXL vec2/AddVec2.cs.
+      // TiXL AddVec2.t3: both inputs default {X:0, Y:0}.
+      // Vec2 decomposed into 2 Float ports (head Widget::Vec vecArity=2).
+      {"AddVec2", "AddVec2",
+       {{"Input1.x", "Input1",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"Input1.y", "Input1.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.x", "Input2",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"Input2.y", "Input2.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Result.x", "Result.x", "Float", false},
+        {"Result.y", "Result.y", "Float", false}},
+       evalAddVec2},
+      // DotVec2: Vector2.Dot(Input1, Input2). TiXL vec2/DotVec2.cs.
+      // TiXL DotVec2.t3: both inputs default {X:0, Y:0}. Single scalar output "Result".
+      {"DotVec2", "DotVec2",
+       {{"Input1.x", "Input1",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"Input1.y", "Input1.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.x", "Input2",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"Input2.y", "Input2.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Result",   "Result",   "Float", false}},
+       evalDotVec2},
+      // Vec2Magnitude: length(Input). TiXL vec3/Vec2Magnitude.cs (file lives in vec3/ folder in TiXL).
+      // TiXL Vec2Magnitude.t3: Input default {X:0, Y:0}.
+      {"Vec2Magnitude", "Vec2Magnitude",
+       {{"Input.x", "Input",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"Input.y", "Input.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Result",  "Result",  "Float", false}},
+       evalVec2Magnitude},
+      // Vector2Components: decompose Vec2 → X, Y. TiXL vec2/Vector2Components.cs.
+      // TiXL Vector2Components.t3: Value default {X:0, Y:0}.
+      {"Vector2Components", "Vector2Components",
+       {{"Value.x", "Value",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"Value.y", "Value.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"X", "X", "Float", false},
+        {"Y", "Y", "Float", false}},
+       evalVector2Components},
+      // ScaleVector2: A*B*UniformScale (component-wise). TiXL vec2/ScaleVector2.cs:
+      //   "Result.Value = a * b * u;"
+      // TiXL ScaleVector2.t3: A default {0,0}, B default {1,1}, UniformScale default=1.0.
+      {"ScaleVector2", "ScaleVector2",
+       {{"A.x",          "A",           "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"A.y",          "A.y",         "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"B.x",          "B",           "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"B.y",          "B.y",         "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"UniformScale", "UniformScale","Float", true, 1.0f, -100.0f, 100.0f},
+        {"Result.x",     "Result.x",    "Float", false},
+        {"Result.y",     "Result.y",    "Float", false}},
+       evalScaleVector2},
+      // [math-batch24] END specs
   };
   return specs;
 }

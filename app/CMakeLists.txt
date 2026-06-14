@@ -55,7 +55,9 @@ set(SW_SHADER_DEPS
   src/runtime/pixelate_params.h src/runtime/sharpen_params.h
   src/runtime/reorientlinepoints_params.h src/runtime/selectpoints_params.h src/runtime/softtransformpoints_params.h
   src/runtime/detectedges_params.h src/runtime/chromaticdistortion_params.h src/runtime/voronoicells_params.h
+  src/runtime/dither_params.h src/runtime/normalmap_params.h src/runtime/chromakey_params.h
   src/runtime/polarcoordinates_params.h src/runtime/edgerepeat_params.h
+  src/runtime/offsetpoints_params.h src/runtime/pointattributefromnoise_params.h
   shaders/shared/noise.metal.h shaders/shared/quat.metal.h shaders/shared/hash.metal.h)
 set(SW_COMPILE_CMDS "")
 foreach(s ${SW_SHADERS})

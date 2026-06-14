@@ -6,6 +6,7 @@
 //
 // Ported functions:
 //   float4 hash41u(uint x)  — uint → float4, full 4-channel integer hash
+//   float3 hash31(float p)  — float → float3 (Dave Hoskins / hash-functions.hlsl line 65-70)
 //
 // HLSL→MSL notes:
 //   - uint, uint4, float, float4 : identical names in MSL
@@ -35,6 +36,15 @@ inline float4 hash41u(uint x)
     uint w = ((z >> 8U) ^ y) * k;
     uint4 i4 = uint4(x, y, z, w);
     return float4(i4) * (1.0f / float(0xffffffffU));
+}
+
+// 3 out, 1 float in — Dave Hoskins hash (verbatim port of hash-functions.hlsl lines 65-70).
+// HLSL frac() -> MSL fract(); float3/dot identical. Used by PointAttributesFromNoise variation.
+inline float3 hash31(float p)
+{
+    float3 p3 = fract(float3(p, p, p) * float3(0.1031f, 0.1030f, 0.0973f));
+    p3 += dot(p3, p3.yzx + 33.33f);
+    return fract((p3.xxy + p3.yzz) * p3.zyx);
 }
 
 #endif // HASH_METAL_H
