@@ -127,4 +127,5 @@ float evalEulerToAxisAngle(int outIdx, const float* in, int n, const EvaluationC
 // [vec-batch31] END declarations
 // [vec-batch32]
 float evalRemapVec2(int outIdx, const float* in, int n, const EvaluationContext&);
+float evalPadVec2Range(int outIdx, const float* in, int n, const EvaluationContext&);
 }  // namespace sw

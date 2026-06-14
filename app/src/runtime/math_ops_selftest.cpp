@@ -1305,6 +1305,20 @@ int runMathOpsSelfTest(bool injectBug) {
   }
   // [vec-batch31] END teeth
 
+  // PadVec2Range: A=(0,10) U=2 → ±2 about center 5 → (-5,15). A=(4,6) ClampMinExtend=3 → (2,8).
+  {
+    auto pad = [&](float ax, float ay, float u, float ext, const char* out) {
+      return evalOpParams("PadVec2Range", {{"A.x", ax}, {"A.y", ay}, {"UniformScale", u}, {"ClampMinExtend", ext}}, out);
+    };
+    float x2 = pad(0.0f, 10.0f, 2.0f, 0.0f, "Result.x");
+    float y2 = pad(0.0f, 10.0f, 2.0f, 0.0f, "Result.y");
+    float xe = pad(4.0f, 6.0f, 1.0f, 3.0f, "Result.x");
+    float ye = pad(4.0f, 6.0f, 1.0f, 3.0f, "Result.y");
+    float wx = injectBug ? 0.0f : -5.0f;  // bug: dropped UniformScale
+    bool pass = std::fabs(x2 - wx) < eps && std::fabs(y2 - 15.0f) < eps && std::fabs(xe - 2.0f) < eps && std::fabs(ye - 8.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] PadVec2Range scale2=(%.1f,%.1f)(wantx %.1f) extend=(%.1f,%.1f) -> %s\n", x2, y2, wx, xe, ye, pass ? "PASS" : "FAIL");
+  }
   // [vec-batch32] RemapVec2 x-component: in(0,10) out(0,100). Normal:5→50; Clamped:20→100; Modulo:15→50.
   {
     auto rmx = [&](float v, float mode) {

@@ -695,6 +695,26 @@ float evalRemapVec2(int outIdx, const float* in, int n, const EvaluationContext&
   }
   return v;  // Normal(0): unclamped passthrough
 }
+// PadVec2Range — pads/scales a [min,max] range (A.x=min, A.y=max) about its center: optional
+// GuaranteedRange widens it, UniformScale scales each side from center, ClampMinExtend forces a
+// minimum half-extent. TiXL vec2/PadVec2Range.cs. in: A.x,A.y, UniformScale, GR.x,GR.y, ClampMinExtend.
+// Result.x and Result.y use DIFFERENT formulas (min side vs max side) — not symmetric component-wise.
+float evalPadVec2Range(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 6) return 0.0f;
+  const int k = outIdx - n;  // 0=Result.x (min side), 1=Result.y (max side)
+  if (k < 0 || k > 1) return 0.0f;
+  float lo = in[0], hi = in[1];  // A.x=min, A.y=max
+  const float u = in[2];
+  const float grx = in[3], gry = in[4];
+  const float minExtend = in[5];
+  if (grx != 0.0f || gry != 0.0f) {  // TiXL: GuaranteedRange != Vector2.Zero
+    lo = std::fmin(lo, grx);
+    hi = std::fmax(hi, gry);
+  }
+  const float center = (lo + hi) * 0.5f;
+  if (k == 0) return center + std::fmin((lo - center) * u, -minExtend);
+  return center + std::fmax((hi - center) * u, minExtend);
+}
 // [vec-batch32] END implementations
 
 }  // namespace sw

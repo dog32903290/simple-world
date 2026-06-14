@@ -291,6 +291,18 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"MinTimeBetweenHits", "MinTimeBetweenHits", "Float", true, 0.0f, 0.0f, 2.0f},
         {"PreventContinuedChanges", "PreventContinuedChanges", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
        nullptr},
+      // PadVec2Range — pad/scale a [min,max] range (A.x=min,A.y=max) about center. TiXL vec2/
+      // PadVec2Range.cs. (.t3: A{0,0} UniformScale=1 GuaranteedRange{0,0} ClampMinExtend=0)
+      {"PadVec2Range", "PadVec2Range",
+       {{"A.x", "A",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"A.y", "A.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"UniformScale", "UniformScale", "Float", true, 1.0f, -100.0f, 100.0f},
+        {"GuaranteedRange.x", "GuaranteedRange",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"GuaranteedRange.y", "GuaranteedRange.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"ClampMinExtend", "ClampMinExtend", "Float", true, 0.0f, 0.0f, 100.0f},
+        {"Result.x", "Result.x", "Float", false},
+        {"Result.y", "Result.y", "Float", false}},
+       evalPadVec2Range},
       {"Const", "Const",
        {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
