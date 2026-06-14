@@ -19,12 +19,14 @@ namespace sw {
 
 // Per-instance memory across frames (TiXL private fields). One per node instance, keyed upstream
 // by the resident node PATH (survives projection rebuilds + stays per-instance inside compounds,
-// like AudioReactionState). A generic 4-float scratch covers every stateful value op:
-//   Damp:   s[0]=dampedValue, s[1]=velocity
-//   Spring: s[0]=springedValue, s[1]=result (the previous output)
+// like AudioReactionState). A generic 8-float scratch covers every stateful value op (incl. vec3):
+//   Damp:       s[0]=dampedValue, s[1]=velocity
+//   Spring:     s[0]=springedValue, s[1]=result (the previous output)
+//   DampVecN:   s[0..N-1]=damped per component, s[N..2N-1]=velocity per component
+//   SpringVecN: s[0..N-1]=springed per component, s[N..2N-1]=result per component
 // `init` = TiXL's _isFirstEval: the first cook seeds state from the input (no smoothing yet).
 struct StatefulValueState {
-  float s[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  float s[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
   bool  init = false;
 };
 

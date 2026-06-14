@@ -133,6 +133,51 @@ void stepSpring(const std::map<std::string, float>& in, float /*dt*/, float /*ti
   out[0] = result;
 }
 
+// Vec component lookup: TiXL Vec inputs are our "<base>.x/.y/.z" Float ports (node_registry vec
+// convention, e.g. AddVec3). Returns 0 for a missing component (matches the spec default).
+const char* const kVecComp[3] = {".x", ".y", ".z"};
+inline float getInC(const std::map<std::string, float>& in, const char* base, int c) {
+  std::string key = std::string(base) + kVecComp[c];
+  auto it = in.find(key);
+  return it != in.end() ? it->second : 0.0f;
+}
+
+// --- DampVec2 / DampVec3 (TiXL vec2/DampVec2.cs, vec3/DampVec3.cs) ---
+// Component-wise Damp. Ports: Value(vecN), Damping, Method. State: s[0..N-1]=damped, s[N..2N-1]=vel.
+// Fork-free parity note: TiXL DampVec has NO _isFirstEval (unlike scalar Damp) — it damps from 0
+// on frame 1; faithful here (no init seeding). Method 0=component Lerp, 1=SpringDampVecN (per-
+// component SpringDamp, shared k & dt-clamp) — both are exactly dampenFloat() per component.
+void dampVecImpl(const std::map<std::string, float>& in, float dt, StatefulValueState& st,
+                 float out[3], int N) {
+  const float damping = getIn(in, "Damping", 0.9f);
+  const int method = methodOf(in);
+  for (int c = 0; c < N; ++c) {
+    const float v = getInC(in, "Value", c);
+    st.s[c] = dampenFloat(v, st.s[c], damping, st.s[N + c], method, dt);
+    out[c] = st.s[c];
+  }
+}
+void stepDampVec2(const std::map<std::string, float>& in, float dt, float, StatefulValueState& st, float out[3]) { dampVecImpl(in, dt, st, out, 2); }
+void stepDampVec3(const std::map<std::string, float>& in, float dt, float, StatefulValueState& st, float out[3]) { dampVecImpl(in, dt, st, out, 3); }
+
+// --- SpringVec2 / SpringVec3 (TiXL vec2/process/SpringVec2.cs, vec3/process/SpringVec3.cs) ---
+// Component-wise Spring (no dt; frame-rate dependent, faithful). Ports: Value(vecN), Tension,
+// Strength. State: s[0..N-1]=springed, s[N..2N-1]=result. No init seeding (TiXL springs from 0).
+void springVecImpl(const std::map<std::string, float>& in, StatefulValueState& st, float out[3], int N) {
+  const float tension = getIn(in, "Tension", 0.1f);
+  const float strength = getIn(in, "Strength", 0.5f);
+  for (int c = 0; c < N; ++c) {
+    const float v = getInC(in, "Value", c);
+    float& springed = st.s[c];
+    float& result = st.s[N + c];
+    springed = lerpf(springed, (v - result) * strength, tension);
+    result += springed;
+    out[c] = result;
+  }
+}
+void stepSpringVec2(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3]) { springVecImpl(in, st, out, 2); }
+void stepSpringVec3(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3]) { springVecImpl(in, st, out, 3); }
+
 struct StatefulOp {
   const char* type;
   void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[3]);
@@ -141,9 +186,13 @@ struct StatefulOp {
 const StatefulOp kStatefulValueOps[] = {
     {"Damp", stepDamp},
     {"DampAngle", stepDampAngle},
+    {"DampVec2", stepDampVec2},
+    {"DampVec3", stepDampVec3},
     {"DeltaSinceLastFrame", stepDeltaSinceLastFrame},
     {"FreezeValue", stepFreezeValue},
     {"Spring", stepSpring},
+    {"SpringVec2", stepSpringVec2},
+    {"SpringVec3", stepSpringVec3},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -284,6 +333,40 @@ int runStatefulValueSelfTest(bool injectBug) {
       ok = ok && pass;
       printf("[selftest-statefulvalue] Freeze1 step%d R=%.4f want=%.4f -> %s\n", i + 1, out[0], wantR[i], pass ? "PASS" : "FAIL");
     }
+  }
+
+  // ----- DampVec3, Linear, Damping=0.5, Value=(1,2,4) — component-wise, no bleed, damps from 0 -----
+  //   step1 = (0.5, 1.0, 2.0); step2 = (0.75, 1.5, 3.0).
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float w1[3] = {0.5f, 1.0f, 2.0f};
+    const float w2[3] = {0.75f, 1.5f, 3.0f};
+    cookStatefulValueOp("DampVec3", {{"Value.x", 1.0f}, {"Value.y", 2.0f}, {"Value.z", 4.0f}, {"Damping", 0.5f}, {"Method", 0.0f}}, dt60, 0.0f, st, out);
+    bool p1 = std::fabs(out[0] - w1[0]) < eps && std::fabs(out[1] - w1[1]) < eps && std::fabs(out[2] - (injectBug ? 9.9f : w1[2])) < eps;
+    ok = ok && p1;
+    printf("[selftest-statefulvalue] DampVec3 step1=(%.3f,%.3f,%.3f) -> %s\n", out[0], out[1], out[2], p1 ? "PASS" : "FAIL");
+    cookStatefulValueOp("DampVec3", {{"Value.x", 1.0f}, {"Value.y", 2.0f}, {"Value.z", 4.0f}, {"Damping", 0.5f}, {"Method", 0.0f}}, dt60, 0.0f, st, out);
+    bool p2 = std::fabs(out[0] - w2[0]) < eps && std::fabs(out[1] - w2[1]) < eps && std::fabs(out[2] - w2[2]) < eps;
+    ok = ok && p2;
+    printf("[selftest-statefulvalue] DampVec3 step2=(%.3f,%.3f,%.3f) -> %s\n", out[0], out[1], out[2], p2 ? "PASS" : "FAIL");
+  }
+
+  // ----- SpringVec2, Tension=0.5, Strength=1, Value=(1,2) — component-wise, no bleed -----
+  //   step1 = (0.5, 1.0); step2 = (1.0, 2.0).
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float w1[2] = {0.5f, 1.0f};
+    const float w2[2] = {1.0f, 2.0f};
+    cookStatefulValueOp("SpringVec2", {{"Value.x", 1.0f}, {"Value.y", 2.0f}, {"Tension", 0.5f}, {"Strength", 1.0f}}, dt60, 0.0f, st, out);
+    bool p1 = std::fabs(out[0] - w1[0]) < eps && std::fabs(out[1] - w1[1]) < eps;
+    ok = ok && p1;
+    printf("[selftest-statefulvalue] SpringVec2 step1=(%.3f,%.3f) -> %s\n", out[0], out[1], p1 ? "PASS" : "FAIL");
+    cookStatefulValueOp("SpringVec2", {{"Value.x", 1.0f}, {"Value.y", 2.0f}, {"Tension", 0.5f}, {"Strength", 1.0f}}, dt60, 0.0f, st, out);
+    bool p2 = std::fabs(out[0] - w2[0]) < eps && std::fabs(out[1] - w2[1]) < eps;
+    ok = ok && p2;
+    printf("[selftest-statefulvalue] SpringVec2 step2=(%.3f,%.3f) -> %s\n", out[0], out[1], p2 ? "PASS" : "FAIL");
   }
 
   printf("[selftest-statefulvalue] %s%s\n", ok ? "PASS" : "FAIL", injectBug ? " (injectBug)" : "");
