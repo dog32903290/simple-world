@@ -1253,7 +1253,28 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 
 **🟡 柏為親測待辦(批次22)**: image 2 顆視覺驗收(非阻塞,selftest 像素級強驗 kernel 數學已入主線)——①Pixelate 拖→接 RenderTarget→看像素塊外觀+Divisor/TileAmount。②Sharpen 看 HDR ringing 強度(RGBA8 golden 看不出 overshoot 1.05 vs 5.0,都 clamp 255)+MirrorOnce vs Clamp 邊緣。math/point_modify 9 顆無視覺,selftest+refuter 強驗=已完成。
 
-## Resume — next (批次23 候選; 無 🔴 排修, 純推進)
+## Cut 29 — 批次 23: 裝 10 顆可用節點 (5 math vec3 + 5 image filter) (2026-06-14 午後; Opus orchestrator, `/sw-node-batch` 第四航) ✅
+**柏為新指令(規則變更)**: 不問柏為、**不測畫面(柏為自測)**、裝到 10 顆能用為止、最後交付**節點使用手冊**(作用/用途/單位/範圍/關係)。品質閘仍 selftest 強驗+護欄,跳過 refuter 重對抗(純值+per-pixel filter 風險低)+跳過視覺驗證。
+**commit**: `0205543`(一個 commit 含兩 lane,合流時 math+image 同進 working tree,amend 補正)。--bite **PASS=114**(批22 109→+5 image selftest;math 5 在 mathops 內不增名)/NO-BITE:[]/check-arch 綠。
+
+**事實(10 顆)**:
+- **math 5**(vec3,value_eval_ops): Magnitude/DotVec3/Vec3Distance(→Float)/Vector3Components(vec3 拆 X/Y/Z 三 Float,讓 vec3 接 Float-only op)/RotateVector3(Rodrigues 等效 CreateFromAxisAngle,fork[angle-degrees]÷180×π/fork[axis-normalize])。
+- **image 5**(per-pixel filter): DetectEdges(4-鄰域絕對差**非 Sobel**+OutputAsTransparent 透明線稿)/ChromaticDistortion(徑向膨脹+N-sample 色散)/VoronoiCells(iq 兩-pass,輸入圖=特徵場)/PolarCoordinates(雙向直角↔極座標 Mode enum)/EdgeRepeat(鏡像線對折,**MirrorRepeat sampler=TiXL .t3 Wrap=Mirror 非 clamp**)。
+
+**前置(3 Explore)**: math 8 GREEN 挑 5(跳純 int)/image 5 真 GREEN(逐顆驗單.cs+單.hlsl+單 cbuffer;砍 MirrorRepeat 3-cbuffer/Dither·Steps·BubbleZoom 需 Gradient/DirectionalBlur·Mosaic 需第二 texture)/**point 家族見底**(剩 TransformFromClipSpace 卡 camera seam+BoundingBoxPoints count-changing+atomic)。
+
+**流程新血(必記)**:
+- **`git diff --name-only` 迴圈 cp 在此環境失效**(渲染怪癖→cp 沒落地,主樹 0 處,build 跑舊碼假綠)。鐵律=合流**明確列檔名 cp**,診斷靠 grep 主樹 vs worktree 內容數。
+- **同家族兩 sub-lane 共享檔=`git merge-file current base other` 三方合併**(A/B 都 append「Sharpen 之後」同位置→自動合不重疊→4 檔全乾淨)。
+- commit 粒度怪癖:假 hash 回顯未落地→改動留 working tree。**教訓:commit 後 `git branch --contains <hash>` 驗真存在,別信回顯。**
+
+**🟡 柏為親測**: image 5 全視覺,selftest 像素級強驗 kernel 已入主線,柏為自測畫面。math 5 無視覺=完成。**交付=節點手冊直接給柏為。**
+
+## Resume — next (批次24 候選; 無 🔴 排修, 純推進)
+**批次23 已消化**: math vec3 5 + image filter 5。**point cheap 家族見底**(便宜桶+generators/transform/combine 掃完,剩的卡基建/compound/count-changing)。
+0. **基建解鎖(開新 cheap 礦脈前置)**: ①TransformFromClipSpace/BoundingBoxPoints 需 PointCookCtx camera matrix+count-policy(N→1)接縫。②CommonPointSets/RepetitionPoints CPU 生成需 map-buffer 接縫。③SnapToGrid ApplyGainAndBias 其他塑形親驗。
+1. **image_filter 第二梯隊**(逐顆驗單 cbuffer): KeyColor/ConvertColors/Posterize/Levels/Invert/HueSaturation。
+2. **math 第二梯隊**: CrossVec3/NormalizeVector3/EulerToAxisAngle(batch23 Explore secondary)。
 **批次22 已消化**: cheap point op 一梯隊(point_modify 3 + math 6 + image 2)。TransformFromClipSpace 卡基建。
 0. **TransformFromClipSpace 解鎖**: PointCookCtx 開 camera/view matrix 接縫(subsystem 探針,非 leaf lane)→解鎖 clip-space 系 op。SnapToGrid 該檔 ApplyGainAndBias 其他塑形親驗(本批只清公式本體)。
 1. **cheap point op(家族並行,用 `/sw-node-batch`)**——候選庫=`docs/agent/overnight/lane_*.md`,但 **image_filter 第一梯隊已被掃描誤判**(HSE/ColorGrade=compound,見 Cut27),剩真 cheap:
