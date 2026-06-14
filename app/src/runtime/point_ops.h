@@ -143,6 +143,15 @@ int runDoyleSpiralPointsSelfTest(bool injectBug);
 // ClearSomePoints MODIFIER golden (point_ops_clearsomepoints.cpp): per-point hash kill.
 // injectBug flips the Ratio=0 assertion to expect at least 1 kill -> correct shader FAILS -> RED.
 int runClearSomePointsSelfTest(bool injectBug);
+// ReorientLinePoints MODIFIER golden (point_ops_reorientlinepoints.cpp): align Rotation to the
+// line tangent via qSlerp(Amount). injectBug flips the align test (expect forward AWAY) -> RED.
+int runReorientLinePointsSelfTest(bool injectBug);
+// SelectPoints MODIFIER golden (point_ops_selectpoints.cpp): volume (sphere/box/plane/zebra/noise)
+// selection written into FX1/FX2. injectBug zeroes the inside-volume strength -> selection FAILS.
+int runSelectPointsSelfTest(bool injectBug);
+// SoftTransformPoints MODIFIER golden (point_ops_softtransformpoints.cpp): volume-falloff weighted
+// soft transform of Position/Rotation/FX1. injectBug disables the falloff -> wrong weight -> FAIL.
+int runSoftTransformPointsSelfTest(bool injectBug);
 // ChannelMixer image filter (point_ops_channelmixer.cpp, lane image_filter): 4x4 channel matrix
 // mix (TiXL image/color/ChannelMixer / MixChannels.hlsl). injectBug = identity -> no swap -> FAIL.
 void registerChannelMixerOp();

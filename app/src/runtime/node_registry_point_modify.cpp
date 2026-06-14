@@ -328,6 +328,130 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         // .cs Resolution (int, default 0) — block size; points in same block share one hash
         {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 100.0f}},
        nullptr},
+      // ---- batch 21 (lane point_modify): ReorientLinePoints ----------------------
+      // TiXL parity: external/tixl .../point/transform/ReorientLinePoints.cs + .hlsl
+      // A count-preserving MODIFIER: re-orients each live point's Rotation so its +Z forward
+      // follows the local line tangent (prevLiveNeighbour -> nextLiveNeighbour), blended by
+      // Amount via qSlerp. Defaults: Amount=1.0.
+      // FORK: the .cs Center/UpVector/WIsWeight/Flip [Input]s are DEAD in the .hlsl kernel
+      //       (main() reads only Amount) -> dropped (porting them = inventing dead knobs).
+      {"ReorientLinePoints",
+       "ReorientLinePoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // re-oriented output bag (port 1)
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f}},
+       nullptr},
+      // ---- batch 21 (lane point_modify): SelectPoints ----------------------------
+      // TiXL parity: external/tixl .../point/modify/SelectPoints.cs + .hlsl
+      // A count-preserving MODIFIER: computes a per-point volume-selection scalar (Sphere/Box/
+      // Plane/Zebra/Noise) shaped by FallOff + GainAndBias, combined with the existing FX1/FX2
+      // weight by SelectMode (Override/Add/Sub/Multiply/Invert), and writes the result into FX1
+      // or FX2 (WriteTo). Position is untouched. Defaults from SelectPoints.t3:
+      //   Strength=1, StrengthFactor=None, WriteTo=F1, Mode=Override, ClampResult=false,
+      //   VolumeShape=Sphere, VolumeCenter=(0,0,0), VolumeStretch=(1,1,1), VolumeScale=1,
+      //   VolumeRotate=(0,0,0), FallOff=0, GainAndBias=(0.5,0.5), Scatter=0, Phase=0,
+      //   Threshold=0, DiscardNonSelected=false.
+      // FORK (selectpoints.metal):
+      //   - TransformVolume (float4x4) composed IN-shader from VolumeCenter/Stretch/Scale/Rotate
+      //     (same fork as TransformSomePoints; SelectPoints has no Pivot/Shear ports).
+      //   - SetW/Visibility [Input]s are DEAD in the .hlsl (commented out) -> dropped.
+      //   - WriteTo enum values F1/F2 only (Override=0 → write w=1 path); WriteTo=0 (None) writes
+      //     nothing (TiXL switch has no case 0), matching the .hlsl switch.
+      {"SelectPoints",
+       "SelectPoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // FX1/FX2-written output bag (port 1)
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f},
+        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f,
+         Widget::Enum, {"None", "F1", "F2"}},
+        {"WriteTo", "WriteTo", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum, {"None", "F1", "F2"}},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"Override", "Add", "Sub", "Multiply", "Invert"}},
+        {"ClampResult", "ClampResult", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"VolumeShape", "VolumeShape", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"Sphere", "Box", "Plane", "Zebra", "Noise"}},
+        // VolumeCenter (TiXL Vector3, ITransformable TranslationInput) — volume position.
+        {"VolumeCenter.x", "VolumeCenter", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"VolumeCenter.y", "VolumeCenter.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"VolumeCenter.z", "VolumeCenter.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // VolumeStretch (TiXL Vector3, default 1,1,1) — per-axis volume scale.
+        {"VolumeStretch.x", "VolumeStretch", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"VolumeStretch.y", "VolumeStretch.y", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"VolumeStretch.z", "VolumeStretch.z", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"VolumeScale", "VolumeScale", "Float", true, 1.0f, 0.0f, 10.0f},
+        // VolumeRotate (TiXL Vector3, Euler°, ITransformable RotationInput) — volume orientation.
+        {"VolumeRotate.x", "VolumeRotate", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"VolumeRotate.y", "VolumeRotate.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"VolumeRotate.z", "VolumeRotate.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        // FallOff default 0.5 per SelectPoints.t3 (NOT 0).
+        {"FallOff", "FallOff", "Float", true, 0.5f, 0.0f, 5.0f},
+        // GainAndBias (TiXL Vector2, default 0.5,0.5) — shapes the selection ramp.
+        {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Scatter", "Scatter", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Threshold", "Threshold", "Float", true, 0.0f, -1.0f, 1.0f},
+        {"DiscardNonSelected", "DiscardNonSelected", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr},
+      // ---- batch 21 (lane point_modify): SoftTransformPoints ---------------------
+      // TiXL parity: external/tixl .../point/transform/SoftTransformPoints.cs + .hlsl
+      // A count-preserving MODIFIER: computes a volume-falloff weight (Sphere/Box/Plane/Zebra,
+      // smoothstep) shaped by GainAndBias × Strength × StrengthFactor, then SOFT-applies a
+      // Translate/Rotate/Scale transform to Position (lerp by the weight), composes Rotation by
+      // the X-axis rotation, and lerps FX1 by ScaleFx1/OffsetFx1. Defaults from SoftTransformPoints.t3:
+      //   Amount=1 (note: not a shader cbuffer field — see FORK), Translate=(0,0,0), Dither=0,
+      //   Stretch=(1,1,1), Scale=1, Rotate=(0,0,0), ScaleW=1, OffsetW=0, VolumeCenter=(0,0,0),
+      //   VolumeType=Sphere, VolumeStretch=(1,1,1), VolumeSize=1, FallOff=0, Bias=0,
+      //   UseWAsWeight=false, GainAndBias=(0.5,0.5), StrengthFactor=None.
+      // FORK (softtransformpoints.metal):
+      //   - TransformVolume (float4x4) composed IN-shader from VolumeCenter/Stretch/Size (no Rotate
+      //     on the VOLUME in the .hlsl — only translate+scale build the volume matrix; the Rotate
+      //     port drives the POINT rotation, not the volume).
+      //   - Strength cbuffer field = Amount (the .cs ITransformable wires Amount → shader Strength;
+      //     verified by the single Strength scalar the .hlsl multiplies into the weight).
+      //   - Dither / ScaleW(volume) / Bias / UseWAsWeight / Visibility are DEAD in the .hlsl -> dropped.
+      //     (.hlsl reads Strength, Translate, Scale·ScaleMagnitude, RotateAxis, FallOff, GainAndBias,
+      //      Phase, Threshold, ScaleFx1, OffsetFx1, VolumeShape, StrengthFactor only.)
+      //   - ScaleW/OffsetW [Input]s map to the .hlsl ScaleFx1/OffsetFx1 cbuffer fields.
+      {"SoftTransformPoints",
+       "SoftTransformPoints",
+       {{"points", "points", "Points", true},    // input bag (port 0)
+        {"out", "out", "Points", false},          // softly-transformed output bag (port 1)
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f},
+        // Translate (TiXL Vector3) — soft positional offset (scaled by the weight).
+        {"Translate.x", "Translate", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Translate.y", "Translate.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Translate.z", "Translate.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // Stretch (TiXL Vector3, default 1,1,1) — per-axis point scale within the volume.
+        {"Stretch.x", "Stretch", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Stretch.y", "Stretch.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Stretch.z", "Stretch.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Scale", "Scale", "Float", true, 1.0f, 0.0f, 10.0f},
+        // Rotate (TiXL Vector3, Euler°) — soft rotation axis (scaled by the weight).
+        {"Rotate.x", "Rotate", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"Rotate.y", "Rotate.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"Rotate.z", "Rotate.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"ScaleW", "ScaleW", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"OffsetW", "OffsetW", "Float", true, 0.0f, -10.0f, 10.0f},
+        // VolumeCenter (TiXL Vector3, ITransformable TranslationInput) — volume position.
+        {"VolumeCenter.x", "VolumeCenter", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"VolumeCenter.y", "VolumeCenter.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"VolumeCenter.z", "VolumeCenter.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"VolumeType", "VolumeType", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+         {"Sphere", "Box", "Plane", "Zebra"}},
+        // VolumeStretch (TiXL Vector3, default 1,1,1) — per-axis volume scale.
+        {"VolumeStretch.x", "VolumeStretch", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"VolumeStretch.y", "VolumeStretch.y", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"VolumeStretch.z", "VolumeStretch.z", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"VolumeSize", "VolumeSize", "Float", true, 1.0f, 0.0f, 10.0f},
+        // FallOff default 1.0 per SoftTransformPoints.t3 (NOT 0).
+        {"FallOff", "FallOff", "Float", true, 1.0f, 0.0f, 5.0f},
+        // GainAndBias (TiXL Vector2, default 0.5,0.5) — shapes the falloff weight.
+        {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f,
+         Widget::Enum, {"None", "F1", "F2"}}},
+       nullptr},
   };
   return specs;
 }

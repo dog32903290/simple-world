@@ -23,6 +23,9 @@ void registerTransformSomePointsOp();
 void registerWrapPointPositionOp();
 void registerSnapToGridOp();
 void registerClearSomePointsOp();
+void registerReorientLinePointsOp();
+void registerSelectPointsOp();
+void registerSoftTransformPointsOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -38,6 +41,9 @@ void registerPointModifyPointOps() {
   registerWrapPointPositionOp();     // Points → Points (cube-fold box wrap, batch 19)
   registerSnapToGridOp();            // Points → Points (lerp to grid center, batch 19)
   registerClearSomePointsOp();       // Points → Points (per-point hash kill, batch 20)
+  registerReorientLinePointsOp();    // Points → Points (align rotation to line tangent, batch 21)
+  registerSelectPointsOp();          // Points → Points (volume selection -> FX1/FX2, batch 21)
+  registerSoftTransformPointsOp();   // Points → Points (volume falloff soft transform, batch 21)
 }
 
 }  // namespace sw
