@@ -189,6 +189,7 @@ const SelfTest kTable[] = {
     {"clearsomepoints", runClearSomePointsSelfTest},
     {"channelmixer", runChannelMixerSelfTest},
     {"tonemapping", runToneMappingSelfTest},
+    {"snaptopoints", runSnapToPointsSelfTest},
     {"rendertarget", runRenderTargetSelfTest},
     {"rendertargetwired", runRenderTargetWiredSelfTest},
     {"mathops", runMathOpsSelfTest},
