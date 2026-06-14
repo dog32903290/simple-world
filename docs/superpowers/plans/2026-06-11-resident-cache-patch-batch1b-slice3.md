@@ -1226,7 +1226,36 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 
 **🟡 柏為親測待辦 (批次21)**: ①ToneMapping app 拖→接 RenderTarget→看 Mode 切換(Aces/Reinhard/AgX 色調曲線差異)+Exposure 拉。②SnapToPoints 拖兩個生成器→接 Points1/Points2→拉 MaxAmount/Distance 看點被吸過去,**確認下游 DrawPoints 無垃圾點**(count-policy 修的肉眼驗收)。两顆都 selftest 強驗+refuter,過閘已入主線,視覺驗收非阻塞。
 
-## Resume — next (批次22 候選; 無 🔴 排修, 純推進)
+## Cut 28 — 批次 22: 分流快織 11 顆 cheap op (math 6 + point_modify 3 + image 2) (2026-06-14 午後; Opus orchestrator, `/sw-node-batch` 第三航) ✅
+**起因(柏為提問→拉線)**: 柏為問「節點慢=之前 DirectX/Windows 語法、換 Metal 每細節重定義?」→拉開兩組混淆: (a)生產慢≠執行慢; (b)語法翻譯≠parity 驗證。實證 DoyleSpiral .metal vs TiXL .hlsl: 數學本體幾乎逐字抄(cos/sin/pow/qMul HLSL≈MSL),真慢在「證明逐位元一樣」(parity ledger/refuter/不發明 port)。結論=分流: 便宜 op 衝量、複雜 op 慢工。柏為定: 一次 ≥10 顆才停。
+**缺口盤點**: 73 核心 point op 中複雜(sim/mesh/texture/curve/雙buffer)~30(41%,regex 偏低,實際近半)、便宜 43。便宜桶已做 21→剩 22,但**逐顆 grep .cs 復核砍掉 7 顆假 cheap**(MoveToSDF/SelectPointsWithSDF=SDF volume、PointTrail/PointTrailFast/KeepPreviousPointBuffer=feedback、PairPointsFor*=count-changing、Subdivide/Resample/Spline=可變輸出)→跨家族補 math 純值 + image fx 湊 12 顆(留餘裕)。
+**commit 序**: 9ef8add(math 6)→deec744(point_modify 3)→bf5bd0c(image 2)。--bite **PASS=109**(批21 104→+5: reorientlinepoints/selectpoints/softtransformpoints 三 selftest + pixelate + sharpen; math 6 在 mathops 條目內不增名)/NO-BITE:[]/check-arch 綠。soundtrack @4x 既有環境紅非本批。
+
+**事實(11 顆)**:
+- **math 6**(CPU 值節點,`value_eval_ops.cpp`/`node_registry_math.cpp`): Round/Atan2/Sigmoid/AddVec3/SubVec3/ScaleVector3。refuter 6/0 逐字: Sigmoid 指數**無負號** `1/(1+e^(Stretch·v))`(Sigmoid.cs:18 真實,非標準 logistic)/Atan2 引數序 **(X,Y)** 非 (Y,X)(Atan2.cs:17)/Round RoundRatio=0 passthrough+負值 fmod(Round.cs:23-34)/vec3 component-wise(ScaleVector3 B 為向量乘非 scalar),無發明 port。
+- **point_modify 3**(count-preserving GPU): ReorientLinePoints(切線 qAlignForward2+qSlerp(Amount),丟 .hlsl main() 未讀的 dead ports Center/UpVector/WIsWeight/Flip)/SelectPoints(volume Sphere/Box/Plane/Zebra/Noise+ApplyGainAndBias→FX1/FX2,position 不動)/SoftTransformPoints(volume falloff 軟變換 Position/Rotation/FX1)。
+- **image 2**(per-pixel filter): Pixelate(tile 量化,fork[具名]: TiXL per-cell Shape texture 省略=.t3 default white no-op,math 可證)/Sharpen(3×3 desaturated-Laplacian unsharp mask,fork: Clamp 取樣 vs TiXL MirrorOnce 1px edge ring/RGBA8 vs R16F HDR)。
+
+**refuter 5/0(point_modify 3+image 2 高風險 fork 逐字)**:
+- **旋轉序最高風險→沒爆**: SelectPoints volume rotation **Y·X·Z** 與 probe-verified `transformpoints.metal:44-46`(已證偽 Z·Y·X)同構; SoftTransformPoints 旋轉**根本非 Euler/非 CreateFromYawPitchRoll**=逐點 RotateAxis 的 X→Y→Z angle-axis 序(refuter 釐清 orchestrator prompt 把兩件事混為一談,逐字對 SoftTransformPoints.hlsl:104-115)。批次16/17 qMul 接反雷沒重演。
+- TransformVolume 解析重建逐字等價(`-VolumeCenter/(VolumeStretch·VolumeSize)`,.t3 確認 volume 無 rotate slot)。
+- **ApplyGainAndBias 兩顆逐字**(對 bias-functions.hlsl scalar form,與 Cut 27 SnapToGrid 修正版一致)→memory 🟡 公式本體可清; **但 SnapToGrid 該檔本身不在本批,其他塑形仍需親驗 snaptogrid.metal,不能僅憑本批全清**。
+- Pixelate/Sharpen kernel 逐字、無憑空旋鈕(批8/18 假旋鈕雷沒重演)。
+
+**TransformFromClipSpace BLOCKED(基建缺口,agent 誠實擋下不出貨)**: 整 kernel = `mul(P, CameraToWorld)/w`,需 camera/view matrix; `.cs` 零可操作 port(Spaces 是 private 非 [Input]),`.t3` 接 render-time 注入的 TransformsConstBuffer。simple_world `PointCookCtx` 無 camera seam(grep 零 consumer)。發明 camera port 違反「不發明 port」、bake identity=假 no-op→agent **不出貨假的**,回報基建缺口。→Resume 批次23: 需先在 PointCookCtx 開 camera/view matrix 接縫探針。
+
+**流程新血(`/sw-node-batch` 第三航)**:
+- **run_all_selftests.sh 自己不 build**(只解析 selftests.cpp kTable 原始碼+跑現有 binary,第25行假設 binary 已存在)。合流後直接跑 run_all=驗**舊 binary**→point_modify 假 FAILED(新 flag 不認得)+math 假 PASS(舊 golden)。**鐵律: 合流後必先 `cmake -S app -B app/build`(reconfigure 重展 glob 抓新 .metal/.cpp)+`cmake --build`,再 run_all --bite**。worktree 因 agent_worktree_setup 自帶 build 沒露此雷,主樹合流才現形。
+- `grep -c` 無匹配 exit 1 會短路 `&&` 鏈(自傷一次→build 沒跑→假 exit 1)。
+- 三共享檔(point_ops.h/selftests.cpp/CMakeLists)`git apply --check` 純加性疊加(image append 位置與 point_modify 不重疊,皆 CLEAN); 順手補 point_modify 漏的 3 params.h 進 `SW_SHADER_DEPS`(incremental metallib dep tracking)。
+
+**CONCERN**: `node_registry_point_modify.cpp` 459 行(>400 soft warning)=純 data-driven NodeSpec 表(rule 7 sanctioned 非 logic),check-arch 過。候選 per-sub-family 拆,cross-cutting 決策留 orchestrator,非阻塞。
+
+**🟡 柏為親測待辦(批次22)**: image 2 顆視覺驗收(非阻塞,selftest 像素級強驗 kernel 數學已入主線)——①Pixelate 拖→接 RenderTarget→看像素塊外觀+Divisor/TileAmount。②Sharpen 看 HDR ringing 強度(RGBA8 golden 看不出 overshoot 1.05 vs 5.0,都 clamp 255)+MirrorOnce vs Clamp 邊緣。math/point_modify 9 顆無視覺,selftest+refuter 強驗=已完成。
+
+## Resume — next (批次23 候選; 無 🔴 排修, 純推進)
+**批次22 已消化**: cheap point op 一梯隊(point_modify 3 + math 6 + image 2)。TransformFromClipSpace 卡基建。
+0. **TransformFromClipSpace 解鎖**: PointCookCtx 開 camera/view matrix 接縫(subsystem 探針,非 leaf lane)→解鎖 clip-space 系 op。SnapToGrid 該檔 ApplyGainAndBias 其他塑形親驗(本批只清公式本體)。
 1. **cheap point op(家族並行,用 `/sw-node-batch`)**——候選庫=`docs/agent/overnight/lane_*.md`,但 **image_filter 第一梯隊已被掃描誤判**(HSE/ColorGrade=compound,見 Cut27),剩真 cheap:
    - image_filter: **ToneMapping 已做**;真單-.hlsl 候選待逐顆親驗(KeyColor/Pixelate/ConvertColors 先確認單 cbuffer)。Tint/AdjustColors/ChannelMixer/ToneMapping=已做。
    - point_modify: SubdivideLinePoints/ReorientLinePoints(切線 rot Y·X·Z,W weight)。PointAttributeFromNoise=compound 排除。SelectPoints=moderate。
