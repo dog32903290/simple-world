@@ -15,6 +15,15 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
 3. 品質閘不可省：run_all --bite 零 NO-BITE／對抗 refuter（高風險 lane 用 Opus）／RED 面／
    orchestrator 親手復跑後才 commit／活體可證行為附 .scn。
 4. 律法自檢每 commit 前過（ARCHITECTURE.md 五區/單向/<400/資料驅動），law debt 不過夜。
+5. **看門狗硬節拍：每滿 20 分鐘必查一次所有在跑 subagent 的死活，不准空等。**
+   - 自走迴圈每 20 分鐘主動巡一次在跑的 lane（背景跑時用 `ScheduleWakeup` 排回來巡）。
+   - 派背景/並行 agent 後立刻 `run_in_background` 跑 `tools/agent_watchdog.sh` 盯 transcript mtime
+     （純腳本，**別加 nohup/`&`**，否則訊號斷）。單條序列 lane 用前景不用背景（零盲區）；
+     只有多 lane 並行才背景＋看門狗。
+   - 收到任何 task 通知（完工 OR 被殺）都必動作：killed = 立刻接力收尾（進同 worktree 續工不重做），
+     絕不閒置——漏接 kill 通知是空耗的頭號真因。
+   - 「20 分鐘」是巡查節拍不是處決線：STALE≠死。長 Opus lane 會假死，判死只認真死
+     （process 沒了／socket 斷）；非隔離背景 agent 被殺、活兒留主樹可救回。慢 ≠ 殺。
 
 ## 單批迴圈（重複直到停止條件）
 1. **定位**：讀 memory 索引的 lane-state ＋ 施工圖最新 Cut 的 Resume 段。樹要乾淨、
