@@ -549,6 +549,30 @@ void stepEase(const std::map<std::string, float>& in, float, float time, Statefu
 void stepEaseVec2(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3]) { easeImpl(in, time, st, out, 2); }
 void stepEaseVec3(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3]) { easeImpl(in, time, st, out, 3); }
 
+// --- Accumulator (TiXL float/process/Accumulator.cs) — a running accumulator. Running gates
+// accumulation, ResetTrigger reloads StartValue, Accumulate mode picks the per-step amount
+// (PerFrame=+Increment, PerSeconds=+Increment*dt), Modulo>0 wraps the output. State: s[0]=v.
+// .t3 defaults: Increment=1, StartValue=0, Modulo=0, Running=true, ResetTrigger=false, Accumulate=0.
+// Fork (named): TiXL computes dt = Playback.SecondsFromBars(LocalFxTime) - _lastUpdateTime; we use
+// the seam's wall `dt` directly (== bars→seconds delta at constant BPM), dropping _lastUpdateTime.
+// TiXL has no _isFirstEval: _v starts 0 (NOT StartValue) until a ResetTrigger fires — faithful.
+void stepAccumulator(const std::map<std::string, float>& in, float dt, float /*time*/,
+                     StatefulValueState& st, float out[3]) {
+  const bool running = getIn(in, "Running", 1.0f) > 0.5f;
+  const int mode = (int)std::lround(getIn(in, "Accumulate", 0.0f));
+  const float startValue = getIn(in, "StartValue", 0.0f);
+  if (getIn(in, "ResetTrigger", 0.0f) > 0.5f) {
+    st.s[0] = startValue;  // TiXL also writes Result=startValue here; final out below overwrites it
+  }
+  const float increment = getIn(in, "Increment", 1.0f);
+  if (running) {
+    const float f = (mode == 1) ? dt : 1.0f;  // PerSeconds(1) => dt, PerFrame(0)/else => 1
+    st.s[0] += increment * f;
+  }
+  const float modulo = getIn(in, "Modulo", 0.0f);
+  out[0] = modulo > 0.0f ? std::fmod(st.s[0], modulo) : st.s[0];  // TiXL: modulo>0 ? _v % modulo : _v
+}
+
 struct StatefulOp {
   const char* type;
   void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[3]);
@@ -571,6 +595,7 @@ const StatefulOp kStatefulValueOps[] = {
     {"HasValueDecreased", stepHasValueDecreased},
     {"HasValueChanged", stepHasValueChanged},
     {"DetectPulse", stepDetectPulse},
+    {"Accumulator", stepAccumulator},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -990,6 +1015,55 @@ int runStatefulValueSelfTest(bool injectBug) {
       ok = ok && pass;
       printf("[selftest-statefulvalue] DetectPulse step%d HC=%.1f(want %.1f) Dbg=%.4f(want %.4f) -> %s\n",
              i + 1, out[0], hc, out[1], wDbg[i], pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- Accumulator PerFrame, Increment=1, Running=1: v=0→ 1,2,3 -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    for (int i = 0; i < 3; ++i) {
+      cookStatefulValueOp("Accumulator", {{"Increment", 1.0f}, {"Accumulate", 0.0f}, {"Running", 1.0f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 1) ? 5.0f : (float)(i + 1);  // bug: wrong running total
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] Accum.perFrame step%d=%.1f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+  // ----- Accumulator Running=0 freezes at 0; then ResetTrigger reloads StartValue=10 then +1 → 11 -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("Accumulator", {{"Increment", 1.0f}, {"Running", 0.0f}}, dt60, 0.0f, st, out);
+    bool p0 = std::fabs(out[0] - 0.0f) < eps;  // not running → stays 0
+    cookStatefulValueOp("Accumulator", {{"Increment", 1.0f}, {"Running", 1.0f}, {"StartValue", 10.0f}, {"ResetTrigger", 1.0f}}, dt60, 0.0f, st, out);
+    float wR = injectBug ? 1.0f : 11.0f;  // bug: reset ignored → 0+1
+    bool pR = std::fabs(out[0] - wR) < eps;  // reset→10 then +1 (same frame) → 11
+    ok = ok && p0 && pR;
+    printf("[selftest-statefulvalue] Accum.freeze=%.1f(want 0) reset+inc=%.1f(want %.1f) -> %s\n", 0.0f, out[0], wR, (p0 && pR) ? "PASS" : "FAIL");
+  }
+  // ----- Accumulator Modulo=3, +1/frame: v 1,2,3,4 → fmod(.,3) = 1,2,0,1 -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float want[4] = {1.0f, 2.0f, 0.0f, 1.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("Accumulator", {{"Increment", 1.0f}, {"Running", 1.0f}, {"Modulo", 3.0f}}, dt60, 0.0f, st, out);
+      bool pass = std::fabs(out[0] - want[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] Accum.mod3 step%d=%.1f want=%.1f -> %s\n", i + 1, out[0], want[i], pass ? "PASS" : "FAIL");
+    }
+  }
+  // ----- Accumulator PerSeconds, Increment=60, dt=1/60 → +1/frame: 1,2 (proves dt path) -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    for (int i = 0; i < 2; ++i) {
+      cookStatefulValueOp("Accumulator", {{"Increment", 60.0f}, {"Accumulate", 1.0f}, {"Running", 1.0f}}, dt60, 0.0f, st, out);
+      float w = (float)(i + 1);
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] Accum.perSec step%d=%.2f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
     }
   }
 
