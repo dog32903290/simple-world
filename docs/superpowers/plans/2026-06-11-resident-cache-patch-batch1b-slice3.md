@@ -1416,3 +1416,15 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 **TiXL .t3 預設權威(查不發明×2)**: agent 抓出工單兩處筆誤——①Log Base 工單說無預設用 10→實際 Log.t3 Base=1.0(且 base=1 落 degenerate→0 guard);②DetectPulse Damping 工單猜 0→實際 DetectPulse.t3 Damping=0.95/Value=1/Threshold=0/MinTime=0.075。**教訓沉澱:value op 預設權威=`external/tixl` 的 `.t3`(SymbolJson),工單別猜,implementer 自己查 .t3。** Log 本身早批次已落地(本批確認 faithful 未動)。
 🟡 柏為親測:Damping/Threshold/MinTime 接訊號看脈衝偵測。
 **Resume(批次30 候選,machine-verifiable 礦剩薄)**: BlendValues(stateless,MultiInput<float> Values + F regular input,Fmod index+Lerp;⚠混 MultiInput+regular port,gather 順序要驗)/Accumulator(stateful,_v 累加,SecondsFromBars bars-time→可用 seam dt 直接替=named fork,enum AccumulationModes+bool Running/ResetTrigger)。**PeakLevel BLOCKED**(4 輸出>out[3]+FoundPeak Bool→需 >3 輸出 seam 小改)。這兩顆後 float/numbers machine-verifiable leaf 近見底→往下=Gradient op-half(widget 堆清單)或撞停手條件(需眼/大子系統)回報柏為。
+
+## Cut 36 — 批次 30: Accumulator + BlendValues DEFER + 礦況盤點 (2026-06-14 夜; Opus orchestrator, /loop 自走) ✅
+**commit `1917edf`**: Accumulator(TiXL float/process/Accumulator.cs 逐字,stateful seam,state s[0]=v)。.t3 預設自查(Increment=1/StartValue=0/Modulo=0/Running=true/ResetTrigger=false/Accumulate=PerFrame)。Running 閘累加/ResetTrigger 重載 StartValue(同幀續累加)/PerFrame=+Inc PerSeconds=+Inc*dt/Modulo wrap。named fork=SecondsFromBars→seam wall dt;TiXL 無 _isFirstEval(v 起 0 非 StartValue)。selftest 5 組(PerFrame/freeze/reset/mod3 wrap/PerSeconds dt)+齒咬。--bite PASS=125/NO-BITE:[]/check-arch 綠。
+**BlendValues DEFER(非 machine-verifiable leaf,需開接縫)**: MultiInput<float> Values + regular F 混用。flat-path gather(graph.cpp:165)每 port 一槽、**不展開 multiInput**(展開只在 resident path);且 eval in[] 無法穩當分離變長 Values 與 F,TiXL count==0→0 語義我方 gather 未暴露。→ mixed-multiInput+regular 接縫=需驗/開,非自走安全,deferred。
+**PeakLevel BLOCKED**: 4 輸出>out[3]+FoundPeak Bool→需 >3 輸出 seam 小改。
+
+**礦況盤點(承重,決定自走還能走多遠)**: float/numbers 的 **high-value 接縫騎乘顆(Ease/logic/stateful Damp·Spring·Freeze·Delta·HasValue·DetectPulse·Accumulator)已挖盡**。剩的 machine-verifiable leaf 降到 **completeness-tier**:
+- **clean vec value op**(fit 既有 .x/.y/.z Float port 慣例,真 TiXL 非發明,自走安全):DivideVector2/BlendVector3/EulerToAxisAngle/RemapVec2/PadVec2Range/Int2ToVector2/Vec2ToVec3/GridPosition。約 1-2 批。
+- **stateful vec**:HasVec2Changed/HasVec3Changed(鏡 HasValueChanged)。
+- **int/ 家族**(AddInts/IntDiv/ModInt/MinInt/MaxInt/IsIntEven/CompareInt/IntToFloat…):Float-only runtime 裡 Int op = 截斷 Float,是型別建模問題、價值低,**先不碰**(若柏為要 Min/Max float op,MinInt/MaxInt 可借語義)。
+- **需 seam/blocked**:BlendValues/PickVector2,3(mixed multiInput)/PerlinNoise2,3(noise impl)/MulMatrix·TransformVec3(matrix 輸入)/GetAPrime(prime sieve)/RandomChoiceIndex(RNG)。
+**結論=自走還能走 1-2 批 clean vec value op,但已從 high-value 跨進 completeness-tier→這是柏為 steer 點(要不要改去 Gradient widget[需柏為 authoring]或視覺 filter,還是繼續補完 vec/int parity)。** 批次31 預設=vec value 三顆(DivideVector2/BlendVector3/EulerToAxisAngle 逐字驗 TiXL)。
