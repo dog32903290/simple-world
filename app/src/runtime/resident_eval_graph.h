@@ -93,7 +93,8 @@ struct ResidentNode {
   // Externally-cooked outputs (mirror of flat Node::outCache): stateful value ops with no pure
   // evaluate() — AudioReaction — are cooked by the app's per-frame cooker, which writes the
   // results here; evalResidentFloat returns extOut[output port index] for such nodes.
-  float extOut[3] = {0.0f, 0.0f, 0.0f};
+  // Width 8 (was 3): some stateful value ops emit >3 outputs (HasVec3Changed=7, PeakLevel=4).
+  float extOut[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
   // S2 bypass (= TiXL Slot.ByPassUpdate, Slot.cs:176-179): when bypassed AND bypassable, this node's
   // MAIN output (bypassOutSlot) returns its MAIN input's (bypassInSlot) upstream value instead of
   // cooking. Set at build time (mirrors how a wire feeding a slot is resolved at build, not eval).

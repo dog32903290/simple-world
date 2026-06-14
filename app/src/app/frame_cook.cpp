@@ -187,11 +187,9 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs,
   for (ResidentNode& rn : g.nodes) {
     if (!isStatefulValueOp(rn.opType)) continue;
     std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
-    float out[3] = {0.0f, 0.0f, 0.0f};
+    float out[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // ≥3-output ops (HasVec3Changed=7)
     cookStatefulValueOp(rn.opType, P, dtSecs, timeSecs, state[rn.path], out);
-    rn.extOut[0] = out[0];
-    rn.extOut[1] = out[1];
-    rn.extOut[2] = out[2];
+    for (int i = 0; i < 8; ++i) rn.extOut[i] = out[i];
   }
 }
 

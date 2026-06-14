@@ -603,9 +603,67 @@ void stepHasVec2Changed(const std::map<std::string, float>& in, float /*dt*/, fl
   ly = ny;
 }
 
+// --- HasVec3Changed (TiXL vec3/HasVec3Changed.cs) — 7-output sibling of HasValueChanged for Vec3.
+// Mode(Changed=any |Δcomp|>thr / Increased / Decreased). Outputs: HasChanged(0/1), Delta.xyz(signed
+// out[1..3]), DeltaOnHit.xyz(abs Δ at last hit, out[4..6]). State: s[0..2]=lastValue, s[3]=lastHitTime,
+// s[4]=wasHit, s[5..7]=lastHitDelta. Fork (same as HasValueChanged): drop Playback 0.010 dedup; seam
+// `time` for the MinTimeBetweenHits gate.
+void stepHasVec3Changed(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[8]) {
+  const float nx = getInC(in, "Value", 0), ny = getInC(in, "Value", 1), nz = getInC(in, "Value", 2);
+  const float threshold = getIn(in, "Threshold", 0.0f);
+  const float minTime = getIn(in, "MinTimeBetweenHits", 0.0f);
+  const bool prevent = getIn(in, "PreventContinuedChanges", 0.0f) > 0.5f;
+  int mode = (int)std::lround(getIn(in, "Mode", 0.0f));
+  if (mode < 0) mode = 0; else if (mode > 2) mode = 2;  // TiXL Clamp(0, len-1)
+  const float lx = st.s[0], ly = st.s[1], lz = st.s[2];
+  const float ax = std::fabs(nx - lx), ay = std::fabs(ny - ly), az = std::fabs(nz - lz);
+  bool hasChanged;
+  if (mode == 1)       hasChanged = nx > lx + threshold || ny > ly + threshold || nz > lz + threshold;  // Increased
+  else if (mode == 2)  hasChanged = nx < lx - threshold || ny < ly - threshold || nz < lz - threshold;  // Decreased
+  else                 hasChanged = ax > threshold || ay > threshold || az > threshold;                 // Changed
+  const bool prevWasHit = st.s[4] > 0.5f;
+  const bool wasTriggered = hasChanged && !prevWasHit;
+  st.s[4] = hasChanged ? 1.0f : 0.0f;
+  if (hasChanged && (prevent || wasTriggered)) {
+    if (time - st.s[3] >= minTime) { st.s[3] = time; st.s[5] = ax; st.s[6] = ay; st.s[7] = az; }
+    else hasChanged = false;
+  }
+  out[0] = hasChanged ? 1.0f : 0.0f;
+  out[1] = nx - lx; out[2] = ny - ly; out[3] = nz - lz;  // Delta = newValue - lastValue (signed)
+  st.s[0] = nx; st.s[1] = ny; st.s[2] = nz;
+  out[4] = st.s[5]; out[5] = st.s[6]; out[6] = st.s[7];  // DeltaOnHit (abs Δ at last hit)
+}
+
+// --- PeakLevel (TiXL float/process/PeakLevel.cs) — 4 outputs: AttackLevel(Δ since last frame),
+// FoundPeak(0/1 when a rising step > Threshold and ≥ MinTimeBetweenPeaks since the last peak),
+// TimeSincePeak, MovingSum(running Σ of increases, wrapped at ±30000 for float precision). State:
+// s[0]=lastValue, s[1]=lastPeakTime(init −∞), s[2]=movingSum. Fork: drop the FxTime 0.001 dedup; seam
+// `time` (wall secs) for Playback.RunTimeInSecs. MovingSum is a feedback accumulator (reads its own
+// prior output = state, like Ease reads Result.Value).
+void stepPeakLevel(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[8]) {
+  if (!st.init) { st.s[1] = -1e30f; st.init = true; }  // _lastPeakTime = double.NegativeInfinity
+  const float value = getIn(in, "Value", 0.0f);
+  const float threshold = getIn(in, "Threshold", 0.0f);
+  const float minTime = getIn(in, "MinTimeBetweenPeaks", 0.0f);
+  const float increase = value - st.s[0];
+  const float timeSinceLastPeak = time - st.s[1];
+  if (timeSinceLastPeak < 0.0f) st.s[1] = -1e30f;  // seek-backward: reset field (local stays, faithful)
+  bool foundPeak = false;
+  if (increase > threshold && timeSinceLastPeak > minTime) { st.s[1] = time; foundPeak = true; }
+  float previousSum = st.s[2];
+  const float precisionThreshold = 30000.0f;
+  if (std::fabs(previousSum) > precisionThreshold) previousSum = std::fmod(previousSum, precisionThreshold);
+  st.s[2] = previousSum + increase;
+  out[0] = increase;                 // AttackLevel
+  out[1] = foundPeak ? 1.0f : 0.0f;  // FoundPeak (Bool→Float)
+  out[2] = timeSinceLastPeak;        // TimeSincePeak
+  out[3] = st.s[2];                  // MovingSum
+  st.s[0] = value;
+}
+
 struct StatefulOp {
   const char* type;
-  void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[3]);
+  void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[8]);
 };
 // The data-driven table (rule 7): add a row to extend; frame_cook + the resident path stay untouched.
 const StatefulOp kStatefulValueOps[] = {
@@ -627,6 +685,8 @@ const StatefulOp kStatefulValueOps[] = {
     {"DetectPulse", stepDetectPulse},
     {"Accumulator", stepAccumulator},
     {"HasVec2Changed", stepHasVec2Changed},
+    {"HasVec3Changed", stepHasVec3Changed},
+    {"PeakLevel", stepPeakLevel},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -640,7 +700,7 @@ const StatefulOp* findStatefulOp(const std::string& t) {
 bool isStatefulValueOp(const std::string& opType) { return findStatefulOp(opType) != nullptr; }
 
 void cookStatefulValueOp(const std::string& opType, const std::map<std::string, float>& in,
-                         float dt, float time, StatefulValueState& st, float out[3]) {
+                         float dt, float time, StatefulValueState& st, float out[8]) {
   if (const StatefulOp* o = findStatefulOp(opType)) o->step(in, dt, time, st, out);
 }
 
@@ -1113,6 +1173,41 @@ int runStatefulValueSelfTest(bool injectBug) {
       bool pass = std::fabs(out[0] - whc) < eps && std::fabs(out[2] - wDy[i]) < eps;
       ok = ok && pass;
       printf("[selftest-statefulvalue] HasVec2Changed step%d HC=%.1f(want %.1f) Dy=%.1f -> %s\n", i + 1, out[0], whc, out[2], pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ----- HasVec3Changed (7-output, proves >3-out seam), Threshold=0.5, Mode=Changed -----
+  // (0,0,0)→(0,3,0)→(0,3,0): HasChanged 0,1,0; Delta.y 0,3,0; DeltaOnHit.y captured 0,3,3 (holds).
+  {
+    StatefulValueState st;
+    float out[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    const float vy[3] = {0.0f, 3.0f, 3.0f};
+    const float wHC[3] = {0.0f, 1.0f, 0.0f};
+    const float wDy[3] = {0.0f, 3.0f, 0.0f};   // Delta.y (signed) = out[2]
+    const float wDoh[3] = {0.0f, 3.0f, 3.0f};  // DeltaOnHit.y = out[5] (held after the hit)
+    for (int i = 0; i < 3; ++i) {
+      cookStatefulValueOp("HasVec3Changed", {{"Value.x", 0.0f}, {"Value.y", vy[i]}, {"Value.z", 0.0f}, {"Threshold", 0.5f}, {"Mode", 0.0f}}, dt60, 0.0f, st, out);
+      float whc = (injectBug && i == 1) ? 0.0f : wHC[i];
+      bool pass = std::fabs(out[0] - whc) < eps && std::fabs(out[2] - wDy[i]) < eps && std::fabs(out[5] - wDoh[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasVec3Changed step%d HC=%.1f(want %.1f) Dy=%.1f DoH.y=%.1f -> %s\n", i + 1, out[0], whc, out[2], out[5], pass ? "PASS" : "FAIL");
+    }
+  }
+  // ----- PeakLevel (4-output, proves out[3] seam): Threshold=0.5. value 0,1,1.2,2.5 (time 1,2,2.5,3) -----
+  // increase 0,1,0.2,1.3 → FoundPeak 0,1,0,1; MovingSum 0,1,1.2,2.5 (accumulator at out[3]).
+  {
+    StatefulValueState st;
+    float out[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    const float val[4] = {0.0f, 1.0f, 1.2f, 2.5f};
+    const float tm[4] = {1.0f, 2.0f, 2.5f, 3.0f};
+    const float wFP[4] = {0.0f, 1.0f, 0.0f, 1.0f};   // FoundPeak = out[1]
+    const float wMS[4] = {0.0f, 1.0f, 1.2f, 2.5f};   // MovingSum = out[3]
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("PeakLevel", {{"Value", val[i]}, {"Threshold", 0.5f}, {"MinTimeBetweenPeaks", 0.0f}}, dt60, tm[i], st, out);
+      float wms = (injectBug && i == 3) ? 1.3f : wMS[i];  // bug: MovingSum forgets to accumulate
+      bool pass = std::fabs(out[1] - wFP[i]) < eps && std::fabs(out[3] - wms) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] PeakLevel step%d FoundPeak=%.1f(want %.1f) MovingSum=%.2f(want %.2f) -> %s\n", i + 1, out[1], wFP[i], out[3], wms, pass ? "PASS" : "FAIL");
     }
   }
 

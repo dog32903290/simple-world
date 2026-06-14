@@ -44,10 +44,10 @@ bool isStatefulValueOp(const std::string& opType);
 // Cook one stateful value node for this frame. `in` = its resolved Float inputs keyed by port id
 // (from resolveResidentFloatInputs). `dt` = the RAW wall frame delta in seconds (TiXL Damp/Spring
 // sample Playback.LastFrameDuration; each op clamps internally as TiXL does). `time` = wall
-// seconds (for time-based ops like Ease; unused by Damp/Spring). Mutates `st`; writes up to 3
-// outputs into out[0..2]. No-op (out untouched) if opType is unknown.
+// seconds (for time-based ops like Ease; unused by Damp/Spring). Mutates `st`; writes up to 8
+// outputs into out[0..7] (most ops ≤3; HasVec3Changed=7, PeakLevel=4). No-op if opType unknown.
 void cookStatefulValueOp(const std::string& opType, const std::map<std::string, float>& in,
-                         float dt, float time, StatefulValueState& st, float out[3]);
+                         float dt, float time, StatefulValueState& st, float out[8]);
 
 // Isolated proof: drive Damp (linear convergence + damped-spring branch with dt-clamp) and Spring
 // (overshoot then settle) frame-by-frame against hand-computed TiXL trajectories. injectBug
