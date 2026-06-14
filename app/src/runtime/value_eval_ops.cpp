@@ -158,4 +158,105 @@ float evalCos(int, const float* in, int n, const EvaluationContext&) {
 }
 // [overnight-math] END implementations
 
+// [math-batch22] BEGIN implementations
+
+// Round: quantize Value to N StepsPerUnit with RoundRatio edge smoothing.
+// TiXL float/adjust/Round.cs, RoundValue2 (verbatim, lines 23-34):
+//   float u = 1 / stepsPerUnit;
+//   float v = stepRatio / (2 * stepsPerUnit);
+//   float m = i % u;
+//   float r = m - (m < v ? 0 : m > u - v ? u : (m - v) / (1 - 2 * stepsPerUnit * v));
+//   float y = i - r;
+// RoundRatio=0 → v=0 → middle branch always → passthrough; RoundRatio=1 → hard quantization.
+// FORK (named): stepsPerUnit==0 → return Value unchanged (avoids div/0; TiXL would NaN).
+// FORK (named): denom (1-2*steps*v)==0 → return m unchanged in that sub-case (TiXL: div-by-zero).
+// in: [Value, StepsPerUnit, RoundRatio]; outIdx unused (single output "Result").
+float evalRound(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 3) return 0.0f;
+  float i = in[0], stepsPerUnit = in[1], stepRatio = in[2];
+  // FORK: stepsPerUnit==0 → passthrough (TiXL: div-by-zero → NaN).
+  if (stepsPerUnit == 0.0f) return i;
+  float u = 1.0f / stepsPerUnit;
+  float v = stepRatio / (2.0f * stepsPerUnit);
+  float m = std::fmod(i, u);
+  // C++ fmod keeps sign of dividend; TiXL C# uses % which also keeps sign for floats — match.
+  float tval;  // the ternary value subtracted from m to get r
+  if (m < v) {
+    tval = 0.0f;
+  } else if (m > u - v) {
+    tval = u;
+  } else {
+    float denom = 1.0f - 2.0f * stepsPerUnit * v;
+    // FORK: denom = 1 - 2*stepsPerUnit*v = 1 - stepRatio, so denom==0 when stepRatio==1
+    // (TiXL there computes (m-v)/0 -> NaN at the measure-zero point m==u/2); we return 0.
+    tval = (denom == 0.0f) ? 0.0f : (m - v) / denom;
+  }
+  float r = m - tval;
+  return i - r;
+}
+
+// Atan2: atan2(x, y) from Vec2 input. TiXL float/trigonometry/Atan2.cs:
+//   "Result.Value = MathF.Atan2(v.X, v.Y);"
+// NOTE: TiXL passes (X, Y) not the standard (Y, X) — the argument order is literal from
+// the source. This is TiXL's intentional convention (fork-atan2-arg-order named).
+// in: [Vector.x, Vector.y] (two Float ports decomposed from the Vec2 input);
+// outIdx unused (single output "Result").
+float evalAtan2(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 2) return 0.0f;
+  // TiXL Atan2.cs line 17: "Result.Value = MathF.Atan2(v.X, v.Y);"
+  // fork-atan2-arg-order: Atan2(X, Y) not Atan2(Y, X); faithful to TiXL source.
+  return std::atan2(in[0], in[1]);
+}
+
+// Sigmoid: 1/(1+e^(stretch*v)). TiXL float/adjust/Sigmoid.cs:
+//   "Result.Value = 1f/(1+ MathF.Pow(MathF.E, pow * v));"
+// NOTE: this is NOT the standard logistic sigmoid 1/(1+e^(-v)); TiXL uses +pow*v not -v.
+// With Stretch=-1 it recovers the standard sigmoid shape.
+// No fork: formula is verbatim from TiXL. No edge cases (denominator ≥ 1 always).
+// in: [Value, Stretch]; outIdx unused (single output "Result").
+float evalSigmoid(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 2) return 0.0f;
+  float v = in[0], s = in[1];
+  // TiXL Sigmoid.cs: "1f/(1+ MathF.Pow(MathF.E, pow * v))"
+  return 1.0f / (1.0f + std::exp(s * v));
+}
+
+// AddVec3: Input1 + Input2 component-wise. TiXL vec3/AddVec3.cs:
+//   "Result.Value = Input1.GetValue(context) + Input2.GetValue(context);"
+// Decomposed: in[0..2] = Input1.{x,y,z}; in[3..5] = Input2.{x,y,z}.
+// outIdx is the spec port index; component k = outIdx - n (n=6 Float inputs).
+// Result.x is port 6, Result.y is port 7, Result.z is port 8.
+float evalAddVec3(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 6) return 0.0f;
+  int k = outIdx - n;  // port index → component (0/1/2)
+  if (k < 0 || k > 2) return 0.0f;
+  return in[k] + in[k + 3];
+}
+
+// SubVec3: Input1 - Input2 component-wise. TiXL vec3/SubVec3.cs:
+//   "Result.Value = Input1.GetValue(context) - Input2.GetValue(context);"
+// Decomposed: in[0..2] = Input1.{x,y,z}; in[3..5] = Input2.{x,y,z}.
+// outIdx → component k = outIdx - n (n=6).
+float evalSubVec3(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 6) return 0.0f;
+  int k = outIdx - n;
+  if (k < 0 || k > 2) return 0.0f;
+  return in[k] - in[k + 3];
+}
+
+// ScaleVector3: A * B * ScaleUniform (component-wise). TiXL vec3/ScaleVector3.cs:
+//   "Result.Value = a * b * u;"
+// Decomposed: in[0..2] = A.{x,y,z}; in[3..5] = B.{x,y,z}; in[6] = ScaleUniform.
+// outIdx → component k = outIdx - n (n=7: 6 vec components + 1 scalar).
+// Result.x is port 7, Result.y is port 8, Result.z is port 9.
+float evalScaleVector3(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 7) return 0.0f;
+  int k = outIdx - n;
+  if (k < 0 || k > 2) return 0.0f;
+  float u = in[6];
+  return in[k] * in[k + 3] * u;
+}
+
+// [math-batch22] END implementations
+
 }  // namespace sw

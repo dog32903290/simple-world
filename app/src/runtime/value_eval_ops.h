@@ -31,4 +31,26 @@ float evalSmoothStep(int, const float* in, int n, const EvaluationContext&);
 float evalLog(int, const float* in, int n, const EvaluationContext&);
 float evalCos(int, const float* in, int n, const EvaluationContext&);
 // [overnight-math] END declarations
+// [math-batch22] BEGIN declarations
+// Round: quantize to N steps/unit with edge smoothing. TiXL float/adjust/Round.cs.
+float evalRound(int outIdx, const float* in, int n, const EvaluationContext&);
+// Atan2: atan2(x, y) from a Vec2. TiXL float/trigonometry/Atan2.cs.
+// in: [Vector.x, Vector.y]; outIdx unused (single output).
+float evalAtan2(int outIdx, const float* in, int n, const EvaluationContext&);
+// Sigmoid: 1/(1+e^(stretch*v)). TiXL float/adjust/Sigmoid.cs.
+// in: [Value, Stretch]; outIdx unused (single output).
+float evalSigmoid(int outIdx, const float* in, int n, const EvaluationContext&);
+// AddVec3: Input1 + Input2 (component-wise). TiXL vec3/AddVec3.cs.
+// in: [Input1.x, Input1.y, Input1.z, Input2.x, Input2.y, Input2.z]
+// outIdx 0/1/2 → Result.x/.y/.z
+float evalAddVec3(int outIdx, const float* in, int n, const EvaluationContext&);
+// SubVec3: Input1 - Input2 (component-wise). TiXL vec3/SubVec3.cs.
+// in: [Input1.x, Input1.y, Input1.z, Input2.x, Input2.y, Input2.z]
+// outIdx 0/1/2 → Result.x/.y/.z
+float evalSubVec3(int outIdx, const float* in, int n, const EvaluationContext&);
+// ScaleVector3: A * B * ScaleUniform (component-wise). TiXL vec3/ScaleVector3.cs.
+// in: [A.x, A.y, A.z, B.x, B.y, B.z, ScaleUniform]
+// outIdx 0/1/2 → Result.x/.y/.z
+float evalScaleVector3(int outIdx, const float* in, int n, const EvaluationContext&);
+// [math-batch22] END declarations
 }  // namespace sw

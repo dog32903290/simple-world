@@ -142,6 +142,79 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Result", "Result", "Float", false}},
        evalCos},
       // [overnight-math] END specs
+      // [math-batch22] BEGIN specs
+      // Round: quantize Value to StepsPerUnit steps with RoundRatio edge smoothing.
+      // TiXL float/adjust/Round.cs. Ports from Round.cs (3 inputs) + Round.t3 defaults:
+      //   StepsPerUnit default=1.0, RoundRatio default=0.0, Value default=0.0.
+      // Fork: StepsPerUnit==0 → passthrough (TiXL: div-by-zero → NaN).
+      {"Round", "Round",
+       {{"Value",        "Value",        "Float", true, 0.0f, -100.0f, 100.0f},
+        {"StepsPerUnit", "StepsPerUnit", "Float", true, 1.0f, 0.001f,  100.0f},
+        {"RoundRatio",   "RoundRatio",   "Float", true, 0.0f, 0.0f,    1.0f},
+        {"Result",       "Result",       "Float", false}},
+       evalRound},
+      // Atan2: atan2(Vector.x, Vector.y). TiXL float/trigonometry/Atan2.cs:
+      //   "MathF.Atan2(v.X, v.Y)" — note argument order is (X, Y) not standard (Y, X).
+      // Vec2 input decomposed into two Float ports (fork-atan2-arg-order named in evalAtan2).
+      // Atan2.t3: Vector default {X:0, Y:0}.
+      {"Atan2", "Atan2",
+       {{"Vector.x", "Vector",   "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, false, 2},
+        {"Vector.y", "Vector.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, false, 1},
+        {"Result",   "Result",   "Float", false}},
+       evalAtan2},
+      // Sigmoid: 1/(1+e^(Stretch*Value)). TiXL float/adjust/Sigmoid.cs:
+      //   "1f/(1+ MathF.Pow(MathF.E, pow * v))"
+      // NOTE: NOT standard sigmoid; Stretch is multiplier (positive = decreasing S-curve).
+      // Sigmoid.t3: Value default=1.0, Stretch default=1.0.
+      {"Sigmoid", "Sigmoid",
+       {{"Value",   "Value",   "Float", true, 1.0f, -10.0f, 10.0f},
+        {"Stretch", "Stretch", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"Result",  "Result",  "Float", false}},
+       evalSigmoid},
+      // AddVec3: Input1 + Input2 (component-wise). TiXL vec3/AddVec3.cs.
+      // Each Vec3 decomposed into 3 Float ports (head Widget::Vec, vecArity=3).
+      // Three output pins: Result.x / Result.y / Result.z.
+      // AddVec3.t3: both inputs default {X:0, Y:0, Z:0}.
+      {"AddVec3", "AddVec3",
+       {{"Input1.x", "Input1",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input1.y", "Input1.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input1.z", "Input1.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.x", "Input2",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input2.y", "Input2.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.z", "Input2.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Result.x", "Result.x", "Float", false},
+        {"Result.y", "Result.y", "Float", false},
+        {"Result.z", "Result.z", "Float", false}},
+       evalAddVec3},
+      // SubVec3: Input1 - Input2 (component-wise). TiXL vec3/SubVec3.cs.
+      // SubVec3.t3: both inputs default {X:0, Y:0, Z:0}.
+      {"SubVec3", "SubVec3",
+       {{"Input1.x", "Input1",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input1.y", "Input1.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input1.z", "Input1.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.x", "Input2",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input2.y", "Input2.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.z", "Input2.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Result.x", "Result.x", "Float", false},
+        {"Result.y", "Result.y", "Float", false},
+        {"Result.z", "Result.z", "Float", false}},
+       evalSubVec3},
+      // ScaleVector3: A * B * ScaleUniform (component-wise). TiXL vec3/ScaleVector3.cs:
+      //   "Result.Value = a * b * u;"
+      // ScaleVector3.t3: A default {1,1,1}, B default {1,1,1}, ScaleUniform default=1.0.
+      {"ScaleVector3", "ScaleVector3",
+       {{"A.x",          "A",           "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"A.y",          "A.y",         "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"A.z",          "A.z",         "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"B.x",          "B",           "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"B.y",          "B.y",         "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"B.z",          "B.z",         "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"ScaleUniform", "ScaleUniform","Float", true, 1.0f, -100.0f, 100.0f},
+        {"Result.x",     "Result.x",    "Float", false},
+        {"Result.y",     "Result.y",    "Float", false},
+        {"Result.z",     "Result.z",    "Float", false}},
+       evalScaleVector3},
+      // [math-batch22] END specs
   };
   return specs;
 }
