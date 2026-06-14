@@ -17,10 +17,10 @@
 //     snapAmount = abs(signedFraction + scatter)
 //   Mode 3 (AxisEdgeDistance):
 //     snapAmount = 1 - abs(signedFraction + scatter)
-//   biasedSnap = ApplyGainAndBias(snapAmount, GainAndBias)
-//     ApplyGainAndBias (bias-functions.hlsl): gain=GainAndBias.y, bias=GainAndBias.x
-//     result = x < bias ? x*bias/(x*(bias-1)+1) : (1-bias)*(x-bias)/((x-bias)*(bias-1)+(1-bias))+bias
-//     NOTE: TiXL's ApplyGainAndBias takes float4 and swizzles .xyzz for a 3-component input
+//   biasedSnap = ApplyGainAndBias(snapAmount.xyzz, GainAndBias).xyz
+//     ApplyGainAndBias (bias-functions.hlsl, lines 26-49): gain=GainAndBias.x, bias=GainAndBias.y.
+//     g<0.5 -> bias THEN schlick ; g>=0.5 -> schlick THEN bias (see applyGainAndBias below).
+//     NOTE: TiXL's float4 ApplyGainAndBias matches the scalar form; we port the scalar verbatim.
 //   strength = Amount * 1.0  (StrengthFactor=None baked)
 //   ff = (1 - saturate(biasedSnap - Amount*2 + 1)) * strength
 //   p.Position = lerp(orgPosition, centerPoint, ff)
@@ -43,22 +43,41 @@ inline float3 floorMod3(float3 x, float3 y) {
     return x - y * q;
 }
 
-// TiXL ApplyGainAndBias (bias-functions.hlsl) — per-component, vectorised over float3.
-// bias-functions.hlsl: ApplyBias(x, bias) = x / ((1/bias - 2)*(1-x) + 1)
-//                      ApplyGain(x, gain)  = x < 0.5 ? ApplyBias(x*2,gain)/2
-//                                                     : ApplyBias(x*2-1, 1-gain)/2 + 0.5
-// TiXL feeds the float4 .xyzz to ApplyGainAndBias; we operate on float3 directly.
-inline float applyBias(float x, float b) {
-    float denom = (1.0f / max(b, 1e-6f) - 2.0f) * (1.0f - x) + 1.0f;
-    return x / max(denom, 1e-6f);
+// TiXL ApplyGainAndBias — VERBATIM port of bias-functions.hlsl (scalar form, lines 6-49).
+//   GetBias(bias,x)      = x / ((1/bias - 2)*(1-x) + 1)
+//   GetSchlickBias(g,x)  = x<0.5 ? 0.5*GetBias(g,2x)
+//                                : 0.5*GetBias(1-g,2x-1) + 0.5
+//   ApplyGainAndBias(value, gainBias):  g=saturate(gainBias.x), b=saturate(gainBias.y)
+//     value>0.9999  -> 1            (hard early-out)
+//     value<0.00001 -> 0            (hard early-out)
+//     g<0.5  -> bias THEN schlick   ; g>=0.5 -> schlick THEN bias   (ORDER DEPENDS ON g)
+// TiXL feeds float4 .xyzz to ApplyGainAndBias; we operate on float3 directly.
+inline float getBias(float bias, float x) {
+    return x / ((1.0f / bias - 2.0f) * (1.0f - x) + 1.0f);
 }
-inline float applyGainAndBias(float x, float gain, float bias) {
-    // first apply bias, then gain
-    float biased = applyBias(clamp(x, 0.0f, 1.0f), clamp(bias, 1e-4f, 1.0f - 1e-4f));
-    float g = clamp(gain, 1e-4f, 1.0f - 1e-4f);
-    return biased < 0.5f
-        ? applyBias(biased * 2.0f, g) * 0.5f
-        : applyBias(biased * 2.0f - 1.0f, 1.0f - g) * 0.5f + 0.5f;
+inline float getSchlickBias(float g, float x) {
+    if (x < 0.5f) {
+        x *= 2.0f;
+        x = 0.5f * getBias(g, x);
+    } else {
+        x = 2.0f * x - 1.0f;
+        x = 0.5f * getBias(1.0f - g, x) + 0.5f;
+    }
+    return x;
+}
+inline float applyGainAndBias(float value, float gain, float bias) {
+    float g = saturate(gain);
+    float b = saturate(bias);
+    if (value > 0.9999f) return 1.0f;
+    if (value < 0.00001f) return 0.0f;
+    if (g < 0.5f) {
+        value = getBias(b, value);
+        value = getSchlickBias(g, value);
+    } else {
+        value = getSchlickBias(g, value);
+        value = getBias(b, value);
+    }
+    return value;
 }
 inline float3 applyGainAndBias3(float3 x, float gain, float bias) {
     return float3(applyGainAndBias(x.x, gain, bias),
