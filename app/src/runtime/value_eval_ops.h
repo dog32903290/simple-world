@@ -53,4 +53,22 @@ float evalSubVec3(int outIdx, const float* in, int n, const EvaluationContext&);
 // outIdx 0/1/2 → Result.x/.y/.z
 float evalScaleVector3(int outIdx, const float* in, int n, const EvaluationContext&);
 // [math-batch22] END declarations
+// [math-batch23] BEGIN declarations
+// Magnitude: length(Input). TiXL vec3/Magnitude.cs.
+// in: [Input.x, Input.y, Input.z]; outIdx unused (single scalar output).
+float evalMagnitude(int outIdx, const float* in, int n, const EvaluationContext&);
+// DotVec3: dot(Input1, Input2). TiXL vec3/DotVec3.cs.
+// in: [Input1.x, Input1.y, Input1.z, Input2.x, Input2.y, Input2.z]; outIdx unused.
+float evalDotVec3(int outIdx, const float* in, int n, const EvaluationContext&);
+// Vec3Distance: distance(Input1, Input2). TiXL vec3/Vec3Distance.cs.
+// in: [Input1.x, Input1.y, Input1.z, Input2.x, Input2.y, Input2.z]; outIdx unused.
+float evalVec3Distance(int outIdx, const float* in, int n, const EvaluationContext&);
+// Vector3Components: decompose Vec3 → X/Y/Z. TiXL vec3/Vector3Components.cs.
+// in: [Value.x, Value.y, Value.z]; outIdx 3/4/5 → X/Y/Z component.
+float evalVector3Components(int outIdx, const float* in, int n, const EvaluationContext&);
+// RotateVector3: CreateFromAxisAngle(Axis, Angle°) * VectorA * Scale. TiXL vec3/RotateVector3.cs.
+// in: [VectorA.x, VectorA.y, VectorA.z, Angle, Axis.x, Axis.y, Axis.z, Scale]
+// outIdx 8/9/10 → Result.x/.y/.z
+float evalRotateVector3(int outIdx, const float* in, int n, const EvaluationContext&);
+// [math-batch23] END declarations
 }  // namespace sw

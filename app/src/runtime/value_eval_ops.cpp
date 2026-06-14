@@ -259,4 +259,100 @@ float evalScaleVector3(int outIdx, const float* in, int n, const EvaluationConte
 
 // [math-batch22] END implementations
 
+// [math-batch23] BEGIN implementations
+
+// Magnitude: length of Input vector. TiXL vec3/Magnitude.cs:
+//   "Result.Value = Input.GetValue(context).Length();"
+// C# Vector3.Length() = sqrt(x^2+y^2+z^2). No fork needed: sqrt(0) = 0 is valid.
+// FORK (named): fork-magnitude-zero-guard: length of zero vector = 0 is well-defined, no guard.
+// in: [Input.x, Input.y, Input.z]; outIdx unused (single scalar output "Result").
+float evalMagnitude(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 3) return 0.0f;
+  float x = in[0], y = in[1], z = in[2];
+  return std::sqrt(x * x + y * y + z * z);
+}
+
+// DotVec3: dot(Input1, Input2). TiXL vec3/DotVec3.cs:
+//   "Result.Value = Vector3.Dot(Input1.GetValue(context), Input2.GetValue(context));"
+// C# Vector3.Dot = x1*x2 + y1*y2 + z1*z2. No fork.
+// in: [Input1.x, Input1.y, Input1.z, Input2.x, Input2.y, Input2.z]; outIdx unused.
+float evalDotVec3(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 6) return 0.0f;
+  return in[0] * in[3] + in[1] * in[4] + in[2] * in[5];
+}
+
+// Vec3Distance: distance(Input1, Input2). TiXL vec3/Vec3Distance.cs:
+//   "Result.Value = Vector3.Distance(Input1.GetValue(context), Input2.GetValue(context));"
+// C# Vector3.Distance = length(Input1 - Input2). No fork.
+// in: [Input1.x, Input1.y, Input1.z, Input2.x, Input2.y, Input2.z]; outIdx unused.
+float evalVec3Distance(int, const float* in, int n, const EvaluationContext&) {
+  if (n < 6) return 0.0f;
+  float dx = in[0] - in[3], dy = in[1] - in[4], dz = in[2] - in[5];
+  return std::sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+// Vector3Components: decompose Vec3 → X/Y/Z Float outputs. TiXL vec3/Vector3Components.cs:
+//   "X.Value = value.X; Y.Value = value.Y; Z.Value = value.Z;"
+// in: [Value.x, Value.y, Value.z]; outIdx 3/4/5 → component 0/1/2.
+// n=3 Float inputs; output ports start at index 3.
+float evalVector3Components(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 3) return 0.0f;
+  int k = outIdx - n;  // output port index → component (0=X, 1=Y, 2=Z)
+  if (k < 0 || k > 2) return 0.0f;
+  return in[k];
+}
+
+// RotateVector3: rotate VectorA around Axis by Angle degrees, then scale. TiXL vec3/RotateVector3.cs:
+//   "var angle = Angle.GetValue(context) / 180 * MathF.PI;"
+//   "var m = Matrix4x4.CreateFromAxisAngle(axis, angle);"
+//   "Result.Value = Vector3.TransformNormal(vec, m) * Scale.GetValue(context);"
+// Angle port is in degrees; we convert to radians (fork-angle-degrees: named).
+// FORK (named): fork-axis-normalize: Matrix4x4.CreateFromAxisAngle requires normalized axis.
+//   TiXL passes axis as-is; if un-normalized, results differ. We normalize axis (length>0)
+//   to match the C# Matrix4x4.CreateFromAxisAngle behavior which normalizes internally.
+//   Zero-axis → identity matrix → result = VectorA * Scale (safe).
+// in: [VectorA.x, VectorA.y, VectorA.z, Angle, Axis.x, Axis.y, Axis.z, Scale]
+// outIdx 8/9/10 → Result.x/.y/.z
+float evalRotateVector3(int outIdx, const float* in, int n, const EvaluationContext&) {
+  if (n < 8) return 0.0f;
+  int k = outIdx - n;  // component (0=x, 1=y, 2=z)
+  if (k < 0 || k > 2) return 0.0f;
+
+  float vx = in[0], vy = in[1], vz = in[2];
+  // TiXL RotateVector3.cs line 19: "var angle = Angle.GetValue(context) / 180 * MathF.PI;"
+  // fork-angle-degrees: Angle port is degrees, convert to radians.
+  float angle = in[3] / 180.0f * (float)M_PI;
+  float ax = in[4], ay = in[5], az = in[6];
+  float scale = in[7];
+
+  // Normalize axis (required by CreateFromAxisAngle).
+  // fork-axis-normalize: C# Matrix4x4.CreateFromAxisAngle normalizes axis internally.
+  // Zero axis → identity (no rotation).
+  float axisLen = std::sqrt(ax * ax + ay * ay + az * az);
+  if (axisLen < 1e-8f) {
+    // Zero axis → identity rotation → result = VectorA * Scale
+    float v[3] = {vx, vy, vz};
+    return v[k] * scale;
+  }
+  float nx = ax / axisLen, ny = ay / axisLen, nz = az / axisLen;
+
+  // Rodrigues' rotation formula (equivalent to Matrix4x4.CreateFromAxisAngle + TransformNormal):
+  // v_rot = v*cos(a) + (n×v)*sin(a) + n*(n·v)*(1-cos(a))
+  float c = std::cos(angle), s = std::sin(angle);
+  float ndotv = nx * vx + ny * vy + nz * vz;
+  // n × v
+  float crossX = ny * vz - nz * vy;
+  float crossY = nz * vx - nx * vz;
+  float crossZ = nx * vy - ny * vx;
+
+  float rx = vx * c + crossX * s + nx * ndotv * (1.0f - c);
+  float ry = vy * c + crossY * s + ny * ndotv * (1.0f - c);
+  float rz = vz * c + crossZ * s + nz * ndotv * (1.0f - c);
+
+  float result[3] = {rx * scale, ry * scale, rz * scale};
+  return result[k];
+}
+
+// [math-batch23] END implementations
+
 }  // namespace sw

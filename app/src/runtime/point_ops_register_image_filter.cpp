@@ -19,6 +19,9 @@ void registerImageFilterPointOps() {
   registerToneMappingOp();   // Texture2D → Texture2D (tone mapping curve, lane image_filter)
   registerPixelateOp();      // Texture2D → Texture2D (tile quantizer, lane image_filter)
   registerSharpenOp();       // Texture2D → Texture2D (unsharp-mask Laplacian, lane image_filter)
+  registerDetectEdgesOp();         // Texture2D → Texture2D (4-neighbour edge detect, lane image_filter)
+  registerChromaticDistortionOp(); // Texture2D → Texture2D (radial chromatic blur, lane image_filter)
+  registerVoronoiCellsOp();        // Texture2D → Texture2D (iq Voronoi mosaic, lane image_filter)
 }
 
 }  // namespace sw

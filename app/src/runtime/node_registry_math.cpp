@@ -215,6 +215,73 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Result.z",     "Result.z",    "Float", false}},
        evalScaleVector3},
       // [math-batch22] END specs
+      // [math-batch23] BEGIN specs
+      // Magnitude: length(Input). TiXL vec3/Magnitude.cs:
+      //   "Result.Value = Input.GetValue(context).Length();"
+      // Input decomposed into 3 Float ports. Single scalar output "Result".
+      // Magnitude.t3: Input default {X:0, Y:0, Z:0}.
+      {"Magnitude", "Magnitude",
+       {{"Input.x", "Input",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input.y", "Input.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input.z", "Input.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Result",  "Result",  "Float", false}},
+       evalMagnitude},
+      // DotVec3: dot(Input1, Input2). TiXL vec3/DotVec3.cs:
+      //   "Result.Value = Vector3.Dot(Input1.GetValue(context), Input2.GetValue(context));"
+      // DotVec3.t3: both inputs default {X:0, Y:0, Z:0}.
+      {"DotVec3", "DotVec3",
+       {{"Input1.x", "Input1",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input1.y", "Input1.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input1.z", "Input1.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.x", "Input2",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input2.y", "Input2.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.z", "Input2.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Result",   "Result",   "Float", false}},
+       evalDotVec3},
+      // Vec3Distance: distance(Input1, Input2). TiXL vec3/Vec3Distance.cs:
+      //   "Result.Value = Vector3.Distance(Input1.GetValue(context), Input2.GetValue(context));"
+      // Vec3Distance.t3: both inputs default {X:0, Y:0, Z:0}.
+      {"Vec3Distance", "Vec3Distance",
+       {{"Input1.x", "Input1",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input1.y", "Input1.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input1.z", "Input1.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.x", "Input2",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Input2.y", "Input2.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Input2.z", "Input2.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Result",   "Result",   "Float", false}},
+       evalVec3Distance},
+      // Vector3Components: decompose Vec3 → X/Y/Z. TiXL vec3/Vector3Components.cs:
+      //   "X.Value = value.X; Y.Value = value.Y; Z.Value = value.Z;"
+      // Vector3Components.t3: Value default {X:0, Y:0, Z:0}.
+      {"Vector3Components", "Vector3Components",
+       {{"Value.x", "Value",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Value.y", "Value.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Value.z", "Value.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"X", "X", "Float", false},
+        {"Y", "Y", "Float", false},
+        {"Z", "Z", "Float", false}},
+       evalVector3Components},
+      // RotateVector3: CreateFromAxisAngle(Axis, Angle°) * VectorA * Scale. TiXL vec3/RotateVector3.cs:
+      //   "var angle = Angle.GetValue(context) / 180 * MathF.PI;"
+      //   "var m = Matrix4x4.CreateFromAxisAngle(axis, angle);"
+      //   "Result.Value = Vector3.TransformNormal(vec, m) * Scale.GetValue(context);"
+      // RotateVector3.t3: VectorA default {1,0,0}, Angle default=0, Axis default {0,0,1}, Scale default=1.
+      // Fork: fork-angle-degrees (Angle in degrees → radians). fork-axis-normalize.
+      // Three output pins: Result.x / Result.y / Result.z.
+      {"RotateVector3", "RotateVector3",
+       {{"VectorA.x", "VectorA",   "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"VectorA.y", "VectorA.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"VectorA.z", "VectorA.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Angle",     "Angle",     "Float", true, 0.0f, -360.0f, 360.0f},
+        {"Axis.x",    "Axis",      "Float", true, 0.0f, -1.0f,   1.0f,   Widget::Vec, {}, false, 3},
+        {"Axis.y",    "Axis.y",    "Float", true, 0.0f, -1.0f,   1.0f,   Widget::Vec, {}, false, 1},
+        {"Axis.z",    "Axis.z",    "Float", true, 1.0f, -1.0f,   1.0f,   Widget::Vec, {}, false, 1},
+        {"Scale",     "Scale",     "Float", true, 1.0f, -10.0f,  10.0f},
+        {"Result.x",  "Result.x",  "Float", false},
+        {"Result.y",  "Result.y",  "Float", false},
+        {"Result.z",  "Result.z",  "Float", false}},
+       evalRotateVector3},
+      // [math-batch23] END specs
   };
   return specs;
 }

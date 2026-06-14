@@ -253,6 +253,99 @@ const std::vector<NodeSpec>& imageFilterSpecs() {
         {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
         {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
        nullptr},
+      // DetectEdges (TiXL Lib.image.fx.stylize.DetectEdges): 4-neighbour absolute-difference edge
+      // detector. Single Texture2D in → Texture2D out (point_ops_detectedges.cpp). Kernel:
+      // DetectEdges.hlsl — average = sum_rgb(|x1-m|+|x2-m|+|y1-m|+|y2-m|)*Strength + Contrast,
+      // tinted by Color, lerp to original by MixOriginal, optional transparent output.
+      // Params mirror DetectEdges.cs/.t3: Image/SampleRadius/Strength/Contrast/Color(Vec4)/
+      // MixOriginal/OutputAsTransparent. FORKS (named): HLSL b2 `int Invert` is NOT a .cs input
+      // (never wired, always 0) — not exposed; texture dims read in-shader (no Resolution cbuffer
+      // port); fixed clamp sampler (TiXL Wrap=MirrorOnce host knob not exposed).
+      {"DetectEdges", "DetectEdges",
+       {{"Image", "Image", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        // SampleRadius (float, TiXL t3 default 1.0).
+        {"SampleRadius", "SampleRadius", "Float", true, 1.0f, 0.0f, 10.0f},
+        // Strength (float, TiXL t3 default 1.0).
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 10.0f},
+        // Contrast (float, TiXL t3 default 0.0).
+        {"Contrast", "Contrast", "Float", true, 0.0f, -1.0f, 1.0f},
+        // Color (Vec4, TiXL t3 default (1,1,1,1) — edge tint).
+        {"Color.r", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.g", "Color.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.b", "Color.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.a", "Color.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // MixOriginal (float, TiXL t3 default 0.0).
+        {"MixOriginal", "MixOriginal", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider},
+        // OutputAsTransparent (bool, TiXL t3 default false).
+        {"OutputAsTransparent", "OutputAsTransparent", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
+      // ChromaticDistortion (TiXL Lib.image.fx.distort.ChromaticDistortion): radial bulge warp +
+      // N-sample chromatic radial blur. Single Texture2D in → Texture2D out
+      // (point_ops_chromaticdistortion.cpp). Kernel: ChromaticDistortion.hlsl — chromaShift()
+      // splits R/B from opposite ends of the radial sample line, lerp blurred<->chromarized by
+      // Colorize. Params mirror ChromaticDistortion.cs/.t3: Texture2d/Center(Vec2)/Size/Colorize/
+      // Distort/DistortOffset/ScaleImage/SampleCount(int). FORKS (named): b1 TimeConstants cbuffer
+      // unused -> omitted; fixed clamp sampler; SampleCount Int modeled as Float.
+      {"ChromaticDistortion", "ChromaticDistortion",
+       {{"Image", "Image", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        // Center (Vec2, TiXL t3 default (0,0)).
+        {"Center.x", "Center", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"Center.y", "Center.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // Size (float, TiXL t3 default 0.05).
+        {"Size", "Size", "Float", true, 0.05f, 0.0f, 1.0f},
+        // Colorize (float, TiXL t3 default 0.1).
+        {"Colorize", "Colorize", "Float", true, 0.1f, 0.0f, 1.0f, Widget::Slider},
+        // Distort (float, TiXL t3 default 0.1).
+        {"Distort", "Distort", "Float", true, 0.1f, -2.0f, 2.0f},
+        // DistortOffset (float, TiXL t3 default 0.5).
+        {"DistortOffset", "DistortOffset", "Float", true, 0.5f, 0.0f, 2.0f},
+        // ScaleImage (float, TiXL t3 default 1.0).
+        {"ScaleImage", "ScaleImage", "Float", true, 1.0f, 0.1f, 4.0f},
+        // SampleCount (int, TiXL t3 default 16; clamped to even 1..100 in shader).
+        {"SampleCount", "SampleCount", "Float", true, 16.0f, 1.0f, 100.0f},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
+      // VoronoiCells (TiXL Lib.image.fx.stylize.VoronoiCells): iq Voronoi cell mosaic with correct
+      // border distances. Single Texture2D in → Texture2D out (point_ops_voronoicells.cpp). Kernel:
+      // VoronoiCells.hlsl — input texture is the feature-point + cell-colour field; cell borders
+      // tinted by EdgeColor. Params mirror VoronoiCells.cs/.t3: Image/EdgeColor(Vec4)/
+      // Background(Vec4)/Scale/EdgeWidth/Phase. The .cs `Resolution` Int2 input is the OUTPUT
+      // texture size selector → modeled as the standard Resolution enum + CustomW/H (NOT a b0
+      // cbuffer field). FORKS (named): HLSL b2 Resolution(TargetWidth/Height) filled host-side from
+      // the output size (aspect); fixed clamp sampler (TiXL Wrap=Clamp verbatim).
+      {"VoronoiCells", "VoronoiCells",
+       {{"Image", "Image", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        // EdgeColor (Vec4, TiXL t3 default (0,0,0,1) — black edges).
+        {"EdgeColor.r", "EdgeColor", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"EdgeColor.g", "EdgeColor.g", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"EdgeColor.b", "EdgeColor.b", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"EdgeColor.a", "EdgeColor.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // Background (Vec4, TiXL t3 default (1,1,1,1) — white cell tint multiplier).
+        {"Background.r", "Background", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Background.g", "Background.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Background.b", "Background.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Background.a", "Background.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // Scale (float, TiXL t3 default 10.0).
+        {"Scale", "Scale", "Float", true, 10.0f, 0.1f, 100.0f},
+        // EdgeWidth (float, TiXL t3 default 0.68).
+        {"EdgeWidth", "EdgeWidth", "Float", true, 0.68f, 0.0f, 4.0f, Widget::Slider},
+        // Phase (float, TiXL t3 default 0.0).
+        {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
   };
   return specs;
 }

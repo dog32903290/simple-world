@@ -254,6 +254,33 @@ void registerSharpenOp();
 // -> no overshoot -> FAIL.
 int runSharpenSelfTest(bool injectBug);
 
+// --- DetectEdges image filter texture op (point_ops_detectedges.cpp, lane image_filter) ---
+// Single-pass 4-neighbour absolute-difference edge detector (TiXL image/fx/stylize/DetectEdges):
+// average = sum_rgb(|x1-m|+|x2-m|+|y1-m|+|y2-m|) * Strength + Contrast, tinted by Color, lerp to
+// original by MixOriginal. Register into the texture stream (texReg).
+void registerDetectEdgesOp();
+// MATH golden: white/black horizontal border; the border row is BRIGHT (edge magnitude) while a
+// flat interior row stays DARK. injectBug Strength=0 -> edge magnitude 0 -> border not bright -> FAIL.
+int runDetectEdgesSelfTest(bool injectBug);
+
+// --- ChromaticDistortion image filter texture op (point_ops_chromaticdistortion.cpp, image_filter) ---
+// Single-pass radial bulge + N-sample chromatic radial blur (TiXL image/fx/distort/Chromatic-
+// Distortion): chromaShift() splits R/B from opposite ends of the radial sample line, lerp
+// blurred<->chromarized by Colorize. Register into the texture stream (texReg).
+void registerChromaticDistortionOp();
+// MATH golden: white/black vertical edge; with Colorize=1 the smeared border separates R from B
+// while a deep interior stays grey. injectBug Colorize=0 -> pure blur -> R==B -> FAIL.
+int runChromaticDistortionSelfTest(bool injectBug);
+
+// --- VoronoiCells image filter texture op (point_ops_voronoicells.cpp, lane image_filter) ---
+// Single-pass iq Voronoi cell mosaic with correct border distances (TiXL image/fx/stylize/
+// VoronoiCells): input texture = feature-point + cell-colour field, edges tinted by EdgeColor.
+// Register into the texture stream (texReg).
+void registerVoronoiCellsOp();
+// MATH golden: gradient source -> red-edged white-cell mosaic; the frame contains many red edge
+// pixels (R>150,G/B<80). injectBug Scale=1 -> single huge cell -> ~0 borders -> FAIL.
+int runVoronoiCellsSelfTest(bool injectBug);
+
 // --- DrawLines / DrawBillboards command ops (point_ops_drawlines.cpp / point_ops_drawbillboards.cpp,
 // lane L). Both Points→Command producers (DrawKind::Lines / ::Billboards); the executor
 // cookRenderTarget rasterizes them. Register into the command stream (cmdReg). ---

@@ -695,6 +695,192 @@ int runMathOpsSelfTest(bool injectBug) {
 
   // [math-batch22] END teeth
 
+  // [math-batch23] BEGIN teeth (Magnitude / DotVec3 / Vec3Distance / Vector3Components / RotateVector3)
+
+  // ----- Magnitude -----
+  // TiXL vec3/Magnitude.cs: "Result.Value = Input.GetValue(context).Length();"
+  // Magnitude((3,4,0)) = sqrt(9+16) = 5
+  {
+    float r = evalVec3Op("Magnitude",
+      {{"Input.x",3.0f},{"Input.y",4.0f},{"Input.z",0.0f}}, "Result");
+    bool pass = std::fabs(r - 5.0f) < 1e-5f;
+    ok = ok && pass;
+    printf("[selftest-mathops] Magnitude(3,4,0)=%.5f want=5.00000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  // Magnitude((1,1,1)) = sqrt(3) ≈ 1.73205
+  {
+    float r = evalVec3Op("Magnitude",
+      {{"Input.x",1.0f},{"Input.y",1.0f},{"Input.z",1.0f}}, "Result");
+    float want = std::sqrt(3.0f);
+    bool pass = std::fabs(r - want) < 1e-5f;
+    ok = ok && pass;
+    printf("[selftest-mathops] Magnitude(1,1,1)=%.5f want=%.5f -> %s\n", r, want, pass ? "PASS" : "FAIL");
+  }
+  // Boundary: zero vector → 0
+  {
+    float r = evalVec3Op("Magnitude",
+      {{"Input.x",0.0f},{"Input.y",0.0f},{"Input.z",0.0f}}, "Result");
+    bool pass = (r == 0.0f);
+    ok = ok && pass;
+    printf("[selftest-mathops] Magnitude(0,0,0)=%.5f want=0.00000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if square root were omitted (returned x^2+y^2+z^2), Magnitude(3,4,0) = 25 not 5.
+  if (injectBug) {
+    float r = evalVec3Op("Magnitude",
+      {{"Input.x",3.0f},{"Input.y",4.0f},{"Input.z",0.0f}}, "Result");
+    // Assert squared result (25) → FAIL since actual is length (5).
+    bool pass = std::fabs(r - 25.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Magnitude inject-no-sqrt=%.5f assert=25 (INJECT BUG) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- DotVec3 -----
+  // TiXL vec3/DotVec3.cs: "Result.Value = Vector3.Dot(Input1.GetValue(context), Input2.GetValue(context));"
+  // DotVec3((1,0,0), (0,1,0)) = 0 (perpendicular)
+  {
+    float r = evalVec3Op("DotVec3",
+      {{"Input1.x",1.0f},{"Input1.y",0.0f},{"Input1.z",0.0f},
+       {"Input2.x",0.0f},{"Input2.y",1.0f},{"Input2.z",0.0f}}, "Result");
+    bool pass = std::fabs(r) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] DotVec3((1,0,0).(0,1,0))=%.4f want=0.0000 (perp) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  // DotVec3((2,3,4), (1,2,3)) = 2+6+12 = 20
+  {
+    float r = evalVec3Op("DotVec3",
+      {{"Input1.x",2.0f},{"Input1.y",3.0f},{"Input1.z",4.0f},
+       {"Input2.x",1.0f},{"Input2.y",2.0f},{"Input2.z",3.0f}}, "Result");
+    bool pass = std::fabs(r - 20.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] DotVec3((2,3,4).(1,2,3))=%.4f want=20.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if one term were omitted (x*x2+y*y2 only, missing z*z2):
+  //   DotVec3((2,3,4),(1,2,3)) = 2+6 = 8, not 20.
+  if (injectBug) {
+    float r = evalVec3Op("DotVec3",
+      {{"Input1.x",2.0f},{"Input1.y",3.0f},{"Input1.z",4.0f},
+       {"Input2.x",1.0f},{"Input2.y",2.0f},{"Input2.z",3.0f}}, "Result");
+    // Assert missing-z result (8) → FAIL since actual is (20).
+    bool pass = std::fabs(r - 8.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] DotVec3 inject-missing-z=%.4f assert=8 (INJECT BUG) -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- Vec3Distance -----
+  // TiXL vec3/Vec3Distance.cs: "Result.Value = Vector3.Distance(Input1, Input2);"
+  // Vec3Distance((0,0,0), (3,4,0)) = 5
+  {
+    float r = evalVec3Op("Vec3Distance",
+      {{"Input1.x",0.0f},{"Input1.y",0.0f},{"Input1.z",0.0f},
+       {"Input2.x",3.0f},{"Input2.y",4.0f},{"Input2.z",0.0f}}, "Result");
+    bool pass = std::fabs(r - 5.0f) < 1e-5f;
+    ok = ok && pass;
+    printf("[selftest-mathops] Vec3Distance((0,0,0),(3,4,0))=%.5f want=5.00000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  // Vec3Distance((1,1,1), (1,1,1)) = 0
+  {
+    float r = evalVec3Op("Vec3Distance",
+      {{"Input1.x",1.0f},{"Input1.y",1.0f},{"Input1.z",1.0f},
+       {"Input2.x",1.0f},{"Input2.y",1.0f},{"Input2.z",1.0f}}, "Result");
+    bool pass = (r == 0.0f);
+    ok = ok && pass;
+    printf("[selftest-mathops] Vec3Distance((1,1,1),(1,1,1))=%.5f want=0.00000 -> %s\n", r, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if inputs were not subtracted (magnitude of Input1 used instead):
+  //   Magnitude((0,0,0)) = 0, not 5. Or for non-zero: Magnitude((3,4,0)) = 5 (same result accidentally).
+  //   Use Vec3Distance((1,2,0),(4,6,0)): correct=sqrt(9+16)=5; wrong=sqrt(1+4)=2.236.
+  if (injectBug) {
+    float r = evalVec3Op("Vec3Distance",
+      {{"Input1.x",1.0f},{"Input1.y",2.0f},{"Input1.z",0.0f},
+       {"Input2.x",4.0f},{"Input2.y",6.0f},{"Input2.z",0.0f}}, "Result");
+    // Assert magnitude-of-Input1 (sqrt(5)~2.236) → FAIL since actual is distance (5).
+    float wrong = std::sqrt(1.0f + 4.0f);
+    bool pass = std::fabs(r - wrong) < 1e-3f;
+    ok = ok && pass;
+    printf("[selftest-mathops] Vec3Distance inject-no-sub=%.5f assert=%.5f (INJECT BUG) -> %s\n", r, wrong, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- Vector3Components -----
+  // TiXL vec3/Vector3Components.cs: "X.Value = value.X; Y.Value = value.Y; Z.Value = value.Z;"
+  // Vector3Components((2,5,9)) → X=2, Y=5, Z=9
+  {
+    float vx = evalVec3Op("Vector3Components",
+      {{"Value.x",2.0f},{"Value.y",5.0f},{"Value.z",9.0f}}, "X");
+    float vy = evalVec3Op("Vector3Components",
+      {{"Value.x",2.0f},{"Value.y",5.0f},{"Value.z",9.0f}}, "Y");
+    float vz = evalVec3Op("Vector3Components",
+      {{"Value.x",2.0f},{"Value.y",5.0f},{"Value.z",9.0f}}, "Z");
+    bool pass = std::fabs(vx-2.0f)<eps && std::fabs(vy-5.0f)<eps && std::fabs(vz-9.0f)<eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Vector3Components((2,5,9))=(%.1f,%.1f,%.1f) want=(2,5,9) -> %s\n",
+           vx, vy, vz, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if X and Y were swapped (component mismatch), X would output Y=5 not 2.
+  if (injectBug) {
+    float vx = evalVec3Op("Vector3Components",
+      {{"Value.x",2.0f},{"Value.y",5.0f},{"Value.z",9.0f}}, "X");
+    // Assert Y-value (5) at X output → FAIL since actual is (2).
+    bool pass = std::fabs(vx - 5.0f) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] Vector3Components inject-xy-swap X=%.1f assert=5 (INJECT BUG) -> %s\n", vx, pass ? "PASS" : "FAIL");
+  }
+
+  // ----- RotateVector3 -----
+  // TiXL vec3/RotateVector3.cs:
+  //   "var angle = Angle.GetValue(context) / 180 * MathF.PI;"
+  //   "var m = Matrix4x4.CreateFromAxisAngle(axis, angle);"
+  //   "Result.Value = Vector3.TransformNormal(vec, m) * Scale.GetValue(context);"
+  // Test 1: Rotate (1,0,0) by 90° around Z axis → (0,1,0) (Rodrigues)
+  {
+    float vx = evalVec3Op("RotateVector3",
+      {{"VectorA.x",1.0f},{"VectorA.y",0.0f},{"VectorA.z",0.0f},
+       {"Angle",90.0f},
+       {"Axis.x",0.0f},{"Axis.y",0.0f},{"Axis.z",1.0f},
+       {"Scale",1.0f}}, "Result.x");
+    float vy = evalVec3Op("RotateVector3",
+      {{"VectorA.x",1.0f},{"VectorA.y",0.0f},{"VectorA.z",0.0f},
+       {"Angle",90.0f},
+       {"Axis.x",0.0f},{"Axis.y",0.0f},{"Axis.z",1.0f},
+       {"Scale",1.0f}}, "Result.y");
+    // expect (0, 1, 0)
+    bool pass = std::fabs(vx - 0.0f) < 1e-5f && std::fabs(vy - 1.0f) < 1e-5f;
+    ok = ok && pass;
+    printf("[selftest-mathops] RotateVector3((1,0,0) 90deg Z)=(%.5f,%.5f) want=(0,1) -> %s\n",
+           vx, vy, pass ? "PASS" : "FAIL");
+  }
+  // Test 2: Scale=2 multiplies result
+  {
+    float vx = evalVec3Op("RotateVector3",
+      {{"VectorA.x",1.0f},{"VectorA.y",0.0f},{"VectorA.z",0.0f},
+       {"Angle",0.0f},
+       {"Axis.x",0.0f},{"Axis.y",0.0f},{"Axis.z",1.0f},
+       {"Scale",2.0f}}, "Result.x");
+    // Angle=0 → identity rotation → Result.x = VectorA.x * Scale = 1*2 = 2
+    bool pass = std::fabs(vx - 2.0f) < 1e-5f;
+    ok = ok && pass;
+    printf("[selftest-mathops] RotateVector3(Angle=0,Scale=2) Result.x=%.5f want=2.00000 -> %s\n",
+           vx, pass ? "PASS" : "FAIL");
+  }
+  // RED proof: if angle were used as radians directly (not converted from degrees),
+  //   rotating by 90 degrees → 90 radians → cos(90)≈-0.4480, sin(90)≈0.8940.
+  //   Result.x = 1*cos(90) + 0 - 0 = -0.448, not 0.
+  //   We assert Result.x ≈ 0 (correct) vs ≈ -0.448 (wrong-radians) → FAIL.
+  if (injectBug) {
+    float vx = evalVec3Op("RotateVector3",
+      {{"VectorA.x",1.0f},{"VectorA.y",0.0f},{"VectorA.z",0.0f},
+       {"Angle",90.0f},
+       {"Axis.x",0.0f},{"Axis.y",0.0f},{"Axis.z",1.0f},
+       {"Scale",1.0f}}, "Result.x");
+    // Assert wrong-radians result (cos(90 rad) ≈ -0.4480) → FAIL since actual is 0.
+    float wrong_rad = std::cos(90.0f);  // ≈ -0.4480
+    bool pass = std::fabs(vx - wrong_rad) < 1e-3f;
+    ok = ok && pass;
+    printf("[selftest-mathops] RotateVector3 inject-no-deg2rad x=%.5f assert=%.5f (INJECT BUG) -> %s\n",
+           vx, wrong_rad, pass ? "PASS" : "FAIL");
+  }
+
+  // [math-batch23] END teeth
+
   printf("[selftest-mathops] -> %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
