@@ -76,6 +76,11 @@ int runGridPointsSelfTest(bool injectBug);
 int runSpherePointsSelfTest(bool injectBug);
 // RepetitionPoints generator golden (point_ops_repetitionpoints.cpp). injectBug = u=i not i+1.
 int runRepetitionPointsSelfTest(bool injectBug);
+// CommonPointSets GENERATOR golden (point_ops_commonpointsets.cpp, batch 37): CPU-fill fork — a
+// Set enum picks one of 7 hard-coded vertex tables (Cross/CrossXY/Cube/Quad/ArrowX/ArrowY/ArrowZ).
+// injectBug = assert the WRONG Cross row-0 coordinate -> faithful fill mismatches -> FAIL.
+void registerCommonPointSetsOp();
+int runCommonPointSetsSelfTest(bool injectBug);
 // TransformPoints MODIFIER golden (point_ops_transformpoints.cpp): ring -> scale+translate, PLUS a
 // multi-axis rotation tooth (a known point under Rot!=0 lands where the Y·X·Z order predicts).
 // injectBug = Strength 0 -> identity passthrough -> ring unchanged. First modifier (in->out bag).

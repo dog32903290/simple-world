@@ -218,6 +218,18 @@ const std::vector<NodeSpec>& generatorSpecs() {
         // AddSeparator (TiXL Bool, .t3 default true) — append one NaN-Scale Point.Separator().
         {"AddSeparator", "AddSeparator", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr},
+      // CommonPointSets (batch 37) — CPU-fill fork of external/tixl .../point/generate/
+      // CommonPointSets.cs. A pure CPU StructuredList generator: the Set enum picks one of seven
+      // hard-coded vertex tables. The .cs has exactly ONE [Input]: Set (int, MappedType=Shapes).
+      // .t3 default = 0 (Cross). The output point count varies by Set (the table length); the
+      // cook's cpsCountTransform sizes the bag. Enum labels = the private `enum Shapes` order
+      // (CommonPointSets.cs:230-239): Cross, CrossXY, Cube, Quad, ArrowX, ArrowY, ArrowZ.
+      {"CommonPointSets",
+       "CommonPointSets",
+       {{"points", "points", "Points", false},
+        {"Set", "Set", "Float", true, 0.0f, 0.0f, 6.0f, Widget::Enum,
+         {"Cross", "CrossXY", "Cube", "Quad", "ArrowX", "ArrowY", "ArrowZ"}}},
+       nullptr},
   };
   return specs;
 }
