@@ -204,6 +204,8 @@ const SelfTest kTable[] = {
     {"tintchain", runTintChainSelfTest},
     {"chromab", runChromaBAShiftSelfTest},
     {"adjustcolors", runAdjustColorsSelfTest},
+    {"pixelate", runPixelateSelfTest},
+    {"sharpen", runSharpenSelfTest},
     {"drawlines", runDrawLinesSelfTest},
     {"drawbillboards", runDrawBillboardsSelfTest},
     {"timeline", ui::runTimelineSelfTest},

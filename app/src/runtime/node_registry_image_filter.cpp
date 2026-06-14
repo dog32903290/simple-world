@@ -207,6 +207,52 @@ const std::vector<NodeSpec>& imageFilterSpecs() {
         {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
         {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
        nullptr},
+      // Pixelate (TiXL Lib.image.fx.stylize.Pixelate): tile-quantize the image into a grid, point-
+      // sample each cell center, multiply by Color. Single Texture2D in → Texture2D out
+      // (point_ops_pixelate.cpp). Kernel: Pixelate.hlsl — Divisor>0.5 -> floor(res/(Divisor*2))
+      // tiles, else TileAmount tiles; uv snapped to tile center; SampleLevel point sample.
+      // Params mirror Pixelate.cs/.t3: Image/Color(Vec4)/Divisor(int)/TileAmount(Int2). FORKS
+      // (named): TiXL's Shape texture input omitted (default Shape=white.png = no-op multiplier,
+      // see point_ops_pixelate.cpp); Int Divisor/TileAmount modeled as Float (same as SampleCount);
+      // fixed clamp sampler (Pixelate.t3 WrapMode=Clamp verbatim).
+      {"Pixelate", "Pixelate",
+       {{"Image", "Image", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        // Divisor (int, TiXL t3 default 0 — Divisor<=0.5 path uses TileAmount).
+        {"Divisor", "Divisor", "Float", true, 0.0f, 0.0f, 64.0f},
+        // TileAmount (Int2, TiXL t3 default (160,90)).
+        {"TileAmount.x", "TileAmount", "Float", true, 160.0f, 1.0f, 1024.0f, Widget::Vec, {}, true, 2},
+        {"TileAmount.y", "TileAmount.y", "Float", true, 90.0f, 1.0f, 1024.0f, Widget::Vec, {}, true, 1},
+        // Color (Vec4, TiXL t3 default (1,1,1,1) — output multiplier, identity = white).
+        {"Color.r", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.g", "Color.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.b", "Color.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.a", "Color.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
+      // Sharpen (TiXL Lib.image.fx.blur.Sharpen): 3x3 desaturated-Laplacian unsharp mask. Single
+      // Texture2D in → Texture2D out (point_ops_sharpen.cpp). Kernel: Sharpen.hlsl —
+      // final = col + col*Strength*(8*L(center) - 8 neighbour luminances), optional Clamping
+      // saturate. Params mirror Sharpen.cs/.t3: Image/SampleRadius/Strength/Clamping. FORKS
+      // (named): fixed clamp sampler vs TiXL Wrap=MirrorOnce (1px edge ring); TiXL OutputFormat
+      // R16F not adopted (uses output texture's own format).
+      {"Sharpen", "Sharpen",
+       {{"Image", "Image", "Texture2D", true},
+        {"out", "out", "Texture2D", false},
+        // SampleRadius (float, TiXL t3 default 1.0).
+        {"SampleRadius", "SampleRadius", "Float", true, 1.0f, 0.0f, 10.0f},
+        // Strength (float, TiXL t3 default 1.0).
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 4.0f},
+        // Clamping (bool, TiXL t3 default false).
+        {"Clamping", "Clamping", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+        {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+        {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+       nullptr},
   };
   return specs;
 }

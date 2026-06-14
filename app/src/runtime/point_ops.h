@@ -233,6 +233,27 @@ void registerAdjustColorsOp();
 // red stays red (R>>G) -> equality FAILS.
 int runAdjustColorsSelfTest(bool injectBug);
 
+// --- Pixelate image filter texture op (point_ops_pixelate.cpp, lane image_filter) ---
+// Single-pass tile quantizer (TiXL image/fx/stylize/Pixelate). Snaps UV to a tile grid (Divisor>
+// 0.5 -> floor(res/(Divisor*2)) tiles, else TileAmount), point-samples the tile center, multiplies
+// by Color. FORK (named): TiXL's per-cell Shape texture omitted (default Shape=white = no-op).
+// Register into the texture stream (texReg).
+void registerPixelateOp();
+// MATH golden: high-frequency stripe source; with a coarse Divisor two same-tile pixels become
+// EQUAL (block quantization) though they differ in the source; Color=(1,0,0,1) zeroes G/B.
+// injectBug Divisor=0 -> sub-pixel TileAmount tiles -> no merge -> FAIL.
+int runPixelateSelfTest(bool injectBug);
+
+// --- Sharpen image filter texture op (point_ops_sharpen.cpp, lane image_filter) ---
+// Single-pass 3x3 desaturated-Laplacian unsharp mask (TiXL image/fx/blur/Sharpen):
+// final = col + col*Strength*(8*L(center) - 8 neighbour luminances), optional Clamping saturate.
+// Register into the texture stream (texReg).
+void registerSharpenOp();
+// MATH golden: vertical step edge; the bright-side edge pixel OVERSHOOTS above source (ringing)
+// while a flat interior pixel stays unchanged (Laplacian=0). injectBug Strength=0 -> passthrough
+// -> no overshoot -> FAIL.
+int runSharpenSelfTest(bool injectBug);
+
 // --- DrawLines / DrawBillboards command ops (point_ops_drawlines.cpp / point_ops_drawbillboards.cpp,
 // lane L). Both Points→Command producers (DrawKind::Lines / ::Billboards); the executor
 // cookRenderTarget rasterizes them. Register into the command stream (cmdReg). ---

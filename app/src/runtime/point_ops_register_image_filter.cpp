@@ -17,6 +17,8 @@ void registerImageFilterPointOps() {
   registerAdjustColorsOp();  // Texture2D → Texture2D (color grading, lane F3-3)
   registerChannelMixerOp();  // Texture2D → Texture2D (channel matrix mix, lane image_filter)
   registerToneMappingOp();   // Texture2D → Texture2D (tone mapping curve, lane image_filter)
+  registerPixelateOp();      // Texture2D → Texture2D (tile quantizer, lane image_filter)
+  registerSharpenOp();       // Texture2D → Texture2D (unsharp-mask Laplacian, lane image_filter)
 }
 
 }  // namespace sw
