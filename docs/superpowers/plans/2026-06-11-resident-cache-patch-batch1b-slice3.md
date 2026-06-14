@@ -1174,10 +1174,45 @@ headless 圍欄 (續)/AddNoise Rotation 顯式牙。
 **🟡 柏為親測 (批次19 新增)**:
 - 3 顆點 op 拖參數: WrapPointPosition(box 摺疊,點超出盒子折回)/SnapPointsToGrid(點吸附網格)/HexGridPoints(生成六角格點雲)
 
-## Resume — next (批次20 候選; 無 🔴 排修, 純推進)
-1. **cheap point op 第三批**(25-pool 剩餘 verified cheap,先 grep input 型別二確認 sim-state): SubdivideLinePoints(線細分)/ReorientLinePoints(切線算 rot,Y·X·Z 注意)/SimNoiseOffset·SimForceOffset(⚠先確認 stateless 非需 sim-state buffer)/BlendPoints·PickPointList(combine 雙 buffer,照 CombineBuffers pattern)。ClearSomePoints/SelectPoints=moderate(selection 邏輯)各自 lane。
-2. **UI 視覺第三刀**(S2 緩做): 標題字級 13→18(CJK atlas/node 尺寸連動,先評估)/連線 idle-fade(editor_ui.cpp:201-203)/pin 方→三角(node_draw.cpp:31)。bezier major 再議。
-3. **互動 S3 二梯隊**: fence Shift/Ctrl 三模式/雙擊 annotation rename/G layout(moderate)。
-4. **SnapPointsToGrid gain/bias refuter**(Cut 25 CONCERN): 對 bias-functions.hlsl 逐字復查重建的 applyGainAndBias。
+## Cut 26 — 批次 20: /sw-node-batch 誕生 + 家族並行三顆 op (2026-06-14 凌晨→午; Opus orchestrator) ✅
+**新 workflow `/sw-node-batch`**(`.claude/commands/`)=/sw-batch 特化版,消除 point GPU op 家族並行撞點。3 commit:
+- **收割 Lane C**(`19ca60d`): 接 06-13 夜 overnight 殘留,7 顆 math value op(Sqrt/Pow/Modulo/Ceil/SmoothStep/Log/Cos)。
+  refuter 0 BROKEN(3 SURVIVE/4 CONCERN=預設值未對齊 TiXL .t3 已修:Sqrt/Pow/SmoothStep Value→1.0/Log Base→1.0)。
+- **Phase 0 避撞**(`25bc724`): registerBuiltinPointOps 拆 6 個 point_ops_register_<family>.cpp(中央凍結家族呼叫)
+  + CMake file(GLOB point_ops*.cpp / shaders/*.metal CONFIGURE_DEPENDS)。零行為變更,28 op 盤點吻合。
+  **RED 證承重路徑=RadialPoints**(唯一不自註冊;HexGrid 等 golden 在自己檔內又 register→拔 registrar 不紅)。
+- **Phase 1 三顆**(`01224ad`): generators=DoyleSpiralPoints2(Opus)/point_modify=ClearSomePoints(Sonnet)/
+  image_filter=ChannelMixer(Sonnet)。家族 worktree 並行零衝突(各改自己家族檔;共享 point_ops.h/kTable/CMake deps
+  orchestrator 合流統一加)。--bite PASS=102(soundtrack @4x 預存環境紅非本批)/check-arch 綠/三顆 green+bug red。
+
+**事實(三顆)**:
+- **DoyleSpiralPoints2**: Doyle 圓堆積螺旋。**承重發現=非 .hlsl 逐字**:核心算術在 `_DoyleSpiralRoot.cs` 的 2D
+  Newton-Raphson 求根(CPU,起點 z=2/t=0 迭代 P/Q→A/B/R)→GPU kernel 吃 A/B/R。掃描判 cheap(值參數)但 cheap-input≠
+  trivial-impl。⚠️**無 TiXL ground-truth**:TiXL 焊死 Windows/DX11 跑不起來→只能讀碼;迭代求根讀碼確信度低,最強驗證
+  (跑兩邊比 A/B/R)做不到→agent 自洽 C++ 復算+幾何斷言(對數臂 16.68x)。柏為認可不外包 Win 對照。
+- **ClearSomePoints**: hash(Ratio,Seed,Repeat,Resolution) 標 packed_float3 NaN kill。3 fork 具名(Resolution=0
+  guard/packed_float3 NaN≠HLSL float3/hash11u inline)。4 牙。`.cs` 的 Spaces/OffsetModes enum 非 InputSlot=無發明。
+- **ChannelMixer**: 4x4 通道矩陣 mix(out=Σ Multiply*ch+Add,MixChannels.hlsl 逐字)。fork:GenerateMipmaps 讀不 dispatch。2 牙。
+
+**流程修復(柏為喊停試壓→改 `/sw-node-batch`)**:
+- **昨夜 overnight 丟 5 顆真因**=agent 不 commit + worktree 被收割(session 閒置 harness 回收,未 commit 改動蒸發)→
+  **Phase 2 固化先於驗證**(完工通知即進 worktree commit 到 branch,先固化後驗證;今晚三顆 branch e2d2423/324024a/60163a4)。
+- **昨夜 A/B 自創 5 顆 TiXL 沒有的 op**(BoxGrid/Tube/Concentric/SelectByRange/ScaleAboutCenter)真因=lane agent
+  自掃缺口+自挑→**掃缺口+挑 op 收歸 orchestrator 前置裁決**,工單只給指定 op + TiXL 路徑 + 模板。
+- **無人值守 commit 邊界**:機械/無視覺/selftest 強驗→主線;有視覺需柏為肉眼驗→停 branch+PANEL 待驗(完成定義不被「不中斷」吃掉)。
+- 撞點分析修正:四撞點→兩真撞點(register+CMake);selftest 非並行撞點(golden 在自己 op 檔)。
+
+**🟡 柏為親測 (批次20)**: 三顆 op app 開好在 palette(DoyleSpiralPoints 搜尋可見),柏為認可視覺+DoyleSpiral 處理方式。
+  完整親手玩(拖 DoyleSpiral→DrawPoints 看螺旋/ClearSomePoints 拉 Ratio/ChannelMixer 拉通道)=隨手。
+
+## Resume — next (批次21 候選; 無 🔴 排修, 純推進)
+1. **cheap point op(家族並行,用 `/sw-node-batch`)**——候選庫=`docs/agent/overnight/lane_*.md`(三家族缺口掃描):
+   - generators: CommonPointSets/RepetitionPoints(⚠CPU 生成=新接縫,非 GPU kernel,先評估 PointCookCtx map buffer 寫法)。
+   - point_modify: SnapToPoints(2-buffer 照 CombineBuffers)/PointAttributeFromNoise(⚠UseRemapCurve=false 才 cheap)/
+     SubdivideLinePoints/ReorientLinePoints(切線 rot Y·X·Z)。SelectPoints=moderate(selection state)。
+   - image_filter 第一梯隊(per-pixel,貼 Tint/AdjustColors): HSE/ToneMapping/ColorGrade/KeyColor/Pixelate(先單顆驗綠再擴)。
+2. **SnapPointsToGrid gain/bias refuter**(Cut 25 CONCERN 未清): 對 bias-functions.hlsl 逐字復查重建的 applyGainAndBias。
+3. **UI 視覺第三刀**: 標題字級 13→18(CJK atlas/node 尺寸連動)/連線 idle-fade(editor_ui.cpp:201-203)/pin 方→三角(node_draw.cpp:31)。
+4. **互動 S3 二梯隊**: fence Shift/Ctrl 三模式/雙擊 annotation rename/G layout(moderate)。
 5. particle 深化=subsystem(§D)排後。soundtrack @4x=task_adc40d12 chip 柏為域。
-6. **派背景 implementer 記得設 isolation:worktree**(四航教訓)。
+6. DoyleSpiral 視覺/數值 ground-truth: 可外包 Windows TiXL lane(`to_windows_tixl` kit)Player 截圖對照(柏為暫認可不做)。
