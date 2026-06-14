@@ -1428,3 +1428,7 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 - **int/ 家族**(AddInts/IntDiv/ModInt/MinInt/MaxInt/IsIntEven/CompareInt/IntToFloat…):Float-only runtime 裡 Int op = 截斷 Float,是型別建模問題、價值低,**先不碰**(若柏為要 Min/Max float op,MinInt/MaxInt 可借語義)。
 - **需 seam/blocked**:BlendValues/PickVector2,3(mixed multiInput)/PerlinNoise2,3(noise impl)/MulMatrix·TransformVec3(matrix 輸入)/GetAPrime(prime sieve)/RandomChoiceIndex(RNG)。
 **結論=自走還能走 1-2 批 clean vec value op,但已從 high-value 跨進 completeness-tier→這是柏為 steer 點(要不要改去 Gradient widget[需柏為 authoring]或視覺 filter,還是繼續補完 vec/int parity)。** 批次31 預設=vec value 三顆(DivideVector2/BlendVector3/EulerToAxisAngle 逐字驗 TiXL)。
+
+## Cut 37 — 批次 31: 3 clean vec value op (DivideVector2/Vec2ToVec3/EulerToAxisAngle) (2026-06-14 夜; /loop 自走) ✅
+**commit `b92d6d2`**: 全 TiXL vec2/vec3 逐字,stateless multi-output(inputs first,k=outIdx-n)。.t3 預設自查。DivideVector2=(A/B)/U 逐分量(div0→0 fork);Vec2ToVec3=(XY.x,XY.y,Z) 直通;EulerToAxisAngle=Rotation(rad)→Axis 單位+Angle(double 中介對齊 TiXL,norm<0.001→(1,0,0) guard)。selftest 各組+齒咬,--bite PASS=125/NO-BITE:[]/check-arch 綠。BlendVector3 DEFER(同 BlendValues mixed-multiInput)。
+**Resume(批次32,completeness vec 續)**: RemapVec2(component remap,Mode Clamped/Modulo)/PadVec2Range/Int2ToVector2/GridPosition(pure vec)/HasVec2Changed·HasVec3Changed(stateful 鏡 HasValueChanged)。之後 vec 也近底→int 家族(Float-world 截斷,價值低)或撞停手條件(Gradient widget/視覺/Field-SDF 需柏為)。**持續提醒柏為 steer 點:completeness tier 價值遞減,high-value 剩貨需柏為在場。**
