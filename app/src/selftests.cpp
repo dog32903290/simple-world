@@ -37,6 +37,7 @@
 #include "runtime/stateful_value_ops.h"  // runStatefulValueSelfTest (Damp/Spring value-graph sims)
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
+#include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/particle_system.h"
 #include "runtime/point_graph.h"
 #include "runtime/point_ops.h"
@@ -251,11 +252,42 @@ int runSelftestFromArgs(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
     const char* a = argv[i];
 
+    // --selftest-list: emit one selftest name per line (kTable rows + the self-registered
+    // imageFilterSelfTests() sink), so run_all_selftests.sh discovers EVERY tooth — including
+    // sink-registered image-filter leaves that never appear as a kTable grep row. (The harness
+    // prefers this list and only falls back to grepping kTable when this flag is absent; without
+    // it, a sink-only op like TransformImage would silently never run in the bite suite.)
+    if (std::strcmp(a, "--selftest-list") == 0) {
+      for (const SelfTest& e : kTable) std::printf("%s\n", e.name);  // "" = base color selftest
+      // Sink names, skipping any already present in kTable (e.g. convertcolors is in both during the
+      // self-registration transition) so the harness never double-runs the same tooth.
+      for (const auto& s : imageFilterSelfTests()) {
+        bool inTable = false;
+        for (const SelfTest& e : kTable)
+          if (std::strcmp(e.name, s.first) == 0) { inTable = true; break; }
+        if (!inTable) std::printf("%s\n", s.first);
+      }
+      return 0;
+    }
+
     // Uniform --selftest[-name] / -bug pairs (the table).
     for (const SelfTest& e : kTable) {
       std::string base = std::string("--selftest") + (e.name[0] ? std::string("-") + e.name : "");
       if (base == a) return e.fn(false);
       if (base + "-bug" == a) return e.fn(true);
+    }
+
+    // Self-registered IMAGE FILTER selftests (the imageFilterSelfTests() sink that each
+    // point_ops_<name>.cpp ImageFilterOp registrar feeds). This activates the dormant half of the
+    // self-registration design documented in image_filter_op_registry.h: NodeSpecs were already
+    // read from imageFilterSpecSink() by node_registry, but the matching --selftest dispatch was
+    // never wired — so new image-filter leaves had to also touch kTable. Reading the sink here makes
+    // an image-filter leaf a TRUE zero-shared-file-edit add. (kTable is matched FIRST above, so the
+    // pre-existing hardcoded image-filter rows like convertcolors win and do not double-run.)
+    for (const auto& e : imageFilterSelfTests()) {
+      std::string base = std::string("--selftest-") + e.first;
+      if (base == a) return e.second(false);
+      if (base + "-bug" == a) return e.second(true);
     }
 
     // Non-uniform entries (no bug variant / take arguments).
