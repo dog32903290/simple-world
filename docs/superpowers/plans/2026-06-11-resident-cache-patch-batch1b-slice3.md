@@ -1574,3 +1574,24 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. **驗證分流(產能前置②)**: scenario 全庫 GPU 序列 ~18min 是合流瓶頸。考慮 headless selftest 與 live scenario 拆開、或合流抽樣 scenario(非全庫)。
 3. **其他共享檔家族**(point/value/math)若要平行織也需同樣自登記化(本 Cut 只做 image-filter)。
 4. **排修/柏為域(不擋產能)**: displace/blur/filter_wave3 eye-map 回歸(task_602f15ec 獨立工程)/ Gradient widget。
+
+## Cut 48 — 平行織 3-proof 成立 + worktree base-trap 解藥 + sink 洞補完 (2026-06-15 午; 柏為「去解他」→「先收尾暫停」)
+**承重達成**：產能模型從「序列 1 顆/19 分」變**真正平行織**——3 顆 image-filter op 在 3 條平行 worktree lane 同時織出、合流零衝突。柏為壓測時定的「先證 3 再談 12」=證完。
+
+**做了①worktree base-trap 解藥(`1cd78f1`，端到端驗證)**：Agent 內建 `isolation:worktree` 確實從 main(a54b8c0,落後307)切（新 probe 實證 HEAD=a54b8c0/重構檔全不存在）。解藥=`tools/agent_worktree_setup.sh`（`git merge --ff-only <主倉HEAD>` 快進+symlink third_party+ccache build；a54b8c0 是祖先→乾淨 ff）。**端到端驗**：手建 a54b8c0 worktree→跑腳本→HEAD=f63eb08+重構檔 PRESENT+binary BUILT。歷史卡 a54b8c0 是因舊工單「ls 偵測就停」沒跑腳本 ff。sw-batch 派工步驟釘成 worktree lane step-0 硬性。詳 [[worktree-base-main-trap]]。
+
+**做了②3 顆平行 image-filter op**：TransformImage(`b026b6b`,offset/stretch/scale/rotation,forks=b2 source-aspect/Offset X 取負/rotation sign idiom 3.141578/sampler Wrap)+MirrorRepeat(`af8378e`,mirror-fold+dual rotation,★fork=cbuffer `__dummy__` 16-byte 對齊≠.cs序)+KochKaleidoskope(`af8378e`,fractal,forks=int-vs-float 迴圈邊界/4-tap AA/Center Y-flip)。各 headless golden 對 .hlsl 手算+injectBug 咬合（柏為退出親測→golden 是唯一 parity 防線，三顆都有）。
+
+**做了③proof 揪出並補完自登記重構的隱藏洞**：3 個獨立 Opus agent 收斂同一診斷——**selftest sink `imageFilterSelfTests()` 被填但無消費者**（`--selftest-list` 沒實作、`runSelftestFromArgs` 只讀 kTable），convertcolors 靠多餘 kTable row 掩蓋。Cut 47 重構的 refuter SURVIVE + 我親核都漏了（沒測純-sink op，被 convertcolors kTable row 掩蓋）。**合流時只取 lane1 的一次性 sink 修補**(selftests.cpp:`--selftest-list`+sink dispatch)，lane2/lane3 **只取 leaf 檔**(各 .cpp/.metal/.h)→照樣被掃到+綠 → **證明 sink 修通後加 op 是純 leaf 添加、零共享編輯=conflict-free**。
+
+**🟡 fence_preview 假紅=glob-staleness**：合流跑 scenario 時看到 fence_preview rc=1，triage(clean-base 4 格全綠重現不出)判定=stale binary（scenario runner `sw_scenario.sh`/`run_all_selftests.sh` 自己不 build，加 leaf .cpp 後要先 `cmake -S app -B app/build` reconfigure 重展 glob 再跑，否則驗舊 registry）。非 code bug/非回歸/fence.scn 的 order-independent 硬化早已到位。親核重 build 後 fence PASS。**流程鐵律延伸：加 leaf .cpp 後，跑 scenario 前也要 reconfigure+build（不只 --bite 前）。**
+
+**驗證(orchestrator 親核)**：--bite PASS=133(130→133)NO-BITE/check_arch OK/三顆 selftest green+bug 咬合/fence_preview 重 build 後 PASS。
+
+**⏹ 柏為「先收尾暫停」**：3-proof 全 commit 落地(b026b6b/af8378e)，樹乾淨 HEAD af8378e，Cut 48+memory 結帳完。
+
+**Resume — next (放大平行織)**:
+1. **平行織剩 ~10 顆 image-filter**（sink 通+base 解藥+自登記=conflict-free 已證）：scout 已掃過礦池，spare=ColorGrade(乾淨但重)；再 scout 一批乾淨單-texture op，一次放 3-5 條平行 worktree lane（各 step-0 跑 agent_worktree_setup.sh）。合流配方=cherry-pick 各 leaf（純 leaf 零共享，sink 已通）。
+2. **convertcolors kTable row 殘渣清理**（pre-existing wart：sink 通後 convertcolors 雙註冊，移除 kTable row 讓 sink 為唯一路徑）。
+3. **point/value/math 家族平行化**需先比照 image-filter 自登記（仍共享檔），要平行才做。
+4. **排修/柏為域**：displace/blur/filter_wave3 eye-map(task_602f15ec)/Gradient widget/三顆新 op 視覺手感親測（柏為域，差不多就好）。
