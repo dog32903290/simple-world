@@ -43,6 +43,8 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
    源碼常數（顏色/圓角/字級查源碼，不猜）。
 3. **派工**：依檔案重疊定隊形（重疊=序列，葉子=worktree 並行）；模型分層照 WORKFLOW.md；
    工單=CONTEXT_PACK 指標＋任務＋驗收清單（含 .scn）。
+   - **worktree lane 必含 step-0 解藥（base trap，已驗）**：Agent 內建 `isolation:worktree` 從 main(a54b8c0,落後)切——工單第一條指令 = `bash "<主倉絕對路徑>/tools/agent_worktree_setup.sh"`（ff 到活躍 HEAD ＋ symlink third_party ＋ ccache build 一次到位），再驗 `git rev-parse --short HEAD` == 活躍 HEAD。**不只偵測，要 ff 修好。** 見 [[worktree-base-main-trap]]。
+   - **平行織零衝突的前提**：每 lane 只動自己的 leaf 檔（image-filter 已自登記，commit `edaff22`）→ 合流 cherry-pick 無共享檔衝突。仍共享檔的家族（point/value/math）平行前要先自登記化，否則退序列。
 4. **合流**：每 lane 回報→親手跑驗證指令（--bite＋check-arch＋scenario 全庫）讀綠紅→全綠才
    commit（訊息照既有格式）。**任何 red→不自己查根因**，派一個 triage subagent：clean-base 隔離
    ＋分類（op-correctness 真錯／驗證基建縫／柏為域）＋一頁結論。照分類路由：真錯=進步驟 5 否證/fixer；
