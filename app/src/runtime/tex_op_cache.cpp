@@ -17,6 +17,12 @@ std::map<PSOKey, MTL::RenderPipelineState*>& psoCache() {
   return c;
 }
 
+// Compute PSO cache: keyed by kernel function name (device-global, immutable once built).
+std::map<std::string, MTL::ComputePipelineState*>& computePsoCache() {
+  static std::map<std::string, MTL::ComputePipelineState*> c;
+  return c;
+}
+
 // Scratch cache: one entry per logical key; reallocated only when size/format changes.
 struct ScratchEntry {
   MTL::Texture* tex = nullptr;
@@ -56,6 +62,25 @@ MTL::RenderPipelineState* cachedTexPSO(MTL::Device* dev, MTL::Library* lib, cons
   return rps;
 }
 
+MTL::ComputePipelineState* cachedComputePSO(MTL::Device* dev, MTL::Library* lib,
+                                            const char* fnName) {
+  if (!dev || !lib || !fnName) return nullptr;
+  auto& cache = computePsoCache();
+  std::string key(fnName);
+  auto it = cache.find(key);
+  if (it != cache.end()) return it->second;  // built before -> reuse
+
+  MTL::Function* fn = lib->newFunction(NS::String::string(fnName, NS::UTF8StringEncoding));
+  MTL::ComputePipelineState* pso = nullptr;
+  if (fn) {
+    NS::Error* err = nullptr;
+    pso = dev->newComputePipelineState(fn, &err);
+    fn->release();
+  }
+  if (pso) cache[key] = pso;  // only cache a successful build (nullptr is retried next call)
+  return pso;
+}
+
 MTL::Texture* cachedScratchTex(MTL::Device* dev, TexPixelFormat fmt, uint32_t w, uint32_t h,
                                const std::string& key) {
   if (!dev || w == 0 || h == 0) return nullptr;
@@ -77,6 +102,9 @@ void clearTexOpCache() {
   for (auto& kv : psoCache())
     if (kv.second) kv.second->release();
   psoCache().clear();
+  for (auto& kv : computePsoCache())
+    if (kv.second) kv.second->release();
+  computePsoCache().clear();
   for (auto& kv : scratchCache())
     if (kv.second.tex) kv.second.tex->release();
   scratchCache().clear();

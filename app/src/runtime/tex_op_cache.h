@@ -22,6 +22,7 @@ namespace MTL {
 class Device;
 class Library;
 class RenderPipelineState;
+class ComputePipelineState;
 class Texture;
 }  // namespace MTL
 
@@ -37,6 +38,13 @@ using TexPixelFormat = uint64_t;
 // pipeline fails to compile. The cache OWNS the PSO (no caller release).
 MTL::RenderPipelineState* cachedTexPSO(MTL::Device* dev, MTL::Library* lib, const char* vsName,
                                        const char* fsName, TexPixelFormat fmt);
+
+// Cached COMPUTE PSO for a kernel function (the -cs.hlsl path: a compute image-filter leaf such as
+// Crop dispatches a compute kernel instead of a fullscreen draw). Built once on first request and
+// reused forever (device-global), keyed by function name. Returns nullptr if the function is missing
+// or the pipeline fails to compile. The cache OWNS the PSO (no caller release). Dropped by
+// clearTexOpCache() alongside the render PSOs, so per-run-device selftests get a clean table.
+MTL::ComputePipelineState* cachedComputePSO(MTL::Device* dev, MTL::Library* lib, const char* fnName);
 
 // A reusable scratch render-target texture (RenderTarget|ShaderRead, Shared storage) of the given
 // size/format, keyed by `key`. Reallocated only when the requested size/format differs from the

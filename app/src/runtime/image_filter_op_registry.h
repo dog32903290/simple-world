@@ -23,11 +23,14 @@
 // unspecified. This only affects the Add-menu ordering of image-filter ops (cosmetic) — findSpec is
 // keyed by type name and .swproj wires are keyed by port id, neither depends on spec position.
 #pragma once
+#include <map>
+#include <set>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "runtime/graph.h"        // NodeSpec
-#include "runtime/point_graph.h"  // PointTexFn, registerTexOp
+#include "runtime/point_graph.h"  // PointTexFn, registerTexOp, RenderResolution
 
 namespace sw {
 
@@ -35,12 +38,35 @@ namespace sw {
 std::vector<NodeSpec>& imageFilterSpecSink();
 std::vector<std::pair<const char*, int (*)(bool)>>& imageFilterSelfTests();
 
+// COMPUTE-leaf sinks (the -cs.hlsl path). A compute leaf differs from a pixel leaf in exactly two
+// host-side ways, captured by these two sinks (everything else — cook fn signature, NodeSpec, the
+// selftest pair — is identical to ImageFilterOp):
+//   (1) its output texture must carry MTL::TextureUsageShaderWrite (it is a RWTexture2D target),
+//   (2) its output size may differ from the Resolution pin (Crop shrinks; cookTexNode asks the
+//       SizeFn for the real output dims from the cropped INPUT size).
+// imageFilterComputeTypes(): the set of cook types that need ShaderWrite on their output.
+// imageFilterSizeFns(): optional per-type output-size override. SizeFn(params, inputSize) ->
+//   the output RenderResolution. Absent type = output size follows the Resolution pin (pixel rule).
+using ImageFilterSizeFn = RenderResolution (*)(const std::map<std::string, float>&,
+                                               RenderResolution inputSize);
+std::set<std::string>& imageFilterComputeTypes();
+std::map<std::string, ImageFilterSizeFn>& imageFilterSizeFns();
+
 // RAII registrar: declare one file-scope static of this type at the end of each image-filter leaf.
 // selftestName/selftest are optional (some ops have no standalone golden); pass both to register a
 // `--selftest-<name>` / `--selftest-<name>-bug` pair.
 struct ImageFilterOp {
   ImageFilterOp(NodeSpec spec, const char* cookType, PointTexFn cook,
                 const char* selftestName = nullptr, int (*selftest)(bool) = nullptr);
+};
+
+// RAII registrar for a COMPUTE leaf (-cs.hlsl). Same self-registration as ImageFilterOp PLUS:
+//   - inserts cookType into imageFilterComputeTypes() (cookTexNode gives its output ShaderWrite),
+//   - if sizeFn != nullptr, stores it in imageFilterSizeFns()[cookType] (output may shrink/grow).
+struct ImageFilterComputeOp {
+  ImageFilterComputeOp(NodeSpec spec, const char* cookType, PointTexFn cook,
+                       ImageFilterSizeFn sizeFn = nullptr, const char* selftestName = nullptr,
+                       int (*selftest)(bool) = nullptr);
 };
 
 }  // namespace sw

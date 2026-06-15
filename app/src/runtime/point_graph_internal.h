@@ -94,7 +94,10 @@ struct PointGraph::Impl {
   // The RenderTarget node's own output texture, sized to its resolved resolution. Reused across
   // frames; reallocated only when w/h change (RESOURCE_LIFETIME). Owned (newTexture) -> released
   // on realloc + in the destructor; the descriptor is an autoreleased factory (frame pool owns it).
-  MTL::Texture* ensureTex(const std::string& key, uint32_t w, uint32_t h) {
+  // shaderWrite: a COMPUTE leaf (image_filter_op_registry, -cs.hlsl) writes its output via a
+  // RWTexture2D, so its output texture needs MTL::TextureUsageShaderWrite on top of the usual
+  // RenderTarget|ShaderRead. Pixel ops leave it false (default) -> byte-identical descriptor.
+  MTL::Texture* ensureTex(const std::string& key, uint32_t w, uint32_t h, bool shaderWrite = false) {
     if (w == 0) w = 1;
     if (h == 0) h = 1;
     MTL::Texture*& t = texBuf[key];
@@ -102,7 +105,9 @@ struct PointGraph::Impl {
       if (t) t->release();
       MTL::TextureDescriptor* td =
           MTL::TextureDescriptor::texture2DDescriptor(kPointTargetFormat, w, h, false);
-      td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+      MTL::TextureUsage usage = MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead;
+      if (shaderWrite) usage |= MTL::TextureUsageShaderWrite;
+      td->setUsage(usage);
       td->setStorageMode(MTL::StorageModeShared);
       t = dev->newTexture(td);
       texW[key] = w;

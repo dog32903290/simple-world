@@ -13,6 +13,7 @@
 
 #include "runtime/compound_graph.h"       // SymbolLibrary/Symbol/SymbolChild (lib defaultDrawTarget)
 #include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
+#include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
 #include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
 
@@ -346,15 +347,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     if (tx == texReg().end() || !tx->second) return nullptr;
     if (!texVisiting.insert(id).second) return nullptr;  // cycle guard: already on the stack
 
-    // Size this node's own output texture from its Resolution pin (the window size is
-    // WindowFollow's source). Image filters with no Resolution param fall back to WindowFollow.
     const std::map<std::string, float>* tp = nodeParams(id);
-    RenderResolution res = resolveRenderResolution(
-        tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
-    MTL::Texture* tex = p_->ensureTex(flatKey(id), res.w, res.h);
 
-    // Gather inputs in spec order: concat Command inputs, recurse EACH Texture2D input (lane D2:
-    // Displace needs Image + DisplaceMap; texInputs[] indexes by Texture2D-input port order).
+    // Gather inputs in spec order FIRST (moved ahead of output sizing): concat Command inputs,
+    // recurse EACH Texture2D input (lane D2: Displace needs Image + DisplaceMap; texInputs[] indexes
+    // by Texture2D-input port order). Gathering before sizing is harmless for pixel ops (they size
+    // off the Resolution pin and ignore the input dims) — done UNCONDITIONALLY so the one code path
+    // can hand a compute leaf's SizeFn the cooked INPUT size (Crop's output = input minus margins).
     RenderCommand chain;
     const MTL::Texture* texInputs[TexCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
     int texInputCount = 0;
@@ -375,6 +374,22 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         }
       }
     }
+
+    // Size this node's own output texture. Default = the Resolution pin (the window size is
+    // WindowFollow's source; image filters with no Resolution param fall back to WindowFollow).
+    // A COMPUTE leaf may override via its SizeFn (Crop: output = inputSize - margins): the output
+    // can be SMALLER/larger than the Resolution pin, so we compute it from the cooked input dims.
+    RenderResolution res = resolveRenderResolution(
+        tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
+    auto sizeIt = imageFilterSizeFns().find(n->type);
+    if (sizeIt != imageFilterSizeFns().end() && texInputs[0]) {
+      res = sizeIt->second(tp ? *tp : std::map<std::string, float>{},
+                           RenderResolution{(uint32_t)texInputs[0]->width(),
+                                            (uint32_t)texInputs[0]->height()});
+    }
+    // Compute leaves write via RWTexture2D -> their output needs MTL::TextureUsageShaderWrite.
+    bool needsWrite = imageFilterComputeTypes().count(n->type) != 0;
+    MTL::Texture* tex = p_->ensureTex(flatKey(id), res.w, res.h, needsWrite);
 
     TexCookCtx tc;
     tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;

@@ -3,6 +3,9 @@
 // up with zero CMake edit. See image_filter_op_registry.h for the full self-registration contract.
 #include "runtime/image_filter_op_registry.h"
 
+#include <map>
+#include <set>
+#include <string>
 #include <utility>
 
 #include "runtime/point_graph.h"  // registerTexOp
@@ -21,10 +24,32 @@ std::vector<std::pair<const char*, int (*)(bool)>>& imageFilterSelfTests() {
   return tests;
 }
 
+// Compute-leaf sinks — same Meyers-singleton lifetime as the two above (first touched inside the
+// first ImageFilterComputeOp ctor that runs during pre-main dynamic init; consumed only after main).
+std::set<std::string>& imageFilterComputeTypes() {
+  static std::set<std::string> types;
+  return types;
+}
+
+std::map<std::string, ImageFilterSizeFn>& imageFilterSizeFns() {
+  static std::map<std::string, ImageFilterSizeFn> fns;
+  return fns;
+}
+
 ImageFilterOp::ImageFilterOp(NodeSpec spec, const char* cookType, PointTexFn cook,
                              const char* selftestName, int (*selftest)(bool)) {
   registerTexOp(cookType, cook);
   imageFilterSpecSink().push_back(std::move(spec));
+  if (selftestName && selftest) imageFilterSelfTests().push_back({selftestName, selftest});
+}
+
+ImageFilterComputeOp::ImageFilterComputeOp(NodeSpec spec, const char* cookType, PointTexFn cook,
+                                           ImageFilterSizeFn sizeFn, const char* selftestName,
+                                           int (*selftest)(bool)) {
+  registerTexOp(cookType, cook);
+  imageFilterSpecSink().push_back(std::move(spec));
+  imageFilterComputeTypes().insert(cookType);
+  if (sizeFn) imageFilterSizeFns()[cookType] = sizeFn;
   if (selftestName && selftest) imageFilterSelfTests().push_back({selftestName, selftest});
 }
 
