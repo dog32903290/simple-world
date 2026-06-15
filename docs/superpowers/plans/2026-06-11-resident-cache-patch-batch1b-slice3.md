@@ -1534,3 +1534,24 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. **image-filter [AUTO] 礦池(~15,gap-scan 過 false-positive 已濾)**: ConvertColors/FastBlur(mip-chain 較重)/KeyColor/HoneyCombTiles/RgbTV/Glow/glitch 族——逐顆開 `.cs` 確認單 Texture2d+純量參數(非 2nd-texture/gradient)。
 3. **驗 `resilient()` 死亡路徑**: 真跑一批就會踩到(若有 agent 死);沒死也無妨,機制邏輯已在。
 4. **柏為域待回收**: Gradient widget(高價值,需你畫色帶)+ 批24-38 視覺/手感親測 + Cut 41 其餘 steer。
+
+## Cut 46 — image-filter 礦開張: ConvertColors (首顆 [AUTO] image-filter + 自癒 workflow live 證鏈) ✅ (2026-06-15 晨; /sw-batch 自走, Opus orchestrator)
+**承重達成**: image-filter [AUTO] 礦從「方向選定」變「真產出第一顆」。自癒 workflow(`self_healing_node_batch.js`)首次跑出真 op(Cut 45 只栽 args 零產出)——live 鏈路證實:Workflow(args 傳真 JSON 陣列,非 stringify)→ implementer(schema,主樹非 worktree)→ refuter(schema)→ orchestrator 親核 → commit 全通。`resilient()` 死亡重派路徑仍 untested(本批零 agent 死)。
+
+**ConvertColors(commit `73a1bbd`)**: RGB↔OkLab / RGB↔LCh 色彩空間轉換,4-mode。單-pass texture op 鏡 Tint:`point_ops_convertcolors.cpp`(cookConvertColors + registerConvertColorsOp + runConvertColorsSelfTest)+ `convertcolors.metal`(convertcolors_vs/_fs)+ `convertcolors_params.h`(ConvertColorsParams{float Mode}) + NodeSpec 進 `node_registry_image_filter.cpp`。Mode enum 逐行照 `img-fx-ConvertColors.hlsl` 分支;4 個 float3x3(fwdA/fwdB/invA/invB)+ 4 轉換函數逐行港自 `shared/color-functions.hlsl`。
+
+**★承重 fork [matrix-mul]**(silent color corruption 高危,refuter 主攻): HLSL row-major float3x3,**同矩陣 invB 在 RgbToOkLab 用 mul(M,v)、在 RgbToLCh 用 mul(v,M)**,兩個方向。港成 MSL column-major = `float3x3(HLSL_row0,row1,row2)`(列當行)→ 等價式 HLSL `mul(M,v)`==MSL `v*m`、HLSL `mul(v,M)`==MSL `m*v`,**每個 mul 點逐函數港、不假設單一方向**。refuter **SURVIVE**:代數證明等價式 + 獨立 Python 手算 RgbToLCh(200,100,50)→(199,24,168) 與 GPU 逐 byte 同 + golden injectBug 翻方向→FAIL 咬合確認。
+
+**具名 no-op fork**(照 .cs [Input] 序列出,非假旋鈕): GenerateMipmaps / OutputFormat(TexCookCtx 無 mip/format 接縫)。sampler = point(nearest)+clamp 對 .t3 Filter=MinMagMipPoint。
+
+**驗證(orchestrator 親手復跑)**: --bite PASS=130 NO-BITE:[] / check_arch OK / `--selftest-convertcolors` rc=0(TestA forward 手算 byte-exact + TestB OkLab round-trip)/ injectBug rc=1。scenario: fence_preview(hash 序敏感先例)+ d4_save_restart + point_modify_chain 全 PASS → append NodeSpec 無擾動、零新回歸。
+
+**🟡 發現: `displace_chain.scn` pre-existing red(非本批)**: 連兩跑 FAIL `cannot resolve param:Displacement in map.json`(line 74,點 Displace#106 後 Inspector 拖 param:Displacement)。**clean-base 隔離證實**(stash ConvertColors→重建→同 FAIL)= 與本批無關,是既有 eye-map 解析缺陷(疑似柏為域 UI/eye 層,或 map 解析對 Inspector param 的 phantom)。**排修候選,不擋 image-filter 礦**。
+
+**非阻塞 issue(refuter 揭露,已具名)**: 生產 cook 寫 RGBA8Unorm(全 filter pipeline 共用約束 `point_ops_rendertarget.cpp:223`)→ Mode=0 OkLab 的 a/b 小負值在螢幕貼圖被夾到 0 → 與 TiXL(.t3 OutputFormat=R32G32B32A32_Float)on-screen 在 OkLab/LCh 中間模式視覺不同。kernel 數學 bit-exact 正確;100% 視覺 parity 需開 TexCookCtx float output-format 接縫(跨所有 filter,非單顆)→ 列接縫候選。
+
+**Resume — next**:
+1. **續 image-filter 礦(鏈路已證,可一批多顆)**: 礦池 ~14 剩。逐顆開 `.cs` 確認單 Texture2d+純量(非 2nd-texture/gradient): KeyColor / HoneyCombTiles / RgbTV / Glow / glitch 族 / FastBlur(mip-chain 較重排後)。op spec 十二欄範本見 Cut 46 ConvertColors 呼叫。
+2. **排修 displace_chain**: eye-map 解析 param:Displacement 缺陷(clean-base 既有);先查 map.json 為何不含 Displace Inspector param(疑 Inspector param 未進 map readback,或 node 106 hit-test)。
+3. **接縫候選**: TexCookCtx float output-format(開了 image-filter 色彩中間模式才 100% 視覺 parity,跨所有 filter)。
+4. **驗 `resilient()` 死亡路徑** + **柏為域**: Gradient widget(需你畫色帶)/ 批24-38 視覺手感親測 / Cut 41 其餘。
