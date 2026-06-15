@@ -25,6 +25,7 @@
 #include "runtime/eval_context.h"   // EvaluationContext (chain selftest builds one)
 #include "runtime/graph.h"          // Graph/Node/pinId
 #include "runtime/graph_bridge.h"   // libFromGraph (chain selftest's resident leg)
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"    // TexCookCtx, cookParam, registerTexOp
 #include "runtime/resident_eval_graph.h"  // buildEvalGraph (chain selftest's resident leg)
 #include "runtime/tex_op_cache.h"   // cachedTexPSO (D2-2 PSO reuse)
@@ -112,7 +113,43 @@ void cookTint(TexCookCtx& c) {
 
 }  // namespace
 
-void registerTintOp() { registerTexOp("Tint", cookTint); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+// (tintchain golden stays in selftests.cpp kTable — one selftest per registrar.)
+static const ImageFilterOp _reg_tint{
+    // Tint (TiXL Lib.image.color.Tint): remaps input luminance through a black->white color
+    // range and blends by Amount. Single Texture2D in → Texture2D out (point_ops_tint.cpp).
+    // Params mirror Tint.cs: Amount/MapBlackTo(Vec4)/MapWhiteTo(Vec4)/Exposure/
+    // ChannelWeights(Vec4)/GainAndBias(Vec2). Resolution = same enum as Blur. FORKS (named):
+    // TiXL's Wrap omitted (fixed clamp sampler); bias-functions.hlsl inlined in tint.metal.
+    {"Tint", "Tint",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Slider},
+      // MapBlackTo (Vec4, TiXL default ~(0,0,0,1))
+      {"MapBlackTo.r", "MapBlackTo", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"MapBlackTo.g", "MapBlackTo.g", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"MapBlackTo.b", "MapBlackTo.b", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"MapBlackTo.a", "MapBlackTo.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // MapWhiteTo (Vec4, TiXL default (1,1,1,1))
+      {"MapWhiteTo.r", "MapWhiteTo", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"MapWhiteTo.g", "MapWhiteTo.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"MapWhiteTo.b", "MapWhiteTo.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"MapWhiteTo.a", "MapWhiteTo.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // ChannelWeights (Vec4, TiXL default (1,1,1,0))
+      {"ChannelWeights.r", "ChannelWeights", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"ChannelWeights.g", "ChannelWeights.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"ChannelWeights.b", "ChannelWeights.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"ChannelWeights.a", "ChannelWeights.a", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // GainAndBias (Vec2, TiXL default (0.5,0.5) = identity)
+      {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+      {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Exposure", "Exposure", "Float", true, 1.0f, 0.0f, 4.0f},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "Tint", cookTint, "tint", runTintSelfTest};
 
 // --- Tint MATH golden -------------------------------------------------------------------------
 // Fill a source texture with a solid mid-grey (128,128,128,255). Run Tint with Amount=1.0,

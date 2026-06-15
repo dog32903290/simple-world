@@ -24,6 +24,7 @@
 
 #include "runtime/adjustcolors_params.h"  // AdjustColorsParams, ADJUSTCOLORS_Params
 #include "runtime/eval_context.h"
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"           // TexCookCtx, cookParam, registerTexOp
 #include "runtime/tex_op_cache.h"          // cachedTexPSO (D2-2 PSO reuse)
 
@@ -111,7 +112,41 @@ void cookAdjustColors(TexCookCtx& c) {
 
 }  // namespace
 
-void registerAdjustColorsOp() { registerTexOp("AdjustColors", cookAdjustColors); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_adjustcolors{
+    // AdjustColors (TiXL Lib.image.color.AdjustColors): comprehensive color grading — HSB ops
+    // (hue/saturation/exposure/brightness/contrast), vignette, colorize, background composite.
+    // Single Texture2D in → Texture2D out (point_ops_adjustcolors.cpp). Params mirror
+    // AdjustColors.cs. Resolution = same enum. FORK (named): TiXL's Wrap omitted (fixed clamp).
+    {"AdjustColors", "AdjustColors",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      {"Exposure", "Exposure", "Float", true, 1.0f, 0.0f, 4.0f},
+      {"Contrast", "Contrast", "Float", true, 0.0f, -1.0f, 2.0f},
+      {"Saturation", "Saturation", "Float", true, 1.0f, 0.0f, 4.0f, Widget::Slider},
+      {"Brightness", "Brightness", "Float", true, 0.0f, -1.0f, 1.0f},
+      {"Hue", "Hue", "Float", true, 0.0f, -180.0f, 180.0f},
+      {"Vignette", "Vignette", "Float", true, 0.0f, 0.0f, 5.0f, Widget::Slider},
+      {"OrangeTeal", "OrangeTeal", "Float", true, 0.0f, -1.0f, 1.0f},
+      // Colorize (Vec4, TiXL default (1,1,1,0) — alpha=0 means no colorize)
+      {"Colorize.r", "Colorize", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"Colorize.g", "Colorize.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Colorize.b", "Colorize.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Colorize.a", "Colorize.a", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // PreventClamping (Vec2, TiXL default (0, 5))
+      {"PreventClamping.x", "PreventClamping", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+      {"PreventClamping.y", "PreventClamping.y", "Float", true, 5.0f, 1.0f, 10.0f, Widget::Vec, {}, true, 1},
+      // Background (Vec4, TiXL default ~(0,0,0,1) — near-zero rgb transparent black)
+      {"Background.r", "Background", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"Background.g", "Background.g", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Background.b", "Background.b", "Float", true, 1e-6f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Background.a", "Background.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "AdjustColors", cookAdjustColors, "adjustcolors", runAdjustColorsSelfTest};
 
 // --- AdjustColors MATH golden -----------------------------------------------------------------
 // Source: a solid red square (r=200, g=40, b=40, a=255). Run AdjustColors with Saturation=0.0

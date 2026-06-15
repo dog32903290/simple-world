@@ -158,7 +158,6 @@ add_executable(simple_world
   src/runtime/node_registry_point_combine.cpp
   src/runtime/node_registry_particle.cpp
   src/runtime/node_registry_draw.cpp
-  src/runtime/node_registry_image_filter.cpp
   src/runtime/node_registry_math.cpp
   src/runtime/value_eval_ops.cpp
   src/runtime/stateful_value_ops.cpp

@@ -12,7 +12,7 @@
 // bind it as a second Metal cbuffer filled from c.output->width()/height() — same as the
 // ChromaticAbberation Resolution(b1) handling. (VoronoiCells.cs's `Resolution` Int2 input is the
 // OUTPUT TEXTURE SIZE selector, not this cbuffer — modelled as the standard Resolution enum +
-// CustomW/H ports in node_registry_image_filter.cpp.)
+// CustomW/H ports in the VoronoiCells NodeSpec — see point_ops_voronoicells.cpp's ImageFilterOp registrar.)
 #pragma once
 
 #ifdef __METAL_VERSION__

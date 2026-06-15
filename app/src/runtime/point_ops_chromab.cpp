@@ -23,6 +23,7 @@
 
 #include "runtime/chromab_params.h"  // ChromaBAParams, ChromaBAResolution, CHROMAB_Params/Resolution
 #include "runtime/eval_context.h"
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"     // TexCookCtx, cookParam, registerTexOp
 #include "runtime/tex_op_cache.h"    // cachedTexPSO (D2-2 PSO reuse)
 
@@ -98,7 +99,28 @@ void cookChromaB(TexCookCtx& c) {
 
 }  // namespace
 
-void registerChromaBAOp() { registerTexOp("ChromaticAbberation", cookChromaB); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_chromab{
+    // ChromaticAbberation (TiXL Lib.image.fx.stylize.ChromaticAbberation): radial chromatic
+    // fringe effect splitting R and B channels outward from center. Single Texture2D in →
+    // Texture2D out (point_ops_chromab.cpp). Params mirror ChromaticAbberation.cs: Image/Size/
+    // Strength/SampleCount/Distort. Resolution = same enum. FORK (named): TiXL's host provides
+    // TargetWidth/TargetHeight via a Resolution cbuffer; we fill it from c.output->width/height.
+    {"ChromaticAbberation", "ChromaticAbberation",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      // Defaults = ChromaticAbberation.t3 verbatim (refuter-R-PMF3: the first cut shipped
+      // 1.0/0.3/8/0 — a freshly added node looked nothing like TiXL's).
+      {"Size", "Size", "Float", true, 5.0f, 0.0f, 10.0f},
+      {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Slider},
+      {"SampleCount", "SampleCount", "Float", true, 3.0f, 3.0f, 20.0f, Widget::Slider},
+      {"Distort", "Distort", "Float", true, -0.1f, -2.0f, 2.0f},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "ChromaticAbberation", cookChromaB, "chromab", runChromaBAShiftSelfTest};
 
 // --- ChromaticAbberation MATH golden ----------------------------------------------------------
 // Chromatic aberration is visually apparent by its RGB channel CHANNEL OUTPUT vs. PASSTHROUGH

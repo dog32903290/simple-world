@@ -26,6 +26,7 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/eval_context.h"
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"     // TexCookCtx, cookParam, registerTexOp
 #include "runtime/sharpen_params.h"  // SharpenParams, SharpenResolution, SHARPEN_Params/Resolution
 #include "runtime/tex_op_cache.h"    // cachedTexPSO (D2-2 PSO reuse)
@@ -102,7 +103,29 @@ void cookSharpen(TexCookCtx& c) {
 
 }  // namespace
 
-void registerSharpenOp() { registerTexOp("Sharpen", cookSharpen); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_sharpen{
+    // Sharpen (TiXL Lib.image.fx.blur.Sharpen): 3x3 desaturated-Laplacian unsharp mask. Single
+    // Texture2D in → Texture2D out (point_ops_sharpen.cpp). Kernel: Sharpen.hlsl —
+    // final = col + col*Strength*(8*L(center) - 8 neighbour luminances), optional Clamping
+    // saturate. Params mirror Sharpen.cs/.t3: Image/SampleRadius/Strength/Clamping. FORKS
+    // (named): fixed clamp sampler vs TiXL Wrap=MirrorOnce (1px edge ring); TiXL OutputFormat
+    // R16F not adopted (uses output texture's own format).
+    {"Sharpen", "Sharpen",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      // SampleRadius (float, TiXL t3 default 1.0).
+      {"SampleRadius", "SampleRadius", "Float", true, 1.0f, 0.0f, 10.0f},
+      // Strength (float, TiXL t3 default 1.0).
+      {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 4.0f},
+      // Clamping (bool, TiXL t3 default false).
+      {"Clamping", "Clamping", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "Sharpen", cookSharpen, "sharpen", runSharpenSelfTest};
 
 // --- Sharpen MATH golden ----------------------------------------------------------------------
 // Sharpen = unsharp mask: it OVERSHOOTS at edges (ringing — the bright side of an edge becomes

@@ -26,6 +26,7 @@
 #include "runtime/eval_context.h"  // EvaluationContext (chain selftest builds one)
 #include "runtime/graph.h"         // Graph/Node/pinId
 #include "runtime/graph_bridge.h"  // libFromGraph (chain selftest's resident leg)
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"   // TexCookCtx, cookParam, registerTexOp
 #include "runtime/resident_eval_graph.h"  // buildEvalGraph (chain selftest's resident leg)
 #include "runtime/tex_op_cache.h"  // cachedTexPSO/cachedScratchTex (D2-2 PSO+scratch reuse)
@@ -114,7 +115,28 @@ void cookBlur(TexCookCtx& c) {
 
 }  // namespace
 
-void registerBlurOp() { registerTexOp("Blur", cookBlur); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+// (blurchain golden stays in selftests.cpp kTable — the registrar carries one selftest per op.)
+static const ImageFilterOp _reg_blur{
+    // Blur (TiXL Lib.image.fx.blur.Blur): the FIRST image filter — Texture2D in -> Texture2D out,
+    // a 2-pass directional Gaussian (point_ops_blur.cpp). Params mirror Blur.cs: Size (reach),
+    // Samples (taps), Offset (added constant), Opacity (rgb intensity -> shader Glow2). Resolution
+    // picks the output texture size (same enum as RenderTarget; default WindowFollow). FORK
+    // (named): TiXL's Wrap (TextureAddressMode) input is omitted — the op uses a fixed clamp
+    // sampler (= MirrorOnce default for blur); non-default Wrap is a follow-up.
+    {"Blur", "Blur",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      {"Size", "Size", "Float", true, 1.0f, 0.0f, 100.0f},
+      {"Samples", "Samples", "Float", true, 8.0f, 1.0f, 10.0f},
+      {"Offset", "Offset", "Float", true, 0.0f, -1.0f, 1.0f},
+      {"Opacity", "Opacity", "Float", true, 1.0f, 0.0f, 4.0f},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "Blur", cookBlur, "blur", runBlurSelfTest};
 
 // --- Blur MATH golden -------------------------------------------------------------------------
 // Fill a source texture with a single hard 1px-wide WHITE vertical line on black, run Blur (H+V),

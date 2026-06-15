@@ -36,6 +36,7 @@
 #include "runtime/eval_context.h"
 #include "runtime/graph.h"
 #include "runtime/graph_bridge.h"
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"    // TexCookCtx, cookParam, registerTexOp
 #include "runtime/resident_eval_graph.h"
 #include "runtime/tex_op_cache.h"   // cachedTexPSO (D2-2 PSO reuse)
@@ -113,7 +114,37 @@ void cookToneMapping(TexCookCtx& c) {
 
 }  // namespace
 
-void registerToneMappingOp() { registerTexOp("ToneMapping", cookToneMapping); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_tonemapping{
+    // ToneMapping (TiXL Lib.image.color.ToneMapping): per-pixel tone mapping curve.
+    // Single Texture2D in → Texture2D out (point_ops_tonemapping.cpp). Kernel: ToneMap.hlsl
+    // per-mode if/else chain (Aces/Reinhard/Filmic/Uncharted2/AgX/AgX_Punchy/None) with
+    // optional gamma correction. Params mirror ToneMapping.cs: Texture2d/Mode(enum)/
+    // CorrectGamma(bool)/Gamma(float)/Exposure(float). FORKS (named):
+    // 1. DX11 PS -> Metal fullscreen-triangle VS+FS (same fork class as Tint/ChannelMixer).
+    // 2. Mode passed as float in cbuffer (TiXL int enum -> float threshold dispatch, _ForceKind pattern).
+    // 3. TiXL bug verbatim: ToneMap.hlsl:105 'Mode<4.5' makes AgX_Punchy(5) unreachable.
+    //    We clone the dead branch faithfully (named fork[verbatim-TiXL-bug] in shader).
+    // 4. Fixed linear+clamp sampler (TiXL host wrap knobs omitted).
+    // 5. HLSL mul(vec,mat) row-major -> Metal column-layout transpose (named in tonemapping.metal).
+    {"ToneMapping", "ToneMapping",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      // Mode (int enum, TiXL default 0 = Aces)
+      {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 6.0f, Widget::Enum,
+       {"Aces", "Reinhard", "Filmic", "Uncharted2", "AgX", "AgX_Punchy", "None"}, true},
+      // CorrectGamma (bool, TiXL default false)
+      {"CorrectGamma", "CorrectGamma", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+      // Gamma (float, TiXL default not explicit in .cs; ToneMap.hlsl uses it as-is; common 2.2)
+      {"Gamma", "Gamma", "Float", true, 2.2f, 0.1f, 4.0f},
+      // Exposure (float, TiXL default 1.0)
+      {"Exposure", "Exposure", "Float", true, 1.0f, 0.0f, 4.0f},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "ToneMapping", cookToneMapping, "tonemapping", runToneMappingSelfTest};
 
 // --- ToneMapping MATH golden ----------------------------------------------------------------
 // Fill a 64x64 source texture with bright HDR input (rgb = 4.0 normalised to RGBA8 = 255,

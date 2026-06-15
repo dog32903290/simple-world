@@ -25,6 +25,7 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/eval_context.h"
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"          // TexCookCtx, cookParam, registerTexOp
 #include "runtime/tex_op_cache.h"         // cachedTexPSO (D2-2 PSO reuse)
 #include "runtime/voronoicells_params.h"  // VoronoiCellsParams/Resolution, VORONOI_Params/Resolution
@@ -110,7 +111,41 @@ void cookVoronoiCells(TexCookCtx& c) {
 
 }  // namespace
 
-void registerVoronoiCellsOp() { registerTexOp("VoronoiCells", cookVoronoiCells); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_voronoicells{
+    // VoronoiCells (TiXL Lib.image.fx.stylize.VoronoiCells): iq Voronoi cell mosaic with correct
+    // border distances. Single Texture2D in → Texture2D out (point_ops_voronoicells.cpp). Kernel:
+    // VoronoiCells.hlsl — input texture is the feature-point + cell-colour field; cell borders
+    // tinted by EdgeColor. Params mirror VoronoiCells.cs/.t3: Image/EdgeColor(Vec4)/
+    // Background(Vec4)/Scale/EdgeWidth/Phase. The .cs `Resolution` Int2 input is the OUTPUT
+    // texture size selector → modeled as the standard Resolution enum + CustomW/H (NOT a b0
+    // cbuffer field). FORKS (named): HLSL b2 Resolution(TargetWidth/Height) filled host-side from
+    // the output size (aspect); fixed clamp sampler (TiXL Wrap=Clamp verbatim).
+    {"VoronoiCells", "VoronoiCells",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      // EdgeColor (Vec4, TiXL t3 default (0,0,0,1) — black edges).
+      {"EdgeColor.r", "EdgeColor", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"EdgeColor.g", "EdgeColor.g", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"EdgeColor.b", "EdgeColor.b", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"EdgeColor.a", "EdgeColor.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // Background (Vec4, TiXL t3 default (1,1,1,1) — white cell tint multiplier).
+      {"Background.r", "Background", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"Background.g", "Background.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Background.b", "Background.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Background.a", "Background.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // Scale (float, TiXL t3 default 10.0).
+      {"Scale", "Scale", "Float", true, 10.0f, 0.1f, 100.0f},
+      // EdgeWidth (float, TiXL t3 default 0.68).
+      {"EdgeWidth", "EdgeWidth", "Float", true, 0.68f, 0.0f, 4.0f, Widget::Slider},
+      // Phase (float, TiXL t3 default 0.0).
+      {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "VoronoiCells", cookVoronoiCells, "voronoicells", runVoronoiCellsSelfTest};
 
 // --- VoronoiCells MATH golden ---------------------------------------------------------------
 // Source: a smooth 2-axis gradient (R = x/W, G = y/H) so each cell's feature point (read from the

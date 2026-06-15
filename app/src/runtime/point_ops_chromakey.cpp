@@ -26,6 +26,7 @@
 
 #include "runtime/chromakey_params.h"  // ChromaKeyParams, CHROMAKEY_Params
 #include "runtime/eval_context.h"
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"       // TexCookCtx, cookParam, registerTexOp
 #include "runtime/tex_op_cache.h"      // cachedTexPSO (D2-2 PSO reuse)
 
@@ -107,7 +108,46 @@ void cookChromaKey(TexCookCtx& c) {
 
 }  // namespace
 
-void registerChromaKeyOp() { registerTexOp("ChromaKey", cookChromaKey); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_chromakey{
+    // ChromaKey (TiXL Lib image/fx ChromaKey — NO .cs, ports = ChromaKey.hlsl cbuffer b0 verbatim):
+    // HSB-distance chroma keyer. Single Texture2D in → Texture2D out (point_ops_chromakey.cpp).
+    // Kernel: ChromaKey.hlsl — center + 4 (±ChokeRadius) neighbours → rgb2hsb → weighted distance to
+    // KeyColor → min (choke) → composite per Mode. Ports mirror cbuffer b0: KeyColor(Vec4)/
+    // Background(Vec4)/Exposure/WeightHue/WeightSaturation/WeightBrightness/Amplify/Mode/ChokeRadius.
+    // FORKS (named): b1 TimeConstants unused (not bound); dims read in-shader; fixed clamp sampler.
+    {"ChromaKey", "ChromaKey",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      // KeyColor (Vec4, colour to key out; default green screen).
+      {"KeyColor.r", "KeyColor", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"KeyColor.g", "KeyColor.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"KeyColor.b", "KeyColor.b", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"KeyColor.a", "KeyColor.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // Background (Vec4, composite/replacement colour).
+      {"Background.r", "Background", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"Background.g", "Background.g", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Background.b", "Background.b", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Background.a", "Background.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // Exposure (float, distance gain before Amplify).
+      {"Exposure", "Exposure", "Float", true, 1.0f, 0.0f, 10.0f},
+      // WeightHue / WeightSaturation / WeightBrightness (float, HSB channel weights).
+      {"WeightHue", "WeightHue", "Float", true, 1.0f, 0.0f, 4.0f},
+      {"WeightSaturation", "WeightSaturation", "Float", true, 1.0f, 0.0f, 4.0f},
+      {"WeightBrightness", "WeightBrightness", "Float", true, 1.0f, 0.0f, 4.0f},
+      // Amplify (float, subtracted from distance to tighten the key).
+      {"Amplify", "Amplify", "Float", true, 0.0f, 0.0f, 4.0f},
+      // Mode (float selector: 0 alpha / 1 composite / 2 mask / 3 dual; .hlsl thresholds).
+      {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+       {"Alpha", "Composite", "Mask", "Dual"}, true},
+      // ChokeRadius (float, neighbour offset px for the choke min).
+      {"ChokeRadius", "ChokeRadius", "Float", true, 1.0f, 0.0f, 10.0f},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "ChromaKey", cookChromaKey, "chromakey", runChromaKeySelfTest};
 
 // --- ChromaKey MATH golden --------------------------------------------------------------------
 // Source: left half pure GREEN (0,255,0) = the key colour, right half pure RED (255,0,0) = a

@@ -21,7 +21,8 @@ void registerPointModifyPointOps();   // TransformPoints, OrientPoints, Randomiz
 void registerPointCombinePointOps();  // CombineBuffers
 void registerParticlePointOps();      // ParticleSystem
 void registerDrawPointOps();          // DrawPoints, DrawLines, DrawBillboards, RenderTarget
-void registerImageFilterPointOps();   // Blur, Displace, Tint, ChromaticAbberation, AdjustColors
+// (Image-filter ops self-register via ImageFilterOp registrars in their leaf .cpp — no family
+//  registrar, no registerImageFilterPointOps(). See image_filter_op_registry.h.)
 
 // Inline cook fns defined in point_ops.cpp (the ops whose kernels live in the central file:
 // RadialPoints/ParticleSystem/DrawPoints). Declared here so their family registrars can wire
@@ -202,21 +203,18 @@ void registerSubdivideLinePointsOp();
 int runSubdivideLinePointsSelfTest(bool injectBug);
 // ChannelMixer image filter (point_ops_channelmixer.cpp, lane image_filter): 4x4 channel matrix
 // mix (TiXL image/color/ChannelMixer / MixChannels.hlsl). injectBug = identity -> no swap -> FAIL.
-void registerChannelMixerOp();
 int runChannelMixerSelfTest(bool injectBug);
 
 // ToneMapping image filter (point_ops_tonemapping.cpp, lane image_filter): per-mode tone curve
 // (TiXL image/color/ToneMapping / ToneMap.hlsl). Supports Aces/Reinhard/Filmic/Uncharted2/AgX/
 // AgX_Punchy(unreachable TiXL bug)/None. injectBug = Mode=None (no compression) -> HDR output
 // stays >0.95 -> FAIL. Green path = Reinhard compresses 4.0 HDR -> 0.8 -> PASS.
-void registerToneMappingOp();
 int runToneMappingSelfTest(bool injectBug);
 // ConvertColors image filter (point_ops_convertcolors.cpp, lane image_filter): RGB<->OkLab /
 // RGB<->LCh color-space converter (TiXL image/color/ConvertColors / img-fx-ConvertColors.hlsl +
 // color-functions.hlsl). Mode enum (0 RgbToOKLab/1 OKLabToRgb/2 RgbToLCh/3 LChToRgb) dispatched by
 // float thresholds. injectBug = flip the CPU-expected RgbToLCh matrix mul direction -> Test A
 // (hand-computed forward LCh) FAILS. Test B = Mode0->Mode1 round-trip back to original.
-void registerConvertColorsOp();
 int runConvertColorsSelfTest(bool injectBug);
 // SnapToPoints COMBINE op (point_ops_snaptopoints.cpp, batch 21): index-paired lerp of Points1
 // toward Points2 using distance-based smoothstep * MaxAmount. TiXL SnapToPoints.hlsl port.
@@ -261,21 +259,18 @@ int runRenderTargetWiredSelfTest(bool injectBug);
 // The FIRST image filter (Texture2D in -> Texture2D out): a 2-pass directional Gaussian blur
 // (TiXL image/fx/blur/Blur). Register into the texture stream (texReg). Wired into the cook tex
 // terminal AND mid-walk via cookTexNode's Texture2D gather (TexCookCtx::inputTexture).
-void registerBlurOp();
 // (runBlurSelfTest / runBlurChainSelfTest are declared in point_graph.h next to the other goldens.)
 
 // --- Displace image filter texture op (point_ops_displace.cpp, lane D2) ---
 // The SECOND image filter and the FIRST op with TWO Texture2D inputs (Image + DisplaceMap): a TiXL
 // image warp (image/fx/distort/Displace). Reads TexCookCtx::inputTextures[0..1] (the multi-input
 // gather承重線). Register into the texture stream (texReg).
-void registerDisplaceOp();
 // (runDisplaceSelfTest / runDisplaceChainSelfTest are declared in point_graph.h next to the goldens.)
 
 // --- Tint image filter texture op (point_ops_tint.cpp, lane F3-1) ---
 // Single-pass color tint/remap (TiXL image/color/Tint). Reads upstream Texture2D, remaps
 // luminance via ChannelWeights->GainAndBias->lerp(MapBlackTo,MapWhiteTo), blends by Amount.
 // Register into the texture stream (texReg).
-void registerTintOp();
 // MATH golden: solid grey -> red ramp tint (Amount=1, MapWhite=red); center pixel R>64 & G<96.
 // injectBug Amount=0 (passthrough) -> grey out -> FAIL.
 int runTintSelfTest(bool injectBug);
@@ -286,7 +281,6 @@ int runTintChainSelfTest(bool injectBug);
 // --- ChromaticAbberation image filter texture op (point_ops_chromab.cpp, lane F3-2) ---
 // Single-pass radial chromatic fringe (TiXL image/fx/stylize/ChromaticAbberation). Splits R/B
 // in opposite radial directions with barrel distortion. Register into the texture stream (texReg).
-void registerChromaBAOp();
 // MATH golden: white center stripe; R and B channels differ between left-of-center and
 // right-of-center pixels inside the stripe (radial fringe asymmetry). injectBug Size=0 -> FAIL.
 int runChromaBAShiftSelfTest(bool injectBug);
@@ -295,7 +289,6 @@ int runChromaBAShiftSelfTest(bool injectBug);
 // Single-pass comprehensive color grading (TiXL image/color/AdjustColors): HSB ops, vignette,
 // colorize, contrast S-curve, brightness, background composite.
 // Register into the texture stream (texReg).
-void registerAdjustColorsOp();
 // MATH golden: solid red -> Saturation=0 -> greyscale (R≈G≈B within 30). injectBug Sat=1 ->
 // red stays red (R>>G) -> equality FAILS.
 int runAdjustColorsSelfTest(bool injectBug);
@@ -305,7 +298,6 @@ int runAdjustColorsSelfTest(bool injectBug);
 // 0.5 -> floor(res/(Divisor*2)) tiles, else TileAmount), point-samples the tile center, multiplies
 // by Color. FORK (named): TiXL's per-cell Shape texture omitted (default Shape=white = no-op).
 // Register into the texture stream (texReg).
-void registerPixelateOp();
 // MATH golden: high-frequency stripe source; with a coarse Divisor two same-tile pixels become
 // EQUAL (block quantization) though they differ in the source; Color=(1,0,0,1) zeroes G/B.
 // injectBug Divisor=0 -> sub-pixel TileAmount tiles -> no merge -> FAIL.
@@ -315,7 +307,6 @@ int runPixelateSelfTest(bool injectBug);
 // Single-pass 3x3 desaturated-Laplacian unsharp mask (TiXL image/fx/blur/Sharpen):
 // final = col + col*Strength*(8*L(center) - 8 neighbour luminances), optional Clamping saturate.
 // Register into the texture stream (texReg).
-void registerSharpenOp();
 // MATH golden: vertical step edge; the bright-side edge pixel OVERSHOOTS above source (ringing)
 // while a flat interior pixel stays unchanged (Laplacian=0). injectBug Strength=0 -> passthrough
 // -> no overshoot -> FAIL.
@@ -325,7 +316,6 @@ int runSharpenSelfTest(bool injectBug);
 // Single-pass 4-neighbour absolute-difference edge detector (TiXL image/fx/stylize/DetectEdges):
 // average = sum_rgb(|x1-m|+|x2-m|+|y1-m|+|y2-m|) * Strength + Contrast, tinted by Color, lerp to
 // original by MixOriginal. Register into the texture stream (texReg).
-void registerDetectEdgesOp();
 // MATH golden: white/black horizontal border; the border row is BRIGHT (edge magnitude) while a
 // flat interior row stays DARK. injectBug Strength=0 -> edge magnitude 0 -> border not bright -> FAIL.
 int runDetectEdgesSelfTest(bool injectBug);
@@ -334,7 +324,6 @@ int runDetectEdgesSelfTest(bool injectBug);
 // Single-pass radial bulge + N-sample chromatic radial blur (TiXL image/fx/distort/Chromatic-
 // Distortion): chromaShift() splits R/B from opposite ends of the radial sample line, lerp
 // blurred<->chromarized by Colorize. Register into the texture stream (texReg).
-void registerChromaticDistortionOp();
 // MATH golden: white/black vertical edge; with Colorize=1 the smeared border separates R from B
 // while a deep interior stays grey. injectBug Colorize=0 -> pure blur -> R==B -> FAIL.
 int runChromaticDistortionSelfTest(bool injectBug);
@@ -343,7 +332,6 @@ int runChromaticDistortionSelfTest(bool injectBug);
 // Single-pass iq Voronoi cell mosaic with correct border distances (TiXL image/fx/stylize/
 // VoronoiCells): input texture = feature-point + cell-colour field, edges tinted by EdgeColor.
 // Register into the texture stream (texReg).
-void registerVoronoiCellsOp();
 // MATH golden: gradient source -> red-edged white-cell mosaic; the frame contains many red edge
 // pixels (R>150,G/B<80). injectBug Scale=1 -> single huge cell -> ~0 borders -> FAIL.
 int runVoronoiCellsSelfTest(bool injectBug);
@@ -352,7 +340,6 @@ int runVoronoiCellsSelfTest(bool injectBug);
 // Single-pass Bayer/hash ordered-dither quantizer (TiXL image/fx/stylize/Dither): resample on a
 // Scale/Offset grid, gain/bias to grayscale, Bayer64 threshold -> binary, lerp ShadowColor<->
 // HighlightColor, optional BlendColors over the source. Register into the texture stream (texReg).
-void registerDitherOp();
 // MATH golden: bright-top/dark-bottom source; dither density tracks brightness so mean luminance
 // (top) > (bottom). injectBug Scale=0 -> grid collapse -> source-independent -> means converge -> FAIL.
 int runDitherSelfTest(bool injectBug);
@@ -361,7 +348,6 @@ int runDitherSelfTest(bool injectBug);
 // Single-pass finite-difference gradient -> normal encoder (TiXL image/fx/NormalMap, no .cs):
 // ±SampleRadius neighbour gradient d -> angle+Twist -> normalize((len*dir*Impact,1)) per Mode.
 // Register into the texture stream (texReg).
-void registerNormalMapOp();
 // MATH golden: vertical step edge; the seam pixel's encoded R departs from 128 (X tilt) while a
 // flat interior pixel stays R≈128. injectBug Impact=0 -> normal=(0,0,1) -> seam R≈128 -> FAIL.
 int runNormalMapSelfTest(bool injectBug);
@@ -370,7 +356,6 @@ int runNormalMapSelfTest(bool injectBug);
 // Single-pass HSB-distance chroma keyer (TiXL image/fx/ChromaKey, no .cs): center+4 (±ChokeRadius)
 // neighbours -> rgb2hsb -> weighted distance to KeyColor -> min (choke) -> composite per Mode.
 // Register into the texture stream (texReg).
-void registerChromaKeyOp();
 // MATH golden: green(key)/red(keep) split; Mode=0 alpha keying -> green alpha LOW, red alpha HIGH.
 // injectBug Amplify=10 -> distance saturates to 0 everywhere -> red alpha collapses -> FAIL.
 int runChromaKeySelfTest(bool injectBug);

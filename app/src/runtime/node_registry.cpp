@@ -11,7 +11,7 @@
 //   node_registry_point_combine.cpp — CombineBuffers
 //   node_registry_particle.cpp      — TurbulenceForce, ParticleSystem
 //   node_registry_draw.cpp          — DrawPoints, DrawLines, DrawBillboards, RenderTarget
-//   node_registry_image_filter.cpp  — Blur, Displace, Tint, ChromaticAbberation, AdjustColors
+//   (image-filter ops self-register — see image_filter_op_registry.h / point_ops_<name>.cpp)
 //   node_registry_math.cpp          — Time, AudioReaction, Const, Multiply, Sine,
 //                                     Add, Sub, Div, Clamp, Remap, Abs, Floor, Lerp
 //
@@ -31,7 +31,7 @@
 #include "runtime/node_registry_point_combine.h"
 #include "runtime/node_registry_particle.h"
 #include "runtime/node_registry_draw.h"
-#include "runtime/node_registry_image_filter.h"
+#include "runtime/image_filter_op_registry.h"  // imageFilterSpecSink() — image-filter ops self-register
 #include "runtime/node_registry_math.h"
 
 #include <map>
@@ -41,8 +41,13 @@
 namespace sw {
 namespace {
 
-// registry() — flat concatenation of all family sub-tables, in the same order as the
-// original monolith so pin-index based .swproj wires remain stable.
+// registry() — flat concatenation of the literal-built family sub-tables. NOTE: the image-filter
+// family is NOT here — its specs come from imageFilterSpecSink(), populated by file-scope
+// ImageFilterOp registrars during pre-main dynamic init. That sink CANNOT be baked into this
+// cached vector: a pre-main static global (doc::g_lib, document.cpp:20) calls findSpec during its
+// own initialization, which builds registry() before the image-filter registrars have run — they'd
+// be missing from the snapshot. So findSpec/specTypes read the sink LIVE (below). Order is cosmetic
+// only: lookups are by type name and .swproj wires are keyed by port id, not registry position.
 const std::vector<NodeSpec>& registry() {
   static const std::vector<NodeSpec> specs = [] {
     std::vector<NodeSpec> v;
@@ -55,7 +60,6 @@ const std::vector<NodeSpec>& registry() {
     append(pointCombineSpecs());    // CombineBuffers
     append(particleSpecs());        // TurbulenceForce, ParticleSystem
     append(drawSpecs());            // DrawPoints, DrawLines, DrawBillboards, RenderTarget
-    append(imageFilterSpecs());     // Blur, Displace, Tint, ChromaticAbberation, AdjustColors
     append(mathSpecs());            // Time, AudioReaction, Const, Multiply, Sine, ...
     return v;
   }();
@@ -79,6 +83,9 @@ void setDynamicSpecs(std::map<std::string, NodeSpec> specs) { dynamicSpecs() = s
 const NodeSpec* findSpec(const std::string& type) {
   for (const auto& s : registry())
     if (s.type == type) return &s;
+  // Image-filter family: read the self-registration sink live (see registry() note on init order).
+  for (const auto& s : imageFilterSpecSink())
+    if (s.type == type) return &s;
   auto it = dynamicSpecs().find(type);
   return it != dynamicSpecs().end() ? &it->second : nullptr;
 }
@@ -86,6 +93,9 @@ const NodeSpec* findSpec(const std::string& type) {
 std::vector<std::string> specTypes() {
   std::vector<std::string> out;
   for (const auto& s : registry()) out.push_back(s.type);
+  // Image-filter ops self-register into the sink — append them so the Add menu lists all of them
+  // regardless of static-init order (see registry() note).
+  for (const auto& s : imageFilterSpecSink()) out.push_back(s.type);
   return out;
 }
 

@@ -26,6 +26,7 @@
 
 #include "runtime/detectedges_params.h"  // DetectEdgesParams, DETECTEDGES_Params
 #include "runtime/eval_context.h"
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"         // TexCookCtx, cookParam, registerTexOp
 #include "runtime/tex_op_cache.h"        // cachedTexPSO (D2-2 PSO reuse)
 
@@ -104,7 +105,40 @@ void cookDetectEdges(TexCookCtx& c) {
 
 }  // namespace
 
-void registerDetectEdgesOp() { registerTexOp("DetectEdges", cookDetectEdges); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_detectedges{
+    // DetectEdges (TiXL Lib.image.fx.stylize.DetectEdges): 4-neighbour absolute-difference edge
+    // detector. Single Texture2D in → Texture2D out (point_ops_detectedges.cpp). Kernel:
+    // DetectEdges.hlsl — average = sum_rgb(|x1-m|+|x2-m|+|y1-m|+|y2-m|)*Strength + Contrast,
+    // tinted by Color, lerp to original by MixOriginal, optional transparent output.
+    // Params mirror DetectEdges.cs/.t3: Image/SampleRadius/Strength/Contrast/Color(Vec4)/
+    // MixOriginal/OutputAsTransparent. FORKS (named): HLSL b2 `int Invert` is NOT a .cs input
+    // (never wired, always 0) — not exposed; texture dims read in-shader (no Resolution cbuffer
+    // port); fixed clamp sampler (TiXL Wrap=MirrorOnce host knob not exposed).
+    {"DetectEdges", "DetectEdges",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      // SampleRadius (float, TiXL t3 default 1.0).
+      {"SampleRadius", "SampleRadius", "Float", true, 1.0f, 0.0f, 10.0f},
+      // Strength (float, TiXL t3 default 1.0).
+      {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 10.0f},
+      // Contrast (float, TiXL t3 default 0.0).
+      {"Contrast", "Contrast", "Float", true, 0.0f, -1.0f, 1.0f},
+      // Color (Vec4, TiXL t3 default (1,1,1,1) — edge tint).
+      {"Color.r", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"Color.g", "Color.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Color.b", "Color.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Color.a", "Color.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // MixOriginal (float, TiXL t3 default 0.0).
+      {"MixOriginal", "MixOriginal", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider},
+      // OutputAsTransparent (bool, TiXL t3 default false).
+      {"OutputAsTransparent", "OutputAsTransparent", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "DetectEdges", cookDetectEdges, "detectedges", runDetectEdgesSelfTest};
 
 // --- DetectEdges MATH golden ----------------------------------------------------------------
 // Source: top half white (y < H/2), bottom half black — one strong horizontal edge at y=H/2.

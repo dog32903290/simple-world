@@ -25,6 +25,7 @@
 
 #include "runtime/chromaticdistortion_params.h"  // ChromaticDistortionParams, CHROMADIST_Params
 #include "runtime/eval_context.h"
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"                 // TexCookCtx, cookParam, registerTexOp
 #include "runtime/tex_op_cache.h"                // cachedTexPSO (D2-2 PSO reuse)
 
@@ -102,9 +103,40 @@ void cookChromaticDistortion(TexCookCtx& c) {
 
 }  // namespace
 
-void registerChromaticDistortionOp() {
-  registerTexOp("ChromaticDistortion", cookChromaticDistortion);
-}
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_chromaticdistortion{
+    // ChromaticDistortion (TiXL Lib.image.fx.distort.ChromaticDistortion): radial bulge warp +
+    // N-sample chromatic radial blur. Single Texture2D in → Texture2D out
+    // (point_ops_chromaticdistortion.cpp). Kernel: ChromaticDistortion.hlsl — chromaShift()
+    // splits R/B from opposite ends of the radial sample line, lerp blurred<->chromarized by
+    // Colorize. Params mirror ChromaticDistortion.cs/.t3: Texture2d/Center(Vec2)/Size/Colorize/
+    // Distort/DistortOffset/ScaleImage/SampleCount(int). FORKS (named): b1 TimeConstants cbuffer
+    // unused -> omitted; fixed clamp sampler; SampleCount Int modeled as Float.
+    {"ChromaticDistortion", "ChromaticDistortion",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      // Center (Vec2, TiXL t3 default (0,0)).
+      {"Center.x", "Center", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 2},
+      {"Center.y", "Center.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // Size (float, TiXL t3 default 0.05).
+      {"Size", "Size", "Float", true, 0.05f, 0.0f, 1.0f},
+      // Colorize (float, TiXL t3 default 0.1).
+      {"Colorize", "Colorize", "Float", true, 0.1f, 0.0f, 1.0f, Widget::Slider},
+      // Distort (float, TiXL t3 default 0.1).
+      {"Distort", "Distort", "Float", true, 0.1f, -2.0f, 2.0f},
+      // DistortOffset (float, TiXL t3 default 0.5).
+      {"DistortOffset", "DistortOffset", "Float", true, 0.5f, 0.0f, 2.0f},
+      // ScaleImage (float, TiXL t3 default 1.0).
+      {"ScaleImage", "ScaleImage", "Float", true, 1.0f, 0.1f, 4.0f},
+      // SampleCount (int, TiXL t3 default 16; clamped to even 1..100 in shader).
+      {"SampleCount", "SampleCount", "Float", true, 16.0f, 1.0f, 100.0f},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "ChromaticDistortion", cookChromaticDistortion, "chromaticdistortion",
+    runChromaticDistortionSelfTest};
 
 // --- ChromaticDistortion MATH golden --------------------------------------------------------
 // Source: left half white (x < W/2), right half black — a strong vertical edge at x=W/2, so the

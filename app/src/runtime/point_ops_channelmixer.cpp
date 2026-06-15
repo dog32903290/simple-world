@@ -31,6 +31,7 @@
 #include "runtime/eval_context.h"
 #include "runtime/graph.h"
 #include "runtime/graph_bridge.h"
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"    // TexCookCtx, cookParam, registerTexOp
 #include "runtime/resident_eval_graph.h"
 #include "runtime/tex_op_cache.h"   // cachedTexPSO (D2-2 PSO reuse)
@@ -130,7 +131,52 @@ void cookChannelMixer(TexCookCtx& c) {
 
 }  // namespace
 
-void registerChannelMixerOp() { registerTexOp("ChannelMixer", cookChannelMixer); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_channelmixer{
+    // ChannelMixer (TiXL Lib.image.color.ChannelMixer): per-pixel 4x4 channel matrix mix.
+    // Single Texture2D in → Texture2D out (point_ops_channelmixer.cpp). Kernel:
+    // out.r = dot(clamp(src,0,∞), col(MultiplyR,r)) + Add.r, etc. (MixChannels.hlsl verbatim).
+    // Params mirror ChannelMixer.cs/.t3: Texture2d/MultiplyR/G/B/A(Vec4)/Add(Vec4)/
+    // GenerateMipmaps/ClampResult. FORKS (named): TiXL GenerateMipmaps not dispatched
+    // (mip-gen follow-up); fixed linear+clamp sampler (same fork class as Tint/AdjustColors).
+    {"ChannelMixer", "ChannelMixer",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      // MultiplyR (Vec4, TiXL t3 default (1,0,0,0) — identity row for red output)
+      {"MultiplyR.r", "MultiplyR", "Float", true, 1.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 4},
+      {"MultiplyR.g", "MultiplyR.g", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      {"MultiplyR.b", "MultiplyR.b", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      {"MultiplyR.a", "MultiplyR.a", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      // MultiplyG (Vec4, TiXL t3 default (0,1,0,0) — identity row for green output)
+      {"MultiplyG.r", "MultiplyG", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 4},
+      {"MultiplyG.g", "MultiplyG.g", "Float", true, 1.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      {"MultiplyG.b", "MultiplyG.b", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      {"MultiplyG.a", "MultiplyG.a", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      // MultiplyB (Vec4, TiXL t3 default (0,0,1,0) — identity row for blue output)
+      {"MultiplyB.r", "MultiplyB", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 4},
+      {"MultiplyB.g", "MultiplyB.g", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      {"MultiplyB.b", "MultiplyB.b", "Float", true, 1.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      {"MultiplyB.a", "MultiplyB.a", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      // MultiplyA (Vec4, TiXL t3 default (0,0,0,1) — identity row for alpha output)
+      {"MultiplyA.r", "MultiplyA", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 4},
+      {"MultiplyA.g", "MultiplyA.g", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      {"MultiplyA.b", "MultiplyA.b", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      {"MultiplyA.a", "MultiplyA.a", "Float", true, 1.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+      // Add (Vec4, TiXL t3 default (0,0,0,0))
+      {"Add.r", "Add", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"Add.g", "Add.g", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Add.b", "Add.b", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"Add.a", "Add.a", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // GenerateMipmaps (bool, TiXL default false) — read, not dispatched (fork named above)
+      {"GenerateMipmaps", "GenerateMipmaps", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+      // ClampResult (bool, TiXL default true)
+      {"ClampResult", "ClampResult", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "ChannelMixer", cookChannelMixer, "channelmixer", runChannelMixerSelfTest};
 
 // --- ChannelMixer MATH golden ---------------------------------------------------------------
 // Fill a 64x64 source texture with solid red (R=200, G=50, B=50, A=255).

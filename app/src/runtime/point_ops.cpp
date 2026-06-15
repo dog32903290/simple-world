@@ -295,7 +295,8 @@ void registerBuiltinPointOps() {
   registerPointCombinePointOps(); // CombineBuffers
   registerParticlePointOps();     // ParticleSystem
   registerDrawPointOps();         // DrawPoints, DrawLines, DrawBillboards, RenderTarget
-  registerImageFilterPointOps();  // Blur, Displace, Tint, ChromaticAbberation, AdjustColors
+  // Image-filter ops (Blur, Displace, Tint, ...) self-register via file-scope ImageFilterOp
+  // registrars (point_ops_<name>.cpp) during pre-main dynamic init — no central call needed.
 }
 
 }  // namespace sw

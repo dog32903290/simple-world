@@ -29,6 +29,7 @@
 
 #include "runtime/dither_params.h"  // DitherParams, DitherResolution, DITHER_Params/Resolution
 #include "runtime/eval_context.h"
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"    // TexCookCtx, cookParam, registerTexOp
 #include "runtime/tex_op_cache.h"   // cachedTexPSO (D2-2 PSO reuse)
 
@@ -120,7 +121,54 @@ void cookDither(TexCookCtx& c) {
 
 }  // namespace
 
-void registerDitherOp() { registerTexOp("Dither", cookDither); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_dither{
+    // Dither (TiXL Lib.image.fx.stylize.Dither): Bayer/hash ordered-dither quantizer. Single
+    // Texture2D in → Texture2D out (point_ops_dither.cpp). Kernel: Dither.hlsl — resample on a
+    // Scale/Offset grid, ApplyGainAndBias to grayscale, Bayer64 (or hash) threshold → binary,
+    // lerp ShadowColor↔HighlightColor, BlendColors over the source. Ports mirror Dither.cs
+    // InputSlots: Image/ShadowColor(Vec4)/HighlightColor(Vec4)/Method(enum)/GrayScaleWeights(Vec4)/
+    // GainAndBias(Vec2)/Scale/Offset(Vec2)/BlendMethod(enum). FORKS (named): GrayScaleWeights kept
+    // as a port (Dither.cs input) but UNUSED by the kernel exactly as TiXL; framework Resolution
+    // host-filled from the source dims; IsTextureValid is a host flag not a port; fixed clamp sampler.
+    {"Dither", "Dither",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      // ShadowColor (Vec4, dark output colour; TiXL default black).
+      {"ShadowColor.r", "ShadowColor", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"ShadowColor.g", "ShadowColor.g", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"ShadowColor.b", "ShadowColor.b", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"ShadowColor.a", "ShadowColor.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // HighlightColor (Vec4, bright output colour; TiXL default white).
+      {"HighlightColor.r", "HighlightColor", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"HighlightColor.g", "HighlightColor.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"HighlightColor.b", "HighlightColor.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"HighlightColor.a", "HighlightColor.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // Method (enum Methods{FloydSteinberg,Diffusion} → Bayer/hash dither, Dither.cs:20-21,38-42).
+      {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Bayer", "Hash"}, true},
+      // GrayScaleWeights (Vec4, declared-but-unused fork; TiXL default luma weights).
+      {"GrayScaleWeights.r", "GrayScaleWeights", "Float", true, 0.299f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+      {"GrayScaleWeights.g", "GrayScaleWeights.g", "Float", true, 0.587f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"GrayScaleWeights.b", "GrayScaleWeights.b", "Float", true, 0.114f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      {"GrayScaleWeights.a", "GrayScaleWeights.a", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // GainAndBias (Vec2, ApplyGainAndBias on the grayscale; identity = (0.5,0.5)).
+      {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+      {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+      // Scale (float, dither grid resolution; larger = finer cells).
+      {"Scale", "Scale", "Float", true, 1.0f, 0.01f, 256.0f},
+      // Offset (Vec2, grid offset).
+      {"Offset.x", "Offset", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 2},
+      {"Offset.y", "Offset.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+      // BlendMethod (enum RgbBlendModes; how the dither colour blends over the source, Blend.cs:39-51).
+      {"BlendMethod", "BlendMethod", "Float", true, 0.0f, 0.0f, 9.0f, Widget::Enum,
+       {"Normal", "Screen", "Multiply", "Overlay", "Difference", "UseImageA_RGB", "UseImageB_RGB",
+        "Max", "Sub", "MixUsingImageB_A"}, true},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "Dither", cookDither, "dither", runDitherSelfTest};
 
 // --- Dither MATH golden -----------------------------------------------------------------------
 // Dither quantizes the (gain/biased) source luminance into a binary Shadow/Highlight field via a

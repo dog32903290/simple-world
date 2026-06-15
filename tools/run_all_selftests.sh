@@ -2,7 +2,10 @@
 # tools/run_all_selftests.sh — run the entire --selftest table; optionally prove every tooth bites.
 #
 # Replaces the hand-rolled loop every agent rewrote (and zsh's no-word-split bit twice in 批次8).
-# Parses kTable out of src/selftests.cpp so the list can never drift from the code.
+# Asks the BINARY for its selftest names (--selftest-list) so the list can never drift from the
+# code — covers kTable AND the self-registered image-filter ops (ImageFilterOp registrars, whose
+# names are NOT in selftests.cpp source). Falls back to grepping kTable if --selftest-list is
+# unsupported (older binary).
 #
 #   tools/run_all_selftests.sh                # green sweep: every --selftest[-name] must exit 0
 #   tools/run_all_selftests.sh --bite         # ALSO run every -bug variant: each must exit NON-zero
@@ -24,8 +27,13 @@ while [ $# -gt 0 ]; do
 done
 [ -x "$BIN" ] || { echo "[selftest-all] no binary at $BIN (build first)" >&2; exit 2; }
 
-SRC="$ROOT/app/src/selftests.cpp"
-names=$(grep -oE '^\s*\{"[a-z0-9-]*"' "$SRC" | tr -d ' {"')
+# Prefer the binary's own list (covers self-registered image-filter ops). Fall back to the source
+# grep if the binary predates --selftest-list.
+names=$("$BIN" --selftest-list 2>/dev/null)
+if [ -z "$names" ]; then
+  SRC="$ROOT/app/src/selftests.cpp"
+  names=$(grep -oE '^\s*\{"[a-z0-9-]*"' "$SRC" | tr -d ' {"')
+fi
 
 pass=0; failed=(); nobite=()
 while IFS= read -r n; do

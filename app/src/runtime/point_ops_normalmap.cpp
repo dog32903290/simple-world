@@ -25,6 +25,7 @@
 
 #include "runtime/eval_context.h"
 #include "runtime/normalmap_params.h"  // NormalMapParams, NORMALMAP_Params
+#include "runtime/image_filter_op_registry.h"  // ImageFilterOp self-registration
 #include "runtime/point_graph.h"       // TexCookCtx, cookParam, registerTexOp
 #include "runtime/tex_op_cache.h"      // cachedTexPSO (D2-2 PSO reuse)
 
@@ -95,7 +96,32 @@ void cookNormalMap(TexCookCtx& c) {
 
 }  // namespace
 
-void registerNormalMapOp() { registerTexOp("NormalMap", cookNormalMap); }
+// Self-registration. NodeSpec literal moved verbatim from node_registry_image_filter.cpp.
+static const ImageFilterOp _reg_normalmap{
+    // NormalMap (TiXL Lib image/fx NormalMap — NO .cs, ports = NormalMap.hlsl cbuffer b0 verbatim):
+    // finite-difference gradient → tangent-space normal. Single Texture2D in → Texture2D out
+    // (point_ops_normalmap.cpp). Kernel: NormalMap.hlsl — ±SampleRadius neighbour gradient d,
+    // angle += Twist, normalize((len*dir*Impact, 1)) encoded per Mode. Ports mirror cbuffer b0:
+    // Impact/SampleRadius/Twist/Mode. FORKS (named): b1 TimeConstants + b2 Resolution unused (dims
+    // read in-shader, no ports); fixed clamp sampler.
+    {"NormalMap", "NormalMap",
+     {{"Image", "Image", "Texture2D", true},
+      {"out", "out", "Texture2D", false},
+      // Impact (float, gradient→normal tilt strength).
+      {"Impact", "Impact", "Float", true, 1.0f, 0.0f, 20.0f},
+      // SampleRadius (float, neighbour offset px).
+      {"SampleRadius", "SampleRadius", "Float", true, 1.0f, 0.0f, 10.0f},
+      // Twist (float, degrees added to the gradient angle).
+      {"Twist", "Twist", "Float", true, 0.0f, -180.0f, 180.0f},
+      // Mode (float selector: 0 RGB flipped-Y / 1 RGB / 2 angle+magnitude / 3 keep-BA; .hlsl thresholds).
+      {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"RGB (flip Y)", "RGB", "Angle+Magnitude", "RG keep BA"}, true},
+      {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+       {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},
+      {"CustomW", "CustomW", "Float", true, 512.0f, 1.0f, 8192.0f},
+      {"CustomH", "CustomH", "Float", true, 512.0f, 1.0f, 8192.0f}},
+     nullptr},
+    "NormalMap", cookNormalMap, "normalmap", runNormalMapSelfTest};
 
 // --- NormalMap MATH golden --------------------------------------------------------------------
 // Source: vertical step edge — left half BLACK (x < W/2), right half WHITE. There is a strong
