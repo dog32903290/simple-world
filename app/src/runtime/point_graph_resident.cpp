@@ -21,6 +21,7 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/graph.h"                 // NodeSpec/PortSpec/findSpec
+#include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + op registries
 #include "runtime/resident_eval_graph.h"   // ResidentEvalGraph / drivers / resolveResidentFloatInputs
 #include "runtime/tixl_point.h"            // SwPoint + EvaluationContext
@@ -254,9 +255,11 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     auto tx = texReg().find(n->opType);
     if (tx == texReg().end() || !tx->second) return nullptr;
     const std::map<std::string, float>* tp = nodeParams(path);
-    RenderResolution res = resolveRenderResolution(
-        tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
-    MTL::Texture* tex = p_->ensureTex(path, res.w, res.h);
+
+    // Gather inputs in spec order FIRST (mirror of flat cookTexNode, point_graph.cpp): concat
+    // Command inputs, recurse EACH Texture2D input. Gathering BEFORE output sizing is harmless for
+    // pixel ops (they size off the Resolution pin and ignore input dims) — done UNCONDITIONALLY so
+    // a compute leaf's SizeFn can be handed the cooked INPUT size (Crop's output = input - margins).
     RenderCommand chain;
     const MTL::Texture* texInputs[TexCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
     int texInputCount = 0;
@@ -276,6 +279,22 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
         }
       }
     }
+
+    // Size this node's own output texture. Default = the Resolution pin (window size fallback). A
+    // COMPUTE leaf may override via its SizeFn (Crop: output = inputSize - margins) from the cooked
+    // input dims — the output can be smaller/larger than the Resolution pin (mirror of flat).
+    RenderResolution res = resolveRenderResolution(
+        tp ? *tp : std::map<std::string, float>{}, RenderResolution{p_->width, p_->height});
+    auto sizeIt = imageFilterSizeFns().find(n->opType);
+    if (sizeIt != imageFilterSizeFns().end() && texInputs[0]) {
+      res = sizeIt->second(tp ? *tp : std::map<std::string, float>{},
+                           RenderResolution{(uint32_t)texInputs[0]->width(),
+                                            (uint32_t)texInputs[0]->height()});
+    }
+    // Compute leaves write via RWTexture2D -> their output needs MTL::TextureUsageShaderWrite.
+    bool needsWrite = imageFilterComputeTypes().count(n->opType) != 0;
+    MTL::Texture* tex = p_->ensureTex(path, res.w, res.h, needsWrite);
+
     TexCookCtx tc;
     tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
     tc.ctx = &ctx; tc.graph = nullptr; tc.reg = reg;

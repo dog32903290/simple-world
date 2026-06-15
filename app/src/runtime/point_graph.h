@@ -277,6 +277,15 @@ int runBypassCookSelfTest(bool injectBug);
 // ignore its persistent state -> the across-cooks assertion FAILS (teeth).
 int runResidentCookParitySelfTest(bool injectBug);
 
+// Headless RED→GREEN proof that the Cut 50 compute-shader cook seam works in the RESIDENT
+// (production) cook path (resident_crop_selftest.cpp): cook a TexSource->Crop resident graph
+// through cookResident and assert Crop's displayTex output is SIZED via imageFilterSizeFns() from
+// the cooked input (input - margins, not the Resolution pin) AND fully written via its RWTexture2D
+// (proving imageFilterComputeTypes()/needsWrite gave the output ShaderWrite). The pre-seam resident
+// cook (ensureTex with no needsWrite/sizeFn) FAILS both. injectBug paints the marker off the kept
+// rect so the shift probe fails (teeth on the readback).
+int runResidentCropSelfTest(bool injectBug);
+
 // Blur image-filter golden (point_ops_blur.cpp, lane I): the FIRST image filter (Texture2D in ->
 // Texture2D out). (a) BLUR MATH: fill a source texture with a hard 1px-wide vertical white line on
 // black, run Blur, assert the line SPREADS horizontally (neighbouring columns lit) — a no-op /

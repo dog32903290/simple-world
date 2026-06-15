@@ -138,6 +138,7 @@ const SelfTest kTable[] = {
     {"pointgraph", runPointGraphSelfTest},
     {"residentcook", runResidentCookSelfTest},
     {"residentparity", runResidentCookParitySelfTest},
+    {"cropresident", runResidentCropSelfTest},
     {"bypasscook", runBypassCookSelfTest},
     {"bypasscompound", runBypassCompoundSelfTest},
     {"graphbridge", runGraphBridgeSelfTest},
