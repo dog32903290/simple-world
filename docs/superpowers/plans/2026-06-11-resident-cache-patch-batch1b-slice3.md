@@ -1715,3 +1715,20 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 3. UI-visual 續（font/title padding,Cut51 #17/#20 需先量）+interaction keymap。
 4. 排修/柏為域:task_602f15ec/task_2ee58abb(validation-layer crop+mip+fastblur 驗,本機 Metal validation 關)/視覺手感親測（FastBlur/三顆/Crop）。
 5. **(C)Layer2d+Execute seam**=只 leaf-port 不了的真-blend compound 才需,投資序待累積足夠卡 (C) 的候選再評（FastBlur 證很多 compound 可繞）。
+
+## Cut 55 — DirectionalBlur 試港撞 .t3 param-routing trap → 丟棄 + 工法修正（負結果但承重）⚠️ (2026-06-16 凌晨)
+**負結果（未 commit，已丟棄）**：DirectionalBlur 試港 leaf（FastBlur 工法+exact-pixel tooth 都做對了），但 **refuter + 獨立 resolution agent 雙證 param routing parity-wrong → 丟棄**（tree 回 Cut 54 `bb0dfb9`,--bite 140）。**真價值=揪出系統性 trap**。
+
+**★承重 trap（保護整條 leaf-port runway）**：TiXL `_multiImageFxSetup`/`_multiImageFxSetupStatic` compound **用 `FloatsToBuffer.cs` 以 .t3 connection-order 填 shader cbuffer，中間夾數學節點(Multiply/Divide/IntToFloat)，NOT 1:1 op-port→shader-param**。DirectionalBlur.t3 實際：`shader.Size ← (op.Size/op.Samples)×RefineSizeFactor×0.03 = 0 @default`(RefineSizeFactor=0)/`shader.NumberOfSamples ← op.RefinementSamples(6)` 非 op.Samples(16)/`shader.Angle ← op.Angle`(direct)。⇒ TiXL DirectionalBlur **預設是 no-op refinement blur**（要 RefineSizeFactor>0 才動）。我方 leaf 假設 Size→Size/Samples→Samples = **parity-wrong（自洽 golden 過但沒對 TiXL）= 正是柏為 Cut47「差不多滑成只自洽」**。**注意 per-op**:refuter 證 Blur.t3 是 direct routing 無數學→不是所有 _multiImageFxSetup 都中招,每顆要查。
+
+**★工法修正（leaf-port runway 必加 STEP-0）**：港任何 `_multiImageFxSetup`-based compound **必先 trace .t3 cbuffer routing**（連線順序→FloatsToBuffer packing→每 cbuffer field 由哪個 op-port/數學鏈餵），不可假設 1:1。pure-compute op（custom executor 如 _ExecuteFastBlurPasses）走自己的 param fill 不經 FloatsToBuffer connection-order，trap 較小但仍要 trace executor。**FastBlur(Cut54)安全**=走 _ExecuteFastBlurPasses 非 _multiImageFxSetup,MaxLevels→Steps direct（refuter 已證）。
+
+**spawn_task `task_258d9510`**：audit 已 ship 的 _multiImageFxSetup-based op（pixelate/voronoicells/kochkaleidoscope/displace/mirrorrepeat/sharpen/chromaticdistortion/detectedges/dither…）的 .t3 routing 對不對（自洽 golden 可能掩蓋 parity bug）。
+
+**DirectionalBlur 後續**：若要真港=須加 RefineSizeFactor/RefinementSamples/RefinementPass ports+完整 routing+2-pass refinement 邏輯=比「簡單方向 blur」大得多 且預設 no-op（柏為要設 RefineSizeFactor 才動）→低優先,非 runway-validation 好選擇。
+
+**Resume — next**:
+1. **★下批=用修正工法港一顆 leaf-portable op**（runway 仍成立,只是 STEP-0 多 .t3-routing trace）。**選 pure-compute op 避 FloatsToBuffer trap**：LightRaysFx(god rays,視覺值高,3 Execute compute)/SubdivisionStretch/GlitchDisplace/SortPixelGlitch(compute multi-pass,glitch 系)。每顆 STEP-0=①not already-have(cook type)②trace 完整 param routing(executor/cbuffer 對 op-port,不假設1:1)③portable(無 real-blend/asset/gradient/temporal)④deterministic→leaf+exact-pixel tooth(非energy!)+both cook→refuter。
+2. task_258d9510 audit 結果若揪出 parity bug→排修。
+3. Cut 53 mip seam 找真消費者 / UI-visual 續 / (C)Layer2d seam（4 顆真-blend:Glow/Bloom/ScreenCloseUp/Blur）/ (D)gradient(5 顆) / (E)asset(AsciiRender)。
+4. 排修/柏為域:task_602f15ec/task_2ee58abb/task_258d9510/視覺手感親測。
