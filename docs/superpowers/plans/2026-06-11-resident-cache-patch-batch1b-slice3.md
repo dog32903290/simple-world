@@ -1555,3 +1555,22 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. **排修 displace_chain**: eye-map 解析 param:Displacement 缺陷(clean-base 既有);先查 map.json 為何不含 Displace Inspector param(疑 Inspector param 未進 map readback,或 node 106 hit-test)。
 3. **接縫候選**: TexCookCtx float output-format(開了 image-filter 色彩中間模式才 100% 視覺 parity,跨所有 filter)。
 4. **驗 `resilient()` 死亡路徑** + **柏為域**: Gradient widget(需你畫色帶)/ 批24-38 視覺手感親測 / Cut 41 其餘。
+
+## Cut 47 — 產能 pivot: workflow 防錯亂 + image-filter op 層自登記(平行織解鎖)+ 柏為退出親測 (2026-06-15 午; 柏為 steer + 壓測)
+**柏為 steer（重大方向轉向，覆寫舊完成定義）**: ①觀察「/sw-batch 自走 workflow 做一下就精神錯亂，發生很多次」→ 要先修 workflow ②「別管我要自己驗證了，那不是重點，我根本沒辦法對比 TiXL 差異，差不多就好，重點是要能動、有那個意思」→ **退出逐顆親測 parity**。③要「大量增加產能」(不省 token)。
+
+**完成定義轉向（覆寫 [[simple-world-northstar-and-method]] 的「柏為親手測得到」）**: 舊=柏為親手測 parity + 活體牙 .scn 當完成定義。新=**能動 + 視覺有那個意思 + 差不多就好**，不需柏為親測簽核。**但承重翻譯（柏為退出≠放鬆 parity）**: 柏為的眼睛退出 → **headless golden 對 TiXL 公式手算交叉驗 + refuter 變成唯一 parity 防線，保留甚至加重**；scenario 活體牙留著但角色從「給柏為看」變「機器自證能動」。否則「差不多」會滑成「沒對 TiXL、只自洽」。
+
+**壓測判決（press-pass，產能怎麼大量增加）**: 預設提案「開大量平行 agent」六個月後斷在——合流單點(全過 orchestrator 一顆 context) + 共享檔撞車(平行 agent 改同四個列表檔 git conflict) + 柏為親測積壓(C2:北極星若靠親測，產出超過柏為能驗的速度=假完成)。**真承重旁支 = 先拆共享檔成資料驅動**(不拆，加再多 agent 都在合流點排隊撞車)。三前置: ①拆共享檔(本 Cut 做了) ②驗證分流(headless GPU 快 / live scenario GPU 慢，或第二台機) ③產能優先投 headless 可嚴格驗的 op(不吃柏為眼睛)。
+
+**做了①workflow 防錯亂(`edf37fe`，改 `.claude/commands/sw-batch.md`)**: 真因=orchestrator 太容易「下場」吃診斷肉(grep/讀碼/clean-base)→context 塞爆→忘記自己是迴圈→turn 空手結束→靜止 8 小時(本 session 實證:診斷 displace_chain 到一半空手結束)。修=憲法第6條 orchestrator 絕不下場(red 派 subagent 收結論)+步驟4 red→triage 外包(pre-existing 驗證基建/柏為域用 spawn_task 不擋批)+上下文衛生 turn 不准空手結束(必接續或 ScheduleWakeup)。寫進 [[sw-batch-orchestrator-no-fieldwork]]。
+
+**做了②image-filter op 層自登記重構(`edaff22`)**: 加一顆 image-filter op 從「手編四個共享檔(NodeSpec vector/kTable/register list/decls)」→「**一個 leaf `point_ops_<name>.cpp` + 零共享編輯**」。接縫=每 leaf file-scope `ImageFilterOp` registrar(Meyers singleton sink: `imageFilterSpecSink()`/`imageFilterSelfTests()`)，static-init 自登記 cook(registerTexOp)+NodeSpec+selftest；消費端 live read sink。刪 `node_registry_image_filter.{cpp,h}`+`point_ops_register_image_filter.cpp`。**承重 init-order trap(implementer 抓、refuter 證)**: `doc::g_lib`(document.cpp:20)pre-main static 呼叫 findSpec，但只查非-image-filter type(RadialPoints 等)，且 findSpec/specTypes **live 讀不快取** → registration(pre-main dynamic-init)一定先於任何 post-main read。**我接縫設計的盲點**(原以為 findSpec 一定 main 後)被 implementer 實測抓正——驗證了第6條「不下場、讓 subagent 頂盲點」。Opus refuter SURVIVE: 16 NodeSpec literal byte-identical(雙向 token diff)、init-order 所有路徑安全、無 selftest 漏接(未知 --selftest 回 rc=2 不靜默)。--bite PASS=130 NO-BITE:[]/check_arch OK/fence_preview+save_restart+point_modify_chain 綠。
+
+**CMake glob 已資料驅動**: `point_ops*.cpp`+`shaders/*.metal` CONFIGURE_DEPENDS → 加 leaf+metal 不碰 CMakeLists。新 infra 取名 `point_ops_image_filter_registry.cpp` 讓 glob 抓到。
+
+**Resume — next (產能 payoff，平行織已解鎖)**:
+1. **平行織 image-filter 礦(本 Cut 的目的)**: 剩 ~13 顆(KeyColor/RgbTV/Glow/HoneyCombTiles/glitch 族/FastBlur…)。**現在可多 worktree agent 同時織不撞車**(各自一 leaf 檔，合流無共享衝突)。先證 3 顆乾淨平行合流，再放大。隊形=葉子 worktree 並行(看門狗背景盯)。每顆 headless golden 對 TiXL .hlsl 手算 + refuter（柏為退出，這是唯一 parity 防線）。
+2. **驗證分流(產能前置②)**: scenario 全庫 GPU 序列 ~18min 是合流瓶頸。考慮 headless selftest 與 live scenario 拆開、或合流抽樣 scenario(非全庫)。
+3. **其他共享檔家族**(point/value/math)若要平行織也需同樣自登記化(本 Cut 只做 image-filter)。
+4. **排修/柏為域(不擋產能)**: displace/blur/filter_wave3 eye-map 回歸(task_602f15ec 獨立工程)/ Gradient widget。
