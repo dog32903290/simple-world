@@ -1595,3 +1595,48 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. **convertcolors kTable row 殘渣清理**（pre-existing wart：sink 通後 convertcolors 雙註冊，移除 kTable row 讓 sink 為唯一路徑）。
 3. **point/value/math 家族平行化**需先比照 image-filter 自登記（仍共享檔），要平行才做。
 4. **排修/柏為域**：displace/blur/filter_wave3 eye-map(task_602f15ec)/Gradient widget/三顆新 op 視覺手感親測（柏為域，差不多就好）。
+
+## Cut 49 — pixel-shader leaf 礦見底 + seam-ceiling 地圖（2026-06-15 晚; /sw-batch 自走「≥30 節點」directive） ✅
+**承重達成（但不是 30，是把牆的形狀測出來）**：directive 要 ≥30 節點。實際**乾淨可平行織的 pixel-shader image-filter leaf 只剩 2 顆**（StarGlowStreaks + ColorGrade，`0d57afe`，--bite 133→**135** NO-BITE:[]/check-arch OK/各 golden 對 TiXL 手算+injectBug 咬合）。30 不可達**不是產能不足，是 seam 天花板**——pixel-shader 單通道 leaf 這一類**已挖盡**（已織 ~20 顆）。
+
+**真正承重發現＝leaf seam 能力天花板（scout/triage 的「conflict-free」舊判準漏掉的）**：image-filter leaf seam 只能裝「單通道 pixel/fragment shader ∧ 只採 level-0（無 mip pyramid）∧ 單一 graph-wired 輸入貼圖（無內部 asset 貼圖）∧ 非 .t3 compound ∧ 無 gradient/curve-LUT 接線」。本批 3 顆 agent 誠實撞牆並具名（沒一顆 bake 假 op）：
+- **Glow → NOT-LEAF**：是 `Glow.t3` compound（~20 子節點：5×Blur + 5×Layer2d 合成 + Execute fan-in），**無 Glow.hlsl**。要 Layer2d-BlendMode 合成原語 + Execute/RenderTarget 累積 seam。
+- **RgbTV → NOT-LEAF**：單通道 .hlsl 沒錯，但用 `SampleLevel(uv,i)` i=0..7 **mip 金字塔**（全庫零 mip 生成）+ 內部 noise asset 貼圖（非 Image input）。
+- **HoneyCombTiles → NOT-LEAF（stall 中發現）**：靠 .t3 的 SampleCurve LUT 貼圖（256×2 R32F）+ MultiInput 接線（curve.cpp/.h 在但需 graph-wire seam）。
+- **triage（讀-only）判 5 顆 nominated**：只 **ColorGrade** 是 leaf；ScreenCloseUp=compound .t3、SortPixelGlitch/Crop/ConvertFormat=**compute shader（`-cs.hlsl`，leaf seam 只支援 pixel/fragment，不支援 `[numthreads]` ComputeCommandEncoder）**。triage「新發現」4 顆（Dither/DetectEdges/ChromaticAbberation/PolarCoordinates）**全已實作**（檔名不對應 op 名→scout+triage 連兩次漏 already-done：chromab=ChromaticAbberation、polarcoordinates=PolarCoordinates…）。
+
+**事故/流程**：StarGlowStreaks + HoneyCombTiles 兩條 lane stream-watchdog stall 600s（非 verdict，是 hung，疑大 context 讀 .cs/.hlsl）；StarGlow 已寫完整 leaf→**salvage agent 進同 worktree 收尾不重做**（`e923522`，seam re-check 全清+補 BlendMode enum 對 SharedEnums.RgbBlendModes+golden 雙腿）；HoneyComb 只寫 shader+params 無 cpp→判 compound 入隊不 salvage。**教訓：每個 implement 工單必含 seam-trap 硬閘（mip/asset-tex/compute/compound）+ already-done 硬閘（不靠檔名靠 grep cook type）**——scout 不可信，工單自帶閘才擋得住。
+
+**Resume — next（牆在哪、門怎麼開：全是 seam-infra，每個解一整類，但都是共享檔/承重 engine seam→破壞 conflict-free 平行織模型 = 產能模型重塑 = 柏為 steer 的接縫決策，不在自走 loop 內擅自動 cook seam）**：
+1. **🔑 柏為拍板：下一塊 infra seam 投哪個**（每個 unlock 一整類 op，但都是 shared-infra 單條序列、本質複雜 engine seam）：
+   - **(A) compute-shader cook seam**（ComputeCommandEncoder 路徑）→ unlock Crop/ConvertFormat/SortPixelGlitch + 一大類 `-cs.hlsl` op。最機械、最少品味、unlock 面最大。
+   - **(B) mip-generation seam**（resident-texture mip 鏈）→ unlock RgbTV/FastBlur/Bloom blur-pyramid 類。
+   - **(C) Layer2d-BlendMode 合成原語 + Execute/RenderTarget fan-in** → unlock Glow + stylize compound 類。最架構、動 command-graph。
+   - **(D) Gradient widget**（柏為畫色帶 + runtime 取樣 + LUT 接線）→ unlock Bloom/BubbleZoom/Steps/RemapColor/SubdivisionStretch 5 顆。**含柏為視覺域（畫色帶）**。
+   - **(E) 內部 asset-texture bind seam**（noise/font atlas）→ unlock RgbTV noise/AsciiRender。
+2. convertcolors kTable row 殘渣清理（Cut 48 遺留 pre-existing wart）。
+3. **排修/柏為域**：displace/blur/filter_wave3 eye-map(task_602f15ec)/三顆新 op(含本批 StarGlow/ColorGrade)視覺手感親測（差不多就好）。
+4. point/value/math 家族（Cut 44 已挖盡，無新候選）。
+
+**⏸ 停在 seam-ceiling**：clean pixel-shader leaf 礦見底（停止條件 1 觸發 + 剩餘候選全卡在 seam-infra/柏為域 = 停止條件 2）。不空轉再掃（結構性無 clean 候選，不是候選沒找夠）。下一步是 (A)-(E) 的 infra 投資序，承重 engine seam，回報柏為 steer。
+
+## Cut 50 — compute-shader cook seam（柏為 steer (A)）+ Crop 首顆 -cs.hlsl leaf ✅ (2026-06-15 晚)
+**承重達成**：柏為 拍板 (A) → **打開 image-filter leaf seam 的 compute-shader dispatch 路徑**，unlock 整個單-dispatch `-cs.hlsl` op 類（之前 leaf seam 只有 pixel/fragment）。HEAD `22b17c3`（ff-merge：`bc09650` seam+Crop / `22b17c3` golden 補完）。--bite **136**(135→+1 crop) NO-BITE:[]/check-arch OK/crop green+bug RED。
+
+**流程（承重 seam 全工法走完）**：①Plan agent 先出 file:line 藍圖（降 stall 風險 + 不讓 build agent 重推）②Opus build agent（worktree+step-0）照藍圖實作 ③**Opus refuter 獨立對抗**（self-check≠裁判，作者兼裁判陷阱）④fixer 補 refuter CONCERN-A ⑤orchestrator 親手 ff-merge+主樹復跑全閘。
+
+**seam shape（最小改、未來 compute op 零共享編輯）**：cook fn 簽章不變 `void(*)(TexCookCtx&)`，leaf body 自己 dispatch compute encoder。共享改 5 檔**一次**：`image_filter_op_registry.h`(+`ImageFilterComputeOp` registrar + `imageFilterComputeTypes()` set + `imageFilterSizeFns()` map)/`point_ops_image_filter_registry.cpp`(兩 sink+ctor)/`point_graph.cpp` cookTexNode(**input-gather 無條件移到 output-sizing 前**——pixel op 無關故單路徑;有 sizeFn 則從 cooked input dims 算 output size;`needsWrite` 傳 ensureTex)/`point_graph_internal.h`(ensureTex +`bool shaderWrite` OR `ShaderWrite` usage)/`tex_op_cache.{h,cpp}`(`cachedComputePSO` 鏡 cachedTexPSO+clearTexOpCache 釋放 compute PSO)。**未來 compute op = 一個 leaf `point_ops_<name>.cpp`+`.metal`+`_params.h`，file-scope `ImageFilterComputeOp{spec,type,cook,sizeFn,selftest}` 自登記，零共享編輯**（同 pixel leaf 人體工學）。compute 機制抄 `particle_system.cpp:26-33,96-107`（唯一既有 compute 參考）。
+
+**Crop（首顆，`point_ops_crop.cpp`+`crop.metal`+`crop_params.h`）**：逐字港 `CropImage-cs.hlsl`。ports 1:1 Crop.cs(Image/LeftRight Int2/TopBottom Int2/PaddingColor Vec4,預設 Crop.t3 (0,0)/(0,0)/(1,1,1,0))。**named forks**：Int2→2×Float-Vec（kernel `int(v+0.4)` 截斷使分數落整數像素，**+0.4 截斷逐字非 round**）；output size=input−(L+R)×(T+B) clamp≥1（sizeFn,從 cooked input dims）。**MSL 銀彈坑（refuter 全咬）**：t0/u0→MSL 單一 texture namespace→input@texture(0)/output@texture(1) 須一致；`[numthreads(8,8,1)]` 不是 MSL attribute、只活在 host dispatchThreadgroups（host TGX/TGY=8 須對齊 kernel）；ceil-div + kernel `i>=width/height` guard 覆蓋 non-8-divisible 餘塊。golden 對手算（80×76 非8整除/marker 位移/magenta padding @offset16）+ **CONCERN-A 補完=餘塊全覆蓋斷言（sentinel 預填→unwritten==0;floor-div 注入→unwritten=320 RED）**。
+
+**refuter verdict=MERGE-SAFE**：8 攻面全 SURVIVE（3 牙咬證+revert：binding-swap→RED/stray-float→static_assert/floor-div→320 unwritten）。**最險=cookTexNode 無條件 reorder 影響所有 tex op→證 behavior-preserving**：只 recursion-into-upstream 前移，本節點 cook fn 仍在 sizing 後跑；每節點各自 `flatKey(id)` 無 key 撞；136 PASS NO-BITE=全 tex-op golden 綠;transformimage-bug/blur-bug/point_modify_chain 親跑綠。CONCERN-B（cropSize 缺 16384 上 clamp）=benign（Crop 只縮）跳過。
+
+**🟡 假紅澄清**：①--bite 中途 `Abort trap 6` on 某 -bug=soundtrack AVAudio @4x 間歇 flake（直跑 soundtrack-bug rc 翻 1，非 seam，tex-op -bug 全乾淨）②blur_chain scenario FAIL=`cannot resolve node:105 in map.json`=task_602f15ec 既存 eye-map 回歸（spawn 節點不進 eye-map,verify 層非 cook 層;point_modify_chain 同 cook path 親跑 PASS 證 reorder 無傷）非本批。
+
+**本 session 累計落地**：StarGlowStreaks+ColorGrade（Cut 49,`0d57afe`）+ compute seam+Crop（Cut 50,`22b17c3`）= 3 真節點 + 1 承重 infra seam。directive「≥30」結構性不可達已坦白（seam ceiling），柏為 steer 後做了最高槓桿 infra。
+
+**Resume — next**:
+1. **scout 單-dispatch `-cs.hlsl` image op**（seam 現支援單 kernel dispatch）→ 若有乾淨單-kernel compute op（非 ConvertFormat/SortPixelGlitch 那種 multi-pass/Execute compound）即可比照 pixel leaf 平行織（零共享編輯已證）。**multi-pass compute（ConvertFormat 2×ComputeStage/SortPixelGlitch compute+render+Execute）需另一塊 seam（multi-pass/Execute fan-in）= 又一個柏為 steer（≈Cut49 (C)）**。
+2. 其餘 infra (B)mip-gen/(C)Layer2d+Execute/(D)Gradient widget(柏為視覺域)/(E)asset-tex bind — 柏為 steer 序。
+3. convertcolors kTable row 殘渣（Cut 48 遺留）。
+4. 排修/柏為域：task_602f15ec eye-map/三顆+Crop 視覺手感親測（差不多就好）。
