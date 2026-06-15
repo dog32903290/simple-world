@@ -24,6 +24,14 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
      絕不閒置——漏接 kill 通知是空耗的頭號真因。
    - 「20 分鐘」是巡查節拍不是處決線：STALE≠死。長 Opus lane 會假死，判死只認真死
      （process 沒了／socket 斷）；非隔離背景 agent 被殺、活兒留主樹可救回。慢 ≠ 殺。
+6. **orchestrator 不下場（context 衛生硬律——「做一下就精神錯亂」的真因）。** orchestrator 只做：
+   派工、跑驗證指令讀 PASS/FAIL、裁決、合流 commit、結帳、排程。**絕不親自 grep／讀 .cpp/.hlsl/.scn／
+   讀 evidence dump／clean-base 診斷／缺口掃描。** 任何「為什麼紅／這是什麼／根因在哪」一律派 subagent，
+   只收一頁結構化結論。
+   - 違反徵兆：你發現自己在 Read 一個 .cpp/.json/.scn 想搞懂 root cause、或 grep 找某個定義
+     → 立刻停手改派 subagent。下場 = 偵探細節塞爆 context = 忘記自己是迴圈 = 漂掉/停住。
+   - 唯一例外（context 成本低）：跑驗證指令看綠紅、讀 memory/Cut/CONTEXT_PACK（定位用）、
+     讀 TiXL 源碼**只為填工單指針**（不為自己理解，理解歸 implementer）。
 
 ## 單批迴圈（重複直到停止條件）
 1. **定位**：讀 memory 索引的 lane-state ＋ 施工圖最新 Cut 的 Resume 段。樹要乾淨、
@@ -35,7 +43,10 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
    源碼常數（顏色/圓角/字級查源碼，不猜）。
 3. **派工**：依檔案重疊定隊形（重疊=序列，葉子=worktree 並行）；模型分層照 WORKFLOW.md；
    工單=CONTEXT_PACK 指標＋任務＋驗收清單（含 .scn）。
-4. **合流**：每 lane 回報→親手復跑（--bite＋check-arch＋scenario 全庫）→commit（訊息照既有格式）。
+4. **合流**：每 lane 回報→親手跑驗證指令（--bite＋check-arch＋scenario 全庫）讀綠紅→全綠才
+   commit（訊息照既有格式）。**任何 red→不自己查根因**，派一個 triage subagent：clean-base 隔離
+   ＋分類（op-correctness 真錯／驗證基建縫／柏為域）＋一頁結論。照分類路由：真錯=進步驟 5 否證/fixer；
+   驗證基建或柏為域的 pre-existing red=`spawn_task` 排獨立工程，**不擋本批 commit、不下場糾結**。
 5. **否證**：refuter 波（風險 rubric 分流）→ fixer 波（Sonnet，兩次不過閘升級 Opus）→ 合流 commit。
 6. **活體**：scenario 全庫重放＋新行為 .scn；殘餘探索項才派 driver。
 7. **結帳**：施工圖補 Cut N（事實/fork/verdict/柏為親測欄/Resume 候選）→ memory lane-state
@@ -46,6 +57,10 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
   都從步驟 1 重新定位，零損失——所以放心連跑，不要為了省結帳偷懶。
 - 實作肉全在 subagent（它們的上下文用完即棄）；orchestrator 只留裁決、合流、verdict。
 - 結帳是硬步驟：沒寫 Cut＋memory 就開下一批 = 違規。
+- **turn 不准空手結束（迴圈延續硬步驟——靜止的真因）**：每個 turn 結尾必二選一——要嘛有接續的
+  工具動作、要嘛 `ScheduleWakeup` 排回來。陷在裁決/結帳/診斷時最容易忘 → 空手結束 = 迴圈無聲
+  停住（2026-06-15 實證：診斷到一半空手結束→靜止 8 小時直到柏為來問）。每次結束前自問：
+  下一個動作排了嗎？沒有就現在排。
 
 ## 停止條件（只有這四種，其他一律繼續）
 1. parity 缺口掃描連續兩批產不出新候選（= clone 完成）→ 總結帳，列柏為親測總欄。
