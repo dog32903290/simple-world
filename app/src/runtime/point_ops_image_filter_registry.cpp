@@ -36,20 +36,29 @@ std::map<std::string, ImageFilterSizeFn>& imageFilterSizeFns() {
   return fns;
 }
 
+// Mipped-output sink — same Meyers-singleton lifetime as the sets above (first touched inside the
+// first registrar ctor with mippedOutput=true during pre-main dynamic init; consumed only after main).
+std::set<std::string>& imageFilterMippedOutputTypes() {
+  static std::set<std::string> types;
+  return types;
+}
+
 ImageFilterOp::ImageFilterOp(NodeSpec spec, const char* cookType, PointTexFn cook,
-                             const char* selftestName, int (*selftest)(bool)) {
+                             const char* selftestName, int (*selftest)(bool), bool mippedOutput) {
   registerTexOp(cookType, cook);
   imageFilterSpecSink().push_back(std::move(spec));
+  if (mippedOutput) imageFilterMippedOutputTypes().insert(cookType);
   if (selftestName && selftest) imageFilterSelfTests().push_back({selftestName, selftest});
 }
 
 ImageFilterComputeOp::ImageFilterComputeOp(NodeSpec spec, const char* cookType, PointTexFn cook,
                                            ImageFilterSizeFn sizeFn, const char* selftestName,
-                                           int (*selftest)(bool)) {
+                                           int (*selftest)(bool), bool mippedOutput) {
   registerTexOp(cookType, cook);
   imageFilterSpecSink().push_back(std::move(spec));
   imageFilterComputeTypes().insert(cookType);
   if (sizeFn) imageFilterSizeFns()[cookType] = sizeFn;
+  if (mippedOutput) imageFilterMippedOutputTypes().insert(cookType);
   if (selftestName && selftest) imageFilterSelfTests().push_back({selftestName, selftest});
 }
 

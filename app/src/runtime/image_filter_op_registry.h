@@ -52,12 +52,21 @@ using ImageFilterSizeFn = RenderResolution (*)(const std::map<std::string, float
 std::set<std::string>& imageFilterComputeTypes();
 std::map<std::string, ImageFilterSizeFn>& imageFilterSizeFns();
 
+// MIPPED-OUTPUT sink (the mip-gen seam, mirror of imageFilterComputeTypes()). A producer op whose
+// output should carry a full mip pyramid registers its cookType here; cookTexNode (flat + resident)
+// then allocates the output mipped and issues generateMipmaps (a blit) AFTER the leaf fills level 0.
+// This is per-op-TYPE (coarser than TiXL's per-INSTANCE GenerateMips bool — named fork, see leaf).
+// mip-READ consumers (a downstream op that samples level(lod)) need NO registration: they only set
+// setMipFilter(Linear) on their sampler and sample(uv, level(lod)) — zero engine, zero sink entry.
+std::set<std::string>& imageFilterMippedOutputTypes();
+
 // RAII registrar: declare one file-scope static of this type at the end of each image-filter leaf.
 // selftestName/selftest are optional (some ops have no standalone golden); pass both to register a
 // `--selftest-<name>` / `--selftest-<name>-bug` pair.
 struct ImageFilterOp {
   ImageFilterOp(NodeSpec spec, const char* cookType, PointTexFn cook,
-                const char* selftestName = nullptr, int (*selftest)(bool) = nullptr);
+                const char* selftestName = nullptr, int (*selftest)(bool) = nullptr,
+                bool mippedOutput = false);
 };
 
 // RAII registrar for a COMPUTE leaf (-cs.hlsl). Same self-registration as ImageFilterOp PLUS:
@@ -66,7 +75,7 @@ struct ImageFilterOp {
 struct ImageFilterComputeOp {
   ImageFilterComputeOp(NodeSpec spec, const char* cookType, PointTexFn cook,
                        ImageFilterSizeFn sizeFn = nullptr, const char* selftestName = nullptr,
-                       int (*selftest)(bool) = nullptr);
+                       int (*selftest)(bool) = nullptr, bool mippedOutput = false);
 };
 
 }  // namespace sw

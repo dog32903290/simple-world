@@ -293,7 +293,10 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     }
     // Compute leaves write via RWTexture2D -> their output needs MTL::TextureUsageShaderWrite.
     bool needsWrite = imageFilterComputeTypes().count(n->opType) != 0;
-    MTL::Texture* tex = p_->ensureTex(path, res.w, res.h, needsWrite);
+    // Mipped-output ops carry a full mip pyramid (allocated by ensureTex) for downstream
+    // sample(uv, level(lod)). mip-WRITE (generateMipmaps blit) happens AFTER the leaf fills level 0.
+    bool needsMips = imageFilterMippedOutputTypes().count(n->opType) != 0;
+    MTL::Texture* tex = p_->ensureTex(path, res.w, res.h, needsWrite, needsMips);
 
     TexCookCtx tc;
     tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
@@ -304,6 +307,16 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     tc.inputTexture = texInputs[0];
     tc.params = tp;
     tx->second(tc);
+    // mip-WRITE: leaf committed+waited internally (level 0 ready) -> fill levels 1..N via a blit
+    // generateMipmaps (NOT a shader). Same as flat cookTexNode (point_graph.cpp).
+    if (needsMips && tex) {
+      MTL::CommandBuffer* mc = p_->queue->commandBuffer();
+      MTL::BlitCommandEncoder* blit = mc->blitCommandEncoder();
+      blit->generateMipmaps(tex);
+      blit->endEncoding();
+      mc->commit();
+      mc->waitUntilCompleted();
+    }
     return tex;
   };
 

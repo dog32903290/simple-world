@@ -8,6 +8,7 @@
 // the two key spaces can never collide while both cooks are alive (flat dies at the
 // production swap; then "#" keys go with it).
 #pragma once
+#include <cmath>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -77,6 +78,7 @@ struct PointGraph::Impl {
   // terminal's own resolution-sized texture, or null -> fall back to the window-sized `target`.
   std::map<std::string, MTL::Texture*> texBuf;
   std::map<std::string, uint32_t> texW, texH;
+  std::map<std::string, bool> texMipped;  // realloc key: a false->true change MUST reallocate
   MTL::Texture* displayTex = nullptr;
 
   MTL::Buffer* ensureOut(const std::string& key, uint32_t count) {
@@ -97,14 +99,27 @@ struct PointGraph::Impl {
   // shaderWrite: a COMPUTE leaf (image_filter_op_registry, -cs.hlsl) writes its output via a
   // RWTexture2D, so its output texture needs MTL::TextureUsageShaderWrite on top of the usual
   // RenderTarget|ShaderRead. Pixel ops leave it false (default) -> byte-identical descriptor.
-  MTL::Texture* ensureTex(const std::string& key, uint32_t w, uint32_t h, bool shaderWrite = false) {
+  // mipped: a MIPPED-OUTPUT op (imageFilterMippedOutputTypes) carries a full mip pyramid on its
+  // output so a downstream consumer can sample(uv, level(lod)). mip-WRITE is a blit (generateMipmaps)
+  // issued by the COOK after the leaf fills level 0; here we only ALLOCATE the chain (level count =
+  // floor(log2(max(w,h)))+1, TiXL RenderTarget.cs:289 generalized to max(w,h)). Default false ->
+  // byte-identical descriptor (same zero-regression guarantee as shaderWrite). The mipped flag is
+  // part of the realloc key (texMipped): a false->true change MUST reallocate (a non-mipped texture
+  // has no levels for generateMipmaps to fill).
+  MTL::Texture* ensureTex(const std::string& key, uint32_t w, uint32_t h, bool shaderWrite = false,
+                          bool mipped = false) {
     if (w == 0) w = 1;
     if (h == 0) h = 1;
     MTL::Texture*& t = texBuf[key];
-    if (!t || texW[key] != w || texH[key] != h) {
+    if (!t || texW[key] != w || texH[key] != h || texMipped[key] != mipped) {
       if (t) t->release();
       MTL::TextureDescriptor* td =
-          MTL::TextureDescriptor::texture2DDescriptor(kPointTargetFormat, w, h, false);
+          MTL::TextureDescriptor::texture2DDescriptor(kPointTargetFormat, w, h, mipped);
+      if (mipped) {
+        uint32_t mx = w > h ? w : h;
+        uint32_t levels = (uint32_t)std::floor(std::log2((double)mx)) + 1u;
+        td->setMipmapLevelCount(levels);
+      }
       MTL::TextureUsage usage = MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead;
       if (shaderWrite) usage |= MTL::TextureUsageShaderWrite;
       td->setUsage(usage);
@@ -112,6 +127,7 @@ struct PointGraph::Impl {
       t = dev->newTexture(td);
       texW[key] = w;
       texH[key] = h;
+      texMipped[key] = mipped;
     }
     return t;
   }
