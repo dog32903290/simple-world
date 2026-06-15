@@ -1695,3 +1695,23 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 1. **★下批=首顆真 production mip op（決定 mip seam 是否真有產線價值）**。**先派 scout 回答關鍵問**:FastBlur/Bloom/任何 op 能**只用 mip seam**(pure mip-WRITE pyramid 或 mip-READ consumer)ship 嗎,還是全需再一塊 seam(multi-pass compute/Layer2d/noise-asset)? 候選:(a)FastBlur(op scout 標「blur-pyramid 4 levels」——若單 shader 讀多 LOD=pure-mip;若 multi-pass=需 (B) seam)(b)為 StarGlow degradation 解套需 **per-INSTANCE GenerateMips port**（TiXL-faithful,但柏為-facing UI port=偏品味域）。**scout 答「YES 有純 mip op」→Batch 54 織它(順帶驅 resident mip 驗,鏡 cropresident);答「NO 全需再 seam」→坦白回報 mip seam 暫無產線消費者,pivot 到非-seam 可驗工(UI-visual 續/別 op 家族)或先建下塊 seam**。
 2. UI-visual 續（font 字級/title padding zoom-aware,Cut51 scout #17/#20 需先量）+interaction keymap 收編。
 3. 排修/柏為域:task_602f15ec/task_2ee58abb(validation-layer crop+mip 驗)/視覺手感親測。
+
+## Cut 54 — FastBlur（Dual Kawase pyramid blur）= 首顆真視覺 multi-pass leaf op ✅ (2026-06-16 凌晨)
+**承重達成（本 session 首顆真視覺 op，非 infra-theater）**：multi-pass scratch seam + FastBlur 真 op（寬/快金字塔 blur,我方現有 fragment Blur 做不到）。HEAD `e73c2e7`。--bite **140**(+2 fastblur tooth) NO-BITE:[]/check-arch OK。
+
+**★新戰略洞見（reframe Layer2d seam 的必要性）**：FastBlur 在 TiXL 是 `.t3` Layer2d compound,但 STEP-0 查證 **其 Layer2d wrapper 用 `DisabledBlendState`（plain overwrite 非 additive,`DefaultRenderingStates.cs:88`）→ 純 plumbing,可 leaf-port,不需 (C)Layer2d+Execute seam**。**推論:凡 .t3 compound 的 blend=DisabledBlendState(overwrite)/固定 pipeline→leaf-portable as multi-pass;只有真用 blend mode(additive/multiply)合成的 compound 才需 (C)Layer2d seam**。⇒ (C) 的必要性比 Cut49 估的小——一批 .t3 compound 其實可繞過它。
+
+**multi-pass seam（near-zero 共享改,Plan agent 證）**：cook-fn 簽章已允許 N dispatch（`particle_system.cpp:96-107` 跑 3 pass 前例;leaf 自建 encoder）。唯一缺=**ping-pong 中間貼圖 compute-read∧write**。`cachedScratchTex`(`tex_op_cache.cpp:84-99`)硬編 `RenderTarget|ShaderRead`→加 `bool shaderWrite=false,mipped=false`(OR 進 usage+descriptor+`ScratchEntry` realloc key),**default-false byte-identical**(Blur call site 不動)。**兩 cook 皆零改**（中間貼圖活在 leaf via scratch cache,不碰 cook driver）。
+
+**FastBlur leaf（`point_ops_fastblur.cpp`+`fastblur.metal` 2 kernel+`fastblur_params.h`）**：ports 1:1 Image+MaxLevels;down 4-tap box ×0.25 / up 9-tap normalized tent / FillUpsampleKernel 權重排程 + ResolveSteps **逐字港**（refuter byte-verify 每權重 vs TiXL `_ExecuteFastBlurPasses.cs`+down/up .hlsl）。**消費 multi-pass seam 非 mip seam**（金字塔層=discrete half-res RT 非 mip LOD;**Cut 53 mip seam 仍待首顆真消費者**）。MSL 坑:PS→compute uv=`(gid+0.5)/size`/scratch 跨 pass 翻 role 需 read+write usage/`[numthreads]` host-only ceil-div+guard(非8整除 100×100)。
+
+**Opus refuter verdict=BLOCK→fixer 修→MERGE-SAFE**：seam default-false byte-identical SURVIVE/港逐字 SURVIVE（DisabledBlendState=overwrite 證,leaf fork 對）/兩 cook 真驅 SURVIVE。**BLOCK 點=golden 太鬆**：energy-conservation+soft-edge+spread+coverage **全在錯權重下不變**（refuter 實證 down box 0.30 + up tent diag 4.0[完全錯 shape]皆 GREEN;injectBug 只抓 dropped pass）→**這正是柏為 Cut47 pivot 警告的「差不多滑成沒對 TiXL 只自洽」,refuter 是唯一 parity 防線故鬆 golden=真缺陷**。**fixer 修（Opus,math 須對否則假牙）**：加 **exact-pixel closed-form tooth**——controlled 1-level case(MaxLevels=1=down-once+up-once)、16×16 vertical half-plane(constant-in-Y→塌成 1D closed form)、pin 5 pixel(row8 x5=29/x6=61/x7=102/x8=153/x9=194)±2 LSB 對手算正確權重值。**4 perturbation 全 RED 證牙咬**（down box 0.30 + up tent diag 4.0,× flat+resident;restore 全 GREEN）。
+
+**本 session 累計（Cut 51-54）**：①Cut51 UI-visual parity(5 gaps,路線B)②Cut52 resident seam back-port=**Crop 真正進產線**(修 Cut50 缺口)③Cut53 mip seam(infra,待消費者)④Cut54 multi-pass seam+**FastBlur 真視覺 op**。= **3 真 deliverable(視覺parity/Crop產線/FastBlur)+2 infra seam(mip待消費,multi-pass 已被 FastBlur 消費)**。
+
+**Resume — next**:
+1. **★下批=leaf-portable compound scout（FastBlur 洞見放大）**：派 scout 盤點 TiXL .t3 compound 哪些 blend=DisabledBlendState/固定 pipeline（→leaf-portable as multi-pass,繞過 (C)Layer2d seam,可確定性 golden 驗）vs 哪些真用 blend mode 合成（→需 (C)）。候選:Glow(Glow.t3)/Bloom(scout 標需 gradient→若 gradient 是 GlowGradient 固定可繞,若 user-curve 則卡 (D))/其他 fx compound。**每顆同 FastBlur 工法:STEP-0 portability 查→leaf multi-pass→exact-pixel tooth golden(非 energy-only!Cut54 教訓)+both cook→refuter**。
+2. Cut 53 mip seam 找真消費者：RgbTV(需 +asset-texture seam E)/或 per-INSTANCE GenerateMips port（柏為視覺域 UI rotor）。
+3. UI-visual 續（font/title padding,Cut51 #17/#20 需先量）+interaction keymap。
+4. 排修/柏為域:task_602f15ec/task_2ee58abb(validation-layer crop+mip+fastblur 驗,本機 Metal validation 關)/視覺手感親測（FastBlur/三顆/Crop）。
+5. **(C)Layer2d+Execute seam**=只 leaf-port 不了的真-blend compound 才需,投資序待累積足夠卡 (C) 的候選再評（FastBlur 證很多 compound 可繞）。
