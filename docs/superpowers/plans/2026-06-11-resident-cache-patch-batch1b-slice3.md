@@ -1640,3 +1640,22 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. 其餘 infra (B)mip-gen/(C)Layer2d+Execute/(D)Gradient widget(柏為視覺域)/(E)asset-tex bind — 柏為 steer 序。
 3. convertcolors kTable row 殘渣（Cut 48 遺留）。
 4. 排修/柏為域：task_602f15ec eye-map/三顆+Crop 視覺手感親測（差不多就好）。
+
+## Cut 51 — UI-visual parity pass（柏為「你幫我決定，別停」→ orchestrator steer 走視覺）✅ (2026-06-16 凌晨)
+**承重達成**：op 礦雙見底後，**柏為授權我自決 seam 投資序 + 不准停**。我 steer = **先做 UI-visual parity（北極星路線 B，backlog since Cut 22/24），不盲投重 compute seam**。理由：視覺 parity 是柏為域、可 eye 截圖對 TiXL 源碼常數驗證（不需他在場）、零 seam 風險。HEAD `a86377e`。--bite **136** NO-BITE:[]/check-arch OK/scenario 全庫 zero-regression。
+
+**gap-scan 三 scout 結論（rule 6 全外包，orchestrator 不下場）**：①op-gap scout=**零 no-seam 可驗 op 剩**（pixel+單-kernel-compute 雙見底再確認，22 image-filter cook types 已港）；seam sizing 建議 **(A)mip-gen=HIGH 可驗/中度 engine touch**（RgbTV/FastBlur/Bloom 確定性 golden）> (B)compute multi-pass（ConvertFormat/WaveForm 可驗,SimpleLiquid/Physarum 時序非確定性不可 golden）> (D)gradient+LUT（高可驗但 headline 是 painter UI=柏為手）。②UI-visual scout=7 具名 gap+源碼常數 file:line。③interaction scout=多數「gap」是 features-not-built（3D camera/bookmarks/layouts）非真 parity，加 keymap row 會變 dead row→deprioritize。
+
+**5 gaps closed（單 sequential lane,共享 ui/ 檔→不開 worktree,零 base-trap）**：① canvas bg `ed::StyleColor_Bg`=`(0.12,0.12,0.12,0.98)`(UiColors.cs:29,imgui-node-editor 1453 填整 view) ② node rounding `nodeRounding()` 去 20px cap、留 hard floor `tixlScale<0.5→0`、else `5*scale`(DrawNode.cs:126) ③ conn thickness `connectionThickness(sel,idleFade)=Lerp(0.25,2.0,p)+(sel?2:0)`(DrawConnection.cs:170) ④ conn color `Fade(Lerp(0.6,1.0,p))`(DrawConnection.cs:44) ⑤ **pins=triangle inputs/circle outputs**(最高視覺 impact,DrawNode.cs:629-630/918-919,type-colored)。檔=editor_ui.cpp/node_draw.cpp/node_style.{cpp,h}。
+
+**承重發現（idleFade 信號是真的非捏造）**：implementer 本要 defer idle ramp（以為無信號），實測 **`framecook::residentNodeLastUpdatePass` 已存在**（frame_cook.cpp:126 每幀 stamp lastUpdatePass=frameIndex；UI `RemapAndClamp(framesSince,0,100,1,0)` 與 TiXL `DirtyFlag.FramesSinceLastUpdate` byte-identical,units=frames 兩邊對齊）→織全 ramp 非 baseline。**named forks**：①pins 繪 TiXL scale-1 尺寸非 ×CanvasScale——我方 pins 是 node 內 inline body marker（`GetWindowDrawList()` 已被 imgui-node-editor zoom-transform 當整體縮放）,再乘 CanvasScale 會雙重縮放;TiXL anchor 是 screen-space 絕對座標故須手乘。`nodeRounding` 反而吃 tixlScale（screen-space AddRectFilled）——implementer 在該乘的地方乘、該省的地方省。②idle ramp 用 node-granularity(max across outputs)非 TiXL per-output-slot——我方 resident-cook 層最細信號,同驅動 node-bg fade。③boundary def 形狀翻轉(inputDef→circle/outputDef→triangle)=對齊 TiXL MagGraphLayout.cs:320-362「This looks confusing but is correct」（symbol 的 input 定義在 compound canvas 上是 source→畫成 output/circle）。
+
+**Opus refuter verdict=MERGE-SAFE**：8 攻面全 SURVIVE。最險=「idleFade 信號是否捏造」→證真（frame_cook 實 stamp+remap byte-identical+units 對齊）。pin hit-test airtight by construction（`ImGui::Dummy(9,9)` box byte-unchanged→`ed::BeginPin/EndPin` bounds+`eye::recordRect` 同→connect-drag 不受影響）。每常數 byte-match TiXL 源碼。
+
+**triage clean-base 判決（rule 6,orchestrator 不查根因）**：scenario 全庫 PASS=20 初報 FAIL=8→clean-base 隔離(stash/rebuild/run/pop)證 **ZERO regression**。4 真 FAIL（blur_chain/displace_chain/filter_wave3/**math_op_chain**）=同一 pre-existing 族（**freshly-spawned node 不進 state.json** → cascade「cannot resolve pin/node/param」,verify/state 層非 cook,task_602f15ec;math_op_chain 同 node-creation-not-landing signature 擴充進此族）clean-base 同紅。4 假紅（d4_transport_rate/fence_preview/keys_pin_output/keys_wave2）=已知 flake,本次 green-both-trees（初報 8 是兩 flake 那輪偶紅灌水）。**keys_* 過 both trees=pin-draw diff 沒動 hit-test/map coords 實證**。
+
+**Resume — next**:
+1. **★下批=seam (A) mip-gen 投資**（我已 steer:最佳自走 seam=全 headless 可驗、無 painter-UI 依賴、unlock RgbTV/FastBlur/Bloom 確定性 golden）。走 Cut 50 承重 seam 全工法：Plan agent file:line 藍圖→Opus build(worktree+step-0)→Opus refuter 獨立對抗→fixer→orchestrator ff-merge+主樹復跑。seam shape 參考：resident texture mip pyramid 儲存 + `texture::setMipmapLevelOfDetail`/mip-write usage flag binding（op scout 評 medium engine touch）。
+2. 其餘 seam 序（我評）：(B)compute multi-pass 只 ConvertFormat/WaveForm 可驗(SimpleLiquid/Physarum 時序不可 golden 降級)、(D)gradient+LUT 需柏為 painter（可先建 engine seam+default gradient headless 驗,painter UI 後補）、(C)Layer2d+Execute 最後（blend-order 路徑依賴 golden 脆）。
+3. 其餘 UI-visual gap（次批可續,同 sequential lane）：font 字級/title padding zoom-aware（scout #17/#20 UNKNOWN 需先量）。interaction：把 scattered Undo/Redo/Copy/Paste/Delete 收進 keymap 表（已實作只是不在表,資料驅動鐵律7）——但須先驗哪些 handler 真存在避免 dead row。
+4. 排修/柏為域：**task_602f15ec**（spawned-node-not-in-state.json,now 含 math_op_chain;verify/state 層）/三顆+Crop 視覺手感親測（差不多就好）。
