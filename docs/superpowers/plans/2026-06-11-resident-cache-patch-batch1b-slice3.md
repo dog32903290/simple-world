@@ -1675,3 +1675,23 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 1. **★下批=Batch 53 mip-gen seam**（Plan agent 藍圖已備:section A 五檔 seam shape/B 首顆 proof/C golden/D risk,在本 session Plan agent 回報）。**首 proof=StarGlowStreaks at Quality>0**（無真正新 pure-mip op:RgbTV 需 mip+noise-asset 非純;StarGlow 是已 ship 但**今天靜默降級**——無 mips→`level(Quality)` clamp 到 0,TiXL 預設 Quality=0 故 Cut49 golden 沒抓到）→mip seam 把它從降級升回正確,golden delta @Quality=2 對手算 LOD box-average 證。**mip-WRITE=`generateMipmaps` blit（非 shader）**,seam=ensureTex 加 `mipped` 參數(level count=`floor(log2(max(w,h)))+1`,RenderTarget.cs:289)+registrar `imageFilterMippedOutputTypes()` sink + cookTexNode(flat+resident **兩邊**)在 leaf cook 後 issue blit。**mip-READ 零 engine**=consumer 設 `setMipFilter(Linear)`+`sample(uv,level(lod))`（StarGlow 已對）。MSL 坑:`SampleLevel→sample(s,uv,level(lod))`/MipFilter 沒設則 level() 靜默回 level0/`get_num_mip_levels()` 非 hardcode 7。
 2. UI-visual 續（font 字級/title padding zoom-aware,Cut51 scout #17/#20 需先量）+interaction keymap 收編。
 3. 排修/柏為域:task_602f15ec/task_2ee58abb(validation-layer crop 驗)/視覺手感親測。
+
+## Cut 53 — mip-generation cook seam（mip-WRITE on producer / mip-READ zero-engine）✅ (2026-06-16 凌晨)
+**承重達成（開 mip seam，鏡 Cut 50 compute seam 工法）**：最小一次共享改 → 未來 mip op = 一 leaf + 零共享編輯。HEAD `d484c4a`。--bite **138**(+1 mipgen tooth) NO-BITE:[]/check-arch OK。
+
+**seam shape（6 檔）**：①`point_graph_internal.h` ensureTex 加 `bool mipped=false`→`mipmapLevelCount=floor(log2(max(w,h)))+1`（TiXL `RenderTarget.cs:289` log2(w) 推廣到 max；**Metal 在 +2 hard-assert→+1 是天花板,refuter 實證**）+ `texMipped` realloc key ②`image_filter_op_registry.h` 宣告 `imageFilterMippedOutputTypes()` sink + ctor `bool mippedOutput=false` ③`point_ops_image_filter_registry.cpp` 定義 singleton+ctor insert ④`point_graph.cpp` flat cookTexNode:`needsMips`→ensureTex+leaf cook 後 issue generateMipmaps blit(commit+wait,level-0 ready)⑤`point_graph_resident.cpp` 同 hooks ⑥new `point_ops_mipgen_selftest.cpp`。**mip-WRITE=`MTLBlitCommandEncoder generateMipmaps`(blit 非 shader,pattern combinebuffers.cpp:39)。mip-READ=零 engine**(consumer 設 MipFilter+`sample(uv,level(lod))`)。
+
+**default-false byte-identical（承重安全,ensureTex 全引擎共用）**：refuter 證**全引擎只 2 個 ensureTex call site**(point_graph.cpp:396/point_graph_resident.cpp:299),都從**空的** production set 推 needsMips→mipped=false 恆真→`texMipped[key]`(operator[] default-insert false)`false!=false`→零 spurious realloc→descriptor byte-identical(tint/blur/crop/starglow golden 全綠實證)。
+
+**proof=`--selftest-mipgen`（3 legs）**：Leg A uniform-red LOD 不變(levels=7+每 LOD 仍 255,0,0);Leg B 2×2 checker **LOD-1==(128,0,0) 手算 box-average 經新 mipped ensureTex 路**(±2 排除 raw level-0 255/0);Leg C RenderTarget(mipped)→StarGlow Q0-vs-Q2 delta 經**真 flat cook**。injectBug=mipped=false→level(1) clamp level0→RED。
+
+**Opus refuter verdict=MERGE-SAFE**：6/6 SURVIVE（①critical default-false byte-identical 全 golden 綠 ②無 production op flagged mipped=Cut49 StarGlow golden 不動 ③mip 公式 +1 是 Metal 天花板實證 ④generateMipmaps usage/ordering OK ⑤refuter 外部 perturb(移除 blit)證 Leg A/B 真 RED 非 tautology ⑥selftest process-isolated 不洩漏）。**2 minor non-blocking**:①**resident mip hook code-review-identical flat 但 selftest 沒驅(只跑 flat pg.cook)→首顆真 mip op 出時須驅 resident 驗(鏡 cropresident,Cut 52 教訓)** ②in-test `-bug` 是 assertion-flip 非 wiring-perturb(refuter 外部 perturb 已補真 bite)。
+
+**design fork（具名）**：TiXL `GenerateMips` 是 **per-INSTANCE bool port**（FX setup 上的輸入旋鈕,使用者逐實例開）,本 seam 是 **per-op-TYPE set**（`imageFilterMippedOutputTypes()`,同 `imageFilterComputeTypes()` 粗化）。**現無 production op flagged mipped→seam 開了但 unlock 0 顆已 ship op**（StarGlow 仍停在 TiXL 預設 degraded-no-op;selftest 只暫時 flag "RenderTarget" 測完 erase）。
+
+**⚠ 誠實帳：Cut 53 是 infra-without-consumer**。Cut 50 compute seam 帶 Crop 一起 ship；Cut 53 mip seam 只帶 selftest proof,**首顆真 production mip op 是下批**（= Crop-equivalent）。
+
+**Resume — next**:
+1. **★下批=首顆真 production mip op（決定 mip seam 是否真有產線價值）**。**先派 scout 回答關鍵問**:FastBlur/Bloom/任何 op 能**只用 mip seam**(pure mip-WRITE pyramid 或 mip-READ consumer)ship 嗎,還是全需再一塊 seam(multi-pass compute/Layer2d/noise-asset)? 候選:(a)FastBlur(op scout 標「blur-pyramid 4 levels」——若單 shader 讀多 LOD=pure-mip;若 multi-pass=需 (B) seam)(b)為 StarGlow degradation 解套需 **per-INSTANCE GenerateMips port**（TiXL-faithful,但柏為-facing UI port=偏品味域）。**scout 答「YES 有純 mip op」→Batch 54 織它(順帶驅 resident mip 驗,鏡 cropresident);答「NO 全需再 seam」→坦白回報 mip seam 暫無產線消費者,pivot 到非-seam 可驗工(UI-visual 續/別 op 家族)或先建下塊 seam**。
+2. UI-visual 續（font 字級/title padding zoom-aware,Cut51 scout #17/#20 需先量）+interaction keymap 收編。
+3. 排修/柏為域:task_602f15ec/task_2ee58abb(validation-layer crop+mip 驗)/視覺手感親測。
