@@ -1636,7 +1636,7 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 **本 session 累計落地**：StarGlowStreaks+ColorGrade（Cut 49,`0d57afe`）+ compute seam+Crop（Cut 50,`22b17c3`）= 3 真節點 + 1 承重 infra seam。directive「≥30」結構性不可達已坦白（seam ceiling），柏為 steer 後做了最高槓桿 infra。
 
 **Resume — next**:
-1. **scout 單-dispatch `-cs.hlsl` image op**（seam 現支援單 kernel dispatch）→ 若有乾淨單-kernel compute op（非 ConvertFormat/SortPixelGlitch 那種 multi-pass/Execute compound）即可比照 pixel leaf 平行織（零共享編輯已證）。**multi-pass compute（ConvertFormat 2×ComputeStage/SortPixelGlitch compute+render+Execute）需另一塊 seam（multi-pass/Execute fan-in）= 又一個柏為 steer（≈Cut49 (C)）**。
+1. **✗ 已掃完=單-kernel `-cs.hlsl` image op 礦=0（Crop 是唯一一顆,已做）**。scout 枚舉 TiXL 全 `-cs.hlsl` image op:ConvertFormat(2×ComputeStage+ScaleSize+mip)/WaveForm(2-stage groupshared)/SimpleLiquid×2(2-kernel ping-pong 4×RWTexture)/ColorPhysarum(2-stage RWStructuredBuffer+RWTexture agent-sim)——**全 multi-pass,無一單-kernel**。⇒ **compute seam (A) 實際只 unlock 1 顆(Crop),非一整類**（TiXL compute image op 幾乎全 multi-pass）。**pixel-leaf 類(Cut49)+單-kernel-compute 類(Cut50)雙雙見底**。下個 op(任何類)都需再一塊 infra seam=又一柏為 steer。
 2. 其餘 infra (B)mip-gen/(C)Layer2d+Execute/(D)Gradient widget(柏為視覺域)/(E)asset-tex bind — 柏為 steer 序。
 3. convertcolors kTable row 殘渣（Cut 48 遺留）。
 4. 排修/柏為域：task_602f15ec eye-map/三顆+Crop 視覺手感親測（差不多就好）。
