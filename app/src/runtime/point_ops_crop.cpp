@@ -211,6 +211,19 @@ int runCropSelfTest(bool injectBug) {
   pp["PaddingColor.b"] = 1.0f;
   pp["PaddingColor.a"] = 1.0f;
 
+  // Pre-cook STALE fill: paint the whole output with a sentinel the kernel can NEVER emit
+  // (neither the black/green source nor the magenta PaddingColor produce it). After cook, any
+  // pixel still holding the sentinel was NOT written by the kernel -> a coverage hole. This bites
+  // a ceil-div -> floor-div regression of the host dispatch, which on a non-8-divisible output
+  // (76 = 9*8+4) would drop the bottom remainder rows (72..75) and leave them stale.
+  const uint8_t STALE_R = 7, STALE_G = 11, STALE_B = 13, STALE_A = 200;
+  std::vector<uint8_t> stale((size_t)OW * OH * 4);
+  for (size_t i = 0; i < (size_t)OW * OH; ++i) {
+    stale[i * 4 + 0] = STALE_R; stale[i * 4 + 1] = STALE_G;
+    stale[i * 4 + 2] = STALE_B; stale[i * 4 + 3] = STALE_A;
+  }
+  dst->replaceRegion(MTL::Region::Make2D(0, 0, OW, OH), 0, stale.data(), OW * 4);
+
   TexCookCtx c;
   c.dev = dev; c.lib = lib; c.queue = q;
   c.nodeId = 1; c.inputTexture = src; c.output = dst; c.params = &pp;
@@ -238,11 +251,25 @@ int runCropSelfTest(bool injectBug) {
   int pR = out[pi + 0], pG = out[pi + 1], pB = out[pi + 2];
   bool paddedMagenta = (pR > 200) && (pG < 60) && (pB > 200);
 
-  bool pass = dimsOk && markerShifted && paddedMagenta;
+  // (4) FULL COVERAGE: every output pixel must have been written by the kernel — scan the WHOLE
+  // output and count any pixel still holding the pre-cook sentinel (a stale/garbage band). The
+  // remainder tile (rows 72..75 of the 76-tall output) is the band a floor-div dispatch would
+  // drop; counting over the whole texture catches that and any other coverage hole. Intact
+  // ceil-div -> unwritten==0; floor-div -> the dropped remainder rows stay sentinel -> unwritten>0.
+  int unwritten = 0;
+  for (size_t i = 0; i < (size_t)OW * OH; ++i) {
+    if (out[i * 4 + 0] == STALE_R && out[i * 4 + 1] == STALE_G &&
+        out[i * 4 + 2] == STALE_B && out[i * 4 + 3] == STALE_A) {
+      ++unwritten;
+    }
+  }
+  bool fullyCovered = (unwritten == 0);
+
+  bool pass = dimsOk && markerShifted && paddedMagenta && fullyCovered;
   printf("[selftest-crop] out=%ux%u(dimsOk=%d) marker@(%d,%d)=(R%d,G%d,B%d) shifted=%d "
-         "pad@(%u,%u)=(R%d,G%d,B%d) magenta=%d -> %s\n",
+         "pad@(%u,%u)=(R%d,G%d,B%d) magenta=%d unwritten=%d covered=%d -> %s\n",
          OW, OH, dimsOk ? 1 : 0, sx, sy, gR, gG, gB, markerShifted ? 1 : 0, pX, pY, pR, pG, pB,
-         paddedMagenta ? 1 : 0, pass ? "PASS" : "FAIL");
+         paddedMagenta ? 1 : 0, unwritten, fullyCovered ? 1 : 0, pass ? "PASS" : "FAIL");
 
   src->release(); dst->release();
   lib->release(); q->release(); dev->release(); pool->release();
