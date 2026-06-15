@@ -286,6 +286,14 @@ int runResidentCookParitySelfTest(bool injectBug);
 // rect so the shift probe fails (teeth on the readback).
 int runResidentCropSelfTest(bool injectBug);
 
+// FastBlur resident golden (resident_fastblur_selftest.cpp): the FIRST MULTI-PASS COMPUTE leaf driven
+// through the RESIDENT (production) cook path. RenderTarget paints a white square on black ->
+// FastBlur terminal; cookResident -> cookTexNode -> leaf N down + N up dispatches over per-level
+// scratch (cachedScratchTex shaderWrite seam) -> displayTex. Asserts energy conservation (total ~=
+// the square's input energy, DC gain 1) + edge softening + full ShaderWrite coverage. injectBug
+// paints a SOLID field (no edge) so the edge-softened + square-energy-band probes can't fire -> RED.
+int runResidentFastBlurSelfTest(bool injectBug);
+
 // Blur image-filter golden (point_ops_blur.cpp, lane I): the FIRST image filter (Texture2D in ->
 // Texture2D out). (a) BLUR MATH: fill a source texture with a hard 1px-wide vertical white line on
 // black, run Blur, assert the line SPREADS horizontally (neighbouring columns lit) — a no-op /

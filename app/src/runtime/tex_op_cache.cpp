@@ -23,11 +23,13 @@ std::map<std::string, MTL::ComputePipelineState*>& computePsoCache() {
   return c;
 }
 
-// Scratch cache: one entry per logical key; reallocated only when size/format changes.
+// Scratch cache: one entry per logical key; reallocated only when size/format/usage/mip changes.
 struct ScratchEntry {
   MTL::Texture* tex = nullptr;
   uint32_t w = 0, h = 0;
   uint64_t fmt = 0;
+  bool shaderWrite = false;  // part of the realloc key: a usage change forces a realloc
+  bool mipped = false;       // part of the realloc key: a non-mipped tex has no levels to fill
 };
 std::map<std::string, ScratchEntry>& scratchCache() {
   static std::map<std::string, ScratchEntry> c;
@@ -82,19 +84,24 @@ MTL::ComputePipelineState* cachedComputePSO(MTL::Device* dev, MTL::Library* lib,
 }
 
 MTL::Texture* cachedScratchTex(MTL::Device* dev, TexPixelFormat fmt, uint32_t w, uint32_t h,
-                               const std::string& key) {
+                               const std::string& key, bool shaderWrite, bool mipped) {
   if (!dev || w == 0 || h == 0) return nullptr;
   auto& cache = scratchCache();
   ScratchEntry& e = cache[key];
-  if (e.tex && e.w == w && e.h == h && e.fmt == (uint64_t)fmt) return e.tex;  // reuse same-size
+  if (e.tex && e.w == w && e.h == h && e.fmt == (uint64_t)fmt && e.shaderWrite == shaderWrite &&
+      e.mipped == mipped)
+    return e.tex;  // reuse same-size/usage/mip
 
-  if (e.tex) { e.tex->release(); e.tex = nullptr; }  // size/format changed -> reallocate
+  if (e.tex) { e.tex->release(); e.tex = nullptr; }  // size/format/usage/mip changed -> reallocate
   MTL::TextureDescriptor* td =
-      MTL::TextureDescriptor::texture2DDescriptor((MTL::PixelFormat)fmt, w, h, false);
-  td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+      MTL::TextureDescriptor::texture2DDescriptor((MTL::PixelFormat)fmt, w, h, mipped);
+  MTL::TextureUsage usage = MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead;
+  if (shaderWrite) usage |= MTL::TextureUsageShaderWrite;
+  td->setUsage(usage);
   td->setStorageMode(MTL::StorageModeShared);
   e.tex = dev->newTexture(td);
   e.w = w; e.h = h; e.fmt = (uint64_t)fmt;
+  e.shaderWrite = shaderWrite; e.mipped = mipped;
   return e.tex;
 }
 

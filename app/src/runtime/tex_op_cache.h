@@ -51,8 +51,16 @@ MTL::ComputePipelineState* cachedComputePSO(MTL::Device* dev, MTL::Library* lib,
 // cached one for that key (RESOURCE_LIFETIME). The cache OWNS the texture (no caller release). Use a
 // distinct `key` per logical scratch slot (e.g. "blur.h", "displace.scratch") so two ops don't fight
 // over one texture. Returns nullptr if w==0 or h==0.
+//
+// shaderWrite (default false): OR MTL::TextureUsageShaderWrite into the usage so a MULTI-PASS COMPUTE
+// leaf (FastBlur) can use this scratch as BOTH a compute-read source and a compute-write target
+// across passes. mipped (default false): allocate a full mip chain. BOTH flags are part of the
+// realloc key — a usage/mip change for the same key forces a realloc (mirrors ensureTex's texMipped
+// fold). Default-false keeps the existing Blur/Displace call sites byte-identical (same
+// zero-regression discipline as the ensureTex shaderWrite/mipped back-port).
 MTL::Texture* cachedScratchTex(MTL::Device* dev, TexPixelFormat fmt, uint32_t w, uint32_t h,
-                               const std::string& key);
+                               const std::string& key, bool shaderWrite = false,
+                               bool mipped = false);
 
 // Drop every cached PSO and scratch texture (test isolation / device teardown). Selftests that
 // create a fresh MTL::Device per run call this so a stale PSO built on a released device is never
