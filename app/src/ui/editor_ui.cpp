@@ -27,6 +27,7 @@
 
 #include "app/command.h"
 #include "app/document.h"
+#include "app/frame_cook.h"  // connection idle-fade signal (source node lastUpdatePass)
 #include "app/graph_commands.h"
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec / pinId / pinNode (the int pin scheme rides on child ids)
@@ -157,6 +158,10 @@ void drawNodeCanvas() {
   // it drew OVER the faithful TiXL grid below and dominated it (refuter-R-VK V3: the canvas
   // showed ed's gray cells, not the TiXL black ones). TiXL has no such built-in layer.
   ed::GetStyle().Colors[ed::StyleColor_Grid] = ImVec4(0, 0, 0, 0);
+  // Canvas background fill (TiXL UiColors.CanvasBackground = (0.12,0.12,0.12,0.98),
+  // UiColors.cs:29). imgui-node-editor fills its whole view with StyleColor_Bg
+  // (default ImColor(60,60,70,200) — a bluish gray); override to TiXL's flat dark gray.
+  ed::GetStyle().Colors[ed::StyleColor_Bg] = ImVec4(0.12f, 0.12f, 0.12f, 0.98f);
   if (hostOpen && cur) {
     // V1: canvas background grid (TiXL DrawBackgroundGrids, Drawing.cs:377-396 multi-layer +
     // :398-426 single-layer loop). Called BEFORE ed::Begin so our draws land on the base
@@ -198,8 +203,20 @@ void drawNodeCanvas() {
     uint64_t lid = linkIdOf(from, to);
     bool sel = ed::IsLinkSelected(lid) || (int)ed::GetHoveredLink().Get() == (int)lid;
     std::string dt = pinInfoOf(from).dataType;
-    ImU32 lcol = sw::ui::connectionLineColor(dt, sel);
-    float lthick = sel ? 3.0f : 1.5f;  // TiXL DrawConnection.cs:170 — hover/sel +2px
+    // Idle-fade signal (TiXL DrawConnection.cs:35): idleFadeProgress =
+    //   RemapAndClamp(SourceOutput.DirtyFlag.FramesSinceLastUpdate, 0, 100, 1, 0).
+    // We use the SAME per-source-node idle signal that drives node backgrounds
+    // (framecook::residentNodeLastUpdatePass = max lastUpdatePass across the source node's
+    // outputs = TiXL's SourceOutput.DirtyFlag at node granularity). 1.0=just-updated, 0.0=long-idle.
+    const std::string srcPath = doc::residentPathFor(w.srcChild);
+    const uint32_t curPass  = framecook::currentFrameIndex();
+    const uint32_t lastPass = framecook::residentNodeLastUpdatePass(srcPath.c_str());
+    const float framesSince = (curPass >= lastPass) ? (float)(curPass - lastPass) : 0.0f;
+    float idleFadeProgress = 1.0f - (framesSince / 100.0f);  // Remap 0..100 -> 1..0
+    if (idleFadeProgress < 0.0f) idleFadeProgress = 0.0f;
+    if (idleFadeProgress > 1.0f) idleFadeProgress = 1.0f;
+    ImU32 lcol = sw::ui::connectionLineColor(dt, sel, idleFadeProgress);
+    float lthick = sw::ui::connectionThickness(sel, idleFadeProgress);  // TiXL DrawConnection.cs:170
     ed::Link(lid, from, to, ImGui::ColorConvertU32ToFloat4(lcol), lthick);
   }
 

@@ -30,6 +30,9 @@ ImU32 packU32(ImVec4 c) {
   return IM_COL32(b8(c.x), b8(c.y), b8(c.z), b8(c.w));
 }
 
+// TiXL Color.Fade(f) = new alpha = alpha * f (clamped). Applied on TOP of a variation.
+ImU32 fadeU32(ImVec4 c, float f) { c.w = std::min(std::max(c.w * f, 0.0f), 1.0f); return packU32(c); }
+
 // TiXL ColorVariation: HSV with s*=sat, v*=bri (both clamped), a*=op (ColorVariation.cs).
 ImVec4 variation4(ImVec4 c, float bri, float sat, float op) {
   float h, s, v;
@@ -97,20 +100,30 @@ ImU32 nodeHoverBorderColor()    { return IM_COL32(210, 210, 220, 170); }
 // so a normal line is ConnectionLines TWICE (alpha 0.8*0.8 = 0.64) and a hovered line is
 // ConnectionLines over OperatorLabel. (refuter-R-VK V2: the single application shipped first
 // read 20% too bright.)
-ImU32 connectionLineColor(const std::string& dataType, bool selected) {
+ImU32 connectionLineColor(const std::string& dataType, bool selected, float idleFadeProgress) {
   ImVec4 base = baseColor(dataType);
   ImVec4 sel = selected ? variation4(base, 1.3f, 0.4f, 1.0f)   // OperatorLabel
                         : variation4(base, 1.0f, 1.0f, 0.8f);  // ConnectionLines (first pass)
-  return variation(sel, 1.0f, 1.0f, 0.8f);                     // ConnectionLines (cs:44, on top)
+  ImVec4 col = variation4(sel, 1.0f, 1.0f, 0.8f);              // ConnectionLines (cs:44, on top)
+  // TiXL DrawConnection.cs:44 — .Fade(Lerp(0.6, 1, idleFadeProgress)): active=full, idle→60% alpha.
+  float p = idleFadeProgress < 0.0f ? 0.0f : (idleFadeProgress > 1.0f ? 1.0f : idleFadeProgress);
+  float fade = 0.6f + (1.0f - 0.6f) * p;
+  return fadeU32(col, fade);
 }
 
-// V3: TiXL DrawNode.cs:126 — rounding = 5 * CanvasScale, 0 if CanvasScale < 0.5.
-// tixlScale = ViewScale (= 1/GetCurrentZoom() in imgui-node-editor), clamped.
+// V2: TiXL DrawConnection.cs:170 — Lerp(0.25, 2.0, idleFadeProgress) + (selected ? 2 : 0).
+float connectionThickness(bool selected, float idleFadeProgress) {
+  float p = idleFadeProgress < 0.0f ? 0.0f : (idleFadeProgress > 1.0f ? 1.0f : idleFadeProgress);
+  float base = 0.25f + (2.0f - 0.25f) * p;
+  return base + (selected ? 2.0f : 0.0f);
+}
+
+// V3: TiXL DrawNode.cs:126 — rounding = CanvasScale < 0.5f ? 0 : 5 * CanvasScale.
+// No upper cap (TiXL caps nothing here — rounding scales freely with zoom).
+// tixlScale = ViewScale (= 1/GetCurrentZoom() in imgui-node-editor).
 float nodeRounding(float tixlScale) {
   if (tixlScale < 0.5f) return 0.0f;
-  float r = 5.0f * tixlScale;
-  if (r > 20.0f) r = 20.0f;  // cap to avoid overly large radius at high zoom
-  return r;
+  return 5.0f * tixlScale;
 }
 
 // V4: TiXL MagGraphCanvas.Drawing.cs:459
@@ -121,8 +134,6 @@ float blinkValue() {
 
 namespace {
 ImVec4 rgbaVec(const float c[4]) { return ImVec4(c[0], c[1], c[2], c[3]); }
-// TiXL Color.Fade(f) = new alpha = alpha * f (clamped). Applied on TOP of a variation.
-ImU32 fadeU32(ImVec4 c, float f) { c.w = std::min(std::max(c.w * f, 0.0f), 1.0f); return packU32(c); }
 }  // namespace
 
 // = ColorVariations.AnnotationBackground.Apply(color).Fade(0.8) (DrawAnnotation.cs:38, ColorVariations

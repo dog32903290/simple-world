@@ -30,9 +30,18 @@ ImU32 nodeBgColorIdle(const sw::NodeSpec& spec, float idleFadeFactor);
 ImU32 nodeSelectedBorderColor();  // bright white — selected node outline
 ImU32 nodeHoverBorderColor();     // soft white — hovered node outline
 
-// V2: Connection line color (TiXL DrawConnection.cs:32-42 ConnectionLines variation b1 s1 a0.8).
+// V2: Connection line color (TiXL DrawConnection.cs:32-44 ConnectionLines variation b1 s1 a0.8).
 // selected=true (or hovered) uses OperatorLabel variation instead (slightly brighter).
-ImU32 connectionLineColor(const std::string& dataType, bool selected);
+// idleFadeProgress (TiXL DrawConnection.cs:35,44): RemapAndClamp(framesSinceLastUpdate,0,100,1,0)
+// — 1.0 = just-updated (active), 0.0 = long-idle. The final color is .Fade(Lerp(0.6,1,progress)),
+// so an active line is full brightness and an idle line dims to 60% alpha. Pass 1.0 for "active".
+ImU32 connectionLineColor(const std::string& dataType, bool selected, float idleFadeProgress);
+
+// V2: Connection line thickness (TiXL DrawConnection.cs:170):
+//   Lerp(0.25, 2.0, idleFadeProgress) + (selected||hovered ? 2 : 0).
+// idleFadeProgress as above (1.0 = active → 2.0px base; 0.0 = idle → 0.25px). The +2 for
+// selected/hovered is added on top. Pass 1.0 for the non-idle baseline.
+float connectionThickness(bool selected, float idleFadeProgress);
 
 // V3: Node corner rounding scaled with zoom (TiXL DrawNode.cs:126 — 5*CanvasScale, 0 if <0.5x).
 // tixlScale = 1/GetCurrentZoom() in imgui-node-editor coords.

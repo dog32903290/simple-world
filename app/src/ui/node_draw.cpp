@@ -22,14 +22,37 @@ namespace ed = ax::NodeEditor;
 namespace sw::ui {
 namespace {
 
-// A type-colored slot marker (TiXL's left/right port bars). Draws a small filled square in
-// the node's draw list and reserves its box so SameLine+label sit beside it.
-void drawSlot(ImU32 col) {
-  const float s = 9.0f;
+// A type-colored anchor marker. TiXL draws INPUT anchors as small triangles pointing into
+// the node (DrawNode.cs:822-825: horizontal input, apex toward node, anchorWidth=3 half-height,
+// anchorHeight=4 depth, ×CanvasScale) and OUTPUT anchors as filled circles with an outline ring
+// (DrawNode.cs:918-920: radius (2+2*hoverFactor)*CanvasScale, non-hover hoverFactor=1 → r=4px).
+// Our pins are inline markers inside the node body (not edge anchors like TiXL's MagGraph), so
+// we keep the same reserved box (= the existing hit/label layout) and only swap the SHAPE; the
+// geometry is faithful at TiXL's scale-1 size, centered in the box. `isInput` picks triangle vs
+// circle; the triangle of an input points RIGHT (into the node, toward its label).
+void drawSlot(ImU32 col, bool isInput) {
+  const float s = 9.0f;  // reserved box (unchanged: hit area + label layout depend on it)
   ImVec2 p = ImGui::GetCursorScreenPos();
   ImDrawList* dl = ImGui::GetWindowDrawList();
-  dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s), col, 2.0f);
-  dl->AddRect(p, ImVec2(p.x + s, p.y + s), IM_COL32(0, 0, 0, 130), 2.0f);
+  const ImU32 outline = IM_COL32(0, 0, 0, 130);
+  if (isInput) {
+    // TiXL input triangle: depth=anchorHeight=4, half-height=anchorWidth=3 (scale 1). Point RIGHT
+    // into the node. Center the 4×6 triangle in the 9px box.
+    const float halfH = 3.0f, depth = 4.0f;
+    float cy = p.y + s * 0.5f;
+    float x0 = p.x + (s - depth) * 0.5f;  // left edge of triangle
+    ImVec2 a(x0, cy - halfH);             // top-left
+    ImVec2 b(x0, cy + halfH);             // bottom-left
+    ImVec2 c(x0 + depth, cy);             // right apex (points into node)
+    dl->AddTriangleFilled(a, c, b, col);
+    dl->AddTriangle(a, c, b, outline, 1.0f);
+  } else {
+    // TiXL output circle: r=4 (scale 1) filled (r-1) + outline ring (r).
+    const float r = 4.0f;
+    ImVec2 ctr(p.x + s * 0.5f, p.y + s * 0.5f);
+    dl->AddCircleFilled(ctr, r - 1.0f, col, 12);
+    dl->AddCircle(ctr, r, outline, 12, 1.0f);
+  }
   ImGui::Dummy(ImVec2(s, s));
 }
 
@@ -96,10 +119,10 @@ void drawChild(const sw::SymbolChild& child) {
       ed::BeginPin(sw::ui::childPinId(child.id, i),
                    p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
       ImGui::BeginGroup();
-      if (p.isInput) { drawSlot(typeColor(p.dataType)); ImGui::SameLine();
+      if (p.isInput) { drawSlot(typeColor(p.dataType), /*isInput=*/true); ImGui::SameLine();
                        ImGui::TextUnformatted(p.name.c_str()); }
       else           { ImGui::TextUnformatted(p.name.c_str()); ImGui::SameLine();
-                       drawSlot(typeColor(p.dataType)); }
+                       drawSlot(typeColor(p.dataType), /*isInput=*/false); }
       ImGui::EndGroup();
       ImVec2 pa = ed::CanvasToScreen(ImGui::GetItemRectMin());
       ImVec2 pb = ed::CanvasToScreen(ImGui::GetItemRectMax());
@@ -159,14 +182,14 @@ void drawBoundaryDef(const sw::SlotDef& def, int edNodeId, int pinId, bool isSou
   const std::string& label = def.name.empty() ? def.id : def.name;
   ed::BeginPin(pinId, isSource ? ed::PinKind::Output : ed::PinKind::Input);
   ImGui::BeginGroup();
-  if (isSource) {  // inputDef: label, slot on the right (it feeds the subgraph)
+  if (isSource) {  // inputDef: label, slot on the right (it feeds the subgraph = a source/output anchor)
     ImGui::TextDisabled("in:");
     ImGui::SameLine();
     ImGui::TextUnformatted(label.c_str());
     ImGui::SameLine();
-    drawSlot(typeColor(def.dataType));
-  } else {  // outputDef: slot on the left (children drain into it)
-    drawSlot(typeColor(def.dataType));
+    drawSlot(typeColor(def.dataType), /*isInput=*/false);  // source feeds out → circle
+  } else {  // outputDef: slot on the left (children drain into it = a sink/input anchor)
+    drawSlot(typeColor(def.dataType), /*isInput=*/true);   // sink receives → triangle
     ImGui::SameLine();
     ImGui::TextDisabled("out:");
     ImGui::SameLine();
