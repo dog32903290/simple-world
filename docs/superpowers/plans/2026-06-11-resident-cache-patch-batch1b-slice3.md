@@ -1855,3 +1855,18 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. **value-op 自登記基建**（仿 imageFilterSpecSink，解鎖 ~129 numbers/string TRIVIAL 並行）。
 3. **Phase B point-buffer blueprint**（~90 解鎖）。
 4. 排修同前。strays 3 檔仍留工作樹（無害歷史/研究，方向疑問已解=memory）。
+
+## Cut 63 — Phase C 第三批：RoundedRect / FraserGrid / FractalNoise（3 generator 葉子）✅ (2026-06-16 晚,/sw-batch)
+**承重達成**：再 3 顆 image generator（**Phase C 至此 9 顆 image generator 全 refuter 過**）。HEAD `9c052a6`（RoundedRect `8dd0fd1` / FraserGrid `0b85cbc` / FractalNoise `911f9b5`+fix`9c052a6`）。--bite **154** NO-BITE:[]/check-arch OK。isolation:worktree 乾淨（Cut61 教訓持續）→cherry-pick conflict-free。Cut62 golden 鐵律持續（RoundedRect d=0 飽和、FraserGrid plateau）。
+
+**refuter（3 波 Opus 唯讀獨立重算）**：RoundedRect MERGE-SAFE（sdBox d=0 飽和 golden / routing 零數學節點 / sampler Repeat 對 .t3 / GradientBias 負分支 verbatim）。FraserGrid MERGE-SAFE（plateau golden / fg_mod 全 floor 無混 % / asin clamp safe / **GenerateMips 已正確註冊 mippedOutput=true 非 gap** / 揪出 2 處 TiXL 死碼我方正確處理）。**FractalNoise BLOCK（kernel byte-correct、golden 空洞）→ fixer 修 + rule-3 清理波**。
+
+**★FractalNoise 雙重教訓**：
+①**golden 空洞（最尖的一次）**：原 golden 用 Scale=0→pos=(0,0,0) 讓可手算，但 `hash33` 做 `frac(0×MOD3)=0` **不管 MOD3 都回同值**→golden 完全咬不到 MOD3 噪聲常數（parity 最關鍵）。refuter 證:擾動任一 MOD3 digit 在 (0,0,0) 全得 R=174。修=加 **Sub-test B 在非零 coord（Phase=5→pos=(0,0,0.5)，MOD3 活）**斷言 R=114±6 窗 [108,120]，天然咬 MOD3（正確 114 IN、typo 0.1031→0.1131→R=101 OUT 低窗底 7）。**★方法論（進工單）：procedural/noise op 的 golden 必在 parity-critical input（hash/permutation）活的 coord 斷言，不可挑退化點（Scale=0 把 hash 歸零）。**
+②**rule-3 清潔**：第一版 fixer 為了 RED-證 MOD3 在 **production `.metal` shader 內加 MOD3_INJECTED 測試分支 + 假 cbuffer 欄位 InjectBugMOD3**（驗證肉塞進 GPU 業務碼，違鐵律3）→ orchestrator 攔下，派**清理波拔 seam**：production shader 還原 verbatim（git diff 無 .metal），改用斷言窗本身咬 MOD3、injectBug 回 Iterations=2。**★教訓（進工單）：禁止把測試 seam（bug-injection 分支/假欄位）塞進 production shader；golden 靠斷言窗 inherent 咬常數，RED-can-fail 用真 param injectBug。**
+
+**Resume — next（Phase C 並行進行中，HEAD 9c052a6，9 image generator 已 ship）**:
+1. **Batch 6 = 更多 image READY-LEAF**（Grain/WorleyNoise 注意 temporal-random/worley seam→STEP-0 擋；或其他 ops-image.md READY-LEAF）isolation:worktree+generator-dummy+**golden d=0 plateau 或 noise-live-coord（Cut62/63 教訓）**+refuter。
+2. **value-op 自登記基建**（仿 imageFilterSpecSink→解鎖 ~129 numbers/string TRIVIAL 並行；承重 seam 全工法）——**考慮提前做，槓桿遠大於逐批 3 image 葉子**。
+3. **Phase B point-buffer blueprint**（~90 解鎖）。
+4. 排修同前。image generator 已證可大量並行開採，乾淨葉子池見底前可持續；之後轉 value-op infra / Phase B 大 seam。
