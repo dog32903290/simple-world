@@ -23,6 +23,7 @@
 #include "app/soundtrack.h"  // runSoundtrackSelfTest (soundtrack<->transport follow rule)
 #include "platform/audio_capture.h"
 #include "platform/audio_devices.h"
+#include "platform/image_decode.h"  // platform::runImageDecodeSelfTest (native PNG decode proof)
 #include "runtime/attack_detector.h"
 #include "runtime/compound_graph.h"
 #include "runtime/combine.h"
@@ -138,6 +139,7 @@ const SelfTest kTable[] = {
     {"pointgraph", runPointGraphSelfTest},
     {"residentcook", runResidentCookSelfTest},
     {"residentparity", runResidentCookParitySelfTest},
+    {"imagedecode", platform::runImageDecodeSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"bypasscook", runBypassCookSelfTest},
