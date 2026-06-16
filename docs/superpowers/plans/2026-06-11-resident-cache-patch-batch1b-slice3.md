@@ -1870,3 +1870,19 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. **value-op 自登記基建**（仿 imageFilterSpecSink→解鎖 ~129 numbers/string TRIVIAL 並行；承重 seam 全工法）——**考慮提前做，槓桿遠大於逐批 3 image 葉子**。
 3. **Phase B point-buffer blueprint**（~90 解鎖）。
 4. 排修同前。image generator 已證可大量並行開採，乾淨葉子池見底前可持續；之後轉 value-op infra / Phase B 大 seam。
+
+## Cut 64 — value-op 自登記 seam（valueOpSpecSink）+ Sin/PickFloat 驗證 ✅ (2026-06-16 晚,/sw-batch,承重 seam 全工法)
+**承重達成**：建 value-op 自登記 seam（Phase-B enabler）→ **解鎖 ~129 numbers/string TRIVIAL 平行開採**（原卡共享 `node_registry_math.cpp`）。HEAD `f80cfaa`。--bite **156** NO-BITE:[]/check-arch OK。全工法：Plan 藍圖→Opus build(worktree)→獨立 Opus refuter→orchestrator cherry-pick 合流。
+
+**seam**：鏡像 edaff22（image-filter 自登記），但更簡單——value op 無 GPU cook，stateless eval fn **就在 NodeSpec.evaluate**→sink 只收 NodeSpec+selftest pair。**並存/增量**（非 big-bang）：ADD `valueOpSpecSink`/`valueOpSelfTests` 旁於既有中央 registry，新 leaf 自登記，**既有 ~70 顆 value op 一行未動=零回歸**。新增 4 檔（value_op_registry.{h,cpp}+value_op_sin.cpp+value_op_pickfloat.cpp）+ 改 3 處各 1-2 行（node_registry findSpec/specTypes、selftests list/dispatch、CMake glob `value_op*.cpp`）。
+
+**驗證 op（refuter 獨立重算 parity）**：Sin（`Sin.cs:16` `Math.Sin(Input/Period+Phase)*Amplitude+Offset`，3/0/1 pin 對；**fork-sin-period-zero**=Period==0→回 Offset 避 NaN=press-pass 類修無歧義 NaN，Period≠0 byte-identical，同已 ship Div B==0→0 慣例）。PickFloat（`PickFloat.cs` index `Mod`(floor-mod) select；fork index-int-trunc/empty→0；**golden 走 resident 路徑 buildEvalGraph+evalResidentFloat=multiInput value op 真產線路徑**，flat evalFloat 不展 multiInput，refuter 證對）。
+
+**refuter MERGE-SAFE**（承重命脈兩條全站住）：①零回歸=git diff 對 node_registry_math.cpp/math_ops_selftest.cpp 全空、consumer 迴圈純 append ②**init-order 比註解更強**=`doc::g_lib` pre-main 圖（defaultParticleGraph）零 value 型別→沒人在 sink 填好前查 Sin/PickFloat（不是「剛好填好」是「根本沒人查」）。牙真咬、soundtrack 解耦、check-arch 乾淨。
+
+**★INCIDENT（雙觸發污染主樹）**：**20:40 我排的 ScheduleWakeup 與柏為手動 /sw-batch 同時觸發**→疑似第二個 orchestrator run 並行在**主樹**蓋了第二份 partial value-op seam（選 MultiplyInt，未驗證、未 commit，20:46-47）。cherry-pick 我的 verified cedfea3 時撞 conflict 才發現。處理=查無 live process（24min stale）→stray 備份 `/tmp/sw-parallel-strays/`（MultiplyInt 可救）→revert 主樹 M 編輯→cherry-pick verified cedfea3。**★教訓：柏為手動驅動時不要有未取消的 auto-wakeup（雙 driver→並行 run 污染共享樹）。柏為在場手動 fire = 我不 auto-schedule；柏為不在 = auto-schedule 自走。二選一單一 driver。**
+
+**Resume — next（HEAD f80cfaa；value-op seam 已開）**:
+1. **★Batch 7 = Phase C 平行開採 numbers/string TRIVIAL**（~129 顆現在不撞檔了，value_op_*.cpp 各自 leaf 自登記；isolation:worktree 大量並行；golden 對 TiXL 公式手算、d=0/確定值 Cut62-63 鐵律）。最大產能解鎖。
+2. 更多 image READY-LEAF 尾 / Phase B point-buffer(~90)/shader-graph(~64) blueprint。
+3. 排修同前。stray MultiplyInt 在 /tmp 待評估是否重港（用乾淨 seam）。
