@@ -5,12 +5,23 @@
 
 ## 北極星（完成定義）
 Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模一樣（路線 B，視覺也追）。
-單批完成定義 = 柏為親手測得到（selftest 綠不算數，活體牙 .scn 算數）。
+**完成定義 = 對 TiXL 機器驗證得到**（golden 對手算 TiXL 公式／源碼常數 + 獨立 refuter + scenario 全綠）。
+**柏為不驗證、不定方向（2026-06-16 柏為定）**——他手上沒有 TiXL 可對，他的眼睛當 parity 閘無意義。方向 orchestrator 定，驗證全交機器。
+**parity ground-truth 順序**：①TiXL 源碼（golden/refuter/scenario）→ ②源碼讀不出答案（歧義）時 → **跑真 TiXL 對**（Windows TiXL lane / copilot kit，見 [[windows-tixl-copilot-kit]]）。柏為的眼睛從不在這條鏈上。
+
+## 三階段工法（2026-06-16 柏為定：先打開所有礦，再一次開採）
+舊法「一顆 op 撞一塊接縫、邊做邊發現還要第二塊」→ 大量 STOP/丟棄/接縫疊接縫。改成地基先行：
+- **Phase A 普查**：派 Explore/Sonnet 掃 TiXL 整本 op 目錄 → 每顆標「需要哪些接縫（seam）」→ 取聯集＝**完整地基清單** + 開採 backlog。產出兩張表存磁碟（接縫依賴圖 + op backlog）。一次掃完，之後增量補。
+- **Phase B 蓋地基**：把**大接縫**逐塊蓋完（Layer2d+Execute / gradient widget / asset✓ / multi-image✓ / mip✓ / multi-pass✓ / feedback / RWStructuredBuffer / source-op…），**解鎖數÷風險 排序，最高先**。每塊接縫**配一顆真 op 當驗證**（不然又是 orphan，像 mip seam 空轉到 RgbTV 才有消費者）。承重 seam 全工法：Plan 藍圖→Opus build→獨立 Opus refuter→fixer→orchestrator 親手合流。
+- **Phase C 開採**：地基都在了，每顆 op 都是乾淨葉子、互不撞車 → 大量並行織（worktree lane，合流零衝突）。微 parity 細節（FloatsToBuffer 路由、unwired-input、sampler 模式）仍每顆用 **backward-trace（Cut 58 教訓，別 forward-trace）+ refuter** 處理。
+階段狀態寫在 memory lane-state 頭：現在在 A/B/C 哪段、地基清單剩哪些、開採 backlog 剩哪些。
 
 ## 不變的憲法（每批都適用）
 1. **規則訂版：不問柏為，問 TiXL。** 任何行為/視覺/數值的疑問 → 開 `external/tixl` 源碼定案
-   （唯讀，嚴禁 pull）。分岔照 TiXL；fork 必具名。
-   只有「TiXL 無對應物 ∧（不可逆 ∨ 品味級）」才寫進柏為拍板佇列——**排隊，不擋批次**。
+   （唯讀，嚴禁 pull）。源碼有歧義 → 跑真 TiXL 定案，不猜。**預設照 TiXL，fork 必具名。**
+   - **改進規則（2026-06-16 柏為定）**：只准改「**不改變觀感輸出**」的東西——效能、乾淨、修無歧義真 bug（crash/NaN/OOB/明顯手滑）→ **press-pass 壓過再做**（壓兩題：①真更好還是只是不一樣/更糟 ②會不會弄爆下游 parity-dependent）。
+   - **會改變看得到的 render／行為／手感的＝品味＝一律照 TiXL，不分岔、不改進**（即使你覺得更好）。判定線＝「會不會改變 render 出來的樣子」。例：RgbTV 連 perlin 會讓噪聲變空間性＝改變觀感＝品味＝照 TiXL（保持斷開的黑 t1）。
+   - 柏為拍板佇列只剩「TiXL 查無答案 ∧ 需柏為實體動作」——其餘全 orchestrator 自決。
 2. 工作法照 `docs/agent/WORKFLOW.md`（Opus×Sonnet 分層）＋工單引 `docs/agent/CONTEXT_PACK.md`。
 3. 品質閘不可省：run_all --bite 零 NO-BITE／對抗 refuter（高風險 lane 用 Opus）／RED 面／
    orchestrator 親手復跑後才 commit／活體可證行為附 .scn。
@@ -36,11 +47,11 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
 ## 單批迴圈（重複直到停止條件）
 1. **定位**：讀 memory 索引的 lane-state ＋ 施工圖最新 Cut 的 Resume 段。樹要乾淨、
    HEAD 對齊；不乾淨先盤點（可能是上一棒的活，照 single-plan gate 處理）。
-2. **選批**：Resume 候選由上而下取 3-5 項組一批（排修項永遠優先於新功能）。
-   候選空了 → 開 parity 缺口掃描批：派 Explore/Sonnet agents 對照 `external/tixl`
-   盤點「TiXL 有、我們沒有/不一樣」（op 行為、UI 視覺、互動、快捷鍵），產出新 Resume 候選清單
-   ——這就是通往「整個 clone 完」的推進機制。UI 視覺 parity 用 eye 截圖對 TiXL 截圖/
-   源碼常數（顏色/圓角/字級查源碼，不猜）。
+2. **選批（依當前階段）**：排修項永遠優先。然後看 lane-state 頭在哪階段：
+   - **Phase A**：還沒普查 → 開普查批（掃 TiXL 全 op → 接縫依賴圖 + 開採 backlog 兩張表存磁碟）。
+   - **Phase B**：地基清單還有 → 取「解鎖數÷風險」最高的一塊接縫＋它的驗證 op 組一批。
+   - **Phase C**：地基齊了 → 從開採 backlog 取 3-5 顆乾淨葉子 op 組一批（盡量並行）。
+   UI 視覺 parity 用 eye 截圖對 TiXL 截圖/源碼常數（顏色/圓角/字級查源碼，不猜）。
 3. **派工**：依檔案重疊定隊形（重疊=序列，葉子=worktree 並行）；模型分層照 WORKFLOW.md；
    工單=CONTEXT_PACK 指標＋任務＋驗收清單（含 .scn）。
    - **worktree lane 必含 step-0 解藥（base trap，已驗）**：Agent 內建 `isolation:worktree` 從 main(a54b8c0,落後)切——工單第一條指令 = `bash "<主倉絕對路徑>/tools/agent_worktree_setup.sh"`（ff 到活躍 HEAD ＋ symlink third_party ＋ ccache build 一次到位），再驗 `git rev-parse --short HEAD` == 活躍 HEAD。**不只偵測，要 ff 修好。** 見 [[worktree-base-main-trap]]。
@@ -51,8 +62,8 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
    驗證基建或柏為域的 pre-existing red=`spawn_task` 排獨立工程，**不擋本批 commit、不下場糾結**。
 5. **否證**：refuter 波（風險 rubric 分流）→ fixer 波（Sonnet，兩次不過閘升級 Opus）→ 合流 commit。
 6. **活體**：scenario 全庫重放＋新行為 .scn；殘餘探索項才派 driver。
-7. **結帳**：施工圖補 Cut N（事實/fork/verdict/柏為親測欄/Resume 候選）→ memory lane-state
-   換頭 → TaskList 清掉 → 立即回到步驟 1 開下一批。
+7. **結帳**：施工圖補 Cut N（事實/fork/verdict/Resume 候選）→ memory lane-state
+   換頭（含當前階段 A/B/C + 地基清單剩餘 + 開採 backlog 剩餘）→ TaskList 清掉 → 立即回到步驟 1 開下一批。
 
 ## 上下文衛生（迴圈不被撐爆的機制）
 - **狀態永遠在磁碟**：Cut 段＋memory＋CONTEXT_PACK＝完整重建點。上下文被壓縮/換 session
@@ -65,9 +76,8 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
   下一個動作排了嗎？沒有就現在排。
 
 ## 停止條件（只有這四種，其他一律繼續）
-1. parity 缺口掃描連續兩批產不出新候選（= clone 完成）→ 總結帳，列柏為親測總欄。
-2. 硬阻塞：需要柏為的實體動作（換硬體、登入、付費）或 TiXL 查無答案的不可逆品味決策
-   **且該決策擋住所有候選**（單項擋路就跳過做別項）。
+1. 普查 + 地基 + 開採 backlog 全清（= clone 完成）→ 總結帳。
+2. 硬阻塞：需要柏為的**實體動作**（換硬體、登入、付費、開 Windows TiXL 機器對 ground-truth）**且擋住所有候選**（單項擋路就跳過做別項）。**品味/方向決策不再是停止條件**——orchestrator 自決（品味照 TiXL，改進 press-pass）。
 3. 柏為現身下指令。
 4. 連續兩批同一 lane 反覆紅（同根因）→ 停下寫診斷報告，不空轉燒 token。
 
