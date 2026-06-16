@@ -1886,3 +1886,18 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 1. **★Batch 7 = Phase C 平行開採 numbers/string TRIVIAL**（~129 顆現在不撞檔了，value_op_*.cpp 各自 leaf 自登記；isolation:worktree 大量並行；golden 對 TiXL 公式手算、d=0/確定值 Cut62-63 鐵律）。最大產能解鎖。
 2. 更多 image READY-LEAF 尾 / Phase B point-buffer(~90)/shader-graph(~64) blueprint。
 3. 排修同前。stray MultiplyInt 在 /tmp 待評估是否重港（用乾淨 seam）。
+
+## Cut 65 — Batch 7：9 顆 value-op TRIVIAL 葉子（首次 value-op 平行開採）✅ (2026-06-17 凌晨,/sw-batch,Workflow 恢復)
+**承重達成**：value-op seam（Cut 64）首次平行開採——**9 顆 numbers-Float TRIVIAL**（Not/IntToFloat/And/Xor/ClampInt/AddInts/IsIntEven/ModInt/Or）一次 ship。HEAD `77e1a51`。--bite **165** NO-BITE:[]/check-arch OK。**value-op 平行開採模型證實可行**（~95 numbers-Float 池現在流得動）。每顆=自登記 value_op_*.cpp 葉子零共享編輯。
+
+**★事故 + 恢復（最嚴重一次）**：batch 7 首跑（5 條 raw background lane，isolation:worktree）**22:27 全數卡死**——疑因 **5 個冷 worktree build 同時跑**（setup script 每 worktree build 一次）撞牆；Xor 報 stream-watchdog stall，其餘無完成通知。**我收到 Xor 死訊回「no response requested」就閒置 5.5 小時**（漏接 kill 通知=空耗頭號真因，memory 早警告我犯了）。5 條全 0 commit、3 條留半成品 untracked leaf。清死 worktree（3 條 locked pid48770 stale 留著無害）。
+**★恢復工法（ultracode Workflow）**：改用 Workflow 一條 port→verify pipeline。**關鍵修正=port agent 只「寫」leaf 不各自 build**（value 葉子 conflict-free distinct 檔→主樹並行寫安全；避開害死首跑的並行 build 風暴），refuter 靜態驗 parity，**orchestrator 做一次合併 build + --bite**。Workflow 回**單一完成訊號**（接不到才有鬼，治本上次漏接通知）。18 agent/~1.1M tok/237s，**9/9 MERGE-SAFE，0 needsAttention**。
+**★教訓**：①raw 多 background lane 各自 build=並行 build 風暴會卡死;value/CPU 葉子改「寫 leaf→orchestrator 一次合 build」避開。②收到任何 lane 死訊**必立刻接力**，絕不回「no response」閒置。③單一 driver（柏為手動 fire 時我不 auto-schedule）。
+
+**refuter（9 顆獨立重算）全 MERGE-SAFE，fork 全=既有專案慣例非新分岔**：bool-as-Float（Cut 32：input `!=0`/output `cond?1:0`/Widget::Bool，同 IsGreater/Compare/Invert）；int-on-Float-port（(int) trunc-toward-zero，同 Floor/PickFloat）；ModInt 截斷模（C# %，異於 float Modulo 的 floor-mod；Mod==0→0 stateless）；ClampInt min>max=max（byte-faithful TiXL `Min(Max(v,min),max)`）。
+**★side-find（非本批，已 spawn_task）**：既有 Float `Clamp` op（`value_eval_ops.cpp:49` evalClamp）用 branch form，min>max 時回 lo 而非 max，**與 TiXL MathUtils.Clamp 分岔**→獨立 cleanup。
+
+**Resume — next（HEAD 77e1a51；value-op 平行開採已證）**:
+1. **Batch 8 = 續開採 numbers-Float TRIVIAL**（scout 清單剩 RgbaToColor/DotVec4[vec4 output port-index 需查 Vector3Components layout]/BoolToFloat[ForTrue/ForFalse 參數非純 cast]/PickInt[int output 需 fork]/MaxInt·MinInt[int MultiInput 需 int seam]…；或從 OP_BACKLOG 再撈乾淨 stateless 的）——**沿用 Workflow 寫-leaf→合-build 工法**（不要 raw 多 background build lane）。
+2. **string-value seam**（~34 string TRIVIAL 卡這，valueOpSpecSink 只走 Float port；需第二個 seam）/**stateful-value seam**（CountInt 等）/Phase B point-buffer(~90)/shader-graph(~64)。
+3. 排修+新增：Float-Clamp min>max 修；stray MultiplyInt 在 /tmp 重港評估。clean 3 條 locked dead worktree（pid48770 stale lock）。
