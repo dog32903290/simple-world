@@ -32,6 +32,7 @@
 #include "runtime/node_registry_particle.h"
 #include "runtime/node_registry_draw.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSpecSink() — image-filter ops self-register
+#include "runtime/value_op_registry.h"         // valueOpSpecSink() — stateless value ops self-register
 #include "runtime/node_registry_math.h"
 
 #include <map>
@@ -86,6 +87,10 @@ const NodeSpec* findSpec(const std::string& type) {
   // Image-filter family: read the self-registration sink live (see registry() note on init order).
   for (const auto& s : imageFilterSpecSink())
     if (s.type == type) return &s;
+  // Value-op family: same live-read seam (mirror of image-filter; init-order safe — sink fully
+  // populated by pre-main dynamic init of each value_op_<name>.cpp ValueOp registrar).
+  for (const auto& s : valueOpSpecSink())
+    if (s.type == type) return &s;
   auto it = dynamicSpecs().find(type);
   return it != dynamicSpecs().end() ? &it->second : nullptr;
 }
@@ -96,6 +101,8 @@ std::vector<std::string> specTypes() {
   // Image-filter ops self-register into the sink — append them so the Add menu lists all of them
   // regardless of static-init order (see registry() note).
   for (const auto& s : imageFilterSpecSink()) out.push_back(s.type);
+  // Value ops self-register into their own sink — append so the Add menu lists them too (same note).
+  for (const auto& s : valueOpSpecSink()) out.push_back(s.type);
   return out;
 }
 

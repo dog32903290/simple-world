@@ -39,6 +39,7 @@
 #include "runtime/dispatch.h"
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
+#include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
 #include "runtime/particle_system.h"
 #include "runtime/point_graph.h"
 #include "runtime/point_ops.h"
@@ -273,6 +274,14 @@ int runSelftestFromArgs(int argc, char** argv) {
           if (std::strcmp(e.name, s.first) == 0) { inTable = true; break; }
         if (!inTable) std::printf("%s\n", s.first);
       }
+      // Value-op sink names (mirror of the image-filter loop above), skipping any already in
+      // kTable so the harness never double-runs the same tooth.
+      for (const auto& s : valueOpSelfTests()) {
+        bool inTable = false;
+        for (const SelfTest& e : kTable)
+          if (std::strcmp(e.name, s.first) == 0) { inTable = true; break; }
+        if (!inTable) std::printf("%s\n", s.first);
+      }
       return 0;
     }
 
@@ -291,6 +300,16 @@ int runSelftestFromArgs(int argc, char** argv) {
     // an image-filter leaf a TRUE zero-shared-file-edit add. (kTable is matched FIRST above, so the
     // pre-existing hardcoded image-filter rows like convertcolors win and do not double-run.)
     for (const auto& e : imageFilterSelfTests()) {
+      std::string base = std::string("--selftest-") + e.first;
+      if (base == a) return e.second(false);
+      if (base + "-bug" == a) return e.second(true);
+    }
+
+    // Self-registered VALUE-OP selftests (the valueOpSelfTests() sink that each value_op_<name>.cpp
+    // ValueOp registrar feeds). Same dormant-half activation as the image-filter loop above — a
+    // value-op leaf becomes a TRUE zero-shared-file-edit add. (kTable matched FIRST, so any name
+    // also present there wins and does not double-run.)
+    for (const auto& e : valueOpSelfTests()) {
       std::string base = std::string("--selftest-") + e.first;
       if (base == a) return e.second(false);
       if (base + "-bug" == a) return e.second(true);

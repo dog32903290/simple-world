@@ -98,6 +98,12 @@ set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OP
 # point_ops.cpp, point_ops_selftest.cpp, every per-op leaf, and the per-family registrars.
 file(GLOB SW_POINT_OP_SRCS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/point_ops*.cpp")
 
+# Value-op leaf sources — globbed so a value-op lane adding value_op_<name>.cpp needs no CMake edit
+# (just reconfigure). Covers value_op_registry.cpp (the two sinks + ValueOp ctor) and every
+# stateless value-op leaf (value_op_sin.cpp / value_op_pickfloat.cpp / …). Mirror of the
+# SW_POINT_OP_SRCS glob (image-filter self-registration precedent, line above).
+file(GLOB SW_VALUE_OP_SRCS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/value_op*.cpp")
+
 add_executable(simple_world
   src/main.cpp
   src/app_delegate.cpp
@@ -218,6 +224,7 @@ add_executable(simple_world
   src/runtime/resident_eval_patch_lib_selftest.cpp
   src/runtime/math_ops_selftest.cpp
   ${SW_POINT_OP_SRCS}  # globbed: point_ops.cpp + _selftest + every per-op leaf + per-family registrars
+  ${SW_VALUE_OP_SRCS}  # globbed: value_op_registry.cpp + every stateless value-op leaf (Sin/PickFloat/…)
   src/runtime/tex_op_cache.cpp
   src/runtime/source_registry.cpp
   src/runtime/attack_detector.cpp
