@@ -1820,3 +1820,23 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 1. **Phase C 燃料 lane（可立刻並行）**：從 OP_BACKLOG READY-LEAF-NOW 拉 numbers/string TRIVIAL ~129 顆（最安全,worktree 平行,合流零衝突)。先做開採前必查①②③（決定哪些 image READY-LEAF 真乾淨）。
 2. **Phase B 第一塊**：B1 point-buffer 或 B2 shader-graph（兩自足島,全工法:Plan→Opus build→獨立 refuter→fixer→orchestrator 合流;各配驗證 op）。dx11-api-wrapper(B5)解最多 3D 但 R2+底層,排 point-buffer/shader-graph 後。
 3. 排修/柏為域:task_3fc122a2(unwired-2nd-input convention)/task_c6a885db(RgbTV→faithful,新改進規則下=parity 修非品味)/task_602f15ec/task_2ee58abb/task_258d9510。
+
+## Cut 61 — Phase C 開採首批：CheckerBoard / Rings / SinForm（3 generator 葉子）✅ (2026-06-16 午後,/sw-batch 自走)
+**承重達成**：工法大轉向後**首批 Phase C 並行開採**（image-filter 自登記葉子，Cut 48 模型 post-census 重驗成功）。3 顆 TiXL image 圖案 generator 逐字港、golden 對 TiXL .hlsl 手算。HEAD `5e9b4c4`。--bite **149** FAILED:[] NO-BITE:[]/check-arch OK。
+
+**★可複用慣例（generator-on-filter-seam）**：純 generator（`Image=null`）綁 **1×1 透明黑 dummy texture**，在既有單輸入 image-filter seam 上跑（sample→(0,0,0,0) = 忠實 TiXL null SRV passthrough）→ **不需 source-op seam**。Rings/SinForm 皆此招（refuter 確認忠實）。降低未來 generator 開採門檻。
+
+**事故+教訓（dispatch 錯）**：派 3 background lane 時**漏設 `isolation:"worktree"`** → setup script 偵測「this IS the main repo, nothing to bootstrap」→ 3 lane 全在**主 checkout 並行幹活**（非隔離）。recoverable（葉子各自獨立檔；3 agent 對 shared 檔 point_ops.h/hash.metal.h 互相補 forward-decl 自救）；--bite 全綠證 shared 檔最終一致（漏 decl 會編不過）。**未來並行 mutating lane 必設 `isolation:"worktree"`**。strays（3 個 uncommitted 檔=06-07 imgui-metal-pivot 舊規劃 + skill 編輯 + gemini-research 資源清單，appeared this session）非本批產物→留不 commit/不刪→triage chip `task_879b5335`（含「native-runtime lane 方向是否被 06-07 pivot 取代」的方向疑問待釐清；但 06-16 memory+Cut60+柏為今天 /sw-batch = 權威現行方向=續做,不停）。
+
+**refuter（Opus 對抗，柏為退出視覺驗證後=唯一 parity 防線）三波**：
+- **CheckerBoard MERGE-SAFE 首發**：golden 獨立重算（4 pin checker）/cbuffer 14-conn **零數學節點**（非 Cut55 trap，逐 GUID 對 Vector4/2Components）/mod→fract 負值等價/UseAspectRatio Enum{No,Yes}→bool branch/texCoord Y-flip 對齊 TiXL DX11 fullscreen VS（off-symmetry Offset.y 方向也驗）。
+- **Rings BLOCK×2 → fixer 修 → 複驗 MERGE-SAFE**：①**Rings.hlsl 刻意混用 `%`(fmod 截斷) 與 `#define mod()`(floor)**，原港全抹成 floor sw_mod → refuter 獨立重算 Offset=-0.8 全幀 67px 差/_Segments=(3,18),Seed=2 419px 差（default golden 巧合相同=self-capture 盲區）→ fixer **8 site 逐一對 HLSL 改正**（5 fmod / 3 sw_mod），複驗 mapping 表全對。②sampler ClampToEdge → **Repeat**（TiXL `_ImageFxShaderSetupStatic` 預設 Wrap=Wrap，原 `[fork-sampler-clamp]` 註解把事實寫反）。
+- **SinForm BLOCK×1 → fixer 修 → 複驗 MERGE-SAFE**：`copiesCount` round-half-up→**floor**（HLSL `(int)Copies+0.5` 優先序 `(int)` 只綁 Copies=floor；原港 `(int)(Copies+0.5)`=round，小數≥.5 分岔，自由滑桿可達）；補 Copies=2.7 golden。**「center 讀 230 非 255」經 refuter 確認=忠實**（pixel-center 取樣+feather 數學本就 230，真 TiXL 也讀 230），非 bug。
+
+**驗證紀律**：scenario 全庫 GPU sweep **具名跳過**（本批 provably additive=3 新葉子+point_ops.h/hash.metal.h 純加性編輯，零既有 cook/UI 路徑改動；--bite 全表綠=足夠回歸證；sweep 對 headless 葉子零邊際信號+flake-prone）。**殘留具名（非阻塞）**：Rings 最深 fmod 截斷路徑（`ringIndexFromCenter`，_Segments.y≠0 才觸發 hash chain）缺精確回歸牙——mapping 已逐點驗對、code 正確，只缺 future-regression tooth。
+
+**Resume — next（階段 C 並行進行中）**:
+1. **Batch 4 = 續開採剩餘 image READY-LEAF**（ValueRaster/Blob + 備援 FraserGrid/ZollnerPattern/NGon/RoundedRect/FractalNoise/Grain/WorleyNoise）——**這次必設 `isolation:"worktree"`**（每 lane 獨立 worktree，合流 cherry-pick 零衝突）。沿用 generator-dummy-texture 慣例 + STEP-0 portability 硬閘 + Opus refuter。
+2. **value-op 自登記小基建**（仿 `imageFilterSpecSink` 建 `valueOpSpecSink`+`ValueOp` registrar，R1 有藍本）→ 解鎖 ~129 numbers/string TRIVIAL 可並行開採（目前共享 `node_registry_math.cpp` 撞檔）。承重 seam 全工法。
+3. **Phase B 第一塊 seam**：point-buffer（~90 解鎖，粒子系統已馴服本質複雜=R2 有藍本）blueprint。
+4. 排修同 Cut 60 + 新增 task_879b5335（strays/方向疑問）。
