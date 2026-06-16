@@ -1778,3 +1778,20 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. **LoadImage op**（TiXL 真 source op，PNG→Texture2D）=decoder 的乾淨消費者，但 source op（()→tex）我方 image-filter cook（tex→tex）可能不支援→需評 source-op seam。
 3. (D)gradient widget(柏為域)/multi-image seam/(C)Layer2d/UI-visual 續(font/padding)/keymap。
 4. 排修/柏為域:task_c6a885db(RgbTV fork veto)/task_602f15ec/task_2ee58abb/task_258d9510/視覺手感親測(FastBlur/RgbTV/Crop)。
+
+## Cut 59 — DistortAndShade（2-input warp/shade，multi-image seam 第 2 消費者）✅ (2026-06-16 午,柏為「繼續做」)
+**承重達成**：DistortAndShade（image A 被 image B 位移+shade）。**multi-image input-gather seam 早已存在**（第 1 消費者=Displace，lane D2；point_graph 已 gather 所有 Texture2D input→t0/t1）→**本顆 leaf-only 零新共享 seam**（4th-seam 框架是 stale）。HEAD `abe7691`。--bite **145** NO-BITE:[]/check-arch OK。
+
+**事故+教訓**：首次派工「rejected」但 agent 其實已跑（檔案時戳 10:39-10:51 證），柏為 中途打斷；「繼續做」後 re-dispatch 找到既有檔 vet+rebuild。**rejected≠沒跑（背景可能已落檔），re-dispatch 前必查 tree 實況**。refuter agent 首跑 API socket 死（25 tool_use 無 verdict）→查 tree intact（無殘留 perturbation,.metal untracked 故無法 git checkout 須手復原,但 selftest 綠證乾淨）→re-dispatch refuter。
+
+**STEP-0 backward-trace（Cut 58 教訓，避 RgbTV forward-trace 誤判）**：t0←ImageA port/t1←ImageB port（兩 graph-wired，經 `_multiImageFxSetup.t3` 內 SrvFromTexture2d index 0/1；2 個 ColorGrade child dangle off-path）。**非 RgbTV t1 陷阱**。routing 8-conn 無數學節點=cbuffer order（ShadeColor.xyzw/Displacement/Shade←Shading/Center.xy，sizeof 32）。kernel byte-1:1。sampler Mirror→`MirrorRepeat`（TiXL TextureAddressMode.Mirror，異於 RgbTV 的 MirrorOnce）。
+
+**Opus refuter MERGE-SAFE 6/6**（backward-trace/routing/kernel/golden 獨立 re-derive pin x=16=98 非 self-capture/own RED displacement×1.5→maxDelta25/both cook driven/no-regression）。**KNOWN CONCERN（tracked 非 block）=unwired ImageB**：TiXL 綁 null SRV（Sample→黑→ImageA 不 warp passthrough），我方 fork sample ImageA（self-warp）→default-render 分岔，**但同 shipped Displace fork-class**（`point_ops_displace.cpp:67 if(!map)map=image`）→**spawn_task `task_3fc122a2`=lane-wide「unwired 2nd input→黑 fallback=TiXL-faithful」convention 修（涵 DistortAndShade+Displace）**。golden 數學本體 byte-parity；只 unwired-default-fallback 邊角分岔。
+
+**本 session 累計 Cut51-59**：5 真 op（UI-parity/Crop-產線/FastBlur/RgbTV/DistortAndShade）+ seam(E) asset+decoder + multi-pass seam + .t3-routing 工法修正 + multi-image seam（既存,+1 消費者）+ 4 chip。
+
+**Resume — next**:
+1. **更多 multi-image op**：MosiacTiling（2-input?需 backward-trace+routing+default 查）；FakeLight=blend(Layer2d 卡)/HoneyCombTiles=gradient(D 卡) 不適。
+2. 更多 asset op（FakeLight/LightRaysFx 需重評 backward-trace+routing+2pass）/LoadImage source op（需 source-op seam）。
+3. (D)gradient widget(柏為域)/(C)Layer2d(Glow/Bloom 大unlock,brittle+視覺判斷)/UI-visual 續(font/padding)/keymap。
+4. 排修/柏為域:task_3fc122a2(unwired-2nd-input convention)/task_c6a885db(RgbTV veto)/task_602f15ec/task_2ee58abb/task_258d9510/視覺手感親測。
