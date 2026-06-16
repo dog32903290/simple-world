@@ -1901,3 +1901,13 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 1. **Batch 8 = 續開採 numbers-Float TRIVIAL**（scout 清單剩 RgbaToColor/DotVec4[vec4 output port-index 需查 Vector3Components layout]/BoolToFloat[ForTrue/ForFalse 參數非純 cast]/PickInt[int output 需 fork]/MaxInt·MinInt[int MultiInput 需 int seam]…；或從 OP_BACKLOG 再撈乾淨 stateless 的）——**沿用 Workflow 寫-leaf→合-build 工法**（不要 raw 多 background build lane）。
 2. **string-value seam**（~34 string TRIVIAL 卡這，valueOpSpecSink 只走 Float port；需第二個 seam）/**stateful-value seam**（CountInt 等）/Phase B point-buffer(~90)/shader-graph(~64)。
 3. 排修+新增：Float-Clamp min>max 修；stray MultiplyInt 在 /tmp 重港評估。clean 3 條 locked dead worktree（pid48770 stale lock）。
+
+## Cut 66 — Batch 8：8 顆 value-op int/bool TRIVIAL 葉子 ✅ (2026-06-17 凌晨,/sw-batch,Workflow)
+**承重達成**：value-op 第二批——IntAdd/SubInts/MultiplyInt/IntDiv/FloatToInt/SumInts/Any/All。**value-op TRIVIAL 至此 17 顆**（batch7 9 + batch8 8）+ Sin/PickFloat。HEAD `d7d8545`。--bite **173** NO-BITE:[]/check-arch OK。同 Cut65 Workflow 寫-leaf 工法（port 只寫 leaf→refuter 靜態驗→orchestrator 一次合 build）。**8/8 refuter MERGE-SAFE**。
+
+**fork（全具名）**：int-on-Float-port=(int) trunc-toward-zero（同 Floor/AddInts；C# int-div 也 trunc→IntDiv (int)n/(int)d byte-identical）；**IntDiv div-zero**=TiXL `IntDiv.cs:18 (d==0)?1:n/d` 硬編回 1（faithful 非發明 NaN guard）；**IntAdd=AddInts 忠實 twin**（同 2-arg int-add，異 port 名 Value1/2 vs Input1/2，.swproj wire 仍 byte-distinct；TiXL 兩顆都出。**更正:AddInts 是 fixed 2-arg 非 MultiInput**）；MultiplyInt 無溢位 guard（TiXL 同）**=乾淨重港 /tmp 雙觸發 stray**；SumInts/Any/All MultiInput→resident golden（flat evalFloat 不展）；Any 空→false（fold identity）/All 空→false（TiXL `result & anyConnected`）；bool-as-Float（Cut32）。
+
+**Resume — next（HEAD d7d8545；value-op 平行開採持續）**:
+1. **Batch 9：剩餘 value op 多帶複雜度**——held：CompareInt（dual-output，需確認 evalFloat outIdx≠0 純 stateless 路徑或走 resident）、PickInt（空連線 early-return）；vec4 output（RgbaToColor/DotVec4，需先查 Vector3Components outIdx layout）。**簡單 scalar value 池漸薄**→scout 撈剩餘簡單的（trig Tan/Asin…、Exp、Sign、Negate 等若未 port），薄了就 pivot。用 Workflow 寫-leaf 工法。
+2. **較大 unlock（建議 attended 做）**：string-value seam（~34 string TRIVIAL 卡，sink 只 Float）/stateful-value seam（CountInt 等）/Phase B point-buffer(~90)/shader-graph(~64)——承重/判斷重，留柏為在場時做。
+3. 排修：Float-Clamp min>max 修（task_d288a684）/clean 3 locked dead worktree（pid48770）/task_3fc122a2/c6a885db/602f15ec/2ee58abb/258d9510。/tmp stray MultiplyInt 已乾淨重港→可刪 /tmp 備份。
