@@ -142,6 +142,7 @@ const SelfTest kTable[] = {
     {"imagedecode", platform::runImageDecodeSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
+    {"rgbtvresident", runResidentRgbTvSelfTest},
     {"bypasscook", runBypassCookSelfTest},
     {"bypasscompound", runBypassCompoundSelfTest},
     {"graphbridge", runGraphBridgeSelfTest},

@@ -305,6 +305,13 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     for (int k = 0; k < texInputCount; ++k) tc.inputTextures[k] = texInputs[k];
     tc.inputTextureCount = texInputCount;
     tc.inputTexture = texInputs[0];
+    // ASSET texture ((E)-seam phase 2): resident mirror of flat cookTexNode — decode-and-cache once,
+    // bind via tc.assetTexture. Absent type = null -> byte-identical for every existing op.
+    {
+      auto ai = imageFilterAssetTextures().find(n->opType);
+      if (ai != imageFilterAssetTextures().end())
+        tc.assetTexture = cachedAssetTexture(p_->dev, ai->second, /*mipped=*/false);
+    }
     tc.params = tp;
     tx->second(tc);
     // mip-WRITE: leaf committed+waited internally (level 0 ready) -> fill levels 1..N via a blit

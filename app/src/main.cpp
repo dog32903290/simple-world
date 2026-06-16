@@ -30,7 +30,9 @@
 #include "app_delegate.h"   // AppDelegate + ViewDelegate + Renderer class definitions
 #include "platform/audio_capture.h"
 #include "platform/dialogs.h"
+#include "platform/image_decode.h"  // decodeImageToTexture (asset-texture decode leaf seam, app-owned)
 #include "runtime/compound_graph.h"
+#include "runtime/image_filter_op_registry.h"  // setAssetTextureDecoder (the asset-decode leaf seam)
 #include "runtime/compound_save.h"  // libToJsonV2 (eye state dump)
 #include "runtime/graph.h"
 #include "runtime/point_graph.h"
@@ -109,6 +111,11 @@ Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
       NS::String::string(SW_SHADER_METALLIB, NS::StringEncoding::UTF8StringEncoding), &err);
   if (g_shaderLib) {
     sw::registerBuiltinPointOps();
+    // Asset-texture decode leaf seam (ARCHITECTURE.md 葉子接縫): runtime exposes the fn-ptr; the app
+    // owns the platform decoder and registers it here. (runtime never includes platform/ImageIO.)
+    sw::setAssetTextureDecoder([](MTL::Device* dev, const char* absPath, bool mipped) -> MTL::Texture* {
+      return sw::platform::decodeImageToTexture(dev, std::string(absPath), mipped);
+    });
     g_pointGraph = new sw::PointGraph(_pDevice, g_shaderLib, _pCommandQueue, /*W=*/512, /*H=*/512);
     if (!g_pointGraph->valid()) {
       delete g_pointGraph;

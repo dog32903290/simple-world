@@ -402,6 +402,14 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     for (int k = 0; k < texInputCount; ++k) tc.inputTextures[k] = texInputs[k];
     tc.inputTextureCount = texInputCount;
     tc.inputTexture = texInputs[0];  // back-compat: single-input ops (Blur) read inputTexture
+    // ASSET texture ((E)-seam phase 2): if this op type declared an asset key, decode-and-cache it
+    // ONCE (cachedAssetTexture memoizes; NO per-frame decode) and bind via tc.assetTexture. Absent
+    // type = tc.assetTexture stays null -> every existing op's path is byte-identical.
+    {
+      auto ai = imageFilterAssetTextures().find(n->type);
+      if (ai != imageFilterAssetTextures().end())
+        tc.assetTexture = cachedAssetTexture(p_->dev, ai->second, /*mipped=*/false);
+    }
     tc.params = tp;
     tx->second(tc);
     // mip-WRITE: the leaf cook committed+waited internally, so level 0 is ready. Fill levels 1..N

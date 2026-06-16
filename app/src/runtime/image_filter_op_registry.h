@@ -60,6 +60,36 @@ std::map<std::string, ImageFilterSizeFn>& imageFilterSizeFns();
 // setMipFilter(Linear) on their sampler and sample(uv, level(lod)) — zero engine, zero sink entry.
 std::set<std::string>& imageFilterMippedOutputTypes();
 
+// ASSET-TEXTURE sink ((E)-seam phase 2, mirror of imageFilterComputeTypes()). An op that needs a
+// loaded asset texture bound at the NEXT texture slot (t1 — the perlin-noise asset for RgbTV)
+// registers its cookType -> asset key (a TiXL "Lib:..." path). cookTexNode (flat + resident) then
+// resolves the key (resolveImageFilterAssetPath, pure-string via SW_ASSETS_DIR — runtime does NOT
+// touch ImageIO), decodes+uploads it ONCE via the registered decoder (cachedAssetTexture, NO
+// per-frame decode), and hands the cached texture to the leaf via TexCookCtx::assetTexture.
+// Absent type (every existing op) = no asset bound, assetTexture stays null — byte-identical path.
+std::map<std::string, std::string>& imageFilterAssetTextures();
+
+// Resolve a TiXL "Lib:images/..." asset key to an absolute repo path under SW_ASSETS_DIR. Pure
+// string (no platform include) — runtime owns the path math; the platform decoder owns ImageIO.
+// Returns "" if SW_ASSETS_DIR is unset. (Mirrors platform::resolveAssetPath, kept runtime-local so
+// point_graph.cpp needs no platform include — leaf-seam discipline, ARCHITECTURE.md 葉子接縫.)
+std::string resolveImageFilterAssetPath(const std::string& assetKey);
+
+// Asset-decode leaf seam (ARCHITECTURE.md 葉子接縫: runtime exposes a fn-ptr; the APP owns the
+// platform decoder and registers it; selftests register a direct shim). Signature mirrors
+// platform::decodeImageToTexture: decode the image at `absPath` to an OWNED MTL::Texture* (mipped if
+// requested), or nullptr. Until registered, asset binds resolve to null (graceful).
+using AssetTextureDecoder = MTL::Texture* (*)(MTL::Device* dev, const char* absPath, bool mipped);
+void setAssetTextureDecoder(AssetTextureDecoder fn);
+AssetTextureDecoder assetTextureDecoder();
+
+// Cached decoded texture for `assetKey` (decode+upload via the registered decoder on first request,
+// then memoize forever — device-global, like the PSO cache; mipped is part of the key). nullptr if
+// no decoder is registered or decode fails. Owned by the cache (no caller release). Dropped by
+// clearImageFilterAssetCache() so per-run-device selftests get a clean table.
+MTL::Texture* cachedAssetTexture(MTL::Device* dev, const std::string& assetKey, bool mipped);
+void clearImageFilterAssetCache();
+
 // RAII registrar: declare one file-scope static of this type at the end of each image-filter leaf.
 // selftestName/selftest are optional (some ops have no standalone golden); pass both to register a
 // `--selftest-<name>` / `--selftest-<name>-bug` pair.
@@ -71,11 +101,15 @@ struct ImageFilterOp {
 
 // RAII registrar for a COMPUTE leaf (-cs.hlsl). Same self-registration as ImageFilterOp PLUS:
 //   - inserts cookType into imageFilterComputeTypes() (cookTexNode gives its output ShaderWrite),
-//   - if sizeFn != nullptr, stores it in imageFilterSizeFns()[cookType] (output may shrink/grow).
+//   - if sizeFn != nullptr, stores it in imageFilterSizeFns()[cookType] (output may shrink/grow),
+//   - if assetTextureKey != nullptr, registers it in imageFilterAssetTextures() so cookTexNode binds
+//     the decoded asset at TexCookCtx::assetTexture (t1). The trailing default = nullptr keeps every
+//     existing compute-leaf call site (Crop/FastBlur) byte-identical.
 struct ImageFilterComputeOp {
   ImageFilterComputeOp(NodeSpec spec, const char* cookType, PointTexFn cook,
                        ImageFilterSizeFn sizeFn = nullptr, const char* selftestName = nullptr,
-                       int (*selftest)(bool) = nullptr, bool mippedOutput = false);
+                       int (*selftest)(bool) = nullptr, bool mippedOutput = false,
+                       const char* assetTextureKey = nullptr);
 };
 
 }  // namespace sw

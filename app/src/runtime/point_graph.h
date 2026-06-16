@@ -136,6 +136,10 @@ struct TexCookCtx {
   static constexpr int kMaxTexInputs = 4;
   const MTL::Texture* inputTextures[kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
   int inputTextureCount = 0;  // number of Texture2D INPUT ports (wired or not), capped at kMaxTexInputs
+  // ASSET texture ((E)-seam phase 2): a decoded asset bound at the slot AFTER the wired inputs (t1
+  // for a single-input op like RgbTV's noise). null unless the op's type registered an asset key in
+  // imageFilterAssetTextures(); cache-owned (NOT released by the leaf). See image_filter_op_registry.h.
+  const MTL::Texture* assetTexture = nullptr;
   MTL::Texture* output = nullptr;          // PointGraph-owned, pre-sized; op draws here
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
 };
@@ -293,6 +297,15 @@ int runResidentCropSelfTest(bool injectBug);
 // the square's input energy, DC gain 1) + edge softening + full ShaderWrite coverage. injectBug
 // paints a SOLID field (no edge) so the edge-softened + square-energy-band probes can't fire -> RED.
 int runResidentFastBlurSelfTest(bool injectBug);
+
+// RgbTV resident golden (resident_rgbtv_selftest.cpp): the (E)-seam phase-2 leaf driven through the
+// RESIDENT (production) cook path. RenderTarget paints a uniform gray field -> RgbTV terminal;
+// cookResident -> cookTexNode (resolves the registered asset key, calls the registered decoder, binds
+// the noise texture @t1) -> leaf generates input mips + dispatches the CRT kernel -> displayTex.
+// Golden region: GlitchAmount override 0 (kills both noise sources -> deterministic), pins the
+// center-row pixels to the flat-cooked GREEN reference + asserts the asset-decode seam fired.
+// injectBug drops the RGB stripe (PatternAmount 0) so the pinned pattern pixels diverge -> RED.
+int runResidentRgbTvSelfTest(bool injectBug);
 
 // Blur image-filter golden (point_ops_blur.cpp, lane I): the FIRST image filter (Texture2D in ->
 // Texture2D out). (a) BLUR MATH: fill a source texture with a hard 1px-wide vertical white line on
