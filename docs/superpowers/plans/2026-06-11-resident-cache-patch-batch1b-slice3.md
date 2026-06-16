@@ -1761,3 +1761,20 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 1. **★Batch B = (E) phase 2:second-tex-bind cook seam + RgbTV leaf**。second-tex-bind=image-filter cook 目前只綁 t0(input)→加 op 宣告需 asset-texture 綁 t1 的路(mirror registrar 模式,default-none byte-identical)。RgbTV leaf:**trace FloatsToBuffer ~24 param 連線順序路由(Cut 55 鐵律,_multiImageFxSetup compound!)**+input-mip-gen(自身 cook 內 allocate mipped scratch+blit+generateMipmaps+sample LOD 0..7=**消費 orphan mip seam**)+綁 perlin-noise asset@t1(decode 用 Cut 57,**包 AutoreleasePool**)+港 RgbTV.hlsl 1:1。golden:exact-pixel 在 **noise-independent 區**(RGB-shift/scanline 數學主導,非 noise-driven distortion)both cook+refuter。
 2. (D)gradient widget(柏為域)/multi-image seam/(C)Layer2d/UI-visual 續/keymap。
 3. 排修:task_602f15ec/task_2ee58abb/task_258d9510/視覺手感親測。
+
+## Cut 58 — RgbTV CRT op + second-tex asset-bind seam（(E) phase 2 完成）✅ (2026-06-16 早)
+**承重達成**：seam (E) 完工——RgbTV（首顆 asset-seam 消費者 + **救 orphan mip seam**，input-LOD glow）。HEAD `2cfd0e0`。--bite **143** NO-BITE:[]/check-arch OK。
+
+**★NAMED IMPROVEMENT-FORK（柏為 veto 已 queue=task_c6a885db）**：refuter 反查 t1 揪出**TiXL RgbTV 的 perlin 噪聲節點是斷開的**——`t1 ← Blur(空 LoadImage)≈黑`→退化成 uniform noise（TiXL WIP/bug，perlin LoadImage→Grain dangles）。build agent forward-trace 誤判 perlin→t1；refuter backward-trace + fixer 三方確認斷開。**我決定（柏為 你決定+視覺意圖）：連 perlin = 改進 fork**（CRT glitch 真的有空間噪聲），3 處 header/registrar/params 大聲具名「improvement-over-TiXL-WIP,非 noise-path byte-parity」。TiXL-faithful 數學（RGB stripe/vignette/scanline/mip-glow）仍 byte-parity；只 noise distortion 分岔。pre-blur(1.6) 不港（在空節點上，非 perlin，graph 不 cohere）。
+
+**second-tex-bind seam**：`imageFilterAssetTextures()` map→cached decode（calls=1 無 per-frame decode）綁 t1，兩 cook，default byte-identical（只 RgbTV 在 map）。runtime→platform decode 走 fn-ptr（main.cpp）無 zone violation。RgbTV=compute kernel；input-mip-gen 消費 Cut 53；**24-param FloatsToBuffer 路由逐字 trace（Cut 55 鐵律，field-order 無 mis-route）**；s0 sampler=MirrorClampToEdge（TiXL MIRROR_ONCE，原 ClampToEdge=refuter Point3 修）。
+
+**Opus refuter BLOCK→fixer→resolved**：seam/routing/兩cook/lifetime/check-arch SURVIVE；**BLOCK 2 點**：①Point1 t1=perlin（誤）vs TiXL=黑→fixer 確認斷開+決定 improvement-fork+加 GlitchAmount>0 golden ②Point3 s0 sampler→fixer 修 MirrorClampToEdge。golden 兩 cook caseA(GA=0 TiXL-faithful stripe,refuter 驗咬 routing swap)+caseB(GA=1 noise path,RED-proven shade-term zero)+casesDiffer。**caseB pins=self-capture**（fork 無 TiXL ground truth 故 regression-defense 非 parity;caseA 才是 parity 防線）。
+
+**本 session 累計 Cut51-58**：3 真 op（UI-parity/Crop-產線/FastBlur）+ **Cut57-58 seam(E)=PNG decoder + RgbTV 真 CRT op**（救 mip orphan + 開 asset seam）+ multi-pass seam + .t3-routing 工法修正 + 3 audit/decision chip。**mip seam 不再 orphan（RgbTV input-LOD 消費）**。
+
+**Resume — next**:
+1. **更多 asset-seam 消費者**（decoder+asset-bind 已開）：FakeLight（multi-image+asset?）/LightRaysFx（asset+FloatsToBuffer routing+2pass refine=之前判 trap²,需重評）——每顆 STEP-0 backward-trace 真實接線（Cut 58 教訓:forward-trace 會誤判）+routing trace（Cut 55）+exact-pixel golden(caseA parity 區)。
+2. **LoadImage op**（TiXL 真 source op，PNG→Texture2D）=decoder 的乾淨消費者，但 source op（()→tex）我方 image-filter cook（tex→tex）可能不支援→需評 source-op seam。
+3. (D)gradient widget(柏為域)/multi-image seam/(C)Layer2d/UI-visual 續(font/padding)/keymap。
+4. 排修/柏為域:task_c6a885db(RgbTV fork veto)/task_602f15ec/task_2ee58abb/task_258d9510/視覺手感親測(FastBlur/RgbTV/Crop)。
