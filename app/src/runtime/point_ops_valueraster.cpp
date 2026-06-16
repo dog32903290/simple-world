@@ -216,60 +216,39 @@ static const ImageFilterOp _reg_valueraster{
 //   RangeX=(0,1), RangeY=(0,1), MajorLineWidth=1.0, MinorLineWidth=0.25, Density=(1000,1000)).
 // No input texture (generator mode: no upstream wired).
 //
-// The grid renders world-space lines at decade-spaced intervals based on adaptive log10 stepping.
-// On a 256×256 output, pixel size in world coords = (1-0)/(256) = ~0.00390625 units/pixel.
-// unitsPerPixel ≈ fwidth(p.x) ≈ 0.00390625 (central difference).
-// rawStep = 0.00390625 * 1000 = 3.90625.
-// log10(3.90625) ≈ 0.5918.
-// decadeExpX = floor(0.5918) = 0.
-// majorStepX = 10^0 = 1.0.
-// minorStepX = 0.1.
-// fracDecX = log10(3.90625 / 1.0) = log10(3.90625) ≈ 0.5918.
-// minorFadeX = 1 - smoothstep(0.1, 0.9, 0.5918) ≈ 1 - 0.664 ≈ 0.336 (minor lines partially faded).
+// ASSERTION A (MAJOR-LINE DETERMINISTIC): pixel (0,0) is on the major gridline at world-X=0,
+//   world-Y=1. At this pixel, d=0 in Grid1D for majorX → independent of fwidth magnitude.
 //
-// Grid lines at world X = ..., 0.0, 1.0, ... (major) and X = 0.1, 0.2, ..., 0.9 (minor).
-// Grid lines at world Y = ..., 0.0, 1.0, ... (major) and Y = 0.1, ..., 0.9 (minor).
+//   Derivation (256×256):
+//   uv=(0,0) → rasterUv=(0,1) → p=(0,1).
+//   fwidth(p.x) ≈ 1/256 ≈ 0.003906.
+//   rawStep = 0.003906 * 1000 = 3.906. log10(3.906) ≈ 0.5918. decadeExp=0. majorStep=1.0.
+//   Grid1D(p.x=0, majorStep=1, width=1): s=0, fract(0)=0, d=min(0,1)=0. fs=0.003906.
+//     w=1.0*0.003906. smoothstep(w, w+fs, 0) = 0 → Grid1D=1.0. majorMask=1.0. lineMask=1.0.
+//   c = lerp(Background, LineColor, lineMask * LineColor.a) = lerp((0,0,0,0),(1,1,1,0.695),0.695).
+//     c.a = 0.695 * 0.695 = 0.48302.
+//   Gradient at p.y=1.0: distanceFromCenter=pow(sat(0.1),0.3)=pow(0.1,0.3)≈0.5012.
+//     amplifyCenterLine=lerp(1.5,1,sat(100))=1.0. colorTempFactor.a = lerp(1,1,0.5012)=1.0.
+//   c.a_final = 0.48302 * 1.0 * 1.0 = 0.48302 → uint8 = round(0.48302*255) = 123.
+//   MixOriginal=1, orgColor.a=0 → final alpha = c.a = 0.48302 → uint8 = 123.
+//   GPU measured: 123. GOLDEN: alpha ∈ [120, 126] (±3 for LSB rounding on Apple GPU).
 //
-// ASSERTION A: At least one pixel in the image is NOT transparent/black — the grid renders lines.
-//   (Grid exists: with default params there must be grid lines in the [0,1] range.)
-//   Concretely: center pixel (W/2, H/2) maps to rasterUv=(0.5, 0.5), p=(0.5, 0.5).
-//   p.x=0.5 → distance to nearest major (1.0): Grid1D(0.5, 1.0, 1.0).
-//     s = 0.5/1.0 = 0.5. fract(0.5) = 0.5. d = min(0.5, 0.5) = 0.5.
-//     fs = fwidth(0.5/1.0) ≈ 0.00390625 cells/px. w = 1.0 * 0.00390625 = 0.00390625.
-//     smoothstep(0.00781, 0.00391, 0.5) = 1.0 → Grid1D = 0.
-//   p.x=0.5 → distance to nearest minor (0.1): Grid1D(0.5, 0.1, 0.25).
-//     s = 0.5/0.1 = 5.0. fract(5.0) = 0.0. d = min(0.0, 1.0) = 0.0.
-//     fs = fwidth(5.0) ≈ 0.0390625. w = 0.25*0.0390625 = 0.009765.
-//     smoothstep(0.04882, 0.009765, 0.0) ≈ 1.0 → Grid1D ≈ 1.0.
-//   p.x=0.5 IS on a minor grid line (5 * 0.1 = 0.5). Grid contributes.
-//   Similarly p.y=0.5 is on a minor grid line (5 * 0.1 = 0.5).
-//   lineMask at center ≈ 1.0 → c = LineColor * gradient-factor.
-//   The gradient factor at p.y=0.5: distanceFromCenter = pow(sat(0.05), 0.3) ≈ 0.316.
-//   amplifyCenterLine = mix(1.5, 1, sat(50)) = 1.0.
-//   ColorTempFactor = mix(1.0, sat(mix(warm,cool, sat(0.5))), 0.316) ≈ 1.0 (simplest bound).
-//   Net c.a ≥ 0 (even capped by 0.695 * 1.0 * some gradient), c.rgb > 0.
-//   MixOriginal=1.0, orgColor=(0,0,0,0) (no input).
-//   a = 0*1 + c.a - 0*1*c.a = c.a > 0.
-//   → Center pixel should have alpha > 0 AND some R,G,B > 0.
+//   injectBug: Color.a=0 → lerp weight=0 → c=Background=(0,0,0,0) → alpha=0 → RED.
 //
-// ASSERTION B: A pixel far from any grid line should be DARK (background-like).
-//   p = (0.17, 0.17) → not on a major (nearest 0.0 or 1.0 → far) or minor (0.1,0.2 → distance 0.07).
-//   Actually 0.17 is between 0.1 and 0.2 (minor), distance = min(0.17-0.1, 0.2-0.17)/stepScale.
-//   With Density=1000, high fading → minor lines partially invisible. This pixel should be dark.
-//   We check pixel (W*0.17, H*0.17) ≈ pixel (43, 43): expect low alpha (<80).
+// ASSERTION B (PLATEAU EXACT): pixel (96,96) → rasterUv=(0.375, 0.625) → p=(0.375, 0.625).
+//   p.x=0.375 → s=0.375/0.1=3.75, fract=0.75, d=min(0.75,0.25)=0.25.
+//   fs=fwidth(3.75)≈0.039062. w=0.25*0.039062=0.009766.
+//   smoothstep(0.009766, 0.04883, 0.25): 0.25 >> 0.04883 → returns 1.0 → Grid1D=0.
+//   All grid1D terms evaluate to 0 → lineMask=0 → c=Background → alpha=0. GPU measured: 0.
+//   GOLDEN: alpha == 0 (exact — deep in plateau, no grid line within many fwidth distances).
 //
-// ASSERTION C (injectBug):  Set MajorLineWidth=0.0 AND MinorLineWidth=0.0 → all w=0 in Grid1D →
-//   smoothstep(fs, fs, d) = 1 for d<fs and 0 otherwise → lines collapse to zero width → grid
-//   becomes effectively invisible → center pixel drops to transparent/black.
-//   (The center pixel which IS on a grid line: d=0, w=0, smoothstep(fs, fs, 0) = 0 for fs>0
-//    → Grid1D = 1-0 = 1. Hmm, need a cleaner injectBug.)
-//   Better injectBug: set RangeX=(100,101), RangeY=(100,101) → world coords 100-101, far from
-//   any decade lines that fwidth-computed step would find within the pixel → rawStep=0.00390625*1000
-//   same but p shifts to 100-101 range → Grid1D at p=100.5 with majorStep=1.0 → d=fract(100.5)=0.5
-//   → same computation but amplifyCenterLine = mix(1.5,1,sat(abs(100.5*100))) = 1.0. Actually
-//   line existence doesn't change, so this isn't a clean kill.
-//   Cleanest injectBug: set Color.a=0.0 → LineColor.a=0 → lineMask*LineColor.a = 0 → c=Background
-//   everywhere. With Background.a=0 → output is fully transparent → center pixel alpha=0. RED.
+// FORK NOTES:
+//   [fork-generatemips-unmodelled]: TiXL ValueRaster.t3 sets GenerateMips=true. sw output is
+//     un-mipped (not registered in imageFilterMippedOutputTypes). No LOD consumer exists yet;
+//     non-blocking. Register there when an LOD consumer is added.
+//   [fork-samplelevel]: shader now uses sample(texSampler, uv, level(0.0)) matching TiXL HLSL
+//     SampleLevel(texSampler, uv, 0.0). Bit-identical on un-mipped inputs, but correctly
+//     pins LOD=0 to match TiXL intent rather than relying on implicit gradient.
 int runValueRasterSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   const uint32_t W = 256, H = 256;
@@ -317,36 +296,25 @@ int runValueRasterSelfTest(bool injectBug) {
   std::vector<uint8_t> out((size_t)W * H * 4, 0);
   dst->getBytes(out.data(), W * 4, MTL::Region::Make2D(0, 0, W, H), 0);
 
-  // Assertion A: center pixel (W/2, H/2) near a minor grid line (p≈(0.502,0.502), closest
-  // minor at 0.5=5*0.1). lineMask is moderate due to minorFade at this density; we only assert
-  // alpha>10 — enough to confirm grid is rendering, injectBug (Color.a=0) drops to 0 → RED.
-  // Derivation: fwidth(p.x)≈1/256≈0.003906, rawStep=3.906, fracDecX≈0.59, minorFadeX≈0.26.
-  // Grid1D(0.502,0.1,0.25)≈0.15, minorX=0.15*0.26≈0.04. c.a≈0.695*0.04≈0.028 → alpha≈7.
-  // GPU measured 34 (GPU rounding / better fwidth estimate); threshold >10 is conservative.
-  const uint32_t cx = W / 2, cy = H / 2;
-  size_t ci = ((size_t)cy * W + cx) * 4;
-  int cA = out[ci+3];
-  bool centerVisible = (cA > 10);
+  // Assertion A: pixel (0,0) — exactly on major gridline (world-X=0, world-Y=1). d=0 in Grid1D
+  // for majorX → fwidth-independent result. Expected alpha=123 ±3 (see MATH golden above).
+  // injectBug (Color.a=0): c=Background everywhere → alpha=0 → RED.
+  int aA = (int)out[3];  // pixel(0,0) alpha (offset = 0*W*4 + 0*4 + 3 = 3)
+  bool majorLineVisible = (aA >= 120 && aA <= 126);
 
-  // Assertion B: pixel far from any grid line should be dark (low alpha).
-  // Use pixel at (W*3/8, H*3/8) ≈ (96, 96) → UV=(0.375, 0.375) → p=(0.375, 0.375).
-  // Nearest minor: 0.3 and 0.4 → distance = min(0.075, 0.025) = 0.025 in world units.
-  // s = 0.375/0.1 = 3.75. fract(3.75) = 0.75. d = min(0.75, 0.25) = 0.25.
-  // fs ≈ fwidth(3.75) ≈ 0.0390625. w = 0.25*0.0390625 = 0.009766.
-  // smoothstep(0.0488, 0.00977, 0.25): 0.25 >> 0.0488 → returns 1.0 → Grid1D = 0.
-  // With minor fade ≈ 0.336: minorX = 0 * 0.336 = 0. lineMask = 0 → c = Background → alpha=0.
-  // We expect A < 30.
+  // Assertion B: pixel (96,96) — plateau, deep off-grid. Expected alpha == 0 (exact).
+  // p=(0.375,0.625): nearest minor line distance 0.25/step >> fwidth → lineMask=0 → Background.
   const uint32_t bx = W * 3 / 8, by = H * 3 / 8;
   size_t bi = ((size_t)by * W + bx) * 4;
   int bA = out[bi+3];
-  bool offGridDark = (bA < 30);
+  bool plateauBlack = (bA == 0);
 
-  printf("[selftest-valueraster] A center(%d,%d) alpha=%d centerVisible=%d | "
-         "B offgrid(%d,%d) alpha=%d offGridDark=%d\n",
-         cx, cy, cA, centerVisible ? 1 : 0,
-         bx, by, bA, offGridDark ? 1 : 0);
+  printf("[selftest-valueraster] A major-line(0,0) alpha=%d majorLineVisible=%d [expect 120-126] | "
+         "B plateau(%d,%d) alpha=%d plateauBlack=%d [expect 0]\n",
+         aA, majorLineVisible ? 1 : 0,
+         bx, by, bA, plateauBlack ? 1 : 0);
 
-  bool pass = centerVisible && offGridDark;
+  bool pass = majorLineVisible && plateauBlack;
   printf("[selftest-valueraster] -> %s\n", pass ? "PASS" : "FAIL");
 
   dst->release();

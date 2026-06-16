@@ -25,6 +25,12 @@
 // [fork-distancefromcenter-gradient]  HLSL L96-100: color temperature gradient blended in by
 //   p.y. Kept verbatim including the `pow(saturate(abs(p.y*0.1)), 0.3)` formula and the
 //   `lerp(1.5, 1, saturate(abs(p.y*100)))` center-line amplification.
+// [fork-generatemips-unmodelled]  TiXL ValueRaster.t3 sets GenerateMips=true. sw output is
+//   un-mipped (not in imageFilterMippedOutputTypes). Non-blocking: no LOD consumer yet.
+//   Register in imageFilterMippedOutputTypes when a downstream LOD consumer is added.
+// [fork-samplelevel]  TiXL HLSL L102 uses SampleLevel(texSampler, uv, 0.0) (explicit LOD0).
+//   MSL: sample(texSampler, uv, level(0.0f)). Bit-identical on un-mipped inputs; more
+//   faithful to TiXL than implicit gradient sampling.
 #include <metal_stdlib>
 #include "valueraster_params.h"
 using namespace metal;
@@ -137,7 +143,9 @@ fragment float4 valueraster_fs(VSOut in                        [[stage_in]],
            distanceFromCenter) * amplifyCenterLine;
 
   // HLSL L102: sample input (or 1x1 black dummy when no upstream is wired).
-  float4 orgColor = inputTexture.sample(texSampler, uv);
+  // [fork-samplelevel]: TiXL HLSL uses SampleLevel(texSampler, uv, 0.0) — explicit LOD0.
+  // MSL equivalent: sample(texSampler, uv, level(0.0)). Bit-identical on un-mipped inputs.
+  float4 orgColor = inputTexture.sample(texSampler, uv, level(0.0f));
 
   // HLSL L104-106: alpha composite c over orgColor, clamped to valid range.
   float a   = orgColor.a * saturate(P.MixOriginal) + c.a - orgColor.a * saturate(P.MixOriginal) * c.a;
