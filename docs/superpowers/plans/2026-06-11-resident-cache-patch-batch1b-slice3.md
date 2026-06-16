@@ -1911,3 +1911,15 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 1. **Batch 9：剩餘 value op 多帶複雜度**——held：CompareInt（dual-output，需確認 evalFloat outIdx≠0 純 stateless 路徑或走 resident）、PickInt（空連線 early-return）；vec4 output（RgbaToColor/DotVec4，需先查 Vector3Components outIdx layout）。**簡單 scalar value 池漸薄**→scout 撈剩餘簡單的（trig Tan/Asin…、Exp、Sign、Negate 等若未 port），薄了就 pivot。用 Workflow 寫-leaf 工法。
 2. **較大 unlock（建議 attended 做）**：string-value seam（~34 string TRIVIAL 卡，sink 只 Float）/stateful-value seam（CountInt 等）/Phase B point-buffer(~90)/shader-graph(~64)——承重/判斷重，留柏為在場時做。
 3. 排修：Float-Clamp min>max 修（task_d288a684）/clean 3 locked dead worktree（pid48770）/task_3fc122a2/c6a885db/602f15ec/2ee58abb/258d9510。/tmp stray MultiplyInt 已乾淨重港→可刪 /tmp 備份。
+
+## Cut 67 — Batch 9：7 value op via 已建路徑 + Phase C 易採池見底 ⏸ (2026-06-17 凌晨,/sw-batch,Workflow,後 wind-down)
+**承重達成**：value-op 第三批——PickBool/MinInt/MaxInt/MultiplyInts（MultiInput resident，仿 PickFloat/SumInts）+ DotVec4/Vector4Components（vecArity=4）+ **CompareInt（首顆 dual-output value_op）**。**value-op TRIVIAL 至此 24 顆**（b7:9 + b8:8 + b9:7）+ Sin/PickFloat = 26 value op。HEAD `55568c5`。--bite **180** NO-BITE:[]/check-arch OK。7/7 refuter MERGE-SAFE。
+**新路徑確立**：①多輸出 value_op 用 evalFloat(outIdx-n)（CompareInt dual-output 證；仿 Vector3Components `value_eval_ops.cpp:298`）②vecArity=4 **無 UI gap**（inspector/node_registry clamp N=4,precedent StarGlowStreaks Color）。fork：MinInt/MaxInt empty→0（TiXL Int32.Max/MinValue 但 resident gather 永≥1 slot 故不可達；不可用 2.1e9 sentinel 污染 Float spine）；MultiplyInts empty→0 faithful；CompareInt mode-clamp[0,3]（TiXL `.Clamp`）。**RgbaToColor BLOCKED**（輸出型別 Slot<Vector4>，Float spine 無 vec4 output 型別→需 vec4-output-type seam）。
+
+**★Phase C 易採池見底 → 主動 wind-down（不是 stall，是判斷）**：image generator(11)+value TRIVIAL(24) 都採完；剩下 value op 全卡未建 seam（vec4-output-type / string-value[~34, sink 只 Float] / stateful-value[CountInt 等]）。這些 + Phase B 大 seam（point-buffer~90 / shader-graph~64 / dx11-wrapper~25→camera3d~50+Layer2d~37）= 承重+判斷重，**5am 無人值守不開**（incident 教訓:botched 葉子可丟,botched foundation seam 更貴）。**自走暫停,留乾淨 handoff 等柏為定下一塊大 seam。**
+
+**Resume — next（HEAD 55568c5；易採完,進承重 seam 階段,建議 attended）**:
+1. **柏為 定下一塊大 seam**（皆 Workflow/全工法可做）：① **point-buffer(~90)** 最大單一解鎖,粒子系統已馴服本質複雜=R2 有藍本 ② **shader-graph(~64)** field 全島,inline-HLSL codegen 撞預編譯哲學需設計 ③ **string-value seam**（~34 string TRIVIAL,仿 valueOpSpecSink 加 string port 型別到 eval）④ **vec4-output-type seam**（解鎖 RgbaToColor/PickColor）⑤ **stateful-value seam**（CountInt 等）。
+2. 殘值 op（need seam 後）：RgbaToColor/PickColor(vec4-out)/string 桶/CountInt 等 stateful。
+3. 排修同上。
+**★承重 seam 工法（已驗）**：Plan→Workflow（寫-leaf port→refuter）或 Opus build(worktree)→獨立 refuter→orchestrator 一次合 build+--bite+commit。value/CPU 用寫-leaf-no-build 避並行 build 風暴（Cut65）。
