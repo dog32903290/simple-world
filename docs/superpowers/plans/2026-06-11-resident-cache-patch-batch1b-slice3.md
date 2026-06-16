@@ -1749,3 +1749,15 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 - **(C) Layer2d+Execute seam**（最大但 brittle blend-order golden+視覺判斷域）→Glow/Bloom/ScreenCloseUp/真-blend compound。
 - 非-image 軸:UI-visual 續(font/title padding Cut51 #17/#20)/interaction keymap/task_258d9510 audit 若揪 parity bug。
 **柏為一句「走 X」即可續**（推薦 (E) asset-texture+RgbTV:給 orphan mip seam 補消費+ship 真 CRT op）。
+
+## Cut 57 — (E) asset-texture seam phase 1：native PNG decode 子系統 ✅ (2026-06-16 早,柏為 steer「走 (E)」)
+**承重達成**：柏為 早上重發「你決定+不要停」→ 我自決 **走 (E)**（Cut 56 我把投資決策收太緊待 steer=under-用授權,柏為 點明後直接動）。app 之前**零 image-loading**→建 macOS-native ImageIO 解碼。HEAD `6094835`。--bite **141** NO-BITE:[]/check-arch OK。**phase 1/2:phase 2=second-tex-bind cook seam + RgbTV**（首消費者,順帶救 orphan mip seam）。
+
+**decoder（`platform/image_decode.{h,mm}`+`_selftest.mm`）**：ImageIO/CoreGraphics PNG→RGBA8→`MTL::Texture`(放 platform 區=native 接口正確分區,check-arch 綠;無 vendored dep)。`resolveAssetPath`(SW_ASSETS_DIR,`Lib:images/...`→`assets/images/...`)。**真 TiXL 噪聲圖 `perlin-noise-rgb.png` 搬進 repo**(shasum `45a17e4f…` byte-identical,external/tixl 未動)。**decode parity vs TiXL 三重獨立證**(PIL+手刻 IDAT decompress+decoder 全 byte-identical):linear RGBA8Unorm(TiXL `Texture.cs:39` R8G8B8A8_UNORM 無 sRGB gamma)/channel RGBA(`:104` WIC Format32bppRGBA)。**named fork**:CoreGraphics 強制 premultiplied alpha→對全不透明 asset(alpha=255)是 no-op(透明 asset 未來需 un-premult 路,header 已記)。
+
+**proof=`--selftest-imagedecode`**:解真 asset 斷言 512×512+4 pin 含 load-bearing R≠G≠B `(100,200)=(106,191,102)`(channel swap 過不了);-bug(R↔B)RED。ground truth 獨立(非 decoder 自證)。**Opus refuter MERGE-SAFE 6/6**(三重 decode 證/shasum/MTL lifetime 對 tex_op_cache/check-arch/asset git-tracked 會 ship)。**非阻塞 note(phase 2 必守)**:RgbTV cook loop 每幀呼叫 decode 須自己包 AutoreleasePool(header 已記)。
+
+**Resume — next**:
+1. **★Batch B = (E) phase 2:second-tex-bind cook seam + RgbTV leaf**。second-tex-bind=image-filter cook 目前只綁 t0(input)→加 op 宣告需 asset-texture 綁 t1 的路(mirror registrar 模式,default-none byte-identical)。RgbTV leaf:**trace FloatsToBuffer ~24 param 連線順序路由(Cut 55 鐵律,_multiImageFxSetup compound!)**+input-mip-gen(自身 cook 內 allocate mipped scratch+blit+generateMipmaps+sample LOD 0..7=**消費 orphan mip seam**)+綁 perlin-noise asset@t1(decode 用 Cut 57,**包 AutoreleasePool**)+港 RgbTV.hlsl 1:1。golden:exact-pixel 在 **noise-independent 區**(RGB-shift/scanline 數學主導,非 noise-driven distortion)both cook+refuter。
+2. (D)gradient widget(柏為域)/multi-image seam/(C)Layer2d/UI-visual 續/keymap。
+3. 排修:task_602f15ec/task_2ee58abb/task_258d9510/視覺手感親測。
