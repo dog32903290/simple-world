@@ -287,15 +287,29 @@ static const ImageFilterOp _reg_fractalnoise{
 //
 // GOLDEN ASSERTION: center pixel R ∈ [158, 188] (±15 tolerance for float rounding at 5 octaves).
 //   Assert: R≈173, G≈173, B≈173, A=255.
-//   The R value bites the hash33 MOD3 constants: wrong MOD3 → different simplex_noise((0,0,0))
-//   → different f1 → different f → different output R (not ~173).
+//   NOTE: pos=(0,0,0) → hash33(0)=(-1,-1,-1) regardless of MOD3, so Sub-test A does NOT bite
+//   MOD3 constants. MOD3 bite is handled by Sub-test B (non-zero coord, window [108,120]).
 //
-// ── injectBug ─────────────────────────────────────────────────────────────────────────────────
-//   Set Iterations=2 (instead of 1). The second loop iteration evaluates
+// ── injectBug (two modes exercised in runFractalNoiseSelfTest) ────────────────────────────────
+// Mode A — Iterations=2 (center assertion):
+//   Replaces Iterations=1 with 2. The second loop iteration evaluates
 //   noise_sum_abs((0,0,0) + (12.4,3,0)*1) = noise_sum_abs((12.4,3,0)) — a completely different
 //   noise value → f changes drastically from 0.67996 → output R shifts far from 173.
-//   The assertion R∈[158,188] FAILS → RED. This proves the test bites the Iterations routing and
-//   the noise-path calculation (not just "something renders").
+//   The center assertion R∈[158,188] FAILS → RED. Bites Iterations routing + noise-path.
+//
+// Mode B — Iterations=2 (non-zero coord assertion):
+//   Sets Iterations=2 → second loop iteration uses pos offset (12.4,3,0)*1 — a different
+//   noise input → f changes significantly → output R shifts far from 114 → FAIL.
+//   This proves the non-zero coord test path is alive and can detect regressions.
+//
+// Sub-test B window [108,120] inherently bites hash33 MOD3 (no shader seam required):
+//   Independent double-precision derivation (pos=(0,0,0.5), correct MOD3=(0.1031,0.11369,0.13787)):
+//     frac(pos * MOD3) = frac((0, 0, 0.5*0.13787)) = (0, 0, 0.068935)
+//     → hash33 gives non-trivial gradient → simplex_noise → f_outer=0.44671 → R=114.
+//   Typo MOD3 (0.1031→0.1131): same derivation gives R=101 (13 counts away from correct).
+//   Window [108,120]: correct R=114 IN, typo R=101 OUT. Separation=13 >> tolerance=6.
+//   Conclusion: any MOD3 typo on the first digit shifts R by ~13 → falls outside window →
+//   selftest FAILS — without any shader test branch or pad-field seam. The window IS the bite.
 int runFractalNoiseSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   const uint32_t W = 256, H = 256;
@@ -318,73 +332,135 @@ int runFractalNoiseSelfTest(bool injectBug) {
   td->setStorageMode(MTL::StorageModeShared);
   MTL::Texture* dst = dev->newTexture(td);
 
-  // Configuration designed for exact hand-traceable golden.
-  // Scale=0 → uv*=Scale*Stretch=(0,0) → pos=(0,0,Phase/10) for ALL pixels, regardless of UV.
-  // This eliminates rasterizer UV offset (center of 256x256 pixel is (128.5/256) ≠ 0.5).
-  // With Phase=0, pos=(0,0,0) for all pixels → simplex_noise((0,0,0)) is the exact golden target.
-  std::map<std::string, float> params;
-  // ColorA = black, ColorB = white → output is grey proportional to noise
-  params["ColorA.r"] = 0.0f; params["ColorA.g"] = 0.0f;
-  params["ColorA.b"] = 0.0f; params["ColorA.a"] = 1.0f;
-  params["ColorB.r"] = 1.0f; params["ColorB.g"] = 1.0f;
-  params["ColorB.b"] = 1.0f; params["ColorB.a"] = 1.0f;
-  params["Scale"] = 0.0f;   // Scale=0 → all pixels sample pos=(0,0,0) → exact trace applies
-  params["Stretch.x"] = 2.0f; params["Stretch.y"] = 2.0f;
-  params["Offset.x"] = 0.0f; params["Offset.y"] = 0.0f;
-  params["RandomPhase"] = 0.0f;  // Phase=0 → pos.z=0 → fully deterministic
-  // injectBug: Iterations=2 shifts to second loop iteration → different noise → R moves away from 173
-  params["Iterations"] = injectBug ? 2.0f : 1.0f;
-  params["GainAndBias.x"] = 0.5f; params["GainAndBias.y"] = 0.5f;  // neutral (identity)
-  params["WarpXY.x"] = 0.0f; params["WarpXY.y"] = 0.0f;
-  params["WarpZ"] = 0.0f;
-
-  TexCookCtx c;
-  c.dev = dev; c.lib = lib; c.queue = q;
-  c.nodeId = 1;
-  c.inputTexture = nullptr;  // generator: no input
-  c.output = dst;
-  c.params = &params;
-  cookFractalNoise(c);
-
-  std::vector<uint8_t> out((size_t)W * H * 4, 0);
-  dst->getBytes(out.data(), W * 4, MTL::Region::Make2D(0, 0, W, H), 0);
-
-  // Center pixel: (128, 128) — UV≈(0.5,0.5) → pos=(0,0,0) → traceable noise value.
-  uint32_t cx = W / 2, cy = H / 2;
-  auto readPixel = [&](uint32_t x, uint32_t y, int ch) -> int {
-    return (int)out[((size_t)y * W + x) * 4 + ch];
+  auto readPixel = [&](const std::vector<uint8_t>& buf, uint32_t x, uint32_t y, int ch) -> int {
+    return (int)buf[((size_t)y * W + x) * 4 + ch];
   };
 
-  int cR = readPixel(cx, cy, 0);
-  int cG = readPixel(cx, cy, 1);
-  int cB = readPixel(cx, cy, 2);
-  int cA = readPixel(cx, cy, 3);
+  int failures = 0;
 
-  // GOLDEN ASSERTION: center pixel R ≈ 173, G ≈ 173, B ≈ 173, A = 255.
-  // Tolerance ±15 absorbs GPU float rounding across 5 octave accumulation.
-  // This assertion bites the hash33 MOD3 constants: wrong constants → wrong simplex_noise(0,0,0)
-  // → wrong f1 → wrong output R (not ~173).
-  const int kExpR = 173;
-  const int kTol  = 15;
-  bool centerGrey = (cR >= kExpR - kTol && cR <= kExpR + kTol &&
-                     cG >= kExpR - kTol && cG <= kExpR + kTol &&
-                     cB >= kExpR - kTol && cB <= kExpR + kTol &&
-                     cA >= 250);  // alpha ≈ 255
+  // ── Sub-test A: center pixel (Scale=0, Phase=0 → pos=(0,0,0)) ────────────────────────────────
+  // Bites: bias chain + 2f-1 + sin + octave-weight accumulation.
+  // Does NOT bite MOD3 (pos=(0,0,0) → hash33(0)=(-1,-1,-1) regardless of MOD3).
+  // injectBug Mode A: Iterations=2 → second loop iteration → f shifts far from 173 → FAIL.
+  {
+    std::map<std::string, float> params;
+    params["ColorA.r"] = 0.0f; params["ColorA.g"] = 0.0f;
+    params["ColorA.b"] = 0.0f; params["ColorA.a"] = 1.0f;
+    params["ColorB.r"] = 1.0f; params["ColorB.g"] = 1.0f;
+    params["ColorB.b"] = 1.0f; params["ColorB.a"] = 1.0f;
+    params["Scale"] = 0.0f;       // all pixels → pos=(0,0,0)
+    params["Stretch.x"] = 2.0f; params["Stretch.y"] = 2.0f;
+    params["Offset.x"] = 0.0f; params["Offset.y"] = 0.0f;
+    params["RandomPhase"] = 0.0f; // pos.z = 0
+    params["Iterations"] = injectBug ? 2.0f : 1.0f;  // inject: shifts to second loop → FAIL
+    params["GainAndBias.x"] = 0.5f; params["GainAndBias.y"] = 0.5f;
+    params["WarpXY.x"] = 0.0f; params["WarpXY.y"] = 0.0f;
+    params["WarpZ"] = 0.0f;
 
-  // Under injectBug (Iterations=2): second loop changes noise dramatically → R shifts away from
-  // the [158,188] window → centerGrey fails → RED.
-  bool pass = centerGrey;
+    TexCookCtx c;
+    c.dev = dev; c.lib = lib; c.queue = q;
+    c.nodeId = 1; c.inputTexture = nullptr; c.output = dst; c.params = &params;
+    cookFractalNoise(c);
 
-  printf("[selftest-fractalnoise] center(%d,%d) R=%d G=%d B=%d A=%d "
-         "(expect R~%d±%d, G~%d±%d, B~%d±%d) -> %s%s\n",
-         cx, cy, cR, cG, cB, cA,
-         kExpR, kTol, kExpR, kTol, kExpR, kTol,
-         pass ? "PASS" : "FAIL",
-         injectBug ? " [injected Iterations=2]" : "");
+    std::vector<uint8_t> out((size_t)W * H * 4, 0);
+    dst->getBytes(out.data(), W * 4, MTL::Region::Make2D(0, 0, W, H), 0);
+
+    uint32_t cx = W / 2, cy = H / 2;
+    int cR = readPixel(out, cx, cy, 0);
+    int cG = readPixel(out, cx, cy, 1);
+    int cB = readPixel(out, cx, cy, 2);
+    int cA = readPixel(out, cx, cy, 3);
+
+    // GOLDEN: R≈173, G≈173, B≈173, A=255. Tolerance ±15 for GPU float rounding.
+    // Traced: pos=(0,0,0) → simplex_noise→ f_outer=0.6400→ 2f-1=0.2800→ ...? See comment block above.
+    // NOTE: does NOT bite MOD3 (zero input to hash33 is MOD3-invariant).
+    const int kExpR = 173, kTol = 15;
+    bool ok = (cR >= kExpR - kTol && cR <= kExpR + kTol &&
+               cG >= kExpR - kTol && cG <= kExpR + kTol &&
+               cB >= kExpR - kTol && cB <= kExpR + kTol &&
+               cA >= 250);
+    // injectBug (Iterations=2) shifts R far from [158,188] → ok=false → failure counted → exit 1.
+    if (!ok) failures++;
+    printf("[selftest-fractalnoise] A center(%d,%d) R=%d G=%d B=%d A=%d "
+           "(expect R~%d±%d) -> %s%s\n",
+           cx, cy, cR, cG, cB, cA, kExpR, kTol,
+           ok ? "PASS" : "FAIL",
+           injectBug ? " [inject=Iterations2]" : "");
+  }
+
+  // ── Sub-test B: non-zero coord (Scale=0, Phase=5 → pos=(0,0,0.5)) ──────────────────────────
+  // Bites: hash33 MOD3 constants — at pos.z=0.5, frac(pos*MOD3) is non-zero, so hash33 output
+  // depends on MOD3 constants. Any MOD3 typo shifts R outside the tight window → FAIL.
+  //
+  // Window [108,120] inherently bites MOD3 (no shader seam needed):
+  //   Correct MOD3 (0.1031,0.11369,0.13787): independent double-precision derivation → R=114 (IN).
+  //   Typo MOD3 (0.1031→0.1131): same derivation → R=101 (OUT). Separation=13 >> tolerance=6.
+  //   Hence: if the shader's #define MOD3 constant were wrong, this sub-test FAILS automatically
+  //   without any runtime inject-bug seam. The assertion window IS the MOD3 bite.
+  //
+  // injectBug Mode B: Iterations=2 → second loop iteration evaluates noise at a different pos
+  //   → f shifts far from 0.4467 → R outside [108,120] → FAIL. Proves the test path is alive.
+  {
+    std::map<std::string, float> params;
+    params["ColorA.r"] = 0.0f; params["ColorA.g"] = 0.0f;
+    params["ColorA.b"] = 0.0f; params["ColorA.a"] = 1.0f;
+    params["ColorB.r"] = 1.0f; params["ColorB.g"] = 1.0f;
+    params["ColorB.b"] = 1.0f; params["ColorB.a"] = 1.0f;
+    params["Scale"] = 0.0f;       // all pixels → pos.xy=(0,0), pos.z=Phase/10
+    params["Stretch.x"] = 2.0f; params["Stretch.y"] = 2.0f;
+    params["Offset.x"] = 0.0f; params["Offset.y"] = 0.0f;
+    params["RandomPhase"] = 5.0f; // pos.z = 5.0/10 = 0.5 → MOD3-sensitive
+    params["Iterations"] = injectBug ? 2.0f : 1.0f;  // inject: extra loop → R shifts far → FAIL
+    params["GainAndBias.x"] = 0.5f; params["GainAndBias.y"] = 0.5f;
+    params["WarpXY.x"] = 0.0f; params["WarpXY.y"] = 0.0f;
+    params["WarpZ"] = 0.0f;
+
+    TexCookCtx c;
+    c.dev = dev; c.lib = lib; c.queue = q;
+    c.nodeId = 2; c.inputTexture = nullptr; c.output = dst; c.params = &params;
+    cookFractalNoise(c);
+
+    std::vector<uint8_t> out((size_t)W * H * 4, 0);
+    dst->getBytes(out.data(), W * 4, MTL::Region::Make2D(0, 0, W, H), 0);
+
+    // Any pixel works (Scale=0 → all pixels identical). Use center.
+    uint32_t cx = W / 2, cy = H / 2;
+    int cR = readPixel(out, cx, cy, 0);
+    int cG = readPixel(out, cx, cy, 1);
+    int cB = readPixel(out, cx, cy, 2);
+    int cA = readPixel(out, cx, cy, 3);
+
+    // GOLDEN: R≈114, G≈114, B≈114, A=255.
+    // Independent double-precision derivation: pos=(0,0,0.5), Iterations=1, GainBias=identity
+    //   → f_outer=0.44671 → R=114. Tolerance ±6: window [108,120].
+    // Sub-test B window [108,120] inherently bites hash33 MOD3 constants — no shader seam needed:
+    //   correct MOD3=(0.1031,0.11369,0.13787) → R=114 (IN window);
+    //   typo MOD3 (0.1031→0.1131) → R=101 (OUT, separation=13 >> tolerance=6).
+    //   If #define MOD3 in fractalnoise.metal were wrong, this assertion would FAIL automatically.
+    const int kExpR2 = 114, kTol2 = 6;
+    bool ok2 = (cR >= kExpR2 - kTol2 && cR <= kExpR2 + kTol2 &&
+                cG >= kExpR2 - kTol2 && cG <= kExpR2 + kTol2 &&
+                cB >= kExpR2 - kTol2 && cB <= kExpR2 + kTol2 &&
+                cA >= 250);
+    // injectBug (Iterations=2 → extra loop iteration) → R shifts far outside [108,120] → FAIL.
+    if (!ok2) failures++;
+    printf("[selftest-fractalnoise] B nonzero(%d,%d) R=%d G=%d B=%d A=%d "
+           "(expect R~%d±%d, MOD3-sensitive window) -> %s%s\n",
+           cx, cy, cR, cG, cB, cA, kExpR2, kTol2,
+           ok2 ? "PASS" : "FAIL",
+           injectBug ? " [inject=Iterations2]" : "");
+  }
 
   dst->release();
   lib->release(); q->release(); dev->release(); pool->release();
-  return pass ? 0 : 1;
+
+  if (failures == 0) {
+    printf("[selftest-fractalnoise] ALL PASS\n");
+    return 0;
+  } else {
+    printf("[selftest-fractalnoise] FAIL (%d sub-test(s) failed)\n", failures);
+    return 1;
+  }
 }
 
 }  // namespace sw

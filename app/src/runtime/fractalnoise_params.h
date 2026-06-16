@@ -57,7 +57,8 @@ struct FractalNoiseParams {
   float BiasY;       // float2 GainAndBias.y, default 0.5 (Bias)
   float WarpX, WarpY;  // float2 WarpOffsetXY, default (0,0)
   float WarpZ;         // float  WarpOffsetZ,  default 0.0
-  float _pad[3];       // pad 21 → 24 floats (6 × 16-byte registers = 96 bytes)
+  // [5].yzw — pad to 24 floats (6 × 16-byte registers = 96 bytes)
+  float _pad[3];       // pad 21 → 24 floats
 };
 
 struct FractalNoiseResolution {
