@@ -1795,3 +1795,28 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. 更多 asset op（FakeLight/LightRaysFx 需重評 backward-trace+routing+2pass）/LoadImage source op（需 source-op seam）。
 3. (D)gradient widget(柏為域)/(C)Layer2d(Glow/Bloom 大unlock,brittle+視覺判斷)/UI-visual 續(font/padding)/keymap。
 4. 排修/柏為域:task_3fc122a2(unwired-2nd-input convention)/task_c6a885db(RgbTV veto)/task_602f15ec/task_2ee58abb/task_258d9510/視覺手感親測。
+
+## Cut 60 — Phase A 普查完成：TiXL 全 op 庫接縫地基圖（工法大轉向後第一批，docs-only）📋 (2026-06-16 午後,/sw-batch 自走)
+**承重達成**：工法大轉向（`afb7b3e`,柏為 2026-06-16 定）後第一批=**Phase A 地基普查**，取代舊「一顆 op 撞一塊接縫」碎工法。掃 TiXL **931 顆 op**（Operators/Lib，跨 12 類別）→ 每顆標需要哪些 seam → 產**兩張地基表**存磁碟。零程式碼改動（docs-only，故無 --bite/HEAD code commit；地基圖本身是交付物）。lane 接上具名分支 **`sw-parity-lane`**（先前 Cut51-59 全在 detached HEAD `afb7b3e`，無 named branch 含之→易 orphan，本批 attach 修好；main 仍停 stale `a54b8c0`）。
+
+**派工法（context 衛生）**：orchestrator 全程不下場讀 op 源碼（憲法#6）。8 個 Sonnet census agent 並行（A1 simple_world 能力快照 + 7 類別分片 image/render/point/field+mesh/particle+flow/numbers/io+string+data+utils），每個**寫一個 census 檔 + 只回短摘要**（細節落磁碟不入 orchestrator context）。1 個 Opus synthesis agent join 出兩張主表。**事故**：field+mesh agent 首跑 API socket 死（tool_use 43,0 token）→查 tree（檔未落=無殘留）→fresh re-dispatch 綠（Cut 59 教訓:死≠落檔,re-dispatch 前查 tree）。
+
+**產出（`docs/agent/census/`）**：`_CENSUS_BRIEF.md`（共用簡報:seam 詞彙+方法+格式）/ `simple-world-state.md`（A1）/ `ops-<7 類別>.md`（per-op 分類）/ **`SEAM_GRAPH.md`（174 行,接縫依賴圖+Phase B 排序+策略）** / **`OP_BACKLOG.md`（256 行,按狀態分桶開採清單）**。
+
+**A1 關鍵事實**：simple_world 已 port **~112 顆**；brief 列的 10 條 seam **全部 ✓ 有代碼證據**（value-graph/compound/transport/particle-system/image-filter/multi-pass/mip/asset-texture/png-decode/multi-image）；無「宣稱建好卻找不到」。+8 條 brief 未列但已有的 seam。**孤兒 2 顆**=PolarCoordinates/EdgeRepeat（cook+metal 在,但 register fn 未呼叫+無 NodeSpec→選單不可達,死活待查）。
+
+**地基圖核心數字**：
+- **READY-LEAF-NOW ~173 顆**（踩已驗證 seam、現在就能進 Phase C，不需蓋任何新 seam）。其中 **~129 顆 numbers/string TRIVIAL**（純 value-graph,R1,零視覺判斷）=最安全並行燃料。
+- **三大島 READY-LEAF=0**：point(128)/field(60)/mesh(49) 全卡單一地基 seam，三者互不依賴可平行蓋。
+- **Phase B 建議順序（解鎖÷風險）**：B1 `point-buffer`（~90,R1,驗證 op RadialPoints/GridPoints）→ B2 `shader-graph`（~64,R1,SDF 全島,驗證 SphereSDF/BoxSDF）→ B3 `context-var`（15,R1,與 Layer2d 解耦,驗證 SetFloatVar→GetFloatVar 對拍）→ B4 `cpu-upload-texture`（4,Metal replaceRegion 現成,驗證 GradientsToTexture）→ B5 `dx11-api-wrapper`（~25,**底層鑰匙**,驗證 ClearRenderTarget/Draw）。
+- **seam 依賴鏈（不能跳）**：`dx11-api-wrapper → camera3d(~50) + Layer2d+Execute(~37)`；`network-io → osc/artnet-dmx/camera-tracking 三族共同 UDP 底層`；`mesh-pipeline(~49)`、`gradient-widget(14)`、`feedback(~11)`、`compute-readback(~7)`、`midi(10)`、`video-input(9)` 各自獨立。
+- **命名統一**（synthesis §0）：sdf-field=shader-graph；context-3d=camera3d；structured-list-cpu=cpu-point-list；cpu-readback-texture/readback-cpu=compute-readback。
+
+**策略推薦（synthesis,一句）**：**Phase C 立刻並行啟動，與 Phase B 大 seam 平行織**——~173 顆乾淨葉子踩已驗證 seam、與 seam 建設踩不同檔零互撞，等 Phase B 等於讓已鋪地基閒置。最該先蓋 3 塊=point-buffer / shader-graph（兩自足島可同跑）/ dx11-api-wrapper（3D+2D 大島唯一鑰匙）。
+
+**Phase C 開採前必查 5 項（synthesis 揪出）**：①sw 是否已有 `Gradient` 型別（擋 color-gradient ops）②sw 是否支援 dynamic hlsl 載入（10 顆 `_ImageFxShaderSetup2`）③AdsrCalculator 是否存在 ④孤兒 PolarCoordinates/EdgeRepeat 真死活（補 NodeSpec+kTable 可救 vs 廢棄）⑤multi-image 每顆開採前必 .t3 backward-trace（Cut 55 trap,DirectionalBlur 因此丟棄,仍列 BLOCKED 非 READY）。
+
+**Resume — next（階段=A 完成,進 B+C 並行）**:
+1. **Phase C 燃料 lane（可立刻並行）**：從 OP_BACKLOG READY-LEAF-NOW 拉 numbers/string TRIVIAL ~129 顆（最安全,worktree 平行,合流零衝突)。先做開採前必查①②③（決定哪些 image READY-LEAF 真乾淨）。
+2. **Phase B 第一塊**：B1 point-buffer 或 B2 shader-graph（兩自足島,全工法:Plan→Opus build→獨立 refuter→fixer→orchestrator 合流;各配驗證 op）。dx11-api-wrapper(B5)解最多 3D 但 R2+底層,排 point-buffer/shader-graph 後。
+3. 排修/柏為域:task_3fc122a2(unwired-2nd-input convention)/task_c6a885db(RgbTV→faithful,新改進規則下=parity 修非品味)/task_602f15ec/task_2ee58abb/task_258d9510。
