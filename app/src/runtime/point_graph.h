@@ -307,6 +307,14 @@ int runResidentFastBlurSelfTest(bool injectBug);
 // injectBug drops the RGB stripe (PatternAmount 0) so the pinned pattern pixels diverge -> RED.
 int runResidentRgbTvSelfTest(bool injectBug);
 
+// DistortAndShade resident golden (resident_distortandshade_selftest.cpp): the multi-image seam's
+// second resident consumer (Displace was first). Two RenderTarget sources (ramp + uniform) -> the op's
+// two Texture2D inputs via cookResident -> cookTexNode (recurses BOTH inputs into inputTextures[0/1]) ->
+// leaf samples ImageA at the ImageB-driven uv2 -> displayTex. Golden: hand-derived ramp pins on the
+// center row. injectBug OMITS the ImageB wire so the multi-image gather loses its 2nd input (ramp
+// self-displaces) -> the pins diverge -> RED.
+int runResidentDistortAndShadeSelfTest(bool injectBug);
+
 // Blur image-filter golden (point_ops_blur.cpp, lane I): the FIRST image filter (Texture2D in ->
 // Texture2D out). (a) BLUR MATH: fill a source texture with a hard 1px-wide vertical white line on
 // black, run Blur, assert the line SPREADS horizontally (neighbouring columns lit) — a no-op /

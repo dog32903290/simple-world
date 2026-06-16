@@ -143,6 +143,7 @@ const SelfTest kTable[] = {
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},
+    {"distortandshaderesident", runResidentDistortAndShadeSelfTest},
     {"bypasscook", runBypassCookSelfTest},
     {"bypasscompound", runBypassCompoundSelfTest},
     {"graphbridge", runGraphBridgeSelfTest},
