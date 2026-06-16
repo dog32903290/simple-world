@@ -360,6 +360,23 @@ int runNormalMapSelfTest(bool injectBug);
 // injectBug Amplify=10 -> distance saturates to 0 everywhere -> red alpha collapses -> FAIL.
 int runChromaKeySelfTest(bool injectBug);
 
+// --- SinForm image generator / pattern op (point_ops_sinform.cpp, Phase C C-3) ---
+// Single-pass aspect-corrected sinusoidal wave generator (TiXL image/generate/pattern/SinForm):
+// Copies stacked sin curves with OffsetCopies stacking, smoothstep feather (LineWidth/Fade),
+// alpha composite over optional input Image (default null = wave on black). Register into texReg.
+// MATH golden (no input): center pixel is ON the wave → white. Top-quarter pixel is off-wave →
+// transparent/black. injectBug Fill=(0,0,0,0) → center wave pixel goes black → FAIL.
+int runSinFormSelfTest(bool injectBug);
+
+// --- Rings image generator / pattern op (point_ops_rings.cpp, Phase C C-2) ---
+// Single-pass concentric-ring pattern generator (TiXL image/generate/pattern/Rings):
+// concentric rings with per-segment hash variation (thickness, fill-ratio, highlight seed),
+// optional BlendMode composite with upstream Image. Register into texReg.
+// MATH golden (no input): ring band pixel (row=80,col=64, 128x128, Count=5, Radius=(0,0.4)) →
+// bright (near-white Fill). Center pixel → black (isInsideRadius=0 → Background).
+// injectBug Fill=(0,0,0,1) → ring band same as background → ringBright FAILS.
+int runRingsSelfTest(bool injectBug);
+
 // --- DrawLines / DrawBillboards command ops (point_ops_drawlines.cpp / point_ops_drawbillboards.cpp,
 // lane L). Both Points→Command producers (DrawKind::Lines / ::Billboards); the executor
 // cookRenderTarget rasterizes them. Register into the command stream (cmdReg). ---
