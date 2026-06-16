@@ -1840,3 +1840,18 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. **value-op 自登記小基建**（仿 `imageFilterSpecSink` 建 `valueOpSpecSink`+`ValueOp` registrar，R1 有藍本）→ 解鎖 ~129 numbers/string TRIVIAL 可並行開採（目前共享 `node_registry_math.cpp` 撞檔）。承重 seam 全工法。
 3. **Phase B 第一塊 seam**：point-buffer（~90 解鎖，粒子系統已馴服本質複雜=R2 有藍本）blueprint。
 4. 排修同 Cut 60 + 新增 task_879b5335（strays/方向疑問）。
+
+## Cut 62 — Phase C 第二批：NGon / ValueRaster / Blob（3 generator 葉子，isolation:worktree 並行）✅ (2026-06-16 晚,/sw-batch)
+**承重達成**：再 3 顆 image generator 葉子。HEAD `45003aa`（NGon `8bf0039` / ValueRaster `35e195e`+fix`45003aa` / Blob `ec7ce19`）。--bite **151** NO-BITE:[]/check-arch OK。**isolation:worktree 這次有設（Cut 61 教訓）**→ 各自隔離 worktree、commit-in-worktree、orchestrator cherry-pick 合流（3 commit 全 leaf-only 零共享檔，conflict-free，local forward-decl 是關鍵）。generator-dummy-texture 慣例（Cut 61）穩定複用（6 顆 generator 全此招）。
+
+**★方向危機（柏為現身，session 中段）**：柏為被前一批 surface 的「06-07 imgui-metal-pivot banner（寫『不要再蓋自建 graph/command/runtime』）」嚇到，問「native-runtime parity 是不是我們在做的事」。**我停手調查（停 3 lane + watchdog），挖 git 地面真相**：判決 **(C) 同一條路，banner 措辭誤導，信心 95%**——pivot commit `aa560f3` 是 HEAD 直系祖先 + 06-08→16 commit 全連續 parity 無分叉 + 現役 code 三層並存（imgui-node-editor 皮 + metal-cpp 引擎 + 自建 graph/command/cook，正是 pivot 要的）。banner「不要蓋自建 runtime」真意=不要 clone TiXL 焊死搬不動的 runtime，同份 pivot 檔三次說自建 Metal runtime。寫進 memory [[sw-imgui-metal-pivot-is-parity-path]] 防再嚇。**我的失誤教訓：我把 banner 升級成存在危機卻沒先 open 那份檔/查 git——reasoning from authority 非 verify，差點變 Cut47 的「只自洽」。surface 矛盾對，但讓它懸著嚇人一小時不對。** 柏為「繼續走」→ 自決續 native-runtime（憲法#2 方向 orchestrator 定）→ re-dispatch（停掉的 lane 只留半成品無 commit，重跑）。
+
+**refuter（3 波 Opus 唯讀獨立重算）**：NGon MERGE-SAFE（golden 重算 sdNgon SDF / cbuffer 19float 零數學節點 / mod()全 floor 無 % 混用 / sampler Wrap 對 .t3）。Blob MERGE-SAFE（3 pin 重算 / rotation double-negation byte-parity / routing 零數學節點 / sampler=TiXL default 非 fork）。**ValueRaster BLOCK（port 對、golden 空洞）→ fixer 修**：refuter 獨立重算證 center alpha 34=正確 TiXL 值（build agent 手算 7 錯）、但 `>10` 閾值騎 fwidth-driven 半衰減 minor line=「有東西畫」非「對 TiXL」（柏為 Cut47）→ fixer 重設計成 **fwidth-independent 確定性 golden**：major-line pixel (0,0) d=0→Grid1D=1→alpha 123±3（fixer 獨立重算更正 refuter 估的 177=LineColor.a 折進 blend weight=0.695²，Python+GPU 兩路一致）+ off-grid plateau (96,96)==0 + injectBug RED。順手 sample(uv)→sample(uv,level(0))對 TiXL SampleLevel(...,0)。具名 fork GenerateMips=true 未建模（無 LOD 消費者非阻塞）。
+
+**★方法論教訓（reusable）**：image golden **絕不**用 fwidth-dependent / smoothstep 半衰減 pixel 當 exact 斷言（跨硬體 LSB 漂移）→ 挑 **d=0 飽和 plateau pixel**（major line / 中心填充 / 背景遠點），對 TiXL 公式手算確定值。寫進開採工單。
+
+**Resume — next（Phase C 並行進行中，HEAD 45003aa）**:
+1. **Batch 5 = 更多 image READY-LEAF**（備援 FraserGrid/RoundedRect/FractalNoise/Grain/WorleyNoise，注意 Grain/noise 可能要 temporal-random seam→STEP-0 閘擋）isolation:worktree 並行 + generator-dummy + **golden 用 d=0 plateau pixel（Cut 62 教訓）** + Opus refuter。
+2. **value-op 自登記基建**（仿 imageFilterSpecSink，解鎖 ~129 numbers/string TRIVIAL 並行）。
+3. **Phase B point-buffer blueprint**（~90 解鎖）。
+4. 排修同前。strays 3 檔仍留工作樹（無害歷史/研究，方向疑問已解=memory）。
