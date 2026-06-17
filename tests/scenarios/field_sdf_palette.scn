@@ -1,7 +1,8 @@
 # field_sdf_palette.scn — 活體牙: the Phase-C SDF fan-out ops are LIVE in the editor.
 #
-# WHAT THIS PROVES: the 5 new SDF field ops added on top of SphereSDF —
-#   BoxSDF / BoxFrameSDF / OctahedronSDF / CapsuleLineSDF / ChainLinkSDF —
+# WHAT THIS PROVES: the SDF field ops added on top of SphereSDF —
+#   BoxSDF / BoxFrameSDF / OctahedronSDF / CapsuleLineSDF / ChainLinkSDF (analytic leaves)
+#   + TorusSDF / CylinderSDF / PlaneSDF (axis-enum leaves) —
 # each registered through the SAME zero-shared-file FieldOp self-registration seam
 # (runtime/field_ops_<name>.cpp FieldOp -> fieldSpecSink, consumed by node_registry's
 # specTypes()/findSpec), are reachable by the hand: typing "SDF" in the quick-add palette
@@ -42,7 +43,10 @@ assert_map_has qa:BoxFrameSDF
 assert_map_has qa:OctahedronSDF
 assert_map_has qa:CapsuleLineSDF
 assert_map_has qa:ChainLinkSDF
-echo all-six-sdf-ops-surface-in-palette
+assert_map_has qa:TorusSDF
+assert_map_has qa:CylinderSDF
+assert_map_has qa:PlaneSDF
+echo all-nine-sdf-ops-surface-in-palette
 
 # --- Spawn one of the new ops (BoxSDF) to prove the seam wires a REAL node ---
 do click @qa:BoxSDF

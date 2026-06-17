@@ -179,12 +179,18 @@ add_executable(simple_world
   src/runtime/field_ops_octahedronsdf.cpp
   src/runtime/field_ops_capsulelinesdf.cpp
   src/runtime/field_ops_chainlinksdf.cpp
+  src/runtime/field_ops_torussdf.cpp
+  src/runtime/field_ops_cylindersdf.cpp
+  src/runtime/field_ops_planesdf.cpp
   src/field_render_golden.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
   src/field_ops_octahedronsdf_golden.cpp
   src/field_ops_capsulelinesdf_golden.cpp
   src/field_ops_chainlinksdf_golden.cpp
+  src/field_ops_torussdf_golden.cpp
+  src/field_ops_cylindersdf_golden.cpp
+  src/field_ops_planesdf_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp

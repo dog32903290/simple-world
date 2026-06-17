@@ -47,6 +47,9 @@ namespace sw { int runFieldBoxFrameSdfGoldenSelfTest(bool); }     // field_ops_b
 namespace sw { int runFieldOctahedronSdfGoldenSelfTest(bool); }   // field_ops_octahedronsdf_golden.cpp
 namespace sw { int runFieldCapsuleLineSdfGoldenSelfTest(bool); }  // field_ops_capsulelinesdf_golden.cpp
 namespace sw { int runFieldChainLinkSdfGoldenSelfTest(bool); }    // field_ops_chainlinksdf_golden.cpp
+namespace sw { int runFieldTorusSdfGoldenSelfTest(bool); }        // field_ops_torussdf_golden.cpp (axis-enum)
+namespace sw { int runFieldCylinderSdfGoldenSelfTest(bool); }     // field_ops_cylindersdf_golden.cpp (axis-enum)
+namespace sw { int runFieldPlaneSdfGoldenSelfTest(bool); }        // field_ops_planesdf_golden.cpp (axis-enum)
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
@@ -159,6 +162,9 @@ const SelfTest kTable[] = {
     {"field-octahedronsdf", runFieldOctahedronSdfGoldenSelfTest},
     {"field-capsulelinesdf", runFieldCapsuleLineSdfGoldenSelfTest},
     {"field-chainlinksdf", runFieldChainLinkSdfGoldenSelfTest},
+    {"field-torussdf", runFieldTorusSdfGoldenSelfTest},
+    {"field-cylindersdf", runFieldCylinderSdfGoldenSelfTest},
+    {"field-planesdf", runFieldPlaneSdfGoldenSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},
