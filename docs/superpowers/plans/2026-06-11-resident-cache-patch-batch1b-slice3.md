@@ -1972,3 +1972,26 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 4. **field 島 Phase C fan-out**:60 顆 SDF op 變「逐 op 加 leaf .cpp 貢獻 MSL snippet」機械 lane(Sonnet)。先確認 `field_node_registry` 自註冊是否**零共享檔**(Build-2 已用 file-scope registrar,若如點 lane 仍動共享檔則先切自登記 sink)。
 5. 後續:raymarch 3D(RaymarchField+camera3d)+ 顏色映射 parity(需跑真 TiXL 截圖比對 Render2dColorField 的 DistToColor/Fog 常數)。
 6. 排修同 Cut 68 清單。clean 本批死 worktree(Build-2 agent a9a87a584cba3c9db,API 死但非 worktree=活兒已在主樹,agent 殼可棄)。
+
+## Cut 70 — Phase C field SDF fan-out：zero-shared-file 重構 + 5 顆 SDF 葉子 ✅ (2026-06-18 凌晨, /sw-batch, Workflow)
+**HEAD `783f2cc`**（= `3339f4e` 重構 + `783f2cc` 5 葉子）。柏為 00:41 手動 fire /sw-batch（單一 driver，不 auto-schedule）。承接 Cut 69 收尾（接手當機 session：親驗 build/--help/全表186/refuter MERGE-SAFE/scenario 全綠後，發現 Cut 69 feat+doc 其實已由越權 refuter commit=`bf17a4a`/`780e196`，範圍乾淨+訊息含 trailer，留置）。另：清 22→3 死 worktree（21 移除＝已 ship 或 build/ 垃圾；留 HoneyComb WIP locked `aa929af38`=真未合 port honeycombtiles.metal+params.h、ui-node-skin、main）。
+
+**選批邏輯**：Cut 69 Resume 指定 next=field Phase C fan-out，但明列未決＝「新增 SDF 是否零共享檔」。派 Plan scout 勘查→**確認非零共享**：SphereSDFNode 住 `field_graph.h/.cpp`（共享），每加一顆 SDF 都改它＝並行撞。
+
+**工法（兩段，本批證實 field Phase C 可大量並行）**：
+1. **Prep 重構（序列前置，主 checkout，Opus）→ `3339f4e`**：把 FieldNode 子類移出 base→各自 leaf 的 anon namespace（仿 image-filter `edaff22` 自登記）。`field_graph.h/.cpp` 141→131 / 237→205，只剩 base machinery（FieldNode 介面/CodeAssembleCtx/assembleFieldMSL/fnv1a64/appendVec3Param/appendScalarParam/padForVec3）＝**凍結**。發現 **2** 個 dangling ref（field_graph_selftest.cpp + field_render_golden.cpp 都直接 new SphereSDFNode+靠 radius 注 bug）→ 都重接 `makeFieldNode("SphereSDF",…)` factory，bite 在同 tier 重表達（codegen 改 expected suffix／render 改 MSL string +1.0=+2*Radius 同量級）。親驗綠後 commit。
+2. **Fan-out（Workflow 寫-leaf→per-op refuter pipeline）→ `783f2cc`**：5 顆乾淨葉子 BoxSDF/BoxFrameSDF/OctahedronSDF/CapsuleLineSDF/ChainLinkSDF。每 agent 寫 `field_ops_<name>.cpp`（anon-ns FieldNode 子類+NodeSpec+factory+file-scope FieldOp）+ shell-tier GPU golden，**不 build、不碰共享檔**。orchestrator 中央接線（CMake +10 源／selftests +5 forward-decl +5 kTable）→ 一次 build → 親驗。
+
+**★整合發現**：這 5 顆是**首批用 addGlobals() helper 路徑**的 op（SphereSDF inline 無 global）→ 工單要求先驗 `assembleFieldMSL` 真的把 `ctx.globals` 注入 `/*{GLOBALS}*/`（collectEmbeddedShaderCode 對每 node 呼 addGlobals→globalsBlock→injectHook），5/5 globalsPathOk=true，GPU golden 端到端證實 helper 真的進 shader。
+
+**具名 fork（照 TiXL，refuter 證 SAFE）**：Box/BoxFrame `CombinedScale = Size*UniformScale/2` 打包成單一 float3（match TiXL Update()，非分開打包 Size/UniformScale）；Capsule `p{c}.xyz - Center`（TiXL `p{c}-Center` 的 float4-float3 截斷是 HLSL-only，MSL 拒）＋**首顆踩 padForVec3 vec3-after-vec3 補 pad**。
+
+**驗收（北極星=golden+refuter+scenario 全綠）**：5 GPU golden 距離值 byte-match 封閉公式（3 探針+邊界翻轉）各 -bug RED；**run_all --bite PASS=191 NO-BITE:[]**（唯一紅=soundtrack flake task_eb3375a3 pre-existing real-time jitter 非 field，不擋）；per-op Opus refuter 公式/packing/defaults/golden/globals 全 SAFE（4 顆「BLOCKED」唯一理由=「未接 CMake/selftests」＝orchestrator 中央步驟，假陽性；boxsdf refuter 正確判 NIT）；**field_sdf_palette.scn** 6 顆 SDF 全進 quick-add、BoxSDF 生成真節點 sw-type:BoxSDF；check-arch OK。
+
+**★工法證實**：**field Phase C = 真正的零共享檔大量並行 lane**（prep 凍結 base 後，新 SDF=1 新檔+append-only CMake/kTable）。Workflow 寫-leaf→refuter→orchestrator 中央接線+一次 build 對 GPU-dispatch SDF 葉子成立。refuter 把「未接線」標 BLOCK 是已知假陽性類（中央接線是 orchestrator 步驟，工單明令 agent 不碰共享檔）→ 收 refuter verdict 要過濾 wiring-block，只認 code vector（1-5）。
+
+**Resume — next（Phase C 續開採，皆乾淨並行）**：
+1. **更多 SDF 葉子**：field/generate/sdf 還有 ~50。乾淨無 seam 的續開（RoundedBox/Cone/Link/Solid 類純解析公式）；**帶 Axis/Sides enum 的（Torus/Plane/Cylinder/Prism/Pyramid/CappedTorus/RotatedPlane）需先蓋 axis-code-variant seam**（enum 切 `_axisCodes0` swizzle 變體 MSL）＝下一塊小接縫。Image2dSDF/HeightMapSdf/CustomSDF/FractalSDF 各需 texture-into-field／custom-code／迭代 seam，延後。
+2. **field combiner 節點**（union/intersect/subtract/smooth-min 等 combine ops）＝首批多輸入 field 樹，**踩 pushContext/popContext 多輸入子作用域**（目前只有單 leaf 驗過）＝承重一塊，Plan→build→refuter 全工法。
+3. **延後**：raymarch 3D（RaymarchField+camera3d）+ 顏色映射 parity（需跑真 TiXL 截圖比 DistToColor/Fog 常數）。
+4. 排修同 Cut 68/69：task_eb3375a3(soundtrack)/d288a684/3fc122a2/c6a885db/602f15ec/2ee58abb/258d9510。HoneyComb WIP（locked worktree aa929af38）待柏為定（接著港完／丟／擱）。
