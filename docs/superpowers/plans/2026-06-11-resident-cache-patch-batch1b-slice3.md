@@ -1923,3 +1923,19 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. 殘值 op（need seam 後）：RgbaToColor/PickColor(vec4-out)/string 桶/CountInt 等 stateful。
 3. 排修同上。
 **★承重 seam 工法（已驗）**：Plan→Workflow（寫-leaf port→refuter）或 Opus build(worktree)→獨立 refuter→orchestrator 一次合 build+--bite+commit。value/CPU 用寫-leaf-no-build 避並行 build 風暴（Cut65）。
+
+## Cut 68 — Batch 10：3 顆 point combine-op 葉子 + point-buffer seam 證實「已活著」✅ (2026-06-17 早,/sw-batch,Workflow)
+**承重發現（改變後續排序）**：柏為 09:11 fire /sw-batch（attended-adjacent，Cut67 的「5am 不開」hold 解除）。選批前派 census + Plan 兩道獨立勘查 → 收斂：**point-buffer 不是要從零蓋的承重接縫，是 (a) 已經活著的 generic 地基**。2026-06-09 lane-A 那條 `RadialPoints→ParticleSystem→DrawPoints` 沒被丟，硬化成**四流 operator runtime（buffer/command/texture/stateful）+ typed Points port + CPU-readback golden 框架**，~70 顆 point op 已在跑。census 寫的「~90 blocked」是 Phase-A 樂觀普查殘值。**→ 點 lane 其實是 proven 地基上的 Phase-C fan-out，風險從「5am 不開」降為一般葉子開採。**（dossier 另一誤報：RgbaToColor/string/stateful「已 done」與 Cut67 矛盾→不採信，但不影響 point-buffer 為 #1 的共識。）
+**deliverable**：PairPointsForSplines / PairPointsForGridWalkLines / BlendPoints。HEAD `c4b85c9`。--bite **183** NO-BITE:[] / check-arch OK。3/3 refuter MERGE-SAFE（獨立重推 golden vs TiXL .cs/.t3/.hlsl，非 Cut-47 自洽-only）。
+**count policy（.t3 backward-trace，Cut-58 不假設 1:1）**：splines/gridwalk = **max(countA,countB)×pointsPerSegment**（splines ×(clamp(Segments,3,16385)+1)；gridwalk ×11）走 registerPointOp **countTransform**；blendpoints = **countA**（first Points input）走 **countFromFirstPointsInput**，**PointsA 必 wired 為 inputs[0]**（非 .t3 的 PointsB-first input 序，load-bearing）。param routing 1:1 cbuffer，無 FloatsToBuffer reorder trap。
+**fork 全具名（faithful）**：NaN line-divider 寫 Scale@48（sqrt(-1) sentinel）；gridwalk prev-at-step-0 uint underflow→float4(0)（D3D-OOB-returns-0）；BlendPoints i>=resultCount guard（safe superset of HLSL i>）。
+**★point lane 尚非零共享檔 seam（與 value/image 不同）**：每顆要動 **3 個共享檔**（point_ops.h forward-decl + point_ops_register_point_combine.cpp 家族 registrar + selftests.cpp kTable）→ 寫-leaf 並行安全（葉子 disjoint）但合流要 orchestrator 中央接線。.metal + runtime .cpp 都 GLOB+CONFIGURE_DEPENDS（0 CMake edit）。**改進候選**：點 lane 採 valueOpSelfTests 式自登記 sink→fan-out 零共享檔。
+**★soundtrack red 已 triage（clean-base worktree at f90d9a0）= FLAKY 預存非 Batch-10**：`soundtrack_selftest.cpp:335-384` 的 4.00x chase 是 live real-time harness（steady_clock+sleep_for），4× 放大 scheduler jitter→resync storm，3 跑 FAIL/FAIL/PASS。非程式 bug。spawn_task **task_eb3375a3**（改 synthetic clock 確定化）。**教訓重申**：任何 red 必 clean-base triage 不憑 agent 一句「pre-existing」放行。
+**工法證實**：Workflow 寫-leaf→refuter→orchestrator 中央接線+一次 build+--bite+commit **對 GPU-dispatch point 葉子也成立**（不只 value/CPU）。golden 缺口：gridwalk teeth 偏 count-only（位置 hash-dependent 無法安全手算斷言）→ refuter 已逐行讀 .metal 驗 coordinate parity 補位；位置 teeth 留 follow-up。
+
+**Resume — next（HEAD c4b85c9；point lane = proven 地基上的 Phase-C 開採）**:
+1. **Texture2D-into-Points infra cut（刻意延後的 MEDIUM-risk seam 擴充，建議下一批做）**：擴 PointCookCtx 加 `inputTextures[]` + 教 cook driver 把 wired Texture2D cook 進 PointCookFn（仿 TexCookCtx）。proving op = **SamplePointColorAttributes**（最簡 `StructuredBuffer<Point> t0 + Texture2D t1 → Point.Color`）。解鎖 texture-sampling modify 家族（MapPointAttributes/LinearSamplePointAttributes/AttributesFromImageChannels/TransformWithImage/DisplacePoints2d）。Solo Opus（動共享 point_graph.h + driver）。
+2. **續 clean point fan-out**：SortPoints（multi-pass + scratch buffer，MEDIUM）+ 其餘未港 Points→Points/Points[]→Points modify/transform（從 OP_BACKLOG point 家族 scout 剩的；~70 已存在，撈乾淨葉子）。沿用 Workflow 寫-leaf→中央接線。
+3. **改進**：點 lane 自登記 sink（零共享檔 fan-out，做大量 modify wave 前值得先切）。
+4. 其餘大 seam（柏為可 steer）：shader-graph(~64,inline-HLSL codegen 撞預編譯哲學需設計)/dx11-wrapper(~25 直接,gate camera3d~50+Layer2d~37)/string-value/vec4-output-type/stateful-value。
+5. 排修：soundtrack flake(task_eb3375a3)/Float-Clamp(task_d288a684)/task_3fc122a2/c6a885db/602f15ec/2ee58abb/258d9510。clean 3 locked dead worktree(pid48770)+本批 triage worktree(agent-a89c179af1cda878f)。
