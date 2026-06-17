@@ -39,6 +39,22 @@ using TexPixelFormat = uint64_t;
 MTL::RenderPipelineState* cachedTexPSO(MTL::Device* dev, MTL::Library* lib, const char* vsName,
                                        const char* fsName, TexPixelFormat fmt);
 
+// Cached render PSO for a RUNTIME-COMPILED MSL SOURCE STRING (the field shader-graph island — the
+// one path whose MSL does not exist until assembleFieldMSL builds it, so it cannot be precompiled).
+// Keyed by the source's FNV-1a hash (srcHash from runtime::assembleFieldMSL) so the SAME assembled
+// field never recompiles: miss -> compile the source into a Library via the registered field source
+// compiler (sw::fieldSourceCompiler, wired by app to platform::compileLibraryFromSource), build the
+// (vs,fs) render PSO from it, and store it under srcHash; hit -> return the stored PSO with ZERO
+// per-frame compilation. Returns nullptr if no compiler is registered, the source fails to compile,
+// either function is missing, or the pipeline fails. The cache OWNS the PSO and the backing Library
+// (no caller release). Dropped by clearTexOpCache().
+//
+// srcHash (not the source text) is the key: two identical assembled fields share one PSO; a field
+// whose params changed but whose CODE is identical keeps the same srcHash (params live in the buffer,
+// not the source) and correctly reuses the PSO — exactly TiXL's ChangedFlags.Code gate.
+MTL::RenderPipelineState* cachedSourcePSO(MTL::Device* dev, const char* mslSource, uint64_t srcHash,
+                                          const char* vsName, const char* fsName, TexPixelFormat fmt);
+
 // Cached COMPUTE PSO for a kernel function (the -cs.hlsl path: a compute image-filter leaf such as
 // Crop dispatches a compute kernel instead of a fullscreen draw). Built once on first request and
 // reused forever (device-global), keyed by function name. Returns nullptr if the function is missing

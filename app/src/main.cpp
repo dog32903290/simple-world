@@ -31,8 +31,10 @@
 #include "platform/audio_capture.h"
 #include "platform/dialogs.h"
 #include "platform/image_decode.h"  // decodeImageToTexture (asset-texture decode leaf seam, app-owned)
+#include "platform/metal_compile.h"  // compileLibraryFromSource (field source compiler leaf seam)
 #include "runtime/compound_graph.h"
 #include "runtime/image_filter_op_registry.h"  // setAssetTextureDecoder (the asset-decode leaf seam)
+#include "runtime/field_graph.h"               // setFieldSourceCompiler (the field source leaf seam)
 #include "runtime/compound_save.h"  // libToJsonV2 (eye state dump)
 #include "runtime/graph.h"
 #include "runtime/point_graph.h"
@@ -78,6 +80,41 @@ sw::AudioCapture g_audioCapture;
 int main(int argc, char* argv[]) {
   if (int rc = sw::runSelftestFromArgs(argc, argv); rc >= 0) return rc;
 
+  // INFO MODE early-exit (順手債 fix): `--help`/`-h`/`--version`/`-v` were NEVER handled flags —
+  // they fell through every dispatch above and into pApp->run() (the NSApplication event loop),
+  // which under a headless invocation builds the font atlas + opens a window and then spins
+  // forever instead of printing usage. Any pure-information request must return BEFORE the GUI /
+  // Renderer / Metal device / font-atlas work begins. Handled here, after the self-test dispatch
+  // (which owns its own early exits) and before ANY app startup.
+  for (int i = 1; i < argc; ++i) {
+    const char* a = argv[i];
+    if (std::strcmp(a, "--help") == 0 || std::strcmp(a, "-h") == 0) {
+      std::printf(
+          "simple_world — native Metal node-graph runtime (TiXL parity)\n"
+          "\n"
+          "Usage:\n"
+          "  simple_world                 launch the GUI editor\n"
+          "  simple_world --open <file>   load a .swproj before the GUI starts (no dialog)\n"
+          "  simple_world --help | -h     print this usage and exit\n"
+          "  simple_world --version | -v  print the version and exit\n"
+          "\n"
+          "Self-test / headless modes:\n"
+          "  simple_world --selftest-list           list every self-test name (one per line)\n"
+          "  simple_world --selftest-<name>         run one self-test (append -bug for the\n"
+          "                                         fault-injected negative variant)\n"
+          "  simple_world --selftest-dispatch       run the compute-dispatch self-test\n"
+          "  simple_world --list-audio-devices      list capture devices and exit\n"
+          "  simple_world --audio-permission-status print mic-permission status and exit\n"
+          "  simple_world --audio-capture-smoke <s> [out]  record a short capture smoke run\n"
+          "  simple_world --audio-ingest-replay <f> replay an audio ingest fixture\n");
+      return 0;
+    }
+    if (std::strcmp(a, "--version") == 0 || std::strcmp(a, "-v") == 0) {
+      std::printf("simple_world (native Metal runtime, TiXL parity lane)\n");
+      return 0;
+    }
+  }
+
   // `--open <file.swproj>`: load a project before the GUI starts (no dialogs) — 柏為's
   // double-click-adjacent path AND the agent's only dialog-free way to load a test file
   // (the hand cannot click into an NFD modal). quiet=true: a failure must report on stderr
@@ -115,6 +152,15 @@ Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
     // owns the platform decoder and registers it here. (runtime never includes platform/ImageIO.)
     sw::setAssetTextureDecoder([](MTL::Device* dev, const char* absPath, bool mipped) -> MTL::Texture* {
       return sw::platform::decodeImageToTexture(dev, std::string(absPath), mipped);
+    });
+    // Field shader-graph SOURCE compiler leaf seam (runtime↛platform): runtime exposes the fn-ptr;
+    // the app owns platform/metal_compile and registers it here, exactly like the asset decoder
+    // above. The source-PSO cache (tex_op_cache::cachedSourcePSO) calls this to compile a
+    // runtime-assembled field MSL string into a Library on first use. void* in/out = MTL::Device* /
+    // MTL::Library* (runtime must not name MTL types in field_graph.h).
+    sw::setFieldSourceCompiler([](void* device, const char* msl) -> void* {
+      NS::Error* err = nullptr;
+      return sw::platform::compileLibraryFromSource(static_cast<MTL::Device*>(device), msl, &err);
     });
     g_pointGraph = new sw::PointGraph(_pDevice, g_shaderLib, _pCommandQueue, /*W=*/512, /*H=*/512);
     if (!g_pointGraph->valid()) {

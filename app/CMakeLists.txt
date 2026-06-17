@@ -88,6 +88,10 @@ set_source_files_properties(src/platform/dialogs.mm PROPERTIES COMPILE_OPTIONS -
 # metal-cpp pointers (manual release) -> compile WITHOUT ARC, like eye.mm / dialogs.mm.
 set_source_files_properties(src/platform/image_decode.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 set_source_files_properties(src/platform/image_decode_selftest.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
+# metal_compile{,_selftest}.mm: the one newLibrary(source) site + its proof. Manual metal-cpp
+# lifetime (NS::String/CompileOptions/Library/Function) alongside no ARC, like the .mm above.
+set_source_files_properties(src/platform/metal_compile.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
+set_source_files_properties(src/platform/metal_compile_selftest.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 # audio_capture.mm / audio_playback.mm use AVFoundation — ARC keeps the ObjC lifetime simple
 # (they touch no metal-cpp pointers, so the MRC convention of the other .mm files doesn't apply).
 set_source_files_properties(src/platform/audio_capture.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
@@ -161,8 +165,16 @@ add_executable(simple_world
   src/platform/audio_devices.mm
   src/platform/image_decode.mm
   src/platform/image_decode_selftest.mm
+  src/platform/metal_compile.mm
+  src/platform/metal_compile_selftest.mm
   src/runtime/particle_system.cpp
   src/runtime/particle_decay_selftest.cpp
+  src/runtime/field_graph.cpp
+  src/runtime/field_graph_selftest.cpp
+  src/runtime/field_render.cpp
+  src/runtime/field_node_registry.cpp
+  src/runtime/field_ops_spheresdf.cpp
+  src/field_render_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp
@@ -268,6 +280,9 @@ target_compile_definitions(simple_world PRIVATE
   # Repo assets dir (copied parity assets, e.g. images/basic/perlin-noise-rgb.png from TiXL Lib).
   # ../assets because CMakeLists lives in app/ but assets/ is at the repo root.
   SW_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../assets"
+  # Field shader-graph render TEMPLATE (a string asset, NOT precompiled — see shaders/templates/).
+  # assembleFieldMSL reads this and fills /*{GLOBALS}*/ /*{FLOAT_PARAMS}*/ /*{FIELD_CALL}*/ at runtime.
+  SW_FIELD_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/field_render_template.metal"
 )
 
 # The executable needs the metallib built before it runs.

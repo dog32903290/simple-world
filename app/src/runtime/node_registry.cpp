@@ -33,6 +33,7 @@
 #include "runtime/node_registry_draw.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSpecSink() — image-filter ops self-register
 #include "runtime/value_op_registry.h"         // valueOpSpecSink() — stateless value ops self-register
+#include "runtime/field_node_registry.h"       // fieldSpecSink() — field (SDF) ops self-register
 #include "runtime/node_registry_math.h"
 
 #include <map>
@@ -91,6 +92,10 @@ const NodeSpec* findSpec(const std::string& type) {
   // populated by pre-main dynamic init of each value_op_<name>.cpp ValueOp registrar).
   for (const auto& s : valueOpSpecSink())
     if (s.type == type) return &s;
+  // Field-op family: same live-read seam (mirror of image-filter/value-op; init-order safe — sink
+  // fully populated by pre-main dynamic init of each field_ops_<name>.cpp FieldOp registrar).
+  for (const auto& s : fieldSpecSink())
+    if (s.type == type) return &s;
   auto it = dynamicSpecs().find(type);
   return it != dynamicSpecs().end() ? &it->second : nullptr;
 }
@@ -103,6 +108,8 @@ std::vector<std::string> specTypes() {
   for (const auto& s : imageFilterSpecSink()) out.push_back(s.type);
   // Value ops self-register into their own sink — append so the Add menu lists them too (same note).
   for (const auto& s : valueOpSpecSink()) out.push_back(s.type);
+  // Field (SDF) ops self-register into their own sink — append so the Add menu lists them (same note).
+  for (const auto& s : fieldSpecSink()) out.push_back(s.type);
   return out;
 }
 

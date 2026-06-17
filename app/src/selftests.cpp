@@ -24,6 +24,7 @@
 #include "platform/audio_capture.h"
 #include "platform/audio_devices.h"
 #include "platform/image_decode.h"  // platform::runImageDecodeSelfTest (native PNG decode proof)
+#include "platform/metal_compile.h"  // platform::runMetalCompileSelfTest (newLibrary(source) proof)
 #include "runtime/attack_detector.h"
 #include "runtime/compound_graph.h"
 #include "runtime/combine.h"
@@ -37,6 +38,9 @@
 #include "runtime/audio_reaction.h"
 #include "runtime/stateful_value_ops.h"  // runStatefulValueSelfTest (Damp/Spring value-graph sims)
 #include "runtime/dispatch.h"
+#include "runtime/field_graph.h"  // runFieldCodegenSelfTest (shader-graph codegen, pure string)
+namespace sw { int runFieldRenderSelfTest(bool);  // field_render_golden.cpp (shell-tier GPU golden)
+}  // ^ forward-declared (no header): the GPU field golden lives at shell tier (binds runtime+platform)
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
@@ -141,6 +145,9 @@ const SelfTest kTable[] = {
     {"residentcook", runResidentCookSelfTest},
     {"residentparity", runResidentCookParitySelfTest},
     {"imagedecode", platform::runImageDecodeSelfTest},
+    {"metal-compile", platform::runMetalCompileSelfTest},
+    {"field-codegen", runFieldCodegenSelfTest},
+    {"field-render", runFieldRenderSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},

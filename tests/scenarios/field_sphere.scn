@@ -1,0 +1,81 @@
+# field_sphere.scn — 活體牙: the shader-graph (SDF field) island is LIVE in the editor.
+#
+# WHAT THIS PROVES (the part of the field island that has a live GUI surface):
+#   The SphereSDF field op — registered through the field self-registration seam
+#   (runtime/field_ops_spheresdf.cpp FieldOp -> fieldSpecSink, consumed by node_registry's
+#   specTypes()/findSpec, Build-2) — is reachable by the hand in the live app: the quick-add
+#   palette surfaces it, and selecting it spawns a REAL node into the graph carrying its full
+#   port set (Center as a Vec3 head-run + Radius scalar + a connectable Field "Result" output).
+#   That is the live half of "SphereSDF runs": the op is a first-class editor citizen, not a
+#   selftest-only string.
+#
+# WHAT THIS DOES NOT (AND MUST NOT) ASSERT — read before extending:
+#   The GPU half — Render2dField actually rasterizing the SDF distance onto a texture — has NO
+#   live frame-cook / UI consumer in this build (renderField2d is a runtime fn exercised only at
+#   the selftest tier; no app/ or ui/ file drives a field tree onto the resident texture, and
+#   there is no Render2dField add-able node). Its parity proof is the GPU golden:
+#       app/build/simple_world --selftest-field-render
+#   which dispatches the assembled field MSL onto an R32Float texture and byte-matches the signed
+#   distance f.w against the SphereSDF formula at 3 probe points + the boundary crossing. Do NOT
+#   add a capture/assert_diff here pretending the canvas renders the field — it does not yet.
+#
+# RED proof: line `assert ... id == 104 ... length == 1` — change 104 to 999 -> FAIL (no such
+# child). Or change the pin-count assert to == 6 -> FAIL (SphereSDF has exactly 5 ports/pins:
+# Center.x/.y/.z, Radius, Result).
+#
+# Default graph (defaultParticleGraph): Root has 5 children (ids 1,2,6,7,8), nextChildId=104,
+# so a freshly-spawned SphereSDF takes id 104.
+
+# Baseline: default graph, 5 children, next free id is 104.
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 5'
+echo baseline-root-5-children
+
+# Focus the canvas (CanvasFocus handlers gate the Cmd+F quick-add palette).
+do click 400 300
+wait 0.3
+
+# --- Open the quick-add palette (Cmd+F) ---
+do keychord cmd f
+wait 0.5
+assert_map_has qa:input
+echo quick-add-palette-open
+
+# --- Filter to the field op: typing narrows the list to SphereSDF ---
+# (Substring filter; "Sphere" also matches SpherePoints, "SDF" isolates the field op.)
+do text Sphere
+wait 0.3
+assert_map_has qa:SphereSDF
+echo filter-surfaces-SphereSDF-field-op
+
+do text SDF
+wait 0.3
+assert_map_has qa:SphereSDF
+echo filter-narrowed-to-SphereSDF
+
+# --- Spawn it ---
+do click @qa:SphereSDF
+wait 0.5
+
+# Root gained one child (5 -> 6) and it is the field op at id 104.
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+echo sphere-sdf-spawned-root-now-6-children
+
+assert_state '[.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 104)] | length == 1'
+echo child-104-exists
+
+# It references the field op symbol type (the seam wired the spec, not a stray node).
+assert_state '([.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 104)][0].symbolId) == "sw-type:SphereSDF"'
+echo child-104-is-SphereSDF-type
+
+# --- The spawned node carries its full port set (live on the canvas) ---
+# Node 104 must be drawn, and expose exactly 5 pins (childId*100 + portIndex+1):
+#   10401 Center.x  10402 Center.y  10403 Center.z  10404 Radius  10405 Result(Field output).
+# 5 pins == the SphereSDF NodeSpec ports => the field op is a full editor node, output included.
+assert_map_has node:104
+echo sphere-sdf-node-drawn
+
+assert_map_has pin:10405
+echo field-Result-output-pin-present
+
+assert_map '[.items[]? | select(.label | test("^pin:104[0-9][0-9]$"))] | length == 5'
+echo sphere-sdf-exposes-all-5-ports
