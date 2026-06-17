@@ -1939,3 +1939,36 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 3. **改進**：點 lane 自登記 sink（零共享檔 fan-out，做大量 modify wave 前值得先切）。
 4. 其餘大 seam（柏為可 steer）：shader-graph(~64,inline-HLSL codegen 撞預編譯哲學需設計)/dx11-wrapper(~25 直接,gate camera3d~50+Layer2d~37)/string-value/vec4-output-type/stateful-value。
 5. 排修：soundtrack flake(task_eb3375a3)/Float-Clamp(task_d288a684)/task_3fc122a2/c6a885db/602f15ec/2ee58abb/258d9510。clean 3 locked dead worktree(pid48770)+本批 triage worktree(agent-a89c179af1cda878f)。
+
+## Cut 69 — Phase B 破土 shader-graph 承重 seam（runtime MSL codegen）⏸ **未 commit / 半完成 / 柏為主動暫停** (2026-06-17 午,/sw-batch)
+**狀態 ≠ 前面的 ✅**：本批 **HEAD 未動（仍 a2c2382）**，全部活兒在**主 checkout 未 commit**。柏為 15:41 打斷（我正要派 fix agent 時）下令「先收尾，暫停在文件補上還沒做的部分」→ 這是提前結帳落盤，不是完工。
+
+**起點**：柏為 10:16 問進度 → 我盤點（op 字典 ~15%／**體感 ~30%**：2D image/粒子/點/數值音訊四鏈通，缺 3D render+field SDF 兩大島）→ 下注 **shader-graph 是唯一值得破土的承重地基**（自足無三層前置，解鎖 field 島 ~64 SDF）→ 柏為「走」=授權。
+
+**架構裁決（拍板，照走不重議）**：**選 A — runtime MSL 動態組字串 compile**（非 B ubershader）。理由＝field 島本質就是動態組合 shader＝本質複雜，硬翻 ubershader 會閹掉 TiXL 核心能力+撞 400 行+parity 蓋不全。把本質的醜包進**一個** platform 接縫：
+- **唯一 `newLibrary(source)` 處 = `platform/metal_compile.{h,mm}`**（sw 第一條 runtime-compile 路徑＝**具名 fork**：field 島本質 runtime codegen，sw 預編譯哲學只覆蓋靜態 op；kickoff 預檢②已預批）。
+- **runtime↛platform 用葉子 fn-ptr 縫**（仿 `AssetTextureDecoder`）：runtime 宣告 `SourceCompileFn`（void* 不名 MTL 型別）+ `setFieldSourceCompiler/fieldSourceCompiler`，app/main.cpp 註冊 lambda 包 platform 編譯器。check-arch 綠。
+- 其餘裁決：首版**同步**編譯（async 延後）；PSO 用 `srcHash`(fnv1a64 over msl) cache（沿 tex_op_cache，零 per-frame compile）；FloatParams **單一 b1 constant buffer**(節點前綴防撞,照 TiXL)；golden **只對距離值 f.w**(封閉公式手算,顏色映射 parity 延後)；**只蓋 2D Render2dField**(raymarch 3D+camera3d 不在本批,seam 無前置依賴)。
+- **HLSL→MSL 對應(Build-2 接 GPU 關鍵)**：cbuffer→`constant FieldParams& P [[buffer(0)]]`；參數讀取加 `P.` 前綴；後綴防撞名 `SphereSDF_<id>_`+`p{c}`/`f{c}` 字字照 TiXL；16-byte 對齊照 ShaderParamHandling。
+
+**做了什麼（兩棒序列，主 checkout，先證最高風險 fork 再接 GPU）**：
+- **Build-1 骨架**(Opus)：`platform/metal_compile.{h,mm}`(+`_selftest.mm`) + `runtime/field_graph.{h,cpp}`(FieldNode 介面 addGlobals/preShaderCode/postShaderCode/collectParams + CodeAssembleCtx 移植 TiXL ContextIdStack/PushContext/AppendCall + `assembleFieldMSL`→`{msl,floatParams,srcHash}` 純字串零 Metal) + `field_graph_selftest.cpp` + `shaders/templates/field_render_template.metal`(排除 metallib glob)。**最高風險 fork(runtime-compile 通不通)在此驗通**：組出的 SphereSDF MSL 過真 `xcrun metal -c` 編譯。
+- **Build-2 GPU**(Opus)：接線(main.cpp 註冊 compiler 回呼/tex_op_cache 加 `cachedSourcePSO`/node_registry sink/`field_node_registry.{h,cpp}` 自註冊)+`field_ops_spheresdf.cpp`+`field_render.{h,cpp}`(Render2dField:assembleFieldMSL→PSO→fullscreen dispatch→texture,**f.w 寫 R 通道**繞顏色映射)+`field_render_golden.cpp`(shell-tier GPU golden,綁 runtime+platform,forward-decl 無 header)。**API ConnectionRefused 斷在它跑完 86 tool_uses 後、回結論前**→活兒**完整留主樹救回**(非 worktree=memory 鐵律再驗)。
+
+**已親驗綠(orchestrator 親跑,非 agent 自報)**：`--selftest-metal-compile` PASS+RED / `--selftest-field-codegen` PASS+RED / `--selftest-field-render`(GPU)**三點距離值 byte-match SDF 公式 diff 2.89e-08/0/0,邊界翻轉 px=96 p.x≈0.5** / **`tools/run_all_selftests.sh --bite` = PASS=187 FAILED:[] NO-BITE:[]**(全表正確入口,非 `--selftest-all`!) / check-arch OK / build 綠。**runtime-compile fork 端到端證實通。**
+
+**★工法/環境教訓**：①**驗證入口陷阱**:`./simple_world --selftest-all` 被解析成「跑名為 all 的 op」(=`All()` 7 行),**不是全表**!全表正確入口 = `tools/run_all_selftests.sh`(用 `--selftest-list` 拿名單逐個跑)。orchestrator 之前一直 tail 到 All() 誤以為全表。②承重 seam **分兩棒序列(先證骨架+最高風險 fork→再接 GPU)在主 checkout 跑成立**,API 斷在非 worktree 背景 agent 活兒留主樹可救回。③`field_render_golden.cpp` 放 `app/src/` 根(shell-tier 綁 runtime+platform),check-arch 過(app→runtime 合法向)。
+
+**★★還沒做的部分(接手從這續,全工法尚缺後半)**：
+1. **`--help` hang regression(必修,不過夜,被暫停)**:正常 `--help` 該秒回卻 **spin 燒 CPU(實測 1:24 CPU 26% 不返回,已 kill)**。全表用 `--selftest-list` **繞過了 --help 故沒抓到**(187 全綠是真的,但 --help 真壞)。疑根因 = Build-2 在 main.cpp 的 field compiler 回呼註冊 / field static registrar constructor 插進啟動早退前觸發 GPU device/Metal 編譯。**fix 工單已寫好但被柏為 reject 沒派**(含並排查 --version/無參數同類)。
+2. **`field_sphere.scn` 活體牙未建**(藍圖步驟5)。
+3. **獨立 refuter 未跑**(承重 seam 全工法必須):攻 runtime-compile fork — hash 碰撞/PSO cache 跨 device 復用/字串注入/巢狀作用域 PushContext 後綴撞名/float 參數 buffer 對齊(撞 metal-cpp-discipline)/座標映射常數。
+4. **未 commit**:主樹 Build-1+Build-2 全部新檔+改檔懸著(field_graph/field_node_registry/field_ops_spheresdf/field_render/field_render_golden/metal_compile + main.cpp/tex_op_cache/node_registry/selftests/CMakeLists + shaders/templates/)。
+
+**Resume — next**:
+1. 派 fix agent(工單已備於本 turn,可重派):修 --help hang(查證根因不猜)+ 補 field_sphere.scn → 親驗 --help 秒回 + run_all 仍 187 + scenario 全綠。
+2. 獨立 Opus refuter 攻 runtime-compile fork(攻擊面見「還沒做 #3」)→ fixer if needed。
+3. orchestrator 親驗全綠 → **commit(這才是 Cut 69 真正落地,訊息照格式 feat(runtime/platform): shader-graph seam + SphereSDF/Render2dField via runtime MSL codegen)**。
+4. **field 島 Phase C fan-out**:60 顆 SDF op 變「逐 op 加 leaf .cpp 貢獻 MSL snippet」機械 lane(Sonnet)。先確認 `field_node_registry` 自註冊是否**零共享檔**(Build-2 已用 file-scope registrar,若如點 lane 仍動共享檔則先切自登記 sink)。
+5. 後續:raymarch 3D(RaymarchField+camera3d)+ 顏色映射 parity(需跑真 TiXL 截圖比對 Render2dColorField 的 DistToColor/Fog 常數)。
+6. 排修同 Cut 68 清單。clean 本批死 worktree(Build-2 agent a9a87a584cba3c9db,API 死但非 worktree=活兒已在主樹,agent 殼可棄)。
