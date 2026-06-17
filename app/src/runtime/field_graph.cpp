@@ -202,36 +202,4 @@ AssembledField assembleFieldMSL(const std::shared_ptr<FieldNode>& root,
   return out;
 }
 
-// ---- SphereSDF leaf ------------------------------------------------------------------------------
-
-SphereSDFNode::SphereSDFNode(const std::string& shortId) {
-  // TiXL BuildNodeId: <TypeName>_<shortGuid>_  — collision-free param prefix.
-  prefix = "SphereSDF_" + shortId + "_";
-}
-
-void SphereSDFNode::preShaderCode(CodeAssembleCtx& c, int /*inputIndex*/) const {
-  // PARITY external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs:35-36
-  //   c.AppendCall($"f{c}.w = length(p{c}.xyz - {n}Center) - {n}Radius;");
-  //   c.AppendCall($"f{c}.xyz = p.w < 0.5 ?  p{c}.xyz : 1;");
-  // {n} = node prefix; {c} = context id. `length`, `.xyz`, `float4` are common HLSL/MSL syntax.
-  //
-  // HLSL->MSL FORK (named): in TiXL the params live in a global-scope HLSL cbuffer, so the snippet
-  // reads them as a bare name `{n}Center`. In MSL they live inside the `constant FieldParams& P`
-  // argument, so every param read must be qualified `P.{n}Center`. We emit the `P.` prefix here.
-  // The distance MATH (length(p.xyz - Center) - Radius) is byte-identical; only the cbuffer-vs-struct
-  // access syntax differs — this is the load-bearing HLSL->MSL handoff for Build-2.
-  const std::string ctx = c.ctx();
-  c.appendCall("f" + ctx + ".w = length(p" + ctx + ".xyz - P." + prefix + "Center) - P." + prefix +
-               "Radius;");
-  c.appendCall("f" + ctx + ".xyz = p.w < 0.5 ? p" + ctx + ".xyz : float3(1.0); // save local space");
-}
-
-void SphereSDFNode::collectParams(std::vector<float>& floatParams,
-                                  std::vector<std::string>& paramFields) const {
-  // Field-declaration order = Center (vec3) then Radius (scalar), matching SphereSDF.cs reflection
-  // order on [GraphParam] fields. Center(3) + Radius(1) = 4 floats = exactly one 16B slot, no padding.
-  appendVec3Param(floatParams, paramFields, prefix + "Center", centerX, centerY, centerZ);
-  appendScalarParam(floatParams, paramFields, prefix + "Radius", radius);
-}
-
 }  // namespace sw

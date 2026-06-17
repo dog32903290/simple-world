@@ -119,21 +119,11 @@ void appendVec3Param(std::vector<float>& v, std::vector<std::string>& fields,
 void appendScalarParam(std::vector<float>& v, std::vector<std::string>& fields,
                        const std::string& name, float value);
 
-// ---- SphereSDF leaf (the proving node for this build) --------------------------------------------
-
-// Distance-to-sphere field leaf. Parity: SphereSDF.cs GetPreShaderCode +
-// SphereSDF.t3 defaults (Center=(0,0,0), Radius=0.5). Params collected in field-declaration order
-// (Center first, Radius second) exactly like TiXL reflection order on [GraphParam] fields.
-struct SphereSDFNode : FieldNode {
-  float centerX = 0.f, centerY = 0.f, centerZ = 0.f;
-  float radius = 0.5f;
-
-  explicit SphereSDFNode(const std::string& shortId);
-
-  void preShaderCode(CodeAssembleCtx& c, int inputIndex) const override;
-  void collectParams(std::vector<float>& floatParams,
-                     std::vector<std::string>& paramFields) const override;
-};
+// Concrete SDF leaves do NOT live here. Each is a self-contained leaf .cpp (field_ops_<name>.cpp)
+// that subclasses FieldNode in an anonymous namespace and registers via the FieldOp seam — this
+// header is FROZEN base machinery so a new SDF op = ONE new leaf + a CMakeLists line, nothing
+// shared. (Mirrors image_filter_op_registry / value_op_registry. A FieldNode subclass needs no
+// cross-TU visibility: the assembler only ever touches the polymorphic base via shared_ptr.)
 
 // --selftest-field-codegen entry (field_graph_selftest.cpp). PURE STRING, zero GPU. fn(bool) -> exit.
 int runFieldCodegenSelfTest(bool injectBug);

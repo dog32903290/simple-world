@@ -1,10 +1,11 @@
 // SphereSDF field op (field self-registration seam leaf — the proving SDF for the shader-graph
 // island). TiXL authority: external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs (+ .t3
-// defaults). The codegen MECHANISM (preShaderCode / collectParams / param packing) lives in
-// runtime/field_graph (SphereSDFNode) and is already pinned by --selftest-field-codegen. This leaf
-// is the OP layer: a NodeSpec (so SphereSDF appears in the Add menu / findSpec like any op) plus a
-// FieldNodeFactory (so a graph walk can instantiate a SphereSDFNode by type name), registered via
-// the FieldOp self-registration seam — adding a field op = this one .cpp, no shared list edited.
+// defaults). This single leaf owns BOTH halves of one SDF op: the codegen NODE (SphereSDFNode below,
+// the preShaderCode / collectParams mechanism, pinned by --selftest-field-codegen) AND the OP layer
+// (a NodeSpec so it appears in the Add menu / findSpec, plus a FieldNodeFactory so a graph walk can
+// instantiate it by type name), registered via the FieldOp self-registration seam. The codegen base
+// machinery (FieldNode interface, assembleFieldMSL, param packing) stays in runtime/field_graph and
+// is FROZEN — so adding a field op = this one .cpp + one CMakeLists line, no shared file edited.
 //
 //   SphereSDF.cs inputs:  Center (Vector3, [GraphParam]),  Radius (float, [GraphParam]).
 //   SphereSDF.t3 defaults: Center = (0,0,0), Radius = 0.5  (mirrored in SphereSDFNode's ctor).
@@ -18,12 +19,53 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
-#include "runtime/field_graph.h"          // SphereSDFNode, FieldNode
+#include "runtime/field_graph.h"          // FieldNode, CodeAssembleCtx, appendVec3Param/appendScalarParam
 #include "runtime/field_node_registry.h"  // FieldOp self-registration
 
 namespace sw {
 namespace {
+
+// ---- SphereSDF codegen node (a FieldNode subclass; no cross-TU visibility needed) ----------------
+
+// Distance-to-sphere field leaf. Parity: SphereSDF.cs GetPreShaderCode +
+// SphereSDF.t3 defaults (Center=(0,0,0), Radius=0.5). Params collected in field-declaration order
+// (Center first, Radius second) exactly like TiXL reflection order on [GraphParam] fields.
+struct SphereSDFNode : FieldNode {
+  float centerX = 0.f, centerY = 0.f, centerZ = 0.f;
+  float radius = 0.5f;
+
+  explicit SphereSDFNode(const std::string& shortId) {
+    // TiXL BuildNodeId: <TypeName>_<shortGuid>_  — collision-free param prefix.
+    prefix = "SphereSDF_" + shortId + "_";
+  }
+
+  void preShaderCode(CodeAssembleCtx& c, int /*inputIndex*/) const override {
+    // PARITY external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs:35-36
+    //   c.AppendCall($"f{c}.w = length(p{c}.xyz - {n}Center) - {n}Radius;");
+    //   c.AppendCall($"f{c}.xyz = p.w < 0.5 ?  p{c}.xyz : 1;");
+    // {n} = node prefix; {c} = context id. `length`, `.xyz`, `float4` are common HLSL/MSL syntax.
+    //
+    // HLSL->MSL FORK (named): in TiXL the params live in a global-scope HLSL cbuffer, so the snippet
+    // reads them as a bare name `{n}Center`. In MSL they live inside the `constant FieldParams& P`
+    // argument, so every param read must be qualified `P.{n}Center`. We emit the `P.` prefix here.
+    // The distance MATH (length(p.xyz - Center) - Radius) is byte-identical; only the cbuffer-vs-struct
+    // access syntax differs — this is the load-bearing HLSL->MSL handoff for Build-2.
+    const std::string ctx = c.ctx();
+    c.appendCall("f" + ctx + ".w = length(p" + ctx + ".xyz - P." + prefix + "Center) - P." + prefix +
+                 "Radius;");
+    c.appendCall("f" + ctx + ".xyz = p.w < 0.5 ? p" + ctx + ".xyz : float3(1.0); // save local space");
+  }
+
+  void collectParams(std::vector<float>& floatParams,
+                     std::vector<std::string>& paramFields) const override {
+    // Field-declaration order = Center (vec3) then Radius (scalar), matching SphereSDF.cs reflection
+    // order on [GraphParam] fields. Center(3) + Radius(1) = 4 floats = one 16B slot, no padding.
+    appendVec3Param(floatParams, paramFields, prefix + "Center", centerX, centerY, centerZ);
+    appendScalarParam(floatParams, paramFields, prefix + "Radius", radius);
+  }
+};
 
 NodeSpec sphereSdfSpec() {
   NodeSpec s;

@@ -23,9 +23,11 @@
 // The golden reads each texel's EXACT p (not an assumed p=0.5) and asserts against d(p) — robust to
 // the half-texel offset, and it is the coordinate map itself that is under test.
 //
-// injectBug: flip the sphere's sign (Radius -> -Radius in the assembled field) so every probe's
-// expected d is off by 2*Radius -> all probes RED. Proves the golden bites (it reads cooked pixels,
-// not a blind pass).
+// injectBug: shift the cooked field by +2*Radius (= +1.0) by corrupting the template's RED-channel
+// write so every probe's expected d is off by 2*Radius -> all probes RED. (Same bite tier and same
+// magnitude as the original `Radius -> -Radius` flip, re-expressed at the MSL-string tier now that
+// SphereSDFNode is leaf-private — the golden builds its node via the FieldOp factory.) Proves the
+// golden bites (it reads cooked pixels, not a blind pass).
 #include "runtime/field_render.h"
 
 #include <cmath>
@@ -40,8 +42,9 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
-#include "runtime/field_graph.h"   // SphereSDFNode, setFieldSourceCompiler
-#include "runtime/tex_op_cache.h"  // clearTexOpCache (fresh source-PSO cache per run-device)
+#include "runtime/field_graph.h"          // setFieldSourceCompiler, FieldNode
+#include "runtime/field_node_registry.h"  // makeFieldNode (SphereSDFNode is now leaf-private)
+#include "runtime/tex_op_cache.h"         // clearTexOpCache (fresh source-PSO cache per run-device)
 
 #include "platform/metal_compile.h"  // platform::compileLibraryFromSource (the source compiler)
 
@@ -95,13 +98,35 @@ int runFieldRenderSelfTest(bool injectBug) {
   });
   clearTexOpCache();  // a stale PSO built on a released device from a prior run must not be reused
 
-  // SphereSDF leaf: Center=(0,0,0), Radius=0.5. injectBug flips the radius sign so every expected
-  // distance is wrong by 2*Radius (the whole field shifts) -> all probes go RED.
-  auto sphere = std::make_shared<SphereSDFNode>("golden0");
-  sphere->centerX = 0.f; sphere->centerY = 0.f; sphere->centerZ = 0.f;
-  sphere->radius = injectBug ? -kRadius : kRadius;
+  // SphereSDF leaf via the FieldOp factory (SphereSDFNode is now leaf-private — field_ops_spheresdf
+  // .cpp). The factory builds it with the SphereSDF.t3 defaults Center=(0,0,0), Radius=0.5.
+  std::shared_ptr<FieldNode> sphere = makeFieldNode("SphereSDF", "golden0");
+  if (!sphere) {
+    std::printf("[selftest-field-render] FAIL: SphereSDF factory not registered\n");
+    q->release(); dev->release(); pool->release();
+    return 1;
+  }
 
-  MTL::Texture* tex = renderField2d(dev, q, sphere, tmpl, kW, kH);
+  // injectBug re-expressed at the MSL-string tier (the node is leaf-private now, so we no longer
+  // mutate sphere->radius): corrupt the template's RED-channel write so every cooked distance is
+  // shifted by +1.0 = +2*Radius. This reproduces the exact magnitude of the old `Radius -> -Radius`
+  // flip (the whole field shifts by 2*Radius) -> all probes go RED. The substring is the unique
+  // distance write in field_render_template.metal (line: `return float4(f.w, 0.0, 0.0, 1.0);`).
+  std::string useTmpl = tmpl;
+  if (injectBug) {
+    const std::string from = "float4(f.w, 0.0, 0.0, 1.0)";
+    const std::string to = "float4(f.w + 1.0, 0.0, 0.0, 1.0)";
+    size_t pos = useTmpl.find(from);
+    if (pos == std::string::npos) {
+      std::printf("[selftest-field-render] FAIL: injectBug could not find the distance-write site "
+                  "in the template (tooth cannot bite)\n");
+      q->release(); dev->release(); pool->release();
+      return 1;
+    }
+    useTmpl.replace(pos, from.size(), to);
+  }
+
+  MTL::Texture* tex = renderField2d(dev, q, sphere, useTmpl, kW, kH);
   if (!tex) {
     std::printf("[selftest-field-render] FAIL: renderField2d returned null (compile/PSO failure)\n");
     q->release(); dev->release(); pool->release();

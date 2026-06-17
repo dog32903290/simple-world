@@ -12,6 +12,8 @@
 #include <sstream>
 #include <string>
 
+#include "runtime/field_node_registry.h"  // makeFieldNode (SphereSDFNode now lives in its leaf .cpp)
+
 namespace sw {
 
 namespace {
@@ -43,13 +45,16 @@ int runFieldCodegenSelfTest(bool injectBug) {
     return 1;
   }
 
-  // Minimal SphereSDF leaf: Center=(0,0,0), Radius=0.5 (SphereSDF.t3 defaults). A fixed short id so
-  // the prefix is deterministic and the layout assertions are stable.
-  auto sphere = std::make_shared<SphereSDFNode>("abc123");
-  sphere->centerX = 0.f;
-  sphere->centerY = 0.f;
-  sphere->centerZ = 0.f;
-  sphere->radius = 0.5f;
+  // Minimal SphereSDF leaf via the FieldOp factory (SphereSDFNode is now leaf-private — see
+  // field_ops_spheresdf.cpp). The factory builds it with the SphereSDF.t3 defaults Center=(0,0,0),
+  // Radius=0.5 — exactly the layout these assertions pin. A fixed short id keeps the prefix
+  // deterministic. (Was: direct `new SphereSDFNode("abc123")` + explicit default sets; the factory
+  // produces the identical node, and routing through it also exercises the self-registration seam.)
+  auto sphere = makeFieldNode("SphereSDF", "abc123");
+  if (!sphere) {
+    std::fprintf(stderr, "[selftest-field-codegen] FAIL: SphereSDF factory not registered\n");
+    return 1;
+  }
   const std::string prefix = "SphereSDF_abc123_";
 
   AssembledField a = assembleFieldMSL(sphere, tmpl);
