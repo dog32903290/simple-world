@@ -2016,3 +2016,25 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. **4 顆 seam SDF**：Image2dSDF（texture-into-field）/HeightMapSdf（heightmap texture）/CustomSDF（custom user code）/FractalSDF（迭代）各需獨立 seam，承重，延後。
 3. **field combiner 節點**（union/intersect/subtract/smooth-min，在 field/combine 不在 generate/sdf）＝首批多輸入 field 樹，踩 pushContext/popContext 多輸入子作用域（目前只單 leaf 驗過）＝承重一塊，Plan→build→refuter 全工法。**這是 SDF 真正威力（組合多形體）的解鎖點，建議下一塊承重做這個**。
 4. 延後：raymarch 3D + 顏色映射 parity。排修同 Cut 70 清單；HoneyComb WIP（locked aa929af38）待柏為定。
+
+## Cut 72 — Phase C 收尾 SDF generate 家族：最後 4 顆葉子（CappedTorus/Prism/Pyramid/RotatedPlane）✅ (2026-06-18 凌晨, /sw-batch, Workflow)
+**HEAD `3bab74c`**（feat）。**柏為 02:05 下令「這段玩收尾」→ 本批為本段最後一批，落地後停（不開 field combiner、不自走下一批）。** 同 session 自走 Cut 70→71→72。
+
+**選批**：Cut 71 盤點剩 4 顆 axis/normal 葉子（CappedTorus/Prism/Pyramid 帶 axis enum、RotatedPlane 用 Normal vector），scout 確認皆零基座葉子→同 fan-out 工法。**完成後 SDF 17 顆港 13 顆**（Sphere+Cut70 五解析+Cut71 三 axis+Cut72 四）；**剩 4 顆=Image2dSDF/HeightMapSdf/CustomSDF/FractalSDF 各需 texture/heightmap/custom-code/迭代 seam，延後**。
+
+**3 個新皺褶（全由 frozen base helper 吃下，零基座改）**：
+- **Prism = 雙 code-selector enum**（Axis X/Y/Z + Sides 3/6）：sides 同時選 global helper（fTriangularPrism/fHexPrism）與 call line；default Sides=1→_6→hex。兩個 int member 都不打包。
+- **Pyramid/RotatedPlane = 首批雙 vec3 head-run**：padForVec3 自動在兩 vec3 間補 1 pad float（Center[0..2]/pad[3]/2nd-vec3[4..6]），refuter 雙確認。Pyramid 另：axis 表 ordering 不同（yxz/xyz/xzy）、Center 當 helper arg（內部減）非 call 減、Scale.x/.z/.y remap + *UniformScale derived in text。
+- **CappedTorus golden = 值探針紀律**：default Radius=2 形體出畫面 [-1,1]→全畫面無負區→只用值探針無 sign-flip tooth（仿全正形體）。
+
+**★Pyramid golden fix（refuter 抓真 bug，fixer 修）**：build agent 的 boundary-sign 探針斷言 crossing 在 p.x=1.05（出畫面 max 0.992）→crossPx 永不翻→**對正確 shader 報 FAIL**（非 injectBug 路徑 rc=1）。op .cpp 本身乾淨（vector 1-5,7 SAFE）。Sonnet fixer 移除出畫面 boundary scan、保留會咬的負值探針（仿 CappedTorus）。**教訓延伸 Cut 71 Torus off-screen 探針：golden 探針必在 [-1,1]，sign-flip tooth 只在畫面內有負區時用；off-screen 形體用值探針。**
+
+**工法**：同 Cut 70-71 Workflow 寫-leaf→per-op refuter（明令 wiring=NIT）→3 顆 MERGE-SAFE zero-block + Pyramid 1 BLOCK（golden bug，fixer 修）→orchestrator 中央接線（CMake+8 源/selftests +4）→一次 build→親驗。
+
+**驗收（北極星全綠）**：4 GPU golden byte-match 距離公式各 -bug RED（pyramid 修後綠）；per-op refuter 全 SAFE（pyramid fix 後）；**run_all --bite PASS=198 NO-BITE:[]**（唯一紅 soundtrack flake 非 field 不擋）；field_sdf_palette.scn 擴成 **13 顆 SDF 全進 quick-add**；check-arch OK。
+
+**Resume — next（HEAD 3bab74c，柏為下令本段停；下次再開）**：
+1. **field combiner 節點**（union/intersect/subtract/smooth-min，在 field/combine 非 generate/sdf）＝首批多輸入 field 樹，**踩 pushContext/popContext 多輸入子作用域**（目前只單 leaf 驗過）＝承重一塊，Plan→build→refuter 全工法。**這是 SDF 真正威力（組合多形體）的解鎖點，建議下段第一塊承重做這個。**
+2. **4 顆 seam SDF**：Image2dSDF(texture-into-field)/HeightMapSdf(heightmap texture)/CustomSDF(custom user code)/FractalSDF(迭代) 各需獨立 seam，承重，延後。
+3. 延後：raymarch 3D(RaymarchField+camera3d)+顏色映射 parity（需跑真 TiXL 截 DistToColor/Fog 常數）。
+4. 排修：task_eb3375a3(soundtrack)/d288a684/3fc122a2/c6a885db/602f15ec/2ee58abb/258d9510；HoneyComb WIP(locked aa929af38)待柏為定。詳施工圖 Cut 70-72。
