@@ -233,6 +233,24 @@ int runPairPointsForLinesSelfTest(bool injectBug);
 // injectBug = asserts wrong input range (index 0 range) -> real cook selects index 1 -> FAIL.
 void registerPickPointListOp();
 int runPickPointListSelfTest(bool injectBug);
+// PairPointsForSplines COMBINE op (point_ops_pairpointsforsplines.cpp, batch 10): pairs GPoints[i]
+// with GTargets[i] (cyclic modulo), emits a Hermite cubic spline strip of pointsPerSegment points
+// per pair (last = NaN divider). Output count = max(CountA,CountB) * (clamp(Segments,3,16385)+1).
+// injectBug = perturb Segments param so the f-endpoints / count shift -> golden asserts FAIL.
+void registerPairPointsForSplinesOp();
+int runPairPointsForSplinesSelfTest(bool injectBug);
+// PairPointsForGridWalkLines COMBINE op (point_ops_pairpointsforgridwalklines.cpp, batch 10):
+// connects StartPoints[i] to TargetPoints[i] (cyclic modulo) via an 11-step grid-walk polyline
+// (11th = NaN divider). Output count = max(StartCount,TargetCount) * 11.
+// injectBug = expect the wrong count multiplier (*3 not *11) -> count law FAILS.
+void registerPairPointsForGridWalkLinesOp();
+int runPairPointsForGridWalkLinesSelfTest(bool injectBug);
+// BlendPoints COMBINE op (point_ops_blendpoints.cpp, batch 10): per-point lerp of PointsA[i] toward
+// PointsB[i] (index-paired) by a BlendMode-selected factor f. Output count = countA (PointsA, the
+// FIRST input — countFromFirstPointsInput=true, NOT the sum). injectBug = perturb BlendFactor so the
+// routed lerp factor differs from the asserted f=0.25 -> Position/Color/FX1 assertions FAIL.
+void registerBlendPointsOp();
+int runBlendPointsSelfTest(bool injectBug);
 
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a

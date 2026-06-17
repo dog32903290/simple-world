@@ -12,12 +12,18 @@ void registerCombineBuffersOp();
 void registerSnapToPointsOp();      // batch 21: index-paired Points1->Points2 lerp
 void registerPairPointsForLinesOp();  // batch 24: pair A+B with NaN divider -> DrawLines
 void registerPickPointListOp();       // batch 24: multi-input select by Index
+void registerPairPointsForSplinesOp();        // batch 10: Hermite spline strip per pair
+void registerPairPointsForGridWalkLinesOp();  // batch 10: 11-step grid-walk polyline per pair
+void registerBlendPointsOp();                 // batch 10: index-paired PointsA->PointsB lerp
 
 void registerPointCombinePointOps() {
   registerCombineBuffersOp();
   registerSnapToPointsOp();
   registerPairPointsForLinesOp();
   registerPickPointListOp();
+  registerPairPointsForSplinesOp();
+  registerPairPointsForGridWalkLinesOp();
+  registerBlendPointsOp();
 }
 
 }  // namespace sw
