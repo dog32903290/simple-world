@@ -50,6 +50,10 @@ namespace sw { int runFieldChainLinkSdfGoldenSelfTest(bool); }    // field_ops_c
 namespace sw { int runFieldTorusSdfGoldenSelfTest(bool); }        // field_ops_torussdf_golden.cpp (axis-enum)
 namespace sw { int runFieldCylinderSdfGoldenSelfTest(bool); }     // field_ops_cylindersdf_golden.cpp (axis-enum)
 namespace sw { int runFieldPlaneSdfGoldenSelfTest(bool); }        // field_ops_planesdf_golden.cpp (axis-enum)
+namespace sw { int runFieldCappedTorusSdfGoldenSelfTest(bool); }  // field_ops_cappedtorussdf_golden.cpp (axis-enum)
+namespace sw { int runFieldPrismSdfGoldenSelfTest(bool); }        // field_ops_prismsdf_golden.cpp (axis+sides enum)
+namespace sw { int runFieldPyramidSdfGoldenSelfTest(bool); }      // field_ops_pyramidsdf_golden.cpp (axis-enum, two-vec3)
+namespace sw { int runFieldRotatedPlaneSdfGoldenSelfTest(bool); } // field_ops_rotatedplanesdf_golden.cpp (normal-vector, two-vec3)
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
@@ -165,6 +169,10 @@ const SelfTest kTable[] = {
     {"field-torussdf", runFieldTorusSdfGoldenSelfTest},
     {"field-cylindersdf", runFieldCylinderSdfGoldenSelfTest},
     {"field-planesdf", runFieldPlaneSdfGoldenSelfTest},
+    {"field-cappedtorussdf", runFieldCappedTorusSdfGoldenSelfTest},
+    {"field-prismsdf", runFieldPrismSdfGoldenSelfTest},
+    {"field-pyramidsdf", runFieldPyramidSdfGoldenSelfTest},
+    {"field-rotatedplanesdf", runFieldRotatedPlaneSdfGoldenSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},

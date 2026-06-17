@@ -182,6 +182,10 @@ add_executable(simple_world
   src/runtime/field_ops_torussdf.cpp
   src/runtime/field_ops_cylindersdf.cpp
   src/runtime/field_ops_planesdf.cpp
+  src/runtime/field_ops_cappedtorussdf.cpp
+  src/runtime/field_ops_prismsdf.cpp
+  src/runtime/field_ops_pyramidsdf.cpp
+  src/runtime/field_ops_rotatedplanesdf.cpp
   src/field_render_golden.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
@@ -191,6 +195,10 @@ add_executable(simple_world
   src/field_ops_torussdf_golden.cpp
   src/field_ops_cylindersdf_golden.cpp
   src/field_ops_planesdf_golden.cpp
+  src/field_ops_cappedtorussdf_golden.cpp
+  src/field_ops_prismsdf_golden.cpp
+  src/field_ops_pyramidsdf_golden.cpp
+  src/field_ops_rotatedplanesdf_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp

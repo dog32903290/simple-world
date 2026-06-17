@@ -2,7 +2,8 @@
 #
 # WHAT THIS PROVES: the SDF field ops added on top of SphereSDF —
 #   BoxSDF / BoxFrameSDF / OctahedronSDF / CapsuleLineSDF / ChainLinkSDF (analytic leaves)
-#   + TorusSDF / CylinderSDF / PlaneSDF (axis-enum leaves) —
+#   + TorusSDF / CylinderSDF / PlaneSDF / CappedTorusSDF / PrismSDF / PyramidSDF (axis-enum leaves)
+#   + RotatedPlaneSDF (normal-vector leaf) —
 # each registered through the SAME zero-shared-file FieldOp self-registration seam
 # (runtime/field_ops_<name>.cpp FieldOp -> fieldSpecSink, consumed by node_registry's
 # specTypes()/findSpec), are reachable by the hand: typing "SDF" in the quick-add palette
@@ -46,7 +47,11 @@ assert_map_has qa:ChainLinkSDF
 assert_map_has qa:TorusSDF
 assert_map_has qa:CylinderSDF
 assert_map_has qa:PlaneSDF
-echo all-nine-sdf-ops-surface-in-palette
+assert_map_has qa:CappedTorusSDF
+assert_map_has qa:PrismSDF
+assert_map_has qa:PyramidSDF
+assert_map_has qa:RotatedPlaneSDF
+echo all-thirteen-sdf-ops-surface-in-palette
 
 # --- Spawn one of the new ops (BoxSDF) to prove the seam wires a REAL node ---
 do click @qa:BoxSDF
