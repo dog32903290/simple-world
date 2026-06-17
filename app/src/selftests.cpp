@@ -41,6 +41,12 @@
 #include "runtime/field_graph.h"  // runFieldCodegenSelfTest (shader-graph codegen, pure string)
 namespace sw { int runFieldRenderSelfTest(bool);  // field_render_golden.cpp (shell-tier GPU golden)
 }  // ^ forward-declared (no header): the GPU field golden lives at shell tier (binds runtime+platform)
+// Per-op SDF GPU goldens (Phase C fan-out) — same shell tier, same no-header forward-decl pattern.
+namespace sw { int runFieldBoxSdfGoldenSelfTest(bool); }          // field_ops_boxsdf_golden.cpp
+namespace sw { int runFieldBoxFrameSdfGoldenSelfTest(bool); }     // field_ops_boxframesdf_golden.cpp
+namespace sw { int runFieldOctahedronSdfGoldenSelfTest(bool); }   // field_ops_octahedronsdf_golden.cpp
+namespace sw { int runFieldCapsuleLineSdfGoldenSelfTest(bool); }  // field_ops_capsulelinesdf_golden.cpp
+namespace sw { int runFieldChainLinkSdfGoldenSelfTest(bool); }    // field_ops_chainlinksdf_golden.cpp
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
@@ -148,6 +154,11 @@ const SelfTest kTable[] = {
     {"metal-compile", platform::runMetalCompileSelfTest},
     {"field-codegen", runFieldCodegenSelfTest},
     {"field-render", runFieldRenderSelfTest},
+    {"field-boxsdf", runFieldBoxSdfGoldenSelfTest},
+    {"field-boxframesdf", runFieldBoxFrameSdfGoldenSelfTest},
+    {"field-octahedronsdf", runFieldOctahedronSdfGoldenSelfTest},
+    {"field-capsulelinesdf", runFieldCapsuleLineSdfGoldenSelfTest},
+    {"field-chainlinksdf", runFieldChainLinkSdfGoldenSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},

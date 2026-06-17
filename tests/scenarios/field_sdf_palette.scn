@@ -1,0 +1,59 @@
+# field_sdf_palette.scn — 活體牙: the Phase-C SDF fan-out ops are LIVE in the editor.
+#
+# WHAT THIS PROVES: the 5 new SDF field ops added on top of SphereSDF —
+#   BoxSDF / BoxFrameSDF / OctahedronSDF / CapsuleLineSDF / ChainLinkSDF —
+# each registered through the SAME zero-shared-file FieldOp self-registration seam
+# (runtime/field_ops_<name>.cpp FieldOp -> fieldSpecSink, consumed by node_registry's
+# specTypes()/findSpec), are reachable by the hand: typing "SDF" in the quick-add palette
+# surfaces all six SDF ops. That is the live half of the fan-out — every leaf is a
+# first-class editor citizen, not a selftest-only string.
+#
+# WHAT THIS DOES NOT ASSERT (read before extending): the GPU half (renderField2d cooking
+# each SDF onto a texture) has NO live frame-cook consumer in this build — its parity proof
+# is the per-op GPU golden (--selftest-field-{boxsdf,boxframesdf,octahedronsdf,
+# capsulelinesdf,chainlinksdf}), each byte-matching the closed-form distance. Do NOT add a
+# capture/assert_diff here pretending the canvas renders the field — it does not yet.
+#
+# RED proof: change any `assert_map_has qa:BoxSDF` op name to a non-existent one (e.g.
+# qa:ConeSDF) -> FAIL (the seam never registered it). Or spawn-assert id 104 -> 999 -> FAIL.
+#
+# Default graph (defaultParticleGraph): Root has 5 children (ids 1,2,6,7,8), nextChildId=104.
+
+# Baseline: default graph, 5 children.
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 5'
+echo baseline-root-5-children
+
+# Focus the canvas (CanvasFocus handlers gate the Cmd+F quick-add palette).
+do click 400 300
+wait 0.3
+
+# --- Open the quick-add palette (Cmd+F) ---
+do keychord cmd f
+wait 0.5
+assert_map_has qa:input
+echo quick-add-palette-open
+
+# --- Filter to the SDF family: typing "SDF" narrows to every *SDF op ---
+do text SDF
+wait 0.3
+assert_map_has qa:SphereSDF
+assert_map_has qa:BoxSDF
+assert_map_has qa:BoxFrameSDF
+assert_map_has qa:OctahedronSDF
+assert_map_has qa:CapsuleLineSDF
+assert_map_has qa:ChainLinkSDF
+echo all-six-sdf-ops-surface-in-palette
+
+# --- Spawn one of the new ops (BoxSDF) to prove the seam wires a REAL node ---
+do click @qa:BoxSDF
+wait 0.5
+
+# Root gained one child (5 -> 6) and it is the field op at id 104.
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+echo boxsdf-spawned-root-now-6-children
+
+assert_state '([.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 104)][0].symbolId) == "sw-type:BoxSDF"'
+echo child-104-is-BoxSDF-type
+
+assert_map_has node:104
+echo boxsdf-node-drawn
