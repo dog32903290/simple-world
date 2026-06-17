@@ -1,5 +1,10 @@
 # Native Runtime Master Progress
 
+> **SUPERSEDED (2026-06-07) by `docs/superpowers/plans/2026-06-07-imgui-metal-pivot-master-progress.md`.**
+> 方向已轉向「imgui-node-editor 皮 + 自建 Metal 引擎」。本檔只當歷史與底層知識來源；
+> 此處的「100/100」是 headless 有界契約證明，不是可用的 app。**不要照本檔繼續蓋自建
+> graph/command/runtimeGraph/UI runtime。** 以新 master progress 為準。
+
 This file is the single progress entrypoint for the native runtime goal. Other
 plans, proofs, fixtures, and artifacts are source material; live code, tests,
 and proof artifacts can overrule stale plan text.

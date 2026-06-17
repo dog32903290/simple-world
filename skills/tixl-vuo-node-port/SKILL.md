@@ -121,6 +121,7 @@ Rules:
 
 3.5. **Runtime blockage gate**
    - If node work exposes a runtime failure, stop node expansion and debug the runtime as the current blocking line.
+   - "Stop node expansion" means continue autonomously on the blocking runtime line; it does not mean stop the session or ask whether to continue.
    - Name the smallest line first:
      ```text
      <graph fixture> -> <runtime component> -> <observable artifact or failure>
