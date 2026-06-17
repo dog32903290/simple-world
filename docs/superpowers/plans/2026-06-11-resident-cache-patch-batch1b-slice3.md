@@ -1995,3 +1995,24 @@ commit 序:2c5a6db(refuter merge)→db98ff9(ToneMapping merge,含 AgX 修 40bb5e
 2. **field combiner 節點**（union/intersect/subtract/smooth-min 等 combine ops）＝首批多輸入 field 樹，**踩 pushContext/popContext 多輸入子作用域**（目前只有單 leaf 驗過）＝承重一塊，Plan→build→refuter 全工法。
 3. **延後**：raymarch 3D（RaymarchField+camera3d）+ 顏色映射 parity（需跑真 TiXL 截圖比 DistToColor/Fog 常數）。
 4. 排修同 Cut 68/69：task_eb3375a3(soundtrack)/d288a684/3fc122a2/c6a885db/602f15ec/2ee58abb/258d9510。HoneyComb WIP（locked worktree aa929af38）待柏為定（接著港完／丟／擱）。
+
+## Cut 71 — Phase C 續：3 顆 axis-enum SDF 葉子（Torus/Cylinder/Plane，葉子本地 enum swizzle）✅ (2026-06-18 凌晨, /sw-batch, Workflow)
+**HEAD `098f588`**（feat）。承 Cut 70 fan-out 工法續跑（同 session 自走）。**選批關鍵發現**：SDF 共 17 顆，乾淨解析葉子已開採殆盡（6 顆=sphere+Cut70 五顆）；剩 11 顆全帶 seam——7 顆 Axis/Sides enum（CappedTorus/Cylinder/Plane/Prism/Pyramid/RotatedPlane/Torus）、4 顆 texture/custom/迭代（Image2d/HeightMap/Custom/Fractal）。
+
+**Scout 裁決（決定隊形）**：axis-enum **是葉子本地、零基座改動**，不是 seam batch。理由＝TiXL Axis enum 是**編譯期 C# 字串替換**（enum index→`_axisCodes0` swizzle 表→拼進 emitted HLSL），**非 runtime uniform**；sw 端 `Widget::Enum` 路徑**早已存在**（value_op_compareint/point_ops_dither 在用，PortSpec 有 labels）。所以 axis op = 葉子持 `int axis` member + file-scope `kAxisCodes[]` 表，preShaderCode 依 axis 吐 swizzle 字串＝普通 fan-out 葉子（比解析葉子稍複雜）。**額外發現**：RotatedPlaneSDF 其實非 axis-blocked（用 Normal vector `dot(p-Center,normalize(Normal))`）＝普通解析葉子。
+
+**首批 3 顆（涵蓋兩種 swizzle 形 + inline/global + derived param）**：
+- **TorusSDF**：global `fTorus`，3-letter swizzle `{yzx,xzy,xyz}` 套 p **與** Center；default Axis=Z=identity。
+- **CylinderSDF**：global `fRoundedCyl`（含逐字 `- 2.0*ra+rb` C 優先序）；**具名 fork（與 Box 相反）**＝打包 RAW Radius/Height，`*0.5` 留在 call text（TiXL 無 AdditionalParameter，不像 Box 在 Update() 預乘）。
+- **PlaneSDF**：inline 無 helper；single-letter swizzle + sign 表 `{"","","","-","-","-"}`；**vec3-only 參數**（單一 packed_float3，踩 padForVec3 v.size()==0 邊界）。
+- **axis 不入 buffer**（axisNotPacked 三顆全驗）：它改 srcHash（emitted text），非 float param；打包它會壞 16-byte layout+golden。
+
+**工法**：同 Cut 70 — Workflow 寫-leaf→per-op refuter（**這批 refuter prompt 明令「未接線=NIT 不算 BLOCK」**→3 顆 zero blocking，修正 Cut 70 假陽性教訓）→orchestrator 中央接線（CMake+6 源/selftests +3）→一次 build→親驗。
+
+**驗收（北極星全綠）**：3 GPU golden byte-match 距離公式（探針+邊界）各 -bug RED（**Torus golden 修正**：scout 的 p=(2,0) 探針在 2D field 空間 [-1,1] 不可達→build agent 改用可達 tube-core/hole 探針+inner-surface 邊界，refuter 驗證）；per-op refuter formula/axis-swizzle/axis-not-packed/packing/defaults/golden/enum-zone 全 SAFE zero blocking；**run_all --bite PASS=194 NO-BITE:[]**（唯一紅 soundtrack flake 非 field 不擋）；field_sdf_palette.scn 擴成 9 顆 SDF 全進 quick-add；check-arch OK。
+
+**Resume — next（HEAD 098f588，axis-enum 工法已證，續 fan-out）**：
+1. **續剩 axis-enum SDF（同葉子本地工法，直接 fan-out）**：CappedTorus/Prism/Pyramid（Pyramid 讀 Scale.x/.z/.y+UniformScale 較多參數）+ **RotatedPlane（非 axis、用 Normal vector，最乾淨）**。約 4 顆收完整個 SDF generate 家族（除 4 顆 texture/custom/迭代 seam）。
+2. **4 顆 seam SDF**：Image2dSDF（texture-into-field）/HeightMapSdf（heightmap texture）/CustomSDF（custom user code）/FractalSDF（迭代）各需獨立 seam，承重，延後。
+3. **field combiner 節點**（union/intersect/subtract/smooth-min，在 field/combine 不在 generate/sdf）＝首批多輸入 field 樹，踩 pushContext/popContext 多輸入子作用域（目前只單 leaf 驗過）＝承重一塊，Plan→build→refuter 全工法。**這是 SDF 真正威力（組合多形體）的解鎖點，建議下一塊承重做這個**。
+4. 延後：raymarch 3D + 顏色映射 parity。排修同 Cut 70 清單；HoneyComb WIP（locked aa929af38）待柏為定。
