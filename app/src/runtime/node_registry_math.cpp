@@ -332,6 +332,40 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f},
         {"MinTimeBetweenPeaks", "MinTimeBetweenPeaks", "Float", true, 0.0f, 0.0f, 2.0f}},
        nullptr},
+      // CountInt — running integer counter; steps every evaluated frame TriggerIncrement/
+      // TriggerDecrement is held true (LEVEL, faithful to TiXL — with defaults the output free-runs
+      // 1,2,3,4,...), reloads DefaultValue on TriggerReset, wraps by Modulo. OnlyCountChanges gates the
+      // step to frames where a trigger value CHANGED. TiXL int/logic/CountInt.cs (stateful; outputs
+      // FIRST; nullptr eval). .t3 defaults: TriggerIncrement=true, Delta=1, OnlyCountChanges=false.
+      // Trigger ports are Bool→Float (>0.5); int ports truncate.
+      {"CountInt", "CountInt",
+       {{"Result", "Result", "Float", false},
+        {"TriggerIncrement", "TriggerIncrement", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},
+        {"TriggerDecrement", "TriggerDecrement", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"TriggerReset", "TriggerReset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"OnlyCountChanges", "OnlyCountChanges", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"Delta", "Delta", "Float", true, 1.0f, -100.0f, 100.0f},
+        {"DefaultValue", "DefaultValue", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"Modulo", "Modulo", "Float", true, 0.0f, 0.0f, 100.0f}},
+       nullptr},
+      // FlipBool — latched bool; TOGGLES on the rising edge of Trigger (already rising-edge in the .cs
+      // via MathUtils.WasTriggered), reloads DefaultValue on ResetTrigger (reset wins). TiXL bool/logic/
+      // FlipBool.cs (stateful; output FIRST; nullptr eval). Bool dissolves to Float 0/1 (Cut 32).
+      {"FlipBool", "FlipBool",
+       {{"Result", "Result", "Float", false},
+        {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"ResetTrigger", "ResetTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"DefaultValue", "DefaultValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr},
+      // HasIntChanged — HasChanged(0/1) when this frame's int-truncated Value differs from last frame's,
+      // by Mode. TiXL int/logic/HasIntChanged.cs (stateful; output FIRST; nullptr eval). ReturnTrueIf enum
+      // default=Changed(3); Modes: Never(0)/Increased(1)/Decreased(2)/Changed(3). Value int-truncates.
+      {"HasIntChanged", "HasIntChanged",
+       {{"HasChanged", "HasChanged", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"ReturnTrueIf", "ReturnTrueIf", "Float", true, 3.0f, 0.0f, 3.0f, Widget::Enum,
+         {"Never", "Increased", "Decreased", "Changed"}}},
+       nullptr},
       // BlendValues — blend between a MultiInput<float> list by F. TiXL float/process/BlendValues.cs.
       // Values (multiInput) MUST precede the trailing regular F — the eval reads F as in[n-1] and the
       // Values segment as in[0..n-2] (mixed-multiInput convention; no gather change, batch35).

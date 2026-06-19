@@ -661,6 +661,154 @@ void stepPeakLevel(const std::map<std::string, float>& in, float, float time, St
   st.s[0] = value;
 }
 
+// --- CountInt (TiXL Lib/numbers/int/logic/CountInt.cs) — a running integer counter that steps every
+// evaluated frame TriggerIncrement / TriggerDecrement is held true (LEVEL, not edge), reloads
+// DefaultValue on TriggerReset, and wraps by Modulo. The optional OnlyCountChanges gate skips the
+// whole step on frames where neither trigger CHANGED since last frame. Stateful: the count must
+// persist across frames and be reconstructed each cook (frame_cook hands a zeroed out[]).
+// State: s[0]=count, s[1]=lastIncTrigger(0/1), s[2]=lastDecTrigger(0/1).
+// .t3 defaults: TriggerIncrement=true, TriggerDecrement=false, TriggerReset=false, OnlyCountChanges=false,
+//   Delta=1, DefaultValue=0, Modulo=0. Help doc: "counts evaluations as an integer" = free-running
+//   per-frame counter (with defaults, output = 1,2,3,4,... over consecutive evaluated frames).
+// TiXL Update() FULL (CountInt.cs:14-56), exact order:
+//   var defaultValue = DefaultValue.GetValue(context);
+//   var currentTime = context.LocalFxTime;
+//   if (Math.Abs(currentTime - _lastEvalTime) < MinTimeElapsedBeforeEvaluation) return;   // sub-ms guard
+//   _lastEvalTime = currentTime;
+//   var triggeredIncrement = TriggerIncrement.GetValue(context);                            // raw LEVEL
+//   var triggeredDecrement = TriggerDecrement.GetValue(context);
+//   var notChanged = triggeredIncrement == _lastIncrementTrigger && triggeredDecrement == _lastDecrementTrigger;
+//   if (OnlyCountChanges.GetValue(context) && notChanged) return;                           // gate
+//   _lastIncrementTrigger = triggeredIncrement; _lastDecrementTrigger = triggeredDecrement;
+//   var delta = Delta.GetValue(context);
+//   if (triggeredIncrement) Result.Value += delta; else if (triggeredDecrement) Result.Value -= delta;
+//   if (!_initialized || TriggerReset.GetValue(context)) { Result.Value = defaultValue; _initialized = true; }
+//   var modulo = Modulo.GetValue(context); if (modulo != 0) Result.Value %= modulo;
+// Note _lastIncrementTrigger/_lastDecrementTrigger feed ONLY the OnlyCountChanges gate — they NEVER
+// gate the increment itself. The increment is the raw LEVEL `if (triggeredIncrement)`.
+// Forks (named):
+//   • The `MinTimeElapsedBeforeEvaluation` (1/10000s) sub-ms double-eval guard is DROPPED — frame_cook
+//     cooks each node exactly once per frame (same precedent as Damp/Spring/Ease). No _lastEvalTime.
+//   • bool-as-float threshold 0.5: TriggerIncrement/TriggerDecrement/TriggerReset/OnlyCountChanges read
+//     from Float ports as >0.5 (Cut 32: no Bool port type).
+//   • int-on-float-port: Delta/DefaultValue/Modulo/count arrive on Float ports but are int-typed in
+//     TiXL — converted by C#-`(int)` TRUNCATION toward zero ((long)std::trunc), NOT rounding, so 1.9→1.
+//     C# integer `%` (truncated remainder, sign of dividend) is the native long `%`. The count is kept
+//     in s[0] as an exact integer-valued float (|count| ≪ 2^24 in practice → no float-int drift).
+//   • zeroed-out[] reconstruct: TiXL's Result.Value Slot persists across frames; here frame_cook zeroes
+//     out[] each cook, so the count is reconstructed from s[0] (and the OnlyCountChanges early-return
+//     still re-emits s[0] so the output holds, mirroring TiXL keeping Result.Value untouched).
+//   • Reset reloads DefaultValue AFTER the inc/dec step (TiXL order: the reset overwrites), so on a
+//     frame with both inc held AND TriggerReset, the result is DefaultValue (then Modulo).
+void stepCountInt(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                  StatefulValueState& st, float out[3]) {
+  const bool incTrig = getIn(in, "TriggerIncrement", 1.0f) > 0.5f;   // .t3 default TriggerIncrement=true
+  const bool decTrig = getIn(in, "TriggerDecrement", 0.0f) > 0.5f;
+  const bool resetTrig = getIn(in, "TriggerReset", 0.0f) > 0.5f;
+  const bool onlyCountChanges = getIn(in, "OnlyCountChanges", 0.0f) > 0.5f;
+  const long delta = (long)std::trunc(getIn(in, "Delta", 1.0f));          // C# (int) cast = truncate
+  const long defaultValue = (long)std::trunc(getIn(in, "DefaultValue", 0.0f));
+  const long modulo = (long)std::trunc(getIn(in, "Modulo", 0.0f));
+
+  long count = (long)std::trunc(st.s[0]);
+
+  // OnlyCountChanges gate (CountInt.cs:28-30): skip the WHOLE step (inc/dec/reset/modulo) on frames
+  // where neither trigger CHANGED since last frame. _lastInc/_lastDec are NOT updated on early-return
+  // (they're already equal → notChanged), and Result.Value is left untouched → re-emit persisted count.
+  const bool prevInc = st.s[1] > 0.5f;
+  const bool prevDec = st.s[2] > 0.5f;
+  const bool notChanged = (incTrig == prevInc) && (decTrig == prevDec);
+  if (onlyCountChanges && notChanged) {
+    out[0] = (float)count;   // TiXL returns with Result.Value held; reconstruct from s[0]
+    return;
+  }
+
+  // CountInt.cs:32-33 — store current triggers (feed ONLY the gate above, never the increment).
+  st.s[1] = incTrig ? 1.0f : 0.0f;
+  st.s[2] = decTrig ? 1.0f : 0.0f;
+
+  // CountInt.cs:36-43 — LEVEL increment: fires every evaluated frame the trigger is held true.
+  if (incTrig)      count += delta;   // TiXL: if (triggeredIncrement) Result.Value += delta
+  else if (decTrig) count -= delta;   //       else if (triggeredDecrement) Result.Value -= delta
+
+  if (!st.init || resetTrig) {        // CountInt.cs:45-49 — !_initialized || TriggerReset → defaultValue
+    count = defaultValue;
+    st.init = true;
+  }
+  if (modulo != 0) count %= modulo;   // CountInt.cs:51-55 — Result.Value %= modulo (C# truncated remainder)
+
+  st.s[0] = (float)count;
+  out[0] = (float)count;
+}
+
+// --- FlipBool (TiXL Lib/numbers/bool/logic/FlipBool.cs) — a latched boolean that TOGGLES on the
+// rising edge of Trigger and reloads DefaultValue on ResetTrigger (reset wins). Bool dissolves to
+// Float 0/1 (Cut 32: no Bool port type). Stateful: the latched bool must persist + be reconstructed
+// each cook (out[] is zeroed). State: s[0]=current bool(0/1), s[1]=lastTrigger(0/1).
+// .t3 defaults: Trigger=false, ResetTrigger=false, DefaultValue=false.
+// TiXL Update() (FlipBool.cs:21-34):
+//   var isTriggered = MathUtils.WasTriggered(Trigger.GetValue(context), ref _triggered);
+//   var isReset = ResetTrigger.GetValue(context); var defaultValue = DefaultValue.GetValue(context);
+//   if (isReset) Result.Value = defaultValue; else if (isTriggered) Result.Value = !Result.Value;
+// (Rising-edge toggle is already faithful in the .cs — no edge fork needed, unlike CountInt.)
+// Forks (named):
+//   • bool-as-float threshold 0.5: Trigger/ResetTrigger/DefaultValue read from Float ports as >0.5;
+//     Result emitted as 1.0/0.0.
+//   • No init seeding: TiXL Result.Value starts false (Slot<bool> default); s[0] zero-init = false,
+//     faithful. ResetTrigger is LEVEL (every frame it is held true forces DefaultValue — TiXL's
+//     `if (isReset)`), only the toggle is edge-gated.
+void stepFlipBool(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                  StatefulValueState& st, float out[3]) {
+  const bool trigger = getIn(in, "Trigger", 0.0f) > 0.5f;
+  const bool reset = getIn(in, "ResetTrigger", 0.0f) > 0.5f;
+  const bool defaultValue = getIn(in, "DefaultValue", 0.0f) > 0.5f;
+
+  // MathUtils.WasTriggered(Trigger, ref _triggered): rising edge, then store current.
+  const bool prevTrig = st.s[1] > 0.5f;
+  const bool isTriggered = trigger && !prevTrig;
+  st.s[1] = trigger ? 1.0f : 0.0f;
+
+  bool result = st.s[0] > 0.5f;
+  if (reset)              result = defaultValue;  // TiXL: reset wins (checked first)
+  else if (isTriggered)   result = !result;       //       else toggle on rising edge
+
+  st.s[0] = result ? 1.0f : 0.0f;
+  out[0] = st.s[0];
+}
+
+// --- HasIntChanged (TiXL Lib/numbers/int/logic/HasIntChanged.cs) — emits HasChanged(Bool→Float 0/1)
+// when this frame's (int-truncated) Value differs from last frame's, by Mode. State: s[0]=lastValue.
+// .t3 defaults: Value=0, ReturnTrueIf=3 (Changed). Modes enum: Never=0, Increased=1, Decreased=2, Changed=3.
+// TiXL Update() (HasIntChanged.cs:23-41):
+//   var v = Value.GetValue(context); var result = false;
+//   switch ((Modes)ReturnTrueIf...) { Increased: v>_lastValue; Decreased: v<_lastValue; Changed: v!=_lastValue; }
+//   HasChanged.Value = result; _lastValue = v;
+// (Never(0) and any out-of-range mode → result stays false, faithful to the switch default.)
+// Forks (named):
+//   • The `Math.Abs(LocalFxTime - _lastEvalTime) < double.Epsilon` sub-frame double-eval guard is
+//     DROPPED — frame_cook cooks once per frame (Damp/Spring/Ease precedent). No _lastEvalTime.
+//   • int-on-float-port: Value arrives on a Float port but is int-typed in TiXL — converted by
+//     C#-`(int)` TRUNCATION toward zero ((long)std::trunc), NOT rounding, so 4.9→4. The prior int is
+//     held in s[0] as an integer-valued float. (ReturnTrueIf is an enum selector → std::lround is fine.)
+//   • Bool output dissolves to Float 0/1 (Cut 32). Frame 1 compares against the zero-init lastValue
+//     (0), matching TiXL's _lastValue=0 field default.
+void stepHasIntChanged(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                       StatefulValueState& st, float out[3]) {
+  const long v = (long)std::trunc(getIn(in, "Value", 0.0f));  // C# (int) cast = truncate toward zero
+  const int mode = (int)std::lround(getIn(in, "ReturnTrueIf", 3.0f));
+  const long lastValue = (long)std::trunc(st.s[0]);
+
+  bool result = false;
+  switch (mode) {
+    case 1:  result = v > lastValue; break;   // Increased
+    case 2:  result = v < lastValue; break;   // Decreased
+    case 3:  result = v != lastValue; break;  // Changed
+    default: result = false; break;           // Never(0) / out-of-range → false (switch default)
+  }
+  out[0] = result ? 1.0f : 0.0f;
+  st.s[0] = (float)v;
+}
+
 struct StatefulOp {
   const char* type;
   void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[8]);
@@ -687,6 +835,9 @@ const StatefulOp kStatefulValueOps[] = {
     {"HasVec2Changed", stepHasVec2Changed},
     {"HasVec3Changed", stepHasVec3Changed},
     {"PeakLevel", stepPeakLevel},
+    {"CountInt", stepCountInt},
+    {"FlipBool", stepFlipBool},
+    {"HasIntChanged", stepHasIntChanged},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -1209,6 +1360,164 @@ int runStatefulValueSelfTest(bool injectBug) {
       ok = ok && pass;
       printf("[selftest-statefulvalue] PeakLevel step%d FoundPeak=%.1f(want %.1f) MovingSum=%.2f(want %.2f) -> %s\n", i + 1, out[1], wFP[i], out[3], wms, pass ? "PASS" : "FAIL");
     }
+  }
+
+  // ----- CountInt DEFAULT held-true free-running: counts EVERY evaluated frame → 1,2,3,4 -----
+  // The load-bearing case (the BLOCK). With .t3 defaults (TriggerIncrement=true, OnlyCountChanges=false,
+  // Delta=1) CountInt is a free-running per-frame counter: TiXL CountInt.cs:36 `if (triggeredIncrement)
+  // Result.Value += delta;` fires on the raw LEVEL every evaluated frame. The FIRST cook reloads
+  // DefaultValue=0 (CountInt.cs:45 !_initialized, AFTER the +=1), so it emits 0; then each held-true
+  // cook adds 1 → 1,2,3,4. (A rising-edge port would stick at 0 forever — exactly the BLOCK.)
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("CountInt", {{"TriggerIncrement", 1.0f}, {"Delta", 1.0f}}, dt60, 0.0f, st, out);  // init cook → 0
+    bool p0 = std::fabs(out[0] - 0.0f) < eps;
+    const float want[4] = {1.0f, 2.0f, 3.0f, 4.0f};  // free-running per-frame count
+    bool seqOk = p0;
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("CountInt", {{"TriggerIncrement", 1.0f}, {"Delta", 1.0f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 2) ? 2.0f : want[i];  // bug: held-true stops counting (rising-edge regression) → stuck at 2
+      bool pass = std::fabs(out[0] - w) < eps;
+      seqOk = seqOk && pass;
+      printf("[selftest-statefulvalue] CountInt.level step%d=%.1f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+    ok = ok && seqOk;
+  }
+  // ----- CountInt OnlyCountChanges=true: counts ONLY on frames where the trigger value CHANGED -----
+  // The gate (CountInt.cs:28-30) skips the WHOLE step on frames where neither trigger changed since
+  // last frame. The init cook (inc=true, CHANGED from lastInc=false) is NOT gated → +=1 then the
+  // !_initialized reload clobbers to default 0, sets initialized + stores lastInc=true.
+  // Then TriggerIncrement = false,false,true,true,false,true (held OnlyCountChanges=true):
+  //   f1 inc=false (CHANGED true→false → step: inc false so no add, hold 0, store prev=false)
+  //   f2 inc=false (==prev false, notChanged → GATED, hold 0)
+  //   f3 inc=true  (CHANGED false→true → step: +=1 → 1, store prev=true)
+  //   f4 inc=true  (==prev true, notChanged → GATED, hold 1)   ← LEVEL would give 2; gate blocks it
+  //   f5 inc=false (CHANGED true→false → step: no add, hold 1, store prev=false)
+  //   f6 inc=true  (CHANGED false→true → step: +=1 → 2)
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("CountInt", {{"TriggerIncrement", 1.0f}, {"OnlyCountChanges", 1.0f}, {"Delta", 1.0f}}, dt60, 0.0f, st, out);  // init → 0, prev=true
+    bool p0 = std::fabs(out[0] - 0.0f) < eps;
+    const float trig[6] = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+    const float want[6] = {0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 2.0f};
+    bool seqOk = p0;
+    for (int i = 0; i < 6; ++i) {
+      cookStatefulValueOp("CountInt", {{"TriggerIncrement", trig[i]}, {"OnlyCountChanges", 1.0f}, {"Delta", 1.0f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 3) ? 2.0f : want[i];  // bug: gate fails to skip held-true → counts again → 2
+      bool pass = std::fabs(out[0] - w) < eps;
+      seqOk = seqOk && pass;
+      printf("[selftest-statefulvalue] CountInt.onlychg step%d(t=%.0f)=%.1f want=%.1f -> %s\n", i + 1, trig[i], out[0], w, pass ? "PASS" : "FAIL");
+    }
+    ok = ok && seqOk;
+  }
+  // ----- CountInt first-cook inits to DefaultValue, then LEVEL decrement, then ResetTrigger→DefaultValue -----
+  // TiXL reloads DefaultValue on the FIRST cook (!_initialized), AFTER the step — so frame 1 = default(0)
+  // regardless of any trigger. Then a held decrement → −1 (level, one frame). Then TriggerReset → 10.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("CountInt", {{"TriggerIncrement", 0.0f}, {"TriggerDecrement", 1.0f}, {"Delta", 1.0f}}, dt60, 0.0f, st, out);  // first cook → default 0
+    bool p1 = std::fabs(out[0] - 0.0f) < eps;  // !_initialized reload (any trigger overridden)
+    cookStatefulValueOp("CountInt", {{"TriggerIncrement", 0.0f}, {"TriggerDecrement", 1.0f}, {"Delta", 1.0f}}, dt60, 0.0f, st, out);  // level dec → −1
+    bool p2 = std::fabs(out[0] - (-1.0f)) < eps;
+    cookStatefulValueOp("CountInt", {{"TriggerIncrement", 0.0f}, {"TriggerReset", 1.0f}, {"DefaultValue", 10.0f}}, dt60, 0.0f, st, out);  // reset → 10
+    float wR = injectBug ? -1.0f : 10.0f;  // bug: reset ignored
+    bool pR = std::fabs(out[0] - wR) < eps;
+    ok = ok && p1 && p2 && pR;
+    printf("[selftest-statefulvalue] CountInt.dec/reset init=%.1f dec=%.1f reset=%.1f(want %.1f) -> %s\n",
+           0.0f, -1.0f, out[0], wR, (p1 && p2 && pR) ? "PASS" : "FAIL");
+  }
+  // ----- CountInt Modulo=3 with held-true level inc: count 1,2,3,4,5 → 1,2,0,1,2 (C# truncated %) -----
+  // Init cook reloads default 0; then held TriggerIncrement counts 1,2,3,4,5 each wrapped %3.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("CountInt", {{"TriggerIncrement", 1.0f}, {"Delta", 1.0f}, {"Modulo", 3.0f}}, dt60, 0.0f, st, out);  // init → 0
+    const float want[5] = {1.0f, 2.0f, 0.0f, 1.0f, 2.0f};  // raw 1,2,3,4,5 %3
+    bool seqOk = true;
+    for (int i = 0; i < 5; ++i) {
+      cookStatefulValueOp("CountInt", {{"TriggerIncrement", 1.0f}, {"Delta", 1.0f}, {"Modulo", 3.0f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 2) ? 3.0f : want[i];  // bug: modulo dropped → 3 instead of 0
+      bool pass = std::fabs(out[0] - w) < eps;
+      seqOk = seqOk && pass;
+      printf("[selftest-statefulvalue] CountInt.mod3 step%d=%.1f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+    ok = ok && seqOk;
+  }
+
+  // ----- FlipBool rising-edge toggle: Trigger false→true→false→true → bool 0,1,1,0 -----
+  // Toggles only on the rising edge; the held-true frame (step3) must NOT re-toggle.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float trig[4] = {0.0f, 1.0f, 1.0f, 0.0f};
+    const float want[4] = {0.0f, 1.0f, 1.0f, 1.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("FlipBool", {{"Trigger", trig[i]}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 2) ? 0.0f : want[i];  // bug: held-true re-toggles
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] FlipBool.toggle step%d=%.1f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+  // ----- FlipBool two clean rising edges 0→1→0→1 + ResetTrigger→DefaultValue(=0) -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    // edge1: false→true → 1 ; arm low ; edge2: false→true → 0 ; arm low ; edge3: false→true → 1
+    cookStatefulValueOp("FlipBool", {{"Trigger", 1.0f}}, dt60, 0.0f, st, out);  // 0→1
+    bool p1 = std::fabs(out[0] - 1.0f) < eps;
+    cookStatefulValueOp("FlipBool", {{"Trigger", 0.0f}}, dt60, 0.0f, st, out);  // arm low (holds 1)
+    cookStatefulValueOp("FlipBool", {{"Trigger", 1.0f}}, dt60, 0.0f, st, out);  // 1→0
+    bool p2 = std::fabs(out[0] - 0.0f) < eps;
+    cookStatefulValueOp("FlipBool", {{"Trigger", 0.0f}}, dt60, 0.0f, st, out);  // arm low (holds 0)
+    cookStatefulValueOp("FlipBool", {{"Trigger", 1.0f}}, dt60, 0.0f, st, out);  // 0→1
+    bool p3 = std::fabs(out[0] - 1.0f) < eps;
+    // reset → DefaultValue(0), even though a rising edge is ALSO present (reset wins over the toggle)
+    cookStatefulValueOp("FlipBool", {{"Trigger", 0.0f}}, dt60, 0.0f, st, out);  // arm low (holds 1)
+    cookStatefulValueOp("FlipBool", {{"Trigger", 1.0f}, {"ResetTrigger", 1.0f}, {"DefaultValue", 0.0f}}, dt60, 0.0f, st, out);
+    float wR = injectBug ? 1.0f : 0.0f;  // bug: reset loses to toggle → 1→0... err 1 (toggle of held-1)
+    bool pR = std::fabs(out[0] - wR) < eps;
+    bool flips = p1 && p2 && p3;
+    ok = ok && flips && pR;
+    printf("[selftest-statefulvalue] FlipBool.seq 0->1=%.1f 1->0=%.1f 0->1=%.1f reset(wins)=%.1f(want %.1f) -> %s\n",
+           1.0f, 0.0f, 1.0f, out[0], wR, (flips && pR) ? "PASS" : "FAIL");
+  }
+
+  // ----- HasIntChanged (Mode=Changed=3): feed 5,5,7,7,3 → changed 0,0,1,0,1 -----
+  // First frame compares against the zero-init lastValue (5≠0 → changed=1). To assert the brief's
+  // "first/0" we seed with a leading 0 frame so the 5,5,7,7,3 run reads against a known prior.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("HasIntChanged", {{"Value", 0.0f}, {"ReturnTrueIf", 3.0f}}, dt60, 0.0f, st, out);  // seed lastValue=0
+    const float val[5] = {5.0f, 5.0f, 7.0f, 7.0f, 3.0f};
+    const float want[5] = {1.0f, 0.0f, 1.0f, 0.0f, 1.0f};  // 0→5 changes; 5,5 no; 5→7 yes; 7,7 no; 7→3 yes
+    for (int i = 0; i < 5; ++i) {
+      cookStatefulValueOp("HasIntChanged", {{"Value", val[i]}, {"ReturnTrueIf", 3.0f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 1) ? 1.0f : want[i];  // bug: stale-value compare → false-fire on 5,5
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasIntChanged.changed step%d(v=%.0f)=%.1f want=%.1f -> %s\n", i + 1, val[i], out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+  // ----- HasIntChanged Increased(1)/Decreased(2) modes + int-truncate (4.9 → 4) -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("HasIntChanged", {{"Value", 5.0f}, {"ReturnTrueIf", 1.0f}}, dt60, 0.0f, st, out);  // seed last=5 (0→5 increased=1)
+    cookStatefulValueOp("HasIntChanged", {{"Value", 4.9f}, {"ReturnTrueIf", 1.0f}}, dt60, 0.0f, st, out);  // 4.9→4 (int); 4<5 NOT increased → 0
+    bool pInc = std::fabs(out[0] - 0.0f) < eps;
+    cookStatefulValueOp("HasIntChanged", {{"Value", 4.0f}, {"ReturnTrueIf", 2.0f}}, dt60, 0.0f, st, out);  // last int=4; 4<4 false (Decreased) → 0
+    bool pDec0 = std::fabs(out[0] - 0.0f) < eps;
+    cookStatefulValueOp("HasIntChanged", {{"Value", 2.0f}, {"ReturnTrueIf", 2.0f}}, dt60, 0.0f, st, out);  // 2<4 → Decreased=1
+    float wDec = injectBug ? 0.0f : 1.0f;  // bug: never fires
+    bool pDec1 = std::fabs(out[0] - wDec) < eps;
+    ok = ok && pInc && pDec0 && pDec1;
+    printf("[selftest-statefulvalue] HasIntChanged.modes inc(4.9->4)=%.1f dec(4)=%.1f dec(2)=%.1f(want %.1f) -> %s\n",
+           0.0f, 0.0f, out[0], wDec, (pInc && pDec0 && pDec1) ? "PASS" : "FAIL");
   }
 
   printf("[selftest-statefulvalue] %s%s\n", ok ? "PASS" : "FAIL", injectBug ? " (injectBug)" : "");
