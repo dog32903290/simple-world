@@ -929,6 +929,129 @@ void stepHasBooleanChanged(const std::map<std::string, float>& in, float /*dt*/,
   st.s[0] = newValue ? 1.0f : 0.0f;
 }
 
+// --- Trigger (TiXL Lib/numbers/bool/logic/Trigger.cs) — a bool gate that either passes its BoolValue
+// straight through (OnlyOnDown=false) or emits a one-frame pulse on the RISING edge of BoolValue
+// (OnlyOnDown=true, the .t3 default). Bool dissolves to Float 0/1 (Cut 32). Stateful: the rising-edge
+// detection needs the PRIOR frame's BoolValue. State: s[0]=isSet (prev BoolValue, 0/1).
+// .t3 defaults: OnlyOnDown=true, BoolValue=false (ColorInGraph is a graph-cosmetic input → dropped,
+//   it never touches an output; see fork). Description (none in .cs; behavior is the WasTriggered gate).
+// TiXL Update() (Trigger.cs:20-31):
+//   if (!context.HasTimeChanged(ref _lastUpdateTime)) return;            // once-per-frame guard
+//   var value = BoolValue.GetValue(context);
+//   var wasHit = MathUtils.WasTriggered(value, ref _isSet);             // rising edge: value && !_isSet
+//   var onlyOnDown = OnlyOnDown.GetValue(context);
+//   Result.Value = onlyOnDown ? wasHit : value;                          // pulse-on-edge OR pass-through
+//   // (DirtyFlag bookkeeping for the next-frame refresh — render-graph only, no output effect.)
+// BEHAVIOR (backward-traced, NOT assumed): with the .t3 DEFAULT OnlyOnDown=true, the op fires a
+//   single-frame TRUE only on the frame BoolValue goes false→true; a held-true input pulses ONCE
+//   (the WasTriggered edge). With OnlyOnDown=false it is a transparent pass-through of the raw level.
+// MathUtils.WasTriggered(cur, ref prev) = rising edge: result = cur && !prev; then prev = cur.
+// Forks (named):
+//   • bool-as-float threshold 0.5: BoolValue/OnlyOnDown read from Float ports as >0.5; Result
+//     emitted as 1.0/0.0.
+//   • The `HasTimeChanged` once-per-frame early-return is DROPPED — frame_cook cooks each node
+//     exactly once per frame (Damp/Spring/Ease precedent). No _lastUpdateTime stored.
+//   • ColorInGraph (Vector4) input DROPPED — it only tints the node body in TiXL's editor and never
+//     influences Result; it has no port here (no behavior change to the output).
+//   • No init seeding: TiXL _isSet starts false; s[0] zero-init = false, faithful → a true BoolValue
+//     on frame 1 is itself a rising edge (false→true) and pulses, matching TiXL.
+void stepTrigger(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                 StatefulValueState& st, float out[3]) {
+  const bool value = getIn(in, "BoolValue", 0.0f) > 0.5f;
+  const bool onlyOnDown = getIn(in, "OnlyOnDown", 1.0f) > 0.5f;  // .t3 default OnlyOnDown=true
+
+  // MathUtils.WasTriggered(value, ref _isSet): rising edge, then store current.
+  const bool prevSet = st.s[0] > 0.5f;
+  const bool wasHit = value && !prevSet;
+  st.s[0] = value ? 1.0f : 0.0f;
+
+  out[0] = (onlyOnDown ? wasHit : value) ? 1.0f : 0.0f;
+}
+
+// --- KeepBoolean (TiXL Lib/numbers/bool/process/KeepBoolean.cs) — the BOOL twin of FreezeValue:
+// sample-and-hold a bool, plus a TimeSinceFreeze clock. Bool dissolves to Float 0/1 (Cut 32).
+// Outputs: Result(frozen bool 0/1), TimeSinceFreeze(seconds since the last freeze edge). Stateful.
+// State: s[0]=frozenValue(0/1), s[1]=prevFreeze(0/1), s[2]=freezeTime (the time of the last rising
+//   freeze edge). .t3 defaults: Value=false, Mode=0 (FreezeWhileTrue), Freeze=false.
+// Modes enum (KeepBoolean.cs:62-66): FreezeWhileTrue=0, UpdateWhenSwitchingToTrue=1.
+// TiXL Update() (KeepBoolean.cs:24-49):
+//   var newValue = Value.GetValue(context); var freeze = Freeze.GetValue(context);
+//   var mode = Mode...; var wasTriggered = MathUtils.WasTriggered(freeze, ref _freeze);
+//   if (wasTriggered) _freezeTime = context.LocalTime;
+//   if (mode == FreezeWhileTrue) { if (!freeze) _frozenValue = newValue; }
+//   else { if (wasTriggered) _frozenValue = newValue; }
+//   Result.Value = _frozenValue;
+//   TimeSinceFreeze.Value = (float)(context.LocalTime - _freezeTime);
+// BEHAVIOR (backward-traced, NOT assumed): the WasTriggered current (_freeze) is updated EVERY frame
+//   on the rising edge BEFORE the mode branch — identical structure to the already-shipped FreezeValue
+//   (this is its bool sibling). FreezeWhileTrue tracks the input while NOT frozen and holds while
+//   frozen; UpdateWhenSwitchingToTrue samples ONCE on the freeze rising edge. _freezeTime moves only
+//   on a rising freeze edge, so TimeSinceFreeze counts up from each fresh freeze.
+// Time: TiXL uses context.LocalTime for _freezeTime + TimeSinceFreeze; frame_cook hands wall seconds
+//   via `time`, the same substitution Ease/HasValueChanged/FreezeValue-family use. `dt` unused.
+// Forks (named):
+//   • bool-as-float threshold 0.5: Value/Freeze read from Float ports as >0.5; Result emitted 1.0/0.0.
+//   • No init seeding: TiXL _frozenValue/_freeze start false, _freezeTime starts 0; s[] zero-init
+//     matches all three (faithful). TimeSinceFreeze on frame 1 = time - 0 = wall `time` (TiXL's own
+//     first-frame value, both clocks start at 0).
+void stepKeepBoolean(const std::map<std::string, float>& in, float /*dt*/, float time,
+                     StatefulValueState& st, float out[3]) {
+  const bool newValue = getIn(in, "Value", 0.0f) > 0.5f;
+  const bool freeze = getIn(in, "Freeze", 0.0f) > 0.5f;
+  const int mode = (int)std::lround(getIn(in, "Mode", 0.0f));
+
+  // MathUtils.WasTriggered(freeze, ref _freeze): rising edge, then store current.
+  const bool prevFreeze = st.s[1] > 0.5f;
+  const bool wasTriggered = freeze && !prevFreeze;
+  st.s[1] = freeze ? 1.0f : 0.0f;
+
+  if (wasTriggered) st.s[2] = time;  // _freezeTime = LocalTime on the rising freeze edge
+
+  if (mode == 0) {                   // FreezeWhileTrue: track while not frozen
+    if (!freeze) st.s[0] = newValue ? 1.0f : 0.0f;
+  } else if (wasTriggered) {         // UpdateWhenSwitchingToTrue: sample on the rising edge
+    st.s[0] = newValue ? 1.0f : 0.0f;
+  }
+
+  out[0] = st.s[0];                  // Result (frozen bool 0/1)
+  out[1] = time - st.s[2];           // TimeSinceFreeze (seconds)
+}
+
+// --- DampPeakDecay (TiXL Lib/numbers/floats/process/DampPeakDecay.cs) — a one-way peak follower:
+// the output snaps UP instantly to a rising input but decays DOWN toward a falling input by Decay
+// (a Lerp). Classic VU-meter / peak-hold envelope. Scalar despite the `floats/` namespace (single
+// Value → single Result; the `_dampedValue` is one float). State: s[0]=dampedValue.
+// .t3 default: Decay=0.05 (the InputSlot<float> ctor default; confirmed below).
+// TiXL Update() (DampPeakDecay.cs:17-37):
+//   var runTime = context.Playback.FxTimeInBars;
+//   if (Math.Abs(runTime - _lastEvalTime) < 0.001f) { ...DirtyFlag.Clear(); return; }   // once-per-frame
+//   _lastEvalTime = runTime;
+//   var value = Value.GetValue(context);
+//   _dampedValue = _dampedValue > value ? MathUtils.Lerp(_dampedValue, value, Decay) : value;
+//   MathUtils.ApplyDefaultIfInvalid(ref _dampedValue, 0);
+//   Result.Value = _dampedValue;
+// BEHAVIOR (backward-traced, NOT assumed): asymmetric. When dampedValue > value (input falling below
+//   the held peak) it eases down: Lerp(dampedValue, value, Decay) = dampedValue + (value-dampedValue)*
+//   Decay. Otherwise (input ≥ held peak) it SNAPS to value (instant attack). Decay∈[0,1] is the
+//   per-frame fraction of the gap closed on the way down; Decay=0 holds the peak forever, Decay=1
+//   tracks instantly both ways. NaN/Inf guard resets to 0 (ApplyDefaultIfInvalid).
+// Forks (named):
+//   • The `context.Playback.FxTimeInBars` sub-frame (0.001) double-eval early-return is DROPPED —
+//     frame_cook cooks each node exactly once per frame (Damp/Spring/Ease precedent). No _lastEvalTime,
+//     so DampPeakDecay needs NO transport/Playback access (it is frame-rate-iterative, like Spring).
+//   • No init seeding: TiXL _dampedValue starts 0; s[0] zero-init = 0, faithful. Frame 1 with a
+//     positive Value snaps to it (0 > value is false → result = value), matching TiXL exactly.
+//   • Decay default 0.05 read from the Float port (TiXL InputSlot<float> Decay = new(0.05f)).
+void stepDampPeakDecay(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                       StatefulValueState& st, float out[3]) {
+  const float value = getIn(in, "Value", 0.0f);
+  const float decay = getIn(in, "Decay", 0.05f);
+  float& damped = st.s[0];
+  damped = (damped > value) ? lerpf(damped, value, decay) : value;  // ease down, snap up
+  if (!std::isfinite(damped)) damped = 0.0f;  // TiXL MathUtils.ApplyDefaultIfInvalid(_dampedValue, 0)
+  out[0] = damped;
+}
+
 struct StatefulOp {
   const char* type;
   void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[8]);
@@ -961,6 +1084,9 @@ const StatefulOp kStatefulValueOps[] = {
     {"ToggleBoolean", stepToggleBoolean},
     {"FlipFlop", stepFlipFlop},
     {"HasBooleanChanged", stepHasBooleanChanged},
+    {"Trigger", stepTrigger},
+    {"KeepBoolean", stepKeepBoolean},
+    {"DampPeakDecay", stepDampPeakDecay},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -1748,6 +1874,99 @@ int runStatefulValueSelfTest(bool injectBug) {
       bool pass = std::fabs(out[0] - w) < eps;
       ok = ok && pass;
       printf("[selftest-statefulvalue] HasBoolChanged.dec step%d(v=%.0f)=%.1f want=%.1f -> %s\n", i + 1, val[i], out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ===== Trigger (TiXL bool/logic/Trigger.cs) =====
+  // (A) OnlyOnDown=true (.t3 default): a held-true BoolValue pulses EXACTLY ONCE on the rising edge.
+  // BoolValue 0,1,1,0,1 → Result 0,1,0,0,1 (f2 rising edge fires; f3 held-true does NOT re-fire; f5
+  // re-fires after the input dropped at f4). _isSet inits false → frame-1 true would itself be an edge.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[5] = {0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+    const float want[5] = {0.0f, 1.0f, 0.0f, 0.0f, 1.0f};
+    for (int i = 0; i < 5; ++i) {
+      cookStatefulValueOp("Trigger", {{"BoolValue", val[i]}, {"OnlyOnDown", 1.0f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 2) ? 1.0f : want[i];  // bug: held-true re-fires (level, not edge)
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] Trigger.down step%d(v=%.0f)=%.1f want=%.1f -> %s\n", i + 1, val[i], out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+  // (B) OnlyOnDown=false: transparent pass-through of the raw level. BoolValue 0,1,1,0 → Result 0,1,1,0.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[4] = {0.0f, 1.0f, 1.0f, 0.0f};
+    const float want[4] = {0.0f, 1.0f, 1.0f, 0.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("Trigger", {{"BoolValue", val[i]}, {"OnlyOnDown", 0.0f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 2) ? 0.0f : want[i];  // bug: pass-through edge-gates (drops held-true)
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] Trigger.thru step%d(v=%.0f)=%.1f want=%.1f -> %s\n", i + 1, val[i], out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ===== KeepBoolean (TiXL bool/process/KeepBoolean.cs) — bool twin of FreezeValue + TimeSinceFreeze =====
+  // (A) Mode=FreezeWhileTrue(0): track Value while !Freeze, HOLD while Freeze. TimeSinceFreeze counts
+  // up from each rising Freeze edge (LocalTime → seam `time`). frames (time,Value,Freeze):
+  //   (1,1,0): not frozen → Result=1; no freeze edge, freezeTime=0 → TSF=1.
+  //   (2,1,1): freeze rising edge → freezeTime=2, hold Result=1 → TSF=0.
+  //   (3,0,1): still frozen → hold Result=1 → TSF=3-2=1. (Value=0 ignored while frozen — proves HOLD.)
+  //   (4,0,0): unfrozen → track Result=0 → TSF=4-2=2 (freezeTime unchanged → clock keeps running).
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float tm[4] = {1.0f, 2.0f, 3.0f, 4.0f};
+    const float val[4] = {1.0f, 1.0f, 0.0f, 0.0f};
+    const float frz[4] = {0.0f, 1.0f, 1.0f, 0.0f};
+    const float wR[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+    const float wT[4] = {1.0f, 0.0f, 1.0f, 2.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("KeepBoolean", {{"Value", val[i]}, {"Freeze", frz[i]}, {"Mode", 0.0f}}, dt60, tm[i], st, out);
+      float wr = (injectBug && i == 2) ? 0.0f : wR[i];  // bug: tracks Value while frozen (no hold)
+      bool pass = std::fabs(out[0] - wr) < eps && std::fabs(out[1] - wT[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] KeepBool.while step%d R=%.1f(want %.1f) TSF=%.2f -> %s\n", i + 1, out[0], wr, out[1], pass ? "PASS" : "FAIL");
+    }
+  }
+  // (B) Mode=UpdateWhenSwitchingToTrue(1): sample Value ONLY on the rising Freeze edge, hold otherwise.
+  // frames (Value,Freeze): (1,0)(1,1)(0,1) → Result 0,1,1 (f1 no edge → init 0; f2 edge samples Value=1;
+  //   f3 no edge → holds 1, ignoring Value=0). Proves edge-sampling, not level-tracking.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[3] = {1.0f, 1.0f, 0.0f};
+    const float frz[3] = {0.0f, 1.0f, 1.0f};
+    const float wR[3] = {0.0f, 1.0f, 1.0f};
+    for (int i = 0; i < 3; ++i) {
+      cookStatefulValueOp("KeepBoolean", {{"Value", val[i]}, {"Freeze", frz[i]}, {"Mode", 1.0f}}, dt60, 0.0f, st, out);
+      float wr = (injectBug && i == 2) ? 0.0f : wR[i];  // bug: re-samples Value every frozen frame
+      bool pass = std::fabs(out[0] - wr) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] KeepBool.switch step%d R=%.1f want=%.1f -> %s\n", i + 1, out[0], wr, pass ? "PASS" : "FAIL");
+    }
+  }
+
+  // ===== DampPeakDecay (TiXL floats/process/DampPeakDecay.cs) — snap UP, ease DOWN by Decay =====
+  // Decay=0.5: Value 0,4,2,1 → Result 0,4,3,2.
+  //   f1: 0>0? no → snap 0.            f2: 0>4? no → snap 4 (instant attack).
+  //   f3: 4>2? yes → Lerp(4,2,0.5)=3.  f4: 3>1? yes → Lerp(3,1,0.5)=2.
+  // f2 proves instant rise; f3/f4 prove the asymmetric ease-down. A symmetric damp would lag the rise.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[4] = {0.0f, 4.0f, 2.0f, 1.0f};
+    const float want[4] = {0.0f, 4.0f, 3.0f, 2.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("DampPeakDecay", {{"Value", val[i]}, {"Decay", 0.5f}}, dt60, 0.0f, st, out);
+      // injectBug on f2: a symmetric-damp bug would lag the rise (Lerp(0,4,0.5)=2 instead of snapping to 4).
+      float w = (injectBug && i == 1) ? 2.0f : want[i];
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] DampPeakDecay step%d(v=%.0f)=%.3f want=%.3f -> %s\n", i + 1, val[i], out[0], w, pass ? "PASS" : "FAIL");
     }
   }
 

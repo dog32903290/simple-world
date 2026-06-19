@@ -395,6 +395,34 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Mode", "Mode", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
          {"Changed", "Increased", "Decreased"}}},
        nullptr},
+      // Trigger — bool gate: passes BoolValue through, OR (OnlyOnDown=true, the .t3 default) emits a
+      // one-frame pulse on the RISING edge of BoolValue. TiXL bool/logic/Trigger.cs (stateful; output
+      // FIRST; nullptr eval). Bool→Float 0/1 (Cut 32). .t3 defaults: OnlyOnDown=true, BoolValue=false.
+      // ColorInGraph (cosmetic Vec4) dropped — never touches the output.
+      {"Trigger", "Trigger",
+       {{"Result", "Result", "Float", false},
+        {"BoolValue", "BoolValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"OnlyOnDown", "OnlyOnDown", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr},
+      // KeepBoolean — bool sample-and-hold (the bool twin of FreezeValue) + a TimeSinceFreeze clock.
+      // TiXL bool/process/KeepBoolean.cs (stateful; output FIRST; nullptr eval). Bool→Float 0/1 (Cut 32).
+      // .t3 defaults: Value=false, Mode=FreezeWhileTrue(0), Freeze=false.
+      {"KeepBoolean", "KeepBoolean",
+       {{"Result", "Result", "Float", false},
+        {"TimeSinceFreeze", "TimeSinceFreeze", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"Freeze", "Freeze", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"FreezeWhileTrue", "UpdateWhenSwitchingToTrue"}}},
+       nullptr},
+      // DampPeakDecay — one-way peak follower: snaps UP to a rising input, decays DOWN by Decay (a Lerp).
+      // VU-meter / peak-hold envelope. TiXL floats/process/DampPeakDecay.cs (stateful; output FIRST;
+      // nullptr eval). Scalar despite the floats/ namespace. .t3 default: Decay=0.05.
+      {"DampPeakDecay", "DampPeakDecay",
+       {{"Result", "Result", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Decay", "Decay", "Float", true, 0.05f, 0.0f, 1.0f}},
+       nullptr},
       // BlendValues — blend between a MultiInput<float> list by F. TiXL float/process/BlendValues.cs.
       // Values (multiInput) MUST precede the trailing regular F — the eval reads F as in[n-1] and the
       // Values segment as in[0..n-2] (mixed-multiInput convention; no gather change, batch35).
