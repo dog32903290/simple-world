@@ -55,6 +55,8 @@ namespace sw { int runFieldPrismSdfGoldenSelfTest(bool); }        // field_ops_p
 namespace sw { int runFieldPyramidSdfGoldenSelfTest(bool); }      // field_ops_pyramidsdf_golden.cpp (axis-enum, two-vec3)
 namespace sw { int runFieldRotatedPlaneSdfGoldenSelfTest(bool); } // field_ops_rotatedplanesdf_golden.cpp (normal-vector, two-vec3)
 namespace sw { int runFieldCombineSdfGoldenSelfTest(bool); }      // field_ops_combinesdf_golden.cpp (FIRST combiner: 2-input fold)
+namespace sw { int runFieldFractalSdfGoldenSelfTest(bool); }      // field_ops_fractalsdf_golden.cpp (Mandelbulb fold; iterations=compile-time selector)
+namespace sw { int runFieldCustomSdfGoldenSelfTest(bool); }       // field_ops_customsdf_golden.cpp (verbatim user DistanceFunction inject)
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
@@ -175,6 +177,8 @@ const SelfTest kTable[] = {
     {"field-pyramidsdf", runFieldPyramidSdfGoldenSelfTest},
     {"field-rotatedplanesdf", runFieldRotatedPlaneSdfGoldenSelfTest},
     {"field-combinesdf", runFieldCombineSdfGoldenSelfTest},
+    {"field-fractalsdf", runFieldFractalSdfGoldenSelfTest},
+    {"field-customsdf", runFieldCustomSdfGoldenSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},
