@@ -55,6 +55,9 @@ namespace sw { int runFieldPrismSdfGoldenSelfTest(bool); }        // field_ops_p
 namespace sw { int runFieldPyramidSdfGoldenSelfTest(bool); }      // field_ops_pyramidsdf_golden.cpp (axis-enum, two-vec3)
 namespace sw { int runFieldRotatedPlaneSdfGoldenSelfTest(bool); } // field_ops_rotatedplanesdf_golden.cpp (normal-vector, two-vec3)
 namespace sw { int runFieldCombineSdfGoldenSelfTest(bool); }      // field_ops_combinesdf_golden.cpp (FIRST combiner: 2-input fold)
+namespace sw { int runFieldInvertSdfGoldenSelfTest(bool); }       // field_ops_invertsdf_golden.cpp (single-input post-wrap modifier)
+namespace sw { int runFieldAbsoluteSdfGoldenSelfTest(bool); }     // field_ops_absolutesdf_golden.cpp (single-input post-wrap modifier)
+namespace sw { int runFieldTranslateGoldenSelfTest(bool); }       // field_ops_translate_golden.cpp (single-input PRE-wrap modifier; vec3 param)
 namespace sw { int runFieldFractalSdfGoldenSelfTest(bool); }      // field_ops_fractalsdf_golden.cpp (Mandelbulb fold; iterations=compile-time selector)
 namespace sw { int runFieldCustomSdfGoldenSelfTest(bool); }       // field_ops_customsdf_golden.cpp (verbatim user DistanceFunction inject)
 namespace sw { int runFieldImage2dSdfGoldenSelfTest(bool); }      // field_ops_image2dsdf_golden.cpp (FIRST texture-binding leaf; Seam A)
@@ -178,6 +181,9 @@ const SelfTest kTable[] = {
     {"field-pyramidsdf", runFieldPyramidSdfGoldenSelfTest},
     {"field-rotatedplanesdf", runFieldRotatedPlaneSdfGoldenSelfTest},
     {"field-combinesdf", runFieldCombineSdfGoldenSelfTest},
+    {"field-invertsdf", runFieldInvertSdfGoldenSelfTest},
+    {"field-absolutesdf", runFieldAbsoluteSdfGoldenSelfTest},
+    {"field-translate", runFieldTranslateGoldenSelfTest},
     {"field-fractalsdf", runFieldFractalSdfGoldenSelfTest},
     {"field-customsdf", runFieldCustomSdfGoldenSelfTest},
     {"field-image2dsdf", runFieldImage2dSdfGoldenSelfTest},
