@@ -37,6 +37,28 @@ struct StatefulValueState {
   bool  init = false;
 };
 
+// Read-only per-frame transport snapshot (batch: playback-transport seam). A few stateful ops need
+// playback scalars the per-port `in` map cannot carry — the playback run clock, the BPM for
+// bars<->secs, and the playback speed (pause-detect). frame_cook fills this from the in-scope
+// Transport once per frame (the ONLY frame_cook edit) and hands it to cookStatefulValueOp; the op
+// reads it host-side. It must NEVER touch the 16-byte GPU-shared EvaluationContext (eval_context.h:39
+// static_assert) — these are CPU value sims, not shader uniforms. Keeping it a plain POD here means
+// runtime/ does not depend on the app-owned g_transport static (ARCHITECTURE dependency direction).
+//   runTimeSecs  = TiXL Playback.RunTimeInSecs — a PROCESS-LIFETIME wall-clock run timer (a Stopwatch
+//                  started at static init, Playback.cs:159), independent of the playhead/pause/rate.
+//   rate         = TiXL context.Playback.PlaybackSpeed (0 = paused; pause-detect for StopWatch).
+//   bpm          = TiXL Playback.Bpm — bars = secs*bpm/240 (transport.h:37, the bars<->secs authority).
+//   localTimeBars/localFxTimeBars/playbackTimeBars = the two-clock playhead / wall clock / playhead
+//                  (BARS) for any future transport-reading op; StopWatch uses only runTimeSecs/rate/bpm.
+struct TransportSnapshot {
+  double runTimeSecs = 0.0;
+  double localTimeBars = 0.0;
+  double localFxTimeBars = 0.0;
+  double playbackTimeBars = 0.0;
+  double bpm = 120.0;
+  double rate = 1.0;
+};
+
 // True if opType names a stateful value op (has a step fn in kStatefulValueOps). frame_cook uses
 // this to pick which resident nodes to cook (the value-graph sibling of `opType == "AudioReaction"`).
 bool isStatefulValueOp(const std::string& opType);
@@ -46,8 +68,12 @@ bool isStatefulValueOp(const std::string& opType);
 // sample Playback.LastFrameDuration; each op clamps internally as TiXL does). `time` = wall
 // seconds (for time-based ops like Ease; unused by Damp/Spring). Mutates `st`; writes up to 8
 // outputs into out[0..7] (most ops ≤3; HasVec3Changed=7, PeakLevel=4). No-op if opType unknown.
+// `tr` = the per-frame transport snapshot (see TransportSnapshot). Defaulted so the many existing
+// stateless-of-transport callers (selftests + the Damp/Spring/... family that never read it) stay
+// unchanged; only transport-reading ops (StopWatch) need to pass a real one.
 void cookStatefulValueOp(const std::string& opType, const std::map<std::string, float>& in,
-                         float dt, float time, StatefulValueState& st, float out[8]);
+                         float dt, float time, StatefulValueState& st, float out[8],
+                         const TransportSnapshot& tr = TransportSnapshot{});
 
 // Isolated proof: drive Damp (linear convergence + damped-spring branch with dt-clamp) and Spring
 // (overshoot then settle) frame-by-frame against hand-computed TiXL trajectories. injectBug

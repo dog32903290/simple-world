@@ -176,7 +176,7 @@ void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
 // write the outputs onto extOut. evalResidentFloat reads them back via the generic no-evaluate path.
 // `dtSecs` is the RAW wall delta (TiXL Damp/Spring sample Playback.LastFrameDuration); each op
 // clamps internally as TiXL does (Damp's spring branch clamps to 1/60; Spring uses no dt).
-void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs,
+void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, double runTimeSecs,
                             const Transport& t, uint32_t frameIndex, const SymbolLibrary* lib,
                             std::map<std::string, StatefulValueState>& state) {
   ResidentEvalCtx rctx;
@@ -184,11 +184,22 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs,
   rctx.localFxTime = (float)t.fxTime;    // wall clock (bars)
   rctx.frameIndex = frameIndex;
   rctx.lib = lib;
+  // Read-only transport snapshot for the transport-reading ops (StopWatch). The run clock is the
+  // process-lifetime wall accumulator (TiXL Playback.RunTimeInSecs analog, R-1 fork — see the op);
+  // bars<->secs uses the transport bpm (transport.h:37). Filled host-side; NEVER reaches the GPU
+  // EvaluationContext (eval_context.h:39 16-byte lock). This is the ONLY frame_cook touch for the seam.
+  TransportSnapshot tr;
+  tr.runTimeSecs = runTimeSecs;
+  tr.localTimeBars = t.position;
+  tr.localFxTimeBars = t.fxTime;
+  tr.playbackTimeBars = t.position;
+  tr.bpm = t.bpm;
+  tr.rate = t.rate;
   for (ResidentNode& rn : g.nodes) {
     if (!isStatefulValueOp(rn.opType)) continue;
     std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
     float out[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // ≥3-output ops (HasVec3Changed=7)
-    cookStatefulValueOp(rn.opType, P, dtSecs, timeSecs, state[rn.path], out);
+    cookStatefulValueOp(rn.opType, P, dtSecs, timeSecs, state[rn.path], out, tr);
     for (int i = 0; i < 8; ++i) rn.extOut[i] = out[i];
   }
 }
@@ -234,6 +245,14 @@ void run(PointGraph& pg, const std::string& targetPath) {
   const double dtSimSecs = simDeltaFromWall(dtSecs);  // clamped copy  -> Metal sim only
   g_transport.advance(dtSecs);
 
+  // Process-lifetime wall run clock = TiXL Playback.RunTimeInSecs analog (a Stopwatch.StartNew() at
+  // static init, Playback.cs:159). simple_world has no such static clock, so we accumulate the SAME
+  // raw wall dt the transport consumes — it advances at real wall-clock rate regardless of
+  // pause/scrub/rate. Origin = 0 on the first cook (R-1 fork: StopWatch exposes only deltas, so the
+  // baseline difference is invisible). Consumed by the stateful-value seam's StopWatch.
+  static double s_runTimeSecs = 0.0;
+  s_runTimeSecs += dtSecs;
+
   // Soundtrack follows the transport (TiXL: wall clock is master, audio chases — drift past
   // 0.04s hard-seeks, pause = stream pause, scrub-while-paused stays silent). The TARGET is the
   // PLAYHEAD in seconds: the soundtrack is timeline audio, frozen with the playhead on pause —
@@ -271,8 +290,8 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // resident path, so it rides projection rebuilds and stays per-instance inside compounds.
   {
     static std::map<std::string, StatefulValueState> s_svState;
-    cookStatefulValueNodes(g_residentGraph, (float)dtSecs, (float)fxSecs, g_transport, g_frameIndex,
-                           &doc::g_lib, s_svState);
+    cookStatefulValueNodes(g_residentGraph, (float)dtSecs, (float)fxSecs, s_runTimeSecs, g_transport,
+                           g_frameIndex, &doc::g_lib, s_svState);
   }
 
   ++g_frameIndex;

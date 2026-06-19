@@ -439,6 +439,23 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Mode", "Mode", "Float", true, 2.0f, 0.0f, 3.0f, Widget::Enum,
          {"DidRewind", "DidAdvanced", "DidChange", "DidAdvancedWithMotionBlur"}}},
        nullptr},
+      // StopWatch — run-clock stopwatch: Delta = elapsed since the last ResetTrigger rising edge,
+      // LastDuration = the segment length captured at that reset. TiXL anim/time/StopWatch.cs (stateful;
+      // outputs FIRST; nullptr eval — cooked by frame_cook's stateful-value seam). The clock is TiXL's
+      // Playback.RunTimeInSecs (a process-lifetime wall run timer, NOT the playhead). DurationIn is a
+      // compile-time Widget::Enum selector (TimeInSecs/BeatTime); BeatTime converts secs→bars via the
+      // transport bpm (bars=secs*bpm/240). Bool ports (ResetTrigger/PauseWithPlayback) →Float 0/1 (Cut 32).
+      // .t3 defaults: ResetTrigger=false, DurationIn=TimeInSecs(0), PauseWithPlayback=false.
+      // FORKS (see step fn): R-1 run-clock origin (Σ wall dt from first cook; Delta baseline-invariant),
+      // R-2 float-state precision over multi-hour absolute run time (same class as existing time ops).
+      {"StopWatch", "StopWatch",
+       {{"Delta", "Delta", "Float", false},
+        {"LastDuration", "LastDuration", "Float", false},
+        {"ResetTrigger", "ResetTrigger", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"DurationIn", "DurationIn", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"TimeInSecs", "BeatTime"}},
+        {"PauseWithPlayback", "PauseWithPlayback", "Float", true, 0.0f, 0.0f, 1.0f}},
+       nullptr},
       // BlendValues — blend between a MultiInput<float> list by F. TiXL float/process/BlendValues.cs.
       // Values (multiInput) MUST precede the trailing regular F — the eval reads F as in[n-1] and the
       // Values segment as in[0..n-2] (mixed-multiInput convention; no gather change, batch35).
