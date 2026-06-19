@@ -89,6 +89,14 @@ struct ResidentNode {
   std::string path;
   std::string opType;
   std::vector<ResidentInput> inputs;
+  // String sub-seam (context-var YELLOW): resolved String input params, keyed by slot id (e.g.
+  // "VariableName" -> "x"). Projected at flatten time from the SymbolChild's strOverrides else the
+  // referenced symbol's String inputDef.strDef. EMPTY for every node with no String port (universal
+  // → zero footprint). String ports carry NO driver/wire (the value rail is float-only): a String
+  // param is a pure resolved constant, so it lives here, NOT in `inputs`. cookStatefulValueNodes
+  // reads strInputs["VariableName"] to drive the context-var ops. The ONE non-float resident input
+  // channel; the Float-only resolvers (resolveResidentFloatInputs / evalResidentFloat) never see it.
+  std::map<std::string, std::string> strInputs;  // String slot id -> resolved text
   std::map<std::string, ResidentOutputCache> outCache;  // outSlotId -> cache (1b; per-output)
   // Externally-cooked outputs (mirror of flat Node::outCache): stateful value ops with no pure
   // evaluate() — AudioReaction — are cooked by the app's per-frame cooker, which writes the

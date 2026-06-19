@@ -29,8 +29,14 @@ namespace sw {
 struct SlotDef {
   std::string id;        // stable slot identity (used by connections + overrides)
   std::string name;      // display label
-  std::string dataType;  // "Points" / "Command" / "Texture2D" / "Float" / ...
+  std::string dataType;  // "Points" / "Command" / "Texture2D" / "Float" / "String" / ...
   float def = 0.0f;      // default value for an input slot (outputs ignore it)
+  // String sub-seam (context-var YELLOW): a String input slot's default text. The value rail is
+  // float-only (`def`), so a String slot's default cannot ride there. Empty for every non-String
+  // slot. Carried from PortSpec.strDef by atomicSymbolFromSpec; the flatten String resolver reads
+  // it (override else strDef). LAST-before-position members → existing {id,name,dataType,def}
+  // positional inits (atomicSymbolFromSpec) stay valid.
+  std::string strDef;
   // Canvas position of this slot's BOUNDARY node when viewing inside the symbol (= TiXL
   // IInputUi/IOutputUi.PosOnCanvas, persisted there in .t3ui — our v2 is single-file so it
   // lives inline, same precedent as SymbolChild.x/y). Movable on canvas, serialized in v2.
@@ -87,6 +93,12 @@ struct SymbolChild {
   bool isBypassed = false;
   std::map<std::string, bool> disabledOutputs;
   std::map<std::string, TriggerOverride> triggerOverrides;
+  // String sub-seam (context-var YELLOW): per-instance String input overrides, parallel to
+  // `overrides` (the float rail). Holds e.g. SetFloatVar/GetFloatVar's VariableName for THIS
+  // instance; absent key falls back to the referenced Symbol's String inputDef.strDef. EMPTY for
+  // every non-var instance (universal → zero churn). LAST member + default-empty so existing
+  // positional aggregate inits stay valid (same discipline as the three S2 members above).
+  std::map<std::string, std::string> strOverrides;  // slotId -> overridden text
 };
 
 // The display title of an instance = its custom name, or the referenced Symbol's name if blank
@@ -175,6 +187,12 @@ std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefix
 // Returns `fallback` if neither the override nor a matching inputDef exists.
 float effectiveInput(const SymbolLibrary& lib, const SymbolChild& child,
                      const std::string& slotId, float fallback = 0.0f);
+
+// String sub-seam (context-var YELLOW): the effective TEXT of a child's String input slot — the
+// instance strOverride if present, else the referenced Symbol's String inputDef.strDef. Mirror of
+// effectiveInput for the non-float rail. The definition is never mutated (reuse stays isolated).
+std::string effectiveStrInput(const SymbolLibrary& lib, const SymbolChild& child,
+                              const std::string& slotId, const std::string& fallback = "");
 
 // Can child `c` be bypassed (= TiXL Symbol.Child.IsBypassable, .cs:232-248)? Requires the referenced
 // symbol to have ≥1 input AND ≥1 output, the MAIN input[0] dataType == MAIN output[0] dataType, and

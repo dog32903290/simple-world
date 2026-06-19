@@ -176,9 +176,26 @@ void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
 // write the outputs onto extOut. evalResidentFloat reads them back via the generic no-evaluate path.
 // `dtSecs` is the RAW wall delta (TiXL Damp/Spring sample Playback.LastFrameDuration); each op
 // clamps internally as TiXL does (Damp's spring branch clamps to 1/60; Spring uses no dt).
+//
+// context-var YELLOW seam (block #1): `vars` is the host-side per-frame variable map (= TiXL
+// EvaluationContext.Float/IntVariables). The single g.nodes loop is split into THREE phases so the
+// writer-before-reader ordering is deterministic every frame (simple_world iterates build order, not
+// dataflow — TiXL's structural SubGraph-pull ordering must be imposed explicitly):
+//   pass 0: CLEAR the map once (= EvaluationContext.Reset, cs:43-58) — the per-frame scratchpad.
+//   pass 1: WRITERS (isContextVarWriter: Set*Var) — populate the map.
+//   pass 2: everyone else (Get*Var readers + every non-var stateful op) — read the populated map.
+// BOUNDARY (named): two passes = exactly ONE write-generation; a Set→Get→Set chain in one frame is
+// NOT supported (that needs topological/scope order = RED). Verified no Set*Var VALUE input resolves
+// through a Get*Var extOut in the proving graph (the resident drivers feed Set*Var from
+// constants/Time, never from a Get*Var output) — so two passes suffice for the YELLOW tier.
+//
+// `ctxVarBug` is a TEETH hook (0 = production): 1 collapses the 2 passes into one in-order loop
+// (the C ordering golden bites), 2 skips the pass-0 clear (the D per-frame-reset golden bites). It
+// defaults to 0 so run() and every other caller are unchanged.
 void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, double runTimeSecs,
                             const Transport& t, uint32_t frameIndex, const SymbolLibrary* lib,
-                            std::map<std::string, StatefulValueState>& state) {
+                            std::map<std::string, StatefulValueState>& state,
+                            ContextVarMap& vars, int ctxVarBug) {
   ResidentEvalCtx rctx;
   rctx.localTime = (float)t.position;    // playhead (bars) — automation sampling reads this
   rctx.localFxTime = (float)t.fxTime;    // wall clock (bars)
@@ -195,13 +212,41 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, 
   tr.playbackTimeBars = t.position;
   tr.bpm = t.bpm;
   tr.rate = t.rate;
-  for (ResidentNode& rn : g.nodes) {
-    if (!isStatefulValueOp(rn.opType)) continue;
-    std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
-    float out[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // ≥3-output ops (HasVec3Changed=7)
-    cookStatefulValueOp(rn.opType, P, dtSecs, timeSecs, state[rn.path], out, tr);
-    for (int i = 0; i < 8; ++i) rn.extOut[i] = out[i];
+
+  // pass 0: clear the var map ONCE at the top (= EvaluationContext.Reset). injectBug 2 skips it so a
+  // stale value from a previous frame leaks (the D golden's RED path).
+  if (ctxVarBug != 2) {
+    vars.floatVars.clear();
+    vars.intVars.clear();
   }
+
+  // Cook one node (resolve Float inputs + the String VariableName, step, write extOut).
+  auto cookOne = [&](ResidentNode& rn) {
+    std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
+    // context-var ops read the resolved String VariableName off the resident node's strInputs (the
+    // string sub-seam channel; empty for every non-var op → harmless). NOT smuggled through a float.
+    std::string varName;
+    auto vit = rn.strInputs.find("VariableName");
+    if (vit != rn.strInputs.end()) varName = vit->second;
+    float out[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // ≥3-output ops (HasVec3Changed=7)
+    cookStatefulValueOp(rn.opType, P, dtSecs, timeSecs, state[rn.path], out, tr, &vars, varName);
+    for (int i = 0; i < 8; ++i) rn.extOut[i] = out[i];
+  };
+
+  if (ctxVarBug == 1) {
+    // injectBug 1: collapse to a single in-order loop (no writer-before-reader guarantee). A
+    // Get*Var declared before its Set*Var writer then reads the fallback (the C golden bites).
+    for (ResidentNode& rn : g.nodes)
+      if (isStatefulValueOp(rn.opType)) cookOne(rn);
+    return;
+  }
+
+  // pass 1: WRITERS (Set*Var) — every writer runs before any reader, deterministically.
+  for (ResidentNode& rn : g.nodes)
+    if (isStatefulValueOp(rn.opType) && isContextVarWriter(rn.opType)) cookOne(rn);
+  // pass 2: readers + all other stateful ops.
+  for (ResidentNode& rn : g.nodes)
+    if (isStatefulValueOp(rn.opType) && !isContextVarWriter(rn.opType)) cookOne(rn);
 }
 
 void run(PointGraph& pg, const std::string& targetPath) {
@@ -290,8 +335,13 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // resident path, so it rides projection rebuilds and stays per-instance inside compounds.
   {
     static std::map<std::string, StatefulValueState> s_svState;
+    // context-var YELLOW seam: the host-side per-frame variable map (= TiXL EvaluationContext
+    // Float/IntVariables). Function-local static (mirrors s_svState/s_arState) — NOT a runtime
+    // global, so runtime/ stays free of an app-owned dependency (ARCHITECTURE dir). Cleared at the
+    // top of cookStatefulValueNodes once per frame (the Reset analog), so it never leaks cross-frame.
+    static ContextVarMap s_ctxVars;
     cookStatefulValueNodes(g_residentGraph, (float)dtSecs, (float)fxSecs, s_runTimeSecs, g_transport,
-                           g_frameIndex, &doc::g_lib, s_svState);
+                           g_frameIndex, &doc::g_lib, s_svState, s_ctxVars);
   }
 
   ++g_frameIndex;

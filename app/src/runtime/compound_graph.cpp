@@ -289,6 +289,16 @@ float effectiveInput(const SymbolLibrary& lib, const SymbolChild& child,
   return fallback;
 }
 
+std::string effectiveStrInput(const SymbolLibrary& lib, const SymbolChild& child,
+                              const std::string& slotId, const std::string& fallback) {
+  auto ov = child.strOverrides.find(slotId);
+  if (ov != child.strOverrides.end()) return ov->second;  // this instance's string override
+  if (const Symbol* s = lib.find(child.symbolId))         // else the referenced def's strDef
+    for (const SlotDef& d : s->inputDefs)
+      if (d.id == slotId) return d.strDef;
+  return fallback;
+}
+
 bool removeInputDefFromLib(SymbolLibrary& lib, const std::string& symbolId, const std::string& slotId,
                            RemovedSlotDef* removed) {
   return removeDefFromLib(lib, symbolId, slotId, /*isInput=*/true, removed);

@@ -26,6 +26,7 @@ SlotDef slotDefFromJson(crude_json::value& v) {
   if (v["name"].is_string()) d.name = v["name"].get<crude_json::string>();
   if (v["dataType"].is_string()) d.dataType = v["dataType"].get<crude_json::string>();
   if (v["def"].is_number()) d.def = (float)v["def"].get<crude_json::number>();
+  if (v["strDef"].is_string()) d.strDef = v["strDef"].get<crude_json::string>();  // String sub-seam
   if (v["x"].is_number()) d.x = (float)v["x"].get<crude_json::number>();
   if (v["y"].is_number()) d.y = (float)v["y"].get<crude_json::number>();
   return d;
@@ -233,6 +234,26 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
               continue;  // self-heal: gone from the in-memory model, gone on next save
             }
             c.overrides[kv.first] = (float)kv.second.get<crude_json::number>();
+          }
+        }
+        // String sub-seam: per-instance String overrides (e.g. VariableName). Same zombie-scrub
+        // discipline as float overrides — an override on a String inputDef that no longer exists is
+        // dropped + warned (self-heal on next save). refSym (resolved above) is the slot authority.
+        if (cv["strOverrides"].is_object()) {
+          const Symbol* refSym = out.find(c.symbolId);
+          for (auto& kv : cv["strOverrides"].get<crude_json::object>()) {
+            if (!kv.second.is_string()) continue;
+            bool known = false;
+            if (refSym)
+              for (const SlotDef& d : refSym->inputDefs)
+                if (d.id == kv.first) { known = true; break; }
+            if (!known) {
+              appendWarn(warnings, "obsolete strOverride '" + kv.first + "' on child " +
+                                       std::to_string(c.id) + " in '" + s.id +
+                                       "' (no such input def) — dropped");
+              continue;
+            }
+            c.strOverrides[kv.first] = kv.second.get<crude_json::string>();
           }
         }
         // Custom instance name (rename). S15-tolerant: a non-string/garbage `name` is simply

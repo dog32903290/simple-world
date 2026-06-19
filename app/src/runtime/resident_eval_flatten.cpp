@@ -93,6 +93,14 @@ ProducerMap inlineSymbol(
         if (kv.second == TriggerOverride::Always) rn.triggerAlwaysOut[kv.first] = true;
       const NodeSpec* spec = findSpec(c.symbolId);  // anim-group lookup (Vec multi-channel)
       for (const SlotDef& d : def->inputDefs) {
+        // String sub-seam (context-var YELLOW): a String input is a PURE resolved constant — the
+        // value rail is float-only, so String slots carry no driver/wire. Resolve override-else-
+        // strDef into strInputs and skip the Float driver machinery entirely (no ResidentInput).
+        // The Float-only resolvers never look at strInputs, so existing ops are untouched.
+        if (d.dataType == "String") {
+          rn.strInputs[d.id] = effectiveStrInput(lib, c, d.id, d.strDef);
+          continue;
+        }
         ResidentInput in;
         in.slotId = d.id;
         // S3: an Automation driver projects from the PARENT symbol's Animator (the def owning this

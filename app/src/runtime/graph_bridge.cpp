@@ -43,6 +43,7 @@ Symbol atomicSymbolFromSpec(const NodeSpec& s) {
   sym.atomic = true;
   for (const PortSpec& p : s.ports) {
     SlotDef d{p.id, p.name, p.dataType, p.def};
+    d.strDef = p.strDef;  // String sub-seam: carry the String input default onto the slot def
     (p.isInput ? sym.inputDefs : sym.outputDefs).push_back(d);
   }
   return sym;
@@ -68,6 +69,7 @@ SymbolLibrary libFromGraph(const Graph& g, const std::string& rootId) {
     c.id = n.id;                 // child id == node id -> resident path == id-as-string
     c.symbolId = n.type;
     c.overrides = n.params;      // stored constants ARE the instance overrides
+    c.strOverrides = n.strParams;  // String sub-seam: stored String constants ARE the str overrides
     c.x = n.x;
     c.y = n.y;
     root.children.push_back(c);

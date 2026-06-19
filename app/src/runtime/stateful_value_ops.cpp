@@ -201,7 +201,7 @@ inline int methodOf(const std::map<std::string, float>& in) {
 //   DROPPED — frame_cook cooks each node exactly once per frame, so there is no sub-millisecond
 //   double-eval to guard against (the whole reason that guard exists in TiXL).
 void stepDamp(const std::map<std::string, float>& in, float dt, float /*time*/,
-              StatefulValueState& st, float out[3], const TransportSnapshot&) {
+              StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float value = getIn(in, "Value", 0.0f);
   const float damping = getIn(in, "Damping", 0.9f);
   if (!st.init) {
@@ -219,7 +219,7 @@ void stepDamp(const std::map<std::string, float>& in, float dt, float /*time*/,
 // Fork (named): UseAppRunTime + 1ms guard dropped (same once-per-frame reason). NOTE TiXL DampAngle
 // has NO _isFirstEval — it damps from 0 on frame 1 (faithful: no init seeding here).
 void stepDampAngle(const std::map<std::string, float>& in, float dt, float /*time*/,
-                   StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                   StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float value = getIn(in, "Value", 0.0f);
   const float damping = getIn(in, "Damping", 0.9f);
   float& damped = st.s[0];
@@ -238,7 +238,7 @@ void stepDampAngle(const std::map<std::string, float>& in, float dt, float /*tim
 // Output = Value − previousValue. State: s[0]=lastValue (init 0 → first frame delta = Value).
 // Ports: Value, Threshold (declared in TiXL but UNUSED in its math — kept for port parity, no fork).
 void stepDeltaSinceLastFrame(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                             StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                             StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float value = getIn(in, "Value", 0.0f);
   out[0] = value - st.s[0];
   st.s[0] = value;
@@ -250,7 +250,7 @@ void stepDeltaSinceLastFrame(const std::map<std::string, float>& in, float /*dt*
 // Result(frozen), DeltaSinceFreeze(Value−frozen). TiXL updates _freeze (the WasTriggered current)
 // every frame on change, BEFORE the mode branch — replicated.
 void stepFreezeValue(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                     StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                     StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float value = getIn(in, "Value", 0.0f);
   const bool freeze = getIn(in, "Freeze", 0.0f) > 0.5f;
   const int mode = (int)std::lround(getIn(in, "Mode", 0.0f));
@@ -272,7 +272,7 @@ void stepFreezeValue(const std::map<std::string, float>& in, float /*dt*/, float
 //   dependent); kept faithful (dt is ignored). UseAppRunTime + the 1ms guard are dropped for the
 //   same once-per-frame-cook reason as Damp.
 void stepSpring(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float value = getIn(in, "Value", 0.0f);
   const float tension = getIn(in, "Tension", 0.1f);
   const float strength = getIn(in, "Strength", 0.5f);
@@ -309,8 +309,8 @@ void dampVecImpl(const std::map<std::string, float>& in, float dt, StatefulValue
     out[c] = st.s[c];
   }
 }
-void stepDampVec2(const std::map<std::string, float>& in, float dt, float, StatefulValueState& st, float out[3], const TransportSnapshot&) { dampVecImpl(in, dt, st, out, 2); }
-void stepDampVec3(const std::map<std::string, float>& in, float dt, float, StatefulValueState& st, float out[3], const TransportSnapshot&) { dampVecImpl(in, dt, st, out, 3); }
+void stepDampVec2(const std::map<std::string, float>& in, float dt, float, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) { dampVecImpl(in, dt, st, out, 2); }
+void stepDampVec3(const std::map<std::string, float>& in, float dt, float, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) { dampVecImpl(in, dt, st, out, 3); }
 
 // --- SpringVec2 / SpringVec3 (TiXL vec2/process/SpringVec2.cs, vec3/process/SpringVec3.cs) ---
 // Component-wise Spring (no dt; frame-rate dependent, faithful). Ports: Value(vecN), Tension,
@@ -327,8 +327,8 @@ void springVecImpl(const std::map<std::string, float>& in, StatefulValueState& s
     out[c] = result;
   }
 }
-void stepSpringVec2(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3], const TransportSnapshot&) { springVecImpl(in, st, out, 2); }
-void stepSpringVec3(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3], const TransportSnapshot&) { springVecImpl(in, st, out, 3); }
+void stepSpringVec2(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) { springVecImpl(in, st, out, 2); }
+void stepSpringVec3(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) { springVecImpl(in, st, out, 3); }
 
 // --- HasValueIncreased / HasValueDecreased (TiXL float/logic/HasValueIncreased.cs,
 // float/process/HasValueDecreased.cs). Compare this frame's Value to last frame's; output a Float
@@ -336,13 +336,13 @@ void stepSpringVec3(const std::map<std::string, float>& in, float, float, Statef
 // against 0). Stateful because the flag needs the PRIOR frame's value. Verbatim:
 //   Increased: HasIncreased = v > _lastValue + Threshold;  _lastValue = v;
 //   Decreased: HasDecreased = v < _lastValue - Threshold;  _lastValue = v;
-void stepHasValueIncreased(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3], const TransportSnapshot&) {
+void stepHasValueIncreased(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float v = getIn(in, "Value", 0.0f);
   const float threshold = getIn(in, "Threshold", 0.0f);
   out[0] = (v > st.s[0] + threshold) ? 1.0f : 0.0f;
   st.s[0] = v;
 }
-void stepHasValueDecreased(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3], const TransportSnapshot&) {
+void stepHasValueDecreased(const std::map<std::string, float>& in, float, float, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float v = getIn(in, "Value", 0.0f);
   const float threshold = getIn(in, "Threshold", 0.0f);
   out[0] = (v < st.s[0] - threshold) ? 1.0f : 0.0f;
@@ -370,7 +370,7 @@ void stepHasValueDecreased(const std::map<std::string, float>& in, float, float,
 //     at 0). No fork; just noting the shared origin.
 // MathUtils.WasTriggered(cur, ref prev) = rising edge: result = cur && !prev; then prev = cur.
 void stepHasValueChanged(const std::map<std::string, float>& in, float /*dt*/, float time,
-                         StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                         StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float newValue = getIn(in, "Value", 0.0f);
   const float threshold = getIn(in, "Threshold", 0.0f);
   const float minTimeBetweenHits = getIn(in, "MinTimeBetweenHits", 0.0f);
@@ -432,7 +432,7 @@ void stepHasValueChanged(const std::map<std::string, float>& in, float /*dt*/, f
 // QUIRK kept VERBATIM: the inner `if (timeSinceLastHit >= minTimeBetweenHits)` is a redundant
 //   re-check of the SAME condition already in the outer `if` — a TiXL source quirk, preserved as-is.
 void stepDetectPulse(const std::map<std::string, float>& in, float /*dt*/, float time,
-                     StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                     StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float newValue = getIn(in, "Value", 1.0f);
   const float threshold = getIn(in, "Threshold", 0.0f);
   const float minTimeBetweenHits = getIn(in, "MinTimeBetweenHits", 0.075f);
@@ -545,9 +545,9 @@ void easeImpl(const std::map<std::string, float>& in, float time, StatefulValueS
   }
   prevEased = eased;
 }
-void stepEase(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot&) { easeImpl(in, time, st, out, 1); }
-void stepEaseVec2(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot&) { easeImpl(in, time, st, out, 2); }
-void stepEaseVec3(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot&) { easeImpl(in, time, st, out, 3); }
+void stepEase(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) { easeImpl(in, time, st, out, 1); }
+void stepEaseVec2(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) { easeImpl(in, time, st, out, 2); }
+void stepEaseVec3(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) { easeImpl(in, time, st, out, 3); }
 
 // --- Accumulator (TiXL float/process/Accumulator.cs) — a running accumulator. Running gates
 // accumulation, ResetTrigger reloads StartValue, Accumulate mode picks the per-step amount
@@ -557,7 +557,7 @@ void stepEaseVec3(const std::map<std::string, float>& in, float, float time, Sta
 // the seam's wall `dt` directly (== bars→seconds delta at constant BPM), dropping _lastUpdateTime.
 // TiXL has no _isFirstEval: _v starts 0 (NOT StartValue) until a ResetTrigger fires — faithful.
 void stepAccumulator(const std::map<std::string, float>& in, float dt, float /*time*/,
-                     StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                     StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const bool running = getIn(in, "Running", 1.0f) > 0.5f;
   const int mode = (int)std::lround(getIn(in, "Accumulate", 0.0f));
   const float startValue = getIn(in, "StartValue", 0.0f);
@@ -579,7 +579,7 @@ void stepAccumulator(const std::map<std::string, float>& in, float dt, float /*t
 // Fork (same as HasValueChanged): drop the Playback.RunTimeInSecs 0.010 dedup early-return; use the
 // seam `time` (wall seconds) for the MinTimeBetweenHits gate (TiXL context.LocalFxTime).
 void stepHasVec2Changed(const std::map<std::string, float>& in, float /*dt*/, float time,
-                        StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                        StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float nx = getInC(in, "Value", 0), ny = getInC(in, "Value", 1);
   const float threshold = getIn(in, "Threshold", 0.0f);
   const float minTime = getIn(in, "MinTimeBetweenHits", 0.0f);
@@ -608,7 +608,7 @@ void stepHasVec2Changed(const std::map<std::string, float>& in, float /*dt*/, fl
 // out[1..3]), DeltaOnHit.xyz(abs Δ at last hit, out[4..6]). State: s[0..2]=lastValue, s[3]=lastHitTime,
 // s[4]=wasHit, s[5..7]=lastHitDelta. Fork (same as HasValueChanged): drop Playback 0.010 dedup; seam
 // `time` for the MinTimeBetweenHits gate.
-void stepHasVec3Changed(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[8], const TransportSnapshot&) {
+void stepHasVec3Changed(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[8], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float nx = getInC(in, "Value", 0), ny = getInC(in, "Value", 1), nz = getInC(in, "Value", 2);
   const float threshold = getIn(in, "Threshold", 0.0f);
   const float minTime = getIn(in, "MinTimeBetweenHits", 0.0f);
@@ -640,7 +640,7 @@ void stepHasVec3Changed(const std::map<std::string, float>& in, float, float tim
 // s[0]=lastValue, s[1]=lastPeakTime(init −∞), s[2]=movingSum. Fork: drop the FxTime 0.001 dedup; seam
 // `time` (wall secs) for Playback.RunTimeInSecs. MovingSum is a feedback accumulator (reads its own
 // prior output = state, like Ease reads Result.Value).
-void stepPeakLevel(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[8], const TransportSnapshot&) {
+void stepPeakLevel(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[8], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   if (!st.init) { st.s[1] = -1e30f; st.init = true; }  // _lastPeakTime = double.NegativeInfinity
   const float value = getIn(in, "Value", 0.0f);
   const float threshold = getIn(in, "Threshold", 0.0f);
@@ -701,7 +701,7 @@ void stepPeakLevel(const std::map<std::string, float>& in, float, float time, St
 //   • Reset reloads DefaultValue AFTER the inc/dec step (TiXL order: the reset overwrites), so on a
 //     frame with both inc held AND TriggerReset, the result is DefaultValue (then Modulo).
 void stepCountInt(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                  StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                  StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const bool incTrig = getIn(in, "TriggerIncrement", 1.0f) > 0.5f;   // .t3 default TriggerIncrement=true
   const bool decTrig = getIn(in, "TriggerDecrement", 0.0f) > 0.5f;
   const bool resetTrig = getIn(in, "TriggerReset", 0.0f) > 0.5f;
@@ -758,7 +758,7 @@ void stepCountInt(const std::map<std::string, float>& in, float /*dt*/, float /*
 //     faithful. ResetTrigger is LEVEL (every frame it is held true forces DefaultValue — TiXL's
 //     `if (isReset)`), only the toggle is edge-gated.
 void stepFlipBool(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                  StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                  StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const bool trigger = getIn(in, "Trigger", 0.0f) > 0.5f;
   const bool reset = getIn(in, "ResetTrigger", 0.0f) > 0.5f;
   const bool defaultValue = getIn(in, "DefaultValue", 0.0f) > 0.5f;
@@ -793,7 +793,7 @@ void stepFlipBool(const std::map<std::string, float>& in, float /*dt*/, float /*
 //   • Bool output dissolves to Float 0/1 (Cut 32). Frame 1 compares against the zero-init lastValue
 //     (0), matching TiXL's _lastValue=0 field default.
 void stepHasIntChanged(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                       StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                       StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const long v = (long)std::trunc(getIn(in, "Value", 0.0f));  // C# (int) cast = truncate toward zero
   const int mode = (int)std::lround(getIn(in, "ReturnTrueIf", 3.0f));
   const long lastValue = (long)std::trunc(st.s[0]);
@@ -834,7 +834,7 @@ void stepHasIntChanged(const std::map<std::string, float>& in, float /*dt*/, flo
 //     emitted as 1.0/0.0.
 //   • No init seeding: TiXL _isActive starts false; s[0] zero-init = false, faithful.
 void stepToggleBoolean(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                       StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                       StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const bool toggle = getIn(in, "TriggerToggle", 0.0f) > 0.5f;
   const bool reset = getIn(in, "TriggerReset", 0.0f) > 0.5f;
 
@@ -877,7 +877,7 @@ void stepToggleBoolean(const std::map<std::string, float>& in, float /*dt*/, flo
 //   • zeroed-out[] reconstruct: TiXL Result.Value persists across frames; here out[] is zeroed each
 //     cook, so the held value is reconstructed from s[0] (re-emitted on hold frames).
 void stepFlipFlop(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                  StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                  StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const bool trigger = getIn(in, "Trigger", 0.0f) > 0.5f;
   const bool reset = getIn(in, "ResetTrigger", 0.0f) > 0.5f;
   const bool defaultValue = getIn(in, "DefaultValue", 0.0f) > 0.5f;
@@ -913,7 +913,7 @@ void stepFlipFlop(const std::map<std::string, float>& in, float /*dt*/, float /*
 //     Mode arrives on a Float port (enum selector) → std::lround. Clamp(0,2) per TiXL.
 //   • Frame 1 compares against the zero-init s[0] (=false), matching TiXL's _lastValue=false default.
 void stepHasBooleanChanged(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                           StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                           StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const bool newValue = getIn(in, "Value", 0.0f) > 0.5f;
   int mode = (int)std::lround(getIn(in, "Mode", 1.0f));  // .t3 default Mode=Increased(1)
   if (mode < 0) mode = 0; else if (mode > 2) mode = 2;   // TiXL Clamp(0, len-1)
@@ -956,7 +956,7 @@ void stepHasBooleanChanged(const std::map<std::string, float>& in, float /*dt*/,
 //   • No init seeding: TiXL _isSet starts false; s[0] zero-init = false, faithful → a true BoolValue
 //     on frame 1 is itself a rising edge (false→true) and pulses, matching TiXL.
 void stepTrigger(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                 StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                 StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const bool value = getIn(in, "BoolValue", 0.0f) > 0.5f;
   const bool onlyOnDown = getIn(in, "OnlyOnDown", 1.0f) > 0.5f;  // .t3 default OnlyOnDown=true
 
@@ -995,7 +995,7 @@ void stepTrigger(const std::map<std::string, float>& in, float /*dt*/, float /*t
 //     matches all three (faithful). TimeSinceFreeze on frame 1 = time - 0 = wall `time` (TiXL's own
 //     first-frame value, both clocks start at 0).
 void stepKeepBoolean(const std::map<std::string, float>& in, float /*dt*/, float time,
-                     StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                     StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const bool newValue = getIn(in, "Value", 0.0f) > 0.5f;
   const bool freeze = getIn(in, "Freeze", 0.0f) > 0.5f;
   const int mode = (int)std::lround(getIn(in, "Mode", 0.0f));
@@ -1043,7 +1043,7 @@ void stepKeepBoolean(const std::map<std::string, float>& in, float /*dt*/, float
 //     positive Value snaps to it (0 > value is false → result = value), matching TiXL exactly.
 //   • Decay default 0.05 read from the Float port (TiXL InputSlot<float> Decay = new(0.05f)).
 void stepDampPeakDecay(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                       StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                       StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float value = getIn(in, "Value", 0.0f);
   const float decay = getIn(in, "Decay", 0.05f);
   float& damped = st.s[0];
@@ -1083,7 +1083,7 @@ void stepDampPeakDecay(const std::map<std::string, float>& in, float /*dt*/, flo
 // Faithful first-frame: _lastTime=0, so with time=0 wasAdvanced = 0>0+thr = false → HasChanged=0,
 //   DeltaTime=0 (matches TiXL's own first eval before time advances).
 void stepHasTimeChanged(const std::map<std::string, float>& in, float /*dt*/, float time,
-                        StatefulValueState& st, float out[3], const TransportSnapshot&) {
+                        StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float threshold = getIn(in, "Threshold", 0.0f);
   int mode = (int)std::lround(getIn(in, "Mode", 2.0f));  // .t3 default Mode=DidChange(2)
   if (mode < 0) mode = 0; else if (mode > 3) mode = 3;   // TiXL (Modes) cast range
@@ -1153,7 +1153,7 @@ void stepHasTimeChanged(const std::map<std::string, float>& in, float /*dt*/, fl
 //   • The DirtyFlag.Clear() bookkeeping (StopWatch.cs:45) is a TiXL dirty-flag detail with no output
 //     effect → dropped (no analog in the resident extOut model).
 void stepStopWatch(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                   StatefulValueState& st, float out[3], const TransportSnapshot& tr) {
+                   StatefulValueState& st, float out[3], const TransportSnapshot& tr, ContextVarMap*, const std::string&) {
   const bool resetTrigger = getIn(in, "ResetTrigger", 0.0f) > 0.5f;
   const bool pauseWithPlayback = getIn(in, "PauseWithPlayback", 0.0f) > 0.5f;
   const int mode = (int)std::lround(getIn(in, "DurationIn", 0.0f));  // .t3 0=TimeInSecs
@@ -1187,10 +1187,75 @@ void stepStopWatch(const std::map<std::string, float>& in, float /*dt*/, float /
   out[1] = lastDurationHeld;  // LastDuration Slot held across frames (zeroed-out[] reconstruct)
 }
 
+// ============================ context-var YELLOW seam ops ============================
+// These are "stateful" in the cook sense (evaluate==nullptr, cooked once per frame into extOut) but
+// their cross-frame channel is the SHARED ContextVarMap, not StatefulValueState. They consume the
+// resolved String VariableName param (varName, from ResidentNode::strInputs) + the per-frame `vars`
+// map. The 2-pass ordering (cookStatefulValueNodes) guarantees all Set*Var run before any Get*Var.
+
+// --- SetFloatVar (TiXL Lib/flow/context/SetFloatVar.cs) — writes vars.floatVars[name]=FloatValue.
+// We implement ONLY the no-SubGraph branch (SetFloatVar.cs:42-45): there is no Command sub-tree in
+// the value rail (NAMED FORK — see header). Empty name → no-op (cs:20-24, string.IsNullOrEmpty).
+// The TiXL output is a Command passthrough (no value-rail analog) → out[0] ECHOES the written value
+// (golden anchor; the real product is the map mutation). .t3 defaults: FloatValue=0, VariableName="f".
+void stepSetFloatVar(const std::map<std::string, float>& in, float, float, StatefulValueState&,
+                     float out[3], const TransportSnapshot&, ContextVarMap* vars,
+                     const std::string& varName) {
+  const float newValue = getIn(in, "FloatValue", 0.0f);
+  out[0] = newValue;                          // echo (Command has no value; this is the golden probe)
+  if (varName.empty() || !vars) return;       // string.IsNullOrEmpty(name) → no-op
+  vars->floatVars[varName] = newValue;        // no-SubGraph branch: context.FloatVariables[name]=v
+}
+
+// --- GetFloatVar (TiXL Lib/flow/context/GetFloatVar.cs:14-28) — reads vars.floatVars[name], else
+// FallbackDefault. DROP ICustomDropdownHolder (editor UI). .t3 defaults: VariableName="f", Fallback=0.
+void stepGetFloatVar(const std::map<std::string, float>& in, float, float, StatefulValueState&,
+                     float out[3], const TransportSnapshot&, ContextVarMap* vars,
+                     const std::string& varName) {
+  const float fallback = getIn(in, "FallbackDefault", 0.0f);
+  if (vars) {
+    auto it = vars->floatVars.find(varName);
+    if (it != vars->floatVars.end()) { out[0] = it->second; return; }  // TryGetValue hit
+  }
+  out[0] = fallback;                          // unset → FallbackDefault.GetValue(context)
+}
+
+// --- SetIntVar (TiXL Lib/flow/context/SetIntVar.cs) — writes vars.intVars[name]=(int)Value (no-
+// SubGraph branch cs:61-64). Value arrives on a Float port (no Int port type) → C# (int) cast =
+// TRUNCATION toward zero ((long)std::trunc; 7.9→7), NOT rounding (CountInt convention :709). Empty
+// name → no-op (cs:30-36). out[0] echoes the stored int (golden). .t3 defaults: Value=0, Name="i".
+void stepSetIntVar(const std::map<std::string, float>& in, float, float, StatefulValueState&,
+                   float out[3], const TransportSnapshot&, ContextVarMap* vars,
+                   const std::string& varName) {
+  const long newValue = (long)std::trunc(getIn(in, "Value", 0.0f));  // C# (int) cast = truncate
+  out[0] = (float)newValue;
+  if (varName.empty() || !vars) return;
+  vars->intVars[varName] = newValue;
+}
+
+// --- GetIntVar (TiXL Lib/flow/context/GetIntVar.cs:16-50) — reads vars.intVars[name], else
+// FallbackValue. FallbackValue arrives on a Float port carrying an int (TiXL Slot<int>) → truncate
+// toward zero. Result is int-valued. DROP LogLevels enum + ICustomDropdownHolder. NAMED FORK: TiXL
+// returns early (no write) when variableName==null; our name is always a resolved string (never
+// null) — an empty name is a normal lookup miss → fallback (cs:30-39). .t3 default: VariableName="i".
+void stepGetIntVar(const std::map<std::string, float>& in, float, float, StatefulValueState&,
+                   float out[3], const TransportSnapshot&, ContextVarMap* vars,
+                   const std::string& varName) {
+  const long fallback = (long)std::trunc(getIn(in, "FallbackValue", 0.0f));
+  if (vars) {
+    auto it = vars->intVars.find(varName);
+    if (it != vars->intVars.end()) { out[0] = (float)it->second; return; }  // TryGetValue hit
+  }
+  out[0] = (float)fallback;                   // unset → fallbackValue
+}
+
 struct StatefulOp {
   const char* type;
+  // context-var seam: every step fn gains a trailing (ContextVarMap*, const std::string& varName).
+  // The ~30 non-var ops ignore both (unnamed params, zero body diff — the TransportSnapshot
+  // precedent); Set*/Get*Var read them. Uniform signature keeps ONE dispatch table.
   void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[8],
-               const TransportSnapshot&);
+               const TransportSnapshot&, ContextVarMap*, const std::string&);
 };
 // The data-driven table (rule 7): add a row to extend; frame_cook + the resident path stay untouched.
 const StatefulOp kStatefulValueOps[] = {
@@ -1225,6 +1290,11 @@ const StatefulOp kStatefulValueOps[] = {
     {"DampPeakDecay", stepDampPeakDecay},
     {"HasTimeChanged", stepHasTimeChanged},
     {"StopWatch", stepStopWatch},
+    // context-var YELLOW seam (block #1): writers + readers. Writers run in pass 1, readers pass 2.
+    {"SetFloatVar", stepSetFloatVar},
+    {"GetFloatVar", stepGetFloatVar},
+    {"SetIntVar", stepSetIntVar},
+    {"GetIntVar", stepGetIntVar},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -1237,10 +1307,18 @@ const StatefulOp* findStatefulOp(const std::string& t) {
 
 bool isStatefulValueOp(const std::string& opType) { return findStatefulOp(opType) != nullptr; }
 
+// context-var seam: the Set*Var writer family (run before any reader in the 2-pass cook). Kept as
+// an explicit name list (4 ops) rather than a prefix match — explicit is refuter-auditable and a
+// future "SetupX" op can't accidentally join the writer pass.
+bool isContextVarWriter(const std::string& opType) {
+  return opType == "SetFloatVar" || opType == "SetIntVar";
+}
+
 void cookStatefulValueOp(const std::string& opType, const std::map<std::string, float>& in,
                          float dt, float time, StatefulValueState& st, float out[8],
-                         const TransportSnapshot& tr) {
-  if (const StatefulOp* o = findStatefulOp(opType)) o->step(in, dt, time, st, out, tr);
+                         const TransportSnapshot& tr, ContextVarMap* vars,
+                         const std::string& varName) {
+  if (const StatefulOp* o = findStatefulOp(opType)) o->step(in, dt, time, st, out, tr, vars, varName);
 }
 
 // --- Isolated proof (frame-driven; hand-computed TiXL trajectories) ---

@@ -59,6 +59,25 @@ struct TransportSnapshot {
   double rate = 1.0;
 };
 
+// === context-var YELLOW seam (block #1 of the visual-load-bearing-root directive) ===
+// Host-side per-frame variable map = TiXL EvaluationContext.Bool/Int/FloatVariables (Dictionary,
+// EvaluationContext.cs:156-158), Reset() each top-level eval (cs:43-58). This is a RUNTIME POD that
+// NEVER touches the 16-byte GPU-shared EvaluationContext (eval_context.h:39 static_assert) — the GPU
+// ctx is locked, so the map lives host-side, exactly like TransportSnapshot. Owned by a function-
+// local static in frame_cook.cpp run() (mirrors s_svState/s_arState), cleared once per frame at the
+// TOP of cookStatefulValueNodes (the Reset analog), populated by Set*Var (writer pass), read by
+// Get*Var (reader pass). YELLOW = flat global map (cross-sibling visible, no scope stack); the RED
+// scoped push/pop engine (SetFloatVar.cs:26-41 SubGraph branch) is deferred.
+struct ContextVarMap {
+  std::map<std::string, float> floatVars;
+  std::map<std::string, long> intVars;
+};
+
+// True if opType is a context-var WRITER (Set*Var family). The 2-pass ordering (writer-before-reader)
+// in cookStatefulValueNodes uses this to run all writers before any reader, deterministically every
+// frame (simple_world iterates g.nodes in build order, not dataflow → ordering imposed explicitly).
+bool isContextVarWriter(const std::string& opType);
+
 // True if opType names a stateful value op (has a step fn in kStatefulValueOps). frame_cook uses
 // this to pick which resident nodes to cook (the value-graph sibling of `opType == "AudioReaction"`).
 bool isStatefulValueOp(const std::string& opType);
@@ -71,9 +90,14 @@ bool isStatefulValueOp(const std::string& opType);
 // `tr` = the per-frame transport snapshot (see TransportSnapshot). Defaulted so the many existing
 // stateless-of-transport callers (selftests + the Damp/Spring/... family that never read it) stay
 // unchanged; only transport-reading ops (StopWatch) need to pass a real one.
+// `vars` = the host-side context-var map (context-var seam); nullptr (default) for the ~30 ops that
+// don't touch it (Damp/Spring/...). `varName` = the resolved String VariableName param (context-var
+// ops only; from ResidentNode::strInputs). Both defaulted so every existing caller (selftests + the
+// non-var family) is unchanged — same trick as `tr`.
 void cookStatefulValueOp(const std::string& opType, const std::map<std::string, float>& in,
                          float dt, float time, StatefulValueState& st, float out[8],
-                         const TransportSnapshot& tr = TransportSnapshot{});
+                         const TransportSnapshot& tr = TransportSnapshot{},
+                         ContextVarMap* vars = nullptr, const std::string& varName = std::string());
 
 // Isolated proof: drive Damp (linear convergence + damped-spring branch with dt-clamp) and Spring
 // (overshoot then settle) frame-by-frame against hand-computed TiXL trajectories. injectBug

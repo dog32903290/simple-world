@@ -36,6 +36,13 @@ struct PortSpec {
   // expands all connected sources into in[] consecutively (reducer ops like Sum consume in[0..n-1]).
   // Single-input ports leave this false → exactly the prior single-cardinality behaviour.
   bool multiInput = false;
+  // String-param sub-seam (context-var YELLOW): a String input port (dataType=="String") carries
+  // its default text HERE — the value rail is float-only (def/minV/maxV above), so a String port's
+  // default cannot ride on `def`. The Float-only resolution loops all filter dataType=="Float" so a
+  // String port is skipped by every value path (zero regression); only the String resolver
+  // (resolveResidentStringInputs) reads strDef. LAST member + defaulted → existing positional
+  // {...,multiInput,vecArity} aggregate inits at ~hundreds of port rows stay valid unchanged.
+  std::string strDef;
 };
 struct NodeSpec {
   std::string type, title;
@@ -75,6 +82,12 @@ struct Node {
   std::string type;
   float x = 0.0f, y = 0.0f;
   std::map<std::string, float> params;  // param id -> value
+  // String params (context-var YELLOW string sub-seam): String input ports (dataType=="String")
+  // store their text here, parallel to `params` (the float rail). Serialized in toJson/fromJson
+  // alongside params. EMPTY map for every node with no String port (the universal case → zero file
+  // churn). The ONLY non-float param channel in the value graph; carries e.g. SetFloatVar's
+  // VariableName. Absent key = the spec's PortSpec.strDef default.
+  std::map<std::string, std::string> strParams;  // param id -> text value
   // Transient (not serialized): outputs for stateful nodes whose value can't come from the
   // pure evaluate() — e.g. AudioReaction, cooked in main from the live spectrum each frame.
   // evalFloat returns outCache[outPortIndex] for such nodes. Index by the node's output port.

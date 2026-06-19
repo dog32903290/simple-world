@@ -18,6 +18,8 @@ struct ResidentEvalGraph;
 struct SpectrumSnapshot;
 struct SymbolLibrary;
 struct Transport;
+struct StatefulValueState;  // runtime/stateful_value_ops.h (per-instance value-op memory)
+struct ContextVarMap;       // runtime/stateful_value_ops.h (context-var YELLOW host-side var map)
 }
 
 namespace sw::framecook {
@@ -63,6 +65,23 @@ uint32_t currentFrameIndex();
 void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
                             const Transport& t, uint32_t frameIndex, const SymbolLibrary* lib,
                             std::map<std::string, AudioReactionState>& state);
+
+// Cook every stateful value op (Damp/Spring/... + the context-var Set*/Get*Var seam) in `g` for this
+// frame: 3-phase (clear var map → writers → readers) so the writer-before-reader ordering is
+// deterministic (context-var YELLOW seam, block #1). `state` keys off the resident path (per-instance
+// across rebuilds). `vars` = the host-side per-frame variable map (= TiXL EvaluationContext
+// Float/IntVariables), cleared at the top once per frame. `ctxVarBug` is a teeth hook (0 = production;
+// 1 collapses the 2 passes, 2 skips the clear) for --selftest-contextvar; defaults to 0 so run() is
+// unchanged. Declared here (was file-local) so the selftest drives the REAL seam, not a mock.
+void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, double runTimeSecs,
+                            const Transport& t, uint32_t frameIndex, const SymbolLibrary* lib,
+                            std::map<std::string, StatefulValueState>& state,
+                            ContextVarMap& vars, int ctxVarBug = 0);
+
+// Context-var seam pin (--selftest-contextvar): drives the REAL cookStatefulValueNodes 2-pass
+// through goldens A-E (roundtrip / unset-default / writer-before-reader ordering / per-frame reset /
+// independent Int map). injectBug flips one assertion per leg so the teeth bite.
+int runContextVarSelfTest(bool injectBug);
 
 // AR clock-domain pin (refuter-S5 盲區 3, --selftest-arclock): proves through the REAL cook
 // seam above that AudioReaction receives BARS — hit timestamps == transport.fxTime (bars, not

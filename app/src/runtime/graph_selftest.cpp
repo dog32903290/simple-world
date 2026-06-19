@@ -27,6 +27,12 @@ bool graphsEqual(const Graph& a, const Graph& b) {
       auto it = y.params.find(kv.first);
       if (it == y.params.end() || std::fabs(it->second - kv.second) > 1e-4f) return false;
     }
+    // String sub-seam: strParams must roundtrip byte-exact (the var-name channel).
+    if (x.strParams.size() != y.strParams.size()) return false;
+    for (const auto& kv : x.strParams) {
+      auto it = y.strParams.find(kv.first);
+      if (it == y.strParams.end() || it->second != kv.second) return false;
+    }
   }
   for (size_t i = 0; i < a.connections.size(); ++i) {
     const Connection& x = a.connections[i];
@@ -73,7 +79,37 @@ int runSaveLoadSelfTest(bool injectBug) {
   Graph dummy;
   bool rejectedBad = !loadGraphFromFile(path, dummy);
 
-  bool pass = roundtrip && rejectedBad;
+  // --- String sub-seam (context-var YELLOW): strParams MUST survive a disk roundtrip byte-exact.
+  // This is the prove-the-string-channel-is-real gate the var ops build on — the var name is NOT
+  // smuggled through a float port or a path hack; it lives in Node::strParams and serializes here.
+  const std::string spath = std::string(tmp ? tmp : "/tmp") + "/sw_strparams_selftest.swproj";
+  Graph sg;
+  sg.nextId = 3;
+  { Node n; n.id = 1; n.type = "SetFloatVar"; n.x = 10.0f; n.y = 20.0f;
+    n.params["FloatValue"] = 3.5f;
+    n.strParams["VariableName"] = "myVar";  // non-default name (proves it is carried, not re-defaulted)
+    sg.nodes.push_back(n); }
+  { Node n; n.id = 2; n.type = "GetFloatVar"; n.x = 30.0f; n.y = 40.0f;
+    n.params["FallbackDefault"] = 9.0f;
+    n.strParams["VariableName"] = "myVar";
+    sg.nodes.push_back(n); }
+  bool strWrote = saveGraphToFile(spath, sg);
+  Graph sReloaded;
+  bool strRead = strWrote && loadGraphFromFile(spath, sReloaded);
+  // graphsEqual now compares strParams (added above) — a dropped/garbled name fails here.
+  bool strRoundtrip = strRead && graphsEqual(sg, sReloaded);
+  // Hard pin the exact text survived (not just sizes): the first node's name reads back "myVar".
+  bool strExact = strRead && !sReloaded.nodes.empty() &&
+                  sReloaded.nodes[0].strParams.count("VariableName") &&
+                  sReloaded.nodes[0].strParams.at("VariableName") == "myVar";
+  if (injectBug && strRead && !sReloaded.nodes.empty())
+    sReloaded.nodes[0].strParams["VariableName"] = "CORRUPTED";  // perturb -> roundtrip must mismatch
+  bool strLeg = strRoundtrip && strExact && graphsEqual(sg, sReloaded);
+  printf("[selftest-save] strParams roundtrip=%s exact(\"myVar\")=%s -> %s\n",
+         strRoundtrip ? "ok" : "MISMATCH", strExact ? "ok" : "WRONG-TEXT",
+         strLeg ? "PASS" : "FAIL");
+
+  bool pass = roundtrip && rejectedBad && strLeg;
   printf("[selftest-save] roundtrip=%s rejectBad=%s -> %s\n",
          roundtrip ? "ok" : "MISMATCH", rejectedBad ? "ok" : "ACCEPTED-BAD",
          pass ? "PASS" : "FAIL");

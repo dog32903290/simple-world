@@ -198,6 +198,7 @@ const SelfTest kTable[] = {
     {"cycleguard", runCycleGuardSelfTest},
     {"transport", runTransportSelfTest},
     {"arclock", framecook::runArClockSelfTest},
+    {"contextvar", framecook::runContextVarSelfTest},  // context-var YELLOW seam (block #1)
     {"curve", runCurveSelfTest},
     {"animator", runCurveAnimatorSelfTest},
     {"animgui", runAnimGuiSelfTest},

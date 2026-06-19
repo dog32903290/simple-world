@@ -55,6 +55,8 @@ crude_json::value slotDefToJson(const SlotDef& d, bool isInput) {
   o["name"] = d.name;
   o["dataType"] = d.dataType;
   if (isInput) o["def"] = finiteOr0(d.def);
+  // String sub-seam: a String input slot's default text (omitted unless present, zero churn).
+  if (isInput && !d.strDef.empty()) o["strDef"] = d.strDef;
   // boundary-node canvas position (TiXL keeps it in .t3ui; our single-file inline analog)
   o["x"] = finiteOr0(d.x);
   o["y"] = finiteOr0(d.y);
@@ -178,6 +180,14 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
       crude_json::object ov;
       for (const auto& kv : c.overrides) ov[kv.first] = finiteOr0(kv.second);
       co["overrides"] = crude_json::value(ov);
+      // String sub-seam: per-instance String overrides (e.g. SetFloatVar.VariableName). OMITTED
+      // when empty (the universal case for non-var ops → minimal file/diff). May hold CJK; crude_json
+      // dumps raw UTF-8 byte-stable, so the roundtrip holds.
+      if (!c.strOverrides.empty()) {
+        crude_json::object sov;
+        for (const auto& kv : c.strOverrides) sov[kv.first] = kv.second;
+        co["strOverrides"] = crude_json::value(sov);
+      }
       co["x"] = finiteOr0(c.x);
       co["y"] = finiteOr0(c.y);
       // S2 (批次7) child structural补欄, all 照 TiXL SymbolJson.cs, all OMITTED at default so the

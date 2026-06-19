@@ -46,8 +46,10 @@ Node makeNode(int id, const char* type, float x, float y) {
   n.x = x;
   n.y = y;
   if (const NodeSpec* s = findSpec(type))
-    for (const auto& p : s->ports)
+    for (const auto& p : s->ports) {
       if (p.isInput && p.dataType == "Float") n.params[p.id] = p.def;  // seed from spec defaults
+      else if (p.isInput && p.dataType == "String") n.strParams[p.id] = p.strDef;  // String sub-seam
+    }
   return n;
 }
 }  // namespace
@@ -84,6 +86,12 @@ std::string toJson(const Graph& g) {
     crude_json::object params;
     for (const auto& kv : n.params) params[kv.first] = (crude_json::number)kv.second;
     o["params"] = crude_json::value(params);
+    // String sub-seam: serialize strParams only when non-empty (zero churn for float-only nodes).
+    if (!n.strParams.empty()) {
+      crude_json::object strParams;
+      for (const auto& kv : n.strParams) strParams[kv.first] = (crude_json::string)kv.second;
+      o["strParams"] = crude_json::value(strParams);
+    }
     nodes.push_back(crude_json::value(o));
   }
   root["nodes"] = crude_json::value(nodes);
@@ -116,6 +124,11 @@ bool fromJson(const std::string& json, Graph& out) {
     if (params.is_object())
       for (auto& kv : params.get<crude_json::object>())
         n.params[kv.first] = (float)kv.second.get<crude_json::number>();
+    // String sub-seam: load strParams when present (absent for legacy/float-only files).
+    crude_json::value& strParams = nv["strParams"];
+    if (strParams.is_object())
+      for (auto& kv : strParams.get<crude_json::object>())
+        if (kv.second.is_string()) n.strParams[kv.first] = kv.second.get<crude_json::string>();
     out.nodes.push_back(n);
   }
   crude_json::value& conns = v["connections"];
