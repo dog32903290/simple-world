@@ -54,6 +54,7 @@ namespace sw { int runFieldCappedTorusSdfGoldenSelfTest(bool); }  // field_ops_c
 namespace sw { int runFieldPrismSdfGoldenSelfTest(bool); }        // field_ops_prismsdf_golden.cpp (axis+sides enum)
 namespace sw { int runFieldPyramidSdfGoldenSelfTest(bool); }      // field_ops_pyramidsdf_golden.cpp (axis-enum, two-vec3)
 namespace sw { int runFieldRotatedPlaneSdfGoldenSelfTest(bool); } // field_ops_rotatedplanesdf_golden.cpp (normal-vector, two-vec3)
+namespace sw { int runFieldCombineSdfGoldenSelfTest(bool); }      // field_ops_combinesdf_golden.cpp (FIRST combiner: 2-input fold)
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
@@ -173,6 +174,7 @@ const SelfTest kTable[] = {
     {"field-prismsdf", runFieldPrismSdfGoldenSelfTest},
     {"field-pyramidsdf", runFieldPyramidSdfGoldenSelfTest},
     {"field-rotatedplanesdf", runFieldRotatedPlaneSdfGoldenSelfTest},
+    {"field-combinesdf", runFieldCombineSdfGoldenSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},
