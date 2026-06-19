@@ -1052,6 +1052,61 @@ void stepDampPeakDecay(const std::map<std::string, float>& in, float /*dt*/, flo
   out[0] = damped;
 }
 
+// --- HasTimeChanged (TiXL Lib/numbers/anim/time/HasTimeChanged.cs) — a time-edge detector: compares
+// this frame's clock to last frame's and emits HasChanged(Bool→Float 0/1) by Mode, plus DeltaTime
+// (= time − _lastTime). Bool dissolves to Float 0/1 (Cut 32). The PRIOR clock value is the state.
+// State: s[0]=lastTime. (s[0] zero-init = TiXL _lastTime double field default 0.)
+// Outputs (TiXL output decl order, both DirtyFlagTrigger.Animated): HasChanged(out[0]), DeltaTime(out[1]).
+// Ports/inputs (TiXL Input decl order — Threshold, Mode, WhichTime; .t3 default order differs but the
+//   .t3 DefaultValues are what matter): WhichTime(enum, .t3 default 1=LocalFxTime), Threshold(0),
+//   Mode(enum, .t3 default 2=DidChange).
+// Modes enum (HasTimeChanged.cs:107-113): DidRewind=0, DidAdvanced=1, DidChange=2, DidAdvancedWithMotionBlur=3.
+// Times enum (HasTimeChanged.cs:115-121): LocalTime=0, LocalFxTime=1, GlobalTime=2, GlobalFxTime=3.
+// Time: frame_cook hands wall fx seconds via `time` (the SINGLE-clock seam, == TiXL context.LocalFxTime
+//   substitution every time-reading op here already uses: Ease/HasValueChanged/KeepBoolean). `dt` unused.
+// Forks (named) — same precedent as Damp/Spring/Ease:
+//   • SINGLE-CLOCK collapse: the seam exposes ONE clock to the step (`time` = wall fx seconds). TiXL's
+//     four WhichTime targets (LocalTime/LocalFxTime/GlobalTime/GlobalFxTime) all resolve to that one
+//     `time` here — there is no transport bar-clock / playhead-vs-wall split at the cook step. WhichTime
+//     is KEPT as a port for parity (its .t3 default 1=LocalFxTime is the dominant, exactly-faithful
+//     case), but it is INERT: every enum value reads `time`. This is the identical clock-substitution
+//     fork Ease/HasValueChanged already carry, generalized to the WhichTime selector.
+//   • __MotionBlurPass var-map ABSENT: Mode 3 (DidAdvancedWithMotionBlur) reads context.IntVariables
+//     ["__MotionBlurPass"]; this runtime has NO context-var map, so the var is always ABSENT → TiXL's
+//     own `else` branch runs verbatim: hasChanged = wasAdvanced, _lastTime always updates
+//     (wasAdditionalMotionBlurPass stays false). Mode 3 thus faithfully degrades to DidAdvanced — this
+//     IS TiXL's no-MB-pass behavior, not a divergence. (The .t3 default Mode=2 never enters this branch.)
+//   • The `Playback.FrameCount == _lastFrameUpdate` double-eval early-return is DROPPED — frame_cook
+//     cooks each node exactly once per frame (Damp/Spring/Ease precedent). No _lastFrameUpdate.
+//   • Bool HasChanged dissolves to Float 0/1 (Cut 32). Mode arrives on a Float port (enum selector) →
+//     std::lround, clamped to [0,3].
+// Faithful first-frame: _lastTime=0, so with time=0 wasAdvanced = 0>0+thr = false → HasChanged=0,
+//   DeltaTime=0 (matches TiXL's own first eval before time advances).
+void stepHasTimeChanged(const std::map<std::string, float>& in, float /*dt*/, float time,
+                        StatefulValueState& st, float out[3]) {
+  const float threshold = getIn(in, "Threshold", 0.0f);
+  int mode = (int)std::lround(getIn(in, "Mode", 2.0f));  // .t3 default Mode=DidChange(2)
+  if (mode < 0) mode = 0; else if (mode > 3) mode = 3;   // TiXL (Modes) cast range
+  // WhichTime is read for port parity but the seam has a single clock → `time` is used regardless.
+  (void)getIn(in, "WhichTime", 1.0f);
+
+  float& lastTime = st.s[0];
+  const bool wasRewind = time < lastTime - threshold;    // TiXL: time < _lastTime - threshold
+  const bool wasAdvanced = time > lastTime + threshold;  // TiXL: time > _lastTime + threshold
+  out[1] = time - lastTime;                              // DeltaTime.Value = (float)(time - _lastTime)
+
+  bool hasChanged = false;
+  switch (mode) {
+    case 0:  hasChanged = wasRewind; break;                 // DidRewind
+    case 1:  hasChanged = wasAdvanced; break;               // DidAdvanced
+    case 3:  hasChanged = wasAdvanced; break;               // DidAdvancedWithMotionBlur, var ABSENT → else branch
+    default: hasChanged = wasAdvanced || wasRewind; break;  // DidChange (2)
+  }
+  // var ABSENT ⇒ wasAdditionalMotionBlurPass is always false ⇒ _lastTime always updates (TiXL line 100-101).
+  lastTime = time;
+  out[0] = hasChanged ? 1.0f : 0.0f;
+}
+
 struct StatefulOp {
   const char* type;
   void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[8]);
@@ -1087,6 +1142,7 @@ const StatefulOp kStatefulValueOps[] = {
     {"Trigger", stepTrigger},
     {"KeepBoolean", stepKeepBoolean},
     {"DampPeakDecay", stepDampPeakDecay},
+    {"HasTimeChanged", stepHasTimeChanged},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -1968,6 +2024,91 @@ int runStatefulValueSelfTest(bool injectBug) {
       ok = ok && pass;
       printf("[selftest-statefulvalue] DampPeakDecay step%d(v=%.0f)=%.3f want=%.3f -> %s\n", i + 1, val[i], out[0], w, pass ? "PASS" : "FAIL");
     }
+  }
+
+  // ===== HasTimeChanged (TiXL anim/time/HasTimeChanged.cs) — time-edge detector, ADVANCING clock =====
+  // Multi-frame: `time` MUST vary per cook (that is the input). lastTime inits 0. DeltaTime=time−lastTime,
+  // wasAdvanced=time>lastTime+thr, wasRewind=time<lastTime−thr. The .t3 default Mode=DidChange(2).
+  // (A) Mode=DidChange(2), Threshold=0 — advance, paused frame, rewind. HasChanged + DeltaTime asserted.
+  //   f1 t=0    : adv 0>0? no, rew? no            → HC=0, DT=0      ; lastTime→0
+  //   f2 t=0.5  : adv 0.5>0 yes                    → HC=1, DT=0.5    ; lastTime→0.5
+  //   f3 t=0.5  : adv no, rew no (paused)          → HC=0, DT=0      ; lastTime→0.5  (proves a still frame)
+  //   f4 t=1.0  : adv yes                          → HC=1, DT=0.5    ; lastTime→1.0
+  //   f5 t=0.3  : rew 0.3<1.0 yes (DidChange)      → HC=1, DT=-0.7   ; lastTime→0.3  (DidChange catches rewind)
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float tm[5]  = {0.0f, 0.5f, 0.5f, 1.0f, 0.3f};
+    const float wHC[5] = {0.0f, 1.0f, 0.0f, 1.0f, 1.0f};
+    const float wDT[5] = {0.0f, 0.5f, 0.0f, 0.5f, -0.7f};
+    for (int i = 0; i < 5; ++i) {
+      cookStatefulValueOp("HasTimeChanged", {{"Mode", 2.0f}, {"Threshold", 0.0f}, {"WhichTime", 1.0f}}, dt60, tm[i], st, out);
+      // injectBug on f5: a no-rewind bug (DidChange treated as DidAdvanced) would miss the rewind → HC=0.
+      float hc = (injectBug && i == 4) ? 0.0f : wHC[i];
+      bool pass = std::fabs(out[0] - hc) < eps && std::fabs(out[1] - wDT[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasTimeChanged.change step%d(t=%.1f) HC=%.1f(want %.1f) DT=%.3f(want %.3f) -> %s\n",
+             i + 1, tm[i], out[0], hc, out[1], wDT[i], pass ? "PASS" : "FAIL");
+    }
+  }
+  // (B) Mode=DidAdvanced(1): a rewind frame must NOT fire (proves the mode split vs DidChange above).
+  //   f1 t=0.5 : adv yes                 → HC=1, DT=0.5 ; lastTime→0.5
+  //   f2 t=0.2 : adv 0.2>0.5? no (rewind)→ HC=0, DT=-0.3; lastTime→0.2   (DidAdvanced ignores the rewind)
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("HasTimeChanged", {{"Mode", 1.0f}}, dt60, 0.5f, st, out);
+    bool p1 = std::fabs(out[0] - 1.0f) < eps && std::fabs(out[1] - 0.5f) < eps;
+    cookStatefulValueOp("HasTimeChanged", {{"Mode", 1.0f}}, dt60, 0.2f, st, out);
+    float hc = injectBug ? 1.0f : 0.0f;  // bug: DidAdvanced falsely fires on a rewind
+    bool p2 = std::fabs(out[0] - hc) < eps && std::fabs(out[1] - (-0.3f)) < eps;
+    ok = ok && p1 && p2;
+    printf("[selftest-statefulvalue] HasTimeChanged.adv adv(t=0.5)=%.1f rewind(t=0.2)HC=%.1f(want %.1f) DT=%.3f -> %s\n",
+           1.0f, out[0], hc, out[1], (p1 && p2) ? "PASS" : "FAIL");
+  }
+  // (C) Mode=DidRewind(0): the SAME rewind frame DOES fire (the mirror of (B)).
+  //   f1 t=0.5 : rew no  → HC=0, DT=0.5 ; lastTime→0.5
+  //   f2 t=0.2 : rew 0.2<0.5 yes → HC=1, DT=-0.3 ; lastTime→0.2
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("HasTimeChanged", {{"Mode", 0.0f}}, dt60, 0.5f, st, out);
+    bool p1 = std::fabs(out[0] - 0.0f) < eps;  // forward advance is NOT a rewind
+    cookStatefulValueOp("HasTimeChanged", {{"Mode", 0.0f}}, dt60, 0.2f, st, out);
+    float hc = injectBug ? 0.0f : 1.0f;  // bug: DidRewind misses the rewind
+    bool p2 = std::fabs(out[0] - hc) < eps && std::fabs(out[1] - (-0.3f)) < eps;
+    ok = ok && p1 && p2;
+    printf("[selftest-statefulvalue] HasTimeChanged.rewind adv(t=0.5)HC=%.1f rewind(t=0.2)HC=%.1f(want %.1f) -> %s\n",
+           0.0f, out[0], hc, (p1 && p2) ? "PASS" : "FAIL");
+  }
+  // (D) Threshold band, Mode=DidAdvanced(1), Threshold=0.25: a small advance UNDER threshold must NOT fire.
+  //   f1 t=0.1 : adv 0.1>0+0.25(0.25)? no  → HC=0, DT=0.1 ; lastTime→0.1   (under-threshold advance)
+  //   f2 t=0.5 : adv 0.5>0.1+0.25(0.35)? yes→ HC=1, DT=0.4 ; lastTime→0.5
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("HasTimeChanged", {{"Mode", 1.0f}, {"Threshold", 0.25f}}, dt60, 0.1f, st, out);
+    float hc1 = injectBug ? 1.0f : 0.0f;  // bug: ignores Threshold → tiny advance falsely fires
+    bool p1 = std::fabs(out[0] - hc1) < eps && std::fabs(out[1] - 0.1f) < eps;
+    cookStatefulValueOp("HasTimeChanged", {{"Mode", 1.0f}, {"Threshold", 0.25f}}, dt60, 0.5f, st, out);
+    bool p2 = std::fabs(out[0] - 1.0f) < eps && std::fabs(out[1] - 0.4f) < eps;
+    ok = ok && p1 && p2;
+    printf("[selftest-statefulvalue] HasTimeChanged.thresh small(t=0.1)HC=%.1f(want %.1f) big(t=0.5)HC=%.1f -> %s\n",
+           out[0], hc1, 1.0f, (p1 && p2) ? "PASS" : "FAIL");
+  }
+  // (E) Mode=DidAdvancedWithMotionBlur(3), no __MotionBlurPass var (seam has no var-map) → DEGRADES to
+  //   DidAdvanced: fires on advance, NOT on rewind. f1 t=0.4 adv → HC=1; f2 t=0.1 rewind → HC=0.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("HasTimeChanged", {{"Mode", 3.0f}}, dt60, 0.4f, st, out);
+    bool p1 = std::fabs(out[0] - 1.0f) < eps;
+    cookStatefulValueOp("HasTimeChanged", {{"Mode", 3.0f}}, dt60, 0.1f, st, out);
+    float hc = injectBug ? 1.0f : 0.0f;  // bug: mode 3 falsely behaves as DidChange (fires on rewind)
+    bool p2 = std::fabs(out[0] - hc) < eps;
+    ok = ok && p1 && p2;
+    printf("[selftest-statefulvalue] HasTimeChanged.mb(varAbsent) adv(t=0.4)=%.1f rewind(t=0.1)HC=%.1f(want %.1f) -> %s\n",
+           1.0f, out[0], hc, (p1 && p2) ? "PASS" : "FAIL");
   }
 
   printf("[selftest-statefulvalue] %s%s\n", ok ? "PASS" : "FAIL", injectBug ? " (injectBug)" : "");

@@ -423,6 +423,22 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Decay", "Decay", "Float", true, 0.05f, 0.0f, 1.0f}},
        nullptr},
+      // HasTimeChanged — time-edge detector: HasChanged(0/1) + DeltaTime, comparing this frame's clock
+      // to last frame's by Mode. TiXL anim/time/HasTimeChanged.cs (stateful; outputs FIRST; nullptr eval).
+      // Outputs FIRST: HasChanged, DeltaTime. .t3 defaults: WhichTime=LocalFxTime(1), Threshold=0,
+      // Mode=DidChange(2). Bool HasChanged→Float 0/1 (Cut 32). FORKS (see step fn): the cook seam hands a
+      // SINGLE clock (wall fx seconds), so WhichTime is an INERT parity port (all 4 targets read `time`);
+      // Mode 3 (DidAdvancedWithMotionBlur) degrades to DidAdvanced as the __MotionBlurPass var is always
+      // absent (no context-var map) — exactly TiXL's no-MB-pass else branch.
+      {"HasTimeChanged", "HasTimeChanged",
+       {{"HasChanged", "HasChanged", "Float", false},
+        {"DeltaTime", "DeltaTime", "Float", false},
+        {"WhichTime", "WhichTime", "Float", true, 1.0f, 0.0f, 3.0f, Widget::Enum,
+         {"LocalTime", "LocalFxTime", "GlobalTime", "GlobalFxTime"}},
+        {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f},
+        {"Mode", "Mode", "Float", true, 2.0f, 0.0f, 3.0f, Widget::Enum,
+         {"DidRewind", "DidAdvanced", "DidChange", "DidAdvancedWithMotionBlur"}}},
+       nullptr},
       // BlendValues — blend between a MultiInput<float> list by F. TiXL float/process/BlendValues.cs.
       // Values (multiInput) MUST precede the trailing regular F — the eval reads F as in[n-1] and the
       // Values segment as in[0..n-2] (mixed-multiInput convention; no gather change, batch35).
