@@ -406,4 +406,36 @@ int runDrawLinesSelfTest(bool injectBug);
 // DrawBillboards golden: a single point → assert the sprite quad covers an AREA (>1px).
 // injectBug = Scale 0 → zero-area quad → ~no lit pixels → FAIL.
 int runDrawBillboardsSelfTest(bool injectBug);
+
+// --- DrawScreenQuad / ClearRenderTarget command ops (point_ops_drawscreenquad.cpp,
+// dx11-equiv-render-graph seam, block #2). DrawScreenQuad: Texture2D in → Command out
+// (DrawKind::ScreenQuad, tinted textured quad). ClearRenderTarget: Command out (DrawKind::Clear,
+// chain-clear). Both register into the command stream (cmdReg); the executor cookRenderTarget
+// rasterizes/applies them. ---
+RenderCommand cookDrawScreenQuad(CmdCookCtx& c);
+RenderCommand cookClearRenderTarget(CmdCookCtx& c);
+void registerDrawScreenQuadOps();  // registers BOTH DrawScreenQuad + ClearRenderTarget
+// DrawScreenQuad golden: a uniform-gray source texture, Color=(2,1,1,1) tint → assert the center
+// pixel is R≈clamp(2*0.5)=1.0 (saturated) and G/B≈0.5 (the closed-form clamp(Color*tex,0,1000)).
+// injectBug drops the source texture → black → FAIL.
+int runDrawScreenQuadSelfTest(bool injectBug);
+// DrawScreenQuad clamp golden (float RT): Color*tex=2.0 read back from a float32 target → asserts
+// RGB≈2.0 survives (NOT hardware-clamped, under the 1000 ceiling) and alpha≈1.0 (the (…,1) cap).
+// injectBug corrupts the real shader clampMax (RGB ceiling→1.0) so RGB reads back 1.0 → FAIL.
+int runDrawScreenQuadClampSelfTest(bool injectBug);
+// DrawScreenQuad filter golden: a 2x2 distinct-texel texture sampled at the quad center → asserts
+// the center is the bilinear average (0.5), a value Nearest can't produce. Makes sampler=Linear
+// load-bearing (reverting to Nearest fails this). injectBug skews the texels so the average ≠0.5.
+int runDrawScreenQuadFilterSelfTest(bool injectBug);
+// DrawScreenQuad blend golden: two stacked ScreenQuad items (base gray + Additive overlay) →
+// assert the result is the SUM (brighter than either alone). injectBug forces Normal blend on the
+// overlay → it replaces instead of adding → the sum probe FAILS.
+int runDrawScreenQuadBlendSelfTest(bool injectBug);
+// ClearRenderTarget golden: a Clear(red) chain item → assert the target reads back all-red.
+// injectBug drops the Clear item → the RenderTarget's default black clear → FAIL.
+int runClearRenderTargetSelfTest(bool injectBug);
+// DrawScreenQuad WIRED golden (FORK#1 end-to-end): RenderTarget → DrawScreenQuad → RenderTarget
+// cooked through PointGraph; proves the Texture2D-on-Command-path gather. injectBug drops the
+// source→DrawScreenQuad Texture2D wire → empty chain → black → FAIL.
+int runDrawScreenQuadWiredSelfTest(bool injectBug);
 }  // namespace sw

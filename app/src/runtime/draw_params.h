@@ -40,6 +40,31 @@ struct DrawBillboardParams {
   float _pad1;  // -> 32 bytes
 };
 
+// DrawScreenQuad Params cbuffer (b0), 1:1 with vs-draw-viewport-quad.hlsl's Params register(b0):
+//   float4 Color; float2 Position; float Width; float Height;
+// VS sizes/places a clip-space quad by Width/Height/Position; PS tints the sampled texture by
+// Color and HDR-clamps to [0, clampMax]. clampMax is the TiXL HDR-permissive constant
+// float4(1000,1000,1000,1) (the cook path ALWAYS sets it to that — it is not a node input);
+// it lives in the cbuffer so the clamp golden can drive the real shader's clamp ceiling and a
+// -bug injection can move it (proving the shader clamp, not a flipped expected value).
+// 48 bytes: float4 + float2 + 2*float + float4 = 48 (16-byte multiple).
+struct DrawScreenQuadParams {
+#ifdef __METAL_VERSION__
+  float4 color;
+  float2 position;
+#else
+  float color[4];
+  float position[2];
+#endif
+  float width;
+  float height;
+#ifdef __METAL_VERSION__
+  float4 clampMax;  // HDR clamp upper bound (TiXL constant (1000,1000,1000,1))
+#else
+  float clampMax[4];
+#endif
+};
+
 enum DrawLineBinding {
   DRAWLINE_Points = 0,  // device const SwPoint* (vertex buffer)
   DRAWLINE_Params = 1,  // constant DrawLineParams&
@@ -50,7 +75,15 @@ enum DrawBillboardBinding {
   DRAWBB_Params = 1,  // constant DrawBillboardParams&
 };
 
+// DrawScreenQuad bindings. The VS reads no vertex buffer (6 hardcoded clip verts by vertex_id),
+// only the Params cbuffer; the FS samples the source texture. texture(0)/sampler(0) mirror the
+// HLSL t0/s0.
+enum DrawScreenQuadBinding {
+  DRAWSQ_Params = 0,  // constant DrawScreenQuadParams& (vertex + fragment)
+};
+
 #ifndef __METAL_VERSION__
 static_assert(sizeof(DrawLineParams) == 32, "DrawLineParams 32 bytes");
 static_assert(sizeof(DrawBillboardParams) == 32, "DrawBillboardParams 32 bytes");
+static_assert(sizeof(DrawScreenQuadParams) == 48, "DrawScreenQuadParams 48 bytes");
 #endif

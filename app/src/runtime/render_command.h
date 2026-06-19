@@ -25,6 +25,7 @@
 
 namespace MTL {
 class Buffer;
+class Texture;
 }  // namespace MTL
 
 namespace sw {
@@ -38,6 +39,21 @@ enum class DrawKind : uint32_t {
   Points = 0,      // draw_points_vs: 1 point-prim per Point (PrimitiveTypePoint)
   Lines = 1,       // draw_lines_vs: 6-vert screen-space quad per segment i→i+1 (PrimitiveTypeTriangle)
   Billboards = 2,  // draw_billboards_vs: 6-vert camera-facing quad per Point (PrimitiveTypeTriangle)
+  ScreenQuad = 3,  // draw_screenquad_vs: 6-vert clip-space quad sampling srcTexture (TiXL DrawScreenQuad);
+                   // no point buffer — the only kind driven by srcTexture instead of points.
+  Clear = 4,       // not a draw: a chain-clear directive (TiXL ClearRenderTarget). When it is the
+                   // FIRST chain item the executor sets the pass clear color from it (color[]); the
+                   // retained-mode pass already clears once, so this is free. A non-first Clear (mid
+                   // chain re-clear) needs a clear-quad and is deferred (no-op for now).
+};
+
+// Per-item blend equation (TiXL SharedEnums.BlendModes, factors from Core/Rendering/
+// DefaultRenderingStates.cs). THIS BATCH ships Normal + Add only — Screen/Multiply are not a
+// single Metal blend equation (they need shader-side compositing) and are deferred. Numbered to
+// match the TiXL enum ordering (Normal=0, Additive=1) so the .t3 BlendMode int maps directly.
+enum class BlendMode : uint32_t {
+  Normal = 0,    // alpha-over: src*SrcA + dst*(1-SrcA)  (DefaultRenderingStates.DefaultBlendState)
+  Additive = 1,  // add:        src*SrcA + dst*1         (DefaultRenderingStates.AdditiveBlendState)
 };
 
 // One draw in a render command chain: a point bag + how to draw it. New fields are appended
@@ -53,6 +69,20 @@ struct RenderDrawItem {
   float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};  // tint (TiXL Color default = white)
   float lineWidth = 0.02f;                     // DrawLines.LineWidth (.t3 default 0.02)
   float size = 1.0f;                           // DrawBillboards.Scale (.t3 default 1.0)
+  // ScreenQuad fields (TiXL DrawScreenQuad). srcTexture is the sampled input — borrowed (a
+  // PointGraph-owned upstream tex node output, same single-frame lifetime as `points`; NEVER
+  // retained). position/width size+place the clip-space quad. Ignored by Points/Lines/Billboards.
+  const MTL::Texture* srcTexture = nullptr;    // sampled image (null → black, defined, no crash)
+  float position[2] = {0.0f, 0.0f};            // DrawScreenQuad.Position (clip-space offset)
+  float width = 1.0f;                          // DrawScreenQuad.Width  (quad half-extent X)
+  float height = 1.0f;                         // DrawScreenQuad.Height (quad half-extent Y)
+  // How this item composites onto what's already drawn. DrawPoints stays Normal (opaque path
+  // uses no blend at all — see executor); DrawScreenQuad reads the BlendMode param.
+  BlendMode blendMode = BlendMode::Normal;
+  // DrawScreenQuad HDR clamp upper bound (TiXL constant float4(1000,1000,1000,1) — RGB headroom,
+  // alpha capped at 1). NOT a node input; the cook path always emits this default. The clamp
+  // golden overrides it (and the -bug leg corrupts it) to drive the real shader clamp ceiling.
+  float clampMax[4] = {1000.0f, 1000.0f, 1000.0f, 1.0f};
 };
 
 // A render command chain: draw items in execution order (later items composite on top).

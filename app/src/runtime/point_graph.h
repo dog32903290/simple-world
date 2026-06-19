@@ -94,6 +94,13 @@ struct CmdCookCtx {
   int nodeId = 0;
   const MTL::Buffer* points = nullptr;  // upstream point bag (buffer flow already cooked)
   uint32_t count = 0;                   // upstream point count
+  // First wired Texture2D input (FORK#1, the Command-path texture gather): the cook driver cooks
+  // the upstream tex op (RenderTarget/Blur) into ITS own texture and hands the result here. A
+  // command op that draws a texture (DrawScreenQuad) borrows this ptr into its RenderDrawItem;
+  // point-only command ops (DrawPoints) ignore it. null when no Texture2D input is wired. Borrowed
+  // (PointGraph-owned, single-frame) — NEVER retained, same lifetime contract as `points`. Mirrors
+  // TexCookCtx::inputTexture (the Texture2D flow's gather) but on the Command flow.
+  const MTL::Texture* inputTexture = nullptr;
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
 };
 // A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.

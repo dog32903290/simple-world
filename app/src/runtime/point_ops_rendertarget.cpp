@@ -23,7 +23,7 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
-#include "runtime/draw_params.h"      // DrawLineParams/DrawBillboardParams + bindings
+#include "runtime/draw_params.h"      // DrawLineParams/DrawBillboardParams/DrawScreenQuadParams + bindings
 #include "runtime/graph.h"            // Graph/Node
 #include "runtime/particle_params.h"  // DRAW_Points, DRAW_ViewExtent
 #include "runtime/point_graph.h"      // TexCookCtx, RenderResolution, registerTexOp
@@ -44,10 +44,13 @@ float paramOr(const std::map<std::string, float>& params, const char* id, float 
 
 // Build a render PSO for a vs/fs function pair into `pixelFormat`. `blend` turns on standard
 // premultiplied-style src-alpha blending (lines/billboards composite over what's drawn before);
-// DrawPoints stays opaque (blend=false), matching its pre-batch-13 behavior. Returns nullptr (and
+// DrawPoints stays opaque (blend=false), matching its pre-batch-13 behavior. When `mode` is
+// non-null it overrides `blend` and selects the EXACT TiXL BlendMode factor table (Normal/Add,
+// from Core/Rendering/DefaultRenderingStates.cs) — used by DrawScreenQuad. Returns nullptr (and
 // the caller skips that kind) if either function is missing.
 MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const char* vsName,
-                                      const char* fsName, MTL::PixelFormat pf, bool blend) {
+                                      const char* fsName, MTL::PixelFormat pf, bool blend,
+                                      const BlendMode* mode = nullptr) {
   MTL::Function* vs = lib->newFunction(NS::String::string(vsName, NS::UTF8StringEncoding));
   MTL::Function* fs = lib->newFunction(NS::String::string(fsName, NS::UTF8StringEncoding));
   MTL::RenderPipelineState* rps = nullptr;
@@ -57,7 +60,20 @@ MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const
     rpd->setFragmentFunction(fs);
     auto* att = rpd->colorAttachments()->object(0);
     att->setPixelFormat(pf);
-    if (blend) {
+    if (mode) {
+      // TiXL BlendMode factor table (DefaultRenderingStates.cs / PickBlendMode.t3). RGB factors
+      // differ per mode; the ALPHA channel is the SAME for both (SrcA=One, DstA=1-SrcA, Add) —
+      // verbatim from DefaultBlendState/AdditiveBlendState. RGB op is Add for both.
+      att->setBlendingEnabled(true);
+      att->setRgbBlendOperation(MTL::BlendOperationAdd);
+      att->setAlphaBlendOperation(MTL::BlendOperationAdd);
+      att->setSourceRGBBlendFactor(MTL::BlendFactorSourceAlpha);  // both modes: src*SrcA
+      att->setDestinationRGBBlendFactor(*mode == BlendMode::Additive
+                                            ? MTL::BlendFactorOne                 // Additive: + dst*1
+                                            : MTL::BlendFactorOneMinusSourceAlpha);  // Normal: + dst*(1-SrcA)
+      att->setSourceAlphaBlendFactor(MTL::BlendFactorOne);
+      att->setDestinationAlphaBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
+    } else if (blend) {
       att->setBlendingEnabled(true);
       att->setRgbBlendOperation(MTL::BlendOperationAdd);
       att->setAlphaBlendOperation(MTL::BlendOperationAdd);
@@ -90,6 +106,12 @@ void cookRenderTarget(TexCookCtx& c) {
   MTL::RenderPipelineState* psoPoints = nullptr;
   MTL::RenderPipelineState* psoLines = nullptr;
   MTL::RenderPipelineState* psoBb = nullptr;
+  // ScreenQuad PSO variants, lazily built per blend mode (FORK#3, scoped to this batch's 2 modes:
+  // Normal/Additive). Same per-call lazy posture as the point/line PSOs above — the executor's
+  // per-frame PSO caching is a deferred follow-up (note at the top of this fn); folding ScreenQuad
+  // into the future cache is a one-line key extension when that lands.
+  MTL::RenderPipelineState* psoSQ[2] = {nullptr, nullptr};  // [Normal, Additive]
+  MTL::SamplerState* sqSampler = nullptr;
 
   MTL::RenderPassDescriptor* pass = MTL::RenderPassDescriptor::renderPassDescriptor();
   auto* ca = pass->colorAttachments()->object(0);
@@ -97,13 +119,22 @@ void cookRenderTarget(TexCookCtx& c) {
   ca->setLoadAction(MTL::LoadActionClear);
   float cc[4] = {0.0f, 0.0f, 0.0f, 1.0f};  // ClearColor param (Vec4); default black, opaque.
   cookVecN(c, "ClearColor", cc, 4, cc);
+  // Chain-clear (TiXL ClearRenderTarget): if the FIRST chain item is a Clear directive, its color
+  // overrides the RenderTarget node's own ClearColor — faithful + free (the pass already clears
+  // once via LoadActionClear). Non-first Clears (mid-chain re-clear) are skipped in the draw loop.
+  if (c.command && !c.command->items.empty() && c.command->items.front().kind == DrawKind::Clear) {
+    const float* clr = c.command->items.front().color;
+    cc[0] = clr[0]; cc[1] = clr[1]; cc[2] = clr[2]; cc[3] = clr[3];
+  }
   ca->setClearColor(MTL::ClearColor::Make(cc[0], cc[1], cc[2], cc[3]));
   ca->setStoreAction(MTL::StoreActionStore);
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(pass);
   if (c.command) {
     for (const RenderDrawItem& it : c.command->items) {
-      if (!it.points || it.count == 0) continue;
+      if (it.kind == DrawKind::Clear) continue;  // not a draw — handled by the pass clear color above
+      // Point-based kinds need a non-empty bag; ScreenQuad draws from a texture (no point buffer).
+      if (it.kind != DrawKind::ScreenQuad && (!it.points || it.count == 0)) continue;
       switch (it.kind) {
         case DrawKind::Points: {
           if (!psoPoints)
@@ -151,6 +182,52 @@ void cookRenderTarget(TexCookCtx& c) {
                               NS::UInteger(it.count * 6));
           break;
         }
+        case DrawKind::ScreenQuad: {
+          // Textured fullscreen quad (TiXL DrawScreenQuad). Unwired texture → defined no-op (skip
+          // the draw; the cleared background shows through), NOT a crash — DrawScreenQuad.t3's
+          // UseFallbackTexture posture, fork-resolved as "empty result".
+          if (!it.srcTexture) break;
+          int bmi = (it.blendMode == BlendMode::Additive) ? 1 : 0;
+          if (!psoSQ[bmi]) {
+            BlendMode m = it.blendMode;
+            psoSQ[bmi] =
+                makeDrawPSO(c.dev, c.lib, "draw_screenquad_vs", "draw_screenquad_fs", pf, false, &m);
+          }
+          if (!psoSQ[bmi]) break;
+          if (!sqSampler) {
+            // TiXL DrawScreenQuad.t3 instantiates its OWN SamplerState (child 810afc82) with
+            // Filter=MinMagMipLinear + Address Clamp, and routes the op's Filter input (default
+            // MinMagMipLinear) into it. Faithful default = bilinear: Linear min/mag/mip + Clamp.
+            // (This is the DrawScreenQuad sampler ONLY; point/line/billboard/image-filter paths
+            // keep their own samplers — do not unify here.)
+            MTL::SamplerDescriptor* sd = MTL::SamplerDescriptor::alloc()->init();
+            sd->setMinFilter(MTL::SamplerMinMagFilterLinear);
+            sd->setMagFilter(MTL::SamplerMinMagFilterLinear);
+            sd->setMipFilter(MTL::SamplerMipFilterLinear);
+            sd->setSAddressMode(MTL::SamplerAddressModeClampToEdge);
+            sd->setTAddressMode(MTL::SamplerAddressModeClampToEdge);
+            sqSampler = c.dev->newSamplerState(sd);
+            sd->release();
+          }
+          enc->setRenderPipelineState(psoSQ[bmi]);
+          DrawScreenQuadParams P{};
+          P.color[0] = it.color[0]; P.color[1] = it.color[1];
+          P.color[2] = it.color[2]; P.color[3] = it.color[3];
+          P.position[0] = it.position[0]; P.position[1] = it.position[1];
+          P.width = it.width; P.height = it.height;
+          // TiXL HDR clamp constant float4(1000,1000,1000,1): RGB headroom, alpha capped at 1.
+          // The item carries it so a clamp golden can move the ceiling to exercise the shader.
+          P.clampMax[0] = it.clampMax[0]; P.clampMax[1] = it.clampMax[1];
+          P.clampMax[2] = it.clampMax[2]; P.clampMax[3] = it.clampMax[3];
+          enc->setVertexBytes(&P, sizeof(P), DRAWSQ_Params);
+          enc->setFragmentBytes(&P, sizeof(P), DRAWSQ_Params);
+          enc->setFragmentTexture(const_cast<MTL::Texture*>(it.srcTexture), 0);
+          enc->setFragmentSamplerState(sqSampler, 0);
+          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0), NS::UInteger(6));
+          break;
+        }
+        case DrawKind::Clear:
+          break;  // already skipped above (handled by the pass clear color); explicit for -Wswitch
       }
     }
   }
@@ -160,6 +237,9 @@ void cookRenderTarget(TexCookCtx& c) {
   if (psoPoints) psoPoints->release();
   if (psoLines) psoLines->release();
   if (psoBb) psoBb->release();
+  if (psoSQ[0]) psoSQ[0]->release();
+  if (psoSQ[1]) psoSQ[1]->release();
+  if (sqSampler) sqSampler->release();
 }
 
 // Resolution enum (Float param + Widget::Enum): WindowFollow tracks `windowSize`; the

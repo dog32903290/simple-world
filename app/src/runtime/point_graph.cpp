@@ -290,7 +290,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // All paths run through a registered texture op = the single executor that owns the render
   // pass (render_command.h: the executor owns Prepare/Restore, the op only carries data).
 
-  // Cook a command node: resolve its upstream Points bag, then call its cmd fn -> RenderCommand.
+  // Forward-declared so cookCommand can gather a Texture2D input (FORK#1) by recursing into the
+  // upstream tex node — cookTexNode's body is assigned below (it in turn calls cookCommand for its
+  // Command inputs, so the two are mutually recursive; std::function breaks the ordering cycle).
+  std::function<MTL::Texture*(int)> cookTexNode;
+
+  // Cook a command node: resolve its upstream Points bag (+ first wired Texture2D input, FORK#1),
+  // then call its cmd fn -> RenderCommand.
   auto cookCommand = [&](int id) -> RenderCommand {
     RenderCommand rc;
     const Node* n = g.node(id);
@@ -300,16 +306,26 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     if (cm == cmdReg().end() || !cm->second) return rc;
     MTL::Buffer* pts = nullptr;
     uint32_t cnt = 0;
+    const MTL::Texture* inTex = nullptr;
+    bool havePts = false;
     for (size_t i = 0; i < s->ports.size(); ++i) {
       const PortSpec& port = s->ports[i];
-      if (!(port.isInput && port.dataType == "Points")) continue;
-      const Connection* c = g.connectionToInput(pinId(id, (int)i));
-      if (c) { pts = cookNode(pinNode(c->fromPin)); cnt = p_->outCount[flatKey(pinNode(c->fromPin))]; }
-      break;
+      if (!port.isInput) continue;
+      if (port.dataType == "Points" && !havePts) {
+        const Connection* c = g.connectionToInput(pinId(id, (int)i));
+        if (c) { pts = cookNode(pinNode(c->fromPin)); cnt = p_->outCount[flatKey(pinNode(c->fromPin))]; }
+        havePts = true;
+      } else if (port.dataType == "Texture2D" && !inTex) {
+        // FORK#1: a command op (DrawScreenQuad) can take a Texture2D input — recurse into the
+        // upstream tex node (same cook-upstream-on-demand as Points). Borrowed, single-frame.
+        const Connection* c = g.connectionToInput(pinId(id, (int)i));
+        if (c) inTex = cookTexNode(pinNode(c->fromPin));
+      }
     }
     CmdCookCtx cc;
     cc.ctx = &ctx; cc.graph = &g; cc.reg = reg;
     cc.nodeId = id; cc.points = pts; cc.count = cnt;
+    cc.inputTexture = inTex;
     cc.params = nodeParams(id);
     return cm->second(cc);
   };
@@ -339,7 +355,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // set: a Texture2D cycle would otherwise recurse forever (the canvas forbids cycles, but cook
   // must not hang if a malformed graph slips one in).
   std::set<int> texVisiting;
-  std::function<MTL::Texture*(int)> cookTexNode = [&](int id) -> MTL::Texture* {
+  cookTexNode = [&](int id) -> MTL::Texture* {
     const Node* n = g.node(id);
     const NodeSpec* s = n ? findSpec(n->type) : nullptr;
     if (!n || !s) return nullptr;

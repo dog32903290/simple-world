@@ -15,6 +15,7 @@ void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
   registerDrawLinesOp();                        // Points → Command (DrawKind::Lines, lane L)
   registerDrawBillboardsOp();                   // Points → Command (DrawKind::Billboards, lane L)
+  registerDrawScreenQuadOps();                  // Texture2D → Command (DrawKind::ScreenQuad) + ClearRenderTarget
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
 }
 
