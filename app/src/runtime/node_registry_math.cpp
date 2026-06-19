@@ -366,6 +366,35 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"ReturnTrueIf", "ReturnTrueIf", "Float", true, 3.0f, 0.0f, 3.0f, Widget::Enum,
          {"Never", "Increased", "Decreased", "Changed"}}},
        nullptr},
+      // ToggleBoolean — latched bool; FLIPS its held state on TriggerToggle, clears on TriggerReset.
+      // TiXL bool/logic/ToggleBoolean.cs writes the trigger input back to false the same frame
+      // (SetTypedInputValue) → once-per-press == rising-edge; replicated here as edge detection since
+      // our Float ports are read-only at cook time (stateful; output FIRST; nullptr eval). Bool→Float
+      // 0/1 (Cut 32). .t3 defaults: TriggerToggle=false, TriggerReset=false.
+      {"ToggleBoolean", "ToggleBoolean",
+       {{"Result", "Result", "Float", false},
+        {"TriggerToggle", "TriggerToggle", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"TriggerReset", "TriggerReset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr},
+      // FlipFlop — latch; SETS to true on a LEVEL Trigger, reloads DefaultValue on a LEVEL ResetTrigger
+      // (reset wins), HOLDS otherwise. NO edge gating (contrast FlipBool's toggle, which edges). TiXL
+      // bool/logic/FlipFlop.cs (stateful; output FIRST; nullptr eval). Bool→Float 0/1 (Cut 32).
+      // .t3 defaults: DefaultValue=false, Trigger=false, ResetTrigger=false.
+      {"FlipFlop", "FlipFlop",
+       {{"Result", "Result", "Float", false},
+        {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"ResetTrigger", "ResetTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"DefaultValue", "DefaultValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr},
+      // HasBooleanChanged — HasChanged(0/1) when this frame's bool Value differs from last frame's, by
+      // Mode. TiXL bool/logic/HasBooleanChanged.cs (stateful; output FIRST; nullptr eval). Modes enum
+      // Changed(0)/Increased(1)/Decreased(2); .t3 DEFAULT Mode=Increased(1) → fires only False→True.
+      {"HasBooleanChanged", "HasBooleanChanged",
+       {{"HasChanged", "HasChanged", "Float", false},
+        {"Value", "Value", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"Mode", "Mode", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
+         {"Changed", "Increased", "Decreased"}}},
+       nullptr},
       // BlendValues — blend between a MultiInput<float> list by F. TiXL float/process/BlendValues.cs.
       // Values (multiInput) MUST precede the trailing regular F — the eval reads F as in[n-1] and the
       // Values segment as in[0..n-2] (mixed-multiInput convention; no gather change, batch35).

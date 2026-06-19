@@ -809,6 +809,126 @@ void stepHasIntChanged(const std::map<std::string, float>& in, float /*dt*/, flo
   st.s[0] = (float)v;
 }
 
+// --- ToggleBoolean (TiXL Lib/numbers/bool/logic/ToggleBoolean.cs) — a latched bool that flips its
+// held state when TriggerToggle fires and clears it when TriggerReset fires. Bool dissolves to Float
+// 0/1 (Cut 32). Stateful: the latch persists + is reconstructed each cook (out[] is zeroed).
+// State: s[0]=isActive(0/1), s[1]=lastToggle(0/1), s[2]=lastReset(0/1).
+// .t3 defaults: TriggerToggle=false, TriggerReset=false. Description: "When triggered toggles from
+//   true to false and back."
+// TiXL Update() (ToggleBoolean.cs:20-37), exact order:
+//   var triggerToggle = TriggerToggle.GetValue(context);
+//   if (triggerToggle) { TriggerToggle.SetTypedInputValue(false); _isActive = !_isActive; }
+//   var triggerReset = TriggerReset.GetValue(context);
+//   if (triggerReset)  { TriggerReset.SetTypedInputValue(false);  _isActive = false; }
+//   Result.Value = _isActive;
+// BEHAVIOR (backward-traced, NOT assumed): the `SetTypedInputValue(false)` immediately writes the
+//   trigger input back to false the SAME frame it fires. So in TiXL a held-true button toggles EXACTLY
+//   ONCE (the op debounces its own input) — it is effectively RISING-EDGE, not level. Reset is checked
+//   AFTER toggle (so a frame with both flips THEN clears → ends false).
+// Forks (named):
+//   • input-writeback → rising-edge reconstruct: our Float ports are read-only at cook time (no
+//     SetTypedInputValue analog), so the self-clearing once-per-press behavior is replicated by
+//     detecting the trigger's RISING EDGE (WasTriggered) from stored state. A held-true trigger thus
+//     toggles once (faithful to TiXL's debounced single toggle), not every frame.
+//   • bool-as-float threshold 0.5: TriggerToggle/TriggerReset read from Float ports as >0.5; Result
+//     emitted as 1.0/0.0.
+//   • No init seeding: TiXL _isActive starts false; s[0] zero-init = false, faithful.
+void stepToggleBoolean(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                       StatefulValueState& st, float out[3]) {
+  const bool toggle = getIn(in, "TriggerToggle", 0.0f) > 0.5f;
+  const bool reset = getIn(in, "TriggerReset", 0.0f) > 0.5f;
+
+  // Rising-edge of each trigger (the SetTypedInputValue(false) self-clear == an edge debounce).
+  const bool prevToggle = st.s[1] > 0.5f;
+  const bool prevReset = st.s[2] > 0.5f;
+  const bool toggleEdge = toggle && !prevToggle;  // MathUtils.WasTriggered analog
+  const bool resetEdge = reset && !prevReset;
+  st.s[1] = toggle ? 1.0f : 0.0f;
+  st.s[2] = reset ? 1.0f : 0.0f;
+
+  bool active = st.s[0] > 0.5f;
+  if (toggleEdge) active = !active;  // TiXL: if (triggerToggle) _isActive = !_isActive (then clears)
+  if (resetEdge)  active = false;    // TiXL: if (triggerReset) _isActive = false (checked AFTER toggle)
+
+  st.s[0] = active ? 1.0f : 0.0f;
+  out[0] = st.s[0];
+}
+
+// --- FlipFlop (TiXL Lib/numbers/bool/logic/FlipFlop.cs) — a latch that SETS to true on a LEVEL Trigger
+// and reloads DefaultValue on a LEVEL ResetTrigger (reset wins); otherwise HOLDS its prior value. Bool
+// dissolves to Float 0/1 (Cut 32). Stateful: the latch persists + is reconstructed each cook.
+// State: s[0]=result(0/1).
+// .t3 defaults: DefaultValue=false, Trigger=false, ResetTrigger=false. Description: "Holds the
+//   \"activated\" state of a boolean."
+// TiXL Update() (FlipFlop.cs:22-40):
+//   var isTriggered = Trigger.GetValue(context); var isReset = ResetTrigger.GetValue(context);
+//   var defaultValue = DefaultValue.GetValue(context);
+//   if (isReset) Result.Value = defaultValue; else if (isTriggered) Result.Value = true;
+//   // (no else → Result is left UNCHANGED when neither fires: it HOLDS.)
+// BEHAVIOR (backward-traced, NOT assumed): both Trigger and ResetTrigger are read as RAW LEVELS — NO
+//   WasTriggered/edge anywhere (contrast FlipBool, which DOES edge-gate its toggle). Trigger only ever
+//   sets to true (never clears); the ONLY way back to false is ResetTrigger with DefaultValue=false.
+//   When neither is true the prior value HOLDS (no else branch). Reset wins (checked first).
+// Forks (named):
+//   • bool-as-float threshold 0.5: Trigger/ResetTrigger/DefaultValue read from Float ports as >0.5;
+//     Result emitted as 1.0/0.0.
+//   • No init seeding: TiXL Result.Value starts false (Slot<bool> default); s[0] zero-init = false,
+//     faithful. (No _isFirstEval in the .cs — frame 1 with no trigger holds the zero-init false.)
+//   • zeroed-out[] reconstruct: TiXL Result.Value persists across frames; here out[] is zeroed each
+//     cook, so the held value is reconstructed from s[0] (re-emitted on hold frames).
+void stepFlipFlop(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                  StatefulValueState& st, float out[3]) {
+  const bool trigger = getIn(in, "Trigger", 0.0f) > 0.5f;
+  const bool reset = getIn(in, "ResetTrigger", 0.0f) > 0.5f;
+  const bool defaultValue = getIn(in, "DefaultValue", 0.0f) > 0.5f;
+
+  bool result = st.s[0] > 0.5f;     // reconstruct prior value (HOLD when neither fires)
+  if (reset)         result = defaultValue;  // TiXL: reset wins (checked first)
+  else if (trigger)  result = true;          //       else LEVEL set-to-true (never clears)
+
+  st.s[0] = result ? 1.0f : 0.0f;
+  out[0] = st.s[0];
+}
+
+// --- HasBooleanChanged (TiXL Lib/numbers/bool/logic/HasBooleanChanged.cs) — emits HasChanged(Bool→
+// Float 0/1) when this frame's bool Value differs from last frame's, by Mode. Bool dissolves to Float
+// 0/1 (Cut 32). State: s[0]=lastValue(0/1).
+// .t3 defaults: Value=false, Mode=1 (= Increased — NOT Changed; see BEHAVIOR). Description: "Returns
+//   true if the connected input changed, either from False to True or vice versa."
+// Modes enum (HasBooleanChanged.cs:42-47): Changed=0, Increased=1, Decreased=2.
+// TiXL Update() (HasBooleanChanged.cs:21-32):
+//   var newValue = Value.GetValue(context);
+//   bool hasChanged = (Modes)Mode.GetValue(context).Clamp(0, len-1) switch {
+//       Changed   => newValue != _lastValue,
+//       Increased => newValue != _lastValue && newValue,    // edge False→True only
+//       Decreased => newValue != _lastValue && !newValue,   // edge True→False only
+//   };
+//   HasChanged.Value = hasChanged; _lastValue = newValue;
+// BEHAVIOR (backward-traced, NOT assumed): the .t3 DEFAULT Mode is INCREASED(1), so out-of-the-box the
+//   op fires ONLY on a False→True transition (a rising edge), NOT on every change. Changed(0) fires on
+//   either direction; Decreased(2) fires only on True→False. There is NO time gate, NO WasTriggered
+//   latch — it is a pure one-frame comparison against the previous frame's value.
+// Forks (named):
+//   • bool-as-float threshold 0.5: Value read from a Float port as >0.5; HasChanged emitted as 1.0/0.0.
+//     Mode arrives on a Float port (enum selector) → std::lround. Clamp(0,2) per TiXL.
+//   • Frame 1 compares against the zero-init s[0] (=false), matching TiXL's _lastValue=false default.
+void stepHasBooleanChanged(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                           StatefulValueState& st, float out[3]) {
+  const bool newValue = getIn(in, "Value", 0.0f) > 0.5f;
+  int mode = (int)std::lround(getIn(in, "Mode", 1.0f));  // .t3 default Mode=Increased(1)
+  if (mode < 0) mode = 0; else if (mode > 2) mode = 2;   // TiXL Clamp(0, len-1)
+  const bool lastValue = st.s[0] > 0.5f;
+
+  bool hasChanged;
+  switch (mode) {
+    case 1:  hasChanged = (newValue != lastValue) && newValue;   break;  // Increased (False→True)
+    case 2:  hasChanged = (newValue != lastValue) && !newValue;  break;  // Decreased (True→False)
+    default: hasChanged = (newValue != lastValue);               break;  // Changed (either)
+  }
+  out[0] = hasChanged ? 1.0f : 0.0f;
+  st.s[0] = newValue ? 1.0f : 0.0f;
+}
+
 struct StatefulOp {
   const char* type;
   void (*step)(const std::map<std::string, float>&, float, float, StatefulValueState&, float[8]);
@@ -838,6 +958,9 @@ const StatefulOp kStatefulValueOps[] = {
     {"CountInt", stepCountInt},
     {"FlipBool", stepFlipBool},
     {"HasIntChanged", stepHasIntChanged},
+    {"ToggleBoolean", stepToggleBoolean},
+    {"FlipFlop", stepFlipFlop},
+    {"HasBooleanChanged", stepHasBooleanChanged},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -1518,6 +1641,114 @@ int runStatefulValueSelfTest(bool injectBug) {
     ok = ok && pInc && pDec0 && pDec1;
     printf("[selftest-statefulvalue] HasIntChanged.modes inc(4.9->4)=%.1f dec(4)=%.1f dec(2)=%.1f(want %.1f) -> %s\n",
            0.0f, 0.0f, out[0], wDec, (pInc && pDec0 && pDec1) ? "PASS" : "FAIL");
+  }
+
+  // ----- ToggleBoolean rising-edge flip: TriggerToggle 0,1,1,0,1 → active 0,1,1,1,0 -----
+  // Flips ONLY on the rising edge (the SetTypedInputValue(false) self-clear == an edge debounce). The
+  // HELD-true frame (step3) must NOT re-flip — exactly the held-input case (the CountInt-blood lesson).
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float trig[5] = {0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+    const float want[5] = {0.0f, 1.0f, 1.0f, 1.0f, 0.0f};  // edge flips: f2 0→1, f5 0→1 (back to 0)
+    for (int i = 0; i < 5; ++i) {
+      cookStatefulValueOp("ToggleBoolean", {{"TriggerToggle", trig[i]}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 2) ? 0.0f : want[i];  // bug: held-true re-flips (level, not edge)
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] ToggleBoolean.edge step%d=%.1f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+  // ----- ToggleBoolean reset leg: flip on, then TriggerReset edge clears to false -----
+  // edge-toggle to 1, then a rising-edge TriggerReset forces false (checked AFTER toggle in TiXL).
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("ToggleBoolean", {{"TriggerToggle", 1.0f}}, dt60, 0.0f, st, out);  // 0→1
+    bool p1 = std::fabs(out[0] - 1.0f) < eps;
+    cookStatefulValueOp("ToggleBoolean", {{"TriggerToggle", 0.0f}, {"TriggerReset", 1.0f}}, dt60, 0.0f, st, out);  // reset edge → 0
+    float wR = injectBug ? 1.0f : 0.0f;  // bug: reset ignored
+    bool pR = std::fabs(out[0] - wR) < eps;
+    ok = ok && p1 && pR;
+    printf("[selftest-statefulvalue] ToggleBoolean.reset on=%.1f reset=%.1f(want %.1f) -> %s\n", 1.0f, out[0], wR, (p1 && pR) ? "PASS" : "FAIL");
+  }
+
+  // ----- FlipFlop LEVEL set + HOLD: Trigger 0,1,1,0 → result 0,1,1,1 (holds after Trigger drops) -----
+  // Trigger only ever SETS to true (no edge, no clear). step4 Trigger=0 must HOLD the prior 1 (no else
+  // branch in TiXL) — the load-bearing held/hold case. A clear-on-low bug would drop step4 to 0.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float trig[4] = {0.0f, 1.0f, 1.0f, 0.0f};
+    const float want[4] = {0.0f, 1.0f, 1.0f, 1.0f};  // set on f2, holds through f3 (level) and f4 (drop)
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("FlipFlop", {{"Trigger", trig[i]}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 3) ? 0.0f : want[i];  // bug: Trigger-low clears (loses the latch)
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] FlipFlop.setHold step%d=%.1f want=%.1f -> %s\n", i + 1, out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+  // ----- FlipFlop reset leg: set true, then LEVEL ResetTrigger → DefaultValue(0); reset wins -----
+  // After latching true, ResetTrigger=1 reloads DefaultValue (here 0) even though Trigger=1 also held
+  // (reset is checked first → wins over the set).
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("FlipFlop", {{"Trigger", 1.0f}}, dt60, 0.0f, st, out);  // set → 1
+    bool p1 = std::fabs(out[0] - 1.0f) < eps;
+    cookStatefulValueOp("FlipFlop", {{"Trigger", 1.0f}, {"ResetTrigger", 1.0f}, {"DefaultValue", 0.0f}}, dt60, 0.0f, st, out);  // reset wins → 0
+    float wR = injectBug ? 1.0f : 0.0f;  // bug: trigger wins over reset → stays 1
+    bool pR = std::fabs(out[0] - wR) < eps;
+    ok = ok && p1 && pR;
+    printf("[selftest-statefulvalue] FlipFlop.reset set=%.1f reset(wins)=%.1f(want %.1f) -> %s\n", 1.0f, out[0], wR, (p1 && pR) ? "PASS" : "FAIL");
+  }
+
+  // ----- HasBooleanChanged DEFAULT Mode=Increased(1): Value 0,1,1,0,1 → changed 0,1,0,0,1 -----
+  // The .t3 default is Increased (NOT Changed) — fires ONLY on False→True. lastValue inits false.
+  // f1 0 (0!=0? no)→0; f2 1 (1!=0 && 1)→1; f3 1 (held, 1==1)→0 [held case]; f4 0 (Decreased, &&new=F)→0;
+  // f5 1 (False→True again)→1. step3 (held-true) and step4 (True→False) both 0 prove the Increased gate.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[5] = {0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+    const float want[5] = {0.0f, 1.0f, 0.0f, 0.0f, 1.0f};
+    for (int i = 0; i < 5; ++i) {
+      cookStatefulValueOp("HasBooleanChanged", {{"Value", val[i]}, {"Mode", 1.0f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 3) ? 1.0f : want[i];  // bug: treats Increased as Changed → True→False false-fires
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasBoolChanged.inc step%d(v=%.0f)=%.1f want=%.1f -> %s\n", i + 1, val[i], out[0], w, pass ? "PASS" : "FAIL");
+    }
+  }
+  // ----- HasBooleanChanged Changed(0) + Decreased(2) modes -----
+  // Changed: fires on EITHER edge. Decreased: fires ONLY True→False.
+  {
+    // Changed(0): Value 0,1,1,0 → 0,1,0,1 (both edges fire; held step3 → 0).
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[4] = {0.0f, 1.0f, 1.0f, 0.0f};
+    const float want[4] = {0.0f, 1.0f, 0.0f, 1.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("HasBooleanChanged", {{"Value", val[i]}, {"Mode", 0.0f}}, dt60, 0.0f, st, out);
+      bool pass = std::fabs(out[0] - want[i]) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasBoolChanged.changed step%d(v=%.0f)=%.1f want=%.1f -> %s\n", i + 1, val[i], out[0], want[i], pass ? "PASS" : "FAIL");
+    }
+  }
+  {
+    // Decreased(2): Value 0,1,0,0 → 0,0,1,0 (only True→False at f3 fires).
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const float val[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+    const float want[4] = {0.0f, 0.0f, 1.0f, 0.0f};
+    for (int i = 0; i < 4; ++i) {
+      cookStatefulValueOp("HasBooleanChanged", {{"Value", val[i]}, {"Mode", 2.0f}}, dt60, 0.0f, st, out);
+      float w = (injectBug && i == 2) ? 0.0f : want[i];  // bug: Decreased never fires
+      bool pass = std::fabs(out[0] - w) < eps;
+      ok = ok && pass;
+      printf("[selftest-statefulvalue] HasBoolChanged.dec step%d(v=%.0f)=%.1f want=%.1f -> %s\n", i + 1, val[i], out[0], w, pass ? "PASS" : "FAIL");
+    }
   }
 
   printf("[selftest-statefulvalue] %s%s\n", ok ? "PASS" : "FAIL", injectBug ? " (injectBug)" : "");
