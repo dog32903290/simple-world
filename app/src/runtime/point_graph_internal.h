@@ -18,6 +18,7 @@
 
 #include "runtime/graph.h"        // PortSpec (isBufferInput)
 #include "runtime/point_graph.h"  // PointGraph + op fn types
+#include "runtime/sw_mesh.h"      // SwVertex (80B) + SwTriIndex (12B) — the Mesh flow's elements
 #include "runtime/tixl_point.h"   // SwPoint (64B) — output buffers are SwPoint bags
 
 namespace sw {
@@ -81,6 +82,17 @@ struct PointGraph::Impl {
   std::map<std::string, bool> texMipped;  // realloc key: a false->true change MUST reallocate
   MTL::Texture* displayTex = nullptr;
 
+  // Per-node MESH output (the 4th cook flow = TiXL MeshBuffers). A mesh node owns a PAIR of
+  // buffers — vertices (SwVertex 80B) + indices (SwTriIndex 12B) — that travel together. Same
+  // count-change-reuse lifetime as outBuf (reuse when counts unchanged; reallocate when a count
+  // grows). Keyed by flat id or resident path (parallel to outBuf).
+  std::map<std::string, MTL::Buffer*> meshVtxBuf;   // key -> vertex buffer
+  std::map<std::string, MTL::Buffer*> meshIdxBuf;   // key -> index buffer
+  std::map<std::string, uint32_t> meshVtxCap;       // key -> allocated vertex capacity
+  std::map<std::string, uint32_t> meshIdxCap;       // key -> allocated index capacity
+  std::map<std::string, uint32_t> meshVtxCount;     // key -> last cooked vertex count
+  std::map<std::string, uint32_t> meshIdxCount;     // key -> last cooked index (face) count
+
   MTL::Buffer* ensureOut(const std::string& key, uint32_t count) {
     MTL::Buffer*& b = outBuf[key];
     if (!b || outCap[key] < count) {
@@ -91,6 +103,33 @@ struct PointGraph::Impl {
     }
     outCount[key] = count;
     return b;
+  }
+
+  // The mesh node's PAIR of output buffers (the 4th cook flow). Sizes the vertex buffer to
+  // vtxCount SwVertex and the index buffer to idxCount SwTriIndex, reusing both across frames and
+  // reallocating only when a count GROWS (the RESOURCE_LIFETIME rule, same as ensureOut). Never
+  // allocs zero (a degenerate mesh with 0 faces still gets a 1-element index buffer). StorageMode
+  // Shared so the CPU-readback golden can memcpy contents() (NO GPU draw in batch 1).
+  void ensureMesh(const std::string& key, uint32_t vtxCount, uint32_t idxCount, MTL::Buffer*& outVtx,
+                  MTL::Buffer*& outIdx) {
+    MTL::Buffer*& vb = meshVtxBuf[key];
+    if (!vb || meshVtxCap[key] < vtxCount) {
+      if (vb) vb->release();
+      uint32_t cap = vtxCount > 0 ? vtxCount : 1;
+      vb = dev->newBuffer((NS::UInteger)cap * sizeof(SwVertex), MTL::ResourceStorageModeShared);
+      meshVtxCap[key] = cap;
+    }
+    MTL::Buffer*& ib = meshIdxBuf[key];
+    if (!ib || meshIdxCap[key] < idxCount) {
+      if (ib) ib->release();
+      uint32_t cap = idxCount > 0 ? idxCount : 1;
+      ib = dev->newBuffer((NS::UInteger)cap * sizeof(SwTriIndex), MTL::ResourceStorageModeShared);
+      meshIdxCap[key] = cap;
+    }
+    meshVtxCount[key] = vtxCount;
+    meshIdxCount[key] = idxCount;
+    outVtx = vb;
+    outIdx = ib;
   }
 
   // The RenderTarget node's own output texture, sized to its resolved resolution. Reused across

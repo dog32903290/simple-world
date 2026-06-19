@@ -250,6 +250,11 @@ class PointGraph {
   // cooked). Lets goldens assert the count-policy driver (e.g. SnapToPoints out == Points1, not
   // sum). flatKey(nodeId) internally.
   uint32_t debugCookedCount(int nodeId) const;
+  // Test-support for the Mesh flow (4th cook): the vertex+index buffers a flat-cooked mesh node
+  // produced last cook, for CPU-readback goldens (contents()+memcpy, NO GPU draw). Returns false if
+  // the node never cooked a mesh. Buffers are PointGraph-owned (borrowed; do not release).
+  bool debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
+                       const MTL::Buffer*& idx, uint32_t& idxCount) const;
 
  private:
   struct Impl;

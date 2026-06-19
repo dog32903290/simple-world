@@ -213,6 +213,10 @@ add_executable(simple_world
   src/field_ops_fractalsdf_golden.cpp
   src/field_ops_customsdf_golden.cpp
   src/field_ops_image2dsdf_golden.cpp
+  src/runtime/mesh_op_registry.cpp
+  src/runtime/mesh_ops_ngonmesh.cpp
+  src/runtime/mesh_ops_quadmesh.cpp
+  src/mesh_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp

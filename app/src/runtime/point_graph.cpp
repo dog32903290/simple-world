@@ -14,6 +14,7 @@
 #include "runtime/compound_graph.h"       // SymbolLibrary/Symbol/SymbolChild (lib defaultDrawTarget)
 #include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
+#include "runtime/mesh_op_registry.h"     // MeshCookCtx/findMeshOp (the 4th cook flow = MeshBuffers)
 #include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
 
@@ -114,6 +115,10 @@ PointGraph::~PointGraph() {
     if (kv.second) kv.second->release();
   for (auto& kv : p_->texBuf)
     if (kv.second) kv.second->release();
+  for (auto& kv : p_->meshVtxBuf)
+    if (kv.second) kv.second->release();
+  for (auto& kv : p_->meshIdxBuf)
+    if (kv.second) kv.second->release();
   if (p_->target) p_->target->release();
   if (p_->queue) p_->queue->release();
   if (p_->lib) p_->lib->release();
@@ -130,6 +135,20 @@ MTL::Texture* PointGraph::target() const { return p_->displayTex ? p_->displayTe
 uint32_t PointGraph::debugCookedCount(int nodeId) const {
   auto it = p_->outCount.find(flatKey(nodeId));
   return it != p_->outCount.end() ? it->second : 0u;
+}
+
+bool PointGraph::debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
+                                 const MTL::Buffer*& idx, uint32_t& idxCount) const {
+  const std::string key = flatKey(nodeId);
+  auto vb = p_->meshVtxBuf.find(key);
+  auto ib = p_->meshIdxBuf.find(key);
+  if (vb == p_->meshVtxBuf.end() || ib == p_->meshIdxBuf.end() || !vb->second || !ib->second)
+    return false;
+  vtx = vb->second;
+  idx = ib->second;
+  vtxCount = p_->meshVtxCount.count(key) ? p_->meshVtxCount[key] : 0u;
+  idxCount = p_->meshIdxCount.count(key) ? p_->meshIdxCount[key] : 0u;
+  return true;
 }
 
 int PointGraph::defaultDrawTarget(const Graph& g) const {
@@ -442,6 +461,45 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     texVisiting.erase(id);
     return tex;
   };
+
+  // Cook a MESH-flow node (the 4th cook flow = TiXL MeshBuffers). A mesh generator (NGonMesh/
+  // QuadMesh) owns NO buffer/command/texture inputs in batch 1 — it computes its vertex+index
+  // counts from its own params, the driver sizes the OWNED pair (ensureMesh, count-change reuse),
+  // then the op writes both buffers via contents(). Parallel to how cookNode sizes a single SwPoint
+  // output: here the currency is a PAIR (vertices SwVertex + indices SwTriIndex). Returns true if a
+  // mesh op cooked (the buffers are then in p_->meshVtxBuf/meshIdxBuf, readable via debugCookedMesh).
+  auto cookMeshNode = [&](int id) -> bool {
+    const Node* n = g.node(id);
+    if (!n) return false;
+    const MeshOpReg* reg = findMeshOp(n->type);
+    if (!reg || !reg->cook || !reg->count) return false;
+
+    const std::map<std::string, float>* mp = nodeParams(id);
+    uint32_t vtxCount = 0, idxCount = 0;
+    reg->count(mp, vtxCount, idxCount);  // op decides its sizes from resolved params (counts FIRST)
+
+    MTL::Buffer* vb = nullptr;
+    MTL::Buffer* ib = nullptr;
+    p_->ensureMesh(flatKey(id), vtxCount, idxCount, vb, ib);  // size the owned pair before cook
+
+    MeshCookCtx mc;
+    mc.dev = p_->dev; mc.lib = p_->lib; mc.queue = p_->queue;
+    mc.ctx = &ctx; mc.nodeId = id;
+    mc.vertexCount = vtxCount; mc.indexCount = idxCount;
+    mc.output_vertices = vb; mc.output_indices = ib;
+    mc.params = mp;
+    reg->cook(mc);
+    return true;
+  };
+
+  // Mesh terminal (preview pin on a Mesh-producing op): cook the pair so a test can read it back
+  // (debugCookedMesh) — there is no Mesh VISUALIZER yet (all Draw*Mesh DEFERRED: camera3d+Layer2d).
+  // Clear the viewport (no pixels) so no stale frame, no crash (OUTPUT_PIN_VIEWER_CONTRACT §5).
+  if (findMeshOp(target->type)) {
+    cookMeshNode(target->id);
+    p_->clearTarget();
+    return;
+  }
 
   // Legacy draw terminal (PointDrawFn, retired in batch 4): if a draw op is registered for this
   // terminal type, render via it and stop. Production registers NONE — DrawPoints is a cmd op now
