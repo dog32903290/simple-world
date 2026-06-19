@@ -67,6 +67,14 @@ MTL::Texture* renderField2d(MTL::Device* dev, MTL::CommandQueue* queue,
   MTL::RenderCommandEncoder* enc = cb->renderCommandEncoder(rpd);
   enc->setRenderPipelineState(pso);
   enc->setFragmentBuffer(paramBuf, 0, 0);
+  // Seam A: bind each assembled field texture at its depth-first slot [[texture(i)]]. Empty for every
+  // existing SDF leaf (zero-texture field) -> this loop does nothing, the draw is unchanged. The
+  // opaque void* handle is cast back to MTL::Texture* HERE (the only place that names the platform
+  // type), mirroring the point_ops_dither setFragmentTexture pattern.
+  for (size_t i = 0; i < asmField.textures.size(); ++i) {
+    if (asmField.textures[i].texture)
+      enc->setFragmentTexture((MTL::Texture*)asmField.textures[i].texture, (NS::UInteger)i);
+  }
   enc->drawPrimitives(MTL::PrimitiveTypeTriangle, (NS::UInteger)0, (NS::UInteger)3);
   enc->endEncoding();
   cb->commit();

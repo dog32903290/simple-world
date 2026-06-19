@@ -189,6 +189,7 @@ add_executable(simple_world
   src/runtime/field_ops_combinesdf.cpp
   src/runtime/field_ops_fractalsdf.cpp
   src/runtime/field_ops_customsdf.cpp
+  src/runtime/field_ops_image2dsdf.cpp
   src/field_render_golden.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
@@ -205,6 +206,7 @@ add_executable(simple_world
   src/field_ops_combinesdf_golden.cpp
   src/field_ops_fractalsdf_golden.cpp
   src/field_ops_customsdf_golden.cpp
+  src/field_ops_image2dsdf_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp

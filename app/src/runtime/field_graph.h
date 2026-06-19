@@ -65,6 +65,27 @@ struct CodeAssembleCtx {
   void popContext();
 };
 
+// ---- texture binding (sw's port of ShaderGraphNode.SrvBufferReference) ---------------------------
+
+// One fragment-texture an SDF leaf needs bound (the texture-into-field "Seam A"). TiXL declares these
+// as HLSL SRVs via IGraphNodeOp.AppendShaderResources (e.g. `Texture2D<float> {node}SdfImage`); the
+// codegen collects them depth-first into an ordered list and the host binds them register(t0..tN). The
+// sw port mirrors this: a leaf returns its texture decls via collectTextures, the assembler orders
+// them, and field_render binds each at [[texture(0..N)]].
+//
+// PURITY (check-arch: runtime ↛ platform): the texture is held as an OPAQUE `const void*` — runtime
+// must NOT name MTL types or include platform. The shell-tier render path (field_render.cpp, which is
+// runtime but issues the draw, and may name MTL) casts it back to `MTL::Texture*` at bind time.
+//
+//   declName  — the MSL fragment-arg name, WITHOUT the leaf's `P_` prefix (the assembler adds `P_`
+//               so the texture arg name never collides with the param-struct `P` or another leaf's).
+//               E.g. a leaf passes declName = "<prefix>SdfImage".
+//   texture   — opaque MTL::Texture* handle, supplied by the cook seam (host) / a future image port.
+struct TexBinding {
+  std::string declName;          // MSL texture-arg base name (assembler prepends "P_")
+  const void* texture = nullptr; // opaque MTL::Texture* (cast back at the bind site only)
+};
+
 // ---- field node interface (sw's IGraphNodeOp) ----------------------------------------------------
 
 // A node in the field graph. A leaf SDF (SphereSDF) has no inputs and emits its distance formula in
@@ -91,20 +112,31 @@ struct FieldNode {
   // paramFields gets one "<type> <prefix><name>" entry per logical param (for the FLOAT_PARAMS hook).
   virtual void collectParams(std::vector<float>& floatParams,
                              std::vector<std::string>& paramFields) const = 0;
+
+  // collectTextures: append this node's fragment-texture decls (the texture-into-field Seam A). The
+  // DEFAULT IS A NO-OP — every existing SDF leaf overrides nothing, so it emits ZERO textures and the
+  // assembled MSL is byte-identical to before this seam existed (the /*{TEXTURES}*/ hook collapses to
+  // empty for a zero-texture field). Only a texture-consuming leaf (Image2dSDF) overrides this. TiXL
+  // parity: IGraphNodeOp.AppendShaderResources — collected depth-first (same order as collectParams).
+  virtual void collectTextures(std::vector<TexBinding>&) const {}
 };
 
 // ---- assembler (port of GenerateShaderGraphCode.GenerateShaderCode) ------------------------------
 
 struct AssembledField {
-  std::string msl;                 // template with all three hooks filled (no /*{...}*/ remaining).
+  std::string msl;                 // template with all hooks filled (no /*{...}*/ remaining).
   std::vector<float> floatParams;  // the single packed param buffer (16-byte aligned).
+  std::vector<TexBinding> textures;// ordered fragment textures (Seam A) — [[texture(0..N)]], depth-first.
   uint64_t srcHash = 0;            // FNV-1a of `msl` — Build-2's PSO/library cache key (computed, unused here).
 };
 
 // Recursively assemble the field tree rooted at `root` into MSL. `templateMsl` is the field render
-// template (app/shaders/templates/field_render_template.metal contents) carrying the three hooks
+// template (app/shaders/templates/field_render_template.metal contents) carrying the hooks
 //   /*{GLOBALS}*/  /*{FLOAT_PARAMS}*/  /*{FIELD_CALL}*/
-// All three are filled; the result contains no residual /*{...}*/ for those three.
+//   /*{TEXTURES}*/ (fragment args, [[texture(N)]])  /*{TEXTURE_PARAMS}*/ (evalField params, no attr)
+//   /*{TEXTURE_ARGS}*/ (evalField call args — forward the texture into evalField)
+// All are filled; the result contains no residual /*{...}*/ for them. The three TEXTURE* hooks
+// collapse to empty for a zero-texture field (every existing SDF leaf) — byte-identical MSL.
 AssembledField assembleFieldMSL(const std::shared_ptr<FieldNode>& root, const std::string& templateMsl);
 
 // FNV-1a 64-bit over a string (srcHash). Exposed so Build-2 keys its cache the same way.
@@ -116,6 +148,12 @@ uint64_t fnv1a64(const std::string& s);
 // the packing parity lives in ONE place. (scalar = no padding; float3 pads to not straddle 16B.)
 void appendVec3Param(std::vector<float>& v, std::vector<std::string>& fields,
                      const std::string& name, float x, float y, float z);
+// Append a float2 with TiXL's size==2 padding rule (AddVec2Parameter: pad currentStart%2 floats so the
+// pair starts on an 8-byte boundary). Emitted as a plain MSL `float2` struct member (size 8 / align 8)
+// — the padding guarantees an 8-byte-aligned start, so a plain float2 reproduces the HLSL tight layout
+// (no packed_float2 needed, unlike the vec3+scalar case). Used by Image2dSDF's Size param.
+void appendVec2Param(std::vector<float>& v, std::vector<std::string>& fields,
+                     const std::string& name, float x, float y);
 void appendScalarParam(std::vector<float>& v, std::vector<std::string>& fields,
                        const std::string& name, float value);
 

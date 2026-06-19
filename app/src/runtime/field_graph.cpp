@@ -94,6 +94,15 @@ void collectAllParams(const FieldNode& node, std::vector<float>& floats,
   node.collectParams(floats, fields);
 }
 
+void collectAllTextures(const FieldNode& node, std::vector<TexBinding>& out) {
+  // Seam A: same depth-first order as collectAllParams (TiXL AppendShaderResources is collected during
+  // the same tree walk). Inputs first, then this node's textures. The index a binding ends up at in
+  // `out` IS its [[texture(N)]] slot — depth-first, 0-based — mirroring TiXL's register(tN) allocation.
+  for (const auto& in : node.inputs)
+    if (in) collectAllTextures(*in, out);
+  node.collectTextures(out);
+}
+
 // TiXL GenerateShaderGraphCode.TryInject: replace /*{HOOK}*/ with the assembled text.
 std::string injectHook(std::string code, const std::string& hookId, const std::string& insert) {
   const std::string tag = "/*{" + hookId + "}*/";
@@ -131,6 +140,15 @@ void padForVec3(std::vector<float>& v, std::vector<std::string>& fields) {
     fields.push_back("float __padding" + std::to_string(v.size()));
   }
 }
+// TiXL PadFloatParametersToVectorComponentCount for size==2: pad currentStart%2 floats so the pair
+// starts on an 8-byte (2-float) boundary.
+void padForVec2(std::vector<float>& v, std::vector<std::string>& fields) {
+  const int requiredPadding = static_cast<int>(v.size()) % 4 % 2;
+  for (int i = 0; i < requiredPadding; ++i) {
+    v.push_back(0.f);
+    fields.push_back("float __padding" + std::to_string(v.size()));
+  }
+}
 }  // namespace
 
 void appendVec3Param(std::vector<float>& v, std::vector<std::string>& fields,
@@ -148,6 +166,17 @@ void appendVec3Param(std::vector<float>& v, std::vector<std::string>& fields,
   // 12, reproducing the HLSL cbuffer layout against our tight packed buffer. (metal-cpp-discipline:
   // packed_float3 is THE tool for matching a C/HLSL-side tight float3+scalar layout in MSL.)
   fields.push_back("packed_float3 " + name);
+}
+
+void appendVec2Param(std::vector<float>& v, std::vector<std::string>& fields,
+                     const std::string& name, float x, float y) {
+  // TiXL AddVec2Parameter: pad to an 8-byte boundary, push x,y, declare a `float2` member. Because the
+  // padding lands the pair on a 2-float boundary (offset 0 or 2 mod 4), a plain MSL `float2` (size 8 /
+  // align 8) matches the HLSL float2 layout — no packed_float2 needed.
+  padForVec2(v, fields);
+  v.push_back(x);
+  v.push_back(y);
+  fields.push_back("float2 " + name);
 }
 
 void appendScalarParam(std::vector<float>& v, std::vector<std::string>& fields,
@@ -175,6 +204,10 @@ AssembledField assembleFieldMSL(const std::shared_ptr<FieldNode>& root,
   std::vector<std::string> paramFields;
   collectAllParams(*root, out.floatParams, paramFields);
 
+  // 2b. Fragment textures (Seam A), depth-first — index in `textures` == [[texture(N)]] slot. Empty
+  //     for every existing SDF leaf (collectTextures default no-op) -> the TEXTURES hook is empty.
+  collectAllTextures(*root, out.textures);
+
   // 3. Build the GLOBALS block (helper functions, de-duped by key, in map order).
   std::string globalsBlock = "// --- globals -------------------\n";
   for (const auto& [key, code] : cac.globals) {
@@ -191,11 +224,36 @@ AssembledField assembleFieldMSL(const std::shared_ptr<FieldNode>& root,
     paramsBlock += ";\n";
   }
 
-  // 5. Inject the three hooks.
+  // 4b. Build the TEXTURES block (Seam A): one trailing fragment-arg per collected texture,
+  //     `, texture2d<float> P_<declName> [[texture(N)]]`. N = depth-first index (== bind slot). EMPTY
+  //     for a zero-texture field, so the hook collapses to nothing and the MSL is byte-identical to a
+  //     pre-seam field (the existing 13+ SDF leaves regress not at all). HLSL->MSL FORK (named): TiXL's
+  //     SRV `Texture2D<float> {node}SdfImage` at register(tN) becomes an MSL fragment ARG with the
+  //     `[[texture(N)]]` attribute — same depth-first 0-based index allocation, only the attribute
+  //     syntax differs (same fork class as the cbuffer->`constant Params&` header fork). The `P_`
+  //     prefix keeps the arg name off the param struct `P` and unique per leaf (declName already
+  //     carries the leaf prefix).
+  std::string texturesBlock;   // FRAGMENT signature args (carry the [[texture(N)]] bind attribute).
+  std::string texParamsBlock;  // evalField signature params (typed, NO attribute — a plain function arg).
+  std::string texArgsBlock;    // evalField call args (forward the fragment's texture into evalField).
+  for (size_t i = 0; i < out.textures.size(); ++i) {
+    const std::string argName = "P_" + out.textures[i].declName;
+    texturesBlock += ",\n                                  texture2d<float> " + argName +
+                     " [[texture(" + std::to_string(i) + ")]]";
+    texParamsBlock += ", texture2d<float> " + argName;
+    texArgsBlock += ", " + argName;
+  }
+
+  // 5. Inject the hooks. The three TEXTURE* hooks all derive from the SAME depth-first list, so the
+  //    fragment arg, the evalField param, and the evalField call arg name+order line up exactly. All
+  //    are EMPTY for a zero-texture field -> byte-identical to the pre-seam MSL.
   std::string code = templateMsl;
   code = injectHook(code, "GLOBALS", globalsBlock);
   code = injectHook(code, "FLOAT_PARAMS", paramsBlock);
   code = injectHook(code, "FIELD_CALL", cac.calls);
+  code = injectHook(code, "TEXTURES", texturesBlock);
+  code = injectHook(code, "TEXTURE_PARAMS", texParamsBlock);
+  code = injectHook(code, "TEXTURE_ARGS", texArgsBlock);
 
   out.msl = code;
   out.srcHash = fnv1a64(out.msl);
