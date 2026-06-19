@@ -23,7 +23,9 @@ RUNLOG="$HOME/.claude/sw_autoloop.run.log"
 PLIST="$HOME/Library/LaunchAgents/com.baiwei.sw-autoloop.plist"
 LABEL="com.baiwei.sw-autoloop"
 CLAUDE="/Users/chenbaiwei/.npm-global/bin/claude"
-WARM_MIN=15          # transcript 在 N 分鐘內動過 = 有人在跑 → skip
+WARM_MIN=40          # transcript 在 N 分鐘內動過 = 有人在跑 → skip
+                     # (40 而非 15:前景 driver 與 autoloop 共存時,前景長 agent 跑著主 transcript
+                     #  會靜默到 ~34min[Cut73 implementer],須 >它才不被 autoloop 誤判插入=雙開血債)
 SELF="$(basename "$0")"
 
 log(){ echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
