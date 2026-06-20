@@ -53,8 +53,9 @@ sw-node-batch 一批 fan-out 18 顆（跨 5 家族，寫-leaf 不撞檔，orches
 ### 階段 1｜R1 高解鎖燃料（先解最多、最低風險、可機械並行）
 | seam | 解鎖約 | 風險 | 視覺 | 內容 / 藍本 / precedent |
 |------|-------|------|------|------|
-| **string-value-rail** | ~34 | R1 | 弱 | **單塊解鎖最多。** 建 string 輸出 port + evalString + string transport（目前 evaluate 回 float、string 只是字面常數不可接線）。解鎖整個 string 家族 31 顆。precedent：仿 value-graph 的 float rail 加一條 string channel（Cut87 string-param 子接縫已開半條：strDef/strParams 存在，差「可被上游驅動的 string 輸出」）。非視覺但 R1 量大＝並行燃料引擎。|
-| **list-routing**（floatlist/intlist/colorlist） | ~26 | R1-R2 | 弱 | FloatList producer 已建（Cut91），補 (a) list→scalar value 橋 (b) IntList/ColorList currency。解鎖 numbers list 族。precedent：仿 floatlist_op_registry.cpp cook-rail。|
+| **string-value-rail** ✅ | ~34 | R1 | 弱 | **✅ 補完 commit `b247602`（2026-06-20，7 agent 承重戰）。** string host-channel rail（第六條 cook flow 鏡像 FloatList，非 evalString 避核心風險）。3 葉子 StringLength/FloatToString/CombineStrings。★FloatToString C# 格式化深坑挖到 .NET 版本 ground-truth（TiXL net10.0→F8 暴露 IEEE-754 noise，非 .NET Framework 補零）。fork-6: StringLength.length 存 floatListBuf,下游橋延後 list-routing。實際解鎖待 Phase C 採(Layer A ~13 + Layer B StringList ~7)。|
+| **list-routing**（floatlist/intlist/colorlist） 🔨 | ~26 | R1-R2 | 弱 | 🔨 build 中（worktree aa899fba9）。FloatList→Float 橋=推廣 AudioReaction outCache 逃生口(blueprint `_BLUEPRINT_list_routing.md`)，同解鎖 string-rail fork-6 的 StringLength 下游接線。IntList Float-fold/ColorList 層3延後。precedent：floatlist cook-rail + string-rail。|
+| **cpu-point-list** | ~7 | R1 | 中 | 純 CPU StructuredList↔buffer 橋。解鎖 point _cpu 族。precedent：FloatList host-rail。|
 | **cpu-point-list** | ~7 | R1 | 中 | 純 CPU StructuredList↔buffer 橋。解鎖 point _cpu 族。precedent：FloatList host-rail。|
 
 ### 階段 2｜mesh 島解鎖（3D，單塊大解鎖）
