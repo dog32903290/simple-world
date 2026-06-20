@@ -23,6 +23,8 @@ RUNLOG="$HOME/.claude/sw_autoloop.run.log"
 PLIST="$HOME/Library/LaunchAgents/com.baiwei.sw-autoloop.plist"
 LABEL="com.baiwei.sw-autoloop"
 CLAUDE="/Users/chenbaiwei/.npm-global/bin/claude"
+WATCH_PID="$HOME/.claude/sw_watch.pid"   # Terminal-launched watcher 的 pid（繞過 launchd/TCC）
+WATCH_INTERVAL=600                        # watcher 每隔幾秒呼叫一次 do_tick
 WARM_MIN=40          # transcript 在 N 分鐘內動過 = 有人在跑 → skip
                      # (40 而非 15:前景 driver 與 autoloop 共存時,前景長 agent 跑著主 transcript
                      #  會靜默到 ~34min[Cut73 implementer],須 >它才不被 autoloop 誤判插入=雙開血債)
@@ -66,8 +68,8 @@ do_tick(){
   log "START: 啟動 headless sw-batch 一批 (watchdog pid=$$)"
   cd "$PROJECT" || { log "ERR: cd PROJECT 失敗"; rm -f "$LOCK"; return 1; }
 
-  local PROMPT='/sw-batch
-（這是外部自動恢復觸發。本次只跑「一個批次」：照 /sw-batch 步驟 1→7 完整跑一輪，結帳寫 Cut+memory 後就結束本次 turn。**絕不 ScheduleWakeup、絕不自走第二批**——下一批由外部 launchd 觸發。啟動定位(步驟1)若偵測到另一個 live session、或 git status 有符合 Resume 下一步的未 commit 改動=立刻停、不碰檔、直接退出。）'
+  local PROMPT='/sw-node-batch
+（這是外部 watcher 自動恢復觸發。本次只跑「一個批次」：照 sw-node-batch 啟動流程完整跑一輪（驗 Phase 0→scout 缺口→挑定→Phase 1 fan-out→Phase 2 固化先於驗證·合流·機器驗→commit→結帳寫 Cut+memory），結束後就結束本次 turn。**絕不 ScheduleWakeup、絕不自走第二批**——下一批由外部 watcher 觸發。啟動定位若偵測到另一個 live session、或 git status 有符合 Resume 下一步的未 commit 改動=立刻停、不碰檔、直接退出。★scout 判 value/numbers op 是否已港，必 grep node_registry_math.cpp + value_eval_ops.cpp 兩套註冊系統，不能只看自登記 value_op_*.cpp（2026-06-20 vec2 family 全廢血證）。）'
 
   "$CLAUDE" -p "$PROMPT" --model opus --output-format stream-json --verbose < /dev/null >> "$RUNLOG" 2>&1
   local rc=$?
@@ -114,7 +116,12 @@ do_off(){
 
 do_status(){
   echo "── sw_autoloop 狀態 ──"
-  if launchctl list 2>/dev/null | grep -q "$LABEL"; then echo "launchd: ✅ 載入中 (每 600s tick)"; else echo "launchd: ⏹ 未載入"; fi
+  if [ -f "$WATCH_PID" ] && kill -0 "$(cat "$WATCH_PID" 2>/dev/null)" 2>/dev/null; then
+    echo "watcher: 🔁 跑中 (pid=$(cat "$WATCH_PID"), Terminal-launched, 繞 launchd/TCC)"
+  else
+    echo "watcher: ⏹ 未啟動 (從 Terminal: nohup caffeinate -is bash tools/sw_autoloop.sh watch > ~/.claude/sw_watch.out 2>&1 &)"
+  fi
+  if launchctl list 2>/dev/null | grep -q "$LABEL"; then echo "launchd: ✅ 載入中 (每 600s tick) — 注: launchd 在 Desktop 專案被 TCC 擋, 用 watcher 取代"; else echo "launchd: ⏹ 未載入 (已知被 TCC 擋死, 改用 watcher)"; fi
   if [ -f "$LOCK" ]; then
     local lpid; lpid="$(sed -n '1p' "$LOCK" 2>/dev/null)"
     if kill -0 "$lpid" 2>/dev/null; then echo "lock:    🔒 一批跑中 (pid=$lpid)"; else echo "lock:    ⚠ stale (pid=$lpid 已死, 下次 tick 自清)"; fi
@@ -122,10 +129,48 @@ do_status(){
   echo "── 最近 8 行 log ──"; tail -8 "$LOG" 2>/dev/null || echo "(無 log)"
 }
 
+# ───────────────────── watch: Terminal-launched 自走迴圈(繞 launchd/TCC) ─────────────────────
+# launchd 方案被 macOS TCC 擋死(Desktop 受保護, launchd daemon 無權讀腳本, exit 126)。
+# 正解 = 從柏為的 Terminal 啟動本迴圈: Terminal-spawned process 繼承 Terminal.app 的 Desktop
+# TCC 權限, 它 spawn 的 headless claude 也繼承 → 碰 Desktop 專案 OK。
+# 啟動(柏為從 Terminal 跑, caffeinate 防睡眠 + nohup 防關窗即死):
+#   cd "/Users/chenbaiwei/Desktop/vibe coding/simple_world"
+#   nohup caffeinate -is bash tools/sw_autoloop.sh watch > ~/.claude/sw_watch.out 2>&1 &
+# 停止: tools/sw_autoloop.sh watch-stop
+do_watch(){
+  if [ -f "$WATCH_PID" ] && kill -0 "$(cat "$WATCH_PID" 2>/dev/null)" 2>/dev/null; then
+    echo "⚠ watcher 已在跑 (pid=$(cat "$WATCH_PID"))。先 watch-stop 再啟動。"; exit 1
+  fi
+  echo "$$" > "$WATCH_PID"
+  trap 'log "WATCH: 收到停止訊號, 退出 (pid=$$)"; rm -f "$WATCH_PID"; exit 0' INT TERM
+  log "WATCH: Terminal watcher 啟動 pid=$$ interval=${WATCH_INTERVAL}s (繞 launchd/TCC)"
+  echo "🔁 sw watcher 啟動 (pid=$$)。每 ${WATCH_INTERVAL}s 檢查一次, 沒人在跑(gate A lock + gate B transcript<${WARM_MIN}min)才接一批。"
+  echo "   停止: tools/sw_autoloop.sh watch-stop   狀態: tools/sw_autoloop.sh status"
+  while true; do
+    do_tick
+    sleep "$WATCH_INTERVAL"
+  done
+}
+
+do_watch_stop(){
+  if [ -f "$WATCH_PID" ]; then
+    local wp; wp="$(cat "$WATCH_PID" 2>/dev/null)"
+    if [ -n "$wp" ] && kill -0 "$wp" 2>/dev/null; then
+      kill "$wp" && echo "⏹ watcher 已停 (pid=$wp)" && log "WATCH: watch-stop 殺 pid=$wp"
+    else
+      echo "(watcher 已死, 清 stale pid 檔)"; rm -f "$WATCH_PID"
+    fi
+  else
+    echo "(沒有 watcher 在跑)"
+  fi
+}
+
 case "${1:-}" in
-  tick)   do_tick "${2:-}";;
-  on)     do_on;;
-  off)    do_off;;
-  status) do_status;;
-  *) echo "用法: $SELF {on|off|status|tick [--dry]}"; exit 2;;
+  tick)        do_tick "${2:-}";;
+  watch)       do_watch;;
+  watch-stop)  do_watch_stop;;
+  on)          do_on;;
+  off)         do_off;;
+  status)      do_status;;
+  *) echo "用法: $SELF {watch|watch-stop|status|tick [--dry]|on|off}"; echo "  watch       = 從 Terminal 啟動自走迴圈(根治法, 繞 launchd/TCC)"; echo "  on/off      = launchd 版(已被 macOS TCC 擋死, 保留參考)"; exit 2;;
 esac
