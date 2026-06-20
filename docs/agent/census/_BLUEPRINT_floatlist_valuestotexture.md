@@ -1,0 +1,31 @@
+# Build Blueprint: PATH B block #5 = List<float> value-port + ValuesToTexture (2 SLICES)
+
+Scout output (Cut 91, 2026-06-20). 柏為 said "你自己決定" → orchestrator chose PATH B. **LOAD-BEARING DECISION: List<float> is a HOST-side value (TiXL Slot<List<float>>), NOT a GPU currency.** Rides a new "FloatList" cook-rail channel (string-channel Cut87 + Mesh-registry Cut90 = the precedents to clone; Points-buffer/GPU-16B-ctx = WRONG). **SLICE INTO 2 CUTS** (Cut 87 precedent: land type channel first, prove with op).
+
+## Transport design (the承重 decision)
+List<float> output cannot ride NodeSpec::evaluate (returns ONE float, graph.h:54). Add a parallel resolved channel the cook driver fills + hands ops via ctx; Float-only resolvers skip dataType!="Float" (zero regression, graph.h:39-45 strDef precedent).
+- New dataType string `"FloatList"` (parallel Points/Texture2D/String). Producer = FloatList output port; consumer = FloatList input port (multiInput for ValuesToTexture).
+- New `floatlist_op_registry.h` (clone mesh_op_registry.h: floatListSpecSink()+floatListCookFns()+findFloatListOp()+FloatListOp registrar+floatListInjectBug()).
+- New `FloatListCookCtx` (mirror MeshCookCtx): dev/lib/queue/ctx/nodeId + resolved Float params + `const std::vector<std::vector<float>>* inputLists` (cooked upstream FloatList inputs, spec port order, MultiInput-expanded) + `std::vector<float>* output` (op writes list, driver-owned).
+- Driver storage: `std::map<std::string,std::vector<float>> floatListBuf` on PointGraph::Impl (parallel outBuf/meshVtxBuf, point_graph_internal.h:70-94), keyed flatKey(id). NO GPU alloc (vector self-sizes) — cheaper than Mesh.
+- New walker `cookFloatListNode(id)->const std::vector<float>*` (clone cookMeshNode + cookNode input-gather point_graph.cpp:248-261): each FloatList input port recurse; multiInput → gather ALL wired sources into inputLists (gather order = wire-declaration order, reuse extraConns ordering resident_eval_graph.h:53-55).
+- Does NOT touch GPU 16B ctx (lists in host std::vector); only GPU contact = final replaceRegion upload in ValuesToTexture.
+
+## SLICE A (do FIRST — architecture-defining, low risk ~250-350 lines): FloatList channel + FloatsToList + transport golden
+- "FloatList" dataType + floatlist_op_registry.h + FloatListCookCtx + Impl::floatListBuf + cookFloatListNode walker + MultiInput gather.
+- **FloatsToList** producer (FloatsToList.cs:1-25): MultiInputSlot<float> Input → output = each input value appended. Reuses scalar Float MultiInput (批次25 seam, graph.h:35-38, extraConns reducer, runMultiInputSelfTest proven). NO FloatList input to gather (cleanest first producer). Input is scalar MultiInput; output is the new FloatList channel.
+- Transport golden: debugCookedFloatList(nodeId) accessor (mirror debugCookedMesh point_graph.h:256); FloatsToList([1,2,3]) → readback host list == [1,2,3]; injectBug via floatListInjectBug() corrupts real cook (drop last element) → RED.
+- Resident-path parity (cookResident) can be golden'd here or named follow-on (Mesh shipped flat-first, resident deferred = precedent).
+
+## SLICE B (after A — consumer, medium risk ~150-200 lines): ValuesToTexture + textureFromCpuBuffer + R32Float tex-output + chain golden
+- **textureFromCpuBuffer factor-out** (image_decode.mm:82-98): `MTL::Texture* textureFromCpuBuffer(dev, bytes, w, h, MTL::PixelFormat fmt, uint32_t bytesPerTexel)` = lines 88-97 parameterized (texture2DDescriptor(fmt,w,h,false), Usage=ShaderRead, StorageMode=Shared [enables getBytes golden], replaceRegion rowPitch=w*bytesPerTexel). textureFromRgba8 → 1-line wrapper (RGBA8,4). Declare in image_decode.h.
+- **ValuesToTexture** (ValuesToTexture.cs): inputs MultiInput<List<float>> Values(:145)+Offset/Gain/Pow(:147-154)+Direction enum Horizontal/Vertical(:156-163). Transform per elem `pow((v+offset)*gain,pow)`(:84); missing/short-list cell→0(:84). Dims sampleCount=longest list len(:52-54)×listCount; Horizontal width=sampleCount height=listCount(:101-102), Vertical swapped column-major(:90-99). Format R32_Float(:120) bytesPerTexel=4 rowPitch=w*4(:127). Pow guard |pow|<0.001→return(:62). 
+  - Register as tex op (registerTexOp). Tex-walker (point_graph.cpp:407) must, for tex op with FloatList input ports, call cookFloatListNode → fill new `TexCookCtx::inputLists` field (point_graph.h:123-152). Op reads Gain/Offset/Pow/Direction via cookParam.
+  - **★tex-output fork (name loudly)**: ValuesToTexture does NOT use ensureTex (RGBA8/resolution-pinned, point_graph_internal.h:58,156). It allocates its OWN R32Float, data-sized texture via textureFromCpuBuffer (TiXL ValuesToTexture.cs:104-123 allocates own desc bypassing render-sizing). FIRST non-RGBA8 non-resolution-pinned texture in engine. Park op-owned texture in Impl::texBuf[key] so released next cook (or leaks per cook). Additive, other tex ops untouched, forced by TiXL → not 柏為, not irreversible.
+- Chain golden: FloatsToList([1,2,3])+FloatsToList([4,5]) → ValuesToTexture(Horizontal,offset=1,gain=2,pow=2) → R32Float 3×2 StorageModeShared → getBytes readback → assert pixel(i,row)=pow((list[row][i]+1)*2,2), short cell(row1,col2)=0. injectBug into real cook (write 0 for non-missing cell). getBytes pattern: particle_decay_selftest.cpp:98 / resident_distortandshade_selftest.cpp:136.
+
+## Forks: host-list-not-GPU-currency (forced parity). New FloatList rail vs Points-overload (choice, settled=new rail, reuse precedents, additive). ValuesToTexture own-R32Float-texture bypassing ensureTex (forced TiXL, additive, name loudly, NOT 柏為). None for 柏為 (he delegated).
+
+## Risk/size: Slice A low (pure host data, no GPU lifetime, 2 proven precedents; subtlety=MultiInput gather order=wire-decl order). Slice B medium (only new GPU surface=R32Float alloc+ownership+readback; op-owned texture realloc/release in texBuf is the spot to get right or it leaks). Total ~400-550 lines / 2 cuts. Too big for 1 batch → slice.
+
+## Critical files: mesh_op_registry.h (clone shape), point_graph.cpp (cookFloatListNode + gather + tex-walker FloatList gather: :230-300 cookNode, :465-493 cookMeshNode, :407 tex gather, :533-540 tex terminal), point_graph_internal.h (Impl::floatListBuf; :58 kPointTargetFormat bypass), image_decode.mm:82-98 (factor-out), graph.h:35-38 (MultiInput), external/tixl .../floats/process/ValuesToTexture.cs + basic/FloatsToList.cs.

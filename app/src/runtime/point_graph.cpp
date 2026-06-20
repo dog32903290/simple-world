@@ -12,6 +12,7 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/compound_graph.h"       // SymbolLibrary/Symbol/SymbolChild (lib defaultDrawTarget)
+#include "runtime/floatlist_op_registry.h"     // FloatListCookCtx/findFloatListOp (the 5th cook flow = host List<float>)
 #include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
 #include "runtime/mesh_op_registry.h"     // MeshCookCtx/findMeshOp (the 4th cook flow = MeshBuffers)
@@ -149,6 +150,11 @@ bool PointGraph::debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& 
   vtxCount = p_->meshVtxCount.count(key) ? p_->meshVtxCount[key] : 0u;
   idxCount = p_->meshIdxCount.count(key) ? p_->meshIdxCount[key] : 0u;
   return true;
+}
+
+const std::vector<float>* PointGraph::debugCookedFloatList(int nodeId) const {
+  auto it = p_->floatListBuf.find(flatKey(nodeId));
+  return it != p_->floatListBuf.end() ? &it->second : nullptr;
 }
 
 int PointGraph::defaultDrawTarget(const Graph& g) const {
@@ -491,6 +497,77 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     reg->cook(mc);
     return true;
   };
+
+  // Cook a FLOATLIST-flow node (the 5th cook flow = TiXL Slot<List<float>>). The currency is a HOST
+  // std::vector<float> living in Impl::floatListBuf (no GPU buffer, no pre-sizing — the op clears +
+  // fills it). The walker mirrors cookMeshNode but with an INPUT GATHER (cloned from cookNode's
+  // buffer-input loop): for each input port, gather upstream lists into `inputLists` (spec port
+  // order), then dispatch the op. Two input-port kinds feed `inputLists`:
+  //   • A "FloatList" input port → recurse cookFloatListNode on each wired source. If the port is a
+  //     MultiInput, ALL wired sources are gathered as SEPARATE lists, in WIRE-DECLARATION order.
+  //   • A scalar "Float" MultiInput port (e.g. FloatsToList.Input) → gather ALL wired scalar sources
+  //     into ONE list via evalFloat, in WIRE-DECLARATION order; that single list becomes one
+  //     inputLists entry. (Producers like FloatsToList read inputLists[0] = their scalar inputs.)
+  // Gather order = the order connections appear in g.connections (the wire-declaration order), which
+  // is the SAME ordering the resident flatten uses for extraConns (resident_eval_flatten.cpp:255-268).
+  // Returns the cooked host list (nullptr if not a floatlist op / unknown node).
+  std::function<const std::vector<float>*(int)> cookFloatListNode =
+      [&](int id) -> const std::vector<float>* {
+    const Node* n = g.node(id);
+    if (!n) return nullptr;
+    const NodeSpec* s = findSpec(n->type);
+    if (!s) return nullptr;
+    const FloatListCookFn* fn = findFloatListOp(n->type);
+    if (!fn || !*fn) return nullptr;
+
+    // Gather inputs in spec port order. Each entry is one upstream host list (FloatList source) or one
+    // aggregated list of scalar Float sources (a scalar Float MultiInput port). MultiInput ports admit
+    // MULTIPLE connections to the SAME pin → collect them in g.connections (wire-declaration) order.
+    std::vector<std::vector<float>> inputLists;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!port.isInput) continue;
+      const int inPin = pinId(id, (int)i);
+      if (port.dataType == "FloatList") {
+        // Recurse each wired FloatList source. MultiInput → every wire is a separate gathered list,
+        // in wire-declaration order; single-input → at most one.
+        for (const Connection& c : g.connections) {
+          if (c.toPin != inPin) continue;
+          const std::vector<float>* up = cookFloatListNode(pinNode(c.fromPin));
+          inputLists.push_back(up ? *up : std::vector<float>{});
+          if (!port.multiInput) break;  // single-input: first wire only
+        }
+      } else if (port.dataType == "Float" && port.multiInput) {
+        // Aggregate all wired scalar Float sources into ONE list (the scalar MultiInput → list seam;
+        // FloatsToList consumes this as inputLists[0]). Wire-declaration order. An unwired port
+        // contributes an empty list (FloatsToList -> empty output, faithful to GetCollectedTypedInputs).
+        std::vector<float> scalars;
+        for (const Connection& c : g.connections)
+          if (c.toPin == inPin) scalars.push_back(evalFloat(g, c.fromPin, ctx));
+        inputLists.push_back(std::move(scalars));
+      }
+      // (Single scalar Float inputs / other dataTypes are read via resolved params, not gathered.)
+    }
+
+    std::vector<float>& out = p_->floatListBuf[flatKey(id)];
+    FloatListCookCtx fc;
+    fc.dev = p_->dev; fc.lib = p_->lib; fc.queue = p_->queue;
+    fc.ctx = &ctx; fc.nodeId = id;
+    fc.inputLists = &inputLists;
+    fc.output = &out;
+    fc.params = nodeParams(id);
+    (*fn)(fc);
+    return &out;
+  };
+
+  // FloatList terminal (preview pin on a FloatList-producing op): cook the host list so a test can read
+  // it back (debugCookedFloatList) — there is no FloatList VISUALIZER (Slice B = ValuesToTexture turns
+  // it into a texture). Clear the viewport (no pixels) so no stale frame, no crash (§5).
+  if (findFloatListOp(target->type)) {
+    cookFloatListNode(target->id);
+    p_->clearTarget();
+    return;
+  }
 
   // Mesh terminal (preview pin on a Mesh-producing op): cook the pair so a test can read it back
   // (debugCookedMesh) — there is no Mesh VISUALIZER yet (all Draw*Mesh DEFERRED: camera3d+Layer2d).

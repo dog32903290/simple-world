@@ -63,6 +63,7 @@ namespace sw { int runFieldCustomSdfGoldenSelfTest(bool); }       // field_ops_c
 namespace sw { int runFieldImage2dSdfGoldenSelfTest(bool); }      // field_ops_image2dsdf_golden.cpp (FIRST texture-binding leaf; Seam A)
 namespace sw { int runMeshNGonGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: NGonMesh)
 namespace sw { int runMeshQuadGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: QuadMesh)
+namespace sw { int runFloatListSelfTest(bool); }                 // floatlist_golden.cpp (5th cook flow: FloatsToList host list)
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
@@ -191,6 +192,7 @@ const SelfTest kTable[] = {
     {"field-image2dsdf", runFieldImage2dSdfGoldenSelfTest},
     {"mesh-ngon", runMeshNGonGoldenSelfTest},
     {"mesh-quad", runMeshQuadGoldenSelfTest},
+    {"floatlist", runFloatListSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},

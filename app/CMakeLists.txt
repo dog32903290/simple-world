@@ -217,6 +217,9 @@ add_executable(simple_world
   src/runtime/mesh_ops_ngonmesh.cpp
   src/runtime/mesh_ops_quadmesh.cpp
   src/mesh_golden.cpp
+  src/runtime/floatlist_op_registry.cpp
+  src/runtime/floatlist_ops_floatstolist.cpp
+  src/floatlist_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp

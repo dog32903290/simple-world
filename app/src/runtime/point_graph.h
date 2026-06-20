@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "runtime/render_command.h"  // RenderCommand (the Command stream's currency)
 
@@ -255,6 +256,10 @@ class PointGraph {
   // the node never cooked a mesh. Buffers are PointGraph-owned (borrowed; do not release).
   bool debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
                        const MTL::Buffer*& idx, uint32_t& idxCount) const;
+  // Test-support for the FloatList flow (5th cook): the HOST list a flat-cooked floatlist node
+  // produced last cook (Impl::floatListBuf[flatKey(id)]). Returns nullptr if the node never cooked a
+  // floatlist. Borrowed (PointGraph-owned); valid until the next cook of that node.
+  const std::vector<float>* debugCookedFloatList(int nodeId) const;
 
  private:
   struct Impl;

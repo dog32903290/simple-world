@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <vector>
 
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
@@ -92,6 +93,12 @@ struct PointGraph::Impl {
   std::map<std::string, uint32_t> meshIdxCap;       // key -> allocated index capacity
   std::map<std::string, uint32_t> meshVtxCount;     // key -> last cooked vertex count
   std::map<std::string, uint32_t> meshIdxCount;     // key -> last cooked index (face) count
+
+  // Per-node FLOATLIST output (the 5th cook flow = TiXL Slot<List<float>>). A HOST-side value list
+  // (std::vector<float>) that rides between FloatList ports — NOT a GPU buffer, so there is NO Metal
+  // allocation and NO pre-sizing (the vector self-sizes; the op clears + fills it). Keyed by flat id
+  // or resident path (parallel to outBuf/meshVtxBuf). Cheaper than every other flow: no GPU lifetime.
+  std::map<std::string, std::vector<float>> floatListBuf;  // key -> host float list
 
   MTL::Buffer* ensureOut(const std::string& key, uint32_t count) {
     MTL::Buffer*& b = outBuf[key];
