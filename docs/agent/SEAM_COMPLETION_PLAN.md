@@ -69,9 +69,9 @@ sw-node-batch 一批 fan-out 18 顆（跨 5 家族，寫-leaf 不撞檔，orches
 | **feedback (ping-pong)** | ~16 | R3 | — | KeepPreviousFrame（89 行 CopyResource）最簡入口 → AfterGlow/Bloom-feedback/FluidFeedback。視覺強。|
 | **cpu-upload-texture 補完** | ~5 | R2 | — | GradientsToTexture/CurvesToTexture/ValuesToTexture2（seam 1/4 已活，沿 rail 補 3 顆）。是 gradient 的**硬前置**。precedent：照抄 point_ops_valuestotexture.cpp。|
 | **gradient-widget** | ~13 | R2 | ↑cpu-upload | 建 `Gradient` host 型別（**目前不存在**＝真成本）+ ~14 漸層 op（Linear/Radial/Box/NGon Gradient/Steps/SDFToColor…）。視覺強。precedent：圖案 shader 仿 point_ops_checkerboard.cpp；上傳仿 ↑。|
-| **vec-color-field-output** | ~7 | R2 | — | field f.xyz/material/color readback（SDFToColor/SetSDFMaterial/SdfToVector）。解鎖 field 島上色。|
-| **multi-image** | ~16 | R2 | — | ⚠ Cut55 routing trap：每顆消費 _multiImageFxSetup 必先 .t3 backward-trace（非 1:1）。Blend/Combine/Mask image。seam 本身已建（Displace/DistortAndShade 證），逐顆 trace。|
-| **draw-pipeline (point draw)** | ~13 | R2-R3 | Layer2d | DrawLines/Ribbons/Tubes/ConnectionLines/Shaded… 點繪製管線擴充。|
+| **vec-color-field-output** | ~7 | ~~R2~~ **真 R3** | G3 bridge | ⚠**scout a22f5156 翻轉假設**：R-2 production 路徑**不存在**（無 Field cook 流,`renderField2d` 全 golden 呼叫,render template 丟 `f.xyz` 只寫 `f.w` 進 R32Float）→在 field 島採葉子=大規模 golden-綠/production-黑 自欺。**延後**：須先建獨立 G3「field render bridge」seam（Render2dField terminal+RGBA target+template 寫 `f.xyz`,依賴 camera3d/Layer2d,census 自標）。|
+| **multi-image** | ~16 | R2 | — | ⚠ Cut55 routing trap：每顆消費 _multiImageFxSetup 必先 .t3 backward-trace（非 1:1）。Blend/Combine/Mask image。seam 本身已建（Displace/DistortAndShade 證），逐顆 trace。R-2 production（cookTexNode）已活。|
+| **draw-pipeline (point draw)** ★推薦第一塊 | ~13 | R2-R3 | — | **scout a22f5156 → `census/_BLUEPRINT_draw_pipeline.md`**。`cookCommand` resident 流已活（drawlines.cpp registerCmdOp 走這條）+DrawMeshUnlit 黑洞已修（d81d705）→新 cmd 葉子**零接線上 resident 螢幕**,零 Cut55 trap,DrawLines 整檔 precedent。第一批 ConnectionLines/DrawLineStrip（純 line draw R1-R2,含 ★production resident golden）;Ribbons/Tubes=R3 尾巴延後。|
 
 ### 階段 4｜進階 / readback（R2-R3，中視覺）
 | seam | 解鎖約 | 風險 | 內容 |
