@@ -14,6 +14,7 @@ namespace sw {
 void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
   registerDrawLinesOp();                        // Points → Command (DrawKind::Lines, lane L)
+  registerDrawClosedLinesOp();                  // Points → Command (DrawKind::Lines + closed, draw seam)
   registerDrawBillboardsOp();                   // Points → Command (DrawKind::Billboards, lane L)
   registerDrawScreenQuadOps();                  // Texture2D → Command (DrawKind::ScreenQuad) + ClearRenderTarget
   registerLayer2dOp();                          // Texture2D → Command (DrawKind::Layer2d, camera-context seam)

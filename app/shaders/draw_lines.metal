@@ -14,6 +14,12 @@
 // logic is dead-but-harmless in production — kept so the day a NaN-writing op lands (TiXL
 // parity), disjoint polylines don't get bridged. A segment whose endpoint A or B has
 // FX1 == NaN collapses offscreen. (The selftest exercises it by hand-writing the NaN.)
+//
+// CLOSED LOOP (DrawClosedLines, TiXL DrawLinesAlt.hlsl GetWrappedIndex): when P.closed, segment i
+// connects pts[i]→pts[(i+1) % shapePts] so the polyline wraps last→first (a closed polygon).
+// P.pointsPerShape>0 splits the bag into per-shape closed loops of that many points each (the
+// executor draws `count` segments instead of `count-1`, so the wrap segment exists). closed=0 keeps
+// the open Points[i]→Points[i+1] adjacency exactly (the wrap math is unreached → byte-identical).
 #include <metal_stdlib>
 #include "tixl_point.h"      // SwPoint
 #include "draw_params.h"     // DrawLineBinding, DrawLineParams
@@ -35,11 +41,26 @@ vertex LineVSOut draw_lines_vs(uint vid [[vertex_id]],
                                constant DrawLineParams& P       [[buffer(DRAWLINE_Params)]]) {
   LineVSOut o;
   uint quadIndex = vid % 6;
-  uint segId = vid / 6;                 // segment connects pts[segId] → pts[segId+1]
+  uint segId = vid / 6;                 // segment connects pts[idxA] → pts[idxB]
   float2 corner = kLineCorners[quadIndex];
 
-  SwPoint a = pts[segId];
-  SwPoint b = pts[segId + 1];
+  // Endpoint indices. OPEN (DrawLines): idxA=segId, idxB=segId+1 (sequential adjacency).
+  // CLOSED (DrawClosedLines, TiXL GetWrappedIndex): the "next" index wraps modulo the shape so the
+  // last segment of each shape returns to its first point — closing the polygon. The executor has
+  // already resolved pointsPerShape to the concrete shape size (it passes the bag count when the
+  // .t3 default 0 means "one shape over all points"), so shapePts here is always >0 when closed.
+  uint idxA = segId;
+  uint idxB = segId + 1;
+  if (P.closed) {
+    uint shapePts    = max(P.pointsPerShape, 1u);
+    uint shapeStart  = (segId / shapePts) * shapePts;   // first point of this shape
+    uint inShape     = segId - shapeStart;              // segment index within the shape
+    idxA = shapeStart + (inShape % shapePts);
+    idxB = shapeStart + ((inShape + 1) % shapePts);     // wrap last→first
+  }
+
+  SwPoint a = pts[idxA];
+  SwPoint b = pts[idxB];
 
   // Break marker (TiXL W=NaN) or dead point (Scale.x NaN, set by ParticleSystem lifetime):
   // collapse this segment offscreen so disjoint polylines stay disjoint.

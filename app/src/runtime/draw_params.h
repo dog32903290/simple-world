@@ -14,6 +14,9 @@
 
 // DrawLines cbuffer (b0). color = tint (TiXL DrawLines.Color, .t3 default white); lineWidth =
 // world-space band width (TiXL LineWidth, .t3 default 0.02); viewExtent = ortho half-extent.
+// closed/pointsPerShape: DrawClosedLines (TiXL DrawLinesAlt.hlsl GetWrappedIndex) — closed=0 +
+// pointsPerShape=0 is the open DrawLines path (the wrap modulo is dead → byte-identical). They
+// occupy what were _pad0/_pad1 (the struct stays 32 bytes; old DrawLines callers leave them 0).
 struct DrawLineParams {
 #ifdef __METAL_VERSION__
   float4 color;
@@ -22,8 +25,9 @@ struct DrawLineParams {
 #endif
   float lineWidth;
   float viewExtent;
-  float _pad0;
-  float _pad1;  // -> 32 bytes (16-byte multiple)
+  uint  closed;          // 1 = wrap last→first (DrawClosedLines); 0 = open polyline (DrawLines)
+  uint  pointsPerShape;  // >0 = per-shape closed loops of this many points; 0 = one shape (all pts)
+  // -> 32 bytes (16-byte multiple)
 };
 
 // DrawBillboards cbuffer (b0). color = tint (TiXL Color); size = sprite scale (TiXL Scale, .t3

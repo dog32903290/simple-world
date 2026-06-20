@@ -427,6 +427,16 @@ int runDrawLinesSelfTest(bool injectBug);
 // injectBug = Scale 0 → zero-area quad → ~no lit pixels → FAIL.
 int runDrawBillboardsSelfTest(bool injectBug);
 
+// --- DrawClosedLines command op (point_ops_drawclosedlines.cpp, draw-pipeline seam). The closed-loop
+// sibling of DrawLines: Points→Command (DrawKind::Lines + lineClosed) wrapping last→first into a
+// closed polygon (TiXL DrawLinesAlt.hlsl GetWrappedIndex). Registers into the command stream. ---
+void registerDrawClosedLinesOp();
+// DrawClosedLines golden (R-2: flat + resident production legs): a 4-point square — assert the CLOSING
+// (wrap) edge is lit when closed AND a non-wrap control edge is always lit, on BOTH the flat executor
+// path and the production cookResident path. injectBug(A flat) drops lineClosed / (B resident) NaNs the
+// wrap corner → the closing edge goes dark → both legs FAIL.
+int runDrawClosedLinesSelfTest(bool injectBug);
+
 // --- DrawScreenQuad / ClearRenderTarget command ops (point_ops_drawscreenquad.cpp,
 // dx11-equiv-render-graph seam, block #2). DrawScreenQuad: Texture2D in → Command out
 // (DrawKind::ScreenQuad, tinted textured quad). ClearRenderTarget: Command out (DrawKind::Clear,

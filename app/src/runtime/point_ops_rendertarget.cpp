@@ -234,10 +234,31 @@ void cookRenderTarget(TexCookCtx& c) {
           lp.color[2] = it.color[2]; lp.color[3] = it.color[3];
           lp.lineWidth = it.lineWidth;
           lp.viewExtent = it.viewExtent;
+          lp.closed = it.lineClosed ? 1u : 0u;
+          // DrawClosedLines: resolve TiXL's PointsPerShape default 0 ("one shape over all points")
+          // to the concrete bag count so the shader's wrap modulo is always >0. Open DrawLines
+          // leaves both 0 → the wrap branch is unreached (byte-identical).
+          lp.pointsPerShape = it.lineClosed
+              ? (it.pointsPerShape > 0 ? it.pointsPerShape : it.count)
+              : 0u;
           enc->setVertexBytes(&lp, sizeof(lp), DRAWLINE_Params);
-          // (count-1) segments × 6 verts (screen-space quad). Sequential adjacency (TiXL).
+          // Segment count: OPEN draws (count-1) segments (sequential adjacency, TiXL DrawLines).
+          // CLOSED draws one segment PER point — the extra wrap segment closes each shape (last→first),
+          // matching DrawClosedLines' GetWrappedIndex. With pointsPerShape>0 a PARTIAL trailing shape
+          // is discarded (TiXL DrawLinesAlt actualSegmentCount = numShapes*pointsPerShape) so we never
+          // emit a malformed wrap over a half-shape. Each segment = 6 verts (screen-space quad).
+          uint32_t segs;
+          if (!it.lineClosed) {
+            segs = it.count - 1;
+          } else if (it.pointsPerShape > 0) {
+            uint32_t numShapes = it.count / it.pointsPerShape;     // complete shapes only
+            segs = numShapes * it.pointsPerShape;                  // one segment per point in them
+          } else {
+            segs = it.count;                                       // one shape, all points wrap
+          }
+          if (segs == 0) break;
           enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
-                              NS::UInteger((it.count - 1) * 6));
+                              NS::UInteger((size_t)segs * 6));
           break;
         }
         case DrawKind::Billboards: {

@@ -30,6 +30,24 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"LineWidth", "LineWidth", "Float", true, 0.02f, 0.0f, 1.0f}},
        nullptr},
+      // DrawClosedLines (TiXL Lib.point.draw.DrawClosedLines → DrawLinesAlt.hlsl): the closed-loop
+      // sibling of DrawLines — connects the bag into a polyline AND wraps the last point back to the
+      // first (Points[last]→Points[0]), closing each shape. PointsPerShape>0 splits the bag into
+      // closed shapes of that many points (.t3 default 0 = one shape over all points). Points in →
+      // Command out (same cmd flow + DrawKind::Lines shader as DrawLines; only lineClosed differs).
+      // Params mirror DrawClosedLines.t3: Color (Vec4 white) + LineWidth (0.02) + PointsPerShape (0).
+      // FORK (named): inherits DrawLines' band fork class (no camera/Transforms/Fog/UV/texture/miter);
+      // LineOffset/WidthFactor/ShrinkWithDistance/TransitionProgress/Blend/ZTest/ZWrite dropped.
+      {"DrawClosedLines", "DrawClosedLines",
+       {{"points", "points", "Points", true},
+        {"out", "out", "Command", false},
+        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"LineWidth", "LineWidth", "Float", true, 0.02f, 0.0f, 1.0f},
+        {"PointsPerShape", "PointsPerShape", "Float", true, 0.0f, 0.0f, 100000.0f}},
+       nullptr},
       // DrawBillboards (TiXL Lib.point.draw.DrawBillboards): expands each Point into a
       // screen-facing quad sprite (draw_billboards.metal). Points in → Command out. Params mirror
       // DrawBillboards.t3: Scale (1.0) + Color (Vec4, white); per-point Scale.xy stretch kept

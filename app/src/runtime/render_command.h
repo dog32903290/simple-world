@@ -78,6 +78,16 @@ struct RenderDrawItem {
   float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};  // tint (TiXL Color default = white)
   float lineWidth = 0.02f;                     // DrawLines.LineWidth (.t3 default 0.02)
   float size = 1.0f;                           // DrawBillboards.Scale (.t3 default 1.0)
+  // DrawClosedLines (TiXL Lib.point.draw.DrawClosedLines → DrawLinesAlt.hlsl GetWrappedIndex). The
+  // closed-loop variant of DrawKind::Lines: segment i connects Points[i]→Points[(i+1)%shapePts],
+  // wrapping the last point back to the first (a closed polygon), vs DrawLines' open Points[i]→[i+1].
+  // pointsPerShape>0 splits the bag into that-many-point closed shapes (TiXL PointsPerShape, .t3
+  // default 0 = ONE shape using every point). Read ONLY by DrawKind::Lines; lineClosed=false +
+  // pointsPerShape=0 → the exact pre-batch open DrawLines path (executor draws (count-1) segments,
+  // shader never wraps) → byte-identical. The two fields travel together: lineClosed flips the
+  // executor's segment count (count instead of count-1) AND the shader's wrap modulo.
+  bool lineClosed = false;        // true → wrap last→first (closed loop); false → open DrawLines
+  uint32_t pointsPerShape = 0;    // TiXL PointsPerShape (0 = single shape over the whole bag)
   // ScreenQuad fields (TiXL DrawScreenQuad). srcTexture is the sampled input — borrowed (a
   // PointGraph-owned upstream tex node output, same single-frame lifetime as `points`; NEVER
   // retained). position/width size+place the clip-space quad. Ignored by Points/Lines/Billboards.

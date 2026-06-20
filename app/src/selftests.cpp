@@ -342,6 +342,7 @@ const SelfTest kTable[] = {
     {"chromakey", runChromaKeySelfTest},
     {"convertcolors", runConvertColorsSelfTest},
     {"drawlines", runDrawLinesSelfTest},
+    {"drawclosedlines", runDrawClosedLinesSelfTest},
     {"drawbillboards", runDrawBillboardsSelfTest},
     {"drawscreenquad", runDrawScreenQuadSelfTest},
     {"drawscreenquadclamp", runDrawScreenQuadClampSelfTest},
