@@ -401,6 +401,19 @@ int runBlurChainSelfTest(bool injectBug);
 int runDisplaceSelfTest(bool injectBug);
 int runDisplaceChainSelfTest(bool injectBug);
 
+// Blend / BlendWithMask image-filter goldens (point_ops_blend.cpp / point_ops_blendwithmask.cpp, lane
+// multi-image, image/use): the THIRD/FOURTH multi-image-seam consumers (Displace/DistortAndShade first).
+// Blend composites ImageA+ImageB (two Texture2D inputs); BlendWithMask is the FIRST op with THREE
+// Texture2D inputs (ImageA+ImageB+Mask). The *SelfTest fns (flat closed-form blend math on solid inputs)
+// self-register via the imageFilterSelfTests() sink ("blend"/"blendwithmask"); the *ChainSelfTest fns
+// (flat-chain + RESIDENT production golden, the multi-Texture2D gather承重線) are kTable rows below.
+// injectBug drops the ImageB wire so the multi-image gather loses its 2nd input -> the mixed-color pins
+// collapse -> RED. (runBlend*SelfTest declared here next to the goldens, same precedent as Displace.)
+int runBlendSelfTest(bool injectBug);
+int runBlendChainSelfTest(bool injectBug);
+int runBlendWithMaskSelfTest(bool injectBug);
+int runBlendWithMaskChainSelfTest(bool injectBug);
+
 // Tint image-filter golden (point_ops_tint.cpp, lane F3-1): (a) TINT MATH: solid grey ->
 // red-ramp tint (Amount=1, MapWhite=(1,0,0,1)); center R>64 & G<96. injectBug Amount=0 ->
 // passthrough grey -> FAIL. (b) TINT CHAIN: RadialPoints->DrawPoints->RenderTarget->Tint through

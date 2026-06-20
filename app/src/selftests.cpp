@@ -340,6 +340,8 @@ const SelfTest kTable[] = {
     {"blurchain", runBlurChainSelfTest},
     {"displace", runDisplaceSelfTest},
     {"displacechain", runDisplaceChainSelfTest},
+    {"blendchain", runBlendChainSelfTest},                  // multi-image seam (3rd consumer): resident gather
+    {"blendwithmaskchain", runBlendWithMaskChainSelfTest},  // multi-image seam (1st THREE-input consumer)
     {"tint", runTintSelfTest},
     {"tintchain", runTintChainSelfTest},
     {"chromab", runChromaBAShiftSelfTest},
