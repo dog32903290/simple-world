@@ -14,6 +14,7 @@
 #include "runtime/compound_graph.h"       // SymbolLibrary/Symbol/SymbolChild (lib defaultDrawTarget)
 #include "runtime/floatlist_op_registry.h"     // FloatListCookCtx/findFloatListOp (the 5th cook flow = host List<float>)
 #include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
+#include "runtime/host_scalar_op_registry.h"   // HostScalarCookCtx/findHostScalarOp (FloatList→Float bridge: list-routing seam)
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
 #include "runtime/mesh_op_registry.h"     // MeshCookCtx/findMeshOp (the 4th cook flow = MeshBuffers)
 #include "runtime/string_op_registry.h"        // StringCookCtx/findStringOp (the 6th cook flow = host std::string)
@@ -766,6 +767,68 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     // Test-only: corrupt the REAL output (drop the host scalar) so the golden's input-drivable RED
     // bites on the actual cook path, not by flipping the expected value. Off in production.
     if (stringInjectBug() && !out.empty()) out.clear();
+    // BRIDGE (list-routing seam, fork-floatlist-scalar-via-outcache): also mirror the host scalar into
+    // Node::outCache[0] so a downstream Float INPUT port wired to StringLength.Length reads it via
+    // evalFloat's generalised stateful escape hatch (graph.cpp). floatListBuf above stays the legacy
+    // transport (debugCookedFloatList readback); outCache is the new channel evalFloat can reach.
+    // const_cast: cook takes `const Graph&` but Node::outCache is the AudioReaction "external cooker
+    // writes each frame" channel (transient, not serialized) — same precedent (R-1 resolution (a)).
+    // The string-rail RED (stringInjectBug clears `out`) carries through: outCache reads the cleared
+    // value (0 elements → write 0 vs the real len) so the downstream evalFloat RED still bites.
+    if (Node* mn = const_cast<Graph&>(g).node(id))
+      mn->outCache[0] = out.empty() ? 0.0f : out[0];
+  };
+
+  // Cook a HOST-SCALAR consumer node (FloatList/String input → ONE host Float): the FloatList→Float
+  // BRIDGE (list-routing seam, SEAM_COMPLETION_PLAN §2 stage 1). GENERALISES cookStringLength to ANY
+  // op registered in the host-scalar registry (FloatListLength / PickFloatFromList / …). It gathers
+  // the node's inputs by spec port dataType — each "FloatList" port via cookFloatListNode (MultiInput
+  // → one gathered list per wire, wire-declaration order), each "String" port via gatherStringInputs
+  // (wire-OR-const) — runs the op to compute the scalar, then stores it BOTH in floatListBuf (1-elem,
+  // the transport: debugCookedFloatList readback) AND in Node::outCache[0] (the BRIDGE: evalFloat
+  // reads it). The op's Float params are resolved through the value spine (nodeParams), so e.g.
+  // PickFloatFromList.Index is drivable. Mirrors cookStringLength's const_cast outCache write (R-1).
+  auto cookHostScalar = [&](int id) -> void {
+    const Node* n = g.node(id);
+    const NodeSpec* s = n ? findSpec(n->type) : nullptr;
+    if (!s) return;
+    const HostScalarCookFn* fn = findHostScalarOp(n->type);
+    if (!fn || !*fn) return;
+
+    // Gather FloatList inputs (cookFloatListNode per wire; MultiInput → one list per wire) in spec
+    // port order, mirroring cookFloatListNode's own FloatList-port gather (wire-declaration order).
+    std::vector<std::vector<float>> inputLists;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!(port.isInput && port.dataType == "FloatList")) continue;
+      const int inPin = pinId(id, (int)i);
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        const std::vector<float>* up = cookFloatListNode(pinNode(c.fromPin));
+        inputLists.push_back(up ? *up : std::vector<float>{});
+        if (!port.multiInput) break;  // single-input: first wire only
+      }
+      // (An UNWIRED FloatList input contributes NO entry → empty → count/pick 0, matching TiXL null→0.)
+    }
+    // Gather String inputs (wire-OR-const) via the shared gather, in spec port order.
+    std::vector<std::string> inputStrings = gatherStringInputs(id, *s);
+
+    float scalar = 0.0f;
+    HostScalarCookCtx hc;
+    hc.dev = p_->dev; hc.lib = p_->lib; hc.queue = p_->queue;
+    hc.ctx = &ctx; hc.nodeId = id;
+    hc.inputLists = &inputLists;
+    hc.inputStrings = &inputStrings;
+    hc.params = nodeParams(id);
+    hc.output = &scalar;
+    (*fn)(hc);
+
+    // Transport (legacy floatListBuf 1-elem) + BRIDGE (Node::outCache[0], const_cast — same precedent
+    // as cookStringLength). A host-scalar op's injectBug corrupts `scalar` IN the cook → both channels
+    // carry the corrupted value → the downstream evalFloat RED bites on the real path.
+    std::vector<float>& out = p_->floatListBuf[flatKey(id)];
+    out.assign(1, scalar);
+    if (Node* mn = const_cast<Graph&>(g).node(id)) mn->outCache[0] = scalar;
   };
 
   // FloatList terminal (preview pin on a FloatList-producing op): cook the host list so a test can read
@@ -775,6 +838,16 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // is checked FIRST (below) so it cooks via cookStringLength, not the FloatList walker.
   if (target->type == "StringLength") {
     cookStringLength(target->id);
+    p_->clearTarget();
+    return;
+  }
+  // Host-scalar terminal (preview pin on a host-scalar consumer: FloatListLength/PickFloatFromList):
+  // cook the scalar (→ floatListBuf 1-elem for debugCookedFloatList readback + Node::outCache for the
+  // downstream bridge). No host-scalar VISUALIZER → clear the viewport (§5). Checked BEFORE the
+  // FloatList branch (a host-scalar op CONSUMES a FloatList but is NOT a FloatList producer, so it is
+  // not in findFloatListOp — this guard is belt-and-suspenders for the explicit terminal path).
+  if (findHostScalarOp(target->type)) {
+    cookHostScalar(target->id);
     p_->clearTarget();
     return;
   }

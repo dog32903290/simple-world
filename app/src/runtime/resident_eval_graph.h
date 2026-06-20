@@ -158,6 +158,17 @@ std::map<std::string, float> resolveResidentFloatInputs(const ResidentEvalGraph&
                                                         const ResidentNode& n,
                                                         const ResidentEvalCtx& ctx);
 
+// Per-frame PRODUCTION cook for the FloatList→Float BRIDGE (list-routing seam). Walks the resident
+// graph, cooks every FloatList host-scalar op (FloatListLength / PickFloatFromList) by gathering its
+// upstream FloatList inputs THROUGH the resident Connection drivers, and writes the scalar onto the
+// node's extOut[0] — the channel evalResidentFloat reads for !evaluate nodes. The resident twin of the
+// flat cookHostScalar branch (which only runs as a flat-cook TERMINAL = golden-only); THIS is the leg
+// that lives in the running app (frame_cook.cpp calls it once per frame, same slot as
+// cookAudioReactionNodes). StringLength is SKIPPED (its String wire is dropped by the resident flatten;
+// resident-bridging it needs the resident string-wire rail first — see resident_host_scalar_cook.cpp).
+// Mutates g (writes extOut, like cookAudioReactionNodes). Pure CPU, no Metal.
+void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+
 // --- batch 1b cache API (resident_eval_cache.cpp) ---
 // Populate each node's per-output cache (one entry per NodeSpec output port) and mark live
 // sources (ops that declare an always-dirty output, e.g. Time). Call once after buildEvalGraph.

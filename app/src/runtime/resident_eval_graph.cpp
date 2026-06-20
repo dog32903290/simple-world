@@ -56,9 +56,19 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
   const NodeSpec* s = findSpec(n->opType);
   if (!s) return 0.0f;
   if (!s->evaluate) {
-    // Stateful externally-cooked value nodes (AudioReaction): mirror flat evalFloat's
-    // outCache read — the app's per-frame cooker wrote extOut; index = output port index
-    // (same numbering as flat: outputs are the leading ports).
+    // Stateful externally-cooked value nodes (AudioReaction) + host-scalar consumers (FloatListLength/
+    // PickFloatFromList/StringLength — the FloatList→Float bridge, list-routing seam): mirror flat
+    // evalFloat's outCache read. This branch is ALREADY GENERIC (any !evaluate node reads extOut),
+    // which is the union the flat path's predicate was widened to (AudioReaction || isHostScalarOp) —
+    // so the flat (Node::outCache) and resident (ResidentNode::extOut) READ sides are now ALIGNED, not
+    // drifting (blueprint R-5).
+    // WRITE side: extOut is filled per-frame by the app's cookers — AudioReaction/stateful by
+    // cookAudioReactionNodes/cookStatefulValueNodes, and the FloatList host-scalar ops (FloatListLength/
+    // PickFloatFromList) by cookHostScalarNodes (resident_host_scalar_cook.cpp). So a FloatList
+    // host-scalar op reached via this resident path now reads the REAL cooked scalar (the production
+    // bridge is live, not flat-only). EXCEPTION: StringLength — its String wire is dropped by the
+    // resident flatten, so cookHostScalarNodes skips it and its extOut stays 0 here (the resident
+    // string-wire rail is a separate, not-yet-built seam). index = output port index (leading ports).
     for (size_t i = 0; i < s->ports.size(); ++i)
       if (!s->ports[i].isInput && s->ports[i].id == outSlotId)
         return i < 8 ? n->extOut[i] : 0.0f;

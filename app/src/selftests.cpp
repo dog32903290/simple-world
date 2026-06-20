@@ -75,6 +75,7 @@ namespace sw { int runMeshNGonGoldenSelfTest(bool); }            // mesh_golden.
 namespace sw { int runMeshQuadGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: QuadMesh)
 namespace sw { int runFloatListSelfTest(bool); }                 // floatlist_golden.cpp (5th cook flow: FloatsToList host list)
 namespace sw { int runStringRailSelfTest(bool); }                // string_rail_golden.cpp (6th cook flow: String value rail)
+namespace sw { int runListRoutingSelfTest(bool); }               // list_routing_golden.cpp (FloatList→Float bridge: downstream evalFloat)
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
@@ -214,6 +215,7 @@ const SelfTest kTable[] = {
     {"mesh-quad", runMeshQuadGoldenSelfTest},
     {"floatlist", runFloatListSelfTest},
     {"stringrail", runStringRailSelfTest},
+    {"listrouting", runListRoutingSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},

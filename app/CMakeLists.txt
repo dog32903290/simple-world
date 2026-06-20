@@ -241,6 +241,10 @@ add_executable(simple_world
   src/runtime/floatlist_op_registry.cpp
   src/runtime/floatlist_ops_floatstolist.cpp
   src/floatlist_golden.cpp
+  src/runtime/host_scalar_op_registry.cpp
+  src/runtime/host_scalar_ops_floatlistlength.cpp
+  src/runtime/host_scalar_ops_pickfloatfromlist.cpp
+  src/list_routing_golden.cpp
   src/runtime/string_op_registry.cpp
   src/runtime/string_ops_stringlength.cpp
   src/runtime/string_ops_floattostring.cpp
@@ -299,6 +303,7 @@ add_executable(simple_world
   src/runtime/state_count_selftest.cpp
   src/runtime/resident_eval_graph.cpp
   src/runtime/resident_eval_flatten.cpp
+  src/runtime/resident_host_scalar_cook.cpp
   src/runtime/resident_eval_graph_selftest.cpp
   src/runtime/resident_eval_cache.cpp
   src/runtime/resident_eval_cache_selftest.cpp

@@ -344,6 +344,21 @@ void run(PointGraph& pg, const std::string& targetPath) {
                            g_frameIndex, &doc::g_lib, s_svState, s_ctxVars);
   }
 
+  // Cook the FloatList→Float BRIDGE host-scalar ops (FloatListLength / PickFloatFromList) — the
+  // PRODUCTION leg of the list-routing seam. Same once-per-frame extOut-mirror slot as the AR / stateful
+  // cookers above: cookHostScalarNodes walks the resident graph, gathers each host-scalar op's upstream
+  // FloatList inputs through the resident Connection drivers, and writes the scalar onto extOut[0] so the
+  // subsequent cookResident's evalResidentFloat reads the bridged value (was 0 — flat-only — before this).
+  // The flat cookHostScalar (point_graph.cpp) is golden-only; this is the leg the running app uses.
+  {
+    ResidentEvalCtx hsCtx;
+    hsCtx.localTime = (float)posBars;    // playhead (bars) — automation-driven list params sample this
+    hsCtx.localFxTime = (float)fxBars;   // wall clock (bars)
+    hsCtx.frameIndex = g_frameIndex;
+    hsCtx.lib = &doc::g_lib;             // Automation drivers on list-param inputs resolve through this
+    cookHostScalarNodes(g_residentGraph, hsCtx);
+  }
+
   ++g_frameIndex;
   // The GPU EvaluationContext (16-byte) carries the WALL CLOCK (fxTime) as `time`: GPU-side Time/
   // particle sims are the fxTime consumers (暫停畫面不死). Automation (a CPU value-graph concern)

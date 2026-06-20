@@ -28,8 +28,9 @@
 //     deferred — so StringLength's value is transported + readback-provable now, not yet rail-bridged.
 //   - fork-string-port-becomes-drivable: StringLength's String input is WIRE-OR-CONST (wired →
 //     upstream cooked string; unwired → strDef const). The shared driver gather owns this fork.
-#include "runtime/graph.h"               // NodeSpec, PortSpec, Widget
-#include "runtime/string_op_registry.h"  // StringOp / StringCookCtx
+#include "runtime/graph.h"                    // NodeSpec, PortSpec, Widget
+#include "runtime/host_scalar_op_registry.h"  // registerHostScalarType — StringLength.Length now rides outCache (the bridge)
+#include "runtime/string_op_registry.h"       // StringOp / StringCookCtx
 
 namespace sw {
 
@@ -62,5 +63,16 @@ static const StringOp _reg_stringlength{
        false, ""}},
      /*evaluate=*/nullptr},  // host scalar comes from the cook driver, not the value-eval evaluate fn
     cookStringLengthStub};
+
+// BRIDGE registration (list-routing seam): StringLength's NodeSpec + cook stay on the String rail
+// (its String-input gather predates the host-scalar registry), but its Float "Length" output now
+// rides Node::outCache (cookStringLength writes it) so a downstream Float INPUT port can read it via
+// evalFloat's generalised stateful escape hatch. Register the TYPE NAME ONLY into the host-scalar set
+// so isHostScalarOp("StringLength") is true — WITHOUT moving its spec/cook (no node_registry churn).
+// fork-evalfloat-stateful-generalized (the eval-side half) + fork-floatlist-scalar-via-outcache.
+struct StringLengthBridgeReg {
+  StringLengthBridgeReg() { registerHostScalarType("StringLength"); }
+};
+static const StringLengthBridgeReg _reg_stringlength_bridge;
 
 }  // namespace sw

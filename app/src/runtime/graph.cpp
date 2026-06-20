@@ -1,5 +1,6 @@
 #include "runtime/graph.h"
 #include "runtime/Particle.h"  // full EvaluationContext definition (forward-decl'd in graph.h)
+#include "runtime/host_scalar_op_registry.h"  // isHostScalarOp — the FloatList→Float bridge eval-side predicate
 #include "runtime/source_registry.h"  // BindingKind/LiveSource/SourceRegistry (L5 resolution)
 
 #include <cmath>
@@ -165,9 +166,16 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
   if (!n) return 0.0f;
   const NodeSpec* s = findSpec(n->type);
   if (!s) return 0.0f;
-  // Stateful nodes (AudioReaction) carry no pure evaluate; their output pins read the value
-  // main cooked into outCache this frame. outIdx = the output port index (inverse of pinId).
-  if (s->evaluate == nullptr && !n->type.empty() && n->type == "AudioReaction") {
+  // Stateful / host-scalar nodes carry no pure evaluate; their output pins read the value cooked into
+  // Node::outCache (AudioReaction: main cooks the spectrum each frame; host-scalar consumers like
+  // FloatListLength/PickFloatFromList/StringLength: the flat cook driver's host-scalar branch writes
+  // the scalar — the FloatList→Float BRIDGE, list-routing seam). outIdx = the output port index
+  // (inverse of pinId). The predicate was hard-coded "AudioReaction"; GENERALISED to isHostScalarOp
+  // (registry set) so the escape hatch is data-driven, NOT a growing type-name chain
+  // (fork-evalfloat-stateful-generalized). ZERO REGRESSION: this branch is reachable ONLY when
+  // evaluate == nullptr; every existing value op has evaluate != nullptr → never enters → bit-identical.
+  if (s->evaluate == nullptr && !n->type.empty() &&
+      (n->type == "AudioReaction" || isHostScalarOp(n->type))) {
     const int oi = (outPin - 1) - nodeId * 100;
     return (oi >= 0 && oi < 3) ? n->outCache[oi] : 0.0f;
   }
