@@ -71,6 +71,11 @@ namespace sw { int runFieldRepeatFieldLimitGoldenSelfTest(bool); } // field_ops_
 namespace sw { int runFieldFractalSdfGoldenSelfTest(bool); }      // field_ops_fractalsdf_golden.cpp (Mandelbulb fold; iterations=compile-time selector)
 namespace sw { int runFieldCustomSdfGoldenSelfTest(bool); }       // field_ops_customsdf_golden.cpp (verbatim user DistanceFunction inject)
 namespace sw { int runFieldImage2dSdfGoldenSelfTest(bool); }      // field_ops_image2dsdf_golden.cpp (FIRST texture-binding leaf; Seam A)
+namespace sw { int runFieldRepeatPolarGoldenSelfTest(bool); }     // field_ops_repeatpolar_golden.cpp (single-input PRE-wrap; pModPolar/pModPolarMirror swizzle by-value, axis+mirror enums)
+namespace sw { int runFieldTranslateUvGoldenSelfTest(bool); }     // field_ops_translateuv_golden.cpp (single-input POST-wrap; f.xyz shift via readback wrapper)
+namespace sw { int runFieldStairCombineSdfGoldenSelfTest(bool); } // field_ops_staircombinesdf_golden.cpp (multi-input combiner; stairs/columns joinery, by-value pMod1 compile)
+namespace sw { int runFieldNoiseDisplaceSdfGoldenSelfTest(bool); }// field_ops_noisedisplacesdf_golden.cpp (single-input PRE+POST; simplex distance displace, shared fSimplexNoiseDisplace key)
+namespace sw { int runFieldSpatialDisplaceSdfGoldenSelfTest(bool); }// field_ops_spatialdisplacesdf_golden.cpp (single-input PRE-wrap; vNoise position warp, two globals favourable order)
 namespace sw { int runMeshNGonGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: NGonMesh)
 namespace sw { int runMeshQuadGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: QuadMesh)
 namespace sw { int runMeshTransformGoldenSelfTest(bool); }       // mesh_input_golden.cpp (mesh-input seam: TransformMesh consumer)
@@ -215,6 +220,11 @@ const SelfTest kTable[] = {
     {"field-fractalsdf", runFieldFractalSdfGoldenSelfTest},
     {"field-customsdf", runFieldCustomSdfGoldenSelfTest},
     {"field-image2dsdf", runFieldImage2dSdfGoldenSelfTest},
+    {"field-repeatpolar", runFieldRepeatPolarGoldenSelfTest},
+    {"field-translateuv", runFieldTranslateUvGoldenSelfTest},
+    {"field-staircombinesdf", runFieldStairCombineSdfGoldenSelfTest},
+    {"field-noisedisplacesdf", runFieldNoiseDisplaceSdfGoldenSelfTest},
+    {"field-spatialdisplacesdf", runFieldSpatialDisplaceSdfGoldenSelfTest},
     {"mesh-ngon", runMeshNGonGoldenSelfTest},
     {"mesh-quad", runMeshQuadGoldenSelfTest},
     {"mesh-transform", runMeshTransformGoldenSelfTest},

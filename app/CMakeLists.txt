@@ -205,6 +205,11 @@ add_executable(simple_world
   src/runtime/field_ops_fractalsdf.cpp
   src/runtime/field_ops_customsdf.cpp
   src/runtime/field_ops_image2dsdf.cpp
+  src/runtime/field_ops_repeatpolar.cpp
+  src/runtime/field_ops_translateuv.cpp
+  src/runtime/field_ops_staircombinesdf.cpp
+  src/runtime/field_ops_noisedisplacesdf.cpp
+  src/runtime/field_ops_spatialdisplacesdf.cpp
   src/field_render_golden.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
@@ -234,6 +239,11 @@ add_executable(simple_world
   src/field_ops_fractalsdf_golden.cpp
   src/field_ops_customsdf_golden.cpp
   src/field_ops_image2dsdf_golden.cpp
+  src/field_ops_repeatpolar_golden.cpp
+  src/field_ops_translateuv_golden.cpp
+  src/field_ops_staircombinesdf_golden.cpp
+  src/field_ops_noisedisplacesdf_golden.cpp
+  src/field_ops_spatialdisplacesdf_golden.cpp
   src/runtime/mesh_op_registry.cpp
   src/runtime/mesh_ops_ngonmesh.cpp
   src/runtime/mesh_ops_quadmesh.cpp
