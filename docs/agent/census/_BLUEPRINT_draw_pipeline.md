@@ -59,6 +59,18 @@ draw 葉子 = `registerCmdOp` 自登記（**conflict-free**,每顆 .cpp）。pre
 - **unlock 估算誤差**：~13 盤點估,開工前 backward-trace。
 - **RenderCommand 欄位擴張**：多顆各要不同欄位恐讓 point_graph.h 破 400 行（已 421）→沿職責縫評估拆 draw-specific command struct。
 
+## 8. draw 第二批 backlog（scout a52f692e 盤點 TiXL point/draw/ 23 op，2026-06-21）
+**已港 9**：DrawPoints/DrawLines/DrawClosedLines/DrawBillboards/DrawScreenQuad/ClearRenderTarget/Camera/DrawMeshUnlit/RenderTarget。
+**R1-R2 候選 4（draw 第二批，全撞 draw core serial）**：
+1. **DrawPoints2**（R1，最 trivial）：points variant，param Color/Radius/Texture(opt)/Z-test/Blend/FadeNearest/UseWForSize → reuse draw_points.metal（param radius 取代 scale）。shared core YES（可能 RenderDrawItem 欄位）。
+2. **DrawLinesBuildup**（R1）：lines + TransitionProgress/VisibleRange（漸進可見度 reveal），無 per-frame state → reuse draw_lines.metal（TransitionProgress VS sample）。shared core YES（param 加）。
+3. **DrawMovingPoints**（R1-R2）：points + velocity-stretch（沿 velocity 向量拉長 quad），VelocityStretch/JumpThreshold=CPU filter → draw_points.metal velocity-quad orientation branch。shared core PARTIAL。
+4. **DrawRayLines**（R1-R2）：points 當 ray origin，連 origin→(origin+W·dir) → draw_lines.metal ray-endpoint indexing（非 Points[i]→Points[i+1]）。shared core PARTIAL。
+**R2 卡 ColorField host-eval seam（延後，需先建）**：DrawPointsShaded/DrawLinesShaded（ShaderGraphNode ColorField host 評估→shader-node-to-MSL 編譯）。
+**R3 延後**：DrawConnectionLines（spatial-hash-map+Gradient host）/DrawPointsDOF（per-frame bucket sort DOF state）/DrawRibbons/DrawTubes（geometry-shader 等價,Metal 無 GS→compute 展開）。
+**OOO（非 line/point draw）**：DrawMeshAtPoints2（mesh instancing+Gradient/Curve）/VisualizePoints（gizmo debug）。
+**★draw 第二批工法**：全撞 draw core（render_command.h 加欄位/draw_*.metal branch/executor）=DEBT_LEDGER §E serial→**不可並行寫-leaf**（多 lane 撞 render_command.h 欄位 append）→一個 agent 序列做 2-3 顆（DrawPoints2+DrawLinesBuildup 最 trivial 先）或 orchestrator 逐顆派。每顆仍 R-2 鐵律（flat+resident golden）。
+
 ## Critical Files
 - app/src/runtime/point_ops_drawlines.cpp（cmd 葉子+內嵌 golden 完整 precedent,第一批照抄）
 - app/src/runtime/point_graph_resident.cpp（R-2 production：cookCommand :343、terminal :548、DrawMeshUnlit 黑洞修 :382=resident golden 範本）
