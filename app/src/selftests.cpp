@@ -63,6 +63,10 @@ namespace sw { int runFieldRepeatAxisGoldenSelfTest(bool); }      // field_ops_r
 namespace sw { int runFieldReflectFieldGoldenSelfTest(bool); }    // field_ops_reflectfield_golden.cpp (single-input PRE-wrap; pReflect, vec3 normal + offset)
 namespace sw { int runFieldBendFieldGoldenSelfTest(bool); }       // field_ops_bendfield_golden.cpp (single-input PRE+POST wrap; opBend, axis enum)
 namespace sw { int runFieldCombineFieldColorGoldenSelfTest(bool); } // field_ops_combinefieldcolor_golden.cpp (two-input color combiner)
+namespace sw { int runFieldRotateAxisGoldenSelfTest(bool); }      // field_ops_rotateaxis_golden.cpp (single-input PRE-wrap; pRotateAxis, axis enum)
+namespace sw { int runFieldRotateFieldGoldenSelfTest(bool); }     // field_ops_rotatefield_golden.cpp (single-input PRE-wrap; pRotateAxis ×3, vec3 RotateRad; shares pRotateAxis globals key)
+namespace sw { int runFieldTwistFieldGoldenSelfTest(bool); }      // field_ops_twistfield_golden.cpp (single-input PRE-wrap; twist about axis)
+namespace sw { int runFieldRepeatFieldLimitGoldenSelfTest(bool); } // field_ops_repeatfieldlimit_golden.cpp (single-input PRE-wrap; pModInterval1, limited repeat)
 namespace sw { int runFieldFractalSdfGoldenSelfTest(bool); }      // field_ops_fractalsdf_golden.cpp (Mandelbulb fold; iterations=compile-time selector)
 namespace sw { int runFieldCustomSdfGoldenSelfTest(bool); }       // field_ops_customsdf_golden.cpp (verbatim user DistanceFunction inject)
 namespace sw { int runFieldImage2dSdfGoldenSelfTest(bool); }      // field_ops_image2dsdf_golden.cpp (FIRST texture-binding leaf; Seam A)
@@ -197,6 +201,10 @@ const SelfTest kTable[] = {
     {"field-reflectfield", runFieldReflectFieldGoldenSelfTest},
     {"field-bendfield", runFieldBendFieldGoldenSelfTest},
     {"field-combinefieldcolor", runFieldCombineFieldColorGoldenSelfTest},
+    {"field-rotateaxis", runFieldRotateAxisGoldenSelfTest},
+    {"field-rotatefield", runFieldRotateFieldGoldenSelfTest},
+    {"field-twistfield", runFieldTwistFieldGoldenSelfTest},
+    {"field-repeatfieldlimit", runFieldRepeatFieldLimitGoldenSelfTest},
     {"field-fractalsdf", runFieldFractalSdfGoldenSelfTest},
     {"field-customsdf", runFieldCustomSdfGoldenSelfTest},
     {"field-image2dsdf", runFieldImage2dSdfGoldenSelfTest},

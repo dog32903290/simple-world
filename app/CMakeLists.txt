@@ -195,6 +195,10 @@ add_executable(simple_world
   src/runtime/field_ops_reflectfield.cpp
   src/runtime/field_ops_bendfield.cpp
   src/runtime/field_ops_combinefieldcolor.cpp
+  src/runtime/field_ops_rotateaxis.cpp
+  src/runtime/field_ops_rotatefield.cpp
+  src/runtime/field_ops_twistfield.cpp
+  src/runtime/field_ops_repeatfieldlimit.cpp
   src/runtime/field_ops_fractalsdf.cpp
   src/runtime/field_ops_customsdf.cpp
   src/runtime/field_ops_image2dsdf.cpp
@@ -220,6 +224,10 @@ add_executable(simple_world
   src/field_ops_reflectfield_golden.cpp
   src/field_ops_bendfield_golden.cpp
   src/field_ops_combinefieldcolor_golden.cpp
+  src/field_ops_rotateaxis_golden.cpp
+  src/field_ops_rotatefield_golden.cpp
+  src/field_ops_twistfield_golden.cpp
+  src/field_ops_repeatfieldlimit_golden.cpp
   src/field_ops_fractalsdf_golden.cpp
   src/field_ops_customsdf_golden.cpp
   src/field_ops_image2dsdf_golden.cpp
