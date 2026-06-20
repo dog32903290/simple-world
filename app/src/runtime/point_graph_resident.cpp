@@ -23,6 +23,7 @@
 
 #include "runtime/graph.h"                 // NodeSpec/PortSpec/findSpec
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
+#include "runtime/mesh_op_registry.h"          // MeshCookCtx/SwMeshView/findMeshOp (the 4th cook flow = MeshBuffers)
 #include "runtime/pointlist_op_registry.h"     // PointListCookCtx/findPointListOp (the 7th cook flow = host SwPoint list)
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + op registries
 #include "runtime/resident_eval_graph.h"   // ResidentEvalGraph / drivers / resolveResidentFloatInputs
@@ -100,6 +101,16 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   // makes the CPU point family LIVE in the running app: ListToBuffer (cookNode below) calls this to
   // gather the host list it memcpys onto the GPU, on the production cookResident path (R-2 iron rule).
   std::function<const std::vector<SwPoint>*(const std::string&, int)> cookResidentPointList;
+
+  // Mesh walker (4th cook flow on the RESIDENT/PRODUCTION path — the R-2 iron rule). Cooks ONE mesh
+  // node (generator OR consumer) into its PER-PATH owned pair (p_->meshVtxBuf/meshIdxBuf[path]) and
+  // returns a borrowed SwMeshView. A CONSUMER (TransformMesh/CombineMeshes) gathers its Mesh input(s)
+  // THROUGH the resident graph (following the ResidentInput Connection drivers the flatten projects
+  // onto Mesh slots — Mesh is NOT a String, so it gets a ResidentInput exactly like Points/PointList).
+  // This is what makes the mesh family + DrawMeshUnlit LIVE in the running app: the resident cookCommand
+  // Mesh branch (below) calls this to fill cc.meshVtx/idx/faceCount. Mirror of the flat cookMeshNode +
+  // cookResidentPointList. Returns an empty view if `path` is not a mesh op / produced nothing.
+  std::function<SwMeshView(const std::string&, int)> cookResidentMesh;
 
   // `depth` counts cookNode/cookCommand call-edges from the terminal; > kCookDepthCap = safe fail
   // (修2: the bypass redirect recursion was bare before — only the terminal loop had the cap).
@@ -274,6 +285,58 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     return &out;
   };
 
+  // Mesh walker body (4th cook flow on the RESIDENT path; assigned now that cookNode exists — the two
+  // don't recurse into each other, the only crossing is cookCommand's Mesh branch below). Gathers the
+  // node's Mesh input(s) through the resident Connection drivers (primary + extraConns, in spec port
+  // order), runs countFn(params, views, n) then cookFn, into the per-path owned pair. Mirror of the flat
+  // cookMeshNode + cookResidentPointList. Returns a borrowed SwMeshView (empty if not a mesh op).
+  cookResidentMesh = [&](const std::string& path, int depth) -> SwMeshView {
+    SwMeshView outView;
+    if (depth > kCookDepthCap) { warnCookDepthOnce(); return outView; }
+    const ResidentNode* n = rg.node(path);
+    if (!n) return outView;
+    const NodeSpec* s = findSpec(n->opType);
+    if (!s) return outView;
+    const MeshOpReg* reg = findMeshOp(n->opType);
+    if (!reg || !reg->cook || !reg->count) return outView;
+
+    // Gather upstream Mesh inputs through the resident graph (Connection drivers; MultiInput → primary +
+    // extraConns, wire-declaration order). cookResidentMesh fills p_->meshVtxBuf[srcPath] for each source.
+    std::vector<SwMeshView> inputMeshes;
+    for (const PortSpec& port : s->ports) {
+      if (!(port.isInput && port.dataType == "Mesh")) continue;
+      const ResidentInput* ri = n->input(port.id);
+      if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        inputMeshes.push_back(cookResidentMesh(ri->srcNodePath, depth + 1));
+        if (port.multiInput)
+          for (const auto& ec : ri->extraConns)
+            inputMeshes.push_back(cookResidentMesh(ec.first, depth + 1));
+      }
+      // (An unwired / Constant Mesh input contributes NO entry → empty → faithful to the flat gather.)
+    }
+
+    const std::map<std::string, float>* mp = nodeParams(path);
+    uint32_t vtxCount = 0, idxCount = 0;
+    reg->count(mp, inputMeshes.data(), (int)inputMeshes.size(), vtxCount, idxCount);  // counts FIRST
+
+    MTL::Buffer* vb = nullptr;
+    MTL::Buffer* ib = nullptr;
+    p_->ensureMesh(path, vtxCount, idxCount, vb, ib);  // per-path owned pair (string key, no flat collision)
+
+    MeshCookCtx mc;
+    mc.dev = p_->dev; mc.lib = p_->lib; mc.queue = p_->queue;
+    mc.ctx = &ctx; mc.nodeId = 0;
+    mc.vertexCount = vtxCount; mc.indexCount = idxCount;
+    mc.output_vertices = vb; mc.output_indices = ib;
+    mc.inputMeshes = inputMeshes.data(); mc.inputMeshCount = (int)inputMeshes.size();
+    mc.params = mp;
+    reg->cook(mc);
+
+    outView.vtx = vb; outView.vtxCount = vtxCount;
+    outView.idx = ib; outView.faceCount = idxCount;
+    return outView;
+  };
+
   // Cook a command node: resolve its upstream Points bag, then call its cmd fn -> RenderCommand.
   // std::function (not auto) so the bypass redirect can self-recurse through chained bypasses.
   // Same depth cap as cookNode (no memo here, so a bypass cycle recursed bare before 修2).
@@ -302,6 +365,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     if (cm == cmdReg().end() || !cm->second) return rcmd;
     MTL::Buffer* pts = nullptr;
     uint32_t cnt = 0;
+    SwMeshView inMesh;            // ★R-2: first wired Mesh input (DrawMeshUnlit) — was UNGATHERED before
+    bool haveMesh = false;
     RenderCommand inCmd;          // Camera op's Command subtree (Cut 3)
     bool haveInCmd = false;
     bool havePts = false;
@@ -314,6 +379,15 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
           cnt = p_->outCount[ri->srcNodePath];
         }
         havePts = true;
+      } else if (port.dataType == "Mesh" && !haveMesh) {
+        // ★R-2 production black-hole fix: DrawMeshUnlit's Mesh input was NEVER gathered on the resident
+        // path (this branch did not exist), so cc.meshVtx stayed null → cookDrawMeshUnlit returned an
+        // empty chain → the running app drew NOTHING (a Draw*Mesh in production was black). Gather the
+        // upstream mesh node into a SwMeshView (mirror of the flat cookCommand Mesh branch).
+        const ResidentInput* ri = n->input(port.id);
+        if (ri && ri->driver == ResidentInput::Driver::Connection)
+          inMesh = cookResidentMesh(ri->srcNodePath, depth + 1);
+        haveMesh = true;
       } else if (port.dataType == "Command" && !haveInCmd) {
         // Cut 3: the Camera op wraps a Command subtree — recurse into the upstream command node
         // (depth-capped via kCookDepthCap) and hand the cooked chain in via cc.inputCommand.
@@ -326,6 +400,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     CmdCookCtx cc;
     cc.ctx = &ctx; cc.graph = nullptr; cc.reg = reg;
     cc.nodeId = 0; cc.points = pts; cc.count = cnt;
+    cc.meshVtx = inMesh.vtx; cc.meshIdx = inMesh.idx; cc.meshFaceCount = inMesh.faceCount;
     cc.inputCommand = haveInCmd ? &inCmd : nullptr;
     cc.params = nodeParams(path);
     return cm->second(cc);
@@ -453,6 +528,15 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   }
   const NodeSpec* ts = tn ? findSpec(tn->opType) : nullptr;
   if (!tn || !ts) { p_->clearTarget(); return; }
+
+  if (findMeshOp(tn->opType)) {
+    // Mesh terminal (preview pin on a Mesh-producing op): cook the pair so a readback can see it
+    // (no Mesh VISUALIZER — Draw*Mesh consumes it). Clear the viewport (parity with flat cook()). The
+    // chain still runs through cookResidentMesh so the production mesh gather is on this path too.
+    cookResidentMesh(termPath, 0);
+    p_->clearTarget();
+    return;
+  }
 
   auto texIt = texReg().find(tn->opType);
   if (texIt != texReg().end() && texIt->second) {

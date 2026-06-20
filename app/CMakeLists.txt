@@ -237,7 +237,10 @@ add_executable(simple_world
   src/runtime/mesh_op_registry.cpp
   src/runtime/mesh_ops_ngonmesh.cpp
   src/runtime/mesh_ops_quadmesh.cpp
+  src/runtime/mesh_ops_transformmesh.cpp
+  src/runtime/mesh_ops_combinemeshes.cpp
   src/mesh_golden.cpp
+  src/mesh_input_golden.cpp
   src/runtime/floatlist_op_registry.cpp
   src/runtime/floatlist_ops_floatstolist.cpp
   src/floatlist_golden.cpp

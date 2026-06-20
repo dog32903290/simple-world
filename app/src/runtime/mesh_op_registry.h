@@ -36,15 +36,30 @@ struct EvaluationContext;  // runtime/eval_context.h
 
 namespace sw {
 
+// A borrowed, single-frame view of ONE upstream mesh (its cooked SwVertex + SwTriIndex pair). The
+// mesh-input seam's currency: a CONSUMING mesh op (TransformMesh/CombineMeshes) reads its inputs as
+// SwMeshView, NOT by allocating. The cook DRIVER gathers each wired Mesh input port (recursing the
+// upstream mesh node, then reading its buffers via debugCookedMesh) into an array of these and hands
+// it in via MeshCookCtx::inputMeshes — same borrowed lifetime as a Texture2D gather (the buffers
+// live in PointGraph::Impl::meshVtxBuf/meshIdxBuf for this cook; the consumer copies what it needs).
+struct SwMeshView {
+  const MTL::Buffer* vtx = nullptr;  // upstream SwVertex buffer (read-only this frame)
+  uint32_t vtxCount = 0;             // # SwVertex in vtx
+  const MTL::Buffer* idx = nullptr;  // upstream SwTriIndex buffer (read-only this frame)
+  uint32_t faceCount = 0;            // # SwTriIndex (faces) in idx
+};
+
 // Everything a mesh op gets to cook one node this frame. Mirrors PointCookCtx (point_graph.h) but
 // carries the TWO owned output buffers of the mesh currency. The cook DRIVER pre-sizes BOTH output
 // buffers to vertexCount SwVertex + indexCount SwTriIndex (the count-change-reuse lifetime rule,
 // same as a point op's `output`) and the op WRITES its result via contents() — it does NOT allocate.
 //
 // vertexCount / indexCount: the counts the driver sized the buffers to. A generator computes these
-// from its own params (NGon: verts=Segments+1, faces=Segments; Quad: verts=cols*rows, faces=...).
-// The driver asks the op for the counts FIRST (countFn), sizes the buffers, then runs cook — so by
-// the time cook runs, output_vertices/output_indices are correctly sized.
+// from its own params (NGon: verts=Segments+1, faces=Segments; Quad: verts=cols*rows, faces=...). A
+// CONSUMER (TransformMesh/CombineMeshes) computes them from inputMeshes (TransformMesh: inputs[0]'s
+// counts; CombineMeshes: the sum across all inputs). The driver asks the op for the counts FIRST
+// (countFn, given the gathered inputs), sizes the buffers, then runs cook — so by the time cook runs,
+// output_vertices/output_indices are correctly sized.
 struct MeshCookCtx {
   MTL::Device* dev = nullptr;
   MTL::Library* lib = nullptr;
@@ -55,6 +70,12 @@ struct MeshCookCtx {
   uint32_t indexCount = 0;   // # SwTriIndex (faces) the output_indices buffer holds
   MTL::Buffer* output_vertices = nullptr;  // driver-owned, pre-sized to vertexCount SwVertex; cook writes here
   MTL::Buffer* output_indices = nullptr;   // driver-owned, pre-sized to indexCount SwTriIndex; cook writes here
+  // Gathered upstream Mesh inputs (mesh-input seam). The driver fills this from each wired Mesh input
+  // port (spec order; a MultiInput Mesh port — CombineMeshes — expands every wire). A generator
+  // (NGonMesh/QuadMesh) owns no Mesh input port → inputMeshCount stays 0 and these are unread, so its
+  // path is byte-identical. Borrowed single-frame (do NOT retain past cook).
+  const SwMeshView* inputMeshes = nullptr;
+  int inputMeshCount = 0;
   // RESOLVED Float params of THIS node (same value spine as PointCookCtx::params): the cook DRIVER
   // resolves every Float input port (override → binding → wire → stored → spec default) and hands
   // the result here. Ops read via cookMeshParam/cookMeshVecN and stay graph-model-agnostic.
@@ -63,10 +84,14 @@ struct MeshCookCtx {
 
 // A mesh op: compute counts (countFn) then write vertices+indices (cookFn). Two fns because the
 // driver must know the sizes BEFORE it allocates the output buffers (it can't peek inside cook).
-//   countFn: given the resolved params, return (vertexCount, indexCount) for this frame.
+//   countFn: given the resolved params AND the gathered upstream mesh inputs, return
+//            (vertexCount, indexCount) for this frame. A generator IGNORES the inputs; a consumer
+//            (TransformMesh: inputs[0].vtxCount/faceCount; CombineMeshes: Σ) reads them. This is the
+//            fork-mesh-1 signature widen — the input-dependent count the generator-only signature
+//            couldn't express. Existing generators add two IGNORED params; their math is unchanged.
 //   cookFn:  fill output_vertices/output_indices (already sized to those counts).
-using MeshCountFn = void (*)(const std::map<std::string, float>* params, uint32_t& vertexCount,
-                            uint32_t& indexCount);
+using MeshCountFn = void (*)(const std::map<std::string, float>* params, const SwMeshView* inputs,
+                            int inputCount, uint32_t& vertexCount, uint32_t& indexCount);
 using MeshCookFn = void (*)(MeshCookCtx&);
 
 // Read a Float param from a MeshCookCtx's RESOLVED map (mirror of cookParam); `def` when the driver

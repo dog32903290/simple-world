@@ -403,6 +403,11 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // into cookCommand — a mesh generator owns no command inputs — but the ordering break keeps it
   // callable from cookCommand). Returns true + fills the out-params on success.
   std::function<bool(int, const MTL::Buffer*&, uint32_t&, const MTL::Buffer*&, uint32_t&)> cookMeshInto;
+  // Forward-declared (mesh-input seam): the MESH cook flow (4th flow = MeshBuffers pair). A mesh op
+  // (generator OR consumer) is cooked here; a CONSUMER (TransformMesh/CombineMeshes) gathers its Mesh
+  // input(s) by RECURSING into cookMeshNode (via cookMeshInto). std::function so the body can self-
+  // recurse during the input gather. Returns true if a mesh op cooked into meshVtxBuf/meshIdxBuf.
+  std::function<bool(int)> cookMeshNode;
 
   // Cook a command node: resolve its upstream Points bag (+ first wired Texture2D input, FORK#1, +
   // first wired Command subtree for the Camera op, Cut 3), then call its cmd fn -> RenderCommand.
@@ -628,21 +633,50 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return tex;
   };
 
-  // Cook a MESH-flow node (the 4th cook flow = TiXL MeshBuffers). A mesh generator (NGonMesh/
-  // QuadMesh) owns NO buffer/command/texture inputs in batch 1 — it computes its vertex+index
-  // counts from its own params, the driver sizes the OWNED pair (ensureMesh, count-change reuse),
-  // then the op writes both buffers via contents(). Parallel to how cookNode sizes a single SwPoint
-  // output: here the currency is a PAIR (vertices SwVertex + indices SwTriIndex). Returns true if a
-  // mesh op cooked (the buffers are then in p_->meshVtxBuf/meshIdxBuf, readable via debugCookedMesh).
-  auto cookMeshNode = [&](int id) -> bool {
+  // Cook a MESH-flow node (the 4th cook flow = TiXL MeshBuffers). A mesh GENERATOR (NGonMesh/QuadMesh)
+  // owns NO Mesh input — it computes its vertex+index counts from its own params. A mesh CONSUMER
+  // (TransformMesh in×1 / CombineMeshes MultiInput, the mesh-input seam) first GATHERS its wired Mesh
+  // input(s): for each Mesh input port (spec order; MultiInput expands every wire in connection order),
+  // recurse cookMeshNode on the source then read its cooked pair via debugCookedMesh into a SwMeshView.
+  // The gather mirrors the cookPointListNode walk (input-dependent currency, borrowed single-frame).
+  // Then countFn(params, views, n) decides the OUTPUT sizes (generator ignores views; consumer reads
+  // them), the driver sizes the OWNED pair (ensureMesh, count-change reuse), and the op writes both
+  // buffers via contents(). The currency is a PAIR (SwVertex + SwTriIndex). Returns true if a mesh op
+  // cooked (the buffers are then in p_->meshVtxBuf/meshIdxBuf, readable via debugCookedMesh).
+  //
+  // ★ Source meshes are cooked into meshVtxBuf[srcKey] BEFORE this node's ensureMesh(flatKey(id),...).
+  // ensureMesh keys by flat id, so a consumer's own pair never aliases its sources' pairs — the borrowed
+  // SwMeshView buffers stay valid across this node's ensureMesh (different map keys, no realloc churn).
+  cookMeshNode = [&](int id) -> bool {
     const Node* n = g.node(id);
     if (!n) return false;
     const MeshOpReg* reg = findMeshOp(n->type);
     if (!reg || !reg->cook || !reg->count) return false;
 
+    // Gather upstream Mesh inputs (spec port order; MultiInput → one view per wire, connection order).
+    std::vector<SwMeshView> inputMeshes;
+    const NodeSpec* s = findSpec(n->type);
+    if (s) {
+      for (size_t i = 0; i < s->ports.size(); ++i) {
+        const PortSpec& port = s->ports[i];
+        if (!(port.isInput && port.dataType == "Mesh")) continue;
+        const int inPin = pinId(id, (int)i);
+        for (const Connection& c : g.connections) {
+          if (c.toPin != inPin) continue;
+          const int srcId = pinNode(c.fromPin);
+          SwMeshView v;
+          if (cookMeshNode(srcId))  // cook the source pair into meshVtxBuf/meshIdxBuf[srcKey]
+            debugCookedMesh(srcId, v.vtx, v.vtxCount, v.idx, v.faceCount);
+          inputMeshes.push_back(v);   // an unwired/non-mesh source pushes an empty view (faithful no-op)
+          if (!port.multiInput) break;  // single-input: first wire only
+        }
+      }
+    }
+
     const std::map<std::string, float>* mp = nodeParams(id);
     uint32_t vtxCount = 0, idxCount = 0;
-    reg->count(mp, vtxCount, idxCount);  // op decides its sizes from resolved params (counts FIRST)
+    // count FIRST: generator ignores the views; consumer reads them (TransformMesh inputs[0]; CombineMeshes Σ).
+    reg->count(mp, inputMeshes.data(), (int)inputMeshes.size(), vtxCount, idxCount);
 
     MTL::Buffer* vb = nullptr;
     MTL::Buffer* ib = nullptr;
@@ -653,6 +687,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     mc.ctx = &ctx; mc.nodeId = id;
     mc.vertexCount = vtxCount; mc.indexCount = idxCount;
     mc.output_vertices = vb; mc.output_indices = ib;
+    mc.inputMeshes = inputMeshes.data(); mc.inputMeshCount = (int)inputMeshes.size();
     mc.params = mp;
     reg->cook(mc);
     return true;

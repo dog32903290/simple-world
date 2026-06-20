@@ -66,8 +66,11 @@ int clampSegments(float v) {
   return s;
 }
 
-// NGonMesh.cs:44-52 — verticesCount = segments+1, faceCount = segments.
-void ngonCount(const std::map<std::string, float>* params, uint32_t& vtx, uint32_t& idx) {
+// NGonMesh.cs:44-52 — verticesCount = segments+1, faceCount = segments. A generator OWNS no Mesh
+// input, so the gathered-inputs args (mesh-input seam, fork-mesh-1) are IGNORED here — the count
+// stays a pure function of params, byte-identical to before the signature widen.
+void ngonCount(const std::map<std::string, float>* params, const SwMeshView* /*inputs*/,
+               int /*inputCount*/, uint32_t& vtx, uint32_t& idx) {
   int segments = clampSegments(cookMeshParam(params, "Segments", 4.0f));
   vtx = (uint32_t)(segments + 1);
   idx = (uint32_t)segments;

@@ -59,7 +59,10 @@ int clampSeg(float v) {
 }
 
 // QuadMesh.cs:44-49 — columns = SegW+1, rows = SegH+1; verts = cols*rows, faces = (cols-1)(rows-1)*2.
-void quadCount(const std::map<std::string, float>* params, uint32_t& vtx, uint32_t& idx) {
+// A generator OWNS no Mesh input, so the gathered-inputs args (mesh-input seam, fork-mesh-1) are
+// IGNORED — the count stays a pure function of params, byte-identical to before the signature widen.
+void quadCount(const std::map<std::string, float>* params, const SwMeshView* /*inputs*/,
+               int /*inputCount*/, uint32_t& vtx, uint32_t& idx) {
   int columns = clampSeg(cookMeshParam(params, "Segments.x", 1.0f)) + 1;
   int rows = clampSeg(cookMeshParam(params, "Segments.y", 1.0f)) + 1;
   vtx = (uint32_t)(columns * rows);
