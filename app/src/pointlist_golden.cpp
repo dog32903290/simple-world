@@ -72,6 +72,51 @@ std::vector<SwPoint> radialRef(int count, float radius, float w) {
   return out;
 }
 
+// CLOSED-FORM LinePointsCpu reference (LinePointsCpu.cs, NOT a copy of the leaf): 2 points (from→to),
+// both carrying rot = CreateFromAxisAngle((0,1,0), atan2(from.X-to.X, from.Y-to.Y)). F1[0]=w, F1[1]=w+wOff.
+std::vector<SwPoint> lineRef(const float from[3], const float to[3], float w, float wOff) {
+  float angle = std::atan2(from[0] - to[0], from[1] - to[1]);
+  float h = angle * 0.5f;
+  SwPoint p0 = swPointDefault();
+  p0.Position = {from[0], from[1], from[2]}; p0.FX1 = w;
+  p0.Rotation = {0.0f, std::sin(h), 0.0f, std::cos(h)};  // axis (0,1,0)
+  SwPoint p1 = swPointDefault();
+  p1.Position = {to[0], to[1], to[2]}; p1.FX1 = w + wOff;
+  p1.Rotation = {0.0f, std::sin(h), 0.0f, std::cos(h)};
+  return {p0, p1};
+}
+
+// CLOSED-FORM LinearPointsCpu reference (LinearPointsCpu.cs): N points, Position = Lerp(start, start+off,
+// x/count) — NOTE /count (last point never reaches start+off), Orientation identity, F1 = Lerp(sw, sw+ow).
+std::vector<SwPoint> linearRef(int count, const float start[3], const float off[3], float sw, float ow) {
+  std::vector<SwPoint> out;
+  int n = count < 1 ? 1 : (count > 10000 ? 10000 : count);
+  for (int x = 0; x < n; ++x) {
+    float f = (float)x / (float)n;  // /count, NOT /(count-1)
+    SwPoint p = swPointDefault();
+    p.Position = {start[0] + off[0] * f, start[1] + off[1] * f, start[2] + off[2] * f};
+    p.Rotation = {0.0f, 0.0f, 0.0f, 1.0f};
+    p.FX1 = sw + ow * f;
+    out.push_back(p);
+  }
+  return out;
+}
+
+// Quaternion Hamilton product (x,y,z,w) — for the RepeatAt reference (== .NET Quaternion.Multiply).
+void refQMul(const float a[4], const float b[4], float out[4]) {
+  float cx = a[1] * b[2] - a[2] * b[1], cy = a[2] * b[0] - a[0] * b[2], cz = a[0] * b[1] - a[1] * b[0];
+  float dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  out[0] = a[0] * b[3] + b[0] * a[3] + cx; out[1] = a[1] * b[3] + b[1] * a[3] + cy;
+  out[2] = a[2] * b[3] + b[2] * a[3] + cz; out[3] = a[3] * b[3] - dot;
+}
+// Vector3.Transform(v, q) — rotate v by q (== .NET expansion v + 2*q.w*cross(q.xyz,v) + 2*cross(q.xyz,cross(q.xyz,v))).
+void refQRotate(const float q[4], const float v[3], float out[3]) {
+  float tx = 2.0f * (q[1] * v[2] - q[2] * v[1]), ty = 2.0f * (q[2] * v[0] - q[0] * v[2]),
+        tz = 2.0f * (q[0] * v[1] - q[1] * v[0]);
+  float cx = q[1] * tz - q[2] * ty, cy = q[2] * tx - q[0] * tz, cz = q[0] * ty - q[1] * tx;
+  out[0] = v[0] + q[3] * tx + cx; out[1] = v[1] + q[3] * ty + cy; out[2] = v[2] + q[3] * tz + cz;
+}
+
 bool pointsEq(const SwPoint& a, const SwPoint& b) {
   return nearf(a.Position.x, b.Position.x) && nearf(a.Position.y, b.Position.y) &&
          nearf(a.Position.z, b.Position.z) && nearf(a.FX1, b.FX1) &&
@@ -258,6 +303,234 @@ int runPointListSelfTest(bool injectBug) {
                 "centerBlack=%d size=%lux%lu -> %s\n",
                 ringLit, ringCount / 2, centerBlack ? 1 : 0, tex ? tex->width() : 0,
                 tex ? tex->height() : 0, pass ? "PASS" : "FAIL");
+  }
+
+  // ===== LEG 5 — LinePointsCpu: flat transport + ListToBuffer GPU-readback byte-parity + injectBug. =====
+  // From=(2,0,0) To=(-2,0,0) W=1 WOffset=0.5 → 2 points; rot = axisAngle((0,1,0), atan2(4,0)=π/2).
+  {
+    const float kFrom[3] = {2.0f, 0.0f, 0.0f}, kTo[3] = {-2.0f, 0.0f, 0.0f};
+    const float kLW = 1.0f, kLWOff = 0.5f;
+    auto buildLine = [&](Graph& g) {
+      Node r; r.id = 1; r.type = "LinePointsCpu";
+      r.params["From.x"] = kFrom[0]; r.params["From.y"] = kFrom[1]; r.params["From.z"] = kFrom[2];
+      r.params["To.x"] = kTo[0]; r.params["To.y"] = kTo[1]; r.params["To.z"] = kTo[2];
+      r.params["W"] = kLW; r.params["WOffset"] = kLWOff;
+      r.params["AddSeparator"] = 0.0f;  // explicit: LEG5 測 2-point case (spec/cook default 改 true 後不依賴 fallback)
+      g.nodes.push_back(r);
+    };
+    std::vector<SwPoint> want = lineRef(kFrom, kTo, kLW, kLWOff);
+
+    // 5a transport (flat). HARD per-op tooth: assert the FULL non-degenerate reference ALWAYS. Under
+    // injectBug the op clears its output → got is empty → mismatch → this leg FAILS on its own (each new
+    // op has its OWN bite, not leaning on LEG1).
+    PointGraph pg(dev, lib, q, 64, 64);
+    Graph g; buildLine(g);
+    EvaluationContext ctx{}; ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+    pointListInjectBug() = injectBug;
+    pg.cook(g, ctx, nullptr, /*terminal=*/1);
+    pointListInjectBug() = false;
+    const std::vector<SwPoint>* got = pg.debugCookedPointList(1);
+    bool passT = got && got->size() == want.size();
+    if (passT) for (size_t i = 0; i < want.size(); ++i) if (!pointsEq((*got)[i], want[i])) { passT = false; break; }
+
+    // 5b ListToBuffer GPU-readback byte-parity (flat). Same hard tooth: assert full want via GPU contents().
+    PointGraph pg2(dev, lib, q, 64, 64);
+    Graph g2; buildLine(g2);
+    Node ltb; ltb.id = 2; ltb.type = "ListToBuffer"; g2.nodes.push_back(ltb);
+    g2.connections.push_back({100, pinId(1, 0), pinId(2, 1)});
+    pointListInjectBug() = injectBug;
+    pg2.cook(g2, ctx, nullptr, /*terminal=*/2);
+    pointListInjectBug() = false;
+    uint32_t gpuCount = pg2.debugCookedCount(2);
+    bool passB = gpuCount == (uint32_t)want.size();
+    if (passB && gpuCount > 0) {
+      MTL::Buffer* buf = const_cast<MTL::Buffer*>(pg2.debugCookedBuffer(2));
+      passB = buf && buf->length() >= (NS::UInteger)gpuCount * sizeof(SwPoint);
+      if (passB) {
+        const SwPoint* gpu = reinterpret_cast<const SwPoint*>(buf->contents());
+        for (size_t i = 0; i < want.size(); ++i) if (!pointsEq(gpu[i], want[i])) { passB = false; break; }
+      }
+    }
+    bool pass = passT && passB;
+    ok = ok && pass;
+    std::printf("[selftest-pointlist] LEG5 LinePointsCpu transport+ListToBuffer n=%zu gpuCount=%u want=%zu -> %s\n",
+                got ? got->size() : 0, gpuCount, want.size(), pass ? "PASS" : "FAIL");
+  }
+
+  // ===== LEG 6 — LinearPointsCpu: ★PRODUCTION pixel (resident) + transport. Count=N along a line. =====
+  // Transport: Count=4 Start=(0,0,0) Offset=(4,0,0) → x at 0,1,2,3 (NOT 4: fX=x/count). Production: a
+  // horizontal line of points off the vertical center column → lit pixels present, the top-left corner black.
+  {
+    const float kStart[3] = {0.0f, 0.0f, 0.0f}, kOff[3] = {4.0f, 0.0f, 0.0f};
+    // 6a transport (flat), Count=4
+    PointGraph pg(dev, lib, q, 64, 64);
+    Graph g;
+    Node r; r.id = 1; r.type = "LinearPointsCpu";
+    r.params["Count"] = 4.0f;
+    r.params["Start.x"] = kStart[0]; r.params["Start.y"] = kStart[1]; r.params["Start.z"] = kStart[2];
+    r.params["Offset.x"] = kOff[0]; r.params["Offset.y"] = kOff[1]; r.params["Offset.z"] = kOff[2];
+    g.nodes.push_back(r);
+    EvaluationContext ctx{}; ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+    pointListInjectBug() = injectBug;
+    pg.cook(g, ctx, nullptr, /*terminal=*/1);
+    pointListInjectBug() = false;
+    const std::vector<SwPoint>* got = pg.debugCookedPointList(1);
+    // HARD per-op tooth: assert the full non-degenerate reference ALWAYS → injectBug (empty out) FAILS here.
+    std::vector<SwPoint> want = linearRef(4, kStart, kOff, 1.0f, 0.0f);
+    bool passT = got && got->size() == want.size();
+    if (passT) for (size_t i = 0; i < want.size(); ++i) if (!pointsEq((*got)[i], want[i])) { passT = false; break; }
+
+    // 6b ★PRODUCTION resident pixel: a SHORT horizontal line of points across the image → lit, AND a
+    // top-left corner box (far from any point) stays black. Count many points along a small line so the
+    // pixel test is robust to point size. Start=(-1.5,0,0) Offset=(3,0,0) → points span x∈[-1.5, ~1.4].
+    const uint32_t RW = 128, RH = 128;
+    const int lineCount = 48;
+    PointGraph pgP(dev, lib, q, RW, RH);
+    Graph gp;
+    Node lr; lr.id = 1; lr.type = "LinearPointsCpu";
+    lr.params["Count"] = (float)lineCount;
+    lr.params["Start.x"] = -1.5f; lr.params["Start.y"] = 0.0f; lr.params["Start.z"] = 0.0f;
+    lr.params["Offset.x"] = 3.0f; lr.params["Offset.y"] = 0.0f; lr.params["Offset.z"] = 0.0f;
+    gp.nodes.push_back(lr);
+    Node ltb; ltb.id = 2; ltb.type = "ListToBuffer"; gp.nodes.push_back(ltb);
+    Node drw; drw.id = 3; drw.type = "DrawPoints"; gp.nodes.push_back(drw);
+    Node rt; rt.id = 4; rt.type = "RenderTarget";
+    rt.params["Resolution"] = 4.0f; rt.params["CustomW"] = (float)RW; rt.params["CustomH"] = (float)RH;
+    gp.nodes.push_back(rt);
+    gp.connections.push_back({100, pinId(1, 0), pinId(2, 1)});
+    gp.connections.push_back({101, pinId(2, 0), pinId(3, 0)});
+    gp.connections.push_back({102, pinId(3, 1), pinId(4, 0)});
+    SymbolLibrary slib = libFromGraph(gp);
+    ResidentEvalGraph rg = buildEvalGraph(slib, slib.rootId);
+    pointListInjectBug() = injectBug;
+    pgP.cookResident(rg, ctx, nullptr, /*RenderTarget path*/ "4");
+    pointListInjectBug() = false;
+    MTL::Texture* tex = pgP.target();
+    bool sized = tex && (uint32_t)tex->width() == RW && (uint32_t)tex->height() == RH;
+    int lit = 0; bool cornerBlack = true;
+    if (sized) {
+      std::vector<uint8_t> px((size_t)RW * RH * 4, 0);
+      tex->getBytes(px.data(), RW * 4, MTL::Region::Make2D(0, 0, RW, RH), 0);
+      auto isLit = [&](uint32_t x, uint32_t y) {
+        size_t i = ((size_t)y * RW + x) * 4; return px[i] > 40 || px[i + 1] > 40 || px[i + 2] > 40; };
+      for (uint32_t y = 0; y < RH; ++y) for (uint32_t x = 0; x < RW; ++x) if (isLit(x, y)) ++lit;
+      for (uint32_t y = 0; y < 8; ++y) for (uint32_t x = 0; x < 8; ++x) if (isLit(x, y)) cornerBlack = false;
+    }
+    // HARD tooth: production must be LIT (and corner black) ALWAYS → injectBug (black screen, lit=0) FAILS.
+    bool passP = sized && lit >= lineCount / 2 && cornerBlack;
+    bool pass = passT && passP;
+    ok = ok && pass;
+    std::printf("[selftest-pointlist] LEG6 LinearPointsCpu transport(n=%zu/want=%zu) + ★PRODUCTION "
+                "lit=%d(need≥%d) cornerBlack=%d -> %s\n",
+                got ? got->size() : 0, want.size(), lit, lineCount / 2, cornerBlack ? 1 : 0,
+                pass ? "PASS" : "FAIL");
+  }
+
+  // ===== LEG 7 — RepeatAtPointsCpu (★dual-input): source(2 pts) × dest(RadialPointsCpu ring) → product.
+  // Transport: assert the cartesian product against an INDEPENDENT re-derivation (dest-frame transform).
+  // Production: the product points form rings → lit + center black. injectBug → inputs cleared → empty.
+  {
+    // Source = LinearPointsCpu Count=2 Start=(0.5,0,0) Offset=(1,0,0) → 2 pts at (0.5,0,0),(1.0,0,0),
+    // both identity rotation, F1=1. Dest = RadialPointsCpu Count=4 Radius=2 → 4 ring points w/ rotations.
+    const int destN = 4; const float destR = 2.0f;
+    const float srcStart[3] = {0.5f, 0.0f, 0.0f}, srcOff[3] = {1.0f, 0.0f, 0.0f};
+    std::vector<SwPoint> srcRef = linearRef(2, srcStart, srcOff, 1.0f, 0.0f);  // identity rotations
+    std::vector<SwPoint> destRef = radialRef(destN, destR, 1.0f);
+    // Independent product re-derivation (outer dest, inner source): pos = dest.Pos + Rotate(src.Pos, dest.Rot),
+    // F1 = src.F1, rot = dest.Rot * src.Rot.
+    std::vector<SwPoint> prodRef;
+    for (const SwPoint& d : destRef) {
+      float dq[4] = {d.Rotation.x, d.Rotation.y, d.Rotation.z, d.Rotation.w};
+      for (const SwPoint& s : srcRef) {
+        float sp[3] = {s.Position.x, s.Position.y, s.Position.z}, rot[3];
+        refQRotate(dq, sp, rot);
+        float sq[4] = {s.Rotation.x, s.Rotation.y, s.Rotation.z, s.Rotation.w}, oq[4];
+        refQMul(dq, sq, oq);
+        SwPoint p = swPointDefault();
+        p.Position = {d.Position.x + rot[0], d.Position.y + rot[1], d.Position.z + rot[2]};
+        p.FX1 = s.FX1; p.Rotation = {oq[0], oq[1], oq[2], oq[3]};
+        prodRef.push_back(p);
+      }
+    }
+
+    auto buildRepeat = [&](Graph& g) {
+      Node src; src.id = 1; src.type = "LinearPointsCpu";
+      src.params["Count"] = 2.0f;
+      src.params["Start.x"] = srcStart[0]; src.params["Start.y"] = srcStart[1]; src.params["Start.z"] = srcStart[2];
+      src.params["Offset.x"] = srcOff[0]; src.params["Offset.y"] = srcOff[1]; src.params["Offset.z"] = srcOff[2];
+      g.nodes.push_back(src);
+      Node dst; dst.id = 2; dst.type = "RadialPointsCpu";
+      dst.params["Count"] = (float)destN; dst.params["Radius"] = destR; dst.params["W"] = 1.0f;
+      g.nodes.push_back(dst);
+      Node rep; rep.id = 3; rep.type = "RepeatAtPointsCpu"; g.nodes.push_back(rep);
+      // RepeatAtPointsCpu: SourcePoints = spec port 1, DestinationsPoints = spec port 2.
+      g.connections.push_back({100, pinId(1, 0), pinId(3, 1)});  // LinearPointsCpu → SourcePoints
+      g.connections.push_back({101, pinId(2, 0), pinId(3, 2)});  // RadialPointsCpu → DestinationsPoints
+    };
+
+    // 7a transport (flat): cook RepeatAtPointsCpu as terminal → debugCookedPointList == product.
+    PointGraph pg(dev, lib, q, 64, 64);
+    Graph g; buildRepeat(g);
+    EvaluationContext ctx{}; ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+    pointListInjectBug() = injectBug;
+    pg.cook(g, ctx, nullptr, /*terminal=*/3);
+    pointListInjectBug() = false;
+    const std::vector<SwPoint>* got = pg.debugCookedPointList(3);
+    // HARD per-op tooth: assert the full cartesian product ALWAYS → injectBug (upstream cleared → RepeatAt
+    // sees no input → empty out) FAILS here. Proves the dual-input gather + product math, not vacuously.
+    std::vector<SwPoint> want = prodRef;
+    bool passT = got && got->size() == want.size();
+    if (passT) for (size_t i = 0; i < want.size(); ++i) if (!pointsEq((*got)[i], want[i])) { passT = false; break; }
+
+    // 7b ★PRODUCTION resident pixel: source×dest product rings → DrawPoints → lit + center black.
+    const uint32_t RW = 128, RH = 128;
+    // Production uses a bigger destination ring (32) × the same 2-point source → 64 product points.
+    PointGraph pgP(dev, lib, q, RW, RH);
+    Graph gp;
+    Node src; src.id = 1; src.type = "LinearPointsCpu";
+    src.params["Count"] = 2.0f;
+    src.params["Start.x"] = 0.5f; src.params["Start.y"] = 0.0f; src.params["Start.z"] = 0.0f;
+    src.params["Offset.x"] = 1.0f; src.params["Offset.y"] = 0.0f; src.params["Offset.z"] = 0.0f;
+    gp.nodes.push_back(src);
+    Node dst; dst.id = 2; dst.type = "RadialPointsCpu";
+    dst.params["Count"] = 32.0f; dst.params["Radius"] = 2.0f; dst.params["W"] = 1.0f;
+    gp.nodes.push_back(dst);
+    Node rep; rep.id = 3; rep.type = "RepeatAtPointsCpu"; gp.nodes.push_back(rep);
+    Node ltb; ltb.id = 4; ltb.type = "ListToBuffer"; gp.nodes.push_back(ltb);
+    Node drw; drw.id = 5; drw.type = "DrawPoints"; gp.nodes.push_back(drw);
+    Node rt; rt.id = 6; rt.type = "RenderTarget";
+    rt.params["Resolution"] = 4.0f; rt.params["CustomW"] = (float)RW; rt.params["CustomH"] = (float)RH;
+    gp.nodes.push_back(rt);
+    gp.connections.push_back({100, pinId(1, 0), pinId(3, 1)});  // Source
+    gp.connections.push_back({101, pinId(2, 0), pinId(3, 2)});  // Destinations
+    gp.connections.push_back({102, pinId(3, 0), pinId(4, 1)});  // RepeatAt → ListToBuffer.Lists
+    gp.connections.push_back({103, pinId(4, 0), pinId(5, 0)});  // ListToBuffer → DrawPoints
+    gp.connections.push_back({104, pinId(5, 1), pinId(6, 0)});  // DrawPoints → RenderTarget
+    SymbolLibrary slib = libFromGraph(gp);
+    ResidentEvalGraph rg = buildEvalGraph(slib, slib.rootId);
+    pointListInjectBug() = injectBug;
+    pgP.cookResident(rg, ctx, nullptr, /*RenderTarget path*/ "6");
+    pointListInjectBug() = false;
+    MTL::Texture* tex = pgP.target();
+    bool sized = tex && (uint32_t)tex->width() == RW && (uint32_t)tex->height() == RH;
+    int lit = 0; bool centerBlack = true;
+    if (sized) {
+      std::vector<uint8_t> px((size_t)RW * RH * 4, 0);
+      tex->getBytes(px.data(), RW * 4, MTL::Region::Make2D(0, 0, RW, RH), 0);
+      auto isLit = [&](uint32_t x, uint32_t y) {
+        size_t i = ((size_t)y * RW + x) * 4; return px[i] > 40 || px[i + 1] > 40 || px[i + 2] > 40; };
+      for (uint32_t y = 0; y < RH; ++y) for (uint32_t x = 0; x < RW; ++x) if (isLit(x, y)) ++lit;
+      const uint32_t cx = RW / 2, cy = RH / 2, hb = 2;
+      for (uint32_t y = cy - hb; y <= cy + hb; ++y) for (uint32_t x = cx - hb; x <= cx + hb; ++x)
+        if (isLit(x, y)) centerBlack = false;
+    }
+    // HARD tooth: production must be LIT (and center black) ALWAYS → injectBug (black screen) FAILS.
+    bool passP = sized && lit >= 16 && centerBlack;
+    bool pass = passT && passP;
+    ok = ok && pass;
+    std::printf("[selftest-pointlist] LEG7 RepeatAtPointsCpu(★dual-in) transport(n=%zu/want=%d) + "
+                "★PRODUCTION lit=%d centerBlack=%d -> %s\n",
+                got ? got->size() : 0, (int)want.size(), lit, centerBlack ? 1 : 0, pass ? "PASS" : "FAIL");
   }
 
   lib->release(); q->release(); dev->release(); pool->release();

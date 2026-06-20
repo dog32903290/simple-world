@@ -278,6 +278,9 @@ add_executable(simple_world
   src/runtime/pointlist_op_registry.cpp
   src/runtime/pointlist_ops_radialpointscpu.cpp
   src/runtime/pointlist_ops_transformcpupoint.cpp
+  src/runtime/pointlist_ops_linepointscpu.cpp
+  src/runtime/pointlist_ops_linearpointscpu.cpp
+  src/runtime/pointlist_ops_repeatatpointscpu.cpp
   src/runtime/pointlist_ops_listtobuffer.cpp
   src/pointlist_golden.cpp
   src/valuestotexture_golden.cpp
