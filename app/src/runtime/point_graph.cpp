@@ -18,10 +18,16 @@
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
 #include "runtime/mesh_op_registry.h"     // MeshCookCtx/findMeshOp (the 4th cook flow = MeshBuffers)
 #include "runtime/string_op_registry.h"        // StringCookCtx/findStringOp (the 6th cook flow = host std::string)
+#include "runtime/pointlist_op_registry.h"     // PointListCookCtx/findPointListOp (the 7th cook flow = host SwPoint list)
 #include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
 
 namespace sw {
+
+// The ListToBuffer upload-bridge predicate (pointlist_ops_listtobuffer.cpp). The cook driver detects
+// this Points-producing op and takes the PointList-gather + memcpy path (the host→GPU crossing) instead
+// of the generic Points-input gather. Forward-declared (defined in the leaf) so both cook driver TUs see it.
+bool isListToBufferType(const std::string& type);
 
 using pgdetail::cmdReg;
 using pgdetail::cookReg;
@@ -150,6 +156,11 @@ uint32_t PointGraph::debugCookedCount(int nodeId) const {
   return it != p_->outCount.end() ? it->second : 0u;
 }
 
+const MTL::Buffer* PointGraph::debugCookedBuffer(int nodeId) const {
+  auto it = p_->outBuf.find(flatKey(nodeId));
+  return it != p_->outBuf.end() ? it->second : nullptr;
+}
+
 bool PointGraph::debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
                                  const MTL::Buffer*& idx, uint32_t& idxCount) const {
   const std::string key = flatKey(nodeId);
@@ -172,6 +183,11 @@ const std::vector<float>* PointGraph::debugCookedFloatList(int nodeId) const {
 const std::string* PointGraph::debugCookedString(int nodeId) const {
   auto it = p_->stringBuf.find(flatKey(nodeId));
   return it != p_->stringBuf.end() ? &it->second : nullptr;
+}
+
+const std::vector<SwPoint>* PointGraph::debugCookedPointList(int nodeId) const {
+  auto it = p_->pointListBuf.find(flatKey(nodeId));
+  return it != p_->pointListBuf.end() ? &it->second : nullptr;
 }
 
 int PointGraph::defaultDrawTarget(const Graph& g) const {
@@ -250,6 +266,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return &(paramsMemo[id] = resolveNodeParams(g, *n, ctx, reg));
   };
 
+  // Forward-declared (body below): the PointList cook flow (7th flow = host std::vector<SwPoint>). A
+  // pointlist op (RadialPointsCpu/TransformCpuPoint) gathers its PointList inputs by recursing into
+  // cookPointListNode; the ListToBuffer bridge (a Points op, cookNode below) also calls it to gather the
+  // host list it memcpys to the GPU. Declared HERE (before cookNode) so cookNode's ListToBuffer branch
+  // can call it; std::function breaks the ordering (the body is assigned after cookNode is defined).
+  std::function<const std::vector<SwPoint>*(int)> cookPointListNode;
+
   std::function<MTL::Buffer*(int)> cookNode = [&](int id) -> MTL::Buffer* {
     auto m = cooked.find(id);
     if (m != cooked.end()) return m->second;
@@ -257,6 +280,34 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     if (!n) return nullptr;
     const NodeSpec* s = findSpec(n->type);
     if (!s) return nullptr;
+
+    // PointList → GPU UPLOAD BRIDGE (ListToBuffer): a Points-producing op whose INPUT is a host
+    // PointList (not a GPU Points buffer). Gather its PointList input(s) via cookPointListNode
+    // (MultiInput-expanded, wire-declaration order = TiXL Lists.CollectedInputs), concatenate into one
+    // host SwPoint vector, size the output buffer to the total count (ensureOut), and memcpy the host
+    // points into contents() (StorageModeShared). After this, the output is a normal GPU point bag the
+    // downstream DrawPoints path consumes unchanged. ListToBuffer.cs: empty inputs → null/0 (here:
+    // ensureOut(0) → a 1-cap buffer with outCount 0, the engine's "empty bag" convention).
+    if (isListToBufferType(n->type)) {
+      std::vector<SwPoint> all;
+      for (size_t i = 0; i < s->ports.size(); ++i) {
+        const PortSpec& port = s->ports[i];
+        if (!(port.isInput && port.dataType == "PointList")) continue;
+        const int inPin = pinId(id, (int)i);
+        for (const Connection& c : g.connections) {
+          if (c.toPin != inPin) continue;
+          const std::vector<SwPoint>* up = cookPointListNode(pinNode(c.fromPin));
+          if (up) all.insert(all.end(), up->begin(), up->end());
+          if (!port.multiInput) break;  // single-input: first wire only
+        }
+      }
+      uint32_t count = (uint32_t)all.size();
+      MTL::Buffer* out = p_->ensureOut(flatKey(id), count);  // sizes + records outCount[key]=count
+      if (out && count > 0)
+        std::memcpy(out->contents(), all.data(), (size_t)count * sizeof(SwPoint));  // host→GPU memcpy
+      cooked[id] = out;
+      return out;
+    }
 
     // Gather buffer inputs (Points + ParticleForce input ports, in spec order) + their counts
     // + the feeding node's resolved params (force ops read these via cookInputParam).
@@ -678,6 +729,43 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return &out;
   };
 
+  // Cook a POINTLIST-flow node (the 7th cook flow = TiXL Slot<StructuredList> / StructuredList<Point>).
+  // The currency is a HOST std::vector<SwPoint> living in Impl::pointListBuf (no GPU buffer, no pre-
+  // sizing — the op clears + fills it). VERBATIM clone of cookFloatListNode (float→SwPoint): for each
+  // PointList input port, gather upstream lists (MultiInput → one list per wire, wire-declaration order)
+  // into `inputLists`, then dispatch the op. Returns the cooked host list (nullptr if not a pointlist op).
+  cookPointListNode = [&](int id) -> const std::vector<SwPoint>* {
+    const Node* n = g.node(id);
+    if (!n) return nullptr;
+    const NodeSpec* s = findSpec(n->type);
+    if (!s) return nullptr;
+    const PointListCookFn* fn = findPointListOp(n->type);
+    if (!fn || !*fn) return nullptr;
+
+    std::vector<std::vector<SwPoint>> inputLists;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!(port.isInput && port.dataType == "PointList")) continue;
+      const int inPin = pinId(id, (int)i);
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        const std::vector<SwPoint>* up = cookPointListNode(pinNode(c.fromPin));
+        inputLists.push_back(up ? *up : std::vector<SwPoint>{});
+        if (!port.multiInput) break;  // single-input: first wire only
+      }
+    }
+
+    std::vector<SwPoint>& out = p_->pointListBuf[flatKey(id)];
+    PointListCookCtx pc;
+    pc.dev = p_->dev; pc.lib = p_->lib; pc.queue = p_->queue;
+    pc.ctx = &ctx; pc.nodeId = id;
+    pc.inputLists = &inputLists;
+    pc.output = &out;
+    pc.params = nodeParams(id);
+    (*fn)(pc);
+    return &out;
+  };
+
   // Cook a STRING-flow node (the 6th cook flow = TiXL Slot<string>). The currency is a HOST
   // std::string living in Impl::stringBuf (no GPU buffer, no pre-sizing — the op assigns it). The
   // walker mirrors cookFloatListNode but the gather is over STRING inputs with the DUAL IDENTITY
@@ -860,6 +948,18 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   }
   if (findFloatListOp(target->type)) {
     cookFloatListNode(target->id);
+    p_->clearTarget();
+    return;
+  }
+
+  // PointList terminal (preview pin on a PointList-producing op: RadialPointsCpu/TransformCpuPoint):
+  // cook the host list so a test can read it back (debugCookedPointList). There is no PointList
+  // VISUALIZER (the host list must cross to the GPU via ListToBuffer → DrawPoints to be drawn). Clear
+  // the viewport (no pixels) so no stale frame, no crash (OUTPUT_PIN_VIEWER_CONTRACT §5). Checked AFTER
+  // the Points cook flow below would NOT match (a pointlist op has no cookReg/cmd/tex entry → it falls
+  // here); ListToBuffer is a Points op (cmd-consumable), so it does NOT reach this branch.
+  if (findPointListOp(target->type)) {
+    cookPointListNode(target->id);
     p_->clearTarget();
     return;
   }

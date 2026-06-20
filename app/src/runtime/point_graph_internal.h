@@ -108,6 +108,13 @@ struct PointGraph::Impl {
   // resident path (parallel to floatListBuf). The string value channel's transport store.
   std::map<std::string, std::string> stringBuf;  // key -> host string
 
+  // Per-node POINTLIST output (the 7th cook flow = TiXL Slot<StructuredList> / StructuredList<Point>).
+  // A HOST-side CPU point list (std::vector<SwPoint>) that rides between PointList ports — NOT a GPU
+  // buffer, so (like floatListBuf/stringBuf) there is NO Metal allocation and NO pre-sizing (the vector
+  // self-sizes; the op clears + fills it). Keyed by flat id or resident path (parallel to floatListBuf).
+  // The CPU point family's transport store; the ListToBuffer upload bridge memcpys it into a GPU outBuf.
+  std::map<std::string, std::vector<SwPoint>> pointListBuf;  // key -> host SwPoint list
+
   MTL::Buffer* ensureOut(const std::string& key, uint32_t count) {
     MTL::Buffer*& b = outBuf[key];
     if (!b || outCap[key] < count) {

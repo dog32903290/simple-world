@@ -250,6 +250,11 @@ add_executable(simple_world
   src/runtime/string_ops_floattostring.cpp
   src/runtime/string_ops_combinestrings.cpp
   src/string_rail_golden.cpp
+  src/runtime/pointlist_op_registry.cpp
+  src/runtime/pointlist_ops_radialpointscpu.cpp
+  src/runtime/pointlist_ops_transformcpupoint.cpp
+  src/runtime/pointlist_ops_listtobuffer.cpp
+  src/pointlist_golden.cpp
   src/valuestotexture_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp

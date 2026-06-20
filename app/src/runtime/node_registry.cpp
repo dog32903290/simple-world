@@ -38,6 +38,7 @@
 #include "runtime/floatlist_op_registry.h"     // floatListSpecSink() — floatlist (5th flow) ops self-register
 #include "runtime/host_scalar_op_registry.h"   // hostScalarSpecSink() — host-scalar (FloatList→Float bridge) ops self-register
 #include "runtime/string_op_registry.h"        // stringSpecSink() — string (6th flow) ops self-register
+#include "runtime/pointlist_op_registry.h"     // pointListSpecSink() — pointlist (7th flow: CPU point list) ops self-register
 #include "runtime/node_registry_math.h"
 
 #include <map>
@@ -118,6 +119,11 @@ const NodeSpec* findSpec(const std::string& type) {
   // FloatList-consuming host-scalar ops (FloatListLength/PickFloatFromList) register their spec here.
   for (const auto& s : hostScalarSpecSink())
     if (s.type == type) return &s;
+  // PointList family (the 7th cook flow = CPU point list): same live-read seam (init-order safe — sink
+  // populated by pre-main dynamic init of each pointlist_ops_<name>.cpp PointListOp registrar +
+  // ListToBuffer's bridge registrar). The CPU _cpu point ops + the ListToBuffer upload bridge.
+  for (const auto& s : pointListSpecSink())
+    if (s.type == type) return &s;
   auto it = dynamicSpecs().find(type);
   return it != dynamicSpecs().end() ? &it->second : nullptr;
 }
@@ -140,6 +146,8 @@ std::vector<std::string> specTypes() {
   for (const auto& s : stringSpecSink()) out.push_back(s.type);
   // Host-scalar ops (FloatList→Float bridge) self-register into their own sink — append for the Add menu.
   for (const auto& s : hostScalarSpecSink()) out.push_back(s.type);
+  // PointList ops (CPU point list + ListToBuffer bridge) self-register into their own sink — append.
+  for (const auto& s : pointListSpecSink()) out.push_back(s.type);
   return out;
 }
 

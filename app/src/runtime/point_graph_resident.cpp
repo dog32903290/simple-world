@@ -12,6 +12,7 @@
 #include "runtime/point_graph.h"
 
 #include <cstdio>
+#include <cstring>
 #include <functional>
 #include <map>
 #include <string>
@@ -22,11 +23,17 @@
 
 #include "runtime/graph.h"                 // NodeSpec/PortSpec/findSpec
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
+#include "runtime/pointlist_op_registry.h"     // PointListCookCtx/findPointListOp (the 7th cook flow = host SwPoint list)
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + op registries
 #include "runtime/resident_eval_graph.h"   // ResidentEvalGraph / drivers / resolveResidentFloatInputs
 #include "runtime/tixl_point.h"            // SwPoint + EvaluationContext
 
 namespace sw {
+
+// The ListToBuffer upload-bridge predicate (pointlist_ops_listtobuffer.cpp); same forward-decl as in
+// point_graph.cpp (the leaf defines it once). cookResident detects ListToBuffer and takes the PointList
+// gather + memcpy path so the CPU point family draws on the PRODUCTION (resident) path, not just flat.
+bool isListToBufferType(const std::string& type);
 
 using pgdetail::cmdReg;
 using pgdetail::cookReg;
@@ -85,6 +92,15 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     return &(paramsMemo[path] = resolveResidentFloatInputs(rg, *n, rc));
   };
 
+  // PointList walker (7th cook flow on the RESIDENT path): cook ONE upstream PointList-producing node
+  // into a host SwPoint list, gathering its PointList inputs THROUGH the resident graph (following the
+  // ResidentInput Connection drivers the flatten DOES project onto PointList slots — PointList is NOT a
+  // String, so flatten gives it a ResidentInput, exactly like FloatList/Points). Mirror of the flat
+  // cookPointListNode + the cookResidentFloatList pattern (resident_host_scalar_cook.cpp). This is what
+  // makes the CPU point family LIVE in the running app: ListToBuffer (cookNode below) calls this to
+  // gather the host list it memcpys onto the GPU, on the production cookResident path (R-2 iron rule).
+  std::function<const std::vector<SwPoint>*(const std::string&, int)> cookResidentPointList;
+
   // `depth` counts cookNode/cookCommand call-edges from the terminal; > kCookDepthCap = safe fail
   // (修2: the bypass redirect recursion was bare before — only the terminal loop had the cap).
   std::function<MTL::Buffer*(const std::string&, int)> cookNode =
@@ -115,6 +131,37 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
 
     const NodeSpec* s = findSpec(n->opType);
     if (!s) return nullptr;
+
+    // PointList → GPU UPLOAD BRIDGE (ListToBuffer) on the RESIDENT/PRODUCTION path (R-2): gather the
+    // node's PointList input(s) through the resident graph (cookResidentPointList follows the Connection
+    // drivers), concatenate into one host SwPoint vector, size the output buffer to the total count
+    // (ensureOut, per-path persistent), and memcpy the host points into contents(). After this the
+    // output is a normal GPU point bag the resident DrawPoints path consumes unchanged — so a real
+    // graph RadialPointsCpu→ListToBuffer→DrawPoints→RenderTarget renders ON SCREEN in the running app,
+    // not only in a flat selftest. Mirror of the flat cookNode ListToBuffer branch (point_graph.cpp).
+    if (isListToBufferType(n->opType)) {
+      std::vector<SwPoint> all;
+      for (const PortSpec& port : s->ports) {
+        if (!(port.isInput && port.dataType == "PointList")) continue;
+        const ResidentInput* ri = n->input(port.id);
+        if (ri && ri->driver == ResidentInput::Driver::Connection) {
+          const std::vector<SwPoint>* up = cookResidentPointList(ri->srcNodePath, depth + 1);
+          if (up) all.insert(all.end(), up->begin(), up->end());
+          if (port.multiInput) {
+            for (const auto& ec : ri->extraConns) {
+              const std::vector<SwPoint>* ue = cookResidentPointList(ec.first, depth + 1);
+              if (ue) all.insert(all.end(), ue->begin(), ue->end());
+            }
+          }
+        }
+      }
+      uint32_t count = (uint32_t)all.size();
+      MTL::Buffer* out = p_->ensureOut(path, count);  // per-path persistent; records outCount[path]=count
+      if (out && count > 0)
+        std::memcpy(out->contents(), all.data(), (size_t)count * sizeof(SwPoint));
+      cooked[path] = out;
+      return out;
+    }
 
     // Gather buffer inputs (Points + ParticleForce, spec order) via Connection drivers,
     // + the feeding node's resolved params (force ops read these via cookInputParam).
@@ -183,6 +230,48 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[path] = out;
     return out;
+  };
+
+  // PointList walker body (assigned now that cookNode exists; the two don't recurse into each other —
+  // ListToBuffer is the only crossing, via cookNode's branch above). Cooks ONE upstream PointList node
+  // into Impl::pointListBuf[path], gathering its PointList inputs through the resident Connection drivers
+  // (primary + extraConns, wire-declaration order), in spec port order. Mirror of the flat
+  // cookPointListNode + cookResidentFloatList. Returns nullptr if `path` is not a pointlist op.
+  cookResidentPointList = [&](const std::string& path, int depth) -> const std::vector<SwPoint>* {
+    if (depth > kCookDepthCap) { warnCookDepthOnce(); return nullptr; }
+    const ResidentNode* n = rg.node(path);
+    if (!n) return nullptr;
+    const NodeSpec* s = findSpec(n->opType);
+    if (!s) return nullptr;
+    const PointListCookFn* fn = findPointListOp(n->opType);
+    if (!fn || !*fn) return nullptr;
+
+    std::vector<std::vector<SwPoint>> inputLists;
+    for (const PortSpec& port : s->ports) {
+      if (!(port.isInput && port.dataType == "PointList")) continue;
+      const ResidentInput* ri = n->input(port.id);
+      if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        const std::vector<SwPoint>* upp = cookResidentPointList(ri->srcNodePath, depth + 1);
+        inputLists.push_back(upp ? *upp : std::vector<SwPoint>{});
+        if (port.multiInput) {
+          for (const auto& ec : ri->extraConns) {
+            const std::vector<SwPoint>* uep = cookResidentPointList(ec.first, depth + 1);
+            inputLists.push_back(uep ? *uep : std::vector<SwPoint>{});
+          }
+        }
+      }
+      // (An unwired / Constant PointList input contributes NO entry → empty → faithful to the flat gather.)
+    }
+
+    std::vector<SwPoint>& out = p_->pointListBuf[path];
+    PointListCookCtx pc;
+    pc.dev = p_->dev; pc.lib = p_->lib; pc.queue = p_->queue;
+    pc.ctx = &ctx; pc.nodeId = 0;
+    pc.inputLists = &inputLists;
+    pc.output = &out;
+    pc.params = nodeParams(path);
+    (*fn)(pc);
+    return &out;
   };
 
   // Cook a command node: resolve its upstream Points bag, then call its cmd fn -> RenderCommand.

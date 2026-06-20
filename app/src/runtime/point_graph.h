@@ -30,6 +30,7 @@ class Texture;
 }  // namespace MTL
 
 struct EvaluationContext;  // runtime/eval_context.h (full def in point_graph.cpp)
+struct SwPoint;            // runtime/tixl_point.h (64B host point; full def where the cook includes it)
 
 namespace sw {
 
@@ -287,6 +288,10 @@ class PointGraph {
   // cooked). Lets goldens assert the count-policy driver (e.g. SnapToPoints out == Points1, not
   // sum). flatKey(nodeId) internally.
   uint32_t debugCookedCount(int nodeId) const;
+  // Test-support: the GPU output buffer a flat-cooked Points-producing node holds last cook (nullptr if
+  // never cooked). StorageModeShared → a golden can read contents() for byte-parity (the ListToBuffer
+  // upload bridge proves the host→GPU memcpy + 64B SwPoint stride this way). Borrowed; do not release.
+  const MTL::Buffer* debugCookedBuffer(int nodeId) const;
   // Test-support for the Mesh flow (4th cook): the vertex+index buffers a flat-cooked mesh node
   // produced last cook, for CPU-readback goldens (contents()+memcpy, NO GPU draw). Returns false if
   // the node never cooked a mesh. Buffers are PointGraph-owned (borrowed; do not release).
@@ -300,6 +305,10 @@ class PointGraph {
   // last cook (Impl::stringBuf[flatKey(id)]). Returns nullptr if the node never cooked a string.
   // Borrowed (PointGraph-owned); valid until the next cook of that node.
   const std::string* debugCookedString(int nodeId) const;
+  // Test-support for the PointList flow (7th cook): the HOST point list a flat-cooked pointlist node
+  // produced last cook (Impl::pointListBuf[flatKey(id)]). Returns nullptr if the node never cooked a
+  // pointlist. Borrowed (PointGraph-owned); valid until the next cook of that node.
+  const std::vector<::SwPoint>* debugCookedPointList(int nodeId) const;
 
  private:
   struct Impl;
