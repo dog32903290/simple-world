@@ -17,6 +17,7 @@ void registerDrawPointOps() {
   registerDrawBillboardsOp();                   // Points → Command (DrawKind::Billboards, lane L)
   registerDrawScreenQuadOps();                  // Texture2D → Command (DrawKind::ScreenQuad) + ClearRenderTarget
   registerLayer2dOp();                          // Texture2D → Command (DrawKind::Layer2d, camera-context seam)
+  registerCameraOp();                           // Command → Command (explicit camera push/pop, Cut 3)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
 }
 

@@ -78,6 +78,29 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"ClearColor.z", "ClearColor.z", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"ClearColor.w", "ClearColor.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
        nullptr},
+      // Camera (TiXL Lib.render.camera.Camera): wraps a Command subtree and renders it through an
+      // explicit camera (Position/Target/Up/FieldOfView/ClipPlanes) instead of the driver-local default
+      // (Camera.cs push/pop). Command in → Command out (the op stamps its camera onto every subtree item;
+      // the RenderTarget executor builds WorldToCamera/CameraToClipSpace from those params). FORK (named):
+      // offset/roll/lensShift dropped (Camera.cs:82-103 commented embellishments); AspectRatio default 0
+      // → the output (RequestedResolution) aspect (Camera.cs:53-55). v1: no OrbitCamera/ActionCamera, no depth.
+      {"Camera", "Camera",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"Position.x", "Position", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"Position.y", "Position.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Position.z", "Position.z", "Float", true, 2.4142135f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Target.x", "Target", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"Target.y", "Target.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Target.z", "Target.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Up.x", "Up", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"Up.y", "Up.y", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Up.z", "Up.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"FieldOfView", "FieldOfView", "Float", true, 45.0f, 1.0f, 179.0f},
+        {"ClipPlanes.x", "ClipPlanes", "Float", true, 0.01f, 0.0001f, 1000.0f, Widget::Vec, {}, true, 2},
+        {"ClipPlanes.y", "ClipPlanes.y", "Float", true, 1000.0f, 0.0001f, 100000.0f, Widget::Vec, {}, true, 1},
+        {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
+       nullptr},
       // RenderTarget (TiXL Lib.image.generate.basic.RenderTarget): executes a Command chain into a
       // sized Texture2D — the RESOLUTION PIN. Command in, Texture2D out; Resolution enum picks the
       // output size (WindowFollow tracks the viewport, fixed modes pin a standard size, Custom reads

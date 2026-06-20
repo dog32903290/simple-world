@@ -213,18 +213,31 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     if (cm == cmdReg().end() || !cm->second) return rcmd;
     MTL::Buffer* pts = nullptr;
     uint32_t cnt = 0;
+    RenderCommand inCmd;          // Camera op's Command subtree (Cut 3)
+    bool haveInCmd = false;
+    bool havePts = false;
     for (const PortSpec& port : s->ports) {
-      if (!(port.isInput && port.dataType == "Points")) continue;
-      const ResidentInput* ri = n->input(port.id);
-      if (ri && ri->driver == ResidentInput::Driver::Connection) {
-        pts = cookNode(ri->srcNodePath, depth + 1);
-        cnt = p_->outCount[ri->srcNodePath];
+      if (!port.isInput) continue;
+      if (port.dataType == "Points" && !havePts) {
+        const ResidentInput* ri = n->input(port.id);
+        if (ri && ri->driver == ResidentInput::Driver::Connection) {
+          pts = cookNode(ri->srcNodePath, depth + 1);
+          cnt = p_->outCount[ri->srcNodePath];
+        }
+        havePts = true;
+      } else if (port.dataType == "Command" && !haveInCmd) {
+        // Cut 3: the Camera op wraps a Command subtree — recurse into the upstream command node
+        // (depth-capped via kCookDepthCap) and hand the cooked chain in via cc.inputCommand.
+        const ResidentInput* ri = n->input(port.id);
+        if (ri && ri->driver == ResidentInput::Driver::Connection)
+          inCmd = cookCommand(ri->srcNodePath, depth + 1);
+        haveInCmd = true;
       }
-      break;
     }
     CmdCookCtx cc;
     cc.ctx = &ctx; cc.graph = nullptr; cc.reg = reg;
     cc.nodeId = 0; cc.points = pts; cc.count = cnt;
+    cc.inputCommand = haveInCmd ? &inCmd : nullptr;
     cc.params = nodeParams(path);
     return cm->second(cc);
   };

@@ -110,6 +110,29 @@ struct RenderDrawItem {
   float layerRotateDeg = 0.0f;          // TiXL Rotate (.t3 default 0) — degrees
   float layerPosZ = 0.0f;               // TiXL PositionZ (.t3 default 0); position[] above = PositionXy
   uint32_t layerScaleMode = 0;          // TiXL ScaleMode (.t3 default 0 = FitHeight)
+  // ── Camera op (Cut 3): explicit per-item camera (TiXL Camera.cs push/pop, mechanism Option a) ──
+  // TiXL's Camera evaluates its subtree with context.WorldToCamera/CameraToClipSpace temporarily set
+  // to ITS matrices, then restores (Camera.cs:36-45). We are retained-mode with a per-item executor —
+  // there is no runtime scope stack to push onto. Instead the Camera op STAMPS its raw camera params
+  // onto every item its subtree produced (cookCamera); the EXECUTOR, when it composes a Layer2d item's
+  // ObjectToClipSpace, uses THIS camera's WorldToCamera/CameraToClipSpace instead of the driver-local
+  // default (F1). This reproduces push/pop without a scope stack — like the FloatList/context-var
+  // host-context precedent. hasCamera=false → the executor uses defaultLayerCameraForward (no Camera op).
+  //   NESTING/push-pop semantics: the INNERMOST camera wins. cookCamera stamps only items where
+  //   !hasCamera, so a deeper Camera (which already stamped) is respected by an outer one — exactly
+  //   restoring the previous context on pop. Ignored by every kind that does not read a camera (only
+  //   Layer2d reads it today; ScreenQuad is raw-clip by design).
+  // RAW params (NOT the matrices): the executor builds worldToCamera=lookAtRH(eye,target,up) and
+  // cameraToClipSpace=perspectiveFovRH(fovDeg, aspect, near, far). Aspect mirrors Camera.cs:53-55:
+  // camAspect>0 uses it, else the executor's output aspect (the RequestedResolution fallback).
+  bool hasCamera = false;
+  float camEye[3] = {0.0f, 0.0f, 0.0f};
+  float camTarget[3] = {0.0f, 0.0f, 0.0f};
+  float camUp[3] = {0.0f, 1.0f, 0.0f};
+  float camFovDeg = 45.0f;     // TiXL FieldOfView (degrees; .t3 default 45)
+  float camNear = 0.01f;       // TiXL ClipPlanes.X
+  float camFar = 1000.0f;      // TiXL ClipPlanes.Y
+  float camAspect = -1.0f;     // TiXL AspectRatio (.t3 default 0 → <0.0001 → use output aspect); <=0 = output aspect
 };
 
 // A render command chain: draw items in execution order (later items composite on top).

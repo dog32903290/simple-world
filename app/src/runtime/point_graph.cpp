@@ -334,18 +334,23 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // std::function ordering-break as cookTexNode itself.
   std::function<const std::vector<float>*(int)> cookFloatListNode;
 
-  // Cook a command node: resolve its upstream Points bag (+ first wired Texture2D input, FORK#1),
-  // then call its cmd fn -> RenderCommand.
-  auto cookCommand = [&](int id) -> RenderCommand {
+  // Cook a command node: resolve its upstream Points bag (+ first wired Texture2D input, FORK#1, +
+  // first wired Command subtree for the Camera op, Cut 3), then call its cmd fn -> RenderCommand.
+  // std::function (not auto) so it can recurse into an upstream command node (Camera wraps Command).
+  std::set<int> cmdVisiting;  // cycle guard for Command→Command recursion (Camera wraps Command)
+  std::function<RenderCommand(int)> cookCommand = [&](int id) -> RenderCommand {
     RenderCommand rc;
     const Node* n = g.node(id);
     const NodeSpec* s = n ? findSpec(n->type) : nullptr;
     if (!n || !s) return rc;
     auto cm = cmdReg().find(n->type);
     if (cm == cmdReg().end() || !cm->second) return rc;
+    if (!cmdVisiting.insert(id).second) return rc;  // already on the command stack → break the cycle
     MTL::Buffer* pts = nullptr;
     uint32_t cnt = 0;
     const MTL::Texture* inTex = nullptr;
+    RenderCommand inCmd;          // Camera op's Command subtree (Cut 3); empty unless a Command input wired
+    bool haveInCmd = false;
     bool havePts = false;
     for (size_t i = 0; i < s->ports.size(); ++i) {
       const PortSpec& port = s->ports[i];
@@ -359,14 +364,23 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         // upstream tex node (same cook-upstream-on-demand as Points). Borrowed, single-frame.
         const Connection* c = g.connectionToInput(pinId(id, (int)i));
         if (c) inTex = cookTexNode(pinNode(c->fromPin));
+      } else if (port.dataType == "Command" && !haveInCmd) {
+        // Cut 3: a command op (Camera) can WRAP a Command subtree — recurse into the upstream command
+        // node and hand the cooked chain in via cc.inputCommand. Mirrors the Texture2D gather above.
+        const Connection* c = g.connectionToInput(pinId(id, (int)i));
+        if (c) inCmd = cookCommand(pinNode(c->fromPin));
+        haveInCmd = true;
       }
     }
     CmdCookCtx cc;
     cc.ctx = &ctx; cc.graph = &g; cc.reg = reg;
     cc.nodeId = id; cc.points = pts; cc.count = cnt;
     cc.inputTexture = inTex;
+    cc.inputCommand = haveInCmd ? &inCmd : nullptr;
     cc.params = nodeParams(id);
-    return cm->second(cc);
+    RenderCommand out = cm->second(cc);
+    cmdVisiting.erase(id);  // pop: this node is no longer on the command stack
+    return out;
   };
 
   // Execute a Command chain into target() via a named texture executor. The live target IS the

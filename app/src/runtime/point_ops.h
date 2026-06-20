@@ -423,6 +423,17 @@ void registerDrawScreenQuadOps();  // registers BOTH DrawScreenQuad + ClearRende
 // render golden (drop-mul tooth; declared in field_camera.h since it shares the camera convention). ---
 RenderCommand cookLayer2d(CmdCookCtx& c);
 void registerLayer2dOp();
+
+// --- Camera command op (point_ops_camera.cpp, camera3d Cut 3). Command subtree in → Command out: an
+// explicit camera (Position/Target/Up/FOV/ClipPlanes) that renders its subtree through ITS camera
+// instead of the driver-local default (TiXL Camera.cs push/pop). Mechanism = per-item camera stamp
+// (Option a): cookCamera stamps its raw params onto every subtree item (innermost wins); the executor
+// (cookRenderTarget) builds WorldToCamera/CameraToClipSpace from them when composing ObjectToClipSpace.
+// runCameraSelfTest is the GENUINE eye-distance render tooth (a farther eye shrinks the quad → a
+// mid-radius pixel flips quad→background) + the closed-form math leg. ---
+RenderCommand cookCamera(CmdCookCtx& c);
+void registerCameraOp();
+int runCameraSelfTest(bool injectBug);
 // DrawScreenQuad golden: a uniform-gray source texture, Color=(2,1,1,1) tint → assert the center
 // pixel is R≈clamp(2*0.5)=1.0 (saturated) and G/B≈0.5 (the closed-form clamp(Color*tex,0,1000)).
 // injectBug drops the source texture → black → FAIL.

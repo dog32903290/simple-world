@@ -102,6 +102,13 @@ struct CmdCookCtx {
   // (PointGraph-owned, single-frame) — NEVER retained, same lifetime contract as `points`. Mirrors
   // TexCookCtx::inputTexture (the Texture2D flow's gather) but on the Command flow.
   const MTL::Texture* inputTexture = nullptr;
+  // First wired COMMAND input subtree (Camera op, Cut 3): a command op that wraps a Command subtree
+  // (TiXL Camera.Command input) gets the upstream chain cooked here. The cook driver gathers the
+  // node's Command input port by recursing into the upstream command node (mirrors inputTexture for
+  // the Texture2D-input command ops). null when no Command input is wired. Borrowed pointer into a
+  // driver-local RenderCommand (single-frame); the op may COPY its items (Camera stamps + re-emits).
+  // Point/Texture command ops (DrawPoints/DrawScreenQuad) leave it null → byte-identical path.
+  const RenderCommand* inputCommand = nullptr;
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
 };
 // A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.

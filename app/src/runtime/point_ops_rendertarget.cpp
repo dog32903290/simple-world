@@ -272,11 +272,25 @@ void cookRenderTarget(TexCookCtx& c) {
           // F1: the EXECUTOR finishes ObjectToClipSpace with this output's default camera (the
           // resolution-pin aspect). TransformBufferLayout.cs:13-16 order: o2w·worldToCamera·cameraToClipSpace.
           // Cut 2: ObjectToWorld is the SRT stack (TiXL _ProcessLayer2d) composed HERE — the ScaleMode
-          // aspect coupling needs viewAspect (camFwd, executor-local) AND imageAspect (srcTexture).
+          // aspect coupling needs viewAspect (camera, executor-local) AND imageAspect (srcTexture).
+          // Cut 3: if this item was stamped by a Camera op (it.hasCamera), build ITS WorldToCamera/
+          // CameraToClipSpace from the raw params (TiXL Camera.cs BuildProjectionMatrices, v1 scope)
+          // instead of the default — reproducing the push/pop context. Aspect: camAspect>0 uses it,
+          // else this output's aspect (Camera.cs:53-55 RequestedResolution fallback). Both the SRT
+          // viewAspect AND the projection use this camera (faithful — _ProcessLayer2d reads context's
+          // CameraToClipSpace, which the Camera op set).
+          LayerCameraForward cam = camFwd;
+          if (it.hasCamera) {
+            float ar = (it.camAspect > 0.0001f) ? it.camAspect : aspectF;
+            cam.worldToCamera = lookAtRH(it.camEye, it.camTarget, it.camUp);
+            cam.cameraToClipSpace =
+                perspectiveFovRH(it.camFovDeg * 3.14159265358979323846f / 180.0f, ar, it.camNear,
+                                 it.camFar);
+          }
           Mat4 objectToWorld{};
           if (it.layer2dComposeSRT) {
             // viewAspect = CameraToClipSpace.M22/M11 (_ProcessLayer2d.cs:37). imageAspect = srcW/srcH.
-            float viewAspect = viewAspectFromClip(camFwd.cameraToClipSpace);
+            float viewAspect = viewAspectFromClip(cam.cameraToClipSpace);
             float imgW = (float)it.srcTexture->width(), imgH = (float)it.srcTexture->height();
             float imageAspect = (imgH > 0.0f) ? imgW / imgH : 1.0f;
             // scale = Scale * Stretch (cs:40), then ScaleMode adjusts scale.X/Y (cs:49-101).
@@ -291,7 +305,7 @@ void cookRenderTarget(TexCookCtx& c) {
             // hand-built matrix). Kept so the seam-presence golden can drive an arbitrary matrix.
             for (int i = 0; i < 16; ++i) objectToWorld.m[i] = it.objectToClipSpace[i];
           }
-          Mat4 o2c = objectToClipSpace(objectToWorld, camFwd.worldToCamera, camFwd.cameraToClipSpace);
+          Mat4 o2c = objectToClipSpace(objectToWorld, cam.worldToCamera, cam.cameraToClipSpace);
           for (int i = 0; i < 16; ++i) P.objectToClipSpace[i] = o2c.m[i];
           P.applyTransform = it.applyTransform ? 1u : 0u;  // drop-mul golden tooth
           enc->setVertexBytes(&P, sizeof(P), DRAWQUADXF_Params);
