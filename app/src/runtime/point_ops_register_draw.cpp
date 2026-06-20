@@ -15,6 +15,8 @@ void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
   registerDrawLinesOp();                        // Points → Command (DrawKind::Lines, lane L)
   registerDrawClosedLinesOp();                  // Points → Command (DrawKind::Lines + closed, draw seam)
+  registerDrawPoints2Op();                      // Points → Command (DrawKind::Points2, Radius variant, draw 第二批)
+  registerDrawLinesBuildupOp();                 // Points → Command (DrawKind::LinesBuildup, W-reveal, draw 第二批)
   registerDrawBillboardsOp();                   // Points → Command (DrawKind::Billboards, lane L)
   registerDrawScreenQuadOps();                  // Texture2D → Command (DrawKind::ScreenQuad) + ClearRenderTarget
   registerLayer2dOp();                          // Texture2D → Command (DrawKind::Layer2d, camera-context seam)

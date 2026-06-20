@@ -54,6 +54,14 @@ enum class DrawKind : uint32_t {
                    // kind: it reads objectToClipSpace[16] + the camera-stamp fields (same as Layer2d)
                    // and is depth-TESTED (LessEqual + ZWrite) — every other kind draws depth-disabled.
                    // No point buffer; driven by meshVtx/meshIdx/meshIndexCount below.
+  Points2 = 7,     // draw_points2_vs: 6-vert screen-facing quad per Point sized by Radius (TiXL
+                   // DrawPoints2 → DrawPoints.hlsl Radius variant). Like Billboards but the size knob
+                   // is `size` (= Radius*10.8) and `useWForSize` scales by Point.FX1. Reads color/size/
+                   // useWForSize. Its OWN shader/PSO → DrawKind::Points (v1 DrawPoints) stays untouched.
+  LinesBuildup = 8,// draw_lines_buildup_vs: open polyline (Points[i]→Points[i+1], like Lines) with a
+                   // per-fragment W-reveal (TiXL DrawLinesBuildup → DrawLinesBuildup.hlsl). Reads
+                   // color/lineWidth + transitionProgress/visibleRange. Its OWN shader/PSO →
+                   // DrawKind::Lines (DrawLines/DrawClosedLines) stays untouched.
 };
 
 // Per-item blend equation (TiXL SharedEnums.BlendModes, factors from Core/Rendering/
@@ -159,6 +167,18 @@ struct RenderDrawItem {
   const MTL::Buffer* meshVtx = nullptr;   // borrowed SwVertex buffer (t0 PbrVertices)
   const MTL::Buffer* meshIdx = nullptr;   // borrowed SwTriIndex buffer (t1 FaceIndices)
   uint32_t meshIndexCount = 0;            // FACE count; vertexCount = meshIndexCount*3 (TiXL MultiplyInt ×3)
+  // ── DrawKind::Points2 (TiXL DrawPoints2 → DrawPoints.hlsl Radius variant) ──────────────────────
+  // useWForSize: TiXL UseWForSize (.t3 default true) — when true the per-Point W (FX1) scales each
+  // sprite (the shader's ScaleFX==1 path). DrawPoints2 uses `size` for the sprite size = Radius*10.8.
+  // Read ONLY by DrawKind::Points2; default true matches the .t3 default. Ignored by every other kind
+  // (DrawBillboards reads `size` but never `useWForSize`) → those items are byte-identical.
+  bool useWForSize = true;
+  // ── DrawKind::LinesBuildup (TiXL DrawLinesBuildup → DrawLinesBuildup.hlsl) ──────────────────────
+  // The progressive-reveal params: transitionProgress sweeps the visible window along the polyline
+  // (OffsetU = transitionProgress - 0.01 in the shader); visibleRange = the window width. Read ONLY
+  // by DrawKind::LinesBuildup; the .t3 defaults are 0.5/0.5. Ignored by every other kind → byte-identical.
+  float transitionProgress = 0.5f;  // TiXL TransitionProgress (.t3 default 0.5)
+  float visibleRange = 0.5f;        // TiXL VisibleRange (.t3 default 0.5)
 };
 
 // A render command chain: draw items in execution order (later items composite on top).

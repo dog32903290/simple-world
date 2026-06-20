@@ -437,6 +437,27 @@ void registerDrawClosedLinesOp();
 // wrap corner → the closing edge goes dark → both legs FAIL.
 int runDrawClosedLinesSelfTest(bool injectBug);
 
+// --- DrawPoints2 command op (point_ops_drawpoints2.cpp, draw 第二批). The Radius-driven DrawPoints
+// variant (TiXL DrawPoints2 → DrawPoints.hlsl): Points→Command (DrawKind::Points2, its own shader)
+// drawing each point as a Radius-sized screen-facing quad sprite, optionally W(FX1)-scaled. Registers
+// into the command stream. ---
+void registerDrawPoints2Op();
+// DrawPoints2 golden (R-2: flat + resident production legs): a single center point — assert the sprite
+// covers a real AREA on BOTH the flat executor path and the production cookResident path. injectBug(A
+// flat) Radius=0 → zero-area quad / (B resident) NaNs the point → no sprite → both legs FAIL.
+int runDrawPoints2SelfTest(bool injectBug);
+
+// --- DrawLinesBuildup command op (point_ops_drawlinesbuildup.cpp, draw 第二批). DrawLines + a W-driven
+// progressive reveal (TiXL DrawLinesBuildup → DrawLinesBuildup.hlsl): Points→Command (DrawKind::
+// LinesBuildup, its own shader) where TransitionProgress sweeps a VisibleRange-wide window along the
+// polyline (per-point W=FX1 is the reveal coord). Registers into the command stream. ---
+void registerDrawLinesBuildupOp();
+// DrawLinesBuildup golden (R-2: flat + resident production legs): a W-ramp row of points — assert the
+// in-window band is lit AND the ahead-of-window far-right is dark (the buildup), on BOTH the flat and
+// the production cookResident path. injectBug (TransitionProgress past the line) → in-window band
+// dark → both legs FAIL.
+int runDrawLinesBuildupSelfTest(bool injectBug);
+
 // --- DrawScreenQuad / ClearRenderTarget command ops (point_ops_drawscreenquad.cpp,
 // dx11-equiv-render-graph seam, block #2). DrawScreenQuad: Texture2D in → Command out
 // (DrawKind::ScreenQuad, tinted textured quad). ClearRenderTarget: Command out (DrawKind::Clear,

@@ -122,7 +122,9 @@ void cookRenderTarget(TexCookCtx& c) {
   if (!c.lib || !c.output) return;
   MTL::PixelFormat pf = c.output->pixelFormat();
   MTL::RenderPipelineState* psoPoints = nullptr;
+  MTL::RenderPipelineState* psoPoints2 = nullptr;     // DrawPoints2 (DrawKind::Points2)
   MTL::RenderPipelineState* psoLines = nullptr;
+  MTL::RenderPipelineState* psoLinesBuildup = nullptr;  // DrawLinesBuildup (DrawKind::LinesBuildup)
   MTL::RenderPipelineState* psoBb = nullptr;
   // ScreenQuad PSO variants, lazily built per blend mode (FORK#3, scoped to this batch's 2 modes:
   // Normal/Additive). Same per-call lazy posture as the point/line PSOs above — the executor's
@@ -222,6 +224,27 @@ void cookRenderTarget(TexCookCtx& c) {
           enc->drawPrimitives(MTL::PrimitiveTypePoint, NS::UInteger(0), NS::UInteger(it.count));
           break;
         }
+        case DrawKind::Points2: {
+          // DrawPoints2 (TiXL DrawPoints2 → DrawPoints.hlsl Radius variant): a screen-facing quad
+          // sprite per Point sized by `size` (= Radius*10.8) and optionally scaled by Point.W (FX1).
+          // Its own shader/PSO — DrawKind::Points (v1) is untouched. Blends (alpha-over) like billboards.
+          if (!psoPoints2)
+            psoPoints2 = makeDrawPSO(c.dev, c.lib, "draw_points2_vs", "draw_points2_fs", pf, true);
+          if (!psoPoints2) break;
+          enc->setRenderPipelineState(psoPoints2);
+          enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAWPOINT2_Points);
+          DrawPoint2Params pp{};
+          pp.color[0] = it.color[0]; pp.color[1] = it.color[1];
+          pp.color[2] = it.color[2]; pp.color[3] = it.color[3];
+          pp.pointSize = it.size;          // host has already applied Radius*10.8 into `size`
+          pp.viewExtent = it.viewExtent;
+          pp.useWForSize = it.useWForSize ? 1u : 0u;
+          enc->setVertexBytes(&pp, sizeof(pp), DRAWPOINT2_Params);
+          // N points × 6 verts (screen-facing quad).
+          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
+                              NS::UInteger(it.count * 6));
+          break;
+        }
         case DrawKind::Lines: {
           if (it.count < 2) break;  // need ≥2 points to form one segment
           if (!psoLines)
@@ -259,6 +282,32 @@ void cookRenderTarget(TexCookCtx& c) {
           if (segs == 0) break;
           enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
                               NS::UInteger((size_t)segs * 6));
+          break;
+        }
+        case DrawKind::LinesBuildup: {
+          // DrawLinesBuildup (TiXL DrawLinesBuildup → DrawLinesBuildup.hlsl): an open polyline like
+          // DrawLines (count-1 segments) with a per-fragment W-reveal (transitionProgress sweeps the
+          // visible window). Its own shader/PSO — DrawKind::Lines is untouched. Blends (alpha-over) so
+          // the reveal ramp fades in/out. The FS reads the same params cbuffer (reveal math).
+          if (it.count < 2) break;  // need ≥2 points to form one segment
+          if (!psoLinesBuildup)
+            psoLinesBuildup =
+                makeDrawPSO(c.dev, c.lib, "draw_lines_buildup_vs", "draw_lines_buildup_fs", pf, true);
+          if (!psoLinesBuildup) break;
+          enc->setRenderPipelineState(psoLinesBuildup);
+          enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAWLINEBU_Points);
+          DrawLineBuildupParams bp{};
+          bp.color[0] = it.color[0]; bp.color[1] = it.color[1];
+          bp.color[2] = it.color[2]; bp.color[3] = it.color[3];
+          bp.lineWidth = it.lineWidth;
+          bp.viewExtent = it.viewExtent;
+          bp.transitionProgress = it.transitionProgress;
+          bp.visibleRange = it.visibleRange;
+          enc->setVertexBytes(&bp, sizeof(bp), DRAWLINEBU_Params);
+          enc->setFragmentBytes(&bp, sizeof(bp), DRAWLINEBU_Params);
+          // OPEN polyline: (count-1) segments × 6 verts (sequential adjacency, TiXL DrawLines topology).
+          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
+                              NS::UInteger((size_t)(it.count - 1) * 6));
           break;
         }
         case DrawKind::Billboards: {
@@ -450,7 +499,9 @@ void cookRenderTarget(TexCookCtx& c) {
   cmd->commit();
   cmd->waitUntilCompleted();
   if (psoPoints) psoPoints->release();
+  if (psoPoints2) psoPoints2->release();
   if (psoLines) psoLines->release();
+  if (psoLinesBuildup) psoLinesBuildup->release();
   if (psoBb) psoBb->release();
   if (psoSQ[0]) psoSQ[0]->release();
   if (psoSQ[1]) psoSQ[1]->release();

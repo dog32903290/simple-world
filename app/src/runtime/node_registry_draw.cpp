@@ -48,6 +48,42 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"LineWidth", "LineWidth", "Float", true, 0.02f, 0.0f, 1.0f},
         {"PointsPerShape", "PointsPerShape", "Float", true, 0.0f, 0.0f, 100000.0f}},
        nullptr},
+      // DrawPoints2 (TiXL Lib.point.draw.DrawPoints2 → DrawPoints.hlsl Radius variant): the
+      // Radius-driven DrawPoints — draws the bag as screen-facing quad sprites sized by Radius (the
+      // .t3 routes Radius → ×10.8 → the shader PointSize), optionally scaled per-point by W (FX1,
+      // UseWForSize). Points in → Command out (DrawKind::Points2 — its own shader, v1 DrawPoints
+      // untouched). Params mirror DrawPoints2.t3: Color (Vec4 white) + Radius (0.01) + UseWForSize (1).
+      // FORK (named): camera/Transforms/Fog/FadeNearest/BlendMode/ZTest/ZWrite + the Texture_ sprite
+      // atlas (asset-bind seam not built → omitted, flat square sprite) dropped (no camera system).
+      {"DrawPoints2", "DrawPoints2",
+       {{"points", "points", "Points", true},
+        {"out", "out", "Command", false},
+        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Radius", "Radius", "Float", true, 0.01f, 0.0f, 10.0f},
+        {"UseWForSize", "UseWForSize", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr},
+      // DrawLinesBuildup (TiXL Lib.point.draw.DrawLinesBuildup → DrawLinesBuildup.hlsl): DrawLines'
+      // polyline with a progressive W-reveal — TransitionProgress sweeps a VisibleRange-wide visible
+      // window along the line (each point's W=FX1 is the reveal coord). Points in → Command out
+      // (DrawKind::LinesBuildup — its own shader, DrawLines/DrawClosedLines untouched). Params mirror
+      // DrawLinesBuildup.t3: Color (Vec4 white) + LineWidth (0.02) + TransitionProgress (0.5) +
+      // VisibleRange (0.5). FORK (named): camera/Transforms/ShrinkWithDistance/Fog/miter/BlendMode/
+      // ZTest/ZWrite + the Texture_ sample (white-pixel no-op) + Color×ForegroundColor theme coupling
+      // dropped (DrawLines fork class); Texture_ port deferred (asset-bind seam not built).
+      {"DrawLinesBuildup", "DrawLinesBuildup",
+       {{"points", "points", "Points", true},
+        {"out", "out", "Command", false},
+        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"LineWidth", "LineWidth", "Float", true, 0.02f, 0.0f, 1.0f},
+        {"TransitionProgress", "TransitionProgress", "Float", true, 0.5f, 0.0f, 1.0f},
+        {"VisibleRange", "VisibleRange", "Float", true, 0.5f, 0.0f, 1.0f}},
+       nullptr},
       // DrawBillboards (TiXL Lib.point.draw.DrawBillboards): expands each Point into a
       // screen-facing quad sprite (draw_billboards.metal). Points in → Command out. Params mirror
       // DrawBillboards.t3: Scale (1.0) + Color (Vec4, white); per-point Scale.xy stretch kept

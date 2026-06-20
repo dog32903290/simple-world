@@ -107,9 +107,59 @@ struct DrawQuadXfParams {
 #endif
 };
 
+// DrawPoints2 cbuffer (b0) — TiXL DrawPoints2 → DrawPoints.hlsl. color = tint (Color, .t3 white);
+// pointSize = the shader's PointSize (host pre-multiplies Radius*10.8, the .t3 Multiply chain);
+// viewExtent = ortho half-extent; useWForSize = TiXL UseWForSize (1 → sprite scaled by Point.FX1=W,
+// the ScaleFX==1 path; 0 → factor 1). DrawPoints2 rides DrawKind::Points2 (its own shader/PSO) so
+// the v1 DrawPoints path (DrawKind::Points, bare float viewExtent binding) stays byte-identical.
+struct DrawPoint2Params {
+#ifdef __METAL_VERSION__
+  float4 color;
+#else
+  float color[4];
+#endif
+  float pointSize;   // = Radius * 10.8 (host MultiplyInt chain)
+  float viewExtent;
+#ifdef __METAL_VERSION__
+  uint  useWForSize; // 1 = scale sprite by Point.FX1 (W); 0 = factor 1
+#else
+  uint32_t useWForSize;
+#endif
+  float _pad0;       // -> 32 bytes (16-byte multiple)
+};
+
+// DrawLinesBuildup cbuffer (b0) — TiXL DrawLinesBuildup → DrawLinesBuildup.hlsl. color = tint
+// (Color, .t3 white); lineWidth = band width (LineWidth, .t3 0.02); viewExtent = ortho half-extent;
+// transitionProgress = TiXL TransitionProgress (.t3 0.5; OffsetU = transitionProgress - 0.01 in the
+// shader); visibleRange = TiXL VisibleRange (.t3 0.5, the reveal-window width). The reveal alpha is
+// computed in the FS from each vert's wAtPoint (Point.FX1). Rides DrawKind::LinesBuildup (its own
+// shader/PSO) so DrawLines / DrawClosedLines (DrawKind::Lines) stay byte-identical.
+struct DrawLineBuildupParams {
+#ifdef __METAL_VERSION__
+  float4 color;
+#else
+  float color[4];
+#endif
+  float lineWidth;
+  float viewExtent;
+  float transitionProgress;  // TiXL TransitionProgress (OffsetU = this - 0.01)
+  float visibleRange;        // TiXL VisibleRange (reveal-window width)
+  // -> 32 bytes (16-byte multiple)
+};
+
 enum DrawLineBinding {
   DRAWLINE_Points = 0,  // device const SwPoint* (vertex buffer)
   DRAWLINE_Params = 1,  // constant DrawLineParams&
+};
+
+enum DrawPoint2Binding {
+  DRAWPOINT2_Points = 0,  // device const SwPoint* (vertex buffer)
+  DRAWPOINT2_Params = 1,  // constant DrawPoint2Params&
+};
+
+enum DrawLineBuildupBinding {
+  DRAWLINEBU_Points = 0,  // device const SwPoint* (vertex buffer)
+  DRAWLINEBU_Params = 1,  // constant DrawLineBuildupParams& (vertex + fragment)
 };
 
 enum DrawBillboardBinding {
@@ -132,6 +182,8 @@ enum DrawQuadXfBinding {
 };
 
 #ifndef __METAL_VERSION__
+static_assert(sizeof(DrawPoint2Params) == 32, "DrawPoint2Params 32 bytes");
+static_assert(sizeof(DrawLineBuildupParams) == 32, "DrawLineBuildupParams 32 bytes");
 static_assert(sizeof(DrawLineParams) == 32, "DrawLineParams 32 bytes");
 static_assert(sizeof(DrawBillboardParams) == 32, "DrawBillboardParams 32 bytes");
 static_assert(sizeof(DrawScreenQuadParams) == 48, "DrawScreenQuadParams 48 bytes");

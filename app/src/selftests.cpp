@@ -349,6 +349,8 @@ const SelfTest kTable[] = {
     {"convertcolors", runConvertColorsSelfTest},
     {"drawlines", runDrawLinesSelfTest},
     {"drawclosedlines", runDrawClosedLinesSelfTest},
+    {"drawpoints2", runDrawPoints2SelfTest},
+    {"drawlinesbuildup", runDrawLinesBuildupSelfTest},
     {"drawbillboards", runDrawBillboardsSelfTest},
     {"drawscreenquad", runDrawScreenQuadSelfTest},
     {"drawscreenquadclamp", runDrawScreenQuadClampSelfTest},
