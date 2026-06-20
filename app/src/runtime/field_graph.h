@@ -102,6 +102,17 @@ struct FieldNode {
   // addGlobals: register reusable helper functions into ctx.globals (de-duped by key). Once per node.
   virtual void addGlobals(CodeAssembleCtx&) const {}
 
+  // tryBuildCustomCode: a node may take over the ENTIRE collect for itself (recursing its own inputs
+  // and choosing its own context structure) instead of the standard pre/recurse/post path. Returns true
+  // if it emitted the code (the standard recursion is then SKIPPED). 1:1 port of TiXL
+  // IGraphNodeOp.TryBuildCustomCode (ShaderGraphNode.cs:196-199): called right after addGlobals, before
+  // the InputNodes.Count branch. The DEFAULT IS false — every existing leaf/combiner keeps the standard
+  // pre/post path, so the emitted MSL is byte-identical to before this hook existed. Only the ops whose
+  // TiXL .cs implements TryBuildCustomCode (PushPullSDF / BlendSDFWithSDF — asymmetric input contexts
+  // the uniform multi-input subcontext loop cannot express) override it; they call back into the SAME
+  // collectEmbeddedShaderCode for their children via the free function below.
+  virtual bool tryBuildCustomCode(CodeAssembleCtx&) const { return false; }
+
   // preShaderCode / postShaderCode: emitted before / after iterating an input field (inputIndex).
   // A leaf SDF writes its `f{c}.w = ...` distance into preShaderCode and has no post code.
   virtual void preShaderCode(CodeAssembleCtx& c, int inputIndex) const = 0;
@@ -156,6 +167,20 @@ void appendVec2Param(std::vector<float>& v, std::vector<std::string>& fields,
                      const std::string& name, float x, float y);
 void appendScalarParam(std::vector<float>& v, std::vector<std::string>& fields,
                        const std::string& name, float value);
+// Append a float4x4 (16 floats, row-major as written into the buffer) and declare a `float4x4` struct
+// member. A float4x4 is a tight 64-byte block (4×16B), 16-byte-aligned. TiXL's matrix params live in the
+// HLSL cbuffer as a `float4x4`; the packed-float buffer here lays the 16 floats in the SAME order TiXL's
+// AdditionalParameters writes them (the C# side has already transposed for HLSL's row-major cbuffer
+// layout). Used by TransformField's Transform (a ShaderGraphNode.AdditionalParameters, NOT a [GraphParam]
+// — but the packing mechanism is identical: floats into the one shared buffer, a typed struct member).
+void appendMat4Param(std::vector<float>& v, std::vector<std::string>& fields,
+                     const std::string& name, const float m[16]);
+
+// Recurse a field subtree's shader code into `cac` (the public entry custom-code ops call to collect
+// their OWN children). 1:1 with TiXL ShaderGraphNode.CollectEmbeddedShaderCode: pushes the root context
+// if the stack is empty, runs the node's addGlobals, honors tryBuildCustomCode, else drives the standard
+// pre/recurse/post path. assembleFieldMSL calls this on the root; a custom-code op calls it on each child.
+void collectFieldCode(const FieldNode& node, CodeAssembleCtx& cac);
 
 // Concrete SDF leaves do NOT live here. Each is a self-contained leaf .cpp (field_ops_<name>.cpp)
 // that subclasses FieldNode in an anonymous namespace and registers via the FieldOp seam — this

@@ -40,14 +40,21 @@ void CodeAssembleCtx::popContext() {
 
 // ---- tree recursion (port of ShaderGraphNode.CollectEmbeddedShaderCode) --------------------------
 
-namespace {
-
-void collectEmbeddedShaderCode(const FieldNode& node, CodeAssembleCtx& cac) {
+// collectFieldCode — PUBLIC (declared in field_graph.h). 1:1 port of TiXL
+// ShaderGraphNode.CollectEmbeddedShaderCode. Custom-code ops call this on their children; the assembler
+// calls it on the root. (Was the anonymous-namespace `collectEmbeddedShaderCode`; promoted to public so
+// tryBuildCustomCode ops can recurse their own inputs through the SAME entry — keeping context-id /
+// globals / addGlobals ordering identical to the standard path.)
+void collectFieldCode(const FieldNode& node, CodeAssembleCtx& cac) {
   // Root pushes the empty context (TiXL: isRoot -> ContextIdStack.Add("")).
   const bool isRoot = cac.contextIdStack.empty();
   if (isRoot) cac.contextIdStack.push_back("");
 
   node.addGlobals(cac);
+
+  // TiXL ShaderGraphNode.cs:196-199 — a node may emit ALL its code itself (recursing its own inputs,
+  // choosing its own context structure). If it does, the standard pre/recurse/post path is skipped.
+  if (node.tryBuildCustomCode(cac)) return;
 
   if (node.inputs.empty()) {
     // A node without an input field is a distance function: emit pre+post at field index 0.
@@ -71,7 +78,7 @@ void collectEmbeddedShaderCode(const FieldNode& node, CodeAssembleCtx& cac) {
 
       node.preShaderCode(cac, static_cast<int>(inputFieldIndex));
       if (node.inputs[inputFieldIndex])
-        collectEmbeddedShaderCode(*node.inputs[inputFieldIndex], cac);
+        collectFieldCode(*node.inputs[inputFieldIndex], cac);
       node.postShaderCode(cac, static_cast<int>(inputFieldIndex));
 
       cac.popContext();
@@ -81,10 +88,12 @@ void collectEmbeddedShaderCode(const FieldNode& node, CodeAssembleCtx& cac) {
     cac.indentCount--;
   } else {
     node.preShaderCode(cac, 0);
-    if (node.inputs[0]) collectEmbeddedShaderCode(*node.inputs[0], cac);
+    if (node.inputs[0]) collectFieldCode(*node.inputs[0], cac);
     node.postShaderCode(cac, 0);
   }
 }
+
+namespace {
 
 void collectAllParams(const FieldNode& node, std::vector<float>& floats,
                       std::vector<std::string>& fields) {
@@ -186,6 +195,26 @@ void appendScalarParam(std::vector<float>& v, std::vector<std::string>& fields,
   fields.push_back("float " + name);
 }
 
+void appendMat4Param(std::vector<float>& v, std::vector<std::string>& fields, const std::string& name,
+                     const float m[16]) {
+  // A float4x4 is a 64-byte (4×16B) block; an MSL `float4x4` struct member has alignment 16. We pad the
+  // buffer up to a 16-byte (4-float) boundary FIRST (the same discipline as the vec3 padForVec3 rule),
+  // then push the 16 floats verbatim and declare a `float4x4` member. TransformField is the sole matrix
+  // consumer and its matrix lands after a 4-float-aligned run (the depth-first child params before it
+  // total a multiple of 4 in the golden), so the pad is a no-op there; the pad keeps the helper correct
+  // for any future graph whose preceding params leave a non-aligned offset. The 16 floats are in the
+  // order MSL's float4x4 STRUCT MEMBER reads them (column-major; see field_ops_transformfield.cpp fork (2)).
+  const int rem = static_cast<int>(v.size()) % 4;
+  if (rem != 0) {
+    for (int i = rem; i < 4; ++i) {
+      v.push_back(0.f);
+      fields.push_back("float __padding" + std::to_string(v.size()));
+    }
+  }
+  for (int i = 0; i < 16; ++i) v.push_back(m[i]);
+  fields.push_back("float4x4 " + name);
+}
+
 // ---- assembler (port of GenerateShaderGraphCode.GenerateShaderCode) ------------------------------
 
 AssembledField assembleFieldMSL(const std::shared_ptr<FieldNode>& root,
@@ -198,7 +227,7 @@ AssembledField assembleFieldMSL(const std::shared_ptr<FieldNode>& root,
   CodeAssembleCtx cac;
 
   // 1. Calls + globals + definitions (tree recursion).
-  collectEmbeddedShaderCode(*root, cac);
+  collectFieldCode(*root, cac);
 
   // 2. Float params (single buffer) + their field declarations (depth-first, parity order).
   std::vector<std::string> paramFields;

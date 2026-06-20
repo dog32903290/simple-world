@@ -76,6 +76,9 @@ namespace sw { int runFieldTranslateUvGoldenSelfTest(bool); }     // field_ops_t
 namespace sw { int runFieldStairCombineSdfGoldenSelfTest(bool); } // field_ops_staircombinesdf_golden.cpp (multi-input combiner; stairs/columns joinery, by-value pMod1 compile)
 namespace sw { int runFieldNoiseDisplaceSdfGoldenSelfTest(bool); }// field_ops_noisedisplacesdf_golden.cpp (single-input PRE+POST; simplex distance displace, shared fSimplexNoiseDisplace key)
 namespace sw { int runFieldSpatialDisplaceSdfGoldenSelfTest(bool); }// field_ops_spatialdisplacesdf_golden.cpp (single-input PRE-wrap; vNoise position warp, two globals favourable order)
+namespace sw { int runFieldTransformFieldGoldenSelfTest(bool); }  // field_ops_transformfield_golden.cpp (single-input PRE+POST; float4x4 point xform mul(v,M)->M*v, UniformScale)
+namespace sw { int runFieldPushPullSdfGoldenSelfTest(bool); }     // field_ops_pushpullsdf_golden.cpp (custom-collect adjust; SdfField parent-context + optional AmountField subcontext)
+namespace sw { int runFieldBlendSdfWithSdfGoldenSelfTest(bool); } // field_ops_blendsdfwithsdf_golden.cpp (3-input custom-collect; sdfBlendByMask helper + f.xyz mix, shared Common key)
 namespace sw { int runMeshNGonGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: NGonMesh)
 namespace sw { int runMeshQuadGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: QuadMesh)
 namespace sw { int runMeshTransformGoldenSelfTest(bool); }       // mesh_input_golden.cpp (mesh-input seam: TransformMesh consumer)
@@ -228,6 +231,9 @@ const SelfTest kTable[] = {
     {"field-staircombinesdf", runFieldStairCombineSdfGoldenSelfTest},
     {"field-noisedisplacesdf", runFieldNoiseDisplaceSdfGoldenSelfTest},
     {"field-spatialdisplacesdf", runFieldSpatialDisplaceSdfGoldenSelfTest},
+    {"field-transformfield", runFieldTransformFieldGoldenSelfTest},
+    {"field-pushpullsdf", runFieldPushPullSdfGoldenSelfTest},
+    {"field-blendsdfwithsdf", runFieldBlendSdfWithSdfGoldenSelfTest},
     {"mesh-ngon", runMeshNGonGoldenSelfTest},
     {"mesh-quad", runMeshQuadGoldenSelfTest},
     {"mesh-transform", runMeshTransformGoldenSelfTest},
