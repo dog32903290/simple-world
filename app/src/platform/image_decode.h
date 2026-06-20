@@ -44,10 +44,23 @@ DecodedImage decodeImageFile(const std::string& absPath);
 // Decode in-memory PNG/image bytes to RGBA8 (same pipeline as decodeImageFile).
 DecodedImage decodeImageBytes(const uint8_t* data, size_t len);
 
+// Generic CPU-buffer -> texture core (factored out of textureFromRgba8's non-mipped path; Slice B).
+// Allocates a NON-MIPPED, ShaderRead, StorageMode=Shared texture of (w*h) texels in `fmt` and uploads
+// `bytes` (tightly packed, rowPitch = w*bytesPerTexel). StorageMode=Shared is load-bearing: it lets a
+// CPU getBytes readback golden (ValuesToTexture's R32Float chain golden) read the result. Returns an
+// OWNED texture (caller release()s / NS::TransferPtr) or nullptr on bad args.
+//   `fmt` is the MTL::PixelFormat raw enum value passed as uint64_t (the .mm casts it back) so this
+//   header stays free of the heavy Metal.hpp include — same convention as tex_op_cache.h::TexPixelFormat.
+//   ValuesToTexture passes (R32Float, 4); textureFromRgba8 passes (RGBA8Unorm, 4).
+MTL::Texture* textureFromCpuBuffer(MTL::Device* dev, const void* bytes, uint32_t w, uint32_t h,
+                                   uint64_t fmt, uint32_t bytesPerTexel);
+
 // Upload decoded RGBA8 bytes to an MTLPixelFormatRGBA8Unorm texture (StorageModeShared,
 // ShaderRead). Returns an OWNED texture (caller release()s / NS::TransferPtr) or nullptr.
 // mipped=false for the noise asset (TiXL generates mips on LoadImage, but the raw decode itself
-// is level-0; Phase 1 verifies the decode, not mip generation).
+// is level-0; Phase 1 verifies the decode, not mip generation). The non-mipped path delegates to
+// textureFromCpuBuffer; the mipped path keeps its own mip-allocating descriptor (PNG-decode callers
+// asking for mips are NOT regressed).
 MTL::Texture* textureFromRgba8(MTL::Device* dev, const DecodedImage& img, bool mipped = false);
 
 // Convenience: decode a file straight to a texture. nullptr on any failure.

@@ -57,6 +57,16 @@ void registerDrawOp(const std::string& type, PointDrawFn draw) { drawReg()[type]
 void registerCmdOp(const std::string& type, PointCmdFn cmd) { cmdReg()[type] = cmd; }
 void registerTexOp(const std::string& type, PointTexFn tex) { texReg()[type] = tex; }
 
+// OWN-TEXTURE sink (Slice B tex-output fork). Meyers singleton; populated by ValuesToTexture's
+// registrar during pre-main dynamic init, read live by the tex-walker. A type in this set takes the
+// ownTexHost/W/H staging path (ensureOwnedTex, R32Float) instead of the ensureTex RGBA8 output.
+static std::set<std::string>& texOwnsOutputSink() {
+  static std::set<std::string> s;
+  return s;
+}
+void registerTexOpOwnsOutput(const std::string& type) { texOwnsOutputSink().insert(type); }
+bool texOpOwnsOutput(const std::string& type) { return texOwnsOutputSink().count(type) != 0; }
+
 // registerBuiltinPointOps() is defined in point_ops.cpp (the real operators).
 
 // --- resolved-param accessors (the slice-2b seam; PointCookCtx::params docs) ---
@@ -319,6 +329,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // upstream tex node — cookTexNode's body is assigned below (it in turn calls cookCommand for its
   // Command inputs, so the two are mutually recursive; std::function breaks the ordering cycle).
   std::function<MTL::Texture*(int)> cookTexNode;
+  // Forward-declared too: cookTexNode (a tex op like ValuesToTexture, the rail-crossing) gathers its
+  // FloatList inputs by recursing into cookFloatListNode, whose body is assigned further below. Same
+  // std::function ordering-break as cookTexNode itself.
+  std::function<const std::vector<float>*(int)> cookFloatListNode;
 
   // Cook a command node: resolve its upstream Points bag (+ first wired Texture2D input, FORK#1),
   // then call its cmd fn -> RenderCommand.
@@ -398,6 +412,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     RenderCommand chain;
     const MTL::Texture* texInputs[TexCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
     int texInputCount = 0;
+    // FloatList inputs (Slice B rail-crossing): a tex op with "FloatList" input ports (ValuesToTexture)
+    // gathers its upstream host lists here, in spec port order with MultiInput ports expanded into
+    // wire-declaration order — the SAME gather contract as cookFloatListNode. Empty for every existing
+    // tex op (no FloatList port) → tc.inputLists stays null → byte-identical path.
+    std::vector<std::vector<float>> floatListInputs;
+    bool hasFloatListInput = false;
     for (size_t i = 0; i < s->ports.size(); ++i) {
       const PortSpec& port = s->ports[i];
       if (!port.isInput) continue;
@@ -413,7 +433,48 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
           texInputs[slot] = c ? cookTexNode(pinNode(c->fromPin)) : nullptr;
           texInputCount = slot + 1;
         }
+      } else if (port.dataType == "FloatList") {
+        hasFloatListInput = true;
+        // Recurse each wired FloatList source. MultiInput → every wire is a separate gathered list, in
+        // wire-declaration order (g.connections order); single-input → at most one. Mirrors the
+        // cookFloatListNode FloatList-port gather exactly.
+        for (const Connection& c : g.connections) {
+          if (c.toPin != pinId(id, (int)i)) continue;
+          const std::vector<float>* up = cookFloatListNode(pinNode(c.fromPin));
+          floatListInputs.push_back(up ? *up : std::vector<float>{});
+          if (!port.multiInput) break;
+        }
       }
+    }
+
+    // OWN-TEXTURE fork (Slice B): a tex op that allocates its OWN data-sized, non-RGBA8 texture
+    // (ValuesToTexture: R32Float, dims = sampleCount × listCount) does NOT use ensureTex (RGBA8 +
+    // resolution-pinned). The op computes its dims + writes a host float buffer into ownTexHost; the
+    // DRIVER then sizes the op-owned texture via ensureOwnedTex (parked in texBuf → released on
+    // realloc + in ~PointGraph, no leak) and uploads. This is the FIRST non-RGBA8, non-resolution-
+    // pinned texture in the engine. Every other tex op skips this branch entirely (byte-identical).
+    if (texOpOwnsOutput(n->type)) {
+      std::vector<float> hostOut;
+      uint32_t ow = 0, oh = 0;
+      TexCookCtx tc;
+      tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
+      tc.ctx = &ctx; tc.graph = &g; tc.reg = reg;
+      tc.nodeId = id; tc.command = &chain;
+      tc.inputLists = hasFloatListInput ? &floatListInputs : nullptr;
+      tc.ownTexHost = &hostOut; tc.ownTexW = &ow; tc.ownTexH = &oh;
+      tc.params = tp;
+      tx->second(tc);
+      texVisiting.erase(id);
+      // The op returned no data (empty lists / pow guard / nothing to upload) → no texture this cook.
+      if (ow == 0 || oh == 0 || hostOut.size() < (size_t)ow * oh) return nullptr;
+      // R32Float: 4 bytes/texel, one float channel — the op's chosen format (TiXL Format.R32_Float,
+      // ValuesToTexture.cs:120). ensureOwnedTex keys realloc on (w,h,fmt).
+      MTL::Texture* owned =
+          p_->ensureOwnedTex(flatKey(id), ow, oh, MTL::PixelFormatR32Float);
+      if (owned)
+        owned->replaceRegion(MTL::Region::Make2D(0, 0, ow, oh), 0, hostOut.data(),
+                             (NS::UInteger)ow * sizeof(float));
+      return owned;
     }
 
     // Size this node's own output texture. Default = the Resolution pin (the window size is
@@ -443,6 +504,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     for (int k = 0; k < texInputCount; ++k) tc.inputTextures[k] = texInputs[k];
     tc.inputTextureCount = texInputCount;
     tc.inputTexture = texInputs[0];  // back-compat: single-input ops (Blur) read inputTexture
+    tc.inputLists = hasFloatListInput ? &floatListInputs : nullptr;  // null for every existing tex op
     // ASSET texture ((E)-seam phase 2): if this op type declared an asset key, decode-and-cache it
     // ONCE (cachedAssetTexture memoizes; NO per-frame decode) and bind via tc.assetTexture. Absent
     // type = tc.assetTexture stays null -> every existing op's path is byte-identical.
@@ -511,8 +573,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // Gather order = the order connections appear in g.connections (the wire-declaration order), which
   // is the SAME ordering the resident flatten uses for extraConns (resident_eval_flatten.cpp:255-268).
   // Returns the cooked host list (nullptr if not a floatlist op / unknown node).
-  std::function<const std::vector<float>*(int)> cookFloatListNode =
-      [&](int id) -> const std::vector<float>* {
+  cookFloatListNode = [&](int id) -> const std::vector<float>* {
     const Node* n = g.node(id);
     if (!n) return nullptr;
     const NodeSpec* s = findSpec(n->type);

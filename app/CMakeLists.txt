@@ -220,6 +220,7 @@ add_executable(simple_world
   src/runtime/floatlist_op_registry.cpp
   src/runtime/floatlist_ops_floatstolist.cpp
   src/floatlist_golden.cpp
+  src/valuestotexture_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp

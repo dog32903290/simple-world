@@ -148,6 +148,21 @@ struct TexCookCtx {
   // for a single-input op like RgbTV's noise). null unless the op's type registered an asset key in
   // imageFilterAssetTextures(); cache-owned (NOT released by the leaf). See image_filter_op_registry.h.
   const MTL::Texture* assetTexture = nullptr;
+  // FLOATLIST inputs (Slice B, the rail-crossing): the already-cooked upstream FloatList inputs of a
+  // tex op that has "FloatList" input ports (in spec port order, MultiInput-expanded into wire-
+  // declaration order — same gather contract as cookFloatListNode). null for every existing tex op
+  // (RenderTarget/Blur/Displace have no FloatList input → byte-identical path). ValuesToTexture reads
+  // inputLists->at(i) for its i-th gathered Values source. Borrowed (driver-owned); never retained.
+  const std::vector<std::vector<float>>* inputLists = nullptr;
+  // OWN-TEXTURE staging (Slice B, the tex-output fork): an op that allocates its OWN data-sized,
+  // non-RGBA8 texture (ValuesToTexture: R32Float) does NOT use `output` (which is the ensureTex
+  // RGBA8/resolution-pinned texture). Instead it computes its dims + writes its host float buffer here;
+  // the cook DRIVER then allocates the op-owned texture (parked in Impl::texBuf, realloc on dim/format
+  // change → no leak) and uploads `ownTexHost`. Set non-null by the walker ONLY for types in
+  // texOpOwnsOutput(); every other tex op leaves these null and draws into `output` as before.
+  std::vector<float>* ownTexHost = nullptr;  // op fills (clear+resize+write); driver uploads to texture
+  uint32_t* ownTexW = nullptr;               // op writes the texture width
+  uint32_t* ownTexH = nullptr;               // op writes the texture height
   MTL::Texture* output = nullptr;          // PointGraph-owned, pre-sized; op draws here
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
 };
@@ -177,6 +192,12 @@ void registerDrawOp(const std::string& type, PointDrawFn);
 void registerCmdOp(const std::string& type, PointCmdFn);
 // Register a texture op (the Texture2D stream — RenderTarget). Third table.
 void registerTexOp(const std::string& type, PointTexFn);
+// Mark a tex op type as OWN-TEXTURE (Slice B tex-output fork): the cook driver does NOT pre-size its
+// output via ensureTex (RGBA8/resolution-pinned). Instead it hands the op TexCookCtx::ownTexHost/W/H,
+// then allocates the op-owned texture (R32Float, data-sized) parked in Impl::texBuf. ValuesToTexture
+// is the first/only member. Every other tex op is untouched (drains into `output` as before).
+void registerTexOpOwnsOutput(const std::string& type);
+bool texOpOwnsOutput(const std::string& type);
 
 // Resolve a RenderTarget node's output resolution from its Resolution enum param (+ CustomW/H);
 // WindowFollow (default) returns `windowSize`. Defined in point_ops_rendertarget.cpp; declared

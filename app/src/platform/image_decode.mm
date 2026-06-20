@@ -79,14 +79,42 @@ DecodedImage decodeImageBytes(const uint8_t* data, size_t len) {
   return out;
 }
 
+MTL::Texture* textureFromCpuBuffer(MTL::Device* dev, const void* bytes, uint32_t w, uint32_t h,
+                                   uint64_t fmt, uint32_t bytesPerTexel) {
+  if (!dev || !bytes || w == 0 || h == 0 || bytesPerTexel == 0) return nullptr;
+  // Generic CPU-buffer -> texture core (factored out of textureFromRgba8). NON-MIPPED, ShaderRead,
+  // StorageMode=Shared (Shared is required so a CPU getBytes readback golden can read the result —
+  // e.g. ValuesToTexture's R32Float chain golden, Slice B). replaceRegion rowPitch = w*bytesPerTexel
+  // (tightly-packed input). Any pixel format / texel size: the RGBA8 decode path passes (RGBA8Unorm,4);
+  // ValuesToTexture passes (R32Float,4) — the engine's first non-RGBA8, non-resolution-pinned texture.
+  // `fmt` arrives as the raw enum value (uint64_t, header stays Metal-free); cast it back here.
+  MTL::TextureDescriptor* td = MTL::TextureDescriptor::texture2DDescriptor(
+      (MTL::PixelFormat)fmt, w, h, /*mipped=*/false);
+  td->setUsage(MTL::TextureUsageShaderRead);
+  td->setStorageMode(MTL::StorageModeShared);
+  MTL::Texture* tex = dev->newTexture(td);  // OWNED -> caller releases
+  if (!tex) return nullptr;
+  tex->replaceRegion(MTL::Region::Make2D(0, 0, w, h), 0, bytes, (NS::UInteger)w * bytesPerTexel);
+  return tex;
+}
+
 MTL::Texture* textureFromRgba8(MTL::Device* dev, const DecodedImage& img, bool mipped) {
   if (!dev || !img.ok || img.width == 0 || img.height == 0) return nullptr;
   if (img.rgba.size() != (size_t)img.width * img.height * 4) return nullptr;
 
   // RGBA8Unorm (LINEAR), matching TiXL's Format.R8G8B8A8_UNorm (NOT _SRgb): the PNG's sRGB profile
   // is ignored; shaders sample the stored bytes raw.
+  // The NON-mipped path routes through the generic textureFromCpuBuffer core (RGBA8Unorm, 4 bytes/
+  // texel). The MIPPED path keeps its own descriptor (texture2DDescriptor with mipped=true allocates
+  // the mip chain) so the PNG-decode callers that ask for mips are NOT regressed — only the
+  // non-mipped core is shared. (Today every textureFromRgba8 caller passes mipped=false, but the
+  // mipped branch is preserved so a future mipped LoadImage stays correct.)
+  if (!mipped)
+    return textureFromCpuBuffer(dev, img.rgba.data(), img.width, img.height,
+                                (uint64_t)MTL::PixelFormatRGBA8Unorm, 4);
+
   MTL::TextureDescriptor* td = MTL::TextureDescriptor::texture2DDescriptor(
-      MTL::PixelFormatRGBA8Unorm, img.width, img.height, mipped);
+      MTL::PixelFormatRGBA8Unorm, img.width, img.height, /*mipped=*/true);
   td->setUsage(MTL::TextureUsageShaderRead);
   td->setStorageMode(MTL::StorageModeShared);
   MTL::Texture* tex = dev->newTexture(td);  // OWNED -> caller releases

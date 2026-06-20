@@ -81,6 +81,8 @@ struct PointGraph::Impl {
   std::map<std::string, MTL::Texture*> texBuf;
   std::map<std::string, uint32_t> texW, texH;
   std::map<std::string, bool> texMipped;  // realloc key: a false->true change MUST reallocate
+  std::map<std::string, uint32_t> texFmt;  // realloc key for OWN-TEXTURE ops (ensureOwnedTex): a
+                                           // format change MUST reallocate (parallel to texW/H/Mipped)
   MTL::Texture* displayTex = nullptr;
 
   // Per-node MESH output (the 4th cook flow = TiXL MeshBuffers). A mesh node owns a PAIR of
@@ -174,6 +176,34 @@ struct PointGraph::Impl {
       texW[key] = w;
       texH[key] = h;
       texMipped[key] = mipped;
+    }
+    return t;
+  }
+
+  // OWN-TEXTURE op output (Slice B tex-output fork): an op (ValuesToTexture) that allocates its OWN
+  // data-sized, non-RGBA8 texture instead of the resolution-pinned ensureTex one. Parked in the SAME
+  // texBuf lifetime map (keyed flatKey(id)), so it is released on realloc here AND in ~PointGraph
+  // (the texBuf release loop) → NO per-cook leak. Reallocates when w/h/fmt change (RESOURCE_LIFETIME,
+  // same rule as ensureTex but the realloc key adds `fmt` since the format is op-chosen, not fixed
+  // kPointTargetFormat). NON-mipped, ShaderRead, StorageMode=Shared (so a getBytes golden can read it
+  // — the mirror of platform textureFromCpuBuffer, which runtime cannot call: runtime→platform is a
+  // forbidden upward dep, so the same descriptor core is re-stated here on the runtime side). `fmt` is
+  // the MTL::PixelFormat raw value. The FIRST non-RGBA8, non-resolution-pinned texture in the engine.
+  MTL::Texture* ensureOwnedTex(const std::string& key, uint32_t w, uint32_t h, MTL::PixelFormat fmt) {
+    if (w == 0) w = 1;
+    if (h == 0) h = 1;
+    MTL::Texture*& t = texBuf[key];
+    if (!t || texW[key] != w || texH[key] != h || texFmt[key] != (uint32_t)fmt) {
+      if (t) t->release();
+      MTL::TextureDescriptor* td =
+          MTL::TextureDescriptor::texture2DDescriptor(fmt, w, h, /*mipped=*/false);
+      td->setUsage(MTL::TextureUsageShaderRead);
+      td->setStorageMode(MTL::StorageModeShared);
+      t = dev->newTexture(td);
+      texW[key] = w;
+      texH[key] = h;
+      texFmt[key] = (uint32_t)fmt;
+      texMipped[key] = false;  // keep the parallel realloc-key maps consistent for this key
     }
     return t;
   }
