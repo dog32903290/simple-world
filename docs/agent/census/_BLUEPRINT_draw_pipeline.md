@@ -64,8 +64,10 @@ draw 葉子 = `registerCmdOp` 自登記（**conflict-free**,每顆 .cpp）。pre
 **R1-R2 候選 4（draw 第二批，全撞 draw core serial）** — ✅ 1+2 落地 commit `6189670`，剩 3+4：
 1. ✅ **DrawPoints2**（commit 6189670）：Radius→×10.8→PointSize（kDrawPoints2RadiusToSize），UseWForSize→sizeFx=FX1(W)，reuse draw_points。refuter MERGE-SAFE（NIT：golden FX1=1 未咬 useWForSize 路徑，W≠1 probe 後補）。
 2. ✅ **DrawLinesBuildup**（commit 6189670）：漸進可見度 reveal，reuse draw_lines。★Cut55 .t3 routing 防呆=Add(-0.01) TransitionProgress→OffsetU 1:1 無 mis-route。refuter MERGE-SAFE。
-3. **DrawMovingPoints**（R1-R2，draw 第三批）：points + velocity-stretch（沿 velocity 向量拉長 quad），VelocityStretch/JumpThreshold=CPU filter → draw_points.metal velocity-quad orientation branch。shared core PARTIAL。
-4. **DrawRayLines**（R1-R2，draw 第三批）：points 當 ray origin，連 origin→(origin+W·dir) → draw_lines.metal ray-endpoint indexing（非 Points[i]→Points[i+1]）。shared core PARTIAL。
+3. ❌ **DrawMovingPoints 退單**（build agent ac6fcce 2026-06-21 backward-trace）：velocity 非 SwPoint attribute，是跨幀導出（DrawMotionPoints.hlsl `Points[i]−PointsPrev[i]`，需 t1 prev-frame point double-buffer + prev-frame transforms）=**prev-frame point-buffer state seam R3 跨幀**。硬港 velocity=0 永遠靜止=R-2 自欺。延後待 R3 seam。
+4. ❌ **DrawRayLines 退單**（build agent 翻轉 blueprint 假設）：「ray dir」誤判——權威 DrawRayLines.hlsl 畫**相鄰點線段** Points[i]→Points[i+1]（同 DrawLines topology）+ **camera-space 叉積** sideInCamera（camera-facing 3D geometry 避 near-plane intersection）。sw line path baked-ortho，硬港=塌成既有 DrawLines（camera-facing 語意 evaporate）=R-2 自欺。延後待 **camera-facing line seam**（camera3d 島延伸）。
+
+**★draw-pipeline 純 line/point draw 已採盡（2026-06-21）**：DrawClosedLines/DrawPoints2/DrawLinesBuildup 3 顆採 + 9 已港。剩全卡未建 seam：DrawMovingPoints(prev-frame state R3)/DrawRayLines(camera-facing geometry,camera3d 島延伸)/DrawPointsShaded·DrawLinesShaded(ColorField host-eval seam)/DrawConnectionLines·DrawPointsDOF·DrawRibbons·DrawTubes(R3)。下一塊 draw 大 seam=camera-facing line 或 ColorField host-eval（承重投資，blueprint §8 標）。
 **R2 卡 ColorField host-eval seam（延後，需先建）**：DrawPointsShaded/DrawLinesShaded（ShaderGraphNode ColorField host 評估→shader-node-to-MSL 編譯）。
 **R3 延後**：DrawConnectionLines（spatial-hash-map+Gradient host）/DrawPointsDOF（per-frame bucket sort DOF state）/DrawRibbons/DrawTubes（geometry-shader 等價,Metal 無 GS→compute 展開）。
 **OOO（非 line/point draw）**：DrawMeshAtPoints2（mesh instancing+Gradient/Curve）/VisualizePoints（gizmo debug）。
