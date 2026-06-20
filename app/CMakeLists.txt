@@ -284,6 +284,9 @@ add_executable(simple_world
   src/runtime/pointlist_ops_listtobuffer.cpp
   src/pointlist_golden.cpp
   src/valuestotexture_golden.cpp
+  src/runtime/gradient_op_registry.cpp
+  src/runtime/gradient_ops_definegradient.cpp
+  src/gradient_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp

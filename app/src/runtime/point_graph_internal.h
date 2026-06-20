@@ -20,6 +20,7 @@
 #include "runtime/graph.h"        // PortSpec (isBufferInput)
 #include "runtime/point_graph.h"  // PointGraph + op fn types
 #include "runtime/sw_mesh.h"      // SwVertex (80B) + SwTriIndex (12B) — the Mesh flow's elements
+#include "runtime/sw_gradient.h"  // SwGradient — the 8th flow's host value (gradientBuf)
 #include "runtime/tixl_point.h"   // SwPoint (64B) — output buffers are SwPoint bags
 
 namespace sw {
@@ -114,6 +115,13 @@ struct PointGraph::Impl {
   // self-sizes; the op clears + fills it). Keyed by flat id or resident path (parallel to floatListBuf).
   // The CPU point family's transport store; the ListToBuffer upload bridge memcpys it into a GPU outBuf.
   std::map<std::string, std::vector<SwPoint>> pointListBuf;  // key -> host SwPoint list
+
+  // Per-node GRADIENT output (the 8th cook flow = TiXL Slot<Gradient>). A HOST-side SwGradient that
+  // rides between Gradient ports — NOT a GPU buffer, so (like floatListBuf/stringBuf/pointListBuf)
+  // there is NO Metal allocation and NO pre-sizing (the op writes its steps). Keyed by flat id or
+  // resident path (parallel to floatListBuf). The Gradient value channel's transport store;
+  // GradientsToTexture (a tex op) samples it into an R32G32B32A32 texture (the rail-crossing).
+  std::map<std::string, SwGradient> gradientBuf;  // key -> host gradient
 
   MTL::Buffer* ensureOut(const std::string& key, uint32_t count) {
     MTL::Buffer*& b = outBuf[key];

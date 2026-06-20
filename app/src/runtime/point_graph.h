@@ -31,6 +31,7 @@ class Texture;
 
 struct EvaluationContext;  // runtime/eval_context.h (full def in point_graph.cpp)
 struct SwPoint;            // runtime/tixl_point.h (64B host point; full def where the cook includes it)
+namespace sw { struct SwGradient; }  // runtime/sw_gradient.h (host Gradient; full def where the op includes it)
 
 namespace sw {
 
@@ -170,6 +171,12 @@ struct TexCookCtx {
   // (RenderTarget/Blur/Displace have no FloatList input → byte-identical path). ValuesToTexture reads
   // inputLists->at(i) for its i-th gathered Values source. Borrowed (driver-owned); never retained.
   const std::vector<std::vector<float>>* inputLists = nullptr;
+  // GRADIENT inputs (the 8th cook flow rail-crossing): the already-cooked upstream SwGradient inputs of
+  // a tex op that has "Gradient" input ports (GradientsToTexture), in spec port order with MultiInput
+  // ports expanded into wire-declaration order — same gather contract as inputLists/cookGradientNode.
+  // null for every existing tex op (no Gradient input → byte-identical path). Borrowed (driver-owned).
+  // Forward-declared as a vector of SwGradient (full def via sw_gradient.h where the op includes it).
+  const std::vector<SwGradient>* inputGradients = nullptr;
   // OWN-TEXTURE staging (Slice B, the tex-output fork): an op that allocates its OWN data-sized,
   // non-RGBA8 texture (ValuesToTexture: R32Float) does NOT use `output` (which is the ensureTex
   // RGBA8/resolution-pinned texture). Instead it computes its dims + writes its host float buffer here;
@@ -214,6 +221,12 @@ void registerTexOp(const std::string& type, PointTexFn);
 // is the first/only member. Every other tex op is untouched (drains into `output` as before).
 void registerTexOpOwnsOutput(const std::string& type);
 bool texOpOwnsOutput(const std::string& type);
+// Own-texture FORMAT selector: an OWN-TEXTURE tex op declares how many FLOATS it writes per texel so
+// the driver allocates the matching MTL::PixelFormat + uploads with the right rowPitch. 1 → R32Float
+// (ValuesToTexture, the implicit default); 4 → R32G32B32A32_Float (GradientsToTexture, sampled RGBA).
+// Unregistered own-tex types default to 1 (byte-identical for ValuesToTexture). Idempotent.
+void registerTexOpOwnFormat(const std::string& type, int floatsPerTexel);
+int texOpOwnFormat(const std::string& type);  // floats/texel for an own-tex type (default 1)
 
 // Resolve a RenderTarget node's output resolution from its Resolution enum param (+ CustomW/H);
 // WindowFollow (default) returns `windowSize`. Defined in point_ops_rendertarget.cpp; declared
@@ -309,6 +322,10 @@ class PointGraph {
   // produced last cook (Impl::pointListBuf[flatKey(id)]). Returns nullptr if the node never cooked a
   // pointlist. Borrowed (PointGraph-owned); valid until the next cook of that node.
   const std::vector<::SwPoint>* debugCookedPointList(int nodeId) const;
+  // Test-support for the Gradient flow (8th cook): the HOST gradient a flat-cooked gradient node
+  // produced last cook (Impl::gradientBuf[flatKey(id)]). Returns nullptr if the node never cooked a
+  // gradient. Borrowed (PointGraph-owned); valid until the next cook of that node.
+  const SwGradient* debugCookedGradient(int nodeId) const;
 
  private:
   struct Impl;

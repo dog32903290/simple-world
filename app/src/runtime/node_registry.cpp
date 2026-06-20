@@ -39,6 +39,7 @@
 #include "runtime/host_scalar_op_registry.h"   // hostScalarSpecSink() — host-scalar (FloatList→Float bridge) ops self-register
 #include "runtime/string_op_registry.h"        // stringSpecSink() — string (6th flow) ops self-register
 #include "runtime/pointlist_op_registry.h"     // pointListSpecSink() — pointlist (7th flow: CPU point list) ops self-register
+#include "runtime/gradient_op_registry.h"      // gradientSpecSink() — gradient (8th flow: host Gradient) ops self-register
 #include "runtime/node_registry_math.h"
 
 #include <map>
@@ -124,6 +125,10 @@ const NodeSpec* findSpec(const std::string& type) {
   // ListToBuffer's bridge registrar). The CPU _cpu point ops + the ListToBuffer upload bridge.
   for (const auto& s : pointListSpecSink())
     if (s.type == type) return &s;
+  // Gradient family (the 8th cook flow = host Gradient): same live-read seam (init-order safe — sink
+  // populated by pre-main dynamic init of each gradient_ops_<name>.cpp GradientOp registrar).
+  for (const auto& s : gradientSpecSink())
+    if (s.type == type) return &s;
   auto it = dynamicSpecs().find(type);
   return it != dynamicSpecs().end() ? &it->second : nullptr;
 }
@@ -148,6 +153,8 @@ std::vector<std::string> specTypes() {
   for (const auto& s : hostScalarSpecSink()) out.push_back(s.type);
   // PointList ops (CPU point list + ListToBuffer bridge) self-register into their own sink — append.
   for (const auto& s : pointListSpecSink()) out.push_back(s.type);
+  // Gradient ops (the 8th cook flow = host Gradient) self-register into their own sink — append.
+  for (const auto& s : gradientSpecSink()) out.push_back(s.type);
   return out;
 }
 

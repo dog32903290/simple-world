@@ -13,6 +13,7 @@
 
 #include "runtime/compound_graph.h"       // SymbolLibrary/Symbol/SymbolChild (lib defaultDrawTarget)
 #include "runtime/floatlist_op_registry.h"     // FloatListCookCtx/findFloatListOp (the 5th cook flow = host List<float>)
+#include "runtime/gradient_op_registry.h"      // GradientCookCtx/findGradientOp (the 8th cook flow = host Gradient)
 #include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
 #include "runtime/host_scalar_op_registry.h"   // HostScalarCookCtx/findHostScalarOp (FloatList→Float bridge: list-routing seam)
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
@@ -74,6 +75,21 @@ static std::set<std::string>& texOwnsOutputSink() {
 }
 void registerTexOpOwnsOutput(const std::string& type) { texOwnsOutputSink().insert(type); }
 bool texOpOwnsOutput(const std::string& type) { return texOwnsOutputSink().count(type) != 0; }
+
+// OWN-TEXTURE FORMAT sink (floats/texel for an own-tex op). Meyers singleton; populated by an own-tex
+// registrar (GradientsToTexture → 4) at pre-main init, read live by the tex-walker. An own-tex type
+// NOT in this map defaults to 1 (R32Float) — byte-identical for ValuesToTexture (never registers here).
+static std::map<std::string, int>& texOwnFormatSink() {
+  static std::map<std::string, int> m;
+  return m;
+}
+void registerTexOpOwnFormat(const std::string& type, int floatsPerTexel) {
+  texOwnFormatSink()[type] = floatsPerTexel;
+}
+int texOpOwnFormat(const std::string& type) {
+  auto it = texOwnFormatSink().find(type);
+  return it != texOwnFormatSink().end() ? it->second : 1;  // default 1 float/texel = R32Float
+}
 
 // registerBuiltinPointOps() is defined in point_ops.cpp (the real operators).
 
@@ -188,6 +204,11 @@ const std::string* PointGraph::debugCookedString(int nodeId) const {
 const std::vector<SwPoint>* PointGraph::debugCookedPointList(int nodeId) const {
   auto it = p_->pointListBuf.find(flatKey(nodeId));
   return it != p_->pointListBuf.end() ? &it->second : nullptr;
+}
+
+const SwGradient* PointGraph::debugCookedGradient(int nodeId) const {
+  auto it = p_->gradientBuf.find(flatKey(nodeId));
+  return it != p_->gradientBuf.end() ? &it->second : nullptr;
 }
 
 int PointGraph::defaultDrawTarget(const Graph& g) const {
@@ -391,6 +412,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // FloatList inputs by recursing into cookFloatListNode, whose body is assigned further below. Same
   // std::function ordering-break as cookTexNode itself.
   std::function<const std::vector<float>*(int)> cookFloatListNode;
+  // Forward-declared too: cookTexNode (GradientsToTexture, the rail-crossing) gathers its Gradient
+  // inputs by recursing into cookGradientNode (the 8th cook flow = host SwGradient), whose body is
+  // assigned further below. Same std::function ordering-break as cookFloatListNode.
+  std::function<const SwGradient*(int)> cookGradientNode;
   // Forward-declared: the String cook flow (6th flow = host std::string). A string op (CombineStrings/
   // StringLength) gathers its String inputs by recursing into cookStringNode (a wired String input);
   // body assigned below. std::function breaks the self-recursion ordering (CombineStrings ← upstream
@@ -521,6 +546,11 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     // tex op (no FloatList port) → tc.inputLists stays null → byte-identical path.
     std::vector<std::vector<float>> floatListInputs;
     bool hasFloatListInput = false;
+    // GRADIENT inputs (the 8th cook flow rail-crossing): a tex op with "Gradient" input ports
+    // (GradientsToTexture) gathers its upstream host gradients here, same gather contract as the
+    // FloatList branch below. Empty for every existing tex op → tc.inputGradients stays null.
+    std::vector<SwGradient> gradientInputs;
+    bool hasGradientInput = false;
     for (size_t i = 0; i < s->ports.size(); ++i) {
       const PortSpec& port = s->ports[i];
       if (!port.isInput) continue;
@@ -547,6 +577,18 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
           floatListInputs.push_back(up ? *up : std::vector<float>{});
           if (!port.multiInput) break;
         }
+      } else if (port.dataType == "Gradient") {
+        hasGradientInput = true;
+        // Recurse each wired Gradient source (cookGradientNode). MultiInput → one gathered gradient
+        // per wire (wire-declaration order); single-input → at most one. Mirrors cookGradientNode's
+        // own Gradient-port gather. (No slot-default fallback like TiXL's HasInputConnections branch:
+        // an unwired Gradients pin contributes nothing → gradientsCount 0 → GradientsToTexture returns.)
+        for (const Connection& c : g.connections) {
+          if (c.toPin != pinId(id, (int)i)) continue;
+          const SwGradient* up = cookGradientNode(pinNode(c.fromPin));
+          gradientInputs.push_back(up ? *up : SwGradient{});
+          if (!port.multiInput) break;
+        }
       }
     }
 
@@ -564,19 +606,21 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       tc.ctx = &ctx; tc.graph = &g; tc.reg = reg;
       tc.nodeId = id; tc.command = &chain;
       tc.inputLists = hasFloatListInput ? &floatListInputs : nullptr;
+      tc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;
       tc.ownTexHost = &hostOut; tc.ownTexW = &ow; tc.ownTexH = &oh;
       tc.params = tp;
       tx->second(tc);
       texVisiting.erase(id);
-      // The op returned no data (empty lists / pow guard / nothing to upload) → no texture this cook.
-      if (ow == 0 || oh == 0 || hostOut.size() < (size_t)ow * oh) return nullptr;
-      // R32Float: 4 bytes/texel, one float channel — the op's chosen format (TiXL Format.R32_Float,
-      // ValuesToTexture.cs:120). ensureOwnedTex keys realloc on (w,h,fmt).
-      MTL::Texture* owned =
-          p_->ensureOwnedTex(flatKey(id), ow, oh, MTL::PixelFormatR32Float);
+      // The op writes `floatsPerTexel` floats per texel (1 → R32Float / ValuesToTexture; 4 →
+      // R32G32B32A32_Float / GradientsToTexture). ensureOwnedTex keys realloc on (w,h,fmt).
+      const int fpt = texOpOwnFormat(n->type);
+      const MTL::PixelFormat fmt = fpt == 4 ? MTL::PixelFormatRGBA32Float : MTL::PixelFormatR32Float;
+      // No data (empty inputs / guard / nothing to upload) → no texture this cook.
+      if (ow == 0 || oh == 0 || hostOut.size() < (size_t)ow * oh * fpt) return nullptr;
+      MTL::Texture* owned = p_->ensureOwnedTex(flatKey(id), ow, oh, fmt);
       if (owned)
         owned->replaceRegion(MTL::Region::Make2D(0, 0, ow, oh), 0, hostOut.data(),
-                             (NS::UInteger)ow * sizeof(float));
+                             (NS::UInteger)ow * fpt * sizeof(float));
       return owned;
     }
 
@@ -761,6 +805,44 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     fc.output = &out;
     fc.params = nodeParams(id);
     (*fn)(fc);
+    return &out;
+  };
+
+  // Cook a GRADIENT-flow node (the 8th cook flow = TiXL Slot<Gradient>). The currency is a HOST
+  // SwGradient living in Impl::gradientBuf (no GPU buffer, no pre-sizing — the op writes its steps).
+  // VERBATIM clone of cookFloatListNode (std::vector<float> → SwGradient): for each Gradient input
+  // port, gather upstream gradients (MultiInput → one per wire, wire-declaration order) into
+  // `inputGradients`, then dispatch the op. A pure producer (DefineGradient) has no Gradient input.
+  // Returns the cooked host gradient (nullptr if not a gradient op / unknown node).
+  cookGradientNode = [&](int id) -> const SwGradient* {
+    const Node* n = g.node(id);
+    if (!n) return nullptr;
+    const NodeSpec* s = findSpec(n->type);
+    if (!s) return nullptr;
+    const GradientCookFn* fn = findGradientOp(n->type);
+    if (!fn || !*fn) return nullptr;
+
+    std::vector<SwGradient> inputGradients;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!(port.isInput && port.dataType == "Gradient")) continue;
+      const int inPin = pinId(id, (int)i);
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        const SwGradient* up = cookGradientNode(pinNode(c.fromPin));
+        inputGradients.push_back(up ? *up : SwGradient{});
+        if (!port.multiInput) break;  // single-input: first wire only
+      }
+    }
+
+    SwGradient& out = p_->gradientBuf[flatKey(id)];
+    GradientCookCtx gc;
+    gc.dev = p_->dev; gc.lib = p_->lib; gc.queue = p_->queue;
+    gc.ctx = &ctx; gc.nodeId = id;
+    gc.inputGradients = &inputGradients;
+    gc.output = &out;
+    gc.params = nodeParams(id);
+    (*fn)(gc);
     return &out;
   };
 
@@ -983,6 +1065,17 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   }
   if (findFloatListOp(target->type)) {
     cookFloatListNode(target->id);
+    p_->clearTarget();
+    return;
+  }
+
+  // Gradient terminal (preview pin on a Gradient-producing op: DefineGradient): cook the host gradient
+  // so a test can read it back (debugCookedGradient). There is no Gradient VISUALIZER (the host
+  // gradient must cross to a texture via GradientsToTexture to be drawn). Clear the viewport (no pixels)
+  // so no stale frame, no crash (OUTPUT_PIN_VIEWER_CONTRACT §5). Checked here (parallel to FloatList):
+  // a gradient op has no cookReg/cmd/tex entry → it would otherwise fall through to the draw/3-flow.
+  if (findGradientOp(target->type)) {
+    cookGradientNode(target->id);
     p_->clearTarget();
     return;
   }

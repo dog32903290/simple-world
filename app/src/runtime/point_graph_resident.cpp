@@ -25,6 +25,7 @@
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
 #include "runtime/mesh_op_registry.h"          // MeshCookCtx/SwMeshView/findMeshOp (the 4th cook flow = MeshBuffers)
 #include "runtime/pointlist_op_registry.h"     // PointListCookCtx/findPointListOp (the 7th cook flow = host SwPoint list)
+#include "runtime/gradient_op_registry.h"      // GradientCookCtx/findGradientOp (the 8th cook flow = host Gradient)
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + op registries
 #include "runtime/resident_eval_graph.h"   // ResidentEvalGraph / drivers / resolveResidentFloatInputs
 #include "runtime/tixl_point.h"            // SwPoint + EvaluationContext
@@ -101,6 +102,14 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   // makes the CPU point family LIVE in the running app: ListToBuffer (cookNode below) calls this to
   // gather the host list it memcpys onto the GPU, on the production cookResident path (R-2 iron rule).
   std::function<const std::vector<SwPoint>*(const std::string&, int)> cookResidentPointList;
+
+  // Gradient walker (8th cook flow on the RESIDENT/PRODUCTION path — the R-2 iron rule). Cooks ONE
+  // Gradient-producing node into its per-path host gradient (p_->gradientBuf[path]), gathering its
+  // Gradient inputs THROUGH the resident graph (Connection drivers projected onto Gradient slots,
+  // exactly like Points/PointList). Mirror of the flat cookGradientNode + cookResidentPointList.
+  // GradientsToTexture (a tex op below) calls this to gather the host gradients it samples into a
+  // texture on the production path. Returns nullptr if `path` is not a gradient op.
+  std::function<const SwGradient*(const std::string&, int)> cookResidentGradient;
 
   // Mesh walker (4th cook flow on the RESIDENT/PRODUCTION path — the R-2 iron rule). Cooks ONE mesh
   // node (generator OR consumer) into its PER-PATH owned pair (p_->meshVtxBuf/meshIdxBuf[path]) and
@@ -285,6 +294,48 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     return &out;
   };
 
+  // Gradient walker body (8th cook flow on the RESIDENT path; assigned now that cookNode exists — they
+  // don't recurse into each other, the only crossing is GradientsToTexture's tex branch via cookTexNode).
+  // VERBATIM clone of cookResidentPointList (SwPoint→SwGradient): cook ONE upstream Gradient node into
+  // p_->gradientBuf[path], gathering its Gradient inputs through the resident Connection drivers (primary
+  // + extraConns, wire-declaration order), in spec port order. Returns nullptr if not a gradient op.
+  cookResidentGradient = [&](const std::string& path, int depth) -> const SwGradient* {
+    if (depth > kCookDepthCap) { warnCookDepthOnce(); return nullptr; }
+    const ResidentNode* n = rg.node(path);
+    if (!n) return nullptr;
+    const NodeSpec* s = findSpec(n->opType);
+    if (!s) return nullptr;
+    const GradientCookFn* fn = findGradientOp(n->opType);
+    if (!fn || !*fn) return nullptr;
+
+    std::vector<SwGradient> inputGradients;
+    for (const PortSpec& port : s->ports) {
+      if (!(port.isInput && port.dataType == "Gradient")) continue;
+      const ResidentInput* ri = n->input(port.id);
+      if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        const SwGradient* upp = cookResidentGradient(ri->srcNodePath, depth + 1);
+        inputGradients.push_back(upp ? *upp : SwGradient{});
+        if (port.multiInput) {
+          for (const auto& ec : ri->extraConns) {
+            const SwGradient* uep = cookResidentGradient(ec.first, depth + 1);
+            inputGradients.push_back(uep ? *uep : SwGradient{});
+          }
+        }
+      }
+      // (An unwired / Constant Gradient input contributes NO entry → faithful to the flat gather.)
+    }
+
+    SwGradient& out = p_->gradientBuf[path];
+    GradientCookCtx gc;
+    gc.dev = p_->dev; gc.lib = p_->lib; gc.queue = p_->queue;
+    gc.ctx = &ctx; gc.nodeId = 0;
+    gc.inputGradients = &inputGradients;
+    gc.output = &out;
+    gc.params = nodeParams(path);
+    (*fn)(gc);
+    return &out;
+  };
+
   // Mesh walker body (4th cook flow on the RESIDENT path; assigned now that cookNode exists — the two
   // don't recurse into each other, the only crossing is cookCommand's Mesh branch below). Gathers the
   // node's Mesh input(s) through the resident Connection drivers (primary + extraConns, in spec port
@@ -440,6 +491,11 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     RenderCommand chain;
     const MTL::Texture* texInputs[TexCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
     int texInputCount = 0;
+    // GRADIENT inputs (8th cook flow rail-crossing): a tex op with "Gradient" input ports
+    // (GradientsToTexture) gathers its upstream host gradients through the resident drivers here, same
+    // gather contract as the flat cookTexNode. Empty for every existing tex op → tc.inputGradients null.
+    std::vector<SwGradient> gradientInputs;
+    bool hasGradientInput = false;
     for (const PortSpec& port : s->ports) {
       if (!port.isInput) continue;
       const ResidentInput* ri = n->input(port.id);
@@ -454,7 +510,52 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
           texInputs[slot] = wired ? cookTexNode(ri->srcNodePath, depth + 1) : nullptr;
           texInputCount = slot + 1;
         }
+      } else if (port.dataType == "Gradient") {
+        hasGradientInput = true;
+        if (wired) {
+          const SwGradient* up = cookResidentGradient(ri->srcNodePath, depth + 1);
+          gradientInputs.push_back(up ? *up : SwGradient{});
+          if (port.multiInput) {
+            for (const auto& ec : ri->extraConns) {
+              const SwGradient* ue = cookResidentGradient(ec.first, depth + 1);
+              gradientInputs.push_back(ue ? *ue : SwGradient{});
+            }
+          }
+        }
       }
+    }
+
+    // OWN-TEXTURE fork (Slice B): a tex op that allocates its OWN data-sized, non-RGBA8 texture does
+    // NOT use ensureTex (RGBA8/resolution-pinned). The op computes its dims + writes a host float
+    // buffer into ownTexHost; the DRIVER then sizes the op-owned texture via ensureOwnedTex (parked in
+    // texBuf). Resident mirror of the flat cookTexNode own-tex branch — makes the Gradient→texture
+    // family LIVE on the production cookResident path (R-2 rule).
+    //
+    // GATED on hasGradientInput (NOT on texOpOwnsOutput alone) deliberately: ValuesToTexture is ALSO
+    // an own-tex op but its currency is FloatList, and this TU has no resident FloatList walker
+    // (cookResidentFloatList is file-local to resident_host_scalar_cook.cpp). Gating on the Gradient
+    // input keeps ValuesToTexture's PRIOR resident behaviour byte-identical (it falls through to
+    // ensureTex; its cook early-returns on null ownTexHost — unchanged, zero regression). Completing
+    // ValuesToTexture's resident own-tex path is a SEPARATE, parked seam (out of this lane's scope).
+    if (texOpOwnsOutput(n->opType) && hasGradientInput) {
+      std::vector<float> hostOut;
+      uint32_t ow = 0, oh = 0;
+      TexCookCtx tc;
+      tc.dev = p_->dev; tc.lib = p_->lib; tc.queue = p_->queue;
+      tc.ctx = &ctx; tc.graph = nullptr; tc.reg = reg;
+      tc.nodeId = 0; tc.command = &chain;
+      tc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;
+      tc.ownTexHost = &hostOut; tc.ownTexW = &ow; tc.ownTexH = &oh;
+      tc.params = tp;
+      tx->second(tc);
+      const int fpt = texOpOwnFormat(n->opType);
+      const MTL::PixelFormat fmt = fpt == 4 ? MTL::PixelFormatRGBA32Float : MTL::PixelFormatR32Float;
+      if (ow == 0 || oh == 0 || hostOut.size() < (size_t)ow * oh * fpt) return nullptr;
+      MTL::Texture* owned = p_->ensureOwnedTex(path, ow, oh, fmt);
+      if (owned)
+        owned->replaceRegion(MTL::Region::Make2D(0, 0, ow, oh), 0, hostOut.data(),
+                             (NS::UInteger)ow * fpt * sizeof(float));
+      return owned;
     }
 
     // Size this node's own output texture. Default = the Resolution pin (window size fallback). A
