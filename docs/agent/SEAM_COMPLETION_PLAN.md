@@ -16,6 +16,8 @@
 **現成彈藥只有 18 顆乾淨葉子；800 顆裡絕大多數卡在 ~20 塊未建 seam 後面 → 補縫是主路徑，不是次要。**
 補縫（改引擎底層）與採葉子（改 registry）**踩不同檔、可同跑不同 lane 不互撞**：補一塊縫解鎖一批葉子 → sw-node-batch 並行採掉 → 補下一塊。
 
+> **姊妹帳：[DEBT_LEDGER](DEBT_LEDGER.md)（債線）。** 本檔＝**產能線**（往前織網：補縫+採葉子）。DEBT_LEDGER＝**債線**（回頭補洞：架構債 26 檔破 400 行 + 排修/parity 真債）。兩條踩不同檔、並行不互撞，但**產能線跑越快、架構債長越多**＝對沖。從 chip 落地進度表後，債第一次有狀態（queued/active/closed）可被撿。動 `node_registry_*` / `point_graph.cpp` / `point_ops.h` 等共享檔的還債 lane 與產能線**不可同跑同檔**（見 DEBT_LEDGER §E/§F）。
+
 ---
 
 ## 1. 現狀（census 校準）
