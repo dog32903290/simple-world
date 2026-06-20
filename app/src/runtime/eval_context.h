@@ -28,13 +28,20 @@ struct EvaluationContext {
 #endif
   float time;        // seconds since start
   float deltaTime;   // seconds since previous frame
-  float _pad;        // reserved; keeps the BI_EvalContext constant buffer at 16 bytes.
+  // LocalFxTime seam (additive): repurposes the former reserved `_pad` slot at offset 12.
+  // BARS (= TiXL EvaluationContext.LocalFxTime = Playback.FxTimeInBars), NOT seconds — `time` above
+  // is the seconds clock. CPU value ops that need TiXL's LocalFxTime read this (e.g. PerlinNoise2's
+  // OverrideTime-unwired path). The struct stays 16 bytes (offset 12, was `_pad`) so BI_EvalContext's
+  // constant-buffer layout is byte-identical: no GPU upload reads offset 12 (the shaders only read
+  // frameIndex/time/deltaTime at offsets 0/4/8), so this rename is GPU-side a no-op.
+  float localFxTime;
 };
 
 #ifndef __METAL_VERSION__
 // Single shared header (host + .metal) so the layout is identical on both sides by
 // construction; this assert is a drift tripwire (see metal-cpp-discipline). Shaders read
-// frameIndex/time/deltaTime (offsets 0/4/8); _pad keeps the constant buffer 16-byte sized.
+// frameIndex/time/deltaTime (offsets 0/4/8); localFxTime (offset 12, formerly _pad) keeps the
+// constant buffer 16-byte sized AND is a host-side CPU field — no shader reads it.
 // (Audio reaches the graph via the SpectrumSnapshot cook -> Node::outCache, not through ctx.)
 static_assert(sizeof(EvaluationContext) == 16, "EvaluationContext layout changed — sync shaders/upload");
 #endif

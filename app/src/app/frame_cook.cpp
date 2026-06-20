@@ -367,6 +367,11 @@ void run(PointGraph& pg, const std::string& targetPath) {
   ctx.frameIndex = g_frameIndex;
   ctx.time = (float)fxSecs;          // wall clock, seconds (sims keep running while paused)
   ctx.deltaTime = (float)dtSimSecs;  // SIM dt: clamped (integration stability), NOT the wall dt
+  // LocalFxTime seam (additive): the BARS wall clock (= TiXL EvaluationContext.LocalFxTime =
+  // Playback.FxTimeInBars). ctx.time above is SECONDS for the GPU sims; value ops that need TiXL's
+  // bars-domain LocalFxTime (PerlinNoise2) read this. Populates the offset-12 slot (was _pad); the
+  // GPU upload never reads offset 12, so this is GPU-side a no-op (BI_EvalContext stays 16 bytes).
+  ctx.localFxTime = (float)fxBars;
 
   // The resident cook fills ITS two-clock ctx (localTime/localFxTime, bars) from the transport
   // via these params, so automation-driven Float inputs sampled inside the cook walk the curve at

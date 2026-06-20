@@ -123,6 +123,10 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
   ec.frameIndex = ctx.frameIndex;
   ec.time = ctx.localFxTime;
   ec.deltaTime = 0.0f;
+  // LocalFxTime seam (additive): expose TiXL's LocalFxTime (BARS) to value ops that read it
+  // (PerlinNoise2's OverrideTime-unwired path). ec.time stays as-is (the existing readers only
+  // touch .time/.frameIndex/.deltaTime); this only POPULATES the formerly-dead offset-12 slot.
+  ec.localFxTime = ctx.localFxTime;
   return s->evaluate(outIdx, in, ni, ec);
 }
 
