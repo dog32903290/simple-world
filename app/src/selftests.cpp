@@ -39,6 +39,7 @@
 #include "runtime/stateful_value_ops.h"  // runStatefulValueSelfTest (Damp/Spring value-graph sims)
 #include "runtime/dispatch.h"
 #include "runtime/field_graph.h"  // runFieldCodegenSelfTest (shader-graph codegen, pure string)
+#include "runtime/field_camera.h"  // runFieldCameraSelfTest (pure-math camera matrices; Layer2d seam)
 namespace sw { int runFieldRenderSelfTest(bool);  // field_render_golden.cpp (shell-tier GPU golden)
 }  // ^ forward-declared (no header): the GPU field golden lives at shell tier (binds runtime+platform)
 // Per-op SDF GPU goldens (Phase C fan-out) — same shell tier, same no-header forward-decl pattern.
@@ -291,6 +292,8 @@ const SelfTest kTable[] = {
     {"blendpoints", runBlendPointsSelfTest},
     {"rendertarget", runRenderTargetSelfTest},
     {"rendertargetwired", runRenderTargetWiredSelfTest},
+    {"field-camera", runFieldCameraSelfTest},
+    {"layer2d", runLayer2dSelfTest},
     {"mathops", runMathOpsSelfTest},
     {"statefulvalue", runStatefulValueSelfTest},
     {"blur", runBlurSelfTest},

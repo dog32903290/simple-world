@@ -41,6 +41,10 @@ enum class DrawKind : uint32_t {
   Billboards = 2,  // draw_billboards_vs: 6-vert camera-facing quad per Point (PrimitiveTypeTriangle)
   ScreenQuad = 3,  // draw_screenquad_vs: 6-vert clip-space quad sampling srcTexture (TiXL DrawScreenQuad);
                    // no point buffer — the only kind driven by srcTexture instead of points.
+  Layer2d = 5,     // draw_quad_xf_vs: 6-vert quad sampling srcTexture, but TRANSFORMED by
+                   // ObjectToClipSpace (TiXL Layer2d → draw-Quad-vs.hlsl). Parallel to ScreenQuad
+                   // (F2: a DISTINCT shader, NOT a flag on ScreenQuad — TiXL ships 2 shaders; the
+                   // clip-space ScreenQuad leaf stays untouched). Reads objectToClipSpace[16] below.
   Clear = 4,       // not a draw: a chain-clear directive (TiXL ClearRenderTarget). When it is the
                    // FIRST chain item the executor sets the pass clear color from it (color[]); the
                    // retained-mode pass already clears once, so this is free. A non-first Clear (mid
@@ -83,6 +87,16 @@ struct RenderDrawItem {
   // alpha capped at 1). NOT a node input; the cook path always emits this default. The clamp
   // golden overrides it (and the -bug leg corrupts it) to drive the real shader clamp ceiling.
   float clampMax[4] = {1000.0f, 1000.0f, 1000.0f, 1.0f};
+  // Layer2d ObjectToClipSpace (TiXL Layer2d → draw-Quad-vs.hlsl). ROW-MAJOR (m[r*4+c]); the ONLY
+  // matrix the xf VS reads (F3: the other 9 TransformBufferLayout matrices are DEAD for Layer2d, NOT
+  // built). The cook DRIVER (cookRenderTarget) fills this from the default camera × ObjectToWorld
+  // at draw time (it knows the output aspect = the resolution-pin point); the op leaves it identity.
+  // Ignored by every kind except Layer2d. Default identity (a no-op transform = clip-space passthrough).
+  float objectToClipSpace[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+  // Layer2d drop-mul tooth: when false the xf VS skips the ObjectToClipSpace mul (raw clip space,
+  // = the ScreenQuad behavior). The render golden's injectBug sets this false to prove the seam mul
+  // is load-bearing (a mis-placed quad). Production always leaves it true. Ignored by non-Layer2d kinds.
+  bool applyTransform = true;
 };
 
 // A render command chain: draw items in execution order (later items composite on top).

@@ -415,6 +415,14 @@ int runDrawBillboardsSelfTest(bool injectBug);
 RenderCommand cookDrawScreenQuad(CmdCookCtx& c);
 RenderCommand cookClearRenderTarget(CmdCookCtx& c);
 void registerDrawScreenQuadOps();  // registers BOTH DrawScreenQuad + ClearRenderTarget
+
+// --- Layer2d command op (point_ops_layer2d.cpp, camera-context/Layer2d seam Cut 1). Texture2D in →
+// Command out (DrawKind::Layer2d): a textured quad PROJECTED by ObjectToClipSpace (vs ScreenQuad's
+// raw clip). The cook driver (cookRenderTarget) finishes ObjectToClipSpace with the output's default
+// camera (F1). registerLayer2dOp registers it into the command stream. runLayer2dSelfTest is the
+// render golden (drop-mul tooth; declared in field_camera.h since it shares the camera convention). ---
+RenderCommand cookLayer2d(CmdCookCtx& c);
+void registerLayer2dOp();
 // DrawScreenQuad golden: a uniform-gray source texture, Color=(2,1,1,1) tint → assert the center
 // pixel is R≈clamp(2*0.5)=1.0 (saturated) and G/B≈0.5 (the closed-form clamp(Color*tex,0,1000)).
 // injectBug drops the source texture → black → FAIL.

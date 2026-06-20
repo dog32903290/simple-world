@@ -1,0 +1,194 @@
+// runtime/field_camera.cpp — see field_camera.h. Pure float[16] camera math; ZERO Metal.
+//
+// Every matrix routine is transcribed element-for-element from
+//   external/tixl/Core/Utils/Geometry/GraphicsMath.cs   (LookAtRH / PerspectiveFovRH)
+//   external/tixl/Core/Rendering/TransformBufferLayout.cs (the derived-matrix assembly)
+// in ROW-MAJOR storage / ROW-VECTOR convention (m[r*4+c]; transform = v·M). See header for the
+// convention lock and why we do NOT replay TiXL's HLSL-cbuffer transpose.
+#include "runtime/field_camera.h"
+
+#include <cmath>
+#include <cstring>
+
+namespace sw {
+
+namespace {
+constexpr float kPi = 3.14159265358979323846f;
+constexpr float kFovEpsilon = 0.0001f;  // GraphicsMath.cs:109
+const float kMaxFov = kPi - kFovEpsilon;
+
+void normalize3(float v[3]) {
+  float len = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+  if (len > 0.0f) { v[0] /= len; v[1] /= len; v[2] /= len; }
+}
+void cross3(const float a[3], const float b[3], float out[3]) {
+  out[0] = a[1] * b[2] - a[2] * b[1];
+  out[1] = a[2] * b[0] - a[0] * b[2];
+  out[2] = a[0] * b[1] - a[1] * b[0];
+}
+float dot3(const float a[3], const float b[3]) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+}  // namespace
+
+float defaultCameraDistance() {
+  // GraphicsMath.cs:114 — 1 / tan(DefaultCamFovDegrees · π / 360).
+  return 1.0f / std::tan(kDefaultCamFovDegrees * kPi / 360.0f);
+}
+
+Mat4 mat4Identity() {
+  Mat4 r{};
+  r.m[0] = r.m[5] = r.m[10] = r.m[15] = 1.0f;
+  return r;
+}
+
+Mat4 mat4Mul(const Mat4& a, const Mat4& b) {
+  // Row-major a·b: r[i][j] = Σ_k a[i][k]·b[k][j]. Matches System.Numerics Matrix4x4.Multiply and the
+  // codebase's tMatMul (point_ops_transformpoints.cpp:258).
+  Mat4 r{};
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < 4; ++j) {
+      float s = 0.0f;
+      for (int k = 0; k < 4; ++k) s += a.m[i * 4 + k] * b.m[k * 4 + j];
+      r.m[i * 4 + j] = s;
+    }
+  return r;
+}
+
+void mat4TransformPointDivW(const Mat4& m, float x, float y, float z, float out[3]) {
+  // Row-vector (x,y,z,1)·M, then divide by w. Mirrors GraphicsMath.TransformCoordinate.
+  float in[4] = {x, y, z, 1.0f};
+  float o[4];
+  for (int j = 0; j < 4; ++j) {
+    float s = 0.0f;
+    for (int i = 0; i < 4; ++i) s += in[i] * m.m[i * 4 + j];
+    o[j] = s;
+  }
+  float w = (o[3] != 0.0f) ? o[3] : 1.0f;
+  out[0] = o[0] / w;
+  out[1] = o[1] / w;
+  out[2] = o[2] / w;
+}
+
+Mat4 lookAtRH(const float eye[3], const float target[3], const float up[3]) {
+  // GraphicsMath.cs:10-22 verbatim (System.Numerics impl of SharpDX LookAtRH).
+  float zAxis[3] = {eye[0] - target[0], eye[1] - target[1], eye[2] - target[2]};
+  normalize3(zAxis);
+  float xAxis[3];
+  cross3(up, zAxis, xAxis);
+  normalize3(xAxis);
+  float yAxis[3];
+  cross3(zAxis, xAxis, yAxis);
+
+  Mat4 r{};
+  // The C# constructor fills ROWS in this order (each line = one matrix row):
+  //   xAxis.X, yAxis.X, zAxis.X, 0
+  //   xAxis.Y, yAxis.Y, zAxis.Y, 0
+  //   xAxis.Z, yAxis.Z, zAxis.Z, 0
+  //   -dot(x,eye), -dot(y,eye), -dot(z,eye), 1
+  r.m[0] = xAxis[0]; r.m[1] = yAxis[0]; r.m[2] = zAxis[0]; r.m[3] = 0.0f;
+  r.m[4] = xAxis[1]; r.m[5] = yAxis[1]; r.m[6] = zAxis[1]; r.m[7] = 0.0f;
+  r.m[8] = xAxis[2]; r.m[9] = yAxis[2]; r.m[10] = zAxis[2]; r.m[11] = 0.0f;
+  r.m[12] = -dot3(xAxis, eye); r.m[13] = -dot3(yAxis, eye); r.m[14] = -dot3(zAxis, eye); r.m[15] = 1.0f;
+  return r;
+}
+
+Mat4 perspectiveFovRH(float fovY, float aspect, float zNear, float zFar) {
+  // GraphicsMath.cs:27-54 verbatim. NOTE the M.. names there are 1-based row.col (M11=m[0]).
+  fovY = std::fmax(kFovEpsilon, std::fmin(fovY, kMaxFov));
+  aspect = std::fmax(kFovEpsilon, aspect);
+  zNear = std::fmax(kFovEpsilon, zNear);
+  zFar = std::fmax(zNear + kFovEpsilon, zFar);
+
+  float yScale = 1.0f / std::tan(fovY * 0.5f);
+  float xScale = yScale / aspect;
+  float diff = zNear - zFar;
+
+  Mat4 r{};
+  r.m[0] = xScale;                    // M11
+  r.m[5] = yScale;                    // M22
+  r.m[10] = zFar / diff;              // M33
+  r.m[11] = -1.0f;                    // M34
+  r.m[14] = zNear * zFar / diff;      // M43
+  // M44 = 0 (left zero) — this is a perspective matrix, w' = -z.
+  return r;
+}
+
+bool mat4Inverse(const Mat4& in, Mat4& out) {
+  // Standard cofactor inverse (the same one most engines ship; numerically fine for camera matrices).
+  const float* m = in.m;
+  float inv[16];
+  inv[0] = m[5]*m[10]*m[15] - m[5]*m[11]*m[14] - m[9]*m[6]*m[15] + m[9]*m[7]*m[14] + m[13]*m[6]*m[11] - m[13]*m[7]*m[10];
+  inv[4] = -m[4]*m[10]*m[15] + m[4]*m[11]*m[14] + m[8]*m[6]*m[15] - m[8]*m[7]*m[14] - m[12]*m[6]*m[11] + m[12]*m[7]*m[10];
+  inv[8] = m[4]*m[9]*m[15] - m[4]*m[11]*m[13] - m[8]*m[5]*m[15] + m[8]*m[7]*m[13] + m[12]*m[5]*m[11] - m[12]*m[7]*m[9];
+  inv[12] = -m[4]*m[9]*m[14] + m[4]*m[10]*m[13] + m[8]*m[5]*m[14] - m[8]*m[6]*m[13] - m[12]*m[5]*m[10] + m[12]*m[6]*m[9];
+  inv[1] = -m[1]*m[10]*m[15] + m[1]*m[11]*m[14] + m[9]*m[2]*m[15] - m[9]*m[3]*m[14] - m[13]*m[2]*m[11] + m[13]*m[3]*m[10];
+  inv[5] = m[0]*m[10]*m[15] - m[0]*m[11]*m[14] - m[8]*m[2]*m[15] + m[8]*m[3]*m[14] + m[12]*m[2]*m[11] - m[12]*m[3]*m[10];
+  inv[9] = -m[0]*m[9]*m[15] + m[0]*m[11]*m[13] + m[8]*m[1]*m[15] - m[8]*m[3]*m[13] - m[12]*m[1]*m[11] + m[12]*m[3]*m[9];
+  inv[13] = m[0]*m[9]*m[14] - m[0]*m[10]*m[13] - m[8]*m[1]*m[14] + m[8]*m[2]*m[13] + m[12]*m[1]*m[10] - m[12]*m[2]*m[9];
+  inv[2] = m[1]*m[6]*m[15] - m[1]*m[7]*m[14] - m[5]*m[2]*m[15] + m[5]*m[3]*m[14] + m[13]*m[2]*m[7] - m[13]*m[3]*m[6];
+  inv[6] = -m[0]*m[6]*m[15] + m[0]*m[7]*m[14] + m[4]*m[2]*m[15] - m[4]*m[3]*m[14] - m[12]*m[2]*m[7] + m[12]*m[3]*m[6];
+  inv[10] = m[0]*m[5]*m[15] - m[0]*m[7]*m[13] - m[4]*m[1]*m[15] + m[4]*m[3]*m[13] + m[12]*m[1]*m[7] - m[12]*m[3]*m[5];
+  inv[14] = -m[0]*m[5]*m[14] + m[0]*m[6]*m[13] + m[4]*m[1]*m[14] - m[4]*m[2]*m[13] - m[12]*m[1]*m[6] + m[12]*m[2]*m[5];
+  inv[3] = -m[1]*m[6]*m[11] + m[1]*m[7]*m[10] + m[5]*m[2]*m[11] - m[5]*m[3]*m[10] - m[9]*m[2]*m[7] + m[9]*m[3]*m[6];
+  inv[7] = m[0]*m[6]*m[11] - m[0]*m[7]*m[10] - m[4]*m[2]*m[11] + m[4]*m[3]*m[10] + m[8]*m[2]*m[7] - m[8]*m[3]*m[6];
+  inv[11] = -m[0]*m[5]*m[11] + m[0]*m[7]*m[9] + m[4]*m[1]*m[11] - m[4]*m[3]*m[9] - m[8]*m[1]*m[7] + m[8]*m[3]*m[5];
+  inv[15] = m[0]*m[5]*m[10] - m[0]*m[6]*m[9] - m[4]*m[1]*m[10] + m[4]*m[2]*m[9] + m[8]*m[1]*m[6] - m[8]*m[2]*m[5];
+
+  float det = m[0]*inv[0] + m[1]*inv[4] + m[2]*inv[8] + m[3]*inv[12];
+  if (det == 0.0f) { out = mat4Identity(); return false; }
+  float invDet = 1.0f / det;
+  for (int i = 0; i < 16; ++i) out.m[i] = inv[i] * invDet;
+  return true;
+}
+
+namespace {
+RaymarchTransforms buildTransforms(const Mat4& worldToCamera, const Mat4& cameraToClipSpace) {
+  // TransformBufferLayout.cs:10-15 — derive the inverses, compose ClipSpaceToWorld.
+  Mat4 clipSpaceToCamera, cameraToWorld;
+  mat4Inverse(cameraToClipSpace, clipSpaceToCamera);
+  mat4Inverse(worldToCamera, cameraToWorld);
+  // ClipSpaceToWorld = clipSpaceToCamera · cameraToWorld (row-vector: clip→camera→world).
+  RaymarchTransforms t;
+  t.clipSpaceToWorld = mat4Mul(clipSpaceToCamera, cameraToWorld);
+  t.cameraToWorld = cameraToWorld;
+  return t;
+}
+}  // namespace
+
+RaymarchTransforms raymarchTransforms(const float eye[3], const float target[3], const float up[3],
+                                      float fovYDegrees, float aspect, float zNear, float zFar) {
+  Mat4 worldToCamera = lookAtRH(eye, target, up);
+  Mat4 cameraToClipSpace = perspectiveFovRH(fovYDegrees * kPi / 180.0f, aspect, zNear, zFar);
+  return buildTransforms(worldToCamera, cameraToClipSpace);
+}
+
+RaymarchTransforms defaultRaymarchTransforms(float aspect) {
+  // EvaluationContext.SetDefaultCamera() (EvaluationContext.cs:89-95): eye=(0,0,DefaultCameraDistance),
+  // target=origin, up=(0,1,0), fov=45°, near=0.01, far=1000.
+  float eye[3] = {0.0f, 0.0f, defaultCameraDistance()};
+  float target[3] = {0.0f, 0.0f, 0.0f};
+  float up[3] = {0.0f, 1.0f, 0.0f};
+  return raymarchTransforms(eye, target, up, kDefaultCamFovDegrees, aspect, 0.01f, 1000.0f);
+}
+
+Mat4 objectToClipSpace(const Mat4& objectToWorld, const Mat4& worldToCamera,
+                       const Mat4& cameraToClipSpace) {
+  // TransformBufferLayout.cs:13-16. System.Numerics Multiply(a,b)=a·b (row-vector), so
+  // objectToWorld · worldToCamera · cameraToClipSpace. mat4Mul is left-to-right associative; the
+  // grouping is irrelevant (matrix mul is associative) but we mirror TiXL's two-step form.
+  Mat4 objectToCamera = mat4Mul(objectToWorld, worldToCamera);
+  return mat4Mul(objectToCamera, cameraToClipSpace);
+}
+
+LayerCameraForward defaultLayerCameraForward(float aspect) {
+  // Same default camera as defaultRaymarchTransforms — but the FORWARD pair the quad VS consumes
+  // (WorldToCamera + CameraToClipSpace), not the unproject inverses.
+  float eye[3] = {0.0f, 0.0f, defaultCameraDistance()};
+  float target[3] = {0.0f, 0.0f, 0.0f};
+  float up[3] = {0.0f, 1.0f, 0.0f};
+  LayerCameraForward f;
+  f.worldToCamera = lookAtRH(eye, target, up);
+  f.cameraToClipSpace = perspectiveFovRH(kDefaultCamFovDegrees * kPi / 180.0f, aspect, 0.01f, 1000.0f);
+  return f;
+}
+
+}  // namespace sw

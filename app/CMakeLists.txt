@@ -171,6 +171,8 @@ add_executable(simple_world
   src/runtime/particle_decay_selftest.cpp
   src/runtime/field_graph.cpp
   src/runtime/field_graph_selftest.cpp
+  src/runtime/field_camera.cpp
+  src/runtime/field_camera_selftest.cpp
   src/runtime/field_render.cpp
   src/runtime/field_node_registry.cpp
   src/runtime/field_ops_spheresdf.cpp

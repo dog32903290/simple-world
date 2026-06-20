@@ -24,6 +24,7 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/draw_params.h"      // DrawLineParams/DrawBillboardParams/DrawScreenQuadParams + bindings
+#include "runtime/field_camera.h"     // defaultLayerCameraForward / objectToClipSpace (Layer2d seam, F1)
 #include "runtime/graph.h"            // Graph/Node
 #include "runtime/particle_params.h"  // DRAW_Points, DRAW_ViewExtent
 #include "runtime/point_graph.h"      // TexCookCtx, RenderResolution, registerTexOp
@@ -112,6 +113,16 @@ void cookRenderTarget(TexCookCtx& c) {
   // into the future cache is a one-line key extension when that lands.
   MTL::RenderPipelineState* psoSQ[2] = {nullptr, nullptr};  // [Normal, Additive]
   MTL::SamplerState* sqSampler = nullptr;
+  // Layer2d (DrawKind::Layer2d): same lazy-per-blend-mode posture as ScreenQuad. F2 — a SEPARATE
+  // PSO (draw_quad_xf_vs + the shared draw_screenquad_fs), the clip-space ScreenQuad leaf untouched.
+  MTL::RenderPipelineState* psoL2[2] = {nullptr, nullptr};  // [Normal, Additive]
+  // F1 — function-local transform context (NOT a runtime global): the default camera FORWARD pair for
+  // THIS output's aspect (the resolution-pin point). When no Camera op is present (Cut 1: always),
+  // ObjectToClipSpace = ObjectToWorld · defaultWorldToCamera · defaultCameraToClipSpace. Built once
+  // here, reused per Layer2d item; Cut 2's Camera op will push/pop this context.
+  const float aspectF =
+      (c.output->height() > 0) ? (float)c.output->width() / (float)c.output->height() : 1.0f;
+  const LayerCameraForward camFwd = defaultLayerCameraForward(aspectF);
 
   MTL::RenderPassDescriptor* pass = MTL::RenderPassDescriptor::renderPassDescriptor();
   auto* ca = pass->colorAttachments()->object(0);
@@ -133,8 +144,10 @@ void cookRenderTarget(TexCookCtx& c) {
   if (c.command) {
     for (const RenderDrawItem& it : c.command->items) {
       if (it.kind == DrawKind::Clear) continue;  // not a draw — handled by the pass clear color above
-      // Point-based kinds need a non-empty bag; ScreenQuad draws from a texture (no point buffer).
-      if (it.kind != DrawKind::ScreenQuad && (!it.points || it.count == 0)) continue;
+      // Point-based kinds need a non-empty bag; ScreenQuad/Layer2d draw from a texture (no buffer).
+      if (it.kind != DrawKind::ScreenQuad && it.kind != DrawKind::Layer2d &&
+          (!it.points || it.count == 0))
+        continue;
       switch (it.kind) {
         case DrawKind::Points: {
           if (!psoPoints)
@@ -226,6 +239,51 @@ void cookRenderTarget(TexCookCtx& c) {
           enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0), NS::UInteger(6));
           break;
         }
+        case DrawKind::Layer2d: {
+          // TiXL Layer2d → draw-Quad-vs.hlsl: a textured quad PROJECTED by ObjectToClipSpace. Same
+          // unwired-texture posture as ScreenQuad (skip → cleared background shows through).
+          if (!it.srcTexture) break;
+          int bmi = (it.blendMode == BlendMode::Additive) ? 1 : 0;
+          if (!psoL2[bmi]) {
+            BlendMode m = it.blendMode;
+            // F2: the xf VS + the SHARED ScreenQuad FS (psMain byte-identical to DrawScreenQuad).
+            psoL2[bmi] =
+                makeDrawPSO(c.dev, c.lib, "draw_quad_xf_vs", "draw_screenquad_fs", pf, false, &m);
+          }
+          if (!psoL2[bmi]) break;
+          if (!sqSampler) {  // reuse the ScreenQuad sampler (TiXL Layer2d Filter default = Linear+Clamp)
+            MTL::SamplerDescriptor* sd = MTL::SamplerDescriptor::alloc()->init();
+            sd->setMinFilter(MTL::SamplerMinMagFilterLinear);
+            sd->setMagFilter(MTL::SamplerMinMagFilterLinear);
+            sd->setMipFilter(MTL::SamplerMipFilterLinear);
+            sd->setSAddressMode(MTL::SamplerAddressModeClampToEdge);
+            sd->setTAddressMode(MTL::SamplerAddressModeClampToEdge);
+            sqSampler = c.dev->newSamplerState(sd);
+            sd->release();
+          }
+          enc->setRenderPipelineState(psoL2[bmi]);
+          DrawQuadXfParams P{};
+          P.color[0] = it.color[0]; P.color[1] = it.color[1];
+          P.color[2] = it.color[2]; P.color[3] = it.color[3];
+          P.position[0] = it.position[0]; P.position[1] = it.position[1];
+          P.width = it.width; P.height = it.height;
+          P.clampMax[0] = it.clampMax[0]; P.clampMax[1] = it.clampMax[1];
+          P.clampMax[2] = it.clampMax[2]; P.clampMax[3] = it.clampMax[3];
+          // F1: the item carries ObjectToWorld (Cut 1: Identity — the SRT math is Cut 2); the EXECUTOR
+          // finishes ObjectToClipSpace with this output's default camera (the resolution-pin aspect).
+          // TransformBufferLayout.cs:13-16 order: o2w · worldToCamera · cameraToClipSpace.
+          Mat4 objectToWorld{};
+          for (int i = 0; i < 16; ++i) objectToWorld.m[i] = it.objectToClipSpace[i];
+          Mat4 o2c = objectToClipSpace(objectToWorld, camFwd.worldToCamera, camFwd.cameraToClipSpace);
+          for (int i = 0; i < 16; ++i) P.objectToClipSpace[i] = o2c.m[i];
+          P.applyTransform = it.applyTransform ? 1u : 0u;  // drop-mul golden tooth
+          enc->setVertexBytes(&P, sizeof(P), DRAWQUADXF_Params);
+          enc->setFragmentBytes(&P, sizeof(P), DRAWQUADXF_Params);
+          enc->setFragmentTexture(const_cast<MTL::Texture*>(it.srcTexture), 0);
+          enc->setFragmentSamplerState(sqSampler, 0);
+          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0), NS::UInteger(6));
+          break;
+        }
         case DrawKind::Clear:
           break;  // already skipped above (handled by the pass clear color); explicit for -Wswitch
       }
@@ -239,6 +297,8 @@ void cookRenderTarget(TexCookCtx& c) {
   if (psoBb) psoBb->release();
   if (psoSQ[0]) psoSQ[0]->release();
   if (psoSQ[1]) psoSQ[1]->release();
+  if (psoL2[0]) psoL2[0]->release();
+  if (psoL2[1]) psoL2[1]->release();
   if (sqSampler) sqSampler->release();
 }
 

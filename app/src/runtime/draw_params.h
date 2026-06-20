@@ -65,6 +65,44 @@ struct DrawScreenQuadParams {
 #endif
 };
 
+// DrawQuadXf (Layer2d) Params cbuffer (b0), 1:1 with draw-Quad-vs.hlsl's Transforms(b0)+Params(b1)
+// COLLAPSED into one struct: the xf VS reads ONLY ObjectToClipSpace (F3 — the other 9
+// TransformBufferLayout matrices are dead for Layer2d, NOT carried), Color/Width/Height for the quad,
+// clampMax for the PS clamp, and `applyTransform` for the drop-mul golden tooth. Layout mirrors
+// DrawScreenQuadParams (so the SHARED draw_screenquad_fs reads color/clampMax at the same offsets)
+// with the matrix appended. ROW-MAJOR float[16] (m[r*4+c]); the MSL VS rebuilds its float4x4 so
+// `mul4(M,v)` == `v·M_rowmajor` (field_camera convention, NO transpose).
+// 48 (DrawScreenQuad prefix) + 64 (mat) + 16 (applyTransform+pad) = 128 bytes (16-byte multiple).
+struct DrawQuadXfParams {
+#ifdef __METAL_VERSION__
+  float4 color;
+  float2 position;
+#else
+  float color[4];
+  float position[2];
+#endif
+  float width;
+  float height;
+#ifdef __METAL_VERSION__
+  float4 clampMax;
+  // ROW-MAJOR float[16] (m[r*4+c]) — NOT a float4x4 (avoids MSL's column-major reinterpret). The VS
+  // does the row-vector multiply by hand (mul4row), identical to field_raymarch_template's mul4, so
+  // `mul4row(M,v) == v·M_rowmajor` (field_camera convention, NO transpose anywhere).
+  float objectToClipSpace[16];
+  uint applyTransform;  // 1 = apply the mul; 0 = raw clip (drop-mul golden tooth)
+  uint _pad0;
+  uint _pad1;
+  uint _pad2;  // -> 16-byte tail
+#else
+  float clampMax[4];
+  float objectToClipSpace[16];  // row-major m[r*4+c]
+  uint32_t applyTransform;
+  uint32_t _pad0;
+  uint32_t _pad1;
+  uint32_t _pad2;  // -> 16-byte tail
+#endif
+};
+
 enum DrawLineBinding {
   DRAWLINE_Points = 0,  // device const SwPoint* (vertex buffer)
   DRAWLINE_Params = 1,  // constant DrawLineParams&
@@ -82,8 +120,16 @@ enum DrawScreenQuadBinding {
   DRAWSQ_Params = 0,  // constant DrawScreenQuadParams& (vertex + fragment)
 };
 
+// DrawQuadXf (Layer2d) bindings — same single-cbuffer shape as DrawScreenQuad (VS reads no vertex
+// buffer; 6 hardcoded object-space quad verts by vertex_id). The xf VS + the shared FS both bind
+// DrawQuadXfParams at slot 0; texture(0)/sampler(0) mirror the HLSL t0/s0.
+enum DrawQuadXfBinding {
+  DRAWQUADXF_Params = 0,  // constant DrawQuadXfParams& (vertex + fragment)
+};
+
 #ifndef __METAL_VERSION__
 static_assert(sizeof(DrawLineParams) == 32, "DrawLineParams 32 bytes");
 static_assert(sizeof(DrawBillboardParams) == 32, "DrawBillboardParams 32 bytes");
 static_assert(sizeof(DrawScreenQuadParams) == 48, "DrawScreenQuadParams 48 bytes");
+static_assert(sizeof(DrawQuadXfParams) == 128, "DrawQuadXfParams 128 bytes");
 #endif
