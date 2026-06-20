@@ -97,6 +97,19 @@ struct RenderDrawItem {
   // = the ScreenQuad behavior). The render golden's injectBug sets this false to prove the seam mul
   // is load-bearing (a mis-placed quad). Production always leaves it true. Ignored by non-Layer2d kinds.
   bool applyTransform = true;
+  // ── Layer2d transform-stack (Cut 2): the RAW SRT params (TiXL _ProcessLayer2d inputs) ──
+  // The op (cookLayer2d) stamps these; the EXECUTOR composes ObjectToWorld = S·R·T at draw time,
+  // because the ScaleMode aspect coupling needs viewAspect (from the camera, executor-local F1) AND
+  // imageAspect (from srcTexture). This mirrors TiXL: _ProcessLayer2d evals against context's
+  // CameraToClipSpace. When layer2dComposeSRT is false the executor uses objectToClipSpace[16] AS the
+  // ObjectToWorld verbatim (the Cut-1 seam tooth path that drove a hand-built matrix); when true it
+  // composes from these params (production + the Cut-2 transform teeth). Ignored by non-Layer2d kinds.
+  bool layer2dComposeSRT = false;
+  float layerScale = 1.0f;              // TiXL Scale (.t3 default 1.0)
+  float layerStretch[2] = {1.0f, 1.0f}; // TiXL Stretch (.t3 default (1,1))
+  float layerRotateDeg = 0.0f;          // TiXL Rotate (.t3 default 0) — degrees
+  float layerPosZ = 0.0f;               // TiXL PositionZ (.t3 default 0); position[] above = PositionXy
+  uint32_t layerScaleMode = 0;          // TiXL ScaleMode (.t3 default 0 = FitHeight)
 };
 
 // A render command chain: draw items in execution order (later items composite on top).

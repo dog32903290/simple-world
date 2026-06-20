@@ -99,6 +99,50 @@ RaymarchTransforms raymarchTransforms(const float eye[3], const float target[3],
 Mat4 objectToClipSpace(const Mat4& objectToWorld, const Mat4& worldToCamera,
                        const Mat4& cameraToClipSpace);
 
+// ── Layer2d transform-stack (Cut 2) ──────────────────────────────────────────────────────────────
+// PARITY AUTHORITY: external/tixl/Operators/Lib/render/_/_ProcessLayer2d.cs + GraphicsMath.cs
+// CreateTransformationMatrix + ApplyTransformMatrix.cs.
+//
+// NET ObjectToWorld delivered to the quad VS = S·R·T (row-vector v·M), where S=scale, R=rotate-Z,
+// T=translate. BACKWARD-TRACE of the double-transpose (the trap the blueprint flagged):
+//   _ProcessLayer2d builds M = CreateTransformationMatrix(...)  (with scalingCenter=rotationCenter=0,
+//     scalingRotation=Identity → M = scale·rotation·translation in System.Numerics row-vector order),
+//     then `.Transpose()`s it purely to pack the HLSL cbuffer column-major (its _matrix[] rows are the
+//     COLUMNS of M).
+//   ApplyTransformMatrix reads those rows back (ToMatrixFromRows = Mᵀ), `.Transpose()`s AGAIN (→ M),
+//     and sets context.ObjectToWorld = Multiply(M, prevObjectToWorld=Identity) = M.
+//   → the two transposes CANCEL; the net ObjectToWorld is plain M = S·R·T. SW stores matrices
+//     ROW-MAJOR row-vector already (field_camera convention), so we build S·R·T directly via mat4Mul
+//     — NO transpose dance (it would be a double-cancel of a cancel).
+//
+// ScaleMode aspect coupling (_ProcessLayer2d.cs:37,49-101): viewAspect = CameraToClipSpace.M22/M11
+//   (= aspect, since M11=yScale/aspect, M22=yScale). imageAspect = srcW/srcH. The mode scales scale.X
+//   (and sometimes scale.Y) BEFORE the SRT is built. layer2dScaleModeApply applies the mode in place.
+enum class Layer2dScaleMode {
+  FitHeight = 0,
+  FitWidth = 1,
+  FitBoth = 2,
+  Cover = 3,
+  Stretch = 4,
+  MatchPixelResolution = 5,  // DEFERRED (needs RequestedResolution context) — see field_camera.cpp
+};
+
+// viewAspect = M22/M11 of a CameraToClipSpace (PerspectiveFovRH) — _ProcessLayer2d.cs:37, faithful.
+float viewAspectFromClip(const Mat4& cameraToClipSpace);
+
+// Apply the ScaleMode to (scaleX,scaleY) in place — verbatim _ProcessLayer2d.cs:49-101 (the implemented
+// modes; MatchPixelResolution is a named DEFER, treated as Stretch). FitBoth resolves to FitHeight or
+// FitWidth by imageAspect vs viewAspect first (cs:50-53).
+void layer2dScaleModeApply(Layer2dScaleMode mode, float imageAspect, float viewAspect,
+                           float& scaleX, float& scaleY);
+
+// Build the Layer2d net ObjectToWorld = S·R·T (row-vector). scale already includes the Stretch×Scale
+// product AND the ScaleMode aspect adjustment (call layer2dScaleModeApply first). rotateZdeg = TiXL
+// Rotate (degrees → radians internally, named fork). translate = (posX,posY,posZ).
+//   S = scale(scaleX,scaleY,1); R = rotation about +Z by roll (CreateFromYawPitchRoll(0,0,roll) =
+//       CreateRotationZ(roll), row-vector); T = translate(tx,ty,tz). M = mat4Mul(mat4Mul(S,R),T).
+Mat4 layer2dObjectToWorld(float scaleX, float scaleY, float rotateZdeg, float tx, float ty, float tz);
+
 // The DEFAULT-camera FORWARD matrices Layer2d needs (the inverses live in RaymarchTransforms; the
 // quad VS needs WorldToCamera + CameraToClipSpace forward). Same default as defaultRaymarchTransforms:
 // eye=(0,0,DefaultCameraDistance), target=origin, up=(0,1,0), fov=45°, near=0.01, far=1000.

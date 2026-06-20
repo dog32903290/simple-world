@@ -269,11 +269,28 @@ void cookRenderTarget(TexCookCtx& c) {
           P.width = it.width; P.height = it.height;
           P.clampMax[0] = it.clampMax[0]; P.clampMax[1] = it.clampMax[1];
           P.clampMax[2] = it.clampMax[2]; P.clampMax[3] = it.clampMax[3];
-          // F1: the item carries ObjectToWorld (Cut 1: Identity — the SRT math is Cut 2); the EXECUTOR
-          // finishes ObjectToClipSpace with this output's default camera (the resolution-pin aspect).
-          // TransformBufferLayout.cs:13-16 order: o2w · worldToCamera · cameraToClipSpace.
+          // F1: the EXECUTOR finishes ObjectToClipSpace with this output's default camera (the
+          // resolution-pin aspect). TransformBufferLayout.cs:13-16 order: o2w·worldToCamera·cameraToClipSpace.
+          // Cut 2: ObjectToWorld is the SRT stack (TiXL _ProcessLayer2d) composed HERE — the ScaleMode
+          // aspect coupling needs viewAspect (camFwd, executor-local) AND imageAspect (srcTexture).
           Mat4 objectToWorld{};
-          for (int i = 0; i < 16; ++i) objectToWorld.m[i] = it.objectToClipSpace[i];
+          if (it.layer2dComposeSRT) {
+            // viewAspect = CameraToClipSpace.M22/M11 (_ProcessLayer2d.cs:37). imageAspect = srcW/srcH.
+            float viewAspect = viewAspectFromClip(camFwd.cameraToClipSpace);
+            float imgW = (float)it.srcTexture->width(), imgH = (float)it.srcTexture->height();
+            float imageAspect = (imgH > 0.0f) ? imgW / imgH : 1.0f;
+            // scale = Scale * Stretch (cs:40), then ScaleMode adjusts scale.X/Y (cs:49-101).
+            float scaleX = it.layerScale * it.layerStretch[0];
+            float scaleY = it.layerScale * it.layerStretch[1];
+            layer2dScaleModeApply((Layer2dScaleMode)it.layerScaleMode, imageAspect, viewAspect, scaleX,
+                                  scaleY);
+            objectToWorld = layer2dObjectToWorld(scaleX, scaleY, it.layerRotateDeg, it.position[0],
+                                                 it.position[1], it.layerPosZ);
+          } else {
+            // Legacy path: the item carries ObjectToWorld verbatim (Cut-1 seam-tooth driving a
+            // hand-built matrix). Kept so the seam-presence golden can drive an arbitrary matrix.
+            for (int i = 0; i < 16; ++i) objectToWorld.m[i] = it.objectToClipSpace[i];
+          }
           Mat4 o2c = objectToClipSpace(objectToWorld, camFwd.worldToCamera, camFwd.cameraToClipSpace);
           for (int i = 0; i < 16; ++i) P.objectToClipSpace[i] = o2c.m[i];
           P.applyTransform = it.applyTransform ? 1u : 0u;  // drop-mul golden tooth

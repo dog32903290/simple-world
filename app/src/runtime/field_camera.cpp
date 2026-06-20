@@ -179,6 +179,72 @@ Mat4 objectToClipSpace(const Mat4& objectToWorld, const Mat4& worldToCamera,
   return mat4Mul(objectToCamera, cameraToClipSpace);
 }
 
+float viewAspectFromClip(const Mat4& cameraToClipSpace) {
+  // _ProcessLayer2d.cs:37 — viewAspect = M22/M11. For PerspectiveFovRH, M11=yScale/aspect (m[0]),
+  // M22=yScale (m[5]), so M22/M11 == aspect. Faithful (derive, don't hardcode).
+  float m11 = cameraToClipSpace.m[0];
+  return (m11 != 0.0f) ? cameraToClipSpace.m[5] / m11 : 1.0f;
+}
+
+void layer2dScaleModeApply(Layer2dScaleMode mode, float imageAspect, float viewAspect, float& scaleX,
+                           float& scaleY) {
+  // _ProcessLayer2d.cs:50-101 verbatim. FitBoth first resolves to FitHeight/FitWidth (cs:50-53).
+  if (mode == Layer2dScaleMode::FitBoth)
+    mode = (imageAspect < viewAspect) ? Layer2dScaleMode::FitHeight : Layer2dScaleMode::FitWidth;
+
+  switch (mode) {
+    case Layer2dScaleMode::FitHeight:
+      scaleX *= imageAspect;  // cs:58
+      break;
+    case Layer2dScaleMode::FitWidth:
+      scaleX *= viewAspect;                 // cs:62
+      scaleY *= viewAspect / imageAspect;   // cs:63
+      break;
+    case Layer2dScaleMode::Cover: {
+      float ratio = viewAspect / imageAspect;  // cs:67
+      if (ratio > 1.0f) {
+        scaleX *= viewAspect;                // cs:70
+        scaleY *= viewAspect / imageAspect;  // cs:71
+      } else {
+        scaleX *= viewAspect / ratio;                // cs:75
+        scaleY *= viewAspect / imageAspect / ratio;  // cs:76
+      }
+      break;
+    }
+    case Layer2dScaleMode::Stretch:
+      scaleX *= viewAspect;  // cs:80
+      break;
+    case Layer2dScaleMode::MatchPixelResolution:
+      // DEFERRED (named fork): needs context.RequestedResolution (cs:83-99), which the Cut-2 seam does
+      // not thread. Treated as Stretch (the closest implemented mode) so the op stays defined; NOT
+      // pixel-faithful for this mode. Camera op + RequestedResolution context = a later cut.
+      scaleX *= viewAspect;
+      break;
+    case Layer2dScaleMode::FitBoth:
+      break;  // unreachable (resolved above); explicit for -Wswitch
+  }
+}
+
+Mat4 layer2dObjectToWorld(float scaleX, float scaleY, float rotateZdeg, float tx, float ty, float tz) {
+  // GraphicsMath.CreateTransformationMatrix with scalingCenter=rotationCenter=0, scalingRotation=
+  // Identity reduces to M = S·R·T (row-vector). Build each row-vector matrix, then mat4Mul left→right.
+  Mat4 S = mat4Identity();
+  S.m[0] = scaleX; S.m[5] = scaleY; S.m[10] = 1.0f;
+
+  // R = rotation about +Z by roll (CreateFromYawPitchRoll(0,0,roll) == CreateRotationZ(roll),
+  // System.Numerics row-vector): [[cos,sin,0,0],[-sin,cos,0,0],[0,0,1,0],[0,0,0,1]]. deg→rad (fork).
+  float roll = rotateZdeg * kPi / 180.0f;
+  float cz = std::cos(roll), sz = std::sin(roll);
+  Mat4 R = mat4Identity();
+  R.m[0] = cz;  R.m[1] = sz;
+  R.m[4] = -sz; R.m[5] = cz;
+
+  Mat4 T = mat4Identity();
+  T.m[12] = tx; T.m[13] = ty; T.m[14] = tz;
+
+  return mat4Mul(mat4Mul(S, R), T);
+}
+
 LayerCameraForward defaultLayerCameraForward(float aspect) {
   // Same default camera as defaultRaymarchTransforms — but the FORWARD pair the quad VS consumes
   // (WorldToCamera + CameraToClipSpace), not the unproject inverses.
