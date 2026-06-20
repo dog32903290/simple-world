@@ -25,6 +25,7 @@ LABEL="com.baiwei.sw-autoloop"
 CLAUDE="/Users/chenbaiwei/.npm-global/bin/claude"
 WATCH_PID="$HOME/.claude/sw_watch.pid"   # Terminal-launched watcher 的 pid（繞過 launchd/TCC）
 WATCH_INTERVAL=600                        # watcher 每隔幾秒呼叫一次 do_tick
+LAST_BATCH_END="$HOME/.claude/sw_autoloop.lastbatch"  # 上一批結束時間戳（gate B 排除「自己上批」transcript）
 WARM_MIN=40          # transcript 在 N 分鐘內動過 = 有人在跑 → skip
                      # (40 而非 15:前景 driver 與 autoloop 共存時,前景長 agent 跑著主 transcript
                      #  會靜默到 ~34min[Cut73 implementer],須 >它才不被 autoloop 誤判插入=雙開血債)
@@ -46,12 +47,23 @@ do_tick(){
     log "清除 stale lock (pid=${lpid:-?} 已死)"; rm -f "$LOCK"
   fi
 
-  # ── Gate B: transcript 近期活動 ──
+  # ── Gate B: transcript 近期活動(偵測「別的 session / 柏為在跑」) ──
+  # ★解耦(2026-06-20 柏為點「40min 太長」): 排除 watcher 自己上一批 headless 寫的 transcript。
+  #   否則自己上批 transcript 還熱 → watcher 把自己誤當「有人在」→ 等 WARM_MIN → 批次間隔
+  #   被 WARM_MIN(40min) 卡住。解法: 只有「比上批結束更晚的 transcript 活動」才是別 session,
+  #   才用 WARM_MIN 判定。自己上批的 transcript(<= last_end+120s) 直接放行 → 批次間隔只受
+  #   tick 週期(~10min)。WARM_MIN 維持 40 純當「柏為回來(含長 agent 靜默 34min)」的安全網。
   local newest; newest="$(ls -t "$TX_DIR"/*.jsonl 2>/dev/null | head -1 || true)"
   if [ -n "$newest" ]; then
-    local age_min=$(( ( $(date +%s) - $(stat -f %m "$newest") ) / 60 ))
-    if [ "$age_min" -lt "$WARM_MIN" ]; then
-      log "SKIP[B]: 最新 transcript ${age_min}min 前動過 (<${WARM_MIN}min)"; echo "SKIP[B] transcript ${age_min}min ago"; return 0
+    local newest_m; newest_m="$(stat -f %m "$newest")"
+    local last_end; last_end="$(cat "$LAST_BATCH_END" 2>/dev/null || echo 0)"
+    if [ "$newest_m" -le "$((last_end + 120))" ]; then
+      :  # 自己上批的 transcript, 無別 session 活動 → gate B 放行(不受 WARM_MIN)
+    else
+      local age_min=$(( ( $(date +%s) - newest_m ) / 60 ))
+      if [ "$age_min" -lt "$WARM_MIN" ]; then
+        log "SKIP[B]: 別 session transcript ${age_min}min 前動過 (<${WARM_MIN}min)"; echo "SKIP[B] transcript ${age_min}min ago"; return 0
+      fi
     fi
   fi
 
@@ -75,6 +87,7 @@ do_tick(){
   local rc=$?
   [ "$rc" -ne 0 ] && log "WARN: headless 批次退出碼 $rc"
   rm -f "$LOCK"
+  date +%s > "$LAST_BATCH_END"   # ★記上批結束時間, 供下次 gate B 排除「自己上批」transcript
   log "DONE: 批次結束 (rc=$rc), lock 已清"
 }
 
@@ -142,27 +155,33 @@ do_watch(){
     echo "⚠ watcher 已在跑 (pid=$(cat "$WATCH_PID"))。先 watch-stop 再啟動。"; exit 1
   fi
   echo "$$" > "$WATCH_PID"
-  trap 'log "WATCH: 收到停止訊號, 退出 (pid=$$)"; rm -f "$WATCH_PID"; exit 0' INT TERM
+  # ★trap 要殺掉 sleep 子進程才能即時停: bash 在外部 `sleep` 命令時, TERM 的 trap 不會中斷
+  #   sleep(2026-06-20 watch-stop 停不掉血證)。改 `sleep & wait $!`(wait 是 builtin, 可被
+  #   TERM 即時中斷) + trap kill 子進程。
+  trap 'log "WATCH: 收到停止訊號, 退出 (pid=$$)"; rm -f "$WATCH_PID"; kill $(jobs -p) 2>/dev/null; exit 0' INT TERM
   log "WATCH: Terminal watcher 啟動 pid=$$ interval=${WATCH_INTERVAL}s (繞 launchd/TCC)"
-  echo "🔁 sw watcher 啟動 (pid=$$)。每 ${WATCH_INTERVAL}s 檢查一次, 沒人在跑(gate A lock + gate B transcript<${WARM_MIN}min)才接一批。"
+  echo "🔁 sw watcher 啟動 (pid=$$)。每 ${WATCH_INTERVAL}s 檢查一次, 沒人在跑(gate A lock + gate B 別-session transcript<${WARM_MIN}min)才接一批。"
   echo "   停止: tools/sw_autoloop.sh watch-stop   狀態: tools/sw_autoloop.sh status"
   while true; do
     do_tick
-    sleep "$WATCH_INTERVAL"
+    sleep "$WATCH_INTERVAL" & wait $!   # & wait $!: wait builtin 可被 TERM trap 即時中斷
   done
 }
 
 do_watch_stop(){
-  if [ -f "$WATCH_PID" ]; then
-    local wp; wp="$(cat "$WATCH_PID" 2>/dev/null)"
-    if [ -n "$wp" ] && kill -0 "$wp" 2>/dev/null; then
-      kill "$wp" && echo "⏹ watcher 已停 (pid=$wp)" && log "WATCH: watch-stop 殺 pid=$wp"
-    else
-      echo "(watcher 已死, 清 stale pid 檔)"; rm -f "$WATCH_PID"
-    fi
-  else
-    echo "(沒有 watcher 在跑)"
+  if [ ! -f "$WATCH_PID" ]; then echo "(沒有 watcher 在跑)"; return; fi
+  local wp; wp="$(cat "$WATCH_PID" 2>/dev/null)"
+  if [ -z "$wp" ] || ! kill -0 "$wp" 2>/dev/null; then
+    echo "(watcher 已死, 清 stale pid 檔)"; rm -f "$WATCH_PID"; return
   fi
+  # caffeinate 父進程(nohup caffeinate -is bash …)一起收, 否則它殘留
+  local ppid; ppid="$(ps -o ppid= -p "$wp" 2>/dev/null | tr -d ' ')"
+  kill -TERM "$wp" 2>/dev/null
+  sleep 1
+  kill -0 "$wp" 2>/dev/null && kill -9 "$wp" 2>/dev/null   # TERM 在 sleep 中沒生效→強制
+  if [ -n "$ppid" ] && ps -o command= -p "$ppid" 2>/dev/null | grep -q caffeinate; then kill "$ppid" 2>/dev/null; fi
+  rm -f "$WATCH_PID"
+  echo "⏹ watcher 已停 (pid=$wp)"; log "WATCH: watch-stop 殺 pid=$wp(+caffeinate $ppid)"
 }
 
 case "${1:-}" in
