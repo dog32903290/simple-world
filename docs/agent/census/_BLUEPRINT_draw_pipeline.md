@@ -61,11 +61,11 @@ draw 葉子 = `registerCmdOp` 自登記（**conflict-free**,每顆 .cpp）。pre
 
 ## 8. draw 第二批 backlog（scout a52f692e 盤點 TiXL point/draw/ 23 op，2026-06-21）
 **已港 9**：DrawPoints/DrawLines/DrawClosedLines/DrawBillboards/DrawScreenQuad/ClearRenderTarget/Camera/DrawMeshUnlit/RenderTarget。
-**R1-R2 候選 4（draw 第二批，全撞 draw core serial）**：
-1. **DrawPoints2**（R1，最 trivial）：points variant，param Color/Radius/Texture(opt)/Z-test/Blend/FadeNearest/UseWForSize → reuse draw_points.metal（param radius 取代 scale）。shared core YES（可能 RenderDrawItem 欄位）。
-2. **DrawLinesBuildup**（R1）：lines + TransitionProgress/VisibleRange（漸進可見度 reveal），無 per-frame state → reuse draw_lines.metal（TransitionProgress VS sample）。shared core YES（param 加）。
-3. **DrawMovingPoints**（R1-R2）：points + velocity-stretch（沿 velocity 向量拉長 quad），VelocityStretch/JumpThreshold=CPU filter → draw_points.metal velocity-quad orientation branch。shared core PARTIAL。
-4. **DrawRayLines**（R1-R2）：points 當 ray origin，連 origin→(origin+W·dir) → draw_lines.metal ray-endpoint indexing（非 Points[i]→Points[i+1]）。shared core PARTIAL。
+**R1-R2 候選 4（draw 第二批，全撞 draw core serial）** — ✅ 1+2 落地 commit `6189670`，剩 3+4：
+1. ✅ **DrawPoints2**（commit 6189670）：Radius→×10.8→PointSize（kDrawPoints2RadiusToSize），UseWForSize→sizeFx=FX1(W)，reuse draw_points。refuter MERGE-SAFE（NIT：golden FX1=1 未咬 useWForSize 路徑，W≠1 probe 後補）。
+2. ✅ **DrawLinesBuildup**（commit 6189670）：漸進可見度 reveal，reuse draw_lines。★Cut55 .t3 routing 防呆=Add(-0.01) TransitionProgress→OffsetU 1:1 無 mis-route。refuter MERGE-SAFE。
+3. **DrawMovingPoints**（R1-R2，draw 第三批）：points + velocity-stretch（沿 velocity 向量拉長 quad），VelocityStretch/JumpThreshold=CPU filter → draw_points.metal velocity-quad orientation branch。shared core PARTIAL。
+4. **DrawRayLines**（R1-R2，draw 第三批）：points 當 ray origin，連 origin→(origin+W·dir) → draw_lines.metal ray-endpoint indexing（非 Points[i]→Points[i+1]）。shared core PARTIAL。
 **R2 卡 ColorField host-eval seam（延後，需先建）**：DrawPointsShaded/DrawLinesShaded（ShaderGraphNode ColorField host 評估→shader-node-to-MSL 編譯）。
 **R3 延後**：DrawConnectionLines（spatial-hash-map+Gradient host）/DrawPointsDOF（per-frame bucket sort DOF state）/DrawRibbons/DrawTubes（geometry-shader 等價,Metal 無 GS→compute 展開）。
 **OOO（非 line/point draw）**：DrawMeshAtPoints2（mesh instancing+Gradient/Curve）/VisualizePoints（gizmo debug）。
