@@ -50,12 +50,12 @@ point-buffer(~44/90 採) / shader-graph·field-SDF(~29/60) / context-var / cpu-u
 ### 階段 0｜採 18 現可採（並行，與補縫同跑，不阻塞）
 sw-node-batch 一批 fan-out 18 顆（跨 5 家族，寫-leaf 不撞檔，orchestrator 合流統一加共享）。**這不是補縫，是清現貨**；隨後每補一塊縫，可採池增大再採。
 
-### 階段 1｜R1 高解鎖燃料（先解最多、最低風險、可機械並行）
+### 階段 1｜R1 高解鎖燃料 ✅✅✅ 三塊全完（string-rail b247602 / list-routing 70406e1 / cpu-point-list ee4a99f，2026-06-20）
 | seam | 解鎖約 | 風險 | 視覺 | 內容 / 藍本 / precedent |
 |------|-------|------|------|------|
 | **string-value-rail** ✅ | ~34 | R1 | 弱 | **✅ 補完 commit `b247602`（2026-06-20，7 agent 承重戰）。** string host-channel rail（第六條 cook flow 鏡像 FloatList，非 evalString 避核心風險）。3 葉子 StringLength/FloatToString/CombineStrings。★FloatToString C# 格式化深坑挖到 .NET 版本 ground-truth（TiXL net10.0→F8 暴露 IEEE-754 noise，非 .NET Framework 補零）。fork-6: StringLength.length 存 floatListBuf,下游橋延後 list-routing。實際解鎖待 Phase C 採(Layer A ~13 + Layer B StringList ~7)。|
-| **list-routing**（floatlist/intlist/colorlist） 🔨 | ~26 | R1-R2 | 弱 | 🔨 build 中（worktree aa899fba9）。FloatList→Float 橋=推廣 AudioReaction outCache 逃生口(blueprint `_BLUEPRINT_list_routing.md`)，同解鎖 string-rail fork-6 的 StringLength 下游接線。IntList Float-fold/ColorList 層3延後。precedent：floatlist cook-rail + string-rail。|
-| **cpu-point-list** | ~7 | R1 | 中 | 純 CPU StructuredList↔buffer 橋。解鎖 point _cpu 族。precedent：FloatList host-rail。|
+| **list-routing**（floatlist/intlist/colorlist） ✅ | ~26 | R1-R2 | 弱 | **✅ 補完 commit `70406e1`（含 R-2 production 真 fix）。** FloatList→Float 橋=推廣 AudioReaction outCache 逃生口(blueprint)，同解鎖 string-rail fork-6 StringLength 下游(flat)。★refuter 抓 R-2 自欺(橋 flat-only,production resident 接不出=lane Cut47 自欺)→真 fix:resident_host_scalar_cook.cpp(cookHostScalarNodes per-frame resident pass)+frame_cook 接線,golden 6 resident-path leg 證 production 活(FloatListLength resident=6 非 0)。IntList Float-fold/ColorList 層3延後。★追溯發現 string transport 整個 flat-only(task_32b5b6e5 補 resident string-wire)。實際解鎖待 Phase C 採。|
+| **cpu-point-list** ✅ | ~7(真 R1 4-6) | R1 | 中 | **✅ 補完 commit `ee4a99f`。** CPU point-list host-rail(第7 cook flow,SwPoint currency)+ListToBuffer 上傳橋(memcpy)。第一批 RadialPointsCpu/TransformCpuPoint/ListToBuffer。★build agent 吸收 R-2 教訓自建 resident pass(point_graph_resident.cpp cookResidentPointList),LEG4 production cookResident ringLit=904 真上螢幕。refuter MERGE-SAFE(R-2 code+pixels 雙證)。NIT: LEG2/3 軟牙強化 task_d139fa7b。下傳 readback 卡 compute-readback 延後。|
 | **cpu-point-list** | ~7 | R1 | 中 | 純 CPU StructuredList↔buffer 橋。解鎖 point _cpu 族。precedent：FloatList host-rail。|
 
 ### 階段 2｜mesh 島解鎖（3D，單塊大解鎖）
