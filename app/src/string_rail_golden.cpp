@@ -125,6 +125,36 @@ float cookStringLength(PointGraph& pg, bool wired, const std::string& constText)
   return (out && !out->empty()) ? (*out)[0] : -1.0f;
 }
 
+// Build a single IntToString(value, format) and cook it as terminal → cooked host string. Value rides
+// params["Value"] (the value spine, truncated to int by the op); format rides strParams["Format"].
+std::string cookIntToString(PointGraph& pg, int value, const std::string& format) {
+  Graph g;
+  Node n; n.id = 1; n.type = "IntToString";
+  n.params["Value"] = (float)value;
+  n.strParams["Format"] = format;
+  g.nodes.push_back(n);
+  EvaluationContext ctx{};
+  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+  pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+  const std::string* out = pg.debugCookedString(1);
+  return out ? *out : std::string{};
+}
+
+// Build a single Vec3ToString(vector, format) and cook it as terminal → cooked host string. The vec3
+// rides params["Vector.x"/.y/.z"] (the value spine); format rides strParams["Format"].
+std::string cookVec3ToString(PointGraph& pg, float x, float y, float z, const std::string& format) {
+  Graph g;
+  Node n; n.id = 1; n.type = "Vec3ToString";
+  n.params["Vector.x"] = x; n.params["Vector.y"] = y; n.params["Vector.z"] = z;
+  n.strParams["Format"] = format;
+  g.nodes.push_back(n);
+  EvaluationContext ctx{};
+  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+  pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+  const std::string* out = pg.debugCookedString(1);
+  return out ? *out : std::string{};
+}
+
 }  // namespace
 
 int runStringRailSelfTest(bool injectBug) {
@@ -335,6 +365,103 @@ int runStringRailSelfTest(bool injectBug) {
     std::printf("[selftest-stringrail] FloatToString(3.14,\"{0:F8}\")=\"%s\" want=\"3.14000010\"; "
                 "(0.1,\"{0:E10}\")=\"%s\" want=\"1.0000000149E-001\" -> %s\n",
                 gotF8.c_str(), gotE10.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 14 — IntToString (TiXL string/convert/IntToString.cs) DEFAULT + custom zero-pad + decimal. The
+  // t3 default Format "{0:0}" = C# integer custom-numeric (min 1 digit): 42 → "42", -7 → "-7". Empty
+  // format → int.ToString(InvariantCulture) = "42". "{0:000}" → zero-pad to 3 digits → "042". Hand-
+  // derived against IntToString.cs. injectBug drops the last char in the REAL cook → "4" / "0" → RED.
+  {
+    stringInjectBug() = injectBug;
+    std::string d0   = cookIntToString(pg, 42,  "{0:0}");
+    std::string dNeg = cookIntToString(pg, -7,  "{0:0}");
+    std::string dEmp = cookIntToString(pg, 42,  "");
+    std::string dPad = cookIntToString(pg, 42,  "{0:000}");
+    stringInjectBug() = false;
+    bool pass = (d0 == "42") && (dNeg == "-7") && (dEmp == "42") && (dPad == "042");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] IntToString 42/\"{0:0}\"=\"%s\"(42) -7=\"%s\"(-7) 42/\"\"=\"%s\"(42) "
+                "42/\"{0:000}\"=\"%s\"(042) -> %s\n",
+                d0.c_str(), dNeg.c_str(), dEmp.c_str(), dPad.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 15 — IntToString STANDARD specifiers D/N/X (the integer-oriented vocabulary, vs FloatToString's
+  // F/N/E). "{0:N0}" 1234567 → "1,234,567" (',' grouping); "{0:X}" 255 → "FF"; "{0:X}" -1 → "FFFFFFFF"
+  // (two's-complement 32-bit hex of a negative int, ported verbatim). Hand-derived against C#
+  // InvariantCulture. injectBug drops the last char → RED.
+  {
+    stringInjectBug() = injectBug;
+    std::string grp  = cookIntToString(pg, 1234567, "{0:N0}");
+    std::string hex  = cookIntToString(pg, 255,     "{0:X}");
+    std::string hexN = cookIntToString(pg, -1,      "{0:X}");
+    stringInjectBug() = false;
+    bool pass = (grp == "1,234,567") && (hex == "FF") && (hexN == "FFFFFFFF");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] IntToString 1234567/\"{0:N0}\"=\"%s\"(1,234,567) 255/\"{0:X}\"=\"%s\"(FF) "
+                "-1/\"{0:X}\"=\"%s\"(FFFFFFFF) -> %s\n",
+                grp.c_str(), hex.c_str(), hexN.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 16 — IntToString COMPOSITE LITERAL (surrounding text kept verbatim, placeholder substituted) +
+  // INVALID FORMAT fallback (TiXL's FormatException catch). "id={0:000}!" on 42 → "id=042!";
+  // "{0:Q}" (unrecognised spec) → "Invalid Format" (NOT a silent passthrough). injectBug drops last char.
+  {
+    stringInjectBug() = injectBug;
+    std::string lit = cookIntToString(pg, 42, "id={0:000}!");
+    std::string inv = cookIntToString(pg, 42, "{0:Q}");
+    stringInjectBug() = false;
+    // Note: injectBug also drops the last char of "Invalid Format" → "Invalid Forma" ≠ → RED (good: the
+    // fallback string is a REAL cook output, so the tooth bites it too).
+    bool pass = (lit == "id=042!") && (inv == "Invalid Format");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] IntToString 42/\"id={0:000}!\"=\"%s\"(id=042!) 42/\"{0:Q}\"=\"%s\""
+                "(Invalid Format) -> %s\n",
+                lit.c_str(), inv.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 17 — Vec3ToString (TiXL string/convert/Vec3ToString.cs) DEFAULT (empty) format = the fixed form
+  // "X: {0,7:F2}\nY: {1,7:F2}\nZ: {2,7:F2}" — each component F2, right-aligned to 7, real newlines.
+  // (1.5,-2,3.25) → "X:    1.50\nY:   -2.00\nZ:    3.25". Hand-derived against the .cs default branch.
+  // injectBug drops the last char ("3.25"→"3.2…") → RED.
+  {
+    stringInjectBug() = injectBug;
+    std::string got = cookVec3ToString(pg, 1.5f, -2.0f, 3.25f, "");
+    stringInjectBug() = false;
+    bool pass = (got == "X:    1.50\nY:   -2.00\nZ:    3.25");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] Vec3ToString(1.5,-2,3.25,\"\")=[%s] want=[X:    1.50/Y:   -2.00/Z:    "
+                "3.25] -> %s\n",
+                got.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 18 — Vec3ToString CUSTOM format: placeholder reorder/substitution + the literal "\n"→newline
+  // replacement (Vec3ToString.cs s.Replace("\\n","\n")). "({0},{1},{2})" on (1,2,3) → "(1,2,3)" (bare
+  // {N} → C# float ToString, integer-valued → "1"/"2"/"3"). "{0:F1}|{1:F1}|{2:F1}" on (1.5,2.5,3.5) →
+  // "1.5|2.5|3.5". injectBug drops last char → RED.
+  {
+    stringInjectBug() = injectBug;
+    std::string bare = cookVec3ToString(pg, 1.0f, 2.0f, 3.0f, "({0},{1},{2})");
+    std::string f1   = cookVec3ToString(pg, 1.5f, 2.5f, 3.5f, "{0:F1}|{1:F1}|{2:F1}");
+    stringInjectBug() = false;
+    bool pass = (bare == "(1,2,3)") && (f1 == "1.5|2.5|3.5");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] Vec3ToString custom (1,2,3)=\"%s\"((1,2,3)) F1=\"%s\"(1.5|2.5|3.5) "
+                "-> %s\n",
+                bare.c_str(), f1.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 19 — Vec3ToString INVALID FORMAT fallback (TiXL's FormatException catch): an out-of-vocabulary
+  // format (index ≥3 / unsupported spec) → "Invalid Format". "{3}" (no 4th arg) → invalid; "{0:Z}"
+  // (unknown spec) → invalid. injectBug drops last char → RED.
+  {
+    stringInjectBug() = injectBug;
+    std::string i3 = cookVec3ToString(pg, 1.0f, 2.0f, 3.0f, "{3}");
+    std::string iz = cookVec3ToString(pg, 1.0f, 2.0f, 3.0f, "{0:Z}");
+    stringInjectBug() = false;
+    bool pass = (i3 == "Invalid Format") && (iz == "Invalid Format");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] Vec3ToString \"{3}\"=\"%s\" \"{0:Z}\"=\"%s\" want=Invalid Format -> %s\n",
+                i3.c_str(), iz.c_str(), pass ? "PASS" : "FAIL");
   }
 
   q->release();

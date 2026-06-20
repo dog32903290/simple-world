@@ -272,6 +272,8 @@ add_executable(simple_world
   src/runtime/string_ops_stringlength.cpp
   src/runtime/string_ops_floattostring.cpp
   src/runtime/string_ops_combinestrings.cpp
+  src/runtime/string_ops_inttostring.cpp
+  src/runtime/string_ops_vec3tostring.cpp
   src/string_rail_golden.cpp
   src/runtime/pointlist_op_registry.cpp
   src/runtime/pointlist_ops_radialpointscpu.cpp
