@@ -201,6 +201,26 @@ int runResampleLinePointsSelfTest(bool injectBug);
 // injectBug = wrong subdivision law (sub-points sit on segment start, no f-interpolation) -> FAIL.
 void registerSubdivideLinePointsOp();
 int runSubdivideLinePointsSelfTest(bool injectBug);
+// SimNoiseOffset MODIFIER (point_ops_simnoiseoffset.cpp, lane point_modify): sim-family
+// (simplex|curl)-noise position displacement + tangent-follow rotation (TiXL .../point/sim/
+// SimNoiseOffset). injectBug = Amount=0 -> no displacement -> FAIL.
+void registerSimNoiseOffsetOp();
+int runSimNoiseOffsetSelfTest(bool injectBug);
+// SimCentricalOffset MODIFIER (point_ops_simcentrialoffset.cpp): radial inverse-power force along
+// (Position-Center); positive Amount pushes outward (TiXL .../point/sim/SimCentricalOffset).
+// injectBug = Amount=0 -> no force -> FAIL.
+void registerSimCentricalOffsetOp();
+int runSimCentricalOffsetSelfTest(bool injectBug);
+// SimDirectionalOffset MODIFIER (point_ops_simdirectionaloffset.cpp): directional position push
+// (Mode 0) / velocity-in-rotation encode (Mode 1) (TiXL .../point/sim/SimDirectionalOffset).
+// injectBug = Amount=0 -> no movement -> FAIL.
+void registerSimDirectionalOffsetOp();
+int runSimDirectionalOffsetSelfTest(bool injectBug);
+// SimForceOffset MODIFIER (point_ops_simforceoffset.cpp): radial force + gravity gated by a
+// radius/falloff window (TiXL .../point/sim/SimForceOffset). injectBug = RadialForce=0, Gravity=0
+// -> no movement -> FAIL.
+void registerSimForceOffsetOp();
+int runSimForceOffsetSelfTest(bool injectBug);
 // ChannelMixer image filter (point_ops_channelmixer.cpp, lane image_filter): 4x4 channel matrix
 // mix (TiXL image/color/ChannelMixer / MixChannels.hlsl). injectBug = identity -> no swap -> FAIL.
 int runChannelMixerSelfTest(bool injectBug);

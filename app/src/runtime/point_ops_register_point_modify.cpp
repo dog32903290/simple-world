@@ -30,6 +30,10 @@ void registerOffsetPointsOp();
 void registerPointAttributeFromNoiseOp();
 void registerResampleLinePointsOp();
 void registerSubdivideLinePointsOp();
+void registerSimNoiseOffsetOp();
+void registerSimCentricalOffsetOp();
+void registerSimDirectionalOffsetOp();
+void registerSimForceOffsetOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -52,6 +56,10 @@ void registerPointModifyPointOps() {
   registerPointAttributeFromNoiseOp();// Points → Points (3D noise -> position/rotation attributes, batch 24)
   registerResampleLinePointsOp();    // Points → Points (arc-param resample to Count points, batch 36)
   registerSubdivideLinePointsOp();   // Points → Points (per-segment subdivide, InsertCount inserts, batch 37)
+  registerSimNoiseOffsetOp();        // Points → Points (sim (simplex|curl)-noise displacement, batch sw-node-batch)
+  registerSimCentricalOffsetOp();    // Points → Points (sim radial inverse-power force, batch sw-node-batch)
+  registerSimDirectionalOffsetOp();  // Points → Points (sim directional push / velocity encode, batch sw-node-batch)
+  registerSimForceOffsetOp();        // Points → Points (sim radial force + gravity window, batch sw-node-batch)
 }
 
 }  // namespace sw
