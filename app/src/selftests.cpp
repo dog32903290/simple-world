@@ -58,6 +58,11 @@ namespace sw { int runFieldCombineSdfGoldenSelfTest(bool); }      // field_ops_c
 namespace sw { int runFieldInvertSdfGoldenSelfTest(bool); }       // field_ops_invertsdf_golden.cpp (single-input post-wrap modifier)
 namespace sw { int runFieldAbsoluteSdfGoldenSelfTest(bool); }     // field_ops_absolutesdf_golden.cpp (single-input post-wrap modifier)
 namespace sw { int runFieldTranslateGoldenSelfTest(bool); }       // field_ops_translate_golden.cpp (single-input PRE-wrap modifier; vec3 param)
+namespace sw { int runFieldRepeatField3GoldenSelfTest(bool); }   // field_ops_repeatfield3_golden.cpp (single-input PRE-wrap; pMod3 fold, vec3 Size)
+namespace sw { int runFieldRepeatAxisGoldenSelfTest(bool); }      // field_ops_repeataxis_golden.cpp (single-input PRE-wrap; pMod1/pModMirror1, axis+mirror enums)
+namespace sw { int runFieldReflectFieldGoldenSelfTest(bool); }    // field_ops_reflectfield_golden.cpp (single-input PRE-wrap; pReflect, vec3 normal + offset)
+namespace sw { int runFieldBendFieldGoldenSelfTest(bool); }       // field_ops_bendfield_golden.cpp (single-input PRE+POST wrap; opBend, axis enum)
+namespace sw { int runFieldCombineFieldColorGoldenSelfTest(bool); } // field_ops_combinefieldcolor_golden.cpp (two-input color combiner)
 namespace sw { int runFieldFractalSdfGoldenSelfTest(bool); }      // field_ops_fractalsdf_golden.cpp (Mandelbulb fold; iterations=compile-time selector)
 namespace sw { int runFieldCustomSdfGoldenSelfTest(bool); }       // field_ops_customsdf_golden.cpp (verbatim user DistanceFunction inject)
 namespace sw { int runFieldImage2dSdfGoldenSelfTest(bool); }      // field_ops_image2dsdf_golden.cpp (FIRST texture-binding leaf; Seam A)
@@ -187,6 +192,11 @@ const SelfTest kTable[] = {
     {"field-invertsdf", runFieldInvertSdfGoldenSelfTest},
     {"field-absolutesdf", runFieldAbsoluteSdfGoldenSelfTest},
     {"field-translate", runFieldTranslateGoldenSelfTest},
+    {"field-repeatfield3", runFieldRepeatField3GoldenSelfTest},
+    {"field-repeataxis", runFieldRepeatAxisGoldenSelfTest},
+    {"field-reflectfield", runFieldReflectFieldGoldenSelfTest},
+    {"field-bendfield", runFieldBendFieldGoldenSelfTest},
+    {"field-combinefieldcolor", runFieldCombineFieldColorGoldenSelfTest},
     {"field-fractalsdf", runFieldFractalSdfGoldenSelfTest},
     {"field-customsdf", runFieldCustomSdfGoldenSelfTest},
     {"field-image2dsdf", runFieldImage2dSdfGoldenSelfTest},
