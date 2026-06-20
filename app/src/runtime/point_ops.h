@@ -278,6 +278,18 @@ int runBlendPointsSelfTest(bool injectBug);
 // returns the surviving 4-point ring -> count + on-sphere assertions FAIL.
 void registerMultiUpdatePointsOp();
 int runMultiUpdatePointsSelfTest(bool injectBug);
+// RepeatAtPoints GENERATE op (point_ops_repeatatpoints.cpp, count-product seam): places each Source
+// point into EACH Target point's local frame -> the FULL CARTESIAN PRODUCT. Output count =
+// source.N * target.N (NOT a sum) — the canonical count-product. The count-product driver hook is the
+// (B) static-stash (zero driver signature change, proven by PairPointsForLines): the cook fn writes a
+// file-static product, countTransform reads it; both flat + resident cook paths call it identically.
+// Faithful port of the GPU RepeatAtGPoints.hlsl (all per-point math + Linear/Interwoven CombineMode);
+// AddSeparators count-expansion is a named fork (deferred). injectBug: SelfTest asserts the SUM count
+// (12) vs the real product (32) -> RED; ProductionSelfTest drops the Target wire -> product 0 ->
+// flat cooked count 0 + resident render black -> RED on BOTH cook paths.
+void registerRepeatAtPointsOp();
+int runRepeatAtPointsSelfTest(bool injectBug);
+int runRepeatAtPointsProductionSelfTest(bool injectBug);
 
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a

@@ -16,6 +16,7 @@ void registerPairPointsForSplinesOp();        // batch 10: Hermite spline strip 
 void registerPairPointsForGridWalkLinesOp();  // batch 10: 11-step grid-walk polyline per pair
 void registerBlendPointsOp();                 // batch 10: index-paired PointsA->PointsB lerp
 void registerMultiUpdatePointsOp();           // point lane: pass-through last wired buffer (TiXL _internal)
+void registerRepeatAtPointsOp();              // count-product seam: cartesian product source.N * target.N
 
 void registerPointCombinePointOps() {
   registerCombineBuffersOp();
@@ -26,6 +27,7 @@ void registerPointCombinePointOps() {
   registerPairPointsForGridWalkLinesOp();
   registerBlendPointsOp();
   registerMultiUpdatePointsOp();
+  registerRepeatAtPointsOp();
 }
 
 }  // namespace sw

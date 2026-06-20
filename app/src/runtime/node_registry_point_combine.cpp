@@ -74,6 +74,41 @@ const std::vector<NodeSpec>& pointCombineSpecs() {
         {"input3", "input3", "Points", true},
         {"out", "out", "Points", false}},  // port 4: pass-through output bag
        nullptr},
+
+      // ---- count-product seam: RepeatAtPoints (TiXL GPU generate op) ----------------
+      // TiXL parity: external/tixl .../point/generate/RepeatAtPoints.{cs,t3} (slots + count graph) +
+      //              .../Assets/shaders/points/generate/RepeatAtGPoints.hlsl (the per-point math)
+      // Places each SourcePoint into EACH TargetPoint's local frame -> the FULL CARTESIAN PRODUCT.
+      // Output count = source.N * target.N — the canonical count-PRODUCT (NOT a sum). The driver's
+      // countTransform hook is fed the product via a file-static set by the cook fn (the (B) static-
+      // stash, proven by PairPointsForLines; zero driver signature change). See point_ops_repeatatpoints.cpp.
+      //
+      // Ports (append after MultiUpdatePoints, do NOT insert):
+      //   port 0: SourcePoints (input, GPoints) — bag repeated at each target
+      //   port 1: TargetPoints (input, GTargets) — destination frames
+      //   port 2: out          (output) — the cartesian product bag
+      //   port 3..: Float params, names verbatim from RepeatAtPoints.cs (.t3 defaults):
+      //     Scale 1.0 / ApplyOrientation 1 (bool) / ApplyPointScale 1 (bool) /
+      //     ScaleFactor 0 (UseFSources enum) / SetF1To 5 / SetF2To 6 (UseFSources) /
+      //     CombineMode 0 (Linear|Interwoven) / AddSeparators 1 (bool; count fork — see leaf)
+      {"RepeatAtPoints",
+       "RepeatAtPoints",
+       {{"SourcePoints", "SourcePoints", "Points", true},   // port 0: GPoints (repeated bag)
+        {"TargetPoints", "TargetPoints", "Points", true},   // port 1: GTargets (destination frames)
+        {"out", "out", "Points", false},                     // port 2: product output bag
+        {"Scale",            "Scale",            "Float", true, 1.0f, 0.0f, 10.0f},                       // port 3
+        {"ApplyOrientation", "ApplyOrientation", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},          // port 4
+        {"ApplyPointScale",  "ApplyPointScale",  "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},          // port 5
+        {"ScaleFactor",      "ScaleFactor",      "Float", true, 0.0f, 0.0f, 6.0f, Widget::Enum,
+         {"None", "Target_F1", "Target_F2", "Source_F1", "Source_F2", "Multiplied_F1", "Multiplied_F2"}},// port 6
+        {"SetF1To",          "SetF1To",          "Float", true, 5.0f, 0.0f, 6.0f, Widget::Enum,
+         {"None", "Target_F1", "Target_F2", "Source_F1", "Source_F2", "Multiplied_F1", "Multiplied_F2"}},// port 7
+        {"SetF2To",          "SetF2To",          "Float", true, 6.0f, 0.0f, 6.0f, Widget::Enum,
+         {"None", "Target_F1", "Target_F2", "Source_F1", "Source_F2", "Multiplied_F1", "Multiplied_F2"}},// port 8
+        {"CombineMode",      "CombineMode",      "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Linear", "Interwoven"}},                                                                       // port 9
+        {"AddSeparators",    "AddSeparators",    "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},         // port 10
+       nullptr},
   };
   return specs;
 }

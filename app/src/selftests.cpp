@@ -327,6 +327,8 @@ const SelfTest kTable[] = {
     {"pairpointsforgridwalklines", runPairPointsForGridWalkLinesSelfTest},
     {"blendpoints", runBlendPointsSelfTest},
     {"multiupdatepoints", runMultiUpdatePointsSelfTest},
+    {"repeatatpoints", runRepeatAtPointsSelfTest},
+    {"repeatatpoints-prod", runRepeatAtPointsProductionSelfTest},
     {"simnoiseoffset", runSimNoiseOffsetSelfTest},
     {"simcentrialoffset", runSimCentricalOffsetSelfTest},
     {"simdirectionaloffset", runSimDirectionalOffsetSelfTest},
