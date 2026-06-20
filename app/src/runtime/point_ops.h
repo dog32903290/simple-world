@@ -271,6 +271,13 @@ int runPairPointsForGridWalkLinesSelfTest(bool injectBug);
 // routed lerp factor differs from the asserted f=0.25 -> Position/Color/FX1 assertions FAIL.
 void registerBlendPointsOp();
 int runBlendPointsSelfTest(bool injectBug);
+// MultiUpdatePoints COMBINE op (point_ops_multiupdatepoints.cpp, sw-batch point lane): a fan-in
+// HELPER (TiXL _internal) that passes the LAST wired Points input through unchanged. Output count =
+// first wired input (== last in faithful same-buffer usage; countFromFirstPointsInput=true). No
+// shader/params — pure passthrough blit. injectBug drops the last (sphere) wire so the passthrough
+// returns the surviving 4-point ring -> count + on-sphere assertions FAIL.
+void registerMultiUpdatePointsOp();
+int runMultiUpdatePointsSelfTest(bool injectBug);
 
 // --- RenderTarget texture op (point_ops_rendertarget.cpp, render-target pivot) ---
 // Resolve a RenderTarget node's output resolution: WindowFollow -> windowSize, else a

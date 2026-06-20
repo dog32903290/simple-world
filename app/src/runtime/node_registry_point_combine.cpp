@@ -53,6 +53,27 @@ const std::vector<NodeSpec>& pointCombineSpecs() {
         {"Distance",    "Distance",    "Float", true, 1.0f, 0.0f, 5.0f},  // port 4
         {"MaxAmount",   "MaxAmount",   "Float", true, 1.0f, 0.0f, 2.0f}}, // port 5
        nullptr},
+
+      // ---- point lane: MultiUpdatePoints (TiXL _internal fan-in helper) -------------
+      // TiXL parity: external/tixl .../point/_internal/MultiUpdatePoints.{cs,t3}
+      // A pass-through helper: forces multiple in-place point modifiers (each returning the SAME
+      // BufferWithViews) to evaluate, then returns the LAST connected buffer unchanged. .t3ui:
+      // "A helper to combine multiple point modifiers like ApplyNoise or ApplyForce to the same
+      // Point buffer." No shader, no params (the cook is a single GPU blit of the last wired bag).
+      //
+      // PORTS: TiXL's ONE MultiInputSlot<BufferWithViews> is modeled as FIXED input0..input3 Points
+      //   ports — same convention CombineBuffers uses (the cook driver's buffer-input gather reads one
+      //   wire per PORT, it does not expand a MultiInput buffer port). Unwired inputs contribute null.
+      // COUNT POLICY: output count = first wired input's count (== last in faithful same-buffer usage;
+      //   countFromFirstPointsInput=true). NOT the sum — this op passes a buffer through, never concats.
+      {"MultiUpdatePoints",
+       "MultiUpdatePoints",
+       {{"input0", "input0", "Points", true},
+        {"input1", "input1", "Points", true},
+        {"input2", "input2", "Points", true},
+        {"input3", "input3", "Points", true},
+        {"out", "out", "Points", false}},  // port 4: pass-through output bag
+       nullptr},
   };
   return specs;
 }

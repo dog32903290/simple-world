@@ -15,6 +15,7 @@ void registerPickPointListOp();       // batch 24: multi-input select by Index
 void registerPairPointsForSplinesOp();        // batch 10: Hermite spline strip per pair
 void registerPairPointsForGridWalkLinesOp();  // batch 10: 11-step grid-walk polyline per pair
 void registerBlendPointsOp();                 // batch 10: index-paired PointsA->PointsB lerp
+void registerMultiUpdatePointsOp();           // point lane: pass-through last wired buffer (TiXL _internal)
 
 void registerPointCombinePointOps() {
   registerCombineBuffersOp();
@@ -24,6 +25,7 @@ void registerPointCombinePointOps() {
   registerPairPointsForSplinesOp();
   registerPairPointsForGridWalkLinesOp();
   registerBlendPointsOp();
+  registerMultiUpdatePointsOp();
 }
 
 }  // namespace sw
