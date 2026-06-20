@@ -456,6 +456,48 @@ const std::vector<NodeSpec>& mathSpecs() {
          {"TimeInSecs", "BeatTime"}},
         {"PauseWithPlayback", "PauseWithPlayback", "Float", true, 0.0f, 0.0f, 1.0f}},
        nullptr},
+      // --- transport-YELLOW consumers (Cut86 補縫): more ops on the StopWatch transport seam. ---
+      // ConvertTime — bpm bars<->secs converter. TiXL anim/time/ConvertTime.cs (stateful in the cook
+      // sense: evaluate==nullptr — its Result depends on the per-frame transport bpm the pure `in`-map
+      // can't carry, like StopWatch). Result = Mode switch{BarsToSeconds=>time*240/bpm,
+      // SecondsToBars=>time*bpm/240} (transport.h:37-38). Live bpm read (bpm=240 halves a BarsToSeconds).
+      // The TiXL null-Playback IStatusProvider warning is DROPPED (no status system). .t3: Mode=0, Time=0.
+      {"ConvertTime", "ConvertTime",
+       {{"Result", "Result", "Float", false},
+        {"Time", "Time", "Float", true, 0.0f, 0.0f, 100.0f},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"BarsToSeconds", "SecondsToBars"}}},
+       nullptr},
+      // RunTime — TimeInSeconds = Playback.RunTimeInSecs (the PROCESS-LIFETIME wall run clock, NOT the
+      // playhead — keeps advancing while paused). TiXL anim/time/RunTime.cs (stateful; evaluate==nullptr;
+      // no inputs). The seam carries the clock in TransportSnapshot::runTimeSecs. R-1 FORK: our run clock
+      // is a wall-dt accumulator seeded at first cook (origin differs from TiXL's OS Stopwatch by the
+      // launch→first-cook interval); RunTime is a pure exposure of it, value-parity exact on the seam.
+      {"RunTime", "RunTime",
+       {{"TimeInSeconds", "TimeInSeconds", "Float", false}},
+       nullptr},
+      // DelayTriggerChange — TWO-EDGE change detector (NOT rising-edge WasTriggered): on ANY trigger
+      // change it snapshots the change time + prior delayed output, then holds stateIfDelayed until
+      // remainingTime=refTime-currentTime+delayDuration runs out. TiXL bool/process/DelayTriggerChange.cs
+      // (stateful; evaluate==nullptr; 6 state floats). Outputs FIRST: DelayedTrigger(bool→Float 0/1),
+      // RemainingTime. .t3 defaults: TimeMode=AppRunTime_InSecs(6), Mode=DelayTrue(0), DelayDuration=1,
+      // Trigger=false. FAITHFUL first-second: DelayTrue holds true before any edge while currentTime<1
+      // (s0 inits 0; remaining=0-currentTime+1>0) — not seeded away. F-1 FORK: our snapshot sets
+      // playbackTimeBars==localTimeBars==playhead (frame_cook:210-212), so LocalTime_* and PlayTime_*
+      // modes read the same clock here (TiXL's nested-time-remap divergence isn't modeled on flat graphs).
+      // TimeMode is a compile-time Widget::Enum selector over the 7 snapshot clocks (bars/secs ×
+      // LocalFx/Local/Play + AppRunTime); bars→secs = bars*240/bpm (transport.h). Trigger bool→Float 0/1.
+      {"DelayTriggerChange", "DelayTriggerChange",
+       {{"DelayedTrigger", "DelayedTrigger", "Float", false},
+        {"RemainingTime", "RemainingTime", "Float", false},
+        {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"DelayDuration", "DelayDuration", "Float", true, 1.0f, 0.0f, 100.0f},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"DelayTrue", "DelayFalse", "DelayBoth"}},
+        {"TimeMode", "TimeMode", "Float", true, 6.0f, 0.0f, 6.0f, Widget::Enum,
+         {"LocalFxTime_InBars", "LocalFxTime_InSecs", "LocalTime_InBars", "LocalTime_InSecs",
+          "PlayTime_InBars", "PlayTime_InSecs", "AppRunTime_InSecs"}}},
+       nullptr},
       // --- context-var YELLOW seam (block #1): Set*/Get*Var. STATEFUL in the cook sense (evaluate==
       // nullptr — cooked once per frame into extOut), but their cross-frame channel is the shared
       // ContextVarMap. The Output/Result port is FIRST (extOut[0] index mapping). VariableName is a

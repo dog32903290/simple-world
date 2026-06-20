@@ -1187,6 +1187,122 @@ void stepStopWatch(const std::map<std::string, float>& in, float /*dt*/, float /
   out[1] = lastDurationHeld;  // LastDuration Slot held across frames (zeroed-out[] reconstruct)
 }
 
+// ==================== transport-YELLOW consumers (Cut86 補縫 — read-only) ====================
+// Three more transport-fed ops on the SAME seam StopWatch opened. They consume tr.{bpm,run clock,
+// playhead/wall bars} host-side; they NEVER touch the 16-byte GPU EvaluationContext. ConvertTime &
+// RunTime are STATELESS (0 floats of st); DelayTriggerChange is a 6-float change-detector.
+
+// --- ConvertTime (TiXL Lib/numbers/anim/time/ConvertTime.cs) — bpm bars<->secs converter.
+//   Result = Mode switch { BarsToSeconds => SecondsFromBars(time), SecondsToBars => BarsFromSeconds(time) }.
+//   TiXL Playback.SecondsFromBars(b)=b*240/bpm ; BarsFromSeconds(s)=s*bpm/240 (transport.h:37-38). The
+//   seam carries bpm in tr.bpm → multiply inline (no transport.h call from runtime leaf, StopWatch
+//   precedent). Reads the LIVE bpm so bpm=240 halves a BarsToSeconds vs bpm=120 (golden proves it).
+//   .t3 defaults: Mode=0 (BarsToSeconds), Time=0. The TiXL null-Playback IStatusProvider warning is
+//   DROPPED — simple_world has no status system and the seam always supplies a Transport (tr.bpm>0).
+//   0 state (stateless), but lives in the stateful table because its value depends on the per-frame
+//   transport snapshot the pure evaluate()/`in`-map cannot carry (same reason as StopWatch).
+void stepConvertTime(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                     StatefulValueState&, float out[3], const TransportSnapshot& tr, ContextVarMap*,
+                     const std::string&) {
+  const float time = getIn(in, "Time", 0.0f);
+  const int mode = (int)std::lround(getIn(in, "Mode", 0.0f));  // .t3 0=BarsToSeconds
+  out[0] = (mode == 0) ? (float)(time * 240.0 / tr.bpm)   // BarsToSeconds = SecondsFromBars(time)
+                       : (float)(time * tr.bpm / 240.0);   // SecondsToBars = BarsFromSeconds(time)
+}
+
+// --- RunTime (TiXL Lib/numbers/anim/time/RunTime.cs) — TimeInSeconds = (float)Playback.RunTimeInSecs.
+//   The seam carries that PROCESS-LIFETIME wall run clock in tr.runTimeSecs (a Stopwatch started at
+//   static init, Playback.cs:159) — independent of playhead / scrub / pause / rate, so RunTime keeps
+//   advancing while the playback is paused (unlike PlayTime). 0 state.
+//   R-1 FORK (named, same as StopWatch): TiXL's RunTimeInSecs is a real OS Stopwatch; our run clock is
+//   a wall-dt accumulator seeded from the first cook (frame_cook s_runTimeSecs). The ABSOLUTE origin
+//   differs by the launch→first-cook interval, but RunTime is a pure exposure of that clock and the
+//   golden drives the accumulator directly (dt=0.5 → 0.5/1.0/1.5) so parity is exact on the seam value.
+void stepRunTime(const std::map<std::string, float>&, float /*dt*/, float /*time*/,
+                 StatefulValueState&, float out[3], const TransportSnapshot& tr, ContextVarMap*,
+                 const std::string&) {
+  out[0] = (float)tr.runTimeSecs;  // = (float)Playback.RunTimeInSecs
+}
+
+// --- DelayTriggerChange (TiXL Lib/numbers/bool/process/DelayTriggerChange.cs:30-95, ported VERBATIM)
+//   A TWO-EDGE change detector (hasBeenChanged = isTriggered != _triggered) — NOT a rising-edge
+//   WasTriggered. On ANY edge it snapshots the change time + the PRIOR delayed output. The delayed
+//   output holds `stateIfDelayed` until `remainingTime = refTime - currentTime + delayDuration` runs
+//   out, then passes the raw trigger through. .t3 defaults: TimeMode=6 (AppRunTime_InSecs), Mode=0
+//   (DelayTrue), DelayDuration=1.0, Trigger=false.
+//   State (6 floats, mapping TiXL's private fields):
+//     s[0]=_lastTrueTime  s[1]=_lastFalseTime  s[2]=_lastChangeTime  s[3]=_triggered(0/1 bool)
+//     s[4]=_stateBeforeChange(0/1 bool)  s[5]=DelayedTrigger.Value held (the prior delayed output —
+//     frame_cook hands a zeroed out[] each frame, so the op must remember its own last output to feed
+//     `_stateBeforeChange = DelayedTrigger.Value` on the next edge; TiXL reads the live Slot).
+//   7 TimeModes → snapshot (currentTime, host-side). SecondsFromBars(bars)=bars*240/bpm (transport.h):
+//     0 LocalFxTime_InBars → tr.localFxTimeBars
+//     1 LocalFxTime_InSecs → localFxTimeBars*240/bpm
+//     2 LocalTime_InBars   → tr.localTimeBars
+//     3 LocalTime_InSecs   → localTimeBars*240/bpm
+//     4 PlayTime_InBars    → tr.playbackTimeBars
+//     5 PlayTime_InSecs    → playbackTimeBars*240/bpm
+//     6 AppRunTime_InSecs  → tr.runTimeSecs   (the .t3 default)
+//   F-1 FORK (named): our snapshot sets playbackTimeBars = localTimeBars = t.position (frame_cook.cpp
+//     :210-212), so LocalTime_* and PlayTime_* read the SAME playhead clock here. TiXL's
+//     context.LocalTime vs context.Playback.TimeInBars can diverge under nested time-remap subgraphs we
+//     don't yet model; on the flat graph both are the playhead, so this is exact for the common case.
+//   FAITHFUL first-second (DelayTrue): s[*] init to 0, so before the first edge with AppRunTime,
+//     remainingTime = 0 - currentTime + 1 > 0 while currentTime < 1 → DelayedTrigger holds
+//     stateIfDelayed=true even though Trigger=false. This is TiXL's literal behavior (no s0 seeding) —
+//     asserted by golden, NOT seeded away.
+void stepDelayTriggerChange(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
+                            StatefulValueState& st, float out[3], const TransportSnapshot& tr,
+                            ContextVarMap*, const std::string&) {
+  const bool isTriggered = getIn(in, "Trigger", 0.0f) > 0.5f;
+  const float delayDuration = getIn(in, "DelayDuration", 1.0f);
+  const int delayMode = (int)std::lround(getIn(in, "Mode", 0.0f));      // 0=DelayTrue .t3 default
+  const int timeMode = (int)std::lround(getIn(in, "TimeMode", 6.0f));   // 6=AppRunTime_InSecs .t3 default
+
+  // private fields → st.s[]
+  bool prevTriggered = st.s[3] > 0.5f;
+  const bool hasBeenChanged = isTriggered != prevTriggered;
+  st.s[3] = isTriggered ? 1.0f : 0.0f;  // _triggered = isTriggered
+
+  // currentTime: the 7-mode switch over the snapshot (bars→secs = bars*240/bpm inline).
+  double currentTime;
+  switch (timeMode) {
+    case 0: currentTime = tr.localFxTimeBars; break;                       // LocalFxTime_InBars
+    case 1: currentTime = tr.localFxTimeBars * 240.0 / tr.bpm; break;      // LocalFxTime_InSecs
+    case 2: currentTime = tr.localTimeBars; break;                         // LocalTime_InBars
+    case 3: currentTime = tr.localTimeBars * 240.0 / tr.bpm; break;        // LocalTime_InSecs
+    case 4: currentTime = tr.playbackTimeBars; break;                      // PlayTime_InBars
+    case 5: currentTime = tr.playbackTimeBars * 240.0 / tr.bpm; break;     // PlayTime_InSecs
+    case 6: currentTime = tr.runTimeSecs; break;                           // AppRunTime_InSecs
+    default: currentTime = 0.0; break;
+  }
+
+  if (isTriggered) st.s[0] = (float)currentTime;  // _lastTrueTime
+  else             st.s[1] = (float)currentTime;  // _lastFalseTime
+
+  if (hasBeenChanged) {
+    st.s[2] = (float)currentTime;  // _lastChangeTime
+    st.s[4] = st.s[5];             // _stateBeforeChange = DelayedTrigger.Value (prior delayed output)
+  }
+
+  double refTime = 0.0;
+  bool stateIfDelayed = false;
+  switch (delayMode) {
+    case 0: refTime = st.s[0]; stateIfDelayed = true; break;            // DelayTrue  → _lastTrueTime
+    case 1: refTime = st.s[1]; stateIfDelayed = false; break;           // DelayFalse → _lastFalseTime
+    case 2: refTime = st.s[2]; stateIfDelayed = st.s[4] > 0.5f; break;  // DelayBoth  → _lastChangeTime / _stateBeforeChange
+    default: break;
+  }
+
+  const double remainingTime = refTime - currentTime + delayDuration;
+  const bool isDelayed = remainingTime > 0.0;
+
+  out[1] = (float)remainingTime;                                  // RemainingTime
+  const bool delayed = isDelayed ? stateIfDelayed : (st.s[3] > 0.5f);  // _triggered passthrough
+  out[0] = delayed ? 1.0f : 0.0f;                                 // DelayedTrigger (bool→float)
+  st.s[5] = out[0];  // remember this frame's DelayedTrigger.Value for next edge's _stateBeforeChange
+}
+
 // ============================ context-var YELLOW seam ops ============================
 // These are "stateful" in the cook sense (evaluate==nullptr, cooked once per frame into extOut) but
 // their cross-frame channel is the SHARED ContextVarMap, not StatefulValueState. They consume the
@@ -1290,6 +1406,10 @@ const StatefulOp kStatefulValueOps[] = {
     {"DampPeakDecay", stepDampPeakDecay},
     {"HasTimeChanged", stepHasTimeChanged},
     {"StopWatch", stepStopWatch},
+    // transport-YELLOW consumers (Cut86 補縫): ConvertTime/RunTime stateless-of-transport, DelayTriggerChange 6-state.
+    {"ConvertTime", stepConvertTime},
+    {"RunTime", stepRunTime},
+    {"DelayTriggerChange", stepDelayTriggerChange},
     // context-var YELLOW seam (block #1): writers + readers. Writers run in pass 1, readers pass 2.
     {"SetFloatVar", stepSetFloatVar},
     {"GetFloatVar", stepGetFloatVar},
@@ -2372,6 +2492,162 @@ int runStatefulValueSelfTest(bool injectBug) {
     ok = ok && pass;
     printf("[selftest-statefulvalue] StopWatch.D.pause rate1(0.1,0.2)=%.3f,%.3f rate0(0.3,0.4)frozen=%.3f,%.3f(want 0.200) -> %s\n",
            0.1f, 0.2f, 0.2f, out[0], pass ? "PASS" : "FAIL");
+  }
+
+  // ===== ConvertTime (TiXL anim/time/ConvertTime.cs) — bpm bars<->secs, transport-fed =====
+  // BarsToSeconds(0) = time*240/bpm ; SecondsToBars(1) = time*bpm/240. The live bpm read is the point:
+  // bpm=120 → B2S(1 bar)=2s, S2B(2s)=1 bar; bpm=240 → B2S(1 bar)=1s (proves it reads tr.bpm, not const).
+  {
+    StatefulValueState st;  // 0 state; reused, never written
+    float out[3] = {0, 0, 0};
+    cookStatefulValueOp("ConvertTime", {{"Time", 1.0f}, {"Mode", 0.0f}}, dt60, 0.0f, st, out, trSnap(0, 120.0, 1.0));
+    // injectBug: corrupt the 240 constant to 120 → B2S(1)@120 becomes 1*240/240=... no; inject swaps to *bpm/240
+    const float wantB2S120 = injectBug ? (float)(1.0 * 120.0 / 240.0) : 2.0f;  // good = 1*240/120 = 2
+    bool pa = std::fabs(out[0] - wantB2S120) < 1e-5f;
+    printf("[selftest-statefulvalue] ConvertTime.B2S bpm120 time=1 -> %.5f(want %.5f) -> %s\n", out[0], wantB2S120, pa ? "PASS" : "FAIL");
+
+    cookStatefulValueOp("ConvertTime", {{"Time", 2.0f}, {"Mode", 1.0f}}, dt60, 0.0f, st, out, trSnap(0, 120.0, 1.0));
+    bool pb = std::fabs(out[0] - 1.0f) < 1e-5f;  // S2B(2s)@120 = 2*120/240 = 1 bar
+    printf("[selftest-statefulvalue] ConvertTime.S2B bpm120 time=2 -> %.5f(want 1.00000) -> %s\n", out[0], pb ? "PASS" : "FAIL");
+
+    cookStatefulValueOp("ConvertTime", {{"Time", 1.0f}, {"Mode", 0.0f}}, dt60, 0.0f, st, out, trSnap(0, 240.0, 1.0));
+    bool pc = std::fabs(out[0] - 1.0f) < 1e-5f;  // B2S(1 bar)@240 = 1*240/240 = 1s — live-bpm proof
+    printf("[selftest-statefulvalue] ConvertTime.B2S bpm240 time=1 -> %.5f(want 1.00000, live-bpm proof) -> %s\n", out[0], pc ? "PASS" : "FAIL");
+
+    bool pass = pa && pb && pc;
+    ok = ok && pass;
+  }
+
+  // ===== RunTime (TiXL anim/time/RunTime.cs) — TimeInSeconds = Playback.RunTimeInSecs (wall run clock) =====
+  // Drive the run clock 0.5/1.0/1.5 (frame_cook accumulates dt) → out exactly tracks it, independent of
+  // scrub/pause (rate=0, playhead frozen at bars=9.9 — RunTime ignores all of it). R-1 origin fork.
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    const double runs[3] = {0.5, 1.0, 1.5};
+    bool pass = true;
+    for (int i = 0; i < 3; ++i) {
+      TransportSnapshot tr = trSnap(runs[i], 120.0, 0.0);  // rate=0 (paused), playhead irrelevant
+      tr.localTimeBars = 9.9; tr.playbackTimeBars = 9.9;   // frozen playhead — RunTime must ignore it
+      cookStatefulValueOp("RunTime", {}, dt60, 0.0f, st, out, tr);
+      const float want = injectBug ? (float)runs[i] + 0.01f : (float)runs[i];
+      bool p = std::fabs(out[0] - want) < 1e-5f;
+      pass = pass && p;
+      printf("[selftest-statefulvalue] RunTime step%d(runClk=%.1f,paused) -> %.5f(want %.5f) -> %s\n",
+             i + 1, runs[i], out[0], want, p ? "PASS" : "FAIL");
+    }
+    ok = ok && pass;
+  }
+
+  // ===== DelayTriggerChange (TiXL bool/process/DelayTriggerChange.cs:30-95) — two-edge change detector =====
+  // currentTime is fed via the chosen TimeMode (AppRunTime/LocalFxTime); we drive tr to advance it.
+  // Helper: cook one frame at a given run-clock with a given trigger.
+  auto dtc = [&](StatefulValueState& st, float out[3], bool trig, double runClk, float dur,
+                 int mode, int timeMode, double bpm) {
+    TransportSnapshot tr = trSnap(runClk, bpm, 1.0);
+    tr.localFxTimeBars = runClk; tr.localTimeBars = runClk; tr.playbackTimeBars = runClk;  // for bars/secs modes
+    cookStatefulValueOp("DelayTriggerChange",
+                        {{"Trigger", trig ? 1.0f : 0.0f}, {"DelayDuration", dur},
+                         {"Mode", (float)mode}, {"TimeMode", (float)timeMode}},
+                        dt60, 0.0f, st, out, tr);
+  };
+
+  // ----- A: DelayTrue, dur=1, AppRunTime(6). FAITHFUL first-second: s0 init=0 so before any edge
+  //   remainingTime = 0 - currentTime + 1 > 0 while currentTime<1 → delayed=true even with Trigger=false.
+  //   Then rising edge at t=2 (Trigger true): _lastTrueTime=2, remaining = 2-2+1 = 1>0 → delayed=true,
+  //   passthrough is also true. At t=2.5 hold trigger: remaining = 2-2.5+1 = 0.5>0 → true. At t=3.5:
+  //   remaining = 2-3.5+1 = -0.5 → not delayed → passthrough _triggered(true) → still true (held high). -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    dtc(st, out, false, 0.5, 1.0f, 0, 6, 120.0);  // t=0.5, Trigger=false
+    bool pFaithful = (out[0] > 0.5f) && std::fabs(out[1] - 0.5f) < 1e-5f;  // delayed=true(faithful), remaining=0-0.5+1=0.5
+    printf("[selftest-statefulvalue] DTC.A faithful t=0.5 Trig=F -> delayed=%.0f(want 1) remain=%.5f(want 0.50000) -> %s\n",
+           out[0], out[1], pFaithful ? "PASS" : "FAIL");
+    dtc(st, out, false, 1.5, 1.0f, 0, 6, 120.0);  // t=1.5, still false: remaining=0-1.5+1=-0.5<0 → passthrough false
+    bool pAfter = (out[0] < 0.5f) && std::fabs(out[1] - (-0.5f)) < 1e-5f;
+    printf("[selftest-statefulvalue] DTC.A faithful-end t=1.5 Trig=F -> delayed=%.0f(want 0) remain=%.5f(want -0.50000) -> %s\n",
+           out[0], out[1], pAfter ? "PASS" : "FAIL");
+    dtc(st, out, true, 2.0, 1.0f, 0, 6, 120.0);  // rising edge t=2: lastTrue=2, remaining=2-2+1=1 → delayed true
+    const float wantRemA = injectBug ? 0.0f : 1.0f;  // injectBug: drop +delayDuration → remaining=0
+    bool pRise = (out[0] > 0.5f) && std::fabs(out[1] - wantRemA) < 1e-5f;
+    printf("[selftest-statefulvalue] DTC.A rise t=2 Trig=T -> delayed=%.0f(want 1) remain=%.5f(want %.5f) -> %s\n",
+           out[0], out[1], wantRemA, pRise ? "PASS" : "FAIL");
+    // t=3.5 held true: _lastTrueTime UPDATES every frame while triggered (cs:55-58 runs unconditionally
+    // inside if(isTriggered), not just on the edge), so refTime=3.5, remaining=3.5-3.5+1=1>0 → delayed=true.
+    dtc(st, out, true, 3.5, 1.0f, 0, 6, 120.0);
+    bool pHold = (out[0] > 0.5f) && std::fabs(out[1] - 1.0f) < 1e-5f;
+    printf("[selftest-statefulvalue] DTC.A hold t=3.5 Trig=T -> delayed=%.0f(want 1) remain=%.5f(want 1.00000, lastTrue tracks) -> %s\n",
+           out[0], out[1], pHold ? "PASS" : "FAIL");
+    ok = ok && pFaithful && pAfter && pRise && pHold;
+  }
+
+  // ----- B: DelayFalse(1), dur=1, AppRunTime(6). stateIfDelayed=false, refTime=_lastFalseTime. Start
+  //   Trigger=TRUE at t=0.5: no _lastFalseTime yet (s1=0), remaining=0-0.5+1=0.5>0 → delayed=stateIfDelayed=FALSE
+  //   (DelayFalse holds the OFF state into the trigger). Drop to false (edge) at t=1.0: lastFalse=1,
+  //   remaining=1-1+1=1>0 → delayed=false. At t=2.5: remaining=1-2.5+1=-0.5 → passthrough _triggered(false)=false.
+  //   To see a TRUE we keep trigger high long enough: re-rise t=3 then t=5 (remaining=lastFalse(1)-5+1<0) → passthrough true. -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    dtc(st, out, true, 0.5, 1.0f, 1, 6, 120.0);   // Trigger=T but DelayFalse holds false (remaining=0.5>0)
+    bool p1 = (out[0] < 0.5f);
+    dtc(st, out, false, 1.0, 1.0f, 1, 6, 120.0);  // edge to false: lastFalse=1, remaining=1-1+1=1>0 → false
+    bool p2 = (out[0] < 0.5f) && std::fabs(out[1] - 1.0f) < 1e-5f;
+    dtc(st, out, true, 5.0, 1.0f, 1, 6, 120.0);   // edge to true t=5: refTime=lastFalse=1, remaining=1-5+1=-3<0 → passthrough true
+    const float wantB = injectBug ? 0.0f : 1.0f;  // injectBug breaks passthrough → 0
+    bool p3 = std::fabs(out[0] - wantB) < 1e-5f;
+    printf("[selftest-statefulvalue] DTC.B DelayFalse: holdFalse@T=%.0f edgeFalse remain=%.5f passthroughTrue@t5=%.0f(want %.0f) -> %s\n",
+           p1 ? 0.0f : 1.0f, out[1], out[0], wantB, (p1 && p2 && p3) ? "PASS" : "FAIL");
+    ok = ok && p1 && p2 && p3;
+  }
+
+  // ----- C: bpm bars<->secs conversion of currentTime via TimeMode=1 (LocalFxTime_InSecs). DelayTrue, dur=1.
+  //   We set localFxTimeBars=2 (bars), bpm=120 → currentTime = 2*240/120 = 4 secs. Rising edge there:
+  //   lastTrue=4, remaining = 4-4+1 = 1 > 0 → delayed=true. Proves the bars→secs path uses tr.bpm. -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    // prime _triggered=false at currentTime far back, then rising edge with the bars-secs time.
+    {
+      TransportSnapshot tr = trSnap(0, 120.0, 1.0); tr.localFxTimeBars = 0;
+      cookStatefulValueOp("DelayTriggerChange",
+                          {{"Trigger", 0.0f}, {"DelayDuration", 1.0f}, {"Mode", 0.0f}, {"TimeMode", 1.0f}},
+                          dt60, 0.0f, st, out, tr);
+    }
+    TransportSnapshot tr = trSnap(0, 120.0, 1.0); tr.localFxTimeBars = 2.0;  // 2 bars @120 = 4 secs
+    cookStatefulValueOp("DelayTriggerChange",
+                        {{"Trigger", 1.0f}, {"DelayDuration", 1.0f}, {"Mode", 0.0f}, {"TimeMode", 1.0f}},
+                        dt60, 0.0f, st, out, tr);
+    const float wantRemC = injectBug ? (float)(2.0 * 120.0 / 240.0 - 0.0 + 1.0) : 1.0f;  // good: currentTime=4 → remaining=1; bug: wrong bars*bpm/240=1+1=2... distinct
+    bool pc = (out[0] > 0.5f) && std::fabs(out[1] - wantRemC) < 1e-5f;
+    printf("[selftest-statefulvalue] DTC.C LocalFxSecs 2bars@120=4s rising -> delayed=%.0f(want 1) remain=%.5f(want %.5f) -> %s\n",
+           out[0], out[1], wantRemC, pc ? "PASS" : "FAIL");
+    ok = ok && pc;
+  }
+
+  // ----- D: DelayBoth(2), dur=1, AppRunTime(6). Reconstruct held _stateBeforeChange across an edge.
+  //   DelayBoth: refTime=_lastChangeTime, stateIfDelayed=_stateBeforeChange (= the DelayedTrigger value
+  //   just BEFORE this edge, carried via s[5]). Sequence:
+  //   t=0.5 Trig=F: first frame, no edge (prev _triggered=0 == false → hasBeenChanged=false). delayed:
+  //     refTime=_lastChangeTime=0, remaining=0-0.5+1=0.5>0 → stateIfDelayed=_stateBeforeChange=0 → false.
+  //   t=1.0 Trig=T (EDGE): _stateBeforeChange = prior DelayedTrigger (false=0). lastChange=1.
+  //     remaining=1-1+1=1>0 → delayed=stateIfDelayed=false (holds the PRE-edge state). passthrough would be true,
+  //     but delayed wins → STILL FALSE (this is the "hold previous state during delay" behavior).
+  //   t=2.5 Trig=T: no edge, remaining=1-2.5+1=-0.5<0 → not delayed → passthrough _triggered(true) → TRUE. -----
+  {
+    StatefulValueState st;
+    float out[3] = {0, 0, 0};
+    dtc(st, out, false, 0.5, 1.0f, 2, 6, 120.0);  // no edge, delayed holds stateBeforeChange=0 → false
+    bool p1 = (out[0] < 0.5f);
+    dtc(st, out, true, 1.0, 1.0f, 2, 6, 120.0);   // EDGE: stateBeforeChange=prior false → delayed holds false despite Trigger=T
+    bool p2 = (out[0] < 0.5f) && std::fabs(out[1] - 1.0f) < 1e-5f;
+    dtc(st, out, true, 2.5, 1.0f, 2, 6, 120.0);   // delay elapsed → passthrough true
+    const float wantD = injectBug ? 0.0f : 1.0f;
+    bool p3 = std::fabs(out[0] - wantD) < 1e-5f;
+    printf("[selftest-statefulvalue] DTC.D DelayBoth: preEdge=%.0f edge-holds-prev(false)=%.0f remain=%.5f postDelay=%.0f(want %.0f) -> %s\n",
+           p1 ? 0.0f : 1.0f, p2 ? 0.0f : 1.0f, out[1], out[0], wantD, (p1 && p2 && p3) ? "PASS" : "FAIL");
+    ok = ok && p1 && p2 && p3;
   }
 
   printf("[selftest-statefulvalue] %s%s\n", ok ? "PASS" : "FAIL", injectBug ? " (injectBug)" : "");
