@@ -381,6 +381,22 @@ int runResidentRgbTvSelfTest(bool injectBug);
 // self-displaces) -> the pins diverge -> RED.
 int runResidentDistortAndShadeSelfTest(bool injectBug);
 
+// Combine3Images golden (point_ops_combine3images.cpp): the multi-image seam's FIRST 3-input consumer
+// (Displace/DistortAndShade = 2 inputs). Three FLAT solids with distinct channel values -> the op packs
+// out.R<-ImageA.r / out.G<-ImageB.g / out.B<-ImageC.b / out.A<-1 (closed-form d=0 plateau). injectBug
+// drops ImageC so out.B reads ImageA.b (the fork) -> the B pin diverges -> RED (exercises the 3rd
+// Texture2D port). The resident variant drives the same pack through cookResident -> cookTexNode (all
+// three inputs into inputTextures[0/1/2]) -> displayTex; injectBug OMITS the ImageC wire.
+int runCombine3ImagesSelfTest(bool injectBug);
+int runResidentCombine3ImagesSelfTest(bool injectBug);
+
+// CombineMaterialChannels2 golden (point_ops_combinematerialchannels2.cpp): the PBR twin of
+// Combine3Images — SAME kernel (img-combine-3.hlsl), SAME 3-image gather. A PBR-flavored solid set
+// (roughness/metallic/ao) packs to (A.r, B.g, C.b, 1); injectBug drops ImageC -> B reads ImageA.b -> RED.
+// The resident variant drives it through cookResident with the ImageC wire omitted on injectBug.
+int runCombineMaterialChannels2SelfTest(bool injectBug);
+int runResidentCombineMaterialChannels2SelfTest(bool injectBug);
+
 // Blur image-filter golden (point_ops_blur.cpp, lane I): the FIRST image filter (Texture2D in ->
 // Texture2D out). (a) BLUR MATH: fill a source texture with a hard 1px-wide vertical white line on
 // black, run Blur, assert the line SPREADS horizontally (neighbouring columns lit) — a no-op /

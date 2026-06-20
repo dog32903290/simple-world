@@ -250,6 +250,8 @@ const SelfTest kTable[] = {
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},
     {"distortandshaderesident", runResidentDistortAndShadeSelfTest},
+    {"combine3imagesresident", runResidentCombine3ImagesSelfTest},
+    {"combinematerialchannels2resident", runResidentCombineMaterialChannels2SelfTest},
     {"bypasscook", runBypassCookSelfTest},
     {"bypasscompound", runBypassCompoundSelfTest},
     {"graphbridge", runGraphBridgeSelfTest},
