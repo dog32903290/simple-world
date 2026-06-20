@@ -434,6 +434,15 @@ void registerLayer2dOp();
 RenderCommand cookCamera(CmdCookCtx& c);
 void registerCameraOp();
 int runCameraSelfTest(bool injectBug);
+
+// --- DrawMeshUnlit command op (point_ops_drawmeshunlit.cpp, the FIRST 3D mesh, Cut 99). Mesh in →
+// Command out (DrawKind::Mesh): a depth-tested, genuinely-unlit triangle mesh (TiXL DrawMeshUnlit →
+// mesh-DrawUnlit.hlsl; psMain default = albedo(white)·Color = Color). The executor (cookRenderTarget)
+// attaches a depth buffer + draws it LessEqual/ZWrite/CCW-front/Cull-Back. runDrawMeshUnlitSelfTest =
+// Tooth A (host-projected flat-color interior) + Tooth B (the depth-occlusion overlap pixel). ---
+RenderCommand cookDrawMeshUnlit(CmdCookCtx& c);
+void registerDrawMeshUnlitOp();
+int runDrawMeshUnlitSelfTest(bool injectBug);
 // DrawScreenQuad golden: a uniform-gray source texture, Color=(2,1,1,1) tint → assert the center
 // pixel is R≈clamp(2*0.5)=1.0 (saturated) and G/B≈0.5 (the closed-form clamp(Color*tex,0,1000)).
 // injectBug drops the source texture → black → FAIL.

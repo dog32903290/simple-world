@@ -26,6 +26,7 @@
 #include "runtime/draw_params.h"      // DrawLineParams/DrawBillboardParams/DrawScreenQuadParams + bindings
 #include "runtime/field_camera.h"     // defaultLayerCameraForward / objectToClipSpace (Layer2d seam, F1)
 #include "runtime/graph.h"            // Graph/Node
+#include "runtime/mesh_draw_params.h" // MeshDrawParams + MESH_* bindings (DrawKind::Mesh)
 #include "runtime/particle_params.h"  // DRAW_Points, DRAW_ViewExtent
 #include "runtime/point_graph.h"      // TexCookCtx, RenderResolution, registerTexOp
 #include "runtime/render_command.h"   // RenderCommand / RenderDrawItem / DrawKind
@@ -36,6 +37,14 @@
 #endif
 
 namespace sw {
+
+// Test-only depth-disable hook (Tooth B). File-scope flag, off in production; the depth-occlusion golden
+// flips it to prove the LessEqual+ZWrite state is load-bearing (see render_command.h).
+bool& meshDepthDisableForTest() {
+  static bool v = false;
+  return v;
+}
+
 namespace {
 
 float paramOr(const std::map<std::string, float>& params, const char* id, float def) {
@@ -59,6 +68,14 @@ MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const
     MTL::RenderPipelineDescriptor* rpd = MTL::RenderPipelineDescriptor::alloc()->init();
     rpd->setVertexFunction(vs);
     rpd->setFragmentFunction(fs);
+    // ★ALL-PSOs-FORMAT GOTCHA (depth seam): the pass attaches a Depth32Float texture (so the mesh can
+    // depth-test), and once a render pass has a depth attachment EVERY PSO that draws into it MUST
+    // declare the same depthAttachmentPixelFormat — even the depth-DISABLED 2D composites (Points/
+    // Lines/Billboard/ScreenQuad/Layer2d). A mismatch is a hard PSO validation failure / no draw.
+    // Declared UNCONDITIONALLY here so every kind's PSO is valid; the per-draw MTLDepthStencilState
+    // (set on the encoder) decides whether a kind actually tests/writes depth (2D kinds = Always +
+    // write-off → byte-identical 2D output, the depth buffer is inert for them).
+    rpd->setDepthAttachmentPixelFormat(MTL::PixelFormatDepth32Float);
     auto* att = rpd->colorAttachments()->object(0);
     att->setPixelFormat(pf);
     if (mode) {
@@ -124,6 +141,41 @@ void cookRenderTarget(TexCookCtx& c) {
       (c.output->height() > 0) ? (float)c.output->width() / (float)c.output->height() : 1.0f;
   const LayerCameraForward camFwd = defaultLayerCameraForward(aspectF);
 
+  // ── Depth seam (TiXL DrawMeshUnlit DepthStencilState) ──────────────────────────────────────────
+  // Alloc a Depth32Float depth texture (same W×H as the color output, private, render-target usage)
+  // and attach it (clear to 1.0 = far, DontCare store — depth is consumed within the pass, never read
+  // back). clip-z is already D3D [0,1] (field_camera.h perspectiveFovRH M33=far/(near-far)) → matches
+  // Metal's [0,1] depth + LessEqual, NO remap. Single-sample (the executor is single-sample). This
+  // makes the FIRST 3D mesh occlude correctly (Tooth B); the 2D composites draw depth-DISABLED below
+  // (compare Always, write off) → byte-identical to before the seam (the depth buffer is inert to them).
+  MTL::Texture* depthTex = nullptr;
+  {
+    MTL::TextureDescriptor* dtd = MTL::TextureDescriptor::texture2DDescriptor(
+        MTL::PixelFormatDepth32Float, c.output->width(), c.output->height(), false);
+    dtd->setStorageMode(MTL::StorageModePrivate);
+    dtd->setUsage(MTL::TextureUsageRenderTarget);
+    depthTex = c.dev->newTexture(dtd);
+  }
+  // Two depth-stencil states: dsMesh (DrawKind::Mesh, TiXL LessEqual + ZWrite=true + ZTest=true) and
+  // dsDisabled (every 2D kind: compare Always + write off → the depth attachment never affects them).
+  MTL::DepthStencilState* dsMesh = nullptr;
+  MTL::DepthStencilState* dsDisabled = nullptr;
+  {
+    MTL::DepthStencilDescriptor* dsd = MTL::DepthStencilDescriptor::alloc()->init();
+    dsd->setDepthCompareFunction(MTL::CompareFunctionLessEqual);
+    dsd->setDepthWriteEnabled(true);
+    dsMesh = c.dev->newDepthStencilState(dsd);
+    dsd->release();
+  }
+  {
+    MTL::DepthStencilDescriptor* dsd = MTL::DepthStencilDescriptor::alloc()->init();
+    dsd->setDepthCompareFunction(MTL::CompareFunctionAlways);
+    dsd->setDepthWriteEnabled(false);
+    dsDisabled = c.dev->newDepthStencilState(dsd);
+    dsd->release();
+  }
+  MTL::RenderPipelineState* psoMesh = nullptr;  // lazily built in the Mesh case
+
   MTL::RenderPassDescriptor* pass = MTL::RenderPassDescriptor::renderPassDescriptor();
   auto* ca = pass->colorAttachments()->object(0);
   ca->setTexture(c.output);
@@ -139,14 +191,24 @@ void cookRenderTarget(TexCookCtx& c) {
   }
   ca->setClearColor(MTL::ClearColor::Make(cc[0], cc[1], cc[2], cc[3]));
   ca->setStoreAction(MTL::StoreActionStore);
+  // Attach the depth buffer: clear to 1.0 (far), DontCare store (consumed within the pass only).
+  auto* da = pass->depthAttachment();
+  da->setTexture(depthTex);
+  da->setLoadAction(MTL::LoadActionClear);
+  da->setClearDepth(1.0);
+  da->setStoreAction(MTL::StoreActionDontCare);
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(pass);
+  // Default every draw to depth-DISABLED (the 2D composites). The Mesh case flips to dsMesh just for
+  // its draw, then restores dsDisabled — so a 2D item after a mesh stays unaffected (byte-identical 2D).
+  enc->setDepthStencilState(dsDisabled);
   if (c.command) {
     for (const RenderDrawItem& it : c.command->items) {
       if (it.kind == DrawKind::Clear) continue;  // not a draw — handled by the pass clear color above
-      // Point-based kinds need a non-empty bag; ScreenQuad/Layer2d draw from a texture (no buffer).
+      // Point-based kinds need a non-empty bag; ScreenQuad/Layer2d draw from a texture, Mesh from its
+      // own vertex+index buffers (none read `points`) — exempt all three from the point-bag guard.
       if (it.kind != DrawKind::ScreenQuad && it.kind != DrawKind::Layer2d &&
-          (!it.points || it.count == 0))
+          it.kind != DrawKind::Mesh && (!it.points || it.count == 0))
         continue;
       switch (it.kind) {
         case DrawKind::Points: {
@@ -315,6 +377,49 @@ void cookRenderTarget(TexCookCtx& c) {
           enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0), NS::UInteger(6));
           break;
         }
+        case DrawKind::Mesh: {
+          // The FIRST 3D mesh (TiXL DrawMeshUnlit → mesh-DrawUnlit.hlsl). SV_VertexID-driven triangle
+          // list reading the cooked SwVertex + SwTriIndex buffers; NO Metal index buffer (the VS reads
+          // FaceIndices itself). Borrowed buffers (null → nothing to draw). Depth-TESTED: LessEqual +
+          // ZWrite (dsMesh) + FrontCounterClockwise (CCW front) + Cull Back (TiXL Rasterizer 6e672779).
+          if (!it.meshVtx || !it.meshIdx || it.meshIndexCount == 0) break;
+          if (!psoMesh)
+            psoMesh = makeDrawPSO(c.dev, c.lib, "mesh_draw_unlit_vs", "mesh_draw_unlit_fs", pf, false);
+          if (!psoMesh) break;
+          enc->setRenderPipelineState(psoMesh);
+          // Compose ObjectToClipSpace EXACTLY like Layer2d (object→world = identity for a mesh; the SRT
+          // stack belongs to a parent Transform op, deferred), with the default OR the stamped camera.
+          LayerCameraForward cam = camFwd;
+          if (it.hasCamera) {
+            float ar = (it.camAspect > 0.0001f) ? it.camAspect : aspectF;
+            cam.worldToCamera = lookAtRH(it.camEye, it.camTarget, it.camUp);
+            cam.cameraToClipSpace = perspectiveFovRH(
+                it.camFovDeg * 3.14159265358979323846f / 180.0f, ar, it.camNear, it.camFar);
+          }
+          Mat4 o2c = objectToClipSpace(mat4Identity(), cam.worldToCamera, cam.cameraToClipSpace);
+          MeshDrawParams M{};
+          M.color[0] = it.color[0]; M.color[1] = it.color[1];
+          M.color[2] = it.color[2]; M.color[3] = it.color[3];
+          for (int i = 0; i < 16; ++i) M.objectToClipSpace[i] = o2c.m[i];
+          M.applyTransform = it.applyTransform ? 1u : 0u;  // drop-mul golden tooth (Tooth A mis-project)
+          enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.meshVtx), 0, MESH_PbrVertices);
+          enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.meshIdx), 0, MESH_FaceIndices);
+          enc->setVertexBytes(&M, sizeof(M), MESH_Params);
+          enc->setFragmentBytes(&M, sizeof(M), MESH_Params);
+          // Production: dsMesh (LessEqual + ZWrite). Tooth-B bug hook: dsDisabled → no occlusion, draw
+          // order decides (the depth tooth bites). The hook is CPU-side (never a shader branch).
+          enc->setDepthStencilState(meshDepthDisableForTest() ? dsDisabled : dsMesh);
+          enc->setFrontFacingWinding(MTL::WindingCounterClockwise);  // TiXL FrontCounterClockwise=true
+          enc->setCullMode(MTL::CullModeBack);                       // TiXL Cull Back
+          // 3 verts/face, SV_VertexID-driven (TiXL Draw vertexCount = faceCount × MultiplyInt(3)).
+          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
+                              NS::UInteger((NS::UInteger)it.meshIndexCount * 3));
+          // Restore depth-disabled + default winding/cull so a 2D item after a mesh is byte-identical.
+          enc->setDepthStencilState(dsDisabled);
+          enc->setFrontFacingWinding(MTL::WindingClockwise);
+          enc->setCullMode(MTL::CullModeNone);
+          break;
+        }
         case DrawKind::Clear:
           break;  // already skipped above (handled by the pass clear color); explicit for -Wswitch
       }
@@ -330,7 +435,11 @@ void cookRenderTarget(TexCookCtx& c) {
   if (psoSQ[1]) psoSQ[1]->release();
   if (psoL2[0]) psoL2[0]->release();
   if (psoL2[1]) psoL2[1]->release();
+  if (psoMesh) psoMesh->release();
   if (sqSampler) sqSampler->release();
+  if (dsMesh) dsMesh->release();
+  if (dsDisabled) dsDisabled->release();
+  if (depthTex) depthTex->release();
 }
 
 // Resolution enum (Float param + Widget::Enum): WindowFollow tracks `windowSize`; the

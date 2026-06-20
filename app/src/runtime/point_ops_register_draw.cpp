@@ -18,6 +18,7 @@ void registerDrawPointOps() {
   registerDrawScreenQuadOps();                  // Texture2D → Command (DrawKind::ScreenQuad) + ClearRenderTarget
   registerLayer2dOp();                          // Texture2D → Command (DrawKind::Layer2d, camera-context seam)
   registerCameraOp();                           // Command → Command (explicit camera push/pop, Cut 3)
+  registerDrawMeshUnlitOp();                    // Mesh → Command (DrawKind::Mesh, the FIRST 3D mesh, Cut 99)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
 }
 

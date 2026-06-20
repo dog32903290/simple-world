@@ -333,6 +333,11 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // FloatList inputs by recursing into cookFloatListNode, whose body is assigned further below. Same
   // std::function ordering-break as cookTexNode itself.
   std::function<const std::vector<float>*(int)> cookFloatListNode;
+  // Forward-declared: cookCommand gathers a Mesh input (DrawMeshUnlit) by cooking the upstream mesh
+  // node here, then reading its buffers via debugCookedMesh. Body assigned below (it has no recursion
+  // into cookCommand — a mesh generator owns no command inputs — but the ordering break keeps it
+  // callable from cookCommand). Returns true + fills the out-params on success.
+  std::function<bool(int, const MTL::Buffer*&, uint32_t&, const MTL::Buffer*&, uint32_t&)> cookMeshInto;
 
   // Cook a command node: resolve its upstream Points bag (+ first wired Texture2D input, FORK#1, +
   // first wired Command subtree for the Camera op, Cut 3), then call its cmd fn -> RenderCommand.
@@ -349,6 +354,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     MTL::Buffer* pts = nullptr;
     uint32_t cnt = 0;
     const MTL::Texture* inTex = nullptr;
+    const MTL::Buffer* inMeshVtx = nullptr;  // first wired Mesh input (DrawMeshUnlit, Cut 99)
+    const MTL::Buffer* inMeshIdx = nullptr;
+    uint32_t inMeshFaces = 0;
+    bool haveMesh = false;
     RenderCommand inCmd;          // Camera op's Command subtree (Cut 3); empty unless a Command input wired
     bool haveInCmd = false;
     bool havePts = false;
@@ -359,6 +368,15 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         const Connection* c = g.connectionToInput(pinId(id, (int)i));
         if (c) { pts = cookNode(pinNode(c->fromPin)); cnt = p_->outCount[flatKey(pinNode(c->fromPin))]; }
         havePts = true;
+      } else if (port.dataType == "Mesh" && !haveMesh) {
+        // DrawMeshUnlit's Mesh input: cook the upstream mesh generator (NGonMesh/QuadMesh) and borrow
+        // its vertex+index buffers + face count (mirrors the Texture2D gather; single-frame lifetime).
+        const Connection* c = g.connectionToInput(pinId(id, (int)i));
+        if (c) {
+          uint32_t vtxCount = 0;  // unused here (the VS draws faces×3, not vertices)
+          cookMeshInto(pinNode(c->fromPin), inMeshVtx, vtxCount, inMeshIdx, inMeshFaces);
+        }
+        haveMesh = true;
       } else if (port.dataType == "Texture2D" && !inTex) {
         // FORK#1: a command op (DrawScreenQuad) can take a Texture2D input — recurse into the
         // upstream tex node (same cook-upstream-on-demand as Points). Borrowed, single-frame.
@@ -377,6 +395,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.nodeId = id; cc.points = pts; cc.count = cnt;
     cc.inputTexture = inTex;
     cc.inputCommand = haveInCmd ? &inCmd : nullptr;
+    cc.meshVtx = inMeshVtx; cc.meshIdx = inMeshIdx; cc.meshFaceCount = inMeshFaces;
     cc.params = nodeParams(id);
     RenderCommand out = cm->second(cc);
     cmdVisiting.erase(id);  // pop: this node is no longer on the command stack
@@ -572,6 +591,16 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     mc.params = mp;
     reg->cook(mc);
     return true;
+  };
+
+  // Bridge: cook the upstream mesh node, then read its buffers back via debugCookedMesh (so a Mesh-
+  // consuming command op — DrawMeshUnlit — can borrow them). Assigned to the forward-declared
+  // std::function so cookCommand (defined ABOVE this point) can call it. Returns false (and leaves the
+  // out-params untouched) if the node is not a mesh op / produced nothing.
+  cookMeshInto = [&](int id, const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx,
+                     uint32_t& faceCount) -> bool {
+    if (!cookMeshNode(id)) return false;  // cook the generator into meshVtxBuf/meshIdxBuf (or no-op)
+    return debugCookedMesh(id, vtx, vtxCount, idx, faceCount);
   };
 
   // Cook a FLOATLIST-flow node (the 5th cook flow = TiXL Slot<List<float>>). The currency is a HOST

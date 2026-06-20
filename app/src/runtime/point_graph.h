@@ -109,6 +109,14 @@ struct CmdCookCtx {
   // driver-local RenderCommand (single-frame); the op may COPY its items (Camera stamps + re-emits).
   // Point/Texture command ops (DrawPoints/DrawScreenQuad) leave it null → byte-identical path.
   const RenderCommand* inputCommand = nullptr;
+  // First wired MESH input (DrawMeshUnlit, the 4th cook flow as a draw consumer): the cook driver cooks
+  // the upstream mesh node (NGonMesh/QuadMesh) and hands its vertex+index buffers + face count here. A
+  // command op that draws a mesh (DrawMeshUnlit) borrows these into its DrawKind::Mesh item; every other
+  // command op leaves them null/0 → byte-identical path. Borrowed (PointGraph meshVtxBuf/meshIdxBuf,
+  // single-frame) — NEVER retained, same lifetime contract as `points`. Mirrors inputTexture/inputCommand.
+  const MTL::Buffer* meshVtx = nullptr;   // upstream SwVertex buffer (null when no Mesh input wired)
+  const MTL::Buffer* meshIdx = nullptr;   // upstream SwTriIndex buffer
+  uint32_t meshFaceCount = 0;             // upstream FACE count (== SwTriIndex count); VS draws ×3
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
 };
 // A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.

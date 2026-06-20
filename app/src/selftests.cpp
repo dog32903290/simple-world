@@ -295,6 +295,7 @@ const SelfTest kTable[] = {
     {"field-camera", runFieldCameraSelfTest},
     {"layer2d", runLayer2dSelfTest},
     {"camera", runCameraSelfTest},
+    {"drawmeshunlit", runDrawMeshUnlitSelfTest},
     {"mathops", runMathOpsSelfTest},
     {"statefulvalue", runStatefulValueSelfTest},
     {"blur", runBlurSelfTest},

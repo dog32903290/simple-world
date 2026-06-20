@@ -49,6 +49,11 @@ enum class DrawKind : uint32_t {
                    // FIRST chain item the executor sets the pass clear color from it (color[]); the
                    // retained-mode pass already clears once, so this is free. A non-first Clear (mid
                    // chain re-clear) needs a clear-quad and is deferred (no-op for now).
+  Mesh = 6,        // mesh_draw_unlit_vs: SV_VertexID-driven triangle list reading a SwVertex buffer +
+                   // SwTriIndex buffer (TiXL DrawMeshUnlit → mesh-DrawUnlit.hlsl). The FIRST 3D draw
+                   // kind: it reads objectToClipSpace[16] + the camera-stamp fields (same as Layer2d)
+                   // and is depth-TESTED (LessEqual + ZWrite) — every other kind draws depth-disabled.
+                   // No point buffer; driven by meshVtx/meshIdx/meshIndexCount below.
 };
 
 // Per-item blend equation (TiXL SharedEnums.BlendModes, factors from Core/Rendering/
@@ -133,6 +138,17 @@ struct RenderDrawItem {
   float camNear = 0.01f;       // TiXL ClipPlanes.X
   float camFar = 1000.0f;      // TiXL ClipPlanes.Y
   float camAspect = -1.0f;     // TiXL AspectRatio (.t3 default 0 → <0.0001 → use output aspect); <=0 = output aspect
+  // ── DrawKind::Mesh (TiXL DrawMeshUnlit → mesh-DrawUnlit.hlsl) ──────────────────────────────────
+  // The two mesh-currency buffers (sw_mesh.h SwVertex 80B / SwTriIndex 12B), borrowed from the cooked
+  // upstream mesh node (PointGraph meshVtxBuf/meshIdxBuf, single-frame lifetime like `points`; NEVER
+  // retained). meshIndexCount = the FACE count; the VS draws meshIndexCount*3 vertices (3 verts/face,
+  // SV_VertexID-driven: faceIndex=vid/3, faceVertexIndex=vid%3 → FaceIndices[faceIndex][fvi]). A mesh
+  // item composes its ObjectToClipSpace EXACTLY like Layer2d (the objectToClipSpace[16]+camera fields
+  // above) — the executor builds it from the default camera (or the stamped Camera op). Ignored by
+  // every non-Mesh kind. Default null/0 = nothing to draw (the executor skips the item).
+  const MTL::Buffer* meshVtx = nullptr;   // borrowed SwVertex buffer (t0 PbrVertices)
+  const MTL::Buffer* meshIdx = nullptr;   // borrowed SwTriIndex buffer (t1 FaceIndices)
+  uint32_t meshIndexCount = 0;            // FACE count; vertexCount = meshIndexCount*3 (TiXL MultiplyInt ×3)
 };
 
 // A render command chain: draw items in execution order (later items composite on top).
@@ -140,5 +156,13 @@ struct RenderDrawItem {
 struct RenderCommand {
   std::vector<RenderDrawItem> items;
 };
+
+// Test-only CPU executor hook (the depth tooth): when true, cookRenderTarget draws DrawKind::Mesh items
+// with the depth-DISABLED state instead of LessEqual+ZWrite — so the depth-occlusion golden (Tooth B)
+// can prove depth does OCCLUSION (with it set, draw-order decides → near-red no longer wins → the
+// overlap turns green = the bite). OFF in production (zero behavior change). This is a CPU executor flag,
+// NOT a shader bug-branch (no test seam in the production .metal — constitution rule). Parallel to
+// mesh_op_registry.h's meshInjectBug(). Defined in point_ops_rendertarget.cpp.
+bool& meshDepthDisableForTest();
 
 }  // namespace sw

@@ -101,6 +101,21 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"ClipPlanes.y", "ClipPlanes.y", "Float", true, 1000.0f, 0.0001f, 100000.0f, Widget::Vec, {}, true, 1},
         {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
        nullptr},
+      // DrawMeshUnlit (TiXL Lib.mesh.draw.DrawMeshUnlit): the FIRST 3D mesh — a depth-tested,
+      // genuinely-unlit triangle mesh (mesh-DrawUnlit.hlsl; psMain default = albedo(white)·Color = Color).
+      // Mesh in → Command out (DrawKind::Mesh). The executor attaches a Depth32Float buffer and draws it
+      // LessEqual/ZWrite/CCW-front/Cull-Back (TiXL DepthStencilState 61714c96 + Rasterizer 6e672779).
+      // Color (Vec4, .t3 default white) is the only param shipped v1. FORKS (named): in-code 1×1 white t2
+      // (no Texture input → byte-identical white.png albedo); BlendMode/FillMode/Cull/AlphaCutOff/BlurLevel/
+      // UseVertexColor/UseCubeMap/Texture deferred (defaults only); DrawMesh (the PBR variant) deferred.
+      {"DrawMeshUnlit", "DrawMeshUnlit",
+       {{"Mesh", "Mesh", "Mesh", true},
+        {"out", "out", "Command", false},
+        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
       // RenderTarget (TiXL Lib.image.generate.basic.RenderTarget): executes a Command chain into a
       // sized Texture2D — the RESOLUTION PIN. Command in, Texture2D out; Resolution enum picks the
       // output size (WindowFollow tracks the viewport, fixed modes pin a standard size, Custom reads
