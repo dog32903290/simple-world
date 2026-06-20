@@ -81,6 +81,9 @@ namespace sw { int runMeshQuadGoldenSelfTest(bool); }            // mesh_golden.
 namespace sw { int runMeshTransformGoldenSelfTest(bool); }       // mesh_input_golden.cpp (mesh-input seam: TransformMesh consumer)
 namespace sw { int runMeshCombineGoldenSelfTest(bool); }         // mesh_input_golden.cpp (mesh-input seam: CombineMeshes MultiInput)
 namespace sw { int runMeshInputProductionGoldenSelfTest(bool); } // mesh_input_golden.cpp (★R-2 production cookResident pixel + DrawMeshUnlit hole fix)
+namespace sw { int runMeshFlipNormalsGoldenSelfTest(bool); }     // mesh_modify_golden.cpp (mesh modify: FlipNormals, flat + R-2 resident)
+namespace sw { int runMeshRecomputeNormalsGoldenSelfTest(bool); }// mesh_modify_golden.cpp (mesh modify: RecomputeNormals face-cross, flat + R-2 resident)
+namespace sw { int runMeshTransformUvsGoldenSelfTest(bool); }    // mesh_modify_golden.cpp (mesh modify: TransformMeshUVs matrix·uv, flat + R-2 resident)
 namespace sw { int runFloatListSelfTest(bool); }                 // floatlist_golden.cpp (5th cook flow: FloatsToList host list)
 namespace sw { int runStringRailSelfTest(bool); }                // string_rail_golden.cpp (6th cook flow: String value rail)
 namespace sw { int runListRoutingSelfTest(bool); }               // list_routing_golden.cpp (FloatList→Float bridge: downstream evalFloat)
@@ -230,6 +233,9 @@ const SelfTest kTable[] = {
     {"mesh-transform", runMeshTransformGoldenSelfTest},
     {"mesh-combine", runMeshCombineGoldenSelfTest},
     {"mesh-production", runMeshInputProductionGoldenSelfTest},
+    {"mesh-flipnormals", runMeshFlipNormalsGoldenSelfTest},
+    {"mesh-recomputenormals", runMeshRecomputeNormalsGoldenSelfTest},
+    {"mesh-transformuvs", runMeshTransformUvsGoldenSelfTest},
     {"floatlist", runFloatListSelfTest},
     {"stringrail", runStringRailSelfTest},
     {"listrouting", runListRoutingSelfTest},
