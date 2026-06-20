@@ -16,6 +16,7 @@
 #include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
 #include "runtime/mesh_op_registry.h"     // MeshCookCtx/findMeshOp (the 4th cook flow = MeshBuffers)
+#include "runtime/string_op_registry.h"        // StringCookCtx/findStringOp (the 6th cook flow = host std::string)
 #include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
 
@@ -165,6 +166,11 @@ bool PointGraph::debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& 
 const std::vector<float>* PointGraph::debugCookedFloatList(int nodeId) const {
   auto it = p_->floatListBuf.find(flatKey(nodeId));
   return it != p_->floatListBuf.end() ? &it->second : nullptr;
+}
+
+const std::string* PointGraph::debugCookedString(int nodeId) const {
+  auto it = p_->stringBuf.find(flatKey(nodeId));
+  return it != p_->stringBuf.end() ? &it->second : nullptr;
 }
 
 int PointGraph::defaultDrawTarget(const Graph& g) const {
@@ -333,6 +339,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // FloatList inputs by recursing into cookFloatListNode, whose body is assigned further below. Same
   // std::function ordering-break as cookTexNode itself.
   std::function<const std::vector<float>*(int)> cookFloatListNode;
+  // Forward-declared: the String cook flow (6th flow = host std::string). A string op (CombineStrings/
+  // StringLength) gathers its String inputs by recursing into cookStringNode (a wired String input);
+  // body assigned below. std::function breaks the self-recursion ordering (CombineStrings ← upstream
+  // FloatToString ← … all String producers). StringLength produces a Float output (int→Float), so it
+  // is NOT a string op — it does NOT register a StringCookFn (see leaf comment); it is cooked by the
+  // value-eval path. Only producers of a String output ride cookStringNode.
+  std::function<const std::string*(int)> cookStringNode;
   // Forward-declared: cookCommand gathers a Mesh input (DrawMeshUnlit) by cooking the upstream mesh
   // node here, then reading its buffers via debugCookedMesh. Body assigned below (it has no recursion
   // into cookCommand — a mesh generator owns no command inputs — but the ordering break keeps it
@@ -664,9 +677,114 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return &out;
   };
 
+  // Cook a STRING-flow node (the 6th cook flow = TiXL Slot<string>). The currency is a HOST
+  // std::string living in Impl::stringBuf (no GPU buffer, no pre-sizing — the op assigns it). The
+  // walker mirrors cookFloatListNode but the gather is over STRING inputs with the DUAL IDENTITY
+  // (the new fork): for each String input port —
+  //   • WIRED   → recurse cookStringNode on the upstream source (its cooked string).
+  //   • UNWIRED → fall back to the strDef CONST (Node::strParams[id] if the node carries a stored
+  //               override, else the spec's PortSpec.strDef). This is the upgrade: a String input
+  //               port was a non-wireable const (context-var); here it becomes WIRE-OR-CONST.
+  // A MultiInput String port yields one gathered entry PER WIRE (wire-declaration order), and
+  // contributes NOTHING when unwired (faithful to GetCollectedTypedInputs — CombineStrings). A
+  // single String port always yields exactly one entry (wired value or strDef const).
+  // Returns the cooked host string (nullptr if not a string op / unknown node).
+  //
+  // Shared string-input gather (used by cookStringNode for string PRODUCERS and by the StringLength
+  // branch below, which is a string CONSUMER producing a host scalar — so it does NOT register a
+  // StringCookFn). `s` is the consuming node's spec; collects in spec port order.
+  std::function<std::vector<std::string>(int, const NodeSpec&)> gatherStringInputs =
+      [&](int id, const NodeSpec& s) -> std::vector<std::string> {
+    const Node* n = g.node(id);
+    std::vector<std::string> inputStrings;
+    for (size_t i = 0; i < s.ports.size(); ++i) {
+      const PortSpec& port = s.ports[i];
+      if (!(port.isInput && port.dataType == "String")) continue;
+      const int inPin = pinId(id, (int)i);
+      bool wired = false;
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        wired = true;
+        const std::string* up = cookStringNode(pinNode(c.fromPin));
+        inputStrings.push_back(up ? *up : std::string{});
+        if (!port.multiInput) break;  // single-input: first wire only
+      }
+      if (!wired && !port.multiInput) {
+        // Unwired single String port → the strDef const (stored strParams override, else spec strDef).
+        // fork-string-port-becomes-drivable: this is the wire-OR-const fallback. (A MultiInput String
+        // port that is unwired contributes nothing — faithful to GetCollectedTypedInputs.)
+        std::string def = port.strDef;
+        if (n) {
+          auto it = n->strParams.find(port.id);
+          if (it != n->strParams.end()) def = it->second;
+        }
+        inputStrings.push_back(def);
+      }
+    }
+    return inputStrings;
+  };
+
+  cookStringNode = [&](int id) -> const std::string* {
+    const Node* n = g.node(id);
+    if (!n) return nullptr;
+    const NodeSpec* s = findSpec(n->type);
+    if (!s) return nullptr;
+    const StringCookFn* fn = findStringOp(n->type);
+    if (!fn || !*fn) return nullptr;
+
+    std::vector<std::string> inputStrings = gatherStringInputs(id, *s);
+
+    std::string& out = p_->stringBuf[flatKey(id)];
+    StringCookCtx sc;
+    sc.dev = p_->dev; sc.lib = p_->lib; sc.queue = p_->queue;
+    sc.ctx = &ctx; sc.nodeId = id;
+    sc.inputStrings = &inputStrings;
+    sc.output = &out;
+    sc.params = nodeParams(id);
+    (*fn)(sc);
+    return &out;
+  };
+
+  // StringLength: the FIRST cross-rail consumer (String input → host scalar output). TiXL's
+  // Length is a Slot<int> (StringLength.cs:16 Length.Value = InputString.GetValue(context).Length);
+  // sw dissolves int→Float (fork-int-bool-dissolve-to-float, Cut32 convention). It is NOT a string
+  // PRODUCER, so it has no StringCookFn — it is cooked by THIS branch on the flat path, resolving
+  // its String input via the shared gather, and stores the length as a 1-element host FloatList
+  // (Impl::floatListBuf — the ONLY existing host-scalar channel; readback via debugCookedFloatList).
+  // fork-stringlength-host-scalar-via-floatlist: the downstream Float-RAIL bridge (FloatList→Float
+  // value) is the separate list-routing seam (SEAM_COMPLETION_PLAN §2 stage 1), deferred — so here
+  // we transport the host value, not yet feed it into a Float input port.
+  auto cookStringLength = [&](int id) -> void {
+    const Node* n = g.node(id);
+    const NodeSpec* s = n ? findSpec(n->type) : nullptr;
+    if (!s) return;
+    std::vector<std::string> inputStrings = gatherStringInputs(id, *s);
+    // StringLength has exactly one String input ("InputString") → inputStrings[0].
+    size_t len = inputStrings.empty() ? 0 : inputStrings[0].size();
+    std::vector<float>& out = p_->floatListBuf[flatKey(id)];
+    out.assign(1, (float)len);  // int→Float host scalar
+    // Test-only: corrupt the REAL output (drop the host scalar) so the golden's input-drivable RED
+    // bites on the actual cook path, not by flipping the expected value. Off in production.
+    if (stringInjectBug() && !out.empty()) out.clear();
+  };
+
   // FloatList terminal (preview pin on a FloatList-producing op): cook the host list so a test can read
   // it back (debugCookedFloatList) — there is no FloatList VISUALIZER (Slice B = ValuesToTexture turns
   // it into a texture). Clear the viewport (no pixels) so no stale frame, no crash (§5).
+  // NOTE: StringLength stores its host scalar in floatListBuf but is NOT a FloatList op — its branch
+  // is checked FIRST (below) so it cooks via cookStringLength, not the FloatList walker.
+  if (target->type == "StringLength") {
+    cookStringLength(target->id);
+    p_->clearTarget();
+    return;
+  }
+  if (findStringOp(target->type)) {
+    // String terminal (preview pin on a String-producing op): cook the host string so a test can read
+    // it back (debugCookedString). No String VISUALIZER. Clear the viewport (§5).
+    cookStringNode(target->id);
+    p_->clearTarget();
+    return;
+  }
   if (findFloatListOp(target->type)) {
     cookFloatListNode(target->id);
     p_->clearTarget();

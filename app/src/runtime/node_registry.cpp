@@ -36,6 +36,7 @@
 #include "runtime/field_node_registry.h"       // fieldSpecSink() — field (SDF) ops self-register
 #include "runtime/mesh_op_registry.h"          // meshSpecSink() — mesh (4th flow) ops self-register
 #include "runtime/floatlist_op_registry.h"     // floatListSpecSink() — floatlist (5th flow) ops self-register
+#include "runtime/string_op_registry.h"        // stringSpecSink() — string (6th flow) ops self-register
 #include "runtime/node_registry_math.h"
 
 #include <map>
@@ -106,6 +107,10 @@ const NodeSpec* findSpec(const std::string& type) {
   // sink fully populated by pre-main dynamic init of each floatlist_ops_<name>.cpp FloatListOp registrar).
   for (const auto& s : floatListSpecSink())
     if (s.type == type) return &s;
+  // String-op family (the 6th cook flow = host std::string): same live-read seam (init-order safe —
+  // sink fully populated by pre-main dynamic init of each string_ops_<name>.cpp StringOp registrar).
+  for (const auto& s : stringSpecSink())
+    if (s.type == type) return &s;
   auto it = dynamicSpecs().find(type);
   return it != dynamicSpecs().end() ? &it->second : nullptr;
 }
@@ -124,6 +129,8 @@ std::vector<std::string> specTypes() {
   for (const auto& s : meshSpecSink()) out.push_back(s.type);
   // FloatList ops self-register into their own sink — append so the Add menu lists them (same note).
   for (const auto& s : floatListSpecSink()) out.push_back(s.type);
+  // String ops self-register into their own sink — append so the Add menu lists them (same note).
+  for (const auto& s : stringSpecSink()) out.push_back(s.type);
   return out;
 }
 

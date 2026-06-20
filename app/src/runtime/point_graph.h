@@ -296,6 +296,10 @@ class PointGraph {
   // produced last cook (Impl::floatListBuf[flatKey(id)]). Returns nullptr if the node never cooked a
   // floatlist. Borrowed (PointGraph-owned); valid until the next cook of that node.
   const std::vector<float>* debugCookedFloatList(int nodeId) const;
+  // Test-support for the String flow (6th cook): the HOST string a flat-cooked string node produced
+  // last cook (Impl::stringBuf[flatKey(id)]). Returns nullptr if the node never cooked a string.
+  // Borrowed (PointGraph-owned); valid until the next cook of that node.
+  const std::string* debugCookedString(int nodeId) const;
 
  private:
   struct Impl;

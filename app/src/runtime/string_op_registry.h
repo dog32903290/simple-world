@@ -1,0 +1,108 @@
+// runtime/string_op_registry — self-registration seam for STRING ops (the 6th cook flow).
+//
+// The String channel is a HOST-side value currency — TiXL's Slot<string> (a CPU string that rides
+// between ops), NOT a GPU buffer. It is the value-graph parallel of "Points"/"Texture2D"/"Mesh"/
+// "FloatList": a producer port (dataType=="String" output) hands a std::string to a consumer port
+// (dataType=="String" input). The string lives in host memory the whole way; it never touches the
+// 16-byte GPU EvaluationContext. This is the EXACT mirror of the FloatList host-rail (Cut 91),
+// substituting std::string for std::vector<float> as the currency.
+//
+// Pattern cloned VERBATIM from floatlist_op_registry.h (the 5th cook flow): adding a string op =
+// add ONE leaf .cpp ending with a file-scope `StringOp` registrar. The registrar feeds two sinks:
+//   (1) stringSpecSink()  — its NodeSpec (so it appears in the Add menu / findSpec, like any op),
+//   (2) stringCookFns()   — its StringCookFn (so the cook driver's cookStringNode runs it).
+//
+// Init-order safety (identical to the floatlist / mesh / value-op sinks): every registrar is a
+// namespace-scope static, so all finish their dynamic-init constructors before main and before any
+// LIVE sink read (node_registry's findSpec/specTypes read the sink live, never snapshot).
+//
+// WHY NOT evalString: the value-eval engine (graph.cpp evalFloat) returns ONE float per pull — a
+// String output cannot ride that path (NodeSpec::evaluate returns float). Rather than thread a
+// parallel string-eval through the value-eval CORE (high-risk surgery), the String currency rides
+// the SAME flat-cook driver rail as FloatList: a separate cook flow keyed by output dataType.
+// fork-string-rail-vs-resident-engine: like FloatList, this seam only walks the flat Graph +
+// PointGraph::cook path; it does NOT enter resident_eval_graph (same current scope as FloatList).
+//
+// FORK / risk (named, same as the sibling registries): intra-family ORDER in the sink follows
+// cross-TU dynamic-init order (unspecified). Cosmetic only (Add-menu position); findSpec is keyed by
+// type name, the cook by type name — neither depends on spec position.
+#pragma once
+
+#include <map>
+#include <string>
+#include <vector>
+
+#include "runtime/graph.h"  // NodeSpec
+
+namespace MTL {
+class Device;
+class Library;
+class CommandQueue;
+}  // namespace MTL
+
+struct EvaluationContext;  // runtime/eval_context.h
+
+namespace sw {
+
+// Everything a string op gets to cook one node this frame. Mirrors FloatListCookCtx
+// (floatlist_op_registry.h) but the currency is a HOST std::string, not a host float list — so
+// there is still NO pre-sizing (a string self-sizes) and NO Metal allocation. The dev/lib/queue
+// refs ride along for symmetry with the sibling ctxs; a pure value op (StringLength/FloatToString/
+// CombineStrings) ignores them.
+//
+//   inputStrings : the already-cooked upstream String inputs, in spec port order with MultiInput
+//                  ports expanded into wire-declaration order. CRUCIAL DUAL IDENTITY (the new
+//                  fork): a String input port that is WIRED contributes its upstream cooked string;
+//                  a String input port that is UNWIRED contributes its strDef CONST (the spec's
+//                  PortSpec.strDef, or Node::strParams[id] if the node carries a stored override).
+//                  So EVERY String input port yields exactly one entry (a MultiInput String port
+//                  yields one entry PER wire, and contributes NOTHING when unwired — faithful to
+//                  GetCollectedTypedInputs, same as the FloatList scalar MultiInput gather).
+//   output       : THIS node's host string. The cook driver owns it (in Impl::stringBuf, keyed by
+//                  flatKey(id)); the op WRITES into *output (assign) — it does not allocate it.
+//   params       : RESOLVED Float params of THIS node (same value spine as FloatListCookCtx::params)
+//                  — the cook driver resolves every Float input port and hands the result here
+//                  (FloatToString.Value reads this).
+struct StringCookCtx {
+  MTL::Device* dev = nullptr;
+  MTL::Library* lib = nullptr;
+  MTL::CommandQueue* queue = nullptr;
+  const EvaluationContext* ctx = nullptr;  // time / frameIndex / deltaTime
+  int nodeId = 0;
+  // Cooked upstream String inputs (one entry per String input port — or per WIRE for a MultiInput
+  // String port — in spec port order with MultiInput expanded into wire-declaration order; an
+  // unwired single String port contributes its strDef const). Borrowed (driver-owned); never retained.
+  const std::vector<std::string>* inputStrings = nullptr;
+  // Driver-owned output string. The op writes via *output = ...; never allocates/frees it.
+  std::string* output = nullptr;
+  // RESOLVED Float params of THIS node (mirror of FloatListCookCtx::params); read via stringFloatParam.
+  const std::map<std::string, float>* params = nullptr;
+};
+
+// A string op: read inputStrings (+ resolved Float params) → write *output. ONE fn (like a floatlist
+// op, unlike a mesh op's count+cook pair) because a host string self-sizes — driver never pre-allocs.
+using StringCookFn = void (*)(StringCookCtx&);
+
+// Read a Float param from a StringCookCtx's RESOLVED map (mirror of floatListParam); `def` when the
+// driver supplied no map (ops invoked outside a cook driver, e.g. a hand-built ctx in a golden).
+float stringFloatParam(const std::map<std::string, float>* params, const char* id, float def);
+
+// --- the two sinks every string-op leaf registrar feeds ---
+std::vector<NodeSpec>& stringSpecSink();             // NodeSpecs (node_registry reads live)
+std::map<std::string, StringCookFn>& stringCookFns();  // type-name -> cook fn
+
+// Lookup the cook fn for a type (nullptr if not a string op). Used by the cook driver's dispatch.
+const StringCookFn* findStringOp(const std::string& type);
+
+// Test-only injection seam (goldens): when set, a string op's cook corrupts its REAL output (e.g.
+// drops the last character / last gathered input) so the golden's RED case fires on the actual cook
+// path (NOT by flipping the expected value). Off in production. A leaf reads it at the end of its cook.
+bool& stringInjectBug();
+
+// RAII registrar: declare one file-scope static of this type at the end of each string-op leaf.
+//   StringOp(spec, cookFn);  // pushes spec into stringSpecSink() and cook into stringCookFns()
+struct StringOp {
+  StringOp(NodeSpec spec, StringCookFn cook);
+};
+
+}  // namespace sw

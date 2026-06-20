@@ -102,6 +102,12 @@ struct PointGraph::Impl {
   // or resident path (parallel to outBuf/meshVtxBuf). Cheaper than every other flow: no GPU lifetime.
   std::map<std::string, std::vector<float>> floatListBuf;  // key -> host float list
 
+  // Per-node STRING output (the 6th cook flow = TiXL Slot<string>). A HOST-side value string that
+  // rides between String ports — NOT a GPU buffer, so (like floatListBuf) there is NO Metal
+  // allocation and NO pre-sizing (the string self-sizes; the op assigns it). Keyed by flat id or
+  // resident path (parallel to floatListBuf). The string value channel's transport store.
+  std::map<std::string, std::string> stringBuf;  // key -> host string
+
   MTL::Buffer* ensureOut(const std::string& key, uint32_t count) {
     MTL::Buffer*& b = outBuf[key];
     if (!b || outCap[key] < count) {
