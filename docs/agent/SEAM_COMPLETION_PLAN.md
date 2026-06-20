@@ -61,7 +61,7 @@ sw-node-batch 一批 fan-out 18 顆（跨 5 家族，寫-leaf 不撞檔，orches
 ### 階段 2｜mesh 島解鎖（3D，單塊大解鎖）
 | seam | 解鎖約 | 風險 | 視覺 | 內容 |
 |------|-------|------|------|------|
-| **mesh-input** ✅ | ~29(真 R1 6-10) | R1-R2 | 中(3D) | **✅ seam 補完 commit `d81d705`。** MeshCookCtx 加 SwMeshView/inputMeshes + MeshCountFn 升級吃 input counts(消費型 count 取決上游) + flat cookMeshNode + ★resident cookMeshNode。第一批 TransformMesh/CombineMeshes。★★**順手修 DrawMeshUnlit(bbe9feb)既有 production 黑洞**(resident 對 mesh 全盲,新增 resident cookCommand Mesh 分支)。refuter MERGE-SAFE(R-2 neutralize 鐵證+rotation/pivot 手算)。census ~29 樂觀=真 R1 6-10 純 mesh→mesh,其餘疊副 seam(texture/field/point/loader)。剩 6-10 葉子 sw-node-batch 採。NIT task_5d154518。|
+| **mesh-input** ✅ | ~29(真 R1 6-10) | R1-R2 | 中(3D) | **✅ seam 補完 commit `d81d705`。** MeshCookCtx 加 SwMeshView/inputMeshes + MeshCountFn 升級吃 input counts(消費型 count 取決上游) + flat cookMeshNode + ★resident cookMeshNode。第一批 TransformMesh/CombineMeshes。★★**順手修 DrawMeshUnlit(bbe9feb)既有 production 黑洞**(resident 對 mesh 全盲,新增 resident cookCommand Mesh 分支)。refuter MERGE-SAFE(R-2 neutralize 鐵證+rotation/pivot 手算)。census ~29 樂觀=真 R1 6-10 純 mesh→mesh,其餘疊副 seam(texture/field/point/loader)。**Phase C 採:TransformMesh/CombineMeshes(seam 自帶)+✅ FlipNormals/RecomputeNormals/TransformMeshUVs commit `3c65ae2`**(refuter MERGE-SAFE×3,★R-2 unlit-blindness 裁定 ACCEPTABLE=resident 證 mesh gather 活,primary 算術 flat readback 機器驗,兩真非重疊牙)。剩 ~3-7(SplitMeshVertices/CollapseVertices count 變需確認可前算等)。NIT task_5d154518(meshInjectBug per-node scope,refuter 再確認)。|
 
 ### 階段 3｜視覺核心 seam（R2-R3，對「視覺一致」北極星貢獻直接）
 | seam | 解鎖約 | 風險 | 依賴 | 內容 |
