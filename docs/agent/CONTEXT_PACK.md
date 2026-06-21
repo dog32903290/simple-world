@@ -49,5 +49,5 @@ tools/sw_scenario.sh run tests/scenarios/<x>.scn
 - worktree agent 另附：worktree 絕對路徑 + 改動檔清單。**不 commit**，合流歸 orchestrator。
 
 ## 五、驗收閘（品質是結構撐的，與模型無關）
-牙（--bite 零 NO-BITE）→ refuter 否證（**含參數覆蓋閘：golden 必碰 NodeSpec 每個宣告參數，未覆蓋的 refuter 逐一點名＝BLOCK，旋轉 bug task_eef5757e 同類；柏為 2026-06-22 批准。路徑覆蓋 flat＋resident 為難兄弟，暫靠判斷**）→ scenario 回歸 → orchestrator 親手復跑後才 commit。
+牙（--bite 零 NO-BITE）→ refuter 否證 → scenario 回歸 → orchestrator 親手復跑後才 commit。
 活體可證的新行為，交付清單含對應 `.scn`（與 selftest 牙同地位）。

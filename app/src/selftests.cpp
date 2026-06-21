@@ -430,33 +430,6 @@ int runSelftestFromArgs(int argc, char** argv) {
       return 0;
     }
 
-    // --dump-specs: authoritative parameter inventory for the verify-zone coverage scanner
-    // (tools/coverage_scan.py). One line per registered NodeSpec:
-    //   <type>\t<comma-separated declared INPUT/param port ids>
-    // Data is read LIVE from the registry — specTypes() enumerates registry() + every
-    // self-registration sink (image-filter / value / field / mesh / floatlist / string /
-    // host-scalar / pointlist / gradient), and findSpec() resolves any of them — so this is the
-    // single source of truth for "what params does op X declare", not a source-code parse. Only
-    // INPUT ports are emitted (outputs carry no declared-param meaning); each port id is prefixed
-    // with its dataType (e.g. "Rotation.x:Float") so the scanner can isolate numeric params from
-    // data-bag inputs (Points/Field/...) without re-deriving types. NOTE: kTable is untouched.
-    if (std::strcmp(a, "--dump-specs") == 0) {
-      for (const std::string& type : specTypes()) {
-        const NodeSpec* spec = findSpec(type);
-        if (!spec) continue;  // defensive: every specTypes() name resolves, but never crash
-        std::printf("%s\t", type.c_str());
-        bool first = true;
-        for (const PortSpec& p : spec->ports) {
-          if (!p.isInput) continue;  // declared params are input ports only
-          if (!first) std::printf(",");
-          std::printf("%s:%s", p.id.c_str(), p.dataType.c_str());
-          first = false;
-        }
-        std::printf("\n");
-      }
-      return 0;
-    }
-
     // Uniform --selftest[-name] / -bug pairs (the table).
     for (const SelfTest& e : kTable) {
       std::string base = std::string("--selftest") + (e.name[0] ? std::string("-") + e.name : "");
