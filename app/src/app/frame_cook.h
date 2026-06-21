@@ -90,6 +90,18 @@ int runContextVarSelfTest(bool injectBug);
 // (setAnimValueBug: drop the state write / drop the AnimMath call) so the fixed wants bite.
 int runAnimValueSelfTest(bool injectBug);
 
+// AnimInt PRODUCTION-PATH pin (--selftest-animint): the integer sibling. Drives the REAL
+// cookStatefulValueNodes across frames and asserts Result = (int)normalizedTime (optionally positive-
+// modulo wrapped) + WasHit = the cross-frame integer tooth. injectBug flips a REAL production term
+// (setAnimIntBug: drop the state write / drop the positive-modulo wrap) so the fixed wants bite.
+int runAnimIntSelfTest(bool injectBug);
+
+// AnimBoolean PRODUCTION-PATH pin (--selftest-animboolean): the edge-only sibling. Drives the REAL
+// cookStatefulValueNodes across frames (time via the SEAM clock — AnimBoolean has no OverrideTime) and
+// asserts TriggerOutput = the cross-frame integer tooth. injectBug flips a REAL production term
+// (setAnimBooleanBug: drop the state write / freeze the edge low) so the fixed wants bite.
+int runAnimBooleanSelfTest(bool injectBug);
+
 // AR clock-domain pin (refuter-S5 盲區 3, --selftest-arclock): proves through the REAL cook
 // seam above that AudioReaction receives BARS — hit timestamps == transport.fxTime (bars, not
 // seconds), and halving the BPM halves the wall-clock hits a fixed-debounce pulse train yields

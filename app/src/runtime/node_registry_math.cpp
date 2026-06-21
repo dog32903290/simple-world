@@ -526,6 +526,41 @@ const std::vector<NodeSpec>& mathSpecs() {
         {"AllowSpeedFactor", "AllowSpeedFactor", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
          {"None", "FactorA", "FactorB"}}},
        nullptr},
+      // AnimInt — the integer sibling of AnimValue: Result = (int)(time*rateFactor*rate+phase),
+      // optionally wrapped with a POSITIVE modulo (Modulo!=0 → result.Mod(Modulo), MathUtils.cs:273);
+      // WasHit = the same cross-frame integer tooth. TiXL numbers/anim/animators/AnimInt.cs (stateful;
+      // outputs FIRST; evaluate==nullptr — cooked by frame_cook's stateful-value seam). Result is
+      // int→Float; WasHit is Bool→Float 0/1 (Cut 32). Inputs in TiXL Input decl order. .t3 DEFAULTS
+      // (AnimInt.t3, re-read & confirmed): Modulo=0, Rate=1, Phase=0, AllowSpeedFactor=1(FactorA),
+      // OverrideTime=0. Modulo is a TiXL int carried on the float rail (step fn does std::lround).
+      // FORKS (see step fn): SINGLE-CLOCK time (OverrideTime when nonzero, else seam clock); the
+      // _lastUpdateFrame frame-dedup guard dropped (once-per-frame cook); SpeedFactor read from the
+      // context-var YELLOW seam. AllowSpeedFactor is a compile-time Widget::Enum selector.
+      {"AnimInt", "AnimInt",
+       {{"Result", "Result", "Float", false},
+        {"WasHit", "WasHit", "Float", false},
+        {"Modulo", "Modulo", "Float", true, 0.0f, 0.0f, 100.0f},
+        {"OverrideTime", "OverrideTime", "Float", true, 0.0f, -1000.0f, 1000.0f},
+        {"Rate", "Rate", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"AllowSpeedFactor", "AllowSpeedFactor", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
+         {"None", "FactorA", "FactorB"}}},
+       nullptr},
+      // AnimBoolean — the INVERSE of AnimValue/AnimInt: NO Result output; its ONLY output
+      // TriggerOutput IS the cross-frame integer tooth = (int)priorNormalizedTime != (int)nt (Bool→
+      // Float 0/1). TiXL numbers/anim/animators/AnimBoolean.cs (stateful; evaluate==nullptr; reads
+      // ONLY context.LocalFxTime — NO OverrideTime). Inputs in TiXL Input decl order. .t3 DEFAULTS
+      // (AnimBoolean.t3, re-read & confirmed): Rate=1, ★AllowSpeedFactor=0 (None — DIFFERENT from
+      // AnimValue/AnimInt's 1/FactorA), Phase=0. NO Modulo/OverrideTime/Ratio. FORKS (see step fn):
+      // no single-clock fork (no OverrideTime → always the seam clock, exact); _lastUpdateFrame guard
+      // dropped; SpeedFactor via context-var seam. AllowSpeedFactor is a Widget::Enum selector.
+      {"AnimBoolean", "AnimBoolean",
+       {{"TriggerOutput", "TriggerOutput", "Float", false},
+        {"Rate", "Rate", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"AllowSpeedFactor", "AllowSpeedFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"None", "FactorA", "FactorB"}}},
+       nullptr},
       // --- context-var YELLOW seam (block #1): Set*/Get*Var. STATEFUL in the cook sense (evaluate==
       // nullptr — cooked once per frame into extOut), but their cross-frame channel is the shared
       // ContextVarMap. The Output/Result port is FIRST (extOut[0] index mapping). VariableName is a

@@ -111,4 +111,12 @@ int runStatefulValueSelfTest(bool injectBug);
 // flag — it's a sticky module switch; the golden clears it back to 0 after each bug run.
 void setAnimValueBug(int mode);
 
+// AnimInt TEETH hook (--selftest-animint). 0 = production; 1 = DROP the state write (the cross-frame
+// WasHit tooth never advances); 2 = DROP the positive-modulo wrap (Result becomes the raw (int)nt).
+void setAnimIntBug(int mode);
+
+// AnimBoolean TEETH hook (--selftest-animboolean). 0 = production; 1 = DROP the state write (the
+// TriggerOutput tooth never advances); 2 = FREEZE the edge to 0 (TriggerOutput forced low).
+void setAnimBooleanBug(int mode);
+
 }  // namespace sw
