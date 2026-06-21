@@ -551,4 +551,11 @@ int runAdjustColorsSelfTest(bool injectBug);
 // (1,0,0,1) -> RED.
 int runSamplePointColorAttributesSelfTest(bool injectBug);
 
+// AttributesFromImageChannels — texture-into-points seam consumer that ROUTES sampled channels into
+// point attributes (position/F1/F2/rotate/scale) via per-channel Factor/Offset gains. Golden: ROUTING
+// direct-cook leg (R->Position_X / G->Position_Y with non-identity gains -> want pos=(0.50,0.80,0)) +
+// FLAT-DRIVER gather leg (PointGraph::cook + debugCookedBuffer, Red->Scale_Uniform) + RESIDENT leg
+// (cookResident, grown sprites). injectBug drops the texture bind -> passthrough -> RED.
+int runAttributesFromImageChannelsSelfTest(bool injectBug);
+
 }  // namespace sw

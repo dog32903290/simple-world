@@ -684,6 +684,70 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"TextureMode", "TextureMode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
          {"Wrap", "Clamp", "Mirror", "Border"}}},
        nullptr},
+      // AttributesFromImageChannels — a Points op with a Texture2D INPUT (same texture-into-points seam
+      // as SamplePointColorAttributes). Samples the texture per point and ROUTES the sampled
+      // Brightness(L)/Red/Green/Blue channels — each through a per-channel Factor/Offset gain — into a
+      // SELECTED point attribute (the Attributes enum: position xyz / F1 / F2 / rotate xyz / scale),
+      // scaled by Strength·alpha. Ports 1:1 with AttributesFromImageChannels.cs (.t3 defaults). The
+      // Texture2D input (after GPoints, matching .cs order) is gathered into inputTextures[0]. The
+      // channel-routing enums (Brightness/Red/Green/Blue) = the .cs Attributes enum; their Factor/Offset
+      // gains + Strength/StrengthFactor/GainAndBias drive how strongly each channel moves its target.
+      // Stretch/Scale/TextureRotate (+ Aspect + the .t3 UniformScale=0.5) compose transformSampleSpace.
+      {"AttributesFromImageChannels",
+       "AttributesFromImageChannels",
+       {{"GPoints", "GPoints", "Points", true},        // input bag (port 0)
+        {"Texture", "Texture", "Texture2D", true},     // sampled texture (port 1) — the seam input
+        {"out", "out", "Points", false},               // attribute-routed output bag (port 2)
+        // Channel routing enums (.cs Attributes, default 0 NotUsed) + per-channel Factor/Offset gains.
+        // Attributes: 0 NotUsed,1 X,2 Y,3 Z,4 F1,5 F2,6 RotX,7 RotY,8 RotZ,9 ScaleUniform,10 SX,11 SY,12 SZ.
+        {"Brightness", "Brightness", "Float", true, 0.0f, 0.0f, 12.0f, Widget::Enum,
+         {"NotUsed", "X", "Y", "Z", "F1", "F2", "Rotate_X", "Rotate_Y", "Rotate_Z", "Scale_Uniform",
+          "Scale_X", "Scale_Y", "Scale_Z"}},
+        {"BrightnessFactor", "BrightnessFactor", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"BrightnessOffset", "BrightnessOffset", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"Red", "Red", "Float", true, 0.0f, 0.0f, 12.0f, Widget::Enum,
+         {"NotUsed", "X", "Y", "Z", "F1", "F2", "Rotate_X", "Rotate_Y", "Rotate_Z", "Scale_Uniform",
+          "Scale_X", "Scale_Y", "Scale_Z"}},
+        {"RedFactor", "RedFactor", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"RedOffset", "RedOffset", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"Green", "Green", "Float", true, 0.0f, 0.0f, 12.0f, Widget::Enum,
+         {"NotUsed", "X", "Y", "Z", "F1", "F2", "Rotate_X", "Rotate_Y", "Rotate_Z", "Scale_Uniform",
+          "Scale_X", "Scale_Y", "Scale_Z"}},
+        {"GreenFactor", "GreenFactor", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"GreenOffset", "GreenOffset", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"Blue", "Blue", "Float", true, 0.0f, 0.0f, 12.0f, Widget::Enum,
+         {"NotUsed", "X", "Y", "Z", "F1", "F2", "Rotate_X", "Rotate_Y", "Rotate_Z", "Scale_Uniform",
+          "Scale_X", "Scale_Y", "Scale_Z"}},
+        {"BlueFactor", "BlueFactor", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"BlueOffset", "BlueOffset", "Float", true, 0.0f, -100.0f, 100.0f},
+        // Center (Vec3 0) — subtracted from position before the uv transform.
+        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // Stretch (Vec2 (1,1)) / Scale (Single, TiXL default 1.0) / TextureRotate (Vec3 0) compose
+        // transformSampleSpace; TextureMode (TextureAddressMode, .t3 default Clamp) drives the sampler.
+        {"Stretch.x", "Stretch", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 2},
+        {"Stretch.y", "Stretch.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Scale", "Scale", "Float", true, 1.0f, 0.0f, 100.0f},
+        {"TextureRotate.x", "TextureRotate", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"TextureRotate.y", "TextureRotate.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"TextureRotate.z", "TextureRotate.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"TextureMode", "TextureMode", "Float", true, 1.0f, 0.0f, 3.0f, Widget::Enum,
+         {"Wrap", "Clamp", "Mirror", "Border"}},  // .t3 default Clamp (index 1)
+        // RotationSpace (.cs Spaces, default 1 Point) / TranslationSpace (default 0 Object) / Mode (.cs
+        // Modes Add/Multiply, default 0 Add — DEAD in the active kernel) / Strength (1) / StrengthFactor
+        // (.cs FModes None/F1/F2, default 0 None) / GainAndBias (Vec2 (0.5,0.5) = identity).
+        {"RotationSpace", "RotationSpace", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Object", "Point"}},
+        {"TranslationSpace", "TranslationSpace", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Object", "Point"}},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Add", "Multiply"}},
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"None", "F1", "F2"}},
+        {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
   };
   return specs;
 }
