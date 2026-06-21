@@ -23,7 +23,7 @@
 ## 1. 現狀（census 校準）
 
 ### 1.1 已建地基（六塊視覺承重根，Cut 85-99 編完，可扣除）
-point-buffer(~44/90 採) / shader-graph·field-SDF(~29/60) / context-var / cpu-upload-texture(**僅 1/4**：ValuesToTexture 活，Gradients/Curves/Values2 未) / Layer2d+dx11-render-graph(**~70%**：DrawScreenQuad/Clear/Layer2d 核心活，blend/postfx 殘) / camera3d + mesh-pipeline(CPU 幾何 output 活，mesh-input 未)。
+point-buffer(~44/90 採) / shader-graph·field-SDF(~29/60) / context-var / cpu-upload-texture(**2/4**：ValuesToTexture+GradientsToTexture 活，Curves/Values2 未) / Layer2d+dx11-render-graph(**~70%**：DrawScreenQuad/Clear/Layer2d 核心活，blend/postfx 殘) / camera3d + mesh-pipeline(CPU 幾何 output 活，mesh-input 未)。
 
 ### 1.2 現可採乾淨葉子＝18 顆（階段 0 立採，census 逐顆證）
 | 家族 | clean 數 | 葉子 |
@@ -34,6 +34,12 @@ point-buffer(~44/90 採) / shader-graph·field-SDF(~29/60) / context-var / cpu-u
 | numbers | 1 | OKLChToColor |
 | point | 1 | RepeatAtPoints |
 | string | 0 | （全卡 string-rail）|
+
+> **★2026-06-21 校正（sw-node-batch vec-math 採收）**：上表 numbers「1」嚴重低估——census 漏掉 `numbers/{vec2,vec3,int2}` 一整條純值向量數學脈（~25 顆 clean leaf，TiXL 源碼 diff 對已港葉子證實未採）。
+> - **wave 1 ✅ commit `8454fd8`（15 顆）**：AddVec3/SubVec3/ScaleVector3/CrossVec3/RoundVec3/NormalizeVector3/DotVec3/Magnitude/Vec2Magnitude/Vec3Distance/AddVec2/ScaleVector2/DotVec2/Vec2ToVec3/Vector2Components。另 `0971ef9` 收 SampleGradient（晨批 orphan leaf，RED flip-the-expected 反模式修正後 land）。
+> - **wave 2 🔧 在製（~10 顆）**：LerpVec3/RotateVector3/Vector3Components/EulerToAxisAngle/DivideVector2/RemapVec2/MaxInt2/MakeResolution/ScaleResolution/ScaleSize。
+> - **採完此脈＝clean-leaf runway 實質見底**→下批必轉 seam（draw-pipeline 14 / list-host 10 / gpu-buffer 10 / file-io 10 解鎖排序）。
+> - **工法定論**：value/CPU 葉子用「寫-leaf-no-build → orchestrator 中央一次 build」（Cut65），**勿並行各自 build**（wave 1 漏設 isolation:worktree→主樹並行 build 互撞→假 RED `doylespiral/clearsomepoints/reorientlinepoints`，clean 中央 build 全綠戳破）。NO-BITE:[] 即每顆 RED 真咬之證。
 
 ### 1.3 全局桶（800 顆，數字標「約」）
 - 已港：~200（六塊前 ~112 + Phase C 已採 field29/point44/numbers122/image38/mesh3…，census 確認）
@@ -67,8 +73,8 @@ sw-node-batch 一批 fan-out 18 顆（跨 5 家族，寫-leaf 不撞檔，orches
 | seam | 解鎖約 | 風險 | 依賴 | 內容 |
 |------|-------|------|------|------|
 | **feedback (ping-pong)** ✅seam | ~16 | R3 | — | **✅ seam 建成 commit `5385e6b`**（承重 seam #6）。承重線=**multi-tex-output**：`cookTexNode` 教會按 output pin 回不同 texture（KeepPreviousFrame 兩輸出 CurrentFrame/PreviousFrame），flat 走 `(fromPin-1)%100`→`texOutputOrdinal`、resident 走 `srcSlotId`→ordinal；單輸出 ~30 tex op 在 ordinal 0 **byte-identical**（refuter 確認非發明:graph.h:117 pinId=nodeId*100+portIndex+1）。per-node FeedbackPair{texA,texB}+realloc key(w,h,fmt)+toggle 仿 ensureOwnedTex;blit=copyFromTexture(RgbTV precedent);realloc+~PointGraph 釋放零 leak/UAF。`feedbackCooked` per-cook memo=blit+toggle 每 node 每 frame EXACTLY ONCE（雙輸出都拉也只一次,對齊 Slot Update dirty-clear）。**deliverable=KeepPreviousFrame+SwapTextures**;2-frame golden(frameN red→N+1 PreviousFrame==red)flat+resident+realloc subcase;injectBug RED×2;--bite PASS=297 NO-BITE:[];**Opus refuter MERGE-SAFE 6/6 對 TiXL .cs/.t3 源碼**。fork(具名,非當下可實現):realloc key 收窄 TiXL 全 Texture2DDescription→(w,h,fmt),引擎 frame tex 恒 non-mipped single-sample RGBA8Unorm。**next=~16 feedback/ping-pong VJ 核(AfterGlow/Bloom-feedback/FluidFeedback,seam 已活)**。|
-| **cpu-upload-texture 補完** | ~5 | R2 | — | GradientsToTexture/CurvesToTexture/ValuesToTexture2（seam 1/4 已活，沿 rail 補 3 顆）。是 gradient 的**硬前置**。precedent：照抄 point_ops_valuestotexture.cpp。|
-| **gradient-widget** | ~13 | R2 | ↑cpu-upload | 建 `Gradient` host 型別（**目前不存在**＝真成本）+ ~14 漸層 op（Linear/Radial/Box/NGon Gradient/Steps/SDFToColor…）。視覺強。precedent：圖案 shader 仿 point_ops_checkerboard.cpp；上傳仿 ↑。|
+| **cpu-upload-texture 補完** 🔧部分 | ~5 | R2 | — | **GradientsToTexture ✅ commit `a0ae2c6`（沿 ValuesToTexture rail，seam 2/4 活）。** CurvesToTexture/ValuesToTexture2 待補。是 gradient 的**硬前置**。precedent：照抄 point_ops_valuestotexture.cpp。|
+| **gradient-widget** ✅seam | ~13 | R2 | ↑cpu-upload | **✅ gradient-host seam（第 8 cook flow）建成 commit `a0ae2c6`（2026-06-21，~20 解鎖最大承重）。** `Gradient` host 型別（`sw_gradient.h`，原本不存在＝真成本已付）+ DefineGradient + GradientsToTexture 落地。**剩 ~14 漸層 op（Linear/Radial/Box/NGon Gradient/Steps/SDFToColor…）待 Phase C 採**。precedent：圖案 shader 仿 point_ops_checkerboard.cpp；上傳仿 ↑。|
 | **vec-color-field-output** | ~7 | ~~R2~~ **真 R3** | G3 bridge | ⚠**scout a22f5156 翻轉假設**：R-2 production 路徑**不存在**（無 Field cook 流,`renderField2d` 全 golden 呼叫,render template 丟 `f.xyz` 只寫 `f.w` 進 R32Float）→在 field 島採葉子=大規模 golden-綠/production-黑 自欺。**延後**：須先建獨立 G3「field render bridge」seam（Render2dField terminal+RGBA target+template 寫 `f.xyz`,依賴 camera3d/Layer2d,census 自標）。|
 | **multi-image** ★階段3 最大塊 | ~16 | R2 | — | **scout a779d8ea → `census/_BLUEPRINT_multi_image.md`**（17 op 盤）。seam 已建（_multiImageFxSetup/Static 2-image，Displace/DistortAndShade 證）+R-2 cookTexNode 已活。**R2-ready 乾淨 4**（Blend/BlendWithMask/Combine3Images/CombineMaterialChannels2，**clean 1:1 cbuffer 無 Cut55 trap**）。**✅ 第一批 Blend+BlendWithMask commit `7969339`**（refuter 8 攻擊全清 MERGE-SAFE×2,★承重發現:3-image gather positional-by-spec=point_graph.cpp:524-538 按 spec port order 非 connection order,wire-order-independent,**無需 _trippleImageFxSetup seam**,multi-image 對 2/3-image 都通）→**✅ Combine3Images/CombineMaterialChannels2 commit `7a24c8c`（R2-ready 4 顆採盡）**。DistortAndShade Cut55 trap defer;OpticalFlow/CombineMaterialChannels(curve)延後;KeepPreviousFrame **✅ 已由 feedback seam `5385e6b` 收**;RgbTV(已港)。逐顆 .t3 backward-trace。|
 | **draw-pipeline (point draw)** 🔧進行中 | ~13 | R2-R3 | — | **scout a22f5156 → `census/_BLUEPRINT_draw_pipeline.md`**。`cookCommand` resident 流已活+DrawMeshUnlit 黑洞已修（d81d705）→新 cmd 葉子**零接線上 resident 螢幕**,零 Cut55 trap,DrawLines 整檔 precedent。**✅ 第一葉 DrawClosedLines commit `1c74d3e`**（ConnectionLines backward-trace 揭真名 DrawConnectionLines=R3 spatial-hash-map+Gradient host 型別+cross-frame state→build agent 自擋,切真 R1-R2 DrawClosedLines;shared draw core additive defaulted 零回歸=DrawLines/Billboards live PASS;flat+★resident R-2 golden;refuter MERGE-SAFE 六線全攻不破）。**✅ 第二批 DrawPoints2+DrawLinesBuildup commit `6189670`**（reuse draw_points/draw_lines,Cut55 .t3 Add(-0.01) routing 防呆,shared core append-only defaulted 零回歸,refuter MERGE-SAFE）。draw 第三批 DrawMovingPoints/DrawRayLines **退單**（DrawMovingPoints=prev-frame point-buffer state R3 跨幀;DrawRayLines=camera-facing geometry camera3d 島延伸,build agent 翻轉 blueprint「ray dir」誤判→實際相鄰點+camera-space 叉積）→**純 line/point draw 採盡**(3 採+9 已港)。剩全卡 seam:Ribbons/Tubes/DrawConnectionLines/DrawPointsDOF=R3;DrawPointsShaded/DrawLinesShaded 卡 ColorField host-eval seam。下一塊 draw 大 seam=camera-facing line/ColorField host-eval。|
