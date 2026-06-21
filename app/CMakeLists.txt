@@ -293,6 +293,7 @@ add_executable(simple_world
   src/keeppreviousframe_golden.cpp
   src/swaptextures_golden.cpp
   src/afterglow_golden.cpp
+  src/afterglow2_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp
