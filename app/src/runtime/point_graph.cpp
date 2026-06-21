@@ -1,5 +1,6 @@
 #include "runtime/point_graph.h"
 
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -91,6 +92,39 @@ int texOpOwnFormat(const std::string& type) {
   return it != texOwnFormatSink().end() ? it->second : 1;  // default 1 float/texel = R32Float
 }
 
+// FEEDBACK / multi-tex-output sink (cross-frame ping-pong flow = KeepPreviousFrame / SwapTextures).
+// A type here routes its Texture2D inputs/outputs through the cook driver's feedback path (multi-output
+// aware + optional cross-frame pair) instead of the single-output tex path. Registered explicitly at
+// app init (registerBuiltinPointOps), read live by both cook drivers. A type NOT here = a normal tex op.
+namespace {
+struct FeedbackReg {
+  PointFeedbackFn fn = nullptr;
+  bool needsPair = false;
+  uint32_t pairFormat = 0;  // MTL::PixelFormat raw (used only when needsPair)
+};
+std::map<std::string, FeedbackReg>& feedbackSink() {
+  static std::map<std::string, FeedbackReg> m;
+  return m;
+}
+}  // namespace
+void registerFeedbackOp(const std::string& type, PointFeedbackFn fn, bool needsCrossFramePair,
+                        uint32_t pairFormat) {
+  feedbackSink()[type] = FeedbackReg{fn, needsCrossFramePair, pairFormat};
+}
+bool isFeedbackOp(const std::string& type) { return feedbackSink().count(type) != 0; }
+bool feedbackNeedsPair(const std::string& type) {
+  auto it = feedbackSink().find(type);
+  return it != feedbackSink().end() && it->second.needsPair;
+}
+uint32_t feedbackPairFormat(const std::string& type) {
+  auto it = feedbackSink().find(type);
+  return it != feedbackSink().end() ? it->second.pairFormat : 0u;
+}
+PointFeedbackFn findFeedbackOp(const std::string& type) {
+  auto it = feedbackSink().find(type);
+  return it != feedbackSink().end() ? it->second.fn : nullptr;
+}
+
 // registerBuiltinPointOps() is defined in point_ops.cpp (the real operators).
 
 // --- resolved-param accessors (the slice-2b seam; PointCookCtx::params docs) ---
@@ -111,6 +145,7 @@ void mapVecN(const std::map<std::string, float>* m, const char* base, const floa
 float cookParam(const PointCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
 float cookParam(const CmdCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
 float cookParam(const TexCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
+float cookParam(const FeedbackCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
 void cookVecN(const PointCookCtx& c, const char* base, const float* fallback, int n, float* out) {
   mapVecN(c.params, base, fallback, n, out);
 }
@@ -124,6 +159,26 @@ float cookInputParam(const PointCookCtx& c, int input, const char* id, float def
   if (!c.inputParams || input < 0 || input >= c.inputCount) return def;
   return mapParam(c.inputParams[input], id, def);
 }
+
+// Multi-tex-output helper (the feedback seam): map an ABSOLUTE output port index (the spec port index
+// recovered from a wire's fromPin via (pin-1)%100) to its ORDINAL among the node's Texture2D OUTPUT
+// ports — 0 = first Texture2D output, 1 = second, … A single-output tex op (RenderTarget/Blur) has
+// exactly one Texture2D output so this always returns 0 for it (byte-identical). KeepPreviousFrame has
+// two (PreviousFrame then CurrentFrame in spec order). Returns 0 if the index is not an output / not a
+// Texture2D port (safe default = the first output). Shared by both cook drivers via this header.
+namespace pgdetail {
+int texOutputOrdinal(const NodeSpec& spec, int absPortIndex) {
+  if (absPortIndex < 0 || absPortIndex >= (int)spec.ports.size()) return 0;
+  int ord = 0;
+  for (int i = 0; i < (int)spec.ports.size(); ++i) {
+    const PortSpec& p = spec.ports[i];
+    if (p.isInput || p.dataType != "Texture2D") continue;
+    if (i == absPortIndex) return ord;
+    ++ord;
+  }
+  return 0;
+}
+}  // namespace pgdetail
 
 // ---------------------------------------------------------------------------
 
@@ -154,6 +209,10 @@ PointGraph::~PointGraph() {
     if (kv.second) kv.second->release();
   for (auto& kv : p_->meshIdxBuf)
     if (kv.second) kv.second->release();
+  for (auto& kv : p_->feedbackTexBuf) {  // cross-frame PAIR (KeepPreviousFrame): release BOTH
+    if (kv.second.a) kv.second.a->release();
+    if (kv.second.b) kv.second.b->release();
+  }
   if (p_->target) p_->target->release();
   if (p_->queue) p_->queue->release();
   if (p_->lib) p_->lib->release();
@@ -209,6 +268,14 @@ const std::vector<SwPoint>* PointGraph::debugCookedPointList(int nodeId) const {
 const SwGradient* PointGraph::debugCookedGradient(int nodeId) const {
   auto it = p_->gradientBuf.find(flatKey(nodeId));
   return it != p_->gradientBuf.end() ? &it->second : nullptr;
+}
+
+MTL::Texture* PointGraph::debugCookedFeedbackOutput(int nodeId, int ordinal, bool resident) const {
+  if (ordinal < 0 || ordinal >= Impl::kMaxFeedbackOut) return nullptr;
+  // Flat keys by "#id" (flatKey); resident keys by the path "id" (== node id as string, libFromGraph).
+  const std::string key = resident ? std::to_string(nodeId) : flatKey(nodeId);
+  auto it = p_->feedbackOut.find(key);
+  return it != p_->feedbackOut.end() ? it->second[ordinal] : nullptr;
 }
 
 int PointGraph::defaultDrawTarget(const Graph& g) const {
@@ -272,6 +339,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   if (!target || !ts) { p_->clearTarget(); return; }  // no/unknown target -> black, no crash
 
   std::map<int, MTL::Buffer*> cooked;  // this-frame memo (cook each node once)
+
+  // FEEDBACK per-frame memo (the cross-frame ping-pong flow): a feedback op (KeepPreviousFrame) MUST
+  // run its blit + toggle EXACTLY ONCE per frame — but tex nodes have no per-frame memo (every output
+  // pull re-cooks). If both PreviousFrame AND CurrentFrame are wired, the node would otherwise cook
+  // twice → double toggle → wrong frame returned. This memo caches the resolved OUTPUT textures (by
+  // output ordinal) the first time the node cooks this frame; the second output pull reads the cache.
+  std::map<int, std::array<MTL::Texture*, FeedbackCookCtx::kMaxTexOutputs>> feedbackCooked;
 
   // Per-node resolved Float params (the 2b seam): resolved ONCE per node per cook through the
   // full value spine (override → binding → wire → stored → default, graph.cpp), then handed to
@@ -407,7 +481,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // Forward-declared so cookCommand can gather a Texture2D input (FORK#1) by recursing into the
   // upstream tex node — cookTexNode's body is assigned below (it in turn calls cookCommand for its
   // Command inputs, so the two are mutually recursive; std::function breaks the ordering cycle).
-  std::function<MTL::Texture*(int)> cookTexNode;
+  // `outAbsPort` = the ABSOLUTE output port index the consumer wired to (from the wire's fromPin):
+  // single-output ops ignore it; a feedback op (KeepPreviousFrame) returns PreviousFrame vs
+  // CurrentFrame by it. -1 = "the node's terminal/first output" (the cook-entry + legacy callers).
+  std::function<MTL::Texture*(int, int)> cookTexNode;
   // Forward-declared too: cookTexNode (a tex op like ValuesToTexture, the rail-crossing) gathers its
   // FloatList inputs by recursing into cookFloatListNode, whose body is assigned further below. Same
   // std::function ordering-break as cookTexNode itself.
@@ -476,7 +553,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         // FORK#1: a command op (DrawScreenQuad) can take a Texture2D input — recurse into the
         // upstream tex node (same cook-upstream-on-demand as Points). Borrowed, single-frame.
         const Connection* c = g.connectionToInput(pinId(id, (int)i));
-        if (c) inTex = cookTexNode(pinNode(c->fromPin));
+        if (c) inTex = cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100);
       } else if (port.dataType == "Command" && !haveInCmd) {
         // Cut 3: a command op (Camera) can WRAP a Command subtree — recurse into the upstream command
         // node and hand the cooked chain in via cc.inputCommand. Mirrors the Texture2D gather above.
@@ -522,10 +599,77 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // set: a Texture2D cycle would otherwise recurse forever (the canvas forbids cycles, but cook
   // must not hang if a malformed graph slips one in).
   std::set<int> texVisiting;
-  cookTexNode = [&](int id) -> MTL::Texture* {
+  cookTexNode = [&](int id, int outAbsPort) -> MTL::Texture* {
     const Node* n = g.node(id);
     const NodeSpec* s = n ? findSpec(n->type) : nullptr;
     if (!n || !s) return nullptr;
+
+    // FEEDBACK branch (the cross-frame ping-pong flow = KeepPreviousFrame / SwapTextures): a feedback
+    // op is NOT in texReg() — route it through the multi-tex-output + optional cross-frame-pair path.
+    // outAbsPort selects WHICH Texture2D output (PreviousFrame vs CurrentFrame); the per-frame memo
+    // makes the blit + toggle run EXACTLY ONCE even if both outputs are pulled this frame.
+    if (isFeedbackOp(n->type)) {
+      PointFeedbackFn fb = findFeedbackOp(n->type);
+      if (!fb) return nullptr;
+      const int outOrd = (outAbsPort < 0) ? 0 : pgdetail::texOutputOrdinal(*s, outAbsPort);
+      auto memo = feedbackCooked.find(id);
+      if (memo != feedbackCooked.end()) {  // already cooked this frame → read the cached output
+        return (outOrd >= 0 && outOrd < FeedbackCookCtx::kMaxTexOutputs) ? memo->second[outOrd]
+                                                                         : nullptr;
+      }
+      if (!texVisiting.insert(id).second) return nullptr;  // cycle guard
+      // Gather Texture2D inputs in spec port order (each Texture2D INPUT occupies the next slot,
+      // wired or not — same contract as the normal tex path). Recurse on the source's OWN wired
+      // output (c->fromPin's port index → that source's terminal output).
+      const MTL::Texture* fbInputs[FeedbackCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr,
+                                                                      nullptr};
+      int fbInputCount = 0;
+      for (size_t i = 0; i < s->ports.size(); ++i) {
+        const PortSpec& port = s->ports[i];
+        if (!port.isInput || port.dataType != "Texture2D") continue;
+        if (fbInputCount < FeedbackCookCtx::kMaxTexInputs) {
+          const Connection* c = g.connectionToInput(pinId(id, (int)i));
+          fbInputs[fbInputCount] = c ? cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100)
+                                     : nullptr;
+          ++fbInputCount;
+        }
+      }
+      FeedbackCookCtx fc;
+      fc.dev = p_->dev; fc.lib = p_->lib; fc.queue = p_->queue;
+      fc.params = nodeParams(id);
+      for (int k = 0; k < fbInputCount; ++k) fc.inputTextures[k] = fbInputs[k];
+      fc.inputTextureCount = fbInputCount;
+      // Cross-frame pair: sized to the FIRST Texture2D input's description (KeepPreviousFrame.cs:33-54
+      // sizes _prevTextureA/B off `texture.Description`). A stateless feedback op (SwapTextures) skips
+      // this (needsPair=false → pairA/B stay null → no allocation, no toggle state touched).
+      if (feedbackNeedsPair(n->type) && fbInputs[0]) {
+        const uint32_t w = (uint32_t)fbInputs[0]->width();
+        const uint32_t h = (uint32_t)fbInputs[0]->height();
+        const MTL::PixelFormat fmt = (MTL::PixelFormat)feedbackPairFormat(n->type);
+        MTL::Texture* pa = nullptr;
+        MTL::Texture* pb = nullptr;
+        if (p_->ensureFeedbackPair(flatKey(id), w, h, fmt, pa, pb)) {
+          fc.pairA = pa;
+          fc.pairB = pb;
+          fc.toggle = &p_->feedbackToggle[flatKey(id)];
+        }
+      }
+      fb(fc);
+      texVisiting.erase(id);
+      std::array<MTL::Texture*, FeedbackCookCtx::kMaxTexOutputs> outs{};
+      for (int k = 0; k < FeedbackCookCtx::kMaxTexOutputs; ++k) outs[k] = fc.outputs[k];
+      feedbackCooked[id] = outs;
+      // Persist the resolved outputs for a post-cook debug readback (debugCookedFeedbackOutput). Width
+      // is kMaxFeedbackOut (== kMaxTexOutputs); borrowed pointers (no ownership — pair freed elsewhere).
+      {
+        std::array<MTL::Texture*, Impl::kMaxFeedbackOut> persist{};
+        for (int k = 0; k < Impl::kMaxFeedbackOut && k < FeedbackCookCtx::kMaxTexOutputs; ++k)
+          persist[k] = fc.outputs[k];
+        p_->feedbackOut[flatKey(id)] = persist;
+      }
+      return (outOrd >= 0 && outOrd < FeedbackCookCtx::kMaxTexOutputs) ? outs[outOrd] : nullptr;
+    }
+
     auto tx = texReg().find(n->type);
     if (tx == texReg().end() || !tx->second) return nullptr;
     if (!texVisiting.insert(id).second) return nullptr;  // cycle guard: already on the stack
@@ -563,7 +707,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         int slot = texInputCount;  // wired or not, this port occupies the next Texture2D slot
         if (slot < TexCookCtx::kMaxTexInputs) {
           const Connection* c = g.connectionToInput(pinId(id, (int)i));
-          texInputs[slot] = c ? cookTexNode(pinNode(c->fromPin)) : nullptr;
+          texInputs[slot] = c ? cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100) : nullptr;
           texInputCount = slot + 1;
         }
       } else if (port.dataType == "FloatList") {
@@ -1131,11 +1275,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   }
 
   auto texIt = texReg().find(target->type);
-  if (texIt != texReg().end() && texIt->second) {
-    // Texture terminal (RenderTarget OR an image filter like Blur): cook it (and its upstream
-    // tex/command chain) into its OWN resolution-sized texture via the recursive tex walker, and
-    // show that. p_->target stays the window-sized fallback for the cmd/preview terminals.
-    MTL::Texture* tex = cookTexNode(target->id);
+  if ((texIt != texReg().end() && texIt->second) || isFeedbackOp(target->type)) {
+    // Texture terminal (RenderTarget OR an image filter like Blur OR a feedback op as terminal):
+    // cook it (and its upstream tex/command chain) into its OWN texture via the recursive tex
+    // walker, and show that. A feedback terminal shows its first Texture2D output (outAbsPort=-1 →
+    // ordinal 0). p_->target stays the window-sized fallback for the cmd/preview terminals.
+    MTL::Texture* tex = cookTexNode(target->id, -1);
     if (tex) p_->displayTex = tex;  // viewport shows the resolution-sized texture
     else p_->clearTarget();
   } else if (cmdReg().find(target->type) != cmdReg().end()) {

@@ -11,6 +11,7 @@
 // cook() in point_graph.cpp mirrors this file; flat dies at the production swap, this stays.
 #include "runtime/point_graph.h"
 
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -80,6 +81,11 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   rc.lib = lib;  // S3 接通: Automation drivers resolve their curve THROUGH this (nullptr = fallback)
 
   std::map<std::string, MTL::Buffer*> cooked;  // this-cook memo (cook each path once)
+
+  // FEEDBACK per-frame memo (cross-frame ping-pong flow = KeepPreviousFrame): resident mirror of the
+  // flat feedbackCooked. A feedback op runs its blit + toggle EXACTLY ONCE per frame; if both outputs
+  // are wired, the second pull reads this cache instead of re-cooking (= double toggle). Keyed by path.
+  std::map<std::string, std::array<MTL::Texture*, FeedbackCookCtx::kMaxTexOutputs>> feedbackCooked;
 
   // Per-node resolved Float params (the 2b seam): each input resolved through its driver
   // (Constant / Connection -> evalResidentFloat / Automation stub), memoized so pointers stay
@@ -474,12 +480,83 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   // resolution-sized texture and return it (resident mirror of cook()'s cookTexNode). The
   // Texture2D gather direct-through (lane I): a filter's Texture2D input recurses to the upstream
   // tex node here. `depth` shares the cook recursion cap. Cycle/depth-safe.
-  std::function<MTL::Texture*(const std::string&, int)> cookTexNode =
-      [&](const std::string& path, int depth) -> MTL::Texture* {
+  // `outSlotId` = the upstream OUTPUT slot id the consumer wired to (ResidentInput::srcSlotId);
+  // single-output ops ignore it. A feedback op (KeepPreviousFrame) returns PreviousFrame vs
+  // CurrentFrame by it. Empty = "the node's terminal/first output" (the cook-entry caller).
+  std::function<MTL::Texture*(const std::string&, int, const std::string&)> cookTexNode =
+      [&](const std::string& path, int depth, const std::string& outSlotId) -> MTL::Texture* {
     if (depth > kCookDepthCap) return nullptr;
     const ResidentNode* n = rg.node(path);
     const NodeSpec* s = n ? findSpec(n->opType) : nullptr;
     if (!n || !s) return nullptr;
+
+    // FEEDBACK branch (cross-frame ping-pong flow = KeepPreviousFrame / SwapTextures): resident
+    // mirror of the flat cookTexNode feedback branch. Routes Texture2D inputs/outputs through the
+    // multi-output + optional cross-frame-pair path. outSlotId selects WHICH Texture2D output; the
+    // per-frame memo makes the blit + toggle run EXACTLY ONCE even if both outputs are pulled.
+    if (isFeedbackOp(n->opType)) {
+      PointFeedbackFn fb = findFeedbackOp(n->opType);
+      if (!fb) return nullptr;
+      // Map outSlotId → ordinal among Texture2D OUTPUT ports (0 = first; empty/unknown = 0).
+      auto outOrdinal = [&]() -> int {
+        if (outSlotId.empty()) return 0;
+        int ord = 0;
+        for (const PortSpec& p : s->ports) {
+          if (p.isInput || p.dataType != "Texture2D") continue;
+          if (p.id == outSlotId) return ord;
+          ++ord;
+        }
+        return 0;
+      };
+      const int outOrd = outOrdinal();
+      auto memo = feedbackCooked.find(path);
+      if (memo != feedbackCooked.end())
+        return (outOrd >= 0 && outOrd < FeedbackCookCtx::kMaxTexOutputs) ? memo->second[outOrd]
+                                                                         : nullptr;
+      // Gather Texture2D inputs in spec port order through the resident Connection drivers.
+      const MTL::Texture* fbInputs[FeedbackCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr,
+                                                                      nullptr};
+      int fbInputCount = 0;
+      for (const PortSpec& port : s->ports) {
+        if (!port.isInput || port.dataType != "Texture2D") continue;
+        if (fbInputCount < FeedbackCookCtx::kMaxTexInputs) {
+          const ResidentInput* ri = n->input(port.id);
+          const bool wired = ri && ri->driver == ResidentInput::Driver::Connection;
+          fbInputs[fbInputCount] =
+              wired ? cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId) : nullptr;
+          ++fbInputCount;
+        }
+      }
+      FeedbackCookCtx fc;
+      fc.dev = p_->dev; fc.lib = p_->lib; fc.queue = p_->queue;
+      fc.params = nodeParams(path);
+      for (int k = 0; k < fbInputCount; ++k) fc.inputTextures[k] = fbInputs[k];
+      fc.inputTextureCount = fbInputCount;
+      if (feedbackNeedsPair(n->opType) && fbInputs[0]) {
+        const uint32_t w = (uint32_t)fbInputs[0]->width();
+        const uint32_t h = (uint32_t)fbInputs[0]->height();
+        const MTL::PixelFormat fmt = (MTL::PixelFormat)feedbackPairFormat(n->opType);
+        MTL::Texture* pa = nullptr;
+        MTL::Texture* pb = nullptr;
+        if (p_->ensureFeedbackPair(path, w, h, fmt, pa, pb)) {
+          fc.pairA = pa;
+          fc.pairB = pb;
+          fc.toggle = &p_->feedbackToggle[path];  // path-keyed cross-frame toggle (production R-2)
+        }
+      }
+      fb(fc);
+      std::array<MTL::Texture*, FeedbackCookCtx::kMaxTexOutputs> outs{};
+      for (int k = 0; k < FeedbackCookCtx::kMaxTexOutputs; ++k) outs[k] = fc.outputs[k];
+      feedbackCooked[path] = outs;
+      {  // persist for a post-cook debug readback (debugCookedFeedbackOutput, resident path)
+        std::array<MTL::Texture*, Impl::kMaxFeedbackOut> persist{};
+        for (int k = 0; k < Impl::kMaxFeedbackOut && k < FeedbackCookCtx::kMaxTexOutputs; ++k)
+          persist[k] = fc.outputs[k];
+        p_->feedbackOut[path] = persist;
+      }
+      return (outOrd >= 0 && outOrd < FeedbackCookCtx::kMaxTexOutputs) ? outs[outOrd] : nullptr;
+    }
+
     auto tx = texReg().find(n->opType);
     if (tx == texReg().end() || !tx->second) return nullptr;
     const std::map<std::string, float>* tp = nodeParams(path);
@@ -507,7 +584,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       } else if (port.dataType == "Texture2D") {
         int slot = texInputCount;  // each Texture2D port occupies the next slot (wired or not)
         if (slot < TexCookCtx::kMaxTexInputs) {
-          texInputs[slot] = wired ? cookTexNode(ri->srcNodePath, depth + 1) : nullptr;
+          texInputs[slot] =
+              wired ? cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId) : nullptr;
           texInputCount = slot + 1;
         }
       } else if (port.dataType == "Gradient") {
@@ -640,10 +718,11 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   }
 
   auto texIt = texReg().find(tn->opType);
-  if (texIt != texReg().end() && texIt->second) {
-    // Texture terminal (RenderTarget OR an image filter like Blur): cook it + its upstream
-    // tex/command chain into its own resolution-sized texture via the recursive tex walker.
-    MTL::Texture* tex = cookTexNode(termPath, 0);
+  if ((texIt != texReg().end() && texIt->second) || isFeedbackOp(tn->opType)) {
+    // Texture terminal (RenderTarget OR an image filter like Blur OR a feedback op as terminal):
+    // cook it + its upstream tex/command chain into its own texture via the recursive tex walker.
+    // A feedback terminal shows its first Texture2D output (empty outSlotId → ordinal 0).
+    MTL::Texture* tex = cookTexNode(termPath, 0, std::string());
     if (tex) p_->displayTex = tex;  // viewport shows the resolution-sized texture
     else p_->clearTarget();
   } else if (cmdReg().find(tn->opType) != cmdReg().end()) {

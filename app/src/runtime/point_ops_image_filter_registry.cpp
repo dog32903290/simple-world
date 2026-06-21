@@ -115,4 +115,11 @@ ImageFilterComputeOp::ImageFilterComputeOp(NodeSpec spec, const char* cookType, 
   if (selftestName && selftest) imageFilterSelfTests().push_back({selftestName, selftest});
 }
 
+FeedbackOp::FeedbackOp(NodeSpec spec, const char* opType, PointFeedbackFn fn, bool needsPair,
+                       uint32_t pairFormat, const char* selftestName, int (*selftest)(bool)) {
+  registerFeedbackOp(opType, fn, needsPair, pairFormat);
+  imageFilterSpecSink().push_back(std::move(spec));
+  if (selftestName && selftest) imageFilterSelfTests().push_back({selftestName, selftest});
+}
+
 }  // namespace sw

@@ -191,6 +191,40 @@ struct TexCookCtx {
 };
 // A texture operator: execute `command` into `output`. No buffer/command return.
 using PointTexFn = void (*)(TexCookCtx&);
+
+// FEEDBACK / multi-tex-output cook context (the cross-frame ping-pong flow = TiXL KeepPreviousFrame /
+// SwapTextures). A feedback op differs from a normal tex op in TWO ways: (1) it can have MULTIPLE
+// Texture2D OUTPUTS that return DIFFERENT textures (PreviousFrame vs CurrentFrame), and (2) it may
+// carry CROSS-FRAME state (a persistent texture pair + a toggle that flips each frame). The driver
+// runs the op ONCE per node per frame (a per-frame memo guards a double toggle when both outputs are
+// pulled), hands it the persistent pair + toggle, and the op fills `outputs[]` by OUTPUT-port-relative
+// index (0 = first Texture2D output port, 1 = second). The driver then returns the texture for the
+// SPECIFIC output port the consumer wired to. The op does NOT allocate the pair (the driver does, via
+// Impl::ensureFeedbackPair, so the cross-frame lifetime stays in one place); the op only blits + routes.
+struct FeedbackCookCtx {
+  MTL::Device* dev = nullptr;
+  MTL::Library* lib = nullptr;
+  MTL::CommandQueue* queue = nullptr;
+  const std::map<std::string, float>* params = nullptr;  // resolved Float params (Keep / EnableSwap)
+  // Wired Texture2D inputs in spec port order (same gather as TexCookCtx::inputTextures). For
+  // KeepPreviousFrame: inputTextures[0] = ImageA. For SwapTextures: [0]=TextureA, [1]=TextureB.
+  static constexpr int kMaxTexInputs = 4;
+  const MTL::Texture* inputTextures[kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
+  int inputTextureCount = 0;
+  // CROSS-FRAME persistent pair (driver-owned; sized to the input's description via ensureFeedbackPair).
+  // null for a stateless feedback op (SwapTextures needs no pair). The op blits into the buffer chosen
+  // by `*toggle` and routes the other one out (KeepPreviousFrame.cs:56-64).
+  MTL::Texture* pairA = nullptr;
+  MTL::Texture* pairB = nullptr;
+  bool* toggle = nullptr;  // the persistent _bufferToggle (the op reads it, then FLIPS it once per frame)
+  // OUTPUTS the op fills, by OUTPUT-port-relative index (0 = first Texture2D output, 1 = second). The
+  // driver returns outputs[requestedOutputIdx]. Unset entries stay null (a black sink, no crash).
+  static constexpr int kMaxTexOutputs = 4;
+  MTL::Texture* outputs[kMaxTexOutputs] = {nullptr, nullptr, nullptr, nullptr};
+};
+// A feedback op: route inputs + the persistent pair into `outputs[]` (and flip `*toggle`). The driver
+// has already sized the pair (if any) to the live input's description, so the op only blits + routes.
+using PointFeedbackFn = void (*)(FeedbackCookCtx&);
 // Per-node persistent state lifetime for stateful ops (e.g. a sim's particle buffer).
 // `count` is the node's point count at creation. Return nullptr for stateless ops.
 using PointStateNewFn = void* (*)(MTL::Device*, MTL::Library*, uint32_t count);
@@ -215,6 +249,19 @@ void registerDrawOp(const std::string& type, PointDrawFn);
 void registerCmdOp(const std::string& type, PointCmdFn);
 // Register a texture op (the Texture2D stream — RenderTarget). Third table.
 void registerTexOp(const std::string& type, PointTexFn);
+// Register a FEEDBACK / multi-tex-output op (KeepPreviousFrame / SwapTextures). `needsCrossFramePair`
+// = true for an op that carries a persistent texture pair sized to its first Texture2D input
+// (KeepPreviousFrame); false for a stateless routing op (SwapTextures just swaps its two inputs).
+// `pairFormat` is the MTL::PixelFormat raw value used when needsCrossFramePair (RGBA8Unorm = the
+// engine's kPointTargetFormat for a frame texture); ignored when needsCrossFramePair is false. A
+// feedback type is NOT in texReg() — the cook driver routes Texture2D inputs/outputs through the
+// feedback path instead of the single-output tex path.
+void registerFeedbackOp(const std::string& type, PointFeedbackFn fn, bool needsCrossFramePair,
+                        uint32_t pairFormat = 0);
+bool isFeedbackOp(const std::string& type);
+bool feedbackNeedsPair(const std::string& type);
+uint32_t feedbackPairFormat(const std::string& type);  // MTL::PixelFormat raw; 0 if unregistered
+PointFeedbackFn findFeedbackOp(const std::string& type);  // null if not a feedback op
 // Mark a tex op type as OWN-TEXTURE (Slice B tex-output fork): the cook driver does NOT pre-size its
 // output via ensureTex (RGBA8/resolution-pinned). Instead it hands the op TexCookCtx::ownTexHost/W/H,
 // then allocates the op-owned texture (R32Float, data-sized) parked in Impl::texBuf. ValuesToTexture
@@ -243,6 +290,7 @@ RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowS
 float cookParam(const PointCookCtx& c, const char* id, float def);
 float cookParam(const CmdCookCtx& c, const char* id, float def);
 float cookParam(const TexCookCtx& c, const char* id, float def);
+float cookParam(const FeedbackCookCtx& c, const char* id, float def);
 // Vector params (mirrors graph.h readVecN: components "<base>.x"/".y"/".z"/".w").
 // Missing component -> fallback[i].
 void cookVecN(const PointCookCtx& c, const char* base, const float* fallback, int n, float* out);
@@ -326,6 +374,13 @@ class PointGraph {
   // produced last cook (Impl::gradientBuf[flatKey(id)]). Returns nullptr if the node never cooked a
   // gradient. Borrowed (PointGraph-owned); valid until the next cook of that node.
   const SwGradient* debugCookedGradient(int nodeId) const;
+
+  // Cross-frame FEEDBACK output (KeepPreviousFrame / SwapTextures): the texture this node routed to its
+  // `ordinal`-th Texture2D OUTPUT last cook (0 = first output = PreviousFrame/TextureA, 1 = second =
+  // CurrentFrame/TextureB). `resident` selects the key space (flat "#id" vs resident path "id"). Borrowed
+  // (PointGraph-owned, points into the persistent pair or an upstream input); valid until the next cook
+  // of that node. nullptr if the node never cooked as a feedback op / ordinal out of range. For goldens.
+  MTL::Texture* debugCookedFeedbackOutput(int nodeId, int ordinal, bool resident = false) const;
 
  private:
   struct Impl;

@@ -8,6 +8,7 @@
 // the two key spaces can never collide while both cooks are alive (flat dies at the
 // production swap; then "#" keys go with it).
 #pragma once
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <map>
@@ -54,6 +55,10 @@ inline bool isBufferInput(const PortSpec& p) {
 
 // Flat cook's resource key for node id (see header comment on key spaces).
 inline std::string flatKey(int id) { return "#" + std::to_string(id); }
+
+// Multi-tex-output helper (feedback seam): ABSOLUTE output port index → ordinal among Texture2D
+// outputs (0 for every single-output tex op). Defined in point_graph.cpp; shared by both cook drivers.
+int texOutputOrdinal(const NodeSpec& spec, int absPortIndex);
 
 }  // namespace pgdetail
 
@@ -122,6 +127,29 @@ struct PointGraph::Impl {
   // resident path (parallel to floatListBuf). The Gradient value channel's transport store;
   // GradientsToTexture (a tex op) samples it into an R32G32B32A32 texture (the rail-crossing).
   std::map<std::string, SwGradient> gradientBuf;  // key -> host gradient
+
+  // Per-node CROSS-FRAME texture PAIR (the feedback / ping-pong flow = TiXL KeepPreviousFrame).
+  // A feedback op owns TWO textures (texA + texB) that PERSIST across frames + a toggle bit that
+  // flips each frame, so the op can hand back the PREVIOUS frame's content while writing the
+  // current one into the other buffer (the double-buffer/ping-pong). This is the FIRST cross-frame
+  // texture STATE in the engine: every other tex map is single-frame (re-derived each cook); these
+  // two survive between cooks ON PURPOSE (that survival IS the feature). Same realloc-keyed
+  // lifetime discipline as ensureOwnedTex (realloc on w/h/fmt change → release the OLD pair; both
+  // textures released in ~PointGraph), so there is NO per-cook leak and NO UAF. Keyed by flat id
+  // or resident path (parallel to texBuf). feedbackToggle defaults to 0 (false) per node — matches
+  // TiXL's `_bufferToggle` field default (KeepPreviousFrame.cs:80).
+  struct FeedbackPair { MTL::Texture* a = nullptr; MTL::Texture* b = nullptr; };
+  std::map<std::string, FeedbackPair> feedbackTexBuf;   // key -> {texA, texB}
+  std::map<std::string, uint32_t> feedbackW, feedbackH; // realloc key (w/h)
+  std::map<std::string, uint32_t> feedbackFmt;          // realloc key (op-chosen pixel format)
+  std::map<std::string, bool> feedbackToggle;           // key -> _bufferToggle (flips each cook)
+  // Last-resolved OUTPUT textures by feedback node, indexed by Texture2D-output ordinal (0 = first
+  // output, 1 = second). Borrowed pointers into feedbackTexBuf's pair (KeepPreviousFrame) or into an
+  // upstream input (SwapTextures) — NOT separately owned (no release here; the pair is freed via
+  // feedbackTexBuf). Written by both cook drivers at the end of a feedback cook so a debug readback
+  // (debugCookedFeedbackOutput) can read CurrentFrame/PreviousFrame after cook without a downstream node.
+  static constexpr int kMaxFeedbackOut = 4;
+  std::map<std::string, std::array<MTL::Texture*, kMaxFeedbackOut>> feedbackOut;
 
   MTL::Buffer* ensureOut(const std::string& key, uint32_t count) {
     MTL::Buffer*& b = outBuf[key];
@@ -227,6 +255,42 @@ struct PointGraph::Impl {
       texMipped[key] = false;  // keep the parallel realloc-key maps consistent for this key
     }
     return t;
+  }
+
+  // CROSS-FRAME texture PAIR for a feedback op (KeepPreviousFrame). Sizes BOTH textures (texA +
+  // texB) to (w,h,fmt), reusing them across frames and reallocating ONLY when the description
+  // changes — the RESOURCE_LIFETIME rule, same as ensureOwnedTex but applied to a PAIR (TiXL
+  // KeepPreviousFrame.cs:46-54: a formatChanged disposes BOTH then recreates BOTH; the toggle
+  // would otherwise read a stale-sized buffer). Usage = RenderTarget|ShaderRead so the blit
+  // copyFromTexture can WRITE into it AND a downstream op / readback can SHADER-READ it; StorageMode
+  // Shared so a getBytes golden can read it. The pair is parked in feedbackTexBuf → released here on
+  // realloc AND in ~PointGraph → NO per-cook leak, NO UAF. Returns false if either alloc failed.
+  bool ensureFeedbackPair(const std::string& key, uint32_t w, uint32_t h, MTL::PixelFormat fmt,
+                          MTL::Texture*& outA, MTL::Texture*& outB) {
+    if (w == 0) w = 1;
+    if (h == 0) h = 1;
+    FeedbackPair& fp = feedbackTexBuf[key];
+    const bool changed = !fp.a || !fp.b || feedbackW[key] != w || feedbackH[key] != h ||
+                         feedbackFmt[key] != (uint32_t)fmt;
+    if (changed) {
+      if (fp.a) { fp.a->release(); fp.a = nullptr; }
+      if (fp.b) { fp.b->release(); fp.b = nullptr; }
+      auto makeTex = [&]() -> MTL::Texture* {
+        MTL::TextureDescriptor* td =
+            MTL::TextureDescriptor::texture2DDescriptor(fmt, w, h, /*mipped=*/false);
+        td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+        td->setStorageMode(MTL::StorageModeShared);
+        return dev->newTexture(td);
+      };
+      fp.a = makeTex();
+      fp.b = makeTex();
+      feedbackW[key] = w;
+      feedbackH[key] = h;
+      feedbackFmt[key] = (uint32_t)fmt;
+    }
+    outA = fp.a;
+    outB = fp.b;
+    return fp.a && fp.b;
   }
 
   // Per-node stateful-op memory. Re-created (free + new) when `count` GROWS past what the

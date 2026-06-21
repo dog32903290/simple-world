@@ -287,6 +287,8 @@ add_executable(simple_world
   src/runtime/gradient_op_registry.cpp
   src/runtime/gradient_ops_definegradient.cpp
   src/gradient_golden.cpp
+  src/keeppreviousframe_golden.cpp
+  src/swaptextures_golden.cpp
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp

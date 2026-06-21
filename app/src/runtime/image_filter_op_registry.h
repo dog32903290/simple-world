@@ -99,6 +99,18 @@ struct ImageFilterOp {
                 bool mippedOutput = false);
 };
 
+// RAII registrar for a FEEDBACK / multi-tex-output op (KeepPreviousFrame / SwapTextures). Reuses the
+// SAME spec + selftest sinks as ImageFilterOp (so findSpec/specTypes + run_all discover it), but wires
+// the op into the FEEDBACK table (registerFeedbackOp) instead of texReg() — the cook driver routes its
+// Texture2D inputs/outputs through the multi-output + optional cross-frame-pair path. `needsPair` = a
+// persistent texture pair sized to the first input (KeepPreviousFrame=true / SwapTextures=false);
+// `pairFormat` = the MTL::PixelFormat raw value for that pair (ignored when !needsPair).
+struct FeedbackOp {
+  FeedbackOp(NodeSpec spec, const char* opType, PointFeedbackFn fn, bool needsPair,
+             uint32_t pairFormat = 0, const char* selftestName = nullptr,
+             int (*selftest)(bool) = nullptr);
+};
+
 // RAII registrar for a COMPUTE leaf (-cs.hlsl). Same self-registration as ImageFilterOp PLUS:
 //   - inserts cookType into imageFilterComputeTypes() (cookTexNode gives its output ShaderWrite),
 //   - if sizeFn != nullptr, stores it in imageFilterSizeFns()[cookType] (output may shrink/grow),
