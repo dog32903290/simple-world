@@ -70,7 +70,8 @@
 
 | id | 內容 | 性質 | 狀態 | 做法 / 入口 |
 |----|------|------|------|------|
-| **task_eef5757e** | `transformpoints.metal`+`randomizepoints.metal` 複製同 Z·Y·X 旋轉序 bug，**既有出貨 op，golden 不測 Rot→隱形** | 🔴 真 correctness bug | **queued·P0** | 先補 Rot golden 暴露 bug→修旋轉序→兩檔一致。出貨中、用戶看得到、最該先做。 |
+| **task_eef5757e** | `transformpoints.metal`+`randomizepoints.metal` 複製同 Z·Y·X 旋轉序 bug，**既有出貨 op，golden 不測 Rot→隱形** | 🔴 真 correctness bug | **queued·P0·結構閘** | **★test-gap gate（柏為 2026-06-21 批准）**：補 Rot golden（對 TiXL 正確旋轉序，★order 待查源碼不可假設）→ golden 變 RED → commit 綠燈閘物理拒絕 commit 直到旋轉序修好+兩 .metal 對齊。**arming 紀律**：別在無關 lane 熱寫時 arm RED（攪同工作樹、commit 衛生爛）→綁進下個 point 批第一步，閘住 `point_ops_transformpoints.cpp` 拆 TU（§A-P3 line 62「拆前先修」）。記憶 [[sw-rotation-bug-gate]]。 |
+| **task_32b5b6e5** | string-rail（`b247602`）整個 flat-path-only：production cook 走 RESIDENT eval graph（`app/src/app/document.h:58`），string op 只接 flat（`point_graph.cpp` cookStringNode），resident 零交集→**真實 app 串 string op 時 wire 被丟、下游讀 strDef**；13/13 golden 測 flat 死路徑 | 🔴 真 correctness bug（綠燈測死路，Cut47 自欺） | **queued·P0·結構閘** | **★forward-work gate（柏為 2026-06-21 批准）**：string Phase C 開採前必須先 close（不准把 string 葉子蓋死路徑）。修法照 list-routing `70406e1` 藍本（`resident_host_scalar_cook.cpp` per-frame resident pass + frame_cook 接線 + resident-path golden leg）。與 `point_graph.cpp` 拆 TU（§A-P3）綁同還債批（同共享檔，§F owner-lock）。記憶 [[sw-string-rail-resident-gate]]。 |
 | task_258d9510 | audit 9 顆已 ship `_multiImageFxSetup` op（pixelate/voronoi/koch/displace/mirrorrepeat/sharpen/chromaticdistortion/detectedges/dither）的 .t3 routing 對不對 | parity audit | queued | 逐顆 .t3 backward-trace（Cut55 trap）。自洽 golden 可能掩蓋 parity bug。 |
 | task_3fc122a2 | unwired 2nd-input fallback：sw fork=sample ImageA self-warp，TiXL=黑 null SRV。涵 DistortAndShade+Displace | parity fork | queued | 定 lane-wide convention（對齊 TiXL 黑-fallback or 保留 fork）。開新 multi-image op 前必知。 |
 | task_d288a684 | Float-Clamp min>max 行為 | 小 bug | queued | 單顆 op 修 + golden。 |
@@ -99,9 +100,9 @@
 - 排修債（B）：每條一條 lane，各自修法。
 
 **建議順序（槓桿 × 危害 × 客觀度）**：
-1. **task_eef5757e**（B·P0）— 出貨中的隱形 correctness bug，用戶看得到，最該先做。
+1. **task_eef5757e**（B·P0·結構閘）— 出貨中的隱形 correctness bug，用戶看得到，最該先做。**test-gap gate 自走**：下個 point 批第一步補 Rot golden→RED→commit 閘自動逼修（見 §B）。
 2. **A-P1 的 4 顆資料化/拆-ops**（stateful_value_ops 2657 / node_registry_math 917 / point_modify 653 / keymap 752）— 最客觀（行數可量、不需判對錯）、最高槓桿、且 registry 那兩顆雙重違反 rule 7。
-3. **point_graph.cpp 拆 TU**（A-P1）— string-rail 進來前拆，擋住它繼續長。
+3. **point_graph.cpp 拆 TU（A-P1）＋ 補 resident string-wire（task_32b5b6e5，B·P0·結構閘）綁同批** — 同一共享檔，一次 owner-lock 做掉；**forward-work gate：string Phase C 開採前必做**，並擋住 point_graph.cpp 繼續長。
 4. task_258d9510 / task_3fc122a2（B parity）— 影響已出貨 op 的正確性。
 5. 其餘 B + A-P2 selftest + A-P3 scout，隨產能批間隙撿。
 
@@ -118,4 +119,4 @@
 - 目前：無 active 還債 lane。
 
 ## G. Next Handoff Sentence
-下個 session 開本檔 §D 順序表，從 **task_eef5757e（出貨旋轉 bug）** 起手，或撿 A-P1 任一資料化顆；動 A-P1 共享檔前先在 §F 佔 owner、暫停產能線碰同檔。產能線進度見 [SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md) + lane-state。
+下個 session 開本檔 §D 順序表，從 **task_eef5757e（出貨旋轉 bug，test-gap 結構閘）** 起手，或撿 A-P1 任一資料化顆；動 A-P1 共享檔前先在 §F 佔 owner、暫停產能線碰同檔。**★兩道 P0 結構閘（柏為 2026-06-21 批准）**：task_eef5757e（test-gap，補 Rot golden→RED 逼修）＋ task_32b5b6e5（forward-work，string Phase C 開採前必 close resident string-wire，綁 point_graph.cpp 拆 TU）。產能線進度見 [SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md) + lane-state。
