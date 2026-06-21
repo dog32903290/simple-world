@@ -13,6 +13,7 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/compound_graph.h"       // SymbolLibrary/Symbol/SymbolChild (lib defaultDrawTarget)
+#include "runtime/curve.h"                // sw::Curve (bake-into-point seam: PointCookCtx::inputCurves complete type)
 #include "runtime/floatlist_op_registry.h"     // FloatListCookCtx/findFloatListOp (the 5th cook flow = host List<float>)
 #include "runtime/gradient_op_registry.h"      // GradientCookCtx/findGradientOp (the 8th cook flow = host Gradient)
 #include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
@@ -376,6 +377,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // consumer wired to (single-output ops ignore it; -1 = the node's terminal/first output).
   std::function<MTL::Texture*(int, int)> cookTexNode;
 
+  // Forward-declared HERE (above cookNode, same trick as cookTexNode) so cookNode's Gradient gather (the
+  // bake-into-point seam) can recurse into an upstream host-Gradient op: a Points op with a Gradient
+  // input (MapPointAttributes) gathers each wired Gradient via cookGradientNode into
+  // PointCookCtx::inputGradients. The body is assigned far below (same std::function ordering-break).
+  std::function<const SwGradient*(int)> cookGradientNode;
+
   std::function<MTL::Buffer*(int)> cookNode = [&](int id) -> MTL::Buffer* {
     auto m = cooked.find(id);
     if (m != cooked.end()) return m->second;
@@ -457,6 +464,33 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       }
     }
 
+    // GRADIENT + CURVE gather (the bake-into-point seam): a Points op with "Gradient"/"Curve" host-value
+    // input ports (MapPointAttributes) gathers each wired upstream host value here, in spec port order,
+    // into PointCookCtx::inputGradients/inputCurves. Same gather contract as cookTexNode's Gradient
+    // branch: a wired Gradient recurses cookGradientNode; there is NO Curve PRODUCER op yet (curve.h),
+    // so a wired Curve is never gathered (the loop only DETECTS the "Curve" port). UNWIRED → empty → the
+    // op bakes its embedded .t3 defaults (flat-1.0 curve, white→white gradient). Empty for every existing
+    // Points op (no Gradient/Curve port) → tc.inputGradients/inputCurves stay null → byte-identical.
+    std::vector<SwGradient> gradientInputs;
+    bool hasGradientInput = false;
+    std::vector<Curve> curveInputs;  // stays empty: no Curve producer (see above)
+    bool hasCurveInput = false;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!port.isInput) continue;
+      if (port.dataType == "Curve") {
+        hasCurveInput = true;  // DETECT only (no producer to gather)
+      } else if (port.dataType == "Gradient") {
+        hasGradientInput = true;
+        const Connection* c = g.connectionToInput(pinId(id, (int)i));
+        if (c) {
+          const SwGradient* up = cookGradientNode(pinNode(c->fromPin));
+          gradientInputs.push_back(up ? *up : SwGradient{});
+          // MapPointAttributes' Gradient is single-input; no MultiInput expansion needed here.
+        }
+      }
+    }
+
     const std::map<std::string, float>* params = nodeParams(id);
 
     // count: a "Count" Float input (generators) resolved through the value spine (the resolved
@@ -492,6 +526,8 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.params = params; cc.inputParams = insParams.data();
     for (int k = 0; k < texInputCount; ++k) cc.inputTextures[k] = texInputs[k];
     cc.inputTextureCount = texInputCount;  // texture-into-points seam (0 for ops with no Texture2D input)
+    cc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;  // bake-into-point seam (null otherwise)
+    cc.inputCurves = hasCurveInput ? &curveInputs : nullptr;  // empty in production (no Curve producer)
     auto r = cookReg().find(n->type);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[id] = out;
@@ -516,10 +552,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // FloatList inputs by recursing into cookFloatListNode, whose body is assigned further below. Same
   // std::function ordering-break as cookTexNode itself.
   std::function<const std::vector<float>*(int)> cookFloatListNode;
-  // Forward-declared too: cookTexNode (GradientsToTexture, the rail-crossing) gathers its Gradient
-  // inputs by recursing into cookGradientNode (the 8th cook flow = host SwGradient), whose body is
-  // assigned further below. Same std::function ordering-break as cookFloatListNode.
-  std::function<const SwGradient*(int)> cookGradientNode;
+  // (cookGradientNode is forward-declared ABOVE cookNode now — moved up so cookNode's Gradient gather
+  // for the bake-into-point seam can call it. cookTexNode's GradientsToTexture rail-crossing uses the
+  // same variable; its body is assigned further below.)
   // Forward-declared: the String cook flow (6th flow = host std::string). A string op (CombineStrings/
   // StringLength) gathers its String inputs by recursing into cookStringNode (a wired String input);
   // body assigned below. std::function breaks the self-recursion ordering (CombineStrings ← upstream

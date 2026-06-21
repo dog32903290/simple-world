@@ -27,6 +27,7 @@
 #include "runtime/mesh_op_registry.h"          // MeshCookCtx/SwMeshView/findMeshOp (the 4th cook flow = MeshBuffers)
 #include "runtime/pointlist_op_registry.h"     // PointListCookCtx/findPointListOp (the 7th cook flow = host SwPoint list)
 #include "runtime/gradient_op_registry.h"      // GradientCookCtx/findGradientOp (the 8th cook flow = host Gradient)
+#include "runtime/curve.h"                 // sw::Curve (bake-into-point seam: PointCookCtx::inputCurves complete type)
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + op registries
 #include "runtime/resident_eval_graph.h"   // ResidentEvalGraph / drivers / resolveResidentFloatInputs
 #include "runtime/tixl_point.h"            // SwPoint + EvaluationContext
@@ -246,6 +247,33 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       }
     }
 
+    // GRADIENT + CURVE gather (the bake-into-point seam, RESIDENT/PRODUCTION path — R-2 iron rule): a
+    // Points op with "Gradient"/"Curve" host-value input ports (MapPointAttributes) gathers each wired
+    // upstream host value through the resident Connection drivers into PointCookCtx::inputGradients/
+    // inputCurves, in spec port order. Mirror of the resident tex-cook Gradient branch
+    // (cookResidentGradient). There is NO Curve producer op yet, so a wired Curve is never gathered (we
+    // only DETECT the port). UNWIRED → empty → the op bakes its embedded .t3 defaults (flat-1.0 curve,
+    // white→white gradient). Empty for every existing Points op (no Gradient/Curve port) → null →
+    // byte-identical path.
+    std::vector<SwGradient> gradientInputs;
+    bool hasGradientInput = false;
+    std::vector<Curve> curveInputs;  // stays empty: no Curve producer (see above)
+    bool hasCurveInput = false;
+    for (const PortSpec& port : s->ports) {
+      if (!port.isInput) continue;
+      if (port.dataType == "Curve") {
+        hasCurveInput = true;  // DETECT only (no producer to gather)
+      } else if (port.dataType == "Gradient") {
+        hasGradientInput = true;
+        const ResidentInput* ri = n->input(port.id);
+        if (ri && ri->driver == ResidentInput::Driver::Connection) {
+          const SwGradient* up = cookResidentGradient(ri->srcNodePath, depth + 1);
+          gradientInputs.push_back(up ? *up : SwGradient{});
+          // MapPointAttributes' Gradient is single-input; no MultiInput expansion needed here.
+        }
+      }
+    }
+
     const std::map<std::string, float>* params = nodeParams(path);
 
     // count: a "Count" Float input (generators) resolved through its driver, else sum of Points
@@ -283,6 +311,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     cc.params = params; cc.inputParams = insParams.data();
     for (int k = 0; k < texInputCount; ++k) cc.inputTextures[k] = texInputs[k];
     cc.inputTextureCount = texInputCount;  // texture-into-points seam (0 for ops with no Texture2D input)
+    cc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;  // bake-into-point seam (null otherwise)
+    cc.inputCurves = hasCurveInput ? &curveInputs : nullptr;  // empty in production (no Curve producer)
     auto r = cookReg().find(n->opType);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[path] = out;

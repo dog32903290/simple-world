@@ -73,6 +73,18 @@ struct PointCookCtx {
   static constexpr int kMaxTexInputs = 4;
   const MTL::Texture* inputTextures[kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
   int inputTextureCount = 0;  // number of Texture2D INPUT ports (wired or not), capped at kMaxTexInputs
+  // GRADIENT + CURVE host inputs (the bake-into-point seam): a Points op that BAKES host Curve/Gradient
+  // values into scratch textures internally then samples per point (MapPointAttributes) gets each wired
+  // Gradient/Curve INPUT port (in spec port order) gathered here, the SAME borrowed-single-frame lifetime
+  // as inputTextures[] above (PointGraph-owned, never retained). Mirrors TexCookCtx::inputGradients /
+  // inputCurves (the Texture2D flow's host-currency gather) but carried on the Points cook flow. In
+  // PRODUCTION these are EMPTY/null today (MapPointAttributes' Curve/Gradient ports are host-value inputs
+  // with .t3 defaults and have no producer op wired) → the op bakes its embedded defaults, exactly as
+  // CurvesToTexture/GradientsToTexture cook their embedded defaults when unwired (NOT the flat-only
+  // string-rail trap: no real wire is dropped). A golden injects custom values via these fields to bite
+  // the bake. null/empty for every existing Points op (no Gradient/Curve input port → byte-identical).
+  const std::vector<SwGradient>* inputGradients = nullptr;
+  const std::vector<Curve>* inputCurves = nullptr;
   // RESOLVED Float params of THIS node (slice 2b seam): the cook DRIVER resolves every Float
   // input port through the full value spine — override → binding → wire → stored → spec default
   // (flat), or the resident input's driver (resident) — and hands the result here. Ops read via
@@ -557,5 +569,19 @@ int runSamplePointColorAttributesSelfTest(bool injectBug);
 // FLAT-DRIVER gather leg (PointGraph::cook + debugCookedBuffer, Red->Scale_Uniform) + RESIDENT leg
 // (cookResident, grown sprites). injectBug drops the texture bind -> passthrough -> RED.
 int runAttributesFromImageChannelsSelfTest(bool injectBug);
+
+// MapPointAttributes — the bake-into-point seam consumer (PointCookCtx::inputCurves/inputGradients). A
+// count-preserving MODIFIER that BAKES its host Curve (→ R32_Float CurveImage) + Gradient (→ RGBA32
+// GradientImage, .t3 resolution 512) into two scratch textures during cook, then per point samples both
+// at (f,0.5) — f = the InputMode→MappingMode-remapped coordinate — to write a curve value into FX1/FX2/
+// Scale (WriteTo) + a gradient color into Color (WriteColor, default Multiply). Faithful to
+// external/tixl .../point/modify/MapPointAttributes.{cs,hlsl,t3} (the .t3 compound bakes the host inputs
+// via CurvesToTexture/GradientsToTexture + FirstValidTexture, not straight wires — read the .hlsl cbuffer
+// directly). Golden (4 legs, R-2): a hand-built ctx injects a known 2-key curve + 2-step gradient and
+// byte-reads FX1 (== curve.r at f) AND Color (== gradient at f, multiplied) — hand-computed; one leg
+// through PointGraph::cook (flat) + one through cookResident (production, embedded defaults baked).
+// injectBug omits the gradient scratch bind → Color = white passthrough (≠ the injected gradient color);
+// want FIXED at the true values.
+int runMapPointAttributesSelfTest(bool injectBug);
 
 }  // namespace sw

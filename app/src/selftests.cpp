@@ -308,6 +308,7 @@ const SelfTest kTable[] = {
     {"setpointattributes", runSetPointAttributesSelfTest},
     {"samplepointcolorattributes", runSamplePointColorAttributesSelfTest},
     {"attributesfromimagechannels", runAttributesFromImageChannelsSelfTest},
+    {"mappointattributes", runMapPointAttributesSelfTest},
     {"combinebuffers", runCombineBuffersSelfTest},
     {"addnoise", runAddNoiseSelfTest},
     {"filterpoints", runFilterPointsSelfTest},

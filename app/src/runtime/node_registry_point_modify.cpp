@@ -748,6 +748,52 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
         {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
        nullptr},
+      // ---- batch sw-node-batch: point modify — MapPointAttributes (bake-into-point seam) ----------
+      // TiXL parity: external/tixl .../point/modify/MapPointAttributes.{cs,hlsl,t3}. A count-preserving
+      // MODIFIER that BAKES its host Curve (→ R32 CurveImage) + host Gradient (→ RGBA32 GradientImage,
+      // .t3 resolution 512) into scratch textures during cook, then per point maps an input coordinate
+      // (InputMode → f0 → MappingMode remap with Range/Phase) and samples both at (f,0.5) with a Clamp/
+      // Linear sampler to write a curve value into FX1/FX2/Scale (WriteTo) + a gradient color into Color
+      // (WriteColor, default Multiply). The .t3 compound bakes the host inputs via CurvesToTexture /
+      // GradientsToTexture + FirstValidTexture (ValueTexture OVERRIDES the baked curve) — the Curve +
+      // Gradient + ValueTexture INPUT ports are gathered by the cook drivers into PointCookCtx::inputCurves
+      // /inputGradients (Curve/Gradient) + inputTextures[0] (ValueTexture). No Curve/Gradient producer op
+      // exists yet, so in production these are UNWIRED → the op bakes its embedded .t3 defaults (flat-1.0
+      // curve, white→white gradient). Ports 1:1 with MapPointAttributes.cs [Input] order (.t3 defaults).
+      {"MapPointAttributes",
+       "MapPointAttributes",
+       {{"Points", "Points", "Points", true},          // input bag (port 0)
+        {"out", "out", "Points", false},                // mapped output bag (port 1)
+        // InputMode (.cs InputModes, default 0 BufferOrder) — the f0 source per point.
+        {"InputMode", "InputMode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+         {"BufferOrder", "F1", "F2", "Random"}},
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f},  // .t3 default 1.0
+        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"None", "F1", "F2"}},
+        // Mapping (.cs MappingModes, default 0 Centered) — remaps f0 → f (UseOriginalW is dead in .hlsl).
+        {"Mapping", "Mapping", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"Centered", "ForStart", "PingPong", "Repeat", "UseOriginalW"}},
+        {"Range", "Range", "Float", true, 1.0f, -10.0f, 10.0f},   // .t3 default 1.0
+        {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},   // .t3 default 0.0
+        // WriteColor (.cs WriteColorModes, .t3 DEFAULT 2 Multiply) — how the gradient color writes Color.
+        {"WriteColor", "WriteColor", "Float", true, 2.0f, 0.0f, 2.0f, Widget::Enum,
+         {"None", "Replace", "Multiply"}},
+        // Gradient (host value input, .t3 white→white) — baked into GradientImage @t2. Gathered into
+        // PointCookCtx::inputGradients; unwired → embedded white default (Multiply identity).
+        {"Gradient", "Gradient", "Gradient", true},
+        // WriteTo (.cs WriteToModes, default 0 None) — which attribute the curve value writes.
+        {"WriteTo", "WriteTo", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+         {"None", "F1", "F2", "Scale"}},
+        // WriteMode (.cs WriteModes, default 0 Replace) → shader ApplyMode (Replace/Multiply/Add).
+        {"WriteMode", "WriteMode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"Replace", "Multiply", "Add"}},
+        // MappingCurve (host value input, .t3 flat-1.0 LINEAR line) — baked into CurveImage @t1. Gathered
+        // into PointCookCtx::inputCurves (no producer yet → embedded flat-1.0 default).
+        {"MappingCurve", "MappingCurve", "Curve", true},
+        // ValueTexture (Texture2D input, .t3 null) — OVERRIDES the baked CurveImage when wired
+        // (FirstValidTexture). Gathered into inputTextures[0].
+        {"ValueTexture", "ValueTexture", "Texture2D", true}},
+       nullptr},
   };
   return specs;
 }
