@@ -368,6 +368,14 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // can call it; std::function breaks the ordering (the body is assigned after cookNode is defined).
   std::function<const std::vector<SwPoint>*(int)> cookPointListNode;
 
+  // Forward-declared HERE (above cookNode, same trick as cookPointListNode) so cookNode's Texture2D
+  // gather (the texture-into-points seam) can recurse into the upstream tex op: a Points op with a
+  // Texture2D input (SamplePointColorAttributes) cooks each wired Texture2D input via cookTexNode into
+  // PointCookCtx::inputTextures. cookTexNode's body is assigned far below (it's mutually recursive with
+  // cookCommand); std::function breaks the ordering. `outAbsPort` = the ABSOLUTE output port index the
+  // consumer wired to (single-output ops ignore it; -1 = the node's terminal/first output).
+  std::function<MTL::Texture*(int, int)> cookTexNode;
+
   std::function<MTL::Buffer*(int)> cookNode = [&](int id) -> MTL::Buffer* {
     auto m = cooked.find(id);
     if (m != cooked.end()) return m->second;
@@ -429,6 +437,26 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       }
     }
 
+    // TEXTURE2D gather (the texture-into-points seam): a Points op with "Texture2D" input ports
+    // (SamplePointColorAttributes) cooks each wired upstream tex op into PointCookCtx::inputTextures,
+    // in spec port order. Cloned from the tex-flow gather in cookTexNode (the Texture2D branch below):
+    // each Texture2D port occupies the next slot (wired or not); the source's output port ordinal is
+    // (fromPin-1)%100. Empty for every existing Points op (no Texture2D port) → texInputs all null,
+    // texInputCount 0 → byte-identical path. isBufferInput() skips Texture2D ports above, so this loop
+    // is the ONLY consumer of them — no double-count of Points.
+    const MTL::Texture* texInputs[PointCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
+    int texInputCount = 0;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!port.isInput || port.dataType != "Texture2D") continue;
+      int slot = texInputCount;  // each Texture2D port occupies the next slot (wired or not)
+      if (slot < PointCookCtx::kMaxTexInputs) {
+        const Connection* c = g.connectionToInput(pinId(id, (int)i));
+        texInputs[slot] = c ? cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100) : nullptr;
+        texInputCount = slot + 1;
+      }
+    }
+
     const std::map<std::string, float>* params = nodeParams(id);
 
     // count: a "Count" Float input (generators) resolved through the value spine (the resolved
@@ -462,6 +490,8 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.inputs = ins.data(); cc.inputCounts = insCounts.data(); cc.inputCount = (int)ins.size();
     cc.output = out; cc.state = st;
     cc.params = params; cc.inputParams = insParams.data();
+    for (int k = 0; k < texInputCount; ++k) cc.inputTextures[k] = texInputs[k];
+    cc.inputTextureCount = texInputCount;  // texture-into-points seam (0 for ops with no Texture2D input)
     auto r = cookReg().find(n->type);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[id] = out;
@@ -478,13 +508,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // All paths run through a registered texture op = the single executor that owns the render
   // pass (render_command.h: the executor owns Prepare/Restore, the op only carries data).
 
-  // Forward-declared so cookCommand can gather a Texture2D input (FORK#1) by recursing into the
-  // upstream tex node — cookTexNode's body is assigned below (it in turn calls cookCommand for its
-  // Command inputs, so the two are mutually recursive; std::function breaks the ordering cycle).
-  // `outAbsPort` = the ABSOLUTE output port index the consumer wired to (from the wire's fromPin):
-  // single-output ops ignore it; a feedback op (KeepPreviousFrame) returns PreviousFrame vs
-  // CurrentFrame by it. -1 = "the node's terminal/first output" (the cook-entry + legacy callers).
-  std::function<MTL::Texture*(int, int)> cookTexNode;
+  // (cookTexNode is forward-declared ABOVE cookNode — moved there so cookNode's Texture2D gather can
+  // call it. It is mutually recursive with cookCommand: cookTexNode calls cookCommand for its Command
+  // inputs, cookCommand calls cookTexNode for a Texture2D input (FORK#1); std::function breaks the
+  // ordering cycle. A feedback op (KeepPreviousFrame) returns PreviousFrame vs CurrentFrame by outAbsPort.)
   // Forward-declared too: cookTexNode (a tex op like ValuesToTexture, the rail-crossing) gathers its
   // FloatList inputs by recursing into cookFloatListNode, whose body is assigned further below. Same
   // std::function ordering-break as cookTexNode itself.

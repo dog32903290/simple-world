@@ -306,6 +306,7 @@ const SelfTest kTable[] = {
     {"randomizepoints", runRandomizePointsSelfTest},
     {"rndrotlock", runRandomizePointsRotationLock},
     {"setpointattributes", runSetPointAttributesSelfTest},
+    {"samplepointcolorattributes", runSamplePointColorAttributesSelfTest},
     {"combinebuffers", runCombineBuffersSelfTest},
     {"addnoise", runAddNoiseSelfTest},
     {"filterpoints", runFilterPointsSelfTest},

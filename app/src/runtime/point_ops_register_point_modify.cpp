@@ -34,6 +34,7 @@ void registerSimNoiseOffsetOp();
 void registerSimCentricalOffsetOp();
 void registerSimDirectionalOffsetOp();
 void registerSimForceOffsetOp();
+void registerSamplePointColorAttributesOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -60,6 +61,7 @@ void registerPointModifyPointOps() {
   registerSimCentricalOffsetOp();    // Points → Points (sim radial inverse-power force, batch sw-node-batch)
   registerSimDirectionalOffsetOp();  // Points → Points (sim directional push / velocity encode, batch sw-node-batch)
   registerSimForceOffsetOp();        // Points → Points (sim radial force + gravity window, batch sw-node-batch)
+  registerSamplePointColorAttributesOp();  // Points → Points (sample texture into Color; texture-into-points seam)
 }
 
 }  // namespace sw

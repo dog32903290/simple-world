@@ -63,6 +63,16 @@ struct PointCookCtx {
   int inputCount = 0;
   MTL::Buffer* output = nullptr;           // PointGraph-owned; cook writes here
   void* state = nullptr;                   // per-node persistent state (stateful ops)
+  // TEXTURE2D inputs (the texture-into-points seam): a Points op that SAMPLES an upstream cooked
+  // Texture2D (SamplePointColorAttributes is the first) gets each wired Texture2D INPUT port (in spec
+  // port order) cooked here. inputTextures[i] = the cooked upstream texture of the i-th Texture2D
+  // input port, or null if that port is unwired. SAME lifetime contract as `inputs[]` above
+  // (PointGraph-owned, single-frame, borrowed — NEVER retained). Mirrors TexCookCtx::inputTextures
+  // (the Texture2D flow's gather) but carried on the Points cook flow. null/0 for every existing
+  // Points op (no Texture2D input port → byte-identical path).
+  static constexpr int kMaxTexInputs = 4;
+  const MTL::Texture* inputTextures[kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
+  int inputTextureCount = 0;  // number of Texture2D INPUT ports (wired or not), capped at kMaxTexInputs
   // RESOLVED Float params of THIS node (slice 2b seam): the cook DRIVER resolves every Float
   // input port through the full value spine — override → binding → wire → stored → spec default
   // (flat), or the resident input's driver (resident) — and hands the result here. Ops read via
@@ -527,5 +537,18 @@ int runChromaBAShiftSelfTest(bool injectBug);
 // solid red input; Saturation=0 -> greyscale (R≈G≈B within 30, all >60). injectBug Sat=1 ->
 // red stays red (R>>G) -> FAIL.
 int runAdjustColorsSelfTest(bool injectBug);
+
+// SamplePointColorAttributes golden (point_ops_samplepointcolorattributes.cpp): the FIRST Points op
+// with a Texture2D INPUT — the proving op for the texture-into-points seam (PointCookCtx::inputTextures).
+// A point's Color is BlendColors(p.Color, sample*BaseColor, Mode). Closed-form (BOTH cook paths, R-2):
+// input bag Color=(0,0,0,0), a UNIFORM texture=(1,0,0,1), BaseColor=(1,1,1,1), Mode=0 Normal ->
+// sample c=(1,0,0,1) at EVERY uv (uniform texture is coordinate-independent => identity-transform fork
+// holds) -> BlendColors Normal: a=1, rgb=(1,0,0) -> every point Color=(1,0,0,1). The FLAT leg reads the
+// cooked Points buffer back byte-for-byte (debugCookedBuffer); the RESIDENT leg drives the seam through
+// cookResident -> cookNode's Texture2D gather -> the op samples -> DrawPoints->RenderTarget and reads the
+// rendered RED pixels (production path; no resident Points-buffer accessor). injectBug: DROP the texture
+// bind (inputTextureCount=0 / OMIT the wire) -> sample=(0,0,0,0) -> Color stays (0,0,0,0); want FIXED at
+// (1,0,0,1) -> RED.
+int runSamplePointColorAttributesSelfTest(bool injectBug);
 
 }  // namespace sw

@@ -646,6 +646,44 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"Gravity.z", "Gravity.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
         {"ForceDecayRate", "ForceDecayRate", "Float", true, 1.0f, 0.0f, 10.0f}},
        nullptr},
+      // SamplePointColorAttributes — the FIRST Points op with a Texture2D INPUT (the texture-into-
+      // points seam's proving op). Ports 1:1 with SamplePointColorAttributes.cs (.t3 defaults). The
+      // Texture2D input port (after the Points input, matching .cs GPoints→Texture order) is gathered
+      // by the cook drivers' Texture2D loop into PointCookCtx::inputTextures[0]. BlendMode labels =
+      // SharedEnums.RgbBlendModes (Core/Utils/SharedEnums.cs). Stretch/Scale/TextureRotate (+ the
+      // texW/texH Aspect correction) compose transformSampleSpace; TextureMode drives the sampler wrap
+      // — all LIVE (the .cpp composes Scale3 host-side + the shader applies Scale·Rotate; sampler =
+      // Repeat+Nearest per .t3 TextureMode=Wrap / SamplerState=MinMagMipPoint).
+      {"SamplePointColorAttributes",
+       "SamplePointColorAttributes",
+       {{"GPoints", "GPoints", "Points", true},        // input bag (port 0)
+        {"Texture", "Texture", "Texture2D", true},     // sampled texture (port 1) — the seam input
+        {"out", "out", "Points", false},               // color-blended output bag (port 2)
+        // BaseColor (Vec4, TiXL default (1,1,1,1)) — multiplies the sampled texel. Read per-channel.
+        {"BaseColor.r", "BaseColor", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"BaseColor.g", "BaseColor.g", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"BaseColor.b", "BaseColor.b", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"BaseColor.a", "BaseColor.a", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // BlendMode (int enum RgbBlendModes, TiXL default 0 Normal) -> shader Mode.
+        {"BlendMode", "BlendMode", "Float", true, 0.0f, 0.0f, 9.0f, Widget::Enum,
+         {"Normal", "Screen", "Multiply", "Overlay", "Difference", "UseImageA_RGB", "UseImageB_RGB",
+          "ColorDodge", "LinearDodge", "MultiplyA"}},
+        // Center (Vec3, TiXL default (0,0,0)) — subtracted from position before the uv transform.
+        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // Stretch (Vec2, TiXL default (1,1)) / Scale (Single, TiXL default 2.0) / TextureRotate (Vec3,
+        // default 0) / TextureMode (TextureAddressMode enum, default Wrap) — LIVE: Stretch/Scale/
+        // TextureRotate compose transformSampleSpace (see the .cpp); TextureMode drives the sampler wrap.
+        {"Stretch.x", "Stretch", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 2},
+        {"Stretch.y", "Stretch.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Scale", "Scale", "Float", true, 2.0f, 0.0f, 100.0f},
+        {"TextureRotate.x", "TextureRotate", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"TextureRotate.y", "TextureRotate.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"TextureRotate.z", "TextureRotate.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"TextureMode", "TextureMode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+         {"Wrap", "Clamp", "Mirror", "Border"}}},
+       nullptr},
   };
   return specs;
 }

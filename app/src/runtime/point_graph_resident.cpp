@@ -127,6 +127,15 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   // cookResidentPointList. Returns an empty view if `path` is not a mesh op / produced nothing.
   std::function<SwMeshView(const std::string&, int)> cookResidentMesh;
 
+  // Texture walker forward-decl (the texture-into-points seam, RESIDENT/PRODUCTION path — R-2 iron
+  // rule). Declared HERE (above cookNode, peer to cookResidentGradient/Mesh) so cookNode's Texture2D
+  // gather can recurse into the upstream tex op: a Points op with a Texture2D input
+  // (SamplePointColorAttributes) cooks each wired Texture2D input via cookTexNode into
+  // PointCookCtx::inputTextures. The body is assigned far below (it's mutually recursive with
+  // cookCommand); std::function breaks the ordering. `outSlotId` = the upstream OUTPUT slot id the
+  // consumer wired to (ResidentInput::srcSlotId); single-output ops ignore it.
+  std::function<MTL::Texture*(const std::string&, int, const std::string&)> cookTexNode;
+
   // `depth` counts cookNode/cookCommand call-edges from the terminal; > kCookDepthCap = safe fail
   // (修2: the bypass redirect recursion was bare before — only the terminal loop had the cap).
   std::function<MTL::Buffer*(const std::string&, int)> cookNode =
@@ -217,6 +226,26 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       }
     }
 
+    // TEXTURE2D gather (the texture-into-points seam, RESIDENT/PRODUCTION path — R-2 iron rule): a
+    // Points op with "Texture2D" input ports (SamplePointColorAttributes) cooks each wired Texture2D
+    // input through the resident Connection drivers into PointCookCtx::inputTextures, in spec port
+    // order. Mirror of the resident tex gather (cookTexNode's Texture2D branch below): each Texture2D
+    // port occupies the next slot (wired or not); cookTexNode(srcNodePath, depth+1, srcSlotId). Empty
+    // for every existing Points op (no Texture2D port) → byte-identical path. isBufferInput() skips
+    // Texture2D ports above, so this loop is the ONLY consumer of them (no double-count of Points).
+    const MTL::Texture* texInputs[PointCookCtx::kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
+    int texInputCount = 0;
+    for (const PortSpec& port : s->ports) {
+      if (!port.isInput || port.dataType != "Texture2D") continue;
+      int slot = texInputCount;  // each Texture2D port occupies the next slot (wired or not)
+      if (slot < PointCookCtx::kMaxTexInputs) {
+        const ResidentInput* ri = n->input(port.id);
+        bool wired = ri && ri->driver == ResidentInput::Driver::Connection;
+        texInputs[slot] = wired ? cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId) : nullptr;
+        texInputCount = slot + 1;
+      }
+    }
+
     const std::map<std::string, float>* params = nodeParams(path);
 
     // count: a "Count" Float input (generators) resolved through its driver, else sum of Points
@@ -252,6 +281,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     cc.inputs = ins.data(); cc.inputCounts = insCounts.data(); cc.inputCount = (int)ins.size();
     cc.output = out; cc.state = st;
     cc.params = params; cc.inputParams = insParams.data();
+    for (int k = 0; k < texInputCount; ++k) cc.inputTextures[k] = texInputs[k];
+    cc.inputTextureCount = texInputCount;  // texture-into-points seam (0 for ops with no Texture2D input)
     auto r = cookReg().find(n->opType);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[path] = out;
@@ -483,7 +514,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   // `outSlotId` = the upstream OUTPUT slot id the consumer wired to (ResidentInput::srcSlotId);
   // single-output ops ignore it. A feedback op (KeepPreviousFrame) returns PreviousFrame vs
   // CurrentFrame by it. Empty = "the node's terminal/first output" (the cook-entry caller).
-  std::function<MTL::Texture*(const std::string&, int, const std::string&)> cookTexNode =
+  // (Forward-declared ABOVE cookNode — assigned here so cookNode's Texture2D gather can call it.)
+  cookTexNode =
       [&](const std::string& path, int depth, const std::string& outSlotId) -> MTL::Texture* {
     if (depth > kCookDepthCap) return nullptr;
     const ResidentNode* n = rg.node(path);
