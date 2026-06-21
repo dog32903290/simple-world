@@ -266,7 +266,11 @@ add_executable(simple_world
   src/floatlist_golden.cpp
   src/runtime/colorlist_op_registry.cpp
   src/runtime/colorlist_ops_colorstolist.cpp
+  src/runtime/colorlist_ops_colorlist.cpp
+  src/runtime/colorlist_ops_combinecolorlists.cpp
+  src/runtime/colorlist_ops_readpointcolors.cpp
   src/colorlist_golden.cpp
+  src/colorlist_fanout_golden.cpp
   src/runtime/host_scalar_op_registry.cpp
   src/runtime/host_scalar_ops_floatlistlength.cpp
   src/runtime/host_scalar_ops_pickfloatfromlist.cpp

@@ -89,6 +89,9 @@ namespace sw { int runMeshRecomputeNormalsGoldenSelfTest(bool); }// mesh_modify_
 namespace sw { int runMeshTransformUvsGoldenSelfTest(bool); }    // mesh_modify_golden.cpp (mesh modify: TransformMeshUVs matrix·uv, flat + R-2 resident)
 namespace sw { int runFloatListSelfTest(bool); }                 // floatlist_golden.cpp (5th cook flow: FloatsToList host list)
 namespace sw { int runColorsToListSelfTest(bool); }              // colorlist_golden.cpp (vec4-list cook flow: ColorsToList host color list, flat + R-2 resident)
+namespace sw { int runColorListSelfTest(bool); }                // colorlist_fanout_golden.cpp (ColorList identity passthrough, flat + R-2 resident)
+namespace sw { int runCombineColorListsSelfTest(bool); }        // colorlist_fanout_golden.cpp (CombineColorLists MultiInput concat, flat + R-2 resident)
+namespace sw { int runReadPointColorsSelfTest(bool); }          // colorlist_fanout_golden.cpp (ReadPointColors: Points bag .Color -> ColorList, flat)
 namespace sw { int runStringRailSelfTest(bool); }                // string_rail_golden.cpp (6th cook flow: String value rail)
 namespace sw { int runListRoutingSelfTest(bool); }               // list_routing_golden.cpp (FloatList→Float bridge: downstream evalFloat)
 namespace sw { int runPointListSelfTest(bool); }                 // pointlist_golden.cpp (7th cook flow: CPU point list + ListToBuffer bridge)
@@ -248,6 +251,9 @@ const SelfTest kTable[] = {
     {"mesh-transformuvs", runMeshTransformUvsGoldenSelfTest},
     {"floatlist", runFloatListSelfTest},
     {"colorstolist", runColorsToListSelfTest},
+    {"colorlist", runColorListSelfTest},
+    {"combinecolorlists", runCombineColorListsSelfTest},
+    {"readpointcolors", runReadPointColorsSelfTest},
     {"stringrail", runStringRailSelfTest},
     {"listrouting", runListRoutingSelfTest},
     {"pointlist", runPointListSelfTest},

@@ -18,6 +18,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
@@ -30,6 +31,7 @@ namespace MTL {
 class Device;
 class Library;
 class CommandQueue;
+class Buffer;
 }  // namespace MTL
 
 struct EvaluationContext;  // runtime/eval_context.h
@@ -61,6 +63,14 @@ struct ColorListCookCtx {
   // The 4 parallel scalar Float MultiInput component channels (x,y,z,w), each in wire-declaration
   // order. The vec4-as-4-floats MultiInput fork: ColorsToList zips index i across the 4 to one float4.
   const std::array<std::vector<float>, 4>* inputColorScalars = nullptr;
+  // POINTS-bag input (the point-readback rail-crossing): the already-cooked upstream Points buffer wired
+  // to a colorlist op's "Points" input port, + its point count. A ColorList op that READS a GPU point bag
+  // (ReadPointColors) gathers the .Color field (byte offset 32 of SwPoint) per point into the host color
+  // list. The bag is StorageModeShared and the upstream point op committed+waited during its own cook, so
+  // contents() is valid CPU-side here (same posture as point_ops_boundingboxpoints.cpp's CPU readback).
+  // null/0 for every colorlist op with no Points input (ColorsToList/ColorList/CombineColorLists).
+  const MTL::Buffer* inputPointsBag = nullptr;
+  uint32_t inputPointsCount = 0;
   // Driver-owned output list. The op writes via output->clear()/push_back; never allocates/frees it.
   std::vector<simd::float4>* output = nullptr;
   // RESOLVED Float params of THIS node (mirror of FloatListCookCtx::params); read via colorListParam.

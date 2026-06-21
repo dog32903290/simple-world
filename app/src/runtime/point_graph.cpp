@@ -1054,6 +1054,8 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     std::vector<std::vector<simd::float4>> inputLists;       // upstream ColorList sources (combiner future)
     std::array<std::vector<float>, 4> colorScalars;          // the 4 parallel vec4-MultiInput channels
     int compChannel = 0;  // which of x/y/z/w the next Float MultiInput port fills (component order)
+    const MTL::Buffer* pointsBag = nullptr;  // POINTS-bag input (ReadPointColors point-readback crossing)
+    uint32_t pointsCount = 0;                 // its point count
     for (size_t i = 0; i < s->ports.size(); ++i) {
       const PortSpec& port = s->ports[i];
       if (!port.isInput) continue;
@@ -1065,6 +1067,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
           inputLists.push_back(up ? *up : std::vector<simd::float4>{});
           if (!port.multiInput) break;  // single-input: first wire only
         }
+      } else if (port.dataType == "Points" && !pointsBag) {
+        // POINTS-bag gather (ReadPointColors point-readback rail-crossing): cook the upstream Points op
+        // and borrow its cooked GPU bag + count (same gather as cookCommand's Points branch). The bag is
+        // StorageModeShared and the upstream op committed+waited during its cook, so contents() is valid
+        // CPU-side by the time ReadPointColors reads .Color from it. Single-input: first wire only.
+        const Connection* c = g.connectionToInput(inPin);
+        if (c) { pointsBag = cookNode(pinNode(c->fromPin)); pointsCount = p_->outCount[flatKey(pinNode(c->fromPin))]; }
       } else if (port.dataType == "Float" && port.multiInput && compChannel < 4) {
         // One component channel of the vec4 MultiInput (Colors.x then .y then .z then .w). Aggregate all
         // wired scalar sources into this channel, wire-declaration order. An unwired channel stays empty
@@ -1081,6 +1090,8 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.ctx = &ctx; cc.nodeId = id;
     cc.inputLists = &inputLists;
     cc.inputColorScalars = &colorScalars;
+    cc.inputPointsBag = pointsBag;
+    cc.inputPointsCount = pointsCount;
     cc.output = &out;
     cc.params = nodeParams(id);
     (*fn)(cc);
