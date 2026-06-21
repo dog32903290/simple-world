@@ -661,6 +661,11 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     for (int k = 0; k < texInputCount; ++k) tc.inputTextures[k] = texInputs[k];
     tc.inputTextureCount = texInputCount;
     tc.inputTexture = texInputs[0];
+    // GRADIENT inputs (Gradient->t1 binding seam): resident mirror of the flat cookTexNode STANDARD
+    // branch — the 4 gradient generators (LinearGradient et al.) draw into ensureTex (NOT own-output),
+    // so they fall through HERE and need the gathered gradients. hasGradientInput is true ONLY for
+    // specs with a "Gradient" port (every existing tex op has none → nullptr → byte-identical).
+    tc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;
     // ASSET texture ((E)-seam phase 2): resident mirror of flat cookTexNode — decode-and-cache once,
     // bind via tc.assetTexture. Absent type = null -> byte-identical for every existing op.
     {

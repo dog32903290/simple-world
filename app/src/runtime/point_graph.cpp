@@ -796,6 +796,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     tc.inputTextureCount = texInputCount;
     tc.inputTexture = texInputs[0];  // back-compat: single-input ops (Blur) read inputTexture
     tc.inputLists = hasFloatListInput ? &floatListInputs : nullptr;  // null for every existing tex op
+    // GRADIENT inputs (Gradient->t1 binding seam): the STANDARD (non-own-output) tex branch was
+    // DROPPING the gathered gradients — only the own-output branch (GradientsToTexture) wired them.
+    // The 4 gradient generators (LinearGradient et al.) draw into a resolution-pinned ensureTex, so
+    // they fall through HERE and need the gradients. hasGradientInput is true ONLY for specs with a
+    // "Gradient" dataType port (every existing tex op has none → nullptr → byte-identical).
+    tc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;
     // ASSET texture ((E)-seam phase 2): if this op type declared an asset key, decode-and-cache it
     // ONCE (cachedAssetTexture memoizes; NO per-frame decode) and bind via tc.assetTexture. Absent
     // type = tc.assetTexture stays null -> every existing op's path is byte-identical.

@@ -32,6 +32,7 @@
 #include <cmath>
 #include <vector>
 
+#include "runtime/gradient_raster.h"            // sampleGradientRowRGBA (shared row sampler — no drift)
 #include "runtime/image_filter_op_registry.h"  // ImageFilterOp (spec+selftest+registerTexOp sinks)
 #include "runtime/point_graph.h"                // TexCookCtx, cookParam, registerTexOpOwns*
 #include "runtime/sw_gradient.h"                // SwGradient (full def — the consumed currency)
@@ -79,15 +80,10 @@ void cookGradientsToTexture(TexCookCtx& c) {
   auto tAt = [&](int i) -> float { return (float)i / (sampleCount - 1.0f); };  // :69 / :83
 
   if (useHorizontal) {
-    // Row-major: one ROW per gradient (:62-76) — outer=gradient, inner=sample.
-    for (const SwGradient& gr : *grads)
-      for (int i = 0; i < sampleCount; ++i) {
-        simd::float4 col = gr.sample(tAt(i));  // :70 (null→Zero N/A: host gradient is never null)
-        out.push_back(col.x);                  // :71-74
-        out.push_back(col.y);
-        out.push_back(col.z);
-        out.push_back(col.w);
-      }
+    // Row-major: one ROW per gradient (:62-76) — outer=gradient, inner=sample. The per-row sampling
+    // is the SHARED sampleGradientRowRGBA (same t=i/(N-1) loop the gradient generators use — single
+    // source of truth so the two can't drift; gradient_raster.h).
+    for (const SwGradient& gr : *grads) sampleGradientRowRGBA(gr, sampleCount, out);
   } else {
     // Column-major: one COLUMN per gradient (:78-93) — outer=sample, inner=gradient.
     for (int i = 0; i < sampleCount; ++i)
