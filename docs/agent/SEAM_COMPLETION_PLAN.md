@@ -23,7 +23,7 @@
 ## 1. 現狀（census 校準）
 
 ### 1.1 已建地基（六塊視覺承重根，Cut 85-99 編完，可扣除）
-point-buffer(~44/90 採) / shader-graph·field-SDF(~29/60) / context-var / cpu-upload-texture(**2/4**：ValuesToTexture+GradientsToTexture 活，Curves/Values2 未) / Layer2d+dx11-render-graph(**~70%**：DrawScreenQuad/Clear/Layer2d 核心活，blend/postfx 殘) / camera3d + mesh-pipeline(CPU 幾何 output 活，mesh-input 未)。
+point-buffer(~44/90 採) / shader-graph·field-SDF(~29/60) / context-var / cpu-upload-texture(**3/4**：ValuesToTexture+GradientsToTexture+CurvesToTexture 活，Values2 未) / Layer2d+dx11-render-graph(**~70%**：DrawScreenQuad/Clear/Layer2d 核心活，blend/postfx 殘) / camera3d + mesh-pipeline(CPU 幾何 output 活，mesh-input 未)。
 
 ### 1.2 現可採乾淨葉子＝18 顆（階段 0 立採，census 逐顆證）
 | 家族 | clean 數 | 葉子 |
@@ -85,7 +85,7 @@ sw-node-batch 一批 fan-out 18 顆（跨 5 家族，寫-leaf 不撞檔，orches
 | texture-into-points | ~14 | R2 | image→points（PointsOnImage/AttributesFromImageChannels/SamplePointColor）。Cut68 Resume 提過的 Texture2D-into-Points infra。|
 | compute-readback | ~9-13 | R2-R3 | GPU→CPU staging（JumpFloodFill/SortPoints/PointsToCPU/SortPixelGlitch）。|
 | texture-array | ~6 | R2 | image 多紋理陣列。|
-| curve | ~7 | R2 | Curve port 型別 + Animator（SampleCurve/CurvesToTexture）。|
+| **curve / curve-host** ✅seam | ~7（剩 ~5 採） | R2 | **✅ seam 建成 commit `29abced`（2026-06-21，承重 seam #9，完成 cpu-upload 3/4）。★`sw::Curve` host 型別早已存在（`curve.{h,cpp}` 1:1 TiXL，Animator 在用）→重用不重寫**。deliverable=CurvesToTexture（own-tex R32F，rail 仿 GradientsToTexture）+ SampleCurve（value-rail，仿 SampleGradient）。core 改：`point_graph_resident.cpp` resident own-tex gate 拓寬 `(hasGradientInput\|\|hasCurveInput)`；`point_graph.h` TexCookCtx::inputCurves。Opus refuter MERGE-SAFE 7 向量（gate neutralize 雙證 load-bearing+零回歸；resident 非 theater）。**剩 ~5 curve consumer 待 Phase C 採**（CombineMaterialChannels/SetAttributesWithPointFields/SamplePointsByCameraDistance…；多需先有 Curve **producer** op，現無 wire 載 curve→延後或建 producer）。fork：r32-only（grayscale RGBA32 toggle 延後）/embedded-default-curve（無 producer，cook .t3 default，refuter 證 resident 真活）。|
 | stateful-value 擴 | ~4 | R2 | per-instance 跨幀 buffer（CountInt/FlipBool 等，seam 已建升風險）。|
 | source-op | ~3 | R1 | LoadImage（decoder 已建，差 path-watcher）。|
 | RWStructuredBuffer | ~7 | R2-R3 | Verlet/Reconstructive force。|
