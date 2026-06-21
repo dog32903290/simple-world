@@ -92,6 +92,8 @@ namespace sw { int runStringRailSelfTest(bool); }                // string_rail_
 namespace sw { int runListRoutingSelfTest(bool); }               // list_routing_golden.cpp (FloatList→Float bridge: downstream evalFloat)
 namespace sw { int runPointListSelfTest(bool); }                 // pointlist_golden.cpp (7th cook flow: CPU point list + ListToBuffer bridge)
 namespace sw { int runGradientSelfTest(bool); }                  // gradient_golden.cpp (8th cook flow: SwGradient::sample byte-vs-TiXL)
+namespace sw { int runPickGradientSelfTest(bool); }              // gradient_ops_pickgradient.cpp (MultiInput Gradient select)
+namespace sw { int runBlendGradientsSelfTest(bool); }            // gradient_ops_blendgradients.cpp (2-gradient cross-merge)
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
@@ -248,6 +250,8 @@ const SelfTest kTable[] = {
     {"listrouting", runListRoutingSelfTest},
     {"pointlist", runPointListSelfTest},
     {"gradient", runGradientSelfTest},
+    {"pickgradient", runPickGradientSelfTest},
+    {"blendgradients", runBlendGradientsSelfTest},
     {"cropresident", runResidentCropSelfTest},
     {"fastblurresident", runResidentFastBlurSelfTest},
     {"rgbtvresident", runResidentRgbTvSelfTest},

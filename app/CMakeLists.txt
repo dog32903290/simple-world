@@ -286,6 +286,9 @@ add_executable(simple_world
   src/valuestotexture_golden.cpp
   src/runtime/gradient_op_registry.cpp
   src/runtime/gradient_ops_definegradient.cpp
+  src/runtime/gradient_ops_pickgradient.cpp
+  src/runtime/gradient_ops_blendgradients.cpp
+  src/runtime/gradient_ops_defineiqgradient.cpp
   src/gradient_golden.cpp
   src/keeppreviousframe_golden.cpp
   src/swaptextures_golden.cpp
