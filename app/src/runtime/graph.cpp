@@ -181,11 +181,35 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
   }
   if (!s->evaluate) return 0.0f;
   // Gather Float input values in port order (only Float inputs contribute to in[]).
-  // Cap 16 (was 8): RemapVec2 has 11 Float inputs (5 Vec2 + Mode); the resident gather already
-  // expanded to 32 (batch26 MultiInput), so the legacy flat path matches that headroom additively.
-  float in[16];
+  //
+  // Cap kMaxFloatIn = 32 (was 16, was 8). Survey of every value-op NodeSpec's Float-input count
+  // (node_registry_*.cpp + value_op_*.cpp) gives MAX = 19 (PerlinNoise3: 4 scalars + 5 Vec3 ×3 +
+  // BiasAndGain ×2), next PerlinNoise2 = 15, OscillateVec3 = 14, Camera = 13, RemapVec2 = 11.
+  // 16 SILENTLY TRUNCATED PerlinNoise3 (19 > 16) → it read garbage tail floats / hit its own
+  // n<19 guard and returned 0 on every output with NO error: dead-on-arrival, masked as 0==0.
+  // 32 covers the max (19) with comfortable headroom for the next wide op (any all-Vec4 combiner)
+  // and is 128 bytes of stack — free. The number is centralised so a future bump touches one line.
+  constexpr int kMaxFloatIn = 32;
+  // ★LOUD GUARD (the real lesson — silent truncation is self-deception). Count this spec's Float
+  // inputs UP FRONT; if it exceeds the cap, do NOT quietly gather a prefix and hand a too-short n[]
+  // to evaluate(). Emit an error and return a NaN sentinel: NaN != any finite want, so EVERY golden
+  // assertion on this op flips RED (NaN-aware: std::fabs(NaN - want) is NaN, never < eps) instead of
+  // a 0 that can collide with a 0-valued expected pin. The fix on tripping this is to raise the cap.
+  {
+    int floatIn = 0;
+    for (const PortSpec& p : s->ports)
+      if (p.isInput && p.dataType == "Float") ++floatIn;
+    if (floatIn > kMaxFloatIn) {
+      std::fprintf(stderr,
+                   "[evalFloat] FATAL: node type '%s' has %d Float inputs, exceeds gather cap %d "
+                   "— raise kMaxFloatIn in graph.cpp. Returning NaN (was silent truncation).\n",
+                   n->type.c_str(), floatIn, kMaxFloatIn);
+      return NAN;  // bites every golden; never silently truncate to 0 again
+    }
+  }
+  float in[kMaxFloatIn];
   int ni = 0;
-  for (size_t i = 0; i < s->ports.size() && ni < 16; ++i) {
+  for (size_t i = 0; i < s->ports.size() && ni < kMaxFloatIn; ++i) {
     const PortSpec& p = s->ports[i];
     if (!(p.isInput && p.dataType == "Float")) continue;
     int inPin = pinId(nodeId, (int)i);

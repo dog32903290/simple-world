@@ -7,7 +7,17 @@
 #include "runtime/graph.h"     // NodeSpec / findSpec / PortSpec
 #include "runtime/Particle.h"  // full EvaluationContext definition (graph.h only forward-decls it)
 
+#include <cmath>   // NAN sentinel — the over-cap guard returns NaN (mirror of flat graph.cpp)
+#include <cstdio>  // std::fprintf — the LOUD over-cap diagnostic (mirror of flat graph.cpp)
+
 namespace sw {
+
+// ★ MUST STAY IN SYNC with graph.cpp's evalFloat kMaxFloatIn (currently 32). The flat gather
+// (graph.cpp::evalFloat) and this PRODUCTION resident gather (evalResidentFloat) MUST cap Float
+// inputs identically + guard identically, or a >cap op NaN-bites the flat golden while silently
+// truncating in production (an inverse-R-2 trap). graph.cpp keeps its own function-local
+// constexpr (it cannot include this header without a dependency cycle); when one bumps, bump both.
+constexpr int kMaxFloatIn = 32;
 
 const ResidentInput* ResidentNode::input(const std::string& slotId) const {
   for (const ResidentInput& i : inputs)
@@ -75,12 +85,35 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
     return 0.0f;
   }
 
-  // Gather Float input values in spec port order (mirrors flat evalFloat). in[32]: a MultiInput
-  // port (批次25 seam) expands its primary + every extraConn into consecutive in[] slots, so a
-  // reducer (Sum) can take many sources — 32 caps it (silently truncates beyond, like the old 8).
-  float in[32];
+  // Gather Float input values in spec port order (mirrors flat evalFloat). in[kMaxFloatIn]: a
+  // MultiInput port (批次25 seam) expands its primary + every extraConn into consecutive in[]
+  // slots, so a reducer (Sum) can take many sources — kMaxFloatIn caps it.
+  //
+  // ★LOUD GUARD (mirror of graph.cpp::evalFloat — flat and production must fail IDENTICALLY).
+  // Count this spec's Float inputs UP FRONT; if it exceeds the cap, do NOT quietly gather a prefix
+  // and hand a too-short in[]/ni to evaluate() (the old behaviour silently truncated beyond the
+  // cap — self-deception). Emit the SAME error + return the SAME NaN sentinel as the flat path:
+  // NaN != any finite want, so EVERY golden on this op flips RED (NaN-aware: std::fabs(NaN - want)
+  // is NaN, never < eps). The fix on tripping this is to raise kMaxFloatIn in BOTH places.
+  // NOTE: this counts spec Float INPUT PORTS; a MultiInput port that expands past the cap at
+  // RUNTIME is still bounded by the `ni < kMaxFloatIn` loop guard below (same as flat), but the
+  // common >cap case (a wide op like PerlinNoise3's 19 inputs) is caught loudly here.
+  {
+    int floatIn = 0;
+    for (const PortSpec& p : s->ports)
+      if (p.isInput && p.dataType == "Float") ++floatIn;
+    if (floatIn > kMaxFloatIn) {
+      std::fprintf(stderr,
+                   "[evalResidentFloat] FATAL: node type '%s' has %d Float inputs, exceeds gather "
+                   "cap %d — raise kMaxFloatIn (graph.cpp + resident_eval_graph.cpp, kept in sync). "
+                   "Returning NaN (was silent truncation).\n",
+                   n->opType.c_str(), floatIn, kMaxFloatIn);
+      return NAN;  // bites every golden; never silently truncate to a wrong value again
+    }
+  }
+  float in[kMaxFloatIn];
   int ni = 0;
-  for (size_t i = 0; i < s->ports.size() && ni < 32; ++i) {
+  for (size_t i = 0; i < s->ports.size() && ni < kMaxFloatIn; ++i) {
     const PortSpec& p = s->ports[i];
     if (!(p.isInput && p.dataType == "Float")) continue;
     const ResidentInput* ri = n->input(p.id);
@@ -105,7 +138,7 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
     // MultiInput: append the extra wired sources (always Connection producers) after the primary.
     if (p.multiInput && ri) {
       for (const auto& ec : ri->extraConns) {
-        if (ni >= 32) break;
+        if (ni >= kMaxFloatIn) break;
         in[ni++] = evalResidentFloat(g, ec.first, ec.second, ctx, depth + 1);
       }
     }
