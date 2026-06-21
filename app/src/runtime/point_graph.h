@@ -32,6 +32,7 @@ class Texture;
 struct EvaluationContext;  // runtime/eval_context.h (full def in point_graph.cpp)
 struct SwPoint;            // runtime/tixl_point.h (64B host point; full def where the cook includes it)
 namespace sw { struct SwGradient; }  // runtime/sw_gradient.h (host Gradient; full def where the op includes it)
+namespace sw { class Curve; }        // runtime/curve.h (host Curve currency; full def where the op includes it)
 
 namespace sw {
 
@@ -177,6 +178,14 @@ struct TexCookCtx {
   // null for every existing tex op (no Gradient input → byte-identical path). Borrowed (driver-owned).
   // Forward-declared as a vector of SwGradient (full def via sw_gradient.h where the op includes it).
   const std::vector<SwGradient>* inputGradients = nullptr;
+  // CURVE inputs (the animation-curve cook flow rail-crossing): the already-cooked upstream Curve inputs
+  // of a tex op that has "Curve" input ports (CurvesToTexture), in spec port order with MultiInput ports
+  // expanded into wire-declaration order — same gather contract as inputGradients. null for every existing
+  // tex op (no Curve input → byte-identical path). Borrowed (driver-owned); never retained. There is NO
+  // Curve PRODUCER op yet, so the cook driver does not populate this in production (CurvesToTexture falls
+  // back to its embedded default Curve); the field exists so (a) a golden can inject curves and (b) a
+  // future Curve producer can wire in without a TexCookCtx ABI change. (Curve = the host currency, curve.h.)
+  const std::vector<Curve>* inputCurves = nullptr;
   // OWN-TEXTURE staging (Slice B, the tex-output fork): an op that allocates its OWN data-sized,
   // non-RGBA8 texture (ValuesToTexture: R32Float) does NOT use `output` (which is the ensureTex
   // RGBA8/resolution-pinned texture). Instead it computes its dims + writes its host float buffer here;
