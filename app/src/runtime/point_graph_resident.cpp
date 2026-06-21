@@ -610,12 +610,34 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     // so the own-tex resident branch below fires for CurvesToTexture (which reads its embedded default
     // Curve internally). When a Curve producer lands, a cookResidentCurve gather mirrors the gradient one.
     bool hasCurveInput = false;
+    // FLOATLIST inputs (the 5th cook flow rail-crossing, ValuesToTexture/ValuesToTexture2): a tex op with
+    // a "FloatList" input port gathers its upstream host lists THROUGH the resident FloatList walker
+    // (cookResidentFloatList — the resident twin of the flat cookFloatListNode), in spec port order with
+    // MultiInput ports expanded into wire-declaration order. Empty for every other tex op (no FloatList
+    // port → tc.inputLists null → byte-identical). UNWIRED FloatList input contributes no list (mirror of
+    // the flat gather: VT2's slot-default is the empty list → no texture, faithful to ValuesToTexture2.cs).
+    std::vector<std::vector<float>> floatListInputs;
+    bool hasFloatListInput = false;
     for (const PortSpec& port : s->ports) {
       if (!port.isInput) continue;
       if (port.dataType == "Curve") hasCurveInput = true;
       const ResidentInput* ri = n->input(port.id);
       bool wired = ri && ri->driver == ResidentInput::Driver::Connection;
-      if (port.dataType == "Command") {
+      if (port.dataType == "FloatList") {
+        hasFloatListInput = true;
+        if (wired) {
+          std::vector<float> up;
+          cookResidentFloatList(rg, ri->srcNodePath, rc, up, depth + 1);
+          floatListInputs.push_back(std::move(up));
+          if (port.multiInput) {
+            for (const auto& ec : ri->extraConns) {
+              std::vector<float> ue;
+              cookResidentFloatList(rg, ec.first, rc, ue, depth + 1);
+              floatListInputs.push_back(std::move(ue));
+            }
+          }
+        }
+      } else if (port.dataType == "Command") {
         if (!wired) continue;
         RenderCommand up = cookCommand(ri->srcNodePath, depth + 1);
         chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
@@ -647,15 +669,16 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     // texBuf). Resident mirror of the flat cookTexNode own-tex branch — makes the Gradient→texture
     // family LIVE on the production cookResident path (R-2 rule).
     //
-    // GATED on (hasGradientInput || hasCurveInput), NOT on texOpOwnsOutput alone, deliberately:
-    // ValuesToTexture is ALSO an own-tex op but its currency is FloatList, and this TU has no resident
-    // FloatList walker (cookResidentFloatList is file-local to resident_host_scalar_cook.cpp). Gating on
-    // the host-currency input keeps ValuesToTexture's PRIOR resident behaviour byte-identical (it falls
-    // through to ensureTex; its cook early-returns on null ownTexHost — unchanged, zero regression).
-    // GradientsToTexture (Gradient currency) + CurvesToTexture (Curve currency) take this branch → both
-    // LIVE on the production cookResident path (R-2 rule). CurvesToTexture reads its embedded default
-    // Curve (no producer to wire), so its inputCurves stays null here (faithful — see the op's fork note).
-    if (texOpOwnsOutput(n->opType) && (hasGradientInput || hasCurveInput)) {
+    // GATED on (hasGradientInput || hasCurveInput || hasFloatListInput), NOT on texOpOwnsOutput alone:
+    // the gate fires only for own-tex ops whose HOST CURRENCY can be gathered through a resident walker.
+    //   • Gradient currency (GradientsToTexture) → cookResidentGradient
+    //   • Curve currency    (CurvesToTexture)    → embedded default (no producer yet)
+    //   • FloatList currency (ValuesToTexture / ValuesToTexture2) → cookResidentFloatList (now exported
+    //     from resident_host_scalar_cook.cpp via resident_eval_graph.h). This LANDS the FloatList own-tex
+    //     family on the production cookResident path (R-2 rule), replacing the prior flat-only behaviour.
+    // An own-tex op with NONE of these inputs (none exist today) still falls through to ensureTex below
+    // (its cook early-returns on null ownTexHost → unchanged), so this stays byte-identical for them.
+    if (texOpOwnsOutput(n->opType) && (hasGradientInput || hasCurveInput || hasFloatListInput)) {
       std::vector<float> hostOut;
       uint32_t ow = 0, oh = 0;
       TexCookCtx tc;
@@ -663,6 +686,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       tc.ctx = &ctx; tc.graph = nullptr; tc.reg = reg;
       tc.nodeId = 0; tc.command = &chain;
       tc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;
+      tc.inputLists = hasFloatListInput ? &floatListInputs : nullptr;
       // inputCurves stays null: no Curve producer exists, so CurvesToTexture uses its embedded default.
       tc.ownTexHost = &hostOut; tc.ownTexW = &ow; tc.ownTexH = &oh;
       tc.params = tp;

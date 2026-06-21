@@ -52,6 +52,8 @@ namespace {
 
 constexpr int kResidentFloatListDepthCap = 64;  // same cycle guard as evalResidentFloat / cookResident
 
+}  // namespace
+
 // Cook ONE upstream FloatList-producing resident node into `out` (host list), gathering its inputs
 // THROUGH the resident graph. Mirror of the flat cookFloatListNode (point_graph.cpp:633) but walking
 // ResidentInput drivers instead of flat Graph connections:
@@ -119,8 +121,6 @@ bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
   (*fn)(fc);
   return true;
 }
-
-}  // namespace
 
 void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
   for (ResidentNode& rn : g.nodes) {

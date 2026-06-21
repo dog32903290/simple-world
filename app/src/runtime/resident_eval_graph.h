@@ -158,6 +158,16 @@ std::map<std::string, float> resolveResidentFloatInputs(const ResidentEvalGraph&
                                                         const ResidentNode& n,
                                                         const ResidentEvalCtx& ctx);
 
+// Cook ONE upstream FloatList-producing resident node (FloatsToList, …) into `out`, gathering its
+// inputs THROUGH the resident Connection drivers (mirror of the flat cookFloatListNode). Returns false
+// when `path` is not a FloatList producer (caller treats it as an empty list). Exposed (defined in
+// resident_host_scalar_cook.cpp) so the resident tex-cook own-tex branch (point_graph_resident.cpp) can
+// gather the FloatList currency for ValuesToTexture/ValuesToTexture2 — the FloatList twin of the
+// in-scope cookResidentGradient/cookResidentCurve gathers (makes the FloatList own-tex family LIVE on
+// the production cookResident path, R-2 rule).
+bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
+                           const ResidentEvalCtx& ctx, std::vector<float>& out, int depth = 0);
+
 // Per-frame PRODUCTION cook for the FloatList→Float BRIDGE (list-routing seam). Walks the resident
 // graph, cooks every FloatList host-scalar op (FloatListLength / PickFloatFromList) by gathering its
 // upstream FloatList inputs THROUGH the resident Connection drivers, and writes the scalar onto the
