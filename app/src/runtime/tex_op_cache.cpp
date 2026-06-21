@@ -19,6 +19,13 @@ std::map<PSOKey, MTL::RenderPipelineState*>& psoCache() {
   return c;
 }
 
+// Additive-blend PSO cache: same (vs,fs,fmt) key but a SEPARATE table so the additive variant never
+// collides with the non-additive PSO for the same triple (Bloom upsample-add needs blending ON).
+std::map<PSOKey, MTL::RenderPipelineState*>& psoBlendAddCache() {
+  static std::map<PSOKey, MTL::RenderPipelineState*> c;
+  return c;
+}
+
 // Source-PSO cache: keyed by the assembled MSL's srcHash (FNV-1a). Stores the PSO and the backing
 // runtime-compiled Library together so both are released on teardown (the Library outlives PSO
 // creation only as the function source; we keep it owned by the cache for symmetry/clean release).
@@ -68,6 +75,42 @@ MTL::RenderPipelineState* cachedTexPSO(MTL::Device* dev, MTL::Library* lib, cons
     rpd->setVertexFunction(vs);
     rpd->setFragmentFunction(fs);
     rpd->colorAttachments()->object(0)->setPixelFormat((MTL::PixelFormat)fmt);
+    NS::Error* err = nullptr;
+    rps = dev->newRenderPipelineState(rpd, &err);
+    rpd->release();
+  }
+  if (vs) vs->release();
+  if (fs) fs->release();
+  if (rps) cache[key] = rps;  // only cache a successful build (nullptr is retried next call)
+  return rps;
+}
+
+MTL::RenderPipelineState* cachedTexPSOBlendAdd(MTL::Device* dev, MTL::Library* lib,
+                                               const char* vsName, const char* fsName,
+                                               TexPixelFormat fmt) {
+  if (!dev || !lib) return nullptr;
+  PSOKey key{vsName, fsName, (uint64_t)fmt};
+  auto& cache = psoBlendAddCache();
+  auto it = cache.find(key);
+  if (it != cache.end()) return it->second;  // built before -> reuse
+
+  MTL::Function* vs = lib->newFunction(NS::String::string(vsName, NS::UTF8StringEncoding));
+  MTL::Function* fs = lib->newFunction(NS::String::string(fsName, NS::UTF8StringEncoding));
+  MTL::RenderPipelineState* rps = nullptr;
+  if (vs && fs) {
+    MTL::RenderPipelineDescriptor* rpd = MTL::RenderPipelineDescriptor::alloc()->init();
+    rpd->setVertexFunction(vs);
+    rpd->setFragmentFunction(fs);
+    auto* ca = rpd->colorAttachments()->object(0);
+    ca->setPixelFormat((MTL::PixelFormat)fmt);
+    // Additive: dst = src*1 + dst*1 (One,One) for both rgb and alpha — TiXL AdditiveBlendState.
+    ca->setBlendingEnabled(true);
+    ca->setSourceRGBBlendFactor(MTL::BlendFactorOne);
+    ca->setDestinationRGBBlendFactor(MTL::BlendFactorOne);
+    ca->setRgbBlendOperation(MTL::BlendOperationAdd);
+    ca->setSourceAlphaBlendFactor(MTL::BlendFactorOne);
+    ca->setDestinationAlphaBlendFactor(MTL::BlendFactorOne);
+    ca->setAlphaBlendOperation(MTL::BlendOperationAdd);
     NS::Error* err = nullptr;
     rps = dev->newRenderPipelineState(rpd, &err);
     rpd->release();
@@ -161,6 +204,9 @@ void clearTexOpCache() {
   for (auto& kv : psoCache())
     if (kv.second) kv.second->release();
   psoCache().clear();
+  for (auto& kv : psoBlendAddCache())
+    if (kv.second) kv.second->release();
+  psoBlendAddCache().clear();
   for (auto& kv : computePsoCache())
     if (kv.second) kv.second->release();
   computePsoCache().clear();

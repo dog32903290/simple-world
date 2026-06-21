@@ -39,6 +39,16 @@ using TexPixelFormat = uint64_t;
 MTL::RenderPipelineState* cachedTexPSO(MTL::Device* dev, MTL::Library* lib, const char* vsName,
                                        const char* fsName, TexPixelFormat fmt);
 
+// Cached ADDITIVE-BLEND render PSO for a (vertexFn, fragmentFn, colorPixelFormat) triple. Same as
+// cachedTexPSO but with colorAttachments[0] blending ENABLED, src=One dst=One (additive) for BOTH
+// rgb and alpha — the Bloom upsample-add passes accumulate each blurred level into the composite
+// target (TiXL DefaultRenderingStates.AdditiveBlendState, _ExecuteBloomPasses.cs:227). Keyed
+// separately from cachedTexPSO (a distinct internal key suffix) so the additive and non-additive PSOs
+// for the same fns/format never collide. Built once, reused forever (device-global). The cache OWNS
+// the PSO (no caller release). Dropped by clearTexOpCache().
+MTL::RenderPipelineState* cachedTexPSOBlendAdd(MTL::Device* dev, MTL::Library* lib, const char* vsName,
+                                               const char* fsName, TexPixelFormat fmt);
+
 // Cached render PSO for a RUNTIME-COMPILED MSL SOURCE STRING (the field shader-graph island — the
 // one path whose MSL does not exist until assembleFieldMSL builds it, so it cannot be precompiled).
 // Keyed by the source's FNV-1a hash (srcHash from runtime::assembleFieldMSL) so the SAME assembled
