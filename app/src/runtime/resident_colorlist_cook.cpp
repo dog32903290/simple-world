@@ -52,7 +52,8 @@ constexpr int kResidentColorListDepthCap = 64;  // same cycle guard as evalResid
 //     zips index i across the 4 channels into one float4.
 // Returns false if `path` is not a ColorList producer / unknown (caller treats as an empty list).
 bool cookResidentColorList(const ResidentEvalGraph& g, const std::string& path,
-                           const ResidentEvalCtx& ctx, std::vector<simd::float4>& out, int depth) {
+                           const ResidentEvalCtx& ctx, std::vector<simd::float4>& out, int depth,
+                           std::vector<simd::float4>* state) {
   out.clear();
   if (depth > kResidentColorListDepthCap) return false;
   const ResidentNode* n = g.node(path);
@@ -71,12 +72,12 @@ bool cookResidentColorList(const ResidentEvalGraph& g, const std::string& path,
     if (port.dataType == "ColorList") {
       if (ri && ri->driver == ResidentInput::Driver::Connection) {
         std::vector<simd::float4> up;
-        cookResidentColorList(g, ri->srcNodePath, ctx, up, depth + 1);
+        cookResidentColorList(g, ri->srcNodePath, ctx, up, depth + 1, /*state=*/nullptr);
         inputLists.push_back(std::move(up));
         if (port.multiInput) {
           for (const auto& ec : ri->extraConns) {
             std::vector<simd::float4> ue;
-            cookResidentColorList(g, ec.first, ctx, ue, depth + 1);
+            cookResidentColorList(g, ec.first, ctx, ue, depth + 1, /*state=*/nullptr);
             inputLists.push_back(std::move(ue));
           }
         }
@@ -94,6 +95,11 @@ bool cookResidentColorList(const ResidentEvalGraph& g, const std::string& path,
     }
   }
 
+  // RESOLVED Float params of THIS node — the SAME value spine the flat path's nodeParams supplies, mirror
+  // of resident_host_scalar_cook.cpp:166. ColorsToList reads none (empty map → byte-identical); KeepColors
+  // reads MaxLength/AddColorToList/Reset/Color.x..w here. Resolved unconditionally (cheap; one map walk).
+  std::map<std::string, float> params = resolveResidentFloatInputs(g, *n, ctx);
+
   ColorListCookCtx cc;
   cc.dev = nullptr; cc.lib = nullptr; cc.queue = nullptr;  // host-only ops (ColorsToList) ignore these
   cc.ctx = nullptr;
@@ -101,12 +107,17 @@ bool cookResidentColorList(const ResidentEvalGraph& g, const std::string& path,
   cc.inputLists = &inputLists;
   cc.inputColorScalars = &colorScalars;
   cc.output = &out;
-  cc.params = nullptr;  // ColorsToList reads no Float params; a future param-driven list op needs a map
+  cc.params = &params;  // ColorsToList ignores it (no Float params); KeepColors reads its scalars from it
+  // Per-node CROSS-FRAME accumulator (KeepColors's `_list`): the caller (cookColorListNodes) supplies the
+  // resident-path-keyed slot from s_colorListState (mirror of s_svState). null for a stateless op / a
+  // single-frame golden path → KeepColors then sees an empty accumulator (still faithful for frame 0).
+  cc.state = state;
   (*fn)(cc);
   return true;
 }
 
-void cookColorListNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
+void cookColorListNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
+                        std::map<std::string, std::vector<simd::float4>>& state) {
   for (ResidentNode& rn : g.nodes) {
     const ColorListCookFn* fn = findColorListOp(rn.opType);
     if (!fn || !*fn) continue;  // not a colorlist op
@@ -114,9 +125,13 @@ void cookColorListNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
     if (!s) continue;
 
     // Cook the host color list through the resident graph (cookResidentColorList gathers the resident
-    // Connection drivers — the SAME walk the flat cookColorListNode does over flat connections).
+    // Connection drivers — the SAME walk the flat cookColorListNode does over flat connections). The
+    // per-node CROSS-FRAME accumulator slot (KeepColors's `_list`) is keyed by resident path in `state`
+    // (the s_colorListState static frame_cook.cpp threads — mirror of s_svState); operator[] default-
+    // creates the empty list on first cook (= TiXL's `_list = []` field default, KeepColors.cs:46). A
+    // stateless op ignores its slot, so the entry stays empty (no behaviour change, no cross-frame leak).
     std::vector<simd::float4> list;
-    cookResidentColorList(g, rn.path, ctx, list, 0);
+    cookResidentColorList(g, rn.path, ctx, list, 0, &state[rn.path]);
 
     // Write onto the colorlist op's MAIN ColorList output port. Find its port index (the channel the
     // resident eval / a downstream consumer reads). ColorsToList has exactly one "ColorList" output.

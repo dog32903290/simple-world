@@ -194,8 +194,13 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 // future combiner); the 4 PARALLEL scalar Float MultiInput component ports (Colors.x/.y/.z/.w) gather
 // their wired scalars via evalResidentFloat per channel, then the leaf zips index i across the 4 into
 // one float4. Returns false when `path` is not a ColorList producer (caller treats it as empty).
+// `state` (optional) = THIS node's per-node CROSS-FRAME accumulator (KeepColors's `_list`). Supplied by
+// cookColorListNodes (keyed by resident path, the s_colorListState static — mirror of s_svState) ONLY for
+// the top node it cooks; recursive upstream gathers pass null (upstream producers are stateless). A
+// stateless op ignores it → byte-identical.
 bool cookResidentColorList(const ResidentEvalGraph& g, const std::string& path,
-                           const ResidentEvalCtx& ctx, std::vector<simd::float4>& out, int depth = 0);
+                           const ResidentEvalCtx& ctx, std::vector<simd::float4>& out, int depth = 0,
+                           std::vector<simd::float4>* state = nullptr);
 
 // Per-frame PRODUCTION cook for the COLORLIST currency (vec4-list cook flow). Walks the resident graph,
 // cooks every colorlist op (ColorsToList) by gathering its inputs THROUGH the resident Connection
@@ -205,7 +210,14 @@ bool cookResidentColorList(const ResidentEvalGraph& g, const std::string& path,
 // running app (frame_cook.cpp calls it once per frame, same slot as cookHostScalarNodes). Mutates g
 // (writes extColorOut, like cookHostScalarNodes writes extOut). Pure CPU, no Metal. R-2 rule: the
 // colorlist currency is GENUINELY on the production resident path, not flat-only.
-void cookColorListNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+//
+// `state` = the PER-NODE CROSS-FRAME accumulator store (KeepColors's `_list`), keyed by resident path,
+// owned by the caller as a function-local static (frame_cook.cpp's s_colorListState) — the EXACT mirror
+// of cookStatefulValueNodes's s_svState (frame_cook.cpp:337). It SURVIVES between frames so KeepColors
+// accumulates on the PRODUCTION resident path (R-2: not flat-only). Stateless colorlist ops never touch
+// their slot. Pass an empty map for a single-frame caller (a stateless golden) — the slot default-creates.
+void cookColorListNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
+                        std::map<std::string, std::vector<simd::float4>>& state);
 
 // --- batch 1b cache API (resident_eval_cache.cpp) ---
 // Populate each node's per-output cache (one entry per NodeSpec output port) and mark live

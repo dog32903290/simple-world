@@ -116,6 +116,14 @@ struct PointGraph::Impl {
   // channel's transport store; the vec4 twin of floatListBuf (ColorsToList is its first producer).
   std::map<std::string, std::vector<simd::float4>> colorListBuf;  // key -> host color (float4) list
 
+  // Per-node CROSS-FRAME COLORLIST state (the colorlist twin of feedbackToggle/feedbackTexBuf:139-153).
+  // A host color list that PERSISTS between cooks on the FLAT path — the only cross-frame state on the
+  // colorlist rail. KeepColors's `_list` accumulator (KeepColors.cs:46) lives here, keyed flatKey(id),
+  // so Insert(0,...)/RemoveRange survive frame→frame (every other colorlist map is single-frame). A
+  // stateless colorlist op never touches it. The resident path keeps the SAME state per resident path in
+  // the s_colorListState static cookColorListNodes threads (frame_cook.cpp) — mirror of s_svState.
+  std::map<std::string, std::vector<simd::float4>> colorListState;  // key -> persistent accumulator
+
   // Per-node STRING output (the 6th cook flow = TiXL Slot<string>). A HOST-side value string that
   // rides between String ports — NOT a GPU buffer, so (like floatListBuf) there is NO Metal
   // allocation and NO pre-sizing (the string self-sizes; the op assigns it). Keyed by flat id or

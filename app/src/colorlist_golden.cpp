@@ -19,6 +19,7 @@
 // last color) on BOTH legs — teeth on the actual op path, not the expected value (mirror floatlist_golden).
 #include <cmath>
 #include <cstdio>
+#include <map>
 #include <vector>
 
 #include <simd/simd.h>
@@ -103,7 +104,8 @@ std::vector<simd::float4> cookResident(const std::vector<simd::float4>& colors) 
   ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
   ResidentEvalCtx rc;
   rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
-  cookColorListNodes(rg, rc);  // PRODUCTION pass: walks the resident graph, writes extColorOut
+  std::map<std::string, std::vector<simd::float4>> clState;  // single-frame: fresh accumulator store
+  cookColorListNodes(rg, rc, clState);  // PRODUCTION pass: walks the resident graph, writes extColorOut
   const ResidentNode* n = rg.node("1");  // ColorsToList resident path == flat node id "1"
   if (!n) return {};
   auto it = n->extColorOut.find(/*out port idx*/ 4);

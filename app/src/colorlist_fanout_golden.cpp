@@ -90,7 +90,8 @@ std::vector<simd::float4> readResident(const Graph& g) {
   ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
   ResidentEvalCtx rc;
   rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
-  cookColorListNodes(rg, rc);
+  std::map<std::string, std::vector<simd::float4>> clState;  // single-frame: fresh accumulator store
+  cookColorListNodes(rg, rc, clState);
   const ResidentNode* n = rg.node("1");
   if (!n) return {};
   // terminal's ColorList output port idx: ColorList op is "out" — find its port index dynamically.

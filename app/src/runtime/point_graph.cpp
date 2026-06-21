@@ -564,6 +564,16 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // std::function breaks the self-recursion ordering (a ColorList consumer ← upstream ColorList
   // producer). Mirror of cookFloatListNode over simd::float4.
   std::function<const std::vector<simd::float4>*(int)> cookColorListNode;
+  // Per-frame COLORLIST memo (cook each colorlist node at most ONCE per frame) — the flat twin of the
+  // Points-path `cooked` memo (this file:348) and the resident path's top-loop-vs-recursion split
+  // (resident_colorlist_cook.cpp:75,80 passes state=nullptr on the recursive ColorList gather so only
+  // the top loop runs the stateful cook). WHY: a stateful colorlist op (KeepColors, the only one) feeding
+  // a fan-out/diamond (e.g. CombineColorLists MultiInput on two wires) was re-cooked once PER CONSUMING
+  // WIRE → its cross-frame Insert ran N times/frame → accumulator grew N/frame instead of 1. The memo
+  // caches the cooked output pointer the first time a node cooks this frame; later consumers read the
+  // cache (no second stateful Insert). A stateless op is byte-identical either way (it never touches
+  // state); this only changes the stateful-op-under-fan-out case the golden's diamond leg pins.
+  std::map<int, const std::vector<simd::float4>*> colorListCooked;
   // (cookGradientNode is forward-declared ABOVE cookNode now — moved up so cookNode's Gradient gather
   // for the bake-into-point seam can call it. cookTexNode's GradientsToTexture rail-crossing uses the
   // same variable; its body is assigned further below.)
@@ -1050,6 +1060,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     if (!s) return nullptr;
     const ColorListCookFn* fn = findColorListOp(n->type);
     if (!fn || !*fn) return nullptr;
+    // Per-frame memo: if this node already cooked this frame, return the cached output (do NOT re-run the
+    // op — re-running a stateful op like KeepColors would double its cross-frame Insert under fan-out).
+    if (auto it = colorListCooked.find(id); it != colorListCooked.end()) return it->second;
 
     std::vector<std::vector<simd::float4>> inputLists;       // upstream ColorList sources (combiner future)
     std::array<std::vector<float>, 4> colorScalars;          // the 4 parallel vec4-MultiInput channels
@@ -1094,6 +1107,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.inputPointsCount = pointsCount;
     cc.output = &out;
     cc.params = nodeParams(id);
+    // Per-node CROSS-FRAME state slot (KeepColors's accumulator): the SAME PointGraph instance is reused
+    // across frames, so colorListState[flatKey(id)] persists between cook() calls (the flat twin of the
+    // resident s_colorListState). A stateless colorlist op ignores it. operator[] default-creates the
+    // empty list on first cook (matches TiXL's `_list = []` field default, KeepColors.cs:46).
+    cc.state = &p_->colorListState[flatKey(id)];
+    colorListCooked[id] = &out;  // memo BEFORE the op runs (cycle guard parity w/ Points `cooked`; out is stable)
     (*fn)(cc);
     return &out;
   };

@@ -5,6 +5,9 @@
 #include <map>
 #include <string>
 #include <unordered_set>
+#include <vector>
+
+#include <simd/simd.h>  // simd::float4 (s_colorListState — KeepColors's cross-frame accumulator store)
 
 #include "app/audio_monitor.h"            // live spectrum snapshot (DSP fed by capture)
 #include "app/document.h"                 // g_lib + libRevision (projection contract)
@@ -362,7 +365,12 @@ void run(PointGraph& pg, const std::string& targetPath) {
     // upstream component scalars through the resident Connection drivers, and writes the host color list
     // onto extColorOut so a downstream resident colorlist consumer reads the real production list (NOT
     // flat-only — the R-2 rule; resident_colorlist_cook.cpp). Reuses hsCtx (same resident eval clocks).
-    cookColorListNodes(g_residentGraph, hsCtx);
+    // s_colorListState = the per-node CROSS-FRAME accumulator store (KeepColors's `_list`), keyed by
+    // resident path — function-local static, the EXACT mirror of s_svState/s_arState above. It survives
+    // between frames so KeepColors accumulates on the PRODUCTION path; a stateless colorlist op never
+    // touches its slot (so this static stays empty for a graph without KeepColors).
+    static std::map<std::string, std::vector<simd::float4>> s_colorListState;
+    cookColorListNodes(g_residentGraph, hsCtx, s_colorListState);
   }
 
   ++g_frameIndex;

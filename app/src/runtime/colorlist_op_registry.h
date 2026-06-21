@@ -75,6 +75,16 @@ struct ColorListCookCtx {
   std::vector<simd::float4>* output = nullptr;
   // RESOLVED Float params of THIS node (mirror of FloatListCookCtx::params); read via colorListParam.
   const std::map<std::string, float>* params = nullptr;
+  // PER-NODE CROSS-FRAME STATE (the colorlist analog of the FeedbackPair/feedbackToggle seam, point_graph
+  // _internal.h:139-153). A driver-owned host color list that SURVIVES between cooks (every other field
+  // here is single-frame: re-derived each cook). This is the FIRST cross-frame state on the COLORLIST
+  // rail — KeepColors's `_list` accumulator (KeepColors.cs:46) lives here so Insert(0,...)/RemoveRange
+  // persist frame→frame. Keyed by flatKey(id) on the flat path (Impl::colorListState) and by resident
+  // path on the production path (the s_colorListState static cookColorListNodes threads — mirror of
+  // s_svState, frame_cook.cpp:337). null for a STATELESS colorlist op (ColorsToList/ColorList/Combine
+  // /ReadPointColors never read it → byte-identical; only KeepColors reads + mutates *state). The op
+  // mutates *state then COPIES it to *output (output is the readback channel; state is the memory).
+  std::vector<simd::float4>* state = nullptr;
 };
 
 // A colorlist op: read inputs (+ resolved Float params) → write *output. ONE fn (a host vector self-
