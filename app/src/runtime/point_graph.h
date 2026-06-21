@@ -577,6 +577,14 @@ int runSamplePointColorAttributesSelfTest(bool injectBug);
 // (cookResident, grown sprites). injectBug drops the texture bind -> passthrough -> RED.
 int runAttributesFromImageChannelsSelfTest(bool injectBug);
 
+// LinearSamplePointAttributes — texture-into-points seam consumer that samples the texture along the
+// point INDEX (uv = (i/pointCount, 0.5) — a 1D LINEAR strip, NO position-derived uv) and ROUTES the
+// sampled channels into point attributes (position/F1/rotate/stretch/F2) via per-channel Factor/Offset
+// gains. Golden (2 legs, R-2): FLAT direct-cook leg (uniform red, Red->For_X, RedFactor=1 -> every
+// point's X shifts +1, closed-form byte-read) + RESIDENT leg (cookResident, the lit ring centroid
+// shifts RIGHT vs the no-texture baseline). injectBug drops the texture bind -> passthrough -> RED.
+int runLinearSamplePointAttributesSelfTest(bool injectBug);
+
 // MapPointAttributes — the bake-into-point seam consumer (PointCookCtx::inputCurves/inputGradients). A
 // count-preserving MODIFIER that BAKES its host Curve (→ R32_Float CurveImage) + Gradient (→ RGBA32
 // GradientImage, .t3 resolution 512) into two scratch textures during cook, then per point samples both

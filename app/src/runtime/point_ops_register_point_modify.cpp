@@ -36,6 +36,7 @@ void registerSimDirectionalOffsetOp();
 void registerSimForceOffsetOp();
 void registerSamplePointColorAttributesOp();
 void registerAttributesFromImageChannelsOp();
+void registerLinearSamplePointAttributesOp();
 void registerMapPointAttributesOp();
 
 void registerPointModifyPointOps() {
@@ -65,6 +66,7 @@ void registerPointModifyPointOps() {
   registerSimForceOffsetOp();        // Points → Points (sim radial force + gravity window, batch sw-node-batch)
   registerSamplePointColorAttributesOp();  // Points → Points (sample texture into Color; texture-into-points seam)
   registerAttributesFromImageChannelsOp(); // Points → Points (route texture channels into attributes; texture-into-points seam)
+  registerLinearSamplePointAttributesOp(); // Points → Points (sample texture by point index, route channels into attributes; texture-into-points seam)
   registerMapPointAttributesOp();          // Points → Points (bake host Curve/Gradient into scratch tex, sample per point; bake-into-point seam)
 }
 

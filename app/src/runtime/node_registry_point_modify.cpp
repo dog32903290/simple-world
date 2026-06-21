@@ -748,6 +748,57 @@ const std::vector<NodeSpec>& pointModifySpecs() {
         {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
         {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
        nullptr},
+      // LinearSamplePointAttributes — a Points op with a Texture2D INPUT (same texture-into-points seam
+      // as SamplePointColorAttributes / AttributesFromImageChannels). Samples the texture along the point
+      // INDEX (uv = (i/pointCount, 0.5) — a 1D LINEAR strip, hence the name; NO position-derived uv, NO
+      // transformSampleSpace, NO Center) and ROUTES the sampled Brightness(L)/Red/Green/Blue channels —
+      // each through a per-channel Factor/Offset gain — into a SELECTED point attribute (position xyz /
+      // F1 / rotate xyz / stretch xyz / F2), blended by Strength. Ports 1:1 with
+      // LinearSamplePointAttributes.cs [Input] order (.t3 defaults). The Texture2D input (after GPoints,
+      // matching .cs order) is gathered into inputTextures[0]. The channel-routing enums = the .cs
+      // Attributes enum (DIFFERENT from AttributesFromImageChannels: here F1=4, Rot=5/6/7, Stretch=8/9/10,
+      // F2=11). See linearsamplepointattributes_params.h / .metal. NO .t3 FloatsToBuffer routing trap
+      // (the .hlsl's two scalar cbuffers map 1:1 to the .cs ports — no matrix slot).
+      {"LinearSamplePointAttributes",
+       "LinearSamplePointAttributes",
+       {{"GPoints", "GPoints", "Points", true},        // input bag (port 0)
+        {"Texture", "Texture", "Texture2D", true},     // sampled texture (port 1) — the seam input
+        {"out", "out", "Points", false},               // attribute-routed output bag (port 2)
+        // Channel routing enums (.cs Attributes, default 0 NotUsed) + per-channel Factor/Offset gains.
+        // Attributes: 0 NotUsed,1 For_X,2 For_Y,3 For_Z,4 For_F1,5 Rotate_X,6 Rotate_Y,7 Rotate_Z,
+        //             8 Stretch_X,9 Stretch_Y,10 Stretch_Z,11 For_F2.
+        {"Brightness", "Brightness", "Float", true, 0.0f, 0.0f, 11.0f, Widget::Enum,
+         {"NotUsed", "For_X", "For_Y", "For_Z", "For_F1", "Rotate_X", "Rotate_Y", "Rotate_Z",
+          "Stretch_X", "Stretch_Y", "Stretch_Z", "For_F2"}},
+        {"BrightnessFactor", "BrightnessFactor", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"BrightnessOffset", "BrightnessOffset", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"Red", "Red", "Float", true, 0.0f, 0.0f, 11.0f, Widget::Enum,
+         {"NotUsed", "For_X", "For_Y", "For_Z", "For_F1", "Rotate_X", "Rotate_Y", "Rotate_Z",
+          "Stretch_X", "Stretch_Y", "Stretch_Z", "For_F2"}},
+        {"RedFactor", "RedFactor", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"RedOffset", "RedOffset", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"Green", "Green", "Float", true, 0.0f, 0.0f, 11.0f, Widget::Enum,
+         {"NotUsed", "For_X", "For_Y", "For_Z", "For_F1", "Rotate_X", "Rotate_Y", "Rotate_Z",
+          "Stretch_X", "Stretch_Y", "Stretch_Z", "For_F2"}},
+        {"GreenFactor", "GreenFactor", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"GreenOffset", "GreenOffset", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"Blue", "Blue", "Float", true, 0.0f, 0.0f, 11.0f, Widget::Enum,
+         {"NotUsed", "For_X", "For_Y", "For_Z", "For_F1", "Rotate_X", "Rotate_Y", "Rotate_Z",
+          "Stretch_X", "Stretch_Y", "Stretch_Z", "For_F2"}},
+        {"BlueFactor", "BlueFactor", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"BlueOffset", "BlueOffset", "Float", true, 0.0f, -100.0f, 100.0f},
+        // Mode (.cs Modes Add/Multiply, default 0 Add) / TranslationSpace (.cs Spaces, default 0 Object)
+        // / RotationSpace (.cs Spaces, default 1 Point) / Strength (1.0) / StrengthFactor (.cs FModes,
+        // default 0 None). (.t3 defaults — verified GUID-keyed.)
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Add", "Multiply"}},
+        {"TranslationSpace", "TranslationSpace", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Object", "Point"}},
+        {"RotationSpace", "RotationSpace", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Object", "Point"}},
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f},
+        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"None", "F1", "F2"}}},
+       nullptr},
       // ---- batch sw-node-batch: point modify — MapPointAttributes (bake-into-point seam) ----------
       // TiXL parity: external/tixl .../point/modify/MapPointAttributes.{cs,hlsl,t3}. A count-preserving
       // MODIFIER that BAKES its host Curve (→ R32 CurveImage) + host Gradient (→ RGBA32 GradientImage,
