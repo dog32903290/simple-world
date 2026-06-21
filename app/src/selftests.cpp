@@ -272,6 +272,7 @@ const SelfTest kTable[] = {
     {"transport", runTransportSelfTest},
     {"arclock", framecook::runArClockSelfTest},
     {"contextvar", framecook::runContextVarSelfTest},  // context-var YELLOW seam (block #1)
+    {"animvalue", framecook::runAnimValueSelfTest},    // Anim* foundation: AnimValue on the prod cook
     {"curve", runCurveSelfTest},
     {"animator", runCurveAnimatorSelfTest},
     {"animgui", runAnimGuiSelfTest},

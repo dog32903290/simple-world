@@ -337,6 +337,7 @@ add_executable(simple_world
   src/app/frame_cook.cpp
   src/app/frame_cook_selftest.cpp
   src/app/frame_cook_contextvar_selftest.cpp
+  src/app/frame_cook_animvalue_selftest.cpp
   src/app/soundtrack.cpp
   src/app/soundtrack_selftest.cpp
   src/app/soundtrack_selftest_d4.cpp

@@ -83,6 +83,13 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, 
 // independent Int map). injectBug flips one assertion per leg so the teeth bite.
 int runContextVarSelfTest(bool injectBug);
 
+// AnimValue PRODUCTION-PATH pin (--selftest-animvalue): the canonical Anim* proof-of-pattern. Drives
+// the REAL cookStatefulValueNodes across multiple frames (carrying one StatefulValueState map) and
+// asserts Result = the pure AnimMath value + WasHit = the cross-frame integer tooth (fires when
+// (int)normalizedTime crosses a boundary between frames). injectBug flips a REAL production term
+// (setAnimValueBug: drop the state write / drop the AnimMath call) so the fixed wants bite.
+int runAnimValueSelfTest(bool injectBug);
+
 // AR clock-domain pin (refuter-S5 盲區 3, --selftest-arclock): proves through the REAL cook
 // seam above that AudioReaction receives BARS — hit timestamps == transport.fxTime (bars, not
 // seconds), and halving the BPM halves the wall-clock hits a fixed-debounce pulse train yields

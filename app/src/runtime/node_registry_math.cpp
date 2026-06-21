@@ -498,6 +498,34 @@ const std::vector<NodeSpec>& mathSpecs() {
          {"LocalFxTime_InBars", "LocalFxTime_InSecs", "LocalTime_InBars", "LocalTime_InSecs",
           "PlayTime_InBars", "PlayTime_InSecs", "AppRunTime_InSecs"}}},
        nullptr},
+      // AnimValue — the Anim* family foundation: Result = AnimMath.CalcValueForNormalizedTime(shape,
+      // time*rateFactor*rate+phase, 0, bias, ratio)*amplitude + offset (PURE, via anim_math.h);
+      // WasHit = (int)priorNormalizedTime != (int)normalizedTime (the cross-frame integer tooth — the
+      // ONLY consumer of state). TiXL numbers/anim/animators/AnimValue.cs (stateful; outputs FIRST;
+      // evaluate==nullptr — cooked by frame_cook's stateful-value seam). WasHit is Bool→Float 0/1
+      // (Cut 32). Inputs in TiXL Input decl order. .t3 DEFAULTS (AnimValue.t3, re-read & confirmed):
+      // Rate=1, Shape=1(Ramps — the .t3 selector value, not the C# field default Endless=0), Phase=0,
+      // Amplitude=1, Ratio=1, Offset=0, Bias=0.5, AllowSpeedFactor=1(FactorA), OverrideTime=0.
+      // FORKS (see step fn): SINGLE-CLOCK time (OverrideTime when nonzero, else the seam clock — the
+      // resolver can't see HasInputConnections); WasHit double-eval guard dropped (once-per-frame cook);
+      // SpeedFactor read from the context-var YELLOW seam (FloatVariables["SpeedFactorA/B"], default 1).
+      // Shape/AllowSpeedFactor are compile-time Widget::Enum selectors (Cut 71-72 precedent).
+      {"AnimValue", "AnimValue",
+       {{"Result", "Result", "Float", false},
+        {"WasHit", "WasHit", "Float", false},
+        {"OverrideTime", "OverrideTime", "Float", true, 0.0f, -1000.0f, 1000.0f},
+        {"Shape", "Shape", "Float", true, 1.0f, 0.0f, 12.0f, Widget::Enum,
+         {"Endless", "Ramps", "Saws", "KickSaws", "Square", "ZigZag", "Wave", "Sin",
+          "PerlinNoise", "PerlinNoiseSigned", "Random", "RandomSigned", "Steps"}},
+        {"Rate", "Rate", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"Ratio", "Ratio", "Float", true, 1.0f, 0.0001f, 10.0f},
+        {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Amplitude", "Amplitude", "Float", true, 1.0f, -10.0f, 10.0f},
+        {"Offset", "Offset", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Bias", "Bias", "Float", true, 0.5f, 0.0001f, 1.0f},
+        {"AllowSpeedFactor", "AllowSpeedFactor", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
+         {"None", "FactorA", "FactorB"}}},
+       nullptr},
       // --- context-var YELLOW seam (block #1): Set*/Get*Var. STATEFUL in the cook sense (evaluate==
       // nullptr — cooked once per frame into extOut), but their cross-frame channel is the shared
       // ContextVarMap. The Output/Result port is FIRST (extOut[0] index mapping). VariableName is a

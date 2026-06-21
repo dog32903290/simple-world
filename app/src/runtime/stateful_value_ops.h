@@ -104,4 +104,11 @@ void cookStatefulValueOp(const std::string& opType, const std::map<std::string, 
 // corrupts an expected step so the live assertions must FAIL (the --bite tooth).
 int runStatefulValueSelfTest(bool injectBug);
 
+// AnimValue TEETH hook (production-path golden, --selftest-animvalue). 0 = production (the default the
+// real cook always uses); 1 = DROP the state write (the cross-frame WasHit tooth never advances);
+// 2 = DROP the AnimMath call (Result becomes the raw normalizedTime). The golden sets this around the
+// REAL cookStatefulValueNodes cook so a fixed (bug-independent) expected value bites. NOT a per-frame
+// flag — it's a sticky module switch; the golden clears it back to 0 after each bug run.
+void setAnimValueBug(int mode);
+
 }  // namespace sw

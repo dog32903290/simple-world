@@ -3,6 +3,8 @@
 #include <cmath>
 #include <cstdio>
 
+#include "runtime/anim_math.h"  // AnimValue (+ the whole Anim* family) shape engine — pure-math helper
+
 namespace sw {
 namespace {
 
@@ -1365,6 +1367,106 @@ void stepGetIntVar(const std::map<std::string, float>& in, float, float, Statefu
   out[0] = (float)fallback;                   // unset → fallbackValue
 }
 
+// ============================ Anim* family — AnimValue (the canonical Result+WasHit op) ============
+// --- AnimValue (TiXL Lib/numbers/anim/animators/AnimValue.cs) — the foundation of the whole Anim*
+// family: an oscillator/shaper whose Result is a PURE function of inputs+context-time (delegated to
+// the AnimMath shape engine, runtime/anim_math.h), and whose WasHit is the ONLY consumer of
+// cross-frame state — a tooth that fires once when the integer part of normalizedTime advances.
+// TiXL Update (AnimValue.cs:25-53) ported faithfully:
+//   _normalizedTime = time * rateFactorFromContext * rate + phase;
+//   Result          = CalcValueForNormalizedTime(shape, _normalizedTime, 0, bias, ratio)*amplitude + offset;
+//   WasHit          = (int)originalTime != (int)_normalizedTime;   // originalTime = PRIOR _normalizedTime
+//
+// Outputs (TiXL output decl order, both DirtyFlagTrigger.Animated): Result(out[0]), WasHit(out[1]).
+//   WasHit is Bool → Float 0/1 (Cut 32: no Bool port type; same dissolve as HasValueChanged.HasChanged).
+// Inputs (TiXL Input decl order): OverrideTime, Shape(enum), Rate, Ratio, Phase, Amplitude, Offset,
+//   Bias, AllowSpeedFactor(enum). .t3 defaults (AnimValue.t3, RE-READ & confirmed): Rate=1, Shape=1
+//   (Ramps — the .t3 selector value, NOT the C# field default Endless=0), Phase=0, Amplitude=1,
+//   Ratio=1, Offset=0, Bias=0.5, AllowSpeedFactor=1 (FactorA), OverrideTime=0.
+//
+// State (the cross-frame tooth): s[0] = _normalizedTime of the PRIOR cook. init=false on the very
+//   first cook (TiXL _normalizedTime field-inits to 0, so originalTime=0 on frame 1 — faithful: we
+//   read s[0] which is zero-initialized, so no `init` seeding needed; s[0] starts 0 exactly like
+//   TiXL's _normalizedTime field). Only WasHit reads this; Result is pure (no state).
+//
+// FORKS (named) — same family precedent as Ease/HasValueChanged/HasTimeChanged:
+//   • SINGLE-CLOCK time source. TiXL: `time = OverrideTime.HasInputConnections ? OverrideTime :
+//     context.LocalFxTime`. The cook seam hands ONE clock via `time` (= wall fx seconds, the
+//     single-clock substitution for context.LocalFxTime the whole time-op family already uses), and
+//     resolveResidentFloatInputs gives the step fn only the RESOLVED Float map — it cannot see
+//     `HasInputConnections` (a connected-input-feeding-0 is indistinguishable from the .t3 default 0).
+//     So OverrideTime is honored when NONZERO and falls back to the seam `time` when 0. This is exact
+//     for the two dominant cases (OverrideTime unconnected → default 0 → seam time; OverrideTime
+//     driven nonzero → that value) and diverges ONLY in the narrow "OverrideTime connected and
+//     feeding exactly 0.0" case, which reads seam time instead. NAMED, accepted: the seam has no
+//     connection-presence channel, so this is the minimal faithful substitute (本質 seam constraint,
+//     not a math change).
+//   • The `Math.Abs(LocalFxTime - _lastUpdateTime) > double.Epsilon` WasHit double-eval guard is
+//     DROPPED — frame_cook cooks each node exactly once per frame (Damp/Spring/Ease/CountInt
+//     precedent), so the same-frame double-update that guard prevents cannot occur. WasHit is
+//     therefore recomputed every cook from (originalTime, _normalizedTime), which is what TiXL does
+//     once per real frame. No _lastUpdateTime stored.
+//   • SpeedFactor context-var read. TiXL AnimMath.GetSpeedOverrideFromContext reads
+//     context.FloatVariables["SpeedFactorA"/"SpeedFactorB"] (default 1 when absent) per the
+//     AllowSpeedFactor enum (None=0/FactorA=1/FactorB=2). We read the SAME host-side ContextVarMap
+//     the Set*FloatVar seam populates (`vars`), so a SetFloatVar("SpeedFactorA",k) upstream scales the
+//     rate exactly as TiXL — wired through the existing context-var YELLOW seam, no new channel. When
+//     `vars` is null (the many selftest callers that don't pass it) or the key is unset → factor 1.0,
+//     TiXL's own TryGetValue-miss default.
+// AnimValue TEETH hook (file-local; 0 = production, set by the --selftest-animvalue golden ONLY via
+// setAnimValueBug). It corrupts a REAL production term so the golden's FIXED expected values bite:
+//   1 = DROP the state write (st.s[0] never advances) → originalTime stays 0 → the cross-frame WasHit
+//       tooth never fires after frame 1 (and Result is unaffected — Result is pure, so this bites
+//       ONLY the state-dependent output, proving the state write is load-bearing).
+//   2 = DROP the AnimMath call (Result forced to the raw normalizedTime, no shape/bias/amp/offset) →
+//       the Result golden bites while WasHit (state) stays correct.
+// Defaults 0 so the production cook (cookStatefulValueNodes) and every other caller are unchanged.
+// The expected values in the golden are computed from the TiXL formula and are INDEPENDENT of this
+// flag (no co-conditioning) — the flag breaks the live computation, the wants stay put.
+int g_animValueBug = 0;
+
+void stepAnimValue(const std::map<std::string, float>& in, float /*dt*/, float time,
+                   StatefulValueState& st, float out[3], const TransportSnapshot&,
+                   ContextVarMap* vars, const std::string&) {
+  const float rate = getIn(in, "Rate", 1.0f);
+  const float ratio = getIn(in, "Ratio", 1.0f);
+  const float phase = getIn(in, "Phase", 0.0f);
+  const float amplitude = getIn(in, "Amplitude", 1.0f);
+  const float offset = getIn(in, "Offset", 0.0f);
+  const float bias = getIn(in, "Bias", 0.5f);
+
+  // Shape enum (.t3 default 1=Ramps); clamp to [0, count-1] like TiXL Shape.GetValue.Clamp.
+  int shapeIdx = (int)std::lround(getIn(in, "Shape", 1.0f));
+  if (shapeIdx < 0) shapeIdx = 0;
+  else if (shapeIdx > anim_math::kShapeCount - 1) shapeIdx = anim_math::kShapeCount - 1;
+  const anim_math::Shapes shape = (anim_math::Shapes)shapeIdx;
+
+  // rateFactorFromContext = AnimMath.GetSpeedOverrideFromContext(AllowSpeedFactor):
+  //   None(0) → 1 ; FactorA(1) → FloatVariables["SpeedFactorA"] (default 1) ; FactorB(2) → "SpeedFactorB".
+  int speedSel = (int)std::lround(getIn(in, "AllowSpeedFactor", 1.0f));
+  if (speedSel < 0) speedSel = 0;
+  else if (speedSel > 2) speedSel = 2;  // Clamp(0, len-1)
+  float rateFactorFromContext = 1.0f;
+  if (vars && (speedSel == 1 || speedSel == 2)) {
+    const char* key = (speedSel == 1) ? "SpeedFactorA" : "SpeedFactorB";
+    auto it = vars->floatVars.find(key);
+    if (it != vars->floatVars.end()) rateFactorFromContext = it->second;  // TryGetValue hit; miss → 1
+  }
+
+  // SINGLE-CLOCK time source (named fork above): OverrideTime when nonzero, else the seam clock.
+  const float overrideTime = getIn(in, "OverrideTime", 0.0f);
+  const double t = (overrideTime != 0.0f) ? (double)overrideTime : (double)time;
+
+  const double originalTime = (double)st.s[0];  // prior frame's _normalizedTime (zero-init on frame 1)
+  const double normalizedTime = t * (double)rateFactorFromContext * (double)rate + (double)phase;
+  if (g_animValueBug != 1) st.s[0] = (float)normalizedTime;  // bug 1: DROP the state write (real defect)
+
+  out[0] = (g_animValueBug == 2)  // bug 2: DROP the AnimMath call (real defect — raw nt, no shaping)
+               ? (float)normalizedTime
+               : anim_math::calcValueForNormalizedTime(shape, normalizedTime, 0, bias, ratio) * amplitude + offset;
+  out[1] = ((int)originalTime != (int)normalizedTime) ? 1.0f : 0.0f;  // WasHit (Bool→Float)
+}
+
 struct StatefulOp {
   const char* type;
   // context-var seam: every step fn gains a trailing (ContextVarMap*, const std::string& varName).
@@ -1415,6 +1517,8 @@ const StatefulOp kStatefulValueOps[] = {
     {"GetFloatVar", stepGetFloatVar},
     {"SetIntVar", stepSetIntVar},
     {"GetIntVar", stepGetIntVar},
+    // Anim* family foundation: AnimValue (Result pure via anim_math, WasHit = cross-frame integer tooth).
+    {"AnimValue", stepAnimValue},
 };
 
 const StatefulOp* findStatefulOp(const std::string& t) {
@@ -1440,6 +1544,10 @@ void cookStatefulValueOp(const std::string& opType, const std::map<std::string, 
                          const std::string& varName) {
   if (const StatefulOp* o = findStatefulOp(opType)) o->step(in, dt, time, st, out, tr, vars, varName);
 }
+
+// AnimValue teeth hook setter (the global lives in the anonymous namespace above; this gives the
+// app-side --selftest-animvalue golden a handle to flip it around the REAL production cook).
+void setAnimValueBug(int mode) { g_animValueBug = mode; }
 
 // --- Isolated proof (frame-driven; hand-computed TiXL trajectories) ---
 int runStatefulValueSelfTest(bool injectBug) {
