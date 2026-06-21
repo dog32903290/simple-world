@@ -17,6 +17,7 @@
 
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
+#include <simd/simd.h>            // simd::float4 (colorListBuf element type)
 
 #include "runtime/graph.h"        // PortSpec (isBufferInput)
 #include "runtime/point_graph.h"  // PointGraph + op fn types
@@ -107,6 +108,13 @@ struct PointGraph::Impl {
   // allocation and NO pre-sizing (the vector self-sizes; the op clears + fills it). Keyed by flat id
   // or resident path (parallel to outBuf/meshVtxBuf). Cheaper than every other flow: no GPU lifetime.
   std::map<std::string, std::vector<float>> floatListBuf;  // key -> host float list
+
+  // Per-node COLORLIST output (the vec4-list cook flow = TiXL Slot<List<Vector4>>). A HOST-side value
+  // list (std::vector<simd::float4>) that rides between ColorList ports — NOT a GPU buffer, so (like
+  // floatListBuf) there is NO Metal allocation and NO pre-sizing (the vector self-sizes; the op clears +
+  // fills it). Keyed by flat id or resident path (parallel to floatListBuf). The vec4-list value
+  // channel's transport store; the vec4 twin of floatListBuf (ColorsToList is its first producer).
+  std::map<std::string, std::vector<simd::float4>> colorListBuf;  // key -> host color (float4) list
 
   // Per-node STRING output (the 6th cook flow = TiXL Slot<string>). A HOST-side value string that
   // rides between String ports — NOT a GPU buffer, so (like floatListBuf) there is NO Metal

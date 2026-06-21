@@ -357,6 +357,12 @@ void run(PointGraph& pg, const std::string& targetPath) {
     hsCtx.frameIndex = g_frameIndex;
     hsCtx.lib = &doc::g_lib;             // Automation drivers on list-param inputs resolve through this
     cookHostScalarNodes(g_residentGraph, hsCtx);
+    // Cook the COLORLIST currency ops (ColorsToList) — the PRODUCTION leg of the vec4-list cook flow.
+    // Same once-per-frame slot: cookColorListNodes walks the resident graph, gathers each colorlist op's
+    // upstream component scalars through the resident Connection drivers, and writes the host color list
+    // onto extColorOut so a downstream resident colorlist consumer reads the real production list (NOT
+    // flat-only — the R-2 rule; resident_colorlist_cook.cpp). Reuses hsCtx (same resident eval clocks).
+    cookColorListNodes(g_residentGraph, hsCtx);
   }
 
   ++g_frameIndex;

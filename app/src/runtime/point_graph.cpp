@@ -14,6 +14,7 @@
 
 #include "runtime/compound_graph.h"       // SymbolLibrary/Symbol/SymbolChild (lib defaultDrawTarget)
 #include "runtime/curve.h"                // sw::Curve (bake-into-point seam: PointCookCtx::inputCurves complete type)
+#include "runtime/colorlist_op_registry.h"     // ColorListCookCtx/findColorListOp (vec4-list cook flow = host List<Vector4>)
 #include "runtime/floatlist_op_registry.h"     // FloatListCookCtx/findFloatListOp (the 5th cook flow = host List<float>)
 #include "runtime/gradient_op_registry.h"      // GradientCookCtx/findGradientOp (the 8th cook flow = host Gradient)
 #include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
@@ -254,6 +255,11 @@ bool PointGraph::debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& 
 const std::vector<float>* PointGraph::debugCookedFloatList(int nodeId) const {
   auto it = p_->floatListBuf.find(flatKey(nodeId));
   return it != p_->floatListBuf.end() ? &it->second : nullptr;
+}
+
+const std::vector<simd::float4>* PointGraph::debugCookedColorList(int nodeId) const {
+  auto it = p_->colorListBuf.find(flatKey(nodeId));
+  return it != p_->colorListBuf.end() ? &it->second : nullptr;
 }
 
 const std::string* PointGraph::debugCookedString(int nodeId) const {
@@ -552,6 +558,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // FloatList inputs by recursing into cookFloatListNode, whose body is assigned further below. Same
   // std::function ordering-break as cookTexNode itself.
   std::function<const std::vector<float>*(int)> cookFloatListNode;
+  // Forward-declared: the COLORLIST cook flow (vec4-list = host List<Vector4>). A colorlist op
+  // (ColorsToList) gathers its inputs (the 4 parallel scalar Float MultiInput component channels for
+  // ColorsToList; or recursively a ColorList input for a future combiner) — body assigned below.
+  // std::function breaks the self-recursion ordering (a ColorList consumer ← upstream ColorList
+  // producer). Mirror of cookFloatListNode over simd::float4.
+  std::function<const std::vector<simd::float4>*(int)> cookColorListNode;
   // (cookGradientNode is forward-declared ABOVE cookNode now — moved up so cookNode's Gradient gather
   // for the bake-into-point seam can call it. cookTexNode's GradientsToTexture rail-crossing uses the
   // same variable; its body is assigned further below.)
@@ -1020,6 +1032,61 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return &out;
   };
 
+  // Cook a COLORLIST-flow node (the vec4-list cook flow = TiXL Slot<List<Vector4>>). The currency is a
+  // HOST std::vector<simd::float4> living in Impl::colorListBuf (no GPU buffer, no pre-sizing — the op
+  // clears + fills it). Mirror of cookFloatListNode over float4 with one extra gather kind for the
+  // vec4-as-4-floats MultiInput fork:
+  //   • A "ColorList" input port → recurse cookColorListNode on each wired source (MultiInput → one list
+  //     per wire, wire-declaration order). (No ColorList-input op ships in this seam, but the gather is
+  //     here so a future CombineColorLists consumes it on the same driver.)
+  //   • The 4 PARALLEL scalar "Float" MultiInput component ports (Colors.x/.y/.z/.w) → gather each
+  //     port's wired scalar sources into its channel via evalFloat, in WIRE-DECLARATION order. The four
+  //     channels ride colorScalars[0..3]; ColorsToList zips index i across them into one output color.
+  // Gather order = g.connections order (wire-declaration), the same as cookFloatListNode.
+  cookColorListNode = [&](int id) -> const std::vector<simd::float4>* {
+    const Node* n = g.node(id);
+    if (!n) return nullptr;
+    const NodeSpec* s = findSpec(n->type);
+    if (!s) return nullptr;
+    const ColorListCookFn* fn = findColorListOp(n->type);
+    if (!fn || !*fn) return nullptr;
+
+    std::vector<std::vector<simd::float4>> inputLists;       // upstream ColorList sources (combiner future)
+    std::array<std::vector<float>, 4> colorScalars;          // the 4 parallel vec4-MultiInput channels
+    int compChannel = 0;  // which of x/y/z/w the next Float MultiInput port fills (component order)
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!port.isInput) continue;
+      const int inPin = pinId(id, (int)i);
+      if (port.dataType == "ColorList") {
+        for (const Connection& c : g.connections) {
+          if (c.toPin != inPin) continue;
+          const std::vector<simd::float4>* up = cookColorListNode(pinNode(c.fromPin));
+          inputLists.push_back(up ? *up : std::vector<simd::float4>{});
+          if (!port.multiInput) break;  // single-input: first wire only
+        }
+      } else if (port.dataType == "Float" && port.multiInput && compChannel < 4) {
+        // One component channel of the vec4 MultiInput (Colors.x then .y then .z then .w). Aggregate all
+        // wired scalar sources into this channel, wire-declaration order. An unwired channel stays empty
+        // (faithful to GetCollectedTypedInputs: connected inputs only → that color slot reads 0 there).
+        std::vector<float>& chan = colorScalars[compChannel++];
+        for (const Connection& c : g.connections)
+          if (c.toPin == inPin) chan.push_back(evalFloat(g, c.fromPin, ctx));
+      }
+    }
+
+    std::vector<simd::float4>& out = p_->colorListBuf[flatKey(id)];
+    ColorListCookCtx cc;
+    cc.dev = p_->dev; cc.lib = p_->lib; cc.queue = p_->queue;
+    cc.ctx = &ctx; cc.nodeId = id;
+    cc.inputLists = &inputLists;
+    cc.inputColorScalars = &colorScalars;
+    cc.output = &out;
+    cc.params = nodeParams(id);
+    (*fn)(cc);
+    return &out;
+  };
+
   // Cook a GRADIENT-flow node (the 8th cook flow = TiXL Slot<Gradient>). The currency is a HOST
   // SwGradient living in Impl::gradientBuf (no GPU buffer, no pre-sizing — the op writes its steps).
   // VERBATIM clone of cookFloatListNode (std::vector<float> → SwGradient): for each Gradient input
@@ -1277,6 +1344,14 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   }
   if (findFloatListOp(target->type)) {
     cookFloatListNode(target->id);
+    p_->clearTarget();
+    return;
+  }
+  if (findColorListOp(target->type)) {
+    // ColorList terminal (preview pin on a ColorList-producing op: ColorsToList): cook the host color
+    // list so a test can read it back (debugCookedColorList). No ColorList VISUALIZER (the vec4-list
+    // must cross to a texture / point colors to be drawn — out of this seam). Clear the viewport (§5).
+    cookColorListNode(target->id);
     p_->clearTarget();
     return;
   }

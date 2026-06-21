@@ -35,6 +35,7 @@
 #include "runtime/value_op_registry.h"         // valueOpSpecSink() — stateless value ops self-register
 #include "runtime/field_node_registry.h"       // fieldSpecSink() — field (SDF) ops self-register
 #include "runtime/mesh_op_registry.h"          // meshSpecSink() — mesh (4th flow) ops self-register
+#include "runtime/colorlist_op_registry.h"     // colorListSpecSink() — colorlist (vec4-list flow) ops self-register
 #include "runtime/floatlist_op_registry.h"     // floatListSpecSink() — floatlist (5th flow) ops self-register
 #include "runtime/host_scalar_op_registry.h"   // hostScalarSpecSink() — host-scalar (FloatList→Float bridge) ops self-register
 #include "runtime/string_op_registry.h"        // stringSpecSink() — string (6th flow) ops self-register
@@ -110,6 +111,10 @@ const NodeSpec* findSpec(const std::string& type) {
   // sink fully populated by pre-main dynamic init of each floatlist_ops_<name>.cpp FloatListOp registrar).
   for (const auto& s : floatListSpecSink())
     if (s.type == type) return &s;
+  // ColorList-op family (vec4-list cook flow = host List<Vector4>): same live-read seam (init-order safe
+  // — sink populated by pre-main dynamic init of each colorlist_ops_<name>.cpp ColorListOp registrar).
+  for (const auto& s : colorListSpecSink())
+    if (s.type == type) return &s;
   // String-op family (the 6th cook flow = host std::string): same live-read seam (init-order safe —
   // sink fully populated by pre-main dynamic init of each string_ops_<name>.cpp StringOp registrar).
   for (const auto& s : stringSpecSink())
@@ -147,6 +152,8 @@ std::vector<std::string> specTypes() {
   for (const auto& s : meshSpecSink()) out.push_back(s.type);
   // FloatList ops self-register into their own sink — append so the Add menu lists them (same note).
   for (const auto& s : floatListSpecSink()) out.push_back(s.type);
+  // ColorList ops self-register into their own sink — append so the Add menu lists them (same note).
+  for (const auto& s : colorListSpecSink()) out.push_back(s.type);
   // String ops self-register into their own sink — append so the Add menu lists them (same note).
   for (const auto& s : stringSpecSink()) out.push_back(s.type);
   // Host-scalar ops (FloatList→Float bridge) self-register into their own sink — append for the Add menu.

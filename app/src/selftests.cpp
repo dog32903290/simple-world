@@ -88,6 +88,7 @@ namespace sw { int runMeshFlipNormalsGoldenSelfTest(bool); }     // mesh_modify_
 namespace sw { int runMeshRecomputeNormalsGoldenSelfTest(bool); }// mesh_modify_golden.cpp (mesh modify: RecomputeNormals face-cross, flat + R-2 resident)
 namespace sw { int runMeshTransformUvsGoldenSelfTest(bool); }    // mesh_modify_golden.cpp (mesh modify: TransformMeshUVs matrix·uv, flat + R-2 resident)
 namespace sw { int runFloatListSelfTest(bool); }                 // floatlist_golden.cpp (5th cook flow: FloatsToList host list)
+namespace sw { int runColorsToListSelfTest(bool); }              // colorlist_golden.cpp (vec4-list cook flow: ColorsToList host color list, flat + R-2 resident)
 namespace sw { int runStringRailSelfTest(bool); }                // string_rail_golden.cpp (6th cook flow: String value rail)
 namespace sw { int runListRoutingSelfTest(bool); }               // list_routing_golden.cpp (FloatList→Float bridge: downstream evalFloat)
 namespace sw { int runPointListSelfTest(bool); }                 // pointlist_golden.cpp (7th cook flow: CPU point list + ListToBuffer bridge)
@@ -246,6 +247,7 @@ const SelfTest kTable[] = {
     {"mesh-recomputenormals", runMeshRecomputeNormalsGoldenSelfTest},
     {"mesh-transformuvs", runMeshTransformUvsGoldenSelfTest},
     {"floatlist", runFloatListSelfTest},
+    {"colorstolist", runColorsToListSelfTest},
     {"stringrail", runStringRailSelfTest},
     {"listrouting", runListRoutingSelfTest},
     {"pointlist", runPointListSelfTest},

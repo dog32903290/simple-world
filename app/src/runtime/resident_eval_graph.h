@@ -16,6 +16,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include <simd/simd.h>  // simd::float4 (ResidentNode::extColorOut — the vec4-list resident channel)
+
 #include "runtime/compound_graph.h"  // SymbolLibrary / Symbol / SymbolChild / SymbolConnection
 
 namespace sw {
@@ -103,6 +105,13 @@ struct ResidentNode {
   // results here; evalResidentFloat returns extOut[output port index] for such nodes.
   // Width 8 (was 3): some stateful value ops emit >3 outputs (HasVec3Changed=7, PeakLevel=4).
   float extOut[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+  // Externally-cooked COLORLIST outputs (vec4-list cook flow = TiXL Slot<List<Vector4>>). The vec4
+  // PARALLEL of extOut[]: cookColorListNodes (the per-frame production pass, frame_cook.cpp) writes a
+  // colorlist op's (ColorsToList) result HERE, keyed by output port index. A SEPARATE channel — a host
+  // color list is NOT packed into the float extOut slots (that would shred a float4 across 4 scalar
+  // slots and break the per-output-slot scalar cache). Empty for every non-colorlist node (zero
+  // footprint). Borrowed-readable by a downstream colorlist consumer + the resident colorlist golden.
+  std::map<int, std::vector<simd::float4>> extColorOut;  // output port index -> cooked host color list
   // S2 bypass (= TiXL Slot.ByPassUpdate, Slot.cs:176-179): when bypassed AND bypassable, this node's
   // MAIN output (bypassOutSlot) returns its MAIN input's (bypassInSlot) upstream value instead of
   // cooking. Set at build time (mirrors how a wire feeding a slot is resolved at build, not eval).
@@ -178,6 +187,25 @@ bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
 // resident-bridging it needs the resident string-wire rail first — see resident_host_scalar_cook.cpp).
 // Mutates g (writes extOut, like cookAudioReactionNodes). Pure CPU, no Metal.
 void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+
+// Cook ONE upstream COLORLIST-producing resident node (ColorsToList, …) into `out` (host color list),
+// gathering its inputs THROUGH the resident Connection drivers (mirror of the flat cookColorListNode).
+// The vec4 twin of cookResidentFloatList: a "ColorList" input port follows each Connection driver (a
+// future combiner); the 4 PARALLEL scalar Float MultiInput component ports (Colors.x/.y/.z/.w) gather
+// their wired scalars via evalResidentFloat per channel, then the leaf zips index i across the 4 into
+// one float4. Returns false when `path` is not a ColorList producer (caller treats it as empty).
+bool cookResidentColorList(const ResidentEvalGraph& g, const std::string& path,
+                           const ResidentEvalCtx& ctx, std::vector<simd::float4>& out, int depth = 0);
+
+// Per-frame PRODUCTION cook for the COLORLIST currency (vec4-list cook flow). Walks the resident graph,
+// cooks every colorlist op (ColorsToList) by gathering its inputs THROUGH the resident Connection
+// drivers, and writes the host color list onto the node's extColorOut[outputPortIndex] — the channel a
+// downstream resident colorlist consumer (+ the golden) reads. The resident twin of the flat colorlist
+// terminal (which only runs as a flat-cook TERMINAL = golden-only); THIS is the leg that lives in the
+// running app (frame_cook.cpp calls it once per frame, same slot as cookHostScalarNodes). Mutates g
+// (writes extColorOut, like cookHostScalarNodes writes extOut). Pure CPU, no Metal. R-2 rule: the
+// colorlist currency is GENUINELY on the production resident path, not flat-only.
+void cookColorListNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 
 // --- batch 1b cache API (resident_eval_cache.cpp) ---
 // Populate each node's per-output cache (one entry per NodeSpec output port) and mark live
