@@ -133,8 +133,7 @@ struct PointGraph::Impl {
 
   // HOST-side value-channel outputs (the non-GPU cook flows): each rides between same-typed ports as a
   // self-sizing host container — NO Metal allocation, NO pre-sizing (the op clears + fills it). All keyed by
-  // flat id or resident path (parallel to outBuf/meshVtxBuf). FloatList/ColorList/String/PointList/Gradient/
-  // StringList — the 5th–8th + vec4-list + Sub-seam-A flows (full flow doc in the per-flow cook leaves).
+  // flat id or resident path (parallel to outBuf/meshVtxBuf). Full per-flow doc in the per-flow cook leaves.
   std::map<std::string, std::vector<float>> floatListBuf;          // key -> host float list
   std::map<std::string, std::vector<simd::float4>> colorListBuf;   // key -> host color (float4) list
   std::map<std::string, std::string> stringBuf;                    // key -> host string
@@ -162,8 +161,8 @@ struct PointGraph::Impl {
   std::map<std::string, uint32_t> feedbackFmt;          // realloc key (op-chosen pixel format)
   std::map<std::string, bool> feedbackToggle;           // key -> _bufferToggle (flips each cook)
   // Last-resolved OUTPUT textures by feedback node, indexed by Texture2D-output ordinal. Borrowed pointers
-  // into feedbackTexBuf's pair (KeepPreviousFrame) / an upstream input (SwapTextures) — NOT owned here. Both
-  // cooks write it at a feedback cook's end so debugCookedFeedbackOutput can read Current/PreviousFrame.
+  // into feedbackTexBuf's pair / an upstream input (SwapTextures), NOT owned. Both cooks write it at a
+  // feedback cook's end so debugCookedFeedbackOutput can read Current/PreviousFrame.
   static constexpr int kMaxFeedbackOut = 4;
   std::map<std::string, std::array<MTL::Texture*, kMaxFeedbackOut>> feedbackOut;
 
@@ -339,9 +338,7 @@ struct PointGraph::Impl {
   SwMeshView cookResidentMesh(const ResidentEvalGraph& rg, const std::string& path,
                               const ResidentEvalCtx& rc, const EvaluationContext& ctx, int depth);
 
-  // The FLAT MESH cook (4th flow), from cookMeshNode/cookMeshInto (point_graph_mesh_cook.cpp, Cut-6; full
-  // doc in leaf). Mesh is CLOSED (mesh→mesh) → only g/ctx/nodeParams ride in. debugCookedMeshInline = the
-  // inlined twin of PointGraph::debugCookedMesh (Impl has no PointGraph back-pointer).
+  // The FLAT MESH cook (point_graph_mesh_cook.cpp, Cut-6; full doc in leaf). debugCookedMeshInline = inlined twin of PointGraph::debugCookedMesh.
   bool debugCookedMeshInline(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
                              const MTL::Buffer*& idx, uint32_t& idxCount);
   bool cookFlatMeshNode(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
@@ -349,9 +346,7 @@ struct PointGraph::Impl {
   bool cookFlatMeshInto(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
                         int id, const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx,
                         uint32_t& faceCount);
-  // The FLAT HOST-VALUE cooks (FloatList/ColorList/Gradient/PointList), extracted to
-  // point_graph_hostvalue_cook.cpp (Cut-4; full doc in that leaf). FloatList/Gradient/PointList are CLOSED
-  // (self-recursion only); ColorList also crosses cookNode + a per-frame memo (both ride in by-ref).
+  // The FLAT HOST-VALUE cooks (FloatList/ColorList/Gradient/PointList), point_graph_hostvalue_cook.cpp (Cut-4; full doc in leaf). ColorList crosses cookNode + a per-frame memo (by-ref).
   const std::vector<float>* cookFlatFloatList(const Graph& g, const EvaluationContext& ctx,
                                               const NodeParamsFn& nodeParams, int id);
   const std::vector<simd::float4>* cookFlatColorList(
@@ -362,10 +357,7 @@ struct PointGraph::Impl {
                                      const NodeParamsFn& nodeParams, int id);
   const std::vector<SwPoint>* cookFlatPointList(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
                                                 const std::function<MTL::Buffer*(int)>& cookNode, int id);
-  // The FLAT STRING cooks (String/StringList, 6th flow) + cookFlat host-scalar (StringLength + the
-  // FloatList/String→Float bridge), in point_graph_string_cook.cpp / point_graph_hostscalar_cook.cpp.
-  // String is NOT closed: it crosses cookStringNode/cookFloatListNode/cookStringListNode (each by-ref).
-  // gatherStringInputs = the SHARED wire-OR-const String gather (ONE method, both cooks call it).
+  // The FLAT STRING cooks + host-scalar, point_graph_string_cook.cpp / point_graph_hostscalar_cook.cpp (full doc in leaves). gatherStringInputs = the SHARED wire-OR-const String gather (both cooks call it).
   std::vector<std::string> gatherStringInputs(
       const Graph& g, int id, const NodeSpec& s,
       const std::function<const std::string*(int)>& cookStringNode);
@@ -384,9 +376,7 @@ struct PointGraph::Impl {
       const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
       const std::function<const std::vector<float>*(int)>& cookFloatListNode,
       const std::function<const std::string*(int)>& cookStringNode, int id);
-  // The FLAT TEXTURE cook (Texture2D stream: RenderTarget/image-filter/own-tex/feedback), in
-  // point_graph_tex_cook.cpp (Cut-5; full doc in leaf). MOST cross-wired flow — NOT closed: cookCommand
-  // (mutual)/cookTexNode (SELF)/cookFloatListNode/cookGradientNode/texVisiting/feedbackCooked all by-ref.
+  // The FLAT TEXTURE cook (Texture2D stream), point_graph_tex_cook.cpp (Cut-5; full doc in leaf). MOST cross-wired flow — cookCommand/cookTexNode/cookFloatListNode/cookGradientNode/feedbackCooked all by-ref.
   MTL::Texture* cookFlatTexNode(
       const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
       const NodeParamsFn& nodeParams, const std::function<RenderCommand(int)>& cookCommand,
@@ -395,6 +385,16 @@ struct PointGraph::Impl {
       const std::function<const SwGradient*(int)>& cookGradientNode, std::set<int>& texVisiting,
       std::map<int, std::array<MTL::Texture*, FeedbackCookCtx::kMaxTexOutputs>>& feedbackCooked, int id,
       int outAbsPort);
+  // The RESIDENT TEXTURE cook (point_graph_resident_tex_cook.cpp; full doc in leaf). Resident twin of cookFlatTexNode; cookResident wraps it in a forwarding lambda. depthCap = the file-local kCookDepthCap.
+  MTL::Texture* cookResidentTexNode(
+      const ResidentEvalGraph& rg, const EvaluationContext& ctx, const SourceRegistry* reg,
+      const ResidentEvalCtx& rc, int depthCap,
+      const std::function<const std::map<std::string, float>*(const std::string&)>& nodeParams,
+      const std::function<RenderCommand(const std::string&, int)>& cookCommand,
+      const std::function<MTL::Texture*(const std::string&, int, const std::string&)>& cookTexNode,
+      const std::function<const SwGradient*(const std::string&, int)>& cookResidentGradient,
+      std::map<std::string, std::array<MTL::Texture*, FeedbackCookCtx::kMaxTexOutputs>>& feedbackCooked,
+      const std::string& path, int depth, const std::string& outSlotId);
 };
 
 }  // namespace sw

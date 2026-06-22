@@ -387,6 +387,7 @@ add_executable(simple_world
   src/runtime/point_graph_params.cpp
   src/runtime/point_graph_debug.cpp
   src/runtime/point_graph_resident.cpp
+  src/runtime/point_graph_resident_tex_cook.cpp
   src/runtime/point_graph_selftest.cpp
   src/runtime/resident_cook_selftest.cpp
   src/runtime/resident_cook_parity_selftest.cpp
