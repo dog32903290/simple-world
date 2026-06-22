@@ -904,6 +904,292 @@ int runStringRailSelfTest(bool injectBug) {
                 pass ? "PASS" : "FAIL");
   }
 
+  // LEG 28 — StringRepeat FLAT + RESIDENT (TiXL string/combine/StringRepeat.cs).
+  //
+  // Semantics (StringRepeat.cs): count = Clamp(rawCount, 0, 1000); if count==0 OR content empty → "";
+  // else content repeated `count` times (StringBuilder().Insert(0, content, count)).
+  //
+  // FLAT sub-cases (hand-derived):
+  //   (A) Repeat: StringRepeat("ab", 3) → "ababab"          (3 concatenations)
+  //   (B) Zero count: StringRepeat("x", 0) → ""             (count==0 early-empty)
+  //   (C) Negative count clamp: StringRepeat("ab", -2) → "" (Clamp(-2,0,1000)=0 → count==0 → "")
+  //
+  // RESIDENT sub-case (proves resident String wire feeds Fragment):
+  //   FloatToString(7.0f, "") → "7" wired into StringRepeat.Fragment, Count=3 → "777".
+  //
+  // RED (injectBug): stringInjectBug() corrupts the REAL cook (StringRepeat drops its last char); on
+  // the resident path FloatToString also drops its last char BEFORE StringRepeat runs. No want-inversion.
+  //
+  // FLAT legs:
+  {
+    auto cookRepeat = [&](const std::string& fragment, int count) -> std::string {
+      Graph g;
+      Node n; n.id = 1; n.type = "StringRepeat";
+      n.strParams["Fragment"] = fragment;   // unwired → strDef const (Fragment carries the string)
+      n.params["Count"] = (float)count;
+      g.nodes.push_back(n);
+      EvaluationContext ctx{};
+      ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+      const std::string* out = pg.debugCookedString(1);
+      return out ? *out : std::string{};
+    };
+
+    stringInjectBug() = injectBug;
+    std::string gA = cookRepeat("ab",  3);   // (A) "ababab"
+    std::string gB = cookRepeat("x",   0);   // (B) ""
+    std::string gC = cookRepeat("ab", -2);   // (C) "" (negative clamp → 0)
+    stringInjectBug() = false;
+
+    bool passA = (gA == "ababab");
+    bool passB = (gB == "");
+    bool passC = (gC == "");
+    bool pass  = passA && passB && passC;
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG28 StringRepeat FLAT (A)=\"%s\" want=\"ababab\"; "
+                "(B)=\"%s\" want=\"\"; (C)=\"%s\" want=\"\" -> %s\n",
+                gA.c_str(), gB.c_str(), gC.c_str(), pass ? "PASS" : "FAIL");
+  }
+  // RESIDENT leg: FloatToString(7,"") wired into StringRepeat.Fragment, Count=3 → "777".
+  {
+    // Graph: StringRepeat id=1 (terminal), FloatToString id=2 (String producer).
+    // StringRepeat ports: [0]=Result(out), [1]=Fragment(String in), [2]=Count(Float).
+    // FloatToString ports: [0]=Output(out), [1]=Value, [2]=Format.
+    Graph g;
+    Node rep; rep.id = 1; rep.type = "StringRepeat";
+    rep.params["Count"] = 3.0f;
+    // Fragment is WIRED (no strParams["Fragment"] — the wire drives it on the resident path).
+    g.nodes.push_back(rep);
+
+    Node fts; fts.id = 2; fts.type = "FloatToString";
+    fts.params["Value"] = 7.0f; fts.strParams["Format"] = "";  // → "7"
+    g.nodes.push_back(fts);
+    // FloatToString.Output (port 0) → StringRepeat.Fragment (port 1).
+    g.connections.push_back({600, pinId(2, /*out*/ 0), pinId(1, /*Fragment*/ 1)});
+    g.nextId = 3;
+
+    stringInjectBug() = injectBug;
+    std::string gotResident = [&]() -> std::string {
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);  // cooks FloatToString → extStrOut["2"][0], THEN StringRepeat reads it
+      const ResidentNode* n = rg.node("1");  // StringRepeat resident path == flat node id "1"
+      if (!n) return {};
+      auto it = n->extStrOut.find(/*Result out port idx*/ 0);
+      return it != n->extStrOut.end() ? it->second : std::string{};
+    }();
+    stringInjectBug() = false;
+
+    bool pass = (gotResident == "777");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG28 StringRepeat RESIDENT FloatToString(7)→Fragment×3=\"%s\" "
+                "want=\"777\" -> %s\n",
+                gotResident.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 29 — StringInsert FLAT + RESIDENT (TiXL string/buffers/transform/StringInsert.cs).
+  //
+  // Semantics: maxPos = original.Length - insert.Length; if original/insert empty OR maxPos<=0 → unset
+  // (→ "" here, fork-…-unset-becomes-empty). position (Int); if UseModuloPosition → Abs(pos)%maxPos;
+  // else position.Clamp(0,maxPos) is a DISCARDED no-op (fork-…-clamp-noop) → raw position used; then
+  // Remove(position, insert.Length).Insert(position, insert) [= overwrite insert.Length chars at pos],
+  // out-of-range → C# throws → caught → unset (→ "").
+  //
+  // FLAT sub-cases (hand-derived, verified against the .cs Remove-then-Insert splice):
+  //   (A) Pos 0: StringInsert("hello world","XYZ",0,modulo=false): maxPos=8; Remove(0,3)="lo world",
+  //       Insert(0,"XYZ") → "XYZlo world"
+  //   (B) Mid: StringInsert("hello world","XY",6,modulo=false): maxPos=9; Remove(6,2)="hello rld",
+  //       Insert(6,"XY") → "hello XYrld"
+  //   (C) Modulo wrap: StringInsert("abcdef","XY",10,modulo=true): maxPos=4; pos=Abs(10)%4=2;
+  //       Remove(2,2)="abef", Insert(2,"XY") → "abXYef"
+  //   (D) ★FAITHFUL-BUG out-of-range non-modulo: StringInsert("abcdef","XY",10,modulo=false): maxPos=4;
+  //       NO clamp (the discarded-return bug) → pos=10; 10+2>6 → Remove would throw → caught → ""
+  //
+  // RESIDENT sub-case (proves resident String wire feeds Original; Insertion rides the const path):
+  //   FloatToString(12345.0f,"") → "12345" wired into Original; Insertion const "AB", Position=1,
+  //   modulo=false: maxPos=3; Remove(1,2)="145", Insert(1,"AB") → "1AB45".
+  //
+  // RED (injectBug): stringInjectBug() corrupts the REAL cook (StringInsert drops last char); on the
+  // resident path the upstream FloatToString drops its last char first. The (D) out-of-range case
+  // already yields "" so the bug-drop is a no-op there — but (A)/(B)/(C)/RESIDENT all bite. No inversion.
+  //
+  // FLAT legs:
+  {
+    auto cookInsert = [&](const std::string& original, const std::string& insertion, int position,
+                          bool modulo) -> std::string {
+      Graph g;
+      Node n; n.id = 1; n.type = "StringInsert";
+      n.strParams["Original"]  = original;    // unwired → strDef const
+      n.strParams["Insertion"] = insertion;   // unwired → strDef const
+      n.params["Position"]          = (float)position;
+      n.params["UseModuloPosition"] = modulo ? 1.0f : 0.0f;  // bool dissolved to Float
+      g.nodes.push_back(n);
+      EvaluationContext ctx{};
+      ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+      const std::string* out = pg.debugCookedString(1);
+      return out ? *out : std::string{};
+    };
+
+    stringInjectBug() = injectBug;
+    std::string gA = cookInsert("hello world", "XYZ", 0,  false);  // (A) "XYZlo world"
+    std::string gB = cookInsert("hello world", "XY",  6,  false);  // (B) "hello XYrld"
+    std::string gC = cookInsert("abcdef",      "XY",  10, true);   // (C) "abXYef" (modulo)
+    std::string gD = cookInsert("abcdef",      "XY",  10, false);  // (D) "" (faithful OOR bug)
+    stringInjectBug() = false;
+
+    bool passA = (gA == "XYZlo world");
+    bool passB = (gB == "hello XYrld");
+    bool passC = (gC == "abXYef");
+    bool passD = (gD == "");
+    bool pass  = passA && passB && passC && passD;
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG29 StringInsert FLAT (A)=\"%s\" want=\"XYZlo world\"; "
+                "(B)=\"%s\" want=\"hello XYrld\"; (C)=\"%s\" want=\"abXYef\"; "
+                "(D OOR-bug)=\"%s\" want=\"\" -> %s\n",
+                gA.c_str(), gB.c_str(), gC.c_str(), gD.c_str(), pass ? "PASS" : "FAIL");
+  }
+  // RESIDENT leg: FloatToString(12345,"") wired into Original; Insertion const "AB", Pos=1 → "1AB45".
+  {
+    // Graph: StringInsert id=1 (terminal), FloatToString id=2 (String producer for Original).
+    // StringInsert ports: [0]=Result(out), [1]=Original(String in), [2]=Insertion(String in),
+    //                     [3]=Position(Float), [4]=UseModuloPosition(Float).
+    // FloatToString ports: [0]=Output(out), [1]=Value, [2]=Format.
+    Graph g;
+    Node ins; ins.id = 1; ins.type = "StringInsert";
+    ins.strParams["Insertion"]        = "AB";  // const path for Insertion (wire-OR-const dual)
+    ins.params["Position"]            = 1.0f;
+    ins.params["UseModuloPosition"]   = 0.0f;
+    // Original is WIRED (no strParams["Original"] — the wire drives it on the resident path).
+    g.nodes.push_back(ins);
+
+    Node fts; fts.id = 2; fts.type = "FloatToString";
+    fts.params["Value"] = 12345.0f; fts.strParams["Format"] = "";  // → "12345" (5 chars)
+    g.nodes.push_back(fts);
+    // FloatToString.Output (port 0) → StringInsert.Original (port 1).
+    g.connections.push_back({700, pinId(2, /*out*/ 0), pinId(1, /*Original*/ 1)});
+    g.nextId = 3;
+
+    stringInjectBug() = injectBug;
+    std::string gotResident = [&]() -> std::string {
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);  // cooks FloatToString → extStrOut["2"][0], THEN StringInsert reads it
+      const ResidentNode* n = rg.node("1");  // StringInsert resident path == flat node id "1"
+      if (!n) return {};
+      auto it = n->extStrOut.find(/*Result out port idx*/ 0);
+      return it != n->extStrOut.end() ? it->second : std::string{};
+    }();
+    stringInjectBug() = false;
+
+    bool pass = (gotResident == "1AB45");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG29 StringInsert RESIDENT FloatToString(12345)→Original, "
+                "Insertion=\"AB\" @1 =\"%s\" want=\"1AB45\" -> %s\n",
+                gotResident.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 30 — MockStrings FLAT + RESIDENT (TiXL string/random/MockStrings.cs).
+  //
+  // DETERMINISTIC (NOT stateful): Result = _strings[MathUtils.Mod(Category, 15)]. Pure function of
+  // Category (enum index into a fixed 15-entry array, ported verbatim). MathUtils.Mod is euclidean
+  // (negative category wraps to a non-negative index).
+  //
+  // FLAT sub-cases — assert STRUCTURAL anchors of the verbatim arrays (the first token before the
+  // first '\n', which is byte-exact ground-truth from the .cs):
+  //   (A) Category=0 (Colors)        → array[0]  begins "Black\n…"   → first line == "Black"
+  //   (B) Category=2 (Females)       → array[2]  begins "Mary\n…"    → first line == "Mary"
+  //   (C) Category=9 (ValuesToRates) → array[9]  == "0\n0.125\n…\n32" → first line == "0", last == "32"
+  //   (D) ★euclidean-mod wrap: Category=15 → Mod(15,15)=0 → array[0] (== case A, "Black\n…")
+  //   (E) ★euclidean-mod negative: Category=-1 → Mod(-1,15)=14 (BalancedPrimes) → array[14] first=="5"
+  //
+  // RESIDENT sub-case: MockStrings has NO String input — Category rides the resolved Float param on the
+  // resident path. Category=3 (Males) → array[3] begins "James\n…" → first line == "James". This proves
+  // the resident Float-param spine reaches a zero-String-input producer's cook (extStrOut written).
+  //
+  // RED (injectBug): stringInjectBug() drops the last char of the REAL cooked string (e.g. the trailing
+  // "32" of ValuesToRates loses its '2'; "Black\n…White" loses its 'e'). We assert the FULL strings for
+  // the small arrays (C → exact) and first-line anchors for the big ones; the bug-drop changes the tail
+  // → first-line anchors still match for some, so case (C) asserts the EXACT full string (its tail
+  // "…\n32" loses '2' under bug → "…\n3" ≠ → RED), guaranteeing the tooth bites. No want-inversion.
+  {
+    auto cookMock = [&](int category) -> std::string {
+      Graph g;
+      Node n; n.id = 1; n.type = "MockStrings";
+      n.params["Category"] = (float)category;  // enum index stored as Float (int-on-Float contract)
+      g.nodes.push_back(n);
+      EvaluationContext ctx{};
+      ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+      const std::string* out = pg.debugCookedString(1);
+      return out ? *out : std::string{};
+    };
+    auto firstLine = [](const std::string& s) -> std::string {
+      auto nl = s.find('\n');
+      return nl == std::string::npos ? s : s.substr(0, nl);
+    };
+
+    stringInjectBug() = injectBug;
+    std::string gColors = cookMock(0);    // (A) Colors  → "Black\n…"
+    std::string gFemale = cookMock(2);    // (B) Females → "Mary\n…"
+    std::string gRates  = cookMock(9);    // (C) ValuesToRates → exact "0\n0.125\n0.25\n0.5\n1\n1\n4\n8\n16\n32"
+    std::string gWrap   = cookMock(15);   // (D) Mod(15,15)=0 → Colors
+    std::string gNeg    = cookMock(-1);   // (E) Mod(-1,15)=14 → BalancedPrimes → "5\n…"
+    stringInjectBug() = false;
+
+    bool passA = (firstLine(gColors) == "Black");
+    bool passB = (firstLine(gFemale) == "Mary");
+    // (C) EXACT full-string assertion (the verbatim small array — also the bug-bite anchor):
+    bool passC = (gRates == "0\n0.125\n0.25\n0.5\n1\n1\n4\n8\n16\n32");
+    bool passD = (firstLine(gWrap) == "Black");                     // euclidean wrap to index 0
+    bool passE = (firstLine(gNeg)  == "5");                         // euclidean negative wrap to index 14
+    bool pass  = passA && passB && passC && passD && passE;
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG30 MockStrings FLAT (A Colors)first=\"%s\" want=\"Black\"; "
+                "(B Females)first=\"%s\" want=\"Mary\"; (C ValuesToRates)exact=%s; "
+                "(D Mod15→0)first=\"%s\" want=\"Black\"; (E Mod-1→14)first=\"%s\" want=\"5\" -> %s\n",
+                firstLine(gColors).c_str(), firstLine(gFemale).c_str(), passC ? "OK" : "MISMATCH",
+                firstLine(gWrap).c_str(), firstLine(gNeg).c_str(), pass ? "PASS" : "FAIL");
+  }
+  // RESIDENT leg: MockStrings Category=9 (ValuesToRates) via the resident Float-param spine. We assert
+  // the EXACT verbatim array (so the injectBug last-char drop bites the resident leg too — its tail
+  // "…\n32" loses '2' under bug). This proves the resident Float-param spine reaches a zero-String-input
+  // producer's cook (extStrOut written), AND the resident path is bug-bitten alongside the flat path.
+  {
+    // Graph: MockStrings id=1 (terminal), ZERO String inputs. Category rides the resolved Float param.
+    Graph g;
+    Node mk; mk.id = 1; mk.type = "MockStrings";
+    mk.params["Category"] = 9.0f;  // ValuesToRates (exact small array)
+    g.nodes.push_back(mk);
+    g.nextId = 2;
+
+    stringInjectBug() = injectBug;
+    std::string gotResident = [&]() -> std::string {
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);  // MockStrings cooks (no String input; reads resolved Category param)
+      const ResidentNode* n = rg.node("1");  // MockStrings resident path == flat node id "1"
+      if (!n) return {};
+      auto it = n->extStrOut.find(/*Result out port idx*/ 0);
+      return it != n->extStrOut.end() ? it->second : std::string{};
+    }();
+    stringInjectBug() = false;
+
+    auto nl = gotResident.find('\n');
+    std::string first = nl == std::string::npos ? gotResident : gotResident.substr(0, nl);
+    bool pass = (gotResident == "0\n0.125\n0.25\n0.5\n1\n1\n4\n8\n16\n32");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG30 MockStrings RESIDENT Category=9(ValuesToRates) first=\"%s\" "
+                "exact=%s -> %s\n",
+                first.c_str(), pass ? "OK" : "MISMATCH", pass ? "PASS" : "FAIL");
+  }
+
   q->release();
   dev->release();
   pool->release();

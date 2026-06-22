@@ -137,7 +137,10 @@ sw-node-batch 家族並行：寫-leaf（每顆 op 自己的檔，不撞共享）
 
 ## 7. 範圍決策（柏為拍板）
 - 階段 0-4＝視覺 clone 主線，orchestrator 自走可做（機器驗證閘）。
-- **階段 5（render 進階）+ 階段 6（IO/硬體）需柏為定要不要納入**——偏離「視覺 clone」北極星 or 需實體裝置。柏為說「全部縫」字面含這些，故列入計劃，但標清楚等柏為現身確認範圍。
+- **★柏為 2026-06-22 拍板：階段 5 + 階段 6 全部納入範圍**（「這些也很重要」，真工具非玩具 clone）。但兩階段是**不同質地的活，驗證模型不同**：
+  - **階段 5（render 進階，8）＝同一種活**：視覺、機器可驗（pixel-readback golden vs TiXL，render 島 Cut96-99 已證）。orchestrator 自走可做。差別只在**更深**（camera3d→lighting→pbr→depth→shadow 依賴鏈，偏序列）＋ **gltf/obj loader 是外部 SDK 整合**（platform 區、vendored dep，不同質地）；bitmapfont 需 BmFont asset。
+  - **階段 6（硬體/演出，6）＝不同種，golden-vs-TiXL 驗證模型在這裡失效**：沒有「MIDI 旋鈕有沒有真的動到參數 / OSC 封包有沒有從燈光台進來」的 closed-form golden。再分兩堆：① **loopback 可機器驗**（network/osc-artnet/midi → localhost UDP / macOS 虛擬 MIDI port，auto-loop 可自證）② **需真裝置 + 柏為眼睛耳朵**（video-input/serial/audio-playback → 實體裝置，[[codex-ears]] 類驗證，柏為必在場）。**這類「完成定義」不照舊（柏為的眼/耳重回 parity 鏈），開工前重定——到階段 6 接近時再拍，現在記著＝open question。**
+- **預設順序**：主線 7 條 → 階段 5（render）→ 階段 6（硬體）。柏為可改。
 
 ## 8. 接手指南
 - 本檔＝補縫 roadmap SSOT。每塊 seam 開工＝一個 sw-batch 工單；每批採葉子＝一個 sw-node-batch 工單。
