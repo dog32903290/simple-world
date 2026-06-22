@@ -115,6 +115,15 @@ file(GLOB SW_VALUE_OP_SRCS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/ru
 # Mirror of the SW_VALUE_OP_SRCS glob above (replaced the old explicit stateful_value_ops.cpp line).
 file(GLOB SW_STATEFUL_OP_SRCS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/stateful_value_op*.cpp")
 
+# Point-modify leaf sources — globbed so a point-modify lane adding
+# node_registry_point_modify_<subfamily>.cpp needs no CMake edit (just reconfigure). Covers the
+# self-registration registry (point_modify_op_registry.cpp = the sink + PointModifyOp ctor) and every
+# per-subfamily NodeSpec leaf (node_registry_point_modify_transform.cpp / _noise / …). Mirror of the
+# SW_VALUE_OP_SRCS glob (image-filter / value-op self-registration precedent).
+file(GLOB SW_POINT_MODIFY_SRCS CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/point_modify_op_registry.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/node_registry_point_modify_*.cpp")
+
 add_executable(simple_world
   src/main.cpp
   src/app_delegate.cpp
@@ -328,7 +337,6 @@ add_executable(simple_world
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp
-  src/runtime/node_registry_point_modify.cpp
   src/runtime/node_registry_point_combine.cpp
   src/runtime/node_registry_particle.cpp
   src/runtime/node_registry_draw.cpp
@@ -398,6 +406,7 @@ add_executable(simple_world
   ${SW_POINT_OP_SRCS}  # globbed: point_ops.cpp + _selftest + every per-op leaf + per-family registrars
   ${SW_VALUE_OP_SRCS}  # globbed: value_op_registry.cpp + every stateless value-op leaf (Sin/PickFloat/…)
   ${SW_STATEFUL_OP_SRCS}  # globbed: stateful_value_op_registry.cpp + every per-subfamily leaf + selftest
+  ${SW_POINT_MODIFY_SRCS}  # globbed: point_modify_op_registry.cpp + every per-subfamily point-modify leaf
   src/runtime/tex_op_cache.cpp
   src/runtime/source_registry.cpp
   src/runtime/attack_detector.cpp

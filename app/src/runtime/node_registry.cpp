@@ -27,7 +27,7 @@
 
 // Family sub-tables (批次16-R split)
 #include "runtime/node_registry_generators.h"
-#include "runtime/node_registry_point_modify.h"
+#include "runtime/point_modify_op_registry.h"  // pointModifySpecSink() — point-modify ops self-register
 #include "runtime/node_registry_point_combine.h"
 #include "runtime/node_registry_particle.h"
 #include "runtime/node_registry_draw.h"
@@ -65,8 +65,10 @@ const std::vector<NodeSpec>& registry() {
       v.insert(v.end(), src.begin(), src.end());
     };
     append(generatorSpecs());       // RadialPoints, LinePoints, GridPoints, SpherePoints
-    append(pointModifySpecs());     // TransformPoints, OrientPoints, RandomizePoints,
-                                    // SetPointAttributes, AddNoise, FilterPoints
+    // point-modify family is NOT baked here — it self-registers into pointModifySpecSink() and is
+    // read LIVE by findSpec/specTypes below (same init-order seam as image-filter: a pre-main static,
+    // doc::g_lib, calls findSpec during its own init; baking the sink into this cached snapshot could
+    // run before the leaf registrars finished and miss them).
     append(pointCombineSpecs());    // CombineBuffers
     append(particleSpecs());        // TurbulenceForce, ParticleSystem
     append(drawSpecs());            // DrawPoints, DrawLines, DrawBillboards, RenderTarget
@@ -92,6 +94,11 @@ void setDynamicSpecs(std::map<std::string, NodeSpec> specs) { dynamicSpecs() = s
 
 const NodeSpec* findSpec(const std::string& type) {
   for (const auto& s : registry())
+    if (s.type == type) return &s;
+  // Point-modify family: read the self-registration sink live (init-order safe — sink fully populated
+  // by pre-main dynamic init of each node_registry_point_modify_<subfamily>.cpp PointModifyOp
+  // registrar; see registry() note on why this can't be baked into the cached snapshot).
+  for (const auto& s : pointModifySpecSink())
     if (s.type == type) return &s;
   // Image-filter family: read the self-registration sink live (see registry() note on init order).
   for (const auto& s : imageFilterSpecSink())
@@ -147,6 +154,9 @@ const NodeSpec* findSpec(const std::string& type) {
 std::vector<std::string> specTypes() {
   std::vector<std::string> out;
   for (const auto& s : registry()) out.push_back(s.type);
+  // Point-modify ops self-register into the sink — append them so the Add menu lists all of them
+  // regardless of static-init order (see registry() note).
+  for (const auto& s : pointModifySpecSink()) out.push_back(s.type);
   // Image-filter ops self-register into the sink — append them so the Add menu lists all of them
   // regardless of static-init order (see registry() note).
   for (const auto& s : imageFilterSpecSink()) out.push_back(s.type);
