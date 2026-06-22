@@ -45,12 +45,14 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
      讀 TiXL 源碼**只為填工單指針**（不為自己理解，理解歸 implementer）。
 
 ## 單批迴圈（重複直到停止條件）
-1. **定位**：讀 memory 索引的 lane-state ＋ 施工圖最新 Cut 的 Resume 段。樹要乾淨、
-   HEAD 對齊；不乾淨先盤點（可能是上一棒的活，照 single-plan gate 處理）。
-2. **選批（依當前階段）**：排修項永遠優先。然後看 lane-state 頭在哪階段：
-   - **Phase A**：還沒普查 → 開普查批（掃 TiXL 全 op → 接縫依賴圖 + 開採 backlog 兩張表存磁碟）。
-   - **Phase B**：地基清單還有 → 取「解鎖數÷風險」最高的一塊接縫＋它的驗證 op 組一批。
-   - **Phase C**：地基齊了 → 從開採 backlog 取 3-5 顆乾淨葉子 op 組一批（盡量並行）。
+1. **定位**：先讀 `docs/agent/MASTER_PLAN.md`（**頂層路由權威**，全並行計劃）＋ memory lane-state ＋ 施工圖最新 Cut 的 Resume 段。樹要乾淨、HEAD 對齊；不乾淨先盤點（可能是上一棒的活，照 single-plan gate 處理）。
+2. **選批（MASTER_PLAN 驅動的全並行，柏為 2026-06-23）**：讀 MASTER_PLAN，取「**未阻塞 + 不撞檔**」的工作項跨 lane 組一批。排修項永遠優先。
+   - **⛓ 脊椎 S*（cook-core：`point_graph.cpp`/`frame_cook`/`resident_eval`/`EvaluationContext`）= 序列，一次一個**，owner-lock 該檔，**與 L4 拆檔/開採不可同跑同檔**。順序 S1 輸出解析度縫 → S2 render-graph/Layer2d/Execute → S3 flow → S4 殘餘 infra+拆 point_graph。**S1 先（解鎖最多下游 lane）。**
+   - **∥ 並行 lane L1-L6（踩不同檔域）= 同批可派多個 worktree agent 並行**：L1 Variation/Snapshot(新子系統+document override)、L2 UI 範式(`ui/`)、L3 檔案/專案(`app/`)、L4 節點開採(`runtime/` op 葉，內部階段見下)、L5 IO/硬體 loopback(`platform/`)、L6 音訊匯出+維運。
+   - **★harness-first 硬閘**：任何 lane 的葉子/功能**未經其 harness 驗綠不准 commit**（L1=golden 對 TiXL Mix 公式 / L2=eye-hand 斷言 / L3=round-trip golden / L5=loopback golden / S*=closed-form pixel golden）。**每條 lane 第一個 deliverable 永遠是它的 harness。**
+   - **★柏為殘留碳出（不 auto-commit）**：① 真裝置驗證（實體 MIDI/video-in/serial/audio-out，loopback 之外）② **UI 手感簽收**（功能 golden 過了仍要柏為眼判「像不像 TiXL」，UI 有 golden 抓不到的主觀層）。這兩類標 `[待柏為簽收]` 或 `spawn_task`，**不擋其他 lane、不進主線等簽收**（同步驟 4 柏為域路由）。
+   - **同步點（就這幾條）**：L2 輸出窗 + L6 匯出 ← S1；L4 render/flow 島採 ← S2/S3（L4 另有已解鎖島可先採不空等）；L2 分類 ← 先給 `NodeSpec` 加 category 欄位（shared-header，單一 owner 統一加）。
+   - **L4 節點開採內部階段**（原 Phase A/B/C，是 MASTER_PLAN 的一條 lane）：Phase A 普查（已完，census 在磁碟）→ Phase B 取「解鎖÷風險」最高的縫（多在脊椎 S*）→ Phase C 從 backlog 取 3-5 乾淨葉子並行採。
    UI 視覺 parity 用 eye 截圖對 TiXL 截圖/源碼常數（顏色/圓角/字級查源碼，不猜）。
 3. **派工**：依檔案重疊定隊形（重疊=序列，葉子=worktree 並行）；模型分層照 WORKFLOW.md；
    工單=CONTEXT_PACK 指標＋任務＋驗收清單（含 .scn）。
@@ -63,7 +65,7 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
 5. **否證**：refuter 波（風險 rubric 分流）→ fixer 波（Sonnet，兩次不過閘升級 Opus）→ 合流 commit。
 6. **活體**：scenario 全庫重放＋新行為 .scn；殘餘探索項才派 driver。
 7. **結帳**：施工圖補 Cut N（事實/fork/verdict/Resume 候選）→ memory lane-state
-   換頭（含當前階段 A/B/C + 地基清單剩餘 + 開採 backlog 剩餘）→ TaskList 清掉 → 立即回到步驟 1 開下一批。
+   換頭（含 **MASTER_PLAN 各 lane 進度**：脊椎 S* 到哪、L1-L6 各 harness 是否已蓋/採到哪、柏為殘留 flag；＋ L4 階段 A/B/C + backlog 剩餘）→ **同步把進度寫回 `MASTER_PLAN.md` 的 Snapshot/lane 欄**（pathspec commit，下個 session 打 /sw-batch 從這裡無縫接續並行計劃）→ TaskList 清掉 → 立即回到步驟 1 開下一批。
 
 ## 上下文衛生（迴圈不被撐爆的機制）
 - **狀態永遠在磁碟**：Cut 段＋memory＋CONTEXT_PACK＝完整重建點。上下文被壓縮/換 session
