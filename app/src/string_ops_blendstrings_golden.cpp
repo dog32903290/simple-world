@@ -162,15 +162,17 @@ static int runBlendStringsSelftestImpl(bool injectBug) {
     std::printf("[selftest-blendstrings] LEG3 Blend=0.5 GREEN got=\"%s\" want=\"%s\" -> %s\n",
                 got.c_str(), want.c_str(), passGreen ? "PASS" : "FAIL");
 
-    // RED tooth: injectBug drops last char → "DBB" ≠ "DBBD"
+    // RED tooth: injectBug drops last char → cook emits "DBB"; assert against clean "DBBD" → FAIL.
+    // The whole selftest must return non-zero when injectBug=true so --bite sees a real bite.
     if (injectBug) {
       stringInjectBug() = true;
       std::string gotRed = directBlend(strA, strB, palette, p);
       stringInjectBug() = false;
-      bool passRed = (gotRed != want);  // must differ
+      // Correct expectation is still "DBBD". Injected cook produces "DBB" → mismatch → fail.
+      bool passRed = (gotRed == want);
       ok = ok && passRed;
-      std::printf("[selftest-blendstrings] LEG3 Blend=0.5 RED  got=\"%s\" want!=\"%s\" -> %s\n",
-                  gotRed.c_str(), want.c_str(), passRed ? "PASS" : "FAIL");
+      std::printf("[selftest-blendstrings] LEG3 Blend=0.5 RED  got=\"%s\" want=\"%s\" -> %s\n",
+                  gotRed.c_str(), want.c_str(), passRed ? "PASS(unexpected)" : "FAIL(tooth bites)");
     }
   }
 
