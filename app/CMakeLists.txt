@@ -377,6 +377,7 @@ add_executable(simple_world
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
   src/runtime/point_graph_mesh_cook.cpp
+  src/runtime/point_graph_tex_cook.cpp
   src/runtime/point_graph_hostvalue_cook.cpp
   src/runtime/point_graph_string_cook.cpp
   src/runtime/point_graph_hostscalar_cook.cpp
