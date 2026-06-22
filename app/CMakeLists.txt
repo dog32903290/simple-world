@@ -109,6 +109,12 @@ file(GLOB SW_POINT_OP_SRCS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/ru
 # SW_POINT_OP_SRCS glob (image-filter self-registration precedent, line above).
 file(GLOB SW_VALUE_OP_SRCS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/value_op*.cpp")
 
+# Stateful value-op leaf sources — globbed so adding stateful_value_ops_<family>.cpp (a Damp/Spring/
+# Ease/... leaf) needs no CMake edit (just reconfigure). Covers stateful_value_op_registry.cpp (the
+# self-registration sink + the public cook/predicate API) + every per-subfamily leaf + the selftest.
+# Mirror of the SW_VALUE_OP_SRCS glob above (replaced the old explicit stateful_value_ops.cpp line).
+file(GLOB SW_STATEFUL_OP_SRCS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/stateful_value_op*.cpp")
+
 add_executable(simple_world
   src/main.cpp
   src/app_delegate.cpp
@@ -323,7 +329,6 @@ add_executable(simple_world
   src/runtime/node_registry_draw.cpp
   src/runtime/node_registry_math.cpp
   src/runtime/value_eval_ops.cpp
-  src/runtime/stateful_value_ops.cpp
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
   src/runtime/point_graph_resident.cpp
@@ -385,6 +390,7 @@ add_executable(simple_world
   src/runtime/math_ops_selftest.cpp
   ${SW_POINT_OP_SRCS}  # globbed: point_ops.cpp + _selftest + every per-op leaf + per-family registrars
   ${SW_VALUE_OP_SRCS}  # globbed: value_op_registry.cpp + every stateless value-op leaf (Sin/PickFloat/…)
+  ${SW_STATEFUL_OP_SRCS}  # globbed: stateful_value_op_registry.cpp + every per-subfamily leaf + selftest
   src/runtime/tex_op_cache.cpp
   src/runtime/source_registry.cpp
   src/runtime/attack_detector.cpp
