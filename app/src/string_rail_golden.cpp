@@ -1190,6 +1190,219 @@ int runStringRailSelfTest(bool injectBug) {
                 first.c_str(), pass ? "OK" : "MISMATCH", pass ? "PASS" : "FAIL");
   }
 
+  // LEG 31 — PickString FLAT + RESIDENT (TiXL string/logic/PickString.cs). MultiInput<string> + Index
+  // → selects inputStrings[Index.Mod(count)] (euclidean modulo, NOT C++ truncating %). This is the
+  // SAME MultiInput gather as CombineStrings (LEG 20) but SELECTS one wire instead of joining all.
+  //
+  // FLAT sub-cases (producers are FloatToString of integer values → "10"/"20"/"30"/...; wire-decl
+  // order is the gather order — the load-bearing contract proven for CombineStrings):
+  //   (A) Pick mid: producers [10,20,30], Index=1 → Mod(1,3)=1 → wire[1] = "20"
+  //   (B) Modulo wrap: producers [10,20,30], Index=4 → Mod(4,3)=1 → wire[1] = "20"
+  //   (C) ★euclidean-mod negative: producers [10,20,30], Index=-1 → Mod(-1,3)=2 → wire[2] = "30"
+  //   (D) Wire-order proof: producers [30,10,20], Index=0 → wire[0] = "30" (wire-decl order, NOT sorted)
+  //
+  // RESIDENT sub-case (proves the resident MultiInput String wire feeds Input — mirror LEG 20):
+  //   producers [7,8,9] → "7"/"8"/"9", Index=2 → Mod(2,3)=2 → wire[2] = "9".
+  //
+  // RED (injectBug): stringInjectBug() corrupts the REAL cook (PickString drops its last char); on the
+  // resident path the SELECTED FloatToString producer also drops its last char before PickString reads
+  // it. No want-inversion — the bug bites the actual cook/select path.
+  //
+  // Graph builder: PickString id=1 (terminal); FloatToString producers ids 2.. wired into Input (port
+  // 1, the MultiInput). PickString ports: [0]=Selected(out), [1]=Input(multiInput), [2]=Index(Float).
+  // Index rides params (NOT a String port → not in inputStrings).
+  {
+    auto makePickGraph = [](const std::vector<float>& producerVals, int index) {
+      Graph g;
+      Node pick; pick.id = 1; pick.type = "PickString";
+      pick.params["Index"] = (float)index;
+      g.nodes.push_back(pick);
+      const int inputPin = pinId(1, /*Input portIndex=*/1);
+      int connId = 800;
+      int nextNode = 2;
+      for (size_t i = 0; i < producerVals.size(); ++i) {
+        Node p; p.id = nextNode++; p.type = "FloatToString";
+        p.params["Value"] = producerVals[i];
+        p.strParams["Format"] = "";  // integer-valued → plain decimal "10","20",...
+        g.nodes.push_back(p);
+        g.connections.push_back({connId++, pinId(p.id, /*Output port*/ 0), inputPin});
+      }
+      g.nextId = nextNode;
+      return g;
+    };
+    // FLAT cook helper.
+    auto cookPickFlat = [&](const std::vector<float>& vals, int index) -> std::string {
+      Graph g = makePickGraph(vals, index);
+      EvaluationContext ctx{};
+      ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+      const std::string* out = pg.debugCookedString(1);
+      return out ? *out : std::string{};
+    };
+    // RESIDENT cook helper (libFromGraph → buildEvalGraph → cookStringNodes → extStrOut[0]).
+    auto cookPickResident = [&](const std::vector<float>& vals, int index) -> std::string {
+      Graph g = makePickGraph(vals, index);
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);  // cooks FloatToString producers → extStrOut, THEN PickString selects
+      const ResidentNode* n = rg.node("1");  // PickString resident path == flat node id "1"
+      if (!n) return {};
+      auto it = n->extStrOut.find(/*Selected out port idx*/ 0);
+      return it != n->extStrOut.end() ? it->second : std::string{};
+    };
+
+    stringInjectBug() = injectBug;
+    std::string gA = cookPickFlat({10.0f, 20.0f, 30.0f},  1);   // (A) "20"
+    std::string gB = cookPickFlat({10.0f, 20.0f, 30.0f},  4);   // (B) "20" (Mod(4,3)=1)
+    std::string gC = cookPickFlat({10.0f, 20.0f, 30.0f}, -1);   // (C) "30" (Mod(-1,3)=2)
+    std::string gD = cookPickFlat({30.0f, 10.0f, 20.0f},  0);   // (D) "30" (wire-decl order)
+    std::string gRes = cookPickResident({7.0f, 8.0f, 9.0f}, 2); // RES "9" (Mod(2,3)=2)
+    stringInjectBug() = false;
+
+    bool passA = (gA == "20");
+    bool passB = (gB == "20");
+    bool passC = (gC == "30");
+    bool passD = (gD == "30");
+    bool passRes = (gRes == "9");
+    bool pass = passA && passB && passC && passD && passRes;
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG31 PickString FLAT (A idx1)=\"%s\" want=\"20\"; "
+                "(B idx4 mod)=\"%s\" want=\"20\"; (C idx-1 neg-mod)=\"%s\" want=\"30\"; "
+                "(D wire-order)=\"%s\" want=\"30\"; RESIDENT(idx2)=\"%s\" want=\"9\" -> %s\n",
+                gA.c_str(), gB.c_str(), gC.c_str(), gD.c_str(), gRes.c_str(),
+                pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 32 — SearchAndReplace FLAT + RESIDENT (TiXL string/search/SearchAndReplace.cs). OriginalString +
+  // SearchPattern + Replace + UseRegex(bool) → String. inputStrings[0]=OriginalString, [1]=SearchPattern,
+  // [2]=Replace; UseRegex rides params (bool dissolved to Float). The Replace value gets the literal
+  // "\n"→newline translation (SearchAndReplace.cs:20).
+  //
+  // FLAT sub-cases (hand-derived against the .cs):
+  //   (A) Literal replace-all: ("hello world","o","0",regex=false) → "hell0 w0rld" (both 'o' replaced)
+  //   (B) ★guard empty-pattern: ("hello","","X",false) → pattern IsNullOrEmpty → Result=content="hello"
+  //   (C) ★Replace "\n" translation: ("a,b",",","\\n",false) → replacement "\n" → "a\nb" (real newline)
+  //   (D) Regex common-syntax (parity with C#): ("hello world","o","0",regex=true) → "hell0 w0rld"
+  //   (E) Regex backref $N (identical C#/ECMAScript): ("John Smith","(\\w+) (\\w+)","$2 $1",true)
+  //       → "Smith John"  (group reorder; $1/$2 replacement refs are byte-identical between engines)
+  //   (F) ★FAITHFUL bad-pattern: ("hello","(","X",true) → "(" fails to compile → the .cs catch leaves
+  //       Result.Value UNCHANGED. In our cook *c.output is never written → stays empty ""  ← expected ""
+  //       (fork-searchreplace-bad-pattern-result-unchanged: matches the C# catch-no-assign behavior).
+  //
+  // RESIDENT sub-case (proves resident String wire feeds OriginalString; SearchPattern/Replace const):
+  //   FloatToString(12321.0f,"") → "12321" wired into OriginalString; SearchPattern const "2",
+  //   Replace const "9", regex=false → literal "2"→"9" → "19391".
+  //
+  // RED (injectBug): stringInjectBug() corrupts the REAL cook (drops the last char) for sub-cases that
+  // WRITE a non-empty output (A/C/D/E and RESIDENT, plus B's "hello"); the (F) bad-pattern case yields
+  // "" so the drop is a no-op there (its parity is the no-write behavior, not bug-bitten). On the
+  // resident path the upstream FloatToString also drops its last char before SearchAndReplace runs.
+  // No want-inversion — the bug bites the actual cook path on every non-empty leg.
+  //
+  // FLAT legs:
+  {
+    auto cookSAR = [&](const std::string& original, const std::string& pattern,
+                       const std::string& replace, bool useRegex) -> std::string {
+      Graph g;
+      Node n; n.id = 1; n.type = "SearchAndReplace";
+      n.strParams["OriginalString"] = original;   // unwired → strDef const
+      n.strParams["SearchPattern"]  = pattern;    // unwired → strDef const
+      n.strParams["Replace"]        = replace;    // unwired → strDef const
+      n.params["UseRegex"]          = useRegex ? 1.0f : 0.0f;  // bool dissolved to Float
+      g.nodes.push_back(n);
+      EvaluationContext ctx{};
+      ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+      const std::string* out = pg.debugCookedString(1);
+      return out ? *out : std::string{};
+    };
+
+    stringInjectBug() = injectBug;
+    std::string gA = cookSAR("hello world", "o", "0", false);             // (A) "hell0 w0rld"
+    std::string gB = cookSAR("hello", "", "X", false);                    // (B) "hello" (empty-pattern guard)
+    std::string gC = cookSAR("a,b", ",", "\\n", false);                   // (C) "a\nb" (\n translation)
+    std::string gD = cookSAR("hello world", "o", "0", true);              // (D) "hell0 w0rld" (regex)
+    std::string gE = cookSAR("John Smith", "(\\w+) (\\w+)", "$2 $1", true);  // (E) "Smith John" (backref)
+    // (F) ★FAITHFUL bad-pattern: "(" fails to compile → the .cs catch leaves Result.Value UNCHANGED
+    // (no assignment). A FRESH node's Result starts empty → the no-write leaves it "". We use a UNIQUE
+    // node id (9) so its driver stringBuf slot is pristine (default-empty) — proving the no-write path
+    // yields "" exactly as a fresh C# node would, rather than inheriting the reused id=1 buffer's stale
+    // value. (Reusing id=1 would show the PRIOR result, an artifact of the per-pg stringBuf cache, not
+    // the op semantics; the dedicated id isolates the faithful "unchanged from default" behavior.)
+    std::string gF = [&]() -> std::string {
+      Graph g;
+      Node n; n.id = 9; n.type = "SearchAndReplace";
+      n.strParams["OriginalString"] = "hello";
+      n.strParams["SearchPattern"]  = "(";     // invalid regex (unbalanced paren)
+      n.strParams["Replace"]        = "X";
+      n.params["UseRegex"]          = 1.0f;
+      g.nodes.push_back(n);
+      EvaluationContext ctx{};
+      ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/9);
+      const std::string* out = pg.debugCookedString(9);
+      return out ? *out : std::string{};
+    }();
+    stringInjectBug() = false;
+
+    bool passA = (gA == "hell0 w0rld");
+    bool passB = (gB == "hello");
+    bool passC = (gC == "a\nb");
+    bool passD = (gD == "hell0 w0rld");
+    bool passE = (gE == "Smith John");
+    bool passF = (gF == "");  // bad pattern → catch leaves Result unchanged → empty
+    bool pass = passA && passB && passC && passD && passE && passF;
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG32 SearchAndReplace FLAT (A literal)=\"%s\" want=\"hell0 w0rld\"; "
+                "(B empty-pat)=\"%s\" want=\"hello\"; (C \\n-xlate)ok=%s; (D regex)=\"%s\" want=\"hell0 w0rld\"; "
+                "(E backref)=\"%s\" want=\"Smith John\"; (F bad-pat unchanged)ok=%s -> %s\n",
+                gA.c_str(), gB.c_str(), passC ? "OK" : "MISMATCH", gD.c_str(), gE.c_str(),
+                passF ? "OK" : "MISMATCH", pass ? "PASS" : "FAIL");
+  }
+  // RESIDENT leg: FloatToString(12321,"") wired into OriginalString; SearchPattern "2", Replace "9",
+  // regex=false → "19391".
+  {
+    // Graph: SearchAndReplace id=1 (terminal), FloatToString id=2 (String producer for OriginalString).
+    // SearchAndReplace ports: [0]=Result(out), [1]=OriginalString(String in), [2]=SearchPattern(String
+    //   in), [3]=Replace(String in), [4]=UseRegex(Float). FloatToString ports: [0]=Output(out).
+    Graph g;
+    Node sar; sar.id = 1; sar.type = "SearchAndReplace";
+    sar.strParams["SearchPattern"] = "2";   // const path (wire-OR-const dual)
+    sar.strParams["Replace"]       = "9";   // const path
+    sar.params["UseRegex"]         = 0.0f;  // literal replace
+    // OriginalString is WIRED (no strParams["OriginalString"] — the wire drives it on the resident path).
+    g.nodes.push_back(sar);
+
+    Node fts; fts.id = 2; fts.type = "FloatToString";
+    fts.params["Value"] = 12321.0f; fts.strParams["Format"] = "";  // → "12321"
+    g.nodes.push_back(fts);
+    // FloatToString.Output (port 0) → SearchAndReplace.OriginalString (port 1).
+    g.connections.push_back({900, pinId(2, /*out*/ 0), pinId(1, /*OriginalString*/ 1)});
+    g.nextId = 3;
+
+    stringInjectBug() = injectBug;
+    std::string gotResident = [&]() -> std::string {
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);  // cooks FloatToString → extStrOut["2"][0], THEN SearchAndReplace reads it
+      const ResidentNode* n = rg.node("1");  // SearchAndReplace resident path == flat node id "1"
+      if (!n) return {};
+      auto it = n->extStrOut.find(/*Result out port idx*/ 0);
+      return it != n->extStrOut.end() ? it->second : std::string{};
+    }();
+    stringInjectBug() = false;
+
+    bool pass = (gotResident == "19391");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG32 SearchAndReplace RESIDENT FloatToString(12321)→Original, "
+                "\"2\"→\"9\" =\"%s\" want=\"19391\" -> %s\n",
+                gotResident.c_str(), pass ? "PASS" : "FAIL");
+  }
+
   q->release();
   dev->release();
   pool->release();

@@ -289,6 +289,8 @@ add_executable(simple_world
   src/runtime/string_ops_stringrepeat.cpp
   src/runtime/string_ops_stringinsert.cpp
   src/runtime/string_ops_mockstrings.cpp
+  src/runtime/string_ops_pickstring.cpp
+  src/runtime/string_ops_searchandreplace.cpp
   src/string_rail_golden.cpp
   src/runtime/pointlist_op_registry.cpp
   src/runtime/pointlist_ops_radialpointscpu.cpp
