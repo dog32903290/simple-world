@@ -39,6 +39,7 @@ void registerAttributesFromImageChannelsOp();
 void registerLinearSamplePointAttributesOp();
 void registerMapPointAttributesOp();
 void registerTransformPointsFromClipspaceOp();
+void registerSamplePointsByCameraDistanceOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -70,6 +71,7 @@ void registerPointModifyPointOps() {
   registerLinearSamplePointAttributesOp(); // Points → Points (sample texture by point index, route channels into attributes; texture-into-points seam)
   registerMapPointAttributesOp();          // Points → Points (bake host Curve/Gradient into scratch tex, sample per point; bake-into-point seam)
   registerTransformPointsFromClipspaceOp();  // Points → Points (unproject via CameraToWorld; camera-matrix-into-points seam)
+  registerSamplePointsByCameraDistanceOp();  // Points → Points (scale W by camera-depth WForDistance curve; camera-matrix + bake-into-point seams)
 }
 
 }  // namespace sw

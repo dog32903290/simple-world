@@ -240,5 +240,30 @@ static const PointModifyOp _reg_TransformPointsFromClipspace{
        nullptr}
 };
 
+// ---- camera-matrix-into-points seam: SamplePointsByCameraDistance --------------------------------
+// TiXL parity: external/tixl .../Assets/shaders/points/modify/SamplePointsByCameraDistance.hlsl +
+// .../point/modify/SamplePointsByCameraDistance.{cs,t3}. A count-preserving MODIFIER that scales each
+// point's W (== SwPoint.FX2) by a WForDistance Curve sampled at the camera-space depth:
+//   d = mul(float4(pos,1),ObjectToCamera).z; normalized = (-d-NearRange)/(FarRange-NearRange);
+//   p.W *= curve.Sample(normalized).r
+// The "Camera" MARKER port → PointCookCtx::objectToCamera (fillPointCamera, default camera). The
+// WForDistance Curve (.t3 default linear 0→1) rides the bake-into-point seam (PointCookCtx::inputCurves
+// → a 256×1 R32 scratch baked in-cook). Ports 1:1 with SamplePointsByCameraDistance.cs [Input] order.
+// fork-wfordistance-embedded-default-curve: unwired Curve → the op bakes the .t3 embedded linear default.
+static const PointModifyOp _reg_SamplePointsByCameraDistance{
+      {"SamplePointsByCameraDistance",
+       "SamplePointsByCameraDistance",
+       {{"Points", "Points", "Points", true},          // input bag (port 0)
+        {"Camera", "Camera", "Camera", true},          // camera marker (port 1) — the seam input
+        {"out", "out", "Points", false},               // W-scaled output bag (port 2)
+        // NearRange / FarRange (.t3 defaults 0 / 10) — the depth normalization window.
+        {"NearRange", "NearRange", "Float", true, 0.0f, -100.0f, 100.0f},
+        {"FarRange", "FarRange", "Float", true, 10.0f, -100.0f, 100.0f},
+        // WForDistance (host Curve input, .t3 default linear 0→1) — baked into a 256×1 R32 scratch and
+        // sampled at the normalized depth. Gathered into PointCookCtx::inputCurves; unwired → embedded.
+        {"WForDistance", "WForDistance", "Curve", true}},
+       nullptr}
+};
+
 }  // namespace
 }  // namespace sw
