@@ -42,6 +42,10 @@
 //   - fork[no-hot-reload]: TiXL hot-reloads the texture on file change (ResourceManager watcher); sw
 //     is static-load (cachedAssetTexture memoizes forever). Named gap. ImageSequenceClip (frame-
 //     indexed source) is a separate, later op — out of scope.
+//   - fork[resolution-input]: TiXL LoadImage has NO Resolution/CustomW/CustomH inputs — its output is
+//     always the decoded file's NATIVE dimensions. sw adds a Resolution enum (default WindowFollow) and
+//     resolution-pins the output, nearest-resampling when output size != native (e.g. 512x512 asset ->
+//     8x8 window in the resident leg). A same-size output is byte-exact (what the flat golden pins).
 //
 // Self-contained leaf: cookLoadImage + ImageFilterOp self-registration + the static asset-key
 // registration + runLoadImageSelfTest. CMake glob auto-picks this file + loadimage.metal.
