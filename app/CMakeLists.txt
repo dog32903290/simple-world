@@ -133,10 +133,20 @@ file(GLOB SW_MATH_SRCS CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/math_op_registry.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/node_registry_math_*.cpp")
 
+# Selftest router + its per-AREA manifest leaves — globbed so adding selftests_<area>.cpp (or a row to
+# an existing one) needs no CMake edit (just reconfigure). Covers the thin router (src/selftests.cpp)
+# and every area manifest (src/selftests_core.cpp / _field / _point / …) that self-registers its rows
+# into selftestRegistry(). selftest_registry.cpp (the sink + registerSelftests() ctor) is added with
+# the runtime registry globs below. Mirror of the SW_MATH_SRCS / SW_POINT_MODIFY_SRCS self-registration
+# globs (replaced the old explicit src/selftests.cpp line in add_executable).
+file(GLOB SW_SELFTEST_SRCS CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/selftests*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/selftest_registry.cpp")
+
 add_executable(simple_world
   src/main.cpp
   src/app_delegate.cpp
-  src/selftests.cpp
+  ${SW_SELFTEST_SRCS}  # globbed: selftests.cpp router + selftests_<area>.cpp manifests + selftest_registry.cpp
   src/app/document.cpp
   src/app/audio_settings.cpp
   src/app/audio_monitor.cpp
