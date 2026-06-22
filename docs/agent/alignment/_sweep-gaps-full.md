@@ -1,0 +1,1015 @@
+# TiXL node-外 完整掃描 — 329 條 gap 原始清單
+
+> 來源:tixl-nonnode-coverage-sweep workflow(2026-06-23,30 agent 普查 838 檔,覆蓋 100%)。此為原始 gap dump 供查;curated 見 [missing-subsystems.md](missing-subsystems.md) + [_COVERAGE.md](_COVERAGE.md)。
+
+## ui
+
+- **[polish]** TimeFormat: bars as Bar.Beat.Tick (16 ticks/bar), 4 display modes
+  - TiXL: TimeFormat.cs:FormatTimeInBars/GetBeatTimeBar/Beat/Tick/TimeDisplayModes
+  - spec: Timeline ruler/time-display must render Bar.Beat.Tick with 4-beats/4-ticks subdivision and offer Secs/Bars/F30/F60.
+- **[polish]** Curve sample cache: adaptive polyline density for timeline curve rendering
+  - TiXL: CurveSampleCache.cs:Rebuild/SampleSegment/SamplePreRegion/IsValid; CurveOptimizer.cs:OptimizeCurves/UpdatePositionImpacts
+  - spec: Curve-editor render: 5px spacing, constant-step vertical shape, 1.5x margin/1.3x zoom rebuild thresholds. CurveOptimizer = the reduce-keyframes editor command.
+- **[polish]** Spatial audio operator properties interface (gizmo-discoverable 3D sources)
+  - TiXL: ISpatialAudioPropertiesProvider.cs; SpatialOperatorAudioStream.cs (Update3DPosition, Set3DOrientation/Cone/Mode, Initialize3DAudio)
+  - spec: Spatial/3D audio sources are visualized by a gizmo in the 3D viewport, reading position/rotation/listener/distance/cone via a common interface. Distance falloff is linear between min/max (not physical inverse-square). Relevant only if sw adds 3D positional audio.
+- **[important]** 滑鼠滾輪/觸控板 pan + pinch-zoom 的輸入分流（編輯器 canvas 縮放/平移手感）
+  - TiXL: Editor/App/MouseWheelPanning.cs:ProcessMouseWheelInput/ProcessFrame; ImGuiDx11RenderForm.cs:WndProc(WM_MOUSEWHEEL/WM_MOUSEHWHEEL→194)
+  - spec: 若 native canvas 要重現 TiXL 觸控板手感：滾輪一格=120 單位、notches=delta/120；ImGui 拿 notches/2、app 自家 pan 拿 full notches*pixelsPerNotch；ctrl-pinch 或 80ms sticky-window 內走 zoom 不走 pan，且只在 UserSettings.UseTouchPadPanning 開啟時把 ctrl-wheel 當 pinch。每幀結算後清零。
+- **[important]** WndProc → ImGui 滑鼠/鍵盤/焦點/cursor 輸入映射（編輯器互動骨幹）
+  - TiXL: Editor/App/ImGuiDx11RenderForm.cs:WndProc/HandleKeyEvent/UpdateMouseCursor/ctor(MouseMove)
+  - spec: native 編輯器輸入 parity：button index L=0/R=1/M=2；雙擊也只當一次 down；失焦(WM_ACTIVATEAPP deactivate)必清全鍵狀態+強制 Alt up 防卡鍵；ALT 的 syskey 要攔截避免系統選單偷焦點。cursor 形狀映射 ImGuiMouseCursor→Win32 Cursors（Arrow/IBeam/SizeAll/SizeWE/SizeNS/SizeNESW/SizeNWSE/Hand）。viewer 視窗不吃滑鼠 down 與 MousePos。
+- **[polish]** Win32-VK to ImGuiKey mapping table (post-ImGui 1.87 keyio)
+  - TiXL: Win32KeyMapping.cs:ToImGuiKey
+  - spec: If simple_world drives ImGui keyboard input via raw platform keycodes it needs an equivalent code->ImGuiKey table. Source codes are Win32-specific (macOS differs) but target ImGuiKey values, the generic-modifier->Left-variant convention, and the misleading enum-name quirks (Key.Pipe=Grave, Key.HashTag=Backslash) carry over for keybinding parity.
+- **[important]** App menu-bar structure and item layout
+  - TiXL: AppMenuBar.cs:DrawAppMenuBar/DrawMainMenu/DrawErrorsIndicator/DrawVersionIndicator
+  - spec: Canonical menu item tree + grouping for top-menu-bar parity: separators, submenu nesting, enable/disable conditions ('not currently saving', 'project open', 'MainOutputTexture!=null'). View menu's five toggles map directly to persisted UserSettings flags (ShowMainMenu/ShowTitleAndDescription/ShowMiniMap/ShowToolbar/ShowTimeline). Build data-driven per project CLAUDE.md rule 7.
+- **[important]** Exit confirmation dialog (unsaved-change counting + save-and-exit)
+  - TiXL: ExitDialog.cs:Draw/GetChangedSymbolCount; ProgramWindows.cs:OnCloseMainWindow
+  - spec: Match unsaved-change-count (per-symbol HasBeenModified across all packages), three-button layout that appears only with unsaved changes, deferred save-then-exit completion check, and 'cannot close while saving' guard. Window-close interception is DEBUG-vs-RELEASE conditional.
+- **[polish]** Graph Search dialog (navigate/select operators & annotations)
+  - TiXL: SearchDialog.cs:Draw/UpdateResults/FindAllChildren/DrawItem; enum SearchModes
+  - spec: If simple_world adds an operator quick-search/jump: three scopes (Local/LocalAndInChildren/Global), empty-query-shows-history, annotations-first sorting, arrow-key live-focus navigation, result coloring by primary output-type color with fade for non-library namespaces.
+- **[important]** Add-Input / Add-Output / Combine / Delete-Symbol graph-editing dialogs
+  - TiXL: AddInputDialog.cs; AddOutputDialog.cs; CombineToSymbolDialog.cs; DeleteSymbolDialog.Draw.cs
+  - spec: Graph-edit modification dialogs. Parity: Add Input has Multi-Input flag; Add Output has Is-Time-Clip flag; Combine clears undo history (irreversible, new symbol type in chosen editable project, optional time-clip); Delete is gated by dependency analysis (protect read-only packages + namespace-main), plus Force-delete-with-disconnect. All route through UndoRedoStack commands except Combine which bypasses undo.
+- **[polish]** Node fades to idle/muted color when not recently updated
+  - TiXL: Legacy/GraphNode.cs:Draw lines ~64-68,146-155
+  - spec: framesSinceLastUpdate = min over outputs of output.DirtyFlag.FramesSinceLastUpdate. When >2, background lerps toward ColorVariations.OperatorBackgroundIdle by fadeFactor=RemapAndClamp(frames,0..60,0..1). Per-frame-updating ops stay bright; idle ops mute to gray. Hover uses OperatorBackgroundHover variation.
+- **[polish]** Node indicator badges (animated/pinned/snapshot) bottom-right
+  - TiXL: Legacy/GraphNode.cs:Draw ~349-368, DrawIndicator ~732-745
+  - spec: DrawIndicator stacks 10x10 squares from bottom-right, each 11px left of prior, with 1px WindowBackground.Fade(0.4) outline. Order: animated(Symbol.Animator.IsInstanceAnimated)->StatusAnimated; pinned(NodeSelection.PinnedIds)->Selection; EnabledForSnapshots->StatusAutomated.
+- **[polish]** Disabled/Bypassed node overlay marks
+  - TiXL: Legacy/GraphNode.cs:Draw ~196-211
+  - spec: IsDisabled: two diagonal overlay lines forming X (0,0->1,1 and 1,0->0,1). IsBypassed: two mid-height dashes (0.05->0.4 and 0.6->0.95 at y=0.5) plus small central X (0.35,0.1->0.65,0.9 and 0.65,0.1->0.35,0.9), drawn in normalized coords scaled to node rect via DrawUtils.DrawOverlayLine.
+- **[important]** Multi-input vertical socket stack with insertion gaps + index markers
+  - TiXL: Legacy/GraphNode.cs:Draw multi-input branch ~501-608
+  - spec: Multi-inputs stack vertically; socketCount=connectedLines normally, but =connectedLines*2+1 with even indices as gap insertion-slots when a matching-type connection is being dragged (showGaps). socketHeight=(area.Height+1)/socketCount. Non-gap sockets get faint numeric index; every 4th (index%4==0,>0) gets ' <' marker + faint divider. Empty required multi-input shows two dots.
+- **[important]** Per-output dirty-flag-trigger and connection-style editing
+  - TiXL: Dialogs/EditNodeOutputDialog.cs; Legacy/GraphNode.cs:DrawOutput ~1017-1020,674-677
+  - spec: EditNodeOutputDialog edits a child output DirtyFlagTrigger via enum combo and propagates to every live instance output slot DirtyFlag.Trigger. Also a per-output connection-style override: 'Default' vs 'Faded Out' (adds ConnectionStyleOverrides[outputId]=FadedOut -> connection line alpha 0.1). Opened via Ctrl+Right-click on output socket.
+- **[polish]** Node comments and symbol descriptions: storage, commit-on-close, undo
+  - TiXL: Dialogs/EditCommentDialog.cs; EditSymbolDescriptionDialog.cs; Legacy/GraphNode.cs ~109-119
+  - spec: EditCommentDialog edits SymbolUi.Child.Comment (2000 chars, multiline); a comment badge at node top-right opens it. Commits ChangeCommentCommand only when buffer differs from original, including on ESC/click-outside. EditSymbolDescriptionDialog edits SymbolUi.Description + ExternalLinks list (type enum incl TutorialVideo, Url/Title/Description, add/remove), committing ChangeSymbolDescriptionCommand with before/after snapshots pushed without re-executing.
+- **[polish]** Status-provider warning/error icon badge on node top-left
+  - TiXL: Legacy/GraphNode.cs:Draw ~88-107
+  - spec: If Instance is IStatusProvider with StatusLevel not Success/Undefined, a 15x15 icon at top-left (offset -10,-12). Tip=StatusActivated+Tip icon, Notice=StatusAttention, Warning=StatusWarning, Error=StatusError(Warning icon). Hover tooltip shows level name + GetStatusMessage().
+- **[important]** Graph keyboard/UserActions command set
+  - TiXL: Legacy/GraphView.cs:DrawGraph ~177-349
+  - spec: When focused and not saving: FocusSelection->fit; Duplicate->copy+paste; DeleteSelection; ToggleDisabled/ToggleBypassed; PinToOutputWindow (FocusMode sets bg output else pin); DisplayImageAsBackground; Copy/Paste; LayoutSelection->ArrangeOps; AddAnnotation->add+rename; NavigateBackwards/Forward via NavigationHistory; SelectToAbove/Right/Below/Left via NodeNavigation; AddComment. Camera pan via CameraForward/Backward/Left/Right adds damped scroll velocity (KeyboardScrollAcceleration); CameraUp/Down zoom 1.05 around window center. ScrollTarget+=velocity each frame, velocity*=0.90.
+- **[important]** Graph canvas context menu structure
+  - TiXL: Legacy/GraphView.cs:DrawContextMenuContent ~602-934
+  - spec: Background right-click menu: Undo(+next title); Disable/Bypass/Rename/Add Comment/Arrange; snapshot-enable toggle (+variation pool sync); 'Display as...' (Small/Resizable/Expanded, set-image-as-background for Texture2D, pin-to-output); Copy/Paste/Delete/Duplicate; 'Replace with...' (SymbolBrowser prefilled, ChangeSymbol.ChangeOperatorSymbol); 'Symbol definition...' (Rename/Duplicate-as-new-type/Combine-into-new-type); 'Open folder...' (Project/Resources); 'Add...' (Add Node TAB, input/output param, Annotation); 'Export as Executable' (PlayerExporter.TryExportInstance + open dir).
+- **[important]** Drag-and-drop symbol onto graph canvas
+  - TiXL: Legacy/GraphView.cs:DrawDropHandler+DrawDragPreview ~528-592; UiElements.cs
+  - spec: DrawDropHandler covers window with invisible button while DragAndDropHandling.IsDragging; handles DragTypes.Symbol (Guid payload). Hover draws floating operator-colored preview label near cursor. Drop adds child via GraphOperations.AddSymbolChild at InverseTransformPositionFloat(mousePos), selects it, flags composition modified. Drag source = UiElements.DrawExampleOperator.
+- **[polish]** Breadcrumb navigation bar + dependency tooltip
+  - TiXL: Interaction/GraphTitleAndBreadCrumbs.cs
+  - spec: Top-left: Hub icon button (closes project view) then parent-instance chain (Structure.CollectParentInstances) as small buttons chevron-separated, folder-open icon before first. Click parent -> TrySetCompositionOpToParent. Root parents tooltip project DisplayName + package Dependencies. Below: symbol Name (FontLarge) + '  - Namespace' faded.
+- **[polish]** Minimap overlay with view-rect, drag-pan, wheel-zoom
+  - TiXL: Interaction/UiElements.cs:DrawMiniMap ~49-167
+  - spec: 200x200 top-right panel. Bounds over child rects; opacity=remapClamp(maxBoundsSize,200..1000,0..1) (hidden when tiny). Aspect-fit bounds (5px pad), draw annotations(color faded 0.1), children(MiniMapItems faded 0.5), view-rect outlined. Drag sets canvas scroll to center on mapped point; wheel zooms canvas at mapped position.
+- **[important]** Annotation frames: draw/resize/drag-with-contained-ops/title-font/inline-rename
+  - TiXL: Legacy/AnnotationElement.cs
+  - spec: Translucent (0.2) frame + colored header strip (clickable area capped ~14-16px screen height when zoomed out). Bottom-right 10x10 handle resizes (canvas-space delta). Dragging header moves annotation + (unless Ctrl) all ops/annotations whose rects are fully Contained (FindAnnotatedOps); selection-aware. Double-click header / StartRenaming -> inline RenamingAnnotation. Title '# ' prefix = FontLarge else FontNormal; label fade=SmootherStep(0.25,0.6,canvasScale), clipped. Move undoable (ModifyCanvasElementsCommand) only past ClickThreshold.
+- **[polish]** Shake-to-disconnect gesture detection
+  - TiXL: Interaction/ShakeDetector.cs
+  - spec: ShakeDetector.TestDragForShake records sign of delta.X (|dx|>2) into a framerate-scaled queue (QueueLength=35 @60fps). Counts reversals among non-zero entries; >=5 (ChangeDirectionThreshold) reports shake and resets.
+- **[important]** Extract-parameter-as-connected-operator
+  - TiXL: Interaction/ParameterExtraction.cs; Legacy/GraphView.cs:ExtractAsConnectedOperator
+  - spec: ExtractAsConnectedOperator inserts a value-op (matched by value type via SymbolsExtractableFromInputs where OperatorTypeInfo.ExtractableTypeInfo.IsExtractable), named after the input, at a free position (string types 120x80 Resizable), copies current value via IExtractedInput<T>.SetTypedInputValuesTo, records changed slots for redo, adds connection — all in one MacroCommand 'Extract as operator'.
+- **[polish]** Searchable type picker with synonyms for add-input/field type
+  - TiXL: Dialogs/TypeSelector.cs; SymbolModificationInputs.cs:DrawFieldInputs
+  - spec: TypeSelector.Draw = SearchableDropDown over TypeNameRegistry.Entries. Filter matches type name OR synonyms: float<-Single, Texture2d<-Image, Vector4<-Color/Quaternion. Rows type-colored (OperatorLabel variation), 'TypeName - Namespace', bold when selected, search-match underline. Manual hit-test workaround because dropdown is inside a modal.
+- **[important]** 節點拖曳吸附(snap)+智慧群組拖曳+抖動斷線(shake-to-disconnect)
+  - TiXL: SelectableNodeMovement.cs:Handle/HandleNodeDragging/AreChildUisSnapped
+  - spec: native canvas拖曳:4-offset吸附(右/左/上/下,pad=(40,20))+螢幕20px吸附閾值;同行/同列邊緣接觸即snapped;提供smart-group(拖整串吸附鄰居)與shake-to-disconnect(抖動斷所有連線)。
+- **[core]** 連線建立狀態機(TempConnection/拖到input或output/取代既有連線/multi-input插入/cycle阻擋)
+  - TiXL: ConnectionMaker.cs:StartFromOutputSlot/StartFromInputSlot/CompleteAtInputSlot/InitSymbolBrowserAtPosition
+  - spec: 連線手勢需用TempConnection暫存狀態+MacroCommand包裝(可undo);支援:input已連線時起拖=斷線並接管原source;落在已連input=取代並命名Reconnect;multi-input用index%2判replace、/2得插入位;落背景開symbol browser draft;建立前CheckForCycle阻擋成環。三個sentinel Guid值要照搬。
+- **[core]** SymbolBrowser(operator建立搜尋popup):Tab開啟、型別過濾、命名空間相關性著色、preset面板、方向鍵選取
+  - TiXL: SymbolBrowser.cs:Draw/OpenAt/DrawResultsList/CreateInstance
+  - spec: operator建立popup:Tab開、依拖線型別過濾、命名空間相關性決定亮/暗、上下鍵+滑鼠hover選取、Enter/點擊建立並照draft連線狀態自動接線、建立後請求開該節點parameter popup。
+- **[important]** 拖線到背景/拖既有節點到連線上=分割連線(split),含hover圓圈+縮圖tooltip
+  - TiXL: ConnectionSplitHelper.cs:PrepareNewFrame/RegisterAsPotentialSplit;ConnectionMaker.cs:SplitConnectionWithSymbolBrowser/SplitConnectionWithDraggedNode
+  - spec: 連線分割:hover連線中點(50px)顯示彈性放大圓圈+source即時縮圖tooltip,點擊在中點開browser插入節點;拖既有節點到連線上且型別/primary-input相符時插入該節點並重接前後兩段。
+- **[important]** ParameterPopUp(點節點彈出的內嵌參數視窗):三模式+bypass/disable/pin工具列
+  - TiXL: ParameterPopUp.cs:HandleOpenParameterPopUp/DrawParameterPopUp/Open
+  - spec: 點節點開內嵌參數popup(左鍵點/中鍵/程式請求觸發),三分頁Parameters/Presets/Help+bypass/disable/pin-output工具列,Esc/失焦自動關,高度依內容自適應clamp。
+- **[important]** FormInputs:對話框/inspector表單widget庫(左標籤、reset按鈕、default值淡化、可重排listbox)
+  - TiXL: FormInputs.cs:AddFloat/AddStringInput/AddCheckBox/AddEditableListBox/DrawValueRangeControl/AppendResetButton/DrawInputLabel
+  - spec: 表單元件庫定式:標籤左對齊(indent 150)、default值整列淡化、非default顯示revert按鈕、tooltip用help icon hover、可重排+增刪的editable listbox、value-range(clampMin/min/scale/max/clampMax)控件。對齊inspector/dialog觀感的承重表。
+- **[important]** 型別搜尋輸入(type-ahead):上下鍵導航、相關性排序、popup用Tooltip flag逃出clip
+  - TiXL: InputWithTypeAheadSearch.cs:Draw/FilterItems;ResourcePathInputWithSearch.cs(class AssetInputWithTypeAheadSearch):Draw/DrawMatches/FilterItems;SearchableDropDown.cs:Draw
+  - spec: type-ahead搜尋輸入:StartsWith=高相關/Contains=次相關排序;上下鍵+捲動+Enter/Esc;popup用Tooltip-flag window逃出modal clip(PopUp會crash);asset版依副檔名過濾、按package分組、hover縮圖、ESC還原原值。
+- **[polish]** AdsrEnvelopeInputUi:Vector4(A,D,S,R)的視覺包絡編輯器
+  - TiXL: AdsrEnvelopeInputUi.cs:DrawAdsrControl/DrawEnvelopeCurveWithHandles/DrawAndHandleHandles/DrawParameterRow
+  - spec: Vector4 ADSR自訂inspector widget(MappedType掛在Vector4 input):視覺包絡(5點+grid+標籤)、4鑽石handle拖曳(A/D/R拖時間、S拖0-1)、段內直拖、下排4數值框;sustainDuration固定0.2、值clamp 0.001。
+- **[polish]** GradientInputUi:Gradient型別input的色帶編輯器掛接
+  - TiXL: GradientInputUi.cs:DrawEditControl(實作在GradientEditor.Draw,本chunk未含)
+  - spec: Gradient型別input掛GradientEditor色帶編輯器(左右留StepHandle空間);null時自動建default Gradient;改了才取消IsDefault。實際step編輯在GradientEditor(另一檔)。
+- **[polish]** NodeGraphLayouting:選取節點自動排版(auto-arrange)
+  - TiXL: NodeGraphLayouting.cs:ArrangeOps/RecursivelyAlignChildren/FindPositionForNodeConnectedToInput
+  - spec: 選取節點自動排版:依input順序把上游op排左側,縮圖節點多留垂直空間,分叉輸出延後第二趟,全部包成單一'arrange' undo command。新節點放置時在目標左側找不重疊位。
+- **[polish]** InputNode/OutputNode:symbol自身的published input/output節點繪製與起拖
+  - TiXL: InputNode.cs:Draw;OutputNode.cs:Draw
+  - spec: compound內把symbol published input/output畫成可連線的特殊節點(input右側摺角slot+序號標籤,output左側slot),可作為連線端點;output node完成連線走AddConnection+FlagAsModified(無undo,與一般連線不同)。
+- **[polish]** RenamingAnnotation:標註框就地改名(行內InputText+undo)
+  - TiXL: RenamingAnnotation.cs:Draw
+  - spec: annotation就地改名:開啟時focus+AutoSelectAll,InputTextMultiline即時改Title,失焦/Esc提交成可undo的ChangeAnnotationTextCommand。
+- **[important]** Float param drag scale auto-derives from Min/Max when Scale is 0
+  - TiXL: VectorInputs/FloatVectorInputValueUi.cs: GetScaleFromRange+Scale getter 273-294, consts 303-305
+  - spec: Default float-field drag = 0.01/step from the range formula; replicate the formula exactly for identical drag feel.
+- **[important]** Int param drag scale constant 0.1 regardless of range
+  - TiXL: VectorInputs/IntVectorInputValueUi.cs: Scale 131, round 52, defaults 137-139
+  - spec: Int field drag fixed 0.1/step (not range-derived, unlike float); curve-to-int rounds (int)(v+0.5).
+- **[important]** Vector4 default field is a color editor, ClampMin=0 Max=1
+  - TiXL: VectorInputs/Vector4InputUi.cs: ctor 19-25, DrawEditControl 47-82, DrawColorInput 86-116, enum 149-153
+  - spec: Vector4 params default to 0..1 clamp-min, render numeric row plus color swatch; alternate ADSR-envelope mode exists; color drag scale 0.01.
+- **[polish]** Vector2 optional 2D drag-pad (Position/BiasAndGain/Range)
+  - TiXL: VectorInputs/Vector2InputUi.cs: DrawEditControl drag-pad 31-175, enum 224-230
+  - spec: Vec2 params may opt into a 2D drag canvas; Shift=0.1x Alt=10x scale the 0.005-per-pixel base; Y inverted; Range mode does exponential interval zoom.
+- **[important]** Int param renders as enum dropdown via MappedType, with Ctrl+wheel scrub and hover-apply
+  - TiXL: VectorInputs/IntInputUi.cs: DrawEnumInputEdit 68-212, MappedType branch 34-37
+  - spec: Int-backed enums: non-flag = combo with optional hover-preview-apply (UserSettings.ApplyDropdownValuesOnHover) and Ctrl+mousewheel scrub; flag = checkbox tree. The typed enum editor (EnumInputUi) uses plain ImGui.Combo without hover-apply/Ctrl-wheel, popup max-visible 20.
+- **[polish]** Typed enum param: flag-enum checkbox tree vs plain combo
+  - TiXL: SimpleInputUis/EnumInputUi.cs: DrawEnumInputEdit 26-92
+  - spec: Typed enum dropdown popup max-visible-items=20; flag enums are a collapsible checkbox tree; Modified and Finished fire together on combo selection.
+- **[important]** String param has 5 usage modes incl file/dir pickers and multiline
+  - TiXL: SimpleInputUis/StringInputUi.cs: UsageType enum 24-31, switch 50-119, multiline 128-145, Write/Read 231-255
+  - spec: String params: max length 32000; modes give plain / multiline-monospace-autosizing / file-picker-with-Edit-open / dir-picker / custom-dropdown; paths stored forward-slash normalized; multiline height clamps to 30 lines and half window height.
+- **[important]** Generic list-param editor: drag-reorder, per-row insert/delete, copy-on-write of default
+  - TiXL: ListInputs/ListInputValueUi.cs: DrawListInputControl 32-262; ColorListInputUi/FloatListInputUi/IntListInputUi/StringListInputUi are thin type bindings
+  - spec: List params: Create / Clear-all / plus / x / insert plus drag-to-reorder; default-valued lists are copy-on-write cloned before mutation; color rows use the 0..1 color input; empty list seeds the type default (empty string for string lists).
+- **[polish]** SceneSetup tree editor popup with per-node visibility toggles
+  - TiXL: CombinedInputs/SceneSetupInputUi.cs: DrawEditControl 37-49, SceneSetupPopup.DrawNode 91-221
+  - spec: SceneSetup param edits via a modal tree of imported-scene nodes; visibility toggles store a per-node-name-hash NodeSetting (Visible/HiddenBranch) that hides whole branches; rows surface mesh face-count and PBR material textures. Niche (only relevant once scene/gltf import exists).
+- **[important]** InputEditStateFlags Started/Modified/Finished contract; FloatVector value-format presets gear
+  - TiXL: SingleControl/SingleControlInputUi.cs 11-21; VectorInputs/FloatVectorInputValueUi.cs DrawAnimatedValue 40-68 and presets/DrawSettings 95-217; SimpleInputUis/ValueInputUi.cs 21-31
+  - spec: Every param control emits Started/Modified/Finished (Started on first click, Finished on deactivate-after-edit) for undo grouping; animated params edit the keyframe at current playback time, not the static input value. Float fields have a settings gear with named range/format presets plus a printf Custom Format string applied with string.Format.
+- **[core]** Default (QWERTY) factory keymap table
+  - TiXL: Keyboard/FactoryKeyMap.cs:CreateFactoryKeymap
+  - spec: Mirror 1:1 incl Delete+Backspace and reused keys. Data-driven (action,key,modifiers) tuples.
+- **[core]** Shortcut context-gating via per-action Flags
+  - TiXL: Keyboard/KeyActionHandling.cs + KeyBinding.cs
+  - spec: Three-layer dispatch: exact modifiers, press-vs-hold, focus/hover/item-active. WASD fires while a field is active.
+- **[important]** Color-picker popup: HSV wheel + HDR value + alpha + used-colors
+  - TiXL: Interaction/ColorEditPopup.cs + ColorEditButton.cs
+  - spec: Warped-sat HSV wheel, HDR value (Ctrl, cube-root), 4 numeric modes incl hex, used-colors from sibling-op scan. Eyedropper uses screen capture -> macOS equivalent needed.
+- **[polish]** ColorEditButton quick-sliders (drag on thumbnail)
+  - TiXL: Interaction/ColorEditButton.cs
+  - spec: left-drag=alpha, right-drag=brightness(HSL), Shift=0.5x; click-vs-drag via ClickThreshold.
+- **[important]** Value-scrub overlays: InfinitySlider + JogDial
+  - TiXL: Interaction/InfinitySliderOverlay.cs, JogDialOverlay.cs
+  - spec: Float-scrub dial/ruler. InfinitySlider vertical=log-scale width 750, Alt=10x/Shift=0.1x/Ctrl=no-round, right-drag relocates. JogDial base floor(log10(scale)+3.5), 2 rings a decade apart, angle->digit replacement w/ 0.75 wrap.
+- **[polish]** SpaceMouse (3Dconnexion) camera tuning
+  - TiXL: Interaction/Camera/SpaceMouse.cs + SpaceMouse.Device.cs
+  - spec: Windows RawInput plumbing; device-read half cannot port. Only tuning: speed+damping from UserSettings, velocity len/2000, rot angle=value/8000, gimbal clamp abs(viewDir.Y)>0.95.
+- **[core]** Interaction parity facts
+  - TiXL: ScalableCanvas and SingleValueEdit and BeatTiming and TransformGizmoHandling and SymbolVariationPool and UserAction
+  - spec: Load bearing numeric parity constants per subsystem; full per file detail in agent transcript.
+- **[core]** Magnetic node grid + snap geometry constants
+  - TiXL: MagGraphItem.cs; MagItemMovement.cs; MagItemMovement.Snapping.cs
+  - spec: MagGraphItem Width=140, LineHeight=35, GridSize=(140,35), WidthHalf=70. Height=LineHeight*max(1,visibleLines); primary output shares first input line. Annotations snap to 35px grid. Connection snap=30px. Drag-snap when BestDistance<LineHeight*0.5 (normal)/*0.35 (insertion). SnapTolerance=0.01.
+- **[core]** Cable routing styles derived from geometry each frame
+  - TiXL: MagGraphLayout.cs UpdateConnectionLayout(); MagGraphConnection.cs
+  - spec: UpdateConnectionLayout recomputes Style: snapped-horizontal/vertical (touching edges), BottomToLeft, AdditionalOutToMainInputSnappedVertical, BottomToTop, else RightToLeft arc. IsSnapped=Style<BottomToTop. Edge equality <1px.
+- **[core]** Placeholder/Symbol-Browser node creation
+  - TiXL: PlaceholderCreation.cs; PlaceHolderUi.cs
+  - spec: Placeholder MagGraphItem (Guid ffffffff-eeee-47C7-A17F-E297672EE1F3). Inline search + results (150x235*UiScale, 12 rows, clamp 250). Relevancy-ordered SymbolFilter when filtering else curated lib-tree. From output drags temp connection by type; clicking cable splits it. New op auto-connects first matching input, reroutes downstream, pushes neighbors if >1 line.
+- **[important]** Connection hovering thumbnail tooltips + HoverMode
+  - TiXL: ConnectionHovering.cs; UserSettings.Config.HoverMode
+  - spec: Elastic circle + tooltip source.output<type>-->target.input[idx]. Regions Beginning/End/Center; click End disconnects input, Beginning output. HoverMode Disabled/LastValue/Live controls 200x(200*9/16) thumbnail; LastValue skips Texture2D; Live recomputes.
+- **[important]** Annotations drag/resize/rename with grid+sibling snapping
+  - TiXL: AnnotationDragging.cs; AnnotationResizing.cs; AnnotationRenaming.cs
+  - spec: Dragging unselected annotation grabs enclosed ops (unless Ctrl), snaps edges to siblings (0.5) and 35px grid. Resize BR corner 0.25-snap. Rename inline label (256ch) over multiline description (1024ch), commit via ChangeAnnotationTextCommand. Click below ClickThreshold selects.
+- **[important]** Graph context menu full node operation set
+  - TiXL: GraphContextMenu.cs
+  - spec: Undo, Select submenu, Disable/Bypassed, Rename, Add Comment, Edit Tour Points, Align left, Enable for snapshots, Display as Small/Resizable/Expanded + Set image as background + Pin to output, Copy/Paste/Paste Values, Delete, Duplicate, Symbol definition (Rename/Duplicate/Combine/Set Thumbnail), Open folder, Add Node/input/output/Annotation, Export as Executable.
+- **[important]** Drag-snap splice insertion, shake-disconnect, gap-collapse
+  - TiXL: MagItemMovement.cs; MagItemMovement.Snapping.cs
+  - spec: Dragging snapped stack detects SpliceLink to splice into cable (delete old, add two, push neighbors GridSize). Mouse shake disconnects border connections. Unsnap collapses gaps and re-fuses bypassed cable. Cycle-checked. Auto-connect picks first matching input.
+- **[important]** Hidden-input picker on cable drop
+  - TiXL: InputPicking.cs
+  - spec: Dropping output connection on op lacking visible matching input opens popup of all type-matching inputs (connected prefixed x ). Select connects + inserts line at computed index, pushing neighbors GridSize if needed.
+- **[core]** Relevancy-based input/output line visibility
+  - TiXL: MagGraphLayout.cs CollectVisibleLines()
+  - spec: Input visible if Relevant/Required OR primary OR connected/temp. Multi-inputs one line per connection + trailing empty. Outputs: index-0 always; secondary only if connected else HasHiddenOutputs. Optional unconnected hidden. Sets node height.
+- **[polish]** Additional-output picker popup
+  - TiXL: OutputPicking.cs
+  - spec: pickOutput popup (Drag output...) lists outputs not visible; hover highlights, click/drag starts temp connection. Button width max(196,labelWidth+30).
+- **[important]** Graph canvas keyboard shortcut surface
+  - TiXL: KeyboardActions.cs; RenamingOperator.cs
+  - spec: FocusSelection, Duplicate, Delete, AlignLeft, ToggleDisabled/Bypassed, Navigate Back/Forward, PinToOutputWindow, DisplayImageAsBackground, Copy/Paste/PasteValues (suppressed in text input), AddAnnotation, AddComment, RenameChild. Gated on !IsCurrentlySaving.
+- **[polish]** Tour / onboarding overlay system
+  - TiXL: TourInteraction.cs
+  - spec: Progress dots + typewriter markdown card + Styles Info/InfoFor/CallToAction/Conclusion/Tip. Active point pulses 4-circle indicator over node. Progress per-symbol-Guid; Info/InfoFor block hints.
+- **[important]** Layout model lifecycle lazy rebuild + per-frame cable relayout
+  - TiXL: MagGraphLayout.cs
+  - spec: ComputeLayout rebuilds only on forceUpdate/UndoRedo/FlagStructureAsChanged/composition-hash. Reuses items by Guid (obsolete-by-cycle). Cable routing + vertical-stack boundaries recompute every frame. DampedPosOnCanvas lerps.
+- **[core]** Custom-inline-op-UI dispatch: hardcoded Guid->drawFn table + IDescriptiveFilename special-case
+  - TiXL: OpUis/OpUi.cs:DrawCustomUi + _drawFunctionsForSymbolIds; OpUis/DescriptiveUi.cs
+  - spec: Native parity needs per-symbol-id dispatch for inline node widgets, keyed on op-type Symbol.Id (not instance), with the IDescriptiveFilename fallback and the visibility/validity gate.
+- **[important]** OpUi reflection autobinding contract (BindInput/Output/Property/Field by Guid or name)
+  - TiXL: OpUis/OpUiBinding.cs:AutoBind + every UIs/*.cs Binding class
+  - spec: Inline widgets read op-internal state by reflection on private fields (_normalizedTime drives the moving playhead; _calculator.CurrentStage/Value drives ADSR indicator). A native port must expose this state explicitly per op. Slots bound by Guid, runtime fields by name.
+- **[core]** CustomUiResult flag contract governs node-frame layout (labels/thumbnail/tooltip/popup/subgraph)
+  - TiXL: OpUis/OpUi.cs:CustomUiResult; MagGraph/Ui/MagGraphCanvas.DrawNode.cs ~162-282,402
+  - spec: These flags are the contract between an inline widget and the node renderer. Reproduce: AllowThumbnail->show preview AND hide label; PreventInputLabels->hide param column; IsActive->capture interaction/suppress drag; Prevent*->disable double-click-into-subgraph and parameter popup. Zoom gates 0.3/0.2.
+- **[important]** MagGraph input/output socket anchors: hover hit-radius, tooltips, snap-target registration
+  - TiXL: MagGraph/Ui/MagGraphCanvas.DrawNode.cs ~626-1045
+  - spec: Connection-gesture parity: 7px*scale hover radius, Active*Item/Output/Input context writes consumed by the state machine to start a drag, type-match gating for snap registration, 'Single'->'Float' tooltip rename. Vertical vs horizontal anchors distinguish stacked (snapped) vs side connections.
+- **[important]** MagGraph annotation frames: collapse toggle re-parents children, header drag, double-click rename, resize handle
+  - TiXL: MagGraph/Ui/MagGraphCanvas.DrawAnnotation.cs
+  - spec: Annotation parity: collapse re-parents contained ops by geometric Area.Contains at collapse time, hides them, reroutes their connections to the annotation left/right edge anchors. Header-drag / double-click-rename / corner-resize are the three interaction zones. Title '# ' prefix selects the large font.
+- **[polish]** Inline interactive-op editing pattern: Ctrl-drag micro-graph edits Bias/Ratio; ValueLabel drag edits amplitude/offset
+  - TiXL: OpUis/UIs/AnimValueUi.cs / AnimVec2Ui.cs / AnimVec3Ui.cs / AudioReactionUi.cs / CounterUi.cs
+  - spec: Inline-edit gesture parity for Anim/Counter/AudioReaction: Ctrl turns node body into a 2D Bias/Ratio dragger; sensitivities /100 (Anim) or /200 and /100 (AudioReaction), clamps as listed, 0.5px deadzone. The moving playhead comes from the op's private _normalizedTime read by reflection.
+- **[polish]** BooleanUi click-to-toggle with drag-threshold guard
+  - TiXL: OpUis/UIs/BooleanUi.cs ~89-106
+  - spec: Bool-node toggle parity: press-latch + release-toggle gated by ClickThreshold drag distance, suppressed entirely when the input is connected. Checkmark + colored fill is the visual state.
+- **[important]** GradientSliderUi undo/redo command lifecycle for inline gradient editing
+  - TiXL: OpUis/UIs/GradientSliderUi.cs
+  - spec: Gradient inline-edit parity needs the Started/Modified/Finished command lifecycle: one ChangeInputValueCommand spans the whole drag, AssignNewValue accumulates, pushed to undo stack only on Finished. Clone-on-first-modify-if-default protects the shared default. Canonical pattern for any drag-edited complex input value.
+- **[polish]** PickTextureUi: multi-input texture selector buttons writing Index, disabled when Index connected
+  - TiXL: OpUis/UIs/PickTextureUi.cs
+  - spec: PickTexture node-widget parity: button-per-multi-input click-to-select writing Index, disabled when Index driven by a connection, active-button = currentValue mod count, multi-input region quad on left edge, thumbnail of chosen texture.
+- **[polish]** Get*Var inline widgets: title + live value display (no editing); variable-reference link lines
+  - TiXL: OpUis/UIs/GetBoolVarUi.cs / GetFloatVarUi.cs / GetIntVarUi.cs / GetStringVarUi.cs / GetVec3VarUi.cs; OpUi.cs:DrawVariableReferences
+  - spec: Variable Get-node parity is display-only: 'Get <type>: <name>' title + current value. DrawVariableReferences additionally draws automation-colored link lines to other nodes referencing the same variable name (discoverability aid), worth porting for the variable-system UX.
+- **[important]** Nodes draw themselves as micro-graph/slider/bar-sequencer custom child-UI on the graph (CustomUiResult flags control appearance + interaction)
+  - TiXL: Editor/Gui/OpUis/UIs/*.cs (ValueUi/RemapUi/TriggerAnimUi/SequenceAnimUi/TriggerUi/StringUi/_JitterUi/_Jitter2dUi/Set*VarUi)
+  - spec: node visual parity is more than rect+name: specific ops paint themselves as slider/curve/waveform/bar-sequencer/button/string-box on the canvas and return CustomUiResult flags telling the node renderer 'I drew myself / skip default labels / no subgraph on dbl-click'. In-place drag editing uniformly gated behind Ctrl. Need (a) per-node registerable DrawChildUi (b) CustomUiResult flag semantics (c) Ctrl-unlock in-place edit convention.
+- **[polish]** Shared child-UI draw/scale/font rules (WidgetElements) + SpeedRate rate snapping
+  - TiXL: Editor/Gui/OpUis/WidgetUi/WidgetElements.cs; SpeedRate.cs
+  - spec: child-UI parity needs a shared 'pick-font-by-scale + fade-out' rule (thresholds 5/10/15/25/40/65 over 25), a left dot-grid drag handle returning width for content inset, and discrete rate-slot display + Ctrl-drag snapping. This layer is the load-bearing line for visual consistency across many nodes.
+- **[polish]** MicroGraph drag semantics: horizontal=smoothing(0..1 linear), vertical=offset(log), axis locks once decided
+  - TiXL: Editor/Gui/OpUis/WidgetUi/MicroGraph.cs:MicroGraph.Draw
+  - spec: Jitter/Jitter2d inline-graph feel: horizontal linear-adjusts blending, vertical log-adjusts (base 1.02) jump distance, and a drag locks to one axis from the start (no mid-drag diagonal switch).
+- **[polish]** ValueLabel jog-dial in-place value edit (corner floating number + Ctrl-drag jog)
+  - TiXL: Editor/Gui/OpUis/WidgetUi/ValueLabel.cs:ValueLabel.Draw
+  - spec: corner values on inline node UI are editable: after Ctrl, jog-dial drag at the label (sensitivity 0.025) edits that input; needs a single global active-jog-slot concept and a SingleValueEdit equivalent. No label below height 15.
+- **[polish]** Set*Var node hover draws reference lines to matching Get*Var nodes (DrawVariableReferences, hard-coded Get-op GUIDs)
+  - TiXL: Editor/Gui/OpUis/UIs/Set{Bool,Float,Int,String,Vec3}VarUi.cs
+  - spec: Set*Var hover draws reference lines on the graph to same-named Get*Var nodes (keyed by variable name); needs OpUi.DrawVariableReferences equivalent and a Set->Get type-pair symbol-id table. Title fixed 'Set <type>: <name>'.
+- **[polish]** Three SelectFromDict node child-UIs are currently disabled/commented (not a parity target)
+  - TiXL: Editor/Gui/OpUis/UIs/Select{Bool,Float,Vec2}FromDictUi.cs
+  - spec: these dict-select nodes have no active custom child-UI in TiXL itself (code commented out), so parity need not reproduce their inline visual; if ever done, target is just title (name/Select string) + small result value. Record as known gap so it isn't mistaken for required parity.
+- **[important]** Color theme model: named themes with per-field Color dict + per-field ColorVariation dict, file-backed, hot-applied
+  - TiXL: ColorThemeEditor.cs (DrawEditor/DrawColorEdits/DrawVariations) + ColorVariation.cs/ColorVariations.cs
+  - spec: Editor color customization = named, file-saved themes (in SettingsDirectory) selected by UserSettings.Config.ColorThemeName. A theme = {Name, Author, Colors[fieldName->RGBA], Variations[fieldName->{B,S,O}]}. Color changes apply live via T3Style.Apply() and set FrameStats.UiColorsChanged.
+- **[important]** ColorVariation math: HSV multiply of base color (brightness/saturation factors + opacity factor)
+  - TiXL: ColorVariation.cs:Apply / ColorVariations.cs (static fields)
+  - spec: Per-datatype UI colors are NOT stored directly; they are derived from one base type color via HSV multiply by named ColorVariation factors. To match node/connection/annotation tinting, replicate Apply() (HSV multiply, v and alpha clamped) and the exact factor table above.
+- **[important]** Five named UI fonts + 16px icon font; icons come from a packed atlas with named slot rectangles
+  - TiXL: Fonts.cs / Icons.cs (Icon enum, CustomIcons table, IconFilePathForResolutions, GetGlyphDefinition)
+  - spec: Editor uses 5 text fonts (Large/Normal/Bold/Small + monospace Code) and a 16px icon set baked from a single 't3-icons.png' atlas (slots are 15px-pitch rects, sizes per-icon) with @2x/@3x variants. Icon rendering centers a sub-rect of the font texture over an invisible button; replicate the slot table for matching toolbar/keyframe/file-type icons.
+- **[polish]** Custom imgui component conventions (menu items, tooltips, context menus, drag-scroll, splitter)
+  - TiXL: CustomComponents.cs / .Buttons.cs / .Menus.cs / .Tooltips.cs
+  - spec: To match editor feel: menu items are custom-drawn (not ImGui.MenuItem) with checkmark+shortcut columns; tooltips delay 0.6s and wrap at 300px; right-drag beyond ClickThreshold both scrolls canvases and suppresses context menus; buttons follow a 5-state color scheme (Activated uses StatusActivated/BackgroundButtonActivated, NeedsAttention uses StatusAttention, Disabled/Dimmed fade text).
+- **[important]** Magnetic node-connection cable geometry (arc routing between source/target points)
+  - TiXL: GraphConnectionDrawer.cs:DrawConnection / ComputeInnerTangentAngle
+  - spec: Native canvas cable rendering in Magnetic graph style: use double-arc tangent routing (not bezier) governed by UserSettings.MaxCurveRadius/MaxSegmentCount; straight line only for near-horizontal forward connections (dx>0,|dy|<2).
+- **[important]** Legacy connection-cable geometry + cable hover hit-test
+  - TiXL: LegacyConnectionDrawer.cs:Draw / TestHoverDrawListPath
+  - spec: Cable hover detection = 6px point-to-segment distance test over the drawn path points, with +40px bounds padding for backward (right-to-left) cables; expose normalized hover position for drop-on-connection insertion.
+- **[important]** Gradient editor widget — full interaction model (柏為 authoring domain)
+  - TiXL: GradientEditor.cs:Draw / DrawHandle / DrawGradient
+  - spec: Gradient widget: horizontal-drag handles for position, Alt-drag for alpha, drag-below-15px to delete, click-to-open color popup, click-in-strip to insert a sampled step, context menu (Reverse / Distribute / Presets / Interpolation). Smooth gradient drawn as 5 sub-rect lerp per segment; Hold = flat bands.
+- **[polish]** Parameter-label spacing rule (PascalCase -> spaced display)
+  - TiXL: ParameterNameSpacer.cs:AddSpacesForImGuiOutput
+  - spec: When displaying parameter/op names, optionally insert spaces at case/digit boundaries with acronym preservation (keep '2D','3D' intact). Display-only; underlying name unchanged.
+- **[polish]** Keyboard & mouse interaction overlay (recording/tutorial HUD)
+  - TiXL: KeyboardAndMouseOverlay.cs
+  - spec: Optional on-screen input overlay (off by default) showing pressed keys + mouse buttons/wheel; cosmetic, used for screencasts.
+- **[polish]** Status line shows last log entry; symbol namespace tree menu
+  - TiXL: StatusErrorLine.cs / SymbolTreeMenu.cs
+  - spec: Status bar = right-aligned last-log line (age-faded, click-to-clear, hover for recent log). Op browser/menu groups symbols by namespace into a nested submenu tree.
+- **[polish]** Variation Explorer: parameter-scatter grid + 2/3-way snapshot blending with weighted mixing
+  - TiXL: Editor/Gui/Windows/Exploration/ExplorationWindow.cs; ExploreVariationCanvas.cs; ExplorationVariation.cs; GridCell.cs
+  - spec: A genetic-style parameter explorer: neighbour-weighted scatter on selected numeric inputs, live preview on hover, click to commit (undoable), per-symbol favourites, and 2/3-snapshot weighted blend layouts. Thumbnails share one atlas texture rendered at a frozen time.
+- **[polish]** Graph view bookmarks: 10 slots, Ctrl+Shift+# to save, # to load, stores composition path + view scope + selection
+  - TiXL: Editor/Gui/Windows/GraphBookmarkNavigation.cs
+  - spec: Graph bookmarks capture {composition-path, view-scope (pan/zoom), selected children} and restore all three on recall; 10 numbered slots.
+- **[polish]** Performance overlay: app-bar mini graph + Performance window with VSync toggle and CSV export
+  - TiXL: Editor/Gui/Windows/Analyze/Metrics.cs; PerformanceWindow.cs; MetricGraphView.cs
+  - spec: VSync is a user setting toggled from the Performance window; off = uncapped framerate. Frame/draw/alloc are tracked as rolling histograms with a clickable app-bar mini-graph.
+- **[polish]** Console log window: per-line click-to-copy, instance-path linking, filter, auto-scroll, clipped rendering
+  - TiXL: Editor/Gui/Windows/ConsoleLogWindow.cs
+  - spec: Log entries carry a source-instance id path; clicking a log line jumps the graph to the originating operator. Level→color mapping and click-to-copy are part of the UX.
+- **[polish]** Vertical connection rendering is the horizontal cable algorithm rotated 90°, with user-tunable curve radius/segment caps
+  - TiXL: Editor/Gui/UiHelpers/VerticalConnectionDrawer.cs
+  - spec: If simple_world supports vertical node layout, cables are arc-based (two tangent circles) not beziers, and MaxCurveRadius/MaxSegmentCount are user settings. Hover detection is shared with the horizontal drawer.
+- **[important]** Output toolbar buttons + states
+  - TiXL: OutputWindow.cs:DrawToolbar
+  - spec: match toolbar order + disabled states; bg-color only for Command; render buttons only for Texture2D output.
+- **[polish]** Render quality tiers + bitrate UI
+  - TiXL: RenderWindow.cs
+  - spec: quality hint + Mbps input + MB estimate if sw mirrors render UI.
+- **[polish]** Render overwrite/validate/start flow
+  - TiXL: RenderWindow.cs
+  - spec: validation + overwrite modal + summary card.
+- **[important]** Window roster + multi-instance + Window menu
+  - TiXL: WindowManager.cs; WindowManager.MenuBar.cs
+  - spec: window roster + which allow multiple instances (Output, Parameters) + which hidden from Window menu; layout index drives docking.
+- **[important]** Parameter window: disable/bypass toggles + undo-wrapped edits
+  - TiXL: ParameterWindow.cs
+  - spec: enable/disable + bypass distinct toggles, undo-redo command wrapping, '...' collapsible groups, namespace-edit only for editable packages.
+- **[polish]** ParameterSettings per-input authoring + drag-reorder
+  - TiXL: ParameterSettings.cs
+  - spec: per-parameter display-style/relevancy/preset-exclusion/group-title/description + drag-reorder undo command.
+- **[polish]** OperatorHelp markdown + [OpName] refs + links/examples
+  - TiXL: OperatorHelp.cs
+  - spec: markdown body, clickable [OpName] cross-refs, external links, examples, first-line summary + read-more.
+- **[polish]** SymbolLibrary 運算元瀏覽器：命名空間樹、drag-drop 改 namespace、search/`?`隨機提示、依賴掃描徽章、Reveal 動畫
+  - TiXL: SymbolLibrary.cs:DrawView/DrawNode/HandleDroppingNamespace/MoveSymbolToNamespace/DrawSymbolItemInstance/Reveal
+  - spec: 運算元庫=namespace 樹 + 搜尋（`?` 觸發隨機提示）+ drag-drop 改 namespace（ReadOnly 套件禁改、整 namespace 連子搬）+ 依賴掃描徽章（requires/invalid/used-by 可點進 usage 視圖）+ 單擊插入到當前選取 op + Reveal 展開捲動+aim 動畫。
+- **[important]** Window base class: deferred initial size, dock-aware border, mandatory child-wrapped content, ImGui-ID balance check
+  - TiXL: Window.cs:Window (DrawOneInstance, DrawMenuItemToggle, WindowConfig)
+  - spec: Native window host should: defer initial sizing to first-visible-frame and scale by UI factor; pick border width by docked-state; wrap all window content in a non-draggable bordered child; clamp window pos to >=0; serialize only {Title, Visible} per window (WindowConfig). The ID-balance warning is a useful debug hook.
+- **[polish]** Variation thumbnail canvas: drag-with-grid-snapping, blend-on-hover (Alt-scrub), inline rename, apply-on-click
+  - TiXL: VariationThumbnail.cs:VariationThumbnail (Draw, HandleMovement, HandleNodeDragging)
+  - spec: If cloning variation UI: thumbnails on a scalable canvas, Alt-drag-to-blend with live preview, grid-snap when dragging, click-to-apply vs drag-to-move disambiguated by ClickThreshold, inline rename saving to file. Lower priority for a minimal app.
+- **[important]** Font atlas generation: per-UI-scale Roboto/JetBrainsMono set, extended glyph ranges, regenerate on scale change
+  - TiXL: UiContentUpdate.cs:UiContentUpdate (GenerateFontsWithScaleFactor, GetExtendedGlyphRanges)
+  - spec: For visual parity of text/icons: four Roboto weights + mono code font at the listed pixel sizes, scaled by UI*DPI factor, with the listed extended glyph ranges so bullets/arrows/checkmarks/warning glyphs render. Regenerate the atlas only when scale changes (>0.005). DeltaTime from a real stopwatch.
+- **[important]** Custom icon glyphs baked into ImGui font atlas from an icon PNG chosen per UI scale
+  - TiXL: FontAtlasGenerator.cs:FontAtlasGenerator.CreateFontAtlasWithIcons
+  - spec: Icons are not a separate texture — they are merged into the ImGui font atlas as custom-rect glyphs sourced from a resolution-matched icon sheet PNG. A native (metal) port must reproduce: pick nearest icon sheet for the scale, allocate custom glyph rects, blit the sheet sub-rects into the atlas, sample with linear/no-mip. This is load-bearing for every icon button rendering identically.
+- **[polish]** Annotation: free-floating labeled rectangle as a first-class selectable canvas object
+  - TiXL: Annotation.cs:Annotation
+  - spec: Graph annotations (comment boxes) are selectable canvas objects with position/size/color/title/label and a collapsed flag; clone re-IDs. Needed if the native canvas supports comment/annotation boxes.
+- **[core]** ChangeInputValueCommand：input 值改變要分『已動畫 / 預設 / 一般』三路，且 redo 走 Do 一條
+  - TiXL: ChangeInputValueCommand.Do/Undo/AssignValue/InvalidateInstances
+  - spec: 改 input 值要：①記 isAnimated/isDefault/當前時間 ②已動畫=寫當前時間 keyframe（非覆寫靜態值）③改完對所有 instance 的對應 slot ForceInvalidate 觸發重算 ④undo 對 default 值用 ResetToDefault 而非寫回拷貝。這是 inspector 改參數的承重語義。
+- **[polish]** Annotation（畫布註解框）的 add/delete/changeText 與 Title 欄位
+  - TiXL: AddAnnotationCommand / DeleteAnnotationCommand / ChangeAnnotationTextCommand（Annotation.Title / Collapsed）
+  - spec: 畫布 annotation 框：文字欄位叫 Title；可 Collapsed 把 child 折疊進框（CollapsedIntoAnnotationFrameId）；存在 SymbolUi.Annotations dict。
+- **[important]** Undo/Redo stack: non-undoable command clears entire history; redo cleared on new Add
+  - TiXL: Commands/UndoRedoStack.cs:UndoRedoStack; Commands/MacroCommand.cs:MacroCommand
+  - spec: Native undo/redo: a single non-undoable command must purge the whole undo+redo history (not just push a no-op). New undoable command clears redo. Macros undo children last-to-first.
+- **[polish]** Free-position placement for mouse-less node creation (column/row packing)
+  - TiXL: Helpers/GraphUtils.Placement.cs:GraphUtils.FindFreePosition
+  - spec: When adding a node without a mouse position, place it via downward-then-rightward packing with 20px margin so successive auto-created nodes don't overlap.
+- **[important]** Symbol-browser search: two-part query, fuzzy regex, and weighted relevancy ranking
+  - TiXL: Helpers/SymbolFilter.cs:SymbolFilter.ComputeRelevancy / UpdateMatchingSymbols
+  - spec: Node-search palette ranking: fuzzy char-gap regex match + the exact multiplicative relevancy weights above, exclude parent-chain (cycle), cap 100. These weights determine result order in the add-node search.
+- **[important]** Reset/SetDefault/Extract input commands invalidate live instances via DirtyFlag.ForceInvalidate
+  - TiXL: Commands/Graph/ResetInputToDefaultCommand.cs; SetInputDefaultCommand.cs; SetExtractedInputValuesCommand.cs
+  - spec: Changing a parameter's value or default at the symbol level must force-invalidate the corresponding input slot on all live instances so the graph recomputes, and mark the owning symbol dirty.
+- **[important]** Delete-operator command captures and restores connections + non-default inputs + TimeClip outputs in order
+  - TiXL: Commands/Graph/DeleteSymbolChildrenCommand.cs; DeleteConnectionCommand.cs
+  - spec: Deleting nodes must, for undo, preserve multi-input connection order (capture+restore MultiInputIndex, reverse on remove/restore) and round-trip non-default param values and TimeClip output settings.
+- **[important]** Parameter row layout: connection-area width, name-button width, and three input modes (normal/connected/animated)
+  - TiXL: InputValueUi.cs : InputValueUi<T>.DrawParameterEdit / InputArea
+  - spec: Parameter rows need: 28px*scale connection nub on left, name column width = max(textLineHeight*8.125, windowWidth*0.35), muted styling when value==default, click-name-to-reset, revert icon on hover-when-modified, and the 8-state keyframe toggle icon for animated inputs.
+- **[important]** Input nub interactions: click-to-search-connect, ALT+click animate, CTRL+click extract, drag-out connection
+  - TiXL: InputValueUi.cs : InputArea.DrawNormalInputArea
+  - spec: InputArea.DrawNormalInputArea decides an InputOperation from modifier keys (only when no temp connection in progress): ALT held + animatable -> Animate (adds ChangeInputValueCommand + AddAnimationCommand as a macro); CTRL held + slot extractable -> Extract (ExtractAsConnectedOperator); plain hover -> ConnectWithSearch (CreatePlaceHolderConnectedToInput on click). Icon shown on the nub reflects the operation (Icon.AddKeyframe / Icon.AddOpToInput / Icon.ExtractInput); idle shows a small filled circle in type color faded 0.5. Dragging the nub past UserSettings.Config.ClickThreshold starts dragging a connection line (StartDraggingFromInputSlot). Tooltip lists '{typeName} - Input', 'Click to add input connection', 'ALT+Click to animate', 'CTRL+Click to extract'.
+- **[polish]** Parameter context menu actions
+  - TiXL: InputValueUi.cs : DrawNormalParameter / DrawAnimatedParameter / DrawConnectedParameter context menus
+  - spec: Right-click on a parameter name opens a context menu with: 'Set as default' (enabled when not default; SetInputDefaultCommand), 'Reset to default' (ResetInputToDefault), 'Extract as connection operator', 'Publish as Input' (disabled/not implemented), 'Rename input' (only if a ParameterWindow is visible; opens RenameInputDialog next frame), 'Parameters settings' (returns InputEditStateFlags.ShowOptions). Animated rows add Jump-To-Previous/Next-Keyframe, Insert/Remove keyframe, and 'Remove Animation'. Clicking the name button of an animated param removes animation AND resets to default in one macro.
+- **[important]** Type colors drive node/connection/parameter coloring
+  - TiXL: TypeUiRegistry.cs / TypeUiProperties.cs (UiProperties)
+  - spec: TypeUiRegistry maps a Type to UiProperties (a color getter). Categories: Value=UiColors.ColorForValues (default for unmapped & numbers), String=ColorForString, Texture=ColorForTextures, Command=ColorForCommands, Shader=ColorForDX11, GpuData=ColorForGpuData, ShaderGraph=ColorForShaderGraph. GetPropertiesForType falls back to Default(=Value) when type is null or unregistered. Parameter rows, nubs, and connected-value text all pull their accent color from this per-type lookup.
+- **[important]** Copy/paste of nodes uses JSON round-trip through a temporary container symbol on the clipboard
+  - TiXL: GraphOperations.cs : TryCopyNodesAsJson; NodeActions.cs : CopySelectedNodesToClipboard/PasteClipboard/PasteValues
+  - spec: Clipboard format is a 2-element JSON array (symbol + symbolUi of a container). PasteValues name+type matching across op versions is a distinct command from full node paste.
+- **[important]** Selection-fence (rubber-band) state machine and select modes
+  - TiXL: SelectionFence.cs
+  - spec: SelectionFence.UpdateAndDraw: inactive until left mouse pressed over the window (not over any item, not ALT-held, not while an item context menu is open) -> PressedButNotMoved; becomes Updated once drag exceeds UserSettings.Config.ClickThreshold; on release returns CompletedAsClick (no drag) or CompletedAsArea. Modifier sets SelectMode: Shift=Add, Ctrl=Remove, else Replace. The fence rect is drawn filled Color(0.1) with a faint outline; bounds are tracked both clamped to window (BoundsInScreen) and unclamped (BoundsUnclamped). Note assumes style.WindowPadding=0 so window rect == content rect.
+- **[important]** NodeSelection stores id-paths not instance refs; background-click selects composition; transform-gizmo coupling
+  - TiXL: NodeSelection.cs
+  - spec: NodeSelection deliberately stores instance id-paths (not Instance references) to avoid leaks across recompiles. Clicking graph background -> SetSelectionToComposition (selects the parent/composition, shows its params). Selecting a SymbolUi.Child requires its Instance (to store the id-path) and updates NavigationHistory; if the instance is ITransformable it is registered with TransformGizmoHandling. ChangeCounter increments on every mutation (used to invalidate UI caches). GetSelectionBounds frames selection-or-all children expanded by padding (default 50), special-casing collapsed annotations and children collapsed into an annotation frame. Selected transformable ops get their Vector3 inputs force-invalidated each frame to keep the gizmo rendering (string inputs skipped to avoid breaking shader-path hooks).
+- **[polish]** Player keyboard controls: Esc quits, Alt+Enter toggles fullscreen (windowed mode), arrows seek ±4 bars, Space toggles play/pause — gated by a settings flag
+  - TiXL: Player/Program.Input.cs:OnRenderFormOnKeyUp / MouseMoveHandler
+  - spec: Standalone playback supports optional transport keys (seek 4 bars, space=pause, esc=quit, alt+enter=fullscreen). Seek granularity is in BARS not seconds. Mouse position is fed to the graph as a normalized 0..1 Vector2 (MouseInput) plus left-button bool — ops can read pointer position. Transport keys are off unless EnablePlaybackControlWithKeyboard is enabled in export/composition settings.
+- **[polish]** FileManager selection: ctrl-click multi-select, root-click clears, no shift-range yet
+  - TiXL: SilkWindows/Implementations/FileManager/FileManager.cs (ItemClicked, DoubleClicked)
+  - spec: Match ctrl-toggle multi-select and root-click-clears semantics; shift-range is absent in TiXL so do not invent it for parity.
+- **[polish]** MessageBox dialog layout and 'Copy to clipboard' affordance
+  - TiXL: SilkWindows/Implementations/MessageBox.cs; SilkWindowProvider.cs (ShowMessageBox overloads); SystemUi/ICoreSystemUiService.cs (IMessageBoxProvider)
+  - spec: Modal message/confirm dialogs in TiXL are full-width stacked buttons with a copy-to-clipboard helper; default confirm is single 'Ok'.
+- **[important]** Key enum is a fixed System.Windows.Forms.Keys-derived integer mapping (512-slot pressed-key table)
+  - TiXL: SystemUi/KeyboardInput.cs (KeyHandler, Key enum)
+  - spec: Any keybinding parity must map to these exact Windows VK codes, not ImGui keycodes. simple_world (macOS/Metal) has no WndProc, so the equivalence is the numeric Key enum, not the input source. Keymap work flagged in lane-state should reconcile against this table.
+- **[polish]** Mouse button model: 5 buttons as [Flags] byte with fixed index order
+  - TiXL: SystemUi/ICursor.cs (MouseButtons, MouseButtonConversion, ICursor, MouseState); SystemUi/MouseInput.cs
+  - spec: Mouse-button index parity is Left/Right/Middle/Back/Forward = 0..4; this matches simple_world's existing hand/mouse-injection ordering expectations.
+
+## file-mgmt
+
+- **[important]** VDefinition keyframe serialization incl. legacy format + write-only-if-non-default
+  - TiXL: VDefinition.cs:Read/Write/ReadLegacyInterpolation/ConvertLegacy; CurveState.cs:Write/Read
+  - spec: Loading TiXL project animation curves needs this exact JSON contract incl legacy InType/InEditMode fallback and write-only-if-non-default rules for byte round-trip.
+- **[important]** TimelineAudioClip data model + IsMainSoundtrack triple-duty flag + legacy JSON migration
+  - TiXL: TimelineAudioClip.cs (class + TryFromJson/ToJson); AudioClipResourceHandle record at top of same file
+  - spec: Soundtrack belongs to the composition/project's playback settings as a list of clips, not as nodes. One 'main soundtrack' clip drives the timeline waveform + FFT + export. Persisted in project JSON with bars-based TimeRange + seconds-based source window. BPM is project-level (Playback.Bpm), migrated off old per-clip Bpm.
+- **[polish]** Live audio recording to WAV (16-bit PCM RIFF) + session-indexed filenames
+  - TiXL: WasapiAudioInput.cs (BeginRecording/EndRecording/EnsureCaptureRunningForRecording); WavFileWriter.cs; RecordingPaths.cs (DevRecordingsDirectory, NextSessionIndex, BuildFileName, SanitiseSuffix)
+  - spec: If sw supports live audio capture/recording, target a 16-bit PCM WAV writer with placeholder-header-then-finalise pattern, a shared session index across recording kinds, and filenames like AudioRec-007-mic1.wav under a per-version settings/Recordings folder.
+- **[core]** .t3 symbol file JSON format — exact top-level shape and field ordering
+  - TiXL: Core/Model/SymbolJson.cs:WriteSymbol / WriteSymbolChildren / WriteConnections / JsonKeys; LoadSettings
+  - spec: Any simple_world save/load that aims for .t3 round-trip parity must: write fields in this exact order, use these exact key names (FormatVersion/TixlVersion/Id/Inputs/Children/Connections/Animator and the connection/child keys), skip default-valued child inputs, order inputs/connections/children by the same keys, and treat duplicate JSON keys as a hard error on read.
+- **[core]** Per-type value JSON encoding + default values (the type-name registry)
+  - TiXL: Core/Model/SymbolPackage.TypeRegistration.cs:RegisterTypes / RegisterType
+  - spec: To round-trip .t3 input values, simple_world must reproduce each type's exact JSON shape and typeName string: scalars bare, Vec2/3/4 as {X,Y,Z,W} objects, Matrix4x4 as a flat 16-float array, lists wrapped in {Values:[...]}, enums as ToString()/Enum.Parse, and the exact default values (Vector4 default = 1,1,1,1; string = empty; Curve = two-point 0..1). Int2 read must accept Width/Height as aliases for X/Y.
+- **[important]** Symbol file format versioning and newer-file warning
+  - TiXL: Core/Model/SymbolFormatVersion.cs; Core/Model/SymbolJson.cs:ReadSymbolRoot
+  - spec: If simple_world clones the .t3 format it should write a FormatVersion + version string, tolerate older files by filling missing inputs with defaults, and warn-but-still-open files from a newer format rather than refusing them.
+- **[polish]** IO recording/replay wire format (.data files) and live-view dual path
+  - TiXL: Core/IO/IoDataSetRecorder.cs:ChannelPaths / MessageReceivedHandler / StampRecordingMetadata; Core/IO/SimulatedIoBus.cs
+  - spec: If simple_world clones IO record/replay: use the same channel-path encoding, store event times in seconds-from-zero, capture record-start BPM as the tempo anchor in metadata, identify MIDI devices by bare product name, and keep replay on a separate bus (SimulatedIoBus) that does NOT feed back into a concurrent recording.
+- **[polish]** Global settings persistence (JSON config files) and CoreSettings fields
+  - TiXL: Core/IO/Settings.cs; Core/IO/CoreSettings.cs
+  - spec: Parity settings layer: typed settings classes backed by JSON files in a settings dir, auto-save on quit, with these concrete CoreSettings defaults (OSC port 8000, AppVolume 1, TimeClipSuspending on). Export carries a WindowMode enum (Windowed/Fullscreen).
+- **[important]** 資源熱載：檔案改動/移動/刪除即時重生 (live file hot-reload)
+  - TiXL: Core/Resource/AbstractResource.cs:Resource<T> (MarkFileAsChanged/OnFileUpdate/ValueFactory/SetAddress) + Core/Resource/PackageHandling/FileResource.cs:FileResource (OnFileResourceChanged/Claim/Release/TryGetFileResource)
+  - spec: 若 simple_world 要對齊『編輯外部 shader/圖檔存檔→畫面即時更新』與『移動素材檔不斷連』,需要:①每個檔案資產一個帶 OS file-watch 的 handle ②改動→丟舊值+標記下游節點髒+重生 ③移動→把節點上的路徑欄位自動改寫成新相對路徑。FileResource 用引用計數(Claim/Release,計數歸零才解除 watch)且以 Asset.Id 去重(同一檔多消費者共用一個 watch)。
+- **[important]** 資產定址方案：Package:path 與啟動掃描索引
+  - TiXL: Core/Resource/Assets/AssetRegistry.cs (TryResolveAddress/RegisterAssetsFromPackage/RegisterPackageEntry/GetOrRegisterExternalFileAsset/TryConvertFilepathToAddress) + Core/Resource/Assets/Asset.cs
+  - spec: 對齊 .scn 內素材引用與素材瀏覽器,需採同一定址語意:`Package:相對路徑`、正斜線、大小寫不敏感、啟動全掃描建索引。Asset.Id 由 address 字串決定性生成(同 address→同 Guid),這是引用穩定性的基礎。注意 simple_world 已有自己的 resolveAssetPath(SW_ASSETS_DIR / Lib:images)——這是 TiXL 此機制的子集,若擴充多 package/外部檔需照此補。
+- **[polish]** Per-project playback/audio/export settings stored in .t3 (CompositionSettings)
+  - TiXL: Core/Settings/CompositionSettings.cs:CompositionSettings (+nested PlaybackConfig/AudioMixConfig/ExportConfig, WriteToJson/ReadFromJson/ReadNewFormat/ReadLegacyFormat)
+  - spec: If simple_world ever serializes project/composition settings, mirror the JSON shape: top-level "ProjectSettings" object holding Enabled + Playback{Bpm,AudioSource,Syncing,AudioDecayFactor,AudioGainFactor,AudioInputDeviceName,EnableAudioBeatLocking,BeatLockAudioOffsetSec,AudioClips[]} + Audio{SoundtrackMute,SoundtrackVolume,OperatorMute,OperatorVolume,AudioResyncThreshold} + Export{DefaultWindowMode,EnablePlaybackControlWithKeyboard}; only write the block when enabled-or-has-clips; resolve 'current' from active playback with a Defaults fallback. Note the default-value inconsistencies (AudioDecayFactor 0.9 field vs 0.5 read; EnableAudioBeatLocking true field vs false read) are TiXL's actual behavior — read-path defaults win on load.
+- **[polish]** Versioned per-install settings/project folder naming (FileLocations)
+  - TiXL: Core/Settings/FileLocations.cs:FileLocations
+  - spec: When laying out simple_world's settings/project/render-output/keybinding/theme directories, match TiXL's named subfolders and the version-scoped top folder pattern if cross-version coexistence matters. The IgnoredFiles set and the DEBUG '.Defaults' walk-up are concrete behaviors to copy if implementing defaults seeding or a file watcher that must skip config/git files.
+- **[important]** Resource hot-reload: debounced file-watch event coalescing + rename/delete/create dispatch (ResourceFileWatcher)
+  - TiXL: Core/Resource/PackageHandling/ResourceFileWatcher.cs:ResourceFileWatcher (RaiseQueuedFileChanges, AddFileHook, OnFileChanged); ResourcePackageManager.cs:RaiseFileWatchingEvents
+  - spec: For asset/shader hot-reload parity in simple_world: debounce raw FS events by ~394ms, coalesce duplicate (path,changeType) events per drain, process once per frame at frame start, run reload callbacks outside any lock, skip 'created' events for ignored config/git files, and follow renames by re-keying the affected hooks to the new path. The static change counter is the cache-invalidation signal for any cached directory listing.
+- **[polish]** 外部檔案拖放進編輯器（資源熱載/拖放匯入）
+  - TiXL: Editor/App/ImGuiDx11RenderForm.cs:ctor(DragEnter/DragDrop/DragOver/DragLeave)/OnDragEnter/OnDragDrop/OnDragOver
+  - spec: 拖放匯入：接受 FileDrop（多檔，內部以 '|' 串接傳給 drop handler）與 rooted-path 的 UnicodeText；拖入過程即時更新 ImGui MousePos；viewer 視窗一律拒收外部拖放。
+- **[polish]** Auto-backup cadence, dedup, and binary-thinning retention schedule
+  - TiXL: AutoBackup.cs:CheckForSave/BackupProject/TryWriteBackupZip/ReduceNumberOfBackups/RestoreLatestForProject; BackupSubFolder='.temp/Backup', SecondsBetweenSaves=180
+  - spec: If simple_world adds project auto-backup, mirror: 3-min interval on a frame-complete hook, background thread, byte-equal dedup (refresh timestamp not duplicate), first-backup-full + minimal-extension allowlist, exact excluded-dir list, 100MB cap, #NNNNN-timestamp[-minimal].zip naming, binary-index thinning retention. Restore wipes bin/obj first and guards zip-slip.
+- **[polish]** Welcome / version-marker / previous-version import flow
+  - TiXL: VersionMarker.cs; WelcomeAlphaWindow.cs; PreviousVersionImport.cs (FolderNamePattern/ImportSettingsAllowlist/ImportSubfolder/ImportProject)
+  - spec: If simple_world introduces versioned settings folders + first-run welcome: per-version isolated Settings+Projects dirs, versionMarker.json with NewToUser/Downgrade/Silent (never lower marker on downgrade), narrow settings-import allowlist (username, ui scale, keybinding name, theme name only), with layouts/themes/keymaps/projects as separate copy categories that exclude build output.
+- **[important]** Delete-symbol restriction classification + force-delete of usages + on-disk file removal
+  - TiXL: Dialogs/DeleteSymbolDialog.cs + DeleteSymbolDialog.Helpers.cs
+  - spec: Blocks deletion for OperatorClassification Lib/Type/Example/T3/Skill, namespace-main symbol, or read-only package (DEBUG bypasses with banner). With depending symbols, button is 'Force delete': CleanUsages removes all connections to/from child instances then RemoveChild, then DeleteSymbolFiles deletes .cs + .t3(SymbolExtension) + .t3ui(SymbolUiExtension), then marks affected EditableSymbolProjects CodeExternallyModified to recompile.
+- **[important]** Duplicate-as-new-type and read-only-edit redirect flow
+  - TiXL: Dialogs/DuplicateSymbolDialog.cs
+  - spec: Requires exactly one selected child. isReload path first shows 'Changes made to readonly operator' Yes/No. Form: project dropdown + validated name/namespace + description. 'Duplicate' calls Duplicate.DuplicateAsNewType at selected.PosOnCanvas+(0,100), warns it clears undo history, then T3Ui.Save(false). Not undoable.
+- **[important]** New-project creation rules and share-resources flag
+  - TiXL: Dialogs/NewProjectDialog.cs
+  - spec: Full name='{UserName}.{optSubNamespace}.{ProjectName}'. ProjectName must be valid C# identifier, no dots, non-empty, unique (case-insensitive vs last path segment of non-readonly packages with HasHome). Sub-namespace must be valid C# namespace. 'Share Resources' default true, irreversible without code edit. Create=ProjectSetup.TryCreateProject; failures explained via Compiler.ExplainBuildFailure with optional GitHub issue report. Lands in {primaryProjectDirectory}/{ProjectName}.
+- **[important]** Rename input/output recompiles symbol; dry-run before commit
+  - TiXL: Dialogs/RenameInputDialog.cs, RenameOutputDialog.cs, RenameSymbolDialog.cs, SymbolModificationInputs.cs
+  - spec: Rename dialogs warn they modify the symbol definition (+Lib migration warning if namespace starts 'Lib'). On Rename they call InputsAndOutputs.RenameInput/RenameOutput dryRun:true first; only on success push RenameSlotCommand (which recompiles). Names validated via GraphUtils.IsNewFieldNameValid (unique C# field name). RenameSymbolDialog refuses read-only packages and calls SymbolNaming.RenameSymbol.
+- **[important]** Rename/move namespace across editable projects
+  - TiXL: Dialogs/RenameNamespaceDialog.cs; SymbolModificationInputs.cs:DrawNamespaceInput
+  - spec: Targets a NamespaceTreeNode; resolves source EditableSymbolProject and offers a project dropdown to move it. New namespace must StartWith destination project RootNamespace and be valid C#. Rename calls EditableSymbolProject.RenameNameSpaces then T3Ui.Save(false); failures show BlockingWindow message box.
+- **[polish]** Tour points authoring + Markdown round-trip
+  - TiXL: Dialogs/EditTourPointsPopup.cs; TourDataMarkdownExport.cs
+  - spec: EditTourPointsPopup edits SymbolUi.TourPoints (Style enum incl Info/InfoFor, ChildId, InputId, Description) with inline add, drag-reorder (grab index button, swap at half-height), per-point style/child/input selection, click sets TourInteraction progress index. TourDataMarkdownExport serializes to '# Title  &shortGuid' / '## Style(ChildName[:index][.InputName])  &shortGuid' + description; paste re-resolves short GUIDs to real child/input ids by symbol name + occurrence index (regex). Opened via AppMenu->TiXL->Development->Tour Point Editor.
+- **[important]** ProjectHub/ProjectsPanel:啟動著陸頁,專案載入/卸載/封存+Skill Quest引導
+  - TiXL: ProjectHub.cs/ProjectsPanel.cs:Draw/DrawProjectItem;SkillQuestPanel.cs:Draw
+  - spec: 啟動著陸頁(無專案時顯示):專案卡片列表(縮圖/namespace/folder,已載入標記)可載入/卸載/封存/重啟,Add Project CTA;含可關閉的Skill Quest教學引導面板。
+- **[important]** Keymap persistence + switching (user JSON shadows factory)
+  - TiXL: Keyboard/KeyMapSwitching.cs, KeyMapEditor.cs, KeyMap.cs
+  - spec: Layered JSON keymaps; factory always present ReadOnly. Multiple bindings per action; AddBinding replaces same-action.
+- **[important]** Drag-and-drop onto graph: symbols, files, assets
+  - TiXL: DropHandling.cs
+  - spec: Symbol (create at mouse), ExternalFile (overlay import to packageResourcesFolder, imports via FileImport then creates asset op stacking (20,100)), FileAsset (creates PrimaryOperators[0], assigns Address to file-path input, registers AssetReference).
+- **[polish]** DescriptiveUi: IDescriptiveFilename ops show name + filename + thumbnail
+  - TiXL: OpUis/DescriptiveUi.cs
+  - spec: File-loading ops (anything with a source path: LoadImage/LoadObj/audio/etc) render their node body as filename-only + thumbnail rather than the generic param column. Native parity: detect file-path-carrying op category, render basename + preview.
+- **[polish]** Gradient presets persistence
+  - TiXL: GradientPresets.cs
+  - spec: Gradient presets stored as gradients.json in the settings dir; loaded lazily, saved on add/delete from the gradient widget.
+- **[important]** External-file & asset drag-and-drop import into project
+  - TiXL: DragAndDropHandling.cs / FileImport.cs:TryImportDroppedFile
+  - spec: Dropping an external file copies it into the project's assets/<typeSubfolder> folder (dedup against existing), registers an Asset, and force-refreshes the asset library by incrementing the file-state counter.
+- **[polish]** Thumbnail atlas subsystem (asset/symbol/preset previews)
+  - TiXL: ThumbnailManager.cs
+  - spec: Asset/symbol thumbnails are letterboxed into a shared 4K texture atlas with LRU eviction + per-session negative cache; previews are async-decoded (WIC) and cached as <guid>.png under temp/.meta dirs.
+- **[polish]** Native file/folder picker + relative-path convention
+  - TiXL: FileOperations.cs / FilePickingUi.cs
+  - spec: Resource paths are stored project-relative (assets-folder-rooted). String/soundtrack inputs use an inline type-ahead asset picker plus a '...' button that opens the Asset Library; a native dialog is the fallback picker.
+- **[important]** Asset-type → file-extension → load-operator binding table (drag-create resource ops)
+  - TiXL: Editor/Gui/Windows/AssetLib/AssetHandling.cs:InitAssetTypes; AssetLibrary.cs:UpdateActiveSelection
+  - spec: If simple_world ever ships a resource/asset browser, mirror this data-driven table (extension set + load-op + icon + color + subfolder hints per type). The PrimaryOperators[0] is the default op created on drop; clicking a compatible asset writes its alias-address into the selected op's FilePath string-input.
+- **[important]** AssetLibrary: clicking a compatible asset rewrites the selected op's FilePath input via undoable command
+  - TiXL: Editor/Gui/Windows/AssetLib/AssetLibrary.Draw.cs:ApplyResourcePath/DrawAssetItem
+  - spec: Setting a resource path from a browser must be a single undoable input-value change writing the package-relative alias address, not the absolute OS path; the runtime resolves alias→file later.
+- **[polish]** AssetLibrary file operations: rename / create-subfolder / delete / move / external-import, all OS-filesystem-backed
+  - TiXL: Editor/Gui/Windows/AssetLib/AssetLibrary.Actions.cs; AssetLibrary.Draw.cs; AssetLibrary.ToolsPopup.cs
+  - spec: Asset browser mutations go straight to the real filesystem and rely on a file-watcher to re-scan; references are NOT auto-updated on rename/move (known gap). 'Delete file' is intentionally absent.
+- **[polish]** AssetLibrary rescan trigger + hidden packages + filtering model
+  - TiXL: Editor/Gui/Windows/AssetLib/AssetLibrary.cs:UpdateAssetsIfRequired; AssetLibState.cs; AssetFolder.cs
+  - spec: Resource list is watcher-driven (counter compare), not polled per-frame. Certain integration packages are hidden by name from the browser.
+- **[important]** Output window persisted state (.t3ui OutputWindows array)
+  - TiXL: OutputWindowState.cs; OutputWindow.cs
+  - spec: match OutputWindows JSON shape/defaults/root-keying/per-instance index if sw persists output view state.
+- **[important]** Render state machine + screenshot + version naming
+  - TiXL: RenderProcess.cs; RenderPaths.cs
+  - spec: vNN versioning preserving width, Screenshots timestamp, _0000 zero-pad, delete-then-write video, ResolutionFactor clamp.
+- **[important]** Composition 設定視窗：Playback/Audio/Recording/Export 四分頁與 soundtrack 綁定流程
+  - TiXL: ProjectSettingsWindow.cs:DrawContent/DrawPlaybackSettings/DrawAudioSettings/DrawRecordingSettings/DrawRenderingSettings/UpdateBpmFromSoundtrackConfig
+  - spec: 每 composition 可選擇覆寫或繼承 settings；soundtrack=一個 IsMainSoundtrack 的 TimelineAudioClip，path 經 AssetRegistry 驗證；BPM 可由檔名 `120bpm` 抓；timeline 顯示模式存在 UserSettings；export window-mode + 鍵盤播放控制是 per-composition。
+- **[important]** 命令以 Guid 重解析目標、絕不長期持有 live Instance/Symbol（防 hot-reload 失效）
+  - TiXL: AddConnectionCommand / AddSymbolChildCommand / Change*Command（registry 重解析）；MoveTimeClipsCommand.TryGetCompositionOp（InstancePath 重解析）；CopySymbolChildrenCommand（clipboard reference 例外註解）
+  - spec: 原生命令系統若支援熱重載／重新載入專案：undo 堆疊上的命令必須存 id（symbol Guid 或 instance path）而非物件指標，套用時重解析，目標消失時 graceful no-op + warn，不是崩。
+- **[polish]** Add Input/Output/ChangeInputOrder 是『重編譯 operator 原始碼』的重命令，且 slot id 固定以保連線/動畫
+  - TiXL: AddInputCommand / AddOutputCommand / ChangeInputOrderCommand（InputsAndOutputs.*，recompile 註解）
+  - spec: 可編輯 operator 改 input/output（加/減/重排）會觸發原始碼重編譯（heavy）；slot Guid 跨 do/undo/redo 固定，以保連線與動畫不斷。對自建 runtime 是進階編輯能力，非首要 parity。
+- **[polish]** DataSet（output view 資料記錄）移除：channel 全刪 / event range 刪 + 寫回 .data 檔 + thread lock
+  - TiXL: RemoveDataSetItemsCommand.ForChannels/ForEventRange/Do/Undo/PersistChange
+  - spec: DataSet output view 的移除：channel 模式與 event-range 模式共用一個 undo；event 變動需執行緒鎖（背景 recorder 並發）；變動鏡寫回 .data 檔，錄製中則只留記憶體+warn。屬資料記錄子系統，非首要 parity。
+- **[polish]** ChangeSymbolNamespace 是會彈 blocking 對話框的特殊命令
+  - TiXL: ChangeSymbolNamespaceCommand.AssignValue（BlockingWindow.ShowMessageBox）
+  - spec: 改 symbol namespace 可跨 project 搬移，失敗時彈 blocking message box；屬專案/檔案組織層，非渲染 parity。
+- **[polish]** Hot code-reload: external .cs change triggers recompile, with 0.5s debounce against own saves
+  - TiXL: EditableSymbolProject.FileHandling.cs:OnFileChanged/Update/MarkAsSaving; EditableSymbolProject.cs:CodeFileWatcher
+  - spec: If native editor supports live code/op reload: watch op source files, debounce self-writes (suppress watcher during save + 0.5s post-recompile guard), recompile on main thread not the watcher callback.
+- **[polish]** Save model: only modified SymbolUis are written; three files per symbol (Symbol/.t3ui/source)
+  - TiXL: EditableSymbolProject.FileHandling.cs:SaveModifiedSymbols/SaveSymbolFile
+  - spec: Project save persists only dirty symbols, each as separate definition + UI + source files (indented JSON), clearing dirty flags on write; a saving-in-progress guard prevents re-entrant saves.
+- **[polish]** Single-symbol reload (revert/reimport) replaces in-place and re-instantiates
+  - TiXL: EditorSymbolPackage.cs:Reload
+  - spec: Reload-from-disk must mutate the existing symbol/UI objects in place (preserve references), re-apply children without duplication, and force-update live instances.
+- **[polish]** Variation/preset commands persist immediately and branch on DEBUG (default vs user variation)
+  - TiXL: Commands/Variations/AddPresetOrVariationCommand.cs; UpdateVariationParametersCommand.cs; RemoveInstancesFromVariationsCommand.cs
+  - spec: Preset/variation edits write to the variation file on every do/undo (immediate persistence), deep-clone parameter sets, and (in TiXL) DEBUG vs release decides default-vs-user variation pool.
+- **[important]** Per-input serialized UI properties in .t3ui (Relevancy/Position/GroupTitle/AddPadding/Description/ExcludedFromPresets)
+  - TiXL: InputValueUi.cs : Write/Read; serialized via SymbolUiJson WriteInputUis
+  - spec: When reading/writing .t3ui InputUis entries, honor: Relevancy omitted==Optional, always-present Position, optional GroupTitle (group header), AddPadding (top gap), Description, ExcludedFromPresets.
+- **[core]** .t3ui (SymbolUi) JSON schema, ordering, and top-level fields
+  - TiXL: SymbolUiJson.cs : WriteSymbolUi / WriteInputUis / WriteChildUis / WriteOutputUis
+  - spec: A byte-faithful .t3ui writer must emit fields in this exact order with these omission rules and these sort orders, plus inline name comments.
+- **[important]** SymbolUi 'Settings' block persists window/render/recording/timeline/output-window state into the project file
+  - TiXL: SymbolUiJson.cs : WriteSettings/ReadSettings; ProjectView.cs : Save/RestoreWindowLayoutFromProject
+  - spec: Per-project window docking layout, window visibility, timeline zoom/scroll/loop, render-export config, recording toggles, and output-window pinning all live in the root op's .t3ui Settings block; layout reapplied only on matching ImGui major.minor.
+- **[polish]** Annotation serialization and creation defaults
+  - TiXL: SymbolUiJson.cs : WriteAnnotations/ReadAnnotations; NodeActions.cs : AddAnnotation; NodeSelection.cs : GetSelectionBounds
+  - spec: Annotations serialize Id, Title (if non-empty), Label (if non-empty), Collapsed (if true), Color (Vector4 rgba), Position, Size. NodeActions.AddAnnotation: default size (100,140); if something is selected, the annotation area is the union of all selected node rects expanded by (60,120); default color UiColors.Gray, empty title/label. Reading restores via ReadAnnotations with defaults (empty strings, Collapsed=false). A collapsed annotation contributes only a 10px-tall strip to selection bounds (GetSelectionBounds).
+- **[important]** Symbol source/.t3/.t3ui files are physically moved when namespace or name changes
+  - TiXL: SymbolPathHandler.cs : UpdateFromSymbol / GetCorrectDirectory / MoveFileIfNecessary
+  - spec: SymbolPathHandler tracks three file paths (source .cs, .t3 symbol, .t3ui ui). UpdateFromSymbol recomputes the correct directory from the symbol's namespace relative to the project's RootNamespace (namespace parts become subfolders under the project folder) and the filename = symbolName + extension; if name/namespace/projectFolder changed it File.Move()s all three files to the new location. AllFilesReady event fires once all three paths are set. This keeps on-disk layout in sync with the namespace tree.
+- **[important]** SymbolUi<->Symbol consistency reconciliation on load (auto-create/remove missing UIs, default positions)
+  - TiXL: SymbolUi.cs : UpdateConsistencyWithSymbol / GetCanvasPositionForNextInputUi / ComputeNewOutputUiPositionOnCanvas
+  - spec: On project load the UI layer must reconcile stored UI against the (code-derived) symbol definition, synthesizing default canvas positions for any input/output/child lacking saved UI.
+- **[polish]** TourPoints and ExternalLinks are per-symbol authored metadata persisted in .t3ui
+  - TiXL: TourPoint.cs ; SymbolUiJson.cs WriteTourPoints/ReadTourPoints/WriteLinks/ReadLinks
+  - spec: SymbolUi holds TourPoints (list) and Links (ordered dict). TourPoint = {Id, ChildId, InputId, Description, Style in {Info,InfoFor,CallToAction,Conclusion,Tip}} used for guided tours that can target a specific child/input. ExternalLink = {Id, Title, Description, Url, Type} (LinkType enum, defaults to Other on parse failure). Both serialize/deserialize in SymbolUiJson (TourPoints/Links arrays, omitted when empty); reading TourPoint falls back from Description to Title for legacy files.
+- **[polish]** Player operator/symbol loading: scans Operators subfolder for packages that contain a ReleaseInfo file, loads symbols, then resolves the exported root operator by OperatorId
+  - TiXL: Player/Program.Loading.cs:LoadOperators; Player/Program.cs:Main; Player/PlayerSymbolPackage.cs
+  - spec: Exported project = exportSettings.json (root OperatorId, author, title, build/editor version) + Operators/<package>/ dirs each with a ReleaseInfo marker. The player has NO file watcher (no hot-reload), unlike the editor. Output selection rule: first Texture2D output slot of the root op.
+- **[polish]** exportSettings.json drives the whole player: window mode, resolution defaults, config, shader-cache path, app identity
+  - TiXL: Player/Program.cs:Main / TryResolveOptions; Player/Options.cs
+  - spec: A parity standalone export is configured by exportSettings.json (identity + ConfigData + WindowMode) and CLI overrides (resolution, vsync, windowed, loop). Shader cache is namespaced per build so re-exports don't collide. Default render target format R8G8B8A8_UNorm, triple-buffered FlipDiscard swapchain at 1920x1080.
+- **[polish]** FileManager dialog: three modes (PickDirectory / PickFile / Manage) with root directories as tabs
+  - TiXL: SilkWindows/Implementations/FileManager/FileManager.cs (FileManager ctor, PickItem, CreatePathInformation); FileManager.Window.cs (OnRender mode switch); FileManager.cs ManagedDirectory/FileManagerMode/PathInformation
+  - spec: If simple_world ever needs an in-app file picker dialog matching TiXL, replicate: tabbed root directories, mode-gated single pick button (enabled only when first selection matches required type), alias-prefixed relative paths, and a non-existent-root hard failure.
+- **[polish]** FileManager drag-and-drop move/copy rules
+  - TiXL: SilkWindows/Implementations/FileManager/FileManager.DragAndDrop.cs (TryDropPathsInto, IsDropTarget, ShouldDropInParent); FileOperations.cs (TryMoveFile/TryMoveDirectory, MoveType, FileConflictOption)
+  - spec: If implementing an in-app file manager, the same-root=Move / cross-root=Copy heuristic and Shift=drop-in-parent modifier are the load-bearing rules; Rename conflict resolution is unimplemented in TiXL.
+- **[polish]** NewSubfolder name validation rejects empty and OS-invalid filename chars
+  - TiXL: SilkWindows/Implementations/FileManager/NewSubfolderWindow.cs
+  - spec: Folder-name validation: nonempty + no invalid filename chars, 32-char cap.
+- **[important]** JSON load/save conventions: tolerant readers, indented writes, safe enum conversion
+  - TiXL: Serialization/JsonUtils.cs (TryLoadingJson, TrySaveJson, ReadValueSafe, ReadListSafe, SafeEnumConverter, ReadEnum/GetEnumValue)
+  - spec: Project/preset file IO in TiXL is fault-tolerant: missing-file and malformed-token both degrade to defaults rather than erroring; enums serialize as string names and parse case-insensitively with default fallback. Match this when reading/writing .scn / settings to avoid hard failures on partial or older files.
+
+## render-output
+
+- **[important]** Audio export rendering: per-frame mixdown buffer with sample-accurate soundtrack positioning
+  - TiXL: AudioRendering.cs:PrepareRecording/GetFullMixDownBuffer/MixSoundtracksFromExportMixer/MixOperatorAudio/EndRecording
+  - spec: Deterministic offline audio export needs frame-accurate clip positioning (vol=clipVol*soundtrackVol*appVol) and post-mix FFT recompute so audio-reactive visuals render identically. IsRenderingToFile freezes Playback so audio drives timing.
+- **[important]** Audio export rendering contract (offline mixdown, resampling, per-stream RenderAudio)
+  - TiXL: IAudioExportSource.cs; OperatorAudioStreamBase.cs (RenderAudio/PrepareForExport/RestartAfterExport/FillAndResample call); OperatorAudioUtils.cs (FillAndResample, LinearResample); SpatialOperatorAudioStream.cs (RenderAudio + Compute3D* + Apply3DToBuffer)
+  - spec: Video/audio export must run audio offline (not realtime): pull duration-sized buffers from each source, resample to a common rate/channel count, mix, and for spatial sources compute distance/cone/pan in software (BASS hardware 3D only works live). Output waveform during export comes from the mixdown, not the live capture.
+- **[polish]** Color blend modes math (14 modes) — used by Blend ops
+  - TiXL: Core/DataTypes/Vector/Color.cs:Blend / FromHSV / GetHSV
+  - spec: Note for the Blend op family (op-logic, not editor-shell): these are the reference formulas if simple_world ports color blending; Overlay/HardLight/SoftLight branch per-channel on first/second color <0.5, and premultiply path round-trips through PremultipliedAlpha/UnmultipliedAlpha with NaN scrubbing and final [0,1] clamp.
+- **[polish]** Multi-frame async GPU readback via rotating staging buffers/textures (TextureReadAccess / TextureBgraReadAccess / StructuredBufferReadAccess)
+  - TiXL: Core/Resource/Utils/TextureReadAccess.cs; TextureBgraReadAccess.cs; StructuredBufferReadAccess.cs
+  - spec: simple_world's eye/readback already does CPU readback; the TiXL parity detail worth matching for image/video export is the multi-frame staging rotation (don't block the frame: copy now, map ~2 frames later) and the BGRA conversion compute pass for non-8bit source textures before saving to PNG/video. The readiness formula RequestIndex == counter-(N-2) defines exactly how many frames the readback lags.
+- **[important]** DX11 swap-chain / back-buffer / resize / frame-pacing 設定（render 輸出地基）
+  - TiXL: Editor/App/AppWindow.cs:SwapChainDescription/InitViewSwapChain/PrepareRenderingFrame/RebuildBackBuffer/CaptureFrameLatencyWaitableHandleIfEnabled/WaitForFrameLatency
+  - spec: 若要 byte-match TiXL render 輸出鏈：back-buffer 格式 R8G8B8A8_UNorm、無 MSAA、3 個 buffer、FlipDiscard swap、清背景色=WindowBackground UI 色。resize 用 Format.Unknown 保留現有格式並保留 swap flags；可選 waitable-object 做 frame pacing（latency=2）。
+- **[polish]** OkLab 色彩空間混合（gradient/顏色插值的感知均勻混色）
+  - TiXL: Core/Utils/OkLab.cs:Mix/RgbAToOkLab/OkLabToRgba/FromOkLab/FromOkLCh/Degamma/ToGamma
+  - spec: 若 native gradient/顏色混合要與 TiXL 視覺一致：感知均勻混色走 OkLab 路徑（gamma 2.2 degamma→OkLab lerp→regamma），矩陣係數需逐位元照抄（forward 用 double 精度）；HDR 顏色 L>1 的處理是 clamp 後按超出量等比放大 RGB。
+- **[polish]** Main-window present pacing: dual flip-model Present + frame-latency-waitable swapchain
+  - TiXL: ProgramWindows.cs:InitializeMainWindow (UseFrameLatencyWaitable), Present()
+  - spec: Windows/DX11/DWM specific (waitable swapchain + FlipDiscard + dual-Present co-pacing). Do NOT literally port to Metal; the load-bearing intent is one explicit latency-paced present per frame for the main window. Note only if simple_world frame pacing or secondary output visibly differs.
+- **[polish]** Per-output update activity indicators (trigger ring + sweeping bar) and connection thickness by update count
+  - TiXL: Legacy/GraphNode.cs:Draw ~688-711; Legacy/Graph.cs:ConnectionLineUi.Draw ~251-252
+  - spec: Output socket: Trigger==Always -> hollow circle radius=area.Width/4; Trigger==Animated -> filled circle. If NumUpdatesWithinFrame>0 a 2px vertical bar sweeps L->R: movement=(time*numUpdates)%1*(area.Width-1), color(0.2). Connection thickness=((1-1/(UpdateCount+1))*3+1)*0.5*(usageFactor*2+1), usageFactor=max(0,1-FramesSinceLastUsage/50).
+- **[important]** Connection lines: arc vs bezier, hover-split, replacement pulse
+  - TiXL: Legacy/Graph.cs:ConnectionLineUi.Draw ~239-286
+  - spec: If UserSettings.UseArcConnections: arc routing (LegacyConnectionDrawer) + mid-line hover (>10px from endpoints) registers a split point (ConnectionSplitHelper). Else cubic bezier with tangentLength=RemapAndClamp(distance,30..300,5..200) horizontal handles, 20 segments. Selected=Highlight variation; unselected=ConnectionLines variation faded 0.6. IsAboutToBeReplaced pulses toward StatusAttention via sin(time*15).
+- **[important]** Connection-line geometry rebuild is checksum-gated; ordered multi-pass draw with channels
+  - TiXL: Legacy/Graph.cs:DrawGraph ~51-205; Graph.ConnectionSorter.cs
+  - spec: Graph.DrawGraph reinits line list when temp connections exist or count mismatches; else folds checksum (checkSum*31 + c.GetHashCode()*(index+1)) over connections + temp hashes and rebuilds only on change. Passes: init lists -> sort lines into from/into-node + from-input/to-output dicts -> draw nodes/sockets setting endpoints -> inputs -> outputs -> lines -> annotations. Uses draw-list channels (Annotations=0 below, Operators=1 above).
+- **[polish]** Node hover thumbnail preview tooltip (live vs cached) + always-on thumbnails
+  - TiXL: Legacy/GraphNode.cs tooltip ~243-284, thumbnail ~77-79,876-920
+  - spec: EditorHoverPreview on + hovered (not dragging/renaming, not PreventTooltip): a 200x(200*9/16) tooltip renders first output via outputUi.DrawValue into a private ImageOutputCanvas at 1280/2 x 720/2; recompute=(HoverMode==Live). With ShowThumbnails, a Texture2D first-output draws an aspect-correct thumbnail ABOVE the node (PreparePreviewAndExpandSelectableArea expands selectable area up), via AddImage of texture SRV.
+- **[important]** Image-background mode: full-output behind graph, edge fade, camera control
+  - TiXL: GraphImageBackground.cs; Interaction/ImageBackgroundFading.cs
+  - spec: GraphImageBackground renders selected instance first output fitted into graph background with own EvaluationContext (resolution via ResolutionHandling, gizmo toggle, camera via CameraSelectionHandling/CameraInteraction); UiScaleFactor forced to 1. ImageBackgroundFading: near LEFT edge image fades out, opacity=remapClamp(distFromEdge,50..150,0..1); near RIGHT edge the GRAPH fades and clicking toggles HasInteractionFocus (graph dims to 0.15). Toolbar: Clear BG, resolution selector, gizmo toggle, camera control.
+- **[polish]** Set image as graph background / pin to output
+  - TiXL: GraphContextMenu.cs; KeyboardActions.cs; GraphStates.cs
+  - spec: Texture2D-output op becomes backdrop (SetBackgroundOutput); backdrop focus enters BackgroundContentIsInteractive suppressing graph interaction. Ops pinnable to output window. FocusMode PinToOutputWindow sets backdrop.
+- **[important]** MagGraph node body rendering: idle-fade, snapped borders, indicators, overlays, missing-input markers
+  - TiXL: MagGraph/Ui/MagGraphCanvas.DrawNode.cs:DrawNode + DrawIndicator/DrawMissingInputIndicator; Drawing.cs:_borderRoundings
+  - spec: Visual-parity details of a node card: idle-fade timing (0..60 frames), snapped-edge squared corners + 2px bar + shrink, exact indicator order/colors, disabled-X and bypass-arrow overlays, missing-input orange triangle, comment icon. Depends on per-output DirtyFlag.FramesSinceLastUpdate the runtime must track.
+- **[important]** MagGraph connection rendering: snapped styles, splice-insertion blink, idle fade, hover registration, damped smoothing
+  - TiXL: MagGraph/Ui/MagGraphCanvas.DrawConnection.cs; Drawing.cs:SmoothItemPositions + _previousConnectionPositions
+  - spec: Connection-visual parity: snapped connections are triangles not lines (stacked-op look), idle-fade on source-output dirty frames (0..100), hover/selection brightening, splice-insertion blinking bar during drag, damped-position smoothing at 0.33 lerp persisted across re-layout.
+- **[important]** MagGraph graph frame loop order + fence selection + two-tier background grid + context menu
+  - TiXL: MagGraph/Ui/MagGraphCanvas.Drawing.cs:DrawGraph + DrawBackgroundGrid; MagGraphView.cs:HandleFenceSelection
+  - spec: Canvas-frame parity: draw order matters (grid, annotations, nodes, connections, overlays, temp-connections, context-menu), two-tier grid opacity ramps + x5 spacing, fence-select modes incl annotations-full-containment, snap-indicator expanding ring. Grid hidden in FocusMode. ITransformable gizmo force-invalidate is a runtime hook.
+- **[important]** Command output uses standalone MSAA render-target + bg-color clear + gizmo grid overlay
+  - TiXL: Editor/Gui/OutputUi/CommandOutputUi.cs:CommandOutputUi (Recompute/UpdateTextures/EnsureGridOutputsExist/DrawTypedValue)
+  - spec: output pane for Command type runs its own 4xMSAA offscreen RT (R16G16B16A16 color + D32 depth): clear with context bg color, run op, optionally overlay grid gizmo, resolve to single-sample texture, blit to output canvas; resolution driven by context.RequestedResolution.
+- **[important]** Each output type has its own output-pane value-preview renderer (OutputUi<T>.DrawTypedValue)
+  - TiXL: Editor/Gui/OutputUi/{BoolOutputUi,BufferWithViewsOutputUi,ColorListOutputUi,DataSetOutputUi,DataClipOutputUi}.cs
+  - spec: output window is driven by a type->OutputUi table; each type has its own preview (bool->curve, buffer->size/element stats, color-list->swatch list, dataset/dataclip->event timeline). Each provides Clone() and DrawTypedValue().
+- **[polish]** DataSet/DataClip output draws an interactive event-timeline canvas (two timebases + range select + CSV export + embedded mode)
+  - TiXL: Editor/Gui/OutputUi/DataSetViewCanvas.cs:DrawInternal; DataClipOutputUi.cs:TryBuildFallbackClip
+  - spec: DataSet/DataClip in output window is a standalone event-timeline viz (per-channel lane, hash-fixed color, value+interval event styles, range-select+Remove(undo)+Copy-as-CSV, runtime wall-clock vs clip source-secs playhead); clip mode needs SourceRange boundary shading. Large; can ship runtime-only read-only first.
+- **[core]** Output-window value rendering pipeline: recompute under a 2-channel split drawlist
+  - TiXL: OutputUi.cs:OutputUi<T>.DrawValue / Recompute / StartInvalidation
+  - spec: When the output window shows an op, the host must (a) invalidate the graph from that slot, (b) Update the slot with the EvaluationContext, then (c) render the typed value. Recompute can be skipped (recompute=false) to draw the last value without re-eval. Texture/3d outputs additionally push the result to the external viewer window.
+- **[important]** OutputUi lookup is generic-typed; fallback is ValueOutputUi<>
+  - TiXL: OutputUiFactory.cs / OutputUi.cs / ValueOutputUi.cs (class doc: 'generic fallback output UI shown if no matching output method is defined')
+  - spec: Output renderer registry keyed by value Type with a generic fallback. Fallback shows: for float -> ImGui.Value; for string -> scrollable text + click-to-copy; otherwise namespace (small muted), type name (muted), then value.ToString() (or 'undefined' if null).
+- **[core]** Texture2D output draws into ImageOutputCanvas AND pushes to external viewer; reports array-size
+  - TiXL: Texture2dOutputUi.cs:DrawTypedValue
+  - spec: Image output page = an ImageOutputCanvas that draws the result texture, with a parallel forward to an external viewer window. Disposed/null textures render nothing (no error). Texture arrays surface only an 'Array-Size: N' label.
+- **[polish]** Texture3D output: GPU compute slice render + z-pos slider
+  - TiXL: Texture3dOutputUi.cs (ctor + RenderTo2dTexture + DrawTypedValue)
+  - spec: 3D-texture preview = compute-shader slice extraction into a 256x256 RGBA8 scratch texture + an integer z-slice slider, rendered like a 2D image. Around the dispatch, prior compute-stage bindings are saved and restored.
+- **[important]** Float / Vector output: scrolling curve-plot canvas keyed per viewId, resets on slot change
+  - TiXL: FloatOutputUi.cs / VectorOutputUi.cs (ViewSettings + CurvePlotCanvas)
+  - spec: Scalar and vector outputs render as a live rolling curve plot (per output-view state, history reset when the bound slot changes), not as a bare number.
+- **[important]** Float-list / Int-list output: 4 view styles (List/Grid/Plot/PlotAutoScale), default Plot, persisted per viewId
+  - TiXL: FloatListOutputUi.cs / IntListOutputUi.cs (ViewStyles + DrawTypedValue)
+  - spec: List outputs offer Plot (default) / PlotAutoScale / Grid views; List view is intentionally unimplemented. Grid column count is a global UserSetting (GridOutputColumnCount). Plot uses fixed Min/Max fit (default -1..1), 1024-sample cap, and shows count/min/max/avg. Negative values colored with the attention/warning color.
+- **[polish]** FloatDict output: per-channel rolling history of 512 samples, 1024-channel cap, HSV color cycling every 10
+  - TiXL: FloatDictOutputUi.cs:DrawTypedValue
+  - spec: Dict<float> output = multi-channel rolling oscilloscope: 512-sample history per key, key labels clickable-to-copy, HSV palette repeating every 10 channels, optional manual min/max fit.
+- **[polish]** String output: line-numbered, C++/'//'-comment-aware, click-to-copy
+  - TiXL: StringOutputUi.cs / StringListOutputUi.cs
+  - spec: String output page = line-numbered viewer with '//' comment dimming and click-to-copy-all; string-list output = count header + indexed rows. Both copy to the system clipboard via EditorUi.Instance.SetClipboardText.
+- **[polish]** PointArray output capped at first 50 points; SceneSetup output is a tree; StructuredList is an editable table
+  - TiXL: PointArrayOutputUi.cs / SceneSetupOutputUi.cs / StructuredListOutputUi.cs / ShaderResourceViewOutputUi.cs
+  - spec: Point arrays preview only first 50 positions as text; SceneSetup previews a default-open node/mesh tree; StructuredList previews as an editable table that invalidates the slot when edited; ShaderResourceView preview is intentionally blank.
+- **[important]** Output image canvas: three view modes (Fitted/Pixel/Custom) with auto-demotion to Custom on user interaction
+  - TiXL: Editor/Gui/Windows/ImageOutputCanvas.cs
+  - spec: Output window has Fit / 1:1-pixel / free-pan-zoom modes; touching pan/zoom drops you into free mode. Mouse position over the image is exposed to operators in normalized image coords. Bottom overlay shows resolution + texture format + zoom.
+- **[important]** Output resolution presets + aspect-fill computation
+  - TiXL: ResolutionHandling.cs; EditResolutionDialog.cs
+  - spec: sw output resolution dropdown must seed identical presets and aspect-fill letterbox math.
+- **[polish]** Camera control 4 modes
+  - TiXL: CameraSelectionHandling.cs
+  - spec: mirror 4-mode dropdown + follow-on-playback + bypass-camera if sw does 3D Command output.
+- **[core]** Render settings model + per-composition persistence (.t3ui RenderExport)
+  - TiXL: RenderSettings.cs
+  - spec: reproduce defaults (60fps/25Mbps/4bars), enum sets, per-composition persistence, default paths.
+- **[polish]** Screenshot encode (async readback, RGBA, row-pitch)
+  - TiXL: ScreenshotWriter.cs
+  - spec: async readback, RGBA8, PNG full-row vs JPG drop-alpha, mind row-pitch alignment.
+- **[important]** ImGui DX11 render backend config: docking enabled, error-recovery flags, ini-file disabled, full DX-state save/restore
+  - TiXL: WindowsUiContentDrawer.cs:WindowsUiContentDrawer (Initialize, RenderCallback, DrawData, CreateShaders)
+  - spec: Native imgui backend should: enable docking, disable imgui.ini auto-save (layout loaded from a stored string), wrap the per-frame render in error/assert recovery, frame-pace via the swapchain's waitable, and FULLY save/restore GPU pipeline state around imgui draws so the imgui pass and operator render passes don't corrupt each other. The blend/raster/depth states and the ortho-projection + col*tex shader are the exact recipe for pixel-identical imgui rendering.
+- **[polish]** Player export: traverse Texture2D output, collect ops/assets/soundtrack/conditional native deps
+  - TiXL: Exporting/PlayerExporter.cs:TryExportInstance; PlayerExporter.ExportInfo.cs:ExportData
+  - spec: Standalone export (if pursued): only Texture2D-output ops are exportable; collect the full op subtree + referenced file/dir assets + soundtrack + 3 fixed shared assets + font .png siblings + shader includes; gate native DLL inclusion on which op GUIDs are present.
+- **[important]** Player render loop: per-frame order is playback.Update → soundtrack register → AudioEngine.CompleteFrame → DirtyFlag tick → evaluate+draw → Present
+  - TiXL: Player/Program.RenderLoop.cs:RenderCallback
+  - spec: A native playback/preview loop should: advance the clock, register/advance audio clips, bump a global invalidation tick (so node outputs recompute), evaluate the texture output graph, then blit. The global DirtyFlag tick BEFORE evaluation is the parity-critical detail — without it cached nodes won't refresh per frame.
+- **[important]** Final output is drawn as a full-screen 3-vertex triangle blitting the output Texture2D, with a fixed clear color
+  - TiXL: Player/Program.RenderLoop.cs:EvaluateAndDrawOutput / EnsureOutputTextureSrv
+  - spec: Output presentation = single fullscreen-triangle pass sampling the graph's final Texture2D. The clear color behind it is the grey-blue (0.45,0.55,0.6,1) — visible only if output texture has transparency / doesn't cover. SRV is cached and only rebuilt when the output texture identity changes.
+- **[polish]** Shader/resource preload: pre-evaluates the whole timeline at 2.0s steps (plus a 1/60s sub-frame warm) with display hidden and audio muted, before real playback starts
+  - TiXL: Player/Program.Loading.cs:PreloadShadersAndResources / PreloadSampleAtTime
+  - spec: Before first visible frame, TiXL warms shaders/GPU resources by sampling the timeline every 2 seconds with the window hidden and audio muted, flushing GPU work each step. This avoids first-play stutter. A parity player that JIT-compiles shaders should consider an equivalent hidden pre-pass over the timeline.
+
+## modes
+
+- **[core]** Playback time model: bars-vs-seconds, FxTime (idle motion), looping, render-to-file freeze
+  - TiXL: Playback.cs:Update/TimeInSecs/BarsFromSeconds/IsRenderingToFile + class doc terminology
+  - spec: Faithful transport needs both Time and FxTime clocks, bars<->secs(240/Bpm), idle-motion, and loop wrap. FxTime separation is load-bearing for time ops.
+- **[important]** TimeClip: timeline-region to source-region remapping (speed, layers, overlap)
+  - TiXL: TimeClip.cs; TimeRangeMapping.cs:LocalBarsToSourceBars/SourceBarsToLocalBars/IsActive
+  - spec: Timeline clips (audio/video/image-seq) all do this remap; speed=sourceDur/timeDur and layer/overlap rules govern timeline-editor drag and source sampling.
+- **[polish]** 節點 bypass 的型別白名單 (哪些節點可被旁路)
+  - TiXL: Core/Operator/Symbol.Child.cs:Child (IsBypassable / _bypassableTypes / SetBypassed)
+  - spec: 對齊節點 bypass(B 鍵直通)行為:只有『主入=主出同型別且型別屬白名單』的節點允許 bypass,bypass 時把第一個輸入直接導到第一個輸出。白名單型別固定為上述 9 種。
+- **[polish]** 節點停用 (disable) 的傳播語意
+  - TiXL: Core/Operator/Symbol.Child.cs:Child (IsDisabled getter / SetDisabled)
+  - spec: 對齊節點 disable 行為:停用旗標掛在 output slot 上並傳播到所有 instance;一個節點被視為 disabled 當其任一 output 被停用。
+- **[polish]** 全螢幕 / 視窗邊框狀態切換（編輯器與 viewer 視窗模式）
+  - TiXL: Editor/App/AppWindow.cs:IsFullScreen/SetFullScreen/SetSizeable/UpdateSpanningBounds/CreateRenderForm
+  - spec: 全螢幕=移除邊框並把視窗 bounds 設成目標螢幕完整矩形（非 OS 獨佔全螢幕）；退出全螢幕還原進入前 bounds。spanning 模式可跨螢幕設任意矩形。borderless viewer 不可關閉（防 swap-chain crash）。
+- **[polish]** Fullscreen toggle + secondary viewer 'output area' spanning model
+  - TiXL: ProgramWindows.cs:HandleFullscreenToggle/UpdateViewerSpanning/InitializeSecondaryViewerWindow/CopyUiContentToShareTexture
+  - spec: If simple_world grows fullscreen and/or a second output window: fullscreen targets a configured monitor index (fallback 0); secondary window is a separate output surface driven by a settings-persisted OutputArea rect (min/max); optional 'share UI to second display' copies the last frame into a texture and re-presents it (cheap mirror, not a duplicate render).
+- **[important]** Library-symbol edit guard dialog before entering Lib.* op
+  - TiXL: Dialogs/LibWarningDialog.cs; Legacy/GraphNode.cs:Draw ~298-324
+  - spec: Opening a Lib.* op when UserSettings.WarnBeforeLibEdit blocks entry and shows LibWarningDialog with DependencyCount=Structure.CollectDependingSymbols count. Title 'Careful now'; Cancel re-sets WarnBeforeLibEdit=true; 'I know what I'm doing' calls TrySetCompositionOpToChild; 'More...' has 'Don't ask me again!' toggling the setting.
+- **[important]** GraphWindow:多實例、Magnetic vs Legacy graph風格、timeline折疊分割、minimap、image-background互動隱藏圖
+  - TiXL: GraphWindow.cs:TrySetToProject/DrawContent/DrawGraphContent
+  - spec: 編輯器主視窗:可多開、依設定切Magnetic/Legacy圖風格、timeline可折疊分割(splitter 3px)、可選minimap、image-background淡入時圖會跟著淡出甚至隱藏、TransformGizmo拖曳背景時暫時隱藏圖、記住每窗上次開的op。
+- **[important]** 3D camera orbit/pan/fly mouse+keyboard scheme with inertial smoothing
+  - TiXL: Interaction/Camera/CameraInteraction.cs: ManipulateCameraByMouse 139-177, HandleMouseWheel 179-233, LookAround 235-259, ApplyOrbitVelocity 261-306, Pan 308-327, ManipulateCameraByKeyboard 329-393
+  - spec: 3D nav: LMB=orbit, RMB or LMB+Alt=pan, MMB or LMB+Ctrl=look-around, wheel=dolly (or adjusts fly-speed when a button held and AdjustCameraSpeedWithMouseWheel). Inertial smoothing with separate orbit/move/blend damping; WASD keyboard fly via UserActions; roll-aware up-vector from CameraRoll.
+- **[polish]** Camera tuning constants and default reset state
+  - TiXL: Interaction/Camera/CameraInteractionParameters.cs (whole file); CameraSetup.cs Reset 18-23 BlendTo 49-61; CameraInteraction.cs 413-418
+  - spec: Camera feel constants to match: orbit accumulate factor -0.1, rotate sensitivity 0.001 (look-around x1.5), zoom speed 10, dampings 0.5/0.12/0.2, pan divisor 450. Default cam at (0,0,DefaultCameraDistance) looking at origin, roll 0, speed 1.
+- **[polish]** MIDI variation-controller framework + snapshot grammar
+  - TiXL: Midi/CompatibleMidiDevice.cs, CompatibleMidiDeviceHandling.cs, CommandProcessing/*, CompatibleDevices/*
+  - spec: Hardware MIDI drives snapshots/Variations. Note/color tables=plumbing. Portable parity=snapshot grammar + Variation.State->LED. Cross-refs Variations subsystem outside chunk.
+- **[core]** Graph interaction state machine (single active state)
+  - TiXL: GraphStates.cs; GraphUiContext.cs
+  - spec: Default left-click routes HoldOutput/HoldInput/HoldItem/HoldBackground. Long-press 0.3s (radius 100*(1-progress)) opens Placeholder. TAB opens placeholder. Double-click background=parent, op-with-children=enter. Escape cancels. States HoldingConnection/DragConnection/PickInput/PickOutput/Rename/ResizeAnnotation/BackgroundContentIsInteractive.
+- **[important]** Editor user-settings schema (parity-relevant defaults & toggles)
+  - TiXL: UserSettings.cs:ConfigData
+  - spec: Editor settings file = userSettings.json. Mirror the defaults that drive interaction parity (Magnetic graph, arc connections, snap strength 5, click threshold 5, add-spaces-to-param-names, value-edit smoothing 6, scroll smoothing 0.06). Canvas view rect and last-open op are persisted per symbol-child.
+- **[important]** Window layout save/load: 10 user layouts on F1–F10, Ctrl+F# to save, plus FocusMode/SkillQuest special layouts
+  - TiXL: Editor/Gui/Windows/Layouts/LayoutHandling.cs
+  - spec: Layout persistence bundles the ImGui ini blob AND a version stamp; mismatched-version layouts are discarded rather than migrated. Window identity for recreation is by title-prefix. simple_world should version-stamp any serialized docking state and fall back to a shipped default on mismatch.
+- **[important]** Focus Mode: hide all chrome, pin output to graph background, restore prior visibility on exit
+  - TiXL: Editor/Gui/Windows/Layouts/UiConfig.cs
+  - spec: Focus mode = chrome-hide + render the pinned output as the graph's background image, fully reversible from a saved UiState snapshot. Timeline visibility is conditional on the composition using Timeline sync.
+- **[important]** Settings categories + keys + backup policy
+  - TiXL: SettingsWindow.cs
+  - spec: settings categories + keys/defaults; backup policy; project-directory scanning.
+- **[polish]** ScreenManager multi-monitor + fullscreen pick + output spanning
+  - TiXL: ScreenManagerWindow.cs
+  - spec: fullscreen-target screen index + output spanning bbox persisted as OutputArea; macOS needs different native APIs, model is parity target.
+- **[core]** Transport modes + clip/audio + variation blend
+  - TiXL: TimeControls.cs/TimeLineCanvas.cs/TimeClipInteractions.cs/TimelineAudioClipItem.cs/VariationBaseCanvas.cs
+  - spec: Core editor parity chunk; per-file detail in transcript.
+- **[important]** Output/parameter view pinning: pin to operator, pin start-operator, output-slot selection, persistence
+  - TiXL: ViewSelectionPinning.cs:ViewSelectionPinning
+  - spec: An output/preview window that can be locked to a chosen operator independent of graph selection needs: store the target as a Guid InstancePath (not an object ref); separate 'displayed op' from 'evaluation start op'; default-output sentinel = Guid.Empty -> first output; tolerate project reload by re-resolving the path and NOT unpinning mid-load; persist {isPinned, outputId, instancePath} in window state.
+- **[polish]** Variations/Presets window: two-mode (Presets vs Snapshots) selector, auto-mode-switch on selection, deferred deletion
+  - TiXL: VariationsWindow.cs:VariationsWindow
+  - spec: Presets are per-operator, snapshots are composition-wide; the window auto-picks the mode from selection count. Defer variation deletion by one frame. Save-to-file on every structural change. Distinct empty-state copy per mode.
+- **[polish]** SkillQuest: a full self-contained tutorial 'play mode' that hijacks layout and grades user edits live against a snapshot
+  - TiXL: SkillTraining.cs / SkillTraining.Mock.cs / SkillTrainingStates.cs / SkillProgress.cs / SkillMapData.cs
+  - spec: This is an optional gamified tutorial MODE, orthogonal to core authoring. It is unlikely to be part of柏為's parity target, but it documents a real TiXL 'mode': open a bundled project, swap to a minimal layout, sandbox edits (SaveDisabled), grade completion via a magic '_PlayModeProgress' output variable. Skip unless tutorial mode is explicitly wanted.
+- **[core]** ICommand 介面契約：每個編輯動作 = Name + IsUndoable + Do/Undo 對偶
+  - TiXL: 全 chunk 共同模式；StoreCurrentValues 見 ChangeKeyframesCommand / MoveTimeClipsCommand / MoveTimelineAudioClipsCommand / SetTimeWarpHandlesCommand
+  - spec: 原生 undo/redo 系統若要 parity：命令物件建構時快照 original、Do=套 new/Undo=套 original、redo=再 Do；拖曳類互動用『live mutate + 結束時 StoreCurrentValues 才入棧』模式，不是每幀入棧。
+- **[important]** Connection 的 multiInputIndex（multi-input port 插入位置）
+  - TiXL: AddConnectionCommand（multiInputIndex）；CopySymbolChildrenCommand（_connectionsToCopy.Reverse() // to keep multi input order）
+  - spec: multi-input 端口連線有序，AddConnection 帶插入 index；複製含 multi-input 的子圖時連線要反轉順序以保留原排列。這是節點連線 parity 的隱藏細節。
+- **[core]** Copy/Paste/Duplicate 子圖的完整重映射順序（id 重生、連線、動畫、annotation、bypass 延後）
+  - TiXL: CopySymbolChildrenCommand 建構式 + Do()（CopyAnimationsTo 先行 / bypass 延後 / annotation 重映射）
+  - spec: 複製貼上子圖的正確順序：動畫先複製→建 child（含 input/output 值與旗標）→建連線→才套 bypass（因 SetBypassed 需先有 output 連線）→建 annotation；位置以選取集左上角為錨點相對貼上；只搬兩端都選中的連線並反轉保 multi-input 序；折疊在 annotation 內的 child 自動納入。
+- **[polish]** Snapshot/Bypass/Disable 的狀態 toggle 命令語義
+  - TiXL: ChangeSnapshotEnabledCommand（SnapshotGroupIndex）/ ChangeInstanceBypassedCommand / ChangeInstanceIsDisabledCommand
+  - spec: Bypass/Disable/Snapshot 是節點三個獨立布林/索引狀態；undo 還原前值而非翻轉；bypass 賦值包 try/catch 容錯。
+- **[important]** Bypass / Disable toggles and DisconnectDraggedNodes (shake-off) rewiring
+  - TiXL: NodeActions.cs : ToggleBypassedForSelectedElements / ToggleDisabledForSelectedElements / DisconnectDraggedNodes
+  - spec: ToggleBypassedForSelectedElements: if all selected are bypassed -> unbypass, else bypass all (ChangeInstanceBypassedCommand in a macro). ToggleDisabledForSelectedElements: same pattern with ChangeInstanceIsDisabledCommand. DisconnectDraggedNodes (used when a node is dragged with a modifier to detach it): removes all input+output connections of the dragged nodes that go to non-dragged nodes (removed in descending multi-input index order to keep indices valid), then attempts to reconnect each removed input to a removed output of the same Type in ascending order (bridging the gap left by the removed node). Wrapped as macro 'Shake off connections'.
+- **[core]** Combine selection into a new compound symbol = C# source code generation + runtime compile
+  - TiXL: Combine.cs : CombineAsNewType
+  - spec: Compound creation is not a pure UI op — it emits C# and recompiles. A native port must either replicate codegen or model compounds as data; either way Combine clears undo history and saves immediately.
+- **[important]** Duplicate-as-new-type rewrites the source via Roslyn (rename class, regen all slot GUIDs)
+  - TiXL: Duplicate.cs : DuplicateAsNewType / MemberDuplicateRewriter / ClassRenameRewriter
+  - spec: Duplicate.DuplicateAsNewType takes the source symbol's syntax tree, applies ClassRenameRewriter (rename class+constructor to newTypeName) and MemberDuplicateRewriter (for every InputSlot/MultiInputSlot/Slot/TimeClipSlot/TransformCallbackSlot field with a GUID attribute, generate a fresh GUID and record old->new map), replaces namespace and the class [Guid]. Compiles, clones the SymbolUi with the GUID remap, copies children (CopySymbolChildrenCommand), rewires symbol-input/output connections through the remap, copies input default values and per-input UI props (AddPadding/GroupTitle/Description/ExcludedFromPresets/Relevancy plus type-specific Float/Vec2/Vec3/Vec4 settings incl. UseVec2Control), preserves child canvas positions, saves, then clears undo.
+- **[core]** Add/Remove/Rename/Reorder inputs & outputs all edit C# source and recompile
+  - TiXL: InputsAndOutputs.cs : AddInputToSymbol/AddOutputToSymbol/RemoveInputsAndOutputsFromSymbol/AdjustInputOrderOfSymbol/RenameInput/RenameOutput
+  - spec: InputsAndOutputs operates by Roslyn source editing: AddInputToSymbol inserts a '[Input(Guid=...)] public readonly InputSlot<ns.Type> Name = new ...();' after the last input field (or into the class), then RecompileSymbol. AddOutputToSymbol mirrors this for Slot/TimeClipSlot. RemoveInputsAndOutputsFromSymbol finds fields whose attribute contains the GUID and removes them. AdjustInputOrderOfSymbol reorders field declarations to match Symbol.InputDefinitions order when they diverge. RenameInput/RenameOutput validate the new name (GraphUtils.IsNewFieldNameValid), reject if name already appears in source (\bname\b), then regex-replace the field name (word-boundary, negative-lookahead for '(' to avoid method calls); support dryRun.
+- **[important]** Change-symbol (swap one op for another) reroutes connections by matching input/output NAMES, refuses lossy delete
+  - TiXL: ChangeSymbol.cs : ChangeOperatorSymbol
+  - spec: ChangeSymbol.ChangeOperatorSymbol moves the old child down +100y, creates the new symbol at the old position with the same child name, then for each input matches the destination input by Name: if value-types match, transfers non-default value (ChangeInputValueCommand) and re-points the single connection; if types mismatch or no matching name and the input had data, marks conversionWasLossy. Same name-matching for outputs (rewires each connection, multi-input index preserved). If nothing was lost, deletes the old child; if lossy, KEEPS the old op and logs a warning. Whole thing recorded as one MacroCommand ('Change Symbol' / 'Change Symbols (n)').
+- **[important]** Composition navigation: id-path model, jump-in/out transitions, per-composition view-area persistence
+  - TiXL: ProjectView.cs : TrySetCompositionOp / TrySetCompositionOpToChild / TrySetCompositionOpToParent / SaveUsersViewForCurrentComposition
+  - spec: Diving into / out of a compound is a distinct jump-in vs jump-out animated transition; each composition remembers its own pan/zoom rect keyed by symbol-child id in user settings.
+- **[polish]** Navigation history (back/forward) with relevancy re-sorting
+  - TiXL: NavigationHistory.cs
+  - spec: NavigationHistory keeps a list of previously-selected instance id-paths (most-recent at index 0) keyed by a long hash of the path. UpdateSelectedInstance: new path -> insert at front, currentIndex=0; existing path -> if it's index 0 keep; if |index-currentIndex|<=1 just move currentIndex there (keep order, supports walking back/forward without reshuffling); otherwise move it to front and reset currentIndex=0 (re-sort). NavigateBackwards increments currentIndex skipping dead paths; NavigateForward decrements. GetPreviouslySelectedInstances yields live instances in order (used to sort the search dialog by relevancy).
+- **[polish]** Spatial (arrow-key) node navigation scoring
+  - TiXL: NodeNavigation.cs : TryMoveSelectionTowards / GetAlignedDelta
+  - spec: NodeNavigation.TryMoveSelectionTowards(direction) picks the next child to select from the current one: for each other child compute alignedDelta = rotate(other.Pos - current.Pos) into the direction's frame (Up=(-dy,|dx|), Right=(dx,|dy|), Down=(dy,|dx|), Left=(-dx,|dy|)); skip candidates with alignedDelta.X<=0 (behind/sideways); relevancy r = alignedDelta.X + alignedDelta.Y*5 (forward distance plus 5x lateral penalty); pick the minimum. On match, raises FocusInstanceRequested(path) and, if no ParameterWindow is visible, opens a ParameterPopUp for the target.
+- **[polish]** Read-only (factory) symbol modification triggers a forced duplicate-to-edit ('reload') dialog
+  - TiXL: ProjectView.cs : SetCompositionOp/DisposeComposition/CheckDisposal
+  - spec: ProjectView tracks compositions awaiting disposal; when a read-only composition that HasBeenModified loses all checkouts it is pushed onto a reload stack. CheckDisposal shows a DuplicateSymbolDialog (isReload:true) for it; on close it pops the stack and calls symbolPackage.Reload(symbolUi) to discard the user's in-memory edits to the read-only symbol. This is how TiXL prevents editing factory ops in place — you must duplicate to a writable project.
+- **[important]** Cycle detection before allowing a connection
+  - TiXL: Structure.cs : CheckForCycle / CollectSlotDependencies / CollectConnectedChildren
+  - spec: Structure.CheckForCycle (three overloads) determines whether connecting an output to an op would create a feedback loop: it walks slot dependencies (CollectSlotDependencies follows first-connections and all connected inputs, incl. multi-inputs) and returns true if the dependency set reaches the target op id; the connection-based overload walks composition connections from the source collecting dependent children and checks if the target is among them. The editor uses this to reject cyclic connections at drag-connect time.
+- **[polish]** End-of-timeline is driven only by the main soundtrack clip; Loop option rewinds, otherwise playback ends
+  - TiXL: Player/Program.RenderLoop.cs:RenderCallback (end-of-timeline block); Player/Program.cs:Main (catch TimelineEndedException)
+  - spec: Playback length is defined by the main soundtrack clip length+start, not by a separate duration field. A native player's loop/stop behavior should key off the same main-soundtrack clip; silent projects (no main soundtrack) run forever unless externally stopped.
+- **[polish]** SimpleWindowOptions -> Silk window options mapping and default window config
+  - TiXL: SilkWindows/SilkWindowProvider.cs (ConstructWindowOptions, DefaultOptions, Show/ShowAsync); SilkWindows/OpenGL/GLWindow.cs; GLImguiHandler.cs
+  - spec: These are auxiliary blocking/async pop-up windows (file picker, message box) separate from the main editor window, defaulting to always-on-top resizable 400x320 @60fps vsync. Not the main render surface — relevant only if porting TiXL's secondary-dialog windowing.
+- **[polish]** Editor vs Core SystemUi service split + file-picker / screen abstractions
+  - TiXL: SystemUi/ICoreSystemUiService.cs, IEditorSystemUiService.cs, ISplashScreen.cs, IUiContentDrawer.cs
+  - spec: TiXL cleanly separates editor-only OS services (clipboard, native file dialog, multi-monitor enumeration, DPI scaling) from the minimal player runtime surface. The native file-picker/screen contracts are WinForms-shaped; on macOS these map to NSOpenPanel / NSScreen equivalents if ported.
+
+## animation
+
+- **[core]** Keyframe interpolation: 6 modes with exact Hermite/Bezier math + 1e-10 slope snap
+  - TiXL: SplineInterpolator.cs:Interpolate/UpdateTangents/SlopFromAngle; LinearInterpolator.cs; ConstInterpolator.cs; BezierInterpolator.cs:Interpolate/SegmentNeedsBezier
+  - spec: Native curve eval must match these exact formulas including 1e-10 slope-snap and Hermite tangent basis or animated values drift. Bezier path only for weighted-tangent keys.
+- **[core]** Outside-curve behavior: Constant/Cycle/CycleWithOffset/Oscillate before-first / after-last key
+  - TiXL: CurveUtils.cs:OutsideCurveBehavior/CreateOutsideCurveMapper; ConstantCurveMapper.cs; CycleCurveMapper.cs; CycleWithOffsetCurveMapper.cs; OscillateCurveMapper.cs
+  - spec: GetSampledValue outside [firstU,lastU] routes through Pre/PostCurveMapping; CycleWithOffset vertical stacking and Oscillate odd/even ping-pong are the non-obvious ones.
+- **[core]** Animator timeline: keyframe interpolation defaults differ float vs int/bool
+  - TiXL: Core/Operator/Animator.cs:AddCurvesForFloatVector / AddCurvesForIntVector / CreateUpdateActionsForExistingCurves
+  - spec: A parity timeline must default float keyframes to Linear interpolation with broken tangents and int/bool keyframes to Constant (stepped), sample at LocalTime in bars, and map vector inputs to N parallel single-channel curves (Vec2->2, Vec3->3, Vec4->4).
+- **[important]** Animator JSON serialization shape inside the symbol file
+  - TiXL: Core/Operator/Animator.cs:Write / Read
+  - spec: Parity animation persistence: store keyframes as a flat 'Animator' array of {InstanceId, InputId, Index?, <curve>}, omit Index when 0, omit the whole block when no animation exists, and rebuild per-input curve arrays by Index on load while dropping orphaned child references.
+- **[core]** DirtyFlag version-chasing; Command slots always-dirty
+  - TiXL: Slots/DirtyFlag.cs; Slots/Slot.cs:160-169
+  - spec: Slot.Update runs only if dirty OR valueType is Command, so Command(render/exec) slots re-execute every frame. Invalidate dedupes per pass via GlobalInvalidationTick.
+- **[core]** InvalidateGraph: output dirty=OR of ALL inputs; multi-input flatten
+  - TiXL: Slots/Slot.cs:266-323; Slots/MultiInputSlot.cs:46-83
+  - spec: Unconnected outputs iterate ALL parent.Inputs, dirty if any. MultiInput sums over flattened inputs unless LimitMultiInputInvalidationToIndices set (Switch prunes to active branch).
+- **[important]** TimeClip remaps LocalTime+LocalFxTime to SourceRange
+  - TiXL: Slots/TimeClipSlot.cs:53-83,124-149
+  - spec: Skips eval when LocalTime outside TimeRange (Suspended if Config.TimeClipSuspending). Inside, remaps both LocalTime and LocalFxTime from TimeRange onto SourceRange, runs base, restores. IPreventingTimeRemap clips do not remap.
+- **[polish]** Per-symbol 播放/專案設定 (CompositionSettings) 與 Animator
+  - TiXL: Core/Operator/Symbol.cs:Symbol (CompositionSettings / Animator 屬性 + CreateOrUpdateActionsForAnimatedChildren) + Core/Operator/Symbol.Instantiation.cs (AddChild)
+  - spec: 若要對齊『每個 compound/symbol 可帶自己的 timeline 播放設定』與動畫曲線,需:per-symbol 一個 settings 物件(帶 Enabled 開關決定是否覆蓋父層)+ 一個 Animator 管理該 symbol 子節點的曲線。此 chunk 只見到欄位與掛載點,實作肉在 Animator/CompositionSettings/SymbolJson(本批未含)。
+- **[important]** Animation shape generator math: Shapes enum + Schlick bias + per-shape mapping (AnimMath)
+  - TiXL: Core/Utils/AnimMath.cs:AnimMath (CalcValueForNormalizedTime, _mapShapes, SchlickBias, Shapes enum, SpeedFactors)
+  - spec: Any simple_world port of TiXL value-curve / oscillator / animated-value ops must reuse these exact formulas and enum ordering. Critical gotchas: Random uses XxHash of (time + 28657*componentIndex) divided by uint.MaxValue; PerlinNoise uses fixed params (octaves=1, freq=5? — args are PerlinNoise(time,1,5,seed)) scaled by 1.25; Schlick bias is the shaping function for all non-random shapes; the _mapShapes index-to-shape mapping (not its comments) is authoritative.
+- **[important]** Easing function library: 30 named easings + In/Out/InOut dispatch (EasingFunctions)
+  - TiXL: Core/Utils/EasingFunctions.cs:EasingFunctions (Interpolations/EaseDirection enums, ApplyEasing)
+  - spec: Port these verbatim for any simple_world easing/tween op or curve interpolation so output is byte-identical: keep the enum integer ordering (Linear=0..Bounce=10; In/Out/InOut=0/1/2), the exact magic constants (1.70158, 1.525, 7.5625, 2.75, 2π/3, 2π/4.5), and the t==0/t==1 short-circuits in Expo/Elastic.
+- **[polish]** CurveInputUi/CurveInputEditing:參數視窗內嵌曲線(keyframe)編輯器
+  - TiXL: CurveInputEditing.cs:DrawCanvasForCurve/CurveInteraction.HandleCurvePointDragging/SingleAnimationCanvas.Draw;CurveInputUi.cs:DrawEditControl
+  - spec: Curve型別input內嵌迷你曲線編輯器(高130):keyframe拖曳(>2px啟動undo command、Shift snap U/V)、fence框選、Focus/Delete鍵、右鍵選單、雙擊建keyframe、Ctrl暫時解鎖被prevent的互動;default值用clone暫存改了才寫回。
+- **[important]** Animation keyframe insert/remove and selection-aware delete
+  - TiXL: Interaction/Animation/AnimationOperations.cs: 13-40, 42-55, 57-98
+  - spec: Insert-keyframe clones the previous keyframe tangents/interpolation (not a fresh default) when one exists, with optional value increment. Deleting every keyframe of a curve removes the whole animation binding rather than an empty curve. All keyframe edits are single-undo macro commands.
+- **[important]** Curve-edit modal popup
+  - TiXL: Interaction/CurveEditPopup.cs
+  - spec: Curve param shows popup-trigger icon -> 500x400 modal curve canvas. Logic in CurveInputEditing (outside chunk).
+- **[core]** Curve editor interpolation modes + tangent editing
+  - TiXL: CurveEditing.cs; CurvePoint.cs
+  - spec: Modes Linear/Smooth(Clamped)/Smooth(Cubic)/Horizontal/Constant set interpolation+tensions=1+Weighted=false; Linear/Constant break tangents. Mirror syncs OutAngle=InAngle+PI. Space Evenly(>2), Set Sequential Values, Copy/Paste/Delete/Duplicate via ChangeKeyframesCommand. CurvePoint 21x21 + handles (circle/square=weighted); snaps Horizontal/Linear-neighbor/Default-length at 3px; Shift unlocks weight; Ctrl breaks; ref length=1/3 segment.
+- **[core]** Render frame-count + per-frame playback stepping
+  - TiXL: RenderTiming.cs
+  - spec: offline render steps time per-frame at fps (not real-time), lerp start->end across frameCount-1, FrameSpeedFactor=fps/60.
+- **[core]** Dope-sheet keyframe 插入/拖曳/選取的確切手感（Alt-hover 新增鍵、name-button replace/shift-add/ctrl-remove、double-click 跳選 op）
+  - TiXL: DopeSheetArea.cs:DrawProperty/HandleCreateNewKeyframes/UpdateSelectionOnClickOrDrag/UpdateSelectionForArea；AnimationParameterEditing.cs
+  - spec: 若 simple_world 做 timeline/keyframe 編輯：插鍵=Alt-hover-click 或快捷鍵對所有顯示參數插；name-button 三修飾鍵語義（plain=replace, shift=add, ctrl=remove）；click 閾值用 UserSettings.ClickThreshold；拖鍵 Shift 暫停 snap；空選取 double-click layer 跳選並 fit 該 op；fence 命中以 layer 索引帶 -1 模糊邊界。
+- **[important]** Vector 參數曲線分量可見性 toggle（X/Y/Z/W 或 R/G/B/A）的 isolate-on-first-click 語義
+  - TiXL: DopeSheetArea.cs:IsComponentVisible/ToggleComponentVisibility/HoverFadeAlpha/CurveColors/CurveNames/ColorCurveNames
+  - spec: 向量參數曲線展開時：第一次點分量=只留它（isolate），再點切換 bit；切到全亮或全暗就回復「全顯示」預設（刪 mask entry）；hover 跨視圖淡化規則 0.4/1.0；Vector4 標 RGBA 其餘 XYZW。
+- **[important]** Time-raster 三種顯示模式（Bars / Seconds / Frames）的 spacing 與標籤格式，由 UserSettings.TimeDisplayMode 切換
+  - TiXL: TimeRasterSwitcher.cs；AbstractTimeRaster.cs；BeatTimeRaster.cs:InitScaleRanges/BuildLabel；SiTimeRaster.cs；StandardValueRaster.cs
+  - spec: timeline 標尺三模式：bars 顯示 `bar.beat:tick`（beat=bars*4 mod4、tick=bars*16 mod4）；secs 顯示 Hh:Mm:Ss.T（1 bar=2 秒@120bpm，scale 隨 BPM 縮放）；frames 30/60 fps 整數刻度且預設啟用 snap。LOD 用對數 scale-range 表決定 spacing 與淡入淡出，density 由 TimeRasterDensity 控制。
+- **[polish]** Keyframe 跨參數 copy/paste 的三段降精度匹配
+  - TiXL: KeyframeCopyAndPasting.cs:TryPasteTo/TryPasteToSameChildren/Compare
+  - spec: 跨曲線貼鍵以降精度配對（先同 child+input+index，再同 input+index，再僅同 index），每來源曲線只配一次，貼上位移 = 當前播放時間 - 複製鍵最小時間。
+- **[polish]** Inline 曲線編輯區 (CEA) 的 X 鎖定 / Y 自適應 fit 與 sub-canvas 視圖借用
+  - TiXL: InlineCurveArea.cs:Draw/FitVerticalScopeCapped/ClampScaleToValidRange/ApplyZoomDelta；InlineDataClipArea.cs
+  - spec: 內嵌曲線編輯=dope-sheet 下方獨立子畫布，X 與 timeline 連動（panning X 寫回 timeline、zoom 只縮 Y），Y 自動 fit keyframe bounds 且有高度上限避免拉伸；選取/高度/展開變動觸發 re-fit；有 Normalize 與 Close chrome。
+- **[polish]** Selection range indicator（標尺上的選取範圍條）含 TimeWarp 變速 handle
+  - TiXL: SelectionRangeIndicator.cs:Draw/ComputeRange/HandleEdgeDrag/HandleMiddleDrag/HandleWarpHandleDrag/StartWarpHandleDrag
+  - spec: timeline 標尺上的選取範圍條：兩端拉伸（以對邊為錨點縮放選取鍵）、中段平移（雙端取較強 snap）、Alt 插入變速 handle 做分段 piecewise-linear retime；無選取時對全部可見鍵操作。屬進階 timeline 手感。
+- **[polish]** ClipRange / LoopRange / CurrentTimeMarker 標記與 snap attractor
+  - TiXL: ClipRange.cs；LoopRange.cs；CurrentTimeMarker.cs；HorizontalScaleLines.cs
+  - spec: timeline 上的時間標記：loop range 一直可拖、clip source-range 僅 Alt 可拖且拖時連動 time-range 維持速度、current-time marker 與這些都當作 snap 吸附點（loop/clip 端點、當前時間）。
+- **[important]** op-backed TimeClip 的 move：重疊時自動往上推 LayerIndex
+  - TiXL: MoveTimeClipsCommand.Do（IsClipOverlappingOthers + LayerIndex-- 迴圈）
+  - spec: TimeClip 拖曳放下時若與同層其他 clip 重疊，自動 LayerIndex-- 上移避讓直到不重疊；移動命令同時快照 TimeRange/SourceRange/LayerIndex。
+- **[important]** keyframe（VDefinition/Curve）的 add/delete/change 與 tangent 更新
+  - TiXL: AddKeyframeCommand / DeleteKeyframeCommand / ChangeKeyframesCommand（皆 Curve.UpdateTangents()）
+  - spec: 任何 keyframe 編輯後必呼叫 Curve.UpdateTangents() 重算切線；delete 的 undo 要還原選取狀態；move 多 keyframe 用 CopyValuesFrom 套快照值。
+- **[important]** Add/Remove animation 與 RemoveAnimations 的 curve 還原 + CreateOrUpdateActionsForAnimatedChildren
+  - TiXL: AddAnimationCommand / RemoveAnimationsCommand（CreateOrUpdateActionsForAnimatedChildren）
+  - spec: 加/移除動畫要快照整批 curve（redo 還原同一批）；改完呼叫 composition.Symbol.CreateOrUpdateActionsForAnimatedChildren() 重建動畫驅動；移除多參數時命令名顯示數量。
+- **[polish]** TimeWarp handle 拖曳的 snapshot/restore
+  - TiXL: SetTimeWarpHandlesCommand
+  - spec: TimeWarp handle 拖曳用位置陣列快照 undo；建立/開關 handle 不進此 undo。屬 timeline time-warp 進階功能。
+
+## audio
+
+- **[important]** Audio FFT analysis: 1024-bin FFT -> 32 log-spaced bands + peaks/attacks/onsets
+  - TiXL: AudioAnalysisContext.cs:ProcessFftUpdate/InitializeBandLookupTable/UpdateSlidingWindowAverages; AudioConfig.cs; AudioAnalysisResult.cs
+  - spec: AudioReaction/AudioFrequencies ops read Bands/Peaks/Attacks/Onsets; parity needs the dB remap(-80..0), 55Hz-15kHz octave bin->band map (bins1-5 direct), and constants (0.9 decay, *4 attack, *0.995, *2 onset).
+- **[important]** Audio mixer architecture: 3-tier BASS mixer graph + paused-during-export read
+  - TiXL: AudioMixerManager.cs:Initialize/Shutdown/Get*MixerLevel/CreateOfflineAnalysisStream; AudioConfig.cs
+  - spec: Native backend needs operator/soundtrack/global split (operator audio metered alongside soundtrack) and export-time mixer swap. macOS can't use BASS verbatim but routing semantics are the contract.
+- **[important]** Audio engine per-frame lifecycle: frame-token stale detection, seek-on-play, 3D listener
+  - TiXL: AudioEngine.cs:CompleteFrame/ProcessSoundtrackClips/EnsureFrameTokenCurrent/StopStaleOperators/HandlePlaybackTriggers/UpdateStereoOperatorPlayback/Set3DListenerPosition
+  - spec: Rising-edge play/stop, pending-seek-on-play, per-frame stale-pause are the audio-player op contract; without stale detection an op that stops updating plays forever.
+- **[polish]** ADSR envelope: dual frame-based and sample-based modes, Gate vs Trigger
+  - TiXL: AdsrCalculator.cs:Update/UpdateSample/SetParameters
+  - spec: ADSR op needs Gate(follows signal) vs Trigger(duration-driven), 0.001s param floors, linear ramps, release-from-current-value. Frame and sample impls must agree.
+- **[important]** Soundtrack clip drift-resync threshold + timing offsets
+  - TiXL: SoundtrackClipStream.cs:UpdateSoundtrackTime + UpdateSoundtrackPlaybackSpeed; constants AudioSyncingOffset/AudioTriggerDelayOffset/RecordSyncingOffset
+  - spec: If sw plays a soundtrack on a timeline, mirror: clip placed in bars via TimeRange.Start/End, SourceOffsetSecs/SourceDurationSecs select source window in seconds, drift-correct only past AudioResyncThreshold (not every frame), and apply the -2/60 sync offset + +2/60 trigger-delay offset on resync. Out-of-bounds = silence/pause, not stop.
+- **[polish]** Beat-sync auto-tempo tracker (WASAPI onset PID) — Resync/tap workflow
+  - TiXL: BeatSynchronizer.cs (Resync, UpdateBeatTimer, _bands, _onsetRhythmicTemplates); BeatTimingDetails.cs (published fields); WasapiAudioInput.cs:ProcessDataCallback gates on EnableAudioBeatLocking
+  - spec: Live-tempo lock is an editor feature requiring WASAPI capture: tap-to-set + Resync button, then auto-adjusts BPM/phase from spectral onsets. Heavy magic-number heuristic — likely deferrable for sw unless audio-reactive beat lock to external audio is required. If built, the published BeatTimingDetails fields are the operator-facing surface.
+- **[important]** Audio source modes: ProjectSoundtrack vs ExternalDevice (WASAPI) + FFT analysis pipeline
+  - TiXL: WasapiAudioInput.cs (StartFrame, ProcessDataCallback, InitializeInputDeviceList, DecayingAudioLevel)
+  - spec: Two audio-reactivity sources: the project's own soundtrack vs an external/loopback device captured live via WASAPI (Windows-only API). FFT (with FFTRemoveDC), gain/decay smoothing, and per-channel level metering feed audio-reactive operators. macOS sw has no WASAPI — equivalent would need a CoreAudio loopback/input path or soundtrack-only FFT.
+- **[polish]** Frequency-separated waveform filters (low/mid/high) for AudioWaveform operator
+  - TiXL: WaveFormProcessing.cs (UpdateWaveformData, ProcessFilteredWaveformsImproved, CalculateLow/HighPassCoeffs, PopulateFromExportBuffer)
+  - spec: If sw implements an AudioWaveform-style operator, it needs L/R + 3 frequency bands derived by single-pole IIR low/high-pass at ~250Hz/~2000Hz with cross-frame state, lazily fetched once per frame only when an operator requests it. Export path swaps to a rolling-accumulation buffer from the rendered mixdown.
+- **[polish]** Audio waveform/spectrum thumbnail generation (FFT to PNG palette image)
+  - TiXL: AudioImageGenerator.cs:TryGenerateSoundSpectrumAndVolume/GeneratePalette/GetWaveformImageCachePath; AudioImageFactory.cs:TryGetOrCreateImagePathForClip (async Task.Run, ConcurrentDictionary cache + per-path loading guard)
+  - spec: If simple_world renders an audio-clip waveform/spectrum on a timeline, match: 256-row log-frequency mapping, 765-entry palette with the exact alpha/r/g/b formulas, intensity weights 125/750/125, 0.01s column resolution, 16384-column cap, and the .waveform.png temp-cache keyed by SHA1(first 16 hex of lowercased fwd-slash-normalized abs path). Generation is async/cached, never blocks the frame.
+- **[polish]** MidiInputUi node display: flash-on-message, device/channel/control label, OutputRange-mapped value playhead
+  - TiXL: OpUis/UIs/MidiInputUi.cs
+  - spec: MidiInput node-visual parity: flash needs an op-side LastMessageTime timestamp vs playback runtime; label format and OutputRange-mapped value bar. Display-only (no MIDI-learn gesture in this widget).
+- **[polish]** IO Events window shows the active input-recording DataSet
+  - TiXL: Editor/Gui/Windows/IoViewWindow.cs
+  - spec: There is a live IO/data recording subsystem (DataRecording.ActiveRecordingSet) feeding a timeline-like DataSet view; .data files are serialized DataSets replayable via LoadDataClip.
+- **[polish]** Video/audio encode constants (MF, Windows-only)
+  - TiXL: MfVideoWriter.cs; MFAudioWriter.cs; RenderAudioInfo.cs
+  - spec: macOS uses AVFoundation; parity targets H.264/MP4, AAC stereo 48kHz, FlipY, skip first frame.
+- **[polish]** Three-tier audio mixer settings
+  - TiXL: SettingsWindow.AudioPanel.cs
+  - spec: 3 gain stages (global/operator/soundtrack) w/ mute + level meter; soundtrack gain to 10.
+- **[important]** Live recording session：Record 按鈕捕捉 audio+IO 的完整生命週期與 clip 即時成長
+  - TiXL: RecordingSession.cs:Start/OnFrame/Stop/FindNextLayerIndex/TryImportRecording；RecordingSettings.cs
+  - spec: Record=audio+IO 同步 session，clip 隨 wall-clock 即時延長（bars=secs*bpm/240）；暫停即停；停止時檔案匯入 project Assets 並透過 AssetRegistry address 回填 clip path；整個 session 是單一 MacroCommand。RecordingSettings 是 per-composition、permissive 預設全開、存 .t3ui sidecar、IsAtDefault 時不寫。
+- **[important]** Timeline audio clip 的 add/delete/move 三命令（Playback.AudioClips list 語義）
+  - TiXL: AddTimelineAudioClipCommand / DeleteTimelineAudioClipsCommand / MoveTimelineAudioClipsCommand（皆 Symbol.CompositionSettings.Playback.AudioClips）
+  - spec: Timeline 音軌剪輯模型：每 clip 有 TimeRange(bars) + LayerIndex + SourceOffsetSecs(seconds)；trim 與 move 共用一個命令；delete 的 undo 必須還原原本 list index 順序（升冪 insert）。
+
+## classification
+
+- **[important]** Operator GUID-binding attributes (the [Operator]/[Input] identity system)
+  - TiXL: Core/Operator/Attributes/OperatorAttribute.cs; InputAttribute.cs
+  - spec: Parity node identity must be Guid-based (stable across renames/reordering): each node type, input, and output carries a fixed Guid that the saved graph references, matching TiXL's attribute model rather than index/name binding.
+- **[polish]** 資產分類:檔案型別→顏色/圖示/可建節點 (asset browser 分類)
+  - TiXL: Core/Resource/Assets/AssetType.cs + Core/Resource/Assets/FileExtensionRegistry.cs
+  - spec: 若 simple_world 要做素材瀏覽器,需一張資料驅動的『副檔名集合→型別(顏色/圖示/可建節點清單)』表;PrimaryOperators 讓使用者把某型別檔拖入即建對應 source 節點(如 .png→LoadImage)。副檔名用 int id interning 只是效能優化,非語意必需。
+- **[polish]** Shader compile in-memory + on-disk bytecode cache keyed by (source,entrypoint) hash (ShaderCompiler)
+  - TiXL: Core/Resource/ShaderCompiling/ShaderCompiler.Main.cs (TryCompileShaderFromSource, GetIncludesFrom); ShaderCompiler.Caching.cs (ULongFromTwoInts, GetPathForShaderCache, DeleteShaderCache); DX11ShaderCompiler.cs (CompileShaderFromSource, _shaderProfiles, IncludeHandler)
+  - spec: Not directly needed for Metal parity of node outputs, but if simple_world caches compiled MSL/pipeline state, the model is: key by (sourceText hash, entryPoint) with entryPoint defaulting to 'main', two-tier (RAM + disk) cache, disk file named '{hash}.shadercache' under a Temp/Cache/{subdir}, and pre-resolve includes ("Lib:shaders/<name>") before compiling so a missing include is a clean failure. The 259-char path guard and once-only subdir setter are TiXL specifics, not load-bearing for Metal.
+- **[important]** BlendModes / RgbBlendModes 枚舉次序（合成模式 UI 下拉 + shader 整數對應）
+  - TiXL: Core/Utils/SharedEnums.cs:BlendModes/RgbBlendModes
+  - spec: 合成相關 op 的 BlendMode 下拉選單順序與其對應到 shader 的整數索引必須與此枚舉次序一致（RgbBlendModes 是顯式整數，會直接餵進 shader），否則 render 輸出對不上 TiXL。
+- **[important]** Curated symbol-browser library taxonomy
+  - TiXL: SymbolBrowsing.cs UpdateLibPage()
+  - spec: UpdateLibPage hardcodes Lib tree: numbers/image(Texture2D)/point(BufferWithViews)/particles/render(Command,Texture2D)/misc(field=ShaderGraphNode, mesh=MeshBuffers, string, io, flow=Command). Only Essential-tagged symbols in namespace pages; type drives color.
+- **[polish]** Symbol Library tree order + classification + filters
+  - TiXL: NamespaceTreeNode.cs; LibraryFiltering.cs; RandomPromptGenerator.cs
+  - spec: tree ordering (Lib/Types/Examples/t3) + folder classification; '?' easter egg + problem filters low priority.
+- **[polish]** SkillQuest LevelFeedback: live parameter-grading model (Untouched/Required/Correct/Warm/Forbidden) mirroring snapshot capture filters
+  - TiXL: LevelFeedback.cs:LevelFeedback / SkillQuestParameterHint.cs
+  - spec: Tutorial-only grading. Notable reusable detail: it deliberately MIRRORS the snapshot-capture scope (EnabledForSnapshots children, BlendMethods-typed inputs, Gradient excluded) so non-capturable params don't false-positive as 'Forbidden'. If parity ever needs snapshot capture semantics, that scope filter is the ground truth.
+- **[polish]** Example-operator linking inferred by name suffix 'Example'/'Examples'
+  - TiXL: Helpers/ExampleSymbolLinking.cs:UpdateExampleLinks
+  - spec: If native shows 'examples' for an op, the link is currently by naming convention: '<Name>Example(s)' is an example of '<Name>'.
+- **[polish]** Symbol classification + quality warnings (Lib/Type/Example/T3/Skill; description/grouping lints)
+  - TiXL: Helpers/SymbolAnalysis.cs:TryGetOperatorType/BuildSymbolInformation
+  - spec: Op metadata panel/library cleanup uses these exact classification buckets and lint thresholds (>2 inputs for desc lints, >4 inputs with no padding/group title => 'lacks grouping').
+- **[polish]** SymbolUi.Child visual styles, snapshot grouping, and connection-style overrides
+  - TiXL: SymbolUi.Child.cs ; SymbolUiJson.cs WriteChildUis
+  - spec: SymbolUi.Child carries: Style enum (Default/Expanded/Resizable/WithThumbnail) controlling node body rendering; DefaultOpSize=(110,25); CollapsedIntoAnnotationFrameId (node hidden inside a collapsed annotation); SnapshotGroupIndex hack (0=not in snapshots, 1=EnabledForSnapshots, >1=ParameterCollections); Comment string; ConnectionStyleOverrides (per-connection Default/FadedOut). These persist in .t3ui (Style only if non-Default, and Size only persisted when Style is non-Default).
+- **[important]** Type→UI classification table: which value types get which InputUi/OutputUi and which UiProperties color group
+  - TiXL: Editor/UiModel/UiRegistration.cs:RegisterUiTypes
+  - spec: This is the canonical map of value-type → editor widget + node-port color group. For parity of inspector/port rendering: a type with no registered InputUi has no editable widget; output-only types (textures, buffers, Command, Point[]) only show as outputs. Color grouping (String/Shader/Texture/GpuData/ShaderGraph) determines port/connection coloring — e.g. all GPU buffer/material types share one color, all shader/D3D-state types share another.
+
+## other
+
+- **[polish]** MIDI device capture, control-vs-passthrough mode, and capture-limit setting
+  - TiXL: Core/IO/MidiInConnectionManager.cs:ScanAndRegisterToMidiDevices / SetDeviceControlMode / IsMidiDeviceCaptureEnabled
+  - spec: A parity MIDI layer needs: a global device scan that exclusively captures devices, a settings string to limit which devices get captured (substring match), and a control/passthrough distinction so controller-bound devices don't double-fire into the graph.
+- **[polish]** OSC port management, address scanning, and arg->float coercion
+  - TiXL: Core/IO/OscConnectionManager.cs:PortGroup / TryGetFloatFromMessagePart / BuildMessageComponentPath
+  - spec: A parity OSC layer should share one receiver per port across consumers, expose scanned addresses with type signatures, coerce numeric/bool/string args to float (NaN-rejected), and split multi-arg messages into .x/.y/.z/.w (then .index) sub-channels.
+- **[polish]** BPM / beat-tap providers as singleton edge-trigger seams
+  - TiXL: Core/IO/BpmProvider.cs; Core/IO/TapProvider.cs
+  - spec: A parity tempo/beat system needs an edge-triggered BPM-set channel (fires once) plus tap/resync momentary triggers and a slide-sync time float that the playback clock consumes per frame.
+- **[polish]** OBJ 網格匯入的頂點合併/排序規則
+  - TiXL: Core/Rendering/ObjMesh.cs
+  - spec: 僅在 simple_world 要港 LoadObj/3D mesh 匯入時相關;屬資源匯入(檔案解析)但本質是 mesh-geometry op 域,非編輯器 parity。頂點合併與排序規則若要 byte-parity 需照此 hash 與重排。
+- **[polish]** Frame-time grading: detected-refresh-target + P99 tail + drop penalty → 0..1 score and letter grade (FrameTimeGrader / PerformanceMetrics)
+  - TiXL: Core/Stats/FrameTimeGrader.cs; Core/Stats/PerformanceMetrics.cs; Core/Stats/RollingMetric.cs
+  - spec: Plumbing for a perf HUD, not render parity. Only relevant if simple_world wants to mirror TiXL's perf-overlay letter grade; the formula and common-refresh snapping are documented here. Not load-bearing for node output parity.
+- **[important]** 值型別的 blend / weighted-blend / compare 對齊（presets / snapshots / 動畫混合）
+  - TiXL: Core/Utils/ValueUtils.cs:BlendMethods/WeightedBlendMethods/CompareFunctions/ToStringMethods/GetValueString
+  - spec: 若 native 要重現 presets/snapshots/blend 行為：可混合型別清單必須一致；string/bool 是『硬切』非插值（t<=0.5）；int blend 後四捨五入(+0.5)；Quaternion 用 Slerp；Gradient 只在結構相同(插值法+step 數)時才逐 step blend，否則 fallback 取一邊；weighted string 取最大權重、weighted Gradient fallback 取最小權重（不對稱，照抄）。
+- **[polish]** Per-project runtime C# compilation pipeline + csproj generation
+  - TiXL: Compiler.cs; CsProjectFile.cs; ProjectXml.cs; ProjectSetup.cs/.Startup.cs; SymbolNaming.cs
+  - spec: TiXL's defining architecture: operators = compiled C# in per-project hot-loaded assemblies. simple_world is native C++/Metal with built-in ops and deliberately does NOT replicate runtime csproj compilation. Not a parity target; recorded for completeness so the seam is understood. No alignment work implied.
+- **[polish]** ShippedContent/EmbeddedHelpLoader/ReleaseNotesLoader/DocumentationButton:內容資料夾解析與help載入(多為plumbing)
+  - TiXL: ShippedContent.cs/EmbeddedHelpLoader.cs/ReleaseNotesLoader.cs/DocumentationButton.cs
+  - spec: help/release-notes從.help/資料夾載入markdown(dev走repo源、release走binaries旁複本);視窗標頭help按鈕hover顯示markdown tooltip、點擊開wiki。多為plumbing,parity僅在help按鈕觀感。
+- **[polish]** Wiki/doc export tooling writes operator markdown + per-op/param/annotation/comment description round-trip JSON
+  - TiXL: Editor/Gui/UiHelpers/Wiki/ExportWikiDocumentation.cs; ExportDocumentationStrings.cs
+  - spec: Plumbing: offline documentation generators, not runtime behavior. Notable only as evidence operators carry editable Description/relevancy/annotation/comment metadata.
+- **[polish]** SnixlWindow easter-egg Snake
+  - TiXL: SnixlWindow.cs
+  - spec: plumbing/easter-egg, not parity-relevant; skip.
+- **[polish]** 手動測試集（.tests-manual/*.md）格式與 runner 結果持久化
+  - TiXL: TestSetParser.cs:Parse/ParseFrontmatter/ParseBody/ParseStep；TestRunExport.cs；TestRunResults.cs；TestSetTypes.cs；TestSetRow.cs；TestStatusBar.cs
+  - spec: TiXL 自帶人工測試 runner（非 simple_world 的 --selftest 機械閘）：md frontmatter+`## Step:` 步驟，跑完存 TestRuns/*.json（含 git commit hash），UI 用最新一筆畫 per-step 狀態 bar 與完成勾。simple_world 對齊 verify 哲學時可參考其『每 set 多 step、每 step Pass/Fail/Other/Skipped+comment、結果含版本與 commit』的記錄結構，但這是人工流程不是自動閘。
+- **[important]** Editor startup sequence (Program.Main) — ordered bootstrap of UI services, device, resources, fonts, render loop
+  - TiXL: Program.cs:Program.Main
+  - spec: The startup ordering is a dependency contract: settings before startup-flag (backups need ProjectDirectories), device before shader-compiler.Device and resource manager, fonts/scaling after content-drawer init, symbol-load (TryLoadAll) before usage-count/asset-conform, environment file-watch after load. A native port's bootstrap should preserve these ordering constraints even if the concrete services differ.
+

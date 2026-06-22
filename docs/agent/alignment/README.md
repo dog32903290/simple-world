@@ -3,6 +3,14 @@
 > 來源:`tixl-parity-gap-audit` workflow(2026-06-22,柏為下令徹底清查)。6 區並行,12 agent 唯讀:每區 survey(讀 TiXL 源碼 + 我方碼 → gap+規格)→ verify(每條 gap 對 simple_world 實際碼驗真偽,防 stale)。
 > 這是「**還沒做的細節 + 詳細規格**」的 SSOT。每個 area 檔列:真 gap(已驗證未做)/ 部分完成 / verify 戳破的 stale。
 
+## ★ 2026-06-23 完整普查補強(節點外覆蓋 100%)
+
+第一份是**抽樣**(深但不全)。柏為再令「節點外的細節要每個被讀到」→ 跑覆蓋普查(`tixl-nonnode-coverage-sweep`,30 agent 讀光 838 個非節點檔 + 22 漏檔補讀,**覆蓋 100% 機械驗證**):
+- **[_COVERAGE.md](_COVERAGE.md)** — 覆蓋證明(838/838 union vs scope)+ 校準(animation/audio 其實已深做,非節點完成度被低估)。
+- **[missing-subsystems.md](missing-subsystems.md)** — 抽樣 audit **整塊漏掉**的子系統,★最重 = **Variation/Snapshot/Blend(VJ 現場核心,sw 完全沒有,附完整實作規格)**;另 Gradient authoring / IO 互動層 / Audio 匯出 / 效能 overlay / 外部節拍同步 / SliderLadder…
+- **[_sweep-gaps-full.md](_sweep-gaps-full.md)** — 329 條原始 gap dump(供查)。
+- **節點(Operators)本輪刻意撇除**:柏為定用到才抄。
+
 ## 計數
 
 | 區 | 真 gap | 部分 | stale(已做) |
