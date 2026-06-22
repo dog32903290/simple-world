@@ -1,0 +1,63 @@
+# tools/linecount-grandfather.txt — RATCHET line-count grandfather list
+#
+# RATCHET RULES (enforced by tools/check_arch.sh):
+#   - Every file listed here has a CAP = the line count when this snapshot was taken.
+#   - The cap may ONLY DECREASE over time (splitting a file removes it or lowers its cap).
+#   - If a file exceeds its cap → FAIL. Split it and commit the reduced count.
+#   - A file NOT in this list must be ≤ 400 lines or the gate FAILS.
+#   - When a grandfathered file is split below 400 lines, REMOVE its entry here.
+#   - New files must be ≤ 400 lines (ARCHITECTURE.md rule 4).
+#
+# Format: relative/path/from/repo/root:maxlines
+# Snapshot taken: 2026-06-22 on commit 1dfde65
+#
+app/src/app/child_state_selftest.cpp:402
+app/src/app/copy_paste_selftest.cpp:443
+app/src/app/frame_cook.cpp:429
+app/src/app/soundtrack_selftest.cpp:411
+app/src/gradient_golden.cpp:421
+app/src/pointlist_golden.cpp:544
+app/src/runtime/compound_load.cpp:416
+app/src/runtime/gradient_ops_blendgradients.cpp:484
+app/src/runtime/math_ops_selftest.cpp:1339
+app/src/runtime/node_registry_math.cpp:980
+app/src/runtime/node_registry_point_modify.cpp:852
+app/src/runtime/point_graph.cpp:1513
+app/src/runtime/point_graph.h:608
+app/src/runtime/point_graph_resident.cpp:846
+app/src/runtime/point_ops.h:539
+app/src/runtime/point_ops_attributesfromimagechannels.cpp:429
+app/src/runtime/point_ops_blend.cpp:426
+app/src/runtime/point_ops_blendwithmask.cpp:434
+app/src/runtime/point_ops_blob.cpp:401
+app/src/runtime/point_ops_bloom.cpp:530
+app/src/runtime/point_ops_boxgradient.cpp:477
+app/src/runtime/point_ops_bubblezoom.cpp:449
+app/src/runtime/point_ops_curvestotexture.cpp:429
+app/src/runtime/point_ops_drawscreenquad.cpp:452
+app/src/runtime/point_ops_fastblur.cpp:460
+app/src/runtime/point_ops_fractalnoise.cpp:466
+app/src/runtime/point_ops_mappointattributes.cpp:496
+app/src/runtime/point_ops_ngongradient.cpp:503
+app/src/runtime/point_ops_radialgradient.cpp:463
+app/src/runtime/point_ops_remapcolor.cpp:471
+app/src/runtime/point_ops_rendertarget.cpp:667
+app/src/runtime/point_ops_repeatatpoints.cpp:452
+app/src/runtime/point_ops_rgbtv.cpp:538
+app/src/runtime/point_ops_rings.cpp:456
+app/src/runtime/point_ops_samplepointcolorattributes.cpp:527
+app/src/runtime/point_ops_selftest.cpp:614
+app/src/runtime/point_ops_shardnoise.cpp:439
+app/src/runtime/point_ops_transformpoints.cpp:454
+app/src/runtime/point_ops_transformsomepoints.cpp:549
+app/src/runtime/point_ops_valuestotexture2.cpp:452
+app/src/runtime/point_ops_worleynoise.cpp:462
+app/src/runtime/resident_eval_graph.h:410
+app/src/runtime/stateful_value_ops_selftest.cpp:1234
+app/src/runtime/transport_selftest.cpp:429
+app/src/runtime/value_eval_ops.cpp:740
+app/src/runtime/value_op_perlinnoise3.cpp:455
+app/src/selftests.cpp:495
+app/src/string_rail_golden.cpp:1605
+app/src/ui/editor_ui.cpp:518
+app/src/ui/keymap.cpp:752
