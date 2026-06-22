@@ -42,7 +42,7 @@
 #include "runtime/stringlist_op_registry.h"    // stringListSpecSink() — stringlist (host List<string>) ops self-register
 #include "runtime/pointlist_op_registry.h"     // pointListSpecSink() — pointlist (7th flow: CPU point list) ops self-register
 #include "runtime/gradient_op_registry.h"      // gradientSpecSink() — gradient (8th flow: host Gradient) ops self-register
-#include "runtime/node_registry_math.h"
+#include "runtime/math_op_registry.h"          // mathSpecSink() — math / value ops self-register
 
 #include <map>
 #include <string>
@@ -72,7 +72,10 @@ const std::vector<NodeSpec>& registry() {
     append(pointCombineSpecs());    // CombineBuffers
     append(particleSpecs());        // TurbulenceForce, ParticleSystem
     append(drawSpecs());            // DrawPoints, DrawLines, DrawBillboards, RenderTarget
-    append(mathSpecs());            // Time, AudioReaction, Const, Multiply, Sine, ...
+    // math/value family is NOT baked here — it self-registers into mathSpecSink() and is read LIVE by
+    // findSpec/specTypes below (same init-order seam as image-filter / point-modify: a pre-main static,
+    // doc::g_lib, calls findSpec during its own init; baking the sink into this cached snapshot could
+    // run before the leaf registrars finished and miss them).
     return v;
   }();
   return specs;
@@ -147,6 +150,11 @@ const NodeSpec* findSpec(const std::string& type) {
   // populated by pre-main dynamic init of each gradient_ops_<name>.cpp GradientOp registrar).
   for (const auto& s : gradientSpecSink())
     if (s.type == type) return &s;
+  // Math/value family: read the self-registration sink live (init-order safe — sink fully populated by
+  // pre-main dynamic init of each node_registry_math_<subfamily>.cpp MathOp registrar; see registry()
+  // note on why this can't be baked into the cached snapshot).
+  for (const auto& s : mathSpecSink())
+    if (s.type == type) return &s;
   auto it = dynamicSpecs().find(type);
   return it != dynamicSpecs().end() ? &it->second : nullptr;
 }
@@ -180,6 +188,8 @@ std::vector<std::string> specTypes() {
   for (const auto& s : pointListSpecSink()) out.push_back(s.type);
   // Gradient ops (the 8th cook flow = host Gradient) self-register into their own sink — append.
   for (const auto& s : gradientSpecSink()) out.push_back(s.type);
+  // Math/value ops self-register into their own sink — append so the Add menu lists them (same note).
+  for (const auto& s : mathSpecSink()) out.push_back(s.type);
   return out;
 }
 

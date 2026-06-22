@@ -124,6 +124,15 @@ file(GLOB SW_POINT_MODIFY_SRCS CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/point_modify_op_registry.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/node_registry_point_modify_*.cpp")
 
+# Math/value leaf sources — globbed so a math lane adding node_registry_math_<subfamily>.cpp needs no
+# CMake edit (just reconfigure). Covers the self-registration registry (math_op_registry.cpp = the sink
+# + MathOp ctor) and every per-subfamily NodeSpec leaf (node_registry_math_arithmetic.cpp / _vector /
+# _logic / …). Mirror of the SW_POINT_MODIFY_SRCS glob (point-modify / value-op self-registration
+# precedent — replaced the old explicit node_registry_math.cpp line).
+file(GLOB SW_MATH_SRCS CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/math_op_registry.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/node_registry_math_*.cpp")
+
 add_executable(simple_world
   src/main.cpp
   src/app_delegate.cpp
@@ -342,7 +351,7 @@ add_executable(simple_world
   src/runtime/node_registry_point_combine.cpp
   src/runtime/node_registry_particle.cpp
   src/runtime/node_registry_draw.cpp
-  src/runtime/node_registry_math.cpp
+  ${SW_MATH_SRCS}  # globbed: math_op_registry.cpp + every per-subfamily math leaf
   src/runtime/value_eval_ops.cpp
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
