@@ -43,6 +43,7 @@
 #include "runtime/graph.h"                // Graph/Node/Connection/pinId
 #include "runtime/graph_bridge.h"        // libFromGraph (flat Graph -> SymbolLibrary, paths == ids)
 #include "runtime/point_graph.h"          // PointGraph::cook + debugCookedString/debugCookedFloatList
+#include "runtime/host_scalar_op_registry.h"  // hostScalarInjectBug (LEG 25 IndexOf teeth)
 #include "runtime/resident_eval_graph.h" // buildEvalGraph / cookStringNodes / ResidentEvalGraph (R-2)
 #include "runtime/string_op_registry.h"  // stringInjectBug
 
@@ -183,6 +184,70 @@ std::string cookVec3ToString(PointGraph& pg, float x, float y, float z, const st
   pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
   const std::string* out = pg.debugCookedString(1);
   return out ? *out : std::string{};
+}
+
+// Build a single ChangeCase(inputText, mode) flat graph and cook it as the terminal → host string.
+// inputText rides strParams["InputText"] (the strDef const — single String input, unwired here for
+// the flat leg). Mode rides params["Mode"] (resolved Float param, the value spine; 0=ToUpperCase,
+// 1=ToLowerCase). Returns the cooked host string (empty on failure).
+std::string cookChangeCaseFlat(PointGraph& pg, const std::string& inputText, int mode) {
+  Graph g;
+  Node n; n.id = 1; n.type = "ChangeCase";
+  n.strParams["InputText"] = inputText;       // String const (unwired → strDef path)
+  n.params["Mode"]         = (float)mode;     // enum stored as Float (int-on-Float contract)
+  g.nodes.push_back(n);
+  EvaluationContext ctx{};
+  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+  pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+  const std::string* out = pg.debugCookedString(1);
+  return out ? *out : std::string{};
+}
+
+// ★R-2 RESIDENT leg for ChangeCase (mirror of LEG 20 CombineStrings resident leg): wire a
+// FloatToString producer (→ "Hello World" via format tricks... actually use a StringConst-style
+// approach: wire a FloatToString(0,"") → "0" then use CombineStrings, but simpler: just test
+// ChangeCase directly wired to a FloatToString whose output we know). Here we test ChangeCase
+// wired to a FloatToString producer that yields "Hello World" — but FloatToString can't emit
+// arbitrary text; use the const (unwired) path for one sub-case + wire a FloatToString for the
+// other (proving the resident String-wire path is live for ChangeCase's InputText port).
+//
+// Sub-case A (const): ChangeCase(strDef="hello world", ToUpper) via cookStringNodes alone —
+// the InputText is strDef const, no wire, so the resident flatten supplies the strDef.
+// Sub-case B (wired): FloatToString(42,"") → "42" wired into ChangeCase.InputText → ToLower
+// → "42" (digits are unaffected by case). This proves the resident String-wire path is live.
+//
+// Graph layout: ChangeCase = id 1 (terminal); FloatToString = id 2 (producer, sub-case B only).
+// ChangeCase ports: [0]=Result(out), [1]=InputText(String input), [2]=Mode(Float). InputText pin = port 1.
+// FloatToString ports: [0]=Output(out). Output pin = port 0.
+std::string cookChangeCaseResident(bool wiredInput, const std::string& constText, int mode) {
+  Graph g;
+  Node cc; cc.id = 1; cc.type = "ChangeCase";
+  cc.params["Mode"] = (float)mode;
+  if (!wiredInput) cc.strParams["InputText"] = constText;  // unwired → strDef const
+  g.nodes.push_back(cc);
+
+  if (wiredInput) {
+    // Wire FloatToString(42,"") → ChangeCase.InputText. "42" lowercased → "42" (digits unchanged;
+    // this proves the wire is live, not that the transform changes anything non-trivial).
+    Node fts; fts.id = 2; fts.type = "FloatToString";
+    fts.params["Value"] = 42.0f; fts.strParams["Format"] = "";  // → "42"
+    g.nodes.push_back(fts);
+    // ChangeCase.InputText pin = port 1; FloatToString.Output pin = port 0.
+    g.connections.push_back({200, pinId(2, /*out*/ 0), pinId(1, /*InputText*/ 1)});
+    g.nextId = 3;
+  } else {
+    g.nextId = 2;
+  }
+
+  SymbolLibrary lib = libFromGraph(g);
+  ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+  ResidentEvalCtx rc;
+  rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+  cookStringNodes(rg, rc);  // PRODUCTION pass: cooks producers + ChangeCase → extStrOut
+  const ResidentNode* nd = rg.node("1");  // ChangeCase resident path == flat node id "1"
+  if (!nd) return {};
+  auto it = nd->extStrOut.find(/*Result out port idx*/ 0);
+  return it != nd->extStrOut.end() ? it->second : std::string{};
 }
 
 }  // namespace
@@ -583,6 +648,260 @@ int runStringRailSelfTest(bool injectBug) {
     std::printf("[selftest-stringrail] RESIDENT(production) StringLength(wired \"3.14\")=%.1f want=4.0; "
                 "(const \"Line\\nLine\")=%.1f want=9.0 -> %s\n",
                 gotWired, gotConst, pass ? "PASS" : "FAIL");
+  }
+
+  // LEGs 22-24 reserved for future / sibling-lane String-op expansion. No body needed.
+
+  // LEG 25 — IndexOf: TWO-String-input host-scalar op (String×String → Int dissolved to Float). Tests
+  // BOTH the FLAT path (point_graph.cpp cookHostScalar branch, which gathers both String inputs via
+  // gatherStringInputs) AND the RESIDENT path (cookHostScalarNodes IndexOf dedicated branch, which
+  // gathers via cookResidentString on the resident String-wire rail). TiXL semantics (IndexOf.cs):
+  //   • either input IsNullOrEmpty → -1
+  //   • else originalString.IndexOf(searchPattern) = first occurrence, -1 if not found
+  //
+  // Hand-derived expected values:
+  //   "hello world".IndexOf("world") = 6  (substring starts at index 6: h=0,e=1,l=2,l=3,o=4,' '=5,w=6)
+  //   "hello world".IndexOf("xyz")   = -1 (not found)
+  //   "hello world".IndexOf("")      = -1 (searchPattern IsNullOrEmpty → -1 per TiXL .cs:26)
+  //
+  // For the RESIDENT leg, we wire at least one String input through a FloatToString producer — the
+  // OriginalString port — proving the resident String wire is live. SearchPattern is wired as a const
+  // (strParams["SearchPattern"] = "world") to keep the graph minimal but still prove gather of both.
+  // A fully-wired-both variant would duplicate LEG 20's coverage; const-for-second is sufficient.
+  //
+  // injectBug path: hostScalarInjectBug() inside cookIndexOf (flat) and the resident IndexOf branch
+  // each write -999.0f (a sentinel diverging from any valid TiXL result) → the golden sees a value
+  // ≠ 6.0f (or ≠ -1.0f) → FAIL. Under bug, stringInjectBug() also fires on the upstream
+  // FloatToString producer, shortening the original string — the resident leg then computes
+  // IndexOf on a corrupted original (short string won't contain "world") → -1.0f ≠ 6.0f → RED
+  // even without the sentinel, but the sentinel from hostScalarInjectBug() fires first.
+  //
+  // NOTE: hostScalarInjectBug() must be set; stringInjectBug() is set here too so the upstream
+  // FloatToString cook (resident cookStringNodes pass) is also corrupted — belt-and-suspenders,
+  // mirrors LEG 21 which sets stringInjectBug() for the FloatToString upstream.
+  {
+    // --- FLAT sub-cases ---
+    {
+      // Case 1: found
+      hostScalarInjectBug() = injectBug;
+      stringInjectBug() = injectBug;
+      float gotFound = [&]() -> float {
+        Graph g;
+        Node ix; ix.id = 1; ix.type = "IndexOf";
+        ix.strParams["OriginalString"] = "hello world";
+        ix.strParams["SearchPattern"]  = "world";
+        g.nodes.push_back(ix);
+        EvaluationContext ctx{};
+        ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+        pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+        const std::vector<float>* out = pg.debugCookedFloatList(1);
+        return (out && !out->empty()) ? (*out)[0] : -999.0f;
+      }();
+      hostScalarInjectBug() = false;
+      stringInjectBug() = false;
+      bool passFound = std::fabs(gotFound - 6.0f) < 1e-5f;
+      ok = ok && passFound;
+      std::printf("[selftest-stringrail] IndexOf FLAT(\"hello world\",\"world\")=%.1f want=6.0 -> %s\n",
+                  gotFound, passFound ? "PASS" : "FAIL");
+    }
+    {
+      // Case 2: not found
+      hostScalarInjectBug() = injectBug;
+      stringInjectBug() = injectBug;
+      float gotMiss = [&]() -> float {
+        Graph g;
+        Node ix; ix.id = 1; ix.type = "IndexOf";
+        ix.strParams["OriginalString"] = "hello world";
+        ix.strParams["SearchPattern"]  = "xyz";
+        g.nodes.push_back(ix);
+        EvaluationContext ctx{};
+        ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+        pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+        const std::vector<float>* out = pg.debugCookedFloatList(1);
+        return (out && !out->empty()) ? (*out)[0] : -999.0f;
+      }();
+      hostScalarInjectBug() = false;
+      stringInjectBug() = false;
+      bool passMiss = std::fabs(gotMiss - (-1.0f)) < 1e-5f;
+      ok = ok && passMiss;
+      std::printf("[selftest-stringrail] IndexOf FLAT(\"hello world\",\"xyz\")=%.1f want=-1.0 -> %s\n",
+                  gotMiss, passMiss ? "PASS" : "FAIL");
+    }
+
+    // --- RESIDENT sub-case (R-2 production path) ---
+    // OriginalString WIRED from FloatToString(3.14f,"") → "3.14"; SearchPattern const "14".
+    //   IndexOf("3.14", "14") = 2  (h.v.: "3.14"[0]='3',[1]='.',[2]='1',[3]='4'; "14" starts at 2)
+    hostScalarInjectBug() = injectBug;
+    stringInjectBug() = injectBug;
+    float gotResident = [&]() -> float {
+      // Graph:
+      //   id=1: IndexOf — OriginalString wired from id=2; SearchPattern = strParams["SearchPattern"]="14"
+      //   id=2: FloatToString(3.14f, "") → "3.14" (the WIRED upstream String producer)
+      // IndexOf ports: [0]=Index(out), [1]=OriginalString, [2]=SearchPattern.
+      // FloatToString ports: [0]=Output(out), [1]=Value, [2]=Format.
+      Graph g;
+      Node ix; ix.id = 1; ix.type = "IndexOf";
+      ix.strParams["SearchPattern"] = "14";  // const path for SearchPattern (tests wire-OR-const dual)
+      g.nodes.push_back(ix);
+
+      Node fts; fts.id = 2; fts.type = "FloatToString";
+      fts.params["Value"] = 3.14f; fts.strParams["Format"] = "";  // → "3.14"
+      g.nodes.push_back(fts);
+
+      // Wire FloatToString.Output (port 0) → IndexOf.OriginalString (port 1).
+      g.connections.push_back({500, pinId(2, /*out*/ 0), pinId(1, /*OriginalString*/ 1)});
+      g.nextId = 3;
+
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);      // 1st: cooks FloatToString → extStrOut ("3.14" on String wire)
+      cookHostScalarNodes(rg, rc);  // 2nd: IndexOf gathers via cookResidentString → find("14") → extOut[0]
+      const ResidentNode* n = rg.node("1");  // IndexOf resident path == flat node id "1"
+      return n ? n->extOut[0] : -999.0f;
+    }();
+    hostScalarInjectBug() = false;
+    stringInjectBug() = false;
+
+    bool passResident = std::fabs(gotResident - 2.0f) < 1e-5f;
+    ok = ok && passResident;
+    std::printf("[selftest-stringrail] IndexOf RESIDENT(wired \"3.14\", const \"14\")=%.1f want=2.0 -> %s\n",
+                gotResident, passResident ? "PASS" : "FAIL");
+  }
+
+  // LEG 26 — SubString FLAT + RESIDENT (TiXL string/search/SubString.cs).
+  //
+  // FLAT sub-cases (hand-derived against SubString.cs):
+  //   (A) Normal: SubString("hello world", start=6, length=5):
+  //       clampStart = Clamp(6, 0, 11) = 6; clampedLen = Clamp(5, 0, 5) = 5
+  //       NOT early-exit; start≠0 → Substring(6,5) = "world"  ← expected "world"
+  //   (B) Negative-start clamp: SubString("hello world", start=-3, length=5):
+  //       clampStart = Clamp(-3, 0, 11) = 0; clampedLen = Clamp(5, 0, 11) = 5
+  //       NOT early-exit; start≠0 (unclamped -3) → Substring(0,5) = "hello"  ← expected "hello"
+  //       NOTE: fast-path requires UNCLAMPED start==0, which is not true here (-3≠0) → normal path.
+  //   (C) Length-overrun clamp: SubString("hello world", start=7, length=100):
+  //       clampStart = Clamp(7, 0, 11) = 7; clampedLen = Clamp(100, 0, 4) = 4
+  //       NOT early-exit; start≠0 → Substring(7,4) = "orld"   ← expected "orld"
+  //
+  // RESIDENT sub-case (proves resident String wire feeds InputText):
+  //   FloatToString(12345.0f, "") wired into SubString.InputText, Start=1, Length=3:
+  //     FloatToString(12345, "") → "12345" (5 chars; 12345.0f integer-valued, plain decimal band E=4)
+  //     SubString("12345", start=1, length=3):
+  //       clampStart = Clamp(1, 0, 5) = 1; clampedLen = Clamp(3, 0, 4) = 3
+  //       NOT early-exit; start≠0 → Substring(1,3) = "234"    ← expected "234"
+  //
+  // RED (injectBug): stringInjectBug() corrupts the REAL cook: SubString drops its last char; on the
+  // resident path FloatToString also drops its last char BEFORE SubString even runs (the upstream
+  // producer is corrupted), so the substring is taken from the already-shortened string — both sub-
+  // cases go RED. No `want` inversion — the bug bites the actual cook path.
+  //
+  // FLAT legs:
+  {
+    auto cookSubStr = [&](const std::string& text, int start, int length) -> std::string {
+      Graph g;
+      Node n; n.id = 1; n.type = "SubString";
+      n.strParams["InputText"] = text;   // unwired → strDef const (InputText carries the string)
+      n.params["Start"]  = (float)start;
+      n.params["Length"] = (float)length;
+      g.nodes.push_back(n);
+      EvaluationContext ctx{};
+      ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+      const std::string* out = pg.debugCookedString(1);
+      return out ? *out : std::string{};
+    };
+
+    stringInjectBug() = injectBug;
+    std::string gA = cookSubStr("hello world",  6,   5);   // (A) "world"
+    std::string gB = cookSubStr("hello world", -3,   5);   // (B) "hello"  (negative-start clamp)
+    std::string gC = cookSubStr("hello world",  7, 100);   // (C) "orld"   (length-overrun clamp)
+    stringInjectBug() = false;
+
+    bool passA = (gA == "world");
+    bool passB = (gB == "hello");
+    bool passC = (gC == "orld");
+    bool pass  = passA && passB && passC;
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] SubString FLAT (A)=\"%s\" want=\"world\"; "
+                "(B)=\"%s\" want=\"hello\"; (C)=\"%s\" want=\"orld\" -> %s\n",
+                gA.c_str(), gB.c_str(), gC.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // RESIDENT leg: FloatToString(12345,"") wired into SubString.InputText, Start=1, Length=3 → "234".
+  {
+    // Graph: SubString id=1 (terminal), FloatToString id=2 (String producer).
+    // SubString ports: [0]=Result(out), [1]=InputText(String in), [2]=Start(Float), [3]=Length(Float).
+    // FloatToString ports: [0]=Output(out), [1]=Value, [2]=Format.
+    // Wire: FloatToString.Output (port 0) → SubString.InputText (port 1).
+    Graph g;
+    Node sub; sub.id = 1; sub.type = "SubString";
+    sub.params["Start"]  = 1.0f;
+    sub.params["Length"] = 3.0f;
+    // InputText is WIRED (no strParams["InputText"] — the wire drives it on the resident path).
+    g.nodes.push_back(sub);
+
+    Node fts; fts.id = 2; fts.type = "FloatToString";
+    fts.params["Value"] = 12345.0f; fts.strParams["Format"] = "";  // → "12345" (5 chars)
+    g.nodes.push_back(fts);
+    // FloatToString.Output (port 0) → SubString.InputText (port 1).
+    g.connections.push_back({500, pinId(2, /*out*/ 0), pinId(1, /*InputText*/ 1)});
+    g.nextId = 3;
+
+    stringInjectBug() = injectBug;
+    std::string gotResident = [&]() -> std::string {
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);  // cooks FloatToString → extStrOut["2"][0], THEN SubString reads it
+      const ResidentNode* n = rg.node("1");  // SubString resident path == flat node id "1"
+      if (!n) return {};
+      auto it = n->extStrOut.find(/*Result out port idx*/ 0);
+      return it != n->extStrOut.end() ? it->second : std::string{};
+    }();
+    stringInjectBug() = false;
+
+    bool pass = (gotResident == "234");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] SubString RESIDENT FloatToString(12345)→InputText[1:3]=\"%s\" "
+                "want=\"234\" -> %s\n",
+                gotResident.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 27 — ChangeCase (TiXL string/transform/ChangeCase.cs): InputText + Mode(enum) → String.
+  // Modes: 0=ToUpperCase (str?.ToUpperInvariant()), 1=ToLowerCase (str?.ToLowerInvariant()).
+  // Hand-derived against ChangeCase.cs + fork-changecase-invariant-culture (ASCII range, byte-identical
+  // to C# InvariantCulture — "Hello World" ToUpper → "HELLO WORLD", ToLower → "hello world").
+  //
+  // FLAT sub-leg A: ChangeCase("Hello World", ToUpper=0) → "HELLO WORLD" (const strDef path).
+  // FLAT sub-leg B: ChangeCase("Hello World", ToLower=1) → "hello world" (const strDef path).
+  // RESIDENT sub-leg C: ChangeCase(strDef="Hello World", ToUpper=0) via resident path → "HELLO WORLD"
+  //   (proves the resident flatten supplies strDef const to ChangeCase's InputText String port).
+  // RESIDENT sub-leg D: FloatToString(42,"") → "42" wired into ChangeCase.InputText, ToLower=1 →
+  //   "42" (digits unchanged, but the WIRE is genuine resident → proves InputText String wire live).
+  // injectBug drops the last char in the REAL cook output for all sub-legs → any expected non-empty
+  // string loses its last char → mismatch → RED on the actual cook path (not inverted want).
+  {
+    stringInjectBug() = injectBug;
+    // Flat A: ToUpper
+    std::string flatUp = cookChangeCaseFlat(pg, "Hello World", /*ToUpperCase=*/0);
+    // Flat B: ToLower
+    std::string flatLo = cookChangeCaseFlat(pg, "Hello World", /*ToLowerCase=*/1);
+    // Resident C: const-path ToUpper
+    std::string resUp  = cookChangeCaseResident(/*wired=*/false, "Hello World", /*ToUpperCase=*/0);
+    // Resident D: wired FloatToString → ToLower (digits → "42")
+    std::string resWire = cookChangeCaseResident(/*wired=*/true, "", /*ToLowerCase=*/1);
+    stringInjectBug() = false;
+    bool pass = (flatUp == "HELLO WORLD") && (flatLo == "hello world") &&
+                (resUp  == "HELLO WORLD") && (resWire == "42");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG27 ChangeCase flat ToUpper=\"%s\" want=\"HELLO WORLD\"; "
+                "flat ToLower=\"%s\" want=\"hello world\"; "
+                "res ToUpper=\"%s\" want=\"HELLO WORLD\"; "
+                "res wired ToLower=\"%s\" want=\"42\" -> %s\n",
+                flatUp.c_str(), flatLo.c_str(), resUp.c_str(), resWire.c_str(),
+                pass ? "PASS" : "FAIL");
   }
 
   q->release();

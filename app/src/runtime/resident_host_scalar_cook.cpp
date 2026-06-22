@@ -157,6 +157,46 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
       rn.extOut[0] = len;  // Length output port index 0
       continue;
     }
+    // IndexOf resident leg (TWO String inputs → host scalar → extOut[0]). IndexOf uses the full
+    // HostScalarOp registry (unlike StringLength which has a legacy dedicated driver branch), so
+    // findHostScalarOp("IndexOf") returns a real cook fn. However the generic loop below would skip
+    // it via the String-input guard. This dedicated branch handles it FIRST:
+    //   • Port 1 "OriginalString" → gathers via cookResidentString (wired) or strInputs (const)
+    //   • Port 2 "SearchPattern"  → same
+    // Computes first-occurrence index (C++ find → -1 on npos), writes onto extOut[0].
+    // Teeth: hostScalarInjectBug() writes a sentinel; the golden LEG 25 red case fires on the
+    // actual cook path (NOT by flipping expected values — mirror of StringLength / cookIndexOf flat).
+    if (rn.opType == "IndexOf") {
+      const NodeSpec* s = findSpec(rn.opType);
+      if (!s) continue;
+      // Gather the two String inputs in spec port order (port 1 = OriginalString, port 2 = SearchPattern).
+      std::string strings[2];
+      int strIdx = 0;
+      for (const PortSpec& port : s->ports) {
+        if (!port.isInput || port.dataType != "String") continue;
+        if (strIdx >= 2) break;
+        const ResidentInput* ri = rn.input(port.id);
+        if (ri && ri->driver == ResidentInput::Driver::Connection) {
+          cookResidentString(g, ri->srcNodePath, ctx, strings[strIdx], 0);
+        } else {
+          auto it = rn.strInputs.find(port.id);
+          strings[strIdx] = (it != rn.strInputs.end()) ? it->second : std::string{};
+        }
+        ++strIdx;
+      }
+      const std::string& original = strings[0];
+      const std::string& pattern  = strings[1];
+      float idx;
+      if (original.empty() || pattern.empty()) {
+        idx = -1.0f;
+      } else {
+        auto pos = original.find(pattern);
+        idx = (pos == std::string::npos) ? -1.0f : (float)(int)pos;
+      }
+      if (hostScalarInjectBug()) idx = -999.0f;  // golden teeth (mirror flat cookIndexOf)
+      rn.extOut[0] = idx;  // Index output port index 0
+      continue;
+    }
     const HostScalarCookFn* fn = findHostScalarOp(rn.opType);
     if (!fn || !*fn) continue;  // not a host-scalar op (or StringLength, handled above).
     const NodeSpec* s = findSpec(rn.opType);
