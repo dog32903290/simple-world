@@ -378,6 +378,8 @@ add_executable(simple_world
   src/runtime/point_graph.cpp
   src/runtime/point_graph_mesh_cook.cpp
   src/runtime/point_graph_hostvalue_cook.cpp
+  src/runtime/point_graph_string_cook.cpp
+  src/runtime/point_graph_hostscalar_cook.cpp
   src/runtime/point_graph_registry.cpp
   src/runtime/point_graph_params.cpp
   src/runtime/point_graph_debug.cpp

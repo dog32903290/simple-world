@@ -811,235 +811,32 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // single String port always yields exactly one entry (wired value or strDef const).
   // Returns the cooked host string (nullptr if not a string op / unknown node).
   //
-  // Shared string-input gather (used by cookStringNode for string PRODUCERS and by the StringLength
-  // branch below, which is a string CONSUMER producing a host scalar — so it does NOT register a
-  // StringCookFn). `s` is the consuming node's spec; collects in spec port order.
-  std::function<std::vector<std::string>(int, const NodeSpec&)> gatherStringInputs =
-      [&](int id, const NodeSpec& s) -> std::vector<std::string> {
-    const Node* n = g.node(id);
-    std::vector<std::string> inputStrings;
-    for (size_t i = 0; i < s.ports.size(); ++i) {
-      const PortSpec& port = s.ports[i];
-      if (!(port.isInput && port.dataType == "String")) continue;
-      const int inPin = pinId(id, (int)i);
-      bool wired = false;
-      for (const Connection& c : g.connections) {
-        if (c.toPin != inPin) continue;
-        wired = true;
-        const std::string* up = cookStringNode(pinNode(c.fromPin));
-        inputStrings.push_back(up ? *up : std::string{});
-        if (!port.multiInput) break;  // single-input: first wire only
-      }
-      if (!wired && !port.multiInput) {
-        // Unwired single String port → the strDef const (stored strParams override, else spec strDef).
-        // fork-string-port-becomes-drivable: this is the wire-OR-const fallback. (A MultiInput String
-        // port that is unwired contributes nothing — faithful to GetCollectedTypedInputs.)
-        std::string def = port.strDef;
-        if (n) {
-          auto it = n->strParams.find(port.id);
-          if (it != n->strParams.end()) def = it->second;
-        }
-        inputStrings.push_back(def);
-      }
-    }
-    return inputStrings;
-  };
-
+  // The FLAT STRING cooks (String + StringList) extracted to PointGraph::Impl methods cookFlatStringNode /
+  // cookFlatStringListNode + the SHARED gatherStringInputs (point_graph_string_cook.cpp) — the Cut-2
+  // extraction (Cut-4/6 pattern). These cookStringNode / cookStringListNode std::function slots stay as
+  // THIN forwarding lambdas so the closure web (gatherStringInputs recurses cookStringNode; the host-scalar
+  // branch + StringLength call cookFlatStringNode's gather; cookFlatStringNode reaches cookFloatListNode /
+  // cookStringListNode for Sub-seam A) is untouched. The String flow is NOT closed (it crosses into the
+  // cookStringNode producer slot, cookFloatListNode, and cookStringListNode), so each rides in by-ref.
   cookStringNode = [&](int id) -> const std::string* {
-    const Node* n = g.node(id);
-    if (!n) return nullptr;
-    const NodeSpec* s = findSpec(n->type);
-    if (!s) return nullptr;
-    const StringCookFn* fn = findStringOp(n->type);
-    if (!fn || !*fn) return nullptr;
-
-    std::vector<std::string> inputStrings = gatherStringInputs(id, *s);
-
-    // Sub-seam A: gather FloatList + StringList inputs (the bridge + the StringList currency) in spec port
-    // order, mirroring cookHostScalar / cookColorListNode. FloatListToString.Value rides inputFloatLists
-    // (via cookFloatListNode); JoinStringList.Input rides inputStringLists (via cookStringListNode). An
-    // UNWIRED list port contributes no entry (→ empty → ""); a MultiInput port yields one entry per wire.
-    std::vector<std::vector<float>> inputFloatLists;
-    std::vector<std::vector<std::string>> inputStringLists;
-    for (size_t i = 0; i < s->ports.size(); ++i) {
-      const PortSpec& port = s->ports[i];
-      if (!port.isInput) continue;
-      const int inPin = pinId(id, (int)i);
-      if (port.dataType == "FloatList") {
-        for (const Connection& c : g.connections) {
-          if (c.toPin != inPin) continue;
-          const std::vector<float>* up = cookFloatListNode(pinNode(c.fromPin));
-          inputFloatLists.push_back(up ? *up : std::vector<float>{});
-          if (!port.multiInput) break;
-        }
-      } else if (port.dataType == "StringList") {
-        for (const Connection& c : g.connections) {
-          if (c.toPin != inPin) continue;
-          const std::vector<std::string>* up = cookStringListNode(pinNode(c.fromPin));
-          inputStringLists.push_back(up ? *up : std::vector<std::string>{});
-          if (!port.multiInput) break;
-        }
-      }
-    }
-
-    std::string& out = p_->stringBuf[flatKey(id)];
-    // MULTI-OUTPUT (Sub-seam B): a multi-output op (PickStringPart, FilePathParts) fills these EXTRA
-    // sinks keyed by its spec output-port index — port-0 single-output stays BYTE-IDENTICAL (incumbents
-    // leave both empty). Extra strings ride flatKey(id)+":"+portIdx (debugCookedStringPort); scalar
-    // outputs ride Node::outCache[portIdx] (the flat host-scalar/bridge channel, downstream-readable).
-    std::map<int, std::string> extraStr;
-    std::map<int, float> scalarOut;
-    StringCookCtx sc;
-    sc.dev = p_->dev; sc.lib = p_->lib; sc.queue = p_->queue;
-    sc.ctx = &ctx; sc.nodeId = id;
-    sc.inputStrings = &inputStrings;
-    sc.inputFloatLists = &inputFloatLists;    // Sub-seam A: FloatListToString.Value (the bridge)
-    sc.inputStringLists = &inputStringLists;  // Sub-seam A: JoinStringList.Input (the StringList currency)
-    sc.output = &out;
-    sc.params = nodeParams(id);
-    sc.extraStrOutputs = &extraStr;
-    sc.scalarOutputs = &scalarOut;
-    // Per-node CROSS-FRAME state (HasStringChanged's `_lastString`): this PointGraph persists across cooks
-    // so stringState[flatKey(id)] survives frame→frame (flat twin of s_stringState; stateless ops ignore it).
-    sc.state = &p_->stringState[flatKey(id)];
-    (*fn)(sc);
-    // Distribute the EXTRA outputs (no-ops for single-output incumbents → byte-identical port-0 path).
-    for (auto& kv : extraStr) p_->stringBuf[flatKey(id) + ":" + std::to_string(kv.first)] = kv.second;
-    if (!scalarOut.empty()) {
-      // Node::outCache is float[3] (the flat host-scalar/bridge channel). Guard the bound: a scalar
-      // output at port idx>=3 (FilePathParts.FileExists @ port 3) has no flat outCache slot — it rides
-      // ONLY the resident extOut[8] channel (production), and the FilePathParts flat golden asserts only
-      // the path-string outputs (hermetic), not FileExists. PickStringPart.TotalCount @ port 1 fits.
-      if (Node* mn = const_cast<Graph&>(g).node(id))
-        for (auto& kv : scalarOut)
-          if (kv.first >= 0 && kv.first < (int)(sizeof(mn->outCache) / sizeof(mn->outCache[0])))
-            mn->outCache[kv.first] = kv.second;
-    }
-    return &out;
+    return p_->cookFlatStringNode(g, ctx, nodeParams, cookFloatListNode, cookStringListNode, cookStringNode,
+                                  id);
   };
-
-  // STRINGLIST cook flow (host List<string> = TiXL Slot<List<string>>, Sub-seam A). Mirror of
-  // cookColorListNode over std::string: gather this op's String inputs (via cookStringNode, wire-OR-const
-  // through gatherStringInputs) and StringList inputs (recurse cookStringListNode), then dispatch the
-  // op into Impl::stringListBuf. SplitString is the first producer (String input → list). Returns the
-  // cooked host list (nullptr if not a stringlist op / unknown node).
   cookStringListNode = [&](int id) -> const std::vector<std::string>* {
-    const Node* n = g.node(id);
-    if (!n) return nullptr;
-    const NodeSpec* s = findSpec(n->type);
-    if (!s) return nullptr;
-    const StringListCookFn* fn = findStringListOp(n->type);
-    if (!fn || !*fn) return nullptr;
-
-    std::vector<std::string> inputStrings = gatherStringInputs(id, *s);  // SplitString.String / .Split
-    std::vector<std::vector<std::string>> inputLists;                    // upstream StringList (future combiner)
-    for (size_t i = 0; i < s->ports.size(); ++i) {
-      const PortSpec& port = s->ports[i];
-      if (!(port.isInput && port.dataType == "StringList")) continue;
-      const int inPin = pinId(id, (int)i);
-      for (const Connection& c : g.connections) {
-        if (c.toPin != inPin) continue;
-        const std::vector<std::string>* up = cookStringListNode(pinNode(c.fromPin));
-        inputLists.push_back(up ? *up : std::vector<std::string>{});
-        if (!port.multiInput) break;
-      }
-    }
-
-    std::vector<std::string>& out = p_->stringListBuf[flatKey(id)];
-    StringListCookCtx slc;
-    slc.dev = p_->dev; slc.lib = p_->lib; slc.queue = p_->queue;
-    slc.ctx = &ctx; slc.nodeId = id;
-    slc.inputStrings = &inputStrings;
-    slc.inputLists = &inputLists;
-    slc.output = &out;
-    slc.params = nodeParams(id);
-    (*fn)(slc);
-    return &out;
+    return p_->cookFlatStringListNode(g, ctx, nodeParams, cookStringNode, cookStringListNode, id);
   };
 
-  // StringLength: the FIRST cross-rail consumer (String input → host scalar output). TiXL's
-  // Length is a Slot<int> (StringLength.cs:16 Length.Value = InputString.GetValue(context).Length);
-  // sw dissolves int→Float (fork-int-bool-dissolve-to-float, Cut32 convention). It is NOT a string
-  // PRODUCER, so it has no StringCookFn — it is cooked by THIS branch on the flat path, resolving
-  // its String input via the shared gather, and stores the length as a 1-element host FloatList
-  // (Impl::floatListBuf — the ONLY existing host-scalar channel; readback via debugCookedFloatList).
-  // fork-stringlength-host-scalar-via-floatlist: the downstream Float-RAIL bridge (FloatList→Float
-  // value) is the separate list-routing seam (SEAM_COMPLETION_PLAN §2 stage 1), deferred — so here
-  // we transport the host value, not yet feed it into a Float input port.
+  // The FLAT HOST-SCALAR cooks (cookStringLength = String → host scalar; cookHostScalar = the generalised
+  // FloatList/String → Float bridge) extracted to PointGraph::Impl methods cookFlatStringLength /
+  // cookFlatHostScalar (point_graph_hostscalar_cook.cpp) — the Cut-3 extraction. cook()-LOCAL forwarding
+  // lambdas (only the terminal dispatch below calls them once — no closure web recurses them). Both share
+  // the SAME gatherStringInputs Impl method (cookStringNode rides in by-ref → forwarded to the gather);
+  // cookFlatHostScalar also takes cookFloatListNode for its FloatList-port gather. (full doc in the leaf.)
   auto cookStringLength = [&](int id) -> void {
-    const Node* n = g.node(id);
-    const NodeSpec* s = n ? findSpec(n->type) : nullptr;
-    if (!s) return;
-    std::vector<std::string> inputStrings = gatherStringInputs(id, *s);
-    // StringLength has exactly one String input ("InputString") → inputStrings[0].
-    size_t len = inputStrings.empty() ? 0 : inputStrings[0].size();
-    std::vector<float>& out = p_->floatListBuf[flatKey(id)];
-    out.assign(1, (float)len);  // int→Float host scalar
-    // Test-only: corrupt the REAL output (drop the host scalar) so the golden's input-drivable RED
-    // bites on the actual cook path, not by flipping the expected value. Off in production.
-    if (stringInjectBug() && !out.empty()) out.clear();
-    // BRIDGE (list-routing seam, fork-floatlist-scalar-via-outcache): also mirror the host scalar into
-    // Node::outCache[0] so a downstream Float INPUT port wired to StringLength.Length reads it via
-    // evalFloat's generalised stateful escape hatch (graph.cpp). floatListBuf above stays the legacy
-    // transport (debugCookedFloatList readback); outCache is the new channel evalFloat can reach.
-    // const_cast: cook takes `const Graph&` but Node::outCache is the AudioReaction "external cooker
-    // writes each frame" channel (transient, not serialized) — same precedent (R-1 resolution (a)).
-    // The string-rail RED (stringInjectBug clears `out`) carries through: outCache reads the cleared
-    // value (0 elements → write 0 vs the real len) so the downstream evalFloat RED still bites.
-    if (Node* mn = const_cast<Graph&>(g).node(id))
-      mn->outCache[0] = out.empty() ? 0.0f : out[0];
+    p_->cookFlatStringLength(g, id, cookStringNode);
   };
-
-  // Cook a HOST-SCALAR consumer node (FloatList/String input → ONE host Float): the FloatList→Float
-  // BRIDGE (list-routing seam, SEAM_COMPLETION_PLAN §2 stage 1). GENERALISES cookStringLength to ANY
-  // op registered in the host-scalar registry (FloatListLength / PickFloatFromList / …). It gathers
-  // the node's inputs by spec port dataType — each "FloatList" port via cookFloatListNode (MultiInput
-  // → one gathered list per wire, wire-declaration order), each "String" port via gatherStringInputs
-  // (wire-OR-const) — runs the op to compute the scalar, then stores it BOTH in floatListBuf (1-elem,
-  // the transport: debugCookedFloatList readback) AND in Node::outCache[0] (the BRIDGE: evalFloat
-  // reads it). The op's Float params are resolved through the value spine (nodeParams), so e.g.
-  // PickFloatFromList.Index is drivable. Mirrors cookStringLength's const_cast outCache write (R-1).
   auto cookHostScalar = [&](int id) -> void {
-    const Node* n = g.node(id);
-    const NodeSpec* s = n ? findSpec(n->type) : nullptr;
-    if (!s) return;
-    const HostScalarCookFn* fn = findHostScalarOp(n->type);
-    if (!fn || !*fn) return;
-
-    // Gather FloatList inputs (cookFloatListNode per wire; MultiInput → one list per wire) in spec
-    // port order, mirroring cookFloatListNode's own FloatList-port gather (wire-declaration order).
-    std::vector<std::vector<float>> inputLists;
-    for (size_t i = 0; i < s->ports.size(); ++i) {
-      const PortSpec& port = s->ports[i];
-      if (!(port.isInput && port.dataType == "FloatList")) continue;
-      const int inPin = pinId(id, (int)i);
-      for (const Connection& c : g.connections) {
-        if (c.toPin != inPin) continue;
-        const std::vector<float>* up = cookFloatListNode(pinNode(c.fromPin));
-        inputLists.push_back(up ? *up : std::vector<float>{});
-        if (!port.multiInput) break;  // single-input: first wire only
-      }
-      // (An UNWIRED FloatList input contributes NO entry → empty → count/pick 0, matching TiXL null→0.)
-    }
-    // Gather String inputs (wire-OR-const) via the shared gather, in spec port order.
-    std::vector<std::string> inputStrings = gatherStringInputs(id, *s);
-
-    float scalar = 0.0f;
-    HostScalarCookCtx hc;
-    hc.dev = p_->dev; hc.lib = p_->lib; hc.queue = p_->queue;
-    hc.ctx = &ctx; hc.nodeId = id;
-    hc.inputLists = &inputLists;
-    hc.inputStrings = &inputStrings;
-    hc.params = nodeParams(id);
-    hc.output = &scalar;
-    (*fn)(hc);
-
-    // Transport (legacy floatListBuf 1-elem) + BRIDGE (Node::outCache[0], const_cast — same precedent
-    // as cookStringLength). A host-scalar op's injectBug corrupts `scalar` IN the cook → both channels
-    // carry the corrupted value → the downstream evalFloat RED bites on the real path.
-    std::vector<float>& out = p_->floatListBuf[flatKey(id)];
-    out.assign(1, scalar);
-    if (Node* mn = const_cast<Graph&>(g).node(id)) mn->outCache[0] = scalar;
+    p_->cookFlatHostScalar(g, ctx, nodeParams, cookFloatListNode, cookStringNode, id);
   };
 
   // FloatList terminal (preview pin on a FloatList-producing op): cook the host list so a test can read
