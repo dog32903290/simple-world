@@ -63,6 +63,13 @@ struct StringState {
   std::string buffer;
   int index = 0;
   uint32_t rngState = 0;
+  // lastUpdateTime — BuildRandomString's `_lastUpdateTime` (BuildRandomString.cs:20). The DEBOUNCE
+  // anchor: the op skips its whole Update when |LocalFxTime - lastUpdateTime| < 0.001 (so on a paused
+  // timeline the buffer stops evolving). Default -1 (not 0) so the FIRST frame at LocalFxTime==0 still
+  // runs (|0 - (-1)| = 1 ≥ 0.001) instead of being debounced against a coincidental 0. fork-localfxtime-
+  // bars-vs-secs: sw LocalFxTime is BARS, TiXL's is SECS — the 0.001 threshold's meaning differs (named
+  // in the leaf). A stateless string op never touches this (byte-identical for every incumbent).
+  double lastUpdateTime = -1.0;
 };
 
 // Everything a string op gets to cook one node this frame. Mirrors FloatListCookCtx

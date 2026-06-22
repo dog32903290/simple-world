@@ -158,8 +158,13 @@ bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
   // host currency, no GPU EvaluationContext touched — but the ctx ref rides along like the siblings).
   EvaluationContext gpuCtx{};
   gpuCtx.frameIndex = ctx.frameIndex;
-  gpuCtx.time = ctx.localFxTime;  // wall clock (string ops are time-independent today; symmetry)
+  gpuCtx.time = ctx.localFxTime;  // wall clock (most string ops are time-independent; symmetry)
   gpuCtx.deltaTime = 0.0f;
+  // LocalFxTime (BARS) — populated so a TIME-DEPENDENT string op (BuildRandomString's debounce reads
+  // `_lastUpdateTime` vs LocalFxTime) sees the real production clock on the resident path. Was left 0
+  // before (no string op read it); now mirrors the flat path, which already passes the real ctx. A
+  // time-independent string op ignores this field (byte-identical for every incumbent).
+  gpuCtx.localFxTime = ctx.localFxTime;
 
   StringCookCtx sc;
   sc.dev = nullptr; sc.lib = nullptr; sc.queue = nullptr;  // host-only string ops ignore these

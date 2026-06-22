@@ -335,6 +335,8 @@ add_executable(simple_world
   src/runtime/string_ops_stringbuilder.cpp
   src/runtime/string_ops_blendstrings.cpp
   src/runtime/string_ops_hasstringchanged.cpp
+  src/runtime/string_ops_buildrandomstring.cpp
+  src/runtime/string_ops_buildrandomstring_wrap.cpp
   src/runtime/stringlist_op_registry.cpp
   src/runtime/stringlist_ops_splitstring.cpp
   src/runtime/stringlist_ops_zipstringlist.cpp
@@ -343,6 +345,7 @@ add_executable(simple_world
   src/string_builder_golden.cpp
   src/string_ops_blendstrings_golden.cpp
   src/hasstringchanged_golden.cpp
+  src/buildrandomstring_golden.cpp
   src/runtime/pointlist_op_registry.cpp
   src/runtime/pointlist_ops_radialpointscpu.cpp
   src/runtime/pointlist_ops_transformcpupoint.cpp
