@@ -126,6 +126,82 @@ MTL::Buffer* makeQuadVtxBuffer(MTL::Device* dev) {
 
 bool nearf(float a, float b, float t = 1e-4f) { return std::fabs(a - b) < t; }
 
+// (4) ROT+OFFSET direct-cook leg — one vertex with a NON-IDENTITY TBN and NON-ZERO offset.
+// Fixture: Position=(2,3,0); T=(0,1,0), B=(-1,0,0), N=(0,0,1) (90° rotation about Z).
+// OffsetByTBN=(1,2,0.5), OffsetScale=2.
+//
+// Expected Rotation (qFromMatrix3Precise on col-major float3x3(T,B,N)):
+//   m = [col0=T=(0,1,0), col1=B=(-1,0,0), col2=N=(0,0,1)]
+//   tr = m[0][0]+m[1][1]+m[2][2] = 0+0+1 = 1 > 0 → branch 1
+//   S = sqrt(1+1)*2 = 2√2
+//   q = (0/S, 0/S, (m[0][1]-m[1][0])/S, 0.25S)
+//     = (0, 0, (1-(-1))/(2√2), √2/2)
+//     = (0, 0, 1/√2, 1/√2) ≈ (0, 0, 0.7071, 0.7071)
+// Rotation verified via probe: qRotateVec3((1,0,0), q) → (0,1,0) (90° about Z). ✓
+// Sign ambiguity: assert |dot(q_gpu, q_expected)| ≈ 1.0 (q and -q represent same rotation).
+//
+// Expected Position: (2,3,0) + 1*(0,1,0)*2 + 2*(-1,0,0)*2 + 0.5*(0,0,1)*2
+//                  = (2,3,0) + (0,2,0) + (-4,0,0) + (0,0,1) = (-2, 5, 1).
+//
+// RED tooth: corrupts TBN (flip tangent to (-1,0,0)) → output Rotation ≠ expected,
+// Position offset formula changes → either assertion fails → exit 1 bites.
+bool rotOffsetLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool injectBug,
+                  SwPoint& outPt) {
+  SwVertex v{};
+  v.Position = {2.0f, 3.0f, 0.0f};
+  if (injectBug) {
+    v.Tangent = {-1.0f, 0.0f, 0.0f};  // corrupted T → Rotation and Position both wrong
+    v.Bitangent = {-1.0f, 0.0f, 0.0f};
+  } else {
+    v.Tangent = {0.0f, 1.0f, 0.0f};   // 90° Z-rotation basis
+    v.Bitangent = {-1.0f, 0.0f, 0.0f};
+  }
+  v.Normal = {0.0f, 0.0f, 1.0f};
+  v.Selection = 1.0f; v.ColorRgb = {1.0f, 1.0f, 1.0f};
+
+  MTL::Buffer* vtx = dev->newBuffer(&v, sizeof(SwVertex), MTL::ResourceStorageModeShared);
+  MTL::Buffer* outBag = dev->newBuffer(sizeof(SwPoint), MTL::ResourceStorageModeShared);
+  std::memset(outBag->contents(), 0, sizeof(SwPoint));
+
+  PointCookCtx c;
+  c.dev = dev; c.lib = lib; c.queue = q;
+  c.nodeId = 99; c.count = 1;
+  c.output = outBag; c.meshVtx = vtx; c.meshVtxCount = 1;
+  // Override params: OffsetByTBN=(1,2,0.5), OffsetScale=2.
+  // cookMeshVerticesToPoints reads c's param map; set them via a one-shot Graph node below.
+  // Simpler: call the kernel with a custom P struct directly (same path as flatDirectLeg).
+  MeshVtxToPointsParams P{};
+  P.Count = 1;
+  P.OffsetByTbnX = 1.0f; P.OffsetByTbnY = 2.0f; P.OffsetByTbnZ = 0.5f;
+  P.OffsetScale = 2.0f;
+
+  MTL::Function* fn =
+      lib->newFunction(NS::String::string("meshverticestopoints", NS::UTF8StringEncoding));
+  bool ok = false;
+  if (fn) {
+    NS::Error* err = nullptr;
+    MTL::ComputePipelineState* pso = dev->newComputePipelineState(fn, &err);
+    fn->release();
+    if (pso) {
+      MTL::CommandBuffer* cmd = q->commandBuffer();
+      MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
+      enc->setComputePipelineState(pso);
+      enc->setBuffer(vtx, 0, MVTP_Vertices);
+      enc->setBuffer(outBag, 0, MVTP_ResultPoints);
+      enc->setBytes(&P, sizeof(P), MVTP_Params);
+      enc->dispatchThreadgroups(MTL::Size::Make(1, 1, 1), MTL::Size::Make(64, 1, 1));
+      enc->endEncoding();
+      cmd->commit();
+      cmd->waitUntilCompleted();
+      pso->release();
+      ok = true;
+    }
+  }
+  std::memcpy(&outPt, outBag->contents(), sizeof(SwPoint));
+  vtx->release(); outBag->release();
+  return ok;
+}
+
 // (1) FLAT direct-cook leg. wireMesh=false (RED tooth) drops the mesh bind → empty bag.
 bool flatDirectLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool wireMesh,
                    SwPoint out[4], uint32_t& cookedCount) {
@@ -288,13 +364,25 @@ int runMeshVerticesToPointsSelfTest(bool injectBug) {
   }
   bool resPass = gotRes && litVerts == 4;
 
-  bool pass = flatPass && drvPass && resPass;
+  // ── (4) ROT+OFFSET: T=(0,1,0) B=(-1,0,0) N=(0,0,1) pos=(2,3,0) offset=(1,2,0.5) scale=2. ────────
+  // Expected quat (0, 0, 1/√2, 1/√2) ≈ (0, 0, 0.7071, 0.7071); sign via |dot|≈1.
+  // Expected position (-2, 5, 1). injectBug corrupts TBN → both assertions fail.
+  SwPoint roPt{}; rotOffsetLeg(dev, q, lib, injectBug, roPt);
+  const float kSqrt2Over2 = 0.7071067811865476f;
+  float qdot = std::fabs(roPt.Rotation.x * 0.0f + roPt.Rotation.y * 0.0f +
+                         roPt.Rotation.z * kSqrt2Over2 + roPt.Rotation.w * kSqrt2Over2);
+  bool roPass = nearf(qdot, 1.0f, 1e-3f) &&
+                nearf(roPt.Position.x, -2.0f) && nearf(roPt.Position.y, 5.0f) &&
+                nearf(roPt.Position.z,  1.0f);
+
+  bool pass = flatPass && drvPass && resPass && roPass;
   std::printf("[selftest-meshverticestopoints] FLAT-DIRECT: count=%u pos0=(%.2f,%.2f,%.2f) pass=%d | "
               "FLAT-DRIVER: count=%u pos3=(%.2f,%.2f,%.2f) pass=%d | RESIDENT: %ux%u litVerts=%d(need 4) "
-              "pass=%d | injectBug=%d -> %s\n",
+              "pass=%d | ROT+OFFSET: pos=(%.2f,%.2f,%.2f) |qdot|=%.4f pass=%d | injectBug=%d -> %s\n",
               dCount, d[0].Position.x, d[0].Position.y, d[0].Position.z, flatPass ? 1 : 0, drCount,
               dr[3].Position.x, dr[3].Position.y, dr[3].Position.z, drvPass ? 1 : 0, ow, oh, litVerts,
-              resPass ? 1 : 0, injectBug ? 1 : 0, pass ? "PASS" : "FAIL");
+              resPass ? 1 : 0, roPt.Position.x, roPt.Position.y, roPt.Position.z, qdot,
+              roPass ? 1 : 0, injectBug ? 1 : 0, pass ? "PASS" : "FAIL");
 
   lib->release(); q->release(); dev->release(); pool->release();
   return pass ? 0 : 1;
