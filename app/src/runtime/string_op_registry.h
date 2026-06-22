@@ -58,6 +58,7 @@ namespace sw {
 //   index      — cursor for a future cycling/sequence stateful op (unused today).
 //   rngState   — per-node RNG seed for a future stateful pick/shuffle op (unused today).
 struct StringState {
+  bool primed = false;  // false on first frame (no prior value); TiXL's _lastString=null sentinel
   std::string lastString;
   std::string buffer;
   int index = 0;

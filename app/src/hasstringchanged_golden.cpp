@@ -41,8 +41,14 @@ namespace {
 // The strings fed over frames (distinct so the trajectory pins the cross-frame compare, not a constant).
 const char* kFrames3[3] = {"A", "A", "B"};
 // Expected HasChanged per frame: changed vs the PREVIOUS frame's stored string (init "").
-//   f0 "A" vs ""  -> 1 ;  f1 "A" vs "A" -> 0 ;  f2 "B" vs "A" -> 1.
+//   f0 "A" vs null  -> 1 ;  f1 "A" vs "A" -> 0 ;  f2 "B" vs "A" -> 1.
 const float kWant3[3] = {1.0f, 0.0f, 1.0f};
+
+// Empty-first-frame parity leg: TiXL _lastString=null, so frame-0 "" is CHANGED (null!="").
+// Old sw init "" would report UNCHANGED (""=="" = parity gap). Primed flag fixes this.
+//   f0 "" vs null → 1 ;  f1 "" vs "" → 0 ;  f2 "X" vs "" → 1.
+const char* kFramesEmpty[3] = {"", "", "X"};
+const float kWantEmpty[3] = {1.0f, 0.0f, 1.0f};
 
 // Build a single HasStringChanged node (id 1) with the given Value as the stored String const (the
 // wire-OR-const path: unwired Value → strInputs["Value"] override). Same node id every frame → flatKey
@@ -128,13 +134,56 @@ bool runCase(bool injectBug) {
   return ok;
 }
 
+// ★ empty-first-frame parity leg (refuter FOLLOWUP): drives frame-0 with "" to pin TiXL null!=value
+// semantics. Under injectBug the primed=true store is skipped → frame-1 "" compares against unprimed
+// (still changed=1) instead of matched (should be 0) → RED on frame-1 exactly like the kFrames3 leg.
+// NON-THEATRICAL: restore primed fix (revert to lastString="" init, no primed) → this leg FAILS on
+// frame-0 (sw unchanged, want changed) proving it bites the parity gap. See runHasStringChangedSelfTest.
+bool runEmptyFirstFrameCase(bool injectBug) {
+  bool ok = true;
+  // RESIDENT leg: empty-first-frame trajectory.
+  {
+    stringInjectBug() = injectBug;
+    std::vector<float> got = cookResidentTrajectory(kFramesEmpty, 3);
+    stringInjectBug() = false;
+    for (int i = 0; i < 3; ++i) {
+      bool pass = nearf(got[i], kWantEmpty[i]);
+      ok = ok && pass;
+      std::printf("[selftest-hasstringchanged] RESIDENT-EMPTY f%d \"%s\" HasChanged=%.0f want=%.0f -> %s\n",
+                  i, kFramesEmpty[i], got[i], kWantEmpty[i], pass ? "PASS" : "FAIL");
+    }
+  }
+  // FLAT leg: empty-first-frame trajectory (fresh PointGraph — no shared state with kFrames3 run).
+  {
+    NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+    MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+    MTL::CommandQueue* q = dev->newCommandQueue();
+    PointGraph pg(dev, /*lib=*/nullptr, q, 64, 64);
+    stringInjectBug() = injectBug;
+    std::vector<float> got = cookFlatTrajectory(pg, kFramesEmpty, 3);
+    stringInjectBug() = false;
+    for (int i = 0; i < 3; ++i) {
+      bool pass = nearf(got[i], kWantEmpty[i]);
+      ok = ok && pass;
+      std::printf("[selftest-hasstringchanged] FLAT-EMPTY     f%d \"%s\" HasChanged=%.0f want=%.0f -> %s\n",
+                  i, kFramesEmpty[i], got[i], kWantEmpty[i], pass ? "PASS" : "FAIL");
+    }
+    q->release(); dev->release(); pool->release();
+  }
+  return ok;
+}
+
 }  // namespace
 
 int runHasStringChangedSelfTest(bool injectBug) {
-  // The teeth bite on frame 1: under injectBug the `_lastString` store is skipped, so frame1 "A" compares
-  // against the stale "" (never updated to "A") → mis-reports CHANGED (1) when the truth is UNCHANGED (0).
-  // We do NOT flip the expected — kWant3 stays {1,0,1}; the bug makes the REAL cross-frame state wrong.
+  // kFrames3 ("A","A","B") leg: teeth bite on frame-1 under injectBug (_lastString store skipped →
+  // frame-1 "A" compares against stale "" → mis-reports CHANGED instead of UNCHANGED).
+  // kFramesEmpty ("","","X") leg: teeth bite on frame-0 under injectBug (primed store skipped → frame-0
+  // "" stays unprimed on the NEXT call too → frame-1 mis-reports CHANGED). Also: restoring the old
+  // lastString="" init (no primed) causes frame-0 "" to report UNCHANGED (""=="") — this leg FAILS,
+  // proving the leg genuinely bites the empty-first-frame parity gap (non-theatrical self-proof).
   bool ok = runCase(injectBug);
+  ok = runEmptyFirstFrameCase(injectBug) && ok;
   std::printf("[selftest-hasstringchanged] %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

@@ -32,11 +32,11 @@
 //   - fork-int-bool-dissolve-to-float: TiXL's HasChanged is Slot<bool>; sw has no Bool port currency, so
 //     the bool dissolves bool→Float (1.0/0.0 — Cut32 convention, same as FilePathParts.FileExists /
 //     PickStringPart.TotalCount). Output rides scalarOutputs[0] → extOut[0] (resident) / outCache[0] (flat).
-//   - fork-laststring-init-empty: TiXL's `_lastString` field default is C# null; sw's StringState.lastString
-//     default-constructs to "" (empty). So frame-0 with a non-empty input reads as "changed" (input != "")
-//     either way — behaviourally identical for any non-null TiXL default (Value default is "" too). The
-//     golden drives frame 0 with "A" (vs init "" → changed), frame 1 same "A" (→ unchanged), frame 2 "B"
-//     (→ changed).
+//   - fork-laststring-primed-flag: TiXL's `_lastString` field default is C# null; sw uses a `primed`
+//     flag (StringState.primed, false by default) to reproduce null semantics: frame-0 is ALWAYS changed
+//     regardless of input value, matching TiXL's "null != anything" behaviour (including ""→changed on
+//     frame-0). After frame-0 the flag is set and comparisons use lastString normally. Old init "" was
+//     wrong: TiXL frame-0 "" → changed (null!=""); old sw frame-0 "" → unchanged (""=="" = parity gap).
 //   - fork-string-port-becomes-drivable: Value is WIRE-OR-CONST (wired → upstream cooked string; unwired →
 //     strDef const). The shared driver gather owns this fork (inputStrings[0]).
 #include <string>
@@ -58,22 +58,25 @@ void cookHasStringChanged(StringCookCtx& c) {
   const std::string current =
       (c.inputStrings && !c.inputStrings->empty()) ? (*c.inputStrings)[0] : std::string{};
 
-  // cs: hasChanged = newString != _lastString. With a driver-owned state slot, _lastString is the prev
-  // frame's stored string (default "" on the first cook → any non-empty input is "changed"). With NO state
-  // slot (a hand-built ctx / single-frame caller), there is no persistence → compare against "" each frame
-  // (faithful to frame 0: the empty baseline).
-  const std::string& lastString = c.state ? c.state->lastString : std::string{};
-  const bool changed = (current != lastString);
+  // cs: hasChanged = newString != _lastString. TiXL's _lastString field default is C# null, so frame-0
+  // ALWAYS reports changed regardless of input (null != anything). sw uses a `primed` flag to reproduce
+  // this: !primed → first frame, no prior value → always changed (mirrors C# null != value).
+  // With NO state slot (a hand-built ctx / single-frame caller), behave as unprimed every call.
+  const bool changed = !c.state || !c.state->primed || (current != c.state->lastString);
 
   // cs: HasChanged.Value = hasChanged (bool dissolved → Float). Port 0 is the ONLY output → scalarOutputs[0]
   // → resident extOut[0] / flat outCache[0]. (No String output: *output stays untouched.)
   if (c.scalarOutputs) (*c.scalarOutputs)[0] = changed ? 1.0f : 0.0f;
 
-  // cs: _lastString = newString. Store the current string for the NEXT frame's comparison. RED tooth
-  // (golden): stringInjectBug() SKIPS this store on the REAL accumulator → the next frame compares against
-  // the STALE (un-updated) string, so an unchanged frame mis-reports "changed" → the golden's frame-1
-  // assertion bites on the actual cross-frame state path (NOT by flipping the expected value).
-  if (c.state && !stringInjectBug()) c.state->lastString = current;
+  // cs: _lastString = newString. Store the current string AND mark as primed for the NEXT frame's
+  // comparison. RED tooth (golden): stringInjectBug() SKIPS this store on the REAL accumulator → the next
+  // frame compares against the STALE (un-updated) string, so an unchanged frame mis-reports "changed" →
+  // the golden's frame-1 assertion bites on the actual cross-frame state path (NOT by flipping the
+  // expected value). Also skips primed=true so a frame-0 "" leg stays FAILED under injectBug.
+  if (c.state && !stringInjectBug()) {
+    c.state->primed = true;
+    c.state->lastString = current;
+  }
 }
 
 }  // namespace
