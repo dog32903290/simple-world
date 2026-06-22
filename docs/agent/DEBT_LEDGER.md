@@ -70,7 +70,7 @@
 
 | id | 內容 | 性質 | 狀態 | 做法 / 入口 |
 |----|------|------|------|------|
-| **task_32b5b6e5** | string-rail（`b247602`）整個 flat-path-only：production cook 走 RESIDENT eval graph（`app/src/app/document.h:58`），string op 只接 flat（`point_graph.cpp` cookStringNode），resident 零交集→**真實 app 串 string op 時 wire 被丟、下游讀 strDef**；13/13 golden 測 flat 死路徑 | 🔴 真 correctness bug（綠燈測死路，Cut47 自欺） | **queued·P0·結構閘** | **★forward-work gate（柏為 2026-06-21 批准）**：string Phase C 開採前必須先 close（不准把 string 葉子蓋死路徑）。修法照 list-routing `70406e1` 藍本（`resident_host_scalar_cook.cpp` per-frame resident pass + frame_cook 接線 + resident-path golden leg）。與 `point_graph.cpp` 拆 TU（§A-P3）綁同還債批（同共享檔，§F owner-lock）。記憶 [[sw-string-rail-resident-gate]]。 |
+| ~~**task_32b5b6e5**~~ | ~~string-rail（`b247602`）整個 flat-path-only~~ | ~~🔴 真 correctness bug~~ | **✅ CLOSED `0bb25e2` 2026-06-22** | resident string-wire seam 落地（Cut 102）：extStrOut channel on ResidentNode，resident_eval_flatten 皺褶修，resident_string_cook.cpp NEW，StringLength resident bridge，R-2 LEG20/21 雙腿證。string Phase C NOW OPEN。 |
 | task_258d9510 | audit 9 顆已 ship `_multiImageFxSetup` op（pixelate/voronoi/koch/displace/mirrorrepeat/sharpen/chromaticdistortion/detectedges/dither）的 .t3 routing 對不對 | parity audit | queued | 逐顆 .t3 backward-trace（Cut55 trap）。自洽 golden 可能掩蓋 parity bug。 |
 | task_3fc122a2 | unwired 2nd-input fallback：sw fork=sample ImageA self-warp，TiXL=黑 null SRV。涵 DistortAndShade+Displace | parity fork | queued | 定 lane-wide convention（對齊 TiXL 黑-fallback or 保留 fork）。開新 multi-image op 前必知。 |
 | task_d288a684 | Float-Clamp min>max 行為 | 小 bug | queued | 單顆 op 修 + golden。 |
@@ -93,6 +93,9 @@
 ### C4 — closed-as-stale（債帳沒跟上修復，曾誤當活債）
 - **task_eef5757e** `transformpoints/randomizepoints Z·Y·X 旋轉序 bug` → **closed＝早已修復**。`871464a`（06-13 17:37）改旋轉序 Z·Y·X→Y·X·Z + 兩檔補多軸 parity golden（37/53/71 對 TiXL CreateFromYawPitchRoll 逐點比；randomizepoints 證偽共病）。`--bite` 綠。**債帳 stale 9 天，2026-06-22 才發現**——曾據此誤建 test-gap 閘 + coverage 工具（已 revert `18ce32c`）。**教訓：信債帳字面、沒先對程式碼；撿任一債前先驗它還活著。**
 
+### C5 — closed-as-fixed（真債，已正式補完）
+- **task_32b5b6e5** `string-rail 整個 flat-path-only` → **closed `0bb25e2` 2026-06-22（Cut 102）**。resident string-wire seam 落地：extStrOut channel on ResidentNode（鏡像 extColorOut），resident_eval_flatten.cpp 皺褶修（停止丟棄有接線 String slots），新 resident_string_cook.cpp，StringLength→Float bridge via .size()，frame_cook 接線。R-2 LEG 20+21 雙腿 PROVEN（CombineStrings wire-order + StringLength wired vs const）。refuter MERGE-SAFE（皺褶修 neutralize 非 theater）。**P0 結構閘清除；string Phase C ~34 B2 ops NOW OPEN。**
+
 ---
 
 ## D. 怎麼被做（自走撿取入口 + 順序）
@@ -102,9 +105,9 @@
 - 排修債（B）：每條一條 lane，各自修法。
 
 **建議順序（槓桿 × 危害 × 客觀度）**：
-1. ~~task_eef5757e~~ **已 closed（871464a 早修，見 §C4）**。新列首真實 P0＝**task_32b5b6e5（string-rail resident，結構閘）**，見 item 3。
+1. ~~task_eef5757e~~ **已 closed（871464a 早修，見 §C4）**。~~task_32b5b6e5~~ **已 closed（0bb25e2，2026-06-22，見 §B / §C5）**。P0 結構閘全清，string Phase C OPEN。
 2. **A-P1 的 4 顆資料化/拆-ops**（stateful_value_ops 2657 / node_registry_math 917 / point_modify 653 / keymap 752）— 最客觀（行數可量、不需判對錯）、最高槓桿、且 registry 那兩顆雙重違反 rule 7。
-3. **point_graph.cpp 拆 TU（A-P1）＋ 補 resident string-wire（task_32b5b6e5，B·P0·結構閘）綁同批** — 同一共享檔，一次 owner-lock 做掉；**forward-work gate：string Phase C 開採前必做**，並擋住 point_graph.cpp 繼續長。
+3. **point_graph.cpp 拆 TU（A-P1）** — 擋住 point_graph.cpp 繼續長。~~resident string-wire 已 closed（0bb25e2）~~。
 4. task_258d9510 / task_3fc122a2（B parity）— 影響已出貨 op 的正確性。
 5. 其餘 B + A-P2 selftest + A-P3 scout，隨產能批間隙撿。
 
@@ -121,4 +124,4 @@
 - 目前：無 active 還債 lane。
 
 ## G. Next Handoff Sentence
-下個 session 開本檔 §D 順序表，從 **task_32b5b6e5（string-rail resident，真實 P0 結構閘）** 或 A-P1 任一資料化顆起手；動 A-P1 共享檔前先在 §F 佔 owner、暫停產能線碰同檔。**★P0 結構閘（真實一道）**：task_32b5b6e5（forward-work，string Phase C 開採前必 close resident string-wire，綁 point_graph.cpp 拆 TU；`resident_eval_graph.cpp:79-81` 程式碼自證 String wire 被丟）。**（task_eef5757e 旋轉 bug 已 closed＝871464a 早修，債帳曾 stale 9 天，見 §C4——撿債前先對程式碼。）** 產能線進度見 [SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md) + lane-state。
+下個 session 開本檔 §D 順序表，從 A-P1 任一資料化顆起手（task_258d9510/task_3fc122a2 parity 債次之）；動 A-P1 共享檔前先在 §F 佔 owner、暫停產能線碰同檔。**★P0 結構閘全清（2026-06-22）**：~~task_32b5b6e5~~ closed `0bb25e2`（string Phase C NOW OPEN ~34 B2 ops，R-2 各）；~~task_eef5757e~~ closed `871464a`（見 §C4）。產能線進度見 [SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md) + lane-state。
