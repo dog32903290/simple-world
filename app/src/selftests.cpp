@@ -85,6 +85,7 @@ namespace sw { int runMeshTransformGoldenSelfTest(bool); }       // mesh_input_g
 namespace sw { int runMeshCombineGoldenSelfTest(bool); }         // mesh_input_golden.cpp (mesh-input seam: CombineMeshes MultiInput)
 namespace sw { int runMeshInputProductionGoldenSelfTest(bool); } // mesh_input_golden.cpp (★R-2 production cookResident pixel + DrawMeshUnlit hole fix)
 namespace sw { int runMeshFlipNormalsGoldenSelfTest(bool); }     // mesh_modify_golden.cpp (mesh modify: FlipNormals, flat + R-2 resident)
+namespace sw { int runMeshVerticesToPointsSelfTest(bool); }      // point_ops_meshverticestopoints.cpp (★mesh-into-points seam: Mesh→Points, R-2 flat+resident)
 namespace sw { int runMeshRecomputeNormalsGoldenSelfTest(bool); }// mesh_modify_golden.cpp (mesh modify: RecomputeNormals face-cross, flat + R-2 resident)
 namespace sw { int runMeshTransformUvsGoldenSelfTest(bool); }    // mesh_modify_golden.cpp (mesh modify: TransformMeshUVs matrix·uv, flat + R-2 resident)
 namespace sw { int runFloatListSelfTest(bool); }                 // floatlist_golden.cpp (5th cook flow: FloatsToList host list)
@@ -317,6 +318,7 @@ const SelfTest kTable[] = {
     {"rndrotlock", runRandomizePointsRotationLock},
     {"setpointattributes", runSetPointAttributesSelfTest},
     {"samplepointcolorattributes", runSamplePointColorAttributesSelfTest},
+    {"meshverticestopoints", runMeshVerticesToPointsSelfTest},
     {"attributesfromimagechannels", runAttributesFromImageChannelsSelfTest},
     {"linearsamplepointattributes", runLinearSamplePointAttributesSelfTest},
     {"mappointattributes", runMapPointAttributesSelfTest},

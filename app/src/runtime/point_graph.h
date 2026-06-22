@@ -87,6 +87,16 @@ struct PointCookCtx {
   // the bake. null/empty for every existing Points op (no Gradient/Curve input port → byte-identical).
   const std::vector<SwGradient>* inputGradients = nullptr;
   const std::vector<Curve>* inputCurves = nullptr;
+  // MESH input (the mesh-into-points seam): a Points op that READS an upstream cooked Mesh
+  // (MeshVerticesToPoints is the first) gets the FIRST wired Mesh INPUT port's vertex+index buffers
+  // + counts here (single Mesh input, not an array — mirrors CmdCookCtx::meshVtx on the Command flow,
+  // which DrawMeshUnlit consumes). meshVtxCount = the per-vertex Point count a countFromMeshVtx op
+  // sizes its output to. SAME borrowed-single-frame lifetime as inputs[]/inputTextures[] (PointGraph
+  // meshVtxBuf/meshIdxBuf, NEVER retained). null/0 for every existing Points op → byte-identical.
+  const MTL::Buffer* meshVtx = nullptr;   // upstream SwVertex buffer (null when no Mesh input wired)
+  uint32_t meshVtxCount = 0;              // upstream VERTEX count (countFromMeshVtx sizes the bag to it)
+  const MTL::Buffer* meshIdx = nullptr;   // upstream SwTriIndex buffer (unused by the per-vertex op)
+  uint32_t meshFaceCount = 0;             // upstream FACE count (== SwTriIndex count)
   // RESOLVED Float params of THIS node (slice 2b seam): the cook DRIVER resolves every Float
   // input port through the full value spine — override → binding → wire → stored → spec default
   // (flat), or the resident input's driver (resident) — and hands the result here. Ops read via
@@ -272,10 +282,13 @@ using PointCountFn = uint32_t (*)(uint32_t);
 // which is the pure-float path). registerPointOp's state fns are optional (stateless
 // ops omit them). Registration is explicit (call registerBuiltinPointOps() at app
 // init) — NOT a static initializer — so --selftest-* runs see a clean table.
+// countFromMeshVtx: the node's output bag is sized to its gathered Mesh input's VERTEX count (the
+// mesh-into-points fork — MeshVerticesToPoints emits one Point per vertex). Default false → byte-identical.
 void registerPointOp(const std::string& type, PointCookFn,
                      PointStateNewFn = nullptr, PointStateFreeFn = nullptr,
                      PointCountFn countTransform = nullptr,
-                     bool countFromFirstPointsInput = false);
+                     bool countFromFirstPointsInput = false,
+                     bool countFromMeshVtx = false);
 void registerDrawOp(const std::string& type, PointDrawFn);
 // Register a command op (the Command stream). Separate table from cook/draw — exactly
 // as TiXL keeps Slot<Command> distinct from Slot<BufferWithViews>.

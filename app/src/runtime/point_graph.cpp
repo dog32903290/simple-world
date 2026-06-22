@@ -62,9 +62,13 @@ std::map<std::string, PointTexFn>& texReg() {
 
 void registerPointOp(const std::string& type, PointCookFn cook, PointStateNewFn stNew,
                      PointStateFreeFn stFree, PointCountFn countTransform,
-                     bool countFromFirstPointsInput) {
-  cookReg()[type] =
-      pgdetail::OpReg{cook, stNew, stFree, countTransform, countFromFirstPointsInput};
+                     bool countFromFirstPointsInput, bool countFromMeshVtx) {
+  cookReg()[type] = pgdetail::OpReg{cook,
+                                    stNew,
+                                    stFree,
+                                    countTransform,
+                                    countFromFirstPointsInput,
+                                    countFromMeshVtx};
 }
 void registerDrawOp(const std::string& type, PointDrawFn draw) { drawReg()[type] = draw; }
 void registerCmdOp(const std::string& type, PointCmdFn cmd) { cmdReg()[type] = cmd; }
@@ -287,6 +291,14 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // PointCookCtx::inputGradients. The body is assigned far below (same std::function ordering-break).
   std::function<const SwGradient*(int)> cookGradientNode;
 
+  // Forward-declared HERE (above cookNode, same trick as cookGradientNode) so cookNode's Mesh gather
+  // (the mesh-into-points seam) can call the bridge: a Points op with a Mesh input (MeshVerticesToPoints)
+  // cooks its upstream mesh node + borrows its buffers via cookMeshInto. cookMeshInto cooks cookMeshNode
+  // then reads back via debugCookedMesh; both bodies are assigned far below (cookMeshNode self-recurses
+  // for mesh consumers, cookMeshInto has no command recursion). Returns true + fills the out-params.
+  std::function<bool(int, const MTL::Buffer*&, uint32_t&, const MTL::Buffer*&, uint32_t&)> cookMeshInto;
+  std::function<bool(int)> cookMeshNode;
+
   std::function<MTL::Buffer*(int)> cookNode = [&](int id) -> MTL::Buffer* {
     auto m = cooked.find(id);
     if (m != cooked.end()) return m->second;
@@ -368,6 +380,23 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       }
     }
 
+    // MESH gather (the mesh-into-points seam): a Points op with a "Mesh" input port (MeshVerticesToPoints)
+    // cooks its FIRST wired upstream Mesh op (QuadMesh/NGonMesh) via cookMeshInto (the existing bridge:
+    // cookMeshNode → debugCookedMesh) and borrows its vertex+index buffers + counts into PointCookCtx.
+    // Single Mesh input (not an array) — mirror of the Command-flow Mesh gather (cookCommand's Mesh
+    // branch) which DrawMeshUnlit consumes. Empty for every existing Points op (no Mesh port) →
+    // meshVtx null / counts 0 → byte-identical path. isBufferInput() skips Mesh ports above.
+    const MTL::Buffer* meshVtx = nullptr;
+    const MTL::Buffer* meshIdx = nullptr;
+    uint32_t meshVtxCount = 0, meshFaceCount = 0;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!port.isInput || port.dataType != "Mesh") continue;
+      const Connection* c = g.connectionToInput(pinId(id, (int)i));
+      if (c) cookMeshInto(pinNode(c->fromPin), meshVtx, meshVtxCount, meshIdx, meshFaceCount);
+      break;  // single Mesh input
+    }
+
     // GRADIENT + CURVE gather (the bake-into-point seam): a Points op with "Gradient"/"Curve" host-value
     // input ports (MapPointAttributes) gathers each wired upstream host value here, in spec port order,
     // into PointCookCtx::inputGradients/inputCurves. Same gather contract as cookTexNode's Gradient
@@ -403,9 +432,11 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     // Default: sum of Points inputs (combine concatenates). Ops that transform a primary bag
     // using extra Points inputs as references (SnapToPoints) opt into first-input-count instead.
     uint32_t count = sumPointsCount;
-    if (auto cr = cookReg().find(n->type);
-        cr != cookReg().end() && cr->second.countFromFirstPointsInput)
-      count = firstPointsCount;
+    if (auto cr = cookReg().find(n->type); cr != cookReg().end()) {
+      if (cr->second.countFromFirstPointsInput) count = firstPointsCount;
+      // mesh-into-points fork: one Point per gathered mesh vertex (MeshVerticesToPoints).
+      if (cr->second.countFromMeshVtx) count = meshVtxCount;
+    }
     for (const PortSpec& port : s->ports)
       if (port.isInput && port.dataType == "Float" && port.id == "Count") {
         float v = mapParam(params, "Count", port.def);
@@ -432,6 +463,8 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.inputTextureCount = texInputCount;  // texture-into-points seam (0 for ops with no Texture2D input)
     cc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;  // bake-into-point seam (null otherwise)
     cc.inputCurves = hasCurveInput ? &curveInputs : nullptr;  // empty in production (no Curve producer)
+    cc.meshVtx = meshVtx; cc.meshVtxCount = meshVtxCount;  // mesh-into-points seam (null/0 if no Mesh input)
+    cc.meshIdx = meshIdx; cc.meshFaceCount = meshFaceCount;
     auto r = cookReg().find(n->type);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[id] = out;
@@ -488,16 +521,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // std::function breaks the self-recursion ordering. JoinStringList CONSUMES this list (its StringList
   // input gather, in cookStringNode below) — the StringList-into-String half of Sub-seam A.
   std::function<const std::vector<std::string>*(int)> cookStringListNode;
-  // Forward-declared: cookCommand gathers a Mesh input (DrawMeshUnlit) by cooking the upstream mesh
-  // node here, then reading its buffers via debugCookedMesh. Body assigned below (it has no recursion
-  // into cookCommand — a mesh generator owns no command inputs — but the ordering break keeps it
-  // callable from cookCommand). Returns true + fills the out-params on success.
-  std::function<bool(int, const MTL::Buffer*&, uint32_t&, const MTL::Buffer*&, uint32_t&)> cookMeshInto;
-  // Forward-declared (mesh-input seam): the MESH cook flow (4th flow = MeshBuffers pair). A mesh op
-  // (generator OR consumer) is cooked here; a CONSUMER (TransformMesh/CombineMeshes) gathers its Mesh
-  // input(s) by RECURSING into cookMeshNode (via cookMeshInto). std::function so the body can self-
-  // recurse during the input gather. Returns true if a mesh op cooked into meshVtxBuf/meshIdxBuf.
-  std::function<bool(int)> cookMeshNode;
+  // (cookMeshInto / cookMeshNode forward-declared ABOVE cookNode — moved up so cookNode's Mesh gather
+  // for the mesh-into-points seam can call cookMeshInto. cookCommand's Mesh branch uses the same vars;
+  // bodies assigned far below. cookMeshNode self-recurses for mesh consumers, cookMeshInto reads back.)
 
   // Cook a command node: resolve its upstream Points bag (+ first wired Texture2D input, FORK#1, +
   // first wired Command subtree for the Camera op, Cut 3), then call its cmd fn -> RenderCommand.

@@ -19,6 +19,7 @@ void registerDoyleSpiralPointsOp();
 void registerRepetitionPointsOp();
 void registerCommonPointSetsOp();
 void registerBoundingBoxPointsOp();
+void registerMeshVerticesToPointsOp();
 
 void registerGeneratorPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
@@ -30,6 +31,7 @@ void registerGeneratorPointOps() {
   registerRepetitionPointsOp();  // (generator) GPU fork of CPU RepetitionPoints, batch 36
   registerCommonPointSetsOp();  // (generator) CPU-fill fork of CommonPointSets, batch 37
   registerBoundingBoxPointsOp();  // (generator) CPU-readback AABB fork; reads Points -> 1 point, batch 38
+  registerMeshVerticesToPointsOp();  // (generator+Mesh input) ★mesh-into-points seam: one Point per vertex
 }
 
 }  // namespace sw

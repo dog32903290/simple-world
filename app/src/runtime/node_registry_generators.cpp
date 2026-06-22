@@ -243,6 +243,22 @@ const std::vector<NodeSpec>& generatorSpecs() {
        {{"points", "points", "Points", true},   // input bag (port 0) — source points to bound
         {"out", "out", "Points", false}},        // single AABB point (port 1)
        nullptr},
+      // MeshVerticesToPoints — the FIRST Points op with a MESH INPUT (the mesh-into-points seam's
+      // proving op). Ports 1:1 with MeshVerticesToPoints.cs: Mesh (MeshBuffers, gathered by the cook
+      // drivers' Mesh loop into PointCookCtx::meshVtx → one Point per vertex), OffsetByTBN (Vector3,
+      // .t3 default (0,0,0)), W (the .t3 W input = the shader's OffsetScale, default 1.0). Output count
+      // = the mesh vertex count (countFromMeshVtx in the cook registration).
+      {"MeshVerticesToPoints",
+       "MeshVerticesToPoints",
+       {{"Mesh", "Mesh", "Mesh", true},                 // input mesh (port 0) — the seam input
+        {"out", "out", "Points", false},                // one Point per vertex (port 1)
+        // OffsetByTBN (Vector3, TiXL default (0,0,0)) — per-axis Tangent/Bitangent/Normal offset weights.
+        {"OffsetByTBN.x", "OffsetByTBN", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"OffsetByTBN.y", "OffsetByTBN.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"OffsetByTBN.z", "OffsetByTBN.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // W (TiXL float input, default 1.0) → the shader's OffsetScale (global TBN-offset multiplier).
+        {"W", "W", "Float", true, 1.0f, -100.0f, 100.0f}},
+       nullptr},
   };
   return specs;
 }

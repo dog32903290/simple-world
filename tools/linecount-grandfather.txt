@@ -22,7 +22,7 @@ app/src/runtime/gradient_ops_blendgradients.cpp:484
 app/src/runtime/math_ops_selftest.cpp:1339
 app/src/runtime/point_graph.cpp:1513
 app/src/runtime/point_graph.h:608
-app/src/runtime/point_graph_resident.cpp:846
+app/src/runtime/point_graph_resident.cpp:820
 app/src/runtime/point_ops.h:539
 app/src/runtime/point_ops_attributesfromimagechannels.cpp:429
 app/src/runtime/point_ops_blend.cpp:426
@@ -55,7 +55,7 @@ app/src/runtime/stateful_value_ops_selftest.cpp:1234
 app/src/runtime/transport_selftest.cpp:429
 app/src/runtime/value_eval_ops.cpp:740
 app/src/runtime/value_op_perlinnoise3.cpp:455
-app/src/selftests.cpp:495
+app/src/selftests.cpp:497
 app/src/string_rail_golden.cpp:1605
 app/src/ui/editor_ui.cpp:518
 app/src/ui/keymap.cpp:752

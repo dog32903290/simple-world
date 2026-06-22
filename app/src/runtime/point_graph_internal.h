@@ -22,10 +22,17 @@
 #include "runtime/graph.h"        // PortSpec (isBufferInput)
 #include "runtime/point_graph.h"  // PointGraph + op fn types
 #include "runtime/sw_mesh.h"      // SwVertex (80B) + SwTriIndex (12B) — the Mesh flow's elements
+#include "runtime/mesh_op_registry.h"  // SwMeshView (cookResidentMesh return type)
 #include "runtime/sw_gradient.h"  // SwGradient — the 8th flow's host value (gradientBuf)
 #include "runtime/tixl_point.h"   // SwPoint (64B) — output buffers are SwPoint bags
 
 namespace sw {
+
+// Resident-graph types (full defs in resident_eval_graph.h; forward-declared here so Impl can declare
+// cookResidentMesh without internal.h pulling the whole resident header in).
+struct ResidentEvalGraph;
+struct ResidentEvalCtx;
+
 namespace pgdetail {
 
 // --- Operator registries (Metal-side; separate from NodeSpec.evaluate float path) ---
@@ -44,6 +51,10 @@ struct OpReg {
   // not concatenation — e.g. SnapToPoints: out count = Points1 count, Points2 is a snap target).
   // No-op for ops with <=1 Points input (sum == first). Applied in BOTH cooks.
   bool countFromFirstPointsInput = false;
+  // Count policy for the mesh-into-points fork (MeshVerticesToPoints): output count is the gathered
+  // Mesh input's VERTEX count (one Point per vertex). Default false = byte-identical (count from
+  // Count param / Points inputs). Applied in BOTH cooks after the Mesh gather, before ensureOut.
+  bool countFromMeshVtx = false;
 };
 std::map<std::string, OpReg>& cookReg();
 std::map<std::string, PointDrawFn>& drawReg();
@@ -352,6 +363,15 @@ struct PointGraph::Impl {
     cmd->commit();
     cmd->waitUntilCompleted();
   }
+
+  // The resident MESH cook (4th cook flow), extracted from the cookResidentMesh lambda inside
+  // PointGraph::cookResident into resident_mesh_cook.cpp (ratchet headroom + co-location with its
+  // new consumer, the mesh-into-points seam). A METHOD on Impl (not a free fn) so it can name the
+  // private nested Impl + reach ensureMesh/meshVtxBuf. Cooks ONE mesh node (generator OR consumer)
+  // into its per-path owned pair, recursing through the resident graph for a consumer's Mesh inputs.
+  // cookResident wraps it in a forwarding lambda so its callers stay one-arg. (Body in the leaf.)
+  SwMeshView cookResidentMesh(const ResidentEvalGraph& rg, const std::string& path,
+                              const ResidentEvalCtx& rc, const EvaluationContext& ctx, int depth);
 };
 
 }  // namespace sw

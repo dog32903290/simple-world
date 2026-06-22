@@ -247,6 +247,21 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       }
     }
 
+    // MESH gather (the mesh-into-points seam, RESIDENT/PRODUCTION path — R-2 iron rule): a Points op with
+    // a "Mesh" input port (MeshVerticesToPoints) cooks its FIRST wired upstream Mesh op through the
+    // resident Connection driver via cookResidentMesh (the existing per-path mesh walker → SwMeshView)
+    // and borrows its buffers + counts into PointCookCtx. Single Mesh input (not an array) — mirror of
+    // the resident cookCommand Mesh branch (DrawMeshUnlit). Empty for every existing Points op (no Mesh
+    // port) → meshVtx null / counts 0 → byte-identical path.
+    SwMeshView meshIn;
+    for (const PortSpec& port : s->ports) {
+      if (!(port.isInput && port.dataType == "Mesh")) continue;
+      const ResidentInput* ri = n->input(port.id);
+      if (ri && ri->driver == ResidentInput::Driver::Connection)
+        meshIn = cookResidentMesh(ri->srcNodePath, depth + 1);
+      break;  // single Mesh input
+    }
+
     // GRADIENT + CURVE gather (the bake-into-point seam, RESIDENT/PRODUCTION path — R-2 iron rule): a
     // Points op with "Gradient"/"Curve" host-value input ports (MapPointAttributes) gathers each wired
     // upstream host value through the resident Connection drivers into PointCookCtx::inputGradients/
@@ -280,9 +295,10 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     // (combine concatenates), or the first Points input only for reference-transform ops
     // (SnapToPoints opts into countFromFirstPointsInput — Points2 is a target, not concatenated).
     uint32_t count = sumPointsCount;
-    if (auto cr = cookReg().find(n->opType);
-        cr != cookReg().end() && cr->second.countFromFirstPointsInput)
-      count = firstPointsCount;
+    if (auto cr = cookReg().find(n->opType); cr != cookReg().end()) {
+      if (cr->second.countFromFirstPointsInput) count = firstPointsCount;
+      if (cr->second.countFromMeshVtx) count = meshIn.vtxCount;  // mesh-into-points fork (one Point/vertex)
+    }
     for (const PortSpec& port : s->ports)
       if (port.isInput && port.dataType == "Float" && port.id == "Count") {
         float v = port.def;
@@ -313,6 +329,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     cc.inputTextureCount = texInputCount;  // texture-into-points seam (0 for ops with no Texture2D input)
     cc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;  // bake-into-point seam (null otherwise)
     cc.inputCurves = hasCurveInput ? &curveInputs : nullptr;  // empty in production (no Curve producer)
+    cc.meshVtx = meshIn.vtx; cc.meshVtxCount = meshIn.vtxCount;  // mesh-into-points seam (null/0 if no Mesh)
+    cc.meshIdx = meshIn.idx; cc.meshFaceCount = meshIn.faceCount;
     auto r = cookReg().find(n->opType);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[path] = out;
@@ -403,56 +421,12 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     return &out;
   };
 
-  // Mesh walker body (4th cook flow on the RESIDENT path; assigned now that cookNode exists — the two
-  // don't recurse into each other, the only crossing is cookCommand's Mesh branch below). Gathers the
-  // node's Mesh input(s) through the resident Connection drivers (primary + extraConns, in spec port
-  // order), runs countFn(params, views, n) then cookFn, into the per-path owned pair. Mirror of the flat
-  // cookMeshNode + cookResidentPointList. Returns a borrowed SwMeshView (empty if not a mesh op).
+  // Mesh walker body (4th cook flow): forwards to the extracted method PointGraph::Impl::cookResidentMesh
+  // (resident_mesh_cook.cpp). The lambda keeps the one-arg call shape every caller uses (the cookCommand
+  // Mesh branch, the Mesh terminal, the new cookNode Mesh gather) + threads the shared rg/rc/ctx in. The
+  // method resolves params inline (memo-free twin of nodeParams; same pure resolver → byte-identical map).
   cookResidentMesh = [&](const std::string& path, int depth) -> SwMeshView {
-    SwMeshView outView;
-    if (depth > kCookDepthCap) { warnCookDepthOnce(); return outView; }
-    const ResidentNode* n = rg.node(path);
-    if (!n) return outView;
-    const NodeSpec* s = findSpec(n->opType);
-    if (!s) return outView;
-    const MeshOpReg* reg = findMeshOp(n->opType);
-    if (!reg || !reg->cook || !reg->count) return outView;
-
-    // Gather upstream Mesh inputs through the resident graph (Connection drivers; MultiInput → primary +
-    // extraConns, wire-declaration order). cookResidentMesh fills p_->meshVtxBuf[srcPath] for each source.
-    std::vector<SwMeshView> inputMeshes;
-    for (const PortSpec& port : s->ports) {
-      if (!(port.isInput && port.dataType == "Mesh")) continue;
-      const ResidentInput* ri = n->input(port.id);
-      if (ri && ri->driver == ResidentInput::Driver::Connection) {
-        inputMeshes.push_back(cookResidentMesh(ri->srcNodePath, depth + 1));
-        if (port.multiInput)
-          for (const auto& ec : ri->extraConns)
-            inputMeshes.push_back(cookResidentMesh(ec.first, depth + 1));
-      }
-      // (An unwired / Constant Mesh input contributes NO entry → empty → faithful to the flat gather.)
-    }
-
-    const std::map<std::string, float>* mp = nodeParams(path);
-    uint32_t vtxCount = 0, idxCount = 0;
-    reg->count(mp, inputMeshes.data(), (int)inputMeshes.size(), vtxCount, idxCount);  // counts FIRST
-
-    MTL::Buffer* vb = nullptr;
-    MTL::Buffer* ib = nullptr;
-    p_->ensureMesh(path, vtxCount, idxCount, vb, ib);  // per-path owned pair (string key, no flat collision)
-
-    MeshCookCtx mc;
-    mc.dev = p_->dev; mc.lib = p_->lib; mc.queue = p_->queue;
-    mc.ctx = &ctx; mc.nodeId = 0;
-    mc.vertexCount = vtxCount; mc.indexCount = idxCount;
-    mc.output_vertices = vb; mc.output_indices = ib;
-    mc.inputMeshes = inputMeshes.data(); mc.inputMeshCount = (int)inputMeshes.size();
-    mc.params = mp;
-    reg->cook(mc);
-
-    outView.vtx = vb; outView.vtxCount = vtxCount;
-    outView.idx = ib; outView.faceCount = idxCount;
-    return outView;
+    return p_->cookResidentMesh(rg, path, rc, ctx, depth);
   };
 
   // Cook a command node: resolve its upstream Points bag, then call its cmd fn -> RenderCommand.

@@ -58,7 +58,7 @@ set(SW_SHADER_DEPS
   src/runtime/dither_params.h src/runtime/normalmap_params.h src/runtime/chromakey_params.h
   src/runtime/polarcoordinates_params.h src/runtime/edgerepeat_params.h
   src/runtime/offsetpoints_params.h src/runtime/pointattributefromnoise_params.h
-  src/runtime/mesh_draw_params.h src/runtime/sw_mesh.h
+  src/runtime/mesh_draw_params.h src/runtime/sw_mesh.h src/runtime/meshverticestopoints_params.h
   shaders/shared/noise.metal.h shaders/shared/quat.metal.h shaders/shared/hash.metal.h)
 set(SW_COMPILE_CMDS "")
 foreach(s ${SW_SHADERS})
@@ -405,6 +405,7 @@ add_executable(simple_world
   src/runtime/resident_colorlist_cook.cpp
   src/runtime/resident_string_cook.cpp
   src/runtime/resident_stringlist_cook.cpp
+  src/runtime/resident_mesh_cook.cpp
   src/runtime/resident_eval_graph_selftest.cpp
   src/runtime/resident_eval_cache.cpp
   src/runtime/resident_eval_cache_selftest.cpp
