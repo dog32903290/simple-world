@@ -241,11 +241,136 @@ bool legFilePathParts(PointGraph& pg, bool injectBug, bool& ok) {
   return pass;
 }
 
+// ---- LEG 37: PickStringFromList (StringList currency CONSUMER → String, euclidean Index) ----
+// FLAT: SplitString("a,b,c", ",") → ["a","b","c"] → PickStringFromList(Index 1) → "b". The
+// SplitString→PickStringFromList wire is a GENUINE StringList wire (the same currency as LEG 36, now
+// driving a SELECT-one consumer instead of a join). Index 1 picks list[1]="b" (NOT list[0]) — the
+// index-selection assertion. RESIDENT mirrors the SAME wired graph (the resident StringList gather feeds
+// PickStringFromList's cook via cookResidentStringList). RED: stringListInjectBug drops SplitString's last
+// fragment → ["a","b"] (count 2) → Index 1 still picks "b" (UNCHANGED!) so the LIST bug alone would not
+// bite at Index 1 — therefore stringInjectBug (the String op's own teeth) drops the picked output's last
+// char "b"→"" → "" ≠ "b" → bites both legs. (Both hooks are set; the String tooth is the load-bearing one.)
+bool legPickStringFromList(PointGraph& pg, bool injectBug, bool& ok) {
+  // SplitString id=2 (String "a,b,c" + Split ",") → PickStringFromList id=1 (Input = StringList in).
+  // PickStringFromList ports: [0]=Selected(out), [1]=Input(StringList multiInput), [2]=Index(Float).
+  auto makeGraph = []() {
+    Graph g;
+    Node pk; pk.id = 1; pk.type = "PickStringFromList";
+    pk.params["Index"] = 1.0f;  // Index 1 → list[1]
+    g.nodes.push_back(pk);
+    Node sp; sp.id = 2; sp.type = "SplitString";
+    sp.strParams["String"] = "a,b,c"; sp.strParams["Split"] = ",";
+    g.nodes.push_back(sp);
+    // SplitString.Fragments (port 0) → PickStringFromList.Input (port 1).
+    g.connections.push_back({100, pinId(2, /*Fragments port 0*/ 0), pinId(1, /*Input port 1*/ 1)});
+    g.nextId = 3;
+    return g;
+  };
+  // --- FLAT leg ---
+  stringInjectBug() = injectBug; stringListInjectBug() = injectBug;
+  std::string flat;
+  {
+    Graph g = makeGraph();
+    EvaluationContext ctx{}; ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+    pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+    const std::string* o = pg.debugCookedString(1);
+    flat = o ? *o : std::string{};
+  }
+  stringInjectBug() = false; stringListInjectBug() = false;
+  // --- RESIDENT leg (production path) ---
+  stringInjectBug() = injectBug; stringListInjectBug() = injectBug;
+  std::string res;
+  {
+    Graph g = makeGraph();
+    SymbolLibrary lib = libFromGraph(g);
+    ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+    ResidentEvalCtx rc; rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+    cookStringNodes(rg, rc);  // PickStringFromList gathers the StringList wire via cookResidentStringList
+    const ResidentNode* n = rg.node("1");
+    if (n) { auto it = n->extStrOut.find(0); res = it != n->extStrOut.end() ? it->second : std::string{}; }
+  }
+  stringInjectBug() = false; stringListInjectBug() = false;
+
+  const std::string want = "b";  // list[Index=1] of ["a","b","c"] — selects element 1, NOT 0
+  bool pass = (flat == want && res == want);
+  ok = ok && pass;
+  std::printf("[selftest-stringrail] LEG37 PickStringFromList FLAT=\"%s\" RESIDENT=\"%s\" want=\"%s\" "
+              "(Index 1 → list[1]) -> %s\n", flat.c_str(), res.c_str(), want.c_str(), pass ? "PASS" : "FAIL");
+  return pass;
+}
+
+// ---- LEG 38: ZipStringList (FIRST list-in→list-OUT op: interleave + truncate-to-shorter) ----
+// FLAT: SplitString("a,b",",")→["a","b"]  +  SplitString("1,2,3",",")→["1","2","3"]  →
+// ZipStringList → ["a","1","b","2"]  (interleave StringsOne-first; the "3" tail DROPPED = truncate to the
+// shorter list)  → JoinStringList(Separator "-") → "a-1-b-2". The full chain SplitString×2 → ZipStringList
+// → JoinStringList → String is assertable as one string. Proves BOTH the interleave ORDER (a-1-b-2, NOT
+// 1-a-2-b and NOT a-b-1-2 concatenation) and TRUNCATE-to-shorter (no trailing "-3"). RESIDENT mirrors the
+// SAME wired graph (ZipStringList's two StringList inputs gathered via cookResidentStringList, its list
+// output re-consumed by JoinStringList's cook). RED: stringListInjectBug drops Zip's last element
+// ("2") → ["a","1","b"] → join "a-1-b" ≠ "a-1-b-2" (REAL Zip output corrupted, biting both legs);
+// stringInjectBug also drops JoinStringList's last char directly.
+bool legZipStringList(PointGraph& pg, bool injectBug, bool& ok) {
+  // SplitString id=2 ("a,b") + SplitString id=3 ("1,2,3") → ZipStringList id=4 → JoinStringList id=1.
+  // ZipStringList ports: [0]=Output(StringList out), [1]=StringsOne(in), [2]=StringsTwo(in).
+  // JoinStringList ports: [0]=Result(out), [1]=Input(StringList multiInput), [2]=Separator.
+  auto makeGraph = []() {
+    Graph g;
+    Node jn; jn.id = 1; jn.type = "JoinStringList"; jn.strParams["Separator"] = "-";
+    g.nodes.push_back(jn);
+    Node s1; s1.id = 2; s1.type = "SplitString"; s1.strParams["String"] = "a,b"; s1.strParams["Split"] = ",";
+    g.nodes.push_back(s1);
+    Node s2; s2.id = 3; s2.type = "SplitString"; s2.strParams["String"] = "1,2,3"; s2.strParams["Split"] = ",";
+    g.nodes.push_back(s2);
+    Node zp; zp.id = 4; zp.type = "ZipStringList";
+    g.nodes.push_back(zp);
+    // SplitString s1.Fragments → ZipStringList.StringsOne (port 1); s2.Fragments → StringsTwo (port 2).
+    g.connections.push_back({100, pinId(2, 0), pinId(4, /*StringsOne port 1*/ 1)});
+    g.connections.push_back({101, pinId(3, 0), pinId(4, /*StringsTwo port 2*/ 2)});
+    // ZipStringList.Output (port 0) → JoinStringList.Input (port 1).
+    g.connections.push_back({102, pinId(4, /*Output port 0*/ 0), pinId(1, /*Input port 1*/ 1)});
+    g.nextId = 5;
+    return g;
+  };
+  // --- FLAT leg ---
+  stringInjectBug() = injectBug; stringListInjectBug() = injectBug;
+  std::string flat;
+  {
+    Graph g = makeGraph();
+    EvaluationContext ctx{}; ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+    pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+    const std::string* o = pg.debugCookedString(1);
+    flat = o ? *o : std::string{};
+  }
+  stringInjectBug() = false; stringListInjectBug() = false;
+  // --- RESIDENT leg (production path) ---
+  stringInjectBug() = injectBug; stringListInjectBug() = injectBug;
+  std::string res;
+  {
+    Graph g = makeGraph();
+    SymbolLibrary lib = libFromGraph(g);
+    ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+    ResidentEvalCtx rc; rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+    cookStringNodes(rg, rc);  // JoinStringList → ZipStringList → 2×SplitString all via the resident gather
+    const ResidentNode* n = rg.node("1");
+    if (n) { auto it = n->extStrOut.find(0); res = it != n->extStrOut.end() ? it->second : std::string{}; }
+  }
+  stringInjectBug() = false; stringListInjectBug() = false;
+
+  // ["a","b"] zip ["1","2","3"] → ["a","1","b","2"] (interleave, "3" dropped) → join "-" → "a-1-b-2".
+  const std::string want = "a-1-b-2";
+  bool pass = (flat == want && res == want);
+  ok = ok && pass;
+  std::printf("[selftest-stringrail] LEG38 ZipStringList FLAT=\"%s\" RESIDENT=\"%s\" want=\"%s\" "
+              "(interleave StringsOne-first, truncate to shorter) -> %s\n",
+              flat.c_str(), res.c_str(), want.c_str(), pass ? "PASS" : "FAIL");
+  return pass;
+}
+
 }  // namespace
 
-// Sub-seam A legs (LEG 34/35/36), invoked from runStringRailSelfTest so they run under
-// --selftest-stringrail. Returns true iff all three pass (green) — or, under injectBug, iff all three
-// BITE (the -bug teeth). The main golden ANDs this into its `ok` accumulator.
+// Sub-seam A legs (LEG 34/35/36/37/38), invoked from runStringRailSelfTest so they run under
+// --selftest-stringrail. Returns true iff all pass (green) — or, under injectBug, iff all BITE (the -bug
+// teeth). The main golden ANDs this into its `ok` accumulator.
 bool runStringRailSubseamA(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
@@ -256,6 +381,8 @@ bool runStringRailSubseamA(bool injectBug) {
   legFilePathParts(pg, injectBug, ok);        // LEG 34 (extracted)
   legFloatListToString(pg, injectBug, ok);    // LEG 35
   legJoinStringList(pg, injectBug, ok);       // LEG 36
+  legPickStringFromList(pg, injectBug, ok);   // LEG 37 (StringList consumer → String)
+  legZipStringList(pg, injectBug, ok);        // LEG 38 (FIRST list-in→list-out)
 
   q->release();
   dev->release();

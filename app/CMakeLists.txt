@@ -310,8 +310,10 @@ add_executable(simple_world
   src/runtime/string_ops_filepathparts.cpp
   src/runtime/string_ops_floatlisttostring.cpp
   src/runtime/string_ops_joinstringlist.cpp
+  src/runtime/string_ops_pickstringfromlist.cpp
   src/runtime/stringlist_op_registry.cpp
   src/runtime/stringlist_ops_splitstring.cpp
+  src/runtime/stringlist_ops_zipstringlist.cpp
   src/string_rail_golden.cpp
   src/string_rail_golden_subseama.cpp
   src/runtime/pointlist_op_registry.cpp
