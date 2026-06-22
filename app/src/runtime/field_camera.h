@@ -153,6 +153,19 @@ struct LayerCameraForward {
 };
 LayerCameraForward defaultLayerCameraForward(float aspect);
 
+// The two camera matrices a BARE point op (no Camera/Transform wrapper) consumes from the
+// camera-matrix-into-points seam (PointCookCtx::objectToCamera / cameraToWorld). v1 FORK (named in
+// the consuming ops + the build report): DEFAULT camera + IDENTITY ObjectToWorld only — so the
+// 10-matrix TransformBufferLayout collapses to just these two, with:
+//   ObjectToCamera = ObjectToWorld · WorldToCamera = WorldToCamera   (ObjectToWorld = Identity)
+//   CameraToWorld  = inverse(WorldToCamera)
+// from EvaluationContext.SetDefaultCamera (eye=(0,0,DefaultCameraDistance), target=0, up=(0,1,0),
+// fov=45°, near=0.01, far=1000). `aspect` = output width/height. Both written ROW-MAJOR (m[r*4+c]),
+// the SAME convention as objectToClipSpace / draw_quad_xf's mul4row — the MSL kernel rebuilds its
+// float4x4 so `mul(rowVec, M)` reproduces `v·M_rowmajor`. We compute ONLY these two matrices (the
+// other 8 of the layout are dead for these ops). PURE MATH, zero Metal.
+void pointCameraMatrices(float aspect, float outObjectToCamera[16], float outCameraToWorld[16]);
+
 // --selftest-field-camera entry (field_camera_selftest.cpp). PURE MATH, zero GPU.
 int runFieldCameraSelfTest(bool injectBug);
 

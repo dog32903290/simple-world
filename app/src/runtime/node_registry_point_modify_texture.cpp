@@ -223,5 +223,22 @@ static const PointModifyOp _reg_MapPointAttributes{
        nullptr}
 };
 
+// ---- camera-matrix-into-points seam: TransformPointsFromClipspace ---------------------------------
+// TiXL parity: external/tixl .../Assets/shaders/points/modify/TransformPointsFromClipspace.hlsl +
+// .../point/transform/TransformFromClipSpace.t3 (which has ONLY a Points input — no scalar knobs). A
+// count-preserving MODIFIER: unproject each point through CameraToWorld (clip-space → world) and
+// post-multiply its Rotation by the camera orientation quaternion. The "Camera" MARKER input port is
+// detected by the cook drivers' fillPointCamera and filled from the DEFAULT camera into
+// PointCookCtx::cameraToWorld (v1 fork: default camera + identity ObjectToWorld). NAMED FORKS:
+// fork-camera-one-matrix-per-op (only CameraToWorld is computed) + fork-camera-default-only-v1.
+static const PointModifyOp _reg_TransformPointsFromClipspace{
+      {"TransformPointsFromClipspace",
+       "TransformPointsFromClipspace",
+       {{"GPoints", "GPoints", "Points", true},        // input bag (port 0)
+        {"Camera", "Camera", "Camera", true},          // camera marker (port 1) — the seam input
+        {"out", "out", "Points", false}},              // unprojected output bag (port 2)
+       nullptr}
+};
+
 }  // namespace
 }  // namespace sw

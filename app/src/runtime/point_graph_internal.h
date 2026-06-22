@@ -19,7 +19,8 @@
 #include <Metal/Metal.hpp>
 #include <simd/simd.h>            // simd::float4 (colorListBuf element type)
 
-#include "runtime/graph.h"        // PortSpec (isBufferInput)
+#include "runtime/graph.h"        // PortSpec (isBufferInput) + NodeSpec (fillPointCamera)
+#include "runtime/field_camera.h" // pointCameraMatrices (camera-matrix-into-points seam)
 #include "runtime/point_graph.h"  // PointGraph + op fn types
 #include "runtime/sw_mesh.h"      // SwVertex (80B) + SwTriIndex (12B) — the Mesh flow's elements
 #include "runtime/mesh_op_registry.h"  // SwMeshView (cookResidentMesh return type)
@@ -67,6 +68,21 @@ inline bool isBufferInput(const PortSpec& p) {
 
 // Flat cook's resource key for node id (see header comment on key spaces).
 inline std::string flatKey(int id) { return "#" + std::to_string(id); }
+
+// CAMERA gather (the camera-matrix-into-points seam): scan `spec.ports` for a "Camera" marker INPUT
+// port; if present, fill the ctx's camera matrices from the DEFAULT camera at `aspect` (= output
+// width/height). SHARED by both cook drivers (flat + resident) so the detection logic lives in one
+// place — same gather contract as the Mesh/Texture2D loops, but the source is the render-context
+// default camera (v1 fork: no Camera-op wire into the point flow yet). No "Camera" port → hasCamera
+// stays false → byte-identical path. The matrices land in cc.objectToCamera / cc.cameraToWorld.
+inline void fillPointCamera(PointCookCtx& cc, const NodeSpec& spec, float aspect) {
+  bool wantsCamera = false;
+  for (const PortSpec& port : spec.ports)
+    if (port.isInput && port.dataType == "Camera") { wantsCamera = true; break; }
+  if (!wantsCamera) return;  // every existing Points op → byte-identical
+  pointCameraMatrices(aspect, cc.objectToCamera, cc.cameraToWorld);
+  cc.hasCamera = true;
+}
 
 // Multi-tex-output helper (feedback seam): ABSOLUTE output port index → ordinal among Texture2D
 // outputs (0 for every single-output tex op). Defined in point_graph.cpp; shared by both cook drivers.

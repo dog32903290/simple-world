@@ -257,4 +257,16 @@ LayerCameraForward defaultLayerCameraForward(float aspect) {
   return f;
 }
 
+void pointCameraMatrices(float aspect, float outObjectToCamera[16], float outCameraToWorld[16]) {
+  // v1 fork (default camera + identity ObjectToWorld) — see header. WorldToCamera = LookAtRH(default).
+  LayerCameraForward fwd = defaultLayerCameraForward(aspect);  // reuses the SetDefaultCamera params
+  // ObjectToCamera = ObjectToWorld(Identity) · WorldToCamera = WorldToCamera. Copy row-major.
+  std::memcpy(outObjectToCamera, fwd.worldToCamera.m, 16 * sizeof(float));
+  // CameraToWorld = inverse(WorldToCamera) (TransformBufferLayout.cs Matrix4x4.Invert). On a singular
+  // matrix mat4Inverse leaves identity (never happens for a valid LookAtRH).
+  Mat4 cameraToWorld;
+  mat4Inverse(fwd.worldToCamera, cameraToWorld);
+  std::memcpy(outCameraToWorld, cameraToWorld.m, 16 * sizeof(float));
+}
+
 }  // namespace sw

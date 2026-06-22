@@ -37,6 +37,7 @@ bool isListToBufferType(const std::string& type);
 using pgdetail::cmdReg;
 using pgdetail::cookReg;
 using pgdetail::drawReg;
+using pgdetail::fillPointCamera;
 using pgdetail::flatKey;
 using pgdetail::isBufferInput;
 using pgdetail::texReg;
@@ -465,6 +466,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.inputCurves = hasCurveInput ? &curveInputs : nullptr;  // empty in production (no Curve producer)
     cc.meshVtx = meshVtx; cc.meshVtxCount = meshVtxCount;  // mesh-into-points seam (null/0 if no Mesh input)
     cc.meshIdx = meshIdx; cc.meshFaceCount = meshFaceCount;
+    fillPointCamera(cc, *s, (p_->height > 0) ? (float)p_->width / (float)p_->height : 1.0f);  // camera seam
     auto r = cookReg().find(n->type);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[id] = out;

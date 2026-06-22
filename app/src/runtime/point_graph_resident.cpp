@@ -41,6 +41,7 @@ bool isListToBufferType(const std::string& type);
 
 using pgdetail::cmdReg;
 using pgdetail::cookReg;
+using pgdetail::fillPointCamera;
 using pgdetail::isBufferInput;
 using pgdetail::texReg;
 
@@ -323,14 +324,13 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     cc.ctx = &ctx; cc.graph = nullptr; cc.reg = reg;  // resident path: ops read params, never a graph
     cc.nodeId = 0; cc.count = count;
     cc.inputs = ins.data(); cc.inputCounts = insCounts.data(); cc.inputCount = (int)ins.size();
-    cc.output = out; cc.state = st;
-    cc.params = params; cc.inputParams = insParams.data();
+    cc.output = out; cc.state = st; cc.params = params; cc.inputParams = insParams.data();
     for (int k = 0; k < texInputCount; ++k) cc.inputTextures[k] = texInputs[k];
     cc.inputTextureCount = texInputCount;  // texture-into-points seam (0 for ops with no Texture2D input)
     cc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;  // bake-into-point seam (null otherwise)
     cc.inputCurves = hasCurveInput ? &curveInputs : nullptr;  // empty in production (no Curve producer)
-    cc.meshVtx = meshIn.vtx; cc.meshVtxCount = meshIn.vtxCount;  // mesh-into-points seam (null/0 if no Mesh)
-    cc.meshIdx = meshIn.idx; cc.meshFaceCount = meshIn.faceCount;
+    cc.meshVtx = meshIn.vtx; cc.meshVtxCount = meshIn.vtxCount; cc.meshIdx = meshIn.idx; cc.meshFaceCount = meshIn.faceCount;  // mesh seam
+    fillPointCamera(cc, *s, (p_->height > 0) ? (float)p_->width / (float)p_->height : 1.0f);  // camera seam
     auto r = cookReg().find(n->opType);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[path] = out;

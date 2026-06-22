@@ -65,48 +65,48 @@ struct PointCookCtx {
   int inputCount = 0;
   MTL::Buffer* output = nullptr;           // PointGraph-owned; cook writes here
   void* state = nullptr;                   // per-node persistent state (stateful ops)
-  // TEXTURE2D inputs (the texture-into-points seam): a Points op that SAMPLES an upstream cooked
-  // Texture2D (SamplePointColorAttributes is the first) gets each wired Texture2D INPUT port (in spec
-  // port order) cooked here. inputTextures[i] = the cooked upstream texture of the i-th Texture2D
-  // input port, or null if that port is unwired. SAME lifetime contract as `inputs[]` above
-  // (PointGraph-owned, single-frame, borrowed — NEVER retained). Mirrors TexCookCtx::inputTextures
-  // (the Texture2D flow's gather) but carried on the Points cook flow. null/0 for every existing
-  // Points op (no Texture2D input port → byte-identical path).
+  // TEXTURE2D inputs (the texture-into-points seam): a Points op that SAMPLES an upstream cooked Texture2D
+  // (SamplePointColorAttributes first) gets each wired Texture2D port (spec order) cooked here.
+  // inputTextures[i] = the i-th port's cooked upstream texture, or null if unwired. SAME lifetime as
+  // inputs[] (PointGraph-owned, single-frame, borrowed — never retained); mirrors TexCookCtx::inputTextures
+  // on the Points flow. null/0 for every existing Points op (no Texture2D port → byte-identical).
   static constexpr int kMaxTexInputs = 4;
   const MTL::Texture* inputTextures[kMaxTexInputs] = {nullptr, nullptr, nullptr, nullptr};
   int inputTextureCount = 0;  // number of Texture2D INPUT ports (wired or not), capped at kMaxTexInputs
   // GRADIENT + CURVE host inputs (the bake-into-point seam): a Points op that BAKES host Curve/Gradient
-  // values into scratch textures internally then samples per point (MapPointAttributes) gets each wired
-  // Gradient/Curve INPUT port (in spec port order) gathered here, the SAME borrowed-single-frame lifetime
-  // as inputTextures[] above (PointGraph-owned, never retained). Mirrors TexCookCtx::inputGradients /
-  // inputCurves (the Texture2D flow's host-currency gather) but carried on the Points cook flow. In
+  // values into scratch textures then samples per point (MapPointAttributes) gets each wired Gradient/Curve
+  // port (spec order) gathered here, SAME borrowed-single-frame lifetime as inputTextures[] (never
+  // retained); mirrors TexCookCtx::inputGradients/inputCurves on the Points flow. In
   // PRODUCTION these are EMPTY/null today (MapPointAttributes' Curve/Gradient ports are host-value inputs
-  // with .t3 defaults and have no producer op wired) → the op bakes its embedded defaults, exactly as
-  // CurvesToTexture/GradientsToTexture cook their embedded defaults when unwired (NOT the flat-only
-  // string-rail trap: no real wire is dropped). A golden injects custom values via these fields to bite
-  // the bake. null/empty for every existing Points op (no Gradient/Curve input port → byte-identical).
+  // with .t3 defaults, no producer wired) → the op bakes its embedded defaults (NOT the flat-only
+  // string-rail trap: no real wire is dropped). A golden injects custom values via these to bite the bake.
+  // null/empty for every existing Points op (no Gradient/Curve input port → byte-identical).
   const std::vector<SwGradient>* inputGradients = nullptr;
   const std::vector<Curve>* inputCurves = nullptr;
   // MESH input (the mesh-into-points seam): a Points op that READS an upstream cooked Mesh
-  // (MeshVerticesToPoints is the first) gets the FIRST wired Mesh INPUT port's vertex+index buffers
-  // + counts here (single Mesh input, not an array — mirrors CmdCookCtx::meshVtx on the Command flow,
-  // which DrawMeshUnlit consumes). meshVtxCount = the per-vertex Point count a countFromMeshVtx op
-  // sizes its output to. SAME borrowed-single-frame lifetime as inputs[]/inputTextures[] (PointGraph
-  // meshVtxBuf/meshIdxBuf, NEVER retained). null/0 for every existing Points op → byte-identical.
+  // (MeshVerticesToPoints first) gets the FIRST wired Mesh port's vertex+index buffers + counts here
+  // (single Mesh input — mirrors CmdCookCtx::meshVtx, which DrawMeshUnlit consumes). meshVtxCount = the
+  // per-vertex count a countFromMeshVtx op sizes to. SAME borrowed-single-frame lifetime as inputs[]
+  // (PointGraph meshVtxBuf/meshIdxBuf, never retained). null/0 for every existing op → byte-identical.
   const MTL::Buffer* meshVtx = nullptr;   // upstream SwVertex buffer (null when no Mesh input wired)
   uint32_t meshVtxCount = 0;              // upstream VERTEX count (countFromMeshVtx sizes the bag to it)
   const MTL::Buffer* meshIdx = nullptr;   // upstream SwTriIndex buffer (unused by the per-vertex op)
   uint32_t meshFaceCount = 0;             // upstream FACE count (== SwTriIndex count)
-  // RESOLVED Float params of THIS node (slice 2b seam): the cook DRIVER resolves every Float
-  // input port through the full value spine — override → binding → wire → stored → spec default
-  // (flat), or the resident input's driver (resident) — and hands the result here. Ops read via
-  // cookParam/cookVecN and stay graph-model-agnostic (= TiXL: the slot system resolves inputs,
-  // the op body never walks the graph). Also fixes wire-blind param reads: a Connection into ANY
-  // Float param now drives it, same class as the Count fix (7d4b34e).
+  // CAMERA matrices (the camera-matrix-into-points seam): a "Camera" marker INPUT port → the driver
+  // fills these from the DEFAULT camera at the output aspect (fillPointCamera → pointCameraMatrices; v1
+  // fork: default camera + identity ObjectToWorld). ROW-MAJOR float[16] (shader rebuilds a float4x4 so
+  // mul(rowVec,M)==v·M_rowmajor; no packed_float3 after → 16-align safe). hasCamera=false → byte-identical.
+  bool hasCamera = false;
+  float objectToCamera[16] = {0};  // == WorldToCamera (identity O2W); SamplePointsByCameraDistance reads .z
+  float cameraToWorld[16] = {0};   // inverse(WorldToCamera); TransformPointsFromClipspace unproject+rot
+  // RESOLVED Float params of THIS node (slice 2b seam): the cook DRIVER resolves every Float input port
+  // through the full value spine (override → binding → wire → stored → spec default, flat; or the resident
+  // input's driver) and hands the result here. Ops read via cookParam/cookVecN and stay graph-model-
+  // agnostic (= TiXL: the slot system resolves inputs, the op body never walks the graph; 7d4b34e).
   const std::map<std::string, float>* params = nullptr;
-  // Resolved params of the node feeding buffer input i (parallel to inputs[]; null if unwired).
-  // Replaces the legacy read-by-TYPE evalParam for force ops (firstOfType breaks under reuse):
-  // a force op's params travel WITH the wire, like TiXL's force buffer carrying its params.
+  // Resolved params of the node feeding buffer input i (parallel to inputs[]; null if unwired). Replaces
+  // the legacy read-by-TYPE evalParam for force ops (firstOfType breaks under reuse): a force op's params
+  // travel WITH the wire, like TiXL's force buffer carrying its params.
   const std::map<std::string, float>* const* inputParams = nullptr;
 };
 
