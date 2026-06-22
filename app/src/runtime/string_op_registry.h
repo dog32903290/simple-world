@@ -74,9 +74,24 @@ struct StringCookCtx {
   // unwired single String port contributes its strDef const). Borrowed (driver-owned); never retained.
   const std::vector<std::string>* inputStrings = nullptr;
   // Driver-owned output string. The op writes via *output = ...; never allocates/frees it.
+  // This is ALWAYS the MAIN String output = port 0 (the channel a downstream String consumer reads,
+  // and the one the recursive gather follows). A single-output op writes ONLY this.
   std::string* output = nullptr;
   // RESOLVED Float params of THIS node (mirror of FloatListCookCtx::params); read via stringFloatParam.
   const std::map<std::string, float>* params = nullptr;
+
+  // --- MULTI-OUTPUT sinks (Sub-seam B; additive). A single-output op IGNORES both (they stay nullptr
+  // when the driver invokes a 1-output op, and a multi-output op only fills them when present). A
+  // multi-output op writes its MAIN String to *output (port 0) and its EXTRA outputs here, KEYED BY THE
+  // OP'S OWN SPEC OUTPUT-PORT INDEX (so the producer loop can fan each output onto the right channel:
+  // extra strings → ResidentNode::extStrOut[portIdx] / flat stringBuf[":"portIdx], scalars →
+  // ResidentNode::extOut[portIdx] / flat outCache[portIdx]). The op only writes the keys it owns.
+  //   extraStrOutputs : ADDITIONAL String outputs (port>0 String ports), keyed by spec output-port idx.
+  //   scalarOutputs   : Int/bool outputs DISSOLVED to float (fork-int-bool-dissolve-to-float), keyed by
+  //                     spec output-port idx. (FilePathParts.FileExists bool → 0.0/1.0;
+  //                     PickStringPart.TotalCount int → (float)count.)
+  std::map<int, std::string>* extraStrOutputs = nullptr;
+  std::map<int, float>* scalarOutputs = nullptr;
 };
 
 // A string op: read inputStrings (+ resolved Float params) → write *output. ONE fn (like a floatlist

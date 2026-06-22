@@ -404,6 +404,12 @@ class PointGraph {
   // last cook (Impl::stringBuf[flatKey(id)]). Returns nullptr if the node never cooked a string.
   // Borrowed (PointGraph-owned); valid until the next cook of that node.
   const std::string* debugCookedString(int nodeId) const;
+  // MULTI-OUTPUT (Sub-seam B) test-support: an EXTRA String output of a multi-output string op
+  // (FilePathParts.FilenameWithoutExtension/Extension), keyed by the op's spec output-port index
+  // (Impl::stringBuf[flatKey(id)+":"+portIdx]). portIdx==0 (the MAIN String output) is debugCookedString.
+  // Returns nullptr if that port never cooked a string. Scalar outputs (TotalCount/FileExists) ride
+  // Node::outCache[portIdx] — read those via the host-scalar bridge, not here.
+  const std::string* debugCookedStringPort(int nodeId, int portIdx) const;
   // Test-support for the PointList flow (7th cook): the HOST point list a flat-cooked pointlist node
   // produced last cook (Impl::pointListBuf[flatKey(id)]). Returns nullptr if the node never cooked a
   // pointlist. Borrowed (PointGraph-owned); valid until the next cook of that node.

@@ -1403,6 +1403,195 @@ int runStringRailSelfTest(bool injectBug) {
                 gotResident.c_str(), pass ? "PASS" : "FAIL");
   }
 
+  // LEG 33 — ★PickStringPart MULTI-OUTPUT (Sub-seam B): Fragments(String, port 0) + TotalCount(Int→Float,
+  // port 1) emitted in ONE cook. TiXL string/logic/PickStringPart.cs. The load-bearing multi-output proof
+  // is the TotalCount ASSERTION: a single-output bug (only the first String port written) leaves the
+  // scalar channel empty → TotalCount reads its default (0 / -1) → FAIL. We assert BOTH the Fragments
+  // string AND the TotalCount int, on BOTH the flat and resident legs.
+  //
+  // FLAT (Words mode, hand-derived against PickStringPart.cs):
+  //   input "hello world foo", SplitInto=Words(1), FragmentStart=1, FragmentCount=2:
+  //     Words split "[\s\.\;\,()`:]+" → ["hello","world","foo"]  (rawCount=3, no trailing empty → numChunks=3)
+  //     GetFragment(start=1,count=2): idx0=(1)%3=1→"world"; idx1 += " " + (2)%3=2→"foo" → "world foo"
+  //     TotalCount = _chunks.Length = 3  (raw chunk count)
+  //   Flat readback: Fragments via debugCookedString(1); TotalCount via the node's outCache[1] (the flat
+  //   scalar bridge channel the multi-output cook writes — port 1).
+  //
+  // RESIDENT (Characters mode, proves the resident String WIRE feeds InputText + multi-output fan):
+  //   FloatToString(12345,"") → "12345" wired into InputText; SplitInto=Characters(0), FragmentStart=1,
+  //   FragmentCount=3:
+  //     Characters split Regex.Split("12345","") = ["","1","2","3","4","5",""]  (rawCount=7;
+  //       trailing empty stripped → numChunks=6)
+  //     GetFragment(start=1,count=3,delim ""): idx (1,2,3)%6 → chunks[1]"1"+chunks[2]"2"+chunks[3]"3" → "123"
+  //     TotalCount = _chunks.Length = 7  (RAW — includes BOTH boundary empties; the fork-totalcount-raw-chunks)
+  //   Resident readback: Fragments via extStrOut[0]; TotalCount via extOut[1] (the scalar fan channel).
+  //
+  // RED (injectBug): cookPickStringPart drops the last char of Fragments AND sets TotalCount = -999 (the
+  // REAL cook path). Resident also corrupts the upstream FloatToString first. Both legs + both channels bite.
+  {
+    // --- FLAT leg ---
+    stringInjectBug() = injectBug;
+    std::string flatFrag;
+    float flatCount = -1.0f;
+    {
+      Graph g;
+      Node n; n.id = 1; n.type = "PickStringPart";
+      n.strParams["InputText"] = "hello world foo";  // unwired → strDef const
+      n.params["SplitInto"]     = 1.0f;  // Words
+      n.params["FragmentStart"] = 1.0f;
+      n.params["FragmentCount"] = 2.0f;
+      g.nodes.push_back(n);
+      EvaluationContext ctx{};
+      ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+      const std::string* out = pg.debugCookedString(1);
+      flatFrag = out ? *out : std::string{};
+      // TotalCount (port 1) rode the flat scalar bridge → the graph node's outCache[1] (the multi-output
+      // cook wrote it via const_cast). The golden owns `g`, so read it back directly — the genuine channel.
+      if (const Node* gn = g.node(1)) flatCount = gn->outCache[1];
+    }
+    stringInjectBug() = false;
+    bool flatFragOk  = (flatFrag == "world foo");
+    bool flatCountOk = (std::fabs(flatCount - 3.0f) < 1e-5f);  // multi-output scalar proof (bug → -999)
+
+    // --- RESIDENT leg (R-2 production path) ---
+    stringInjectBug() = injectBug;
+    std::string resFrag;
+    float resCount = -1.0f;
+    {
+      // Graph: PickStringPart id=1 (terminal), FloatToString id=2 (String producer for InputText).
+      // PickStringPart input ports: InputText is the FIRST String INPUT port. Its absolute spec index is
+      // 2 (outputs [0]=Fragments,[1]=TotalCount; inputs [2]=InputText,[3]=SplitInto,...). InputText pin = 2.
+      Graph g;
+      Node n; n.id = 1; n.type = "PickStringPart";
+      n.params["SplitInto"]     = 0.0f;  // Characters
+      n.params["FragmentStart"] = 1.0f;
+      n.params["FragmentCount"] = 3.0f;
+      // InputText WIRED (no strParams — the resident String wire drives it).
+      g.nodes.push_back(n);
+      Node fts; fts.id = 2; fts.type = "FloatToString";
+      fts.params["Value"] = 12345.0f; fts.strParams["Format"] = "";  // → "12345"
+      g.nodes.push_back(fts);
+      g.connections.push_back({1000, pinId(2, /*out*/ 0), pinId(1, /*InputText port idx*/ 2)});
+      g.nextId = 3;
+
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);  // cooks FloatToString → extStrOut, THEN PickStringPart fans Fragments+TotalCount
+      const ResidentNode* nd = rg.node("1");
+      if (nd) {
+        auto it = nd->extStrOut.find(/*Fragments port idx*/ 0);
+        resFrag = it != nd->extStrOut.end() ? it->second : std::string{};
+        resCount = nd->extOut[/*TotalCount port idx*/ 1];  // the scalar fan channel
+      }
+    }
+    stringInjectBug() = false;
+    bool resFragOk  = (resFrag == "123");
+    bool resCountOk = (std::fabs(resCount - 7.0f) < 1e-5f);  // RAW chunk count incl. both boundary empties
+
+    bool pass = flatFragOk && flatCountOk && resFragOk && resCountOk;
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG33 PickStringPart FLAT Words frag=\"%s\" want=\"world foo\", "
+                "TotalCount=%.1f want=3.0; RESIDENT Chars frag=\"%s\" want=\"123\", TotalCount=%.1f want=7.0 "
+                "-> %s\n",
+                flatFrag.c_str(), flatCount, resFrag.c_str(), resCount, pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 34 — ★FilePathParts MULTI-OUTPUT (Sub-seam B): THREE String outputs (Directory[0] +
+  // FilenameWithoutExtension[1] + Extension[2]) + FileExists(bool→Float, port 3) in ONE cook. TiXL
+  // string/logic/FilePathParts.cs. The load-bearing multi-output proof is reading all THREE String
+  // outputs back as DISTINCT correct values — a single-output bug collapses ports 1/2 to empty. FileExists
+  // is HERMETIC (environment-dependent fork) → NOT asserted; only the path-parsing outputs are.
+  //
+  // FLAT (hand-derived against System.IO.Path, Windows-rule fork):
+  //   input "/home/user/project/scene.tixl.scn":
+  //     Directory                = "/home/user/project"  (before the last '/')
+  //     FilenameWithoutExtension = "scene.tixl"          (filename "scene.tixl.scn" minus last-dot tail)
+  //     Extension                = ".scn"                (from the last '.', incl. dot)
+  //   All three DISTINCT. Flat readback: Directory via debugCookedString(1) (port 0); Filename/Extension
+  //   via debugCookedStringPort(1, 1/2) (the multi-output port dimension on the flat stringBuf key).
+  //
+  // RESIDENT (proves the resident String WIRE feeds FilePath + the 3-String fan):
+  //   FloatToString(3.14,"") → "3.14" wired into FilePath:
+  //     Directory="" (no separator); FilenameWithoutExtension="3" (before last '.'); Extension=".14".
+  //   Distinct (""/"3"/".14"). Resident readback: extStrOut[0/1/2].
+  //
+  // RED (injectBug): cookFilePathParts drops the last char of EVERY String output (the REAL cook).
+  // Resident also corrupts the upstream FloatToString first. Distinctness/values collapse → both legs bite.
+  {
+    // --- FLAT leg ---
+    stringInjectBug() = injectBug;
+    std::string flatDir, flatName, flatExt;
+    {
+      Graph g;
+      Node n; n.id = 1; n.type = "FilePathParts";
+      n.strParams["FilePath"] = "/home/user/project/scene.tixl.scn";  // unwired → strDef const
+      g.nodes.push_back(n);
+      EvaluationContext ctx{};
+      ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
+      const std::string* d = pg.debugCookedString(1);            // Directory (port 0)
+      const std::string* f = pg.debugCookedStringPort(1, 1);     // FilenameWithoutExtension (port 1)
+      const std::string* e = pg.debugCookedStringPort(1, 2);     // Extension (port 2)
+      flatDir  = d ? *d : std::string{};
+      flatName = f ? *f : std::string{};
+      flatExt  = e ? *e : std::string{};
+    }
+    stringInjectBug() = false;
+    bool flatDirOk  = (flatDir  == "/home/user/project");
+    bool flatNameOk = (flatName == "scene.tixl");
+    bool flatExtOk  = (flatExt  == ".scn");
+    // Distinctness is the multi-output proof: three SEPARATE channels carry three DIFFERENT values.
+    bool flatDistinct = (flatDir != flatName) && (flatName != flatExt) && (flatDir != flatExt);
+
+    // --- RESIDENT leg (R-2 production path) ---
+    stringInjectBug() = injectBug;
+    std::string resDir, resName, resExt;
+    {
+      // Graph: FilePathParts id=1, FloatToString id=2 (String producer for FilePath). FilePath is the
+      // FIRST String INPUT port; its absolute spec index is 4 (outputs [0..3], input [4]=FilePath). Pin = 4.
+      Graph g;
+      Node n; n.id = 1; n.type = "FilePathParts";
+      // FilePath WIRED (no strParams — the resident String wire drives it).
+      g.nodes.push_back(n);
+      Node fts; fts.id = 2; fts.type = "FloatToString";
+      fts.params["Value"] = 3.14f; fts.strParams["Format"] = "";  // → "3.14"
+      g.nodes.push_back(fts);
+      g.connections.push_back({1100, pinId(2, /*out*/ 0), pinId(1, /*FilePath port idx*/ 4)});
+      g.nextId = 3;
+
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);  // cooks FloatToString → extStrOut, THEN FilePathParts fans the 3 Strings
+      const ResidentNode* nd = rg.node("1");
+      if (nd) {
+        auto rd = nd->extStrOut.find(0);  resDir  = rd != nd->extStrOut.end() ? rd->second : std::string{};
+        auto rf = nd->extStrOut.find(1);  resName = rf != nd->extStrOut.end() ? rf->second : std::string{};
+        auto re = nd->extStrOut.find(2);  resExt  = re != nd->extStrOut.end() ? re->second : std::string{};
+      }
+    }
+    stringInjectBug() = false;
+    bool resDirOk  = (resDir  == "");      // no separator → ""
+    bool resNameOk = (resName == "3");     // "3.14" before last '.' → "3"
+    bool resExtOk  = (resExt  == ".14");   // from last '.' → ".14"
+    // Distinctness on the resident fan: "3" vs ".14" (Directory "" excluded from the != chain since it
+    // is legitimately empty here — assert it equals "" instead, and Name != Ext for the multi-out proof).
+    bool resDistinct = (resName != resExt);
+
+    bool pass = flatDirOk && flatNameOk && flatExtOk && flatDistinct &&
+                resDirOk && resNameOk && resExtOk && resDistinct;
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] LEG34 FilePathParts FLAT dir=\"%s\"|name=\"%s\"|ext=\"%s\" "
+                "want=/home/user/project|scene.tixl|.scn (distinct=%s); RESIDENT dir=\"%s\"|name=\"%s\"|"
+                "ext=\"%s\" want=|3|.14 -> %s\n",
+                flatDir.c_str(), flatName.c_str(), flatExt.c_str(), flatDistinct ? "Y" : "N",
+                resDir.c_str(), resName.c_str(), resExt.c_str(), pass ? "PASS" : "FAIL");
+  }
+
   q->release();
   dev->release();
   pool->release();

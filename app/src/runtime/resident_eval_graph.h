@@ -236,8 +236,14 @@ void cookColorListNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
 // Runs the op's StringCookFn (findStringOp). Returns false when `path` is not a String producer
 // (caller treats it as an empty string). String ops are STATELESS — no cross-frame accumulator (simpler
 // than colorlist's KeepColors), so there is no `state` parameter. Pure CPU, no Metal.
+// MULTI-OUTPUT (Sub-seam B): extraStrOut / scalarOut are the op's EXTRA String / scalar outputs keyed
+// by the op's own spec output-port index. They are nullptr for the recursive gather (a downstream
+// String input only wants port-0); cookStringNodes passes its per-node sinks so a multi-output op
+// (PickStringPart, FilePathParts) fans all outputs in ONE cook. Single-output ops never touch them.
 bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
-                        const ResidentEvalCtx& ctx, std::string& out, int depth = 0);
+                        const ResidentEvalCtx& ctx, std::string& out, int depth = 0,
+                        std::map<int, std::string>* extraStrOut = nullptr,
+                        std::map<int, float>* scalarOut = nullptr);
 
 // Per-frame PRODUCTION cook for the STRING currency (host std::string cook flow = TiXL Slot<string>).
 // Walks the resident graph, cooks every String-producer op (findStringOp != null) by gathering its

@@ -267,6 +267,14 @@ const std::string* PointGraph::debugCookedString(int nodeId) const {
   return it != p_->stringBuf.end() ? &it->second : nullptr;
 }
 
+const std::string* PointGraph::debugCookedStringPort(int nodeId, int portIdx) const {
+  // MAIN String output (port 0) lives at flatKey(id); EXTRA outputs at flatKey(id)+":"+portIdx (the
+  // multi-output port dimension written by cookStringNode's extra-output distribution).
+  if (portIdx == 0) return debugCookedString(nodeId);
+  auto it = p_->stringBuf.find(flatKey(nodeId) + ":" + std::to_string(portIdx));
+  return it != p_->stringBuf.end() ? &it->second : nullptr;
+}
+
 const std::vector<SwPoint>* PointGraph::debugCookedPointList(int nodeId) const {
   auto it = p_->pointListBuf.find(flatKey(nodeId));
   return it != p_->pointListBuf.end() ? &it->second : nullptr;
@@ -1250,13 +1258,35 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     std::vector<std::string> inputStrings = gatherStringInputs(id, *s);
 
     std::string& out = p_->stringBuf[flatKey(id)];
+    // MULTI-OUTPUT (Sub-seam B): a multi-output op (PickStringPart, FilePathParts) fills these EXTRA
+    // sinks keyed by its own spec output-port index. The port-0 single-output path stays BYTE-IDENTICAL
+    // (every incumbent op leaves both empty → the two distribution loops below are no-ops). Extra
+    // strings get a PORT DIMENSION on the flat key (flatKey(id)+":"+portIdx — debugCookedStringPort
+    // reads them); scalar outputs ride Node::outCache[portIdx] (the SAME flat host-scalar/bridge channel
+    // cookStringLength/cookHostScalar use), so a downstream Float input wired to TotalCount reads it.
+    std::map<int, std::string> extraStr;
+    std::map<int, float> scalarOut;
     StringCookCtx sc;
     sc.dev = p_->dev; sc.lib = p_->lib; sc.queue = p_->queue;
     sc.ctx = &ctx; sc.nodeId = id;
     sc.inputStrings = &inputStrings;
     sc.output = &out;
     sc.params = nodeParams(id);
+    sc.extraStrOutputs = &extraStr;
+    sc.scalarOutputs = &scalarOut;
     (*fn)(sc);
+    // Distribute the EXTRA outputs (no-ops for single-output incumbents → byte-identical port-0 path).
+    for (auto& kv : extraStr) p_->stringBuf[flatKey(id) + ":" + std::to_string(kv.first)] = kv.second;
+    if (!scalarOut.empty()) {
+      // Node::outCache is float[3] (the flat host-scalar/bridge channel). Guard the bound: a scalar
+      // output at port idx>=3 (FilePathParts.FileExists @ port 3) has no flat outCache slot — it rides
+      // ONLY the resident extOut[8] channel (production), and the FilePathParts flat golden asserts only
+      // the path-string outputs (hermetic), not FileExists. PickStringPart.TotalCount @ port 1 fits.
+      if (Node* mn = const_cast<Graph&>(g).node(id))
+        for (auto& kv : scalarOut)
+          if (kv.first >= 0 && kv.first < (int)(sizeof(mn->outCache) / sizeof(mn->outCache[0])))
+            mn->outCache[kv.first] = kv.second;
+    }
     return &out;
   };
 
