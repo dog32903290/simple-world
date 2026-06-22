@@ -21,7 +21,7 @@ app/src/runtime/compound_load.cpp:416
 app/src/runtime/gradient_ops_blendgradients.cpp:484
 app/src/runtime/math_ops_selftest.cpp:1339
 app/src/runtime/point_graph.cpp:1513
-app/src/runtime/point_graph.h:608
+app/src/runtime/point_graph.h:440
 app/src/runtime/point_graph_resident.cpp:820
 app/src/runtime/point_ops.h:539
 app/src/runtime/point_ops_attributesfromimagechannels.cpp:429
