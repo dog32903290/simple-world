@@ -107,6 +107,7 @@ namespace sw { int runMeshCombineGoldenSelfTest(bool); }         // mesh_input_g
 namespace sw { int runMeshInputProductionGoldenSelfTest(bool); } // mesh_input_golden.cpp (★R-2 production cookResident pixel + DrawMeshUnlit hole fix)
 namespace sw { int runMeshFlipNormalsGoldenSelfTest(bool); }     // mesh_modify_golden.cpp (mesh modify: FlipNormals, flat + R-2 resident)
 namespace sw { int runMeshVerticesToPointsSelfTest(bool); }      // point_ops_meshverticestopoints.cpp (★mesh-into-points seam: Mesh→Points, R-2 flat+resident)
+namespace sw { int runPointsOnMeshSelfTest(bool); }              // point_ops_pointsonmesh_golden.cpp (★area-weighted surface scatter; consumes meshIdx + ColorMap, R-2 + area-CDF leg)
 namespace sw { int runMeshRecomputeNormalsGoldenSelfTest(bool); }// mesh_modify_golden.cpp (mesh modify: RecomputeNormals face-cross, flat + R-2 resident)
 namespace sw { int runMeshTransformUvsGoldenSelfTest(bool); }    // mesh_modify_golden.cpp (mesh modify: TransformMeshUVs matrix·uv, flat + R-2 resident)
 namespace sw { int runFloatListSelfTest(bool); }                 // floatlist_golden.cpp (5th cook flow: FloatsToList host list)

@@ -259,6 +259,28 @@ const std::vector<NodeSpec>& generatorSpecs() {
         // W (TiXL float input, default 1.0) → the shader's OffsetScale (global TBN-offset multiplier).
         {"W", "W", "Float", true, 1.0f, -100.0f, 100.0f}},
        nullptr},
+      // PointsOnMesh — area-weighted barycentric SURFACE SCATTER (the FIRST op to consume meshIdx;
+      // rides BOTH the mesh-into-points seam AND the texture-into-points seam). Ports 1:1 with
+      // PointsOnMesh.cs [Input] order: Mesh (MeshBuffers → meshVtx+meshIdx), Count (int, the output
+      // bag size, .t3 default 10000), Seed (float, .t3 default 10), Texture (Texture2D ColorMap →
+      // inputTextures[0], optional → 1×1 white fallback), UseVertexSelection (bool, .t3 default true →
+      // 1.0). Output count = the Count Float port (DEFAULT count policy, NOT countFromMeshVtx). FORKS:
+      // the second `Colors` output is DEFERRED (color lives in p.Color); the dead IsEnabled input is
+      // omitted (a graph wrapper, not a kernel param).
+      {"PointsOnMesh",
+       "PointsOnMesh",
+       {{"Mesh", "Mesh", "Mesh", true},                // input mesh (port 0) — meshVtx + meshIdx seam
+        {"out", "out", "Points", false},               // scattered surface points (port 1)
+        // Count (TiXL int, .t3 default 10000) — drives the output bag size through the value spine.
+        {"Count", "Count", "Float", true, 10000.0f, 1.0f, 1000000.0f},
+        // Seed (TiXL float, .t3 default 10) — the wang_hash RNG seed.
+        {"Seed", "Seed", "Float", true, 10.0f, 0.0f, 1000.0f},
+        // Texture (TiXL Texture2D ColorMap) — gathered into inputTextures[0]; unwired → 1×1 white.
+        {"Texture", "Texture", "Texture2D", true},
+        // UseVertexSelection (TiXL bool, .t3 default true) — per-face weight = sum of vert Selection.
+        {"UseVertexSelection", "UseVertexSelection", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Off", "On"}}},
+       nullptr},
   };
   return specs;
 }

@@ -59,6 +59,7 @@ set(SW_SHADER_DEPS
   src/runtime/polarcoordinates_params.h src/runtime/edgerepeat_params.h
   src/runtime/offsetpoints_params.h src/runtime/pointattributefromnoise_params.h
   src/runtime/mesh_draw_params.h src/runtime/sw_mesh.h src/runtime/meshverticestopoints_params.h
+  src/runtime/pointsonmesh_params.h
   shaders/shared/noise.metal.h shaders/shared/quat.metal.h shaders/shared/hash.metal.h)
 set(SW_COMPILE_CMDS "")
 foreach(s ${SW_SHADERS})

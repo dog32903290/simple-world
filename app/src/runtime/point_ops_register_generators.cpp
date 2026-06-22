@@ -20,6 +20,7 @@ void registerRepetitionPointsOp();
 void registerCommonPointSetsOp();
 void registerBoundingBoxPointsOp();
 void registerMeshVerticesToPointsOp();
+void registerPointsOnMeshOp();
 
 void registerGeneratorPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
@@ -32,6 +33,7 @@ void registerGeneratorPointOps() {
   registerCommonPointSetsOp();  // (generator) CPU-fill fork of CommonPointSets, batch 37
   registerBoundingBoxPointsOp();  // (generator) CPU-readback AABB fork; reads Points -> 1 point, batch 38
   registerMeshVerticesToPointsOp();  // (generator+Mesh input) ★mesh-into-points seam: one Point per vertex
+  registerPointsOnMeshOp();  // (generator+Mesh+Texture2D) ★area-weighted surface scatter (consumes meshIdx)
 }
 
 }  // namespace sw
