@@ -73,10 +73,29 @@ struct StringCookCtx {
   // String port — in spec port order with MultiInput expanded into wire-declaration order; an
   // unwired single String port contributes its strDef const). Borrowed (driver-owned); never retained.
   const std::vector<std::string>* inputStrings = nullptr;
+  // --- Sub-seam A list inputs (additive; nullptr for every incumbent string op). ---
+  // Cooked upstream FloatList inputs (one entry per WIRED FloatList input port, spec port order). The
+  // FloatList-into-string BRIDGE: FloatListToString reads inputFloatLists[0] (its Value). The driver
+  // gathers these via the EXISTING FloatList currency (flat cookFloatListNode / resident
+  // cookResidentFloatList) — no new channel, just the existing FloatList gather wired into this ctx.
+  // An UNWIRED FloatList port contributes no entry (→ empty list → "" per the .cs null/empty guard).
+  const std::vector<std::vector<float>>* inputFloatLists = nullptr;
+  // Cooked upstream StringList inputs (one entry per WIRED StringList input port — or per WIRE for a
+  // MultiInput StringList port — in spec port order, wire-declaration order). The NEW StringList
+  // currency (mirror of inputStrings widened to a list-of-lists, the string twin of ColorList's
+  // inputLists): JoinStringList reads inputStringLists[0] (its Input list) and joins it. An UNWIRED
+  // StringList port contributes no entry (→ empty list → "" per the .cs empty-list guard).
+  const std::vector<std::vector<std::string>>* inputStringLists = nullptr;
   // Driver-owned output string. The op writes via *output = ...; never allocates/frees it.
   // This is ALWAYS the MAIN String output = port 0 (the channel a downstream String consumer reads,
   // and the one the recursive gather follows). A single-output op writes ONLY this.
   std::string* output = nullptr;
+  // Sub-seam A: OPTIONAL driver-owned StringList output, for a (future) String op whose MAIN output is a
+  // host string LIST rather than a single string — the contract slot mirroring `output` for the StringList
+  // currency. nullptr today (FloatListToString / JoinStringList both produce a single String → write
+  // *output; the dedicated StringList PRODUCER, SplitString, rides its own StringListCookCtx, not this).
+  // Present so the ctx is complete the day a String-rail op also emits a list (mirror of extraStrOutputs).
+  std::vector<std::string>* listOutput = nullptr;
   // RESOLVED Float params of THIS node (mirror of FloatListCookCtx::params); read via stringFloatParam.
   const std::map<std::string, float>* params = nullptr;
 

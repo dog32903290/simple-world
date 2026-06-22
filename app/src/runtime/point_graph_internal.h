@@ -130,6 +130,13 @@ struct PointGraph::Impl {
   // resident path (parallel to floatListBuf). The string value channel's transport store.
   std::map<std::string, std::string> stringBuf;  // key -> host string
 
+  // Per-node STRINGLIST output (host List<string> cook flow = TiXL Slot<List<string>>, Sub-seam A). A
+  // HOST-side string LIST (std::vector<std::string>) that rides between StringList ports — NOT a GPU
+  // buffer, so (like stringBuf) there is NO Metal allocation and NO pre-sizing (the vector self-sizes;
+  // the op clears + fills it). Keyed by flat id or resident path (parallel to stringBuf). The string-list
+  // value channel's transport store; SplitString is its first producer, JoinStringList its first consumer.
+  std::map<std::string, std::vector<std::string>> stringListBuf;  // key -> host string list
+
   // Per-node POINTLIST output (the 7th cook flow = TiXL Slot<StructuredList> / StructuredList<Point>).
   // A HOST-side CPU point list (std::vector<SwPoint>) that rides between PointList ports — NOT a GPU
   // buffer, so (like floatListBuf/stringBuf) there is NO Metal allocation and NO pre-sizing (the vector

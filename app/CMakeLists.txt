@@ -299,7 +299,12 @@ add_executable(simple_world
   src/runtime/string_ops_searchandreplace.cpp
   src/runtime/string_ops_pickstringpart.cpp
   src/runtime/string_ops_filepathparts.cpp
+  src/runtime/string_ops_floatlisttostring.cpp
+  src/runtime/string_ops_joinstringlist.cpp
+  src/runtime/stringlist_op_registry.cpp
+  src/runtime/stringlist_ops_splitstring.cpp
   src/string_rail_golden.cpp
+  src/string_rail_golden_subseama.cpp
   src/runtime/pointlist_op_registry.cpp
   src/runtime/pointlist_ops_radialpointscpu.cpp
   src/runtime/pointlist_ops_transformcpupoint.cpp
@@ -331,6 +336,7 @@ add_executable(simple_world
   src/runtime/value_eval_ops.cpp
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
+  src/runtime/point_graph_debug.cpp
   src/runtime/point_graph_resident.cpp
   src/runtime/point_graph_selftest.cpp
   src/runtime/resident_cook_selftest.cpp
@@ -379,6 +385,7 @@ add_executable(simple_world
   src/runtime/resident_host_scalar_cook.cpp
   src/runtime/resident_colorlist_cook.cpp
   src/runtime/resident_string_cook.cpp
+  src/runtime/resident_stringlist_cook.cpp
   src/runtime/resident_eval_graph_selftest.cpp
   src/runtime/resident_eval_cache.cpp
   src/runtime/resident_eval_cache_selftest.cpp
@@ -480,8 +487,15 @@ add_custom_command(TARGET simple_world POST_BUILD
 # checks gets violated — this catches drift at compile time, not in a late human review.
 # Runs before every simple_world build; standalone: cmake --build build --target check-arch.
 add_custom_target(check-arch
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check_arch.sh ${CMAKE_CURRENT_SOURCE_DIR}/src
-  COMMENT "Checking zone dependency direction (ARCHITECTURE.md)"
+  # Invoke EXACTLY as the documented command (`bash tools/check_arch.sh` from the repo root):
+  # SRC defaults to the RELATIVE app/src and GRANDFATHER to the relative tools/linecount-grandfather.txt.
+  # The grandfather file keys files by their repo-relative path (app/src/...), and the script greps
+  # ^<path>:, so the scanned paths MUST be repo-relative too — passing an absolute SRC makes every
+  # grandfathered file look brand-new (absolute path never matches the relative key) → false FAIL.
+  # Hence: run from the repo root, no SRC argument.
+  COMMAND bash tools/check_arch.sh
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..
+  COMMENT "Checking zone dependency direction + line-count ratchet (ARCHITECTURE.md)"
   VERBATIM)
 add_dependencies(simple_world check-arch)
 

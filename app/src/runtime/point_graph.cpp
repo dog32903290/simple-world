@@ -22,6 +22,7 @@
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
 #include "runtime/mesh_op_registry.h"     // MeshCookCtx/findMeshOp (the 4th cook flow = MeshBuffers)
 #include "runtime/string_op_registry.h"        // StringCookCtx/findStringOp (the 6th cook flow = host std::string)
+#include "runtime/stringlist_op_registry.h"    // StringListCookCtx/findStringListOp (host List<string> = Sub-seam A)
 #include "runtime/pointlist_op_registry.h"     // PointListCookCtx/findPointListOp (the 7th cook flow = host SwPoint list)
 #include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
@@ -228,123 +229,12 @@ bool PointGraph::valid() const { return p_->dev && p_->queue && p_->target; }
 // readback) re-read this each frame and handle arbitrary size — so a tex terminal can be any res.
 MTL::Texture* PointGraph::target() const { return p_->displayTex ? p_->displayTex : p_->target; }
 
-uint32_t PointGraph::debugCookedCount(int nodeId) const {
-  auto it = p_->outCount.find(flatKey(nodeId));
-  return it != p_->outCount.end() ? it->second : 0u;
-}
+// The PointGraph::debugCooked* test-support readback accessors live in point_graph_debug.cpp (extracted
+// to keep this file at-or-below its line-count cap, ARCHITECTURE.md rule 4 ratchet). Sub-seam A added
+// debugCookedStringList there alongside the existing per-flow readbacks.
 
-const MTL::Buffer* PointGraph::debugCookedBuffer(int nodeId) const {
-  auto it = p_->outBuf.find(flatKey(nodeId));
-  return it != p_->outBuf.end() ? it->second : nullptr;
-}
-
-bool PointGraph::debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
-                                 const MTL::Buffer*& idx, uint32_t& idxCount) const {
-  const std::string key = flatKey(nodeId);
-  auto vb = p_->meshVtxBuf.find(key);
-  auto ib = p_->meshIdxBuf.find(key);
-  if (vb == p_->meshVtxBuf.end() || ib == p_->meshIdxBuf.end() || !vb->second || !ib->second)
-    return false;
-  vtx = vb->second;
-  idx = ib->second;
-  vtxCount = p_->meshVtxCount.count(key) ? p_->meshVtxCount[key] : 0u;
-  idxCount = p_->meshIdxCount.count(key) ? p_->meshIdxCount[key] : 0u;
-  return true;
-}
-
-const std::vector<float>* PointGraph::debugCookedFloatList(int nodeId) const {
-  auto it = p_->floatListBuf.find(flatKey(nodeId));
-  return it != p_->floatListBuf.end() ? &it->second : nullptr;
-}
-
-const std::vector<simd::float4>* PointGraph::debugCookedColorList(int nodeId) const {
-  auto it = p_->colorListBuf.find(flatKey(nodeId));
-  return it != p_->colorListBuf.end() ? &it->second : nullptr;
-}
-
-const std::string* PointGraph::debugCookedString(int nodeId) const {
-  auto it = p_->stringBuf.find(flatKey(nodeId));
-  return it != p_->stringBuf.end() ? &it->second : nullptr;
-}
-
-const std::string* PointGraph::debugCookedStringPort(int nodeId, int portIdx) const {
-  // MAIN String output (port 0) lives at flatKey(id); EXTRA outputs at flatKey(id)+":"+portIdx (the
-  // multi-output port dimension written by cookStringNode's extra-output distribution).
-  if (portIdx == 0) return debugCookedString(nodeId);
-  auto it = p_->stringBuf.find(flatKey(nodeId) + ":" + std::to_string(portIdx));
-  return it != p_->stringBuf.end() ? &it->second : nullptr;
-}
-
-const std::vector<SwPoint>* PointGraph::debugCookedPointList(int nodeId) const {
-  auto it = p_->pointListBuf.find(flatKey(nodeId));
-  return it != p_->pointListBuf.end() ? &it->second : nullptr;
-}
-
-const SwGradient* PointGraph::debugCookedGradient(int nodeId) const {
-  auto it = p_->gradientBuf.find(flatKey(nodeId));
-  return it != p_->gradientBuf.end() ? &it->second : nullptr;
-}
-
-MTL::Texture* PointGraph::debugCookedFeedbackOutput(int nodeId, int ordinal, bool resident) const {
-  if (ordinal < 0 || ordinal >= Impl::kMaxFeedbackOut) return nullptr;
-  // Flat keys by "#id" (flatKey); resident keys by the path "id" (== node id as string, libFromGraph).
-  const std::string key = resident ? std::to_string(nodeId) : flatKey(nodeId);
-  auto it = p_->feedbackOut.find(key);
-  return it != p_->feedbackOut.end() ? it->second[ordinal] : nullptr;
-}
-
-int PointGraph::defaultDrawTarget(const Graph& g) const {
-  // The terminal is the most-downstream realizable node: a tex node (RenderTarget/Blur) wins, else
-  // a DrawPoints (Command). With image filters (lane I) a graph can hold SEVERAL tex nodes chained
-  // (RenderTarget -> Blur -> ...); the live terminal must be the LAST one — the tex node whose own
-  // output is not consumed by another node (a sink). Falling back to the first tex node would show
-  // the un-filtered RenderTarget and make every image filter invisible in the live app.
-  auto outputConsumed = [&](int id) {
-    for (const Connection& c : g.connections)
-      if (pinNode(c.fromPin) == id) return true;
-    return false;
-  };
-  int firstTex = 0;
-  for (const Node& n : g.nodes)
-    if (texReg().find(n.type) != texReg().end()) {
-      if (!firstTex) firstTex = n.id;
-      if (!outputConsumed(n.id)) return n.id;  // a sink tex node = the real terminal
-    }
-  if (firstTex) return firstTex;  // all tex nodes feed each other (cycle): fall back to the first
-  for (const Node& n : g.nodes)
-    if (cmdReg().find(n.type) != cmdReg().end()) return n.id;
-  // Legacy draw terminal (PointDrawFn, retired in batch 4): production registers none, but
-  // self-contained golden selftests register a capture-only draw op as their terminal — keep it
-  // discoverable so cook() can dispatch it, until the draw model is fully retired.
-  for (const Node& n : g.nodes)
-    if (drawReg().find(n.type) != drawReg().end()) return n.id;
-  return 0;
-}
-
-int PointGraph::defaultDrawTarget(const SymbolLibrary& lib, const std::string& symbolId) const {
-  // Same terminal priority as the flat overload, scanning one symbol's children. With chained tex
-  // nodes (RenderTarget -> Blur), prefer the SINK — the tex child whose output no connection
-  // consumes — so the live viewport shows the last filter, not the un-filtered RenderTarget.
-  const Symbol* s = lib.find(symbolId);
-  if (!s) return 0;
-  auto outputConsumed = [&](int id) {
-    for (const SymbolConnection& c : s->connections)
-      if (c.srcChild == id) return true;
-    return false;
-  };
-  int firstTex = 0;
-  for (const SymbolChild& c : s->children)
-    if (texReg().find(c.symbolId) != texReg().end()) {
-      if (!firstTex) firstTex = c.id;
-      if (!outputConsumed(c.id)) return c.id;
-    }
-  if (firstTex) return firstTex;
-  for (const SymbolChild& c : s->children)
-    if (cmdReg().find(c.symbolId) != cmdReg().end()) return c.id;
-  for (const SymbolChild& c : s->children)
-    if (drawReg().find(c.symbolId) != drawReg().end()) return c.id;
-  return 0;
-}
+// PointGraph::defaultDrawTarget (both overloads) live in point_graph_debug.cpp (extracted to keep this
+// file at-or-below its line-count cap, ARCHITECTURE.md rule 4 ratchet).
 
 void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
                       int targetNodeId) {
@@ -592,6 +482,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // is NOT a string op — it does NOT register a StringCookFn (see leaf comment); it is cooked by the
   // value-eval path. Only producers of a String output ride cookStringNode.
   std::function<const std::string*(int)> cookStringNode;
+  // Forward-declared: the STRINGLIST cook flow (host List<string> = TiXL Slot<List<string>>, Sub-seam A).
+  // A stringlist op (SplitString) gathers its String inputs (via cookStringNode) into a host list; a
+  // future StringList combiner recurses cookStringListNode on a StringList input. Body assigned below.
+  // std::function breaks the self-recursion ordering. JoinStringList CONSUMES this list (its StringList
+  // input gather, in cookStringNode below) — the StringList-into-String half of Sub-seam A.
+  std::function<const std::vector<std::string>*(int)> cookStringListNode;
   // Forward-declared: cookCommand gathers a Mesh input (DrawMeshUnlit) by cooking the upstream mesh
   // node here, then reading its buffers via debugCookedMesh. Body assigned below (it has no recursion
   // into cookCommand — a mesh generator owns no command inputs — but the ordering break keeps it
@@ -1257,6 +1153,34 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
 
     std::vector<std::string> inputStrings = gatherStringInputs(id, *s);
 
+    // Sub-seam A: gather FloatList + StringList inputs (the bridge + the new StringList currency) in spec
+    // port order, mirroring the gather in cookHostScalar / cookColorListNode. FloatListToString.Value rides
+    // inputFloatLists (the EXISTING FloatList currency via cookFloatListNode); JoinStringList.Input rides
+    // inputStringLists (via cookStringListNode). An UNWIRED list port contributes no entry (→ empty → ""
+    // per each op's empty guard). A MultiInput list port yields one entry per wire (wire-declaration order).
+    std::vector<std::vector<float>> inputFloatLists;
+    std::vector<std::vector<std::string>> inputStringLists;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!port.isInput) continue;
+      const int inPin = pinId(id, (int)i);
+      if (port.dataType == "FloatList") {
+        for (const Connection& c : g.connections) {
+          if (c.toPin != inPin) continue;
+          const std::vector<float>* up = cookFloatListNode(pinNode(c.fromPin));
+          inputFloatLists.push_back(up ? *up : std::vector<float>{});
+          if (!port.multiInput) break;
+        }
+      } else if (port.dataType == "StringList") {
+        for (const Connection& c : g.connections) {
+          if (c.toPin != inPin) continue;
+          const std::vector<std::string>* up = cookStringListNode(pinNode(c.fromPin));
+          inputStringLists.push_back(up ? *up : std::vector<std::string>{});
+          if (!port.multiInput) break;
+        }
+      }
+    }
+
     std::string& out = p_->stringBuf[flatKey(id)];
     // MULTI-OUTPUT (Sub-seam B): a multi-output op (PickStringPart, FilePathParts) fills these EXTRA
     // sinks keyed by its own spec output-port index. The port-0 single-output path stays BYTE-IDENTICAL
@@ -1270,6 +1194,8 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     sc.dev = p_->dev; sc.lib = p_->lib; sc.queue = p_->queue;
     sc.ctx = &ctx; sc.nodeId = id;
     sc.inputStrings = &inputStrings;
+    sc.inputFloatLists = &inputFloatLists;    // Sub-seam A: FloatListToString.Value (the bridge)
+    sc.inputStringLists = &inputStringLists;  // Sub-seam A: JoinStringList.Input (the StringList currency)
     sc.output = &out;
     sc.params = nodeParams(id);
     sc.extraStrOutputs = &extraStr;
@@ -1287,6 +1213,45 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
           if (kv.first >= 0 && kv.first < (int)(sizeof(mn->outCache) / sizeof(mn->outCache[0])))
             mn->outCache[kv.first] = kv.second;
     }
+    return &out;
+  };
+
+  // STRINGLIST cook flow (host List<string> = TiXL Slot<List<string>>, Sub-seam A). Mirror of
+  // cookColorListNode over std::string: gather this op's String inputs (via cookStringNode, wire-OR-const
+  // through gatherStringInputs) and StringList inputs (recurse cookStringListNode), then dispatch the
+  // op into Impl::stringListBuf. SplitString is the first producer (String input → list). Returns the
+  // cooked host list (nullptr if not a stringlist op / unknown node).
+  cookStringListNode = [&](int id) -> const std::vector<std::string>* {
+    const Node* n = g.node(id);
+    if (!n) return nullptr;
+    const NodeSpec* s = findSpec(n->type);
+    if (!s) return nullptr;
+    const StringListCookFn* fn = findStringListOp(n->type);
+    if (!fn || !*fn) return nullptr;
+
+    std::vector<std::string> inputStrings = gatherStringInputs(id, *s);  // SplitString.String / .Split
+    std::vector<std::vector<std::string>> inputLists;                    // upstream StringList (future combiner)
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!(port.isInput && port.dataType == "StringList")) continue;
+      const int inPin = pinId(id, (int)i);
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        const std::vector<std::string>* up = cookStringListNode(pinNode(c.fromPin));
+        inputLists.push_back(up ? *up : std::vector<std::string>{});
+        if (!port.multiInput) break;
+      }
+    }
+
+    std::vector<std::string>& out = p_->stringListBuf[flatKey(id)];
+    StringListCookCtx slc;
+    slc.dev = p_->dev; slc.lib = p_->lib; slc.queue = p_->queue;
+    slc.ctx = &ctx; slc.nodeId = id;
+    slc.inputStrings = &inputStrings;
+    slc.inputLists = &inputLists;
+    slc.output = &out;
+    slc.params = nodeParams(id);
+    (*fn)(slc);
     return &out;
   };
 
@@ -1412,6 +1377,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     // list so a test can read it back (debugCookedColorList). No ColorList VISUALIZER (the vec4-list
     // must cross to a texture / point colors to be drawn — out of this seam). Clear the viewport (§5).
     cookColorListNode(target->id);
+    p_->clearTarget();
+    return;
+  }
+  if (findStringListOp(target->type)) {
+    // StringList terminal (preview pin on a StringList-producing op: SplitString): cook the host list so
+    // a test can read it back (debugCookedStringList). No StringList VISUALIZER. Clear the viewport (§5).
+    cookStringListNode(target->id);
     p_->clearTarget();
     return;
   }

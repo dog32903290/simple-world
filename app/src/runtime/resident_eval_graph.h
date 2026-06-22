@@ -119,6 +119,13 @@ struct ResidentNode {
   // Empty for every non-string node (zero footprint). Borrowed-readable by a downstream resident String
   // consumer (StringLength's resident leg gathers through it) + the resident string-rail golden (LEG 20).
   std::map<int, std::string> extStrOut;  // output port index -> cooked host string
+  // Externally-cooked STRINGLIST outputs (host std::vector<std::string> cook flow = TiXL Slot<List<string>>).
+  // Sub-seam A — the string-rail twin of extColorOut over std::string: a StringList producer (SplitString)
+  // hands its result HERE, keyed by output port index. A SEPARATE channel — a host string LIST is neither a
+  // float (extOut[]) nor a single string (extStrOut), and a StringList wire carries no GPU buffer. Empty for
+  // every non-stringlist node (zero footprint). Borrowed-readable by a downstream resident StringList
+  // consumer (JoinStringList's resident leg gathers through cookResidentStringList) + the golden (LEG 36).
+  std::map<int, std::vector<std::string>> extStrListOut;  // output port index -> cooked host string list
   // S2 bypass (= TiXL Slot.ByPassUpdate, Slot.cs:176-179): when bypassed AND bypassable, this node's
   // MAIN output (bypassOutSlot) returns its MAIN input's (bypassInSlot) upstream value instead of
   // cooking. Set at build time (mirrors how a wire feeding a slot is resolved at build, not eval).
@@ -174,87 +181,12 @@ std::map<std::string, float> resolveResidentFloatInputs(const ResidentEvalGraph&
                                                         const ResidentNode& n,
                                                         const ResidentEvalCtx& ctx);
 
-// Cook ONE upstream FloatList-producing resident node (FloatsToList, …) into `out`, gathering its
-// inputs THROUGH the resident Connection drivers (mirror of the flat cookFloatListNode). Returns false
-// when `path` is not a FloatList producer (caller treats it as an empty list). Exposed (defined in
-// resident_host_scalar_cook.cpp) so the resident tex-cook own-tex branch (point_graph_resident.cpp) can
-// gather the FloatList currency for ValuesToTexture/ValuesToTexture2 — the FloatList twin of the
-// in-scope cookResidentGradient/cookResidentCurve gathers (makes the FloatList own-tex family LIVE on
-// the production cookResident path, R-2 rule).
-bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
-                           const ResidentEvalCtx& ctx, std::vector<float>& out, int depth = 0);
-
-// Per-frame PRODUCTION cook for the FloatList→Float BRIDGE (list-routing seam). Walks the resident
-// graph, cooks every FloatList host-scalar op (FloatListLength / PickFloatFromList) by gathering its
-// upstream FloatList inputs THROUGH the resident Connection drivers, and writes the scalar onto the
-// node's extOut[0] — the channel evalResidentFloat reads for !evaluate nodes. The resident twin of the
-// flat cookHostScalar branch (which only runs as a flat-cook TERMINAL = golden-only); THIS is the leg
-// that lives in the running app (frame_cook.cpp calls it once per frame, same slot as
-// cookAudioReactionNodes). StringLength is SKIPPED (its String wire is dropped by the resident flatten;
-// resident-bridging it needs the resident string-wire rail first — see resident_host_scalar_cook.cpp).
-// Mutates g (writes extOut, like cookAudioReactionNodes). Pure CPU, no Metal.
-void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
-
-// Cook ONE upstream COLORLIST-producing resident node (ColorsToList, …) into `out` (host color list),
-// gathering its inputs THROUGH the resident Connection drivers (mirror of the flat cookColorListNode).
-// The vec4 twin of cookResidentFloatList: a "ColorList" input port follows each Connection driver (a
-// future combiner); the 4 PARALLEL scalar Float MultiInput component ports (Colors.x/.y/.z/.w) gather
-// their wired scalars via evalResidentFloat per channel, then the leaf zips index i across the 4 into
-// one float4. Returns false when `path` is not a ColorList producer (caller treats it as empty).
-// `state` (optional) = THIS node's per-node CROSS-FRAME accumulator (KeepColors's `_list`). Supplied by
-// cookColorListNodes (keyed by resident path, the s_colorListState static — mirror of s_svState) ONLY for
-// the top node it cooks; recursive upstream gathers pass null (upstream producers are stateless). A
-// stateless op ignores it → byte-identical.
-bool cookResidentColorList(const ResidentEvalGraph& g, const std::string& path,
-                           const ResidentEvalCtx& ctx, std::vector<simd::float4>& out, int depth = 0,
-                           std::vector<simd::float4>* state = nullptr);
-
-// Per-frame PRODUCTION cook for the COLORLIST currency (vec4-list cook flow). Walks the resident graph,
-// cooks every colorlist op (ColorsToList) by gathering its inputs THROUGH the resident Connection
-// drivers, and writes the host color list onto the node's extColorOut[outputPortIndex] — the channel a
-// downstream resident colorlist consumer (+ the golden) reads. The resident twin of the flat colorlist
-// terminal (which only runs as a flat-cook TERMINAL = golden-only); THIS is the leg that lives in the
-// running app (frame_cook.cpp calls it once per frame, same slot as cookHostScalarNodes). Mutates g
-// (writes extColorOut, like cookHostScalarNodes writes extOut). Pure CPU, no Metal. R-2 rule: the
-// colorlist currency is GENUINELY on the production resident path, not flat-only.
-//
-// `state` = the PER-NODE CROSS-FRAME accumulator store (KeepColors's `_list`), keyed by resident path,
-// owned by the caller as a function-local static (frame_cook.cpp's s_colorListState) — the EXACT mirror
-// of cookStatefulValueNodes's s_svState (frame_cook.cpp:337). It SURVIVES between frames so KeepColors
-// accumulates on the PRODUCTION resident path (R-2: not flat-only). Stateless colorlist ops never touch
-// their slot. Pass an empty map for a single-frame caller (a stateless golden) — the slot default-creates.
-void cookColorListNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
-                        std::map<std::string, std::vector<simd::float4>>& state);
-
-// Cook ONE upstream STRING-producing resident node (FloatToString / IntToString / Vec3ToString /
-// CombineStrings, …) into `out` (host string), gathering its inputs THROUGH the resident Connection
-// drivers (mirror of the flat cookStringNode, point_graph.cpp). The string twin of cookResidentColorList:
-//   • each String input port follows the Connection driver (primary + extraConns in WIRE order) and
-//     recurses this same fn (the upstream string); an UNWIRED port falls back to n->strInputs[port.id]
-//     (the wire-OR-const dual identity — byte-identical to the flat gather);
-//   • the op's Float params (FloatToString.Value, …) are resolved via resolveResidentFloatInputs.
-// Runs the op's StringCookFn (findStringOp). Returns false when `path` is not a String producer
-// (caller treats it as an empty string). String ops are STATELESS — no cross-frame accumulator (simpler
-// than colorlist's KeepColors), so there is no `state` parameter. Pure CPU, no Metal.
-// MULTI-OUTPUT (Sub-seam B): extraStrOut / scalarOut are the op's EXTRA String / scalar outputs keyed
-// by the op's own spec output-port index. They are nullptr for the recursive gather (a downstream
-// String input only wants port-0); cookStringNodes passes its per-node sinks so a multi-output op
-// (PickStringPart, FilePathParts) fans all outputs in ONE cook. Single-output ops never touch them.
-bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
-                        const ResidentEvalCtx& ctx, std::string& out, int depth = 0,
-                        std::map<int, std::string>* extraStrOut = nullptr,
-                        std::map<int, float>* scalarOut = nullptr);
-
-// Per-frame PRODUCTION cook for the STRING currency (host std::string cook flow = TiXL Slot<string>).
-// Walks the resident graph, cooks every String-producer op (findStringOp != null) by gathering its
-// inputs THROUGH the resident Connection drivers, and writes the host string onto the node's
-// extStrOut[outputPortIndex] — the channel a downstream resident String consumer (StringLength's
-// resident leg + the golden) reads. The resident twin of the flat cookStringNode (which only runs as a
-// flat-cook TERMINAL = golden-only); THIS is the leg that lives in the running app (frame_cook.cpp calls
-// it once per frame, BEFORE cookHostScalarNodes). Mutates g (writes extStrOut, like cookColorListNodes
-// writes extColorOut). Pure CPU, no Metal. R-2 rule: the String currency is GENUINELY on the production
-// resident path, not flat-only (task_32b5b6e5 — production cooks via resident; flat-only goldens lied).
-void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+// The RESIDENT value-currency cook prototypes (cookResidentFloatList / cookHostScalarNodes /
+// cookResidentColorList / cookColorListNodes / cookResidentStringList / cookResidentString /
+// cookStringNodes) were EXTRACTED into resident_value_cooks.h to keep this header at-or-below its
+// line-count cap (ARCHITECTURE.md rule 4 ratchet). Included at the tail (below, after the type
+// definitions it forward-declares) so every existing caller that includes resident_eval_graph.h still
+// sees them unchanged.
 
 // --- batch 1b cache API (resident_eval_cache.cpp) ---
 // Populate each node's per-output cache (one entry per NodeSpec output port) and mark live
@@ -408,3 +340,8 @@ int runResidentPatchSelfTest(bool injectBug);
 int runResidentLibPatchSelfTest(bool injectBug);
 
 }  // namespace sw
+
+// The host-side value-currency cook prototypes (FloatList / ColorList / String / StringList). Included
+// AFTER the ResidentEvalGraph / ResidentEvalCtx definitions above (the prototypes take them by
+// reference), so resident_eval_graph.h stays the single include hub — existing callers are unchanged.
+#include "runtime/resident_value_cooks.h"

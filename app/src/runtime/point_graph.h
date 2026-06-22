@@ -391,33 +391,20 @@ class PointGraph {
   // the node never cooked a mesh. Buffers are PointGraph-owned (borrowed; do not release).
   bool debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
                        const MTL::Buffer*& idx, uint32_t& idxCount) const;
-  // Test-support for the FloatList flow (5th cook): the HOST list a flat-cooked floatlist node
-  // produced last cook (Impl::floatListBuf[flatKey(id)]). Returns nullptr if the node never cooked a
-  // floatlist. Borrowed (PointGraph-owned); valid until the next cook of that node.
-  const std::vector<float>* debugCookedFloatList(int nodeId) const;
-  // Test-support for the COLORLIST flow (vec4-list cook): the HOST color list a flat-cooked colorlist
-  // node produced last cook (Impl::colorListBuf[flatKey(id)]). Returns nullptr if the node never cooked
-  // a colorlist. Borrowed (PointGraph-owned); valid until the next cook of that node. The vec4 twin of
-  // debugCookedFloatList.
-  const std::vector<simd::float4>* debugCookedColorList(int nodeId) const;
-  // Test-support for the String flow (6th cook): the HOST string a flat-cooked string node produced
-  // last cook (Impl::stringBuf[flatKey(id)]). Returns nullptr if the node never cooked a string.
-  // Borrowed (PointGraph-owned); valid until the next cook of that node.
-  const std::string* debugCookedString(int nodeId) const;
-  // MULTI-OUTPUT (Sub-seam B) test-support: an EXTRA String output of a multi-output string op
-  // (FilePathParts.FilenameWithoutExtension/Extension), keyed by the op's spec output-port index
-  // (Impl::stringBuf[flatKey(id)+":"+portIdx]). portIdx==0 (the MAIN String output) is debugCookedString.
-  // Returns nullptr if that port never cooked a string. Scalar outputs (TotalCount/FileExists) ride
-  // Node::outCache[portIdx] — read those via the host-scalar bridge, not here.
+  // Per-flow HOST-transport test-support readbacks (impls in point_graph_debug.cpp). Each returns the
+  // value the node produced on its LAST cook, keyed by flatKey(id) into the matching Impl buffer; all
+  // are nullptr when the node never cooked that flow, and all are borrowed (PointGraph-owned; valid until
+  // the node's next cook). Used by the goldens/selftests (production consumers read the cook channels).
+  const std::vector<float>* debugCookedFloatList(int nodeId) const;            // 5th cook: floatListBuf
+  const std::vector<simd::float4>* debugCookedColorList(int nodeId) const;     // vec4-list: colorListBuf
+  const std::string* debugCookedString(int nodeId) const;                      // 6th cook: stringBuf (MAIN)
+  // MULTI-OUTPUT (Sub-seam B): an EXTRA String output keyed by spec output-port index
+  // (stringBuf[flatKey(id)+":"+portIdx]); portIdx==0 == debugCookedString. Scalar extras (TotalCount/
+  // FileExists) ride Node::outCache[portIdx] (the host-scalar bridge), not here.
   const std::string* debugCookedStringPort(int nodeId, int portIdx) const;
-  // Test-support for the PointList flow (7th cook): the HOST point list a flat-cooked pointlist node
-  // produced last cook (Impl::pointListBuf[flatKey(id)]). Returns nullptr if the node never cooked a
-  // pointlist. Borrowed (PointGraph-owned); valid until the next cook of that node.
-  const std::vector<::SwPoint>* debugCookedPointList(int nodeId) const;
-  // Test-support for the Gradient flow (8th cook): the HOST gradient a flat-cooked gradient node
-  // produced last cook (Impl::gradientBuf[flatKey(id)]). Returns nullptr if the node never cooked a
-  // gradient. Borrowed (PointGraph-owned); valid until the next cook of that node.
-  const SwGradient* debugCookedGradient(int nodeId) const;
+  const std::vector<std::string>* debugCookedStringList(int nodeId) const;     // Sub-seam A: stringListBuf
+  const std::vector<::SwPoint>* debugCookedPointList(int nodeId) const;        // 7th cook: pointListBuf
+  const SwGradient* debugCookedGradient(int nodeId) const;                     // 8th cook: gradientBuf
 
   // Cross-frame FEEDBACK output (KeepPreviousFrame / SwapTextures): the texture this node routed to its
   // `ordinal`-th Texture2D OUTPUT last cook (0 = first output = PreviousFrame/TextureA, 1 = second =

@@ -39,6 +39,8 @@
 #include "runtime/eval_context.h"         // EvaluationContext (StringCookCtx::ctx)
 #include "runtime/graph.h"                // NodeSpec / PortSpec / findSpec
 #include "runtime/string_op_registry.h"  // StringCookFn / StringCookCtx / findStringOp
+// Sub-seam A: the string ctx now carries FloatList + StringList inputs. cookResidentFloatList /
+// cookResidentStringList are declared in resident_value_cooks.h (included via resident_eval_graph.h).
 
 namespace sw {
 
@@ -107,6 +109,44 @@ bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
     }
   }
 
+  // Sub-seam A: gather FloatList + StringList inputs THROUGH the resident drivers (the bridge + the new
+  // StringList currency). FloatListToString.Value rides inputFloatLists; JoinStringList.Input rides
+  // inputStringLists. Both follow the EXISTING per-type resident gathers (cookResidentFloatList already
+  // lives on the production path; cookResidentStringList is the new string-rail twin). An UNWIRED list
+  // port contributes no entry (→ empty list → "" per each op's empty guard). Spec port order; a
+  // MultiInput list port yields one entry per wire (wire-declaration order).
+  std::vector<std::vector<float>> inputFloatLists;        // FloatList currency (the bridge)
+  std::vector<std::vector<std::string>> inputStringLists; // StringList currency (the new channel)
+  for (const PortSpec& port : s->ports) {
+    if (!port.isInput) continue;
+    const ResidentInput* ri = n->input(port.id);
+    if (port.dataType == "FloatList") {
+      if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        std::vector<float> up;
+        cookResidentFloatList(g, ri->srcNodePath, ctx, up, depth + 1);
+        inputFloatLists.push_back(std::move(up));
+        if (port.multiInput)
+          for (const auto& ec : ri->extraConns) {
+            std::vector<float> ue;
+            cookResidentFloatList(g, ec.first, ctx, ue, depth + 1);
+            inputFloatLists.push_back(std::move(ue));
+          }
+      }
+    } else if (port.dataType == "StringList") {
+      if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        std::vector<std::string> up;
+        cookResidentStringList(g, ri->srcNodePath, ctx, up, depth + 1);
+        inputStringLists.push_back(std::move(up));
+        if (port.multiInput)
+          for (const auto& ec : ri->extraConns) {
+            std::vector<std::string> ue;
+            cookResidentStringList(g, ec.first, ctx, ue, depth + 1);
+            inputStringLists.push_back(std::move(ue));
+          }
+      }
+    }
+  }
+
   // RESOLVED Float params of THIS node — the SAME value spine the flat path's nodeParams supplies
   // (mirror of resident_host_scalar_cook.cpp). FloatToString.Value / IntToString.Value /
   // Vec3ToString.Vector.x/.y/.z ride this; CombineStrings reads none (empty map → byte-identical).
@@ -124,6 +164,8 @@ bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
   sc.ctx = &gpuCtx;
   sc.nodeId = 0;
   sc.inputStrings = &inputStrings;
+  sc.inputFloatLists = &inputFloatLists;    // Sub-seam A: FloatListToString.Value (the bridge)
+  sc.inputStringLists = &inputStringLists;  // Sub-seam A: JoinStringList.Input (the StringList currency)
   sc.output = &out;
   sc.params = &params;  // FloatToString/IntToString/Vec3ToString read Value/Vector.* from here
   sc.extraStrOutputs = extraStrOut;  // nullptr for the recursive gather; the producer loop's sinks else
