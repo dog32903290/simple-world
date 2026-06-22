@@ -243,12 +243,18 @@ const SwGradient* PointGraph::Impl::cookFlatGradient(const Graph& g, const Evalu
 
 // Cook a POINTLIST-flow node (the 7th cook flow = TiXL Slot<StructuredList> / StructuredList<Point>).
 // The currency is a HOST std::vector<SwPoint> living in Impl::pointListBuf (no GPU buffer, no pre-
-// sizing — the op clears + fills it). VERBATIM clone of cookFlatFloatList (float→SwPoint): for each
-// PointList input port, gather upstream lists (MultiInput → one list per wire, wire-declaration order)
-// into `inputLists`, then dispatch the op. Returns the cooked host list (nullptr if not a pointlist op).
-const std::vector<SwPoint>* PointGraph::Impl::cookFlatPointList(const Graph& g,
-                                                               const EvaluationContext& ctx,
-                                                               const NodeParamsFn& nodeParams, int id) {
+// sizing — the op clears + fills it). Clone of cookFlatFloatList (float→SwPoint): for each PointList
+// input port, gather upstream lists (MultiInput → one list per wire, wire-declaration order) into
+// `inputLists`, then dispatch the op. PointList CROSSES one boundary (it is no longer a closed sub-graph):
+// PointsToCPU reads a GPU Points bag BACK (the DOWNLOAD mirror of ListToBuffer's host→GPU upload), so a
+// "Points" input port is gathered by recursing cookNode (the GPU Points cook slot) + reading p_->outCount
+// — the SAME Points-bag gather cookFlatColorList does for ReadPointColors (this leaf, lines above). The
+// bag is StorageModeShared and the upstream op committed+waited during its cook, so contents() is valid
+// CPU-side by the time PointsToCPU copies whole SwPoints out of it. Returns the cooked host list
+// (nullptr if not a pointlist op / unknown node).
+const std::vector<SwPoint>* PointGraph::Impl::cookFlatPointList(
+    const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
+    const std::function<MTL::Buffer*(int)>& cookNode, int id) {
   const Node* n = g.node(id);
   if (!n) return nullptr;
   const NodeSpec* s = findSpec(n->type);
@@ -257,15 +263,26 @@ const std::vector<SwPoint>* PointGraph::Impl::cookFlatPointList(const Graph& g,
   if (!fn || !*fn) return nullptr;
 
   std::vector<std::vector<SwPoint>> inputLists;
+  const MTL::Buffer* pointsBag = nullptr;  // POINTS-bag input (PointsToCPU GPU→host readback crossing)
+  uint32_t pointsCount = 0;                 // its point count
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& port = s->ports[i];
-    if (!(port.isInput && port.dataType == "PointList")) continue;
+    if (!port.isInput) continue;
     const int inPin = pinId(id, (int)i);
-    for (const Connection& c : g.connections) {
-      if (c.toPin != inPin) continue;
-      const std::vector<SwPoint>* up = cookFlatPointList(g, ctx, nodeParams, pinNode(c.fromPin));
-      inputLists.push_back(up ? *up : std::vector<SwPoint>{});
-      if (!port.multiInput) break;  // single-input: first wire only
+    if (port.dataType == "PointList") {
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        const std::vector<SwPoint>* up = cookFlatPointList(g, ctx, nodeParams, cookNode, pinNode(c.fromPin));
+        inputLists.push_back(up ? *up : std::vector<SwPoint>{});
+        if (!port.multiInput) break;  // single-input: first wire only
+      }
+    } else if (port.dataType == "Points" && !pointsBag) {
+      // POINTS-bag gather (PointsToCPU GPU→host readback crossing): cook the upstream Points op and
+      // borrow its cooked GPU bag + count (the SAME gather cookFlatColorList does for ReadPointColors).
+      // The bag is StorageModeShared and the upstream op committed+waited during its cook, so contents()
+      // is valid CPU-side by the time PointsToCPU copies SwPoints out of it. Single-input: first wire.
+      const Connection* c = g.connectionToInput(inPin);
+      if (c) { pointsBag = cookNode(pinNode(c->fromPin)); pointsCount = outCount[flatKey(pinNode(c->fromPin))]; }
     }
   }
 
@@ -274,6 +291,8 @@ const std::vector<SwPoint>* PointGraph::Impl::cookFlatPointList(const Graph& g,
   pc.dev = dev; pc.lib = lib; pc.queue = queue;
   pc.ctx = &ctx; pc.nodeId = id;
   pc.inputLists = &inputLists;
+  pc.inputPointsBag = pointsBag;
+  pc.inputPointsCount = pointsCount;
   pc.output = &out;
   pc.params = nodeParams(id);
   (*fn)(pc);

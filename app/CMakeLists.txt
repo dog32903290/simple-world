@@ -353,7 +353,9 @@ add_executable(simple_world
   src/runtime/pointlist_ops_linearpointscpu.cpp
   src/runtime/pointlist_ops_repeatatpointscpu.cpp
   src/runtime/pointlist_ops_listtobuffer.cpp
+  src/runtime/pointlist_ops_pointstocpu.cpp
   src/pointlist_golden.cpp
+  src/pointstocpu_golden.cpp
   src/valuestotexture_golden.cpp
   src/runtime/gradient_op_registry.cpp
   src/runtime/gradient_ops_definegradient.cpp

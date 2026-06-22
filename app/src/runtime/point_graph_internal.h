@@ -360,8 +360,8 @@ struct PointGraph::Impl {
       std::map<int, const std::vector<simd::float4>*>& colorListCooked, int id);
   const SwGradient* cookFlatGradient(const Graph& g, const EvaluationContext& ctx,
                                      const NodeParamsFn& nodeParams, int id);
-  const std::vector<SwPoint>* cookFlatPointList(const Graph& g, const EvaluationContext& ctx,
-                                                const NodeParamsFn& nodeParams, int id);
+  const std::vector<SwPoint>* cookFlatPointList(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
+                                                const std::function<MTL::Buffer*(int)>& cookNode, int id);
   // The FLAT STRING cooks (String/StringList, 6th flow) + cookFlat host-scalar (StringLength + the
   // FloatList/String→Float bridge), in point_graph_string_cook.cpp / point_graph_hostscalar_cook.cpp.
   // String is NOT closed: it crosses cookStringNode/cookFloatListNode/cookStringListNode (each by-ref).

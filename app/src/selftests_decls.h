@@ -120,6 +120,7 @@ namespace sw { int runStringRailSelfTest(bool); }                // string_rail_
 namespace sw { int runHasStringChangedSelfTest(bool); }          // hasstringchanged_golden.cpp (per-node cross-frame STRING state: HasStringChanged delta, flat + R-2 resident)
 namespace sw { int runListRoutingSelfTest(bool); }               // list_routing_golden.cpp (FloatList→Float bridge: downstream evalFloat)
 namespace sw { int runPointListSelfTest(bool); }                 // pointlist_golden.cpp (7th cook flow: CPU point list + ListToBuffer bridge)
+namespace sw { int runPointsToCpuSelfTest(bool); }               // pointstocpu_golden.cpp (PointsToCPU: GPU Points bag -> host List<Point>, flat)
 namespace sw { int runGradientSelfTest(bool); }                  // gradient_golden.cpp (8th cook flow: SwGradient::sample byte-vs-TiXL)
 namespace sw { int runPickGradientSelfTest(bool); }              // gradient_ops_pickgradient.cpp (MultiInput Gradient select)
 namespace sw { int runBlendGradientsSelfTest(bool); }            // gradient_ops_blendgradients.cpp (2-gradient cross-merge)

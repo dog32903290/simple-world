@@ -31,6 +31,7 @@
 //   Cosmetic only (Add-menu position); findSpec is keyed by type name, the cook by type name.
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
@@ -41,6 +42,7 @@ namespace MTL {
 class Device;
 class Library;
 class CommandQueue;
+class Buffer;
 }  // namespace MTL
 
 struct EvaluationContext;  // runtime/eval_context.h
@@ -83,6 +85,15 @@ struct PointListCookCtx {
   // Cooked upstream PointList inputs (one entry per WIRED PointList source, in spec port order with
   // MultiInput ports expanded into wire-declaration order). Borrowed (driver-owned); never retained.
   const std::vector<std::vector<SwPoint>>* inputLists = nullptr;
+  // POINTS-bag input (the GPU→host point-readback rail-crossing, the DOWNLOAD mirror of ListToBuffer's
+  // host→GPU upload): the already-cooked upstream Points buffer wired to a pointlist op's "PointBuffer"
+  // input port, + its point count. A pointlist op that READS a GPU point bag (PointsToCPU) copies whole
+  // SwPoints (all 64 bytes) out of the bag into the host list. The bag is StorageModeShared and the
+  // upstream point op committed+waited during its own cook, so contents() is valid CPU-side here (same
+  // posture as ColorListCookCtx::inputPointsBag for ReadPointColors). null/0 for every pointlist op with
+  // no Points input (RadialPointsCpu / LinePoints CPU / TransformCpuPoint / ListToBuffer).
+  const MTL::Buffer* inputPointsBag = nullptr;
+  uint32_t inputPointsCount = 0;
   // Driver-owned output list. The op writes via output->clear()/push_back; never allocates/frees it.
   std::vector<SwPoint>* output = nullptr;
   // RESOLVED Float params of THIS node (mirror of FloatListCookCtx::params); read via pointListParam.

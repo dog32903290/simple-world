@@ -573,10 +573,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // into `inputLists`, then dispatch the op. Returns the cooked host list (nullptr if not a pointlist op).
   // (Body extracted to PointGraph::Impl::cookFlatPointList in point_graph_hostvalue_cook.cpp — the Cut-4
   // host-value extraction. Thin forwarding lambda so cookNode's ListToBuffer host→GPU memcpy gather +
-  // this flow's self-recursion keep calling through the slot. PointList is a CLOSED sub-graph → minimal
-  // shared state: g / ctx / nodeParams by reference.)
+  // this flow's self-recursion keep calling through the slot. PointList CROSSES one boundary: PointsToCPU
+  // reads a Points bag back, so cookNode rides in by-ref alongside g / ctx / nodeParams.)
   cookPointListNode = [&](int id) -> const std::vector<SwPoint>* {
-    return p_->cookFlatPointList(g, ctx, nodeParams, id);
+    return p_->cookFlatPointList(g, ctx, nodeParams, cookNode, id);
   };
 
   // Cook a STRING-flow node (the 6th cook flow = TiXL Slot<string>). The currency is a HOST
