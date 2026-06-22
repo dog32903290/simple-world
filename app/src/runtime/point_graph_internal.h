@@ -381,6 +381,20 @@ struct PointGraph::Impl {
   bool cookFlatMeshInto(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
                         int id, const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx,
                         uint32_t& faceCount);
+  // The FLAT HOST-VALUE cooks (FloatList/ColorList/Gradient/PointList), extracted from cook()'s matching
+  // lambdas into point_graph_hostvalue_cook.cpp (Cut-6 pattern; full doc in that leaf). FloatList/Gradient/
+  // PointList are CLOSED (self-recursion only); ColorList also crosses into the GPU Points cook + has a
+  // per-frame memo, so cookNode + colorListCooked ride in by-ref (same contract as nodeParams).
+  const std::vector<float>* cookFlatFloatList(const Graph& g, const EvaluationContext& ctx,
+                                              const NodeParamsFn& nodeParams, int id);
+  const std::vector<simd::float4>* cookFlatColorList(
+      const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
+      const std::function<MTL::Buffer*(int)>& cookNode,
+      std::map<int, const std::vector<simd::float4>*>& colorListCooked, int id);
+  const SwGradient* cookFlatGradient(const Graph& g, const EvaluationContext& ctx,
+                                     const NodeParamsFn& nodeParams, int id);
+  const std::vector<SwPoint>* cookFlatPointList(const Graph& g, const EvaluationContext& ctx,
+                                                const NodeParamsFn& nodeParams, int id);
 };
 
 }  // namespace sw

@@ -741,52 +741,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // Gather order = the order connections appear in g.connections (the wire-declaration order), which
   // is the SAME ordering the resident flatten uses for extraConns (resident_eval_flatten.cpp:255-268).
   // Returns the cooked host list (nullptr if not a floatlist op / unknown node).
+  // (Body extracted to PointGraph::Impl::cookFlatFloatList in point_graph_hostvalue_cook.cpp — the Cut-4
+  // host-value extraction. This slot stays a thin forwarding lambda so the closure web — cookCommand's
+  // FloatList gather, cookStringNode's FloatListToString gather, the host-scalar FloatList gather, and
+  // this flow's own self-recursion — keeps calling through the slot. FloatList is a CLOSED sub-graph,
+  // so the method takes only the minimal shared state: g / ctx / nodeParams by reference.)
   cookFloatListNode = [&](int id) -> const std::vector<float>* {
-    const Node* n = g.node(id);
-    if (!n) return nullptr;
-    const NodeSpec* s = findSpec(n->type);
-    if (!s) return nullptr;
-    const FloatListCookFn* fn = findFloatListOp(n->type);
-    if (!fn || !*fn) return nullptr;
-
-    // Gather inputs in spec port order. Each entry is one upstream host list (FloatList source) or one
-    // aggregated list of scalar Float sources (a scalar Float MultiInput port). MultiInput ports admit
-    // MULTIPLE connections to the SAME pin → collect them in g.connections (wire-declaration) order.
-    std::vector<std::vector<float>> inputLists;
-    for (size_t i = 0; i < s->ports.size(); ++i) {
-      const PortSpec& port = s->ports[i];
-      if (!port.isInput) continue;
-      const int inPin = pinId(id, (int)i);
-      if (port.dataType == "FloatList") {
-        // Recurse each wired FloatList source. MultiInput → every wire is a separate gathered list,
-        // in wire-declaration order; single-input → at most one.
-        for (const Connection& c : g.connections) {
-          if (c.toPin != inPin) continue;
-          const std::vector<float>* up = cookFloatListNode(pinNode(c.fromPin));
-          inputLists.push_back(up ? *up : std::vector<float>{});
-          if (!port.multiInput) break;  // single-input: first wire only
-        }
-      } else if (port.dataType == "Float" && port.multiInput) {
-        // Aggregate all wired scalar Float sources into ONE list (the scalar MultiInput → list seam;
-        // FloatsToList consumes this as inputLists[0]). Wire-declaration order. An unwired port
-        // contributes an empty list (FloatsToList -> empty output, faithful to GetCollectedTypedInputs).
-        std::vector<float> scalars;
-        for (const Connection& c : g.connections)
-          if (c.toPin == inPin) scalars.push_back(evalFloat(g, c.fromPin, ctx));
-        inputLists.push_back(std::move(scalars));
-      }
-      // (Single scalar Float inputs / other dataTypes are read via resolved params, not gathered.)
-    }
-
-    std::vector<float>& out = p_->floatListBuf[flatKey(id)];
-    FloatListCookCtx fc;
-    fc.dev = p_->dev; fc.lib = p_->lib; fc.queue = p_->queue;
-    fc.ctx = &ctx; fc.nodeId = id;
-    fc.inputLists = &inputLists;
-    fc.output = &out;
-    fc.params = nodeParams(id);
-    (*fn)(fc);
-    return &out;
+    return p_->cookFlatFloatList(g, ctx, nodeParams, id);
   };
 
   // Cook a COLORLIST-flow node (the vec4-list cook flow = TiXL Slot<List<Vector4>>). The currency is a
@@ -800,68 +761,14 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   //     port's wired scalar sources into its channel via evalFloat, in WIRE-DECLARATION order. The four
   //     channels ride colorScalars[0..3]; ColorsToList zips index i across them into one output color.
   // Gather order = g.connections order (wire-declaration), the same as cookFloatListNode.
+  // (Body extracted to PointGraph::Impl::cookFlatColorList in point_graph_hostvalue_cook.cpp — the Cut-4
+  // host-value extraction. This slot stays a thin forwarding lambda so the closure web is untouched.
+  // ColorList is the ONE non-closed host-value flow: ReadPointColors reads a Points bag back (it recurses
+  // cookNode + reads p_->outCount) and a per-frame memo (colorListCooked) stops KeepColors double-running
+  // under fan-out. So cookNode (the GPU Points cook slot) + colorListCooked (the cook-local memo) ride in
+  // by-ref alongside g / ctx / nodeParams — the same minimal-shared-state contract as nodeParams.)
   cookColorListNode = [&](int id) -> const std::vector<simd::float4>* {
-    const Node* n = g.node(id);
-    if (!n) return nullptr;
-    const NodeSpec* s = findSpec(n->type);
-    if (!s) return nullptr;
-    const ColorListCookFn* fn = findColorListOp(n->type);
-    if (!fn || !*fn) return nullptr;
-    // Per-frame memo: if this node already cooked this frame, return the cached output (do NOT re-run the
-    // op — re-running a stateful op like KeepColors would double its cross-frame Insert under fan-out).
-    if (auto it = colorListCooked.find(id); it != colorListCooked.end()) return it->second;
-
-    std::vector<std::vector<simd::float4>> inputLists;       // upstream ColorList sources (combiner future)
-    std::array<std::vector<float>, 4> colorScalars;          // the 4 parallel vec4-MultiInput channels
-    int compChannel = 0;  // which of x/y/z/w the next Float MultiInput port fills (component order)
-    const MTL::Buffer* pointsBag = nullptr;  // POINTS-bag input (ReadPointColors point-readback crossing)
-    uint32_t pointsCount = 0;                 // its point count
-    for (size_t i = 0; i < s->ports.size(); ++i) {
-      const PortSpec& port = s->ports[i];
-      if (!port.isInput) continue;
-      const int inPin = pinId(id, (int)i);
-      if (port.dataType == "ColorList") {
-        for (const Connection& c : g.connections) {
-          if (c.toPin != inPin) continue;
-          const std::vector<simd::float4>* up = cookColorListNode(pinNode(c.fromPin));
-          inputLists.push_back(up ? *up : std::vector<simd::float4>{});
-          if (!port.multiInput) break;  // single-input: first wire only
-        }
-      } else if (port.dataType == "Points" && !pointsBag) {
-        // POINTS-bag gather (ReadPointColors point-readback rail-crossing): cook the upstream Points op
-        // and borrow its cooked GPU bag + count (same gather as cookCommand's Points branch). The bag is
-        // StorageModeShared and the upstream op committed+waited during its cook, so contents() is valid
-        // CPU-side by the time ReadPointColors reads .Color from it. Single-input: first wire only.
-        const Connection* c = g.connectionToInput(inPin);
-        if (c) { pointsBag = cookNode(pinNode(c->fromPin)); pointsCount = p_->outCount[flatKey(pinNode(c->fromPin))]; }
-      } else if (port.dataType == "Float" && port.multiInput && compChannel < 4) {
-        // One component channel of the vec4 MultiInput (Colors.x then .y then .z then .w). Aggregate all
-        // wired scalar sources into this channel, wire-declaration order. An unwired channel stays empty
-        // (faithful to GetCollectedTypedInputs: connected inputs only → that color slot reads 0 there).
-        std::vector<float>& chan = colorScalars[compChannel++];
-        for (const Connection& c : g.connections)
-          if (c.toPin == inPin) chan.push_back(evalFloat(g, c.fromPin, ctx));
-      }
-    }
-
-    std::vector<simd::float4>& out = p_->colorListBuf[flatKey(id)];
-    ColorListCookCtx cc;
-    cc.dev = p_->dev; cc.lib = p_->lib; cc.queue = p_->queue;
-    cc.ctx = &ctx; cc.nodeId = id;
-    cc.inputLists = &inputLists;
-    cc.inputColorScalars = &colorScalars;
-    cc.inputPointsBag = pointsBag;
-    cc.inputPointsCount = pointsCount;
-    cc.output = &out;
-    cc.params = nodeParams(id);
-    // Per-node CROSS-FRAME state slot (KeepColors's accumulator): the SAME PointGraph instance is reused
-    // across frames, so colorListState[flatKey(id)] persists between cook() calls (the flat twin of the
-    // resident s_colorListState). A stateless colorlist op ignores it. operator[] default-creates the
-    // empty list on first cook (matches TiXL's `_list = []` field default, KeepColors.cs:46).
-    cc.state = &p_->colorListState[flatKey(id)];
-    colorListCooked[id] = &out;  // memo BEFORE the op runs (cycle guard parity w/ Points `cooked`; out is stable)
-    (*fn)(cc);
-    return &out;
+    return p_->cookFlatColorList(g, ctx, nodeParams, cookNode, colorListCooked, id);
   };
 
   // Cook a GRADIENT-flow node (the 8th cook flow = TiXL Slot<Gradient>). The currency is a HOST
@@ -870,36 +777,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // port, gather upstream gradients (MultiInput → one per wire, wire-declaration order) into
   // `inputGradients`, then dispatch the op. A pure producer (DefineGradient) has no Gradient input.
   // Returns the cooked host gradient (nullptr if not a gradient op / unknown node).
+  // (Body extracted to PointGraph::Impl::cookFlatGradient in point_graph_hostvalue_cook.cpp — the Cut-4
+  // host-value extraction. Thin forwarding lambda so cookNode's bake-into-point Gradient gather +
+  // cookCommand's Gradient gather + this flow's self-recursion keep calling through the slot. Gradient
+  // is a CLOSED sub-graph → minimal shared state: g / ctx / nodeParams by reference.)
   cookGradientNode = [&](int id) -> const SwGradient* {
-    const Node* n = g.node(id);
-    if (!n) return nullptr;
-    const NodeSpec* s = findSpec(n->type);
-    if (!s) return nullptr;
-    const GradientCookFn* fn = findGradientOp(n->type);
-    if (!fn || !*fn) return nullptr;
-
-    std::vector<SwGradient> inputGradients;
-    for (size_t i = 0; i < s->ports.size(); ++i) {
-      const PortSpec& port = s->ports[i];
-      if (!(port.isInput && port.dataType == "Gradient")) continue;
-      const int inPin = pinId(id, (int)i);
-      for (const Connection& c : g.connections) {
-        if (c.toPin != inPin) continue;
-        const SwGradient* up = cookGradientNode(pinNode(c.fromPin));
-        inputGradients.push_back(up ? *up : SwGradient{});
-        if (!port.multiInput) break;  // single-input: first wire only
-      }
-    }
-
-    SwGradient& out = p_->gradientBuf[flatKey(id)];
-    GradientCookCtx gc;
-    gc.dev = p_->dev; gc.lib = p_->lib; gc.queue = p_->queue;
-    gc.ctx = &ctx; gc.nodeId = id;
-    gc.inputGradients = &inputGradients;
-    gc.output = &out;
-    gc.params = nodeParams(id);
-    (*fn)(gc);
-    return &out;
+    return p_->cookFlatGradient(g, ctx, nodeParams, id);
   };
 
   // Cook a POINTLIST-flow node (the 7th cook flow = TiXL Slot<StructuredList> / StructuredList<Point>).
@@ -907,36 +790,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // sizing — the op clears + fills it). VERBATIM clone of cookFloatListNode (float→SwPoint): for each
   // PointList input port, gather upstream lists (MultiInput → one list per wire, wire-declaration order)
   // into `inputLists`, then dispatch the op. Returns the cooked host list (nullptr if not a pointlist op).
+  // (Body extracted to PointGraph::Impl::cookFlatPointList in point_graph_hostvalue_cook.cpp — the Cut-4
+  // host-value extraction. Thin forwarding lambda so cookNode's ListToBuffer host→GPU memcpy gather +
+  // this flow's self-recursion keep calling through the slot. PointList is a CLOSED sub-graph → minimal
+  // shared state: g / ctx / nodeParams by reference.)
   cookPointListNode = [&](int id) -> const std::vector<SwPoint>* {
-    const Node* n = g.node(id);
-    if (!n) return nullptr;
-    const NodeSpec* s = findSpec(n->type);
-    if (!s) return nullptr;
-    const PointListCookFn* fn = findPointListOp(n->type);
-    if (!fn || !*fn) return nullptr;
-
-    std::vector<std::vector<SwPoint>> inputLists;
-    for (size_t i = 0; i < s->ports.size(); ++i) {
-      const PortSpec& port = s->ports[i];
-      if (!(port.isInput && port.dataType == "PointList")) continue;
-      const int inPin = pinId(id, (int)i);
-      for (const Connection& c : g.connections) {
-        if (c.toPin != inPin) continue;
-        const std::vector<SwPoint>* up = cookPointListNode(pinNode(c.fromPin));
-        inputLists.push_back(up ? *up : std::vector<SwPoint>{});
-        if (!port.multiInput) break;  // single-input: first wire only
-      }
-    }
-
-    std::vector<SwPoint>& out = p_->pointListBuf[flatKey(id)];
-    PointListCookCtx pc;
-    pc.dev = p_->dev; pc.lib = p_->lib; pc.queue = p_->queue;
-    pc.ctx = &ctx; pc.nodeId = id;
-    pc.inputLists = &inputLists;
-    pc.output = &out;
-    pc.params = nodeParams(id);
-    (*fn)(pc);
-    return &out;
+    return p_->cookFlatPointList(g, ctx, nodeParams, id);
   };
 
   // Cook a STRING-flow node (the 6th cook flow = TiXL Slot<string>). The currency is a HOST
