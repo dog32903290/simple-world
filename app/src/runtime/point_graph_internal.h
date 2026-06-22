@@ -11,6 +11,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -34,6 +35,10 @@ namespace sw {
 // cookResidentMesh without internal.h pulling the whole resident header in).
 struct ResidentEvalGraph;
 struct ResidentEvalCtx;
+
+// The flat cook's per-node resolved-Float-param memo (point_graph.cpp cook()-local nodeParams). Passed
+// by-ref to the extracted flat-mesh-cook methods so they share the same single-resolve-per-node memo.
+using NodeParamsFn = std::function<const std::map<std::string, float>*(int)>;
 
 namespace pgdetail {
 
@@ -131,59 +136,27 @@ struct PointGraph::Impl {
   std::map<std::string, uint32_t> meshVtxCount;     // key -> last cooked vertex count
   std::map<std::string, uint32_t> meshIdxCount;     // key -> last cooked index (face) count
 
-  // Per-node FLOATLIST output (the 5th cook flow = TiXL Slot<List<float>>). A HOST-side value list
-  // (std::vector<float>) that rides between FloatList ports — NOT a GPU buffer, so there is NO Metal
-  // allocation and NO pre-sizing (the vector self-sizes; the op clears + fills it). Keyed by flat id
-  // or resident path (parallel to outBuf/meshVtxBuf). Cheaper than every other flow: no GPU lifetime.
-  std::map<std::string, std::vector<float>> floatListBuf;  // key -> host float list
+  // HOST-side value-channel outputs (the non-GPU cook flows): each rides between same-typed ports as a
+  // self-sizing host container — NO Metal allocation, NO pre-sizing (the op clears + fills it). All keyed
+  // by flat id or resident path (parallel to outBuf/meshVtxBuf). 5th flow = FloatList (Slot<List<float>>);
+  // vec4-list = ColorList (Slot<List<Vector4>>, ColorsToList producer); 6th = String (Slot<string>); 7th =
+  // PointList (Slot<StructuredList<Point>>, ListToBuffer memcpys it into a GPU outBuf); 8th = Gradient
+  // (Slot<Gradient>, GradientsToTexture samples it into R32G32B32A32); StringList (Slot<List<string>>,
+  // Sub-seam A: SplitString producer, JoinStringList consumer).
+  std::map<std::string, std::vector<float>> floatListBuf;          // key -> host float list
+  std::map<std::string, std::vector<simd::float4>> colorListBuf;   // key -> host color (float4) list
+  std::map<std::string, std::string> stringBuf;                    // key -> host string
+  std::map<std::string, std::vector<std::string>> stringListBuf;   // key -> host string list
+  std::map<std::string, std::vector<SwPoint>> pointListBuf;        // key -> host SwPoint list
+  std::map<std::string, SwGradient> gradientBuf;                   // key -> host gradient
 
-  // Per-node COLORLIST output (the vec4-list cook flow = TiXL Slot<List<Vector4>>). A HOST-side value
-  // list (std::vector<simd::float4>) that rides between ColorList ports — NOT a GPU buffer, so (like
-  // floatListBuf) there is NO Metal allocation and NO pre-sizing (the vector self-sizes; the op clears +
-  // fills it). Keyed by flat id or resident path (parallel to floatListBuf). The vec4-list value
-  // channel's transport store; the vec4 twin of floatListBuf (ColorsToList is its first producer).
-  std::map<std::string, std::vector<simd::float4>> colorListBuf;  // key -> host color (float4) list
-
-  // Per-node CROSS-FRAME COLORLIST state (the colorlist twin of feedbackToggle/feedbackTexBuf:139-153).
-  // A host color list that PERSISTS between cooks on the FLAT path — the only cross-frame state on the
-  // colorlist rail. KeepColors's `_list` accumulator (KeepColors.cs:46) lives here, keyed flatKey(id),
-  // so Insert(0,...)/RemoveRange survive frame→frame (every other colorlist map is single-frame). A
-  // stateless colorlist op never touches it. The resident path keeps the SAME state per resident path in
-  // the s_colorListState static cookColorListNodes threads (frame_cook.cpp) — mirror of s_svState.
+  // CROSS-FRAME value state (the only host-channel maps that PERSIST between flat cooks; every other host
+  // map above is single-frame). colorListState = KeepColors's `_list` accumulator (KeepColors.cs:46),
+  // keyed flatKey(id), so Insert(0,...)/RemoveRange survive frame→frame. stringState = HasStringChanged's
+  // `_lastString`. A stateless op never touches them. The resident path keeps the SAME state per resident
+  // path in s_colorListState / s_stringState (frame_cook.cpp). Mirror of feedbackTexBuf's cross-frame role.
   std::map<std::string, std::vector<simd::float4>> colorListState;  // key -> persistent accumulator
-
-  // Per-node STRING output (the 6th cook flow = TiXL Slot<string>). A HOST-side value string that
-  // rides between String ports — NOT a GPU buffer, so (like floatListBuf) there is NO Metal
-  // allocation and NO pre-sizing (the string self-sizes; the op assigns it). Keyed by flat id or
-  // resident path (parallel to floatListBuf). The string value channel's transport store.
-  std::map<std::string, std::string> stringBuf;  // key -> host string
-
-  // Per-node CROSS-FRAME STRING state (the string twin of colorListState:152). HasStringChanged's
-  // `_lastString` accumulator persists between flat cooks here, keyed flatKey(id); a stateless string op
-  // never touches it. The resident path keeps the SAME state per resident path in the s_stringState static
-  // cookHostValueNodes threads (frame_cook.cpp) — mirror of s_colorListState.
-  std::map<std::string, StringState> stringState;  // key -> persistent string state
-
-  // Per-node STRINGLIST output (host List<string> cook flow = TiXL Slot<List<string>>, Sub-seam A). A
-  // HOST-side string LIST (std::vector<std::string>) that rides between StringList ports — NOT a GPU
-  // buffer, so (like stringBuf) there is NO Metal allocation and NO pre-sizing (the vector self-sizes;
-  // the op clears + fills it). Keyed by flat id or resident path (parallel to stringBuf). The string-list
-  // value channel's transport store; SplitString is its first producer, JoinStringList its first consumer.
-  std::map<std::string, std::vector<std::string>> stringListBuf;  // key -> host string list
-
-  // Per-node POINTLIST output (the 7th cook flow = TiXL Slot<StructuredList> / StructuredList<Point>).
-  // A HOST-side CPU point list (std::vector<SwPoint>) that rides between PointList ports — NOT a GPU
-  // buffer, so (like floatListBuf/stringBuf) there is NO Metal allocation and NO pre-sizing (the vector
-  // self-sizes; the op clears + fills it). Keyed by flat id or resident path (parallel to floatListBuf).
-  // The CPU point family's transport store; the ListToBuffer upload bridge memcpys it into a GPU outBuf.
-  std::map<std::string, std::vector<SwPoint>> pointListBuf;  // key -> host SwPoint list
-
-  // Per-node GRADIENT output (the 8th cook flow = TiXL Slot<Gradient>). A HOST-side SwGradient that
-  // rides between Gradient ports — NOT a GPU buffer, so (like floatListBuf/stringBuf/pointListBuf)
-  // there is NO Metal allocation and NO pre-sizing (the op writes its steps). Keyed by flat id or
-  // resident path (parallel to floatListBuf). The Gradient value channel's transport store;
-  // GradientsToTexture (a tex op) samples it into an R32G32B32A32 texture (the rail-crossing).
-  std::map<std::string, SwGradient> gradientBuf;  // key -> host gradient
+  std::map<std::string, StringState> stringState;                  // key -> persistent string state
 
   // Per-node CROSS-FRAME texture PAIR (the feedback / ping-pong flow = TiXL KeepPreviousFrame).
   // A feedback op owns TWO textures (texA + texB) that PERSIST across frames + a toggle bit that
@@ -388,13 +361,26 @@ struct PointGraph::Impl {
   }
 
   // The resident MESH cook (4th cook flow), extracted from the cookResidentMesh lambda inside
-  // PointGraph::cookResident into resident_mesh_cook.cpp (ratchet headroom + co-location with its
-  // new consumer, the mesh-into-points seam). A METHOD on Impl (not a free fn) so it can name the
-  // private nested Impl + reach ensureMesh/meshVtxBuf. Cooks ONE mesh node (generator OR consumer)
-  // into its per-path owned pair, recursing through the resident graph for a consumer's Mesh inputs.
-  // cookResident wraps it in a forwarding lambda so its callers stay one-arg. (Body in the leaf.)
+  // PointGraph::cookResident into resident_mesh_cook.cpp (ratchet headroom + co-location with its new
+  // consumer, the mesh-into-points seam). A METHOD on Impl (not a free fn) so it can name the private
+  // nested Impl + reach ensureMesh/meshVtxBuf. cookResident wraps it in a forwarding lambda. (Body in leaf.)
   SwMeshView cookResidentMesh(const ResidentEvalGraph& rg, const std::string& path,
                               const ResidentEvalCtx& rc, const EvaluationContext& ctx, int depth);
+
+  // The FLAT MESH cook (4th cook flow), extracted from the cookMeshNode/cookMeshInto lambdas inside
+  // PointGraph::cook into point_graph_mesh_cook.cpp (ratchet headroom + the Cut-6 extraction pattern).
+  // Methods on Impl (reach ensureMesh/meshVtxBuf); cook() wraps them in thin forwarding lambdas so the
+  // closure web (cookNode/cookCommand → cookMeshInto) is untouched. The mesh flow is a CLOSED sub-graph
+  // (mesh→mesh only), so the only shared state passed in is g/ctx + the nodeParams memo. (Bodies in leaf.)
+  // (debugCookedMeshInline = the inlined twin of PointGraph::debugCookedMesh — Impl has no PointGraph
+  // back-pointer — read a node's cooked mesh pair from the Impl maps; byte-identical to the owner method.)
+  bool debugCookedMeshInline(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
+                             const MTL::Buffer*& idx, uint32_t& idxCount);
+  bool cookFlatMeshNode(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
+                        int id);
+  bool cookFlatMeshInto(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
+                        int id, const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx,
+                        uint32_t& faceCount);
 };
 
 }  // namespace sw

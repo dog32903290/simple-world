@@ -715,74 +715,17 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return tex;
   };
 
-  // Cook a MESH-flow node (the 4th cook flow = TiXL MeshBuffers). A mesh GENERATOR (NGonMesh/QuadMesh)
-  // owns NO Mesh input — it computes its vertex+index counts from its own params. A mesh CONSUMER
-  // (TransformMesh in×1 / CombineMeshes MultiInput, the mesh-input seam) first GATHERS its wired Mesh
-  // input(s): for each Mesh input port (spec order; MultiInput expands every wire in connection order),
-  // recurse cookMeshNode on the source then read its cooked pair via debugCookedMesh into a SwMeshView.
-  // The gather mirrors the cookPointListNode walk (input-dependent currency, borrowed single-frame).
-  // Then countFn(params, views, n) decides the OUTPUT sizes (generator ignores views; consumer reads
-  // them), the driver sizes the OWNED pair (ensureMesh, count-change reuse), and the op writes both
-  // buffers via contents(). The currency is a PAIR (SwVertex + SwTriIndex). Returns true if a mesh op
-  // cooked (the buffers are then in p_->meshVtxBuf/meshIdxBuf, readable via debugCookedMesh).
-  //
-  // ★ Source meshes are cooked into meshVtxBuf[srcKey] BEFORE this node's ensureMesh(flatKey(id),...).
-  // ensureMesh keys by flat id, so a consumer's own pair never aliases its sources' pairs — the borrowed
-  // SwMeshView buffers stay valid across this node's ensureMesh (different map keys, no realloc churn).
-  cookMeshNode = [&](int id) -> bool {
-    const Node* n = g.node(id);
-    if (!n) return false;
-    const MeshOpReg* reg = findMeshOp(n->type);
-    if (!reg || !reg->cook || !reg->count) return false;
-
-    // Gather upstream Mesh inputs (spec port order; MultiInput → one view per wire, connection order).
-    std::vector<SwMeshView> inputMeshes;
-    const NodeSpec* s = findSpec(n->type);
-    if (s) {
-      for (size_t i = 0; i < s->ports.size(); ++i) {
-        const PortSpec& port = s->ports[i];
-        if (!(port.isInput && port.dataType == "Mesh")) continue;
-        const int inPin = pinId(id, (int)i);
-        for (const Connection& c : g.connections) {
-          if (c.toPin != inPin) continue;
-          const int srcId = pinNode(c.fromPin);
-          SwMeshView v;
-          if (cookMeshNode(srcId))  // cook the source pair into meshVtxBuf/meshIdxBuf[srcKey]
-            debugCookedMesh(srcId, v.vtx, v.vtxCount, v.idx, v.faceCount);
-          inputMeshes.push_back(v);   // an unwired/non-mesh source pushes an empty view (faithful no-op)
-          if (!port.multiInput) break;  // single-input: first wire only
-        }
-      }
-    }
-
-    const std::map<std::string, float>* mp = nodeParams(id);
-    uint32_t vtxCount = 0, idxCount = 0;
-    // count FIRST: generator ignores the views; consumer reads them (TransformMesh inputs[0]; CombineMeshes Σ).
-    reg->count(mp, inputMeshes.data(), (int)inputMeshes.size(), vtxCount, idxCount);
-
-    MTL::Buffer* vb = nullptr;
-    MTL::Buffer* ib = nullptr;
-    p_->ensureMesh(flatKey(id), vtxCount, idxCount, vb, ib);  // size the owned pair before cook
-
-    MeshCookCtx mc;
-    mc.dev = p_->dev; mc.lib = p_->lib; mc.queue = p_->queue;
-    mc.ctx = &ctx; mc.nodeId = id;
-    mc.vertexCount = vtxCount; mc.indexCount = idxCount;
-    mc.output_vertices = vb; mc.output_indices = ib;
-    mc.inputMeshes = inputMeshes.data(); mc.inputMeshCount = (int)inputMeshes.size();
-    mc.params = mp;
-    reg->cook(mc);
-    return true;
-  };
-
-  // Bridge: cook the upstream mesh node, then read its buffers back via debugCookedMesh (so a Mesh-
-  // consuming command op — DrawMeshUnlit — can borrow them). Assigned to the forward-declared
-  // std::function so cookCommand (defined ABOVE this point) can call it. Returns false (and leaves the
-  // out-params untouched) if the node is not a mesh op / produced nothing.
+  // MESH cook flow (4th cook flow = TiXL MeshBuffers). The bodies were extracted VERBATIM into the
+  // PointGraph::Impl methods cookFlatMeshNode / cookFlatMeshInto (point_graph_mesh_cook.cpp) — the Cut-6
+  // extraction pilot. These cookMeshNode / cookMeshInto std::function slots stay as THIN forwarding
+  // lambdas so the closure web is untouched: cookNode (Mesh-into-points seam) + cookCommand (DrawMeshUnlit)
+  // keep calling cookMeshInto through the slot. The methods take the minimal shared cook-stack state by
+  // ref — the flat graph g, the eval ctx, and the nodeParams memo — because the mesh flow is a CLOSED
+  // sub-graph (mesh→mesh only); see point_graph_mesh_cook.cpp for the full doc + verbatim body.
+  cookMeshNode = [&](int id) -> bool { return p_->cookFlatMeshNode(g, ctx, nodeParams, id); };
   cookMeshInto = [&](int id, const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx,
                      uint32_t& faceCount) -> bool {
-    if (!cookMeshNode(id)) return false;  // cook the generator into meshVtxBuf/meshIdxBuf (or no-op)
-    return debugCookedMesh(id, vtx, vtxCount, idx, faceCount);
+    return p_->cookFlatMeshInto(g, ctx, nodeParams, id, vtx, vtxCount, idx, faceCount);
   };
 
   // Cook a FLOATLIST-flow node (the 5th cook flow = TiXL Slot<List<float>>). The currency is a HOST

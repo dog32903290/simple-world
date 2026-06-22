@@ -376,6 +376,7 @@ add_executable(simple_world
   src/runtime/value_eval_ops.cpp
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
+  src/runtime/point_graph_mesh_cook.cpp
   src/runtime/point_graph_registry.cpp
   src/runtime/point_graph_params.cpp
   src/runtime/point_graph_debug.cpp
