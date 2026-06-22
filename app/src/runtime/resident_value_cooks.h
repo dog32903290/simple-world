@@ -22,6 +22,7 @@ namespace sw {
 
 struct ResidentEvalGraph;  // resident_eval_graph.h
 struct ResidentEvalCtx;    // resident_eval_graph.h
+struct StringState;        // string_op_registry.h (cookStringNodes/cookResidentString cross-frame slot)
 
 // Cook ONE upstream FloatList-producing resident node (FloatsToList, …) into `out`, gathering its
 // inputs THROUGH the resident Connection drivers (mirror of the flat cookFloatListNode). Returns false
@@ -106,10 +107,14 @@ bool cookResidentStringList(const ResidentEvalGraph& g, const std::string& path,
 // by the op's own spec output-port index. They are nullptr for the recursive gather (a downstream
 // String input only wants port-0); cookStringNodes passes its per-node sinks so a multi-output op
 // (PickStringPart, FilePathParts) fans all outputs in ONE cook. Single-output ops never touch them.
+// `state` (optional) = THIS node's per-node CROSS-FRAME slot (HasStringChanged's `_lastString`), supplied
+// by cookStringNodes ONLY for the top node it cooks (keyed by resident path in the s_stringState store);
+// the RECURSIVE upstream gathers pass nullptr (upstream String producers are stateless). A stateless op
+// ignores it → byte-identical. The string twin of cookResidentColorList's `state`.
 bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
                         const ResidentEvalCtx& ctx, std::string& out, int depth = 0,
                         std::map<int, std::string>* extraStrOut = nullptr,
-                        std::map<int, float>* scalarOut = nullptr);
+                        std::map<int, float>* scalarOut = nullptr, StringState* state = nullptr);
 
 // Per-frame PRODUCTION cook for the STRING currency (host std::string cook flow = TiXL Slot<string>).
 // Walks the resident graph, cooks every String-producer op (findStringOp != null) by gathering its
@@ -120,6 +125,14 @@ bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
 // it once per frame, BEFORE cookHostScalarNodes). Mutates g (writes extStrOut, like cookColorListNodes
 // writes extColorOut). Pure CPU, no Metal. R-2 rule: the String currency is GENUINELY on the production
 // resident path, not flat-only (task_32b5b6e5 — production cooks via resident; flat-only goldens lied).
-void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+//
+// `state` = the PER-NODE CROSS-FRAME STRING store (HasStringChanged's `_lastString`), keyed by resident
+// path, owned by the caller as a function-local static (cook_host_values.cpp's s_stringState) — the EXACT
+// mirror of cookColorListNodes's s_colorListState. It SURVIVES between frames so HasStringChanged compares
+// against the previous frame on the PRODUCTION resident path (R-2: not flat-only). nullptr (the default)
+// for a single-frame / stateless caller (every existing String golden) → no per-node slot is threaded,
+// byte-identical to before. A stateful String op cooked with a null store sees no persistence (frame 0).
+void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
+                     std::map<std::string, StringState>* state = nullptr);
 
 }  // namespace sw

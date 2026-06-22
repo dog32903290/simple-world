@@ -7,6 +7,7 @@
 #include <simd/simd.h>  // simd::float4 (s_colorListState — KeepColors's cross-frame accumulator store)
 
 #include "runtime/resident_eval_graph.h"  // ResidentEvalGraph / ResidentEvalCtx + cook*Nodes prototypes
+#include "runtime/string_op_registry.h"   // StringState (the stateful-string seam's cross-frame store)
 
 namespace sw::framecook {
 
@@ -27,7 +28,14 @@ void cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, const
   // production string (NOT flat-only — the R-2 rule; resident_string_cook.cpp). Cooked BEFORE the
   // host-scalar pass so StringLength (which recurses cookResidentString inline anyway) reads producers
   // already settled — same producer-before-consumer cleanliness as colorlist→host-scalar.
-  cookStringNodes(g, hsCtx);
+  //
+  // s_stringState = the per-node CROSS-FRAME STRING accumulator store (HasStringChanged's `_lastString`),
+  // keyed by resident path — function-local static, the EXACT mirror of s_colorListState / s_svState. It
+  // survives between frames so HasStringChanged compares against the PREVIOUS frame's string on the
+  // PRODUCTION resident path; a stateless string op never touches its slot (so this static stays empty for
+  // a graph without a stateful string op).
+  static std::map<std::string, StringState> s_stringState;
+  cookStringNodes(g, hsCtx, &s_stringState);
 
   // Cook the FloatList→Float BRIDGE host-scalar ops (FloatListLength / PickFloatFromList / StringLength)
   // — the PRODUCTION leg of the list-routing seam. Same once-per-frame extOut-mirror slot: walks the

@@ -24,6 +24,7 @@
 #include "runtime/point_graph.h"  // PointGraph + op fn types
 #include "runtime/sw_mesh.h"      // SwVertex (80B) + SwTriIndex (12B) — the Mesh flow's elements
 #include "runtime/mesh_op_registry.h"  // SwMeshView (cookResidentMesh return type)
+#include "runtime/string_op_registry.h"  // StringState (flat stringState cross-frame store)
 #include "runtime/sw_gradient.h"  // SwGradient — the 8th flow's host value (gradientBuf)
 #include "runtime/tixl_point.h"   // SwPoint (64B) — output buffers are SwPoint bags
 
@@ -156,6 +157,12 @@ struct PointGraph::Impl {
   // allocation and NO pre-sizing (the string self-sizes; the op assigns it). Keyed by flat id or
   // resident path (parallel to floatListBuf). The string value channel's transport store.
   std::map<std::string, std::string> stringBuf;  // key -> host string
+
+  // Per-node CROSS-FRAME STRING state (the string twin of colorListState:152). HasStringChanged's
+  // `_lastString` accumulator persists between flat cooks here, keyed flatKey(id); a stateless string op
+  // never touches it. The resident path keeps the SAME state per resident path in the s_stringState static
+  // cookHostValueNodes threads (frame_cook.cpp) — mirror of s_colorListState.
+  std::map<std::string, StringState> stringState;  // key -> persistent string state
 
   // Per-node STRINGLIST output (host List<string> cook flow = TiXL Slot<List<string>>, Sub-seam A). A
   // HOST-side string LIST (std::vector<std::string>) that rides between StringList ports — NOT a GPU

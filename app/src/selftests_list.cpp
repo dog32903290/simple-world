@@ -23,4 +23,10 @@ REGISTER_SELFTESTS(/*orderBase=*/72,
     {"pickgradient", runPickGradientSelfTest},
     {"blendgradients", runBlendGradientsSelfTest},
 );
+// New stateful-string-rail rows go in their OWN block with a high orderBase so they APPEND at the end of
+// --selftest-list deterministically (the 72-block is contiguous 72..83 with no room to insert mid-block;
+// the registry sorts by `order`, so 300 lands after every existing row without renumbering anything).
+REGISTER_SELFTESTS(/*orderBase=*/300,
+    {"hasstringchanged", runHasStringChangedSelfTest},  // per-node cross-frame STRING state (HasStringChanged)
+);
 }  // namespace sw

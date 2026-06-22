@@ -1142,11 +1142,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
 
     std::vector<std::string> inputStrings = gatherStringInputs(id, *s);
 
-    // Sub-seam A: gather FloatList + StringList inputs (the bridge + the new StringList currency) in spec
-    // port order, mirroring the gather in cookHostScalar / cookColorListNode. FloatListToString.Value rides
-    // inputFloatLists (the EXISTING FloatList currency via cookFloatListNode); JoinStringList.Input rides
-    // inputStringLists (via cookStringListNode). An UNWIRED list port contributes no entry (→ empty → ""
-    // per each op's empty guard). A MultiInput list port yields one entry per wire (wire-declaration order).
+    // Sub-seam A: gather FloatList + StringList inputs (the bridge + the StringList currency) in spec port
+    // order, mirroring cookHostScalar / cookColorListNode. FloatListToString.Value rides inputFloatLists
+    // (via cookFloatListNode); JoinStringList.Input rides inputStringLists (via cookStringListNode). An
+    // UNWIRED list port contributes no entry (→ empty → ""); a MultiInput port yields one entry per wire.
     std::vector<std::vector<float>> inputFloatLists;
     std::vector<std::vector<std::string>> inputStringLists;
     for (size_t i = 0; i < s->ports.size(); ++i) {
@@ -1172,11 +1171,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
 
     std::string& out = p_->stringBuf[flatKey(id)];
     // MULTI-OUTPUT (Sub-seam B): a multi-output op (PickStringPart, FilePathParts) fills these EXTRA
-    // sinks keyed by its own spec output-port index. The port-0 single-output path stays BYTE-IDENTICAL
-    // (every incumbent op leaves both empty → the two distribution loops below are no-ops). Extra
-    // strings get a PORT DIMENSION on the flat key (flatKey(id)+":"+portIdx — debugCookedStringPort
-    // reads them); scalar outputs ride Node::outCache[portIdx] (the SAME flat host-scalar/bridge channel
-    // cookStringLength/cookHostScalar use), so a downstream Float input wired to TotalCount reads it.
+    // sinks keyed by its spec output-port index — port-0 single-output stays BYTE-IDENTICAL (incumbents
+    // leave both empty). Extra strings ride flatKey(id)+":"+portIdx (debugCookedStringPort); scalar
+    // outputs ride Node::outCache[portIdx] (the flat host-scalar/bridge channel, downstream-readable).
     std::map<int, std::string> extraStr;
     std::map<int, float> scalarOut;
     StringCookCtx sc;
@@ -1189,6 +1186,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     sc.params = nodeParams(id);
     sc.extraStrOutputs = &extraStr;
     sc.scalarOutputs = &scalarOut;
+    // Per-node CROSS-FRAME state (HasStringChanged's `_lastString`): this PointGraph persists across cooks
+    // so stringState[flatKey(id)] survives frame→frame (flat twin of s_stringState; stateless ops ignore it).
+    sc.state = &p_->stringState[flatKey(id)];
     (*fn)(sc);
     // Distribute the EXTRA outputs (no-ops for single-output incumbents → byte-identical port-0 path).
     for (auto& kv : extraStr) p_->stringBuf[flatKey(id) + ":" + std::to_string(kv.first)] = kv.second;

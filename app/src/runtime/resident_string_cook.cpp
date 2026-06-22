@@ -36,9 +36,10 @@
 #include <string>
 #include <vector>
 
-#include "runtime/eval_context.h"         // EvaluationContext (StringCookCtx::ctx)
-#include "runtime/graph.h"                // NodeSpec / PortSpec / findSpec
-#include "runtime/string_op_registry.h"  // StringCookFn / StringCookCtx / findStringOp
+#include "runtime/eval_context.h"            // EvaluationContext (StringCookCtx::ctx)
+#include "runtime/graph.h"                   // NodeSpec / PortSpec / findSpec
+#include "runtime/host_scalar_op_registry.h" // isHostScalarOp (StringLength skip discriminator)
+#include "runtime/string_op_registry.h"      // StringCookFn / StringCookCtx / StringState / findStringOp
 // Sub-seam A: the string ctx now carries FloatList + StringList inputs. cookResidentFloatList /
 // cookResidentStringList are declared in resident_value_cooks.h (included via resident_eval_graph.h).
 
@@ -67,7 +68,8 @@ constexpr int kResidentStringDepthCap = 64;  // same cycle guard as evalResident
 // ONCE; the op fills *output (port 0) + (when present) the sinks in a single StringCookFn call.
 bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
                         const ResidentEvalCtx& ctx, std::string& out, int depth,
-                        std::map<int, std::string>* extraStrOut, std::map<int, float>* scalarOut) {
+                        std::map<int, std::string>* extraStrOut, std::map<int, float>* scalarOut,
+                        StringState* state) {
   out.clear();
   if (depth > kResidentStringDepthCap) return false;
   const ResidentNode* n = g.node(path);
@@ -170,11 +172,16 @@ bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
   sc.params = &params;  // FloatToString/IntToString/Vec3ToString read Value/Vector.* from here
   sc.extraStrOutputs = extraStrOut;  // nullptr for the recursive gather; the producer loop's sinks else
   sc.scalarOutputs = scalarOut;
+  // Per-node CROSS-FRAME slot (HasStringChanged's `_lastString`): nullptr for the RECURSIVE upstream
+  // gather (those calls omit it → default nullptr; upstream String producers are stateless), supplied
+  // ONLY by the cookStringNodes producer loop for the top node it cooks. A stateless op ignores it.
+  sc.state = state;
   (*fn)(sc);  // computes the string(s); stringInjectBug() (golden teeth) corrupts it IN the cook
   return true;
 }
 
-void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
+void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
+                     std::map<std::string, StringState>* state) {
   for (ResidentNode& rn : g.nodes) {
     const StringCookFn* fn = findStringOp(rn.opType);
     if (!fn || !*fn) continue;  // not a string op
@@ -182,36 +189,50 @@ void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
     if (!s) continue;
 
     // Find this op's MAIN String OUTPUT port (the channel a downstream consumer / the golden reads).
-    // StringLength is registered as a StringOp (its stub) but has NO String output (its output is the
-    // Float "Length"), so mainPortIdx stays -1 → it is SKIPPED here and cooked instead by the host-scalar
-    // pass (cookHostScalarNodes / its inline cookResidentString) — exactly as the flat path treats it
-    // (cookStringLength, not cookStringNode). A real String producer has its MAIN String output at the
-    // FIRST String output port (port 0 for every ported op: SubString.Result, PickStringPart.Fragments,
-    // FilePathParts.Directory). MULTI-OUTPUT (Sub-seam B): we no longer `break` on the first String port
-    // — we cook ONCE and FAN every output. mainPortIdx is the *output*'s main channel; extra String /
-    // scalar outputs land via the captured sinks below, keyed by the op's own spec output-port index.
+    // A real String producer has its MAIN String output at the FIRST String output port (port 0 for
+    // every ported op: SubString.Result, PickStringPart.Fragments, FilePathParts.Directory). MULTI-OUTPUT
+    // (Sub-seam B): we no longer `break` on the first String port — we cook ONCE and FAN every output.
     int mainPortIdx = -1;
     for (size_t i = 0; i < s->ports.size(); ++i) {
       if (!s->ports[i].isInput && s->ports[i].dataType == "String") { mainPortIdx = (int)i; break; }
     }
-    if (mainPortIdx < 0) continue;
+
+    // No-String-output StringOps split TWO ways (both have only a scalar/Float output):
+    //   • HOST-SCALAR ops (StringLength: registered via registerHostScalarType, STATELESS) are SKIPPED
+    //     here and cooked by the host-scalar pass (cookHostScalarNodes / its inline cookResidentString) —
+    //     exactly as the flat path treats StringLength (cookStringLength, not cookStringNode).
+    //   • STATEFUL scalar-only String ops (HasStringChanged: a StringOp NOT in the host-scalar set, with
+    //     a per-node `_lastString`) MUST be cooked HERE — this is the ONLY pass that threads the
+    //     cross-frame s_stringState store; the host-scalar pass has no state. We cook it through the SAME
+    //     cookResidentString (with the per-path state slot) and fan its bool→Float scalar onto extOut.
+    const bool scalarOnly = (mainPortIdx < 0);
+    if (scalarOnly && isHostScalarOp(rn.opType)) continue;  // StringLength → host-scalar pass
+
+    // Per-node CROSS-FRAME state slot (HasStringChanged's `_lastString`): supplied ONLY here, ONLY for the
+    // top node this loop cooks (recursive upstream gathers inside cookResidentString pass nullptr). Keyed
+    // by resident path in the caller-owned s_stringState store; operator[] default-creates an empty
+    // StringState (lastString="") on first cook. nullptr store (a stateless / single-frame golden) → no
+    // slot threaded (a stateful op then sees frame-0 persistence only). Mirror of cookColorListNodes.
+    StringState* st = state ? &(*state)[rn.path] : nullptr;
 
     // Cook the host string(s) through the resident graph ONCE. cookResidentString gathers the resident
     // Connection drivers (the SAME walk the flat cookStringNode does), runs the op's StringCookFn, and —
-    // because we hand it the multi-output sinks — captures the op's EXTRA String / scalar outputs in the
-    // SAME single cook. A single-output op leaves both sinks empty (it never writes them).
+    // because we hand it the multi-output sinks + the state slot — captures the op's EXTRA String / scalar
+    // outputs (and mutates its cross-frame state) in the SAME single cook. A single-output stateless op
+    // leaves the sinks empty and ignores the state slot.
     std::string str;
     std::map<int, std::string> extraStr;
     std::map<int, float> scalarOut;
-    cookResidentString(g, rn.path, ctx, str, 0, &extraStr, &scalarOut);
+    cookResidentString(g, rn.path, ctx, str, 0, &extraStr, &scalarOut, st);
 
     // FAN the outputs onto the right resident channels (keyed by the op's own spec output-port index):
-    //   • MAIN String → extStrOut[mainPortIdx] (= port 0; the downstream-readable / golden channel).
+    //   • MAIN String → extStrOut[mainPortIdx] (the downstream-readable / golden channel) — ONLY when the
+    //     op HAS a String output (a scalarOnly op like HasStringChanged has none → skip this write).
     //   • EXTRA Strings → extStrOut[portIdx] (FilePathParts' Filename/Extension at ports 1/2).
     //   • SCALAR (Int/bool dissolved to float) → extOut[portIdx] (PickStringPart.TotalCount,
-    //     FilePathParts.FileExists) — the SAME float channel cookHostScalarNodes writes, so a downstream
-    //     Float input wired to TotalCount reads it the established way. Guard the [8]-wide extOut bound.
-    rn.extStrOut[mainPortIdx] = std::move(str);
+    //     FilePathParts.FileExists, HasStringChanged.HasChanged) — the SAME float channel
+    //     cookHostScalarNodes writes, so a downstream Float input reads it the established way. Guard [8].
+    if (mainPortIdx >= 0) rn.extStrOut[mainPortIdx] = std::move(str);
     for (auto& kv : extraStr) rn.extStrOut[kv.first] = std::move(kv.second);
     for (auto& kv : scalarOut) {
       if (kv.first >= 0 && kv.first < (int)(sizeof(rn.extOut) / sizeof(rn.extOut[0])))

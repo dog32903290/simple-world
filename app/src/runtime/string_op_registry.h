@@ -28,6 +28,7 @@
 // type name, the cook by type name — neither depends on spec position.
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
@@ -43,6 +44,25 @@ class CommandQueue;
 struct EvaluationContext;  // runtime/eval_context.h
 
 namespace sw {
+
+// Per-node CROSS-FRAME STRING state (the string twin of the colorlist KeepColors accumulator). A
+// stateless string op never touches it (StringCookCtx::state stays nullptr → byte-identical for every
+// incumbent String op). The FIRST consumer is HasStringChanged (TiXL string/logic/HasStringChanged.cs),
+// whose `_lastString` field persists between frames: it compares the current input against `lastString`,
+// emits the bool delta, then stores the current string back. ONE struct (not one map per field) holds
+// every cross-frame slot a stateful String op might need, so the rail carries a SINGLE
+// std::map<path,StringState> store (mirror of ColorListCookCtx's single state slot):
+//   lastString — HasStringChanged's `_lastString` (prev-frame string; default "" → frame-0 any non-empty
+//                input reads as "changed", the sw init convention).
+//   buffer     — scratch accumulator for a future StringBuilder-style stateful op (unused today).
+//   index      — cursor for a future cycling/sequence stateful op (unused today).
+//   rngState   — per-node RNG seed for a future stateful pick/shuffle op (unused today).
+struct StringState {
+  std::string lastString;
+  std::string buffer;
+  int index = 0;
+  uint32_t rngState = 0;
+};
 
 // Everything a string op gets to cook one node this frame. Mirrors FloatListCookCtx
 // (floatlist_op_registry.h) but the currency is a HOST std::string, not a host float list — so
@@ -111,6 +131,15 @@ struct StringCookCtx {
   //                     PickStringPart.TotalCount int → (float)count.)
   std::map<int, std::string>* extraStrOutputs = nullptr;
   std::map<int, float>* scalarOutputs = nullptr;
+
+  // Per-node CROSS-FRAME state slot (HasStringChanged's `_lastString`): the driver owns it and threads
+  // the same per-path slot every frame so a stateful String op accumulates across frames — the EXACT
+  // mirror of ColorListCookCtx::state. nullptr for a STATELESS op (every incumbent String op ignores it,
+  // so this is byte-identical for them) AND for a hand-built ctx with no driver-owned state (the op then
+  // sees no persistence — faithful to a single frame-0 cook). Flat: &Impl::stringState[flatKey(id)];
+  // resident (production): &s_stringState[path] (frame_cook's cookHostValueNodes), threaded ONLY into the
+  // top producer the loop cooks; recursive upstream gathers pass nullptr (upstream producers are stateless).
+  StringState* state = nullptr;
 };
 
 // A string op: read inputStrings (+ resolved Float params) → write *output. ONE fn (like a floatlist

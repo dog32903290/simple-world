@@ -117,6 +117,7 @@ namespace sw { int runCombineColorListsSelfTest(bool); }        // colorlist_fan
 namespace sw { int runReadPointColorsSelfTest(bool); }          // colorlist_fanout_golden.cpp (ReadPointColors: Points bag .Color -> ColorList, flat)
 namespace sw { int runKeepColorsSelfTest(bool); }               // keepcolors_golden.cpp (per-node cross-frame colorlist STATE: KeepColors accumulate/cap/reset, flat + R-2 resident)
 namespace sw { int runStringRailSelfTest(bool); }                // string_rail_golden.cpp (6th cook flow: String value rail)
+namespace sw { int runHasStringChangedSelfTest(bool); }          // hasstringchanged_golden.cpp (per-node cross-frame STRING state: HasStringChanged delta, flat + R-2 resident)
 namespace sw { int runListRoutingSelfTest(bool); }               // list_routing_golden.cpp (FloatList→Float bridge: downstream evalFloat)
 namespace sw { int runPointListSelfTest(bool); }                 // pointlist_golden.cpp (7th cook flow: CPU point list + ListToBuffer bridge)
 namespace sw { int runGradientSelfTest(bool); }                  // gradient_golden.cpp (8th cook flow: SwGradient::sample byte-vs-TiXL)
