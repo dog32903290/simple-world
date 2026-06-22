@@ -330,7 +330,7 @@ RenderResolution resolveRenderResolution(const std::map<std::string, float>& par
                                          RenderResolution windowSize);
 RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowSize);
 
-// --- resolved-param accessors (slice 2b seam; defined in point_graph.cpp) ---
+// --- resolved-param accessors (slice 2b seam; defined in point_graph_params.cpp) ---
 // Read a Float param from the ctx's RESOLVED map; falls back to `def` when the driver supplied
 // no map (ops invoked outside a cook driver, e.g. hand-built ctx in op selftests).
 float cookParam(const PointCookCtx& c, const char* id, float def);

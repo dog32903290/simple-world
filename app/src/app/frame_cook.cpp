@@ -7,9 +7,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include <simd/simd.h>  // simd::float4 (s_colorListState — KeepColors's cross-frame accumulator store)
-
 #include "app/audio_monitor.h"            // live spectrum snapshot (DSP fed by capture)
+#include "app/cook_host_values.h"         // cookHostValueNodes (String/host-scalar/ColorList cook)
 #include "app/document.h"                 // g_lib + libRevision (projection contract)
 #include "app/soundtrack.h"               // soundtrack follow rule (audio chases the transport)
 #include "runtime/audio_reaction.h"       // cookAudioReaction (TiXL AudioReaction parity)
@@ -347,40 +346,14 @@ void run(PointGraph& pg, const std::string& targetPath) {
                            g_frameIndex, &doc::g_lib, s_svState, s_ctxVars);
   }
 
-  // Cook the FloatList→Float BRIDGE host-scalar ops (FloatListLength / PickFloatFromList) — the
-  // PRODUCTION leg of the list-routing seam. Same once-per-frame extOut-mirror slot as the AR / stateful
-  // cookers above: cookHostScalarNodes walks the resident graph, gathers each host-scalar op's upstream
-  // FloatList inputs through the resident Connection drivers, and writes the scalar onto extOut[0] so the
-  // subsequent cookResident's evalResidentFloat reads the bridged value (was 0 — flat-only — before this).
-  // The flat cookHostScalar (point_graph.cpp) is golden-only; this is the leg the running app uses.
-  {
-    ResidentEvalCtx hsCtx;
-    hsCtx.localTime = (float)posBars;    // playhead (bars) — automation-driven list params sample this
-    hsCtx.localFxTime = (float)fxBars;   // wall clock (bars)
-    hsCtx.frameIndex = g_frameIndex;
-    hsCtx.lib = &doc::g_lib;             // Automation drivers on list-param inputs resolve through this
-    // Cook the STRING currency ops (FloatToString / IntToString / Vec3ToString / CombineStrings) — the
-    // PRODUCTION leg of the host-string cook flow (resident string-wire rail, task_32b5b6e5). Walks the
-    // resident graph, gathers each string op's upstream String inputs THROUGH the resident Connection
-    // drivers (the wire the flatten step now projects onto String slots — was DROPPED before this rail),
-    // and writes the host string onto extStrOut so a downstream resident String consumer reads the REAL
-    // production string (NOT flat-only — the R-2 rule; resident_string_cook.cpp). Cooked BEFORE the
-    // host-scalar pass so StringLength (which recurses cookResidentString inline anyway) reads producers
-    // already settled — same producer-before-consumer cleanliness as colorlist→host-scalar.
-    cookStringNodes(g_residentGraph, hsCtx);
-    cookHostScalarNodes(g_residentGraph, hsCtx);
-    // Cook the COLORLIST currency ops (ColorsToList) — the PRODUCTION leg of the vec4-list cook flow.
-    // Same once-per-frame slot: cookColorListNodes walks the resident graph, gathers each colorlist op's
-    // upstream component scalars through the resident Connection drivers, and writes the host color list
-    // onto extColorOut so a downstream resident colorlist consumer reads the real production list (NOT
-    // flat-only — the R-2 rule; resident_colorlist_cook.cpp). Reuses hsCtx (same resident eval clocks).
-    // s_colorListState = the per-node CROSS-FRAME accumulator store (KeepColors's `_list`), keyed by
-    // resident path — function-local static, the EXACT mirror of s_svState/s_arState above. It survives
-    // between frames so KeepColors accumulates on the PRODUCTION path; a stateless colorlist op never
-    // touches its slot (so this static stays empty for a graph without KeepColors).
-    static std::map<std::string, std::vector<simd::float4>> s_colorListState;
-    cookColorListNodes(g_residentGraph, hsCtx, s_colorListState);
-  }
+  // Cook the HOST-VALUE currencies (String / host-scalar / ColorList) — the PRODUCTION legs of the
+  // resident string-wire rail, the list-routing FloatList→Float bridge, and the vec4-list cook flow.
+  // Same once-per-frame slot as the AR / stateful cookers above (extOut-mirror contract). Extracted
+  // into cookHostValueNodes (cook_host_values.cpp) so this file stays under its line-count cap while
+  // the stateful-string seam threads its cross-frame state store; behaviour is byte-identical to the
+  // old inline block (the cross-frame state statics moved in with it). Reads the two BARS clocks +
+  // the lib (the flat cook*Node twins in point_graph.cpp are golden-only; this is the running app's leg).
+  cookHostValueNodes(g_residentGraph, (float)posBars, (float)fxBars, &doc::g_lib);
 
   ++g_frameIndex;
   // The GPU EvaluationContext (16-byte) carries the WALL CLOCK (fxTime) as `time`: GPU-side Time/

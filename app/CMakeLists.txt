@@ -371,6 +371,7 @@ add_executable(simple_world
   src/runtime/value_eval_ops.cpp
   src/runtime/graph_selftest.cpp
   src/runtime/point_graph.cpp
+  src/runtime/point_graph_params.cpp
   src/runtime/point_graph_debug.cpp
   src/runtime/point_graph_resident.cpp
   src/runtime/point_graph_selftest.cpp
@@ -403,6 +404,7 @@ add_executable(simple_world
   src/runtime/combine_selftest.cpp
   src/runtime/copy_paste.cpp
   src/app/frame_cook.cpp
+  src/app/cook_host_values.cpp
   src/app/frame_cook_selftest.cpp
   src/app/frame_cook_contextvar_selftest.cpp
   src/app/frame_cook_animvalue_selftest.cpp

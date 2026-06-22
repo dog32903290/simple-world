@@ -136,57 +136,18 @@ PointFeedbackFn findFeedbackOp(const std::string& type) {
 // registerBuiltinPointOps() is defined in point_ops.cpp (the real operators).
 
 // --- resolved-param accessors (the slice-2b seam; PointCookCtx::params docs) ---
+// The resolved-param accessor spine (cookParam×4 / cookVecN×3 / cookInputParam) and the feedback
+// multi-tex-output helper (pgdetail::texOutputOrdinal) live in point_graph_params.cpp (extracted to
+// keep this file under its line-count cap — pure relocation; cookParam/cookVecN decls in point_graph.h,
+// texOutputOrdinal decl in point_graph_internal.h). The one raw-map read this file still needs (the
+// per-input Count fallback below) keeps a tiny local mapParam — the only non-ctx caller.
 namespace {
 float mapParam(const std::map<std::string, float>* m, const char* id, float def) {
   if (!m) return def;
   auto it = m->find(id);
   return it != m->end() ? it->second : def;
 }
-void mapVecN(const std::map<std::string, float>* m, const char* base, const float* fallback,
-             int n, float* out) {
-  static const char* kSuffix[4] = {".x", ".y", ".z", ".w"};
-  for (int i = 0; i < n && i < 4; ++i)
-    out[i] = mapParam(m, (std::string(base) + kSuffix[i]).c_str(), fallback[i]);
-}
 }  // namespace
-
-float cookParam(const PointCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
-float cookParam(const CmdCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
-float cookParam(const TexCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
-float cookParam(const FeedbackCookCtx& c, const char* id, float def) { return mapParam(c.params, id, def); }
-void cookVecN(const PointCookCtx& c, const char* base, const float* fallback, int n, float* out) {
-  mapVecN(c.params, base, fallback, n, out);
-}
-void cookVecN(const TexCookCtx& c, const char* base, const float* fallback, int n, float* out) {
-  mapVecN(c.params, base, fallback, n, out);
-}
-void cookVecN(const CmdCookCtx& c, const char* base, const float* fallback, int n, float* out) {
-  mapVecN(c.params, base, fallback, n, out);
-}
-float cookInputParam(const PointCookCtx& c, int input, const char* id, float def) {
-  if (!c.inputParams || input < 0 || input >= c.inputCount) return def;
-  return mapParam(c.inputParams[input], id, def);
-}
-
-// Multi-tex-output helper (the feedback seam): map an ABSOLUTE output port index (the spec port index
-// recovered from a wire's fromPin via (pin-1)%100) to its ORDINAL among the node's Texture2D OUTPUT
-// ports — 0 = first Texture2D output, 1 = second, … A single-output tex op (RenderTarget/Blur) has
-// exactly one Texture2D output so this always returns 0 for it (byte-identical). KeepPreviousFrame has
-// two (PreviousFrame then CurrentFrame in spec order). Returns 0 if the index is not an output / not a
-// Texture2D port (safe default = the first output). Shared by both cook drivers via this header.
-namespace pgdetail {
-int texOutputOrdinal(const NodeSpec& spec, int absPortIndex) {
-  if (absPortIndex < 0 || absPortIndex >= (int)spec.ports.size()) return 0;
-  int ord = 0;
-  for (int i = 0; i < (int)spec.ports.size(); ++i) {
-    const PortSpec& p = spec.ports[i];
-    if (p.isInput || p.dataType != "Texture2D") continue;
-    if (i == absPortIndex) return ord;
-    ++ord;
-  }
-  return 0;
-}
-}  // namespace pgdetail
 
 // ---------------------------------------------------------------------------
 
