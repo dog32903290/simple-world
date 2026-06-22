@@ -38,9 +38,12 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
+#include "runtime/compound_graph.h"      // SymbolLibrary (R-2 resident leg)
 #include "runtime/eval_context.h"         // EvaluationContext
 #include "runtime/graph.h"                // Graph/Node/Connection/pinId
+#include "runtime/graph_bridge.h"        // libFromGraph (flat Graph -> SymbolLibrary, paths == ids)
 #include "runtime/point_graph.h"          // PointGraph::cook + debugCookedString/debugCookedFloatList
+#include "runtime/resident_eval_graph.h" // buildEvalGraph / cookStringNodes / ResidentEvalGraph (R-2)
 #include "runtime/string_op_registry.h"  // stringInjectBug
 
 namespace sw {
@@ -64,12 +67,12 @@ std::string cookFloatToString(PointGraph& pg, float value, const std::string& fo
 }
 
 // Build { producers (StringConst-style via FloatToString of integer values) -> CombineStrings.Input
-// (multiInput), in vals order, sep="-" } and cook CombineStrings as terminal. Returns the joined host
-// string. Each producer is a FloatToString with empty format → its integer value's decimal text.
-// Wire order = vals order → wire-declaration order; the readback must equal the joined sequence IF the
-// gather honours wire-declaration order.
-std::string cookCombine(PointGraph& pg, const std::vector<float>& producerVals,
-                        const std::string& sep) {
+// (multiInput), in vals order, sep } — the SHARED graph driven by BOTH the flat and resident legs. Each
+// producer is a FloatToString with empty format → its integer value's decimal text. Wire order = vals
+// order → wire-declaration order; the readback must equal the joined sequence IF the gather honours it.
+// CombineStrings is node id 1 (→ resident path "1"); producers are ids 2.. (FloatToString.Output →
+// CombineStrings.Input is a GENUINE String wire — the whole point of the resident string-wire rail).
+Graph makeCombineGraph(const std::vector<float>& producerVals, const std::string& sep) {
   Graph g;
   Node cmb; cmb.id = 1; cmb.type = "CombineStrings";
   cmb.strParams["Separator"] = sep;  // Separator (String const)
@@ -78,21 +81,48 @@ std::string cookCombine(PointGraph& pg, const std::vector<float>& producerVals,
   const int inputPin = pinId(1, /*portIndex=*/1);
 
   int connId = 100;
+  int nextNode = 2;
   for (size_t i = 0; i < producerVals.size(); ++i) {
-    Node p; p.id = (int)(i + 2); p.type = "FloatToString";
+    Node p; p.id = nextNode++; p.type = "FloatToString";
     p.params["Value"] = producerVals[i];
     p.strParams["Format"] = "";  // empty → default ToString (integer-valued → "1","2",...)
     g.nodes.push_back(p);
     // FloatToString ports: [0]=Output(out), [1]=Value, [2]=Format. Output pin = port 0.
     g.connections.push_back({connId++, pinId(p.id, /*out port*/ 0), inputPin});
   }
+  g.nextId = nextNode;  // monotonic floor for libFromGraph (resident leg)
+  return g;
+}
 
+// FLAT leg: cook CombineStrings as the terminal, read back via debugCookedString.
+std::string cookCombine(PointGraph& pg, const std::vector<float>& producerVals,
+                        const std::string& sep) {
+  Graph g = makeCombineGraph(producerVals, sep);
   EvaluationContext ctx{};
   ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
   pg.cook(g, ctx, nullptr, /*targetNodeId=*/1);
-
   const std::string* out = pg.debugCookedString(1);
   return out ? *out : std::string{};
+}
+
+// ★R-2 RESIDENT leg (production): mirror the SAME flat Graph into a SymbolLibrary (libFromGraph →
+// resident paths == flat node ids as strings), build the resident graph, run cookStringNodes (the
+// per-frame production pass frame_cook.cpp drives — String producers gathered THROUGH the resident
+// String-wire drivers the flatten now projects), then read the host string off CombineStrings'
+// extStrOut[Result port idx 0] — the EXACT production channel a downstream resident consumer reads.
+// This is the leg that was a DROPPED wire before the rail: without it, CombineStrings.Input read its
+// unwired-const fallback (empty) on the resident path → joined "" — the flat-only self-deception.
+std::string cookCombineResident(const std::vector<float>& producerVals, const std::string& sep) {
+  Graph g = makeCombineGraph(producerVals, sep);
+  SymbolLibrary lib = libFromGraph(g);
+  ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+  ResidentEvalCtx rc;
+  rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+  cookStringNodes(rg, rc);  // PRODUCTION pass: walks the resident graph, writes extStrOut
+  const ResidentNode* n = rg.node("1");  // CombineStrings resident path == flat node id "1"
+  if (!n) return {};
+  auto it = n->extStrOut.find(/*Result out port idx*/ 0);
+  return it != n->extStrOut.end() ? it->second : std::string{};
 }
 
 // Cook StringLength with its InputString either WIRED to a FloatToString producer (whose text we
@@ -462,6 +492,97 @@ int runStringRailSelfTest(bool injectBug) {
     ok = ok && pass;
     std::printf("[selftest-stringrail] Vec3ToString \"{3}\"=\"%s\" \"{0:Z}\"=\"%s\" want=Invalid Format -> %s\n",
                 i3.c_str(), iz.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 20 — ★R-2 PRODUCTION RESIDENT path (the whole point of task_32b5b6e5): the SAME CombineStrings
+  // graph (FloatToString producers → CombineStrings.Input, a GENUINE resident String wire) driven
+  // through libFromGraph → buildEvalGraph → cookStringNodes (the per-frame pass the running app drives)
+  // → extStrOut. Mirrors the FLAT legs 3/4: [1,2,3] joins "1-2-3" AND wire-order [3,1,2] joins "3-1-2"
+  // (NOT sorted, NOT first-wire-only). Proves the String currency is LIVE on the production resident
+  // path — before the resident string-wire rail, the flatten DROPPED the FloatToString.Output →
+  // CombineStrings.Input wire, so the resident gather read the unwired-const fallback (empty) and
+  // joined "" — the flat-only self-deception this gate kills. injectBug corrupts the REAL cook on the
+  // resident path too: FloatToString (the producer) drops its last char in cook AND CombineStrings
+  // drops its last char → the joined result is wrong → RED on the SAME StringCookFn that runs flat.
+  {
+    stringInjectBug() = injectBug;
+    std::string gotSeq = cookCombineResident({1.0f, 2.0f, 3.0f}, "-");
+    std::string gotWire = cookCombineResident({3.0f, 1.0f, 2.0f}, "-");
+    stringInjectBug() = false;
+    bool pass = (gotSeq == "1-2-3") && (gotWire == "3-1-2");
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] RESIDENT(production) CombineStrings([1,2,3],\"-\")=\"%s\" want=\"1-2-3\"; "
+                "([3,1,2],\"-\")=\"%s\" want=\"3-1-2\" (wire-decl) -> %s\n",
+                gotSeq.c_str(), gotWire.c_str(), pass ? "PASS" : "FAIL");
+  }
+
+  // LEG 21 — ★RESIDENT StringLength (refuter followup — closes the gate): StringLength is the named
+  // production consumer of the resident string-wire seam (task_32b5b6e5). Before the rail, the flatten
+  // DROPPED its String wire so cookHostScalarNodes skipped it (extOut[0] stayed 0). Now the flatten
+  // projects a Connection driver onto the String slot and cookHostScalarNodes reads the WIRED upstream
+  // via cookResidentString → .size() → extOut[0]. Two sub-cases (mirror of flat LEGs 5/6):
+  //   WIRED: FloatToString(3.14,"") → "3.14" (4 chars) → StringLength.InputString → extOut[0] = 4.0
+  //   CONST: StringLength.InputString strDef = "Line\nLine" (9 chars) → extOut[0] = 9.0
+  // Call order (the production sequence): cookStringNodes first (drives FloatToString → extStrOut),
+  // THEN cookHostScalarNodes (StringLength gathers via cookResidentString → .size() → extOut[0]).
+  // injectBug corrupts the upstream cook (FloatToString drops its last char → shorter string) AND
+  // then the StringLength branch clears extOut[0] to 0.0 — both sub-cases go → 0.0 under bug → RED.
+  {
+    // WIRED sub-case: FloatToString(3.14,"") wired into StringLength.InputString.
+    // Graph: StringLength id=1 (terminal), FloatToString id=2 (producer).
+    // StringLength ports: [0]=Length(out), [1]=InputString. FloatToString ports: [0]=Output(out), others.
+    auto makeStringLengthGraph = [](bool wired, const std::string& constText) {
+      Graph g;
+      Node sl; sl.id = 1; sl.type = "StringLength";
+      if (!wired) sl.strParams["InputString"] = constText;  // UNWIRED → strDef const (via libFromGraph)
+      g.nodes.push_back(sl);
+      if (wired) {
+        Node fts; fts.id = 2; fts.type = "FloatToString";
+        fts.params["Value"] = 3.14f; fts.strParams["Format"] = "";  // → "3.14" (4 chars)
+        g.nodes.push_back(fts);
+        // FloatToString.Output (port 0) → StringLength.InputString (port 1).
+        g.connections.push_back({400, pinId(2, /*out*/ 0), pinId(1, /*InputString*/ 1)});
+        g.nextId = 3;
+      } else {
+        g.nextId = 2;
+      }
+      return g;
+    };
+
+    stringInjectBug() = injectBug;
+    // Wired sub-case.
+    float gotWired = [&]() -> float {
+      Graph g = makeStringLengthGraph(/*wired=*/true, "");
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);      // 1st: cooks FloatToString → extStrOut (the String wire source)
+      cookHostScalarNodes(rg, rc);  // 2nd: StringLength gathers via cookResidentString → extOut[0]
+      const ResidentNode* n = rg.node("1");  // StringLength resident path == flat node id "1"
+      return n ? n->extOut[0] : -1.0f;
+    }();
+    // Const sub-case (unwired → strDef fallback "Line\nLine", 9 chars, matching flat LEG 6).
+    float gotConst = [&]() -> float {
+      Graph g = makeStringLengthGraph(/*wired=*/false, "Line\nLine");
+      SymbolLibrary lib = libFromGraph(g);
+      ResidentEvalGraph rg = buildEvalGraph(lib, "Root");
+      ResidentEvalCtx rc;
+      rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.frameIndex = 0; rc.lib = &lib;
+      cookStringNodes(rg, rc);      // no-op for const-only graph (no String producers to cook)
+      cookHostScalarNodes(rg, rc);  // StringLength reads strInputs[InputString] → "Line\nLine" → 9
+      const ResidentNode* n = rg.node("1");
+      return n ? n->extOut[0] : -1.0f;
+    }();
+    stringInjectBug() = false;
+
+    bool passWired = std::fabs(gotWired - 4.0f) < 1e-5f;  // wired "3.14" → 4 chars; bug → 0.0
+    bool passConst = std::fabs(gotConst - 9.0f) < 1e-5f;  // const "Line\nLine" → 9 chars; bug → 0.0
+    bool pass = passWired && passConst;
+    ok = ok && pass;
+    std::printf("[selftest-stringrail] RESIDENT(production) StringLength(wired \"3.14\")=%.1f want=4.0; "
+                "(const \"Line\\nLine\")=%.1f want=9.0 -> %s\n",
+                gotWired, gotConst, pass ? "PASS" : "FAIL");
   }
 
   q->release();

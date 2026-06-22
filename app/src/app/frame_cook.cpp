@@ -359,6 +359,15 @@ void run(PointGraph& pg, const std::string& targetPath) {
     hsCtx.localFxTime = (float)fxBars;   // wall clock (bars)
     hsCtx.frameIndex = g_frameIndex;
     hsCtx.lib = &doc::g_lib;             // Automation drivers on list-param inputs resolve through this
+    // Cook the STRING currency ops (FloatToString / IntToString / Vec3ToString / CombineStrings) — the
+    // PRODUCTION leg of the host-string cook flow (resident string-wire rail, task_32b5b6e5). Walks the
+    // resident graph, gathers each string op's upstream String inputs THROUGH the resident Connection
+    // drivers (the wire the flatten step now projects onto String slots — was DROPPED before this rail),
+    // and writes the host string onto extStrOut so a downstream resident String consumer reads the REAL
+    // production string (NOT flat-only — the R-2 rule; resident_string_cook.cpp). Cooked BEFORE the
+    // host-scalar pass so StringLength (which recurses cookResidentString inline anyway) reads producers
+    // already settled — same producer-before-consumer cleanliness as colorlist→host-scalar.
+    cookStringNodes(g_residentGraph, hsCtx);
     cookHostScalarNodes(g_residentGraph, hsCtx);
     // Cook the COLORLIST currency ops (ColorsToList) — the PRODUCTION leg of the vec4-list cook flow.
     // Same once-per-frame slot: cookColorListNodes walks the resident graph, gathers each colorlist op's

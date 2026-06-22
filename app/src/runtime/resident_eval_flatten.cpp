@@ -93,12 +93,23 @@ ProducerMap inlineSymbol(
         if (kv.second == TriggerOverride::Always) rn.triggerAlwaysOut[kv.first] = true;
       const NodeSpec* spec = findSpec(c.symbolId);  // anim-group lookup (Vec multi-channel)
       for (const SlotDef& d : def->inputDefs) {
-        // String sub-seam (context-var YELLOW): a String input is a PURE resolved constant — the
-        // value rail is float-only, so String slots carry no driver/wire. Resolve override-else-
-        // strDef into strInputs and skip the Float driver machinery entirely (no ResidentInput).
-        // The Float-only resolvers never look at strInputs, so existing ops are untouched.
+        // String sub-seam: a String input carries BOTH a resolved-const fallback (strInputs) AND a
+        // driver slot (the resident string-wire rail, task_32b5b6e5). The override-else-strDef const
+        // lives in strInputs for the UNWIRED case (byte-identical to the pre-rail behaviour — every
+        // existing unwired String port still resolves its const). ALSO project a Constant-driver
+        // ResidentInput so the wire resolvers (loops 2/3 below) can OVERWRITE it to Driver::Connection
+        // when a String wire feeds this slot — exactly as they do for a Float slot (the projection is
+        // dataType-agnostic; MultiInput like CombineStrings.Input rides extraConns the same way). The
+        // Float-only resolvers (resolveResidentFloatInputs / evalResidentFloat) iterate by Float/
+        // FloatList dataType, so they NEVER read this String ResidentInput — additive/inert to them.
+        // The string cook (cookResidentString) reads the driver here; an unwired String slot stays
+        // Driver::Constant → the cook falls back to strInputs[d.id].
         if (d.dataType == "String") {
           rn.strInputs[d.id] = effectiveStrInput(lib, c, d.id, d.strDef);
+          ResidentInput in;
+          in.slotId = d.id;
+          in.driver = ResidentInput::Driver::Constant;  // wire-OR-const: loops 2/3 upgrade if wired
+          rn.inputs.push_back(in);
           continue;
         }
         ResidentInput in;

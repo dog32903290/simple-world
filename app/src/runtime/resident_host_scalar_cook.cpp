@@ -20,16 +20,18 @@
 //   channel evalResidentFloat already reads (resident_eval_graph.cpp:68-70). Mirror of how
 //   cookAudioReactionNodes writes extOut[] each frame (frame_cook.cpp:166-168).
 //
-// SCOPE — FloatList host-scalar ops only. StringLength is in the host-scalar TYPE set (its Length rides
-//   extOut on the flat path), but it is NOT cooked here, and intentionally so: its String input
-//   (FloatToString.Output → StringLength.InputString) is a STRING WIRE, and the resident flatten DROPS
-//   every String wire (resident_eval_flatten.cpp:100-103 — String slots carry no driver/wire, only a
-//   resolved-constant strInputs). So the resident graph has no way to follow a String wire to cook
-//   StringLength faithfully; doing so would read only StringLength's strDef constant, never the wired
-//   upstream string — the very self-deception this fix exists to kill. StringLength's resident bridge
-//   needs the resident STRING-wire rail built first (a separate seam; the flat string-rail b247602 is
-//   itself flat-only). cookHostScalarNodes skips any host-scalar op that has a String input port, so
-//   StringLength stays correctly at 0 on the resident path until that seam lands (no FAKE green).
+// SCOPE — FloatList host-scalar ops (FloatListLength / PickFloatFromList) PLUS the StringLength leg
+//   (now LIVE — the resident string-wire rail it waited on landed, task_32b5b6e5). HISTORY: this pass
+//   originally SKIPPED StringLength because its String input (FloatToString.Output →
+//   StringLength.InputString) is a STRING WIRE that the resident flatten DROPPED — so the resident
+//   graph could not follow it, and cooking it would have read only StringLength's strDef constant
+//   (the very self-deception this family exists to kill). That gate is now closed: the flatten projects
+//   a ResidentInput onto every String slot (Connection when wired) and cookResidentString
+//   (resident_string_cook.cpp) walks it. So StringLength's String input is gathered HERE inline via
+//   cookResidentString — String-in → .size() → Float-out on extOut[0], mirror of the flat
+//   cookStringLength branch (point_graph.cpp). The generic skip-on-String-input guard remains as
+//   belt-and-suspenders for any FUTURE String-consuming host-scalar op with a registered cook fn whose
+//   resident gather is not yet wired — StringLength is handled by its dedicated branch BEFORE the guard.
 //
 // PLACEMENT: runtime leaf (pure CPU; depends only on resident_eval_graph.h + graph.h + the two op
 //   registries — all runtime). Called from app/frame_cook.cpp once per frame, same slot as
@@ -45,6 +47,7 @@
 #include "runtime/floatlist_op_registry.h"    // FloatListCookFn / FloatListCookCtx / findFloatListOp
 #include "runtime/graph.h"                     // NodeSpec / PortSpec / findSpec
 #include "runtime/host_scalar_op_registry.h"  // HostScalarCookFn / HostScalarCookCtx / findHostScalarOp
+#include "runtime/string_op_registry.h"       // stringInjectBug (StringLength resident leg, the teeth)
 
 namespace sw {
 
@@ -124,8 +127,38 @@ bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
 
 void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
   for (ResidentNode& rn : g.nodes) {
+    // StringLength resident leg (String-in → host scalar → extOut[0]). StringLength registers ONLY its
+    // type name into the host-scalar set (its NodeSpec + stub cook live on the String rail), so it has
+    // NO HostScalarCookFn — the generic loop below would skip it. It is the resident twin of the flat
+    // cookStringLength branch (point_graph.cpp): gather its ONE String input via cookResidentString
+    // (now wireable — the resident string-wire rail), take .size(), write the count onto extOut[0] (the
+    // channel evalResidentFloat reads for a downstream Float input wired to StringLength.Length). When
+    // the upstream String wire is corrupted by stringInjectBug, the cooked upstream string is already
+    // shorter (FloatToString drops its last char) → the count is wrong → RED carries through; we ALSO
+    // clear it under injectBug to mirror the flat cookStringLength's direct host-scalar tooth.
+    if (rn.opType == "StringLength") {
+      const NodeSpec* s = findSpec(rn.opType);
+      if (!s) continue;
+      std::string in;
+      for (const PortSpec& port : s->ports) {
+        if (port.isInput && port.dataType == "String") {
+          const ResidentInput* ri = rn.input(port.id);
+          if (ri && ri->driver == ResidentInput::Driver::Connection) {
+            cookResidentString(g, ri->srcNodePath, ctx, in, 0);  // WIRED upstream string
+          } else {
+            auto it = rn.strInputs.find(port.id);                 // UNWIRED → strDef const
+            in = (it != rn.strInputs.end()) ? it->second : std::string{};
+          }
+          break;  // StringLength has exactly one String input ("InputString")
+        }
+      }
+      float len = (float)in.size();
+      if (stringInjectBug()) len = 0.0f;  // golden teeth (mirror flat cookStringLength's clear)
+      rn.extOut[0] = len;  // Length output port index 0
+      continue;
+    }
     const HostScalarCookFn* fn = findHostScalarOp(rn.opType);
-    if (!fn || !*fn) continue;  // StringLength is in the type set but has NO cook fn here (String rail).
+    if (!fn || !*fn) continue;  // not a host-scalar op (or StringLength, handled above).
     const NodeSpec* s = findSpec(rn.opType);
     if (!s) continue;
 
