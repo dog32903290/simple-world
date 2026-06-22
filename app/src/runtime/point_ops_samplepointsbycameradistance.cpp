@@ -2,8 +2,8 @@
 // (PointCookCtx::objectToCamera) AND a rider of the bake-into-point seam (PointCookCtx::inputCurves — the
 // WForDistance Curve baked to a 256×1 R32 scratch). Faithful port of external/tixl
 // .../Assets/shaders/points/modify/SamplePointsByCameraDistance.hlsl + .../point/modify/
-// SamplePointsByCameraDistance.{cs,t3}. A count-preserving MODIFIER: scale each point's W (== SwPoint.FX2)
-// by a WForDistance Curve sampled at the camera-space depth.
+// SamplePointsByCameraDistance.{cs,t3}. A count-preserving MODIFIER: scale each point's W (== SwPoint.FX1
+// @12, the renderer's W-size field) by a WForDistance Curve sampled at the camera-space depth.
 //
 // SEAMS it rides: the camera-matrix-into-points seam (the cook driver detects the "Camera" marker port +
 // fills PointCookCtx::objectToCamera from the DEFAULT camera via fillPointCamera) AND the bake-into-point
@@ -36,7 +36,7 @@
 #include "runtime/point_graph.h"               // PointCookCtx, registerPointOp, PointGraph
 #include "runtime/resident_eval_graph.h"       // buildEvalGraph (resident leg)
 #include "runtime/samplepointsbycameradistance_params.h"  // SpcdParams, SPCD_* bindings
-#include "runtime/tixl_point.h"                // SwPoint (64B); .FX2 == TiXL p.W
+#include "runtime/tixl_point.h"                // SwPoint (64B); .FX1 (@12) == TiXL p.W
 
 #ifndef SW_SHADER_METALLIB
 #define SW_SHADER_METALLIB "shaders.metallib"
@@ -82,9 +82,9 @@ MTL::Texture* makeR32Row(MTL::Device* dev, uint32_t width, const float* host) {
 }
 
 // SamplePointsByCameraDistance cook: bake the WForDistance curve (gathered or .t3 default) into a 256×1
-// R32 scratch, then dispatch — d = ObjectToCamera.z, normalized depth → curve → p.FX2 *= t.r. count from
+// R32 scratch, then dispatch — d = ObjectToCamera.z, normalized depth → curve → p.FX1 *= t.r. count from
 // c.count. No Points input → nothing to do. hasCamera=false (a hand-built ctx without the camera, the
-// injectBug leg) leaves ObjectToCamera identity → d=0 for every point → all W scale equally (the RED tooth).
+// injectBug leg) leaves ObjectToCamera identity → d=0 for every point → all W(FX1) scale equally (RED tooth).
 void cookSamplePointsByCameraDistance(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.lib) return;
   const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
@@ -156,8 +156,8 @@ void registerSamplePointsByCameraDistanceOp() {
 // Golden — FOUR legs (R-2: flat-only is self-deception; the camera matrix + the baked curve must both
 // reach the kernel, and the depth→W scaling must match the host closed-form).
 //
-//  (1) DIRECT-COOK closed-form (default-curve W): hand-built ctx with hasCamera + the default-camera
-//      objectToCamera; the .t3 default linear-0→1 curve; input FX2=1. For pos=(0,0,0): d = host
+//  (1) DIRECT-COOK closed-form (default-curve W==FX1): hand-built ctx with hasCamera + the default-camera
+//      objectToCamera; the .t3 default linear-0→1 curve; input FX1=1 (the W field). For pos=(0,0,0): d = host
 //      mat4TransformPointDivW(ObjectToCamera, 0,0,0).z = -DefaultCameraDistance (-2.4142); normalized =
 //      (-d-0)/(10-0) = 0.24142; linear curve → 0.24142; want W = 1·0.24142. Computed LIVE host-side, NOT
 //      hardcoded. injectBug (hasCamera=false → identity ObjectToCamera) → d=0 → normalized=0 → curve→0 →
@@ -172,11 +172,14 @@ void registerSamplePointsByCameraDistanceOp() {
 //      1·0.5 = 0.5 regardless of the normalized depth. Asserts W ≈ 0.5 (the injected curve drove the bake,
 //      not the .t3 default-linear). A curve-bake regression (default used instead) yields 0.24142 ≠ 0.5.
 //
-//  (4) RESIDENT (production) leg: RadialPoints → SamplePointsByCameraDistance → DrawPoints2(UseWForSize=0,
-//      fixed radius) → RenderTarget via cookResident; read the rendered pixels → assert lit sprites exist.
-//      RadialPoints emits W=0, so a W-tied sprite size would vanish — this leg proves the camera + curve
-//      gather REACHES cookResident (the op cooks + the points render through it), NOT W encoding (the
-//      direct legs carry the exact-value teeth). Pairs with the direct legs.
+//  (4) RESIDENT (production) leg — W-tied size LIVE: RadialPoints(W=1, non-zero) →
+//      SamplePointsByCameraDistance → DrawPoints2(UseWForSize=1) → RenderTarget via cookResident; read the
+//      rendered pixels → assert lit sprites exist. With UseWForSize=1 the renderer reads pt.FX1 as the
+//      sprite scale, so this leg drives the WHOLE production chain end-to-end: the op MUST write the depth
+//      curve into FX1 (the renderer's W field) for any sprite to render at a visible size. If the op wrote
+//      FX2 (the silent-no-op bug), UseWForSize=1 would read the unscaled FX1=1 — so this leg alone does NOT
+//      bite the FX2 bug; the direct FX1 byte-read legs carry that tooth. This leg proves the camera+curve
+//      gather reaches cookResident AND the W-size path renders.
 // ============================================================================================
 
 namespace {
@@ -200,7 +203,23 @@ Curve constCurve(double value) {
   return c;
 }
 
-// DIRECT-COOK leg: dispatch over a hand-built bag, byte-read the output FX2 (== p.W). hasCamera =
+// A grid of W(FX1)=1 points — the resident-leg source gen. GPU RadialPoints hardcodes FX1=0
+// (radial_points.metal:46 → no W to scale), so a W-tied resident leg needs a gen that emits non-zero W
+// (mirrors point_ops_drawpoints2.cpp's singlePointGen). Points spread on an 8×8 XY grid at z=0 so several
+// project on-screen at the default camera; the depth curve scales each W → a visible W-sized sprite cluster.
+void gridPointsW1Gen(PointCookCtx& c) {
+  if (!c.output || c.count == 0) return;
+  SwPoint* dst = (SwPoint*)c.output->contents();
+  for (uint32_t i = 0; i < c.count; ++i) {
+    float fx = (float)(i % 8) / 7.0f - 0.5f, fy = (float)((i / 8) % 8) / 7.0f - 0.5f;  // [-0.5,0.5]
+    dst[i] = SwPoint{};
+    dst[i].Color = {1, 1, 1, 1}; dst[i].Scale = {1, 1, 1};
+    dst[i].FX1 = 1.0f;  // W = 1 — the op scales this by the depth curve; UseWForSize reads it
+    dst[i].Position = {0.6f * fx, 0.6f * fy, 0.0f};
+  }
+}
+
+// DIRECT-COOK leg: dispatch over a hand-built bag, byte-read the output FX1 (== p.W, @12). hasCamera =
 // withCamera; optional injected curve (null → the .t3 default). Returns out[0..N-1] + the default-camera
 // objectToCamera (for the host closed-form).
 bool directLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool withCamera,
@@ -235,10 +254,11 @@ bool directLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool w
 bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
                  std::vector<uint8_t>& px, uint32_t& ow, uint32_t& oh) {
   registerBuiltinPointOps();
+  registerPointOp("RadialPoints", gridPointsW1Gen);  // override with a W(FX1)=1 gen (GPU RadialPoints =W0)
 
   SymbolLibrary slib;
   slib.symbols["RadialPoints"] =
-      atomicOp("RadialPoints", {{"Count", "Count", "Float", 64.0f}, {"Radius", "Radius", "Float", 0.4f}},
+      atomicOp("RadialPoints", {{"Count", "Count", "Float", 64.0f}},
                {{"points", "points", "Points", 0.0f}});
   slib.symbols["SamplePointsByCameraDistance"] = atomicOp(
       "SamplePointsByCameraDistance",
@@ -251,7 +271,7 @@ bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
       {{"points", "points", "Points", 0.0f},
        {"Color.x", "Color", "Float", 1.0f}, {"Color.y", "Color.y", "Float", 1.0f},
        {"Color.z", "Color.z", "Float", 1.0f}, {"Color.w", "Color.w", "Float", 1.0f},
-       {"Radius", "Radius", "Float", 0.06f}, {"UseWForSize", "UseWForSize", "Float", 0.0f}},
+       {"Radius", "Radius", "Float", 0.06f}, {"UseWForSize", "UseWForSize", "Float", 1.0f}},
       {{"out", "out", "Command", 0.0f}});
   slib.symbols["RenderTarget"] = atomicOp(
       "RenderTarget",
@@ -264,9 +284,11 @@ bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
   SymbolChild c1; c1.id = 1; c1.symbolId = "RadialPoints";
   SymbolChild c2; c2.id = 2; c2.symbolId = "SamplePointsByCameraDistance";
   SymbolChild c3; c3.id = 3; c3.symbolId = "DrawPoints2";
-  c3.overrides["Radius"] = 0.10f; c3.overrides["UseWForSize"] = 0.0f;  // fixed radius: RadialPoints W=0,
-  // so a W-tied size would vanish; this leg only proves the camera+curve gather reaches cookResident
-  // (the points cook + render through the op), NOT W encoding (that's the direct legs' exact-value teeth).
+  c3.overrides["Radius"] = 0.40f; c3.overrides["UseWForSize"] = 1.0f;  // W-tied size LIVE: RadialPoints emits
+  // W(FX1)=1, the op scales it by the depth curve (~0.24 at default depth), DrawPoints2 reads pt.FX1 as the
+  // sprite scale. Radius generous so the depth-shrunk sprites still light >20 px. This drives the production
+  // W-size path end-to-end; the FX2 silent-no-op would leave FX1=1 unscaled, so the direct FX1 byte-read legs
+  // carry the FX2 tooth — this leg proves the camera+curve gather reaches cookResident AND the W path renders.
   SymbolChild c4; c4.id = 4; c4.symbolId = "RenderTarget";
   c4.overrides["Resolution"] = 0.0f;
   root.children = {c1, c2, c3, c4};
@@ -311,9 +333,9 @@ int runSamplePointsByCameraDistanceSelfTest(bool injectBug) {
   const uint32_t N = 2;
   SwPoint in[2];
   in[0] = SwPoint{}; in[0].Position = SW_PACKED3{0.0f, 0.0f, 0.0f};
-  in[0].FX2 = 1.0f; in[0].Rotation = SW_FLOAT4{0, 0, 0, 1}; in[0].Color = SW_FLOAT4{1, 1, 1, 1};
+  in[0].FX1 = 1.0f; in[0].Rotation = SW_FLOAT4{0, 0, 0, 1}; in[0].Color = SW_FLOAT4{1, 1, 1, 1};  // W==FX1
   in[1] = SwPoint{}; in[1].Position = SW_PACKED3{0.0f, 0.0f, 1.0f};
-  in[1].FX2 = 1.0f; in[1].Rotation = SW_FLOAT4{0, 0, 0, 1}; in[1].Color = SW_FLOAT4{1, 1, 1, 1};
+  in[1].FX1 = 1.0f; in[1].Rotation = SW_FLOAT4{0, 0, 0, 1}; in[1].Color = SW_FLOAT4{1, 1, 1, 1};  // W==FX1
 
   SwPoint out[2];
   float o2c[16];
@@ -331,12 +353,12 @@ int runSamplePointsByCameraDistanceSelfTest(bool injectBug) {
     return 1.0f * normalized;  // linear 0→1 curve: value == clamp(normalized) at the sampled LUT texel
   };
   float wantW0 = wantW(in[0]), wantW1 = wantW(in[1]);
-  float wErr0 = std::fabs(out[0].FX2 - wantW0), wErr1 = std::fabs(out[1].FX2 - wantW1);
+  float wErr0 = std::fabs(out[0].FX1 - wantW0), wErr1 = std::fabs(out[1].FX1 - wantW1);  // W==FX1
   // 1e-2 tolerance: the curve is a 256-texel LUT sampled Linear, so the value carries a small quantization
   // vs the analytic curve (the texel grid + interpolation). The depths are far enough apart that this is
   // a tight pin, not a slop.
   bool wPass = (wErr0 < 1e-2f) && (wErr1 < 1e-2f);
-  bool depthDep = std::fabs(out[0].FX2 - out[1].FX2) > 0.01f;  // the two depths give different W
+  bool depthDep = std::fabs(out[0].FX1 - out[1].FX1) > 0.01f;  // the two depths give different W(FX1)
 
   // ── (3) CUSTOM-CURVE bake leg: inject a constant-0.5 curve → W = 1·0.5 regardless of depth ───────
   std::vector<Curve> custom = {constCurve(0.5)};
@@ -347,7 +369,7 @@ int runSamplePointsByCameraDistanceSelfTest(bool injectBug) {
   // the .t3 linear default which would give the per-depth 0.24142/…). On injectBug (identity camera) d=0 →
   // normalized=0 → curve.sample(0)=0.5 (still constant 0.5) — so this leg does NOT bite injectBug; it bites
   // a CURVE-BAKE regression (default-linear used → 0.24142 ≠ 0.5). Both probes ≈ 0.5 when the bake is right.
-  bool curvePass = (std::fabs(outC[0].FX2 - 0.5f) < 1e-2f) && (std::fabs(outC[1].FX2 - 0.5f) < 1e-2f);
+  bool curvePass = (std::fabs(outC[0].FX1 - 0.5f) < 1e-2f) && (std::fabs(outC[1].FX1 - 0.5f) < 1e-2f);  // W==FX1
 
   // ── (4) RESIDENT (production) leg ───────────────────────────────────────────────────────────────
   std::vector<uint8_t> px;
@@ -366,8 +388,8 @@ int runSamplePointsByCameraDistanceSelfTest(bool injectBug) {
   std::printf("[selftest-samplepointsbycameradistance] W: w0=%.5f(want %.5f) w1=%.5f(want %.5f) err=(%.4f,"
               "%.4f) pass=%d | DEPTH-DEP: |w0-w1|=%.4f dep=%d | CUSTOM-CURVE: w0=%.4f w1=%.4f (want 0.5) "
               "pass=%d | RESIDENT: %ux%u lit=%d pass=%d | injectBug=%d -> %s\n",
-              out[0].FX2, wantW0, out[1].FX2, wantW1, wErr0, wErr1, wPass ? 1 : 0,
-              std::fabs(out[0].FX2 - out[1].FX2), depthDep ? 1 : 0, outC[0].FX2, outC[1].FX2,
+              out[0].FX1, wantW0, out[1].FX1, wantW1, wErr0, wErr1, wPass ? 1 : 0,
+              std::fabs(out[0].FX1 - out[1].FX1), depthDep ? 1 : 0, outC[0].FX1, outC[1].FX1,
               curvePass ? 1 : 0, ow, oh, litCount, resPass ? 1 : 0, injectBug ? 1 : 0,
               pass ? "PASS" : "FAIL");
 

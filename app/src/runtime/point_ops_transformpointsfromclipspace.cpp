@@ -32,6 +32,7 @@
 #include "runtime/field_camera.h"              // Mat4 / pointCameraMatrices / mat4TransformPointDivW (golden)
 #include "runtime/graph.h"                     // Graph/Node/pinId (flat-driver leg)
 #include "runtime/point_graph.h"               // PointCookCtx, registerPointOp, PointGraph
+#include "runtime/quat_host.h"                  // qFromMatrix3PreciseHost (rotation golden, host twin)
 #include "runtime/resident_eval_graph.h"       // buildEvalGraph (resident leg)
 #include "runtime/transformpointsfromclipspace_params.h"  // TpfcsParams, TPFCS_* bindings
 #include "runtime/tixl_point.h"                // SwPoint (64B)
@@ -99,11 +100,16 @@ void registerTransformPointsFromClipspaceOp() {
 //      value (computed live, NOT hardcoded). injectBug binds IDENTITY CameraToWorld -> Position stays
 //      (0,0,0) -> diverges from the host unproject -> RED.
 //
-//  (2) DIRECT-COOK second probe + Rotation: a SECOND probe (0.3,-0.2,0) confirms the unproject is the
-//      real matrix (not a constant), AND the Rotation leg asserts p.Rotation == the host-computed camera
-//      orientation quaternion qMul(camQuat, identity). For an axis-aligned default camera camQuat is a
-//      pure +z-looking orientation; we compare to the host's qFromMatrix3 of the same 3×3 (closed-form).
-//      injectBug (identity) -> Rotation stays identity -> diverges -> RED.
+//  (2) DIRECT-COOK second probe + Rotation unit-norm: a SECOND probe (0.3,-0.2,0) confirms the unproject is
+//      the real matrix (not a constant). The Rotation leg here asserts UNIT-NORM only (the exact-value pin
+//      lives in (2b) — the default camera's C2W≈identity makes the quaternion ≈ identity, where the
+//      conjugate bug is invisible). injectBug (identity) -> Position passthrough -> posPass RED.
+//
+//  (2b) ROTATION exact-value, NON-AXIS-ALIGNED camera (the conjugate-bug tooth): drive a known off-axis
+//      camera (eye=(3,2,4)) via directLegCustomC2W. Expected quaternion = qFromMatrix3PreciseHost on the
+//      c2w 3×3 read row-major (== TiXL's GPU view after the TransformBufferLayout cbuffer-transpose). Assert
+//      |dot(q_gpu, q_expected)| ≈ 1 (sign ambiguity, mirrors meshverticestopoints). The 抽row conjugate bug
+//      (which default-camera legs cannot see) yields the inverse rotation → |dot| ≈ 0.74 ≠ 1 → RED.
 //
 //  (3) FLAT-DRIVER gather leg: a real flat Graph RadialPoints(#1) -> TransformPointsFromClipspace(#2)
 //      cooked through PointGraph::cook; read the cooked Points buffer via debugCookedBuffer. The flat
@@ -126,6 +132,27 @@ Symbol atomicOp(const char* id, std::vector<SlotDef> ins, std::vector<SlotDef> o
   Symbol s; s.id = id; s.name = id; s.atomic = true;
   s.inputDefs = std::move(ins); s.outputDefs = std::move(outs);
   return s;
+}
+
+// DIRECT-COOK leg with an EXPLICIT cameraToWorld (a non-axis-aligned camera). The default-camera directLeg
+// can't bite the rotation conjugate bug (C2W≈identity → conjugate==self); this drives a known off-axis
+// matrix so the orientation quaternion is non-trivial and the conjugate diverges.
+bool directLegCustomC2W(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
+                        const float cameraToWorld[16], const SwPoint* in, uint32_t N, SwPoint* out) {
+  MTL::Buffer* srcBag = dev->newBuffer(in, (size_t)N * sizeof(SwPoint), MTL::ResourceStorageModeShared);
+  MTL::Buffer* outBag = dev->newBuffer((size_t)N * sizeof(SwPoint), MTL::ResourceStorageModeShared);
+  const MTL::Buffer* ins[1] = {srcBag};
+  uint32_t insCounts[1] = {N};
+  PointCookCtx c;
+  c.dev = dev; c.lib = lib; c.queue = q;
+  c.nodeId = 1; c.count = N;
+  c.inputs = ins; c.inputCounts = insCounts; c.inputCount = 1;
+  c.output = outBag;
+  std::memcpy(c.cameraToWorld, cameraToWorld, 16 * sizeof(float)); c.hasCamera = true;
+  cookTransformPointsFromClipspace(c);
+  std::memcpy(out, outBag->contents(), (size_t)N * sizeof(SwPoint));
+  srcBag->release(); outBag->release();
+  return true;
 }
 
 // DIRECT-COOK leg: dispatch over a hand-built bag, byte-read the output. hasCamera = !injectBug; on
@@ -296,6 +323,34 @@ int runTransformPointsFromClipspaceSelfTest(bool injectBug) {
                         out[0].Rotation.z * out[0].Rotation.z + out[0].Rotation.w * out[0].Rotation.w);
   bool rotUnit = std::fabs(rn0 - 1.0f) < 1e-3f;
 
+  // ── (2b) ROTATION exact-value leg — NON-AXIS-ALIGNED camera (bites the conjugate bug) ────────────
+  // The default camera's C2W≈identity makes the orientation quaternion ≈ identity, where conjugate==self —
+  // so the conjugate (抽row) bug HIDES. Drive a known off-axis camera (eye=(3,2,4)) so the orientation is a
+  // proper rotation: 抽column → the TiXL GPU quaternion; 抽row → its conjugate. Expected quaternion computed
+  // host-side via qFromMatrix3PreciseHost on the c2w 3×3 read DIRECTLY row-major (== the GPU view after the
+  // TransformBufferLayout cbuffer-transpose). Compare via |dot(q_gpu, q_expected)| ≈ 1 (quaternion sign
+  // ambiguity, mirrors the meshverticestopoints golden). At eye=(3,2,4): q_expected ≈ (0.179,-0.311,-0.060,
+  // 0.932); the conjugate ≈ (-0.179,0.311,0.060,0.932) → |dot| ≈ |1-2(x²+y²+z²)| ≈ 0.74 ≠ 1 → RED.
+  float rotDot = 0.0f; bool rotExactPass = false;
+  {
+    SwPoint rin[1];
+    rin[0] = SwPoint{}; rin[0].Position = SW_PACKED3{0.1f, -0.05f, 0.2f};
+    rin[0].Rotation = SW_FLOAT4{0, 0, 0, 1}; rin[0].Color = SW_FLOAT4{1, 1, 1, 1};
+    float eye[3] = {3.0f, 2.0f, 4.0f}, target[3] = {0.0f, 0.0f, 0.0f}, up[3] = {0.0f, 1.0f, 0.0f};
+    RaymarchTransforms rt = raymarchTransforms(eye, target, up, kDefaultCamFovDegrees, 1.0f, 0.01f, 1000.0f);
+    SwPoint rout[1];
+    directLegCustomC2W(dev, q, lib, rt.cameraToWorld.m, rin, 1, rout);
+    // Expected: qFromMatrix3Precise on c2w 3×3 read row-major (a[R][C] = c2w[R*4+C]). qMul'd with identity
+    // input rotation = that quaternion. (The conjugate bug would yield the inverse → |dot| << 1.)
+    float a33[3][3];
+    for (int R = 0; R < 3; ++R)
+      for (int C = 0; C < 3; ++C) a33[R][C] = rt.cameraToWorld.m[R * 4 + C];
+    float qe[4]; qFromMatrix3PreciseHost(a33, qe);
+    rotDot = std::fabs(rout[0].Rotation.x * qe[0] + rout[0].Rotation.y * qe[1] +
+                       rout[0].Rotation.z * qe[2] + rout[0].Rotation.w * qe[3]);
+    rotExactPass = std::fabs(rotDot - 1.0f) < 1e-3f;
+  }
+
   // ── (3) FLAT-DRIVER gather leg ──────────────────────────────────────────────────────────────────
   float fgPos[3]; uint32_t fgCount = 0;
   bool gotFg = flatGraphLeg(dev, q, lib, fgPos, fgCount);
@@ -316,14 +371,15 @@ int runTransformPointsFromClipspaceSelfTest(bool injectBug) {
 
   // injectBug: identity camera -> Position passthrough (z stays 0) -> posPass FAILS; Rotation stays
   // identity. The direct legs carry the bite; the flat/resident legs prove the seam reaches both drivers.
-  bool pass = posPass && rotUnit && fgPass && resPass;
+  bool pass = posPass && rotUnit && rotExactPass && fgPass && resPass;
   std::printf("[selftest-transformpointsfromclipspace] POS: err0=%.5f err1=%.5f want0=(%.3f,%.3f,%.3f) "
               "got0=(%.3f,%.3f,%.3f) pass=%d | ROT: |q|=%.4f unit=%d q0=(%.3f,%.3f,%.3f,%.3f) | "
-              "FLAT-DRIVER: count=%u pos=(%.3f,%.3f,%.3f) pass=%d | RESIDENT: %ux%u lit=%d pass=%d | "
-              "injectBug=%d -> %s\n",
+              "ROT-EXACT(off-axis): |dot|=%.4f pass=%d | FLAT-DRIVER: count=%u pos=(%.3f,%.3f,%.3f) pass=%d | "
+              "RESIDENT: %ux%u lit=%d pass=%d | injectBug=%d -> %s\n",
               pe0, pe1, wantPos0[0], wantPos0[1], wantPos0[2], out[0].Position.x, out[0].Position.y,
               out[0].Position.z, posPass ? 1 : 0, rn0, rotUnit ? 1 : 0, out[0].Rotation.x,
-              out[0].Rotation.y, out[0].Rotation.z, out[0].Rotation.w, fgCount, fgPos[0], fgPos[1],
+              out[0].Rotation.y, out[0].Rotation.z, out[0].Rotation.w, rotDot, rotExactPass ? 1 : 0,
+              fgCount, fgPos[0], fgPos[1],
               fgPos[2], fgPass ? 1 : 0, ow, oh, litCount, resPass ? 1 : 0, injectBug ? 1 : 0,
               pass ? "PASS" : "FAIL");
 

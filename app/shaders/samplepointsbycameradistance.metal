@@ -5,14 +5,16 @@
 //   d          = mul(float4(pos,1), ObjectToCamera).z                    // camera-space depth (.z)
 //   normalized = (-d - NearRange) / (FarRange - NearRange)
 //   t          = curveTex.SampleLevel(texSampler, float2(normalized, 0.5), 0)
-//   p.W       *= t.r                                                      // p.W == SwPoint.FX2 (@60)
+//   p.W       *= t.r                                                      // p.W == SwPoint.FX1 (@12)
 //
 // ★MATRIX CONVENTION (draw_quad_xf.metal:33 / field_camera.h lock): ObjectToCamera arrives ROW-MAJOR
 // (m[r*4+c]); mul4row(M,v) == v·M_rowmajor reproduces HLSL `mul(rowVec, M)`. Since ObjectToCamera is
 // affine (no perspective row), w stays 1 and the .z is the raw camera-space depth.
 //
-// ★p.W MAPPING (tixl_point.h / pointsonmesh.metal:11): TiXL LegacyPoint.W maps to SwPoint.FX2 (@60). The
-// kernel scales FX2, leaving Position/Rotation/Color/Scale/FX1 untouched.
+// ★p.W MAPPING (tixl_point.h / shared/point.hlsl): TiXL LegacyPoint.W lives at offset 12 == SwPoint.FX1
+// (@12), the W-size field the renderer reads (draw_points2.metal:54 useWForSize ? pt.FX1 : 1). The kernel
+// scales FX1, leaving Position/Rotation/Color/Scale/FX2 untouched. (NOTE: pointsonmesh.metal:11 mislabels
+// W↔FX2 — harmless there since onmesh fills both with 1 — do NOT trust it as the W mapping authority.)
 //
 // NAMED FORK vs the .cs/.hlsl:
 //   • fork-camera-one-matrix-per-op / fork-camera-default-only-v1: the host computes ONLY ObjectToCamera
@@ -21,7 +23,7 @@
 //   • fork-wfordistance-embedded-default-curve: the host bakes the .t3 default linear-0→1 WForDistance
 //     curve when the Curve input is unwired (always, in production — no Curve producer op yet).
 #include <metal_stdlib>
-#include "tixl_point.h"                        // SwPoint (64B); .FX2 == TiXL p.W
+#include "tixl_point.h"                        // SwPoint (64B); .FX1 (@12) == TiXL p.W
 #include "samplepointsbycameradistance_params.h"  // SpcdParams + SPCD_* bindings
 using namespace metal;
 
@@ -53,7 +55,7 @@ kernel void samplepointsbycameradistance(device const SwPoint*  src       [[buff
 
   float normalized = (-d - P.NearRange) / (P.FarRange - P.NearRange);        // TiXL :53
   float4 t = curveTex.sample(texSampler, float2(normalized, 0.5f), level(0)); // TiXL :54 SampleLevel(...,0)
-  p.FX2 *= t.r;                                                              // TiXL :55 p.W *= t.r
+  p.FX1 *= t.r;                                                              // TiXL :55 p.W *= t.r (W==FX1)
 
   dst[i] = p;
 }

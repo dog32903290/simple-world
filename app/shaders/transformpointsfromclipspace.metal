@@ -8,13 +8,24 @@
 // (m[r*4+c]); mul4row(M,v) == v·M_rowmajor reproduces HLSL `mul(rowVec, M)`. NO host transpose, NO
 // column-major float4x4 reinterpret here.
 //
-// ★ROTATION CONVENTION (the meshverticestopoints.metal:50-53 / addnoise.metal proof, applied to a
-// general 3×3): TiXL builds `orientationDest = float3x3(CameraToWorld._m00_m01_m02, _m10_m11_m12,
-// _m20_m21_m22)` = the three ROWS of the 3×3 as HLSL float3x3 ROWS, then `transpose()`s it (→ columns =
-// those rows) and feeds qFromMatrix3Precise. MSL `float3x3(r0,r1,r2)` already builds r0,r1,r2 as COLUMNS,
-// so MSL `float3x3(camRow0,camRow1,camRow2)` ≡ HLSL `transpose(float3x3(rows r0,r1,r2))` — NO explicit
-// transpose; that IS the form qFromMatrix3Precise expects. (Same identity the mesh op uses for its TBN
-// basis; here the three vectors are the matrix's 3×3 rows instead of T/B/N.)
+// ★ROTATION CONVENTION (cbuffer-transpose backward-trace — NOT the mesh-op analogy, which does NOT hold
+// here; see WHY below): TiXL feeds `qFromMatrix3Precise(transpose(orientationDest))` where
+// `orientationDest = float3x3(CameraToWorld._m00_m01_m02, _m10_m11_m12, _m20_m21_m22)` (the three ROWS of
+// the HLSL CameraToWorld 3×3). The decisive fact the first port missed: TransformBufferLayout.cs uploads
+// EVERY matrix already `Matrix4x4.Transpose`d ("mem layout in hlsl constant buffer is row based"), so HLSL
+// `CameraToWorld._m{r}{c}` reads `cameraToWorld_numerics[c][r]`. SW stores the SAME numerics matrix
+// ROW-MAJOR with NO cbuffer transpose, so `P.CameraToWorld[r*4+c] == cameraToWorld_numerics[r][c] ==
+// HLSL CameraToWorld._m{c}{r}` (off by ONE transpose vs the GPU view). Threading that transpose through
+// `transpose(orientationDest)` and the MSL `m[col][row]` reader (quat.metal.h: HLSL `_mRC == m[C][R]`)
+// collapses to: the float3x3 MSL must receive is `float3x3(camCol0,camCol1,camCol2)` built from the
+// matrix's 3×3 COLUMNS (P.CameraToWorld[0],[4],[8] / [1],[5],[9] / [2],[6],[10]) — NOT its rows.
+//   ★WHY the mesh-op analogy is WRONG here: meshverticestopoints assembles its float3x3 from a
+//   freshly-built T/B/N basis (no upstream cbuffer-transpose convention), so its `float3x3(rows)≡
+//   transpose` shortcut is self-consistent. This matrix arrives from the fixed row-major TransformBuffer
+//   layout, so the same shortcut double-counts a transpose and yields the rotation's CONJUGATE (the
+//   inverse orientation). Anchored vs real TiXL at eye=(3,2,4): 抽column → (0.179,-0.311,-0.060,0.932)
+//   (== TiXL GPU); 抽row → (-0.179,0.311,0.060,0.932) (== the conjugate). Default camera C2W≈identity so
+//   conjugate==self → the bug hid until a non-axis-aligned camera leg bit it.
 //
 // NAMED FORK vs the .cs/.hlsl:
 //   • fork-camera-default-only-v1 / fork-camera-one-matrix-per-op: the host computes ONLY CameraToWorld
@@ -52,13 +63,13 @@ kernel void transformpointsfromclipspace(device const SwPoint*    src [[buffer(T
   pInWorld.xyz /= pInWorld.w;
   p.Position = packed_float3(pInWorld.x, pInWorld.y, pInWorld.z);
 
-  // Rotation: HLSL transpose(float3x3(rows m00.., m10.., m20..)) ≡ MSL float3x3(camRow0,camRow1,camRow2)
-  // (columns = those rows) — see the convention note above. The 3×3 ROWS of the row-major CameraToWorld:
-  float3 camRow0 = float3(P.CameraToWorld[0], P.CameraToWorld[1], P.CameraToWorld[2]);
-  float3 camRow1 = float3(P.CameraToWorld[4], P.CameraToWorld[5], P.CameraToWorld[6]);
-  float3 camRow2 = float3(P.CameraToWorld[8], P.CameraToWorld[9], P.CameraToWorld[10]);
-  float3x3 orientDestT = float3x3(camRow0, camRow1, camRow2);  // == HLSL transpose(orientationDest)
-  float4 newRotation = normalize(qFromMatrix3Precise(orientDestT));
+  // Rotation: feed qFromMatrix3Precise the matrix's 3×3 COLUMNS (see the cbuffer-transpose note above).
+  // 抽column reproduces TiXL's GPU quaternion exactly; 抽row would compute its conjugate (inverse).
+  float3 camCol0 = float3(P.CameraToWorld[0], P.CameraToWorld[4], P.CameraToWorld[8]);
+  float3 camCol1 = float3(P.CameraToWorld[1], P.CameraToWorld[5], P.CameraToWorld[9]);
+  float3 camCol2 = float3(P.CameraToWorld[2], P.CameraToWorld[6], P.CameraToWorld[10]);
+  float3x3 orientDest = float3x3(camCol0, camCol1, camCol2);
+  float4 newRotation = normalize(qFromMatrix3Precise(orientDest));
   p.Rotation = qMul(newRotation, p.Rotation);  // TiXL :52 qMul(newRotation, p.Rotation)
 
   dst[i] = p;
