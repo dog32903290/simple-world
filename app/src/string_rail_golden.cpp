@@ -51,6 +51,8 @@ namespace sw {
 
 // Sub-seam A legs (LEG 34/35/36) live in string_rail_golden_subseama.cpp — run under this same flag.
 bool runStringRailSubseamA(bool injectBug);
+// LEG 37/38 (StringBuilder + StringBuilderToString) live in string_builder_golden.cpp — same flag.
+bool runStringBuilderGolden(bool injectBug);
 
 namespace {
 
@@ -1506,6 +1508,11 @@ int runStringRailSelfTest(bool injectBug) {
   // LEG 34 (FilePathParts MULTI-OUTPUT) was EXTRACTED into string_rail_golden_subseama.cpp alongside the
   // Sub-seam A legs (LEG 35/36), to keep THIS file at-or-below its line-count cap when it gained the
   // runStringRailSubseamA call below. It still runs under --selftest-stringrail (via that call).
+  //
+  // LEG 39 (StringBuilderToString FLAT+RESIDENT) + LEG 40 (StringBuilder→StringBuilderToString chain)
+  // were EXTRACTED into string_builder_golden.cpp by the same cap discipline, called unconditionally via
+  // runStringBuilderGolden below.
+  // NOTE: LEG 37/38 are PickStringFromList/ZipStringList in string_rail_golden_subseama.cpp.
 
   q->release();
   dev->release();
@@ -1514,9 +1521,13 @@ int runStringRailSelfTest(bool injectBug) {
   // Sub-seam A legs (LEG 34 FilePathParts + LEG 35 FloatListToString + LEG 36 JoinStringList) live in
   // string_rail_golden_subseama.cpp and run under THIS flag. Call UNCONDITIONALLY (NOT `ok && …` — that
   // short-circuits when an incumbent already failed in -bug mode, so the new legs would never run / bite)
-  // then AND the result, so --selftest-stringrail covers LEG 20-36 (and -bug bites all of them).
+  // then AND the result, so --selftest-stringrail covers LEG 20-40 (and -bug bites all of them).
   bool subseamAOk = runStringRailSubseamA(injectBug);
   ok = ok && subseamAOk;
+
+  // LEG 39/40: StringBuilder + StringBuilderToString (string_builder_golden.cpp). Call UNCONDITIONALLY.
+  bool builderOk = runStringBuilderGolden(injectBug);
+  ok = ok && builderOk;
 
   // Harness convention (run_all_selftests.sh --bite): the -bug variant must exit NON-zero. injectBug
   // corrupts the REAL cook outputs -> ok is false -> return 1 (the tooth bites). No inversion.
