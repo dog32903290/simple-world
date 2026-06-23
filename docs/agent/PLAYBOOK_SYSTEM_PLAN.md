@@ -161,6 +161,8 @@ git commit -m "feat(sw-batch): 選批加兩軸分類 + 誤選硬閘(動核心檔
   (全庫 --bite + check-arch + ff-merge)。**禁開多個自治頂層 /sw-batch driver 各自搶主線。**
   補 cook-core 縫只能一條(序列脊椎佔滿);採的葉子必須「既有/已解鎖」不依賴正在補的縫。
   一條 lane = 接力棒串(Plan→build→refuter→fixer)或 Workflow pipeline,非單一 agent。
+- **★派工落盤紀律(spec §11 摩擦 2):** 要落盤的產出(藍圖/census/dossier)派 **general-purpose**(有 Write)
+  或 **orchestrator 代存**(agent 回傳內容、主腦寫)。**Plan 與 Explore 都沒有 Write 工具,不能落盤。**
 ```
 
 - [ ] **Step 2: 合流步驟強化「中央合流者」**
