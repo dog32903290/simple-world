@@ -56,7 +56,11 @@ float nodeRadius(const std::shared_ptr<FieldNode>& n) {
 
 // FLAT leg: a 1-node Graph holding ToroidalVortexField with a stored Radius override; build the tree
 // from it. The flat resolver IS the production nodeParams shape (resolveNodeParams → the value spine).
-std::shared_ptr<FieldNode> buildFlatLeg(float radius) {
+// injectBug FORGES the builder INPUT (not the assertion): it strips the wired Radius override out of the
+// resolver's returned map, so a FAITHFUL builder projects the .t3 default (1.0) instead of the wired 3.5.
+// The verdict still asserts Radius==3.5 → the bug trips it RED. This bites the param-apply path: it proves
+// the assertion FAILS when the wired value does NOT reach the node (a regression that drops the override).
+std::shared_ptr<FieldNode> buildFlatLeg(float radius, bool injectBug) {
   Graph g;
   Node fld; fld.id = 5; fld.type = "ToroidalVortexField"; fld.params["Radius"] = radius;
   g.nodes = {fld};
@@ -66,7 +70,9 @@ std::shared_ptr<FieldNode> buildFlatLeg(float radius) {
   FieldParamResolver params = [&](int id) -> const std::map<std::string, float>* {
     const Node* n = g.node(id);
     if (!n) return nullptr;
-    return &(scratch[id] = resolveNodeParams(g, *n, ctx, nullptr));
+    auto m = resolveNodeParams(g, *n, ctx, nullptr);
+    if (injectBug) m.erase("Radius");  // forge: the wired override never reaches the builder → default 1.0
+    return &(scratch[id] = std::move(m));
   };
   return buildFieldTree(g, 5, params);
 }
@@ -74,7 +80,7 @@ std::shared_ptr<FieldNode> buildFlatLeg(float radius) {
 // RESIDENT leg: the same field op as a single-child SymbolLibrary, flattened to a ResidentEvalGraph,
 // built via buildResidentFieldTree. Mirrors the probe golden's resident library shape. The Radius
 // override rides the SymbolChild override → resolveResidentFloatInputs resolves it (the value spine).
-std::shared_ptr<FieldNode> buildResidentLeg(float radius) {
+std::shared_ptr<FieldNode> buildResidentLeg(float radius, bool injectBug) {
   SymbolLibrary slib;
   slib.symbols["ToroidalVortexField"] = [] {
     Symbol s; s.id = s.name = "ToroidalVortexField"; s.atomic = true;
@@ -96,7 +102,9 @@ std::shared_ptr<FieldNode> buildResidentLeg(float radius) {
     static std::map<std::string, std::map<std::string, float>> scratch;
     const ResidentNode* n = rg.node(path);
     if (!n) return nullptr;
-    return &(scratch[path] = resolveResidentFloatInputs(rg, *n, rc));
+    auto m = resolveResidentFloatInputs(rg, *n, rc);
+    if (injectBug) m.erase("Radius");  // forge: the resident override never reaches the builder → 1.0
+    return &(scratch[path] = std::move(m));
   };
   // Root child path: the flatten keys atomic children by their child id as a string ("5").
   return buildResidentFieldTree(rg, "5", params);
@@ -107,8 +115,13 @@ std::shared_ptr<FieldNode> buildResidentLeg(float radius) {
 int runFieldTreeBuilderSelfTest(bool injectBug) {
   const float wired = kWiredRadius;
 
-  std::shared_ptr<FieldNode> flat = buildFlatLeg(wired);
-  std::shared_ptr<FieldNode> res = buildResidentLeg(wired);
+  // injectBug FORGES the builder INPUT (the resolver drops the wired Radius), NOT the assertion. A
+  // faithful builder then projects the .t3 default (1.0) instead of 3.5 — so the SAME verdict below FAILS.
+  // This makes the param-apply tooth bite: the golden's Radius==3.5 assertion is load-bearing, proven by
+  // the fault-injected run going RED. (Pre-fix, -bug only re-asserted a derived condition that was already
+  // true under correct code → NO-BITE. Now the wired value genuinely does not reach the node.)
+  std::shared_ptr<FieldNode> flat = buildFlatLeg(wired, injectBug);
+  std::shared_ptr<FieldNode> res = buildResidentLeg(wired, injectBug);
 
   const bool flatExists = (bool)flat;
   const bool resExists = (bool)res;
@@ -126,19 +139,20 @@ int runFieldTreeBuilderSelfTest(bool injectBug) {
               resExists ? "built" : "NULL", resType ? "ToroidalVortexField" : "WRONG", resR, wired,
               (resExists && resType && resRadius) ? "OK" : "FAIL");
 
+  const bool ok = flatExists && resExists && flatType && resType && flatRadius && resRadius;
   if (injectBug) {
-    // -bug: assert the param-apply did NOT silently leave the .t3 default (1.0). If the builder failed
-    // to project the wired Radius, both radii would equal 1.0 != wired → this row FAILS, proving the
-    // from-map configure is load-bearing (a regression that drops param-apply trips here). RED iff the
-    // wired value was NOT honoured.
-    const bool defaulted = (flatR > 1.0f - kEps && flatR < 1.0f + kEps) ||
-                           (resR > 1.0f - kEps && resR < 1.0f + kEps);
-    std::printf("[selftest-fieldtree-builder] -bug (param-apply NOT a silent default): %s\n",
-                defaulted ? "RED (a leg kept .t3 default 1.0 — param-apply DROPPED)" : "PASS");
-    return defaulted ? 1 : 0;
+    // HARNESS POLARITY (run_all_selftests.sh --bite): a -bug variant MUST exit NON-ZERO to "bite".
+    // The forged input dropped the wired Radius, so a faithful builder projected the .t3 default (1.0) and
+    // the verdict `ok` MUST be false. We exit non-zero (RED) in that expected-caught case — that non-zero
+    // IS the bite. If `ok` were somehow still true the fault was masked (builder ignoring its input); we
+    // return 0 then so the NO-BITE list re-flags it (a tooth that did not catch its own injected fault).
+    const bool caught = !ok;  // the injected fault correctly broke the verdict
+    std::printf("[selftest-fieldtree-builder] -bug (forged input: wired Radius dropped from resolver) -> %s\n",
+                caught ? "RED (dropped override → builder built default 1.0, verdict FAILED — tooth bit)"
+                       : "NO-BITE (builder masked the dropped override — assertion did NOT catch it)");
+    return caught ? 1 : 0;
   }
 
-  const bool ok = flatExists && resExists && flatType && resType && flatRadius && resRadius;
   std::printf("[selftest-fieldtree-builder] %s (graph->FieldNode tree built on BOTH legs, wired param "
               "projected)\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
