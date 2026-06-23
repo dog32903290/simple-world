@@ -135,7 +135,25 @@ std::shared_ptr<FieldNode> makeBoxSdf(const std::string& shortId) {
   return std::make_shared<BoxSDFNode>(shortId);
 }
 
-const FieldOp g_boxSdfOp(boxSdfSpec(), makeBoxSdf);
+// PF-0c param-apply: project a RESOLVED param map onto a BoxSDFNode via setter-lambdas (NOT offsetof).
+// Slot ids EQUAL the NodeSpec PortSpec.id (Center.x/.y/.z, Size.x/.y/.z, UniformScale, EdgeRadius). NOTE:
+// the host members size*/uniformScale are set RAW — collectParams derives CombinedScale = size*scale/2
+// (the TiXL Update() fork), so the apply leaves the derivation untouched. A missing key keeps the member's
+// ctor .t3 default (applyFloatSlot's contract). Routed via the fieldConfigurers() sink.
+void configureBoxSdf(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<BoxSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Size.x", [&](float v) { n->sizeX = v; });
+    applyFloatSlot(m, "Size.y", [&](float v) { n->sizeY = v; });
+    applyFloatSlot(m, "Size.z", [&](float v) { n->sizeZ = v; });
+    applyFloatSlot(m, "UniformScale", [&](float v) { n->uniformScale = v; });
+    applyFloatSlot(m, "EdgeRadius", [&](float v) { n->edgeRadius = v; });
+  }
+}
+
+const FieldOp g_boxSdfOp(boxSdfSpec(), makeBoxSdf, configureBoxSdf);
 
 }  // namespace
 }  // namespace sw

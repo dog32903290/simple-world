@@ -375,15 +375,22 @@ std::shared_ptr<FieldNode> makeCombineSdf(const std::string& shortId) {
   return std::make_shared<CombineSDFNode>(shortId);
 }
 
-const FieldOp g_combineSdfOp(combineSdfSpec(), makeCombineSdf);
+// PF-0c param-apply (setter-lambda, NOT offsetof): slot ids == PortSpec.id. K = packed float; CombineMethod
+// = enum selector (applyIntSelSlot (int)(v+0.5f); switches MSL text not buffer). Missing key keeps .t3 default.
+void configureCombineSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<CombineSDFNode*>(&node)) {
+    applyFloatSlot(m, "K", [&](float v) { n->k = v; });
+    applyIntSelSlot(m, "CombineMethod", [&](int v) { n->combineMethod = v; });
+  }
+}
+
+const FieldOp g_combineSdfOp(combineSdfSpec(), makeCombineSdf, configureCombineSdfFromParams);
 
 }  // namespace
 
-// Param-cook seam (the hook the factory comment anticipates): set the fold params on a node built via
-// makeFieldNode("CombineSDF", ...). The leaf type is TU-private; this free function downcasts inside
-// the owning TU so callers (a graph-cook walk; the GPU golden) can override K / combineMethod without
-// the type leaking. K is a packed [GraphParam]; combineMethod is the compile-time code selector. No-op
-// if `node` is not a CombineSDFNode (defensive; the caller passes the factory output of this op).
+// Direct test/cook seam (downcasts inside the owning TU; used by the combinesdf golden): set K (packed
+// [GraphParam]) + combineMethod (compile-time selector) on a makeFieldNode("CombineSDF",...) node. No-op if
+// `node` is not a CombineSDFNode. (PF-0c's configureCombineSdfFromParams is the map-driven production path.)
 void configureCombineSdf(FieldNode& node, float k, int combineMethod) {
   if (auto* n = dynamic_cast<CombineSDFNode*>(&node)) {
     n->k = k;

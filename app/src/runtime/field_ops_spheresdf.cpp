@@ -93,7 +93,20 @@ std::shared_ptr<FieldNode> makeSphereSdf(const std::string& shortId) {
   return std::make_shared<SphereSDFNode>(shortId);
 }
 
-const FieldOp g_sphereSdfOp(sphereSdfSpec(), makeSphereSdf);
+// PF-0c param-apply: project a RESOLVED param map onto a SphereSDFNode via setter-lambdas (NOT offsetof —
+// SphereSDFNode is non-standard-layout). Slot ids EQUAL the NodeSpec PortSpec.id (Center.x/.y/.z, Radius).
+// A missing key leaves the member at its ctor .t3 default (applyFloatSlot's contract) → byte-identical to
+// a no-graph-param build. Routed here by configureFieldNodeFromParams via the fieldConfigurers() sink.
+void configureSphereSdf(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<SphereSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Radius", [&](float v) { n->radius = v; });
+  }
+}
+
+const FieldOp g_sphereSdfOp(sphereSdfSpec(), makeSphereSdf, configureSphereSdf);
 
 }  // namespace
 }  // namespace sw

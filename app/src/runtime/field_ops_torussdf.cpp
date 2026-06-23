@@ -147,7 +147,22 @@ std::shared_ptr<FieldNode> makeTorusSdf(const std::string& shortId) {
   return std::make_shared<TorusSDFNode>(shortId);
 }
 
-const FieldOp g_torusSdfOp(torusSdfSpec(), makeTorusSdf);
+// PF-0c param-apply: project a RESOLVED param map onto a TorusSDFNode via setter-lambdas (NOT offsetof).
+// Slot ids EQUAL the NodeSpec PortSpec.id (Center.x/.y/.z, Radius, Thickness, Axis). Axis is the enum CODE
+// SELECTOR (compile-time swizzle, NOT packed) — applyIntSelSlot rounds (int)(v+0.5f), matching the bespoke
+// ToroidalVortex Axis read. A missing key keeps the member's ctor .t3 default. Routed via fieldConfigurers().
+void configureTorusSdf(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<TorusSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Radius", [&](float v) { n->radius = v; });
+    applyFloatSlot(m, "Thickness", [&](float v) { n->thickness = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+  }
+}
+
+const FieldOp g_torusSdfOp(torusSdfSpec(), makeTorusSdf, configureTorusSdf);
 
 }  // namespace
 }  // namespace sw

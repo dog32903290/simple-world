@@ -176,6 +176,39 @@ void appendScalarParam(std::vector<float>& v, std::vector<std::string>& fields,
 void appendMat4Param(std::vector<float>& v, std::vector<std::string>& fields,
                      const std::string& name, const float m[16]);
 
+// ---- param-apply slot helpers (PF-0c data-driven field-input projection) -------------------------
+//
+// Shared apply primitives the per-op slot tables use to project a RESOLVED param map (named-param →
+// value, the cook driver's nodeParams output) onto a FieldNode's members. The setter is a LAMBDA, NOT
+// offsetof: FieldNode subclasses are non-standard-layout (vtable + std::string/std::vector members), so
+// offsetof on a member is UB. Each leaf TU owns the downcast + slot table; these supply the apply rule.
+//
+// MISSING-KEY CONTRACT (byte-identical guarantee): if the map has no entry for `id`, the setter is NOT
+// called → the member keeps its ctor-seeded .t3 default. This is identical to the old per-field `pick`
+// fallback (field_ops_toroidalvortexfield.cpp's pick(m,id,current)), so a no-graph-param build assembles
+// the byte-identical buffer it did before PF-0c.
+//
+// Templated on the setter so the lambda captures the (TU-private) leaf pointer with no type erasure and
+// no <functional> cost — header-only, packing/assemble untouched.
+template <class Setter>
+inline void applyFloatSlot(const std::map<std::string, float>& m, const std::string& id, Setter set) {
+  auto it = m.find(id);
+  if (it != m.end()) set(it->second);
+}
+// Int selector (an enum index stored as a float): round (int)(v+0.5f), matching the bespoke ToroidalVortex
+// Axis read (toroidalvortexfield.cpp:270). Field selectors are ≥0, so the +0.5 round is correct.
+template <class Setter>
+inline void applyIntSelSlot(const std::map<std::string, float>& m, const std::string& id, Setter set) {
+  auto it = m.find(id);
+  if (it != m.end()) set(static_cast<int>(it->second + 0.5f));
+}
+// Bool selector (a bool stored as a float): v > 0.5f.
+template <class Setter>
+inline void applyBoolSelSlot(const std::map<std::string, float>& m, const std::string& id, Setter set) {
+  auto it = m.find(id);
+  if (it != m.end()) set(it->second > 0.5f);
+}
+
 // Recurse a field subtree's shader code into `cac` (the public entry custom-code ops call to collect
 // their OWN children). 1:1 with TiXL ShaderGraphNode.CollectEmbeddedShaderCode: pushes the root context
 // if the stack is empty, runs the node's addGlobals, honors tryBuildCustomCode, else drives the standard

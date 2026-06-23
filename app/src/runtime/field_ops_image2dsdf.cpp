@@ -174,6 +174,9 @@ std::shared_ptr<FieldNode> makeImage2dSdf(const std::string& shortId) {
   return std::make_shared<Image2dSDFNode>(shortId);
 }
 
+// PF-0d DEFERRED: no param-apply configurer (the 2-arg ctor registers a null configurer). Image2dSDF binds
+// a TEXTURE (and a packed-param setup) that cannot flow through the map<string,float> float spine — its
+// param-apply lands in PF-0d, not PF-0c. NULL configurer = explicit no-op (node keeps ctor .t3 defaults).
 const FieldOp g_image2dSdfOp(image2dSdfSpec(), makeImage2dSdf);
 
 }  // namespace

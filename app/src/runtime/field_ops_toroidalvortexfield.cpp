@@ -223,7 +223,30 @@ std::shared_ptr<FieldNode> makeToroidalVortexField(const std::string& shortId) {
   return std::make_shared<ToroidalVortexFieldNode>(shortId);
 }
 
-const FieldOp g_toroidalVortexFieldOp(toroidalVortexFieldSpec(), makeToroidalVortexField);
+// PF-0c param-apply (migrated from the bespoke configureToroidalVortexFieldFromParams — BYTE-IDENTICAL
+// behavior): project a RESOLVED param map onto a ToroidalVortexFieldNode via setter-lambdas (NOT offsetof).
+// Slot ids EQUAL the NodeSpec PortSpec.id (Center.x/.y/.z / Radius / Range / SwirlGain / RadialGain /
+// FallOffRate / Axis). A missing key leaves the member at its ctor .t3 default — identical to the old
+// pick(m,id,current) fallback. Axis (the compile-time swizzle selector, NOT packed) uses applyIntSelSlot,
+// rounding (int)(v+0.5f) exactly as the old code did. Member values unchanged → assembled MSL + packed
+// buffer byte-identical → the ToroidalVortex + particlefield-probe goldens stay green. injectBug is NOT a
+// param (test-only, set via configureToroidalVortexField); production stays 0. Routed via fieldConfigurers().
+void configureToroidalVortexFieldFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<ToroidalVortexFieldNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Radius", [&](float v) { n->radius = v; });
+    applyFloatSlot(m, "Range", [&](float v) { n->range = v; });
+    applyFloatSlot(m, "SwirlGain", [&](float v) { n->swirlGain = v; });
+    applyFloatSlot(m, "RadialGain", [&](float v) { n->radialGain = v; });
+    applyFloatSlot(m, "FallOffRate", [&](float v) { n->fallOffRate = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+  }
+}
+
+const FieldOp g_toroidalVortexFieldOp(toroidalVortexFieldSpec(), makeToroidalVortexField,
+                                      configureToroidalVortexFieldFromParams);
 
 }  // namespace
 
@@ -240,34 +263,6 @@ void configureToroidalVortexField(FieldNode& node, float centerX, float centerY,
     n->swirlGain = swirlGain; n->radialGain = radialGain; n->fallOffRate = fallOffRate;
     n->axis = axis;
     n->injectBug = injectBug;
-  }
-}
-
-namespace {
-// Read a named param from a RESOLVED map, falling back to the node's current value (= its .t3 default
-// before this call). Keeps each field unchanged when the cook driver supplied no entry for it.
-float pick(const std::map<std::string, float>& m, const char* id, float fallback) {
-  auto it = m.find(id);
-  return it != m.end() ? it->second : fallback;
-}
-}  // namespace
-
-// PF-0 PRODUCTION param-apply (blueprint §1.5 narrow path): set the node's REAL params from a RESOLVED
-// param map (the cook driver's nodeParams output — the full value spine). The named ids match the
-// NodeSpec port ids (Center.x/.y/.z / Radius / Range / SwirlGain / RadialGain / FallOffRate / Axis). A
-// missing key keeps the .t3 default the ctor seeded (pick's fallback). injectBug stays 0 (production).
-// This is the entry configureFieldNodeFromParams routes ToroidalVortexField to.
-void configureToroidalVortexFieldFromParams(FieldNode& node, const std::map<std::string, float>& m) {
-  if (auto* n = dynamic_cast<ToroidalVortexFieldNode*>(&node)) {
-    n->centerX = pick(m, "Center.x", n->centerX);
-    n->centerY = pick(m, "Center.y", n->centerY);
-    n->centerZ = pick(m, "Center.z", n->centerZ);
-    n->radius = pick(m, "Radius", n->radius);
-    n->range = pick(m, "Range", n->range);
-    n->swirlGain = pick(m, "SwirlGain", n->swirlGain);
-    n->radialGain = pick(m, "RadialGain", n->radialGain);
-    n->fallOffRate = pick(m, "FallOffRate", n->fallOffRate);
-    n->axis = (int)(pick(m, "Axis", (float)n->axis) + 0.5f);
   }
 }
 

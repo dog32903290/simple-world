@@ -38,27 +38,43 @@ struct FieldNode;  // field_graph.h
 // collision-free id seed (e.g. a node guid prefix), passed into the node's prefix (BuildNodeId).
 using FieldNodeFactory = std::function<std::shared_ptr<FieldNode>(const std::string& shortId)>;
 
-// Meyers singletons — the two sinks every field-op leaf registrar feeds.
+// Per-op param-apply fn (PF-0c): project a RESOLVED param map onto a freshly-built FieldNode of this op's
+// type. The leaf subclass is TU-private, so the configurer lives in the owning leaf TU (which downcasts +
+// runs its slot table). A leaf that registers no configurer (or registers nullptr — TransformField /
+// CustomSDF / Image2dSDF, the PF-0d matrix/string/texture ops) is an explicit NO-OP: the node keeps its
+// ctor .t3 defaults, identical to today's unknown-type no-op. A plain free fn-ptr (no std::function) —
+// each configurer is a file-scope fn in its leaf TU.
+using FieldConfigureFn = void (*)(FieldNode& node, const std::map<std::string, float>& params);
+
+// Meyers singletons — the sinks every field-op leaf registrar feeds.
 std::vector<NodeSpec>& fieldSpecSink();
 std::vector<std::pair<std::string, FieldNodeFactory>>& fieldNodeFactories();
+// PF-0c: the configurer sink, mirroring fieldNodeFactories() (keyed by spec.type). One entry per registrar
+// (nullptr for ops that pass no configurer). configureFieldNodeFromParams is a table lookup over this.
+std::vector<std::pair<std::string, FieldConfigureFn>>& fieldConfigurers();
 
 // Build a FieldNode for `type` via the registered factory (nullptr if no factory registered).
 std::shared_ptr<FieldNode> makeFieldNode(const std::string& type, const std::string& shortId);
 
 // Apply a RESOLVED param map (named-param → value) to a FieldNode, dispatched by op `type` (PF-0
 // field-input-projection). The leaf FieldNode subclass is TU-private, so the per-op configure lives in
-// the owning leaf TU (which downcasts) and this free function routes to it by type name. PF-0a wires ONLY
-// ToroidalVortexField (the field op the particle-field probe needs); every other type is a NO-OP here
-// (the node keeps its makeFieldNode-ctor .t3 defaults). PF-0c generalizes the dispatch to all field ops
-// (blueprint §1.5 choice C). NOT a frozen-base change — the base never learns about params.
+// the owning leaf TU (which downcasts) and this free function routes to it by type name. PF-0c generalizes
+// the dispatch to ALL migrated field ops via fieldConfigurers(): a TABLE LOOKUP (find `type`, call its fn).
+// A type with no registered configurer, or a null configurer (the PF-0d matrix/string/texture ops —
+// TransformField / CustomSDF / Image2dSDF), is a NO-OP: the node keeps its makeFieldNode-ctor .t3 defaults,
+// the SAME safety contract as the old if-ladder's unknown-type fall-through. NOT a frozen-base change — the
+// base never learns about params.
 void configureFieldNodeFromParams(FieldNode& node, const std::string& type,
                                   const std::map<std::string, float>& params);
 
 // RAII registrar: declare one file-scope static of this type at the end of each field-op leaf.
-//   FieldOp(spec, factory);   // pushes spec into fieldSpecSink() and {spec.type, factory} into
-//                             // fieldNodeFactories().
+//   FieldOp(spec, factory);              // configurer = nullptr (explicit no-op; PF-0d deferred ops).
+//   FieldOp(spec, factory, configurer);  // PF-0c: also pushes {spec.type, configurer} into
+//                                        // fieldConfigurers() so configureFieldNodeFromParams routes to it.
+// Both overloads push spec into fieldSpecSink() and {spec.type, factory} into fieldNodeFactories().
 struct FieldOp {
   FieldOp(NodeSpec spec, FieldNodeFactory factory);
+  FieldOp(NodeSpec spec, FieldNodeFactory factory, FieldConfigureFn configurer);
 };
 
 }  // namespace sw

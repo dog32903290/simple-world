@@ -274,6 +274,7 @@ add_executable(simple_world
   src/randomjumpforce_field_golden.cpp
   src/fieldvolumeforce_field_golden.cpp
   src/fieldtree_builder_golden.cpp
+  src/field_paramapply_golden.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
   src/field_ops_octahedronsdf_golden.cpp

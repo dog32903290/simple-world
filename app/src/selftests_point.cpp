@@ -102,5 +102,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"randomjumpforce-field", runRandomJumpForceFieldSelfTest},  // PF bridge field-gate: SphereSDF -> Position moves & scales with Amount (fork-RandomJump-position-write)
     {"fieldvolumeforce-field", runFieldVolumeForceFieldSelfTest},  // PF bridge closed-form: SphereSDF + 1 particle @(1,0,0), Attraction=1 -> Velocity≈(-0.425A,0,0) (exercises *0.425 Attraction fork)
     {"fieldtree-builder", runFieldTreeBuilderSelfTest},  // PF-0: graph->FieldNode builder (flat+resident both legs)
+    {"field-paramapply", runFieldParamApplySelfTest},  // PF-0c: data-driven field param-apply (graph SphereSDF {Radius:0.8} -> GPU + buffer + enum + slot-id guard)
 );
 }  // namespace sw
