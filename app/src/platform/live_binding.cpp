@@ -17,13 +17,25 @@ float remapLinear(float value, float inMin, float inMax, float outMin, float out
   return factor * (outMax - outMin) + outMin;
 }
 
+float lerpLinear(float a, float b, float t) {
+  // Byte-faithful to MathUtils.Lerp (Core/Utils/MathUtils.cs:305-308): a + (b - a) * t.
+  return a + (b - a) * t;
+}
+
 int LiveBindingTable::addBinding(const LiveBinding& b) {
   bindings_.push_back(b);
+  states_.push_back(BindingState{});
+  // Seed the target with this binding's DefaultOutputValue so valueForTarget returns it BEFORE any
+  // event arrives (TiXL MidiInput.cs:201 _isDefaultValue path). The first matching event overwrites it.
+  // If another binding already targets this name, the later addBinding's default wins as the seed; once
+  // events fire, whichever binding last matched owns the value — the faithful per-op model.
+  targetValues_[b.target] = b.defaultOutputValue;
   return int(bindings_.size()) - 1;
 }
 
 void LiveBindingTable::clear() {
   bindings_.clear();
+  states_.clear();
   targetValues_.clear();
 }
 
@@ -47,11 +59,24 @@ bool LiveBindingTable::midiMatches(const LiveBinding& b, MidiMatchKind kind, int
   return matchesKind && matchesChannel && matchesControl;
 }
 
+void LiveBindingTable::applyToBinding(int i, float rawValue) {
+  const LiveBinding& b = bindings_[i];
+  BindingState& st = states_[i];
+  // 1) Remap the raw value (MidiInput.cs:208-210 / OscInput raw-through).
+  float remapped = remapLinear(rawValue, b.inMin, b.inMax, b.outMin, b.outMax);
+  // 2) Damping (MidiInput.cs:218): damped = Lerp(new, dampedPrev, damping). dampedPrev starts at 0 and
+  //    is NOT seeded to the first event — so the first event yields remapped*(1-damping). damping=0
+  //    short-circuits to the raw remap.
+  st.dampedValue = lerpLinear(remapped, st.dampedValue, b.damping);
+  st.hasReceived = true;  // TiXL _isDefaultValue = false (MidiInput.cs:171)
+  targetValues_[b.target] = st.dampedValue;
+}
+
 int LiveBindingTable::ingestOsc(const std::string& address, float value) {
   int updated = 0;
-  for (const auto& b : bindings_) {
-    if (!oscMatches(b, address)) continue;
-    targetValues_[b.target] = remapLinear(value, b.inMin, b.inMax, b.outMin, b.outMax);
+  for (int i = 0; i < int(bindings_.size()); ++i) {
+    if (!oscMatches(bindings_[i], address)) continue;
+    applyToBinding(i, value);
     ++updated;
   }
   return updated;
@@ -60,17 +85,19 @@ int LiveBindingTable::ingestOsc(const std::string& address, float value) {
 int LiveBindingTable::ingestMidi(MidiMatchKind kind, int channel, int controllerId,
                                  int controllerValue) {
   int updated = 0;
-  for (const auto& b : bindings_) {
-    if (!midiMatches(b, kind, channel, controllerId)) continue;
+  for (int i = 0; i < int(bindings_.size()); ++i) {
+    if (!midiMatches(bindings_[i], kind, channel, controllerId)) continue;
     // TiXL remaps the controllerValue (0..127). The raw int is widened to float before Remap.
-    targetValues_[b.target] =
-        remapLinear(float(controllerValue), b.inMin, b.inMax, b.outMin, b.outMax);
+    applyToBinding(i, float(controllerValue));
     ++updated;
   }
   return updated;
 }
 
 bool LiveBindingTable::valueForTarget(const std::string& target, float& out) const {
+  // targetValues_ holds the binding's DefaultOutputValue from addBinding (TiXL _isDefaultValue path,
+  // MidiInput.cs:201) until the first matching event overwrites it with the damped value. A name with
+  // no binding at all is absent → false.
   auto it = targetValues_.find(target);
   if (it == targetValues_.end()) return false;
   out = it->second;

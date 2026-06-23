@@ -35,6 +35,12 @@ namespace sw {
 // that want identity pass inMin=0,inMax=1.
 float remapLinear(float value, float inMin, float inMax, float outMin, float outMax);
 
+// TiXL MathUtils.Lerp (Core/Utils/MathUtils.cs:305-308): Lerp(a,b,t) = a + (b - a) * t. Exposed so the
+// golden can assert the damping closed-form directly. MidiInput.cs:218 calls Lerp(currentValue,
+// _dampedOutputValue, damping) — i.e. a = new value, b = previous damped, t = damping; so damping=0
+// returns the raw new value (no smoothing) and damping=1 freezes at the previous damped value.
+float lerpLinear(float a, float b, float t);
+
 // Which transport a binding listens to. Mirrors TiXL's split (separate MidiInput / OscInput ops),
 // collapsed into one table.
 enum class LiveSourceKind { Osc, Midi };
@@ -64,6 +70,19 @@ struct LiveBinding {
   float inMax  = 127.0f;
   float outMin = 0.0f;
   float outMax = 1.0f;
+
+  // --- Damping (TiXL MidiInput.cs:218 + Damping input, line 493). Per-update exponential smoothing
+  //     toward the new remapped value: damped = Lerp(newRemapped, dampedPrev, damping). damping=0 ⇒
+  //     raw remap (no smoothing, the previous behavior). damping in (0,1) lags toward the new value;
+  //     damping=1 freezes. TiXL's _dampedOutputValue starts at 0 and is NOT seeded to the first event
+  //     (unlike the math Damp op), so the first event with damping d yields newRemapped*(1-d). ---
+  float damping = 0.0f;
+
+  // --- DefaultOutputValue (TiXL MidiInput.cs:201 + DefaultOutputValue input, line 490). The value
+  //     emitted BEFORE any matching event has arrived (while TiXL's _isDefaultValue is true). Once the
+  //     first matching event fires, _isDefaultValue clears (MidiInput.cs:171) and the damped value
+  //     takes over. ---
+  float defaultOutputValue = 0.0f;
 };
 
 // The binding table. Owns the rows + the current remapped value per target. A graph node input reads a
@@ -92,8 +111,10 @@ class LiveBindingTable {
   // is controllerValue (TiXL remaps _currentControllerValue, 0..127). Returns bindings updated.
   int ingestMidi(MidiMatchKind kind, int channel, int controllerId, int controllerValue);
 
-  // Read accessor — the value a graph node input pulls. Returns true + the current remapped value if
-  // the target has ever been updated; false (and leaves `out` untouched) if no binding has fired for it.
+  // Read accessor — the value a graph node input pulls. Returns the current value if the target is
+  // bound: the damped/remapped value once a matching event has fired, OR the binding's
+  // DefaultOutputValue before any event (TiXL MidiInput.cs:201, _isDefaultValue path). Returns false
+  // (and leaves `out` untouched) only if NO binding targets this name at all.
   bool valueForTarget(const std::string& target, float& out) const;
 
   // Does this MIDI event match this binding's filter? Exposed for the golden to assert the predicate
@@ -103,7 +124,20 @@ class LiveBindingTable {
   static bool oscMatches(const LiveBinding& b, const std::string& address);
 
  private:
+  // Per-binding runtime state, indexed 1:1 with bindings_. Mirrors MidiInput's instance fields
+  // _dampedOutputValue (line 473) and _isDefaultValue (line 459). dampedValue starts at 0 (TiXL does
+  // NOT seed it to the first event); hasReceived=false means _isDefaultValue is still true.
+  struct BindingState {
+    float dampedValue = 0.0f;  // TiXL _dampedOutputValue (starts at 0)
+    bool  hasReceived = false; // !_isDefaultValue once a matching event has fired
+  };
+
+  // Shared ingest core: apply remap + damping for binding `i` against `rawValue`, write the result into
+  // the target. Used by both ingestOsc and ingestMidi so the damping path is identical for both.
+  void applyToBinding(int i, float rawValue);
+
   std::vector<LiveBinding> bindings_;
+  std::vector<BindingState> states_;
   std::unordered_map<std::string, float> targetValues_;
 };
 
