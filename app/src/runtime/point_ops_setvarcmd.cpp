@@ -54,6 +54,10 @@ bool& setVarBugSkipWrite() {
   static bool v = false;  // OFF in production; the golden flips it around a cook then resets
   return v;
 }
+bool& getIntVarFallbackBug() {
+  static bool v = false;  // OFF in production; the GetIntVar tooth flips it to simulate pre-fix (no trunc)
+  return v;
+}
 
 namespace {
 float paramOr(const std::map<std::string, float>& m, const char* id, float def) {
@@ -128,7 +132,8 @@ float liveGetVar(const std::string& opType, const std::string& varName, float fa
   if (varName.empty()) return fallback;                                // empty name → normal lookup miss
   if (opType == "GetIntVar") {
     auto it = live->intVars.find(varName);
-    if (it == live->intVars.end()) return fallback;                    // unset → FallbackValue (already int)
+    if (it == live->intVars.end())
+      return getIntVarFallbackBug() ? fallback : (float)(long)std::trunc(fallback);  // unset → trunc(FallbackValue) — TiXL Slot<int> + stepGetIntVar
     if (found) *found = true;
     return (float)it->second;                                          // TiXL Slot<int>; stored truncated
   }
@@ -322,13 +327,30 @@ int runSetVarScopeSelfTest(bool injectBug) {
     }
   }
 
+  // TOOTH C — GetIntVar fallback-truncation gate (guards the liveGetVar fallback-miss fix).
+  // Directly calls liveGetVar("GetIntVar") under a live scope with an EMPTY intVars map (no "q" key →
+  // fallback-miss path). FallbackValue=7.9 (fractional). Faithful: result==7 (trunc). Bug: result==7.9.
+  // Closed-form: trunc(7.9)=7. Both flat AND resident paths reach the same liveGetVar codepath; one
+  // call covers both (the scope is thread_local, path-agnostic). getIntVarFallbackBug() = injectBug here.
+  getIntVarFallbackBug() = injectBug;
+  {
+    ContextVarMap emptyVars;  // intVars is empty → fallback-miss
+    LiveCtxVarScope scopeC(&emptyVars);
+    const float fallbackC = 7.9f;
+    float gotC = liveGetVar("GetIntVar", "q", fallbackC, nullptr);
+    bool faithfulC = (gotC == 7.0f);  // trunc(7.9)=7; un-truncated pre-fix would return 7.9
+    allFaithful = allFaithful && faithfulC;
+    std::printf("[selftest-setvar-scope] tooth C:GetIntVar-fallback-trunc: got=%.6f (want 7.0 trunc) -> %s\n",
+                (double)gotC, faithfulC ? "faithful-ok" : "tripped");
+  }
+  getIntVarFallbackBug() = false;
+
   setVarBugSkipWrite() = false;  // reset the global (process hygiene)
   setDynamicSpecs({});           // drop the injected test specs
   lib->release(); q->release(); dev->release(); pool->release();
 
   if (injectBug) {
-    // Every leg×tooth must FAIL the write-skip (each a distinct tooth: a resident-only mirror miss = prod
-    // black-hole; TOOTH B disabling the live-read is the hollow-closing assertion).
+    // Every leg×tooth must FAIL: write-skip (A/B) and fallback-no-trunc (C).
     if (allFaithful) {
       std::printf("[selftest-setvar-scope] FAIL: injectBug still passed (the var was read despite the skip — "
                   "the seam is not actually scoping/reading the var)\n");
@@ -341,6 +363,8 @@ int runSetVarScopeSelfTest(bool injectBug) {
                   "write → no live scope → reader saw the UNSET map / frozen fallback)\n",
                   toothName[tooth], flatBit ? "RED" : "green?!", resBit ? "RED" : "green?!");
     }
+    std::printf("[selftest-setvar-scope] injectBug correctly RED — tooth C:GetIntVar-fallback-trunc "
+                "(pre-fix returned raw 7.9, not trunc 7)\n");
     return 1;
   }
   std::printf("[selftest-setvar-scope] %s\n", allFaithful ? "PASS" : "FAIL");
