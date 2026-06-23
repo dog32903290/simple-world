@@ -131,10 +131,48 @@ void stepDelayTriggerChange(const std::map<std::string, float>& in, float /*dt*/
   st.s[5] = out[0];  // remember this frame's DelayedTrigger.Value for next edge's _stateBeforeChange
 }
 
+// --- ClipTime (TiXL Lib/numbers/anim/time/ClipTime.cs) — Time = (float)context.LocalTime.
+//   ClipTime.cs Update(): Time.Value = (float)context.LocalTime;  (the PLAYHEAD clock, in SECONDS).
+//   TiXL's context.LocalTime is the playhead time in seconds. The seam carries the playhead in BARS
+//   (tr.localTimeBars); seconds = bars*240/bpm (transport.h:37, the bars<->secs authority — SAME
+//   conversion DelayTriggerChange's LocalTime_InSecs mode uses, transport.cpp case 3). Reads the LIVE
+//   bpm so the same playhead-bars yields half the seconds at bpm=240 vs bpm=120 (golden proves it).
+//   0 inputs, 0 state (stateless), but lives in the stateful table because its value depends on the
+//   per-frame transport snapshot the pure evaluate()/`in`-map cannot carry (same reason as RunTime).
+void stepClipTime(const std::map<std::string, float>& /*in*/, float /*dt*/, float /*time*/,
+                  StatefulValueState&, float out[3], const TransportSnapshot& tr, ContextVarMap*,
+                  const std::string&) {
+  out[0] = (float)(tr.localTimeBars * 240.0 / tr.bpm);  // context.LocalTime (playhead seconds)
+}
+
+// --- LastFrameDuration (TiXL Lib/numbers/anim/time/LastFrameDuration.cs) — Duration =
+//   (float)Playback.LastFrameDuration. The seam hands cookStatefulValueOp the RAW wall frame delta in
+//   seconds as `dt` (frame_cook.cpp:179 comment: "the RAW wall delta — TiXL Damp/Spring sample
+//   Playback.LastFrameDuration"), i.e. `dt` IS Playback.LastFrameDuration. So Duration = dt. 0 inputs,
+//   0 state.
+void stepLastFrameDuration(const std::map<std::string, float>& /*in*/, float dt, float /*time*/,
+                           StatefulValueState&, float out[3], const TransportSnapshot&, ContextVarMap*,
+                           const std::string&) {
+  out[0] = dt;  // = (float)Playback.LastFrameDuration (the raw wall frame delta seconds)
+}
+
+// --- GetBpm (TiXL Lib/numbers/anim/vj/GetBpm.cs) — Result = (float)Playback.Current.Bpm.
+//   The seam carries the live bpm in tr.bpm (frame_cook.cpp:215). 0 inputs, 0 state. The TiXL
+//   null-Playback IStatusProvider warning is DROPPED (no status system; the seam always supplies a
+//   Transport with tr.bpm>0 — same drop ConvertTime made).
+void stepGetBpm(const std::map<std::string, float>& /*in*/, float /*dt*/, float /*time*/,
+                StatefulValueState&, float out[3], const TransportSnapshot& tr, ContextVarMap*,
+                const std::string&) {
+  out[0] = (float)tr.bpm;  // = (float)Playback.Current.Bpm
+}
+
 }  // namespace
 
 static const StatefulOpReg _reg_ConvertTime{"ConvertTime", stepConvertTime};
 static const StatefulOpReg _reg_RunTime{"RunTime", stepRunTime};
 static const StatefulOpReg _reg_DelayTriggerChange{"DelayTriggerChange", stepDelayTriggerChange};
+static const StatefulOpReg _reg_ClipTime{"ClipTime", stepClipTime};
+static const StatefulOpReg _reg_LastFrameDuration{"LastFrameDuration", stepLastFrameDuration};
+static const StatefulOpReg _reg_GetBpm{"GetBpm", stepGetBpm};
 
 }  // namespace sw

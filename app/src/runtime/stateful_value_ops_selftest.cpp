@@ -17,7 +17,7 @@
 #include "runtime/stateful_value_ops.h"  // cookStatefulValueOp + runStatefulValueSelfTest decl
 
 namespace sw {
-
+int runTransportTime2SelfTest(bool injectBug);  // helper TU: ClipTime/LastFrameDuration/GetBpm golden
 // --- Isolated proof (frame-driven; hand-computed TiXL trajectories) ---
 int runStatefulValueSelfTest(bool injectBug) {
   bool ok = true;
@@ -1115,7 +1115,7 @@ int runStatefulValueSelfTest(bool injectBug) {
     }
     ok = ok && pass;
   }
-
+  ok = ok && (runTransportTime2SelfTest(injectBug) == 0);  // ClipTime/LastFrameDuration/GetBpm (helper TU)
   // ===== DelayTriggerChange (TiXL bool/process/DelayTriggerChange.cs:30-95) — two-edge change detector =====
   // currentTime is fed via the chosen TimeMode (AppRunTime/LocalFxTime); we drive tr to advance it.
   // Helper: cook one frame at a given run-clock with a given trigger.

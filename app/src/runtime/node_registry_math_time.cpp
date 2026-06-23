@@ -85,6 +85,34 @@ static const MathOp _reg_RunTime{
        nullptr}
 };
 
+      // ClipTime — Time = (float)context.LocalTime (the PLAYHEAD clock in SECONDS). TiXL
+      // anim/time/ClipTime.cs (stateful in the cook sense: 0 state but value depends on the per-frame
+      // TransportSnapshot the pure evaluate() cannot carry → evaluate==nullptr, cooked by frame_cook's
+      // stateful-value seam; step = stepClipTime reads tr.localTimeBars*240/bpm). No inputs.
+static const MathOp _reg_ClipTime{
+      {"ClipTime", "ClipTime",
+       {{"Time", "Time", "Float", false}},
+       nullptr}
+};
+
+      // LastFrameDuration — Duration = (float)Playback.LastFrameDuration (the raw wall frame delta in
+      // seconds). TiXL anim/time/LastFrameDuration.cs (transport-fed; evaluate==nullptr; step =
+      // stepLastFrameDuration reads the cook's `dt` = Playback.LastFrameDuration). 0 state, no inputs.
+static const MathOp _reg_LastFrameDuration{
+      {"LastFrameDuration", "LastFrameDuration",
+       {{"Duration", "Duration", "Float", false}},
+       nullptr}
+};
+
+      // GetBpm — Result = (float)Playback.Current.Bpm (the live tempo). TiXL anim/vj/GetBpm.cs
+      // (transport-fed; evaluate==nullptr; step = stepGetBpm reads tr.bpm). 0 state, no inputs.
+      // The TiXL null-Playback warning is dropped (no status system; seam always supplies tr.bpm>0).
+static const MathOp _reg_GetBpm{
+      {"GetBpm", "GetBpm",
+       {{"Result", "Result", "Float", false}},
+       nullptr}
+};
+
       // DelayTriggerChange — TWO-EDGE change detector (NOT rising-edge WasTriggered): on ANY trigger
       // change it snapshots the change time + prior delayed output, then holds stateIfDelayed until
       // remainingTime=refTime-currentTime+delayDuration runs out. TiXL bool/process/DelayTriggerChange.cs
