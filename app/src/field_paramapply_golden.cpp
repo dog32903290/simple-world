@@ -3,9 +3,8 @@
 // NON-DEFAULT graph param all the way to the GPU, via the REAL production path
 //   Graph + FieldParamResolver -> buildFieldTree -> configureFieldNodeFromParams (table lookup) -> members.
 //
-// Before PF-0c, only ToroidalVortexField had a configurer (the one-line if-ladder); SphereSDF's resolved
-// {Radius:0.8} never reached the node, so the field rendered the .t3 default R=0.5. This golden FAILS in
-// that world (the GPU reads R=0.5) and PASSES once SphereSDF's configurer is registered.
+// Before PF-0c, only ToroidalVortexField had a configurer; SphereSDF's resolved {Radius:0.8} never reached
+// the node (rendered the .t3 default R=0.5). This golden FAILS in that world and PASSES once registered.
 //
 // CLOSED-FORM ANCHOR (SphereSDF f.w = length(p - Center) - Radius, Center=0):
 //   default  R=0.5 at p=(0.3,0,0) -> f.w = 0.3 - 0.5 = -0.2
@@ -17,15 +16,13 @@
 //   (1) GPU readback — wired R=0.8 reaches the rendered field (closed-form, != default).
 //   (2) BUFFER-LEVEL — assembleFieldMSL(tree).floatParams[Radius slot==3] == 0.8 when the graph supplied
 //       0.8, and == 0.5 when it did not (the byte-identical no-graph-param baseline).
-//   (3) ENUM (CombineSDF) — a non-default CombineMethod switches the assembled MSL TEXT to the matching
-//       mode helper (selectors change codegen text, not the float buffer).
-//   (4) SLOT-ID == PORT-ID guard (HARDENED, Option B) — loops the REAL fieldSlotSpecs() sink (each migrated
-//       op registers its actual apply-table slot ids there at static init) × fieldSpecSink(), asserting
-//       every registered slot id is a real PortSpec.id. Reads the real per-op tables, no hand-copied list
-//       (closes DEBT_LEDGER pf0c-slotid-guard-indirection) — a typo'd configurer id now bites here.
-//   (5) PARAMETERIZED buffer round-trip — for ALL 11 migrated ops (5 done + 6 wave-1 proving), push one
-//       non-default param through the REAL graph path and assert it lands in the correct floatParams slot.
-//       Includes BoxSDF's DERIVED CombinedScale (Size=[2,2,2],UniformScale=2 -> packed [2,2,2]).
+//   (3)/(3b) ENUM/SELECTOR — a non-default CombineMethod/Axis/Mirror/Sides/Iterations switches the
+//       assembled MSL TEXT (mode helper / swizzle / fold), not the float buffer. (3)=CombineSDF;
+//       (3b)=the wave-3 enum-selector ops (data table fieldParamApplyEnumCases()).
+//   (4) SLOT-ID == PORT-ID guard (HARDENED, Option B) — loops the REAL fieldSlotSpecs() sink × fieldSpecSink()
+//       asserting every registered slot id is a real PortSpec.id (no hand-copied list; a typo'd id bites).
+//   (5) PARAMETERIZED buffer round-trip — every migrated op's applied FLOAT slots through the REAL graph
+//       path, asserted in the correct floatParams slot. Includes BoxSDF's DERIVED CombinedScale.
 //
 // injectBug: assert the DEFAULT R=0.5 closed form while the graph supplied 0.8 -> the GPU read (R=0.8) no
 // longer matches -> RED. Proves the apply actually happened (a no-op apply would read R=0.5 and the -bug
@@ -58,7 +55,8 @@
 
 #include "platform/metal_compile.h"  // platform::compileLibraryFromSource
 
-#include "field_paramapply_cases.h"  // RoundTripCase + fieldParamApplyRoundTripCases() (peeled DATA table)
+#include "field_paramapply_cases.h"      // RoundTripCase + fieldParamApplyRoundTripCases() (peeled DATA)
+#include "field_paramapply_enumcases.h"  // EnumCase + fieldParamApplyEnumCases() (peeled enum-text DATA)
 
 namespace sw {
 namespace {
@@ -107,17 +105,23 @@ std::shared_ptr<FieldNode> buildSphere(float radius, bool supplyRadius) {
   return buildFieldTree(g, 7, params);
 }
 
-// Build a CombineSDF tree (two SphereSDF children + a CombineMethod override) via the real graph path, so
-// the enum apply is exercised through configureFieldNodeFromParams. Returns the assembled MSL text.
-std::string assembleCombineWithMethod(const std::string& tmpl, int combineMethod) {
+// Assemble a field op's MSL TEXT via the REAL graph path with ONE enum/selector override, so the enum
+// apply is exercised through configureFieldNodeFromParams (applyIntSelSlot/applyBoolSelSlot). `combiner` ->
+// wire two SphereSDF children into InputA/InputB (the fold post line needs >=2 inputs); else a lone node
+// (an SDF leaf / single-input modifier still emits its call/swizzle line on the root). Returns the MSL.
+std::string assembleEnumCaseMSL(const std::string& tmpl, const std::string& type, const std::string& enumPort,
+                                float enumVal, bool combiner) {
   static Graph g;
   g = Graph{};
-  Node comb; comb.id = 1; comb.type = "CombineSDF"; comb.params["CombineMethod"] = (float)combineMethod;
-  Node a; a.id = 2; a.type = "SphereSDF";
-  Node b; b.id = 3; b.type = "SphereSDF";
-  g.nodes = {comb, a, b};
-  // Wire the two spheres into CombineSDF's InputA/InputB (port indices 0,1 in combineSdfSpec).
-  g.connections = {{pinId(2, 4), pinId(1, 0)}, {pinId(3, 4), pinId(1, 1)}};  // Sphere.Result(port4)->InA/InB
+  Node op; op.id = 1; op.type = type; op.params[enumPort] = enumVal;
+  g.nodes = {op};
+  if (combiner) {
+    Node a; a.id = 2; a.type = "SphereSDF";
+    Node b; b.id = 3; b.type = "SphereSDF";
+    g.nodes = {op, a, b};
+    // Wire the two spheres into InputA/InputB (port indices 0,1; Sphere.Result is port 4).
+    g.connections = {{pinId(2, 4), pinId(1, 0)}, {pinId(3, 4), pinId(1, 1)}};
+  }
   static EvaluationContext ctx;
   ctx = EvaluationContext{};
   static std::map<int, std::map<std::string, float>> scratch;
@@ -216,11 +220,9 @@ int runFieldParamApplySelfTest(bool injectBug) {
     if (!allOk) rc = 1;
   }
 
-  // ---- (5) PARAMETERIZED buffer round-trip — every migrated op (5 done + 6 wave-1 proving) ----
+  // ---- (5) PARAMETERIZED buffer round-trip — every migrated op (wave-0/1/2 + wave-3 float slots) ----
   // For each (op, non-default param, slot), push the value through the REAL graph path and assert it lands
-  // in the correct floatParams slot. Proves graph->member->packing fires for the WHOLE migrated set, not
-  // just SphereSDF. BoxSDF is the DERIVED-param re-verify: Size=[2,2,2],UniformScale=2 -> CombinedScale slot
-  // = 2*2/2 = 2 (a non-default-member apply that recomputes correctly only if both members flowed through).
+  // in the correct floatParams slot. Proves graph->member->packing fires for the WHOLE migrated set.
   {
     const std::vector<RoundTripCase> cases = fieldParamApplyRoundTripCases();
     bool allOk = true;
@@ -233,8 +235,8 @@ int runFieldParamApplySelfTest(bool injectBug) {
                   ok ? "OK" : "FAIL");
       if (!ok) allOk = false;
     }
-    std::printf("[selftest-field-paramapply] parameterized round-trip over %zu cases (11 wave-0/1 + 6 "
-                "wave-2 ops, every applied slot) -> %s\n", cases.size(), allOk ? "OK" : "FAIL");
+    std::printf("[selftest-field-paramapply] parameterized round-trip over %zu cases (wave-0/1/2/3 ops, "
+                "every applied float slot) -> %s\n", cases.size(), allOk ? "OK" : "FAIL");
     if (!allOk) rc = 1;
   }
 
@@ -245,24 +247,9 @@ int runFieldParamApplySelfTest(bool injectBug) {
   // drops that snapshot and the post line samples `p.xyz` directly. Proves the BoolSel apply fired through
   // the REAL graph path (configureNoiseDisplaceSdfFromParams -> applyBoolSelSlot -> useLocalSpace).
   {
-    auto assembleNoise = [&](float useLocal) -> std::string {
-      static Graph g; g = Graph{};
-      Node fld; fld.id = 7; fld.type = "NoiseDisplaceSDF";
-      fld.params["UseLocalSpace"] = useLocal;
-      g.nodes = {fld};
-      static EvaluationContext ec; ec = EvaluationContext{};
-      static std::map<int, std::map<std::string, float>> sc; sc.clear();
-      FieldParamResolver pr = [&](int id) -> const std::map<std::string, float>* {
-        const Node* n = g.node(id);
-        if (!n) return nullptr;
-        return &(sc[id] = resolveNodeParams(g, *n, ec, nullptr));
-      };
-      auto tree = buildFieldTree(g, 7, pr);
-      if (!tree) return "";
-      return assembleFieldMSL(tree, tmpl).msl;
-    };
-    std::string off = assembleNoise(0.0f);  // default world-space (snapshot _t emitted)
-    std::string on = assembleNoise(1.0f);   // local-space (snapshot dropped)
+    // Reuse the generic single-node assembler (single-input op, not a combiner) to flip the BoolSel.
+    std::string off = assembleEnumCaseMSL(tmpl, "NoiseDisplaceSDF", "UseLocalSpace", 0.0f, false);
+    std::string on = assembleEnumCaseMSL(tmpl, "NoiseDisplaceSDF", "UseLocalSpace", 1.0f, false);
     bool offHasSnapshot = off.find("_t = p") != std::string::npos;
     bool onLacksSnapshot = on.find("_t = p") == std::string::npos;
     bool ok = offHasSnapshot && onLacksSnapshot && !off.empty() && !on.empty();
@@ -290,8 +277,8 @@ int runFieldParamApplySelfTest(bool injectBug) {
   {
     // Default CombineMethod = 2 (UnionRound) -> helper fOpUnionRound. Non-default 4 (UnionSmooth) ->
     // fOpSmoothUnion. The TEXT must switch (selectors change codegen, not the buffer).
-    std::string mslDefault = assembleCombineWithMethod(tmpl, 2);
-    std::string mslSmooth = assembleCombineWithMethod(tmpl, 4);
+    std::string mslDefault = assembleEnumCaseMSL(tmpl, "CombineSDF", "CombineMethod", 2.0f, true);
+    std::string mslSmooth = assembleEnumCaseMSL(tmpl, "CombineSDF", "CombineMethod", 4.0f, true);
     bool defaultHasRound = mslDefault.find("fOpUnionRound") != std::string::npos;
     bool smoothHasSmooth = mslSmooth.find("fOpSmoothUnion") != std::string::npos;
     bool smoothLacksRound = mslSmooth.find("fOpUnionRound") == std::string::npos;
@@ -300,6 +287,27 @@ int runFieldParamApplySelfTest(bool injectBug) {
                 "(no Round=%d) -> %s\n", defaultHasRound, smoothHasSmooth, smoothLacksRound,
                 ok ? "OK" : "FAIL");
     if (!ok) rc = 1;
+  }
+
+  // ---- (3b) WAVE-3 ENUM/SELECTOR text-asserts — every wave-3 enum-selector op switches the MSL TEXT ----
+  // Push a NON-DEFAULT selector value through the REAL graph path; assert the assembled MSL now CONTAINS
+  // the non-default text AND no longer the DEFAULT's. A buffer round-trip can't see it (the enum's proof).
+  {
+    const std::vector<EnumCase> ecs = fieldParamApplyEnumCases();
+    bool allOk = true;
+    for (const EnumCase& ec : ecs) {
+      std::string msl = assembleEnumCaseMSL(tmpl, ec.type, ec.enumPort, ec.nonDefault, ec.combiner);
+      bool hasND = msl.find(ec.wantNonDefault) != std::string::npos;
+      bool lacksDefault = msl.find(ec.wantAbsent) == std::string::npos;
+      bool ok = hasND && lacksDefault && !msl.empty();
+      std::printf("[selftest-field-paramapply] enum-text: %-18s %-8s=%.0f %-30s present=%d default-gone=%d "
+                  "-> %s\n", ec.type, ec.enumPort, ec.nonDefault, ec.note, hasND, lacksDefault,
+                  ok ? "OK" : "FAIL");
+      if (!ok) allOk = false;
+    }
+    std::printf("[selftest-field-paramapply] wave3 enum-text over %zu selector ops -> %s\n", ecs.size(),
+                allOk ? "OK" : "FAIL");
+    if (!allOk) rc = 1;
   }
 
   // ---- (1) GPU readback: wired R=0.8 reaches the rendered field (closed-form, != default) ----

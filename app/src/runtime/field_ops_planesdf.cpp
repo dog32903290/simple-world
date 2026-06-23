@@ -119,7 +119,23 @@ std::shared_ptr<FieldNode> makePlaneSdf(const std::string& shortId) {
   return std::make_shared<PlaneSDFNode>(shortId);
 }
 
-const FieldOp g_planeSdfOp(planeSdfSpec(), makePlaneSdf);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a PlaneSDFNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id: Center.x/.y/.z (the only packed [GraphParam] floats)
+// + Axis (the compile-time swizzle/sign code selector, applyIntSelSlot — switches the emitted
+// swizzle+sign text, NOT the float buffer). Axis spans 6 values {X,Y,Z,NegX,NegY,NegZ}; the node guards
+// the table lookup. A missing key keeps the member's ctor .t3 default. Routed via fieldConfigurers().
+void configurePlaneSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<PlaneSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+  }
+}
+
+// slot ids = the SAME ids configurePlaneSdfFromParams applies (Option B guard, can't drift).
+const FieldOp g_planeSdfOp(planeSdfSpec(), makePlaneSdf, configurePlaneSdfFromParams,
+                           {"Center.x", "Center.y", "Center.z", "Axis"});
 
 }  // namespace
 }  // namespace sw

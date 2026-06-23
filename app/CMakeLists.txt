@@ -262,6 +262,7 @@ add_executable(simple_world
   src/runtime/field_ops_repeatpolar.cpp
   src/runtime/field_ops_translateuv.cpp
   src/runtime/field_ops_staircombinesdf.cpp
+  src/runtime/field_ops_staircombinesdf_slots.cpp
   src/runtime/field_ops_noisedisplacesdf.cpp
   src/runtime/field_ops_spatialdisplacesdf.cpp
   src/runtime/field_ops_transformfield.cpp
@@ -277,6 +278,7 @@ add_executable(simple_world
   src/fieldtree_builder_golden.cpp
   src/field_paramapply_golden.cpp
   src/field_paramapply_cases.cpp
+  src/field_paramapply_enumcases.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
   src/field_ops_octahedronsdf_golden.cpp

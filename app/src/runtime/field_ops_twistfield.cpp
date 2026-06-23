@@ -150,7 +150,22 @@ std::shared_ptr<FieldNode> makeTwistField(const std::string& shortId) {
   return std::make_shared<TwistFieldNode>(shortId);
 }
 
-const FieldOp g_twistFieldOp(twistFieldSpec(), makeTwistField);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a TwistFieldNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id: Amount / StepFactor (packed [GraphParam] floats) +
+// Axis (the compile-time swizzle selector, applyIntSelSlot — switches the emitted swizzle text p{c}.<perm>,
+// NOT the float buffer). A missing key leaves the member at its ctor .t3 default. injectBug is NOT a param
+// (test-only via configureTwistField); production stays 0. Routed via fieldConfigurers().
+void configureTwistFieldFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<TwistFieldNode*>(&node)) {
+    applyFloatSlot(m, "Amount", [&](float v) { n->amount = v; });
+    applyFloatSlot(m, "StepFactor", [&](float v) { n->stepFactor = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+  }
+}
+
+// slot ids = the SAME ids configureTwistFieldFromParams applies (Option B guard, can't drift).
+const FieldOp g_twistFieldOp(twistFieldSpec(), makeTwistField, configureTwistFieldFromParams,
+                             {"Amount", "StepFactor", "Axis"});
 
 }  // namespace
 

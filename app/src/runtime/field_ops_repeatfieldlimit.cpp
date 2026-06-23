@@ -197,7 +197,25 @@ std::shared_ptr<FieldNode> makeRepeatFieldLimit(const std::string& shortId) {
   return std::make_shared<RepeatFieldLimitNode>(shortId);
 }
 
-const FieldOp g_repeatFieldLimitOp(repeatFieldLimitSpec(), makeRepeatFieldLimit);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a RepeatFieldLimitNode via setter-lambdas
+// (NOT offsetof). Slot ids EQUAL the NodeSpec PortSpec.id: Size / Start / Stop (packed [GraphParam]
+// floats) + Axis (the compile-time swizzle code selector, applyIntSelSlot — switches the swizzle component
+// "x"/"y"/"z" in the emitted MSL, NOT the float buffer). A missing key keeps the ctor .t3 default.
+// injectBug is NOT a param (test-only via configureRepeatFieldLimit); production stays 0. Routed via
+// fieldConfigurers().
+void configureRepeatFieldLimitFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<RepeatFieldLimitNode*>(&node)) {
+    applyFloatSlot(m, "Size", [&](float v) { n->size = v; });
+    applyFloatSlot(m, "Start", [&](float v) { n->start = v; });
+    applyFloatSlot(m, "Stop", [&](float v) { n->stop = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+  }
+}
+
+// slot ids = the SAME ids configureRepeatFieldLimitFromParams applies (Option B guard, can't drift).
+const FieldOp g_repeatFieldLimitOp(repeatFieldLimitSpec(), makeRepeatFieldLimit,
+                                   configureRepeatFieldLimitFromParams,
+                                   {"Size", "Start", "Stop", "Axis"});
 
 }  // namespace
 

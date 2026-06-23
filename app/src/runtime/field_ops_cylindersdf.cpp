@@ -150,7 +150,27 @@ std::shared_ptr<FieldNode> makeCylinderSdf(const std::string& shortId) {
   return std::make_shared<CylinderSDFNode>(shortId);
 }
 
-const FieldOp g_cylinderSdfOp(cylinderSdfSpec(), makeCylinderSdf);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a CylinderSDFNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id for the 4 packed [GraphParam] floats (Center.x/.y/.z,
+// Radius, Height, Rounding) + Axis (the compile-time swizzle code selector, applyIntSelSlot — switches the
+// emitted swizzle text, NOT the float buffer). A missing key keeps the member's ctor .t3 default. Routed
+// via fieldConfigurers().
+void configureCylinderSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<CylinderSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Radius", [&](float v) { n->radius = v; });
+    applyFloatSlot(m, "Height", [&](float v) { n->height = v; });
+    applyFloatSlot(m, "Rounding", [&](float v) { n->rounding = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+  }
+}
+
+// slot ids = the SAME ids configureCylinderSdfFromParams applies (Option B guard, can't drift).
+const FieldOp g_cylinderSdfOp(cylinderSdfSpec(), makeCylinderSdf, configureCylinderSdfFromParams,
+                              {"Center.x", "Center.y", "Center.z", "Radius", "Height", "Rounding",
+                               "Axis"});
 
 }  // namespace
 }  // namespace sw

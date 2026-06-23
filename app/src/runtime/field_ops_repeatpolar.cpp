@@ -219,7 +219,25 @@ std::shared_ptr<FieldNode> makeRepeatPolar(const std::string& shortId) {
   return std::make_shared<RepeatPolarNode>(shortId);
 }
 
-const FieldOp g_repeatPolarOp(repeatPolarSpec(), makeRepeatPolar);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a RepeatPolarNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id: Repetitions / Offset (packed [GraphParam] floats) +
+// TWO compile-time code selectors — Axis (applyIntSelSlot, switches the two-component swizzle
+// "zy"/"zx"/"yx") and Mirror (applyBoolSelSlot, switches the helper pModPolar vs pModPolarMirror + fn
+// name). Both switch the emitted MSL text, NOT the float buffer. A missing key keeps the ctor .t3 default.
+// injectBug is NOT a param (test-only via configureRepeatPolar); production stays 0. Routed via
+// fieldConfigurers().
+void configureRepeatPolarFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<RepeatPolarNode*>(&node)) {
+    applyFloatSlot(m, "Repetitions", [&](float v) { n->repetitions = v; });
+    applyFloatSlot(m, "Offset", [&](float v) { n->offset = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+    applyBoolSelSlot(m, "Mirror", [&](bool v) { n->mirror = v; });
+  }
+}
+
+// slot ids = the SAME ids configureRepeatPolarFromParams applies (Option B guard, can't drift).
+const FieldOp g_repeatPolarOp(repeatPolarSpec(), makeRepeatPolar, configureRepeatPolarFromParams,
+                              {"Repetitions", "Offset", "Axis", "Mirror"});
 
 }  // namespace
 

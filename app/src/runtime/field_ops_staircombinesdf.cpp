@@ -371,14 +371,25 @@ std::shared_ptr<FieldNode> makeStairCombineSdf(const std::string& shortId) {
   return std::make_shared<StairCombineSDFNode>(shortId);
 }
 
-const FieldOp g_stairCombineSdfOp(stairCombineSdfSpec(), makeStairCombineSdf);
+// PF-0c param-apply (WAVE 3): K/Steps packed floats + CombineMethod compile-time fold selector
+// (applyIntSelSlot — switches the emitted fold fn name, NOT the buffer). Slot ids == PortSpec.id; missing
+// key keeps the .t3 default. Slot-id guard rows live in field_ops_staircombinesdf_slots.cpp (this leaf is
+// at the line cap — separate-TU pattern of field_ops_combinesdf_slots.cpp; NO grandfather bump).
+void configureStairCombineSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<StairCombineSDFNode*>(&node)) {
+    applyFloatSlot(m, "K", [&](float v) { n->k = v; });
+    applyFloatSlot(m, "Steps", [&](float v) { n->steps = v; });
+    applyIntSelSlot(m, "CombineMethod", [&](int v) { n->combineMethod = v; });
+  }
+}
+
+const FieldOp g_stairCombineSdfOp(stairCombineSdfSpec(), makeStairCombineSdf,
+                                  configureStairCombineSdfFromParams);
 
 }  // namespace
 
-// Param-cook seam (mirrors configureCombineSdf): set K / Steps / combineMethod on a node built via
-// makeFieldNode("StairCombineSDF", ...). The leaf type is TU-private; this downcasts inside the owning
-// TU. K + Steps are packed [GraphParam]s; combineMethod is the compile-time code selector. No-op if
-// `node` is not a StairCombineSDFNode (defensive).
+// Direct test/cook seam (mirrors configureCombineSdf): K/Steps packed [GraphParam]s + combineMethod
+// compile-time selector on a makeFieldNode("StairCombineSDF",...) node. No-op if not a StairCombineSDFNode.
 void configureStairCombineSdf(FieldNode& node, float k, float steps, int combineMethod) {
   if (auto* n = dynamic_cast<StairCombineSDFNode*>(&node)) {
     n->k = k;

@@ -104,6 +104,80 @@ std::vector<RoundTripCase> fieldParamApplyRoundTripCases() {
       {"SpatialDisplaceSDF", {{"SamplePos.x", 0.61f}}, "SamplePos.x", 12, 0.61f, ""},
       {"SpatialDisplaceSDF", {{"SamplePos.y", 0.62f}}, "SamplePos.y", 13, 0.62f, ""},
       {"SpatialDisplaceSDF", {{"SamplePos.z", 0.63f}}, "SamplePos.z", 14, 0.63f, ""},
+
+      // ===================== WAVE 3 — EVERY applied FLOAT slot of every wave-3 op ===================
+      // The enum/selector ops: each migrates BOTH the packed [GraphParam] floats (covered here) AND a
+      // compile-time enum selector (proven separately by an MSL-text assert in the golden — a buffer
+      // round-trip can't see a text-switch). Layouts traced from each op's collectParams + padForVec3.
+
+      // --- BendField: Amount[0], StepFactor[1]. (Axis = swizzle selector, text-assert.) ---
+      {"BendField", {{"Amount", 1.5f}}, "Amount", 0, 1.5f, ""},
+      {"BendField", {{"StepFactor", 1.7f}}, "StepFactor", 1, 1.7f, ""},
+
+      // --- TwistField: Amount[0], StepFactor[1]. (Axis = swizzle selector, text-assert.) ---
+      {"TwistField", {{"Amount", 1.6f}}, "Amount", 0, 1.6f, ""},
+      {"TwistField", {{"StepFactor", 1.8f}}, "StepFactor", 1, 1.8f, ""},
+
+      // --- CappedTorusSDF: Center[0..2], Fill[3], Radius[4], Thickness[5]. (Axis selector.) ---
+      {"CappedTorusSDF", {{"Center.x", 0.11f}}, "Center.x", 0, 0.11f, ""},
+      {"CappedTorusSDF", {{"Center.y", 0.12f}}, "Center.y", 1, 0.12f, ""},
+      {"CappedTorusSDF", {{"Center.z", 0.13f}}, "Center.z", 2, 0.13f, ""},
+      {"CappedTorusSDF", {{"Fill", 1.4f}}, "Fill", 3, 1.4f, ""},
+      {"CappedTorusSDF", {{"Radius", 1.5f}}, "Radius", 4, 1.5f, ""},
+      {"CappedTorusSDF", {{"Thickness", 0.6f}}, "Thickness", 5, 0.6f, ""},
+
+      // --- CylinderSDF: Center[0..2], Radius[3], Height[4], Rounding[5]. (Axis selector.) ---
+      {"CylinderSDF", {{"Center.x", 0.21f}}, "Center.x", 0, 0.21f, ""},
+      {"CylinderSDF", {{"Center.y", 0.22f}}, "Center.y", 1, 0.22f, ""},
+      {"CylinderSDF", {{"Center.z", 0.23f}}, "Center.z", 2, 0.23f, ""},
+      {"CylinderSDF", {{"Radius", 0.7f}}, "Radius", 3, 0.7f, ""},
+      {"CylinderSDF", {{"Height", 1.3f}}, "Height", 4, 1.3f, ""},
+      {"CylinderSDF", {{"Rounding", 0.08f}}, "Rounding", 5, 0.08f, ""},
+
+      // --- PlaneSDF: Center[0..2] (vec3-only). (Axis swizzle/sign selector.) ---
+      {"PlaneSDF", {{"Center.x", 0.31f}}, "Center.x", 0, 0.31f, ""},
+      {"PlaneSDF", {{"Center.y", 0.32f}}, "Center.y", 1, 0.32f, ""},
+      {"PlaneSDF", {{"Center.z", 0.33f}}, "Center.z", 2, 0.33f, ""},
+
+      // --- PrismSDF: Center[0..2], Radius[3], Length[4], EdgeRadius[5]. (Axis + Sides selectors.) ---
+      {"PrismSDF", {{"Center.x", 0.41f}}, "Center.x", 0, 0.41f, ""},
+      {"PrismSDF", {{"Center.y", 0.42f}}, "Center.y", 1, 0.42f, ""},
+      {"PrismSDF", {{"Center.z", 0.43f}}, "Center.z", 2, 0.43f, ""},
+      {"PrismSDF", {{"Radius", 1.2f}}, "Radius", 3, 1.2f, ""},
+      {"PrismSDF", {{"Length", 1.3f}}, "Length", 4, 1.3f, ""},
+      {"PrismSDF", {{"EdgeRadius", 0.07f}}, "EdgeRadius", 5, 0.07f, ""},
+
+      // --- PyramidSDF: Center[0..2], pad[3], Scale[4..6], UniformScale[7], Rounding[8]. (Axis.) ---
+      {"PyramidSDF", {{"Center.x", 0.51f}}, "Center.x", 0, 0.51f, ""},
+      {"PyramidSDF", {{"Center.y", 0.52f}}, "Center.y", 1, 0.52f, ""},
+      {"PyramidSDF", {{"Center.z", 0.53f}}, "Center.z", 2, 0.53f, ""},
+      {"PyramidSDF", {{"Scale.x", 1.4f}}, "Scale.x", 4, 1.4f, ""},
+      {"PyramidSDF", {{"Scale.y", 1.5f}}, "Scale.y", 5, 1.5f, ""},
+      {"PyramidSDF", {{"Scale.z", 1.6f}}, "Scale.z", 6, 1.6f, ""},
+      {"PyramidSDF", {{"UniformScale", 2.0f}}, "UniformScale", 7, 2.0f, ""},
+      {"PyramidSDF", {{"Rounding", 0.09f}}, "Rounding", 8, 0.09f, ""},
+
+      // --- RepeatAxis: Size[0]. (Axis + Mirror selectors.) ---
+      {"RepeatAxis", {{"Size", 2.5f}}, "Size", 0, 2.5f, ""},
+
+      // --- RepeatFieldLimit: Size[0], Start[1], Stop[2]. (Axis selector.) ---
+      {"RepeatFieldLimit", {{"Size", 2.6f}}, "Size", 0, 2.6f, ""},
+      {"RepeatFieldLimit", {{"Start", -1.5f}}, "Start", 1, -1.5f, ""},
+      {"RepeatFieldLimit", {{"Stop", 3.5f}}, "Stop", 2, 3.5f, ""},
+
+      // --- RepeatPolar: Repetitions[0], Offset[1]. (Axis + Mirror selectors.) ---
+      {"RepeatPolar", {{"Repetitions", 12.0f}}, "Repetitions", 0, 12.0f, ""},
+      {"RepeatPolar", {{"Offset", 45.0f}}, "Offset", 1, 45.0f, ""},
+
+      // --- RotateAxis: Rotation[0]. (Axis swizzle selector.) ---
+      {"RotateAxis", {{"Rotation", 90.0f}}, "Rotation", 0, 90.0f, ""},
+
+      // --- CombineFieldColor: K[0]. (CombineMethod fold selector, text-assert.) ---
+      {"CombineFieldColor", {{"K", 0.65f}}, "K", 0, 0.65f, ""},
+
+      // --- StairCombineSDF: K[0], Steps[1]. (CombineMethod fold selector, text-assert.) ---
+      {"StairCombineSDF", {{"K", 0.75f}}, "K", 0, 0.75f, ""},
+      {"StairCombineSDF", {{"Steps", 5.0f}}, "Steps", 1, 5.0f, ""},
   };
 }
 

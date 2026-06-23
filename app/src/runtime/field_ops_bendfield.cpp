@@ -141,7 +141,23 @@ std::shared_ptr<FieldNode> makeBendField(const std::string& shortId) {
   return std::make_shared<BendFieldNode>(shortId);
 }
 
-const FieldOp g_bendFieldOp(bendFieldSpec(), makeBendField);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a BendFieldNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id: Amount / StepFactor (packed [GraphParam] floats) +
+// Axis (the compile-time swizzle selector, applyIntSelSlot (int)(v+0.5f) — switches the emitted swizzle
+// text p{c}.<perm>, NOT the float buffer). A missing key leaves the member at its ctor .t3 default.
+// injectBug is NOT a param (test-only via configureBendField); production stays 0. Routed via
+// fieldConfigurers().
+void configureBendFieldFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<BendFieldNode*>(&node)) {
+    applyFloatSlot(m, "Amount", [&](float v) { n->amount = v; });
+    applyFloatSlot(m, "StepFactor", [&](float v) { n->stepFactor = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+  }
+}
+
+// slot ids = the SAME ids configureBendFieldFromParams applies (Option B guard, can't drift).
+const FieldOp g_bendFieldOp(bendFieldSpec(), makeBendField, configureBendFieldFromParams,
+                            {"Amount", "StepFactor", "Axis"});
 
 }  // namespace
 

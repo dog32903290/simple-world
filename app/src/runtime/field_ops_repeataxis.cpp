@@ -257,7 +257,23 @@ std::shared_ptr<FieldNode> makeRepeatAxis(const std::string& shortId) {
   return std::make_shared<RepeatAxisNode>(shortId);
 }
 
-const FieldOp g_repeatAxisOp(repeatAxisSpec(), makeRepeatAxis);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a RepeatAxisNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id: Size (the only packed [GraphParam] float) + TWO
+// compile-time code selectors — Axis (applyIntSelSlot, switches the swizzle component "x"/"y"/"z") and
+// Mirror (applyBoolSelSlot v>0.5, switches the helper pMod1 vs pModMirror1 + the call fn name). Both
+// switch the emitted MSL text, NOT the float buffer. A missing key keeps the ctor .t3 default. injectBug
+// is NOT a param (test-only via configureRepeatAxis); production stays 0. Routed via fieldConfigurers().
+void configureRepeatAxisFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<RepeatAxisNode*>(&node)) {
+    applyFloatSlot(m, "Size", [&](float v) { n->size = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+    applyBoolSelSlot(m, "Mirror", [&](bool v) { n->mirror = v; });
+  }
+}
+
+// slot ids = the SAME ids configureRepeatAxisFromParams applies (Option B guard, can't drift).
+const FieldOp g_repeatAxisOp(repeatAxisSpec(), makeRepeatAxis, configureRepeatAxisFromParams,
+                             {"Size", "Axis", "Mirror"});
 
 }  // namespace
 

@@ -161,7 +161,22 @@ std::shared_ptr<FieldNode> makeCombineFieldColor(const std::string& shortId) {
   return std::make_shared<CombineFieldColorNode>(shortId);
 }
 
-const FieldOp g_combineFieldColorOp(combineFieldColorSpec(), makeCombineFieldColor);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a CombineFieldColorNode via setter-lambdas
+// (NOT offsetof). Slot ids EQUAL the NodeSpec PortSpec.id: K (the only packed [GraphParam] float) +
+// CombineMethod (the compile-time fold selector, applyIntSelSlot — switches the emitted fold expr
+// mix/+/* in the post line, NOT the float buffer). A missing key keeps the member's ctor .t3 default.
+// injectBug is NOT a param (test-only via configureCombineFieldColorBug); production stays 0. Routed via
+// fieldConfigurers().
+void configureCombineFieldColorFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<CombineFieldColorNode*>(&node)) {
+    applyFloatSlot(m, "K", [&](float v) { n->k = v; });
+    applyIntSelSlot(m, "CombineMethod", [&](int v) { n->combineMethod = v; });
+  }
+}
+
+// slot ids = the SAME ids configureCombineFieldColorFromParams applies (Option B guard, can't drift).
+const FieldOp g_combineFieldColorOp(combineFieldColorSpec(), makeCombineFieldColor,
+                                    configureCombineFieldColorFromParams, {"K", "CombineMethod"});
 
 }  // namespace
 

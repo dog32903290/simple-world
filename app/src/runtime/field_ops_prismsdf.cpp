@@ -194,7 +194,31 @@ std::shared_ptr<FieldNode> makePrismSdf(const std::string& shortId) {
   return std::make_shared<PrismSDFNode>(shortId);
 }
 
-const FieldOp g_prismSdfOp(prismSdfSpec(), makePrismSdf);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a PrismSDFNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id for the 4 packed [GraphParam] floats (Center.x/.y/.z,
+// Radius, Length, EdgeRadius) + TWO compile-time code selectors: Axis (the swizzle, applyIntSelSlot) AND
+// Sides (the helper switch fTriangularPrism vs fHexPrism). NOTE the Sides ENUM INDEX (0/1) maps to the
+// RESOLVED helper integer 3/6 (the node stores the resolved count, mirroring TiXL Update()'s SidesType._3
+// =0 -> 3, _6=1 -> 6), so its setter remaps idx -> 3/6 INSIDE the lambda (NOT a raw idx store). Both
+// selectors switch the emitted MSL text, NOT the float buffer. A missing key keeps the ctor .t3 default.
+// Routed via fieldConfigurers().
+void configurePrismSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<PrismSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Radius", [&](float v) { n->radius = v; });
+    applyFloatSlot(m, "Length", [&](float v) { n->length = v; });
+    applyFloatSlot(m, "EdgeRadius", [&](float v) { n->edgeRadius = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+    applyIntSelSlot(m, "Sides", [&](int idx) { n->sides = (idx == 0) ? 3 : 6; });  // enum idx -> resolved 3/6
+  }
+}
+
+// slot ids = the SAME ids configurePrismSdfFromParams applies (Option B guard, can't drift).
+const FieldOp g_prismSdfOp(prismSdfSpec(), makePrismSdf, configurePrismSdfFromParams,
+                           {"Center.x", "Center.y", "Center.z", "Radius", "Length", "EdgeRadius", "Axis",
+                            "Sides"});
 
 }  // namespace
 }  // namespace sw

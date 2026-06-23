@@ -161,7 +161,28 @@ std::shared_ptr<FieldNode> makeCappedTorusSdf(const std::string& shortId) {
   return std::make_shared<CappedTorusSDFNode>(shortId);
 }
 
-const FieldOp g_cappedTorusSdfOp(cappedTorusSdfSpec(), makeCappedTorusSdf);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a CappedTorusSDFNode via setter-lambdas
+// (NOT offsetof). Slot ids EQUAL the NodeSpec PortSpec.id for the 4 packed [GraphParam] floats
+// (Center.x/.y/.z, Fill, Radius, Thickness) + Axis (the compile-time swizzle code selector, applyIntSelSlot
+// — switches the emitted swizzle text, NOT the float buffer). A missing key keeps the member's ctor .t3
+// default. Routed via fieldConfigurers().
+void configureCappedTorusSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<CappedTorusSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Fill", [&](float v) { n->fill = v; });
+    applyFloatSlot(m, "Radius", [&](float v) { n->radius = v; });
+    applyFloatSlot(m, "Thickness", [&](float v) { n->thickness = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+  }
+}
+
+// slot ids = the SAME ids configureCappedTorusSdfFromParams applies (Option B guard, can't drift).
+const FieldOp g_cappedTorusSdfOp(cappedTorusSdfSpec(), makeCappedTorusSdf,
+                                 configureCappedTorusSdfFromParams,
+                                 {"Center.x", "Center.y", "Center.z", "Fill", "Radius", "Thickness",
+                                  "Axis"});
 
 }  // namespace
 }  // namespace sw

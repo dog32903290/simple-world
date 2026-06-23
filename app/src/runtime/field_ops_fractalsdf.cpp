@@ -250,14 +250,20 @@ void configureFractalSdfFromParams(FieldNode& node, const std::map<std::string, 
     applyFloatSlot(m, "Increment.z", [&](float v) { n->incrementZ = v; });
     applyFloatSlot(m, "Fold.x", [&](float v) { n->foldX = v; });
     applyFloatSlot(m, "Fold.y", [&](float v) { n->foldY = v; });
+    // WAVE 3: Iterations = the compile-time CODE selector deferred by wave 2. applyIntSelSlot rounds
+    // (int)(v+0.5f); it is NOT packed (baked as the loop-bound literal in the helper body, host-clamped
+    // [1,20] at codegen) — a different value re-emits MSL text (the wave-3 text-assert proves it), it
+    // never enters the float buffer. Its slot id is added to the guard list below (a real PortSpec.id).
+    applyIntSelSlot(m, "Iterations", [&](int v) { n->iterations = v; });
   }
 }
 
 // slot ids = the SAME ids configureFractalSdfFromParams applies (Option B guard reads them). Iterations
-// is excluded (compile-time code selector, not packed).
+// IS listed (a real PortSpec.id) though it is NOT packed — it is the compile-time code selector switched
+// via applyIntSelSlot; the guard only asserts the id is a real port, the buffer round-trip skips it.
 const FieldOp g_fractalSdfOp(fractalSdfSpec(), makeFractalSdf, configureFractalSdfFromParams,
                              {"Scale", "Minrad", "Clamping.x", "Clamping.y", "Clamping.z", "Increment.x",
-                              "Increment.y", "Increment.z", "Fold.x", "Fold.y"});
+                              "Increment.y", "Increment.z", "Fold.x", "Fold.y", "Iterations"});
 
 }  // namespace
 

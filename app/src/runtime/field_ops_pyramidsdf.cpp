@@ -201,7 +201,29 @@ std::shared_ptr<FieldNode> makePyramidSdf(const std::string& shortId) {
   return std::make_shared<PyramidSDFNode>(shortId);
 }
 
-const FieldOp g_pyramidSdfOp(pyramidSdfSpec(), makePyramidSdf);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a PyramidSDFNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id for the 4 packed [GraphParam] floats (Center.x/.y/.z,
+// Scale.x/.y/.z, UniformScale, Rounding) + Axis (the compile-time swizzle code selector, applyIntSelSlot —
+// switches the emitted swizzle text, NOT the float buffer). A missing key keeps the member's ctor .t3
+// default. Routed via fieldConfigurers().
+void configurePyramidSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<PyramidSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Scale.x", [&](float v) { n->scaleX = v; });
+    applyFloatSlot(m, "Scale.y", [&](float v) { n->scaleY = v; });
+    applyFloatSlot(m, "Scale.z", [&](float v) { n->scaleZ = v; });
+    applyFloatSlot(m, "UniformScale", [&](float v) { n->uniformScale = v; });
+    applyFloatSlot(m, "Rounding", [&](float v) { n->rounding = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+  }
+}
+
+// slot ids = the SAME ids configurePyramidSdfFromParams applies (Option B guard, can't drift).
+const FieldOp g_pyramidSdfOp(pyramidSdfSpec(), makePyramidSdf, configurePyramidSdfFromParams,
+                             {"Center.x", "Center.y", "Center.z", "Scale.x", "Scale.y", "Scale.z",
+                              "UniformScale", "Rounding", "Axis"});
 
 }  // namespace
 }  // namespace sw

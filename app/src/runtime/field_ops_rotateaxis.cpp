@@ -152,7 +152,22 @@ std::shared_ptr<FieldNode> makeRotateAxis(const std::string& shortId) {
   return std::make_shared<RotateAxisNode>(shortId);
 }
 
-const FieldOp g_rotateAxisOp(rotateAxisSpec(), makeRotateAxis);
+// PF-0c param-apply (WAVE 3): project a RESOLVED param map onto a RotateAxisNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id: Rotation (the only packed [GraphParam] float) + Axis
+// (the compile-time swizzle code selector, applyIntSelSlot — switches the two-component swizzle
+// "zy"/"zx"/"yx" in the emitted MSL, NOT the float buffer). A missing key keeps the member's ctor .t3
+// default. injectBug is NOT a param (test-only via configureRotateAxis); production stays 0. Routed via
+// fieldConfigurers().
+void configureRotateAxisFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<RotateAxisNode*>(&node)) {
+    applyFloatSlot(m, "Rotation", [&](float v) { n->rotation = v; });
+    applyIntSelSlot(m, "Axis", [&](int v) { n->axis = v; });
+  }
+}
+
+// slot ids = the SAME ids configureRotateAxisFromParams applies (Option B guard, can't drift).
+const FieldOp g_rotateAxisOp(rotateAxisSpec(), makeRotateAxis, configureRotateAxisFromParams,
+                             {"Rotation", "Axis"});
 
 }  // namespace
 
