@@ -168,6 +168,39 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_RANDOMJUMP, 0.0f, 7.0f,
          Widget::Slider, {}, /*pinless=*/true}},
        nullptr},
+      // FieldVolumeForce — TiXL particle/force/FieldVolumeForce. Samples a wired SDF Field at each particle's
+      // position; on a boundary crossing this step it REFLECTS the velocity off the surface (bounce, lerp'd by
+      // ReflectOnCollision/Amount, jittered by RandomizeBounce/RandomizeReflection), otherwise attracts (outside,
+      // scaled by Attraction/(1+d*AttractionDecay)) / repels (inside, Repulsion). ApplyColorOnCollision copies the
+      // field color into the particle on a bounce. The Field input is a real "Field" port (mirrors
+      // FieldVolumeForce.cs InputSlot<ShaderGraphNode>); the cook gathers the wired SDF op tree into
+      // PointCookCtx::inputFieldTree and cookParticleSim assembles + compiles the field_volume template (PF bridge).
+      // No field -> baked NaN-guarded no-op (fork-FieldVolume-baked, field_volume_force.metal). Defaults照
+      // FieldVolumeForce.t3: Amount=1, Attraction=0.2, AttractionDecay=0, Repulsion=0.1, ReflectOnCollision=true,
+      // Bounciness=1, RandomizeBounce=0, RandomizeReflection=0, InvertVolume=false, NormalSamplingDistance=0.1,
+      // ApplyColorOnCollision=false. Three .t3 FloatsToBuffer routing forks (Attraction*0.425, InvertVolume->-1/+1,
+      // SpeedFactor=1) are applied host-side in fillFieldVolumeForceParams (point_ops_forceparams.cpp), NOT here —
+      // these spec rows carry the RAW .cs inputs/defaults (the operator surface), faithful to the .t3 inputs. The
+      // bools (ReflectOnCollision/InvertVolume/ApplyColorOnCollision) are Float here (1.0/0.0; the cook reads >=0.5).
+      // isBufferInput() skips a "Field" port -> the dedicated field gather is the sole consumer.
+      {"FieldVolumeForce",
+       "FieldVolumeForce",
+       {{"force", "force", "ParticleForce", false},
+        {"Field", "Field", "Field", true},  // PF: TiXL ShaderGraphNode SDF field input
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"Attraction", "Attraction", "Float", true, 0.2f, 0.0f, 10.0f},
+        {"AttractionDecay", "AttractionDecay", "Float", true, 0.0f, 0.0f, 10.0f},
+        {"Repulsion", "Repulsion", "Float", true, 0.1f, 0.0f, 10.0f},
+        {"ReflectOnCollision", "ReflectOnCollision", "Float", true, 1.0f, 0.0f, 1.0f},
+        {"Bounciness", "Bounciness", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"RandomizeBounce", "RandomizeBounce", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"RandomizeReflection", "RandomizeReflection", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"InvertVolume", "InvertVolume", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"NormalSamplingDistance", "NormalSamplingDistance", "Float", true, 0.1f, 0.0f, 1.0f},
+        {"ApplyColorOnCollision", "ApplyColorOnCollision", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_FIELDVOLUME, 0.0f, 8.0f,
+         Widget::Slider, {}, /*pinless=*/true}},
+       nullptr},
       {"ParticleSystem",
        "ParticleSystem",
        {{"emit", "emit", "Points", true},

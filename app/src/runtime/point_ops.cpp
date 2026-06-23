@@ -3,8 +3,6 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
-#include <sstream>
 #include <vector>
 
 #include <Foundation/Foundation.hpp>
@@ -15,7 +13,8 @@
 #include "runtime/graph.h"           // Graph/Node/findSpec/pinId
 #include "runtime/particle_params.h" // RadialParams, RadialBinding
 #include "runtime/point_graph.h"     // PointCookCtx, registerPointOp/DrawOp, PointGraph
-#include "runtime/point_ops_forceparams.h"  // fillVel/AxisStep/SnapAngles force param-fill helpers
+#include "runtime/point_ops_forceparams.h"  // fillVel/AxisStep/SnapAngles/FieldVolume force param-fill helpers
+#include "runtime/point_ops_forcetemplates.h"  // vff/fieldDistance/randomJump/fieldVolume template loaders
 #include "runtime/tex_op_cache.h"    // cachedSourceComputePSO (PF-a: srcHash-keyed compute PSO)
 #include "runtime/tixl_point.h"      // SwPoint (64B) + EvaluationContext
 
@@ -80,60 +79,6 @@ RenderCommand cookDrawPoints(CmdCookCtx& c) {
 }
 
 namespace {
-// PF-a: load the field-into-force COMPUTE template (SW_VFF_TEMPLATE) once. The string is a compile-time
-// asset path (mirrors field_graph_selftest's SW_FIELD_TEMPLATE read); assembleFieldMSL fills its hooks.
-// Cached in a function-static so the file is read at most once per process, not per cook. Empty if the
-// define is unset or the file is unreadable (-> the cook falls back to the baked path, byte-identical).
-const std::string& vffTemplate() {
-  static const std::string tmpl = [] {
-#ifdef SW_VFF_TEMPLATE
-    std::ifstream f(SW_VFF_TEMPLATE);
-    if (!f) return std::string();
-    std::ostringstream ss;
-    ss << f.rdbuf();
-    return ss.str();
-#else
-    return std::string();
-#endif
-  }();
-  return tmpl;
-}
-
-// PF field-into-force COMPUTE template for FieldDistanceForce (SW_FIELD_DISTANCE_TEMPLATE). Same once-per-
-// process function-static read as vffTemplate(); empty if the define is unset/unreadable (-> baked fallback).
-const std::string& fieldDistanceTemplate() {
-  static const std::string tmpl = [] {
-#ifdef SW_FIELD_DISTANCE_TEMPLATE
-    std::ifstream f(SW_FIELD_DISTANCE_TEMPLATE);
-    if (!f) return std::string();
-    std::ostringstream ss;
-    ss << f.rdbuf();
-    return ss.str();
-#else
-    return std::string();
-#endif
-  }();
-  return tmpl;
-}
-
-// PF field-into-force COMPUTE template for RandomJumpForce (SW_RANDOM_JUMP_TEMPLATE). Same once-per-process
-// function-static read; empty if the define is unset/unreadable (-> no field path, but RandomJump has no
-// baked fallback PSO — a fieldless RandomJumpForce simply does nothing if the template is missing).
-const std::string& randomJumpTemplate() {
-  static const std::string tmpl = [] {
-#ifdef SW_RANDOM_JUMP_TEMPLATE
-    std::ifstream f(SW_RANDOM_JUMP_TEMPLATE);
-    if (!f) return std::string();
-    std::ostringstream ss;
-    ss << f.rdbuf();
-    return ss.str();
-#else
-    return std::string();
-#endif
-  }();
-  return tmpl;
-}
-
 // Compute PSO from the metallib by function name (the sim op caches its two in per-node
 // state so they aren't rebuilt every frame).
 MTL::ComputePipelineState* makeComputePSO(MTL::Device* dev, MTL::Library* lib, const char* name) {
@@ -158,6 +103,7 @@ struct SimState {
   MTL::ComputePipelineState* psoAxisStep = nullptr;  // FORCE_KIND_AXISSTEP (批次24)
   MTL::ComputePipelineState* psoSnapAngles = nullptr;  // FORCE_KIND_SNAPANGLES (批次24)
   MTL::ComputePipelineState* psoFieldDist = nullptr;   // FORCE_KIND_FIELDDISTANCE (baked fallback)
+  MTL::ComputePipelineState* psoFieldVolume = nullptr; // FORCE_KIND_FIELDVOLUME (baked fallback)
   MTL::ComputePipelineState* psoSim = nullptr;
   bool seeded = false;
   uint32_t frame = 0;                // monotonic step head -> CollectCycleIndex
@@ -177,6 +123,7 @@ void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count) {
   s->psoAxisStep = makeComputePSO(dev, lib, "axis_step_force");    // 批次24
   s->psoSnapAngles = makeComputePSO(dev, lib, "snaptoanglesforce"); // 批次24
   s->psoFieldDist = makeComputePSO(dev, lib, "field_distance_force"); // FieldDistanceForce baked fallback
+  s->psoFieldVolume = makeComputePSO(dev, lib, "field_volume_force"); // FieldVolumeForce baked fallback
   s->psoSim = makeComputePSO(dev, lib, "particle_sim");
   return s;
 }
@@ -191,6 +138,7 @@ void simStateFree(void* p) {
   if (s->psoAxisStep) s->psoAxisStep->release();
   if (s->psoSnapAngles) s->psoSnapAngles->release();
   if (s->psoFieldDist) s->psoFieldDist->release();
+  if (s->psoFieldVolume) s->psoFieldVolume->release();
   if (s->psoSim) s->psoSim->release();
   delete s;
 }
@@ -364,6 +312,14 @@ void cookParticleSim(PointCookCtx& c) {
       // its color magnitude to modulate a curlNoise jump and ADDS it to POSITION (fork-RandomJump-position-
       // write, RandomJumpForceTemplate.hlsl:75-77). No field / no template -> no move (no baked fallback PSO).
       runFieldForce(randomJumpTemplate(), "random_jump_force", &rp, sizeof(rp));
+    } else if (forceKind == FORCE_KIND_FIELDVOLUME) {
+      // FieldVolumeForce — param-fill (incl. the .t3 routing forks: Attraction*0.425, InvertVolume->-1/+1,
+      // SpeedFactor=1) peeled to point_ops_forceparams.cpp (cap discipline). A wired SDF field -> the runtime-
+      // compiled field_volume_force kernel reflects velocity off the surface (bounce) / attracts / repels; no
+      // field -> the baked (.w=1) static PSO degenerates to a NaN-guarded no-op (fork-FieldVolume-baked).
+      FieldVolumeForceParams fp = fillFieldVolumeForceParams(c, pool);
+      if (!runFieldForce(fieldVolumeTemplate(), "field_volume_force", &fp, sizeof(fp)))
+        runForce(s->psoFieldVolume, &fp, sizeof(fp));  // fork-FieldVolume-baked fallback
     } else {  // FORCE_KIND_TURBULENCE (default)
       TurbParams tp{};
       tp.Amount = cookInputParam(c, 1, "Amount", 15.0f);

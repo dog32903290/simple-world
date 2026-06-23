@@ -71,4 +71,34 @@ SnapAnglesForceParams fillSnapAnglesForceParams(const PointCookCtx& c, uint32_t 
   return sp;
 }
 
+// FieldVolumeForce — defaults照 FieldVolumeForce.t3: Amount=1, Attraction=0.2, AttractionDecay=0,
+// Repulsion=0.1, ReflectOnCollision=true, Bounciness=1, RandomizeBounce=0, RandomizeReflection=0,
+// InvertVolume=false, NormalSamplingDistance=0.1, ApplyColorOnCollision=false. The .t3 FloatsToBuffer
+// routing forks are applied HERE (host-side) so the kernel reads ready values (see
+// field_volume_force_template.metal for the trace):
+//   Attraction         = (.cs Attraction) * 0.425   (Multiply node B=0.425 on the Attraction path)
+//   InvertVolumeFactor = InvertVolume ? -1 : +1      (BoolToFloat node)
+//   SpeedFactor        = 1.0                         (fork-FieldVolume-speedfactor: GetParticleComponents
+//                                                     .SpeedFactor is a runtime PS value, not an operator
+//                                                     input; == every other force's SpeedFactor)
+// EnableBounce/ApplyColorOnCollision are .hlsl b2 ints, carried as 0/1 floats (the .t3 routes the bools
+// through BoolToInt). cookInputParam returns floats; bools were stored as 1.0/0.0, so >=0.5 == true.
+FieldVolumeForceParams fillFieldVolumeForceParams(const PointCookCtx& c, uint32_t pool) {
+  FieldVolumeForceParams fp{};
+  fp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
+  fp.Attraction = cookInputParam(c, 1, "Attraction", 0.2f) * 0.425f;  // Multiply fork
+  fp.AttractionDecay = cookInputParam(c, 1, "AttractionDecay", 0.0f);
+  fp.Repulsion = cookInputParam(c, 1, "Repulsion", 0.1f);
+  fp.Bounciness = cookInputParam(c, 1, "Bounciness", 1.0f);
+  fp.RandomizeBounce = cookInputParam(c, 1, "RandomizeBounce", 0.0f);
+  fp.RandomizeReflection = cookInputParam(c, 1, "RandomizeReflection", 0.0f);
+  fp.InvertVolumeFactor = (cookInputParam(c, 1, "InvertVolume", 0.0f) >= 0.5f) ? -1.0f : 1.0f;  // BoolToFloat fork
+  fp.NormalSamplingDistance = cookInputParam(c, 1, "NormalSamplingDistance", 0.1f);
+  fp.SpeedFactor = 1.0f;  // fork-FieldVolume-speedfactor
+  fp.EnableBounce = (cookInputParam(c, 1, "ReflectOnCollision", 1.0f) >= 0.5f) ? 1.0f : 0.0f;
+  fp.ApplyColorOnCollision = (cookInputParam(c, 1, "ApplyColorOnCollision", 0.0f) >= 0.5f) ? 1.0f : 0.0f;
+  fp.Count = pool;
+  return fp;
+}
+
 }  // namespace sw

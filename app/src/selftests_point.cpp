@@ -100,6 +100,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"vectorfieldforce-field", runVectorFieldForceFieldSelfTest},  // PF-a closed-form: 1 particle field-sampled -> Velocity≈(0.5625A,0,0.5625A)
     {"fielddistanceforce-field", runFieldDistanceForceFieldSelfTest},  // PF bridge closed-form: SphereSDF + 1 particle @(1,0,0) -> Velocity≈(-A,0,0)
     {"randomjumpforce-field", runRandomJumpForceFieldSelfTest},  // PF bridge field-gate: SphereSDF -> Position moves & scales with Amount (fork-RandomJump-position-write)
+    {"fieldvolumeforce-field", runFieldVolumeForceFieldSelfTest},  // PF bridge closed-form: SphereSDF + 1 particle @(1,0,0), Attraction=1 -> Velocity≈(-0.425A,0,0) (exercises *0.425 Attraction fork)
     {"fieldtree-builder", runFieldTreeBuilderSelfTest},  // PF-0: graph->FieldNode builder (flat+resident both legs)
 );
 }  // namespace sw

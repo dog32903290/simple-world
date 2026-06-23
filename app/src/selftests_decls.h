@@ -107,6 +107,7 @@ namespace sw { int runParticleFieldProbeSelfTest(bool); }         // particlefie
 namespace sw { int runVectorFieldForceFieldSelfTest(bool); }      // particlefield_probe_golden.cpp (PF-a closed-form: one particle @field-space(0.25,0,0) -> Velocity≈(0.5625A,0,0.5625A))
 namespace sw { int runFieldDistanceForceFieldSelfTest(bool); }    // fielddistanceforce_field_golden.cpp (PF bridge closed-form: SphereSDF + particle @(1,0,0) -> Velocity≈(-A,0,0))
 namespace sw { int runRandomJumpForceFieldSelfTest(bool); }       // randomjumpforce_field_golden.cpp (PF bridge field-gate: SphereSDF -> Position moves & scales linearly with Amount; fork-RandomJump-position-write)
+namespace sw { int runFieldVolumeForceFieldSelfTest(bool); }      // fieldvolumeforce_field_golden.cpp (PF bridge closed-form: SphereSDF + particle @(1,0,0), Attraction=1 -> Velocity≈(-0.425*A,0,0), exercises the .t3 *0.425 Attraction fork)
 namespace sw { int runFieldTreeBuilderSelfTest(bool); }          // fieldtree_builder_golden.cpp (PF-0 graph->FieldNode builder: flat+resident both build ToroidalVortexField tree + project wired Radius)
 namespace sw { int runMeshNGonGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: NGonMesh)
 namespace sw { int runMeshQuadGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: QuadMesh)
