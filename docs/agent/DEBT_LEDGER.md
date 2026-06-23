@@ -77,6 +77,8 @@
 | task_602f15ec | freshly-spawned node 不進 state.json→scenario「cannot resolve node」cascade（verify/state 層非 cook 層） | verify 基建 | queued | 修 spawn→state.json landing。影響 scenario 測試可信度。 |
 | task_2ee58abb | crop teeth 在 `MTL_DEBUG_LAYER=1` 補驗（本機 Metal validation 關，ShaderWrite flag 驗不到） | 驗證補強 | queued | 開 validation layer 跑 crop/mip/fastblur teeth。 |
 | force-cook-fork-coverage | force closed-form golden **複製** cook 的 host-side routing fork 而非**行使**它（golden 直設 `fp.*`，不走 `fillFieldVolumeForceParams`）→ FieldVolume 的 `×0.425` Attraction fork（`point_ops_forceparams.cpp:89`）刪掉 golden 仍綠=零 executable 覆蓋。同 class 風險=未來其他 host-side .t3 routing fork。refuter 確認現值正確（非 bug），但 magic-constant fork 易靜默壞。 | 驗證覆蓋 NIT | queued | 加 `fillFieldVolumeForceParams(Attraction=1)→0.425` 單元斷言，或讓某 force golden/probe 走 cookParticleSim param-fill。`a15bc25` 引入。 |
+| pf0c-slotid-guard-indirection | PF-0c 的 slot-id==port-id self-test 驗的是 golden 裡**手抄的** `migratedOpSlots()` 清單，**非各 op `.cpp` 的實際 configurer slot table**→ `.cpp` configurer id 打錯（如 `"Thicknes"`）而 golden 抄對則 guard 仍綠、param 靜默走 default（只有 SphereSDF Radius 有 GPU/buffer apply-tooth）。refuter 手動三方核對 5 顆 op 現無 drift（非 live bug）。 | 驗證覆蓋 NIT | queued | 讓 guard 直讀 configurer 的實際 slot table（或 configurer expose slot ids），消手抄 indirection。`fc53993` 引入。 |
+| field-combinesdf-at-cap | `field_ops_combinesdf.cpp` PF-0c 後 = **正好 400 行**（≤cap 過閘無 grandfather），但零 headroom→下次 edit（如 PF-0d 或加 combine mode）即破。builder 已 spawn 預防性 chip。 | 架構 maint-watch | queued | 下次動 combinesdf 前先 peel 一個 helper（mode kModes 表或 combine codegen），勿 grandfather bump。 |
 
 ---
 
