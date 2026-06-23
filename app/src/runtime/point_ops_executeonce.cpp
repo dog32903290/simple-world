@@ -19,15 +19,15 @@
 // loop is skipped → NO draws → an EMPTY chain. The difference from Execute is the GATE: Execute gates on
 // IsEnabled (a static bool), ExecuteOnce gates on Trigger.
 //
-// ★FORK (named): TiXL gates on `Trigger.DirtyFlag.IsDirty` — a PER-FRAME LATCH that is true on the first
-// eval after the Trigger input changes, then self-clears (`Trigger.DirtyFlag.Clear()`), so the subtree
-// executes exactly ONCE per trigger edge. sw has no per-node DirtyFlag latch in the cook core, and a
-// cook-pure golden cannot exercise a cross-frame self-clearing latch deterministically. So sw models the
-// gate as the Trigger input VALUE: Trigger>0.5 ⇒ execute (concat-all), Trigger≤0.5 ⇒ empty. This is the
-// faithful BEHAVIOUR of one trigger edge (the "execute when triggered, skip when not" semantics); the
-// once-per-edge self-clear is the deferred frame-state half (the same class of deferral as ExecRepeatedly's
-// SkipFrameCount per-frame counter). The OutputTrigger bool output (which mirrors IsDirty) is likewise
-// dropped — sw has no bool Command-side output port; it is editor wiring, not a draw effect.
+// ★NAMED BEHAVIORAL FORK: TiXL gates on `Trigger.DirtyFlag.IsDirty` — a PER-FRAME LATCH that is true on
+// the first eval after the Trigger input changes, then self-clears (`Trigger.DirtyFlag.Clear()`), so the
+// subtree executes exactly ONCE per trigger edge. A held-true Trigger fires once-ever in TiXL but
+// every-frame in sw. TiXL has no value that disables once-ness; this is NOT a faithful deferral in the
+// same class as ExecRepeatedly's SkipFrameCount — it is a real behavioral divergence. sw currently fires
+// level-triggered every frame (Trigger>0.5 ⇒ execute, Trigger≤0.5 ⇒ empty); the cross-frame edge-latch
+// is deferred (needs per-node frame-state in cook core). The OutputTrigger bool output (which mirrors
+// IsDirty) is likewise dropped — sw has no bool Command-side output port; it is editor wiring, not a draw
+// effect.
 //
 // ★COOK-CORE HOOK: NONE. ExecuteOnce's Command port is MultiInput → the driver's existing else-branch in
 // cookCommand concatenates all wired subtrees into cc.inputCommand (the S2a Execute collector, unchanged).
@@ -70,7 +70,7 @@ bool& executeOnceIgnoreTriggerForTest() { static bool v = false; return v; }
 // S2a Execute collector). Apply the Trigger gate: triggered ⇒ pass the chain through; not triggered ⇒ empty.
 RenderCommand cookExecuteOnce(CmdCookCtx& c) {
   RenderCommand rc;
-  const bool triggered = cookParam(c, "Trigger", 1.0f) > 0.5f;  // .t3 DefaultValue=true (Trigger=new(true))
+  const bool triggered = cookParam(c, "Trigger", 0.0f) > 0.5f;  // .t3 DefaultValue=false
   if ((triggered || executeOnceIgnoreTriggerForTest()) && c.inputCommand)
     rc.items = c.inputCommand->items;  // wire-ordered + concatenated by the driver (== Execute when triggered)
   return rc;
@@ -104,7 +104,7 @@ void installExecuteOnceSpecs() {
   dyn["ExecuteOnce"] = atomicSpec("ExecuteOnce",
       {{"Command", "Command", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
        {"out", "out", "Command", false},
-       {"Trigger", "Trigger", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}});
+       {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}});
   dyn["StubA"] = atomicSpec("StubA", {{"out", "out", "Command", false}});
   dyn["StubB"] = atomicSpec("StubB", {{"out", "out", "Command", false}});
   dyn["StubC"] = atomicSpec("StubC", {{"out", "out", "Command", false}});

@@ -259,15 +259,17 @@ const std::vector<NodeSpec>& drawSpecs() {
       // concatenates N wired chains in wire order (== Execute, the S2a collector) only when Trigger is set;
       // not triggered ⇒ empty (no draws). The driver's MultiInput Command collector does the gather+concat
       // (zero cook-core change); the op cook applies the Trigger gate (like Execute applies IsEnabled).
-      // Command(MultiInput) in → Command out. FORK (named): TiXL gates on Trigger.DirtyFlag.IsDirty (a
-      // per-frame self-clearing edge latch → execute exactly once per trigger edge); sw models it as the
-      // Trigger VALUE (>0.5 ⇒ execute, ≤0.5 ⇒ skip) — the faithful execute-when-triggered behaviour, the
-      // once-per-edge self-clear is the deferred frame-state half. OutputTrigger bool output dropped (no
-      // bool Command-side port; editor wiring not a draw effect). .t3: Trigger DefaultValue=true.
+      // Command(MultiInput) in → Command out. NAMED BEHAVIORAL FORK: TiXL gates on
+      // Trigger.DirtyFlag.IsDirty (a per-frame self-clearing edge latch → execute exactly once per trigger
+      // edge; a held-true Trigger fires once-ever in TiXL, every-frame in sw); sw models it as the Trigger
+      // VALUE (>0.5 ⇒ execute, ≤0.5 ⇒ skip) — cross-frame edge-latch deferred (needs frame-state). This
+      // is NOT a faithful deferral like SkipFrameCount: TiXL has no value that disables once-ness.
+      // OutputTrigger bool output dropped (no bool Command-side port; editor wiring not a draw effect).
+      // .t3: Trigger DefaultValue=false.
       {"ExecuteOnce", "ExecuteOnce",
        {{"Command", "Command", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
         {"out", "out", "Command", false},
-        {"Trigger", "Trigger", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+        {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr},
       // LogMessage (TiXL Lib.flow.LogMessage): a TRANSPARENT Command-rail SubGraph passthrough that fires a
       // host log side-effect while forwarding the wrapped subtree's draw items unchanged (LogMessage.cs:53).
