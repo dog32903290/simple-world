@@ -396,14 +396,12 @@ add_executable(simple_world
   src/runtime/gizmo_geometry.cpp
   src/runtime/pointlist_ops_conegizmo.cpp
   src/runtime/pointlist_ops_drawlinegrid.cpp
-  src/runtime/pointlist_ops_gridplane.cpp
   src/runtime/pointlist_ops_drawboxgizmo.cpp
   src/runtime/pointlist_ops_drawspheregizmo.cpp
   src/runtime/pointlist_ops_locator.cpp
   src/pointlist_golden.cpp
   src/conegizmo_golden.cpp
   src/drawlinegrid_golden.cpp
-  src/gridplane_golden.cpp
   src/drawboxgizmo_golden.cpp
   src/drawspheregizmo_golden.cpp
   src/locator_golden.cpp

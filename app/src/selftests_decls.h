@@ -139,7 +139,6 @@ namespace sw { int runConeGizmoSelfTest(bool); }                 // conegizmo_go
 namespace sw { int runGizmoBoxSelfTest(bool); }                  // drawboxgizmo_golden.cpp (C3 gizmo Tranche-1: DrawBoxGizmo 12-edge box, transport + resident DrawLines pixel)
 namespace sw { int runGizmoSphereSelfTest(bool); }               // drawspheregizmo_golden.cpp (C3 gizmo Tranche-1: DrawSphereGizmo lat/long rings)
 namespace sw { int runGizmoGridSelfTest(bool); }                 // drawlinegrid_golden.cpp (C3 gizmo Tranche-1: DrawLineGrid wireframe grid, adjacent-line pixel)
-namespace sw { int runGizmoGridPlaneSelfTest(bool); }            // gridplane_golden.cpp (C3 gizmo Tranche-1: GridPlane wireframe grid [fork-gizmo-gridplane-shader])
 namespace sw { int runGizmoLocatorSelfTest(bool); }              // locator_golden.cpp (C3 gizmo Tranche-1: Locator 3-axis cross [fork-gizmo-screen-constant], geometry only)
 namespace sw { int runPointsToCpuSelfTest(bool); }               // pointstocpu_golden.cpp (PointsToCPU: GPU Points bag -> host List<Point>, flat)
 namespace sw { int runGradientSelfTest(bool); }                  // gradient_golden.cpp (8th cook flow: SwGradient::sample byte-vs-TiXL)
