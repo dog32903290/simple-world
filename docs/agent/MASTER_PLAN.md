@@ -3,13 +3,16 @@
 > 柏為 2026-06-23:「程式碼全翻完了，寫一份全部可以並行、以最快路徑為原則的計劃表。」
 > **本檔=頂層路由權威。** sub-plan:節點/縫=[SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md)、債=[DEBT_LEDGER](DEBT_LEDGER.md)、非節點 spec=[alignment/](alignment/README.md)。事實以 git/碼為準。
 
-## Current Snapshot（2026-06-23 07:55）
-- HEAD `0a73141`，樹乾淨，check-arch ✅（依賴 + 行數閘）。節點 **365/~800**（+SetRequestedResolution）。非節點對齊覆蓋 100%。
-- **脊椎 S1 ✅ DONE**（`44234aa`）：context-carried RequestedResolution push/pop，flat+resident，camera aspect tracks，SetRequestedResolution op。harness `--selftest-requestedresolution` PASS/-bug RED，獨立 refuter MERGE-SAFE。**解鎖 L2 輸出窗 + L6 匯出**。NIT 待補：sibling-restore tooth + resident-path golden（production 走 resident）。
-- **L1 Variation harness ✅ DONE**（`10e7845`）：springDamp + mixFloat golden（`--selftest-variation`），TiXL Mix/SpringDamp 公式 byte-faithful，獨立 refuter MERGE-SAFE。NIT 待補：asymmetric-weight tooth。scatter RNG deferred。lane 後續=pool/crossfader/UI/document-override。
-- **L5/L6 harness 藍圖 ✅ 上磁碟**（`0a73141`，census/L5_IO_HARNESS_BLUEPRINT.md + L6_MAINT_HARNESS_BLUEPRINT.md）→ 下批可直接建。
-- **下批候選**：脊椎 S2（render-graph/Layer2d/Execute，解鎖 155 節點）+ 並行 L5 loopback / L6 auto-backup（藍圖已備）/ L1 pool 續 / L3 AssetLibrary。S1 已解鎖 L2 輸出窗 + L6 匯出。
-- **★血證（本批 2026-06-23）**：watchdog 30min 閾值對 cook-core build lane 太緊→誤判 S1 死（實際跑 50min，transcript 靜默 33min=長 build 正常）→我派 relay 進同 worktree=雙 driver 險撞。幸最終 worktree state 經我中央 build+--bite 親驗為綠（race 收斂到正確態）。教訓見 memory [[sw-watchdog-cook-core-false-death]]。
+## Current Snapshot（2026-06-23 08:45）
+- HEAD `dea9155`，樹乾淨，check-arch ✅。節點 **365/~800**（+SetRequestedResolution）。`--bite` PASS=370 NO-BITE:[]（唯一紅=soundtrack 預存 flake）。非節點對齊覆蓋 100%。
+- **⛓ 脊椎 S1 ✅**（`44234aa`）：context-carried RequestedResolution push/pop，flat+resident，camera aspect，SetRequestedResolution op。refuter MERGE-SAFE。**解鎖 L2 輸出窗 + L6 匯出**。NIT：sibling-restore tooth + resident-path golden。
+- **∥ L1 Variation harness ✅**（`10e7845`）：springDamp + mixFloat golden，TiXL 公式 byte-faithful，refuter MERGE-SAFE。NIT：asymmetric-weight tooth；scatter RNG deferred。後續=pool/crossfader/UI/document-override。
+- **∥ L5 IO loopback ✅**（`5364ff8`）：OSC（localhost UDP）+ virtual CoreMIDI machine-verified half。refuter 抓到 MIDI channel off-by-one（0→1-based）已修 MERGE-SAFE。柏為殘留=真裝置（controller/phone）走同 decode path。後續=LiveSource→graph 綁定。
+- **∥ L6 auto-backup ✅**（`dea9155`）：refuter BLOCK（單檔 lossy）→ fixer 修 faithful（asset-sibling bundle soundtrack + 重啟安全 disk-derived index + ms-timestamp + .pending atomic）→ re-refute MERGE-SAFE。**DEFERRED（commit 訊息有 TiXL refs）**：ReduceNumberOfBackups 保留(:481-519)/RestoreLatestBackups 崩潰復原(:251-389)/restore 路徑改寫；perf_overlay→chip task_8a55df9b。
+- **∥ S2 藍圖 ✅ 上磁碟**（`f895c65`，census/S2_RENDERGRAPH_BLUEPRINT.md）：真縫=**MultiInput Command collector**（Execute.CollectedInputs），非新 draw pipeline。分階 S2a（collector+Execute keystone）→S2c（layer-compose golden）→S2b（Group SRT）。
+- **下批候選**：脊椎 **S2a**（MultiInput Command collector，解鎖 ~58 直接可組+155 島，blueprint 已備，sequential 占 point_graph.cpp）+ 並行 L1 pool / L3 AssetLibrary / L5 LiveSource-bind / L2（除輸出窗）。
+- **★血證（本批 2026-06-23）**：watchdog 30min 對 cook-core build lane 太緊→誤判 S1 死（實跑 50min，靜默 33min=長 build 正常）→派 relay 撞同 worktree 雙 driver，幸中央 build+--bite 親驗收斂為綠。閾值已改 55min。詳 memory [[sw-watchdog-cook-core-false-death]]。
+- **★工作流摩擦（柏為 2026-06-23 要改工作流，正寫 `docs/agent/PLAYBOOK_SYSTEM_PLAN.md`）**：①Plan agent 無 Write→藍圖落盤要用 Explore 或 orchestrator 代存；②worktree 不 symlink external/tixl→build agent 驗不到 TiXL，refuter（主樹）才是真 parity 閘；③refuter 是真價值閘（本批抓到 L5 channel + L6 lossy 兩個真 BLOCK，golden 自洽過不了 refuter）。
 
 ---
 
