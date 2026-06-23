@@ -124,3 +124,4 @@ namespace sw { int runPointsToCpuSelfTest(bool); }               // pointstocpu_
 namespace sw { int runGradientSelfTest(bool); }                  // gradient_golden.cpp (8th cook flow: SwGradient::sample byte-vs-TiXL)
 namespace sw { int runPickGradientSelfTest(bool); }              // gradient_ops_pickgradient.cpp (MultiInput Gradient select)
 namespace sw { int runBlendGradientsSelfTest(bool); }            // gradient_ops_blendgradients.cpp (2-gradient cross-merge)
+namespace sw { int runLayerComposeSelfTest(bool); }              // point_ops_layercompose.cpp (★S2c: layer-compose end-to-end — 2 Layer2d → Execute → RenderTarget, blend order=wire order, flat + resident)

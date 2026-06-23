@@ -457,6 +457,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     if (cm == cmdReg().end() || !cm->second) return rcmd;
     MTL::Buffer* pts = nullptr;
     uint32_t cnt = 0;
+    const MTL::Texture* inTex = nullptr;  // ★S2c: first wired Texture2D input (Layer2d/DrawScreenQuad)
     SwMeshView inMesh;            // ★R-2: first wired Mesh input (DrawMeshUnlit) — was UNGATHERED before
     bool haveMesh = false;
     RenderCommand inCmd;          // Camera op's Command subtree (Cut 3)
@@ -480,6 +481,12 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
         if (ri && ri->driver == ResidentInput::Driver::Connection)
           inMesh = cookResidentMesh(ri->srcNodePath, depth + 1);
         haveMesh = true;
+      } else if (port.dataType == "Texture2D" && !inTex) {
+        // ★S2c: mirror of flat cookCommand FORK#1 (point_graph.cpp:444-448) — the resident path had NO
+        // Texture2D gather → Layer2d/DrawScreenQuad drew BLACK (--selftest-layercompose resident leg).
+        const ResidentInput* ri = n->input(port.id);
+        if (ri && ri->driver == ResidentInput::Driver::Connection)
+          inTex = cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId);
       } else if (port.dataType == "Command" && !haveInCmd) {
         // S2a KEYSTONE — resident mirror of the flat MultiInput Command collector (doc: point_ops_execute
         // .cpp). MultiInput Command (Execute) concats the primary wire (srcNodePath) + extraConns (批次25,
@@ -505,6 +512,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     cc.ctx = &ctx; cc.graph = nullptr; cc.reg = reg;
     cc.nodeId = 0; cc.points = pts; cc.count = cnt;
     cc.meshVtx = inMesh.vtx; cc.meshIdx = inMesh.idx; cc.meshFaceCount = inMesh.faceCount;
+    cc.inputTexture = inTex;  // ★S2c Texture2D gather (Layer2d/DrawScreenQuad)
     cc.inputCommand = haveInCmd ? &inCmd : nullptr;
     cc.params = nodeParams(path);
     return cm->second(cc);

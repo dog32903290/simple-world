@@ -27,7 +27,12 @@ app/src/runtime/math_ops_selftest.cpp:1339
 # lower these again. (S2a build agent, 2026-06-23.)
 app/src/runtime/point_graph.cpp:769
 app/src/runtime/point_graph.h:440
-app/src/runtime/point_graph_resident.cpp:601
+# S2c (2026-06-23) +8: resident cookCommand gained its Texture2D input gather — a production black-hole
+# (Layer2d/DrawScreenQuad drew BLACK on the resident path because cc.inputTexture was never set; the flat
+# cookCommand has had this branch since FORK#1). Caught by --selftest-layercompose's resident leg. The
+# gather (decl + branch + cc.inputTexture assign) is irreducible code; comments already at the floor.
+# Same cook-driver split should lower this with the S2a note above.
+app/src/runtime/point_graph_resident.cpp:609
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 app/src/runtime/point_ops.h:544
 app/src/runtime/point_ops_attributesfromimagechannels.cpp:429
