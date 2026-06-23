@@ -92,6 +92,11 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"mathops", runMathOpsSelfTest},
     {"statefulvalue", runStatefulValueSelfTest},
     {"conegizmo", runConeGizmoSelfTest},  // C3 gizmo Tranche-0: ConeGizmo generator + gizmo_geometry helper
+    {"gizmo-box", runGizmoBoxSelfTest},          // C3 gizmo Tranche-1: DrawBoxGizmo (12-edge box) + resident DrawLines pixel
+    {"gizmo-sphere", runGizmoSphereSelfTest},    // C3 gizmo Tranche-1: DrawSphereGizmo (lat/long wireframe rings)
+    {"gizmo-grid", runGizmoGridSelfTest},        // C3 gizmo Tranche-1: DrawLineGrid (wireframe grid, adjacent lines lit)
+    {"gizmo-gridplane", runGizmoGridPlaneSelfTest},  // C3 gizmo Tranche-1: GridPlane (wireframe grid, shader fork)
+    {"gizmo-locator", runGizmoLocatorSelfTest},  // C3 gizmo Tranche-1: Locator (3-axis cross, geometry only)
     {"particlefield-probe", runParticleFieldProbeSelfTest},  // PF-a FLAG probe: field-into-force bridge absent (RED evidence)
 );
 }  // namespace sw
