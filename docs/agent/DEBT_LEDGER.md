@@ -76,6 +76,7 @@
 | ~~task_d288a684~~ | ~~Float-Clamp min>max 行為~~ | 小 bug | **✅ CLOSED `b3b92ad` 2026-06-24** | 見 §C5。`evalClamp` branch form→`fminf(fmaxf(v,lo),hi)` byte-exact TiXL `MathUtils.Clamp`；golden `Clamp(0,5,2)=2`（min>max→max wins）。run_all PASS=411。 |
 | task_602f15ec | freshly-spawned node 不進 state.json→scenario「cannot resolve node」cascade（verify/state 層非 cook 層） | verify 基建 | queued | 修 spawn→state.json landing。影響 scenario 測試可信度。 |
 | task_2ee58abb | crop teeth 在 `MTL_DEBUG_LAYER=1` 補驗（本機 Metal validation 關，ShaderWrite flag 驗不到） | 驗證補強 | queued | 開 validation layer 跑 crop/mip/fastblur teeth。 |
+| force-cook-fork-coverage | force closed-form golden **複製** cook 的 host-side routing fork 而非**行使**它（golden 直設 `fp.*`，不走 `fillFieldVolumeForceParams`）→ FieldVolume 的 `×0.425` Attraction fork（`point_ops_forceparams.cpp:89`）刪掉 golden 仍綠=零 executable 覆蓋。同 class 風險=未來其他 host-side .t3 routing fork。refuter 確認現值正確（非 bug），但 magic-constant fork 易靜默壞。 | 驗證覆蓋 NIT | queued | 加 `fillFieldVolumeForceParams(Attraction=1)→0.425` 單元斷言，或讓某 force golden/probe 走 cookParticleSim param-fill。`a15bc25` 引入。 |
 
 ---
 
