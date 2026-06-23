@@ -515,6 +515,7 @@ add_executable(simple_world
   src/runtime/attack_detector.cpp
   src/runtime/audio_analyzer.cpp
   src/runtime/spectrum_analyzer.cpp
+  src/runtime/bpm_detection.cpp
   src/runtime/audio_reaction.cpp
   src/runtime/dispatch.cpp
   src/runtime/audio_ingest.cpp
