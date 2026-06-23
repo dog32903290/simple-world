@@ -3,8 +3,13 @@
 > 柏為 2026-06-23:「程式碼全翻完了，寫一份全部可以並行、以最快路徑為原則的計劃表。」
 > **本檔=頂層路由權威。** sub-plan:節點/縫=[SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md)、債=[DEBT_LEDGER](DEBT_LEDGER.md)、非節點 spec=[alignment/](alignment/README.md)。事實以 git/碼為準。
 
-## Current Snapshot（2026-06-23 06:35）
-- HEAD `2c88cbb`，樹乾淨，check-arch ✅（依賴 + 行數閘）。節點 **364/~800**。非節點對齊覆蓋 100%。
+## Current Snapshot（2026-06-23 07:55）
+- HEAD `0a73141`，樹乾淨，check-arch ✅（依賴 + 行數閘）。節點 **365/~800**（+SetRequestedResolution）。非節點對齊覆蓋 100%。
+- **脊椎 S1 ✅ DONE**（`44234aa`）：context-carried RequestedResolution push/pop，flat+resident，camera aspect tracks，SetRequestedResolution op。harness `--selftest-requestedresolution` PASS/-bug RED，獨立 refuter MERGE-SAFE。**解鎖 L2 輸出窗 + L6 匯出**。NIT 待補：sibling-restore tooth + resident-path golden（production 走 resident）。
+- **L1 Variation harness ✅ DONE**（`10e7845`）：springDamp + mixFloat golden（`--selftest-variation`），TiXL Mix/SpringDamp 公式 byte-faithful，獨立 refuter MERGE-SAFE。NIT 待補：asymmetric-weight tooth。scatter RNG deferred。lane 後續=pool/crossfader/UI/document-override。
+- **L5/L6 harness 藍圖 ✅ 上磁碟**（`0a73141`，census/L5_IO_HARNESS_BLUEPRINT.md + L6_MAINT_HARNESS_BLUEPRINT.md）→ 下批可直接建。
+- **下批候選**：脊椎 S2（render-graph/Layer2d/Execute，解鎖 155 節點）+ 並行 L5 loopback / L6 auto-backup（藍圖已備）/ L1 pool 續 / L3 AssetLibrary。S1 已解鎖 L2 輸出窗 + L6 匯出。
+- **★血證（本批 2026-06-23）**：watchdog 30min 閾值對 cook-core build lane 太緊→誤判 S1 死（實際跑 50min，transcript 靜默 33min=長 build 正常）→我派 relay 進同 worktree=雙 driver 險撞。幸最終 worktree state 經我中央 build+--bite 親驗為綠（race 收斂到正確態）。教訓見 memory [[sw-watchdog-cook-core-false-death]]。
 
 ---
 
