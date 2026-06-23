@@ -519,7 +519,33 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
           // LIVE. Engages only on an active writer push; else no-op (leaves the enclosing scope, if any).
           LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
           const ResidentInput* ri = n->input(port.id);
-          if (ri && ri->driver == ResidentInput::Driver::Connection) {
+          if (n->opType == "Switch") {
+            // S3b Switch SUB-SELECT (resident mirror — production runs THIS leg). ★§3 OFF-BY-ONE TRAP:
+            // resident wires are stored as PRIMARY (ri->srcNodePath = wire 0) + extraConns (wires 1..N), so
+            // the wired list MUST be built primary-FIRST then extraConns to match the flat collector's wire
+            // order. Building it the wrong way (extraConns first, or primary appended last) selects the wrong
+            // branch. The selection math is the SAME switchSelectIndex() the flat leg calls — single source.
+            std::vector<std::string> srcPaths;  // wire-declaration order: [primary] + extraConns
+            if (ri && ri->driver == ResidentInput::Driver::Connection) {
+              srcPaths.push_back(ri->srcNodePath);                       // wire 0 = primary
+              for (const auto& ec : ri->extraConns) srcPaths.push_back(ec.first);  // wires 1..N
+            }
+            int rawIndex = 0;  // Switch.Index value param (C# (int) cast = trunc toward 0)
+            const std::map<std::string, float>* sp = nodeParams(path);
+            if (sp) { auto it = sp->find("Index"); if (it != sp->end()) rawIndex = (int)it->second; }
+            // -bug: switchIgnoreIndexForTest() forces cook-all (selection lost) — the §3 resident tooth.
+            int sel = switchIgnoreIndexForTest() ? kSwitchSelectAll
+                                                 : switchSelectIndex(rawIndex, (int)srcPaths.size());
+            if (sel == kSwitchSelectAll) {
+              for (const std::string& spath : srcPaths) {  // -2: cook ALL (== Execute), wire order
+                RenderCommand sub = cookCommand(spath, depth + 1);
+                inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+              }
+            } else if (sel != kSwitchSelectNone) {  // -1/empty: cook NOTHING (inCmd stays empty)
+              RenderCommand sub = cookCommand(srcPaths[(size_t)sel], depth + 1);  // ONLY the selected wire
+              inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+            }
+          } else if (ri && ri->driver == ResidentInput::Driver::Connection) {
             RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
             inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
             if (port.multiInput && !executeCollectFirstOnlyForTest())  // -bug: skip the extra wires

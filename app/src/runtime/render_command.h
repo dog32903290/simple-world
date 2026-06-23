@@ -220,4 +220,22 @@ bool& meshDepthDisableForTest();
 // take only the first wire; the flag is a no-op for them).
 bool& executeCollectFirstOnlyForTest();
 
+// S3b Switch (TiXL flow/Switch.cs): the Command-collector SUB-SELECT. Unlike Execute (concat ALL wires),
+// Switch cooks ONLY the index-th wired Command (wrap, negative-safe), -2 = all, -1/empty = none. The
+// SELECTION is a cook-core hook in the SAME MultiInput Command collector branch Execute/SetVarCmd live in:
+// the driver, on a Switch node, reads the Index param + counts the N wired Commands and concatenates only
+// the selected one. switchSelectIndex() is the SINGLE source of truth both the flat (point_graph.cpp) and
+// resident (point_graph_resident.cpp) collectors call, so the wrap/negative/empty math can NEVER diverge
+// (the §3 off-by-one trap: resident wires = primary + extraConns). Defined in point_ops_switch.cpp.
+constexpr int kSwitchSelectAll = -2;   // cook every wire (TiXL Switch.cs index==-2)
+constexpr int kSwitchSelectNone = -1;  // cook no wire (TiXL Switch.cs index==-1 OR count==0)
+// rawIndex = the (truncated-to-int) Switch.Index param; count = number of wired Command inputs gathered.
+// → kSwitchSelectAll / kSwitchSelectNone, or the wrapped index in [0, count) (the single wire to cook).
+int switchSelectIndex(int rawIndex, int count);
+// Test-only DRIVER flag (the Switch sub-select tooth): true → the collector IGNORES the selection and cooks
+// ALL wires (== Execute), so --selftest-switch's -bug leg draws the wrong branch → center-pixel RED. OFF in
+// production (zero behaviour change). A CPU DRIVER flag, NOT a shader bug-branch (constitution rule); read by
+// both collectors, parallel to executeCollectFirstOnlyForTest(). Defined in point_ops_switch.cpp.
+bool& switchIgnoreIndexForTest();
+
 }  // namespace sw

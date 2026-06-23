@@ -479,11 +479,36 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
           // GetFloatVar driving a param of a node inside the SubGraph re-resolves LIVE (closes S3a's hollow).
           // Engages only when varScope is active (a real writer push happened); else no-op (leaves outer scope).
           LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
-          for (const Connection& c : g.connections) {  // g.connections = wire order (ListToBuffer :202)
-            if (c.toPin != pinId(id, (int)i)) continue;
-            RenderCommand sub = cookCommand(pinNode(c.fromPin));
-            inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
-            if (!port.multiInput || executeCollectFirstOnlyForTest()) break;  // single-input / -bug collapse
+          // S3b Switch SUB-SELECT (TiXL flow/Switch.cs): gather the wired source node ids in WIRE ORDER first,
+          // then cook ONLY the index-th (wrap/negative-safe), -2=all, -1/empty=none. The selection is a
+          // cook-core hook here in the SAME collector branch — Execute concats ALL, Switch sub-selects. Non-
+          // Switch ops keep the verbatim concat-all (single-input/-bug collapse via the break) below.
+          if (n->type == "Switch") {
+            std::vector<int> srcIds;  // wired Command sources, wire-declaration order (== Switch.cs CollectedInputs)
+            for (const Connection& c : g.connections) {
+              if (c.toPin != pinId(id, (int)i)) continue;
+              srcIds.push_back(pinNode(c.fromPin));
+            }
+            const int rawIndex = (int)mapParam(nodeParams(id), "Index", 0.0f);  // C# (int) cast = trunc-toward-0
+            // -bug: switchIgnoreIndexForTest() forces the cook-all path (selection lost) — the §3 resident tooth.
+            int sel = switchIgnoreIndexForTest() ? kSwitchSelectAll
+                                                 : switchSelectIndex(rawIndex, (int)srcIds.size());
+            if (sel == kSwitchSelectAll) {
+              for (int sid : srcIds) {  // -2: cook ALL (== Execute), wire order
+                RenderCommand sub = cookCommand(sid);
+                inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+              }
+            } else if (sel != kSwitchSelectNone) {  // -1/empty: cook NOTHING (inCmd stays empty)
+              RenderCommand sub = cookCommand(srcIds[(size_t)sel]);  // cook ONLY the selected wire
+              inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+            }
+          } else {
+            for (const Connection& c : g.connections) {  // g.connections = wire order (ListToBuffer :202)
+              if (c.toPin != pinId(id, (int)i)) continue;
+              RenderCommand sub = cookCommand(pinNode(c.fromPin));
+              inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+              if (!port.multiInput || executeCollectFirstOnlyForTest()) break;  // single-input / -bug collapse
+            }
           }
         }
         cmdVarRestore(varScope, ctxVars);    // S3a restore (SetFloatVar.cs:33-40)
