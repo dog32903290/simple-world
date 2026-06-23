@@ -310,9 +310,19 @@ add_executable(simple_world
   src/runtime/mesh_ops_flipnormals.cpp
   src/runtime/mesh_ops_recomputenormals.cpp
   src/runtime/mesh_ops_transformmeshuvs.cpp
+  src/runtime/mesh_ops_spheremesh.cpp
+  src/runtime/mesh_ops_torusmesh.cpp
+  src/runtime/mesh_ops_cylindermesh.cpp
+  src/runtime/mesh_ops_cubemesh.cpp
+  src/runtime/mesh_ops_icosahedronmesh.cpp
   src/mesh_golden.cpp
   src/mesh_input_golden.cpp
   src/mesh_modify_golden.cpp
+  src/mesh_sphere_golden.cpp
+  src/mesh_torus_golden.cpp
+  src/mesh_cylinder_golden.cpp
+  src/mesh_cube_golden.cpp
+  src/mesh_icosahedron_golden.cpp
   src/runtime/floatlist_op_registry.cpp
   src/runtime/floatlist_ops_floatstolist.cpp
   src/floatlist_golden.cpp

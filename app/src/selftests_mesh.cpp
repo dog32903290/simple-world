@@ -19,4 +19,13 @@ REGISTER_SELFTESTS(/*orderBase=*/64,
     {"mesh-recomputenormals", runMeshRecomputeNormalsGoldenSelfTest},
     {"mesh-transformuvs", runMeshTransformUvsGoldenSelfTest},
 );
+// Generator family (Sphere/Torus/Cylinder/Cube/Icosahedron). Separate block with a free high
+// orderBase so it appends to --selftest-list without reshuffling the pre-existing mesh rows above.
+REGISTER_SELFTESTS(/*orderBase=*/330,
+    {"mesh-sphere", runMeshSphereGoldenSelfTest},
+    {"mesh-torus", runMeshTorusGoldenSelfTest},
+    {"mesh-cylinder", runMeshCylinderGoldenSelfTest},
+    {"mesh-cube", runMeshCubeGoldenSelfTest},
+    {"mesh-icosahedron", runMeshIcosahedronGoldenSelfTest},
+);
 }  // namespace sw
