@@ -126,3 +126,4 @@ namespace sw { int runPickGradientSelfTest(bool); }              // gradient_ops
 namespace sw { int runBlendGradientsSelfTest(bool); }            // gradient_ops_blendgradients.cpp (2-gradient cross-merge)
 namespace sw { int runLayerComposeSelfTest(bool); }              // point_ops_layercompose.cpp (★S2c: layer-compose end-to-end — 2 Layer2d → Execute → RenderTarget, blend order=wire order, flat + resident)
 namespace sw { int runGroupSelfTest(bool); }                     // point_ops_group.cpp (★S2b: Group SRT transform-context push — Layer2d→Group(translate/scale)→RenderTarget, child quad moves on flat + resident)
+namespace sw { int runTransformOpsSelfTest(bool); }              // point_ops_transform_golden.cpp (★S2 island: RotateAroundAxis/Shear/Transform transform-context push over Group — child quad rotates/shears/translates on flat + resident)

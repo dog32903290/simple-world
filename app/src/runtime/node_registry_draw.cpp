@@ -215,6 +215,53 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"out", "out", "Command", false},
         {"IsEnabled", "IsEnabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr},
+      // RotateAroundAxis (TiXL Lib.render.transform.RotateAroundAxis): wraps a Command subtree and pushes
+      // ONE axis-angle rotation onto context.ObjectToWorld (Matrix4x4.CreateFromAxisAngle(Axis, Angle°)).
+      // Command in → Command out (the op stamps the rotation onto every subtree item via the Group
+      // per-item group-stamp mechanism; the executor right-multiplies it into ObjectToWorld). A thinner
+      // sibling of Group — no SRT, no IsEnabled (TiXL's op has none). .t3 defaults: Axis (1,0,0), Angle 0.
+      {"RotateAroundAxis", "RotateAroundAxis",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"Angle", "Angle", "Float", true, 0.0f, -360.0f, 360.0f},
+        {"Axis.x", "Axis", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"Axis.y", "Axis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Axis.z", "Axis.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
+      // Shear (TiXL Lib.render.transform.Shear): wraps a Command subtree and pushes a SHEAR matrix onto
+      // context.ObjectToWorld (Identity with M12=Translation.Y, M21=Translation.X, M14=Translation.Z).
+      // Command in → Command out (Group per-item group-stamp mechanism). No IsEnabled (TiXL has none).
+      // The input is named "Translation" in TiXL (= the 3 shear amounts X/Y/Z); .t3 default (0,0,0).
+      {"Shear", "Shear",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"Translation.x", "Translation", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Translation.y", "Translation.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Translation.z", "Translation.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
+      // Transform (TiXL Lib.render.transform.Transform): the full-TRS render-island transform with a PIVOT
+      // — the general sibling of Group (Group = Transform with pivot 0 + color/enable). Wraps a Command
+      // subtree and pushes M = T(-Pivot)·S·R·T(+Pivot)·T(Translation) onto context.ObjectToWorld (Group
+      // per-item group-stamp). Scale×UniformScale; Rotation = yaw(Y)/pitch(X)/roll(Z) degrees; no IsEnabled
+      // (TiXL has none). FORK (named): TransformCallback editor gizmo hook dropped. .t3 defaults: Scale
+      // (1,1,1), UniformScale 1, Rotation/Translation/Pivot (0,0,0).
+      {"Transform", "Transform",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"Translation.x", "Translation", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"Translation.y", "Translation.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Translation.z", "Translation.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Rotation.x", "Rotation", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"Rotation.y", "Rotation.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"Rotation.z", "Rotation.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"Scale.x", "Scale", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Scale.y", "Scale.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Scale.z", "Scale.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"Pivot.x", "Pivot", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1}},
+       nullptr},
   };
   return specs;
 }

@@ -11,6 +11,12 @@
 
 namespace sw {
 
+// Render-island transform leaves (point_ops_{rotatearoundaxis,shear,transform}.cpp). Declared here (their
+// only caller) rather than in the at-cap point_ops.h — keeps the god-header off the linecount ratchet.
+void registerRotateAroundAxisOp();
+void registerShearOp();
+void registerTransformOp();
+
 void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
   registerDrawLinesOp();                        // Points → Command (DrawKind::Lines, lane L)
@@ -23,6 +29,9 @@ void registerDrawPointOps() {
   registerCameraOp();                           // Command → Command (explicit camera push/pop, Cut 3)
   registerExecuteOp();                           // Command(MultiInput) → Command (S2a KEYSTONE: N-chain concat)
   registerGroupOp();                             // Command(MultiInput) → Command (S2b: Execute + SRT transform-context push)
+  registerRotateAroundAxisOp();                  // Command → Command (axis-angle transform-context push, S2 island)
+  registerShearOp();                             // Command → Command (shear transform-context push, S2 island)
+  registerTransformOp();                         // Command → Command (full TRS+pivot transform-context push, S2 island)
   registerSetRequestedResolutionOp();           // Command → Command (explicit RequestedResolution push/pop, S1)
   registerDrawMeshUnlitOp();                    // Mesh → Command (DrawKind::Mesh, the FIRST 3D mesh, Cut 99)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
