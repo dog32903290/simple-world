@@ -104,7 +104,35 @@
 
 ---
 
-## 6. 資料流
+## 6. 多 lane 背景執行契約（parallel-orch — 主大腦發派、各 lane 各自 worktree 跑大項目）
+
+> 柏為 2026-06-23:主大腦(發派 session)派任務給 Opus 工作流,讓它們在各自 worktree 執行更大的項目;
+> 不發派會撞核心檔的類型——一條補縫、一條採既有葉子、一條做 UI 並行+寫 spec。
+> 壓測結論:**可行,但「各自 session」= 背景 worktree lane,不是多個自治頂層 driver(後者搶主線=雙開血債放大)。**
+
+當有多條「不撞核心檔」的任務可同時推進時,`parallel-orch` 是主大腦的執行隊形(疊在各 lane 自己的 playbook 上——
+一條 lane 是 seam-spine、一條是 leaf-mining、一條是 subsystem-harness)。五條契約(缺一條就重蹈血證):
+
+1. **單一 driver + 中央合流(破雙開血債 [[sw-batch-no-parallel-launch]])**:主大腦是唯一 driver、唯一碰主線的人。
+   各 lane 在自己 worktree 自驗 + `[固化快照]` commit 到 lane branch;**併入主線一律主大腦一手做**
+   (全庫 `--bite` + `check-arch` + ff-merge)。**禁開多個自治頂層 `/sw-batch` driver 各自搶主線**——
+   雙開鐵律的真因是「共享 checkout + 同收斂目標」,worktree 隔離 + 中央合流即破解,不是「session 數 > 1」本身。
+2. **lane 配置 = 脊椎 ×1 + 並行 lane ×N**:補 cook-core 縫**只能一條**(序列脊椎佔滿,兩條補縫必撞核心檔)。
+   其餘 lane 踩不撞核心檔的檔域(leaf-mining 已解鎖島 / subsystem-harness `ui/`+`docs/`)。
+   **採的葉子必須「既有/已解鎖」**,不依賴正在補的那條縫(語義依賴衝突也算撞,照樣死)。
+3. **lane = 接力棒串 / pipeline,非單一 agent**:單 agent context 撐不完一整塊大 seam。一條 lane =
+   主大腦連續派接力(Plan→build→refuter→fixer,各回一頁 dossier、主大腦不下場讀肉),或編成一個 Workflow pipeline。
+   三條 lane 同時各維護一串接力 → 主大腦協調負擔 ×3,只要不下場吃診斷肉,context 可控(rule 6)。
+4. **每 lane 一個看門狗 + 固化先於驗證(破今晚血證 [[sw-watchdog-cook-core-false-death]])**:N 條 = N 死亡暴露點,
+   每條派出後立刻跑 `agent_watchdog.sh`。**watchdog 閾值跟 playbook 走**(seam-spine lane 50min / 葉子 lane 30min,
+   不再用單一寫死值)。收 kill 必接力進同 worktree 續工。大項目固化窗口拉長 → orchestrator `ScheduleWakeup`-survive,
+   未固化的完工 lane 才不會在 session 閒置時被收割蒸發。
+5. **誤選硬閘逐 lane 查(§4)**:派工後偵測**任一** lane 動 `point_graph.cpp`/`frame_cook`/`resident_eval`/
+   `EvaluationContext` → 強制升 seam-spine 序列、退出並行,不管該 lane 原本選了什麼 playbook。
+
+---
+
+## 7. 資料流
 
 ```
 開批
@@ -112,7 +140,7 @@
      └─ 分類任務(§4 兩軸兩問)──模糊?──→ §5 審議選路
          └─ 選定 playbook + 微調策略層
              └─ 誤選硬閘檢查(動核心檔? → 強制 seam-spine 序列)
-                 └─ 派工 → 合流 → 否證 → 活體
+                 └─ 派工(多 lane 不撞檔? → §6 parallel-orch fan-out) → 中央合流 → 否證 → 活體
                      └─ 結帳:有工法卡點? ──→ §5 審議演化
                          ├─ 低風險通過 → 自動回寫 PLAYBOOKS
                          └─ 高風險 → [待柏為簽收]
@@ -122,17 +150,17 @@
 
 ---
 
-## 7. 實作邊界（會動哪些檔，零 runtime/app 程式碼）
+## 8. 實作邊界（會動哪些檔，零 runtime/app 程式碼）
 
 純工法/文件層，**不碰 ARCHITECTURE.md 管的五區程式碼**:
-- 改寫 `.claude/commands/sw-batch.md`:劈憲法層/策略層、承重線命名分類、選批步驟加 §4 分類 + 誤選硬閘、結帳步驟加 §5 演化。
+- 改寫 `.claude/commands/sw-batch.md`:劈憲法層/策略層、承重線命名分類、選批步驟加 §4 分類 + 誤選硬閘、派工/合流步驟加 §6 parallel-orch 多 lane 背景執行契約、結帳步驟加 §5 演化。
 - 新增 `docs/agent/PLAYBOOKS.md`:§2.1 表骨架 + 每行八欄位。
 - 對齊 `.claude/commands/sw-node-batch.md`:標註它 = leaf-mining 的獨立分支，檔頭補「繼承/重述/不適用」逐條清單（落實 §3 塊一）。
 - 可選:`docs/agent/WORKFLOW.md` 補一節指向 PLAYBOOKS 為選 playbook 的 SSOT。
 
 ---
 
-## 8. 非目標（YAGNI,明確劃掉）
+## 9. 非目標（YAGNI,明確劃掉）
 
 - ❌ **A/B 試跑引擎 / 自動效能 metric / 自動回滾**:現在連「並行真的能跑」都還沒站穩（今晚才撞車），先別蓋演化引擎。演化靠「多 subagent 審議 + 柏為異步簽收」，不靠自動 metric。
 - ❌ **playbook 版本號系統**:git history 已是版本控制,`[playbook-evolve]` commit 訊息可追溯,夠了。
@@ -140,7 +168,7 @@
 
 ---
 
-## 9. 風險與緩解
+## 10. 風險與緩解
 
 | 風險 | 緩解 |
 |---|---|
@@ -149,3 +177,5 @@
 | 分支時漏承重線 | §3 承重線顯式命名分類,分支逐條決定,禁「全部繼承」 |
 | 規則加了沒紅燈→產能壓力下爛 | playbook 每行必帶「驗證閘」欄,演化提案必附「紅燈在哪」 |
 | 審議閘拖慢自走迴圈 | 只在「邊界模糊選路」和「演化回寫」動用,清楚的直接走 |
+| 多 lane 各自搶主線→雙寫損壞 | §6:單一 driver + worktree 隔離 + 中央合流;禁多自治頂層 driver |
+| 多 lane 長項目放大死亡暴露 | §6:每 lane 看門狗 + 固化先於驗證 + watchdog 閾值跟 playbook 走 + ScheduleWakeup-survive |
