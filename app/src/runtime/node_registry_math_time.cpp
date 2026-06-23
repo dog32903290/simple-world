@@ -85,10 +85,10 @@ static const MathOp _reg_RunTime{
        nullptr}
 };
 
-      // ClipTime — Time = (float)context.LocalTime (the PLAYHEAD clock in SECONDS). TiXL
-      // anim/time/ClipTime.cs (stateful in the cook sense: 0 state but value depends on the per-frame
-      // TransportSnapshot the pure evaluate() cannot carry → evaluate==nullptr, cooked by frame_cook's
-      // stateful-value seam; step = stepClipTime reads tr.localTimeBars*240/bpm). No inputs.
+      // ClipTime — Time = (float)context.LocalTime (the PLAYHEAD clock in BARS, raw = Playback.TimeInBars,
+      // bpm-INVARIANT). TiXL anim/time/ClipTime.cs (stateful in the cook sense: 0 state but value depends
+      // on the per-frame TransportSnapshot the pure evaluate() cannot carry → evaluate==nullptr, cooked by
+      // frame_cook's stateful-value seam; step = stepClipTime passes through tr.localTimeBars). No inputs.
 static const MathOp _reg_ClipTime{
       {"ClipTime", "ClipTime",
        {{"Time", "Time", "Float", false}},

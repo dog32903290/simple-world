@@ -132,17 +132,18 @@ void stepDelayTriggerChange(const std::map<std::string, float>& in, float /*dt*/
 }
 
 // --- ClipTime (TiXL Lib/numbers/anim/time/ClipTime.cs) — Time = (float)context.LocalTime.
-//   ClipTime.cs Update(): Time.Value = (float)context.LocalTime;  (the PLAYHEAD clock, in SECONDS).
-//   TiXL's context.LocalTime is the playhead time in seconds. The seam carries the playhead in BARS
-//   (tr.localTimeBars); seconds = bars*240/bpm (transport.h:37, the bars<->secs authority — SAME
-//   conversion DelayTriggerChange's LocalTime_InSecs mode uses, transport.cpp case 3). Reads the LIVE
-//   bpm so the same playhead-bars yields half the seconds at bpm=240 vs bpm=120 (golden proves it).
+//   ClipTime.cs Update(): Time.Value = (float)context.LocalTime;  context.LocalTime is the playhead
+//   time in BARS (= Playback.TimeInBars, raw — NOT converted to seconds). Confirmed by
+//   DelayTriggerChange.cs:46: LocalTime_InBars => context.LocalTime (raw) vs LocalTime_InSecs =>
+//   SecondsFromBars(context.LocalTime) (converted). ClipTime uses the bare form = BARS.
+//   The seam carries the playhead in tr.localTimeBars; ClipTime simply exposes it directly.
+//   Output is bpm-INVARIANT: same localTimeBars at any bpm → same output (unlike ConvertTime).
 //   0 inputs, 0 state (stateless), but lives in the stateful table because its value depends on the
 //   per-frame transport snapshot the pure evaluate()/`in`-map cannot carry (same reason as RunTime).
 void stepClipTime(const std::map<std::string, float>& /*in*/, float /*dt*/, float /*time*/,
                   StatefulValueState&, float out[3], const TransportSnapshot& tr, ContextVarMap*,
                   const std::string&) {
-  out[0] = (float)(tr.localTimeBars * 240.0 / tr.bpm);  // context.LocalTime (playhead seconds)
+  out[0] = (float)tr.localTimeBars;  // context.LocalTime = BARS, raw = Playback.TimeInBars
 }
 
 // --- LastFrameDuration (TiXL Lib/numbers/anim/time/LastFrameDuration.cs) — Duration =
