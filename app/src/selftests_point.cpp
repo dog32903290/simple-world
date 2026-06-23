@@ -92,5 +92,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"mathops", runMathOpsSelfTest},
     {"statefulvalue", runStatefulValueSelfTest},
     {"conegizmo", runConeGizmoSelfTest},  // C3 gizmo Tranche-0: ConeGizmo generator + gizmo_geometry helper
+    {"particlefield-probe", runParticleFieldProbeSelfTest},  // PF-a FLAG probe: field-into-force bridge absent (RED evidence)
 );
 }  // namespace sw

@@ -267,6 +267,7 @@ add_executable(simple_world
   src/runtime/field_ops_blendsdfwithsdf.cpp
   src/runtime/field_ops_toroidalvortexfield.cpp
   src/field_render_golden.cpp
+  src/particlefield_probe_golden.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
   src/field_ops_octahedronsdf_golden.cpp
