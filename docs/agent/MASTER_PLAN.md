@@ -3,14 +3,17 @@
 > 柏為 2026-06-23:「程式碼全翻完了，寫一份全部可以並行、以最快路徑為原則的計劃表。」
 > **本檔=頂層路由權威。** sub-plan:節點/縫=[SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md)、債=[DEBT_LEDGER](DEBT_LEDGER.md)、非節點 spec=[alignment/](alignment/README.md)。事實以 git/碼為準。
 
-## Current Snapshot（2026-06-23 08:45）
-- HEAD `dea9155`，樹乾淨，check-arch ✅。節點 **365/~800**（+SetRequestedResolution）。`--bite` PASS=370 NO-BITE:[]（唯一紅=soundtrack 預存 flake）。非節點對齊覆蓋 100%。
+## Current Snapshot（2026-06-23 11:00）
+- HEAD `897885e`，樹乾淨，check-arch ✅（ratchet OK）。節點 **367/~800**（+Grain +KeyColor）。`--bite` PASS=373 NO-BITE:[]（唯一紅=soundtrack 預存 flake task_eb3375a3，本批未碰 audio）。非節點對齊覆蓋 100%。
+- **⛓ 脊椎 S2a ✅**（`3ae09e5`，含於 `897885e`）：**MultiInput Command collector + Execute keystone**（per S2_RENDERGRAPH_BLUEPRINT）。Execute.CollectedInputs 收集 MultiInput Commands(非新 draw pipeline)，新 `point_ops_execute.cpp`(197行)，closed-form pixel golden selftest。**Execute 島 keystone 在 → render/Execute 島開始可採**。refuter 未獨立跑(承重 build lane 自驗+orchestrator 親驗 --bite/check-arch 綠)。**S2 續階待做：S2c layer-compose golden / S2b Group SRT**。
+- **∥ L4 葉子 +2 ✅**（`897885e`/`82bdd5f`）：**Grain**(image generate noise，Grain.hlsl 1:1，Amount=0 passthrough golden，Time=0 headless fork 具名)+**KeyColor**(image color，重用 ChromaKey kernel，refuter 手算驗證重用語義無偷換，golden greenA=0/redA=255)。refuter MERGE-SAFE；NIT(Key 預設 green)已修白照 TiXL KeyColor.t3。image-filter 家族乾淨葉子近採盡(剩全卡 multi-image/gradient/dynamic-hlsl 縫)。
+- **★血證（本批 2026-06-23 二漏接）**：①**write-only lane 的產出 agent 只寫不 commit**(Lane B build 寫 Grain 沒 commit + fixer 只 commit KeyColor)→Grain 三檔差點孤兒。教訓=合流時 orchestrator 必逐 worktree `git status` 核對未追蹤檔，不只信 branch log。②**cook-core build agent 在等 --bite 時 came-to-rest 沒留 build 證據**(SendMessage subagent-resume 此環境無工具)→orchestrator 親驗收尾(cherry-pick A+B 同場一次增量 build 18 秒驗綠+selftest+check-arch)。工法定式仍成立:寫-leaf→refuter→中央合流，但**收尾親驗是 orchestrator 不可外包的硬步驟**。
 - **⛓ 脊椎 S1 ✅**（`44234aa`）：context-carried RequestedResolution push/pop，flat+resident，camera aspect，SetRequestedResolution op。refuter MERGE-SAFE。**解鎖 L2 輸出窗 + L6 匯出**。NIT：sibling-restore tooth + resident-path golden。
 - **∥ L1 Variation harness ✅**（`10e7845`）：springDamp + mixFloat golden，TiXL 公式 byte-faithful，refuter MERGE-SAFE。NIT：asymmetric-weight tooth；scatter RNG deferred。後續=pool/crossfader/UI/document-override。
 - **∥ L5 IO loopback ✅**（`5364ff8`）：OSC（localhost UDP）+ virtual CoreMIDI machine-verified half。refuter 抓到 MIDI channel off-by-one（0→1-based）已修 MERGE-SAFE。柏為殘留=真裝置（controller/phone）走同 decode path。後續=LiveSource→graph 綁定。
 - **∥ L6 auto-backup ✅**（`dea9155`）：refuter BLOCK（單檔 lossy）→ fixer 修 faithful（asset-sibling bundle soundtrack + 重啟安全 disk-derived index + ms-timestamp + .pending atomic）→ re-refute MERGE-SAFE。**DEFERRED（commit 訊息有 TiXL refs）**：ReduceNumberOfBackups 保留(:481-519)/RestoreLatestBackups 崩潰復原(:251-389)/restore 路徑改寫；perf_overlay→chip task_8a55df9b。
 - **∥ S2 藍圖 ✅ 上磁碟**（`f895c65`，census/S2_RENDERGRAPH_BLUEPRINT.md）：真縫=**MultiInput Command collector**（Execute.CollectedInputs），非新 draw pipeline。分階 S2a（collector+Execute keystone）→S2c（layer-compose golden）→S2b（Group SRT）。
-- **下批候選**：脊椎 **S2a**（MultiInput Command collector，解鎖 ~58 直接可組+155 島，blueprint 已備，sequential 占 point_graph.cpp）+ 並行 L1 pool / L3 AssetLibrary / L5 LiveSource-bind / L2（除輸出窗）。
+- **下批候選**：脊椎 **S2c**（layer-compose golden）或 **S2b**（Group SRT）續補 S2（sequential 占 point_graph.cpp）+ 並行 **L4 採 render/Execute 島**（S2a keystone 已解鎖，從 OP_BACKLOG 取 render 葉）/ L1 pool / L3 AssetLibrary / L5 LiveSource-bind / L2（除輸出窗，注意 ui/ 域有 `ui/tixl-node-skin` worktree 在跑，L2 新批要與它協調避免撞 ui/ 檔）。image-filter 家族近採盡，L4 fan-out 轉向 point/mesh/field 或 render 島。
 - **★血證（本批 2026-06-23）**：watchdog 30min 對 cook-core build lane 太緊→誤判 S1 死（實跑 50min，靜默 33min=長 build 正常）→派 relay 撞同 worktree 雙 driver，幸中央 build+--bite 親驗收斂為綠。閾值已改 55min。詳 memory [[sw-watchdog-cook-core-false-death]]。
 - **★工作流摩擦（柏為 2026-06-23 要改工作流，正寫 `docs/agent/PLAYBOOK_SYSTEM_PLAN.md`）**：①Plan agent 無 Write→藍圖落盤要用 Explore 或 orchestrator 代存；②worktree 不 symlink external/tixl→build agent 驗不到 TiXL，refuter（主樹）才是真 parity 閘；③refuter 是真價值閘（本批抓到 L5 channel + L6 lossy 兩個真 BLOCK，golden 自洽過不了 refuter）。
 
@@ -84,4 +87,4 @@
 - SEAM_COMPLETION_PLAN = 脊椎 S* + L4 施工 sub-plan。DEBT_LEDGER = S4 拆檔 + 真債。alignment/ = L1-L3/L5-L6 的 spec SSOT。
 
 ## Next Handoff
-**現在就能開的並行 lane:L1(Variation)/L3(檔案)/L5(IO loopback)/L6(perf+backup)/L2(除輸出窗) + 脊椎 S1(輸出解析度縫)。** L4 持續背景跑。每條 lane 第一步 = 蓋 harness。柏為定要不要一次全開，或先開幾條。
+**脊椎進度:S1✅ S2a✅(keystone) → 續 S2c/S2b。** 並行可開:L4(render/Execute 島已由 S2a 解鎖,+ point/mesh/field 葉;image-filter 近採盡)/L1(Variation pool/crossfader/UI/document-override,harness✅)/L3(AssetLibrary,harness 待蓋)/L5(LiveSource→graph 綁定,loopback harness✅)/L6(Reduce/Restore backup 續,perf overlay)/L2(MagGraph/分類/SliderLadder/Gradient,**ui/ 域與 `ui/tixl-node-skin` worktree 協調**)。每條未蓋 harness 的 lane 第一步=蓋 harness。下批由 orchestrator 自選未阻塞+不撞檔組批。
