@@ -171,6 +171,8 @@ add_executable(simple_world
   src/app/child_state_selftest.cpp
   src/app/auto_backup.cpp           # L6 維運: periodic project backup
   src/app/auto_backup_selftest.cpp  # L6 維運: round-trip golden (--selftest-auto-backup)
+  src/app/auto_backup_restore.cpp   # L6 維運: retention thinning + crash-recovery restore
+  src/app/auto_backup_restore_selftest.cpp  # L6 維運: retention+restore golden (--selftest-backup-restore)
   src/app/asset_ref_roundtrip_selftest.cpp  # L3 檔案: image-asset-reference round-trip golden (--selftest-asset-ref)
   src/app/asset_index.cpp           # L3 檔案: asset-dependency index (deduped referenced keys + missing predicate)
   src/app/asset_index_selftest.cpp  # L3 檔案: asset-index golden (--selftest-asset-index)

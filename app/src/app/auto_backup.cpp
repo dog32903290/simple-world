@@ -173,6 +173,11 @@ BackupOutcome AutoBackup::checkForSave(const std::string& projectRoot,
     }
   }
 
+  // Retention thinning BEFORE the finalize (TiXL BackupProject :104-105: index, then
+  // ReduceNumberOfBackups, then Move). Thins older backups by their index binary code; the latest
+  // on-disk and #00000 are always kept. Skipped when density<=0 (keep everything).
+  reduceNumberOfBackups(dir.string(), _cfg.backupDensity);
+
   // A real new backup: rename `.pending` → "#NNNNN-timestamp" (atomic finalize), record the active
   // path, reset the interval clock. The index advances purely from disk state.
   const fs::path finalDir = dir / (indexTag(nextIndex) + "-" + timestampNow());

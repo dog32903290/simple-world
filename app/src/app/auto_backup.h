@@ -38,11 +38,17 @@
 //   timestamp, byte-compare dedup against the latest on-disk backup, interval gate, .pending
 //   atomic finalize, in-progress flag.
 //
-// DEFERRED (named, NOT pretended-done — see DEBT_LEDGER follow-ups):
+// LANDED in this cut (auto_backup_restore.cpp) — previously DEFERRED:
 //   • ReduceNumberOfBackups binary-thinning retention (TiXL :104,:481-519) — older backups are
-//     thinned by the binary representation of their index. NOT implemented: sw keeps every backup.
-//   • RestoreLatestBackups / crash-recovery prompt (TiXL :251-389) — on launch, offer to restore
-//     the latest backup of a project that crashed. NOT implemented: backups are write-only here.
+//     thinned by the binary representation of their index (keeps ~density*log2 of N saved versions;
+//     the first-ever #00000 and the latest are always kept). checkForSave() now calls it before
+//     finalizing a new backup, mirroring TiXL BackupProject :105.
+//   • RestoreLatestBackups / crash-recovery (TiXL :251-389) — restore the latest valid backup of a
+//     project: the .swproj is copied back to the working location AND the bundled soundtrack sibling
+//     is copied back, with the restored .swproj's absolute soundtrackPath REWRITTEN to point at the
+//     restored asset (TiXL "restore 路徑改寫" analogue — see the named fork in restore.cpp).
+//
+// STILL DEFERRED (named, NOT pretended-done):
 //   • "-minimal" backup toggle (TiXL :84-90,:108) — extension-filtered reduced backups. N/A while
 //     sw is single-file (nothing to filter), noted so a future multi-file sw revisits it.
 //
@@ -62,6 +68,9 @@ namespace sw::backup {
 struct AutoBackupConfig {
   double secondsBetweenSaves = 180.0;  // TiXL AutoBackup default (3 minutes)
   bool enabled = true;
+  // Retention density (TiXL ReduceNumberOfBackups backupDensity, :481 default 3): how many backups
+  // are kept per binary "generation". Higher = denser history. 0 disables thinning (keep all).
+  int backupDensity = 3;
 };
 
 // The result of one CheckForSave() decision — what actually happened, so callers (and the
@@ -97,8 +106,15 @@ class AutoBackup {
   // (TiXL GetIndexOfLastBackup, :415). Disk is the source of truth → restart-safe.
   static int lastBackupIndexOnDisk(const std::string& backupDir);
   // The highest-index existing backup directory, or "" if none (TiXL GetLatestArchiveFilePath,
-  // :433). The dedup byte-compare baseline.
+  // :433). The dedup byte-compare baseline AND the restore source.
   static std::string latestBackupDirOnDisk(const std::string& backupDir);
+
+  // Binary-thinning retention (TiXL ReduceNumberOfBackups, :481-519). Thins OLDER backups in
+  // `backupDir` by the binary representation of their index: keeps ~density*log2(N) of N saved
+  // versions. The HIGHEST index (loop starts at highestIndex-1) and index #00000 are always kept.
+  // density<=0 → keep everything (no-op). Called by checkForSave() before each finalize, and exposed
+  // so a test (and a manual "prune now") can drive it directly. Returns how many backups it deleted.
+  static int reduceNumberOfBackups(const std::string& backupDir, int density);
 
   // The most recent backup directory written/seen, or "" before the first write. (TiXL exposes
   // the active backup path for the UI status line.)
@@ -110,6 +126,29 @@ class AutoBackup {
   double _lastSaveSeconds = -1e18;  // "never" — first eligible call always passes the interval
   bool _inProgress = false;         // re-entrancy guard (TiXL _isSaving)
 };
+
+// What a restore attempt did (so the caller / crash-recovery UI knows whether anything happened).
+enum class RestoreOutcome {
+  NoBackup,   // backupDir has no valid "#NNNNN-*" backup → nothing to restore
+  Restored,   // the latest backup's .swproj (+ its bundled soundtrack) was copied to the target
+  Failed,     // a backup existed but the copy/relink failed (target left untouched as far as we can)
+};
+
+// Crash-recovery restore (TiXL RestoreLatestForProject, :262-300). Picks the HIGHEST-index backup in
+// `backupDir`, copies its `swprojName` to `<targetProjectRoot>/<swprojName>`, and copies every
+// bundled sibling asset back beside it. The restored .swproj's absolute composition.soundtrackPath
+// is then REWRITTEN to the restored sibling's path (TiXL "restore 路徑改寫" analogue: the backup
+// stored the asset filename-only as a sibling, so on restore the project's absolute path must be
+// re-pointed at where the asset now lives — otherwise the restored project references a file that
+// may be gone). The target .swproj is NOT touched until a valid backup is found.
+//
+// NAMED FORK vs TiXL: TiXL unzips a whole project tree in-place by each entry's relative path and
+// does NOT rewrite file contents (its assets live INSIDE the tree at stable relative paths, so no
+// rewrite is needed). sw's backup bundled the EXTERNAL soundtrack as a sibling (filename-only), so
+// faithfulness to TiXL's INTENT ("the restored project is usable, its referenced assets present")
+// REQUIRES rewriting the one absolute path that pointed outside the tree. Same goal, sw mechanism.
+RestoreOutcome restoreLatestBackup(const std::string& backupDir, const std::string& targetProjectRoot,
+                                   const std::string& swprojName);
 
 // Headless RED->GREEN proof (blueprint §2.1 runAutoBackupSelfTest). Proves the COMPLETE restorable
 // unit, not just the .swproj:
@@ -124,5 +163,17 @@ class AutoBackup {
 // injectBug DROPS the bundled soundtrack from the backup before the assertion → the complete-unit
 // check FAILS (teeth bite the REAL fidelity property: missing referenced asset = lossy backup).
 int runAutoBackupSelfTest(bool injectBug);
+
+// Headless RED->GREEN proof of retention + restore (auto_backup_restore.cpp).
+//   • retention: write K backups (K > kept), run reduceNumberOfBackups(density) and assert exactly
+//     the TiXL-thinned set survives (latest + #00000 always present, older ones thinned by index
+//     binary code) and the thinned dirs+assets are gone from disk.
+//   • restore: restoreLatestBackup into a fresh target → the restored .swproj reloads
+//     structurally-identical to the LATEST backup, the soundtrack sibling is copied back beside it,
+//     and the restored project's soundtrackPath points at that restored sibling (path rewrite).
+// injectBug RESTORES AN OLDER backup instead of the latest (and skips the path rewrite) → the
+// "restored == latest" + "path points at restored asset" assertions FAIL (teeth bite: a recovery
+// that hands back stale state / a dangling asset path is a broken restore).
+int runBackupRestoreSelfTest(bool injectBug);
 
 }  // namespace sw::backup
