@@ -69,11 +69,20 @@ class VariationCrossfader {
     activeIsLeft_ = true;
     dampedWeight_ = 0.0f;
     dampingVelocity_ = 0.0f;
+    lastTarget_ = -1;  // a fresh active snapshot has no pending target (NIT 2 change-detector reset)
     pendingCompletion_ = Completion::None;
   }
 
   // TiXL StartBlendingTowardsSnapshot(index): keep active where it is, place target on the opposite
-  // side. dampedWeight resets to 0 (start from the active snapshot).
+  // side.
+  //
+  // NIT 2 CLOSURE (was: leaf zeroed BOTH dampedWeight AND dampingVelocity unconditionally) —
+  // TiXL SmoothVariationBlending.StartBlendTo (BlendActions.cs:217-227) only resets _dampedWeight
+  // when the TARGET variation actually CHANGES (`if (variation != _targetVariation)`), and NEVER
+  // zeroes _dampingVelocity (velocity carries its momentum across blends — that is what keeps the
+  // spring from re-jolting on every fader-driven re-target). Faithful sw mapping: reset dampedWeight
+  // (to 0 = start-from-active) ONLY when the target INDEX is new; leave dampingVelocity untouched,
+  // always. Re-targeting the SAME index is a continuation, not a restart.
   void startBlendingTowards(int index) {
     int currentActive = activeIsLeft_ ? snapshotLeft_ : snapshotRight_;
     if (currentActive == -1) {
@@ -85,8 +94,12 @@ class VariationCrossfader {
     } else {
       snapshotLeft_ = index;
     }
-    dampedWeight_ = 0.0f;
-    dampingVelocity_ = 0.0f;
+    const int newTarget = activeIsLeft_ ? snapshotRight_ : snapshotLeft_;
+    if (newTarget != lastTarget_) {  // TiXL: variation != _targetVariation
+      dampedWeight_ = 0.0f;          // reset weight only on a genuine target change
+      lastTarget_ = newTarget;
+    }
+    // dampingVelocity_ is DELIBERATELY NOT touched here (TiXL never zeroes it in StartBlendTo).
     pendingCompletion_ = Completion::None;
   }
 
@@ -118,6 +131,14 @@ class VariationCrossfader {
 
   // Apply the 2-way blend at an explicit weight (current→target Lerp). Public so the golden can pin
   // exact values at weight 0 / 0.5 / 1 without driving the spring. `weight` in [0,1].
+  //
+  // NIT 1 SCOPE NOTE: TiXL (SymbolVariationPool.cs:622-627) ALSO pulls untracked-but-NON-DEFAULT
+  // inputs toward their DefaultValue (Lerp(current, DefaultValue, blend)). That leg needs each input's
+  // DefaultValue, which is a DOCUMENT-layer fact (Symbol inputDef.def), not visible to this pure-runtime
+  // side-map crossfader. NIT 1 is therefore closed where it belongs — in the document command
+  // (app/variation_apply.{h,cpp} blendTowardsVariationCommand), which reads SlotDef.def. This side-map
+  // applyBlend only handles the TRACKED leg (params the target carries); on the side map there is no
+  // notion of "non-default", so leaving untracked params untouched here is correct for THIS layer.
   void applyBlend(LiveParams& live, float weight) const {
     const int targetIndex = activeIsLeft_ ? snapshotRight_ : snapshotLeft_;
     const Variation* target = pool_.tryGetSnapshot(targetIndex);
@@ -140,6 +161,7 @@ class VariationCrossfader {
   bool activeIsLeft() const { return activeIsLeft_; }
   float dampedWeight() const { return dampedWeight_; }
   float targetWeight() const { return targetWeight_; }
+  float dampingVelocity() const { return dampingVelocity_; }  // NIT 2 proof: must survive a re-target
   // TiXL ActiveSnapshotIndex / BlendTowardsIndex.
   int activeSnapshotIndex() const {
     if (snapshotLeft_ == -1 && snapshotRight_ == -1) return -1;
@@ -174,6 +196,7 @@ class VariationCrossfader {
   float targetWeight_ = 0.0f;
   float dampedWeight_ = 0.0f;
   float dampingVelocity_ = 0.0f;
+  int lastTarget_ = -1;  // NIT 2: the target index the spring is currently chasing (TiXL _targetVariation)
   Completion pendingCompletion_ = Completion::None;
 };
 

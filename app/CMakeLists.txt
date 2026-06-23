@@ -158,6 +158,7 @@ add_executable(simple_world
   src/app/command.cpp
   src/app/graph_commands.cpp
   src/app/graph_commands_selftest.cpp
+  src/app/variation_apply.cpp  # Lane L1 (Variation): document-override bridge + --selftest-variation-apply
   src/app/animation_commands.cpp
   src/app/animation_commands_selftest.cpp
   src/app/animation_commands_selftest_s6.cpp
