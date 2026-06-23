@@ -98,6 +98,9 @@ set_source_files_properties(src/platform/metal_compile_selftest.mm PROPERTIES CO
 # (they touch no metal-cpp pointers, so the MRC convention of the other .mm files doesn't apply).
 set_source_files_properties(src/platform/audio_capture.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+# midi_loopback.mm (L5 IO lane): pure CoreMIDI C API (no ObjC objects) -> compile WITHOUT ARC, like
+# the other manual-lifetime .mm files. osc_loopback.cpp is plain C++ (POSIX sockets) — no .mm prop.
+set_source_files_properties(src/platform/midi_loopback.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 
 # Point-op leaf sources — globbed so a family lane adding point_ops_<name>.cpp (or a new
 # point_ops_register_<family>.cpp) needs no CMake edit (just reconfigure). Covers the central
@@ -203,6 +206,8 @@ add_executable(simple_world
   src/platform/image_decode_selftest.mm
   src/platform/metal_compile.mm
   src/platform/metal_compile_selftest.mm
+  src/platform/osc_loopback.cpp
+  src/platform/midi_loopback.mm
   src/runtime/particle_system.cpp
   src/runtime/particle_decay_selftest.cpp
   src/runtime/field_graph.cpp
@@ -519,6 +524,7 @@ target_link_libraries(simple_world PRIVATE
   "-framework AVFoundation"
   "-framework CoreAudio"
   "-framework AudioToolbox"
+  "-framework CoreMIDI"
   "-framework Accelerate"
 )
 
