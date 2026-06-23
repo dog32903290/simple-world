@@ -168,6 +168,8 @@ add_executable(simple_world
   src/app/copy_paste_selftest.cpp
   src/app/rename_selftest.cpp
   src/app/child_state_selftest.cpp
+  src/app/auto_backup.cpp           # L6 維運: periodic project backup
+  src/app/auto_backup_selftest.cpp  # L6 維運: round-trip golden (--selftest-auto-backup)
   src/app/menu.cpp
   src/ui/cjk_font.cpp
   src/ui/canvas_ids.cpp
