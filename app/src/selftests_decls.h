@@ -101,6 +101,7 @@ namespace sw { int runFieldSpatialDisplaceSdfGoldenSelfTest(bool); }// field_ops
 namespace sw { int runFieldTransformFieldGoldenSelfTest(bool); }  // field_ops_transformfield_golden.cpp (single-input PRE+POST; float4x4 point xform mul(v,M)->M*v, UniformScale)
 namespace sw { int runFieldPushPullSdfGoldenSelfTest(bool); }     // field_ops_pushpullsdf_golden.cpp (custom-collect adjust; SdfField parent-context + optional AmountField subcontext)
 namespace sw { int runFieldBlendSdfWithSdfGoldenSelfTest(bool); } // field_ops_blendsdfwithsdf_golden.cpp (3-input custom-collect; sdfBlendByMask helper + f.xyz mix, shared Common key)
+namespace sw { int runFieldToroidalVortexFieldGoldenSelfTest(bool); } // field_ops_toroidalvortexfield_golden.cpp (vec3 VECTOR-field generator; decay-channel GPU golden + velocity-text assertion, axis-enum)
 namespace sw { int runMeshNGonGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: NGonMesh)
 namespace sw { int runMeshQuadGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: QuadMesh)
 namespace sw { int runMeshTransformGoldenSelfTest(bool); }       // mesh_input_golden.cpp (mesh-input seam: TransformMesh consumer)

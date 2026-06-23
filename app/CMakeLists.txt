@@ -265,6 +265,7 @@ add_executable(simple_world
   src/runtime/field_ops_transformfield.cpp
   src/runtime/field_ops_pushpullsdf.cpp
   src/runtime/field_ops_blendsdfwithsdf.cpp
+  src/runtime/field_ops_toroidalvortexfield.cpp
   src/field_render_golden.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
@@ -302,6 +303,7 @@ add_executable(simple_world
   src/field_ops_transformfield_golden.cpp
   src/field_ops_pushpullsdf_golden.cpp
   src/field_ops_blendsdfwithsdf_golden.cpp
+  src/field_ops_toroidalvortexfield_golden.cpp
   src/runtime/mesh_op_registry.cpp
   src/runtime/mesh_ops_ngonmesh.cpp
   src/runtime/mesh_ops_quadmesh.cpp
