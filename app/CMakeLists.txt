@@ -174,6 +174,8 @@ add_executable(simple_world
   src/app/asset_ref_roundtrip_selftest.cpp  # L3 檔案: image-asset-reference round-trip golden (--selftest-asset-ref)
   src/app/asset_index.cpp           # L3 檔案: asset-dependency index (deduped referenced keys + missing predicate)
   src/app/asset_index_selftest.cpp  # L3 檔案: asset-index golden (--selftest-asset-index)
+  src/app/asset_relink.cpp          # L3 檔案: project-wide asset relink mutation (rewrite key→key, count refs)
+  src/app/asset_relink_selftest.cpp # L3 檔案: asset-relink golden (--selftest-asset-relink)
   src/app/menu.cpp
   src/ui/cjk_font.cpp
   src/ui/canvas_ids.cpp
