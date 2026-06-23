@@ -124,7 +124,24 @@ std::shared_ptr<FieldNode> makeRotatedPlaneSdf(const std::string& shortId) {
   return std::make_shared<RotatedPlaneSDFNode>(shortId);
 }
 
-const FieldOp g_rotatedPlaneSdfOp(rotatedPlaneSdfSpec(), makeRotatedPlaneSdf);
+// PF-0c param-apply: project a RESOLVED param map onto a RotatedPlaneSDFNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id (Center.x/.y/.z, Normal.x/.y/.z). Normal is packed RAW
+// (the normalize() lives in the shader), so the apply sets the raw members untouched. A missing key keeps
+// the member's ctor .t3 default (Normal default (0,1,0) preserved). Routed via the fieldConfigurers() table.
+void configureRotatedPlaneSdf(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<RotatedPlaneSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Normal.x", [&](float v) { n->normalX = v; });
+    applyFloatSlot(m, "Normal.y", [&](float v) { n->normalY = v; });
+    applyFloatSlot(m, "Normal.z", [&](float v) { n->normalZ = v; });
+  }
+}
+
+// slot ids = the SAME ids configureRotatedPlaneSdf applies (Option B guard reads them, can't drift).
+const FieldOp g_rotatedPlaneSdfOp(rotatedPlaneSdfSpec(), makeRotatedPlaneSdf, configureRotatedPlaneSdf,
+                                  {"Center.x", "Center.y", "Center.z", "Normal.x", "Normal.y", "Normal.z"});
 
 }  // namespace
 }  // namespace sw

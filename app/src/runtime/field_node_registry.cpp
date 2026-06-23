@@ -20,6 +20,11 @@ std::vector<std::pair<std::string, FieldConfigureFn>>& fieldConfigurers() {
   return s;
 }
 
+std::vector<FieldSlotSpec>& fieldSlotSpecs() {
+  static std::vector<FieldSlotSpec> s;
+  return s;
+}
+
 std::shared_ptr<FieldNode> makeFieldNode(const std::string& type, const std::string& shortId) {
   for (const auto& [t, factory] : fieldNodeFactories())
     if (t == type && factory) return factory(shortId);
@@ -47,6 +52,20 @@ FieldOp::FieldOp(NodeSpec spec, FieldNodeFactory factory, FieldConfigureFn confi
   fieldNodeFactories().push_back({spec.type, std::move(factory)});
   fieldConfigurers().push_back({spec.type, configurer});
   fieldSpecSink().push_back(std::move(spec));
+}
+
+FieldOp::FieldOp(NodeSpec spec, FieldNodeFactory factory, FieldConfigureFn configurer,
+                 std::vector<std::string> slotIds) {
+  // Push the op's REAL apply-table slot ids into the guard sink BEFORE moving spec.type away. Option B:
+  // one source of truth — these are the SAME ids the configurer applies.
+  for (std::string& id : slotIds) fieldSlotSpecs().push_back({spec.type, std::move(id)});
+  fieldNodeFactories().push_back({spec.type, std::move(factory)});
+  fieldConfigurers().push_back({spec.type, configurer});
+  fieldSpecSink().push_back(std::move(spec));
+}
+
+FieldSlotIds::FieldSlotIds(std::string opType, std::vector<std::string> slotIds) {
+  for (std::string& id : slotIds) fieldSlotSpecs().push_back({opType, std::move(id)});
 }
 
 }  // namespace sw

@@ -89,7 +89,21 @@ std::shared_ptr<FieldNode> makeTranslate(const std::string& shortId) {
   return std::make_shared<TranslateNode>(shortId);
 }
 
-const FieldOp g_translateOp(translateSpec(), makeTranslate);
+// PF-0c param-apply: project a RESOLVED param map onto a TranslateNode via setter-lambdas (NOT offsetof).
+// Slot ids EQUAL the NodeSpec PortSpec.id (Translation.x/.y/.z). injectBug is NOT a param (test-only, set
+// via the positional configureTranslate seam); production stays 0. A missing key keeps the member's ctor
+// .t3 default. Routed via the fieldConfigurers() table.
+void configureTranslateFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<TranslateNode*>(&node)) {
+    applyFloatSlot(m, "Translation.x", [&](float v) { n->tx = v; });
+    applyFloatSlot(m, "Translation.y", [&](float v) { n->ty = v; });
+    applyFloatSlot(m, "Translation.z", [&](float v) { n->tz = v; });
+  }
+}
+
+// slot ids = the SAME ids configureTranslateFromParams applies (Option B guard reads them, can't drift).
+const FieldOp g_translateOp(translateSpec(), makeTranslate, configureTranslateFromParams,
+                            {"Translation.x", "Translation.y", "Translation.z"});
 
 }  // namespace
 

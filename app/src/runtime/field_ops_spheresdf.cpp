@@ -106,7 +106,9 @@ void configureSphereSdf(FieldNode& node, const std::map<std::string, float>& m) 
   }
 }
 
-const FieldOp g_sphereSdfOp(sphereSdfSpec(), makeSphereSdf, configureSphereSdf);
+// slot ids = the SAME ids configureSphereSdf applies (Option B guard reads them, can't drift).
+const FieldOp g_sphereSdfOp(sphereSdfSpec(), makeSphereSdf, configureSphereSdf,
+                            {"Center.x", "Center.y", "Center.z", "Radius"});
 
 }  // namespace
 }  // namespace sw

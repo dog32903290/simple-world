@@ -162,7 +162,9 @@ void configureTorusSdf(FieldNode& node, const std::map<std::string, float>& m) {
   }
 }
 
-const FieldOp g_torusSdfOp(torusSdfSpec(), makeTorusSdf, configureTorusSdf);
+// slot ids = the SAME ids configureTorusSdf applies (Option B guard reads them, can't drift).
+const FieldOp g_torusSdfOp(torusSdfSpec(), makeTorusSdf, configureTorusSdf,
+                           {"Center.x", "Center.y", "Center.z", "Radius", "Thickness", "Axis"});
 
 }  // namespace
 }  // namespace sw

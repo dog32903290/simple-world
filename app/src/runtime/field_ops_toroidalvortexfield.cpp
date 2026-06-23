@@ -245,8 +245,11 @@ void configureToroidalVortexFieldFromParams(FieldNode& node, const std::map<std:
   }
 }
 
+// slot ids = the SAME ids configureToroidalVortexFieldFromParams applies (Option B guard, can't drift).
 const FieldOp g_toroidalVortexFieldOp(toroidalVortexFieldSpec(), makeToroidalVortexField,
-                                      configureToroidalVortexFieldFromParams);
+                                      configureToroidalVortexFieldFromParams,
+                                      {"Center.x", "Center.y", "Center.z", "Radius", "Range", "SwirlGain",
+                                       "RadialGain", "FallOffRate", "Axis"});
 
 }  // namespace
 

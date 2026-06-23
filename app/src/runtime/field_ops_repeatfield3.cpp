@@ -145,7 +145,21 @@ std::shared_ptr<FieldNode> makeRepeatField3(const std::string& shortId) {
   return std::make_shared<RepeatField3Node>(shortId);
 }
 
-const FieldOp g_repeatField3Op(repeatField3Spec(), makeRepeatField3);
+// PF-0c param-apply: project a RESOLVED param map onto a RepeatField3Node via setter-lambdas (NOT offsetof).
+// Slot ids EQUAL the NodeSpec PortSpec.id (Size.x/.y/.z). injectBug is NOT a param (test-only, set via the
+// positional configureRepeatField3 seam); production stays 0. A missing key keeps the member's ctor .t3
+// default. Routed via the fieldConfigurers() table.
+void configureRepeatField3FromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<RepeatField3Node*>(&node)) {
+    applyFloatSlot(m, "Size.x", [&](float v) { n->sx = v; });
+    applyFloatSlot(m, "Size.y", [&](float v) { n->sy = v; });
+    applyFloatSlot(m, "Size.z", [&](float v) { n->sz = v; });
+  }
+}
+
+// slot ids = the SAME ids configureRepeatField3FromParams applies (Option B guard reads them, can't drift).
+const FieldOp g_repeatField3Op(repeatField3Spec(), makeRepeatField3, configureRepeatField3FromParams,
+                               {"Size.x", "Size.y", "Size.z"});
 
 }  // namespace
 

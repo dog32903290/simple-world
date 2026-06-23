@@ -19,8 +19,13 @@
 //       0.8, and == 0.5 when it did not (the byte-identical no-graph-param baseline).
 //   (3) ENUM (CombineSDF) — a non-default CombineMethod switches the assembled MSL TEXT to the matching
 //       mode helper (selectors change codegen text, not the float buffer).
-//   (4) SLOT-ID == PORT-ID guard — every slot id in each migrated op's apply table exists as a PortSpec.id
-//       in that op's NodeSpec (loop fieldSpecSink()). A drift here = a silent default regression.
+//   (4) SLOT-ID == PORT-ID guard (HARDENED, Option B) — loops the REAL fieldSlotSpecs() sink (each migrated
+//       op registers its actual apply-table slot ids there at static init) × fieldSpecSink(), asserting
+//       every registered slot id is a real PortSpec.id. Reads the real per-op tables, no hand-copied list
+//       (closes DEBT_LEDGER pf0c-slotid-guard-indirection) — a typo'd configurer id now bites here.
+//   (5) PARAMETERIZED buffer round-trip — for ALL 11 migrated ops (5 done + 6 wave-1 proving), push one
+//       non-default param through the REAL graph path and assert it lands in the correct floatParams slot.
+//       Includes BoxSDF's DERIVED CombinedScale (Size=[2,2,2],UniformScale=2 -> packed [2,2,2]).
 //
 // injectBug: assert the DEFAULT R=0.5 closed form while the graph supplied 0.8 -> the GPU read (R=0.8) no
 // longer matches -> RED. Proves the apply actually happened (a no-op apply would read R=0.5 and the -bug
@@ -125,28 +130,55 @@ std::string assembleCombineWithMethod(const std::string& tmpl, int combineMethod
   return assembleFieldMSL(tree, tmpl).msl;
 }
 
-// SLOT-ID == PORT-ID guard: for each migrated op, the apply table's slot ids MUST be a subset of the op's
-// NodeSpec PortSpec ids (the resolver keys by port id; a drift = silent default). We assert it from the
-// outside: the literal slot ids each configureXxx uses (kept in sync with the .cpp slot tables).
-struct OpSlots { const char* type; std::vector<const char*> slots; };
-const std::vector<OpSlots>& migratedOpSlots() {
-  static const std::vector<OpSlots> s = {
-      {"SphereSDF", {"Center.x", "Center.y", "Center.z", "Radius"}},
-      {"BoxSDF", {"Center.x", "Center.y", "Center.z", "Size.x", "Size.y", "Size.z", "UniformScale",
-                  "EdgeRadius"}},
-      {"TorusSDF", {"Center.x", "Center.y", "Center.z", "Radius", "Thickness", "Axis"}},
-      {"CombineSDF", {"K", "CombineMethod"}},
-      {"ToroidalVortexField", {"Center.x", "Center.y", "Center.z", "Radius", "Range", "SwirlGain",
-                               "RadialGain", "FallOffRate", "Axis"}},
-  };
-  return s;
-}
-
-bool specHasPort(const NodeSpec& spec, const char* id) {
+bool specHasPort(const NodeSpec& spec, const std::string& id) {
   for (const PortSpec& p : spec.ports)
     if (p.id == id) return true;
   return false;
 }
+
+const NodeSpec* findFieldSpec(const std::string& type) {
+  for (const NodeSpec& s : fieldSpecSink())
+    if (s.type == type) return &s;
+  return nullptr;
+}
+
+// PARAMETERIZED buffer-round-trip (WAVE 1): build a SINGLE-node field graph for `type` with the given
+// non-default param overrides via the REAL production path (Graph + resolveNodeParams -> buildFieldTree ->
+// configureFieldNodeFromParams (table lookup) -> members -> assembleFieldMSL -> floatParams) and return the
+// assembled floatParams. A lone modifier (Translate/RepeatField3/...) with no wired Field input still
+// builds + assembles (the recurse loop finds no connection; collectParams runs on the root) — its own
+// params land at floats[0..], so the slot indices match each op's collectParams layout exactly.
+std::vector<float> assembleSingleNodeParams(const std::string& tmpl, const std::string& type,
+                                            const std::map<std::string, float>& overrides) {
+  static Graph g;
+  g = Graph{};
+  Node fld; fld.id = 7; fld.type = type;
+  fld.params = overrides;  // stored non-default values; resolveNodeParams folds defaults under them.
+  g.nodes = {fld};
+  static EvaluationContext ctx;
+  ctx = EvaluationContext{};
+  static std::map<int, std::map<std::string, float>> scratch;
+  scratch.clear();
+  FieldParamResolver params = [&](int id) -> const std::map<std::string, float>* {
+    const Node* n = g.node(id);
+    if (!n) return nullptr;
+    return &(scratch[id] = resolveNodeParams(g, *n, ctx, nullptr));
+  };
+  auto tree = buildFieldTree(g, 7, params);
+  if (!tree) return {};
+  return assembleFieldMSL(tree, tmpl).floatParams;
+}
+
+// One parameterized round-trip case: set `paramId`=`value` on `type` via the graph, assert floatParams
+// lands `expect` (within tol) at `slot`. `note` annotates the printed line (e.g. derived-param verdict).
+struct RoundTripCase {
+  const char* type;
+  std::map<std::string, float> overrides;  // the non-default param(s) to push through the graph.
+  const char* paramId;                     // the param under test (printed label).
+  int slot;                                // floatParams index its packed value lands at.
+  float expect;                            // expected packed value at `slot`.
+  const char* note;
+};
 
 }  // namespace
 
@@ -161,28 +193,72 @@ int runFieldParamApplySelfTest(bool injectBug) {
     return 1;
   }
 
-  // ---- (4) SLOT-ID == PORT-ID guard (pure host; runs first, no GPU needed) ----
+  // ---- (4) SLOT-ID == PORT-ID guard (HARDENED, Option B — reads the REAL fieldSlotSpecs() sink) ----
+  // Each migrated op registered its REAL apply-table slot ids into fieldSlotSpecs() at static init (the
+  // SAME ids its configurer applies). We loop that sink × fieldSpecSink() asserting every registered slot
+  // id is a real PortSpec.id in that op's spec. NO hand-copied list (closes DEBT_LEDGER
+  // pf0c-slotid-guard-indirection) — a typo'd configurer id (`"Thicknes"`) now registers a bad row here
+  // and the guard bites, instead of silently drifting from a separately-correct hand list.
   {
     bool allOk = true;
-    for (const OpSlots& op : migratedOpSlots()) {
-      const NodeSpec* spec = nullptr;
-      for (const NodeSpec& s : fieldSpecSink())
-        if (s.type == op.type) { spec = &s; break; }
+    size_t rows = 0;
+    for (const FieldSlotSpec& fs : fieldSlotSpecs()) {
+      ++rows;
+      const NodeSpec* spec = findFieldSpec(fs.opType);
       if (!spec) {
-        std::printf("[selftest-field-paramapply] slot-id guard: %s NOT in fieldSpecSink -> FAIL\n", op.type);
+        std::printf("[selftest-field-paramapply] slot-id guard: %s NOT in fieldSpecSink -> FAIL\n",
+                    fs.opType.c_str());
         allOk = false;
         continue;
       }
-      for (const char* slot : op.slots) {
-        if (!specHasPort(*spec, slot)) {
-          std::printf("[selftest-field-paramapply] slot-id guard: %s slot '%s' has NO matching PortSpec.id "
-                      "-> FAIL (silent-default drift)\n", op.type, slot);
-          allOk = false;
-        }
+      if (!specHasPort(*spec, fs.slotId)) {
+        std::printf("[selftest-field-paramapply] slot-id guard: %s slot '%s' has NO matching PortSpec.id "
+                    "-> FAIL (silent-default drift)\n", fs.opType.c_str(), fs.slotId.c_str());
+        allOk = false;
       }
     }
-    std::printf("[selftest-field-paramapply] slot-id==port-id guard over %zu migrated ops -> %s\n",
-                migratedOpSlots().size(), allOk ? "OK" : "FAIL");
+    std::printf("[selftest-field-paramapply] slot-id==port-id guard over %zu registered slot rows "
+                "(real fieldSlotSpecs sink) -> %s\n", rows, allOk ? "OK" : "FAIL");
+    if (!allOk) rc = 1;
+  }
+
+  // ---- (5) PARAMETERIZED buffer round-trip — every migrated op (5 done + 6 wave-1 proving) ----
+  // For each (op, non-default param, slot), push the value through the REAL graph path and assert it lands
+  // in the correct floatParams slot. Proves graph->member->packing fires for the WHOLE migrated set, not
+  // just SphereSDF. BoxSDF is the DERIVED-param re-verify: Size=[2,2,2],UniformScale=2 -> CombinedScale slot
+  // = 2*2/2 = 2 (a non-default-member apply that recomputes correctly only if both members flowed through).
+  {
+    const std::vector<RoundTripCase> cases = {
+        // --- the 5 already-migrated ops (RE-VERIFY) ---
+        {"SphereSDF", {{"Radius", 0.8f}}, "Radius", 3, 0.8f, ""},
+        // BoxSDF DERIVED: Size=[2,2,2] + UniformScale=2 -> CombinedScale[4..6] = 2*2/2 = 2 (each component).
+        {"BoxSDF", {{"Size.x", 2.f}, {"Size.y", 2.f}, {"Size.z", 2.f}, {"UniformScale", 2.f}},
+         "CombinedScale.x (derived Size*UniformScale/2)", 4, 2.0f, "derived"},
+        {"BoxSDF", {{"EdgeRadius", 0.3f}}, "EdgeRadius", 3, 0.3f, ""},
+        {"TorusSDF", {{"Thickness", 0.7f}}, "Thickness", 4, 0.7f, ""},
+        {"CombineSDF", {{"K", 0.6f}}, "K", 0, 0.6f, ""},
+        {"ToroidalVortexField", {{"SwirlGain", 3.5f}}, "SwirlGain", 5, 3.5f, ""},
+        // --- the 6 wave-1 proving ops ---
+        {"Translate", {{"Translation.x", 1.5f}}, "Translation.x", 0, 1.5f, ""},
+        {"TranslateUV", {{"Translation.z", -2.0f}}, "Translation.z", 2, -2.0f, ""},
+        {"RepeatField3", {{"Size.y", 4.0f}}, "Size.y", 1, 4.0f, ""},
+        // RotatedPlaneSDF: Center[0..2], pad[3], Normal[4..6] (two consecutive vec3s, padForVec3 pad@3).
+        {"RotatedPlaneSDF", {{"Normal.x", 0.5f}}, "Normal.x", 4, 0.5f, ""},
+        {"OctahedronSDF", {{"Size", 0.9f}}, "Size", 3, 0.9f, ""},
+        {"ReflectField", {{"Offset", 1.25f}}, "Offset", 3, 1.25f, ""},
+    };
+    bool allOk = true;
+    for (const RoundTripCase& tc : cases) {
+      std::vector<float> fp = assembleSingleNodeParams(tmpl, tc.type, tc.overrides);
+      float got = (tc.slot >= 0 && (size_t)tc.slot < fp.size()) ? fp[tc.slot] : -999.f;
+      bool ok = std::fabs(got - tc.expect) < 1e-5f;
+      std::printf("[selftest-field-paramapply] round-trip: %-20s %-40s slot[%d]=%.4f (want %.4f)%s -> %s\n",
+                  tc.type, tc.paramId, tc.slot, got, tc.expect, tc.note[0] ? " [DERIVED]" : "",
+                  ok ? "OK" : "FAIL");
+      if (!ok) allOk = false;
+    }
+    std::printf("[selftest-field-paramapply] parameterized round-trip over %zu cases (11 migrated ops) "
+                "-> %s\n", cases.size(), allOk ? "OK" : "FAIL");
     if (!allOk) rc = 1;
   }
 

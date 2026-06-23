@@ -46,12 +46,25 @@ using FieldNodeFactory = std::function<std::shared_ptr<FieldNode>(const std::str
 // each configurer is a file-scope fn in its leaf TU.
 using FieldConfigureFn = void (*)(FieldNode& node, const std::map<std::string, float>& params);
 
+// PF-0c slot-id guard (Option B — closes DEBT_LEDGER pf0c-slotid-guard-indirection): one row per
+// (op type, slot id) that a migrated op's configurer ACTUALLY applies. Each migrated op registers its
+// REAL slot ids here at static init (alongside its factory/configurer) — the SAME ids the configurer's
+// applyFloatSlot/applyIntSelSlot/applyBoolSelSlot calls use, so the guard reads the real per-op table and
+// CANNOT drift from a hand-copied list. The golden's slot-id==port-id guard loops fieldSlotSpecs() ×
+// fieldSpecSink() asserting every registered slot id is a real PortSpec.id in that op's spec.
+struct FieldSlotSpec {
+  std::string opType;  // NodeSpec.type the slot belongs to.
+  std::string slotId;  // the slot id the configurer applies (MUST equal a PortSpec.id in opType's spec).
+};
+
 // Meyers singletons — the sinks every field-op leaf registrar feeds.
 std::vector<NodeSpec>& fieldSpecSink();
 std::vector<std::pair<std::string, FieldNodeFactory>>& fieldNodeFactories();
 // PF-0c: the configurer sink, mirroring fieldNodeFactories() (keyed by spec.type). One entry per registrar
 // (nullptr for ops that pass no configurer). configureFieldNodeFromParams is a table lookup over this.
 std::vector<std::pair<std::string, FieldConfigureFn>>& fieldConfigurers();
+// PF-0c slot-id guard sink (Option B): every migrated op pushes its real apply-table slot ids here.
+std::vector<FieldSlotSpec>& fieldSlotSpecs();
 
 // Build a FieldNode for `type` via the registered factory (nullptr if no factory registered).
 std::shared_ptr<FieldNode> makeFieldNode(const std::string& type, const std::string& shortId);
@@ -68,13 +81,27 @@ void configureFieldNodeFromParams(FieldNode& node, const std::string& type,
                                   const std::map<std::string, float>& params);
 
 // RAII registrar: declare one file-scope static of this type at the end of each field-op leaf.
-//   FieldOp(spec, factory);              // configurer = nullptr (explicit no-op; PF-0d deferred ops).
-//   FieldOp(spec, factory, configurer);  // PF-0c: also pushes {spec.type, configurer} into
-//                                        // fieldConfigurers() so configureFieldNodeFromParams routes to it.
-// Both overloads push spec into fieldSpecSink() and {spec.type, factory} into fieldNodeFactories().
+//   FieldOp(spec, factory);                     // configurer = nullptr (explicit no-op; PF-0d ops).
+//   FieldOp(spec, factory, configurer);         // PF-0c: also pushes {spec.type, configurer} into
+//                                               // fieldConfigurers() so configureFieldNodeFromParams routes.
+//   FieldOp(spec, factory, configurer, slots);  // PF-0c Option B: ALSO push one {spec.type, slotId} row
+//                                               // per id in `slots` into fieldSlotSpecs() (the slot-id
+//                                               // guard reads them). `slots` MUST list the SAME ids the
+//                                               // configurer applies — one source of truth, no hand copy.
+// All overloads push spec into fieldSpecSink() and {spec.type, factory} into fieldNodeFactories().
 struct FieldOp {
   FieldOp(NodeSpec spec, FieldNodeFactory factory);
   FieldOp(NodeSpec spec, FieldNodeFactory factory, FieldConfigureFn configurer);
+  FieldOp(NodeSpec spec, FieldNodeFactory factory, FieldConfigureFn configurer,
+          std::vector<std::string> slotIds);
+};
+
+// Standalone slot-id registrar (Option B): register a migrated op's apply-table slot ids into
+// fieldSlotSpecs() WITHOUT touching its FieldOp registrar line. Used for an op whose leaf .cpp cannot take
+// the 4-arg FieldOp overload (e.g. a frozen-at-line-cap leaf): a separate tiny TU declares one file-scope
+// static of this, listing the SAME ids the op's configurer applies. Same single-source-of-truth contract.
+struct FieldSlotIds {
+  FieldSlotIds(std::string opType, std::vector<std::string> slotIds);
 };
 
 }  // namespace sw

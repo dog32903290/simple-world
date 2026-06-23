@@ -124,7 +124,22 @@ std::shared_ptr<FieldNode> makeOctahedronSdf(const std::string& shortId) {
   return std::make_shared<OctahedronSDFNode>(shortId);
 }
 
-const FieldOp g_octahedronSdfOp(octahedronSdfSpec(), makeOctahedronSdf);
+// PF-0c param-apply: project a RESOLVED param map onto an OctahedronSDFNode via setter-lambdas (NOT
+// offsetof). Slot ids EQUAL the NodeSpec PortSpec.id (Center.x/.y/.z, Size, EdgeRadius). A missing key
+// keeps the member's ctor .t3 default. Routed via the fieldConfigurers() table.
+void configureOctahedronSdf(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<OctahedronSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Size", [&](float v) { n->size = v; });
+    applyFloatSlot(m, "EdgeRadius", [&](float v) { n->edgeRadius = v; });
+  }
+}
+
+// slot ids = the SAME ids configureOctahedronSdf applies (Option B guard reads them, can't drift).
+const FieldOp g_octahedronSdfOp(octahedronSdfSpec(), makeOctahedronSdf, configureOctahedronSdf,
+                                {"Center.x", "Center.y", "Center.z", "Size", "EdgeRadius"});
 
 }  // namespace
 }  // namespace sw

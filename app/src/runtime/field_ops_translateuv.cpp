@@ -108,7 +108,21 @@ std::shared_ptr<FieldNode> makeTranslateUv(const std::string& shortId) {
   return std::make_shared<TranslateUVNode>(shortId);
 }
 
-const FieldOp g_translateUvOp(translateUvSpec(), makeTranslateUv);
+// PF-0c param-apply: project a RESOLVED param map onto a TranslateUVNode via setter-lambdas (NOT offsetof).
+// Slot ids EQUAL the NodeSpec PortSpec.id (Translation.x/.y/.z). injectBug is NOT a param (test-only, set
+// via the positional configureTranslateUv seam); production stays 0. A missing key keeps the member's ctor
+// .t3 default. Routed via the fieldConfigurers() table.
+void configureTranslateUvFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<TranslateUVNode*>(&node)) {
+    applyFloatSlot(m, "Translation.x", [&](float v) { n->tx = v; });
+    applyFloatSlot(m, "Translation.y", [&](float v) { n->ty = v; });
+    applyFloatSlot(m, "Translation.z", [&](float v) { n->tz = v; });
+  }
+}
+
+// slot ids = the SAME ids configureTranslateUvFromParams applies (Option B guard reads them, can't drift).
+const FieldOp g_translateUvOp(translateUvSpec(), makeTranslateUv, configureTranslateUvFromParams,
+                              {"Translation.x", "Translation.y", "Translation.z"});
 
 }  // namespace
 

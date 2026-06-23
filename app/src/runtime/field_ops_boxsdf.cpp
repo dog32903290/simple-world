@@ -153,7 +153,10 @@ void configureBoxSdf(FieldNode& node, const std::map<std::string, float>& m) {
   }
 }
 
-const FieldOp g_boxSdfOp(boxSdfSpec(), makeBoxSdf, configureBoxSdf);
+// slot ids = the SAME ids configureBoxSdf applies (Option B guard reads them, can't drift).
+const FieldOp g_boxSdfOp(boxSdfSpec(), makeBoxSdf, configureBoxSdf,
+                         {"Center.x", "Center.y", "Center.z", "Size.x", "Size.y", "Size.z",
+                          "UniformScale", "EdgeRadius"});
 
 }  // namespace
 }  // namespace sw

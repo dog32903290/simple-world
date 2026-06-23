@@ -130,7 +130,23 @@ std::shared_ptr<FieldNode> makeReflectField(const std::string& shortId) {
   return std::make_shared<ReflectFieldNode>(shortId);
 }
 
-const FieldOp g_reflectFieldOp(reflectFieldSpec(), makeReflectField);
+// PF-0c param-apply: project a RESOLVED param map onto a ReflectFieldNode via setter-lambdas (NOT offsetof).
+// Slot ids EQUAL the NodeSpec PortSpec.id (PlaneNormal.x/.y/.z, Offset). PlaneNormal is packed RAW (the
+// normalize() lives in the shader), so the apply sets the raw members untouched. injectBug is NOT a param
+// (test-only, set via the positional configureReflectField seam); production stays 0. A missing key keeps
+// the member's ctor .t3 default. Routed via the fieldConfigurers() table.
+void configureReflectFieldFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<ReflectFieldNode*>(&node)) {
+    applyFloatSlot(m, "PlaneNormal.x", [&](float v) { n->nx = v; });
+    applyFloatSlot(m, "PlaneNormal.y", [&](float v) { n->ny = v; });
+    applyFloatSlot(m, "PlaneNormal.z", [&](float v) { n->nz = v; });
+    applyFloatSlot(m, "Offset", [&](float v) { n->offset = v; });
+  }
+}
+
+// slot ids = the SAME ids configureReflectFieldFromParams applies (Option B guard reads them, can't drift).
+const FieldOp g_reflectFieldOp(reflectFieldSpec(), makeReflectField, configureReflectFieldFromParams,
+                               {"PlaneNormal.x", "PlaneNormal.y", "PlaneNormal.z", "Offset"});
 
 }  // namespace
 

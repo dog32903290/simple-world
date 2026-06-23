@@ -243,6 +243,7 @@ add_executable(simple_world
   src/runtime/field_ops_pyramidsdf.cpp
   src/runtime/field_ops_rotatedplanesdf.cpp
   src/runtime/field_ops_combinesdf.cpp
+  src/runtime/field_ops_combinesdf_slots.cpp
   src/runtime/field_ops_invertsdf.cpp
   src/runtime/field_ops_absolutesdf.cpp
   src/runtime/field_ops_translate.cpp
