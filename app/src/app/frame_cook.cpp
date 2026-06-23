@@ -12,6 +12,7 @@
 #include "app/document.h"                 // g_lib + libRevision (projection contract)
 #include "app/soundtrack.h"               // soundtrack follow rule (audio chases the transport)
 #include "runtime/audio_reaction.h"       // cookAudioReaction (TiXL AudioReaction parity)
+#include "runtime/detect_bpm.h"           // cookDetectBpmNodes (TiXL DetectBpm operator parity)
 #include "runtime/graph_bridge.h"         // refreshCompoundSpecs (frame-boundary spec swap)
 #include "runtime/eval_context.h"         // EvaluationContext
 #include "runtime/point_graph.h"          // PointGraph::cookResident
@@ -76,11 +77,10 @@ void rebuildLiveDownstreamClosure(const ResidentEvalGraph& g) {
 
 }  // namespace
 
-// The dt 分流 seam (refuter-C 修2): one wall measurement, two consumers with different physics.
-// The TRANSPORT gets the raw dt (playhead truth — audio follows it, so it must cover the whole
-// stall); the Metal SIM integration step gets this clamped copy (a 2s Euler step explodes
-// particles; 0.25 was always a sim-stability number, never a playhead rule). Pinned headless by
-// --selftest-arclock leg ③ + --selftest-transport (unclamped advance).
+// The dt 分流 seam (refuter-C 修2): one wall measurement, two consumers with different physics. The
+// TRANSPORT gets the raw dt (playhead truth — audio follows it, so it covers the whole stall); the
+// Metal SIM step gets this clamped copy (0.25 = sim-stability, never a playhead rule). Pinned headless
+// by --selftest-arclock leg ③ + --selftest-transport (unclamped advance).
 double simDeltaFromWall(double dtSecs) {
   if (dtSecs < 0.0) return 0.0;
   return dtSecs > 0.25 ? 0.25 : dtSecs;
@@ -130,11 +130,10 @@ void stampLiveLastUpdatePass(ResidentEvalGraph& g, uint32_t frameIndex) {
 }
 
 // Cook every AudioReaction instance (TiXL parity): resolve its params through the resident
-// drivers (override/default/wire — the slice-2b seam), run the stateful algorithm on the
-// live spectrum, write its 3 outputs onto the resident node's extOut — the resident cook's
-// value wires read these (evalResidentFloat's no-evaluate path), and the UI face reads
-// them back through residentOut(). State keys off the resident PATH, so it survives
-// rebuilds AND stays per-instance inside compounds.
+// drivers (slice-2b seam), run the stateful algorithm on the live spectrum, write its 3 outputs
+// onto extOut — value wires read these (evalResidentFloat's no-evaluate path), the UI face reads
+// them back via residentOut(). State keys off the resident PATH (survives rebuilds, per-instance).
+// (See frame_cook.h for the clock-domain seam contract.)
 void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
                             const Transport& t, uint32_t frameIndex, const SymbolLibrary* lib,
                             std::map<std::string, AudioReactionState>& state) {
@@ -144,9 +143,8 @@ void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
   rctx.frameIndex = frameIndex;
   rctx.lib = lib;                      // S3 接通: Automation drivers resolve curves THROUGH the lib
   // AudioReaction eats fxTime in BARS — TiXL's LocalFxTime IS Playback.FxTimeInBars
-  // (EvaluationContext.cs:49) and MinTimeBetweenHits compares in the same domain; feeding
-  // seconds skews the debounce window at any BPM != 240 (refuter-S5 BROKEN-A). Pinned by
-  // --selftest-arclock — change this domain and that tooth bites.
+  // (EvaluationContext.cs:49); MinTimeBetweenHits compares in the same domain, so feeding seconds
+  // skews the debounce window at any BPM != 240 (refuter-S5 BROKEN-A). Pinned by --selftest-arclock.
   const double fxBars = t.fxTime;
   for (ResidentNode& rn : g.nodes) {
     if (rn.opType != "AudioReaction") continue;
@@ -180,16 +178,14 @@ void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
 // clamps internally as TiXL does (Damp's spring branch clamps to 1/60; Spring uses no dt).
 //
 // context-var YELLOW seam (block #1): `vars` is the host-side per-frame variable map (= TiXL
-// EvaluationContext.Float/IntVariables). The single g.nodes loop is split into THREE phases so the
-// writer-before-reader ordering is deterministic every frame (simple_world iterates build order, not
-// dataflow — TiXL's structural SubGraph-pull ordering must be imposed explicitly):
+// EvaluationContext.Float/IntVariables). The single g.nodes loop is split into THREE phases for
+// deterministic writer-before-reader ordering (simple_world iterates build order, not dataflow):
 //   pass 0: CLEAR the map once (= EvaluationContext.Reset, cs:43-58) — the per-frame scratchpad.
 //   pass 1: WRITERS (isContextVarWriter: Set*Var) — populate the map.
 //   pass 2: everyone else (Get*Var readers + every non-var stateful op) — read the populated map.
 // BOUNDARY (named): two passes = exactly ONE write-generation; a Set→Get→Set chain in one frame is
-// NOT supported (that needs topological/scope order = RED). Verified no Set*Var VALUE input resolves
-// through a Get*Var extOut in the proving graph (the resident drivers feed Set*Var from
-// constants/Time, never from a Get*Var output) — so two passes suffice for the YELLOW tier.
+// NOT supported (needs topological/scope order = RED). No Set*Var VALUE input resolves through a
+// Get*Var extOut in the proving graph, so two passes suffice for the YELLOW tier.
 //
 // `ctxVarBug` is a TEETH hook (0 = production): 1 collapses the 2 passes into one in-order loop
 // (the C ordering golden bites), 2 skips the pass-0 clear (the D per-frame-reset golden bites). It
@@ -322,13 +318,17 @@ void run(PointGraph& pg, const std::string& targetPath) {
 
   const SpectrumSnapshot spec = audio_monitor::spectrum();
 
-  // Cook every AudioReaction instance — the seam itself (cookAudioReactionNodes below) derives
-  // the AR clock from the transport, so the bars-domain decision has ONE home and the arclock
-  // selftest exercises the very joint run() uses.
+  // Cook every AudioReaction instance — the seam (cookAudioReactionNodes) derives the AR clock from
+  // the transport, so the bars-domain decision has ONE home and --selftest-arclock exercises it.
   {
     static std::map<std::string, AudioReactionState> s_arState;
     cookAudioReactionNodes(g_residentGraph, spec, g_transport, g_frameIndex, &doc::g_lib,
                            s_arState);
+    // DetectBpm (TiXL operator parity) rides the SAME slot: accumulate one energy sample from the live
+    // RawFft frame (spec.fftGain — the bins it sums over its INTEGER borders), write recovered BPM to
+    // extOut[0]. Per-path state. No throttle (DetectBpm.Update runs every eval; TiXL sets no cadence).
+    static std::map<std::string, DetectBpm> s_bpmState;
+    cookDetectBpmNodes(g_residentGraph, spec.fftGain.data(), (int)spec.fftGain.size(), s_bpmState);
   }
 
   // Cook stateful value ops (Damp/Spring/...) right after AudioReaction — same once-per-frame slot,

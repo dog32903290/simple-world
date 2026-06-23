@@ -51,6 +51,7 @@
 #include "runtime/point_ops_orthographiccamera.h"  // runOrthographicCameraSelfTest (camera3d C2)
 #include "runtime/spectrum_analyzer.h"
 #include "runtime/bpm_detection.h"  // runBpmDetectionSelfTest (L6 BPM auto-detect, TiXL parity)
+#include "runtime/detect_bpm.h"     // runDetectBpmSelfTest (TiXL DetectBpm operator parity, node-level)
 #include "runtime/transport.h"
 #include "ui/cjk_font.h"
 #include "ui/annotation_draw.h"  // runAnnotationDrawSelfTest (annotation draw/interaction geometry)

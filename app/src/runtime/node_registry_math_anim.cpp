@@ -110,5 +110,28 @@ static const MathOp _reg_AnimBoolean{
        nullptr}
 };
 
+      // TiXL DetectBpm (the OLDER io/audio/_/DetectBpm.cs operator — NOT the editor BpmDetection class).
+      // STATEFUL — cooked in main from the live FFT (runtime/detect_bpm) because it needs the whole
+      // spectrum (too big for ctx) + per-node memory across frames; so it has no pure evaluate() and
+      // evalResidentFloat reads its DetectedBpm output from extOut[0] (the no-evaluate readback path).
+      // Mirror of AudioReaction. ONE float output (DetectedBpm) FIRST → extOut[0]. Params are pinless
+      // (Inspector knobs). .t3 DEFAULTS (DetectBpm.t3, confirmed): LowerLimit=2/UpperLimit=199 (INTEGER
+      // bin borders, NOT a normalized range — the operator's contract), BufferDurationSec=15,
+      // LowestBpm=120, HighestBpm=180, LockItFactor=0. LowerLimit/UpperLimit are integer-valued knobs
+      // carried on the float rail (the cook does (int)(v+0.5)). DEFERRED FORK: DetectBpm.cs's second
+      // output `Measurements` (Slot<List<float>>, the per-bpm energy curve) is a FloatList output the
+      // NodeSpec can't yet express — omitted; named, not invented (fork-detectbpm-measurements-floatlist).
+static const MathOp _reg_DetectBpm{
+      {"DetectBpm", "DetectBpm",
+       {{"DetectedBpm", "DetectedBpm", "Float", false},
+        {"LowerLimit", "LowerLimit", "Float", true, 2.0f, 0.0f, 1024.0f, Widget::Slider, {}, true},
+        {"UpperLimit", "UpperLimit", "Float", true, 199.0f, 0.0f, 1024.0f, Widget::Slider, {}, true},
+        {"BufferDurationSec", "BufferDurationSec", "Float", true, 15.0f, 1.0f, 60.0f, Widget::Slider, {}, true},
+        {"LowestBpm", "LowestBpm", "Float", true, 120.0f, 50.0f, 200.0f, Widget::Slider, {}, true},
+        {"HighestBpm", "HighestBpm", "Float", true, 180.0f, 50.0f, 200.0f, Widget::Slider, {}, true},
+        {"LockItFactor", "LockItFactor", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, true}},
+       nullptr}
+};
+
 }  // namespace
 }  // namespace sw
