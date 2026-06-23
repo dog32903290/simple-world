@@ -46,11 +46,12 @@
 #include "runtime/graph.h"  // NodeSpec, PortSpec, Widget
 
 #include <cmath>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "runtime/field_graph.h"          // FieldNode, CodeAssembleCtx, appendVec3Param
+#include "runtime/field_graph.h"          // FieldNode, CodeAssembleCtx, appendVec3Param, applyFloatSlot
 #include "runtime/field_node_registry.h"  // FieldOp self-registration
 
 namespace sw {
@@ -154,7 +155,26 @@ std::shared_ptr<FieldNode> makeRotateField(const std::string& shortId) {
   return std::make_shared<RotateFieldNode>(shortId);
 }
 
-const FieldOp g_rotateFieldOp(rotateFieldSpec(), makeRotateField);
+// PF-0c param-apply: project a RESOLVED param map onto a RotateFieldNode via setter-lambdas (NOT offsetof).
+// DEG->RAD FORK (host fork (3), same as configureRotateField): the graph supplies Rotation.x/.y/.z in
+// DEGREES (the PortSpec.ids), but the node MEMBER stores RADIANS (the shader receives RotateRad in radians,
+// matching TiXL Update()'s Rotation*MathUtils.ToRad). So each applyFloatSlot lambda multiplies by ToRad
+// before writing the member — the apply primitive carries the raw graph value, the deg->rad conversion is
+// the op's frozen seam. Slot ids EQUAL the NodeSpec PortSpec.ids (Rotation.x/.y/.z). A missing key leaves
+// the member at its ctor .t3 default (0 rad) — byte-identical to the no-graph-param baseline (collectParams
+// is UNCHANGED; this only adds the apply path). injectBug is NOT a param (test-only via configureRotateField).
+void configureRotateFieldFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<RotateFieldNode*>(&node)) {
+    constexpr float kToRad = 3.14159265358979323846f / 180.0f;  // MathUtils.ToRad = PI/180.
+    applyFloatSlot(m, "Rotation.x", [&](float v) { n->rx = v * kToRad; });
+    applyFloatSlot(m, "Rotation.y", [&](float v) { n->ry = v * kToRad; });
+    applyFloatSlot(m, "Rotation.z", [&](float v) { n->rz = v * kToRad; });
+  }
+}
+
+// slot ids = the SAME ids configureRotateFieldFromParams applies (Option B guard, can't drift).
+const FieldOp g_rotateFieldOp(rotateFieldSpec(), makeRotateField, configureRotateFieldFromParams,
+                              {"Rotation.x", "Rotation.y", "Rotation.z"});
 
 }  // namespace
 

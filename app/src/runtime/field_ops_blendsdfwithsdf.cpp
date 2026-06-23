@@ -56,11 +56,12 @@
 //       blend / drop the f.xyz blend) so the golden's tooth bites the op's REAL emit. Production off.
 #include "runtime/graph.h"  // NodeSpec, PortSpec, Widget
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "runtime/field_graph.h"          // FieldNode, CodeAssembleCtx, collectFieldCode, appendScalarParam
+#include "runtime/field_graph.h"          // FieldNode, CodeAssembleCtx, collectFieldCode, appendScalarParam, applyFloatSlot
 #include "runtime/field_node_registry.h"  // FieldOp self-registration
 
 namespace sw {
@@ -227,7 +228,23 @@ std::shared_ptr<FieldNode> makeBlendSdfWithSdf(const std::string& shortId) {
   return std::make_shared<BlendSDFWithSDFNode>(shortId);
 }
 
-const FieldOp g_blendSdfWithSdfOp(blendSdfWithSdfSpec(), makeBlendSdfWithSdf);
+// PF-0c param-apply: project a RESOLVED param map onto a BlendSDFWithSDFNode via setter-lambdas (NOT
+// offsetof). Range/Offset are PACKED [GraphParam] scalars (collectParams packs Range@slot[0], Offset@slot[1]
+// and tryBuildCustomCode reads them as P.<prefix>Range / P.<prefix>Offset runtime uniforms — NOT string
+// injection, so a buffer round-trip is the correct proof). Slot ids EQUAL the NodeSpec PortSpec.ids
+// (Range / Offset). A missing key leaves the member at its ctor .t3 default (Range=1, Offset=0) —
+// byte-identical to the no-graph-param baseline (collectParams is UNCHANGED; this only adds the apply path).
+// injectBug is NOT a param (test-only via configureBlendSdfWithSdf). Routed via fieldConfigurers().
+void configureBlendSdfWithSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<BlendSDFWithSDFNode*>(&node)) {
+    applyFloatSlot(m, "Range", [&](float v) { n->range = v; });
+    applyFloatSlot(m, "Offset", [&](float v) { n->offset = v; });
+  }
+}
+
+// slot ids = the SAME ids configureBlendSdfWithSdfFromParams applies (Option B guard, can't drift).
+const FieldOp g_blendSdfWithSdfOp(blendSdfWithSdfSpec(), makeBlendSdfWithSdf,
+                                  configureBlendSdfWithSdfFromParams, {"Range", "Offset"});
 
 }  // namespace
 

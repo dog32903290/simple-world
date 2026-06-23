@@ -178,6 +178,22 @@ std::vector<RoundTripCase> fieldParamApplyRoundTripCases() {
       // --- StairCombineSDF: K[0], Steps[1]. (CombineMethod fold selector, text-assert.) ---
       {"StairCombineSDF", {{"K", 0.75f}}, "K", 0, 0.75f, ""},
       {"StairCombineSDF", {{"Steps", 5.0f}}, "Steps", 1, 5.0f, ""},
+
+      // ===================== WAVE 4 (FINAL) — the 2 special ops =====================
+      // Closes the FLOAT-CLEAN field param-apply fan-out (33 migrated ops). Both pack runtime uniforms
+      // (NOT compile-time selectors / string injection), so a buffer round-trip is the correct proof.
+
+      // --- RotateField: RotateRad[0..2] (packed_float3 via appendVec3Param). DEG->RAD host fork: the
+      //     graph supplies Rotation.x/.y/.z in DEGREES (PortSpec.ids); the member stores RADIANS, so the
+      //     configurer multiplies by PI/180 before packing. 90 deg -> PI/2 = 1.5707963 at slot[0..2].
+      {"RotateField", {{"Rotation.x", 90.0f}}, "Rotation.x (deg->rad: 90*PI/180)", 0, 1.5707963f, "deg->rad"},
+      {"RotateField", {{"Rotation.y", 45.0f}}, "Rotation.y (deg->rad: 45*PI/180)", 1, 0.7853982f, "deg->rad"},
+      {"RotateField", {{"Rotation.z", -30.0f}}, "Rotation.z (deg->rad: -30*PI/180)", 2, -0.5235988f, "deg->rad"},
+
+      // --- BlendSDFWithSDF: Range[0], Offset[1] (two packed scalars, read by tryBuildCustomCode as
+      //     P.<prefix>Range / P.<prefix>Offset runtime uniforms — fork: NOT string-injected). ---
+      {"BlendSDFWithSDF", {{"Range", 2.5f}}, "Range", 0, 2.5f, ""},
+      {"BlendSDFWithSDF", {{"Offset", -1.5f}}, "Offset", 1, -1.5f, ""},
   };
 }
 
