@@ -290,6 +290,19 @@ struct FieldDistForceParams {
   float _pad1;  // -> 32 bytes (16-byte multiple)
 };
 
+// RandomJumpForce params — mirrors RandomJumpForceTemplate.hlsl cbuffer Params (b0). Full rationale + the
+// param-mapping discipline + NAMED FORK fork-RandomJump-position-write in random_jump_force_template.metal.
+struct RandomJumpForceParams {
+  float Amount;
+  float Frequency;
+  float Phase;
+  float Variation;
+  float AmountDistributionX;  // = DirectionDistribution.x (.cs); Y/Z follow
+  float AmountDistributionY;
+  float AmountDistributionZ;
+  uint32_t Count;  // no METAL guard: struct IS in metallib glob but bare uint32_t==uint in MSL (4B, static_assert holds)
+};
+
 enum ForceBinding {
   FORCE_Particles = 0,  // device Particle* (u0) — shared by all force kernels
   FORCE_Params = 1,     // constant {Turb,DirForce,VecFieldForce,Vel,AxisStep,SnapAngles,FieldDist}Params& (b0)
@@ -317,6 +330,8 @@ enum ForceKind {
   // PF-bridge field-distance — appended (NOT inserted: pre-existing .swproj _ForceKind overrides keep
   // their meaning, particle_params.h :288 append-only discipline).
   FORCE_KIND_FIELDDISTANCE = 6,  // FieldDistanceForce (SDF-distance attract/repel via FORCE_FieldParams)
+  // RandomJumpForce — appended (NOT inserted; append-only). Writes POSITION (fork-RandomJump-position-write).
+  FORCE_KIND_RANDOMJUMP = 7,  // RandomJumpForce (curlNoise jump modulated by field color via FORCE_FieldParams)
 };
 
 // RadialPoints emitter — generates a ring of Points to feed ParticleSystem.
@@ -378,6 +393,7 @@ static_assert(sizeof(VelForceParams) == 32, "VelForceParams 32 bytes");
 static_assert(sizeof(AxisStepForceParams) == 64, "AxisStepForceParams 64 bytes");
 static_assert(sizeof(SnapAnglesForceParams) == 48, "SnapAnglesForceParams 48 bytes");
 static_assert(sizeof(FieldDistForceParams) == 32, "FieldDistForceParams 32 bytes");
+static_assert(sizeof(RandomJumpForceParams) == 32, "RandomJumpForceParams 32 bytes");
 static_assert(sizeof(EmitParams) == 16, "EmitParams 16 bytes");
 static_assert(sizeof(RadialParams) == 48, "RadialParams 48 bytes");
 #endif

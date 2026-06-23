@@ -271,6 +271,7 @@ add_executable(simple_world
   src/particlefield_probe_golden.cpp
   src/vectorfieldforce_field_golden.cpp
   src/fielddistanceforce_field_golden.cpp
+  src/randomjumpforce_field_golden.cpp
   src/fieldtree_builder_golden.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
@@ -557,6 +558,10 @@ target_compile_definitions(simple_world PRIVATE
   # the VFF template above). Same string-asset rule; assembleFieldMSL fills the SAME hooks; cookParticleSim
   # compiles the result into a compute PSO keyed on srcHash.
   SW_FIELD_DISTANCE_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/field_distance_force_template.metal"
+  # PF field-into-FORCE compute TEMPLATE for RandomJumpForce (curlNoise jump modulated by field color; the
+  # POSITION-write sibling of the VFF/FieldDistance templates above). Same string-asset rule; assembleFieldMSL
+  # fills the SAME hooks; cookParticleSim compiles the result into a compute PSO keyed on srcHash.
+  SW_RANDOM_JUMP_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/random_jump_force_template.metal"
 )
 
 # The executable needs the metallib built before it runs.

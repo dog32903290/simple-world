@@ -15,6 +15,7 @@
 #include "runtime/graph.h"           // Graph/Node/findSpec/pinId
 #include "runtime/particle_params.h" // RadialParams, RadialBinding
 #include "runtime/point_graph.h"     // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/point_ops_forceparams.h"  // fillVel/AxisStep/SnapAngles force param-fill helpers
 #include "runtime/tex_op_cache.h"    // cachedSourceComputePSO (PF-a: srcHash-keyed compute PSO)
 #include "runtime/tixl_point.h"      // SwPoint (64B) + EvaluationContext
 
@@ -104,6 +105,24 @@ const std::string& fieldDistanceTemplate() {
   static const std::string tmpl = [] {
 #ifdef SW_FIELD_DISTANCE_TEMPLATE
     std::ifstream f(SW_FIELD_DISTANCE_TEMPLATE);
+    if (!f) return std::string();
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
+#else
+    return std::string();
+#endif
+  }();
+  return tmpl;
+}
+
+// PF field-into-force COMPUTE template for RandomJumpForce (SW_RANDOM_JUMP_TEMPLATE). Same once-per-process
+// function-static read; empty if the define is unset/unreadable (-> no field path, but RandomJump has no
+// baked fallback PSO — a fieldless RandomJumpForce simply does nothing if the template is missing).
+const std::string& randomJumpTemplate() {
+  static const std::string tmpl = [] {
+#ifdef SW_RANDOM_JUMP_TEMPLATE
+    std::ifstream f(SW_RANDOM_JUMP_TEMPLATE);
     if (!f) return std::string();
     std::ostringstream ss;
     ss << f.rdbuf();
@@ -301,55 +320,16 @@ void cookParticleSim(PointCookCtx& c) {
       if (!runFieldForce(vffTemplate(), "vector_field_force", &vp, sizeof(vp)))
         runForce(s->psoVecField, &vp, sizeof(vp));  // fork-VFF baked fallback
     } else if (forceKind == FORCE_KIND_VELOCITY) {
-      // 批次24 VelocityForce — defaults照 VelocityForce.t3: Amount=1, Accelerate=1, MinSpeed=0,
-      // MaxSpeed=1000, Variation=0, VariationGainAndBias=(0.5,0.5).
-      VelForceParams vp{};
-      vp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
-      vp.Accelerate = cookInputParam(c, 1, "Accelerate", 1.0f);
-      vp.MinSpeed = cookInputParam(c, 1, "MinSpeed", 0.0f);
-      vp.MaxSpeed = cookInputParam(c, 1, "MaxSpeed", 1000.0f);
-      vp.Variation = cookInputParam(c, 1, "Variation", 0.0f);
-      vp.GainBiasX = cookInputParam(c, 1, "VariationGainAndBias.x", 0.5f);
-      vp.GainBiasY = cookInputParam(c, 1, "VariationGainAndBias.y", 0.5f);
-      vp.Count = pool;
+      // 批次24 VelocityForce — param-fill peeled to point_ops_forceparams.cpp (cap discipline).
+      VelForceParams vp = fillVelForceParams(c, pool);
       runForce(s->psoVel, &vp, sizeof(vp));
     } else if (forceKind == FORCE_KIND_AXISSTEP) {
-      // 批次24 AxisStepForce — defaults照 AxisStepForce.t3: ApplyTrigger=true(->1), Strength=1,
-      // RandomizeStrength=0, SelectRatio=0.1, AxisDistribution=(1,1,1), AddOriginalVelocity=0,
-      // StrengthDistribution=(1,1,1), AxisSpace=0(ObjectSpace), Seed=0.
-      AxisStepForceParams ap{};
-      ap.ApplyTrigger = cookInputParam(c, 1, "ApplyTrigger", 1.0f);
-      ap.Strength = cookInputParam(c, 1, "Strength", 1.0f);
-      ap.RandomizeStrength = cookInputParam(c, 1, "RandomizeStrength", 0.0f);
-      ap.SelectRatio = cookInputParam(c, 1, "SelectRatio", 0.1f);
-      ap.AxisDistributionX = cookInputParam(c, 1, "AxisDistribution.x", 1.0f);
-      ap.AxisDistributionY = cookInputParam(c, 1, "AxisDistribution.y", 1.0f);
-      ap.AxisDistributionZ = cookInputParam(c, 1, "AxisDistribution.z", 1.0f);
-      ap.AddOriginalVelocity = cookInputParam(c, 1, "AddOriginalVelocity", 0.0f);
-      ap.StrengthDistributionX = cookInputParam(c, 1, "StrengthDistribution.x", 1.0f);
-      ap.StrengthDistributionY = cookInputParam(c, 1, "StrengthDistribution.y", 1.0f);
-      ap.StrengthDistributionZ = cookInputParam(c, 1, "StrengthDistribution.z", 1.0f);
-      ap.Seed = cookInputParam(c, 1, "Seed", 0.0f);
-      ap.AxisSpace = cookInputParam(c, 1, "AxisSpace", 0.0f);
-      ap.Count = pool;
+      // 批次24 AxisStepForce — param-fill peeled to point_ops_forceparams.cpp (cap discipline).
+      AxisStepForceParams ap = fillAxisStepForceParams(c, pool);
       runForce(s->psoAxisStep, &ap, sizeof(ap));
     } else if (forceKind == FORCE_KIND_SNAPANGLES) {
-      // 批次24 SnapToAnglesForce — defaults照 SnapToAnglesForce.t3: Amount=1, AngleCount=45,
-      // Twist=0, Variation=0.2, VariationThreshold=0.1, KeepPlanar=0.5, Mode=0(CameraSpace, baked
-      // to WorldXY via the named camera fork in snaptoanglesforce.metal), Seed=0.
-      SnapAnglesForceParams sp{};
-      sp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
-      sp.SnapAngle = cookInputParam(c, 1, "AngleCount", 45.0f);
-      sp.PhaseAngle = cookInputParam(c, 1, "Twist", 0.0f);
-      sp.Variation = cookInputParam(c, 1, "Variation", 0.2f);
-      sp.VariationRatio = cookInputParam(c, 1, "VariationThreshold", 0.1f);
-      sp.KeepPlanar = cookInputParam(c, 1, "KeepPlanar", 0.5f);
-      sp.SpaceAndPlane = cookInputParam(c, 1, "Mode", 0.0f);
-      // RandomSeed (.hlsl b1) is NOT an operator input on SnapToAnglesForce (the .cs exposes no
-      // Seed slot; the .t3 feeds b1 from an internal child, not the operator surface). No invented
-      // port — baked to a fixed 0 (the variation hash is still per-particle via the index).
-      sp.RandomSeed = 0.0f;
-      sp.Count = pool;
+      // 批次24 SnapToAnglesForce — param-fill peeled to point_ops_forceparams.cpp (cap discipline).
+      SnapAnglesForceParams sp = fillSnapAnglesForceParams(c, pool);
       runForce(s->psoSnapAngles, &sp, sizeof(sp));
     } else if (forceKind == FORCE_KIND_FIELDDISTANCE) {
       // FieldDistanceForce — defaults照 FieldDistanceForce.t3: Amount=1, Attraction=1, Repulsion=1,
@@ -367,6 +347,23 @@ void cookParticleSim(PointCookCtx& c) {
       // the baked (.w=1 everywhere) static PSO degenerates to a faithful no-op (fork-FieldDistance-baked).
       if (!runFieldForce(fieldDistanceTemplate(), "field_distance_force", &fp, sizeof(fp)))
         runForce(s->psoFieldDist, &fp, sizeof(fp));  // fork-FieldDistance-baked fallback
+    } else if (forceKind == FORCE_KIND_RANDOMJUMP) {
+      // RandomJumpForce — defaults照 RandomJumpForce.t3: Amount=1, Frequency=1, Phase=0, Variation=0,
+      // DirectionDistribution=(1,1,1). DirectionDistribution(.cs) -> AmountDistribution(template);
+      // AmountFromVelocity(.cs) has no template slot -> baked 0 (no invented port).
+      RandomJumpForceParams rp{};
+      rp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
+      rp.Frequency = cookInputParam(c, 1, "Frequency", 1.0f);
+      rp.Phase = cookInputParam(c, 1, "Phase", 0.0f);
+      rp.Variation = cookInputParam(c, 1, "Variation", 0.0f);
+      rp.AmountDistributionX = cookInputParam(c, 1, "DirectionDistribution.x", 1.0f);
+      rp.AmountDistributionY = cookInputParam(c, 1, "DirectionDistribution.y", 1.0f);
+      rp.AmountDistributionZ = cookInputParam(c, 1, "DirectionDistribution.z", 1.0f);
+      rp.Count = pool;
+      // PF field-into-force bridge: a wired field -> the runtime-compiled random_jump_force kernel reads
+      // its color magnitude to modulate a curlNoise jump and ADDS it to POSITION (fork-RandomJump-position-
+      // write, RandomJumpForceTemplate.hlsl:75-77). No field / no template -> no move (no baked fallback PSO).
+      runFieldForce(randomJumpTemplate(), "random_jump_force", &rp, sizeof(rp));
     } else {  // FORCE_KIND_TURBULENCE (default)
       TurbParams tp{};
       tp.Amount = cookInputParam(c, 1, "Amount", 15.0f);

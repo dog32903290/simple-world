@@ -140,7 +140,32 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"Repulsion", "Repulsion", "Float", true, 1.0f, 0.0f, 10.0f},
         {"NormalSamplingDistance", "NormalSamplingDistance", "Float", true, 0.01f, 0.0f, 1.0f},
         {"DecayWithDistance", "DecayWithDistance", "Float", true, 0.0f, 0.0f, 10.0f},
-        {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_FIELDDISTANCE, 0.0f, 6.0f,
+        {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_FIELDDISTANCE, 0.0f, 7.0f,
+         Widget::Slider, {}, /*pinless=*/true}},
+       nullptr},
+      // RandomJumpForce — TiXL particle/force/RandomJumpForce. Samples a wired field's COLOR magnitude
+      // ((f.r+f.g+f.b)/3) at each particle's raw Position*0.9 to MODULATE a curlNoise jump, scales it by
+      // DirectionDistribution (-> AmountDistribution in the template), rotates by the particle's own Rotation
+      // quat, then ADDS it to POSITION (NAMED FORK fork-RandomJump-position-write — the only ported force
+      // that writes Position, not Velocity). The Field input is a real "Field" port (mirrors
+      // RandomJumpForce.cs:10-11 InputSlot<ShaderGraphNode> ValueField); the cook drivers gather the wired
+      // op tree into PointCookCtx::inputFieldTree and cookParticleSim assembles + compiles the random_jump
+      // template (PF bridge). No field -> no move (no baked fallback PSO). Defaults照 RandomJumpForce.t3:
+      // Amount=1, Frequency=1, Phase=0, Variation=0, DirectionDistribution=(1,1,1). AmountFromVelocity(.cs)
+      // has no template slot -> baked 0 in the cook (no invented port). isBufferInput() skips a "Field" port
+      // -> the dedicated field gather is the sole consumer (no double-count into ins[]).
+      {"RandomJumpForce",
+       "RandomJumpForce",
+       {{"force", "force", "ParticleForce", false},
+        {"Field", "Field", "Field", true},  // PF: TiXL ShaderGraphNode field input (ValueField)
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"Frequency", "Frequency", "Float", true, 1.0f, 0.0f, 5.0f},
+        {"Phase", "Phase", "Float", true, 0.0f, 0.0f, 10.0f},
+        {"Variation", "Variation", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"DirectionDistribution.x", "DirectionDistribution", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"DirectionDistribution.y", "DirectionDistribution.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"DirectionDistribution.z", "DirectionDistribution.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_RANDOMJUMP, 0.0f, 7.0f,
          Widget::Slider, {}, /*pinless=*/true}},
        nullptr},
       {"ParticleSystem",

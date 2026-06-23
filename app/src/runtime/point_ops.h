@@ -28,7 +28,7 @@ void registerDrawPointOps();          // DrawPoints, DrawLines, DrawBillboards, 
 // RadialPoints/ParticleSystem/DrawPoints). Declared here so their family registrars can wire
 // them. simStateNew/simStateFree are ParticleSystem's per-node state lifecycle hooks.
 void cookRadialPoints(PointCookCtx& c);
-void cookParticleSim(PointCookCtx& c);
+void cookParticleSim(PointCookCtx& c);  // force param-fill helpers in point_ops_forceparams.h
 RenderCommand cookDrawPoints(CmdCookCtx& c);
 void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count);
 void simStateFree(void* p);
