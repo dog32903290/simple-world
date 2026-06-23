@@ -28,4 +28,13 @@ REGISTER_SELFTESTS(/*orderBase=*/330,
     {"mesh-cube", runMeshCubeGoldenSelfTest},
     {"mesh-icosahedron", runMeshIcosahedronGoldenSelfTest},
 );
+// Modify family batch 2 (Split/Select/Deform/Collapse/ProjectUV). Fresh high orderBase appends to
+// --selftest-list without reshuffling the pre-existing mesh rows.
+REGISTER_SELFTESTS(/*orderBase=*/340,
+    {"mesh-splitvertices", runMeshSplitVerticesGoldenSelfTest},
+    {"mesh-selectvertices", runMeshSelectVerticesGoldenSelfTest},
+    {"mesh-deform", runMeshDeformGoldenSelfTest},
+    {"mesh-collapse", runMeshCollapseGoldenSelfTest},
+    {"mesh-projectuv", runMeshProjectUvGoldenSelfTest},
+);
 }  // namespace sw

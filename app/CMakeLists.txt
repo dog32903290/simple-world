@@ -310,6 +310,11 @@ add_executable(simple_world
   src/runtime/mesh_ops_flipnormals.cpp
   src/runtime/mesh_ops_recomputenormals.cpp
   src/runtime/mesh_ops_transformmeshuvs.cpp
+  src/runtime/mesh_ops_splitmeshvertices.cpp
+  src/runtime/mesh_ops_selectvertices.cpp
+  src/runtime/mesh_ops_deformmesh.cpp
+  src/runtime/mesh_ops_collapsevertices.cpp
+  src/runtime/mesh_ops_meshprojectuv.cpp
   src/runtime/mesh_ops_spheremesh.cpp
   src/runtime/mesh_ops_torusmesh.cpp
   src/runtime/mesh_ops_cylindermesh.cpp
@@ -318,6 +323,7 @@ add_executable(simple_world
   src/mesh_golden.cpp
   src/mesh_input_golden.cpp
   src/mesh_modify_golden.cpp
+  src/mesh_modify2_golden.cpp
   src/mesh_sphere_golden.cpp
   src/mesh_torus_golden.cpp
   src/mesh_cylinder_golden.cpp
