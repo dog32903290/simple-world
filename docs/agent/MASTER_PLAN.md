@@ -98,6 +98,7 @@
 ## Plan Inventory
 - 本檔 = 唯一 dashboard + 並行排序權威。
 - SEAM_COMPLETION_PLAN = 脊椎 S* + L4 施工 sub-plan。DEBT_LEDGER = S4 拆檔 + 真債。alignment/ = L1-L3/L5-L6 的 spec SSOT。
+- **pull-list（組批時從這 pull 下一顆）**：[census/OP_BACKLOG.md](census/OP_BACKLOG.md) = **L4 節點**狀態分桶；[census/SUBSYSTEM_BACKLOG.md](census/SUBSYSTEM_BACKLOG.md) = **L1/L3/L5/L6 子系統**狀態分桶（DONE/READY-NOW/BLOCKED/柏為殘留）。兩張皆 derived dashboard，肉的 SSOT 在 alignment/ + 藍圖 + git。**脊椎 commit 後掃 SUBSYSTEM_BACKLOG 桶 C 看誰升 READY**（如 L6 audio 匯出隨 S1 升）。
 
 ## Next Handoff
 **脊椎進度:S1✅ S2a✅(keystone) → 續 S2c/S2b。** 並行可開:L4(render/Execute 島已由 S2a 解鎖,+ point/mesh/field 葉;image-filter 近採盡)/L1(Variation pool/crossfader/UI/document-override,harness✅)/L3(AssetLibrary,harness 待蓋)/L5(LiveSource→graph 綁定,loopback harness✅)/L6(Reduce/Restore backup 續,perf overlay)/L2(MagGraph/分類/SliderLadder/Gradient,**ui/ 域與 `ui/tixl-node-skin` worktree 協調**)。每條未蓋 harness 的 lane 第一步=蓋 harness。下批由 orchestrator 自選未阻塞+不撞檔組批。
