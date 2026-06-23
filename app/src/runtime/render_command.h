@@ -158,6 +158,17 @@ struct RenderDrawItem {
   float camNear = 0.01f;       // TiXL ClipPlanes.X
   float camFar = 1000.0f;      // TiXL ClipPlanes.Y
   float camAspect = -1.0f;     // TiXL AspectRatio (.t3 default 0 → <0.0001 → use output aspect); <=0 = output aspect
+  // ── OrthographicCamera (TiXL OrthographicCamera.cs): same camera STAMP, ORTHOGRAPHIC projection ──
+  // OrthographicCamera shares the eye/target/up (LookAtRH WorldToCamera) + near/far (NearFarClip) + aspect
+  // fields above, but its CameraToClipSpace is orthoRH(size) instead of perspectiveFovRH. camOrtho=true
+  // tells the executor to build the ortho matrix. The ortho VIEW SIZE = Stretch · Scale · (aspect,1)
+  // (OrthographicCamera.cs:33) — the RAW Scale/Stretch travel here (NOT the resolved size) because the
+  // aspect factor needs the output (RequestedResolution) aspect, finalized executor-side exactly like
+  // Layer2d's ScaleMode and the Camera op's AspectRatio fallback. camFovDeg is DEAD when camOrtho (ortho
+  // has no fov). camOrtho=false → the perspective path above is byte-identical (no behaviour change).
+  bool camOrtho = false;
+  float camOrthoScale = 1.0f;          // TiXL Scale (.t3 default 1.0)
+  float camOrthoStretch[2] = {1.0f, 1.0f};  // TiXL Stretch (.t3 default (1,1))
   // ── DrawKind::Mesh (TiXL DrawMeshUnlit → mesh-DrawUnlit.hlsl) ──────────────────────────────────
   // The two mesh-currency buffers (sw_mesh.h SwVertex 80B / SwTriIndex 12B), borrowed from the cooked
   // upstream mesh node (PointGraph meshVtxBuf/meshIdxBuf, single-frame lifetime like `points`; NEVER

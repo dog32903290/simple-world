@@ -413,11 +413,9 @@ void cookRenderTarget(TexCookCtx& c) {
           // CameraToClipSpace, which the Camera op set).
           LayerCameraForward cam = camFwd;
           if (it.hasCamera) {
-            float ar = (it.camAspect > 0.0001f) ? it.camAspect : aspectF;
-            cam.worldToCamera = lookAtRH(it.camEye, it.camTarget, it.camUp);
-            cam.cameraToClipSpace =
-                perspectiveFovRH(it.camFovDeg * 3.14159265358979323846f / 180.0f, ar, it.camNear,
-                                 it.camFar);
+            float ar = (it.camAspect > 0.0001f) ? it.camAspect : aspectF;  // Camera.cs:53-55 fallback
+            cam = stampedCameraForward(it.camEye, it.camTarget, it.camUp, it.camOrtho, it.camFovDeg,
+                                       it.camOrthoScale, it.camOrthoStretch, ar, it.camNear, it.camFar);
           }
           Mat4 objectToWorld{};
           if (it.layer2dComposeSRT) {
@@ -469,10 +467,9 @@ void cookRenderTarget(TexCookCtx& c) {
           // stack belongs to a parent Transform op, deferred), with the default OR the stamped camera.
           LayerCameraForward cam = camFwd;
           if (it.hasCamera) {
-            float ar = (it.camAspect > 0.0001f) ? it.camAspect : aspectF;
-            cam.worldToCamera = lookAtRH(it.camEye, it.camTarget, it.camUp);
-            cam.cameraToClipSpace = perspectiveFovRH(
-                it.camFovDeg * 3.14159265358979323846f / 180.0f, ar, it.camNear, it.camFar);
+            float ar = (it.camAspect > 0.0001f) ? it.camAspect : aspectF;  // Camera.cs:53-55 fallback
+            cam = stampedCameraForward(it.camEye, it.camTarget, it.camUp, it.camOrtho, it.camFovDeg,
+                                       it.camOrthoScale, it.camOrthoStretch, ar, it.camNear, it.camFar);
           }
           // S2b GROUP SRT: same per-item group push as Layer2d (a mesh's own O2W is identity here — the
           // SRT belongs to a parent Transform op, deferred — so the group IS its ObjectToWorld). Identity

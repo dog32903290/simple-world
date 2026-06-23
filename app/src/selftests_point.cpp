@@ -83,6 +83,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"camera", runCameraSelfTest},
     {"camera-scope", runCameraScopeSelfTest},        // C1: point-camera hole closed (flat + resident)
     {"camera-resident", runCameraResidentSelfTest},  // C0: Camera→Layer2d through the resident terminal
+    {"orthographiccamera", runOrthographicCameraSelfTest},  // C2: OrthographicCamera ortho projection (flat+resident)
     {"execute", runExecuteSelfTest},
     {"layercompose", runLayerComposeSelfTest},
     {"group", runGroupSelfTest},

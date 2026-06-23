@@ -48,6 +48,7 @@
 #include "runtime/point_graph.h"
 #include "runtime/point_ops.h"
 #include "runtime/point_ops_camera_scope.h"  // runCameraScopeSelfTest (C1) + runCameraResidentSelfTest (C0)
+#include "runtime/point_ops_orthographiccamera.h"  // runOrthographicCameraSelfTest (camera3d C2)
 #include "runtime/spectrum_analyzer.h"
 #include "runtime/transport.h"
 #include "ui/cjk_font.h"

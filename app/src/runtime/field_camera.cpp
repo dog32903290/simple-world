@@ -112,6 +112,20 @@ Mat4 perspectiveFovRH(float fovY, float aspect, float zNear, float zFar) {
   return r;
 }
 
+Mat4 orthoRH(float width, float height, float zNear, float zFar) {
+  // System.Numerics Matrix4x4.CreateOrthographic verbatim (the .NET reference impl TiXL's
+  // OrthographicCamera.cs:36 calls). RH, row-vector, clip z in [0,1]. NO fov/aspect epsilon clamps —
+  // .NET's CreateOrthographic does none (it is a pure element fill); we mirror that exactly so the
+  // matrix is byte-faithful. A degenerate width/height/zRange would divide-by-zero, identical to .NET.
+  Mat4 r{};
+  r.m[0] = 2.0f / width;                    // M11
+  r.m[5] = 2.0f / height;                   // M22
+  r.m[10] = 1.0f / (zNear - zFar);          // M33
+  r.m[14] = zNear / (zNear - zFar);         // M43
+  r.m[15] = 1.0f;                           // M44 = 1 (orthographic: w stays 1, no perspective divide)
+  return r;
+}
+
 bool mat4Inverse(const Mat4& in, Mat4& out) {
   // Standard cofactor inverse (the same one most engines ship; numerically fine for camera matrices).
   const float* m = in.m;
@@ -290,6 +304,22 @@ LayerCameraForward defaultLayerCameraForward(float aspect) {
   LayerCameraForward f;
   f.worldToCamera = lookAtRH(eye, target, up);
   f.cameraToClipSpace = perspectiveFovRH(kDefaultCamFovDegrees * kPi / 180.0f, aspect, 0.01f, 1000.0f);
+  return f;
+}
+
+LayerCameraForward stampedCameraForward(const float eye[3], const float target[3], const float up[3],
+                                        bool ortho, float fovDeg, float scale, const float stretch[2],
+                                        float aspect, float zNear, float zFar) {
+  LayerCameraForward f;
+  f.worldToCamera = lookAtRH(eye, target, up);  // shared by both projection types
+  if (ortho) {
+    // OrthographicCamera.cs:33 size = Stretch · Scale · (aspect,1).
+    float sizeX = stretch[0] * scale * aspect;
+    float sizeY = stretch[1] * scale * 1.0f;
+    f.cameraToClipSpace = orthoRH(sizeX, sizeY, zNear, zFar);
+  } else {
+    f.cameraToClipSpace = perspectiveFovRH(fovDeg * kPi / 180.0f, aspect, zNear, zFar);
+  }
   return f;
 }
 

@@ -61,6 +61,16 @@ Mat4 lookAtRH(const float eye[3], const float target[3], const float up[3]);
 //   M43 = near·far/(near-far).
 Mat4 perspectiveFovRH(float fovY, float aspect, float zNear, float zFar);
 
+// orthoRH — verbatim port of System.Numerics Matrix4x4.CreateOrthographic(width, height, zNearPlane,
+// zFarPlane), the matrix TiXL's OrthographicCamera builds (OrthographicCamera.cs:36
+// Matrix4x4.CreateOrthographic(size.X, size.Y, clip.X, clip.Y)). RIGHT-HANDED, row-vector, D3D-style
+// clip z in [0,1] (near→0, far→1) — the SAME convention/z-range as perspectiveFovRH, so the Metal NDC
+// and the rest of the pipeline are unchanged. The DISTINGUISHING property vs perspective: M44=1 and
+// M34=0, so w stays 1 → there is NO perspective divide → NDC.x = world_x·(2/width) is DISTANCE-INVARIANT
+// (a farther eye does not shrink the projection). Element-for-element (1-based row.col → 0-based m[]):
+//   M11 = 2/width; M22 = 2/height; M33 = 1/(zNear-zFar); M43 = zNear/(zNear-zFar); M44 = 1.
+Mat4 orthoRH(float width, float height, float zNear, float zFar);
+
 // General 4x4 inverse (Gauss–Jordan / cofactor). Returns true on success; on a singular matrix
 // returns false and leaves `out` = identity. Used to derive CameraToWorld = inverse(WorldToCamera)
 // and ClipSpaceToCamera = inverse(CameraToClipSpace) — exactly TiXL's Matrix4x4.Invert calls in
@@ -179,6 +189,17 @@ struct LayerCameraForward {
   Mat4 cameraToClipSpace;
 };
 LayerCameraForward defaultLayerCameraForward(float aspect);
+
+// Build the FORWARD camera pair (WorldToCamera + CameraToClipSpace) for a per-item STAMPED camera (the
+// executor's Camera/OrthographicCamera op path). WorldToCamera = LookAtRH(eye,target,up) (shared). The
+// projection is ORTHOGRAPHIC when `ortho` (orthoRH(size), size = stretch·scale·(aspect,1),
+// OrthographicCamera.cs:33) else PERSPECTIVE (perspectiveFovRH(fovDeg→rad)). `aspect` is the resolved aspect
+// (camAspect>0 ? camAspect : output aspect — resolved by the caller, Camera.cs:53-55 fallback). fovDeg is
+// dead when ortho; scale/stretch are dead when perspective. Factored from the two identical executor branches
+// (Layer2d + Mesh) so the projection-type switch lives once (pure math, the field_camera convention lock).
+LayerCameraForward stampedCameraForward(const float eye[3], const float target[3], const float up[3],
+                                        bool ortho, float fovDeg, float scale, const float stretch[2],
+                                        float aspect, float zNear, float zFar);
 
 // The two camera matrices a BARE point op (no Camera/Transform wrapper) consumes from the
 // camera-matrix-into-points seam (PointCookCtx::objectToCamera / cameraToWorld). v1 FORK (named in

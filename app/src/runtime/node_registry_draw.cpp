@@ -155,6 +155,33 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"ClipPlanes.y", "ClipPlanes.y", "Float", true, 1000.0f, 0.0001f, 100000.0f, Widget::Vec, {}, true, 1},
         {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
        nullptr},
+      // OrthographicCamera (TiXL Lib.render.camera.OrthographicCamera): the perspective Camera's twin — wraps
+      // a Command subtree and renders it through an ORTHOGRAPHIC projection (no perspective foreshortening; a
+      // farther eye does NOT shrink the view). Command in → Command out (the op stamps its ortho camera onto
+      // every subtree item; the RenderTarget executor builds CameraToClipSpace = orthoRH(size) where
+      // size = Stretch·Scale·(aspect,1), OrthographicCamera.cs:33). FORKS (named): Roll dropped
+      // (OrthographicCamera.cs:30 rollRotation); Position default = TiXL's exact .t3 value (NOT rounded); no
+      // Reference output; AspectRatio default 0 → output (RequestedResolution) aspect (cs:25-28). v1: Scale +
+      // eye/target/up + near/far shipped (Stretch defaults (1,1)); no OrbitCamera/ActionCamera, no depth.
+      {"OrthographicCamera", "OrthographicCamera",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"Position.x", "Position", "Float", true, -0.0015059264f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"Position.y", "Position.y", "Float", true, 0.0014562709f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Position.z", "Position.z", "Float", true, 10.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Target.x", "Target", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"Target.y", "Target.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Target.z", "Target.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Up.x", "Up", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"Up.y", "Up.y", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Up.z", "Up.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Scale", "Scale", "Float", true, 1.0f, 0.0001f, 100.0f},
+        {"Stretch.x", "Stretch", "Float", true, 1.0f, 0.0001f, 100.0f, Widget::Vec, {}, true, 2},
+        {"Stretch.y", "Stretch.y", "Float", true, 1.0f, 0.0001f, 100.0f, Widget::Vec, {}, true, 1},
+        {"NearFarClip.x", "NearFarClip", "Float", true, 0.1f, 0.0001f, 1000.0f, Widget::Vec, {}, true, 2},
+        {"NearFarClip.y", "NearFarClip.y", "Float", true, 1000.0f, 0.0001f, 100000.0f, Widget::Vec, {}, true, 1},
+        {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
+       nullptr},
       // DrawMeshUnlit (TiXL Lib.mesh.draw.DrawMeshUnlit): the FIRST 3D mesh — a depth-tested,
       // genuinely-unlit triangle mesh (mesh-DrawUnlit.hlsl; psMain default = albedo(white)·Color = Color).
       // Mesh in → Command out (DrawKind::Mesh). The executor attaches a Depth32Float buffer and draws it
