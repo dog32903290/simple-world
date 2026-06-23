@@ -219,6 +219,7 @@ add_executable(simple_world
   src/platform/metal_compile_selftest.mm
   src/platform/osc_loopback.cpp
   src/platform/midi_loopback.mm
+  src/platform/live_binding.cpp
   src/runtime/particle_system.cpp
   src/runtime/particle_decay_selftest.cpp
   src/runtime/field_graph.cpp
