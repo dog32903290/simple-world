@@ -34,7 +34,8 @@ app/src/runtime/point_graph.h:440
 # Same cook-driver split should lower this with the S2a note above.
 app/src/runtime/point_graph_resident.cpp:609
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
-app/src/runtime/point_ops.h:544
+# +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
+app/src/runtime/point_ops.h:553
 app/src/runtime/point_ops_attributesfromimagechannels.cpp:429
 app/src/runtime/point_ops_blend.cpp:426
 app/src/runtime/point_ops_blendwithmask.cpp:434
@@ -50,7 +51,8 @@ app/src/runtime/point_ops_mappointattributes.cpp:496
 app/src/runtime/point_ops_ngongradient.cpp:503
 app/src/runtime/point_ops_radialgradient.cpp:463
 app/src/runtime/point_ops_remapcolor.cpp:471
-app/src/runtime/point_ops_rendertarget.cpp:667
+# +13: S2b Group SRT per-item right-multiply in the Layer2d + Mesh executor cases (finalO2W = childO2W·groupO2W); debt task spawned to extract the per-DrawKind cases into leaves.
+app/src/runtime/point_ops_rendertarget.cpp:680
 app/src/runtime/point_ops_repeatatpoints.cpp:452
 app/src/runtime/point_ops_rgbtv.cpp:538
 app/src/runtime/point_ops_rings.cpp:456

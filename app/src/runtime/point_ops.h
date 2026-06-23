@@ -504,6 +504,15 @@ RenderCommand cookExecute(CmdCookCtx& c);
 void registerExecuteOp();
 int runExecuteSelfTest(bool injectBug);
 
+// --- Group command op (point_ops_group.cpp, S2b = the FINAL S2 stage). MultiInput Command subtree in →
+// Command out: Execute + an SRT transform-context push (TiXL Group.cs context.ObjectToWorld =
+// Multiply(groupSRT, prev) around the collected children). Mechanism = per-item group stamp (the Camera-op
+// precedent): cookGroup stamps its accumulated SRT onto every subtree item (nesting accumulates); the
+// executor right-multiplies it into the item's ObjectToWorld. runGroupSelfTest = the render tooth (the
+// group translate/scale moves the child quad on BOTH flat + resident; declared in field_camera.h). ---
+RenderCommand cookGroup(CmdCookCtx& c);
+void registerGroupOp();
+
 // --- SetRequestedResolution command op (point_ops_setrequestedresolution.cpp, the S1 seam's EXPLICIT
 // override). Command in → Command out: the cook driver PUSHES requestedResolution (Width/Height-or-current
 // × Multiply, clamped [1,16384]) while cooking its subtree → a WindowFollow RenderTarget/camera inside

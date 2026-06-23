@@ -179,6 +179,20 @@ struct RenderDrawItem {
   // by DrawKind::LinesBuildup; the .t3 defaults are 0.5/0.5. Ignored by every other kind → byte-identical.
   float transitionProgress = 0.5f;  // TiXL TransitionProgress (.t3 default 0.5)
   float visibleRange = 0.5f;        // TiXL VisibleRange (.t3 default 0.5)
+  // ── Group SRT (S2b): the accumulated parent transform-context push (TiXL Group.cs ObjectToWorld) ──
+  // TiXL Group sets context.ObjectToWorld = Multiply(groupSRT, prevObjectToWorld) around its collected
+  // child Commands, then restores on exit (Group.cs:54-82). SW is retained-mode per-item (no runtime
+  // ObjectToWorld scope stack) so — exactly like the Camera op's per-item camera stamp (hasCamera/cam*
+  // above) — the Group op STAMPS its accumulated SRT onto every subtree item, and the EXECUTOR
+  // right-multiplies it into the item's own ObjectToWorld: finalO2W = layerO2W · groupObjectToWorld
+  // (row-vector v·M; the group is the PARENT transform applied AFTER the child's own = TiXL's
+  // child·context order). NESTING accumulates: an outer Group does it.group = it.group · outerSRT, so a
+  // child sees v·childO2W·innerSRT·outerSRT (innermost first). hasGroup=false → identity → the pre-S2b
+  // path is byte-identical (the executor skips the multiply). ROW-MAJOR (m[r*4+c]), same convention as
+  // objectToClipSpace / layer2dObjectToWorld. Read by Layer2d + Mesh (the kinds that compose ObjectToWorld;
+  // every other kind ignores it). Default identity (a no-op = no group push).
+  bool hasGroup = false;
+  float groupObjectToWorld[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
 };
 
 // A render command chain: draw items in execution order (later items composite on top).

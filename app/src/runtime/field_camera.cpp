@@ -245,6 +245,42 @@ Mat4 layer2dObjectToWorld(float scaleX, float scaleY, float rotateZdeg, float tx
   return mat4Mul(mat4Mul(S, R), T);
 }
 
+Mat4 groupObjectToWorld(float sx, float sy, float sz, float yawDeg, float pitchDeg, float rollDeg,
+                        float tx, float ty, float tz) {
+  // TiXL Group.cs:44 CreateTransformationMatrix(scalingCenter=0, scalingRotation=Identity,
+  // scaling=(sx,sy,sz), rotationCenter=0, rotation=CreateFromYawPitchRoll(yaw,pitch,roll),
+  // translation=(tx,ty,tz)). With centers=0 + scalingRotation=Identity the GraphicsMath.cs:84-96 product
+  // collapses to M = S·R·T (row-vector v·M). Build each, then mat4Mul left→right (apply S, then R, then T).
+  Mat4 S = mat4Identity();
+  S.m[0] = sx; S.m[5] = sy; S.m[10] = sz;
+
+  // R = CreateFromQuaternion(CreateFromYawPitchRoll(yaw,pitch,roll)). Transcribed element-for-element
+  // from System.Numerics: Quaternion.CreateFromYawPitchRoll → (x,y,z,w), then Matrix4x4.CreateFromQuaternion
+  // (ROW-MAJOR, row-vector convention — same storage as the rest of this file). deg→rad (named fork, like
+  // Layer2d's rotateZdeg). yaw=Y, pitch=X, roll=Z (Group.cs:40-42).
+  float yaw = yawDeg * kPi / 180.0f, pitch = pitchDeg * kPi / 180.0f, roll = rollDeg * kPi / 180.0f;
+  float sy2 = std::sin(roll * 0.5f), cy2 = std::cos(roll * 0.5f);   // System.Numerics names: roll→sr/cr
+  float sp = std::sin(pitch * 0.5f), cp = std::cos(pitch * 0.5f);
+  float syaw = std::sin(yaw * 0.5f), cyaw = std::cos(yaw * 0.5f);
+  // Quaternion.CreateFromYawPitchRoll (System.Numerics reference impl):
+  float qx = cyaw * sp * cy2 + syaw * cp * sy2;
+  float qy = syaw * cp * cy2 - cyaw * sp * sy2;
+  float qz = cyaw * cp * sy2 - syaw * sp * cy2;
+  float qw = cyaw * cp * cy2 + syaw * sp * sy2;
+  // Matrix4x4.CreateFromQuaternion (System.Numerics, row-vector / row-major):
+  float xx = qx * qx, yy = qy * qy, zz = qz * qz;
+  float xy = qx * qy, wz = qz * qw, xz = qz * qx, wy = qy * qw, yz = qy * qz, wx = qx * qw;
+  Mat4 R = mat4Identity();
+  R.m[0] = 1.0f - 2.0f * (yy + zz); R.m[1] = 2.0f * (xy + wz);        R.m[2] = 2.0f * (xz - wy);
+  R.m[4] = 2.0f * (xy - wz);        R.m[5] = 1.0f - 2.0f * (zz + xx); R.m[6] = 2.0f * (yz + wx);
+  R.m[8] = 2.0f * (xz + wy);        R.m[9] = 2.0f * (yz - wx);        R.m[10] = 1.0f - 2.0f * (yy + xx);
+
+  Mat4 T = mat4Identity();
+  T.m[12] = tx; T.m[13] = ty; T.m[14] = tz;
+
+  return mat4Mul(mat4Mul(S, R), T);
+}
+
 LayerCameraForward defaultLayerCameraForward(float aspect) {
   // Same default camera as defaultRaymarchTransforms — but the FORWARD pair the quad VS consumes
   // (WorldToCamera + CameraToClipSpace), not the unproject inverses.

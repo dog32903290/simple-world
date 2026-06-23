@@ -22,6 +22,7 @@ void registerDrawPointOps() {
   registerLayer2dOp();                          // Texture2D → Command (DrawKind::Layer2d, camera-context seam)
   registerCameraOp();                           // Command → Command (explicit camera push/pop, Cut 3)
   registerExecuteOp();                           // Command(MultiInput) → Command (S2a KEYSTONE: N-chain concat)
+  registerGroupOp();                             // Command(MultiInput) → Command (S2b: Execute + SRT transform-context push)
   registerSetRequestedResolutionOp();           // Command → Command (explicit RequestedResolution push/pop, S1)
   registerDrawMeshUnlitOp();                    // Mesh → Command (DrawKind::Mesh, the FIRST 3D mesh, Cut 99)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)

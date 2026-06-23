@@ -143,6 +143,33 @@ void layer2dScaleModeApply(Layer2dScaleMode mode, float imageAspect, float viewA
 //       CreateRotationZ(roll), row-vector); T = translate(tx,ty,tz). M = mat4Mul(mat4Mul(S,R),T).
 Mat4 layer2dObjectToWorld(float scaleX, float scaleY, float rotateZdeg, float tx, float ty, float tz);
 
+// ── Group transform (S2b) ──────────────────────────────────────────────────────────────────────
+// PARITY AUTHORITY: external/tixl/Operators/Lib/render/transform/Group.cs:38-55 + GraphicsMath.cs
+// CreateTransformationMatrix + CreateFromYawPitchRoll.
+//
+// Group builds objectToParentObject = CreateTransformationMatrix(scalingCenter=0,
+//   scalingRotation=Identity, scaling=(s.X,s.Y,s.Z), rotationCenter=0,
+//   rotation=CreateFromYawPitchRoll(yaw,pitch,roll), translation=(t.X,t.Y,t.Z)). With centers=0 and
+//   scalingRotation=Identity, GraphicsMath.cs:84-96 collapses to M = S·R·T (row-vector v·M, the SAME
+//   convention as layer2dObjectToWorld). Then context.ObjectToWorld = Multiply(M, prevObjectToWorld)
+//   (System.Numerics Multiply(A,B) applies A then B = our mat4Mul) — so a child vertex sees
+//   v·childO2W·groupSRT·parentGroupSRT…  (the group's SRT right-multiplied onto the child's own).
+//
+// DIFFERENCE FROM Layer2d: Group rotates on ALL THREE axes — rotation = CreateFromYawPitchRoll(yaw=r.Y,
+//   pitch=r.X, roll=r.Z) (System.Numerics: applies roll(Z) then pitch(X) then yaw(Y), row-vector). Scale
+//   is (sx,sy,sz) 3D and translate is (tx,ty,tz) 3D (Layer2d's is the rotZ-only / scaleX,scaleY,1 subset).
+//   rotation degrees → radians internally (named fork, same as Layer2d).
+//   scaling already includes the UniformScale product (Group.cs:38 Scale*UniformScale) — multiply before.
+Mat4 groupObjectToWorld(float sx, float sy, float sz, float yawDeg, float pitchDeg, float rollDeg,
+                        float tx, float ty, float tz);
+
+// --selftest-group entry (point_ops_group.cpp). RENDER tooth (GPU): Group wraps a Layer2d subtree and
+// pushes its SRT; the child quad moves/scales by the group transform on BOTH the flat and resident
+// cook legs. injectBug = drop the group push (identity) → the quad does not move → the moved-in probe
+// reads background → RED on both legs. Declared here (shares the field_camera convention), defined in
+// point_ops_group.cpp.
+int runGroupSelfTest(bool injectBug);
+
 // The DEFAULT-camera FORWARD matrices Layer2d needs (the inverses live in RaymarchTransforms; the
 // quad VS needs WorldToCamera + CameraToClipSpace forward). Same default as defaultRaymarchTransforms:
 // eye=(0,0,DefaultCameraDistance), target=origin, up=(0,1,0), fov=45°, near=0.01, far=1000.

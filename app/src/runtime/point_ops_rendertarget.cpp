@@ -437,6 +437,14 @@ void cookRenderTarget(TexCookCtx& c) {
             // hand-built matrix). Kept so the seam-presence golden can drive an arbitrary matrix.
             for (int i = 0; i < 16; ++i) objectToWorld.m[i] = it.objectToClipSpace[i];
           }
+          // S2b GROUP SRT: a parent Group op stamped its accumulated transform onto this item (TiXL
+          // Group.cs context.ObjectToWorld = Multiply(groupSRT, prev)). Right-multiply it (row-vector v·M
+          // → the group is the PARENT applied AFTER the child's own O2W = child·group). Identity when no
+          // Group → byte-identical to the pre-S2b path.
+          if (it.hasGroup) {
+            Mat4 grp{}; for (int i = 0; i < 16; ++i) grp.m[i] = it.groupObjectToWorld[i];
+            objectToWorld = mat4Mul(objectToWorld, grp);
+          }
           Mat4 o2c = objectToClipSpace(objectToWorld, cam.worldToCamera, cam.cameraToClipSpace);
           for (int i = 0; i < 16; ++i) P.objectToClipSpace[i] = o2c.m[i];
           P.applyTransform = it.applyTransform ? 1u : 0u;  // drop-mul golden tooth
@@ -466,7 +474,12 @@ void cookRenderTarget(TexCookCtx& c) {
             cam.cameraToClipSpace = perspectiveFovRH(
                 it.camFovDeg * 3.14159265358979323846f / 180.0f, ar, it.camNear, it.camFar);
           }
-          Mat4 o2c = objectToClipSpace(mat4Identity(), cam.worldToCamera, cam.cameraToClipSpace);
+          // S2b GROUP SRT: same per-item group push as Layer2d (a mesh's own O2W is identity here — the
+          // SRT belongs to a parent Transform op, deferred — so the group IS its ObjectToWorld). Identity
+          // when no Group → byte-identical.
+          Mat4 meshO2W = mat4Identity();
+          if (it.hasGroup) { for (int i = 0; i < 16; ++i) meshO2W.m[i] = it.groupObjectToWorld[i]; }
+          Mat4 o2c = objectToClipSpace(meshO2W, cam.worldToCamera, cam.cameraToClipSpace);
           MeshDrawParams M{};
           M.color[0] = it.color[0]; M.color[1] = it.color[1];
           M.color[2] = it.color[2]; M.color[3] = it.color[3];
