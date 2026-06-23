@@ -13,6 +13,24 @@
 
 **真縫 = field-MSL 注入 + source-compiled compute PSO cache + 把 assembled field-param buffer 綁到第二個 buffer slot。** 就像 S2 結果是「MultiInput Command collector」不是「new draw pipeline」，S3 是「thread ContextVarMap」不是「build context-var」——這縫是「把 field source 注進 force compute 模板」，不是「寫位移積分器」（積分器已在）。
 
+## 0.5 ★PROBE 結果（2026-06-23，probe=B）→ 多一塊 PF-0 keystone（scope 比原 §0 大）
+
+§7 結尾 FLAG（resident flatten 帶不帶 wired field child）已用 probe golden 驗證（`--selftest-particlefield-probe`，commit `f5fe112`，主樹常駐 tooth）：**結果 = B，且比最壞情況更廣——不是 resident 漏，是 flat+resident 兩條 cook path 都完全沒有任何 field-input 投影。** 原 §0「force kernel 早就在跑、只缺注入橋」是對的，但**漏看了「wired field 根本到不了 force cook」**。直接建 §3 PF-a = flat 綠 prod 黑的假完成（probe 兩腿 mean 都 `(7.699,7.699,7.699)` anisotropy=0，field 被丟）。**所以 PF-a 之前必須先補 PF-0。**
+
+**probe 證據（file:line，2026-06-23 HEAD）**：
+- `node_registry_particle.cpp:44-54` — VectorFieldForce NodeSpec **只有** force/Amount/Randomize/_ForceKind，自帶註解「TiXL's VectorField (ShaderGraphNode) input is OMITTED (no field type on the contract yet)」。wired field 無處可落。
+- `point_graph.cpp:232-309`（flat）+ `point_graph_resident.cpp:284-338`（resident）按 dataType gather input（Points/Texture2D/Mesh/Gradient/Curve）——grep `"Field"`/`ShaderGraphNode`/`FieldNode`/`fieldRoot` 兩檔皆 **零**。resident 還 `cc.graph=nullptr`（`:330`）→ op 連回走 graph 找 field 都不行。
+- `renderField2d`（`field_render.cpp:21`）/`makeFieldNode` 唯一 caller = field render golden（`field_render_golden.cpp:103,129`）——production 無 graph→FieldNode 橋。field op 有 `"Field"` output port（`field_ops_toroidalvortexfield.cpp:216`）故 graph-addable，但無人消費成 runnable tree。
+
+**★PF-0 — field-input projection keystone（PF-a 之前先做，cook-core 序列、owner-lock、與 S4 拆 point_graph 協調同檔）**：
+1. `node_registry_particle.cpp` — VectorFieldForce NodeSpec 加 `"Field"` input port。
+2. `point_graph.cpp`（flat）— 加 `"Field"` gather 分支，把 wired field node 走成 FieldNode tree（**新 graph→FieldNode builder**，目前不存在；per-type `makeFieldNode`+recurse children，鏡像 `assembleFieldMSL` 的 tree 但 source 自 graph 連線非 test factory）。
+3. `point_graph_resident.cpp` — resident 鏡像（`ResidentInput::Driver::Connection` 分支，仿 Gradient gather `:288-295`），把 field child 投影過 resident flatten。
+4. `PointCookCtx` 加 field-tree channel（目前無 field slot，鏡像 `inputGradients`/`meshVtx`）。
+5. **然後** 才是 §3 PF-a（cachedSourceComputePSO + force-compute 模板 + slot-1 field-param bind）。
+
+**probe golden 是 executable FLAG**：no-bug PASS=斷言當前 gap 形狀（兩腿 baked-isotropic，regression tripwire）；`-bug` RED=斷言未來綠狀態（wired field 有 anisotropic 效果）。PF-0+PF-a 落地後 implementer 翻轉它（改 no-bug 斷言 anisotropy≠0）。**這條 tooth 鎖住 seam 的驗收標準在測試裡，不只在 prose。**
+
 ## 1. TiXL ground truth（cited）
 
 兩個**不同**的 velocity 消費者，世界觀互斥，必須分清：
