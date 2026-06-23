@@ -15,6 +15,7 @@
 #include "runtime/compound_graph.h"       // SymbolLibrary/Symbol/SymbolChild (lib defaultDrawTarget)
 #include "runtime/curve.h"                // sw::Curve (bake-into-point seam: PointCookCtx::inputCurves complete type)
 #include "runtime/colorlist_op_registry.h"     // ColorListCookCtx/findColorListOp (vec4-list cook flow = host List<Vector4>)
+#include "runtime/field_graph_builder.h"       // buildFieldTree (PF-0 field-into-force seam; thin call-site)
 #include "runtime/floatlist_op_registry.h"     // FloatListCookCtx/findFloatListOp (the 5th cook flow = host List<float>)
 #include "runtime/gradient_op_registry.h"      // GradientCookCtx/findGradientOp (the 8th cook flow = host Gradient)
 #include "runtime/graph.h"                // Graph/Node/NodeSpec/PortSpec/pinId/pinNode/findSpec
@@ -308,6 +309,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       }
     }
 
+    // FIELD gather (PF-0 field-into-force seam, thin call-site): two-hop force→field chase + recursion in
+    // field_graph_builder.cpp → cc.inputFieldTree. Kernel un-consumed until PF-a → byte-identical.
+    std::shared_ptr<FieldNode> fieldTree = gatherForceFieldTree(g, id, nodeParams);
+
     const std::map<std::string, float>* params = nodeParams(id);
 
     // count: a "Count" Float input (generators) resolved through the value spine (the resolved
@@ -349,6 +354,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.inputCurves = hasCurveInput ? &curveInputs : nullptr;  // empty in production (no Curve producer)
     cc.meshVtx = meshVtx; cc.meshVtxCount = meshVtxCount;  // mesh-into-points seam (null/0 if no Mesh input)
     cc.meshIdx = meshIdx; cc.meshFaceCount = meshFaceCount;
+    cc.inputFieldTree = fieldTree;  // PF-0 field-into-force seam (null if no wired Field; PF-a consumes it)
     // Camera aspect = ACTIVE RequestedResolution (S1 seam, EvaluationContext.cs:78,94), not raw window.
     const RenderResolution& rrC = p_->requestedResolution;  // camera seam
     fillPointCamera(cc, *s, (rrC.h > 0) ? (float)rrC.w / (float)rrC.h : 1.0f);

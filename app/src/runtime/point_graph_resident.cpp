@@ -20,6 +20,7 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
+#include "runtime/field_graph_builder.h"   // buildResidentFieldTree (PF-0 field-into-force seam; thin call-site)
 #include "runtime/graph.h"                 // NodeSpec/PortSpec/findSpec
 #include "runtime/image_filter_op_registry.h"  // imageFilterComputeTypes/imageFilterSizeFns (compute leaf seam)
 #include "runtime/mesh_op_registry.h"          // MeshCookCtx/SwMeshView/findMeshOp (the 4th cook flow = MeshBuffers)
@@ -296,6 +297,11 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       }
     }
 
+    // FIELD gather (PF-0, RESIDENT/PRODUCTION path — R-2 iron rule, thin call-site): two-hop force→field
+    // chase + recursion in field_graph_builder.cpp → cc.inputFieldTree. Kernel un-consumed until PF-a →
+    // byte-identical. cc.graph==nullptr does NOT block this (the DRIVER holds rg, like cookResidentGradient).
+    std::shared_ptr<FieldNode> fieldTree = gatherForceResidentFieldTree(rg, path, nodeParams);
+
     const std::map<std::string, float>* params = nodeParams(path);
 
     // count: a "Count" Float input (generators) resolved through its driver, else sum of Points
@@ -336,6 +342,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     cc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;  // bake-into-point seam (null otherwise)
     cc.inputCurves = hasCurveInput ? &curveInputs : nullptr;  // empty in production (no Curve producer)
     cc.meshVtx = meshIn.vtx; cc.meshVtxCount = meshIn.vtxCount; cc.meshIdx = meshIn.idx; cc.meshFaceCount = meshIn.faceCount;  // mesh seam
+    cc.inputFieldTree = fieldTree;  // PF-0 field-into-force seam (null if no wired Field; PF-a consumes it)
     // Camera aspect = ACTIVE RequestedResolution (S1 seam, EvaluationContext.cs:78,94), not raw window.
     const RenderResolution& rrR_ = p_->requestedResolution;  // camera seam (resident mirror of cook())
     fillPointCamera(cc, *s, (rrR_.h > 0) ? (float)rrR_.w / (float)rrR_.h : 1.0f);

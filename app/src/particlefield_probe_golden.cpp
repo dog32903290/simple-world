@@ -126,6 +126,17 @@ int findFieldOutPortIdx() {
   return (int)(s->ports.empty() ? 0 : s->ports.size() - 1);
 }
 
+// "Field" INPUT port index on VectorFieldForce (PF-0 added the "VectorField" port). The flat field
+// gather chases this port; wiring the field to the REAL port (not a phantom pin) is what exercises the
+// builder. Returns -1 if absent (pre-PF-0 — then the probe falls back to a phantom pin, still inert).
+int findForceFieldInPortIdx() {
+  const NodeSpec* s = findSpec("VectorFieldForce");
+  if (!s) return -1;
+  for (size_t i = 0; i < s->ports.size(); ++i)
+    if (s->ports[i].isInput && s->ports[i].dataType == "Field") return (int)i;
+  return -1;
+}
+
 // FLAT leg: cook RadialPoints -> ParticleSystem with a wired VectorFieldForce, AND a ToroidalVortexField
 // whose Result we attempt to wire toward the force (raw pin connection — there is no Field input port to
 // receive it, mirroring exactly what a UI wire would face). Returns the pool mean after `steps` frames.
@@ -146,10 +157,12 @@ Mean cookFlat(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, uint32_
   g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // RadialPoints.points -> emit
   g.connections.push_back({102, pinId(4, 0), pinId(2, 1)});  // VectorFieldForce.force -> forces
   g.connections.push_back({103, pinId(2, 2), pinId(3, 0)});  // result -> DrawPoints
-  // The wire the bridge would need: ToroidalVortexField.Result -> VectorFieldForce's field input.
-  // The force has no Field input port (its index 1 is the Amount Float); we connect to where a field
-  // input WOULD live. The cook drivers gather no "Field" inputs, so this connection is inert today.
-  g.connections.push_back({104, pinId(5, /*Result port idx*/findFieldOutPortIdx()), pinId(4, 99)});
+  // The field wire: ToroidalVortexField.Result -> VectorFieldForce's "VectorField" Field input. PF-0
+  // added the real Field port, so the flat field gather builds the tree from THIS wire. (Pre-PF-0 there
+  // was no Field port → a phantom pin 99, inert; the fallback keeps the probe runnable either way.)
+  const int forceFieldIn = findForceFieldInPortIdx();
+  g.connections.push_back({104, pinId(5, /*Result port idx*/findFieldOutPortIdx()),
+                           pinId(4, forceFieldIn >= 0 ? forceFieldIn : 99)});
 
   const int targetId = pg.defaultDrawTarget(g);
   for (int i = 0; i < steps; ++i) {
@@ -278,12 +291,17 @@ int runParticleFieldProbeSelfTest(bool injectBug) {
     return wouldPass ? 0 : 1;  // RED today (== the documented gap)
   }
 
-  // no-bug row: assert the PRESENT TRUTH precisely — no Field input on the force, AND both legs drift
-  // along the baked (1,1,1) isotropy (the field child is dropped identically flat and resident). GREEN
-  // today; it locks in the exact shape of the gap so a future regression (e.g. the force accidentally
-  // gaining a partial field path on only one leg) trips here.
-  bool gapHolds = (!fieldInputExists) && flatIsotropic && resIsotropic;
-  std::printf("[selftest-particlefield-probe] %s (gap-shape: no Field input + both legs baked-isotropic)\n",
+  // no-bug row: assert the PF-0 TRANSITIONAL TRUTH precisely. PF-0 added the "VectorField" Field input
+  // port to VectorFieldForce and a flat+resident field gather that DELIVERS the wired ToroidalVortexField
+  // tree to PointCookCtx::inputFieldTree — but the force KERNEL still bakes (1,1,1) (PF-a removes the
+  // bake). So the present truth is: the force NOW HAS a Field input (fieldInputExists==YES), yet both legs
+  // STILL drift along the baked isotropy (the tree reaches the cook but is not consumed). This is the
+  // two-stage flip's MIDDLE state — it is GREEN at PF-0 and PF-a flips it to the TERMINAL anisotropy≠0.
+  // It locks the exact shape of the PF-0 gap so a regression (e.g. PF-a half-landing on one leg, or the
+  // Field port vanishing) trips here.
+  bool gapHolds = fieldInputExists && flatIsotropic && resIsotropic;
+  std::printf("[selftest-particlefield-probe] %s (PF-0 gap-shape: Field input present + tree delivered, "
+              "both legs STILL baked-isotropic — kernel un-consumed until PF-a)\n",
               gapHolds ? "PASS" : "FAIL");
   if (q) q->release(); lib->release(); if (dev) dev->release(); pool->release();
   return gapHolds ? 0 : 1;

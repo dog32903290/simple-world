@@ -16,6 +16,7 @@
 #pragma once
 #include <cstdint>
 #include <map>
+#include <memory>  // std::shared_ptr (PointCookCtx::inputFieldTree, PF-0 field-into-force seam)
 #include <string>
 #include <vector>
 
@@ -36,6 +37,7 @@ struct SwPoint;            // runtime/tixl_point.h (64B host point; full def whe
 namespace sw { struct ContextVarMap; }  // stateful_value_ops.h (host per-frame var map; S3a)
 namespace sw { struct SwGradient; }  // runtime/sw_gradient.h (host Gradient; full def where the op includes it)
 namespace sw { class Curve; }        // runtime/curve.h (host Curve currency; full def where the op includes it)
+namespace sw { struct FieldNode; }   // runtime/field_graph.h (FieldNode tree; full def in the builder + PF-a cook TU)
 
 namespace sw {
 
@@ -93,6 +95,11 @@ struct PointCookCtx {
   uint32_t meshVtxCount = 0;              // upstream VERTEX count (countFromMeshVtx sizes the bag to it)
   const MTL::Buffer* meshIdx = nullptr;   // upstream SwTriIndex buffer (unused by the per-vertex op)
   uint32_t meshFaceCount = 0;             // upstream FACE count (== SwTriIndex count)
+  // FIELD input (PF-0 field-into-force seam): a force op wired to a field op (VectorFieldForce <-
+  // ToroidalVortexField.Result) gets the assembled FieldNode tree here (gatherForceFieldTree flat /
+  // gatherForceResidentFieldTree resident). Borrowed-single-frame like inputGradients. null = no wired
+  // Field → byte-identical (PF-a's kernel still bakes (1,1,1)). v1 single slot [fork-VFF-singlefield].
+  std::shared_ptr<FieldNode> inputFieldTree = nullptr;
   // CAMERA matrices (the camera-matrix-into-points seam): a "Camera" marker INPUT port → the driver
   // fills these from the DEFAULT camera at the output aspect (fillPointCamera → pointCameraMatrices; v1
   // fork: default camera + identity ObjectToWorld). ROW-MAJOR float[16] (shader rebuilds a float4x4 so

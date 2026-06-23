@@ -104,6 +104,7 @@ namespace sw { int runFieldPushPullSdfGoldenSelfTest(bool); }     // field_ops_p
 namespace sw { int runFieldBlendSdfWithSdfGoldenSelfTest(bool); } // field_ops_blendsdfwithsdf_golden.cpp (3-input custom-collect; sdfBlendByMask helper + f.xyz mix, shared Common key)
 namespace sw { int runFieldToroidalVortexFieldGoldenSelfTest(bool); } // field_ops_toroidalvortexfield_golden.cpp (vec3 VECTOR-field generator; decay-channel GPU golden + velocity-text assertion, axis-enum)
 namespace sw { int runParticleFieldProbeSelfTest(bool); }         // particlefield_probe_golden.cpp (PF-a FLAG probe: field-into-force bridge ABSENT on both legs — RED evidence)
+namespace sw { int runFieldTreeBuilderSelfTest(bool); }          // fieldtree_builder_golden.cpp (PF-0 graph->FieldNode builder: flat+resident both build ToroidalVortexField tree + project wired Radius)
 namespace sw { int runMeshNGonGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: NGonMesh)
 namespace sw { int runMeshQuadGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: QuadMesh)
 namespace sw { int runMeshTransformGoldenSelfTest(bool); }       // mesh_input_golden.cpp (mesh-input seam: TransformMesh consumer)

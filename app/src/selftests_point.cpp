@@ -98,5 +98,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"gizmo-gridplane", runGizmoGridPlaneSelfTest},  // C3 gizmo Tranche-1: GridPlane (wireframe grid, shader fork)
     {"gizmo-locator", runGizmoLocatorSelfTest},  // C3 gizmo Tranche-1: Locator (3-axis cross, geometry only)
     {"particlefield-probe", runParticleFieldProbeSelfTest},  // PF-a FLAG probe: field-into-force bridge absent (RED evidence)
+    {"fieldtree-builder", runFieldTreeBuilderSelfTest},  // PF-0: graph->FieldNode builder (flat+resident both legs)
 );
 }  // namespace sw

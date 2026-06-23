@@ -48,11 +48,20 @@ app/src/runtime/math_ops_selftest.cpp:1339
 # resolveActiveCamera + LiveCameraScope around the SubGraph cook, CAMERA3D_BLUEPRINT §1, mirror of the S3a
 # var scope above). Closes the point-camera default-vs-pushed black-hole; the resident mirror is the
 # blood-lesson leg below. Proven by --selftest-camera-scope (flat tooth). Same cook-driver-split debt lowers this.
-app/src/runtime/point_graph.cpp:862
+# PF-0 (2026-06-23) +6: the flat FIELD gather (field-into-force seam) — the thin call-site
+# gatherForceFieldTree(g,id,nodeParams) + cc.inputFieldTree assign + the field_graph_builder.h include. The
+# two-hop force→field chase + recursion live in the new TU field_graph_builder.cpp (肉 OUT of this file);
+# only the call-site + ctx wire are here, irreducible. Proven by --selftest-fieldtree-builder (flat leg) +
+# --selftest-particlefield-probe (transitional). Same cook-driver-split debt lowers this.
+app/src/runtime/point_graph.cpp:868
 # S3a (2026-06-23) +12: CmdCookCtx gained the ContextVarMap* ctxVars field (additive ABI, mirrors
 # inputCommand) + the forward-decl + cook/cookResident gained the trailing ctxVars param. Doc squeezed to
 # the floor; the field + its load-bearing comment (the two-rail fork note, blueprint risk #3) are irreducible.
-app/src/runtime/point_graph.h:452
+# PF-0 (2026-06-23) +7: PointCookCtx gained the std::shared_ptr<FieldNode> inputFieldTree channel (the
+# field-into-force seam, mirrors inputGradients) + the FieldNode forward-decl + the <memory> include. The
+# member + its load-bearing comment + the fwd-decl/include are irreducible cook-core ABI. Proven by
+# --selftest-fieldtree-builder. Same cook-driver-split debt lowers this.
+app/src/runtime/point_graph.h:459
 # C1 (2026-06-23) +6: the shared two-cook seam header (already at the 400 ceiling) — fillPointCamera now
 # reads the live ActiveCamera (the wired Camera the draws respect) instead of ALWAYS the default, + the
 # point_ops_camera_scope.h include. The if/else + include are irreducible cook-core seam glue; comments at the
@@ -81,7 +90,12 @@ app/src/runtime/point_graph_internal.h:406
 # production runs THIS; a resident-only miss = resident point ops read the default under a wired Camera =
 # prod black-hole). Same resolveActiveCamera + LiveCameraScope as the flat leg. Proven by
 # --selftest-camera-scope's resident tooth. Same cook-driver-split debt lowers this.
-app/src/runtime/point_graph_resident.cpp:710
+# PF-0 (2026-06-23) +7: the resident MIRROR of the flat FIELD gather (the production leg — prod runs THIS;
+# a resident-only miss = the wired field never reaches the production force cook). Thin call-site
+# gatherForceResidentFieldTree(rg,path,nodeParams) + cc.inputFieldTree assign + the builder include; the
+# two-hop chase + recursion live in field_graph_builder.cpp. cc.graph==nullptr does NOT block it (the
+# DRIVER holds rg, like cookResidentGradient). Proven by --selftest-fieldtree-builder (resident leg).
+app/src/runtime/point_graph_resident.cpp:717
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 # +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
 app/src/runtime/point_ops.h:553

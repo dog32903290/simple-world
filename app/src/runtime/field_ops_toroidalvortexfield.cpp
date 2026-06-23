@@ -58,6 +58,7 @@
 //   particle-field / vector-application seam lands, a follow-up golden should probe f.xyz directly.
 #include "runtime/graph.h"  // NodeSpec, PortSpec, Widget
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -239,6 +240,34 @@ void configureToroidalVortexField(FieldNode& node, float centerX, float centerY,
     n->swirlGain = swirlGain; n->radialGain = radialGain; n->fallOffRate = fallOffRate;
     n->axis = axis;
     n->injectBug = injectBug;
+  }
+}
+
+namespace {
+// Read a named param from a RESOLVED map, falling back to the node's current value (= its .t3 default
+// before this call). Keeps each field unchanged when the cook driver supplied no entry for it.
+float pick(const std::map<std::string, float>& m, const char* id, float fallback) {
+  auto it = m.find(id);
+  return it != m.end() ? it->second : fallback;
+}
+}  // namespace
+
+// PF-0 PRODUCTION param-apply (blueprint §1.5 narrow path): set the node's REAL params from a RESOLVED
+// param map (the cook driver's nodeParams output — the full value spine). The named ids match the
+// NodeSpec port ids (Center.x/.y/.z / Radius / Range / SwirlGain / RadialGain / FallOffRate / Axis). A
+// missing key keeps the .t3 default the ctor seeded (pick's fallback). injectBug stays 0 (production).
+// This is the entry configureFieldNodeFromParams routes ToroidalVortexField to.
+void configureToroidalVortexFieldFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<ToroidalVortexFieldNode*>(&node)) {
+    n->centerX = pick(m, "Center.x", n->centerX);
+    n->centerY = pick(m, "Center.y", n->centerY);
+    n->centerZ = pick(m, "Center.z", n->centerZ);
+    n->radius = pick(m, "Radius", n->radius);
+    n->range = pick(m, "Range", n->range);
+    n->swirlGain = pick(m, "SwirlGain", n->swirlGain);
+    n->radialGain = pick(m, "RadialGain", n->radialGain);
+    n->fallOffRate = pick(m, "FallOffRate", n->fallOffRate);
+    n->axis = (int)(pick(m, "Axis", (float)n->axis) + 0.5f);
   }
 }
 

@@ -228,6 +228,7 @@ add_executable(simple_world
   src/runtime/field_camera_selftest.cpp
   src/runtime/field_render.cpp
   src/runtime/field_node_registry.cpp
+  src/runtime/field_graph_builder.cpp
   src/runtime/field_ops_spheresdf.cpp
   src/runtime/field_ops_boxsdf.cpp
   src/runtime/field_ops_boxframesdf.cpp
@@ -268,6 +269,7 @@ add_executable(simple_world
   src/runtime/field_ops_toroidalvortexfield.cpp
   src/field_render_golden.cpp
   src/particlefield_probe_golden.cpp
+  src/fieldtree_builder_golden.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
   src/field_ops_octahedronsdf_golden.cpp

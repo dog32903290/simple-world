@@ -40,13 +40,17 @@ const std::vector<NodeSpec>& particleSpecs() {
        nullptr},
       // VectorFieldForce — TiXL particle/force/VectorFieldForce. Samples a vector field at each
       // particle's position and pushes along it. fork-VFF (named, see vector_field_force.metal):
-      // TiXL's field is a ShaderGraphNode (no field-graph subsystem here) -> baked f=(1,1,1,1),
-      // i.e. a constant (1,1,1) push jittered by Randomize. TiXL's VectorField (ShaderGraphNode)
-      // input is OMITTED (no field type on the contract yet). Defaults照 VectorFieldForce.t3:
-      // Amount=1.0, Randomize=0.0.
+      // PF-0: the TiXL VectorField (ShaderGraphNode) input is now a real "VectorField" Field input
+      // port (mirrors VectorFieldForce.cs:9-10 InputSlot<ShaderGraphNode>). The cook drivers gather a
+      // wired field op (ToroidalVortexField.Result) into PointCookCtx::inputFieldTree; the FORCE KERNEL
+      // still bakes f=(1,1,1,1) (the bake is removed in PF-a). So a wired field reaches the cook but is
+      // not yet consumed — byte-identical particle motion. Defaults照 VectorFieldForce.t3: Amount=1.0,
+      // Randomize=0.0. isBufferInput() skips a "Field" port (Points/ParticleForce only) → no double-
+      // count into ins[]; the dedicated field gather is the sole consumer.
       {"VectorFieldForce",
        "VectorFieldForce",
        {{"force", "force", "ParticleForce", false},
+        {"VectorField", "VectorField", "Field", true},  // PF-0: TiXL ShaderGraphNode field input
         {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 10.0f},
         {"Randomize", "Randomize", "Float", true, 0.0f, 0.0f, 1.0f},
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_VECTORFIELD, 0.0f, 2.0f,

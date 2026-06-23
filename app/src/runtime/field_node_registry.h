@@ -23,6 +23,7 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -43,6 +44,15 @@ std::vector<std::pair<std::string, FieldNodeFactory>>& fieldNodeFactories();
 
 // Build a FieldNode for `type` via the registered factory (nullptr if no factory registered).
 std::shared_ptr<FieldNode> makeFieldNode(const std::string& type, const std::string& shortId);
+
+// Apply a RESOLVED param map (named-param → value) to a FieldNode, dispatched by op `type` (PF-0
+// field-input-projection). The leaf FieldNode subclass is TU-private, so the per-op configure lives in
+// the owning leaf TU (which downcasts) and this free function routes to it by type name. PF-0a wires ONLY
+// ToroidalVortexField (the field op the particle-field probe needs); every other type is a NO-OP here
+// (the node keeps its makeFieldNode-ctor .t3 defaults). PF-0c generalizes the dispatch to all field ops
+// (blueprint §1.5 choice C). NOT a frozen-base change — the base never learns about params.
+void configureFieldNodeFromParams(FieldNode& node, const std::string& type,
+                                  const std::map<std::string, float>& params);
 
 // RAII registrar: declare one file-scope static of this type at the end of each field-op leaf.
 //   FieldOp(spec, factory);   // pushes spec into fieldSpecSink() and {spec.type, factory} into
