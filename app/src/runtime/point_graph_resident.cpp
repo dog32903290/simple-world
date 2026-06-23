@@ -545,6 +545,22 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
               RenderCommand sub = cookCommand(srcPaths[(size_t)sel], depth + 1);  // ONLY the selected wire
               inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
             }
+          } else if (n->opType == "Loop") {
+            // S3c Loop RE-COOK (resident mirror — production runs THIS leg). Same loopRunIterations() the flat
+            // leg calls: cook the single wired SubGraph `Count` times, per-iteration var write + live scope +
+            // concat. The wired source is the primary wire (ri->srcNodePath); the leg re-cooks it each call.
+            std::string subPath;
+            if (ri && ri->driver == ResidentInput::Driver::Connection) subPath = ri->srcNodePath;
+            int count = 0;
+            if (const std::map<std::string, float>* lp = nodeParams(path)) {
+              auto it = lp->find("Count"); if (it != lp->end()) count = (int)it->second;
+            }
+            std::string iVar, pVar;
+            if (auto it = n->strInputs.find("IndexVariable"); it != n->strInputs.end()) iVar = it->second;
+            if (auto it = n->strInputs.find("ProgressVariable"); it != n->strInputs.end()) pVar = it->second;
+            loopRunIterations(count, iVar, pVar, ctxVars, inCmd,
+                              [&]() { return subPath.empty() ? RenderCommand{}
+                                                             : cookCommand(subPath, depth + 1); });
           } else if (ri && ri->driver == ResidentInput::Driver::Connection) {
             RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
             inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());

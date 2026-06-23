@@ -35,7 +35,12 @@ app/src/runtime/math_ops_selftest.cpp:1339
 # drivers are already over-cap god-files; splitting the Command branch into its own TU is the named debt (the
 # flat+resident Command branches are near-mirror twins and want a shared helper). DEBT: split point_graph cook
 # driver Command branch into a shared TU (see DEBT_LEDGER / spawned task).
-app/src/runtime/point_graph.cpp:823
+# S3c ratchet bump 2026-06-23 (Loop re-cook keystone): +13 for the flat cookCommand's Loop branch — gather the
+# single wired SubGraph source + read Count/IndexVariable/ProgressVariable + call loopRunIterations() with the
+# per-iteration re-cook lambda. The per-iteration mechanism (for-loop + var write + live scope + concat) lives
+# in the new leaf point_ops_loop.cpp (shared with the resident leg), so the driver branch is irreducible glue.
+# Proven by --selftest-loop (flat leg). Same cook-driver-split debt as the S3a/S3b notes above lowers this.
+app/src/runtime/point_graph.cpp:836
 # S3a (2026-06-23) +12: CmdCookCtx gained the ContextVarMap* ctxVars field (additive ABI, mirrors
 # inputCommand) + the forward-decl + cook/cookResident gained the trailing ctxVars param. Doc squeezed to
 # the floor; the field + its load-bearing comment (the two-rail fork note, blueprint risk #3) are irreducible.
@@ -51,7 +56,12 @@ app/src/runtime/point_graph.h:452
 # S3b ratchet bump 2026-06-23 (value↔command live-read seam): +13 for the resident mirror of the LiveCtxVarScope
 # guard + memo-bypass (same shape as the flat leg above; production runs THIS leg). Same named debt: split the
 # Command branch into a shared TU.
-app/src/runtime/point_graph_resident.cpp:662
+# S3c ratchet bump 2026-06-23 (Loop re-cook keystone, the resident MIRROR — production runs THIS leg): +16 for
+# the resident cookCommand's Loop branch (gather primary wire source + Count/Index/Progress + loopRunIterations).
+# A resident-only miss would cook the subtree ONCE with the LAST index → only the final iteration's layer draws
+# (the §3 doubled trap). Calls the SAME loopRunIterations() the flat leg does (point_ops_loop.cpp). Proven by
+# --selftest-loop's resident leg. Same cook-driver-split debt lowers this.
+app/src/runtime/point_graph_resident.cpp:678
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 # +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
 app/src/runtime/point_ops.h:553

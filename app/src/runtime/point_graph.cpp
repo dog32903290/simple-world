@@ -502,6 +502,19 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
               RenderCommand sub = cookCommand(srcIds[(size_t)sel]);  // cook ONLY the selected wire
               inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
             }
+          } else if (n->type == "Loop") {
+            // S3c Loop RE-COOK (TiXL flow/Loop.cs): cook the single wired SubGraph `Count` times, each
+            // iteration writing index/progress into ctxVars first (loopRunIterations owns the for-loop +
+            // live scope + concat). The leg supplies cookOneIteration = re-cook the wired source fresh.
+            int subId = -1;
+            for (const Connection& c : g.connections)
+              if (c.toPin == pinId(id, (int)i)) { subId = pinNode(c.fromPin); break; }  // single-input source
+            const int count = (int)mapParam(nodeParams(id), "Count", 0.0f);
+            std::string iVar, pVar;
+            if (auto it = n->strParams.find("IndexVariable"); it != n->strParams.end()) iVar = it->second;
+            if (auto it = n->strParams.find("ProgressVariable"); it != n->strParams.end()) pVar = it->second;
+            loopRunIterations(count, iVar, pVar, ctxVars, inCmd,
+                              [&]() { return subId >= 0 ? cookCommand(subId) : RenderCommand{}; });
           } else {
             for (const Connection& c : g.connections) {  // g.connections = wire order (ListToBuffer :202)
               if (c.toPin != pinId(id, (int)i)) continue;

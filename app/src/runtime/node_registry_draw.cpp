@@ -241,6 +241,20 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"out", "out", "Command", false},
         {"IsEnabled", "IsEnabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr},
+      // Loop (TiXL Lib.flow.Loop): the S3c RE-COOK keystone — cooks the wired SubGraph Count times, each
+      // iteration writing index→Float+Int and progress→Float context-vars first (Loop.cs:25-35), concatenating
+      // every iteration's items. The per-iteration var write + live-scope + re-cook + concat lives in the
+      // cook-core collector (cookCommand's Loop branch → loopRunIterations), shared flat+resident; this op just
+      // forwards the built chain. Faithful no-restore after the loop (Loop.cs:21 TODO leaks index/progress).
+      // Command(SubGraph) in → Command out. IndexVariable/ProgressVariable on the String channel (strDef
+      // "Index"/"Progress" — TiXL's input slots have no default name). .t3: Count=0.
+      {"Loop", "Loop",
+       {{"SubGraph", "SubGraph", "Command", true},
+        {"out", "out", "Command", false},
+        {"Count", "Count", "Float", true, 0.0f, 0.0f, 1000.0f},
+        {"IndexVariable", "IndexVariable", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "Index"},
+        {"ProgressVariable", "ProgressVariable", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "Progress"}},
+       nullptr},
       // RotateAroundAxis (TiXL Lib.render.transform.RotateAroundAxis): wraps a Command subtree and pushes
       // ONE axis-angle rotation onto context.ObjectToWorld (Matrix4x4.CreateFromAxisAngle(Axis, Angle°)).
       // Command in → Command out (the op stamps the rotation onto every subtree item via the Group

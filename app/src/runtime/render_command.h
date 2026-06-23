@@ -21,6 +21,8 @@
 // reused next frame).
 #pragma once
 #include <cstdint>
+#include <functional>
+#include <string>
 #include <vector>
 
 namespace MTL {
@@ -237,5 +239,38 @@ int switchSelectIndex(int rawIndex, int count);
 // production (zero behaviour change). A CPU DRIVER flag, NOT a shader bug-branch (constitution rule); read by
 // both collectors, parallel to executeCollectFirstOnlyForTest(). Defined in point_ops_switch.cpp.
 bool& switchIgnoreIndexForTest();
+
+// ─────────────────────────────── S3c Loop (TiXL flow/Loop.cs) ───────────────────────────────
+// The re-cook keystone: cook the wired SubGraph `Count` times; iteration i writes index→BOTH Float+Int dicts
+// and progress→Float into the live ContextVarMap FIRST, then re-cooks the subtree (so a value-rail Get*Var
+// inside it reads i/progress live), concatenating each iteration's items into one chain. Faithful to
+// Loop.cs:23-40: index=i (Float+Int), progress = (Count==1 ? 0 : i/(float)(Count-1)), and DELIBERATELY does
+// NOT restore index/progress after the loop (Loop.cs:21 TODO leaks them — match it, do NOT "fix").
+//
+// loopRunIterations() is the SINGLE per-iteration mechanism both the flat (point_graph.cpp) and resident
+// (point_graph_resident.cpp) collectors call — the var write + live-scope + re-cook + concat can NEVER fork
+// between legs (the S2c/S3a blood lesson: a resident-only miss → production cooks the subtree once with the
+// LAST index → only the final iteration's layer draws). The leg supplies `cookOneIteration`: a callback that
+// FRESH-cooks the subtree and returns its items (the leg knows how to reach the single wired Command source;
+// the helper owns the var/scope/concat). `vars` may be null (golden callers without a map) → no var write,
+// the subtree still cooks `count` times (a benign no-op-var loop). `count<=0` → empty (TiXL `for i<end`).
+//   ★re-cook memo note: the helper engages a LiveCtxVarScope per iteration so the driver's nodeParams memo
+//   resolves the subtree's Float params FRESH each call (the scope-aware uncached branch) — that is how a
+//   value-rail GetFloatVar(index) yields a DISTINCT value per iteration. (A subtree that produces a per-node
+//   GPU Points BUFFER would still alias one output buffer across iterations — out of Loop's scope; the
+//   faithful per-iteration distinctness lives in the items' by-value transform/param fields, like the golden.)
+void loopRunIterations(int count, const std::string& indexVar, const std::string& progressVar,
+                       struct ContextVarMap* vars, RenderCommand& out,
+                       const std::function<RenderCommand()>& cookOneIteration);
+
+// S3c -bug DRIVER flags (mirror of switchIgnoreIndexForTest / executeCollectFirstOnlyForTest), read by
+// loopRunIterations on BOTH legs. OFF in production (zero behaviour change).
+//   (a) loopBugCookOnceForTest: drop the for-loop → cook the subtree ONCE (one iteration's items) → the
+//       chain has 1 item instead of Count → RED.
+//   (b) loopBugReuseFirstForTest: cook ONCE then replicate that first iteration's items Count times WITHOUT
+//       re-cook / without a fresh var write → every item carries iteration-0's index → all identical → RED.
+// Defined in point_ops_loop.cpp.
+bool& loopBugCookOnceForTest();
+bool& loopBugReuseFirstForTest();
 
 }  // namespace sw
