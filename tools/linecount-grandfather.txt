@@ -44,11 +44,21 @@ app/src/runtime/math_ops_selftest.cpp:1339
 # mechanism, same class as the Loop/Switch branches already here — the owner-locked spine S3 grows). DEBT:
 # the cookCommand god-driver is the standing split target (see DEBT_LEDGER); this raises the cap by exactly
 # the new branch, no slack. Split when the collector is extracted to its own TU.
-app/src/runtime/point_graph.cpp:854
+# C1 (2026-06-23) +8: the flat MultiInput Command collector gained the ACTIVE-CAMERA scope set (Camera op →
+# resolveActiveCamera + LiveCameraScope around the SubGraph cook, CAMERA3D_BLUEPRINT §1, mirror of the S3a
+# var scope above). Closes the point-camera default-vs-pushed black-hole; the resident mirror is the
+# blood-lesson leg below. Proven by --selftest-camera-scope (flat tooth). Same cook-driver-split debt lowers this.
+app/src/runtime/point_graph.cpp:862
 # S3a (2026-06-23) +12: CmdCookCtx gained the ContextVarMap* ctxVars field (additive ABI, mirrors
 # inputCommand) + the forward-decl + cook/cookResident gained the trailing ctxVars param. Doc squeezed to
 # the floor; the field + its load-bearing comment (the two-rail fork note, blueprint risk #3) are irreducible.
 app/src/runtime/point_graph.h:452
+# C1 (2026-06-23) +6: the shared two-cook seam header (already at the 400 ceiling) — fillPointCamera now
+# reads the live ActiveCamera (the wired Camera the draws respect) instead of ALWAYS the default, + the
+# point_ops_camera_scope.h include. The if/else + include are irreducible cook-core seam glue; comments at the
+# floor. This is the SSOT both cooks share so fillPointCamera can never fork (CAMERA3D_BLUEPRINT §3). DEBT:
+# splits with the cook-driver extraction the point_graph.cpp note tracks.
+app/src/runtime/point_graph_internal.h:406
 # S2c (2026-06-23) +8: resident cookCommand gained its Texture2D input gather — a production black-hole
 # (Layer2d/DrawScreenQuad drew BLACK on the resident path because cc.inputTexture was never set; the flat
 # cookCommand has had this branch since FORK#1). Caught by --selftest-layercompose's resident leg. The
@@ -67,7 +77,11 @@ app/src/runtime/point_graph.h:452
 # --selftest-loop's resident leg. Same cook-driver-split debt lowers this.
 # 2026-06-23 +24: S3c ExecRepeatedly re-cook branch in the resident MultiInput Command collector (the
 # production blood-lesson leg — must mirror the flat branch). DEBT: same split target as point_graph.cpp.
-app/src/runtime/point_graph_resident.cpp:702
+# C1 (2026-06-23) +8: the resident MIRROR of the active-camera scope set (the S2c blood-lesson leg —
+# production runs THIS; a resident-only miss = resident point ops read the default under a wired Camera =
+# prod black-hole). Same resolveActiveCamera + LiveCameraScope as the flat leg. Proven by
+# --selftest-camera-scope's resident tooth. Same cook-driver-split debt lowers this.
+app/src/runtime/point_graph_resident.cpp:710
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 # +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
 app/src/runtime/point_ops.h:553

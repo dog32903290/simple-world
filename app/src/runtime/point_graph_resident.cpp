@@ -513,11 +513,19 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
           if (vit != n->strInputs.end()) varName = vit->second;
           varScope = cmdVarPush(n->opType, *nodeParams(path), varName, ctxVars);
         }
+        // C1 ACTIVE-CAMERA scope (resident mirror — production runs THIS leg; CAMERA3D_BLUEPRINT §1 HARD GATE).
+        // A resident-only miss here = resident point ops read the default camera under a wired Camera = a prod-
+        // only black-hole (S2c). Same resolveActiveCamera + LiveCameraScope as the flat leg; the resolved float
+        // map comes from the resident nodeParams(path) (identical shape to the flat Node::params).
+        ActiveCamera activeCam;
+        if (!cameraScopeBugSkipPush() && isCameraScopeWriter(n->opType))
+          activeCam = resolveActiveCamera(*nodeParams(path));
         {
           // S3b LIVE-READ scope (resident mirror — production runs THIS leg): ctxVars is the ambient live map
           // WHILE the SubGraph cooks, so a value-rail GetFloatVar driving a SubGraph node's param re-resolves
           // LIVE. Engages only on an active writer push; else no-op (leaves the enclosing scope, if any).
           LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
+          LiveCameraScope liveCam(activeCam);  // C1: active camera live for the SubGraph cook (point rail reads it)
           const ResidentInput* ri = n->input(port.id);
           if (n->opType == "Switch") {
             // S3b Switch SUB-SELECT (resident mirror — production runs THIS leg). ★§3 OFF-BY-ONE TRAP:

@@ -19,6 +19,7 @@
 
 #include "runtime/graph.h"        // PortSpec (isBufferInput) + NodeSpec (fillPointCamera)
 #include "runtime/field_camera.h" // pointCameraMatrices (camera-matrix-into-points seam)
+#include "runtime/point_ops_camera_scope.h"  // C1: liveActiveCamera / activeCameraMatrices (Camera-op leg)
 #include "runtime/point_graph.h"  // PointGraph + op fn types
 #include "runtime/sw_mesh.h"      // SwVertex (80B) + SwTriIndex (12B) — the Mesh flow's elements
 #include "runtime/mesh_op_registry.h"  // SwMeshView (cookResidentMesh return type)
@@ -69,15 +70,20 @@ inline bool isBufferInput(const PortSpec& p) {
 // Flat cook's resource key for node id (see header comment on key spaces).
 inline std::string flatKey(int id) { return "#" + std::to_string(id); }
 
-// CAMERA gather (the camera-matrix-into-points seam): scan `spec.ports` for a "Camera" marker INPUT port;
-// if present, fill the ctx's camera matrices from the DEFAULT camera at `aspect` (= output w/h). SHARED by
-// both cooks. No "Camera" port → hasCamera stays false → byte-identical. Lands in cc.objectToCamera/...World.
+// CAMERA gather (camera-matrix-into-points seam): a "Camera" marker INPUT port → fill cc.objectToCamera/
+// ...World. SHARED by both cooks. No port → byte-identical. C1 (CAMERA3D_BLUEPRINT §1): a wired Camera op
+// sets a thread_local ACTIVE camera (point_ops_camera.cpp LiveCameraScope) around the SubGraph cook → build
+// from THAT camera (the draws respect it too); else the DEFAULT at `aspect`. Closes the default-vs-pushed
+// point-rail black-hole (S2c/S3); the flat↔resident mirror lives at the scope-SET site (both Cmd branches).
 inline void fillPointCamera(PointCookCtx& cc, const NodeSpec& spec, float aspect) {
   bool wantsCamera = false;
   for (const PortSpec& port : spec.ports)
     if (port.isInput && port.dataType == "Camera") { wantsCamera = true; break; }
   if (!wantsCamera) return;  // every existing Points op → byte-identical
-  pointCameraMatrices(aspect, cc.objectToCamera, cc.cameraToWorld);
+  if (const ActiveCamera* live = liveActiveCamera())
+    activeCameraMatrices(*live, cc.objectToCamera, cc.cameraToWorld);  // wired Camera in scope
+  else
+    pointCameraMatrices(aspect, cc.objectToCamera, cc.cameraToWorld);  // default (off-scope = byte-identical)
   cc.hasCamera = true;
 }
 

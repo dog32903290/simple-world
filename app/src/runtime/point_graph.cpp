@@ -474,11 +474,19 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
           if (vit != n->strParams.end()) varName = vit->second;
           varScope = cmdVarPush(n->type, *nodeParams(id), varName, ctxVars);
         }
+        // C1 ACTIVE-CAMERA scope (CAMERA3D_BLUEPRINT §1, mirror of the S3a var scope above): a Camera op sets
+        // the thread_local active camera around its SubGraph cook so the POINT ops inside read the wired Camera
+        // (fillPointCamera), not the default. Resolve the same v1 params cookCamera stamps onto items. -bug
+        // (cameraScopeBugSkipPush) leaves it inactive → the point rail falls back to default → C1 golden RED.
+        ActiveCamera activeCam;
+        if (!cameraScopeBugSkipPush() && isCameraScopeWriter(n->type))
+          activeCam = resolveActiveCamera(*nodeParams(id));
         {
           // S3b LIVE-READ scope: make ctxVars the ambient live map WHILE cooking the SubGraph, so a value-rail
           // GetFloatVar driving a param of a node inside the SubGraph re-resolves LIVE (closes S3a's hollow).
           // Engages only when varScope is active (a real writer push happened); else no-op (leaves outer scope).
           LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
+          LiveCameraScope liveCam(activeCam);  // C1: active camera live for the SubGraph cook (point rail reads it)
           // S3b Switch SUB-SELECT (TiXL flow/Switch.cs): gather the wired source node ids in WIRE ORDER first,
           // then cook ONLY the index-th (wrap/negative-safe), -2=all, -1/empty=none. The selection is a
           // cook-core hook here in the SAME collector branch — Execute concats ALL, Switch sub-selects. Non-

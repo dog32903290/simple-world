@@ -40,10 +40,14 @@
 
 #include "runtime/field_camera.h"    // lookAtRH/perspectiveFovRH/mat4* + selftest convention
 #include "runtime/point_graph.h"     // CmdCookCtx, registerCmdOp, cookParam/cookVecN
+#include "runtime/point_ops_camera_scope.h"  // C1: ActiveCamera / LiveCameraScope / activeCameraMatrices
 #include "runtime/render_command.h"  // RenderCommand / RenderDrawItem / DrawKind
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <map>
+#include <string>
 #include <vector>
 
 #include <Foundation/Foundation.hpp>
@@ -100,6 +104,78 @@ RenderCommand cookCamera(CmdCookCtx& c) {
 }
 
 void registerCameraOp() { registerCmdOp("Camera", cookCamera); }
+
+// ─────────────── C1: ACTIVE-CAMERA host scope (the point-camera hole, CAMERA3D_BLUEPRINT §1) ───────────────
+// A verbatim copy of the S3a LiveCtxVarScope shape (point_ops_setvarcmd.cpp): a thread_local the Camera op's
+// driver branch SETS around its SubGraph cook, that fillPointCamera (point_graph_internal.h) READS so a point
+// op under a wired Camera builds its matrices from THAT camera instead of the default. thread_local so a
+// future multi-threaded cook can't leak one cook's scope into another (today single-threaded; correct-by-
+// construction, zero cost on the single-thread path). nullptr = no scope → fillPointCamera uses the default
+// (faithful: every pre-C1 graph stays byte-identical).
+static thread_local const ActiveCamera* t_liveActiveCamera = nullptr;
+
+bool isCameraScopeWriter(const std::string& opType) { return opType == "Camera"; }
+
+namespace {
+float camParam(const std::map<std::string, float>& m, const char* id, float def) {
+  auto it = m.find(id);
+  return it != m.end() ? it->second : def;
+}
+}  // namespace
+
+ActiveCamera resolveActiveCamera(const std::map<std::string, float>& params) {
+  // The SAME v1 params + defaults cookCamera reads (point_ops_camera.cpp cookCamera) — vec3/vec2 by .x/.y/.z
+  // suffix (the resolveNodeParams emits "<base>.x" etc; the Group golden notes the convention). Position
+  // default (0,0,DefaultCameraDistance), Target=0, Up=(0,1,0), FoV=45°, ClipPlanes=(0.01,1000), Aspect=0.
+  ActiveCamera c;
+  c.active = true;
+  c.eye[0] = camParam(params, "Position.x", 0.0f);
+  c.eye[1] = camParam(params, "Position.y", 0.0f);
+  c.eye[2] = camParam(params, "Position.z", defaultCameraDistance());
+  c.target[0] = camParam(params, "Target.x", 0.0f);
+  c.target[1] = camParam(params, "Target.y", 0.0f);
+  c.target[2] = camParam(params, "Target.z", 0.0f);
+  c.up[0] = camParam(params, "Up.x", 0.0f);
+  c.up[1] = camParam(params, "Up.y", 1.0f);
+  c.up[2] = camParam(params, "Up.z", 0.0f);
+  c.fovDeg = camParam(params, "FieldOfView", kDefaultCamFovDegrees);
+  c.nearClip = camParam(params, "ClipPlanes.x", 0.01f);
+  c.farClip = camParam(params, "ClipPlanes.y", 1000.0f);
+  c.aspect = camParam(params, "AspectRatio", 0.0f);
+  return c;
+}
+
+bool& cameraScopeBugSkipPush() {
+  static bool v = false;  // OFF in production; the C1 golden flips it around a cook then resets
+  return v;
+}
+
+LiveCameraScope::LiveCameraScope(const ActiveCamera& cam)
+    : prev_(t_liveActiveCamera), engaged_(cam.active) {
+  // ENGAGE only on an active Camera push (an inactive scope / non-Camera Command leaves the prior live
+  // camera intact — a non-push node is transparent to the ambient camera, like TiXL's one context that an
+  // inner non-Camera node passes through). Stores &cam: the caller keeps it alive across the SubGraph cook.
+  if (engaged_) t_liveActiveCamera = &cam;
+}
+LiveCameraScope::~LiveCameraScope() {
+  if (engaged_) t_liveActiveCamera = prev_;  // pop to the enclosing camera (nests = innermost wins)
+}
+const ActiveCamera* liveActiveCamera() { return t_liveActiveCamera; }
+
+void activeCameraMatrices(const ActiveCamera& cam, float outObjectToCamera[16],
+                          float outCameraToWorld[16]) {
+  // SAME pair + convention as field_camera's pointCameraMatrices (v1 fork: identity ObjectToWorld →
+  // ObjectToCamera = WorldToCamera; CameraToWorld = inverse(WorldToCamera)) — just from the Camera op's
+  // eye/target/up instead of SetDefaultCamera. These two matrices are aspect-INDEPENDENT (LookAtRH +
+  // its inverse use no projection — the default pointCameraMatrices discards its clip matrix too), so the
+  // fov/clip/aspect Camera fields are dead for the POINT rail (they drive the DRAW rail's CameraToClipSpace
+  // which the executor builds per-item). That is why the default builder also ignores aspect for this pair.
+  Mat4 worldToCamera = lookAtRH(cam.eye, cam.target, cam.up);
+  std::memcpy(outObjectToCamera, worldToCamera.m, 16 * sizeof(float));  // ObjectToCamera = WorldToCamera
+  Mat4 cameraToWorld;
+  mat4Inverse(worldToCamera, cameraToWorld);  // CameraToWorld = inverse(WorldToCamera)
+  std::memcpy(outCameraToWorld, cameraToWorld.m, 16 * sizeof(float));
+}
 
 // ───────────────────────────────── GOLDENS ─────────────────────────────────
 namespace {
