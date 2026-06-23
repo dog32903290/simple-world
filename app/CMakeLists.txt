@@ -390,7 +390,10 @@ add_executable(simple_world
   src/runtime/pointlist_ops_repeatatpointscpu.cpp
   src/runtime/pointlist_ops_listtobuffer.cpp
   src/runtime/pointlist_ops_pointstocpu.cpp
+  src/runtime/gizmo_geometry.cpp
+  src/runtime/pointlist_ops_conegizmo.cpp
   src/pointlist_golden.cpp
+  src/conegizmo_golden.cpp
   src/pointstocpu_golden.cpp
   src/valuestotexture_golden.cpp
   src/runtime/gradient_op_registry.cpp

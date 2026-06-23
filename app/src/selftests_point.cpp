@@ -91,5 +91,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"drawmeshunlit", runDrawMeshUnlitSelfTest},
     {"mathops", runMathOpsSelfTest},
     {"statefulvalue", runStatefulValueSelfTest},
+    {"conegizmo", runConeGizmoSelfTest},  // C3 gizmo Tranche-0: ConeGizmo generator + gizmo_geometry helper
 );
 }  // namespace sw
