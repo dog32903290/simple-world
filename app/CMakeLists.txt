@@ -56,6 +56,7 @@ set(SW_SHADER_DEPS
   src/runtime/reorientlinepoints_params.h src/runtime/selectpoints_params.h src/runtime/softtransformpoints_params.h
   src/runtime/detectedges_params.h src/runtime/chromaticdistortion_params.h src/runtime/voronoicells_params.h
   src/runtime/dither_params.h src/runtime/normalmap_params.h src/runtime/chromakey_params.h
+  src/runtime/grain_params.h
   src/runtime/polarcoordinates_params.h src/runtime/edgerepeat_params.h
   src/runtime/offsetpoints_params.h src/runtime/pointattributefromnoise_params.h
   src/runtime/mesh_draw_params.h src/runtime/sw_mesh.h src/runtime/meshverticestopoints_params.h
