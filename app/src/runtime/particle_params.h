@@ -265,9 +265,34 @@ struct SnapAnglesForceParams {
   float _pad2;  // -> 48 bytes (16-byte multiple)
 };
 
+// FieldDistanceForce params — mirrors TiXL FieldDistanceForce.hlsl cbuffer Params (b0):
+//   float Amount; float Attraction; float Repulsion; float NormalSamplingDistance;
+//   float DecayWithDistance;
+// (external/tixl .../particle/force/FieldDistanceForce.cs + .../shaders/particles/FieldDistanceForce.hlsl.)
+// Samples the WIRED SDF field's distance .w at each particle's raw Position, computes a finite-difference
+// surface normal (GetFieldNormal: 4x GetField().w taps offset by NormalSamplingDistance), then pushes the
+// particle along that normal: d>0 (outside) attract toward the surface scaled by pow(d+1,-DecayWithDistance);
+// d<=0 (inside) repel away. NaN guards on d and n preserved. The field arrives via FORCE_FieldParams (the
+// PF-a bridge) exactly like VectorFieldForce; with no field wired the kernel sees the baked seed (.w=1) and
+// degenerates (baked fallback). +Count (no GetDimensions in MSL). Pure value params + the wired field.
+struct FieldDistForceParams {
+  float Amount;
+  float Attraction;
+  float Repulsion;
+  float NormalSamplingDistance;
+  float DecayWithDistance;
+#ifdef __METAL_VERSION__
+  uint Count;
+#else
+  uint32_t Count;
+#endif
+  float _pad0;
+  float _pad1;  // -> 32 bytes (16-byte multiple)
+};
+
 enum ForceBinding {
   FORCE_Particles = 0,  // device Particle* (u0) — shared by all force kernels
-  FORCE_Params = 1,     // constant {Turb,DirForce,VecFieldForce,Vel,AxisStep,SnapAngles}Params& (b0)
+  FORCE_Params = 1,     // constant {Turb,DirForce,VecFieldForce,Vel,AxisStep,SnapAngles,FieldDist}Params& (b0)
   // PF-a: assembled FieldParams buffer for the runtime-compiled VectorFieldForce compute kernel
   // (the field-into-force bridge). Distinct slot from FORCE_Params so the force's b0 (Amount/
   // Variation) and the field's packed param buffer never overwrite each other; the field op's
@@ -289,6 +314,9 @@ enum ForceKind {
   FORCE_KIND_VELOCITY = 3,    // VelocityForce
   FORCE_KIND_AXISSTEP = 4,    // AxisStepForce
   FORCE_KIND_SNAPANGLES = 5,  // SnapToAnglesForce
+  // PF-bridge field-distance — appended (NOT inserted: pre-existing .swproj _ForceKind overrides keep
+  // their meaning, particle_params.h :288 append-only discipline).
+  FORCE_KIND_FIELDDISTANCE = 6,  // FieldDistanceForce (SDF-distance attract/repel via FORCE_FieldParams)
 };
 
 // RadialPoints emitter — generates a ring of Points to feed ParticleSystem.
@@ -349,6 +377,7 @@ static_assert(sizeof(VecFieldForceParams) == 16, "VecFieldForceParams 16 bytes")
 static_assert(sizeof(VelForceParams) == 32, "VelForceParams 32 bytes");
 static_assert(sizeof(AxisStepForceParams) == 64, "AxisStepForceParams 64 bytes");
 static_assert(sizeof(SnapAnglesForceParams) == 48, "SnapAnglesForceParams 48 bytes");
+static_assert(sizeof(FieldDistForceParams) == 32, "FieldDistForceParams 32 bytes");
 static_assert(sizeof(EmitParams) == 16, "EmitParams 16 bytes");
 static_assert(sizeof(RadialParams) == 48, "RadialParams 48 bytes");
 #endif

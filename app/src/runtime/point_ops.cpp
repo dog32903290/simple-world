@@ -98,6 +98,23 @@ const std::string& vffTemplate() {
   return tmpl;
 }
 
+// PF field-into-force COMPUTE template for FieldDistanceForce (SW_FIELD_DISTANCE_TEMPLATE). Same once-per-
+// process function-static read as vffTemplate(); empty if the define is unset/unreadable (-> baked fallback).
+const std::string& fieldDistanceTemplate() {
+  static const std::string tmpl = [] {
+#ifdef SW_FIELD_DISTANCE_TEMPLATE
+    std::ifstream f(SW_FIELD_DISTANCE_TEMPLATE);
+    if (!f) return std::string();
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
+#else
+    return std::string();
+#endif
+  }();
+  return tmpl;
+}
+
 // Compute PSO from the metallib by function name (the sim op caches its two in per-node
 // state so they aren't rebuilt every frame).
 MTL::ComputePipelineState* makeComputePSO(MTL::Device* dev, MTL::Library* lib, const char* name) {
@@ -121,6 +138,7 @@ struct SimState {
   MTL::ComputePipelineState* psoVel = nullptr;       // FORCE_KIND_VELOCITY (批次24)
   MTL::ComputePipelineState* psoAxisStep = nullptr;  // FORCE_KIND_AXISSTEP (批次24)
   MTL::ComputePipelineState* psoSnapAngles = nullptr;  // FORCE_KIND_SNAPANGLES (批次24)
+  MTL::ComputePipelineState* psoFieldDist = nullptr;   // FORCE_KIND_FIELDDISTANCE (baked fallback)
   MTL::ComputePipelineState* psoSim = nullptr;
   bool seeded = false;
   uint32_t frame = 0;                // monotonic step head -> CollectCycleIndex
@@ -139,6 +157,7 @@ void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count) {
   s->psoVel = makeComputePSO(dev, lib, "velocity_force");          // 批次24
   s->psoAxisStep = makeComputePSO(dev, lib, "axis_step_force");    // 批次24
   s->psoSnapAngles = makeComputePSO(dev, lib, "snaptoanglesforce"); // 批次24
+  s->psoFieldDist = makeComputePSO(dev, lib, "field_distance_force"); // FieldDistanceForce baked fallback
   s->psoSim = makeComputePSO(dev, lib, "particle_sim");
   return s;
 }
@@ -152,6 +171,7 @@ void simStateFree(void* p) {
   if (s->psoVel) s->psoVel->release();
   if (s->psoAxisStep) s->psoAxisStep->release();
   if (s->psoSnapAngles) s->psoSnapAngles->release();
+  if (s->psoFieldDist) s->psoFieldDist->release();
   if (s->psoSim) s->psoSim->release();
   delete s;
 }
@@ -224,6 +244,41 @@ void cookParticleSim(PointCookCtx& c) {
                                 MTL::Size::Make(tg, 1, 1));
       enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
     };
+    // PF field-into-force bridge (shared by VectorFieldForce + FieldDistanceForce): if a Field tree is
+    // wired (PF-0 delivered it on inputFieldTree, identically on flat & resident since cookParticleSim is
+    // the single shared cook fn), assemble it into the force's COMPUTE template, compile/cache a PSO keyed
+    // on srcHash, bind the force's b0 params at FORCE_Params + the field's packed FloatParams at
+    // FORCE_FieldParams, and dispatch — GetField then samples the wired field at each particle's raw
+    // Position. Returns true iff the runtime-compiled kernel ran; false -> caller runs the baked fallback
+    // (byte-identical for every pre-existing fieldless graph). `kernelName` selects which template kernel.
+    auto runFieldForce = [&](const std::string& tmpl, const char* kernelName, const void* params,
+                             size_t size) -> bool {
+      if (!c.inputFieldTree || tmpl.empty()) return false;
+      AssembledField asmField = assembleFieldMSL(c.inputFieldTree, tmpl);
+      if (asmField.msl.empty()) return false;
+      MTL::ComputePipelineState* fieldPso =
+          cachedSourceComputePSO(c.dev, asmField.msl.c_str(), asmField.srcHash, kernelName);
+      if (!fieldPso) return false;
+      // Field FloatParams buffer (rebuilt per cook; cheap). Metal needs a non-null buffer; >=16 bytes.
+      const size_t paramBytes =
+          asmField.floatParams.empty() ? 16 : asmField.floatParams.size() * sizeof(float);
+      MTL::Buffer* fieldBuf = c.dev->newBuffer(paramBytes, MTL::ResourceStorageModeShared);
+      if (!fieldBuf) return false;
+      if (!asmField.floatParams.empty())
+        std::memcpy(fieldBuf->contents(), asmField.floatParams.data(),
+                    asmField.floatParams.size() * sizeof(float));
+      MTL::CommandBuffer* cmd = c.queue->commandBuffer();
+      MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
+      enc->setComputePipelineState(fieldPso);
+      enc->setBuffer(s->particles, 0, FORCE_Particles);
+      enc->setBytes(params, size, FORCE_Params);
+      enc->setBuffer(fieldBuf, 0, FORCE_FieldParams);
+      enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(pool, tg), 1, 1),
+                                MTL::Size::Make(tg, 1, 1));
+      enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
+      fieldBuf->release();  // contents consumed by the GPU; not needed past the dispatch
+      return true;
+    };
     if (forceKind == FORCE_KIND_DIRECTIONAL) {
       // Defaults = TiXL DirectionalForce.t3: Direction=(0,-1,0) push down, Amount=0.007.
       DirForceParams dp{};
@@ -240,49 +295,11 @@ void cookParticleSim(PointCookCtx& c) {
       vp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
       vp.Variation = cookInputParam(c, 1, "Randomize", 0.0f);  // TiXL slot name "Randomize"
       vp.SpeedFactor = 1.0f; vp.Count = pool;
-      // PF-a field-into-force bridge: if a Field tree is wired (PF-0 delivered it on inputFieldTree,
-      // identically on both flat & resident legs since cookParticleSim is the single shared cook fn),
-      // assemble it into the COMPUTE template, compile/cache a PSO keyed on srcHash, bind the field's
-      // packed FloatParams at FORCE_FieldParams, and dispatch the runtime-compiled kernel — GetField
-      // now SAMPLES the wired field at each particle's raw Position (VectorFieldForce-sg.hlsl:60-61).
-      // No field wired -> the existing baked (1,1,1) static PSO (fork-VFF), byte-identical for every
-      // pre-existing graph.
-      bool ranField = false;
-      if (c.inputFieldTree) {
-        const std::string& tmpl = vffTemplate();
-        if (!tmpl.empty()) {
-          AssembledField asmField = assembleFieldMSL(c.inputFieldTree, tmpl);
-          if (!asmField.msl.empty()) {
-            MTL::ComputePipelineState* fieldPso = cachedSourceComputePSO(
-                c.dev, asmField.msl.c_str(), asmField.srcHash, "vector_field_force");
-            if (fieldPso) {
-              // Field FloatParams buffer at FORCE_FieldParams (rebuilt per cook; cheap, so param edits
-              // never recompile). Metal needs a non-null buffer even for a zero-param field; >=16 bytes.
-              const size_t paramBytes = asmField.floatParams.empty()
-                                            ? 16
-                                            : asmField.floatParams.size() * sizeof(float);
-              MTL::Buffer* fieldBuf = c.dev->newBuffer(paramBytes, MTL::ResourceStorageModeShared);
-              if (fieldBuf) {
-                if (!asmField.floatParams.empty())
-                  std::memcpy(fieldBuf->contents(), asmField.floatParams.data(),
-                              asmField.floatParams.size() * sizeof(float));
-                MTL::CommandBuffer* cmd = c.queue->commandBuffer();
-                MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
-                enc->setComputePipelineState(fieldPso);
-                enc->setBuffer(s->particles, 0, FORCE_Particles);
-                enc->setBytes(&vp, sizeof(vp), FORCE_Params);
-                enc->setBuffer(fieldBuf, 0, FORCE_FieldParams);
-                enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(pool, tg), 1, 1),
-                                          MTL::Size::Make(tg, 1, 1));
-                enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
-                fieldBuf->release();  // contents consumed by the GPU; not needed past the dispatch
-                ranField = true;
-              }
-            }
-          }
-        }
-      }
-      if (!ranField) runForce(s->psoVecField, &vp, sizeof(vp));  // fork-VFF baked fallback
+      // PF-a field-into-force bridge (runFieldForce): a wired field -> the runtime-compiled
+      // vector_field_force kernel samples it at each particle's raw Position (VectorFieldForce-sg.hlsl:60-61);
+      // no field -> the baked (1,1,1) static PSO (fork-VFF), byte-identical for every pre-existing graph.
+      if (!runFieldForce(vffTemplate(), "vector_field_force", &vp, sizeof(vp)))
+        runForce(s->psoVecField, &vp, sizeof(vp));  // fork-VFF baked fallback
     } else if (forceKind == FORCE_KIND_VELOCITY) {
       // 批次24 VelocityForce — defaults照 VelocityForce.t3: Amount=1, Accelerate=1, MinSpeed=0,
       // MaxSpeed=1000, Variation=0, VariationGainAndBias=(0.5,0.5).
@@ -334,6 +351,22 @@ void cookParticleSim(PointCookCtx& c) {
       sp.RandomSeed = 0.0f;
       sp.Count = pool;
       runForce(s->psoSnapAngles, &sp, sizeof(sp));
+    } else if (forceKind == FORCE_KIND_FIELDDISTANCE) {
+      // FieldDistanceForce — defaults照 FieldDistanceForce.t3: Amount=1, Attraction=1, Repulsion=1,
+      // NormalSamplingDistance=0.01, DecayWithDistance=0.
+      FieldDistForceParams fp{};
+      fp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
+      fp.Attraction = cookInputParam(c, 1, "Attraction", 1.0f);
+      fp.Repulsion = cookInputParam(c, 1, "Repulsion", 1.0f);
+      fp.NormalSamplingDistance = cookInputParam(c, 1, "NormalSamplingDistance", 0.01f);
+      fp.DecayWithDistance = cookInputParam(c, 1, "DecayWithDistance", 0.0f);
+      fp.Count = pool;
+      // PF field-into-force bridge (runFieldForce): a wired SDF field -> the runtime-compiled
+      // field_distance_force kernel samples its distance .w at each particle's raw Position
+      // (FieldDistanceForce.hlsl:81) and finite-differences a surface normal to attract/repel; no field ->
+      // the baked (.w=1 everywhere) static PSO degenerates to a faithful no-op (fork-FieldDistance-baked).
+      if (!runFieldForce(fieldDistanceTemplate(), "field_distance_force", &fp, sizeof(fp)))
+        runForce(s->psoFieldDist, &fp, sizeof(fp));  // fork-FieldDistance-baked fallback
     } else {  // FORCE_KIND_TURBULENCE (default)
       TurbParams tp{};
       tp.Amount = cookInputParam(c, 1, "Amount", 15.0f);

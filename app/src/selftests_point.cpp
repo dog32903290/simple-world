@@ -98,6 +98,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"gizmo-locator", runGizmoLocatorSelfTest},  // C3 gizmo Tranche-1: Locator (3-axis cross, geometry only)
     {"particlefield-probe", runParticleFieldProbeSelfTest},  // PF-a TERMINAL probe: field-into-force bridge consumed (anisotropy≠0 both legs)
     {"vectorfieldforce-field", runVectorFieldForceFieldSelfTest},  // PF-a closed-form: 1 particle field-sampled -> Velocity≈(0.5625A,0,0.5625A)
+    {"fielddistanceforce-field", runFieldDistanceForceFieldSelfTest},  // PF bridge closed-form: SphereSDF + 1 particle @(1,0,0) -> Velocity≈(-A,0,0)
     {"fieldtree-builder", runFieldTreeBuilderSelfTest},  // PF-0: graph->FieldNode builder (flat+resident both legs)
 );
 }  // namespace sw

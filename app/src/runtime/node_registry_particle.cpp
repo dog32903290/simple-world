@@ -122,6 +122,27 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_SNAPANGLES, 0.0f, 5.0f,
          Widget::Slider, {}, /*pinless=*/true}},
        nullptr},
+      // FieldDistanceForce — TiXL particle/force/FieldDistanceForce. Samples a wired SDF Field's distance
+      // at each particle's position, finite-differences a surface normal, and pushes the particle along it
+      // (attract outside / repel inside). The Field input is a real "Field" port (mirrors
+      // FieldDistanceForce.cs:9-10 InputSlot<ShaderGraphNode>); the cook drivers gather the wired SDF op tree
+      // into PointCookCtx::inputFieldTree and cookParticleSim assembles + compiles the field_distance template
+      // (PF bridge). No field wired -> baked no-op (fork-FieldDistance-baked, see field_distance_force.metal).
+      // Defaults照 FieldDistanceForce.t3: Amount=1, Attraction=1, Repulsion=1, NormalSamplingDistance=0.01,
+      // DecayWithDistance=0. isBufferInput() skips a "Field" port -> the dedicated field gather is the sole
+      // consumer (no double-count into ins[]).
+      {"FieldDistanceForce",
+       "FieldDistanceForce",
+       {{"force", "force", "ParticleForce", false},
+        {"Field", "Field", "Field", true},  // PF: TiXL ShaderGraphNode SDF field input
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"Attraction", "Attraction", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"Repulsion", "Repulsion", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"NormalSamplingDistance", "NormalSamplingDistance", "Float", true, 0.01f, 0.0f, 1.0f},
+        {"DecayWithDistance", "DecayWithDistance", "Float", true, 0.0f, 0.0f, 10.0f},
+        {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_FIELDDISTANCE, 0.0f, 6.0f,
+         Widget::Slider, {}, /*pinless=*/true}},
+       nullptr},
       {"ParticleSystem",
        "ParticleSystem",
        {{"emit", "emit", "Points", true},
