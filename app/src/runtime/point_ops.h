@@ -499,6 +499,11 @@ RenderCommand cookCamera(CmdCookCtx& c);
 void registerCameraOp();
 int runCameraSelfTest(bool injectBug);
 
+// Execute command op (point_ops_execute.cpp, the S2a KEYSTONE = cook-core MultiInput Command collector; doc + golden in the .cpp).
+RenderCommand cookExecute(CmdCookCtx& c);
+void registerExecuteOp();
+int runExecuteSelfTest(bool injectBug);
+
 // --- SetRequestedResolution command op (point_ops_setrequestedresolution.cpp, the S1 seam's EXPLICIT
 // override). Command in → Command out: the cook driver PUSHES requestedResolution (Width/Height-or-current
 // × Multiply, clamped [1,16384]) while cooking its subtree → a WindowFollow RenderTarget/camera inside

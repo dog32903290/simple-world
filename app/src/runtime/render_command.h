@@ -195,4 +195,15 @@ struct RenderCommand {
 // mesh_op_registry.h's meshInjectBug(). Defined in point_ops_rendertarget.cpp.
 bool& meshDepthDisableForTest();
 
+// S2a test-only DRIVER flag (the MultiInput Command collector tooth): when true, cookCommand's
+// MultiInput Command branch COLLAPSES to the first wire (the `break` bug) instead of concatenating all
+// N wired Command chains in wire order. So --selftest-execute's -bug leg drops every layer past the
+// first → the composited chain loses items → the golden goes RED. OFF in production (zero behavior
+// change — the loop concatenates every wire). This is a CPU DRIVER flag, NOT a shader bug-branch (no
+// test seam in any .metal — constitution rule); parallel to meshDepthDisableForTest above. Defined in
+// point_ops_execute.cpp; read by the flat (point_graph.cpp) + resident (point_graph_resident.cpp)
+// collectors. Single-input Command ports (Camera/SetRequestedResolution) are unaffected (they already
+// take only the first wire; the flag is a no-op for them).
+bool& executeCollectFirstOnlyForTest();
+
 }  // namespace sw

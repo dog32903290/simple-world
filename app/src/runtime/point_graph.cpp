@@ -447,14 +447,18 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         const Connection* c = g.connectionToInput(pinId(id, (int)i));
         if (c) inTex = cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100);
       } else if (port.dataType == "Command" && !haveInCmd) {
-        // Cut 3: a command op (Camera) WRAPs a Command subtree — recurse + hand it in via inputCommand.
-        // S1 seam: SetRequestedResolution PUSHES requestedResolution around THIS subtree cook (here, not in
-        // the op — the driver cooks the subtree); save/restore stops a sibling leaking it.
+        // S2a KEYSTONE — MultiInput Command collector (TiXL Execute.cs CollectedInputs; full doc in
+        // point_ops_execute.cpp): concat N wired chains in wire order → the render island composes. S1:
+        // SetRequestedResolution pushes requestedResolution around the subtree (save/restore stops a leak).
         const RenderResolution savedReq = p_->requestedResolution;
         if (n->type == "SetRequestedResolution")
           p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(id), savedReq);
-        const Connection* c = g.connectionToInput(pinId(id, (int)i));
-        if (c) inCmd = cookCommand(pinNode(c->fromPin));
+        for (const Connection& c : g.connections) {  // g.connections = wire order (ListToBuffer :202)
+          if (c.toPin != pinId(id, (int)i)) continue;
+          RenderCommand sub = cookCommand(pinNode(c.fromPin));
+          inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+          if (!port.multiInput || executeCollectFirstOnlyForTest()) break;  // single-input / -bug collapse
+        }
         p_->requestedResolution = savedReq;  // restore (SetRequestedResolution.cs:28)
         haveInCmd = true;
       }

@@ -201,6 +201,20 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Height", "Height", "Float", true, 0.0f, 0.0f, 16384.0f},
         {"Multiply", "Multiply", "Float", true, 1.0f, 0.0f, 16.0f}},
        nullptr},
+      // Execute (TiXL Lib.flow.Execute): the S2a KEYSTONE — a MULTIINPUT Command port that concatenates
+      // N wired Command chains in wire-declaration order into ONE chain (Execute.cs CollectedInputs). The
+      // cook-core collector (cookCommand's MultiInput Command branch) does the gather+concat; this op just
+      // gates on IsEnabled. Command(MultiInput) in → Command out. This is what lets the ~155 Slot<Command>
+      // render ops compose (every render op outputs Command and they only chain through a MultiInput Group/
+      // Execute). The Command port carries multiInput=true (the {..., false, 1, true} positional tail = the
+      // FloatsToList/Values precedent); no Float fields are meaningful on it (placeholders). IsEnabled is a
+      // Widget::Bool (.t3 DefaultValue = true). FORK (named): VisibleGizmos = Execute without transform =
+      // the same op; Group (Execute + SRT push) is S2b, out of scope here.
+      {"Execute", "Execute",
+       {{"Command", "Command", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
+        {"out", "out", "Command", false},
+        {"IsEnabled", "IsEnabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr},
   };
   return specs;
 }

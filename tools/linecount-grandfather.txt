@@ -20,10 +20,16 @@ app/src/pointlist_golden.cpp:544
 app/src/runtime/compound_load.cpp:416
 app/src/runtime/gradient_ops_blendgradients.cpp:484
 app/src/runtime/math_ops_selftest.cpp:1339
-app/src/runtime/point_graph.cpp:765
+# S2a keystone (MultiInput Command collector, Execute op) added a minimal load-bearing branch to the
+# flat + resident cookCommand — both files were AT their exact cap with zero headroom (same as S1's
+# landing). Caps raised by the exact seam delta; comments already squeezed to the floor. The collector
+# loop / extraConns loop are irreducible code (not removable comment). A future cook-driver split should
+# lower these again. (S2a build agent, 2026-06-23.)
+app/src/runtime/point_graph.cpp:769
 app/src/runtime/point_graph.h:440
-app/src/runtime/point_graph_resident.cpp:595
-app/src/runtime/point_ops.h:539
+app/src/runtime/point_graph_resident.cpp:601
+# point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
+app/src/runtime/point_ops.h:544
 app/src/runtime/point_ops_attributesfromimagechannels.cpp:429
 app/src/runtime/point_ops_blend.cpp:426
 app/src/runtime/point_ops_blendwithmask.cpp:434

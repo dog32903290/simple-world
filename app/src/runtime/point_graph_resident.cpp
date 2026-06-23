@@ -481,15 +481,22 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
           inMesh = cookResidentMesh(ri->srcNodePath, depth + 1);
         haveMesh = true;
       } else if (port.dataType == "Command" && !haveInCmd) {
-        // Cut 3: the Camera op wraps a Command subtree — recurse + hand it in via cc.inputCommand.
-        // S1 seam (resident mirror of the flat cookCommand): SetRequestedResolution PUSHES
-        // requestedResolution around THIS subtree cook (save/restore stops a sibling leaking it).
+        // S2a KEYSTONE — resident mirror of the flat MultiInput Command collector (doc: point_ops_execute
+        // .cpp). MultiInput Command (Execute) concats the primary wire (srcNodePath) + extraConns (批次25,
+        // wire-ordered); single-input (Camera) has empty extraConns. S1: SetRequestedResolution pushes here.
         const RenderResolution savedReq = p_->requestedResolution;
         if (n->opType == "SetRequestedResolution")
           p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(path), savedReq);
         const ResidentInput* ri = n->input(port.id);
-        if (ri && ri->driver == ResidentInput::Driver::Connection)
-          inCmd = cookCommand(ri->srcNodePath, depth + 1);
+        if (ri && ri->driver == ResidentInput::Driver::Connection) {
+          RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
+          inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+          if (port.multiInput && !executeCollectFirstOnlyForTest())  // -bug: skip the extra wires
+            for (const auto& ec : ri->extraConns) {
+              RenderCommand es = cookCommand(ec.first, depth + 1);
+              inCmd.items.insert(inCmd.items.end(), es.items.begin(), es.items.end());
+            }
+        }
         p_->requestedResolution = savedReq;  // restore (SetRequestedResolution.cs:28)
         haveInCmd = true;
       }
