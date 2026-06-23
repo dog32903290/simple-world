@@ -29,7 +29,7 @@
 //   ★MATRIX FORK (named, parity-load-bearing): Matrix4x4.CreateFromAxisAngle is transcribed
 //   ELEMENT-FOR-ELEMENT from System.Numerics (ROW-MAJOR, row-vector — the field_camera convention), not
 //   approximated. The axis is NOT renormalized (System.Numerics does not normalize either — a non-unit
-//   axis scales the rotation, faithful to TiXL; the .t3 default axis is (1,0,0) unit). deg→rad is the same
+//   axis scales the rotation, faithful to TiXL; the .t3 default axis is (0,0,1) unit = Z). deg→rad is the same
 //   named fork Layer2d/Group already carry.
 #include "runtime/point_ops.h"
 
@@ -70,7 +70,7 @@ RenderCommand cookRotateAroundAxis(CmdCookCtx& c) {
   if (!c.inputCommand) return rc;     // no subtree wired → empty (faithful)
   rc.items = c.inputCommand->items;   // COPY the subtree (we re-stamp)
 
-  float axisDef[3] = {1.0f, 0.0f, 0.0f};  // .t3 default Axis (RotateAroundAxis.t3)
+  float axisDef[3] = {0.0f, 0.0f, 1.0f};  // .t3 default Axis (0,0,1) — Z (RotateAroundAxis.t3)
   float axis[3];
   cookVecN(c, "Axis", axisDef, 3, axis);
   float angleDeg = cookParam(c, "Angle", 0.0f);     // .t3 default 0 → identity rotation

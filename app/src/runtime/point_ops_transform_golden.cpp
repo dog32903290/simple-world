@@ -2,12 +2,11 @@
 // (TiXL Lib/render/transform/*.cs, cooked by point_ops_{rotatearoundaxis,shear,transform}.cpp) push their
 // transform onto context.ObjectToWorld and MOVE the child layer on BOTH the flat AND resident cook legs.
 // NO new cook-core code: a HARNESS cut driving the already-landed S2 island (the SAME per-item group-stamp
-// the S2b Group golden exercises — point_ops_group_golden.cpp is the direct template). Each op is a single-
-// Command pass-through that stamps into RenderDrawItem.groupObjectToWorld; the executor right-multiplies it
-// (point_ops_rendertarget.cpp Layer2d case: finalO2W = childO2W · groupObjectToWorld). Because all three
-// write the SAME group slot, they COMPOSE with Group — so the goldens drive each op OVER a Group(translate)
-// to make a pure-rotation / pure-shear visible (a centered symmetric quad is invariant under rotation about
-// its own center; translating it first off-center makes the rotation/shear move it).
+// the S2b Group golden exercises — point_ops_group_golden.cpp is the direct template). Each op stamps into
+// RenderDrawItem.groupObjectToWorld; the executor right-multiplies it (point_ops_rendertarget.cpp Layer2d:
+// finalO2W = childO2W · groupObjectToWorld). All three write the SAME group slot, so they COMPOSE with Group
+// — the goldens drive each op OVER a Group(translate) to make a pure rotation/shear visible (a centered
+// symmetric quad is invariant under rotation about its own center; translating it off-center makes it move).
 //
 //     SolidRed(Texture2D) → Layer2d(Scale=0.3) → Group(Translate +0.5 x) → <OP> → RenderTarget(Texture2D)
 //
@@ -16,24 +15,24 @@
 //   innermost-first: childO2W · groupT · <OP-matrix>. We project the quad ORIGIN (object 0,0,0) through
 //   finalO2W · camera and probe the resulting NDC plateau (RED) plus the pre-OP location (BACKGROUND).
 //
-//   T1 RotateAroundAxis(Axis=(0,0,1),90°): CreateFromAxisAngle((0,0,1),90°)==CreateRotationZ(90°); a +90°
-//     row-vector Z-rot maps (x,y)→(−y,x), so the Group center (+0.5,0)→(0,+0.5). probe (0,+0.5)=RED, probe
-//     (+0.5,0)=BG. Host ref = layer2dObjectToWorld(rotZ=90) (== CreateRotationZ, INDEPENDENT of the op code).
-//   T2 Shear(Translation.Y=1): m.M12=Y=1 couples input x→output y in v·M: (x,y)→(x,y+x), so (+0.5,0)→
-//     (+0.5,+0.5). probe (+0.5,+0.5)=RED, probe (+0.5,0)=BG. (Trivial shear matrix built inline host-side.)
-//   T3 Transform(Translation.x=+0.3): full-TRS default S/R + translate, stacks on Group(+0.5) → +0.8 total.
-//     probe (+0.8,0)=RED; probe (+0.35,0)=BG — see the geometry note at the tooth (avoids the both-inside trap).
+//   T1 RotateAroundAxis(Axis=(0,0,1),90°): ==CreateRotationZ(90°); row-vector Z-rot (x,y)→(−y,x), Group
+//     center (+0.5,0)→(0,+0.5). probe (0,+0.5)=RED, (+0.5,0)=BG. Host ref = layer2dObjectToWorld(rotZ=90).
+//   T1b RotateAroundAxis(90°, Axis UNSET): exercises the .t3 DEFAULT Axis (now (0,0,1)=Z) → identical to T1.
+//     Guards the default the refuter found unguarded (pre-fix default (1,0,0)=X = in-plane no-op → tooth RED).
+//   T2 Shear(Translation.Y=1): m.M12=Y=1 couples x→y in v·M: (x,y)→(x,y+x), (+0.5,0)→(+0.5,+0.5). RED there.
+//   T3 Transform(Translation.x=+0.3): full-TRS default S/R + translate, on Group(+0.5) → +0.8 total. probe
+//     (+0.8,0)=RED; (+0.35,0)=BG (geometry note at tooth avoids the both-inside trap).
+//   T3b Transform(Pivot=(0.2,0,0), Rotation.z=90°, Translation.y=+0.6): pivot+rotation make CONCATENATION
+//     ORDER load-bearing (T3 translate-only would pass an S/R/pivot-order bug). MOVED (+0.2,+0.9)=RED,
+//     (+0.5,0)=BG. Closed-form derivation at the tooth.
 //
 // ── injectBug ── a wrapper over EACH op runs the REAL cook then RESTORES groupObjectToWorld to the inner
-//   Group's snapshot (drops ONLY this op's stamp) → the quad sits at the Group-only spot → every "moved"
-//   probe reads BG → flip → RED, on flat AND resident (catches a resident path that lost the push). The bite
-//   is the REAL executor multiply + REAL op stamp, not a flipped assertion.
+//   Group's snapshot (drops ONLY this op's stamp) → quad sits at the Group-only spot → every "moved" probe
+//   reads BG → flip → RED, on flat AND resident. The bite is the REAL executor multiply + REAL op stamp.
 // ── DISCIPLINE (Cut62-63) ── deep-interior projected-center plateaus only, never a quad edge; single-sample;
-//   no depth (Layer2d depth-disabled); expected NDC DERIVED from the transform math.
-//
-// Zone: runtime leaf. SolidImage = TEST-ONLY harness fixture (the group_golden precedent); Layer2d / Group /
-// RotateAroundAxis / Shear / Transform / RenderTarget are the REAL builtins under test (the OP under test is
-// re-registered with a drop-flag wrapper).
+//   no depth; expected NDC DERIVED from the transform math.
+// Zone: runtime leaf. SolidImage = TEST-ONLY fixture; Layer2d/Group/RotateAroundAxis/Shear/Transform/
+// RenderTarget are the REAL builtins under test (the op under test is re-registered with a drop-flag wrapper).
 #include "runtime/point_ops.h"
 
 #include "runtime/field_camera.h"    // Mat4 / mat4Mul / groupObjectToWorld / layer2dObjectToWorld / objectToClipSpace / defaultLayerCameraForward / mat4TransformPointDivW / mat4Identity
@@ -155,9 +154,9 @@ void installSpecs() {
       {{"command", "command", "Command", true},
        {"out", "out", "Command", false},
        {"Angle", "Angle", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Slider, {}, true},
-       {"Axis.x", "Axis", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+       {"Axis.x", "Axis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},  // .t3 default (0,0,1)=Z
        {"Axis.y", "Axis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-       {"Axis.z", "Axis.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}});
+       {"Axis.z", "Axis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}});
   dyn["Shear"] = atomicSpec(
       "Shear",
       {{"command", "command", "Command", true},
@@ -285,6 +284,20 @@ void projectCenter(const Mat4& opMatrix, float& ndcX, float& ndcY) {
 Mat4 translate(float tx, float ty, float tz) {
   Mat4 T = mat4Identity(); T.m[12] = tx; T.m[13] = ty; T.m[14] = tz; return T;
 }
+
+// Drive ONE tooth: build+cook the op graph on `path`, probe MOVED (expect RED >200) and BEFORE/vacated
+// (expect BG <40), print, return the assertion. moved/before NDC are DERIVED host-side per tooth, passed in.
+bool runTooth(MTL::Device* dev, MTL::Library* lib, MTL::CommandQueue* q, const char* opType,
+              const std::map<std::string, float>& p, float groupTx, uint32_t W, uint32_t H, int path,
+              const char* pathName, const char* label, float mx, float my, float bx, float by) {
+  Graph g = buildGraph(opType, p, groupTx, W, H);
+  int rMoved = -1, rBefore = -1;
+  bool ok = cookAndProbe(dev, lib, q, g, path, W, H, mx, my, bx, by, rMoved, rBefore);
+  bool faithful = ok && (rMoved > 200) && (rBefore < 40);
+  std::printf("[selftest-transformops] %s %s: moved(%.2f,%.2f)R=%d(>200) before(%.2f,%.2f)R=%d(<40) -> %s\n",
+              pathName, label, mx, my, rMoved, bx, by, rBefore, faithful ? "faithful-ok" : "tripped");
+  return faithful;
+}
 }  // namespace
 
 int runTransformOpsSelfTest(bool injectBug) {
@@ -315,67 +328,56 @@ int runTransformOpsSelfTest(bool injectBug) {
   bool allFaithful = true;
   const char* pathName[2] = {"flat", "resident"};
 
+  // rotZ via layer2dObjectToWorld(1,1,90,0,0,0) (== System.Numerics CreateRotationZ — INDEPENDENT of op code).
+  const Mat4 rotZ90 = layer2dObjectToWorld(1.0f, 1.0f, 90.0f, 0.0f, 0.0f, 0.0f);
   for (int path = 0; path < 2; ++path) {
+    float mx, my, bx, by;
     // ── TOOTH 1: RotateAroundAxis(Z, 90°) over Group(+0.5 x). center (+0.5,0) → (0,+0.5). ──
-    {
-      // opMatrix = groupT(+0.5) · rotZ(90). rotZ via layer2dObjectToWorld(1,1,90,0,0,0) (== CreateRotationZ).
-      Mat4 rotZ = layer2dObjectToWorld(1.0f, 1.0f, 90.0f, 0.0f, 0.0f, 0.0f);
-      Mat4 opM = mat4Mul(translate(groupTx, 0.0f, 0.0f), rotZ);
-      float mx, my, bx, by;
-      projectCenter(opM, mx, my);                                  // moved (rotated) center ≈ (0,+0.5)
-      projectCenter(translate(groupTx, 0.0f, 0.0f), bx, by);       // pre-op (Group-only) ≈ (+0.5,0)
-      std::map<std::string, float> p{{"Angle", 90.0f}, {"Axis.x", 0.0f}, {"Axis.y", 0.0f}, {"Axis.z", 1.0f}};
-      Graph g = buildGraph("RotateAroundAxis", p, groupTx, W, H);
-      int rMoved = -1, rBefore = -1;
-      bool ok = cookAndProbe(dev, lib, q, g, path, W, H, mx, my, bx, by, rMoved, rBefore);
-      bool faithful = ok && (rMoved > 200) && (rBefore < 40);
-      allFaithful = allFaithful && faithful;
-      std::printf("[selftest-transformops] %s T1 RotateAroundAxis Z90: moved(%.2f,%.2f)R=%d(>200) "
-                  "before(%.2f,%.2f)R=%d(<40) -> %s\n", pathName[path], mx, my, rMoved, bx, by, rBefore,
-                  faithful ? "faithful-ok" : "tripped");
-    }
+    projectCenter(mat4Mul(translate(groupTx, 0.0f, 0.0f), rotZ90), mx, my);  // rotated center ≈ (0,+0.5)
+    projectCenter(translate(groupTx, 0.0f, 0.0f), bx, by);                   // pre-op (Group-only) ≈ (+0.5,0)
+    allFaithful &= runTooth(dev, lib, q, "RotateAroundAxis",
+                            {{"Angle", 90.0f}, {"Axis.x", 0.0f}, {"Axis.y", 0.0f}, {"Axis.z", 1.0f}},
+                            groupTx, W, H, path, pathName[path], "T1 RotateAroundAxis Z90", mx, my, bx, by);
+    // ── TOOTH 1b: RotateAroundAxis(Angle=90°) WITHOUT setting Axis (params omitted → the .t3 default Axis is
+    //   the ONLY source) → default now (0,0,1)=Z, so IDENTICAL to T1: moved (0,+0.5)=RED, before (+0.5,0)=BG.
+    //   The guard the refuter found missing — pre-fix default (1,0,0)=X is an in-plane no-op (center stays
+    //   (+0.5,0)) so the moved probe (0,+0.5) reads BG → tooth RED. Reuses T1's mx,my,bx,by (same expected). ──
+    allFaithful &= runTooth(dev, lib, q, "RotateAroundAxis", {{"Angle", 90.0f}}, groupTx, W, H, path,
+                            pathName[path], "T1b RotateAroundAxis default-Axis", mx, my, bx, by);
     // ── TOOTH 2: Shear(Translation.y=1) over Group(+0.5 x). M12=Y=1 → (x,y)→(x,y+x): (+0.5,0)→(+0.5,+0.5). ──
-    {
-      Mat4 shear = mat4Identity(); shear.m[1] = 1.0f;  // M12 = Translation.Y = 1 (the shear matrix)
-      Mat4 opM = mat4Mul(translate(groupTx, 0.0f, 0.0f), shear);
-      float mx, my, bx, by;
-      projectCenter(opM, mx, my);                                  // sheared center ≈ (+0.5,+0.5)
-      projectCenter(translate(groupTx, 0.0f, 0.0f), bx, by);       // pre-op ≈ (+0.5,0)
-      std::map<std::string, float> p{{"Translation.x", 0.0f}, {"Translation.y", 1.0f}, {"Translation.z", 0.0f}};
-      Graph g = buildGraph("Shear", p, groupTx, W, H);
-      int rMoved = -1, rBefore = -1;
-      bool ok = cookAndProbe(dev, lib, q, g, path, W, H, mx, my, bx, by, rMoved, rBefore);
-      bool faithful = ok && (rMoved > 200) && (rBefore < 40);
-      allFaithful = allFaithful && faithful;
-      std::printf("[selftest-transformops] %s T2 Shear Y=1: moved(%.2f,%.2f)R=%d(>200) "
-                  "before(%.2f,%.2f)R=%d(<40) -> %s\n", pathName[path], mx, my, rMoved, bx, by, rBefore,
-                  faithful ? "faithful-ok" : "tripped");
-    }
+    Mat4 shear = mat4Identity(); shear.m[1] = 1.0f;  // M12 = Translation.Y = 1 (the shear matrix)
+    projectCenter(mat4Mul(translate(groupTx, 0.0f, 0.0f), shear), mx, my);   // sheared center ≈ (+0.5,+0.5)
+    projectCenter(translate(groupTx, 0.0f, 0.0f), bx, by);                   // pre-op ≈ (+0.5,0)
+    allFaithful &= runTooth(dev, lib, q, "Shear",
+                            {{"Translation.x", 0.0f}, {"Translation.y", 1.0f}, {"Translation.z", 0.0f}},
+                            groupTx, W, H, path, pathName[path], "T2 Shear Y=1", mx, my, bx, by);
     // ── TOOTH 3: Transform(Translation.x=+0.3) over Group(+0.5 x). total +0.8 x. ──
-    {
-      Mat4 opM = mat4Mul(translate(groupTx, 0.0f, 0.0f), translate(0.3f, 0.0f, 0.0f));  // +0.8 total
-      float mx, my, bx, by;
-      projectCenter(opM, mx, my);                                  // ≈ (+0.8,0)
-      projectCenter(translate(groupTx, 0.0f, 0.0f), bx, by);       // pre-op ≈ (+0.5,0)
-      std::map<std::string, float> p{{"Translation.x", 0.3f}, {"Translation.y", 0.0f},
-                                     {"Translation.z", 0.0f}, {"UniformScale", 1.0f}};
-      (void)bx; (void)by;
-      // DISCRIMINATING probe choice: the Group-only quad spans NDC x ∈ [+0.2,+0.8] (center +0.5, half 0.3);
-      // the Transform-moved quad spans [+0.5,+1.1] (center +0.8). The window that is INSIDE Group-only but
-      // OUTSIDE moved is [+0.2,+0.5). Probe its MIDDLE (+0.35,0) — a deep plateau in both directions, never
-      // a quad edge (the +0.2 / +0.5 boundaries are avoided). probe A = the moved center (+0.8,0) = RED;
-      // probe B = (+0.35,0) = BACKGROUND once Transform's translate reached the executor (the quad VACATED
-      // it). (Using +0.5 would be a bad probe: inside BOTH quads — no discrimination. This geometry choice
-      // is load-bearing.)
-      Graph g = buildGraph("Transform", p, groupTx, W, H);
-      int rMoved = -1, rVacated = -1;
-      bool ok = cookAndProbe(dev, lib, q, g, path, W, H, mx, my, /*B=*/0.35f, 0.0f, rMoved, rVacated);
-      bool faithful = ok && (rMoved > 200) && (rVacated < 40);  // moved spot red, vacated +0.35 spot background
-      allFaithful = allFaithful && faithful;
-      std::printf("[selftest-transformops] %s T3 Transform +0.3x: moved(%.2f,%.2f)R=%d(>200) "
-                  "vacated(0.35,0.00)R=%d(<40) -> %s\n", pathName[path], mx, my, rMoved, rVacated,
-                  faithful ? "faithful-ok" : "tripped");
-    }
+    projectCenter(mat4Mul(translate(groupTx, 0.0f, 0.0f), translate(0.3f, 0.0f, 0.0f)), mx, my);  // ≈ (+0.8,0)
+    // DISCRIMINATING probe B=(+0.35,0): INSIDE group-only quad x∈[+0.2,+0.8] but OUTSIDE moved x∈[+0.5,+1.1]
+    // (deep plateau, never an edge) → BG once the translate reaches the executor. (+0.5 sits in BOTH — no use.)
+    allFaithful &= runTooth(dev, lib, q, "Transform",
+                            {{"Translation.x", 0.3f}, {"Translation.y", 0.0f}, {"Translation.z", 0.0f},
+                             {"UniformScale", 1.0f}},
+                            groupTx, W, H, path, pathName[path], "T3 Transform +0.3x", mx, my, 0.35f, 0.0f);
+    // ── TOOTH 3b: Transform with Pivot≠0 AND Rotation≠0 — makes the pivot/rotation CONCATENATION ORDER
+    //   load-bearing (T3 translate-only passes even with an S/R/pivot-order bug). Pivot=(0.2,0,0),
+    //   Rotation.z(roll)=90°, Translation=(0,+0.6,0), S=UniformScale=1, over Group(+0.5 x).
+    //   CLOSED-FORM (row-vector v·M, mat4Mul left→right = the op's exact path; rotZ90 maps (x,y)→(−y,x)):
+    //     opMatrix = T(groupTx=+0.5x) · [T(-p)·R·T(+p)·T(t)]   (S=I). projectCenter sends object origin
+    //     (0,0,0) through childO2W·opMatrix; childO2W (Layer2d scale 0.3) is origin-fixed, so MOVED center =
+    //     origin·opMatrix = (+0.2,+0.9)  (verified numerically on this exact mat4 path).
+    //   probe A=(+0.2,+0.9): deep interior of the moved quad, ABOVE the group-only top (y=+0.3) → OUTSIDE
+    //   group-only. probe B=(+0.5,0): deep group-only interior → BG when the stamp drops. A pivot-drop or
+    //   S/R/T-reorder moves the origin elsewhere (no-pivot→(0,+1.1); trans-first→(−0.4,+0.3)) so A reads BG →
+    //   RED. Reference `inner` is built from INDEPENDENT translate()+rotZ90, not the op's own code. ──
+    Mat4 inner = mat4Mul(mat4Mul(mat4Mul(translate(-0.2f, 0.0f, 0.0f), rotZ90), translate(0.2f, 0.0f, 0.0f)),
+                         translate(0.0f, 0.6f, 0.0f));  // T(-p)·R·T(+p)·T(t)  (S=I)
+    projectCenter(mat4Mul(translate(groupTx, 0.0f, 0.0f), inner), mx, my);   // numerically (+0.2,+0.9)
+    allFaithful &= runTooth(dev, lib, q, "Transform",
+                            {{"Pivot.x", 0.2f}, {"Rotation.z", 90.0f}, {"Translation.y", 0.6f},
+                             {"UniformScale", 1.0f}},
+                            groupTx, W, H, path, pathName[path], "T3b Transform pivot+rotZ", mx, my,
+                            0.5f, 0.0f);
   }
 
   g_dropOpStamp = false;

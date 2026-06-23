@@ -219,14 +219,14 @@ const std::vector<NodeSpec>& drawSpecs() {
       // ONE axis-angle rotation onto context.ObjectToWorld (Matrix4x4.CreateFromAxisAngle(Axis, Angle°)).
       // Command in → Command out (the op stamps the rotation onto every subtree item via the Group
       // per-item group-stamp mechanism; the executor right-multiplies it into ObjectToWorld). A thinner
-      // sibling of Group — no SRT, no IsEnabled (TiXL's op has none). .t3 defaults: Axis (1,0,0), Angle 0.
+      // sibling of Group — no SRT, no IsEnabled (TiXL's op has none). .t3 defaults: Axis (0,0,1)=Z, Angle 0.
       {"RotateAroundAxis", "RotateAroundAxis",
        {{"command", "command", "Command", true},
         {"out", "out", "Command", false},
         {"Angle", "Angle", "Float", true, 0.0f, -360.0f, 360.0f},
-        {"Axis.x", "Axis", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"Axis.x", "Axis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
         {"Axis.y", "Axis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Axis.z", "Axis.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}},
+        {"Axis.z", "Axis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}},
        nullptr},
       // Shear (TiXL Lib.render.transform.Shear): wraps a Command subtree and pushes a SHEAR matrix onto
       // context.ObjectToWorld (Identity with M12=Translation.Y, M21=Translation.X, M14=Translation.Z).
