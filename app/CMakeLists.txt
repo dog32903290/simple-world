@@ -171,6 +171,7 @@ add_executable(simple_world
   src/app/child_state_selftest.cpp
   src/app/auto_backup.cpp           # L6 維運: periodic project backup
   src/app/auto_backup_selftest.cpp  # L6 維運: round-trip golden (--selftest-auto-backup)
+  src/app/asset_ref_roundtrip_selftest.cpp  # L3 檔案: image-asset-reference round-trip golden (--selftest-asset-ref)
   src/app/menu.cpp
   src/ui/cjk_font.cpp
   src/ui/canvas_ids.cpp
