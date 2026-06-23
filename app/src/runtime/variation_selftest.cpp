@@ -29,8 +29,10 @@
 #include <cstdio>
 #include <vector>
 
-#include "runtime/selftest_registry.h"  // REGISTER_SELFTESTS
-#include "runtime/variation_mix.h"      // springDamp / mixFloat / MixNeighbour
+#include "runtime/selftest_registry.h"      // REGISTER_SELFTESTS
+#include "runtime/variation_mix.h"          // springDamp / mixFloat / MixNeighbour
+#include "runtime/variation_pool.h"         // VariationPool / Variation / VariationValue / SnapshotChildState
+#include "runtime/variation_crossfader.h"   // VariationCrossfader / LiveParams
 
 namespace sw {
 namespace {
@@ -93,12 +95,143 @@ bool runSpringGolden(bool injectBug) {
   return ok;
 }
 
+// ── GOLDEN 3 — snapshot POOL store / retrieve / filter (TiXL VariationHandling.cs:106-164 +
+//   SymbolVariationPool.cs:858) ─────────────────────────────────────────────────────────────────
+// Build two snapshots into the pool, then prove: (a) tryGetSnapshot returns the variation stored at
+// each activationIndex with the exact captured values; (b) EnabledForSnapshots filters out a disabled
+// child (its params do NOT enter the snapshot); (c) createOrUpdate at an existing index OVERWRITES
+// (delete-then-add — count stays the same, value updates).
+//
+// Composition (kCompositionNode) carries two inputs; a second child (id 7) is DISABLED for snapshots.
+//   inputA = float, inputB = vec3.
+//   Snapshot A @ index 1: inputA=0,   inputB=(0,10,20)
+//   Snapshot B @ index 2: inputA=100, inputB=(100,0,-20)
+constexpr InputId kInputA = 100;
+constexpr InputId kInputB = 200;
+constexpr NodeId kDisabledChild = 7;
+
+std::vector<SnapshotChildState> childStatesA() {
+  SnapshotChildState comp;
+  comp.childId = kCompositionNode;
+  comp.enabledForSnapshots = true;
+  comp.values[kInputA] = VariationValue::makeFloat(0.0f);
+  comp.values[kInputB] = VariationValue::makeVec3(0.0f, 10.0f, 20.0f);
+  // A disabled child whose values must be filtered out of the snapshot.
+  SnapshotChildState disabled;
+  disabled.childId = kDisabledChild;
+  disabled.enabledForSnapshots = false;
+  disabled.values[kInputA] = VariationValue::makeFloat(999.0f);
+  return {comp, disabled};
+}
+std::vector<SnapshotChildState> childStatesB() {
+  SnapshotChildState comp;
+  comp.childId = kCompositionNode;
+  comp.enabledForSnapshots = true;
+  comp.values[kInputA] = VariationValue::makeFloat(100.0f);
+  comp.values[kInputB] = VariationValue::makeVec3(100.0f, 0.0f, -20.0f);
+  return {comp};
+}
+
+bool runPoolGolden(bool injectBug) {
+  VariationPool pool;
+  pool.createOrUpdateSnapshot(1, childStatesA(), "A");
+  pool.createOrUpdateSnapshot(2, childStatesB(), "B");
+
+  bool ok = true;
+  // (a) retrieve A @ 1, exact captured values.
+  const Variation* a = pool.tryGetSnapshot(1);
+  const Variation* b = pool.tryGetSnapshot(2);
+  ok = (a != nullptr) && (b != nullptr) && ok;
+  if (a) {
+    const VariationValue* va = a->find(kCompositionNode, kInputA);
+    const VariationValue* vb = a->find(kCompositionNode, kInputB);
+    ok = va && va->equals(VariationValue::makeFloat(0.0f)) && ok;
+    ok = vb && vb->equals(VariationValue::makeVec3(0.0f, 10.0f, 20.0f)) && ok;
+    // (b) EnabledForSnapshots filter: the disabled child must NOT be present.
+    const bool disabledAbsent = (a->find(kDisabledChild, kInputA) == nullptr);
+    ok = disabledAbsent && ok;
+  }
+  // (c) overwrite at existing index: re-create @ 1 with B's values → count unchanged, value updated.
+  const size_t before = pool.size();
+  pool.createOrUpdateSnapshot(1, childStatesB(), "A2");
+  const bool countSame = (pool.size() == before);
+  const Variation* a2 = pool.tryGetSnapshot(1);
+  const VariationValue* va2 = a2 ? a2->find(kCompositionNode, kInputA) : nullptr;
+  // ★ injectBug expects the OLD value (0) after overwrite → bites the real overwrite (now 100).
+  const VariationValue wantAfterOverwrite =
+      injectBug ? VariationValue::makeFloat(0.0f) : VariationValue::makeFloat(100.0f);
+  const bool overwriteOk = countSame && va2 && va2->equals(wantAfterOverwrite);
+  ok = overwriteOk && ok;
+
+  std::printf("[selftest-variation] POOL store/retrieve/filter/overwrite -> "
+              "haveA=%s haveB=%s overwrite(count=%zu->%zu, want %.1f)=%s -> %s\n",
+              a ? "y" : "n", b ? "y" : "n", before, pool.size(),
+              (double)wantAfterOverwrite.v[0], overwriteOk ? "ok" : "BAD", ok ? "PASS" : "FAIL");
+  return ok;
+}
+
+// ── GOLDEN 4 — 2-way CROSSFADER blend at deterministic mix points (TiXL BlendActions.cs +
+//   SymbolVariationPool.cs:618 → Lerp(a,b,t)=a+(b-a)*t) ────────────────────────────────────────
+// Active = snapshot A (left, fader 0); blend target = snapshot B (right, fader 127). The live params
+// start at A's values (the active snapshot). applyBlend(weight) writes Lerp(A, B, weight) into live.
+//   weight=0   → live == A exactly:           inputA=0,   inputB=(0,10,20)
+//   weight=1   → live == B exactly:           inputA=100, inputB=(100,0,-20)
+//   weight=0.5 → live == midpoint Lerp(A,B,.5):
+//                inputA = 0 + (100-0)*0.5         = 50
+//                inputB = (0+(100-0)*.5, 10+(0-10)*.5, 20+(-20-20)*.5) = (50, 5, 0)
+bool runCrossfaderGolden(bool injectBug) {
+  VariationPool pool;
+  pool.createOrUpdateSnapshot(1, childStatesA(), "A");
+  pool.createOrUpdateSnapshot(2, childStatesB(), "B");
+
+  VariationCrossfader xf(pool);
+  xf.setActiveSnapshot(1);       // A is the active (left) snapshot
+  xf.startBlendingTowards(2);    // target B on the right
+
+  // Seed live params with A's values (the active snapshot is already applied as the live baseline).
+  auto seedLive = [&]() {
+    LiveParams live;
+    live[kCompositionNode][kInputA] = VariationValue::makeFloat(0.0f);
+    live[kCompositionNode][kInputB] = VariationValue::makeVec3(0.0f, 10.0f, 20.0f);
+    return live;
+  };
+
+  // weight=0 → A exact.
+  LiveParams l0 = seedLive();
+  xf.applyBlend(l0, 0.0f);
+  const bool ok0 = l0[kCompositionNode][kInputA].equals(VariationValue::makeFloat(0.0f)) &&
+                   l0[kCompositionNode][kInputB].equals(VariationValue::makeVec3(0.0f, 10.0f, 20.0f));
+
+  // weight=0.5 → midpoint. ★ injectBug uses 0.4 instead of 0.5 → real blend lands off the {50,5,0}
+  //   midpoint (inputA=40, not 50) → the tooth bites the genuinely-wrong interpolation point.
+  LiveParams lh = seedLive();
+  const float midWeight = injectBug ? 0.4f : 0.5f;
+  xf.applyBlend(lh, midWeight);
+  const bool okHalf = lh[kCompositionNode][kInputA].equals(VariationValue::makeFloat(50.0f)) &&
+                      lh[kCompositionNode][kInputB].equals(VariationValue::makeVec3(50.0f, 5.0f, 0.0f));
+
+  // weight=1 → B exact.
+  LiveParams l1 = seedLive();
+  xf.applyBlend(l1, 1.0f);
+  const bool ok1 = l1[kCompositionNode][kInputA].equals(VariationValue::makeFloat(100.0f)) &&
+                   l1[kCompositionNode][kInputB].equals(VariationValue::makeVec3(100.0f, 0.0f, -20.0f));
+
+  const bool ok = ok0 && okHalf && ok1;
+  std::printf("[selftest-variation] CROSSFADER A@1->B@2 Lerp(a,b,t) "
+              "t=0(%s) t=%.1f->inA=%.4f want 50(%s) t=1(%s) -> %s\n",
+              ok0 ? "A-exact" : "BAD", (double)midWeight, (double)lh[kCompositionNode][kInputA].v[0],
+              okHalf ? "ok" : "BAD", ok1 ? "B-exact" : "BAD", ok ? "PASS" : "FAIL");
+  return ok;
+}
+
 }  // namespace
 
 int runVariationSelfTest(bool injectBug) {
   bool ok = true;
   ok = runMixGolden(injectBug) && ok;
   ok = runSpringGolden(injectBug) && ok;
+  ok = runPoolGolden(injectBug) && ok;
+  ok = runCrossfaderGolden(injectBug) && ok;
   std::printf("[selftest-variation] %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
