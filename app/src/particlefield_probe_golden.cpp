@@ -52,10 +52,14 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/compound_graph.h"       // SymbolLibrary / Symbol / SymbolChild (resident leg)
+#include "runtime/field_graph.h"          // setFieldSourceCompiler (PF-a: the field source compiler seam)
 #include "runtime/graph.h"                // Graph / Node / PortSpec / findSpec / pinId
 #include "runtime/render_command.h"       // RenderCommand (DrawPoints is a Cmd op on both legs)
 #include "runtime/resident_eval_graph.h"  // buildEvalGraph / ResidentEvalGraph
+#include "runtime/tex_op_cache.h"         // clearTexOpCache (fresh source-compute-PSO cache per run-device)
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext
+
+#include "platform/metal_compile.h"  // platform::compileLibraryFromSource (the field source compiler)
 
 #ifndef SW_SHADER_METALLIB
 #define SW_SHADER_METALLIB "shaders.metallib"
@@ -141,7 +145,7 @@ int findForceFieldInPortIdx() {
 // whose Result we attempt to wire toward the force (raw pin connection — there is no Field input port to
 // receive it, mirroring exactly what a UI wire would face). Returns the pool mean after `steps` frames.
 Mean cookFlat(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, uint32_t N, int steps,
-              float amount) {
+              float amount, bool severField) {
   registerBuiltinPointOps();
   std::vector<SwPoint> cap; g_pfCap = &cap;
   registerCmdOp("DrawPoints", pfCaptureCmd);
@@ -152,7 +156,13 @@ Mean cookFlat(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, uint32_
   Node sim;  sim.id = 2;  sim.type = "ParticleSystem";
   Node drw;  drw.id = 3;  drw.type = "DrawPoints";
   Node vff;  vff.id = 4;  vff.type = "VectorFieldForce"; vff.params["Amount"] = amount;
-  Node fld;  fld.id = 5;  fld.type = "ToroidalVortexField";  // .t3 defaults (Radius=0.5,Range=0.5,...)
+  // Field params chosen so the radius-2 emitter ring sits INSIDE the field's effective range (the .t3
+  // default Range=0.5 is tiny vs. the ring -> decay≈0 -> no measurable push). Radius=1.0 keeps the ring
+  // OFF the centerline (rho>0, no early-return), Range=3.0 covers the spreading pool -> every ring
+  // particle gets a strong swirl(+z/-z)+radial(toward ring) push whose mean is highly anisotropic
+  // (y≈0, |x|≈|z| large) — the LARGE-anisotropy fingerprint the terminal assertion needs.
+  Node fld;  fld.id = 5;  fld.type = "ToroidalVortexField";
+  fld.params["Radius"] = 1.0f; fld.params["Range"] = 3.0f;
   g.nodes = {gen, sim, drw, vff, fld};
   g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // RadialPoints.points -> emit
   g.connections.push_back({102, pinId(4, 0), pinId(2, 1)});  // VectorFieldForce.force -> forces
@@ -161,8 +171,13 @@ Mean cookFlat(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, uint32_
   // added the real Field port, so the flat field gather builds the tree from THIS wire. (Pre-PF-0 there
   // was no Field port → a phantom pin 99, inert; the fallback keeps the probe runnable either way.)
   const int forceFieldIn = findForceFieldInPortIdx();
-  g.connections.push_back({104, pinId(5, /*Result port idx*/findFieldOutPortIdx()),
-                           pinId(4, forceFieldIn >= 0 ? forceFieldIn : 99)});
+  // -bug: SEVER the field wire (drop connection 104). The flat field gather then finds no wired Field
+  // -> inputFieldTree stays null -> the cook takes the baked (1,1,1) fork-VFF fallback -> isotropic ->
+  // the terminal anisotropy assertion FAILs (RED). This bites the bridge itself: the only difference
+  // from the no-bug graph is whether the field reaches the force kernel.
+  if (!severField)
+    g.connections.push_back({104, pinId(5, /*Result port idx*/findFieldOutPortIdx()),
+                             pinId(4, forceFieldIn >= 0 ? forceFieldIn : 99)});
 
   const int targetId = pg.defaultDrawTarget(g);
   for (int i = 0; i < steps; ++i) {
@@ -179,7 +194,7 @@ Mean cookFlat(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, uint32_
 // library exactly as the flat graph has them; the resident driver has no "Field" gather either, so the
 // field is dropped identically. Returns the resident pool mean.
 Mean cookResidentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, uint32_t N, int steps,
-                     float amount) {
+                     float amount, bool severField) {
   registerBuiltinPointOps();
   std::vector<SwPoint> cap; g_pfCap = &cap;
   registerCmdOp("DrawPoints", pfCaptureCmd);
@@ -200,6 +215,9 @@ Mean cookResidentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, 
     s.inputDefs = {{"Amount", "Amount", "Float", 1.0f}, {"VectorField", "VectorField", "Field", 0.0f}};
     s.outputDefs = {{"force", "force", "ParticleForce", 0.0f}}; return s; }();
   slib.symbols["ToroidalVortexField"] = [] { Symbol s; s.id = s.name = "ToroidalVortexField"; s.atomic = true;
+    // Radius/Range inputs so the cf.overrides (Radius=1, Range=3) resolve through the resident value spine
+    // into the field gather's nodeParams -> configureFieldNodeFromParams. Defaults = .t3 (1.0 / 1.0).
+    s.inputDefs = {{"Radius", "Radius", "Float", 1.0f}, {"Range", "Range", "Float", 1.0f}};
     s.outputDefs = {{"Result", "Result", "Field", 0.0f}}; return s; }();
 
   Symbol root; root.id = root.name = "Root"; root.atomic = false;
@@ -209,14 +227,19 @@ Mean cookResidentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, 
   SymbolChild cd; cd.id = 3; cd.symbolId = "DrawPoints";
   SymbolChild cv; cv.id = 4; cv.symbolId = "VectorFieldForce"; cv.overrides["Amount"] = amount;
   SymbolChild cf; cf.id = 5; cf.symbolId = "ToroidalVortexField";
+  cf.overrides["Radius"] = 1.0f; cf.overrides["Range"] = 3.0f;  // match the flat leg (see cookFlat)
   root.children = {cg, cs, cd, cv, cf};
   root.connections = {
       {1, "points", 2, "emit"},
       {4, "force", 2, "forces"},
       {2, "result", 3, "points"},
-      {5, "Result", 4, "VectorField"},          // the field wire — carried, but the cook drops it
       {3, "out", kSymbolBoundary, "out"},
   };
+  // The field wire: ToroidalVortexField.Result -> VectorFieldForce.VectorField. PF-0's resident field
+  // gather builds the tree from THIS wire and hands it to cookParticleSim::inputFieldTree. -bug SEVERs
+  // it (same shape as the flat leg) -> baked isotropy -> terminal assertion RED on the resident leg too.
+  if (!severField)
+    root.connections.insert(root.connections.begin() + 3, {5, "Result", 4, "VectorField"});
   slib.symbols["Root"] = root; slib.rootId = "Root";
 
   ResidentEvalGraph rg = buildEvalGraph(slib, "Root");
@@ -242,15 +265,27 @@ int runParticleFieldProbeSelfTest(bool injectBug) {
     return 1;
   }
 
+  // PF-a CRITICAL: register the field source compiler (the SAME lambda main.cpp wires) so the field-into-
+  // force compute PSO can compile the assembled field MSL. WITHOUT this, cachedSourceComputePSO returns
+  // null -> the cook silently falls back to baked (1,1,1) -> the terminal flip would spuriously look RED
+  // (refuter #1 target). clearTexOpCache drops any stale PSO built on a released device from a prior run.
+  setFieldSourceCompiler([](void* device, const char* msl) -> void* {
+    NS::Error* err = nullptr;
+    return platform::compileLibraryFromSource(static_cast<MTL::Device*>(device), msl, &err);
+  });
+  clearTexOpCache();
+
   const uint32_t N = 1024;
   const int STEPS = 30;
   const float AMOUNT = 6.0f;
 
-  // STATIC: the force contract has no Field input -> the wire has nowhere to land (root of the RED).
+  // STATIC: PF-0 added the "VectorField" Field input port -> the wire has somewhere to land.
   const bool fieldInputExists = forceHasFieldInput();
 
-  Mean flat = cookFlat(dev, q, lib, N, STEPS, AMOUNT);
-  Mean res = cookResidentLeg(dev, q, lib, N, STEPS, AMOUNT);
+  // -bug severs the field wire on BOTH legs -> no inputFieldTree -> baked (1,1,1) isotropic -> RED.
+  const bool sever = injectBug;
+  Mean flat = cookFlat(dev, q, lib, N, STEPS, AMOUNT, sever);
+  Mean res = cookResidentLeg(dev, q, lib, N, STEPS, AMOUNT, sever);
   const float flatAniso = anisotropy(flat);
   const float resAniso = anisotropy(res);
 
@@ -266,45 +301,39 @@ int runParticleFieldProbeSelfTest(bool injectBug) {
   const bool fieldHadEffect = (flat.n > 0 && flatAniso > kAnisoWant) &&
                               (res.n > 0 && resAniso > kAnisoWant);
 
-  std::printf("[selftest-particlefield-probe] PROBE VERDICT = B (resident+flat CANNOT bring the wired "
-              "field child)\n");
-  std::printf("  static: VectorFieldForce has Field input port? %s (TiXL VectorField input is omitted, "
-              "node_registry_particle.cpp:44)\n", fieldInputExists ? "YES" : "NO");
+  std::printf("[selftest-particlefield-probe] PROBE VERDICT = TERMINAL (PF-a: the wired field child IS "
+              "consumed by the force kernel on BOTH legs)\n");
+  std::printf("  static: VectorFieldForce has Field input port? %s (PF-0 added the VectorField input)\n",
+              fieldInputExists ? "YES" : "NO");
   std::printf("  flat    mean=(% .3f,% .3f,% .3f) n=%zu aniso=%.3f -> %s\n",
               flat.mx, flat.my, flat.mz, flat.n, flatAniso,
-              flatIsotropic ? "BAKED-ISOTROPIC(field dropped)" : "anisotropic");
+              flatIsotropic ? "BAKED-ISOTROPIC(field dropped)" : "anisotropic(field sampled)");
   std::printf("  resident mean=(% .3f,% .3f,% .3f) n=%zu aniso=%.3f -> %s\n",
               res.mx, res.my, res.mz, res.n, resAniso,
-              resIsotropic ? "BAKED-ISOTROPIC(field dropped)" : "anisotropic");
+              resIsotropic ? "BAKED-ISOTROPIC(field dropped)" : "anisotropic(field sampled)");
 
+  // TERMINAL predicate (PF-a landed): the wired ToroidalVortexField is SAMPLED by the runtime-compiled
+  // force kernel -> the pool bends along the field's swirl/radial geometry -> the anisotropy is LARGE on
+  // BOTH legs (fieldHadEffect = flatAniso>kAnisoWant && resAniso>kAnisoWant). This replaces the PF-0
+  // MIDDLE state (both legs baked-isotropic, kernel un-consumed).
+  const bool terminal = fieldInputExists && fieldHadEffect;
+
+  // The terminal assertion: the wired field must produce LARGE anisotropy on BOTH legs. The harness runs
+  // the no-bug variant expecting exit 0 (assertion holds) and the -bug variant (--bite) expecting NON-zero
+  // (assertion fails). The injected bug SEVERS the field wire -> baked (1,1,1) fork-VFF fallback ->
+  // isotropic -> `terminal` is FALSE -> the assertion fails -> non-zero. So a SINGLE return covers both:
+  // the bug bites precisely because severing the wire flips terminal to false.
   if (injectBug) {
-    // -bug variant: assert the FUTURE-GREEN PASS condition ("the wired field had an anisotropic
-    // effect"). This is RED today on purpose — it is the executable proof the bridge is missing. When
-    // PF-a lands (field-MSL -> compute PSO + Field input on the force contract + resident field
-    // projection), this row flips GREEN and the no-bug row below documents the present gap shape.
-    bool wouldPass = fieldInputExists && fieldHadEffect;
-    std::printf("  -bug: future-green expectation (field had anisotropic effect on BOTH legs) = %s "
-                "(RED today == bridge missing, the FLAG)\n", wouldPass ? "MET" : "NOT-MET");
-    std::printf("[selftest-particlefield-probe] %s\n",
-                wouldPass ? "PASS (bridge exists!)" : "RED (PF-a bridge absent — blueprint FLAG=B)");
-    if (q) q->release(); lib->release(); if (dev) dev->release(); pool->release();
-    return wouldPass ? 0 : 1;  // RED today (== the documented gap)
+    std::printf("  -bug: field wire severed -> baked isotropy expected; terminal(anisotropic both legs)=%s "
+                "(want NOT-MET == field correctly dropped to baked when unwired -> the bite)\n",
+                terminal ? "MET" : "NOT-MET");
   }
-
-  // no-bug row: assert the PF-0 TRANSITIONAL TRUTH precisely. PF-0 added the "VectorField" Field input
-  // port to VectorFieldForce and a flat+resident field gather that DELIVERS the wired ToroidalVortexField
-  // tree to PointCookCtx::inputFieldTree — but the force KERNEL still bakes (1,1,1) (PF-a removes the
-  // bake). So the present truth is: the force NOW HAS a Field input (fieldInputExists==YES), yet both legs
-  // STILL drift along the baked isotropy (the tree reaches the cook but is not consumed). This is the
-  // two-stage flip's MIDDLE state — it is GREEN at PF-0 and PF-a flips it to the TERMINAL anisotropy≠0.
-  // It locks the exact shape of the PF-0 gap so a regression (e.g. PF-a half-landing on one leg, or the
-  // Field port vanishing) trips here.
-  bool gapHolds = fieldInputExists && flatIsotropic && resIsotropic;
-  std::printf("[selftest-particlefield-probe] %s (PF-0 gap-shape: Field input present + tree delivered, "
-              "both legs STILL baked-isotropic — kernel un-consumed until PF-a)\n",
-              gapHolds ? "PASS" : "FAIL");
+  std::printf("[selftest-particlefield-probe] %s\n",
+              terminal ? "PASS (PF-a bridge: field SAMPLED, both legs anisotropic)"
+                       : (injectBug ? "RED (severed field -> baked isotropy — bridge bites the sever)"
+                                    : "FAIL (field wired but pool isotropic — bridge not consuming)"));
   if (q) q->release(); lib->release(); if (dev) dev->release(); pool->release();
-  return gapHolds ? 0 : 1;
+  return terminal ? 0 : 1;
 }
 
 }  // namespace sw

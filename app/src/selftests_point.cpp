@@ -96,7 +96,8 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"gizmo-sphere", runGizmoSphereSelfTest},    // C3 gizmo Tranche-1: DrawSphereGizmo (lat/long wireframe rings)
     {"gizmo-grid", runGizmoGridSelfTest},        // C3 gizmo Tranche-1: DrawLineGrid (wireframe grid, adjacent lines lit)
     {"gizmo-locator", runGizmoLocatorSelfTest},  // C3 gizmo Tranche-1: Locator (3-axis cross, geometry only)
-    {"particlefield-probe", runParticleFieldProbeSelfTest},  // PF-a FLAG probe: field-into-force bridge absent (RED evidence)
+    {"particlefield-probe", runParticleFieldProbeSelfTest},  // PF-a TERMINAL probe: field-into-force bridge consumed (anisotropy≠0 both legs)
+    {"vectorfieldforce-field", runVectorFieldForceFieldSelfTest},  // PF-a closed-form: 1 particle field-sampled -> Velocity≈(0.5625A,0,0.5625A)
     {"fieldtree-builder", runFieldTreeBuilderSelfTest},  // PF-0: graph->FieldNode builder (flat+resident both legs)
 );
 }  // namespace sw

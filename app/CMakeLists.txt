@@ -269,6 +269,7 @@ add_executable(simple_world
   src/runtime/field_ops_toroidalvortexfield.cpp
   src/field_render_golden.cpp
   src/particlefield_probe_golden.cpp
+  src/vectorfieldforce_field_golden.cpp
   src/fieldtree_builder_golden.cpp
   src/field_ops_boxsdf_golden.cpp
   src/field_ops_boxframesdf_golden.cpp
@@ -547,6 +548,10 @@ target_compile_definitions(simple_world PRIVATE
   # Field shader-graph render TEMPLATE (a string asset, NOT precompiled — see shaders/templates/).
   # assembleFieldMSL reads this and fills /*{GLOBALS}*/ /*{FLOAT_PARAMS}*/ /*{FIELD_CALL}*/ at runtime.
   SW_FIELD_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/field_render_template.metal"
+  # PF-a field-into-FORCE compute TEMPLATE (same string-asset rule; the COMPUTE sibling of the render
+  # template above). assembleFieldMSL fills the SAME hooks; cookParticleSim compiles the result into a
+  # compute PSO for the VectorFieldForce field-into-force bridge.
+  SW_VFF_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/vector_field_force_template.metal"
 )
 
 # The executable needs the metallib built before it runs.

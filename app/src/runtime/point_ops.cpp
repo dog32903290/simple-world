@@ -3,15 +3,19 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 #include <vector>
 
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
 #include "runtime/dispatch.h"        // calcDispatchCount
+#include "runtime/field_graph.h"     // assembleFieldMSL, AssembledField (PF-a field-into-force bridge)
 #include "runtime/graph.h"           // Graph/Node/findSpec/pinId
 #include "runtime/particle_params.h" // RadialParams, RadialBinding
 #include "runtime/point_graph.h"     // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/tex_op_cache.h"    // cachedSourceComputePSO (PF-a: srcHash-keyed compute PSO)
 #include "runtime/tixl_point.h"      // SwPoint (64B) + EvaluationContext
 
 #ifndef SW_SHADER_METALLIB
@@ -75,6 +79,25 @@ RenderCommand cookDrawPoints(CmdCookCtx& c) {
 }
 
 namespace {
+// PF-a: load the field-into-force COMPUTE template (SW_VFF_TEMPLATE) once. The string is a compile-time
+// asset path (mirrors field_graph_selftest's SW_FIELD_TEMPLATE read); assembleFieldMSL fills its hooks.
+// Cached in a function-static so the file is read at most once per process, not per cook. Empty if the
+// define is unset or the file is unreadable (-> the cook falls back to the baked path, byte-identical).
+const std::string& vffTemplate() {
+  static const std::string tmpl = [] {
+#ifdef SW_VFF_TEMPLATE
+    std::ifstream f(SW_VFF_TEMPLATE);
+    if (!f) return std::string();
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
+#else
+    return std::string();
+#endif
+  }();
+  return tmpl;
+}
+
 // Compute PSO from the metallib by function name (the sim op caches its two in per-node
 // state so they aren't rebuilt every frame).
 MTL::ComputePipelineState* makeComputePSO(MTL::Device* dev, MTL::Library* lib, const char* name) {
@@ -217,7 +240,49 @@ void cookParticleSim(PointCookCtx& c) {
       vp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
       vp.Variation = cookInputParam(c, 1, "Randomize", 0.0f);  // TiXL slot name "Randomize"
       vp.SpeedFactor = 1.0f; vp.Count = pool;
-      runForce(s->psoVecField, &vp, sizeof(vp));
+      // PF-a field-into-force bridge: if a Field tree is wired (PF-0 delivered it on inputFieldTree,
+      // identically on both flat & resident legs since cookParticleSim is the single shared cook fn),
+      // assemble it into the COMPUTE template, compile/cache a PSO keyed on srcHash, bind the field's
+      // packed FloatParams at FORCE_FieldParams, and dispatch the runtime-compiled kernel — GetField
+      // now SAMPLES the wired field at each particle's raw Position (VectorFieldForce-sg.hlsl:60-61).
+      // No field wired -> the existing baked (1,1,1) static PSO (fork-VFF), byte-identical for every
+      // pre-existing graph.
+      bool ranField = false;
+      if (c.inputFieldTree) {
+        const std::string& tmpl = vffTemplate();
+        if (!tmpl.empty()) {
+          AssembledField asmField = assembleFieldMSL(c.inputFieldTree, tmpl);
+          if (!asmField.msl.empty()) {
+            MTL::ComputePipelineState* fieldPso = cachedSourceComputePSO(
+                c.dev, asmField.msl.c_str(), asmField.srcHash, "vector_field_force");
+            if (fieldPso) {
+              // Field FloatParams buffer at FORCE_FieldParams (rebuilt per cook; cheap, so param edits
+              // never recompile). Metal needs a non-null buffer even for a zero-param field; >=16 bytes.
+              const size_t paramBytes = asmField.floatParams.empty()
+                                            ? 16
+                                            : asmField.floatParams.size() * sizeof(float);
+              MTL::Buffer* fieldBuf = c.dev->newBuffer(paramBytes, MTL::ResourceStorageModeShared);
+              if (fieldBuf) {
+                if (!asmField.floatParams.empty())
+                  std::memcpy(fieldBuf->contents(), asmField.floatParams.data(),
+                              asmField.floatParams.size() * sizeof(float));
+                MTL::CommandBuffer* cmd = c.queue->commandBuffer();
+                MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
+                enc->setComputePipelineState(fieldPso);
+                enc->setBuffer(s->particles, 0, FORCE_Particles);
+                enc->setBytes(&vp, sizeof(vp), FORCE_Params);
+                enc->setBuffer(fieldBuf, 0, FORCE_FieldParams);
+                enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(pool, tg), 1, 1),
+                                          MTL::Size::Make(tg, 1, 1));
+                enc->endEncoding(); cmd->commit(); cmd->waitUntilCompleted();
+                fieldBuf->release();  // contents consumed by the GPU; not needed past the dispatch
+                ranField = true;
+              }
+            }
+          }
+        }
+      }
+      if (!ranField) runForce(s->psoVecField, &vp, sizeof(vp));  // fork-VFF baked fallback
     } else if (forceKind == FORCE_KIND_VELOCITY) {
       // 批次24 VelocityForce — defaults照 VelocityForce.t3: Amount=1, Accelerate=1, MinSpeed=0,
       // MaxSpeed=1000, Variation=0, VariationGainAndBias=(0.5,0.5).

@@ -268,6 +268,13 @@ struct SnapAnglesForceParams {
 enum ForceBinding {
   FORCE_Particles = 0,  // device Particle* (u0) — shared by all force kernels
   FORCE_Params = 1,     // constant {Turb,DirForce,VecFieldForce,Vel,AxisStep,SnapAngles}Params& (b0)
+  // PF-a: assembled FieldParams buffer for the runtime-compiled VectorFieldForce compute kernel
+  // (the field-into-force bridge). Distinct slot from FORCE_Params so the force's b0 (Amount/
+  // Variation) and the field's packed param buffer never overwrite each other; the field op's
+  // members carry the "ToroidalVortexField_<id>_" prefix so there is no name collision either.
+  // Only the runtime-compiled vector_field_force_template kernel binds this; the baked
+  // vector_field_force.metal (fork-VFF, no field) never declares it -> byte-identical.
+  FORCE_FieldParams = 2,
 };
 
 // Force-op discriminator. A ParticleForce node carries a pinless `_ForceKind` Float whose spec

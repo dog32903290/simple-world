@@ -44,6 +44,18 @@ std::map<std::string, MTL::ComputePipelineState*>& computePsoCache() {
   return c;
 }
 
+// Source-COMPUTE-PSO cache (PF-a, the field-into-force bridge): keyed by the assembled field MSL's
+// srcHash (FNV-1a), parallel to sourcePsoCache() but holding a COMPUTE pipeline. Stores the PSO and the
+// backing runtime-compiled Library together so both are released on teardown (same shape as SourcePSOEntry).
+struct SourceComputePSOEntry {
+  MTL::ComputePipelineState* pso = nullptr;
+  MTL::Library* lib = nullptr;
+};
+std::map<uint64_t, SourceComputePSOEntry>& sourceComputePsoCache() {
+  static std::map<uint64_t, SourceComputePSOEntry> c;
+  return c;
+}
+
 // Scratch cache: one entry per logical key; reallocated only when size/format/usage/mip changes.
 struct ScratchEntry {
   MTL::Texture* tex = nullptr;
@@ -159,6 +171,35 @@ MTL::RenderPipelineState* cachedSourcePSO(MTL::Device* dev, const char* mslSourc
   return rps;
 }
 
+MTL::ComputePipelineState* cachedSourceComputePSO(MTL::Device* dev, const char* mslSource,
+                                                  uint64_t srcHash, const char* kernelName) {
+  if (!dev || !mslSource || !kernelName) return nullptr;
+  auto& cache = sourceComputePsoCache();
+  auto it = cache.find(srcHash);
+  if (it != cache.end()) return it->second.pso;  // HIT: same assembled field -> zero recompile
+
+  // MISS: compile the assembled MSL via the registered field source compiler (runtime->platform leaf
+  // seam, the SAME fn-ptr cachedSourcePSO uses). The compiler returns an OWNED MTL::Library* as void*.
+  SourceCompileFn compile = fieldSourceCompiler();
+  if (!compile) return nullptr;  // app never registered one -> graceful (silent baked fallback upstream)
+  MTL::Library* lib = static_cast<MTL::Library*>(compile(dev, mslSource));
+  if (!lib) return nullptr;  // source failed to compile (error face logged in platform)
+
+  MTL::Function* fn = lib->newFunction(NS::String::string(kernelName, NS::UTF8StringEncoding));
+  MTL::ComputePipelineState* pso = nullptr;
+  if (fn) {
+    NS::Error* err = nullptr;
+    pso = dev->newComputePipelineState(fn, &err);
+    fn->release();
+  }
+  if (pso) {
+    cache[srcHash] = SourceComputePSOEntry{pso, lib};  // cache OWNS pso + lib (released in clear)
+  } else {
+    lib->release();  // function missing or pipeline build failed -> don't leak; retried next call
+  }
+  return pso;
+}
+
 MTL::ComputePipelineState* cachedComputePSO(MTL::Device* dev, MTL::Library* lib,
                                             const char* fnName) {
   if (!dev || !lib || !fnName) return nullptr;
@@ -215,6 +256,11 @@ void clearTexOpCache() {
     if (kv.second.lib) kv.second.lib->release();
   }
   sourcePsoCache().clear();
+  for (auto& kv : sourceComputePsoCache()) {  // PF-a field-into-force compute PSO cache
+    if (kv.second.pso) kv.second.pso->release();
+    if (kv.second.lib) kv.second.lib->release();
+  }
+  sourceComputePsoCache().clear();
   for (auto& kv : scratchCache())
     if (kv.second.tex) kv.second.tex->release();
   scratchCache().clear();
