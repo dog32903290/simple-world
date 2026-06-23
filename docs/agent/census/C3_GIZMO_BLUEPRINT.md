@@ -127,3 +127,17 @@ Gizmos are visual overlays, but **the line/point geometry is closed-form**, so p
 **Two flags for the orchestrator:**
 1. The census says "15" but only **10 top-level gizmo ops** exist in `Lib/render/gizmo/`; the other 5 are likely the `_/`-archived (deprecated) set. **Confirm the exact 15 GUIDs the census meant before tranche-1 dispatch** — don't burn a lane on a `_`-prefixed deprecated op.
 2. DrawCamGizmos + DrawSpatialAudioGizmos need a composition-walk seam SW doesn't have → recommend **DEFER to a separate mini-blueprint**, not C3.
+
+---
+
+## ★FLAG #1 RESOLVED（2026-06-23 GUID scout）— census 15 = 10 top-level + 5 `_/`-deprecated
+
+掃 `Lib/render/gizmo/`（含 `_/`）+ OP_BACKLOG.md:154 / SEAM_GRAPH.md:104 確認 census「15」=**10 top-level + 5 `_/`-archived**（剛好 15）：
+- **Tranche 1 確定可採（5 乾淨 wireframe 葉，現在就採）**：DrawLineGrid `296dddbd` / GridPlane `935e6597` / DrawBoxGizmo `9123651a` / DrawSphereGizmo `1998f949` / Locator `348652c3`（geom only，drop label）。全純 CPU 幾何騎 gizmo_geometry+DrawLines，零 comp-walk/cross-frame。
+- **DONE**：ConeGizmo `f7e3c9a4`（T0）/ Vector3Gizmo `e9dc80e1`（Phase C value op）。
+- **Tranche 2（fork/state，序列）**：VisibleGizmos `d61d7192`（Command gate）/ PlotValueCurve `92f3193e`（ring-buffer state）。
+- **DEFER（需 comp-walk seam，另開 mini-blueprint）**：DrawCamGizmos `cdf5dd6a` / DrawSpatialAudioGizmos `b53e6425`。
+- **SKIP（`_`-deprecated，別港）**：_DrawSphere `3b97856c` / _CameraGizmo `b601be85` / _DrawPointInfo `ff5b93e3` / _OutputWindowGrid `e5588101` / _VisualizeTBN `dd353ac7`。
+- **跨目錄非 15 內**：SpatialAudioPlayerGizmo `b26e6624`（audio subsystem，DEFER）。
+
+**新 fork flag（Tranche 1 builder 必查）**：`fork-gizmo-screen-constant`——TiXL 部分 gizmo（Locator 輸出 DistanceToCamera）可能除以相機距離保持 fixed-pixel-size。**逐顆查 `.t3` 有無 distance-divide**；CAMERA3D_BLUEPRINT §6 列為 optional/out-of-C3-scope → v1 預設 world-space sizing fork（具名），但 builder 先查再決定。
