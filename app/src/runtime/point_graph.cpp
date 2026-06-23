@@ -515,6 +515,24 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
             if (auto it = n->strParams.find("ProgressVariable"); it != n->strParams.end()) pVar = it->second;
             loopRunIterations(count, iVar, pVar, ctxVars, inCmd,
                               [&]() { return subId >= 0 ? cookCommand(subId) : RenderCommand{}; });
+          } else if (n->type == "ExecRepeatedly") {
+            // S3c ExecRepeatedly RE-COOK (TiXL flow/ExecRepeatedly.cs): cook the MultiInput wires
+            // `RepeatCount` (clamped [0,100]) times, concatenating each repetition (no var injection — the
+            // Loop sibling). Gather the wired sources in wire order, then execRepeatedlyRunRepetitions owns
+            // the repeat loop + concat (shared flat+resident). SkipFrameCount=0 path (the .t3 default).
+            std::vector<int> srcIds;  // wired Command sources, wire-declaration order
+            for (const Connection& c : g.connections)
+              if (c.toPin == pinId(id, (int)i)) srcIds.push_back(pinNode(c.fromPin));
+            int rep = (int)mapParam(nodeParams(id), "RepeatCount", 1.0f);
+            rep = rep < 0 ? 0 : (rep > 100 ? 100 : rep);  // ExecRepeatedly.cs:24 Clamp(0,100)
+            execRepeatedlyRunRepetitions(rep, inCmd, [&]() {
+              RenderCommand all;
+              for (int sid : srcIds) {  // cook ALL wires fresh, wire order (one repetition)
+                RenderCommand sub = cookCommand(sid);
+                all.items.insert(all.items.end(), sub.items.begin(), sub.items.end());
+              }
+              return all;
+            });
           } else {
             for (const Connection& c : g.connections) {  // g.connections = wire order (ListToBuffer :202)
               if (c.toPin != pinId(id, (int)i)) continue;

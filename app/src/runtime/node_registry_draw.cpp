@@ -255,6 +255,52 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"IndexVariable", "IndexVariable", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "Index"},
         {"ProgressVariable", "ProgressVariable", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "Progress"}},
        nullptr},
+      // ExecuteOnce (TiXL Lib.flow.ExecuteOnce): the GATED Execute — a MultiInput Command port that
+      // concatenates N wired chains in wire order (== Execute, the S2a collector) only when Trigger is set;
+      // not triggered ⇒ empty (no draws). The driver's MultiInput Command collector does the gather+concat
+      // (zero cook-core change); the op cook applies the Trigger gate (like Execute applies IsEnabled).
+      // Command(MultiInput) in → Command out. FORK (named): TiXL gates on Trigger.DirtyFlag.IsDirty (a
+      // per-frame self-clearing edge latch → execute exactly once per trigger edge); sw models it as the
+      // Trigger VALUE (>0.5 ⇒ execute, ≤0.5 ⇒ skip) — the faithful execute-when-triggered behaviour, the
+      // once-per-edge self-clear is the deferred frame-state half. OutputTrigger bool output dropped (no
+      // bool Command-side port; editor wiring not a draw effect). .t3: Trigger DefaultValue=true.
+      {"ExecuteOnce", "ExecuteOnce",
+       {{"Command", "Command", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
+        {"out", "out", "Command", false},
+        {"Trigger", "Trigger", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr},
+      // LogMessage (TiXL Lib.flow.LogMessage): a TRANSPARENT Command-rail SubGraph passthrough that fires a
+      // host log side-effect while forwarding the wrapped subtree's draw items unchanged (LogMessage.cs:53).
+      // The single (non-MultiInput) SubGraph is cooked by the driver's existing collector (zero cook-core
+      // change); the op cook forwards the chain + emits the Message to a log sink when logLevel>None and (if
+      // OnlyOnChanges) the text changed (LogMessage.cs:39-48). Command(SubGraph) in → Command out. FORKS
+      // (named): perf timing (_dampedPreviousUpdateDuration / Playback.RunTimeInSecs / UpdateTime level) +
+      // _nestingLevel indent dropped (no Playback clock / editor pane); Message string is on the String
+      // channel, resolved by the op via a process-scoped per-node map — the one deferred prod string-thread
+      // wire (no behaviour-bearing render path ships a LogMessage gate; authoring/telemetry node). .t3:
+      // OnlyOnChanges=false, LogLevel default Messages(1).
+      {"LogMessage", "LogMessage",
+       {{"SubGraph", "SubGraph", "Command", true},
+        {"out", "out", "Command", false},
+        {"OnlyOnChanges", "OnlyOnChanges", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"LogLevel", "LogLevel", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
+         {"None", "Messages", "UpdateTime"}, true}},
+       nullptr},
+      // ExecRepeatedly (TiXL Lib.flow.ExecRepeatedly): the Loop SIBLING — a MultiInput Command port whose
+      // wired subtrees RE-EXECUTE `RepeatCount` (clamped [0,100], :24) times, concatenating each repetition,
+      // with NO context-var injection (unlike Loop's index/progress). The per-repetition re-cook + concat
+      // lives in the cook-core collector (cookCommand's ExecRepeatedly branch → execRepeatedlyRunRepetitions),
+      // shared flat+resident; this op just forwards the built chain. Command(MultiInput) in → Command out.
+      // FORK (named): SkipFrameCount + _callsSinceLastRefresh (:27-34) are a per-frame skip-throttle counter;
+      // sw ships the SkipFrameCount=0 .t3 default (execute every call) — the frame-skip throttle is the
+      // deferred frame-state half (same class as ExecuteOnce's DirtyFlag latch). .t3: RepeatCount=1,
+      // SkipFrameCount=0.
+      {"ExecRepeatedly", "ExecRepeatedly",
+       {{"Command", "Command", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
+        {"out", "out", "Command", false},
+        {"RepeatCount", "RepeatCount", "Float", true, 1.0f, 0.0f, 100.0f},
+        {"SkipFrameCount", "SkipFrameCount", "Float", true, 0.0f, 0.0f, 10000.0f}},
+       nullptr},
       // RotateAroundAxis (TiXL Lib.render.transform.RotateAroundAxis): wraps a Command subtree and pushes
       // ONE axis-angle rotation onto context.ObjectToWorld (Matrix4x4.CreateFromAxisAngle(Axis, Angle°)).
       // Command in → Command out (the op stamps the rotation onto every subtree item via the Group

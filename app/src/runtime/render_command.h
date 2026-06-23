@@ -273,4 +273,24 @@ void loopRunIterations(int count, const std::string& indexVar, const std::string
 bool& loopBugCookOnceForTest();
 bool& loopBugReuseFirstForTest();
 
+// ─────────────────── S3c ExecRepeatedly: re-cook the MultiInput wires `count` times ───────────────────
+// The Loop SIBLING with no var injection (TiXL ExecRepeatedly.cs:34-53): it cooks the COLLECTED Command
+// wires (MultiInput, wire order) `repeatCount` times, concatenating every repetition's items. Unlike Loop
+// it writes NO index/progress context-var (the subtree just re-executes for its side-effects N times) and
+// it is MultiInput (Loop is a single SubGraph). repeatCount is clamped [0,100] (ExecRepeatedly.cs:24) — the
+// driver clamps before calling. execRepeatedlyRunRepetitions() is the SINGLE re-cook mechanism BOTH the flat
+// (point_graph.cpp) and resident (point_graph_resident.cpp) collectors call so the loop can NEVER fork (the
+// S2c/S3a blood lesson: a resident-only miss → production executes the subtree once instead of N times). The
+// leg supplies `cookAllWiresOnce`: a callback that FRESH-cooks every wired Command source in wire order and
+// returns their concatenated items (the leg knows how to reach the wires; the helper owns the repeat+concat).
+// count<=0 → empty (ExecRepeatedly.cs:25 `if repeatCount<=0 return`).
+void execRepeatedlyRunRepetitions(int count, RenderCommand& out,
+                                  const std::function<RenderCommand()>& cookAllWiresOnce);
+
+// S3c ExecRepeatedly -bug DRIVER flag (mirror of loopBugCookOnceForTest), read by
+// execRepeatedlyRunRepetitions on BOTH legs. OFF in production. When true: cook the wires ONCE (drop the
+// repeat loop) → the chain has 1×wires items instead of count×wires → the item-count assertion goes RED.
+// Defined in point_ops_execrepeatedly.cpp.
+bool& execRepeatedlyBugRunOnceForTest();
+
 }  // namespace sw

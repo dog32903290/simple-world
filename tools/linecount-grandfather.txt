@@ -40,7 +40,11 @@ app/src/runtime/math_ops_selftest.cpp:1339
 # per-iteration re-cook lambda. The per-iteration mechanism (for-loop + var write + live scope + concat) lives
 # in the new leaf point_ops_loop.cpp (shared with the resident leg), so the driver branch is irreducible glue.
 # Proven by --selftest-loop (flat leg). Same cook-driver-split debt as the S3a/S3b notes above lowers this.
-app/src/runtime/point_graph.cpp:836
+# 2026-06-23 +18: S3c ExecRepeatedly re-cook branch in the flat MultiInput Command collector (cook-core
+# mechanism, same class as the Loop/Switch branches already here — the owner-locked spine S3 grows). DEBT:
+# the cookCommand god-driver is the standing split target (see DEBT_LEDGER); this raises the cap by exactly
+# the new branch, no slack. Split when the collector is extracted to its own TU.
+app/src/runtime/point_graph.cpp:854
 # S3a (2026-06-23) +12: CmdCookCtx gained the ContextVarMap* ctxVars field (additive ABI, mirrors
 # inputCommand) + the forward-decl + cook/cookResident gained the trailing ctxVars param. Doc squeezed to
 # the floor; the field + its load-bearing comment (the two-rail fork note, blueprint risk #3) are irreducible.
@@ -61,7 +65,9 @@ app/src/runtime/point_graph.h:452
 # A resident-only miss would cook the subtree ONCE with the LAST index → only the final iteration's layer draws
 # (the §3 doubled trap). Calls the SAME loopRunIterations() the flat leg does (point_ops_loop.cpp). Proven by
 # --selftest-loop's resident leg. Same cook-driver-split debt lowers this.
-app/src/runtime/point_graph_resident.cpp:678
+# 2026-06-23 +24: S3c ExecRepeatedly re-cook branch in the resident MultiInput Command collector (the
+# production blood-lesson leg — must mirror the flat branch). DEBT: same split target as point_graph.cpp.
+app/src/runtime/point_graph_resident.cpp:702
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 # +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
 app/src/runtime/point_ops.h:553

@@ -561,6 +561,30 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
             loopRunIterations(count, iVar, pVar, ctxVars, inCmd,
                               [&]() { return subPath.empty() ? RenderCommand{}
                                                              : cookCommand(subPath, depth + 1); });
+          } else if (n->opType == "ExecRepeatedly") {
+            // S3c ExecRepeatedly RE-COOK (resident mirror — production runs THIS leg). Same
+            // execRepeatedlyRunRepetitions() the flat leg calls: cook the MultiInput wires `RepeatCount`
+            // (clamped [0,100]) times, concatenating each repetition. ★§3 wire order: resident wires are
+            // PRIMARY (ri->srcNodePath) + extraConns (wires 1..N) — gather primary-FIRST then extraConns to
+            // match the flat collector's wire order (same trap Switch flags). SkipFrameCount=0 path.
+            std::vector<std::string> srcPaths;  // wire-declaration order: [primary] + extraConns
+            if (ri && ri->driver == ResidentInput::Driver::Connection) {
+              srcPaths.push_back(ri->srcNodePath);                                  // wire 0 = primary
+              for (const auto& ec : ri->extraConns) srcPaths.push_back(ec.first);   // wires 1..N
+            }
+            int rep = 1;
+            if (const std::map<std::string, float>* rp = nodeParams(path)) {
+              auto it = rp->find("RepeatCount"); if (it != rp->end()) rep = (int)it->second;
+            }
+            rep = rep < 0 ? 0 : (rep > 100 ? 100 : rep);  // ExecRepeatedly.cs:24 Clamp(0,100)
+            execRepeatedlyRunRepetitions(rep, inCmd, [&]() {
+              RenderCommand all;
+              for (const std::string& spath : srcPaths) {  // cook ALL wires fresh, wire order (one rep)
+                RenderCommand sub = cookCommand(spath, depth + 1);
+                all.items.insert(all.items.end(), sub.items.begin(), sub.items.end());
+              }
+              return all;
+            });
           } else if (ri && ri->driver == ResidentInput::Driver::Connection) {
             RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
             inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());

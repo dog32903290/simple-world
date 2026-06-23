@@ -19,6 +19,9 @@ void registerShearOp();
 void registerTransformOp();
 void registerSwitchOp();  // S3b: Command(MultiInput) → Command (cook-core sub-select; point_ops_switch.cpp)
 void registerLoopOp();    // S3c: Command(SubGraph) → Command (cook-core RE-COOK per iteration; point_ops_loop.cpp)
+void registerExecuteOnceOp();     // S3b: Command(MultiInput) → Command (gated concat-all; point_ops_executeonce.cpp)
+void registerLogMessageOp();      // S3b: Command(SubGraph) → Command (passthrough + log sink; point_ops_logmessage.cpp)
+void registerExecRepeatedlyOp();  // S3c: Command(MultiInput) → Command (cook-core RE-COOK ×RepeatCount; point_ops_execrepeatedly.cpp)
 
 void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
@@ -39,6 +42,9 @@ void registerDrawPointOps() {
   registerSetVarCmdOps();                        // Command → Command (S3a context-var SubGraph scope: SetFloatVarCmd/SetIntVarCmd)
   registerSwitchOp();                            // Command(MultiInput) → Command (S3b: cook-core sub-select by Index)
   registerLoopOp();                              // Command(SubGraph) → Command (S3c: cook-core RE-COOK per iteration)
+  registerExecuteOnceOp();                       // Command(MultiInput) → Command (S3b: gated concat-all by Trigger)
+  registerLogMessageOp();                        // Command(SubGraph) → Command (S3b: transparent passthrough + log sink)
+  registerExecRepeatedlyOp();                    // Command(MultiInput) → Command (S3c: cook-core RE-COOK ×RepeatCount)
   registerDrawMeshUnlitOp();                    // Mesh → Command (DrawKind::Mesh, the FIRST 3D mesh, Cut 99)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
 }
