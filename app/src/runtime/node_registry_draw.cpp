@@ -186,6 +186,21 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"ClearColor.z", "ClearColor.z", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"ClearColor.w", "ClearColor.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
        nullptr},
+      // SetRequestedResolution (TiXL Lib.render.shading.SetRequestedResolution): the EXPLICIT override
+      // op of the S1 output-resolution seam. Wraps a Command subtree; while cooking it, pushes
+      // context.RequestedResolution = new Int2(Width or current, Height or current) * Multiply, clamped
+      // [1,16384], then restores (SetRequestedResolution.cs:18-28 save/set/cook-child/restore). The
+      // PUSH happens in the cook driver (cookCommand) BEFORE the subtree cooks — the op cook itself just
+      // forwards the subtree's items (the driver owns the push because the subtree is cooked there).
+      // Width/Height default 0 = "use the current RequestedResolution" (so a bare Multiply scales the
+      // ambient size); Multiply default 1. Command in → Command out.
+      {"SetRequestedResolution", "SetRequestedResolution",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"Width", "Width", "Float", true, 0.0f, 0.0f, 16384.0f},
+        {"Height", "Height", "Float", true, 0.0f, 0.0f, 16384.0f},
+        {"Multiply", "Multiply", "Float", true, 1.0f, 0.0f, 16.0f}},
+       nullptr},
   };
   return specs;
 }

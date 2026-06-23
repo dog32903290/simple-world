@@ -1,12 +1,8 @@
 // runtime/point_graph_internal — PRIVATE seam between point_graph.cpp (flat cook) and
-// point_graph_resident.cpp (resident cook). Not a public API: only those two TUs include it.
-// Exists so the resident cook can share PointGraph::Impl (per-node persistent resources) and
-// the op registries without point_graph.cpp growing past the ~400-line law.
-//
-// Resource keys are STRINGS (slice 2b convergence): the resident graph's path-qualified id
-// ("5/2") is the natural frame-stable key; the flat cook prefixes its int node id ("#7") so
-// the two key spaces can never collide while both cooks are alive (flat dies at the
-// production swap; then "#" keys go with it).
+// point_graph_resident.cpp (resident cook). Only those two TUs include it; exists so the resident cook
+// shares PointGraph::Impl + the op registries without point_graph.cpp passing the ~400-line law.
+// Resource keys are STRINGS (slice 2b): the resident path-qualified id ("5/2") is the frame-stable key;
+// the flat cook prefixes its int node id ("#7") so the two key spaces never collide while both live.
 #pragma once
 #include <array>
 #include <cmath>
@@ -99,6 +95,10 @@ struct PointGraph::Impl {
   MTL::CommandQueue* queue = nullptr;
   MTL::Texture* target = nullptr;
   uint32_t width = 0, height = 0;
+
+  // S1 OUTPUT-RESOLUTION SEAM: per-cook RequestedResolution stack-top, CPU-only (forks cpu-resstack /
+  // int2-as-renderresolution). Full doc in point_ops_setrequestedresolution.cpp.
+  RenderResolution requestedResolution;
 
   // Per-node persistent resources (reused across frames; the RESOURCE_LIFETIME golden:
   // allocate → reuse (count unchanged) → reallocate (count grew)). Keyed by resident path

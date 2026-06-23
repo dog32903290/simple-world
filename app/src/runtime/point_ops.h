@@ -278,15 +278,13 @@ int runBlendPointsSelfTest(bool injectBug);
 // returns the surviving 4-point ring -> count + on-sphere assertions FAIL.
 void registerMultiUpdatePointsOp();
 int runMultiUpdatePointsSelfTest(bool injectBug);
-// RepeatAtPoints GENERATE op (point_ops_repeatatpoints.cpp, count-product seam): places each Source
-// point into EACH Target point's local frame -> the FULL CARTESIAN PRODUCT. Output count =
-// source.N * target.N (NOT a sum) — the canonical count-product. The count-product driver hook is the
-// (B) static-stash (zero driver signature change, proven by PairPointsForLines): the cook fn writes a
-// file-static product, countTransform reads it; both flat + resident cook paths call it identically.
-// Faithful port of the GPU RepeatAtGPoints.hlsl (all per-point math + Linear/Interwoven CombineMode);
-// AddSeparators count-expansion is a named fork (deferred). injectBug: SelfTest asserts the SUM count
-// (12) vs the real product (32) -> RED; ProductionSelfTest drops the Target wire -> product 0 ->
-// flat cooked count 0 + resident render black -> RED on BOTH cook paths.
+// RepeatAtPoints GENERATE op (point_ops_repeatatpoints.cpp, count-product seam): places each Source point
+// into EACH Target point's local frame -> the FULL CARTESIAN PRODUCT. Output count = source.N*target.N
+// (NOT a sum). The count-product hook = the (B) static-stash (zero driver signature change): the cook fn
+// writes a file-static product, countTransform reads it (both cook paths). Faithful port of the GPU
+// RepeatAtGPoints.hlsl (per-point math + Linear/Interwoven CombineMode); AddSeparators = a named fork
+// (deferred). injectBug: SelfTest asserts the SUM (12) vs real product (32) -> RED; ProductionSelfTest
+// drops the Target wire -> product 0 -> count 0 + render black -> RED on BOTH cook paths.
 void registerRepeatAtPointsOp();
 int runRepeatAtPointsSelfTest(bool injectBug);
 int runRepeatAtPointsProductionSelfTest(bool injectBug);
@@ -471,45 +469,48 @@ int runDrawPoints2SelfTest(bool injectBug);
 // LinesBuildup, its own shader) where TransitionProgress sweeps a VisibleRange-wide window along the
 // polyline (per-point W=FX1 is the reveal coord). Registers into the command stream. ---
 void registerDrawLinesBuildupOp();
-// DrawLinesBuildup golden (R-2: flat + resident production legs): a W-ramp row of points — assert the
-// in-window band is lit AND the ahead-of-window far-right is dark (the buildup), on BOTH the flat and
-// the production cookResident path. injectBug (TransitionProgress past the line) → in-window band
-// dark → both legs FAIL.
+// DrawLinesBuildup golden (R-2: flat + resident legs): a W-ramp row of points — assert the in-window band
+// is lit AND the ahead-of-window far-right is dark (the buildup), on BOTH cook paths. injectBug
+// (TransitionProgress past the line) → in-window band dark → both legs FAIL.
 int runDrawLinesBuildupSelfTest(bool injectBug);
 
-// --- DrawScreenQuad / ClearRenderTarget command ops (point_ops_drawscreenquad.cpp,
-// dx11-equiv-render-graph seam, block #2). DrawScreenQuad: Texture2D in → Command out
-// (DrawKind::ScreenQuad, tinted textured quad). ClearRenderTarget: Command out (DrawKind::Clear,
-// chain-clear). Both register into the command stream (cmdReg); the executor cookRenderTarget
-// rasterizes/applies them. ---
+// --- DrawScreenQuad / ClearRenderTarget command ops (point_ops_drawscreenquad.cpp, dx11-equiv-render-
+// graph seam #2). DrawScreenQuad: Texture2D in → Command out (DrawKind::ScreenQuad, tinted textured quad).
+// ClearRenderTarget: Command out (DrawKind::Clear, chain-clear). Both register into cmdReg; the executor
+// cookRenderTarget rasterizes/applies them. ---
 RenderCommand cookDrawScreenQuad(CmdCookCtx& c);
 RenderCommand cookClearRenderTarget(CmdCookCtx& c);
 void registerDrawScreenQuadOps();  // registers BOTH DrawScreenQuad + ClearRenderTarget
 
-// --- Layer2d command op (point_ops_layer2d.cpp, camera-context/Layer2d seam Cut 1). Texture2D in →
-// Command out (DrawKind::Layer2d): a textured quad PROJECTED by ObjectToClipSpace (vs ScreenQuad's
-// raw clip). The cook driver (cookRenderTarget) finishes ObjectToClipSpace with the output's default
-// camera (F1). registerLayer2dOp registers it into the command stream. runLayer2dSelfTest is the
-// render golden (drop-mul tooth; declared in field_camera.h since it shares the camera convention). ---
+// --- Layer2d command op (point_ops_layer2d.cpp, camera-context seam Cut 1). Texture2D in → Command out
+// (DrawKind::Layer2d): a textured quad PROJECTED by ObjectToClipSpace (vs ScreenQuad's raw clip); the cook
+// driver finishes it with the output's default camera (F1). runLayer2dSelfTest = the render golden (drop-
+// mul tooth; declared in field_camera.h since it shares the camera convention). ---
 RenderCommand cookLayer2d(CmdCookCtx& c);
 void registerLayer2dOp();
 
 // --- Camera command op (point_ops_camera.cpp, camera3d Cut 3). Command subtree in → Command out: an
-// explicit camera (Position/Target/Up/FOV/ClipPlanes) that renders its subtree through ITS camera
-// instead of the driver-local default (TiXL Camera.cs push/pop). Mechanism = per-item camera stamp
-// (Option a): cookCamera stamps its raw params onto every subtree item (innermost wins); the executor
-// (cookRenderTarget) builds WorldToCamera/CameraToClipSpace from them when composing ObjectToClipSpace.
-// runCameraSelfTest is the GENUINE eye-distance render tooth (a farther eye shrinks the quad → a
-// mid-radius pixel flips quad→background) + the closed-form math leg. ---
+// explicit camera (Position/Target/Up/FOV/ClipPlanes) rendering its subtree through ITS camera, not the
+// driver default (TiXL Camera.cs push/pop). Mechanism = per-item camera stamp (Option a): cookCamera
+// stamps its params onto every subtree item (innermost wins); the executor builds the matrices.
+// runCameraSelfTest = the eye-distance render tooth (a farther eye shrinks the quad → a mid-radius pixel
+// flips quad→background) + the closed-form math leg. ---
 RenderCommand cookCamera(CmdCookCtx& c);
 void registerCameraOp();
 int runCameraSelfTest(bool injectBug);
 
+// --- SetRequestedResolution command op (point_ops_setrequestedresolution.cpp, the S1 seam's EXPLICIT
+// override). Command in → Command out: the cook driver PUSHES requestedResolution (Width/Height-or-current
+// × Multiply, clamped [1,16384]) while cooking its subtree → a WindowFollow RenderTarget/camera inside
+// adopts it (Set...cs:18-28); the op only forwards items. runRequestedResolutionSelfTest = the harness gate. ---
+RenderCommand cookSetRequestedResolution(CmdCookCtx& c);
+void registerSetRequestedResolutionOp();
+int runRequestedResolutionSelfTest(bool injectBug);
+
 // --- DrawMeshUnlit command op (point_ops_drawmeshunlit.cpp, the FIRST 3D mesh, Cut 99). Mesh in →
 // Command out (DrawKind::Mesh): a depth-tested, genuinely-unlit triangle mesh (TiXL DrawMeshUnlit →
-// mesh-DrawUnlit.hlsl; psMain default = albedo(white)·Color = Color). The executor (cookRenderTarget)
-// attaches a depth buffer + draws it LessEqual/ZWrite/CCW-front/Cull-Back. runDrawMeshUnlitSelfTest =
-// Tooth A (host-projected flat-color interior) + Tooth B (the depth-occlusion overlap pixel). ---
+// mesh-DrawUnlit.hlsl; psMain default = albedo(white)·Color). The executor attaches a depth buffer + draws
+// LessEqual/ZWrite/CCW-front/Cull-Back. runDrawMeshUnlitSelfTest = Tooth A (flat-color interior) + B (depth). ---
 RenderCommand cookDrawMeshUnlit(CmdCookCtx& c);
 void registerDrawMeshUnlitOp();
 int runDrawMeshUnlitSelfTest(bool injectBug);
@@ -517,9 +518,8 @@ int runDrawMeshUnlitSelfTest(bool injectBug);
 // pixel is R≈clamp(2*0.5)=1.0 (saturated) and G/B≈0.5 (the closed-form clamp(Color*tex,0,1000)).
 // injectBug drops the source texture → black → FAIL.
 int runDrawScreenQuadSelfTest(bool injectBug);
-// DrawScreenQuad clamp golden (float RT): Color*tex=2.0 read back from a float32 target → asserts
-// RGB≈2.0 survives (NOT hardware-clamped, under the 1000 ceiling) and alpha≈1.0 (the (…,1) cap).
-// injectBug corrupts the real shader clampMax (RGB ceiling→1.0) so RGB reads back 1.0 → FAIL.
+// DrawScreenQuad clamp golden (float RT): Color*tex=2.0 read back from a float32 target → RGB≈2.0 survives
+// (under the 1000 ceiling) and alpha≈1.0. injectBug corrupts the shader clampMax (→1.0) so RGB reads 1.0 → FAIL.
 int runDrawScreenQuadClampSelfTest(bool injectBug);
 // DrawScreenQuad filter golden: a 2x2 distinct-texel texture sampled at the quad center → asserts
 // the center is the bilinear average (0.5), a value Nearest can't produce. Makes sampler=Linear

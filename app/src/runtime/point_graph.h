@@ -159,13 +159,10 @@ struct CmdCookCtx {
 // A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.
 using PointCmdFn = RenderCommand (*)(CmdCookCtx&);
 
-// --- Texture stream (TiXL's Slot<Texture2D>): the THIRD cook flow. A texture op
-// (RenderTarget) executes an upstream RenderCommand into a sized texture — this is the
-// RESOLUTION PIN point. Output texture is PointGraph-owned (pre-sized, like a buffer op's
-// output bag); the op draws into it, does not allocate. ---
-//
-// A CPU-side render resolution (NOT the 16-byte GPU EvaluationContext — that stays pure
-// time/frame). WindowFollow resolves to this; fixed modes ignore it.
+// --- Texture stream (TiXL's Slot<Texture2D>): the THIRD cook flow. A texture op (RenderTarget) executes
+// an upstream RenderCommand into a sized texture — the RESOLUTION PIN. Output texture is PointGraph-owned
+// (pre-sized, like a buffer op's output bag); the op draws into it, does not allocate. ---
+// A CPU-side render resolution (NOT the 16-byte GPU EvaluationContext). WindowFollow resolves to this.
 struct RenderResolution {
   uint32_t w = 512;
   uint32_t h = 512;
@@ -235,15 +232,14 @@ struct TexCookCtx {
 // A texture operator: execute `command` into `output`. No buffer/command return.
 using PointTexFn = void (*)(TexCookCtx&);
 
-// FEEDBACK / multi-tex-output cook context (the cross-frame ping-pong flow = TiXL KeepPreviousFrame /
-// SwapTextures). A feedback op differs from a normal tex op in TWO ways: (1) it can have MULTIPLE
-// Texture2D OUTPUTS that return DIFFERENT textures (PreviousFrame vs CurrentFrame), and (2) it may
-// carry CROSS-FRAME state (a persistent texture pair + a toggle that flips each frame). The driver
-// runs the op ONCE per node per frame (a per-frame memo guards a double toggle when both outputs are
-// pulled), hands it the persistent pair + toggle, and the op fills `outputs[]` by OUTPUT-port-relative
-// index (0 = first Texture2D output port, 1 = second). The driver then returns the texture for the
-// SPECIFIC output port the consumer wired to. The op does NOT allocate the pair (the driver does, via
-// Impl::ensureFeedbackPair, so the cross-frame lifetime stays in one place); the op only blits + routes.
+// FEEDBACK / multi-tex-output cook context (cross-frame ping-pong = TiXL KeepPreviousFrame/SwapTextures).
+// A feedback op differs from a normal tex op TWO ways: (1) it can have MULTIPLE Texture2D OUTPUTS that
+// return DIFFERENT textures (PreviousFrame vs CurrentFrame), and (2) it may carry CROSS-FRAME state (a
+// persistent texture pair + a per-frame-flipping toggle). The driver runs the op ONCE per node per frame
+// (a per-frame memo guards a double toggle when both outputs are pulled), hands it the pair + toggle, and
+// the op fills `outputs[]` by OUTPUT-port-relative index (0 = first Texture2D output, 1 = second); the
+// driver returns the wired output's texture. The op does NOT allocate the pair (the driver does via
+// Impl::ensureFeedbackPair — cross-frame lifetime in one place); the op only blits + routes.
 struct FeedbackCookCtx {
   MTL::Device* dev = nullptr;
   MTL::Library* lib = nullptr;
@@ -322,13 +318,18 @@ void registerTexOpOwnFormat(const std::string& type, int floatsPerTexel);
 int texOpOwnFormat(const std::string& type);  // floats/texel for an own-tex type (default 1)
 
 // Resolve a RenderTarget node's output resolution from its Resolution enum param (+ CustomW/H);
-// WindowFollow (default) returns `windowSize`. Defined in point_ops_rendertarget.cpp; declared
-// here so the cook driver can size the node's own texture (the RESOLUTION PIN) before the tex op.
-// The map overload is the core (works for flat AND resident resolved params); the Node* overload
-// wraps it for flat callers.
+// WindowFollow (default) returns `windowSize`. Defined in point_ops_rendertarget.cpp; the cook driver
+// sizes the node's own texture (the RESOLUTION PIN) with it. The map overload is the core (flat AND
+// resident resolved params); the Node* overload wraps it for flat callers.
 RenderResolution resolveRenderResolution(const std::map<std::string, float>& params,
                                          RenderResolution windowSize);
 RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowSize);
+
+// S1 EXPLICIT-OVERRIDE resolve (SetRequestedResolution): the resolution this op PUSHES around its Command
+// subtree = (Width>0?Width:current.w)*Multiply × likewise H, clamped [1,16384] (Set...cs:18-28; W/H==0 =
+// scale the ambient size). The cook driver calls it to push BEFORE cooking the subtree.
+RenderResolution resolveSetRequestedResolution(const std::map<std::string, float>& params,
+                                               RenderResolution current);
 
 // --- resolved-param accessors (slice 2b seam; defined in point_graph_params.cpp) ---
 // Read a Float param from the ctx's RESOLVED map; falls back to `def` when the driver supplied
@@ -361,26 +362,19 @@ class PointGraph {
   PointGraph& operator=(const PointGraph&) = delete;
 
   bool valid() const;
-  // Cook the sub-graph feeding `targetNodeId` this frame and realize it into target():
-  //  - if the target is a draw node (registered PointDrawFn) -> render its Points input;
-  //  - else the target is a Points-producing op -> its output bag is cooked but not yet
-  //    shown (visualizing a raw Points node needs a typed-preview wrapper — future).
-  // `targetNodeId` is what the viewport shows. The single wired terminal is NOT baked in:
-  // the live loop passes defaultDrawTarget(); a future "pin any node" (view ⊥ graph, like
-  // TiXL's OutputWindow — pin is session state, not a graph edge) just passes another id.
+  // Cook the sub-graph feeding `targetNodeId` this frame and realize it into target(): a draw node
+  // (PointDrawFn) renders its Points input; else a Points-producing op's bag is cooked but not yet shown
+  // (a raw Points preview needs a typed wrapper — future). `targetNodeId` = what the viewport shows; the
+  // live loop passes defaultDrawTarget(), a future "pin any node" (view ⊥ graph, TiXL OutputWindow) another.
   void cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
             int targetNodeId);
-  // Resident-graph cook (slice 2 walk + slice 2b parity): walk a ResidentEvalGraph by
-  // path-qualified id and realize `targetPath` into target() with the SAME three-flow terminal
-  // as cook() (tex / cmd / preview), per-path persistent output buffers + stateful op state,
-  // and driver-resolved Float params handed to ops (the 2b seam). Production still calls
-  // cook(Graph&) — the swap is the next cut. Float reads go through evalResidentFloat (no
-  // version cache yet: wiring pullResidentFloat in = the swap cut, named-deferred).
-  // Proven by --selftest-residentcook (slice-2 walk) + --selftest-residentparity (2b).
-  // S5: localTime/localFxTime (BARS) come from the Transport (frame_cook). localTime = playhead
-  // (automation samples it); localFxTime = wall clock. `lib` lets the resident eval's Automation
-  // drivers resolve curves through the definition-layer Animators (S3 接通). All three default to
-  // the pre-S5 placeholder (ctx.time as both clocks, no lib) so the selftest callers are unchanged.
+  // Resident-graph cook (slice 2 walk + 2b parity): walk a ResidentEvalGraph by path-qualified id and
+  // realize `targetPath` into target() with the SAME three-flow terminal as cook() (tex/cmd/preview),
+  // per-path persistent buffers + stateful state, and driver-resolved Float params (the 2b seam). Float
+  // reads go through evalResidentFloat. Proven by --selftest-residentcook + --selftest-residentparity.
+  // S5: localTime/localFxTime (BARS) from the Transport (frame_cook) — localTime = playhead (automation
+  // samples it), localFxTime = wall clock; `lib` lets Automation drivers resolve curves through the
+  // definition-layer Animators (S3). All three default to the pre-S5 placeholder (ctx.time/no lib).
   void cookResident(const struct ResidentEvalGraph& rg, const EvaluationContext& ctx,
                     const SourceRegistry* reg, const std::string& targetPath,
                     float localTimeBars = -1.0f, float localFxTimeBars = -1.0f,
@@ -425,6 +419,11 @@ class PointGraph {
   // (PointGraph-owned, points into the persistent pair or an upstream input); valid until the next cook
   // of that node. nullptr if the node never cooked as a feedback op / ordinal out of range. For goldens.
   MTL::Texture* debugCookedFeedbackOutput(int nodeId, int ordinal, bool resident = false) const;
+
+  // Test-support: the resolution-sized texture a TEXTURE-flow node cooked last (Impl::texBuf, flatKey(id)).
+  // Lets the S1 golden assert a NESTED RenderTarget inherited the pushed RequestedResolution, not the
+  // window. nullptr if never cooked. Borrowed (do not release).
+  MTL::Texture* debugCookedTexture(int nodeId) const;
 
  private:
   struct Impl;

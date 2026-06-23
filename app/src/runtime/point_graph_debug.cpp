@@ -91,6 +91,11 @@ const SwGradient* PointGraph::debugCookedGradient(int nodeId) const {
   return it != p_->gradientBuf.end() ? &it->second : nullptr;
 }
 
+MTL::Texture* PointGraph::debugCookedTexture(int nodeId) const {
+  auto it = p_->texBuf.find(flatKey(nodeId));
+  return it != p_->texBuf.end() ? it->second : nullptr;
+}
+
 MTL::Texture* PointGraph::debugCookedFeedbackOutput(int nodeId, int ordinal, bool resident) const {
   if (ordinal < 0 || ordinal >= Impl::kMaxFeedbackOut) return nullptr;
   // Flat keys by "#id" (flatKey); resident keys by the path "id" (== node id as string, libFromGraph).

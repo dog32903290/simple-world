@@ -116,6 +116,8 @@ MTL::Texture* PointGraph::target() const { return p_->displayTex ? p_->displayTe
 void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
                       int targetNodeId) {
   p_->displayTex = nullptr;  // default: target() shows the window-sized texture (cmd/preview paths)
+  // S1 seam: seed RequestedResolution to the window (TiXL OutputWindow.cs:411-414 seeding before eval).
+  p_->requestedResolution = RenderResolution{p_->width, p_->height};
   const Node* target = g.node(targetNodeId);
   const NodeSpec* ts = target ? findSpec(target->type) : nullptr;
   if (!target || !ts) { p_->clearTarget(); return; }  // no/unknown target -> black, no crash
@@ -338,7 +340,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.inputCurves = hasCurveInput ? &curveInputs : nullptr;  // empty in production (no Curve producer)
     cc.meshVtx = meshVtx; cc.meshVtxCount = meshVtxCount;  // mesh-into-points seam (null/0 if no Mesh input)
     cc.meshIdx = meshIdx; cc.meshFaceCount = meshFaceCount;
-    fillPointCamera(cc, *s, (p_->height > 0) ? (float)p_->width / (float)p_->height : 1.0f);  // camera seam
+    // Camera aspect = ACTIVE RequestedResolution (S1 seam, EvaluationContext.cs:78,94), not raw window.
+    const RenderResolution& rrC = p_->requestedResolution;  // camera seam
+    fillPointCamera(cc, *s, (rrC.h > 0) ? (float)rrC.w / (float)rrC.h : 1.0f);
     auto r = cookReg().find(n->type);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[id] = out;
@@ -443,10 +447,15 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         const Connection* c = g.connectionToInput(pinId(id, (int)i));
         if (c) inTex = cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100);
       } else if (port.dataType == "Command" && !haveInCmd) {
-        // Cut 3: a command op (Camera) can WRAP a Command subtree — recurse into the upstream command
-        // node and hand the cooked chain in via cc.inputCommand. Mirrors the Texture2D gather above.
+        // Cut 3: a command op (Camera) WRAPs a Command subtree — recurse + hand it in via inputCommand.
+        // S1 seam: SetRequestedResolution PUSHES requestedResolution around THIS subtree cook (here, not in
+        // the op — the driver cooks the subtree); save/restore stops a sibling leaking it.
+        const RenderResolution savedReq = p_->requestedResolution;
+        if (n->type == "SetRequestedResolution")
+          p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(id), savedReq);
         const Connection* c = g.connectionToInput(pinId(id, (int)i));
         if (c) inCmd = cookCommand(pinNode(c->fromPin));
+        p_->requestedResolution = savedReq;  // restore (SetRequestedResolution.cs:28)
         haveInCmd = true;
       }
     }
@@ -509,24 +518,15 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return p_->cookFlatMeshInto(g, ctx, nodeParams, id, vtx, vtxCount, idx, faceCount);
   };
 
-  // Cook a FLOATLIST-flow node (the 5th cook flow = TiXL Slot<List<float>>). The currency is a HOST
-  // std::vector<float> living in Impl::floatListBuf (no GPU buffer, no pre-sizing — the op clears +
-  // fills it). The walker mirrors cookMeshNode but with an INPUT GATHER (cloned from cookNode's
-  // buffer-input loop): for each input port, gather upstream lists into `inputLists` (spec port
-  // order), then dispatch the op. Two input-port kinds feed `inputLists`:
-  //   • A "FloatList" input port → recurse cookFloatListNode on each wired source. If the port is a
-  //     MultiInput, ALL wired sources are gathered as SEPARATE lists, in WIRE-DECLARATION order.
-  //   • A scalar "Float" MultiInput port (e.g. FloatsToList.Input) → gather ALL wired scalar sources
-  //     into ONE list via evalFloat, in WIRE-DECLARATION order; that single list becomes one
-  //     inputLists entry. (Producers like FloatsToList read inputLists[0] = their scalar inputs.)
-  // Gather order = the order connections appear in g.connections (the wire-declaration order), which
-  // is the SAME ordering the resident flatten uses for extraConns (resident_eval_flatten.cpp:255-268).
-  // Returns the cooked host list (nullptr if not a floatlist op / unknown node).
-  // (Body extracted to PointGraph::Impl::cookFlatFloatList in point_graph_hostvalue_cook.cpp — the Cut-4
-  // host-value extraction. This slot stays a thin forwarding lambda so the closure web — cookCommand's
-  // FloatList gather, cookStringNode's FloatListToString gather, the host-scalar FloatList gather, and
-  // this flow's own self-recursion — keeps calling through the slot. FloatList is a CLOSED sub-graph,
-  // so the method takes only the minimal shared state: g / ctx / nodeParams by reference.)
+  // Cook a FLOATLIST-flow node (5th cook flow = TiXL Slot<List<float>>). Currency = a HOST
+  // std::vector<float> in Impl::floatListBuf (no GPU buffer; the op clears + fills it). The walker gathers
+  // upstream lists into `inputLists` in spec port order, then dispatches the op. Two input-port kinds feed
+  // it: a "FloatList" port → recurse cookFloatListNode per wired source (MultiInput = separate lists, wire-
+  // declaration order); a scalar "Float" MultiInput port (FloatsToList.Input) → ALL wired scalars gathered
+  // into ONE list via evalFloat (wire order) as one inputLists entry. Gather order = g.connections order
+  // (== the resident flatten's extraConns order, resident_eval_flatten.cpp:255-268). Returns the host list
+  // (nullptr if not a floatlist op). Body extracted to Impl::cookFlatFloatList (point_graph_hostvalue_cook
+  // .cpp, Cut-4); this thin forwarding lambda keeps the closure web intact (FloatList = a CLOSED sub-graph).
   cookFloatListNode = [&](int id) -> const std::vector<float>* {
     return p_->cookFlatFloatList(g, ctx, nodeParams, id);
   };

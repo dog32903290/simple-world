@@ -1,10 +1,8 @@
-// runtime/point_graph_resident — cookResident: the resident-graph cook driver (slice 2 walk +
-// slice 2b parity). Walks a ResidentEvalGraph by path-qualified id and realizes `targetPath`
-// into target() with the SAME three-flow terminal as the flat cook() (tex / cmd / preview),
-// per-path persistent output buffers + stateful op state (PointGraph::Impl, shared via
-// point_graph_internal.h — the path string IS the frame-stable resource key the resident era
-// exists for), and driver-resolved Float params handed to ops (PointCookCtx::params, the 2b
-// seam — ops never see which graph model is cooking).
+// runtime/point_graph_resident — cookResident: the resident-graph cook driver (slice 2 walk + 2b parity).
+// Walks a ResidentEvalGraph by path-qualified id and realizes `targetPath` into target() with the SAME
+// three-flow terminal as the flat cook() (tex/cmd/preview), per-path persistent buffers + stateful state
+// (PointGraph::Impl, shared via point_graph_internal.h — the path string IS the frame-stable resource key
+// the resident era exists for), and driver-resolved Float params (PointCookCtx::params, the 2b seam).
 //
 // Float reads go through evalResidentFloat (no version-chasing cache yet — wiring
 // pullResidentFloat into the production pull is the swap cut, named-deferred). The flat
@@ -46,14 +44,11 @@ using pgdetail::isBufferInput;
 using pgdetail::texReg;
 
 namespace {
-// Recursion cap for the cook walk (修2, 批次8): the SAME 64 every other walk in the resident era
-// uses (builder inlineSymbol depth, eval cycle guard, terminal bypass loop below). Before this,
-// only the TERMINAL bypass loop was capped — a bypass redirect CYCLE inside cookNode/cookCommand
-// (A↔B both bypassed) recursed bare = ASan stack-overflow. Exceeding the cap is a SAFE FAIL:
-// null buffer / empty chain + one stderr warn per process, never a crash. The cap threads through
-// ALL cookNode/cookCommand recursion (the bypass redirect shares the call edge with the normal
-// input gather), so a plain non-bypass wire cycle now also fail-safes instead of overflowing —
-// covered incidentally, not contracted (the parked normal-cycle account stays parked).
+// Recursion cap for the cook walk (修2, 批次8): the SAME 64 every other resident-era walk uses. Before
+// this only the TERMINAL bypass loop was capped — a bypass redirect CYCLE inside cookNode/cookCommand
+// (A↔B both bypassed) recursed bare = ASan stack-overflow. Exceeding the cap is a SAFE FAIL: null buffer /
+// empty chain + one stderr warn per process, never a crash. The cap threads through ALL cookNode/
+// cookCommand recursion, so a plain non-bypass wire cycle also fail-safes (covered incidentally).
 constexpr int kCookDepthCap = 64;
 bool g_warnedCookDepth = false;
 void warnCookDepthOnce() {
@@ -70,6 +65,9 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
                               float localTimeBars, float localFxTimeBars,
                               const SymbolLibrary* lib) {
   p_->displayTex = nullptr;  // default: target() shows the window-sized texture (cmd/preview paths)
+  // S1 seam: seed RequestedResolution to the window (TiXL output-layer seeding before eval). Resident
+  // mirror of cook(); RenderTarget/SetRequestedResolution push/pop it around their subtree.
+  p_->requestedResolution = RenderResolution{p_->width, p_->height};
 
   ResidentEvalCtx rc;
   rc.frameIndex = ctx.frameIndex;
@@ -330,7 +328,9 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     cc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;  // bake-into-point seam (null otherwise)
     cc.inputCurves = hasCurveInput ? &curveInputs : nullptr;  // empty in production (no Curve producer)
     cc.meshVtx = meshIn.vtx; cc.meshVtxCount = meshIn.vtxCount; cc.meshIdx = meshIn.idx; cc.meshFaceCount = meshIn.faceCount;  // mesh seam
-    fillPointCamera(cc, *s, (p_->height > 0) ? (float)p_->width / (float)p_->height : 1.0f);  // camera seam
+    // Camera aspect = ACTIVE RequestedResolution (S1 seam, EvaluationContext.cs:78,94), not raw window.
+    const RenderResolution& rrR_ = p_->requestedResolution;  // camera seam (resident mirror of cook())
+    fillPointCamera(cc, *s, (rrR_.h > 0) ? (float)rrR_.w / (float)rrR_.h : 1.0f);
     auto r = cookReg().find(n->opType);
     if (r != cookReg().end() && r->second.cook) r->second.cook(cc);
     cooked[path] = out;
@@ -481,11 +481,16 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
           inMesh = cookResidentMesh(ri->srcNodePath, depth + 1);
         haveMesh = true;
       } else if (port.dataType == "Command" && !haveInCmd) {
-        // Cut 3: the Camera op wraps a Command subtree — recurse into the upstream command node
-        // (depth-capped via kCookDepthCap) and hand the cooked chain in via cc.inputCommand.
+        // Cut 3: the Camera op wraps a Command subtree — recurse + hand it in via cc.inputCommand.
+        // S1 seam (resident mirror of the flat cookCommand): SetRequestedResolution PUSHES
+        // requestedResolution around THIS subtree cook (save/restore stops a sibling leaking it).
+        const RenderResolution savedReq = p_->requestedResolution;
+        if (n->opType == "SetRequestedResolution")
+          p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(path), savedReq);
         const ResidentInput* ri = n->input(port.id);
         if (ri && ri->driver == ResidentInput::Driver::Connection)
           inCmd = cookCommand(ri->srcNodePath, depth + 1);
+        p_->requestedResolution = savedReq;  // restore (SetRequestedResolution.cs:28)
         haveInCmd = true;
       }
     }
@@ -511,20 +516,14 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     tx->second(tc);
   };
 
-  // Cook a TEXTURE-flow node (RenderTarget OR an image filter like Blur) into its OWN
-  // resolution-sized texture and return it (resident mirror of cook()'s cookTexNode). The
-  // Texture2D gather direct-through (lane I): a filter's Texture2D input recurses to the upstream
-  // tex node here. `depth` shares the cook recursion cap. Cycle/depth-safe.
-  // `outSlotId` = the upstream OUTPUT slot id the consumer wired to (ResidentInput::srcSlotId);
-  // single-output ops ignore it. A feedback op (KeepPreviousFrame) returns PreviousFrame vs
-  // CurrentFrame by it. Empty = "the node's terminal/first output" (the cook-entry caller).
-  // (Forward-declared ABOVE cookNode — assigned here so cookNode's Texture2D gather can call it.)
-  // Body extracted VERBATIM to PointGraph::Impl::cookResidentTexNode (point_graph_resident_tex_cook.cpp).
-  // This thin lambda keeps the THREE-arg call shape every caller uses (cookNode's Texture2D gather, the
-  // cookCommand Texture2D branch, the feedback self-recursion, the terminal dispatch) + threads the shared
-  // cook-stack state in by reference: the SELF slot (cookTexNode), cookCommand (mutual), cookResidentGradient
-  // (Gradient rail), the per-frame feedbackCooked memo, nodeParams (the shared paramsMemo slot), rg/rc/ctx/reg,
-  // and kCookDepthCap (the file-local cap the leaf can't name). Byte-identical to the in-lambda version.
+  // Cook a TEXTURE-flow node (RenderTarget / image filter) into its OWN resolution-sized texture (resident
+  // mirror of cook()'s cookTexNode). Texture2D gather direct-through (lane I): a filter's Texture2D input
+  // recurses to the upstream tex node here; `depth` shares the cook recursion cap (cycle/depth-safe).
+  // `outSlotId` = the upstream OUTPUT slot id wired to (single-output ops ignore it; a feedback op returns
+  // PreviousFrame vs CurrentFrame by it; empty = the node's terminal/first output). Body extracted VERBATIM
+  // to Impl::cookResidentTexNode (point_graph_resident_tex_cook.cpp); this thin lambda keeps the THREE-arg
+  // call shape + threads the shared cook-stack state by reference (the SELF slot, cookCommand, cookResident
+  // Gradient, the feedbackCooked memo, nodeParams, rg/rc/ctx/reg, kCookDepthCap). Byte-identical.
   cookTexNode =
       [&](const std::string& path, int depth, const std::string& outSlotId) -> MTL::Texture* {
     return p_->cookResidentTexNode(rg, ctx, reg, rc, kCookDepthCap, nodeParams, cookCommand,

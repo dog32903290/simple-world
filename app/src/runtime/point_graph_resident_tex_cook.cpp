@@ -164,6 +164,27 @@ MTL::Texture* PointGraph::Impl::cookResidentTexNode(
   if (tx == texReg().end() || !tx->second) return nullptr;
   const std::map<std::string, float>* tp = nodeParams(path);
 
+  // S1 OUTPUT-RESOLUTION SEAM (resident mirror of the flat cookFlatTexNode push/pop, RenderTarget.cs:
+  // 81 save / :140 set / :158 restore). A RenderTarget pins resolution AND cooks a Command subtree;
+  // anything inside (camera aspect, a NESTED WindowFollow RenderTarget) must see THIS target's
+  // resolution. Under the resident FLATTEN the save/restore is reconstructed PER RenderTarget subtree
+  // via this RAII guard threaded through the recursion: cookCommand recurses with requestedResolution
+  // already SET, and the guard's dtor restores it when THIS node's subtree finishes (before a SIBLING
+  // RenderTarget subtree cooks) — so the flattened order preserves "restore after subtree". Detection
+  // = a "Command" INPUT port (TiXL's RenderTarget shape; image filters take Texture2D → no push).
+  bool pushesResolution = false;
+  for (const PortSpec& port : s->ports)
+    if (port.isInput && port.dataType == "Command") { pushesResolution = true; break; }
+  struct ReqResGuard {
+    RenderResolution& slot;
+    RenderResolution saved;
+    ~ReqResGuard() { slot = saved; }
+  } reqResGuard{requestedResolution, requestedResolution};
+  if (pushesResolution) {
+    requestedResolution = resolveRenderResolution(
+        tp ? *tp : std::map<std::string, float>{}, requestedResolution);
+  }
+
   // Gather inputs in spec order FIRST (mirror of flat cookTexNode, point_graph.cpp): concat
   // Command inputs, recurse EACH Texture2D input. Gathering BEFORE output sizing is harmless for
   // pixel ops (they size off the Resolution pin and ignore input dims) — done UNCONDITIONALLY so
@@ -272,11 +293,13 @@ MTL::Texture* PointGraph::Impl::cookResidentTexNode(
     return owned;
   }
 
-  // Size this node's own output texture. Default = the Resolution pin (window size fallback). A
-  // COMPUTE leaf may override via its SizeFn (Crop: output = inputSize - margins) from the cooked
-  // input dims — the output can be smaller/larger than the Resolution pin (mirror of flat).
+  // Size this node's own output texture. Default = the Resolution pin; WindowFollow adopts the ACTIVE
+  // requestedResolution (S1 seam: window at top level, the parent RenderTarget's pushed size when
+  // nested — RenderTarget.cs:53-56). A RenderTarget's own requestedResolution was just SET to this
+  // same resolved size above, so re-resolving here is identical for it. A COMPUTE leaf may override
+  // via its SizeFn (Crop: output = inputSize - margins) from the cooked input dims (mirror of flat).
   RenderResolution res = resolveRenderResolution(
-      tp ? *tp : std::map<std::string, float>{}, RenderResolution{width, height});
+      tp ? *tp : std::map<std::string, float>{}, requestedResolution);
   auto sizeIt = imageFilterSizeFns().find(n->opType);
   if (sizeIt != imageFilterSizeFns().end() && texInputs[0]) {
     res = sizeIt->second(tp ? *tp : std::map<std::string, float>{},
