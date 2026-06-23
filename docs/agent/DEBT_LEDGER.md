@@ -59,7 +59,7 @@
 | `runtime/point_ops_fractalnoise.cpp` | 466 | queued·scout | 單一 op，疑 essential。 |
 | `runtime/point_ops_fastblur.cpp` | 460 | queued·scout | 單一 op，疑 essential。 |
 | `runtime/point_ops_rings.cpp` | 456 | queued·scout | 單一 op，疑 essential。 |
-| `runtime/point_ops_transformpoints.cpp` | 454 | queued·scout | **含 task_eef5757e 旋轉 bug（見 §B）——拆前先修 bug**。 |
+| `runtime/point_ops_transformpoints.cpp` | 454 | queued·scout | 單一複雜 op，疑 essential。（task_eef5757e 旋轉 bug 早已 closed §C4，拆檔無前置修復。） |
 | `runtime/point_ops_drawscreenquad.cpp` | 452 | queued·scout | 單一 op，疑 essential。 |
 | `runtime/compound_load.cpp` | 416 | queued·scout | compound 載入，scout。 |
 | `runtime/point_graph.h` | 408 | queued·scout | 隨 point_graph.cpp 拆 TU 一起處理。 |
@@ -71,9 +71,9 @@
 | id | 內容 | 性質 | 狀態 | 做法 / 入口 |
 |----|------|------|------|------|
 | ~~**task_32b5b6e5**~~ | ~~string-rail（`b247602`）整個 flat-path-only~~ | ~~🔴 真 correctness bug~~ | **✅ CLOSED `0bb25e2` 2026-06-22** | resident string-wire seam 落地（Cut 102）：extStrOut channel on ResidentNode，resident_eval_flatten 皺褶修，resident_string_cook.cpp NEW，StringLength resident bridge，R-2 LEG20/21 雙腿證。string Phase C NOW OPEN。 |
-| task_258d9510 | audit 9 顆已 ship `_multiImageFxSetup` op（pixelate/voronoi/koch/displace/mirrorrepeat/sharpen/chromaticdistortion/detectedges/dither）的 .t3 routing 對不對 | parity audit | queued | 逐顆 .t3 backward-trace（Cut55 trap）。自洽 golden 可能掩蓋 parity bug。 |
-| task_3fc122a2 | unwired 2nd-input fallback：sw fork=sample ImageA self-warp，TiXL=黑 null SRV。涵 DistortAndShade+Displace | parity fork | queued | 定 lane-wide convention（對齊 TiXL 黑-fallback or 保留 fork）。開新 multi-image op 前必知。 |
-| task_d288a684 | Float-Clamp min>max 行為 | 小 bug | queued | 單顆 op 修 + golden。 |
+| ~~task_258d9510~~ | ~~audit 9 顆已 ship `_multiImageFxSetup` op 的 .t3 routing~~ | parity audit | **✅ CLOSED-MOOT 2026-06-24** | 前提失效：9 顆全是 single-pass `cookParam→struct.field`（pixelate/voronoi/koch/displace/mirrorrepeat/sharpen/chromaticdistortion/detectedges/dither），**無一顆用 `_multiImageFxSetup`/FloatsToBuffer**→Cut55 routing trap 不適用。僅 mirrorrepeat 有顯式 STEP-0 trace（其餘 8 顆 1:1 無文件，非 bug）。見 §C6。 |
+| task_3fc122a2 | unwired 2nd-input fallback：sw fork=sample ImageA self-warp，TiXL=黑 null SRV。涵 DistortAndShade+Displace | parity fork | queued·**decided** | **決策（orchestrator 自決 2026-06-24，照 TiXL）**：render-changing=品味=照 TiXL→convention 對齊**黑 null SRV**（捨 self-warp fork）。執行延後到下次開 multi-image op（動 DistortAndShade+Displace shader/cook，非本批 chip 範圍，不順手整片重織）。開新 multi-image op 前必先落這條。 |
+| ~~task_d288a684~~ | ~~Float-Clamp min>max 行為~~ | 小 bug | **✅ CLOSED `b3b92ad` 2026-06-24** | 見 §C5。`evalClamp` branch form→`fminf(fmaxf(v,lo),hi)` byte-exact TiXL `MathUtils.Clamp`；golden `Clamp(0,5,2)=2`（min>max→max wins）。run_all PASS=411。 |
 | task_602f15ec | freshly-spawned node 不進 state.json→scenario「cannot resolve node」cascade（verify/state 層非 cook 層） | verify 基建 | queued | 修 spawn→state.json landing。影響 scenario 測試可信度。 |
 | task_2ee58abb | crop teeth 在 `MTL_DEBUG_LAYER=1` 補驗（本機 Metal validation 關，ShaderWrite flag 驗不到） | 驗證補強 | queued | 開 validation layer 跑 crop/mip/fastblur teeth。 |
 
@@ -95,6 +95,10 @@
 
 ### C5 — closed-as-fixed（真債，已正式補完）
 - **task_32b5b6e5** `string-rail 整個 flat-path-only` → **closed `0bb25e2` 2026-06-22（Cut 102）**。resident string-wire seam 落地：extStrOut channel on ResidentNode（鏡像 extColorOut），resident_eval_flatten.cpp 皺褶修（停止丟棄有接線 String slots），新 resident_string_cook.cpp，StringLength→Float bridge via .size()，frame_cook 接線。R-2 LEG 20+21 雙腿 PROVEN（CombineStrings wire-order + StringLength wired vs const）。refuter MERGE-SAFE（皺褶修 neutralize 非 theater）。**P0 結構閘清除；string Phase C ~34 B2 ops NOW OPEN。**
+- **task_d288a684** `Float-Clamp min>max 行為` → **closed `b3b92ad` 2026-06-24**。`runtime/value_eval_ops.cpp:50-54` 的 float `evalClamp` 用 branch form（`if v<lo return lo; if v>hi return hi`），min>max 時回 min；TiXL `MathUtils.Clamp = Min(Max(v,min),max)`（MathUtils.cs:253）回 max。改 `fminf(fmaxf(v,lo),hi)` byte-exact。int-clamp 變體本已 faithful，float 是孤兒。golden `Clamp(0,5,2)=2`（min>max→max wins）pin 修正行為（舊式回 5）。run_all PASS=411（唯一紅=soundtrack 已知 flake §C2）。
+
+### C6 — closed-as-moot（前提失效，非真債）
+- **task_258d9510** `audit 9 顆 _multiImageFxSetup op 的 .t3 routing` → **closed-moot 2026-06-24**。Cut55 的 FloatsToBuffer routing trap **不適用**：9 顆 named op（pixelate/voronoi/koch/displace/mirrorrepeat/sharpen/chromaticdistortion/detectedges/dither）全是 single-pass `cookParam(c,"Name",...)→struct.field` 直連，**無一顆走 `_multiImageFxSetup`/FloatsToBuffer 中間數學節點**。殘值僅「8 顆 1:1 mapping 無 STEP-0 文件註解」（mirrorrepeat 有），非 correctness bug。chip 以原措辭已失效；若要 paper trail 可另開小 doc 任務（非債）。
 
 ---
 
@@ -108,7 +112,7 @@
 1. ~~task_eef5757e~~ **已 closed（871464a 早修，見 §C4）**。~~task_32b5b6e5~~ **已 closed（0bb25e2，2026-06-22，見 §B / §C5）**。P0 結構閘全清，string Phase C OPEN。
 2. **A-P1 的 4 顆資料化/拆-ops**（stateful_value_ops 2657 / node_registry_math 917 / point_modify 653 / keymap 752）— 最客觀（行數可量、不需判對錯）、最高槓桿、且 registry 那兩顆雙重違反 rule 7。
 3. **point_graph.cpp 拆 TU（A-P1）** — 擋住 point_graph.cpp 繼續長。~~resident string-wire 已 closed（0bb25e2）~~。
-4. task_258d9510 / task_3fc122a2（B parity）— 影響已出貨 op 的正確性。
+4. ~~task_258d9510~~（closed-moot §C6）/ task_3fc122a2（B parity，**已決策照 TiXL 黑-fallback**，執行隨下次 multi-image op）— 影響已出貨 op 的正確性。task_d288a684 已 closed §C5。
 5. 其餘 B + A-P2 selftest + A-P3 scout，隨產能批間隙撿。
 
 **節奏（柏為決策）**：架構債會隨產能線長大。要不要設「破 400 行就 check-arch 紅」的硬閘，把拆檔從可選變必須？這會擋產能（tradeoff），是柏為的板。未設閘前，建議每 N 批產能插一條還債批，否則 A 類只增不減。
