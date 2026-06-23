@@ -232,7 +232,9 @@ int runMathOpsSelfTest(bool injectBug) {
     ok = ok && pass;
     printf("[selftest-mathops] Clamp(3,0,1)=%.4f want=1.0000 -> %s\n", r, pass ? "PASS" : "FAIL");
   }
-
+  // min>max asymmetric (TiXL parity): Min(Max(0,5),2)=2; old branch `if(v<lo)return lo` gave 5.
+  { float r = evalClampOp(0.0f, 5.0f, 2.0f); bool pass = std::fabs(r-2.0f)<eps; ok=ok&&pass;
+    printf("[selftest-mathops] Clamp(0,5,2)=%.4f want=2.0000 (min>max->max wins) -> %s\n",r,pass?"PASS":"FAIL"); }
   // ----- Remap -----
   // Typical: Remap(0.5, 0, 1, 0, 10) = 5 (TiXL adjust/Remap.cs: normalized=0.5 → 5)
   {

@@ -45,13 +45,12 @@ float evalDiv(int, const float* in, int n, const EvaluationContext&) {
 }
 
 // Clamp: clamp(Value, Min, Max). TiXL Clamp.cs: MathUtils.Clamp(v, min, max) = Min(Max(v,min),max).
-// When min > max the TiXL impl lets Max(v,min) win, so result >= min always — matching C++ behavior.
+// Closed form matches TiXL exactly — including the min>max asymmetric case where Max(v,min) >= min
+// > max so the outer Min always collapses to max (result = max for every v when min > max).
 float evalClamp(int, const float* in, int n, const EvaluationContext&) {
   if (n < 3) return 0.0f;
   float v = in[0], lo = in[1], hi = in[2];
-  if (v < lo) return lo;
-  if (v > hi) return hi;
-  return v;
+  return fminf(fmaxf(v, lo), hi);  // T.Min(T.Max(v,min),max) verbatim — MathUtils.cs:253
 }
 
 // Remap: maps value from [RangeInMin, RangeInMax] → [RangeOutMin, RangeOutMax].
