@@ -230,7 +230,34 @@ std::shared_ptr<FieldNode> makeFractalSdf(const std::string& shortId) {
   return std::make_shared<FractalSDFNode>(shortId);
 }
 
-const FieldOp g_fractalSdfOp(fractalSdfSpec(), makeFractalSdf);
+// PF-0c param-apply (WAVE 2): project a RESOLVED param map onto a FractalSDFNode via setter-lambdas
+// (NOT offsetof). Slot ids EQUAL the NodeSpec PortSpec.id for the FIVE PACKED [GraphParam]s only:
+// Scale, Minrad, Clamping.x/.y/.z, Increment.x/.y/.z, Fold.x/.y. `Iterations` is DELIBERATELY NOT a
+// float slot: it is the compile-time CODE selector (the loop bound baked into the helper body, like
+// CombineSDF.combineMethod) — a different value re-emits MSL text, it never enters the packed float
+// buffer, so a float round-trip would be meaningless. Iterations still flows via the positional
+// configureFractalSdf seam (and is wave-3 text-assertion territory). A missing key keeps the member's
+// ctor .t3 default. Routed via the fieldConfigurers() table.
+void configureFractalSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<FractalSDFNode*>(&node)) {
+    applyFloatSlot(m, "Scale", [&](float v) { n->scale = v; });
+    applyFloatSlot(m, "Minrad", [&](float v) { n->minrad = v; });
+    applyFloatSlot(m, "Clamping.x", [&](float v) { n->clampingX = v; });
+    applyFloatSlot(m, "Clamping.y", [&](float v) { n->clampingY = v; });
+    applyFloatSlot(m, "Clamping.z", [&](float v) { n->clampingZ = v; });
+    applyFloatSlot(m, "Increment.x", [&](float v) { n->incrementX = v; });
+    applyFloatSlot(m, "Increment.y", [&](float v) { n->incrementY = v; });
+    applyFloatSlot(m, "Increment.z", [&](float v) { n->incrementZ = v; });
+    applyFloatSlot(m, "Fold.x", [&](float v) { n->foldX = v; });
+    applyFloatSlot(m, "Fold.y", [&](float v) { n->foldY = v; });
+  }
+}
+
+// slot ids = the SAME ids configureFractalSdfFromParams applies (Option B guard reads them). Iterations
+// is excluded (compile-time code selector, not packed).
+const FieldOp g_fractalSdfOp(fractalSdfSpec(), makeFractalSdf, configureFractalSdfFromParams,
+                             {"Scale", "Minrad", "Clamping.x", "Clamping.y", "Clamping.z", "Increment.x",
+                              "Increment.y", "Increment.z", "Fold.x", "Fold.y"});
 
 }  // namespace
 

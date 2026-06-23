@@ -255,7 +255,29 @@ std::shared_ptr<FieldNode> makeNoiseDisplaceSdf(const std::string& shortId) {
   return std::make_shared<NoiseDisplaceSDFNode>(shortId);
 }
 
-const FieldOp g_noiseDisplaceSdfOp(noiseDisplaceSdfSpec(), makeNoiseDisplaceSdf);
+// PF-0c param-apply (WAVE 2): project a RESOLVED param map onto a NoiseDisplaceSDFNode via setter-
+// lambdas (NOT offsetof). Slot ids EQUAL the NodeSpec PortSpec.id (Amount, Scale, Offset.x/.y/.z,
+// StepFactor packed floats; UseLocalSpace a BoolSel — applyBoolSelSlot maps the float >0.5 to the bool
+// compile-time selector, NOT packed). injectBug is NOT a param (test-only, set via the positional
+// configureNoiseDisplaceSdf seam). A missing key keeps the member's ctor .t3 default. Routed via the
+// fieldConfigurers() table.
+void configureNoiseDisplaceSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<NoiseDisplaceSDFNode*>(&node)) {
+    applyFloatSlot(m, "Amount", [&](float v) { n->amount = v; });
+    applyFloatSlot(m, "Scale", [&](float v) { n->scale = v; });
+    applyFloatSlot(m, "Offset.x", [&](float v) { n->ox = v; });
+    applyFloatSlot(m, "Offset.y", [&](float v) { n->oy = v; });
+    applyFloatSlot(m, "Offset.z", [&](float v) { n->oz = v; });
+    applyFloatSlot(m, "StepFactor", [&](float v) { n->stepFactor = v; });
+    applyBoolSelSlot(m, "UseLocalSpace", [&](bool b) { n->useLocalSpace = b; });
+  }
+}
+
+// slot ids = the SAME ids configureNoiseDisplaceSdfFromParams applies (Option B guard reads them).
+const FieldOp g_noiseDisplaceSdfOp(noiseDisplaceSdfSpec(), makeNoiseDisplaceSdf,
+                                   configureNoiseDisplaceSdfFromParams,
+                                   {"Amount", "Scale", "Offset.x", "Offset.y", "Offset.z", "StepFactor",
+                                    "UseLocalSpace"});
 
 }  // namespace
 

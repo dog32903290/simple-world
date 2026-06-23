@@ -147,7 +147,31 @@ std::shared_ptr<FieldNode> makeCapsuleLineSdf(const std::string& shortId) {
   return std::make_shared<CapsuleLineSDFNode>(shortId);
 }
 
-const FieldOp g_capsuleLineSdfOp(capsuleLineSdfSpec(), makeCapsuleLineSdf);
+// PF-0c param-apply (WAVE 2): project a RESOLVED param map onto a CapsuleLineSDFNode via setter-lambdas
+// (NOT offsetof). Slot ids EQUAL the NodeSpec PortSpec.id (Center.x/.y/.z, StartingPoint.x/.y/.z,
+// EndPoint.x/.y/.z, Thickness). A missing key keeps the member's ctor .t3 default. Routed via the
+// fieldConfigurers() table.
+void configureCapsuleLineSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<CapsuleLineSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "StartingPoint.x", [&](float v) { n->startX = v; });
+    applyFloatSlot(m, "StartingPoint.y", [&](float v) { n->startY = v; });
+    applyFloatSlot(m, "StartingPoint.z", [&](float v) { n->startZ = v; });
+    applyFloatSlot(m, "EndPoint.x", [&](float v) { n->endX = v; });
+    applyFloatSlot(m, "EndPoint.y", [&](float v) { n->endY = v; });
+    applyFloatSlot(m, "EndPoint.z", [&](float v) { n->endZ = v; });
+    applyFloatSlot(m, "Thickness", [&](float v) { n->thickness = v; });
+  }
+}
+
+// slot ids = the SAME ids configureCapsuleLineSdfFromParams applies (Option B guard reads them, can't drift).
+const FieldOp g_capsuleLineSdfOp(capsuleLineSdfSpec(), makeCapsuleLineSdf,
+                                 configureCapsuleLineSdfFromParams,
+                                 {"Center.x", "Center.y", "Center.z", "StartingPoint.x",
+                                  "StartingPoint.y", "StartingPoint.z", "EndPoint.x", "EndPoint.y",
+                                  "EndPoint.z", "Thickness"});
 
 }  // namespace
 }  // namespace sw

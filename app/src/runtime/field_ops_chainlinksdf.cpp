@@ -123,7 +123,24 @@ std::shared_ptr<FieldNode> makeChainLinkSdf(const std::string& shortId) {
   return std::make_shared<ChainLinkSDFNode>(shortId);
 }
 
-const FieldOp g_chainLinkSdfOp(chainLinkSdfSpec(), makeChainLinkSdf);
+// PF-0c param-apply (WAVE 2): project a RESOLVED param map onto a ChainLinkSDFNode via setter-lambdas
+// (NOT offsetof). Slot ids EQUAL the NodeSpec PortSpec.id (Center.x/.y/.z, Length, Size, Thickness). A
+// missing key keeps the member's ctor .t3 default (applyFloatSlot's contract). Routed via the
+// fieldConfigurers() table.
+void configureChainLinkSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<ChainLinkSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Length", [&](float v) { n->length = v; });
+    applyFloatSlot(m, "Size", [&](float v) { n->size = v; });
+    applyFloatSlot(m, "Thickness", [&](float v) { n->thickness = v; });
+  }
+}
+
+// slot ids = the SAME ids configureChainLinkSdfFromParams applies (Option B guard reads them, can't drift).
+const FieldOp g_chainLinkSdfOp(chainLinkSdfSpec(), makeChainLinkSdf, configureChainLinkSdfFromParams,
+                               {"Center.x", "Center.y", "Center.z", "Length", "Size", "Thickness"});
 
 }  // namespace
 }  // namespace sw

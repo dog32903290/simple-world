@@ -56,10 +56,12 @@ namespace {
 struct BoxFrameSDFNode : FieldNode {
   float centerX = 0.f, centerY = 0.f, centerZ = 0.f;
   float thickness = 0.05f;
-  // Derived (BoxFrameSDF.cs Update: Size*UniformScale/2). At .t3 defaults (Size=(1,1,1),
-  // UniformScale=1) this is (0.5,0.5,0.5). A graph-cook would recompute it from Size/UniformScale
-  // before assembly; the factory/golden uses the .t3 default directly.
-  float scaleX = 0.5f, scaleY = 0.5f, scaleZ = 0.5f;
+  // RAW inputs (BoxFrameSDF.cs Size / UniformScale, .t3 defaults Size=(1,1,1), UniformScale=1.0). These
+  // are the members the param-apply configurer sets; collectParams DERIVES CombinedScale = Size*
+  // UniformScale/2 from them (the TiXL Update() fork), never storing the derived value directly. At the
+  // .t3 defaults the derived CombinedScale is (0.5,0.5,0.5), so the default assembly is byte-identical.
+  float sizeX = 1.f, sizeY = 1.f, sizeZ = 1.f;
+  float uniformScale = 1.f;
 
   explicit BoxFrameSDFNode(const std::string& shortId) {
     // TiXL BuildNodeId: <TypeName>_<shortGuid>_ — collision-free param prefix.
@@ -106,7 +108,12 @@ struct BoxFrameSDFNode : FieldNode {
     // Size/UniformScale are NOT params: BoxFrameSDF.cs folds them into CombinedScale CPU-side.
     appendVec3Param(floatParams, paramFields, prefix + "Center", centerX, centerY, centerZ);
     appendScalarParam(floatParams, paramFields, prefix + "Thickness", thickness);
-    appendVec3Param(floatParams, paramFields, prefix + "CombinedScale", scaleX, scaleY, scaleZ);
+    // CombinedScale is DERIVED (FORK, BoxFrameSDF.cs Update): pack Size*UniformScale/2, NOT Size/
+    // UniformScale separately — the shader reads one `CombinedScale` param. Set the RAW members via the
+    // configurer; the derivation happens HERE so a graph override flows through correctly.
+    const float half = uniformScale * 0.5f;
+    appendVec3Param(floatParams, paramFields, prefix + "CombinedScale", sizeX * half, sizeY * half,
+                    sizeZ * half);
   }
 };
 
@@ -143,14 +150,35 @@ NodeSpec boxFrameSdfSpec() {
   return s;
 }
 
-// Factory: build a BoxFrameSDFNode for an instance. Center/Thickness/CombinedScale default to the
-// .t3-derived values; a graph cook would override them (recomputing CombinedScale from Size*UniformScale/2)
-// before assembly. The render golden uses the defaults directly.
+// Factory: build a BoxFrameSDFNode for an instance. Center/Thickness/Size/UniformScale default to the
+// .t3 values; collectParams derives CombinedScale = Size*UniformScale/2 (the render golden uses the
+// defaults directly).
 std::shared_ptr<FieldNode> makeBoxFrameSdf(const std::string& shortId) {
   return std::make_shared<BoxFrameSDFNode>(shortId);
 }
 
-const FieldOp g_boxFrameSdfOp(boxFrameSdfSpec(), makeBoxFrameSdf);
+// PF-0c param-apply (WAVE 2): project a RESOLVED param map onto a BoxFrameSDFNode via setter-lambdas
+// (NOT offsetof). Slot ids EQUAL the NodeSpec PortSpec.id (Center.x/.y/.z, Size.x/.y/.z, UniformScale,
+// Thickness). NOTE: the RAW members size*/uniformScale are set — collectParams derives CombinedScale =
+// Size*UniformScale/2 (the TiXL Update() fork), so the apply NEVER writes the derived value directly. A
+// missing key keeps the member's ctor .t3 default. Routed via the fieldConfigurers() table.
+void configureBoxFrameSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<BoxFrameSDFNode*>(&node)) {
+    applyFloatSlot(m, "Center.x", [&](float v) { n->centerX = v; });
+    applyFloatSlot(m, "Center.y", [&](float v) { n->centerY = v; });
+    applyFloatSlot(m, "Center.z", [&](float v) { n->centerZ = v; });
+    applyFloatSlot(m, "Size.x", [&](float v) { n->sizeX = v; });
+    applyFloatSlot(m, "Size.y", [&](float v) { n->sizeY = v; });
+    applyFloatSlot(m, "Size.z", [&](float v) { n->sizeZ = v; });
+    applyFloatSlot(m, "UniformScale", [&](float v) { n->uniformScale = v; });
+    applyFloatSlot(m, "Thickness", [&](float v) { n->thickness = v; });
+  }
+}
+
+// slot ids = the SAME ids configureBoxFrameSdfFromParams applies (Option B guard reads them, can't drift).
+const FieldOp g_boxFrameSdfOp(boxFrameSdfSpec(), makeBoxFrameSdf, configureBoxFrameSdfFromParams,
+                              {"Center.x", "Center.y", "Center.z", "Size.x", "Size.y", "Size.z",
+                               "UniformScale", "Thickness"});
 
 }  // namespace
 }  // namespace sw

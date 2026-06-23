@@ -257,7 +257,33 @@ std::shared_ptr<FieldNode> makeSpatialDisplaceSdf(const std::string& shortId) {
   return std::make_shared<SpatialDisplaceSDFNode>(shortId);
 }
 
-const FieldOp g_spatialDisplaceSdfOp(spatialDisplaceSdfSpec(), makeSpatialDisplaceSdf);
+// PF-0c param-apply (WAVE 2): project a RESOLVED param map onto a SpatialDisplaceSDFNode via setter-
+// lambdas (NOT offsetof). Slot ids EQUAL the NodeSpec PortSpec.id (Amount, Scale, vScale.x/.y/.z,
+// Offset.x/.y/.z, SamplePos.x/.y/.z). injectBug is NOT a param (test-only, set via the positional
+// configureSpatialDisplaceSdf seam). A missing key keeps the member's ctor .t3 default. Routed via the
+// fieldConfigurers() table.
+void configureSpatialDisplaceSdfFromParams(FieldNode& node, const std::map<std::string, float>& m) {
+  if (auto* n = dynamic_cast<SpatialDisplaceSDFNode*>(&node)) {
+    applyFloatSlot(m, "Amount", [&](float v) { n->amount = v; });
+    applyFloatSlot(m, "Scale", [&](float v) { n->scale = v; });
+    applyFloatSlot(m, "vScale.x", [&](float v) { n->vsx = v; });
+    applyFloatSlot(m, "vScale.y", [&](float v) { n->vsy = v; });
+    applyFloatSlot(m, "vScale.z", [&](float v) { n->vsz = v; });
+    applyFloatSlot(m, "Offset.x", [&](float v) { n->ox = v; });
+    applyFloatSlot(m, "Offset.y", [&](float v) { n->oy = v; });
+    applyFloatSlot(m, "Offset.z", [&](float v) { n->oz = v; });
+    applyFloatSlot(m, "SamplePos.x", [&](float v) { n->spx = v; });
+    applyFloatSlot(m, "SamplePos.y", [&](float v) { n->spy = v; });
+    applyFloatSlot(m, "SamplePos.z", [&](float v) { n->spz = v; });
+  }
+}
+
+// slot ids = the SAME ids configureSpatialDisplaceSdfFromParams applies (Option B guard reads them).
+const FieldOp g_spatialDisplaceSdfOp(spatialDisplaceSdfSpec(), makeSpatialDisplaceSdf,
+                                     configureSpatialDisplaceSdfFromParams,
+                                     {"Amount", "Scale", "vScale.x", "vScale.y", "vScale.z", "Offset.x",
+                                      "Offset.y", "Offset.z", "SamplePos.x", "SamplePos.y",
+                                      "SamplePos.z"});
 
 }  // namespace
 

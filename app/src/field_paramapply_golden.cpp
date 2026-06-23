@@ -58,6 +58,8 @@
 
 #include "platform/metal_compile.h"  // platform::compileLibraryFromSource
 
+#include "field_paramapply_cases.h"  // RoundTripCase + fieldParamApplyRoundTripCases() (peeled DATA table)
+
 namespace sw {
 namespace {
 
@@ -169,16 +171,8 @@ std::vector<float> assembleSingleNodeParams(const std::string& tmpl, const std::
   return assembleFieldMSL(tree, tmpl).floatParams;
 }
 
-// One parameterized round-trip case: set `paramId`=`value` on `type` via the graph, assert floatParams
-// lands `expect` (within tol) at `slot`. `note` annotates the printed line (e.g. derived-param verdict).
-struct RoundTripCase {
-  const char* type;
-  std::map<std::string, float> overrides;  // the non-default param(s) to push through the graph.
-  const char* paramId;                     // the param under test (printed label).
-  int slot;                                // floatParams index its packed value lands at.
-  float expect;                            // expected packed value at `slot`.
-  const char* note;
-};
+// RoundTripCase + the case TABLE live in the companion field_paramapply_cases.{h,cpp} (peeled to keep
+// this TU ≤400 lines — ARCHITECTURE.md rule 4, NO grandfather bump). The harness below loops them.
 
 }  // namespace
 
@@ -228,25 +222,7 @@ int runFieldParamApplySelfTest(bool injectBug) {
   // just SphereSDF. BoxSDF is the DERIVED-param re-verify: Size=[2,2,2],UniformScale=2 -> CombinedScale slot
   // = 2*2/2 = 2 (a non-default-member apply that recomputes correctly only if both members flowed through).
   {
-    const std::vector<RoundTripCase> cases = {
-        // --- the 5 already-migrated ops (RE-VERIFY) ---
-        {"SphereSDF", {{"Radius", 0.8f}}, "Radius", 3, 0.8f, ""},
-        // BoxSDF DERIVED: Size=[2,2,2] + UniformScale=2 -> CombinedScale[4..6] = 2*2/2 = 2 (each component).
-        {"BoxSDF", {{"Size.x", 2.f}, {"Size.y", 2.f}, {"Size.z", 2.f}, {"UniformScale", 2.f}},
-         "CombinedScale.x (derived Size*UniformScale/2)", 4, 2.0f, "derived"},
-        {"BoxSDF", {{"EdgeRadius", 0.3f}}, "EdgeRadius", 3, 0.3f, ""},
-        {"TorusSDF", {{"Thickness", 0.7f}}, "Thickness", 4, 0.7f, ""},
-        {"CombineSDF", {{"K", 0.6f}}, "K", 0, 0.6f, ""},
-        {"ToroidalVortexField", {{"SwirlGain", 3.5f}}, "SwirlGain", 5, 3.5f, ""},
-        // --- the 6 wave-1 proving ops ---
-        {"Translate", {{"Translation.x", 1.5f}}, "Translation.x", 0, 1.5f, ""},
-        {"TranslateUV", {{"Translation.z", -2.0f}}, "Translation.z", 2, -2.0f, ""},
-        {"RepeatField3", {{"Size.y", 4.0f}}, "Size.y", 1, 4.0f, ""},
-        // RotatedPlaneSDF: Center[0..2], pad[3], Normal[4..6] (two consecutive vec3s, padForVec3 pad@3).
-        {"RotatedPlaneSDF", {{"Normal.x", 0.5f}}, "Normal.x", 4, 0.5f, ""},
-        {"OctahedronSDF", {{"Size", 0.9f}}, "Size", 3, 0.9f, ""},
-        {"ReflectField", {{"Offset", 1.25f}}, "Offset", 3, 1.25f, ""},
-    };
+    const std::vector<RoundTripCase> cases = fieldParamApplyRoundTripCases();
     bool allOk = true;
     for (const RoundTripCase& tc : cases) {
       std::vector<float> fp = assembleSingleNodeParams(tmpl, tc.type, tc.overrides);
@@ -257,9 +233,42 @@ int runFieldParamApplySelfTest(bool injectBug) {
                   ok ? "OK" : "FAIL");
       if (!ok) allOk = false;
     }
-    std::printf("[selftest-field-paramapply] parameterized round-trip over %zu cases (11 migrated ops) "
-                "-> %s\n", cases.size(), allOk ? "OK" : "FAIL");
+    std::printf("[selftest-field-paramapply] parameterized round-trip over %zu cases (11 wave-0/1 + 6 "
+                "wave-2 ops, every applied slot) -> %s\n", cases.size(), allOk ? "OK" : "FAIL");
     if (!allOk) rc = 1;
+  }
+
+  // ---- (5b) WAVE-2 BoolSel: NoiseDisplaceSDF UseLocalSpace switches the assembled MSL (not the buffer) ----
+  // UseLocalSpace is the one wave-2 applied slot that is NOT a packed float — it is a BoolSel compile-time
+  // selector (applyBoolSelSlot). A buffer round-trip cannot see it, so assert the assembled MSL TEXT
+  // switches: default (Off) emits the world-space snapshot local `NoiseDisplaceSDF_..._t = p.xyz`; On
+  // drops that snapshot and the post line samples `p.xyz` directly. Proves the BoolSel apply fired through
+  // the REAL graph path (configureNoiseDisplaceSdfFromParams -> applyBoolSelSlot -> useLocalSpace).
+  {
+    auto assembleNoise = [&](float useLocal) -> std::string {
+      static Graph g; g = Graph{};
+      Node fld; fld.id = 7; fld.type = "NoiseDisplaceSDF";
+      fld.params["UseLocalSpace"] = useLocal;
+      g.nodes = {fld};
+      static EvaluationContext ec; ec = EvaluationContext{};
+      static std::map<int, std::map<std::string, float>> sc; sc.clear();
+      FieldParamResolver pr = [&](int id) -> const std::map<std::string, float>* {
+        const Node* n = g.node(id);
+        if (!n) return nullptr;
+        return &(sc[id] = resolveNodeParams(g, *n, ec, nullptr));
+      };
+      auto tree = buildFieldTree(g, 7, pr);
+      if (!tree) return "";
+      return assembleFieldMSL(tree, tmpl).msl;
+    };
+    std::string off = assembleNoise(0.0f);  // default world-space (snapshot _t emitted)
+    std::string on = assembleNoise(1.0f);   // local-space (snapshot dropped)
+    bool offHasSnapshot = off.find("_t = p") != std::string::npos;
+    bool onLacksSnapshot = on.find("_t = p") == std::string::npos;
+    bool ok = offHasSnapshot && onLacksSnapshot && !off.empty() && !on.empty();
+    std::printf("[selftest-field-paramapply] wave2 boolsel: NoiseDisplaceSDF UseLocalSpace Off->snapshot=%d "
+                "On->no-snapshot=%d -> %s\n", offHasSnapshot, onLacksSnapshot, ok ? "OK" : "FAIL");
+    if (!ok) rc = 1;
   }
 
   // ---- (2) BUFFER-LEVEL: assembled floatParams[Radius slot] tracks the graph-supplied Radius ----
