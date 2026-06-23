@@ -92,12 +92,19 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   // (Constant / Connection -> evalResidentFloat / Automation stub), memoized so pointers stay
   // stable for the whole cook (ops + inputParams point into it).
   std::map<std::string, std::map<std::string, float>> paramsMemo;
+  // S3b LIVE-READ memo trap (resident mirror of the flat leg, production runs THIS): a node whose Float param is
+  // driven by a value-rail GetFloatVar resolves to the LIVE scoped var inside a SetVarCmd SubGraph vs its fallback
+  // outside. The memo keys only on path — so while a live scope is active (liveCtxVars()!=nullptr) we resolve
+  // FRESH and DO NOT cache (the value is ambient-dependent, not a graph property). Off-scope = byte-identical to
+  // before (the live branch is reachable only inside a SetVarCmd SubGraph cook, which no off-scope cook enters).
+  std::map<std::string, std::map<std::string, float>> scopedScratch;  // per-cook owner of fresh scoped maps
   std::function<const std::map<std::string, float>*(const std::string&)> nodeParams =
       [&](const std::string& path) -> const std::map<std::string, float>* {
-    auto it = paramsMemo.find(path);
-    if (it != paramsMemo.end()) return &it->second;
     const ResidentNode* n = rg.node(path);
     if (!n) return nullptr;
+    if (liveCtxVars()) return &(scopedScratch[path] = resolveResidentFloatInputs(rg, *n, rc));  // fresh, uncached
+    auto it = paramsMemo.find(path);
+    if (it != paramsMemo.end()) return &it->second;
     return &(paramsMemo[path] = resolveResidentFloatInputs(rg, *n, rc));
   };
 
@@ -506,15 +513,21 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
           if (vit != n->strInputs.end()) varName = vit->second;
           varScope = cmdVarPush(n->opType, *nodeParams(path), varName, ctxVars);
         }
-        const ResidentInput* ri = n->input(port.id);
-        if (ri && ri->driver == ResidentInput::Driver::Connection) {
-          RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
-          inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
-          if (port.multiInput && !executeCollectFirstOnlyForTest())  // -bug: skip the extra wires
-            for (const auto& ec : ri->extraConns) {
-              RenderCommand es = cookCommand(ec.first, depth + 1);
-              inCmd.items.insert(inCmd.items.end(), es.items.begin(), es.items.end());
-            }
+        {
+          // S3b LIVE-READ scope (resident mirror — production runs THIS leg): ctxVars is the ambient live map
+          // WHILE the SubGraph cooks, so a value-rail GetFloatVar driving a SubGraph node's param re-resolves
+          // LIVE. Engages only on an active writer push; else no-op (leaves the enclosing scope, if any).
+          LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
+          const ResidentInput* ri = n->input(port.id);
+          if (ri && ri->driver == ResidentInput::Driver::Connection) {
+            RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
+            inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+            if (port.multiInput && !executeCollectFirstOnlyForTest())  // -bug: skip the extra wires
+              for (const auto& ec : ri->extraConns) {
+                RenderCommand es = cookCommand(ec.first, depth + 1);
+                inCmd.items.insert(inCmd.items.end(), es.items.begin(), es.items.end());
+              }
+          }
         }
         cmdVarRestore(varScope, ctxVars);    // S3a restore (SetFloatVar.cs:33-40)
         p_->requestedResolution = savedReq;  // restore (SetRequestedResolution.cs:28)

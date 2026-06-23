@@ -6,6 +6,9 @@
 
 #include "runtime/graph.h"     // NodeSpec / findSpec / PortSpec
 #include "runtime/Particle.h"  // full EvaluationContext definition (graph.h only forward-decls it)
+#include "runtime/point_ops_setvarcmd.h"  // S3b: liveCtxVars / liveGetVar / isValueRailContextVarReader
+
+#include <string>  // std::string (S3b live-read fallback name)
 
 #include <cmath>   // NAN sentinel — the over-cap guard returns NaN (mirror of flat graph.cpp)
 #include <cstdio>  // std::fprintf — the LOUD over-cap diagnostic (mirror of flat graph.cpp)
@@ -66,6 +69,33 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
   const NodeSpec* s = findSpec(n->opType);
   if (!s) return 0.0f;
   if (!s->evaluate) {
+    // S3b value↔command LIVE-READ: a value-rail Get*Var (GetFloatVar/GetIntVar) cooked UNDERNEATH a Command-rail
+    // SetVarCmd SubGraph reads the LIVE ambient ctxVars, NOT its frozen extOut (which cookStatefulValueNodes
+    // baked one pass earlier, before this cook's scoped push existed — the S3a hollow). isValueRailContextVarReader
+    // + a live scope gate it: OFF-scope (liveCtxVars()==nullptr) this whole block is skipped and extOut is read
+    // exactly as before (faithful — every other !evaluate node, and every Get*Var with no scope, is byte-identical).
+    // Fallback = the node's own resolved FallbackDefault/FallbackValue Float input (TiXL Get*Var.Update: a live
+    // TryGetValue MISS returns the fallback) — gathered through the resident driver, same as any Float input.
+    if (liveCtxVars() && isValueRailContextVarReader(n->opType)) {
+      const std::string* varName = nullptr;
+      auto vit = n->strInputs.find("VariableName");
+      if (vit != n->strInputs.end()) varName = &vit->second;
+      // Resolve the fallback Float port (FallbackDefault for GetFloatVar / FallbackValue for GetIntVar) through
+      // the node's own driver so a wired/overridden fallback is honoured (Constant / Connection / Automation).
+      float fallback = 0.0f;
+      const char* fbId = (n->opType == "GetIntVar") ? "FallbackValue" : "FallbackDefault";
+      if (const ResidentInput* ri = n->input(fbId)) {
+        switch (ri->driver) {
+          case ResidentInput::Driver::Constant:   fallback = ri->constant; break;
+          case ResidentInput::Driver::Connection: fallback = evalResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx, depth + 1); break;
+          case ResidentInput::Driver::Automation: fallback = sampleAutomation(ctx, *ri); break;
+        }
+      } else {
+        for (const PortSpec& p : s->ports)
+          if (p.isInput && p.dataType == "Float" && p.id == fbId) { fallback = p.def; break; }
+      }
+      return liveGetVar(n->opType, varName ? *varName : std::string(), fallback);
+    }
     // Stateful externally-cooked value nodes (AudioReaction) + host-scalar consumers (FloatListLength/
     // PickFloatFromList/StringLength — the FloatList→Float bridge, list-routing seam): mirror flat
     // evalFloat's outCache read. This branch is ALREADY GENERIC (any !evaluate node reads extOut),

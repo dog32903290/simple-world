@@ -1,6 +1,7 @@
 #include "runtime/graph.h"
 #include "runtime/Particle.h"  // full EvaluationContext definition (forward-decl'd in graph.h)
 #include "runtime/host_scalar_op_registry.h"  // isHostScalarOp — the FloatList→Float bridge eval-side predicate
+#include "runtime/point_ops_setvarcmd.h"  // S3b: liveCtxVars / liveGetVar / isValueRailContextVarReader
 #include "runtime/source_registry.h"  // BindingKind/LiveSource/SourceRegistry (L5 resolution)
 
 #include <cmath>
@@ -178,6 +179,33 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
       (n->type == "AudioReaction" || isHostScalarOp(n->type))) {
     const int oi = (outPin - 1) - nodeId * 100;
     return (oi >= 0 && oi < 3) ? n->outCache[oi] : 0.0f;
+  }
+  // S3b value↔command LIVE-READ (flat mirror of evalResidentFloat — production runs RESIDENT, but the flat leg
+  // is the golden's other tooth + must never diverge, S2c blood lesson): a value-rail Get*Var cooked under a
+  // Command-rail SetVarCmd SubGraph reads the LIVE ambient ctxVars. Gated on isValueRailContextVarReader + a live
+  // scope (liveCtxVars()!=nullptr); OFF-scope this is skipped and the path falls through to the unchanged
+  // `return 0.0f` below (the flat value-rail Get*Var was never cooked — it has no flat stateful leg — so 0 was its
+  // prior value; this only CHANGES it when a scope is active, never otherwise). VariableName off Node::strParams
+  // (the String channel — the Float resolver skips String ports); fallback = the FallbackDefault/FallbackValue
+  // Float port resolved through the normal spine (wired/constant/default), the TiXL Get*Var.Update miss value.
+  if (!s->evaluate && liveCtxVars() && isValueRailContextVarReader(n->type)) {
+    std::string varName;
+    auto vit = n->strParams.find("VariableName");
+    if (vit != n->strParams.end()) varName = vit->second;
+    const char* fbId = (n->type == "GetIntVar") ? "FallbackValue" : "FallbackDefault";
+    float fallback = 0.0f;
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& p = s->ports[i];
+      if (!(p.isInput && p.dataType == "Float" && p.id == fbId)) continue;
+      if (const Connection* c = g.connectionToInput(pinId(nodeId, (int)i)))
+        fallback = evalFloat(g, c->fromPin, ctx, depth + 1);  // wired fallback
+      else {
+        auto pit = n->params.find(p.id);
+        fallback = (pit != n->params.end()) ? pit->second : p.def;  // stored constant / spec default
+      }
+      break;
+    }
+    return liveGetVar(n->type, varName, fallback);
   }
   if (!s->evaluate) return 0.0f;
   // Gather Float input values in port order (only Float inputs contribute to in[]).

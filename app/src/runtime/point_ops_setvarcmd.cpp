@@ -98,6 +98,46 @@ void cmdVarRestore(const CmdVarScope& s, ContextVarMap* vars) {
   }
 }
 
+// ─────────────── S3b: value↔command LIVE-READ scope (closes the S3a hollow) ───────────────
+// The ambient live map a value-rail Get*Var resolves against while cooked under a SetVarCmd scope. thread_local
+// so a future multi-threaded cook can't leak one cook's scope into another (today the cook is single-threaded;
+// thread_local is the correct-by-construction choice and costs nothing on the single-thread path). nullptr = no
+// scope active → Get*Var reads its normal value-rail value (faithful: off-scope behaviour is unchanged).
+static thread_local ContextVarMap* t_liveCtxVars = nullptr;
+
+LiveCtxVarScope::LiveCtxVarScope(ContextVarMap* vars)
+    : prev_(t_liveCtxVars), engaged_(vars != nullptr) {
+  // Only ENGAGE when a real map is handed in (an inactive scope / non-writer leaves the prior live map intact —
+  // so SetRequestedResolution or a non-writer Command wrapping a GetFloatVar still sees the OUTER scope's vars,
+  // matching TiXL's one ambient dictionary that an inner non-push node passes through transparently).
+  if (engaged_) t_liveCtxVars = vars;
+}
+LiveCtxVarScope::~LiveCtxVarScope() {
+  if (engaged_) t_liveCtxVars = prev_;  // pop back to the enclosing scope (nests like TiXL stacked pushes)
+}
+ContextVarMap* liveCtxVars() { return t_liveCtxVars; }
+
+bool isValueRailContextVarReader(const std::string& opType) {
+  return opType == "GetFloatVar" || opType == "GetIntVar";
+}
+
+float liveGetVar(const std::string& opType, const std::string& varName, float fallback, bool* found) {
+  if (found) *found = false;
+  ContextVarMap* live = t_liveCtxVars;
+  if (!live || !isValueRailContextVarReader(opType)) return fallback;  // no scope / not a reader → unchanged
+  if (varName.empty()) return fallback;                                // empty name → normal lookup miss
+  if (opType == "GetIntVar") {
+    auto it = live->intVars.find(varName);
+    if (it == live->intVars.end()) return fallback;                    // unset → FallbackValue (already int)
+    if (found) *found = true;
+    return (float)it->second;                                          // TiXL Slot<int>; stored truncated
+  }
+  auto it = live->floatVars.find(varName);
+  if (it == live->floatVars.end()) return fallback;                    // unset → FallbackDefault
+  if (found) *found = true;
+  return it->second;                                                   // TryGetValue hit (GetFloatVar.cs)
+}
+
 // ───────────────────────────── the Command ops (forward the cooked subtree) ─────────────────────────────
 // Both forward cc.inputCommand (the SubGraph the driver cooked UNDER the var push) — exactly like
 // SetRequestedResolution. The var write/restore already happened in the driver; this only chains the items.
@@ -118,23 +158,32 @@ void registerSetVarCmdOps() {
 }
 
 // ───────────────────────────────────────── GOLDEN ─────────────────────────────────────────
-// --selftest-setvar-scope (S3a HARD GATE, BOTH legs). Topology:
-//   ProbeGetVar(1) → SetFloatVarCmd(2).SubGraph ; SetFloatVarCmd(2) → StubRenderTarget(3, the terminal)
-// SetFloatVarCmd carries VariableName="k", FloatValue=0.7. When the terminal gathers its Command input it
-// recurses into SetFloatVarCmd → the driver's S3a branch PUSHES ctxVars.floatVars["k"]=0.7 BEFORE cooking the
-// SubGraph (ProbeGetVar), then RESTORES after. ProbeGetVar, cooked UNDER the push, reads cc.ctxVars->
-// floatVars["k"] and stamps round(value*1000) into its emitted item's `count` (the wire-order witness trick
-// the Execute golden uses). StubRenderTarget captures the chain.
-//   FAITHFUL → captured item count == round(0.7*1000) == 700 (the Command-rail scoped write was visible).
-//   -bug     → setVarBugSkipWrite() makes BOTH legs skip the push → ProbeGetVar reads the UNSET map → 0.0
-//              → count == 0 ≠ 700 → RED. The resident leg is a SEPARATE assertion (the S2c blood lesson:
-//              a resident-only mirror miss = prod-only black-hole; production runs the resident leg).
-// Closed-form: 0.7 is the exact pushed value; 700 = round(0.7*1000). No fwidth, no off-screen, no magic.
+// --selftest-setvar-scope (S3a/S3b HARD GATE, BOTH legs). TWO teeth, each its own topology:
+//
+// TOOTH A (S3a, the probe tooth — the Command-rail WRITE happened): kept for direct coverage.
+//   ProbeGetVar(1) → SetFloatVarCmd(2).SubGraph ; SetFloatVarCmd(2) → StubRenderTarget(3, terminal).
+//   ProbeGetVar is a COMMAND op that reads cc.ctxVars->floatVars["k"] and stamps round(v*1000). It proves the
+//   driver PUSHED the var around the SubGraph. (cc.ctxVars is the same map S3a threaded.)
+//
+// TOOTH B (S3b, THE HOLLOW-CLOSING tooth — a VALUE-RAIL Get*Var reads the LIVE scope): the blueprint's original
+// proving op S3a could NOT do. A value-rail GetFloatVar("k") (evaluate==nullptr) drives the Float param of a
+// node cooked INSIDE the SubGraph:
+//   GetFloatVar(1, value-rail) → V param of StampParamCmd(4) ; StampParamCmd(4) → SetFloatVarCmd(2).SubGraph ;
+//   SetFloatVarCmd(2) → StubRenderTarget(3). SetFloatVarCmd carries VariableName="k", FloatValue=0.7.
+//   StampParamCmd stamps round(params["V"]*1000) into its item count. Its V is wired to GetFloatVar.Result, so
+//   the value rail RESOLVES GetFloatVar while it is cooked under the live scope → reads ctxVars["k"]=0.7 → V=0.7.
+//   This is EXACTLY "a Layer whose param is driven by a value-rail GetFloatVar" carrying the scoped 0.7.
+//
+//   FAITHFUL → both teeth's captured count == round(0.7*1000) == 700.
+//   -bug     → setVarBugSkipWrite() skips the push on BOTH legs → the live scope never engages → ProbeGetVar
+//              reads the UNSET map AND GetFloatVar's value rail falls back to its FROZEN value (FallbackDefault=0,
+//              no cookStatefulValueNodes in this headless test) → count 0 ≠ 700 → RED on every leg×tooth.
+// Closed-form: 0.7 exact; 700 = round(0.7*1000). No fwidth, no off-screen, no magic. Each leg is a SEPARATE
+// assertion (S2c blood lesson: a resident-only miss = prod-only black-hole; production runs the resident leg).
 namespace {
 const char* kProbeName = "k";
 
-// Probe Command op: read the scoped var off cc.ctxVars and stamp round(v*1000) into a 1-item chain. This is
-// the EXACT TiXL mechanism a SubGraph child uses — read context.FloatVariables[name] during its own Update.
+// TOOTH A probe: COMMAND op, reads the scoped var off cc.ctxVars (the S3a Command-rail channel).
 RenderCommand probeGetVarCmd(CmdCookCtx& c) {
   RenderCommand rc;
   float v = 0.0f;
@@ -142,6 +191,17 @@ RenderCommand probeGetVarCmd(CmdCookCtx& c) {
     auto it = c.ctxVars->floatVars.find(kProbeName);
     if (it != c.ctxVars->floatVars.end()) v = it->second;
   }
+  rc.items.push_back(RenderDrawItem{nullptr, (uint32_t)std::lround(v * 1000.0f), 1.0f});
+  return rc;
+}
+// TOOTH B stamp: COMMAND op standing in for a Layer — stamps round(params["V"]*1000). Its V param is wired to a
+// VALUE-RAIL GetFloatVar, so cc.params["V"] is whatever the value rail resolved for GetFloatVar (the live scoped
+// var under the push, the frozen fallback off-scope). This op itself touches NO ctxVars — the live-read is done
+// entirely by the value-rail reader (evalFloat/evalResidentFloat) BEFORE this op's params are handed to it.
+RenderCommand stampParamCmd(CmdCookCtx& c) {
+  RenderCommand rc;
+  float v = 0.0f;
+  if (c.params) { auto it = c.params->find("V"); if (it != c.params->end()) v = it->second; }
   rc.items.push_back(RenderDrawItem{nullptr, (uint32_t)std::lround(v * 1000.0f), 1.0f});
   return rc;
 }
@@ -153,20 +213,32 @@ NodeSpec atomicSpec(const char* type, std::vector<PortSpec> ports) {
   return s;
 }
 
-// Cook the SetVar-scope graph on whichPath (0=flat, 1=resident) and return the captured item's count.
-// Returns false on a structural miss (no captured item).
-bool cookScope(MTL::Device* dev, MTL::Library* lib, MTL::CommandQueue* q, int whichPath,
+// Cook a SetVar-scope graph on whichPath (0=flat, 1=resident) and return the captured item's count. `valueRail`
+// selects the tooth: false = TOOTH A (ProbeGetVar Command reads cc.ctxVars), true = TOOTH B (a value-rail
+// GetFloatVar drives StampParamCmd's V — the hollow-closing proof). Returns false on a structural miss.
+bool cookScope(MTL::Device* dev, MTL::Library* lib, MTL::CommandQueue* q, int whichPath, bool valueRail,
                uint32_t& outCount) {
-  // Build: ProbeGetVar(1) → SetFloatVarCmd(2).SubGraph ; SetFloatVarCmd(2) → StubRenderTarget(3).
   Graph g;
-  Node p; p.id = 1; p.type = "ProbeGetVar"; g.nodes.push_back(p);
   Node sv; sv.id = 2; sv.type = "SetFloatVarCmd";
   sv.params["FloatValue"] = 0.7f;
   sv.strParams["VariableName"] = "k";  // String channel → resident strInputs via libFromGraph
   g.nodes.push_back(sv);
   Node rt; rt.id = 3; rt.type = "StubRenderTarget"; g.nodes.push_back(rt);
-  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // ProbeGetVar.out → SetFloatVarCmd.SubGraph
   g.connections.push_back({102, pinId(2, 1), pinId(3, 0)});  // SetFloatVarCmd.out → StubRenderTarget.command
+  if (!valueRail) {
+    // TOOTH A: ProbeGetVar(1) → SetFloatVarCmd(2).SubGraph
+    Node p; p.id = 1; p.type = "ProbeGetVar"; g.nodes.push_back(p);
+    g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});
+  } else {
+    // TOOTH B: GetFloatVar(1, value rail) → StampParamCmd(4).V ; StampParamCmd(4) → SetFloatVarCmd(2).SubGraph
+    Node gv; gv.id = 1; gv.type = "GetFloatVar";
+    gv.strParams["VariableName"] = "k";   // the value rail looks this name up in the live ctxVars
+    gv.params["FallbackDefault"] = 0.0f;  // miss / off-scope → 0 (so -bug bites to 0, not 700)
+    g.nodes.push_back(gv);
+    Node st; st.id = 4; st.type = "StampParamCmd"; g.nodes.push_back(st);
+    g.connections.push_back({103, pinId(1, 0), pinId(4, 1)});  // GetFloatVar.Result → StampParamCmd.V
+    g.connections.push_back({101, pinId(4, 0), pinId(2, 0)});  // StampParamCmd.out → SetFloatVarCmd.SubGraph
+  }
 
   g_capturedChain = RenderCommand{};
   ContextVarMap vars;  // the live map (production's s_ctxVars analog) the driver threads in
@@ -201,7 +273,8 @@ int runSetVarScopeSelfTest(bool injectBug) {
   }
 
   registerSetVarCmdOps();                          // the REAL ops under test
-  registerCmdOp("ProbeGetVar", probeGetVarCmd);    // test probe (reads cc.ctxVars)
+  registerCmdOp("ProbeGetVar", probeGetVarCmd);    // TOOTH A probe (reads cc.ctxVars)
+  registerCmdOp("StampParamCmd", stampParamCmd);   // TOOTH B stamp (reads its V param = the value rail's read)
   registerTexOp("StubRenderTarget", stubRenderTarget);
   {
     std::map<std::string, NodeSpec> dyn;
@@ -214,25 +287,39 @@ int runSetVarScopeSelfTest(bool injectBug) {
          {"FloatValue", "FloatValue", "Float", true, 0.0f, -1000.0f, 1000.0f},
          {"ClearAfterExecution", "ClearAfterExecution", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}});
     dyn["ProbeGetVar"] = atomicSpec("ProbeGetVar", {{"out", "out", "Command", false}});
+    // TOOTH B: a real VALUE-RAIL GetFloatVar spec (evaluate==nullptr, Result port FIRST, VariableName String +
+    // FallbackDefault Float) — the SAME shape as the production node_registry_math_contextvar.cpp GetFloatVar.
+    dyn["GetFloatVar"] = atomicSpec("GetFloatVar",
+        {{"Result", "Result", "Float", false},
+         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "k"},
+         {"FallbackDefault", "FallbackDefault", "Float", true, 0.0f, -1000.0f, 1000.0f}});
+    // TOOTH B: StampParamCmd — a Command op with a Float "V" input (stands in for a Layer's param), wired to
+    // GetFloatVar.Result; it stamps round(V*1000). V is port index 1 (after the leading "out" Command port).
+    dyn["StampParamCmd"] = atomicSpec("StampParamCmd",
+        {{"out", "out", "Command", false},
+         {"V", "V", "Float", true, 0.0f, -1000.0f, 1000.0f}});
     dyn["StubRenderTarget"] = atomicSpec("StubRenderTarget",
         {{"command", "command", "Command", true}, {"out", "out", "Texture2D", false}});
     setDynamicSpecs(std::move(dyn));
   }
 
-  setVarBugSkipWrite() = injectBug;  // ★bug = skip the Command-rail write on BOTH legs
+  setVarBugSkipWrite() = injectBug;  // ★bug = skip the Command-rail write → live scope never engages, BOTH legs
 
   const uint32_t kWant = 700u;  // round(0.7 * 1000)
   bool allFaithful = true;
   const char* pathName[2] = {"flat", "resident"};
-  uint32_t got[2] = {0u, 0u};
-  bool structOk[2] = {false, false};
-  for (int path = 0; path < 2; ++path) {
-    structOk[path] = cookScope(dev, lib, q, path, got[path]);
-    bool faithful = structOk[path] && got[path] == kWant;
-    allFaithful = allFaithful && faithful;
-    std::printf("[selftest-setvar-scope] %s: scopedCount=%u(want %u) struct=%s -> %s\n",
-                pathName[path], got[path], kWant, structOk[path] ? "ok" : "NO-ITEM",
-                faithful ? "faithful-ok" : "tripped");
+  const char* toothName[2] = {"A:probe-cmd-read", "B:value-rail-GetVar-under-scope"};
+  uint32_t got[2][2] = {{0u, 0u}, {0u, 0u}};       // [tooth][leg]
+  bool structOk[2][2] = {{false, false}, {false, false}};
+  for (int tooth = 0; tooth < 2; ++tooth) {
+    for (int path = 0; path < 2; ++path) {
+      structOk[tooth][path] = cookScope(dev, lib, q, path, /*valueRail=*/tooth == 1, got[tooth][path]);
+      bool faithful = structOk[tooth][path] && got[tooth][path] == kWant;
+      allFaithful = allFaithful && faithful;
+      std::printf("[selftest-setvar-scope] tooth %s / %s: scopedCount=%u(want %u) struct=%s -> %s\n",
+                  toothName[tooth], pathName[path], got[tooth][path], kWant,
+                  structOk[tooth][path] ? "ok" : "NO-ITEM", faithful ? "faithful-ok" : "tripped");
+    }
   }
 
   setVarBugSkipWrite() = false;  // reset the global (process hygiene)
@@ -240,18 +327,20 @@ int runSetVarScopeSelfTest(bool injectBug) {
   lib->release(); q->release(); dev->release(); pool->release();
 
   if (injectBug) {
-    // Both legs must FAIL the write-skip (each a distinct tooth: a resident-only mirror miss = prod black-hole).
+    // Every leg×tooth must FAIL the write-skip (each a distinct tooth: a resident-only mirror miss = prod
+    // black-hole; TOOTH B disabling the live-read is the hollow-closing assertion).
     if (allFaithful) {
-      std::printf("[selftest-setvar-scope] FAIL: injectBug still passed (the Command-rail write happened "
-                  "despite skip — the seam is not actually pushing the var)\n");
+      std::printf("[selftest-setvar-scope] FAIL: injectBug still passed (the var was read despite the skip — "
+                  "the seam is not actually scoping/reading the var)\n");
       return 1;
     }
-    // Confirm BOTH legs read the unset map (count 0), not just one — the resident tooth is separate.
-    bool flatBit = !structOk[0] || got[0] != kWant;
-    bool resBit = !structOk[1] || got[1] != kWant;
-    std::printf("[selftest-setvar-scope] injectBug correctly RED (flat tooth=%s resident tooth=%s — "
-                "skipped write → ProbeGetVar read the UNSET map)\n",
-                flatBit ? "RED" : "green?!", resBit ? "RED" : "green?!");
+    for (int tooth = 0; tooth < 2; ++tooth) {
+      bool flatBit = !structOk[tooth][0] || got[tooth][0] != kWant;
+      bool resBit = !structOk[tooth][1] || got[tooth][1] != kWant;
+      std::printf("[selftest-setvar-scope] injectBug correctly RED — tooth %s (flat=%s resident=%s; skipped "
+                  "write → no live scope → reader saw the UNSET map / frozen fallback)\n",
+                  toothName[tooth], flatBit ? "RED" : "green?!", resBit ? "RED" : "green?!");
+    }
     return 1;
   }
   std::printf("[selftest-setvar-scope] %s\n", allFaithful ? "PASS" : "FAIL");

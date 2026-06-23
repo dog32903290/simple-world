@@ -137,12 +137,20 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // the op via PointCookCtx::params. Stored in a node-keyed memo so pointers stay stable for
   // the whole cook (ops + inputParams point into it).
   std::map<int, std::map<std::string, float>> paramsMemo;
+  // S3b LIVE-READ memo trap: a node whose Float param is driven by a value-rail GetFloatVar resolves to a
+  // DIFFERENT value inside vs outside a SetVarCmd scope (the live var vs its fallback). The memo keys only on
+  // node id — so a value cached under one scope-state must NOT be served under the other. While a live scope is
+  // active (liveCtxVars()!=nullptr) we resolve FRESH and DO NOT cache (the scoped resolution is ambient-dependent,
+  // not a property of the graph). Off-scope the memo behaves exactly as before — every existing cook is unchanged
+  // (the live branch is reachable only inside a SetVarCmd SubGraph cook, which ~243 golden callers never enter).
+  std::map<int, std::map<std::string, float>> scopedScratch;  // per-cook owner of fresh scoped param maps
   std::function<const std::map<std::string, float>*(int)> nodeParams =
       [&](int id) -> const std::map<std::string, float>* {
-    auto it = paramsMemo.find(id);
-    if (it != paramsMemo.end()) return &it->second;
     const Node* n = g.node(id);
     if (!n) return nullptr;
+    if (liveCtxVars()) return &(scopedScratch[id] = resolveNodeParams(g, *n, ctx, reg));  // fresh, uncached
+    auto it = paramsMemo.find(id);
+    if (it != paramsMemo.end()) return &it->second;
     return &(paramsMemo[id] = resolveNodeParams(g, *n, ctx, reg));
   };
 
@@ -466,11 +474,17 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
           if (vit != n->strParams.end()) varName = vit->second;
           varScope = cmdVarPush(n->type, *nodeParams(id), varName, ctxVars);
         }
-        for (const Connection& c : g.connections) {  // g.connections = wire order (ListToBuffer :202)
-          if (c.toPin != pinId(id, (int)i)) continue;
-          RenderCommand sub = cookCommand(pinNode(c.fromPin));
-          inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
-          if (!port.multiInput || executeCollectFirstOnlyForTest()) break;  // single-input / -bug collapse
+        {
+          // S3b LIVE-READ scope: make ctxVars the ambient live map WHILE cooking the SubGraph, so a value-rail
+          // GetFloatVar driving a param of a node inside the SubGraph re-resolves LIVE (closes S3a's hollow).
+          // Engages only when varScope is active (a real writer push happened); else no-op (leaves outer scope).
+          LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
+          for (const Connection& c : g.connections) {  // g.connections = wire order (ListToBuffer :202)
+            if (c.toPin != pinId(id, (int)i)) continue;
+            RenderCommand sub = cookCommand(pinNode(c.fromPin));
+            inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+            if (!port.multiInput || executeCollectFirstOnlyForTest()) break;  // single-input / -bug collapse
+          }
         }
         cmdVarRestore(varScope, ctxVars);    // S3a restore (SetFloatVar.cs:33-40)
         p_->requestedResolution = savedReq;  // restore (SetRequestedResolution.cs:28)

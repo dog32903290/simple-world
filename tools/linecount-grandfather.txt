@@ -30,7 +30,12 @@ app/src/runtime/math_ops_selftest.cpp:1339
 # cook() signature gained the ctxVars param, and the new include. Same save/mutate/cook/restore shape S1
 # uses; the branch is irreducible code (the helper bodies live in the new leaf point_ops_setvarcmd.cpp).
 # Proven by --selftest-setvar-scope (flat leg). Same cook-driver split should lower this with the notes above.
-app/src/runtime/point_graph.cpp:784
+# S3b ratchet bump 2026-06-23 (value↔command live-read seam): +14 for the LiveCtxVarScope guard around the
+# SubGraph cook + the memo-bypass under a live ctxVars scope (the GetFloatVar-under-scope fix). Both cook
+# drivers are already over-cap god-files; splitting the Command branch into its own TU is the named debt (the
+# flat+resident Command branches are near-mirror twins and want a shared helper). DEBT: split point_graph cook
+# driver Command branch into a shared TU (see DEBT_LEDGER / spawned task).
+app/src/runtime/point_graph.cpp:798
 # S3a (2026-06-23) +12: CmdCookCtx gained the ContextVarMap* ctxVars field (additive ABI, mirrors
 # inputCommand) + the forward-decl + cook/cookResident gained the trailing ctxVars param. Doc squeezed to
 # the floor; the field + its load-bearing comment (the two-rail fork note, blueprint risk #3) are irreducible.
@@ -43,7 +48,10 @@ app/src/runtime/point_graph.h:452
 # S3a (2026-06-23) +14: the resident MIRROR of the flat SetVarCmd push/restore (the S2c blood-lesson leg —
 # production runs THIS) + cc.ctxVars assign + the cookResident ctxVars param + the new include. Proven by
 # --selftest-setvar-scope's resident leg (the -bug resident tooth is distinct). Irreducible code.
-app/src/runtime/point_graph_resident.cpp:623
+# S3b ratchet bump 2026-06-23 (value↔command live-read seam): +13 for the resident mirror of the LiveCtxVarScope
+# guard + memo-bypass (same shape as the flat leg above; production runs THIS leg). Same named debt: split the
+# Command branch into a shared TU.
+app/src/runtime/point_graph_resident.cpp:636
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 # +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
 app/src/runtime/point_ops.h:553

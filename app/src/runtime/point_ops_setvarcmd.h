@@ -47,6 +47,46 @@ CmdVarScope cmdVarPush(const std::string& opType, const std::map<std::string, fl
 // Remove(name). No-op on an inactive scope. Call AFTER cooking the SubGraph.
 void cmdVarRestore(const CmdVarScope& scope, ContextVarMap* vars);
 
+// ─────────────────── S3b: value↔command LIVE-READ scope (the seam that closes S3a's hollow) ──────────────────
+// THE LIVE AMBIENT context-var map a value-rail Get*Var reads while it is cooked UNDERNEATH a Command-rail
+// SetVarCmd scope — = TiXL's EvaluationContext.Float/IntVariables seen by a SubGraph child's GetFloatVar.Update.
+//
+// Why a thread-local and not a threaded param: the value-rail readers are evalFloat (graph.cpp, takes only the
+// 16-byte GPU EvaluationContext — cannot grow; 87 call sites) and evalResidentFloat. The var is "live" ONLY for
+// the duration of the SubGraph cook — exactly the ambient-context lifetime TiXL gives it — so a scope guard set
+// around the driver's SubGraph cook (where cmdVarPush/cmdVarRestore already wrap) is the faithful shape. Mirrors
+// the existing process-scoped cook-driver flags (setVarBugSkipWrite / executeCollectFirstOnlyForTest). nullptr
+// outside any scope → Get*Var falls back to its normal value-rail value (faithful: behaviour unchanged off-scope).
+//
+// RAII guard: construct around the SubGraph cook AFTER cmdVarPush, destroy AFTER cmdVarRestore. Nests correctly
+// (saves+restores the prior live map) so an inner SetVarCmd scope layers on the outer one, like TiXL's stacked
+// pushes on the one ambient dictionary. A null `vars` (inactive scope / non-writer) leaves the prior live map.
+struct LiveCtxVarScope {
+  explicit LiveCtxVarScope(ContextVarMap* vars);
+  ~LiveCtxVarScope();
+  LiveCtxVarScope(const LiveCtxVarScope&) = delete;
+  LiveCtxVarScope& operator=(const LiveCtxVarScope&) = delete;
+ private:
+  ContextVarMap* prev_;
+  bool engaged_;
+};
+
+// The live ambient map, or nullptr when no SetVarCmd scope is active. Consulted by the value-rail Get*Var
+// readers (evalFloat / evalResidentFloat) to re-resolve a named var LIVE instead of returning the frozen
+// pre-cook value. Read-only for the readers; the writers go through LiveCtxVarScope.
+ContextVarMap* liveCtxVars();
+
+// Resolve ONE value-rail Get*Var node against the live ambient map, the TiXL Get{Float,Int}Var.Update way:
+// TryGetValue(name) hit → the scoped value; miss → `fallback`. Returns `fallback` (unchanged) when no live
+// scope is active, the op is not a Get*Var, or the name is unset. `opType` selects floatVars vs intVars +
+// the GetIntVar truncate-toward-zero (TiXL Slot<int>). This is the SINGLE codepath both eval readers call so
+// the flat and resident live-reads can never fork. found (optional) reports whether a live hit replaced fallback.
+float liveGetVar(const std::string& opType, const std::string& varName, float fallback, bool* found = nullptr);
+
+// True iff opType is a value-rail context-var READER (GetFloatVar / GetIntVar). The eval readers gate the
+// live-read on this so every non-Get*Var node stays byte-identical (the live scope never perturbs them).
+bool isValueRailContextVarReader(const std::string& opType);
+
 // S3a -bug DRIVER flag (mirror of executeCollectFirstOnlyForTest): when true, BOTH cook legs SKIP the
 // Command-rail var WRITE (cmdVarPush) — so a probe Command op in the SubGraph reads the unset map and
 // falls back, biting the golden RED on both flat and resident. OFF in production. Reference returned so
