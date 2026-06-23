@@ -33,6 +33,7 @@ class Texture;
 
 struct EvaluationContext;  // runtime/eval_context.h (full def in point_graph.cpp)
 struct SwPoint;            // runtime/tixl_point.h (64B host point; full def where the cook includes it)
+namespace sw { struct ContextVarMap; }  // stateful_value_ops.h (host per-frame var map; S3a)
 namespace sw { struct SwGradient; }  // runtime/sw_gradient.h (host Gradient; full def where the op includes it)
 namespace sw { class Curve; }        // runtime/curve.h (host Curve currency; full def where the op includes it)
 
@@ -146,6 +147,14 @@ struct CmdCookCtx {
   // driver-local RenderCommand (single-frame); the op may COPY its items (Camera stamps + re-emits).
   // Point/Texture command ops (DrawPoints/DrawScreenQuad) leave it null → byte-identical path.
   const RenderCommand* inputCommand = nullptr;
+  // S3a context-var bridge (flow seam): LIVE host var map (= TiXL EvaluationContext.Float/IntVariables),
+  // threaded into EVERY command cook (mirrors inputCommand) so a Command-rail SetFloatVarCmd/SetIntVarCmd
+  // WRITES a scoped var around its SubGraph (push/restore in the driver's Command branch, same shape as S1's
+  // requestedResolution save/restore, point_graph.cpp:453-462). A Command op cooked inside the SubGraph reads
+  // cc.ctxVars->floatVars[name] (TiXL: SubGraph children read context.FloatVariables). SAME instance the
+  // value rail populated (prod threads frame_cook's s_ctxVars; order: value writers THEN this cook). null for
+  // ~243 golden callers. NAMED FORK (blueprint risk #3): value-rail GetFloatVar reads extOut, NOT this map.
+  ContextVarMap* ctxVars = nullptr;
   // First wired MESH input (DrawMeshUnlit, the 4th cook flow as a draw consumer): the cook driver cooks
   // the upstream mesh node (NGonMesh/QuadMesh) and hands its vertex+index buffers + face count here. A
   // command op that draws a mesh (DrawMeshUnlit) borrows these into its DrawKind::Mesh item; every other
@@ -366,8 +375,10 @@ class PointGraph {
   // (PointDrawFn) renders its Points input; else a Points-producing op's bag is cooked but not yet shown
   // (a raw Points preview needs a typed wrapper — future). `targetNodeId` = what the viewport shows; the
   // live loop passes defaultDrawTarget(), a future "pin any node" (view ⊥ graph, TiXL OutputWindow) another.
+  // S3a: `ctxVars` (trailing, defaulted) = the LIVE host context-var map threaded into every command cook
+  // so a Command-rail SetVar pushes a scoped var around its SubGraph. nullptr = no map (byte-identical).
   void cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
-            int targetNodeId);
+            int targetNodeId, ContextVarMap* ctxVars = nullptr);
   // Resident-graph cook (slice 2 walk + 2b parity): walk a ResidentEvalGraph by path-qualified id and
   // realize `targetPath` into target() with the SAME three-flow terminal as cook() (tex/cmd/preview),
   // per-path persistent buffers + stateful state, and driver-resolved Float params (the 2b seam). Float
@@ -375,10 +386,12 @@ class PointGraph {
   // S5: localTime/localFxTime (BARS) from the Transport (frame_cook) — localTime = playhead (automation
   // samples it), localFxTime = wall clock; `lib` lets Automation drivers resolve curves through the
   // definition-layer Animators (S3). All three default to the pre-S5 placeholder (ctx.time/no lib).
+  // S3a: `ctxVars` (trailing, defaulted) = the resident mirror of cook()'s context-var param, so the
+  // Command-rail SetVar push/restore reaches BOTH legs. nullptr = no map (resident goldens byte-unchanged).
   void cookResident(const struct ResidentEvalGraph& rg, const EvaluationContext& ctx,
                     const SourceRegistry* reg, const std::string& targetPath,
                     float localTimeBars = -1.0f, float localFxTimeBars = -1.0f,
-                    const SymbolLibrary* lib = nullptr);
+                    const SymbolLibrary* lib = nullptr, ContextVarMap* ctxVars = nullptr);
   // Default viewport target = the first draw node (today's wired terminal). 0 if none.
   int defaultDrawTarget(const Graph& g) const;
   // Same, inside ONE symbol's subgraph (the lib-native canvas, 批次 3): the first child

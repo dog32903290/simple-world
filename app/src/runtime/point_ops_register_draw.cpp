@@ -8,6 +8,7 @@
 // registerRenderTargetOp/Draw* declared in point_ops.h).
 #include "runtime/point_graph.h"  // registerCmdOp
 #include "runtime/point_ops.h"    // cookDrawPoints, registerDrawLinesOp/Billboards/RenderTargetOp
+#include "runtime/point_ops_setvarcmd.h"  // S3a: registerSetVarCmdOps (Command-rail SetFloatVarCmd/SetIntVarCmd)
 
 namespace sw {
 
@@ -33,6 +34,7 @@ void registerDrawPointOps() {
   registerShearOp();                             // Command → Command (shear transform-context push, S2 island)
   registerTransformOp();                         // Command → Command (full TRS+pivot transform-context push, S2 island)
   registerSetRequestedResolutionOp();           // Command → Command (explicit RequestedResolution push/pop, S1)
+  registerSetVarCmdOps();                        // Command → Command (S3a context-var SubGraph scope: SetFloatVarCmd/SetIntVarCmd)
   registerDrawMeshUnlitOp();                    // Mesh → Command (DrawKind::Mesh, the FIRST 3D mesh, Cut 99)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
 }

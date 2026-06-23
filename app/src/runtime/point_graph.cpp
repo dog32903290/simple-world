@@ -25,6 +25,7 @@
 #include "runtime/stringlist_op_registry.h"    // StringListCookCtx/findStringListOp (host List<string> = Sub-seam A)
 #include "runtime/pointlist_op_registry.h"     // PointListCookCtx/findPointListOp (the 7th cook flow = host SwPoint list)
 #include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
+#include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
 
 namespace sw {
@@ -114,7 +115,7 @@ MTL::Texture* PointGraph::target() const { return p_->displayTex ? p_->displayTe
 // file at-or-below its line-count cap, ARCHITECTURE.md rule 4 ratchet).
 
 void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
-                      int targetNodeId) {
+                      int targetNodeId, ContextVarMap* ctxVars) {
   p_->displayTex = nullptr;  // default: target() shows the window-sized texture (cmd/preview paths)
   // S1 seam: seed RequestedResolution to the window (TiXL OutputWindow.cs:411-414 seeding before eval).
   p_->requestedResolution = RenderResolution{p_->width, p_->height};
@@ -453,12 +454,25 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         const RenderResolution savedReq = p_->requestedResolution;
         if (n->type == "SetRequestedResolution")
           p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(id), savedReq);
+        // S3a context-var scope (TiXL SetFloatVar.cs:26-45 SubGraph branch): push the scoped var into
+        // ctxVars BEFORE cooking the subtree, restore AFTER — identical shape to the savedReq guard above.
+        // varName comes off the flat Node::strParams String channel (NOT smuggled through a float). When
+        // ctxVars is null (~243 golden callers), the node isn't a writer, or -bug skips the write, the
+        // scope is inactive (no-op restore).
+        CmdVarScope varScope;
+        if (!setVarBugSkipWrite() && isCmdContextVarWriter(n->type)) {
+          std::string varName;
+          auto vit = n->strParams.find("VariableName");
+          if (vit != n->strParams.end()) varName = vit->second;
+          varScope = cmdVarPush(n->type, *nodeParams(id), varName, ctxVars);
+        }
         for (const Connection& c : g.connections) {  // g.connections = wire order (ListToBuffer :202)
           if (c.toPin != pinId(id, (int)i)) continue;
           RenderCommand sub = cookCommand(pinNode(c.fromPin));
           inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
           if (!port.multiInput || executeCollectFirstOnlyForTest()) break;  // single-input / -bug collapse
         }
+        cmdVarRestore(varScope, ctxVars);    // S3a restore (SetFloatVar.cs:33-40)
         p_->requestedResolution = savedReq;  // restore (SetRequestedResolution.cs:28)
         haveInCmd = true;
       }
@@ -468,6 +482,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.nodeId = id; cc.points = pts; cc.count = cnt;
     cc.inputTexture = inTex;
     cc.inputCommand = haveInCmd ? &inCmd : nullptr;
+    cc.ctxVars = ctxVars;  // S3a: a Command op cooked in a SubGraph reads the scoped var off this
     cc.meshVtx = inMeshVtx; cc.meshIdx = inMeshIdx; cc.meshFaceCount = inMeshFaces;
     cc.params = nodeParams(id);
     RenderCommand out = cm->second(cc);

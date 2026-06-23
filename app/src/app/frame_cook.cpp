@@ -335,13 +335,12 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // same extOut-mirror contract. dtSecs is the RAW wall delta (these are CPU value sims, frame-rate
   // dependent like TiXL Playback.LastFrameDuration); each op clamps internally. State keys off the
   // resident path, so it rides projection rebuilds and stays per-instance inside compounds.
+  // context-var seam: host per-frame var map (= TiXL EvaluationContext Float/IntVariables; cleared once/frame
+  // in cookStatefulValueNodes). S3a: lifted OUT of the stateful block so the SAME instance reaches
+  // pg.cookResident below — value-rail writers populate it, THEN the Command SetVarCmd push/restore augments it.
+  static ContextVarMap s_ctxVars;
   {
     static std::map<std::string, StatefulValueState> s_svState;
-    // context-var YELLOW seam: the host-side per-frame variable map (= TiXL EvaluationContext
-    // Float/IntVariables). Function-local static (mirrors s_svState/s_arState) — NOT a runtime
-    // global, so runtime/ stays free of an app-owned dependency (ARCHITECTURE dir). Cleared at the
-    // top of cookStatefulValueNodes once per frame (the Reset analog), so it never leaks cross-frame.
-    static ContextVarMap s_ctxVars;
     cookStatefulValueNodes(g_residentGraph, (float)dtSecs, (float)fxSecs, s_runTimeSecs, g_transport,
                            g_frameIndex, &doc::g_lib, s_svState, s_ctxVars);
   }
@@ -372,8 +371,9 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // The resident cook fills ITS two-clock ctx (localTime/localFxTime, bars) from the transport
   // via these params, so automation-driven Float inputs sampled inside the cook walk the curve at
   // the playhead. (point_graph_resident reads them off the args — no more ctx.time placeholder.)
+  // S3a: thread s_ctxVars (populated above) so a Command-rail SetVarCmd scopes a var around its SubGraph.
   pg.cookResident(g_residentGraph, ctx, /*reg=*/nullptr, targetPath,
-                  (float)posBars, (float)fxBars, &doc::g_lib);
+                  (float)posBars, (float)fxBars, &doc::g_lib, &s_ctxVars);
   // editor-only: stamp lastUpdatePass on live nodes (Time/Automation-driven) so the UI's idle
   // fade signal is accurate. Static nodes keep their old lastUpdatePass (idle after 60 frames).
   stampLiveLastUpdatePass(g_residentGraph, g_frameIndex);

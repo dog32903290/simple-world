@@ -201,6 +201,32 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Height", "Height", "Float", true, 0.0f, 0.0f, 16384.0f},
         {"Multiply", "Multiply", "Float", true, 1.0f, 0.0f, 16.0f}},
        nullptr},
+      // SetFloatVarCmd (TiXL Lib.flow.context.SetFloatVar, the SubGraph branch :26-45): the Command-rail
+      // twin of the value-rail SetFloatVar — wraps a Command SubGraph and, while cooking it, pushes
+      // FloatValue into context.FloatVariables[VariableName], restoring after (hadPrev ? prev : ClearAfter ?
+      // keep : Remove). The PUSH/RESTORE lives in the cook driver (cookCommand S3a branch); the op cook just
+      // forwards the subtree's items (like SetRequestedResolution). VariableName is a String input (strDef
+      // "f", the float-only value rail carries it on the String channel). NAMED FORK: TiXL's ONE dual-branch
+      // node becomes two sw types — the no-SubGraph float write stays the value-rail "SetFloatVar"; this is
+      // the SubGraph (Command) half. Command in → Command out. .t3: FloatValue=0, ClearAfterExecution=false.
+      {"SetFloatVarCmd", "SetFloatVar",
+       {{"SubGraph", "SubGraph", "Command", true},
+        {"out", "out", "Command", false},
+        {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "f"},
+        {"FloatValue", "FloatValue", "Float", true, 0.0f, -1000.0f, 1000.0f},
+        {"ClearAfterExecution", "ClearAfterExecution", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr},
+      // SetIntVarCmd (TiXL Lib.flow.context.SetIntVar, the SubGraph branch :38-64): the int twin of
+      // SetFloatVarCmd. Value arrives on a Float port (no Int port type) → truncated toward zero (C# (int)
+      // cast convention) and pushed into context.IntVariables[VariableName] around the SubGraph. strDef "i".
+      // Command in → Command out. .t3: Value=0, ClearAfterExecution=false.
+      {"SetIntVarCmd", "SetIntVar",
+       {{"SubGraph", "SubGraph", "Command", true},
+        {"out", "out", "Command", false},
+        {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "i"},
+        {"Value", "Value", "Float", true, 0.0f, -1000.0f, 1000.0f},
+        {"ClearAfterExecution", "ClearAfterExecution", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr},
       // Execute (TiXL Lib.flow.Execute): the S2a KEYSTONE — a MULTIINPUT Command port that concatenates
       // N wired Command chains in wire-declaration order into ONE chain (Execute.cs CollectedInputs). The
       // cook-core collector (cookCommand's MultiInput Command branch) does the gather+concat; this op just

@@ -27,6 +27,7 @@
 #include "runtime/gradient_op_registry.h"      // GradientCookCtx/findGradientOp (the 8th cook flow = host Gradient)
 #include "runtime/curve.h"                 // sw::Curve (bake-into-point seam: PointCookCtx::inputCurves complete type)
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + op registries
+#include "runtime/point_ops_setvarcmd.h"   // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/resident_eval_graph.h"   // ResidentEvalGraph / drivers / resolveResidentFloatInputs
 #include "runtime/tixl_point.h"            // SwPoint + EvaluationContext
 
@@ -63,7 +64,7 @@ void warnCookDepthOnce() {
 void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationContext& ctx,
                               const SourceRegistry* reg, const std::string& targetPath,
                               float localTimeBars, float localFxTimeBars,
-                              const SymbolLibrary* lib) {
+                              const SymbolLibrary* lib, ContextVarMap* ctxVars) {
   p_->displayTex = nullptr;  // default: target() shows the window-sized texture (cmd/preview paths)
   // S1 seam: seed RequestedResolution to the window (TiXL output-layer seeding before eval). Resident
   // mirror of cook(); RenderTarget/SetRequestedResolution push/pop it around their subtree.
@@ -494,6 +495,17 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
         const RenderResolution savedReq = p_->requestedResolution;
         if (n->opType == "SetRequestedResolution")
           p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(path), savedReq);
+        // S3a context-var scope (resident mirror of the flat leg — the S2c blood-lesson leg, production
+        // runs THIS). Same TiXL SetFloatVar.cs:26-45 push/restore around the SubGraph; varName off the
+        // resident ResidentNode::strInputs String channel (NOT a float). Inactive (no-op) when ctxVars is
+        // null, the node isn't a writer, or -bug skips the write.
+        CmdVarScope varScope;
+        if (!setVarBugSkipWrite() && isCmdContextVarWriter(n->opType)) {
+          std::string varName;
+          auto vit = n->strInputs.find("VariableName");
+          if (vit != n->strInputs.end()) varName = vit->second;
+          varScope = cmdVarPush(n->opType, *nodeParams(path), varName, ctxVars);
+        }
         const ResidentInput* ri = n->input(port.id);
         if (ri && ri->driver == ResidentInput::Driver::Connection) {
           RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
@@ -504,6 +516,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
               inCmd.items.insert(inCmd.items.end(), es.items.begin(), es.items.end());
             }
         }
+        cmdVarRestore(varScope, ctxVars);    // S3a restore (SetFloatVar.cs:33-40)
         p_->requestedResolution = savedReq;  // restore (SetRequestedResolution.cs:28)
         haveInCmd = true;
       }
@@ -514,6 +527,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     cc.meshVtx = inMesh.vtx; cc.meshIdx = inMesh.idx; cc.meshFaceCount = inMesh.faceCount;
     cc.inputTexture = inTex;  // ★S2c Texture2D gather (Layer2d/DrawScreenQuad)
     cc.inputCommand = haveInCmd ? &inCmd : nullptr;
+    cc.ctxVars = ctxVars;  // S3a: SubGraph Command ops read the scoped var off this (resident leg)
     cc.params = nodeParams(path);
     return cm->second(cc);
   };
