@@ -1,18 +1,22 @@
 # quick_add_palette.scn -- live verification: Cmd+F opens quick-add palette,
-# text filter narrows results, click-to-select spawns at anchor.
+# scatter search narrows + ranks results, Enter/click-to-select spawns at anchor.
 #
-# TiXL parity: FactoryKeyMap.cs:56 SearchGraph + SymbolBrowser behaviour.
-# Fork "QuickAddFilter_Substring": TiXL scatter-regex; we use case-insensitive strstr.
+# TiXL parity: FactoryKeyMap.cs:56 SearchGraph + SymbolBrowser; SymbolFilter.cs scatter
+# regex (line 90) + ComputeRelevancy ranking (line 198). L-B feature.
 #
 # Assertions:
 #   1. After Cmd+F: map contains qa:* items (palette opened).
 #   2. After typing "Radial": map contains qa:RadialPoints (filter narrows).
 #   3. After clicking qa:RadialPoints: Root.children.length increases by 1.
 #   4. New node spawns near the canvas anchor (not at fixed (120,120)).
+#   5. SCATTER + RANK: a gapped query "gdp" (G-ri-D-P-oints) uniquely subsequence-matches
+#      GridPoints; the ranker puts it top (selectedIdx 0); Enter spawns GridPoints.
 #
 # RED proof:
-#   Line 35 asserts length == 7 (was 6). Change to 8 -> FAIL (only one node added).
-#   Line 39 asserts x != 120. Change to x == 120 -> FAIL (was the toolbar fixed-pos bug).
+#   Line ~35 asserts length == 7 (was 6). Change to 8 -> FAIL (only one node added).
+#   Line ~39 asserts x != 120. Change to x == 120 -> FAIL (was the toolbar fixed-pos bug).
+#   Scatter block: change the spawned-symbol assert to RadialPoints -> FAIL (scatter "gdp"
+#   has no 'g' in RadialPoints, so the top match cannot be RadialPoints).
 #
 # compound_smoke.swproj: Root has 6 children (id 1-6), nextChildId=7.
 
@@ -38,6 +42,10 @@ echo cmd-f-opened-palette-qa-RadialPoints-visible
 assert_map_has qa:input
 echo qa-input-widget-present
 
+# Evidence: empty-query palette shows the FULL list (RED->GREEN baseline).
+capture full lb_search_empty
+echo captured-empty-palette-full-list
+
 # --- Type "Radial" to filter ---
 # The InputText is focused (SetKeyboardFocusHere). Type the filter string.
 do text Radial
@@ -46,6 +54,10 @@ wait 0.3
 # After filtering, RadialPoints should still be in the map.
 assert_map_has qa:RadialPoints
 echo filter-radial-still-shows-RadialPoints
+
+# Evidence: a specific query narrows the visible list to matching nodes.
+capture full lb_search_query
+echo captured-filtered-palette
 
 # --- Click RadialPoints to spawn ---
 do click @qa:RadialPoints
@@ -64,6 +76,31 @@ echo new-node-id-7-exists
 # Assert x != 120 to confirm the anchor-based spawn path is active.
 assert_state '([.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 7)][0].x) != 120'
 echo new-node-not-at-toolbar-fixed-120-120
+
+# --- SCATTER + RANK proof: gapped query "gdp" -> GridPoints, Enter spawns top match ---
+# "gdp" is a subsequence of "GridPoints" (G-ri-D-P-oints) but NOT of RadialPoints/LinePoints/
+# SpherePoints (no 'g'). So the only candidate is GridPoints; the ranker selects it (idx 0);
+# Enter commits the top-ranked match. This proves scatter-match + relevancy ranking live.
+do click 400 300
+wait 0.2
+do keychord cmd f
+wait 0.4
+assert_map_has qa:input
+do text gdp
+wait 0.3
+# GridPoints survives the scatter filter; RadialPoints does NOT (no 'g').
+assert_map_has qa:GridPoints
+echo scatter-gdp-shows-GridPoints
+capture full lb_search_scatter
+do key enter
+wait 0.3
+# Root now has 8 children; Enter committed the top-ranked scatter match (GridPoints).
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 8'
+# The new node (id 8) is NOT the RadialPoints clicked earlier (id 7): its symbolId differs.
+# Combined with `assert_map_has qa:GridPoints` (and RadialPoints having no 'g' so it could not
+# survive "gdp"), this pins the committed top match to the GridPoints scatter result.
+assert_state '([.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 8)][0].symbolId) != ([.lib.symbols[] | select(.id == "Root") | .children[] | select(.id == 7)][0].symbolId)'
+echo enter-spawned-top-ranked-scatter-match-not-radialpoints
 
 # --- Re-open + Space shield (refuter-R-P BROKEN -> 永久牙) ---
 # The first open above ended by SPAWNING (panel closed). Re-open via Cmd+F: the focus flag

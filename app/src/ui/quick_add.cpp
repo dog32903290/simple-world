@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -73,41 +72,98 @@ static void rebuildAllItems() {
     }
 }
 
-// Case-insensitive substring match.
-// Fork "QuickAddFilter_Substring": TiXL builds a scatter regex (char by char, .*
-// between each); we use a plain case-insensitive strstr equivalent.
-// Adequate for the current library size; upgrade to regex if the library exceeds ~2000
-// types and users find matching too coarse.
-static bool matchFilter(const std::string& item, const char* filter) {
-    if (!filter || filter[0] == '\0') return true;
-    // Case-fold both strings for comparison.
-    std::string lower = item;
-    for (char& c : lower) c = (char)std::tolower((unsigned char)c);
-    char fLower[64];
-    std::snprintf(fLower, sizeof(fLower), "%s", filter);
-    for (char& c : fLower) c = (char)std::tolower((unsigned char)c);
-    return lower.find(fLower) != std::string::npos;
+static std::string toLower(const std::string& s) {
+    std::string r = s;
+    for (char& c : r) c = (char)std::tolower((unsigned char)c);
+    return r;
 }
 
-// Rebuild g_displayItems from g_allItems filtered by g_filterBuf.
-static void rebuildDisplayItems() {
-    g_displayItems.clear();
-    for (const std::string& item : g_allItems) {
-        if (matchFilter(item, g_filterBuf)) g_displayItems.push_back(item);
-    }
-    std::memcpy(g_lastFilter, g_filterBuf, sizeof(g_filterBuf));
-    if (g_selectedIdx >= (int)g_displayItems.size())
-        g_selectedIdx = g_displayItems.empty() ? 0 : (int)g_displayItems.size() - 1;
-}
-
-// Display name for a symbolId: use the Symbol's .name if available, else the id.
+// Display name (Symbol.name else id) = the string TiXL ranks on (symbol.Name).
 static std::string displayName(const std::string& id) {
     const sw::Symbol* s = sw::doc::g_lib.find(id);
     if (s && !s->name.empty()) return s->name;
     return id;
 }
 
+// Category/namespace (atomic specs carry it; default empty) = TiXL Symbol.Namespace.
+static std::string categoryOf(const std::string& id) {
+    const sw::NodeSpec* spec = sw::findSpec(id);
+    return spec ? spec->category : std::string();
+}
+
+// scatterMatch + computeRelevancy are defined below in the sw::ui namespace (declared in
+// quick_add.h) so the isolated self-test can exercise the real production primitives.
+
+// Scatter-filter g_allItems by g_filterBuf (name OR category), then sort by relevancy desc.
+// = TiXL SymbolFilter: match Name||Namespace, `.OrderBy(ComputeRelevancy).Reverse()`. Fork
+// "QuickAddRank_StableTies": STABLE sort keeps equal-score rows in registry order (vs Reverse).
+static void rebuildDisplayItems() {
+    g_displayItems.clear();
+    const std::string query = g_filterBuf;
+    const std::string qLower = toLower(query);
+    for (const std::string& item : g_allItems) {
+        if (scatterMatch(toLower(displayName(item)), qLower) ||
+            scatterMatch(toLower(categoryOf(item)), qLower)) {
+            g_displayItems.push_back(item);
+        }
+    }
+    // Rank: stable sort by relevancy descending (ties preserve registry order).
+    std::stable_sort(g_displayItems.begin(), g_displayItems.end(),
+                     [&](const std::string& a, const std::string& b) {
+                         return computeRelevancy(displayName(a), query) >
+                                computeRelevancy(displayName(b), query);
+                     });
+    std::memcpy(g_lastFilter, g_filterBuf, sizeof(g_filterBuf));
+    g_selectedIdx = 0;  // top match selected after every refilter (TiXL resets to best)
+}
+
 }  // namespace
+
+// ---------------------------------------------------------------------------
+// Search primitives (header-exposed for the isolated self-test).
+// ---------------------------------------------------------------------------
+
+// Scatter / subsequence match: query chars appear in order in `hay` (gaps allowed).
+// = TiXL SymbolFilter.cs:90 `string.Join(".*", chars)` regex: "dlp" hits "DrawLinePoints".
+bool scatterMatch(const std::string& hay, const std::string& q) {
+    if (q.empty()) return true;
+    size_t hi = 0;
+    for (char qc : q) {
+        bool found = false;
+        for (; hi < hay.size(); ++hi) {
+            if (hay[hi] == qc) { ++hi; found = true; break; }
+        }
+        if (!found) return false;
+    }
+    return true;
+}
+
+// Relevancy (higher = more relevant). PORTABLE subset of TiXL ComputeRelevancy
+// (SymbolFilter.cs:198-389) — name+query multipliers (exact > prefix > contains > scatter;
+// PascalCase initials; _/OBSOLETE demotion). DEFERRED: namespace/package/usage boosts.
+double computeRelevancy(const std::string& name, const std::string& query) {
+    if (query.empty()) return 1.0;  // unfiltered: registry order (stable sort keeps it)
+    const std::string n = toLower(name);
+    const std::string q = toLower(query);
+    double rel = 1.0;
+    if (q.size() == 1 && n.rfind(q, 0) == 0) rel *= 20.0;  // :215 single-char prefix
+    if (n == q) rel *= 8.6;                                // :226 equals
+    if (n.rfind(q, 0) == 0)                                // :232 startsWith else :239 contains
+        rel *= 8.5;
+    else if (n.find(q) != std::string::npos)
+        rel *= 8.4;
+    bool initials = true;  // :256 PascalCase initials "ds" -> "DrawState" x4
+    size_t maxIndex = 0;
+    for (char c : q) {
+        size_t idx = n.find(c, maxIndex);
+        if (idx == std::string::npos) { initials = false; break; }
+        maxIndex = idx + 1;
+    }
+    if (initials) rel *= 4.0;
+    if (!name.empty() && name[0] == '_') rel *= 0.1;                  // :296 demote
+    if (name.find("OBSOLETE") != std::string::npos) rel *= 0.01;      // :302 demote
+    return rel;
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -224,6 +280,14 @@ void drawQuickAdd() {
                 ImGui::BeginDisabled(cyclic);
                 bool clicked = ImGui::Selectable(displayName(id).c_str(), selected,
                                                  ImGuiSelectableFlags_None);
+                // Category subtitle (= TiXL SymbolBrowser namespace hint) when the spec
+                // carries one. Full namespace TREE is DEFERRED (categories not yet
+                // populated repo-wide — needs a separate category-fill pass).
+                const std::string cat = categoryOf(id);
+                if (!cat.empty()) {
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("  %s", cat.c_str());
+                }
                 ImGui::EndDisabled();
 
                 // eye hook — one line per row, key = qa:<typeId>
@@ -281,67 +345,6 @@ void drawQuickAdd() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// runQuickAddSelfTest
-// ---------------------------------------------------------------------------
-int runQuickAddSelfTest(bool injectBug) {
-    int fail = 0;
-
-    // Test 1: empty filter matches everything.
-    {
-        std::vector<std::string> items = {"RadialPoints", "GridPoints", "MyCompound"};
-        for (const auto& item : items) {
-            if (!matchFilter(item, "")) {
-                std::printf("[quickadd] empty filter should match '%s' -> FAIL\n", item.c_str());
-                ++fail;
-            }
-        }
-    }
-
-    // Test 2: case-insensitive substring.
-    {
-        if (!matchFilter("RadialPoints", "radial")) {
-            std::printf("[quickadd] 'radial' should match 'RadialPoints' (case-insensitive) -> FAIL\n");
-            ++fail;
-        }
-        if (!matchFilter("GridPoints", "GRID")) {
-            std::printf("[quickadd] 'GRID' should match 'GridPoints' -> FAIL\n");
-            ++fail;
-        }
-        if (matchFilter("RadialPoints", "xyz")) {
-            std::printf("[quickadd] 'xyz' should NOT match 'RadialPoints' -> FAIL\n");
-            ++fail;
-        }
-    }
-
-    // Test 3: eye-hook naming convention — every item key starts with "qa:".
-    {
-        const std::string test_id = "RadialPoints";
-        const std::string key = "qa:" + test_id;
-        if (key.substr(0, 3) != "qa:") {
-            std::printf("[quickadd] eye key does not start with 'qa:' -> FAIL\n");
-            ++fail;
-        }
-    }
-
-    // Test 4 (injectBug): force a filter mismatch to demonstrate RED path.
-    if (injectBug) {
-        // Simulate the bug: matchFilter returns true for "xyz" against "RadialPoints".
-        bool wrongMatch = true;  // injected bug result
-        if (!wrongMatch) {
-            std::printf("[quickadd] injectBug: expected injected wrong-match but got false -> FAIL\n");
-            ++fail;
-        } else {
-            std::printf("[quickadd] injectBug: wrong-match detected (red-proof) -> forcing FAIL\n");
-            ++fail;  // injectBug path MUST return nonzero
-        }
-        std::printf("[quickadd] injectBug FAIL count=%d (expected nonzero) -> %s\n", fail,
-                    fail > 0 ? "PASS (red-proof)" : "FAIL");
-        return fail > 0 ? 1 : 0;
-    }
-
-    std::printf("[quickadd] fail=%d -> %s\n", fail, fail == 0 ? "PASS" : "FAIL");
-    return fail;
-}
+// runQuickAddSelfTest lives in quick_add_selftest.cpp (isolated leaf; ARCHITECTURE rule 4/5).
 
 }  // namespace sw::ui

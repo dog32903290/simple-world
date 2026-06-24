@@ -5,9 +5,13 @@
 //
 // Behaviour contract (mirrors TiXL SymbolBrowser behaviour skeleton):
 //   open  : openQuickAdd(canvasX, canvasY) — anchors spawn point on canvas coords
-//   filter: real-time substring match (fork "QuickAddFilter_Substring": TiXL uses
-//           regex scatter-match; we use case-insensitive strstr — adequate for the
-//           current library size and avoids std::regex link weight in the UI hot path)
+//   filter: real-time scatter / subsequence match (= TiXL SymbolBrowser regex `c.*c.*c`,
+//           SymbolFilter.cs:90) over the row's display name OR its category, then ranked
+//           by relevancy (exact > prefix > contains > scatter; PascalCase-initials bump;
+//           _/OBSOLETE demotion — the portable subset of SymbolFilter.ComputeRelevancy).
+//           DEFERRED: namespace TREE grouping + usage/package boosts (categories not yet
+//           populated repo-wide; no usage-analysis model). Fork "QuickAddRank_StableTies":
+//           equal-score rows hold registry order (stable sort) vs TiXL's Reverse().
 //   nav   : CursorDown/Up advance selection
 //   commit: Enter or mouse-click spawns the selected type at the anchor
 //   cancel: Esc or click-outside closes without action
@@ -28,8 +32,14 @@ void openQuickAdd(float cx, float cy);
 // node-editor is current (needed for ed::ScreenToCanvas in the spawn path).
 void drawQuickAdd();
 
+// Pure search primitives (exposed for the isolated self-test; production uses them internally).
+// scatterMatch: query chars appear in order in `hay` (gaps allowed; empty query = match all).
+// computeRelevancy: higher = more relevant (exact > prefix > contains > scatter; see .cpp).
+bool   scatterMatch(const std::string& hay, const std::string& q);
+double computeRelevancy(const std::string& name, const std::string& query);
+
 // Self-test: 0=PASS, nonzero=FAIL; injectBug=true forces a red-path.
-// Tests the filter logic (substring match), list building, and eye-hook naming.
+// Tests scatter-match, relevancy ranking, list building, and eye-hook naming.
 int runQuickAddSelfTest(bool injectBug);
 
 }  // namespace sw::ui
