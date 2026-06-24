@@ -213,6 +213,7 @@ add_executable(simple_world
   src/ui/timeline_selftest.cpp
   src/ui/timeline_selftest_b9.cpp
   src/ui/node_draw.cpp
+  src/ui/node_draw_selftest.cpp  # --selftest-nodeval: body value-string format + zoom-gating thresholds
   src/ui/node_faces.cpp
   src/ui/annotation_draw.cpp
   src/ui/annotation_interact.cpp

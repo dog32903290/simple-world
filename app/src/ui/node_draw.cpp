@@ -3,15 +3,16 @@
 // and editor_ui stays focused on canvas/toolbar/inspector wiring.
 #include "ui/node_draw.h"
 
+#include <cstdio>
 #include <string>
 #include <unordered_map>
 
 #include "imgui.h"
 #include "imgui_node_editor.h"
 
-#include "app/document.h"    // residentPathFor (idle fade resident lookup)
+#include "app/document.h"    // residentPathFor (idle fade) + g_lib (live value string)
 #include "app/frame_cook.h"  // residentNodeLastUpdatePass / currentFrameIndex (idle fade signal)
-#include "runtime/compound_graph.h"
+#include "runtime/compound_graph.h"  // effectiveInput / effectiveStrInput (live value string)
 #include "runtime/graph.h"  // findSpec / pinId — a compound child resolves like an atomic (N1)
 #include "ui/canvas_ids.h"  // childPinId: ed-facing banded pin id
 #include "ui/node_faces.h"
@@ -84,7 +85,41 @@ void drawRequiredIndicator(const ImVec2& pa, const ImVec2& pb) {
                         ImVec2(cx, cy + h * 0.5f), attention);
 }
 
+// Node-body live value string: read the child's effective value off the graph, then delegate the
+// FORMATTING to the pure formatInputValue (so the format is unit-tested by --selftest-nodeval).
+std::string inputValueString(const sw::SymbolChild& child, const sw::PortSpec& p) {
+  const std::string strv = (p.dataType == "String")
+      ? sw::effectiveStrInput(sw::doc::g_lib, child, p.id, p.strDef)
+      : std::string();
+  const float v = (p.dataType == "Float")
+      ? sw::effectiveInput(sw::doc::g_lib, child, p.id, p.def)
+      : 0.0f;
+  return formatInputValue(p, v, strv);
+}
+
 }  // namespace
+
+// TiXL MagGraphCanvas.DrawNode.cs:484-521 + ValueUtils.GetValueString :488-502. The value shown
+// right of each input label. Float "{:0.000}", Bool "True/False", String truncated. Our Enum/Bool
+// ride on a Float port (Widget::Enum/Bool) → render the enum LABEL / a bool word so the body reads
+// like TiXL's (a raw 1.000 for a 2-way enum would be useless). Empty = nothing to show.
+std::string formatInputValue(const sw::PortSpec& p, float v, const std::string& strv) {
+  if (p.dataType == "String") {
+    std::string s = strv;
+    if (s.size() > 24) s = s.substr(0, 24) + "...";  // ValueUtils string Truncate()
+    return s;
+  }
+  if (p.dataType != "Float") return "";  // non-value ports (Points/ParticleForce/...) have no string
+  if (p.widget == sw::Widget::Bool) return v >= 0.5f ? "True" : "False";
+  if (p.widget == sw::Widget::Enum) {
+    int idx = (int)(v + 0.5f);
+    if (idx >= 0 && idx < (int)p.labels.size()) return p.labels[idx];
+    return "";
+  }
+  char buf[32];
+  std::snprintf(buf, sizeof(buf), "%.3f", v);  // TiXL float "{:0.000}"
+  return buf;
+}
 
 void drawChild(const sw::SymbolChild& child, const sw::Symbol* parent) {
   // findSpec resolves atomics from the registry AND compounds from the dynamic spec table
@@ -141,16 +176,33 @@ void drawChild(const sw::SymbolChild& child, const sw::Symbol* parent) {
     // (label + slot) on the RIGHT. Each pin wrapped in a group so eye records the whole
     // pin rect (marker + label) for hand pin-dragging. (Link pivot stays at content
     // centre for now; edge-pinned pivots are a later refinement.)
-    auto pinRow = [&](int i, const sw::PortSpec& p) {
+    // inputOrdinal = this port's index AMONG inputs (-1 for outputs). TiXL skips the primary
+    // input (inputIndex==0) for the value string (DrawNode.cs:447) — it's the main data flow, not
+    // a knob — so the body value summary starts at the 2nd input.
+    auto pinRow = [&](int i, int inputOrdinal, const sw::PortSpec& p) {
       // ed id is BANDED (ui/canvas_ids childPinId) so a child pin can never hash-collide with
       // a child NODE id; the eye label below stays on raw sw::pinId (driver-facing, stable).
       ed::BeginPin(sw::ui::childPinId(child.id, i),
                    p.isInput ? ed::PinKind::Input : ed::PinKind::Output);
       ImGui::BeginGroup();
-      if (p.isInput) { drawSlot(typeColor(p.dataType), /*isInput=*/true); ImGui::SameLine();
-                       ImGui::TextUnformatted(p.name.c_str()); }
-      else           { ImGui::TextUnformatted(p.name.c_str()); ImGui::SameLine();
-                       drawSlot(typeColor(p.dataType), /*isInput=*/false); }
+      // Zoom gating (TiXL DrawNode.cs): labels at CanvasScale>0.25, value strings at >0.4. Below
+      // 0.25 only the type-colored slot draws (TiXL hides input/output labels). The slot must
+      // always draw so pins stay hittable + the row keeps a stable rect for the eye/anchors.
+      const bool showLabel = nodeShowLabelAtScale(tixlScale);
+      std::string valStr;
+      if (p.isInput && nodeShowValueAtScale(tixlScale, inputOrdinal))
+        valStr = inputValueString(child, p);
+      if (p.isInput) {
+        drawSlot(typeColor(p.dataType), /*isInput=*/true);
+        if (showLabel) { ImGui::SameLine(); ImGui::TextUnformatted(p.name.c_str()); }
+        if (!valStr.empty()) {
+          ImGui::SameLine();
+          ImGui::TextDisabled("%s", valStr.c_str());  // TiXL labelColor.Fade(0.5f)
+        }
+      } else {
+        if (showLabel) { ImGui::TextUnformatted(p.name.c_str()); ImGui::SameLine(); }
+        drawSlot(typeColor(p.dataType), /*isInput=*/false);
+      }
       ImGui::EndGroup();
       ImVec2 pa = ed::CanvasToScreen(ImGui::GetItemRectMin());
       ImVec2 pb = ed::CanvasToScreen(ImGui::GetItemRectMax());
@@ -168,13 +220,15 @@ void drawChild(const sw::SymbolChild& child, const sw::Symbol* parent) {
     int nInputs = 0;
     for (const sw::PortSpec& p : spec->ports) if (!p.pinless && p.isInput) ++nInputs;
     ImGui::BeginGroup();  // left = inputs
+    int inputOrdinal = 0;
     for (size_t i = 0; i < spec->ports.size(); ++i)
-      if (!spec->ports[i].pinless && spec->ports[i].isInput) pinRow((int)i, spec->ports[i]);
+      if (!spec->ports[i].pinless && spec->ports[i].isInput)
+        pinRow((int)i, inputOrdinal++, spec->ports[i]);
     ImGui::EndGroup();
     if (nInputs > 0) ImGui::SameLine(0.0f, 28.0f);
     ImGui::BeginGroup();  // right = outputs
     for (size_t i = 0; i < spec->ports.size(); ++i)
-      if (!spec->ports[i].pinless && !spec->ports[i].isInput) pinRow((int)i, spec->ports[i]);
+      if (!spec->ports[i].pinless && !spec->ports[i].isInput) pinRow((int)i, -1, spec->ports[i]);
     ImGui::EndGroup();
   }
   drawNodeFace(child);  // 資料驅動 custom faces (node_faces.cpp kFaces table)

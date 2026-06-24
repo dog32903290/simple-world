@@ -24,4 +24,10 @@ REGISTER_SELFTESTS(/*orderBase=*/217,
     {"quickadd",  ui::runQuickAddSelfTest},
     {"fencepreview", ui::runFenceSelfTest},
 );
+// New teeth append at a fresh high order (>340, clear of every existing block) so they sort LAST
+// and never reorder the verbatim-from-kTable rows above (--selftest-list stays stable). The router
+// reads the list dynamically, so an appended tooth is purely additive.
+REGISTER_SELFTESTS(/*orderBase=*/500,
+    {"nodeval", ui::runNodeValSelfTest},  // experience-parity: body value-string format + zoom gating
+);
 }  // namespace sw

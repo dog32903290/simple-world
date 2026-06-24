@@ -56,6 +56,7 @@
 #include "ui/cjk_font.h"
 #include "ui/annotation_draw.h"  // runAnnotationDrawSelfTest (annotation draw/interaction geometry)
 #include "ui/canvas_ids.h"  // runCanvasIdsSelfTest (ed pin/node id bands)
+#include "ui/node_draw.h"   // runNodeValSelfTest (body value-string format + zoom gating)
 #include "ui/fence_preview.h"  // runFenceSelfTest (rubber-band overlap predicate)
 #include "ui/keymap.h"      // runKeymapSelfTest (K0 table completeness)
 #include "ui/quick_add.h"   // runQuickAddSelfTest (palette filter + eye hook naming)

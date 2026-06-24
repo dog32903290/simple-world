@@ -1,0 +1,48 @@
+# node_value_string.scn — 活體牙: 節點本體即時值字串 (experience-parity, TiXL parity)
+# 承重線:
+#   (1) node_draw.drawChild 在每個 NON-primary 輸入 label 右邊畫 effectiveInput 的即時值字串
+#       (TiXL MagGraphCanvas.DrawNode.cs:484 CanvasScale>0.4 + ValueUtils.GetValueString:488-502,
+#        Float "%.3f"). 改一個 NON-primary 輸入的值 → 本體那行字串重繪成新值 → 畫面像素變.
+#   (2) 值字串讀的是 GRAPH effectiveInput(override else def), 不是側表 → 改 override 必反映.
+#
+# compound_smoke: Root child 5 = TurbulenceForce (Amount[primary,ordinal0] / Frequency / Phase).
+#   Frequency 是 NON-primary 輸入 → 本體顯示 "Frequency 1.200" (預設). Amount 是 primary(ordinal0)
+#   → 依 TiXL DrawNode.cs:447 本體不顯示其值 (= --selftest-nodeval nodeShowValueAtScale(*,0)==false).
+#
+# RED→GREEN:
+#   - GREEN: 拖 Frequency → override 變 → 本體值字串重繪 → assert_diff 過 + assert_state 確認值動了.
+#   - RED 面: 把 assert_diff 改 assert_same 必紅 (畫面確實變了);
+#     或在加此特性前 (本體無值字串) 拖 Frequency 只動 Inspector, node 本體不變.
+#
+# --- 誠實弱點標注 ---
+# assert_diff 比的是整張 full.png — Inspector 的 Frequency 欄位也跟著變, 所以 diff「能過」
+#   不能單獨機讀證明「node 本體那行字串」變了 (Inspector 像素變也會讓 diff 過).
+#   → 本體值字串的「格式 + 顯示規則 (哪些 input 顯示 / 縮放 gating 0.25/0.4 門檻)」的確定性
+#     機讀證明在 --selftest-nodeval (formatInputValue + nodeShow{Label,Value}AtScale, RED→GREEN).
+#   → 本 scn 的角色: 證明這條值字串是 LIVE 接到 GRAPH 的 (override 動 → 畫面動), 整合測試.
+
+open app/testdata/compound_smoke.swproj
+
+# 選 TurbulenceForce#5 (有 Frequency/Phase NON-primary 值字串的節點) → 開 Inspector
+do selectnode 5
+wait 0.3
+assert_state '.selectedNode == 5'
+echo turbulenceforce-5-selected
+
+# 基線: Frequency 還是預設 (無 override 或預設值), 截圖
+assert_state '[.lib.symbols[] | select(.id=="Root") | .children[] | select(.id==5) | .overrides.Frequency // 1.2] | length >= 0'
+capture full before_freq
+echo baseline-captured
+
+# 拖 Frequency 參數 → override 改變 → node 本體 "Frequency x.xxx" 重繪
+do drag @param:Frequency +60 +0
+wait 0.4
+
+# (2) 鐵線: effectiveInput 確實動了 (override 寫進 GRAPH, 值字串讀的就是這個)
+assert_state '[.lib.symbols[] | select(.id=="Root") | .children[] | select(.id==5) | select(.overrides.Frequency != null)] | length == 1'
+echo frequency-override-written-to-graph
+
+# (1) 值字串 LIVE: 畫面必變 (本體字串 + Inspector 一起重繪)
+capture full after_freq
+assert_diff before_freq
+echo value-string-live-frame-changed
