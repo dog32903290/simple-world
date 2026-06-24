@@ -43,6 +43,12 @@ struct PortSpec {
   // (resolveResidentStringInputs) reads strDef. LAST member + defaulted → existing positional
   // {...,multiInput,vecArity} aggregate inits at ~hundreds of port rows stay valid unchanged.
   std::string strDef;
+  // Required/relevancy (experience-parity, = TiXL InputSlot relevancy / IsRequired): when true, an
+  // unconnected input is "missing" — the UI paints the necessity indicator (L-G) and the node is
+  // incomplete. Default false = optional (the universal case), so existing positional
+  // {...,multiInput,vecArity} inits are unaffected. MUST stay AFTER strDef as the new LAST member —
+  // inserting it earlier would shift hundreds of positional aggregate inits across the registry.
+  bool required = false;
 };
 struct NodeSpec {
   std::string type, title;
@@ -52,6 +58,11 @@ struct NodeSpec {
   // outIdx = which output port (the port index within this spec) is being pulled — lets a
   // node expose several outputs (e.g. AudioReaction's level vs hit); single-output nodes ignore it.
   float (*evaluate)(int outIdx, const float* in, int n, const EvaluationContext& ctx) = nullptr;
+  // Namespace/category (experience-parity, = TiXL Symbol.Namespace): groups ops for the search tree
+  // (L-B). Additive, default empty → MUST stay AFTER evaluate as the new LAST member: NodeSpec rows
+  // are built with positional aggregate-init {type, title, {ports}, evaluate} across the registry,
+  // so a mid-struct insert would shift hundreds of them. Default empty = unchanged for non-setters.
+  std::string category;
 };
 const NodeSpec* findSpec(const std::string& type);
 std::vector<std::string> specTypes();  // all registered node types (for the Add menu)

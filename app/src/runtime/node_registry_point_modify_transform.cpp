@@ -15,7 +15,10 @@ namespace {
 static const PointModifyOp _reg_TransformPoints{
       {"TransformPoints",
        "TransformPoints",
-       {{"points", "points", "Points", true},    // input bag (port 0)
+       // points input marked required=true (experience-S0 demo). Trailing positional fields are the
+       // PortSpec defaults def/minV/maxV/widget/labels/pinless/vecArity/multiInput/strDef, then the
+       // new last member required=true.
+       {{"points", "points", "Points", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "", true},  // input bag (port 0), REQUIRED
         {"out", "out", "Points", false},          // transformed output bag (port 1)
         {"Space", "Space", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Point", "Object"}},
         // Translation / Rotation(Euler°) / Stretch / Pivot — TiXL Vector3 inputs (Widget::Vec).
@@ -33,13 +36,15 @@ static const PointModifyOp _reg_TransformPoints{
         {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f}},
-       nullptr}
+       nullptr,
+       "point.transform"}  // category (experience-S0 demo, = TiXL Symbol.Namespace)
 };
 
 static const PointModifyOp _reg_OrientPoints{
       {"OrientPoints",
        "OrientPoints",
-       {{"points", "points", "Points", true},    // input bag (port 0)
+       // points input marked required=true (experience-S0 demo).
+       {{"points", "points", "Points", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "", true},  // input bag (port 0), REQUIRED
         {"out", "out", "Points", false},          // re-oriented output bag (port 1)
         {"OrientationMode", "OrientationMode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum, {"LookAtTarget", "Screen", "LookAtCamera"}},
         {"AmountFactor", "AmountFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum, {"None", "F1", "F2"}},
@@ -52,7 +57,8 @@ static const PointModifyOp _reg_OrientPoints{
         {"UpVector.x", "UpVector", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
         {"UpVector.y", "UpVector.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"UpVector.z", "UpVector.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}},
-       nullptr}
+       nullptr,
+       "point.transform"}  // category (experience-S0 demo, = TiXL Symbol.Namespace)
 };
 
 // ---- batch 16 (lane P): point transform — PolarTransformPoints -------------------

@@ -19,7 +19,8 @@ static const MathOp _reg_Const{
       {"Const", "Const",
        {{"value", "value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"out", "out", "Float", false}},
-       evalConst}
+       evalConst,
+       "numbers.float.basic"}  // category (experience-S0 demo, = TiXL Symbol.Namespace)
 };
 
 static const MathOp _reg_Multiply{
