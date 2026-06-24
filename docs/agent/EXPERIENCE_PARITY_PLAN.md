@@ -231,10 +231,18 @@ DetectBpm 引擎已綠但孤兒（`fork-bpm-not-live-driving-transport`）。接
 - **P6 ✅**（`53edf5f`）：Player（`--play` 全螢幕 blit）+ Focus（F12）+ Toggle-All-UI（Shift+Esc），main.cpp present additive 不回歸。**演出迴路 P1/P2/P3/P5/P6 done（剩 P4=snapshot+LED 需硬體=柏為域）。**
 - **node-value ✅**（`e2cee23`）：節點本體即時值字串 + 縮放 gating（對 MagGraphCanvas.DrawNode.cs，--selftest-nodeval）。
 
-**第七批（★柏為現身 steer 優先 Output 視窗 `fc1817c`，下次 /sw-batch 從這 pull）：**
-- **★O2 Output aspect-correct view**（Fit/1:1/Custom + pan/zoom，**修柏為「畫面變扁」痛點**；主檔 `ui/output_window.cpp`；閘=eye-hand 拉窗前後比長寬比）。**柏為 steer 最高優先。**
-- **∥ Audio 匯出**（`platform/audio`，offline mixdown/錄製，codex-ears 閘，disjoint 主檔）。
-- **O 系列同主檔序列**（output_window.cpp）：O2→O3 截圖（side-effect 檔出現）→O1 解析度選擇器（golden+S1 已 thread）→O4 影片匯出（依賴 S1，碰 cook）→O5/O6。**每批 output_window.cpp 只一 lane。**
-- **∥ 編輯 UI 小 gap**（主檔互斥）：縮圖預覽/凸角 in `node_draw.cpp`／hover-to-split in `editor_ui.cpp`／工具列範式 in `toolbar.cpp`／SliderLadder（新 widget 檔）。
-- ★避撞硬化：`output_window.cpp`/`node_draw.cpp`/`editor_ui.cpp`/`inspector.cpp`/`hand.cpp`/`frame_cook.cpp`/`main.cpp` 每批每檔一 lane。
-- **後續手感域（待柏為深度 steer，非自走 grind）**：MagGraph（[core] 最大，柏為 checklist 主來源）/ Gradient authoring / Timeline VJ-feel。
+**第七批 ✅ 完成（2026-06-24 21:38，接柏為 Output steer）：**
+- **O2 ✅**（`806b598`）：Output aspect-correct view（Fit/1:1/pan/zoom）**修柏為「畫面變扁」**，對 ImageOutputCanvas.cs/ScalableCanvas，resize 保 aspect RED→GREEN。
+- **凸角 ✅**（`87e5fe8`）：邊界節點 5-point convex 五邊形，對 MagGraphCanvas.DrawNode.cs，wide-node fork。
+
+**第八批（★柏為 census `e19b23b` 釘死分母 → 最系統優先「檔/資產/設定軸」，下次 /sw-batch 從這 pull）：**
+- **★檔/資產/設定軸（最系統漏，柏為建議升獨立施工圖）**，round-trip/side-effect 可驗非手感，擇主檔互斥的並行：
+  - **#12 user-settings 持久化**（recent files + window layout + view-area per-symbol，`io.IniFilename` 目前刻意關→設計考慮的持久化非裸 ini；主檔 app settings 層；閘=round-trip 存→載→相同）。
+  - **#11 keymap 持久化/換鍵**（user JSON 蓋 factory kKeyTable；主檔 keymap.cpp/app settings；閘=round-trip）。
+  - **#2 AssetLibrary 瀏覽器 + 拖檔建 load-op**（主檔新 ui/asset browser；閘=eye-hand+undoable round-trip）。
+  - **#3 drag-drop 進畫布**（platform NSDragging + app；閘=side-effect 建 op）。
+- **∥ Output O 系列續**（同主檔 output_window.cpp 序列）：O3 截圖（side-effect 檔出現）→O1 解析度選擇器（golden+S1）→O4 影片匯出（碰 cook）。
+- **∥ 編輯小 gap**（主檔互斥）：#4 in-window menu bar+View 選單（`BeginMainMenuBar`）／#13 節點 thumbnail face（`node_faces.cpp`）／#10 multi-input 群組框 in node_draw／#9 color picker 進階 in inspector／SliderLadder（新 widget）。
+- **演出深度（柏為域偏多）**：#5 Player 多螢幕/--loop/--windowed、#6 Focus graph-over-content。#1 [core] relevancy 完整=碰 graph.h PortSpec（S0-like schema，relevancy enum）+node_draw line visibility。
+- ★避撞硬化：`output_window.cpp`/`node_draw.cpp`/`editor_ui.cpp`/`inspector.cpp`/`hand.cpp`/`frame_cook.cpp`/`main.cpp`/`keymap.cpp`/app-settings 每批每檔一 lane。
+- **後續手感域（待柏為深度 steer，非自走 grind）**：MagGraph（[core] 最大）/ Gradient authoring / Timeline VJ-feel/Tapping。
