@@ -1,0 +1,37 @@
+# p5_bpm_transport_display.scn — P5: the toolbar BPM display is bound to transport.bpm, the SAME
+# field the auto-detect pull writes (DetectBpm → SetBpm → BpmProvider → pullSetBpmRate → transport.bpm).
+#
+# WHY this proves the UI half of fork-bpm-not-live-driving-transport:
+#   The deterministic "detected BPM REACHES transport.bpm" truth is the machine golden
+#   (--selftest-bpmtransport: target 90 → detected 89.5 → transport.bpm 89.5; -bug RED). That golden
+#   needs no GUI. What the GUI must add is: whatever value lands on transport.bpm SHOWS in the toolbar.
+#   Both the toolbar field (toolbar.cpp:141 transportBpm()) and state.json (.transport.bpm,
+#   main.cpp:313 transportBpm()) read the SAME g_transport.bpm the SetBpm pull writes. So driving
+#   transport.bpm and asserting the display tracks it proves the auto-detected value (which lands on
+#   that exact field) will be reflected — faithful to TiXL, which shows ONE Playback.Bpm with no
+#   auto/manual distinction (TimeControls.cs:241; PlaybackUtils.cs:77 manual + SetBpm pull share it).
+#
+# Headless scenario runs have no live audio FFT, so the auto SOURCE is golden-proven; this scenario
+# proves the DISPLAY↔transport.bpm binding via the BPM field (the one control surface that reads/writes
+# that field), which is the same sink the pull feeds.
+#
+# RED proof: change the post-drag threshold below from 120.0 to 999.0 -> must FAIL (bpm never reaches 999).
+
+open app/testdata/compound_smoke.swproj
+
+# 1. Baseline: fresh open -> default transport bpm 120 reflected in state (the toolbar reads the same).
+assert_state '.transport.bpm == 120'
+assert_map_has BPM
+echo p5-baseline-bpm-120
+
+# 2. Drag the BPM field up (DragScalar step 0.5/px; +60px -> +30 -> ~150). The toolbar field and
+#    transport.bpm are the SAME g_transport.bpm; the display moving == transport.bpm moving.
+do drag @BPM +60 +0
+assert_state '.transport.bpm > 120.0'
+echo p5-bpm-display-tracks-transport-up
+
+# 3. Drag back down past baseline (-100px -> -50 from ~150 -> ~100). Display follows transport.bpm.
+do drag @BPM -100 +0
+assert_state '.transport.bpm < 120.0'
+assert_state '.transport.bpm > 54.0'
+echo p5-bpm-display-tracks-transport-down

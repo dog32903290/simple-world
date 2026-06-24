@@ -44,5 +44,6 @@ REGISTER_SELFTESTS(/*orderBase=*/90,
 // list byte-identical except for the one new --selftest-setbpm line.
 REGISTER_SELFTESTS(/*orderBase=*/250,
     {"setbpm", runSetBpmSelfTest},  // triggered-pull SetBpm edge → BpmProvider → comp.bpm (PlaybackUtils.cs:74-78)
+    {"bpmtransport", runBpmTransportSelfTest},  // end-to-end: DetectBpm auto-detect → SetBpm edge → BpmProvider → transport.bpm
 );
 }  // namespace sw

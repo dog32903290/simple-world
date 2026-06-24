@@ -367,6 +367,7 @@ add_executable(simple_world
   src/runtime/colorlist_ops_keepcolors.cpp
   src/colorlist_golden.cpp
   src/setbpm_golden.cpp             # --selftest-setbpm ([SetBpm] VJ op triggered-pull golden)
+  src/bpm_transport_golden.cpp      # --selftest-bpmtransport (end-to-end DetectBpm auto → SetBpm → transport.bpm)
   src/colorlist_fanout_golden.cpp
   src/keepcolors_golden.cpp
   src/runtime/host_scalar_op_registry.cpp
