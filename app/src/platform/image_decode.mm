@@ -142,5 +142,13 @@ std::string resolveAssetPath(const std::string& assetKey) {
 #endif
 }
 
+std::string assetLibraryRoot() {
+#ifdef SW_ASSETS_DIR
+  return std::string(SW_ASSETS_DIR);
+#else
+  return "";
+#endif
+}
+
 }  // namespace platform
 }  // namespace sw

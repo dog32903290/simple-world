@@ -79,5 +79,11 @@ int runImageDecodeSelfTest(bool injectBug);
 // or "" if SW_ASSETS_DIR is unset. The key is the path AFTER the "Lib:" prefix (which we strip).
 std::string resolveAssetPath(const std::string& assetKey);
 
+// The absolute ROOT of the shared-install asset library (SW_ASSETS_DIR), or "" if unset. This is the
+// directory the asset browser ENUMERATES to list available `Lib:` assets — the inverse of
+// resolveAssetPath (a key resolves to root + "/" + relative). Kept here (platform) so the one place
+// that knows SW_ASSETS_DIR owns both directions; the app-zone enumerator (asset_library) walks it.
+std::string assetLibraryRoot();
+
 }  // namespace platform
 }  // namespace sw

@@ -1,0 +1,49 @@
+# asset_browser_create_op.scn — 活體牙 (EXPERIENCE_SCOPE_GAPS #2): AssetLibrary browser +
+# click-to-create LoadImage op, TiXL parity (= external/tixl Editor/Gui/Windows/AssetLib;
+# clicking an asset does what TiXL's drop-to-create does — instantiate the image asset-type's
+# primary operator LoadImage, pointed at the asset, as an UNDOABLE command).
+#
+# Covers:
+#   1. The Asset Library window lists the available `Lib:` assets — the two committed parity assets
+#      under assets/images/basic/ render as rows (the eye records asset:<full Lib: key>).
+#   2. WIRED end-to-end: clicking an asset row CREATES a LoadImage child in Root (child count +1)
+#      AND that new child carries strOverrides.Path == the clicked asset key (the create-op is wired
+#      to the asset, not the default).
+#   3. UNDOABLE round-trip: Cmd+Z removes the created op (child count back to baseline) — the
+#      undoable side-effect the task demands, on the real AddChildCommand.
+#
+# RED proof for (2): change "== 7" to "== 6" -> FAIL (the click really added a child).
+# RED proof for the Path assertion: change the asset key in the jq to a different one -> FAIL
+#   (the created op carries the CLICKED key, not an arbitrary one).
+# RED proof for (3): change the final "== 6" to "== 7" -> FAIL (undo really removed it).
+
+open app/testdata/compound_smoke.swproj
+
+# Baseline: Root has 6 children, and references NO LoadImage with the perlin key yet.
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+echo baseline-root-has-6-children
+
+# --- 1. The browser lists the available Lib: assets (the two committed parity PNGs) ---
+assert_map_has asset:Lib:images/basic/perlin-noise-rgb.png
+assert_map_has asset:Lib:images/basic/test-2x2-rgba.png
+echo asset-library-lists-available-assets
+
+# --- 2. Click an asset row -> a LoadImage op is created in Root, wired to that key ---
+do click @asset:Lib:images/basic/perlin-noise-rgb.png
+wait 0.5
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 7'
+echo click-created-loadimage-child-count-7
+
+# The newly-added child is a LoadImage whose Path override is exactly the clicked asset key.
+# (state.json serializes an atomic op's symbolId in its "sw-type:<Type>" reference form, so match
+# that — the in-memory id is "LoadImage", the persisted/serialized id is "sw-type:LoadImage".)
+assert_state '[.lib.symbols[] | select(.id == "Root") | .children[] | select(.symbolId == "sw-type:LoadImage" and .strOverrides.Path == "Lib:images/basic/perlin-noise-rgb.png")] | length >= 1'
+echo created-op-wired-to-clicked-asset-key
+
+# --- 3. Undo removes the created op (give the canvas focus first, then Cmd+Z) ---
+do click @node:1^
+wait 0.3
+do keychord cmd z
+wait 0.5
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+echo undo-removed-created-op-count-6

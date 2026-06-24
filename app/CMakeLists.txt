@@ -189,6 +189,8 @@ add_executable(simple_world
   src/app/asset_index_selftest.cpp  # L3 檔案: asset-index golden (--selftest-asset-index)
   src/app/asset_relink.cpp          # L3 檔案: project-wide asset relink mutation (rewrite key→key, count refs)
   src/app/asset_relink_selftest.cpp # L3 檔案: asset-relink golden (--selftest-asset-relink)
+  src/app/asset_library.cpp          # L3 檔案: available-asset enumeration + click-to-create LoadImage payload (EXP #2)
+  src/app/asset_library_selftest.cpp # L3 檔案: asset-library golden (--selftest-asset-library, enum + undoable create-op)
   src/app/menu.cpp
   src/ui/cjk_font.cpp
   src/ui/canvas_ids.cpp
@@ -205,6 +207,7 @@ add_executable(simple_world
   src/ui/quick_add_tree.cpp
   src/ui/quick_add_selftest.cpp
   src/ui/inspector.cpp
+  src/ui/asset_browser.cpp  # EXP #2: AssetLibrary window (browse Lib: assets + click-to-create LoadImage)
   src/ui/inspector_param_menu.cpp
   src/ui/timeline_window.cpp
   src/ui/timeline_dopesheet.cpp

@@ -41,6 +41,7 @@
 #include "runtime/point_graph.h"
 #include "runtime/point_ops.h"
 #include "selftests.h"
+#include "ui/asset_browser.h"  // AssetLibrary window (resource browser + click-to-create load-op)
 #include "ui/cjk_font.h"
 #include "ui/editor_ui.h"
 #include "ui/fence_preview.h"  // fenceLastCoveredJson (eye state surface for the live .scn)
@@ -352,6 +353,7 @@ void Renderer::draw(MTK::View* pView) {
       sw::ui::drawTimelineWindow(); // S3 dope-sheet (animator lanes + playhead + key gestures)
       sw::ui::drawOutputWindow();   // the live preview viewport (view ⊥ graph, pinned/terminal)
       sw::ui::drawVariationPanel(); // P2 Variation window (snapshot pool grid + N-way mix + crossfader)
+      sw::ui::drawAssetBrowser();   // AssetLibrary window (browse Lib: assets + click-to-create LoadImage)
     }
   }
   sw::doc::updateWindowTitle();  // filename + dirty star; no-op when unchanged
