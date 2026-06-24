@@ -17,7 +17,8 @@ namespace {
 
       // --- Value nodes (Task 2) ---
 static const MathOp _reg_Time{
-      {"Time", "Time", {{"out", "out", "Float", false}}, evalTime}
+      {"Time", "Time", {{"out", "out", "Float", false}}, evalTime,
+       "numbers.anim.time"}
 };
 
       // HasTimeChanged — time-edge detector: HasChanged(0/1) + DeltaTime, comparing this frame's clock
@@ -36,7 +37,8 @@ static const MathOp _reg_HasTimeChanged{
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f},
         {"Mode", "Mode", "Float", true, 2.0f, 0.0f, 3.0f, Widget::Enum,
          {"DidRewind", "DidAdvanced", "DidChange", "DidAdvancedWithMotionBlur"}}},
-       nullptr}
+       nullptr,
+       "numbers.anim.time"}
 };
 
       // StopWatch — run-clock stopwatch: Delta = elapsed since the last ResetTrigger rising edge,
@@ -56,7 +58,8 @@ static const MathOp _reg_StopWatch{
         {"DurationIn", "DurationIn", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"TimeInSecs", "BeatTime"}},
         {"PauseWithPlayback", "PauseWithPlayback", "Float", true, 0.0f, 0.0f, 1.0f}},
-       nullptr}
+       nullptr,
+       "numbers.anim.time"}
 };
 
       // --- transport-YELLOW consumers (Cut86 補縫): more ops on the StopWatch transport seam. ---
@@ -71,7 +74,8 @@ static const MathOp _reg_ConvertTime{
         {"Time", "Time", "Float", true, 0.0f, 0.0f, 100.0f},
         {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"BarsToSeconds", "SecondsToBars"}}},
-       nullptr}
+       nullptr,
+       "numbers.anim.time"}
 };
 
       // RunTime — TimeInSeconds = Playback.RunTimeInSecs (the PROCESS-LIFETIME wall run clock, NOT the
@@ -82,7 +86,8 @@ static const MathOp _reg_ConvertTime{
 static const MathOp _reg_RunTime{
       {"RunTime", "RunTime",
        {{"TimeInSeconds", "TimeInSeconds", "Float", false}},
-       nullptr}
+       nullptr,
+       "numbers.anim.time"}
 };
 
       // ClipTime — Time = (float)context.LocalTime (the PLAYHEAD clock in BARS, raw = Playback.TimeInBars,
@@ -92,7 +97,8 @@ static const MathOp _reg_RunTime{
 static const MathOp _reg_ClipTime{
       {"ClipTime", "ClipTime",
        {{"Time", "Time", "Float", false}},
-       nullptr}
+       nullptr,
+       "numbers.anim.time"}
 };
 
       // LastFrameDuration — Duration = (float)Playback.LastFrameDuration (the raw wall frame delta in
@@ -101,7 +107,8 @@ static const MathOp _reg_ClipTime{
 static const MathOp _reg_LastFrameDuration{
       {"LastFrameDuration", "LastFrameDuration",
        {{"Duration", "Duration", "Float", false}},
-       nullptr}
+       nullptr,
+       "numbers.anim.time"}
 };
 
       // GetBpm — Result = (float)Playback.Current.Bpm (the live tempo). TiXL anim/vj/GetBpm.cs
@@ -110,7 +117,8 @@ static const MathOp _reg_LastFrameDuration{
 static const MathOp _reg_GetBpm{
       {"GetBpm", "GetBpm",
        {{"Result", "Result", "Float", false}},
-       nullptr}
+       nullptr,
+       "numbers.anim.vj"}
 };
 
       // DelayTriggerChange — TWO-EDGE change detector (NOT rising-edge WasTriggered): on ANY trigger
@@ -135,7 +143,8 @@ static const MathOp _reg_DelayTriggerChange{
         {"TimeMode", "TimeMode", "Float", true, 6.0f, 0.0f, 6.0f, Widget::Enum,
          {"LocalFxTime_InBars", "LocalFxTime_InSecs", "LocalTime_InBars", "LocalTime_InSecs",
           "PlayTime_InBars", "PlayTime_InSecs", "AppRunTime_InSecs"}}},
-       nullptr}
+       nullptr,
+       "numbers.bool.process"}
 };
 
 }  // namespace

@@ -25,7 +25,8 @@ static const MathOp _reg_InvertFloat{
        {{"A",      "A",      "Float", true, 1.0f, -100.0f, 100.0f},
         {"Invert", "Invert", "Float", true, 1.0f, 0.0f,    1.0f, Widget::Bool},
         {"Result", "Result", "Float", false}},
-       evalInvertFloat}
+       evalInvertFloat,
+       "numbers.float.adjust"}
 };
 
       // PadVec2Range — pad/scale a [min,max] range (A.x=min,A.y=max) about center. TiXL vec2/
@@ -41,7 +42,8 @@ static const MathOp _reg_PadVec2Range{
         {"ClampMinExtend", "ClampMinExtend", "Float", true, 0.0f, 0.0f, 100.0f},
         {"Result.x", "Result.x", "Float", false},
         {"Result.y", "Result.y", "Float", false}},
-       evalPadVec2Range}
+       evalPadVec2Range,
+       "numbers.vec2"}
 };
 
 }  // namespace

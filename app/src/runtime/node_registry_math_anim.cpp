@@ -35,7 +35,8 @@ static const MathOp _reg_AudioReaction{
          {"Pulse", "TimeSinceHit", "Count", "Level", "AccumulatedLevel"}, true},
         {"Bias", "Bias", "Float", true, 1.0f, 0.0f, 4.0f, Widget::Slider, {}, true},
         {"Reset", "Reset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
-       nullptr}
+       nullptr,
+       "io.audio"}
 };
 
       // AnimValue — the Anim* family foundation: Result = AnimMath.CalcValueForNormalizedTime(shape,
@@ -66,7 +67,8 @@ static const MathOp _reg_AnimValue{
         {"Bias", "Bias", "Float", true, 0.5f, 0.0001f, 1.0f},
         {"AllowSpeedFactor", "AllowSpeedFactor", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
          {"None", "FactorA", "FactorB"}}},
-       nullptr}
+       nullptr,
+       "numbers.anim.animators"}
 };
 
       // AnimInt — the integer sibling of AnimValue: Result = (int)(time*rateFactor*rate+phase),
@@ -89,7 +91,8 @@ static const MathOp _reg_AnimInt{
         {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
         {"AllowSpeedFactor", "AllowSpeedFactor", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
          {"None", "FactorA", "FactorB"}}},
-       nullptr}
+       nullptr,
+       "numbers.anim.animators"}
 };
 
       // AnimBoolean — the INVERSE of AnimValue/AnimInt: NO Result output; its ONLY output
@@ -107,7 +110,8 @@ static const MathOp _reg_AnimBoolean{
         {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
         {"AllowSpeedFactor", "AllowSpeedFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
          {"None", "FactorA", "FactorB"}}},
-       nullptr}
+       nullptr,
+       "numbers.anim.animators"}
 };
 
       // TiXL DetectBpm (the OLDER io/audio/_/DetectBpm.cs operator — NOT the editor BpmDetection class).
@@ -130,7 +134,8 @@ static const MathOp _reg_DetectBpm{
         {"LowestBpm", "LowestBpm", "Float", true, 120.0f, 50.0f, 200.0f, Widget::Slider, {}, true},
         {"HighestBpm", "HighestBpm", "Float", true, 180.0f, 50.0f, 200.0f, Widget::Slider, {}, true},
         {"LockItFactor", "LockItFactor", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, true}},
-       nullptr}
+       nullptr,
+       "io.audio._"}
 };
 
       // TiXL RequestedResolution (Lib/render/utils/RequestedResolution.cs) — value-output-rail Phase 1.
@@ -153,7 +158,8 @@ static const MathOp _reg_RequestedResolution{
         {"Width",       "Width",       "Float", false},
         {"Height",      "Height",      "Float", false},
         {"AspectRatio", "AspectRatio", "Float", false}},
-       nullptr}
+       nullptr,
+       "render.utils"}
 };
 
       // TiXL TransformMatrix (Lib/render/_/TransformMatrix.cs) — value-output-rail Phase 3 (MATRIX value).
@@ -199,7 +205,8 @@ static const MathOp _reg_TransformMatrix{
         {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1}},
         // fork-transformmatrix-invert: TiXL Invert(bool)→inverse(matrix). No 4x4 inverse on this rail
         // yet → port DROPPED rather than exposed-and-silently-ignored (avoid the silent-wrong-toggle).
-       nullptr}
+       nullptr,
+       "render._"}
 };
 
       // TiXL PointToMatrix (Lib/point/helper/PointToMatrix.cs) — value-output-rail Phase 3 (MATRIX value).
@@ -215,7 +222,9 @@ static const MathOp _reg_TransformMatrix{
 static const MathOp _reg_PointToMatrix{
       {"PointToMatrix", "PointToMatrix",
        {{"Matrix", "Matrix", "ColorList", false},     // the 4-row matrix (extColorOut channel)
-        {"CamPointBuffer", "CamPointBuffer", "Points", true}}},  // the point buffer (emit deferred)
+        {"CamPointBuffer", "CamPointBuffer", "Points", true}},
+       nullptr,
+       "point.helper"},  // the point buffer (emit deferred); category = TiXL Symbol.Namespace
 };
 
       // TiXL SetBpm (Lib/numbers/anim/vj/SetBpm.cs) — the [SetBpm] VJ transport-BPM writer. On a
@@ -233,7 +242,8 @@ static const MathOp _reg_SetBpm{
        {{"Result", "Result", "Float", false},
         {"BpmRate", "BpmRate", "Float", true, 120.0f, 54.0f, 240.0f},
         {"TriggerUpdate", "TriggerUpdate", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "numbers.anim.vj"}
 };
 
 }  // namespace

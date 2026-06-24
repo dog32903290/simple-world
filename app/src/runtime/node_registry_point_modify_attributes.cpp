@@ -43,7 +43,8 @@ static const PointModifyOp _reg_SetPointAttributes{
         {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // ---- batch 21 (lane point_modify): SelectPoints ----------------------------
@@ -98,7 +99,8 @@ static const PointModifyOp _reg_SelectPoints{
         {"Phase", "Phase", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Threshold", "Threshold", "Float", true, 0.0f, -1.0f, 1.0f},
         {"DiscardNonSelected", "DiscardNonSelected", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // ---- batch 21 (lane point_modify): SoftTransformPoints ---------------------
@@ -160,7 +162,8 @@ static const PointModifyOp _reg_SoftTransformPoints{
         {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f,
          Widget::Enum, {"None", "F1", "F2"}}},
-       nullptr}
+       nullptr,
+       "point.transform"}
 };
 
 // ---- batch 20 (lane point_modify): ClearSomePoints -------------------------
@@ -185,7 +188,8 @@ static const PointModifyOp _reg_ClearSomePoints{
         {"Repeat", "Repeat", "Float", true, 0.0f, 0.0f, 1000.0f},
         // .cs Resolution (int, default 0) — block size; points in same block share one hash
         {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 100.0f}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 }  // namespace

@@ -27,7 +27,8 @@ static const MathOp _reg_SetFloatVar{
        {{"Output", "Output", "Float", false},
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "f"},
         {"FloatValue", "FloatValue", "Float", true, 0.0f, -1000.0f, 1000.0f}},
-       nullptr}
+       nullptr,
+       "flow.context"}
 };
 
       // GetFloatVar — read the named float var, else FallbackDefault. TiXL flow/context/GetFloatVar.cs
@@ -37,7 +38,8 @@ static const MathOp _reg_GetFloatVar{
        {{"Result", "Result", "Float", false},
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "f"},
         {"FallbackDefault", "FallbackDefault", "Float", true, 0.0f, -1000.0f, 1000.0f}},
-       nullptr}
+       nullptr,
+       "flow.context"}
 };
 
       // SetIntVar — write (int)Value into the named int var (truncate toward zero). TiXL flow/context/
@@ -47,7 +49,8 @@ static const MathOp _reg_SetIntVar{
        {{"Output", "Output", "Float", false},
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "i"},
         {"Value", "Value", "Float", true, 0.0f, -1000.0f, 1000.0f}},
-       nullptr}
+       nullptr,
+       "flow.context"}
 };
 
       // GetIntVar — read the named int var, else FallbackValue (both int-truncated). TiXL flow/context/
@@ -57,7 +60,8 @@ static const MathOp _reg_GetIntVar{
        {{"Result", "Result", "Float", false},
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "i"},
         {"FallbackValue", "FallbackValue", "Float", true, 0.0f, -1000.0f, 1000.0f}},
-       nullptr}
+       nullptr,
+       "flow.context"}
 };
 
       // SetBoolVar — write the bool (0/1) into the named var on the INT channel (sw has no boolVars dict;
@@ -70,7 +74,8 @@ static const MathOp _reg_SetBoolVar{
        {{"Output", "Output", "Float", false},
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "b"},
         {"BoolValue", "BoolValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
-       nullptr}
+       nullptr,
+       "flow.context"}
 };
 
       // GetBoolVar — read the named bool var off the INT channel (!=0 ⇒ 1), else FallbackDefault (!=0 ⇒ 1).
@@ -81,7 +86,8 @@ static const MathOp _reg_GetBoolVar{
        {{"Result", "Result", "Float", false},
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "b"},
         {"FallbackDefault", "FallbackDefault", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
-       nullptr}
+       nullptr,
+       "flow.context"}
 };
 
       // BlendValues — blend between a MultiInput<float> list by F. TiXL float/process/BlendValues.cs.
@@ -92,7 +98,8 @@ static const MathOp _reg_BlendValues{
        {{"Result", "Result", "Float", false},
         {"Values", "Values", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Slider, {}, false, 1, true},
         {"F", "F", "Float", true, 0.0f, 0.0f, 100.0f}},
-       evalBlendValues}
+       evalBlendValues,
+       "numbers.float.process"}
 };
 
 }  // namespace

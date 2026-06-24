@@ -18,7 +18,8 @@ const std::vector<NodeSpec>& drawSpecs() {
       {"DrawPoints", "DrawPoints",
        {{"points", "points", "Points", true},
         {"out", "out", "Command", false}},
-       nullptr},
+       nullptr,
+       "point.draw"},
       // DrawLines (TiXL Lib.point.draw.DrawLines): connects the point bag into a polyline —
       // Points[i]→Points[i+1], each segment a screen-space-thickened quad (draw_lines.metal).
       // Points in → Command out (same cmd flow as DrawPoints). Params mirror DrawLines.t3:
@@ -34,7 +35,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"LineWidth", "LineWidth", "Float", true, 0.02f, 0.0f, 1.0f}},
-       nullptr},
+       nullptr,
+       "point.draw"},
       // DrawClosedLines (TiXL Lib.point.draw.DrawClosedLines → DrawLinesAlt.hlsl): the closed-loop
       // sibling of DrawLines — connects the bag into a polyline AND wraps the last point back to the
       // first (Points[last]→Points[0]), closing each shape. PointsPerShape>0 splits the bag into
@@ -52,7 +54,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"LineWidth", "LineWidth", "Float", true, 0.02f, 0.0f, 1.0f},
         {"PointsPerShape", "PointsPerShape", "Float", true, 0.0f, 0.0f, 100000.0f}},
-       nullptr},
+       nullptr,
+       "point.draw"},
       // DrawPoints2 (TiXL Lib.point.draw.DrawPoints2 → DrawPoints.hlsl Radius variant): the
       // Radius-driven DrawPoints — draws the bag as screen-facing quad sprites sized by Radius (the
       // .t3 routes Radius → ×10.8 → the shader PointSize), optionally scaled per-point by W (FX1,
@@ -69,7 +72,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Radius", "Radius", "Float", true, 0.01f, 0.0f, 10.0f},
         {"UseWForSize", "UseWForSize", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr},
+       nullptr,
+       "point.draw"},
       // DrawLinesBuildup (TiXL Lib.point.draw.DrawLinesBuildup → DrawLinesBuildup.hlsl): DrawLines'
       // polyline with a progressive W-reveal — TransitionProgress sweeps a VisibleRange-wide visible
       // window along the line (each point's W=FX1 is the reveal coord). Points in → Command out
@@ -88,7 +92,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"LineWidth", "LineWidth", "Float", true, 0.02f, 0.0f, 1.0f},
         {"TransitionProgress", "TransitionProgress", "Float", true, 0.5f, 0.0f, 1.0f},
         {"VisibleRange", "VisibleRange", "Float", true, 0.5f, 0.0f, 1.0f}},
-       nullptr},
+       nullptr,
+       "point.draw"},
       // DrawBillboards (TiXL Lib.point.draw.DrawBillboards): expands each Point into a
       // screen-facing quad sprite (draw_billboards.metal). Points in → Command out. Params mirror
       // DrawBillboards.t3: Scale (1.0) + Color (Vec4, white); per-point Scale.xy stretch kept
@@ -102,7 +107,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
+       nullptr,
+       "point.draw"},
       // DrawScreenQuad (TiXL Lib.render.basic.DrawScreenQuad): a textured fullscreen quad — samples
       // a Texture2D input, tints by Color, sizes/places by Width/Height/Position, composites by
       // BlendMode. Texture2D in → Command out. The 19 dx11 sub-ops in DrawScreenQuad.t3 collapse into
@@ -124,7 +130,8 @@ const std::vector<NodeSpec>& drawSpecs() {
           "BlendOnWhite01", "UseImageAlpha"}, true},
         {"Position.x", "Position", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 2},
         {"Position.y", "Position.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
+       nullptr,
+       "render.basic"},
       // ClearRenderTarget (TiXL Lib.render._dx11.api.ClearRenderTarget): a chain-clear directive —
       // Command out (no input). Maps to the executor's pass clear color when it is the FIRST chain
       // item (faithful + free; the retained-mode pass clears once via LoadActionClear). Proves
@@ -136,7 +143,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"ClearColor.y", "ClearColor.y", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"ClearColor.z", "ClearColor.z", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"ClearColor.w", "ClearColor.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
+       nullptr,
+       "render._dx11.api"},
       // Camera (TiXL Lib.render.camera.Camera): wraps a Command subtree and renders it through an
       // explicit camera (Position/Target/Up/FieldOfView/ClipPlanes) instead of the driver-local default
       // (Camera.cs push/pop). Command in → Command out (the op stamps its camera onto every subtree item;
@@ -159,7 +167,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"ClipPlanes.x", "ClipPlanes", "Float", true, 0.01f, 0.0001f, 1000.0f, Widget::Vec, {}, true, 2},
         {"ClipPlanes.y", "ClipPlanes.y", "Float", true, 1000.0f, 0.0001f, 100000.0f, Widget::Vec, {}, true, 1},
         {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
-       nullptr},
+       nullptr,
+       "render.camera"},
       // OrthographicCamera (TiXL Lib.render.camera.OrthographicCamera): the perspective Camera's twin — wraps
       // a Command subtree and renders it through an ORTHOGRAPHIC projection (no perspective foreshortening; a
       // farther eye does NOT shrink the view). Command in → Command out (the op stamps its ortho camera onto
@@ -186,7 +195,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"NearFarClip.x", "NearFarClip", "Float", true, 0.1f, 0.0001f, 1000.0f, Widget::Vec, {}, true, 2},
         {"NearFarClip.y", "NearFarClip.y", "Float", true, 1000.0f, 0.0001f, 100000.0f, Widget::Vec, {}, true, 1},
         {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
-       nullptr},
+       nullptr,
+       "render.camera"},
       // DrawMeshUnlit (TiXL Lib.mesh.draw.DrawMeshUnlit): the FIRST 3D mesh — a depth-tested,
       // genuinely-unlit triangle mesh (mesh-DrawUnlit.hlsl; psMain default = albedo(white)·Color = Color).
       // Mesh in → Command out (DrawKind::Mesh). The executor attaches a Depth32Float buffer and draws it
@@ -201,7 +211,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
+       nullptr,
+       "mesh.draw"},
       // RenderTarget (TiXL Lib.image.generate.basic.RenderTarget): executes a Command chain into a
       // sized Texture2D — the RESOLUTION PIN. Command in, Texture2D out; Resolution enum picks the
       // output size (WindowFollow tracks the viewport, fixed modes pin a standard size, Custom reads
@@ -217,7 +228,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"ClearColor.y", "ClearColor.y", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"ClearColor.z", "ClearColor.z", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"ClearColor.w", "ClearColor.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
+       nullptr,
+       "image.generate.basic"},
       // SetRequestedResolution (TiXL Lib.render.shading.SetRequestedResolution): the EXPLICIT override
       // op of the S1 output-resolution seam. Wraps a Command subtree; while cooking it, pushes
       // context.RequestedResolution = new Int2(Width or current, Height or current) * Multiply, clamped
@@ -232,7 +244,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Width", "Width", "Float", true, 0.0f, 0.0f, 16384.0f},
         {"Height", "Height", "Float", true, 0.0f, 0.0f, 16384.0f},
         {"Multiply", "Multiply", "Float", true, 1.0f, 0.0f, 16.0f}},
-       nullptr},
+       nullptr,
+       "render.shading"},
       // SetFloatVarCmd (TiXL Lib.flow.context.SetFloatVar, the SubGraph branch :26-45): the Command-rail
       // twin of the value-rail SetFloatVar — wraps a Command SubGraph and, while cooking it, pushes
       // FloatValue into context.FloatVariables[VariableName], restoring after (hadPrev ? prev : ClearAfter ?
@@ -247,7 +260,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "f"},
         {"FloatValue", "FloatValue", "Float", true, 0.0f, -1000.0f, 1000.0f},
         {"ClearAfterExecution", "ClearAfterExecution", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
-       nullptr},
+       nullptr,
+       "flow.context"},
       // SetIntVarCmd (TiXL Lib.flow.context.SetIntVar, the SubGraph branch :38-64): the int twin of
       // SetFloatVarCmd. Value arrives on a Float port (no Int port type) → truncated toward zero (C# (int)
       // cast convention) and pushed into context.IntVariables[VariableName] around the SubGraph. strDef "i".
@@ -258,7 +272,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "i"},
         {"Value", "Value", "Float", true, 0.0f, -1000.0f, 1000.0f},
         {"ClearAfterExecution", "ClearAfterExecution", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
-       nullptr},
+       nullptr,
+       "flow.context"},
       // SetBoolVarCmd (TiXL Lib.flow.context.SetBoolVar, the SubGraph branch :25-36): the bool twin of
       // SetFloatVarCmd. BoolValue arrives on a Float port (no Bool port type) → !=0 ⇒ 1 and pushed into the
       // INT channel (context.IntVariables[VariableName]) around the SubGraph. NAMED FORK: sw has no boolVars
@@ -270,7 +285,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "b"},
         {"BoolValue", "BoolValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
         {"ClearAfterExecution", "ClearAfterExecution", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
-       nullptr},
+       nullptr,
+       "flow.context"},
       // Execute (TiXL Lib.flow.Execute): the S2a KEYSTONE — a MULTIINPUT Command port that concatenates
       // N wired Command chains in wire-declaration order into ONE chain (Execute.cs CollectedInputs). The
       // cook-core collector (cookCommand's MultiInput Command branch) does the gather+concat; this op just
@@ -284,7 +300,8 @@ const std::vector<NodeSpec>& drawSpecs() {
        {{"Command", "Command", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
         {"out", "out", "Command", false},
         {"IsEnabled", "IsEnabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
-       nullptr},
+       nullptr,
+       "flow"},
       // Loop (TiXL Lib.flow.Loop): the S3c RE-COOK keystone — cooks the wired SubGraph Count times, each
       // iteration writing index→Float+Int and progress→Float context-vars first (Loop.cs:25-35), concatenating
       // every iteration's items. The per-iteration var write + live-scope + re-cook + concat lives in the
@@ -298,7 +315,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Count", "Count", "Float", true, 0.0f, 0.0f, 1000.0f},
         {"IndexVariable", "IndexVariable", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "Index"},
         {"ProgressVariable", "ProgressVariable", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "Progress"}},
-       nullptr},
+       nullptr,
+       "flow"},
       // ExecuteOnce (TiXL Lib.flow.ExecuteOnce): the GATED Execute — a MultiInput Command port that
       // concatenates N wired chains in wire order (== Execute, the S2a collector) only when Trigger is set;
       // not triggered ⇒ empty (no draws). The driver's MultiInput Command collector does the gather+concat
@@ -314,7 +332,8 @@ const std::vector<NodeSpec>& drawSpecs() {
        {{"Command", "Command", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
         {"out", "out", "Command", false},
         {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
-       nullptr},
+       nullptr,
+       "flow"},
       // LogMessage (TiXL Lib.flow.LogMessage): a TRANSPARENT Command-rail SubGraph passthrough that fires a
       // host log side-effect while forwarding the wrapped subtree's draw items unchanged (LogMessage.cs:53).
       // The single (non-MultiInput) SubGraph is cooked by the driver's existing collector (zero cook-core
@@ -331,7 +350,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"OnlyOnChanges", "OnlyOnChanges", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
         {"LogLevel", "LogLevel", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
          {"None", "Messages", "UpdateTime"}, true}},
-       nullptr},
+       nullptr,
+       "flow"},
       // ExecRepeatedly (TiXL Lib.flow.ExecRepeatedly): the Loop SIBLING — a MultiInput Command port whose
       // wired subtrees RE-EXECUTE `RepeatCount` (clamped [0,100], :24) times, concatenating each repetition,
       // with NO context-var injection (unlike Loop's index/progress). The per-repetition re-cook + concat
@@ -346,7 +366,8 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"out", "out", "Command", false},
         {"RepeatCount", "RepeatCount", "Float", true, 1.0f, 0.0f, 100.0f},
         {"SkipFrameCount", "SkipFrameCount", "Float", true, 0.0f, 0.0f, 10000.0f}},
-       nullptr},
+       nullptr,
+       "flow"},
     };
     // Append the render-island transform-context specs (peeled leaf) in source order — table order unchanged.
     const std::vector<NodeSpec>& tf = drawTransformSpecs();

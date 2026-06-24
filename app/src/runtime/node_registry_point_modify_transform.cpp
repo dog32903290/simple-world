@@ -88,7 +88,8 @@ static const PointModifyOp _reg_PolarTransformPoints{
         {"Scale.y", "Scale.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Scale.z", "Scale.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f}},
-       nullptr}
+       nullptr,
+       "point.transform"}
 };
 
 // ---- batch 16 (lane P): point transform — WrapPoints ----------------------------
@@ -108,7 +109,8 @@ static const PointModifyOp _reg_WrapPoints{
         {"Size.x", "Size", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 3},
         {"Size.y", "Size.y", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
         {"Size.z", "Size.z", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1}},
-       nullptr}
+       nullptr,
+       "point.transform"}
 };
 
 // ---- batch 16 (lane P): point transform — BoundPoints ---------------------------
@@ -129,7 +131,8 @@ static const PointModifyOp _reg_BoundPoints{
         {"Size.y", "Size.y", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
         {"Size.z", "Size.z", "Float", true, 1.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
         {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f}},
-       nullptr}
+       nullptr,
+       "point.transform"}
 };
 
 // ---- batch 18 (lane P): point transform — TransformSomePoints -------------------
@@ -164,7 +167,8 @@ static const PointModifyOp _reg_TransformSomePoints{
         {"Scale.y", "Scale.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Scale.z", "Scale.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f}},
-       nullptr}
+       nullptr,
+       "point.transform"}
 };
 
 // ---- batch 19: point transform — WrapPointPosition --------------------------
@@ -188,7 +192,8 @@ static const PointModifyOp _reg_WrapPointPosition{
         {"Size.x", "Size", "Float", true, 2.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 3},
         {"Size.y", "Size.y", "Float", true, 2.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1},
         {"Size.z", "Size.z", "Float", true, 2.0f, 0.0f, 20.0f, Widget::Vec, {}, true, 1}},
-       nullptr}
+       nullptr,
+       "point.transform"}
 };
 
 // ---- batch 19: point transform — SnapPointsToGrid ---------------------------
@@ -219,7 +224,8 @@ static const PointModifyOp _reg_SnapPointsToGrid{
         // BiasAndGain (TiXL Vector2, default 0.5,0.5) — shapes the snap blend curve
         {"BiasAndGain.x", "BiasAndGain", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
         {"BiasAndGain.y", "BiasAndGain.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr}
+       nullptr,
+       "point.transform"}
 };
 
 // ---- batch 24 (lane point_modify): OffsetPoints ----------------------------
@@ -242,7 +248,8 @@ static const PointModifyOp _reg_OffsetPoints{
         {"Direction.y", "Direction.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Direction.z", "Direction.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Distance", "Distance", "Float", true, 0.0f, -10.0f, 10.0f}},
-       nullptr}
+       nullptr,
+       "point._internal"}
 };
 
 }  // namespace

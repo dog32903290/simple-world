@@ -44,7 +44,8 @@ static const PointModifyOp _reg_RandomizePoints{
         {"Interpolation", "Interpolation", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum, {"None", "Linear", "Smooth"}},
         {"Repeat", "Repeat", "Float", true, 0.0f, 0.0f, 100000.0f},
         {"ClampColorsEtc", "ClampColorsEtc", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // ---- batch 15: point modify — AddNoise ----------------------------------------
@@ -78,7 +79,8 @@ static const PointModifyOp _reg_AddNoise{
          Widget::Vec, {}, true, 1},
         {"NoiseOffset.z", "NoiseOffset.z", "Float", true, 0.0f, -10.0f, 10.0f,
          Widget::Vec, {}, true, 1}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // ---- batch 24 (lane point_modify): PointAttributeFromNoise ------------------
@@ -122,7 +124,8 @@ static const PointModifyOp _reg_PointAttributeFromNoise{
         {"Frequency", "Frequency", "Float", true, 1.0f, 0.0f, 20.0f},
         {"Amount", "Amount", "Float", true, 1.0f, -200.0f, 200.0f},
         {"Variation", "Variation", "Float", true, 0.0f, 0.0f, 100.0f}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 }  // namespace

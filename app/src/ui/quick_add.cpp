@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -94,6 +96,12 @@ static std::string categoryOf(const std::string& id) {
 // scatterMatch + computeRelevancy are defined below in the sw::ui namespace (declared in
 // quick_add.h) so the isolated self-test can exercise the real production primitives.
 
+// ---------------------------------------------------------------------------
+// Namespace tree (= TiXL NamespaceTreeNode / SymbolTreeMenu): when the query is EMPTY the
+// palette shows a collapsible tree grouped by Symbol.Namespace (e.g. "point" -> "point.draw"
+// -> DrawPoints). buildNamespaceTree (defined below, in sw::ui for the self-test) does the
+// pure grouping; drawNamespaceFolder walks the result with imgui.
+
 // Scatter-filter g_allItems by g_filterBuf (name OR category), then sort by relevancy desc.
 // = TiXL SymbolFilter: match Name||Namespace, `.OrderBy(ComputeRelevancy).Reverse()`. Fork
 // "QuickAddRank_StableTies": STABLE sort keeps equal-score rows in registry order (vs Reverse).
@@ -117,6 +125,13 @@ static void rebuildDisplayItems() {
     g_selectedIdx = 0;  // top match selected after every refilter (TiXL resets to best)
 }
 
+// Cached namespace tree (built when the palette opens; empty-query view walks it).
+NamespaceNode g_tree;
+
+static void rebuildTree() {
+    g_tree = buildNamespaceTree(g_allItems, [](const std::string& id) { return categoryOf(id); });
+}
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -137,6 +152,10 @@ bool scatterMatch(const std::string& hay, const std::string& q) {
     }
     return true;
 }
+
+// buildNamespaceTree + drawNamespaceTree live in quick_add_tree.cpp (ui leaf, ARCHITECTURE rule
+// 4: keep this file ≤400 lines). They are declared in quick_add.h (the self-test exercises the
+// pure grouping there).
 
 // Relevancy (higher = more relevant). PORTABLE subset of TiXL ComputeRelevancy
 // (SymbolFilter.cs:198-389) — name+query multipliers (exact > prefix > contains > scatter;
@@ -180,6 +199,7 @@ void openQuickAdd(float cx, float cy) {
         g_framesOpen    = 0;    // reset focus-loss guard
         rebuildAllItems();
         rebuildDisplayItems();
+        rebuildTree();
         g_isOpen = true;
     }
     g_focusNextFrame = true;  // every open/re-open re-focuses the input (refuter-R-P 修)
@@ -270,44 +290,61 @@ void drawQuickAdd() {
         float listHeight = panelSize.y - ImGui::GetCursorPosY() - ImGui::GetStyle().WindowPadding.y - 2.0f;
         if (listHeight < 20.0f) listHeight = 20.0f;
 
+        // Two views (= TiXL SymbolBrowser): an EMPTY query shows the namespace TREE grouped by
+        // Symbol.Namespace (SymbolTreeMenu); a non-empty query shows the flat scatter+rank list
+        // (SymbolFilter). The query is the live filter buffer.
+        const bool emptyQuery = (g_filterBuf[0] == '\0');
+
         if (ImGui::BeginChild("##qa_list", ImVec2(-1.0f, listHeight), ImGuiChildFlags_None)) {
-            for (int i = 0; i < (int)g_displayItems.size(); ++i) {
-                const std::string& id   = g_displayItems[i];
-                const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib, curId, id);
-                const bool selected = (i == g_selectedIdx);
-
-                // Grey out cyclic entries (= TiXL SymbolBrowser.cs:302-312 color.Fade).
-                ImGui::BeginDisabled(cyclic);
-                bool clicked = ImGui::Selectable(displayName(id).c_str(), selected,
-                                                 ImGuiSelectableFlags_None);
-                // Category subtitle (= TiXL SymbolBrowser namespace hint) when the spec
-                // carries one. Full namespace TREE is DEFERRED (categories not yet
-                // populated repo-wide — needs a separate category-fill pass).
-                const std::string cat = categoryOf(id);
-                if (!cat.empty()) {
-                    ImGui::SameLine();
-                    ImGui::TextDisabled("  %s", cat.c_str());
-                }
-                ImGui::EndDisabled();
-
-                // eye hook — one line per row, key = qa:<typeId>
-                // (pattern: insp:*, ctx:*, bgctx:add:* — one recordItem call; no logic in verify/)
-                sw::eye::recordItem(("qa:" + id).c_str());
-
-                if (clicked && !cyclic && action == Action::None) {
+            if (emptyQuery) {
+                // --- Namespace tree (collapsible folders by category) ---
+                bool spawnRequested = false;
+                std::string treeSpawn;
+                drawNamespaceTree(g_tree, curId, spawnRequested, treeSpawn,
+                                  [](const std::string& id) { return displayName(id); });
+                if (spawnRequested && action == Action::None) {
                     action = Action::Spawn;
-                    spawnType = id;
+                    spawnType = treeSpawn;
                 }
+            } else {
+                // --- Flat ranked list (scatter + relevancy) ---
+                for (int i = 0; i < (int)g_displayItems.size(); ++i) {
+                    const std::string& id   = g_displayItems[i];
+                    const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib, curId, id);
+                    const bool selected = (i == g_selectedIdx);
 
-                // Hover sets selection. (TiXL SymbolBrowser.cs:336-342)
-                const ImGuiIO& io = ImGui::GetIO();
-                if (ImGui::IsItemHovered() &&
-                    (io.MouseDelta.x != 0.0f || io.MouseDelta.y != 0.0f)) {
-                    g_selectedIdx = i;
+                    // Grey out cyclic entries (= TiXL SymbolBrowser.cs:302-312 color.Fade).
+                    ImGui::BeginDisabled(cyclic);
+                    bool clicked = ImGui::Selectable(displayName(id).c_str(), selected,
+                                                     ImGuiSelectableFlags_None);
+                    // Category subtitle (= TiXL SymbolBrowser namespace hint) when the spec
+                    // carries one.
+                    const std::string cat = categoryOf(id);
+                    if (!cat.empty()) {
+                        ImGui::SameLine();
+                        ImGui::TextDisabled("  %s", cat.c_str());
+                    }
+                    ImGui::EndDisabled();
+
+                    // eye hook — one line per row, key = qa:<typeId>
+                    // (pattern: insp:*, ctx:*, bgctx:add:* — one recordItem call; no logic in verify/)
+                    sw::eye::recordItem(("qa:" + id).c_str());
+
+                    if (clicked && !cyclic && action == Action::None) {
+                        action = Action::Spawn;
+                        spawnType = id;
+                    }
+
+                    // Hover sets selection. (TiXL SymbolBrowser.cs:336-342)
+                    const ImGuiIO& io = ImGui::GetIO();
+                    if (ImGui::IsItemHovered() &&
+                        (io.MouseDelta.x != 0.0f || io.MouseDelta.y != 0.0f)) {
+                        g_selectedIdx = i;
+                    }
+
+                    // Scroll selected into view.
+                    if (selected) ImGui::SetScrollHereY(0.5f);
                 }
-
-                // Scroll selected into view.
-                if (selected) ImGui::SetScrollHereY(0.5f);
             }
         }
         ImGui::EndChild();

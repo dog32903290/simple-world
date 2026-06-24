@@ -34,7 +34,8 @@ static const PointModifyOp _reg_SimNoiseOffset{
          Widget::Vec, {}, true, 1},
         {"RotLookupDistance", "RotLookupDistance", "Float", true, 2.0f, 0.0f, 10.0f},
         {"UseCurlNoise", "UseCurlNoise", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "point.sim"}
 };
 
 // ---- batch sw-node-batch (lane point_modify, sim family): SimCentricalOffset ----------
@@ -53,7 +54,8 @@ static const PointModifyOp _reg_SimCentricalOffset{
         {"MaxAcceleration", "MaxAcceleration", "Float", true, 1.0f, 0.0f, 100.0f},
         {"Amount", "Amount", "Float", true, 0.04f, -100.0f, 100.0f},
         {"DecayExponent", "DecayExponent", "Float", true, 2.0f, 0.0f, 10.0f}},
-       nullptr}
+       nullptr,
+       "point.sim"}
 };
 
 // ---- batch sw-node-batch (lane point_modify, sim family): SimDirectionalOffset --------
@@ -73,7 +75,8 @@ static const PointModifyOp _reg_SimDirectionalOffset{
         {"RandomAmount", "RandomAmount", "Float", true, 0.0f, 0.0f, 10.0f},
         {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"Legacy", "EncodeInRotation"}}},
-       nullptr}
+       nullptr,
+       "point.sim"}
 };
 
 // ---- batch sw-node-batch (lane point_modify, sim family): SimForceOffset --------------
@@ -98,7 +101,8 @@ static const PointModifyOp _reg_SimForceOffset{
         {"Gravity.y", "Gravity.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
         {"Gravity.z", "Gravity.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
         {"ForceDecayRate", "ForceDecayRate", "Float", true, 1.0f, 0.0f, 10.0f}},
-       nullptr}
+       nullptr,
+       "point.sim"}
 };
 
 }  // namespace

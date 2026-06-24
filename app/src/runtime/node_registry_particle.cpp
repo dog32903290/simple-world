@@ -22,7 +22,8 @@ const std::vector<NodeSpec>& particleSpecs() {
         // graph-agnostic cook can read. fork-FK (named): see particle_params.h ForceKind.
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_TURBULENCE, 0.0f, 2.0f,
          Widget::Slider, {}, /*pinless=*/true}},
-       nullptr},
+       nullptr,
+       "particle.force"},
       // DirectionalForce — TiXL particle/force/DirectionalForce. Adds a constant directional
       // push (+ optional per-particle RandomAmount jitter) to velocity. Direction is a Vec3
       // (3 pinless Float components Direction.x/.y/.z, the head Widget::Vec) = TiXL's Vector3
@@ -37,7 +38,8 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"RandomAmount", "RandomAmount", "Float", true, 0.0f, 0.0f, 1.0f},
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_DIRECTIONAL, 0.0f, 2.0f,
          Widget::Slider, {}, /*pinless=*/true}},
-       nullptr},
+       nullptr,
+       "particle.force"},
       // VectorFieldForce — TiXL particle/force/VectorFieldForce. Samples a vector field at each
       // particle's position and pushes along it. fork-VFF (named, see vector_field_force.metal):
       // PF-0: the TiXL VectorField (ShaderGraphNode) input is now a real "VectorField" Field input
@@ -55,7 +57,8 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"Randomize", "Randomize", "Float", true, 0.0f, 0.0f, 1.0f},
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_VECTORFIELD, 0.0f, 2.0f,
          Widget::Slider, {}, /*pinless=*/true}},
-       nullptr},
+       nullptr,
+       "particle.force"},
       // VelocityForce — TiXL particle/force/VelocityForce. Reads each particle's CURRENT velocity,
       // keeps its DIRECTION, rescales its SPEED (speed += Accelerate*0.02*strength, clamp[Min,Max]).
       // Stateless (velocity_force.metal). Defaults照 VelocityForce.t3: Amount=1, Accelerate=1,
@@ -73,7 +76,8 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"VariationGainAndBias.y", "VariationGainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_VELOCITY, 0.0f, 5.0f,
          Widget::Slider, {}, /*pinless=*/true}},
-       nullptr},
+       nullptr,
+       "particle.force"},
       // AxisStepForce — TiXL particle/force/AxisStepForce. Per-particle hash picks a random dominant
       // axis (weighted by AxisDistribution) + signed strength; SelectRatio gates which particles are
       // hit; velocity lerp'd toward (origVel*AddOriginalVelocity + dir*f) by (ApplyTrigger*selected).
@@ -99,7 +103,8 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"Seed", "Seed", "Float", true, 0.0f, 0.0f, 1000.0f},
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_AXISSTEP, 0.0f, 5.0f,
          Widget::Slider, {}, /*pinless=*/true}},
-       nullptr},
+       nullptr,
+       "particle.force"},
       // SnapToAnglesForce — TiXL particle/force/SnapToAnglesForce. Quantizes each particle's velocity
       // DIRECTION (projected on a plane) to the nearest of (360/AngleCount) discrete angles, lerp'd by
       // Amount; Twist adds a per-frame phase, KeepPlanar damps the off-plane axis, Variation jitters
@@ -121,7 +126,8 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 3.0f},
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_SNAPANGLES, 0.0f, 5.0f,
          Widget::Slider, {}, /*pinless=*/true}},
-       nullptr},
+       nullptr,
+       "particle.force"},
       // FieldDistanceForce — TiXL particle/force/FieldDistanceForce. Samples a wired SDF Field's distance
       // at each particle's position, finite-differences a surface normal, and pushes the particle along it
       // (attract outside / repel inside). The Field input is a real "Field" port (mirrors
@@ -142,7 +148,8 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"DecayWithDistance", "DecayWithDistance", "Float", true, 0.0f, 0.0f, 10.0f},
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_FIELDDISTANCE, 0.0f, 7.0f,
          Widget::Slider, {}, /*pinless=*/true}},
-       nullptr},
+       nullptr,
+       "particle.force"},
       // RandomJumpForce — TiXL particle/force/RandomJumpForce. Samples a wired field's COLOR magnitude
       // ((f.r+f.g+f.b)/3) at each particle's raw Position*0.9 to MODULATE a curlNoise jump, scales it by
       // DirectionDistribution (-> AmountDistribution in the template), rotates by the particle's own Rotation
@@ -167,7 +174,8 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"DirectionDistribution.z", "DirectionDistribution.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_RANDOMJUMP, 0.0f, 7.0f,
          Widget::Slider, {}, /*pinless=*/true}},
-       nullptr},
+       nullptr,
+       "particle.force"},
       // FieldVolumeForce — TiXL particle/force/FieldVolumeForce. Samples a wired SDF Field at each particle's
       // position; on a boundary crossing this step it REFLECTS the velocity off the surface (bounce, lerp'd by
       // ReflectOnCollision/Amount, jittered by RandomizeBounce/RandomizeReflection), otherwise attracts (outside,
@@ -200,7 +208,8 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"ApplyColorOnCollision", "ApplyColorOnCollision", "Float", true, 0.0f, 0.0f, 1.0f},
         {"_ForceKind", "_ForceKind", "Float", true, (float)FORCE_KIND_FIELDVOLUME, 0.0f, 8.0f,
          Widget::Slider, {}, /*pinless=*/true}},
-       nullptr},
+       nullptr,
+       "particle.force"},
       {"ParticleSystem",
        "ParticleSystem",
        {{"emit", "emit", "Points", true},
@@ -209,7 +218,8 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"Speed", "Speed", "Float", true, 1.0f, 0.0f, 3.0f},
         {"Drag", "Drag", "Float", true, 0.02f, 0.0f, 0.2f},
         {"OrientTowardsVelocity", "OrientTowardsVelocity", "Float", true, 0.15f, 0.0f, 1.0f}},
-       nullptr},
+       nullptr,
+       "particle"},
   };
   return specs;
 }

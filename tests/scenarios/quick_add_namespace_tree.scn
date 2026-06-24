@@ -1,0 +1,97 @@
+# quick_add_namespace_tree.scn -- live verification of the L-B-follow add-node NAMESPACE TREE.
+#
+# TiXL parity: SymbolTreeMenu.DrawNodesRecursively + NamespaceTreeNode (Editor/Gui/Windows/
+# SymbolLib) — an EMPTY query shows ops grouped by Symbol.Namespace as collapsible folders;
+# a non-empty query falls back to the flat scatter+rank list (SymbolFilter). The categories
+# come from this batch (NodeSpec.category populated repo-wide from TiXL namespaces).
+#
+# Assertions:
+#   1. Empty-query palette shows TOP-LEVEL namespace folders qa:ns:point + qa:ns:numbers
+#      (proves grouping by category, not a flat list).
+#   2. Folders are collapsed by default -> a nested folder qa:ns:point.draw is NOT yet visible.
+#   3. Clicking the "point" folder expands it -> qa:ns:point.draw appears AND a real point op
+#      (qa:DrawPoints) renders under it (proves the "point" section contains point ops).
+#   4. Typing a query switches to the FLAT ranked list -> the namespace folder qa:ns:point
+#      disappears while the matching leaf qa:DrawPoints stays (flat fallback).
+#
+# RED proof:
+#   - Revert the empty-query branch (always draw flat list) -> assertion 1 (qa:ns:point present)
+#     FAILS (no folders emitted).
+#   - Clear a registry op's category (e.g. DrawPoints) -> it falls under qa:ns:(uncategorized),
+#     so after expanding "point" the qa:DrawPoints assertion (3) FAILS.
+#   - Make the tree show under non-empty queries too -> assertion 4 (qa:ns:point absent when
+#     filtered) FAILS.
+
+open app/testdata/compound_smoke.swproj
+
+# Focus the canvas so Cmd+F is handled.
+do click 400 300
+wait 0.2
+
+# --- Cmd+F opens palette with EMPTY query -> namespace tree ---
+do keychord cmd f
+wait 0.4
+assert_map_has qa:input
+echo palette-opened
+
+# (1) Top-level namespace folders present (grouped by category).
+assert_map_has qa:ns:point
+echo tree-has-point-group
+assert_map_has qa:ns:numbers
+echo tree-has-numbers-group
+
+# (2) Nested folder collapsed by default: point.draw not yet rendered.
+assert_map '[.items[]? | select(.label == "qa:ns:point.draw")] | length == 0'
+echo point-draw-collapsed-by-default
+
+# Evidence: the empty-query palette is a folder tree (top-level namespaces).
+capture full lb_tree_collapsed
+echo captured-collapsed-tree
+
+# --- Expand the "point" folder, then its "point.draw" sub-folder ---
+do click @qa:ns:point
+wait 0.3
+
+# (3a) "point" expanded -> its sub-namespace point.draw is now a visible folder.
+assert_map_has qa:ns:point.draw
+echo point-expanded-shows-point-draw
+
+# Expand point.draw to reveal its ops.
+do click @qa:ns:point.draw
+wait 0.3
+
+# (3b) A real point.draw op (DrawPoints) renders under the "point" section.
+assert_map_has qa:DrawPoints
+echo point-group-contains-DrawPoints-op
+
+# Evidence: the expanded "point" section groups its ops.
+capture full lb_tree_point_expanded
+echo captured-expanded-point-tree
+
+# --- Re-open palette + type a query -> FLAT ranked list (tree gone) ---
+# Re-open via Cmd+F (auto-focuses the InputText) then type into the filter.
+do key escape
+wait 0.2
+do click 400 300
+wait 0.2
+do keychord cmd f
+wait 0.4
+assert_map_has qa:input
+echo reopened-palette
+do text Draw
+wait 0.3
+
+# (4) Matching leaf still shows in the flat list.
+assert_map_has qa:DrawPoints
+echo flat-list-shows-DrawPoints
+# Namespace folders are gone (flat fallback, not the tree).
+assert_map '[.items[]? | select(.label == "qa:ns:point")] | length == 0'
+echo flat-list-no-namespace-folders
+
+# Evidence: a query falls back to the flat scatter+rank list.
+capture full lb_tree_flat_query
+echo captured-flat-query-list
+
+do key escape
+wait 0.2
+echo esc-closed-panel

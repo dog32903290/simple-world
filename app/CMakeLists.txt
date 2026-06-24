@@ -198,6 +198,7 @@ add_executable(simple_world
   src/ui/copy_paste_ui.cpp
   src/ui/keymap.cpp
   src/ui/quick_add.cpp
+  src/ui/quick_add_tree.cpp
   src/ui/quick_add_selftest.cpp
   src/ui/inspector.cpp
   src/ui/inspector_param_menu.cpp

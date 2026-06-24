@@ -17,7 +17,8 @@ const std::vector<NodeSpec>& pointCombineSpecs() {
         {"input2", "input2", "Points", true},
         {"input3", "input3", "Points", true},
         {"out", "out", "Points", false}},
-       nullptr},
+       nullptr,
+       "point.combine"},
 
       // ---- batch 21: point combine — SnapToPoints --------------------------------
       // TiXL parity: external/tixl .../point/transform/SnapToPoints.cs (slots) +
@@ -52,7 +53,8 @@ const std::vector<NodeSpec>& pointCombineSpecs() {
         {"BlendFactor", "BlendFactor", "Float", true, 0.0f, 0.0f, 1.0f},  // port 3
         {"Distance",    "Distance",    "Float", true, 1.0f, 0.0f, 5.0f},  // port 4
         {"MaxAmount",   "MaxAmount",   "Float", true, 1.0f, 0.0f, 2.0f}}, // port 5
-       nullptr},
+       nullptr,
+       "point.transform"},
 
       // ---- point lane: MultiUpdatePoints (TiXL _internal fan-in helper) -------------
       // TiXL parity: external/tixl .../point/_internal/MultiUpdatePoints.{cs,t3}
@@ -73,7 +75,8 @@ const std::vector<NodeSpec>& pointCombineSpecs() {
         {"input2", "input2", "Points", true},
         {"input3", "input3", "Points", true},
         {"out", "out", "Points", false}},  // port 4: pass-through output bag
-       nullptr},
+       nullptr,
+       "point._internal"},
 
       // ---- count-product seam: RepeatAtPoints (TiXL GPU generate op) ----------------
       // TiXL parity: external/tixl .../point/generate/RepeatAtPoints.{cs,t3} (slots + count graph) +
@@ -108,7 +111,8 @@ const std::vector<NodeSpec>& pointCombineSpecs() {
         {"CombineMode",      "CombineMode",      "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"Linear", "Interwoven"}},                                                                       // port 9
         {"AddSeparators",    "AddSeparators",    "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},         // port 10
-       nullptr},
+       nullptr,
+       "point.generate"},
   };
   return specs;
 }

@@ -23,7 +23,8 @@ static const MathOp _reg_IsGreater{
        {{"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Threshold", "Threshold", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Result", "Result", "Float", false}},
-       evalIsGreater}
+       evalIsGreater,
+       "numbers.float.logic"}
 };
 
       // Compare — IsTrue per Mode(IsSmaller/IsEqual/IsLarger/IsNotEqual). TiXL float/logic/Compare.cs.
@@ -35,7 +36,8 @@ static const MathOp _reg_Compare{
          {"IsSmaller", "IsEqual", "IsLarger", "IsNotEqual"}},
         {"Precision", "Precision", "Float", true, 0.001f, 0.0f, 1.0f},
         {"IsTrue", "IsTrue", "Float", false}},
-       evalCompare}
+       evalCompare,
+       "numbers.float.logic"}
 };
 
       // HasValueIncreased — HasIncreased = Value > lastValue + Threshold. TiXL float/logic/
@@ -45,7 +47,8 @@ static const MathOp _reg_HasValueIncreased{
        {{"HasIncreased", "HasIncreased", "Float", false},
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f}},
-       nullptr}
+       nullptr,
+       "numbers.float.logic"}
 };
 
       // HasValueDecreased — HasDecreased = Value < lastValue - Threshold. TiXL float/process/
@@ -55,7 +58,8 @@ static const MathOp _reg_HasValueDecreased{
        {{"HasDecreased", "HasDecreased", "Float", false},
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f}},
-       nullptr}
+       nullptr,
+       "numbers.float.process"}
 };
 
       // HasValueChanged — 3 outputs (HasChanged 0/1, Delta signed, DeltaOnHit) + change detection by
@@ -74,7 +78,8 @@ static const MathOp _reg_HasValueChanged{
          {"Changed", "Increased", "Decreased"}},
         {"MinTimeBetweenHits", "MinTimeBetweenHits", "Float", true, 0.0f, 0.0f, 10.0f},
         {"PreventContinuedChanges", "PreventContinuedChanges", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "numbers.float.logic"}
 };
 
       // DetectPulse — fires HasChanged(0/1) on the rising edge of (damped−new) > Threshold, gated by
@@ -90,7 +95,8 @@ static const MathOp _reg_DetectPulse{
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f},
         {"Damping", "Damping", "Float", true, 0.95f, 0.0f, 1.0f},
         {"MinTimeBetweenHits", "MinTimeBetweenHits", "Float", true, 0.075f, 0.0f, 2.0f}},
-       nullptr}
+       nullptr,
+       "numbers.float.process"}
 };
 
       // Accumulator — running accumulator; Running gates, ResetTrigger reloads StartValue,
@@ -105,7 +111,8 @@ static const MathOp _reg_Accumulator{
         {"StartValue", "StartValue", "Float", true, 0.0f, -10.0f, 10.0f},
         {"ResetTrigger", "ResetTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"Modulo", "Modulo", "Float", true, 0.0f, 0.0f, 100.0f}},
-       nullptr}
+       nullptr,
+       "numbers.float.process"}
 };
 
       // HasVec2Changed — fires when Value moves > Threshold (Euclidean dist). Outputs HasChanged(0/1)
@@ -120,7 +127,8 @@ static const MathOp _reg_HasVec2Changed{
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f},
         {"MinTimeBetweenHits", "MinTimeBetweenHits", "Float", true, 0.0f, 0.0f, 2.0f},
         {"PreventContinuedChanges", "PreventContinuedChanges", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "numbers.vec2"}
 };
 
       // HasVec3Changed — 7-output vec3 change detector. TiXL vec3/HasVec3Changed.cs (stateful; >3-out
@@ -141,7 +149,8 @@ static const MathOp _reg_HasVec3Changed{
         {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum, {"Changed", "Increased", "Decreased"}},
         {"MinTimeBetweenHits", "MinTimeBetweenHits", "Float", true, 0.0f, 0.0f, 2.0f},
         {"PreventContinuedChanges", "PreventContinuedChanges", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "numbers.vec3"}
 };
 
       // PeakLevel — 4-output rising-step peak detector + moving sum. TiXL float/process/PeakLevel.cs
@@ -155,7 +164,8 @@ static const MathOp _reg_PeakLevel{
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f},
         {"MinTimeBetweenPeaks", "MinTimeBetweenPeaks", "Float", true, 0.0f, 0.0f, 2.0f}},
-       nullptr}
+       nullptr,
+       "numbers.float.process"}
 };
 
       // CountInt — running integer counter; steps every evaluated frame TriggerIncrement/
@@ -174,7 +184,8 @@ static const MathOp _reg_CountInt{
         {"Delta", "Delta", "Float", true, 1.0f, -100.0f, 100.0f},
         {"DefaultValue", "DefaultValue", "Float", true, 0.0f, -100.0f, 100.0f},
         {"Modulo", "Modulo", "Float", true, 0.0f, 0.0f, 100.0f}},
-       nullptr}
+       nullptr,
+       "numbers.int.logic"}
 };
 
       // FlipBool — latched bool; TOGGLES on the rising edge of Trigger (already rising-edge in the .cs
@@ -186,7 +197,8 @@ static const MathOp _reg_FlipBool{
         {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"ResetTrigger", "ResetTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"DefaultValue", "DefaultValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "numbers.bool.logic"}
 };
 
       // HasIntChanged — HasChanged(0/1) when this frame's int-truncated Value differs from last frame's,
@@ -198,7 +210,8 @@ static const MathOp _reg_HasIntChanged{
         {"Value", "Value", "Float", true, 0.0f, -100.0f, 100.0f},
         {"ReturnTrueIf", "ReturnTrueIf", "Float", true, 3.0f, 0.0f, 3.0f, Widget::Enum,
          {"Never", "Increased", "Decreased", "Changed"}}},
-       nullptr}
+       nullptr,
+       "numbers.int.logic"}
 };
 
       // ToggleBoolean — latched bool; FLIPS its held state on TriggerToggle, clears on TriggerReset.
@@ -211,7 +224,8 @@ static const MathOp _reg_ToggleBoolean{
        {{"Result", "Result", "Float", false},
         {"TriggerToggle", "TriggerToggle", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"TriggerReset", "TriggerReset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "numbers.bool.logic"}
 };
 
       // FlipFlop — latch; SETS to true on a LEVEL Trigger, reloads DefaultValue on a LEVEL ResetTrigger
@@ -224,7 +238,8 @@ static const MathOp _reg_FlipFlop{
         {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"ResetTrigger", "ResetTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"DefaultValue", "DefaultValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "numbers.bool.logic"}
 };
 
       // HasBooleanChanged — HasChanged(0/1) when this frame's bool Value differs from last frame's, by
@@ -236,7 +251,8 @@ static const MathOp _reg_HasBooleanChanged{
         {"Value", "Value", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"Mode", "Mode", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
          {"Changed", "Increased", "Decreased"}}},
-       nullptr}
+       nullptr,
+       "numbers.bool.logic"}
 };
 
       // Trigger — bool gate: passes BoolValue through, OR (OnlyOnDown=true, the .t3 default) emits a
@@ -248,7 +264,8 @@ static const MathOp _reg_Trigger{
        {{"Result", "Result", "Float", false},
         {"BoolValue", "BoolValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"OnlyOnDown", "OnlyOnDown", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "numbers.bool.logic"}
 };
 
       // KeepBoolean — bool sample-and-hold (the bool twin of FreezeValue) + a TimeSinceFreeze clock.
@@ -262,7 +279,8 @@ static const MathOp _reg_KeepBoolean{
         {"Freeze", "Freeze", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"FreezeWhileTrue", "UpdateWhenSwitchingToTrue"}}},
-       nullptr}
+       nullptr,
+       "numbers.bool.process"}
 };
 
 }  // namespace

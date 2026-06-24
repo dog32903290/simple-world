@@ -29,7 +29,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"RadiusOffset", "RadiusOffset", "Float", true, 0.0f, -10.0f, 10.0f},
         {"StartAngle", "StartAngle", "Float", true, 0.0f, 0.0f, 360.0f},
         {"Cycles", "Cycles", "Float", true, 1.0f, 0.0f, 10.0f}},
-       nullptr},
+       nullptr,
+       "point.generate"},
       {"LinePoints",
        "LinePoints",
        {{"points", "points", "Points", false},
@@ -50,7 +51,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
         // Scale (TiXL Vector2 / PointSize) — base + per-index scale.
         {"Scale.x", "Scale", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 2},
         {"Scale.y", "Scale.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
+       nullptr,
+       "point.generate"},
       {"GridPoints",
        "GridPoints",
        {{"points", "points", "Points", false},
@@ -74,7 +76,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
         {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
         {"PointScale", "PointScale", "Float", true, 1.0f, 0.0f, 5.0f, Widget::Slider}},
-       nullptr},
+       nullptr,
+       "point.generate"},
       {"SpherePoints",
        "SpherePoints",
        {{"points", "points", "Points", false},
@@ -87,7 +90,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"StartAngle", "StartAngle", "Float", true, 0.0f, 0.0f, 360.0f},
         {"Scatter", "Scatter", "Float", true, 0.0f, 0.0f, 3.14159f}},
-       nullptr},
+       nullptr,
+       "point.generate"},
       // ---- batch 19: point generate — HexGridPoints --------------------------------
       // TiXL parity: external/tixl .../point/generate/HexGridPoints.cs + .hlsl (Pattern=2 Hexa)
       // A GENERATOR op: no input bag. Writes a hexagonal tiling grid of SwPoints.
@@ -126,7 +130,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"OrientationAxis.y", "OrientationAxis.y", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f}},
-       nullptr},
+       nullptr,
+       "point.generate"},
       // ---- point generate — DoyleSpiralPoints2 -------------------------------------
       // TiXL parity: external/tixl .../point/generate/DoyleSpiralPoints2.cs (.t3 compound) +
       //   _DoyleSpiralRoot.cs (CPU Newton-Raphson) + .../shaders/.../DoyleSpiralPoints.hlsl.
@@ -172,7 +177,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"OrientationAxis.y", "OrientationAxis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f}},
-       nullptr},
+       nullptr,
+       "point.generate"},
       // ---- batch 36: point generate — RepetitionPoints -----------------------------
       // TiXL parity: external/tixl .../point/generate/RepetitionPoints.cs (CPU StructuredList
       // generator; NO .hlsl). GPU NAMED FORK: thread i computes the i-th transformed point.
@@ -217,7 +223,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"Phase", "Phase", "Float", true, 0.0f, -100.0f, 100.0f},
         // AddSeparator (TiXL Bool, .t3 default true) — append one NaN-Scale Point.Separator().
         {"AddSeparator", "AddSeparator", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
-       nullptr},
+       nullptr,
+       "point.generate"},
       // CommonPointSets (batch 37) — CPU-fill fork of external/tixl .../point/generate/
       // CommonPointSets.cs. A pure CPU StructuredList generator: the Set enum picks one of seven
       // hard-coded vertex tables. The .cs has exactly ONE [Input]: Set (int, MappedType=Shapes).
@@ -229,7 +236,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
        {{"points", "points", "Points", false},
         {"Set", "Set", "Float", true, 0.0f, 0.0f, 6.0f, Widget::Enum,
          {"Cross", "CrossXY", "Cube", "Quad", "ArrowX", "ArrowY", "ArrowZ"}}},
-       nullptr},
+       nullptr,
+       "point.generate"},
       // BoundingBoxPoints (batch 38) — CPU-readback fork of external/tixl .../point/generate/
       // BoundingBoxPoints. Reads a Points input bag, computes the axis-aligned bounding box of all
       // VALID (non-NaN-position) source points, emits exactly ONE output point: Position=center=
@@ -242,7 +250,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
        "BoundingBoxPoints",
        {{"points", "points", "Points", true},   // input bag (port 0) — source points to bound
         {"out", "out", "Points", false}},        // single AABB point (port 1)
-       nullptr},
+       nullptr,
+       "point.generate"},
       // MeshVerticesToPoints — the FIRST Points op with a MESH INPUT (the mesh-into-points seam's
       // proving op). Ports 1:1 with MeshVerticesToPoints.cs: Mesh (MeshBuffers, gathered by the cook
       // drivers' Mesh loop into PointCookCtx::meshVtx → one Point per vertex), OffsetByTBN (Vector3,
@@ -258,7 +267,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
         {"OffsetByTBN.z", "OffsetByTBN.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         // W (TiXL float input, default 1.0) → the shader's OffsetScale (global TBN-offset multiplier).
         {"W", "W", "Float", true, 1.0f, -100.0f, 100.0f}},
-       nullptr},
+       nullptr,
+       "point.generate"},
       // PointsOnMesh — area-weighted barycentric SURFACE SCATTER (the FIRST op to consume meshIdx;
       // rides BOTH the mesh-into-points seam AND the texture-into-points seam). Ports 1:1 with
       // PointsOnMesh.cs [Input] order: Mesh (MeshBuffers → meshVtx+meshIdx), Count (int, the output
@@ -280,7 +290,8 @@ const std::vector<NodeSpec>& generatorSpecs() {
         // UseVertexSelection (TiXL bool, .t3 default true) — per-face weight = sum of vert Selection.
         {"UseVertexSelection", "UseVertexSelection", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Enum,
          {"Off", "On"}}},
-       nullptr},
+       nullptr,
+       "point.generate"},
   };
   return specs;
 }

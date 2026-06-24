@@ -50,7 +50,8 @@ static const PointModifyOp _reg_SamplePointColorAttributes{
         {"TextureRotate.z", "TextureRotate.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
         {"TextureMode", "TextureMode", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
          {"Wrap", "Clamp", "Mirror", "Border"}}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // AttributesFromImageChannels — a Points op with a Texture2D INPUT (same texture-into-points seam
@@ -117,7 +118,8 @@ static const PointModifyOp _reg_AttributesFromImageChannels{
          {"None", "F1", "F2"}},
         {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
         {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // LinearSamplePointAttributes — a Points op with a Texture2D INPUT (same texture-into-points seam
@@ -171,7 +173,8 @@ static const PointModifyOp _reg_LinearSamplePointAttributes{
         {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f},
         {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
          {"None", "F1", "F2"}}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // ---- batch sw-node-batch: point modify — MapPointAttributes (bake-into-point seam) ----------
@@ -220,7 +223,8 @@ static const PointModifyOp _reg_MapPointAttributes{
         // ValueTexture (Texture2D input, .t3 null) — OVERRIDES the baked CurveImage when wired
         // (FirstValidTexture). Gathered into inputTextures[0].
         {"ValueTexture", "ValueTexture", "Texture2D", true}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // ---- camera-matrix-into-points seam: TransformPointsFromClipspace ---------------------------------
@@ -237,7 +241,8 @@ static const PointModifyOp _reg_TransformPointsFromClipspace{
        {{"GPoints", "GPoints", "Points", true},        // input bag (port 0)
         {"Camera", "Camera", "Camera", true},          // camera marker (port 1) — the seam input
         {"out", "out", "Points", false}},              // unprojected output bag (port 2)
-       nullptr}
+       nullptr,
+       "point.transform"}
 };
 
 // ---- camera-matrix-into-points seam: SamplePointsByCameraDistance --------------------------------
@@ -262,7 +267,8 @@ static const PointModifyOp _reg_SamplePointsByCameraDistance{
         // WForDistance (host Curve input, .t3 default linear 0→1) — baked into a 256×1 R32 scratch and
         // sampled at the normalized depth. Gathered into PointCookCtx::inputCurves; unwired → embedded.
         {"WForDistance", "WForDistance", "Curve", true}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // ---- camera-matrix-into-points seam: SortPoints --------------------------------------------------
@@ -286,7 +292,8 @@ static const PointModifyOp _reg_SortPoints{
         {"SortingSpeed", "SortingSpeed", "Float", true, 1.0f, 0.0f, 100.0f},
         // Ascending (bool, .t3 default false) — flips the key sign: false=farthest-first, true=nearest-first.
         {"Ascending", "Ascending", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 }  // namespace

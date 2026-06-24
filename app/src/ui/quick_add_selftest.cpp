@@ -64,6 +64,46 @@ int runQuickAddSelfTest(bool injectBug) {
         }
     }
 
+    // Test 2c: namespace-tree grouping (= TiXL NamespaceTreeNode). buildNamespaceTree splits each
+    // item's category on '.' into nested folders; a "point" group must contain the point ops and an
+    // empty category lands under "(uncategorized)" (never dropped).
+    {
+        std::vector<std::string> items = {"DrawPoints", "GridPoints", "Add", "Orphan"};
+        auto catOf = [](const std::string& id) -> std::string {
+            if (id == "DrawPoints") return "point.draw";
+            if (id == "GridPoints") return "point.generate";
+            if (id == "Add")        return "numbers.float.basic";
+            return std::string();  // "Orphan": empty category
+        };
+        NamespaceNode root = buildNamespaceTree(items, catOf);
+        // Top-level groups: point, numbers, (uncategorized).
+        if (root.children.find("point") == root.children.end()) {
+            std::printf("[quickadd] tree missing 'point' group -> FAIL\n"); ++fail;
+        } else {
+            const NamespaceNode& point = root.children.at("point");
+            // point.draw must hold DrawPoints; point.generate must hold GridPoints.
+            bool drawHasDP = point.children.count("draw") &&
+                             point.children.at("draw").symbols.size() == 1 &&
+                             point.children.at("draw").symbols[0] == "DrawPoints";
+            bool genHasGP  = point.children.count("generate") &&
+                             point.children.at("generate").symbols.size() == 1 &&
+                             point.children.at("generate").symbols[0] == "GridPoints";
+            if (!drawHasDP) { std::printf("[quickadd] point.draw should contain DrawPoints -> FAIL\n"); ++fail; }
+            if (!genHasGP)  { std::printf("[quickadd] point.generate should contain GridPoints -> FAIL\n"); ++fail; }
+        }
+        // numbers.float.basic holds Add (3-deep nesting).
+        bool addOk = root.children.count("numbers") &&
+                     root.children.at("numbers").children.count("float") &&
+                     root.children.at("numbers").children.at("float").children.count("basic") &&
+                     root.children.at("numbers").children.at("float").children.at("basic").symbols.size() == 1;
+        if (!addOk) { std::printf("[quickadd] numbers.float.basic should contain Add -> FAIL\n"); ++fail; }
+        // Empty category -> (uncategorized), Orphan not lost.
+        bool orphanOk = root.children.count("(uncategorized)") &&
+                        root.children.at("(uncategorized)").symbols.size() == 1 &&
+                        root.children.at("(uncategorized)").symbols[0] == "Orphan";
+        if (!orphanOk) { std::printf("[quickadd] empty category should land in (uncategorized) -> FAIL\n"); ++fail; }
+    }
+
     // Test 3: eye-hook naming convention — every item key starts with "qa:".
     {
         const std::string key = "qa:RadialPoints";

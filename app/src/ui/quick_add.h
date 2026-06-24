@@ -19,9 +19,33 @@
 // eye hook: each rendered row emits qa:<type> via eye::recordItem (one line per row;
 //           implementation is the recordItem call itself — no logic in verify/).
 #pragma once
+#include <functional>
+#include <map>
 #include <string>
+#include <vector>
 
 namespace sw::ui {
+
+// Namespace tree node (= TiXL NamespaceTreeNode): a nested container grouping symbols by their
+// dot-separated category (Symbol.Namespace, "Lib." root stripped). Exposed for the isolated
+// self-test (buildNamespaceTree is a pure data transform; the imgui walk lives in quick_add.cpp).
+struct NamespaceNode {
+    std::string name;                              // folder name at this level ("point", "draw"…)
+    std::map<std::string, NamespaceNode> children; // sub-folders keyed by name (sorted)
+    std::vector<std::string> symbols;              // ids whose namespace ENDS at this node
+};
+
+// Group items into a namespace tree using catOf(id) -> dot-separated category. Empty category
+// lands under "(uncategorized)" so no symbol is ever dropped. Pure (no imgui / globals).
+NamespaceNode buildNamespaceTree(const std::vector<std::string>& items,
+                                 const std::function<std::string(const std::string&)>& catOf);
+
+// Draw the namespace tree with imgui (collapsible TreeNode folders, Selectable leaves). Folders
+// emit qa:ns:<full.path> + leaves emit qa:<id> (eye hooks). A clicked, non-cyclic leaf sets
+// spawnRequested + spawnType. displayName maps id -> shown label. (= TiXL SymbolTreeMenu walk.)
+void drawNamespaceTree(const NamespaceNode& root, const std::string& curId, bool& spawnRequested,
+                       std::string& spawnType,
+                       const std::function<std::string(const std::string&)>& displayName);
 
 // Open the palette anchored at canvas coordinates (cx, cy).
 // No-op if already open (idempotent — Cmd+F pressed while open does NOT close it;

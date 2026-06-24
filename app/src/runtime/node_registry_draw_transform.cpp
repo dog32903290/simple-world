@@ -26,7 +26,8 @@ const std::vector<NodeSpec>& drawTransformSpecs() {
         {"Axis.x", "Axis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
         {"Axis.y", "Axis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"Axis.z", "Axis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
+       nullptr,
+       "render.transform"},
       // Shear (TiXL Lib.render.transform.Shear): wraps a Command subtree and pushes a SHEAR matrix onto
       // context.ObjectToWorld (Identity with M12=Translation.Y, M21=Translation.X, M14=Translation.Z).
       // Command in → Command out (Group per-item group-stamp mechanism). No IsEnabled (TiXL has none).
@@ -37,7 +38,8 @@ const std::vector<NodeSpec>& drawTransformSpecs() {
         {"Translation.x", "Translation", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
         {"Translation.y", "Translation.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Translation.z", "Translation.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
+       nullptr,
+       "render.transform"},
       // Transform (TiXL Lib.render.transform.Transform): the full-TRS render-island transform with a PIVOT
       // — the general sibling of Group (Group = Transform with pivot 0 + color/enable). Wraps a Command
       // subtree and pushes M = T(-Pivot)·S·R·T(+Pivot)·T(Translation) onto context.ObjectToWorld (Group
@@ -60,7 +62,8 @@ const std::vector<NodeSpec>& drawTransformSpecs() {
         {"Pivot.x", "Pivot", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
         {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
         {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
+       nullptr,
+       "render.transform"},
       // RotateTowards (TiXL Lib.render.transform.RotateTowards): wraps a Command subtree and pushes a LookAt-
       // style ROTATION onto context.ObjectToWorld so the subtree FACES a target point. M = rotateOffset ·
       // inverse(LookAtRH(0, sourcePos-target, Up)) (Group per-item group-stamp; the executor right-multiplies
@@ -79,7 +82,8 @@ const std::vector<NodeSpec>& drawTransformSpecs() {
         {"RotationOffset.x", "RotationOffset", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
         {"RotationOffset.y", "RotationOffset.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
         {"RotationOffset.z", "RotationOffset.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1}},
-       nullptr},
+       nullptr,
+       "render.transform"},
   };
   return specs;
 }

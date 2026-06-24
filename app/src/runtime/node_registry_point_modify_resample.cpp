@@ -34,7 +34,8 @@ static const PointModifyOp _reg_FilterPoints{
         {"Step", "Step", "Float", true, 1.0f, 0.0f, 100.0f},
         {"ScatterSelect", "ScatterSelect", "Float", true, 0.0f, 0.0f, 1.0f},
         {"Seed", "Seed", "Float", true, 0.0f, 0.0f, 100.0f}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // ---- batch 21 (lane point_modify): ReorientLinePoints ----------------------
@@ -50,7 +51,8 @@ static const PointModifyOp _reg_ReorientLinePoints{
        {{"points", "points", "Points", true},    // input bag (port 0)
         {"out", "out", "Points", false},          // re-oriented output bag (port 1)
         {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f}},
-       nullptr}
+       nullptr,
+       "point.transform"}
 };
 
 // ---- batch 36 (lane point_modify): ResampleLinePoints ----------------------
@@ -85,7 +87,8 @@ static const PointModifyOp _reg_ResampleLinePoints{
         {"RotationUpVector.x", "RotationUpVector", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
         {"RotationUpVector.y", "RotationUpVector.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"RotationUpVector.z", "RotationUpVector.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}},
-       nullptr}
+       nullptr,
+       "point.modify"}
 };
 
 // ---- batch 37 (lane point_modify): SubdivideLinePoints ----------------------
@@ -112,7 +115,8 @@ static const PointModifyOp _reg_SubdivideLinePoints{
         {"InsertCount", "Count", "Float", true, 100.0f, 0.0f, 1000.0f},
         // .cs ClosedShape (bool, default false) — add a closing segment (last -> first).
         {"ClosedShape", "ClosedShape", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
-       nullptr}
+       nullptr,
+       "point.generate"}
 };
 
 }  // namespace

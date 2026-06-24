@@ -28,7 +28,8 @@ static const MathOp _reg_Damp{
         {"Damping", "Damping", "Float", true, 0.9f, 0.0f, 1.0f},
         {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"LinearInterpolation", "DampedSpring"}}},
-       nullptr}
+       nullptr,
+       "numbers.float.process"}
 };
 
       // DampAngle — Damp in angle space (re-targets through the shortest angular delta). TiXL
@@ -40,7 +41,8 @@ static const MathOp _reg_DampAngle{
         {"Damping", "Damping", "Float", true, 0.9f, 0.0f, 1.0f},
         {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"LinearInterpolation", "DampedSpring"}}},
-       nullptr}
+       nullptr,
+       "numbers.float.process"}
 };
 
       // DampVec2 / DampVec3 — component-wise Damp. TiXL vec2/DampVec2.cs, vec3/DampVec3.cs.
@@ -54,7 +56,8 @@ static const MathOp _reg_DampVec2{
         {"Damping", "Damping", "Float", true, 0.9f, 0.0f, 1.0f},
         {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"LinearInterpolation", "DampedSpring"}}},
-       nullptr}
+       nullptr,
+       "numbers.vec2"}
 };
 
 static const MathOp _reg_DampVec3{
@@ -68,7 +71,8 @@ static const MathOp _reg_DampVec3{
         {"Damping", "Damping", "Float", true, 0.9f, 0.0f, 1.0f},
         {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"LinearInterpolation", "DampedSpring"}}},
-       nullptr}
+       nullptr,
+       "numbers.vec3"}
 };
 
       // DeltaSinceLastFrame — Value minus its value last frame. TiXL floats/process/DeltaSinceLastFrame.cs.
@@ -78,7 +82,8 @@ static const MathOp _reg_DeltaSinceLastFrame{
        {{"Change", "Change", "Float", false},
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 10.0f}},
-       nullptr}
+       nullptr,
+       "numbers.floats.process"}
 };
 
       // FreezeValue — sample-and-hold; DeltaSinceFreeze = Value−frozen. TiXL float/process/FreezeValue.cs.
@@ -90,7 +95,8 @@ static const MathOp _reg_FreezeValue{
         {"Freeze", "Freeze", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
          {"FreezeWhileTrue", "UpdateWhenSwitchingToTrue"}}},
-       nullptr}
+       nullptr,
+       "numbers.float.process"}
 };
 
       // Spring — spring physics toward a target (overshoots, settles). TiXL float/process/Spring.cs.
@@ -100,7 +106,8 @@ static const MathOp _reg_Spring{
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Tension", "Tension", "Float", true, 0.1f, 0.0f, 1.0f},
         {"Strength", "Strength", "Float", true, 0.5f, 0.0f, 4.0f}},
-       nullptr}
+       nullptr,
+       "numbers.float.process"}
 };
 
       // SpringVec2 / SpringVec3 — component-wise Spring. TiXL vec2/process/SpringVec2.cs, vec3/process/SpringVec3.cs.
@@ -112,7 +119,8 @@ static const MathOp _reg_SpringVec2{
         {"Value.y", "Value.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
         {"Tension", "Tension", "Float", true, 0.1f, 0.0f, 1.0f},
         {"Strength", "Strength", "Float", true, 0.5f, 0.0f, 4.0f}},
-       nullptr}
+       nullptr,
+       "numbers.vec2.process"}
 };
 
 static const MathOp _reg_SpringVec3{
@@ -125,7 +133,8 @@ static const MathOp _reg_SpringVec3{
         {"Value.z", "Value.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
         {"Tension", "Tension", "Float", true, 0.1f, 0.0f, 1.0f},
         {"Strength", "Strength", "Float", true, 0.5f, 0.0f, 4.0f}},
-       nullptr}
+       nullptr,
+       "numbers.vec3.process"}
 };
 
       // Ease — time-based eased re-target toward a changing input. TiXL float/process/Ease.cs.
@@ -141,7 +150,8 @@ static const MathOp _reg_Ease{
          {"In", "Out", "InOut"}},
         {"Interpolation", "Interpolation", "Float", true, 0.0f, 0.0f, 10.0f, Widget::Enum,
          {"Linear", "Sine", "Quad", "Cubic", "Quart", "Quint", "Expo", "Circ", "Back", "Elastic", "Bounce"}}},
-       nullptr}
+       nullptr,
+       "numbers.float.process"}
 };
 
       // EaseVec2 / EaseVec3 — component-wise Ease (shared eased-t, no cross-channel bleed). TiXL
@@ -158,7 +168,8 @@ static const MathOp _reg_EaseVec2{
          {"In", "Out", "InOut"}},
         {"Interpolation", "Interpolation", "Float", true, 0.0f, 0.0f, 10.0f, Widget::Enum,
          {"Linear", "Sine", "Quad", "Cubic", "Quart", "Quint", "Expo", "Circ", "Back", "Elastic", "Bounce"}}},
-       nullptr}
+       nullptr,
+       "numbers.vec2.process"}
 };
 
 static const MathOp _reg_EaseVec3{
@@ -174,7 +185,8 @@ static const MathOp _reg_EaseVec3{
          {"In", "Out", "InOut"}},
         {"Interpolation", "Interpolation", "Float", true, 0.0f, 0.0f, 10.0f, Widget::Enum,
          {"Linear", "Sine", "Quad", "Cubic", "Quart", "Quint", "Expo", "Circ", "Back", "Elastic", "Bounce"}}},
-       nullptr}
+       nullptr,
+       "numbers.vec3.process"}
 };
 
       // DampPeakDecay — one-way peak follower: snaps UP to a rising input, decays DOWN by Decay (a Lerp).
@@ -185,7 +197,8 @@ static const MathOp _reg_DampPeakDecay{
        {{"Result", "Result", "Float", false},
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Decay", "Decay", "Float", true, 0.05f, 0.0f, 1.0f}},
-       nullptr}
+       nullptr,
+       "numbers.floats.process"}
 };
 
 }  // namespace
