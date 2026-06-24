@@ -369,7 +369,13 @@ add_executable(simple_world
   src/mesh_icosahedron_golden.cpp
   src/runtime/floatlist_op_registry.cpp
   src/runtime/floatlist_ops_floatstolist.cpp
+  src/runtime/floatlist_ops_combinefloatlists.cpp
+  src/runtime/floatlist_ops_intstolist.cpp
+  src/runtime/floatlist_ops_setfloatlistvalue.cpp
+  src/runtime/floatlist_ops_setintlistvalue.cpp
+  src/runtime/floatlist_ops_remapfloatlist.cpp
   src/floatlist_golden.cpp
+  src/floatlist_producers_golden.cpp
   src/runtime/colorlist_op_registry.cpp
   src/runtime/colorlist_ops_colorstolist.cpp
   src/runtime/colorlist_ops_colorlist.cpp

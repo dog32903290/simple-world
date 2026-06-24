@@ -30,4 +30,9 @@ REGISTER_SELFTESTS(/*orderBase=*/72,
 REGISTER_SELFTESTS(/*orderBase=*/300,
     {"hasstringchanged", runHasStringChangedSelfTest},  // per-node cross-frame STRING state (HasStringChanged)
 );
+// Wave-2 FloatList→FloatList producers (list fan-out). Own high-orderBase block so it appends at the end
+// of --selftest-list deterministically (the registry sorts by `order`).
+REGISTER_SELFTESTS(/*orderBase=*/310,
+    {"floatlistproducers", runFloatListProducersSelfTest},  // Combine/IntsToList/SetFloat/SetInt/Remap (chain-through-evalFloat)
+);
 }  // namespace sw
