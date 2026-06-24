@@ -239,10 +239,19 @@ DetectBpm 引擎已綠但孤兒（`fork-bpm-not-live-driving-transport`）。接
 - **#11 keymap 持久化 ✅**（`5cb892a`）：user JSON 蓋 factory，keymap.cpp 756 不變（新 TU），round-trip selftest+PlaybackToggle live seam。
 - **#2 AssetLibrary 瀏覽器 ✅**（`1ae9881`）：點 asset→建 LoadImage undoable→Output 真 render 解碼影像，騎 L3 asset-index，對 AssetLib（click=drop fork）。
 
-**第九批（續檔/資產/設定軸 + Output + 編輯，下次 /sw-batch 從這 pull）：**
-- **#12 user-settings 持久化**（recent files + window layout + view-area per-symbol，`io.IniFilename` 目前刻意關→設計考慮的持久化非裸 ini；主檔 app settings 層；閘=round-trip 存→載→相同）。=cross-session memory 收尾（接 #11 同軸）。
-- **#3 drag-drop 進畫布**（platform NSDragging + app；接 #2 AssetLibrary 的真 drag layer；閘=side-effect 建 op）。
+**第九批 ✅ 完成（2026-06-25 00:32，含驗證完整性事件）：**
+- **#12 user-settings 持久化 ✅**（`7f96eb9`）：recent-files MRU；window-layout 誠實 scope-out（io.IniFilename 刻意關防破 harness）。
+- **#13 節點 thumbnail face ✅**（`a2f98bb`）：Texture2D-output 貼縮圖。
+- **★真回歸修 ✅**（`8014ed6`）：首跑全 .scn 套揪出 P2 Variation+#2 Asset 面板常駐開吃掉 canvas 點擊→改 default-closed toolbar toggle（faithful TiXL）。10 regression scenario 復綠。
+- **★★鐵律（血證）**：UI 批合流必跑**全 .scn 套**（非只 --bite+本批 scenario）；selectnode 遮座標點擊回歸→留 click scenario 當金絲雀。
+- **8 STALE scenario**（非本 session 弄壞，14f0214 就紅）=chip task_2fc4a37a 待修（field_* Root.children 5→4 / 6 bgctx submenu-click→quick-add path）。
+
+**第十批（下次 /sw-batch 從這 pull）：**
+- **先選項**：清 chip task_2fc4a37a（8 STALE scenario 修→全 .scn 套回綠，恢復寬閘乾淨）。
+- **#3 drag-drop 進畫布**（platform NSDragging + app；接 #2 AssetLibrary 真 drag layer；閘=side-effect 建 op）。
 - **#17 ProjectHub 著陸頁**（無專案時專案卡片+Add Project；主檔新 ui；polish）。
+- **Output O 系列**（output_window.cpp 序列）：O3 截圖→O1 解析度→O4 影片匯出。
+- **編輯**：#4 in-window menu bar / #9 color picker 進階 / #10 multi-input 群組框 / SliderLadder。
 - **∥ Output O 系列續**（同主檔 output_window.cpp 序列）：O3 截圖（side-effect 檔出現）→O1 解析度選擇器（golden+S1）→O4 影片匯出（碰 cook）。
 - **∥ 編輯小 gap**（主檔互斥）：#4 in-window menu bar+View 選單（`BeginMainMenuBar`）／#13 節點 thumbnail face（`node_faces.cpp`）／#10 multi-input 群組框 in node_draw／#9 color picker 進階 in inspector／SliderLadder（新 widget）。
 - **演出深度（柏為域偏多）**：#5 Player 多螢幕/--loop/--windowed、#6 Focus graph-over-content。#1 [core] relevancy 完整=碰 graph.h PortSpec（S0-like schema，relevancy enum）+node_draw line visibility。
