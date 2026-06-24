@@ -206,8 +206,15 @@ DetectBpm 引擎已綠但孤兒（`fork-bpm-not-live-driving-transport`）。接
 - **harness-fix ✅**（`b08bb24`+triage `3b9f670`）：gap-1 combo-popup 入 map + gap-2 selectnode（triage 修 bad-id-wipe bug + enqueueClick hover-settle）。**★限制誠實記：selectnode 在 scenario/compound_smoke context 可靠（=UI 驗證載入的 doc），raw 任意 doc 取決 childId==ed-id。**
 - **★合流血證**：inspector∥P3 撞 inspector.cpp、P3∥harness 撞 hand.cpp→手動 merge 保兩邊+重驗。**多 lane 動同 UI/verify 檔要預期 conflict。**
 
-**第五批（下次 /sw-batch 從這 pull，避撞看主檔欄）：**
-- **P5 BPM→transport**（DetectBpm engine 已綠孤兒 `fork-bpm-not-live-driving-transport`→接 detect→transport.bpm+UI 顯示，cook-core-adjacent，solo focus）。對 TiXL BPM。**P4(snapshot 觸發+LED) 排後因需 P3 MIDI 雙向+LED 硬體=部分柏為域。**
-- **∥ 編輯 UI lane**（擇一，主檔互斥）：即時值字串 in `node_draw.cpp`（Tier3 靠 effectiveInput）／工具列範式／hover-to-split in `editor_ui.cpp`（Tier2）。
-- **∥ L-B-follow（category repo fill→命名空間樹）**：機械 pass 填 `NodeSpec.category` 跨 node_registry_*.cpp。可 solo。
-- ★避撞硬化：`node_draw.cpp`/`editor_ui.cpp`/`inspector.cpp`/`hand.cpp`/`frame_cook.cpp` 是多 lane 共撞點，每批每檔只一 lane。P5(frame_cook/transport) 與動 frame_cook 的 lane 互斥。後續 P4/P6(Player 模式)。
+**第五批 ✅ 完成（2026-06-24 19:58）=演出脊椎收官 + L-B 故事完成：**
+- **P5 ✅**（`5e2a137`）：BPM detect→transport。**承重發現=鏈早已接通，缺 PROOF 非 wire（frame_cook 零觸）**；golden 證 detected BPM 達 transport.bpm。TiXL 從不自動覆寫=sw 鏡像。**三條 live wire 第三條=演出「手」完整（Variation+MIDI+BPM）。**
+- **L-B-follow ✅**（`15c4e00`）：161 ops categorized 對 TiXL .cs namespace + 命名空間樹 in quick_add。**L-B 完整（搜尋+ranking+樹）。**
+- **柏為判斷項（非阻塞未建）**：P5 零配置「一鍵鎖 BPM」=sw-only fork 待 greenlight。
+
+**★★ 演出迴路脊椎進度：P1✅ P2✅ P3✅ P5✅ → 剩 P4（snapshot 觸發+LED，需 P3 雙向+硬體=部分柏為域）+ P6（Player/Focus 模式）。三條斷掉的 live wire 全接通。**
+
+**第六批（下次 /sw-batch 從這 pull，避撞看主檔欄）：**
+- **P6 Player/Focus 模式**（`--play` 全螢幕 blit modes.md[core] + Focus Mode F12/Shift+Esc 收 UI；present path 半序列；閘=eye-hand + `--bite` present 不回歸）。主檔 `app/main.cpp` present + `platform/`。
+- **∥ 編輯 UI lane**（擇一，主檔互斥）：即時值字串 in `node_draw.cpp`（Tier3 effectiveInput，縮放 gating）／hover-to-split in `editor_ui.cpp`（Tier2 AddWire+命中）／工具列範式 in `toolbar.cpp`／縮圖預覽 in `node_draw.cpp`（Tier3 child resident→ImGui::Image，柏為下注做）。
+- **∥ 獨立施工圖開張**（各自脊椎，柏為 checklist 主來源）：MagGraph（[core] 最大，柏為手感重）／Timeline（`ui/timeline_*` 已存在，補 sync+VJ tapping）／Gradient（柏為 authoring 域）／Audio 匯出（`platform/audio`，codex-ears 閘）。
+- ★避撞硬化：`node_draw.cpp`/`editor_ui.cpp`/`inspector.cpp`/`hand.cpp`/`frame_cook.cpp`/`main.cpp` 每批每檔一 lane。P6(main.cpp present) 與動 main.cpp 的 lane 互斥。
