@@ -44,5 +44,9 @@ if command -v ccache >/dev/null 2>&1; then
   echo "[worktree-setup] ccache enabled ($(ccache -s | grep -E 'Hits|Cache size' | head -2 | tr '\n' ' '))"
 fi
 cmake -S "$WT_ROOT/app" -B "$WT_ROOT/app/build" "${CCACHE_ARGS[@]}" >/dev/null
-cmake --build "$WT_ROOT/app/build" -j 2>&1 | tail -1
+# BOUNDED -j (was unbounded `-j`): N parallel worktree setups each spawning unbounded
+# compile jobs = fork-bomb (2026-06-25: 3 lanes -> 2164 compilers, load 980). Cap so
+# several lanes can bootstrap concurrently without saturating. Setup is mostly ccache
+# hits anyway, so the cap costs ~nothing.
+cmake --build "$WT_ROOT/app/build" -j 4 2>&1 | tail -1
 echo "[worktree-setup] ready: $WT_ROOT/app/build/simple_world"
