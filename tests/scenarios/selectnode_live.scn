@@ -1,0 +1,57 @@
+# selectnode_live.scn — gap-2 `selectnode <childId>` in the LIVE canvas (close Gap-2 for live use).
+#
+# WHY this scenario exists: the gap-2 hand command `selectnode <childId>` had a passing isolated
+# --selftest-hand, but a live repro reported the selection never moving (selectedNode stuck). The
+# triage found the hook IS drained every canvas frame (combine_dialog.cpp drawCanvasContextMenu,
+# called unconditionally from editor_ui.cpp every frame — NOT gated behind an open popup), and the
+# state.json `selectedNode` signal IS the node-editor selection (editor_ui.cpp captures
+# g_selectedNode from ed::GetSelectedNodes; main.cpp writes it to state.json). The original live
+# failure was a stale pre-hook binary + bad-id assumptions. The one real correctness gap this fix
+# closes: a NON-EXISTENT id used to wipe the selection to 0 (ClearSelection ran before the
+# find-fails SelectNode); it must instead be a TRUE no-op that leaves the live selection intact.
+#
+# This scenario drives the REAL app (compound_smoke: Root children ids 1..6) and asserts:
+#   1. baseline selection is empty (selectedNode == 0)
+#   2. selectnode on a NON-TERMINAL mid-graph node (3) lands EXACTLY on 3
+#   3. selectnode on another (5) re-selects EXACTLY 5 (proves it re-targets, not append-stuck)
+#   4. a BAD id (99999) leaves the selection UNCHANGED (== 5) — the bad-id guard
+#   5. selectnode on yet another (6) still works after the bad-id no-op
+#
+# RED -> GREEN proof (run against the PRE-FIX hand.cpp to see these fail):
+#   - Pre-hook binary (no `selectnode` op at all): steps 2/3/5 FAIL — selectedNode never moves
+#     off baseline 0 (the originally-reported live failure).
+#   - Pre-guard binary (ClearSelection-before-SelectNode, the version this fix replaces): step 4
+#     FAILS — after `selectnode 99999` the assert sees selectedNode == 0, not 5 (the stale-id wipe).
+#   To reproduce the step-4 RED manually: revert applyPendingSelectNodes() to the
+#   ClearSelection()+SelectNode() form and re-run; line "assert selectedNode == 5 after bad id"
+#   reports `-> 0`.
+
+open app/testdata/compound_smoke.swproj
+
+# --- 1. baseline: nothing selected ---
+assert_state '.selectedNode == 0'
+echo baseline-selection-empty
+
+# --- 2. selectnode a NON-TERMINAL mid-graph node (id 3) -> selection becomes exactly 3 ---
+do selectnode 3
+wait 0.2
+assert_state '.selectedNode == 3'
+echo selectnode-3-selected-3
+
+# --- 3. re-target to another mid-graph node (id 5) -> selection becomes exactly 5 ---
+do selectnode 5
+wait 0.2
+assert_state '.selectedNode == 5'
+echo selectnode-5-selected-5
+
+# --- 4. BAD id leaves the selection UNCHANGED (still 5) — the bad-id guard ---
+do selectnode 99999
+wait 0.2
+assert_state '.selectedNode == 5'
+echo bad-id-leaves-selection-unchanged-5
+
+# --- 5. selectnode still works after the bad-id no-op (id 6) ---
+do selectnode 6
+wait 0.2
+assert_state '.selectedNode == 6'
+echo selectnode-6-selected-6

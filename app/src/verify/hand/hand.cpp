@@ -2,6 +2,7 @@
 // (The headless self-test lives in hand_selftest.cpp, driven through feedLine/clearPending.)
 #include "verify/hand/hand.h"
 
+#include <cfloat>  // FLT_MAX sentinel from ed::GetNodePosition for the selectnode bad-id guard
 #include <cstdio>
 #include <deque>
 #include <fstream>
@@ -276,17 +277,27 @@ void clearPending() { g_pending.clear(); g_selectNodes.clear(); }
 int applyPendingSelectNodes() {
   if (g_selectNodes.empty()) return 0;
   // Editor must be current here (caller's contract): ed::SelectNode acts on the editor set
-  // via ed::SetCurrentEditor. We ClearSelection once, then append every queued id, so a
-  // batch of selectnode lines reads as one multi-select (mirrors selectConnected's append).
-  ed::ClearSelection();
-  int n = 0;
-  while (!g_selectNodes.empty()) {
-    int id = g_selectNodes.front();
-    g_selectNodes.pop_front();
-    ed::SelectNode(ed::NodeId(id), /*append=*/true);
-    ++n;
+  // via ed::SetCurrentEditor, and ed::GetNodePosition resolves against the SAME set. The hook
+  // is drained AFTER drawChild (editor_ui.cpp), so every live node is registered this frame.
+  //
+  // Bad-id GUARD (the live-use contract): a non-existent id must be a TRUE no-op — leave the
+  // current selection untouched, not wipe it. ed::SelectNode silently does nothing for an
+  // unknown id (api: FindNode fails), so a naive ClearSelection()+SelectNode wiped the
+  // selection to 0 whenever ANY queued id was stale (e.g. the agent named an id from a graph
+  // it had already navigated away from). We therefore VALIDATE the whole batch first
+  // (ed::GetNodePosition returns FLT_MAX for an unknown node) and only mutate the selection
+  // when every id resolves. Drop the batch on any miss: an addressing typo can't clobber what
+  // the user had selected. Drained ids are consumed regardless (one drain = one batch).
+  std::vector<int> ids(g_selectNodes.begin(), g_selectNodes.end());
+  g_selectNodes.clear();
+  for (int id : ids) {
+    if (ed::GetNodePosition(ed::NodeId(id)).x == FLT_MAX) return 0;  // unknown id -> no change
   }
-  return n;
+  // All ids exist: ClearSelection once, then append each, so a batch of selectnode lines
+  // reads as one multi-select (mirrors selectConnected's append).
+  ed::ClearSelection();
+  for (int id : ids) ed::SelectNode(ed::NodeId(id), /*append=*/true);
+  return (int)ids.size();
 }
 
 void applyPendingStep() {

@@ -239,23 +239,26 @@ int runSelfTest(bool injectBug) {
       ed::SetCurrentEditor(nullptr);
       if (n == 1 && (int)sel[0].Get() == kNodeId) selNodeOk = true;
     }
-    // RED guard (runs in BOTH modes): a bad id must clear+select-nothing-real — kNodeId
-    // must NOT end up selected by addressing an id that isn't on the canvas.
+    // RED guard (runs in BOTH modes): a bad id must be a TRUE no-op — it must NOT disturb the
+    // existing selection. Pre-seed kNodeId selected, then address an id that isn't on the
+    // canvas: kNodeId must STILL be selected afterward (the bad-id guard drops the whole batch
+    // rather than ClearSelection-ing the user's selection out from under them). This is the
+    // live-use contract: an addressing typo can't clobber what was selected.
     ed::SetCurrentEditor(ctx);
     ed::ClearSelection();
     ed::SelectNode(ed::NodeId(kNodeId), /*append=*/true);  // pre-seed: kNodeId IS selected
     ed::SetCurrentEditor(nullptr);
     clearPending();
-    feedLine("selectnode 99999");  // unknown id; applyPendingSelectNodes ClearSelection()s first
+    feedLine("selectnode 99999");  // unknown id; applyPendingSelectNodes must leave kNodeId alone
     for (int i = 0; i < 4; ++i) pumpFrame(drainCanvas);
     ed::SetCurrentEditor(ctx);
     ed::NodeId selBad[4];
     int nBad = ed::GetSelectedNodes(selBad, 4);
     ed::SetCurrentEditor(nullptr);
-    // After selecting a non-existent id: kNodeId must be GONE (the ClearSelection took, and
-    // 99999 selects no real node). This proves selectnode is id-addressed, not a no-op.
-    bool badIdOk = true;
-    for (int i = 0; i < nBad; ++i) if ((int)selBad[i].Get() == kNodeId) badIdOk = false;
+    // After addressing a non-existent id: kNodeId must STILL be selected (batch dropped, no
+    // ClearSelection). This proves the bad-id guard protects the live selection.
+    bool badIdOk = false;
+    for (int i = 0; i < nBad; ++i) if ((int)selBad[i].Get() == kNodeId) badIdOk = true;
 
     ed::DestroyEditor(ctx);
     selOk = selOk && selNodeOk && badIdOk;  // gap-2 now requires BOTH click-select and selectnode
