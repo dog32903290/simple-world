@@ -4,6 +4,7 @@
 #include "ui/node_draw.h"
 
 #include <string>
+#include <unordered_map>
 
 #include "imgui.h"
 #include "imgui_node_editor.h"
@@ -21,6 +22,16 @@ namespace ed = ax::NodeEditor;
 
 namespace sw::ui {
 namespace {
+
+// Per-frame map: ed input-pin id -> wire-terminus anchor in SCREEN space (left-edge midpoint of
+// the input pin row, where the connection bezier arrives). Filled as pins are laid out, read by
+// the canvas wire loop to place the connection arrow. Rebuilt every frame (clear before children).
+std::unordered_map<int, ImVec2> g_inputPinAnchor;
+
+// Record an input pin's wire terminus from its already-screen-space rect (pa=min, pb=max).
+void recordInputPinAnchor(int edPinId, const ImVec2& pa, const ImVec2& pb) {
+  g_inputPinAnchor[edPinId] = ImVec2(pa.x, (pa.y + pb.y) * 0.5f);
+}
 
 // A type-colored anchor marker. TiXL draws INPUT anchors as small triangles pointing into
 // the node (DrawNode.cs:822-825: horizontal input, apex toward node, anchorWidth=3 half-height,
@@ -128,6 +139,7 @@ void drawChild(const sw::SymbolChild& child) {
       ImVec2 pb = ed::CanvasToScreen(ImGui::GetItemRectMax());
       sw::eye::recordRect(("pin:" + std::to_string(sw::pinId(child.id, i))).c_str(),
                           pa.x, pa.y, pb.x, pb.y);
+      if (p.isInput) recordInputPinAnchor(sw::ui::childPinId(child.id, (int)i), pa, pb);
       ed::EndPin();
     };
     int nInputs = 0;
@@ -199,6 +211,7 @@ void drawBoundaryDef(const sw::SlotDef& def, int edNodeId, int pinId, bool isSou
   ImVec2 pa = ed::CanvasToScreen(ImGui::GetItemRectMin());
   ImVec2 pb = ed::CanvasToScreen(ImGui::GetItemRectMax());
   sw::eye::recordRect(("pin:" + std::to_string(pinId)).c_str(), pa.x, pa.y, pb.x, pb.y);
+  if (!isSource) recordInputPinAnchor(pinId, pa, pb);  // outputDef sink = a wire target
   ed::EndPin();
   ed::EndNode();
   ed::PopStyleVar(2);
@@ -207,6 +220,22 @@ void drawBoundaryDef(const sw::SlotDef& def, int edNodeId, int pinId, bool isSou
   ImVec2 nsz = ed::GetNodeSize(edNodeId);
   sw::eye::recordRect(("node:" + std::to_string(edNodeId)).c_str(),
                       na.x, na.y, na.x + nsz.x, na.y + nsz.y);
+}
+
+void clearConnectionArrowAnchors() { g_inputPinAnchor.clear(); }
+
+void drawConnectionArrow(int inputPinId, unsigned int color) {
+  auto it = g_inputPinAnchor.find(inputPinId);
+  if (it == g_inputPinAnchor.end()) return;  // pin not drawn this frame (collapsed/unresolved)
+  const ImVec2& t = it->second;              // wire terminus, screen space
+  // TiXL MagGraphCanvas.DrawConnection.cs:226-231 (RightToLeft): anchorWidth=1.5*2=3,
+  // anchorHeight=2*2=4; triangle = target + {(0,-aw),(ah,0),(0,+aw)} * CanvasScale * 1,
+  // apex pointing RIGHT (+x) along the wire into the input slot. CanvasScale = view scale.
+  const float scale = (ed::GetCurrentZoom() > 0.0001f) ? (1.0f / ed::GetCurrentZoom()) : 1.0f;
+  const float aw = 3.0f * scale;  // half-height
+  const float ah = 4.0f * scale;  // depth (apex reach)
+  ImDrawList* dl = ImGui::GetWindowDrawList();  // caller wraps in ed::Suspend/Resume (screen space)
+  dl->AddTriangleFilled(ImVec2(t.x, t.y - aw), ImVec2(t.x + ah, t.y), ImVec2(t.x, t.y + aw), color);
 }
 
 }  // namespace sw::ui

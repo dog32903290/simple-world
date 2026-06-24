@@ -181,7 +181,8 @@ void drawNodeCanvas() {
   // rects live in ui/node_draw. The live preview is NOT welded to any node body — it lives
   // in the Output window (ui/output_window.cpp), which shows ANY pinned node's output
   // (view ⊥ graph; OUTPUT_PIN_VIEWER_CONTRACT §4-A).
-  for (const sw::SymbolChild& child : cur->children) sw::ui::drawChild(child);
+  sw::ui::clearConnectionArrowAnchors();  // rebuilt as children lay out → read by the arrow pass
+  for (const sw::SymbolChild& child : cur->children) sw::ui::drawChild(child);  // also fills anchors
 
   // The symbol's OWN external ports as movable boundary items (TiXL Input/Output canvas
   // items): inputDefs are sources inside, outputDefs are sinks. node_draw renders them.
@@ -193,9 +194,8 @@ void drawNodeCanvas() {
                             boundaryPinId((int)(cur->inputDefs.size() + j)),
                             /*isSource=*/false);
 
-  // Wires — boundary-sentinel sides resolve to the boundary items' pins.
-  // V2: TiXL DrawConnection.cs:32-42 — link color = ConnectionLines variation (b1,s1,op0.8)
-  // of the type's base color; selected/hovered uses OperatorLabel variation (brighter) + 2px.
+  // Wires — boundary sides resolve to boundary pins. V2 color: TiXL DrawConnection.cs:32-42.
+  std::vector<std::pair<int, ImU32>> arrowDraws;  // (input pin id, color) for the arrow pass below
   for (const sw::SymbolConnection& w : cur->connections) {
     int from = pinOfSlot(w.srcChild, w.srcSlot, /*isInput=*/false);
     int to = pinOfSlot(w.dstChild, w.dstSlot, /*isInput=*/true);
@@ -203,22 +203,22 @@ void drawNodeCanvas() {
     uint64_t lid = linkIdOf(from, to);
     bool sel = ed::IsLinkSelected(lid) || (int)ed::GetHoveredLink().Get() == (int)lid;
     std::string dt = pinInfoOf(from).dataType;
-    // Idle-fade signal (TiXL DrawConnection.cs:35): idleFadeProgress =
-    //   RemapAndClamp(SourceOutput.DirtyFlag.FramesSinceLastUpdate, 0, 100, 1, 0).
-    // We use the SAME per-source-node idle signal that drives node backgrounds
-    // (framecook::residentNodeLastUpdatePass = max lastUpdatePass across the source node's
-    // outputs = TiXL's SourceOutput.DirtyFlag at node granularity). 1.0=just-updated, 0.0=long-idle.
+    // Idle-fade (TiXL DrawConnection.cs:35): RemapAndClamp(FramesSinceLastUpdate,0,100,1,0).
     const std::string srcPath = doc::residentPathFor(w.srcChild);
     const uint32_t curPass  = framecook::currentFrameIndex();
     const uint32_t lastPass = framecook::residentNodeLastUpdatePass(srcPath.c_str());
     const float framesSince = (curPass >= lastPass) ? (float)(curPass - lastPass) : 0.0f;
-    float idleFadeProgress = 1.0f - (framesSince / 100.0f);  // Remap 0..100 -> 1..0
-    if (idleFadeProgress < 0.0f) idleFadeProgress = 0.0f;
-    if (idleFadeProgress > 1.0f) idleFadeProgress = 1.0f;
+    float idleFadeProgress = std::clamp(1.0f - (framesSince / 100.0f), 0.0f, 1.0f);  // 0..100 -> 1..0
     ImU32 lcol = sw::ui::connectionLineColor(dt, sel, idleFadeProgress);
     float lthick = sw::ui::connectionThickness(sel, idleFadeProgress);  // TiXL DrawConnection.cs:170
     ed::Link(lid, from, to, ImGui::ColorConvertU32ToFloat4(lcol), lthick);
+    arrowDraws.push_back({to, lcol});
   }
+  // Connection arrows (TiXL DrawConnection.cs:226-231 RightToLeft): triangle at each wire's input
+  // terminus, pointing into the slot. Suspend → screen space, on top of nodes/wires.
+  ed::Suspend();
+  for (auto& a : arrowDraws) sw::ui::drawConnectionArrow(a.first, a.second);
+  ed::Resume();
 
   // Annotation frames (批B/C): drawn + interacted over the canvas via ed::Suspend/Resume (fork-G,
   // see annotation_draw.cpp). Placed after the node/wire draw so its InvisibleButtons can claim

@@ -17,4 +17,13 @@ void drawChild(const sw::SymbolChild& child);
 // id scheme (negative ed node ids; boundary pins ride a high disjoint band, see editor_ui).
 void drawBoundaryDef(const sw::SlotDef& def, int edNodeId, int pinId, bool isSource);
 
+// Connection-arrow overlay (TiXL MagGraphCanvas.DrawConnection.cs:226-231, RightToLeft style):
+// a small filled triangle at the wire's TARGET (input) end, apex pointing RIGHT along the wire
+// into the input slot. node_draw records each input pin's left-edge anchor (the wire terminus)
+// as it lays pins out; the canvas wire loop then draws the arrow in the connection's color.
+// clearConnectionArrowAnchors() resets the per-frame map (call once before drawing children).
+// Both halves live in ui (no verify/app dependency); color is an ImU32 packed RGBA.
+void clearConnectionArrowAnchors();
+void drawConnectionArrow(int inputPinId, unsigned int color);  // no-op if anchor unknown this frame
+
 }  // namespace sw::ui
