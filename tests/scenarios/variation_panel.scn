@@ -8,6 +8,14 @@
 # RED face: flip the final `assert_state ... length == 0` to `>= 1` -> must go RED (Delete really
 # emptied the slot; the pool state machine is live, not a paint).
 
+# The Variation window is a tool window — opened on demand from the toolbar (TiXL-style), NOT pinned
+# over the canvas (an always-open panel ate canvas clicks under it; the load-position hit-test
+# regression). Click the toolbar "Vary" toggle to open it before driving its widgets.
+do click @toggle_vary
+wait 0.3
+assert_map_has var_slot_1
+echo opened-variation-panel
+
 # --- GRAB slot 1: capture the live composition's Float overrides into pool slot 1 ---
 do click @var_slot_1
 wait 0.4

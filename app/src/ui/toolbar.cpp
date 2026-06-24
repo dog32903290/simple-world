@@ -2,7 +2,9 @@
 // from editor_ui (one file one duty: editor_ui = canvas, this = the floating toolbar).
 // Zone: ui. Depends on app(document/command/audio) + runtime + verify(thin hook).
 #include "ui/annotation_draw.h"  // resetAnnotationGesture (N3 hygiene)
+#include "ui/asset_browser.h"    // assetBrowserVisible (toolbar toggle; default-off tool window)
 #include "ui/editor_ui.h"
+#include "ui/variation_panel.h"  // variationPanelVisible (toolbar toggle; default-off tool window)
 
 #include <memory>
 #include <string>
@@ -107,6 +109,18 @@ void drawToolbar() {
     }
     ImGui::EndPopup();
   }
+  // Tool-window toggles (TiXL-style: tool windows are opened on demand, NOT pinned over the graph).
+  // Both default OFF — an always-open panel over the canvas eats every click/right-click under it,
+  // killing coordinate hit-test for the nodes it covers (the load-position regression). The button
+  // label carries a ▸/▾ open-state hint; the eye key stays stable so the hand can toggle it.
+  ImGui::SameLine();
+  if (ImGui::Button(assetBrowserVisible() ? "Assets*" : "Assets"))
+    assetBrowserVisible() = !assetBrowserVisible();
+  sw::eye::recordItem("toggle_assets");
+  ImGui::SameLine();
+  if (ImGui::Button(variationPanelVisible() ? "Vary*" : "Vary"))
+    variationPanelVisible() = !variationPanelVisible();
+  sw::eye::recordItem("toggle_vary");
   // Audio input device picker (Ableton-style): list the machine's inputs and route
   // capture to the chosen one. ui -> app(audio_settings) -> platform; the pick persists.
   ImGui::SetNextItemWidth(240.0f);

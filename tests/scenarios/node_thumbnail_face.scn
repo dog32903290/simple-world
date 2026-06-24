@@ -32,6 +32,11 @@ assert_map '([.items[]? | select(.label == "thumb:5")] | length) == 0'
 echo non-image-node-5-has-no-thumb
 
 # --- 2. click the perlin asset -> a LoadImage (Texture2D out) is created in Root as id 7 ---
+# The Asset Library is a tool window — opened on demand from the toolbar (TiXL-style), NOT pinned
+# over the canvas (an always-open panel ate canvas clicks under it; the load-position hit-test
+# regression). Click the toolbar "Assets" toggle to open it before clicking an asset row.
+do click @toggle_assets
+wait 0.3
 assert_map_has asset:Lib:images/basic/perlin-noise-rgb.png
 do click @asset:Lib:images/basic/perlin-noise-rgb.png
 wait 0.5

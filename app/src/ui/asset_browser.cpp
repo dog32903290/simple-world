@@ -46,12 +46,25 @@ bool createLoadOpForAsset(const std::string& key) {
 
 }  // namespace
 
+bool& assetBrowserVisible() {
+  static bool g_visible = false;  // default OFF: opened on demand from the toolbar, never over canvas
+  return g_visible;
+}
+
 void drawAssetBrowser() {
+  if (!assetBrowserVisible()) return;  // closed: the canvas underneath keeps every click
   if (!g_loaded) rebuildAvailable();
 
   const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + 12.0f, vp->WorkPos.y + 360.0f),
-                          ImGuiCond_FirstUseEver);
+  // RIGHT-edge column (below the Inspector), NOT over the canvas. An always-open floating panel
+  // spawned over the left of the graph (the old +12,+360 default) sat ON TOP of nodes that load
+  // there (compound_smoke's node:1/node:2 at canvas x≈120) and ate every canvas click/right-click
+  // aimed at them — coordinate hit-test silently dead. TiXL keeps these tool windows docked at the
+  // screen edge, clear of the graph; we mirror that by stacking on the right where the Inspector
+  // (WorkSize.x-320, y+24, h≈180) already lives. FirstUseEver: the user can still drag it anywhere.
+  ImGui::SetNextWindowPos(
+      ImVec2(vp->WorkPos.x + vp->WorkSize.x - 320.0f, vp->WorkPos.y + 216.0f),
+      ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(300.0f, 280.0f), ImGuiCond_FirstUseEver);
   ImGui::Begin("Asset Library");
 

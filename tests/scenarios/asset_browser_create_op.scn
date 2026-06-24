@@ -23,6 +23,12 @@ open app/testdata/compound_smoke.swproj
 assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
 echo baseline-root-has-6-children
 
+# The Asset Library is a tool window — opened on demand from the toolbar (TiXL-style), NOT pinned
+# over the canvas (an always-open panel ate canvas clicks under it; the load-position hit-test
+# regression). Click the toolbar "Assets" toggle to open it before listing/clicking rows.
+do click @toggle_assets
+wait 0.3
+
 # --- 1. The browser lists the available Lib: assets (the two committed parity PNGs) ---
 assert_map_has asset:Lib:images/basic/perlin-noise-rgb.png
 assert_map_has asset:Lib:images/basic/test-2x2-rgba.png

@@ -11,7 +11,14 @@
 // directly or the cook core).
 namespace sw::ui {
 
+// Window visibility (default OFF). An always-open floating panel over the canvas eats every
+// canvas click/right-click under it (coordinate hit-test goes dead for the nodes it covers — the
+// load-position regression). Like a TiXL tool window, it is opened ON DEMAND from the toolbar
+// rather than pinned over the graph. The toolbar "Assets" button toggles this.
+bool& assetBrowserVisible();
+
 // Draw the floating Asset Library window. Call once per frame alongside drawToolbar / drawInspector.
+// No-op when assetBrowserVisible() is false (the canvas underneath stays fully clickable).
 void drawAssetBrowser();
 
 }  // namespace sw::ui
