@@ -189,6 +189,15 @@ class VariationPool {
   const std::vector<Variation>& allVariations() const { return all_; }
   size_t size() const { return all_.size(); }
 
+  // Append a fully-formed Variation (the JSON-load sink, variation_pool_json.h). Unlike
+  // createOrUpdateSnapshot (which CAPTURES from live child state), adopt takes a Variation that already
+  // carries its parameterSets — a deserialized snapshot. nextId_ advances past an adopted id so a later
+  // captured snapshot can't collide with a loaded one (monotonic id floor, like the graph child ids).
+  void adopt(Variation v) {
+    if (v.id >= nextId_) nextId_ = v.id + 1;
+    all_.push_back(std::move(v));
+  }
+
  private:
   std::vector<Variation> all_;
   uint64_t nextId_ = 1;

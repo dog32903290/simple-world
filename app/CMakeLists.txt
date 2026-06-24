@@ -159,6 +159,8 @@ add_executable(simple_world
   src/app/graph_commands.cpp
   src/app/graph_commands_selftest.cpp
   src/app/variation_apply.cpp  # Lane L1 (Variation): document-override bridge + --selftest-variation-apply
+  src/app/variation_mix_selftest.cpp        # L1 (Variation): N-way per-type Mix golden (--selftest-variation-mix)
+  src/app/variation_pool_json_selftest.cpp  # L1 (Variation): JSON pool round-trip golden (--selftest-variation-pool-json)
   src/app/animation_commands.cpp
   src/app/animation_commands_selftest.cpp
   src/app/animation_commands_selftest_s6.cpp

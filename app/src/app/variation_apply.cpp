@@ -7,8 +7,11 @@
 #include <cmath>
 #include <cstdio>
 
+#include <vector>
+
 #include "app/graph_commands.h"     // SetOverrideCommand
 #include "runtime/variation_crossfader.h"  // VariationCrossfader (NIT 2 proof)
+#include "runtime/variation_mix.h"         // mixFloat / MixNeighbour (N-way Mix)
 #include "runtime/variation_pool.h"        // VariationPool / SnapshotChildState (NIT 2 proof)
 #include "runtime/selftest_registry.h"     // REGISTER_SELFTESTS
 
@@ -58,6 +61,55 @@ std::unique_ptr<MacroCommand> buildBlendTowardsVariationCommand(SymbolLibrary& l
         continue;  // untracked AND at default -> no command (TiXL emits nothing for this input)
       }
 
+      macro->add(std::make_unique<SetOverrideCommand>(lib, compositionSymbolId, child.id, in.id,
+                                                      hadOld, oldV, mixed));
+    }
+  }
+  return macro;
+}
+
+std::unique_ptr<MacroCommand> buildNWayMixCommand(SymbolLibrary& lib,
+                                                  const std::string& compositionSymbolId,
+                                                  const std::vector<DocMixNeighbour>& neighbours) {
+  auto macro = std::make_unique<MacroCommand>("Mix snapshots");
+  Symbol* comp = lib.find(compositionSymbolId);
+  if (!comp) return macro;  // missing composition -> empty macro, caller skips push
+
+  // foreach child / foreach Float input slot — same traversal as the 2-way cousin (only Float slots
+  // carry a BlendMethod; vec inputs are already split into per-component Float slots, fork-vec-as-
+  // float-slots). For each slot we build the N-way mixFloat over the neighbours and emit one override.
+  for (const SymbolChild& child : comp->children) {
+    const Symbol* def = lib.find(child.symbolId);
+    if (!def) continue;
+
+    for (const SlotDef& in : def->inputDefs) {
+      if (in.dataType != "Float") continue;
+
+      const float current = effectiveInput(lib, child, in.id, in.def);  // missing-neighbour fallback
+
+      // Gather one MixNeighbour per neighbour: present iff that snapshot tracks (childId, slotId);
+      // missing → present=false → mixFloat substitutes `current` AT this neighbour's weight (faithful
+      // to TiXL Mix's matchingParam = param.InputSlot.Input.Value fallback). `anyTracked` records
+      // whether at least one neighbour carries this slot — drives the skip below.
+      std::vector<MixNeighbour> nbs;
+      nbs.reserve(neighbours.size());
+      bool anyTracked = false;
+      for (const DocMixNeighbour& dn : neighbours) {
+        const float* tracked = dn.snapshot.find(child.id, in.id);
+        if (tracked) anyTracked = true;
+        nbs.push_back(MixNeighbour{tracked ? *tracked : current, dn.weight, tracked != nullptr});
+      }
+
+      const bool hasOverride = child.overrides.count(in.id) > 0;
+      // Skip a slot NO neighbour tracks AND that has no override: every neighbour contributes `current`
+      // at its weight → the normalized average is exactly `current` → writing it would be a no-op
+      // override (and on a degenerate all-zero-weight set mixFloat returns current too). No dead command
+      // — same discipline as the 2-way cousin skipping untracked-at-default inputs.
+      if (!anyTracked && !hasOverride) continue;
+
+      const float mixed = mixFloat(nbs, current);
+      const bool hadOld = hasOverride;
+      const float oldV = hasOverride ? child.overrides.at(in.id) : in.def;
       macro->add(std::make_unique<SetOverrideCommand>(lib, compositionSymbolId, child.id, in.id,
                                                       hadOld, oldV, mixed));
     }

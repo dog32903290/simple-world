@@ -45,6 +45,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "app/command.h"
 #include "runtime/compound_graph.h"
@@ -82,6 +83,30 @@ struct DocVariation {
 std::unique_ptr<MacroCommand> buildBlendTowardsVariationCommand(SymbolLibrary& lib,
                                                                 const std::string& compositionSymbolId,
                                                                 const DocVariation& target, float weight);
+
+// One neighbour of an N-way Mix at the DOCUMENT layer: a snapshot (in the document's float-per-slot
+// vocabulary) + its blend weight. Mirror of TiXL ExplorationVariation.Mix's (neighbour, weight) tuples
+// (ExplorationVariation.cs:67) lifted to the document-override path. A neighbour that does NOT track a
+// given (childId, slotId) is the MISSING-NEIGHBOUR case: faithful to TiXL it contributes the CURRENT
+// value (effectiveInput) at its weight, NOT 0 — exactly what mixFloat's `present` flag models.
+struct DocMixNeighbour {
+  DocVariation snapshot;  // this neighbour's stored values (sparse — find() returns nullptr if absent)
+  float weight = 0.0f;    // this neighbour's blend weight
+};
+
+// Build the undo-able "Mix snapshots" MacroCommand — the N-way per-type weighted-average cousin of
+// buildBlendTowardsVariationCommand (TiXL ExplorationVariation.Mix, ExplorationVariation.cs:66-191).
+// For every Float input slot of every child of `compositionSymbolId`, compute the normalized weighted
+// average Σ(v·w)/Σw over the N neighbours via runtime mixFloat (with the missing-neighbour=currentValue
+// fallback), and add a SetOverrideCommand applying it as a document override (readable back through
+// effectiveInput, undo-able). A slot that NO neighbour tracks AND that has no override is skipped (the
+// Mix of "all-current at their weights" equals current → no-op → no dead command, 照 the 2-way cousin's
+// untracked-at-default skip). `fork-vec-as-float-slots`: sw's vec inputs are per-component Float slots,
+// so each component blends as its own Float slot — same fork as the 2-way cousin, no separate vec path.
+// Returns an empty MacroCommand if the composition is missing or nothing blends (caller checks empty()).
+std::unique_ptr<MacroCommand> buildNWayMixCommand(SymbolLibrary& lib,
+                                                  const std::string& compositionSymbolId,
+                                                  const std::vector<DocMixNeighbour>& neighbours);
 
 // Headless RED->GREEN proof of the document-override bridge (--selftest-variation-apply):
 //   (1) a crossfade at weight=0.5 lands the correct Lerp midpoint AS A DOCUMENT OVERRIDE readable back

@@ -98,4 +98,62 @@ inline float mixFloat(const std::vector<MixNeighbour>& neighbours,
   return value;
 }
 
+// ── Typed N-way Mix (per TiXL ExplorationVariation.cs Vector2/3/4 branches :108-184) ─────────────
+// Each Mix branch in TiXL is structurally IDENTICAL to the float branch — the same Σ(v·w)/Σw with the
+// same missing-neighbour fallback (`matchingParam = param.InputSlot.Input.Value`, the CURRENT value).
+// Only the accumulator's component count differs. So the typed overloads reuse mixFloat per component:
+// component i blends over each neighbour's component-i value (or currentValue[i] when that neighbour is
+// missing), and the SAME per-neighbour weight + present flag drive every component (faithful to TiXL,
+// where the whole vector — not a single component — is missing or present as one unit).
+//
+// VEC NEIGHBOUR: one neighbour's contribution to an N-component vector parameter — `value[0..n-1]`,
+// one `weight`, one `present` flag (a vector is present/missing as a unit, like the TiXL TryGetValue).
+struct MixNeighbourVec {
+  float value[4] = {0, 0, 0, 0};
+  float weight = 0.0f;
+  bool present = true;  // false → use currentValue[] for every component (missing-neighbour fallback)
+};
+
+namespace detail {
+// Blend one component `comp` of an N-vec by reusing mixFloat: lift each MixNeighbourVec to a scalar
+// MixNeighbour carrying that component (or currentValue[comp] when absent). Identical normalize +
+// fallback as the float Mix — the typed overloads are pure projections of mixFloat, no new math.
+inline float mixVecComponent(const std::vector<MixNeighbourVec>& neighbours,
+                             const float currentValue[4], int comp) {
+  std::vector<MixNeighbour> proj;
+  proj.reserve(neighbours.size());
+  for (const MixNeighbourVec& nb : neighbours)
+    proj.push_back(MixNeighbour{nb.value[comp], nb.weight, nb.present});
+  return mixFloat(proj, currentValue[comp]);
+}
+}  // namespace detail
+
+// Vec2/Vec3/Vec4 N-way weighted average — TiXL ExplorationVariation.cs Vector2/3/4 Mix branches.
+// `out`/`currentValue` are [2]/[3]/[4]; the missing-neighbour fallback substitutes currentValue per
+// component AT the neighbour's weight (never 0), exactly as the float Mix above.
+inline void mixVec2(const std::vector<MixNeighbourVec>& neighbours, const float currentValue[2],
+                    float out[2]) {
+  for (int c = 0; c < 2; ++c) out[c] = detail::mixVecComponent(neighbours, currentValue, c);
+}
+inline void mixVec3(const std::vector<MixNeighbourVec>& neighbours, const float currentValue[3],
+                    float out[3]) {
+  for (int c = 0; c < 3; ++c) out[c] = detail::mixVecComponent(neighbours, currentValue, c);
+}
+inline void mixVec4(const std::vector<MixNeighbourVec>& neighbours, const float currentValue[4],
+                    float out[4]) {
+  for (int c = 0; c < 4; ++c) out[c] = detail::mixVecComponent(neighbours, currentValue, c);
+}
+
+// int N-way Mix. FAITHFUL-EXTENSION (named): TiXL's Mix() loop itself has NO int branch (only
+// float/vec2/vec3/vec4 — ExplorationVariation.cs:87-184), but ValueUtils.cs:72-80 defines the int
+// blend method as `(int)MathUtils.Lerp((float)a,(float)b,t)` — truncating. We carry the int Mix the
+// SAME way the snapshot crossfader already truncates (variation_pool.h VariationValue int): accumulate
+// the normalized weighted average in float (Σ(v·w)/Σw, same missing-neighbour fallback), then TRUNCATE
+// to int once at the end — matching TiXL's int Lerp truncation discipline. Single truncation at the
+// end, not per-term, so the average is computed exactly before flooring (no intermediate rounding).
+inline int mixInt(const std::vector<MixNeighbour>& neighbours, int currentValue) {
+  const float avg = mixFloat(neighbours, static_cast<float>(currentValue));
+  return static_cast<int>(avg);  // truncating, per TiXL ValueUtils int BlendMethod (verbatim cast)
+}
+
 }  // namespace sw
