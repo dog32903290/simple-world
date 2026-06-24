@@ -509,10 +509,9 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
         const RenderResolution savedReq = p_->requestedResolution;
         if (n->opType == "SetRequestedResolution")
           p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(path), savedReq);
-        // S3a context-var scope (resident mirror of the flat leg — the S2c blood-lesson leg, production
-        // runs THIS). Same TiXL SetFloatVar.cs:26-45 push/restore around the SubGraph; varName off the
-        // resident ResidentNode::strInputs String channel (NOT a float). Inactive (no-op) when ctxVars is
-        // null, the node isn't a writer, or -bug skips the write.
+        // S3a context-var scope (resident mirror — the S2c blood-lesson leg, production runs THIS). Same
+        // TiXL SetFloatVar.cs:26-45 push/restore around the SubGraph; varName off ResidentNode::strInputs.
+        // Inactive no-op when ctxVars null / not a writer / -bug skips the write.
         CmdVarScope varScope;
         if (!setVarBugSkipWrite() && isCmdContextVarWriter(n->opType)) {
           std::string varName;
@@ -521,25 +520,21 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
           varScope = cmdVarPush(n->opType, *nodeParams(path), varName, ctxVars);
         }
         // C1 ACTIVE-CAMERA scope (resident mirror — production runs THIS leg; CAMERA3D_BLUEPRINT §1 HARD GATE).
-        // A resident-only miss here = resident point ops read the default camera under a wired Camera = a prod-
-        // only black-hole (S2c). Same resolveActiveCamera + LiveCameraScope as the flat leg; the resolved float
-        // map comes from the resident nodeParams(path) (identical shape to the flat Node::params).
+        // A resident-only miss = resident point ops read the default under a wired Camera = a prod-only black-
+        // hole (S2c). Same resolveActiveCamera + LiveCameraScope as flat; map from resident nodeParams(path).
         ActiveCamera activeCam;
         if (!cameraScopeBugSkipPush() && isCameraScopeWriter(n->opType))
           activeCam = resolveActiveCamera(*nodeParams(path));
         {
           // S3b LIVE-READ scope (resident mirror — production runs THIS leg): ctxVars is the ambient live map
           // WHILE the SubGraph cooks, so a value-rail GetFloatVar driving a SubGraph node's param re-resolves
-          // LIVE. Engages only on an active writer push; else no-op (leaves the enclosing scope, if any).
+          // LIVE. Engages only on an active writer push; else no-op.
           LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
           LiveCameraScope liveCam(activeCam);  // C1: active camera live for the SubGraph cook (point rail reads it)
           const ResidentInput* ri = n->input(port.id);
           if (n->opType == "Switch") {
-            // S3b Switch SUB-SELECT (resident mirror — production runs THIS leg). ★§3 OFF-BY-ONE TRAP:
-            // resident wires are stored as PRIMARY (ri->srcNodePath = wire 0) + extraConns (wires 1..N), so
-            // the wired list MUST be built primary-FIRST then extraConns to match the flat collector's wire
-            // order. Building it the wrong way (extraConns first, or primary appended last) selects the wrong
-            // branch. The selection math is the SAME switchSelectIndex() the flat leg calls — single source.
+            // S3b Switch SUB-SELECT (resident mirror — production runs THIS leg). ★§3 OFF-BY-ONE TRAP: build
+            // srcPaths primary-FIRST (ri->srcNodePath) then extraConns to match the flat wire order.
             std::vector<std::string> srcPaths;  // wire-declaration order: [primary] + extraConns
             if (ri && ri->driver == ResidentInput::Driver::Connection) {
               srcPaths.push_back(ri->srcNodePath);                       // wire 0 = primary
@@ -562,8 +557,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
             }
           } else if (n->opType == "Loop") {
             // S3c Loop RE-COOK (resident mirror — production runs THIS leg). Same loopRunIterations() the flat
-            // leg calls: cook the single wired SubGraph `Count` times, per-iteration var write + live scope +
-            // concat. The wired source is the primary wire (ri->srcNodePath); the leg re-cooks it each call.
+            // leg calls: cook the single wired SubGraph `Count` times, per-iter var write + live scope + concat.
+            // Wired source = primary wire (ri->srcNodePath); re-cooked each call.
             std::string subPath;
             if (ri && ri->driver == ResidentInput::Driver::Connection) subPath = ri->srcNodePath;
             int count = 0;
@@ -579,9 +574,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
           } else if (n->opType == "ExecRepeatedly") {
             // S3c ExecRepeatedly RE-COOK (resident mirror — production runs THIS leg). Same
             // execRepeatedlyRunRepetitions() the flat leg calls: cook the MultiInput wires `RepeatCount`
-            // (clamped [0,100]) times, concatenating each repetition. ★§3 wire order: resident wires are
-            // PRIMARY (ri->srcNodePath) + extraConns (wires 1..N) — gather primary-FIRST then extraConns to
-            // match the flat collector's wire order (same trap Switch flags). SkipFrameCount=0 path.
+            // (clamped [0,100]) times, concatenating each repetition. ★§3 wire order: primary-FIRST then
+            // extraConns (same trap Switch flags). SkipFrameCount=0 path.
             std::vector<std::string> srcPaths;  // wire-declaration order: [primary] + extraConns
             if (ri && ri->driver == ResidentInput::Driver::Connection) {
               srcPaths.push_back(ri->srcNodePath);                                  // wire 0 = primary
@@ -623,6 +617,12 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     cc.inputCommand = haveInCmd ? &inCmd : nullptr;
     cc.ctxVars = ctxVars;  // S3a: SubGraph Command ops read the scoped var off this (resident leg)
     cc.params = nodeParams(path);
+    // CAMERA bridge (resident mirror — PRODUCTION runs THIS leg; the S2c flat-resident gate): surface the
+    // C1 live Camera onto cc so RotateTowards FORK#2 reads it. IDENTICAL to the flat leg's populate.
+    if (const ActiveCamera* lc = liveActiveCamera()) {
+      cc.hasCamera = true;
+      activeCameraMatrices(*lc, cc.worldToCamera, cc.cameraToWorld);
+    }
     return cm->second(cc);
   };
 

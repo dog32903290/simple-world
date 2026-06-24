@@ -462,17 +462,14 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
         const Connection* c = g.connectionToInput(pinId(id, (int)i));
         if (c) inTex = cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100);
       } else if (port.dataType == "Command" && !haveInCmd) {
-        // S2a KEYSTONE — MultiInput Command collector (TiXL Execute.cs CollectedInputs; full doc in
-        // point_ops_execute.cpp): concat N wired chains in wire order → the render island composes. S1:
-        // SetRequestedResolution pushes requestedResolution around the subtree (save/restore stops a leak).
+        // S2a KEYSTONE — MultiInput Command collector (TiXL Execute.cs; full doc in point_ops_execute.cpp):
+        // concat N wired chains in wire order. S1: SetRequestedResolution pushes resolution (save/restore).
         const RenderResolution savedReq = p_->requestedResolution;
         if (n->type == "SetRequestedResolution")
           p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(id), savedReq);
         // S3a context-var scope (TiXL SetFloatVar.cs:26-45 SubGraph branch): push the scoped var into
-        // ctxVars BEFORE cooking the subtree, restore AFTER — identical shape to the savedReq guard above.
-        // varName comes off the flat Node::strParams String channel (NOT smuggled through a float). When
-        // ctxVars is null (~243 golden callers), the node isn't a writer, or -bug skips the write, the
-        // scope is inactive (no-op restore).
+        // ctxVars BEFORE cooking the subtree, restore AFTER (same shape as the savedReq guard). varName off
+        // Node::strParams. Inactive no-op when ctxVars null / not a writer / -bug skips the write.
         CmdVarScope varScope;
         if (!setVarBugSkipWrite() && isCmdContextVarWriter(n->type)) {
           std::string varName;
@@ -493,10 +490,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
           // Engages only when varScope is active (a real writer push happened); else no-op (leaves outer scope).
           LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
           LiveCameraScope liveCam(activeCam);  // C1: active camera live for the SubGraph cook (point rail reads it)
-          // S3b Switch SUB-SELECT (TiXL flow/Switch.cs): gather the wired source node ids in WIRE ORDER first,
-          // then cook ONLY the index-th (wrap/negative-safe), -2=all, -1/empty=none. The selection is a
-          // cook-core hook here in the SAME collector branch — Execute concats ALL, Switch sub-selects. Non-
-          // Switch ops keep the verbatim concat-all (single-input/-bug collapse via the break) below.
+          // S3b Switch SUB-SELECT (TiXL flow/Switch.cs): gather wired sources in WIRE ORDER, then cook ONLY
+          // the index-th (wrap/negative-safe; -2=all, -1/empty=none). Execute concats ALL, Switch sub-selects;
+          // non-Switch ops keep the verbatim concat-all (single-input/-bug collapse via the break) below.
           if (n->type == "Switch") {
             std::vector<int> srcIds;  // wired Command sources, wire-declaration order (== Switch.cs CollectedInputs)
             for (const Connection& c : g.connections) {
@@ -517,9 +513,8 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
               inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
             }
           } else if (n->type == "Loop") {
-            // S3c Loop RE-COOK (TiXL flow/Loop.cs): cook the single wired SubGraph `Count` times, each
-            // iteration writing index/progress into ctxVars first (loopRunIterations owns the for-loop +
-            // live scope + concat). The leg supplies cookOneIteration = re-cook the wired source fresh.
+            // S3c Loop RE-COOK (TiXL flow/Loop.cs): cook the single wired SubGraph `Count` times, each iter
+            // writing index/progress into ctxVars (loopRunIterations owns the for-loop + live scope + concat).
             int subId = -1;
             for (const Connection& c : g.connections)
               if (c.toPin == pinId(id, (int)i)) { subId = pinNode(c.fromPin); break; }  // single-input source
@@ -530,10 +525,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
             loopRunIterations(count, iVar, pVar, ctxVars, inCmd,
                               [&]() { return subId >= 0 ? cookCommand(subId) : RenderCommand{}; });
           } else if (n->type == "ExecRepeatedly") {
-            // S3c ExecRepeatedly RE-COOK (TiXL flow/ExecRepeatedly.cs): cook the MultiInput wires
-            // `RepeatCount` (clamped [0,100]) times, concatenating each repetition (no var injection — the
-            // Loop sibling). Gather the wired sources in wire order, then execRepeatedlyRunRepetitions owns
-            // the repeat loop + concat (shared flat+resident). SkipFrameCount=0 path (the .t3 default).
+            // S3c ExecRepeatedly RE-COOK (TiXL flow/ExecRepeatedly.cs): cook the MultiInput wires `RepeatCount`
+            // (clamped [0,100]) times, concatenating each repetition (no var injection — the Loop sibling).
+            // execRepeatedlyRunRepetitions owns the repeat loop + concat. SkipFrameCount=0 path (.t3 default).
             std::vector<int> srcIds;  // wired Command sources, wire-declaration order
             for (const Connection& c : g.connections)
               if (c.toPin == pinId(id, (int)i)) srcIds.push_back(pinNode(c.fromPin));
@@ -569,6 +563,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     cc.ctxVars = ctxVars;  // S3a: a Command op cooked in a SubGraph reads the scoped var off this
     cc.meshVtx = inMeshVtx; cc.meshIdx = inMeshIdx; cc.meshFaceCount = inMeshFaces;
     cc.params = nodeParams(id);
+    // CAMERA bridge: surface the C1 live Camera (set around an enclosing Camera's SubGraph cook, so a
+    // Command op cooked inside it sees this) onto cc → RotateTowards FORK#2 reads it. MIRRORED on resident.
+    if (const ActiveCamera* lc = liveActiveCamera()) {
+      cc.hasCamera = true;
+      activeCameraMatrices(*lc, cc.worldToCamera, cc.cameraToWorld);
+    }
     RenderCommand out = cm->second(cc);
     cmdVisiting.erase(id);  // pop: this node is no longer on the command stack
     return out;

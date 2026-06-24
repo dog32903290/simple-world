@@ -140,37 +140,37 @@ struct CmdCookCtx {
   int nodeId = 0;
   const MTL::Buffer* points = nullptr;  // upstream point bag (buffer flow already cooked)
   uint32_t count = 0;                   // upstream point count
-  // First wired Texture2D input (FORK#1, the Command-path texture gather): the cook driver cooks
-  // the upstream tex op (RenderTarget/Blur) into ITS own texture and hands the result here. A
-  // command op that draws a texture (DrawScreenQuad) borrows this ptr into its RenderDrawItem;
-  // point-only command ops (DrawPoints) ignore it. null when no Texture2D input is wired. Borrowed
-  // (PointGraph-owned, single-frame) — NEVER retained, same lifetime contract as `points`. Mirrors
-  // TexCookCtx::inputTexture (the Texture2D flow's gather) but on the Command flow.
+  // First wired Texture2D input (FORK#1, the Command-path texture gather): the cook driver cooks the
+  // upstream tex op (RenderTarget/Blur) into ITS own texture and hands the result here. DrawScreenQuad
+  // borrows it; point-only ops (DrawPoints) ignore it. null when unwired. Borrowed/single-frame, NEVER
+  // retained (same contract as `points`). Mirrors TexCookCtx::inputTexture but on the Command flow.
   const MTL::Texture* inputTexture = nullptr;
   // First wired COMMAND input subtree (Camera op, Cut 3): a command op that wraps a Command subtree
-  // (TiXL Camera.Command input) gets the upstream chain cooked here. The cook driver gathers the
-  // node's Command input port by recursing into the upstream command node (mirrors inputTexture for
-  // the Texture2D-input command ops). null when no Command input is wired. Borrowed pointer into a
-  // driver-local RenderCommand (single-frame); the op may COPY its items (Camera stamps + re-emits).
-  // Point/Texture command ops (DrawPoints/DrawScreenQuad) leave it null → byte-identical path.
+  // (TiXL Camera.Command input) gets the upstream chain cooked here (the driver recurses the upstream
+  // command node, mirrors inputTexture). null when unwired. Borrowed pointer into a driver-local
+  // RenderCommand (single-frame); the op may COPY its items. Non-wrappers leave it null → byte-identical.
   const RenderCommand* inputCommand = nullptr;
   // S3a context-var bridge (flow seam): LIVE host var map (= TiXL EvaluationContext.Float/IntVariables),
   // threaded into EVERY command cook (mirrors inputCommand) so a Command-rail SetFloatVarCmd/SetIntVarCmd
-  // WRITES a scoped var around its SubGraph (push/restore in the driver's Command branch, same shape as S1's
-  // requestedResolution save/restore, point_graph.cpp:453-462). A Command op cooked inside the SubGraph reads
-  // cc.ctxVars->floatVars[name] (TiXL: SubGraph children read context.FloatVariables). SAME instance the
-  // value rail populated (prod threads frame_cook's s_ctxVars; order: value writers THEN this cook). null for
-  // ~243 golden callers. NAMED FORK (blueprint risk #3): value-rail GetFloatVar reads extOut, NOT this map.
+  // WRITES a scoped var around its SubGraph; a Command op cooked inside reads cc.ctxVars->floatVars[name].
+  // null for ~243 golden callers. NAMED FORK (#3): value-rail GetFloatVar reads extOut, NOT this map.
   ContextVarMap* ctxVars = nullptr;
-  // First wired MESH input (DrawMeshUnlit, the 4th cook flow as a draw consumer): the cook driver cooks
-  // the upstream mesh node (NGonMesh/QuadMesh) and hands its vertex+index buffers + face count here. A
-  // command op that draws a mesh (DrawMeshUnlit) borrows these into its DrawKind::Mesh item; every other
-  // command op leaves them null/0 → byte-identical path. Borrowed (PointGraph meshVtxBuf/meshIdxBuf,
-  // single-frame) — NEVER retained, same lifetime contract as `points`. Mirrors inputTexture/inputCommand.
+  // First wired MESH input (DrawMeshUnlit, the 4th cook flow): the cook driver cooks the upstream mesh node
+  // (NGonMesh/QuadMesh) and hands its vertex+index buffers + face count here. Borrowed/single-frame, NEVER
+  // retained (same contract as `points`); every non-mesh op leaves them null/0 → byte-identical.
   const MTL::Buffer* meshVtx = nullptr;   // upstream SwVertex buffer (null when no Mesh input wired)
   const MTL::Buffer* meshIdx = nullptr;   // upstream SwTriIndex buffer
   uint32_t meshFaceCount = 0;             // upstream FACE count (== SwTriIndex count); VS draws ×3
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
+  // CAMERA bridge (camera→CmdCookCtx, camera3d-remaining #1): the cook driver consults the C1
+  // LiveCameraScope (liveActiveCamera) at this cc-fill and surfaces the live Camera's matrices so a
+  // Command-rail op (RotateTowards FORK#2 / GetScreenPos / GetPosition) reads WorldToCamera/CameraToWorld
+  // instead of TiXL's default. ROW-MAJOR float[16] (mirrors PointCookCtx::objectToCamera/cameraToWorld).
+  // hasCamera=false (no Camera in scope) → every op that ignores them is byte-identical. POPULATED ON
+  // BOTH cook legs identically (the S2c flat-resident mirror gate — resident is production).
+  bool hasCamera = false;
+  float worldToCamera[16] = {0};  // == ObjectToCamera (identity O2W); LookAtRH(eye,target,up)
+  float cameraToWorld[16] = {0};  // inverse(WorldToCamera); camera WORLD pos = transform((0,0,0), this)
 };
 // A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.
 using PointCmdFn = RenderCommand (*)(CmdCookCtx&);

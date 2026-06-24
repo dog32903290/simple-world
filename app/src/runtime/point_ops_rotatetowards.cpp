@@ -39,12 +39,13 @@
 // nested under a translating Group sees the upstream offset via the item's already-stamped groupObjectToWorld
 // rather than via sourcePos. Faithful for the un-nested case; named for the nested one.
 //
-// ★FORK #2 — TowardsCamera mode (named, camera3d-coupled): TiXL's .t3 default LookTowards=0 = TowardsCamera,
-// which inverts context.WorldToCamera to find the camera world position. CmdCookCtx threads NO WorldToCamera
-// (the camera3d seam is not built), so we resolve the camera origin to TiXL's DEFAULT camera world position
-// (0,0,defaultCameraDistance()) — exactly where the un-overridden context.WorldToCamera places the eye
-// (field_camera.cpp default camera, GraphicsMath.cs:113-114). When a real camera3d push lands this becomes the
-// threaded WorldToCamera. The TowardsPosition mode is fully closed-form and is what the golden pins.
+// ★FORK #2 — TowardsCamera mode (RESOLVED — camera→CmdCookCtx bridge landed): TiXL's .t3 default
+// LookTowards=0 = TowardsCamera inverts context.WorldToCamera to find the camera world position. The
+// camera3d bridge now surfaces the C1 live Camera onto CmdCookCtx (c.hasCamera/c.cameraToWorld), so when a
+// Camera op is in scope this op transforms (0,0,0) by CameraToWorld = the camera world pos (parity with
+// RotateTowards.cs:11-13). NO Camera in scope → falls back to TiXL's DEFAULT camera world position
+// (0,0,defaultCameraDistance()), exactly where the un-overridden WorldToCamera places the eye (field_camera
+// default, GraphicsMath.cs:113-114). The TowardsPosition mode is fully closed-form; both modes goldened.
 #include "runtime/point_ops.h"
 
 #include <cmath>
@@ -113,10 +114,19 @@ RenderCommand cookRotateTowards(CmdCookCtx& c) {
   cookVecN(c, "RotationOffset", rotOffDef, 3, rotOff);
 
   float lookTowards = cookParam(c, "LookTowards", 0.0f);  // .t3 default 0 = TowardsCamera
-  // TowardsCamera (FORK #2): target = default camera world position (0,0,defaultCameraDistance()). Otherwise
-  // TowardsPosition: target = AlternativeTarget. (round() so an Enum slider value resolves to the integer mode.)
+  // TowardsCamera (FORK #2 — RESOLVED when a Camera is in scope): target = the camera WORLD position. TiXL
+  // (RotateTowards.cs:11-13) inverts context.WorldToCamera and transforms (0,0,0) → camera world pos. The
+  // camera→CmdCookCtx bridge surfaces the C1 live Camera here (c.hasCamera/c.cameraToWorld), so a wired
+  // Camera op upstream now steers RotateTowards. NO Camera in scope → fall back to TiXL's DEFAULT camera
+  // world position (0,0,defaultCameraDistance()), exactly where the un-overridden WorldToCamera places the
+  // eye (field_camera default, GraphicsMath.cs:113-114). (round() resolves an Enum slider to the int mode.)
   if ((int)(lookTowards + 0.5f) == 0) {
-    target[0] = 0.0f; target[1] = 0.0f; target[2] = defaultCameraDistance();
+    if (c.hasCamera) {
+      Mat4 c2w; for (int i = 0; i < 16; ++i) c2w.m[i] = c.cameraToWorld[i];
+      mat4TransformPointDivW(c2w, 0.0f, 0.0f, 0.0f, target);  // camera world pos = transform((0,0,0), C2W)
+    } else {
+      target[0] = 0.0f; target[1] = 0.0f; target[2] = defaultCameraDistance();
+    }
   }
 
   Mat4 m = rotateTowardsMatrix(target, rotOff);
