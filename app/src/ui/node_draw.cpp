@@ -261,12 +261,17 @@ void drawChild(const sw::SymbolChild& child, const sw::Symbol* parent) {
 }
 
 void drawBoundaryDef(const sw::SlotDef& def, int edNodeId, int pinId, bool isSource) {
-  // Dimmer than operator nodes — boundary items are plumbing, not operators (TiXL renders
-  // them as plain labelled boxes). Type-colored slot marker matches the wires it accepts.
-  ed::PushStyleColor(ed::StyleColor_NodeBg, ImVec4(0.13f, 0.13f, 0.16f, 0.9f));
-  ed::PushStyleColor(ed::StyleColor_NodeBorder, ImVec4(0.45f, 0.45f, 0.5f, 0.6f));
-  ed::PushStyleVar(ed::StyleVar_NodeRounding, 6.0f);
-  ed::PushStyleVar(ed::StyleVar_NodeBorderWidth, 1.0f);
+  // Boundary items are the subgraph's published input/output anchors. TiXL draws them with a
+  // distinctive convex-corner pentagon — NOT a plain rectangle — one corner angled toward the
+  // connection direction (MagGraphCanvas.DrawNode.cs:228-239, Output variant: an
+  // AddConvexPolyFilled of 5 points = a rect with the connection-side corner folded into a point).
+  // We suppress ed's default rect fill (transparent NodeBg) and paint the pentagon ourselves into
+  // the node's background draw list after EndNode, so the body reads like TiXL's boundary shape.
+  // Type-colored so the shape matches the wires it accepts.
+  ed::PushStyleColor(ed::StyleColor_NodeBg, ImVec4(0, 0, 0, 0));  // pentagon drawn manually below
+  ed::PushStyleColor(ed::StyleColor_NodeBorder, ImVec4(0, 0, 0, 0));
+  ed::PushStyleVar(ed::StyleVar_NodeRounding, 0.0f);
+  ed::PushStyleVar(ed::StyleVar_NodeBorderWidth, 0.0f);
   ed::BeginNode(edNodeId);
   const std::string& label = def.name.empty() ? def.id : def.name;
   ed::BeginPin(pinId, isSource ? ed::PinKind::Output : ed::PinKind::Input);
@@ -291,6 +296,54 @@ void drawBoundaryDef(const sw::SlotDef& def, int edNodeId, int pinId, bool isSou
   if (!isSource) recordInputPinAnchor(pinId, pa, pb);  // outputDef sink = a wire target
   ed::EndPin();
   ed::EndNode();
+
+  // TiXL boundary pentagon (MagGraphCanvas.DrawNode.cs:228-239). The body is a rectangle with ONE
+  // corner folded into a point toward the connection direction — a convex 5-gon, not a plain rect:
+  //   _inputIndicatorPoints[0..4] = { min, (0.9w,0), (0.9w + h/4, h/2), (0.9w,h), (0,h) }.
+  // ed's own rect fill was suppressed (transparent NodeBg above); we paint the pentagon ourselves.
+  //
+  // FORK (named): TiXL's MagGraph boundary items are fixed-width near-square cards, so its fold base
+  // at 0.9*width + apex h/4 reads as a clear point. Our boundary nodes are label-fitted (wide + short),
+  // where 0.9*width leaves only a sliver and the fold vanishes. To keep TiXL's INTENT — "fold the
+  // connection-side corner to a point" — we anchor the fold to the connection EDGE and make its depth
+  // height-proportional (foldDepth = h*0.6), apex at the edge midpoint. Same 5-point convex shape and
+  // same direction semantics as TiXL; only the base inset is edge-relative so it reads on a wide node.
+  ImVec2 npos = ed::GetNodePosition(edNodeId);
+  ImVec2 nsz2 = ed::GetNodeSize(edNodeId);
+  ImVec2 pMin = ed::CanvasToScreen(npos);
+  ImVec2 pMax = ed::CanvasToScreen(ImVec2(npos.x + nsz2.x, npos.y + nsz2.y));
+  const float h = pMax.y - pMin.y;
+  const float foldDepth = h * 0.6f;       // corner fold reach, height-proportional (reads at any width)
+  const float midY = (pMin.y + pMax.y) * 0.5f;
+  // Boundary fill: type-colored. Float boundary (Radius) is gray; a translucent body lets the label
+  // (drawn in the node content channel above) read through, while the SILHOUETTE — the folded corner
+  // — is what carries TiXL's pentagon shape. Drawn in the foreground via Suspend/Resume (screen space,
+  // same layer drawConnectionArrow uses) so the convex poly isn't eaten by the node-content channel.
+  ImU32 tc = typeColor(def.dataType);
+  ImU32 fill = (tc & 0x00FFFFFF) | (ImU32)(110) << 24;       // translucent tinted body (label shows through)
+  const ImU32 outline = (tc & 0x00FFFFFF) | (ImU32)(255) << 24;  // solid type-colored edge = the pentagon
+  ImVec2 pts[5];
+  if (isSource) {
+    // inputDef: wire LEAVES on the right → fold the RIGHT corner to a point (apex points right).
+    pts[0] = ImVec2(pMin.x, pMin.y);
+    pts[1] = ImVec2(pMax.x - foldDepth, pMin.y);
+    pts[2] = ImVec2(pMax.x, midY);          // apex at right edge midpoint
+    pts[3] = ImVec2(pMax.x - foldDepth, pMax.y);
+    pts[4] = ImVec2(pMin.x, pMax.y);
+  } else {
+    // outputDef: wire ARRIVES on the left → fold the LEFT corner to a point (apex points left).
+    pts[0] = ImVec2(pMax.x, pMin.y);
+    pts[1] = ImVec2(pMin.x + foldDepth, pMin.y);
+    pts[2] = ImVec2(pMin.x, midY);          // apex at left edge midpoint
+    pts[3] = ImVec2(pMin.x + foldDepth, pMax.y);
+    pts[4] = ImVec2(pMax.x, pMax.y);
+  }
+  ed::Suspend();
+  ImDrawList* fg = ImGui::GetWindowDrawList();  // screen space, above nodes (label content still on top)
+  fg->AddConvexPolyFilled(&pts[0], 5, fill);
+  fg->AddPolyline(&pts[0], 5, outline, ImDrawFlags_Closed, 1.5f);
+  ed::Resume();
+
   ed::PopStyleVar(2);
   ed::PopStyleColor(2);
   ImVec2 na = ed::CanvasToScreen(ed::GetNodePosition(edNodeId));

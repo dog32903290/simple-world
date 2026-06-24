@@ -1,0 +1,35 @@
+# boundary_pentagon.scn — boundary-node convex-corner pentagon shape (TiXL parity).
+# Enter a compound (EmitterComp node:1) so its published inputDef/outputDef render as boundary
+# items via node_draw drawBoundaryDef. Those boundary nodes are now drawn with TiXL's convex
+# pentagon (MagGraphCanvas.DrawNode.cs:228-239 AddConvexPolyFilled — one corner folded toward
+# the wire direction), NOT a plain rectangle. Ordinary operator children stay rectangular.
+#
+# Program-level tooth: after entering the compound (compositionPath == [1]) the canvas map
+# contains the boundary nodes — node:-1 (inputDef, edIdForInputDef(0)=-1) and node:-1001
+# (outputDef, edIdForOutputDef(0)=-1001). The negative ids are unique to boundary defs, so their
+# presence proves drawBoundaryDef ran for the compound's published ports. The SHAPE (pentagon vs
+# rect) is eyeballed from inside_compound.png.
+#
+# RED proof: revert drawBoundaryDef to ed's default rect fill -> the boundary node renders as a
+# plain rectangle in inside_compound.png (no angled corner). Program assert stays green (the node
+# still exists), so the visual crop is the gate for the shape; the map assert gates that we are
+# actually inside the compound looking at boundary defs.
+
+open app/testdata/compound_smoke.swproj
+echo opened-compound-smoke
+
+# Deselect, then drill into node:1 (EmitterComp compound).
+do key escape
+do double @node:1^
+wait 0.8
+assert_state '(.compositionPath | length) == 1'
+assert_state '.compositionPath[0] == 1'
+echo entered-compound
+
+# Inside the compound: capture the subgraph (shows the boundary pentagon vs rectangular children).
+capture full inside_compound
+echo inside-captured
+
+# Boundary defs render with negative ed ids -> present in the eye map.
+assert_map '[.items[]? | select(.label | startswith("node:-"))] | length > 0'
+echo boundary-nodes-present
