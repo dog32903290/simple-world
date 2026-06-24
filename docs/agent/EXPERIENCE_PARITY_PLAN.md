@@ -42,9 +42,20 @@
 
 **C. 獨立施工圖（各自成序列脊椎，本檔只掛指標）**
 - **MagGraph 磁吸畫布範式重寫**（[core] 最大；內部：座標模型重寫→比例對齊→磁吸貼齊→退化三角連線）
+- **★ Output 視窗（render-output-page.md 10 gap，柏為 2026-06-24 抓到漏項）** —— 詳見下方專段。
 - **Timeline 編輯**（`ui/timeline_*` 已大量存在；補 sync mode + VJ tapping，見 modes.md；**+ AnimationCanvas keyframe V 軸 snap + Alt-插 key**，壓測補，missing-subsystems §75 待交叉比對 `timeline_curve_editor.cpp`）
 - **Gradient authoring widget**（柏為 authoring 域；inspector 零 gradient widget）
 - **Audio 匯出 / 錄製 / mixdown**（missing-subsystems；影片匯出需對齊音軌否則匯出無聲）
+
+### ★ Output 視窗獨立施工圖（柏為 2026-06-24 抓到，SSOT=`alignment/render-output-page.md` 10 gap）
+現況：`output_window.cpp` 只有 Pin/Unpin + 一行 `ImGui::Image(tex, avail)`（直接拉伸填滿→**拉視窗畫面變扁**）。
+- **O1 [core] 解析度選擇器**：toolbar 解析度下拉（Fill/1:1/16:9/4:3/480p–8k，資料表+builder 存 `resolutions.json`）→ 選出的 RenderResolution 經 ComputeResolution → 餵 cook。**引擎前置 S1 已通**（`44234aa` RequestedResolution 已穿進 cook，render-output-page.md「從未 thread」那段 stale）→ 現在主要是 UI + 接 S1。
+- **O2 [important] Fit/1:1/Custom view mode + pan/zoom**（**柏為的「畫面變扁」就是這條**）：預覽區改 aspect-correct image canvas（記 scale+offset、拖曳平移、滾輪縮放），toolbar 加 Fit/1:1 鈕，底部疊 WxH×scale 字。
+- **O3 [important] 截圖**（toolbar Snapshot→`<專案>/Screenshots/<時間戳>.png`；eye 的 PNG 寫出機制從 verify/ 搬成 platform/app 產品路徑，守 ARCHITECTURE 分區）。
+- **O4 [important] 影片/序列匯出**（離線逐格 cook 迴圈→PNG 序列→AVFoundation 影片；範圍/FPS/解析度+進度條+cancel；**依賴 S1**）。
+- **O5 [important] Pin 拆 view-instance / eval-start-instance**（feedback/stateful 鏈用）。
+- **O6 polish**：多輸出視窗 / 輸出狀態持久化進 .swproj / 多 output slot 選擇子選單。
+- 排程：獨立施工圖，主檔 `ui/output_window.cpp`（與其他 UI lane 主檔互斥可並行）。O1/O4 碰 cook context（與 cook-core 協調）；O2/O3/O6 純 ui/。驗證閘：O2 aspect-correct=eye-hand 拉視窗前後比對長寬比、O1=eye-hand + 解析度數值 golden、O3=side-effect（檔出現）。
 
 > 註：節點庫 ~800 顆對齊是**另一條軸**，由 MASTER_PLAN / OP_BACKLOG 管，不在本檔。
 
@@ -78,6 +89,7 @@
 | **Timeline** | `ui/timeline_*.cpp` | ❌（大多 ui，獨立檔群）| 獨立施工圖 | eye-hand + round-trip |
 | **Gradient** | `ui/inspector.cpp` + 新 widget 檔 | ⚠️ widget 資料模型 | 獨立施工圖 | eye-hand + 柏為 authoring 簽收 |
 | **Audio 匯出** | `platform/audio` | ❌（platform）| 並行 lane | round-trip + codex-ears |
+| **Output 視窗** O1-O6 | `ui/output_window.cpp`（+ O1/O4 cook context）| ⚠️ O1/O4 碰 cook（接 S1 RequestedResolution）；O2/O3/O6 純 ui | 獨立施工圖 | O2=拉視窗前後長寬比比對 / O1=解析度數值 golden / O3=檔出現 side-effect |
 
 ### ★ Tier 內序列瓶頸（壓測抓到的真避撞依據）
 - **`ui/node_draw.cpp`（~212 行，單一入口 `drawChild`/`drawBoundaryDef`）= 多條 lane 的共撞點**：Tier1 的「邊界節點凸角」「必填紅指示 blinkValue」+ Tier3 的「即時值字串/縮放 gating」「縮圖預覽」**全落這一檔**。→ **這幾條彼此序列，不可並行**（即使分屬不同 Tier）。
