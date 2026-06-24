@@ -189,6 +189,7 @@ add_executable(simple_world
   src/ui/editor_ui.cpp
   src/ui/toolbar.cpp
   src/ui/combine_dialog.cpp
+  src/ui/node_menu_actions.cpp
   src/ui/copy_paste_ui.cpp
   src/ui/keymap.cpp
   src/ui/quick_add.cpp

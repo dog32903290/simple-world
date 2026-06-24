@@ -1,0 +1,80 @@
+# node_context_menu.scn — 活體牙 (Tier1-B): node right-click context menu, TiXL parity
+# (= external/tixl/Editor/Gui/MagGraph/Interaction/GraphContextMenu.cs).
+#
+# Covers:
+#   1. Right-click a NODE opens node_ctx with the full TiXL item set. Top-level items + the two
+#      submenu HEADERS (Select... / Display as...) all render (greyed items still render -> the eye
+#      records them); the submenu INNER items (Select connected / Small / Resizable / Expanded)
+#      render once the submenu is opened.
+#   2. One WIRED item end-to-end: Delete -> Root child count drops by one; Cmd+Z restores it.
+#   3. RED->GREEN structural guard: right-click EMPTY CANVAS opens the bg_ctx (Paste / Add Node)
+#      menu, NOT the node menu -> ctx:delete must be ABSENT after a background right-click.
+#
+# RED proof for (2): change "== 5" to "== 6" -> FAIL (Delete really removed one child).
+# RED proof for (3): change the "== 0" absence check to "> 0" -> FAIL (background menu has no
+#   Delete item; only a node right-click does).
+
+open app/testdata/compound_smoke.swproj
+
+# Baseline: Root has 6 children.
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+echo baseline-root-has-6-children
+
+# --- 1a. Right-click node:2 title -> node menu top-level parity items present ---
+do rclick @node:2^
+wait 0.4
+assert_map_has ctx:select
+assert_map_has ctx:disable
+assert_map_has ctx:bypass
+assert_map_has ctx:rename_node
+assert_map_has ctx:add_comment
+assert_map_has ctx:align_left
+assert_map_has ctx:display_as
+assert_map_has ctx:copy
+assert_map_has ctx:paste
+assert_map_has ctx:delete
+assert_map_has ctx:duplicate
+assert_map_has ctx:combine
+echo node-ctx-toplevel-parity-items-present
+
+# --- 1b. Open the Select... submenu -> Select connected inner item renders ---
+do click @ctx:select
+wait 0.3
+assert_map_has ctx:select_connected
+echo select-submenu-reveals-select-connected
+
+# --- 1c. Open the Display as... submenu -> Small / Resizable / Expanded render (greyed) ---
+do click @ctx:display_as
+wait 0.3
+assert_map_has ctx:display_small
+assert_map_has ctx:display_resizable
+assert_map_has ctx:display_expanded
+echo display-submenu-reveals-style-items
+
+# Dismiss the open submenu/popup before the next section (click empty canvas).
+do click 600 250
+wait 0.3
+
+# --- 2. WIRED item end-to-end: Delete node:3 -> Root drops to 5 children ---
+do rclick @node:3^
+wait 0.4
+do click @ctx:delete
+wait 0.4
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 5'
+echo delete-removed-child-count-5
+
+# Undo restores the deleted child. Click a still-present node title to give the canvas focus
+# (Cmd+Z is gated on canvas IsWindowFocused, editor_ui.cpp:323), then Cmd+Z.
+do click @node:1^
+wait 0.3
+do keychord cmd z
+wait 0.4
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+echo undo-restored-child-count-6
+
+# --- 3. RED->GREEN: right-click EMPTY canvas -> background menu, NOT the node menu ---
+do rclick 600 250
+wait 0.4
+assert_map_has ctx:add_node_bg
+assert_map '[.items[]? | select(.label == "ctx:delete")] | length == 0'
+echo background-rclick-shows-no-node-delete

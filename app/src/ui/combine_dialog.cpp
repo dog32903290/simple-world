@@ -15,6 +15,7 @@
 #include "app/graph_commands.h"  // RenameSymbolCommand / RenameChildCommand
 #include "runtime/graph.h"       // specTypes / addChildWouldCycle (Add Node submenu)
 #include "ui/copy_paste_ui.h"  // copy/paste 契約 4: context-menu Copy/Paste (guaranteed path)
+#include "ui/node_menu_actions.h"  // Tier1-B node-menu glue (Select connected / Align / Delete)
 #include "ui/editor_ui.h"   // g_selectedNode + spawnNodeAt (single-selection / spawn)
 #include "verify/eye/eye.h" // one-line hooks: menu/dialog rects for the hand
 
@@ -147,38 +148,37 @@ void drawCanvasContextMenu() {
     }
   }
   if (ImGui::BeginPopup("node_ctx")) {
-    // Copy: the guaranteed Copy path (Cmd+C is the fast path). Captured selection = the ids the
-    // combine menu already captured (right-clicked node or the whole selection).
-    if (ImGui::MenuItem("Copy", nullptr, false, !g_combineIds.empty()))
-      sw::ui::copyChildrenToClipboard(g_combineIds);
-    sw::eye::recordItem("ctx:copy");
-    if (ImGui::MenuItem("Paste"))
-      sw::ui::pasteClipboardAt(g_pasteAnchor.x, g_pasteAnchor.y);
-    sw::eye::recordItem("ctx:paste");
-    ImGui::Separator();
-    // Rename targets a SINGLE node (the right-clicked child / the lone selection). Rename Node =
-    // instance name; Rename Definition = the referenced compound def (all instances follow), shown
-    // only for compounds (atomic = operator type, not renamable).
+    // Item set + order = TiXL MagGraph/Interaction/GraphContextMenu.cs (the modern node menu).
+    // WIRED items reuse an existing command path; items whose backing data does NOT exist on
+    // SymbolChild yet are shown DISABLED (greyed) — parity surface complete, no faked action.
+    // Greyed (no backing): Disable (node-level IsDisabled; we only have per-output disable in the
+    // Inspector), Add Comment (no SymbolChild.comment), Display as... (no SymbolChild.style).
+    const bool hasSel = !g_combineIds.empty();
     const int renameTarget = g_combineIds.size() == 1 ? g_combineIds[0] : 0;
-    if (ImGui::MenuItem("Rename Node...", nullptr, false, renameTarget > 0))
-      armRename(renameTarget, /*isDef=*/false);
-    sw::eye::recordItem("ctx:rename_node");
-    if (renameTarget > 0 && childRefsCompound(renameTarget)) {
-      if (ImGui::MenuItem("Rename Definition..."))
-        armRename(renameTarget, /*isDef=*/true);
-      sw::eye::recordItem("ctx:rename_def");
+
+    // --- Select... (= GraphContextMenu.cs:48 "Select..." submenu) ---
+    if (ImGui::BeginMenu("Select...")) {
+      if (ImGui::MenuItem("Select connected", nullptr, false, hasSel))
+        selectConnected(g_combineIds);
+      sw::eye::recordItem("ctx:select_connected");
+      ImGui::EndMenu();
     }
+    sw::eye::recordItem("ctx:select");
     ImGui::Separator();
-    // S2 (批次7) Bypass toggle (= TiXL right-click Bypass, the minimal node-dimension UI). Enabled only
-    // for a single bypassable child; the checkmark shows current state. The command itself re-checks the
-    // wiring/whitelist guards and refuses when bypass can't take (no dead undo entry). The "Disable
-    // Output" / output-trigger controls are output-dimension and live in the Inspector (per-output rows).
+
+    // --- Disable (= GraphContextMenu.cs:161 ToggleDisabled). GREYED: SymbolChild has no node-level
+    // IsDisabled field (only per-output disable, which lives in the Inspector). ---
+    ImGui::MenuItem("Disable", nullptr, false, /*enabled=*/false);
+    sw::eye::recordItem("ctx:disable");
+
+    // --- Bypassed (= GraphContextMenu.cs:170 ToggleBypassed). WIRED (S2 批次7). Single bypassable
+    // child; checkmark = state; command re-checks wiring/whitelist + refuses (no dead undo). ---
     if (renameTarget > 0) {
       const sw::Symbol* cur = sw::doc::currentSymbolConst();
       const sw::SymbolChild* c = cur ? sw::childById(*cur, renameTarget) : nullptr;
       const bool canBypass = c && sw::childIsBypassable(sw::doc::g_lib, *c);
       const bool isBp = c && c->isBypassed;
-      if (ImGui::MenuItem("Bypass", nullptr, isBp, canBypass || isBp)) {
+      if (ImGui::MenuItem("Bypassed", nullptr, isBp, canBypass || isBp)) {
         auto cmd = std::make_unique<sw::SetBypassChildCommand>(sw::doc::g_lib, cur->id, renameTarget,
                                                               !isBp);
         if (!cmd->refused()) {
@@ -187,11 +187,74 @@ void drawCanvasContextMenu() {
         }
       }
       sw::eye::recordItem("ctx:bypass");
+    } else {
+      ImGui::MenuItem("Bypassed", nullptr, false, /*enabled=*/false);
+      sw::eye::recordItem("ctx:bypass");
     }
+
+    // --- Rename (= GraphContextMenu.cs:178). WIRED. Targets a SINGLE node; Rename Definition shows
+    // only for compounds (atomic = operator type, not renamable). ---
+    if (ImGui::MenuItem("Rename Node...", nullptr, false, renameTarget > 0))
+      armRename(renameTarget, /*isDef=*/false);
+    sw::eye::recordItem("ctx:rename_node");
+    if (renameTarget > 0 && childRefsCompound(renameTarget)) {
+      if (ImGui::MenuItem("Rename Definition..."))
+        armRename(renameTarget, /*isDef=*/true);
+      sw::eye::recordItem("ctx:rename_def");
+    }
+
+    // --- Add Comment (= GraphContextMenu.cs:184 EditCommentDialog). GREYED: no SymbolChild.comment
+    // field (canvas Annotations exist, but the per-node comment is a separate model field). ---
+    ImGui::MenuItem("Add Comment", nullptr, false, /*enabled=*/false);
+    sw::eye::recordItem("ctx:add_comment");
+
+    // --- Align select left (= GraphContextMenu.cs:197 AlignSelectionToLeft). WIRED via
+    // MoveChildrenCommand. Needs >1 selected nodes. ---
+    if (ImGui::MenuItem("Align select left", nullptr, false, g_combineIds.size() > 1))
+      alignSelectionLeft(g_combineIds);
+    sw::eye::recordItem("ctx:align_left");
+
+    // --- Display as... (= GraphContextMenu.cs:254). GREYED: SymbolChild has no `style` field yet,
+    // so Small / Resizable / Expanded have nothing to write. ---
+    if (ImGui::BeginMenu("Display as...")) {
+      ImGui::MenuItem("Small", nullptr, false, /*enabled=*/false);
+      sw::eye::recordItem("ctx:display_small");
+      ImGui::MenuItem("Resizable", nullptr, false, /*enabled=*/false);
+      sw::eye::recordItem("ctx:display_resizable");
+      ImGui::MenuItem("Expanded", nullptr, false, /*enabled=*/false);
+      sw::eye::recordItem("ctx:display_expanded");
+      ImGui::EndMenu();
+    }
+    sw::eye::recordItem("ctx:display_as");
     ImGui::Separator();
+
+    // --- Copy / Paste (= GraphContextMenu.cs:313). WIRED (the guaranteed clipboard path). ---
+    if (ImGui::MenuItem("Copy", nullptr, false, hasSel))
+      sw::ui::copyChildrenToClipboard(g_combineIds);
+    sw::eye::recordItem("ctx:copy");
+    if (ImGui::MenuItem("Paste"))
+      sw::ui::pasteClipboardAt(g_pasteAnchor.x, g_pasteAnchor.y);
+    sw::eye::recordItem("ctx:paste");
+
+    // --- Delete (= GraphContextMenu.cs:338 DeleteSelectedElements). WIRED: right-click form of the
+    // keyboard-Delete path (DeleteChildrenCommand), drops nodes + incident wires undoably. ---
+    if (ImGui::MenuItem("Delete", "Del", false, hasSel))
+      deleteCaptured(g_combineIds);
+    sw::eye::recordItem("ctx:delete");
+
+    // --- Duplicate (= GraphContextMenu.cs:352 Copy then Paste). WIRED via the same copy+paste
+    // commands; pastes at a small cascade offset from the captured anchor. ---
+    if (ImGui::MenuItem("Duplicate", nullptr, false, hasSel)) {
+      sw::ui::copyChildrenToClipboard(g_combineIds);
+      sw::ui::pasteClipboardAt(g_pasteAnchor.x + 20.0f, g_pasteAnchor.y + 20.0f);
+    }
+    sw::eye::recordItem("ctx:duplicate");
+    ImGui::Separator();
+
+    // --- Combine into new symbol... (= GraphContextMenu.cs:391 "Combine into new type..."). ---
     std::string label = "Combine " + std::to_string(g_combineIds.size()) +
                         " into new symbol...";
-    if (ImGui::MenuItem(label.c_str(), nullptr, false, !g_combineIds.empty()))
+    if (ImGui::MenuItem(label.c_str(), nullptr, false, hasSel))
       g_openDialog = true;
     sw::eye::recordItem("ctx:combine");
     ImGui::EndPopup();
