@@ -46,6 +46,7 @@
 - **Timeline 編輯**（`ui/timeline_*` 已大量存在；補 sync mode + VJ tapping，見 modes.md；**+ AnimationCanvas keyframe V 軸 snap + Alt-插 key**，壓測補，missing-subsystems §75 待交叉比對 `timeline_curve_editor.cpp`）
 - **Gradient authoring widget**（柏為 authoring 域；inspector 零 gradient widget）
 - **Audio 匯出 / 錄製 / mixdown**（missing-subsystems；影片匯出需對齊音軌否則匯出無聲）
+- **★ 檔/資產/設定軸（系統普查 2026-06-24 補，最系統漏項）** —— AssetLibrary 瀏覽器 + 拖檔建 op / recent files / window layout / keymap 持久化 / ProjectHub 著陸頁。整條進場+跨 session 記憶缺席。詳見 [EXPERIENCE_SCOPE_GAPS](EXPERIENCE_SCOPE_GAPS.md)。
 
 ### ★ Output 視窗獨立施工圖（柏為 2026-06-24 抓到，SSOT=`alignment/render-output-page.md` 10 gap）
 現況：`output_window.cpp` 只有 Pin/Unpin + 一行 `ImGui::Image(tex, avail)`（直接拉伸填滿→**拉視窗畫面變扁**）。
@@ -188,6 +189,7 @@ DetectBpm 引擎已綠但孤兒（`fork-bpm-not-live-driving-transport`）。接
 
 ## Plan Inventory（本檔定位）
 - 本檔 = **體驗軸 sub-plan**（lane 規格 + 排程 + 驗收）。**唯一 dashboard 仍是 MASTER_PLAN。**
+- **[EXPERIENCE_SCOPE_GAPS](EXPERIENCE_SCOPE_GAPS.md) = 分母補遺清單**（2026-06-24 系統普查 7 份 alignment 檔，~21 漏項：1 [core]+~11 [important]+~9 [polish]）。pull 進批次照本檔的主檔避撞+閘分流。
 - 規格肉 SSOT：`alignment/ui-surface.md`（編輯 gap）+ `alignment/modes.md`（Player/Focus）+ `alignment/missing-subsystems.md`（Gradient/Audio/Timeline）。
 - 對齊基準：`external/tixl/Editor/Gui` 源碼 + `artifacts/sw_tixl_*.png` 截圖。
 
