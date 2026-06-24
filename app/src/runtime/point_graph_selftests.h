@@ -206,4 +206,17 @@ int runTransformPointsFromClipspaceSelfTest(bool injectBug);
 // IDENTITY ObjectToCamera → d=0 for every point → all W equal → the depth-spread assertion FAILS → RED.
 int runSamplePointsByCameraDistanceSelfTest(bool injectBug);
 
+// SortPoints golden (point_ops_sortpoints.cpp): the THIRD camera-matrix-into-points seam consumer
+// (PointCookCtx::cameraToWorld). A count-preserving REORDER: sort the Points bag by each point's distance
+// to the camera WORLD position (CameraToWorld[3].xyz). v1 fork-sortpoints-converged-not-incremental: a
+// single-cook full STABLE sort == the converged endpoint of TiXL's frame-incremental bitonic network
+// (SortingSpeed read-but-ignored; the persistent IndexBuffer is a feedback seam SW lacks). Key (1:1 .hlsl
+// c2k): k=length(pos - camWorldPos); isnan(Scale.x)→-1 (sinks last); Ascending flips the sign; result is
+// sorted DESCENDING by k → Ascending=false = farthest-first (painter's), Ascending=true = nearest-first.
+// Golden (3 legs, R-2): direct-cook descending order (host camera-distance closed-form) + Ascending flip
+// with a NaN-scale sink + resident (cookResident production, lit+count-preserved). injectBug binds an
+// IDENTITY CameraToWorld → camera at origin → distances become |z| → the z=0 point becomes nearest not
+// middle → the order changes → RED.
+int runSortPointsSelfTest(bool injectBug);
+
 }  // namespace sw

@@ -40,6 +40,7 @@ void registerLinearSamplePointAttributesOp();
 void registerMapPointAttributesOp();
 void registerTransformPointsFromClipspaceOp();
 void registerSamplePointsByCameraDistanceOp();
+void registerSortPointsOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -72,6 +73,7 @@ void registerPointModifyPointOps() {
   registerMapPointAttributesOp();          // Points → Points (bake host Curve/Gradient into scratch tex, sample per point; bake-into-point seam)
   registerTransformPointsFromClipspaceOp();  // Points → Points (unproject via CameraToWorld; camera-matrix-into-points seam)
   registerSamplePointsByCameraDistanceOp();  // Points → Points (scale W by camera-depth WForDistance curve; camera-matrix + bake-into-point seams)
+  registerSortPointsOp();                    // Points → Points (reorder by camera-distance; camera-matrix-into-points seam, converged-sort fork)
 }
 
 }  // namespace sw

@@ -265,5 +265,29 @@ static const PointModifyOp _reg_SamplePointsByCameraDistance{
        nullptr}
 };
 
+// ---- camera-matrix-into-points seam: SortPoints --------------------------------------------------
+// TiXL parity: external/tixl .../Assets/shaders/points/modify/SortPoints.hlsl + .../point/modify/
+// SortPoints.{cs,t3}. A count-preserving REORDER: sort the Points bag by each point's distance to the
+// camera WORLD position (CameraToWorld[3].xyz). The "Camera" MARKER port → PointCookCtx::cameraToWorld
+// (fillPointCamera, default camera). The op reads ONLY that translation row — no projection.
+//   v1 fork-sortpoints-converged-not-incremental: TiXL runs SortingSpeed passes/frame of a persistent
+//   IndexBuffer bitonic network (converges over many frames); SW collapses it to the CONVERGED single-
+//   cook full sort (byte-faithful endpoint for a still frame). SortingSpeed is read-but-ignored in v1
+//   (a later feedback/persistent-buffer seam would honour it). Ascending flips the key sign:
+//   false (.t3 default) = farthest-first (painter's order); true = nearest-first. Ports 1:1 with
+//   SortPoints.cs [Input] order (Points, CameraReference, SortingSpeed, Ascending).
+static const PointModifyOp _reg_SortPoints{
+      {"SortPoints",
+       "SortPoints",
+       {{"Points", "Points", "Points", true},          // input bag (port 0)
+        {"Camera", "Camera", "Camera", true},          // camera marker (port 1) — the seam input
+        {"out", "out", "Points", false},               // reordered output bag (port 2)
+        // SortingSpeed (.t3 default 1) — read-but-ignored in v1 (the converged endpoint is order-stable).
+        {"SortingSpeed", "SortingSpeed", "Float", true, 1.0f, 0.0f, 100.0f},
+        // Ascending (bool, .t3 default false) — flips the key sign: false=farthest-first, true=nearest-first.
+        {"Ascending", "Ascending", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr}
+};
+
 }  // namespace
 }  // namespace sw
