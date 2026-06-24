@@ -1,5 +1,7 @@
 # OP_BACKLOG — 開採 backlog（按狀態分桶）
 
+> **★★ 2026-06-25 STALE 警告（夜批 set-diff 驗證）：桶 B「READY-LEAF-NOW」counts 過時，clean-leaf 已大致採盡。** numbers-TRIVIAL(B1)=**DRY**（84 value-op 已 port，剩全卡 list/dict/matrix/string/keyframe 縫）；string-TRIVIAL(B2)=剩 1（WrapString 已採 `6da350a`，22/33 已 port，餘卡 datetime/stateful/stub）；image-filter(B4)=~42 unported 但多卡 multi-image/feedback/dynamic-HLSL/readback/field 縫，剩 ~8 候選未驗（Steps/HSE/ColorGradeDepth/ConvertFormat/ScreenCloseUp/GetImageBrightness/MandelbrotFractal/NumberPattern）。io/render 同類零頭。**→ 引擎剩餘真工作=承重 SEAMS（桶 C）。下批勿照 B 桶舊 count 派工，先 set-diff 驗。** 詳 MASTER_PLAN Snapshot 2026-06-25。
+
 > Phase A synthesis（2026-06-16）。後續 batch 直接從此 pull。
 > 桶：DONE → READY-LEAF-NOW（最重要可行動清單）→ BLOCKED（按擋住的未建 seam 分組）→ SKIP/低優先。
 > 數字以類別檔表為準；跨類別加總存疑標「約」。seam 命名見 SEAM_GRAPH.md §0。
