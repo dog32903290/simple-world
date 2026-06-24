@@ -182,7 +182,7 @@ void drawNodeCanvas() {
   // in the Output window (ui/output_window.cpp), which shows ANY pinned node's output
   // (view ⊥ graph; OUTPUT_PIN_VIEWER_CONTRACT §4-A).
   sw::ui::clearConnectionArrowAnchors();  // rebuilt as children lay out → read by the arrow pass
-  for (const sw::SymbolChild& child : cur->children) sw::ui::drawChild(child);  // also fills anchors
+  for (const sw::SymbolChild& child : cur->children) sw::ui::drawChild(child, cur);  // also fills anchors
 
   // The symbol's OWN external ports as movable boundary items (TiXL Input/Output canvas
   // items): inputDefs are sources inside, outputDefs are sinks. node_draw renders them.

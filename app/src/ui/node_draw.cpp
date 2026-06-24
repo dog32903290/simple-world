@@ -67,9 +67,26 @@ void drawSlot(ImU32 col, bool isInput) {
   ImGui::Dummy(ImVec2(s, s));
 }
 
+// L-G required-input indicator (TiXL MagGraphCanvas.DrawNode.cs:388/450 isMissing +
+// :1142-1161 DrawMissingInputIndicator): a required input with NO incoming connection paints a
+// small filled downward-pointing triangle in UiColors.StatusAttention to the LEFT of the pin row.
+// `pa`/`pb` = the pin row's screen rect (min/max). TiXL places it at the node's left edge, vertically
+// offset onto the input line; our pins are inline so we anchor just left of the row, centered on it.
+void drawRequiredIndicator(const ImVec2& pa, const ImVec2& pb) {
+  const ImU32 attention = IM_COL32(203, 19, 113, 255);  // TiXL UiColors.StatusAttention (#CB1371)
+  ImDrawList* dl = ImGui::GetWindowDrawList();  // caller is inside the canvas; screen space
+  const float h = 7.0f;                         // triangle base width (~TiXL s*0.4 at scale 1)
+  float cx = pa.x - h * 0.6f;                   // just left of the pin row
+  float cy = (pa.y + pb.y) * 0.5f;              // centered on the input line
+  // Downward-pointing triangle (apex at bottom), matching TiXL's DrawMissingInputIndicator shape.
+  dl->AddTriangleFilled(ImVec2(cx - h * 0.5f, cy - h * 0.5f),
+                        ImVec2(cx + h * 0.5f, cy - h * 0.5f),
+                        ImVec2(cx, cy + h * 0.5f), attention);
+}
+
 }  // namespace
 
-void drawChild(const sw::SymbolChild& child) {
+void drawChild(const sw::SymbolChild& child, const sw::Symbol* parent) {
   // findSpec resolves atomics from the registry AND compounds from the dynamic spec table
   // (批次 3 N1) — a compound child gets pins/title exactly like an atomic node.
   const sw::NodeSpec* spec = sw::findSpec(child.symbolId);
@@ -140,6 +157,12 @@ void drawChild(const sw::SymbolChild& child) {
       sw::eye::recordRect(("pin:" + std::to_string(sw::pinId(child.id, i))).c_str(),
                           pa.x, pa.y, pb.x, pb.y);
       if (p.isInput) recordInputPinAnchor(sw::ui::childPinId(child.id, (int)i), pa, pb);
+      // L-G: a REQUIRED input with no incoming wire is "missing" → paint the StatusAttention marker
+      // (TiXL isMissing = Relevancy.Required && ConnectionIn == null). connectionToInput is the SSOT
+      // "is this input wired?" — null parent (no graph context) skips the test.
+      if (p.isInput && p.required && parent &&
+          !sw::connectionToInput(*parent, child.id, p.id))
+        drawRequiredIndicator(pa, pb);
       ed::EndPin();
     };
     int nInputs = 0;

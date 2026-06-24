@@ -5,11 +5,13 @@
 // canvas itself, not here. Zone: ui. Must be called between ed::Begin("canvas") and ed::End().
 #pragma once
 
-namespace sw { struct SymbolChild; struct SlotDef; }
+namespace sw { struct SymbolChild; struct SlotDef; struct Symbol; }
 
 namespace sw::ui {
 
-void drawChild(const sw::SymbolChild& child);
+// `parent` = the symbol owning this child; used to test each input pin for an incoming
+// connection (L-G required-input indicator). May be null → the required test is skipped.
+void drawChild(const sw::SymbolChild& child, const sw::Symbol* parent);
 
 // One BOUNDARY item — the current symbol's own external port drawn as a movable canvas
 // node (= TiXL Legacy InputNode/OutputNode). `isSource`: an inputDef feeds the subgraph

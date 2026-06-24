@@ -1,0 +1,43 @@
+# lg_required_indicator.scn — L-G 活體驗證: 必填輸入(required && 未接線)紅指示
+# 承重線:
+#   (1) TransformPoints#104 的 points 輸入 required=true(S0 demo)。未接線 → node_draw 畫
+#       StatusAttention(#CB1371)倒三角(TiXL MagGraphCanvas.DrawNode.cs:388/1142).
+#   (2) 接上 points → ConnectionIn != null → 指示消失.
+# RED→GREEN: marker 只在 required+未接 出現, 接線後消失(非「永遠亮」).
+#
+# default 圖 (defaultParticleGraph): ParticleSystem#2.result(203) 是現成 Points 來源.
+# 操作: 空白 canvas 右鍵加 TransformPoints#104(落在空地不疊圖), 截圖(marker 在),
+#       接 PS#2.result(203) → TransformPoints#104.points(10401), 截圖(marker 消失).
+
+# --- 加 TransformPoints#104 在空白 canvas (右鍵, 落在空地 不疊既有節點) ---
+# 右鍵 add-node 選單是長捲動清單; TransformPoints 在預設視窗外(y~1241), 必須先捲動進視窗
+# 才點得到(@SYM 解析給的是 map 內容座標, 螢幕外的 item 點不到). 捲動量 -18 把它帶到頂部.
+do rclick 380 380
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do scroll 589 300 0 -18
+wait 0.4
+do click @bgctx:add:TransformPoints
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 104)] | length == 1'
+echo transformpoints-104-spawned
+
+# --- points 未接線: 確認 node:104 無 incoming 連線 (marker 應該亮) ---
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[] | select(.dstChild == 104)] | length == 0'
+capture full marker_present
+echo captured-marker-present
+
+# --- 接線: ParticleSystem#2.result(203) → TransformPoints#104.points(10401) ---
+do drag @pin:203 @pin:10401
+wait 0.5
+# points 現在已接 → marker 應消失
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[] | select(.dstChild == 104 and .dstSlot == "points")] | length == 1'
+echo points-connected
+capture full marker_absent
+echo captured-marker-absent
+
+# 兩張 full 圖必不同 (marker 出現/消失 = 像素差). RED 面: 改 assert_same 必紅.
+assert_diff marker_present
+echo marker-toggled-on-connect
