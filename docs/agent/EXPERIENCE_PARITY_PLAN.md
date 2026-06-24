@@ -235,12 +235,14 @@ DetectBpm 引擎已綠但孤兒（`fork-bpm-not-live-driving-transport`）。接
 - **O2 ✅**（`806b598`）：Output aspect-correct view（Fit/1:1/pan/zoom）**修柏為「畫面變扁」**，對 ImageOutputCanvas.cs/ScalableCanvas，resize 保 aspect RED→GREEN。
 - **凸角 ✅**（`87e5fe8`）：邊界節點 5-point convex 五邊形，對 MagGraphCanvas.DrawNode.cs，wide-node fork。
 
-**第八批（★柏為 census `e19b23b` 釘死分母 → 最系統優先「檔/資產/設定軸」，下次 /sw-batch 從這 pull）：**
-- **★檔/資產/設定軸（最系統漏，柏為建議升獨立施工圖）**，round-trip/side-effect 可驗非手感，擇主檔互斥的並行：
-  - **#12 user-settings 持久化**（recent files + window layout + view-area per-symbol，`io.IniFilename` 目前刻意關→設計考慮的持久化非裸 ini；主檔 app settings 層；閘=round-trip 存→載→相同）。
-  - **#11 keymap 持久化/換鍵**（user JSON 蓋 factory kKeyTable；主檔 keymap.cpp/app settings；閘=round-trip）。
-  - **#2 AssetLibrary 瀏覽器 + 拖檔建 load-op**（主檔新 ui/asset browser；閘=eye-hand+undoable round-trip）。
-  - **#3 drag-drop 進畫布**（platform NSDragging + app；閘=side-effect 建 op）。
+**第八批 ✅ 完成（2026-06-24 22:12，檔/資產/設定軸開工）：**
+- **#11 keymap 持久化 ✅**（`5cb892a`）：user JSON 蓋 factory，keymap.cpp 756 不變（新 TU），round-trip selftest+PlaybackToggle live seam。
+- **#2 AssetLibrary 瀏覽器 ✅**（`1ae9881`）：點 asset→建 LoadImage undoable→Output 真 render 解碼影像，騎 L3 asset-index，對 AssetLib（click=drop fork）。
+
+**第九批（續檔/資產/設定軸 + Output + 編輯，下次 /sw-batch 從這 pull）：**
+- **#12 user-settings 持久化**（recent files + window layout + view-area per-symbol，`io.IniFilename` 目前刻意關→設計考慮的持久化非裸 ini；主檔 app settings 層；閘=round-trip 存→載→相同）。=cross-session memory 收尾（接 #11 同軸）。
+- **#3 drag-drop 進畫布**（platform NSDragging + app；接 #2 AssetLibrary 的真 drag layer；閘=side-effect 建 op）。
+- **#17 ProjectHub 著陸頁**（無專案時專案卡片+Add Project；主檔新 ui；polish）。
 - **∥ Output O 系列續**（同主檔 output_window.cpp 序列）：O3 截圖（side-effect 檔出現）→O1 解析度選擇器（golden+S1）→O4 影片匯出（碰 cook）。
 - **∥ 編輯小 gap**（主檔互斥）：#4 in-window menu bar+View 選單（`BeginMainMenuBar`）／#13 節點 thumbnail face（`node_faces.cpp`）／#10 multi-input 群組框 in node_draw／#9 color picker 進階 in inspector／SliderLadder（新 widget）。
 - **演出深度（柏為域偏多）**：#5 Player 多螢幕/--loop/--windowed、#6 Focus graph-over-content。#1 [core] relevancy 完整=碰 graph.h PortSpec（S0-like schema，relevancy enum）+node_draw line visibility。
