@@ -197,6 +197,7 @@ add_executable(simple_world
   src/ui/quick_add.cpp
   src/ui/quick_add_selftest.cpp
   src/ui/inspector.cpp
+  src/ui/inspector_param_menu.cpp
   src/ui/timeline_window.cpp
   src/ui/timeline_dopesheet.cpp
   src/ui/timeline_curve_editor.cpp

@@ -174,6 +174,34 @@ int runCommandSelfTest(bool injectBug) {
     ok = ok && (childById(*root, rid)->overrides.count(freshSlot) == 1u);
     stack.undo();
     ok = ok && (childById(*root, rid)->overrides.count(freshSlot) == 0u);
+
+    // ResetOverride (Inspector "Reset to default" / jog-dial reset gesture): mirror of SetOverride.
+    // Seed a known override, RESET it (doIt erases -> definition default shines through), then UNDO
+    // and assert the EXACT override value is restored, then REDO erases again. This is the param-
+    // reset undo round-trip the Inspector reset affordance leans on (harness-gap-immune).
+    {
+      const std::string rs = "Radius";
+      SymbolChild* rcc = childById(*root, rid);
+      rcc->overrides[rs] = 7.25f;  // a known, non-default override
+      const float seeded = 7.25f;
+      // refused() must be false (slot IS overridden) — TiXL greys the menu item when IsDefault.
+      ResetOverrideCommand probe(lib, lib.rootId, rid, rs, /*hadOld=*/true, seeded);
+      ok = ok && !probe.refused();
+      stack.push(std::make_unique<ResetOverrideCommand>(lib, lib.rootId, rid, rs,
+                                                        /*hadOld=*/true, seeded));
+      ok = ok && (childById(*root, rid)->overrides.count(rs) == 0u);  // erased -> default
+      stack.undo();
+      rcc = childById(*root, rid);
+      ok = ok && (rcc->overrides.count(rs) == 1u) && (rcc->overrides[rs] == seeded);  // restored
+      stack.redo();
+      ok = ok && (childById(*root, rid)->overrides.count(rs) == 0u);  // re-erased
+      stack.undo();
+      ok = ok && (childById(*root, rid)->overrides[rs] == seeded);  // back to seeded, clean
+      // refused() on a never-overridden slot: nothing to reset -> caller skips push.
+      ResetOverrideCommand noop(lib, lib.rootId, rid, "__never_overridden",
+                                /*hadOld=*/false, 0.0f);
+      ok = ok && noop.refused();
+    }
   }
 
   // Commands are keyed by symbolId, NOT by "what the canvas is looking at": editing a

@@ -6,6 +6,7 @@
 // instance overrides — the definition is never polluted. Undo restores "had an override?
 // old value : erase" so a never-overridden slot returns to following its definition default.
 #include "ui/editor_ui.h"
+#include "ui/inspector_param_menu.h"  // ResetSlot + animateContextMenu (split for line-count rule)
 
 #include <memory>
 #include <string>
@@ -36,53 +37,6 @@ bool g_vecEditHadOverride[4] = {false, false, false, false};
 // P1 動已動畫 slider 的 live-write 收尾：拖曳開始快照整條 CurveArray，放手時把 before/after 兩份交給
 // SetCurveSnapshotCommand。一次只有一個 slider 在拖。
 sw::Animator::CurveArray g_curveSnapBefore;
-
-// The Animate gesture's context menu, attached to the LAST drawn Float widget (its slider /
-// DragScalarN row). = TiXL InputValueUi ContextMenuForItem: a right-click on the parameter offers
-// Animate (build curves + first keys at the current values) or, when already animated, Remove
-// Animation. Both go through undoable commands; first keys land at the playhead. `slotId` is the
-// anim-GROUP HEAD's id (scalar = the port itself, Vec = the Widget::Vec head, graph.h 同源): a
-// Vec head builds one curve PER component (= TiXL AddCurvesForFloatVector), and Remove drops the
-// whole channel group in one step (the Animator bucket IS the group).
-void animateContextMenu(const std::string& symbolId, int childId, const std::string& slotId,
-                        bool animated) {
-  if (!ImGui::BeginPopupContextItem(("##anim_" + slotId).c_str())) return;
-  if (!animated) {
-    if (ImGui::MenuItem("Animate")) {
-      const double t = sw::framecook::transportPosition();
-      sw::SymbolChild* c = sw::childById(*sw::doc::currentSymbol(), childId);
-      std::vector<float> curVals;  // one entry per channel, port order from the head
-      if (c) {
-        if (const sw::NodeSpec* spec = sw::findSpec(c->symbolId)) {
-          const sw::AnimGroup ag = sw::animGroupForSlot(*spec, slotId);
-          for (size_t i = 0; i < spec->ports.size(); ++i)
-            if (spec->ports[i].isInput && spec->ports[i].id == ag.headId) {
-              for (int k = 0; k < ag.arity && i + (size_t)k < spec->ports.size(); ++k) {
-                const sw::PortSpec& pp = spec->ports[i + (size_t)k];
-                curVals.push_back(sw::effectiveInput(sw::doc::g_lib, *c, pp.id, pp.def));
-              }
-              break;
-            }
-        }
-      }
-      if (curVals.empty()) curVals.push_back(0.0f);  // unknown spec: scalar fallback
-      auto cmd = std::make_unique<sw::AddAnimationCommand>(sw::doc::g_lib, symbolId, childId,
-                                                           slotId, t, std::move(curVals));
-      if (!cmd->refused()) {  // doIt runs in push; refused (already animated) -> skip stack
-        sw::g_commands.push(std::move(cmd));
-      }
-    }
-    sw::eye::recordItem("insp:Animate");
-  } else {
-    if (ImGui::MenuItem("Remove Animation")) {
-      auto cmd = std::make_unique<sw::RemoveAnimationCommand>(sw::doc::g_lib, symbolId, childId,
-                                                              slotId);
-      if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
-    }
-    sw::eye::recordItem("insp:Remove Animation");
-  }
-  ImGui::EndPopup();
-}
 
 }  // namespace
 
@@ -176,14 +130,23 @@ void drawInspector() {
           }
           float vals[4] = {0, 0, 0, 0};
           bool had[4] = {false, false, false, false};
+          std::vector<ResetSlot> resets;  // captured PRE-drag: committed override per comp
           for (int k = 0; k < N; ++k) {
             vals[k] = eff(spec->ports[i + k]);
             had[k] = sel->overrides.count(spec->ports[i + k].id) > 0;
+            resets.push_back({spec->ports[i + k].id, had[k], vals[k]});
           }
           float pre[4];
           for (int k = 0; k < N; ++k) pre[k] = vals[k];
+          // default/override text color (= TiXL InputValueUi line 516): any component overridden ->
+          // ForegroundFull white; all-default -> TextMuted grey. Colors the label + value text.
+          bool vecAnyOverride = false;
+          for (int k = 0; k < N; ++k) vecAnyOverride = vecAnyOverride || had[k];
+          ImGui::PushStyleColor(ImGuiCol_Text, vecAnyOverride ? IM_COL32(255, 255, 255, 255)
+                                                              : IM_COL32(128, 128, 128, 255));
           ImGui::DragScalarN(p.name.c_str(), ImGuiDataType_Float, vals, N, 0.01f, &p.minV,
                              &p.maxV, "%.2f");
+          ImGui::PopStyleColor();
           sw::eye::recordItem(("param:" + p.id).c_str());
           if (ImGui::IsItemActivated())
             for (int k = 0; k < N; ++k) {
@@ -208,7 +171,7 @@ void drawInspector() {
                 if (sel->overrides.erase(spec->ports[i + k].id)) sw::doc::bumpLibRevision();
               }
             }
-          animateContextMenu(cur->id, sel->id, p.id, /*animated=*/false);
+          animateContextMenu(cur->id, sel->id, p.id, /*animated=*/false, resets);
           i += N - 1;  // skip the consumed component ports (for-loop ++i moves past the group)
           continue;
         }
@@ -291,16 +254,23 @@ void drawInspector() {
           }
           animateContextMenu(cur->id, sel->id, p.id, /*animated=*/true);
         } else {
-          // Free constant — slider writes LIVE into the override so the runtime sees
-          // changes mid-drag (柏為 expects immediate feedback). One undo step per drag:
-          // capture the pre-drag value + had-override on activation, record on release.
+          // Free constant — JOG-DIAL drag editor (= TiXL SingleValueEdit drag-to-scrub; here the
+          // imgui DragFloat, matching the Vec row's DragScalarN). Writes LIVE into the override so
+          // the runtime sees changes mid-drag (柏為 expects immediate feedback). One undo step per
+          // drag: capture the pre-drag value + had-override on activation, record on release.
           const bool had = sel->overrides.count(p.id) > 0;
           float v = eff(p);
           const float preV = v;
-          if (ImGui::SliderFloat(p.name.c_str(), &v, p.minV, p.maxV)) {
+          // default/override text color (= TiXL InputValueUi line 516): overridden -> ForegroundFull
+          // white; default -> TextMuted grey. Colors the label + value text.
+          ImGui::PushStyleColor(ImGuiCol_Text,
+                                had ? IM_COL32(255, 255, 255, 255) : IM_COL32(128, 128, 128, 255));
+          if (ImGui::DragFloat(p.name.c_str(), &v, 0.01f, p.minV, p.maxV, "%.2f",
+                               ImGuiSliderFlags_AlwaysClamp)) {
             sel->overrides[p.id] = v;
             sw::doc::bumpLibRevision();  // projection contract (document.h)
           }
+          ImGui::PopStyleColor();
           sw::eye::recordItem(("param:" + p.id).c_str());
           if (ImGui::IsItemActivated()) {
             g_paramEditBefore = preV;
@@ -315,7 +285,8 @@ void drawInspector() {
               if (sel->overrides.erase(p.id)) sw::doc::bumpLibRevision();
             }
           }
-          animateContextMenu(cur->id, sel->id, p.id, /*animated=*/false);
+          animateContextMenu(cur->id, sel->id, p.id, /*animated=*/false,
+                             {{p.id, had, preV}});  // reset target: this slot, its committed value
         }
       }
       if (!any) ImGui::TextDisabled("(no editable parameters)");

@@ -1,0 +1,63 @@
+# inspector_param_reset.scn — 活體牙 (Tier2): Inspector parameter reset + default/override text
+# color + jog-dial (DragFloat) edit. = TiXL InputValueUi (ContextMenuForItem "Reset to default" /
+# ResetInputToDefault + the IsDefault? TextMuted : ForegroundFull value-text color, line 516, and
+# the SingleValueEdit drag-to-scrub editor ported here as imgui DragFloat).
+#
+# On RadialPoints (node:1) inside EmitterComp, its scalar Float param RadiusOffset (starts default):
+#   1. JOG-DIAL drag the param -> an instance override materializes (DragFloat edit writes it live).
+#      Now drawn ForegroundFull white (capture overridden).
+#   2. Right-click param -> "Reset to default" item present (TiXL only shows it when !IsDefault);
+#      click it -> the override is ERASED (definition default shines through). Undoable.
+#   3. After reset the value text is drawn TextMuted grey -> the screenshot DIFFERS from (1)
+#      (the color difference is on-screen and load-bearing).
+#   4. Cmd+Z restores the override (live-app undo round-trip of the reset command).
+#
+# RED proofs:
+#   - (1) change the override "any" check to "all(.==false)" -> FAIL (the drag really overrode it).
+#   - (2) change the erase "all(.==false)" to "any" -> FAIL (reset really erased the override).
+#   - (3) change assert_diff to assert_same -> FAIL (override->default flips the text color).
+#   - (4) change the restore "any" to "all(.==false)" -> FAIL (Cmd+Z really brought it back).
+
+open app/testdata/compound_smoke.swproj
+
+# Enter EmitterComp (node:1 in Root) and select RadialPoints (node:1 inside). (Same select gesture
+# as d4_vec_channels.scn: double to enter, click the inside node title to select it.)
+do double @node:1^
+assert_state '(.compositionPath | length) == 1'
+do click @node:1^
+# Baseline: RadiusOffset is at its definition default (no override) -> drawn TextMuted grey.
+assert_state '[.lib.symbols[] | select(.id=="EmitterComp") | .children[] | select(.id==1) | .overrides | has("RadiusOffset")] | all(. == false)'
+echo radiusoffset-starts-default-grey
+
+# 1. JOG-DIAL: drag the RadiusOffset DragFloat right -> an instance override materializes (white).
+# (The drag also forces a fresh inspector-drawn map shot, so @param:RadiusOffset resolves.)
+do drag @param:RadiusOffset +60 +0
+wait 0.4
+assert_state '[.lib.symbols[] | select(.id=="EmitterComp") | .children[] | select(.id==1) | .overrides | has("RadiusOffset")] | any'
+capture full overridden
+echo jogdial-drag-created-override-white-captured
+
+# 2. Right-click the param -> the TiXL "Reset to default" item renders (eye marker insp:reset);
+# click it.
+do rclick @param:RadiusOffset
+wait 0.4
+assert_map_has insp:reset
+do click @insp:reset
+wait 0.4
+# Override ERASED -> the definition default shines through (no key in the serialized overrides).
+assert_state '[.lib.symbols[] | select(.id=="EmitterComp") | .children[] | select(.id==1) | .overrides | has("RadiusOffset")] | all(. == false)'
+echo reset-erased-the-override
+
+# 3. Now drawn TextMuted grey -> the full-window shot differs from the overridden (white) one.
+capture full reset
+assert_diff overridden
+echo default-vs-override-color-differs-onscreen
+
+# 4. Cmd+Z restores the override (live-app undo round-trip). Click the node title to give the canvas
+# focus (Cmd+Z is gated on canvas IsWindowFocused), then Cmd+Z.
+do click @node:1^
+wait 0.3
+do keychord cmd z
+wait 0.4
+assert_state '[.lib.symbols[] | select(.id=="EmitterComp") | .children[] | select(.id==1) | .overrides | has("RadiusOffset")] | any'
+echo undo-restored-the-override

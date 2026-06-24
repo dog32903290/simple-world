@@ -231,4 +231,16 @@ void SetOverrideCommand::undo() {
   else c->overrides.erase(slotId_);
 }
 
+// --- ResetOverrideCommand --- (mirror of SetOverride: doIt erases, undo restores the old override)
+void ResetOverrideCommand::doIt() {
+  Symbol* s = sym(lib_, symbolId_);
+  if (SymbolChild* c = s ? childById(*s, childId_) : nullptr) c->overrides.erase(slotId_);
+}
+void ResetOverrideCommand::undo() {
+  Symbol* s = sym(lib_, symbolId_);
+  if (SymbolChild* c = s ? childById(*s, childId_) : nullptr) {
+    if (hadOld_) c->overrides[slotId_] = old_;  // refused() guarantees this branch when pushed
+  }
+}
+
 }  // namespace sw

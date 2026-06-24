@@ -137,6 +137,30 @@ class SetOverrideCommand : public Command {
   float old_, new_;
 };
 
+// 把某 child 某 input slot 重置回定義 default（Inspector 重置手勢：按參數名 / 右鍵 "Reset to
+// default"）= TiXL ResetInputToDefault。doIt ERASE override（定義 default 重新透出，never a
+// 0-residue），undo 還原成「之前有 override 就設回舊值、本來沒有就保持 erase」——SetOverrideCommand
+// 的鏡像（它 doIt 設、undo 擦；這個 doIt 擦、undo 設）。沒 override 時 push 前用 refused() 擋掉。
+class ResetOverrideCommand : public Command {
+ public:
+  ResetOverrideCommand(SymbolLibrary& lib, std::string symbolId, int childId, std::string slotId,
+                       bool hadOld, float oldV)
+      : lib_(lib), symbolId_(std::move(symbolId)), childId_(childId), slotId_(std::move(slotId)),
+        hadOld_(hadOld), old_(oldV) {}
+  void doIt() override;
+  void undo() override;
+  const char* name() const override { return "Reset Value"; }
+  bool refused() const { return !hadOld_; }  // nothing to reset (already default) -> caller skips
+
+ private:
+  SymbolLibrary& lib_;
+  std::string symbolId_;
+  int childId_;
+  std::string slotId_;
+  bool hadOld_;
+  float old_;
+};
+
 // 貼上一批 child + 它們的內部連線（copy/paste 契約 4, 照 TiXL CopySymbolChildrenCommand）。
 // 命令在 BUILD 時拿一個 PastePlan（planPaste 已配好新 id + oldToNew 重映射 + 重映射後的連線，
 // = TiXL 在 ctor 就算好 _childrenToCopy/NewChildIds）。doIt 依序 append children -> append wires
