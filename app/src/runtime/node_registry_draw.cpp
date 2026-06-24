@@ -259,6 +259,18 @@ const std::vector<NodeSpec>& drawSpecs() {
         {"Value", "Value", "Float", true, 0.0f, -1000.0f, 1000.0f},
         {"ClearAfterExecution", "ClearAfterExecution", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr},
+      // SetBoolVarCmd (TiXL Lib.flow.context.SetBoolVar, the SubGraph branch :25-36): the bool twin of
+      // SetFloatVarCmd. BoolValue arrives on a Float port (no Bool port type) → !=0 ⇒ 1 and pushed into the
+      // INT channel (context.IntVariables[VariableName]) around the SubGraph. NAMED FORK: sw has no boolVars
+      // dict, so bool rides intVars as 0/1. strDef "b". Command in → Command out. .t3: BoolValue=false,
+      // ClearAfterExecution=false. The PUSH/RESTORE is the generic cmdVarPush isBool branch (driver-shared).
+      {"SetBoolVarCmd", "SetBoolVar",
+       {{"SubGraph", "SubGraph", "Command", true},
+        {"out", "out", "Command", false},
+        {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "b"},
+        {"BoolValue", "BoolValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"ClearAfterExecution", "ClearAfterExecution", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr},
       // Execute (TiXL Lib.flow.Execute): the S2a KEYSTONE — a MULTIINPUT Command port that concatenates
       // N wired Command chains in wire-declaration order into ONE chain (Execute.cs CollectedInputs). The
       // cook-core collector (cookCommand's MultiInput Command branch) does the gather+concat; this op just

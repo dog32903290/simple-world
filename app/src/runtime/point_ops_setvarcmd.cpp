@@ -47,7 +47,7 @@ namespace sw {
 // ───────────────────────────── push/restore helper (shared by both cook legs) ─────────────────────────────
 
 bool isCmdContextVarWriter(const std::string& opType) {
-  return opType == "SetFloatVarCmd" || opType == "SetIntVarCmd";
+  return opType == "SetFloatVarCmd" || opType == "SetIntVarCmd" || opType == "SetBoolVarCmd";
 }
 
 bool& setVarBugSkipWrite() {
@@ -73,14 +73,17 @@ CmdVarScope cmdVarPush(const std::string& opType, const std::map<std::string, fl
   if (varName.empty()) return s;                          // TiXL string.IsNullOrEmpty(name) → no-op
   s.active = true;
   s.name = varName;
-  s.isInt = (opType == "SetIntVarCmd");
+  const bool isBool = (opType == "SetBoolVarCmd");
+  s.isInt = (opType == "SetIntVarCmd") || isBool;  // bool rides intVars 0/1 (sw has no boolVars dict)
   s.clearAfter = paramOr(params, "ClearAfterExecution", 0.0f) > 0.5f;
   if (s.isInt) {
-    const long newValue = (long)std::trunc(paramOr(params, "Value", 0.0f));  // C# (int) cast = truncate
+    // bool: BoolValue !=0 ⇒ 1 (no boolVars dict; NAMED FORK vs TiXL BoolVariables). int: (int)cast = truncate.
+    const long newValue = isBool ? ((paramOr(params, "BoolValue", 0.0f) != 0.0f) ? 1 : 0)
+                                 : (long)std::trunc(paramOr(params, "Value", 0.0f));  // C# (int) cast = truncate
     auto it = vars->intVars.find(varName);
     s.hadPrev = (it != vars->intVars.end());
     if (s.hadPrev) s.prevI = it->second;
-    vars->intVars[varName] = newValue;  // context.IntVariables[name] = newValue (SetIntVar.cs:41)
+    vars->intVars[varName] = newValue;  // context.Int/BoolVariables[name] = newValue (Set{Int,Bool}Var.cs)
   } else {
     const float newValue = paramOr(params, "FloatValue", 0.0f);
     auto it = vars->floatVars.find(varName);
@@ -122,7 +125,7 @@ LiveCtxVarScope::~LiveCtxVarScope() {
 ContextVarMap* liveCtxVars() { return t_liveCtxVars; }
 
 bool isValueRailContextVarReader(const std::string& opType) {
-  return opType == "GetFloatVar" || opType == "GetIntVar";
+  return opType == "GetFloatVar" || opType == "GetIntVar" || opType == "GetBoolVar";
 }
 
 float liveGetVar(const std::string& opType, const std::string& varName, float fallback, bool* found) {
@@ -130,6 +133,13 @@ float liveGetVar(const std::string& opType, const std::string& varName, float fa
   ContextVarMap* live = t_liveCtxVars;
   if (!live || !isValueRailContextVarReader(opType)) return fallback;  // no scope / not a reader → unchanged
   if (varName.empty()) return fallback;                                // empty name → normal lookup miss
+  if (opType == "GetBoolVar") {
+    // bool rides the INT channel (no boolVars dict; NAMED FORK vs TiXL BoolVariables). hit/fallback → 0/1.
+    auto it = live->intVars.find(varName);
+    if (it == live->intVars.end()) return (fallback != 0.0f) ? 1.0f : 0.0f;  // unset → FallbackDefault !=0 ⇒ 1
+    if (found) *found = true;
+    return (it->second != 0) ? 1.0f : 0.0f;                            // stored 0/1 (or any !=0 ⇒ 1)
+  }
   if (opType == "GetIntVar") {
     auto it = live->intVars.find(varName);
     if (it == live->intVars.end())
@@ -156,10 +166,16 @@ RenderCommand cookSetIntVarCmd(CmdCookCtx& c) {
   if (c.inputCommand) rc.items = c.inputCommand->items;
   return rc;
 }
+RenderCommand cookSetBoolVarCmd(CmdCookCtx& c) {
+  RenderCommand rc;
+  if (c.inputCommand) rc.items = c.inputCommand->items;
+  return rc;
+}
 
 void registerSetVarCmdOps() {
   registerCmdOp("SetFloatVarCmd", cookSetFloatVarCmd);
   registerCmdOp("SetIntVarCmd", cookSetIntVarCmd);
+  registerCmdOp("SetBoolVarCmd", cookSetBoolVarCmd);
 }
 
 // ───────────────────────────────────────── GOLDEN ─────────────────────────────────────────

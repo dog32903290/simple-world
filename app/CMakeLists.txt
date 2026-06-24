@@ -482,6 +482,7 @@ add_executable(simple_world
   src/app/cook_host_values.cpp
   src/app/frame_cook_selftest.cpp
   src/app/frame_cook_contextvar_selftest.cpp
+  src/app/frame_cook_setboolvar_selftest.cpp
   src/app/frame_cook_animvalue_selftest.cpp
   src/app/frame_cook_animint_selftest.cpp
   src/app/frame_cook_animboolean_selftest.cpp

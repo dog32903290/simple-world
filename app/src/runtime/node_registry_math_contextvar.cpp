@@ -60,6 +60,30 @@ static const MathOp _reg_GetIntVar{
        nullptr}
 };
 
+      // SetBoolVar — write the bool (0/1) into the named var on the INT channel (sw has no boolVars dict;
+      // NAMED FORK: TiXL flow/context/SetBoolVar.cs uses context.BoolVariables, sw collapses bool→intVars as
+      // 0/1 since ContextVarMap carries only floatVars+intVars). no-SubGraph branch (SetBoolVar.cs:39); empty
+      // name → no-op (cs:19-23). BoolValue on a Float port (no Bool port type) → !=0 ⇒ 1. .t3: BoolValue=false,
+      // VariableName="b". The SubGraph (Command) half is the separate command-rail SetBoolVarCmd (two-rail).
+static const MathOp _reg_SetBoolVar{
+      {"SetBoolVar", "SetBoolVar",
+       {{"Output", "Output", "Float", false},
+        {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "b"},
+        {"BoolValue", "BoolValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr}
+};
+
+      // GetBoolVar — read the named bool var off the INT channel (!=0 ⇒ 1), else FallbackDefault (!=0 ⇒ 1).
+      // TiXL flow/context/GetBoolVar.cs (:15-29). DROP ICustomDropdownHolder (var-name dropdown UI). NAMED FORK:
+      // reads intVars (sw has no boolVars). .t3: VariableName="b", FallbackDefault=false.
+static const MathOp _reg_GetBoolVar{
+      {"GetBoolVar", "GetBoolVar",
+       {{"Result", "Result", "Float", false},
+        {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "b"},
+        {"FallbackDefault", "FallbackDefault", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr}
+};
+
       // BlendValues — blend between a MultiInput<float> list by F. TiXL float/process/BlendValues.cs.
       // Values (multiInput) MUST precede the trailing regular F — the eval reads F as in[n-1] and the
       // Values segment as in[0..n-2] (mixed-multiInput convention; no gather change, batch35).

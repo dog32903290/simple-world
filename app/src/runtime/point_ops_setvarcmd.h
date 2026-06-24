@@ -27,7 +27,7 @@ bool isCmdContextVarWriter(const std::string& opType);
 // The saved state cmdVarPush returns, fed back into cmdVarRestore (the TiXL hadPrev/previous capture).
 struct CmdVarScope {
   bool active = false;       // false => not a writer / no map => restore is a no-op
-  bool isInt = false;        // which dict (SetIntVar -> intVars, else floatVars)
+  bool isInt = false;        // which dict (SetIntVar/SetBoolVar -> intVars, else floatVars); bool rides intVars 0/1
   std::string name;          // the resolved VariableName (empty name => no-op, TiXL string.IsNullOrEmpty)
   bool hadPrev = false;      // TiXL: context.*Variables.TryGetValue(name, out previous)
   float prevF = 0.0f;        // previous float value (when hadPrev && !isInt)

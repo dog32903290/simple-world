@@ -77,18 +77,47 @@ void stepGetIntVar(const std::map<std::string, float>& in, float, float, Statefu
   out[0] = (float)fallback;                   // unset → fallbackValue
 }
 
+// --- SetBoolVar (TiXL Lib/flow/context/SetBoolVar.cs) — writes the bool (0/1) into vars.intVars[name]
+// (no-SubGraph branch cs:37-40). NAMED FORK: sw has no boolVars dict (ContextVarMap = floatVars+intVars),
+// so bool rides the INT channel as 0/1. BoolValue arrives on a Float port (no Bool port) → !=0 ⇒ 1. Empty
+// name → no-op (cs:19-23). out[0] echoes the stored 0/1 (golden). .t3 default: BoolValue=false, Name="b".
+void stepSetBoolVar(const std::map<std::string, float>& in, float, float, StatefulValueState&,
+                    float out[3], const TransportSnapshot&, ContextVarMap* vars,
+                    const std::string& varName) {
+  const long newValue = (getIn(in, "BoolValue", 0.0f) != 0.0f) ? 1 : 0;  // bool (0/1) on the int channel
+  out[0] = (float)newValue;
+  if (varName.empty() || !vars) return;
+  vars->intVars[varName] = newValue;
+}
+
+// --- GetBoolVar (TiXL Lib/flow/context/GetBoolVar.cs:15-29) — reads vars.intVars[name] (!=0 ⇒ 1), else
+// FallbackDefault (!=0 ⇒ 1). NAMED FORK: reads the INT channel (no boolVars dict). DROP ICustomDropdownHolder
+// (editor UI). FallbackDefault on a Float port carrying a bool. .t3 default: VariableName="b", Fallback=false.
+void stepGetBoolVar(const std::map<std::string, float>& in, float, float, StatefulValueState&,
+                    float out[3], const TransportSnapshot&, ContextVarMap* vars,
+                    const std::string& varName) {
+  const float fallback = (getIn(in, "FallbackDefault", 0.0f) != 0.0f) ? 1.0f : 0.0f;
+  if (vars) {
+    auto it = vars->intVars.find(varName);
+    if (it != vars->intVars.end()) { out[0] = (it->second != 0) ? 1.0f : 0.0f; return; }  // TryGetValue hit
+  }
+  out[0] = fallback;                          // unset → FallbackDefault.GetValue(context)
+}
+
 }  // namespace
 
 // context-var seam: the Set*Var writer family (run before any reader in the 2-pass cook). Kept as
-// an explicit name list (4 ops) rather than a prefix match — explicit is refuter-auditable and a
-// future "SetupX" op can't accidentally join the writer pass.
+// an explicit name list rather than a prefix match — explicit is refuter-auditable and a future
+// "SetupX" op can't accidentally join the writer pass. SetBoolVar joins (bool rides intVars 0/1).
 bool isContextVarWriter(const std::string& opType) {
-  return opType == "SetFloatVar" || opType == "SetIntVar";
+  return opType == "SetFloatVar" || opType == "SetIntVar" || opType == "SetBoolVar";
 }
 
 static const StatefulOpReg _reg_SetFloatVar{"SetFloatVar", stepSetFloatVar};
 static const StatefulOpReg _reg_GetFloatVar{"GetFloatVar", stepGetFloatVar};
 static const StatefulOpReg _reg_SetIntVar{"SetIntVar", stepSetIntVar};
 static const StatefulOpReg _reg_GetIntVar{"GetIntVar", stepGetIntVar};
+static const StatefulOpReg _reg_SetBoolVar{"SetBoolVar", stepSetBoolVar};
+static const StatefulOpReg _reg_GetBoolVar{"GetBoolVar", stepGetBoolVar};
 
 }  // namespace sw
