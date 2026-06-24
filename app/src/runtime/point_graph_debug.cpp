@@ -103,6 +103,16 @@ MTL::Texture* PointGraph::debugCookedTexture(int nodeId) const {
   return it != p_->texBuf.end() ? it->second : nullptr;
 }
 
+// PRODUCTION (node-thumbnail face, TiXL MagGraphCanvas.TryDrawTexturePreview parity): the resolution-
+// sized texture a RESIDENT Texture2D-flow node cooked LAST frame, keyed by its resident PATH (raw, the
+// same key cookResidentTexNode passes to ensureTex). Borrowed (PointGraph-owned, valid until the next
+// cook of that node). nullptr when the path never cooked a tex node (e.g. a Float node, or a Texture2D
+// node off the currently-cooked target chain — only the viewed node's upstream subtree is cooked).
+MTL::Texture* PointGraph::residentTexFor(const std::string& path) const {
+  auto it = p_->texBuf.find(path);
+  return it != p_->texBuf.end() ? it->second : nullptr;
+}
+
 MTL::Texture* PointGraph::debugCookedFeedbackOutput(int nodeId, int ordinal, bool resident) const {
   if (ordinal < 0 || ordinal >= Impl::kMaxFeedbackOut) return nullptr;
   // Flat keys by "#id" (flatKey); resident keys by the path "id" (== node id as string, libFromGraph).

@@ -440,10 +440,10 @@ class PointGraph {
   // of that node. nullptr if the node never cooked as a feedback op / ordinal out of range. For goldens.
   MTL::Texture* debugCookedFeedbackOutput(int nodeId, int ordinal, bool resident = false) const;
 
-  // Test-support: the resolution-sized texture a TEXTURE-flow node cooked last (Impl::texBuf, flatKey(id)).
-  // Lets the S1 golden assert a NESTED RenderTarget inherited the pushed RequestedResolution, not the
-  // window. nullptr if never cooked. Borrowed (do not release).
+  // Texture a TEXTURE-flow node cooked last frame (Impl::texBuf). debugCookedTexture: FLAT key, test-support.
+  // residentTexFor: RESIDENT path key (cookResident's ensureTex key), node-thumbnail face (TiXL). Borrowed.
   MTL::Texture* debugCookedTexture(int nodeId) const;
+  MTL::Texture* residentTexFor(const std::string& path) const;
 
  private:
   struct Impl;

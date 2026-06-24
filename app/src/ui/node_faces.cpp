@@ -14,7 +14,23 @@
 #include "app/document.h"
 #include "app/frame_cook.h"  // residentOut: live extOut values by resident path
 #include "runtime/compound_graph.h"
+#include "runtime/graph.h"   // findSpec — read a child's first-output dataType (Texture2D thumbnail gate)
 #include "runtime/spectrum_analyzer.h"
+#include "ui/node_style.h"   // typeColor — the Texture2D type color for the thumbnail border (TiXL)
+#include "verify/eye/eye.h"  // recordRect — ONE hook so the harness can assert thumbnail presence
+
+// Metal type used only as an opaque ImTextureID handle here (NOT a Metal call: ui stays Metal-free,
+// the shell owns the texture). Forward-declared so node_faces.h needs no Metal include.
+namespace MTL { class Texture; }
+
+namespace sw {
+// Shell seam (main.cpp): the texture the resident node at `path` cooked this frame, or nullptr. Same
+// opaque-handle contract as previewTexture() — ui asks the shell, never touches Metal itself.
+MTL::Texture* residentNodeTexture(const char* path);
+// Companion: native pixel size of that texture (for the thumbnail aspect), so ui never queries Metal.
+// false (w/h untouched) when the path has no cooked texture this frame.
+bool residentNodeTextureSize(const char* path, int& w, int& h);
+}
 
 namespace sw::ui {
 namespace {  // face fns are internal — reached only via the kFaces dispatch table below
@@ -116,6 +132,52 @@ void drawAudioReactionFace(const sw::SymbolChild& child) {
   ImGui::TextDisabled("%s", lbl);
 }
 
+// TiXL parity (MagGraphCanvas.TryDrawTexturePreview): a node whose FIRST output is a Texture2D draws
+// a small thumbnail of its rendered output on its body — so 柏為 SEES the image each node makes, on the
+// canvas, without opening the Output window. Returns true if a thumbnail was drawn (gate: first output
+// dataType == "Texture2D" AND the node cooked a texture this frame — only nodes on the currently-viewed
+// target chain cook one). Non-image nodes (Float/Points/Command/...) return false → no face, exactly
+// like TiXL where only a Slot<Texture2D> output gets the preview.
+//
+// Fork vs TiXL (named): TiXL sizes the preview to the imgui-node-editor cell (GridSize) and right-aligns
+// it inside the body with a per-canvas CanvasScale. Our canvas is imgui-node-editor (no MagGraph grid),
+// so the face lays out like the AudioReaction face — an ImGui::Dummy reserving a fixed-height thumbnail
+// inside the node body, width = height × texture-aspect (capped at maxAspect 1.6, TiXL's cap). Aspect +
+// type-colored border + the "draw the live cooked texture" behaviour are faithful.
+bool drawTexturePreviewFace(const sw::SymbolChild& child) {
+  const sw::NodeSpec* spec = sw::findSpec(child.symbolId);
+  if (!spec) return false;
+  const sw::PortSpec* firstOut = nullptr;
+  for (const sw::PortSpec& p : spec->ports)
+    if (!p.isInput) { firstOut = &p; break; }
+  if (!firstOut || firstOut->dataType != "Texture2D") return false;  // TiXL: firstOutput is Slot<Texture2D>
+
+  MTL::Texture* tex = sw::residentNodeTexture(sw::doc::residentPathFor(child.id).c_str());
+  if (!tex) return false;  // not cooked this frame (off the viewed target chain) → no thumbnail, no face
+
+  // Aspect from the cooked texture; the seam exposes size via the existing previewTextureSize path, but
+  // for a per-node tex we read width/height through the same opaque handle the shell hands us. We avoid a
+  // Metal call in ui by routing size through residentNodeTextureSize (declared with residentNodeTexture).
+  int tw = 0, th = 0;
+  sw::residentNodeTextureSize(sw::doc::residentPathFor(child.id).c_str(), tw, th);
+  const float aspect = (tw > 0 && th > 0) ? (float)tw / (float)th : 1.0f;
+
+  const float kH = 38.0f;            // thumbnail height (px) on the body — fixed (canvas-scale fork above)
+  const float kMaxAspect = 1.6f;     // TiXL maxAspect cap
+  float w = kH * aspect, h = kH;
+  if (w > kH * kMaxAspect) { w = kH * kMaxAspect; }  // TiXL clamps width (keeps a sane footprint)
+
+  const ImVec2 sz(w, h);
+  ImGui::Dummy(sz);
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  const ImVec2 rmin = ImGui::GetItemRectMin();
+  const ImVec2 rmax = ImGui::GetItemRectMax();
+  dl->AddImage(reinterpret_cast<ImTextureID>(tex), rmin, rmax);  // the live cooked output (TiXL AddImage)
+  dl->AddRect(rmin, rmax, sw::ui::typeColor("Texture2D"), 2.0f, ImDrawFlags_RoundCornersAll, 1.0f);
+  sw::eye::recordRect(("thumb:" + std::to_string(child.id)).c_str(), rmin.x, rmin.y, rmax.x, rmax.y);
+  return true;
+}
+
 // 資料驅動 dispatch: add a {type, faceFn} row here to give an operator a custom body.
 // New node types with a custom draw-list face append to this table — they never touch
 // editor_ui's canvas loop, so node-making and canvas-skinning stay collision-free.
@@ -127,8 +189,13 @@ const FaceEntry kFaces[] = {
 }  // anonymous namespace
 
 void drawNodeFace(const sw::SymbolChild& child) {
+  // 1) explicit per-type custom face (kFaces table). 2) generic Texture2D-output thumbnail (TiXL
+  // TryDrawTexturePreview) for every image node — data-driven by the node's first-output dataType,
+  // no per-type row. An explicit face wins (a custom face draws its own body); the thumbnail is the
+  // universal fallback for image ops that have no custom face.
   for (const auto& f : kFaces)
     if (child.symbolId == f.type) { f.draw(child); return; }
+  drawTexturePreviewFace(child);
 }
 
 }  // namespace sw::ui

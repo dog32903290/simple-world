@@ -1,0 +1,51 @@
+# node_thumbnail_face.scn — 活體牙 (EXPERIENCE_SCOPE_GAPS #13): a node whose FIRST output is a
+# Texture2D draws a thumbnail of its rendered output on its body, TiXL parity (= external/tixl
+# Editor/Gui/MagGraph/Ui/MagGraphCanvas.DrawNode.cs TryDrawTexturePreview: "if firstOutput is
+# Slot<Texture2D> ... drawList.AddImage(texture, ...)" — the live cooked texture, drawn scaled on
+# the operator body). Our face (node_faces.cpp drawTexturePreviewFace) reads the resident node's
+# cooked texture (residentNodeTexture(path) -> PointGraph::residentTexFor, the per-path ensureTex
+# the cook fills) and draws it with the same type-colored border. The face records a `thumb:<id>`
+# rect via the ONE eye hook so the harness can assert it (alongside the screenshot eye gate).
+#
+# Cook reality (named fork from TiXL): TiXL evaluates every visible op, so every image op shows a
+# thumbnail. Our cook realizes ONE target subtree per frame (the viewed/selected node's chain), so
+# a thumbnail appears for a Texture2D node when it is on the cooked chain (here: SELECTED, since the
+# viewport follows the selection). This is the honest live state — the texture shown IS the texture
+# the node really cooked this frame, never a stale/fake preview.
+#
+# Asserts (RED -> GREEN):
+#   1. A non-image node (id 5, a Points op) NEVER has a thumb — its first output is not Texture2D.
+#   2. Clicking the perlin asset creates a LoadImage (id 7, Texture2D out) in Root.
+#   3. Selecting that LoadImage cooks its texture -> a `thumb:7` rect appears on its body, AND the
+#      clean screenshot shows the perlin texture as a mini-image on the node (capture for the eye).
+#   4. The non-image node STILL has no thumb after all this (the gate is the output TYPE, not state).
+#
+# RED proof: in node_faces.cpp drawTexturePreviewFace, drop the `firstOut->dataType != "Texture2D"`
+# gate (so every node tries a thumb) -> step 1/4 FAIL (a Points node would get a thumb:5). Or remove
+# the `if (!tex) return false` -> step 3's thumb never appears for a Texture2D node off the chain.
+
+open app/testdata/compound_smoke.swproj
+wait 0.3
+
+# --- 1. baseline: a non-image Points node (id 5) has NO thumbnail ---
+assert_map '([.items[]? | select(.label == "thumb:5")] | length) == 0'
+echo non-image-node-5-has-no-thumb
+
+# --- 2. click the perlin asset -> a LoadImage (Texture2D out) is created in Root as id 7 ---
+assert_map_has asset:Lib:images/basic/perlin-noise-rgb.png
+do click @asset:Lib:images/basic/perlin-noise-rgb.png
+wait 0.5
+assert_state '[.lib.symbols[] | select(.id == "Root") | .children[] | select(.symbolId == "sw-type:LoadImage")] | length >= 1'
+echo perlin-loadimage-created
+
+# --- 3. select the LoadImage so the viewport cooks it -> its body shows the cooked perlin thumb ---
+do selectnode 7
+wait 0.6
+assert_map_has thumb:7
+echo image-node-7-shows-thumb
+capture full node_thumbnail
+echo screenshot-captured
+
+# --- 4. the non-image node STILL has no thumb (gate is the output TYPE, not cook state) ---
+assert_map '([.items[]? | select(.label == "thumb:5")] | length) == 0'
+echo non-image-node-5-still-no-thumb

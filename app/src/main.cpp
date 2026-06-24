@@ -80,6 +80,20 @@ bool previewTextureSize(int& w, int& h) {
   h = static_cast<int>(tex->height());
   return w > 0 && h > 0;
 }
+// Per-node thumbnail seam (node_faces TexturePreviewFace): the texture the resident node at `path`
+// cooked this frame, or nullptr. Same shell-owned Metal-stays-out-of-ui contract as previewTexture()
+// — the ui zone asks the shell for an opaque MTL::Texture* it hands to ImGui as an ImTextureID. Only
+// nodes on the currently-cooked target chain have a texture (the cook realizes one subtree per frame).
+MTL::Texture* residentNodeTexture(const char* path) {
+  return ::g_pointGraph ? ::g_pointGraph->residentTexFor(path) : nullptr;
+}
+bool residentNodeTextureSize(const char* path, int& w, int& h) {
+  MTL::Texture* tex = residentNodeTexture(path);
+  if (!tex) return false;
+  w = static_cast<int>(tex->width());
+  h = static_cast<int>(tex->height());
+  return w > 0 && h > 0;
+}
 }  // namespace sw
 
 // P6 — Player / 演出 output mode (modes.md [core]; TiXL Player/Program.cs is a separate exe, but
