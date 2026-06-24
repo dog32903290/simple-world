@@ -4,6 +4,7 @@
 
 #include <cfloat>  // FLT_MAX sentinel from ed::GetNodePosition for the selectnode bad-id guard
 #include <cstdio>
+#include <cstdlib>  // atoi (f1..f12 key-name parsing)
 #include <deque>
 #include <fstream>
 #include <sstream>
@@ -78,6 +79,11 @@ ImGuiKey keyFromName(const std::string& n) {
   if (n == "period" || n == ".") return ImGuiKey_Period;
   if (n == "comma" || n == ",") return ImGuiKey_Comma;
   if (n == "home") return ImGuiKey_Home;
+  // Function keys f1..f12 (P6 演出/Focus modes bind F12; F11 OS-fullscreen is on the backlog).
+  if ((n.size() == 2 || n.size() == 3) && (n[0] == 'f' || n[0] == 'F')) {
+    int num = std::atoi(n.c_str() + 1);
+    if (num >= 1 && num <= 12) return (ImGuiKey)(ImGuiKey_F1 + (num - 1));
+  }
   return ImGuiKey_None;
 }
 

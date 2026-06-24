@@ -1,0 +1,63 @@
+# focus_mode.scn — P6 演出/Focus modes live tooth (modes.md [core]/[important]).
+#   F12 = ToggleFocusMode (TiXL FactoryKeyMap.cs:84): hides ALL editor chrome (toolbar/inspector/
+#         timeline/output/variation), blits the live render fullscreen behind the still-interactive
+#         canvas; F12 again restores exactly what was shown.
+#   Shift+Esc = ToggleAllUiElements (TiXL FactoryKeyMap.cs:82): collapses the same chrome windows,
+#         canvas always drawn; toggle back restores.
+#   (Player mode `--play` is a launch-time flag, verified separately by relaunch — the harness
+#   drives a running editor, so this tooth covers the in-editor Focus/Toggle-UI path.)
+#
+# Discriminator = the eye widget map: chrome widgets (New/Save/Add Node/output_pin_btn/var_grab)
+# are recorded ONLY when their window draws. Focus on -> they vanish; off -> they return. The
+# canvas nodes (node:*) stay present throughout (canvas is always drawn).
+#
+# RED proof:
+#   - drop the ToggleFocusMode keymap row -> F12 does nothing -> "chrome gone" assert RED.
+#   - make editorChromeVisible() always true -> chrome never hides -> same assert RED.
+#   - break the restore (toggleFocusMode forgets s_showChromeBeforeFocus) -> "chrome back" RED.
+
+# Default doc has the toolbar + output + variation chrome (no fixture needed; read-only scenario).
+
+# Baseline: chrome is visible -> toolbar New + Output pin button + a Variation slot are in the map.
+assert_map_has New
+assert_map_has output_pin_btn
+assert_map_has var_grab
+echo baseline-chrome-visible
+
+# Focus the canvas so the global keymap (processFrame inside drawNodeCanvas) sees the key.
+do click 500 400
+wait 0.3
+
+# --- F12 enters Focus Mode: all editor chrome collapses ---
+do key f12
+wait 0.6
+
+# Chrome widgets are gone from the map (window not drawn). Use jq absence asserts.
+assert_map '[.items[]? | select(.label == "New")]            | length == 0'
+assert_map '[.items[]? | select(.label == "output_pin_btn")] | length == 0'
+assert_map '[.items[]? | select(.label == "var_grab")]       | length == 0'
+echo focus-on-chrome-hidden
+
+# The canvas is still drawn (and interactive): its nodes remain in the map.
+assert_map '[.items[]? | select(.label | startswith("node:"))] | length > 0'
+echo focus-on-canvas-still-drawn
+
+# --- F12 again leaves Focus Mode: chrome restored exactly ---
+do key f12
+wait 0.6
+assert_map_has New
+assert_map_has output_pin_btn
+assert_map_has var_grab
+echo focus-off-chrome-restored
+
+# --- Shift+Esc = ToggleAllUiElements: the simpler collapse (canvas always drawn) ---
+do keychord shift escape
+wait 0.6
+assert_map '[.items[]? | select(.label == "New")] | length == 0'
+echo shift-esc-ui-hidden
+
+# Toggle back: chrome returns.
+do keychord shift escape
+wait 0.6
+assert_map_has New
+echo shift-esc-ui-restored

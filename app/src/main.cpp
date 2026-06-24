@@ -45,6 +45,7 @@
 #include "ui/fence_preview.h"  // fenceLastCoveredJson (eye state surface for the live .scn)
 #include "ui/output_window.h"
 #include "ui/timeline_window.h"
+#include "ui/view_modes.h"  // P6 g_focusMode / editorChromeVisible (演出/Focus mode gating)
 #include "ui/variation_panel.h"  // P2 Variation window (snapshot pool + N-way mix + crossfader)
 #include "app/midi_bind.h"        // P3 registerIoLiveSources (live MIDI/OSC input hook) + learnStateJson
 #include "verify/eye/eye.h"
@@ -68,6 +69,14 @@ namespace sw {
 MTL::Texture* previewTexture() { return ::g_pointGraph ? ::g_pointGraph->target() : nullptr; }
 }  // namespace sw
 
+// P6 — Player / 演出 output mode (modes.md [core]; TiXL Player/Program.cs is a separate exe, but
+// modes.md sanctions the single-binary --play flag fork: "可先做成同一 binary 的 --play / --present
+// CLI flag, 不必拆 binary"). When on: ALL editor chrome is hidden and the live render texture
+// (g_pointGraph->target() — the same texture previewTexture()/req_clean show) is blitted FULLSCREEN
+// for the audience. Esc leaves player mode back to the editor (TiXL Program.Input.cs:50 Esc exits).
+// Session-only shell state — set by the CLI flag, toggled at runtime, never serialized.
+static bool g_playerMode = false;
+
 namespace {
 // Render-loop state owned by Renderer (internal to this TU).
 MTL::Library* g_shaderLib = nullptr;
@@ -77,6 +86,32 @@ MTL::Library* g_shaderLib = nullptr;
 // EvaluationContext, and the AudioReaction value node surfaces it into the graph.
 // No hardcoded binding — 柏為 wires AudioReaction to a knob himself (visible in the graph).
 sw::AudioCapture g_audioCapture;
+
+// P6 fullscreen render blit (Player + Focus modes). Draws the live render target over the WHOLE
+// main viewport — the same texture previewTexture()/req_clean expose, mirroring TiXL Player's
+// fullscreen-texture pass (Program.RenderLoop.cs). Reuses the existing imgui Metal render path (one
+// borderless window + ImGui::Image) so no new GPU pass touches the present path; when neither mode
+// is on this is never called and present stays byte-identical. `behindCanvas`: focus mode draws it
+// as a backdrop (the canvas still draws on top, interactive); player mode draws it as the only layer.
+void drawFullscreenRender(bool behindCanvas) {
+  MTL::Texture* tex = sw::previewTexture();
+  if (!tex) return;
+  const ImGuiViewport* vp = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(vp->Pos);
+  ImGui::SetNextWindowSize(vp->Size);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                           ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                           ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoScrollbar;
+  // Backdrop variant must not steal mouse/keyboard from the canvas above it.
+  if (behindCanvas) flags |= ImGuiWindowFlags_NoInputs;
+  if (ImGui::Begin("##fullscreen_render", nullptr, flags)) {
+    ImGui::Image(reinterpret_cast<ImTextureID>(tex), vp->Size);
+  }
+  ImGui::End();
+  ImGui::PopStyleVar(2);
+}
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -97,6 +132,8 @@ int main(int argc, char* argv[]) {
           "Usage:\n"
           "  simple_world                 launch the GUI editor\n"
           "  simple_world --open <file>   load a .swproj before the GUI starts (no dialog)\n"
+          "  simple_world --play          launch in演出/Player mode (fullscreen render, no UI;\n"
+          "                               Esc returns to the editor; combine with --open)\n"
           "  simple_world --help | -h     print this usage and exit\n"
           "  simple_world --version | -v  print the version and exit\n"
           "\n"
@@ -125,6 +162,11 @@ int main(int argc, char* argv[]) {
   for (int i = 1; i + 1 < argc; ++i)
     if (std::strcmp(argv[i], "--open") == 0 && !sw::doc::doOpenPath(argv[i + 1], /*quiet=*/true))
       std::fprintf(stderr, "[open] falling back to the default project\n");
+
+  // `--play`: start in演出/Player mode (modes.md [core]). Just sets the flag the draw loop reads;
+  // the window/GUI startup is identical — player mode is a draw-time gate, not a separate entry.
+  for (int i = 1; i < argc; ++i)
+    if (std::strcmp(argv[i], "--play") == 0) g_playerMode = true;
 
   NS::AutoreleasePool* pAutoreleasePool = NS::AutoreleasePool::alloc()->init();
 
@@ -274,12 +316,32 @@ void Renderer::draw(MTK::View* pView) {
   ImGui::NewFrame();
 
   sw::eye::beginWidgetFrame();  // eye③: collect clickable widget rects this frame
-  sw::ui::drawToolbar();     // New/Open/Save/Save As + Add Node (floating)
-  sw::ui::drawNodeCanvas();  // main workspace, fills the viewport
-  sw::ui::drawInspector();    // floats on top
-  sw::ui::drawTimelineWindow(); // S3 dope-sheet (animator lanes + playhead + key gestures)
-  sw::ui::drawOutputWindow(); // the live preview viewport (view ⊥ graph, pinned/terminal)
-  sw::ui::drawVariationPanel(); // P2 Variation window (snapshot pool grid + N-way mix + crossfader)
+
+  // P6 — Player /演出 mode: hide ALL editor chrome AND the canvas; the live render fills the whole
+  // window for the audience. Esc returns to the editor (TiXL Program.Input.cs:50). This is the only
+  // draw branch — no toolbar/canvas/inspector/etc. — so nothing else can fire a shortcut here.
+  if (g_playerMode) {
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) g_playerMode = false;
+  }
+  if (g_playerMode) {
+    drawFullscreenRender(/*behindCanvas=*/false);
+  } else {
+    // Focus mode draws the render fullscreen BEHIND the (still-interactive) canvas first, so the
+    // canvas + nodes float over the live output (TiXL FocusMode GraphImageBackground). Plain editor
+    // mode skips this entirely → present path unchanged.
+    if (sw::ui::g_focusMode) drawFullscreenRender(/*behindCanvas=*/true);
+    sw::ui::drawNodeCanvas();  // main workspace, fills the viewport (ALWAYS drawn; runs the keymap)
+    // Editor windows are gated by editorChromeVisible() (chrome shown AND not focus mode). F12 /
+    // Shift+Esc collapse them; the canvas above keeps editing/navigation alive (Focus Mode is a
+    // reversible in-editor state, modes.md [important]).
+    if (sw::ui::editorChromeVisible()) {
+      sw::ui::drawToolbar();        // New/Open/Save/Save As + Add Node (floating)
+      sw::ui::drawInspector();      // floats on top
+      sw::ui::drawTimelineWindow(); // S3 dope-sheet (animator lanes + playhead + key gestures)
+      sw::ui::drawOutputWindow();   // the live preview viewport (view ⊥ graph, pinned/terminal)
+      sw::ui::drawVariationPanel(); // P2 Variation window (snapshot pool grid + N-way mix + crossfader)
+    }
+  }
   sw::doc::updateWindowTitle();  // filename + dirty star; no-op when unchanged
 
   ImGui::Render();

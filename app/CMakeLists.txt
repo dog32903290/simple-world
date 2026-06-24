@@ -197,6 +197,7 @@ add_executable(simple_world
   src/ui/node_menu_actions.cpp
   src/ui/copy_paste_ui.cpp
   src/ui/keymap.cpp
+  src/ui/view_modes.cpp  # P6 演出/Focus modes (F12 / Shift+Esc toggles + handlers)
   src/ui/quick_add.cpp
   src/ui/quick_add_tree.cpp
   src/ui/quick_add_selftest.cpp
