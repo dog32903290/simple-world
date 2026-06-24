@@ -67,6 +67,16 @@ sw::PointGraph* g_pointGraph = nullptr;
 // seam was for. nullptr until the first render.
 namespace sw {
 MTL::Texture* previewTexture() { return ::g_pointGraph ? ::g_pointGraph->target() : nullptr; }
+// Native pixel size of the preview texture (for the Output window's aspect-correct fit + 1:1
+// view modes + the WxH overlay). Keeps Metal out of the ui zone: ui asks the shell, the shell
+// queries the MTL::Texture. false (and w/h untouched) when there is no texture yet.
+bool previewTextureSize(int& w, int& h) {
+  MTL::Texture* tex = previewTexture();
+  if (!tex) return false;
+  w = static_cast<int>(tex->width());
+  h = static_cast<int>(tex->height());
+  return w > 0 && h > 0;
+}
 }  // namespace sw
 
 // P6 — Player / 演出 output mode (modes.md [core]; TiXL Player/Program.cs is a separate exe, but

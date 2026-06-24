@@ -5,8 +5,18 @@
 // view ⊥ graph: "what I'm building" (the graph) and "what I'm looking at" (the pin) are
 // two different things. The cook target is decided by the pin in the shell (main.cpp); this
 // window only drives the pin and shows the result. OUTPUT_PIN_VIEWER_CONTRACT §4-A / §5.
+//
+// The image canvas is a faithful port of TiXL ImageOutputCanvas + ScalableCanvas:
+//   screenPos = (canvasPos - scroll) * scale + regionTopLeft   (ScalableCanvas.TransformPositionFloat)
+// The texture occupies canvas rect [0,0]..[W,H] so it NEVER stretches — a single uniform
+// `scale` preserves aspect; the unfilled area is the letterbox/pillarbox. Fit/1:1 = view modes
+// (ImageOutputCanvas.Modes); mouse-drag pans, wheel zooms around the cursor; a manual pan/zoom
+// flips Fitted/Pixel -> Custom (ImageOutputCanvas.UpdateViewMode). Damping is disabled (TiXL's
+// DisableDamping path) — the targets are applied immediately.
 #include "ui/output_window.h"
 
+#include <algorithm>
+#include <cmath>
 #include <string>
 
 #include "imgui.h"
@@ -17,10 +27,14 @@
 #include "runtime/graph.h"  // findSpec (a compound child resolves like an atomic, N1)
 #include "verify/eye/eye.h"  // one-line hook: record the Pin button rect for the hand
 
-// The shell renders the live preview into a texture and exposes it through this STABLE
-// accessor (defined in main.cpp). nullptr until the first frame has rendered.
+// The shell renders the live preview into a texture and exposes it through these STABLE
+// accessors (defined in main.cpp). previewTexture() is nullptr until the first frame; its
+// native pixel size drives the aspect-correct fit (Metal stays out of the ui zone).
 namespace MTL { class Texture; }
-namespace sw { MTL::Texture* previewTexture(); }
+namespace sw {
+MTL::Texture* previewTexture();
+bool previewTextureSize(int& w, int& h);
+}  // namespace sw
 
 namespace sw::ui {
 
@@ -34,6 +48,46 @@ std::string outputTypeOf(const sw::SymbolChild* c) {
   for (const sw::PortSpec& p : s->ports)
     if (!p.isInput) return p.dataType;
   return "";
+}
+
+// --- the aspect-correct image canvas (port of TiXL ImageOutputCanvas + ScalableCanvas) ---
+enum class ViewMode { Fitted, Pixel, Custom };
+
+// Session-only view state, owned by this window (like TiXL's ImageOutputCanvas instance
+// fields). Never serialized — "how I'm looking", not "what I built".
+struct CanvasState {
+  float scale = 1.0f;     // uniform px-per-texel (aspect always preserved)
+  float scrollX = 0.0f;   // canvas-space scroll (TiXL Scroll)
+  float scrollY = 0.0f;
+  ViewMode mode = ViewMode::Fitted;
+};
+CanvasState g_canvas;
+
+// TiXL ScalableCanvas.ClampScaleToValidRange (non-timeline branch): [0.02, 40].
+float clampScale(float s) { return std::clamp(s, 0.02f, 40.0f); }
+
+// TiXL GetScopeForCanvasArea: fit the texture rect [0,0]..[texW,texH] into the region,
+// uniform scale (aspect preserved), centered. This is the load-bearing "no distortion" math.
+void fitToRegion(CanvasState& c, float texW, float texH, float regionW, float regionH) {
+  if (texW < 1.0f || texH < 1.0f || regionW < 1.0f || regionH < 1.0f) return;
+  const float texAspect = texW / texH;
+  const float regionAspect = regionW / regionH;
+  if (texAspect > regionAspect) {
+    c.scale = regionW / texW;                          // fit to width, center vertically
+    c.scrollX = 0.0f;
+    c.scrollY = -(regionH / c.scale - texH) * 0.5f;
+  } else {
+    c.scale = regionH / texH;                          // fit to height, center horizontally
+    c.scrollX = -(regionW / c.scale - texW) * 0.5f;
+    c.scrollY = 0.0f;
+  }
+}
+
+// TiXL Modes.Pixel: SetScaleToMatchPixels (scale -> 1). Recenter so 1:1 lands in the middle.
+void setPixelScale(CanvasState& c, float texW, float texH, float regionW, float regionH) {
+  c.scale = 1.0f;
+  c.scrollX = -(regionW - texW) * 0.5f;
+  c.scrollY = -(regionH - texH) * 0.5f;
 }
 }  // namespace
 
@@ -68,6 +122,15 @@ void drawOutputWindow() {
   sw::eye::recordItem("output_pin_btn");             // eye: hand off this button's screen rect
   ImGui::SameLine();
 
+  // Fit / 1:1 view-mode buttons (TiXL ImageOutputCanvas.SetViewMode). Fit = aspect-correct
+  // letterbox; 1:1 = native pixels. Both recompute below once the texture size is known.
+  const bool wantFit = ImGui::Button("Fit");
+  sw::eye::recordItem("output_fit_btn");
+  ImGui::SameLine();
+  const bool wantPixel = ImGui::Button("1:1");
+  sw::eye::recordItem("output_pixel_btn");
+  ImGui::SameLine();
+
   // What the viewport is actually showing (mirror the shell's cook-target priority in
   // main.cpp): the pinned node wins; else the selected node (follow); else the terminal.
   const sw::SymbolChild* viewNode = pinnedNode;
@@ -97,12 +160,87 @@ void drawOutputWindow() {
     ImGui::TextDisabled("no preview for output type \"%s\" yet",
                         outType.empty() ? "?" : outType.c_str());
 
-  // --- the viewport: the shell's preview texture, cooked for the pinned/terminal node.
-  // For an unsupported type the cook already cleared it to black (point_graph.cpp), so the
-  // image area is black + the notice above = the honest "no preview" state (§6.4). ---
-  ImVec2 avail = ImGui::GetContentRegionAvail();
-  if (MTL::Texture* tex = sw::previewTexture(); tex && avail.x > 1.0f && avail.y > 1.0f)
-    ImGui::Image(reinterpret_cast<ImTextureID>(tex), avail);
+  // --- the viewport: the shell's preview texture, cooked for the pinned/terminal node, drawn
+  // aspect-correct (letterbox/pillarbox) so resizing the window NEVER distorts the image. ---
+  const ImVec2 region = ImGui::GetContentRegionAvail();
+  const ImVec2 origin = ImGui::GetCursorScreenPos();
+  MTL::Texture* tex = sw::previewTexture();
+  int texW = 0, texH = 0;
+  const bool haveTex = tex && sw::previewTextureSize(texW, texH) &&
+                       region.x > 1.0f && region.y > 1.0f;
+
+  if (haveTex) {
+    const float fTexW = static_cast<float>(texW), fTexH = static_cast<float>(texH);
+
+    // Apply view-mode buttons / first-frame fit. Fitted re-fits every frame so a window
+    // resize always re-letterboxes (the whole point of this gap).
+    if (wantFit) g_canvas.mode = ViewMode::Fitted;
+    if (wantPixel) {
+      g_canvas.mode = ViewMode::Pixel;
+      setPixelScale(g_canvas, fTexW, fTexH, region.x, region.y);
+    }
+    if (g_canvas.mode == ViewMode::Fitted)
+      fitToRegion(g_canvas, fTexW, fTexH, region.x, region.y);
+
+    // An invisible button over the whole region captures hover + drag for pan/zoom without
+    // letting the texture (drawn at an arbitrary offset) steal the interaction.
+    ImGui::InvisibleButton("##outputcanvas", region,
+                           ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+    const bool hovered = ImGui::IsItemHovered();
+
+    // Pan: drag moves the content with the cursor (TiXL ScrollTarget -= delta / scale).
+    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+      const ImVec2 d = ImGui::GetIO().MouseDelta;
+      if (d.x != 0.0f || d.y != 0.0f) {
+        g_canvas.scrollX -= d.x / g_canvas.scale;
+        g_canvas.scrollY -= d.y / g_canvas.scale;
+        g_canvas.mode = ViewMode::Custom;            // manual pan -> Custom (UpdateViewMode)
+      }
+    }
+
+    // Zoom around the cursor (TiXL ApplyZoomDelta): scale *= zoom, then keep the texel under
+    // the mouse fixed by shifting scroll toward the focus point by (zoom-1)/zoom.
+    const float wheel = ImGui::GetIO().MouseWheel;
+    if (hovered && wheel != 0.0f) {
+      const float zoom = std::pow(1.2f, wheel);      // TiXL zoomSpeed = 1.2 per notch
+      const float newScale = clampScale(g_canvas.scale * zoom);
+      if (newScale != g_canvas.scale) {
+        const float applied = newScale / g_canvas.scale;  // honour the clamp
+        // focus point in canvas space (InverseTransformPositionFloat) at the OLD scale.
+        const ImVec2 m = ImGui::GetIO().MousePos;
+        const float focusX = (m.x - origin.x) / g_canvas.scale + g_canvas.scrollX;
+        const float focusY = (m.y - origin.y) / g_canvas.scale + g_canvas.scrollY;
+        g_canvas.scale = newScale;
+        g_canvas.scrollX += (focusX - g_canvas.scrollX) * (applied - 1.0f) / applied;
+        g_canvas.scrollY += (focusY - g_canvas.scrollY) * (applied - 1.0f) / applied;
+        g_canvas.mode = ViewMode::Custom;            // manual zoom -> Custom
+      }
+    }
+
+    // Draw the texture at its transformed rect (clipped to the region). Aspect is preserved
+    // because width and height share the same `scale`.
+    const ImVec2 topLeft(origin.x - g_canvas.scrollX * g_canvas.scale,
+                         origin.y - g_canvas.scrollY * g_canvas.scale);
+    const ImVec2 botRight(topLeft.x + fTexW * g_canvas.scale,
+                          topLeft.y + fTexH * g_canvas.scale);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->PushClipRect(origin, ImVec2(origin.x + region.x, origin.y + region.y), true);
+    dl->AddImage(reinterpret_cast<ImTextureID>(tex), topLeft, botRight);
+
+    // Bottom overlay: "WxH ×scale" centered (TiXL ImageOutputCanvas description line).
+    char overlay[64];
+    std::snprintf(overlay, sizeof(overlay), "%dx%d  x%.2f", texW, texH, g_canvas.scale);
+    const ImVec2 tsz = ImGui::CalcTextSize(overlay);
+    const ImVec2 tpos(origin.x + (region.x - tsz.x) * 0.5f,
+                      origin.y + region.y - tsz.y - 4.0f);
+    const ImU32 shadow = IM_COL32(0, 0, 0, 160);
+    dl->AddText(ImVec2(tpos.x + 1, tpos.y), shadow, overlay);
+    dl->AddText(ImVec2(tpos.x - 1, tpos.y), shadow, overlay);
+    dl->AddText(ImVec2(tpos.x, tpos.y + 1), shadow, overlay);
+    dl->AddText(ImVec2(tpos.x, tpos.y - 1), shadow, overlay);
+    dl->AddText(tpos, IM_COL32(235, 235, 235, 255), overlay);
+    dl->PopClipRect();
+  }
 
   ImGui::End();
 }

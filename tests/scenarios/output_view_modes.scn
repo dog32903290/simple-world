@@ -1,0 +1,40 @@
+# output_view_modes.scn — O2 Output-window aspect-correct view + Fit/1:1 live tooth.
+#
+# The Output window's preview used to be a bare `ImGui::Image(tex, avail)` that STRETCHED the
+# 512x512 render to fill the content region (柏為's "拉視窗畫面變扁"). O2 replaces it with a
+# port of TiXL ImageOutputCanvas: a uniform-scale fit (aspect preserved -> letterbox/pillarbox)
+# plus Fit / 1:1 view-mode buttons + pan/zoom + a WxH x-scale overlay.
+#
+# This scenario proves the new toolbar is LIVE and that the two view modes actually change the
+# displayed scale (so the picture differs on screen), through the real imgui draw path.
+#
+# RED proof:
+#   - revert output_window.cpp to the bare `ImGui::Image(tex, avail)` -> the output_fit_btn /
+#     output_pixel_btn map entries vanish -> the assert_map_has lines go RED.
+#   - make Fit and 1:1 set the same scale (e.g. drop setPixelScale / never re-fit) -> the
+#     fit-vs-pixel frame `assert_diff` goes RED (frames byte-identical).
+
+open app/testdata/compound_smoke.swproj
+wait 0.5
+
+# The new view-mode toolbar exists (Pin + Fit + 1:1 are all recorded by eye::recordItem).
+assert_map_has output_pin_btn
+echo pin-button-present
+assert_map_has output_fit_btn
+echo fit-button-present
+assert_map_has output_pixel_btn
+echo pixel-button-present
+
+# Fit mode: aspect-correct fit-to-window. Capture the fitted frame.
+do click @output_fit_btn
+wait 0.6
+capture full fit_frame
+echo captured-fit-frame
+
+# 1:1 (Pixel) mode: native-pixel scale (x1.00). The render is drawn at a DIFFERENT scale, so the
+# whole-window frame must differ from the fitted one. Aspect stays preserved in both (the fit math
+# uses a single uniform scale) — what changes is the size, proving the view mode is live.
+do click @output_pixel_btn
+wait 0.6
+assert_diff fit_frame
+echo pixel-frame-differs-from-fit
