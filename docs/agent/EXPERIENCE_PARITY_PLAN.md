@@ -185,8 +185,14 @@ DetectBpm 引擎已綠但孤兒（`fork-bpm-not-live-driving-transport`）。接
 0a. `.claude/commands/sw-batch.md` 迴圈收尾加**檢查點冪等守門**（`stat artifacts/checkpoints/$(date +%F)/` 不存在才產出）+ 建 `artifacts/checkpoints/` 目錄。
 0b. sw-batch orchestrator 選批改讀本檔**「主檔」欄**避撞（不是讀 Tier）—— 每個主檔同時只派一條 lane。
 
-**第一批（修正後排程，S0 與 P1 並行不再假序列）：**
-- **S0**（加 graph.h 兩 defaulted 欄位，`required` 必為 PortSpec 最後 member；短、獨佔 graph.h 寫入、暫停 L4 寫 graph.h）
-- **∥ P1**（Variation 最薄垂直切片，動 frame_cook/variation_apply，**不碰 graph.h 故與 S0 同時跑**）= 樣板片
-- **∥ Tier1 不碰 graph.h 的純皮**（連線箭頭 in `editor_ui.cpp` / 右鍵選單 in `combine_dialog.cpp`）= 主檔互斥可再並行
-- S0 合進後解凍：靠 category/required 的 L-B 搜尋樹、L-G 必填指示才開跑。
+**第一批 ✅ 完成（2026-06-24）：**
+- **S0 ✅**（`ae90f61`）：graph.h `category`+`required` 兩 defaulted 欄位，各加在 struct 最後 member（避過 PortSpec **與 NodeSpec 兩處** aggregate-init 地雷）。NO-BITE==clean base。**schema freeze 已解凍。**
+- **P1 ✅**（`4108ae9`）：Variation crossfader→graph 活管接通（`variation_live.{h,cpp}` + frame_cook tick + toolbar fader）。FIXED 1/60 golden + eye-hand 親驗（拖 fader→ring 變稀疏 4540px）。**演出脊椎樣板片立下，P2-P5 照抄。** 柏為手感簽收=spring 滑順度（非阻塞）。
+- **Tier1 連線箭頭 ✅**（`1c74d53`，in `node_draw.cpp`+`editor_ui.cpp`）：對 MagGraphCanvas.DrawConnection.cs，eye-hand 親驗紅/青箭頭 discriminating。
+
+**第二批（下次 /sw-batch 從這 pull，避撞看主檔欄）：**
+- **P2**（Variation 完整面板：snapshot pool 格子 + N-way mix 接線 + 完整 2-way crossfader，動 variation_apply/新窗，cook-core 序列脊椎）—— 接 P1 樣板。
+- **∥ L-B**（加節點 scatter 搜尋 + 命名空間樹，靠 S0 `category`，主檔 `ui/quick_add.cpp`）—— S0 已解凍。
+- **∥ L-G**（必填輸入紅指示，靠 S0 `required` + 重用 blinkValue，主檔 `ui/node_draw.cpp`）—— 注意：node_draw 是瓶頸共撞檔，與其他 node_draw lane 勿並派。
+- **∥ Tier1-B**（節點右鍵選單 Disable/Duplicate/Delete/Align/…，主檔 `ui/combine_dialog.cpp`，command 現成）。
+- ★避撞：每主檔同時一 lane。P2(frame_cook/variation_apply) ∥ L-B(quick_add) ∥ Tier1-B(combine_dialog) 主檔互斥可並行；L-G(node_draw) 與任何 node_draw lane 互斥。
