@@ -225,8 +225,14 @@ DetectBpm 引擎已綠但孤兒（`fork-bpm-not-live-driving-transport`）。接
 
 **★★ 演出迴路脊椎進度：P1✅ P2✅ P3✅ P5✅ → 剩 P4（snapshot 觸發+LED，需 P3 雙向+硬體=部分柏為域）+ P6（Player/Focus 模式）。三條斷掉的 live wire 全接通。**
 
-**第六批（下次 /sw-batch 從這 pull，避撞看主檔欄）：**
-- **P6 Player/Focus 模式**（`--play` 全螢幕 blit modes.md[core] + Focus Mode F12/Shift+Esc 收 UI；present path 半序列；閘=eye-hand + `--bite` present 不回歸）。主檔 `app/main.cpp` present + `platform/`。
-- **∥ 編輯 UI lane**（擇一，主檔互斥）：即時值字串 in `node_draw.cpp`（Tier3 effectiveInput，縮放 gating）／hover-to-split in `editor_ui.cpp`（Tier2 AddWire+命中）／工具列範式 in `toolbar.cpp`／縮圖預覽 in `node_draw.cpp`（Tier3 child resident→ImGui::Image，柏為下注做）。
-- **∥ 獨立施工圖開張**（各自脊椎，柏為 checklist 主來源）：MagGraph（[core] 最大，柏為手感重）／Timeline（`ui/timeline_*` 已存在，補 sync+VJ tapping）／Gradient（柏為 authoring 域）／Audio 匯出（`platform/audio`，codex-ears 閘）。
-- ★避撞硬化：`node_draw.cpp`/`editor_ui.cpp`/`inspector.cpp`/`hand.cpp`/`frame_cook.cpp`/`main.cpp` 每批每檔一 lane。P6(main.cpp present) 與動 main.cpp 的 lane 互斥。
+**第六批 ✅ 完成（2026-06-24 20:55）=演出輸出側 + 編輯 Tier3：**
+- **P6 ✅**（`53edf5f`）：Player（`--play` 全螢幕 blit）+ Focus（F12）+ Toggle-All-UI（Shift+Esc），main.cpp present additive 不回歸。**演出迴路 P1/P2/P3/P5/P6 done（剩 P4=snapshot+LED 需硬體=柏為域）。**
+- **node-value ✅**（`e2cee23`）：節點本體即時值字串 + 縮放 gating（對 MagGraphCanvas.DrawNode.cs，--selftest-nodeval）。
+
+**第七批（★柏為現身 steer 優先 Output 視窗 `fc1817c`，下次 /sw-batch 從這 pull）：**
+- **★O2 Output aspect-correct view**（Fit/1:1/Custom + pan/zoom，**修柏為「畫面變扁」痛點**；主檔 `ui/output_window.cpp`；閘=eye-hand 拉窗前後比長寬比）。**柏為 steer 最高優先。**
+- **∥ Audio 匯出**（`platform/audio`，offline mixdown/錄製，codex-ears 閘，disjoint 主檔）。
+- **O 系列同主檔序列**（output_window.cpp）：O2→O3 截圖（side-effect 檔出現）→O1 解析度選擇器（golden+S1 已 thread）→O4 影片匯出（依賴 S1，碰 cook）→O5/O6。**每批 output_window.cpp 只一 lane。**
+- **∥ 編輯 UI 小 gap**（主檔互斥）：縮圖預覽/凸角 in `node_draw.cpp`／hover-to-split in `editor_ui.cpp`／工具列範式 in `toolbar.cpp`／SliderLadder（新 widget 檔）。
+- ★避撞硬化：`output_window.cpp`/`node_draw.cpp`/`editor_ui.cpp`/`inspector.cpp`/`hand.cpp`/`frame_cook.cpp`/`main.cpp` 每批每檔一 lane。
+- **後續手感域（待柏為深度 steer，非自走 grind）**：MagGraph（[core] 最大，柏為 checklist 主來源）/ Gradient authoring / Timeline VJ-feel。
