@@ -38,6 +38,12 @@ struct Step {
 
 std::deque<Step> g_pending;
 
+// App-owned MIDI-inject hook (set via setMidiInjectHook). The `midi` directive forwards to it; null
+// means the directive is a no-op (verify stays a leaf — no app dependency).
+void (*g_midiInjectHook)(int, int, int) = nullptr;
+// App-owned MIDI-learn-arm hook (set via setLearnArmHook). The `learn` directive forwards to it.
+void (*g_learnArmHook)(int, const char*) = nullptr;
+
 std::string cmdPath() { return std::string(SW_EYE_DIR) + "/hand"; }
 
 // Key-name -> ImGuiKey. Single letters a-z / A-Z and digits 0-9 map directly;
@@ -177,6 +183,17 @@ void parseLine(const std::string& line) {
       Step s; s.setText = true; s.text = rest;
       g_pending.push_back(s);
     }
+  } else if (op == "learn") {
+    // learn <child> <slot> — arm P3 MIDI-learn for graph param (child, slot). Immediate (side map).
+    int child;
+    std::string slot;
+    if ((is >> child >> slot) && g_learnArmHook) g_learnArmHook(child, slot.c_str());
+  } else if (op == "midi") {
+    // midi <ch> <ctrl> <val> — inject a decoded MIDI ControllerChange into the app's live binding
+    // table through the app-owned hook (P3 learn + cook-side wire). Immediate (not frame-queued):
+    // the binding table is a side map, not ImGui IO, so it applies the moment the line is parsed.
+    int ch, ctrl, val;
+    if ((is >> ch >> ctrl >> val) && g_midiInjectHook) g_midiInjectHook(ch, ctrl, val);
   } else if (op == "key") {
     std::string name;
     if (is >> name) {
@@ -231,6 +248,9 @@ void poll() {
 }
 
 bool hasPending() { return !g_pending.empty(); }
+
+void setMidiInjectHook(void (*hook)(int, int, int)) { g_midiInjectHook = hook; }
+void setLearnArmHook(void (*hook)(int, const char*)) { g_learnArmHook = hook; }
 
 void feedLine(const char* line) { parseLine(line); }
 

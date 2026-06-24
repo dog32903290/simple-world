@@ -34,12 +34,29 @@
 //                             via io.AddInputCharactersUTF8 — keeps spaces, accepts
 //                             multibyte UTF-8 (CJK: e.g. "text 心跳偵測" for a node
 //                             rename). Inject after the field has keyboard focus.
+//   learn  <child> <slot>     arm P3 MIDI-learn for graph param (child, slot) via the app hook
+//                             (= clicking the inspector's MIDI button, but selection-independent so
+//                             the scenario doesn't fight the node-select harness gap). The NEXT
+//                             `midi` line binds that CC to the param.
+//   midi   <ch> <ctrl> <val>  inject a decoded MIDI ControllerChange into the app's live
+//                             binding table (P3 learn / cook-side wire), via the app-owned
+//                             hook below. A no-op if no hook is set (verify stays a leaf).
 // A click/drag spans multiple frames (ImGui needs down and up on separate
 // frames), so commands are expanded into per-frame steps and consumed one per
 // frame. After issuing a command, give the app a few frames before reading back.
 #pragma once
 
 namespace sw::hand {
+
+// App-owned MIDI-inject hook (leaf inversion, like the runtime asset-decoder fn-ptr): the `midi`
+// directive forwards (channel, controllerId, controllerValue) here. The app sets this to
+// midibind::injectMidiForTest so the scenario can drive a CC into the live binding table without the
+// verify leaf depending on app. Unset (null) = the `midi` directive is a no-op.
+void setMidiInjectHook(void (*hook)(int channel, int controllerId, int controllerValue));
+
+// App-owned MIDI-learn-arm hook: the `learn` directive forwards (childId, slotId) here. The app sets
+// it to a wrapper around midibind::beginLearn (it knows the current composition id). Unset = no-op.
+void setLearnArmHook(void (*hook)(int childId, const char* slotId));
 
 // Read+consume the SW_EYE_DIR/hand command file (if any), expand commands into
 // per-frame input steps. Cheap; safe to call every frame.

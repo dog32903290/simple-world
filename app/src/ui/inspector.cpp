@@ -19,6 +19,7 @@
 #include "app/graph_commands.h"
 #include "app/animation_commands.h"  // Animate gesture: Add/Remove Animation + playhead-write (P1)
 #include "app/frame_cook.h"          // transportPosition (the playhead the Animate gesture writes at)
+#include "app/midi_bind.h"           // P3 MIDI-learn affordance (beginLearn / isParamBound / unbind)
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec (a compound child resolves like an atomic, N1)
 #include "verify/eye/eye.h"  // one-line hooks: param widget rects for the hand
@@ -287,6 +288,28 @@ void drawInspector() {
           }
           animateContextMenu(cur->id, sel->id, p.id, /*animated=*/false,
                              {{p.id, had, preV}});  // reset target: this slot, its committed value
+          // P3 MIDI-learn affordance (free-constant Float only): click → learn mode for (cur,child,p);
+          // the NEXT live MIDI/OSC event binds that CC to this param (TiXL MidiInput TeachTrigger).
+          // Bound shows ✓ (click to unbind); mid-learn shows "…". Wired/animated params are already driven.
+          const bool learning = sw::midibind::learnActive();
+          const sw::midibind::LearnTarget lt = sw::midibind::pendingLearn();
+          const bool learningThis =
+              learning && lt.childId == sel->id && lt.slotId == p.id;
+          const bool boundThis = sw::midibind::isParamBound(sel->id, p.id);
+          ImGui::SameLine();
+          ImGui::PushID(("midilearn:" + p.id).c_str());
+          const char* lbl = learningThis ? "MIDI…" : (boundThis ? "MIDI\xE2\x9C\x93" : "MIDI");
+          if (ImGui::SmallButton(lbl)) {
+            if (boundThis) {
+              sw::midibind::unbindParam(sel->id, p.id);  // ✓ click = unbind
+            } else if (learningThis) {
+              sw::midibind::cancelLearn();               // re-click while learning = cancel
+            } else {
+              sw::midibind::beginLearn(cur->id, sel->id, p.id);  // arm learn for this param
+            }
+          }
+          sw::eye::recordItem(("midilearn:" + p.id).c_str());
+          ImGui::PopID();
         }
       }
       if (!any) ImGui::TextDisabled("(no editable parameters)");

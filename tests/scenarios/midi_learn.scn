@@ -1,0 +1,73 @@
+# midi_learn.scn — 活體牙 (P3): live MIDI/OSC → graph parameter binding + MIDI learn, end-to-end through
+# the REAL app (registerIoLiveSources hook installed at startup, midibind::tick in the frame cook,
+# learnStateJson on state.json). Proves: enter learn mode on a param → inject a CC → binding recorded
+# (the binding-map side-effect) → the remapped value reaches the GRAPH PARAMETER's override during cook.
+#
+# WHY a program-level scenario (not raw-hand pixel diffs): the eye-hand harness has a known gap with
+# node-selection + combo-popups (task_bf656ae9) — clicking @node:2 to select it is FLAKY, so the
+# inspector's MIDI button can't be reliably reached by the hand at this base. So we drive learn through
+# the `learn`/`midi` hand directives (the SAME midibind::beginLearn / injectMidiForTest the inspector
+# button + the live transport call), and assert on the binding-map side-effect + the document override —
+# the strongest transport- and selection-independent checks. The closed-form value (CC 64/127 →
+# MathUtils.Remap → 0.503937) and the loopback transport leg are ALSO pinned by the machine golden
+# --selftest-midi-bind (RED on -bug), which drives the real virtual-CoreMIDI loopback.
+#
+# RED proofs (each assert is a real tooth):
+#   - drop midibind::tick from frame_cook → the "override == 0.503937" assert RED (value never reaches
+#     the graph param; learn + binding-map asserts still GREEN, isolating the cook-side wire).
+#   - break the learn capture (skip the filter store) → "boundCount == 1" / "binding routed" RED.
+#   - bind the WRONG remap (e.g. forget /127) → the value assert RED.
+
+open app/testdata/compound_smoke.swproj
+wait 0.4
+
+# Baseline: child 2 (EmitterComp in Root) has its Radius at the fixture default — no live override yet,
+# and nothing is bound / learning.
+assert_state '.midiLearn.learnActive == false'
+assert_state '.midiLearn.boundCount == 0'
+echo baseline-no-binding
+
+# --- ENTER LEARN on (child 2, Radius) — the inspector MIDI button's beginLearn, selection-independent ---
+do learn 2 Radius
+wait 0.2
+assert_state '.midiLearn.learnActive == true'
+assert_state '.midiLearn.learnTarget.child == 2 and .midiLearn.learnTarget.slot == "Radius"'
+echo learn-armed-on-radius
+
+# --- INJECT a CC (ch1 ctrl7 val64) — the first event during learn captures its filter + binds it ---
+do midi 1 7 64
+wait 0.3
+
+# Learn is one-shot: it cleared after capture (TiXL _teachingActive=false).
+assert_state '.midiLearn.learnActive == false'
+echo learn-one-shot-cleared
+
+# The binding is RECORDED and routed to exactly (child 2, Radius) — the binding-map side-effect.
+assert_state '.midiLearn.boundCount == 1'
+assert_state '.midiLearn.bindings[0].child == 2 and .midiLearn.bindings[0].slot == "Radius"'
+echo binding-recorded-and-routed
+
+# The bound value remapped CC 64 over [0,127]→[0,1] = 64/127 = 0.503937 (TiXL MathUtils.Remap).
+assert_state '((.midiLearn.bindings[0].value - 0.503937) | if . < 0 then -. else . end) < 0.001'
+echo value-remapped-closed-form
+
+# --- COOK-SIDE WIRE: the remapped value reached the GRAPH PARAMETER's override (read off the live
+#     document — the exact map resolveResidentFloatInputs walks during cook). This is the half that was
+#     L5-deferred ("node input pull valueForTarget → 未來 L4/cook"): now landing on the graph param. ---
+assert_state '((([.lib.symbols[] | select(.id=="Root") | .children[] | select(.id==2) | .overrides.Radius] | .[0]) - 0.503937) | if . < 0 then -. else . end) < 0.001'
+echo cook-side-wire-reached-graph-param
+
+# --- A WRONG-channel CC must NOT move the param (the learned ch1 filter rejects ch6) ---
+do midi 6 7 127
+wait 0.3
+assert_state '((([.lib.symbols[] | select(.id=="Root") | .children[] | select(.id==2) | .overrides.Radius] | .[0]) - 0.503937) | if . < 0 then -. else . end) < 0.001'
+echo wrong-channel-rejected
+
+# --- A matching CC moves it again (live): CC 127 → 127/127 = 1.0 on the same binding ---
+do midi 1 7 127
+wait 0.3
+assert_state '((([.lib.symbols[] | select(.id=="Root") | .children[] | select(.id==2) | .overrides.Radius] | .[0]) - 1.0) | if . < 0 then -. else . end) < 0.001'
+echo matching-cc-moves-param-live
+
+capture full midi_learn_state
+echo captured-evidence

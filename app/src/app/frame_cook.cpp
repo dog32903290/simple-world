@@ -22,6 +22,7 @@
 #include "runtime/transport.h"            // Transport (two-clock playback head, S5)
 #include "app/variation_live.h"           // P1 live performance pipe (crossfader tick + writeback)
 #include "app/variation_panel.h"          // P2 Variation panel (full crossfader tick + writeback)
+#include "app/midi_bind.h"                 // P3 live-control pipe (MIDI/OSC binding cook-side tick)
 
 namespace sw::framecook {
 namespace {
@@ -253,6 +254,7 @@ void run(PointGraph& pg, const std::string& targetPath) {
   doc::validateCompositionPath();
   varlive::tick(doc::g_lib);            // L1 live pipe: P1 single-slice crossfader (FIXED 1/60 spring)
   varpanel::tickCrossfade(doc::g_lib);  // L1 live pipe: P2 full pool crossfader (same spring; see header)
+  midibind::tick(doc::g_lib);           // L5 live pipe: P3 MIDI/OSC bound values -> graph param overrides
 
   // Projection rebuild BEFORE the AudioReaction cooker, so extOut lands on the fresh graph.
   if (g_builtRev != doc::libRevision()) {
@@ -263,19 +265,18 @@ void run(PointGraph& pg, const std::string& targetPath) {
     refreshCompoundSpecs(doc::g_lib);
     ResidentEvalGraph fresh = buildEvalGraph(doc::g_lib, doc::g_lib.rootId);
     // Initialise per-output caches (sets isLiveSource, base/source/value versions) BEFORE
-    // transplantDisabledCaches — transplant reads outCache.isDisabled, which is 0-initialized
-    // without this call (meaning no frozen values would ever ride across a rebuild, silently
-    // breaking the S2 disable-freeze guarantee). The production path walks evalResidentFloat
-    // (stateless, no version-chasing pull), so bumpLiveSources is NOT needed here — the cache
-    // is used only for the idle-fade signal (lastUpdatePass) and the disable-freeze.
+    // transplantDisabledCaches — transplant reads outCache.isDisabled, 0-initialized without this
+    // call (else no frozen values ride across a rebuild, silently breaking the S2 disable-freeze).
+    // Production walks evalResidentFloat (stateless), so bumpLiveSources is NOT needed here — the
+    // cache is used only for the idle-fade signal (lastUpdatePass) and the disable-freeze.
     initResidentCache(fresh);
     // Frozen (disabled) outputs keep their last result across the rebuild — TiXL slots persist,
     // ours are re-projected, so the freeze value must ride over (refuter-S2 P1×P7).
     transplantDisabledCaches(g_residentGraph, fresh);
     g_residentGraph = std::move(fresh);
     g_builtRev = doc::libRevision();
-    // Rebuild the live-source downstream closure in lockstep with the graph projection.
-    // Seeds from outCache.isLiveSource (set by initResidentCache above).
+    // Rebuild the live-source downstream closure in lockstep with the projection (seeds from
+    // outCache.isLiveSource, set by initResidentCache above).
     rebuildLiveDownstreamClosure(g_residentGraph);
   }
 
@@ -290,8 +291,7 @@ void run(PointGraph& pg, const std::string& targetPath) {
   g_transport.advance(dtSecs);
 
   // Process-lifetime wall run clock = TiXL Playback.RunTimeInSecs analog (Stopwatch.StartNew() at static
-  // init, Playback.cs:159). No such static clock here → accumulate the SAME raw wall dt the transport
-  // consumes; origin 0 on first cook (R-1 fork: StopWatch exposes only deltas). Consumed by StopWatch.
+  // init, Playback.cs:159; no static clock here → accumulate the raw wall dt, origin 0). Consumed by StopWatch.
   static double s_runTimeSecs = 0.0;
   s_runTimeSecs += dtSecs;
 

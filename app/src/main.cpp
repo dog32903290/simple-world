@@ -46,6 +46,7 @@
 #include "ui/output_window.h"
 #include "ui/timeline_window.h"
 #include "ui/variation_panel.h"  // P2 Variation window (snapshot pool + N-way mix + crossfader)
+#include "app/midi_bind.h"        // P3 registerIoLiveSources (live MIDI/OSC input hook) + learnStateJson
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
 
@@ -169,9 +170,26 @@ Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
       g_pointGraph = nullptr;
     }
   }
+  // P3 live-control input: open the OSC + virtual-MIDI loopback transports and route incoming events
+  // into the binding table (the grep-confirmed-missing app hook). A real controller / phone-OSC app —
+  // or the loopback — now feeds the table; learned graph params move during cook (midibind::tick).
+  // Non-fatal if a transport is unavailable (restricted env): the editor still runs.
+  sw::midibind::registerIoLiveSources();
+  // Wire the hand's `midi <ch> <ctrl> <val>` scenario directive to the binding-table injector (leaf
+  // inversion: verify/hand owns only a fn-ptr slot, the app fills it). Lets a .scn drive a CC into
+  // the learn / cook-side wire without verify depending on app. ControllerChange (kind=1).
+  sw::hand::setMidiInjectHook([](int ch, int ctrl, int val) {
+    sw::midibind::injectMidiForTest(/*kind=*/1, ch, ctrl, val);
+  });
+  // `learn <child> <slot>` arms MIDI-learn on the CURRENT composition's child (= clicking the
+  // inspector MIDI button, but node-select-independent so the scenario dodges the harness gap).
+  sw::hand::setLearnArmHook([](int child, const char* slot) {
+    sw::midibind::beginLearn(sw::doc::currentSymbolId(), child, std::string(slot));
+  });
 }
 
 Renderer::~Renderer() {
+  sw::midibind::shutdownIoLiveSources();
   delete g_pointGraph;
   g_pointGraph = nullptr;
   if (g_shaderLib) {
@@ -300,6 +318,7 @@ void Renderer::draw(MTK::View* pView) {
                     ", \"timelineSelection\": " + sw::ui::timelineSelectionJson() +
                     ", \"fenceActive\": " + (sw::ui::fenceActive() ? "true" : "false") +
                     ", \"fenceLastCovered\": " + sw::ui::fenceLastCoveredJson() +
+                    ", \"midiLearn\": " + sw::midibind::learnStateJson(sw::doc::g_lib) +
                     ", \"lib\": " + sw::libToJsonV2(sw::doc::g_lib) + "}";
     sw::eye::writeText("state.json", s.c_str());
   }
