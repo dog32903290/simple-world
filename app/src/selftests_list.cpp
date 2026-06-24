@@ -35,5 +35,6 @@ REGISTER_SELFTESTS(/*orderBase=*/300,
 // of --selftest-list deterministically (the registry sorts by `order`).
 REGISTER_SELFTESTS(/*orderBase=*/310,
     {"floatlistproducers", runFloatListProducersSelfTest},  // Combine/IntsToList/SetFloat/SetInt/Remap (chain-through-evalFloat)
+    {"smoothvalues", runSmoothValuesSelfTest},              // SmoothValues forward-window box average (STATELESS FloatList→FloatList, chain-through-evalFloat)
 );
 }  // namespace sw
