@@ -195,8 +195,13 @@ DetectBpm 引擎已綠但孤兒（`fork-bpm-not-live-driving-transport`）。接
 - **L-G ✅**（`d04b5f4`）：必填輸入磁紅下三角（對 `MagGraphCanvas.DrawNode.cs` StatusAttention #CB1371）。驗 S0 `required`。
 - **★S0 兩欄位 payoff 雙證活**=schema 鍵石價值兌現。
 
-**第三批（下次 /sw-batch 從這 pull，避撞看主檔欄）：**
-- **P2**（Variation 完整面板：snapshot pool 格子 + N-way mix 接線 + 完整 2-way crossfader，動 variation_apply/新窗，cook-core 序列脊椎）—— 接 P1 樣板，solo focus。
-- **∥ Tier1-B**（節點右鍵選單 Disable/Duplicate/Delete/Align/…，主檔 `ui/combine_dialog.cpp`，command 現成；★若需 node_draw hit-test 與 node_draw lane 互斥）。
-- **∥ L-B-follow（category repo-wide fill→命名空間樹）**：機械 pass 填 `NodeSpec.category`（對 TiXL Symbol.Namespace）跨 node_registry_*.cpp，解鎖 L-B 命名空間樹分組。可 solo（多檔機械）。
-- ★避撞：每主檔同時一 lane。P2(frame_cook/variation_apply) ∥ Tier1-B(combine_dialog) ∥ L-B-follow(node_registry_*) 主檔互斥可並行。
+**第三批 ✅ 完成（2026-06-24 17:42，cook-core 脊椎 ∥ UI lane）：**
+- **P2 ✅**（`cc8b331`）：完整 Variation 面板（`ui/variation_panel.{cpp,h}` 新窗 + pool/N-way mix/crossfader），對 TiXL VariationCanvas。golden GREEN（--bite 432）。★crossfade pixel-diff 改 golden 釘（harness gap task_bf656ae9）。**演出脊椎第二片，P1+P2=Variation 演出面完整。**
+- **Tier1-B ✅**（`f853634`）：節點右鍵選單對 `GraphContextMenu.cs` 12-item，無 hit-test touch。greyed 誠實（無 backing field）。
+- **★harness gap（task_bf656ae9）**：eye-hand combo-popup 不入 map + node-selection flaky→UI lane 暫以 .scn+golden 為主閘，raw-hand pixel-diff 不可靠。
+
+**第四批（下次 /sw-batch 從這 pull，避撞看主檔欄）：**
+- **P3**（MIDI/OSC→graph 綁定：缺 `registerIoLiveSources` app hook，loopback+SourceRegistry 已建；+MIDI learn UI，cook-core-adjacent 脊椎，solo focus）。對 TiXL MIDI 綁定。
+- **∥ Tier2 inspector**（參數重置 SetOverrideCommand erase + default/override 字色 + jog-dial SliderFloat→DragFloat，主檔 `ui/inspector.cpp`，undo+.swproj round-trip 閘）。
+- **∥ L-B-follow（category repo fill→命名空間樹）**：機械 pass 填 `NodeSpec.category`（對 Symbol.Namespace）跨 node_registry_*.cpp。可 solo。
+- ★避撞：P3(app io hook/frame_cook) ∥ inspector(ui/inspector.cpp) ∥ L-B-follow(node_registry_*) 主檔互斥可並行。後續 P4(snapshot 觸發+LED 依賴 P3 MIDI 雙向)/P5(BPM→transport)/P6(Player 模式)。
