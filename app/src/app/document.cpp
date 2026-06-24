@@ -13,6 +13,7 @@
 #include "runtime/compound_save.h"  // .swproj v2 (SymbolLibrary) save/load + v1 migration
 #include "runtime/graph.h"          // defaultParticleGraph (seed only)
 #include "runtime/graph_bridge.h"   // libFromGraph (default-lib seed) + refreshCompoundSpecs
+#include "app/variation_live.h"     // P1 crossfader slice (reset on document swap)
 
 namespace sw::doc {
 
@@ -245,6 +246,7 @@ bool doOpenPath(const std::string& path, bool quiet) {
   g_documentPath = path;
   g_savedSnapshot = sw::libToJsonV2(g_lib);
   sw::g_commands.clear();
+  sw::varlive::reset();  // a loaded doc has new child ids — the P1 slice target dangles otherwise
   g_relayout = true;
   g_status = "loaded <- " + path;
   if (!warnings.empty()) {
@@ -273,6 +275,7 @@ void doNew() {
   g_documentPath.clear();
   g_savedSnapshot = sw::libToJsonV2(g_lib);
   sw::g_commands.clear();
+  sw::varlive::reset();  // fresh default doc — drop any armed P1 slice from the prior document
   g_relayout = true;
   g_status = "new project";
 }

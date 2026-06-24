@@ -20,6 +20,7 @@
 #include "runtime/spectrum_analyzer.h"    // SpectrumSnapshot
 #include "runtime/stateful_value_ops.h"   // cookStatefulValueOp (Damp/Spring/... value-graph sims)
 #include "runtime/transport.h"            // Transport (two-clock playback head, S5)
+#include "app/variation_live.h"           // P1 live performance pipe (crossfader tick + writeback)
 
 namespace sw::framecook {
 namespace {
@@ -36,12 +37,10 @@ bool g_haveLastFrame = false;
 std::chrono::steady_clock::time_point g_lastFrameTp;
 
 // Pull dt from the wall clock (steady_clock — monotonic, immune to NTP). First frame has no prior
-// timestamp -> dt = 0 (no spurious jump). NO ceiling here: this is the TRUE wall dt and the
-// transport must eat it whole — TiXL Playback advances TimeInBars from a Stopwatch, unclamped.
-// Clamping it made a stalled frame (window drag, debugger) advance the playhead only 0.25s while
-// the audio free-ran the full stall on its own thread, so drift = stall−0.25 and the follow rule
-// hard-seeked the soundtrack BACKWARDS, audibly (refuter-C 修2). The 0.25 ceiling survives only
-// on the SIM leg — see simDeltaFromWall below.
+// timestamp -> dt = 0 (no spurious jump). NO ceiling here: this is the TRUE wall dt and the transport
+// must eat it whole — TiXL Playback advances TimeInBars from an unclamped Stopwatch (clamping made a
+// stalled frame seek the soundtrack BACKWARDS, refuter-C 修2). The 0.25 ceiling survives only on the
+// SIM leg — see simDeltaFromWall below.
 double measureDeltaSeconds() {
   auto now = std::chrono::steady_clock::now();
   if (!g_haveLastFrame) { g_lastFrameTp = now; g_haveLastFrame = true; return 0.0; }
@@ -78,9 +77,8 @@ void rebuildLiveDownstreamClosure(const ResidentEvalGraph& g) {
 }  // namespace
 
 // The dt 分流 seam (refuter-C 修2): one wall measurement, two consumers with different physics. The
-// TRANSPORT gets the raw dt (playhead truth — audio follows it, so it covers the whole stall); the
-// Metal SIM step gets this clamped copy (0.25 = sim-stability, never a playhead rule). Pinned headless
-// by --selftest-arclock leg ③ + --selftest-transport (unclamped advance).
+// TRANSPORT gets the raw dt (playhead truth, covers the whole stall); the Metal SIM step gets this
+// clamped copy (0.25 = sim-stability, never a playhead rule). Pinned by --selftest-arclock ③/-transport.
 double simDeltaFromWall(double dtSecs) {
   if (dtSecs < 0.0) return 0.0;
   return dtSecs > 0.25 ? 0.25 : dtSecs;
@@ -252,6 +250,9 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // every panel drawn after this agrees on the current symbol; mid-frame edits dangle the
   // tail at most until the next frame.
   doc::validateCompositionPath();
+  // P1 LIVE PIPE (L1): spring-tick the Variation crossfader + write the damped blend onto the graph
+  // override, at frame START so it lands THIS frame (FIXED 1/60 spring; no-op until armed — see header).
+  varlive::tick(doc::g_lib);
 
   // Projection rebuild BEFORE the AudioReaction cooker, so extOut lands on the fresh graph.
   if (g_builtRev != doc::libRevision()) {
@@ -363,9 +364,8 @@ void run(PointGraph& pg, const std::string& targetPath) {
   ctx.time = (float)fxSecs;          // wall clock, seconds (sims keep running while paused)
   ctx.deltaTime = (float)dtSimSecs;  // SIM dt: clamped (integration stability), NOT the wall dt
   // LocalFxTime seam (additive): the BARS wall clock (= TiXL EvaluationContext.LocalFxTime =
-  // Playback.FxTimeInBars). ctx.time above is SECONDS for the GPU sims; value ops that need TiXL's
-  // bars-domain LocalFxTime (PerlinNoise2) read this. Populates the offset-12 slot (was _pad); the
-  // GPU upload never reads offset 12, so this is GPU-side a no-op (BI_EvalContext stays 16 bytes).
+  // Playback.FxTimeInBars); value ops needing the bars domain (PerlinNoise2) read this. Populates the
+  // offset-12 slot (was _pad); the GPU upload never reads it, so this is GPU-side a no-op (16 bytes).
   ctx.localFxTime = (float)fxBars;
 
   // The resident cook fills ITS two-clock ctx (localTime/localFxTime, bars) from the transport

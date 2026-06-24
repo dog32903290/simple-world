@@ -16,6 +16,7 @@
 #include "app/frame_cook.h"  // transport play/pause/scrub/bpm (the two-clock head, S5)
 #include "app/graph_commands.h"
 #include "app/soundtrack.h"  // soundtrack pick (file dialog) + status label
+#include "app/variation_live.h"  // P1 crossfader live pipe (seed slice + fader)
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // specTypes / findSpec
 #include "verify/eye/eye.h"
@@ -170,6 +171,54 @@ void drawToolbar() {
     sw::eye::recordItem("Soundtrack");
     ImGui::SameLine();
     ImGui::TextDisabled("%s", sw::soundtrack::statusText().c_str());
+  }
+
+  // Variation crossfader (P1 — the first live performance pipe). ONE 0-127 MIDI fader (TiXL
+  // BlendActions convention) that blends a single target parameter A->B through the spring + the
+  // document-override bridge. "Arm" seeds the slice on the first Float input of the first child of the
+  // current composition: A = that input's current value, B = current + 1. Dragging the fader sets the
+  // spring target; the frame_cook tick damps to it (FIXED 1/60) and writes the override live. Kept in
+  // THIS file (toolbar) — same idiom as the transport buttons, away from the canvas wire paths.
+  {
+    static float s_fader = 0.0f;  // 0..127 MIDI fader position (UI-local; the spring owns the truth)
+    if (ImGui::Button(sw::varlive::armed() ? "Re-arm Variation" : "Arm Variation")) {
+      sw::Symbol* cur = sw::doc::currentSymbol();
+      const std::string compId = sw::doc::currentSymbolId();
+      if (cur && !cur->children.empty()) {
+        // First child with a Float input slot — the narrowed single-param P1 target.
+        for (const sw::SymbolChild& ch : cur->children) {
+          const sw::Symbol* def = sw::doc::g_lib.find(ch.symbolId);
+          if (!def) continue;
+          const sw::SlotDef* floatSlot = nullptr;
+          for (const sw::SlotDef& in : def->inputDefs)
+            if (in.dataType == "Float") { floatSlot = &in; break; }
+          if (!floatSlot) continue;
+          const float a = sw::effectiveInput(sw::doc::g_lib, ch, floatSlot->id, floatSlot->def);
+          // B endpoint = 0: the fader fades the chosen param A->0. Zeroing any param (a Count, a force
+          // Amount, ...) is a PERCEPTIBLE sweep, so the single P1 slice visibly drives the picture
+          // whatever the first Float input happens to be — the universally-visible crossfade endpoint.
+          const float b = 0.0f;
+          if (sw::varlive::seedSliceTarget(sw::doc::g_lib, compId, ch.id, floatSlot->id, a, b)) {
+            s_fader = 0.0f;
+            sw::doc::g_status = "armed Variation: child " + std::to_string(ch.id) + " ." +
+                                floatSlot->id + " (A=" + std::to_string(a) + " B=" + std::to_string(b) +
+                                ")";
+          }
+          break;
+        }
+      }
+    }
+    sw::eye::recordItem("Arm Variation");  // stable eye key regardless of label
+    if (sw::varlive::armed()) {
+      ImGui::SameLine();
+      ImGui::SetNextItemWidth(180.0f);
+      if (ImGui::SliderFloat("Crossfade", &s_fader, 0.0f, 127.0f, "%.0f"))
+        sw::varlive::updateFader(s_fader);  // 0..127 MIDI fader -> spring target (TiXL BlendActions)
+      sw::eye::recordItem("Crossfade");
+      ImGui::SameLine();
+      ImGui::TextDisabled("w=%.2f -> %.3f", sw::varlive::dampedWeight(),
+                          sw::varlive::sliceOverrideValue(sw::doc::g_lib));
+    }
   }
 
   // Breadcrumbs (= TiXL GraphTitleAndBreadCrumbs): one button per composition level;
