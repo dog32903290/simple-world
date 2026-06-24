@@ -133,5 +133,23 @@ static const MathOp _reg_DetectBpm{
        nullptr}
 };
 
+      // TiXL SetBpm (Lib/numbers/anim/vj/SetBpm.cs) — the [SetBpm] VJ transport-BPM writer. On a
+      // TriggerUpdate RISING edge (SetBpm.cs:22 MathUtils.WasTriggered — edge, not level) it hands a
+      // clamped BpmRate to the triggered-pull BpmProvider singleton; frame_cook pulls it onto
+      // g_transport.bpm (mirroring PlaybackUtils.cs:74-78). STATEFUL — per-instance edge memory
+      // (s[0]=prevTrigger), evaluate==nullptr; cooked by frame_cook's stateful-value seam (step fn in
+      // runtime/stateful_value_ops_setbpm.cpp). Output (Command in TiXL, no value) → out[0] echoes the
+      // clamped rate this cook would write (golden probe; the real product is the singleton mutation).
+      // Ports = TiXL InputSlot decl order MINUS the Command SubGraph (no Command sub-tree in the value
+      // rail — NAMED FORK, same drop as SetFloatVar/SetIntVar). .t3 defaults (SetBpm.t3): BpmRate=120,
+      // TriggerUpdate=false. BpmRate slider range = the operator's own clamp window [54,240] (cs:24).
+static const MathOp _reg_SetBpm{
+      {"SetBpm", "SetBpm",
+       {{"Result", "Result", "Float", false},
+        {"BpmRate", "BpmRate", "Float", true, 120.0f, 54.0f, 240.0f},
+        {"TriggerUpdate", "TriggerUpdate", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr}
+};
+
 }  // namespace
 }  // namespace sw

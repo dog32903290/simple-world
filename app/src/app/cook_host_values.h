@@ -13,6 +13,7 @@
 namespace sw {
 struct ResidentEvalGraph;
 struct SymbolLibrary;
+struct CompositionSettings;
 }
 
 namespace sw::framecook {
@@ -29,6 +30,18 @@ namespace sw::framecook {
 //   posBars = the PLAYHEAD (bars; automation-driven list params sample this).
 //   fxBars  = the WALL CLOCK (bars).
 //   lib     = the symbol library (Automation drivers on list-param inputs resolve through this).
-void cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, const SymbolLibrary* lib);
+//
+// It ALSO runs the per-frame [SetBpm] triggered-pull (= TiXL PlaybackUtils.cs:74-78): after the host-
+// value cook, pull the BpmProvider singleton; on the ONE armed frame after a SetBpm edge it writes
+// lib->composition.bpm (the settings home = settings.Playback.Bpm) and RETURNS TRUE; every non-armed
+// frame leaves comp.bpm UNCHANGED and returns false (the triggered-pull, NOT a per-frame overwrite).
+// The caller bumps g_transport.bpm + dirties the lib on a true return (cs:80 settings→Playback.Bpm).
+// Folded in here (not a separate frame_cook call) so frame_cook.cpp stays at-or-below its line-count
+// cap (ARCHITECTURE rule 4 ratchet — NO grandfather bump). lib must be non-null for the pull to write.
+bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, SymbolLibrary* lib);
+
+// Per-frame [SetBpm] consumer (exposed for the --selftest-setbpm golden): the triggered PULL of the
+// BpmProvider singleton onto the composition BPM. Returns true iff it wrote comp.bpm this call.
+bool pullSetBpmRate(CompositionSettings& comp);
 
 }  // namespace sw::framecook

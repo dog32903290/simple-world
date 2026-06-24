@@ -37,4 +37,12 @@ REGISTER_SELFTESTS(/*orderBase=*/90,
     {"residentpatch", runResidentPatchSelfTest},
     {"residentlibpatch", runResidentLibPatchSelfTest},
 );
+
+// [SetBpm] VJ op golden — a SEPARATE block at an UNUSED orderBase so it appends to --selftest-list
+// WITHOUT shifting any existing row's order (the graph block 90..115 abuts point's 116; uiverify ends
+// at 229, image at 216, the 230..299 range is a clear gap — 250 is collision-free). This keeps the
+// list byte-identical except for the one new --selftest-setbpm line.
+REGISTER_SELFTESTS(/*orderBase=*/250,
+    {"setbpm", runSetBpmSelfTest},  // triggered-pull SetBpm edge → BpmProvider → comp.bpm (PlaybackUtils.cs:74-78)
+);
 }  // namespace sw

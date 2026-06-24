@@ -6,6 +6,8 @@
 
 #include <simd/simd.h>  // simd::float4 (s_colorListState — KeepColors's cross-frame accumulator store)
 
+#include "runtime/bpm_provider.h"          // BpmProvider (the [SetBpm] triggered-pull singleton)
+#include "runtime/compound_graph.h"        // CompositionSettings (the comp.bpm sink)
 #include "runtime/resident_eval_graph.h"  // ResidentEvalGraph / ResidentEvalCtx + cook*Nodes prototypes
 #include "runtime/string_op_registry.h"   // StringState (the stateful-string seam's cross-frame store)
 
@@ -14,7 +16,7 @@ namespace sw::framecook {
 // Cook the host-value currencies (String / host-scalar / ColorList) for one frame — the body lifted
 // verbatim from frame_cook.cpp's run() so that file stays under its line-count cap (the inline block
 // is now this one call). Byte-identical behaviour; the cross-frame state statics moved in with it.
-void cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, const SymbolLibrary* lib) {
+bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, SymbolLibrary* lib) {
   ResidentEvalCtx hsCtx;
   hsCtx.localTime = posBars;     // playhead (bars) — automation-driven list params sample this
   hsCtx.localFxTime = fxBars;    // wall clock (bars)
@@ -55,6 +57,23 @@ void cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, const
   // slot (so this static stays empty for a graph without KeepColors).
   static std::map<std::string, std::vector<simd::float4>> s_colorListState;
   cookColorListNodes(g, hsCtx, s_colorListState);
+
+  // [SetBpm] triggered-pull (PlaybackUtils.cs:74-78), folded in after the host-value cook so frame_cook
+  // stays under its line-count cap. Returns whether comp.bpm changed → the caller bumps the transport.
+  return lib ? pullSetBpmRate(lib->composition) : false;
+}
+
+// = TiXL PlaybackUtils.cs:74-78 (the per-frame [SetBpm] consumer). The triggered PULL: returns false
+// + leaves comp.bpm UNCHANGED on every non-armed frame (the BpmProvider.TryGetNewBpmRate false leg —
+// the make-or-break: NOT a per-frame overwrite); on the ONE frame after a SetBpm edge it returns the
+// clamped rate ONCE (clear-on-read) and writes comp.bpm. comp.bpm is the settings persistence home
+// (= settings.Playback.Bpm); frame_cook re-pulls comp.bpm onto g_transport.bpm at the top of each
+// frame, so the written rate flows comp→transport on the next cook (PlaybackUtils.cs:80 analog).
+bool pullSetBpmRate(CompositionSettings& comp) {
+  float newBpm;
+  if (!BpmProvider::instance().tryGetNewBpmRate(newBpm)) return false;  // not armed → comp.bpm untouched
+  comp.bpm = (double)newBpm;  // settings.Playback.Bpm = newBpmRate (cs:77)
+  return true;
 }
 
 }  // namespace sw::framecook

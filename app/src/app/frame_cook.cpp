@@ -288,11 +288,9 @@ void run(PointGraph& pg, const std::string& targetPath) {
   const double dtSimSecs = simDeltaFromWall(dtSecs);  // clamped copy  -> Metal sim only
   g_transport.advance(dtSecs);
 
-  // Process-lifetime wall run clock = TiXL Playback.RunTimeInSecs analog (a Stopwatch.StartNew() at
-  // static init, Playback.cs:159). simple_world has no such static clock, so we accumulate the SAME
-  // raw wall dt the transport consumes — it advances at real wall-clock rate regardless of
-  // pause/scrub/rate. Origin = 0 on the first cook (R-1 fork: StopWatch exposes only deltas, so the
-  // baseline difference is invisible). Consumed by the stateful-value seam's StopWatch.
+  // Process-lifetime wall run clock = TiXL Playback.RunTimeInSecs analog (Stopwatch.StartNew() at static
+  // init, Playback.cs:159). No such static clock here → accumulate the SAME raw wall dt the transport
+  // consumes; origin 0 on first cook (R-1 fork: StopWatch exposes only deltas). Consumed by StopWatch.
   static double s_runTimeSecs = 0.0;
   s_runTimeSecs += dtSecs;
 
@@ -347,12 +345,14 @@ void run(PointGraph& pg, const std::string& targetPath) {
 
   // Cook the HOST-VALUE currencies (String / host-scalar / ColorList) — the PRODUCTION legs of the
   // resident string-wire rail, the list-routing FloatList→Float bridge, and the vec4-list cook flow.
-  // Same once-per-frame slot as the AR / stateful cookers above (extOut-mirror contract). Extracted
-  // into cookHostValueNodes (cook_host_values.cpp) so this file stays under its line-count cap while
-  // the stateful-string seam threads its cross-frame state store; behaviour is byte-identical to the
-  // old inline block (the cross-frame state statics moved in with it). Reads the two BARS clocks +
-  // the lib (the flat cook*Node twins in point_graph.cpp are golden-only; this is the running app's leg).
-  cookHostValueNodes(g_residentGraph, (float)posBars, (float)fxBars, &doc::g_lib);
+  // Extracted into cookHostValueNodes (cook_host_values.cpp) to stay under the line-count cap. It ALSO
+  // runs the [SetBpm] triggered-pull (PlaybackUtils.cs:74-78): on the armed edge it writes
+  // doc::g_lib.composition.bpm and returns true → bump g_transport.bpm THIS frame (cs:80) + dirty it
+  // (a direct g_lib.composition write bypasses bumpLibRevision, B4). Non-armed frame: false → no-op.
+  if (cookHostValueNodes(g_residentGraph, (float)posBars, (float)fxBars, &doc::g_lib)) {
+    g_transport.bpm = doc::g_lib.composition.bpm;
+    doc::invalidateDirtyCache();
+  }
 
   ++g_frameIndex;
   // The GPU EvaluationContext (16-byte) carries the WALL CLOCK (fxTime) as `time`: GPU-side Time/

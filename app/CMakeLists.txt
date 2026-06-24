@@ -353,6 +353,7 @@ add_executable(simple_world
   src/runtime/colorlist_ops_readpointcolors.cpp
   src/runtime/colorlist_ops_keepcolors.cpp
   src/colorlist_golden.cpp
+  src/setbpm_golden.cpp             # --selftest-setbpm ([SetBpm] VJ op triggered-pull golden)
   src/colorlist_fanout_golden.cpp
   src/keepcolors_golden.cpp
   src/runtime/host_scalar_op_registry.cpp
@@ -516,6 +517,7 @@ add_executable(simple_world
   src/runtime/audio_analyzer.cpp
   src/runtime/spectrum_analyzer.cpp
   src/runtime/bpm_detection.cpp
+  src/runtime/bpm_provider.cpp       # [SetBpm] triggered-pull singleton (= TiXL Core/IO/BpmProvider.cs)
   src/runtime/detect_bpm.cpp
   src/runtime/audio_reaction.cpp
   src/runtime/dispatch.cpp

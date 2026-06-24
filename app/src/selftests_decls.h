@@ -135,6 +135,7 @@ namespace sw { int runMeshIcosahedronGoldenSelfTest(bool); }     // mesh_icosahe
 namespace sw { int runFloatListSelfTest(bool); }                 // floatlist_golden.cpp (5th cook flow: FloatsToList host list)
 namespace sw { int runColorsToListSelfTest(bool); }              // colorlist_golden.cpp (vec4-list cook flow: ColorsToList host color list, flat + R-2 resident)
 namespace sw { int runColorListSelfTest(bool); }                // colorlist_fanout_golden.cpp (ColorList identity passthrough, flat + R-2 resident)
+namespace sw { int runSetBpmSelfTest(bool); }                   // setbpm_golden.cpp ([SetBpm] VJ op: triggered-pull SetBpm edge → BpmProvider → comp.bpm)
 namespace sw { int runCombineColorListsSelfTest(bool); }        // colorlist_fanout_golden.cpp (CombineColorLists MultiInput concat, flat + R-2 resident)
 namespace sw { int runReadPointColorsSelfTest(bool); }          // colorlist_fanout_golden.cpp (ReadPointColors: Points bag .Color -> ColorList, flat)
 namespace sw { int runKeepColorsSelfTest(bool); }               // keepcolors_golden.cpp (per-node cross-frame colorlist STATE: KeepColors accumulate/cap/reset, flat + R-2 resident)
