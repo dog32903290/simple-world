@@ -157,3 +157,4 @@ namespace sw { int runBlendGradientsSelfTest(bool); }            // gradient_ops
 namespace sw { int runLayerComposeSelfTest(bool); }              // point_ops_layercompose.cpp (★S2c: layer-compose end-to-end — 2 Layer2d → Execute → RenderTarget, blend order=wire order, flat + resident)
 namespace sw { int runGroupSelfTest(bool); }                     // point_ops_group.cpp (★S2b: Group SRT transform-context push — Layer2d→Group(translate/scale)→RenderTarget, child quad moves on flat + resident)
 namespace sw { int runTransformOpsSelfTest(bool); }              // point_ops_transform_golden.cpp (★S2 island: RotateAroundAxis/Shear/Transform transform-context push over Group — child quad rotates/shears/translates on flat + resident)
+namespace sw { int runKeymapPersistSelfTest(bool); }             // keymap_prefs_selftest.cpp (★#11: user keymap JSON overrides factory — set→save→reload round-trip + no-file=factory)

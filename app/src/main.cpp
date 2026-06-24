@@ -22,6 +22,7 @@
 #include "imgui_node_editor.h"
 
 #include "app/audio_settings.h"
+#include "app/keymap_prefs.h"  // #11: user keymap override store (loadUserKeymap at startup)
 #include "app/audio_monitor.h"
 #include "app/command.h"
 #include "app/document.h"
@@ -280,6 +281,7 @@ void Renderer::draw(MTK::View* pView) {
       // streaming begins → set-before-start is race-free). Keeps capture a runtime-free leaf.
       g_audioCapture.setBlockCallback(&sw::audio_monitor::onBlock, nullptr);
       sw::audio::loadPrefs();
+      sw::km::loadUserKeymap();  // #11: apply the user keymap JSON (if any) so rebinds take effect
       s_audioPrefsLoaded = true;
     }
     unsigned int audioDev = 0;

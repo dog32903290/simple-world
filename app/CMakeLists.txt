@@ -155,6 +155,8 @@ add_executable(simple_world
   ${SW_SELFTEST_SRCS}  # globbed: selftests.cpp router + selftests_<area>.cpp manifests + selftest_registry.cpp
   src/app/document.cpp
   src/app/audio_settings.cpp
+  src/app/keymap_prefs.cpp           # #11: user keymap JSON override store (cross-session rebinding)
+  src/app/keymap_prefs_selftest.cpp  # #11: set→save→reload round-trip gate (--selftest-keymap-persist)
   src/app/audio_monitor.cpp
   src/app/command.cpp
   src/app/graph_commands.cpp
@@ -197,6 +199,7 @@ add_executable(simple_world
   src/ui/node_menu_actions.cpp
   src/ui/copy_paste_ui.cpp
   src/ui/keymap.cpp
+  src/ui/keymap_binding.cpp  # #11: user-override-aware chord test (rebinding seam, keymap.cpp at cap)
   src/ui/view_modes.cpp  # P6 演出/Focus modes (F12 / Shift+Esc toggles + handlers)
   src/ui/quick_add.cpp
   src/ui/quick_add_tree.cpp

@@ -4,7 +4,7 @@
 // editor_ui.cpp (散打保留 — named fork, risk asymmetry: touching that code path mid-batch).
 #include "ui/keymap.h"
 
-#include <algorithm>
+#include "ui/keymap_binding.h"  // chordPressed: user-override-aware key test (#11 rebinding seam)
 #include <cstdio>
 #include <cstring>
 #include <limits>
@@ -53,8 +53,8 @@ static double frameStepBars() {
 // Handler signatures: return true if the action fired this frame.
 // ---------------------------------------------------------------------------
 static bool handlePlaybackToggle() {
-  // Space = toggle (TiXL FactoryKeyMap.cs:28, TimeControls.cs:128-141)
-  if (!ImGui::IsKeyPressed(ImGuiKey_Space, false)) return false;
+  // Space = toggle (FactoryKeyMap.cs:28). Via the user-override store (#11): factory=bare Space, rebindable.
+  if (!sw::ui::chordPressed("PlaybackToggle", {ImGuiKey_Space, false, false, false})) return false;
   sw::framecook::transportToggle();
   return true;
 }
