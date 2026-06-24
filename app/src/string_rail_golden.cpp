@@ -53,6 +53,8 @@ namespace sw {
 bool runStringRailSubseamA(bool injectBug);
 // LEG 37/38 (StringBuilder + StringBuilderToString) live in string_builder_golden.cpp — same flag.
 bool runStringBuilderGolden(bool injectBug);
+// LEG 41 (WrapString) lives in string_ops_wrapstring_golden.cpp — same flag.
+bool runWrapStringGolden(bool injectBug);
 
 namespace {
 
@@ -1528,6 +1530,11 @@ int runStringRailSelfTest(bool injectBug) {
   // LEG 39/40: StringBuilder + StringBuilderToString (string_builder_golden.cpp). Call UNCONDITIONALLY.
   bool builderOk = runStringBuilderGolden(injectBug);
   ok = ok && builderOk;
+
+  // LEG 41: WrapString (string_ops_wrapstring_golden.cpp). Call UNCONDITIONALLY (NOT `ok && …` — that
+  // short-circuits when an incumbent already failed in -bug mode, so the new leg would never run / bite).
+  bool wrapOk = runWrapStringGolden(injectBug);
+  ok = ok && wrapOk;
 
   // Harness convention (run_all_selftests.sh --bite): the -bug variant must exit NON-zero. injectBug
   // corrupts the REAL cook outputs -> ok is false -> return 1 (the tooth bites). No inversion.
