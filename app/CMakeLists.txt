@@ -397,6 +397,7 @@ add_executable(simple_world
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp
   src/runtime/variation_selftest.cpp  # Lane L1 (Variation/Snapshot) harness-first golden: Mix + SpringDamp math
+  src/runtime/variation_snapshot_actions_selftest.cpp  # L1 (Variation): snapshot-slot state machine golden (--selftest-variation-snapshot-actions)
   src/runtime/pointlist_op_registry.cpp
   src/runtime/pointlist_ops_radialpointscpu.cpp
   src/runtime/pointlist_ops_transformcpupoint.cpp
