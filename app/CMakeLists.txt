@@ -390,7 +390,12 @@ add_executable(simple_world
   src/runtime/host_scalar_op_registry.cpp
   src/runtime/host_scalar_ops_floatlistlength.cpp
   src/runtime/host_scalar_ops_pickfloatfromlist.cpp
+  src/runtime/host_scalar_ops_sumrange.cpp            # FloatList+Lower+Upper -> windowed sum (list fan-out wave-1)
+  src/runtime/host_scalar_ops_intlistlength.cpp       # IntList (dissolved) -> count (list fan-out wave-1)
+  src/runtime/host_scalar_ops_pickintfromlist.cpp     # IntList (dissolved)+Index -> picked element (list fan-out wave-1)
+  src/runtime/host_scalar_ops_comparefloatlists.cpp   # ListA+ListB+Threshold -> differing-ratio (list fan-out wave-1)
   src/list_routing_golden.cpp
+  src/list_routing_wave1_golden.cpp                    # --selftest-listroutingwave1 (wave-1 host-scalar consumers bridge golden)
   src/runtime/string_op_registry.cpp
   src/runtime/string_ops_stringlength.cpp
   src/runtime/string_ops_floattostring.cpp
