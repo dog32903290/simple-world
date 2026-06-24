@@ -200,8 +200,14 @@ DetectBpm 引擎已綠但孤兒（`fork-bpm-not-live-driving-transport`）。接
 - **Tier1-B ✅**（`f853634`）：節點右鍵選單對 `GraphContextMenu.cs` 12-item，無 hit-test touch。greyed 誠實（無 backing field）。
 - **★harness gap（task_bf656ae9）**：eye-hand combo-popup 不入 map + node-selection flaky→UI lane 暫以 .scn+golden 為主閘，raw-hand pixel-diff 不可靠。
 
-**第四批（下次 /sw-batch 從這 pull，避撞看主檔欄）：**
-- **P3**（MIDI/OSC→graph 綁定：缺 `registerIoLiveSources` app hook，loopback+SourceRegistry 已建；+MIDI learn UI，cook-core-adjacent 脊椎，solo focus）。對 TiXL MIDI 綁定。
-- **∥ Tier2 inspector**（參數重置 SetOverrideCommand erase + default/override 字色 + jog-dial SliderFloat→DragFloat，主檔 `ui/inspector.cpp`，undo+.swproj round-trip 閘）。
-- **∥ L-B-follow（category repo fill→命名空間樹）**：機械 pass 填 `NodeSpec.category`（對 Symbol.Namespace）跨 node_registry_*.cpp。可 solo。
-- ★避撞：P3(app io hook/frame_cook) ∥ inspector(ui/inspector.cpp) ∥ L-B-follow(node_registry_*) 主檔互斥可並行。後續 P4(snapshot 觸發+LED 依賴 P3 MIDI 雙向)/P5(BPM→transport)/P6(Player 模式)。
+**第四批 ✅ 完成（2026-06-24 19:18，柏為 18:06 現身核可 harness 修）：**
+- **P3 ✅**（`9c0c554`）：MIDI/OSC→graph 綁定（registerIoLiveSources hook+cook-side wire frame_cook tick+MIDI learn）。loopback golden CC64/127→0.503937 達 graph param。**演出脊椎第三片＝三條 live wire 第二條（Variation✅+MIDI✅+BPM 待）。**
+- **inspector ✅**（`6a46bb6`）：ResetOverrideCommand（undoable）+TiXL 字色+DragFloat jog。
+- **harness-fix ✅**（`b08bb24`+triage `3b9f670`）：gap-1 combo-popup 入 map + gap-2 selectnode（triage 修 bad-id-wipe bug + enqueueClick hover-settle）。**★限制誠實記：selectnode 在 scenario/compound_smoke context 可靠（=UI 驗證載入的 doc），raw 任意 doc 取決 childId==ed-id。**
+- **★合流血證**：inspector∥P3 撞 inspector.cpp、P3∥harness 撞 hand.cpp→手動 merge 保兩邊+重驗。**多 lane 動同 UI/verify 檔要預期 conflict。**
+
+**第五批（下次 /sw-batch 從這 pull，避撞看主檔欄）：**
+- **P5 BPM→transport**（DetectBpm engine 已綠孤兒 `fork-bpm-not-live-driving-transport`→接 detect→transport.bpm+UI 顯示，cook-core-adjacent，solo focus）。對 TiXL BPM。**P4(snapshot 觸發+LED) 排後因需 P3 MIDI 雙向+LED 硬體=部分柏為域。**
+- **∥ 編輯 UI lane**（擇一，主檔互斥）：即時值字串 in `node_draw.cpp`（Tier3 靠 effectiveInput）／工具列範式／hover-to-split in `editor_ui.cpp`（Tier2）。
+- **∥ L-B-follow（category repo fill→命名空間樹）**：機械 pass 填 `NodeSpec.category` 跨 node_registry_*.cpp。可 solo。
+- ★避撞硬化：`node_draw.cpp`/`editor_ui.cpp`/`inspector.cpp`/`hand.cpp`/`frame_cook.cpp` 是多 lane 共撞點，每批每檔只一 lane。P5(frame_cook/transport) 與動 frame_cook 的 lane 互斥。後續 P4/P6(Player 模式)。
