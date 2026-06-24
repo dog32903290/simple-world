@@ -86,6 +86,7 @@ add_custom_target(sw_shaders DEPENDS ${SW_METALLIB})
 # Manual ref-counting alongside metal-cpp pointers -> compile WITHOUT ARC, like
 # the imgui backends.
 set_source_files_properties(src/verify/eye/eye.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
+set_source_files_properties(src/verify/eye/eye_selftest.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 set_source_files_properties(src/platform/dialogs.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 # image_decode{,_selftest}.mm: ImageIO/CoreGraphics CFTypeRefs (manual CFRelease) alongside
 # metal-cpp pointers (manual release) -> compile WITHOUT ARC, like eye.mm / dialogs.mm.
@@ -218,6 +219,7 @@ add_executable(simple_world
   src/ui/variation_panel.cpp  # Lane L1 (Variation): P2 Variation window (snapshot grid + N-way mix + crossfader)
   src/metal_impl.cpp
   src/verify/eye/eye.mm
+  src/verify/eye/eye_selftest.mm
   src/verify/hand/hand.cpp
   src/verify/hand/hand_selftest.cpp
   src/platform/dialogs.mm

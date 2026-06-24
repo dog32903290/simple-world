@@ -30,6 +30,13 @@
 //   keychord <mods> <name>    hold mods, press+release key, release mods.
 //                             mods joined by '+': cmd/super, ctrl, shift, alt.
 //                             e.g. "keychord cmd z" (undo), "keychord cmd+shift z" (redo)
+//   selectnode <childId>      select the graph node whose SymbolChild id == childId,
+//                             DIRECTLY via the node-editor selection API (ed::SelectNode),
+//                             bypassing coordinate hit-tests. The operator node's ed node id
+//                             IS the childId (ui/node_draw.cpp: ed::BeginNode(child.id)), so
+//                             the map is identity. Fixes the flaky "injected click on a
+//                             non-terminal node doesn't select" gap. Applied by the canvas via
+//                             applyPendingSelectNodes() while the editor context is current.
 //   text   <utf8...>          type the REST of the line into the focused InputText
 //                             via io.AddInputCharactersUTF8 — keeps spaces, accepts
 //                             multibyte UTF-8 (CJK: e.g. "text 心跳偵測" for a node
@@ -65,6 +72,13 @@ void poll();
 // Apply ONE queued input step to ImGui's IO. MUST be called right before
 // ImGui::NewFrame() (IO events are consumed by NewFrame). No-op if queue empty.
 void applyPendingStep();
+
+// Gap 2: drain the queue of `selectnode <childId>` requests into the node editor's
+// selection. MUST be called with the editor context CURRENT (inside ed::Begin/ed::End,
+// like ui/node_menu_actions selectConnected) — that's the only scope where ed::SelectNode
+// has an editor to act on. One-line hook from the canvas draw; the select logic stays here.
+// No-op when nothing is queued. Returns how many ids it selected this call (0 = none).
+int applyPendingSelectNodes();
 
 // True while queued input steps await frames. The verify keep-alive (main.cpp)
 // reads this to pump frames at gesture speed when the display link stalls:

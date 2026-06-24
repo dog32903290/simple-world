@@ -18,6 +18,7 @@
 #include "ui/node_menu_actions.h"  // Tier1-B node-menu glue (Select connected / Align / Delete)
 #include "ui/editor_ui.h"   // g_selectedNode + spawnNodeAt (single-selection / spawn)
 #include "verify/eye/eye.h" // one-line hooks: menu/dialog rects for the hand
+#include "verify/hand/hand.h" // gap-2 hook: drain selectnode requests (editor current here)
 
 namespace ed = ax::NodeEditor;
 
@@ -117,6 +118,7 @@ std::vector<int> captureSelection(int ctxNodeId) {
 }  // namespace
 
 void drawCanvasContextMenu() {
+  sw::hand::applyPendingSelectNodes();  // gap-2 hook: agent `selectnode <childId>` -> ed::SelectNode (editor current, canvas scope)
   // Capture the paste anchor (mouse -> canvas) BEFORE suspending: a context-menu Paste drops the
   // selection's upper-left here, the way TiXL pastes at the click target. ScreenToCanvas needs
   // the editor current, which it is in the canvas scope that calls us.

@@ -10,10 +10,13 @@
 #include <vector>
 
 #include "imgui.h"
+#include "imgui_node_editor.h"  // ed::SelectNode for `selectnode <childId>` (gap 2)
 
 #ifndef SW_EYE_DIR
 #define SW_EYE_DIR "/tmp/sw_eye"
 #endif
+
+namespace ed = ax::NodeEditor;
 
 namespace sw::hand {
 
@@ -43,6 +46,12 @@ std::deque<Step> g_pending;
 void (*g_midiInjectHook)(int, int, int) = nullptr;
 // App-owned MIDI-learn-arm hook (set via setLearnArmHook). The `learn` directive forwards to it.
 void (*g_learnArmHook)(int, const char*) = nullptr;
+// Gap 2: `selectnode <childId>` requests, applied by the canvas (editor current) rather
+// than expanded into mouse frames — a direct selection that skips coordinate hit-tests.
+// Separate queue from g_pending: these don't consume IO frames, they consume one drain
+// call inside the canvas draw scope. clearPending() empties this too, so a self-test that
+// resets between legs starts clean.
+std::deque<int> g_selectNodes;
 
 std::string cmdPath() { return std::string(SW_EYE_DIR) + "/hand"; }
 
@@ -194,6 +203,12 @@ void parseLine(const std::string& line) {
     // the binding table is a side map, not ImGui IO, so it applies the moment the line is parsed.
     int ch, ctrl, val;
     if ((is >> ch >> ctrl >> val) && g_midiInjectHook) g_midiInjectHook(ch, ctrl, val);
+  } else if (op == "selectnode") {
+    // selectnode <childId> — queue a DIRECT node-editor selection (gap 2). The childId is
+    // the operator node's ed node id (ui/node_draw.cpp ed::BeginNode(child.id)); identity
+    // map, no lookup. Drained by applyPendingSelectNodes() while the editor is current.
+    int id;
+    if (is >> id) g_selectNodes.push_back(id);
   } else if (op == "key") {
     std::string name;
     if (is >> name) {
@@ -247,14 +262,32 @@ void poll() {
   while (std::getline(lines, line)) parseLine(line);
 }
 
-bool hasPending() { return !g_pending.empty(); }
+// Includes the selectnode queue: a queued selection still needs one canvas frame to land,
+// so a driver waiting on map.json "hand_pending" must see it as in-flight until drained.
+bool hasPending() { return !g_pending.empty() || !g_selectNodes.empty(); }
 
 void setMidiInjectHook(void (*hook)(int, int, int)) { g_midiInjectHook = hook; }
 void setLearnArmHook(void (*hook)(int, const char*)) { g_learnArmHook = hook; }
 
 void feedLine(const char* line) { parseLine(line); }
 
-void clearPending() { g_pending.clear(); }
+void clearPending() { g_pending.clear(); g_selectNodes.clear(); }
+
+int applyPendingSelectNodes() {
+  if (g_selectNodes.empty()) return 0;
+  // Editor must be current here (caller's contract): ed::SelectNode acts on the editor set
+  // via ed::SetCurrentEditor. We ClearSelection once, then append every queued id, so a
+  // batch of selectnode lines reads as one multi-select (mirrors selectConnected's append).
+  ed::ClearSelection();
+  int n = 0;
+  while (!g_selectNodes.empty()) {
+    int id = g_selectNodes.front();
+    g_selectNodes.pop_front();
+    ed::SelectNode(ed::NodeId(id), /*append=*/true);
+    ++n;
+  }
+  return n;
+}
 
 void applyPendingStep() {
   if (g_pending.empty()) return;

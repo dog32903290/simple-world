@@ -200,7 +200,65 @@ int runSelfTest(bool injectBug) {
     clearPending();
     if (!injectBug) feedLine("rclick 90 75");
     for (int i = 0; i < 6; ++i) pumpFrame(drawCanvas);
+
+    // --- selectnode <childId> -> DIRECT node-editor selection (gap 2). No mouse, no
+    // coordinate hit-test: the agent names the child id and applyPendingSelectNodes()
+    // (drained inside the canvas scope, editor current) calls ed::SelectNode. This is the
+    // bypass for the flaky "injected click doesn't select a non-terminal node" path. The
+    // canvas-scope drain mirrors the app's editor_ui hook. A drawCanvas2 that drains the
+    // queue stands in for drawChild + the hook line. RED legs:
+    //   bad-id : selectnode on a non-existent id must NOT leave kNodeId selected
+    //   noop   : injectBug enqueues nothing -> selection stays cleared
+    ed::SetCurrentEditor(ctx);
+    ed::ClearSelection();  // start from a clean slate so the assert is about selectnode alone
+    ed::SetCurrentEditor(nullptr);
+    auto drainCanvas = [&]() {
+      ImGui::SetNextWindowPos(ImVec2(0, 0));
+      ImGui::SetNextWindowSize(ImVec2(400, 300));
+      ImGui::Begin("canvashost2", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
+      ed::SetCurrentEditor(ctx);
+      ed::Begin("canvas");
+      ed::SetNodePosition(kNodeId, ImVec2(kNodeX, kNodeY));
+      ed::BeginNode(kNodeId);
+      ImGui::TextUnformatted("NodeTitleAAAA");
+      ed::EndNode();
+      applyPendingSelectNodes();  // <- the hook under test (editor current, inside Begin/End)
+      ed::End();
+      ed::SetCurrentEditor(nullptr);
+      ImGui::End();
+    };
+    clearPending();
+    // GREEN: select the real node by id. injectBug enqueues nothing (noop RED leg).
+    if (!injectBug) feedLine(std::string(std::string("selectnode ") + std::to_string(kNodeId)).c_str());
+    bool selNodeOk = false;
+    for (int i = 0; i < 4; ++i) {
+      pumpFrame(drainCanvas);
+      ed::SetCurrentEditor(ctx);
+      ed::NodeId sel[4];
+      int n = ed::GetSelectedNodes(sel, 4);
+      ed::SetCurrentEditor(nullptr);
+      if (n == 1 && (int)sel[0].Get() == kNodeId) selNodeOk = true;
+    }
+    // RED guard (runs in BOTH modes): a bad id must clear+select-nothing-real — kNodeId
+    // must NOT end up selected by addressing an id that isn't on the canvas.
+    ed::SetCurrentEditor(ctx);
+    ed::ClearSelection();
+    ed::SelectNode(ed::NodeId(kNodeId), /*append=*/true);  // pre-seed: kNodeId IS selected
+    ed::SetCurrentEditor(nullptr);
+    clearPending();
+    feedLine("selectnode 99999");  // unknown id; applyPendingSelectNodes ClearSelection()s first
+    for (int i = 0; i < 4; ++i) pumpFrame(drainCanvas);
+    ed::SetCurrentEditor(ctx);
+    ed::NodeId selBad[4];
+    int nBad = ed::GetSelectedNodes(selBad, 4);
+    ed::SetCurrentEditor(nullptr);
+    // After selecting a non-existent id: kNodeId must be GONE (the ClearSelection took, and
+    // 99999 selects no real node). This proves selectnode is id-addressed, not a no-op.
+    bool badIdOk = true;
+    for (int i = 0; i < nBad; ++i) if ((int)selBad[i].Get() == kNodeId) badIdOk = false;
+
     ed::DestroyEditor(ctx);
+    selOk = selOk && selNodeOk && badIdOk;  // gap-2 now requires BOTH click-select and selectnode
   }
 
   bool pass = moveOk && downOk && upOk && dblOk && chordOk && textOk && selOk && ctxOk;

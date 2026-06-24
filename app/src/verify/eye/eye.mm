@@ -1,5 +1,6 @@
 // eye.mm — see eye.h. ObjC++ / MRC (no ARC), like the imgui backends.
 #include "verify/eye/eye.h"
+#include "verify/eye/eye_internal.h"  // detail:: buffers/primitives shared with eye_selftest.mm
 
 #include <algorithm>
 #include <cmath>
@@ -13,6 +14,7 @@
 #import <ImageIO/ImageIO.h>  // PNG encode/decode with NO color management (byte-exact)
 
 #include "imgui.h"           // GetItemRectMin/Max for the widget map
+#include "imgui_internal.h"  // OpenPopupStack / ImGuiWindow — walk open combo/popup items
 
 #include "verify/hand/hand.h"  // hand_pending in map.json (verify-internal sibling, same leaf)
 
@@ -23,8 +25,12 @@
 namespace sw::eye {
 
 namespace {
-
 NSString* eyeDir() { return @SW_EYE_DIR; }
+}  // namespace
+
+// Shared verify-internal seam (eye_internal.h): the live buffers + primitives the
+// headless self-tests (eye_selftest.mm) drive directly. Non-anonymous so that TU links.
+namespace detail {
 
 std::string outPath(const char* name) {
   NSString* p = [eyeDir() stringByAppendingPathComponent:[NSString stringWithUTF8String:name]];
@@ -66,22 +72,70 @@ bool writePNG(const std::string& path, const uint8_t* rgba, int w, int h) {
   return ok;
 }
 
-// Collected widget rects (ImGui screen coords) for the pending map request.
-struct Item {
-  std::string label;
-  float x0, y0, x1, y1;
-};
+// The live per-frame buffers. Item/NativeMenuItem are declared in eye_internal.h so the
+// self-test TU sees the same types. accessors items()/nativeItems() hand the self-test the
+// real buffers (no copy) — it asserts on exactly what the live map serializes.
 std::vector<Item> g_items;
-
-// Native NSMenu rows: registered ONCE by the menu builder at startup; persistent
-// (beginWidgetFrame never clears them — they don't live inside an imgui frame).
-struct NativeMenuItem {
-  std::string label;     // "nsmenu:<menu>:<title>"
-  std::string shortcut;  // "cmd+s" / "cmd+shift+s"
-};
 std::vector<NativeMenuItem> g_nativeItems;
+std::vector<Item>& items() { return g_items; }
+std::vector<NativeMenuItem>& nativeItems() { return g_nativeItems; }
 
-}  // namespace
+// True if the recorded set currently holds a row whose label starts with `prefix`.
+bool itemsHavePrefix(const char* prefix) {
+  const std::string pre = prefix;
+  for (const Item& it : g_items)
+    if (it.label.rfind(pre, 0) == 0) return true;
+  return false;
+}
+
+// Gap 1: ImGui combos / context popups / dropdowns are SEPARATE internal windows
+// (e.g. "##Combo_00") that the app never draws item-by-item, so their rows never go
+// through a recordItem() hook and stay invisible to the hand. This walks the live
+// OpenPopupStack — the engine's own retained record of which popups are open — and
+// synthesizes one addressable rect per row of each open popup window, indexed:
+//   popup_item:<window_name>:<row>   imgui_rect (same schema as recordItem rows)
+// Row geometry is reconstructed from the popup window's own WorkRect (content area,
+// already shrunk by WindowPadding) and the uniform list stride ImGui itself uses for
+// menu/combo height (g.FontSize + ItemSpacing.y — see CalcMaxPopupHeightFromItemCount).
+// Rows are clipped to the content extent (ContentSize.y) so a 3-item combo emits 3
+// rows, not a screenful. This is ADDITIVE: existing recordItem rows are untouched, and
+// app-drawn popups that DO record their rows (menu:/ctx:/insp:) keep their named rects
+// alongside these generic indexed ones. The driver flow is unchanged: open the popup ->
+// req_map -> read popup_item rects -> click the row's center_pt.
+void recordOpenPopupItems() {
+  ImGuiContext* g = ImGui::GetCurrentContext();
+  if (!g) return;
+  const float stride = g->FontSize + g->Style.ItemSpacing.y;  // ImGui's own list row stride
+  if (stride <= 0.0f) return;
+  for (int p = 0; p < g->OpenPopupStack.Size; ++p) {
+    ImGuiWindow* win = g->OpenPopupStack[p].Window;
+    if (!win || !win->Active || win->Hidden) continue;  // only popups actually on screen
+    const ImRect work = win->WorkRect;       // content rows live here (padding already removed)
+    const float x0 = work.Min.x, x1 = work.Max.x;
+    // How many rows fit: content height / stride, clamped to the work-area height so a
+    // partially-scrolled / clipped popup doesn't manufacture phantom rows past the window.
+    const float contentH = win->ContentSize.y > 0.0f ? win->ContentSize.y
+                                                      : (work.Max.y - work.Min.y);
+    int rows = (int)((contentH + g->Style.ItemSpacing.y + 0.5f) / stride);
+    if (rows < 1) rows = 1;
+    if (rows > 256) rows = 256;  // sanity ceiling; popups this tall don't happen here
+    const char* wname = win->Name ? win->Name : "popup";
+    for (int r = 0; r < rows; ++r) {
+      float ry0 = work.Min.y + (float)r * stride;
+      float ry1 = ry0 + g->FontSize;
+      if (ry0 >= work.Max.y) break;                       // ran past the visible content
+      if (ry1 > work.Max.y) ry1 = work.Max.y;
+      char lbl[128];
+      snprintf(lbl, sizeof(lbl), "popup_item:%s:%d", wname, r);
+      g_items.push_back({lbl, x0, ry0, x1, ry1});
+    }
+  }
+}
+
+}  // namespace detail
+
+// The live sink + map serialization below uses the detail buffers/primitives directly.
+using namespace detail;
 
 Request poll() {
   Request r;
@@ -151,6 +205,9 @@ void recordNativeMenuItem(const char* menu, const char* title, const char* key, 
 
 void writeWidgetMap(void* mtkView, const char* outName) {
   ensureDir();
+  // Gap 1: fold any currently-open combo/popup window rows into the item set so the
+  // hand can address them. Additive; runs after the app's own recordItem() pass.
+  recordOpenPopupItems();
   NSView* v = (NSView*)mtkView;
   NSWindow* win = [v window];
   NSRect content = [win contentRectForFrameRect:[win frame]];  // screen pts, bottom-left
@@ -199,171 +256,6 @@ void writeWidgetMap(void* mtkView, const char* outName) {
 
   NSString* path = [NSString stringWithUTF8String:outPath(outName).c_str()];
   [j writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
-}
-
-int runSelfTest(bool injectBug) {
-  @autoreleasepool {
-    const int W = 8, H = 8;
-    const uint8_t R = 40, G = 80, B = 160;  // known truth
-    std::vector<uint8_t> px((size_t)W * H * 4, 0);
-    for (int i = 0; i < W * H; ++i) {
-      px[i * 4 + 0] = injectBug ? 200 : R;  // wrong color when injecting a bug
-      px[i * 4 + 1] = injectBug ? 10 : G;
-      px[i * 4 + 2] = injectBug ? 10 : B;
-      px[i * 4 + 3] = 255;
-    }
-    ensureDir();
-    std::string path = outPath("selftest_eye.png");
-    if (!writePNG(path, px.data(), W, H)) {
-      printf("[selftest-eye] FAIL: writePNG\n");
-      return 1;
-    }
-    // Reload through a fresh decode and read RAW decoded bytes (CGImage's data
-    // provider), NOT via NSColor — so no color management sits between the file
-    // and the assertion. Proves the PNG round-trips byte-exact.
-    NSData* d = [NSData dataWithContentsOfFile:[NSString stringWithUTF8String:path.c_str()]];
-    CGImageSourceRef src = CGImageSourceCreateWithData((CFDataRef)d, NULL);
-    CGImageRef img = src ? CGImageSourceCreateImageAtIndex(src, 0, NULL) : NULL;
-    if (!img) {
-      printf("[selftest-eye] FAIL: decode\n");
-      if (src) CFRelease(src);
-      return 1;
-    }
-    CFDataRef pix = CGDataProviderCopyData(CGImageGetDataProvider(img));
-    const UInt8* bytes = CFDataGetBytePtr(pix);
-    size_t bpr = CGImageGetBytesPerRow(img);
-    const UInt8* p = bytes + (H / 2) * bpr + (W / 2) * 4;
-    int gr = p[0], gg = p[1], gb = p[2];
-    CFRelease(pix);
-    CGImageRelease(img);
-    CFRelease(src);
-    bool pass = std::abs(gr - R) <= 2 && std::abs(gg - G) <= 2 && std::abs(gb - B) <= 2;
-    printf("[selftest-eye] center=(%d,%d,%d) expect=(%d,%d,%d) -> %s\n", gr, gg, gb, R, G, B,
-           pass ? "PASS" : "FAIL");
-    return pass ? 0 : 1;
-  }
-}
-
-namespace {
-// True if the recorded set currently holds a row whose label starts with `prefix`.
-bool itemsHavePrefix(const char* prefix) {
-  const std::string pre = prefix;
-  for (const Item& it : g_items)
-    if (it.label.rfind(pre, 0) == 0) return true;
-  return false;
-}
-}  // namespace
-
-int runMapSelfTest(bool injectBug) {
-  @autoreleasepool {
-    // Headless ImGui frame: no platform/renderer backend, just DisplaySize + a built
-    // font atlas (NewFrame asserts both). This exercises the SAME recordItem() the app
-    // feeds from editor_ui — GetItemRectMin reads g.LastItemData, which only exists
-    // inside an active frame, so a real frame is the honest way to test the map path.
-    IMGUI_CHECKVERSION();
-    ImGuiContext* ctx = ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.DisplaySize = ImVec2(1280.0f, 800.0f);
-    io.DeltaTime = 1.0f / 60.0f;
-    unsigned char* tex = nullptr;
-    int tw = 0, th = 0;
-    io.Fonts->GetTexDataAsRGBA32(&tex, &tw, &th);  // build the atlas so NewFrame passes
-    io.Fonts->SetTexID((ImTextureID)1);
-
-    // One toolbar pass, recorded exactly like drawToolbar(): unconditional recordItem()
-    // after each widget, plus the Add-Node popup's rows when it is open.
-    auto toolbarPass = [&](bool openPopup, bool closeInside, bool* popupWasOpen) {
-      ImGui::Begin("Toolbar");
-      ImGui::Button("New");      recordItem("New");
-      ImGui::Button("Open");     recordItem("Open");
-      ImGui::Button("Save");     recordItem("Save");
-      ImGui::Button("Add Node"); recordItem("Add Node");
-      if (openPopup) ImGui::OpenPopup("add_node_popup");
-      if (ImGui::BeginPopup("add_node_popup")) {
-        if (popupWasOpen) *popupWasOpen = true;
-        ImGui::MenuItem("RadialPoints"); recordItem("menu:RadialPoints");
-        ImGui::MenuItem("LinePoints");   recordItem("menu:LinePoints");
-        if (closeInside) ImGui::CloseCurrentPopup();  // mirrors clicking a row -> popup dismissed
-        ImGui::EndPopup();
-      }
-      ImGui::End();
-    };
-
-    // Frame 1 — fresh: open the popup. Toolbar buttons must be recorded.
-    ImGui::NewFrame();
-    beginWidgetFrame();
-    toolbarPass(/*openPopup=*/true, /*closeInside=*/false, nullptr);
-    const size_t c1 = g_items.size();
-    ImGui::EndFrame();
-
-    // Frame 2 — popup OPEN: its rows are recorded, then we dismiss it (the user's click).
-    bool popupOpen2 = false;
-    ImGui::NewFrame();
-    beginWidgetFrame();
-    toolbarPass(/*openPopup=*/false, /*closeInside=*/true, &popupOpen2);
-    const size_t c2 = g_items.size();
-    const bool menuRecorded2 = itemsHavePrefix("menu:");
-    ImGui::EndFrame();
-
-    // Frame 3 — popup CLOSED: THE reported failing frame. The map must still be
-    // populated, and must carry NO stale "menu:" rows from frame 2 (clear+refill).
-    // injectBug models the regression by suppressing this post-popup record pass.
-    ImGui::NewFrame();
-    beginWidgetFrame();
-    if (!injectBug) toolbarPass(/*openPopup=*/false, /*closeInside=*/false, nullptr);
-    const size_t c3 = g_items.size();
-    const bool staleMenu3 = itemsHavePrefix("menu:");
-    ImGui::EndFrame();
-
-    // Frame 4 — BeginPopupContextItem path (批次9: the Inspector param right-click menu,
-    // "popup rows must be findable in the map" live pain). The popup is keyed to the LAST
-    // item's id; headless can't right-click, so OpenPopup on the SAME str_id (same window
-    // scope -> same ImGuiID) stands in for it — the RECORD path is what's under test, not
-    // the right-click mechanics. injectBug suppresses the row's record -> leg goes RED.
-    ImGui::NewFrame();
-    beginWidgetFrame();
-    ImGui::Begin("Inspector");
-    ImGui::Button("Center");
-    recordItem("param:center");
-    ImGui::OpenPopup("##anim_center");
-    bool ctxPopupSeen = false;
-    if (ImGui::BeginPopupContextItem("##anim_center")) {
-      ctxPopupSeen = true;
-      ImGui::MenuItem("Animate");
-      if (!injectBug) recordItem("insp:Animate");
-      ImGui::EndPopup();
-    }
-    ImGui::End();
-    const bool inspRecorded = ctxPopupSeen && itemsHavePrefix("insp:");
-    ImGui::EndFrame();
-
-    // Native NSMenu rows (批次9): registered once at startup, must SURVIVE the per-frame
-    // clear (they're not imgui widgets) and never leak into the rect items.
-    g_nativeItems.clear();
-    if (!injectBug) recordNativeMenuItem("File", "Save", "s", false);
-    beginWidgetFrame();
-    const bool nativeOk = g_nativeItems.size() == 1 &&
-                          g_nativeItems[0].label == "nsmenu:File:Save" &&
-                          g_nativeItems[0].shortcut == "cmd+s";
-    g_nativeItems.clear();  // don't leak test rows into a live map
-
-    ImGui::DestroyContext(ctx);
-
-    // The承重 invariant: the editor was drawn on every frame, so the map is never
-    // empty — regardless of the prior popup interaction — and never leaks stale rows.
-    // (OpenPopup makes BeginPopup true the SAME frame, so c1 already carries the menu
-    // rows; the clear+refill proof is c2 > c3 — popup-open frame has the menu rows,
-    // the post-popup frame has dropped them back to the toolbar.)
-    const bool toolbarFresh = c1 >= 4;                 // at least the 4 toolbar buttons
-    const bool popupRecorded = popupOpen2 && menuRecorded2 && c2 > c3;  // menu rows when open
-    const bool postPopupOk  = c3 >= 4 && !staleMenu3;  // <- breaks under the reported bug
-    const bool pass = toolbarFresh && popupRecorded && postPopupOk && inspRecorded && nativeOk;
-    printf("[selftest-map] fresh=%zu popup=%zu(menu=%d) post_popup=%zu(stale=%d) ctxitem=%d "
-           "native=%d -> %s\n",
-           c1, c2, (int)menuRecorded2, c3, (int)staleMenu3, (int)inspRecorded, (int)nativeOk,
-           pass ? "PASS" : "FAIL");
-    return pass ? 0 : 1;
-  }
 }
 
 }  // namespace sw::eye
