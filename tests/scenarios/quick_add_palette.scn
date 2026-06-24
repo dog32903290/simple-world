@@ -34,17 +34,22 @@ wait 0.2
 do keychord cmd f
 wait 0.4
 
-# Map should contain qa:* items (palette is rendered with rows for each spec type).
-assert_map_has qa:RadialPoints
-echo cmd-f-opened-palette-qa-RadialPoints-visible
+# Map should contain the palette's namespace tree (the EMPTY-query view is the collapsed
+# namespace tree = TiXL SymbolTreeMenu, NOT a flat list — quick_add.cpp:296-308 emptyQuery branch).
+# Leaf symbols (qa:RadialPoints) live UNDER a folder (point.generate) that starts COLLAPSED, so
+# the leaf is only recorded once its folder is expanded (quick_add_tree.cpp:63-74). The presence
+# of the top-level "point" namespace folder proves the palette opened with its tree. RadialPoints
+# itself is asserted in the filtered-query block below (typing "Radial" -> flat list shows it).
+assert_map_has qa:ns:point
+echo cmd-f-opened-palette-namespace-tree-visible
 
 # Map should contain the filter input widget.
 assert_map_has qa:input
 echo qa-input-widget-present
 
-# Evidence: empty-query palette shows the FULL list (RED->GREEN baseline).
+# Evidence: empty-query palette shows the namespace tree (collapsed folders by category).
 capture full lb_search_empty
-echo captured-empty-palette-full-list
+echo captured-empty-palette-namespace-tree
 
 # --- Type "Radial" to filter ---
 # The InputText is focused (SetKeyboardFocusHere). Type the filter string.
