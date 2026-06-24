@@ -157,6 +157,8 @@ add_executable(simple_world
   src/app/audio_settings.cpp
   src/app/keymap_prefs.cpp           # #11: user keymap JSON override store (cross-session rebinding)
   src/app/keymap_prefs_selftest.cpp  # #11: set→save→reload round-trip gate (--selftest-keymap-persist)
+  src/app/user_settings.cpp          # #12: editor user-settings store (recent-files MRU, cross-session memory)
+  src/app/user_settings_selftest.cpp # #12: push→save→reload round-trip gate (--selftest-user-settings)
   src/app/audio_monitor.cpp
   src/app/command.cpp
   src/app/graph_commands.cpp

@@ -23,6 +23,7 @@
 
 #include "app/audio_settings.h"
 #include "app/keymap_prefs.h"  // #11: user keymap override store (loadUserKeymap at startup)
+#include "app/user_settings.h"  // #12: recent-files MRU store (loadUserSettings at startup)
 #include "app/audio_monitor.h"
 #include "app/command.h"
 #include "app/document.h"
@@ -283,6 +284,7 @@ void Renderer::draw(MTK::View* pView) {
       g_audioCapture.setBlockCallback(&sw::audio_monitor::onBlock, nullptr);
       sw::audio::loadPrefs();
       sw::km::loadUserKeymap();  // #11: apply the user keymap JSON (if any) so rebinds take effect
+      sw::settings::loadUserSettings();  // #12: load recent-files MRU (if any) for File > Open Recent
       s_audioPrefsLoaded = true;
     }
     unsigned int audioDev = 0;

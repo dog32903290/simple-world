@@ -16,6 +16,7 @@
 #include "app/variation_live.h"     // P1 crossfader slice (reset on document swap)
 #include "app/variation_panel.h"    // P2 Variation panel pool (reset on document swap)
 #include "app/midi_bind.h"          // P3 live bindings (reset on document swap)
+#include "app/user_settings.h"      // #12: noteRecentFile — push opened/saved project to recent-files MRU
 
 namespace sw::doc {
 
@@ -209,6 +210,7 @@ bool doSaveAs() {
   invalidateDirtyCache();  // snapshot changed but the revision didn't — a stale cached
                            // `true` would keep the title's • lit until the next command
   g_status = "saved -> " + path;
+  sw::settings::noteRecentFile(path);  // #12: Save As pushes the new path to recent-files MRU
   return true;
 }
 
@@ -223,6 +225,7 @@ bool doSave() {
   g_savedSnapshot = json;
   invalidateDirtyCache();  // same stale-• hazard as doSaveAs
   g_status = "saved -> " + g_documentPath;
+  sw::settings::noteRecentFile(g_documentPath);  // #12: Save re-pushes path to front of recent MRU
   return true;
 }
 
@@ -253,6 +256,7 @@ bool doOpenPath(const std::string& path, bool quiet) {
   sw::midibind::reset();  // P3 bindings route by child id — a loaded doc dangles them too
   g_relayout = true;
   g_status = "loaded <- " + path;
+  sw::settings::noteRecentFile(path);  // #12: opening a project pushes it to recent-files MRU
   if (!warnings.empty()) {
     for (const std::string& w : warnings) std::fprintf(stderr, "[open] %s\n", w.c_str());
     g_status += " (" + std::to_string(warnings.size()) + " repaired, see console)";

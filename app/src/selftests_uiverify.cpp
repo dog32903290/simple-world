@@ -30,5 +30,6 @@ REGISTER_SELFTESTS(/*orderBase=*/217,
 REGISTER_SELFTESTS(/*orderBase=*/500,
     {"nodeval", ui::runNodeValSelfTest},  // experience-parity: body value-string format + zoom gating
     {"keymap-persist", runKeymapPersistSelfTest},  // #11: user keymap JSON overrides factory (round-trip)
+    {"user-settings", runUserSettingsSelfTest},    // #12: recent-files MRU persistence (round-trip)
 );
 }  // namespace sw
