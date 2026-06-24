@@ -18,6 +18,7 @@ namespace sw {
 void registerRotateAroundAxisOp();
 void registerShearOp();
 void registerTransformOp();
+void registerRotateTowardsOp();  // Command → Command (LookAt-style facing rotation push; point_ops_rotatetowards.cpp)
 void registerSwitchOp();  // S3b: Command(MultiInput) → Command (cook-core sub-select; point_ops_switch.cpp)
 void registerLoopOp();    // S3c: Command(SubGraph) → Command (cook-core RE-COOK per iteration; point_ops_loop.cpp)
 void registerExecuteOnceOp();     // S3b: Command(MultiInput) → Command (gated concat-all; point_ops_executeonce.cpp)
@@ -40,6 +41,7 @@ void registerDrawPointOps() {
   registerRotateAroundAxisOp();                  // Command → Command (axis-angle transform-context push, S2 island)
   registerShearOp();                             // Command → Command (shear transform-context push, S2 island)
   registerTransformOp();                         // Command → Command (full TRS+pivot transform-context push, S2 island)
+  registerRotateTowardsOp();                     // Command → Command (LookAt-style facing rotation push, render/flow WAVE-1)
   registerSetRequestedResolutionOp();           // Command → Command (explicit RequestedResolution push/pop, S1)
   registerSetVarCmdOps();                        // Command → Command (S3a context-var SubGraph scope: SetFloatVarCmd/SetIntVarCmd)
   registerSwitchOp();                            // Command(MultiInput) → Command (S3b: cook-core sub-select by Index)
