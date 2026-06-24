@@ -3,8 +3,12 @@
 > 柏為 2026-06-23:「程式碼全翻完了，寫一份全部可以並行、以最快路徑為原則的計劃表。」
 > **本檔=頂層路由權威。** sub-plan:節點/縫=[SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md)、債=[DEBT_LEDGER](DEBT_LEDGER.md)、非節點 spec=[alignment/](alignment/README.md)。事實以 git/碼為準。
 
-## Current Snapshot（2026-06-25 04:32 — ★引擎軸夜批：clean-leaf 採盡，引擎剩 SEAMS；3 環境事故 + infra 修）
-- HEAD `6da350a`，樹乾淨，check-arch ✅（ratchet OK）。`--bite` PASS=**440** FAILED:[] / NO-BITE:[detectbpm]（預存）。load 恢復（夜間 fork-bomb 已清）。
+## Current Snapshot（2026-06-25 05:30 — ★引擎軸夜批：list-seam 修正=fan-out 非 blocked，9 list-op 採；夜恢復成有界生產）
+- HEAD `2b517b7`，樹乾淨，check-arch ✅（ratchet OK，bounded -j 4）。`--bite` PASS=**442** FAILED:[] / NO-BITE:[detectbpm]（預存）。load 穩 4.6（fork-bomb 已清）。
+- **★★ list-seam 修正（Plan 勘查 a19cc06，census/LIST_SEAM_BLUEPRINT.md）：list value-type seam **早已全建**（FloatList/ColorList/StringList/PointList host-currency rails + host-scalar bridge + resident mirrors + goldens，散在前 commit arc）。OP_BACKLOG 誤把 list-ops 歸 bucket C BLOCKED，**實為 READY-LEAF 機械 fan-out（LOW blast，零 point_graph.cpp 編輯，table-driven dispatch，零柏為）**。→ 我「引擎剩=高 blast 承重 seam 需柏為」的判斷對 list 是錯的；clean 自走燃料 EXISTS。**
+- **∥ list-ops fan-out 批 ✅（2026-06-25 05:30，2 file-disjoint bounded lane，9 op）**：**wave-1 host-scalar consumers**（`2798497`，4 op：SumRange/IntListLength/PickIntFromList/CompareFloatLists，clone `host_scalar_ops_floatlistlength.cpp`，golden chain-through-evalFloat+evalResidentFloat 16 legs）+**wave-2 FloatList producers**（`9973810`，5 op：CombineFloatLists/IntsToList/SetFloatListValue/SetIntListValue/RemapFloatList，clone `floatlist_ops_floatstolist.cpp`，golden 17 legs）。全 golden chain-through-evalFloat（bridge-not-transport）+`hostScalarInjectBug`/`floatListInjectBug` RED tooth。--bite 440→442。**deferred wave-3**：stateful（AmplifyValues/KeepFloatValues/MergeFloatLists/SmoothValues/DampFloatList，需 KeepColors state pattern）/AnalyzeFloatList（multi-output host-scalar=小 driver seam edit `point_graph_hostscalar_cook.cpp`）/ComposeVec3FromList（需 Vec3 output rail）/RandomChoiceIndex（stateful 無 list input）。
+- **★夜批工法定式（血證後校正）**：①所有 build **bounded `-j 4`**（infra `b0446e9` 已 pin setup script；裸 `-j`×N lane=fork-bomb load 980）②`--bite` 跑一次 plain 跑完，絕不留 bg 迴圈（孤兒迴圈飽和機器）③list fan-out=clone template（host_scalar_ops_*/floatlist_ops_*）+golden chain-through-evalFloat+RED tooth，file-disjoint 可 bounded 並行。
+- **★夜間 3 環境事故（誠實記）**：孤兒測試迴圈飽和 + 無界-j fork-bomb（已修）+ harvest stream stall。根因=我太急放大並行 + 無界-j infra 雷。柏為重開機清乾淨。**淨進展：WrapString + 9 list-op + infra 修 + LIST_SEAM_BLUEPRINT（list-ops 是 READY fan-out 的修正）。**
 - **★★ 引擎軸夜批（2026-06-25 02:56 柏為令「自走節點庫+剩餘縫把引擎建好」，他睡）= 1 op + infra 修 + 重大策略發現**：
   - **WrapString op ✅**（`6da350a`，string-op cook-fn seam，golden LEG41 7-case GREEN+`-bug` RED）。
   - **★infra fork-bomb 修 ✅**（`b0446e9`）：`agent_worktree_setup.sh` 用無界 `-j` → N 條並行 fresh-worktree = N×無界 = **2164 compiler/load 980 fork-bomb**。改 `-j 4` 有界。**鐵律：所有 build 用有界 `-j 4`，絕不裸 `-j`。**
