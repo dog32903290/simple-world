@@ -156,6 +156,68 @@ static const MathOp _reg_RequestedResolution{
        nullptr}
 };
 
+      // TiXL TransformMatrix (Lib/render/_/TransformMatrix.cs) — value-output-rail Phase 3 (MATRIX value).
+      // Builds an SRT matrix (Scale·Rotation·Translation about Pivot, + shear, then HLSL-row Transpose) and
+      // emits the 4 transposed ROWS (Row1..Row4) as a 4-element Vector4[] = TiXL Slot<Vector4[]> Result.
+      // A 4×4 matrix is LITERALLY a 4-element Vector4 list, so the value rides the EXISTING extColorOut vec4
+      // channel (resident_eval_graph.h) — NO new rail. PURE value op (no points), but CONTEXT-free + the
+      // matrix is a LIST (not one float) → cannot ride NodeSpec::evaluate (returns ONE float). evaluate==null;
+      // cookMatrixOutputNodes (resident_matrix_output_cook.cpp) resolves the SRT Float inputs and writes the
+      // 4 rows onto extColorOut[outPortIdx] once per frame (mirror of cookColorListNodes / cookValueOutputNodes).
+      // FORK fork-matrix-as-4-vec4-on-extColorOut: TiXL wires ONE Slot<Vector4[]>; sw emits the 4 float4 rows
+      // onto the ColorList channel. Faithful in VALUE (byte-identical rows), forked in downstream wire-type.
+      // FORK fork-vec3-as-3-floats / fork-vec4-as-4-floats: each Vector3/Vector4 input decomposes into N
+      // consecutive Float ports (the established scalar-pack fork). Bool/enum carried on the float rail.
+      // Defaults (TransformMatrix.t3): Scale=(1,1,1), UniformScale=1, RotationMode=0, Rotation_Quaternion=
+      // (0,0,0,1), Translation/Pivot/Shear/Rotation_PitchYawRoll=0, Invert=false.
+      // DEFERRED FORK fork-transformmatrix-resultinverted-matrix-outputs: TiXL's ResultInverted (Vector4[])
+      // and Matrix (Slot<Matrix4x4>) outputs are omitted — only the primary Result row-list ships (named).
+static const MathOp _reg_TransformMatrix{
+      {"TransformMatrix", "TransformMatrix",
+       {{"Result", "Result", "ColorList", false},  // the 4-row matrix (extColorOut channel)
+        {"Translation.x", "Translation",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Translation.y", "Translation.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Translation.z", "Translation.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"RotationMode", "RotationMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"PitchYawRoll", "Quaternion"}, true},
+        {"Rotation_PitchYawRoll.x", "Rotation", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, false, 3},
+        {"Rotation_PitchYawRoll.y", "Rotation.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, false, 1},
+        {"Rotation_PitchYawRoll.z", "Rotation.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, false, 1},
+        {"Rotation_Quaternion.x", "RotationQuat",   "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, false, 4},
+        {"Rotation_Quaternion.y", "RotationQuat.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, false, 1},
+        {"Rotation_Quaternion.z", "RotationQuat.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, false, 1},
+        {"Rotation_Quaternion.w", "RotationQuat.w", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, false, 1},
+        {"Scale.x", "Scale",   "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Scale.y", "Scale.y", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Scale.z", "Scale.z", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Slider, {}, true},
+        {"Shear.x", "Shear",   "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, false, 3},
+        {"Shear.y", "Shear.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, false, 1},
+        {"Shear.z", "Shear.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, false, 1},
+        {"Pivot.x", "Pivot",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1}},
+        // fork-transformmatrix-invert: TiXL Invert(bool)→inverse(matrix). No 4x4 inverse on this rail
+        // yet → port DROPPED rather than exposed-and-silently-ignored (avoid the silent-wrong-toggle).
+       nullptr}
+};
+
+      // TiXL PointToMatrix (Lib/point/helper/PointToMatrix.cs) — value-output-rail Phase 3 (MATRIX value).
+      // Builds the objectToParentObject of points[0] (Position/Orientation/Scale → SRT, pivot=0, transposed)
+      // and emits the 4 ROWS as a Vector4[] = Slot<Vector4[]> Matrix. SAME matrix-as-4-vec4-on-extColorOut
+      // convention as TransformMatrix. DEFERRED EMIT (named defer-pointtomatrix-needs-point-into-frame-pass):
+      // its input is a POINT BUFFER (StructuredList<Point>) — the resident graph carries no point buffer to
+      // the frame-level cook-emit pass (the SAME wall Phase 1 hit with GetTextureSize: the point cook lives in
+      // PointGraph's cook-core recursion this rail must NOT touch). So cookMatrixOutputNodes does NOT emit this
+      // op yet; its matrix MATH is implemented + golden-verified (pointToMatrixRows). The NodeSpec is registered
+      // (the node exists + carries the right port shape) with evaluate==nullptr; a future point-into-frame seam
+      // wires the emit. CamPointBuffer = a Points input (canvas pin, no Float decomposition).
+static const MathOp _reg_PointToMatrix{
+      {"PointToMatrix", "PointToMatrix",
+       {{"Matrix", "Matrix", "ColorList", false},     // the 4-row matrix (extColorOut channel)
+        {"CamPointBuffer", "CamPointBuffer", "Points", true}}},  // the point buffer (emit deferred)
+};
+
       // TiXL SetBpm (Lib/numbers/anim/vj/SetBpm.cs) — the [SetBpm] VJ transport-BPM writer. On a
       // TriggerUpdate RISING edge (SetBpm.cs:22 MathUtils.WasTriggered — edge, not level) it hands a
       // clamped BpmRate to the triggered-pull BpmProvider singleton; frame_cook pulls it onto

@@ -57,6 +57,19 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 // (fork-vec-output-as-n-scalar-ports) lives in the NodeSpec; this pass fills the slots.
 void cookValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 
+// value-output-rail Phase 3 — MATRIX value cook-emit (resident_matrix_output_cook.cpp). The vec4-LIST
+// twin of cookValueOutputNodes: a 4×4 matrix = a 4-element Vector4[] (= TiXL Slot<Vector4[]>, the rows
+// _matrix[0..3]), so a matrix VALUE rides the EXISTING extColorOut channel (the Slot<List<Vector4>>
+// parallel), keyed by output port index — NOT a new rail. Walks the resident graph; for TransformMatrix
+// it resolves the SRT Float inputs (resolveResidentFloatInputs) and writes the 4 transposed rows onto
+// extColorOut[outPortIdx]. Mutates g (writes extColorOut, like cookColorListNodes). Pure CPU, no Metal.
+// FORK (named) — fork-matrix-as-4-vec4-on-extColorOut: TiXL wires ONE Slot<Vector4[]> (the matrix as a
+// 4-element list); sw emits the SAME 4 float4 rows onto the extColorOut vec4-list channel. Faithful in
+// VALUE (byte-identical rows), forked only in that the downstream wire-type is the established ColorList
+// channel rather than a dedicated Matrix slot. EXTENDS the colorlist channel; cook-core-FREE (additive,
+// same frame slot family as cookColorListNodes — NO point_graph recursion/collector touch).
+void cookMatrixOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+
 // Cook ONE upstream COLORLIST-producing resident node (ColorsToList, …) into `out` (host color list),
 // gathering its inputs THROUGH the resident Connection drivers (mirror of the flat cookColorListNode).
 // The vec4 twin of cookResidentFloatList: a "ColorList" input port follows each Connection driver (a

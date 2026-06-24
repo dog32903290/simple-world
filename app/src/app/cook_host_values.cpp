@@ -68,6 +68,12 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // (no cross-frame store) — purely a function of the ctx fields seeded above.
   cookValueOutputNodes(g, hsCtx);
 
+  // Cook the MATRIX value-output rail (value-output-rail Phase 3: TransformMatrix) — a 4×4 matrix = a
+  // 4-element Vector4[], emitted onto the EXISTING extColorOut vec4 channel (resident_matrix_output_cook).
+  // Same once-per-frame slot family as cookColorListNodes; stateless (a pure function of the resolved SRT
+  // Float inputs). PointToMatrix's emit is deferred (needs a point into this frame-level pass).
+  cookMatrixOutputNodes(g, hsCtx);
+
   // [SetBpm] triggered-pull (PlaybackUtils.cs:74-78), folded in after the host-value cook so frame_cook
   // stays under its line-count cap. Returns whether comp.bpm changed → the caller bumps the transport.
   return lib ? pullSetBpmRate(lib->composition) : false;
