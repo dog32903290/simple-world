@@ -16,11 +16,14 @@ namespace sw::framecook {
 // Cook the host-value currencies (String / host-scalar / ColorList) for one frame — the body lifted
 // verbatim from frame_cook.cpp's run() so that file stays under its line-count cap (the inline block
 // is now this one call). Byte-identical behaviour; the cross-frame state statics moved in with it.
-bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, SymbolLibrary* lib) {
+bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, SymbolLibrary* lib,
+                        uint32_t reqW, uint32_t reqH) {
   ResidentEvalCtx hsCtx;
   hsCtx.localTime = posBars;     // playhead (bars) — automation-driven list params sample this
   hsCtx.localFxTime = fxBars;    // wall clock (bars)
   hsCtx.lib = lib;               // Automation drivers on list-param inputs resolve through this
+  hsCtx.requestedWidth = reqW;   // value-output-rail Phase 1: frame-level window resolution for the
+  hsCtx.requestedHeight = reqH;  // RequestedResolution cook-emit (cookValueOutputNodes below)
 
   // Cook the STRING currency ops (FloatToString / IntToString / Vec3ToString / CombineStrings) — the
   // PRODUCTION leg of the host-string cook flow (resident string-wire rail, task_32b5b6e5). Walks the
@@ -57,6 +60,13 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // slot (so this static stays empty for a graph without KeepColors).
   static std::map<std::string, std::vector<simd::float4>> s_colorListState;
   cookColorListNodes(g, hsCtx, s_colorListState);
+
+  // Cook the VALUE-OUTPUT rail ops (value-output-rail Phase 1: RequestedResolution) — the cook-emit
+  // family whose value comes from the COOK CONTEXT (ctx.requestedWidth/Height), not from inputs. Same
+  // once-per-frame extOut-mirror slot: walks the resident graph and writes each op's outputs onto
+  // extOut[0..N-1] so a downstream resident Float consumer reads the real frame resolution. Stateless
+  // (no cross-frame store) — purely a function of the ctx fields seeded above.
+  cookValueOutputNodes(g, hsCtx);
 
   // [SetBpm] triggered-pull (PlaybackUtils.cs:74-78), folded in after the host-value cook so frame_cook
   // stays under its line-count cap. Returns whether comp.bpm changed → the caller bumps the transport.

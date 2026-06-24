@@ -343,13 +343,13 @@ void run(PointGraph& pg, const std::string& targetPath) {
                            g_frameIndex, &doc::g_lib, s_svState, s_ctxVars);
   }
 
-  // Cook the HOST-VALUE currencies (String / host-scalar / ColorList) — the PRODUCTION legs of the
-  // resident string-wire rail, the list-routing FloatList→Float bridge, and the vec4-list cook flow.
-  // Extracted into cookHostValueNodes (cook_host_values.cpp) to stay under the line-count cap. It ALSO
-  // runs the [SetBpm] triggered-pull (PlaybackUtils.cs:74-78): on the armed edge it writes
-  // doc::g_lib.composition.bpm and returns true → bump g_transport.bpm THIS frame (cs:80) + dirty it
-  // (a direct g_lib.composition write bypasses bumpLibRevision, B4). Non-armed frame: false → no-op.
-  if (cookHostValueNodes(g_residentGraph, (float)posBars, (float)fxBars, &doc::g_lib)) {
+  // Cook the HOST-VALUE currencies (String / host-scalar / ColorList + value-output-rail) — the
+  // PRODUCTION legs of the resident rails + (Phase 1) RequestedResolution (seeded from the window
+  // size). It ALSO runs the [SetBpm] triggered-pull (PlaybackUtils.cs:74-78): on the armed edge it
+  // writes doc::g_lib.composition.bpm and returns true → bump g_transport.bpm THIS frame (cs:80) +
+  // dirty it (a direct g_lib.composition write bypasses bumpLibRevision, B4). Non-armed: false → no-op.
+  if (cookHostValueNodes(g_residentGraph, (float)posBars, (float)fxBars, &doc::g_lib,
+                         pg.windowResolution().w, pg.windowResolution().h)) {
     g_transport.bpm = doc::g_lib.composition.bpm;
     doc::invalidateDirtyCache();
   }

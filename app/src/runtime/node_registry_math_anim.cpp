@@ -133,6 +133,29 @@ static const MathOp _reg_DetectBpm{
        nullptr}
 };
 
+      // TiXL RequestedResolution (Lib/render/utils/RequestedResolution.cs) — value-output-rail Phase 1.
+      // Emits the cook-context resolution (= TiXL EvaluationContext.RequestedResolution). NO inputs
+      // (RequestedResolution.t3 Inputs == []). CONTEXT-reading, so no pure evaluate() (evaluate cannot
+      // see ctx.RequestedResolution) — evaluate==nullptr, and cookValueOutputNodes (resident_value_output_cook)
+      // writes the outputs onto extOut[] once per frame from ctx.requestedWidth/Height (the frame-level
+      // window seed PointGraph::cook plants, point_graph.cpp:122). Mirror of DetectBpm/AudioReaction's
+      // no-evaluate extOut readback, but cooked from ctx fields not from audio.
+      // OUTPUT PORTS FIRST → output-port index == extOut index (the readback contract):
+      //   [0] Size.Width  [1] Size.Height  [2] Width  [3] Height  [4] AspectRatio.
+      // FORK fork-vec-output-as-n-scalar-ports: TiXL's Size is ONE Slot<Int2>; here it is 2 Float ports
+      // (Size.Width / Size.Height). Faithful in VALUE, forked in wire-cardinality (extends the input-side
+      // scalar-pack fork). Size.Width/Height duplicate Width/Height (the Int2 packing of the same pair).
+      // No inputs → no .t3 default rows.
+static const MathOp _reg_RequestedResolution{
+      {"RequestedResolution", "RequestedResolution",
+       {{"Size.Width",  "Size",        "Float", false},
+        {"Size.Height", "Size.Height", "Float", false},
+        {"Width",       "Width",       "Float", false},
+        {"Height",      "Height",      "Float", false},
+        {"AspectRatio", "AspectRatio", "Float", false}},
+       nullptr}
+};
+
       // TiXL SetBpm (Lib/numbers/anim/vj/SetBpm.cs) — the [SetBpm] VJ transport-BPM writer. On a
       // TriggerUpdate RISING edge (SetBpm.cs:22 MathUtils.WasTriggered — edge, not level) it hands a
       // clamped BpmRate to the triggered-pull BpmProvider singleton; frame_cook pulls it onto

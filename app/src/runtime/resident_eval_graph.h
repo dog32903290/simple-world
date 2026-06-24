@@ -37,6 +37,18 @@ struct ResidentEvalCtx {
   // localTime (the playhead). nullptr (default) = no automation resolvable -> Automation drivers
   // fall back to the projected constant (the pre-S3 flat behavior — paths never diverge).
   const SymbolLibrary* lib = nullptr;
+  // value-output-rail Phase 1: the RequestedResolution (= TiXL EvaluationContext.RequestedResolution).
+  // The cook-emit pass cookValueOutputNodes reads this to emit RequestedResolution's Width/Height/
+  // AspectRatio onto extOut[]. Populated by frame_cook from the PointGraph window size (the SAME seed
+  // PointGraph::cook plants at point_graph.cpp:122). 0 = unseeded (a downstream read yields 0 — the
+  // pre-rail behaviour); the golden pushes a known resolution here to drive the emit deterministically.
+  // NOTE: this is the FRAME-LEVEL requested resolution (window size). The mid-cook SetRequestedResolution
+  // push/pop scope (point_graph.cpp:467-554) lives inside the Command cook recursion and is NOT visible
+  // to this frame-level emit pass — a RequestedResolution op INSIDE a scoped SetRequestedResolution
+  // subtree is a Phase-2 concern (would need the emit to ride the cook-core recursion). Phase 1 emits
+  // the window resolution, faithful to the common top-level case.
+  uint32_t requestedWidth = 0;
+  uint32_t requestedHeight = 0;
 };
 
 // How one resident input is driven (= TiXL Slot's UpdateAction). The PROJECTION of the

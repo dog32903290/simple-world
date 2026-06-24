@@ -46,6 +46,17 @@ bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
 // Mutates g (writes extOut, like cookAudioReactionNodes). Pure CPU, no Metal.
 void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 
+// Per-frame PRODUCTION cook for the VALUE-OUTPUT rail (value-output-rail Phase 1): cook-emit ops that
+// read the COOK CONTEXT (not their inputs) and emit a multi-component value onto extOut[]. These ops
+// have no pure evaluate() (the value comes from ctx, which evaluate cannot see), so they ride the same
+// extOut readback channel as DetectBpm/AudioReaction — but cooked HERE, frame-level, from ctx fields.
+// Phase 1 handles RequestedResolution (Width/Height/AspectRatio ← ctx.requestedWidth/Height). Walks the
+// resident graph; for each matched op writes extOut[0..N-1] in spec output-port order (so a downstream
+// Float wire to Result.Width resolves to extOut[0] via evalResidentFloat). Mutates g (writes extOut,
+// like cookHostScalarNodes). Pure CPU, no Metal. The "N scalar Float output ports" fork
+// (fork-vec-output-as-n-scalar-ports) lives in the NodeSpec; this pass fills the slots.
+void cookValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+
 // Cook ONE upstream COLORLIST-producing resident node (ColorsToList, …) into `out` (host color list),
 // gathering its inputs THROUGH the resident Connection drivers (mirror of the flat cookColorListNode).
 // The vec4 twin of cookResidentFloatList: a "ColorList" input port follows each Connection driver (a

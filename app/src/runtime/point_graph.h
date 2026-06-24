@@ -405,9 +405,9 @@ class PointGraph {
   // whose op realizes (RenderTarget tex > DrawPoints cmd > legacy draw). 0 if none.
   int defaultDrawTarget(const SymbolLibrary& lib, const std::string& symbolId) const;
   MTL::Texture* target() const;
+  RenderResolution windowResolution() const;  // value-output-rail P1: window size → RequestedResolution emit
   // Test-support: the count a flat-cooked node's output bag was sized to last cook (0 if never
-  // cooked). Lets goldens assert the count-policy driver (e.g. SnapToPoints out == Points1, not
-  // sum). flatKey(nodeId) internally.
+  // cooked). Lets goldens assert the count-policy driver (e.g. SnapToPoints out == Points1, not sum).
   uint32_t debugCookedCount(int nodeId) const;
   // Test-support: the GPU output buffer a flat-cooked Points-producing node holds last cook (nullptr if
   // never cooked). StorageModeShared → a golden can read contents() for byte-parity (the ListToBuffer

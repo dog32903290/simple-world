@@ -34,6 +34,13 @@ uint32_t PointGraph::debugCookedCount(int nodeId) const {
   return it != p_->outCount.end() ? it->second : 0u;
 }
 
+// value-output-rail Phase 1: the window resolution (= the seed PointGraph::cook plants into
+// p_->requestedResolution at point_graph.cpp:122). frame_cook feeds this to RequestedResolution's
+// cook-emit pass (cookValueOutputNodes) via ResidentEvalCtx.requestedWidth/Height.
+RenderResolution PointGraph::windowResolution() const {
+  return RenderResolution{p_->width, p_->height};
+}
+
 const MTL::Buffer* PointGraph::debugCookedBuffer(int nodeId) const {
   auto it = p_->outBuf.find(flatKey(nodeId));
   return it != p_->outBuf.end() ? it->second : nullptr;

@@ -30,6 +30,9 @@ namespace sw::framecook {
 //   posBars = the PLAYHEAD (bars; automation-driven list params sample this).
 //   fxBars  = the WALL CLOCK (bars).
 //   lib     = the symbol library (Automation drivers on list-param inputs resolve through this).
+//   reqW/reqH = the frame-level requested resolution (window size; PointGraph::windowResolution()).
+//               Threaded onto ResidentEvalCtx so cookValueOutputNodes can emit RequestedResolution's
+//               Width/Height/AspectRatio (value-output-rail Phase 1). 0/0 = unseeded → emits 0.
 //
 // It ALSO runs the per-frame [SetBpm] triggered-pull (= TiXL PlaybackUtils.cs:74-78): after the host-
 // value cook, pull the BpmProvider singleton; on the ONE armed frame after a SetBpm edge it writes
@@ -38,7 +41,8 @@ namespace sw::framecook {
 // The caller bumps g_transport.bpm + dirties the lib on a true return (cs:80 settings→Playback.Bpm).
 // Folded in here (not a separate frame_cook call) so frame_cook.cpp stays at-or-below its line-count
 // cap (ARCHITECTURE rule 4 ratchet — NO grandfather bump). lib must be non-null for the pull to write.
-bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, SymbolLibrary* lib);
+bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, SymbolLibrary* lib,
+                        uint32_t reqW = 0, uint32_t reqH = 0);
 
 // Per-frame [SetBpm] consumer (exposed for the --selftest-setbpm golden): the triggered PULL of the
 // BpmProvider singleton onto the composition BPM. Returns true iff it wrote comp.bpm this call.
