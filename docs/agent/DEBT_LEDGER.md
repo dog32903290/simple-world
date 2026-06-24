@@ -32,7 +32,7 @@
 | `runtime/node_registry_math.cpp` | 917 | 2.3× | 資料化 | queued | registry 樣板→一張表+builder（**違反 rule 7 資料驅動**，雙重債）。 |
 | `runtime/node_registry_point_modify.cpp` | 653 | 1.6× | 資料化 | queued | 同上，registry 樣板資料化。 |
 | `ui/keymap.cpp` | 752 | 1.9× | 資料化 | queued | keymap→一張表驅動（加一鍵=加一行資料）。 |
-| `runtime/point_graph.cpp` | 746 | 1.9× | 拆-TU | queued | cook driver（point/tex/mesh/cmd/floatlist/string 六條 flow 集中）。**本質複雜**＝沿 cook-flow 職責縫拆 TU（cook_floatlist/string/mesh/tex.cpp），透過 `point_graph_internal.h` 統一 access Impl，保持遞迴 access。string-rail 進來會 ~800，先拆。截圖 chip 即此。 |
+| `runtime/point_graph.cpp` | 868 | 2.2× | 拆-TU | **`essential` — 不拆（2026-06-24 S4 scope 二度核實）** | **★S4 拆檔判定=GENUINELY IRREDUCIBLE，accept grandfather cap。** 肥肉 flow-bodies(tex~226/mesh/host-value×4/string×2/host-scalar) 早抽進 7 個 extraction TU（point_graph_{tex,mesh,hostvalue,hostscalar,string}_cook.cpp+params/debug/registry）。剩 cook()=① cookNode spine(168 LOC) ② cookCommand spine(151 LOC) ③ forward-decl std::function web(~119 LOC 純 wiring 互遞迴) ④ terminal dispatch(133 LOC,12 branch 各 call 不同 slot)。三條不可拆理由：(1)shared per-cook memo（cooked/feedbackCooked/nodeParams live-read closure/colorListCooked/cmdVisiting/texVisiting）綁 spine=single-frame-coherent pass model 本身,拆要 by-ref 穿 9+ locals (2)std::function web 是承重結構非 bloat(cookNode↔cookCommand 互遞迴) (3)ledger 想要的 shared flat/resident Command helper 不是 byte-identical 移動=跨 int/string 兩 key space 的 graph-abstraction project,違零行為變更。**本質複雜非意外複雜,硬拆 scatter pass logic 更糟（持 persona 本質醜不重織）。** task_f0fa9aa3/66b888c7/0b554339 一併判 essential。唯一 cosmetic trim=mapParam(7行)移 params.cpp,不值一個 verify cycle。 |
 | `runtime/value_eval_ops.cpp` | 740 | 1.9× | 拆-ops | queued | value-eval ops 集合，沿 op 類別拆。 |
 
 ### P2 — selftest 巨檔（測試碼破鐵律，危害低於產品碼，可緩）
