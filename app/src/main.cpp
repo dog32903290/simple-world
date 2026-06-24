@@ -45,6 +45,7 @@
 #include "ui/fence_preview.h"  // fenceLastCoveredJson (eye state surface for the live .scn)
 #include "ui/output_window.h"
 #include "ui/timeline_window.h"
+#include "ui/variation_panel.h"  // P2 Variation window (snapshot pool + N-way mix + crossfader)
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
 
@@ -260,6 +261,7 @@ void Renderer::draw(MTK::View* pView) {
   sw::ui::drawInspector();    // floats on top
   sw::ui::drawTimelineWindow(); // S3 dope-sheet (animator lanes + playhead + key gestures)
   sw::ui::drawOutputWindow(); // the live preview viewport (view ⊥ graph, pinned/terminal)
+  sw::ui::drawVariationPanel(); // P2 Variation window (snapshot pool grid + N-way mix + crossfader)
   sw::doc::updateWindowTitle();  // filename + dirty star; no-op when unchanged
 
   ImGui::Render();

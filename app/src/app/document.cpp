@@ -14,6 +14,7 @@
 #include "runtime/graph.h"          // defaultParticleGraph (seed only)
 #include "runtime/graph_bridge.h"   // libFromGraph (default-lib seed) + refreshCompoundSpecs
 #include "app/variation_live.h"     // P1 crossfader slice (reset on document swap)
+#include "app/variation_panel.h"    // P2 Variation panel pool (reset on document swap)
 
 namespace sw::doc {
 
@@ -247,6 +248,7 @@ bool doOpenPath(const std::string& path, bool quiet) {
   g_savedSnapshot = sw::libToJsonV2(g_lib);
   sw::g_commands.clear();
   sw::varlive::reset();  // a loaded doc has new child ids — the P1 slice target dangles otherwise
+  sw::varpanel::reset();  // P2 pool snapshots capture child ids — a loaded doc dangles them too
   g_relayout = true;
   g_status = "loaded <- " + path;
   if (!warnings.empty()) {
@@ -276,6 +278,7 @@ void doNew() {
   g_savedSnapshot = sw::libToJsonV2(g_lib);
   sw::g_commands.clear();
   sw::varlive::reset();  // fresh default doc — drop any armed P1 slice from the prior document
+  sw::varpanel::reset();  // fresh default doc — drop the P2 pool snapshots from the prior document
   g_relayout = true;
   g_status = "new project";
 }

@@ -160,6 +160,8 @@ add_executable(simple_world
   src/app/graph_commands_selftest.cpp
   src/app/variation_apply.cpp  # Lane L1 (Variation): document-override bridge + --selftest-variation-apply
   src/app/variation_live.cpp   # Lane L1 (Variation): P1 LIVE PIPE — crossfader frame tick + writeback + --selftest-variation-live
+  src/app/variation_panel.cpp  # Lane L1 (Variation): P2 PANEL — snapshot pool + N-way mix + full crossfader
+  src/app/variation_panel_selftest.cpp  # L1 (Variation): P2 panel-wiring golden (--selftest-variation-panel)
   src/app/variation_mix_selftest.cpp        # L1 (Variation): N-way per-type Mix golden (--selftest-variation-mix)
   src/app/variation_pool_json_selftest.cpp  # L1 (Variation): JSON pool round-trip golden (--selftest-variation-pool-json)
   src/app/animation_commands.cpp
@@ -210,6 +212,7 @@ add_executable(simple_world
   src/ui/annotation_interact.cpp
   src/ui/node_style.cpp
   src/ui/output_window.cpp
+  src/ui/variation_panel.cpp  # Lane L1 (Variation): P2 Variation window (snapshot grid + N-way mix + crossfader)
   src/metal_impl.cpp
   src/verify/eye/eye.mm
   src/verify/hand/hand.cpp

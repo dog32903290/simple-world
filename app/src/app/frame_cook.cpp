@@ -21,6 +21,7 @@
 #include "runtime/stateful_value_ops.h"   // cookStatefulValueOp (Damp/Spring/... value-graph sims)
 #include "runtime/transport.h"            // Transport (two-clock playback head, S5)
 #include "app/variation_live.h"           // P1 live performance pipe (crossfader tick + writeback)
+#include "app/variation_panel.h"          // P2 Variation panel (full crossfader tick + writeback)
 
 namespace sw::framecook {
 namespace {
@@ -250,9 +251,8 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // every panel drawn after this agrees on the current symbol; mid-frame edits dangle the
   // tail at most until the next frame.
   doc::validateCompositionPath();
-  // P1 LIVE PIPE (L1): spring-tick the Variation crossfader + write the damped blend onto the graph
-  // override, at frame START so it lands THIS frame (FIXED 1/60 spring; no-op until armed — see header).
-  varlive::tick(doc::g_lib);
+  varlive::tick(doc::g_lib);            // L1 live pipe: P1 single-slice crossfader (FIXED 1/60 spring)
+  varpanel::tickCrossfade(doc::g_lib);  // L1 live pipe: P2 full pool crossfader (same spring; see header)
 
   // Projection rebuild BEFORE the AudioReaction cooker, so extOut lands on the fresh graph.
   if (g_builtRev != doc::libRevision()) {
