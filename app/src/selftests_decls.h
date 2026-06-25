@@ -67,6 +67,7 @@
 
 // --- no-header shell-tier golden forward-decls (verbatim from the old selftests.cpp top) ---
 namespace sw { int runFieldRenderSelfTest(bool);  // field_render_golden.cpp (shell-tier GPU golden)
+int runFxaaSelfTest(bool);  // point_ops_fxaa.cpp — NVIDIA FXAA 3.11 AA (no point_ops.h line: linecount ratchet at cap)
 }  // ^ forward-declared (no header): the GPU field golden lives at shell tier (binds runtime+platform)
 // Per-op SDF GPU goldens (Phase C fan-out) — same shell tier, same no-header forward-decl pattern.
 namespace sw { int runFieldBoxSdfGoldenSelfTest(bool); }          // field_ops_boxsdf_golden.cpp

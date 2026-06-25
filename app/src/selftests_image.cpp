@@ -40,5 +40,6 @@ REGISTER_SELFTESTS(/*orderBase=*/187,
     {"drawscreenquadblend", runDrawScreenQuadBlendSelfTest},
     {"drawscreenquadwired", runDrawScreenQuadWiredSelfTest},
     {"clearrendertarget", runClearRenderTargetSelfTest},
+    {"fxaa", runFxaaSelfTest},  // NVIDIA FXAA 3.11 anti-aliasing (TiXL image/use/Fxaa)
 );
 }  // namespace sw
