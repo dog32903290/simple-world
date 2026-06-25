@@ -43,7 +43,7 @@ check() {
 
 # ══ ui-surface ════════════════════════════════════════════════════════════
 check maggraph-layout       core      ui-surface no  "app/src/ui/node_draw.cpp" \
-  'SetNodeSize|MagGraphItem|Width *= *140' "畫布磁吸網格(140寬/35列高/共邊吸附) vs 自由擺放"
+  'SetNodeSize|MagGraphItem|Width *= *140' "畫布磁吸網格(140寬/35列高/共邊吸附) vs 自由擺放 [6/25複驗:真缺,仍純 ed 自由擺放,core 範式級]"
 check required-indicator    polish    ui-surface yes "app/src/runtime/graph.h" \
   'bool required' "必填輸入(Required)旗標+紅色閃爍指示器"
 check reset-to-default      important ui-surface yes "app/src/ui/inspector.cpp" \
@@ -54,8 +54,8 @@ check boundary-pentagon     polish    ui-surface yes "app/src/ui/node_draw.cpp" 
   'AddConvexPolyFilled' "符號邊界 Input/Output 節點箭頭凸角五邊形"
 check menu-bar              polish    ui-surface yes "app/src/ui" \
   'BeginMainMenuBar' "頂部選單列(vs 單浮動 Toolbar)"
-check node-thumb-preview    core      ui-surface no  "app/src/ui/node_draw.cpp app/src/ui/node_faces.cpp" \
-  'ImGui::Image' "節點本體內嵌輸出縮圖預覽(Texture2D)"
+check node-thumb-preview    core      ui-surface yes "app/src/ui/node_faces.cpp" \
+  'drawTexturePreviewFace' "節點本體內嵌輸出縮圖預覽(Texture2D) [6/25複驗:✓已做 node_faces.cpp:147 通用 face,預覽已搬回節點本體]"
 
 # ══ node-classification ═══════════════════════════════════════════════════
 check namespace-category-axis core    node-classification yes "app/src/runtime/graph.h" \
@@ -72,22 +72,22 @@ check usage-count-weighting   polish  node-classification yes "app/src/ui/quick_
   'usageCount|usageBoost' "relevancy 乘 op 被引用次數加權"
 check symbol-tags             polish  node-classification yes "app/src/runtime/graph.h app/src/runtime/compound_graph.h" \
   'Essential|symbolTags' "Symbol 加 tags(Essential/Obsolete)供精選與沉底"
-check result-row-type-color   polish  node-classification no  "app/src/ui/quick_add.cpp app/src/ui/quick_add_tree.cpp" \
-  'typeColor|SetTooltip' "結果列型別色+型別後綴+hover tooltip(三特徵)"
+check result-row-type-color   polish  node-classification yes "app/src/ui/quick_add.cpp app/src/ui/quick_add_tree.cpp" \
+  'typeColor|SetTooltip' "結果列型別色+型別後綴+hover tooltip(三特徵) [6/25複驗:三項全無,純 Selectable;typeColor()表已存可重用]"
 
 # ══ render-output-page ════════════════════════════════════════════════════
-check out-resolution-selector core    render-output no  "app/src/ui/toolbar.cpp" \
-  'ComputeResolution|resolutions\.json' "Output 解析度下拉(Fill/720p/1080p/4k)+資料表"
+check out-resolution-selector core    render-output yes "app/src/ui/toolbar.cpp app/src/ui/output_window.cpp" \
+  'ComputeResolution|resolutions\.json|resolutionCombo' "Output 解析度下拉(Fill/720p/1080p/4k)+資料表 [6/25複驗:RequestedResolution 承重已做,缺 UI 選擇器層]"
 check out-pan-zoom-viewmode   important render-output yes "app/src/ui/output_window.cpp" \
   'ViewMode' "Fit/1:1/Custom + 滑鼠 pan/滾輪 zoom 預覽 canvas"
 check out-eval-start-instance important render-output yes "app/src/ui/editor_ui.h app/src/ui/editor_ui.cpp" \
   'g_evalStartNode|evalStartNode' "view-instance vs evaluation-start-instance 拆分"
-check out-multi-window        polish  render-output no  "app/src/ui/output_window.cpp" \
-  'AllowMultipleInstances|outputWindowId' "多 Output 視窗實例(各自 pin/解析度/view)"
+check out-multi-window        polish  render-output yes "app/src/ui/output_window.cpp" \
+  'AllowMultipleInstances|outputWindowId' "多 Output 視窗實例(各自 pin/解析度/view) [6/25複驗:單例 g_canvas/g_pinnedNode]"
 check out-snapshot-png        important render-output yes "app/src/ui/toolbar.cpp" \
   'CGImageDestination|saveSnapshotPng' "toolbar Snapshot 按鈕→存 PNG(產品路徑非測試)"
-check out-video-export        important render-output no  "app/src/ui/output_window.cpp" \
-  'RenderAnimation|exportVideo|offlineRender' "影片/序列匯出(離線逐格 cook+FPS/範圍/進度)"
+check out-video-export        important render-output yes "app/src/ui/output_window.cpp app/src/ui/toolbar.cpp" \
+  'RenderAnimation|exportVideo|offlineRender' "影片/序列匯出(離線逐格 cook+FPS/範圍/進度) [6/25複驗:無離線cook,framecook 僅即時逐frame]"
 check out-window-persistence  polish  render-output yes "app/src/runtime/compound_save.cpp" \
   'OutputWindowState' "輸出視窗狀態(pin/解析度/相機)寫進 .swproj"
 check out-show-output-slot    polish  render-output yes "app/src/ui/output_window.cpp" \
@@ -107,13 +107,13 @@ check modes-os-fullscreen    polish     modes yes "app/src/app/menu.cpp" \
 check modes-window-layouts   polish     modes yes "app/src/app/user_settings.h app/src/app/user_settings.cpp" \
   'SaveIniSettingsToMemory|LoadIniSettingsFromMemory|namedLayout' "Window Layout 存/載(F1-F10 10 組)"
 check modes-graph-over-content polish   modes no  "app/src/ui/editor_ui.cpp" \
-  'g_backgroundOutputNode|backgroundOutput|graphFade' "背景輸出層+graph 漸隱+邊界焦點切換"
+  'g_backgroundOutputNode|backgroundOutput|graphFade' "背景輸出層+graph 漸隱+邊界焦點切換 [6/25複驗:三子機制全缺]"
 
 # ══ file-management ═══════════════════════════════════════════════════════
 check folder-package-save    important file-management yes "app/src/runtime/compound_save.cpp" \
   'packageDir|perCompoundFile|\.swpkg|folderPackage' "一檔一 symbol 資料夾式 package(vs 單巨檔)"
 check guid-child-id          important file-management no  "app/src/runtime/compound_save.cpp app/src/runtime/compound_graph.h" \
-  'childGuid|toGuidString|Guid id' "child/slot/symbol id 改 Guid 字串(範式遷移)"
+  'childGuid|toGuidString|Guid id' "child/slot/symbol id 改 Guid 字串(範式遷移) [6/25複驗:真缺但刻意fork—int-id 對 native 單機合理,header 具名]"
 check child-ui-fields        polish    file-management yes "app/src/runtime/compound_save.cpp" \
   'snapshotGroupIndex|connectionStyleOverride|collapsedInto' ".t3ui child UI 欄位(Comment/Style/SnapshotGroup)"
 check symbol-metadata        polish    file-management yes "app/src/runtime/compound_graph.h" \
@@ -122,8 +122,8 @@ check composition-path-persist polish  file-management yes "app/src/runtime/comp
   'compositionPath' "compositionPath(breadcrumb 檢視位置)持久化"
 
 # ══ missing-subsystems ════════════════════════════════════════════════════
-check variation-system       core      missing-subsystems no  "app/src/ui app/src/runtime" \
-  'VariationExplorer|SnapshotGroup|presetCanvas|class Variation|struct Variation' "Variation/Snapshot/Blend VJ 現場核心系統"
+check variation-system       core      missing-subsystems yes "app/src/ui app/src/runtime" \
+  'variation_crossfader|variation_mix|variation_snapshot_actions|VariationCrossfader' "Variation/Snapshot/Blend VJ 核心 [6/25複驗:PARTIAL 4/5—資料/crossfader/Nway-mix/actions 全接線,差 enabledForSnapshots filter+pool 持久化未 wire(JSON 存在沒人呼叫,document swap 清掉)]"
 check gradient-inspector      important missing-subsystems yes "app/src/ui/inspector.cpp" \
   'gradientStop|drawGradientBar|GradientWidget|editGradient' "inspector Gradient 色帶編輯 widget"
 check io-editor-interaction   important missing-subsystems yes "app/src" \
