@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 5a9a51f
-DIRTY: clean
+HEAD: 7765469
+DIRTY: 1 files
 CENSUS: 417 / 749 done
 BITE: 448 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-25T21:40
+STAMP_AT: 2026-06-25T21:58
 <!-- sw_status:end -->
 
 - 引擎 clone **55%（417/749）**。**clean-leaf 採盡確認＝撿葉子時代結束**：census「leaf-ready」數曾雙重灌水（seam-blocked 誤分 + fork 命名 op 誤標 todo），兩道 scout backward-trace 穿透後真乾淨葉子近零。引擎剩餘 **100% = cook-core 承重 seam**（point-buffer / camera3d / Layer2d / shader-graph），**全需柏為在場 owner-lock 一次一條**。
@@ -18,7 +18,7 @@ STAMP_AT: 2026-06-25T21:40
 - 本 session 落地（self-run）：**field 紅=隱藏回歸已修**（`644d100` AudioReaction 救回，g_lib→construct-on-first-use）+ **quick-add 結果列型別色/後綴/tooltip**（`e427d55`）+ **ui_census 兩 false-gap 修 + 全 predicate 審**（`56a2057`+`708b253`，done 16→18；30 GAP 全證真缺，census 可信）+ **out-snapshot-png**（`5a9a51f`，Output Snapshot 鈕→存 PNG，對齊 TiXL OutputWindow）。
 
 ## Active Lane
-none —— self-run 四 deliverable 收乾淨（field repair + type-color + census 校正 + snapshot，皆 refuter SURVIVES/親驗綠）。引擎待柏為 steer cook-core seam 順序；柏為-absent 純皮 Tier1 乾淨葉子近採盡（見 Next）。
+none —— self-run 收乾淨（field repair + type-color + census 校正×2 + snapshot，皆 refuter SURVIVES/親驗綠）。**柏為-absent 純皮 Tier1 乾淨葉子已採盡確認**（scoping 9 顆候選=2 DONE/1 mostly-done-殘餘非純皮/5 需 schema/platform/資料源/1 chrome-fork）。引擎待柏為 steer cook-core seam（見 Next）。
 
 ## Conflict Register
 - **（已解，留痕）** `field_sphere.scn` / `field_sdf_palette.scn` 紅的 5→4 是**隱藏回歸非 baseline drift**：`doc::g_lib` pre-main static 在 math-sink registrar 前呼 findSpec→AudioReaction(id8) 被靜默丟。`644d100` 改 g_lib 為 construct-on-first-use 修好，scn 數字不動（牙是對的）。教訓：scn 硬數字斷言紅了先 triage 隱藏回歸 vs intentional-drift，**別盲 rebase 數字遮 bug**。chip `task_2fc4a37a` 可關。
@@ -29,7 +29,7 @@ none —— self-run 四 deliverable 收乾淨（field repair + type-color + cen
 - **`document.cpp` 卡在 ratchet 上限 400 行**（g_lib 改 lazy 時 trim 註解擠進）→下次動它前必先拆（已 chip `task_19264e66`），否則 linecount 閘擋。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。引擎剩 cook-core 承重 seam（point-buffer 最高 unlock，需柏為在場 owner-lock 一次一條）；**B 軌 ui_census 全 predicate 已審（`708b253`）→ `--gaps` 的 30 條全真缺可直接信選**（`reset-to-default`/`result-row-type-color` 已 DONE 別重做）。**⚠️ 純皮 Tier1 乾淨葉子近採盡**——本 session scoping 5 顆候選只 1 顆純 ui/：`port-drag-type-filter`（需 editor-state-machine 手勢非純皮）/`usage-count-weighting`（無 usage 資料源,需新追蹤）/`symbol-tags`（需 graph.h+Symbol schema,破 100+ 初始化）/`modes-os-fullscreen`（需 platform NSWindow toggleFullScreen）全**不是 absent-safe 純皮**。唯一純 ui/=**`menu-bar`,但帶 native-NSMenu vs TiXL-imgui-menubar 的 app-chrome 範式 fork→柏為 chrome 方向判（別擅自重做掉既有原生 NSMenu）**。剩餘 render-output gap（out-eval-start-instance/out-multi-window/out-background-color[先確認非碰 cook]）多需碰 cook 或範式判。**結論：柏為-absent 純皮自走產能將盡,下一步真價值在柏為在場的 cook-core 脊椎 S1-S4。** **留痕（柏為 policy 判）**：`startup-lock-conform` 兩葉子實作但無活 caller→DONE 門檻；4 條 predicate grep TiXL C# 名,原生建好需補 marker 否則永報 GAP。維運 chip：document.cpp 拆檔 `task_19264e66`、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。引擎剩 cook-core 承重 seam（point-buffer 最高 unlock，需柏為在場 owner-lock 一次一條）；**B 軌 ui_census 全 predicate 已審（`708b253`）→ `--gaps` 的 30 條全真缺可直接信選**（`reset-to-default`/`result-row-type-color` 已 DONE 別重做）。**⚠️ 柏為-absent 純皮 Tier1 自走產能已採盡（本 session 兩輪 scoping 9 候選確認）**：`reset-to-default`/`result-row-type-color` 已 DONE；`scalable-canvas-scope` 核心已 ported（殘餘 JumpIn/Out overshoot+通用抽象=非純皮 deferred）；`port-drag-type-filter`(editor-state-machine)/`usage-count-weighting`(無資料源)/`symbol-tags`(graph.h+Symbol schema)/`modes-os-fullscreen`(platform NSWindow)/`out-show-output-slot`(point_graph schema)/`animcanvas-vsnap`(curve 資料模型)/`color-theme-system`(新持久化) 全**非 absent-safe**。唯一剩純 ui/=**`menu-bar`,但帶 native-NSMenu vs TiXL-imgui-menubar app-chrome 範式 fork→柏為判（別擅自重做掉既有原生 NSMenu）**。**結論：下一步真價值＝柏為在場開 cook-core 脊椎 S1（輸出解析度縫,解鎖最多 + 連帶解 out-show-output-slot/out-multi-window 等 render-output gap）。** **柏為 decision queue**：①menu-bar chrome 範式（native vs imgui）②`startup-lock-conform` unwired 葉子算不算 DONE 的門檻。維運 chip：ui_census 其餘 4 區 TiXL-name false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
 
