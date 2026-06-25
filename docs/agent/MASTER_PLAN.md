@@ -3,6 +3,15 @@
 > 柏為 2026-06-23:「程式碼全翻完了，寫一份全部可以並行、以最快路徑為原則的計劃表。」
 > **本檔=頂層路由權威。** sub-plan:節點/縫=[SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md)、債=[DEBT_LEDGER](DEBT_LEDGER.md)、非節點 spec=[alignment/](alignment/README.md)。事實以 git/碼為準。
 
+## Current Snapshot（2026-06-25 10:15 — ★★ clean-leaf 全採盡確認；datetime 2 op 收；引擎剩餘=100% cook-core seam（柏為））
+- HEAD `7877480`，樹乾淨，check-arch ✅。`--bite` PASS=**446** FAILED:[soundtrack]（pre-existing flake task_eb3375a3）/ NO-BITE:[detectbpm]（預存）。
+- **★datetime batch ✅（solo lane→2 op，feat(numbers/time) `7877480`）**：Time（5-mode×2-unit×SpeedFactor，**升 stateful live op**）+ GetFrameSpeedFactor（interactive 恆 1.0，render-to-file 缺席=faithful）。refuter 2/2 MERGE-SAFE（golden TiXL-anchored 非自洽，5 mode+2 unit 全 distinct probe，R-1 run-clock fork 具名）。
+- **★教訓（datetime「不是純 clean leaf」）**：Time 本質 per-frame→必須升 stateful live→**正確地打破 3 個 headless resident selftest**（residenteval/cache/patch 用 Time 當 inline driver，升 live 後 headless 無 cook pass 回 0）。triage=**Bucket-A stale-expectation（非 cook-core）**→fixer 換 synthetic-live Const（triggerOverrides Always→isLiveSource），**零 production resident-eval 改**。**∴「clean leaf」仍可能有 cook-core blast（op 升 live→撞 resident 快取假設）→backward-trace 要多問一句「這 op 變 live 會不會動 resident-eval」。triage 救了它（沒誤判成柏為 seam 而 revert 掉 2 顆好 op）。**
+- **★★★ clean-leaf 全採盡確認（跨全家族）**：numbers DRY / string 剩 WrapString 已收 / list 10-op 採盡 / **field+mesh backward-trace 真乾淨僅 3（15 卡 point-buffer seam）** / **datetime 2 收**。**∴引擎 clean-leaf fan-out 燃料=零。剩餘工作 100% = cook-core 承重 seam。撿葉子時代結束。**
+- **★引擎下一步=全 cook-core seam（柏為 09:08 鐵律：owner-lock 一次一條、與柏為一起）**：① **point-buffer-I/O seam**（最高 unlock：15 field/mesh defer + point modify 家族）② camera3d(~50)/Layer2d(~37)/shader-graph(~64)/mesh-pipeline ③ FloatList-resident-state seam(6 stateful list op) ④ value-output Phase 2 cmd→value 橋(~3h)。**全需柏為在場 steer 順序+陪同。**
+- **★SECONDARY（柏為 absent 時 orchestrator 可自採，引擎已到柏為-wall）= 體驗軸尾 + 維運**：chip task_2fc4a37a（8 STALE scenario→全套回綠，objective 低風險）/ Output O3 截圖（side-effect）/ #4 in-window menu bar / #3 drag-drop（platform NSDragging）/ #17 ProjectHub。**避撞看主檔欄（node_draw/editor_ui 每批一 lane），UI 批合流必跑全 44 .scn 套（新硬閘）。**
+- **★下批建議**：柏為 steer cook-core seam 順序（point-buffer 先）OR orchestrator 自採 SECONDARY（建議先清 chip task_2fc4a37a=債回綠 objective 最低風險，順帶把 soundtrack flake task_eb3375a3 一併評估）。
+
 ## Current Snapshot（2026-06-25 09:48 — ★field/mesh clean-leaf 採盡確認；3 op 收；point-buffer seam=converged next）
 - HEAD `34d66f7`，樹乾淨，check-arch ✅。`--bite` PASS=**445**（soundtrack=pre-existing real-time-chase flake task_eb3375a3，**clean-base cfbff3b 確認 0/5 under load avg ~6.7**=非本批；detectbpm NO-BITE 預存）。
 - **★本批 ✅（2 file-disjoint lane→3 op，feat(field,mesh) `34d66f7`）**：SetSDFMaterial（field/adjust，p.w material-band gate (0.5,1.5)+Color float4，+appendVec4Param 基建 mirror ShaderParamHandling padding）+ BlendMeshVertices（mesh/modify，two-mesh lerp）+ PickMeshBuffer（mesh/modify，Index.Mod modular selector）。全 golden chain-through-eval(flat+R-2 resident)+-bug RED。**refuter 抓 BlendMeshVertices BLOCK：hash11 港錯（classic sin*43758）→fixer 港 Dave-Hoskins（hash-functions.hlsl:10）+ 加 Scatter=0.3 golden(x=4.9350)蓋 jitter 路**（原 golden 全 Scatter=0 藏 bug=自洽 golden 陷阱）。
