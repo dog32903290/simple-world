@@ -39,6 +39,7 @@ class CommandStack {
   bool canUndo() const { return !undo_.empty(); }
   bool canRedo() const { return !redo_.empty(); }
   const char* lastUndoName() const;         // 最近一個可 undo 的命令名（空堆回 ""）
+  const char* lastRedoName() const;         // 下一個可 redo 的命令名（空堆回 ""）
 
  private:
   std::vector<std::unique_ptr<Command>> undo_;

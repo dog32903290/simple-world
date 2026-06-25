@@ -48,5 +48,11 @@ void CommandStack::clear() {
 const char* CommandStack::lastUndoName() const {
   return undo_.empty() ? "" : undo_.back()->name();
 }
+// FORK (named): TiXL's UndoRedoStack exposes GetNextUndoTitle() but has NO GetNextRedoTitle()
+// (its GraphContextMenu shows only an Undo title). This redo getter mirrors lastUndoName() so the
+// context menu can show a parenthesized redo title too — a read-only sw parity extension, no state.
+const char* CommandStack::lastRedoName() const {
+  return redo_.empty() ? "" : redo_.back()->name();
+}
 
 }  // namespace sw

@@ -158,6 +158,40 @@ void drawCanvasContextMenu() {
     const bool hasSel = !g_combineIds.empty();
     const int renameTarget = g_combineIds.size() == 1 ? g_combineIds[0] : 0;
 
+    // --- Undo / Redo (= GraphContextMenu.cs:35-42). Title shows the next command name in parens,
+    // disabled when its stack is empty. Label format byte-faithful to TiXL: "Undo (Name)" / plain
+    // "Undo". Click reuses the EXACT Cmd+Z / Cmd+Shift+Z path (g_commands.undo()/redo() +
+    // g_relayout), no duplicated logic. The command NAME string is sw's own (RenameChildCommand
+    // etc.) — TiXL command names differ, so the parenthesized text is sw's, not a faked TiXL name.
+    // FORK (named): TiXL's GraphContextMenu has only Undo; the Redo row + its parenthesized redo
+    // title (lastRedoName) are a sw parity extension, symmetric with Undo. ---
+    {
+      const bool canUndo = sw::g_commands.canUndo();
+      std::string undoLabel =
+          canUndo ? std::string("Undo (") + sw::g_commands.lastUndoName() + ")" : "Undo";
+      if (ImGui::MenuItem(undoLabel.c_str(), nullptr, false, canUndo)) {
+        sw::g_commands.undo();
+        sw::doc::g_status = "undo";
+        sw::doc::g_relayout = true;  // canvas re-seeds node positions from the restored lib
+      }
+      sw::eye::recordItem("ctx:undo");
+      // Second eye row carries the FULL visible label text (parenthesized command name) so the
+      // harness can assert the title parity, not just item presence (precedent: timeline_window).
+      sw::eye::recordItem(("ctxlabel:" + undoLabel).c_str());
+
+      const bool canRedo = sw::g_commands.canRedo();
+      std::string redoLabel =
+          canRedo ? std::string("Redo (") + sw::g_commands.lastRedoName() + ")" : "Redo";
+      if (ImGui::MenuItem(redoLabel.c_str(), nullptr, false, canRedo)) {
+        sw::g_commands.redo();
+        sw::doc::g_status = "redo";
+        sw::doc::g_relayout = true;
+      }
+      sw::eye::recordItem("ctx:redo");
+      sw::eye::recordItem(("ctxlabel:" + redoLabel).c_str());
+    }
+    ImGui::Separator();
+
     // --- Select... (= GraphContextMenu.cs:48 "Select..." submenu) ---
     if (ImGui::BeginMenu("Select...")) {
       if (ImGui::MenuItem("Select connected", nullptr, false, hasSel))

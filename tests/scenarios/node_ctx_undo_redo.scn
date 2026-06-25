@@ -1,0 +1,63 @@
+# node_ctx_undo_redo.scn — 活體牙 (L2): Undo/Redo command title in the node right-click menu
+# (= external/tixl/Editor/Gui/MagGraph/Interaction/GraphContextMenu.cs:35-42).
+#
+# TiXL shows the next undo command name in parens: "Undo (<title>)", disabled when CanUndo is false.
+# sw mirrors that and adds a symmetric Redo row (named fork: TiXL's GraphContextMenu has only Undo).
+# The visible label text is recorded as `ctxlabel:<text>` (separate eye row) so we can assert the
+# parenthesized command NAME, not just item presence (`ctx:undo` / `ctx:redo` cover presence).
+#
+# Covers:
+#   1. Empty stack: node menu shows plain "Undo"/"Redo" (no parens), both items present (greyed).
+#   2. After a Delete (command "Delete Nodes" on the undo stack): the menu's Undo row reads
+#      "Undo (Delete Nodes)". Redo still plain (redo stack empty until we undo).
+#   3. After Cmd+Z: the redo row reads "Redo (Delete Nodes)" and Undo falls back to plain "Undo".
+#
+# RED proof for (2): change "Undo (Delete Nodes)" to "Undo (Delete Node)" -> FAIL (real title differs).
+# RED proof for (3): change "Redo (Delete Nodes)" to "Undo (Delete Nodes)" -> FAIL (redo title moved).
+
+open app/testdata/compound_smoke.swproj
+
+# --- 1. Fresh document, empty undo/redo stacks: plain labels, both rows present ---
+do rclick @node:2^
+wait 0.4
+assert_map_has ctx:undo
+assert_map_has ctx:redo
+assert_map '[.items[]? | select(.label == "ctxlabel:Undo")] | length == 1'
+assert_map '[.items[]? | select(.label == "ctxlabel:Redo")] | length == 1'
+echo empty-stack-plain-undo-redo-rows-present
+# Dismiss this menu before mutating.
+do click 600 250
+wait 0.3
+
+# --- 2. Delete node:3 -> "Delete Nodes" on the undo stack -> Undo title shows it ---
+do rclick @node:3^
+wait 0.4
+do click @ctx:delete
+wait 0.4
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 5'
+echo delete-removed-child-count-5
+
+do rclick @node:2^
+wait 0.4
+assert_map '[.items[]? | select(.label == "ctxlabel:Undo (Delete Nodes)")] | length == 1'
+assert_map '[.items[]? | select(.label == "ctxlabel:Redo")] | length == 1'
+capture full undo_title_menu
+echo undo-row-shows-delete-nodes-title
+do click 600 250
+wait 0.3
+
+# --- 3. Cmd+Z -> redo stack holds "Delete Nodes" -> Redo title shows it, Undo back to plain ---
+# Click a node title to give the canvas focus (Cmd+Z gated on IsWindowFocused, editor_ui.cpp:323).
+do click @node:1^
+wait 0.3
+do keychord cmd z
+wait 0.4
+assert_state '(.lib.symbols[] | select(.id == "Root") | .children | length) == 6'
+echo undo-restored-child-count-6
+
+do rclick @node:2^
+wait 0.4
+assert_map '[.items[]? | select(.label == "ctxlabel:Redo (Delete Nodes)")] | length == 1'
+assert_map '[.items[]? | select(.label == "ctxlabel:Undo")] | length == 1'
+capture full redo_title_menu
+echo redo-row-shows-delete-nodes-title-after-undo
