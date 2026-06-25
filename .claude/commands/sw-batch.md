@@ -55,9 +55,9 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
      讀 TiXL 源碼**只為填工單指針**（不為自己理解，理解歸 implementer）。
 
 ## 單批迴圈（重複直到停止條件）
-1. **定位**：**先跑 `tools/sw_status.sh`**（三區：LIVE git+census / STAMPED bite / HAND 手寫接力）＝零 grep 拿到接續所需。需細節再讀 `docs/agent/MASTER_PLAN.md`（頂層路由權威）＋ memory（跨 session 教訓/規則）。樹要乾淨、HEAD 對齊；不乾淨先盤點（可能是上一棒的活，照 single-plan gate 處理）。
+1. **定位**：**先跑 `tools/sw_status.sh`**（三區：LIVE git+census / STAMPED bite / HAND 手寫接力）＝零 grep 拿到接續所需。**① LIVE 含兩軌現算 parity：A 軌 `op_census`（節點）+ B 軌 `ui_census`（非節點 UI/skin 防漏網）——兩軌都「現算不 stale」，是真相源。**需細節再讀 `docs/agent/MASTER_PLAN.md`（頂層路由權威）＋ memory（跨 session 教訓/規則）。樹要乾淨、HEAD 對齊；不乾淨先盤點（可能是上一棒的活，照 single-plan gate 處理）。
 2. **選批（MASTER_PLAN 驅動的全並行，柏為 2026-06-23）**：讀 MASTER_PLAN，取「**未阻塞 + 不撞檔**」的工作項跨 lane 組一批。排修項永遠優先。
-   - **★第三軸=體驗復刻（柏為 2026-06-24，[EXPERIENCE_PARITY_PLAN](../../docs/agent/EXPERIENCE_PARITY_PLAN.md)）也是選批來源**：演出脊椎 P1-P6 + 編輯 lane Tier1-3 + MagGraph/Timeline/Gradient/Audio 獨立施工圖 + SliderLadder。
+   - **★第三軸=體驗復刻（柏為 2026-06-24，[EXPERIENCE_PARITY_PLAN](../../docs/agent/EXPERIENCE_PARITY_PLAN.md)）也是選批來源**：演出脊椎 P1-P6 + 編輯 lane Tier1-3 + MagGraph/Timeline/Gradient/Audio 獨立施工圖 + SliderLadder。**B 軌「還缺哪些」現算看 `tools/ui_census.sh --gaps`（同 op_census 對 A 軌：done/gap/CHECK 別信文字、工具為準；每條施工規格在 `docs/agent/alignment/<area>.md`；標「刻意fork」的別追）。**
    - **★體驗 lane 避撞看「主檔」欄，不看 Tier**（Tier 是驗證閘維度非避撞維度）：**每個主檔同時只派一條 lane**（`ui/node_draw.cpp`、`ui/editor_ui.cpp` 是 Tier 內序列瓶頸，多條 lane 撞它→序列不並行）。
    - **★體驗軸動核心檔的 lane（S0 `graph.h` schema / 演出 P* `frame_cook.cpp` / Tier3 cook）與引擎 cook-core 脊椎 S1-S4 同一條 owner-lock，不可並行**；純皮 Tier1（不碰 graph.h 的純 `ui/`）自由並行。S0 跑時暫停 L4 寫 graph.h（短、一次合即解凍）。
    - **⛓ 脊椎 S*（cook-core：`point_graph.cpp`/`frame_cook`/`resident_eval`/`EvaluationContext`）= 序列，一次一個**，owner-lock 該檔，**與 L4 拆檔/開採不可同跑同檔**。順序 S1 輸出解析度縫 → S2 render-graph/Layer2d/Execute → S3 flow → S4 殘餘 infra+拆 point_graph。**S1 先（解鎖最多下游 lane）。**
