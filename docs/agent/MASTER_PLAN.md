@@ -3,6 +3,13 @@
 > 柏為 2026-06-23:「程式碼全翻完了，寫一份全部可以並行、以最快路徑為原則的計劃表。」
 > **本檔=頂層路由權威。** sub-plan:節點/縫=[SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md)、債=[DEBT_LEDGER](DEBT_LEDGER.md)、非節點 spec=[alignment/](alignment/README.md)。事實以 git/碼為準。
 
+## Current Snapshot（2026-06-25 15:30 — ★ census fork-name 洞修；Fxaa 末葉收；L2 undo/redo；柏為現身討論 stale-doc 解）
+- HEAD `1e37b8e`，樹乾淨，check-arch ✅。`--bite` PASS=**447** FAILED:[soundtrack]（pre-existing flake task_eb3375a3）/ NO-BITE:[detectbpm]（預存）。
+- **本批 3 deliverable**：① **Fxaa**（`f5bcce3`，image leaf，NVIDIA FXAA3 單 pass，golden=flat-input 早退 byte-identical+RED tooth；fork=preset compile-time→runtime b0 算術不變）② **census fork-name 修**（`3569d28`，op_census 加第四路讀葉檔 `// TiXL authority:`/`@tixl:` 宣告當 op-id→殺 fork 命名誤報 todo，done 412→417，5 fork 翻 [x]；floor 非 ceiling，chip task_3e02cdcc 掃剩餘家族）③ **L2 undo/redo 選單標題**（`1e37b8e`，體驗軸 Tier1 純皮，對 GraphContextMenu.cs:35-42，eye-hand 驗 `Undo (Delete Nodes)`/`Redo (...)` parity，零回歸）。
+- **★★本批核心發現=census「139 leaf-ready」雙重灌水**：(a) seam-blocked op 誤分 leaf-ready + (b) 已 port 的 fork 命名 op 誤標 todo（ChromaticAbberation→chromab/Int2ToVector2→int2tovec2 都已做）。兩道 scout backward-trace 穿透後，**真正乾淨葉子只剩 Fxaa 一顆**=**corroborate「撿葉子時代結束」（10:15 snapshot 結論成立）**。census-fix 後定位工具可信度提升但仍 floor。
+- **★pre-existing red 確認（非本批，route chip task_2fc4a37a）**：`field_sphere.scn`/`field_sdf_palette.scn` clean-base `3569d28` 也紅=default graph root children 漂 5→4（scenario 硬寫 `==5`/`==6`）。**★開放問題**：4 是正確的（intentional drift，baseline rebase 即可）還是隱藏回歸（default graph 掉了一個 child）？需 chip 裡查清再 rebase，別盲改數字遮 bug。
+- **★柏為現身（不開新批）**：要討論 **stale-doc 根因的解**——三套狀態真相（git/手寫 doc/census 工具）並存、只有 git 權威、另兩套無機械閘逼同步=必漂。census-fix 只堵一個破口，根本解=決定單一真相從何 derive、手寫的廢掉哪些。**討論待 steer，本批 SECONDARY 體驗尾/維運暫停。**
+
 ## Current Snapshot（2026-06-25 10:15 — ★★ clean-leaf 全採盡確認；datetime 2 op 收；引擎剩餘=100% cook-core seam（柏為））
 - HEAD `7877480`，樹乾淨，check-arch ✅。`--bite` PASS=**446** FAILED:[soundtrack]（pre-existing flake task_eb3375a3）/ NO-BITE:[detectbpm]（預存）。
 - **★datetime batch ✅（solo lane→2 op，feat(numbers/time) `7877480`）**：Time（5-mode×2-unit×SpeedFactor，**升 stateful live op**）+ GetFrameSpeedFactor（interactive 恆 1.0，render-to-file 缺席=faithful）。refuter 2/2 MERGE-SAFE（golden TiXL-anchored 非自洽，5 mode+2 unit 全 distinct probe，R-1 run-clock fork 具名）。
