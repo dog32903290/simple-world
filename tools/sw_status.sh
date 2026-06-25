@@ -54,7 +54,7 @@ hand_section() {
 cmd_status() {
   local head dirty dirtyn census_done seams
   head="$(cd "$ROOT" && git rev-parse --short HEAD 2>/dev/null || echo '?')"
-  dirtyn="$(cd "$ROOT" && git status --porcelain 2>/dev/null | grep -c . || echo 0)"
+  dirtyn="$(cd "$ROOT" && git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
   if [ "$dirtyn" -eq 0 ]; then dirty="clean"; else dirty="$dirtyn files dirty"; fi
 
   echo "── ① LIVE（git + census，現在量到的）──────────────────"
@@ -101,7 +101,7 @@ cmd_stamp() {
 
   local head census_done dirtyn dirty stamp_at
   head="$(cd "$ROOT" && git rev-parse --short HEAD 2>/dev/null || echo '?')"
-  dirtyn="$(cd "$ROOT" && git status --porcelain 2>/dev/null | grep -c . || echo 0)"
+  dirtyn="$(cd "$ROOT" && git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
   if [ "$dirtyn" -eq 0 ]; then dirty="clean"; else dirty="$dirtyn files"; fi
   census_done="$(bash "$CENSUS" --overview 2>/dev/null | grep -E '克隆 TiXL 進度' | sed -E 's/^[^0-9]*([0-9]+ \/ [0-9]+).*/\1/')"
   stamp_at="$(date '+%Y-%m-%dT%H:%M')"
