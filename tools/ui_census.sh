@@ -125,7 +125,7 @@ check composition-path-persist polish  file-management yes "app/src/runtime/comp
 check variation-system       core      missing-subsystems yes "app/src/ui app/src/runtime" \
   'variation_crossfader|variation_mix|variation_snapshot_actions|VariationCrossfader' "Variation/Snapshot/Blend VJ 核心 [6/25複驗:PARTIAL 4/5—資料/crossfader/Nway-mix/actions 全接線,差 enabledForSnapshots filter+pool 持久化未 wire(JSON 存在沒人呼叫,document swap 清掉)]"
 check gradient-inspector      important missing-subsystems yes "app/src/ui/inspector.cpp" \
-  'gradientStop|drawGradientBar|GradientWidget|editGradient' "inspector Gradient 色帶編輯 widget"
+  'gradientStop|drawGradientBar|GradientWidget|editGradient' "inspector Gradient 色帶編輯 widget [6/25複驗:真缺—gradient_ops_definegradient.cpp 存在但只是 op 的 Vec/Slider 逐參數列(走通用 inspector),無色帶條編輯 widget。op/資料型別有≠editing widget,別誤判]"
 check io-editor-interaction   important missing-subsystems yes "app/src" \
   'SpaceMouse|sendLed|LedFeedback|ioEventsWindow|noteToLed' "IO 編輯器互動層(LED 回饋/SpaceMouse/錄製窗)"
 check audio-export-record     important missing-subsystems yes "app/src" \
@@ -137,7 +137,7 @@ check external-beat-sync      important missing-subsystems yes "app/src" \
 check bpm-auto-detect         important missing-subsystems yes "app/src/runtime/bpm_detection.h app/src/runtime/bpm_detection.cpp" \
   'BpmDetection|detectBpm|FocusFactor' "BPM 自動偵測(25s 自相關)"
 check value-snap-interface    important missing-subsystems yes "app/src" \
-  'ISnapAttractor|registerSnapAttractor|class SnapHandler|struct SnapHandler' "通用可註冊 snapping 介面(現 inline 在 timeline)"
+  'ISnapAttractor|registerSnapAttractor|class SnapHandler|struct SnapHandler' "通用可註冊 snapping 介面(現 inline 在 timeline) [6/25複驗:真缺—snap 仍 inline 在 timeline_canvas.cpp:88 snapDragTime+collectSnapAnchors(timeline_snap.scn 綠),這條要的是抽成通用可註冊介面,抽取未做]"
 check slider-ladder           important missing-subsystems yes "app/src/ui" \
   'SliderLadder|RadialSlider|precisionLadder' "SliderLadder 精度梯子 + RadialSlider 圓撥盤"
 check asset-library-browser   polish    missing-subsystems yes "app/src/ui/asset_browser.cpp app/src/ui/asset_library.cpp" \
@@ -153,7 +153,7 @@ check animcanvas-vsnap        polish    missing-subsystems yes "app/src/ui/timel
 check sliding-average-helper  polish    missing-subsystems yes "app/src/runtime" \
   'SlidingAverage|ringAverage|circularAverage' "環形平均 helper(beat/tap 平滑)"
 check startup-lock-conform    polish    missing-subsystems yes "app/src" \
-  'ConformAssetPaths|startupLock|crashRecoveryLock' "StartUp 鎖檔 crash-recovery + 路徑遷移"
+  'ConformAssetPaths|startupLock|crashRecoveryLock' "StartUp 鎖檔 crash-recovery + 路徑遷移 [6/25複驗:真缺但有未接線葉子—path 遷移=asset_relink.cpp:6 relinkAsset()、crash-recovery=auto_backup_restore.cpp:120 restoreLatestBackup(),兩者皆只有 selftest 呼叫、無 live UI/startup caller;startup 鎖檔本身不存在。leaf 已寫但 subsystem 未活]"
 
 # ══ 輸出 ══════════════════════════════════════════════════════════════════
 gtrep_total=$((done_n+gap_n))
