@@ -1,96 +1,142 @@
 #!/usr/bin/env bash
-# op_census.sh — TiXL ⇄ simple_world 節點 port 進度查詢引擎（標準化檢索）
+# op_census.sh — TiXL ⇄ simple_world 克隆進度查詢引擎（標準化檢索，消滅「看進度就幻覺」）
 #
-# 為什麼存在：手刻 set-diff 一再踩坑（工具漏數 numbers 子目錄、sw 葉檔命名 value_op_ 單數
-# vs *_ops_ 複數混用、TiXL 用 .cs 檔數含 helper 而非真節點）。把方法論固化成一個可重複跑的
-# 真相來源，攻縫前後各跑一次就知道「解鎖了哪些 op」。
+# 為什麼存在：手寫 census（OP_BACKLOG 數字 / SEAM_STATE / MASTER_PLAN）會 stale、會互相打架，
+# 導致「看一下進度」要耗大量 token 逐檔對、還產生幻覺（實證：SEAM_STATE 曾把 Render2dField 誤報
+# 成 BUILT，本工具一跑就抓出 0 命中）。把真相從工具 derive，幾個命令就知道克隆到哪、剩幾顆、哪條縫先做。
 #
-# 方法論（三個定義，全部可驗）：
-#   1. TiXL 真節點 = 繼承 `: Instance<>` 的 class（能放進 graph），扣 _Old/_obsolete/_前綴/__OBSOLETE。
-#      ——不是數 .cs 檔（那含 helper/util，會膨脹到 931）。真節點 = 749。
-#   2. sw 已 port = 三個來源的 union（大小寫無視）：
-#        (a) 葉檔 stem：runtime/<prefix>_<name>.cpp，prefix ∈ {point_ops value_op field_ops
-#            string_ops mesh_ops pointlist_ops stateful_value_ops floatlist_ops host_scalar_ops
-#            colorlist_ops gradient_ops stringlist_ops}
-#        (b) register*Op("Name") 呼叫
-#        (c) registry / node_registry 表裡的 PascalCase 字串字面量
-#   3. 比對 = 小寫化後 set-diff（sw 有命名 fork 時可能略低估 → 標 ⚠）。
+# === 三個命令回答柏為的三個問題 ===
+#   tools/op_census.sh --overview   → 克隆 TiXL 到哪了？(總進度 + 每島 + 縫地圖摘要) ★先跑這個
+#   tools/op_census.sh --seams      → 哪幾條縫工作量大、該先做哪條？(縫地圖,按解鎖量排序)
+#   tools/op_census.sh <island>     → 某島逐顆 [x]做了/[ ]沒做
 #
-# 用法：
-#   tools/op_census.sh                 → 按島總表
-#   tools/op_census.sh <island>        → 該島逐顆 [x]已做 / [ ]未做
-#   tools/op_census.sh --undone <isl>  → 只列未做
-#   tools/op_census.sh --tsv           → 機器可讀 TSV（island\top\tstatus）給後續工具/grep
+# 其他：
+#   tools/op_census.sh              → 逐島 done/todo 總表
+#   tools/op_census.sh --undone <isl>  只列某島未做
+#   tools/op_census.sh --tsv        機器可讀 island<TAB>op<TAB>done|todo
 #
-# 島名：numbers image point render io field mesh string flow particle data
-set -euo pipefail
+# === 方法論（三個定義，全可驗）===
+#   1. TiXL 真節點 = 繼承 `: Instance<>` 的 class，扣 _Old/_obsolete/_前綴/__OBSOLETE = 749。
+#      不是數 .cs 檔（含 helper 會膨脹到 931 → 這是 570/749 幻覺的根源）。
+#   2. sw 已 port = 葉檔 stem(含 value_op_ 等所有前綴) + register*Op("X") + registry 表 PascalCase 字串,
+#      大小寫無視 set-diff。(sw 命名 fork 未追蹤時 done 略低估 → 逐顆 <island> 複查。)
+#   3. 縫歸類 = tools/seam_map.tsv（權威 SSOT）的 path_regex 套未做 op 的 TiXL 路徑。
+set -uo pipefail  # 不用 -e：報表腳本裡 grep 無匹配的 return 1 是正常,不該中止
 cd "$(dirname "$0")/.."
-
 TIXL=external/tixl/Operators/Lib
-SWRT=app/src/runtime
-SWAPP=app/src/app
-TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT
+SWRT=app/src/runtime; SWAPP=app/src/app
+SEAMMAP=tools/seam_map.tsv
+TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 
-# ---- build sw-ported set (lowercase) ----
+# ---- sw-ported set (lowercase) ----
 {
-  # (a) 葉檔 stem（所有已知前綴）
   find "$SWRT" -name '*.cpp' | sed -E 's#.*/##; s#\.cpp$##' \
     | sed -E 's#^(point_ops|value_op|field_ops|string_ops|mesh_ops|pointlist_ops|stateful_value_ops|floatlist_ops|host_scalar_ops|colorlist_ops|gradient_ops|stringlist_ops)_##' \
     | grep -ivE 'registry|_params$|golden|selftest|slots|^register|templates|cases|decls|^node_|^point_graph|^resident|^compound$|^field$|^graph$|^bpm|^curve$|^audio$|^variation|^point$|^field_graph'
-  # (b) register*Op("Name")
-  grep -rhoE 'register[A-Za-z]*\(\s*"[A-Za-z0-9_]+"' "$SWRT" "$SWAPP" 2>/dev/null \
-    | grep -oE '"[A-Za-z0-9_]+"' | tr -d '"'
-  # (c) registry / node_registry 表的 PascalCase 字串
+  grep -rhoE 'register[A-Za-z]*\(\s*"[A-Za-z0-9_]+"' "$SWRT" "$SWAPP" 2>/dev/null | grep -oE '"[A-Za-z0-9_]+"' | tr -d '"'
   find "$SWRT" \( -name '*_op_registry.*' -o -name '*_ops_registry.*' -o -name 'node_registry_*.cpp' \) \
     | xargs grep -hoE '"[A-Z][A-Za-z0-9]+"' 2>/dev/null | tr -d '"'
 } | tr 'A-Z' 'a-z' | sort -u > "$TMP/sw.txt"
 
-# ---- build TiXL real-op list per island (file: island<TAB>OpName) ----
+# ---- TiXL real ops: island<TAB>op<TAB>relpath(island/sub/op) ----
 grep -rlE ': *Instance<' "$TIXL" --include='*.cs' 2>/dev/null \
   | grep -viE '_Old|_obsolete|/_|__OBSOLETE' \
-  | sed -E "s#^$TIXL/([^/]+)/.*/([^/]+)\.cs#\1\t\2#; s#^$TIXL/([^/]+)/([^/]+)\.cs#\1\t\2#" \
-  | sort -u > "$TMP/tixl.txt"
+  | sed -E "s#^$TIXL/##; s#\.cs\$##" \
+  | awk -F'/' '{print $1"\t"$NF"\t"$0}' | sort -u > "$TMP/tixl.txt"
+
+# ---- split done/todo (preserve relpath) ----
+awk -F'\t' 'NR==FNR{sw[$1]=1;next}{print (sw[tolower($2)]?"done":"todo")"\t"$1"\t"$2"\t"$3}' \
+  "$TMP/sw.txt" "$TMP/tixl.txt" > "$TMP/status.txt"
 
 ISLANDS="numbers image point render io field mesh string flow particle data"
 
-emit_status() { # island -> prints "op<TAB>x|space" lines
-  local isl="$1"
-  awk -F'\t' -v i="$isl" '$1==i{print $2}' "$TMP/tixl.txt" | sort -u | while read -r op; do
-    lc=$(printf '%s' "$op" | tr 'A-Z' 'a-z')
-    if grep -qxF "$lc" "$TMP/sw.txt"; then echo -e "$op\tx"; else echo -e "$op\t "; fi
-  done
+# classify every todo relpath into a seam (first matching rule wins)
+build_seam_assign() { # -> $TMP/assign.txt : seam<TAB>relpath
+  awk -F'\t' '$1=="todo"{print $4}' "$TMP/status.txt" | sort -u > "$TMP/remain.txt"
+  : > "$TMP/assign.txt"
+  while IFS=$'\t' read -r sid kind blast rx desc; do
+    case "$sid" in ''|\#*) continue;; esac
+    grep -E "$rx" "$TMP/remain.txt" 2>/dev/null | sed "s/^/$sid\t/" >> "$TMP/assign.txt" || true
+    grep -vE "$rx" "$TMP/remain.txt" 2>/dev/null > "$TMP/remain2.txt" || true
+    mv "$TMP/remain2.txt" "$TMP/remain.txt"
+  done < "$SEAMMAP"
+  # leftover = unclassified
+  sed "s/^/__unclassified\t/" "$TMP/remain.txt" >> "$TMP/assign.txt"
 }
+
+seam_meta() { awk -F'\t' -v s="$1" '$1==s{print $2"\t"$3"\t"$5; exit}' "$SEAMMAP"; }
 
 case "${1:-}" in
   --tsv)
-    for isl in $ISLANDS; do
-      emit_status "$isl" | while IFS=$'\t' read -r op st; do
-        [ "$st" = x ] && s=done || s=todo; echo -e "$isl\t$op\t$s"; done
-    done ;;
+    awk -F'\t' '{print $2"\t"$3"\t"$1}' "$TMP/status.txt" ;;
+
   --undone)
-    isl="${2:?island name required}"
-    echo "== $isl 未做 =="
-    emit_status "$isl" | awk -F'\t' '$2!="x"{print "  "$1}' ;;
+    isl="${2:?island name required}"; echo "== $isl 未做 =="
+    awk -F'\t' -v i="$isl" '$1=="todo"&&$2==i{print "  "$3}' "$TMP/status.txt" | sort ;;
+
+  --seams)
+    build_seam_assign
+    echo "════ 縫地圖 — 每條縫卡幾顆未做節點 (tools/seam_map.tsv 為準) ════"
+    echo ""
+    for grp in seam-build leaf-ready domain-blocked; do
+      case "$grp" in
+        seam-build)    title="◆ seam-build  先蓋縫→解鎖一批 (柏為要的「先做完能大量產出」,按解鎖量排序)";;
+        leaf-ready)    title="○ leaf-ready   縫已建,直接採節點 (sw-batch 自走首選,零等待)";;
+        domain-blocked)title="△ domain-blocked  需全新大島/裝置 (晚做或柏為域)";;
+      esac
+      echo "$title"
+      # 該 kind 的 seam,按 count 降序
+      awk -F'\t' '{print $1}' "$TMP/assign.txt" | sort | uniq -c \
+        | while read -r cnt sid; do
+            meta=$(seam_meta "$sid"); k=$(echo "$meta"|cut -f1); b=$(echo "$meta"|cut -f2); d=$(echo "$meta"|cut -f3)
+            [ "$k" = "$grp" ] && printf '%s\t%s\t%s\t%s\n' "$cnt" "$sid" "$b" "$d"
+          done | sort -rn \
+        | while IFS=$'\t' read -r cnt sid b d; do printf "   %3d  %-16s [%s] %s\n" "$cnt" "$sid" "$b" "$d"; done
+      echo ""
+    done
+    un=$(awk -F'\t' '$1=="__unclassified"' "$TMP/assign.txt" | wc -l | tr -d ' ')
+    [ "$un" -gt 0 ] && echo "   ⚠ $un 顆未歸類 (seam_map.tsv 規則沒涵蓋→補規則): $(awk -F'\t' '$1=="__unclassified"{print $2}' "$TMP/assign.txt" | head -8 | tr '\n' ' ')" ;;
+
+  --overview)
+    gt=$(wc -l < "$TMP/status.txt" | tr -d ' ')
+    gd=$(awk -F'\t' '$1=="done"' "$TMP/status.txt" | wc -l | tr -d ' ')
+    gtd=$((gt-gd))
+    gpct=$(awk -v d="$gd" -v t="$gt" 'BEGIN{printf "%d",d*100/t}')
+    echo "════════════════════════════════════════════════════"
+    echo " 克隆 TiXL 進度 — $gd / $gt 節點已 port  (${gpct}% done,  剩 $gtd)"
+    echo "════════════════════════════════════════════════════"
+    printf " %-9s %5s %5s %5s\n" "島" "總" "做" "剩"
+    for isl in $ISLANDS; do
+      t=$(awk -F'\t' -v i="$isl" '$2==i' "$TMP/status.txt" | wc -l | tr -d ' '); [ "$t" -eq 0 ] && continue
+      d=$(awk -F'\t' -v i="$isl" '$2==i&&$1=="done"' "$TMP/status.txt" | wc -l | tr -d ' ')
+      bar=""; [ "$((t-d))" -gt 0 ] && bar="←剩 $((t-d))"
+      printf " %-9s %5s %5s %5s  %s\n" "$isl" "$t" "$d" "$((t-d))" "$bar"
+    done
+    echo ""
+    echo " 縫地圖摘要 (詳: tools/op_census.sh --seams):"
+    build_seam_assign
+    echo "  ◆ 先蓋縫解鎖最多的 3 條:"
+    awk -F'\t' '{print $1}' "$TMP/assign.txt" | sort | uniq -c \
+      | while read -r cnt sid; do meta=$(seam_meta "$sid"); [ "$(echo "$meta"|cut -f1)" = seam-build ] && echo "$cnt $sid $(echo "$meta"|cut -f3)"; done \
+      | sort -rn | head -3 | while read -r cnt sid d; do printf "     %3d 顆 ← %s (%s)\n" "$cnt" "$sid" "$d"; done
+    lr=$(awk -F'\t' '{print $1}' "$TMP/assign.txt" | sort | uniq -c | while read -r cnt sid; do meta=$(seam_meta "$sid"); [ "$(echo "$meta"|cut -f1)" = leaf-ready ] && echo "$cnt"; done | awk '{s+=$1}END{print s+0}')
+    echo "  ○ leaf-ready (縫已建可直接採): $lr 顆散在各島"
+    echo "  (⚠ done 可能略低估 sw 命名 fork;逐顆複查 tools/op_census.sh <island>)" ;;
+
   "")
     printf "%-10s %6s %6s %6s  %s\n" "island" "total" "done" "todo" "todo%"
     gt=0; gd=0
     for isl in $ISLANDS; do
-      out=$(emit_status "$isl"); [ -z "$out" ] && continue
-      t=$(printf '%s\n' "$out" | grep -c .)
-      d=$(printf '%s\n' "$out" | awk -F'\t' '$2=="x"{c++}END{print c+0}')
-      td=$((t-d))
-      pct=$(awk -v t="$t" -v td="$td" 'BEGIN{if(t)printf "%d%%",td*100/t}')
-      printf "%-10s %6s %6s %6s  %s\n" "$isl" "$t" "$d" "$td" "$pct"
+      t=$(awk -F'\t' -v i="$isl" '$2==i' "$TMP/status.txt" | wc -l | tr -d ' '); [ "$t" -eq 0 ] && continue
+      d=$(awk -F'\t' -v i="$isl" '$2==i&&$1=="done"' "$TMP/status.txt" | wc -l | tr -d ' '); td=$((t-d))
+      printf "%-10s %6s %6s %6s  %s\n" "$isl" "$t" "$d" "$td" "$(awk "BEGIN{if($t)printf \"%d%%\",$td*100/$t}")"
       gt=$((gt+t)); gd=$((gd+d))
     done
     echo "-----------------------------------------------"
-    gpct=$(awk -v t="$gt" -v td="$((gt-gd))" 'BEGIN{if(t)printf "%d%%",td*100/t}')
-    printf "%-10s %6s %6s %6s  %s\n" "TOTAL" "$gt" "$gd" "$((gt-gd))" "$gpct"
-    echo "(⚠ sw 命名 fork 未追蹤時 done 可能略低估；逐顆查 tools/op_census.sh <island>)" ;;
+    printf "%-10s %6s %6s %6s  %s\n" "TOTAL" "$gt" "$gd" "$((gt-gd))" "$(awk "BEGIN{printf \"%d%%\",($gt-$gd)*100/$gt}")"
+    echo "(三命令: --overview 全局 / --seams 縫地圖 / <island> 逐顆)" ;;
+
   *)
-    isl="$1"
-    echo "== $isl ([x]=已 port  [ ]=未做) =="
-    emit_status "$isl" | while IFS=$'\t' read -r op st; do
-      [ "$st" = x ] && echo "  [x] $op" || echo "  [ ] $op"; done ;;
+    isl="$1"; echo "== $isl ([x]=已 port  [ ]=未做) =="
+    awk -F'\t' -v i="$isl" '$2==i{print ($1=="done"?"  [x] ":"  [ ] ")$3}' "$TMP/status.txt" | sort -k1.5 ;;
 esac

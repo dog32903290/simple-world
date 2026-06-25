@@ -1,0 +1,40 @@
+# seam_map.tsv — 權威縫定義 SSOT（唯一真相，取代散落會 stale 的 OP_BACKLOG桶C / SEAM_STATE / MASTER_PLAN 縫描述）
+#
+# op_census.sh --seams 讀這張表，把每顆「未做」的 op 歸到一條縫，算出每條縫卡幾顆、該先做哪條。
+# 維護原則：縫定義穩定（~25 條，很少變），不像 op 進度數字會天天 stale。蓋完一條縫 → 改它的 kind。
+#
+# kind 編碼「下個 sw-batch session 怎麼走」：
+#   leaf-ready    = 縫已建，直接採節點（首選，零等待，sw-batch 自走）
+#   seam-build    = 要先蓋縫才能採（工作量大但蓋完解鎖一批 = 柏為要的「先做完能大量產出」）
+#   domain-blocked= 需全新大島 / 裝置硬體（晚做或柏為域）
+#
+# 欄：seam_id <TAB> kind <TAB> blast <TAB> path_regex(對 island/subdir/op 比對,第一個 match 勝) <TAB> desc
+# path_regex 越具體越前（fallthrough 的島級 *-leaf 放各島最後）。
+#
+field-raymarch	seam-build	MED	^field/(render|use|analyze)	SDF→畫面渲染:field島出海口(RaymarchField/Render2dField/SDFToColor)解鎖39顆SDF變可見
+field-leaf	leaf-ready	LOW	^field/	field SDF葉(codegen已建,近採盡)
+camera-leaf	leaf-ready	LOW	^render/(camera|gizmo)	camera變體+gizmo(承重bridge已蓋,騎它採)
+text-font	seam-build	MED	^render/sprite	文字渲染(bitmapfont seam未建)
+pbr-lighting	domain-blocked	HIGH	^render/(shading|scene)	材質/光照=全新3D-render大島
+postfx	domain-blocked	HIGH	^render/postfx	GodRays/SSAO/DoF/MotionBlur=卡depth-buffer島
+dx11-skip	domain-blocked	LOW	^render/_dx11	Metal已吸收等價,多數SKIP
+render-leaf	leaf-ready	LOW	^render/	render葉(basic/utils/transform)
+feedback	seam-build	MED	^image/fx	上一幀/液體/feedback(ping-pong已建,剩進階消費者)
+multi-image	seam-build	MED	^image/use	多輸入合成(t2第三輸入縫)
+image-leaf	leaf-ready	LOW	^image/	image濾鏡/生成葉
+list-state	seam-build	MED	^numbers/(floats|ints)	FloatList stateful(需resident state-slot縫)
+keyframe-anim	seam-build	MED	^numbers/(anim|curve)	animator/keyframe(需keyframe seam)
+dict-ctx	seam-build	LOW	^numbers/data	dict select(需dict-context seam)
+vecmath-leaf	leaf-ready	LOW	^numbers/	純值/向量/matrix葉(零縫)
+point-sim	seam-build	MED	^point/sim	point模擬(feedback類cross-frame)
+point-io	domain-blocked	MED	^point/(io|usse)	point GPU-readback/DMX輸出
+point-leaf	leaf-ready	LOW	^point/	point葉(buffer已建,近採盡)
+particle-force	seam-build	MED	^particle/	力場(多卡mesh/texture/RWStructuredBuffer/sdf/user-HLSL縫)
+mesh-draw	domain-blocked	MED	^mesh/draw	DrawMesh(需camera+material島)
+mesh-leaf	leaf-ready	LOW	^mesh/	mesh幾何葉(gen/modify;Load*需loader)
+string-leaf	leaf-ready	LOW	^string/	字串葉(剩datetime/random)
+device-io	domain-blocked	LOW	^io/	MIDI/OSC/video/serial/DMX=柏為裝置域(loopback半已建)
+flow-var	seam-build	LOW	^flow/context	context-var剩餘通道(Vec3/Matrix/Object Var)
+flow-leaf	leaf-ready	LOW	^flow/	flow葉
+data-leaf	leaf-ready	LOW	^data/	data雜項
+# (結尾哨兵行,確保上方最後一條規則被 while-read 讀到)
