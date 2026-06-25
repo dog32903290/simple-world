@@ -147,7 +147,7 @@ check skillquest-training     polish    missing-subsystems yes "app/src" \
 check color-theme-system      polish    missing-subsystems yes "app/src" \
   'NamedTheme|colorTheme|ColorVariationDict|applyTheme' "命名主題系統(themes+per-field 變化+熱套用)"
 check scalable-canvas-scope   polish    missing-subsystems yes "app/src" \
-  'zoomToFit|jumpInOut|fitArea|scopeTransition' "通用 fit-area/zoom-to-fit/jump 過場導航"
+  'zoomToFit|jumpInOut|fitArea|scopeTransition' "通用 fit-area/zoom-to-fit/jump 過場導航 [6/25複驗:核心已 ported under 原生名(F→NavigateToSelection/Content keymap.cpp:143+dive editor_ui.cpp:450、vertical SetVerticalScopeToCanvasArea timeline_window.cpp:230);殘=JumpIn/Out overshoot(需改 vendored imgui-node-editor 非純皮)+通用跨畫布抽象(需 runtime/app);兩者 NON-pure-ui→deferred 別當純皮 Tier1 重採。predicate grep TiXL C# 名=string-absence false-neg,真 gap 是殘餘非缺核心]"
 check animcanvas-vsnap        polish    missing-subsystems yes "app/src/ui/timeline_curve_editor.cpp" \
   'snapForV|altInsertKey|insertKeyWithTangent' "曲線 V 軸 snap + Alt-hover 插 key"
 check sliding-average-helper  polish    missing-subsystems yes "app/src/runtime" \

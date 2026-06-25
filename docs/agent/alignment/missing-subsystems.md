@@ -71,7 +71,7 @@ sw inspector 用裸 `ImGui::DragScalarN`（固定 step 0.01）。TiXL:**SliderLa
 - **AssetLibrary 資源瀏覽器**（critic）:拖資產到畫布自動建 load-op、點相容資產改寫 op FilePath（undoable）、OS 檔案操作。file-management.md 盤的是存檔格式，不是資產瀏覽綁定。sw 載資產靠手打路徑。
 - **SkillQuest 教學 play-mode**（critic）:劫持 layout、live 對 snapshot 評分（Untouched/Required/Correct/Warm/Forbidden）。modes.md 完全漏了 training mode。
 - **色彩主題系統**（critic）:named themes + per-field ColorVariation dict + 存檔 + 熱套用。sw 只有硬編單一配色。
-- **ScalableCanvas scope/transition**（補漏）:通用 fit-area/zoom-to-fit/jump-in-out 過場;sw 各畫布各自為政無通用導航。
+- **ScalableCanvas scope/transition**（補漏）:通用 fit-area/zoom-to-fit/jump-in-out 過場;sw 各畫布各自為政無通用導航。**[6/25複驗] 核心已對齊 TiXL（原生名,故 census string-grep false-neg）**：fit-selection/fit-content=F→`ed::NavigateToSelection/Content`（keymap.cpp:143）+ 進出 compound 自動 fit（editor_ui.cpp:450）；timeline 垂直 fit=`SetVerticalScopeToCanvasArea` 1:1（timeline_window.cpp:230,含 0.15 padding+damp）。**殘餘兩塊皆 NON-pure-ui（deferred,別當純皮 Tier1）**：① JumpIn/JumpOut overshoot 過場（imgui-node-editor 只有單段 ease 無 overshoot API→需改 vendored `third_party/imgui-node-editor/`）② 通用跨畫布 scope 抽象（需 runtime/app 共用層）。
 - **AnimationCanvas U/V 雙 snap + Alt 插 key**（補漏）:曲線畫布 V 軸 snap、Alt-hover 插 key 用前 key tangent;sw U 軸已 port，V 軸/Alt-插 待交叉比對 `timeline_curve_editor.cpp`。
 - **SlidingAverage**（補漏）:~20 行環形平均 helper，beat/tap 平滑用。
 - **StartUp 鎖檔 crash-recovery + ConformAssetPaths 路徑遷移**（補漏）:需先有 auto-backup/asset 系統，優先低。
