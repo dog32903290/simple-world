@@ -10,14 +10,27 @@
 // nullptr (cooked by frame_cook's stateful-value seam, dispatched by type name).
 #include "runtime/graph.h"            // NodeSpec, PortSpec, Widget
 #include "runtime/math_op_registry.h"  // MathOp / mathSpecSink
-#include "runtime/value_eval_ops.h"    // evalAdd, evalSine, evalClamp, … (pure value-node fns)
+#include "runtime/value_eval_ops.h"    // evalSine, evalConst, … (pure value-node fns; evalTime removed)
 
 namespace sw {
 namespace {
 
-      // --- Value nodes (Task 2) ---
+      // --- Time (TiXL Lib/numbers/anim/time/Time.cs) — multi-mode time exposure with SpeedFactor.
+      // 5 modes: LocalIdleMotionFxTime(0=default)/LocalTime(1)/PlaybackTime(2)/Runtime(3)/Frozen(4).
+      // Units=0 Bars (default), Units=1 Secs (applies SecondsFromBars = time*240/bpm after SpeedFactor).
+      // Stateful (evaluate==nullptr) — cooked by frame_cook's stateful-value seam from TransportSnapshot.
+      // Output "Timefloat" = the TiXL C# slot field name. Marked live (opDeclaresLiveOutput, cached).
+      // .t3 defaults: Mode=0, Units=0, SpeedFactor=1.0.
+      // FORK (named): R-1 run-clock origin for Mode=3 (Runtime), same class as RunTime/StopWatch.
 static const MathOp _reg_Time{
-      {"Time", "Time", {{"out", "out", "Float", false}}, evalTime,
+      {"Time", "Time",
+       {{"Timefloat", "Timefloat", "Float", false},
+        {"Mode",        "Mode",        "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+         {"LocalIdleMotionFxTime", "LocalTime", "PlaybackTime", "Runtime", "Frozen"}},
+        {"Units",       "Units",       "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Bars", "Secs"}},
+        {"SpeedFactor", "SpeedFactor", "Float", true, 1.0f, -5.0f, 5.0f}},
+       nullptr,
        "numbers.anim.time"}
 };
 
@@ -119,6 +132,18 @@ static const MathOp _reg_GetBpm{
        {{"Result", "Result", "Float", false}},
        nullptr,
        "numbers.anim.vj"}
+};
+
+      // GetFrameSpeedFactor (TiXL Lib/numbers/anim/time/GetFrameSpeedFactor.cs) — display/render-rate
+      // ratio: Result = isValid ? FrameSpeedFactor : 1  (isValid = |val|>0.0001). TiXL sets
+      // FrameSpeedFactor to Settings.FrameRate/60 in render-to-file mode (RenderTiming.cs:124); in
+      // simple_world's interactive path tr.frameSpeedFactor is always 1.0. Stateful (evaluate==nullptr;
+      // step reads tr.frameSpeedFactor). 0 state, no inputs.
+static const MathOp _reg_GetFrameSpeedFactor{
+      {"GetFrameSpeedFactor", "GetFrameSpeedFactor",
+       {{"FrameSpeedFactor", "FrameSpeedFactor", "Float", false}},
+       nullptr,
+       "numbers.anim.time"}
 };
 
       // DelayTriggerChange — TWO-EDGE change detector (NOT rising-edge WasTriggered): on ANY trigger

@@ -57,6 +57,11 @@ struct TransportSnapshot {
   double playbackTimeBars = 0.0;
   double bpm = 120.0;
   double rate = 1.0;
+  // frameSpeedFactor = TiXL Playback.FrameSpeedFactor — a display/render-rate ratio (default 1.0).
+  // Set to Settings.FrameRate/60 only in render-to-file mode (TiXL Editor/RenderExport/RenderTiming.cs:124).
+  // In simple_world (interactive, no render-to-file) this is always 1.0 — frame_cook sets it from the
+  // process-global constant 1.0. Named here so GetFrameSpeedFactor can read it faithfully off the seam.
+  double frameSpeedFactor = 1.0;
 };
 
 // === context-var YELLOW seam (block #1 of the visual-load-bearing-root directive) ===

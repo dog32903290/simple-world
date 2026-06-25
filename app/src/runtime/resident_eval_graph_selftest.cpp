@@ -103,15 +103,16 @@ int runResidentEvalSelfTest(bool injectBug) {
   bool pathOk = (rg.node("5/3") != nullptr) && (rg.node("5/1") != nullptr);
 
   // --- driver resolve: build a tiny lib exercising Constant + Connection + Automation-stub ---
-  // Time(out) -> Multiply.a ; Const(7) -> Multiply.b ; Multiply.b ALSO set Automation (stub=0).
+  // LiveConst(2.0, triggerAlways) -> Multiply.a ; Const(7) -> Multiply.b.
+  // Time was here but is now stateful (evaluate==nullptr); a synthetic live Const with
+  // triggerOverrides["out"]=Always is the headless-safe stand-in (same liveness mechanic).
   SymbolLibrary dl;
   dl.symbols["Const"] = cst;            // (with bug applied if injectBug — irrelevant: override set)
   dl.symbols["Multiply"] = mul;
-  Symbol tm = atomic("Time", {}, {{"out", "out", "Float", 0.0f}});
-  dl.symbols["Time"] = tm;
   Symbol dr; dr.id = "Driv"; dr.name = "Driv"; dr.atomic = false;
   dr.outputDefs = {{"out", "out", "Float", 0.0f}};
-  SymbolChild dt; dt.id = 1; dt.symbolId = "Time";
+  SymbolChild dt; dt.id = 1; dt.symbolId = "Const"; dt.overrides["value"] = 2.0f;
+  dt.triggerOverrides["out"] = TriggerOverride::Always;  // makes initResidentCache mark output isLiveSource
   SymbolChild dc; dc.id = 2; dc.symbolId = "Const"; dc.overrides["value"] = 7.0f;
   SymbolChild dm; dm.id = 3; dm.symbolId = "Multiply";
   dr.children = {dt, dc, dm};
@@ -124,15 +125,15 @@ int runResidentEvalSelfTest(bool injectBug) {
   bool constOk = dcn && dcn->input("value") &&
                  dcn->input("value")->driver == ResidentInput::Driver::Constant &&
                  dcn->input("value")->constant == 7.0f;
-  // Connection driver: Multiply.a wired from Time#1.out.
+  // Connection driver: Multiply.a wired from LiveConst#1.out.
   const ResidentNode* dmn = dg.node("3");
   bool connOk = dmn && dmn->input("a") &&
                 dmn->input("a")->driver == ResidentInput::Driver::Connection &&
                 dmn->input("a")->srcNodePath == "1" && dmn->input("a")->srcSlotId == "out";
-  // Two clocks distinguished: Time reads localFxTime (wall clock). Multiply = Time * 7.
-  ResidentEvalCtx tctx; tctx.localFxTime = 2.0f; tctx.localTime = 99.0f;  // playhead must NOT feed Time
+  // LiveConst(2) * 7 = 14. The ctx is unused for a Const-evaluate node; value comes from the override.
+  ResidentEvalCtx tctx;
   float driven = evalResidentFloat(dg, dg.outputs["out"].first, dg.outputs["out"].second, tctx);
-  bool clockOk = (driven == 14.0f);  // 2 (wall clock) * 7 ; if it used localTime it'd be 693
+  bool clockOk = (driven == 14.0f);  // 2 (override) * 7
   // Automation driver projects to a stub (S3 wires the real curve). Set it and confirm it resolves 0.
   // (We do not have a curve store yet; assert the kind is accepted and yields the documented stub.)
   ResidentInput autoTest; autoTest.driver = ResidentInput::Driver::Automation; autoTest.curveRef = "x";

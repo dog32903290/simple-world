@@ -22,10 +22,11 @@ namespace sw {
 namespace {
 
 // Ops that declare an always-dirty output (= TiXL DirtyFlagTrigger.Always/Animated). slice-1b
-// scope: Time (RunTime.cs:8 declares Animated). Audio-reactive nodes join here once the value
-// graph drives them; automation-driven LIVE arrives with the S3 curve store (now wired below).
+// scope: Time (Time.cs:9 DirtyFlagTrigger.Animated) + GetFrameSpeedFactor (GetFrameSpeedFactor.cs:6
+// DirtyFlagTrigger.Animated). Audio-reactive nodes join here once the value graph drives them;
+// automation-driven LIVE arrives with the S3 curve store (now wired below).
 bool opDeclaresLiveOutput(const std::string& opType) {
-  return opType == "Time";
+  return opType == "Time" || opType == "GetFrameSpeedFactor";
 }
 
 // S3 (slice 1b named-deferred leg, now open): an Automation-driven input makes the node's outputs

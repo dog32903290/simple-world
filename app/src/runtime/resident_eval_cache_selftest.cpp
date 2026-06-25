@@ -28,7 +28,8 @@ int runResidentCacheSelfTest(bool injectBug) {
   Symbol cst = atomic("Const", {{"value", "value", "Float", 0.0f}}, {{"out", "out", "Float", 0.0f}});
   Symbol mul = atomic("Multiply", {{"a", "a", "Float", 1.0f}, {"b", "b", "Float", 1.0f}},
                       {{"out", "out", "Float", 0.0f}});
-  Symbol tim = atomic("Time", {}, {{"out", "out", "Float", 0.0f}});
+  // Time is now stateful (evaluate==nullptr); synthetic live Const stands in for headless tests.
+  Symbol tim = atomic("Time", {}, {{"out", "out", "Float", 0.0f}});  // kept for buildFlat compat
 
   // === STATIC graph: Const#1(5) -> Mul.a, Const#2(3) -> Mul.b -> output ===
   SymbolLibrary sl;
@@ -61,14 +62,18 @@ int runResidentCacheSelfTest(bool injectBug) {
   float f2 = pullResidentFloat(g, outP.first, outP.second, ctx);
   bool editPush = (f2 == 27.0f);
 
-  // === LIVE graph: Time -> Mul.a, Const(7) -> Mul.b -> output ===
+  // === LIVE graph: LiveConst(2,triggerAlways) -> Mul.a, Const(7) -> Mul.b -> output ===
+  // Time was here but is now stateful (evaluate==nullptr); a synthetic live Const with
+  // triggerOverrides["out"]=Always is the headless-safe stand-in (initResidentCache marks it live).
+  // Frame0: LiveConst.value=2 -> 2*7=14. After bumpLiveSources (marks live-Const dirty), mutate
+  // the projected constant to 5 -> frame1 recomputes -> 5*7=35. injectBug skips the bump (teeth).
   SymbolLibrary ll;
-  ll.symbols["Time"] = tim;
   ll.symbols["Const"] = cst;
   ll.symbols["Multiply"] = mul;
   Symbol lroot; lroot.id = "L"; lroot.name = "L"; lroot.atomic = false;
   lroot.outputDefs = {{"out", "out", "Float", 0.0f}};
-  SymbolChild lt; lt.id = 1; lt.symbolId = "Time";
+  SymbolChild lt; lt.id = 1; lt.symbolId = "Const"; lt.overrides["value"] = 2.0f;
+  lt.triggerOverrides["out"] = TriggerOverride::Always;  // synthetic live source
   SymbolChild lc; lc.id = 2; lc.symbolId = "Const"; lc.overrides["value"] = 7.0f;
   SymbolChild lm; lm.id = 3; lm.symbolId = "Multiply";
   lroot.children = {lt, lc, lm};
@@ -79,12 +84,16 @@ int runResidentCacheSelfTest(bool injectBug) {
   initResidentCache(lg);
   auto loutP = lg.outputs["out"];
 
-  ResidentEvalCtx t0; t0.localFxTime = 2.0f;
+  ResidentEvalCtx t0;
   float L0 = pullResidentFloat(lg, loutP.first, loutP.second, t0);  // 2*7 = 14
 
   if (!injectBug) bumpLiveSources(lg);  // 🪤#1: every frame. injectBug skips it (teeth).
 
-  ResidentEvalCtx t1; t1.localFxTime = 5.0f;
+  // Mutate the live-Const's projected constant to 5 (simulates a new live value next frame).
+  for (ResidentInput& in : lg.nodes[lg.byPath["1"]].inputs)
+    if (in.slotId == "value") in.constant = 5.0f;
+
+  ResidentEvalCtx t1;
   float L1 = pullResidentFloat(lg, loutP.first, loutP.second, t1);  // want 5*7 = 35 (recomputed)
   bool liveTracks = (L0 == 14.0f && L1 == 35.0f);
 

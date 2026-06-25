@@ -155,11 +155,16 @@ int runValueCookSelfTest(bool injectBug) {
   float mulOut = evalFloat(g, pinId(mul, portIdx("Multiply", "out")), ctx, 0);
   bool ok = (mulOut == 12.0f);
 
-  // Test 2: Time -> Sine ; result == sin(ctx.time)
-  int t = add("Time");
+  // Test 2: Const(2.0) -> Sine ; result == sin(2.0).
+  // Note: "Time" used to be a pure evalTime (ctx.time) but is now the full TiXL Time.cs stateful
+  // op (evaluate==nullptr, cooked by frame_cook's stateful-value seam). Flat evalFloat skips
+  // stateful ops (no pure evaluate path), so this test was updated to Const(2.0) which proves the
+  // same flat input-routing semantics. The stateful Time golden lives in runTimeSelfTest.
+  int cv = add("Const");
+  g.node(cv)->params["value"] = 2.0f;
   int sn = add("Sine");
   g.connections.push_back(
-      {g.nextId++, pinId(t, portIdx("Time", "out")), pinId(sn, portIdx("Sine", "x"))});
+      {g.nextId++, pinId(cv, portIdx("Const", "out")), pinId(sn, portIdx("Sine", "x"))});
   float sineOut = evalFloat(g, pinId(sn, portIdx("Sine", "out")), ctx, 0);
   ok = ok && (std::fabs(sineOut - std::sin(2.0f)) < 1e-5f);
 

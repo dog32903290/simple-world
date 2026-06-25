@@ -104,5 +104,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"fieldvolumeforce-field", runFieldVolumeForceFieldSelfTest},  // PF bridge closed-form: SphereSDF + 1 particle @(1,0,0), Attraction=1 -> Velocity≈(-0.425A,0,0) (exercises *0.425 Attraction fork)
     {"fieldtree-builder", runFieldTreeBuilderSelfTest},  // PF-0: graph->FieldNode builder (flat+resident both legs)
     {"field-paramapply", runFieldParamApplySelfTest},  // PF-0c: data-driven field param-apply (graph SphereSDF {Radius:0.8} -> GPU + buffer + enum + slot-id guard)
+    {"time-op", runTimeSelfTest},  // Time 5-mode (localFxTime/localTime/playback/runtime/frozen) + GetFrameSpeedFactor (fsf-valid/fallback/interactive)
 );
 }  // namespace sw

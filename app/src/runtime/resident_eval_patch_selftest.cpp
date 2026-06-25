@@ -48,6 +48,7 @@ int runResidentPatchSelfTest(bool injectBug) {
   Symbol cst = atomic("Const", {{"value", "value", "Float", 0.0f}}, {{"out", "out", "Float", 0.0f}});
   Symbol mul = atomic("Multiply", {{"a", "a", "Float", 1.0f}, {"b", "b", "Float", 1.0f}},
                       {{"out", "out", "Float", 0.0f}});
+  // Time is now stateful (evaluate==nullptr); kept as a dummy for buildFlat's lib.symbols["Time"].
   Symbol tim = atomic("Time", {}, {{"out", "out", "Float", 0.0f}});
   ResidentEvalCtx ctx;  // time 0
 
@@ -97,7 +98,10 @@ int runResidentPatchSelfTest(bool injectBug) {
   bool derivedOk = (d0 == 15.0f && dpv == 50.0f);
 
   // === 2. patchAddConnection — add a Connection, force first-pull recompute ===
-  SymbolChild lt; lt.id = 1; lt.symbolId = "Time";
+  // LiveConst(5, triggerAlways) stands in for Time (now stateful/headless-unfriendly).
+  // The Const override is 5.0f so that after wiring node "1"->Mul.a the pull gives 5*7=35.
+  SymbolChild lt; lt.id = 1; lt.symbolId = "Const"; lt.overrides["value"] = 5.0f;
+  lt.triggerOverrides["out"] = TriggerOverride::Always;  // synthetic live source
   SymbolChild lc; lc.id = 2; lc.symbolId = "Const"; lc.overrides["value"] = 7.0f;
   SymbolChild lm; lm.id = 3; lm.symbolId = "Multiply"; lm.overrides["a"] = 1.0f;  // a starts Constant(1)
   // Initially Mul.a is NOT wired (only b <- Const(7)). 1*7 = 7.
@@ -106,13 +110,13 @@ int runResidentPatchSelfTest(bool injectBug) {
   auto loutP = lg.outputs["out"];
   float A0 = pullResidentFloat(lg, loutP.first, loutP.second, ctx);  // 1*7 = 7, cached
 
-  patchAddConnection(lg, "3", "a", "1", "out");  // wire Time.out -> Mul.a
+  patchAddConnection(lg, "3", "a", "1", "out");  // wire LiveConst.out -> Mul.a
   bumpLiveSources(lg);
-  ResidentEvalCtx t5; t5.localFxTime = 5.0f;
+  ResidentEvalCtx t5;
   float A1 = pullResidentFloat(lg, loutP.first, loutP.second, t5);  // want 5*7 = 35
   bool addOk = (A0 == 7.0f && A1 == 35.0f);
 
-  // patch == rebuild: a fresh graph wired Time->Mul.a from the start.
+  // patch == rebuild: a fresh graph wired LiveConst->Mul.a from the start.
   std::vector<SymbolConnection> wiredConns = {
       {1, "out", 3, "a"}, {2, "out", 3, "b"}, {3, "out", kSymbolBoundary, "out"}};
   ResidentEvalGraph lgR = buildFlat("LR", {lt, lc, lm}, wiredConns, cst, mul, tim);
