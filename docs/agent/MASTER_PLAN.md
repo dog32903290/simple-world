@@ -6,31 +6,33 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 331f784
-DIRTY: 1 files
-CENSUS: 417 / 749 done
-BITE: 449 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-26T01:08
+HEAD: 627458b
+DIRTY: clean
+CENSUS: 419 / 749 done
+BITE: 451 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-26T01:46
 <!-- sw_status:end -->
 
-- 引擎 clone **55%（417/749）**。**clean-leaf 採盡確認＝撿葉子時代結束**：census「leaf-ready」數曾雙重灌水（seam-blocked 誤分 + fork 命名 op 誤標 todo），兩道 scout backward-trace 穿透後真乾淨葉子近零。引擎剩餘 **100% = cook-core 承重 seam**（point-buffer / camera3d / Layer2d / shader-graph），**全需柏為在場 owner-lock 一次一條**。
+- 引擎 clone **56%（419/749）**。★**「clean-leaf 採盡」已被推翻**：S2/S3 脊椎一查發現早已蓋好+golden 綠 → texture-rail 上還有一大批乾淨 image/render 葉子可 absent-safe 並行採（本批起採，2 顆落地）。剩餘真 owner-lock seam＝S4 殘餘 infra+拆檔債、camera3d value-output、point-sprite render、生成器 t1 asset-bind（需柏為在場一次一條）。選葉子要先開 `.hlsl` 親看是否真單 pass（只看 `.cs` 會 mis-bucket）。
 - **柏為-absent 自走可採 = 第三軸體驗復刻尾**（[EXPERIENCE_PARITY_PLAN](EXPERIENCE_PARITY_PLAN.md)：純皮 Tier1 / Output O3 / 維運），eye-hand 驗、不碰 cook-core。
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none —— S1 完成端到端（cook-core override + UI selector,皆 refuter SURVIVES/親驗綠）。** 下一塊大的＝**S2（render-graph/Layer2d/Execute 縫,解鎖 155 節點）= cook-core owner-lock 需柏為在場授權再開**（柏為 23:35「1」只授權 S1）。S1 已解鎖下游：out-resolution-selector✅、L6 匯出/out-multi-window 可掃 READY。
+**image-leaf fan-out（absent-safe Phase C，無 owner-lock，自走中）。** ★**S2 cook-core 脊椎＝已蓋好且 golden 綠**（六 golden 親驗 layercompose/execute/group/loop/switch/execrepeatedly 全 PASS；MultiInput Command collector flat+resident 雙路在 `point_graph.cpp:465`/`point_graph_resident.cpp:376`，已註冊產線）→ 舊「S2 需柏為授權」是 **stale snapshot**，S2 縫不需重開、動它只有回歸風險。「155 節點」是可達性計數非單縫解鎖→殘餘＝texture-rail 乾淨葉子 fan-out（LOW blast、self-registering 零共享檔、可並行）。本批採 2 顆 MandelbrotFractal+DepthBufferAsGrayScale（`627458b`，refuter survives/--bite 449→451）。同批 2 顆 STEP-0 自擋並重分類：NumberPattern→生成器 t1 asset-bind 縫（digit atlas）、GlitchDisplace→point-sprite render 縫（非單 pass 濾鏡）。
 
 ## Conflict Register
 - **（已解，留痕）** `field_sphere.scn` / `field_sdf_palette.scn` 紅的 5→4 是**隱藏回歸非 baseline drift**：`doc::g_lib` pre-main static 在 math-sink registrar 前呼 findSpec→AudioReaction(id8) 被靜默丟。`644d100` 改 g_lib 為 construct-on-first-use 修好，scn 數字不動（牙是對的）。教訓：scn 硬數字斷言紅了先 triage 隱藏回歸 vs intentional-drift，**別盲 rebase 數字遮 bug**。chip `task_2fc4a37a` 可關。
 
 ## Session Safety
 - 另有 parked worktree `.worktrees/ui-node-skin`（branch `ui/tixl-node-skin` @ `fd542f5`）= 舊 L2 node-skin lane，未合流，**別當死的清掉**。
-- 柏為 2026-06-26 01:06 收尾離場（授權的 S1 已完成端到端）。**下個 session 起當柏為 ABSENT，直到他親口授權 S2**——S2 是 cook-core owner-lock，不可自走擅開（同 S1，需他在場「開 S2」才動）。
+- 柏為 2026-06-26 01:09 回場下令「需我在場的工作你先做、不等我、自走到我喊停」→ 結果 S2 脊椎查出早已蓋好，present-requiring 阻塞自動消解 → 轉做 S2 殘餘 image-leaf fan-out（absent-safe）。**S2/S3 脊椎已建，不必再等授權重開**；真正剩的 owner-lock 縫＝S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫——這些才需柏為在場。
+- **worktree 隔離教訓**：派並行 build agent 要在 Agent 呼叫上設 `isolation:worktree`；只在工單寫 `agent_worktree_setup.sh` 而不設 flag → 無 worktree 可 ff → 全跑進 main checkout 共用樹（本批 4 agent 都落 main，幸好 self-registering 零共享檔+建置非同時才無損）。見 [[worktree-base-main-trap]]。
 - **`document.cpp` 卡在 ratchet 上限 400 行**（g_lib 改 lazy 時 trim 註解擠進）→下次動它前必先拆（已 chip `task_19264e66`），否則 linecount 閘擋。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。**S1 完成端到端→下一塊大的＝S2（render-graph/Layer2d/Execute,解鎖 155 節點）= cook-core owner-lock,須柏為在場授權再開**（柏為 ABSENT 時不開,自走只做下方 absent-safe；同脊椎 S3/S4 在後）。**柏為授權 S2 後起手照 S1 已驗工法**：①派 Plan agent 出 S2 藍圖（對 `external/tixl` render-graph/Layer2d/Execute + sw `point_graph_tex_cook.cpp`/cookCommand 現況,釘真實範圍/blast radius/harness=closed-form pixel golden;查清「已做多少 vs 真缺」如 S1 一樣可能比帳面小）→②Opus build（main checkout serial,owner-lock cook-core 檔不並行）→③Opus refuter→④orchestrator 親手合流。設計肉看 [SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md)。先掃 SUBSYSTEM_BACKLOG 桶 C 看 S1 是否升 L6 匯出/out-multi-window READY。
-**柏為-absent 自走可採（純皮 Tier1 已採盡,本 session 兩輪 9 候選確認——別重採）**：剩只 `menu-bar`（帶 native-NSMenu vs TiXL-imgui chrome fork=柏為判）；其餘候選全需 schema/platform/資料源/curve-model（非 absent-safe,清單見 git log）。真 absent-safe 產能＝維運 chip + 體驗軸 P*/Tier2-3（多碰 cook 需柏為）。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。**★新的 absent-safe 大礦＝S2 殘餘 image/render leaf fan-out**（S2/S3 脊椎已建+golden 綠，texture-rail 是乾淨葉子地基；「純皮 Tier1 採盡」不再是天花板）。**選批先派 scout 開 `external/tixl` 的 `.hlsl` 親看「是否真單 pass fullscreen 濾鏡」**（本批 scout 只看 `.cs` signature → 4 顆有 2 顆 mis-bucket：GlitchDisplace 其實 point-sprite render、NumberPattern 需 digit-atlas asset 縫）→ 只派確認乾淨的桶 A 生成器 + 桶 B 單輸入濾鏡。**派 build agent 必設 `isolation:worktree`**（本批漏設→全落 main 共用樹）。每顆工法：STEP-0 backward-trace `.t3`（防 FloatsToBuffer 路由 trap）→ port .metal+self-register leaf → closed-form pixel golden（d=0 plateau/確定座標）→ orchestrator 中央一次 build+--bite → Opus refuter（本批 refuter 抓到 Mandelbrot sampler Clamp/Wrap 真 bug，值得每顆跑）→ commit。image 島剩 ~48，render 島剩 ~53 是接著的礦。
+**剩餘 owner-lock 縫（需柏為在場）**：S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field G3-bridge）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫（GlitchDisplace 家族）、生成器 t1 asset-bind 縫（NumberPattern/digit-atlas）。C 桶葉子（多影像/depth/compute/asset/field→image）卡這些縫。
+**柏為 decision queue**：①menu-bar chrome 範式（native-NSMenu vs TiXL-imgui）②`startup-lock-conform` unwired 葉子算不算 DONE 門檻③剩餘 owner-lock 縫的開採序。維運 chip：ui_census 其餘 4 區 false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`（已頂 400 ratchet，動前必拆）、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 **柏為 decision queue**：①S2 是否現在開（需他在場）②menu-bar chrome 範式（native vs imgui）③`startup-lock-conform` unwired 葉子算不算 DONE 門檻。維運 chip：ui_census 其餘 4 區 false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
@@ -48,8 +50,8 @@ STAMP_AT: 2026-06-26T01:08
 | 序 | 縫 | 解鎖 | 為何在脊椎 |
 |---|---|---|---|
 | **S1** | **輸出解析度縫**（RequestedResolution→cook+EvalContext） | 解鎖 L2 輸出窗 + L6 匯出 | 動 EvaluationContext，最先（解鎖最多下游 lane） |
-| **S2** | **render-graph / Layer2d / Execute 縫** | 解鎖 155 節點（→餵 L4） | 動 cookCommand 核心，最大島 |
-| **S3** | **flow / 控制流縫**（context-var + Execute/Loop） | 解鎖 35 節點（→餵 L4） | 動 eval 核心 |
+| **S2 ✅** | **render-graph / Layer2d / Execute 縫＝已建+golden 綠** | 解鎖 texture-rail 葉子 fan-out（餵 L4，absent-safe） | 脊椎在 `point_graph.cpp:465`/`_resident.cpp:376`，六 golden 親驗；殘餘是葉子非縫 |
+| **S3 ✅** | **flow / 控制流縫（context-var + Execute/Loop）＝已建+golden 綠** | 解鎖 flow 葉子 | SetVar/Switch/Loop/ExecRepeatedly selftest 全 PASS |
 | **S4** | 殘餘 infra 縫（texture-array / RWStructuredBuffer / vec-color-field G3-bridge）+ **point_graph.cpp 拆檔債**（乾淨點交錯） | 解鎖剩餘島 + 還債 | 同檔，跟 S1-S3 同一 worker |
 
 > 這條是最短完成時間的下限。其餘 lane 全繞著它並行。**S1 先做**——它解鎖最多並行 lane。
