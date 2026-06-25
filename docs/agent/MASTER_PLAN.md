@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: a93f2dc
-DIRTY: clean
+HEAD: 331f784
+DIRTY: 1 files
 CENSUS: 417 / 749 done
 BITE: 449 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-26T00:55
+STAMP_AT: 2026-06-26T01:08
 <!-- sw_status:end -->
 
 - 引擎 clone **55%（417/749）**。**clean-leaf 採盡確認＝撿葉子時代結束**：census「leaf-ready」數曾雙重灌水（seam-blocked 誤分 + fork 命名 op 誤標 todo），兩道 scout backward-trace 穿透後真乾淨葉子近零。引擎剩餘 **100% = cook-core 承重 seam**（point-buffer / camera3d / Layer2d / shader-graph），**全需柏為在場 owner-lock 一次一條**。
@@ -25,11 +25,11 @@ STAMP_AT: 2026-06-26T00:55
 
 ## Session Safety
 - 另有 parked worktree `.worktrees/ui-node-skin`（branch `ui/tixl-node-skin` @ `fd542f5`）= 舊 L2 node-skin lane，未合流，**別當死的清掉**。
-- 柏為 2026-06-26 ~00:00 現身 steering（「1」授權 S1→已完成端到端）。S2 起需他再次在場授權（cook-core owner-lock 一次一條）。
+- 柏為 2026-06-26 01:06 收尾離場（授權的 S1 已完成端到端）。**下個 session 起當柏為 ABSENT，直到他親口授權 S2**——S2 是 cook-core owner-lock，不可自走擅開（同 S1，需他在場「開 S2」才動）。
 - **`document.cpp` 卡在 ratchet 上限 400 行**（g_lib 改 lazy 時 trim 註解擠進）→下次動它前必先拆（已 chip `task_19264e66`），否則 linecount 閘擋。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。**S1 完成端到端→下一塊大的＝S2（render-graph/Layer2d/Execute,解鎖 155 節點）= cook-core owner-lock,須柏為在場授權再開**（同脊椎 S3/S4 在後）。先掃 SUBSYSTEM_BACKLOG 桶 C 看 S1 是否升 L6 匯出/out-multi-window READY。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。**S1 完成端到端→下一塊大的＝S2（render-graph/Layer2d/Execute,解鎖 155 節點）= cook-core owner-lock,須柏為在場授權再開**（柏為 ABSENT 時不開,自走只做下方 absent-safe；同脊椎 S3/S4 在後）。**柏為授權 S2 後起手照 S1 已驗工法**：①派 Plan agent 出 S2 藍圖（對 `external/tixl` render-graph/Layer2d/Execute + sw `point_graph_tex_cook.cpp`/cookCommand 現況,釘真實範圍/blast radius/harness=closed-form pixel golden;查清「已做多少 vs 真缺」如 S1 一樣可能比帳面小）→②Opus build（main checkout serial,owner-lock cook-core 檔不並行）→③Opus refuter→④orchestrator 親手合流。設計肉看 [SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md)。先掃 SUBSYSTEM_BACKLOG 桶 C 看 S1 是否升 L6 匯出/out-multi-window READY。
 **柏為-absent 自走可採（純皮 Tier1 已採盡,本 session 兩輪 9 候選確認——別重採）**：剩只 `menu-bar`（帶 native-NSMenu vs TiXL-imgui chrome fork=柏為判）；其餘候選全需 schema/platform/資料源/curve-model（非 absent-safe,清單見 git log）。真 absent-safe 產能＝維運 chip + 體驗軸 P*/Tier2-3（多碰 cook 需柏為）。
 **柏為 decision queue**：①S2 是否現在開（需他在場）②menu-bar chrome 範式（native vs imgui）③`startup-lock-conform` unwired 葉子算不算 DONE 門檻。維運 chip：ui_census 其餘 4 區 false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 
