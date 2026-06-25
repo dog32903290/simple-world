@@ -344,28 +344,28 @@ void run(PointGraph& pg, const std::string& targetPath) {
                            g_frameIndex, &doc::g_lib(), s_svState, s_ctxVars);
   }
 
-  // Cook the HOST-VALUE currencies (String / host-scalar / ColorList + value-output-rail) — the
-  // PRODUCTION legs of the resident rails + (Phase 1) RequestedResolution (seeded from the window
-  // size). It ALSO runs the [SetBpm] triggered-pull (PlaybackUtils.cs:74-78): on the armed edge it
-  // writes doc::g_lib().composition.bpm and returns true → bump g_transport.bpm THIS frame (cs:80) +
-  // dirty it (a direct g_lib.composition write bypasses bumpLibRevision, B4). Non-armed: false → no-op.
+  // Cook the HOST-VALUE currencies (String / host-scalar / ColorList + value-output-rail) — the PRODUCTION
+  // legs of the resident rails + (Phase 1) RequestedResolution, seeded from frameResolution() (S1 hook = TiXL
+  // OutputWindow.cs:411-414 override export>selector>Fill, Fill==window today; MUST agree with the cook seed).
+  // It ALSO runs the [SetBpm] triggered-pull (PlaybackUtils.cs:74-78): on the armed edge it writes doc::g_lib()
+  // .composition.bpm and returns true → bump g_transport.bpm THIS frame (cs:80) + dirty it (a direct g_lib
+  // .composition write bypasses bumpLibRevision, B4). Non-armed: false → no-op.
   if (cookHostValueNodes(g_residentGraph, (float)posBars, (float)fxBars, &doc::g_lib(),
-                         pg.windowResolution().w, pg.windowResolution().h)) {
+                         pg.frameResolution().w, pg.frameResolution().h)) {
     g_transport.bpm = doc::g_lib().composition.bpm;
     doc::invalidateDirtyCache();
   }
 
   ++g_frameIndex;
-  // The GPU EvaluationContext (16-byte) carries the WALL CLOCK (fxTime) as `time`: GPU-side Time/
-  // particle sims are the fxTime consumers (暫停畫面不死). Automation (a CPU value-graph concern)
-  // reads the playhead via the resident ctx above — it never reaches the shader through here.
+  // The GPU EvaluationContext (16-byte) carries the WALL CLOCK (fxTime) as `time`: GPU-side Time/particle
+  // sims are the fxTime consumers (暫停畫面不死). Automation (a CPU value-graph concern) reads the playhead
+  // via the resident ctx above — never the shader through here.
   EvaluationContext ctx{};
   ctx.frameIndex = g_frameIndex;
   ctx.time = (float)fxSecs;          // wall clock, seconds (sims keep running while paused)
   ctx.deltaTime = (float)dtSimSecs;  // SIM dt: clamped (integration stability), NOT the wall dt
-  // LocalFxTime seam (additive): the BARS wall clock (= TiXL EvaluationContext.LocalFxTime =
-  // Playback.FxTimeInBars); value ops needing the bars domain (PerlinNoise2) read this. Populates the
-  // offset-12 slot (was _pad); the GPU upload never reads it, so this is GPU-side a no-op (16 bytes).
+  // LocalFxTime seam (additive): BARS wall clock (= TiXL EvaluationContext.LocalFxTime = Playback.FxTimeIn
+  // Bars); bars-domain value ops (PerlinNoise2) read this. Offset-12 slot (was _pad); GPU upload skips → no-op.
   ctx.localFxTime = (float)fxBars;
 
   // The resident cook fills ITS two-clock ctx (localTime/localFxTime, bars) from the transport

@@ -118,8 +118,8 @@ MTL::Texture* PointGraph::target() const { return p_->displayTex ? p_->displayTe
 void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
                       int targetNodeId, ContextVarMap* ctxVars) {
   p_->displayTex = nullptr;  // default: target() shows the window-sized texture (cmd/preview paths)
-  // S1 seam: seed RequestedResolution to the window (TiXL OutputWindow.cs:411-414 seeding before eval).
-  p_->requestedResolution = RenderResolution{p_->width, p_->height};
+  // S1 seam: seed RequestedResolution to frameResolution() (TiXL OutputWindow.cs:411-414 export>selector>Fill;
+  p_->requestedResolution = frameResolution();  // override when engaged, ELSE window {w,h} = today byte-id).
   const Node* target = g.node(targetNodeId);
   const NodeSpec* ts = target ? findSpec(target->type) : nullptr;
   if (!target || !ts) { p_->clearTarget(); return; }  // no/unknown target -> black, no crash

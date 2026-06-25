@@ -186,4 +186,99 @@ int runRequestedResolutionSelfTest(bool injectBug) {
 
 REGISTER_SELFTESTS(/*orderBase=*/310, {"requestedresolution", runRequestedResolutionSelfTest});
 
+// ───────────────────────── FRAME-LEVEL OVERRIDE GOLDEN (S1 hook) ─────────────────────────
+// The S1 frame-level override hook (PointGraph::setFrameResolutionOverride): TiXL OutputWindow.cs:411-414
+// seeds the frame RequestedResolution as an OVERRIDE point (precedence export > selector > Fill(window)).
+// Today only Fill exists; this golden proves the override REPLACES the Fill seed so a terminal WindowFollow
+// RenderTarget sizes to the requested frame resolution, NOT the window.
+//
+// Topology (IDENTICAL across both legs — differs ONLY in the override, so non-tautological):
+//   RadialPoints → DrawPoints(Command) → RenderTarget(WindowFollow, Resolution=0)  [TERMINAL]
+//   Window 800×600.
+//   Leg A (Fill / no override):   cook → terminal texture is 800×600 (byte-identical-to-window guard).
+//   Leg B (override {1280,720}):  setFrameResolutionOverride → re-cook → terminal is 1280×720 AND a known
+//                                 interior pixel is non-black (the RadialPoints ring rendered into it).
+//   ★injectBug: the override setter is a NO-OP → Leg B stays 800×600 → width()!=1280 → tooth BITES (RED).
+//     Proves the seam under test is the OVERRIDE, not the WindowFollow default (which Leg A already pins).
+int runRequestedResolutionFrameSelfTest(bool injectBug) {
+  NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  const uint32_t N = 128, WINW = 800, WINH = 600, OVW = 1280, OVH = 720;
+
+  MTL::Device* dev = MTL::CreateSystemDefaultDevice();
+  MTL::CommandQueue* q = dev->newCommandQueue();
+  NS::Error* err = nullptr;
+  MTL::Library* lib =
+      dev->newLibrary(NS::String::string(SW_SHADER_METALLIB, NS::UTF8StringEncoding), &err);
+  if (!lib) {
+    std::printf("[selftest-requestedresolution-frame] FAIL: no metallib\n");
+    q->release(); dev->release(); pool->release();
+    return 1;
+  }
+  registerBuiltinPointOps();  // RadialPoints + DrawPoints + RenderTarget
+
+  PointGraph pg(dev, lib, q, WINW, WINH);  // window 800×600
+  Graph g;
+  // RadialPoints (id 1) → DrawPoints (id 2)
+  Node gen; gen.id = 1; gen.type = "RadialPoints";
+  gen.params["Count"] = (float)N; gen.params["Radius"] = 2.0f; g.nodes.push_back(gen);
+  Node drw; drw.id = 2; drw.type = "DrawPoints"; g.nodes.push_back(drw);
+  // RenderTarget (id 3, the TERMINAL): WindowFollow (Resolution=0) → ADOPTS the active requestedResolution,
+  // which the cook seeds from frameResolution(): the window when no override, the override when engaged.
+  Node rt; rt.id = 3; rt.type = "RenderTarget"; rt.params["Resolution"] = 0.0f; g.nodes.push_back(rt);
+
+  g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // RadialPoints.points → DrawPoints.points
+  g.connections.push_back({102, pinId(2, 1), pinId(3, 0)});  // DrawPoints.out → RenderTarget.command
+
+  EvaluationContext ctx{};
+  ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+
+  // ── Leg A: Fill (no override) → terminal sizes to the 800×600 window ──
+  pg.clearFrameResolutionOverride();  // unset = Fill (byte-identical to before the hook)
+  pg.cook(g, ctx, nullptr, /*targetNodeId=*/3);
+  MTL::Texture* texA = pg.debugCookedTexture(3);
+  uint32_t aw = texA ? (uint32_t)texA->width() : 0;
+  uint32_t ah = texA ? (uint32_t)texA->height() : 0;
+  bool fillOk = texA && aw == WINW && ah == WINH;
+
+  // ── Leg B: explicit override {1280,720} → terminal sizes to the override (NOT the window) ──
+  // ★injectBug: SKIP the override setter → Leg B re-cooks under Fill → terminal stays 800×600 → RED.
+  if (!injectBug) pg.setFrameResolutionOverride(RenderResolution{OVW, OVH});
+  pg.cook(g, ctx, nullptr, /*targetNodeId=*/3);
+  MTL::Texture* texB = pg.debugCookedTexture(3);
+  uint32_t bw = texB ? (uint32_t)texB->width() : 0;
+  uint32_t bh = texB ? (uint32_t)texB->height() : 0;
+  bool sizedB = texB && bw == OVW && bh == OVH;
+
+  int nonBlack = 0;
+  if (sizedB) {
+    std::vector<uint8_t> px((size_t)bw * bh * 4, 0);
+    texB->getBytes(px.data(), bw * 4, MTL::Region::Make2D(0, 0, bw, bh), 0);
+    for (size_t i = 0; i < (size_t)bw * bh; ++i)
+      if (px[i * 4] > 30 || px[i * 4 + 1] > 30 || px[i * 4 + 2] > 30) ++nonBlack;
+  }
+
+  bool pass = fillOk && sizedB && nonBlack > 50;
+  std::printf("[selftest-requestedresolution-frame] fill=%ux%u(want %ux%u) override=%ux%u(want %ux%u) "
+              "nonBlack=%d(need>50) -> %s\n", aw, ah, WINW, WINH, bw, bh, OVW, OVH, nonBlack,
+              pass ? "PASS" : "FAIL");
+
+  pg.clearFrameResolutionOverride();  // leave no leaked override (hygiene; pg is local anyway)
+  lib->release(); q->release(); dev->release(); pool->release();
+
+  if (injectBug) {
+    if (pass) {
+      std::printf("[selftest-requestedresolution-frame] FAIL: injectBug still passed (override sized "
+                  "1280×720 with a NO-OP setter — the frame hook is not actually overriding the seed)\n");
+      return 1;
+    }
+    std::printf("[selftest-requestedresolution-frame] injectBug correctly RED (no-op override setter → "
+                "terminal sized from the %ux%u window, not %ux%u)\n", WINW, WINH, OVW, OVH);
+    return 1;
+  }
+  return pass ? 0 : 1;
+}
+
+REGISTER_SELFTESTS(/*orderBase=*/311,
+                   {"requestedresolution-frame", runRequestedResolutionFrameSelfTest});
+
 }  // namespace sw

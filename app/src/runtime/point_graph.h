@@ -380,32 +380,32 @@ class PointGraph {
   bool valid() const;
   // Cook the sub-graph feeding `targetNodeId` this frame and realize it into target(): a draw node
   // (PointDrawFn) renders its Points input; else a Points-producing op's bag is cooked but not yet shown
-  // (a raw Points preview needs a typed wrapper — future). `targetNodeId` = what the viewport shows; the
-  // live loop passes defaultDrawTarget(), a future "pin any node" (view ⊥ graph, TiXL OutputWindow) another.
-  // S3a: `ctxVars` (trailing, defaulted) = the LIVE host context-var map threaded into every command cook
-  // so a Command-rail SetVar pushes a scoped var around its SubGraph. nullptr = no map (byte-identical).
+  // (raw Points preview needs a typed wrapper — future). `targetNodeId` = what the viewport shows (live loop
+  // passes defaultDrawTarget(); a future "pin any node" another). S3a: `ctxVars` (trailing, defaulted) = the
+  // LIVE host context-var map threaded into every command cook (SetVar scopes a var). nullptr = byte-identical.
   void cook(const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
             int targetNodeId, ContextVarMap* ctxVars = nullptr);
-  // Resident-graph cook (slice 2 walk + 2b parity): walk a ResidentEvalGraph by path-qualified id and
-  // realize `targetPath` into target() with the SAME three-flow terminal as cook() (tex/cmd/preview),
-  // per-path persistent buffers + stateful state, and driver-resolved Float params (the 2b seam). Float
-  // reads go through evalResidentFloat. Proven by --selftest-residentcook + --selftest-residentparity.
-  // S5: localTime/localFxTime (BARS) from the Transport (frame_cook) — localTime = playhead (automation
-  // samples it), localFxTime = wall clock; `lib` lets Automation drivers resolve curves through the
-  // definition-layer Animators (S3). All three default to the pre-S5 placeholder (ctx.time/no lib).
-  // S3a: `ctxVars` (trailing, defaulted) = the resident mirror of cook()'s context-var param, so the
-  // Command-rail SetVar push/restore reaches BOTH legs. nullptr = no map (resident goldens byte-unchanged).
+  // Resident-graph cook (slice 2 walk + 2b parity): walk a ResidentEvalGraph by path-qualified id, realize
+  // `targetPath` into target() with the SAME three-flow terminal as cook() (tex/cmd/preview), per-path
+  // persistent buffers + stateful state, driver-resolved Float params (2b seam, via evalResidentFloat).
+  // Proven by --selftest-residentcook + --selftest-residentparity. S5: localTime/localFxTime (BARS) from
+  // the Transport — localTime = playhead (automation samples), localFxTime = wall clock; `lib` lets Automation
+  // resolve curves via definition-layer Animators (S3). S3a: `ctxVars` = resident mirror of cook()'s context-
+  // var param (SetVar push/restore reaches BOTH legs). All trailing args default to pre-S5/null (byte-unchanged).
   void cookResident(const struct ResidentEvalGraph& rg, const EvaluationContext& ctx,
                     const SourceRegistry* reg, const std::string& targetPath,
                     float localTimeBars = -1.0f, float localFxTimeBars = -1.0f,
                     const SymbolLibrary* lib = nullptr, ContextVarMap* ctxVars = nullptr);
   // Default viewport target = the first draw node (today's wired terminal). 0 if none.
   int defaultDrawTarget(const Graph& g) const;
-  // Same, inside ONE symbol's subgraph (the lib-native canvas, 批次 3): the first child
-  // whose op realizes (RenderTarget tex > DrawPoints cmd > legacy draw). 0 if none.
+  // Same, inside ONE symbol's subgraph (批次 3): first realizing child (RenderTarget>DrawPoints>draw); 0 none.
   int defaultDrawTarget(const SymbolLibrary& lib, const std::string& symbolId) const;
   MTL::Texture* target() const;
   RenderResolution windowResolution() const;  // value-output-rail P1: window size → RequestedResolution emit
+  // S1 frame-level override hook (TiXL OutputWindow.cs:411-414 export>selector>Fill; doc in _debug.cpp).
+  void setFrameResolutionOverride(RenderResolution res);  // Output/export requests a frame render size
+  void clearFrameResolutionOverride();                    // back to Fill (window) — the default
+  RenderResolution frameResolution() const;  // override if set, else windowResolution(); UNSET==today.
   // Test-support: the count a flat-cooked node's output bag was sized to last cook (0 if never
   // cooked). Lets goldens assert the count-policy driver (e.g. SnapToPoints out == Points1, not sum).
   uint32_t debugCookedCount(int nodeId) const;

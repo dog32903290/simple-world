@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -102,13 +103,13 @@ struct PointGraph::Impl {
   MTL::Texture* target = nullptr;
   uint32_t width = 0, height = 0;
 
-  // S1 OUTPUT-RESOLUTION SEAM: per-cook RequestedResolution stack-top, CPU-only (forks cpu-resstack /
-  // int2-as-renderresolution). Full doc in point_ops_setrequestedresolution.cpp.
+  // S1 RES SEAM: requestedResolution = per-cook stack-top (CPU; doc point_ops_setrequestedresolution.cpp).
+  // frameResOverride = FRAME OVERRIDE (export>selector>Fill; doc _debug.cpp; unset == Fill == today byte-id).
   RenderResolution requestedResolution;
+  std::optional<RenderResolution> frameResOverride;
 
-  // Per-node persistent resources (reused across frames; the RESOURCE_LIFETIME golden:
-  // allocate → reuse (count unchanged) → reallocate (count grew)). Keyed by resident path
-  // or "#"-prefixed flat id (pgdetail::flatKey).
+  // Per-node persistent resources (reused across frames; RESOURCE_LIFETIME golden: allocate → reuse (count
+  // unchanged) → reallocate (count grew)). Keyed by resident path or "#"-prefixed flat id (pgdetail::flatKey).
   std::map<std::string, MTL::Buffer*> outBuf;    // key -> output point buffer
   std::map<std::string, uint32_t> outCap;        // key -> allocated capacity (points)
   std::map<std::string, uint32_t> outCount;      // key -> last cooked count (points)
@@ -116,14 +117,13 @@ struct PointGraph::Impl {
   std::map<std::string, PointStateFreeFn> stateFree;
   std::map<std::string, uint32_t> stateCap;      // key -> count the state was created for
 
-  // Per-node RenderTarget textures (the Texture2D stream's resources; realloc on resolution
-  // change — RESOURCE_LIFETIME). displayTex = the texture target() shows this frame: a tex
-  // terminal's own resolution-sized texture, or null -> fall back to the window-sized `target`.
+  // Per-node RenderTarget textures (Texture2D stream resources; realloc on resolution change —
+  // RESOURCE_LIFETIME). displayTex = the texture target() shows this frame: a tex terminal's own
+  // resolution-sized texture, or null -> fall back to the window-sized `target`.
   std::map<std::string, MTL::Texture*> texBuf;
   std::map<std::string, uint32_t> texW, texH;
   std::map<std::string, bool> texMipped;  // realloc key: a false->true change MUST reallocate
-  std::map<std::string, uint32_t> texFmt;  // realloc key for OWN-TEXTURE ops (ensureOwnedTex): a
-                                           // format change MUST reallocate (parallel to texW/H/Mipped)
+  std::map<std::string, uint32_t> texFmt;  // OWN-TEXTURE realloc key (ensureOwnedTex): format change reallocs
   MTL::Texture* displayTex = nullptr;
 
   // Per-node MESH output (the 4th cook flow = TiXL MeshBuffers). A mesh node owns a PAIR of buffers —

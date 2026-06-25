@@ -41,6 +41,15 @@ RenderResolution PointGraph::windowResolution() const {
   return RenderResolution{p_->width, p_->height};
 }
 
+// S1 frame-level override hook (TiXL OutputWindow.cs:411-414, precedence export > selector > Fill). The
+// optional sentinel keeps the UNSET path byte-identical to Fill — frameResolution() returns the window
+// size exactly as windowResolution() does when no override is engaged.
+void PointGraph::setFrameResolutionOverride(RenderResolution res) { p_->frameResOverride = res; }
+void PointGraph::clearFrameResolutionOverride() { p_->frameResOverride.reset(); }
+RenderResolution PointGraph::frameResolution() const {
+  return p_->frameResOverride ? *p_->frameResOverride : RenderResolution{p_->width, p_->height};
+}
+
 const MTL::Buffer* PointGraph::debugCookedBuffer(int nodeId) const {
   auto it = p_->outBuf.find(flatKey(nodeId));
   return it != p_->outBuf.end() ? it->second : nullptr;
