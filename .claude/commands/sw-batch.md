@@ -16,6 +16,14 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
 - **Phase C 開採**：地基都在了，每顆 op 都是乾淨葉子、互不撞車 → 大量並行織（worktree lane，合流零衝突）。微 parity 細節（FloatsToBuffer 路由、unwired-input、sampler 模式）仍每顆用 **backward-trace（Cut 58 教訓，別 forward-trace）+ refuter** 處理。
 階段狀態寫在 memory lane-state 頭：現在在 A/B/C 哪段、地基清單剩哪些、開採 backlog 剩哪些。
 
+### ★每批開頭先定位（2026-06-25 柏為定，治「看進度就幻覺、耗大量 token 逐檔對」）
+進度真相**一律從 `tools/op_census.sh` 查**，不信手寫 census 數字——OP_BACKLOG 桶/SEAM_STATE/MASTER_PLAN 縫描述會 stale、會互相打架（實證：SEAM_STATE 曾把 Render2dField 誤報成 BUILT，工具一跑抓出 0 命中）。**三命令定位，不下場 grep：**
+- `tools/op_census.sh --overview` — 克隆到哪了（真節點 749，已 port X，每島剩幾顆）
+- `tools/op_census.sh --seams` — 哪幾條縫卡幾顆、該先做哪條（**seam-build**=先蓋縫解鎖一批／**leaf-ready**=縫已建直接採／**domain-blocked**=晚做或柏為域，按解鎖量排序）
+- `tools/op_census.sh <island>` — 某島逐顆 [x]做了/[ ]沒做（複查 sw 命名 fork）
+
+**選批邏輯**：想大量產出節點→投資 `--seams` 裡 seam-build **解鎖量最高**的縫；想零等待自走→採 leaf-ready。**縫定義 SSOT = `tools/seam_map.tsv`**（蓋完一條縫就改它的 kind，工具自動反映）。Phase A 普查表（OP_BACKLOG/SEAM_GRAPH）留作 seam 設計的肉，但 **done/todo/縫狀態的數字以工具為準**。
+
 ## 不變的憲法（每批都適用）
 1. **規則訂版：不問柏為，問 TiXL。** 任何行為/視覺/數值的疑問 → 開 `external/tixl` 源碼定案
    （唯讀，嚴禁 pull）。源碼有歧義 → 跑真 TiXL 定案，不猜。**預設照 TiXL，fork 必具名。**
