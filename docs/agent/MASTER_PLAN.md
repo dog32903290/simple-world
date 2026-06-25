@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 1d646bb
+HEAD: e064f65
 DIRTY: clean
 CENSUS: 417 / 749 done
 BITE: 447 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-25T15:53
+STAMP_AT: 2026-06-25T15:54
 <!-- sw_status:end -->
 
 - 引擎 clone **55%（417/749）**。**clean-leaf 採盡確認＝撿葉子時代結束**：census「leaf-ready」數曾雙重灌水（seam-blocked 誤分 + fork 命名 op 誤標 todo），兩道 scout backward-trace 穿透後真乾淨葉子近零。引擎剩餘 **100% = cook-core 承重 seam**（point-buffer / camera3d / Layer2d / shader-graph），**全需柏為在場 owner-lock 一次一條**。
