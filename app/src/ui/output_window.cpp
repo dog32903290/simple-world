@@ -35,6 +35,12 @@ namespace MTL { class Texture; }
 namespace sw {
 MTL::Texture* previewTexture();
 bool previewTextureSize(int& w, int& h);
+// Output-resolution-selector seam (S1-ui): the combo writes the frame render-size override the
+// cook seeds into RequestedResolution (cook-core hook landed in 1b53b12). A preset → set; Fill →
+// clear (back to window size, byte-identical to today). Defined in main.cpp (shell owns g_pointGraph).
+void setOutputResolutionOverride(int w, int h);
+void clearOutputResolutionOverride();
+bool outputWindowResolution(int& w, int& h);  // Fill baseline (TiXL GetWindowSize role)
 }  // namespace sw
 
 namespace sw::ui {
@@ -89,6 +95,62 @@ void setPixelScale(CanvasState& c, float texW, float texH, float regionW, float 
   c.scale = 1.0f;
   c.scrollX = -(regionW - texW) * 0.5f;
   c.scrollY = -(regionH - texH) * 0.5f;
+}
+
+// --- Output resolution selector (port of TiXL ResolutionHandling) ----------------------------
+// The preset TABLE is the canonical default set (ResolutionHandling.cs:69-78) — exact labels +
+// dims, in order, 隨 TiXL 不自編. `useAsAspectRatio` entries resolve through ComputeResolution
+// (window-aspect fit); fixed-pixel entries return their {w,h} verbatim. The Fill sentinel is
+// index 0 (DefaultResolution): selecting it CLEARS the cook override (== window size == today).
+// Data-driven (鐵律 7): one row per preset, the combo + apply both iterate the table.
+struct ResPreset {
+  const char* title;
+  int w, h;
+  bool useAsAspectRatio;
+};
+const ResPreset kResPresets[] = {
+    {"Fill", 0, 0, true},   {"1:1", 1, 1, true},   {"16:9", 16, 9, true},
+    {"4:3", 4, 3, true},    {"480p", 850, 480, false},  {"720p", 1280, 720, false},
+    {"1080p", 1920, 1080, false}, {"4k", 1920 * 2, 1080 * 2, false},
+    {"8k", 1920 * 4, 1080 * 4, false}, {"4k Portrait", 1080 * 2, 1920 * 2, false},
+};
+constexpr int kResPresetCount = static_cast<int>(sizeof(kResPresets) / sizeof(kResPresets[0]));
+
+// Session-only selection: index into kResPresets. 0 = Fill = DefaultResolution = follow window
+// (the cook default). Never serialized — matches the Pin (a view setting, not graph state) and
+// TiXL, which keeps _selectedResolution in the OutputWindow instance, not the .t3.
+int g_selectedResIndex = 0;
+
+// TiXL Resolution.ComputeResolution (ResolutionHandling.cs:115-135). Fixed-pixel preset → its
+// own size. UseAsAspectRatio with 0/0 (Fill) → the window size verbatim. Otherwise fit the
+// requested aspect into the window: requested wider than window → fit width (letterbox), else fit
+// height (pillarbox). `winW/winH` is the Fill baseline = the cook's window resolution. Returns
+// {0,0} only if the window is degenerate (caller treats that as "leave override unset" = Fill).
+struct Int2 { int w, h; };
+Int2 computeResolution(const ResPreset& p, int winW, int winH) {
+  if (!p.useAsAspectRatio) return {p.w, p.h};
+  if (winW <= 0 || winH <= 0) return {0, 0};
+  if (p.w <= 0 || p.h <= 0) return {winW, winH};  // Fill: window size verbatim
+  const float windowAspect = static_cast<float>(winW) / static_cast<float>(winH);
+  const float requestedAspect = static_cast<float>(p.w) / static_cast<float>(p.h);
+  return (requestedAspect > windowAspect)
+             ? Int2{winW, static_cast<int>(winW / requestedAspect)}
+             : Int2{static_cast<int>(winH * requestedAspect), winH};
+}
+
+// Drive the cook-core override to match g_selectedResIndex. Fill (index 0) clears; any other
+// preset sets the computed size. `winW/winH` = the Fill-baseline window size (the size the cook
+// shows when no override is engaged). Called ON CHANGE (not every frame) so there is no cook
+// churn — the setters are idempotent, but we still gate on a change to keep the contract crisp.
+void applyResolutionSelection(int winW, int winH) {
+  const ResPreset& p = kResPresets[g_selectedResIndex];
+  if (g_selectedResIndex == 0) {  // Fill / DefaultResolution -> back to window size.
+    sw::clearOutputResolutionOverride();
+    return;
+  }
+  const Int2 r = computeResolution(p, winW, winH);
+  if (r.w > 0 && r.h > 0) sw::setOutputResolutionOverride(r.w, r.h);
+  else sw::clearOutputResolutionOverride();  // degenerate window -> behave as Fill
 }
 }  // namespace
 
@@ -151,6 +213,57 @@ void drawOutputWindow() {
       ImGui::SetTooltip("Save screenshot");  // TiXL tooltip (OutputWindow.cs:338)
   }
   sw::eye::recordItem("output_snapshot_btn");  // eye: hand off this button's screen rect
+  ImGui::SameLine();
+
+  // --- Output resolution selector (TiXL ResolutionHandling.DrawSelector, OutputWindow.cs:316) ---
+  // Picks the frame render size the cook seeds into RequestedResolution. Fill (default) follows the
+  // window (== today, byte-identical); a preset retargets a Texture/image-filter terminal. The
+  // selection is session-only view state (g_selectedResIndex), never serialized — same as the Pin.
+  // Record the combo box's rect from PRE-widget geometry: while its popup is open, the "last item"
+  // is the popup's last Selectable, so recording after BeginCombo would hand the map that instead
+  // of the combo box (inspector.cpp:190 refuter N4 #2). The open rows are addressed by the eye's
+  // popup walker as popup_item:<combo-window>:<row> (eye.mm recordOpenPopupItems).
+  const ImVec2 comboPos = ImGui::GetCursorScreenPos();
+  ImGui::SetNextItemWidth(110.0f);
+  const float comboW = 110.0f;
+  if (ImGui::BeginCombo("##OutputResolution", kResPresets[g_selectedResIndex].title)) {
+    // Group header (TiXL ResolutionHandling.cs:22 CustomComponents.MenuGroupHeader): a non-
+    // selectable label row above the presets. Faithful, AND it occupies the popup's top slot —
+    // which ImGui overlaps with the combo box — so every SELECTABLE preset (incl. Fill) sits in a
+    // row clear of the combo button, keeping each one hand-clickable (no row-0/header collision).
+    ImGui::TextDisabled("Output Resolution");
+    for (int i = 0; i < kResPresetCount; ++i) {
+      const bool sel = (i == g_selectedResIndex);
+      if (ImGui::Selectable(kResPresets[i].title, sel) && i != g_selectedResIndex) {
+        g_selectedResIndex = i;                  // record the pick (TiXL selectedResolution = res)
+        int winW = 0, winH = 0;
+        sw::outputWindowResolution(winW, winH);  // Fill baseline for the aspect-fit presets
+        applyResolutionSelection(winW, winH);    // ON CHANGE: Fill clears, a preset sets — no churn
+      }
+      // Give each open row a '#'-free named rect for the hand (output_res_row:<i>). The generic
+      // eye popup-walker emits "popup_item:##Combo_00:<row>", but the scenario runner strips '#'
+      // as a comment delimiter, so that label can't be addressed from a .scn. These named rects
+      // (recorded only while the popup is open, same as the inspector enum combo) are clean. The
+      // index is the TABLE order (i), which == geometric order because we omit the focus-scroll.
+      {
+        const ImVec2 mn = ImGui::GetItemRectMin(), mx = ImGui::GetItemRectMax();
+        char rowLbl[32];
+        std::snprintf(rowLbl, sizeof(rowLbl), "output_res_row:%d", i);
+        sw::eye::recordRect(rowLbl, mn.x, mn.y, mx.x, mx.y);
+      }
+      // NB: deliberately NOT calling SetItemDefaultFocus() on the selected row. That call makes
+      // ImGui auto-scroll the popup so the selected item aligns with the combo box — which shifts
+      // every row's screen position by the selection offset, breaking the eye's geometric popup
+      // walker (a hand clicking "Fill" after picking "1080p" would land on a scrolled-away row).
+      // The full preset list is short and fully visible, so no scroll-to-selection is needed; the
+      // selected row still shows its highlight. Keeps geometric row N == table order N, always.
+    }
+    ImGui::EndCombo();
+  } else if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Adjust requested output resolution");  // TiXL tooltip (ResolutionHandling.cs:56)
+  }
+  sw::eye::recordRect("output_resolution_combo", comboPos.x, comboPos.y,
+                      comboPos.x + comboW, comboPos.y + ImGui::GetFrameHeight());
   ImGui::SameLine();
 
   // What the viewport is actually showing (mirror the shell's cook-target priority in

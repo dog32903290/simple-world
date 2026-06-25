@@ -1,0 +1,65 @@
+# output_resolution_selector.scn — S1-ui live tooth: the Output window's resolution selector
+# (TiXL ResolutionHandling.DrawSelector, OutputWindow.cs:316) writes the cook-core frame override
+# (RequestedResolution seed, hook landed 1b53b12). Fill = window size (today, byte-identical); a
+# preset retargets the render. This scenario drives the combo by hand and asserts the COOKED
+# preview dims actually change — coupling the assertion to the real cook, not to the UI label.
+#
+# WHY a RenderTarget terminal: the default doc's DrawPoints terminal is a Command op that always
+# renders into the window-sized texture (the override is seeded but a Command terminal ignores it,
+# byte-identical to today). A RenderTarget terminal with Resolution=WindowFollow (its default)
+# ADOPTS the active RequestedResolution, so its own texture retargets — exactly where the override
+# becomes visible. We build DrawPoints#7 -> RenderTarget#104 (RT becomes the tex-sink terminal).
+#
+# RED proofs (assertions couple to actual cooked dims, not luck):
+#   - assert the WRONG dims (e.g. assert 1280x720 after picking 1080p) -> RED.
+#   - break the selector's setOutputResolutionOverride wiring -> preview stays 512x512 after the
+#     1080p pick -> the .preview.w==1920 assert goes RED.
+#   - break Fill's clearOutputResolutionOverride -> preview stays 1920x1080 after the Fill pick ->
+#     the return-to-512 assert goes RED (this is the lifetime leak the writer must prevent).
+
+# --- the selector toolbar item exists (eye::recordRect output_resolution_combo) ---
+assert_map_has output_resolution_combo
+echo resolution-combo-present
+
+# --- build a RenderTarget terminal so the override is observable in cooked dims ---
+# Add RenderTarget on the blank canvas (same clear region blur_chain.scn uses).
+do rclick 250 240
+wait 0.4
+assert_map_has ctx:add_node_bg
+do click @ctx:add_node_bg
+wait 0.4
+do click @bgctx:add:RenderTarget
+wait 0.5
+assert_state '[.lib.symbols[].children[] | select(.id == 104)] | length == 1'
+echo rendertarget-104-spawned
+
+# Wire DrawPoints#7.out[pin 702] -> RenderTarget#104.command[pin 10401]. RT#104's output is
+# unconsumed, so defaultDrawTarget picks it as the tex-sink terminal.
+do drag @pin:702 @pin:10401
+wait 0.4
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[]] | length == 4'
+echo drawpoints-into-rendertarget-wired
+
+# --- Fill baseline: the RT terminal follows the window (512x512). This is the cook default. ---
+wait 0.4
+assert_state '.preview.w == 512 and .preview.h == 512'
+echo fill-baseline-is-window-512
+
+# --- drive the selector to 1080p. Each open preset row carries a '#'-free named rect
+# output_res_row:<table-index> (Fill=0, 1:1=1, 16:9=2, 4:3=3, 480p=4, 720p=5, 1080p=6, 4k=7,
+# 8k=8, 4k Portrait=9). The combo omits scroll-to-selection so row positions are stable. ---
+do click @output_resolution_combo
+wait 0.4
+do click @output_res_row:6
+wait 0.6
+assert_state '.preview.w == 1920 and .preview.h == 1080'
+echo selector-1080p-retargets-to-1920x1080
+
+# --- switch back to Fill (row 0): the override MUST clear and the render returns to the window
+# size. A leak here (override not cleared) keeps the render at 1920x1080 -> RED. ---
+do click @output_resolution_combo
+wait 0.4
+do click @output_res_row:0
+wait 0.6
+assert_state '.preview.w == 512 and .preview.h == 512'
+echo fill-clears-override-back-to-window-512

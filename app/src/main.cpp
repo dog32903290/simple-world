@@ -94,6 +94,33 @@ bool residentNodeTextureSize(const char* path, int& w, int& h) {
   h = static_cast<int>(tex->height());
   return w > 0 && h > 0;
 }
+
+// Output-resolution-selector seam (S1-ui, TiXL OutputWindow.cs:316/411-414). The Output window's
+// resolution combo writes the FRAME render size the cook seeds into RequestedResolution. Same
+// shell-owned contract as previewTexture(): the ui zone owns "which preset is selected" (session
+// state) and on a change calls these to drive the cook-core override that landed in 1b53b12.
+// A preset → setFrameResolutionOverride; Fill → clearFrameResolutionOverride (back to window size,
+// byte-identical to today). The window stays a single output graph, so there is exactly one
+// override to drive — no per-graph leak. Idempotent setters on the runtime side (a plain assign /
+// optional.reset), so calling on-change carries no cook churn.
+void setOutputResolutionOverride(int w, int h) {
+  if (::g_pointGraph && w > 0 && h > 0)
+    ::g_pointGraph->setFrameResolutionOverride(
+        sw::RenderResolution{static_cast<uint32_t>(w), static_cast<uint32_t>(h)});
+}
+void clearOutputResolutionOverride() {
+  if (::g_pointGraph) ::g_pointGraph->clearFrameResolutionOverride();
+}
+// The Fill baseline = the graph's window resolution (TiXL's ImGui.GetWindowSize() role in
+// Resolution.ComputeResolution). The aspect-ratio presets (1:1/16:9/4:3) fit against this; Fill
+// returns it verbatim. false when there is no graph yet.
+bool outputWindowResolution(int& w, int& h) {
+  if (!::g_pointGraph) return false;
+  const sw::RenderResolution r = ::g_pointGraph->windowResolution();
+  w = static_cast<int>(r.w);
+  h = static_cast<int>(r.h);
+  return w > 0 && h > 0;
+}
 }  // namespace sw
 
 // P6 — Player / 演出 output mode (modes.md [core]; TiXL Player/Program.cs is a separate exe, but
@@ -403,8 +430,17 @@ void Renderer::draw(MTK::View* pView) {
         ", \"fxTime\": " + std::to_string(sw::framecook::transportFxTime()) +
         ", \"rate\": " + std::to_string(sw::framecook::transportRate()) +
         ", \"bpm\": " + std::to_string(sw::framecook::transportBpm()) + "}";
+    // Cooked preview dims (S1-ui readback): the size of the texture the Output window shows this
+    // frame. Fill == window size; an Output resolution-selector override retargets a Texture/
+    // image-filter terminal, so a scenario can machine-assert the override actually changed the
+    // render size. 0×0 when no texture cooked yet. One-line eye hook; no verify logic in business.
+    int pvW = 0, pvH = 0;
+    const bool havePv = sw::previewTextureSize(pvW, pvH);
+    std::string preview = "{\"w\": " + std::to_string(havePv ? pvW : 0) +
+                          ", \"h\": " + std::to_string(havePv ? pvH : 0) + "}";
     std::string s = "{\"selectedNode\": " + std::to_string(sw::ui::g_selectedNode) +
                     ", \"pinnedNode\": " + std::to_string(sw::ui::g_pinnedNode) +
+                    ", \"preview\": " + preview +
                     ", \"compositionPath\": " + comp +
                     ", \"transport\": " + transport +
                     ", \"timelineSelection\": " + sw::ui::timelineSelectionJson() +
