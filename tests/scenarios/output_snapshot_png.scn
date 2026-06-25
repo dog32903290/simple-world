@@ -1,0 +1,33 @@
+# output_snapshot_png.scn — out-snapshot-png live tooth (render-output-page.md [important] 無截圖功能).
+#   The Output window toolbar carries a "Snapshot" button (TiXL OutputWindow.cs:332 Icon.Snapshot ->
+#   RenderProcess.TryRenderScreenShot, RenderProcess.cs:47-63). Clicking it reads back the current
+#   Output render and writes <Screenshots dir>/<yyyy_MM_dd-HH_mm_ss_fff>.png — directly, no save
+#   dialog (faithful to TiXL, which has none for screenshots). The deterministic test seam:
+#   $SW_SNAPSHOT_DIR (set by sw_scenario.sh app_launch to a per-run dir) overrides the dir so the
+#   click writes to a known place the hand can drive without a modal.
+#
+# RED proofs (the assertion couples to the WRITE, not to luck):
+#   - assert_file_png BEFORE the click -> baseline == now, no new PNG -> RED.
+#   - remove the Snapshot button / break saveSnapshot -> the post-click assert finds no new PNG -> RED.
+
+# Default doc renders the particle preview; the button is enabled only when previewTexture() exists.
+assert_map_has output_snapshot_btn
+echo snapshot-button-present
+
+# Baseline: how many PNGs are in the snapshot dir before we click (should be 0 on a fresh run).
+snap_count before
+
+# Click the Snapshot button (hand resolves @output_snapshot_btn to its screen-rect center).
+do click @output_snapshot_btn
+wait 0.6
+
+# A new, valid, non-empty PNG landed in the product snapshot dir.
+assert_file_png before
+echo snapshot-written
+
+# A SECOND click writes ANOTHER distinct PNG (timestamp millisecond field -> no collision).
+snap_count second
+do click @output_snapshot_btn
+wait 0.6
+assert_file_png second
+echo second-snapshot-written

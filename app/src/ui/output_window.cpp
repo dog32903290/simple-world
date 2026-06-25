@@ -22,6 +22,7 @@
 #include "imgui.h"
 
 #include "app/document.h"
+#include "app/snapshot.h"  // saveSnapshot: product Output→PNG (TiXL OutputWindow Icon.Snapshot)
 #include "ui/editor_ui.h"  // g_pinnedNode (the session pin) + g_selectedNode (what Pin grabs)
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec (a compound child resolves like an atomic, N1)
@@ -129,6 +130,27 @@ void drawOutputWindow() {
   ImGui::SameLine();
   const bool wantPixel = ImGui::Button("1:1");
   sw::eye::recordItem("output_pixel_btn");
+  ImGui::SameLine();
+
+  // Snapshot: save the current Output render to a PNG the user keeps (TiXL OutputWindow.cs:332
+  // Icon.Snapshot → RenderProcess.TryRenderScreenShot). Writes <project>/Screenshots/<stamp>.png
+  // directly — no save dialog (faithful to TiXL, which has none for screenshots). Disabled when
+  // there is no preview texture yet (nothing to capture), mirroring TiXL's MainOutputType==null
+  // disabled state. ui → app(saveSnapshot) → platform(image_save): no Metal in this zone.
+  {
+    MTL::Texture* snapTex = sw::previewTexture();
+    ImGui::BeginDisabled(snapTex == nullptr);
+    if (ImGui::Button("Snapshot")) {
+      std::string path;
+      const std::string written = sw::saveSnapshot(snapTex, &path);
+      sw::doc::g_status = written.empty() ? ("snapshot failed -> " + path)
+                                          : ("snapshot saved -> " + written);
+    }
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+      ImGui::SetTooltip("Save screenshot");  // TiXL tooltip (OutputWindow.cs:338)
+  }
+  sw::eye::recordItem("output_snapshot_btn");  // eye: hand off this button's screen rect
   ImGui::SameLine();
 
   // What the viewport is actually showing (mirror the shell's cook-target priority in

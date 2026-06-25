@@ -194,6 +194,7 @@ bool confirmDiscardIfDirty() {
   return false;
 }
 
+const std::string& documentPath() { return g_documentPath; }  // "" == never saved (anon global)
 // Always prompts for a location. Returns true if a file was written.
 bool doSaveAs() {
   NFD::Guard nfdGuard;
@@ -296,8 +297,7 @@ void doNew() {
 void updateWindowTitle() {
   if (!g_window) return;
   std::string name = g_documentPath.empty()
-      ? std::string("Untitled")
-      : g_documentPath.substr(g_documentPath.find_last_of('/') + 1);
+      ? std::string("Untitled") : g_documentPath.substr(g_documentPath.find_last_of('/') + 1);
   std::string title = (isDirty() ? "• " : "") + name + " — simple_world";
   if (title == g_lastTitle) return;
   g_lastTitle = title;

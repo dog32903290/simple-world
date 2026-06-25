@@ -92,6 +92,9 @@ set_source_files_properties(src/platform/dialogs.mm PROPERTIES COMPILE_OPTIONS -
 # metal-cpp pointers (manual release) -> compile WITHOUT ARC, like eye.mm / dialogs.mm.
 set_source_files_properties(src/platform/image_decode.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 set_source_files_properties(src/platform/image_decode_selftest.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
+# image_save.mm: ImageIO/CoreGraphics CFTypeRefs (manual CFRelease) + metal-cpp getBytes, same
+# manual-lifetime convention as image_decode.mm / eye.mm -> compile WITHOUT ARC.
+set_source_files_properties(src/platform/image_save.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 # metal_compile{,_selftest}.mm: the one newLibrary(source) site + its proof. Manual metal-cpp
 # lifetime (NS::String/CompileOptions/Library/Function) alongside no ARC, like the .mm above.
 set_source_files_properties(src/platform/metal_compile.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
@@ -154,6 +157,7 @@ add_executable(simple_world
   src/app_delegate.cpp
   ${SW_SELFTEST_SRCS}  # globbed: selftests.cpp router + selftests_<area>.cpp manifests + selftest_registry.cpp
   src/app/document.cpp
+  src/app/snapshot.cpp  # out-snapshot-png: product Output→PNG action (path policy + TiXL timestamp)
   src/app/audio_settings.cpp
   src/app/keymap_prefs.cpp           # #11: user keymap JSON override store (cross-session rebinding)
   src/app/keymap_prefs_selftest.cpp  # #11: set→save→reload round-trip gate (--selftest-keymap-persist)
@@ -239,6 +243,7 @@ add_executable(simple_world
   src/platform/audio_devices.mm
   src/platform/image_decode.mm
   src/platform/image_decode_selftest.mm
+  src/platform/image_save.mm  # out-snapshot-png: product texture→PNG writer (ImageIO, byte-exact)
   src/platform/metal_compile.mm
   src/platform/metal_compile_selftest.mm
   src/platform/osc_loopback.cpp

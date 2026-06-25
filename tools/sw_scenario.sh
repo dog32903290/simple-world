@@ -39,6 +39,7 @@ DRIVE="$ROOT/tools/sw_drive.sh"
 EYE="$ROOT/app/.eye"
 BIN="$ROOT/app/build/simple_world"
 RUNDIR="$(mktemp -d /tmp/sw_scenario.XXXXXX)"
+SNAPDIR="$RUNDIR/snapshots"   # product Snapshot target (SW_SNAPSHOT_DIR); see app_launch
 FAIL=0
 KEEP=0
 
@@ -71,7 +72,13 @@ app_launch() {  # $1 = optional file to open
   # req_map first — which fails silently when the directory doesn't exist yet,
   # making the wait loop spin to timeout. mkdir -p is idempotent and harmless.
   mkdir -p "$EYE"
-  ( cd "$ROOT/app" && ASAN_OPTIONS=detect_leaks=0 "$BIN" ${1:+--open "$1"} >/dev/null 2>&1 & disown ) 2>/dev/null
+  # Product Snapshot (out-snapshot-png) writes to $SW_SNAPSHOT_DIR when set — a deterministic
+  # per-run dir under the evidence tree so a scenario can `do click @output_snapshot_btn` and then
+  # `assert_file_png` the result WITHOUT an interactive save dialog (which the hand can't drive).
+  # Harmless to scenarios that never snapshot. Same env across relaunches (one dir per run).
+  mkdir -p "$SNAPDIR"
+  ( cd "$ROOT/app" && ASAN_OPTIONS=detect_leaks=0 SW_SNAPSHOT_DIR="$SNAPDIR" \
+      "$BIN" ${1:+--open "$1"} >/dev/null 2>&1 & disown ) 2>/dev/null
   # eye answers only once the frame loop is up — probe with a map request.
   for _ in $(seq 1 40); do
     if "$DRIVE" shot map >/dev/null 2>&1; then return 0; fi
@@ -199,6 +206,30 @@ run_line() {
       else
         [ "$cmd" = assert_diff ] || fail "$ln" "assert_same $name: frames differ (see $RUNDIR)"
         cp "$p" "$RUNDIR/$name.after.png" 2>/dev/null
+      fi ;;
+    snap_count)
+      # snap_count <name> — record how many PNGs are in the snapshot dir RIGHT NOW under <name>,
+      # so a later assert can prove the click ADDED one (couples the assertion to the write; a RED
+      # variant that asserts before clicking sees the same count and fails).
+      local c; c=$(ls -1 "$SNAPDIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
+      echo "$c" > "$RUNDIR/snapcount.$rest" ;;
+    assert_file_png)
+      # assert_file_png <name> — at least one MORE valid, non-empty PNG exists in the snapshot dir
+      # than the snap_count <name> baseline, AND the newest one carries the PNG magic bytes. Proves
+      # the Snapshot click actually wrote a real PNG to the product path.
+      local base=0; [ -f "$RUNDIR/snapcount.$rest" ] && base=$(cat "$RUNDIR/snapcount.$rest")
+      local now; now=$(ls -1 "$SNAPDIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
+      local newest; newest=$(ls -1t "$SNAPDIR"/*.png 2>/dev/null | head -1)
+      if [ "$now" -le "$base" ]; then
+        fail "$ln" "assert_file_png $rest: no new PNG (had $base, now $now in $SNAPDIR)"
+      elif [ -z "$newest" ] || [ ! -s "$newest" ]; then
+        fail "$ln" "assert_file_png $rest: newest PNG missing or empty ($newest)"
+      else
+        # PNG magic: first 8 bytes 89 50 4e 47 0d 0a 1a 0a.
+        local sig; sig=$(head -c 8 "$newest" | xxd -p 2>/dev/null)
+        [ "$sig" = "89504e470d0a1a0a" ] || \
+          fail "$ln" "assert_file_png $rest: $newest lacks PNG magic (got $sig)"
+        note "snapshot PNG verified: $newest ($(wc -c < "$newest" | tr -d ' ') bytes)"
       fi ;;
     echo)
       note "$rest" ;;

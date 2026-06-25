@@ -85,6 +85,10 @@ bool confirmDiscardIfDirty();   // false == user canceled (caller aborts)
 void updateWindowTitle();       // filename + dirty • ; no-op when unchanged (uses g_window)
 void initSnapshot();            // call at startup: snapshot := serialized default lib
 
+// The open document's absolute file path, or "" when never saved. Read-only accessor over
+// the file-scope g_documentPath; the snapshot helper derives <project>/Screenshots from it.
+const std::string& documentPath();
+
 // Headless RED->GREEN proof of composition-path semantics: push/pop/truncate rules (atomic
 // children refuse push), validate-trims-dangling-tail (delete mid-path child -> valid prefix
 // kept), pure-getter consistency. injectBug skips the validation so the stale path survives
