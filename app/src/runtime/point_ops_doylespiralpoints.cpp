@@ -1,3 +1,4 @@
+// @tixl: DoyleSpiralPoints2   (census authority key — filename stem 'doylespiralpoints' forks the TiXL op id)
 // DoyleSpiralPoints2 — point GENERATOR op (generate family): a Doyle circle-packing spiral.
 //
 // In TiXL this is a COMPOUND operator (.t3 graph). The graph derives the Doyle-spiral algebra

@@ -18,8 +18,10 @@
 # === 方法論（三個定義，全可驗）===
 #   1. TiXL 真節點 = 繼承 `: Instance<>` 的 class，扣 _Old/_obsolete/_前綴/__OBSOLETE = 749。
 #      不是數 .cs 檔（含 helper 會膨脹到 931 → 這是 570/749 幻覺的根源）。
-#   2. sw 已 port = 葉檔 stem(含 value_op_ 等所有前綴) + register*Op("X") + registry 表 PascalCase 字串,
-#      大小寫無視 set-diff。(sw 命名 fork 未追蹤時 done 略低估 → 逐顆 <island> 複查。)
+#   2. sw 已 port = 葉檔 stem(含 value_op_ 等所有前綴) + register*Op("X") + registry 表 PascalCase 字串
+#      + 葉檔 header 的 `// TiXL authority: .../<OpName>.cs` 權威宣告(第四源,authoritative 不猜),
+#      大小寫無視 set-diff。第四源治 sw 命名 fork(例 chromab→ChromaticAbberation,int2tovec2→
+#      Int2ToVector2):filename≠TiXL-name 時靠 header 宣告對上,消滅 false-todo 誤派重 port。
 #   3. 縫歸類 = tools/seam_map.tsv（權威 SSOT）的 path_regex 套未做 op 的 TiXL 路徑。
 set -uo pipefail  # 不用 -e：報表腳本裡 grep 無匹配的 return 1 是正常,不該中止
 cd "$(dirname "$0")/.."
@@ -36,6 +38,29 @@ TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
   grep -rhoE 'register[A-Za-z]*\(\s*"[A-Za-z0-9_]+"' "$SWRT" "$SWAPP" 2>/dev/null | grep -oE '"[A-Za-z0-9_]+"' | tr -d '"'
   find "$SWRT" \( -name '*_op_registry.*' -o -name '*_ops_registry.*' -o -name 'node_registry_*.cpp' \) \
     | xargs grep -hoE '"[A-Z][A-Za-z0-9]+"' 2>/dev/null | tr -d '"'
+  # 4th source: authoritative `// TiXL authority: .../<OpName>.cs` declaration in leaf headers.
+  # Catches sw命名 fork (filename≠TiXL-name). Scoped to the LEADING comment header block only
+  # (so body cross-refs like "mirrors value_op_addint2.cpp" don't leak); reads the authority line
+  # + up to 2 wrapped continuation lines; accepts both `Name.cs` and `Name.{cs,hlsl,t3}` forms.
+  find "$SWRT" "$SWAPP" -name '*.cpp' | while read -r f; do
+    awk '
+      /^[[:space:]]*\/\// {hdr=hdr $0 "\n"; next}
+      /^[[:space:]]*$/ && hdr=="" {next}
+      {exit}
+      END{printf "%s", hdr}
+    ' "$f" | awk '
+      # bare canonical declaration: `// @tixl: <OpName>` (highest-friction-free key)
+      /@tixl:/ { if (match($0, /@tixl:[[:space:]]*[A-Za-z0-9_]+/)) {
+                   t=substr($0,RSTART,RLENGTH); sub(/^@tixl:[[:space:]]*/,"",t); print t } }
+      /TiXL authority:/ {grab=3}
+      grab>0 {buf=buf " " $0; grab--}
+      END{
+        while (match(buf, /[A-Za-z0-9_]+\.(cs|\{cs)/)) {
+          tok=substr(buf, RSTART, RLENGTH); sub(/\.(cs|\{cs)$/,"",tok); print tok;
+          buf=substr(buf, RSTART+RLENGTH)
+        }
+      }'
+  done
 } | tr 'A-Z' 'a-z' | sort -u > "$TMP/sw.txt"
 
 # ---- TiXL real ops: island<TAB>op<TAB>relpath(island/sub/op) ----

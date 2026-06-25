@@ -1,3 +1,4 @@
+// @tixl: TransformFromClipSpace   (census authority key — sw filename 'transformpointsfromclipspace' forks the TiXL op id)
 // TransformPointsFromClipspace — the FIRST Points op to consume the camera-matrix-into-points seam
 // (PointCookCtx::cameraToWorld). Faithful port of external/tixl
 // .../Assets/shaders/points/modify/TransformPointsFromClipspace.hlsl (+ point/transform/
