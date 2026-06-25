@@ -3,7 +3,13 @@
 > 柏為 2026-06-23:「程式碼全翻完了，寫一份全部可以並行、以最快路徑為原則的計劃表。」
 > **本檔=頂層路由權威。** sub-plan:節點/縫=[SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md)、債=[DEBT_LEDGER](DEBT_LEDGER.md)、非節點 spec=[alignment/](alignment/README.md)。事實以 git/碼為準。
 
-## Current Snapshot（2026-06-25 07:36 — ★引擎更完整於 backlog：5 seam 誤分類 BUILT，clean 燃料近採盡；hold 柏為晨 steer）
+## Current Snapshot（2026-06-25 09:10 — ★交接點：柏為晨起定並行規則 + 修正 fork-bomb 診斷；下 session 從這接）
+- **★★ 柏為 2026-06-25 09:08 定並行規則（取代夜批的過度保守「≤2」）**：**並行 2-3 條為準，重點是核心檔不能撞**（真約束=檔域不重疊，非條數；條數是影子）。**自登記葉子家族（point/field/mesh/image-filter）=零 `point_graph.cpp` 編輯（table-driven dispatch）=核心檔天生互斥→可 2-3 條並行**（field_ops_* ∥ mesh_ops_* ∥ value-graph 不同家族）；只碰 selftests_decls.h/CMakeLists plumbing（合流加行小事）。**碰 cook-core spine（point_graph 拆檔/frame_cook/graph.h schema/FloatList-state 加 ctx slot/camera3d flat+resident 兩 leg）=owner-lock 一次一條，與柏為一起。**
+- **★★ 修正 fork-bomb 真因（夜批診斷錯，柏為逼正）**：**非重開機/cache**（ccache 存硬碟過重開機不清）。真因=**無界 `-j` × N 條全新 worktree**：fresh build 目錄要為每個 TU 生編譯進程查 cache，無界-j 一次噴幾百個，×3-4 條=2164 procs load 980。**已修 `b0446e9` setup `-j 4`**。**並行條數已與 fork-bomb 脫鉤**（修後 3 條不爆，僅 3 compiler）。鐵律：所有 build bounded `-j 4` 絕不裸 `-j`；--bite 一次 plain 跑完絕不留 bg 迴圈（孤兒飽和真因=大量開 app 的 UI/全 scenario 套被砍→子進程沒死，非引擎活）。**唯一殘留=stream-stall（3 條同卡 600s，疑 API-side，與條數關係未定）。**
+- **★下 session 建議首批（柏為可 steer 覆寫）**：3 條 bounded 核心檔互斥 fan-out = `field_ops_*` ∥ `mesh_ops_*` ∥ datetime（value-graph 6 顆 scout 確認未建）。**採前每顆 set-diff 確認未 port**（scout BUILT 判斷可信但 op-count 樂觀，point-buffer「~84」實近採盡）。OR 與柏為一起開高-blast（camera3d/Layer2d）OR SECONDARY 體驗尾（含 b6d2ab8 收尾，branch `worktree-agent-a5e72117c0b7b60b1`，`--selftest-graphsetup` PASS，需乾淨環境全 .scn 閘 + merge）+ 8 stale scenario。
+- HEAD `e65dac3`，樹乾淨。`--bite` PASS=**443** FAILED:[] / NO-BITE:[detectbpm]（預存）。**＝交接基準，下個 /sw-batch 從此 Snapshot + SEAM_STATE_VERIFIED.md + LIST_SEAM_BLUEPRINT.md 接續。**
+
+## Current Snapshot（2026-06-25 07:36 — ★引擎更完整於 backlog：5 seam 誤分類 BUILT，clean 燃料近採盡）
 - HEAD `e65dac3`，樹乾淨，check-arch ✅。`--bite` PASS=**443** FAILED:[] / NO-BITE:[detectbpm]（預存）。load 恢復。
 - **★★ 引擎真實狀態驗證（read-only scout a440c967，census/SEAM_STATE_VERIFIED.md）=本夜最高價值**：set-diff 證 **5 個 OP_BACKLOG「BLOCKED」seam 其實早已 BUILT**（point-buffer/field-shader-graph/mesh-pipeline/gradient/cpu-upload-tex，同 list-seam 誤分類）。**∴引擎遠比 backlog 顯示完整。** 真正未建小縫：FloatList-resident-state(6 op,小)/context-var remainder(9)/datetime(6)/network-io(9,柏為域)。高-blast 需柏為:camera3d 剩餘 infra/Layer2d 剩/feedback point-ring。
 - **★但 fan-out lane 證 seam 雖 BUILT，op 多已 PORTED（counts 樂觀）**：07:35 派 3 bounded fan-out lane（point/field/mesh）→**全 3 條 stream-stall**（API watchdog 600s，**非 fork-bomb：bounded -j 4 held，僅 3 compiler**，zero commit zero loss）。point lane 中途發現 **point-buffer 其實近採盡（只剩 NoisePoints 乾淨，scout「~84」是它自警的 .t3-count 樂觀值）**。field/mesh stall 前未確認。**教訓:①scout 的 BUILT 判斷可信但 op-count 樂觀（每顆採前 set-diff 確認）②此 session 退化態 3 條並行 worktree lane 太多（stream-stall；2 條 wave-1/2 成功，3 條掛）③stream-stall≠fork-bomb（bounded -j 已堵 fork-bomb）。**
