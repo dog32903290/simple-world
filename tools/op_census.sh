@@ -95,7 +95,10 @@ case "${1:-}" in
       echo ""
     done
     un=$(awk -F'\t' '$1=="__unclassified"' "$TMP/assign.txt" | wc -l | tr -d ' ')
-    [ "$un" -gt 0 ] && echo "   ⚠ $un 顆未歸類 (seam_map.tsv 規則沒涵蓋→補規則): $(awk -F'\t' '$1=="__unclassified"{print $2}' "$TMP/assign.txt" | head -8 | tr '\n' ' ')" ;;
+    if [ "$un" -gt 0 ]; then
+      echo "   ⚠ $un 顆未歸類 (seam_map.tsv 規則沒涵蓋→補規則): $(awk -F'\t' '$1=="__unclassified"{print $2}' "$TMP/assign.txt" | head -8 | tr '\n' ' ')"
+    fi
+    exit 0 ;;
 
   --overview)
     gt=$(wc -l < "$TMP/status.txt" | tr -d ' ')
