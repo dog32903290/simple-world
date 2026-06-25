@@ -1,0 +1,75 @@
+# quick_add_type_color.scn — 活體牙: the quick-add result rows now carry TYPE DIFFERENTIATION
+# (= TiXL DrawSymbolUiEntry). Each row is tinted by its first-OUTPUT-port dataType (typeColor)
+# and trails that dataType name as a dim suffix.
+#
+# WHAT THIS PROVES: drawResultRow (ui/quick_add_tree.cpp, shared by the flat list + the tree)
+# resolved each row's first-output dataType and surfaced it. The eye marker
+#   qatype:<id>:<dataType>
+# is emitted ONLY when firstOutputType(id) returns non-empty — so asserting it for three rows of
+# THREE DIFFERENT dataTypes proves both the type extraction AND that distinct types are present
+# (RadialPoints→Points / DrawPoints→Command / Sin→Float). Those three map to three distinct base
+# colors in node_style.cpp typeColor() (Points=red, Command=cyan, Float=gray, TiXL UiColors.cs),
+# so a single shared color path drives all three rows in visibly different hues.
+#
+# NON-TAUTOLOGY: qa:<id> (the row exists) is asserted by other scenarios already. The NEW key is
+# qatype:<id>:<TYPE> with the EXACT dataType string baked in. If firstOutputType regressed to ""
+# (or returned the wrong type), the keyed marker would never appear and these asserts FAIL.
+#
+# RED proof: change `assert_map_has qatype:RadialPoints:Points` to qatype:RadialPoints:Float
+# (wrong type) -> FAIL (no such marker). Or delete the drawResultRow qatype: eye hook -> all
+# three FAIL while the plain qa: rows still pass (proving the assert targets the TYPE path only).
+
+# Focus the canvas (CanvasFocus gates the Cmd+F quick-add palette).
+do click 400 300
+wait 0.3
+
+# --- Open the quick-add palette (Cmd+F) ---
+do keychord cmd f
+wait 0.5
+assert_map_has qa:input
+echo quick-add-palette-open
+
+# NOTE: `do text` APPENDS into the focused input (AddInputCharactersUTF8). To test three
+# separate filters we close (Esc) + reopen (Cmd+F) the palette between each — a fresh open
+# clears g_filterBuf (openQuickAdd), so each filter starts clean.
+
+# --- Points-typed row: filter to "RadialPoints" (first output dataType = Points, red) ---
+do text RadialPoints
+wait 0.3
+assert_map_has qa:RadialPoints
+assert_map_has qatype:RadialPoints:Points
+echo radialpoints-row-typed-Points
+
+# --- Capture the open palette (RadialPoints filter active) for the eye ---
+capture full quick_add_type_color
+echo palette-screenshot-captured
+
+# Reopen fresh for the next filter.
+do key escape
+wait 0.3
+do click 400 300
+wait 0.2
+do keychord cmd f
+wait 0.4
+
+# --- Command-typed row: filter to "DrawPoints" (first output dataType = Command, cyan) ---
+do text DrawPoints
+wait 0.3
+assert_map_has qa:DrawPoints
+assert_map_has qatype:DrawPoints:Command
+echo drawpoints-row-typed-Command
+
+# Reopen fresh for the next filter.
+do key escape
+wait 0.3
+do click 400 300
+wait 0.2
+do keychord cmd f
+wait 0.4
+
+# --- Float-typed row: filter to "Sin" (first output dataType = Float, gray) ---
+do text Sin
+wait 0.3
+assert_map_has qa:Sin
+assert_map_has qatype:Sin:Float
+echo sin-row-typed-Float

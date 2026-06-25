@@ -64,6 +64,10 @@ std::string categoryType(const sw::NodeSpec& spec) {
 
 ImU32 typeColor(const std::string& dataType) { return packU32(baseColor(dataType)); }
 
+// String-keyed OperatorLabel tint (TiXL PlaceHolderUi.cs:424). Reuses the SAME variation as
+// nodeLabelColor (b1.3 s0.4 a1.0) but keyed by dataType string instead of a NodeSpec.
+ImU32 labelColor(const std::string& dataType) { return variation(baseColor(dataType), 1.3f, 0.4f, 1.0f); }
+
 ImU32 nodeBgColor(const sw::NodeSpec& spec)     { return variation(baseColor(categoryType(spec)), 0.5f, 0.7f, 1.0f); }
 ImU32 nodeBorderColor(const sw::NodeSpec& spec) { return variation(baseColor(categoryType(spec)), 0.1f, 0.7f, 0.5f); }
 ImU32 nodeLabelColor(const sw::NodeSpec& spec)  { return variation(baseColor(categoryType(spec)), 1.3f, 0.4f, 1.0f); }

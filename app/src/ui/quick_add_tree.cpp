@@ -12,11 +12,83 @@
 
 #include "imgui.h"
 
-#include "app/document.h"      // doc::g_lib()
-#include "runtime/graph.h"     // addChildWouldCycle
-#include "verify/eye/eye.h"    // one-line eye hooks (qa:ns:* / qa:*)
+#include "app/document.h"          // doc::g_lib()
+#include "runtime/compound_graph.h"// Symbol / SlotDef (compound outputDefs)
+#include "runtime/graph.h"         // findSpec / NodeSpec / addChildWouldCycle
+#include "ui/node_style.h"         // labelColor (TiXL OperatorLabel tint of the dataType base)
+#include "verify/eye/eye.h"        // one-line eye hooks (qa:ns:* / qa:* / qatype:*)
 
 namespace sw::ui {
+
+// First OUTPUT dataType — atomic spec's first non-input port, else compound's first outputDef.
+// READ-ONLY access to graph.h / compound_graph.h (no mutation, no new fields).
+std::string firstOutputType(const std::string& id) {
+    if (const sw::NodeSpec* spec = sw::findSpec(id)) {
+        for (const auto& p : spec->ports)
+            if (!p.isInput) return p.dataType;
+        return "";
+    }
+    if (const sw::Symbol* s = sw::doc::g_lib().find(id))
+        if (!s->outputDefs.empty()) return s->outputDefs.front().dataType;
+    return "";
+}
+
+namespace {
+// Port-summary tooltip built ONLY from existing fields (no description field added). Atomic:
+// list non-Vec-tail input port names + their dataType, then outputs. Compound: input/output defs.
+void portSummaryTooltip(const std::string& id) {
+    if (!ImGui::IsItemHovered()) return;
+    ImGui::BeginTooltip();
+    ImGui::TextUnformatted(id.c_str());
+    ImGui::Separator();
+    if (const sw::NodeSpec* spec = sw::findSpec(id)) {
+        for (const auto& p : spec->ports) {
+            // Skip the trailing components of a Vec group (vecArity 1 followers) to avoid noise.
+            if (p.widget == sw::Widget::Vec && p.vecArity == 1) continue;
+            ImGui::TextDisabled("%s %s : %s", p.isInput ? "in " : "out", p.name.c_str(),
+                                p.dataType.c_str());
+        }
+    } else if (const sw::Symbol* s = sw::doc::g_lib().find(id)) {
+        for (const auto& d : s->inputDefs)
+            ImGui::TextDisabled("in  %s : %s", d.name.c_str(), d.dataType.c_str());
+        for (const auto& d : s->outputDefs)
+            ImGui::TextDisabled("out %s : %s", d.name.c_str(), d.dataType.c_str());
+    }
+    ImGui::EndTooltip();
+}
+}  // namespace
+
+// Shared result-row renderer (= TiXL DrawSymbolUiEntry): type-colored title + dim dataType suffix
+// + hover port tooltip. Emits qa:<id> always and qatype:<id>:<type> when a first-output type
+// resolves (the eye marker that proves the type path ran — non-tautological scenario hook).
+bool drawResultRow(const std::string& id, const std::string& label, bool selected, bool cyclic,
+                   bool showType) {
+    const std::string outType = firstOutputType(id);
+    ImGui::BeginDisabled(cyclic);
+    // Title tint = TiXL ColorVariations.OperatorLabel.Apply(color) (b1.3 s0.4 a1.0,
+    // PlaceHolderUi.cs:424) — the brighter/desaturated label shade, NOT the raw saturated base.
+    // Pushed unconditionally (TiXL tints the title before the showType check, so the tint is
+    // never gated by showType — only the trailing suffix below is).
+    if (!outType.empty())
+        ImGui::PushStyleColor(ImGuiCol_Text, sw::ui::labelColor(outType));
+    bool clicked = ImGui::Selectable(label.c_str(), selected, ImGuiSelectableFlags_None);
+    if (!outType.empty())
+        ImGui::PopStyleColor();
+    // Dim dataType suffix after the title (= TiXL trailing type label, PlaceHolderUi.cs:459):
+    // gated by showType — the flat search list shows it; the namespace-tree view suppresses it
+    // (TiXL passes showType=false for every tree/grouped row, SymbolBrowsing.cs:81,163).
+    if (showType && !outType.empty()) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("  %s", outType.c_str());
+    }
+    ImGui::EndDisabled();
+    portSummaryTooltip(id);
+    // eye hooks: row identity + (typed rows only) the surfaced dataType suffix.
+    sw::eye::recordItem(("qa:" + id).c_str());
+    if (!outType.empty())
+        sw::eye::recordItem(("qatype:" + id + ":" + outType).c_str());
+    return clicked;
+}
 
 // = TiXL NamespaceTreeNode.PopulateCompleteTree: split each category on '.' and descend, creating
 // folders on the way; the symbol terminates at the final folder. Empty category -> "(uncategorized)"
@@ -67,11 +139,10 @@ void drawFolder(const NamespaceNode& node, const std::string& prefix, const std:
     }
     for (const std::string& id : node.symbols) {
         const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib(), curId, id);
-        ImGui::BeginDisabled(cyclic);
-        bool clicked = ImGui::Selectable(displayName(id).c_str(), false, ImGuiSelectableFlags_None);
-        ImGui::EndDisabled();
-        // Eye hook: one line per leaf row, key = qa:<typeId> (same key the flat list emits).
-        sw::eye::recordItem(("qa:" + id).c_str());
+        // Type-colored title + tooltip + qa:/qatype: eye hooks. showType=false: the tree view
+        // suppresses the dataType suffix (= TiXL SymbolBrowsing.cs:81,163 pass showType=false);
+        // only the flat free-text list shows it. Tint + tooltip stay.
+        bool clicked = drawResultRow(id, displayName(id), false, cyclic, /*showType=*/false);
         if (clicked && !cyclic && !spawnRequested) {
             spawnRequested = true;
             spawnType = id;

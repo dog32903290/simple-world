@@ -15,6 +15,11 @@ namespace sw::ui {
 // Raw TiXL base color for a port/link dataType (for pins/links in later 刀). Unknown → gray.
 ImU32 typeColor(const std::string& dataType);
 
+// String-keyed OperatorLabel tint (= TiXL PlaceHolderUi.cs:424 ColorVariations.OperatorLabel
+// .Apply(color), b1.3 s0.4 a1.0). Same variation as nodeLabelColor() but keyed by dataType
+// string (used by the quick-add result row title tint where only the dataType is known).
+ImU32 labelColor(const std::string& dataType);
+
 // Per-node tints, category = first output's dataType (TiXL ColorVariations factors):
 ImU32 nodeBgColor(const sw::NodeSpec& spec);      // OperatorBackground  b0.5  s0.7  a1.0
 ImU32 nodeBorderColor(const sw::NodeSpec& spec);  // OperatorOutline     b0.1  s0.7  a0.5

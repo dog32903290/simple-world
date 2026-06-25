@@ -313,22 +313,13 @@ void drawQuickAdd() {
                     const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib(), curId, id);
                     const bool selected = (i == g_selectedIdx);
 
-                    // Grey out cyclic entries (= TiXL SymbolBrowser.cs:302-312 color.Fade).
-                    ImGui::BeginDisabled(cyclic);
-                    bool clicked = ImGui::Selectable(displayName(id).c_str(), selected,
-                                                     ImGuiSelectableFlags_None);
-                    // Category subtitle (= TiXL SymbolBrowser namespace hint) when the spec
-                    // carries one.
-                    const std::string cat = categoryOf(id);
-                    if (!cat.empty()) {
-                        ImGui::SameLine();
-                        ImGui::TextDisabled("  %s", cat.c_str());
-                    }
-                    ImGui::EndDisabled();
-
-                    // eye hook — one line per row, key = qa:<typeId>
-                    // (pattern: insp:*, ctx:*, bgctx:add:* — one recordItem call; no logic in verify/)
-                    sw::eye::recordItem(("qa:" + id).c_str());
+                    // Result row (= TiXL DrawSymbolUiEntry): first-output-type color on the title,
+                    // dim dataType suffix, hover port tooltip, qa:/qatype: eye hooks. Cyclic rows
+                    // grey out (= TiXL SymbolBrowser.cs:302-312 color.Fade). Shared with the tree
+                    // view (quick_add_tree.cpp) so both colour identically.
+                    // showType=true: the flat free-text search list shows the dataType suffix
+                    // (= TiXL DrawSymbolUiEntry default showType=true, PlaceHolderUi.cs:400).
+                    bool clicked = drawResultRow(id, displayName(id), selected, cyclic, /*showType=*/true);
 
                     if (clicked && !cyclic && action == Action::None) {
                         action = Action::Spawn;

@@ -47,6 +47,23 @@ void drawNamespaceTree(const NamespaceNode& root, const std::string& curId, bool
                        std::string& spawnType,
                        const std::function<std::string(const std::string&)>& displayName);
 
+// First OUTPUT port's dataType for an id (= TiXL Symbol first-output type), or "" if none.
+// Works for atomic specs (findSpec ports) and live compounds (Symbol.outputDefs). READ-ONLY.
+std::string firstOutputType(const std::string& id);
+
+// Draw one quick-add result row (= TiXL DrawSymbolUiEntry): the title is tinted by the row's
+// first-output dataType (typeColor), the dataType name trails as a dim suffix, a hover tooltip
+// summarises the ports, and the row emits qa:<id> + (when typed) qatype:<id>:<dataType> eye
+// markers. Returns true if the row was clicked (caller gates spawn on !cyclic). Shared by the
+// flat ranked list (quick_add.cpp) and the namespace-tree leaves (quick_add_tree.cpp) so both
+// views colour identically. `label` is the already-resolved display name. `showType` gates ONLY
+// the trailing dim dataType suffix (= TiXL DrawSymbolUiEntry showType param, PlaceHolderUi.cs:459):
+// the flat free-text search list passes true; the namespace-tree/grouped view passes false (TiXL
+// SymbolBrowsing.cs:81,163). The type-color title tint + hover tooltip are NOT gated (the tint is
+// pushed before the showType check in TiXL, PlaceHolderUi.cs:424).
+bool drawResultRow(const std::string& id, const std::string& label, bool selected, bool cyclic,
+                   bool showType = true);
+
 // Open the palette anchored at canvas coordinates (cx, cy).
 // No-op if already open (idempotent — Cmd+F pressed while open does NOT close it;
 // that matches TiXL which just re-focuses the input box).
