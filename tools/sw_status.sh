@@ -25,6 +25,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLAN="$ROOT/docs/agent/MASTER_PLAN.md"
 CENSUS="$ROOT/tools/op_census.sh"
+UICENSUS="$ROOT/tools/ui_census.sh"
 
 BEGIN_RE='<!-- sw_status:begin'
 END_RE='<!-- sw_status:end'
@@ -69,6 +70,10 @@ cmd_status() {
     bash "$CENSUS" --seams 2>/dev/null | grep -A3 'seam-build' | grep -E '^[[:space:]]+[0-9]' | head -3 | sed 's/^/          /'
   else
     echo "CENSUS    (tools/op_census.sh 不可執行)"
+  fi
+  if [ -x "$UICENSUS" ]; then
+    bash "$UICENSUS" --overview 2>/dev/null | sed 's/^/          /'
+    echo "          （非節點 UI/skin parity；tools/ui_census.sh 看全表，--gaps 選工作，規格在 docs/agent/alignment/）"
   fi
 
   echo ""
