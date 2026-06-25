@@ -49,5 +49,6 @@ REGISTER_SELFTESTS(/*orderBase=*/26,
     {"field-pushpullsdf", runFieldPushPullSdfGoldenSelfTest},
     {"field-blendsdfwithsdf", runFieldBlendSdfWithSdfGoldenSelfTest},
     {"field-toroidalvortexfield", runFieldToroidalVortexFieldGoldenSelfTest},
+    {"field-setsdfmaterial", runFieldSetSDFMaterialGoldenSelfTest},
 );
 }  // namespace sw

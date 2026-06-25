@@ -165,6 +165,12 @@ void appendVec3Param(std::vector<float>& v, std::vector<std::string>& fields,
 // (no packed_float2 needed, unlike the vec3+scalar case). Used by Image2dSDF's Size param.
 void appendVec2Param(std::vector<float>& v, std::vector<std::string>& fields,
                      const std::string& name, float x, float y);
+// Append a float4 with TiXL's size==4 padding rule (PadFloatParametersToVectorComponentCount size=4):
+// pad by (4 - currentStart%4)%4 floats so the vec4 starts on a 16-byte boundary, then push x,y,z,w
+// and declare a `float4` struct member (size 16 / align 16 = zero-padding overhead once aligned).
+// Used by SetSDFMaterial's Color [GraphParam] (InputSlot<Vector4>).
+void appendVec4Param(std::vector<float>& v, std::vector<std::string>& fields,
+                     const std::string& name, float x, float y, float z, float w);
 void appendScalarParam(std::vector<float>& v, std::vector<std::string>& fields,
                        const std::string& name, float value);
 // Append a float4x4 (16 floats, row-major as written into the buffer) and declare a `float4x4` struct

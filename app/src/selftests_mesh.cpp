@@ -37,4 +37,9 @@ REGISTER_SELFTESTS(/*orderBase=*/340,
     {"mesh-collapse", runMeshCollapseGoldenSelfTest},
     {"mesh-projectuv", runMeshProjectUvGoldenSelfTest},
 );
+// Modify family batch 3 (BlendMeshVertices / PickMeshBuffer). Fresh high orderBase.
+REGISTER_SELFTESTS(/*orderBase=*/350,
+    {"mesh-blendmeshvertices", runMeshBlendMeshVerticesGoldenSelfTest},
+    {"mesh-pickmeshbuffer", runMeshPickMeshBufferGoldenSelfTest},
+);
 }  // namespace sw

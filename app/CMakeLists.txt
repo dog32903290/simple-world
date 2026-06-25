@@ -293,6 +293,7 @@ add_executable(simple_world
   src/runtime/field_ops_pushpullsdf.cpp
   src/runtime/field_ops_blendsdfwithsdf.cpp
   src/runtime/field_ops_toroidalvortexfield.cpp
+  src/runtime/field_ops_setsdfmaterial.cpp
   src/field_render_golden.cpp
   src/particlefield_probe_golden.cpp
   src/vectorfieldforce_field_golden.cpp
@@ -340,6 +341,7 @@ add_executable(simple_world
   src/field_ops_pushpullsdf_golden.cpp
   src/field_ops_blendsdfwithsdf_golden.cpp
   src/field_ops_toroidalvortexfield_golden.cpp
+  src/field_ops_setsdfmaterial_golden.cpp
   src/runtime/mesh_op_registry.cpp
   src/runtime/mesh_ops_ngonmesh.cpp
   src/runtime/mesh_ops_quadmesh.cpp
@@ -358,10 +360,13 @@ add_executable(simple_world
   src/runtime/mesh_ops_cylindermesh.cpp
   src/runtime/mesh_ops_cubemesh.cpp
   src/runtime/mesh_ops_icosahedronmesh.cpp
+  src/runtime/mesh_ops_blendmeshvertices.cpp
+  src/runtime/mesh_ops_pickmeshbuffer.cpp
   src/mesh_golden.cpp
   src/mesh_input_golden.cpp
   src/mesh_modify_golden.cpp
   src/mesh_modify2_golden.cpp
+  src/mesh_blendpick_golden.cpp
   src/mesh_sphere_golden.cpp
   src/mesh_torus_golden.cpp
   src/mesh_cylinder_golden.cpp

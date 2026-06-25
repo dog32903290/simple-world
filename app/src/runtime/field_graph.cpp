@@ -188,6 +188,25 @@ void appendVec2Param(std::vector<float>& v, std::vector<std::string>& fields,
   fields.push_back("float2 " + name);
 }
 
+void appendVec4Param(std::vector<float>& v, std::vector<std::string>& fields,
+                     const std::string& name, float x, float y, float z, float w) {
+  // TiXL PadFloatParametersToVectorComponentCount size==4: pad by (4 - currentStart%4)%4 floats so
+  // the float4 starts at a 16-byte boundary. An MSL `float4` struct member (size 16 / align 16)
+  // then reads all four components from one aligned slot — no packed_ needed. Used by
+  // SetSDFMaterial's Color [GraphParam] (InputSlot<Vector4>).
+  const int currentStart = static_cast<int>(v.size()) % 4;
+  const int requiredPadding = (4 - currentStart) % 4;
+  for (int i = 0; i < requiredPadding; ++i) {
+    v.push_back(0.f);
+    fields.push_back("float __padding" + std::to_string(v.size()));
+  }
+  v.push_back(x);
+  v.push_back(y);
+  v.push_back(z);
+  v.push_back(w);
+  fields.push_back("float4 " + name);
+}
+
 void appendScalarParam(std::vector<float>& v, std::vector<std::string>& fields,
                        const std::string& name, float value) {
   // scalar: no padding (TiXL AddScalarParameter).

@@ -106,6 +106,7 @@ namespace sw { int runFieldTransformFieldGoldenSelfTest(bool); }  // field_ops_t
 namespace sw { int runFieldPushPullSdfGoldenSelfTest(bool); }     // field_ops_pushpullsdf_golden.cpp (custom-collect adjust; SdfField parent-context + optional AmountField subcontext)
 namespace sw { int runFieldBlendSdfWithSdfGoldenSelfTest(bool); } // field_ops_blendsdfwithsdf_golden.cpp (3-input custom-collect; sdfBlendByMask helper + f.xyz mix, shared Common key)
 namespace sw { int runFieldToroidalVortexFieldGoldenSelfTest(bool); } // field_ops_toroidalvortexfield_golden.cpp (vec3 VECTOR-field generator; decay-channel GPU golden + velocity-text assertion, axis-enum)
+namespace sw { int runFieldSetSDFMaterialGoldenSelfTest(bool); }    // field_ops_setsdfmaterial_golden.cpp (custom-collect adjust; p.w gate (0.5,1.5) + Color float4; p.w-setter + Readback leaf pattern)
 namespace sw { int runParticleFieldProbeSelfTest(bool); }         // particlefield_probe_golden.cpp (PF-a TERMINAL probe: field-into-force bridge consumed on both legs — anisotropy≠0)
 namespace sw { int runVectorFieldForceFieldSelfTest(bool); }      // particlefield_probe_golden.cpp (PF-a closed-form: one particle @field-space(0.25,0,0) -> Velocity≈(0.5625A,0,0.5625A))
 namespace sw { int runFieldDistanceForceFieldSelfTest(bool); }    // fielddistanceforce_field_golden.cpp (PF bridge closed-form: SphereSDF + particle @(1,0,0) -> Velocity≈(-A,0,0))
@@ -162,3 +163,5 @@ namespace sw { int runGroupSelfTest(bool); }                     // point_ops_gr
 namespace sw { int runTransformOpsSelfTest(bool); }              // point_ops_transform_golden.cpp (★S2 island: RotateAroundAxis/Shear/Transform transform-context push over Group — child quad rotates/shears/translates on flat + resident)
 namespace sw { int runKeymapPersistSelfTest(bool); }             // keymap_prefs_selftest.cpp (★#11: user keymap JSON overrides factory — set→save→reload round-trip + no-file=factory)
 namespace sw { int runUserSettingsSelfTest(bool); }              // user_settings_selftest.cpp (★#12: recent-files MRU — push→save→reload round-trip + dedup/cap/no-file=empty)
+namespace sw { int runMeshBlendMeshVerticesGoldenSelfTest(bool); }  // mesh_blendpick_golden.cpp (mesh modify: BlendMeshVertices two-mesh lerp, flat + R-2 resident)
+namespace sw { int runMeshPickMeshBufferGoldenSelfTest(bool); }     // mesh_blendpick_golden.cpp (mesh modify: PickMeshBuffer MultiInput modular selector, flat + R-2 resident)
