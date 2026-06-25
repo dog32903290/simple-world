@@ -18,7 +18,7 @@ STAMP_AT: 2026-06-25T15:53
 - 本 session 落地：Fxaa（末葉 image）/ census fork-name 修（讀葉檔權威行）/ L2 undo-redo 選單標題 + **★session-handoff 機制**（本檔重構：`tools/sw_status.sh` 三區定位 + 單一 snapshot + `--stamp`/`--check` 結帳閘）。
 
 ## Active Lane
-維運/meta：**session-handoff 機制安裝中**（`sw_status.sh` + 本檔重構 + sw-batch.md 接線 + memory split）。柏為授權「想方案→subagent 壓→做」。引擎節點 lane 與體驗 lane 暫停，待此機制落地。
+none —— **session-handoff 機制本批已落地 + dogfood 綠**（`sw_status.sh` 三區定位 + 單一 snapshot + `--stamp`/`--check` 結帳閘 + sw-batch.md 步驟 1/7 接線）。引擎待柏為 steer cook-core seam 順序；柏為-absent 自走採體驗尾純皮 Tier1。
 
 ## Conflict Register
 - **開放問題（非本批造成，已 chip task_2fc4a37a）**：`field_sphere.scn` / `field_sdf_palette.scn` 紅 = default graph root children 漂 5→4（scenario 硬寫 `==5`/`==6`）。**4 是 intentional drift（baseline rebase 即可）還是隱藏回歸（default graph 掉了 child）？rebase 前先查清，別盲改數字遮 bug。**
@@ -28,7 +28,7 @@ STAMP_AT: 2026-06-25T15:53
 - 柏為 2026-06-25 現身中（非自走）。
 
 ## Next Handoff Sentence
-先收尾 session-handoff 機制（`sw_status.sh` 接進 `.claude/commands/sw-batch.md` 步驟 1+7、memory split 完成）；之後 `/sw-batch` 開頭一律先跑 `tools/sw_status.sh` 定位，引擎走 cook-core seam（待柏為 steer 順序+在場）或自走採體驗尾（純皮 Tier1）。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（已是步驟 1 硬規）。引擎剩 cook-core 承重 seam（point-buffer 最高 unlock，需柏為在場 owner-lock 一次一條）；柏為-absent 自走採體驗尾（純皮 Tier1 / Output O3，eye-hand 驗）。維運 chip：census 家族掃 `task_3e02cdcc`、memory retroactive shrink `task_2487de3c`。
 
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
 
