@@ -6,16 +6,16 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 56a2057
+HEAD: 708b253
 DIRTY: clean
 CENSUS: 417 / 749 done
 BITE: 447 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-25T20:49
+STAMP_AT: 2026-06-25T21:02
 <!-- sw_status:end -->
 
 - 引擎 clone **55%（417/749）**。**clean-leaf 採盡確認＝撿葉子時代結束**：census「leaf-ready」數曾雙重灌水（seam-blocked 誤分 + fork 命名 op 誤標 todo），兩道 scout backward-trace 穿透後真乾淨葉子近零。引擎剩餘 **100% = cook-core 承重 seam**（point-buffer / camera3d / Layer2d / shader-graph），**全需柏為在場 owner-lock 一次一條**。
 - **柏為-absent 自走可採 = 第三軸體驗復刻尾**（[EXPERIENCE_PARITY_PLAN](EXPERIENCE_PARITY_PLAN.md)：純皮 Tier1 / Output O3 / 維運），eye-hand 驗、不碰 cook-core。
-- 本 session 落地（self-run）：**field 紅=隱藏回歸已修**（`644d100` AudioReaction 救回，g_lib→construct-on-first-use）+ **quick-add 結果列型別色/後綴/tooltip**（`e427d55`，對齊 TiXL PlaceHolderUi）+ **ui_census 兩 false-gap 修**（`56a2057`，predicate 認錯檔→誤報 GAP；done 16→18）。
+- 本 session 落地（self-run）：**field 紅=隱藏回歸已修**（`644d100` AudioReaction 救回，g_lib→construct-on-first-use）+ **quick-add 結果列型別色/後綴/tooltip**（`e427d55`，對齊 TiXL PlaceHolderUi）+ **ui_census 兩 false-gap 修 + 全 predicate 審**（`56a2057`+`708b253`，done 16→18；剩 30 GAP 經 wide-grep 全證真缺，census 現可信）。
 
 ## Active Lane
 none —— self-run 三 deliverable 收乾淨（field repair + 純皮 Tier1 type-color + census 校正，皆 refuter/親驗綠）。引擎待柏為 steer cook-core seam 順序；柏為-absent 自走續採體驗尾純皮 Tier1。
@@ -29,7 +29,7 @@ none —— self-run 三 deliverable 收乾淨（field repair + 純皮 Tier1 typ
 - **`document.cpp` 卡在 ratchet 上限 400 行**（g_lib 改 lazy 時 trim 註解擠進）→下次動它前必先拆（已 chip `task_19264e66`），否則 linecount 閘擋。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。引擎剩 cook-core 承重 seam（point-buffer 最高 unlock，需柏為在場 owner-lock 一次一條）；**⚠️ B 軌 ui_census 有 file-move 盲（已抓 2 個 false-gap）——選純皮 Tier1 批前先確認該 row 真缺非 census 認錯檔（wide-grep 整個 ui/，別只信 predicate 單檔）**。`reset-to-default`+`result-row-type-color` 已 DONE（別重做）。柏為-absent 下一塊純皮 Tier1 從**真缺** gap 取（out-background-color 先確認非碰 cook、modes-os-fullscreen、node-classification 的 port-drag-type-filter 等）/ Output O3。維運 chip：ui_census 全 predicate 審 `task_126b0986`、document.cpp 拆檔 `task_19264e66`、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。引擎剩 cook-core 承重 seam（point-buffer 最高 unlock，需柏為在場 owner-lock 一次一條）；**B 軌 ui_census 全 predicate 已審（`708b253`）→ `--gaps` 的 30 條全真缺可直接信選**（`reset-to-default`/`result-row-type-color` 已 DONE 別重做）。柏為-absent 下一塊純皮 Tier1 直接從 `--gaps` 取（out-background-color 先確認非碰 cook、modes-os-fullscreen、node-classification 的 port-drag-type-filter / symbol-tags 等）/ Output O3。**留痕（柏為 policy 判）**：`startup-lock-conform` 有 relinkAsset/restoreLatestBackup 兩葉子實作但無活 caller→算不算 DONE 看「unwired 葉子」的 DONE 門檻；4 條 predicate（gradient-inspector/io-editor-interaction/external-beat-sync/startup-lock-conform）grep TiXL C# 名,原生建好時需補原生 marker 否則永報 GAP。維運 chip：document.cpp 拆檔 `task_19264e66`、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
 
