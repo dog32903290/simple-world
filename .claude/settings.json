@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash tools/sw_status.sh --nag 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -146,9 +146,29 @@ cmd_check() {
   echo "sw_status --check: ✓ 蓋章($stamp_at) 與最後 commit 同窗（≤$((GRACE/60))min）。handoff 新鮮。"
 }
 
+# --nag：給 Stop hook 用。只在「樹乾淨 + 有 commit 比蓋章新 >GRACE」時吐提醒 JSON。
+# 樹乾淨=收尾點(該結帳了);樹髒=還在做事→不吵。永遠 exit 0(非阻塞)。
+cmd_nag() {
+  [ -f "$PLAN" ] || exit 0
+  local dirtyn; dirtyn="$(cd "$ROOT" && git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+  [ "${dirtyn:-0}" -eq 0 ] || exit 0          # 樹髒=還在做=不吵
+  local stamp_at stamp_epoch last_epoch GRACE=600
+  stamp_at="$(block_field STAMP_AT)"
+  [ -n "$stamp_at" ] || exit 0
+  stamp_epoch="$(date -j -f '%Y-%m-%dT%H:%M' "$stamp_at" '+%s' 2>/dev/null || echo 0)"
+  last_epoch="$(cd "$ROOT" && git log -1 --format=%ct 2>/dev/null || echo 0)"
+  if [ $((last_epoch - stamp_epoch)) -gt "$GRACE" ]; then
+    local msg="⚠️ 結帳未蓋章：最後 commit 比 handoff 蓋章($stamp_at)新，下個 session 會接到 stale。收尾請跑 tools/sw_status.sh --stamp <bite PASS>（+手寫更新 MASTER_PLAN 的 Active Lane/Next/Conflict）。"
+    jq -n --arg m "$msg" '{systemMessage:$m, suppressOutput:true}' 2>/dev/null \
+      || printf '{"systemMessage":"%s","suppressOutput":true}\n' "$msg"
+  fi
+  exit 0
+}
+
 case "${1:-}" in
   --stamp) shift; cmd_stamp "$@";;
   --check) cmd_check;;
+  --nag)   cmd_nag;;
   ''|status) cmd_status;;
   -h|--help) sed -n '2,30p' "$0";;
   *) echo "未知參數: $1（用法見 tools/sw_status.sh --help）" >&2; exit 2;;
