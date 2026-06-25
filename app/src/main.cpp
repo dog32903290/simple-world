@@ -316,18 +316,18 @@ void Renderer::draw(MTK::View* pView) {
     // viewing its primary output's PRODUCER (viewProducerPath; atomic children resolve to
     // themselves). Empty result (no output / unwired) falls through to the terminals.
     auto viewPathOf = [&](int id) {
-      return sw::viewProducerPath(sw::doc::g_lib, sw::doc::residentPathPrefix(), id);
+      return sw::viewProducerPath(sw::doc::g_lib(), sw::doc::residentPathPrefix(), id);
     };
     std::string targetPath;
     if (inCurrent(sw::ui::g_pinnedNode)) targetPath = viewPathOf(sw::ui::g_pinnedNode);
     if (targetPath.empty() && inCurrent(sw::ui::g_selectedNode))
       targetPath = viewPathOf(sw::ui::g_selectedNode);                  // follow selection
     if (targetPath.empty())
-      if (int t = g_pointGraph->defaultDrawTarget(sw::doc::g_lib, sw::doc::currentSymbolId()))
+      if (int t = g_pointGraph->defaultDrawTarget(sw::doc::g_lib(), sw::doc::currentSymbolId()))
         targetPath = sw::doc::residentPathFor(t);                       // current terminal
     if (targetPath.empty())
       targetPath = std::to_string(
-          g_pointGraph->defaultDrawTarget(sw::doc::g_lib, sw::doc::g_lib.rootId));  // root terminal
+          g_pointGraph->defaultDrawTarget(sw::doc::g_lib(), sw::doc::g_lib().rootId));  // root terminal
     // The production cook (projection rebuild + AudioReaction + RESIDENT graph cook) lives
     // in app/frame_cook.cpp — product behaviour, not shell.
     sw::framecook::run(*g_pointGraph, targetPath);
@@ -410,8 +410,8 @@ void Renderer::draw(MTK::View* pView) {
                     ", \"timelineSelection\": " + sw::ui::timelineSelectionJson() +
                     ", \"fenceActive\": " + (sw::ui::fenceActive() ? "true" : "false") +
                     ", \"fenceLastCovered\": " + sw::ui::fenceLastCoveredJson() +
-                    ", \"midiLearn\": " + sw::midibind::learnStateJson(sw::doc::g_lib) +
-                    ", \"lib\": " + sw::libToJsonV2(sw::doc::g_lib) + "}";
+                    ", \"midiLearn\": " + sw::midibind::learnStateJson(sw::doc::g_lib()) +
+                    ", \"lib\": " + sw::libToJsonV2(sw::doc::g_lib()) + "}";
     sw::eye::writeText("state.json", s.c_str());
   }
 

@@ -20,8 +20,11 @@
 
 namespace sw::doc {
 
-// Default document = the default particle graph imported once through the forever-importer.
-SymbolLibrary g_lib = sw::libFromGraph(sw::defaultParticleGraph());
+// Default doc. CONSTRUCT-ON-FIRST-USE (NOT pre-main static) so findSpec sees the live sink registrars; rationale in document.h.
+SymbolLibrary& g_lib() {
+  static SymbolLibrary inst = sw::libFromGraph(sw::defaultParticleGraph());
+  return inst;
+}
 std::vector<int> g_compositionPath;
 NS::Window* g_window = nullptr;
 bool g_relayout = true;
@@ -31,7 +34,7 @@ namespace {
 std::string g_documentPath;    // empty == never saved
 std::string g_savedSnapshot;   // libToJsonV2() at last save/open/new
 std::string g_lastTitle;       // cache so we only setTitle when it changes
-uint64_t g_libRevision = 1;    // bumped on every g_lib mutation (projection contract, document.h)
+uint64_t g_libRevision = 1;    // bumped on every g_lib() mutation (projection contract, document.h)
 // B4 fix: isDirty() was calling libToJsonV2(g_lib) EVERY FRAME (via updateWindowTitle).
 // For a project with animation curves this JSON serialization can consume 5-30ms/frame,
 // dropping FPS from 30→3. Fix: cache the dirty result keyed off g_libRevision — recompute
@@ -45,9 +48,9 @@ namespace {
 // symbol the previous prefix reaches). Shared by the pure getter (walks the valid prefix)
 // and the per-frame validator (the only place that truncates).
 size_t validPathPrefix() {
-  std::string cur = g_lib.rootId;
+  std::string cur = g_lib().rootId;
   for (size_t i = 0; i < g_compositionPath.size(); ++i) {
-    const Symbol* s = g_lib.find(cur);
+    const Symbol* s = g_lib().find(cur);
     const SymbolChild* c = s ? childById(*s, g_compositionPath[i]) : nullptr;
     if (!c) return i;
     cur = c->symbolId;
@@ -59,15 +62,15 @@ size_t validPathPrefix() {
 const std::string& currentSymbolId() {
   // PURE: walks the valid prefix only, never mutates the path (document.h contract).
   static std::string s_cur;
-  s_cur = g_lib.rootId;
+  s_cur = g_lib().rootId;
   const size_t n = validPathPrefix();
   for (size_t i = 0; i < n; ++i)
-    s_cur = childById(*g_lib.find(s_cur), g_compositionPath[i])->symbolId;
+    s_cur = childById(*g_lib().find(s_cur), g_compositionPath[i])->symbolId;
   return s_cur;
 }
 
-Symbol* currentSymbol() { return g_lib.find(currentSymbolId()); }
-const Symbol* currentSymbolConst() { return g_lib.find(currentSymbolId()); }
+Symbol* currentSymbol() { return g_lib().find(currentSymbolId()); }
+const Symbol* currentSymbolConst() { return g_lib().find(currentSymbolId()); }
 
 void validateCompositionPath() {
   const size_t n = validPathPrefix();
@@ -81,7 +84,7 @@ bool pushComposition(int childId) {
   validateCompositionPath();  // never push onto a dangling tail (refuter N3 B3)
   const Symbol* cur = currentSymbolConst();
   const SymbolChild* c = cur ? childById(*cur, childId) : nullptr;
-  const Symbol* target = c ? g_lib.find(c->symbolId) : nullptr;
+  const Symbol* target = c ? g_lib().find(c->symbolId) : nullptr;
   if (!target || target->atomic) {
     // TiXL: only items with children open. SAY so — a silent refusal reads as "double-click
     // is broken" (柏為 2026-06-11). UI string stays ASCII (imgui default font has no CJK).
@@ -92,14 +95,14 @@ bool pushComposition(int childId) {
   // resident build skips such children (S14 guard), so inside it the "current terminal"
   // resolves to paths that don't exist -> permanent black (refuter N3 S2). Mirror the guard.
   {
-    std::string walk = g_lib.rootId;
+    std::string walk = g_lib().rootId;
     for (size_t i = 0;; ++i) {
       if (walk == target->id) {
         g_status = "recursive composition — not entered";
         return false;
       }
       if (i >= g_compositionPath.size()) break;
-      walk = childById(*g_lib.find(walk), g_compositionPath[i])->symbolId;
+      walk = childById(*g_lib().find(walk), g_compositionPath[i])->symbolId;
     }
   }
   g_compositionPath.push_back(childId);
@@ -128,7 +131,7 @@ void truncateComposition(size_t depth) {
 bool doCombine(const std::vector<int>& childIds, const std::string& name) {
   Symbol* cur = currentSymbol();
   if (!cur) return false;
-  sw::CombineResult r = sw::combineChildren(g_lib, cur->id, childIds, name);
+  sw::CombineResult r = sw::combineChildren(g_lib(), cur->id, childIds, name);
   if (!r.ok) {
     g_status = "combine failed: " + r.error;
     return false;
@@ -163,7 +166,7 @@ bool isDirty() {
   // still happens on each revision bump so mutations that bypass bumpLibRevision (soundtrack
   // path, bpm drag) are still caught — they all ultimately bump at the next command commit.
   if (g_dirtyCheckedRev != g_libRevision) {
-    g_dirtyCache = (sw::libToJsonV2(g_lib) != g_savedSnapshot);
+    g_dirtyCache = (sw::libToJsonV2(g_lib()) != g_savedSnapshot);
     g_dirtyCheckedRev = g_libRevision;
   }
   return g_dirtyCache;
@@ -200,8 +203,8 @@ bool doSaveAs() {
   if (r != NFD_OKAY) return false;  // cancel or error
   std::string path = outPath.get();
   if (path.size() < 7 || path.substr(path.size() - 7) != ".swproj") path += ".swproj";
-  std::string json = sw::libToJsonV2(g_lib);
-  if (!sw::saveLibToFile(path, g_lib)) {
+  std::string json = sw::libToJsonV2(g_lib());
+  if (!sw::saveLibToFile(path, g_lib())) {
     sw::showError("無法寫入：" + path);
     return false;
   }
@@ -217,8 +220,8 @@ bool doSaveAs() {
 // Overwrites the current document; falls back to Save As when never saved.
 bool doSave() {
   if (g_documentPath.empty()) return doSaveAs();
-  std::string json = sw::libToJsonV2(g_lib);
-  if (!sw::saveLibToFile(g_documentPath, g_lib)) {
+  std::string json = sw::libToJsonV2(g_lib());
+  if (!sw::saveLibToFile(g_documentPath, g_lib())) {
     sw::showError("無法寫入：" + g_documentPath);
     return false;
   }
@@ -244,12 +247,12 @@ bool doOpenPath(const std::string& path, bool quiet) {
       sw::showError("無法讀取此專案檔：" + path);
     return false;
   }
-  g_lib = std::move(lib);
+  g_lib() = std::move(lib);
   g_compositionPath.clear();
-  sw::refreshCompoundSpecs(g_lib);
+  sw::refreshCompoundSpecs(g_lib());
   bumpLibRevision();
   g_documentPath = path;
-  g_savedSnapshot = sw::libToJsonV2(g_lib);
+  g_savedSnapshot = sw::libToJsonV2(g_lib());
   sw::g_commands.clear();
   sw::varlive::reset();  // a loaded doc has new child ids — the P1 slice target dangles otherwise
   sw::varpanel::reset();  // P2 pool snapshots capture child ids — a loaded doc dangles them too
@@ -276,12 +279,12 @@ void doOpen() {
 
 void doNew() {
   if (!confirmDiscardIfDirty()) return;
-  g_lib = sw::libFromGraph(sw::defaultParticleGraph());
+  g_lib() = sw::libFromGraph(sw::defaultParticleGraph());
   g_compositionPath.clear();
-  sw::refreshCompoundSpecs(g_lib);
+  sw::refreshCompoundSpecs(g_lib());
   bumpLibRevision();
   g_documentPath.clear();
-  g_savedSnapshot = sw::libToJsonV2(g_lib);
+  g_savedSnapshot = sw::libToJsonV2(g_lib());
   sw::g_commands.clear();
   sw::varlive::reset();  // fresh default doc — drop any armed P1 slice from the prior document
   sw::varpanel::reset();  // fresh default doc — drop the P2 pool snapshots from the prior document
@@ -302,14 +305,14 @@ void updateWindowTitle() {
 }
 
 void initSnapshot() {
-  sw::refreshCompoundSpecs(g_lib);  // dynamic spec table live from frame one
-  g_savedSnapshot = sw::libToJsonV2(g_lib);
+  sw::refreshCompoundSpecs(g_lib());  // dynamic spec table live from frame one
+  g_savedSnapshot = sw::libToJsonV2(g_lib());
 }
 
 // --- navigation selftest (document.h) ---
 int runNavigationSelfTest(bool injectBug) {
   // The doc API is global-bound; snapshot + restore so the test leaves no residue.
-  SymbolLibrary savedLib = g_lib;
+  SymbolLibrary savedLib = g_lib();
   std::vector<int> savedPath = g_compositionPath;
 
   // root{1:CompA, 2:RadialPoints} / CompA{1:CompB, 2:RadialPoints} / CompB{1:RadialPoints}
@@ -330,7 +333,7 @@ int runNavigationSelfTest(bool injectBug) {
   root.children.push_back({1, "CompA"});
   root.children.push_back({2, "RadialPoints"});
   lib.symbols = {{"RadialPoints", radial}, {"CompB", compB}, {"CompA", compA}, {"Root", root}};
-  g_lib = lib;
+  g_lib() = lib;
   g_compositionPath.clear();
 
   bool ok = currentSymbolId() == "Root";
@@ -342,7 +345,7 @@ int runNavigationSelfTest(bool injectBug) {
 
   // Delete the CompB instance out from under the path (simulating a mid-frame edit): the
   // PURE getter falls back to the valid prefix WITHOUT mutating the path...
-  g_lib.find("CompA")->children.erase(g_lib.find("CompA")->children.begin());
+  g_lib().find("CompA")->children.erase(g_lib().find("CompA")->children.begin());
   ok = ok && currentSymbolId() == "CompA" && g_compositionPath.size() == 2;
   // ...and the per-frame validator is the one place that trims (teeth: skipping it leaves
   // the stale tail alive and the size assertion FAILS).
@@ -353,7 +356,7 @@ int runNavigationSelfTest(bool injectBug) {
   ok = ok && !popComposition();  // already at root
 
   // breadcrumb jump: rebuild depth 2 (restore the deleted child first), truncate to root.
-  g_lib.find("CompA")->children.insert(g_lib.find("CompA")->children.begin(), {1, "CompB"});
+  g_lib().find("CompA")->children.insert(g_lib().find("CompA")->children.begin(), {1, "CompB"});
   ok = ok && pushComposition(1) && pushComposition(1) && g_compositionPath.size() == 2;
   truncateComposition(0);
   ok = ok && g_compositionPath.empty() && currentSymbolId() == "Root";
@@ -361,7 +364,7 @@ int runNavigationSelfTest(bool injectBug) {
   // Self-nesting refusal (mirror of the resident build's S14 guard): give CompB a child
   // referencing CompA — entering it from Root>CompA>CompB would put CompA on the chain
   // twice, a subtree the resident graph deliberately skips (= permanent black inside).
-  g_lib.find("CompB")->children.push_back({2, "CompA"});
+  g_lib().find("CompB")->children.push_back({2, "CompA"});
   ok = ok && pushComposition(1) && pushComposition(1);  // Root > CompA > CompB
   ok = ok && !pushComposition(2);                       // the CompA instance: refused
   ok = ok && g_compositionPath.size() == 2;
@@ -387,7 +390,7 @@ int runNavigationSelfTest(bool injectBug) {
     invalidateDirtyCache();
   }
 
-  g_lib = std::move(savedLib);
+  g_lib() = std::move(savedLib);
   g_compositionPath = std::move(savedPath);
   printf("[selftest-navigation] push/pop/truncate + dangling-trim + dirty-cache-save%s -> %s\n",
          injectBug ? "(bugged)" : "", ok ? "PASS" : "FAIL");

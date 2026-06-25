@@ -53,7 +53,7 @@ double measureDeltaSeconds() {
 }
 
 // PRODUCTION (compound spine, lib-native since 批次 3 N2): the frame cook walks this
-// RESIDENT eval graph, projected straight from doc::g_lib whenever doc::libRevision()
+// RESIDENT eval graph, projected straight from doc::g_lib() whenever doc::libRevision()
 // changes (rebuild-on-edit; paths == child-id chains, so per-path GPU buffers + stateful op
 // state SURVIVE the rebuild). Incremental patch wiring (patch*/patchLib*) replaces the
 // rebuild in a later cut — semantics already pinned by the patch goldens.
@@ -252,9 +252,9 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // every panel drawn after this agrees on the current symbol; mid-frame edits dangle the
   // tail at most until the next frame.
   doc::validateCompositionPath();
-  varlive::tick(doc::g_lib);            // L1 live pipe: P1 single-slice crossfader (FIXED 1/60 spring)
-  varpanel::tickCrossfade(doc::g_lib);  // L1 live pipe: P2 full pool crossfader (same spring; see header)
-  midibind::tick(doc::g_lib);           // L5 live pipe: P3 MIDI/OSC bound values -> graph param overrides
+  varlive::tick(doc::g_lib());            // L1 live pipe: P1 single-slice crossfader (FIXED 1/60 spring)
+  varpanel::tickCrossfade(doc::g_lib());  // L1 live pipe: P2 full pool crossfader (same spring; see header)
+  midibind::tick(doc::g_lib());           // L5 live pipe: P3 MIDI/OSC bound values -> graph param overrides
 
   // Projection rebuild BEFORE the AudioReaction cooker, so extOut lands on the fresh graph.
   if (g_builtRev != doc::libRevision()) {
@@ -262,8 +262,8 @@ void run(PointGraph& pg, const std::string& targetPath) {
     // command stack mid-frame, where the inspector/canvas hold NodeSpec* into the table
     // (swap = use-after-free, refuter N2 #1). The UI reads one-frame-stale compound specs
     // after an edit, same frame semantics as TiXL.
-    refreshCompoundSpecs(doc::g_lib);
-    ResidentEvalGraph fresh = buildEvalGraph(doc::g_lib, doc::g_lib.rootId);
+    refreshCompoundSpecs(doc::g_lib());
+    ResidentEvalGraph fresh = buildEvalGraph(doc::g_lib(), doc::g_lib().rootId);
     // Initialise per-output caches (sets isLiveSource, base/source/value versions) BEFORE
     // transplantDisabledCaches — transplant reads outCache.isDisabled, 0-initialized without this
     // call (else no frozen values ride across a rebuild, silently breaking the S2 disable-freeze).
@@ -285,7 +285,7 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // full stall (TiXL Stopwatch semantics). Only the sim leg (ctx.deltaTime below) is clamped.
   // The BPM home is the lib's composition settings (saved/loaded) — pull it onto the transport
   // each frame so a load / inspector edit takes effect (cheap, no edge to chase).
-  g_transport.bpm = doc::g_lib.composition.bpm;
+  g_transport.bpm = doc::g_lib().composition.bpm;
   const double dtSecs = measureDeltaSeconds();        // true wall dt -> transport
   const double dtSimSecs = simDeltaFromWall(dtSecs);  // clamped copy  -> Metal sim only
   g_transport.advance(dtSecs);
@@ -321,7 +321,7 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // the transport, so the bars-domain decision has ONE home and --selftest-arclock exercises it.
   {
     static std::map<std::string, AudioReactionState> s_arState;
-    cookAudioReactionNodes(g_residentGraph, spec, g_transport, g_frameIndex, &doc::g_lib,
+    cookAudioReactionNodes(g_residentGraph, spec, g_transport, g_frameIndex, &doc::g_lib(),
                            s_arState);
     // DetectBpm (TiXL operator parity) rides the SAME slot: accumulate one energy sample from the live
     // RawFft frame (spec.fftGain — the bins it sums over its INTEGER borders), write recovered BPM to
@@ -341,17 +341,17 @@ void run(PointGraph& pg, const std::string& targetPath) {
   {
     static std::map<std::string, StatefulValueState> s_svState;
     cookStatefulValueNodes(g_residentGraph, (float)dtSecs, (float)fxSecs, s_runTimeSecs, g_transport,
-                           g_frameIndex, &doc::g_lib, s_svState, s_ctxVars);
+                           g_frameIndex, &doc::g_lib(), s_svState, s_ctxVars);
   }
 
   // Cook the HOST-VALUE currencies (String / host-scalar / ColorList + value-output-rail) — the
   // PRODUCTION legs of the resident rails + (Phase 1) RequestedResolution (seeded from the window
   // size). It ALSO runs the [SetBpm] triggered-pull (PlaybackUtils.cs:74-78): on the armed edge it
-  // writes doc::g_lib.composition.bpm and returns true → bump g_transport.bpm THIS frame (cs:80) +
+  // writes doc::g_lib().composition.bpm and returns true → bump g_transport.bpm THIS frame (cs:80) +
   // dirty it (a direct g_lib.composition write bypasses bumpLibRevision, B4). Non-armed: false → no-op.
-  if (cookHostValueNodes(g_residentGraph, (float)posBars, (float)fxBars, &doc::g_lib,
+  if (cookHostValueNodes(g_residentGraph, (float)posBars, (float)fxBars, &doc::g_lib(),
                          pg.windowResolution().w, pg.windowResolution().h)) {
-    g_transport.bpm = doc::g_lib.composition.bpm;
+    g_transport.bpm = doc::g_lib().composition.bpm;
     doc::invalidateDirtyCache();
   }
 
@@ -373,7 +373,7 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // the playhead. (point_graph_resident reads them off the args — no more ctx.time placeholder.)
   // S3a: thread s_ctxVars (populated above) so a Command-rail SetVarCmd scopes a var around its SubGraph.
   pg.cookResident(g_residentGraph, ctx, /*reg=*/nullptr, targetPath,
-                  (float)posBars, (float)fxBars, &doc::g_lib, &s_ctxVars);
+                  (float)posBars, (float)fxBars, &doc::g_lib(), &s_ctxVars);
   // editor-only: stamp lastUpdatePass on live nodes (Time/Automation-driven) so the UI's idle
   // fade signal is accurate. Static nodes keep their old lastUpdatePass (idle after 60 frames).
   stampLiveLastUpdatePass(g_residentGraph, g_frameIndex);
@@ -387,11 +387,11 @@ void transportScrub(double bars) { g_transport.scrub(bars); }
 bool transportPlaying() { return g_transport.playing(); }
 double transportPosition() { return g_transport.position; }
 double transportFxTime() { return g_transport.fxTime; }
-double transportBpm() { return doc::g_lib.composition.bpm; }
+double transportBpm() { return doc::g_lib().composition.bpm; }
 void transportSetBpm(double bpm) {
   if (bpm < 1.0 || bpm > 999.0) return;   // sane range, same gate as the loader (tiny-positive
                                           // bpm makes secondsFromBars blow to inf — BROKEN-B)
-  doc::g_lib.composition.bpm = bpm;       // the persistence home (saved in the v2 file)
+  doc::g_lib().composition.bpm = bpm;       // the persistence home (saved in the v2 file)
   doc::invalidateDirtyCache();            // direct g_lib write bypasses bumpLibRevision (B4 fix)
   g_transport.bpm = bpm;
 }

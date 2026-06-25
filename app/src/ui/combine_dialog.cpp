@@ -55,7 +55,7 @@ bool armRename(int childId, bool isDef) {
   g_renameSymbolId = c->symbolId;
   g_renameIsDef = isDef;
   const std::string seed = isDef ? [&] {
-    const sw::Symbol* def = sw::doc::g_lib.find(c->symbolId);
+    const sw::Symbol* def = sw::doc::g_lib().find(c->symbolId);
     return def ? def->name : c->symbolId;  // def title to edit
   }() : c->name;  // instance custom name (may be empty -> empty box, fallback shown as hint)
   std::snprintf(g_renameBuf, sizeof(g_renameBuf), "%s", seed.c_str());
@@ -78,11 +78,11 @@ void drawAddNodeSubmenu(ImVec2 anchor) {
   }
   // Compound definitions (same list as toolbar popup, same cycle-guard styling).
   bool first = true;
-  for (const auto& kv : sw::doc::g_lib.symbols) {
+  for (const auto& kv : sw::doc::g_lib().symbols) {
     const sw::Symbol& s = kv.second;
     if (s.atomic) continue;
     if (first) { ImGui::Separator(); first = false; }
-    const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib, curId, s.id);
+    const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib(), curId, s.id);
     const std::string label = s.name.empty() ? s.id : s.name;
     ImGui::BeginDisabled(cyclic);
     if (ImGui::MenuItem(label.c_str())) sw::ui::spawnNodeAt(s.id, anchor.x, anchor.y);
@@ -99,7 +99,7 @@ void drawAddNodeSubmenu(ImVec2 anchor) {
 bool childRefsCompound(int childId) {
   const sw::Symbol* cur = sw::doc::currentSymbolConst();
   const sw::SymbolChild* c = cur ? sw::childById(*cur, childId) : nullptr;
-  const sw::Symbol* def = c ? sw::doc::g_lib.find(c->symbolId) : nullptr;
+  const sw::Symbol* def = c ? sw::doc::g_lib().find(c->symbolId) : nullptr;
   return def && !def->atomic;
 }
 
@@ -212,10 +212,10 @@ void drawCanvasContextMenu() {
     if (renameTarget > 0) {
       const sw::Symbol* cur = sw::doc::currentSymbolConst();
       const sw::SymbolChild* c = cur ? sw::childById(*cur, renameTarget) : nullptr;
-      const bool canBypass = c && sw::childIsBypassable(sw::doc::g_lib, *c);
+      const bool canBypass = c && sw::childIsBypassable(sw::doc::g_lib(), *c);
       const bool isBp = c && c->isBypassed;
       if (ImGui::MenuItem("Bypassed", nullptr, isBp, canBypass || isBp)) {
-        auto cmd = std::make_unique<sw::SetBypassChildCommand>(sw::doc::g_lib, cur->id, renameTarget,
+        auto cmd = std::make_unique<sw::SetBypassChildCommand>(sw::doc::g_lib(), cur->id, renameTarget,
                                                               !isBp);
         if (!cmd->refused()) {
           sw::g_commands.push(std::move(cmd));
@@ -333,11 +333,11 @@ void drawRenameDialog() {
       const sw::Symbol* cur = sw::doc::currentSymbolConst();
       if (cur) {
         if (g_renameIsDef) {
-          auto cmd = std::make_unique<sw::RenameSymbolCommand>(sw::doc::g_lib, g_renameSymbolId,
+          auto cmd = std::make_unique<sw::RenameSymbolCommand>(sw::doc::g_lib(), g_renameSymbolId,
                                                                g_renameBuf);
           if (!cmd->refused()) sw::g_commands.push(std::move(cmd));  // refused -> no undo entry
         } else {
-          auto cmd = std::make_unique<sw::RenameChildCommand>(sw::doc::g_lib, cur->id,
+          auto cmd = std::make_unique<sw::RenameChildCommand>(sw::doc::g_lib(), cur->id,
                                                               g_renameChildId, g_renameBuf);
           if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
         }

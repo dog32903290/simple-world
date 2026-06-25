@@ -36,7 +36,7 @@ std::string laneLabel(const Symbol& sym, int childId, const std::string& inputId
   std::string childName = "?";
   std::string inputName = inputId;
   if (c) {
-    const Symbol* def = sw::doc::g_lib.find(c->symbolId);
+    const Symbol* def = sw::doc::g_lib().find(c->symbolId);
     childName = childReadableName(*c, def ? def->name : c->symbolId);
     if (const sw::NodeSpec* spec = sw::findSpec(c->symbolId)) {
       for (const sw::PortSpec& p : spec->ports)

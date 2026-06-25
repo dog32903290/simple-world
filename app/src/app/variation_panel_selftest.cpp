@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "app/command.h"            // g_commands (undo in the mix golden)
-#include "app/document.h"           // doc::g_lib / g_compositionPath (the live document the panel reads)
+#include "app/document.h"           // doc::g_lib() / g_compositionPath (the live document the panel reads)
 #include "runtime/compound_graph.h"  // SymbolLibrary / SlotDef / childById / effectiveInput
 #include "runtime/selftest_registry.h"  // REGISTER_SELFTESTS
 
@@ -58,8 +58,8 @@ void setAmount(SymbolLibrary& lib, float v) {
 //   Delete slot 1 -> slot 1 empty; a second delete = no-op.
 bool goldenGrabActivateDelete(bool injectBug) {
   reset();
-  doc::g_lib = buildLib();
-  SymbolLibrary& lib = doc::g_lib;
+  doc::g_lib() = buildLib();
+  SymbolLibrary& lib = doc::g_lib();
 
   setAmount(lib, 5.0f);
   const bool grabbed = grabSnapshot(lib, 1);
@@ -95,8 +95,8 @@ bool goldenGrabActivateDelete(bool injectBug) {
 //   still pins the weighted 10 -> got(8) != want(10) -> RED (the weight wiring actually matters).
 bool goldenNWayMix(bool injectBug) {
   reset();
-  doc::g_lib = buildLib();
-  SymbolLibrary& lib = doc::g_lib;
+  doc::g_lib() = buildLib();
+  SymbolLibrary& lib = doc::g_lib();
 
   setAmount(lib, 4.0f);
   grabSnapshot(lib, 1);    // slot 1 captures amount=4
@@ -141,8 +141,8 @@ bool goldenNWayMix(bool injectBug) {
 //   frozen at the left (0). The assertion ALWAYS demands the right endpoint, so the bug goes RED.
 bool goldenCrossfade(bool injectBug) {
   reset();
-  doc::g_lib = buildLib();
-  SymbolLibrary& lib = doc::g_lib;
+  doc::g_lib() = buildLib();
+  SymbolLibrary& lib = doc::g_lib();
 
   setAmount(lib, 0.0f);
   grabSnapshot(lib, 1);    // left endpoint: amount=0
@@ -175,16 +175,16 @@ bool goldenCrossfade(bool injectBug) {
 namespace sw::varpanel {
 
 int runVariationPanelSelfTest(bool injectBug) {
-  // Preserve / restore the live document — the panel reads doc::g_lib and the selftest swaps it. The
+  // Preserve / restore the live document — the panel reads doc::g_lib() and the selftest swaps it. The
   // composition path must be at root so currentSymbolId() resolves to our tiny lib's rootId ("comp").
-  SymbolLibrary saved = doc::g_lib;
+  SymbolLibrary saved = doc::g_lib();
   std::vector<int> savedPath = doc::g_compositionPath;
   doc::g_compositionPath.clear();
   bool ok = true;
   ok = goldenGrabActivateDelete(injectBug) && ok;
   ok = goldenNWayMix(injectBug) && ok;
   ok = goldenCrossfade(injectBug) && ok;
-  doc::g_lib = saved;
+  doc::g_lib() = saved;
   doc::g_compositionPath = savedPath;
   reset();
   std::printf("[selftest-variation-panel] %s\n", ok ? "PASS" : "FAIL");

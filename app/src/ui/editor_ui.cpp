@@ -2,7 +2,7 @@
 // Zone: ui. Depends on app(document) + runtime + verify(thin hook). Never the reverse.
 //
 // Lib-native canvas (批次 3, 照 TiXL GraphCanvas): the canvas renders the CURRENT Symbol's
-// children/connections straight off doc::g_lib — no flat Graph, no projection layer.
+// children/connections straight off doc::g_lib() — no flat Graph, no projection layer.
 // Composition switch (N3) = same canvas, different symbol.
 #include "ui/editor_ui.h"
 #include "ui/annotation_draw.h"  // Annotation frames (批B/C): canvas draw + drag/resize/rename
@@ -276,7 +276,7 @@ void drawNodeCanvas() {
               if (w.dstChild == nw.dstChild && w.dstSlot == nw.dstSlot &&
                   w.srcChild == nw.srcChild && w.srcSlot == nw.srcSlot) { dup = true; break; }
             if (!dup) {
-              sw::g_commands.push(std::make_unique<sw::AddWireCommand>(sw::doc::g_lib, cur->id, nw));
+              sw::g_commands.push(std::make_unique<sw::AddWireCommand>(sw::doc::g_lib(), cur->id, nw));
               sw::doc::g_status = "linked (multi)";
             }
           } else if (old && old->srcChild == nw.srcChild && old->srcSlot == nw.srcSlot) {
@@ -285,12 +285,12 @@ void drawNodeCanvas() {
             // reconnect: remove the input's old wire, add the new one, as one undo unit
             auto macro = std::make_unique<sw::MacroCommand>("Reconnect");
             macro->add(std::make_unique<sw::DeleteWiresCommand>(
-                sw::doc::g_lib, cur->id, std::vector<sw::SymbolConnection>{*old}));
-            macro->add(std::make_unique<sw::AddWireCommand>(sw::doc::g_lib, cur->id, nw));
+                sw::doc::g_lib(), cur->id, std::vector<sw::SymbolConnection>{*old}));
+            macro->add(std::make_unique<sw::AddWireCommand>(sw::doc::g_lib(), cur->id, nw));
             sw::g_commands.push(std::move(macro));
             sw::doc::g_status = "reconnected";
           } else {
-            sw::g_commands.push(std::make_unique<sw::AddWireCommand>(sw::doc::g_lib, cur->id, nw));
+            sw::g_commands.push(std::make_unique<sw::AddWireCommand>(sw::doc::g_lib(), cur->id, nw));
             sw::doc::g_status = "linked";
           }
         }
@@ -382,14 +382,14 @@ void drawNodeCanvas() {
     if (!delNodes.empty() || !standaloneWires.empty() || !delDefs.empty()) {
       auto macro = std::make_unique<sw::MacroCommand>("Delete");
       if (!standaloneWires.empty())
-        macro->add(std::make_unique<sw::DeleteWiresCommand>(sw::doc::g_lib, cur->id,
+        macro->add(std::make_unique<sw::DeleteWiresCommand>(sw::doc::g_lib(), cur->id,
                                                             standaloneWires));
       if (!delNodes.empty())
-        macro->add(std::make_unique<sw::DeleteChildrenCommand>(sw::doc::g_lib, cur->id, delNodes));
+        macro->add(std::make_unique<sw::DeleteChildrenCommand>(sw::doc::g_lib(), cur->id, delNodes));
       // Def removals LAST (mirror TiXL Modifications.cs:184-191: children deleted first so the def
       // scrub only touches connections still present — though our snapshot captures whatever it hits).
       for (const auto& [slot, isInput] : delDefs)
-        macro->add(std::make_unique<sw::DeleteInputOrOutputDefCommand>(sw::doc::g_lib, cur->id, slot,
+        macro->add(std::make_unique<sw::DeleteInputOrOutputDefCommand>(sw::doc::g_lib(), cur->id, slot,
                                                                        isInput));
       sw::g_commands.push(std::move(macro));
       // Removing a def is a contract change — SAY so (柏為: silent edits read as broken). ASCII only.
@@ -474,7 +474,7 @@ void drawNodeCanvas() {
         // 命令的 doIt 會再設一次新座標（冪等），先把 lib 設回舊座標避免雙重記錄混亂。
         for (auto& m : moves)
           if (sw::SymbolChild* c = sw::childById(*cur, m.id)) { c->x = m.oldX; c->y = m.oldY; }
-        sw::g_commands.push(std::make_unique<sw::MoveChildrenCommand>(sw::doc::g_lib, cur->id, moves));
+        sw::g_commands.push(std::make_unique<sw::MoveChildrenCommand>(sw::doc::g_lib(), cur->id, moves));
       }
     } else {
       // 沒拖動：照常把 editor 位置同步回 lib（例如程式性移動）。

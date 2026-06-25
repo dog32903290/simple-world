@@ -155,7 +155,7 @@ void finishTangent(State& s, Symbol& sym, const std::string& symbolId) {
     if (!now) continue;
     edits.push_back(CurveGroupEdit{gs.childId, gs.inputId, gs.before, *now});
   }
-  auto cmd = std::make_unique<SetCurveGroupSnapshotCommand>(sw::doc::g_lib, symbolId,
+  auto cmd = std::make_unique<SetCurveGroupSnapshotCommand>(sw::doc::g_lib(), symbolId,
                                                             std::move(edits), "Edit Tangents");
   if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
   s.tan = TangentDrag{};
@@ -180,7 +180,7 @@ void runSetInterpolation(State& s, Symbol& sym, const std::string& symbolId, int
     for (Curve& c : after) c.updateTangents();  // = TiXL UpdateAllTangents after the menu action
     edits.push_back(CurveGroupEdit{gid.first, gid.second, *arr, std::move(after)});
   }
-  auto cmd = std::make_unique<SetCurveGroupSnapshotCommand>(sw::doc::g_lib, symbolId,
+  auto cmd = std::make_unique<SetCurveGroupSnapshotCommand>(sw::doc::g_lib(), symbolId,
                                                             std::move(edits), "Set Interpolation");
   if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
 }
@@ -345,7 +345,7 @@ void executePending(const std::string& symbolId, Symbol& sym, const Geom& g) {
     if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
       applyDragLive(s, sym, g, ImGui::GetMousePos());
     else
-      finishDrag(s, sw::doc::g_lib, sw::g_commands, symbolId, sym);
+      finishDrag(s, sw::doc::g_lib(), sw::g_commands, symbolId, sym);
   }
   if (s.tan.active) {
     if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -355,14 +355,14 @@ void executePending(const std::string& symbolId, Symbol& sym, const Geom& g) {
   }
 
   if (p.addKey) {
-    auto cmd = std::make_unique<AddKeyframeCommand>(sw::doc::g_lib, symbolId, p.addAt.childId,
+    auto cmd = std::make_unique<AddKeyframeCommand>(sw::doc::g_lib(), symbolId, p.addAt.childId,
                                                     p.addAt.inputId, p.addAt.index, p.addAt.time);
     sw::g_commands.push(std::move(cmd));  // refused-safe: doIt no-ops, undo no-ops
   }
   if (!p.insertKeys.empty())
-    runInsertKeys(sw::doc::g_lib, sw::g_commands, symbolId, p.insertKeys);
+    runInsertKeys(sw::doc::g_lib(), sw::g_commands, symbolId, p.insertKeys);
   if (p.deleteSelected && !s.selection.empty())
-    runDeleteSelected(s, sw::doc::g_lib, sw::g_commands, symbolId, sym);
+    runDeleteSelected(s, sw::doc::g_lib(), sw::g_commands, symbolId, sym);
   if (p.setInterp >= 0 && !s.selection.empty()) runSetInterpolation(s, sym, symbolId, p.setInterp);
 }
 

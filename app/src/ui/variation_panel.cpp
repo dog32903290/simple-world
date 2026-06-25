@@ -121,7 +121,7 @@ void drawVariationPanel() {
     if (g == CellGesture::Select) s_selected = slots[i].index;
     else if (g == CellGesture::Activate) {
       s_selected = slots[i].index;
-      sw::varpanel::activateSnapshot(sw::doc::g_lib, slots[i].index);
+      sw::varpanel::activateSnapshot(sw::doc::g_lib(), slots[i].index);
       sw::doc::g_status = "activated snapshot " + std::to_string(slots[i].index);
     }
   }
@@ -132,7 +132,7 @@ void drawVariationPanel() {
   const bool selFilled = haveSel && slots[s_selected - 1].filled;
   if (ImGui::Button("Grab")) {
     const int target = haveSel ? s_selected : 1;  // default to slot 1 if nothing picked
-    if (sw::varpanel::grabSnapshot(sw::doc::g_lib, target)) {
+    if (sw::varpanel::grabSnapshot(sw::doc::g_lib(), target)) {
       s_selected = target;
       sw::doc::g_status = "grabbed snapshot into slot " + std::to_string(target);
     }
@@ -141,7 +141,7 @@ void drawVariationPanel() {
   ImGui::SameLine();
   if (!selFilled) ImGui::BeginDisabled();
   if (ImGui::Button("Activate") && selFilled) {
-    sw::varpanel::activateSnapshot(sw::doc::g_lib, s_selected);
+    sw::varpanel::activateSnapshot(sw::doc::g_lib(), s_selected);
     sw::doc::g_status = "activated snapshot " + std::to_string(s_selected);
   }
   sw::eye::recordItem("var_activate");
@@ -173,7 +173,7 @@ void drawVariationPanel() {
     ImGui::PopID();
   }
   if (ImGui::Button("Apply Mix")) {
-    if (sw::varpanel::applyMix(sw::doc::g_lib))
+    if (sw::varpanel::applyMix(sw::doc::g_lib()))
       sw::doc::g_status = "applied N-way mix";
   }
   sw::eye::recordItem("var_apply_mix");
@@ -201,7 +201,7 @@ void drawVariationPanel() {
   comboFor("Right", s_right);
   ImGui::SameLine();
   if (ImGui::Button("Arm")) {
-    if (sw::varpanel::armCrossfade(sw::doc::g_lib, s_left, s_right)) {
+    if (sw::varpanel::armCrossfade(sw::doc::g_lib(), s_left, s_right)) {
       s_fader = 0.0f;
       sw::doc::g_status = "armed crossfade " + std::to_string(s_left) + " -> " + std::to_string(s_right);
     }

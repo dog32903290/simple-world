@@ -284,8 +284,8 @@ int runSoundtrackSelfTest(bool injectBug) {
     const std::string path = "/tmp/sw_soundtrack_retry.wav";
     const std::string base = "sw_soundtrack_retry.wav";
     std::remove(path.c_str());
-    const std::string savedPath = doc::g_lib.composition.soundtrackPath;
-    doc::g_lib.composition.soundtrackPath = path;     // path set while the file is MISSING
+    const std::string savedPath = doc::g_lib().composition.soundtrackPath;
+    doc::g_lib().composition.soundtrackPath = path;     // path set while the file is MISSING
     syncFrame(false, 1.0, 0.0);                            // watcher: load fails -> cached
     expect("missing file fails and is cached", statusText() == "load failed: " + base);
     expect("fixture appears at the SAME path", writeTinyWav(path, 48000, 4800));
@@ -295,7 +295,7 @@ int runSoundtrackSelfTest(bool injectBug) {
     applySoundtrackPick(path);                        // 柏為 explicitly re-picks the same path
     syncFrame(false, 1.0, 0.0);
     expect("explicit re-pick of the SAME path retries and loads", statusText() == base);
-    doc::g_lib.composition.soundtrackPath = savedPath;  // restore + unload for later tests
+    doc::g_lib().composition.soundtrackPath = savedPath;  // restore + unload for later tests
     syncFrame(false, 1.0, 0.0);
     std::remove(path.c_str());
   }

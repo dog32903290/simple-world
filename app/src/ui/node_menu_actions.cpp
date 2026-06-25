@@ -53,13 +53,13 @@ void alignSelectionLeft(const std::vector<int>& ids) {
       if (c->x != minX) moves.push_back({id, c->x, c->y, minX, c->y});
   if (moves.empty()) return;  // already aligned -> no dead undo entry (TiXL parity)
   sw::g_commands.push(
-      std::make_unique<sw::MoveChildrenCommand>(sw::doc::g_lib, cur->id, std::move(moves)));
+      std::make_unique<sw::MoveChildrenCommand>(sw::doc::g_lib(), cur->id, std::move(moves)));
 }
 
 void deleteCaptured(const std::vector<int>& ids) {
   sw::Symbol* cur = sw::doc::currentSymbol();
   if (!cur || ids.empty()) return;
-  sw::g_commands.push(std::make_unique<sw::DeleteChildrenCommand>(sw::doc::g_lib, cur->id, ids));
+  sw::g_commands.push(std::make_unique<sw::DeleteChildrenCommand>(sw::doc::g_lib(), cur->id, ids));
   ed::ClearSelection();
 }
 

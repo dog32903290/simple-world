@@ -56,11 +56,11 @@ void drawInspector() {
     if (spec) {
       // Effective value of a Float input slot (instance override else definition default).
       auto eff = [&](const sw::PortSpec& p) {
-        return sw::effectiveInput(sw::doc::g_lib, *sel, p.id, p.def);
+        return sw::effectiveInput(sw::doc::g_lib(), *sel, p.id, p.def);
       };
       auto pushSet = [&](const std::string& slotId, bool had, float oldV, float newV) {
         sw::g_commands.push(std::make_unique<sw::SetOverrideCommand>(
-            sw::doc::g_lib, cur->id, sel->id, slotId, had, oldV, newV));
+            sw::doc::g_lib(), cur->id, sel->id, slotId, had, oldV, newV));
       };
       bool any = false;
       for (size_t i = 0; i < spec->ports.size(); ++i) {
@@ -122,7 +122,7 @@ void drawInspector() {
             }
             if (ImGui::IsItemDeactivatedAfterEdit() && arr) {
               auto cmd = std::make_unique<sw::SetCurveSnapshotCommand>(
-                  sw::doc::g_lib, cur->id, sel->id, p.id, g_curveSnapBefore, *arr);
+                  sw::doc::g_lib(), cur->id, sel->id, p.id, g_curveSnapBefore, *arr);
               if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
             }
             animateContextMenu(cur->id, sel->id, p.id, /*animated=*/true);
@@ -250,7 +250,7 @@ void drawInspector() {
           // Release: hand the pre-drag + post-drag snapshots to one undoable command (refused if equal).
           if (ImGui::IsItemDeactivatedAfterEdit() && arr) {
             auto cmd = std::make_unique<sw::SetCurveSnapshotCommand>(
-                sw::doc::g_lib, cur->id, sel->id, p.id, g_curveSnapBefore, *arr);
+                sw::doc::g_lib(), cur->id, sel->id, p.id, g_curveSnapBefore, *arr);
             if (!cmd->refused()) sw::g_commands.push(std::move(cmd));
           }
           animateContextMenu(cur->id, sel->id, p.id, /*animated=*/true);
@@ -319,7 +319,7 @@ void drawInspector() {
       // Command no-op) + a "Trigger" dropdown (None/Always/Animated DirtyFlagTrigger override). Both
       // push undoable, sparse commands (back-to-default erases the key). Output dimension lives here,
       // NOT the node-context menu — bypass is node-dimension (right-click), these are per-output.
-      const sw::Symbol* def = sw::doc::g_lib.find(sel->symbolId);
+      const sw::Symbol* def = sw::doc::g_lib().find(sel->symbolId);
       if (def && !def->outputDefs.empty()) {
         ImGui::Separator();
         ImGui::TextDisabled("Outputs");
@@ -331,7 +331,7 @@ void drawInspector() {
           auto dit = sel->disabledOutputs.find(od.id);
           bool disabled = dit != sel->disabledOutputs.end() && dit->second;
           if (ImGui::Checkbox("Disabled", &disabled)) {
-            auto cmd = std::make_unique<sw::SetOutputDisabledCommand>(sw::doc::g_lib, cur->id, sel->id,
+            auto cmd = std::make_unique<sw::SetOutputDisabledCommand>(sw::doc::g_lib(), cur->id, sel->id,
                                                                       od.id, disabled);
             if (!cmd->refused()) {
               sw::g_commands.push(std::move(cmd));
@@ -346,7 +346,7 @@ void drawInspector() {
           int ti = (int)curT;
           if (ImGui::Combo("Trigger", &ti, kTrig, 3)) {
             auto cmd = std::make_unique<sw::SetOutputTriggerCommand>(
-                sw::doc::g_lib, cur->id, sel->id, od.id, (sw::TriggerOverride)ti);
+                sw::doc::g_lib(), cur->id, sel->id, od.id, (sw::TriggerOverride)ti);
             if (!cmd->refused()) {
               sw::g_commands.push(std::move(cmd));
               sw::doc::bumpLibRevision();

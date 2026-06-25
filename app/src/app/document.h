@@ -11,7 +11,18 @@ namespace sw::doc {
 // The open document IS a SymbolLibrary (批次 3 N2, lib-native: TiXL SymbolPackage shape).
 // The flat Graph died as the editing model — it survives only as the v1 importer
 // (graph_bridge::libFromGraph) and inside goldens.
-extern SymbolLibrary g_lib;
+//
+// CONSTRUCT-ON-FIRST-USE (init-order discipline): the default library is built by
+// libFromGraph(defaultParticleGraph()), which calls findSpec for every seed node. findSpec
+// reads the self-registration sinks (math/image-filter/value/field/…) LIVE, and those sinks
+// are filled by file-scope registrars during pre-main dynamic init. A pre-main static global
+// would race them: any seed op whose spec lives in a sink (e.g. AudioReaction in mathSpecSink)
+// gets silently dropped because its registrar hasn't run yet (the static-init-order fiasco —
+// it caught a real regression: the default root lost its AudioReaction child, 5→4).
+// g_lib() is an accessor over a function-local static — construction is deferred to the first
+// call, which is always inside main() (after ALL pre-main registrars have run), so every seed
+// op resolves. Call it as g_lib() everywhere; never cache the reference in a pre-main static.
+SymbolLibrary& g_lib();
 
 // Where the canvas is looking: child ids walked from the root symbol (= TiXL composition
 // path, ProjectView._compositionPath). Empty = the root symbol itself. The CURRENT symbol =

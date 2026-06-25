@@ -89,10 +89,10 @@ void drawRequiredIndicator(const ImVec2& pa, const ImVec2& pb) {
 // FORMATTING to the pure formatInputValue (so the format is unit-tested by --selftest-nodeval).
 std::string inputValueString(const sw::SymbolChild& child, const sw::PortSpec& p) {
   const std::string strv = (p.dataType == "String")
-      ? sw::effectiveStrInput(sw::doc::g_lib, child, p.id, p.strDef)
+      ? sw::effectiveStrInput(sw::doc::g_lib(), child, p.id, p.strDef)
       : std::string();
   const float v = (p.dataType == "Float")
-      ? sw::effectiveInput(sw::doc::g_lib, child, p.id, p.def)
+      ? sw::effectiveInput(sw::doc::g_lib(), child, p.id, p.def)
       : 0.0f;
   return formatInputValue(p, v, strv);
 }

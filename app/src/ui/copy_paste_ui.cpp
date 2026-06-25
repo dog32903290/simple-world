@@ -49,7 +49,7 @@ void pasteClipboardAt(float canvasX, float canvasY) {
     sw::doc::g_status = "clipboard has no nodes to paste";
     return;
   }
-  sw::PastePlan plan = sw::planPaste(sw::doc::g_lib, cur->id, clip, canvasX, canvasY);
+  sw::PastePlan plan = sw::planPaste(sw::doc::g_lib(), cur->id, clip, canvasX, canvasY);
   if (plan.children.empty() && plan.annotations.empty()) {
     // Every child was cycle-dropped (e.g. pasting a compound into its own ancestor) or the
     // target vanished, and no annotation rode along. SAY so — a silent paste reads as broken
@@ -58,7 +58,7 @@ void pasteClipboardAt(float canvasX, float canvasY) {
     return;
   }
   const size_t dropped = clip.children.size() - plan.children.size();
-  auto cmd = std::make_unique<sw::CopyPasteChildrenCommand>(sw::doc::g_lib, cur->id, std::move(plan));
+  auto cmd = std::make_unique<sw::CopyPasteChildrenCommand>(sw::doc::g_lib(), cur->id, std::move(plan));
   sw::g_commands.push(std::move(cmd));
   sw::doc::g_relayout = true;  // re-seed positions for the newly added children
   sw::doc::g_status = dropped ? "pasted (some dropped: would cycle)" : "pasted";

@@ -12,7 +12,7 @@
 
 #include "imgui.h"
 
-#include "app/document.h"      // doc::g_lib
+#include "app/document.h"      // doc::g_lib()
 #include "runtime/graph.h"     // addChildWouldCycle
 #include "verify/eye/eye.h"    // one-line eye hooks (qa:ns:* / qa:*)
 
@@ -66,7 +66,7 @@ void drawFolder(const NamespaceNode& node, const std::string& prefix, const std:
         }
     }
     for (const std::string& id : node.symbols) {
-        const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib, curId, id);
+        const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib(), curId, id);
         ImGui::BeginDisabled(cyclic);
         bool clicked = ImGui::Selectable(displayName(id).c_str(), false, ImGuiSelectableFlags_None);
         ImGui::EndDisabled();

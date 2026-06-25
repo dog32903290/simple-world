@@ -195,7 +195,7 @@ static bool handleInsertKeyframe() {
     for (const auto& [inputId, curves] : byInput) {
       for (int idx = 0; idx < (int)curves.size(); ++idx) {
         macro->add(std::make_unique<sw::AddKeyframeCommand>(
-            sw::doc::g_lib, symId, childId, inputId, idx, time));
+            sw::doc::g_lib(), symId, childId, inputId, idx, time));
       }
     }
   }
@@ -227,10 +227,10 @@ static bool handleInsertKeyframeWithIncrement() {
         const float sampledPlus1 = (float)curves[idx].sample(time) + 1.0f;
         // Step 1: insert key (clone-previous style, value=sample(t)).
         macro->add(std::make_unique<sw::AddKeyframeCommand>(
-            sw::doc::g_lib, symId, childId, inputId, idx, time));
+            sw::doc::g_lib(), symId, childId, inputId, idx, time));
         // Step 2: bump the value to sample(t)+1 (WriteKeyAtPlayhead updates in-place).
         macro->add(std::make_unique<sw::WriteKeyAtPlayheadCommand>(
-            sw::doc::g_lib, symId, childId, inputId, idx, time, sampledPlus1));
+            sw::doc::g_lib(), symId, childId, inputId, idx, time, sampledPlus1));
       }
     }
   }
@@ -565,7 +565,7 @@ static bool handleToggleDisabled() {
   const sw::SymbolChild* child = sw::childById(*cur, g_selectedNode);
   if (!child) return true;
   // Find main output slot (outputDefs[0] of the child's referenced symbol).
-  const sw::Symbol* def = sw::doc::g_lib.find(child->symbolId);
+  const sw::Symbol* def = sw::doc::g_lib().find(child->symbolId);
   if (!def || def->outputDefs.empty()) return true;  // no output to disable
   const std::string mainSlot = def->outputDefs[0].id;
   // Current disabled state.
@@ -573,7 +573,7 @@ static bool handleToggleDisabled() {
   bool curDisabled = dit != child->disabledOutputs.end() && dit->second;
   bool newDisabled = !curDisabled;
   auto cmd = std::make_unique<sw::SetOutputDisabledCommand>(
-      sw::doc::g_lib, cur->id, g_selectedNode, mainSlot, newDisabled);
+      sw::doc::g_lib(), cur->id, g_selectedNode, mainSlot, newDisabled);
   if (!cmd->refused()) {
     sw::g_commands.push(std::move(cmd));
     sw::doc::bumpLibRevision();

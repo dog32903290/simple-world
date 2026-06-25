@@ -46,7 +46,7 @@ void drawAudioReactionFace(const sw::SymbolChild& child) {
   // is the one bit of view-local transient state (keyed by child id, never persisted).
   const sw::SpectrumSnapshot sp = sw::audio_monitor::spectrum();
   auto par = [&](const char* id, float def) {
-    return sw::effectiveInput(sw::doc::g_lib, child, id, def);
+    return sw::effectiveInput(sw::doc::g_lib(), child, id, def);
   };
   // Live outputs (level / wasHit / hitCount) off the resident node this child projects to.
   static const float kZero[3] = {0.0f, 0.0f, 0.0f};

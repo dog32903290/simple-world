@@ -36,7 +36,7 @@ void spawnNodeAt(const std::string& type, float cx, float cy) {
   // Refuse here so NO no-op command reaches the undo stack, and SAY why (反沉默拒絕鐵律). The
   // menu already greys these out; this guards the programmatic/keyboard path too. Atomics never
   // trip it. = TiXL "prevent graph cycles" (SymbolFilter.cs:118), made a hard refusal + message.
-  if (sw::addChildWouldCycle(sw::doc::g_lib, cur->id, type)) {
+  if (sw::addChildWouldCycle(sw::doc::g_lib(), cur->id, type)) {
     sw::doc::g_status = "cannot add " + type + " here - would nest a composition in itself";
     return;
   }
@@ -47,7 +47,7 @@ void spawnNodeAt(const std::string& type, float cx, float cy) {
   c.y = cy;
   // overrides stay EMPTY — the instance reads the definition's defaults until edited
   // (TiXL Symbol.Child semantics; the flat editor's params-prefill died with it).
-  sw::g_commands.push(std::make_unique<sw::AddChildCommand>(sw::doc::g_lib, cur->id, c));
+  sw::g_commands.push(std::make_unique<sw::AddChildCommand>(sw::doc::g_lib(), cur->id, c));
   sw::doc::g_relayout = true;
   sw::doc::g_status = "added " + type;
 }
@@ -94,11 +94,11 @@ void drawToolbar() {
     // cycles". The eye key stays the symbol id (ASCII-stable) even when the label is a CJK name.
     const std::string& curId = sw::doc::currentSymbolId();
     bool first = true;
-    for (const auto& kv : sw::doc::g_lib.symbols) {
+    for (const auto& kv : sw::doc::g_lib().symbols) {
       const sw::Symbol& s = kv.second;
       if (s.atomic) continue;
       if (first) { ImGui::Separator(); first = false; }
-      const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib, curId, s.id);
+      const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib(), curId, s.id);
       const std::string label = s.name.empty() ? s.id : s.name;
       ImGui::BeginDisabled(cyclic);
       if (ImGui::MenuItem(label.c_str())) addNode(s.id);
@@ -201,18 +201,18 @@ void drawToolbar() {
       if (cur && !cur->children.empty()) {
         // First child with a Float input slot — the narrowed single-param P1 target.
         for (const sw::SymbolChild& ch : cur->children) {
-          const sw::Symbol* def = sw::doc::g_lib.find(ch.symbolId);
+          const sw::Symbol* def = sw::doc::g_lib().find(ch.symbolId);
           if (!def) continue;
           const sw::SlotDef* floatSlot = nullptr;
           for (const sw::SlotDef& in : def->inputDefs)
             if (in.dataType == "Float") { floatSlot = &in; break; }
           if (!floatSlot) continue;
-          const float a = sw::effectiveInput(sw::doc::g_lib, ch, floatSlot->id, floatSlot->def);
+          const float a = sw::effectiveInput(sw::doc::g_lib(), ch, floatSlot->id, floatSlot->def);
           // B endpoint = 0: the fader fades the chosen param A->0. Zeroing any param (a Count, a force
           // Amount, ...) is a PERCEPTIBLE sweep, so the single P1 slice visibly drives the picture
           // whatever the first Float input happens to be — the universally-visible crossfade endpoint.
           const float b = 0.0f;
-          if (sw::varlive::seedSliceTarget(sw::doc::g_lib, compId, ch.id, floatSlot->id, a, b)) {
+          if (sw::varlive::seedSliceTarget(sw::doc::g_lib(), compId, ch.id, floatSlot->id, a, b)) {
             s_fader = 0.0f;
             sw::doc::g_status = "armed Variation: child " + std::to_string(ch.id) + " ." +
                                 floatSlot->id + " (A=" + std::to_string(a) + " B=" + std::to_string(b) +
@@ -231,7 +231,7 @@ void drawToolbar() {
       sw::eye::recordItem("Crossfade");
       ImGui::SameLine();
       ImGui::TextDisabled("w=%.2f -> %.3f", sw::varlive::dampedWeight(),
-                          sw::varlive::sliceOverrideValue(sw::doc::g_lib));
+                          sw::varlive::sliceOverrideValue(sw::doc::g_lib()));
     }
   }
 
@@ -241,12 +241,12 @@ void drawToolbar() {
     size_t jumpTo = SIZE_MAX;  // apply after the loop — truncating mid-walk skews the walk
     if (ImGui::SmallButton("Root")) jumpTo = 0;
     sw::eye::recordItem("crumb:0");
-    std::string symId = sw::doc::g_lib.rootId;
+    std::string symId = sw::doc::g_lib().rootId;
     for (size_t i = 0; i < sw::doc::g_compositionPath.size(); ++i) {
-      const sw::Symbol* s = sw::doc::g_lib.find(symId);
+      const sw::Symbol* s = sw::doc::g_lib().find(symId);
       const sw::SymbolChild* c = s ? sw::childById(*s, sw::doc::g_compositionPath[i]) : nullptr;
       if (!c) break;  // dangling tail: frame_cook's validator trims it next frame
-      const sw::Symbol* t = sw::doc::g_lib.find(c->symbolId);
+      const sw::Symbol* t = sw::doc::g_lib().find(c->symbolId);
       std::string label = t && !t->name.empty() ? t->name : c->symbolId;
       ImGui::SameLine();
       ImGui::TextDisabled(">");

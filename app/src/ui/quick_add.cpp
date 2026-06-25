@@ -67,7 +67,7 @@ static void rebuildAllItems() {
         g_allItems.push_back(t);
     }
     // Compound definitions from the live library
-    for (const auto& kv : sw::doc::g_lib.symbols) {
+    for (const auto& kv : sw::doc::g_lib().symbols) {
         const sw::Symbol& s = kv.second;
         if (s.atomic) continue;
         g_allItems.push_back(s.id);
@@ -82,7 +82,7 @@ static std::string toLower(const std::string& s) {
 
 // Display name (Symbol.name else id) = the string TiXL ranks on (symbol.Name).
 static std::string displayName(const std::string& id) {
-    const sw::Symbol* s = sw::doc::g_lib.find(id);
+    const sw::Symbol* s = sw::doc::g_lib().find(id);
     if (s && !s->name.empty()) return s->name;
     return id;
 }
@@ -310,7 +310,7 @@ void drawQuickAdd() {
                 // --- Flat ranked list (scatter + relevancy) ---
                 for (int i = 0; i < (int)g_displayItems.size(); ++i) {
                     const std::string& id   = g_displayItems[i];
-                    const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib, curId, id);
+                    const bool cyclic = sw::addChildWouldCycle(sw::doc::g_lib(), curId, id);
                     const bool selected = (i == g_selectedIdx);
 
                     // Grey out cyclic entries (= TiXL SymbolBrowser.cs:302-312 color.Fade).

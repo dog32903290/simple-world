@@ -38,7 +38,7 @@ bool createLoadOpForAsset(const std::string& key) {
   if (!cur) return false;
   sw::SymbolChild child = sw::assetlib::makeLoadImageChild(key, 140.0f, 140.0f);
   child.id = sw::nextFreeChildId(*cur);
-  sw::g_commands.push(std::make_unique<sw::AddChildCommand>(sw::doc::g_lib, cur->id, child));
+  sw::g_commands.push(std::make_unique<sw::AddChildCommand>(sw::doc::g_lib(), cur->id, child));
   sw::doc::g_relayout = true;
   sw::doc::g_status = "added LoadImage <- " + key;
   return true;
@@ -88,7 +88,7 @@ void drawAssetBrowser() {
   // project references that are NOT in our available list (those still appear nowhere here; the
   // browser lists what's available). We surface the project's missing set as a banner so the user
   // sees there is a broken reference to relink, even though the missing file isn't browsable.
-  const auto missing = sw::assetlib::projectMissingAssets(sw::doc::g_lib);
+  const auto missing = sw::assetlib::projectMissingAssets(sw::doc::g_lib());
   if (!missing.empty()) {
     ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(230, 120, 90, 255));
     ImGui::Text("%d missing reference%s in project", (int)missing.size(),

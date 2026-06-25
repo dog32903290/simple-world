@@ -57,7 +57,7 @@ void commitGesture(Symbol* cur, const std::string& symId, const std::string& ann
   auto macro = std::make_unique<MacroCommand>("Move/Resize Annotation");
   // Reset the lib to the gesture-start state so each command's doIt re-applies the delta exactly once.
   a->x = g_geomStart.x; a->y = g_geomStart.y; a->w = g_sizeStart.x; a->h = g_sizeStart.y;
-  macro->add(std::make_unique<MoveResizeAnnotationCommand>(doc::g_lib, symId, annId,
+  macro->add(std::make_unique<MoveResizeAnnotationCommand>(doc::g_lib(), symId, annId,
                                                            newX, newY, newW, newH));
   if (!g_dragNodes.empty()) {
     std::vector<MoveChildrenCommand::Move> moves;
@@ -69,7 +69,7 @@ void commitGesture(Symbol* cur, const std::string& symId, const std::string& ann
       if (nx != d.ox || ny != d.oy) moves.push_back({d.childId, d.ox, d.oy, nx, ny});
     }
     if (!moves.empty())
-      macro->add(std::make_unique<MoveChildrenCommand>(doc::g_lib, symId, moves));
+      macro->add(std::make_unique<MoveChildrenCommand>(doc::g_lib(), symId, moves));
   }
   // Nested annotations that traveled: one MoveResizeAnnotationCommand each (size unchanged).
   for (const auto& [nid, sp] : g_dragAnns) {
@@ -78,7 +78,7 @@ void commitGesture(Symbol* cur, const std::string& symId, const std::string& ann
     float nx = na->x, ny = na->y;
     na->x = sp.x; na->y = sp.y;          // reset so the command applies the delta once
     if (nx != sp.x || ny != sp.y)
-      macro->add(std::make_unique<MoveResizeAnnotationCommand>(doc::g_lib, symId, nid,
+      macro->add(std::make_unique<MoveResizeAnnotationCommand>(doc::g_lib(), symId, nid,
                                                                nx, ny, na->w, na->h));
   }
   if (!macro->empty()) {
@@ -212,7 +212,7 @@ void runRename(Symbol* cur, const std::string& symId) {
     // Reset to original then push the command (its doIt re-applies the new値 once = clean undo).
     a->label = g_origLabel;
     a->title = g_origTitle;
-    auto cmd = std::make_unique<ChangeAnnotationTextCommand>(doc::g_lib, symId, a->id, newTitle, newLabel);
+    auto cmd = std::make_unique<ChangeAnnotationTextCommand>(doc::g_lib(), symId, a->id, newTitle, newLabel);
     if (!cmd->refused()) { g_commands.push(std::move(cmd)); doc::g_status = "renamed annotation"; }
   }
   g_state = State::Default;
@@ -232,7 +232,7 @@ void applyPendingCreate(Symbol* cur, const std::string& symId) {
   a.x = cnv.x; a.y = cnv.y; a.w = kCreateW; a.h = kCreateH;  // no-selection default (NodeActions.cs:109)
   // (With-selection bbox+Expand is a later refinement — our selection set is single-annotation,
   //  fork-H; a Shift+A always creates the 100x140 default at the mouse for now. Named.)
-  auto cmd = std::make_unique<AddAnnotationCommand>(doc::g_lib, symId, a);
+  auto cmd = std::make_unique<AddAnnotationCommand>(doc::g_lib(), symId, a);
   if (cmd->refused()) return;
   g_commands.push(std::move(cmd));
   doc::g_status = "added annotation";

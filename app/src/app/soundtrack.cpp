@@ -49,7 +49,7 @@ std::string baseName(const std::string& path) {
 // frame-boundary pull frame_cook uses for BPM, so open/new/undo/dialog all converge here
 // with no edge wiring.
 void reloadIfPathChanged() {
-  const std::string& want = doc::g_lib.composition.soundtrackPath;
+  const std::string& want = doc::g_lib().composition.soundtrackPath;
   if (want == g_loadedPath) return;
   if (!want.empty() && want == g_failedPath) return;  // cached failure: don't retry-spam
   playback().unload();
@@ -177,7 +177,7 @@ void syncFrame(bool transportPlaying, double speed, double targetSecs) {
 }
 
 void applySoundtrackPick(const std::string& path) {
-  doc::g_lib.composition.soundtrackPath = path;  // savev2 home; dirty via snapshot
+  doc::g_lib().composition.soundtrackPath = path;  // savev2 home; dirty via snapshot
   doc::invalidateDirtyCache();  // direct g_lib write bypasses bumpLibRevision — invalidate so
                                 // isDirty() re-serialises on the next call (B4 fix)
   g_failedPath.clear();  // an explicit pick ALWAYS retries, even a previously failed same path
@@ -194,7 +194,7 @@ bool promptAndLoad() {
 }
 
 std::string statusText() {
-  const std::string& want = doc::g_lib.composition.soundtrackPath;
+  const std::string& want = doc::g_lib().composition.soundtrackPath;
   if (want.empty()) return "no soundtrack";
   if (want == g_failedPath) return "load failed: " + baseName(want);
   return baseName(want);
