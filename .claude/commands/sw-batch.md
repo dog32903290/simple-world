@@ -17,10 +17,12 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
 階段狀態寫在 memory lane-state 頭：現在在 A/B/C 哪段、地基清單剩哪些、開採 backlog 剩哪些。
 
 ### ★每批開頭先定位（2026-06-25 柏為定，治「看進度就幻覺、耗大量 token 逐檔對」）
-進度真相**一律從 `tools/op_census.sh` 查**，不信手寫 census 數字——OP_BACKLOG 桶/SEAM_STATE/MASTER_PLAN 縫描述會 stale、會互相打架（實證：SEAM_STATE 曾把 Render2dField 誤報成 BUILT，工具一跑抓出 0 命中）。**三命令定位，不下場 grep：**
-- `tools/op_census.sh --overview` — 克隆到哪了（真節點 749，已 port X，每島剩幾顆）
-- `tools/op_census.sh --seams` — 哪幾條縫卡幾顆、該先做哪條（**seam-build**=先蓋縫解鎖一批／**leaf-ready**=縫已建直接採／**domain-blocked**=晚做或柏為域，按解鎖量排序）
-- `tools/op_census.sh <island>` — 某島逐顆 [x]做了/[ ]沒做（複查 sw 命名 fork）
+**開頭第一個動作＝跑 `tools/sw_status.sh`**（單一狀態出口，零副作用、不彈窗）。它一次吐三區、分可信度，殺「看進度幻覺」：
+- **① LIVE**（git + `op_census`，現在量到的）：HEAD/乾淨度/克隆進度（X/749）/縫地圖。**可信**。
+- **② STAMPED@結帳**（上次收尾蓋章的 `--bite` PASS 數，標年齡）：是「記憶」非「量測」——要新數字自己跑 `tools/run_all_selftests.sh --bite`。
+- **③ HAND 手寫接力**（`MASTER_PLAN` 頂的 Active Lane / Next Handoff Sentence / Conflict Register）：機器驗不了，自己讀清楚接哪條 lane。
+
+進度數字**一律不信手寫**（OP_BACKLOG 桶/SEAM_STATE/舊 MASTER_PLAN snapshot 會 stale、會互相打架——實證：SEAM_STATE 曾把 Render2dField 誤報 BUILT，工具一跑抓出 0 命中；census 曾因 fork 命名把已 port 的 op 誤報 todo）。需更深逐顆時才下鑽 `op_census`（`--overview`/`--seams`/`<island>`，後者複查 sw fork 命名）。**不下場 grep。**
 
 **選批邏輯**：想大量產出節點→投資 `--seams` 裡 seam-build **解鎖量最高**的縫；想零等待自走→採 leaf-ready。**縫定義 SSOT = `tools/seam_map.tsv`**（蓋完一條縫就改它的 kind，工具自動反映）。Phase A 普查表（OP_BACKLOG/SEAM_GRAPH）留作 seam 設計的肉，但 **done/todo/縫狀態的數字以工具為準**。
 
@@ -53,7 +55,7 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
      讀 TiXL 源碼**只為填工單指針**（不為自己理解，理解歸 implementer）。
 
 ## 單批迴圈（重複直到停止條件）
-1. **定位**：先讀 `docs/agent/MASTER_PLAN.md`（**頂層路由權威**，全並行計劃）＋ memory lane-state ＋ 施工圖最新 Cut 的 Resume 段。樹要乾淨、HEAD 對齊；不乾淨先盤點（可能是上一棒的活，照 single-plan gate 處理）。
+1. **定位**：**先跑 `tools/sw_status.sh`**（三區：LIVE git+census / STAMPED bite / HAND 手寫接力）＝零 grep 拿到接續所需。需細節再讀 `docs/agent/MASTER_PLAN.md`（頂層路由權威）＋ memory（跨 session 教訓/規則）。樹要乾淨、HEAD 對齊；不乾淨先盤點（可能是上一棒的活，照 single-plan gate 處理）。
 2. **選批（MASTER_PLAN 驅動的全並行，柏為 2026-06-23）**：讀 MASTER_PLAN，取「**未阻塞 + 不撞檔**」的工作項跨 lane 組一批。排修項永遠優先。
    - **★第三軸=體驗復刻（柏為 2026-06-24，[EXPERIENCE_PARITY_PLAN](../../docs/agent/EXPERIENCE_PARITY_PLAN.md)）也是選批來源**：演出脊椎 P1-P6 + 編輯 lane Tier1-3 + MagGraph/Timeline/Gradient/Audio 獨立施工圖 + SliderLadder。
    - **★體驗 lane 避撞看「主檔」欄，不看 Tier**（Tier 是驗證閘維度非避撞維度）：**每個主檔同時只派一條 lane**（`ui/node_draw.cpp`、`ui/editor_ui.cpp` 是 Tier 內序列瓶頸，多條 lane 撞它→序列不並行）。
@@ -76,14 +78,19 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
    驗證基建或柏為域的 pre-existing red=`spawn_task` 排獨立工程，**不擋本批 commit、不下場糾結**。
 5. **否證**：refuter 波（風險 rubric 分流）→ fixer 波（Sonnet，兩次不過閘升級 Opus）→ 合流 commit。
 6. **活體**：scenario 全庫重放＋新行為 .scn；殘餘探索項才派 driver。
-7. **結帳**：施工圖補 Cut N（事實/fork/verdict/Resume 候選）→ memory lane-state
-   換頭（含 **MASTER_PLAN 各 lane 進度**：脊椎 S* 到哪、L1-L6 各 harness 是否已蓋/採到哪、柏為殘留 flag；＋ L4 階段 A/B/C + backlog 剩餘）→ **同步把進度寫回 `MASTER_PLAN.md` 的 Snapshot/lane 欄**（pathspec commit，下個 session 打 /sw-batch 從這裡無縫接續並行計劃）→ **★體驗軸每日檢查點冪等守門（柏為 2026-06-24）**：若本批含體驗軸 deliverable，`stat artifacts/checkpoints/$(date +%F)/` —— **不存在**才建今日目錄、產出檢查點包（當天完成、需柏為手感驗的項 + eye-hand 證據截圖 + 對 TiXL 截圖並排）；**已存在**則只 append 條目不另開（date 目錄＝天然冪等鎖，**一天最多一份**，柏為 ABSENT 不靠人觸發）。**檢查點非阻塞：產完即回圈，不等柏為驗。** → TaskList 清掉 → 立即回到步驟 1 開下一批。
+7. **結帳（單一 dashboard = `MASTER_PLAN.md` 頂的一份 snapshot；可 derive 的別手寫）**：
+   - **a. 蓋章數字**：跑 `tools/sw_status.sh --stamp <本批跑出的 --bite PASS> [FAILED] [NO-BITE]` —— 它把 HEAD/census（現測）+ 你的 bite 寫進機器塊 `<!-- sw_status:begin/end -->`。**HEAD/census/bite 一律不手打**（手打＝下次 stale 的種子）。
+   - **b. 手寫只剩三句（機器驗不了的 irreducible-human）**：更新 `MASTER_PLAN.md` 頂的 **Active Lane**（唯一一條，或 none）/ **Next Handoff Sentence**（下個 session 先做什麼、別碰什麼）/ **Conflict Register + Session Safety**（另一條 lane/worktree 在動什麼、開放問題）。**舊 snapshot 不疊**——若要留批次敘述移到 `MASTER_PLAN_HISTORY.md`（stacking 只在那合法）。
+   - **c. memory split（治 memory head 肥大）**：每句問「**下批還會再咬人嗎？**」——trap/規則/事故教訓/owner-lock 法 → 留 memory（**剝掉 commit 號**）；狀態/數字/✅/active-lane/next → 移去 MASTER_PLAN 或刪（census 自會 derive）；「用進度當例子講的教訓」→ 留教訓、丟例子的特定細節。memory 只留跨 session 真會復用的。
+   - **d. pathspec commit** 上述 doc 改動。
+   - **e. 體驗軸每日檢查點冪等守門**：若本批含體驗軸 deliverable，`stat artifacts/checkpoints/$(date +%F)/` —— 不存在才建今日目錄+產檢查點包（當天完成/需柏為手感驗項 + eye-hand 截圖 + 對 TiXL 並排）；已存在只 append（date 目錄＝冪等鎖，一天一份）。**非阻塞，產完即回圈。**
+   - **f. 過閘**：本批最後一個動作跑 `tools/sw_status.sh --check`（最後 commit 比蓋章晚 >10min＝結帳沒蓋章就跑 → 紅，回去蓋章）。綠才算結帳完。→ TaskList 清掉 → 回步驟 1。
 
 ## 上下文衛生（迴圈不被撐爆的機制）
 - **狀態永遠在磁碟**：Cut 段＋memory＋CONTEXT_PACK＝完整重建點。上下文被壓縮/換 session
   都從步驟 1 重新定位，零損失——所以放心連跑，不要為了省結帳偷懶。
 - 實作肉全在 subagent（它們的上下文用完即棄）；orchestrator 只留裁決、合流、verdict。
-- 結帳是硬步驟：沒寫 Cut＋memory 就開下一批 = 違規。
+- 結帳是硬步驟：`sw_status.sh --stamp` 蓋章 + 手寫三句 + `--check` 過綠才算結帳完；沒過閘就開下一批 = 違規。
 - **turn 不准空手結束（迴圈延續硬步驟——靜止的真因）**：每個 turn 結尾必二選一——要嘛有接續的
   工具動作、要嘛 `ScheduleWakeup` 排回來。陷在裁決/結帳/診斷時最容易忘 → 空手結束 = 迴圈無聲
   停住（2026-06-15 實證：診斷到一半空手結束→靜止 8 小時直到柏為來問）。每次結束前自問：
