@@ -1,7 +1,7 @@
 # UI 介面與互動 — TiXL parity gap + 規格
 
 > 來源:tixl-parity-gap-audit workflow(2026-06-22,6 區 12 agent 唯讀清查;每條 gap 對 simple_world 實際碼 verify 過真偽)。
-> 計數:真 gap 9 · 部分 4 · stale已做 1。
+> 計數:真 gap 8 · 部分 4 · stale已做 2(6/25:reset-to-default 校準掉)。
 
 ## 真 gap(已驗證確實未做)
 
@@ -25,10 +25,10 @@
 - **對齊規格**:NodeSpec 需先有 category/namespace 欄位。空搜尋時依 category 分群顯示（可摺疊群組或兩欄），群名用該 category 的 typeColor；打字時切回扁平 relevancy 清單。op 數還小，列 polish。
 - **驗證證據**:quick_add.cpp:62-74 rebuildAllItems 把 specTypes()（atomics）+ g_lib.symbols（compounds）攤平成單層 g_allItems flat list，無分群/分頁/category。:217-247 結果就是一個扁平 Selectable 迴圈。graph.h NodeSpec（:47）無 category/namespace 欄位（grep 0 命中），故連分群所需資料都不存在。
 
-### [important] 參數列：重置為預設值的 affordance
+### [important] 參數列：重置為預設值的 affordance — ✅ 已做(6/25 複驗 stale gap)
 
 - **對齊規格**:1) '被 override 過' 用亮字、'跟隨 default' 用灰字（sel->overrides.count(p.id) 可判）。2) 加重置：點參數名 or 右鍵 'Reset to default' → 等同 erase override，包成 SetOverrideCommand(had=true,...erase 路徑)。3) 右鍵選單除 Animate 外加 'Reset to default'（非預設才 enabled）。inspector 最明顯功能缺口。
-- **驗證證據**:inspector.cpp 全檔讀過：每個 Float 列走 SliderFloat/DragScalarN（:185/:264/:300），右鍵 context menu 只有 animateContextMenu（:47-85，Animate / Remove Animation）。無 'Reset to default'、無點參數名重置、無 revert icon。值/名稱字色不分 default-vs-override（:300 直接畫，無依 sel->overrides.count 切灰字/亮字）。但 SetOverrideCommand 已支援 had=true/erase 路徑（:106-109 pushSet 傳 had），故重置基建現成。
+- **現況證據(6/25 校準)**:重置 affordance **已實作並 commit**——right-click context menu 的 'Reset to default' 項落在 `inspector_param_menu.cpp:26-37`（從 inspector.cpp 拆出，ARCHITECTURE rule 4）:gated on `anyOverride`（非預設才出現），逐 slot 跑 `ResetOverrideCommand` 包成 MacroCommand("Reset Value")→可 undo。inspector 兩處接線:free Float 列 `inspector.cpp:289-290`、Vec 列 `:175` 都呼叫 `animateContextMenu(..., resets)` 餵 ResetSlot。scenario `tests/scenarios/inspector_param_reset.scn`（override→reset→undo）PASS。兩個獨立 agent 確認存在。(原 6/22 survey 只讀 inspector.cpp、漏看拆出去的 param_menu→誤判真 gap。)規格 3 子項中 (2)(3) 已對；(1) override-vs-default 字色亮/灰仍可後續補。
 
 ### [polish] 右鍵/選單的 Undo 顯示下一步動作名稱
 

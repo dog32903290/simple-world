@@ -46,8 +46,8 @@ check maggraph-layout       core      ui-surface no  "app/src/ui/node_draw.cpp" 
   'SetNodeSize|MagGraphItem|Width *= *140' "畫布磁吸網格(140寬/35列高/共邊吸附) vs 自由擺放 [6/25複驗:真缺,仍純 ed 自由擺放,core 範式級]"
 check required-indicator    polish    ui-surface yes "app/src/runtime/graph.h" \
   'bool required' "必填輸入(Required)旗標+紅色閃爍指示器"
-check reset-to-default      important ui-surface yes "app/src/ui/inspector.cpp" \
-  'reset.{0,4}default|revertToDefault|Reset to' "參數列:重置為預設值 affordance"
+check reset-to-default      important ui-surface yes "app/src/ui/inspector_param_menu.cpp" \
+  'Reset to default|ResetOverrideCommand' "參數列:重置為預設值 affordance [6/25複驗:✓已做 inspector_param_menu.cpp:26 Reset to default 選單項(gated anyOverride,跑 ResetOverrideCommand 可undo),inspector.cpp:175/289 接線]"
 check undo-show-name        polish    ui-surface yes "app/src/ui/combine_dialog.cpp" \
   'Undo \(|peekUndoTitle|peekRedoTitle' "右鍵/選單 Undo 顯示下一步動作名稱"
 check boundary-pentagon     polish    ui-surface yes "app/src/ui/node_draw.cpp" \
@@ -72,8 +72,8 @@ check usage-count-weighting   polish  node-classification yes "app/src/ui/quick_
   'usageCount|usageBoost' "relevancy 乘 op 被引用次數加權"
 check symbol-tags             polish  node-classification yes "app/src/runtime/graph.h app/src/runtime/compound_graph.h" \
   'Essential|symbolTags' "Symbol 加 tags(Essential/Obsolete)供精選與沉底"
-check result-row-type-color   polish  node-classification yes "app/src/ui/quick_add.cpp app/src/ui/quick_add_tree.cpp" \
-  'typeColor|SetTooltip' "結果列型別色+型別後綴+hover tooltip(三特徵) [6/25複驗:三項全無,純 Selectable;typeColor()表已存可重用]"
+check result-row-type-color   polish  node-classification yes "app/src/ui/quick_add_tree.cpp app/src/ui/node_style.cpp" \
+  'drawResultRow\(|labelColor\(outType' "結果列型別色+型別後綴+hover tooltip(三特徵) [6/25複驗:✓三項核心已做 e427d55,quick_add_tree.cpp:64 drawResultRow=labelColor(outType=firstOutputType()) 標題型別色 tint + TextDisabled 型別後綴 gated showType + portSummaryTooltip hover,node_style.cpp:69 labelColor;scenario quick_add_type_color.scn PASS。描述文字加值版 tooltip 仍 deferred(sub-detail)]"
 
 # ══ render-output-page ════════════════════════════════════════════════════
 check out-resolution-selector core    render-output yes "app/src/ui/toolbar.cpp app/src/ui/output_window.cpp" \
