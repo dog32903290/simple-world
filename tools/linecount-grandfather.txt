@@ -67,7 +67,11 @@ app/src/runtime/point_graph.cpp:868
 # --selftest-fieldtree-builder. Same cook-driver-split debt lowers this.
 # gradient-inspector (2026-06-26): +1 for residentGradientFor() declaration (the resident path
 # accessor for the gradient-inspector face, same pattern as residentTexFor). Irreducible API.
-app/src/runtime/point_graph.h:460
+# ctx-header split (2026-06-26): 460→240 RATCHET DOWN — the four cook-ctx structs (PointCookCtx/CmdCookCtx/
+# TexCookCtx/FeedbackCookCtx) + their cook fn-ptr typedefs moved to runtime/point_graph_cook_ctx.h (ABI-
+# preserving; point_graph.h #includes it in the same spot, the 249 includers see identical symbols). This
+# bought the margin for TexCookCtx.inputFieldTree (the RaymarchField tex-op gather seam).
+app/src/runtime/point_graph.h:240
 # C1 (2026-06-23) +6: the shared two-cook seam header (already at the 400 ceiling) — fillPointCamera now
 # reads the live ActiveCamera (the wired Camera the draws respect) instead of ALWAYS the default, + the
 # point_ops_camera_scope.h include. The if/else + include are irreducible cook-core seam glue; comments at the
