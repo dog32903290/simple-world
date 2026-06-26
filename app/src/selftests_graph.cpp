@@ -47,5 +47,6 @@ REGISTER_SELFTESTS(/*orderBase=*/250,
     {"bpmtransport", runBpmTransportSelfTest},  // end-to-end: DetectBpm auto-detect → SetBpm edge → BpmProvider → transport.bpm
     {"beatsync", runtime::runBeatSyncSelfTest},  // G1: BeatSynchronizer audio-locked BPM/bar P-controller
     {"beatlock", runBeatLockSelfTest},  // G2 SlidingAverage<10> de-jitter + G3 beat_timing audio-lock (orphan接通)
+    {"folder-package", runFolderPackageSelfTest},  // ADDITIVE .swpkg folder save/load round-trip + cross-format (.swproj==.swpkg) invariant
 );
 }  // namespace sw

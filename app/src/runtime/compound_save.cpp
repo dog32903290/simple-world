@@ -9,6 +9,7 @@
 #include <map>
 
 #include "crude_json.h"
+#include "runtime/compound_save_internal.h"  // symbolToJsonObject (shared with the folder writer)
 #include "runtime/curve_json.h"  // curveToJson (S3 animator segment)
 
 namespace sw {
@@ -124,38 +125,19 @@ std::string typeForAtomicUuid(const std::string& uuid) {
   return "";
 }
 
-std::string libToJsonV2(const SymbolLibrary& lib) {
+// The per-symbol on-disk object (compound_save_internal.h). Extracted verbatim from the old
+// libToJsonV2 loop body so BOTH the single-file writer (below) and the folder-package writer
+// (compound_folder.cpp) emit byte-identical per-symbol JSON — the diff-friendly invariant. The
+// only thing it needs from `lib` is refOf (atomic child -> fixed UUID).
+crude_json::value symbolToJsonObject(const Symbol& sym, const SymbolLibrary& lib) {
   // A child's on-disk symbolId: atomic -> fixed UUID; compound -> the raw symbol id.
   auto refOf = [&](const std::string& symbolId) -> std::string {
     const Symbol* s = lib.find(symbolId);
     if (s && !s->atomic) return symbolId;
     return atomicUuidForType(symbolId);
   };
-
-  crude_json::object root;
-  root["formatVersion"] = (crude_json::number)2;
-  root["rootSymbolId"] = lib.rootId;
-
-  // Composition settings segment (S5): BPM + soundtrack live on the composition, not a sidecar
-  // file (契約3 健檢修正). ALWAYS written (a fixed-shape object keeps the file deterministic /
-  // diffs clean) — an old file lacking it still loads at the defaults (S15, the read side below).
+  const Symbol* s = &sym;
   {
-    crude_json::object comp;
-    comp["bpm"] = finiteOr0(lib.composition.bpm);
-    comp["soundtrackPath"] = lib.composition.soundtrackPath;
-    comp["soundtrackVolume"] = finiteOr0(lib.composition.soundtrackVolume);
-    root["composition"] = crude_json::value(comp);
-  }
-
-  // Only compound symbols, sorted by id (stable file = clean diffs, TiXL OrderBy(Id)).
-  std::vector<const Symbol*> compounds;
-  for (const auto& kv : lib.symbols)
-    if (!kv.second.atomic) compounds.push_back(&kv.second);
-  std::sort(compounds.begin(), compounds.end(),
-            [](const Symbol* a, const Symbol* b) { return a->id < b->id; });
-
-  crude_json::array symbols;
-  for (const Symbol* s : compounds) {
     crude_json::object o;
     o["id"] = s->id;
     o["name"] = s->name;
@@ -256,8 +238,35 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
       for (const Annotation* a : sorted) anns.push_back(annotationToJson(*a));
       o["annotations"] = crude_json::value(anns);
     }
-    symbols.push_back(crude_json::value(o));
+    return crude_json::value(o);
   }
+}
+
+std::string libToJsonV2(const SymbolLibrary& lib) {
+  crude_json::object root;
+  root["formatVersion"] = (crude_json::number)2;
+  root["rootSymbolId"] = lib.rootId;
+
+  // Composition settings segment (S5): BPM + soundtrack live on the composition, not a sidecar
+  // file (契約3 健檢修正). ALWAYS written (a fixed-shape object keeps the file deterministic /
+  // diffs clean) — an old file lacking it still loads at the defaults (S15, the read side below).
+  {
+    crude_json::object comp;
+    comp["bpm"] = finiteOr0(lib.composition.bpm);
+    comp["soundtrackPath"] = lib.composition.soundtrackPath;
+    comp["soundtrackVolume"] = finiteOr0(lib.composition.soundtrackVolume);
+    root["composition"] = crude_json::value(comp);
+  }
+
+  // Only compound symbols, sorted by id (stable file = clean diffs, TiXL OrderBy(Id)).
+  std::vector<const Symbol*> compounds;
+  for (const auto& kv : lib.symbols)
+    if (!kv.second.atomic) compounds.push_back(&kv.second);
+  std::sort(compounds.begin(), compounds.end(),
+            [](const Symbol* a, const Symbol* b) { return a->id < b->id; });
+
+  crude_json::array symbols;  // array order == definition order (S16): each via symbolToJsonObject
+  for (const Symbol* s : compounds) symbols.push_back(symbolToJsonObject(*s, lib));
   root["symbols"] = crude_json::value(symbols);
   return crude_json::value(root).dump(2);
 }

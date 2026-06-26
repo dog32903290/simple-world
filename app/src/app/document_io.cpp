@@ -14,6 +14,7 @@
 #include "app/command.h"
 #include "platform/dialogs.h"
 #include "runtime/compound_save.h"  // .swproj v2 (SymbolLibrary) save/load + v1 migration
+#include "runtime/compound_folder.h" // ADDITIVE .swpkg folder-package save/load (second capability)
 #include "runtime/graph.h"          // defaultParticleGraph (seed only)
 #include "runtime/graph_bridge.h"   // libFromGraph (default-lib seed) + refreshCompoundSpecs
 #include "app/variation_live.h"     // P1 crossfader slice (reset on document swap)
@@ -65,6 +66,14 @@ bool confirmDiscardIfDirty() {
 }
 
 const std::string& documentPath() { return g_documentPath; }  // "" == never saved (anon global)
+
+// ADDITIVE folder-package helpers. A document path ending in ".swpkg" means the live document is
+// backed by a folder package, so Save/Open route through compound_folder instead of the single-file
+// writer. The single-file path is otherwise byte-for-byte unchanged (this only adds a new branch
+// keyed off a NEW extension — a .swproj path never matches).
+static bool pathIsPackage(const std::string& p) {
+  return p.size() >= 6 && p.substr(p.size() - 6) == ".swpkg";
+}
 // Always prompts for a location. Returns true if a file was written.
 bool doSaveAs() {
   NFD::Guard nfdGuard;
@@ -91,6 +100,20 @@ bool doSaveAs() {
 // Overwrites the current document; falls back to Save As when never saved.
 bool doSave() {
   if (g_documentPath.empty()) return doSaveAs();
+  // ADDITIVE: a .swpkg-backed document re-writes the folder package (the only new branch; a
+  // .swproj path never matches pathIsPackage, so the single-file path below is unchanged).
+  if (pathIsPackage(g_documentPath)) {
+    std::string json = sw::libToJsonV2(g_lib());
+    if (!sw::saveLibToFolder(g_documentPath, g_lib())) {
+      sw::showError("無法寫入套件：" + g_documentPath);
+      return false;
+    }
+    g_savedSnapshot = json;  // dirty tracking is format-agnostic (the in-memory lib is the truth)
+    invalidateDirtyCache();
+    g_status = "saved (package) -> " + g_documentPath;
+    sw::settings::noteRecentFile(g_documentPath);
+    return true;
+  }
   std::string json = sw::libToJsonV2(g_lib());
   if (!sw::saveLibToFile(g_documentPath, g_lib())) {
     sw::showError("無法寫入：" + g_documentPath);
@@ -146,6 +169,66 @@ void doOpen() {
   nfdresult_t r = NFD::OpenDialog(outPath, filters, 1, nullptr);
   if (r != NFD_OKAY) return;
   doOpenPath(outPath.get());
+}
+
+// ADDITIVE: Save As → folder package (.swpkg dir, one .t3 per symbol + metadata.json). Prompts for
+// the package name via the save dialog (the chosen path names the .swpkg directory). The live
+// in-memory lib is unchanged; this is a different on-disk shape of the same data (cross-format
+// invariant proven by --selftest-folder-package). Returns true if the package was written.
+bool doSaveAsPackage() {
+  NFD::Guard nfdGuard;
+  NFD::UniquePath outPath;
+  nfdfilteritem_t filters[1] = {{"simple_world package", "swpkg"}};
+  nfdresult_t r = NFD::SaveDialog(outPath, filters, 1, nullptr, "untitled.swpkg");
+  if (r != NFD_OKAY) return false;  // cancel or error
+  std::string path = outPath.get();
+  if (!pathIsPackage(path)) path += ".swpkg";
+  std::string json = sw::libToJsonV2(g_lib());
+  if (!sw::saveLibToFolder(path, g_lib())) {
+    sw::showError("無法寫入套件：" + path);
+    return false;
+  }
+  g_documentPath = path;  // .swpkg suffix -> doSave re-routes to the folder writer
+  g_savedSnapshot = json;
+  invalidateDirtyCache();
+  g_status = "saved (package) -> " + path;
+  sw::settings::noteRecentFile(path);
+  return true;
+}
+
+// ADDITIVE: Open a folder package via the Finder folder picker. Tolerant loader (same S15 path as
+// .swproj — local problems drop to the status line). Only swaps the live lib in on success.
+void doOpenPackage() {
+  if (!confirmDiscardIfDirty()) return;
+  NFD::Guard nfdGuard;
+  NFD::UniquePath outPath;
+  nfdresult_t r = NFD::PickFolder(outPath, nullptr);
+  if (r != NFD_OKAY) return;
+  std::string path = outPath.get();
+
+  sw::SymbolLibrary lib;
+  std::vector<std::string> warnings;
+  if (!sw::loadLibFromFolder(path, lib, &warnings)) {
+    sw::showError("無法讀取此套件：" + path);
+    return;
+  }
+  g_lib() = std::move(lib);
+  g_compositionPath.clear();
+  sw::refreshCompoundSpecs(g_lib());
+  bumpLibRevision();
+  g_documentPath = path;  // .swpkg suffix -> doSave re-routes to the folder writer
+  g_savedSnapshot = sw::libToJsonV2(g_lib());
+  sw::g_commands.clear();
+  sw::varlive::reset();
+  sw::varpanel::reset();
+  sw::midibind::reset();
+  g_relayout = true;
+  g_status = "loaded (package) <- " + path;
+  sw::settings::noteRecentFile(path);
+  if (!warnings.empty()) {
+    for (const std::string& w : warnings) std::fprintf(stderr, "[open-package] %s\n", w.c_str());
+    g_status += " (" + std::to_string(warnings.size()) + " repaired, see console)";
+  }
 }
 
 void doNew() {
