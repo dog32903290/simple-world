@@ -7,6 +7,8 @@
 #include "imgui.h"
 #include "imgui_node_editor.h"
 
+#include "ui/theme.h"  // theme::canvasGrid() — themable grid color (was hardcoded literal)
+
 namespace ed = ax::NodeEditor;
 
 namespace sw::ui {
@@ -75,23 +77,28 @@ void drawCanvasBackgroundGrids() {
   float tixlScale = (invScale > 0.0001f) ? (1.0f / invScale) : 1.0f;
   const float kGridCanvas = 35.0f;   // min(140,35) canvas units per fine cell
   const float kMaxOpacity = 0.25f;
-  const float kCanvasGridAlpha = 0.15f;  // UiColors.CanvasGrid base alpha
+  // UiColors.CanvasGrid (RGB + base alpha), now theme-driven (default = TiXL (0,0,0,0.15)).
+  // TiXL DrawBackgroundGrids: color = UiColors.CanvasGrid.Fade(ramp) → RGB kept, alpha = base.a*ramp.
+  const ImVec4 gridColor = sw::ui::theme::canvasGrid();
+  const int r = (int)(gridColor.x * 255.0f);
+  const int g = (int)(gridColor.y * 255.0f);
+  const int b = (int)(gridColor.z * 255.0f);
 
   ImDrawList* dl = ImGui::GetWindowDrawList();
 
   // Fine grid (TiXL: Scale.X remapped [0.5,2.0] → [0,0.25])
   float fineRamp = remapClamp(tixlScale, 0.5f, 2.0f, 0.0f, kMaxOpacity);
   if (fineRamp > 0.01f) {
-    float alpha = kCanvasGridAlpha * fineRamp;  // Fade(): new alpha = base.alpha * f
-    ImU32 col = IM_COL32(0, 0, 0, (int)(alpha * 255.0f));
+    float alpha = gridColor.w * fineRamp;  // Fade(): new alpha = base.alpha * f
+    ImU32 col = IM_COL32(r, g, b, (int)(alpha * 255.0f));
     drawBackgroundGridLayer(dl, kGridCanvas, col);
   }
 
   // Coarse grid (TiXL: Scale.X remapped [0.1,2.0] → [0,0.25])
   float roughRamp = remapClamp(tixlScale, 0.1f, 2.0f, 0.0f, kMaxOpacity);
   if (roughRamp > 0.01f) {
-    float alpha = kCanvasGridAlpha * roughRamp;
-    ImU32 col = IM_COL32(0, 0, 0, (int)(alpha * 255.0f));
+    float alpha = gridColor.w * roughRamp;
+    ImU32 col = IM_COL32(r, g, b, (int)(alpha * 255.0f));
     drawBackgroundGridLayer(dl, kGridCanvas * 5.0f, col);
   }
 }
