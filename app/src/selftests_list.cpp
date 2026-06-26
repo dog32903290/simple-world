@@ -37,5 +37,6 @@ REGISTER_SELFTESTS(/*orderBase=*/310,
     {"floatlistproducers", runFloatListProducersSelfTest},  // Combine/IntsToList/SetFloat/SetInt/Remap (chain-through-evalFloat)
     {"smoothvalues", runSmoothValuesSelfTest},              // SmoothValues forward-window box average (STATELESS FloatList→FloatList, chain-through-evalFloat)
     {"animfloatlist", runAnimFloatListSelfTest},            // AnimFloatList animator PRODUCER (AnimMath shapes → List<float> on LocalFxTime; flat + production-resident chain-through)
+    {"floatlistconversion", runFloatListConversionSelfTest},  // FloatListToIntList (trunc-toward-zero) + IntListToFloatList (widening), chain-through-evalFloat
 );
 }  // namespace sw
