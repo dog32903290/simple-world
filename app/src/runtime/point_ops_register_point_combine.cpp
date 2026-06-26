@@ -13,6 +13,7 @@ void registerSnapToPointsOp();      // batch 21: index-paired Points1->Points2 l
 void registerPairPointsForLinesOp();  // batch 24: pair A+B with NaN divider -> DrawLines
 void registerPickPointListOp();       // batch 24: multi-input select by Index
 void registerPairPointsForSplinesOp();        // batch 10: Hermite spline strip per pair
+void registerSplinePointsOp();                // even arc-length resample of a cardinal cubic spline
 void registerPairPointsForGridWalkLinesOp();  // batch 10: 11-step grid-walk polyline per pair
 void registerBlendPointsOp();                 // batch 10: index-paired PointsA->PointsB lerp
 void registerMultiUpdatePointsOp();           // point lane: pass-through last wired buffer (TiXL _internal)
@@ -24,6 +25,7 @@ void registerPointCombinePointOps() {
   registerPairPointsForLinesOp();
   registerPickPointListOp();
   registerPairPointsForSplinesOp();
+  registerSplinePointsOp();
   registerPairPointsForGridWalkLinesOp();
   registerBlendPointsOp();
   registerMultiUpdatePointsOp();
