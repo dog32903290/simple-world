@@ -101,6 +101,12 @@ int runResidentCombineMaterialChannels2SelfTest(bool injectBug);
 // passthrough, injectBug OMITS the Occlusion wire -> out.B = 1.0 (255) -> RED.
 int runResidentCombineMaterialChannelsSelfTest(bool injectBug);
 
+// HSE / MosiacTiling goldens (Fx-modulation 2-input image leaves on the built multi-input gather):
+// Image(t0) + FxTexture/FxImage(t1); the resident variants drive both inputs through cookResident,
+// injectBug drops the 2nd input -> golden diverges -> RED (proves the FxTexture .g is load-bearing).
+int runResidentHseSelfTest(bool injectBug);
+int runResidentMosiacTilingSelfTest(bool injectBug);
+
 // Blur image-filter golden (point_ops_blur.cpp, lane I): the FIRST image filter (Texture2D in ->
 // Texture2D out). (a) BLUR MATH: fill a source texture with a hard 1px-wide vertical white line on
 // black, run Blur, assert the line SPREADS horizontally (neighbouring columns lit) — a no-op /

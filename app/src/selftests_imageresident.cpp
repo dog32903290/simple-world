@@ -17,5 +17,7 @@ REGISTER_SELFTESTS(/*orderBase=*/84,
     {"combine3imagesresident", runResidentCombine3ImagesSelfTest},
     {"combinematerialchannels2resident", runResidentCombineMaterialChannels2SelfTest},
     {"combinematerialchannelsresident", runResidentCombineMaterialChannelsSelfTest},
+    {"hseresident", runResidentHseSelfTest},
+    {"mosiactilingresident", runResidentMosiacTilingSelfTest},
 );
 }  // namespace sw

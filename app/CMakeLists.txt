@@ -510,6 +510,8 @@ add_executable(simple_world
   src/runtime/resident_combine3images_selftest.cpp
   src/runtime/resident_combinematerialchannels2_selftest.cpp
   src/runtime/resident_combinematerialchannels_selftest.cpp
+  src/runtime/resident_hse_selftest.cpp
+  src/runtime/resident_mosiactiling_selftest.cpp
   src/runtime/bypass_selftest_shared.cpp
   src/runtime/bypass_cook_selftest.cpp
   src/app/bypass_compound_selftest.cpp
