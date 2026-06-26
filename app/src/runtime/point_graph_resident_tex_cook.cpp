@@ -234,11 +234,28 @@ MTL::Texture* PointGraph::Impl::cookResidentTexNode(
       RenderCommand up = cookCommand(ri->srcNodePath, depth + 1);
       chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
     } else if (port.dataType == "Texture2D") {
-      int slot = texInputCount;  // each Texture2D port occupies the next slot (wired or not)
-      if (slot < TexCookCtx::kMaxTexInputs) {
-        texInputs[slot] =
-            wired ? cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId) : nullptr;
-        texInputCount = slot + 1;
+      if (port.multiInput) {
+        // MultiInput Texture2D (BlendImages/PickTexture's `Input`): ONE port gathers its N wired
+        // textures into CONSECUTIVE inputTextures[] slots — primary wire (ri->srcNodePath) then
+        // ri->extraConns (wire-declaration order), capped at kMaxTexInputs. Resident mirror of the
+        // flat g.connections loop and of the Gradient/FloatList MultiInput branches here (which also
+        // walk primary + extraConns). A FIXED numbered Texture2D port (multiInput==false) takes the
+        // else branch → exactly one slot, unchanged.
+        if (wired) {
+          if (texInputCount < TexCookCtx::kMaxTexInputs)
+            texInputs[texInputCount++] = cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId);
+          for (const auto& ec : ri->extraConns) {
+            if (texInputCount >= TexCookCtx::kMaxTexInputs) break;
+            texInputs[texInputCount++] = cookTexNode(ec.first, depth + 1, ec.second);
+          }
+        }
+      } else {
+        int slot = texInputCount;  // each Texture2D port occupies the next slot (wired or not)
+        if (slot < TexCookCtx::kMaxTexInputs) {
+          texInputs[slot] =
+              wired ? cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId) : nullptr;
+          texInputCount = slot + 1;
+        }
       }
     } else if (port.dataType == "Gradient") {
       hasGradientInput = true;

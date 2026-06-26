@@ -87,6 +87,13 @@ int runResidentDistortAndShadeSelfTest(bool injectBug);
 int runCombine3ImagesSelfTest(bool injectBug);
 int runResidentCombine3ImagesSelfTest(bool injectBug);
 
+// PickTexture golden (point_ops_picktexture.cpp + resident_picktexture_selftest.cpp): the FIRST op with
+// a variable-N MultiInputSlot<Texture2D> port. The flat golden drives the leaf with 3 inputs (Index=2 ->
+// inputTextures[2]); the resident variant DRIVES the variable-N gather (3 wires into ONE multiInput Input
+// port -> primary + 2 extraConns -> inputTextures[0..2]). injectBug OMITS the 3rd wire -> Index(2) mod 2
+// = 0 -> input[0] -> RED. Proves cookTexNode's MultiInput Texture2D branch threads ALL N wires.
+int runResidentPickTextureSelfTest(bool injectBug);
+
 // CombineMaterialChannels2 golden (point_ops_combinematerialchannels2.cpp): the PBR twin of
 // Combine3Images — SAME kernel (img-combine-3.hlsl), SAME 3-image gather. A PBR-flavored solid set
 // (roughness/metallic/ao) packs to (A.r, B.g, C.b, 1); injectBug drops ImageC -> B reads ImageA.b -> RED.

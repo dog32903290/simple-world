@@ -209,11 +209,26 @@ MTL::Texture* PointGraph::Impl::cookFlatTexNode(
       RenderCommand up = cookCommand(pinNode(c->fromPin));
       chain.items.insert(chain.items.end(), up.items.begin(), up.items.end());
     } else if (port.dataType == "Texture2D") {
-      int slot = texInputCount;  // wired or not, this port occupies the next Texture2D slot
-      if (slot < TexCookCtx::kMaxTexInputs) {
-        const Connection* c = g.connectionToInput(pinId(id, (int)i));
-        texInputs[slot] = c ? cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100) : nullptr;
-        texInputCount = slot + 1;
+      if (port.multiInput) {
+        // MultiInput Texture2D (BlendImages/PickTexture/FirstValidTexture's `Input`): ONE port
+        // gathers its N wired textures into CONSECUTIVE inputTextures[] slots, in wire-declaration
+        // order (g.connections order) — capped at kMaxTexInputs. Mirrors the FloatList/Gradient
+        // MultiInput loops above (recurse every wire) instead of the single-wire FIXED branch below.
+        // A FIXED numbered Texture2D port (Combine3Images' ImageA/B/C, multiInput==false) takes the
+        // else branch → exactly one slot, unchanged.
+        for (const Connection& c : g.connections) {
+          if (c.toPin != pinId(id, (int)i)) continue;
+          if (texInputCount >= TexCookCtx::kMaxTexInputs) break;
+          texInputs[texInputCount] = cookTexNode(pinNode(c.fromPin), (c.fromPin - 1) % 100);
+          ++texInputCount;
+        }
+      } else {
+        int slot = texInputCount;  // wired or not, this port occupies the next Texture2D slot
+        if (slot < TexCookCtx::kMaxTexInputs) {
+          const Connection* c = g.connectionToInput(pinId(id, (int)i));
+          texInputs[slot] = c ? cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100) : nullptr;
+          texInputCount = slot + 1;
+        }
       }
     } else if (port.dataType == "FloatList") {
       hasFloatListInput = true;
