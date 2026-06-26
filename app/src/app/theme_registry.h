@@ -17,14 +17,27 @@
 //   SettingsDirectory/Themes — sw uses ~/.simple_world/Themes/ (machine-level home-dir, same family as
 //   the ~/.simple_world_settings.json store). JSON schema:
 //     { "version":1, "name":"...", "author":"...", "colors": { "Text":[r,g,b,a], ... } }
-//   The "colors" keys are the UiColors PascalCase field names (ui::theme::fieldNames()), so the file
-//   is cross-readable with TiXL's ColorTheme.Colors dictionary keys.
+//   The "colors" keys are the UiColors PascalCase field names (ui::theme::fieldNames()), so they match
+//   TiXL's ColorTheme.Colors dictionary keys FOR THE SHARED SUBSET sw themes — see the scope fork below.
+//   (Key-compatible, not file-complete: a TiXL theme file carries all 53 keys; an sw file carries 26.
+//   Each tool reads the keys it knows and falls back to its own default for the rest.)
+//
+// FORK (named): "themed-field-subset". TiXL's UiColors has 53 themable color fields (every
+//   `public static Color` field, serialized by reflection via typeof(UiColors).GetFields() in
+//   ThemeHandling.StoreAllColors). sw themes only the 26 fields its ui::theme::apply() actually
+//   routes into the ImGui style + node base/datatype colors. The remaining 27 are DEFERRED because sw
+//   does not yet feed them through the theme — e.g. canvas grid / background (CanvasBackground,
+//   CanvasGrid, GridLines) is still drawn with hardcoded colors, and the Widget*/Status*/MiniMapItems/
+//   Gray/TextMuted/*Full families have no sw consumer wired to the theme yet. Widening this set is a
+//   future "extend themed field coverage" increment: add the field to ui::theme's kFields/struct AND
+//   route it where it's drawn. The default theme remains byte-identical to TiXL across all 26 themed
+//   fields (verified by --selftest-theme).
 //
 // FORK (named): "variations-deferred". TiXL's ColorTheme also carries a Variations dict (the HSV
 //   b/s/op factors, ColorVariations.cs). sw's variation MATH lives in node_style.cpp and is NOT yet a
 //   themed/serialized table, so theming the variations would be dead weight here. We persist + edit
-//   only the Colors dict (the 26 UiColors fields). The schema is forward-compatible: a "variations"
-//   object can be added later with no migration.
+//   only the Colors dict (the 26 themed UiColors fields above). The schema is forward-compatible: a
+//   "variations" object can be added later with no migration.
 #pragma once
 
 #include <array>

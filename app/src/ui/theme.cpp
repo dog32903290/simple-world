@@ -52,7 +52,9 @@ ImVec4 fade(ImVec4 c, float f) {
 // ---- Named field table (mirrors UiColors PascalCase field names TiXL persists) ------------------
 // ONE source of truth: name ↔ pointer-to-DefaultTheme-member. fieldNames(), defaultColorMap(), the
 // editor, and applyColors() all ride this. The names are the exact UiColors field names so the
-// on-disk JSON keys match TiXL's ColorTheme.Colors dictionary keys (cross-tool readable).
+// on-disk JSON keys match TiXL's ColorTheme.Colors keys for these fields. NOTE: this is the 26-field
+// SUBSET sw routes through the theme, not TiXL's full 53 themable UiColors fields — key-compatible for
+// the shared subset only (see the "themed-field-subset" fork note in app/theme_registry.h).
 struct Field {
   const char* name;
   ImVec4 DefaultTheme::*member;
@@ -251,7 +253,7 @@ int runThemeSelfTest(bool injectBug) {
   // PASS leg: every field must match (fails==0). RED leg (injectBug): the corrupted ColorForGpuData
   // makes its assertion fail → fails>0 → exit non-zero (the tooth bites). No special-casing needed.
   bool ok = (fails == 0);
-  std::printf("[selftest-theme] fields=29 mismatches=%d injectBug=%d -> %s\n",
+  std::printf("[selftest-theme] fields=26 mismatches=%d injectBug=%d -> %s\n",
               fails, injectBug, ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

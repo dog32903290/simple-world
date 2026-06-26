@@ -10,7 +10,10 @@
 //
 // FORK (named): "variations-deferred" — TiXL also edits the ColorVariations (HSV b/s/op) here; sw's
 // variations aren't a themed/serialized table yet (they live in node_style.cpp), so that section is
-// deferred. See app/theme_registry.h. The Colors section (the 26 UiColors fields) is fully built.
+// deferred. See app/theme_registry.h. The Colors section edits the 26 UiColors fields sw routes
+// through the theme — NOT all of TiXL's 53 themable UiColors fields. The other 27 (Widget*, Status*,
+// CanvasBackground/CanvasGrid/GridLines, MiniMapItems, Gray, TextMuted, …) are DEFERRED (no sw
+// consumer wired yet); see the "themed-field-subset" fork note in app/theme_registry.h.
 namespace sw::ui {
 
 // Window visibility (default OFF). Toggled from the toolbar, TiXL-tool-window style.

@@ -132,9 +132,15 @@ bool ThemeRegistry::saveTheme(const std::string& themeFolder, ColorTheme theme) 
   };
   theme.name = trim(theme.name);
   if (theme.name.empty()) theme.name = "untitled";
+  // Path-name guard (tightens past TiXL — TiXL's SaveTheme has the same gap): the name becomes a file
+  // path component, so reject path separators and parent refs ("/", "\\", "..") to keep the write
+  // inside the Themes folder. Graceful reject (no write, no reload-loss), not a crash.
+  const bool unsafeName = theme.name.find('/') != std::string::npos ||
+                          theme.name.find('\\') != std::string::npos ||
+                          theme.name.find("..") != std::string::npos;
   // Refuse to write a file named "Factory" — it would shadow the built-in on reload (named guard).
   bool writeOk = true;
-  if (theme.name == kFactoryName) {
+  if (theme.name == kFactoryName || unsafeName) {
     writeOk = false;
   } else {
     std::error_code ec;

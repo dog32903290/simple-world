@@ -156,6 +156,22 @@ int runThemeRegistrySelfTest(bool injectBug) {
     }
   }
 
+  // --- (7) path-name guard: a name with ".." (or a path separator) is rejected, no file escapes the
+  //         Themes folder. saveTheme returns false and nothing is written outside `folder`.
+  {
+    ThemeRegistry reg;
+    reg.loadThemes(folder);
+    ColorTheme evil = makeTheme();
+    evil.name = "../evil";
+    if (reg.saveTheme(folder, evil)) {
+      std::printf("[theme-roundtrip] saveTheme accepted '../evil' name -> FAIL\n"); ++fail;
+    }
+    // The traversal target (folder/../evil.json) must not have been created.
+    if (fs::exists(theme::themeFilePath(folder, evil.name), ec)) {
+      std::printf("[theme-roundtrip] '../evil' name escaped the Themes folder -> FAIL\n"); ++fail;
+    }
+  }
+
   fs::remove_all(folder, ec);
 
   if (injectBug) {
