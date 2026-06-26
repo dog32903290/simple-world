@@ -256,6 +256,7 @@ add_executable(simple_world
   src/platform/window_mode.mm
   src/platform/live_binding.cpp
   src/runtime/beat_timing.cpp        # tap BPM engine (port of TiXL BeatTiming.cs)
+  src/runtime/cmd_view_background.cpp  # Output-window view background ambient (TiXL EvaluationContext.BackgroundColor)
   src/runtime/particle_system.cpp
   src/runtime/particle_decay_selftest.cpp
   src/runtime/field_graph.cpp
@@ -534,6 +535,7 @@ add_executable(simple_world
   src/runtime/curve_animator_selftest_vec.cpp
   src/runtime/compound_graph.cpp
   src/runtime/compound_graph_selftest.cpp
+  src/runtime/output_slot_view_selftest.cpp  # output-slot picker golden (viewProducerPath startSlot)
   src/runtime/compound_save.cpp
   src/runtime/compound_load.cpp
   src/runtime/compound_save_selftest.cpp

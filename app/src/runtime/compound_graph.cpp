@@ -176,7 +176,7 @@ const SymbolConnection* connectionToInput(const Symbol& s, int dstChild,
 }
 
 std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefixPath,
-                             int childId) {
+                             int childId, const std::string& startSlot) {
   std::string path = prefixPath + std::to_string(childId);
   // Re-derive the scope symbol by walking prefixPath from the root (each "/"-terminated
   // segment is a child id) — childId must be a child of the symbol the prefix reaches.
@@ -209,10 +209,11 @@ std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefix
   const SymbolChild* child = scope ? childById(*scope, childId) : nullptr;
   const Symbol* s = child ? lib.find(child->symbolId) : nullptr;
   // The OUTPUT slot of `child` being viewed; empty = the main output (outputDefs[0], the top-level
-  // "view this node" meaning). Every step that follows a wire (修C sideways AND the inward dive)
-  // re-threads this to w->srcSlot — refuter-E1 blind spot 1: dropping the slot and blindly diving
-  // outputDefs[0] resolves the WRONG producer when a step arrives via a secondary output.
-  std::string viewSlot;
+  // "view this node" meaning). `startSlot` seeds it (the output-slot picker; "" = main = byte-id).
+  // Every step that follows a wire (修C sideways AND the inward dive) re-threads this to w->srcSlot —
+  // refuter-E1 blind spot 1: dropping the slot and blindly diving outputDefs[0] resolves the WRONG
+  // producer when a step arrives via a secondary output.
+  std::string viewSlot = startSlot;
   for (int depth = 0; s; ++depth) {
     if (depth > 64) return "";              // belt for the sideways walk too (crafted wire cycles)
     // 修C: a bypassed compound child has NO resident footprint (the builder rewires it away), so

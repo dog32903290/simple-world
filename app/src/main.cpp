@@ -38,6 +38,7 @@
 #include "runtime/compound_graph.h"
 #include "runtime/image_filter_op_registry.h"  // setAssetTextureDecoder (the asset-decode leaf seam)
 #include "runtime/field_graph.h"               // setFieldSourceCompiler (the field source leaf seam)
+#include "runtime/cmd_view_background.h"        // set/clearCommandViewBackground (Output view bg ambient)
 #include "runtime/compound_save.h"  // libToJsonV2 (eye state dump)
 #include "runtime/graph.h"
 #include "runtime/point_graph.h"
@@ -123,6 +124,14 @@ bool outputWindowResolution(int& w, int& h) {
   h = static_cast<int>(r.h);
   return w > 0 && h > 0;
 }
+// Output-window VIEW BACKGROUND seam (TiXL OutputWindow._backgroundColor → EvaluationContext.BackgroundColor,
+// CommandOutputUi.Recompute). The ui zone owns "which color" (session state, picker shown ONLY for a Command
+// view); the shell forwards it to the runtime ambient the terminal Command executor reads. Engage for a
+// Command view, clear otherwise (Texture2D / preview) → executor falls back to opaque black (byte-id).
+void setOutputBackgroundColor(float r, float g, float b, float a) {
+  sw::setCommandViewBackground(r, g, b, a);
+}
+void clearOutputBackgroundColor() { sw::clearCommandViewBackground(); }
 }  // namespace sw
 
 // P6 — Player / 演出 output mode (modes.md [core]; TiXL Player/Program.cs is a separate exe, but

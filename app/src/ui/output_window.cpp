@@ -41,6 +41,10 @@ bool previewTextureSize(int& w, int& h);
 void setOutputResolutionOverride(int w, int h);
 void clearOutputResolutionOverride();
 bool outputWindowResolution(int& w, int& h);  // Fill baseline (TiXL GetWindowSize role)
+// View background-color seam (TiXL OutputWindow._backgroundColor → EvaluationContext.BackgroundColor): the
+// picker (Command views only) forwards its color to the terminal Command executor's clear. Defined in main.cpp.
+void setOutputBackgroundColor(float r, float g, float b, float a);
+void clearOutputBackgroundColor();
 }  // namespace sw
 
 namespace sw::ui {
@@ -121,6 +125,10 @@ constexpr int kResPresetCount = static_cast<int>(sizeof(kResPresets) / sizeof(kR
 // TiXL, which keeps _selectedResolution in the OutputWindow instance, not the .t3.
 int g_selectedResIndex = 0;
 
+// View background color (TiXL OutputWindow._backgroundColor, OutputWindow.cs:634). Session-only view state
+// (never serialized — same as the Pin). Default = TiXL's 0.1 grey (Command view clears here, faithful, not black).
+float g_viewBackground[4] = {0.1f, 0.1f, 0.1f, 1.0f};
+
 // TiXL Resolution.ComputeResolution (ResolutionHandling.cs:115-135). Fixed-pixel preset → its
 // own size. UseAsAspectRatio with 0/0 (Fill) → the window size verbatim. Otherwise fit the
 // requested aspect into the window: requested wider than window → fit width (letterbox), else fit
@@ -170,6 +178,14 @@ void drawOutputWindow() {
   const bool pinned = g_pinnedNode != 0;
   const sw::SymbolChild* pinnedNode = pinned ? sw::childById(*cur, g_pinnedNode) : nullptr;
 
+  // Resolve WHAT the viewport shows ONCE (main.cpp cook-target priority: pinned > selected > terminal). The
+  // bg picker (Command-only) + the type block below read this. Command view = bare terminal OR a Command op.
+  const sw::SymbolChild* viewNode = pinnedNode;
+  if (!viewNode && g_selectedNode != 0 && cur) viewNode = sw::childById(*cur, g_selectedNode);
+  const sw::NodeSpec* vs = viewNode ? sw::findSpec(viewNode->symbolId) : nullptr;
+  const std::string outType = viewNode ? outputTypeOf(viewNode) : "";
+  const bool viewIsCommand = !viewNode || outType == "Command";
+
   // --- toolbar: Pin / switch / Unpin, on the active op (TiXL Icon.Pin + PinSelectionToView).
   // Unpinned, the viewport FOLLOWS the selected node (TiXL); Pin LOCKS it so it stops
   // following (and clicking other nodes no longer changes the view). One button:
@@ -214,6 +230,20 @@ void drawOutputWindow() {
   }
   sw::eye::recordItem("output_snapshot_btn");  // eye: hand off this button's screen rect
   ImGui::SameLine();
+
+  // --- View background color (TiXL OutputWindow.cs:306-312: shown ONLY for a Command view; no effect on a
+  // Texture2D view). Seeds the terminal Command executor's base clear; engage every frame (TiXL), else clear. ---
+  if (viewIsCommand) {
+    ImGui::ColorEdit4("##OutputBackground", g_viewBackground,
+                      ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaPreview);  // TiXL ColorEditButton
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Adjust background color of view");  // TiXL:311
+    sw::eye::recordItem("output_background_btn");
+    sw::setOutputBackgroundColor(g_viewBackground[0], g_viewBackground[1], g_viewBackground[2],
+                                 g_viewBackground[3]);
+    ImGui::SameLine();
+  } else {
+    sw::clearOutputBackgroundColor();  // Texture2D / preview view → executor default black
+  }
 
   // --- Output resolution selector (TiXL ResolutionHandling.DrawSelector, OutputWindow.cs:316) ---
   // Picks the frame render size the cook seeds into RequestedResolution. Fill (default) follows the
@@ -266,11 +296,7 @@ void drawOutputWindow() {
                       comboPos.x + comboW, comboPos.y + ImGui::GetFrameHeight());
   ImGui::SameLine();
 
-  // What the viewport is actually showing (mirror the shell's cook-target priority in
-  // main.cpp): the pinned node wins; else the selected node (follow); else the terminal.
-  const sw::SymbolChild* viewNode = pinnedNode;
-  if (!viewNode && g_selectedNode != 0 && cur) viewNode = sw::childById(*cur, g_selectedNode);
-  const sw::NodeSpec* vs = viewNode ? sw::findSpec(viewNode->symbolId) : nullptr;
+  // What the viewport is actually showing (viewNode/vs/outType resolved once at the top of the window).
   if (pinned)
     ImGui::TextDisabled("%s (pinned)", vs ? vs->title.c_str() : "?");
   else if (viewNode)
@@ -278,19 +304,10 @@ void drawOutputWindow() {
   else
     ImGui::TextDisabled("Terminal (select a node to preview it)");
 
-  // --- type honesty (§5): v1 only visualizes Points. A draw node (DrawPoints) is always
-  // drawable (renders its own input). Nothing pinned/selected = the terminal draw node. ---
-  bool drawable;
-  std::string outType;
-  if (!viewNode)
-    drawable = true;                                 // terminal draw node -> today's picture
-  else {
-    outType = outputTypeOf(viewNode);
-    // A command op (DrawPoints/DrawLines/DrawBillboards: Command out) renders its own input via
-    // the RenderTarget executor when terminal; Points -> reuse DrawPoints preview; Texture2D
-    // (RenderTarget) -> show the texture directly.
-    drawable = (outType == "Command" || outType == "Points" || outType == "Texture2D");
-  }
+  // --- type honesty (§5): v1 only visualizes Points. A draw node (DrawPoints) is always drawable
+  // (renders its own input). A command op renders via the RenderTarget executor when terminal; Points →
+  // reuse DrawPoints preview; Texture2D (RenderTarget) → show the texture directly. ---
+  const bool drawable = !viewNode || outType == "Command" || outType == "Points" || outType == "Texture2D";
   if (!drawable)
     ImGui::TextDisabled("no preview for output type \"%s\" yet",
                         outType.empty() ? "?" : outType.c_str());

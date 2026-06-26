@@ -23,6 +23,7 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
+#include "runtime/cmd_view_background.h"  // commandViewBackground() — Output-window view bg (terminal Command clear)
 #include "runtime/draw_params.h"      // DrawLineParams/DrawBillboardParams/DrawScreenQuadParams + bindings
 #include "runtime/field_camera.h"     // defaultLayerCameraForward / objectToClipSpace (Layer2d seam, F1)
 #include "runtime/graph.h"            // Graph/Node
@@ -182,7 +183,9 @@ void cookRenderTarget(TexCookCtx& c) {
   auto* ca = pass->colorAttachments()->object(0);
   ca->setTexture(c.output);
   ca->setLoadAction(MTL::LoadActionClear);
-  float cc[4] = {0.0f, 0.0f, 0.0f, 1.0f};  // ClearColor param (Vec4); default black, opaque.
+  // BASE clear: Output-window view bg (TiXL CommandOutputUi.Recompute:63-67, clears BackgroundColor before the chain) when engaged, else black (byte-id); a RenderTarget's own ClearColor param then wins via cookVecN.
+  float cc[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  if (const float* bg = commandViewBackground()) { cc[0]=bg[0]; cc[1]=bg[1]; cc[2]=bg[2]; cc[3]=bg[3]; }
   cookVecN(c, "ClearColor", cc, 4, cc);
   // Chain-clear (TiXL ClearRenderTarget): if the FIRST chain item is a Clear directive, its color
   // overrides the RenderTarget node's own ClearColor — faithful + free (the pass already clears

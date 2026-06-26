@@ -206,8 +206,13 @@ const SymbolConnection* connectionToInput(const Symbol& s, int dstChild,
 // inward, recursively (TiXL: viewing an op shows its output slot; for a composition that
 // slot is fed by an inner producer). Returns "" when unresolvable (no output def, unwired,
 // input-passthrough, dangling, or depth/cycle overflow) — callers fall back to a terminal.
+// `viewSlot` = WHICH of the child's outputs to view (OUTPUT-SLOT picker, TiXL "Show Output…"). "" =
+// the main output (outputDefs[0], today's byte-identical behaviour). A non-empty slot id seeds the
+// inward follow from THAT boundary wire instead — a compound child with >1 output resolves the
+// producer of the selected output. (An atomic child is its own producer regardless of slot; the
+// per-output-PORT realize of an atomic terminal is the cook-core terminal dispatch, not this path.)
 std::string viewProducerPath(const SymbolLibrary& lib, const std::string& prefixPath,
-                             int childId);
+                             int childId, const std::string& viewSlot = std::string());
 
 // --- resolve helpers (behavior the flattener in batch 1 builds on) ---
 
