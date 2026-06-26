@@ -415,9 +415,11 @@ add_executable(simple_world
   src/runtime/floatlist_ops_setintlistvalue.cpp
   src/runtime/floatlist_ops_remapfloatlist.cpp
   src/runtime/floatlist_ops_smoothvalues.cpp
+  src/runtime/floatlist_ops_animfloatlist.cpp
   src/floatlist_golden.cpp
   src/floatlist_producers_golden.cpp
   src/floatlist_smoothvalues_golden.cpp
+  src/floatlist_animfloatlist_golden.cpp
   src/runtime/colorlist_op_registry.cpp
   src/runtime/colorlist_ops_colorstolist.cpp
   src/runtime/colorlist_ops_colorlist.cpp

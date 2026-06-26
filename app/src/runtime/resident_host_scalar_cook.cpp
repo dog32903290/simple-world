@@ -114,13 +114,30 @@ bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
     // (Single scalar Float inputs / other dataTypes are read via resolved params, not gathered.)
   }
 
+  // Build a 16-byte EvaluationContext from the resident ctx so a FloatList producer that reads
+  // LocalFxTime (the bars clock) — AnimFloatList — sees the SAME time the flat path hands it
+  // (point_graph_hostvalue_cook.cpp:116 fc.ctx = &ctx). Mirror of resident_eval_graph.cpp:185-192's
+  // ResidentEvalCtx→EvaluationContext lift. Held local so fc.ctx stays valid through (*fn)(fc).
+  // The pure producers (FloatsToList/IntsToList) ignore ctx; this only POPULATES it for the time-
+  // reading ones. The struct stays 16 bytes; no transport/cook-core spine touched.
+  EvaluationContext ec{};
+  ec.frameIndex  = ctx.frameIndex;
+  ec.time        = ctx.localFxTime;  // (existing readers touch .time; AnimFloatList reads .localFxTime)
+  ec.deltaTime   = 0.0f;
+  ec.localFxTime = ctx.localFxTime;  // BARS — TiXL EvaluationContext.LocalFxTime
+  // Resolve THIS node's Float params inline (the memo-free twin of cookResident's nodeParams; same
+  // pure resolver the host-scalar/mesh resident cooks use). Held local so fc.params stays valid.
+  // FloatsToList/IntsToList read none (the map is harmlessly unused for them); AnimFloatList reads
+  // Phase/Rate/Ratio/Amplitude/Offset/Bias/Shape/OffsetNumber/OffsetCycle through it.
+  std::map<std::string, float> params = resolveResidentFloatInputs(g, *n, ctx);
+
   FloatListCookCtx fc;
   fc.dev = nullptr; fc.lib = nullptr; fc.queue = nullptr;  // host-only ops (FloatsToList) ignore these
-  fc.ctx = nullptr;
+  fc.ctx = &ec;          // LocalFxTime-bearing (AnimFloatList's bars clock); was nullptr (no time reader)
   fc.nodeId = 0;
   fc.inputLists = &inputLists;
   fc.output = &out;
-  fc.params = nullptr;  // FloatsToList reads no Float params; a future param-driven list op needs a map
+  fc.params = &params;   // resolved Float params (AnimFloatList's shape/rate/...); was nullptr
   (*fn)(fc);
   return true;
 }

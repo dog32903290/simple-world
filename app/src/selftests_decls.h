@@ -157,6 +157,7 @@ namespace sw { int runHasStringChangedSelfTest(bool); }          // hasstringcha
 namespace sw { int runListRoutingSelfTest(bool); }               // list_routing_golden.cpp (FloatList→Float bridge: downstream evalFloat)
 namespace sw { int runFloatListProducersSelfTest(bool); }        // floatlist_producers_golden.cpp (wave-2 FloatList→FloatList producers: Combine/IntsToList/SetFloat/SetInt/Remap, chain-through-evalFloat)
 namespace sw { int runSmoothValuesSelfTest(bool); }              // floatlist_smoothvalues_golden.cpp (SmoothValues forward-window box average, STATELESS FloatList→FloatList, chain-through-evalFloat)
+namespace sw { int runAnimFloatListSelfTest(bool); }             // floatlist_animfloatlist_golden.cpp (AnimFloatList animator PRODUCER: AnimMath shapes → List<float> on LocalFxTime, flat+resident chain-through)
 namespace sw { int runListRoutingWave1SelfTest(bool); }          // list_routing_wave1_golden.cpp (list fan-out wave-1: SumRange/IntListLength/PickIntFromList/CompareFloatLists bridge)
 namespace sw { int runPointListSelfTest(bool); }                 // pointlist_golden.cpp (7th cook flow: CPU point list + ListToBuffer bridge)
 namespace sw { int runConeGizmoSelfTest(bool); }                 // conegizmo_golden.cpp (C3 gizmo Tranche-0: ConeGizmo generator via pointlist seam, closed-form cone geometry)
