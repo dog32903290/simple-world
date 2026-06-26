@@ -527,6 +527,8 @@ add_executable(simple_world
   src/runtime/resident_distortandshade_selftest.cpp
   src/runtime/resident_combine3images_selftest.cpp
   src/runtime/resident_picktexture_selftest.cpp
+  src/runtime/resident_firstvalidtexture_selftest.cpp
+  src/runtime/resident_usefallbacktexture_selftest.cpp
   src/runtime/resident_combinematerialchannels2_selftest.cpp
   src/runtime/resident_combinematerialchannels_selftest.cpp
   src/runtime/resident_hse_selftest.cpp

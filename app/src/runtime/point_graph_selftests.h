@@ -94,6 +94,19 @@ int runResidentCombine3ImagesSelfTest(bool injectBug);
 // = 0 -> input[0] -> RED. Proves cookTexNode's MultiInput Texture2D branch threads ALL N wires.
 int runResidentPickTextureSelfTest(bool injectBug);
 
+// FirstValidTexture golden (point_ops_firstvalidtexture.cpp + resident_firstvalidtexture_selftest.cpp):
+// a SECOND consumer of the variable-N MultiInputSlot<Texture2D> gather (proven by PickTexture). TiXL
+// rule = forward the FIRST NON-NULL gathered input. The flat golden nulls slot 0 -> selects input[1];
+// the resident variant wires 2 sources into the ONE multiInput Input port (primary + extraConn) and
+// asserts the first wire's color. injectBug OMITS the 1st wire -> first non-null shifts to input[1] -> RED.
+int runResidentFirstValidTextureSelfTest(bool injectBug);
+
+// UseFallbackTexture golden (point_ops_usefallbacktexture.cpp + resident_usefallbacktexture_selftest.cpp):
+// two FIXED Texture2D ports (TextureA slot 0, Fallback slot 1). TiXL rule = TextureA ?? Fallback. The
+// flat golden asserts TextureA wins over a present Fallback; the resident variant routes both ports
+// through cookResident. injectBug OMITS the TextureA wire -> slot 0 null -> forwards Fallback -> RED.
+int runResidentUseFallbackTextureSelfTest(bool injectBug);
+
 // CombineMaterialChannels2 golden (point_ops_combinematerialchannels2.cpp): the PBR twin of
 // Combine3Images — SAME kernel (img-combine-3.hlsl), SAME 3-image gather. A PBR-flavored solid set
 // (roughness/metallic/ao) packs to (A.r, B.g, C.b, 1); injectBug drops ImageC -> B reads ImageA.b -> RED.
