@@ -21,6 +21,7 @@
 #include "selftests.h"          // sw::kBgR / kBgG / kBgB
 #include "ui/cjk_font.h"
 #include "ui/editor_ui.h"
+#include "ui/theme.h"
 #include "verify/hand/hand.h"
 
 namespace ed = ax::NodeEditor;
@@ -120,6 +121,7 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
     io.ConfigWindowsMoveFromTitleBarOnly = true;
   }
   ImGui::StyleColorsDark();
+  sw::ui::theme::apply();  // faithful TiXL default theme over the ImGui style (= T3Style.Apply; ui zone)
   sw::ui::loadCjkFont();  // merge a macOS CJK face onto the atlas so Chinese names render (ui zone)
   ImGui_ImplOSX_Init(static_cast<void*>(_pMtkView));
   ImGui_ImplMetal_Init(_pDevice);

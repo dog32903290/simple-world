@@ -6,20 +6,25 @@
 #include <cstdio>
 
 #include "runtime/graph.h"  // NodeSpec / PortSpec
+#include "ui/theme.h"       // defaultTheme() — the faithful TiXL color table (datatype base colors)
 // Note: blinkValue() uses ImGui::GetTime() which requires an active ImGui context (only
 // valid when the editor is running; not called from headless selftests).
 
 namespace sw::ui {
 namespace {
 
-// TiXL base colors per dataType (Editor/Gui/Styling/UiColors.cs). Our dataTypes:
-// Float, Points, ParticleForce, Command, Texture2D. Unknown → ColorForValues gray.
+// Map a dataType to its TiXL base color, read from the default theme table (ui/theme.cpp, a faithful
+// port of UiColors.cs). Our dataTypes: Float, Points, ParticleForce, Command, Texture2D. Unknown →
+// ColorForValues gray. (Previously these were inline literals here; centralizing them in theme.cpp =
+// the single "default theme table" the editor styles from — also corrected the Texture2D float drift
+// 0.624/0.541 → TiXL's 0.625/0.540, identical at byte precision so zero visual change.)
 ImVec4 baseColor(const std::string& dt) {
-  if (dt == "Points")        return ImVec4(0.72f, 0.20f, 0.18f, 1.0f);   // ColorForGpuData (red)
-  if (dt == "ParticleForce") return ImVec4(0.132f, 0.722f, 0.762f, 1.0f);// ColorForCommands (cyan)
-  if (dt == "Command")       return ImVec4(0.132f, 0.722f, 0.762f, 1.0f);// ColorForCommands (cyan)
-  if (dt == "Texture2D")     return ImVec4(0.624f, 0.0f, 0.541f, 1.0f);  // ColorForTextures (#9F008A magenta)
-  return ImVec4(0.525f, 0.550f, 0.554f, 1.0f);                            // ColorForValues (gray)
+  const theme::DefaultTheme& t = theme::defaultTheme();
+  if (dt == "Points")        return t.colorForGpuData;   // ColorForGpuData (red)
+  if (dt == "ParticleForce") return t.colorForCommands;  // ColorForCommands (cyan)
+  if (dt == "Command")       return t.colorForCommands;  // ColorForCommands (cyan)
+  if (dt == "Texture2D")     return t.colorForTextures;  // ColorForTextures (magenta)
+  return t.colorForValues;                               // ColorForValues (gray)
 }
 
 // Pack to ImU32 WITHOUT ImGui::GetColorU32 — that one multiplies by the global context's

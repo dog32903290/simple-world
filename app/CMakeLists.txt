@@ -239,6 +239,7 @@ add_executable(simple_world
   src/ui/annotation_draw.cpp
   src/ui/annotation_interact.cpp
   src/ui/node_style.cpp
+  src/ui/theme.cpp
   src/ui/output_window.cpp
   src/ui/output_window_canvas.cpp      # aspect-correct image canvas (split from output_window.cpp)
   src/ui/output_window_resolution.cpp  # Output resolution selector (split from output_window.cpp)

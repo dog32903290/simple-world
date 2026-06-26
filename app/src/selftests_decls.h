@@ -61,6 +61,7 @@
 #include "ui/keymap.h"      // runKeymapSelfTest (K0 table completeness)
 #include "ui/quick_add.h"   // runQuickAddSelfTest (palette filter + eye hook naming)
 #include "ui/node_style.h"
+#include "ui/theme.h"            // runThemeSelfTest (default theme table == TiXL UiColors constants)
 #include "ui/timeline_window.h"  // runTimelineSelfTest (S6 timeline gesture core)
 #include "ui/graph_dump.h"   // runGraphDumpSelfTest (req_graph -> graph.json of current compound)
 #include "verify/eye/eye.h"
