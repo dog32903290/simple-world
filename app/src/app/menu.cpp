@@ -4,6 +4,7 @@
 #include "app/menu.h"
 
 #include "app/document.h"
+#include "platform/window_mode.h"  // P6 toggleOsFullScreen (View > Fullscreen, modes.md [polish])
 #include "verify/eye/eye.h"  // one-line hook: native menu rows -> map.json (鐵律 3)
 
 namespace sw::menu {
@@ -73,18 +74,29 @@ const MenuItemDef kWindowMenu[] = {
      }},
 };
 
+// P6 OS-fullscreen (modes.md [polish]): one item in a new View submenu.
+// Key equivalent "^$f" = Ctrl+Cmd+F (macOS convention for Enter Full Screen).
+// F11 is also bound via keymap.cpp (handleOsFullScreen) as the TiXL-parity shortcut.
+const MenuItemDef kViewMenu[] = {
+    {"Enter Full Screen", "f", Cmd | NS::EventModifierFlagControl, "viewFullscreen",
+     [](void*, SEL, const NS::Object*) { sw::platform::toggleOsFullScreen(); }},
+};
+
 }  // namespace
 
 NS::Menu* buildMainMenu() {
   NS::Menu* mainMenu = NS::Menu::alloc()->init();
   NS::Menu* appMenu = buildMenu("simple_world", kAppMenu);
   NS::Menu* fileMenu = buildMenu("File", kFileMenu);
+  NS::Menu* viewMenu = buildMenu("View", kViewMenu);
   NS::Menu* windowMenu = buildMenu("Window", kWindowMenu);
   addSubmenu(mainMenu, appMenu);
   addSubmenu(mainMenu, fileMenu);
+  addSubmenu(mainMenu, viewMenu);
   addSubmenu(mainMenu, windowMenu);
   appMenu->release();
   fileMenu->release();
+  viewMenu->release();
   windowMenu->release();
   return mainMenu->autorelease();
 }

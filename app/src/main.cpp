@@ -34,6 +34,7 @@
 #include "platform/dialogs.h"
 #include "platform/image_decode.h"  // decodeImageToTexture (asset-texture decode leaf seam, app-owned)
 #include "platform/metal_compile.h"  // compileLibraryFromSource (field source compiler leaf seam)
+#include "platform/window_mode.h"    // toggleOsFullScreen (F11 / View > Fullscreen seam, wired below)
 #include "runtime/compound_graph.h"
 #include "runtime/image_filter_op_registry.h"  // setAssetTextureDecoder (the asset-decode leaf seam)
 #include "runtime/field_graph.h"               // setFieldSourceCompiler (the field source leaf seam)
@@ -282,6 +283,9 @@ Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
   sw::hand::setLearnArmHook([](int child, const char* slot) {
     sw::midibind::beginLearn(sw::doc::currentSymbolId(), child, std::string(slot));
   });
+  // P6 OS-fullscreen seam (leaf-inversion: ui/view_modes can't include platform/).
+  // Wired here so the F11 keymap handler + View > Fullscreen menu both reach the platform call.
+  sw::ui::setOsFullScreenFn(&sw::platform::toggleOsFullScreen);
 }
 
 Renderer::~Renderer() {

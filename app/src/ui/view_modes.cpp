@@ -10,6 +10,12 @@ namespace sw::ui {
 bool g_focusMode = false;
 bool g_showChrome = true;
 
+// Leaf-inversion seam: main.cpp registers the platform fn at startup so this ui-zone file
+// never includes platform/. nullptr until wired (safe: handleOsFullScreen guards).
+static void (*s_osFullScreenFn)() = nullptr;
+
+void setOsFullScreenFn(void (*fn)()) { s_osFullScreenFn = fn; }
+
 // Chrome-visible state captured when focus mode was entered, restored on exit (TiXL UiConfig.cs
 // _uiStateBeforeFocusMode). F12 -> hide -> F12 returns you to exactly what you had, even if you
 // separately flipped chrome with Shift+Esc meanwhile.
@@ -57,6 +63,16 @@ bool handleToggleAllUiElements() {
   if (!ImGui::IsKeyPressed(ImGuiKey_Escape, false)) return false;
   toggleShowChrome();
   sw::doc::g_status = g_showChrome ? "UI shown" : "UI hidden";
+  return true;
+}
+
+bool handleOsFullScreen() {
+  // Bare F11, no modifiers (modes.md [polish]; TiXL _pWindow->toggleFullScreen).
+  // Platform fn is wired by main.cpp via setOsFullScreenFn (leaf-inversion seam).
+  const ImGuiIO& io = ImGui::GetIO();
+  if (io.KeyCtrl || io.KeyAlt || io.KeyShift) return false;
+  if (!ImGui::IsKeyPressed(ImGuiKey_F11, false)) return false;
+  if (s_osFullScreenFn) s_osFullScreenFn();
   return true;
 }
 

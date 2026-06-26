@@ -32,5 +32,10 @@ void toggleShowChrome();
 // KeyEntry-shaped handlers (return true if they fired). Referenced by ui/keymap's kKeyTable.
 bool handleToggleFocusMode();      // F12
 bool handleToggleAllUiElements();  // Shift+Esc
+bool handleOsFullScreen();         // F11 — calls the fn registered by setOsFullScreenFn
+
+// Leaf-inversion seam (ARCHITECTURE.md): platform/window_mode must not be included from ui/.
+// main.cpp registers the real fn at startup; view_modes.cpp stores and calls it through this ptr.
+void setOsFullScreenFn(void (*)());
 
 }  // namespace sw::ui

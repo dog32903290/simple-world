@@ -7,6 +7,7 @@
 // old value : erase" so a never-overridden slot returns to following its definition default.
 #include "ui/editor_ui.h"
 #include "ui/inspector_param_menu.h"  // ResetSlot + animateContextMenu (split for line-count rule)
+#include "ui/slider_ladder.h"         // SliderLadder precision-edit overlay (TiXL SliderLadder.cs)
 
 #include <memory>
 #include <string>
@@ -35,6 +36,10 @@ bool g_paramEditHadOverride = false;
 // drag: snapshot all components on activation, push a command per changed component on release.
 float g_vecEditBefore[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 bool g_vecEditHadOverride[4] = {false, false, false, false};
+// SliderLadder overlay: when a Float/Vec drag begins we record GetTime() so the overlay knows
+// its time-since-visible (TiXL SingleValueEdit._timeOpened; the <0.2s initial-delay branch). One
+// drag at a time → one shared start time. center is read from MouseClickedPos[0] each frame.
+double g_ladderTimeStart = 0.0;
 // P1 動已動畫 slider 的 live-write 收尾：拖曳開始快照整條 CurveArray，放手時把 before/after 兩份交給
 // SetCurveSnapshotCommand。一次只有一個 slider 在拖。
 sw::Animator::CurveArray g_curveSnapBefore;
@@ -149,11 +154,17 @@ void drawInspector() {
                              &p.maxV, "%.2f");
           ImGui::PopStyleColor();
           sw::eye::recordItem(("param:" + p.id).c_str());
-          if (ImGui::IsItemActivated())
+          if (ImGui::IsItemActivated()) {
             for (int k = 0; k < N; ++k) {
               g_vecEditBefore[k] = pre[k];
               g_vecEditHadOverride[k] = had[k];
             }
+            g_ladderTimeStart = ImGui::GetTime();
+            sw::ui::resetSliderLadder();
+          }
+          // SliderLadder overlay for Vec rows (DragScalarN). FORK: Vec never applies the ladder
+          // delta — DragScalarN owns all N components (overlay-only, visual + modifier feedback).
+          sw::ui::drawLadderIfActive((double)p.minV, (double)p.maxV, g_ladderTimeStart);
           if (ImGui::IsItemEdited()) {  // live write so the runtime sees changes mid-drag —
             // ONLY components that moved this frame: an unconditional write materializes
             // overrides for untouched components with no undo entry (refuter N2 #4).
@@ -276,7 +287,14 @@ void drawInspector() {
           if (ImGui::IsItemActivated()) {
             g_paramEditBefore = preV;
             g_paramEditHadOverride = had;
+            g_ladderTimeStart = ImGui::GetTime();  // SliderLadder time-since-visible origin
+            sw::ui::resetSliderLadder();           // fresh drag → clear locked-range latch
           }
+          // SliderLadder precision overlay (= TiXL SingleValueEdit ValueLadder edit method): while
+          // this DragFloat is held, draw the 7-row scale ladder over the mouse-down point. FORK:
+          // TiXL replaces DragFloat with the ladder (it owns the delta); simple_world v1 overlays it
+          // for visual + modifier feedback and leaves DragFloat owning the delta (overlay-only).
+          sw::ui::drawLadderIfActive((double)p.minV, (double)p.maxV, g_ladderTimeStart);
           if (ImGui::IsItemDeactivatedAfterEdit()) {
             if (v != g_paramEditBefore) {
               pushSet(p.id, g_paramEditHadOverride, g_paramEditBefore, v);

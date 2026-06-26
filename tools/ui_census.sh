@@ -84,8 +84,8 @@ check out-eval-start-instance important render-output yes "app/src/ui/editor_ui.
   'g_evalStartNode|evalStartNode' "view-instance vs evaluation-start-instance 拆分"
 check out-multi-window        polish  render-output yes "app/src/ui/output_window.cpp" \
   'AllowMultipleInstances|outputWindowId' "多 Output 視窗實例(各自 pin/解析度/view) [6/25複驗:單例 g_canvas/g_pinnedNode]"
-check out-snapshot-png        important render-output yes "app/src/ui/toolbar.cpp" \
-  'CGImageDestination|saveSnapshotPng' "toolbar Snapshot 按鈕→存 PNG(產品路徑非測試)"
+check out-snapshot-png        important render-output yes "app/src/ui/output_window.cpp" \
+  'saveSnapshot|snapshotDir' "toolbar Snapshot 按鈕→存 PNG(產品路徑非測試)"
 check out-video-export        important render-output yes "app/src/ui/output_window.cpp app/src/ui/toolbar.cpp" \
   'RenderAnimation|exportVideo|offlineRender' "影片/序列匯出(離線逐格 cook+FPS/範圍/進度) [6/25複驗:無離線cook,framecook 僅即時逐frame]"
 check out-window-persistence  polish  render-output yes "app/src/runtime/compound_save.cpp" \
@@ -102,8 +102,8 @@ check modes-focus            important  modes yes "app/src/ui/view_modes.cpp app
   'g_focusMode|focusMode' "Focus Mode(F12):可逆隱藏浮動視窗全螢幕畫輸出"
 check modes-toggle-all-ui    important  modes yes "app/src/ui/view_modes.cpp app/src/ui/view_modes.h" \
   'g_showChrome|toggleChrome' "Toggle-All-UI(Shift+Esc):一鍵收起所有 chrome"
-check modes-os-fullscreen    polish     modes yes "app/src/app/menu.cpp" \
-  'toggleFullScreen' "OS 視窗全螢幕切換(F11)+View>Fullscreen menu"
+check modes-os-fullscreen    polish     modes yes "app/src/app/menu.cpp app/src/platform/window_mode.mm" \
+  'toggleFullScreen|toggleOsFullScreen' "OS 視窗全螢幕切換(F11)+View>Fullscreen menu"
 check modes-window-layouts   polish     modes yes "app/src/app/user_settings.h app/src/app/user_settings.cpp" \
   'SaveIniSettingsToMemory|LoadIniSettingsFromMemory|namedLayout' "Window Layout 存/載(F1-F10 10 組)"
 check modes-graph-over-content polish   modes no  "app/src/ui/editor_ui.cpp" \

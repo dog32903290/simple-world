@@ -24,7 +24,7 @@
 #include "ui/annotation_draw.h"  // requestCreateAnnotation (Shift+A)
 #include "ui/copy_paste_ui.h"
 #include "ui/quick_add.h"  // SearchGraph (Cmd+F) handler
-#include "ui/view_modes.h"  // P6 ToggleFocusMode (F12) / ToggleAllUiElements (Shift+Esc) handlers
+#include "ui/view_modes.h"  // P6 ToggleFocusMode (F12) / ToggleAllUiElements (Shift+Esc) / OsFullScreen (F11)
 
 namespace ed = ax::NodeEditor;
 
@@ -627,11 +627,11 @@ static const KeyEntry kKeyTable[] = {
     {"CloseOperator",               Context::CanvasFocus, handleCloseOperator},
     // --- Toggle disabled (TiXL FactoryKeyMap.cs:47; NeedsWindowFocus) ---
     {"ToggleDisabled",              Context::CanvasFocus, handleToggleDisabled},
-    // --- P6 演出/Focus modes (TiXL FactoryKeyMap.cs:82,84; global; bodies in ui/view_modes.cpp) ---
+    // --- P6 演出/Focus/OS modes (FactoryKeyMap.cs:82,84; F11=OsFS; global; bodies: view_modes.cpp) ---
     {"ToggleAllUiElements",         Context::Global,      sw::ui::handleToggleAllUiElements},
     {"ToggleFocusMode",             Context::Global,      sw::ui::handleToggleFocusMode},
+    {"OsFullScreen",                Context::Global,      sw::ui::handleOsFullScreen},
 };
-
 static constexpr int kTableSize = (int)(sizeof(kKeyTable) / sizeof(kKeyTable[0]));
 
 // ---------------------------------------------------------------------------

@@ -106,6 +106,8 @@ set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OP
 # midi_loopback.mm (L5 IO lane): pure CoreMIDI C API (no ObjC objects) -> compile WITHOUT ARC, like
 # the other manual-lifetime .mm files. osc_loopback.cpp is plain C++ (POSIX sockets) — no .mm prop.
 set_source_files_properties(src/platform/midi_loopback.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
+# window_mode.mm: NSWindow toggleFullScreen: (AppKit) — manual retain like dialogs.mm.
+set_source_files_properties(src/platform/window_mode.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 
 # Point-op leaf sources — globbed so a family lane adding point_ops_<name>.cpp (or a new
 # point_ops_register_<family>.cpp) needs no CMake edit (just reconfigure). Covers the central
@@ -213,6 +215,7 @@ add_executable(simple_world
   src/ui/quick_add_tree.cpp
   src/ui/quick_add_selftest.cpp
   src/ui/inspector.cpp
+  src/ui/slider_ladder.cpp  # SliderLadder precision value-edit overlay (port of TiXL SliderLadder.cs)
   src/ui/asset_browser.cpp  # EXP #2: AssetLibrary window (browse Lib: assets + click-to-create LoadImage)
   src/ui/inspector_param_menu.cpp
   src/ui/timeline_window.cpp
@@ -248,6 +251,7 @@ add_executable(simple_world
   src/platform/metal_compile_selftest.mm
   src/platform/osc_loopback.cpp
   src/platform/midi_loopback.mm
+  src/platform/window_mode.mm
   src/platform/live_binding.cpp
   src/runtime/particle_system.cpp
   src/runtime/particle_decay_selftest.cpp
