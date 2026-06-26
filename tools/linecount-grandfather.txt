@@ -11,6 +11,13 @@
 # Format: relative/path/from/repo/root:maxlines
 # Snapshot taken: 2026-06-22 on commit 1dfde65
 #
+# document split (2026-06-27): document.cpp was AT the hard 400-line wall (zero headroom, never
+# grandfathered) — blocking further document work (e.g. folder-package-save). Mechanical split by
+# responsibility, zero behavior change: composition-path navigation + combine + resident paths →
+# document_navigation.{h,cpp}; new/open/save lifecycle + dirty tracking + window title + the
+# navigation selftest → document_io.cpp. document.cpp (400→31) is now the thin coordinator (g_lib
+# accessor + session view-globals + lib revision). All three new TUs are well under 400 → no
+# grandfather entry needed; document.cpp never had one and is now well under the cap.
 app/src/app/child_state_selftest.cpp:402
 app/src/app/copy_paste_selftest.cpp:443
 # gradient-inspector (2026-06-26): +17 for residentCookedGradient() API (the 8th-flow gradient face
