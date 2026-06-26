@@ -38,6 +38,14 @@ struct ResidentEvalCtx;
 // The flat cook's per-node resolved-Float-param memo (point_graph.cpp cook()-local nodeParams). Passed
 // by-ref to the extracted flat-mesh-cook methods so they share the same single-resolve-per-node memo.
 using NodeParamsFn = std::function<const std::map<std::string, float>*(int)>;
+// Cook-stack slot aliases (flat = int id, resident = path string). Collapse the repeated std::function<...>
+// spellings the extracted cook methods share; pure type aliases, no behaviour.
+using FlatNodeFn = std::function<MTL::Buffer*(int)>;
+using FlatCmdFn = std::function<RenderCommand(int)>;
+using FlatTexFn = std::function<MTL::Texture*(int, int)>;
+using ResidentParamsFn = std::function<const std::map<std::string, float>*(const std::string&)>;
+using ResidentCmdFn = std::function<RenderCommand(const std::string&, int)>;
+using ResidentTexFn = std::function<MTL::Texture*(const std::string&, int, const std::string&)>;
 
 namespace pgdetail {
 
@@ -91,6 +99,11 @@ inline void fillPointCamera(PointCookCtx& cc, const NodeSpec& spec, float aspect
 // Multi-tex-output helper (feedback seam): ABSOLUTE output port idx → ordinal among Texture2D outputs in
 // point_graph.cpp (0 for single-output ops); both cooks share it.
 int texOutputOrdinal(const NodeSpec& spec, int absPortIndex);
+
+// Resident cook-depth safe-fail warn (one stderr line per process; defined in point_graph_resident.cpp).
+// Shared so the extracted resident-command TU calls the SAME single g_warnedCookDepth flag — the depth-cap
+// branch's verbatim behaviour (warn-once + safe empty) is preserved across the split.
+void warnCookDepthOnce();
 
 }  // namespace pgdetail
 
@@ -385,19 +398,33 @@ struct PointGraph::Impl {
   // The FLAT TEXTURE cook (Texture2D stream), point_graph_tex_cook.cpp (Cut-5; full doc in leaf). MOST cross-wired flow — cookCommand/cookTexNode/cookFloatListNode/cookGradientNode/feedbackCooked all by-ref.
   MTL::Texture* cookFlatTexNode(
       const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
-      const NodeParamsFn& nodeParams, const std::function<RenderCommand(int)>& cookCommand,
-      const std::function<MTL::Texture*(int, int)>& cookTexNode,
+      const NodeParamsFn& nodeParams, const FlatCmdFn& cookCommand, const FlatTexFn& cookTexNode,
       const std::function<const std::vector<float>*(int)>& cookFloatListNode,
       const std::function<const SwGradient*(int)>& cookGradientNode, std::set<int>& texVisiting,
       std::map<int, std::array<MTL::Texture*, FeedbackCookCtx::kMaxTexOutputs>>& feedbackCooked, int id,
       int outAbsPort);
+  // FLAT + RESIDENT COMMAND cooks (point_graph_command_cook.cpp / point_graph_resident_command_cook.cpp;
+  // full doc in leaves). cookCommand walkers extracted VERBATIM from each driver; near-mirror TWINS but NOT
+  // a shared path (flat int-id/g.connections vs resident path/ResidentInput genuinely diverge). By-ref slots.
+  RenderCommand cookFlatCommand(
+      const Graph& g, const EvaluationContext& ctx, const SourceRegistry* reg,
+      const NodeParamsFn& nodeParams, ContextVarMap* ctxVars, std::set<int>& cmdVisiting,
+      const FlatNodeFn& cookNode,
+      const std::function<bool(int, const MTL::Buffer*&, uint32_t&, const MTL::Buffer*&, uint32_t&)>&
+          cookMeshInto,
+      const FlatTexFn& cookTexNode, const FlatCmdFn& cookCommand, int id);
+  RenderCommand cookResidentCommand(
+      const ResidentEvalGraph& rg, const EvaluationContext& ctx, const SourceRegistry* reg,
+      int depthCap, ContextVarMap* ctxVars, const ResidentParamsFn& nodeParams,
+      const std::function<MTL::Buffer*(const std::string&, int)>& cookNode,
+      const std::function<SwMeshView(const std::string&, int)>& cookResidentMesh,
+      const ResidentTexFn& cookTexNode, const ResidentCmdFn& cookCommand,
+      const std::string& path, int depth);
   // The RESIDENT TEXTURE cook (point_graph_resident_tex_cook.cpp; full doc in leaf). Resident twin of cookFlatTexNode; cookResident wraps it in a forwarding lambda. depthCap = the file-local kCookDepthCap.
   MTL::Texture* cookResidentTexNode(
       const ResidentEvalGraph& rg, const EvaluationContext& ctx, const SourceRegistry* reg,
-      const ResidentEvalCtx& rc, int depthCap,
-      const std::function<const std::map<std::string, float>*(const std::string&)>& nodeParams,
-      const std::function<RenderCommand(const std::string&, int)>& cookCommand,
-      const std::function<MTL::Texture*(const std::string&, int, const std::string&)>& cookTexNode,
+      const ResidentEvalCtx& rc, int depthCap, const ResidentParamsFn& nodeParams,
+      const ResidentCmdFn& cookCommand, const ResidentTexFn& cookTexNode,
       const std::function<const SwGradient*(const std::string&, int)>& cookResidentGradient,
       std::map<std::string, std::array<MTL::Texture*, FeedbackCookCtx::kMaxTexOutputs>>& feedbackCooked,
       const std::string& path, int depth, const std::string& outSlotId);

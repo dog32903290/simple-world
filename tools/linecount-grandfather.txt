@@ -64,7 +64,12 @@ app/src/runtime/math_ops_selftest.cpp:1341
 # two-hop force→field chase + recursion live in the new TU field_graph_builder.cpp (肉 OUT of this file);
 # only the call-site + ctx wire are here, irreducible. Proven by --selftest-fieldtree-builder (flat leg) +
 # --selftest-particlefield-probe (transitional). Same cook-driver-split debt lowers this.
-app/src/runtime/point_graph.cpp:868
+# 工作2/島7 (2026-06-27) RATCHET DOWN 868→730: the DEBT "拆 Command 分支" landed — the flat cookCommand
+# walker (Execute/Switch/Loop/ExecRepeatedly collectors + S3a SetVar/C1 Camera SubGraph scopes + per-op cmd
+# dispatch) moved VERBATIM to PointGraph::Impl::cookFlatCommand (point_graph_command_cook.cpp, 236 lines);
+# cook() keeps a thin forwarding lambda. ALL the S3a/S3b/S3c/C1/PF-0 "split lowers this" notes above are now
+# PAID. Proven byte-identical by --selftest-loop/-camera-scope/-setvar-scope (flat legs) + --bite=483.
+app/src/runtime/point_graph.cpp:730
 # S3a (2026-06-23) +12: CmdCookCtx gained the ContextVarMap* ctxVars field (additive ABI, mirrors
 # inputCommand) + the forward-decl + cook/cookResident gained the trailing ctxVars param. Doc squeezed to
 # the floor; the field + its load-bearing comment (the two-rail fork note, blueprint risk #3) are irreducible.
@@ -84,7 +89,14 @@ app/src/runtime/point_graph.h:240
 # point_ops_camera_scope.h include. The if/else + include are irreducible cook-core seam glue; comments at the
 # floor. This is the SSOT both cooks share so fillPointCamera can never fork (CAMERA3D_BLUEPRINT §3). DEBT:
 # splits with the cook-driver extraction the point_graph.cpp note tracks.
-app/src/runtime/point_graph_internal.h:406
+# 工作2/島7 (2026-06-27) +27 (406→433): the cook-driver Command split landed (the DEBT this header's C1 note
+# anticipated). The shared seam header gained the irreducible decls BOTH new TUs implement — cookFlatCommand
+# + cookResidentCommand (the Impl methods, with their by-ref cook-stack slot params) + warnCookDepthOnce
+# (de-anonymised so the resident-command TU hits the SAME process-global warn-once flag). Net across the
+# split is strongly NEGATIVE: the two god-drivers shed 299 lines (868→730 + 717→556) into bounded <400 leaf
+# TUs; the bloat moved OUT of the unsafe-to-touch drivers, which is exactly what the gate exists to force.
+# Slot-type aliases (Flat/Resident*Fn) added to collapse the repeated std::function spellings. No slack.
+app/src/runtime/point_graph_internal.h:433
 # S2c (2026-06-23) +8: resident cookCommand gained its Texture2D input gather — a production black-hole
 # (Layer2d/DrawScreenQuad drew BLACK on the resident path because cc.inputTexture was never set; the flat
 # cookCommand has had this branch since FORK#1). Caught by --selftest-layercompose's resident leg. The
@@ -112,7 +124,14 @@ app/src/runtime/point_graph_internal.h:406
 # gatherForceResidentFieldTree(rg,path,nodeParams) + cc.inputFieldTree assign + the builder include; the
 # two-hop chase + recursion live in field_graph_builder.cpp. cc.graph==nullptr does NOT block it (the
 # DRIVER holds rg, like cookResidentGradient). Proven by --selftest-fieldtree-builder (resident leg).
-app/src/runtime/point_graph_resident.cpp:717
+# 工作2/島7 (2026-06-27) RATCHET DOWN 717→556: the DEBT "拆 Command 分支" landed (resident half) — the
+# resident cookCommand walker (the PRODUCTION leg, incl. the S2 bypass + depth-cap + Texture2D/Mesh gathers +
+# S3a/S3b/S3c/C1 scopes) moved VERBATIM to PointGraph::Impl::cookResidentCommand
+# (point_graph_resident_command_cook.cpp, 247 lines); cookResident keeps a thin forwarding lambda. NOT
+# false-shared with the flat twin (path/ResidentInput vs int-id/g.connections genuinely diverge). ALL the
+# S2c/S3a/S3b/S3c/C1 "split lowers this" notes above are now PAID. Proven byte-identical by --selftest-loop/
+# -camera-scope/-setvar-scope/-layercompose (resident legs, the production canaries) + --bite=483.
+app/src/runtime/point_graph_resident.cpp:556
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 # +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
 app/src/runtime/point_ops.h:553
