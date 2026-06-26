@@ -30,6 +30,7 @@
 #include "runtime/compound_graph.h"
 #include "runtime/combine.h"
 #include "runtime/compound_save.h"
+#include "runtime/compound_folder.h"  // runFolderPackageSelfTest (folder-package .swpkg round-trip)
 #include "runtime/curve.h"
 #include "runtime/curve_animator.h"
 #include "runtime/graph_bridge.h"

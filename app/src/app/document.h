@@ -76,6 +76,13 @@ void bumpLibRevision();
 bool doSave();                  // overwrite current; falls back to Save As; false if canceled
 bool doSaveAs();                // always prompt; true if written
 void doOpen();                  // unsaved-guard -> Finder -> doOpenPath
+// ADDITIVE folder-package (.swpkg) entry points (compound_folder.h). A SECOND capability beside
+// the single-file .swproj path above — NOT a replacement or migration (.swproj stays the default).
+// doSaveAsPackage: prompt for a package dir name -> write one .t3 per symbol + metadata.json.
+// doOpenPackage: unsaved-guard -> Finder folder picker -> load the package. Both leave the live
+// document's saved-snapshot tracking as a .swproj snapshot (the in-memory model is format-agnostic).
+bool doSaveAsPackage();         // always prompt; true if the package was written
+void doOpenPackage();           // unsaved-guard -> Finder folder picker -> load .swpkg
 // Load+swap without a file picker (doOpen body; also the `--open <file>` CLI seam).
 // quiet=true reports failure on stderr ONLY — the CLI seam runs before NSApplication
 // exists, where showError's NSAlert runModal hangs forever (refuter N3 B1).

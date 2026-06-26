@@ -561,6 +561,8 @@ add_executable(simple_world
   src/runtime/output_slot_view_selftest.cpp  # output-slot picker golden (viewProducerPath startSlot)
   src/runtime/compound_save.cpp
   src/runtime/compound_load.cpp
+  src/runtime/compound_folder.cpp          # ADDITIVE folder-package (.swpkg): one .t3 per symbol + metadata.json (reuses symbolToJsonObject + libFromJsonAny)
+  src/runtime/compound_folder_selftest.cpp # --selftest-folder-package: round-trip + cross-format (.swproj==.swpkg) invariant + RED leg
   src/runtime/compound_save_selftest.cpp
   src/runtime/testproj_selftest.cpp
   src/runtime/combine.cpp
