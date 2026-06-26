@@ -1,0 +1,22 @@
+# gate_census_islands.tsv — 「本質複雜孤島 → 守它的 selftest」對照表 (SSOT)
+#
+# 這張表是「立閘紀律」的載體：每座本質複雜的孤島，記下守它的 --selftest 名稱。
+# gate_census.sh 對每座島檢查它的守門 selftest 是否 (a) 仍在 binary 的 --selftest-list 裡
+# (b) 仍會被 run_all_selftests.sh 掃到。任何一座島的任何守門 selftest 掉出去 = 該島裸著 = 紅燈。
+#
+# ★新島落地時：在這裡加一列（島號遞增）。這就是「加一座島 = 加一行資料」的資料驅動紀律。
+# ★守門名稱用的是 binary 實際 --selftest-<name> 的 <name>（穩定錨點），不是附錄的描述字。
+#   （附錄 docs/agent/MAINTENANCE_HARDENING_PLAN.md §95-107 用描述名；此處對齊真實 selftest 名。）
+#
+# 欄位（TAB 分隔）：
+#   island_id  人類可讀島名  核心檔(grep錨)  guard_selftests(逗號分隔的 --selftest 名)
+#
+# 一座島可有多個守門 selftest（逗號分隔）；只要任一掉出掃描表，該島即報裸。
+#
+1	Packed-float3/struct對齊	tixl_point.h(SwPoint 64B static_assert)	pointlist,field-render
+2	粒子循環緩衝+生命週期	particle_system.{h,cpp}	decay
+3	Transport雙時鐘	transport.{h,cpp}	transport
+4	EvaluationContext時域轉換	eval_context.h/frame_cook.h(simDeltaFromWall)	arclock
+5	Stateful-value+Context-var2-pass	stateful_value_ops.h/frame_cook.h	contextvar,animvalue
+6	Field-into-force樹蒐集	point_graph_cook_ctx.h(inputFieldTree)/field_graph_builder	fieldtree-builder,residenteval
+7	PointGraph雙驅+Command多輸入	point_graph.cpp/point_graph_resident.cpp(CmdCookCtx)	loop,camera-scope,setvar-scope,layercompose

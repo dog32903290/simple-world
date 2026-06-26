@@ -134,6 +134,20 @@ cmd_stamp() {
 
 cmd_check() {
   [ -f "$PLAN" ] || { echo "sw_status --check: 找不到 $PLAN" >&2; return 1; }
+
+  # ── 閘缺口 census：本質複雜孤島的守門 selftest 掉出掃描表 = 裸島 = 結帳紅 ──────
+  # 加在最前面：島裸是「機器站不住」的硬紅，比 stamp 新鮮度更根本。島乾淨才往下走原有檢查。
+  # 注意：只有 census 工具存在＋判得出來時才當閘；工具缺席不無中生有擋既有結帳（absent-safe）。
+  local GATECENSUS="$ROOT/tools/gate_census.sh"
+  if [ -x "$GATECENSUS" ]; then
+    if ! bash "$GATECENSUS" --check >/dev/null 2>&1; then
+      echo "sw_status --check: ✗ 閘缺口 census 報裸島（守門 selftest 掉出掃描表）：" >&2
+      bash "$GATECENSUS" --check 2>&1 | sed 's/^/  /' >&2
+      echo "  → 補回守門 selftest 或更新 tools/gate_census_islands.tsv，再結帳。" >&2
+      return 1
+    fi
+  fi
+
   local stamp_at stamp_epoch last_epoch
   stamp_at="$(block_field STAMP_AT)"
   [ -n "$stamp_at" ] || { echo "sw_status --check: 機器塊無 STAMP_AT（從未結帳蓋章）→ 紅" >&2; return 1; }
