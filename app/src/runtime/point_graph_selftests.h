@@ -94,6 +94,13 @@ int runResidentCombine3ImagesSelfTest(bool injectBug);
 int runCombineMaterialChannels2SelfTest(bool injectBug);
 int runResidentCombineMaterialChannels2SelfTest(bool injectBug);
 
+// CombineMaterialChannels golden (point_ops_combinematerialchannels.cpp): the FIXED-port PBR packer
+// (own shader CombineMaterialChannels.hlsl + roughness remap Curve). The flat golden injects a
+// non-identity curve to prove the remap; the resident variant drives the 3-texture gather + the LUT
+// through cookResident with the embedded DEFAULT identity curve (no Curve producer yet) -> remap is a
+// passthrough, injectBug OMITS the Occlusion wire -> out.B = 1.0 (255) -> RED.
+int runResidentCombineMaterialChannelsSelfTest(bool injectBug);
+
 // Blur image-filter golden (point_ops_blur.cpp, lane I): the FIRST image filter (Texture2D in ->
 // Texture2D out). (a) BLUR MATH: fill a source texture with a hard 1px-wide vertical white line on
 // black, run Blur, assert the line SPREADS horizontally (neighbouring columns lit) — a no-op /
