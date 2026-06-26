@@ -70,6 +70,12 @@ uint64_t g_builtRev = 0;  // doc::libRevision() the projection was built from (0
 // pre-computing reachability once rather than tracking which nodes actually recomputed).
 std::unordered_set<std::string> g_liveDownstreamPaths;  // node paths reachable from a live source
 
+// The PointGraph the most recent run() cooked into — cached so residentCookedGradient can read it
+// between frames (8th-flow gradient-inspector face, same pattern as residentOut / residentTexFor).
+// Pointer is valid until the NEXT run() call; the shell creates a single PointGraph (main.mm) and
+// passes it every frame, so the pointer is stable for the process lifetime. nullptr before first run.
+PointGraph* g_lastPg = nullptr;
+
 // Rebuild g_liveDownstreamPaths by delegating to the runtime computeLiveDownstreamClosure.
 // Called once per lib revision, after initResidentCache (which sets isLiveSource).
 void rebuildLiveDownstreamClosure(const ResidentEvalGraph& g) {
@@ -89,6 +95,14 @@ double simDeltaFromWall(double dtSecs) {
 const float* residentOut(const char* path) {
   const ResidentNode* n = g_residentGraph.node(path);
   return n ? n->extOut : nullptr;
+}
+
+// 8th-flow gradient face (gradient-inspector widget): the last-cooked SwGradient for the RESIDENT
+// gradient node at `path`. Reads PointGraph::residentGradientFor (path-keyed gradientBuf) — same
+// key cookResidentGradient writes on each cook. Borrowed pointer; valid this frame only. nullptr when
+// the node at `path` hasn't produced a gradient (not a gradient op, or off the cooked target chain).
+const SwGradient* residentCookedGradient(const char* path) {
+  return g_lastPg ? g_lastPg->residentGradientFor(path) : nullptr;
 }
 
 // editor-only: max lastUpdatePass across ALL outputs of the node at `path`.
@@ -374,6 +388,9 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // S3a: thread s_ctxVars (populated above) so a Command-rail SetVarCmd scopes a var around its SubGraph.
   pg.cookResident(g_residentGraph, ctx, /*reg=*/nullptr, targetPath,
                   (float)posBars, (float)fxBars, &doc::g_lib(), &s_ctxVars);
+  // Cache the cooked PointGraph so residentCookedGradient (the 8th-flow gradient-inspector face) can
+  // read gradientBuf between frames. The shell owns one PointGraph for the process lifetime — safe.
+  g_lastPg = &pg;
   // editor-only: stamp lastUpdatePass on live nodes (Time/Automation-driven) so the UI's idle
   // fade signal is accurate. Static nodes keep their old lastUpdatePass (idle after 60 frames).
   stampLiveLastUpdatePass(g_residentGraph, g_frameIndex);

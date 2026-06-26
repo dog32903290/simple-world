@@ -13,7 +13,10 @@
 #
 app/src/app/child_state_selftest.cpp:402
 app/src/app/copy_paste_selftest.cpp:443
-app/src/app/frame_cook.cpp:402
+# gradient-inspector (2026-06-26): +17 for residentCookedGradient() API (the 8th-flow gradient face
+# for the inspector preview bar) + g_lastPg pointer cache + comment. Analogous to residentOut/residentTexFor.
+# Split candidate: a future frame_cook_gradient.cpp for all gradient face helpers. Irreducible seam glue.
+app/src/app/frame_cook.cpp:419
 app/src/app/soundtrack_selftest.cpp:411
 app/src/gradient_golden.cpp:421
 app/src/pointlist_golden.cpp:544
@@ -62,7 +65,9 @@ app/src/runtime/point_graph.cpp:868
 # field-into-force seam, mirrors inputGradients) + the FieldNode forward-decl + the <memory> include. The
 # member + its load-bearing comment + the fwd-decl/include are irreducible cook-core ABI. Proven by
 # --selftest-fieldtree-builder. Same cook-driver-split debt lowers this.
-app/src/runtime/point_graph.h:459
+# gradient-inspector (2026-06-26): +1 for residentGradientFor() declaration (the resident path
+# accessor for the gradient-inspector face, same pattern as residentTexFor). Irreducible API.
+app/src/runtime/point_graph.h:460
 # C1 (2026-06-23) +6: the shared two-cook seam header (already at the 400 ceiling) — fillPointCamera now
 # reads the live ActiveCamera (the wired Camera the draws respect) instead of ALWAYS the default, + the
 # point_ops_camera_scope.h include. The if/else + include are irreducible cook-core seam glue; comments at the
@@ -134,6 +139,11 @@ app/src/runtime/value_eval_ops.cpp:740
 app/src/runtime/value_op_perlinnoise3.cpp:455
 app/src/string_rail_golden.cpp:1605
 app/src/ui/editor_ui.cpp:518
+# gradient-inspector (2026-06-26): +45 for the Gradient port detection loop + gradient bar
+# preview block (case A/B/C). The Float-port loop already owns the file structure; the gradient
+# block is additive. Split candidate: a future inspector_gradient.cpp for all Gradient-typed
+# port widgets once the block grows. Irreducible display logic for the Gradient data-type face.
+app/src/ui/inspector.cpp:445
 # +2 (2026-06-26): perf-overlay F10 key entry (include + kKeyTable row). Handler body lives in
 # perf_overlay.cpp. Irreducible: the table-driven architecture (鐵律7) requires one row per shortcut.
 app/src/ui/keymap.cpp:758

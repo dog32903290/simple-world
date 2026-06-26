@@ -217,6 +217,7 @@ add_executable(simple_world
   src/ui/inspector.cpp
   src/ui/slider_ladder.cpp  # SliderLadder precision value-edit overlay (port of TiXL SliderLadder.cs)
   src/ui/perf_overlay.cpp  # B-track gap perf-observability: FrameTime P99 grader + mini rolling graph (F10)
+  src/ui/gradient_widget.cpp  # gradient color-band editor widget (port of TiXL GradientEditor.cs)
   src/ui/asset_browser.cpp  # EXP #2: AssetLibrary window (browse Lib: assets + click-to-create LoadImage)
   src/ui/inspector_param_menu.cpp
   src/ui/timeline_window.cpp

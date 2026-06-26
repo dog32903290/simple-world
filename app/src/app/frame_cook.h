@@ -20,6 +20,7 @@ struct SymbolLibrary;
 struct Transport;
 struct StatefulValueState;  // runtime/stateful_value_ops.h (per-instance value-op memory)
 struct ContextVarMap;       // runtime/stateful_value_ops.h (context-var YELLOW host-side var map)
+struct SwGradient;          // runtime/sw_gradient.h (host Gradient value; residentCookedGradient face)
 }
 
 namespace sw::framecook {
@@ -42,6 +43,12 @@ double simDeltaFromWall(double dtSecs);
 // resident path — the UI's window into live values (node faces). Returns nullptr when the
 // path isn't resident (e.g. just deleted). Pointer is valid this frame only (rebuild-on-edit).
 const float* residentOut(const char* path);
+
+// Read the last-cooked SwGradient for a RESIDENT Gradient-flow node by path — the 8th-flow face
+// the gradient-inspector widget uses to preview the live cooked result. Returns nullptr when the
+// node at `path` hasn't produced a gradient this session (e.g. it's not a gradient op, or not
+// on the cooked target chain). Pointer is valid this frame only (PointGraph-owned, rebuild-stable).
+const sw::SwGradient* residentCookedGradient(const char* path);
 
 // editor-only: idle fade signal (TiXL DrawNode.cs:42-50 / DirtyFlag.cs:48 "editor-specific").
 // Returns the max lastUpdatePass across all output slots of the resident node at `path`.

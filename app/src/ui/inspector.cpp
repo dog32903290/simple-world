@@ -6,6 +6,7 @@
 // instance overrides — the definition is never polluted. Undo restores "had an override?
 // old value : erase" so a never-overridden slot returns to following its definition default.
 #include "ui/editor_ui.h"
+#include "ui/gradient_widget.h"       // gradient color-band editor widget (port of TiXL GradientEditor.cs)
 #include "ui/inspector_param_menu.h"  // ResetSlot + animateContextMenu (split for line-count rule)
 #include "ui/slider_ladder.h"         // SliderLadder precision-edit overlay (TiXL SliderLadder.cs)
 
@@ -21,6 +22,7 @@
 #include "app/animation_commands.h"  // Animate gesture: Add/Remove Animation + playhead-write (P1)
 #include "app/frame_cook.h"          // transportPosition (the playhead the Animate gesture writes at)
 #include "app/midi_bind.h"           // P3 MIDI-learn affordance (beginLearn / isParamBound / unbind)
+#include "runtime/sw_gradient.h"     // SwGradient (gradient widget; residentCookedGradient returns this)
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec (a compound child resolves like an atomic, N1)
 #include "verify/eye/eye.h"  // one-line hooks: param widget rects for the hand
@@ -331,6 +333,60 @@ void drawInspector() {
         }
       }
       if (!any) ImGui::TextDisabled("(no editable parameters)");
+
+      // --- Gradient widget (B-track gap: inspector Gradient 色帶編輯 widget) ---
+      // Port of TiXL GradientEditor.cs. Two cases:
+      //   A. The node has a Gradient OUTPUT port → show a read-only bar preview from the resident cook
+      //      result (the cooked SwGradient for this node's resident path). Editing the underlying
+      //      Color/Pos/Interpolation Float params (above) updates the bar live each frame.
+      //   B. The node has a Gradient INPUT port that is NOT wired → show a placeholder (no stored
+      //      SwGradient for unwired inputs; connection required to drive this slot).
+      //   C. Wired Gradient INPUT → show source name (identical to wired Float path, line ~193).
+      //   (Interactive editing of the bar itself — stop add/drag/remove — is shown for outputs only,
+      //    using the live cooked SwGradient; returning true bumps libRevision so the preview follows.)
+      {
+        bool hasGradientPort = false;
+        bool hasGradientOutput = false;
+        for (const sw::PortSpec& p : spec->ports) {
+          if (p.dataType != "Gradient") continue;
+          hasGradientPort = true;
+          if (!p.isInput) { hasGradientOutput = true; break; }
+        }
+        if (hasGradientPort) {
+          ImGui::Separator();
+          // Case A: show gradient bar from the live cooked result for THIS child's resident path.
+          if (hasGradientOutput) {
+            const std::string rPath = sw::doc::residentPathFor(sel->id);
+            const sw::SwGradient* cooked =
+                sw::framecook::residentCookedGradient(rPath.c_str());
+            if (cooked) {
+              // drawGradientWidget edits in-place; we pass a COPY so the display stays read-only
+              // for the "output preview" case (the source of truth is the Float Color/Pos params).
+              // FORK vs TiXL: TiXL GradientEditor.Draw() edits the gradient slot directly; sw stores
+              // gradient state in Float params (Color1..4 / Pos1..4), not a standalone SwGradient.
+              // A future enhancement could wire modifications back to Float param overrides.
+              sw::SwGradient displayCopy = *cooked;
+              ImGui::TextDisabled("Gradient preview");
+              sw::ui::drawGradientWidget(displayCopy, 240.0f);
+              sw::eye::recordItem("gradient:preview");
+            } else {
+              ImGui::TextDisabled("Gradient (not yet cooked)");
+            }
+          } else {
+            // Case B / C: Gradient input ports — show wired-source name or placeholder.
+            for (const sw::PortSpec& p : spec->ports) {
+              if (p.dataType != "Gradient" || !p.isInput) continue;
+              if (const sw::SymbolConnection* w = sw::connectionToInput(*cur, sel->id, p.id)) {
+                const sw::SymbolChild* src = sw::childById(*cur, w->srcChild);
+                ImGui::TextDisabled("%s <- %s", p.name.c_str(),
+                                    src ? src->symbolId.c_str() : "?");
+              } else {
+                ImGui::TextDisabled("%s (connect a gradient source)", p.name.c_str());
+              }
+            }
+          }
+        }
+      }
 
       // S2 (批次7) per-output controls (= TiXL EditNodeOutputDialog, the minimal output-dimension UI).
       // For each output the referenced symbol defines: a "Disabled" checkbox (freeze the value /

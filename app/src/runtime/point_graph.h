@@ -431,7 +431,8 @@ class PointGraph {
   const std::string* debugCookedStringPort(int nodeId, int portIdx) const;
   const std::vector<std::string>* debugCookedStringList(int nodeId) const;     // Sub-seam A: stringListBuf
   const std::vector<::SwPoint>* debugCookedPointList(int nodeId) const;        // 7th cook: pointListBuf
-  const SwGradient* debugCookedGradient(int nodeId) const;                     // 8th cook: gradientBuf
+  const SwGradient* debugCookedGradient(int nodeId) const;                     // 8th cook: gradientBuf (flat key)
+  const SwGradient* residentGradientFor(const std::string& path) const;        // 8th cook: gradientBuf (resident path, UI face)
 
   // Cross-frame FEEDBACK output (KeepPreviousFrame / SwapTextures): the texture this node routed to its
   // `ordinal`-th Texture2D OUTPUT last cook (0 = first output = PreviousFrame/TextureA, 1 = second =
