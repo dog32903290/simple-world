@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 96e4923
+HEAD: 49582bd
 DIRTY: clean
-CENSUS: 433 / 749 done
-BITE: 485 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T04:28
+CENSUS: 436 / 749 done
+BITE: 487 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-27T05:08
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,11 +18,11 @@ STAMP_AT: 2026-06-27T04:28
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-27 04:28 matrix-port-type value-rail seam 落地，HEAD `96e4923`，--bite 485 / FAILED=[]，census 433/749）。柏為「你決定+不停+大接縫自己決定」stance 自走中。**
-- **✅ matrix-port-type seam（value-rail）**（`96e4923`）：value-op rail 只吃 Float 埠→Mat4 忠實表示＝**16 連續 Float 埠 row-major**（仿既有 Vec3-as-3-Float fork），**純 additive 零 cook-spine 觸碰、零共享檔**（兩新 leaf `value_op_mulmatrix.cpp`/`transformvec3.cpp`，CMake glob 自動）。**刻意不加字面 `Matrix4x4` dataType**（那會拖新 cook 縫=owner-lock）。MulMatrix（A×B）+ TransformVec3（先 transpose 後 transform，column-vector）忠實 TiXL System.Numerics。Opus refuter MERGE-SAFE：親寫 numpy repro 獨立重算每 golden 數=predictive 非 circular，transpose/order/row-major/32-input-cap 全正確、RED leg 真咬。**★leverage 誠實校正：交付 2 op（value-rail matrix 採盡），非 scout 估的「camera family」**——camera family 需字面 matrix cook-type（owner-lock 縫 deferred）。
-- **★純自走葉子＝0（batch8 實證）**：rail 硬約束＝value rail 只 Float/Color、eval 固定 16B、point rail GPU-dispatch→318 顆未做 op 全 seam-gated。葉子階段結束，進 seam 階段。
-- **★三 stale seam-map 標籤今晚揪出（方法論血證+3）**：CameraWithRotation「零縫葉」實需 worldToCamera 縫／**field-raymarch「8 op 解鎖 39 SDF」實已全建**（`89ea6a2`，39 SDF production-wired 可見，**別重開**；殘 SDFToColor+analyze 小 additive 非 render 縫；chip 待修 seam_map kind）／46 leaf-ready 實 0。**規則：seam_map/census 數字一律先 ground-truth scout 再投。**
-- 前批：維護加固 工作1（gate census `4e68d03`）+工作2（島7 拆檔 `6782e32` refuter 5/5 resident byte-identical，淨−299）+folder-package（`8a817e5`）+ColorThemeEditor（`63b35db`）詳見 history。工作3（決定性 export 帶閘）綁 MV C 塊路2 未來做。
+**none（2026-06-27 05:08 anim+list-state harvest 雙批落地，HEAD `49582bd`，--bite 487 / FAILED=[]，census 436/749）。★自走葉子已採到底——下一步＝柏為 routing（見 Next）。**
+- **✅ anim+list harvest（3 op + 隱性修）**（`49582bd`）：**AnimFloatList**（AnimMath shapes→FloatList on localFxTime，flat+resident）+ **FloatListToIntList**（C# `(int)` trunc-toward-zero `std::truncf`）+ **IntListToFloatList**（widening）。**★附帶隱性 bug 修**：AnimFloatList 港揪出 `cookResidentFloatList`（resident production 路）一直傳 `nullptr` params+time-blind（flat twin 傳真值）→RemapFloatList/SmoothValues/Set*ListValue 在 resident 路用 default param 算錯→修成傳真值=resident 對齊 flat+TiXL（16B struct byte-unchanged，localFxTime 用 offset-12 _pad slot；refuter 證零 op 依賴舊行為、全 selftest 綠、press-pass 過）。Opus refuter MERGE-SAFE 5/5（shared-path gate + predictive golden + trunc 負例 + RED 咬）。SKIP：AdsrEnvelope（stateful 反決定性）/FindKeyframes（cross-op ref）/AnalyzeFloatList（multi-out 需 outCache widening）/ColorListToInts（cross-rail gather）——全 owner-lock。
+- **✅ matrix-port-type seam（`96e4923`）**：Mat4=16 Float 埠 row-major（純 additive），MulMatrix+TransformVec3 忠實，refuter numpy-predictive。value-rail matrix 採盡（2 op）。
+- **★4 stale seam-map 標籤今晚揪出（方法論血證）**：CameraWithRotation 需 worldToCamera 縫／field-raymarch 實已全建（39 SDF 可見別重開）／keyframe-anim seam 實已全建（13=leaf backlog，7 owner-lock）／46 leaf-ready 實 0。**規則：seam 開採前必 ground-truth scout，seam_map「解鎖量」不可信。**
+- 前批：維護加固 工作1（gate census `4e68d03`）+工作2（島7 拆檔 `6782e32`，淨−299）+folder-package（`8a817e5`）+ColorThemeEditor（`63b35db`）詳見 history。
 
 ## Conflict Register
 - **（已解）MV 工單 +66 行收進 main（`2765fe4`）**：先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
@@ -41,13 +41,15 @@ STAMP_AT: 2026-06-27T04:28
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。HEAD `96e4923`，--bite 485，census 433。**★狀態：純自走葉子=0（實證）+ 維護加固 工作1+2 + matrix value-rail seam 完成→進「大 seam 階段」。柏為「你決定+不停+大接縫自己決定」續跑。**
-- **★方法論硬規（今晚 3 次踩 stale label）**：任何 seam 開採前**必先 ground-truth scout**（field-raymarch 實已全建/CameraWithRotation 實需縫/46 leaf-ready 實 0）。seam_map「解鎖量」估計**不可信**（matrix 估 camera-family 實交付 2 op）→scout 報真 op 數 + autonomous-safe? + 是否已部分建，再投。
-- **下一 seam 候選（autonomous-safe 優先）**：**keyframe-anim**（13 估，timeline 動畫=MV 核心相關，`app/src/app/animation_commands.cpp` 已存在恐已部分建→先 scout）/list-state（12 估，colorlist/stringlist cook 已部分 seed）/flow-var（12，context-var 剩餘通道）。**采法**：clean 的用 golden 對 TiXL 公式 + refuter。
-- **★大 prize 但需柏為 greenlight（owner-lock/多 session）**：**GPU-compute-kernel 縫**（解鎖 20+ point 核心家族 SpherePoints/GridPoints/SelectPoints/DrawPoints——node-graph 視覺工具的核心，但 Metal compute infra 巨大）/字面 matrix cook-type（camera family）/string-value（**前置 gate：先 close resident-string-wire `task_32b5b6e5`**）。**這些 routing-priority 真的看柏為 MV 需求，他回來定。**
-- **B 軌剩 16 gap**（`ui_census --gaps`）：多為 render-output（卡 output_window cook-core/平台 encoder）或 missing-subsystem（io-editor/audio-export/value-snap 抽介面）——多需 attended 或 decision。純皮零星。
-- **需 attended/cook-core**：CameraWithRotation（explicit-worldToCamera 縫）/S4 殘餘 infra/各 seam-build。
-- **★compound-graph-host = 假縫 debunked**：別開。`resident_eval_graph.h:11` 過時註解值得改。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `49582bd`，--bite 487，census 436。**★★自走葉子已採到底——這是今晚自走的收尾。剩餘全 owner-lock，需柏為 routing/greenlight。** 證據：clean leaf=0（rail 硬約束實證）；matrix/anim/list/keyframe/field-raymarch 全 ground-truth scout 過＝各島 seam 早建、殘葉多 owner-lock；master scout 證 flow-var/list-state/dict-ctx 31 顆只 ~5 顆 autonomous-safe（已採 3）。
+- **★方法論硬規（今晚 4 次踩 stale label）**：任何 seam 開採前**必先 ground-truth scout**。seam_map「解鎖量」不可信（matrix 估 camera-family 實 2 op）。owner-lock 牆四型：①新 wire type（Vec3/Dict/StructuredList/字面 Matrix cook-type）②新 ContextVarMap 通道（objectVars/stringVars，resident host-state）③跨幀 resident state-slot（FloatList rail 故意 stateless）④device-IO producer 上游（dict-ctx 死在這）。
+- **★柏為 routing menu（挑一條我就建，全工法 scout→build→refuter）**：
+  - **GPU-compute-kernel 縫**＝最大 prize（解鎖 20+ point 核心家族 SpherePoints/GridPoints/SelectPoints/DrawPoints/Draw*——node-graph 視覺工具的心臟）。Metal compute infra 巨大、多 session、碰 cook-core＝**需柏為 greenlight + 可能要你架構在場**。
+  - **resident list-state slot 縫**＝中（解鎖 AmplifyValues/DampFloatList/KeepFloatValues/Merge*Lists/ComposeVec3——平滑/阻尼 audio-reactive 值，MV 相關）。碰 resident per-node state rail。
+  - **ContextVarMap stringVars/objectVars 通道**＝中（解鎖 Get/Set String/Object/Vec3/Matrix Var）。碰 resident host-state + 部分需新 wire type/Command 輸出。
+  - **string-value 縫**：前置 gate＝先 close resident-string-wire `task_32b5b6e5`（[[sw-string-rail-resident-gate]]）。
+  - **dict-ctx**＝真未建縫但死在 device-IO producer（你的裝置域）→不建議自走。
+- **不需大縫的零星自走（若要 loop 不停可撿）**：B 軌 `ui_census --gaps` 純皮零星（多卡 output_window/encoder/抽介面）；維運 chip（seam_map 重校 `task_5aa45438`、ui_census false-neg `task_a47c8f98`、memory shrink `task_2487de3c`）；CTE/SP/RO 低優先 polish。**但這些是邊角，非承重——大方向等柏為 routing。**
 **剩餘 owner-lock 縫（需柏為在場）**：S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field G3-bridge）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫（GlitchDisplace 家族）、生成器 t1 asset-bind 縫（NumberPattern/digit-atlas）。C 桶葉子（多影像/depth/compute/asset/field→image）卡這些縫。
 **柏為 decision queue**：①menu-bar chrome 範式（native-NSMenu vs TiXL-imgui）②`startup-lock-conform` unwired 葉子算不算 DONE 門檻③剩餘 owner-lock 縫的開採序。維運 chip：ui_census 其餘 4 區 false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`（已頂 400 ratchet，動前必拆）、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
