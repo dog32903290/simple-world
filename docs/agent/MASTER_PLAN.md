@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: a8319e1
+HEAD: 99861a0
 DIRTY: clean
 CENSUS: 427 / 749 done
-BITE: 464 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-26T10:42
+BITE: 463 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-26T14:02
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,7 +18,7 @@ STAMP_AT: 2026-06-26T10:42
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-26 10:24 柏為下令收尾，本 session 結束）。** 6 批落地 10 顆 image 葉子 + 1 小 seam（gather 變長擴充），census 417→427、--bite 449→464，全過 refuter（抓 2 真 bug：Mandelbrot sampler Clamp/Wrap、HoneyComb filter Point/Linear）。**★下一塊大的＝point-render 縫（等柏為 greenlight）**：解鎖最多（point 島 ~10 Draw* + mesh 島 ~8 Draw* + GlitchDisplace 家族=點精靈/draw-into-target），是視覺 VJ 核心但高 blast cook/render owner-lock，柏為親口「開 point-render」才動。**clean-leaf 近枯**：本 session 把「祕密已建 seam」（單輸入 rail + multi-image gather）的乾淨葉子採盡；剩餘各島候選多 seam-gated（render/asset/string-shader/field-render/stateful/dep-bound force）。殘留低風險 fixed-port 候選僅 OpticalFlow（疑 compute）/DirectionalBlur（FloatsToBuffer trap 史）——要採先硬 STEP-0。**★scout/census 不可信（本 session 4-5 次誤報）→ 只信 build agent 硬 STEP-0 + Plan agent 深讀 cook path。**
+**none（2026-06-26 14:02 B 軌批次落地）。** `99861a0` 新增 SliderLadder 精密 overlay（inspector DragFloat/DragScalarN 疊 7 精度檔，v1 overlay-only）+ OS fullscreen F11（NSWindow toggleFullScreen:，fn-ptr seam，View 選單 Ctrl+Cmd+F）+ census predicate 修 2 條（out-snapshot-png/modes-os-fullscreen 指向正確檔）→ B 軌 19→22。OpticalFlow/DirectionalBlur 兩顆候選 STEP-0 確認為 compound（6/11 children）—— L4 clean-leaf runway 已乾。★**下一塊大的＝point-render 縫（等柏為 greenlight）**：解鎖最多（point/mesh 島 ~18 Draw* + GlitchDisplace），高 blast，柏為親口才動。absent-safe 剩：B 軌 26 gap 繼續（gradient-inspector/perf-observability/external-beat-sync/port-drag-type-filter=需手勢先建/io-editor-interaction），或維運 chip。
 
 ## Conflict Register
 - **（已解，留痕）** `field_sphere.scn` / `field_sdf_palette.scn` 紅的 5→4 是**隱藏回歸非 baseline drift**：`doc::g_lib` pre-main static 在 math-sink registrar 前呼 findSpec→AudioReaction(id8) 被靜默丟。`644d100` 改 g_lib 為 construct-on-first-use 修好，scn 數字不動（牙是對的）。教訓：scn 硬數字斷言紅了先 triage 隱藏回歸 vs intentional-drift，**別盲 rebase 數字遮 bug**。chip `task_2fc4a37a` 可關。
@@ -30,7 +30,7 @@ STAMP_AT: 2026-06-26T10:42
 - **`document.cpp` 卡在 ratchet 上限 400 行**（g_lib 改 lazy 時 trim 註解擠進）→下次動它前必先拆（已 chip `task_19264e66`），否則 linecount 閘擋。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。**★本 session 把 clean-leaf 採近枯（10 顆 image 葉子）→ 下一塊大的＝point-render 縫，等柏為 greenlight「開 point-render」才動**（解鎖最多：point/mesh 島 ~18 Draw* + GlitchDisplace 家族，視覺 VJ 核心，高 blast cook/render owner-lock）。柏為未 greenlight 前，absent-safe 殘餘只剩兩顆高風險 fixed-port 候選（OpticalFlow 疑 compute / DirectionalBlur FloatsToBuffer trap 史，硬 STEP-0 採）+ 體驗軸/維運 chip。**承重縫工法（point-render 起手照 S1/gather 已驗）**：①Plan agent 深讀 cook path 釘真實範圍/blast（census 不可信，可能比帳面小）→②build（worktree，shared-infra 改動 orchestrator 親審 diff）→③全 --bite 回歸閘（不可只信新 golden）→④Opus refuter 攻回歸→⑤親手合流。**★每顆 build agent 必跑硬 STEP-0**：(1) atomic op 有自己 `.hlsl`？還是 `.t3` 多節點 compound（Glow/CompareImages=compound，非葉子，BLOCK→需 compound-graph cut，柏為域）(2) fullscreen pixel-shader？還是 compute-reduction 寫 RWBuffer（非 image leaf）(3) fixed-port 還是 MultiInput<Texture2D>（變長需 gather 擴充）(4) FloatsToBuffer 路由 1:1？**派 build agent 必設 `isolation:worktree`**。工法：STEP-0→port .metal+self-register leaf（多輸入讀 `tc.inputTextures[0..N]`，鏡像 Combine3Images/CombineMaterialChannels2）→closed-form pixel golden 驅 **resident path**（生產路徑，鏡像 `resident_combine3images_selftest.cpp`）→中央 build+--bite→**Opus refuter 每顆必跑**（本 session refuter 抓到 Mandelbrot sampler+HoneyComb filter 兩個真 bug）→commit。**★方法論血證：別信 census/scout done/todo（3-4 次把已建 seam 誤報 gated）；ground-truth=Plan agent 深讀 cook path。** **★died-agent 救回**：isolation:worktree agent 若 process 中途退出，partial work 留在 `.claude/worktrees/agent-<id>/`（同 base 可 copy 進主樹親驗，CMC `9fa193e` 即如此救回）——重派前先查 worktree。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。**L4 clean-leaf runway 乾（OpticalFlow/DirectionalBlur = compound，STEP-0 BLOCK）→ absent-safe 剩 B 軌 UI gap**（26 gap，選法：`ui_census.sh --gaps`）。下一批優先：①`gradient-inspector`（important，ui/inspector.cpp + 新 widget，需柏為 authoring 感品味簽收但可先落架構）②`perf-observability` FPS mini-graph（L6，ui/ overlay + platform/，純新檔）③`external-beat-sync` Tap BPM（L6 子系統）；`port-drag-type-filter` 被 port-drag 手勢擋（editor_ui.cpp BeginCreate 尚無 QueryNewNode）不開。**point-render 縫仍等柏為 greenlight**（高 blast cook/render owner-lock，~18 Draw* ops 解鎖）。承重縫工法：Plan agent 深讀 cook path → build（isolation:worktree）→ --bite 回歸閘 → Opus refuter → 合流。
 **剩餘 owner-lock 縫（需柏為在場）**：S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field G3-bridge）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫（GlitchDisplace 家族）、生成器 t1 asset-bind 縫（NumberPattern/digit-atlas）。C 桶葉子（多影像/depth/compute/asset/field→image）卡這些縫。
 **柏為 decision queue**：①menu-bar chrome 範式（native-NSMenu vs TiXL-imgui）②`startup-lock-conform` unwired 葉子算不算 DONE 門檻③剩餘 owner-lock 縫的開採序。維運 chip：ui_census 其餘 4 區 false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`（已頂 400 ratchet，動前必拆）、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
