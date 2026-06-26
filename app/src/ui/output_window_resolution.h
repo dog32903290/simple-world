@@ -27,4 +27,9 @@ extern int g_selectedResIndex;
 // preset sets the computed size. `winW/winH` = the Fill-baseline window size. Called ON CHANGE.
 void applyResolutionSelection(int winW, int winH);
 
+// Find a preset's table index by its title (TiXL ResolutionHandling.FindByTitle, used by
+// OutputWindow.LoadStateFrom). Returns 0 (Fill) when the title is empty or no longer in the table —
+// the safe restore fallback (out-window-persistence). Used by the persistence restore path only.
+int resolutionIndexForTitle(const char* title);
+
 }  // namespace sw::ui

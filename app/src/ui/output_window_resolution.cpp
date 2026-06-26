@@ -3,6 +3,8 @@
 // the on-change apply that drives the cook-core override seam. No behavior change. Zone: ui.
 #include "ui/output_window_resolution.h"
 
+#include <cstring>  // std::strcmp (title lookup for the persistence restore path)
+
 // The shell owns the frame render-size override (cook seeds it into RequestedResolution). A preset
 // → set; Fill → clear (back to window size, byte-identical to today). Defined in main.cpp.
 namespace sw {
@@ -62,6 +64,15 @@ void applyResolutionSelection(int winW, int winH) {
   const Int2 r = computeResolution(p, winW, winH);
   if (r.w > 0 && r.h > 0) sw::setOutputResolutionOverride(r.w, r.h);
   else sw::clearOutputResolutionOverride();  // degenerate window -> behave as Fill
+}
+
+// TiXL ResolutionHandling.FindByTitle (OutputWindow.LoadStateFrom: match the saved title against the
+// preset table first). Returns 0 (Fill) for empty/unknown titles — the safe restore default.
+int resolutionIndexForTitle(const char* title) {
+  if (!title || !*title) return 0;
+  for (int i = 0; i < kResPresetCount; ++i)
+    if (std::strcmp(kResPresets[i].title, title) == 0) return i;
+  return 0;  // title no longer in the table -> Fill (TiXL falls back to a Custom resolution; we Fill)
 }
 
 }  // namespace sw::ui
