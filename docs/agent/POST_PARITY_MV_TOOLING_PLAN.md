@@ -82,6 +82,16 @@
   - mask 合成現成：`app/src/runtime/point_ops_blendwithmask.cpp:78-146`（3 輸入，bind texture slot 0/1/2）。多輸入 TexCookCtx seam 已開可重用。
   - 靜態載入缺 per-frame path：`app/src/runtime/point_ops_loadimage.cpp:11-13`（`cachedAssetTexture()` decode 一次 memoize）+ `:42-44`（fork[no-hot-reload]、ImageSequenceClip deferred）。要的是 cook 時依 timeline 位置解幀，非 memoize 1:1。
 
+**★深化設計（柏為 2026-06-26 定深入 B；盤點證實「一勞永逸＝graph 層幾乎免費」）**：
+- **一勞永逸的技術根因**：① per-frame 時間機制已備——每個 texture cook 帶 `ctx->time`（`app/src/runtime/eval_context.h` grep `EvaluationContext`），cook 裡直接讀它 seek video，不動 graph 架構（現無 time-varying texture op，VideoClip 是第一個用它的）② texture source 模板現成（`point_ops_loadimage.cpp` grep `cookLoadImage` + `ImageFilterOp` 自登記，不撞 point_graph.h）③ 多輸入 seam 已開（`point_graph_cook_ctx.h` grep `inputTextures`，5 消費者）。→ VideoClip ＝ 複用 LoadImage 模板的 texture source op，輸出 texture → 整個 texture 生態白送。**不碰孤島，graph 層 SMALL。**
+- **工程重心全在 platform 層**：唯一真工作＝新增 `app/src/platform/video_decode.h`（AVFoundation video→MTL texture，仿 `image_decode.h`）；CVPixelBuffer→MTLTexture 用 CVMetalTextureCache。
+- **★承重設計分岔（seek API，跟 C 塊耦合）**：互動預覽走 **AVPlayer + AVPlayerItemVideoOutput**（async，player 管 seek/buffer，**MEDIUM**）；C 塊路2 離線決定性 export 走 **AVAssetReader** 線性逐幀（LARGE 但只在離線路徑）。各用對地方，對應 C 塊路1/路2 二分。
+- **簡化（守邊界，別過度設計）**：① video 的 audio 軌**不要**（video 純取畫面，配樂/旁白是 #7 audio track）② proxy（TiXL #1086）**別提前做**——盤點發現 TiXL 源碼自己都還沒實作（grep proxy 無），AVPlayer seek 夠用、慢了再加（先求簡單）。
+- **TiXL 藍本**：`external/tixl/Operators/Lib/io/video/PlayVideoClip.cs`——① 時間映射 bars→seconds（grep `SecondsFromBars`）② **seek threshold**（deltaTime 超閾值才 seek，避免每幀 seek 卡）。`VideoClip.cs`＝TimeClipSlot（timeline 上的 video clip，TimeRange+SourceRange）。
+- **matte 來源**：另一個 VideoClip（matte 序列）或 image source 接 `BlendWithMask` 第二輸入，零新基建。
+- **可拓展性邊界**：VideoClip source ＝「任何 video 進 graph」通用入口（glitch / 貼圖 / 餵粒子色全接它），範圍**停在 source 節點，不造 video 框架**。
+- **工程量重定 MEDIUM**（走 AVPlayer；盤點原報 LARGE 是含 AVAssetReader 同步 seek，那條只在離線 export 路徑必要）。
+
 ### C. 決定性 export（路1 + 路2）—— [core] 唯一承重塊
 
 **難點不是寫 video 檔**（AVAssetWriter 是已知 pattern；目前確實零 video writer，但純加法）。**難點是粒子 stateful GPU 模擬硬綁 real-time wall-clock** → 「export 第 N 幀 == 你看到的第 N 幀」不天生成立。
@@ -153,8 +163,62 @@ TiXL 用 milestone 當 roadmap：**v4.2（due 2026-07-31，收尾中）/ v4.3（
   - **#992 Record IO signals as track for simulated playback and rendering**——把 live IO（MIDI/OSC/camera/audio timing）錄成 DataTrack → replay simulation → 「render a higher quality video」。**與柏為「把即時固定成 track、離線高品質 render」同一思想；柏為的離線遮罩關鍵幀是其子集。** 可參照 DataTrack 概念設計固定遮罩。TiXL 還沒做 → sw 路2 走在它前面。
   - **#1042 Time scrubbing widget**——TiXL 已有 JKL（AVID）+ T 鍵 scrub，要做 widget。MV 剪接 scrub 可參照。
 - **A 塊（text→points）TiXL 確有對應（修正 2026-06-26 早先誤判）**：源碼＝`external/tixl/Operators/Lib/point/io/LineTextPoints.cs`（見★源碼地圖）。**早先憑 issue title 搜尋誤判「TiXL 無對應、A 是原創」——錯，是沒 grep 本地源碼。A 是 parity**；CoreText glyph-path（CJK 免費）是 sw 實作差異。issue 端只有 #628 rich text / #335 colored text（[Text] 2D 渲染）＝不同東西。
-- **開工必讀**：**#911 Notes on creating motion graphics animations**——他人用 TiXL 做 MV/motion graphics 短片（腳本+旁白+配樂，與柏為工作流幾乎相同）的真實 setup 痛點清單。
+- **開工必讀**：**#911 Notes on creating motion graphics animations**——**作者＝pixtur 本人**（非外部用戶），TiXL 核心親自做 motion graphics 短片（腳本+旁白+配樂，與柏為工作流幾乎相同）的痛點自白（他自己 comment「still valid」）。詳見下「pixtur 痛點地圖」節。
 - **戰略背景**：社群最想要 #77 Linux（38👍）、#32 Mac（22👍），TiXL Windows-only、正為跨平台掙扎（#739 D3D vs Vulkan、#1028 Linux port、#1084 ffmpeg）。**TiXL 精力分流去移植 → sw 站 Mac native 是時間窗。**
+
+---
+
+## pixtur 的 motion-graphics 痛點地圖（TiXL #911，作者＝pixtur 本人）
+
+#911 是 **pixtur（TiXL 核心 maintainer）親自用 TiXL 做 motion graphics 短片時列的痛點自白**（他 comment 確認「still valid」）。對柏為做 MV ＝ 一張「該避的坑 + 該做對的功能」免費地圖。四條直接相關：
+
+### ★#7 第二音軌（voice-over）— 柏為認定最重要，已盤出設計（MEDIUM，~100–150 行，3 核心檔）
+
+TiXL「不可能加第二軌」（pixtur 原話）；sw 好做。**機制（柏為直覺翻譯）**：不是兩個 timeline、不是兩個 clock，是 **一個 clock（transport 中央時鐘，零改動）＋ 一條 timeline ＋ 餵 N 個 audio source**。
+
+**為什麼好做（兩個纏結 sw 架構天生已解）**：
+- **clock 纏結無**：transport 是中央時鐘，所有東西讀它，audio 無獨立時鐘（`app/src/runtime/transport.h` grep `position` / `fxTime`）。
+- **分析纏結無**：BPM/頻譜來自麥克風（`audio_capture`），跟 soundtrack 播放**零耦合**（`app/src/app/frame_cook.cpp` grep `spectrum` ＝來自 audio_monitor 非 soundtrack）→ voice-over 純播放不污染節拍同步。
+
+**要做的＝把單 source 泛化成多 source**（grep 符號為準，行號會漂）：
+- 資料模型：`app/src/runtime/compound_graph.h` grep `CompositionSettings`（`soundtrackPath` 單 string → `vector<AudioTrack>{path, volume, offset?}`）
+- 播放：`app/src/app/soundtrack.cpp` grep `playback`（單例 `static AudioPlayback` → 多實例）；`app/src/platform/audio_playback.mm` grep `connectChain`（每軌一 player node → 同一 `mainMixerNode`，AVAudioEngine 本來吃多軌）
+- 同步：`app/src/app/frame_cook.cpp` grep `syncFrame` ＋ `app/src/app/soundtrack.h` grep `followFrame`（單軌 → 逐軌迴圈，全跟同一 transport seek）
+- transport / 分析層：**零改動**
+
+**唯一小心**：`.swproj` 存檔相容（舊單 path → 新 list 升級）——這是 MEDIUM 非 SMALL 的唯一原因。
+**設計自由度**：per-track flag「這軌參不參與 beat/spectrum」（預設關；未來想讓視覺反應旁白節奏時開）——這個 flag 是下面 #7b 的入口。
+**TiXL 無源碼可抄**（它根本沒做）→ 這條 sw 領先，無 parity 藍本。
+
+### ★#7b audio 進 node graph：InputAudio 節點 + AudioReaction 選源（柏為 2026-06-26 補，MEDIUM）
+
+把 audio 從「app 層播放系統」提升成「node graph 信號源」，讓視覺能反應**指定那一軌**（旁白驅動字幕、配樂驅動背景），而非只吃全局麥克風。**這是 #7 的延伸，同一塊 audio 工程。**
+
+**承重前提（盤點 2026-06-26 證實）**：sw 與 TiXL 的 graph 內 audio **都是 control-rate**（只流分析數據 spectrum/level/beat 的 float，不流 audio buffer）。所以這塊**不碰 audio-rate graph 那座大孤島**，是在既有 control-rate 模型上加 routing。
+
+**三件事的設計**：
+- **InputAudio 節點**：把某一軌暴露成 graph 源 + 確保那軌被分析。
+- **AudioReaction 加 Source input**：接 InputAudio，registry lookup 讀那軌的分析快照（不再寫死麥克風）。
+- **mixer 節點＝不需要**：混音在 app 層 AVAudioEngine `mainMixerNode` 自動發生（TiXL 同，混音在 BASS mixer、非 graph 節點）。
+
+**承重的那條線（不在 routing，在「讓那軌真的被分析」）**：現在只有麥克風掛 SpectrumAnalyzer，soundtrack 播放軌沒人分析它。要讓視覺反應某軌＝在該軌 player node 上 **AVAudioEngine `installTap`** 拿播放 buffer → 餵 SpectrumAnalyzer → registry → AudioReaction 選它。installTap 是 macOS 現成機制。
+
+**要動（grep 符號為準）**：
+- 新檔 `app/src/runtime/spectrum_source.h`：SpectrumSource registry（0=麥克風 default / 1+=各軌）
+- `app/src/runtime/node_registry_math_anim.cpp` grep `AudioReaction`：加 `Source` input slot
+- `app/src/app/frame_cook.cpp` grep `spectrum`（~`audio_monitor::spectrum()` 寫死處）：換成 registry lookup
+- soundtrack 軌掛 tap：`app/src/platform/audio_playback.mm` 加 `installTap` → SpectrumAnalyzer
+
+**★sw 領先 TiXL（無 parity 藍本，但同 control-rate 模型故低風險）**：TiXL 的 `external/tixl/Operators/Lib/io/audio/AudioReaction.cs` 也 hardcoded 全局 `AudioAnalysis` singleton、不能選源、無 InputAudio 節點、無 graph mixer。TiXL 用戶只能用「全局混音後總頻譜」打所有視覺；柏為的**分軌分析**（各軌打各自視覺）比 TiXL 精細，對 MV 是真實優勢。TiXL 端參照（理解用）：`AudioReaction.cs` / `Core/Audio/AudioAnalysis.cs`。
+
+### #9 project resolution — sw 已較好，不用做
+pixtur 痛點：TiXL 沒 project resolution（出片尺寸沒在新專案對話框問）。sw 已有 out-resolution-selector（B 軌 DONE）＋ `app/src/runtime/point_graph.h` grep `setFrameResolutionOverride`。
+
+### #18 Easy text animations / text helper compound — ＝ A 塊
+pixtur 自承「缺、也許要個小 helper op」。**正是柏為的 A 塊（text→points→procedural）**，方向比 pixtur 設想的 helper 更強。見「三塊工程 A」。
+
+### #14 Shift-C 加 offset keyframe 到所有可見 track → 毀掉動畫 — 警告，非待辦
+TiXL 的危險 UX bug。sw 的 curve editor 是自己蓋的——**設計 keyframe 操作時別重蹈：一個操作不該無聲毀掉使用者既有的 keyframe。**
 
 ---
 
