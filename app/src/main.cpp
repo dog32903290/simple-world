@@ -47,6 +47,7 @@
 #include "ui/asset_browser.h"  // AssetLibrary window (resource browser + click-to-create load-op)
 #include "ui/cjk_font.h"
 #include "ui/connection_ops.h"  // mountConnectionVerbs (connect/disconnect hand verbs)
+#include "ui/graph_dump.h"       // mountGraphDump (eye req_graph -> graph.json of current compound)
 #include "ui/editor_ui.h"
 #include "ui/fence_preview.h"  // fenceLastCoveredJson (eye state surface for the live .scn)
 #include "ui/output_window.h"
@@ -298,6 +299,7 @@ Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
   // verify/hand fn-ptr slots; the agent text verb then walks the SAME AddWire/Reconnect a canvas pin
   // drag would). One-line mount, like the OS-fullscreen seam below.
   sw::ui::mountConnectionVerbs();
+  sw::ui::mountGraphDump();  // eye req_graph -> serialize current compound into graph.json (免座標)
   // P6 OS-fullscreen seam (leaf-inversion: ui/view_modes can't include platform/).
   // Wired here so the F11 keymap handler + View > Fullscreen menu both reach the platform call.
   sw::ui::setOsFullScreenFn(&sw::platform::toggleOsFullScreen);
@@ -476,6 +478,12 @@ void Renderer::draw(MTK::View* pView) {
                     ", \"lib\": " + sw::libToJsonV2(sw::doc::g_lib()) + "}";
     sw::eye::writeText("state.json", s.c_str());
   }
+
+  // eye⑤ graph: the CURRENT compound's children/ports/wires as graph.json so the agent can
+  // learn childId/slotId (免座標) before driving `connect`. The serialization lives in
+  // ui/graph_dump (it reads runtime compound + spec types eye can't); eye routes the string
+  // to disk via the app-owned hook (mountGraphDump, beside mountConnectionVerbs).
+  if (eyeReq.graph) sw::eye::writeGraphDump("graph.json");
 
   // eye② full: the whole presented frame (UI + render). Stall one frame so the
   // drawable's backing is finished before we read it back (BGRA8_sRGB).

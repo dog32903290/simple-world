@@ -127,9 +127,35 @@ void recordOpenPopupItems() {
       if (ry1 > work.Max.y) ry1 = work.Max.y;
       char lbl[128];
       snprintf(lbl, sizeof(lbl), "popup_item:%s:%d", wname, r);
-      g_items.push_back({lbl, x0, ry0, x1, ry1});
+      // Owner = the popup window itself: a popup is the topmost input-accepting window over its own
+      // rows, so it is never self-reported as occluded.
+      g_items.push_back({lbl, x0, ry0, x1, ry1, (unsigned int)win->ID});
     }
   }
+}
+
+// Part C (occlusion): does ANOTHER window cover (px,py)? Walk g.Windows — ImGui keeps them in
+// back-to-front render order, so the LAST window containing the point that can RECEIVE input is the
+// one a click would actually hit (mirrors ImGui's own FindHoveredWindow). If that window is not the
+// item's owner, a driver clicking the item's center would land on the cover instead -> occluded.
+// A window is skipped if inactive/hidden or flagged NoInputs/NoMouseInputs (transparent to clicks),
+// and child windows defer to their root (the root owns the input surface). ownerWindow==0 (recorded
+// outside any window, e.g. a canvas overlay rect) -> never reported occluded (no owner to compare).
+bool pointOccluded(float px, float py, unsigned int ownerWindow) {
+  if (ownerWindow == 0) return false;
+  ImGuiContext* g = ImGui::GetCurrentContext();
+  if (!g) return false;
+  ImGuiWindow* hit = nullptr;
+  for (int i = 0; i < g->Windows.Size; ++i) {
+    ImGuiWindow* w = g->Windows[i];
+    if (!w || !w->Active || w->Hidden) continue;
+    if (w->Flags & (ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoMouseInputs)) continue;
+    // Resolve to the input-owning root: a clipped child shares its root's hit surface, and the
+    // root's ID is what matches an owner recorded via GetCurrentWindow()->ID at top scope.
+    ImGuiWindow* root = w->RootWindow ? w->RootWindow : w;
+    if (root->Rect().Contains(ImVec2(px, py))) hit = root;  // last match wins = frontmost
+  }
+  return hit && (unsigned int)hit->ID != ownerWindow;
 }
 
 }  // namespace detail
@@ -153,7 +179,23 @@ Request poll() {
   r.full = consume(@"req_full");
   r.map = consume(@"req_map");
   r.state = consume(@"req_state");
+  r.graph = consume(@"req_graph");
   return r;
+}
+
+// App-owned graph-dump hook (set via setGraphDumpHook). Leaf inversion: eye holds only the
+// fn-ptr; the app (which depends on runtime types) fills it with the real serialization of the
+// CURRENT compound. Null = the dump writes an empty stub (verify stays a leaf).
+namespace { std::string (*g_graphDumpHook)() = nullptr; }
+void setGraphDumpHook(std::string (*hook)()) { g_graphDumpHook = hook; }
+
+void writeGraphDump(const char* outName) {
+  // The app composes the JSON (it can read childId/port/wire types eye cannot). eye only
+  // routes the string to disk — same contract as writeText for state.json.
+  std::string json = g_graphDumpHook ? g_graphDumpHook()
+                                     : std::string("{\"compound\": null, \"children\": [], "
+                                                   "\"connections\": []}\n");
+  writeText(outName, json.c_str());
 }
 
 void writeText(const char* outName, const char* content) {
@@ -188,14 +230,20 @@ void dumpDrawableBGRA(MTL::Texture* tex, const char* outName) {
 
 void beginWidgetFrame() { g_items.clear(); }
 
+// Owner window ID at the current call site (Part C occlusion). 0 outside any window scope.
+static unsigned int currentWindowId() {
+  ImGuiWindow* w = ImGui::GetCurrentWindow();
+  return w ? (unsigned int)w->ID : 0u;
+}
+
 void recordItem(const char* label) {
   ImVec2 mn = ImGui::GetItemRectMin();
   ImVec2 mx = ImGui::GetItemRectMax();
-  g_items.push_back({label, mn.x, mn.y, mx.x, mx.y});
+  g_items.push_back({label, mn.x, mn.y, mx.x, mx.y, currentWindowId()});
 }
 
 void recordRect(const char* label, float x0, float y0, float x1, float y1) {
-  g_items.push_back({label, x0, y0, x1, y1});
+  g_items.push_back({label, x0, y0, x1, y1, currentWindowId()});
 }
 
 void recordNativeMenuItem(const char* menu, const char* title, const char* key, bool shift) {
@@ -248,9 +296,15 @@ void writeWidgetMap(void* mtkView, const char* outName) {
     const Item& it = g_items[i];
     float sx0 = cx + (it.x0 - vp.x), sy0 = cy + (it.y0 - vp.y);
     float sw = it.x1 - it.x0, sh = it.y1 - it.y0;
-    [j appendFormat:@"    {\"label\": \"%s\", \"imgui_rect\": {\"x0\": %.1f, \"y0\": %.1f, \"x1\": %.1f, \"y1\": %.1f}, \"screen_topleft_pt\": {\"x\": %.1f, \"y\": %.1f, \"w\": %.1f, \"h\": %.1f}, \"center_pt\": {\"x\": %.1f, \"y\": %.1f}}%s\n",
+    // Part C: is the item's center covered by a window OTHER than its owner? The hit-test runs in
+    // imgui-screen coords (same space the rect was recorded in), so it is independent of the AppKit
+    // screen-point transform above. A driver reads this before clicking center_pt to avoid silently
+    // hitting a floating panel that sits over the widget.
+    bool occluded = pointOccluded((it.x0 + it.x1) * 0.5f, (it.y0 + it.y1) * 0.5f, it.ownerWindow);
+    [j appendFormat:@"    {\"label\": \"%s\", \"imgui_rect\": {\"x0\": %.1f, \"y0\": %.1f, \"x1\": %.1f, \"y1\": %.1f}, \"screen_topleft_pt\": {\"x\": %.1f, \"y\": %.1f, \"w\": %.1f, \"h\": %.1f}, \"center_pt\": {\"x\": %.1f, \"y\": %.1f}, \"occluded\": %s}%s\n",
                     it.label.c_str(), it.x0, it.y0, it.x1, it.y1, sx0, sy0, sw, sh,
-                    sx0 + sw * 0.5f, sy0 + sh * 0.5f, (i + 1 < g_items.size()) ? "," : ""];
+                    sx0 + sw * 0.5f, sy0 + sh * 0.5f, occluded ? "true" : "false",
+                    (i + 1 < g_items.size()) ? "," : ""];
   }
   [j appendString:@"  ]\n}\n"];
 

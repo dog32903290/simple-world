@@ -15,6 +15,7 @@
 #import <ImageIO/ImageIO.h>
 
 #include "imgui.h"
+#include "imgui_internal.h"  // GetCurrentWindow()->ID for the occlusion self-test owner
 
 namespace sw::eye {
 
@@ -226,6 +227,78 @@ int runMapSelfTest(bool injectBug) {
            "native=%d combo_popup=%d(closed_empty=%d) -> %s\n",
            c1, c2, (int)menuRecorded2, c3, (int)staleMenu3, (int)inspRecorded, (int)nativeOk,
            (int)gap1Ok, (int)noPopupRowsWhenClosed, pass ? "PASS" : "FAIL");
+    return pass ? 0 : 1;
+  }
+}
+
+int runOcclusionSelfTest(bool injectBug) {
+  @autoreleasepool {
+    // Headless ImGui frame (same setup as runMapSelfTest): DisplaySize + a built font atlas so
+    // NewFrame passes. We open two overlapping windows and drive the REAL pointOccluded predicate
+    // that writeWidgetMap stamps into map.json — testing the live code path, not a copy.
+    IMGUI_CHECKVERSION();
+    ImGuiContext* ctx = ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(1280.0f, 800.0f);
+    io.DeltaTime = 1.0f / 60.0f;
+    unsigned char* tex = nullptr;
+    int tw = 0, th = 0;
+    io.Fonts->GetTexDataAsRGBA32(&tex, &tw, &th);
+    io.Fonts->SetTexID((ImTextureID)1);
+
+    auto& gItems = detail::items();
+
+    // The widget we record lives in the LOWER window; its center is the point we hit-test.
+    const ImVec2 lowPos(100, 100), lowSize(200, 200);
+    const ImVec2 centerPt(lowPos.x + 80, lowPos.y + 40);  // a point well inside the lower window
+    unsigned int lowOwner = 0;
+    auto layoutLower = [&]() {
+      ImGui::SetNextWindowPos(lowPos);
+      ImGui::SetNextWindowSize(lowSize);
+      ImGui::Begin("LowerPanel", nullptr,
+                   ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+      ImGui::Button("Target");
+      lowOwner = (unsigned int)ImGui::GetCurrentWindow()->ID;
+      ImGui::End();
+    };
+    // The COVER window — same rect, opened AFTER the lower one so it is frontmost in g.Windows.
+    auto layoutUpper = [&]() {
+      ImGui::SetNextWindowPos(lowPos);
+      ImGui::SetNextWindowSize(lowSize);
+      ImGui::Begin("UpperCover", nullptr,
+                   ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+      ImGui::Text("cover");
+      ImGui::End();
+    };
+
+    // --- Phase 1: BOTH windows up (cover on top). The point is occluded. ---
+    // Two frames so window order/focus settles before the hit-test.
+    for (int f = 0; f < 2; ++f) { ImGui::NewFrame(); layoutLower(); layoutUpper(); ImGui::EndFrame(); }
+    ImGui::NewFrame();
+    layoutLower();
+    layoutUpper();
+    // injectBug models the pre-Part-C state: no owner was tracked, so ownerWindow is 0 and the
+    // predicate short-circuits to "not occluded" — the covered widget LIES that it is reachable.
+    unsigned int ownerArg = injectBug ? 0u : lowOwner;
+    bool occludedWhenCovered = detail::pointOccluded(centerPt.x, centerPt.y, ownerArg);
+    ImGui::EndFrame();
+
+    // --- Phase 2: cover REMOVED (only the lower window). The point is reachable. ---
+    for (int f = 0; f < 2; ++f) { ImGui::NewFrame(); layoutLower(); ImGui::EndFrame(); }
+    ImGui::NewFrame();
+    layoutLower();
+    bool occludedWhenClear = detail::pointOccluded(centerPt.x, centerPt.y, lowOwner);
+    ImGui::EndFrame();
+
+    detail::items().clear();  // don't leak test rows into a live map
+    ImGui::DestroyContext(ctx);
+    (void)gItems;
+
+    // GREEN contract: covered -> occluded true, clear -> occluded false. injectBug suppresses the
+    // owner so coveredCase is FALSE -> the leg goes RED (a covered widget reported reachable).
+    const bool pass = occludedWhenCovered && !occludedWhenClear;
+    printf("[selftest-occlusion] covered=%d clear=%d (bug=%d) -> %s\n", (int)occludedWhenCovered,
+           (int)occludedWhenClear, (int)injectBug, pass ? "PASS" : "FAIL");
     return pass ? 0 : 1;
   }
 }

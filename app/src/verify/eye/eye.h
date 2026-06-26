@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace MTL { class Texture; }
 
@@ -29,6 +30,7 @@ struct Request {
   bool full = false;   // dump the whole presented window
   bool map = false;    // dump the widget coordinate table
   bool state = false;  // dump graph state (caller composes json) -> state.json
+  bool graph = false;  // dump the CURRENT compound's children/ports/wires -> graph.json
 };
 
 // Check SW_EYE_DIR for req_* sentinels; delete the ones found; report which.
@@ -83,6 +85,22 @@ void writeWidgetMap(void* mtkView, const char* outName);
 // so the agent can machine-check mutations without OCR'ing a screenshot.
 void writeText(const char* outName, const char* content);
 
+// --- graph dump (capability 5: req_graph -> graph.json) ----------------------
+// LEAF INVERSION (same pattern as hand's connect hook): eye holds only a fn-ptr.
+// The app (which depends on runtime types) installs a hook that serializes the
+// CURRENT compound — children[] (childId, symbolId/opType, ports[]={id,dataType,
+// isInput,multiInput}) + connections[] (4-tuple) + the compound id/breadcrumb —
+// into a JSON string. On a `req_graph` sentinel eye calls the hook and writes the
+// returned string to graph.json. Null hook -> graph.json carries an empty stub
+// (verify stays a leaf — no app dependency). The agent dumps the graph to learn
+// childId/slotId, then drives `connect` — fully coordinate-free.
+//
+// The hook returns a std::string by value (owned by the caller); eye copies it out.
+void setGraphDumpHook(std::string (*hook)());
+// Run the dump hook (if set) and write its JSON to SW_EYE_DIR/outName. No-op-ish
+// (writes an empty stub) when the hook is unset. Called by main on a req_graph.
+void writeGraphDump(const char* outName);
+
 // --- headless self-test (RED->GREEN proof the PNG pipeline can see) ----------
 // Build a known RGBA buffer, write+reload a PNG, assert the center pixel. With
 // injectBug the buffer is written wrong so the eye is shown to FAIL first.
@@ -96,5 +114,12 @@ int runSelfTest(bool injectBug);
 // buffer carries no stale rows from the popup-open frame. injectBug models the
 // regression (post-popup record pass suppressed) so the map empties and we see RED.
 int runMapSelfTest(bool injectBug);
+
+// --- headless self-test (RED->GREEN proof the OCCLUSION flag fires) ----------
+// Opens two overlapping headless ImGui windows: a lower one holds a recorded widget, an upper one
+// covers it. Asserts the covered item reports occluded==true while covered, and false once the
+// cover is gone. injectBug models the pre-Part-C state (no owner tracking -> ownerWindow 0) so the
+// covered item is reported NOT occluded -> RED (a covered widget that lies "reachable" is the bug).
+int runOcclusionSelfTest(bool injectBug);
 
 }  // namespace sw::eye

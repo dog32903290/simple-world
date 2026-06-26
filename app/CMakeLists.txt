@@ -208,6 +208,8 @@ add_executable(simple_world
   src/ui/combine_dialog.cpp
   src/ui/connection_ops.cpp        # shared wire-edit (drag + connect/disconnect verbs) + verb hooks
   src/ui/connect_verb_selftest.cpp # connect/disconnect verb golden (--selftest-hand-connect, headless)
+  src/ui/graph_dump.cpp            # req_graph -> graph.json serializer of the current compound (eye hook)
+  src/ui/graph_dump_selftest.cpp   # graphdump golden (--selftest-graphdump, headless)
   src/ui/node_menu_actions.cpp
   src/ui/copy_paste_ui.cpp
   src/ui/keymap.cpp

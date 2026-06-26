@@ -15,6 +15,12 @@ namespace sw::eye::detail {
 struct Item {
   std::string label;
   float x0, y0, x1, y1;
+  // Part C (occlusion): the ID of the ImGui window that OWNED this widget at record time
+  // (ImGui::GetCurrentWindow()->ID). 0 = recorded outside any window scope (e.g. recordRect
+  // for canvas overlays that have no owning imgui window). writeWidgetMap compares this against
+  // the topmost input-accepting window over the item's center to decide `occluded`. LAST member
+  // + default 0 so the existing positional aggregate inits ({label,x0,y0,x1,y1}) stay valid.
+  unsigned int ownerWindow = 0;
 };
 // A native NSMenu row (metadata only — no rect; driven via key equivalent).
 struct NativeMenuItem {
@@ -33,6 +39,11 @@ bool itemsHavePrefix(const char* prefix);
 // Gap 1: fold every open combo/popup window's rows into items() as popup_item:<win>:<row>
 // (see eye.mm). The self-test calls this directly to prove the OpenPopupStack walk fires.
 void recordOpenPopupItems();
+
+// Part C (occlusion): is (px,py) covered by an input-accepting window other than ownerWindow?
+// (see eye.mm — the same predicate writeWidgetMap stamps into map.json's "occluded".) The
+// self-test drives it directly with two overlapping windows to prove RED->GREEN.
+bool pointOccluded(float px, float py, unsigned int ownerWindow);
 
 // PNG round-trip primitives (defined in eye.mm) the pixel self-test drives.
 bool writePNG(const std::string& path, const uint8_t* rgba, int w, int h);

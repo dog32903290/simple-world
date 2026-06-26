@@ -32,5 +32,7 @@ REGISTER_SELFTESTS(/*orderBase=*/500,
     {"keymap-persist", runKeymapPersistSelfTest},  // #11: user keymap JSON overrides factory (round-trip)
     {"user-settings", runUserSettingsSelfTest},    // #12: recent-files MRU persistence (round-trip)
     {"hand-connect", runHandConnectSelfTest},      // connect/disconnect hand verbs → wire edit (headless)
+    {"graphdump", ui::runGraphDumpSelfTest},       // req_graph → graph.json of current compound (免座標 id 來源)
+    {"eye-occlusion", eye::runOcclusionSelfTest},  // map.json occluded flag: covered widget reports occluded
 );
 }  // namespace sw
