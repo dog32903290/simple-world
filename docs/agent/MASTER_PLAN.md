@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 4e68d03
+HEAD: 6782e32
 DIRTY: clean
 CENSUS: 431 / 749 done
 BITE: 483 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T02:49
+STAMP_AT: 2026-06-27T03:35
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,16 +18,16 @@ STAMP_AT: 2026-06-27T02:49
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**島7 PointGraph 雙驅拆 TU 進行中（2026-06-27 02:49 起，工作2）。前一批工作1 閘缺口 census 已落地，HEAD `4e68d03`，--bite 483 / FAILED=[]，census 431/749。柏為 02:23 定向「驗證地基先建好再拆，開 loop 自走，自己驗不等我」。**
-- **✅ 工作1 — 閘缺口 census（驗證地基）**（merge `4e68d03`，code `4e68d03`）：`tools/gate_census.sh` + `tools/gate_census_islands.tsv`（7 島 SSOT，guard 名解析成真 `--selftest-*`）+ 接進 `sw_status.sh --check`（島裸→結帳紅）。島 gap=機械閘（0 裸，7 島 guard 全在 `--selftest-list`=run_all 真跑集）；op gap=advisory 不擋（26 thin=fixture+aggregate，honest limits 印出）。**Opus refuter MERGE-SAFE 證網非空轉**：島7 guard（loop/camera-scope/setvar-scope/layercompose）存在且正確映射，**camera-scope 獨立斷言 flat+resident 兩腿**——拆島7若靜默壞 resident production 終端，guard 會咬、gate 變紅。self-bite + 端到端 red↔green + 乾淨 revert。非阻塞 note：absent-gate=skip 非 fail-safe。
-- **島7 開工閘四條狀態**：①`point_graph.*` clean ✅②柏為「驗證地基+自走」覆寫「在場」✅③單一 driver=島7 本批唯一 lane、不並行任何 cook-core ✅④拆前基準 --bite 483 綠 ✅。
-- 前批：folder-package-save（`8a817e5`）+ canvas-grid 接 theme（`e00f42d`）+ ColorThemeEditor（`63b35db`）+ document.cpp 拆檔（`b053941`）詳見 history。
+**none（2026-06-27 03:35 維護加固 工作1+工作2 雙雙落地，HEAD `6782e32`，--bite 483 / FAILED=[]，census 431/749）。柏為 02:23 定向「驗證地基先建好再拆，開 loop 自走，自己驗不等我」——兩條都完成。**
+- **✅ 工作2 — 島7 PointGraph 雙驅拆 TU**（merge `6782e32`）：兩驅 ~150 行 `cookCommand` 各 verbatim 抽進 leaf TU（`point_graph_command_cook.cpp` 236 / `point_graph_resident_command_cook.cpp` 247）。`point_graph.cpp` 868→730、`point_graph_resident.cpp` 717→556（淨 −299 移出 god-driver 進 <400 葉），cap 鎖到精確值。**★載重判斷：不假共享**——flat/resident 真分岔（int-id vs string-path / extraConns / S2 bypass / depth-cap / Mesh 容器）留兩 TU 分開，只共享本就抽好的真同邏輯。**Opus refuter MERGE-SAFE 5/5**：resident production 路 byte-identical（唯一改＝`kCookDepthCap`→`depthCap` 參數改名，語意同）、forwarding lambda context 完整、`warnCookDepthOnce` 仍單一 process-global。**4 守門每步全綠**（camera-scope 含 resident 腿）。internal.h 406→433 cap-raise refuter 判 **ACCEPT**（Impl member decl 必在 class 處、不可移；cap 鎖精確值零 slack）。
+- **✅ 工作1 — 閘缺口 census（驗證地基）**（`4e68d03`）：`gate_census.sh` + 7 島 SSOT + 接 `sw_status --check`（島裸→結帳紅）。refuter 證網非空轉。詳見 history。
+- 前批：folder-package-save（`8a817e5`）+ canvas-grid 接 theme（`e00f42d`）+ ColorThemeEditor（`63b35db`）詳見 history。
+- **維護加固剩 工作3（決定性 export 帶閘）= 綁 MV C 塊路2，未來做**（[MAINTENANCE_HARDENING_PLAN](MAINTENANCE_HARDENING_PLAN.md)）。
 
 ## Conflict Register
 - **（已解）MV 工單 +66 行收進 main（`2765fe4`）**：先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
-- **★島7 拆檔進行中＝單一 cook-core driver，本批絕不並行任何動 `point_graph*`/cook-core 的 lane**（[[sw-batch-no-parallel-launch]] / DEBT_LEDGER 雙寫損壞教訓）。島7 期間若要並行只能派純 ui/ 或 tools/ 不撞檔的，但建議島7 單線專心。
-- 工作1 零撞檔（純 tools/+sw_status.sh）。**無未解衝突**。
-- 非阻塞 follow-up：gate_census absent-gate 改 fail-safe（低）；FP safeStem 外部 `:`-id disambiguator；CTE 剩 25 deferred 欄；SP 補 LookAt 斷言；RO 補 disk-corrupt leg。皆低優先。
+- 工作1/工作2 零未解衝突（島7 單線 cook-core 已收，tree clean）。**無未解衝突**。
+- 非阻塞 follow-up：gate_census absent-gate 改 fail-safe（低）；FP safeStem 外部 `:`-id disambiguator；CTE 剩無-sw-consumer 欄（Widget*/Status* 無 sw 渲染對象→theme 它們是 dead weight，等 sw 真 render 那些 UI 元件再接）；SP 補 LookAt 斷言；RO 補 disk-corrupt leg。皆低優先。
 - （更早已解項移 history：soundtrack flake `cd47f72`/field scn `644d100`；chip `task_eb3375a3`/`task_2fc4a37a` 可關，`task_9d081266`=detectbpm NO-BITE 待修。）
 
 ## Session Safety
@@ -41,11 +41,13 @@ STAMP_AT: 2026-06-27T02:49
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。HEAD `4e68d03`，--bite 483，census 431。**★狀態：柏為 02:23 定向「驗證地基先建好再拆，開 loop 自走，自己驗不等我」→ 工作1（gate census）已落地，現在自走拆島7（工作2）。**
-- **★當前批＝島7 PointGraph 雙驅拆 TU（工作2，高危 cook-core，單線）**：把 `point_graph.cpp`(868) + `point_graph_resident.cpp`(717) 鏡像邏輯提煉共享、Command 分支（Loop/SetVar/Camera/Field gather）拆獨立 TU（[DEBT_LEDGER](DEBT_LEDGER.md) 已記）。安全網＝工作1 gate（島7 4 guard 必留掃描表）+ 守門 selftest 全綠（loop/camera-scope/setvar-scope/layercompose，camera-scope 含 resident 腿）+ --bite + check_arch + refuter。完成判準：兩驅降到 ratchet 下、共享單一來源、上述全綠。
-- **島7 後可恢復多 lane 並行**。剩餘自走可採（變稀）：CTE 25 deferred 欄續接 theme（純皮）/B 軌 `ui_census.sh --gaps` 零星/texture-gather 剩 UseTextureReference（卡 RenderTargetReference host-rail 小 seam）。
-- **需 attended/cook-core**：render-output 剩 3 gap/CameraWithRotation（需 explicit-worldToCamera stamp 縫）/S4 殘餘 infra。
-- **★compound-graph-host = 假縫 debunked**：別開（XL 造輪子）；~46 顆卡子圖內部葉子大 seam（Layer2d/gradient/compute，owner-lock attended）。`resident_eval_graph.h:11` 過時註解值得改。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。HEAD `6782e32`，--bite 483，census 431。**★狀態：維護加固 工作1+2 完成（gate census + 島7 拆檔），柏為 02:23「開 loop 自走、自己驗不等我」續跑。**
+- **★校正先前「葉子採盡」悲觀（assessment 2026-06-27 03:35）**：`op_census --seams` 現算顯示 **46 顆 leaf-ready**（`vecmath-leaf` 19「零縫」純值/向量/matrix + `point-leaf` 27「buffer已建近採盡」）——不是採盡。**但有 假富礦 風險（chip `task_e2f9e963`：census leaf-ready 曾誇大）**→ 下一步＝**scout-verify**（開 source/.hlsl 親看，分 genuinely-clean vs needs-seam）再 bulk-采，別盲信 seam_map 數字，也別再盲目悲觀。vecmath-leaf（值/向量/matrix 走已建 value-op rail）信心最高，先驗它。
+- **采法**：genuinely-clean 的用 `/sw-node-batch` 家族並行（point/value/math 若仍共享檔需先自登記化否則退序列）。golden 對 TiXL 公式手算/確定值 + refuter。
+- **seam-build（解鎖量高但需先蓋縫，多 attended cook-core）**：field-raymarch 8（解鎖 39 SDF 可見！）/keyframe-anim 13/list-state 12/flow-var 12/particle-force 9。**柏為定開哪條縫**。
+- **B 軌剩 16 gap**（`ui_census --gaps`）：多為 render-output（卡 output_window cook-core/平台 encoder）或 missing-subsystem（io-editor/audio-export/value-snap 抽介面）——多需 attended 或 decision。純皮零星。
+- **需 attended/cook-core**：CameraWithRotation（explicit-worldToCamera 縫）/S4 殘餘 infra/各 seam-build。
+- **★compound-graph-host = 假縫 debunked**：別開。`resident_eval_graph.h:11` 過時註解值得改。
 **剩餘 owner-lock 縫（需柏為在場）**：S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field G3-bridge）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫（GlitchDisplace 家族）、生成器 t1 asset-bind 縫（NumberPattern/digit-atlas）。C 桶葉子（多影像/depth/compute/asset/field→image）卡這些縫。
 **柏為 decision queue**：①menu-bar chrome 範式（native-NSMenu vs TiXL-imgui）②`startup-lock-conform` unwired 葉子算不算 DONE 門檻③剩餘 owner-lock 縫的開採序。維運 chip：ui_census 其餘 4 區 false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`（已頂 400 ratchet，動前必拆）、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
