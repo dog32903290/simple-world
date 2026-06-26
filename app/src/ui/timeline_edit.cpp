@@ -119,6 +119,17 @@ void applyDragLive(State& s, Symbol& sym, const Geom& g, ImVec2 mouse) {
                      !snapEnabledForView(s.view.curveMode, io.KeyShift), &did);
     if (did) dt = snapped - s.drag.refStartTime;
   }
+  // snapForV: V-axis integer snap in curve mode (= TiXL _snapHandlerV.TryCheckForSnapping,
+  // TimelineCurveEditor.cs:472-478; `enableSnapping = KeyShift` cs:461, same polarity as U snap).
+  // Snaps the reference key's absolute value to the nearest integer when Shift held and within
+  // kSnapVThreshold. Uses s.drag.keys[0].startValue as the invariant base (drift-free, 修5 pattern).
+  if (s.view.curveMode && allowV && io.KeyShift && !s.drag.keys.empty()) {
+    constexpr double kSnapVThreshold = 0.1;
+    const double absV = s.drag.keys[0].startValue + dv;
+    const double rounded = std::round(absV);
+    if (std::fabs(absV - rounded) < kSnapVThreshold)
+      dv = rounded - s.drag.keys[0].startValue;
+  }
   const double applied = applyDragOffset(s, sym, dt, dv);
   // 修3: stamp AFTER the rigid clamp, only when the applied offset really landed on the anchor —
   // a clamp-eaten snap must not light the indicator / record eye tl_snap (verification honesty).
@@ -327,6 +338,9 @@ void runInsertKeys(SymbolLibrary& lib, CommandStack& stack, const std::string& s
                    const std::vector<SelKey>& at) {
   // = TiXL HandleCreateNewKeyframes: one AddKeyframesCommand per visible curve, wrapped in a
   // MacroCommand "Insert keyframes" (TimelineCurveEditor.cs:242-247) -> single undo step.
+  // insertKeyWithTangent: AddKeyframeCommand.doIt already clones the previous key
+  // (animation_commands.cpp:100-111, = TiXL InsertNewKeyframe cs:339-341 `previousKey.Clone()`),
+  // inheriting interpolation + tangent angles. Feature C is satisfied by the existing command.
   auto macro = std::make_unique<MacroCommand>("Insert keyframes");
   for (const SelKey& k : at)
     macro->add(std::make_unique<AddKeyframeCommand>(lib, symbolId, k.childId, k.inputId, k.index,

@@ -108,6 +108,37 @@ void drawCurveEditor(Symbol& sym, const std::vector<Lane>& lanes, const Geom& g,
     for (const Lane& ln : lanes)
       s.pending.insertKeys.push_back(SelKey{ln.childId, ln.inputId, ln.index, t});
   }
+  // altInsertKey: Alt-hover = show Hand cursor + preview diamond on each lane's sampled position;
+  // Alt+click (release with <2px drag) = insert one key per lane at the snapped hover time
+  // (= TiXL HandleCreateNewKeyframes, TimelineCurveEditor.cs:298-330; value = curve.GetSampledValue,
+  // cs:323; time snapped via U snap handler, cs:307-310; key cloned from previous, cs:339-341).
+  // Guard: !IsAnyItemActive avoids stealing a drag-in-progress (cs:300).
+  if (ImGui::IsItemHovered() && !ImGui::IsAnyItemActive() && io.KeyAlt) {
+    static std::vector<double> altAnchors;
+    collectSnapAnchors(sym, s, g, /*excludeSelected=*/false, altAnchors);
+    double hoverT = std::max(0.0, g.xToTime(ImGui::GetMousePos().x));
+    hoverT = std::max(0.0, snapDragTime(hoverT, g.pxPerBar, altAnchors, /*snappingDisabled=*/false));
+    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    // Draw a preview diamond on every visible lane curve at the sampled value position.
+    for (const Lane& ln : lanes) {
+      const Animator::CurveArray* arr = sym.animator.curvesFor(ln.childId, ln.inputId);
+      if (!arr || ln.index >= (int)arr->size()) continue;
+      const Curve& curve = (*arr)[ln.index];
+      const float previewX = g.timeToX(hoverT);
+      const float previewY = g.valueToY(curve.sample(hoverT));
+      dl->AddCircleFilled(ImVec2(previewX, previewY), 5.0f, IM_COL32(255, 230, 80, 200));
+      dl->AddCircle(ImVec2(previewX, previewY), 6.5f, IM_COL32(255, 255, 255, 160), 0, 1.5f);
+    }
+    // On mouse-release with minimal drag (<2px = click, not drag), insert one key per lane
+    // (= TiXL `dragDistance < 2`, TimelineCurveEditor.cs:315-319).
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+      const float dragDist = std::sqrt(io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Left]);
+      if (dragDist < 2.0f) {
+        for (const Lane& ln : lanes)
+          s.pending.insertKeys.push_back(SelKey{ln.childId, ln.inputId, ln.index, hoverT});
+      }
+    }
+  }
   if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, kDragLatchPx) &&
       !s.fence.active && !s.drag.active && !s.tan.active) {
     s.fence.active = true;

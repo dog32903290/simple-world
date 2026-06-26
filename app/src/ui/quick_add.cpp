@@ -9,6 +9,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "imgui.h"
@@ -40,19 +41,13 @@ float g_anchorY    = 120.0f;
 char  g_filterBuf[64] = "";    // imgui input text buffer
 int   g_selectedIdx = 0;       // index into g_displayItems
 
-// Full unfiltered item list (rebuilt when the palette opens or library changes).
-// Each entry is a symbolId string (same token passed to spawnNodeAt).
-std::vector<std::string> g_allItems;
-
-// Filtered items displayed this frame (subset of g_allItems matching g_filterBuf).
-std::vector<std::string> g_displayItems;
-
-// Snapshot of filter string used to build g_displayItems (detect dirty).
-char g_lastFilter[64] = "";
-
-// Frame counter since last open (reset in openQuickAdd; used to skip the
-// cancel-on-focus-loss check for the first two frames while focus propagates).
-int g_framesOpen = 0;
+std::vector<std::string> g_allItems;       // full unfiltered list (symbolIds; rebuilt on open)
+std::vector<std::string> g_displayItems;   // filtered+ranked subset this frame
+char g_lastFilter[64] = "";                // filter snapshot (detect dirty)
+int  g_framesOpen = 0;                     // frames since open (focus-loss guard)
+// Usage-count cache (= TiXL SymbolAnalysis UsageCount/TotalUsageCount, SymbolFilter.cs:369-381).
+std::unordered_map<std::string, int> g_usageCounts;
+int g_totalUsageCount = 0;
 
 // ---------------------------------------------------------------------------
 // Build g_allItems from the registry + live compounds.
@@ -71,6 +66,18 @@ static void rebuildAllItems() {
         const sw::Symbol& s = kv.second;
         if (s.atomic) continue;
         g_allItems.push_back(s.id);
+    }
+}
+
+// Count each symbolId's SymbolChild appearances across the library. Called once per open.
+static void rebuildUsageCounts() {
+    g_usageCounts.clear();
+    g_totalUsageCount = 0;
+    for (const auto& kv : sw::doc::g_lib().symbols) {
+        for (const sw::SymbolChild& child : kv.second.children) {
+            g_usageCounts[child.symbolId]++;
+            g_totalUsageCount++;
+        }
     }
 }
 
@@ -116,10 +123,20 @@ static void rebuildDisplayItems() {
         }
     }
     // Rank: stable sort by relevancy descending (ties preserve registry order).
+    // Usage boost = TiXL SymbolFilter.cs:369-381: rel *= (1 + 500*count/total).
     std::stable_sort(g_displayItems.begin(), g_displayItems.end(),
                      [&](const std::string& a, const std::string& b) {
-                         return computeRelevancy(displayName(a), query) >
-                                computeRelevancy(displayName(b), query);
+                         double ra = computeRelevancy(displayName(a), query);
+                         double rb = computeRelevancy(displayName(b), query);
+                         if (g_totalUsageCount > 0) {
+                             auto ia = g_usageCounts.find(a);
+                             auto ib = g_usageCounts.find(b);
+                             int ca = (ia != g_usageCounts.end()) ? ia->second : 0;
+                             int cb = (ib != g_usageCounts.end()) ? ib->second : 0;
+                             ra *= 1.0 + (500.0 * (double)ca / g_totalUsageCount);
+                             rb *= 1.0 + (500.0 * (double)cb / g_totalUsageCount);
+                         }
+                         return ra > rb;
                      });
     std::memcpy(g_lastFilter, g_filterBuf, sizeof(g_filterBuf));
     g_selectedIdx = 0;  // top match selected after every refilter (TiXL resets to best)
@@ -159,7 +176,8 @@ bool scatterMatch(const std::string& hay, const std::string& q) {
 
 // Relevancy (higher = more relevant). PORTABLE subset of TiXL ComputeRelevancy
 // (SymbolFilter.cs:198-389) — name+query multipliers (exact > prefix > contains > scatter;
-// PascalCase initials; _/OBSOLETE demotion). DEFERRED: namespace/package/usage boosts.
+// PascalCase initials; _/OBSOLETE demotion). Usage boost applied in the rebuildDisplayItems
+// sort lambda (keyed by symbolId, not display name). DEFERRED: namespace/package boosts.
 double computeRelevancy(const std::string& name, const std::string& query) {
     if (query.empty()) return 1.0;  // unfiltered: registry order (stable sort keeps it)
     const std::string n = toLower(name);
@@ -198,6 +216,7 @@ void openQuickAdd(float cx, float cy) {
         g_selectedIdx   = 0;
         g_framesOpen    = 0;    // reset focus-loss guard
         rebuildAllItems();
+        rebuildUsageCounts();
         rebuildDisplayItems();
         rebuildTree();
         g_isOpen = true;

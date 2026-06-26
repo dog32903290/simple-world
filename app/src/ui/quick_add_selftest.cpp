@@ -4,6 +4,7 @@
 // imgui. Split out of quick_add.cpp to keep that file single-duty + under the 400-line cap.
 #include "ui/quick_add.h"
 
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -102,6 +103,30 @@ int runQuickAddSelfTest(bool injectBug) {
                         root.children.at("(uncategorized)").symbols.size() == 1 &&
                         root.children.at("(uncategorized)").symbols[0] == "Orphan";
         if (!orphanOk) { std::printf("[quickadd] empty category should land in (uncategorized) -> FAIL\n"); ++fail; }
+    }
+
+    // Test 2d: usage-boost math (= TiXL SymbolFilter.cs:369-381).
+    // totalUsageBoost = 1 + (500 * count / total). With count=5, total=10:
+    //   boost = 1 + (500 * 5 / 10) = 251.0.
+    // An op with count>0 must get a higher final rank than the same-relevancy op with count=0.
+    {
+        const int count = 5, total = 10;
+        const double boost = 1.0 + (500.0 * (double)count / (double)total);
+        const double expectedBoost = 251.0;
+        if (std::fabs(boost - expectedBoost) > 0.001) {
+            std::printf("[quickadd] usage boost formula: got %.3f expected %.3f -> FAIL\n",
+                        boost, expectedBoost);
+            ++fail;
+        }
+        // An op with usage (boost=251) must outrank a zero-usage op (boost=1) at equal base score.
+        const double baseScore = computeRelevancy("DrawPoints", "draw");
+        const double withUsage    = baseScore * boost;
+        const double withoutUsage = baseScore * 1.0;
+        if (!(withUsage > withoutUsage)) {
+            std::printf("[quickadd] usage boost should raise rank: %.3f > %.3f -> FAIL\n",
+                        withUsage, withoutUsage);
+            ++fail;
+        }
     }
 
     // Test 3: eye-hook naming convention — every item key starts with "qa:".

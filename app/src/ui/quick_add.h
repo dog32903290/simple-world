@@ -8,10 +8,9 @@
 //   filter: real-time scatter / subsequence match (= TiXL SymbolBrowser regex `c.*c.*c`,
 //           SymbolFilter.cs:90) over the row's display name OR its category, then ranked
 //           by relevancy (exact > prefix > contains > scatter; PascalCase-initials bump;
-//           _/OBSOLETE demotion — the portable subset of SymbolFilter.ComputeRelevancy).
-//           DEFERRED: namespace TREE grouping + usage/package boosts (categories not yet
-//           populated repo-wide; no usage-analysis model). Fork "QuickAddRank_StableTies":
-//           equal-score rows hold registry order (stable sort) vs TiXL's Reverse().
+//           _/OBSOLETE demotion; usage-count boost = TiXL SymbolFilter.cs:369-381). Fork
+//           "QuickAddRank_StableTies": equal-score rows hold registry order (stable sort)
+//           vs TiXL's Reverse(). DEFERRED: namespace/package boosts.
 //   nav   : CursorDown/Up advance selection
 //   commit: Enter or mouse-click spawns the selected type at the anchor
 //   cancel: Esc or click-outside closes without action
