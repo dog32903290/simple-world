@@ -19,9 +19,21 @@ pbr-lighting	domain-blocked	HIGH	^render/(shading|scene)	材質/光照=全新3D-
 postfx	domain-blocked	HIGH	^render/postfx	GodRays/SSAO/DoF/MotionBlur=卡depth-buffer島
 dx11-skip	domain-blocked	LOW	^render/_dx11	Metal已吸收等價,多數SKIP
 render-leaf	leaf-ready	LOW	^render/	render葉(basic/utils/transform)
-feedback	seam-build	MED	^image/fx	上一幀/液體/feedback(ping-pong已建,剩進階消費者)
-multi-image	seam-build	MED	^image/use	多輸入合成(t2第三輸入縫)
-image-leaf	leaf-ready	LOW	^image/	image濾鏡/生成葉
+# ── image 真實阻塞縫(op-name regex,跨 subdir,必排在 feedback/image-leaf 之前才搶得到 match) ──
+# multi-image gather 縫本 session 已蓋(fixed-port + variable-N MultiInput<Texture2D>,Combine3Images/CombineMaterialChannels/HSE/MosiacTiling/PickTexture 全騎它出貨),已非阻塞,故移除舊 multi-image seam-build 規則。剩餘 image/use + 其他 subdir 的 todo 卡的是下面這些 per-op 縫:
+compound-graph	seam-build	MED	^image/.*/(BlendImages|CompareImages|FakeLight|Glow|MakeTileableImage|MakeTileableImageAdvanced|ScreenCloseUp|SortPixelGlitch|NumberPattern|SubdivisionStretch|AdvancedFeedback2)$	無自帶.hlsl,.t3是多節點子圖(需compound-graph-host縫組裝其他op)
+compute-dispatch	seam-build	MED	^image/.*/(ConvertFormat|ImageFFT|JumpFloodFill|ColorPhysarum|GetImageBrightness|OpticalFlow)$	RWStructuredBuffer/RWByteAddressBuffer/[numthreads]歸約(需compute-dispatch縫)
+feedback-advanced	seam-build	MED	^image/.*/(FluidFeedback|SimpleLiquid|SimpleLiquid2|SlidingHistory|DetectMotion|RemoveStaticBackground|TimeDisplace|WaveForm)$	跨幀history-array/流體狀態(超出已建ping-pong對)
+asset-load	seam-build	MED	^image/.*/(AsciiRender|LoadImageFromUrl|LoadSvgAsTexture2D|ImageSequenceClip|Sketch)$	檔案/字型/svg/url載入縫
+texture-array	seam-build	MED	^image/.*/KeepInTextureArray$	tex-array儲存縫
+render-graph-perpass	seam-build	MED	^image/.*/RenderWithMotionBlur$	SetTime+per-pass重cook
+depth-buffer	seam-build	MED	^image/.*/ColorGradeDepth$	depth-buffer縫
+field-to-image	seam-build	MED	^image/.*/FieldToImage$	field→texture橋
+string-shader	seam-build	MED	^image/.*/CustomPixelShader$	runtime HLSL編譯縫
+point-sprite-render	seam-build	MED	^image/.*/GlitchDisplace$	point-buffer→quad sprite繪製+camera transform(point-render縫未建=parked大縫,等柏為greenlight)
+tex-select-logic	leaf-ready	LOW	^image/.*/(FirstValidTexture|UseFallbackTexture|UseTextureReference)$	純texture-select邏輯,無pixel shader(騎已建gather+小型no-shader passthrough)
+feedback	seam-build	MED	^image/fx/feedback	上一幀/feedback基礎縫(ping-pong已建;此subdir剩進階消費者已歸feedback-advanced,僅守新增基礎feedback op)
+image-leaf	leaf-ready	LOW	^image/	image濾鏡/生成乾淨葉(fallthrough,僅真乾淨葉如DirectionalBlur落這)
 list-state	seam-build	MED	^numbers/(floats|ints)	FloatList stateful(需resident state-slot縫)
 keyframe-anim	seam-build	MED	^numbers/(anim|curve)	animator/keyframe(需keyframe seam)
 dict-ctx	seam-build	LOW	^numbers/data	dict select(需dict-context seam)
