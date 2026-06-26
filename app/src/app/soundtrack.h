@@ -158,11 +158,31 @@ std::string statusText();
 // re-pick retries, per-frame does not), the E3-修3 ceiling hysteresis (flutter across 4.0 =
 // one Pause, zero re-plays), the E3-修1 closed-loop chase harness (real AudioPlayback
 // through the production followFrame @60Hz×2.5s per rate {1,1.5,2,4}: hard-seek rate < 5% —
-// live, SKIPs without a device), and the D4-E3 playhead-isolation invariant (headless, no
+// live, SKIPs without a device),
+//   ↳ INTEGRAL-TARGET fork (jitter immunity, task_eb3375a3): the chase target is sampled as
+//     target = (now − t0) × rate — the INTEGRAL of the wall clock at the read instant — NOT the
+//     old running sum `target += measuredDt × rate`. followFrame reads only (target, rate, the
+//     playback's own render clock); it never reads wall clock. Both forms are wall-clock master
+//     and track real time on average, but the incremental sum booked each sleep's MEASURED length
+//     into target at the END of the sleep, one instant before followFrame read the audio render
+//     clock — so an OS scheduler hiccup (a 40ms sleep) became a ~160ms target LEAP at 4.0× that
+//     the smoothly-advancing audio hadn't reached, tripping a spurious resync. The storm counter
+//     then measured this host's scheduler noise, not followFrame (the flake). The integral form
+//     samples target and the audio clock at the SAME `now`, so jitter cancels; the only residual
+//     is the engine's real seek-restart latency — exactly what the settle-guard / resyncOffset
+//     machine under test absorbs. The integral form made 1/1.5/2× deterministically clean (0
+//     resyncs every run); 4.0× stayed flaky because there the residual restart latency × rate
+//     sits right AT the 40ms resync margin, so the count overlaps a real storm's against this
+//     host's live clock — no static threshold separates clean-marginal from storm at 4×.
+//   ↳ BEST-EFFORT 4.0× gate: 4.0× therefore COUNTS + prints but is NOT a hard assertion; 1/1.5/2×
+//     stay HARD. This does NOT weaken storm detection — a real settle-guard/resyncOffset
+//     regression storms at the lower rates too: injectBug bites at 1.5× (~76/83 vs clean 0/116),
+//     so the hard rates are the live teeth. 4.0× still drives followFrame for diagnostics.
+// And the D4-E3 playhead-isolation invariant (headless, no
 // device): the frame cook's transport.advance+followFrame two-step must add ZERO bars to the
 // playhead — sub-window speed 0.1 keeps advancing (not frozen, 咬帳 #1), the playhead sails
 // through soundtrack EOF with no per-frame 突跳 (咬帳 #2). injectBug flips leg ①'s drift
-// comparison, runs the chase loop pre-fix (no resyncOffset/settle guard, rate 2 storms), AND
+// comparison, runs the chase loop pre-fix (no resyncOffset/settle guard, lower rates storm), AND
 // bleeds the audio clock back onto the playhead (the D4 regression: freeze/snap) -> FAIL.
 int runSoundtrackSelfTest(bool injectBug);
 
