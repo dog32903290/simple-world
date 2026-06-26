@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 4d2abd7
+HEAD: 0887a2d
 DIRTY: 1 files
-CENSUS: 428 / 749 done
-BITE: 474 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-26T22:45
+CENSUS: 430 / 749 done
+BITE: 478 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-26T23:49
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,31 +18,32 @@ STAMP_AT: 2026-06-26T22:45
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-26 22:45 eye/hand 畫布動詞批落地 `4d2abd7`，柏為 commissioned「手反覆死在連線」根治）。** --bite **474 / FAILED=[]**。
-- **✅ eye/hand 換皮無敵化（plan: [EYE_HAND_CANVAS_VERBS_PLAN.md](EYE_HAND_CANVAS_VERBS_PLAN.md)）**。根因＝**手座標其實準的**（toolbar/node/quick-add 都通過同一管線且正常），死的只有 **node-editor 畫布連線手勢**（無免座標後門＋imgui-node-editor 逐幀狀態機＋浮動面板遮擋）。三部件全落地：①`connect`/`disconnect` 直連動詞（`cd6e674`，重用拖曳同一個 `AddWireCommand`+抽 `applyConnection` 公因式，端到端 connect→cook→sphere golden 證真連線）②`dumpgraph`（`req_graph`→graph.json，agent 免座標拿 childId/slot）③map.json `occluded` 旗標（`d8c8f53`，被面板蓋的 widget 響亮報錯不靜默點錯）。**eye/hand 全保持 verify 葉子（圖 mutation 走 app-owned hook，零型別洩漏）。**
-  - **★換皮存活原則（柏為問，寫進 [[simple-world-verify-eye-hand]]）**：`clean.png`+golden+直連動詞＝皮無關永遠有用；座標 map+hook＝貼著皮、換皮按重寫深度重掛。**驗證越靠 golden+直連動詞越換皮無敵。**
-- **前批（orphan 接線 `89ea6a2`，2026-06-26 19-21 時，詳 history）**：render-output B 軌 + soundtrack flake 修 + **sliding_average→beat_synchronizer** + **point_graph.h 拆檔 460→240** + **field_raymarch→RaymarchField tex-op（解鎖 39 SDF）**。剩 1 條 orphan：`out-show-output-slot 機制`（UI picker 兩半 STOP 在 output_window 400 牆/editor_ui 518/cook-core）。
-★**下一塊大的＝compound-graph-host 縫**（leaf-scout 實證純葉子近採盡，point ~37+render/gizmo ~7+string 2 卡它；**設計 scout 待重派**——前次 ae0b7ae5 Plan hung 沒產出；census leaf-ready 假富礦 chip `task_e2f9e963`）。次＝point-render 縫（高 blast，attended）。
+**none（2026-06-26 23:49 texture-gather 葉子批 + output_window 拆檔批落地，HEAD `0887a2d`，--bite 478 / FAILED=[]）。**
+- **✅ Lane T — FirstValidTexture + UseFallbackTexture**（`b9b1416`，merge `0887a2d`）：proven `extraConns` tex-gather 縫上的純葉子（**零 cook-core**），照 PickTexture 藍本 backward-trace TiXL `.cs`、4 selftest GREEN + 4 inject-bug RED leg 真咬、3 fork 全 PickTexture-blessed class。Opus refuter 5/5 vector **MERGE-SAFE** 無 drift。census +2 → 430/749。
+- **✅ Lane R — output_window.cpp 拆檔**（`afab920`）：400→301 thin coordinator + `output_window_canvas`(39)/`output_window_resolution`(67) 兩 TU，ratchet 鎖 301（只降）。純機械搬移、兩 `.scn` 證零行為變。**解鎖 4 條 render-output B 軌 gap**（out-eval-start-instance/out-multi-window/out-video-export/out-window-persistence）——動 output_window 不再撞 400 牆。
+- 前批 eye/hand 畫布動詞（`4d2abd7`，[[simple-world-verify-eye-hand]]）詳見該 commit + history。
 
 ## Conflict Register
-- **（已解）soundtrack flake 修好**（`cd47f72`）：triage 確認 clean-base flake（leg ⑩ 4.0× chase 用真 sleep wall-clock，jitter×4 打穿 40ms resync 閘）→改 integral target 決定論 + 4.0× best-effort（1/1.5/2× 仍硬斷言；注入 resyncOffset=0 退化證 storm 偵測仍咬）。production `soundtrack.cpp` byte-identical。soundtrack 進 --bite PASS，chip `task_eb3375a3` 已關。detectbpm NO-BITE 另開 `task_9d081266`。
-- **（已解，留痕）** `field_sphere.scn`/`field_sdf_palette.scn` 5→4：`doc::g_lib` pre-main static 在 math-sink registrar 前呼 findSpec→AudioReaction 被靜默丟，`644d100` 改 construct-on-first-use 修好。教訓：scn 硬數字紅先 triage 隱藏回歸 vs intentional-drift，別盲 rebase 遮 bug。chip `task_2fc4a37a` 可關。
+- 本批兩 lane 零撞檔（runtime/ vs ui/），`app/CMakeLists.txt` auto-merge 乾淨。**無未解衝突**。
+- （前批已解項移 history：soundtrack flake `cd47f72` / field scn 5→4 `644d100`；相關 chip `task_eb3375a3`/`task_2fc4a37a` 可關，`task_9d081266`=detectbpm NO-BITE 待修。）
 
 ## Session Safety
+- **★結帳前必 rebuild 再 --bite（本批踩）**：`tools/run_all_selftests.sh --bite` 跑的是 `app/build/simple_world` **既有 binary**（只有「binary 不存在」才報錯，stale binary 靜默跑舊）→ merge 完直接 --bite 會拿到舊數字（本批看到 474 該是 478，差點誤蓋章）。合流後順序＝`cmake --build app/build -j8` → `--bite` → `--stamp`。
 - 另有 parked worktree `.worktrees/ui-node-skin`（branch `ui/tixl-node-skin` @ `fd542f5`）= 舊 L2 node-skin lane，未合流，**別當死的清掉**。
 - 柏為 2026-06-26 01:09 回場下令「需我在場的工作你先做、不等我、自走到我喊停」→ 結果 S2 脊椎查出早已蓋好，present-requiring 阻塞自動消解 → 轉做 S2 殘餘 image-leaf fan-out（absent-safe）。**S2/S3 脊椎已建，不必再等授權重開**；真正剩的 owner-lock 縫＝S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫——這些才需柏為在場。
 - **worktree 隔離教訓**：派並行 build agent 要在 Agent 呼叫上設 `isolation:worktree`；只在工單寫 `agent_worktree_setup.sh` 而不設 flag → 無 worktree 可 ff → 全跑進 main checkout 共用樹（本批 4 agent 都落 main，幸好 self-registering 零共享檔+建置非同時才無損）。見 [[worktree-base-main-trap]]。
 - **`document.cpp` 卡在 ratchet 上限 400 行**（g_lib 改 lazy 時 trim 註解擠進）→下次動它前必先拆（已 chip `task_19264e66`），否則 linecount 閘擋。
-- **`output_window.cpp` 本批吃滿到 400 硬牆**（`4325c10` 加 bgcolor picker；無 ratchet entry＝硬上限 400，非 grandfather）→任何進一步 output-window UI（out-show-output-slot picker / out-multi-window / out-eval-start-instance 的 combo 項）**動它前必先拆檔**，否則 linecount 閘擋。同理 `editor_ui.cpp` 已 518 ratchet 零 headroom。`point_graph.h` 本批拆出 `point_graph_cook_ctx.h`（460→240），有餘量了。
-- **本 session 可清的 merged worktree**（commit 都已 cherry-pick 進 sw-parity-lane，可 `git worktree remove --force`）：`agent-aaa5483d`(beat-sync→383a0bb)、`agent-abe4f3696`(split→29556d1)、`agent-ab79c89106`(raymarch→89ea6a2)、`agent-a2bad066`(raymarch STOP 無改動)。**保留** `.worktrees/ui-node-skin`（未合流，故意）。其餘 `worktree-agent-*` 老分支動前先查未合流。
+- **✅ `output_window.cpp` 已拆檔（`afab920`）→ 400→301，ratchet 鎖 301，有 headroom**。剩餘 output-window UI gap（out-show-output-slot picker / out-multi-window / out-eval-start-instance combo）現可動，但仍照拆+裝閘紀律別衝回 400。同理 `editor_ui.cpp` 已 518 ratchet 零 headroom（動前先拆）；`document.cpp` 卡 400（chip `task_19264e66`，動前必拆）；`point_graph.h` 已拆 `point_graph_cook_ctx.h` 有餘量。
+- **本批可清的 merged worktree**（已 merge 進 main，可 `git worktree remove --force`）：`agent-a09c9b48`(Lane T tex-gather→b9b1416)、`agent-a62547e88`(Lane R output_window split→afab920)。**保留** `.worktrees/ui-node-skin`（未合流，故意）。其餘 `worktree-agent-*` 老分支動前先查未合流。
 - **★build-storm + 看門狗假死教訓（本 session 兩度踩）**：並行開 4-5 條 build lane → CPU/IO 爭用讓 `--bite` 單一長 bash 呼叫凍住 transcript 20-30 分（**正常、非死**）→ 25 分看門狗誤判死亡。soundtrack lane 假死、split lane 假死還害我派接力 agent（幸好接力工單有 git-state guard 擋住雙-driver——split 其實只是爭用下跑完最後一哩）。**規則：並行 build lane ≤2-3 條；跑 --bite 的 lane 看門狗閾值放 45 分；判死認真死（process 沒了 + 等 60-120s 再 stat），STALE≠死；接力工單必含「git 狀態非預期就 STOP」guard 防雙-driver**。見 [[subagent-death-detection]]/[[sw-watchdog-cook-core-false-death]]。
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。HEAD `4d2abd7`，--bite 474。**★策略轉折（leaf-scout 實證 2026-06-26）：純葉子 fan-out 紅利近採盡**——四島真零縫葉僅 **CameraWithRotation**（lookAtRH vs rotMatrix 等價需跑真 TiXL 比對）+ **SplinePoints**（bezier even-resample 重）。
-- **★compound-graph-host = 假縫 debunked（re-scout a22db65，2026-06-26 22:53）**：sw compound 已是 op-host、`resident_eval_flatten.cpp` build-time flatten 已 inline 子圖、**production cook 已跑 resident 圖**（`frame_cook.cpp` g_residentGraph）。`resident_eval_graph.h:11`「NOT yet wired to production cook」是**過時註解**（值得改）。~46 顆卡的是**子圖內部葉子 op 自己 blocked**（Layer2d+Execute/gradient/compute-readback/multi-image 大 seam），非 host 能力。**別開 compound-host（XL 重複造輪子）**。唯一 host 缺口＝TiXL `.t3`→sw Symbol 匯入器（`compound_load.cpp` 只讀 sw v2 .swproj），小、但沒下游需求前不急。
-- **真候選（低風險先）**：①**per-child texture-gather 小縫**（`ResidentInput::extraConns` 已在 `resident_eval_graph.h:66-69` 備好，不碰 cook-core）解 FirstValidTexture/UseFallbackTexture/UseTextureReference 類——**但先驗哪幾顆真 todo**（PickTexture 疑已 port 於 batch6 `0fd14a4`，census 恐 stale）②per-child MultiInput **Command** gather（SpreadIntoGrid/SpreadLayout/DrawAsSplitView，**這條碰 cook-core** CmdCookCtx+雙腿 gather，與上面同名但不同縫，需 attended）③要大量解 46 顆＝回去 port 子葉子的大 seam（Layer2d/gradient/compute，owner-lock 重活、attended）。
-absent-safe B 軌剩 **16 gap**（`ui_census.sh --gaps`）。**★`output_window.cpp` 已頂 400 硬牆**→剩餘 output-window UI gap 動它前先拆檔（拆+裝 ratchet 綁一起，[[gate-or-it-rots]]）。不碰 output_window 的乾淨候選：`port-drag-type-filter`（動 `node_draw.cpp`，但前置「拖線開 quick-add 手勢」可能未建、恐踩 vendored imgui-node-editor，先 scout）/`color-theme-system`（純皮）/`folder-package-save`（`app/` 存檔層）。**point-render 縫＝高 blast cook-core，attended 窗口開，harness-first。**
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。HEAD `0887a2d`，--bite 478。**★策略：純葉子 fan-out 紅利近採盡，現在主吃縫/B 軌/拆檔**。
+- **★最乾淨的下批＝4 條 render-output B 軌 gap（剛被 Lane R 解鎖）**：`out-eval-start-instance`/`out-multi-window`/`out-video-export`/`out-window-persistence`——output_window 已拆有 headroom、absent-safe、eye-hand 驗、規格在 `docs/agent/alignment/render-output.md`。動 output_window 系列檔別衝回 400（拆+裝閘紀律，[[gate-or-it-rots]]）。
+- **texture-gather 小縫（本批採掉 2/3）**：FirstValidTexture/UseFallbackTexture ✅；剩 **UseTextureReference** 卡 RenderTargetReference host-rail（另一條小 seam，需先建 reference host 型別，非本縫）。
+- **其餘候選**：`color-theme-system`（純皮 M，mirror TiXL `ColorThemeEditor.cs`，零 cook-core）/`folder-package-save`（L，需先拆 `document.cpp` `task_19264e66`）/CameraWithRotation（lookAtRH vs rotMatrix 等價需跑真 TiXL 比對）/SplinePoints（bezier even-resample 重）。
+- **★compound-graph-host = 假縫 debunked（re-scout a22db65）**：sw compound 已是 op-host、build-time flatten 已 inline 子圖、production cook 已跑 resident 圖。~46 顆卡的是子圖內部葉子 op 自己 blocked（Layer2d+Execute/gradient/compute-readback 大 seam，owner-lock attended），非 host 能力。**別開 compound-host**。`resident_eval_graph.h:11` 過時註解值得改。
 **剩餘 owner-lock 縫（需柏為在場）**：S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field G3-bridge）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫（GlitchDisplace 家族）、生成器 t1 asset-bind 縫（NumberPattern/digit-atlas）。C 桶葉子（多影像/depth/compute/asset/field→image）卡這些縫。
 **柏為 decision queue**：①menu-bar chrome 範式（native-NSMenu vs TiXL-imgui）②`startup-lock-conform` unwired 葉子算不算 DONE 門檻③剩餘 owner-lock 縫的開採序。維運 chip：ui_census 其餘 4 區 false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`（已頂 400 ratchet，動前必拆）、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
