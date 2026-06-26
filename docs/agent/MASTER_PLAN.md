@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 6782e32
-DIRTY: clean
+HEAD: 176b57d
+DIRTY: 1 files
 CENSUS: 431 / 749 done
 BITE: 483 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T03:35
+STAMP_AT: 2026-06-27T03:58
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,7 +18,10 @@ STAMP_AT: 2026-06-27T03:35
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-27 03:35 維護加固 工作1+工作2 雙雙落地，HEAD `6782e32`，--bite 483 / FAILED=[]，census 431/749）。柏為 02:23 定向「驗證地基先建好再拆，開 loop 自走，自己驗不等我」——兩條都完成。**
+**field-raymarch seam Plan scout 進行中（2026-06-27 03:54）。HEAD `6782e32`，--bite 483，census 431/749。**
+- **★葉子採盡＝實證確認（batch8 負結果，0 ported）**：build agent 比 scout 更深，立 rail 硬約束＝**value-op rail 只 Float/Color 埠**（無 Mat4/string）、**eval context 固定 16-byte GPU struct**（無 RequestedResolution 欄）、**point rail 是 GPU-dispatch 非純 CPU**。連 scout 報的「clean」候選（MulMatrix/TransformVec3/CpuPointToCamera）逐顆都需縫（matrix-port-type/resolution-context/string-value/GPU-kernel）。**genuinely-clean leaf 池＝0，318 顆未做 op 全 seam-gated。** 純自走葉子階段正式結束。
+- **★轉 seam 階段（柏為「你決定+不停+投資大接縫我自己決定」stance）**：選 **field-raymarch**（解鎖 39 已 port SDF→可見，dormant value 最大；bounded；非 owner-lock 列）。但 `89ea6a2` 可能已部分蓋（RaymarchField tex-op）→Plan scout 先 ground-truth 真實狀態 + autonomous-safe? + build blueprint，不盲寫 cook-core。
+- **✅ 維護加固 工作1（gate census `4e68d03`）+ 工作2（島7 拆檔 `6782e32`，refuter 5/5 resident byte-identical）**完成，詳見 history。剩 工作3（決定性 export 帶閘）綁 MV C 塊路2 未來做。
 - **✅ 工作2 — 島7 PointGraph 雙驅拆 TU**（merge `6782e32`）：兩驅 ~150 行 `cookCommand` 各 verbatim 抽進 leaf TU（`point_graph_command_cook.cpp` 236 / `point_graph_resident_command_cook.cpp` 247）。`point_graph.cpp` 868→730、`point_graph_resident.cpp` 717→556（淨 −299 移出 god-driver 進 <400 葉），cap 鎖到精確值。**★載重判斷：不假共享**——flat/resident 真分岔（int-id vs string-path / extraConns / S2 bypass / depth-cap / Mesh 容器）留兩 TU 分開，只共享本就抽好的真同邏輯。**Opus refuter MERGE-SAFE 5/5**：resident production 路 byte-identical（唯一改＝`kCookDepthCap`→`depthCap` 參數改名，語意同）、forwarding lambda context 完整、`warnCookDepthOnce` 仍單一 process-global。**4 守門每步全綠**（camera-scope 含 resident 腿）。internal.h 406→433 cap-raise refuter 判 **ACCEPT**（Impl member decl 必在 class 處、不可移；cap 鎖精確值零 slack）。
 - **✅ 工作1 — 閘缺口 census（驗證地基）**（`4e68d03`）：`gate_census.sh` + 7 島 SSOT + 接 `sw_status --check`（島裸→結帳紅）。refuter 證網非空轉。詳見 history。
 - 前批：folder-package-save（`8a817e5`）+ canvas-grid 接 theme（`e00f42d`）+ ColorThemeEditor（`63b35db`）詳見 history。
