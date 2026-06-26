@@ -35,4 +35,15 @@ double beatTimingBeatTime();
 // = TiXL BeatTiming.Bpm — (float)(60f / _beatDuration).
 float beatTimingBpm();
 
+// Enable/disable the audio-locked BeatTime branch (= TiXL EnableAudioBeatLocking setting).
+// When ON and a resync has happened, beatTimingUpdate() drives BeatTime from the smoothed
+// BeatSynchronizer.BarProgress (sliding_average de-jittered) instead of the manual clock.
+// DEFAULT off → manual-timing path stays byte-for-byte identical (existing golden unaffected).
+void beatTimingSetAudioBeatLocking(bool enable);
+bool beatTimingAudioBeatLockingEnabled();
+
+// Reset ALL beat-timing state to defaults (120 BPM, cleared taps/resyncs, lock off, average cleared).
+// Test-only entry so the audio-lock integration golden starts from a clean process-global state.
+void beatTimingResetForTest();
+
 }  // namespace sw::runtime

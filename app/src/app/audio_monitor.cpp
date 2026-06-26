@@ -2,6 +2,7 @@
 
 #include "runtime/attack_detector.h"
 #include "runtime/audio_analyzer.h"
+#include "runtime/beat_synchronizer.h"  // audio-buffer-rate beat tracking (= TiXL WASAPI UpdateBeatTimer)
 
 #include <atomic>
 #include <cmath>
@@ -16,6 +17,7 @@ SpectrumAnalyzer   g_spectrum;
 std::atomic<float> g_rms{0.0f};
 std::atomic<float> g_env{0.0f};
 unsigned long long g_sampleClock = 0;  // audio-thread only (drives the attack detector's clock)
+double             g_lastBeatSyncTimeSecs = -1.0;  // audio-thread only (beatSync delta-time source)
 }  // namespace
 
 void onBlock(void* /*user*/, const float* mono, int numFrames, float sampleRate) {
@@ -34,6 +36,17 @@ void onBlock(void* /*user*/, const float* mono, int numFrames, float sampleRate)
   g_env.store((float)out.envelope, std::memory_order_relaxed);
   g_rms.store(snap.rms, std::memory_order_relaxed);
   g_spectrum.processBlock(mono, numFrames, sampleRate);
+
+  // Per-audio-buffer beat tracking — this IS the TiXL WASAPI cadence (BeatSynchronizer.UpdateBeatTimer
+  // ran on every WASAPI buffer, NOT at 60Hz; FORK F1: we pass our own sample-derived clock instead of
+  // WasapiAudioInput.LastUpdateTime/TimeSinceLastUpdate). The audio-lock branch in beat_timing reads
+  // the result, but ONLY when EnableAudioBeatLocking is on (default off → this is inert until opted in,
+  // so it can't perturb the existing manual-timing golden). Audio-thread mutation / UI-thread read of
+  // the synchronizer's doubles matches TiXL's own threading (the SlidingAverage<10> de-jitters it).
+  const double nowSecs = (double)g_sampleClock / sampleRate;
+  const double dtSecs = (g_lastBeatSyncTimeSecs < 0.0) ? 0.0 : (nowSecs - g_lastBeatSyncTimeSecs);
+  g_lastBeatSyncTimeSecs = nowSecs;
+  runtime::beatSyncUpdate(g_spectrum.snapshot(), nowSecs, dtSecs);
 }
 
 float            rms() { return g_rms.load(std::memory_order_relaxed); }

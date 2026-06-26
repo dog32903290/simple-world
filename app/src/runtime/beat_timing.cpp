@@ -30,6 +30,9 @@
 #include <cmath>
 #include <vector>
 
+#include "runtime/beat_synchronizer.h"   // audio-lock branch consumer (F4 海口)
+#include "runtime/sliding_average.h"      // <-- the orphan,接上 here: bar-progress de-jitter
+
 namespace sw::runtime {
 
 namespace {
@@ -55,11 +58,27 @@ static bool   s_syncMeasureTriggeredLastFrame = false;
 static std::vector<double> s_tapTimes;      // BeatTiming._tapTimes
 static std::vector<double> s_resyncTimes;   // BeatTiming._resyncTimes
 
+// Audio-lock branch state (TiXL BeatTiming._barTimeAverage = new SlidingAverage(10)).
+// THIS is the orphan接上: SlidingAverage<10> smooths BeatSynchronizer.BarProgress so the
+// 60Hz display clock doesn't jitter against the per-audio-buffer bar phase (TiXL line 228).
+static SlidingAverage<10> s_barTimeAverage;
+// Gate (TiXL playback.Settings.Playback.EnableAudioBeatLocking). DEFAULT false → production keeps
+// the manual-timing branch byte-for-byte (existing golden unchanged); a caller opts in explicitly.
+static bool s_enableAudioBeatLocking = false;
+
 // ---- Helpers -----
 
 // BeatTiming.MeasureDuration (property)
 static double measureDuration() {
   return s_beatDuration * kBeatsPerMeasure;
+}
+
+// TiXL Playback.BarsFromSeconds(secs) = secs * Bpm / 240.0 (Playback.cs:147-149).
+// 1 bar = BeatsPerBar (4) beats, so secs→beats = secs*bpm/60, →bars = /4 → secs*bpm/240.
+// NOTE: the task brief suggested secs/measureDuration() (= secs*bpm/960, off by the 4
+// bars-per-measure factor) — TiXL source is authoritative, so we use /240.
+static double barsFromSeconds(double secs) {
+  return secs * (double)beatTimingBpm() / 240.0;
 }
 
 // TiXL BeatTiming.GetDeltaToSync(double time) — offset from nearest beat boundary.
@@ -97,8 +116,10 @@ void beatTimingUpdate(double runTimeSecs) {
   s_syncMeasureTriggeredLastFrame = false;
 
   if (tappedMeasureSync) {
-    // F3 fork: no BeatSynchronizer.Resync() — just mark resynced so AdvanceBeatTime below
-    // snaps to measure boundary via the _syncMeasureOffset path.
+    // TiXL BeatTiming.cs:52 — Resync the audio-lock tracker to the current tapped BPM, then mark
+    // resynced. The _syncMeasureOffset manual path below still runs; the audio-lock branch only
+    // takes over in AdvanceBeatTime when s_enableAudioBeatLocking is on (default off).
+    beatSyncResync(beatTimingBpm());
     s_resynced = true;
   }
 
@@ -185,12 +206,25 @@ void beatTimingUpdate(double runTimeSecs) {
       s_measureStartTime += measureDuration();
     }
 
-    // F4 fork: no AudioBeatLocking branch (requires BeatSynchronizer).
-    // We always take the manual-timing path:
-    // "var tInMeasure = (runTime - _measureStartTime) / MeasureDuration;"
-    // "BeatTime = (_measureCount + tInMeasure + _syncMeasureOffset) * BeatsPerBar;"
-    double tInMeasure = (runTime - s_measureStartTime) / measureDuration();
-    s_beatTime = (s_measureCount + tInMeasure + s_syncMeasureOffset) * kBeatsPerBar;
+    // TiXL BeatTiming.cs:160-171 — the audio-locked branch (now接通 via BeatSynchronizer +
+    // s_barTimeAverage) vs the manual-timing branch. F4 was "always manual"; we restore the real
+    // fork, gated by s_enableAudioBeatLocking (default false → manual path unchanged).
+    if (s_enableAudioBeatLocking && s_resynced) {
+      // TiXL: BeatTime = _barTimeAverage.UpdateAndCompute(BeatSynchronizer.BarProgress)
+      //                  + BarsFromSeconds(BeatLockAudioOffsetSec);
+      // offset = BeatLockAudioOffsetSec — no sw user-setting for it yet, so 0 (no audio-latency
+      // trim). barsFromSeconds(0)=0; the term is kept so wiring the setting later is one line.
+      const double offset = 0.0;  // = TiXL playbackSettings.Playback.BeatLockAudioOffsetSec
+      s_beatTime = (double)s_barTimeAverage.pushAndMean((float)beatSyncBarProgress())
+                   + barsFromSeconds(offset);
+      s_beatDuration = 60.0 / beatSyncCurrentBpm();  // TiXL line 165
+    } else {
+      // Manual-timing path (逐行不動 from the原 F4 branch):
+      // "var tInMeasure = (runTime - _measureStartTime) / MeasureDuration;"
+      // "BeatTime = (_measureCount + tInMeasure + _syncMeasureOffset) * BeatsPerBar;"
+      double tInMeasure = (runTime - s_measureStartTime) / measureDuration();
+      s_beatTime = (s_measureCount + tInMeasure + s_syncMeasureOffset) * kBeatsPerBar;
+    }
   }
 }
 
@@ -220,6 +254,25 @@ float beatTimingBpm() {
   // TiXL BeatTiming.Bpm => (float)(60f / _beatDuration)
   if (s_beatDuration < 1e-9) return 120.0f;  // guard div/0
   return (float)(60.0 / s_beatDuration);
+}
+
+void beatTimingSetAudioBeatLocking(bool enable) { s_enableAudioBeatLocking = enable; }
+bool beatTimingAudioBeatLockingEnabled() { return s_enableAudioBeatLocking; }
+
+void beatTimingResetForTest() {
+  s_beatTime = 0.0;
+  s_beatDuration = 0.5;  // 120 BPM
+  s_phaseDelta = 0.0;
+  s_measureStartTime = 0.0;
+  s_measureCount = 0.0;
+  s_syncMeasureOffset = 0.0;
+  s_resynced = false;
+  s_tapTriggeredLastFrame = false;
+  s_syncMeasureTriggeredLastFrame = false;
+  s_tapTimes.clear();
+  s_resyncTimes.clear();
+  s_barTimeAverage.reset();
+  s_enableAudioBeatLocking = false;
 }
 
 }  // namespace sw::runtime

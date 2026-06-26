@@ -585,6 +585,8 @@ add_executable(simple_world
   src/runtime/attack_detector.cpp
   src/runtime/audio_analyzer.cpp
   src/runtime/spectrum_analyzer.cpp
+  src/runtime/beat_synchronizer.cpp  # audio-locked BPM/bar tracker (port of TiXL Core/Audio/BeatSynchronizer.cs)
+  src/runtime/beat_lock_selftest.cpp # G2 SlidingAverage<10> de-jitter + G3 beat_timing audio-lock orphan接通
   src/runtime/bpm_detection.cpp
   src/runtime/bpm_provider.cpp       # [SetBpm] triggered-pull singleton (= TiXL Core/IO/BpmProvider.cs)
   src/runtime/detect_bpm.cpp
