@@ -46,6 +46,7 @@
 #include "selftests.h"
 #include "ui/asset_browser.h"  // AssetLibrary window (resource browser + click-to-create load-op)
 #include "ui/cjk_font.h"
+#include "ui/connection_ops.h"  // mountConnectionVerbs (connect/disconnect hand verbs)
 #include "ui/editor_ui.h"
 #include "ui/fence_preview.h"  // fenceLastCoveredJson (eye state surface for the live .scn)
 #include "ui/output_window.h"
@@ -293,6 +294,10 @@ Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
   sw::hand::setLearnArmHook([](int child, const char* slot) {
     sw::midibind::beginLearn(sw::doc::currentSymbolId(), child, std::string(slot));
   });
+  // `connect`/`disconnect` hand verbs -> the doc-driven wire mutation (ui/connection_ops fills the
+  // verify/hand fn-ptr slots; the agent text verb then walks the SAME AddWire/Reconnect a canvas pin
+  // drag would). One-line mount, like the OS-fullscreen seam below.
+  sw::ui::mountConnectionVerbs();
   // P6 OS-fullscreen seam (leaf-inversion: ui/view_modes can't include platform/).
   // Wired here so the F11 keymap handler + View > Fullscreen menu both reach the platform call.
   sw::ui::setOsFullScreenFn(&sw::platform::toggleOsFullScreen);

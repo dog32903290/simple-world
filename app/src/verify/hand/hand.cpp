@@ -48,6 +48,10 @@ std::deque<Step> g_pending;
 void (*g_midiInjectHook)(int, int, int) = nullptr;
 // App-owned MIDI-learn-arm hook (set via setLearnArmHook). The `learn` directive forwards to it.
 void (*g_learnArmHook)(int, const char*) = nullptr;
+// App-owned canvas-wire hooks (set via setConnectHook/setDisconnectHook). The `connect`/`disconnect`
+// directives forward bare ints + slot strings; null = the directive is a no-op (verify stays a leaf).
+void (*g_connectHook)(int, const char*, int, const char*) = nullptr;
+void (*g_disconnectHook)(int, const char*) = nullptr;
 // Gap 2: `selectnode <childId>` requests, applied by the canvas (editor current) rather
 // than expanded into mouse frames — a direct selection that skips coordinate hit-tests.
 // Separate queue from g_pending: these don't consume IO frames, they consume one drain
@@ -210,6 +214,21 @@ void parseLine(const std::string& line) {
     // the binding table is a side map, not ImGui IO, so it applies the moment the line is parsed.
     int ch, ctrl, val;
     if ((is >> ch >> ctrl >> val) && g_midiInjectHook) g_midiInjectHook(ch, ctrl, val);
+  } else if (op == "connect") {
+    // connect <srcChild> <srcSlot> <dstChild> <dstSlot> — wire (srcChild,srcSlot)->（dstChild,dstSlot)
+    // in the current compound via the app hook (the app validates + pushes the same AddWire/Reconnect
+    // a pin drag would). Slots are string ids. Immediate (side map, like midi): the lib is not ImGui
+    // IO, so it mutates the moment the line is parsed. No-op if the hook is unset (leaf).
+    int srcChild, dstChild;
+    std::string srcSlot, dstSlot;
+    if ((is >> srcChild >> srcSlot >> dstChild >> dstSlot) && g_connectHook)
+      g_connectHook(srcChild, srcSlot.c_str(), dstChild, dstSlot.c_str());
+  } else if (op == "disconnect") {
+    // disconnect <dstChild> <dstSlot> — remove the wire feeding that input via the app hook. Immediate.
+    int dstChild;
+    std::string dstSlot;
+    if ((is >> dstChild >> dstSlot) && g_disconnectHook)
+      g_disconnectHook(dstChild, dstSlot.c_str());
   } else if (op == "selectnode") {
     // selectnode <childId> — queue a DIRECT node-editor selection (gap 2). The childId is
     // the operator node's ed node id (ui/node_draw.cpp ed::BeginNode(child.id)); identity
@@ -275,6 +294,8 @@ bool hasPending() { return !g_pending.empty() || !g_selectNodes.empty(); }
 
 void setMidiInjectHook(void (*hook)(int, int, int)) { g_midiInjectHook = hook; }
 void setLearnArmHook(void (*hook)(int, const char*)) { g_learnArmHook = hook; }
+void setConnectHook(void (*hook)(int, const char*, int, const char*)) { g_connectHook = hook; }
+void setDisconnectHook(void (*hook)(int, const char*)) { g_disconnectHook = hook; }
 
 void feedLine(const char* line) { parseLine(line); }
 

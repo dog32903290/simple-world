@@ -48,6 +48,14 @@
 //   midi   <ch> <ctrl> <val>  inject a decoded MIDI ControllerChange into the app's live
 //                             binding table (P3 learn / cook-side wire), via the app-owned
 //                             hook below. A no-op if no hook is set (verify stays a leaf).
+//   connect <srcChild> <srcSlot> <dstChild> <dstSlot>
+//                             wire the current compound's (srcChild,srcSlot) output -> (dstChild,
+//                             dstSlot) input, via the app-owned hook (the app validates + pushes
+//                             the same AddWire/Reconnect a canvas pin drag would). Slots are string
+//                             ids. No-op if no hook is set (verify stays a leaf).
+//   disconnect <dstChild> <dstSlot>
+//                             remove whatever wire feeds the current compound's (dstChild,dstSlot)
+//                             input, via the app-owned hook. No-op if no hook / input unwired.
 // A click/drag spans multiple frames (ImGui needs down and up on separate
 // frames), so commands are expanded into per-frame steps and consumed one per
 // frame. After issuing a command, give the app a few frames before reading back.
@@ -64,6 +72,14 @@ void setMidiInjectHook(void (*hook)(int channel, int controllerId, int controlle
 // App-owned MIDI-learn-arm hook: the `learn` directive forwards (childId, slotId) here. The app sets
 // it to a wrapper around midibind::beginLearn (it knows the current composition id). Unset = no-op.
 void setLearnArmHook(void (*hook)(int childId, const char* slotId));
+
+// App-owned canvas-wire hooks (leaf inversion, same shape as the MIDI hooks above): the `connect` /
+// `disconnect` directives forward bare ints + slot strings here. The app (ui/connection_ops) fills
+// them with the doc-driven wire mutation — verify/hand never sees a SymbolConnection or any app/
+// graph type, it only passes int/const char* out. Unset (null) = the directive is a no-op.
+void setConnectHook(void (*hook)(int srcChild, const char* srcSlot,
+                                 int dstChild, const char* dstSlot));
+void setDisconnectHook(void (*hook)(int dstChild, const char* dstSlot));
 
 // Read+consume the SW_EYE_DIR/hand command file (if any), expand commands into
 // per-frame input steps. Cheap; safe to call every frame.

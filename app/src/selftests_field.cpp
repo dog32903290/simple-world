@@ -52,5 +52,6 @@ REGISTER_SELFTESTS(/*orderBase=*/26,
     {"field-setsdfmaterial", runFieldSetSDFMaterialGoldenSelfTest},
     {"field-raymarch", runFieldRaymarchSelfTest},
     {"raymarchfield-output", runRaymarchFieldOutputSelfTest},
+    {"connect-cooks", runConnectCooksSelfTest},  // connect VERB → production cook → sphere silhouette
 );
 }  // namespace sw

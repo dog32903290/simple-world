@@ -206,6 +206,8 @@ add_executable(simple_world
   src/ui/editor_ui.cpp
   src/ui/toolbar.cpp
   src/ui/combine_dialog.cpp
+  src/ui/connection_ops.cpp        # shared wire-edit (drag + connect/disconnect verbs) + verb hooks
+  src/ui/connect_verb_selftest.cpp # connect/disconnect verb golden (--selftest-hand-connect, headless)
   src/ui/node_menu_actions.cpp
   src/ui/copy_paste_ui.cpp
   src/ui/keymap.cpp
@@ -311,6 +313,7 @@ add_executable(simple_world
   src/field_render_golden.cpp
   src/field_raymarch_golden.cpp
   src/field_raymarch_output_golden.cpp
+  src/connect_cooks_golden.cpp  # connect VERB → production cook → sphere silhouette (--selftest-connect-cooks)
   src/particlefield_probe_golden.cpp
   src/vectorfieldforce_field_golden.cpp
   src/fielddistanceforce_field_golden.cpp
