@@ -206,6 +206,9 @@ add_executable(simple_world
   src/ui/canvas_ids.cpp
   src/ui/fence_preview.cpp
   src/ui/editor_ui.cpp
+  src/ui/editor_ui_grid.cpp         # canvas background grid (split from editor_ui.cpp)
+  src/ui/editor_ui_canvas_edit.cpp  # keyboard + delete macro (split from editor_ui.cpp)
+  src/ui/editor_ui_layout.cpp       # canvas position sync + drag (split from editor_ui.cpp)
   src/ui/toolbar.cpp
   src/ui/combine_dialog.cpp
   src/ui/connection_ops.cpp        # shared wire-edit (drag + connect/disconnect verbs) + verb hooks

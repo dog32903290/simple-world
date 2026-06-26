@@ -142,7 +142,12 @@ app/src/runtime/transport_selftest.cpp:429
 app/src/runtime/value_eval_ops.cpp:740
 app/src/runtime/value_op_perlinnoise3.cpp:455
 app/src/string_rail_golden.cpp:1605
-app/src/ui/editor_ui.cpp:518
+# editor_ui split (2026-06-27): 488→264, RATCHET ENTRY REMOVED (now <400, rule 8). editor_ui.cpp
+# was AT its 518 cap with zero headroom (blocking color-theme + other ui gaps). Mechanical split by
+# responsibility: canvas background grid → editor_ui_grid.{h,cpp}; keyboard + delete macro →
+# editor_ui_canvas_edit.{h,cpp}; canvas position sync + drag → editor_ui_layout.{h,cpp} (owns the
+# drag-start scratch). editor_ui.cpp is now the thin drawNodeCanvas coordinator. All new files <400,
+# need no entry; the cap is gone so the gain can't drift back up. Zero behavior change.
 # gradient-inspector (2026-06-26): +45 for the Gradient port detection loop + gradient bar
 # preview block (case A/B/C). The Float-port loop already owns the file structure; the gradient
 # block is additive. Split candidate: a future inspector_gradient.cpp for all Gradient-typed
