@@ -307,6 +307,7 @@ add_executable(simple_world
   src/runtime/field_ops_toroidalvortexfield.cpp
   src/runtime/field_ops_setsdfmaterial.cpp
   src/field_render_golden.cpp
+  src/field_raymarch_golden.cpp
   src/particlefield_probe_golden.cpp
   src/vectorfieldforce_field_golden.cpp
   src/fielddistanceforce_field_golden.cpp
@@ -642,6 +643,9 @@ target_compile_definitions(simple_world PRIVATE
   # reflect sibling of the VFF/FieldDistance/RandomJump templates above). Same string-asset rule; assembleFieldMSL
   # fills the SAME hooks; cookParticleSim compiles the result into a compute PSO keyed on srcHash.
   SW_FIELD_VOLUME_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/field_volume_force_template.metal"
+  # 3D sphere-trace render TEMPLATE (the renderField3d counterpart to the 2D SW_FIELD_TEMPLATE;
+  # the camera matrices + ray-march loop; same /*{GLOBALS}*/ /*{FLOAT_PARAMS}*/ /*{FIELD_CALL}*/ hooks).
+  SW_FIELD_RAYMARCH_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/field_raymarch_template.metal"
 )
 
 # The executable needs the metallib built before it runs.

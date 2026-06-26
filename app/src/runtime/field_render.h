@@ -29,6 +29,7 @@ class Texture;
 namespace sw {
 
 struct FieldNode;  // field_graph.h
+struct RaymarchTransforms;  // field_camera.h
 
 // Render the field tree rooted at `root` into a freshly-allocated R32Float texture of (w,h),
 // using `templateMsl` (the field render template contents). The output's RED channel carries the
@@ -47,6 +48,41 @@ struct FieldNode;  // field_graph.h
 // plain float-per-texel (no half-float decode). (TiXL renders to a float field target too.)
 MTL::Texture* renderField2d(MTL::Device* dev, MTL::CommandQueue* queue,
                             const std::shared_ptr<FieldNode>& root, const std::string& templateMsl,
+                            uint32_t w, uint32_t h);
+
+// RaymarchField render scalars (TiXL RaymarchSDFFieldTemplate.hlsl ParamConstants @ b1; defaults from
+// RaymarchField.t3). Only the march scalars (MaxSteps/StepSize/MinDistance/MaxDistance) drive the LIVE
+// TiXL output (the steps/MaxSteps glow grayscale, see template LIVE-OUTPUT FORK); the colors are for
+// the parity-deferred Blinn-Phong path. A caller may override before renderField3d for a known golden.
+struct RaymarchRenderParams {
+  float maxSteps = 100.0f;     // RaymarchField.t3 MaxSteps
+  float stepSize = 1.0f;       // StepSize (also the march D seed)
+  float minDistance = 0.002f;  // MinDistance
+  float maxDistance = 300.0f;  // MaxDistance
+  float distToColor = 0.15f;   // DistToColor (color path only)
+  float aoDistance = 1.0f;     // AoDistance (color path only)
+  // Colors (color path only — do NOT affect the live glow output). Faithful-ish placeholders.
+  float specular[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+  float glow[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+  float ambientOcclusion[4] = {0.0f, 0.0f, 0.0f, 0.002f};  // .a = AmbientOcclusion default (.t3 :64)
+  float background[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  float lightPos[3] = {1.0f, 1.0f, 1.0f};
+  float spec[2] = {0.5f, 30.0f};
+};
+
+// Render the field tree rooted at `root` as a 3D SPHERE-TRACED image (raymarch3D). Parallels
+// renderField2d but uses field_raymarch_template.metal: it binds the field param buffer at [[buffer(0)]],
+// the raymarch scalars at [[buffer(1)]], and the camera Transforms (row-major matrices) at [[buffer(2)]],
+// plus the Seam-A texture bindings, then draws a fullscreen triangle whose fragment unprojects a world
+// ray and sphere-traces the field. Output is an RGBA32Float texture (the live TiXL glow grayscale; R=G=B).
+// `xf` is the camera (host-built via field_camera.h, e.g. defaultRaymarchTransforms(aspect)). Returns an
+// OWNED MTL::Texture* (caller release()s) or nullptr on failure (null root, compile/PSO/alloc failure).
+//
+// REUSE: assembleFieldMSL / evalField are reused UNCHANGED — only the template (camera + sphere-trace)
+// differs from the 2D path, so the 16 existing SDF leaves cook byte-identically into both paths.
+MTL::Texture* renderField3d(MTL::Device* dev, MTL::CommandQueue* queue,
+                            const std::shared_ptr<FieldNode>& root, const std::string& templateMsl,
+                            const RaymarchTransforms& xf, const RaymarchRenderParams& params,
                             uint32_t w, uint32_t h);
 
 }  // namespace sw

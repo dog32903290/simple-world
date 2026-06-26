@@ -198,6 +198,12 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
       if (c.isBypassed) co["isBypassed"] = true;
       crude_json::array outState = childOutputStateToJson(c);
       if (!outState.empty()) co["outputs"] = crude_json::value(outState);
+      // Child UI fields (= TiXL SymbolUiJson.cs:97-128). OMITTED at default (= minimal file/diff,
+      // S15 back-compat: absent key -> default value on load). snapshotGroupIndex: 0=not relevant.
+      // connectionStyleOverride: 0=Default. collapsedInto: false=not collapsed.
+      if (c.snapshotGroupIndex != 0)      co["snapshotGroupIndex"]     = (crude_json::number)c.snapshotGroupIndex;
+      if (c.connectionStyleOverride != 0) co["connectionStyleOverride"] = (crude_json::number)c.connectionStyleOverride;
+      if (c.collapsedInto)                co["collapsedInto"]           = true;
       children.push_back(crude_json::value(co));
     }
     o["children"] = crude_json::value(children);
@@ -232,6 +238,10 @@ std::string libToJsonV2(const SymbolLibrary& lib) {
       }
       o["animator"] = crude_json::value(anim);
     }
+
+    // Symbol tags (= TiXL SymbolUiJson.cs:32-33 "Writing as bitmask" comment). Omitted when 0
+    // (= the untagged common case → minimal file/diff, S15 back-compat: absent = 0 on load).
+    if (s->symbolTags != 0) o["symbolTags"] = (crude_json::number)(int)s->symbolTags;
 
     // Annotation 批A (契約2): the optional "annotations" segment, sorted by id (= TiXL OrderBy(Id),
     // SymbolUiJson.cs:178 — a stable file = clean diffs, same intent as the symbols/connections sort).

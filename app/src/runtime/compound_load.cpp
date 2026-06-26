@@ -256,20 +256,18 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
             c.strOverrides[kv.first] = kv.second.get<crude_json::string>();
           }
         }
-        // Custom instance name (rename). S15-tolerant: a non-string/garbage `name` is simply
-        // dropped (the child keeps loading, falls back to the def name) — never fails the child.
+        // Custom instance name (rename). S15-tolerant: garbage dropped, child still loads.
         if (cv["name"].is_string()) c.name = cv["name"].get<crude_json::string>();
         if (cv["x"].is_number()) c.x = (float)cv["x"].get<crude_json::number>();
         if (cv["y"].is_number()) c.y = (float)cv["y"].get<crude_json::number>();
-        // S2 (批次7) structural补欄. isBypassed: a non-bool/garbage value is ignored (stays false).
-        // A COMPOUND child carrying isBypassed=true loads as-is and is LIVE since 修C (批次9): the
-        // resident builder rewires the child away (passthrough). Files saved during the 批次8
-        // atomic-only 收窄 carried the flag inert; loading them now applies the bypass they asked for.
-        // The per-output disabled/trigger segment is read by the helper (S15-tolerant: unknown output
-        // ids dropped locally, = the zombie-override scrub; refSym is the slot-existence authority).
+        // S2 (批次7) structural補欄 (S15-tolerant: garbage ignored, stays default).
         if (cv["isBypassed"].is_boolean()) c.isBypassed = cv["isBypassed"].get<bool>();
         if (cv["outputs"].is_array())
           childOutputStateFromJson(cv["outputs"], out.find(c.symbolId), c, s.id, warnings);
+        // Child UI fields (= TiXL SymbolUiJson.cs:460-478, S15-tolerant: absent = default).
+        if (cv["snapshotGroupIndex"].is_number())     c.snapshotGroupIndex      = (int)cv["snapshotGroupIndex"].get<crude_json::number>();
+        if (cv["connectionStyleOverride"].is_number()) c.connectionStyleOverride = (int)cv["connectionStyleOverride"].get<crude_json::number>();
+        if (cv["collapsedInto"].is_boolean())          c.collapsedInto           = cv["collapsedInto"].get<bool>();
         s.children.push_back(c);
       }
     }
@@ -386,6 +384,8 @@ bool libFromJsonAny(const std::string& json, SymbolLibrary& out,
       }
     }
 
+    // Symbol tags (= TiXL SymbolUiJson.cs:374-376). Absent = 0 (untagged, S15-tolerant).
+    if (sv["symbolTags"].is_number()) s.symbolTags = (uint32_t)(int)sv["symbolTags"].get<crude_json::number>();
     // Annotation 批A (契約2): the optional UI-only annotations segment (= TiXL ReadAnnotations). No
     // cross-reference to children/connections (annotation framing is a live geometric query, never a
     // persisted membership — 契約1), so it resolves independently here in phase 2. Absent = empty.

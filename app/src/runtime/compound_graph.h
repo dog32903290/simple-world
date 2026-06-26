@@ -99,6 +99,21 @@ struct SymbolChild {
   // every non-var instance (universal → zero churn). LAST member + default-empty so existing
   // positional aggregate inits stay valid (same discipline as the three S2 members above).
   std::map<std::string, std::string> strOverrides;  // slotId -> overridden text
+  // Child UI overrides (= TiXL SymbolUi.Child — Editor/UiModel/SymbolUi.Child.cs).
+  // Cook/eval NEVER reads these — pure authoring/UI metadata. 0/false = default (no override).
+  // Serialized in compound_save with the "omit at default" pattern (= minimal file/diff).
+  // LAST members so existing positional aggregate inits stay valid.
+  //   snapshotGroupIndex    — TiXL SymbolUi.Child.SnapshotGroupIndex (.cs:49); 0=not relevant,
+  //                           1=used for snapshots, >1=ParameterCollections.
+  //   connectionStyleOverride — TiXL SymbolUi.Child.ConnectionStyleOverrides (per-child global
+  //                           style hint, .cs:29); we store a single int for a single connection
+  //                           style (FORK named fork-B2: TiXL uses a per-target-id Dictionary,
+  //                           we simplify to one per-child value; sufficient for census gap).
+  //   collapsedInto         — TiXL SymbolUi.Child.CollapsedIntoAnnotationFrameId (.cs:40);
+  //                           true = this child is collapsed into its parent annotation frame.
+  int  snapshotGroupIndex     = 0;    // TiXL SnapshotGroupIndex; 0 = not relevant for snapshots
+  int  connectionStyleOverride = 0;   // TiXL ConnectionStyles enum int; 0 = Default
+  bool collapsedInto           = false; // TiXL IsCollapsedInto (noodle collapse into annotation)
 };
 
 // The display title of an instance = its custom name, or the referenced Symbol's name if blank
@@ -133,6 +148,20 @@ struct Symbol {
   // ({id, name, atomic, ...}) at the selftest call sites keep compiling. Serialized as the v2
   // "annotations" segment (compound_save), never into inputDefs/outputDefs/children/connections.
   std::vector<Annotation> annotations;
+  // Symbol tags (= TiXL SymbolUi.SymbolTags — Editor/UiModel/SymbolUi.cs:294-308).
+  // Bitmask; 0 = no tags. Added LAST so positional aggregate inits keep compiling.
+  // Cook/eval NEVER reads this — pure authoring metadata, same scope as annotations.
+  // FORK (named, fork-B1): TiXL has 10 tag values (Essential/Example/Project/Advanced/Internal/
+  // Private/Experimental/Research/NeedsFix/HasUpdate/Obsolete); we expose only the three that
+  // census gap `symbolTags` requires (Essential/Obsolete/NeedsFix). Additional bits are preserved
+  // verbatim on load/save so a future expansion is non-destructive.
+  enum SymbolTag : uint32_t {
+    kSymbolTagNone      = 0,
+    kSymbolTagEssential = 1u << 0,   // TiXL SymbolTags.Essential (show prominently)
+    kSymbolTagObsolete  = 1u << 12,  // TiXL SymbolTags.Obsolete  (demote in quick-add)
+    kSymbolTagNeedsFix  = 1u << 10,  // TiXL SymbolTags.NeedsFix  (flag for maintainers)
+  };
+  uint32_t symbolTags = 0;  // SymbolTag bitmask; 0 = untagged (= TiXL SymbolUi.Tags)
 };
 
 // Project-level playback/audio settings (= TiXL CompositionSettings / Playback.Settings —
