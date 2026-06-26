@@ -16,6 +16,7 @@
 #include "ui/keymap.h"
 #include "ui/node_draw.h"
 #include "ui/node_style.h"  // V1 grid color helpers, V2 connection line colors
+#include "ui/theme.h"  // theme::canvasBackground() — themable canvas Bg (was hardcoded literal)
 #include "ui/quick_add.h"   // Cmd+F palette (SearchGraph)
 
 #include <algorithm>
@@ -78,8 +79,9 @@ void drawNodeCanvas() {
   ed::GetStyle().Colors[ed::StyleColor_Grid] = ImVec4(0, 0, 0, 0);
   // Canvas background fill (TiXL UiColors.CanvasBackground = (0.12,0.12,0.12,0.98),
   // UiColors.cs:29). imgui-node-editor fills its whole view with StyleColor_Bg
-  // (default ImColor(60,60,70,200) — a bluish gray); override to TiXL's flat dark gray.
-  ed::GetStyle().Colors[ed::StyleColor_Bg] = ImVec4(0.12f, 0.12f, 0.12f, 0.98f);
+  // (default ImColor(60,60,70,200) — a bluish gray); override to the themed canvas color
+  // (default = TiXL's flat dark gray; a registry theme can recolor it).
+  ed::GetStyle().Colors[ed::StyleColor_Bg] = sw::ui::theme::canvasBackground();
   if (hostOpen && cur) {
     // V1: canvas background grid (TiXL DrawBackgroundGrids, Drawing.cs:377-396 multi-layer +
     // :398-426 single-layer loop). Called BEFORE ed::Begin so our draws land on the base

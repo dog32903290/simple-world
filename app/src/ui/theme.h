@@ -58,10 +58,20 @@ struct DefaultTheme {
   ImVec4 backgroundTabActive;    // Color.FromString("#3A3A3A")
   ImVec4 backgroundTabInActive;  // Color.FromString("#CC282828")
   ImVec4 selection;              // UiColors.Selection (white) — selected node outline
+
+  // --- Canvas colors (sw RENDERS these; they were hardcoded literals before this lane) ---
+  ImVec4 canvasBackground;       // UiColors.CanvasBackground — node-editor StyleColor_Bg fill
+  ImVec4 canvasGrid;             // UiColors.CanvasGrid — background grid line color (Fade by zoom ramp)
 };
 
 // The compiled-in default theme (TiXL UiColors defaults). Stable reference for the app's lifetime.
 const DefaultTheme& defaultTheme();
+
+// Canvas colors the UI draw sites read directly (the node-editor Bg fill + the background grid lines).
+// These reflect the ACTIVE theme: applyColors() latches the resolved canvas colors so a registry theme
+// can recolor the canvas. Until a theme is applied, they equal the compiled-in TiXL defaults.
+ImVec4 canvasBackground();
+ImVec4 canvasGrid();
 
 // ---- Named field table (mirrors TiXL's typeof(UiColors).GetFields() reflection) ------------------
 // A theme is, faithfully to TiXL, a string-keyed map of color fields. ColorMap is that map; the field

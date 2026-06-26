@@ -40,7 +40,16 @@ const DefaultTheme kDefault = {
     /*backgroundTabActive      */ ImVec4(58.0f / 255.0f, 58.0f / 255.0f, 58.0f / 255.0f, 1.0f),   // :44 #3A3A3A
     /*backgroundTabInActive    */ ImVec4(40.0f / 255.0f, 40.0f / 255.0f, 40.0f / 255.0f, 0.8f),   // :45 #CC282828 (A=0xCC=204/255=0.8)
     /*selection                */ ImVec4(1.0f, 1.0f, 1.0f, 1.0f),     // :78 Selection
+    // Canvas colors sw renders (UiColors.cs) ------------------------------------------------------
+    /*canvasBackground         */ ImVec4(0.12f, 0.12f, 0.12f, 0.98f), // :29 CanvasBackground
+    /*canvasGrid               */ ImVec4(0.0f, 0.0f, 0.0f, 0.15f),    // :63 CanvasGrid
 };
+
+// Active-theme latch for the canvas colors the UI draw sites read directly. Updated by every
+// applyResolved() (default apply() + applyColors()) so a registry theme recolors the canvas. Init to
+// the compiled-in TiXL defaults so reads before the first apply() are still byte-identical to TiXL.
+ImVec4 g_canvasBackground = ImVec4(0.12f, 0.12f, 0.12f, 0.98f);
+ImVec4 g_canvasGrid       = ImVec4(0.0f, 0.0f, 0.0f, 0.15f);
 
 // Color.Fade(f) = (r,g,b, clamp(a*f, 0, 1)) (Color.cs:527).
 ImVec4 fade(ImVec4 c, float f) {
@@ -86,6 +95,8 @@ const Field kFields[] = {
     {"BackgroundTabActive", &DefaultTheme::backgroundTabActive},
     {"BackgroundTabInActive", &DefaultTheme::backgroundTabInActive},
     {"Selection", &DefaultTheme::selection},
+    {"CanvasBackground", &DefaultTheme::canvasBackground},
+    {"CanvasGrid", &DefaultTheme::canvasGrid},
 };
 
 std::array<float, 4> toArr(const ImVec4& c) { return {c.x, c.y, c.z, c.w}; }
@@ -169,11 +180,19 @@ void applyResolved(const DefaultTheme& t) {
   s.ChildBorderSize       = 0;
   s.TabRounding           = 2;
   s.WindowBorderSize      = 0;
+
+  // Latch the canvas colors the UI draw sites read directly (these are NOT ImGui style slots; the
+  // node-editor Bg fill + the background grid are drawn by sw, see editor_ui.cpp / editor_ui_grid.cpp).
+  g_canvasBackground = t.canvasBackground;
+  g_canvasGrid       = t.canvasGrid;
 }
 
 }  // namespace
 
 const DefaultTheme& defaultTheme() { return kDefault; }
+
+ImVec4 canvasBackground() { return g_canvasBackground; }
+ImVec4 canvasGrid() { return g_canvasGrid; }
 
 const std::vector<std::string>& fieldNames() {
   static const std::vector<std::string> names = [] {
@@ -249,11 +268,15 @@ int runThemeSelfTest(bool injectBug) {
   eq("BackgroundTabActive", t.backgroundTabActive, ImVec4(58.0f/255.0f, 58.0f/255.0f, 58.0f/255.0f, 1.0f));
   eq("BackgroundTabInActive",t.backgroundTabInActive,ImVec4(40.0f/255.0f, 40.0f/255.0f, 40.0f/255.0f, 204.0f/255.0f));
   eq("Selection",           t.selection,           ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+  // Canvas colors sw renders (UiColors.cs:29 / :63). These were hardcoded literals in
+  // editor_ui.cpp / editor_ui_grid.cpp before this lane; now theme-driven, faithful to TiXL.
+  eq("CanvasBackground",    t.canvasBackground,    ImVec4(0.12f, 0.12f, 0.12f, 0.98f));
+  eq("CanvasGrid",          t.canvasGrid,          ImVec4(0.0f, 0.0f, 0.0f, 0.15f));
 
   // PASS leg: every field must match (fails==0). RED leg (injectBug): the corrupted ColorForGpuData
   // makes its assertion fail → fails>0 → exit non-zero (the tooth bites). No special-casing needed.
   bool ok = (fails == 0);
-  std::printf("[selftest-theme] fields=26 mismatches=%d injectBug=%d -> %s\n",
+  std::printf("[selftest-theme] fields=28 mismatches=%d injectBug=%d -> %s\n",
               fails, injectBug, ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
