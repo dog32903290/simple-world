@@ -6,19 +6,19 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: fc92eca
+HEAD: 9fa193e
 DIRTY: clean
-CENSUS: 423 / 749 done
-BITE: 455 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-26T02:42
+CENSUS: 424 / 749 done
+BITE: 457 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-26T09:09
 <!-- sw_status:end -->
 
-- 引擎 clone **56%（423/749）**。★**「clean-leaf 採盡」已被推翻**：S2/S3 脊椎一查發現早已蓋好+golden 綠 → texture-rail 上還有一大批乾淨 image/render 葉子可 absent-safe 並行採。**本 session 兩批已採 6 顆 image 葉子**（batch1 `627458b` Mandelbrot+DepthBuffer，batch2 `fc92eca` ImageLevels+RyojiPattern1+RyojiPattern2+HoneyCombTiles）。剩餘真 owner-lock seam＝S4 殘餘 infra+拆檔債、camera3d value-output、point-sprite render、生成器 t1 asset-bind（需柏為在場一次一條）。選葉子要先開 `.hlsl` 親看是否真單 pass（只看 `.cs` 會 mis-bucket）。
+- 引擎 clone **56%（424/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 三批已採 7 顆 image 葉子**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels）。**★方法論血證（3-4 次）：census/scout 系統性把「已建的 seam」誤報 gated → 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
 - **柏為-absent 自走可採 = 第三軸體驗復刻尾**（[EXPERIENCE_PARITY_PLAN](EXPERIENCE_PARITY_PLAN.md)：純皮 Tier1 / Output O3 / 維運），eye-hand 驗、不碰 cook-core。
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**image-leaf fan-out（absent-safe Phase C，無 owner-lock，自走中）。** ★**S2/S3 cook-core 脊椎＝已蓋好且 golden 綠**（六 golden 親驗 layercompose/execute/group/loop/switch/execrepeatedly 全 PASS；MultiInput Command collector flat+resident 雙路在 `point_graph.cpp:465`/`point_graph_resident.cpp:376`，已註冊產線）→ 舊「S2 需柏為授權」是 **stale snapshot**，S2 縫不需重開、動它只有回歸風險。「155 節點」是可達性計數非單縫解鎖→殘餘＝texture-rail 乾淨葉子 fan-out（LOW blast、self-registering 零共享檔、isolation:worktree 可並行）。**本 session 兩批 6 顆落地**（batch1 `627458b`、batch2 `fc92eca`，全 refuter 過、--bite 449→455）。重分類延後（需 seam）：NumberPattern→生成器 t1 asset-bind（digit atlas）、GlitchDisplace→point-sprite render、ConvertFormat→compute、AsciiRender→asset+rasterizer、MakeTileableImage(Advanced)→純 node-graph 無 shader。下批續採 image 島剩 ~46（先開 .hlsl vet）。
+**multi-image fixed-port leaf fan-out（absent-safe Phase C，無 owner-lock，自走中）。** S2/S3 脊椎 + multi-image gather 皆已建（golden 綠）→ 乾淨葉子 fan-out。**本 session 7 顆落地**（batch1 `627458b`、batch2 `fc92eca`、batch4 `9fa193e` CombineMaterialChannels=首顆多輸入葉子，全 refuter 過、--bite 449→457）。**下批續採 fixed-port 多輸入葉子**（re-vet 確認 fixed-port pixel-shader：FakeLight/HSE/MosiacTiling/CombineMaterialChannels…；逐顆 STEP-0 擋 compound/compute/trap——CompareImages 試採發現是 22-node compound 非 atomic，已擋）。**MULTIINPUT 變長輸入**（BlendImages/FirstValidTexture/PickTexture）需小 gather 擴充（mirror FloatList multiInput 進 Texture2D branch）=獨立小 seam，待採。batch3 recon：value-rail 是 float-only（Matrix/Dict/list-state/string-key 全 seam-gated），numbers 島乾淨葉子近零。
 
 ## Conflict Register
 - **（已解，留痕）** `field_sphere.scn` / `field_sdf_palette.scn` 紅的 5→4 是**隱藏回歸非 baseline drift**：`doc::g_lib` pre-main static 在 math-sink registrar 前呼 findSpec→AudioReaction(id8) 被靜默丟。`644d100` 改 g_lib 為 construct-on-first-use 修好，scn 數字不動（牙是對的）。教訓：scn 硬數字斷言紅了先 triage 隱藏回歸 vs intentional-drift，**別盲 rebase 數字遮 bug**。chip `task_2fc4a37a` 可關。
@@ -30,7 +30,7 @@ STAMP_AT: 2026-06-26T02:42
 - **`document.cpp` 卡在 ratchet 上限 400 行**（g_lib 改 lazy 時 trim 註解擠進）→下次動它前必先拆（已 chip `task_19264e66`），否則 linecount 閘擋。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。**★新的 absent-safe 大礦＝S2 殘餘 image/render leaf fan-out**（S2/S3 脊椎已建+golden 綠，texture-rail 是乾淨葉子地基；「純皮 Tier1 採盡」不再是天花板）。**選批先派 scout 開 `external/tixl` 的 `.hlsl` 親看「是否真單 pass fullscreen 濾鏡」**（本批 scout 只看 `.cs` signature → 4 顆有 2 顆 mis-bucket：GlitchDisplace 其實 point-sprite render、NumberPattern 需 digit-atlas asset 縫）→ 只派確認乾淨的桶 A 生成器 + 桶 B 單輸入濾鏡。**派 build agent 必設 `isolation:worktree`**（本批漏設→全落 main 共用樹）。每顆工法：STEP-0 backward-trace `.t3`（防 FloatsToBuffer 路由 trap）→ port .metal+self-register leaf → closed-form pixel golden（d=0 plateau/確定座標）→ orchestrator 中央一次 build+--bite → Opus refuter（本批 refuter 抓到 Mandelbrot sampler Clamp/Wrap 真 bug，值得每顆跑）→ commit。image 島剩 ~48，render 島剩 ~53 是接著的礦。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。**★absent-safe 大礦＝multi-image fixed-port image 葉子**（gather 已建綁 4 input texture；fixed Texture2D 多輸入 op = 乾淨葉子）。候選 re-vet 過：FakeLight/HSE/MosiacTiling（Fx-mod 像已 port 的 Displace/DistortAndShade）、OpticalFlow（注意可能 compute）。**★每顆 build agent 必跑硬 STEP-0**：(1) atomic op 有自己 `.hlsl`？還是 `.t3` 多節點 compound（Glow/CompareImages=compound，非葉子，BLOCK→需 compound-graph cut，柏為域）(2) fullscreen pixel-shader？還是 compute-reduction 寫 RWBuffer（非 image leaf）(3) fixed-port 還是 MultiInput<Texture2D>（變長需 gather 擴充）(4) FloatsToBuffer 路由 1:1？**派 build agent 必設 `isolation:worktree`**。工法：STEP-0→port .metal+self-register leaf（多輸入讀 `tc.inputTextures[0..N]`，鏡像 Combine3Images/CombineMaterialChannels2）→closed-form pixel golden 驅 **resident path**（生產路徑，鏡像 `resident_combine3images_selftest.cpp`）→中央 build+--bite→**Opus refuter 每顆必跑**（本 session refuter 抓到 Mandelbrot sampler+HoneyComb filter 兩個真 bug）→commit。**★方法論血證：別信 census/scout done/todo（3-4 次把已建 seam 誤報 gated）；ground-truth=Plan agent 深讀 cook path。** **★died-agent 救回**：isolation:worktree agent 若 process 中途退出，partial work 留在 `.claude/worktrees/agent-<id>/`（同 base 可 copy 進主樹親驗，CMC `9fa193e` 即如此救回）——重派前先查 worktree。
 **剩餘 owner-lock 縫（需柏為在場）**：S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field G3-bridge）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫（GlitchDisplace 家族）、生成器 t1 asset-bind 縫（NumberPattern/digit-atlas）。C 桶葉子（多影像/depth/compute/asset/field→image）卡這些縫。
 **柏為 decision queue**：①menu-bar chrome 範式（native-NSMenu vs TiXL-imgui）②`startup-lock-conform` unwired 葉子算不算 DONE 門檻③剩餘 owner-lock 縫的開採序。維運 chip：ui_census 其餘 4 區 false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`（已頂 400 ratchet，動前必拆）、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
