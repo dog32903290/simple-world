@@ -134,4 +134,6 @@ app/src/runtime/value_eval_ops.cpp:740
 app/src/runtime/value_op_perlinnoise3.cpp:455
 app/src/string_rail_golden.cpp:1605
 app/src/ui/editor_ui.cpp:518
-app/src/ui/keymap.cpp:756
+# +2 (2026-06-26): perf-overlay F10 key entry (include + kKeyTable row). Handler body lives in
+# perf_overlay.cpp. Irreducible: the table-driven architecture (鐵律7) requires one row per shortcut.
+app/src/ui/keymap.cpp:758

@@ -19,6 +19,7 @@
 #include "app/graph_commands.h"
 #include "app/soundtrack.h"  // soundtrack pick (file dialog) + status label
 #include "app/variation_live.h"  // P1 crossfader live pipe (seed slice + fader)
+#include "runtime/beat_timing.h"  // tap BPM engine (port of TiXL BeatTiming.cs)
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // specTypes / findSpec
 #include "verify/eye/eye.h"
@@ -62,6 +63,14 @@ void addNode(const std::string& type) { spawnNodeAt(type, 120.0f, 120.0f); }
 }  // namespace
 
 void drawToolbar() {
+  // Advance the tap-BPM engine every frame.
+  // FORK: TiXL BeatTiming.Update() reads Playback.RunTimeInSecs (a static global).
+  // sw has no public runTimeSecs in framecook, so we use ImGui::GetTime() — the application
+  // wall-clock in seconds from startup, same semantics (monotonic, origin 0 at process start).
+  // Named fork: sw_clock_source = ImGui::GetTime() != TiXL_Playback.RunTimeInSecs (but
+  // semantically identical for tap-BPM: both are process-lifetime wall seconds).
+  sw::runtime::beatTimingUpdate(ImGui::GetTime());
+
   const ImGuiViewport* vp = ImGui::GetMainViewport();
   ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + 12.0f, vp->WorkPos.y + 12.0f),
                           ImGuiCond_FirstUseEver);
@@ -157,6 +166,20 @@ void drawToolbar() {
     if (ImGui::DragScalar("BPM", ImGuiDataType_Double, &bpm, 0.5f, nullptr, nullptr, "%.1f"))
       sw::framecook::transportSetBpm(bpm);  // writes lib.composition.bpm (the persistence home)
     sw::eye::recordItem("BPM");
+    ImGui::SameLine();
+
+    // Tap BPM button (= TiXL TimeControls.cs:404 TriggerSyncTap, keyboard TapBeatSync).
+    // Each click records a tap timestamp; after >=4 taps the engine computes average inter-tap BPM
+    // and writes it to the transport. = TiXL BeatTiming.TriggerSyncTap() path.
+    if (ImGui::Button("Tap")) {
+      sw::runtime::beatTimingTriggerSyncTap();
+      // The new BPM is available immediately on the NEXT beatTimingUpdate() call (deferred-flag
+      // pattern, TiXL _tapTriggeredLastFrame). We call update once more here so the BPM is
+      // reflected in the transport this same frame — avoids a 1-frame lag on the tap button.
+      sw::runtime::beatTimingUpdate(ImGui::GetTime());
+      sw::framecook::transportSetBpm(sw::runtime::beatTimingBpm());
+    }
+    sw::eye::recordItem("Tap BPM");
     ImGui::SameLine();
 
     // Playback speed (= TiXL PlaybackSpeed; TimeControls.cs reaches ±16 by doubling — here one

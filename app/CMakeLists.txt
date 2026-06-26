@@ -216,6 +216,7 @@ add_executable(simple_world
   src/ui/quick_add_selftest.cpp
   src/ui/inspector.cpp
   src/ui/slider_ladder.cpp  # SliderLadder precision value-edit overlay (port of TiXL SliderLadder.cs)
+  src/ui/perf_overlay.cpp  # B-track gap perf-observability: FrameTime P99 grader + mini rolling graph (F10)
   src/ui/asset_browser.cpp  # EXP #2: AssetLibrary window (browse Lib: assets + click-to-create LoadImage)
   src/ui/inspector_param_menu.cpp
   src/ui/timeline_window.cpp
@@ -253,6 +254,7 @@ add_executable(simple_world
   src/platform/midi_loopback.mm
   src/platform/window_mode.mm
   src/platform/live_binding.cpp
+  src/runtime/beat_timing.cpp        # tap BPM engine (port of TiXL BeatTiming.cs)
   src/runtime/particle_system.cpp
   src/runtime/particle_decay_selftest.cpp
   src/runtime/field_graph.cpp

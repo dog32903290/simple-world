@@ -51,6 +51,7 @@
 #include "ui/timeline_window.h"
 #include "ui/view_modes.h"  // P6 g_focusMode / editorChromeVisible (演出/Focus mode gating)
 #include "ui/variation_panel.h"  // P2 Variation window (snapshot pool + N-way mix + crossfader)
+#include "ui/perf_overlay.h"  // B-track gap perf-observability: FrameTime P99 grader + mini-graph
 #include "app/midi_bind.h"        // P3 registerIoLiveSources (live MIDI/OSC input hook) + learnStateJson
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
@@ -375,6 +376,9 @@ void Renderer::draw(MTK::View* pView) {
   ImGui_ImplOSX_NewFrame(static_cast<void*>(pView));
   ImGui::NewFrame();
 
+  // Perf overlay: push this frame's delta time and recompute grade before any draw call.
+  sw::ui::updatePerfOverlay(ImGui::GetIO().DeltaTime);
+
   sw::eye::beginWidgetFrame();  // eye③: collect clickable widget rects this frame
 
   // P6 — Player /演出 mode: hide ALL editor chrome AND the canvas; the live render fills the whole
@@ -403,6 +407,10 @@ void Renderer::draw(MTK::View* pView) {
       sw::ui::drawAssetBrowser();   // AssetLibrary window (browse Lib: assets + click-to-create LoadImage)
     }
   }
+  // Perf mini-graph overlay: drawn last so it floats above all other windows.
+  // No-op when g_showPerfOverlay is false (default). Toggle with F10.
+  sw::ui::drawPerfMiniGraph();
+
   sw::doc::updateWindowTitle();  // filename + dirty star; no-op when unchanged
 
   ImGui::Render();

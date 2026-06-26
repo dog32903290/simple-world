@@ -25,6 +25,7 @@
 #include "ui/copy_paste_ui.h"
 #include "ui/quick_add.h"  // SearchGraph (Cmd+F) handler
 #include "ui/view_modes.h"  // P6 ToggleFocusMode (F12) / ToggleAllUiElements (Shift+Esc) / OsFullScreen (F11)
+#include "ui/perf_overlay.h"  // togglePerfOverlay (F10)
 
 namespace ed = ax::NodeEditor;
 
@@ -631,6 +632,7 @@ static const KeyEntry kKeyTable[] = {
     {"ToggleAllUiElements",         Context::Global,      sw::ui::handleToggleAllUiElements},
     {"ToggleFocusMode",             Context::Global,      sw::ui::handleToggleFocusMode},
     {"OsFullScreen",                Context::Global,      sw::ui::handleOsFullScreen},
+    {"TogglePerfOverlay",           Context::Global,      sw::ui::handlePerfOverlayKey},  // F10; sw-specific
 };
 static constexpr int kTableSize = (int)(sizeof(kKeyTable) / sizeof(kKeyTable[0]));
 
