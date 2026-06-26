@@ -159,6 +159,8 @@ add_executable(simple_world
   src/app_delegate.cpp
   ${SW_SELFTEST_SRCS}  # globbed: selftests.cpp router + selftests_<area>.cpp manifests + selftest_registry.cpp
   src/app/document.cpp
+  src/app/document_navigation.cpp  # composition-path nav + combine + resident paths (split from document.cpp)
+  src/app/document_io.cpp          # new/open/save lifecycle + dirty tracking + window title + selftest (split from document.cpp)
   src/app/snapshot.cpp  # out-snapshot-png: product Output→PNG action (path policy + TiXL timestamp)
   src/app/audio_settings.cpp
   src/app/keymap_prefs.cpp           # #11: user keymap JSON override store (cross-session rebinding)
