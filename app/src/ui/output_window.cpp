@@ -6,13 +6,10 @@
 // two different things. The cook target is decided by the pin in the shell (main.cpp); this
 // window only drives the pin and shows the result. OUTPUT_PIN_VIEWER_CONTRACT §4-A / §5.
 //
-// The image canvas is a faithful port of TiXL ImageOutputCanvas + ScalableCanvas:
-//   screenPos = (canvasPos - scroll) * scale + regionTopLeft   (ScalableCanvas.TransformPositionFloat)
-// The texture occupies canvas rect [0,0]..[W,H] so it NEVER stretches — a single uniform
-// `scale` preserves aspect; the unfilled area is the letterbox/pillarbox. Fit/1:1 = view modes
-// (ImageOutputCanvas.Modes); mouse-drag pans, wheel zooms around the cursor; a manual pan/zoom
-// flips Fitted/Pixel -> Custom (ImageOutputCanvas.UpdateViewMode). Damping is disabled (TiXL's
-// DisableDamping path) — the targets are applied immediately.
+// This file is the COORDINATOR: it lays out the toolbar + drives the viewport. The two heavy
+// sub-systems live in their own TUs (one file, one job):
+//   - output_window_canvas.{h,cpp}     — the aspect-correct image canvas (pan/zoom/fit math).
+//   - output_window_resolution.{h,cpp} — the Output resolution selector (preset table + apply).
 #include "ui/output_window.h"
 
 #include <algorithm>
@@ -24,6 +21,8 @@
 #include "app/document.h"
 #include "app/snapshot.h"  // saveSnapshot: product Output→PNG (TiXL OutputWindow Icon.Snapshot)
 #include "ui/editor_ui.h"  // g_pinnedNode (the session pin) + g_selectedNode (what Pin grabs)
+#include "ui/output_window_canvas.h"      // the aspect-correct image canvas (split out)
+#include "ui/output_window_resolution.h"  // the Output resolution selector (split out)
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec (a compound child resolves like an atomic, N1)
 #include "verify/eye/eye.h"  // one-line hook: record the Pin button rect for the hand
@@ -36,11 +35,9 @@ namespace sw {
 MTL::Texture* previewTexture();
 bool previewTextureSize(int& w, int& h);
 // Output-resolution-selector seam (S1-ui): the combo writes the frame render-size override the
-// cook seeds into RequestedResolution (cook-core hook landed in 1b53b12). A preset → set; Fill →
-// clear (back to window size, byte-identical to today). Defined in main.cpp (shell owns g_pointGraph).
-void setOutputResolutionOverride(int w, int h);
-void clearOutputResolutionOverride();
-bool outputWindowResolution(int& w, int& h);  // Fill baseline (TiXL GetWindowSize role)
+// cook seeds into RequestedResolution. The setters live in output_window_resolution.cpp; the
+// Fill baseline (TiXL GetWindowSize role) is read here. Defined in main.cpp (shell owns g_pointGraph).
+bool outputWindowResolution(int& w, int& h);
 // View background-color seam (TiXL OutputWindow._backgroundColor → EvaluationContext.BackgroundColor): the
 // picker (Command views only) forwards its color to the terminal Command executor's clear. Defined in main.cpp.
 void setOutputBackgroundColor(float r, float g, float b, float a);
@@ -61,105 +58,9 @@ std::string outputTypeOf(const sw::SymbolChild* c) {
   return "";
 }
 
-// --- the aspect-correct image canvas (port of TiXL ImageOutputCanvas + ScalableCanvas) ---
-enum class ViewMode { Fitted, Pixel, Custom };
-
-// Session-only view state, owned by this window (like TiXL's ImageOutputCanvas instance
-// fields). Never serialized — "how I'm looking", not "what I built".
-struct CanvasState {
-  float scale = 1.0f;     // uniform px-per-texel (aspect always preserved)
-  float scrollX = 0.0f;   // canvas-space scroll (TiXL Scroll)
-  float scrollY = 0.0f;
-  ViewMode mode = ViewMode::Fitted;
-};
-CanvasState g_canvas;
-
-// TiXL ScalableCanvas.ClampScaleToValidRange (non-timeline branch): [0.02, 40].
-float clampScale(float s) { return std::clamp(s, 0.02f, 40.0f); }
-
-// TiXL GetScopeForCanvasArea: fit the texture rect [0,0]..[texW,texH] into the region,
-// uniform scale (aspect preserved), centered. This is the load-bearing "no distortion" math.
-void fitToRegion(CanvasState& c, float texW, float texH, float regionW, float regionH) {
-  if (texW < 1.0f || texH < 1.0f || regionW < 1.0f || regionH < 1.0f) return;
-  const float texAspect = texW / texH;
-  const float regionAspect = regionW / regionH;
-  if (texAspect > regionAspect) {
-    c.scale = regionW / texW;                          // fit to width, center vertically
-    c.scrollX = 0.0f;
-    c.scrollY = -(regionH / c.scale - texH) * 0.5f;
-  } else {
-    c.scale = regionH / texH;                          // fit to height, center horizontally
-    c.scrollX = -(regionW / c.scale - texW) * 0.5f;
-    c.scrollY = 0.0f;
-  }
-}
-
-// TiXL Modes.Pixel: SetScaleToMatchPixels (scale -> 1). Recenter so 1:1 lands in the middle.
-void setPixelScale(CanvasState& c, float texW, float texH, float regionW, float regionH) {
-  c.scale = 1.0f;
-  c.scrollX = -(regionW - texW) * 0.5f;
-  c.scrollY = -(regionH - texH) * 0.5f;
-}
-
-// --- Output resolution selector (port of TiXL ResolutionHandling) ----------------------------
-// The preset TABLE is the canonical default set (ResolutionHandling.cs:69-78) — exact labels +
-// dims, in order, 隨 TiXL 不自編. `useAsAspectRatio` entries resolve through ComputeResolution
-// (window-aspect fit); fixed-pixel entries return their {w,h} verbatim. The Fill sentinel is
-// index 0 (DefaultResolution): selecting it CLEARS the cook override (== window size == today).
-// Data-driven (鐵律 7): one row per preset, the combo + apply both iterate the table.
-struct ResPreset {
-  const char* title;
-  int w, h;
-  bool useAsAspectRatio;
-};
-const ResPreset kResPresets[] = {
-    {"Fill", 0, 0, true},   {"1:1", 1, 1, true},   {"16:9", 16, 9, true},
-    {"4:3", 4, 3, true},    {"480p", 850, 480, false},  {"720p", 1280, 720, false},
-    {"1080p", 1920, 1080, false}, {"4k", 1920 * 2, 1080 * 2, false},
-    {"8k", 1920 * 4, 1080 * 4, false}, {"4k Portrait", 1080 * 2, 1920 * 2, false},
-};
-constexpr int kResPresetCount = static_cast<int>(sizeof(kResPresets) / sizeof(kResPresets[0]));
-
-// Session-only selection: index into kResPresets. 0 = Fill = DefaultResolution = follow window
-// (the cook default). Never serialized — matches the Pin (a view setting, not graph state) and
-// TiXL, which keeps _selectedResolution in the OutputWindow instance, not the .t3.
-int g_selectedResIndex = 0;
-
 // View background color (TiXL OutputWindow._backgroundColor, OutputWindow.cs:634). Session-only view state
 // (never serialized — same as the Pin). Default = TiXL's 0.1 grey (Command view clears here, faithful, not black).
 float g_viewBackground[4] = {0.1f, 0.1f, 0.1f, 1.0f};
-
-// TiXL Resolution.ComputeResolution (ResolutionHandling.cs:115-135). Fixed-pixel preset → its
-// own size. UseAsAspectRatio with 0/0 (Fill) → the window size verbatim. Otherwise fit the
-// requested aspect into the window: requested wider than window → fit width (letterbox), else fit
-// height (pillarbox). `winW/winH` is the Fill baseline = the cook's window resolution. Returns
-// {0,0} only if the window is degenerate (caller treats that as "leave override unset" = Fill).
-struct Int2 { int w, h; };
-Int2 computeResolution(const ResPreset& p, int winW, int winH) {
-  if (!p.useAsAspectRatio) return {p.w, p.h};
-  if (winW <= 0 || winH <= 0) return {0, 0};
-  if (p.w <= 0 || p.h <= 0) return {winW, winH};  // Fill: window size verbatim
-  const float windowAspect = static_cast<float>(winW) / static_cast<float>(winH);
-  const float requestedAspect = static_cast<float>(p.w) / static_cast<float>(p.h);
-  return (requestedAspect > windowAspect)
-             ? Int2{winW, static_cast<int>(winW / requestedAspect)}
-             : Int2{static_cast<int>(winH * requestedAspect), winH};
-}
-
-// Drive the cook-core override to match g_selectedResIndex. Fill (index 0) clears; any other
-// preset sets the computed size. `winW/winH` = the Fill-baseline window size (the size the cook
-// shows when no override is engaged). Called ON CHANGE (not every frame) so there is no cook
-// churn — the setters are idempotent, but we still gate on a change to keep the contract crisp.
-void applyResolutionSelection(int winW, int winH) {
-  const ResPreset& p = kResPresets[g_selectedResIndex];
-  if (g_selectedResIndex == 0) {  // Fill / DefaultResolution -> back to window size.
-    sw::clearOutputResolutionOverride();
-    return;
-  }
-  const Int2 r = computeResolution(p, winW, winH);
-  if (r.w > 0 && r.h > 0) sw::setOutputResolutionOverride(r.w, r.h);
-  else sw::clearOutputResolutionOverride();  // degenerate window -> behave as Fill
-}
 }  // namespace
 
 void drawOutputWindow() {

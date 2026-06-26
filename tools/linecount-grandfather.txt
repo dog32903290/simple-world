@@ -151,3 +151,9 @@ app/src/ui/inspector.cpp:445
 # +2 (2026-06-26): perf-overlay F10 key entry (include + kKeyTable row). Handler body lives in
 # perf_overlay.cpp. Irreducible: the table-driven architecture (鐵律7) requires one row per shortcut.
 app/src/ui/keymap.cpp:758
+# output_window split (2026-06-26): 400→301 RATCHET. output_window.cpp hit the hard 400 wall (blocking
+# 4 render-output gaps). Mechanical split by responsibility: the aspect-correct image canvas (pan/zoom/fit
+# math) → output_window_canvas.{h,cpp}; the Output resolution selector (preset table + apply) →
+# output_window_resolution.{h,cpp}. output_window.cpp is now the thin coordinator (toolbar + viewport
+# drive). Capped here so the gain can't drift back toward 400 — gate-or-it-rots. Lower again on further split.
+app/src/ui/output_window.cpp:301

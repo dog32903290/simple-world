@@ -240,6 +240,8 @@ add_executable(simple_world
   src/ui/annotation_interact.cpp
   src/ui/node_style.cpp
   src/ui/output_window.cpp
+  src/ui/output_window_canvas.cpp      # aspect-correct image canvas (split from output_window.cpp)
+  src/ui/output_window_resolution.cpp  # Output resolution selector (split from output_window.cpp)
   src/ui/variation_panel.cpp  # Lane L1 (Variation): P2 Variation window (snapshot grid + N-way mix + crossfader)
   src/metal_impl.cpp
   src/verify/eye/eye.mm
