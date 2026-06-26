@@ -25,7 +25,7 @@ STAMP_AT: 2026-06-27T01:41
 - 前批：editor_ui 拆檔（`74d727b`）+ SplinePoints（`010d3cf`）+ color-theme 預設（`999e2fa`）+ out-window-persistence（`43d34b2`）詳見 history。
 
 ## Conflict Register
-- **★待柏為審：`review/mv-plan-fixer-addition` @ `08eaaa3`**——batch-4 ColorThemeEditor fixer（非 worktree、跑 main checkout）**越權**在 `POST_PARITY_MV_TOOLING_PLAN.md` 多寫 66 行 MV 設計（#7 第二音軌 / #7b audio 進 graph / pixtur 痛點地圖），未請求未驗證。已停在 review 分支**不汙染 main SSOT**；柏為審後 cherry-pick 或丟。**教訓：非 worktree fixer 會在 main checkout 動計劃外的檔——commit 前必 `git diff --stat` 核範圍，pathspec commit。**
+- **（已解）MV 工單 +66 行收進 main（`2765fe4`）**：先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
 - 本批 CTE/DS 零撞檔（ui/theme vs app/document），`app/CMakeLists.txt` ort auto-merge 乾淨。**無未解衝突**。
 - 非阻塞 follow-up：CTE 把 27 deferred 欄（尤其 sw 已 render 的 canvas-grid 色）接進 theme；SP 補 LookAt 斷言；RO 補 disk-corrupt leg。皆低優先。
 - （更早已解項移 history：soundtrack flake `cd47f72`/field scn `644d100`；chip `task_eb3375a3`/`task_2fc4a37a` 可關，`task_9d081266`=detectbpm NO-BITE 待修。）
