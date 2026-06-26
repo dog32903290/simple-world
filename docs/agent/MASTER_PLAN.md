@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: c23c198
+HEAD: 73f2cfe
 DIRTY: clean
 CENSUS: 427 / 749 done
 BITE: 463 PASS | FAILED=[soundtrack] | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-26T15:46
+STAMP_AT: 2026-06-26T16:33
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,7 +18,7 @@ STAMP_AT: 2026-06-26T15:46
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-26 15:46 B 軌第三批落地）。** `c23c198` 新增 gradient-inspector（GradientEditor.cs 色帶預覽 widget，inspector output-port 三路：bar preview/wired/placeholder）→ B 軌 24→25。★**下一塊大的＝point-render 縫（等柏為 greenlight）**：解鎖最多（~18 Draw* ops），高 blast，柏為親口才動。absent-safe 剩：B 軌 23 gap 繼續。
+**none（2026-06-26 16:33 B 軌第四批落地）。** `73f2cfe` 新增 usage-count-weighting（quick-add 使用頻率 boost，1+500*c/total）+ animcanvas-vsnap（timeline Shift V-snap + Alt-hover 插 key）→ B 軌 25→27。★**下一塊大的＝point-render 縫（等柏為 greenlight）**。absent-safe 剩：B 軌 21 gap。
 
 ## Conflict Register
 - **（已解，留痕）** `field_sphere.scn` / `field_sdf_palette.scn` 紅的 5→4 是**隱藏回歸非 baseline drift**：`doc::g_lib` pre-main static 在 math-sink registrar 前呼 findSpec→AudioReaction(id8) 被靜默丟。`644d100` 改 g_lib 為 construct-on-first-use 修好，scn 數字不動（牙是對的）。教訓：scn 硬數字斷言紅了先 triage 隱藏回歸 vs intentional-drift，**別盲 rebase 數字遮 bug**。chip `task_2fc4a37a` 可關。
@@ -30,7 +30,7 @@ STAMP_AT: 2026-06-26T15:46
 - **`document.cpp` 卡在 ratchet 上限 400 行**（g_lib 改 lazy 時 trim 註解擠進）→下次動它前必先拆（已 chip `task_19264e66`），否則 linecount 閘擋。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。**L4 clean-leaf runway 乾 → absent-safe 剩 B 軌 UI gap**（23 gap，選法：`ui_census.sh --gaps`）。下一批優先：①`out-window-persistence`（.swproj 存輸出視窗 pin/解析度/相機，app/ 系列）②`out-background-color`（Command 輸出背景色 picker，output_window.cpp）③`value-snap-interface`（抽 timeline snap 為通用介面）；`port-drag-type-filter` BeginCreate 手勢擋跳過、`io-editor-interaction`/`audio-export-record` 需 platform 深工。**point-render 縫仍等柏為 greenlight**（高 blast）。**gradient-inspector interactive wire-back**（stop 拖動寫回 Float param overrides）待柏為手感簽收後做。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（步驟 1 硬規）。**absent-safe 剩 B 軌 21 gap**（選法：`ui_census.sh --gaps`）。下一批優先：①`symbol-tags`（graph.h 加 symbolTags 欄位 + quick-add Essential/Obsolete 篩選）②`child-ui-fields`（.t3ui comment/style）③其他 polish gap；`out-window-persistence`/`composition-path-persist` 需 document.cpp（已頂 400 ratchet，先拆 `task_19264e66` 才能動）。**point-render 縫仍等柏為 greenlight**。
 **剩餘 owner-lock 縫（需柏為在場）**：S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field G3-bridge）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫（GlitchDisplace 家族）、生成器 t1 asset-bind 縫（NumberPattern/digit-atlas）。C 桶葉子（多影像/depth/compute/asset/field→image）卡這些縫。
 **柏為 decision queue**：①menu-bar chrome 範式（native-NSMenu vs TiXL-imgui）②`startup-lock-conform` unwired 葉子算不算 DONE 門檻③剩餘 owner-lock 縫的開採序。維運 chip：ui_census 其餘 4 區 false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`（已頂 400 ratchet，動前必拆）、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
