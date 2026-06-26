@@ -5,6 +5,7 @@
 #include "ui/asset_browser.h"    // assetBrowserVisible (toolbar toggle; default-off tool window)
 #include "ui/editor_ui.h"
 #include "ui/variation_panel.h"  // variationPanelVisible (toolbar toggle; default-off tool window)
+#include "ui/theme_editor.h"      // themeEditorVisible (toolbar toggle; default-off tool window)
 
 #include <memory>
 #include <string>
@@ -130,6 +131,10 @@ void drawToolbar() {
   if (ImGui::Button(variationPanelVisible() ? "Vary*" : "Vary"))
     variationPanelVisible() = !variationPanelVisible();
   sw::eye::recordItem("toggle_vary");
+  ImGui::SameLine();
+  if (ImGui::Button(themeEditorVisible() ? "Theme*" : "Theme"))
+    themeEditorVisible() = !themeEditorVisible();
+  sw::eye::recordItem("toggle_theme");
   // Audio input device picker (Ableton-style): list the machine's inputs and route
   // capture to the chosen one. ui -> app(audio_settings) -> platform; the pick persists.
   ImGui::SetNextItemWidth(240.0f);

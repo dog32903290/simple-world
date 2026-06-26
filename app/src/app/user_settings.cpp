@@ -42,15 +42,19 @@ std::string UserSettings::toJson() const {
   crude_json::array arr;
   for (const std::string& p : recent_) arr.push_back(crude_json::value(p));
   crude_json::object root;
-  root["version"]     = (crude_json::number)1;
-  root["recentFiles"] = crude_json::value(arr);
+  root["version"]        = (crude_json::number)1;
+  root["recentFiles"]    = crude_json::value(arr);
+  root["colorThemeName"] = crude_json::value(colorThemeName_);
   return crude_json::value(root).dump(2);
 }
 
 bool UserSettings::fromJson(const std::string& json) {
   recent_.clear();
+  colorThemeName_.clear();
   crude_json::value root = crude_json::value::parse(json);
   if (root.is_discarded() || !root.is_object()) return false;
+  if (root.contains("colorThemeName") && root["colorThemeName"].is_string())
+    colorThemeName_ = root["colorThemeName"].get<crude_json::string>();
   if (root.contains("recentFiles") && root["recentFiles"].is_array()) {
     for (auto& e : root["recentFiles"].get<crude_json::array>()) {
       if (!e.is_string()) continue;
@@ -82,6 +86,7 @@ bool UserSettings::load(const std::string& path) {
   std::ifstream f(path);
   if (!f) {  // missing file => empty store (no error)
     recent_.clear();
+    colorThemeName_.clear();
     return true;
   }
   std::ostringstream ss;
@@ -89,6 +94,7 @@ bool UserSettings::load(const std::string& path) {
   const std::string contents = ss.str();
   if (contents.empty()) {  // empty file => empty store
     recent_.clear();
+    colorThemeName_.clear();
     return true;
   }
   return fromJson(contents);  // present-but-corrupt => false (recent_ left empty by fromJson)

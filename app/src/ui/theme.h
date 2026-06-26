@@ -5,18 +5,21 @@
 //   - ColorVariations.cs: the HSV variation factors (b/s/op) applied on top of a base color
 //   - T3Style.Apply()  : copies UiColors into ImGui::GetStyle().Colors[...] + sets style metrics
 //
-// This file holds ONLY the default theme's literal constants (the "default theme table") plus a
-// theme::apply() that drives ImGui's global style from them — faithful to T3Style.Apply(). The HSV
-// variation MATH stays in node_style.cpp (it consumes defaultTheme().base* for the per-node tints).
+// This file holds the default theme's literal constants (the "default theme table"), a NAMED FIELD
+// TABLE (mirrors TiXL's reflection over typeof(UiColors).GetFields()), and a theme::apply() that
+// drives ImGui's global style — faithful to T3Style.Apply(). The HSV variation MATH stays in
+// node_style.cpp (it consumes defaultTheme().base* for the per-node tints).
 //
 // Zone: ui (pure ImGui styling, same as cjk_font / node_style). Reads no graph, mutates only the
-// ImGui style. Wired from the app shell init (app_delegate.cpp) right after StyleColorsDark(),
-// exactly like loadCjkFont() — NOT from editor_ui.cpp.
-//
-// DEFERRED (follow-up, intentionally NOT built this lane): the ColorThemeEditor ImGui UI, multiple
-// named themes + runtime switching, and file persistence of user-edited themes. Just the faithful
-// default + apply() here.
+// ImGui style. The DEFAULT apply() is wired from the app shell init (app_delegate.cpp) right after
+// StyleColorsDark(), exactly like loadCjkFont(). The Color-Theme-Editor window + the registry that
+// persists user themes drive applyColors() at runtime (registry = app zone, see app/theme_registry).
 #pragma once
+
+#include <array>
+#include <map>
+#include <string>
+#include <vector>
 
 #include "imgui.h"
 
@@ -60,9 +63,28 @@ struct DefaultTheme {
 // The compiled-in default theme (TiXL UiColors defaults). Stable reference for the app's lifetime.
 const DefaultTheme& defaultTheme();
 
-// = T3Style.Apply(): drive ImGui::GetStyle().Colors[...] + style metrics from the default theme.
-// Call once at app init (after ImGui::StyleColorsDark(), before the first frame). Idempotent.
+// ---- Named field table (mirrors TiXL's typeof(UiColors).GetFields() reflection) ------------------
+// A theme is, faithfully to TiXL, a string-keyed map of color fields. ColorMap is that map; the field
+// NAMES are exactly the UiColors field names TiXL persists into ColorTheme.Colors (PascalCase). The
+// fieldNames() order is the canonical editor + serialization order (stable across runs).
+using ColorMap = std::map<std::string, std::array<float, 4>>;
+
+// The ordered list of theme color field names (UiColors PascalCase, e.g. "ColorForValues", "Text").
+const std::vector<std::string>& fieldNames();
+
+// The default theme as a ColorMap (every fieldNames() key → its TiXL default RGBA). This is the
+// FactoryTheme palette (ThemeHandling.FactoryTheme). Built once from defaultTheme().
+const ColorMap& defaultColorMap();
+
+// = T3Style.Apply() driven by the COMPILED-IN default theme. Call once at app init (after
+// ImGui::StyleColorsDark(), before the first frame). Idempotent. Equivalent to applyColors(defaultColorMap()).
 void apply();
+
+// = T3Style.Apply() driven by an arbitrary theme palette (the active registry theme). Any field
+// missing from `colors` falls back to its TiXL default, so a partial/hand-edited theme still yields a
+// complete, valid style (mirrors ThemeHandling.ApplyTheme: only present keys override). The style
+// metrics (padding/rounding/…) are theme-independent and always the TiXL values.
+void applyColors(const ColorMap& colors);
 
 // Isolation test (ARCHITECTURE.md rule 5): assert defaultTheme() RGBA == the TiXL constants
 // (closed-form per-field), with an inject-bug RED leg (perturb one field → mismatch).

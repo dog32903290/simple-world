@@ -36,5 +36,6 @@ REGISTER_SELFTESTS(/*orderBase=*/500,
     {"graphdump", ui::runGraphDumpSelfTest},       // req_graph → graph.json of current compound (免座標 id 來源)
     {"eye-occlusion", eye::runOcclusionSelfTest},  // map.json occluded flag: covered widget reports occluded
     {"theme", ui::theme::runThemeSelfTest},        // default theme table == TiXL UiColors constants (value-golden)
+    {"theme-roundtrip", runThemeRegistrySelfTest}, // color-theme registry: construct→save→reload bit-for-bit survival (+RED leg)
 );
 }  // namespace sw

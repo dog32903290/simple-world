@@ -48,6 +48,12 @@ class UserSettings {
   // The cap (max kept). Mirrors TiXL's 10 named-layout slots — a TiXL-adjacent ceiling.
   static int maxRecent() { return 10; }
 
+  // ---- Active color theme name (= TiXL UserSettings.Config.ColorThemeName) ------------------------
+  // The name of the user-selected color theme; empty means the factory/default theme. Persisted with
+  // the rest of the settings (ThemeHandling.SetThemeAsUserTheme writes UserSettings.Config + Save()).
+  const std::string& colorThemeName() const { return colorThemeName_; }
+  void setColorThemeName(const std::string& name) { colorThemeName_ = name; }
+
   // ---- JSON round-trip (crude_json) — pure, no disk so the selftest round-trips headless. --------
   std::string toJson() const;
   bool        fromJson(const std::string& json);  // false on parse failure (store left empty)
@@ -58,6 +64,7 @@ class UserSettings {
 
  private:
   std::vector<std::string> recent_;  // most-recent-first, deduped, capped at maxRecent()
+  std::string colorThemeName_;       // active color theme name ("" = factory/default)
 };
 
 // Process-wide singleton + its default home-dir path (mirrors keymap_prefs::prefs/defaultPrefsPath).

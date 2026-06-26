@@ -24,6 +24,7 @@
 #include "app/audio_settings.h"
 #include "app/keymap_prefs.h"  // #11: user keymap override store (loadUserKeymap at startup)
 #include "app/user_settings.h"  // #12: recent-files MRU store (loadUserSettings at startup)
+#include "app/theme_registry.h"  // color-theme registry + persistence (loadThemes at startup)
 #include "app/audio_monitor.h"
 #include "app/command.h"
 #include "app/document.h"
@@ -54,6 +55,8 @@
 #include "ui/timeline_window.h"
 #include "ui/view_modes.h"  // P6 g_focusMode / editorChromeVisible (演出/Focus mode gating)
 #include "ui/variation_panel.h"  // P2 Variation window (snapshot pool + N-way mix + crossfader)
+#include "ui/theme_editor.h"      // Color Theme Editor window (dropdown + per-field color edits)
+#include "ui/theme.h"             // applyColors (apply the active user theme at startup)
 #include "ui/perf_overlay.h"  // B-track gap perf-observability: FrameTime P99 grader + mini-graph
 #include "app/midi_bind.h"        // P3 registerIoLiveSources (live MIDI/OSC input hook) + learnStateJson
 #include "verify/eye/eye.h"
@@ -347,6 +350,11 @@ void Renderer::draw(MTK::View* pView) {
       sw::audio::loadPrefs();
       sw::km::loadUserKeymap();  // #11: apply the user keymap JSON (if any) so rebinds take effect
       sw::settings::loadUserSettings();  // #12: load recent-files MRU (if any) for File > Open Recent
+      // Color themes (= ThemeHandling.Initialize): load user themes from disk, then apply the active
+      // one (UserSettings.ColorThemeName → that theme's palette, else factory = compiled-in default).
+      sw::theme::loadThemes();
+      sw::ui::theme::applyColors(
+          sw::theme::registry().userOrFactory(sw::settings::settings().colorThemeName()).colors);
       s_audioPrefsLoaded = true;
     }
     unsigned int audioDev = 0;
@@ -421,6 +429,7 @@ void Renderer::draw(MTK::View* pView) {
       sw::ui::drawOutputWindow();   // the live preview viewport (view ⊥ graph, pinned/terminal)
       sw::ui::drawVariationPanel(); // P2 Variation window (snapshot pool grid + N-way mix + crossfader)
       sw::ui::drawAssetBrowser();   // AssetLibrary window (browse Lib: assets + click-to-create LoadImage)
+      sw::ui::drawThemeEditor();    // Color Theme Editor (dropdown + name/author + per-field color edits)
     }
   }
   // Perf mini-graph overlay: drawn last so it floats above all other windows.

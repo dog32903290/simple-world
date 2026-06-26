@@ -49,14 +49,64 @@ ImVec4 fade(ImVec4 c, float f) {
   return c;
 }
 
-}  // namespace
+// ---- Named field table (mirrors UiColors PascalCase field names TiXL persists) ------------------
+// ONE source of truth: name ↔ pointer-to-DefaultTheme-member. fieldNames(), defaultColorMap(), the
+// editor, and applyColors() all ride this. The names are the exact UiColors field names so the
+// on-disk JSON keys match TiXL's ColorTheme.Colors dictionary keys (cross-tool readable).
+struct Field {
+  const char* name;
+  ImVec4 DefaultTheme::*member;
+};
+const Field kFields[] = {
+    {"ColorForValues", &DefaultTheme::colorForValues},
+    {"ColorForString", &DefaultTheme::colorForString},
+    {"ColorForTextures", &DefaultTheme::colorForTextures},
+    {"ColorForDX11", &DefaultTheme::colorForDX11},
+    {"ColorForCommands", &DefaultTheme::colorForCommands},
+    {"ColorForGpuData", &DefaultTheme::colorForGpuData},
+    {"ColorForShaderGraph", &DefaultTheme::colorForShaderGraph},
+    {"Text", &DefaultTheme::text},
+    {"TextDisabled", &DefaultTheme::textDisabled},
+    {"BackgroundButton", &DefaultTheme::backgroundButton},
+    {"BackgroundHover", &DefaultTheme::backgroundHover},
+    {"BackgroundActive", &DefaultTheme::backgroundActive},
+    {"PopupBorder", &DefaultTheme::popupBorder},
+    {"BackgroundGaps", &DefaultTheme::backgroundGaps},
+    {"BackgroundInputField", &DefaultTheme::backgroundInputField},
+    {"BackgroundInputFieldHover", &DefaultTheme::backgroundInputFieldHover},
+    {"BackgroundInputFieldActive", &DefaultTheme::backgroundInputFieldActive},
+    {"ScrollbarBackground", &DefaultTheme::scrollbarBackground},
+    {"ScrollbarHandle", &DefaultTheme::scrollbarHandle},
+    {"WindowResizeHandle", &DefaultTheme::windowResizeHandle},
+    {"WindowBackground", &DefaultTheme::windowBackground},
+    {"BackgroundPopup", &DefaultTheme::backgroundPopup},
+    {"CheckMark", &DefaultTheme::checkMark},
+    {"BackgroundTabActive", &DefaultTheme::backgroundTabActive},
+    {"BackgroundTabInActive", &DefaultTheme::backgroundTabInActive},
+    {"Selection", &DefaultTheme::selection},
+};
 
-const DefaultTheme& defaultTheme() { return kDefault; }
+std::array<float, 4> toArr(const ImVec4& c) { return {c.x, c.y, c.z, c.w}; }
 
-// = T3Style.Apply() (T3Style.cs:24-94). Copies UiColors into style.Colors[...] + sets metrics.
-// Only the slots TiXL actually overrides are set; ImGui's StyleColorsDark() fills the rest.
-void apply() {
-  const DefaultTheme& t = kDefault;
+// Look up a field by name in a ColorMap, falling back to the compiled-in default (so a partial theme
+// still applies a complete style — mirrors ThemeHandling.ApplyTheme "only present keys override").
+ImVec4 colorOr(const ColorMap& m, const char* name, ImVec4 fallback) {
+  auto it = m.find(name);
+  if (it == m.end()) return fallback;
+  const auto& a = it->second;
+  return ImVec4(a[0], a[1], a[2], a[3]);
+}
+
+// Resolve a complete DefaultTheme from a (possibly partial) ColorMap: every field = the map value if
+// present, else the compiled-in default. Both apply paths build their ImGui style from this struct.
+DefaultTheme resolve(const ColorMap& m) {
+  DefaultTheme t = kDefault;
+  for (const Field& f : kFields) t.*(f.member) = colorOr(m, f.name, kDefault.*(f.member));
+  return t;
+}
+
+// Drive ImGui's global style from a fully-resolved DefaultTheme = T3Style.Apply() body.
+void applyResolved(const DefaultTheme& t) {
   ImGuiStyle& s = ImGui::GetStyle();
   ImVec4* c = s.Colors;
 
@@ -101,7 +151,7 @@ void apply() {
   c[ImGuiCol_HeaderActive]        = fade(t.backgroundActive, 0.8f);
   c[ImGuiCol_DragDropTarget]      = ImVec4(1.0f, 1.0f, 1.0f, 0.0f);  // Color.Transparent
 
-  // Style metrics (T3Style.cs:79-93).
+  // Style metrics (T3Style.cs:79-93). Theme-independent (TiXL applies these in every Apply()).
   s.WindowPadding         = ImVec2(0, 0);
   s.FramePadding          = ImVec2(7, 4);
   s.ItemSpacing           = ImVec2(1, 1.49f);
@@ -118,6 +168,35 @@ void apply() {
   s.TabRounding           = 2;
   s.WindowBorderSize      = 0;
 }
+
+}  // namespace
+
+const DefaultTheme& defaultTheme() { return kDefault; }
+
+const std::vector<std::string>& fieldNames() {
+  static const std::vector<std::string> names = [] {
+    std::vector<std::string> v;
+    v.reserve(sizeof(kFields) / sizeof(kFields[0]));
+    for (const Field& f : kFields) v.emplace_back(f.name);
+    return v;
+  }();
+  return names;
+}
+
+const ColorMap& defaultColorMap() {
+  static const ColorMap m = [] {
+    ColorMap out;
+    for (const Field& f : kFields) out[f.name] = toArr(kDefault.*(f.member));
+    return out;
+  }();
+  return m;
+}
+
+// = T3Style.Apply() (T3Style.cs:24-94) from the compiled-in default theme.
+void apply() { applyResolved(kDefault); }
+
+// = T3Style.Apply() from an arbitrary (registry) theme palette — missing fields fall back to default.
+void applyColors(const ColorMap& colors) { applyResolved(resolve(colors)); }
 
 int runThemeSelfTest(bool injectBug) {
   DefaultTheme t = defaultTheme();  // copy so the inject-bug leg can perturb a field

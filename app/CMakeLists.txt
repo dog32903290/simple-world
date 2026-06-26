@@ -167,6 +167,8 @@ add_executable(simple_world
   src/app/user_settings_selftest.cpp # #12: push→save→reload round-trip gate (--selftest-user-settings)
   src/app/output_window_state.cpp           # out-window-persistence: Output view-state store (pin/res/bg) + per-project sidecar
   src/app/output_window_state_selftest.cpp  # out-window-persistence: save→reload round-trip gate (--selftest-output-window-state)
+  src/app/theme_registry.cpp                # color-theme-system: named-theme registry + per-theme JSON persistence (~/.simple_world/Themes)
+  src/app/theme_registry_selftest.cpp       # color-theme-system: construct→save→reload bit-for-bit gate (--selftest-theme-roundtrip)
   src/app/audio_monitor.cpp
   src/app/command.cpp
   src/app/graph_commands.cpp
@@ -245,6 +247,7 @@ add_executable(simple_world
   src/ui/annotation_interact.cpp
   src/ui/node_style.cpp
   src/ui/theme.cpp
+  src/ui/theme_editor.cpp     # color-theme-system: Color Theme Editor window (dropdown + name/author + per-field color edits)
   src/ui/output_window.cpp
   src/ui/output_window_canvas.cpp      # aspect-correct image canvas (split from output_window.cpp)
   src/ui/output_window_resolution.cpp  # Output resolution selector (split from output_window.cpp)
