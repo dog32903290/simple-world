@@ -17,6 +17,7 @@
 #include "app/variation_panel.h"    // P2 Variation panel pool (reset on document swap)
 #include "app/midi_bind.h"          // P3 live bindings (reset on document swap)
 #include "app/user_settings.h"      // #12: noteRecentFile — push opened/saved project to recent-files MRU
+#include "app/output_window_state.h" // out-window-persistence: save/restore Output view state per-project (sidecar)
 
 namespace sw::doc {
 
@@ -211,10 +212,10 @@ bool doSaveAs() {
   }
   g_documentPath = path;
   g_savedSnapshot = json;
-  invalidateDirtyCache();  // snapshot changed but the revision didn't — a stale cached
-                           // `true` would keep the title's • lit until the next command
+  invalidateDirtyCache();  // snapshot changed but revision didn't — a stale cached `true` keeps the • lit
   g_status = "saved -> " + path;
   sw::settings::noteRecentFile(path);  // #12: Save As pushes the new path to recent-files MRU
+  sw::settings::saveOutputWindowStateFor(path);  // out-window-persistence: write the view-state sidecar
   return true;
 }
 
@@ -230,14 +231,13 @@ bool doSave() {
   invalidateDirtyCache();  // same stale-• hazard as doSaveAs
   g_status = "saved -> " + g_documentPath;
   sw::settings::noteRecentFile(g_documentPath);  // #12: Save re-pushes path to front of recent MRU
+  sw::settings::saveOutputWindowStateFor(g_documentPath);  // out-window-persistence: write the sidecar
   return true;
 }
 
-// Dialog-free load+swap: the shared body of doOpen and the `--open <file>` CLI seam.
-// Tolerant two-phase loader (S15): reads v2 AND legacy v1 (auto-migrated through the
-// bridge); local problems are dropped with warnings, shown on the status line. The doc IS
-// a lib now — files with compound children open directly (the graphFromLib refusal died
-// with the flat editor). Only swaps the live lib in on success.
+// Dialog-free load+swap: the shared body of doOpen and the `--open <file>` CLI seam. Tolerant
+// two-phase loader (S15): reads v2 AND legacy v1 (auto-migrated); local problems drop to warnings on
+// the status line. Files with compound children open directly. Only swaps the live lib in on success.
 bool doOpenPath(const std::string& path, bool quiet) {
   sw::SymbolLibrary lib;
   std::vector<std::string> warnings;
@@ -261,6 +261,7 @@ bool doOpenPath(const std::string& path, bool quiet) {
   g_relayout = true;
   g_status = "loaded <- " + path;
   sw::settings::noteRecentFile(path);  // #12: opening a project pushes it to recent-files MRU
+  sw::settings::loadOutputWindowStateFor(path);  // out-window-persistence: load the sidecar + arm restore
   if (!warnings.empty()) {
     for (const std::string& w : warnings) std::fprintf(stderr, "[open] %s\n", w.c_str());
     g_status += " (" + std::to_string(warnings.size()) + " repaired, see console)";
@@ -287,11 +288,10 @@ void doNew() {
   g_documentPath.clear();
   g_savedSnapshot = sw::libToJsonV2(g_lib());
   sw::g_commands.clear();
-  sw::varlive::reset();  // fresh default doc — drop any armed P1 slice from the prior document
-  sw::varpanel::reset();  // fresh default doc — drop the P2 pool snapshots from the prior document
-  sw::midibind::reset();  // fresh default doc — drop the P3 bindings from the prior document
+  sw::varlive::reset(); sw::varpanel::reset(); sw::midibind::reset();  // drop prior P1 slice/P2 pool/P3 bindings
   g_relayout = true;
   g_status = "new project";
+  sw::settings::resetOutputWindowStateToDefaults();  // out-window-persistence: drop prior project's view state
 }
 
 void updateWindowTitle() {

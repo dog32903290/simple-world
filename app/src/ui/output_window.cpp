@@ -6,10 +6,10 @@
 // two different things. The cook target is decided by the pin in the shell (main.cpp); this
 // window only drives the pin and shows the result. OUTPUT_PIN_VIEWER_CONTRACT §4-A / §5.
 //
-// This file is the COORDINATOR: it lays out the toolbar + drives the viewport. The two heavy
-// sub-systems live in their own TUs (one file, one job):
-//   - output_window_canvas.{h,cpp}     — the aspect-correct image canvas (pan/zoom/fit math).
-//   - output_window_resolution.{h,cpp} — the Output resolution selector (preset table + apply).
+// This file is the COORDINATOR: it lays out the toolbar + drives the viewport. The heavy sub-systems
+// live in their own TUs (one file, one job): output_window_canvas.{h,cpp} (pan/zoom/fit math),
+// output_window_resolution.{h,cpp} (resolution preset table + apply), output_window_persist.{h,cpp}
+// (out-window-persistence: capture/restore pin/res/bg to the app store document.cpp saves per project).
 #include "ui/output_window.h"
 
 #include <algorithm>
@@ -22,6 +22,7 @@
 #include "app/snapshot.h"  // saveSnapshot: product Output→PNG (TiXL OutputWindow Icon.Snapshot)
 #include "ui/editor_ui.h"  // g_pinnedNode (the session pin) + g_selectedNode (what Pin grabs)
 #include "ui/output_window_canvas.h"      // the aspect-correct image canvas (split out)
+#include "ui/output_window_persist.h"     // out-window-persistence: capture/restore view state (split out)
 #include "ui/output_window_resolution.h"  // the Output resolution selector (split out)
 #include "runtime/compound_graph.h"
 #include "runtime/graph.h"  // findSpec (a compound child resolves like an atomic, N1)
@@ -47,9 +48,8 @@ void clearOutputBackgroundColor();
 namespace sw::ui {
 
 namespace {
-// A child's primary output type ("Points" | "ParticleForce" | "Float"). Empty if it
-// has no output port (a draw node like DrawPoints) or no spec — exactly TiXL's typed
-// OutputUi lookup: no OutputUi for the type -> nothing to show.
+// A child's primary output type ("Points" | "ParticleForce" | "Float"). Empty if it has no output
+// port (a draw node like DrawPoints) or no spec — TiXL's typed OutputUi lookup (none -> nothing to show).
 std::string outputTypeOf(const sw::SymbolChild* c) {
   const sw::NodeSpec* s = c ? sw::findSpec(c->symbolId) : nullptr;
   if (!s) return "";
@@ -58,12 +58,16 @@ std::string outputTypeOf(const sw::SymbolChild* c) {
   return "";
 }
 
-// View background color (TiXL OutputWindow._backgroundColor, OutputWindow.cs:634). Session-only view state
-// (never serialized — same as the Pin). Default = TiXL's 0.1 grey (Command view clears here, faithful, not black).
+// View background color (TiXL OutputWindow._backgroundColor, OutputWindow.cs:634). View state persisted
+// per project via output_window_persist (out-window-persistence). Default = TiXL's 0.1 grey (Command clears here).
 float g_viewBackground[4] = {0.1f, 0.1f, 0.1f, 1.0f};
 }  // namespace
 
 void drawOutputWindow() {
+  // out-window-persistence: on project open/new, restore saved view state into the globals BEFORE the
+  // toolbar reads them (this frame shows the restored pin/res/bg). Capture mirror at end of function.
+  restoreOutputWindowStateIfPending(g_pinnedNode, g_selectedResIndex, g_viewBackground);
+
   const ImGuiViewport* vp = ImGui::GetMainViewport();
   // Default spot: lower-right, clear of the toolbar (top-left), the Inspector (top-right)
   // and the default graph's nodes. 柏為 drags it wherever he wants — it's his viewport.
@@ -147,13 +151,12 @@ void drawOutputWindow() {
   }
 
   // --- Output resolution selector (TiXL ResolutionHandling.DrawSelector, OutputWindow.cs:316) ---
-  // Picks the frame render size the cook seeds into RequestedResolution. Fill (default) follows the
-  // window (== today, byte-identical); a preset retargets a Texture/image-filter terminal. The
-  // selection is session-only view state (g_selectedResIndex), never serialized — same as the Pin.
-  // Record the combo box's rect from PRE-widget geometry: while its popup is open, the "last item"
-  // is the popup's last Selectable, so recording after BeginCombo would hand the map that instead
-  // of the combo box (inspector.cpp:190 refuter N4 #2). The open rows are addressed by the eye's
-  // popup walker as popup_item:<combo-window>:<row> (eye.mm recordOpenPopupItems).
+  // Picks the frame render size the cook seeds into RequestedResolution. Fill (default) follows the window
+  // (byte-identical to today); a preset retargets a Texture terminal. g_selectedResIndex is view state,
+  // persisted per project via output_window_persist (out-window-persistence). Record the combo box's rect
+  // from PRE-widget geometry: while its popup is open, the "last item" is the popup's last Selectable, so
+  // recording after BeginCombo would hand the map that instead of the combo box (inspector.cpp:190 refuter
+  // N4 #2). The open rows are addressed by the eye's popup walker as popup_item:<combo-window>:<row>.
   const ImVec2 comboPos = ImGui::GetCursorScreenPos();
   ImGui::SetNextItemWidth(110.0f);
   const float comboW = 110.0f;
@@ -171,23 +174,18 @@ void drawOutputWindow() {
         sw::outputWindowResolution(winW, winH);  // Fill baseline for the aspect-fit presets
         applyResolutionSelection(winW, winH);    // ON CHANGE: Fill clears, a preset sets — no churn
       }
-      // Give each open row a '#'-free named rect for the hand (output_res_row:<i>). The generic
-      // eye popup-walker emits "popup_item:##Combo_00:<row>", but the scenario runner strips '#'
-      // as a comment delimiter, so that label can't be addressed from a .scn. These named rects
-      // (recorded only while the popup is open, same as the inspector enum combo) are clean. The
-      // index is the TABLE order (i), which == geometric order because we omit the focus-scroll.
+      // Give each open row a '#'-free named rect for the hand (output_res_row:<i>): the generic eye
+      // walker emits "popup_item:##Combo_00:<row>", but the .scn runner strips '#', so that label
+      // can't be addressed. Row index i == geometric order (we omit the focus-scroll, see NB below).
       {
         const ImVec2 mn = ImGui::GetItemRectMin(), mx = ImGui::GetItemRectMax();
         char rowLbl[32];
         std::snprintf(rowLbl, sizeof(rowLbl), "output_res_row:%d", i);
         sw::eye::recordRect(rowLbl, mn.x, mn.y, mx.x, mx.y);
       }
-      // NB: deliberately NOT calling SetItemDefaultFocus() on the selected row. That call makes
-      // ImGui auto-scroll the popup so the selected item aligns with the combo box — which shifts
-      // every row's screen position by the selection offset, breaking the eye's geometric popup
-      // walker (a hand clicking "Fill" after picking "1080p" would land on a scrolled-away row).
-      // The full preset list is short and fully visible, so no scroll-to-selection is needed; the
-      // selected row still shows its highlight. Keeps geometric row N == table order N, always.
+      // NB: deliberately NOT calling SetItemDefaultFocus() — it auto-scrolls the popup to align the
+      // selected item with the combo box, shifting every row's screen pos and breaking the eye's
+      // geometric walker. The short list is fully visible, so row N == table order N stays true.
     }
     ImGui::EndCombo();
   } else if (ImGui::IsItemHovered()) {
@@ -294,6 +292,8 @@ void drawOutputWindow() {
     dl->AddText(tpos, IM_COL32(235, 235, 235, 255), overlay);
     dl->PopClipRect();
   }
+
+  captureOutputWindowState(g_pinnedNode, g_selectedResIndex, g_viewBackground);  // mirror -> app store (next Save persists it)
 
   ImGui::End();
 }
