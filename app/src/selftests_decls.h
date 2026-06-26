@@ -171,6 +171,7 @@ namespace sw { int runGroupSelfTest(bool); }                     // point_ops_gr
 namespace sw { int runTransformOpsSelfTest(bool); }              // point_ops_transform_golden.cpp (★S2 island: RotateAroundAxis/Shear/Transform transform-context push over Group — child quad rotates/shears/translates on flat + resident)
 namespace sw { int runKeymapPersistSelfTest(bool); }             // keymap_prefs_selftest.cpp (★#11: user keymap JSON overrides factory — set→save→reload round-trip + no-file=factory)
 namespace sw { int runUserSettingsSelfTest(bool); }              // user_settings_selftest.cpp (★#12: recent-files MRU — push→save→reload round-trip + dedup/cap/no-file=empty)
+namespace sw { int runOutputWindowStateSelfTest(bool); }         // output_window_state_selftest.cpp (out-window-persistence: Output view state pin/res/bg — save→reload round-trip + no-file=Defaults)
 namespace sw { int runMeshBlendMeshVerticesGoldenSelfTest(bool); }  // mesh_blendpick_golden.cpp (mesh modify: BlendMeshVertices two-mesh lerp, flat + R-2 resident)
 namespace sw { int runMeshPickMeshBufferGoldenSelfTest(bool); }     // mesh_blendpick_golden.cpp (mesh modify: PickMeshBuffer MultiInput modular selector, flat + R-2 resident)
 namespace sw { int runTimeSelfTest(bool); }                          // stateful_value_ops_selftest_time.cpp (Time 5-mode + GetFrameSpeedFactor fsf-valid/fallback)

@@ -165,6 +165,8 @@ add_executable(simple_world
   src/app/keymap_prefs_selftest.cpp  # #11: set→save→reload round-trip gate (--selftest-keymap-persist)
   src/app/user_settings.cpp          # #12: editor user-settings store (recent-files MRU, cross-session memory)
   src/app/user_settings_selftest.cpp # #12: push→save→reload round-trip gate (--selftest-user-settings)
+  src/app/output_window_state.cpp           # out-window-persistence: Output view-state store (pin/res/bg) + per-project sidecar
+  src/app/output_window_state_selftest.cpp  # out-window-persistence: save→reload round-trip gate (--selftest-output-window-state)
   src/app/audio_monitor.cpp
   src/app/command.cpp
   src/app/graph_commands.cpp
@@ -242,6 +244,7 @@ add_executable(simple_world
   src/ui/output_window.cpp
   src/ui/output_window_canvas.cpp      # aspect-correct image canvas (split from output_window.cpp)
   src/ui/output_window_resolution.cpp  # Output resolution selector (split from output_window.cpp)
+  src/ui/output_window_persist.cpp     # out-window-persistence: capture/restore view state <-> app store
   src/ui/variation_panel.cpp  # Lane L1 (Variation): P2 Variation window (snapshot grid + N-way mix + crossfader)
   src/metal_impl.cpp
   src/verify/eye/eye.mm
