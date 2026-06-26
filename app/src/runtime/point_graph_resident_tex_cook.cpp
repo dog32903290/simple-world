@@ -62,6 +62,7 @@
 
 #include <Metal/Metal.hpp>
 
+#include "runtime/field_graph_builder.h"       // gatherTexResidentFieldTree (RaymarchField field-into-tex seam)
 #include "runtime/graph.h"                     // NodeSpec / PortSpec / findSpec
 #include "runtime/image_filter_op_registry.h"  // imageFilter{Size,Compute,MippedOutput,Asset}* + cachedAssetTexture
 #include "runtime/render_command.h"            // RenderCommand (cookCommand slot return + the draw chain)
@@ -202,6 +203,12 @@ MTL::Texture* PointGraph::Impl::cookResidentTexNode(
   // so the own-tex resident branch below fires for CurvesToTexture (which reads its embedded default
   // Curve internally). When a Curve producer lands, a cookResidentCurve gather mirrors the gradient one.
   bool hasCurveInput = false;
+  // FIELD input (RaymarchField tex-op seam): detect a "Field" input port → gather the wired upstream
+  // field op into an assembled FieldNode tree (gatherTexResidentFieldTree builds it via the resident
+  // drivers + nodeParams). Empty for every existing tex op (no Field port → fieldTree null → byte-
+  // identical). The tree (if any) is set into tc.inputFieldTree below; RaymarchField consumes it.
+  bool hasFieldInput = false;
+  std::shared_ptr<FieldNode> fieldTree;
   // FLOATLIST inputs (the 5th cook flow rail-crossing, ValuesToTexture/ValuesToTexture2): a tex op with
   // a "FloatList" input port gathers its upstream host lists THROUGH the resident FloatList walker
   // (cookResidentFloatList — the resident twin of the flat cookFloatListNode), in spec port order with
@@ -213,6 +220,7 @@ MTL::Texture* PointGraph::Impl::cookResidentTexNode(
   for (const PortSpec& port : s->ports) {
     if (!port.isInput) continue;
     if (port.dataType == "Curve") hasCurveInput = true;
+    if (port.dataType == "Field") hasFieldInput = true;
     const ResidentInput* ri = n->input(port.id);
     bool wired = ri && ri->driver == ResidentInput::Driver::Connection;
     if (port.dataType == "FloatList") {
@@ -271,6 +279,11 @@ MTL::Texture* PointGraph::Impl::cookResidentTexNode(
       }
     }
   }
+
+  // FIELD tree (RaymarchField): build the wired upstream field op into a FieldNode tree via the
+  // resident builder (walks rg + nodeParams). Done here (after the input scan, before the cook) so
+  // the standard tc below carries it. null for every existing tex op (hasFieldInput false).
+  if (hasFieldInput) fieldTree = gatherTexResidentFieldTree(rg, path, nodeParams);
 
   // OWN-TEXTURE fork (Slice B): a tex op that allocates its OWN data-sized, non-RGBA8 texture does
   // NOT use ensureTex (RGBA8/resolution-pinned). The op computes its dims + writes a host float
@@ -342,6 +355,9 @@ MTL::Texture* PointGraph::Impl::cookResidentTexNode(
   // so they fall through HERE and need the gathered gradients. hasGradientInput is true ONLY for
   // specs with a "Gradient" port (every existing tex op has none → nullptr → byte-identical).
   tc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;
+  // FIELD tree (RaymarchField tex-op seam): hand the assembled FieldNode tree to the op. null for
+  // every existing tex op (no Field port → byte-identical). RaymarchField renders it via renderField3d.
+  tc.inputFieldTree = fieldTree;
   // ASSET texture ((E)-seam phase 2): resident mirror of flat cookTexNode — decode-and-cache once,
   // bind via tc.assetTexture. Absent type = null -> byte-identical for every existing op.
   {

@@ -115,6 +115,42 @@ std::shared_ptr<FieldNode> gatherForceFieldTree(const Graph& g, int cookingNodeI
   return nullptr;
 }
 
+// ONE-HOP gather (flat): the field is wired DIRECTLY to the tex op's "Field" input (RaymarchField).
+// Find the cooking node's FIRST wired "Field" input port and build that upstream tree. null = no
+// wired Field. Lives here (not point_graph_tex_cook.cpp) so the tex leaf's call-site is one line.
+std::shared_ptr<FieldNode> gatherTexFieldTree(const Graph& g, int cookingNodeId,
+                                              const FieldParamResolver& params) {
+  const Node* cooking = g.node(cookingNodeId);
+  const NodeSpec* cs = cooking ? findSpec(cooking->type) : nullptr;
+  if (!cs) return nullptr;
+  for (size_t i = 0; i < cs->ports.size(); ++i) {
+    const PortSpec& port = cs->ports[i];
+    if (!(port.isInput && port.dataType == "Field")) continue;
+    const Connection* c = g.connectionToInput(pinId(cookingNodeId, (int)i));
+    if (c) {
+      if (auto t = buildFieldTree(g, pinNode(c->fromPin), params)) return t;  // first wired Field wins
+    }
+  }
+  return nullptr;
+}
+
+// ONE-HOP gather (resident): mirror of gatherTexFieldTree via the rg Connection drivers.
+std::shared_ptr<FieldNode> gatherTexResidentFieldTree(const ResidentEvalGraph& rg,
+                                                      const std::string& cookingPath,
+                                                      const FieldParamResolverResident& params) {
+  const ResidentNode* cooking = rg.node(cookingPath);
+  const NodeSpec* cs = cooking ? findSpec(cooking->opType) : nullptr;
+  if (!cs) return nullptr;
+  for (const PortSpec& port : cs->ports) {
+    if (!(port.isInput && port.dataType == "Field")) continue;
+    const ResidentInput* ri = cooking->input(port.id);
+    if (ri && ri->driver == ResidentInput::Driver::Connection) {
+      if (auto t = buildResidentFieldTree(rg, ri->srcNodePath, params)) return t;  // first wins
+    }
+  }
+  return nullptr;
+}
+
 // TWO-HOP gather (resident): mirror of gatherForceFieldTree via the rg Connection drivers.
 std::shared_ptr<FieldNode> gatherForceResidentFieldTree(const ResidentEvalGraph& rg,
                                                         const std::string& cookingPath,

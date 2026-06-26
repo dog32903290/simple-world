@@ -55,6 +55,7 @@
 
 #include <Metal/Metal.hpp>
 
+#include "runtime/field_graph_builder.h"  // gatherTexFieldTree (RaymarchField field-into-tex seam)
 #include "runtime/graph.h"  // Graph/Node/NodeSpec/PortSpec/Connection/pinId/pinNode/findSpec
 #include "runtime/image_filter_op_registry.h"  // imageFilter{Size,Compute,MippedOutput,Asset}* + cachedAssetTexture
 #include "runtime/render_command.h"  // RenderCommand (cookCommand slot return + the draw chain)
@@ -200,9 +201,15 @@ MTL::Texture* PointGraph::Impl::cookFlatTexNode(
   // FloatList branch below. Empty for every existing tex op → tc.inputGradients stays null.
   std::vector<SwGradient> gradientInputs;
   bool hasGradientInput = false;
+  // FIELD input (RaymarchField tex-op seam): detect a "Field" input port → gather the wired upstream
+  // field op into an assembled FieldNode tree (built after the scan via gatherTexFieldTree). Empty for
+  // every existing tex op (no Field port → null → byte-identical). RaymarchField consumes it.
+  bool hasFieldInput = false;
+  std::shared_ptr<FieldNode> fieldTree;
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& port = s->ports[i];
     if (!port.isInput) continue;
+    if (port.dataType == "Field") hasFieldInput = true;
     if (port.dataType == "Command") {
       const Connection* c = g.connectionToInput(pinId(id, (int)i));
       if (!c) continue;
@@ -255,6 +262,11 @@ MTL::Texture* PointGraph::Impl::cookFlatTexNode(
       }
     }
   }
+
+  // FIELD tree (RaymarchField): build the wired upstream field op into a FieldNode tree via the flat
+  // builder (walks g + nodeParams). Done after the input scan, before the cook. null for every existing
+  // tex op (hasFieldInput false → byte-identical).
+  if (hasFieldInput) fieldTree = gatherTexFieldTree(g, id, nodeParams);
 
   // OWN-TEXTURE fork (Slice B): a tex op that allocates its OWN data-sized, non-RGBA8 texture
   // (ValuesToTexture: R32Float, dims = sampleCount × listCount) does NOT use ensureTex (RGBA8 +
@@ -324,6 +336,9 @@ MTL::Texture* PointGraph::Impl::cookFlatTexNode(
   // they fall through HERE and need the gradients. hasGradientInput is true ONLY for specs with a
   // "Gradient" dataType port (every existing tex op has none → nullptr → byte-identical).
   tc.inputGradients = hasGradientInput ? &gradientInputs : nullptr;
+  // FIELD tree (RaymarchField tex-op seam): hand the assembled FieldNode tree to the op. null for every
+  // existing tex op (no Field port → byte-identical). RaymarchField renders it via renderField3d.
+  tc.inputFieldTree = fieldTree;
   // ASSET texture ((E)-seam phase 2): if this op type declared an asset key, decode-and-cache it
   // ONCE (cachedAssetTexture memoizes; NO per-frame decode) and bind via tc.assetTexture. Absent
   // type = tc.assetTexture stays null -> every existing op's path is byte-identical.

@@ -51,5 +51,6 @@ REGISTER_SELFTESTS(/*orderBase=*/26,
     {"field-toroidalvortexfield", runFieldToroidalVortexFieldGoldenSelfTest},
     {"field-setsdfmaterial", runFieldSetSDFMaterialGoldenSelfTest},
     {"field-raymarch", runFieldRaymarchSelfTest},
+    {"raymarchfield-output", runRaymarchFieldOutputSelfTest},
 );
 }  // namespace sw

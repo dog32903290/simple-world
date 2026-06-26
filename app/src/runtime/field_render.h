@@ -85,4 +85,11 @@ MTL::Texture* renderField3d(MTL::Device* dev, MTL::CommandQueue* queue,
                             const RaymarchTransforms& xf, const RaymarchRenderParams& params,
                             uint32_t w, uint32_t h);
 
+// --- RaymarchField TEX op (field_ops_raymarchfield.cpp) seam ----------------------------------------
+// Process-global inject-bug toggle for the output golden: when true the RaymarchField cook short-
+// circuits to a black clear (the raymarch is skipped) so the silhouette vanishes → the golden's
+// center-vs-corner margin collapses → RED. Off in production. (Mirror of meshInjectBug().) The shell
+// golden (field_raymarch_output_golden.cpp) flips it; runtime owns it (defined in the leaf).
+bool& raymarchFieldInjectBug();
+
 }  // namespace sw

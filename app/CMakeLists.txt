@@ -266,6 +266,7 @@ add_executable(simple_world
   src/runtime/field_render.cpp
   src/runtime/field_node_registry.cpp
   src/runtime/field_graph_builder.cpp
+  src/runtime/field_ops_raymarchfield.cpp
   src/runtime/field_ops_spheresdf.cpp
   src/runtime/field_ops_boxsdf.cpp
   src/runtime/field_ops_boxframesdf.cpp
@@ -309,6 +310,7 @@ add_executable(simple_world
   src/runtime/field_ops_setsdfmaterial.cpp
   src/field_render_golden.cpp
   src/field_raymarch_golden.cpp
+  src/field_raymarch_output_golden.cpp
   src/particlefield_probe_golden.cpp
   src/vectorfieldforce_field_golden.cpp
   src/fielddistanceforce_field_golden.cpp

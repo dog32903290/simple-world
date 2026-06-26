@@ -62,4 +62,16 @@ std::shared_ptr<FieldNode> gatherForceResidentFieldTree(const ResidentEvalGraph&
                                                         const std::string& cookingPath,
                                                         const FieldParamResolverResident& params);
 
+// ONE-HOP gather (RaymarchField tex-op seam): the field is wired DIRECTLY to the cooking TEX op's
+// "Field" input (unlike the force two-hop chase above). For the op `cookingNodeId`/`cookingPath`,
+// find its FIRST wired "Field" input port and build that upstream field tree. null if no Field input
+// is wired (RaymarchField then renders nothing → the cook clears). Keeps the field-port scan + the
+// builder recursion OUT of the cook drivers' tex leaves (point_graph_tex_cook / _resident_tex_cook),
+// so those stay one short call-site under their 400-line ratchet.
+std::shared_ptr<FieldNode> gatherTexFieldTree(const Graph& g, int cookingNodeId,
+                                              const FieldParamResolver& params);
+std::shared_ptr<FieldNode> gatherTexResidentFieldTree(const ResidentEvalGraph& rg,
+                                                      const std::string& cookingPath,
+                                                      const FieldParamResolverResident& params);
+
 }  // namespace sw
