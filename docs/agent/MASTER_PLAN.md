@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 89ea6a2
+HEAD: 4d2abd7
 DIRTY: 1 files
 CENSUS: 428 / 749 done
-BITE: 470 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-26T21:26
+BITE: 474 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-26T22:45
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,10 +18,11 @@ STAMP_AT: 2026-06-26T21:26
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-26 21:26 orphan-接線批落地 `89ea6a2`，柏為 attended 下令把兩條半成品 orphan 接出海口）。** 本批五 commit：render-output B 軌（`4325c10`）+ soundtrack flake 修復（`cd47f72`）+ **sliding_average orphan 接通**（`383a0bb` beat_synchronizer）+ **point_graph.h 拆檔**（`29556d1`，ABI 460→240）+ **field_raymarch orphan 接通**（`89ea6a2` RaymarchField tex-op）。--bite **470 / FAILED=[]**。
-- **✅ 兩條 orphan 已接通（柏為 19:02 下令）**：①`sliding_average`→`beat_synchronizer`（audio-locked bar average，G3 golden 證 `BeatTime==SlidingAverage<10> smoothed BarProgress`；禁改區 `ProcessBeatTaps`/phase-correction byte-untouched）。②`renderField3d`/field_raymarch→`RaymarchField` tex-op（自登記 texReg，cookTexNode gather FieldNode tree 進 `TexCookCtx.inputFieldTree`，production-path golden 證 cooked `target()`＝OutputWindow texture 含 sphere；解鎖 39 SDF 可見。**eye 截圖 best-effort 延後**＝面板遮擋 spawned node 的 UI puppetry 問題，orthogonal 非 seam，golden 已是 load-bearing 證明）。
-- **⚠️ 剩一條 orphan-but-correct**：`out-show-output-slot 機制`＝`viewProducerPath` 加 defaulted `startSlot`（byte-identical，golden 綠），UI picker + atomic realize 兩半 STOP（`output_window.cpp` 400 牆、`editor_ui.cpp` 518 ratchet、resident_eval cook-core）→census 仍誠實報 GAP。
-★**下一塊大的＝compound-graph-host 縫**（leaf-scout 實證：純葉子近採盡，point ~37+render/gizmo ~7+string 2 都卡它，最高解鎖；census leaf-ready 是 compound-.t3 fallthrough 假富礦，已開 chip `task_e2f9e963` 修分類）。次＝point-render 縫（高 blast cook-core，attended）。
+**none（2026-06-26 22:45 eye/hand 畫布動詞批落地 `4d2abd7`，柏為 commissioned「手反覆死在連線」根治）。** --bite **474 / FAILED=[]**。
+- **✅ eye/hand 換皮無敵化（plan: [EYE_HAND_CANVAS_VERBS_PLAN.md](EYE_HAND_CANVAS_VERBS_PLAN.md)）**。根因＝**手座標其實準的**（toolbar/node/quick-add 都通過同一管線且正常），死的只有 **node-editor 畫布連線手勢**（無免座標後門＋imgui-node-editor 逐幀狀態機＋浮動面板遮擋）。三部件全落地：①`connect`/`disconnect` 直連動詞（`cd6e674`，重用拖曳同一個 `AddWireCommand`+抽 `applyConnection` 公因式，端到端 connect→cook→sphere golden 證真連線）②`dumpgraph`（`req_graph`→graph.json，agent 免座標拿 childId/slot）③map.json `occluded` 旗標（`d8c8f53`，被面板蓋的 widget 響亮報錯不靜默點錯）。**eye/hand 全保持 verify 葉子（圖 mutation 走 app-owned hook，零型別洩漏）。**
+  - **★換皮存活原則（柏為問，寫進 [[simple-world-verify-eye-hand]]）**：`clean.png`+golden+直連動詞＝皮無關永遠有用；座標 map+hook＝貼著皮、換皮按重寫深度重掛。**驗證越靠 golden+直連動詞越換皮無敵。**
+- **前批（orphan 接線 `89ea6a2`，2026-06-26 19-21 時，詳 history）**：render-output B 軌 + soundtrack flake 修 + **sliding_average→beat_synchronizer** + **point_graph.h 拆檔 460→240** + **field_raymarch→RaymarchField tex-op（解鎖 39 SDF）**。剩 1 條 orphan：`out-show-output-slot 機制`（UI picker 兩半 STOP 在 output_window 400 牆/editor_ui 518/cook-core）。
+★**下一塊大的＝compound-graph-host 縫**（leaf-scout 實證純葉子近採盡，point ~37+render/gizmo ~7+string 2 卡它；**設計 scout 待重派**——前次 ae0b7ae5 Plan hung 沒產出；census leaf-ready 假富礦 chip `task_e2f9e963`）。次＝point-render 縫（高 blast，attended）。
 
 ## Conflict Register
 - **（已解）soundtrack flake 修好**（`cd47f72`）：triage 確認 clean-base flake（leg ⑩ 4.0× chase 用真 sleep wall-clock，jitter×4 打穿 40ms resync 閘）→改 integral target 決定論 + 4.0× best-effort（1/1.5/2× 仍硬斷言；注入 resyncOffset=0 退化證 storm 偵測仍咬）。production `soundtrack.cpp` byte-identical。soundtrack 進 --bite PASS，chip `task_eb3375a3` 已關。detectbpm NO-BITE 另開 `task_9d081266`。
