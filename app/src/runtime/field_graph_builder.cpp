@@ -176,4 +176,37 @@ std::shared_ptr<FieldNode> gatherForceResidentFieldTree(const ResidentEvalGraph&
   return nullptr;
 }
 
+// Does the cooking node expose a DIRECT "Field" input port (MoveToSDF) vs only ParticleForce ports
+// (ParticleSystem)? The direct one-hop gather is only attempted for the former, so the two flows stay
+// mutually exclusive and the force flow is byte-identical (no Points-modify force op has a Field port).
+bool hasDirectFieldInput(const NodeSpec* cs) {
+  if (!cs) return false;
+  for (const PortSpec& port : cs->ports)
+    if (port.isInput && port.dataType == "Field") return true;
+  return false;
+}
+
+// POINTS-flow unified field gather (flat): force two-hop first; if none, the direct one-hop gather when the
+// node has a direct Field port. ADDITIVE — for a ParticleForce node the direct branch is skipped (no Field
+// port) → identical to gatherForceFieldTree alone.
+std::shared_ptr<FieldNode> gatherPointFieldTree(const Graph& g, int cookingNodeId,
+                                                const FieldParamResolver& params) {
+  if (auto t = gatherForceFieldTree(g, cookingNodeId, params)) return t;
+  const Node* n = g.node(cookingNodeId);
+  if (n && hasDirectFieldInput(findSpec(n->type)))
+    return gatherTexFieldTree(g, cookingNodeId, params);
+  return nullptr;
+}
+
+// POINTS-flow unified field gather (resident mirror): same force-then-direct order via the rg drivers.
+std::shared_ptr<FieldNode> gatherPointResidentFieldTree(const ResidentEvalGraph& rg,
+                                                        const std::string& cookingPath,
+                                                        const FieldParamResolverResident& params) {
+  if (auto t = gatherForceResidentFieldTree(rg, cookingPath, params)) return t;
+  const ResidentNode* n = rg.node(cookingPath);
+  if (n && hasDirectFieldInput(findSpec(n->opType)))
+    return gatherTexResidentFieldTree(rg, cookingPath, params);
+  return nullptr;
+}
+
 }  // namespace sw

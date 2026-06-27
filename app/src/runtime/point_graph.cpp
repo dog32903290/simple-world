@@ -309,9 +309,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       }
     }
 
-    // FIELD gather (PF-0 field-into-force seam, thin call-site): two-hop force→field chase + recursion in
-    // field_graph_builder.cpp → cc.inputFieldTree. Kernel un-consumed until PF-a → byte-identical.
-    std::shared_ptr<FieldNode> fieldTree = gatherForceFieldTree(g, id, nodeParams);
+    // FIELD gather (thin call-site): force two-hop (ParticleSystem) OR direct one-hop (MoveToSDF Field port,
+    // SDF point-modify seam) → cc.inputFieldTree. Both flows in field_graph_builder.cpp (ratchet); additive.
+    std::shared_ptr<FieldNode> fieldTree = gatherPointFieldTree(g, id, nodeParams);
 
     const std::map<std::string, float>* params = nodeParams(id);
 

@@ -302,10 +302,10 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       }
     }
 
-    // FIELD gather (PF-0, RESIDENT/PRODUCTION path — R-2 iron rule, thin call-site): two-hop force→field
-    // chase + recursion in field_graph_builder.cpp → cc.inputFieldTree. Kernel un-consumed until PF-a →
-    // byte-identical. cc.graph==nullptr does NOT block this (the DRIVER holds rg, like cookResidentGradient).
-    std::shared_ptr<FieldNode> fieldTree = gatherForceResidentFieldTree(rg, path, nodeParams);
+    // FIELD gather (RESIDENT/PRODUCTION, R-2 iron rule, thin call-site): force two-hop (ParticleSystem) OR
+    // direct one-hop (MoveToSDF Field port, SDF point-modify seam) → cc.inputFieldTree. Both in
+    // field_graph_builder.cpp (ratchet); additive. DRIVER holds rg (like cookResidentGradient).
+    std::shared_ptr<FieldNode> fieldTree = gatherPointResidentFieldTree(rg, path, nodeParams);
 
     const std::map<std::string, float>* params = nodeParams(path);
 

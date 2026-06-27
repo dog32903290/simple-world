@@ -74,4 +74,16 @@ std::shared_ptr<FieldNode> gatherTexResidentFieldTree(const ResidentEvalGraph& r
                                                       const std::string& cookingPath,
                                                       const FieldParamResolverResident& params);
 
+// POINTS-flow field gather (the cook drivers' single field call-site): a Points op gets its field either
+// via the two-hop ParticleForce chase (ParticleSystem) OR — if it has a DIRECT "Field" input port (MoveToSDF,
+// the SDF point-modify seam) — via the one-hop direct gather. This unifies both into ONE call so
+// point_graph.cpp / point_graph_resident.cpp keep a single thin field call-site (line-count ratchet). The
+// two are mutually exclusive in practice (a node has ParticleForce ports XOR a direct Field port), so the
+// force result wins when present and the direct gather only runs when the force gather found nothing.
+std::shared_ptr<FieldNode> gatherPointFieldTree(const Graph& g, int cookingNodeId,
+                                                const FieldParamResolver& params);
+std::shared_ptr<FieldNode> gatherPointResidentFieldTree(const ResidentEvalGraph& rg,
+                                                        const std::string& cookingPath,
+                                                        const FieldParamResolverResident& params);
+
 }  // namespace sw

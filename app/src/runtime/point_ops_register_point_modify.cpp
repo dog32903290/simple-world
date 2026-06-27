@@ -41,6 +41,7 @@ void registerMapPointAttributesOp();
 void registerTransformPointsFromClipspaceOp();
 void registerSamplePointsByCameraDistanceOp();
 void registerSortPointsOp();
+void registerMoveToSdfOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -74,6 +75,7 @@ void registerPointModifyPointOps() {
   registerTransformPointsFromClipspaceOp();  // Points → Points (unproject via CameraToWorld; camera-matrix-into-points seam)
   registerSamplePointsByCameraDistanceOp();  // Points → Points (scale W by camera-depth WForDistance curve; camera-matrix + bake-into-point seams)
   registerSortPointsOp();                    // Points → Points (reorder by camera-distance; camera-matrix-into-points seam, converged-sort fork)
+  registerMoveToSdfOp();                     // Points → Points (raymarch each point to a wired SDF surface; SDF point-modify seam, direct-Field gather)
 }
 
 }  // namespace sw

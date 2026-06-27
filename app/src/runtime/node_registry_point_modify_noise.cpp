@@ -128,5 +128,33 @@ static const PointModifyOp _reg_PointAttributeFromNoise{
        "point.modify"}
 };
 
+// ---- SDF point-modify seam: MoveToSDF -----------------------------------------
+// TiXL parity: external/tixl .../point/modify/MoveToSDF.cs +
+//              .../Assets/shaders/points/modify/MovePointsToSDF.hlsl
+// A count-preserving MODIFIER with a DIRECT "Field" input (ShaderGraphNode in TiXL): raymarch each
+// point to the wired SDF field's surface and lerp Position toward the converged surface point by Amount.
+// The "Field" input is the seam the cook driver's one-hop direct-Field gather (point_graph.cpp) builds.
+// Defaults from MoveToSDF.t3 (GUID-keyed): Amount=1.0, MinDistance=0.005, StepDistanceFactor=0.5,
+//   NormalSamplingDistance=0.1, MaxSteps=20.
+// SCOPE/FORKS (faithful at TiXL defaults — every omitted feature degenerates to default-off, see the
+//   template header): WriteDistanceMode/SetOrientation/SetColor/AmountFactor are NOT exposed (TiXL
+//   defaults None/false/false/None → dead branches at default). The raymarch-to-surface core is 1:1.
+static const PointModifyOp _reg_MoveToSDF{
+      {"MoveToSDF",
+       "Move To SDF",
+       {{"points", "points", "Points", true},   // input bag (port 0)
+        {"out", "out", "Points", false},          // surface-converged output bag (port 1)
+        // DIRECT Field input (TiXL ShaderGraphNode). dataType "Field" → the cook's one-hop direct-Field
+        // gather builds the upstream SDF tree (point_graph.cpp / point_graph_resident.cpp seam).
+        {"Field", "Field", "Field", true},
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f},
+        {"MinDistance", "MinDistance", "Float", true, 0.005f, 0.0f, 1.0f},
+        {"MaxSteps", "MaxSteps", "Float", true, 20.0f, 1.0f, 200.0f},
+        {"StepDistanceFactor", "StepDistanceFactor", "Float", true, 0.5f, 0.0f, 2.0f},
+        {"NormalSamplingDistance", "NormalSamplingDistance", "Float", true, 0.1f, 0.0f, 1.0f}},
+       nullptr,
+       "point.modify"}
+};
+
 }  // namespace
 }  // namespace sw

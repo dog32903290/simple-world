@@ -336,6 +336,7 @@ add_executable(simple_world
   src/randomjumpforce_field_golden.cpp
   src/fieldvolumeforce_field_golden.cpp
   src/fieldtree_builder_golden.cpp
+  src/movepointstosdf_golden.cpp  # SDF point-modify: GridPoints -> MoveToSDF(Field=SphereSDF) -> on-sphere readback (--selftest-movepointstosdf)
   src/field_paramapply_golden.cpp
   src/field_paramapply_cases.cpp
   src/field_paramapply_enumcases.cpp
@@ -682,6 +683,10 @@ target_compile_definitions(simple_world PRIVATE
   # 3D sphere-trace render TEMPLATE (the renderField3d counterpart to the 2D SW_FIELD_TEMPLATE;
   # the camera matrices + ray-march loop; same /*{GLOBALS}*/ /*{FLOAT_PARAMS}*/ /*{FIELD_CALL}*/ hooks).
   SW_FIELD_RAYMARCH_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/field_raymarch_template.metal"
+  # SDF point-MODIFY compute TEMPLATE for MovePointsToSDF (raymarch each point of a bag to the field surface;
+  # SourcePoints→ResultPoints, the points-modify sibling of the field-into-FORCE templates above). Same
+  # string-asset rule; assembleFieldMSL fills the SAME hooks; the cook compiles the result via cachedSourceComputePSO.
+  SW_MOVE_POINTS_TO_SDF_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/move_points_to_sdf_template.metal"
 )
 
 # The executable needs the metallib built before it runs.
