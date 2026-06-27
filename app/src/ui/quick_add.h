@@ -66,7 +66,41 @@ bool drawResultRow(const std::string& id, const std::string& label, bool selecte
 // Open the palette anchored at canvas coordinates (cx, cy).
 // No-op if already open (idempotent — Cmd+F pressed while open does NOT close it;
 // that matches TiXL which just re-focuses the input box).
-void openQuickAdd(float cx, float cy);
+//
+// Optional port-drag type pre-filter (= TiXL SymbolFilter FilterInputType / FilterOutputType,
+// SymbolFilter.cs:14-34). When the palette is opened by DRAGGING off a port onto empty canvas
+// (TiXL PlaceholderCreation OpenForItemOutput/OpenForItemInput → PlaceHolderUi.Open inputFilter/
+// outputFilter), the dragged port's dataType pre-filters the candidate list to only ops that can
+// wire to it:
+//   - inputFilter  (set when dragging FROM an OUTPUT port): keep ops that have an INPUT port of
+//     this dataType (the new node will RECEIVE the dragged output). = TiXL FilterInputType, set
+//     from outputLine.Output.ValueType (PlaceholderCreation.cs:148-152).
+//   - outputFilter (set when dragging FROM an INPUT port): keep ops that have an OUTPUT port of
+//     this dataType (the new node will FEED the dragged input). = TiXL FilterOutputType
+//     (PlaceholderCreation.cs:266-269).
+// Empty strings = no filter (the Cmd+F path); matching is STRICT dataType equality, mirroring
+// TiXL GetInputMatchingType/GetOutputMatchingType (Symbol.cs:332-352, ValueType == type).
+void openQuickAdd(float cx, float cy, const std::string& inputFilter = "",
+                  const std::string& outputFilter = "");
+
+// Pure port-filter predicates (header-exposed for the isolated self-test; production calls them
+// from rebuildDisplayItems). Strict dataType equality across ALL ports (= TiXL scans every
+// InputDefinition/OutputDefinition, not just the first). READ-ONLY registry/library access.
+//   opHasInputOfType(id, t)  : does op `id` have any INPUT port whose dataType == t?
+//   opHasOutputOfType(id, t) : does op `id` have any OUTPUT port whose dataType == t?
+//   passesPortFilter(id, inF, outF): combined gate — an empty filter string is "pass" (no
+//     constraint), a non-empty one requires the matching-direction port to exist. = TiXL
+//     SymbolFilter UpdateMatchingSymbols (_inputType/_outputType blocks, SymbolFilter.cs:117-152).
+bool opHasInputOfType(const std::string& id, const std::string& dataType);
+bool opHasOutputOfType(const std::string& id, const std::string& dataType);
+bool passesPortFilter(const std::string& id, const std::string& inputFilter,
+                      const std::string& outputFilter);
+
+// Draw the port-drag type-hint line at the top of the palette (= TiXL PlaceHolderUi.cs:322-331
+// DrawTypeFilterHint): surfaces the constraining dataType(s) so the user knows the list is
+// narrowed. No-op when both filters are empty (the Cmd+F path). Emits qa:filter:in/out eye
+// markers. Lives in quick_add_tree.cpp (imgui leaf) to keep quick_add.cpp ≤400 lines.
+void drawTypeFilterHint(const std::string& inputFilter, const std::string& outputFilter);
 
 // Draw the palette this frame. Call once per frame from drawNodeCanvas() while the
 // node-editor is current (needed for ed::ScreenToCanvas in the spawn path).

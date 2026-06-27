@@ -154,6 +154,29 @@ void drawNodeCanvas() {
 
   // Create links by dragging pin -> pin (one input + one output, different nodes).
   if (ed::BeginCreate()) {
+    // Port-drag -> empty canvas opens the type-pre-filtered quick-add (= TiXL PlaceholderCreation
+    // QueryNewNode + PlaceHolderUi.Open inputFilter/outputFilter). Released on empty canvas, the
+    // dragged pin's dataType narrows the palette to ops that can wire to it:
+    //   drag FROM an OUTPUT pin -> the new node must RECEIVE that type -> inputFilter
+    //       (= TiXL OpenForItemOutput, PlaceholderCreation.cs:148-152 inputFilter = output type);
+    //   drag FROM an INPUT pin  -> the new node must PRODUCE that type -> outputFilter
+    //       (= TiXL OpenForItemInput,  PlaceholderCreation.cs:266-269 outputFilter = input type).
+    ed::PinId np;
+    if (ed::QueryNewNode(&np) && np) {
+      if (ed::AcceptNewItem()) {
+        int pin = (int)np.Get();
+        PinInfo pi = pinInfoOf(pin);
+        std::string inFilter, outFilter;
+        if (pi.valid) {
+          // pinIsInput == canvas-sink. Dragging off a SOURCE (output) pin pre-filters by the new
+          // node's INPUTS; dragging off a SINK (input) pin pre-filters by its OUTPUTS.
+          if (pinIsInput(pin)) outFilter = pi.dataType;  // input pin -> need a matching OUTPUT
+          else                 inFilter  = pi.dataType;  // output pin -> need a matching INPUT
+        }
+        ImVec2 drop = ed::ScreenToCanvas(ImGui::GetMousePos());
+        sw::ui::openQuickAdd(drop.x, drop.y, inFilter, outFilter);
+      }
+    }
     ed::PinId a, b;
     if (ed::QueryNewLink(&a, &b) && a && b) {
       int pa = (int)a.Get(), pb = (int)b.Get();

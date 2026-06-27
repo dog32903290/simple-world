@@ -26,9 +26,7 @@ namespace ed = ax::NodeEditor;
 namespace sw::ui {
 namespace {
 
-// ---------------------------------------------------------------------------
-// Palette state
-// ---------------------------------------------------------------------------
+// ── Palette state ──
 bool  g_isOpen     = false;
 // Focus the filter InputText on the next drawQuickAdd frame. Set UNCONDITIONALLY by every
 // openQuickAdd (fresh open AND re-open): the old in-Begin static edge-detection only fired
@@ -44,28 +42,30 @@ int   g_selectedIdx = 0;       // index into g_displayItems
 std::vector<std::string> g_allItems;       // full unfiltered list (symbolIds; rebuilt on open)
 std::vector<std::string> g_displayItems;   // filtered+ranked subset this frame
 char g_lastFilter[64] = "";                // filter snapshot (detect dirty)
+// Port-drag type pre-filter (= TiXL SymbolFilter FilterInputType/FilterOutputType); empty = none.
+std::string g_inputFilter;                 // require an INPUT port of this dataType (drag-from-output)
+std::string g_outputFilter;                // require an OUTPUT port of this dataType (drag-from-input)
 int  g_framesOpen = 0;                     // frames since open (focus-loss guard)
 // Usage-count cache (= TiXL SymbolAnalysis UsageCount/TotalUsageCount, SymbolFilter.cs:369-381).
 std::unordered_map<std::string, int> g_usageCounts;
 int g_totalUsageCount = 0;
 
-// ---------------------------------------------------------------------------
-// Build g_allItems from the registry + live compounds.
-// = TiXL SymbolBrowser: specTypes() covers atomics; compound defs cover user symbols.
-// Cycle-guard greying happens at spawn time (spawnNodeAt already refuses; we include all
-// items here and grey cyclic ones at draw time — matches SymbolBrowser.cs:302-312).
-// ---------------------------------------------------------------------------
+// Build g_allItems from the registry + live compounds (= TiXL SymbolBrowser: specTypes() covers
+// atomics; compound defs cover user symbols). Cycle-guard greying happens at spawn time
+// (spawnNodeAt refuses; we include all + grey cyclic ones at draw, SymbolBrowser.cs:302-312).
 static void rebuildAllItems() {
     g_allItems.clear();
+    // Port-drag type pre-filter at SOURCE (= TiXL UpdateMatchingSymbols): both the flat list and
+    // the empty-query tree see one wireable set. Cmd+F passes ""/"" → passesPortFilter keeps all.
+    auto keep = [](const std::string& id) { return passesPortFilter(id, g_inputFilter, g_outputFilter); };
     // Atomic types (specTypes = the registry table: RadialPoints, GridPoints, …)
-    for (const std::string& t : sw::specTypes()) {
-        g_allItems.push_back(t);
-    }
+    for (const std::string& t : sw::specTypes())
+        if (keep(t)) g_allItems.push_back(t);
     // Compound definitions from the live library
     for (const auto& kv : sw::doc::g_lib().symbols) {
         const sw::Symbol& s = kv.second;
         if (s.atomic) continue;
-        g_allItems.push_back(s.id);
+        if (keep(s.id)) g_allItems.push_back(s.id);
     }
 }
 
@@ -116,6 +116,7 @@ static void rebuildDisplayItems() {
     g_displayItems.clear();
     const std::string query = g_filterBuf;
     const std::string qLower = toLower(query);
+    // g_allItems is already port-filtered (rebuildAllItems); the flat list only text-matches it.
     for (const std::string& item : g_allItems) {
         if (scatterMatch(toLower(displayName(item)), qLower) ||
             scatterMatch(toLower(categoryOf(item)), qLower)) {
@@ -146,14 +147,13 @@ static void rebuildDisplayItems() {
 NamespaceNode g_tree;
 
 static void rebuildTree() {
+    // g_allItems is already port-filtered (rebuildAllItems) → tree shows the same wireable set.
     g_tree = buildNamespaceTree(g_allItems, [](const std::string& id) { return categoryOf(id); });
 }
 
 }  // namespace
 
-// ---------------------------------------------------------------------------
-// Search primitives (header-exposed for the isolated self-test).
-// ---------------------------------------------------------------------------
+// ── Search primitives (header-exposed for the isolated self-test) ──
 
 // Scatter / subsequence match: query chars appear in order in `hay` (gaps allowed).
 // = TiXL SymbolFilter.cs:90 `string.Join(".*", chars)` regex: "dlp" hits "DrawLinePoints".
@@ -201,12 +201,12 @@ double computeRelevancy(const std::string& name, const std::string& query) {
     if (name.find("OBSOLETE") != std::string::npos) rel *= 0.01;      // :302 demote
     return rel;
 }
+// Port-filter predicates + firstOutputType + drawTypeFilterHint live in quick_add_tree.cpp (rule 4).
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+// ── Public API ──
 
-void openQuickAdd(float cx, float cy) {
+void openQuickAdd(float cx, float cy, const std::string& inputFilter,
+                  const std::string& outputFilter) {
     g_anchorX = cx;
     g_anchorY = cy;
     if (!g_isOpen) {
@@ -215,6 +215,9 @@ void openQuickAdd(float cx, float cy) {
         g_lastFilter[0] = '\1';  // force first-frame rebuild
         g_selectedIdx   = 0;
         g_framesOpen    = 0;    // reset focus-loss guard
+        // Port-drag type pre-filter (= TiXL PlaceHolderUi.Open in/outputFilter); set BEFORE rebuilds.
+        g_inputFilter  = inputFilter;
+        g_outputFilter = outputFilter;
         rebuildAllItems();
         rebuildUsageCounts();
         rebuildDisplayItems();
@@ -226,13 +229,9 @@ void openQuickAdd(float cx, float cy) {
     // we use a per-frame flag approach in drawQuickAdd instead.
 }
 
-// ---------------------------------------------------------------------------
 // drawQuickAdd — called every frame from drawNodeCanvas() inside ed::Begin scope.
-//
-// Design: deferred-action pattern. ALL imgui windows/children are properly
-// Begin/End'd before any spawn-and-close logic runs. No early returns inside
-// Begin...End pairs (a classic imgui state corruption trap).
-// ---------------------------------------------------------------------------
+// Design: deferred-action pattern. ALL imgui windows/children are Begin/End'd before any
+// spawn-and-close logic runs. No early returns inside Begin...End pairs (imgui state-corruption trap).
 void drawQuickAdd() {
     if (!g_isOpen) return;
 
@@ -281,6 +280,9 @@ void drawQuickAdd() {
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::InputText("##qa_filter", g_filterBuf, sizeof(g_filterBuf));
         sw::eye::recordItem("qa:input");
+
+        // Port-drag type-hint line (= TiXL DrawTypeFilterHint). No-op when no filter is active.
+        drawTypeFilterHint(g_inputFilter, g_outputFilter);
 
         ImGui::Separator();
 

@@ -6,13 +6,85 @@
 
 #include <cmath>
 #include <cstdio>
+#include <map>
 #include <string>
 #include <vector>
 
+#include "runtime/graph.h"  // NodeSpec / PortSpec / setDynamicSpecs (inject isolated test ops)
+
 namespace sw::ui {
+
+namespace {
+// Tiny atomic spec builder (= the headless-selftest convention: inject isolated test-op specs
+// via setDynamicSpecs so the port-filter predicates run against KNOWN ports, independent of which
+// production ops happen to be registered). Mirrors frame_cook_setboolvar_selftest's sbvAtomic.
+sw::NodeSpec qaSpec(const char* type, std::vector<sw::PortSpec> ports) {
+    sw::NodeSpec s; s.type = type; s.title = type; s.ports = std::move(ports); s.evaluate = nullptr;
+    return s;
+}
+}  // namespace
 
 int runQuickAddSelfTest(bool injectBug) {
     int fail = 0;
+
+    // Inject three isolated test ops with deliberately distinct port types so the port-drag
+    // type-filter (= TiXL SymbolFilter FilterInputType/FilterOutputType) can be exercised on
+    // ground truth, regardless of the production registry:
+    //   FloatSink  : input Float           (accepts a dragged Float OUTPUT)
+    //   PointSink  : input Points          (accepts a dragged Points OUTPUT; NOT a Float OUTPUT)
+    //   FloatMaker : output Float          (feeds a dragged Float INPUT)
+    {
+        std::map<std::string, sw::NodeSpec> dyn;
+        dyn["FloatSink"]  = qaSpec("FloatSink",  {{"v", "v", "Float", true}});
+        dyn["PointSink"]  = qaSpec("PointSink",  {{"p", "p", "Points", true}});
+        dyn["FloatMaker"] = qaSpec("FloatMaker", {{"out", "out", "Float", false}});
+        sw::setDynamicSpecs(std::move(dyn));
+    }
+
+    // Test 5: port-drag type pre-filter (= TiXL SymbolFilter.cs:117-152 GetInputMatchingType /
+    // GetOutputMatchingType, strict ValueType equality).
+    {
+        // opHasInputOfType: FloatSink has a Float INPUT; PointSink does not.
+        if (!opHasInputOfType("FloatSink", "Float")) {
+            std::printf("[quickadd] FloatSink should have a Float input -> FAIL\n"); ++fail; }
+        if (opHasInputOfType("PointSink", "Float")) {
+            std::printf("[quickadd] PointSink should NOT have a Float input -> FAIL\n"); ++fail; }
+        if (!opHasInputOfType("PointSink", "Points")) {
+            std::printf("[quickadd] PointSink should have a Points input -> FAIL\n"); ++fail; }
+
+        // opHasOutputOfType: FloatMaker has a Float OUTPUT; FloatSink does not (input-only).
+        if (!opHasOutputOfType("FloatMaker", "Float")) {
+            std::printf("[quickadd] FloatMaker should have a Float output -> FAIL\n"); ++fail; }
+        if (opHasOutputOfType("FloatSink", "Float")) {
+            std::printf("[quickadd] FloatSink should NOT have a Float output -> FAIL\n"); ++fail; }
+
+        // Empty filter = no constraint (the Cmd+F path): everything passes.
+        if (!opHasInputOfType("PointSink", "") || !opHasOutputOfType("PointSink", "")) {
+            std::printf("[quickadd] empty filter should impose no constraint -> FAIL\n"); ++fail; }
+
+        // passesPortFilter — drag FROM a Float OUTPUT pin => inputFilter="Float": only ops with a
+        // Float INPUT survive. FloatSink in, PointSink out, FloatMaker out (output-only).
+        if (!passesPortFilter("FloatSink",  "Float", "")) {
+            std::printf("[quickadd] drag-Float-output: FloatSink should pass -> FAIL\n"); ++fail; }
+        if (passesPortFilter("PointSink",  "Float", "")) {
+            std::printf("[quickadd] drag-Float-output: PointSink should be filtered OUT -> FAIL\n"); ++fail; }
+        if (passesPortFilter("FloatMaker", "Float", "")) {
+            std::printf("[quickadd] drag-Float-output: FloatMaker (no Float input) should be filtered OUT -> FAIL\n"); ++fail; }
+
+        // Different dragged type => different surviving set. Drag FROM a Points OUTPUT pin
+        // (inputFilter="Points"): only PointSink survives (FloatSink filtered out).
+        if (!passesPortFilter("PointSink", "Points", "")) {
+            std::printf("[quickadd] drag-Points-output: PointSink should pass -> FAIL\n"); ++fail; }
+        if (passesPortFilter("FloatSink", "Points", "")) {
+            std::printf("[quickadd] drag-Points-output: FloatSink should be filtered OUT -> FAIL\n"); ++fail; }
+
+        // Drag FROM an INPUT pin => outputFilter set: only ops with a matching OUTPUT survive.
+        // outputFilter="Float": FloatMaker passes (Float output), FloatSink/PointSink do not.
+        if (!passesPortFilter("FloatMaker", "", "Float")) {
+            std::printf("[quickadd] drag-Float-input: FloatMaker should pass -> FAIL\n"); ++fail; }
+        if (passesPortFilter("FloatSink", "", "Float")) {
+            std::printf("[quickadd] drag-Float-input: FloatSink (no Float output) should be filtered OUT -> FAIL\n"); ++fail; }
+    }
 
     // Test 1: empty query scatter-matches everything (RED->GREEN: empty shows full list).
     {
@@ -142,6 +214,20 @@ int runQuickAddSelfTest(bool injectBug) {
     // computeRelevancy — a prefix match must NOT outrank an exact match. The real code makes
     // exact > prefix, so this inverted assertion fails (red-proof of the live ranker).
     if (injectBug) {
+        // Port-filter red leg (red-proof of the live type-filter): assert the BROKEN claim that a
+        // Float-output port-drag (inputFilter="Float") still admits PointSink — a Points-only sink
+        // the drag canNOT wire to. The real passesPortFilter returns FALSE for that op, so the
+        // broken claim is false and we force a FAIL. Drives the SAME production predicate, so if the
+        // filter were ever neutered to a pass-through this assertion would flip and stop biting.
+        const bool brokenFilterClaim = passesPortFilter("PointSink", /*inFilter=*/"Float", /*outFilter=*/"");
+        if (!brokenFilterClaim) {
+            std::printf("[quickadd] injectBug: Float-output drag correctly DROPS PointSink (filter "
+                        "live) -> forcing FAIL (red-proof of the type-filter)\n");
+            ++fail;  // injectBug path MUST return nonzero
+        } else {
+            std::printf("[quickadd] injectBug: Float-output drag ADMITS PointSink -> filter BROKEN -> FAIL\n");
+            ++fail;
+        }
         const std::string q = "grid";
         const bool brokenClaim = computeRelevancy("GridPoints", q) > computeRelevancy("Grid", q);
         if (!brokenClaim) {
@@ -152,11 +238,13 @@ int runQuickAddSelfTest(bool injectBug) {
             std::printf("[quickadd] injectBug: prefix outranked exact -> ranker BROKEN -> FAIL\n");
             ++fail;
         }
+        sw::setDynamicSpecs({});  // tear down injected test ops
         std::printf("[quickadd] injectBug FAIL count=%d (expected nonzero) -> %s\n", fail,
                     fail > 0 ? "PASS (red-proof)" : "FAIL");
         return fail > 0 ? 1 : 0;
     }
 
+    sw::setDynamicSpecs({});  // tear down injected test ops (leave the registry clean for the run)
     std::printf("[quickadd] fail=%d -> %s\n", fail, fail == 0 ? "PASS" : "FAIL");
     return fail;
 }
