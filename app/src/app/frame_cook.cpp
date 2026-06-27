@@ -225,11 +225,12 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, 
   tr.bpm = t.bpm;
   tr.rate = t.rate;
 
-  // pass 0: clear the var map ONCE (= EvaluationContext.Reset). injectBug 2 skips it → stale leak (D/G golden).
+  // pass 0: clear EVERY channel ONCE (= EvaluationContext.Reset; injectBug 2 skips → leak D/G/H). stringVars (sub-seam C) cleared HERE, BEFORE cookStringNodes writes/reads it (H golden bites a leak).
   if (ctxVarBug != 2) {
     vars.floatVars.clear();
-    vars.intVars.clear();   // bool rides intVars 0/1 → covered here
-    vars.vec3Vars.clear();  // Vec3 channel (5ae642b) — was missing from the clear → stale cross-frame leak
+    vars.intVars.clear();
+    vars.vec3Vars.clear();
+    vars.stringVars.clear();
   }
 
   // Cook one node (resolve Float inputs + the String VariableName, step, write extOut).
@@ -358,14 +359,13 @@ void run(PointGraph& pg, const std::string& targetPath) {
                            g_frameIndex, &doc::g_lib(), s_svState, s_ctxVars);
   }
 
-  // Cook the HOST-VALUE currencies (String / host-scalar / ColorList + value-output-rail) — the PRODUCTION
-  // legs of the resident rails + (Phase 1) RequestedResolution, seeded from frameResolution() (S1 hook = TiXL
-  // OutputWindow.cs:411-414 override export>selector>Fill, Fill==window today; MUST agree with the cook seed).
-  // It ALSO runs the [SetBpm] triggered-pull (PlaybackUtils.cs:74-78): on the armed edge it writes doc::g_lib()
-  // .composition.bpm and returns true → bump g_transport.bpm THIS frame (cs:80) + dirty it (a direct g_lib
-  // .composition write bypasses bumpLibRevision, B4). Non-armed: false → no-op.
+  // Cook the HOST-VALUE currencies (String / host-scalar / ColorList + value-output-rail) — PRODUCTION legs +
+  // (Phase 1) RequestedResolution from frameResolution() (S1 hook = OutputWindow.cs:411-414). String ctx-var
+  // seam (sub-seam C): s_ctxVars threaded so SetStringVar writes stringVars + GetStringVar reads it INSIDE
+  // cookStringNodes (the map cookStatefulValueNodes cleared above). It ALSO runs the [SetBpm] triggered-pull
+  // (PlaybackUtils.cs:74-78): armed edge writes composition.bpm + returns true → bump g_transport.bpm (cs:80).
   if (cookHostValueNodes(g_residentGraph, (float)posBars, (float)fxBars, &doc::g_lib(),
-                         pg.frameResolution().w, pg.frameResolution().h)) {
+                         pg.frameResolution().w, pg.frameResolution().h, &s_ctxVars)) {
     g_transport.bpm = doc::g_lib().composition.bpm;
     doc::invalidateDirtyCache();
   }

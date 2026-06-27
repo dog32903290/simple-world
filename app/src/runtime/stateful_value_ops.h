@@ -86,10 +86,19 @@ struct TransportSnapshot {
 // before-reader flat YELLOW map as float/int. (Matrix is NOT here: GetMatrixVar must emit 16 floats
 // = a 4-row Vector4[], which exceeds out[8] and rides the separate extColorOut matrix-output rail —
 // see resident_matrix_output_cook.cpp; that's a cross-rail addition, not an additive value channel.)
+// String channel (sub-seam C): TiXL SetStringVar/GetStringVar store/read a typed string in
+// context.StringVariables (a typed Dictionary<string,string>, EvaluationContext.cs) — so this is the
+// SAME typed-channel approach (NOT a boxed-object fork), the string twin of floatVars. But the String
+// currency does NOT ride the stateful FLOAT cook (GetStringVar emits a Slot<string>, not a float): it
+// rides cookStringNodes / extStrOut. So the per-frame CLEAR of stringVars happens in the SAME pass-0
+// reset (frame_cook.cpp, next to floatVars/intVars/vec3Vars.clear()) — that pass runs BEFORE
+// cookStringNodes — while the WRITE (SetStringVar) + READ (GetStringVar) happen inside cookStringNodes'
+// own writer-first 2-pass split (resident_string_cook.cpp).
 struct ContextVarMap {
   std::map<std::string, float> floatVars;
   std::map<std::string, long> intVars;
   std::map<std::string, std::array<float, 3>> vec3Vars;
+  std::map<std::string, std::string> stringVars;  // String channel (sub-seam C): typed string vars
 };
 
 // True if opType is a context-var WRITER (Set*Var family). The 2-pass ordering (writer-before-reader)

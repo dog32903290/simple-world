@@ -30,6 +30,7 @@ REGISTER_SELFTESTS(/*orderBase=*/72,
 // the registry sorts by `order`, so 300 lands after every existing row without renumbering anything).
 REGISTER_SELFTESTS(/*orderBase=*/300,
     {"hasstringchanged", runHasStringChangedSelfTest},  // per-node cross-frame STRING state (HasStringChanged)
+    {"stringctxvar", runStringCtxVarSelfTest},          // String ctx-var seam (sub-seam C): Set/GetStringVar on typed stringVars + writer-first 2-pass + per-frame clear
 );
 // Wave-2 FloatList→FloatList producers (list fan-out). Own high-orderBase block so it appends at the end
 // of --selftest-list deterministically (the registry sorts by `order`).

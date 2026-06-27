@@ -14,6 +14,7 @@ namespace sw {
 struct ResidentEvalGraph;
 struct SymbolLibrary;
 struct CompositionSettings;
+struct ContextVarMap;  // stateful_value_ops.h (String ctx-var seam — Set/GetStringVar's stringVars channel)
 class PointGraph;  // point_graph.h (PointToMatrix/GetPointDataFromList point-into-frame emit)
 }
 
@@ -42,8 +43,14 @@ namespace sw::framecook {
 // The caller bumps g_transport.bpm + dirties the lib on a true return (cs:80 settings→Playback.Bpm).
 // Folded in here (not a separate frame_cook call) so frame_cook.cpp stays at-or-below its line-count
 // cap (ARCHITECTURE rule 4 ratchet — NO grandfather bump). lib must be non-null for the pull to write.
+//
+// `vars` (String ctx-var seam, sub-seam C) = the host per-frame ContextVarMap (= production's s_ctxVars,
+// the SAME instance cookStatefulValueNodes cleared this frame). Threaded into cookStringNodes so the
+// String-channel writer SetStringVar populates vars->stringVars and the reader GetStringVar reads it back,
+// both inside cookStringNodes' writer-first 2-pass. nullptr (the default — every non-frame_cook caller /
+// a stateless golden) → the String ctx-var ops see no map → GetStringVar falls back to its FallbackDefault.
 bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, SymbolLibrary* lib,
-                        uint32_t reqW = 0, uint32_t reqH = 0);
+                        uint32_t reqW = 0, uint32_t reqH = 0, ContextVarMap* vars = nullptr);
 
 // value-output-rail Phase 4 — the POINT-INTO-FRAME value emit, run AFTER pg.cookResident (when this
 // frame's point buffers exist). Builds the PointAccessor over `pg` (residentCookedPoints, zero-blit Shared

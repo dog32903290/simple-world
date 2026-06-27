@@ -45,6 +45,8 @@ struct EvaluationContext;  // runtime/eval_context.h
 
 namespace sw {
 
+struct ContextVarMap;  // stateful_value_ops.h (String ctx-var seam — Set/GetStringVar's stringVars channel)
+
 // Per-node CROSS-FRAME STRING state (the string twin of the colorlist KeepColors accumulator). A
 // stateless string op never touches it (StringCookCtx::state stays nullptr → byte-identical for every
 // incumbent String op). The FIRST consumer is HasStringChanged (TiXL string/logic/HasStringChanged.cs),
@@ -148,6 +150,14 @@ struct StringCookCtx {
   // resident (production): &s_stringState[path] (frame_cook's cookHostValueNodes), threaded ONLY into the
   // top producer the loop cooks; recursive upstream gathers pass nullptr (upstream producers are stateless).
   StringState* state = nullptr;
+
+  // String ctx-var seam (sub-seam C): the host per-frame ContextVarMap whose stringVars channel the String-
+  // channel ctx-var ops touch (= TiXL context.StringVariables, a typed Dictionary<string,string>). SetStringVar
+  // writes vars->stringVars[name]=value; GetStringVar reads it, else FallbackDefault. Threaded ONLY by the
+  // cookStringNodes producer loop's writer-first 2-pass (the recursive upstream gather passes nullptr — an
+  // upstream String producer never reads/writes a var). nullptr for every NON-ctx-var String op (byte-identical)
+  // and for a hand-built ctx with no map (GetStringVar → FallbackDefault, SetStringVar → echo-only).
+  ContextVarMap* ctxVars = nullptr;
 };
 
 // A string op: read inputStrings (+ resolved Float params) → write *output. ONE fn (like a floatlist
@@ -169,6 +179,12 @@ const StringCookFn* findStringOp(const std::string& type);
 // drops the last character / last gathered input) so the golden's RED case fires on the actual cook
 // path (NOT by flipping the expected value). Off in production. A leaf reads it at the end of its cook.
 bool& stringInjectBug();
+
+// String ctx-var seam (sub-seam C) ORDERING TEETH hook (the --selftest-stringctxvar -bug leg). When set,
+// cookStringNodes COLLAPSES its writer-first 2-pass into a single build-order loop → a GetStringVar declared
+// BEFORE its SetStringVar writer reads the empty-map fallback instead of the set value (proving the 2-pass is
+// load-bearing). Off in production. NOT a per-frame flag — a sticky module switch the golden clears back.
+bool& stringCtxVarOrderBug();
 
 // RAII registrar: declare one file-scope static of this type at the end of each string-op leaf.
 //   StringOp(spec, cookFn);  // pushes spec into stringSpecSink() and cook into stringCookFns()

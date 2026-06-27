@@ -28,6 +28,7 @@ namespace sw {
 struct ResidentEvalGraph;  // resident_eval_graph.h
 struct ResidentEvalCtx;    // resident_eval_graph.h
 struct StringState;        // string_op_registry.h (cookStringNodes/cookResidentString cross-frame slot)
+struct ContextVarMap;      // stateful_value_ops.h (String ctx-var seam — Set/GetStringVar's stringVars channel)
 
 // value-output-rail Phase 4 — POINT-INTO-FRAME value-emit accessor. The point-buffer twin of
 // ResidentEvalCtx (which carries no point buffer to the frame-level emit pass — the WALL named in
@@ -195,10 +196,14 @@ bool cookResidentStringList(const ResidentEvalGraph& g, const std::string& path,
 // by cookStringNodes ONLY for the top node it cooks (keyed by resident path in the s_stringState store);
 // the RECURSIVE upstream gathers pass nullptr (upstream String producers are stateless). A stateless op
 // ignores it → byte-identical. The string twin of cookResidentColorList's `state`.
+// `vars` (String ctx-var seam, sub-seam C) = the host per-frame ContextVarMap, passed ONLY for the top
+// producer the cookStringNodes loop cooks (Set/GetStringVar touch vars->stringVars). nullptr for the
+// recursive upstream gather (an upstream String producer never reads/writes a var) — byte-identical.
 bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
                         const ResidentEvalCtx& ctx, std::string& out, int depth = 0,
                         std::map<int, std::string>* extraStrOut = nullptr,
-                        std::map<int, float>* scalarOut = nullptr, StringState* state = nullptr);
+                        std::map<int, float>* scalarOut = nullptr, StringState* state = nullptr,
+                        ContextVarMap* vars = nullptr);
 
 // Per-frame PRODUCTION cook for the STRING currency (host std::string cook flow = TiXL Slot<string>).
 // Walks the resident graph, cooks every String-producer op (findStringOp != null) by gathering its
@@ -216,7 +221,16 @@ bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
 // against the previous frame on the PRODUCTION resident path (R-2: not flat-only). nullptr (the default)
 // for a single-frame / stateless caller (every existing String golden) → no per-node slot is threaded,
 // byte-identical to before. A stateful String op cooked with a null store sees no persistence (frame 0).
+//
+// `vars` (String ctx-var seam, sub-seam C) = the host per-frame ContextVarMap whose stringVars channel the
+// String-channel ctx-var ops touch. SetStringVar (a String WRITER) writes vars->stringVars[name]=value;
+// GetStringVar (a String reader) reads it, else FallbackDefault. cookStringNodes runs ALL String writers
+// BEFORE any reader (the writer-first 2-pass — the structural delta vs the old single build-order loop), so
+// a within-frame Set→Get rendezvous deterministically regardless of declaration order. nullptr (the default
+// — every existing String golden + the recursive gather) → the ctx-var ops see no map (GetStringVar →
+// FallbackDefault, SetStringVar → echo-only). A non-ctx-var String op ignores it (byte-identical).
 void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
-                     std::map<std::string, StringState>* state = nullptr);
+                     std::map<std::string, StringState>* state = nullptr,
+                     ContextVarMap* vars = nullptr);
 
 }  // namespace sw
