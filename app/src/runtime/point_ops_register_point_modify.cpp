@@ -50,6 +50,7 @@ void registerSdfReflectionLinePointsOp();
 void registerRaymarchPointsOp();
 void registerPointColorWithFieldOp();
 void registerSelectPointsWithSdfOp();
+void registerFindClosestPointsOnMeshOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -92,6 +93,7 @@ void registerPointModifyPointOps() {
   registerRaymarchPointsOp();                // Points → Points (two-mode raymarch each point to/through a wired SDF; SDF point-modify + count-multiply seam, Raymarch/KeepSteps)
   registerPointColorWithFieldOp();           // Points → Points (lerp Color toward a wired SDF field's color branch; direct-Field gather LEAF)
   registerSelectPointsWithSdfOp();           // Points → Points (write a per-point selection scalar from a wired SDF distance into FX1/FX2; direct-Field gather LEAF)
+  registerFindClosestPointsOnMeshOp();       // Points + Mesh → Points (snap each point onto nearest mesh surface; mesh-into-points seam, brute-force tri loop)
 }
 
 }  // namespace sw
