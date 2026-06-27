@@ -53,6 +53,7 @@
 #include "runtime/eval_context.h"        // EvaluationContext
 #include "runtime/graph.h"               // Graph/Node/pinId
 #include "runtime/point_graph.h"         // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/tex_op_cache.h"        // cachedComputePSO
 #include "runtime/tixl_point.h"          // SwPoint (64B)
 #include "runtime/pairpointsforgridwalklines_params.h"
 
@@ -114,12 +115,7 @@ void cookPairPointsForGridWalkLines(PointCookCtx& c) {
   uint32_t totalOut = resultCount * kStepsPerPair;
   simd::uint3 counts = {totalOut, safeA, safeB};
 
-  MTL::Function* fn = c.lib->newFunction(
-      NS::String::string("pairpointsforgridwalklines", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "pairpointsforgridwalklines");
   if (!pso) return;
 
   const uint32_t tg = 64;
@@ -136,7 +132,7 @@ void cookPairPointsForGridWalkLines(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained) ---
@@ -180,6 +176,7 @@ int runPairPointsForGridWalkLinesSelfTest(bool injectBug) {
   const uint32_t NA = 3, NB = 2;
   const float offsetB = 10.0f;
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device*       dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue*   q = dev->newCommandQueue();
   NS::Error*         err = nullptr;

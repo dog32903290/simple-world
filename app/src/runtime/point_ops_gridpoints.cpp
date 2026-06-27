@@ -24,6 +24,7 @@
 #include "runtime/graph.h"            // Graph/Node/findSpec/pinId/readVecN
 #include "runtime/gridpoints_params.h" // GridParams, GridBinding
 #include "runtime/point_graph.h"      // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/tex_op_cache.h"     // cachedComputePSO
 #include "runtime/tixl_point.h"       // SwPoint (64B) + EvaluationContext
 
 #ifndef SW_SHADER_METALLIB
@@ -37,11 +38,7 @@ namespace {
 // Size/Center/Pivot via cookVecN (vector params), SizeMode (Cell|Bounds) scalar.
 void cookGridPoints(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.lib) return;
-  MTL::Function* fn = c.lib->newFunction(NS::String::string("gridpoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "gridpoints");
   if (!pso) return;
 
   GridParams P{};
@@ -72,7 +69,7 @@ void cookGridPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden (self-contained: own capture vector + capture-only DrawOp) ---
@@ -102,6 +99,7 @@ int runGridPointsSelfTest(bool injectBug) {
   const float SX = 2.0f, SY = 3.0f;     // Cell-mode spacing per axis
   const float CX = 5.0f, CY = -1.0f;    // Center
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

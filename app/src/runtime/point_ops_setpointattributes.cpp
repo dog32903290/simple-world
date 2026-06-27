@@ -8,6 +8,7 @@
 // modifier template exactly: scalar params via paramOr on the cooked node (c.nodeId), vector
 // params (Position/RotationAxis/Stretch/Color) via readVecN(*n,...).
 #include "runtime/point_ops.h"
+#include "runtime/tex_op_cache.h"
 
 #include <cmath>
 #include <cstdio>
@@ -37,12 +38,7 @@ void cookSetPointAttributes(PointCookCtx& c) {
   const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   if (!srcBag) return;  // unwired input -> nothing to modify
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("setpointattributes", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "setpointattributes");
   if (!pso) return;
 
   SetPointAttributesParams P{};
@@ -82,7 +78,7 @@ void cookSetPointAttributes(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -117,6 +113,7 @@ int runSetPointAttributesSelfTest(bool injectBug) {
   const float TSX = 4.0f, TSY = 0.25f, TSZ = 7.0f;                 // target Stretch -> Scale
   const float amount = injectBug ? 0.0f : 1.0f;  // bug: strength 0 -> lerp keeps the old attrs
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

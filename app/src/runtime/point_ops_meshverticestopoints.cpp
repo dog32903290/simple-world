@@ -31,6 +31,7 @@
 #include "runtime/graph_bridge.h"              // libFromGraph (flat Graph -> SymbolLibrary, production path)
 #include "runtime/meshverticestopoints_params.h"  // MeshVtxToPointsParams + MVTP_* bindings
 #include "runtime/point_graph.h"               // PointCookCtx, registerPointOp, PointGraph
+#include "runtime/tex_op_cache.h"              // cachedComputePSO
 #include "runtime/resident_eval_graph.h"       // buildEvalGraph (production path)
 #include "runtime/sw_mesh.h"                   // SwVertex (80B)
 #include "runtime/tixl_point.h"                // SwPoint (64B)
@@ -49,12 +50,7 @@ void cookMeshVerticesToPoints(PointCookCtx& c) {
   const MTL::Buffer* verts = c.meshVtx;
   if (!verts || c.meshVtxCount == 0) return;  // unwired Mesh input -> empty bag (like an unwired Points input)
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("meshverticestopoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "meshverticestopoints");
   if (!pso) return;
 
   MeshVtxToPointsParams P{};
@@ -76,7 +72,7 @@ void cookMeshVerticesToPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 }  // namespace
@@ -313,6 +309,7 @@ bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool
 
 int runMeshVerticesToPointsSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

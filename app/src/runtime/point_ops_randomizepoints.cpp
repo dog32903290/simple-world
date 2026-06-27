@@ -8,6 +8,7 @@
 // Self-contained leaf (its own capture vector + registerDrawOp). The cook reads scalar params
 // via paramOr on the node being cooked (c.nodeId) and vector params via readVecN(*n,...).
 #include "runtime/point_ops.h"
+#include "runtime/tex_op_cache.h"
 
 #include <cmath>
 #include <cstdio>
@@ -37,11 +38,7 @@ void cookRandomizePoints(PointCookCtx& c) {
   const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   if (!srcBag) return;  // unwired input -> nothing to randomize
 
-  MTL::Function* fn = c.lib->newFunction(NS::String::string("randomizepoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "randomizepoints");
   if (!pso) return;
 
   RandomizeParams P{};
@@ -86,7 +83,7 @@ void cookRandomizePoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -117,6 +114,7 @@ int runRandomizePointsSelfTest(bool injectBug) {
   const float R = 2.0f;
   const float JIT = 0.5f;  // per-axis position jitter amplitude
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;
@@ -245,6 +243,7 @@ int runRandomizePointsRotationLock(bool injectBug) {
   // so incremental X→Y→Z differs sharply from any reorder or combined product.
   const float RROT[3] = {140.0f, 95.0f, 65.0f};  // degrees, RandomizeRotation per axis
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

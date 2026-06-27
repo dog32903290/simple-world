@@ -19,6 +19,7 @@
 #include "runtime/graph.h"             // Graph/Node/pinId/readVecN
 #include "runtime/linepoints_params.h" // LineParams, LineBinding
 #include "runtime/point_graph.h"       // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/tex_op_cache.h"      // cachedComputePSO
 #include "runtime/tixl_point.h"        // SwPoint (64B) + EvaluationContext
 
 #ifndef SW_SHADER_METALLIB
@@ -35,11 +36,7 @@ namespace {
 // param kinds land in NodeSpec.
 void cookLinePoints(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.lib) return;
-  MTL::Function* fn = c.lib->newFunction(NS::String::string("linepoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "linepoints");
   if (!pso) return;
 
   LineParams P{};
@@ -69,7 +66,7 @@ void cookLinePoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden: self-contained capture + draw stub ---
@@ -108,6 +105,7 @@ int runLinePointsSelfTest(bool injectBug) {
   const float dx = 0.6f, dy = 0.8f, dz = 0.0f;     // |d| = 1
   const float cx = 1.0f, cy = -2.0f, cz = 0.5f;    // arbitrary Center
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   MTL::Library* lib = loadLineLib(dev);

@@ -30,6 +30,7 @@
 #include "runtime/graph.h"
 #include "runtime/point_graph.h"
 #include "runtime/tixl_point.h"
+#include "runtime/tex_op_cache.h"
 #include "runtime/transformwithimage_params.h"  // TransformImgParams, TFIMG_* bindings
 
 #ifndef SW_SHADER_METALLIB
@@ -51,12 +52,7 @@ void cookTransformWithImage(PointCookCtx& c) {
     return;
   }
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("transformwithimage", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "transformwithimage");
   if (!pso) return;
 
   TransformImgParams P{};
@@ -133,7 +129,7 @@ void cookTransformWithImage(PointCookCtx& c) {
   cmd->commit();
   cmd->waitUntilCompleted();
   samp->release();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 }  // namespace
@@ -217,6 +213,7 @@ bool tfimgLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool wi
 
 int runTransformWithImageSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

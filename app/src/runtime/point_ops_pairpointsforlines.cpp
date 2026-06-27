@@ -39,6 +39,7 @@
 #include "runtime/point_graph.h"         // PointCookCtx, registerPointOp/DrawOp, PointGraph
 #include "runtime/tixl_point.h"          // SwPoint (64B)
 #include "runtime/pairpointsforlines_params.h"
+#include "runtime/tex_op_cache.h"
 
 #ifndef SW_SHADER_METALLIB
 #define SW_SHADER_METALLIB "shaders.metallib"
@@ -108,12 +109,7 @@ void cookPairPointsForLines(PointCookCtx& c) {
   P.ResultCount  = (float)resultCount;
   P.InitWTo01    = (cookParam(c, "SetWTo01", 0.0f) > 0.5f) ? 1.0f : 0.0f;
 
-  MTL::Function* fn = c.lib->newFunction(
-      NS::String::string("pairpointsforlines", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "pairpointsforlines");
   if (!pso) return;
 
   uint32_t totalOut = resultCount * 3u;
@@ -131,7 +127,7 @@ void cookPairPointsForLines(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained) ---
@@ -188,6 +184,7 @@ int runPairPointsForLinesSelfTest(bool injectBug) {
   const uint32_t NA = 8, NB = 4;
   const float offsetB = 100.0f;
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device*       dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue*   q = dev->newCommandQueue();
   NS::Error*         err = nullptr;

@@ -15,6 +15,7 @@
 //   as ObjectToWorld; we compose its inverse host-side (NO camera input exists on the op).
 //   fork-displaceoffset-dead: DisplaceOffset is read by the .cs but never used in the .hlsl (not passed).
 #include "runtime/point_ops.h"
+#include "runtime/tex_op_cache.h"
 
 #include <cmath>
 #include <cstdio>
@@ -50,12 +51,7 @@ void cookDisplacePoints2d(PointCookCtx& c) {
     return;
   }
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("displacepoints2d", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "displacepoints2d");
   if (!pso) return;
 
   DisplaceParams2d P{};
@@ -113,7 +109,7 @@ void cookDisplacePoints2d(PointCookCtx& c) {
   cmd->commit();
   cmd->waitUntilCompleted();
   samp->release();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 }  // namespace
@@ -204,6 +200,7 @@ bool dispLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool wir
 
 int runDisplacePoints2dSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

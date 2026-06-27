@@ -48,6 +48,7 @@
 // (shared family table, same as SnapToPoints/MultiUpdatePoints — combine ops need a real spec to cook on
 // the PRODUCTION resident path, unlike the golden-only PairPointsForLines).
 #include "runtime/point_ops.h"
+#include "runtime/tex_op_cache.h"
 
 #include <cmath>
 #include <cstdio>
@@ -126,12 +127,7 @@ void cookRepeatAtPoints(PointCookCtx& c) {
   // when both are wired with >0 counts). Still guard tgtBuf nil for safety.
   const MTL::Buffer* tgtSafe = (tgtBuf && tgtN > 0) ? tgtBuf : srcBuf;
 
-  MTL::Function* fn = c.lib->newFunction(
-      NS::String::string("repeatatpoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "repeatatpoints");
   if (!pso) return;
 
   const uint32_t tg = 64;
@@ -150,7 +146,7 @@ void cookRepeatAtPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -190,6 +186,7 @@ int runRepeatAtPointsSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   const uint32_t NS_ = 8, ND = 4;
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device*       dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue*   q = dev->newCommandQueue();
   NS::Error*         err = nullptr;
@@ -314,6 +311,7 @@ int runRepeatAtPointsProductionSelfTest(bool injectBug) {
   const uint32_t NS_ = 8, ND = 4, EXPECT = (NS_ + 1) * ND;  // 36 (Linear separator row per source loop)
   const uint32_t W = 256, H = 256;
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device*       dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue*   q = dev->newCommandQueue();
   NS::Error*         err = nullptr;

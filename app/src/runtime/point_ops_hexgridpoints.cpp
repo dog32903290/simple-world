@@ -36,6 +36,7 @@
 #include "runtime/dispatch.h"            // calcDispatchCount
 #include "runtime/graph.h"               // Graph/Node/readVecN/pinId
 #include "runtime/point_graph.h"         // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/tex_op_cache.h"        // cachedComputePSO
 #include "runtime/tixl_point.h"          // SwPoint (64B) + EvaluationContext
 #include "runtime/hexgridpoints_params.h" // HexGridParams, HexGridBinding
 
@@ -48,12 +49,7 @@ namespace {
 
 void cookHexGridPoints(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.lib) return;
-  MTL::Function* fn = c.lib->newFunction(
-      NS::String::string("hexgridpoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "hexgridpoints");
   if (!pso) return;
 
   HexGridParams P{};
@@ -88,7 +84,7 @@ void cookHexGridPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained) ---
@@ -122,6 +118,7 @@ int runHexGridPointsSelfTest(bool injectBug) {
   const uint32_t NX = 3, NY = 3, NZ = 1;
   const uint32_t TOTAL = NX * NY * NZ;  // 9
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device*       dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue*   q = dev->newCommandQueue();
   NS::Error*         err = nullptr;

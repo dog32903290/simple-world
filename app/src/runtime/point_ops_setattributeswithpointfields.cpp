@@ -48,6 +48,7 @@
 #include "runtime/point_graph.h"                      // PointCookCtx, registerPointOp, cookParam
 #include "runtime/setattributeswithpointfields_params.h"  // SetAttrWithFieldsParams, SAWF_* bindings
 #include "runtime/sw_gradient.h"                       // SwGradient (the baked gradient currency)
+#include "runtime/tex_op_cache.h"                      // cachedComputePSO
 #include "runtime/tixl_point.h"                        // SwPoint (64B)
 
 #ifndef SW_SHADER_METALLIB
@@ -136,12 +137,7 @@ void cookSetAttributesWithPointFields(PointCookCtx& c) {
   gradHost.reserve((size_t)kGradientResolution * 4);
   sampleGradientRowRGBA(*gradient, kGradientResolution, gradHost);
 
-  MTL::Function* fn = c.lib->newFunction(
-      NS::String::string("setattributeswithpointfields", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "setattributeswithpointfields");
   if (!pso) return;
 
   MTL::Texture* curveTex = makeRowTex(c.dev, MTL::PixelFormatR32Float, (uint32_t)kCurveSampleCount,
@@ -201,7 +197,7 @@ void cookSetAttributesWithPointFields(PointCookCtx& c) {
   samp->release();
   curveTex->release();
   gradTex->release();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 void registerSetAttributesWithPointFieldsOp() {

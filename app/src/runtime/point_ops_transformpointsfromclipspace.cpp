@@ -34,6 +34,7 @@
 #include "runtime/graph.h"                     // Graph/Node/pinId (flat-driver leg)
 #include "runtime/point_graph.h"               // PointCookCtx, registerPointOp, PointGraph
 #include "runtime/quat_host.h"                  // qFromMatrix3PreciseHost (rotation golden, host twin)
+#include "runtime/tex_op_cache.h"              // cachedComputePSO
 #include "runtime/resident_eval_graph.h"       // buildEvalGraph (resident leg)
 #include "runtime/transformpointsfromclipspace_params.h"  // TpfcsParams, TPFCS_* bindings
 #include "runtime/tixl_point.h"                // SwPoint (64B)
@@ -53,12 +54,7 @@ void cookTransformPointsFromClipspace(PointCookCtx& c) {
   const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   if (!srcBag) return;  // unwired Points input -> nothing to do
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("transformpointsfromclipspace", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "transformpointsfromclipspace");
   if (!pso) return;
 
   TpfcsParams P{};
@@ -81,7 +77,7 @@ void cookTransformPointsFromClipspace(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 }  // namespace
@@ -274,6 +270,7 @@ bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
 
 int runTransformPointsFromClipspaceSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

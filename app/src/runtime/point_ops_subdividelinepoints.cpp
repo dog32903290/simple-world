@@ -46,6 +46,7 @@
 #include "runtime/graph.h"                       // Graph/Node/pinId
 #include "runtime/point_graph.h"                 // PointCookCtx, registerPointOp/DrawOp, PointGraph
 #include "runtime/subdividelinepoints_params.h"  // SubdivideLineParams, SubdivideLineBinding
+#include "runtime/tex_op_cache.h"                // cachedComputePSO
 #include "runtime/tixl_point.h"                  // SwPoint (64B)
 
 #ifndef SW_SHADER_METALLIB
@@ -94,12 +95,7 @@ void cookSubdivideLinePoints(PointCookCtx& c) {
 
   if (!srcBag || sourceCount == 0 || !c.output || c.count == 0) return;
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("subdividelinepoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "subdividelinepoints");
   if (!pso) return;
 
   SubdivideLineParams P{};
@@ -120,7 +116,7 @@ void cookSubdivideLinePoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -243,6 +239,7 @@ void registerSubdivideLinePointsOp() {
 int runSubdivideLinePointsSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

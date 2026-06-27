@@ -36,6 +36,7 @@
 #include "runtime/dispatch.h"        // calcDispatchCount
 #include "runtime/graph.h"           // Graph/Node/pinId/findSpec
 #include "runtime/point_graph.h"     // PointCookCtx, registerPointOp
+#include "runtime/tex_op_cache.h"
 #include "runtime/growstrains_params.h"
 #include "runtime/tixl_point.h"      // SwPoint (64B)
 
@@ -74,11 +75,7 @@ void cookGrowStrains(PointCookCtx& c) {
   if (resultCount == 0 || !aBuf || !bBuf || !c.output || !c.lib) return;
   if (c.count < resultCount) return;  // frame-1 seeding; output not yet sized to the product
 
-  MTL::Function* fn = c.lib->newFunction(NS::String::string("growstrains", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "growstrains");
   if (!pso) return;
 
   GrowStrainsParams P{};
@@ -126,7 +123,7 @@ void cookGrowStrains(PointCookCtx& c) {
   cmd->commit();
   cmd->waitUntilCompleted();
   samp->release();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
   if (whiteFallback) whiteFallback->release();
 }
 
@@ -153,6 +150,7 @@ void registerGrowStrainsOp() {
 // becomes NaN (not 0.2375) → the GrowthMap-gate tooth bites (RED).
 int runGrowStrainsSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

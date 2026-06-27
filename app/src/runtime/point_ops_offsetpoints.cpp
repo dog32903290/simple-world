@@ -28,6 +28,7 @@
 #include "runtime/graph.h"                // Graph/Node/pinId
 #include "runtime/offsetpoints_params.h"  // OffsetPointsParams, OffsetPointsBinding
 #include "runtime/point_graph.h"          // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/tex_op_cache.h"         // cachedComputePSO
 #include "runtime/tixl_point.h"           // SwPoint (64B)
 
 #ifndef SW_SHADER_METALLIB
@@ -42,12 +43,7 @@ void cookOffsetPoints(PointCookCtx& c) {
   const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   if (!srcBag) return;
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("offsetpoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "offsetpoints");
   if (!pso) return;
 
   OffsetPointsParams P{};
@@ -70,7 +66,7 @@ void cookOffsetPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- C++ mirror of shared/quat.metal.h qRotateVec3 (fast Rodrigues), for the golden reference ---
@@ -147,6 +143,7 @@ int runOffsetPointsSelfTest(bool injectBug) {
   const float DIST = 2.0f;
   const float DIR[3] = {1.0f, 0.0f, 0.0f};  // offset along +X in each point's LOCAL frame
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

@@ -22,6 +22,7 @@
 // with TextureMode driving the U/V wrap. See samplepointcolorattributes_params.h / .metal for the full
 // .t3 trace (TransformMatrix child 23b4b95e / ScaleVector3 468d48a7 / SamplerState e96c13da).
 #include "runtime/point_ops.h"
+#include "runtime/tex_op_cache.h"
 
 #include <cmath>
 #include <cstdio>
@@ -66,12 +67,7 @@ void cookSamplePointColorAttributes(PointCookCtx& c) {
     return;
   }
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("samplepointcolorattributes", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "samplepointcolorattributes");
   if (!pso) return;
 
   SpcaParams P{};
@@ -136,7 +132,7 @@ void cookSamplePointColorAttributes(PointCookCtx& c) {
   cmd->commit();
   cmd->waitUntilCompleted();
   samp->release();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 }  // namespace
@@ -446,6 +442,7 @@ bool flatGraphLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, boo
 
 int runSamplePointColorAttributesSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

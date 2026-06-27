@@ -36,6 +36,7 @@
 #include "runtime/point_graph.h"               // PointCookCtx, registerPointOp, PointGraph
 #include "runtime/resident_eval_graph.h"       // buildEvalGraph (resident leg)
 #include "runtime/samplepointsbycameradistance_params.h"  // SpcdParams, SPCD_* bindings
+#include "runtime/tex_op_cache.h"              // cachedComputePSO
 #include "runtime/tixl_point.h"                // SwPoint (64B); .FX1 (@12) == TiXL p.W
 
 #ifndef SW_SHADER_METALLIB
@@ -99,12 +100,7 @@ void cookSamplePointsByCameraDistance(PointCookCtx& c) {
   for (int i = 0; i < kCurveSampleCount; ++i)
     curveHost.push_back((float)curve->sample((double)((float)i / kCurveSampleCount)));
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("samplepointsbycameradistance", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "samplepointsbycameradistance");
   if (!pso) return;
 
   MTL::Texture* curveTex = makeR32Row(c.dev, (uint32_t)kCurveSampleCount, curveHost.data());
@@ -143,7 +139,7 @@ void cookSamplePointsByCameraDistance(PointCookCtx& c) {
   cmd->waitUntilCompleted();
   samp->release();
   curveTex->release();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 }  // namespace
@@ -318,6 +314,7 @@ bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
 
 int runSamplePointsByCameraDistanceSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

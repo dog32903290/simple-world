@@ -12,6 +12,7 @@
 //
 // Self-contained leaf: own capture vector + registerDrawOp.
 #include "runtime/point_ops.h"
+#include "runtime/tex_op_cache.h"
 
 #include <cmath>
 #include <cstdio>
@@ -41,11 +42,7 @@ void cookWrapPoints(PointCookCtx& c) {
   const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   if (!srcBag) return;
 
-  MTL::Function* fn = c.lib->newFunction(NS::String::string("wrappoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "wrappoints");
   if (!pso) return;
 
   WrapPointsParams P{};
@@ -69,7 +66,7 @@ void cookWrapPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -106,6 +103,7 @@ int runWrapPointsSelfTest(bool injectBug) {
   // points stay at |x|<=3 — OUTSIDE [-0.5,0.5] — which this fixed threshold catches.
   const float half = 0.5f;
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

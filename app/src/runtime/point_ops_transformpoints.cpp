@@ -19,6 +19,7 @@
 #include "runtime/dispatch.h"               // calcDispatchCount
 #include "runtime/graph.h"                  // Graph/Node/readVecN/pinId
 #include "runtime/point_graph.h"            // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/tex_op_cache.h"           // cachedComputePSO
 #include "runtime/transformpoints_params.h" // TransformParams, TransformBinding
 #include "runtime/tixl_point.h"             // SwPoint (64B) + EvaluationContext
 
@@ -36,11 +37,7 @@ void cookTransformPoints(PointCookCtx& c) {
   const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   if (!srcBag) return;  // unwired input -> nothing to transform
 
-  MTL::Function* fn = c.lib->newFunction(NS::String::string("transformpoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "transformpoints");
   if (!pso) return;
 
   TransformParams P{};
@@ -70,7 +67,7 @@ void cookTransformPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -102,6 +99,7 @@ int runTransformPointsSelfTest(bool injectBug) {
   const float R = 2.0f;
   const float SCALE = 2.0f, TX = 5.0f;
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;
@@ -312,6 +310,7 @@ int runTransformPointsParityProbe(bool injectBug) {
   const float TRN[3] = {0.4f, -0.3f, 0.9f};
   const double DEG = M_PI / 180.0;
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

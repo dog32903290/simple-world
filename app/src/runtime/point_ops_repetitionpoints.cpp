@@ -27,6 +27,7 @@
 #include "runtime/graph.h"                     // Graph/Node/readVecN/pinId
 #include "runtime/point_graph.h"               // PointCookCtx, registerPointOp/DrawOp, PointGraph
 #include "runtime/repetitionpoints_params.h"   // RepetitionPointsParams, RepetitionPointsBinding
+#include "runtime/tex_op_cache.h"              // cachedComputePSO
 #include "runtime/tixl_point.h"                // SwPoint (64B) + EvaluationContext
 
 #ifndef SW_SHADER_METALLIB
@@ -62,12 +63,7 @@ void cookRepetitionPoints(PointCookCtx& c) {
   if (realCount < 1u) realCount = 1u;
   if (realCount > 10000u) realCount = 10000u;
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("repetitionpoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "repetitionpoints");
   if (!pso) return;
 
   RepetitionPointsParams P{};
@@ -108,7 +104,7 @@ void cookRepetitionPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -159,6 +155,7 @@ void registerRepetitionPointsOp() {
 int runRepetitionPointsSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device*      dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue*  q = dev->newCommandQueue();
   NS::Error*        err = nullptr;

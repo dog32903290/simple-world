@@ -39,6 +39,7 @@
 #include "runtime/graph.h"                       // Graph/Node/pinId/readVecN
 #include "runtime/point_graph.h"                 // PointCookCtx, registerPointOp/DrawOp, PointGraph
 #include "runtime/resamplelinepoints_params.h"   // ResampleLineParams, ResampleLineBinding
+#include "runtime/tex_op_cache.h"                // cachedComputePSO
 #include "runtime/tixl_point.h"                  // SwPoint (64B) + EvaluationContext
 
 #ifndef SW_SHADER_METALLIB
@@ -65,12 +66,7 @@ void cookResampleLinePoints(PointCookCtx& c) {
   uint32_t sourceCount = (c.inputCounts && c.inputCount > 0) ? c.inputCounts[0] : 0u;
   if (sourceCount < 2u) return;  // need >=2 source points to define a line parameter
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("resamplelinepoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "resamplelinepoints");
   if (!pso) return;
 
   ResampleLineParams P{};
@@ -105,7 +101,7 @@ void cookResampleLinePoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -204,6 +200,7 @@ void registerResampleLinePointsOp() {
 int runResampleLinePointsSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

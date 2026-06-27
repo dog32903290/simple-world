@@ -8,6 +8,7 @@
 // Self-contained leaf (its own capture vector + registerDrawOp). The cook reads scalar params via
 // paramOr on the node being cooked (c.nodeId) and the vector params via readVecN(*n,...).
 #include "runtime/point_ops.h"
+#include "runtime/tex_op_cache.h"
 
 #include <cmath>
 #include <cstdio>
@@ -37,11 +38,7 @@ void cookOrientPoints(PointCookCtx& c) {
   const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   if (!srcBag) return;  // unwired input -> nothing to orient
 
-  MTL::Function* fn = c.lib->newFunction(NS::String::string("orientpoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "orientpoints");
   if (!pso) return;
 
   OrientParams P{};
@@ -68,7 +65,7 @@ void cookOrientPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -113,6 +110,7 @@ int runOrientPointsSelfTest(bool injectBug) {
   const float R = 2.0f;
   const float CX = 3.0f, CY = -1.0f, CZ = 2.0f;  // sphere center == orient Target
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

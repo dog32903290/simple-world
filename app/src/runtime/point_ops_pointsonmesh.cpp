@@ -36,6 +36,7 @@
 #include "runtime/point_graph.h"               // PointCookCtx, registerPointOp, cookParam
 #include "runtime/pointsonmesh_params.h"       // PomFaceProperties / PomCdfParams / PomDistributeParams
 #include "runtime/sw_mesh.h"                   // SwVertex / SwTriIndex
+#include "runtime/tex_op_cache.h"              // cachedComputePSO
 #include "runtime/tixl_point.h"                // SwPoint (64B)
 
 #ifndef SW_SHADER_METALLIB
@@ -68,19 +69,9 @@ void cookPointsOnMeshImpl(PointCookCtx& c, float forceUniformArea) {
   const MTL::Buffer* faces = c.meshIdx;
   if (!verts || !faces || c.meshFaceCount == 0) return;  // unwired Mesh / no faces -> empty bag
 
-  MTL::Function* fnCdf =
-      c.lib->newFunction(NS::String::string("pointsonmesh_calccdf", NS::UTF8StringEncoding));
-  MTL::Function* fnDist =
-      c.lib->newFunction(NS::String::string("pointsonmesh_distribute", NS::UTF8StringEncoding));
-  if (!fnCdf || !fnDist) { if (fnCdf) fnCdf->release(); if (fnDist) fnDist->release(); return; }
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* psoCdf = c.dev->newComputePipelineState(fnCdf, &err);
-  MTL::ComputePipelineState* psoDist = c.dev->newComputePipelineState(fnDist, &err);
-  fnCdf->release(); fnDist->release();
-  if (!psoCdf || !psoDist) {
-    if (psoCdf) psoCdf->release(); if (psoDist) psoDist->release();
-    return;
-  }
+  MTL::ComputePipelineState* psoCdf = cachedComputePSO(c.dev, c.lib, "pointsonmesh_calccdf");
+  MTL::ComputePipelineState* psoDist = cachedComputePSO(c.dev, c.lib, "pointsonmesh_distribute");
+  if (!psoCdf || !psoDist) return;
 
   // Scratch CDF buffer: one PomFaceProperties per face (CalcCdf2 out / Distribute in).
   MTL::Buffer* cdf = c.dev->newBuffer((size_t)c.meshFaceCount * sizeof(PomFaceProperties),
@@ -140,8 +131,7 @@ void cookPointsOnMeshImpl(PointCookCtx& c, float forceUniformArea) {
   if (whiteFallback) whiteFallback->release();
   samp->release();
   cdf->release();
-  psoCdf->release();
-  psoDist->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 namespace {

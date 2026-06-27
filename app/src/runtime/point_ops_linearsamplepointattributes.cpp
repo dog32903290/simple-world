@@ -15,6 +15,7 @@
 // a Clamp/Linear sampler (.t3 SamplerState aecfdea8: AddressU/V/W=Clamp, default Linear filter) @
 // sampler(0); an UNWIRED texture → passthrough (mirror point_ops_samplepointcolorattributes.cpp:63).
 #include "runtime/point_ops.h"
+#include "runtime/tex_op_cache.h"
 
 #include <cmath>
 #include <cstdio>
@@ -56,12 +57,7 @@ void cookLinearSamplePointAttributes(PointCookCtx& c) {
     return;
   }
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("linearsamplepointattributes", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "linearsamplepointattributes");
   if (!pso) return;
 
   LspaParams P{};
@@ -111,7 +107,7 @@ void cookLinearSamplePointAttributes(PointCookCtx& c) {
   cmd->commit();
   cmd->waitUntilCompleted();
   samp->release();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 }  // namespace
@@ -300,6 +296,7 @@ bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool
 
 int runLinearSamplePointAttributesSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

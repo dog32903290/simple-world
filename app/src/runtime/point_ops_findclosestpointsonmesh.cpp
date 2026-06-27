@@ -30,6 +30,7 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
+#include "runtime/tex_op_cache.h"                  // cachedComputePSO
 #include "runtime/dispatch.h"                      // calcDispatchCount
 #include "runtime/eval_context.h"
 #include "runtime/findclosestpointsonmesh_params.h"  // FcpomParams + FCPOM_* bindings
@@ -66,12 +67,7 @@ void cookFindClosestPointsOnMesh(PointCookCtx& c) {
     return;
   }
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("findclosestpointsonmesh", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "findclosestpointsonmesh");
   if (!pso) return;
 
   FcpomParams P{};
@@ -93,7 +89,7 @@ void cookFindClosestPointsOnMesh(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 void registerFindClosestPointsOnMeshOp() {
@@ -295,6 +291,7 @@ bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool
 
 int runFindClosestPointsOnMeshSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

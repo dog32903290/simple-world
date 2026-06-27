@@ -40,6 +40,7 @@
 #include "runtime/eval_context.h"  // EvaluationContext
 #include "runtime/graph.h"         // Graph/Node/pinId
 #include "runtime/point_graph.h"   // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/tex_op_cache.h"  // cachedComputePSO
 #include "runtime/tixl_point.h"    // SwPoint (64B)
 #include "runtime/blendpoints_params.h"
 
@@ -76,12 +77,7 @@ void cookBlendPoints(PointCookCtx& c) {
   P.CountA      = countA;
   P.CountB      = countB;
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("blendpoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "blendpoints");
   if (!pso) return;
 
   const uint32_t tg = 64;
@@ -97,7 +93,7 @@ void cookBlendPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained) ---
@@ -141,6 +137,7 @@ int runBlendPointsSelfTest(bool injectBug) {
   const float    blendFactor = injectBug ? 0.75f : 0.25f;  // bug perturbs the routed param
   const float    expectF = 0.25f;                          // assertions always expect f=0.25
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device*       dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue*   q = dev->newCommandQueue();
   NS::Error*         err = nullptr;

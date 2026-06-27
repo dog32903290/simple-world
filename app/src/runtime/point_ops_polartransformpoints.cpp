@@ -15,6 +15,7 @@
 //
 // Self-contained leaf: own capture vector + registerDrawOp.
 #include "runtime/point_ops.h"
+#include "runtime/tex_op_cache.h"
 
 #include <cmath>
 #include <cstdio>
@@ -44,12 +45,7 @@ void cookPolarTransformPoints(PointCookCtx& c) {
   const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   if (!srcBag) return;
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("polartransformpoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "polartransformpoints");
   if (!pso) return;
 
   PolarTransformParams P{};
@@ -76,7 +72,7 @@ void cookPolarTransformPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -114,6 +110,7 @@ int runPolarTransformPointsSelfTest(bool injectBug) {
   const float PI = 3.14159265358979323846f;
   const float TZ = injectBug ? 0.0f : R;   // lift to z=R (bug: leave at z=0 -> warp collapses)
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;
@@ -259,6 +256,7 @@ int runPolarTransformPointsParityProbe(bool injectBug) {
   const float LEN = 2.0f * PI;
   const float PIVOT = 0.5f;  // LinePoints default
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

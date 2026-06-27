@@ -53,6 +53,7 @@
 #include "runtime/eval_context.h"          // EvaluationContext (graph count golden)
 #include "runtime/graph.h"                 // Graph/Node/pinId
 #include "runtime/point_graph.h"           // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/tex_op_cache.h"          // cachedComputePSO
 #include "runtime/tixl_point.h"            // SwPoint (64B)
 #include "runtime/snaptopoints_params.h"   // SnapToPointsParams, SnapToPointsBinding
 
@@ -80,12 +81,7 @@ void cookSnapToPoints(PointCookCtx& c) {
   uint32_t pts2Count = (c.inputCounts && c.inputCount > 1) ? c.inputCounts[1] : 0u;
   if (pts1Count == 0) return;
 
-  MTL::Function* fn = c.lib->newFunction(
-      NS::String::string("snaptopoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "snaptopoints");
   if (!pso) return;
 
   SnapToPointsParams P{};
@@ -115,7 +111,7 @@ void cookSnapToPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained) ---
@@ -164,6 +160,7 @@ int runSnapToPointsSelfTest(bool injectBug) {
   const uint32_t N = 32;
   const float offset = 2.0f;  // Points2 = Points1 shifted +offset in X
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device*       dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue*   q = dev->newCommandQueue();
   NS::Error*         err = nullptr;

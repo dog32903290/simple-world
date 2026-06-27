@@ -33,6 +33,7 @@
 #include "runtime/dispatch.h"               // calcDispatchCount
 #include "runtime/graph.h"                  // Graph/Node/pinId
 #include "runtime/point_graph.h"            // PointCookCtx, registerPointOp/DrawOp, PointGraph
+#include "runtime/tex_op_cache.h"
 #include "runtime/tixl_point.h"             // SwPoint (64B) + EvaluationContext
 #include "runtime/doylespiralpoints_params.h"  // DoyleSpiralParams, DoyleSpiralBinding
 
@@ -137,12 +138,7 @@ DoyleAbr findRootAngles(double p, double q) {
 
 void cookDoyleSpiralPoints(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.lib) return;
-  MTL::Function* fn = c.lib->newFunction(
-      NS::String::string("doylespiralpoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "doylespiralpoints");
   if (!pso) return;
 
   DoyleSpiralParams P{};
@@ -184,7 +180,7 @@ void cookDoyleSpiralPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained) ---
@@ -223,6 +219,7 @@ int runDoyleSpiralPointsSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   const uint32_t TOTAL = 200;
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device*       dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue*   q = dev->newCommandQueue();
   NS::Error*         err = nullptr;

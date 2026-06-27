@@ -28,6 +28,7 @@
 // requirement). Leak-free (balanced alloc/release) — the RESOURCE_LIFETIME golden governs driver-owned
 // OUTPUT buffers, not in-cook transient scratch.
 #include "runtime/point_ops.h"
+#include "runtime/tex_op_cache.h"
 
 #include <algorithm>
 #include <cmath>
@@ -159,12 +160,7 @@ void cookMapPointAttributes(PointCookCtx& c) {
   //    wired @ inputTextures[0]), the baked curve}. ValueTexture OVERRIDES the baked curve. ──
   const MTL::Texture* valueTex = (c.inputTextureCount > 0) ? c.inputTextures[0] : nullptr;
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("mappointattributes", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "mappointattributes");
   if (!pso) return;
 
   // Scratch textures (alloc + upload; released after the dispatch completes — see header note).
@@ -221,7 +217,7 @@ void cookMapPointAttributes(PointCookCtx& c) {
   samp->release();
   curveTex->release();
   gradTex->release();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 }  // namespace
@@ -442,6 +438,7 @@ bool residentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, std:
 
 int runMapPointAttributesSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

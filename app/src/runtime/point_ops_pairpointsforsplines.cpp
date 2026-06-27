@@ -43,6 +43,7 @@
 #include "runtime/eval_context.h"    // EvaluationContext
 #include "runtime/graph.h"           // Graph/Node/pinId
 #include "runtime/point_graph.h"     // PointCookCtx, registerPointOp, cookParam/cookVecN
+#include "runtime/tex_op_cache.h"    // cachedComputePSO
 #include "runtime/tixl_point.h"      // SwPoint (64B)
 #include "runtime/pairpointsforsplines_params.h"
 
@@ -107,12 +108,7 @@ void cookPairPointsForSplines(PointCookCtx& c) {
   P.CountB            = (float)safeBcount;
   P.ResultCount       = (float)resultCount;
 
-  MTL::Function* fn = c.lib->newFunction(
-      NS::String::string("pairpointsforsplines", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "pairpointsforsplines");
   if (!pso) return;
 
   const uint32_t tg = 64;
@@ -128,7 +124,7 @@ void cookPairPointsForSplines(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 }  // namespace
@@ -162,6 +158,7 @@ void registerPairPointsForSplinesOp() {
 int runPairPointsForSplinesSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device*       dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue*   q = dev->newCommandQueue();
   NS::Error*         err = nullptr;

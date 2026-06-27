@@ -30,6 +30,7 @@
 #include "runtime/graph.h"
 #include "runtime/point_graph.h"                // PointCookCtx, registerPointOp
 #include "runtime/samplepointattributes_params.h"  // SampleAttrParams, SAMPLEATTR_* bindings
+#include "runtime/tex_op_cache.h"
 #include "runtime/tixl_point.h"                 // SwPoint (64B)
 
 #ifndef SW_SHADER_METALLIB
@@ -53,12 +54,7 @@ void cookSamplePointAttributes(PointCookCtx& c) {
     return;
   }
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("samplepointattributes", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "samplepointattributes");
   if (!pso) return;
 
   SampleAttrParams P{};
@@ -130,7 +126,7 @@ void cookSamplePointAttributes(PointCookCtx& c) {
   cmd->commit();
   cmd->waitUntilCompleted();
   samp->release();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 }  // namespace
@@ -201,6 +197,7 @@ bool routeLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, bool wi
 
 int runSamplePointAttributesSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

@@ -31,6 +31,7 @@
 #include "runtime/graph.h"                      // Graph/Node/pinId
 #include "runtime/point_graph.h"                // PointCookCtx, registerPointOp/DrawOp, PointGraph
 #include "runtime/reorientlinepoints_params.h"  // ReorientLineParams, ReorientLineBinding
+#include "runtime/tex_op_cache.h"               // cachedComputePSO
 #include "runtime/tixl_point.h"                 // SwPoint (64B) + EvaluationContext
 
 #ifndef SW_SHADER_METALLIB
@@ -47,12 +48,7 @@ void cookReorientLinePoints(PointCookCtx& c) {
   const MTL::Buffer* srcBag = (c.inputCount > 0) ? c.inputs[0] : nullptr;
   if (!srcBag) return;  // unwired input -> nothing to reorient
 
-  MTL::Function* fn =
-      c.lib->newFunction(NS::String::string("reorientlinepoints", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "reorientlinepoints");
   if (!pso) return;
 
   ReorientLineParams P{};
@@ -71,7 +67,7 @@ void cookReorientLinePoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // --- golden plumbing (self-contained: own capture vector + draw op) ---
@@ -151,6 +147,7 @@ int runReorientLinePointsSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   const uint32_t N = 8;
 
+  clearTexOpCache();  // P1: drop stale PSO built on this self-built device before teardown
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;

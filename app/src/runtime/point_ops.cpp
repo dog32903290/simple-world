@@ -33,11 +33,7 @@ namespace sw {
 // (A1.5) must cache PSOs; flagged there, not here.
 void cookRadialPoints(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.lib) return;
-  MTL::Function* fn = c.lib->newFunction(NS::String::string("radial_points", NS::UTF8StringEncoding));
-  if (!fn) return;
-  NS::Error* err = nullptr;
-  MTL::ComputePipelineState* pso = c.dev->newComputePipelineState(fn, &err);
-  fn->release();
+  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "radial_points");
   if (!pso) return;
 
   RadialParams P{};
@@ -63,7 +59,7 @@ void cookRadialPoints(PointCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  pso->release();
+  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
 }
 
 // DrawPoints command op (Points → Command): emit a 1-item RenderCommand describing how to
