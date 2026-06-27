@@ -613,6 +613,7 @@ add_executable(simple_world
   src/runtime/resident_host_scalar_cook.cpp
   src/runtime/resident_value_output_cook.cpp
   src/runtime/resident_matrix_output_cook.cpp
+  src/runtime/resident_point_value_output_cook.cpp
   src/runtime/resident_colorlist_cook.cpp
   src/runtime/resident_string_cook.cpp
   src/runtime/resident_stringlist_cook.cpp

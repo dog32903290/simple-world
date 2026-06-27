@@ -209,22 +209,49 @@ static const MathOp _reg_TransformMatrix{
        "render._"}
 };
 
-      // TiXL PointToMatrix (Lib/point/helper/PointToMatrix.cs) — value-output-rail Phase 3 (MATRIX value).
+      // TiXL PointToMatrix (Lib/point/helper/PointToMatrix.cs) — value-output-rail Phase 4 (MATRIX value).
       // Builds the objectToParentObject of points[0] (Position/Orientation/Scale → SRT, pivot=0, transposed)
       // and emits the 4 ROWS as a Vector4[] = Slot<Vector4[]> Matrix. SAME matrix-as-4-vec4-on-extColorOut
-      // convention as TransformMatrix. DEFERRED EMIT (named defer-pointtomatrix-needs-point-into-frame-pass):
-      // its input is a POINT BUFFER (StructuredList<Point>) — the resident graph carries no point buffer to
-      // the frame-level cook-emit pass (the SAME wall Phase 1 hit with GetTextureSize: the point cook lives in
-      // PointGraph's cook-core recursion this rail must NOT touch). So cookMatrixOutputNodes does NOT emit this
-      // op yet; its matrix MATH is implemented + golden-verified (pointToMatrixRows). The NodeSpec is registered
-      // (the node exists + carries the right port shape) with evaluate==nullptr; a future point-into-frame seam
-      // wires the emit. CamPointBuffer = a Points input (canvas pin, no Float decomposition).
+      // convention as TransformMatrix. NOW WIRED (Phase 4 lifted defer-pointtomatrix-needs-point-into-frame-
+      // pass): its input is a POINT BUFFER (StructuredList<Point>); cookPointValueOutputNodes (resident_point_
+      // value_output_cook.cpp) — the SEPARATE pass that runs AFTER pg.cookResident (when the point buffers
+      // exist) — reads point[0] from the cooked Shared buffer host-side (PointAccessor, zero blit) and writes
+      // the 4 rows onto extColorOut (the IDENTICAL math+channel as cookMatrixOutputNodes's TransformMatrix
+      // path). evaluate==nullptr (the matrix is a LIST, not one float — can't ride NodeSpec::evaluate).
+      // CamPointBuffer = a Points input (canvas pin, no Float decomposition). Empty/unwired → identity.
 static const MathOp _reg_PointToMatrix{
       {"PointToMatrix", "PointToMatrix",
        {{"Matrix", "Matrix", "ColorList", false},     // the 4-row matrix (extColorOut channel)
         {"CamPointBuffer", "CamPointBuffer", "Points", true}},
        nullptr,
-       "point.helper"},  // the point buffer (emit deferred); category = TiXL Symbol.Namespace
+       "point.helper"},  // the point buffer (point-into-frame emit); category = TiXL Symbol.Namespace
+};
+
+      // TiXL GetPointDataFromList (Lib/numbers/data/utils/GetPointDataFromList.cs) — value-output-rail Phase 4.
+      // Reads ONE point from a StructuredList<Point>: point[ItemIndex.Mod(N)] → Position(Vec3) / W(=point.F1,
+      // float) / Orientation(Vec4). NO pure evaluate (it reads a point buffer the resident graph carries no
+      // access to from a value pull) — evaluate==nullptr; cookPointValueOutputNodes (the SAME point-into-frame
+      // pass as PointToMatrix, run AFTER pg.cookResident) indexes the cooked Shared buffer host-side and fans
+      // the outputs onto extOut[0..7]. FORK fork-getpointdata-vec-as-scalar-ports: TiXL's Position(Vec3)/
+      // W(float)/Orientation(Vec4) are 3 typed Slots; sw fans them onto the SCALAR extOut[] rail (8 slots =
+      // 3+1+4 exactly) — the EXACT scalar-pack fork RequestedResolution uses. Faithful in VALUE, forked in
+      // wire-cardinality. OUTPUT PORTS FIRST → output-port index == extOut index: [0..2]=Position.x/y/z,
+      // [3]=W, [4..7]=Orientation.x/y/z/w. .t3 defaults (GetPointDataFromList.t3): ItemIndex=0, DataList=null.
+      // index.Mod(N) = EUCLIDEAN modulo (MathUtils.cs:273-284, always non-negative). Empty/unwired → extOut 0.
+static const MathOp _reg_GetPointDataFromList{
+      {"GetPointDataFromList", "GetPointDataFromList",
+       {{"Position.x", "Position",   "Float", false},
+        {"Position.y", "Position.y", "Float", false},
+        {"Position.z", "Position.z", "Float", false},
+        {"W",          "W",          "Float", false},
+        {"Orientation.x", "Orientation",   "Float", false},
+        {"Orientation.y", "Orientation.y", "Float", false},
+        {"Orientation.z", "Orientation.z", "Float", false},
+        {"Orientation.w", "Orientation.w", "Float", false},
+        {"DataList", "DataList", "Points", true},
+        {"ItemIndex", "ItemIndex", "Float", true, 0.0f, 0.0f, 1000.0f, Widget::Slider}},
+       nullptr,
+       "numbers.data.utils"}
 };
 
       // TiXL SetBpm (Lib/numbers/anim/vj/SetBpm.cs) — the [SetBpm] VJ transport-BPM writer. On a
