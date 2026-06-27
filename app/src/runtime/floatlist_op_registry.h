@@ -52,6 +52,19 @@ struct FloatListState {
   std::vector<float> lastValues;      // AmplifyValues _lastValues (previous-frame input, change detection)
   std::vector<float> output;          // AmplifyValues _output (the persistent published list)
   bool inited = false;                // false until the first cook sizes the arrays to the input count
+  // --- DampFloatList (DampFloatList.cs:78-80) cross-frame state — ADDITIVE, only DampFloatList reads these.
+  // A per-index spring/lerp damp keeps the previous damped value (_dampedValues) + a velocity (_velocities,
+  // unused for Method 0=LinearInterpolation but kept for parity) and a last-eval bars time (_lastEvalTime)
+  // for the MinTimeElapsedBeforeEvaluation dt-gate. AmplifyValues never touches these (byte-identical); a
+  // brand-new FloatListState default-inits them empty / 0 — the op (re)sizes on its first cook.
+  std::vector<float> dampedValues;    // DampFloatList _dampedValues (per-index running damped value)
+  std::vector<float> velocities;      // DampFloatList _velocities (spring velocity; 0 for Method 0)
+  double lastEvalTime = 0.0;          // DampFloatList _lastEvalTime (bars clock of the last evaluated frame)
+  bool dampInited = false;            // DampFloatList: false until the first non-gated cook seeds lastEvalTime
+  // --- KeepFloatValues (KeepFloatValues.cs:55) cross-frame state — ADDITIVE, only KeepFloatValues reads it.
+  // The persistent accumulator `_list`: new values are inserted at the front, the list is trimmed to
+  // BufferLength. Survives frame→frame so the ring fills up over time. Other ops never read it.
+  std::vector<float> keepList;        // KeepFloatValues _list (the persistent front-insert accumulator)
 };
 
 // Everything a floatlist op gets to cook one node this frame. Mirrors MeshCookCtx (mesh_op_registry.h)

@@ -425,11 +425,15 @@ add_executable(simple_world
   src/runtime/floatlist_ops_floatlisttointlist.cpp
   src/runtime/floatlist_ops_intlisttofloatlist.cpp
   src/runtime/floatlist_ops_amplifyvalues.cpp   # AmplifyValues (FIRST cross-frame STATEFUL FloatList op: damped-average follower)
+  src/runtime/floatlist_ops_dampfloatlist.cpp   # DampFloatList (cross-frame STATEFUL: per-index damped follower + dt-gate, Method 0)
+  src/runtime/floatlist_ops_keepfloatvalues.cpp # KeepFloatValues (cross-frame STATEFUL: front-insert ring-buffer accumulator)
   src/floatlist_golden.cpp
   src/floatlist_producers_golden.cpp
   src/floatlist_smoothvalues_golden.cpp
   src/floatlist_animfloatlist_golden.cpp
   src/floatlist_amplifyvalues_golden.cpp        # --selftest-amplifyvalues (cross-frame FloatList STATE: damp toward input over frames, flat + R-2 resident)
+  src/floatlist_dampfloatlist_golden.cpp        # --selftest-dampfloatlist (cross-frame STATE: damp + dt-gate, flat + resident)
+  src/floatlist_keepfloatvalues_golden.cpp      # --selftest-keepfloatvalues (cross-frame STATE: front-insert history ring, flat + resident)
   src/floatlist_conversion_golden.cpp
   src/runtime/colorlist_op_registry.cpp
   src/runtime/colorlist_ops_colorstolist.cpp

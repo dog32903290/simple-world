@@ -163,6 +163,8 @@ namespace sw { int runFloatListProducersSelfTest(bool); }        // floatlist_pr
 namespace sw { int runSmoothValuesSelfTest(bool); }              // floatlist_smoothvalues_golden.cpp (SmoothValues forward-window box average, STATELESS FloatList→FloatList, chain-through-evalFloat)
 namespace sw { int runAnimFloatListSelfTest(bool); }             // floatlist_animfloatlist_golden.cpp (AnimFloatList animator PRODUCER: AnimMath shapes → List<float> on LocalFxTime, flat+resident chain-through)
 namespace sw { int runAmplifyValuesSelfTest(bool); }             // floatlist_amplifyvalues_golden.cpp (AmplifyValues cross-frame STATE: damp toward input over frames, flat + R-2 resident)
+namespace sw { int runDampFloatListSelfTest(bool); }             // floatlist_dampfloatlist_golden.cpp (DampFloatList cross-frame STATE: per-index damp + dt-gate, flat + resident)
+namespace sw { int runKeepFloatValuesSelfTest(bool); }           // floatlist_keepfloatvalues_golden.cpp (KeepFloatValues cross-frame STATE: front-insert ring accumulator, flat + resident)
 namespace sw { int runFloatListConversionSelfTest(bool); }       // floatlist_conversion_golden.cpp (FloatListToIntList trunc-toward-zero + IntListToFloatList widening, chain-through-evalFloat)
 namespace sw { int runListRoutingWave1SelfTest(bool); }          // list_routing_wave1_golden.cpp (list fan-out wave-1: SumRange/IntListLength/PickIntFromList/CompareFloatLists bridge)
 namespace sw { int runPointListSelfTest(bool); }                 // pointlist_golden.cpp (7th cook flow: CPU point list + ListToBuffer bridge)
