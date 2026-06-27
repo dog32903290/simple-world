@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 380e724
-DIRTY: clean
+HEAD: 6184c02
+DIRTY: 1 files
 CENSUS: 440 / 749 done
 BITE: 493 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T11:04
+STAMP_AT: 2026-06-27T11:22
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -22,7 +22,7 @@ STAMP_AT: 2026-06-27T11:04
 - **✅ point-modify 三 rail 已 fan-out（6 op，全 refuter MERGE-SAFE）**：**SDF/count-multiply rail**（MovePointsToSDF `64aa0a0`/`f5689bb` 開縫+gatherPointFieldTree unifier、SdfReflectionLinePoints `2f0b31c`、RaymarchPoints `380e724` two-mode）+ **texture-into-points rail**（SamplePointAttributes/DisplacePoints2d/TransformWithImage `c62b2c1`）。.t3-defaults 審成標準（抓到 MoveToSDF SetOrientation/SetColor + Write* 多個 default-active 分支）。NIT 群：MaxSteps clamp（count-multiply ops，非預設才差）/SdfReflection golden 未測 bounce。
 - **★campaign＝7 cook-core 子縫 grind-list（map scout `ab2ff989` 鎖定，非 12；ABI 比 label 完整）**：**F** second-point-buffer(SetAttributesWithPointFields,~1-3,likely leaf inputs[1])→**A** list-state resident slot(AmplifyValues/Damp/Keep/Merge*,~4-6,mirror 已建 ensureState)→**B** ctx-var Vec3/Matrix(4,加 ContextVarMap 欄)→**C** ctx-var String(2,string-wire gate 已 closed)→**D** dict-ctx host rail(~7,純 host 非 device-IO)→**E** point-sim cross-frame(~8,5 簡單 ride ParticleSystem state factory)。**序列做(cook-core 一條一條)，map 給 first-op+golden 免再 scout。**
 - **★需柏為架構決定（grind 到再問，已先擺出）**：**E-hard** PointSimulation pool-growth ABI（growable pool 要新 resident-state ABI 還是復用 ParticleSystem 固定 pool？）/**G** asset/file loader（LoadObjAsPoints/LoadSvg：file-IO/asset lifetime model？device-IO-adjacent）。
-- 前批：anim+list harvest（`49582bd`）+matrix seam（`96e4923`）+維護加固 工作1+2+folder-package+ColorThemeEditor 詳見 history。**★今晚揪 6+ stale seam-map 標籤；規則：seam 開採前必 ground-truth。**
+- 前批：anim+list harvest（`49582bd`）+matrix seam（`96e4923`）+維護加固 工作1+2+folder-package+ColorThemeEditor 詳見 history。**★★方法論鐵律（柏為 2026-06-27 定，根因修）：seam 開採前必 ground-truth scout；scout 揪出 stale label（已建/真數/依賴）後**必立刻派 plan-update subagent 寫回 `tools/seam_map.tsv`+census docs**，否則每 session 重栽同坑、差點重蓋已建縫（一晚 6+ 次）。scout→write-back→build，漏寫回=下次重栽。[[sw-groundtruth-writeback-rule]]**
 
 ## Conflict Register
 - **（已解）MV 工單 +66 行收進 main（`2765fe4`）**：先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
