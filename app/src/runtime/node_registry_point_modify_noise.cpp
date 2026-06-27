@@ -233,5 +233,66 @@ static const PointModifyOp _reg_RaymarchPoints{
        "point.modify"}
 };
 
+// ---- direct-Field gather LEAF (cloned from MoveToSDF): PointColorWithField --------------------
+// TiXL parity: external/tixl .../point/modify/PointColorWithField.cs +
+//              .../Assets/shaders/points/_research/ColorPointsWithField.hlsl
+// A count-preserving MODIFIER with a DIRECT "Field" input (TiXL ShaderGraphNode): evaluate the wired SDF
+// field's COLOR branch (GetField(float4(pos,1)), w=1) at each point and lerp the point Color toward it by
+// `strength`. The "Field" input is the SAME seam MoveToSDF uses — the cook driver's one-hop direct-Field
+// gather (field_graph_builder.cpp) builds the upstream SDF tree the moment a "Field" input port exists.
+// Defaults from PointColorWithField.t3 (GUID-keyed): Strength=1.0, StrengthFactor=0(None→×1).
+static const PointModifyOp _reg_PointColorWithField{
+      {"PointColorWithField",
+       "Point Color With Field",
+       {{"points", "points", "Points", true},   // input bag (port 0)
+        {"out", "out", "Points", false},          // recolored output bag (port 1)
+        // DIRECT Field input (TiXL ShaderGraphNode SdfField). dataType "Field" → the cook's one-hop
+        // direct-Field gather builds the upstream SDF tree (field_graph_builder.cpp seam).
+        {"Field", "Field", "Field", true},
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f},
+        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f,
+         Widget::Enum, {"None", "F1", "F2"}}},
+       nullptr,
+       "point.modify"}
+};
+
+// ---- direct-Field gather LEAF (cloned from MoveToSDF): SelectPointsWithSDF ---------------------
+// TiXL parity: external/tixl .../point/modify/SelectPointsWithSDF.cs +
+//              .../Assets/shaders/points/modify/SelectPointsWithField.hlsl
+// A count-preserving MODIFIER with a DIRECT "Field" input (TiXL ShaderGraphNode): read the wired SDF
+// DISTANCE (GetField(float4(pos,0)).w, w=0) at each point, map it through Mode/Mapping/Range/Offset/
+// GainAndBias into a selection scalar, and write it into FX1/FX2 (WriteTo). DiscardNonSelected=FALSE at
+// the .t3 default → the Scale=NaN discard branch is DEAD → count is PRESERVED (no point-count change).
+// Defaults from SelectPointsWithSDF.t3 (GUID-keyed): Strength=1.0, StrengthFactor=0(None), WriteTo=1(F1),
+//   Mode=0(Override), Mapping=0(Centered), Range=1.0, Offset=0.0, GainAndBias=(0.5,0.5), Scatter=0.0,
+//   ClampNegative=true, DiscardNonSelected=false.
+static const PointModifyOp _reg_SelectPointsWithSDF{
+      {"SelectPointsWithSDF",
+       "Select Points With SDF",
+       {{"points", "points", "Points", true},   // input bag (port 0)
+        {"out", "out", "Points", false},          // FX1/FX2-written output bag (port 1)
+        // DIRECT Field input (TiXL ShaderGraphNode SdfField). dataType "Field" → the cook's one-hop
+        // direct-Field gather builds the upstream SDF tree (field_graph_builder.cpp seam).
+        {"Field", "Field", "Field", true},
+        {"Strength", "Strength", "Float", true, 1.0f, 0.0f, 1.0f},
+        {"StrengthFactor", "StrengthFactor", "Float", true, 0.0f, 0.0f, 2.0f,
+         Widget::Enum, {"None", "F1", "F2"}},
+        {"WriteTo", "WriteTo", "Float", true, 1.0f, 0.0f, 2.0f,
+         Widget::Enum, {"None", "F1", "F2"}},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 4.0f,
+         Widget::Enum, {"Override", "Add", "Sub", "Multiply", "Invert"}},
+        {"Mapping", "Mapping", "Float", true, 0.0f, 0.0f, 3.0f,
+         Widget::Enum, {"Centered", "FromStart", "PingPong", "Repeat"}},
+        {"Range", "Range", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"Offset", "Offset", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Scatter", "Scatter", "Float", true, 0.0f, 0.0f, 10.0f},
+        {"ClampNegative", "ClampNegative", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},
+        {"DiscardNonSelected", "DiscardNonSelected", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr,
+       "point.modify"}
+};
+
 }  // namespace
 }  // namespace sw

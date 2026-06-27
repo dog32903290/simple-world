@@ -341,6 +341,8 @@ add_executable(simple_world
   src/movepointstosdf_golden.cpp  # SDF point-modify: GridPoints -> MoveToSDF(Field=SphereSDF) -> on-sphere readback (--selftest-movepointstosdf)
   src/sdfreflectionlinepoints_golden.cpp  # SDF point-modify + count-multiply: LinePoints -> SdfReflectionLinePoints(Field=SphereSDF) -> per-line polyline readback (--selftest-sdfreflectionlinepoints)
   src/raymarchpoints_golden.cpp  # SDF point-modify + count-multiply (TWO modes): LinePoints -> RaymarchPoints(Field=SphereSDF) -> MODE0 line[1] / MODE1 last-step on-sphere readback (--selftest-raymarchpoints)
+  src/pointcolorwithfield_golden.cpp  # direct-Field gather LEAF: GridPoints -> SetPointAttributes(seed) -> PointColorWithField(Field=SphereSDF) -> recolored-white readback (--selftest-pointcolorwithfield)
+  src/selectpointswithsdf_golden.cpp  # direct-Field gather LEAF: GridPoints -> SelectPointsWithSDF(Field=SphereSDF) -> per-point FX1=max(0,1-2*dist) readback (--selftest-selectpointswithsdf)
   src/field_paramapply_golden.cpp
   src/field_paramapply_cases.cpp
   src/field_paramapply_enumcases.cpp
@@ -706,6 +708,14 @@ target_compile_definitions(simple_world PRIVATE
   # point to/through a wired SDF; the two-mode sibling of SdfReflectionLinePoints). Same string-asset rule;
   # assembleFieldMSL fills the SAME hooks; the cook compiles the result via cachedSourceComputePSO.
   SW_RAYMARCH_POINTS_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/raymarch_points_template.metal"
+  # Direct-Field gather LEAF (cloned from MoveToSDF) — PointColorWithField: evaluate the wired SDF field's
+  # COLOR branch (w=1) at each point position and lerp the point Color toward it. Same string-asset rule;
+  # assembleFieldMSL fills the SAME hooks; the cook compiles the result via cachedSourceComputePSO.
+  SW_POINT_COLOR_WITH_FIELD_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/pointcolorwithfield_template.metal"
+  # Direct-Field gather LEAF (cloned from MoveToSDF) — SelectPointsWithSDF: read the SDF distance (w=0) at
+  # each point, map it through Mode/Mapping/Range/Offset/GainAndBias and write the selection scalar to
+  # FX1/FX2. Same string-asset rule; assembleFieldMSL fills the SAME hooks; the cook compiles via cachedSourceComputePSO.
+  SW_SELECT_POINTS_WITH_SDF_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/selectpointswithsdf_template.metal"
 )
 
 # The executable needs the metallib built before it runs.

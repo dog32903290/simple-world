@@ -48,6 +48,8 @@ void registerSortPointsOp();
 void registerMoveToSdfOp();
 void registerSdfReflectionLinePointsOp();
 void registerRaymarchPointsOp();
+void registerPointColorWithFieldOp();
+void registerSelectPointsWithSdfOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -88,6 +90,8 @@ void registerPointModifyPointOps() {
   registerMoveToSdfOp();                     // Points → Points (raymarch each point to a wired SDF surface; SDF point-modify seam, direct-Field gather)
   registerSdfReflectionLinePointsOp();       // Points → Points (raymarch+reflect each point off a wired SDF, emit polyline; SDF point-modify + count-multiply seam)
   registerRaymarchPointsOp();                // Points → Points (two-mode raymarch each point to/through a wired SDF; SDF point-modify + count-multiply seam, Raymarch/KeepSteps)
+  registerPointColorWithFieldOp();           // Points → Points (lerp Color toward a wired SDF field's color branch; direct-Field gather LEAF)
+  registerSelectPointsWithSdfOp();           // Points → Points (write a per-point selection scalar from a wired SDF distance into FX1/FX2; direct-Field gather LEAF)
 }
 
 }  // namespace sw
