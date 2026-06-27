@@ -159,5 +159,40 @@ static const PointModifyOp _reg_MoveToSDF{
        "point.modify"}
 };
 
+// ---- SDF point-modify + count-multiply seam: SdfReflectionLinePoints ----------
+// TiXL parity: external/tixl .../field/use/SdfReflectionLinePoints.cs +
+//              .../Assets/shaders/points/modify/SdfReflectionLinePoints.hlsl
+// A COUNT-MULTIPLYING op with a DIRECT "Field" input (TiXL ShaderGraphNode): per source point, raymarch
+// along the point's forward axis toward the wired SDF and reflect on each surface hit, emitting a polyline
+// of pointsPerLine = clamp(MaxReflectionCount,0,10)+3 output points. Combines the MoveToSDF direct-Field
+// gather seam (point_graph.cpp) with the SubdivideLinePoints count-multiply driver path (static-stash
+// countTransform reading c.inputCounts[0]).
+// Defaults from SdfReflectionLinePoints.t3 (GUID-keyed): MaxReflectionCount=2, MaxSteps=40,
+//   MinDistance=0.005, StepDistanceFactor=1.0, NormalSamplingDistance=0.01, MaxDistance=100,
+//   WriteDistanceTo=1(FX1), WriteStepCountTo=2(FX2). BOTH Write* are DEFAULT-ACTIVE (different FX slots)
+//   and ported 1:1. [Input] order matches the .cs: Points, Field, MaxReflectionCount, MaxSteps, MinDistance,
+//   StepDistanceFactor, WriteDistanceTo, WriteStepCountTo, NormalSamplingDistance, MaxDistance.
+static const PointModifyOp _reg_SdfReflectionLinePoints{
+      {"SdfReflectionLinePoints",
+       "Sdf Reflection Line Points",
+       {{"points", "points", "Points", true},   // input bag (port 0) — the source line
+        {"out", "out", "Points", false},          // reflected-polyline output bag (port 1)
+        // DIRECT Field input (TiXL ShaderGraphNode). dataType "Field" -> the cook's one-hop direct-Field
+        // gather builds the upstream SDF tree (point_graph.cpp / point_graph_resident.cpp seam).
+        {"Field", "Field", "Field", true},
+        {"MaxReflectionCount", "MaxReflectionCount", "Float", true, 2.0f, 0.0f, 10.0f},
+        {"MaxSteps", "MaxSteps", "Float", true, 40.0f, 1.0f, 200.0f},
+        {"MinDistance", "MinDistance", "Float", true, 0.005f, 0.0f, 1.0f},
+        {"StepDistanceFactor", "StepDistanceFactor", "Float", true, 1.0f, 0.0f, 2.0f},
+        {"WriteDistanceTo", "WriteDistanceTo", "Float", true, 1.0f, 0.0f, 2.0f,
+         Widget::Enum, {"None", "FX1", "FX2"}},
+        {"WriteStepCountTo", "WriteStepCountTo", "Float", true, 2.0f, 0.0f, 2.0f,
+         Widget::Enum, {"None", "FX1", "FX2"}},
+        {"NormalSamplingDistance", "NormalSamplingDistance", "Float", true, 0.01f, 0.0f, 1.0f},
+        {"MaxDistance", "MaxDistance", "Float", true, 100.0f, 0.0f, 1000.0f}},
+       nullptr,
+       "point.modify"}
+};
+
 }  // namespace
 }  // namespace sw

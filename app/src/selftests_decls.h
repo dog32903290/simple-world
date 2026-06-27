@@ -122,6 +122,7 @@ namespace sw { int runRandomJumpForceFieldSelfTest(bool); }       // randomjumpf
 namespace sw { int runFieldVolumeForceFieldSelfTest(bool); }      // fieldvolumeforce_field_golden.cpp (PF bridge closed-form: SphereSDF + particle @(1,0,0), Attraction=1 -> Velocity≈(-0.425*A,0,0), exercises the .t3 *0.425 Attraction fork)
 namespace sw { int runFieldTreeBuilderSelfTest(bool); }          // fieldtree_builder_golden.cpp (PF-0 graph->FieldNode builder: flat+resident both build ToroidalVortexField tree + project wired Radius)
 namespace sw { int runMoveToSdfSelfTest(bool); }                // movepointstosdf_golden.cpp (SDF point-modify seam: GridPoints -> MoveToSDF(Field=SphereSDF) raymarch -> on-sphere readback; -bug severs Field wire -> pass-through unmoved grid)
+namespace sw { int runSdfReflectionLinePointsSelfTest(bool); }  // sdfreflectionlinepoints_golden.cpp (SDF point-modify + count-multiply seam: LinePoints -> SdfReflectionLinePoints(Field=SphereSDF) -> count=src*perLine + line[1] on-sphere; -bug severs Field -> pass-through, no hit)
 namespace sw { int runFieldParamApplySelfTest(bool); }          // field_paramapply_golden.cpp (PF-0c data-driven param-apply: graph SphereSDF {Radius:0.8} -> GPU f.w + buffer slot + CombineSDF enum text + slot-id==port-id guard)
 namespace sw { int runMeshNGonGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: NGonMesh)
 namespace sw { int runMeshQuadGoldenSelfTest(bool); }            // mesh_golden.cpp (4th cook flow: QuadMesh)

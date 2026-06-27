@@ -337,6 +337,7 @@ add_executable(simple_world
   src/fieldvolumeforce_field_golden.cpp
   src/fieldtree_builder_golden.cpp
   src/movepointstosdf_golden.cpp  # SDF point-modify: GridPoints -> MoveToSDF(Field=SphereSDF) -> on-sphere readback (--selftest-movepointstosdf)
+  src/sdfreflectionlinepoints_golden.cpp  # SDF point-modify + count-multiply: LinePoints -> SdfReflectionLinePoints(Field=SphereSDF) -> per-line polyline readback (--selftest-sdfreflectionlinepoints)
   src/field_paramapply_golden.cpp
   src/field_paramapply_cases.cpp
   src/field_paramapply_enumcases.cpp
@@ -687,6 +688,10 @@ target_compile_definitions(simple_world PRIVATE
   # SourcePoints→ResultPoints, the points-modify sibling of the field-into-FORCE templates above). Same
   # string-asset rule; assembleFieldMSL fills the SAME hooks; the cook compiles the result via cachedSourceComputePSO.
   SW_MOVE_POINTS_TO_SDF_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/move_points_to_sdf_template.metal"
+  # SDF point-MODIFY + COUNT-MULTIPLY compute TEMPLATE for SdfReflectionLinePoints (raymarch+reflect each
+  # source point off a wired SDF, emit a polyline; the count-multiplying sibling of MoveToSDF). Same
+  # string-asset rule; assembleFieldMSL fills the SAME hooks; the cook compiles via cachedSourceComputePSO.
+  SW_SDF_REFLECTION_LINE_POINTS_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/sdf_reflection_line_points_template.metal"
 )
 
 # The executable needs the metallib built before it runs.
