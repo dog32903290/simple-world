@@ -38,5 +38,6 @@ REGISTER_SELFTESTS(/*orderBase=*/310,
     {"smoothvalues", runSmoothValuesSelfTest},              // SmoothValues forward-window box average (STATELESS FloatList→FloatList, chain-through-evalFloat)
     {"animfloatlist", runAnimFloatListSelfTest},            // AnimFloatList animator PRODUCER (AnimMath shapes → List<float> on LocalFxTime; flat + production-resident chain-through)
     {"floatlistconversion", runFloatListConversionSelfTest},  // FloatListToIntList (trunc-toward-zero) + IntListToFloatList (widening), chain-through-evalFloat
+    {"amplifyvalues", runAmplifyValuesSelfTest},            // AmplifyValues cross-frame STATE (damp toward input over frames; flat + R-2 production-resident)
 );
 }  // namespace sw

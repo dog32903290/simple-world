@@ -382,6 +382,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // FloatList inputs by recursing into cookFloatListNode, whose body is assigned further below. Same
   // std::function ordering-break as cookTexNode itself.
   std::function<const std::vector<float>*(int)> cookFloatListNode;
+  // Per-frame FLOATLIST memo (cook each floatlist node ONCE/frame) — twin of colorListCooked. A STATEFUL
+  // op (AmplifyValues) under fan-out would else re-cook per wire → damp advanced N×/frame; stateless = id.
+  std::map<int, const std::vector<float>*> floatListCooked;
   // Forward-declared: the COLORLIST cook flow (vec4-list = host List<Vector4>). A colorlist op
   // (ColorsToList) gathers its inputs (the 4 parallel scalar Float MultiInput component channels for
   // ColorsToList; or recursively a ColorList input for a future combiner) — body assigned below.
@@ -484,16 +487,13 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   };
 
   // Cook a FLOATLIST-flow node (5th cook flow = TiXL Slot<List<float>>). Currency = a HOST
-  // std::vector<float> in Impl::floatListBuf (no GPU buffer; the op clears + fills it). The walker gathers
-  // upstream lists into `inputLists` in spec port order, then dispatches the op. Two input-port kinds feed
-  // it: a "FloatList" port → recurse cookFloatListNode per wired source (MultiInput = separate lists, wire-
-  // declaration order); a scalar "Float" MultiInput port (FloatsToList.Input) → ALL wired scalars gathered
-  // into ONE list via evalFloat (wire order) as one inputLists entry. Gather order = g.connections order
-  // (== the resident flatten's extraConns order, resident_eval_flatten.cpp:255-268). Returns the host list
-  // (nullptr if not a floatlist op). Body extracted to Impl::cookFlatFloatList (point_graph_hostvalue_cook
-  // .cpp, Cut-4); this thin forwarding lambda keeps the closure web intact (FloatList = a CLOSED sub-graph).
+  // std::vector<float> in Impl::floatListBuf; the walker gathers upstream lists into `inputLists` (spec
+  // port order: a "FloatList" port recurses per wired source; a scalar "Float" MultiInput port aggregates
+  // all wired scalars via evalFloat into one list). Body in Impl::cookFlatFloatList (hostvalue_cook, Cut-4);
+  // this thin forwarding lambda also threads floatListCooked (the cross-frame fan-out memo). FloatList = a
+  // CLOSED sub-graph. (gather order == resident flatten extraConns, resident_eval_flatten.cpp:255-268.)
   cookFloatListNode = [&](int id) -> const std::vector<float>* {
-    return p_->cookFlatFloatList(g, ctx, nodeParams, id);
+    return p_->cookFlatFloatList(g, ctx, nodeParams, floatListCooked, id);
   };
 
   // Cook a COLORLIST-flow node (the vec4-list cook flow = TiXL Slot<List<Vector4>>). The currency is a

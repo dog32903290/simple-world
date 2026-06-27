@@ -1,8 +1,7 @@
 // runtime/point_graph_internal — PRIVATE seam between point_graph.cpp (flat cook) and
-// point_graph_resident.cpp (resident cook). Only those two TUs include it; exists so the resident cook
-// shares PointGraph::Impl + the op registries without point_graph.cpp passing the ~400-line law.
-// Resource keys are STRINGS (slice 2b): the resident path-qualified id ("5/2") is the frame-stable key;
-// the flat cook prefixes its int node id ("#7") so the two key spaces never collide while both live.
+// point_graph_resident.cpp (resident cook). Only those two TUs include it; shares PointGraph::Impl + the op
+// registries. Resource keys are STRINGS (slice 2b): the resident path-qualified id ("5/2") is the frame-
+// stable key; the flat cook prefixes its int node id ("#7") so the two key spaces never collide.
 #pragma once
 #include <array>
 #include <cmath>
@@ -25,6 +24,7 @@
 #include "runtime/sw_mesh.h"      // SwVertex (80B) + SwTriIndex (12B) — the Mesh flow's elements
 #include "runtime/mesh_op_registry.h"  // SwMeshView (cookResidentMesh return type)
 #include "runtime/string_op_registry.h"  // StringState (flat stringState cross-frame store)
+#include "runtime/floatlist_op_registry.h"  // FloatListState (floatListState store)
 #include "runtime/sw_gradient.h"  // SwGradient — the 8th flow's host value (gradientBuf)
 #include "runtime/tixl_point.h"   // SwPoint (64B) — output buffers are SwPoint bags
 
@@ -35,11 +35,10 @@ namespace sw {
 struct ResidentEvalGraph;
 struct ResidentEvalCtx;
 
-// The flat cook's per-node resolved-Float-param memo (point_graph.cpp cook()-local nodeParams). Passed
-// by-ref to the extracted flat-mesh-cook methods so they share the same single-resolve-per-node memo.
+// The flat cook's per-node resolved-Float-param memo (point_graph.cpp cook()-local nodeParams). Passed by-ref
+// to the extracted flat-mesh-cook methods so they share the same single-resolve-per-node memo.
 using NodeParamsFn = std::function<const std::map<std::string, float>*(int)>;
-// Cook-stack slot aliases (flat = int id, resident = path string). Collapse the repeated std::function<...>
-// spellings the extracted cook methods share; pure type aliases, no behaviour.
+// Cook-stack slot aliases (flat = int id, resident = path string); pure type aliases, no behaviour.
 using FlatNodeFn = std::function<MTL::Buffer*(int)>;
 using FlatCmdFn = std::function<RenderCommand(int)>;
 using FlatTexFn = std::function<MTL::Texture*(int, int)>;
@@ -160,20 +159,19 @@ struct PointGraph::Impl {
   std::map<std::string, std::vector<SwPoint>> pointListBuf;        // key -> host SwPoint list
   std::map<std::string, SwGradient> gradientBuf;                   // key -> host gradient
 
-  // CROSS-FRAME value state (the only host-channel maps that PERSIST between flat cooks; every other host
-  // map above is single-frame). colorListState = KeepColors's `_list` accumulator (KeepColors.cs:46, keyed
-  // flatKey(id)); stringState = HasStringChanged's `_lastString`. A stateless op never touches them. The
-  // resident path keeps the SAME state per resident path in s_colorListState / s_stringState (frame_cook.cpp).
+  // CROSS-FRAME value state (the only host maps that PERSIST between flat cooks; keyed flatKey(id); resident
+  // keeps the SAME per resident path). colorListState = KeepColors's `_list`; stringState = HasStringChanged's
+  // `_lastString`; floatListState = AmplifyValues's _averaged/_last/_output. A stateless op never touches its
+  // map; all value-typed → cleaned up with the map (no ~ release).
   std::map<std::string, std::vector<simd::float4>> colorListState;  // key -> persistent accumulator
   std::map<std::string, StringState> stringState;                  // key -> persistent string state
+  std::map<std::string, FloatListState> floatListState;            // key -> persistent FloatList state
 
   // Per-node CROSS-FRAME texture PAIR (the feedback / ping-pong flow = TiXL KeepPreviousFrame). A feedback
-  // op owns TWO textures (texA + texB) that PERSIST across frames + a toggle bit that flips each frame, so
-  // it hands back the PREVIOUS frame's content while writing the current one into the other buffer. The
-  // FIRST cross-frame texture STATE in the engine (every other tex map is single-frame): these two survive
-  // between cooks ON PURPOSE. Same realloc-keyed lifetime as ensureOwnedTex (realloc on w/h/fmt → release
-  // the OLD pair; both released in ~PointGraph → NO leak, NO UAF). Keyed by flat id or resident path.
-  // feedbackToggle defaults false per node (TiXL `_bufferToggle`, KeepPreviousFrame.cs:80).
+  // op owns TWO textures (texA+texB) that PERSIST across frames + a toggle bit (flips each frame) so it hands
+  // back the PREVIOUS frame while writing the current into the other buffer. Realloc-keyed like ensureOwnedTex
+  // (w/h/fmt → release the OLD pair; both released in ~PointGraph → NO leak/UAF). Keyed flat id / resident
+  // path. feedbackToggle defaults false per node (TiXL `_bufferToggle`, KeepPreviousFrame.cs:80).
   struct FeedbackPair { MTL::Texture* a = nullptr; MTL::Texture* b = nullptr; };
   std::map<std::string, FeedbackPair> feedbackTexBuf;   // key -> {texA, texB}
   std::map<std::string, uint32_t> feedbackW, feedbackH; // realloc key (w/h)
@@ -365,9 +363,11 @@ struct PointGraph::Impl {
   bool cookFlatMeshInto(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
                         int id, const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx,
                         uint32_t& faceCount);
-  // The FLAT HOST-VALUE cooks (FloatList/ColorList/Gradient/PointList), point_graph_hostvalue_cook.cpp (Cut-4; full doc in leaf). ColorList crosses cookNode + a per-frame memo (by-ref).
+  // The FLAT HOST-VALUE cooks (FloatList/ColorList/Gradient/PointList), point_graph_hostvalue_cook.cpp (Cut-4;
+  // full doc in leaf). FloatList + ColorList cross a per-frame memo (by-ref) so a stateful op cooks once/frame.
   const std::vector<float>* cookFlatFloatList(const Graph& g, const EvaluationContext& ctx,
-                                              const NodeParamsFn& nodeParams, int id);
+                                              const NodeParamsFn& nodeParams,
+                                              std::map<int, const std::vector<float>*>& floatListCooked, int id);
   const std::vector<simd::float4>* cookFlatColorList(
       const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
       const std::function<MTL::Buffer*(int)>& cookNode,

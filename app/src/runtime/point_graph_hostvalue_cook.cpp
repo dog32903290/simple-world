@@ -71,15 +71,21 @@ using pgdetail::flatKey;
 // Gather order = the order connections appear in g.connections (the wire-declaration order), which
 // is the SAME ordering the resident flatten uses for extraConns (resident_eval_flatten.cpp:255-268).
 // Returns the cooked host list (nullptr if not a floatlist op / unknown node).
-const std::vector<float>* PointGraph::Impl::cookFlatFloatList(const Graph& g,
-                                                             const EvaluationContext& ctx,
-                                                             const NodeParamsFn& nodeParams, int id) {
+const std::vector<float>* PointGraph::Impl::cookFlatFloatList(
+    const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
+    std::map<int, const std::vector<float>*>& floatListCooked, int id) {
   const Node* n = g.node(id);
   if (!n) return nullptr;
   const NodeSpec* s = findSpec(n->type);
   if (!s) return nullptr;
   const FloatListCookFn* fn = findFloatListOp(n->type);
   if (!fn || !*fn) return nullptr;
+  // Per-frame memo (the cross-frame state seam): if this node already cooked this frame, return the cached
+  // output (do NOT re-run the op — re-running a STATEFUL op like AmplifyValues would advance its damp twice
+  // under fan-out). The exact twin of cookFlatColorList's colorListCooked memo (this file, above). A
+  // stateless op is byte-identical either way (it never carries cross-frame memory); this only fixes the
+  // stateful-op-under-fan-out case.
+  if (auto it = floatListCooked.find(id); it != floatListCooked.end()) return it->second;
 
   // Gather inputs in spec port order. Each entry is one upstream host list (FloatList source) or one
   // aggregated list of scalar Float sources (a scalar Float MultiInput port). MultiInput ports admit
@@ -94,7 +100,8 @@ const std::vector<float>* PointGraph::Impl::cookFlatFloatList(const Graph& g,
       // in wire-declaration order; single-input → at most one.
       for (const Connection& c : g.connections) {
         if (c.toPin != inPin) continue;
-        const std::vector<float>* up = cookFlatFloatList(g, ctx, nodeParams, pinNode(c.fromPin));
+        const std::vector<float>* up =
+            cookFlatFloatList(g, ctx, nodeParams, floatListCooked, pinNode(c.fromPin));
         inputLists.push_back(up ? *up : std::vector<float>{});
         if (!port.multiInput) break;  // single-input: first wire only
       }
@@ -117,6 +124,12 @@ const std::vector<float>* PointGraph::Impl::cookFlatFloatList(const Graph& g,
   fc.inputLists = &inputLists;
   fc.output = &out;
   fc.params = nodeParams(id);
+  // Per-node CROSS-FRAME state slot (AmplifyValues's _averagedValues/_lastValues/_output): the SAME
+  // PointGraph instance is reused across frames, so floatListState[flatKey(id)] persists between cook()
+  // calls (the flat twin of the resident process static). A stateless floatlist op ignores it.
+  // operator[] default-creates the empty (inited=false) state on first cook.
+  fc.state = &floatListState[flatKey(id)];
+  floatListCooked[id] = &out;  // memo BEFORE the op runs (cycle/fan-out guard parity w/ colorListCooked)
   (*fn)(fc);
   return &out;
 }

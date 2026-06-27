@@ -2,6 +2,8 @@
 // Meyers singletons (init-order safe, same as mesh_op_registry.cpp / field_node_registry.cpp).
 #include "runtime/floatlist_op_registry.h"
 
+#include <set>
+
 namespace sw {
 
 std::vector<NodeSpec>& floatListSpecSink() {
@@ -20,13 +22,26 @@ const FloatListCookFn* findFloatListOp(const std::string& type) {
   return it != m.end() ? &it->second : nullptr;
 }
 
+// The set of STATEFUL floatlist op type names (Meyers singleton; the registrar inserts AmplifyValues).
+// floatListOpIsStateful reads this; the cook driver applies the cook-once advance guard to members only.
+static std::set<std::string>& floatListStatefulSet() {
+  static std::set<std::string> s;
+  return s;
+}
+
+bool floatListOpIsStateful(const std::string& type) {
+  auto& s = floatListStatefulSet();
+  return s.find(type) != s.end();
+}
+
 bool& floatListInjectBug() {
   static bool b = false;
   return b;
 }
 
-FloatListOp::FloatListOp(NodeSpec spec, FloatListCookFn cook) {
+FloatListOp::FloatListOp(NodeSpec spec, FloatListCookFn cook, bool stateful) {
   floatListCookFns()[spec.type] = cook;
+  if (stateful) floatListStatefulSet().insert(spec.type);
   floatListSpecSink().push_back(std::move(spec));
 }
 

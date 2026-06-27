@@ -424,10 +424,12 @@ add_executable(simple_world
   src/runtime/floatlist_ops_animfloatlist.cpp
   src/runtime/floatlist_ops_floatlisttointlist.cpp
   src/runtime/floatlist_ops_intlisttofloatlist.cpp
+  src/runtime/floatlist_ops_amplifyvalues.cpp   # AmplifyValues (FIRST cross-frame STATEFUL FloatList op: damped-average follower)
   src/floatlist_golden.cpp
   src/floatlist_producers_golden.cpp
   src/floatlist_smoothvalues_golden.cpp
   src/floatlist_animfloatlist_golden.cpp
+  src/floatlist_amplifyvalues_golden.cpp        # --selftest-amplifyvalues (cross-frame FloatList STATE: damp toward input over frames, flat + R-2 resident)
   src/floatlist_conversion_golden.cpp
   src/runtime/colorlist_op_registry.cpp
   src/runtime/colorlist_ops_colorstolist.cpp

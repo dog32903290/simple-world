@@ -32,8 +32,25 @@ struct StringState;        // string_op_registry.h (cookStringNodes/cookResident
 // in-scope cookResidentGradient/cookResidentCurve gathers (makes the FloatList own-tex family LIVE on
 // the production cookResident path, R-2 rule). ALSO the supply side of the FloatList-into-string BRIDGE
 // (Sub-seam A): cookResidentString gathers a FloatList input port through this (FloatListToString.Value).
+// `state` (optional) = THIS node's per-node CROSS-FRAME state (AmplifyValues's _averagedValues/_lastValues
+// /_output, FloatListState). It is the PRODUCTION-path persistence for a stateful FloatList op — but UNLIKE
+// colorlist/string there is NO single per-frame cookFloatListNodes pass to thread it (the FloatList rail is
+// pull-driven from several sites: ValuesToTexture, host-scalar, cookResidentString). So when `state` is
+// nullptr (the default — every existing call site) and the node IS a stateful op, this fn looks up a
+// PROCESS-LIFETIME static slot keyed by resident path INTERNALLY (residentFloatListState in the .cpp) +
+// a cook-once-per-frame guard keyed by ctx.frameIndex, so the damp advances exactly once per frame from
+// whichever consumer pulls first. A stateless op never touches state → byte-identical (no static entry).
+// Recursive upstream gathers pass nullptr (upstream producers are stateless; the internal static handles
+// any stateful one). A golden may pass an explicit `state` to drive the slot deterministically.
 bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
-                           const ResidentEvalCtx& ctx, std::vector<float>& out, int depth = 0);
+                           const ResidentEvalCtx& ctx, std::vector<float>& out, int depth = 0,
+                           struct FloatListState* state = nullptr);
+
+// Test-only: clear the PRODUCTION FloatList cross-frame state store (the process-lifetime static keyed by
+// resident path). A golden runs several independent trajectories in ONE process; this resets the resident
+// accumulator between them (the flat path resets naturally via a fresh PointGraph per case). No production
+// caller — frame_cook never resets (state must persist across frames in the running app).
+void resetResidentFloatListState();
 
 // Per-frame PRODUCTION cook for the FloatList→Float BRIDGE (list-routing seam). Walks the resident
 // graph, cooks every FloatList host-scalar op (FloatListLength / PickFloatFromList) by gathering its

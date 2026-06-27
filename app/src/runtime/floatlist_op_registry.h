@@ -37,6 +37,23 @@ struct EvaluationContext;  // runtime/eval_context.h
 
 namespace sw {
 
+// PER-NODE CROSS-FRAME STATE for a stateful FloatList op (the FloatList analog of ColorList's KeepColors
+// `_list` accumulator + String's StringState `_lastString`, ColorListCookCtx::state / StringState). A
+// driver-owned blob that SURVIVES between cooks; every other FloatListCookCtx field is single-frame
+// (re-derived each cook). The FIRST cross-frame state on the FLOATLIST rail — AmplifyValues's
+// `_averagedValues` / `_lastValues` / `_output` (AmplifyValues.cs:79-81) live here so its damp-toward-input
+// persists frame→frame. Keyed by flatKey(id) on the flat path (Impl::floatListState) and by resident path
+// on the production path (a process-lifetime static in resident_host_scalar_cook.cpp — mirror of
+// s_colorListState). `inited` distinguishes a never-cooked slot from one whose lists are legitimately
+// empty so the op re-sizes on the first cook / a list-count change (AmplifyValues.cs:28). A STATELESS
+// floatlist op (Remap/Smooth/FloatsToList/...) never reads it → byte-identical; only a stateful op touches it.
+struct FloatListState {
+  std::vector<float> averagedValues;  // AmplifyValues _averagedValues (the damped running average per index)
+  std::vector<float> lastValues;      // AmplifyValues _lastValues (previous-frame input, change detection)
+  std::vector<float> output;          // AmplifyValues _output (the persistent published list)
+  bool inited = false;                // false until the first cook sizes the arrays to the input count
+};
+
 // Everything a floatlist op gets to cook one node this frame. Mirrors MeshCookCtx (mesh_op_registry.h)
 // but the currency is a HOST std::vector<float>, not a GPU buffer — so there is NO pre-sizing (a
 // vector self-sizes) and NO Metal allocation. The dev/lib/queue refs ride along for symmetry (Slice B
@@ -62,6 +79,13 @@ struct FloatListCookCtx {
   std::vector<float>* output = nullptr;
   // RESOLVED Float params of THIS node (mirror of MeshCookCtx::params); read via floatListParam.
   const std::map<std::string, float>* params = nullptr;
+  // PER-NODE CROSS-FRAME STATE (the colorlist-state analog, ColorListCookCtx::state). null for a STATELESS
+  // floatlist op (every existing op → byte-identical: never read). A stateful op (AmplifyValues) reads +
+  // mutates *state across frames, then copies its result to *output (output = the per-frame readback
+  // channel; state is the memory). The driver owns + threads it (flat: Impl::floatListState[flatKey(id)];
+  // resident: a process-lifetime static keyed by resident path). null when no driver supplies it (a
+  // hand-built golden ctx) → a stateful op behaves as a single fresh frame (faithful to frame 0).
+  FloatListState* state = nullptr;
 };
 
 // A floatlist op: read inputLists (+ resolved Float params) → write *output. ONE fn (unlike a mesh
@@ -79,15 +103,23 @@ std::map<std::string, FloatListCookFn>& floatListCookFns();  // type-name -> coo
 // Lookup the cook fn for a type (nullptr if not a floatlist op). Used by the cook driver's dispatch.
 const FloatListCookFn* findFloatListOp(const std::string& type);
 
+// Is this floatlist op STATEFUL (it reads + mutates FloatListCookCtx::state across frames)? Set by the
+// registrar's `stateful` flag (default false). The cook driver uses it to apply the cook-once-per-frame
+// advance guard ONLY to stateful ops (AmplifyValues) — a stateless op is re-cookable freely (byte-id).
+bool floatListOpIsStateful(const std::string& type);
+
 // Test-only injection seam (goldens): when set, a floatlist op's cook corrupts its REAL output (e.g.
 // drops the last element) so the golden's RED case fires on the actual cook path (NOT by flipping the
 // expected value). Off in production. A leaf reads it at the end of its cook.
 bool& floatListInjectBug();
 
 // RAII registrar: declare one file-scope static of this type at the end of each floatlist-op leaf.
-//   FloatListOp(spec, cookFn);  // pushes spec into floatListSpecSink() and cook into floatListCookFns()
+//   FloatListOp(spec, cookFn);             // a STATELESS floatlist op (the default; never reads state)
+//   FloatListOp(spec, cookFn, /*stateful=*/true);  // a STATEFUL op (AmplifyValues): reads + mutates state
+// `stateful` marks the op as cross-frame so the cook driver applies the cook-once-per-frame advance guard
+// (a stateless op is re-cookable freely → byte-identical). Defaults false so every existing leaf is unchanged.
 struct FloatListOp {
-  FloatListOp(NodeSpec spec, FloatListCookFn cook);
+  FloatListOp(NodeSpec spec, FloatListCookFn cook, bool stateful = false);
 };
 
 }  // namespace sw

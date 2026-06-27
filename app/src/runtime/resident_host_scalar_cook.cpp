@@ -55,7 +55,31 @@ namespace {
 
 constexpr int kResidentFloatListDepthCap = 64;  // same cycle guard as evalResidentFloat / cookResident
 
+// PRODUCTION-path cross-frame state for STATEFUL FloatList ops (AmplifyValues), keyed by resident path.
+// Process-lifetime (a function-local static below), the FloatList twin of cook_host_values.cpp's
+// s_colorListState / s_stringState — BUT it lives HERE (not threaded from cook_host_values) because the
+// FloatList rail has NO single per-frame pass: it is pull-driven from several sites (ValuesToTexture,
+// host-scalar, cookResidentString). A process static reached internally is the only way to persist state
+// across frames from any of those pull points without threading a store through every call site. A
+// stateless op never creates an entry → no leak for a graph without a stateful floatlist op.
+struct ResidentFloatListSlot {
+  FloatListState state;
+  uint32_t lastCookedFrame = 0xFFFFFFFFu;  // frameIndex of the last ADVANCE (cook-once-per-frame guard)
+  bool everCooked = false;                 // distinguishes "never advanced" from "advanced on frame 0"
+};
+
+std::map<std::string, ResidentFloatListSlot>& residentFloatListState() {
+  static std::map<std::string, ResidentFloatListSlot> s;  // process-lifetime; mirror of s_colorListState
+  return s;
+}
+
 }  // namespace
+
+// Test-only reset of the production FloatList state store (a golden runs multiple independent trajectories
+// in one process; without this the previous trajectory's accumulated state would leak into the next). The
+// flat path resets naturally (a fresh PointGraph per case); this clears the resident process static. No
+// production caller.
+void resetResidentFloatListState() { residentFloatListState().clear(); }
 
 // Cook ONE upstream FloatList-producing resident node into `out` (host list), gathering its inputs
 // THROUGH the resident graph. Mirror of the flat cookFloatListNode (point_graph.cpp:633) but walking
@@ -66,7 +90,8 @@ constexpr int kResidentFloatListDepthCap = 64;  // same cycle guard as evalResid
 //     list via evalResidentFloat, in wire-declaration order (primary then extraConns).
 // Returns false if `path` is not a FloatList producer / unknown (caller treats as an empty list).
 bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
-                           const ResidentEvalCtx& ctx, std::vector<float>& out, int depth) {
+                           const ResidentEvalCtx& ctx, std::vector<float>& out, int depth,
+                           FloatListState* state) {
   out.clear();
   if (depth > kResidentFloatListDepthCap) return false;
   const ResidentNode* n = g.node(path);
@@ -131,6 +156,29 @@ bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
   // Phase/Rate/Ratio/Amplitude/Offset/Bias/Shape/OffsetNumber/OffsetCycle through it.
   std::map<std::string, float> params = resolveResidentFloatInputs(g, *n, ctx);
 
+  // CROSS-FRAME STATE + cook-once guard (only for a STATEFUL op — AmplifyValues). A stateless op leaves
+  // fc.state null and re-cooks freely (byte-identical). For a stateful op: resolve its state slot (an
+  // explicit `state` from a golden, else the process-lifetime static keyed by resident path), then guard
+  // the ADVANCE to ONCE per frameIndex — a later pull this frame (fan-out: ValuesToTexture + host-scalar)
+  // re-publishes the already-settled state->output WITHOUT advancing the damp again (mirror of the flat
+  // floatListCooked memo / the colorlist resident state=nullptr-on-recursion split).
+  const bool stateful = floatListOpIsStateful(n->opType);
+  FloatListState* st = nullptr;
+  ResidentFloatListSlot* slot = nullptr;
+  if (stateful) {
+    if (state) {
+      st = state;  // golden-supplied slot (deterministic, no static); no cook-once guard needed (1 pull)
+    } else {
+      slot = &residentFloatListState()[path];  // process static; operator[] default-creates
+      st = &slot->state;
+      // Already advanced this frame? Re-publish the settled output, do NOT re-run the op (no double damp).
+      if (slot->everCooked && slot->lastCookedFrame == ctx.frameIndex) {
+        out = slot->state.output;
+        return true;
+      }
+    }
+  }
+
   FloatListCookCtx fc;
   fc.dev = nullptr; fc.lib = nullptr; fc.queue = nullptr;  // host-only ops (FloatsToList) ignore these
   fc.ctx = &ec;          // LocalFxTime-bearing (AnimFloatList's bars clock); was nullptr (no time reader)
@@ -138,7 +186,9 @@ bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
   fc.inputLists = &inputLists;
   fc.output = &out;
   fc.params = &params;   // resolved Float params (AnimFloatList's shape/rate/...); was nullptr
+  fc.state = st;         // cross-frame slot for a stateful op (AmplifyValues); null for a stateless one
   (*fn)(fc);
+  if (slot) { slot->lastCookedFrame = ctx.frameIndex; slot->everCooked = true; }  // mark advanced this frame
   return true;
 }
 
