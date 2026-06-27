@@ -294,5 +294,28 @@ static const PointModifyOp _reg_SelectPointsWithSDF{
        "point.modify"}
 };
 
+// ---- mesh-into-points seam (brute-force tri-distance LEAF): FindClosestPointsOnMesh -------------
+// TiXL parity: external/tixl .../point/transform/FindClosestPointsOnMesh.cs +
+//              .../Assets/shaders/points/onmesh/FindClosestPointOnMesh.hlsl
+// A COUNT-PRESERVING modifier with a "Mesh" input (TiXL MeshBuffers): for each input point, brute-force
+// loop over EVERY mesh triangle (NO BVH), find the nearest surface point (closestPointOnTriangle), and
+// snap the point's Position onto it. Rides the BUILT mesh-into-points seam (PointCookCtx::meshVtx+meshIdx,
+// filled by the cook drivers' Mesh-port loop) + the ordinary Points-input flow (inputs[0]).
+// .t3 audit (FindClosestPointsOnMesh.t3): NO user-facing scalar params — only Mesh (DefaultValue null) +
+// Points (DefaultValue null); the .hlsl cbuffer is EMPTY. The .cs declares Points THEN Mesh, so ports are
+// points (0) → out (1) → Mesh (2): inputs[0] is the Points bag the countFromFirstPointsInput policy sizes
+// the output to. NO scalar ports.
+static const PointModifyOp _reg_FindClosestPointsOnMesh{
+      {"FindClosestPointsOnMesh",
+       "Find Closest Points On Mesh",
+       {{"points", "points", "Points", true},   // input bag (port 0) — sized output, inputs[0]
+        {"out", "out", "Points", false},          // snapped output bag (port 1)
+        // Mesh input (TiXL MeshBuffers). dataType "Mesh" → the cook driver's Mesh-port loop fills
+        // PointCookCtx::meshVtx + meshIdx + meshFaceCount (the mesh-into-points seam).
+        {"Mesh", "Mesh", "Mesh", true}},
+       nullptr,
+       "point.transform"}
+};
+
 }  // namespace
 }  // namespace sw
