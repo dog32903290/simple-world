@@ -274,6 +274,56 @@ int runContextVarSelfTest(bool injectBug) {
            std::fabs(extOut0(g, "5") - 55.0f) < 1e-5f && rt);
   }
 
+  // ===== G vec3 per-frame reset (sub-seam B cross-frame): the regression D never covered. ==========
+  // The Vec3 channel (vec3Vars, commit 5ae642b) was ADDED after D was written, but the top-of-frame
+  // pass-0 clear cleared only floatVars+intVars — NOT vec3Vars. So a vec3 ctx-var set in frame1 leaked
+  // into frame2 even at bug=0 (production). This golden bites that real defect: frame1 Set present →
+  // (1,2,3); frame2 Set REMOVED → must read the (4,5,6) fallback, NOT the stale (1,2,3). Same vars+state
+  // carried across frames (production contract: one map, cleared each frame).
+  //   * At bug=0 (production), the assertion FAILS unless the clear wipes vec3Vars — this is the exact
+  //     missing-clear regression. (Mirrors D, which uses the float channel.)
+  //   * injectBug 2 ALSO skips the clear → frame2 leaks the stale (1,2,3) → FAIL, parity with D.
+  {
+    // frame 1 lib: 1=SetVec3Var("p")=(1,2,3), 2=GetVec3Var("p") fb (4,5,6).
+    SymbolLibrary lib1; ensureVarSymbols(lib1);
+    Symbol r1; r1.id = "R"; r1.name = "R"; r1.atomic = false;
+    SymbolChild setP = makeChild(1, "SetVec3Var", "p");
+    setP.overrides["Vec3Value.x"] = 1.0f;
+    setP.overrides["Vec3Value.y"] = 2.0f;
+    setP.overrides["Vec3Value.z"] = 3.0f;
+    SymbolChild getP = makeChild(2, "GetVec3Var", "p");
+    getP.overrides["FallbackDefault.x"] = 4.0f;
+    getP.overrides["FallbackDefault.y"] = 5.0f;
+    getP.overrides["FallbackDefault.z"] = 6.0f;
+    r1.children = {setP, getP}; r1.nextChildId = 3;
+    lib1.symbols["R"] = r1; lib1.rootId = "R";
+    ResidentEvalGraph g1 = buildEvalGraph(lib1, lib1.rootId); initResidentCache(g1);
+
+    ContextVarMap vars; std::map<std::string, StatefulValueState> state;
+    cookFrame(lib1, g1, vars, state, 0, /*bug=*/injectBug ? 2 : 0);
+    bool f1 = std::fabs(extOutN(g1, "2", 0) - 1.0f) < 1e-5f
+           && std::fabs(extOutN(g1, "2", 1) - 2.0f) < 1e-5f
+           && std::fabs(extOutN(g1, "2", 2) - 3.0f) < 1e-5f;
+    expect("G frame1: GetVec3Var(\"p\") == (1,2,3) (Set present)", f1);
+
+    // frame 2 lib: the SetVec3Var node is GONE — only GetVec3Var("p") fb (4,5,6) remains (child id 2).
+    SymbolLibrary lib2; ensureVarSymbols(lib2);
+    Symbol r2; r2.id = "R"; r2.name = "R"; r2.atomic = false;
+    SymbolChild getP2 = makeChild(2, "GetVec3Var", "p");
+    getP2.overrides["FallbackDefault.x"] = 4.0f;
+    getP2.overrides["FallbackDefault.y"] = 5.0f;
+    getP2.overrides["FallbackDefault.z"] = 6.0f;
+    r2.children = {getP2}; r2.nextChildId = 3;
+    lib2.symbols["R"] = r2; lib2.rootId = "R";
+    ResidentEvalGraph g2 = buildEvalGraph(lib2, lib2.rootId); initResidentCache(g2);
+
+    cookFrame(lib2, g2, vars, state, 1, /*bug=*/injectBug ? 2 : 0);
+    bool f2 = std::fabs(extOutN(g2, "2", 0) - 4.0f) < 1e-5f
+           && std::fabs(extOutN(g2, "2", 1) - 5.0f) < 1e-5f
+           && std::fabs(extOutN(g2, "2", 2) - 6.0f) < 1e-5f;
+    expect("G vec3 per-frame reset: frame2 Get reads fallback (4,5,6) (top-of-frame clear wiped stale vec3)", f2);
+  }
+
   printf("[selftest] contextvar %s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
   return g_fail ? 1 : 0;
 }

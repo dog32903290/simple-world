@@ -225,11 +225,11 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, 
   tr.bpm = t.bpm;
   tr.rate = t.rate;
 
-  // pass 0: clear the var map ONCE at the top (= EvaluationContext.Reset). injectBug 2 skips it so a
-  // stale value from a previous frame leaks (the D golden's RED path).
+  // pass 0: clear the var map ONCE (= EvaluationContext.Reset). injectBug 2 skips it → stale leak (D/G golden).
   if (ctxVarBug != 2) {
     vars.floatVars.clear();
-    vars.intVars.clear();
+    vars.intVars.clear();   // bool rides intVars 0/1 → covered here
+    vars.vec3Vars.clear();  // Vec3 channel (5ae642b) — was missing from the clear → stale cross-frame leak
   }
 
   // Cook one node (resolve Float inputs + the String VariableName, step, write extOut).
