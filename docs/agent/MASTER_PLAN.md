@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 0704185
+HEAD: e4df20d
 DIRTY: clean
-CENSUS: 447 / 749 done
-BITE: 498 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T13:45
+CENSUS: 452 / 749 done
+BITE: 503 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-27T14:48
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,7 +18,10 @@ STAMP_AT: 2026-06-27T13:45
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-27 13:45 vec3-clear bug 修 + shader-graph-Field 證 2-op leaf，HEAD `0704185`，--bite 498 / FAILED=[]，census 447/749）。campaign cook-core spine F✅A✅B✅；C DEFER；下一條 D + shader-graph-Field leaf 採。**
+**none（2026-06-27 14:48 結帳：shader-graph-Field 2-op leaf + grind-E trail 3-op，HEAD `e4df20d`，--bite 503 / FAILED=[]，census 452/749）。campaign cook-core spine F✅A✅B✅ E✅；C DEFER（medium String/Command seam，柏為域）；D DEFER（dict-ctx=device-IO，柏為域）。** **★autonomous campaign 近完：final-seam scout 證 mesh-input/CPU-readback/StructuredList 三 rail 全已建→只剩 3 顆 autonomous leaf（FindClosestPointsOnMesh/SampleCpuPoints/JoinLists-Result-only），正在派。採完＝autonomous floor 觸底，剩 ~290 全柏為-device/render/camera/sim 域。**
+- **✅ grind-E trail 3-op（`40aac24` merged → main `efdfd21`）**：PointTrailFast/PointTrail（stateful cross-frame ring，ride 已建 ensureState）+ GrowStrains（stateless，2-input cartesian + GrowthMap 騎 inputTextures[]）。**spine 4 檔 git diff 空**（registry 簽名未加寬，count=f(param) 騎 file-static stash 非 PointCountFn）。refuter MERGE-SAFE 6/6。**★.t3 trap：PointTrailFast ring stride=TrailLength+1 且 CycleIndex==FrameCount（+1/frame，非 advance-by-TrailLength，.cs 註解誤導）。** fork[growstrains-white-growthmap-fallback]（unwired→1×1 white 避 black→NaN 退化）。
+- **✅ GrowStrains normalize 修（`e4df20d`）**：refuter 揪出 metal:93,103 加了 TiXL 沒有的 normalize() on rotations（qRotateVec3/qMul 不內部 normalize）→非 default 時非-unit quat 會偏→移掉求 byte-faithful（golden 仍綠，unit quat no-op）。
+- **★shader-graph-Field 2-op leaf（`3fea8f6`）refuter MERGE-SAFE**：PointColorWithField（evalField(pos,1).rgb→mix(Color,field,Strength)，.t3 Strength=1/Range dead）+ SelectPointsWithSDF（evalField(pos,0).w，Mode/Mapping/GainAndBias→FX1/FX2，.t3 DiscardNonSelected=FALSE/GainAndBias(0.5,0.5)=identity，52-byte params）。ZERO gather/driver edit，clone MoveToSDF leaf 模板。
 - **✅ vec3-clear bug 修(`0704185`)**：grind-C STOP 揪出 grind-B 隱性 bug——`frame_cook` 漏 clear vec3Vars→vec3 ctx-var 跨幀殘留。修=加 `vec3Vars.clear()`(單一 clear site,bool 騎 intVars,string 不存在)+cross-frame golden section G(移掉 fix 則 production FAIL 證咬)。grind-B refuter 漏(golden within-frame only)。
 - **⏸ C ctx-var String DEFER**：grind-C scout 證**非 mirror Vec3**——GetStringVar=String value producer/SetStringVar=Command 輸出,String 是獨立 currency(cookStringNodes/extStrOut),float-only cookStatefulValueNodes 裝不下。真 medium seam(thread ContextVarMap 進 string cook+2-pass),2 op 低值→緩。
 - **★shader-graph-Field 群 scout 證 stale label**：**PointColorWithField + SelectPointsWithSDF = LEAF FAN-OUT on 已建 `gatherPointFieldTree`**(同 MoveToSDF,更簡單,evalField(pos,w) 選 color/distance,.t3 無破壞性 default 分支)→**便宜採 2 op clone MoveToSDF**(正在派)。CustomPointShader=真 seam(arbitrary HLSL→MSL string,柏為-judgment defer)。
@@ -51,7 +54,9 @@ STAMP_AT: 2026-06-27T13:45
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `c62b2c1`，--bite 492，census 439。**★狀態：point-modify sub-seam 自走中（已採 6 op：MovePointsToSDF/SdfReflectionLinePoints + SamplePointAttributes/DisplacePoints2d/TransformWithImage）。clone 59%，剩 ~10 MED cook-core sub-seam（多 autonomous-safe）。**
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `e4df20d`，--bite 503，census 452/749（60%）。**★狀態：autonomous campaign 觸底中——final-seam scout（2026-06-27）證 mesh-input/CPU-readback/StructuredList 三 rail 全已建，autonomous 殘渣只剩 3 顆 leaf（FindClosestPointsOnMesh/SampleCpuPoints/JoinLists-Result-only），正在派 build。採完這 3 顆＝orchestrator-autonomous floor 觸底。**
+- **★採完 3 顆後 present 柏為「autonomous campaign 完」summary**：剩 ~290 op 全柏為-device/render/camera/sim 域，按 scout 分群：camera3d/3D-render tail ~40-60（DrawMeshAtPoints2/draw-at-points 族/render Command）、PointSimulation pool ABI ~15-25（sim/* 含 SimFollowMeshSurface，E-hard）、**point-buffer→value-emit 架構縫 ~10-15（一條縫解鎖 GetPointDataFromList/PointToMatrix-emit/GetTextureSize 族，柏為設計）**、device-IO ~30-40（dict-ctx/loader/audio/MIDI/file-IO）、gizmo/loader/field-SDF/mesh-gen tail ~80-100（已測近零 autonomous yield）。
+- **★最該先問柏為的一條架構縫＝`point-into-frame value-emit pass`**：resident value-emit 看不到 point buffer（PointToMatrix `evaluate==nullptr` defer + GetTextureSize 同壁）→一條縫解鎖 value-out-from-points 整族。
 - **★當前下一批＝RaymarchPoints**（own lane，two-mode count-multiply：Raymarch/KeepSteps，consume MovePointsForwardToSDF.hlsl + MaxReflections/PointMode，.t3 buffer-sizing chain 較糾纏）。同 SDF gather + count-multiply rail（如 SdfReflectionLinePoints），但兩 mode + 不同 line layout，需細解 .t3。
 - **★後續 point-modify sub-seam（各需 scout）**：second-point-buffer（SetPointAttributesWithPointFields，FieldPoints=2nd point buffer 輸入）/其餘 point/modify 未盤點 op（matrix-uniform/SDF/texture 三 rail 已開，剩的開 .hlsl 親看分類）。**★必查 .t3 defaults（教訓 ×2）+ 碰 driver 的驗 4 島守門。**
 - **★方法論硬規（今晚 5 次踩 stale label）**：seam 開採前**必先 ground-truth scout**，seam_map「解鎖量」不可信。每個 point-modify sub-seam 配 CPU-readback golden（debugCookedBuffer）+ injectBug + refuter；碰 cook-core driver 的必驗 4 島守門綠。
