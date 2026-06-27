@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: bfe5b88
+HEAD: 5c22f7f
 DIRTY: clean
 CENSUS: 456 / 749 done
-BITE: 509 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T17:28
+BITE: 509 PASS
+STAMP_AT: 2026-06-27T18:26
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -47,7 +47,7 @@ STAMP_AT: 2026-06-27T17:28
   - **② B 軌 menu-bar**——最後一條乾淨純皮 `ui/` Tier1 skin gap（top menu bar vs floating Toolbar），eye-hand + ui_census 驗。
   - **③ Command ctx-var 縫**——medium，SetXxxVarCmd command-rail SubGraph scope（Set{Float,Vec3,String}Var 的延後那半），低值。
 - **★效能優先項目（柏為 2026-06-27 指定，按 ROI 排序）**：
-  - **P1 PSO 快取接線**（小，53 個 point op 從每幀重建 PSO → 接上已存在的 `computePsoCache()`，`tex_op_cache.cpp:42`；一行替換 ×53，autonomous）
+  - **✅ P1 PSO 快取接線（DONE `5c22f7f` 2026-06-27，--bite 509）**——51 個 point op cook site 從每幀 `newComputePipelineState` 改走 device-global `cachedComputePSO`（`tex_op_cache.cpp:203`）；同 kernel 只建一次 PSO。**+48 個自建-device selftest 補 `clearTexOpCache()`**（cook 路徑現在把 PSO 存進 process-global cache → selftest device teardown 前不清 = 跨-device UAF；既有 field selftest 契約，device 建立前清）。particle_system/pointtrail/pointtrailfast 用 pre-cached SimState/ring，正確跳過。淨 -146 行。工法：canonical(addnoise)親驗→Workflow 50 檔 fan-out(transform→refuter)→中央合 build。試壓全 golden byte-identical。
   - **P2 批次 GPU 提交**（中，142 個 point op 各自 `commit()+waitUntilCompleted()` → 一幀一個 command buffer 末端一次 commit；需穿 `PointCookCtx`，autonomous）
   - **P3 dirty-flag 接線**（中，`pullResidentFloat`+`bumpLiveSources` 已在 `resident_eval_cache.cpp:196-244` 建好測好，接進 production eval path；MV 調參有感，VJ 幫助有限）
   - **P4 增量 patch 接線**（大，`patchSetConstant`/`patchAddConnection` 等 10 個函式已建好測好，接上後使用者拖滑桿 → 只增量更新不全重建；這是真正解決 push 全刷的那把鑰匙）
