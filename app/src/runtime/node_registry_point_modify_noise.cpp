@@ -136,9 +136,9 @@ static const PointModifyOp _reg_PointAttributeFromNoise{
 // The "Field" input is the seam the cook driver's one-hop direct-Field gather (point_graph.cpp) builds.
 // Defaults from MoveToSDF.t3 (GUID-keyed): Amount=1.0, MinDistance=0.005, StepDistanceFactor=0.5,
 //   NormalSamplingDistance=0.1, MaxSteps=20.
-// SCOPE/FORKS (faithful at TiXL defaults — every omitted feature degenerates to default-off, see the
-//   template header): WriteDistanceMode/SetOrientation/SetColor/AmountFactor are NOT exposed (TiXL
-//   defaults None/false/false/None → dead branches at default). The raymarch-to-surface core is 1:1.
+// TiXL .t3 defaults SetOrientation=TRUE, SetColor=TRUE (NOT false) → both are exposed as Bool ports
+//   (default true) and ported 1:1: reorient to surface normal + recolor from the field. The remaining
+//   WriteDistanceMode/AmountFactor (TiXL default None(0) → dead at default) are NOT exposed. Core is 1:1.
 static const PointModifyOp _reg_MoveToSDF{
       {"MoveToSDF",
        "Move To SDF",
@@ -151,7 +151,10 @@ static const PointModifyOp _reg_MoveToSDF{
         {"MinDistance", "MinDistance", "Float", true, 0.005f, 0.0f, 1.0f},
         {"MaxSteps", "MaxSteps", "Float", true, 20.0f, 1.0f, 200.0f},
         {"StepDistanceFactor", "StepDistanceFactor", "Float", true, 0.5f, 0.0f, 2.0f},
-        {"NormalSamplingDistance", "NormalSamplingDistance", "Float", true, 0.1f, 0.0f, 1.0f}},
+        {"NormalSamplingDistance", "NormalSamplingDistance", "Float", true, 0.1f, 0.0f, 1.0f},
+        // .t3 defaults TRUE → Bool ports, default 1.0 (reorient to normal / recolor from field).
+        {"SetOrientation", "SetOrientation", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},
+        {"SetColor", "SetColor", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},
        nullptr,
        "point.modify"}
 };

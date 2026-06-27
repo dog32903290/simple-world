@@ -18,15 +18,23 @@
 // GetDistance == GetField(float4(p3,0)).w (hlsl:54-57); GetNormal is the 4-tap tetrahedral finite difference
 // (hlsl:59-66). The isnan(Scale.x) early-passthrough (hlsl:86-90) is kept verbatim.
 //
-// SCOPE / NAMED FORKS (faithful to TiXL defaults — every forked feature degenerates to its TiXL=default-off
-// behavior, so output is bit-faithful at the op's .t3 defaults):
+// SCOPE / PORTED DEFAULTS + NAMED FORKS. MoveToSDF.t3 defaults (GUID-keyed): SetOrientation=TRUE,
+// SetColor=TRUE, WriteDistanceMode=None(0), AmountFactor=None(0). So at the op's .t3 defaults TiXL ALSO
+// reorients each point to the surface normal AND recolors it from the field — both are now ported 1:1:
+//   - SetOrientation (hlsl:133-136): TiXL default TRUE → p.Rotation = qSlerp(p.Rotation,
+//     normalize(qLookAt(n, float3(0,1,0))), amount). PORTED (gated int, NodeSpec default true). The normal
+//     `n` is the last raymarch-loop normal (same `n` TiXL uses). qSlerp/qLookAt inlined below (no project
+//     #includes on the newLibrary path) byte-identical to shared/quat.metal.h.
+//   - SetColor (hlsl:138-142): TiXL default TRUE → p.Color.rgb = lerp(p.Color.rgb, GetField(float4(pp,1)).rgb,
+//     amount). PORTED (gated int, NodeSpec default true). evalField returns the full float4; the assembled
+//     SDF MSL emits f.xyz (color) alongside f.w (distance) — e.g. SphereSDF emits
+//     `f.xyz = p.w < 0.5 ? p.xyz : float3(1.0)`, so GetField(...,p.w=1).rgb is the field color, faithful.
 //   - WriteDistanceMode (hlsl:118-129): TiXL default None(0) → no FX write. NOT ported (no port). At the
 //     default this branch is dead, so omitting it is faithful. FORK-WriteDistance-omitted.
-//   - SetOrientation (hlsl:133-136): TiXL default false → Rotation untouched. NOT ported. FORK-SetOrient-omitted.
-//   - SetColor (hlsl:138-142): TiXL default false → Color untouched. NOT ported. FORK-SetColor-omitted.
 //   - AmountFactor (hlsl:111-114): TiXL default None(0) → amount = Amount*1. We bind plain Amount (factor==0
 //     branch). NOT ported (no FX1/FX2 multiply). FORK-AmountFactor-none.
-//   These are the faithful-at-default subset; the raymarch-to-surface core (the op's whole point) is 1:1.
+//   The raymarch-to-surface core + the two default-true orient/color branches are 1:1; only the two
+//   non-default-driver extras (WriteDistanceMode / AmountFactor) remain forked.
 #include <metal_stdlib>
 using namespace metal;
 
@@ -54,9 +62,90 @@ struct MoveToSdfParams {
     float NormalSamplingDistance;  // finite-diff h (default 0.1)
     uint  Count;                // bag size
     int   MaxSteps;             // raymarch iteration cap (default 20)
-    float _pad0;
-    float _pad1;
+    int   SetOrientation;       // .t3 default TRUE → reorient to surface normal (hlsl:133-136)
+    int   SetColor;             // .t3 default TRUE → recolor from field (hlsl:138-142)
 };
+
+// --- inlined quaternion helpers (byte-identical to app/shaders/shared/quat.metal.h; the newLibrary
+//     source path has NO include search path so the template cannot #include the shared header). Used
+//     ONLY by the SetOrientation branch (hlsl:133-136). xyz = imaginary, w = real. ----
+#define MTS_QUAT_IDENTITY float4(0, 0, 0, 1)
+
+static inline float4 mtsQSlerp(float4 a, float4 b, float t) {
+  if (length(a) == 0.0) {
+    if (length(b) == 0.0) return MTS_QUAT_IDENTITY;
+    return b;
+  } else if (length(b) == 0.0) {
+    return a;
+  }
+  float cosHalfAngle = a.w * b.w + dot(a.xyz, b.xyz);
+  if (cosHalfAngle >= 1.0 || cosHalfAngle <= -1.0) {
+    return a;
+  } else if (cosHalfAngle < 0.0) {
+    b.xyz = -b.xyz;
+    b.w = -b.w;
+    cosHalfAngle = -cosHalfAngle;
+  }
+  float blendA;
+  float blendB;
+  if (cosHalfAngle < 0.99) {
+    float halfAngle = acos(cosHalfAngle);
+    float sinHalfAngle = sin(halfAngle);
+    float oneOverSinHalfAngle = 1.0 / sinHalfAngle;
+    blendA = sin(halfAngle * (1.0 - t)) * oneOverSinHalfAngle;
+    blendB = sin(halfAngle * t) * oneOverSinHalfAngle;
+  } else {
+    blendA = 1.0 - t;
+    blendB = t;
+  }
+  float4 result = float4(blendA * a.xyz + blendB * b.xyz, blendA * a.w + blendB * b.w);
+  if (length(result) > 0.0) return normalize(result);
+  return MTS_QUAT_IDENTITY;
+}
+
+static inline float4 mtsQLookAt(float3 forward, float3 up) {
+  float3 right = normalize(cross(forward, up));
+  up = normalize(cross(forward, right));
+  float m00 = right.x, m01 = right.y, m02 = right.z;
+  float m10 = up.x,    m11 = up.y,    m12 = up.z;
+  float m20 = forward.x, m21 = forward.y, m22 = forward.z;
+  float num8 = (m00 + m11) + m22;
+  float4 q = MTS_QUAT_IDENTITY;
+  if (num8 > 0.0) {
+    float num = sqrt(num8 + 1.0);
+    q.w = num * 0.5;
+    num = 0.5 / num;
+    q.x = (m12 - m21) * num;
+    q.y = (m20 - m02) * num;
+    q.z = (m01 - m10) * num;
+    return q;
+  }
+  if ((m00 >= m11) && (m00 >= m22)) {
+    float num7 = sqrt(((1.0 + m00) - m11) - m22);
+    float num4 = 0.5 / num7;
+    q.x = 0.5 * num7;
+    q.y = (m01 + m10) * num4;
+    q.z = (m02 + m20) * num4;
+    q.w = (m12 - m21) * num4;
+    return q;
+  }
+  if (m11 > m22) {
+    float num6 = sqrt(((1.0 + m11) - m00) - m22);
+    float num3 = 0.5 / num6;
+    q.x = (m10 + m01) * num3;
+    q.y = 0.5 * num6;
+    q.z = (m21 + m12) * num3;
+    q.w = (m20 - m02) * num3;
+    return q;
+  }
+  float num5 = sqrt(((1.0 + m22) - m00) - m11);
+  float num2 = 0.5 / num5;
+  q.x = (m20 + m02) * num2;
+  q.y = (m21 + m12) * num2;
+  q.z = 0.5 * num5;
+  q.w = (m01 - m10) * num2;
+  return q;
+}
 
 // --- node helper globals (de-duplicated reusable functions) ----
 /*{GLOBALS}*/
@@ -118,6 +207,19 @@ kernel void move_points_to_sdf(const device SwPoint*       SourcePoints [[buffer
 
   // hlsl:131 — blend the original position toward the converged surface point.
   p.Position = packed_float3(mix(float3(p.Position), pp, amount));
+
+  // hlsl:133-136 — SetOrientation (TiXL .t3 default TRUE): re-aim Rotation toward the surface normal `n`
+  // (the last normal from the raymarch loop, exactly as TiXL uses it), slerped by amount.
+  if (P.SetOrientation != 0) {
+    p.Rotation = mtsQSlerp(p.Rotation, normalize(mtsQLookAt(n, float3(0.0, 1.0, 0.0))), amount);
+  }
+
+  // hlsl:138-142 — SetColor (TiXL .t3 default TRUE): recolor from the field at the surface point. p.w=1
+  // selects the assembled SDF's COLOR branch (f.xyz), matching TiXL GetField(float4(pp,1)).rgb.
+  if (P.SetColor != 0) {
+    float3 color = evalField(float4(pp, 1.0), FP/*{TEXTURE_ARGS}*/).rgb;
+    p.Color.rgb = mix(p.Color.rgb, color, amount);
+  }
 
   ResultPoints[tid.x] = p;
 }

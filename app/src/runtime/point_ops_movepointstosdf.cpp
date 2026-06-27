@@ -15,9 +15,10 @@
 // (the all-ones seed) which yields a constant field whose normalize(0) gradient is NaN → no move).
 //
 // PARITY (MovePointsToSDF.hlsl:77-145): raymarch loop (hlsl:98-109), GetDistance/GetNormal (hlsl:54-66),
-// lerp(P,pp,amount) (hlsl:131), isnan(Scale.x) passthrough (hlsl:86-90) — all 1:1 in the template. The
-// WriteDistanceMode/SetOrientation/SetColor/AmountFactor extras are omitted (faithful at TiXL defaults;
-// see the template header for the per-fork justification).
+// lerp(P,pp,amount) (hlsl:131), isnan(Scale.x) passthrough (hlsl:86-90) — all 1:1 in the template.
+// SetOrientation (hlsl:133-136) + SetColor (hlsl:138-142) are TiXL .t3 default-TRUE and are ALSO ported
+// 1:1 (gated by the two int params; NodeSpec defaults true). The remaining WriteDistanceMode/AmountFactor
+// extras stay omitted (TiXL default None(0) → dead at default); see the template header per-fork justification.
 //
 // ZONE: runtime leaf. The PSO compile inside cachedSourceComputePSO goes through the dormant
 // setFieldSourceCompiler fn-ptr seam (the SAME indirection RaymarchField / the field-into-force cooks use),
@@ -88,6 +89,9 @@ void cookMoveToSdf(PointCookCtx& c) {
   P.NormalSamplingDistance = cookParam(c, "NormalSamplingDistance", 0.1f);
   P.Count                  = c.count;
   P.MaxSteps               = (int32_t)(cookParam(c, "MaxSteps", 20.0f) + 0.5f);
+  // .t3 defaults SetOrientation=true, SetColor=true → both branches active at the op's defaults.
+  P.SetOrientation         = cookParam(c, "SetOrientation", 1.0f) > 0.5f ? 1 : 0;
+  P.SetColor               = cookParam(c, "SetColor", 1.0f) > 0.5f ? 1 : 0;
 
   // No wired SDF (or no template) → faithful pass-through (a MoveToSDF with no field can't move points).
   const std::string& tmpl = moveToSdfTemplate();

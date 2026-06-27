@@ -26,13 +26,13 @@ struct MoveToSdfParams {
 #ifdef __METAL_VERSION__
   uint  Count;                   // inherited from upstream bag (modifier: count from input)
   int   MaxSteps;                // .cs MaxSteps, default 20 (raymarch iteration cap)
-  float _pad0;                   // align
-  float _pad1;                   // align -> 32 bytes (2x16)
+  int   SetOrientation;          // .t3 SetOrientation, default TRUE → reorient to surface normal (hlsl:133-136)
+  int   SetColor;                // .t3 SetColor, default TRUE → recolor from GetField(pp,1).rgb (hlsl:138-142)
 #else
   uint32_t Count;
   int32_t  MaxSteps;
-  float    _pad0;
-  float    _pad1;
+  int32_t  SetOrientation;
+  int32_t  SetColor;
 #endif
 };
 
@@ -45,7 +45,7 @@ enum MoveToSdfBinding {
 
 #ifndef __METAL_VERSION__
 // Amount(4)+MinDistance(4)+StepDistanceFactor(4)+NormalSamplingDistance(4) = 16
-// + Count(4)+MaxSteps(4)+pad0(4)+pad1(4) = 16
+// + Count(4)+MaxSteps(4)+SetOrientation(4)+SetColor(4) = 16   (the two ints reuse the former pad slots)
 // Total = 32 bytes
 static_assert(sizeof(MoveToSdfParams) == 32, "MoveToSdfParams must be 32 bytes (2x16)");
 #endif
