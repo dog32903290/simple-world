@@ -7,8 +7,10 @@
 //
 // This module is the batch-1 engine. It is pure CPU (no Metal) and a runtime leaf:
 // depends only on compound_graph.h (nested model) + graph.h (NodeSpec/findSpec). It is
-// proven headless (--selftest-residenteval) and NOT yet wired to production cook — that
-// is a named follow-on slice (see docs/superpowers/plans/2026-06-10-resident-eval-graph-batch1.md).
+// proven headless (--selftest-residenteval) AND now wired to production cook: app's
+// frame_cook.cpp owns a g_residentGraph (rebuilt once per lib revision) that the per-frame
+// cook evaluates — the follow-on production-wiring slice has landed (originally tracked in
+// docs/superpowers/plans/2026-06-10-resident-eval-graph-batch1.md).
 #pragma once
 #include <cstdint>
 #include <map>

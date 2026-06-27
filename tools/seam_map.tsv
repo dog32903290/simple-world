@@ -11,7 +11,7 @@
 # 欄：seam_id <TAB> kind <TAB> blast <TAB> path_regex(對 island/subdir/op 比對,第一個 match 勝) <TAB> desc
 # path_regex 越具體越前（fallthrough 的島級 *-leaf 放各島最後）。
 #
-field-raymarch	seam-build	MED	^field/(render|use|analyze)	SDF→畫面渲染:field島出海口(RaymarchField/Render2dField/SDFToColor)解鎖39顆SDF變可見
+field-raymarch	leaf-ready	LOW	^field/(render|use|analyze)	render縫已建(RaymarchField tex-op self-register→39顆SDF經field-tree→cookRaymarchField→renderField3d→RGBA8 production-wired可見,golden守);kind已從seam-build降為leaf-ready(縫蓋完改kind,見表頭規則)。此regex剩殘additive葉(SDFToColor彩色SDF輸出=cosmetic,code內parity-deferred/analyze各自小additive),非被render縫gate,縫已開騎它直接採
 field-leaf	leaf-ready	LOW	^field/	field SDF葉(codegen已建,近採盡)
 camera-leaf	leaf-ready	LOW	^render/(camera|gizmo)	camera變體+gizmo(承重bridge已蓋,騎它採)
 text-font	seam-build	MED	^render/sprite	文字渲染(bitmapfont seam未建)
