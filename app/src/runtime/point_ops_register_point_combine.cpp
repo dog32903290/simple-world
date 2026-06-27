@@ -18,6 +18,7 @@ void registerPairPointsForGridWalkLinesOp();  // batch 10: 11-step grid-walk pol
 void registerBlendPointsOp();                 // batch 10: index-paired PointsA->PointsB lerp
 void registerMultiUpdatePointsOp();           // point lane: pass-through last wired buffer (TiXL _internal)
 void registerRepeatAtPointsOp();              // count-product seam: cartesian product source.N * target.N
+void registerGrowStrainsOp();                 // 2-input product + GrowthMap texture (count=(A+1)*B)
 
 void registerPointCombinePointOps() {
   registerCombineBuffersOp();
@@ -30,6 +31,7 @@ void registerPointCombinePointOps() {
   registerBlendPointsOp();
   registerMultiUpdatePointsOp();
   registerRepeatAtPointsOp();
+  registerGrowStrainsOp();
 }
 
 }  // namespace sw

@@ -21,6 +21,8 @@ void registerCommonPointSetsOp();
 void registerBoundingBoxPointsOp();
 void registerMeshVerticesToPointsOp();
 void registerPointsOnMeshOp();
+void registerPointTrailFastOp();
+void registerPointTrailOp();
 
 void registerGeneratorPointOps() {
   registerPointOp("RadialPoints", cookRadialPoints);
@@ -34,6 +36,8 @@ void registerGeneratorPointOps() {
   registerBoundingBoxPointsOp();  // (generator) CPU-readback AABB fork; reads Points -> 1 point, batch 38
   registerMeshVerticesToPointsOp();  // (generator+Mesh input) ★mesh-into-points seam: one Point per vertex
   registerPointsOnMeshOp();  // (generator+Mesh+Texture2D) ★area-weighted surface scatter (consumes meshIdx)
+  registerPointTrailFastOp();  // (generate+STATEFUL) ★cross-frame fixed-size trail ring (single kernel)
+  registerPointTrailOp();      // (generate+STATEFUL) ★cross-frame trail, 3-pass Clear/Collect/Copy variant
 }
 
 }  // namespace sw

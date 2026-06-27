@@ -292,6 +292,48 @@ const std::vector<NodeSpec>& generatorSpecs() {
          {"Off", "On"}}},
        nullptr,
        "point.generate"},
+
+      // ---- cross-frame trail seam: PointTrailFast (TiXL STATEFUL generate op, single kernel) --------
+      // TiXL parity: external/tixl .../point/generate/PointTrailFast.{cs,t3} +
+      //              .../Assets/shaders/points/sim/PointTrailFast.hlsl
+      // A FIXED-size trail ring: each source point gets a (TrailLength+1)-slot ring in the persistent
+      // output buffer; the write head (CycleIndex==FrameCount) walks one slot per enabled frame so old
+      // samples persist across frames. Output count = srcN*(TrailLength+1) via the static-stash
+      // countTransform (point_ops_pointtrailfast.cpp). Rides the built ensureState mechanism additively.
+      // Ports 1:1 with PointTrailFast.cs ([Input] order), .t3 defaults: TrailLength=100, IsEnabled=true,
+      // Reset=false, AddSeperatorThreshold=0.0.
+      {"PointTrailFast",
+       "PointTrailFast",
+       {{"GPoints", "GPoints", "Points", true},                 // port 0: source bag (one ring per point)
+        {"out", "out", "Points", false},                         // port 1: the trail ring output
+        {"TrailLength", "TrailLength", "Float", true, 100.0f, 1.0f, 10000.0f},      // port 2 (.t3 100)
+        {"IsEnabled", "IsEnabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},   // port 3 (.t3 true)
+        {"Reset", "Reset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},           // port 4 (.t3 false)
+        {"AddSeperatorThreshold", "AddSeperatorThreshold", "Float", true, 0.0f, 0.0f, 100.0f}}, // port 5
+       nullptr,
+       "point.generate"},
+
+      // ---- cross-frame trail seam: PointTrail (TiXL STATEFUL generate op, 3-pass Clear/Collect/Copy) --
+      // TiXL parity: external/tixl .../point/generate/PointTrail.{cs,t3} +
+      //              .../Assets/shaders/points/sim/PointTrail-{Clear,Collect,Copy}.hlsl
+      // Same fixed ring as PointTrailFast, but a 3-PASS pipeline over a persistent CyclePoints ring +
+      // a per-frame TrailPoints OUTPUT: Clear (NaN the output), Collect (write source into the ring at
+      // the cross-frame head), Copy (emit NEWEST-FIRST into the output, fade FX1/FX2/Scale, NaN line
+      // separators). Output count = srcN*(TrailLength+1) (static-stash countTransform). Ports 1:1 with
+      // PointTrail.cs, .t3 defaults: TrailLength=100, WriteTrailOrderTo=F1(1), IsEnabled=true,
+      // Reset=false, WriteLineSeparators=true.
+      {"PointTrail",
+       "PointTrail",
+       {{"GPoints", "GPoints", "Points", true},                 // port 0: source bag
+        {"out", "out", "Points", false},                         // port 1: newest-first trail output
+        {"TrailLength", "TrailLength", "Float", true, 100.0f, 1.0f, 10000.0f},      // port 2 (.t3 100)
+        {"WriteTrailOrderTo", "WriteTrailOrderTo", "Float", true, 1.0f, 0.0f, 3.0f, Widget::Enum,
+         {"None", "F1", "F2", "Scale"}},                                            // port 3 (.t3 F1=1)
+        {"IsEnabled", "IsEnabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},   // port 4 (.t3 true)
+        {"Reset", "Reset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},           // port 5 (.t3 false)
+        {"WriteLineSeparators", "WriteLineSeparators", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}}, // port 6 (.t3 true)
+       nullptr,
+       "point.generate"},
   };
   return specs;
 }

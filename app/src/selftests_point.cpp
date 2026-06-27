@@ -115,5 +115,8 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"selectpointswithsdf", runSelectPointsWithSdfSelfTest},  // direct-Field gather LEAF: SelectPointsWithSDF writes FX1=max(0,1-2*dist) from SphereSDF (-bug severs Field -> pass-through FX1=0)
     {"field-paramapply", runFieldParamApplySelfTest},  // PF-0c: data-driven field param-apply (graph SphereSDF {Radius:0.8} -> GPU + buffer + enum + slot-id guard)
     {"time-op", runTimeSelfTest},  // Time 5-mode (localFxTime/localTime/playback/runtime/frozen) + GetFrameSpeedFactor (fsf-valid/fallback/interactive)
+    {"pointtrailfast", runPointTrailFastSelfTest},  // ★cross-frame trail ring: 2-frame persistent-ring accumulation (posA survives into f1)
+    {"pointtrail", runPointTrailSelfTest},          // ★cross-frame 3-pass trail: Collect ring persists across frames, Copy emits newest-first
+    {"growstrains", runGrowStrainsSelfTest},        // 2-input cartesian product + GrowthMap texture; per-frame transform vs formula
 );
 }  // namespace sw
