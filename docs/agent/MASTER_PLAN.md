@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: c62b2c1
+HEAD: 380e724
 DIRTY: clean
-CENSUS: 439 / 749 done
-BITE: 492 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T10:26
+CENSUS: 440 / 749 done
+BITE: 493 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-27T11:04
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,13 +18,11 @@ STAMP_AT: 2026-06-27T10:26
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-27 10:26 texture-into-points sub-seam fan-out，HEAD `c62b2c1`，--bite 492 / FAILED=[]，census 439/749 floor）。point-modify sub-seam 自走中。**
-- **✅ texture-into-points 3 op**（merge `c62b2c1`）：**SamplePointAttributes_v1**（L/R/G/B→Position/W/Rotation/Stretch 路由）+ **DisplacePoints2d**（via SimDisplacePoints2d 單 pass，gradient 位移）+ **TransformWithImage**（strength-weighted TRS，TranslateWithImage.hlsl 真 op）。已 live `inputTextures[]`+host `transformSampleSpace` rail，零 driver edit。.t3 defaults 全審。**named fork 全 refuter 驗忠實**：in-shader TRS compose=byte-identical TransformPoints euler（Y·X·Z，xfprobe GREEN）/op-local WorldToObject=camera-free（.t3 證）。refuter MERGE-SAFE 3/3。census fork-naming 低估（真+3）。ratchet：node_registry_point_modify_texture 461→拆 `_texture2`。
-- **✅ SdfReflectionLinePoints**（merge `2f0b31c`）：點反射 off SDF→polyline per source（count-multiply `out=src*(MaxRefl+3)`）。同 `gatherPointFieldTree`（零 driver edit）+ count-multiply static-stash（SubdivideLinePoints 模式）。**★.t3-defaults 教訓奏效**：抓到 WriteDistanceTo=1(FX1)/WriteStepCountTo=2(FX2) 兩 default-active 分支都 port。dispatch fork（over source，one-frame-lag guard 防 OOB）。refuter MERGE-SAFE（count-multiply+GPU-safety guard 兩 gate 過）。NIT(非阻塞)：MaxSteps 未 clamp [1,100]（非預設才差）/golden 只測 first-hit 未測 reflection bounce。
-- **⚠️ MovePointsForwardToSDF ≠ 真 TiXL op**（dangling .hlsl 無 .cs/.t3；真 op=**RaymarchPoints**，two-mode count-multiply，需自己 lane 非 clone-and-go）。**6th stale-ish label**（我 scout list 從 dangling .hlsl 誤生）。
-- **✅ MovePointsToSDF（SDF point-modify sub-seam 開通）**（merge `64aa0a0`，fix `f5689bb`）：點 raymarch 貼到 SDF 表面。**唯一新 cook-core 接線＝`gatherPointFieldTree` unifier**（force gather 先，回不變；只在 null+有 direct `Field` 埠才 fall to `gatherTexFieldTree`）——refuter 證 force/ParticleForce 流 byte-identical（全 registry 只 MoveToSDF 有 direct Field 埠）、4 島守門綠。cook fn mirror `runFieldForce`（assembleFieldMSL codegen→PSO→dispatch，null→passthrough）。**★refuter BLOCK→fix**：原漏 SetOrientation+SetColor 兩個 **TiXL .t3 預設=true** 的分支（reorient 點到 normal `qSlerp(qLookAt)` + recolor from field `evalField(pp).rgb`）且誤標 default-false→**兩分支都 port**（SetColor 可港:field codegen 出 color；w=1 選 white color-mode 與 TiXL 一致）。golden 加 orientation 斷言（rotated+Z 對 normal,64/64 minDot=1.0,identity seed 證非平凡）。focused refuter 4/4 MERGE-SAFE。**★解鎖整條 SDF point-modify rail**（40+ SDF field op × assembleFieldMSL codegen），2 sibling（MovePointsForwardToSDF/SdfReflectionLinePoints）同 gather fan-out。
-- **★方法論血證：今晚 5 次 stale seam-map 標籤揪出**（CameraWithRotation/field-raymarch 已建/keyframe-anim 已建/46 leaf-ready=0/**GPU-compute 縫實已建+generator fan-out 採盡**）。**規則：seam 開採前必 ground-truth scout。**
-- 前批：anim+list harvest（`49582bd` 3 op+resident bug 修）+matrix seam（`96e4923`）+維護加固 工作1+2（gate census/島7 拆檔）+folder-package+ColorThemeEditor 詳見 history。
+**none（2026-06-27 11:04 RaymarchPoints 落地＝point-modify 三 rail fan-out 完成，HEAD `380e724`，--bite 493 / FAILED=[]，census 440/749 floor）。柏為 10:43 定向：優先把 cook-core 子縫做完=最重要。現入「系統性清 cook-core 子縫」campaign。**
+- **✅ point-modify 三 rail 已 fan-out（6 op，全 refuter MERGE-SAFE）**：**SDF/count-multiply rail**（MovePointsToSDF `64aa0a0`/`f5689bb` 開縫+gatherPointFieldTree unifier、SdfReflectionLinePoints `2f0b31c`、RaymarchPoints `380e724` two-mode）+ **texture-into-points rail**（SamplePointAttributes/DisplacePoints2d/TransformWithImage `c62b2c1`）。.t3-defaults 審成標準（抓到 MoveToSDF SetOrientation/SetColor + Write* 多個 default-active 分支）。NIT 群：MaxSteps clamp（count-multiply ops，非預設才差）/SdfReflection golden 未測 bounce。
+- **★campaign＝7 cook-core 子縫 grind-list（map scout `ab2ff989` 鎖定，非 12；ABI 比 label 完整）**：**F** second-point-buffer(SetAttributesWithPointFields,~1-3,likely leaf inputs[1])→**A** list-state resident slot(AmplifyValues/Damp/Keep/Merge*,~4-6,mirror 已建 ensureState)→**B** ctx-var Vec3/Matrix(4,加 ContextVarMap 欄)→**C** ctx-var String(2,string-wire gate 已 closed)→**D** dict-ctx host rail(~7,純 host 非 device-IO)→**E** point-sim cross-frame(~8,5 簡單 ride ParticleSystem state factory)。**序列做(cook-core 一條一條)，map 給 first-op+golden 免再 scout。**
+- **★需柏為架構決定（grind 到再問，已先擺出）**：**E-hard** PointSimulation pool-growth ABI（growable pool 要新 resident-state ABI 還是復用 ParticleSystem 固定 pool？）/**G** asset/file loader（LoadObjAsPoints/LoadSvg：file-IO/asset lifetime model？device-IO-adjacent）。
+- 前批：anim+list harvest（`49582bd`）+matrix seam（`96e4923`）+維護加固 工作1+2+folder-package+ColorThemeEditor 詳見 history。**★今晚揪 6+ stale seam-map 標籤；規則：seam 開採前必 ground-truth。**
 
 ## Conflict Register
 - **（已解）MV 工單 +66 行收進 main（`2765fe4`）**：先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
