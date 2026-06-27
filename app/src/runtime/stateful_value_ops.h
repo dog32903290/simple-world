@@ -12,6 +12,7 @@
 //
 // runtime leaf: pure computation, no hardware, no UI.
 #pragma once
+#include <array>
 #include <map>
 #include <string>
 
@@ -73,9 +74,22 @@ struct TransportSnapshot {
 // TOP of cookStatefulValueNodes (the Reset analog), populated by Set*Var (writer pass), read by
 // Get*Var (reader pass). YELLOW = flat global map (cross-sibling visible, no scope stack); the RED
 // scoped push/pop engine (SetFloatVar.cs:26-41 SubGraph branch) is deferred.
+// Vec3 channel (sub-seam B): TiXL SetVec3Var/GetVec3Var store a boxed Vector3 in the SHARED
+// context.ObjectVariables dict (object dictionary, SetVec3Var.cs:30-41 / GetVec3Var.cs:24-27 with an
+// `is Vector3` cast). sw keeps the float/int convention of a TYPED channel instead (NAMED FORK
+// fork-ctxvar-vec3-typed-channel: a typed std::array<float,3> map, not a boxed object dict). This is
+// the SAME fork sw already took for float/int (TiXL FloatVariables IS typed, but the cleaner choice
+// here matters: a typed vec3 channel can't collide with a float/int of the same name, and the round-
+// trip value is byte-identical). Vec3 = 3 Floats (sw's vec-as-N-floats convention, same as AddVec3:
+// Result.x/.y/.z) → SetVec3Var writes (x,y,z); GetVec3Var reads them onto out[0..2] → extOut[0..2],
+// well within the out[8] stateful-cook budget. NO new cook pass, NO new rail — same 2-pass writer-
+// before-reader flat YELLOW map as float/int. (Matrix is NOT here: GetMatrixVar must emit 16 floats
+// = a 4-row Vector4[], which exceeds out[8] and rides the separate extColorOut matrix-output rail —
+// see resident_matrix_output_cook.cpp; that's a cross-rail addition, not an additive value channel.)
 struct ContextVarMap {
   std::map<std::string, float> floatVars;
   std::map<std::string, long> intVars;
+  std::map<std::string, std::array<float, 3>> vec3Vars;
 };
 
 // True if opType is a context-var WRITER (Set*Var family). The 2-pass ordering (writer-before-reader)

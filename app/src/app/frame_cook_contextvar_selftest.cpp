@@ -54,7 +54,8 @@ SymbolChild makeChild(int id, const char* type, const std::string& name) {
 
 // Register the var-op atomic symbols into the lib (regenerate from the NodeSpec, like the bridge).
 void ensureVarSymbols(SymbolLibrary& lib) {
-  for (const char* t : {"SetFloatVar", "GetFloatVar", "SetIntVar", "GetIntVar"})
+  for (const char* t : {"SetFloatVar", "GetFloatVar", "SetIntVar", "GetIntVar",
+                        "SetVec3Var", "GetVec3Var"})
     if (const NodeSpec* s = findSpec(t)) lib.symbols[t] = atomicSymbolFromSpec(*s);
 }
 
@@ -70,6 +71,12 @@ void cookFrame(SymbolLibrary& lib, ResidentEvalGraph& g, ContextVarMap& vars,
 float extOut0(const ResidentEvalGraph& g, const char* path) {
   const ResidentNode* n = g.node(path);
   return n ? n->extOut[0] : -999.0f;
+}
+
+// extOut[i] reader (vec3 ops emit 3 components onto extOut[0..2] — Result.x/.y/.z).
+float extOutN(const ResidentEvalGraph& g, const char* path, int i) {
+  const ResidentNode* n = g.node(path);
+  return n ? n->extOut[i] : -999.0f;
 }
 
 }  // namespace
@@ -215,6 +222,56 @@ int runContextVarSelfTest(bool injectBug) {
            std::fabs(extOut0(g, "3") - 4.0f) < 1e-5f);
     expect("E namespaces split: Float var \"n\"==99 ≠ Int var \"n\"==7 (separate maps)",
            std::fabs(extOut0(g, "5") - 99.0f) < 1e-5f && std::fabs(intGet - 7.0f) < 1e-5f);
+  }
+
+  // ===== F vec3 map (sub-seam B): SetVec3Var("p",(1,2,3))→GetVec3Var("p")==(1,2,3); unset→fallback. =
+  // Mirrors A: the vec3 value crosses writer→ContextVarMap.vec3Vars→reader→extOut[0..2]. Also proves
+  // the vec3 channel is a SEPARATE namespace from float/int (a Float var named "p" doesn't collide).
+  {
+    SymbolLibrary lib; ensureVarSymbols(lib);
+    Symbol root; root.id = "R"; root.name = "R"; root.atomic = false;
+    // injectBug F: the vec3 writer aims at a DIFFERENT key ("p_BUG") than the reader queries ("p") —
+    // the value never crosses the seam → the real cook's GetVec3Var("p") misses vec3Vars → reads the
+    // (0,0,0) fallback → FAIL. Expectation stays CORRECT (1,2,3), NOT a flipped expectation.
+    SymbolChild setP = makeChild(1, "SetVec3Var", injectBug ? "p_BUG" : "p");
+    setP.overrides["Vec3Value.x"] = 1.0f;
+    setP.overrides["Vec3Value.y"] = 2.0f;
+    setP.overrides["Vec3Value.z"] = 3.0f;
+    SymbolChild getP = makeChild(2, "GetVec3Var", "p");
+    getP.overrides["FallbackDefault.x"] = 0.0f;
+    getP.overrides["FallbackDefault.y"] = 0.0f;
+    getP.overrides["FallbackDefault.z"] = 0.0f;
+    // unset → fallback (8,9,10).
+    SymbolChild getU = makeChild(3, "GetVec3Var", "missing");
+    getU.overrides["FallbackDefault.x"] = 8.0f;
+    getU.overrides["FallbackDefault.y"] = 9.0f;
+    getU.overrides["FallbackDefault.z"] = 10.0f;
+    // A Float var named "p" too — proves the vec3 map is a SEPARATE namespace (no collision).
+    SymbolChild setFP = makeChild(4, "SetFloatVar", "p"); setFP.overrides["FloatValue"] = 55.0f;
+    SymbolChild getFP = makeChild(5, "GetFloatVar", "p"); getFP.overrides["FallbackDefault"] = 0.0f;
+    root.children = {setP, getP, getU, setFP, getFP}; root.nextChildId = 6;
+    lib.symbols["R"] = root; lib.rootId = "R";
+
+    ResidentEvalGraph g = buildEvalGraph(lib, lib.rootId); initResidentCache(g);
+    ContextVarMap vars; std::map<std::string, StatefulValueState> state;
+    cookFrame(lib, g, vars, state, 0, /*bug=*/0);
+
+    // roundtrip: GetVec3Var("p") == (1,2,3) on extOut[0..2]. The bug corrupts the REAL cook (writer
+    // aimed at "p_BUG") so the real reader misses vec3Vars and reads its (0,0,0) fallback → FAIL.
+    bool rt = std::fabs(extOutN(g, "2", 0) - 1.0f) < 1e-5f
+           && std::fabs(extOutN(g, "2", 1) - 2.0f) < 1e-5f
+           && std::fabs(extOutN(g, "2", 2) - 3.0f) < 1e-5f;
+    expect("F roundtrip: GetVec3Var(\"p\") == (1,2,3) (writer→vec3Vars→reader→extOut[0..2])", rt);
+    bool echo = std::fabs(extOutN(g, "1", 0) - 1.0f) < 1e-5f
+             && std::fabs(extOutN(g, "1", 1) - 2.0f) < 1e-5f
+             && std::fabs(extOutN(g, "1", 2) - 3.0f) < 1e-5f;
+    expect("F echo: SetVec3Var.Output echoes (1,2,3)", echo);
+    bool unset = std::fabs(extOutN(g, "3", 0) - 8.0f) < 1e-5f
+              && std::fabs(extOutN(g, "3", 1) - 9.0f) < 1e-5f
+              && std::fabs(extOutN(g, "3", 2) - 10.0f) < 1e-5f;
+    expect("F unset default: GetVec3Var(\"missing\") == (8,9,10) (TryGetValue miss → fallback)", unset);
+    expect("F namespaces split: Float var \"p\"==55 ≠ Vec3 var \"p\"==(1,2,3) (separate maps)",
+           std::fabs(extOut0(g, "5") - 55.0f) < 1e-5f && rt);
   }
 
   printf("[selftest] contextvar %s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);

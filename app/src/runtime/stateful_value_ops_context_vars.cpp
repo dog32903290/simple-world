@@ -104,13 +104,53 @@ void stepGetBoolVar(const std::map<std::string, float>& in, float, float, Statef
   out[0] = fallback;                          // unset → FallbackDefault.GetValue(context)
 }
 
+// --- SetVec3Var (TiXL Lib/flow/context/SetVec3Var.cs) — writes vars.vec3Vars[name]=(x,y,z) (no-
+// SubGraph branch cs:42-44). NAMED FORK fork-ctxvar-vec3-typed-channel: TiXL boxes a Vector3 into
+// context.ObjectVariables (object dict); sw stores it on a TYPED vec3 channel (same choice it made
+// for float/int — round-trip value byte-identical). Vec3 arrives as 3 Float ports (sw vec-as-3-floats,
+// like AddVec3) → in["Vec3Value.x/.y/.z"]. Empty name → no-op (cs:20-24, string.IsNullOrEmpty). out[0..2]
+// ECHO the written (x,y,z) (TiXL output is a Command passthrough with no value-rail analog — the real
+// product is the map mutation; echo is the golden probe). .t3 defaults: VariableName="pos", Vec3Value=(0,0,0).
+void stepSetVec3Var(const std::map<std::string, float>& in, float, float, StatefulValueState&,
+                    float out[3], const TransportSnapshot&, ContextVarMap* vars,
+                    const std::string& varName) {
+  const float x = getIn(in, "Vec3Value.x", 0.0f);
+  const float y = getIn(in, "Vec3Value.y", 0.0f);
+  const float z = getIn(in, "Vec3Value.z", 0.0f);
+  out[0] = x; out[1] = y; out[2] = z;          // echo (Command has no value; golden probe)
+  if (varName.empty() || !vars) return;        // string.IsNullOrEmpty(name) → no-op
+  vars->vec3Vars[varName] = {x, y, z};         // no-SubGraph branch: context.ObjectVariables[name]=v
+}
+
+// --- GetVec3Var (TiXL Lib/flow/context/GetVec3Var.cs:24-31) — reads vars.vec3Vars[name] onto
+// out[0..2] (Result.x/.y/.z), else FallbackDefault. TiXL casts ObjectVariables[name] `is Vector3`;
+// the typed channel makes the cast a plain map hit (a non-vec3 of the same name can't collide here —
+// it lives on floatVars/intVars). DROP ICustomDropdownHolder (editor UI). .t3: VariableName="pos",
+// FallbackDefault=(0,0,0).
+void stepGetVec3Var(const std::map<std::string, float>& in, float, float, StatefulValueState&,
+                    float out[3], const TransportSnapshot&, ContextVarMap* vars,
+                    const std::string& varName) {
+  if (vars) {
+    auto it = vars->vec3Vars.find(varName);
+    if (it != vars->vec3Vars.end()) {           // TryGetValue + `is Vector3` hit
+      out[0] = it->second[0]; out[1] = it->second[1]; out[2] = it->second[2];
+      return;
+    }
+  }
+  out[0] = getIn(in, "FallbackDefault.x", 0.0f);  // unset → FallbackDefault.GetValue(context)
+  out[1] = getIn(in, "FallbackDefault.y", 0.0f);
+  out[2] = getIn(in, "FallbackDefault.z", 0.0f);
+}
+
 }  // namespace
 
 // context-var seam: the Set*Var writer family (run before any reader in the 2-pass cook). Kept as
 // an explicit name list rather than a prefix match — explicit is refuter-auditable and a future
-// "SetupX" op can't accidentally join the writer pass. SetBoolVar joins (bool rides intVars 0/1).
+// "SetupX" op can't accidentally join the writer pass. SetBoolVar joins (bool rides intVars 0/1);
+// SetVec3Var joins (writes the typed vec3 channel).
 bool isContextVarWriter(const std::string& opType) {
-  return opType == "SetFloatVar" || opType == "SetIntVar" || opType == "SetBoolVar";
+  return opType == "SetFloatVar" || opType == "SetIntVar" || opType == "SetBoolVar"
+      || opType == "SetVec3Var";
 }
 
 static const StatefulOpReg _reg_SetFloatVar{"SetFloatVar", stepSetFloatVar};
@@ -119,5 +159,7 @@ static const StatefulOpReg _reg_SetIntVar{"SetIntVar", stepSetIntVar};
 static const StatefulOpReg _reg_GetIntVar{"GetIntVar", stepGetIntVar};
 static const StatefulOpReg _reg_SetBoolVar{"SetBoolVar", stepSetBoolVar};
 static const StatefulOpReg _reg_GetBoolVar{"GetBoolVar", stepGetBoolVar};
+static const StatefulOpReg _reg_SetVec3Var{"SetVec3Var", stepSetVec3Var};
+static const StatefulOpReg _reg_GetVec3Var{"GetVec3Var", stepGetVec3Var};
 
 }  // namespace sw

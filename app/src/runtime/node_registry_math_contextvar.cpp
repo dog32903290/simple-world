@@ -90,6 +90,44 @@ static const MathOp _reg_GetBoolVar{
        "flow.context"}
 };
 
+      // SetVec3Var (sub-seam B) — write Vec3Value into the named vec3 var (typed vec3 channel; NAMED
+      // FORK fork-ctxvar-vec3-typed-channel, see stateful_value_ops.h). STATEFUL in the cook sense
+      // (evaluate==nullptr, cooked into extOut by the 2-pass writer-before-reader cook). Vec3 = 3 Float
+      // ports (sw vec-as-3-floats, like AddVec3): the Vec3Value.x head carries Widget::Vec arity 3 so the
+      // Inspector draws ONE block; the y/z components are plain arity-1 Floats. Output ports FIRST
+      // (extOut[0..2]) — Command has no value-rail analog, so Output.x/.y/.z ECHO the written vec3 (golden
+      // probe). TiXL flow/context/SetVec3Var.cs (no-SubGraph branch :42-44; empty name → no-op :20-24).
+      // .t3: VariableName="pos", Vec3Value=(0,0,0).
+static const MathOp _reg_SetVec3Var{
+      {"SetVec3Var", "SetVec3Var",
+       {{"Output.x", "Output.x", "Float", false},
+        {"Output.y", "Output.y", "Float", false},
+        {"Output.z", "Output.z", "Float", false},
+        {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "pos"},
+        {"Vec3Value.x", "Vec3Value",   "Float", true, 0.0f, -1000.0f, 1000.0f, Widget::Vec, {}, false, 3},
+        {"Vec3Value.y", "Vec3Value.y", "Float", true, 0.0f, -1000.0f, 1000.0f, Widget::Vec, {}, false, 1},
+        {"Vec3Value.z", "Vec3Value.z", "Float", true, 0.0f, -1000.0f, 1000.0f, Widget::Vec, {}, false, 1}},
+       nullptr,
+       "flow.context"}
+};
+
+      // GetVec3Var (sub-seam B) — read the named vec3 var onto Result.x/.y/.z, else FallbackDefault.
+      // TiXL flow/context/GetVec3Var.cs (:24-31, `is Vector3` cast → plain typed-map hit here). DROP
+      // ICustomDropdownHolder (var-name dropdown UI). Result ports FIRST (extOut[0..2]). FallbackDefault.x
+      // is the Widget::Vec head (arity 3). .t3: VariableName="pos", FallbackDefault=(0,0,0).
+static const MathOp _reg_GetVec3Var{
+      {"GetVec3Var", "GetVec3Var",
+       {{"Result.x", "Result.x", "Float", false},
+        {"Result.y", "Result.y", "Float", false},
+        {"Result.z", "Result.z", "Float", false},
+        {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "pos"},
+        {"FallbackDefault.x", "FallbackDefault",   "Float", true, 0.0f, -1000.0f, 1000.0f, Widget::Vec, {}, false, 3},
+        {"FallbackDefault.y", "FallbackDefault.y", "Float", true, 0.0f, -1000.0f, 1000.0f, Widget::Vec, {}, false, 1},
+        {"FallbackDefault.z", "FallbackDefault.z", "Float", true, 0.0f, -1000.0f, 1000.0f, Widget::Vec, {}, false, 1}},
+       nullptr,
+       "flow.context"}
+};
+
       // BlendValues — blend between a MultiInput<float> list by F. TiXL float/process/BlendValues.cs.
       // Values (multiInput) MUST precede the trailing regular F — the eval reads F as in[n-1] and the
       // Values segment as in[0..n-2] (mixed-multiInput convention; no gather change, batch35).
