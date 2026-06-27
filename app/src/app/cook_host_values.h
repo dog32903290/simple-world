@@ -14,6 +14,7 @@ namespace sw {
 struct ResidentEvalGraph;
 struct SymbolLibrary;
 struct CompositionSettings;
+class PointGraph;  // point_graph.h (PointToMatrix/GetPointDataFromList point-into-frame emit)
 }
 
 namespace sw::framecook {
@@ -43,6 +44,15 @@ namespace sw::framecook {
 // cap (ARCHITECTURE rule 4 ratchet — NO grandfather bump). lib must be non-null for the pull to write.
 bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, SymbolLibrary* lib,
                         uint32_t reqW = 0, uint32_t reqH = 0);
+
+// value-output-rail Phase 4 — the POINT-INTO-FRAME value emit, run AFTER pg.cookResident (when this
+// frame's point buffers exist). Builds the PointAccessor over `pg` (residentCookedPoints, zero-blit Shared
+// read) and runs cookPointValueOutputNodes (PointToMatrix / GetPointDataFromList). SEPARATE from
+// cookHostValueNodes (which runs BEFORE the point cook) — these ops need a point INTO this frame. Additive:
+// reads finished buffers, no cook-core touch. One frame_cook call, after the resident cook. posBars/fxBars
+// /lib build the resident eval ctx so a WIRED ItemIndex (GetPointDataFromList) resolves at the playhead.
+void cookPointValueFromGraph(ResidentEvalGraph& g, PointGraph& pg, float posBars, float fxBars,
+                             SymbolLibrary* lib);
 
 // Per-frame [SetBpm] consumer (exposed for the --selftest-setbpm golden): the triggered PULL of the
 // BpmProvider singleton onto the composition BPM. Returns true iff it wrote comp.bpm this call.

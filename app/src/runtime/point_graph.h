@@ -199,30 +199,30 @@ class PointGraph {
   bool debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
                        const MTL::Buffer*& idx, uint32_t& idxCount) const;
   // Per-flow HOST-transport test-support readbacks (impls in point_graph_debug.cpp). Each returns the
-  // value the node produced on its LAST cook, keyed by flatKey(id) into the matching Impl buffer; all
-  // are nullptr when the node never cooked that flow, and all are borrowed (PointGraph-owned; valid until
-  // the node's next cook). Used by the goldens/selftests (production consumers read the cook channels).
+  // value the node produced on its LAST cook, keyed by flatKey(id) into the matching Impl buffer; all are
+  // nullptr when the node never cooked that flow, borrowed (valid until next cook). Used by goldens.
   const std::vector<float>* debugCookedFloatList(int nodeId) const;            // 5th cook: floatListBuf
   const std::vector<simd::float4>* debugCookedColorList(int nodeId) const;     // vec4-list: colorListBuf
   const std::string* debugCookedString(int nodeId) const;                      // 6th cook: stringBuf (MAIN)
-  // MULTI-OUTPUT (Sub-seam B): an EXTRA String output keyed by spec output-port index
-  // (stringBuf[flatKey(id)+":"+portIdx]); portIdx==0 == debugCookedString. Scalar extras (TotalCount/
-  // FileExists) ride Node::outCache[portIdx] (the host-scalar bridge), not here.
+  // MULTI-OUTPUT (Sub-seam B): an EXTRA String output keyed by spec output-port index (stringBuf[flatKey
+  // (id)+":"+portIdx]); portIdx==0 == debugCookedString. Scalar extras ride Node::outCache[portIdx].
   const std::string* debugCookedStringPort(int nodeId, int portIdx) const;
   const std::vector<std::string>* debugCookedStringList(int nodeId) const;     // Sub-seam A: stringListBuf
   const std::vector<::SwPoint>* debugCookedPointList(int nodeId) const;        // 7th cook: pointListBuf
   const SwGradient* debugCookedGradient(int nodeId) const;                     // 8th cook: gradientBuf (flat key)
   const SwGradient* residentGradientFor(const std::string& path) const;        // 8th cook: gradientBuf (resident path, UI face)
+  // value-output-rail Phase 4: the cooked Shared point buffer a RESIDENT Points node produced last cook,
+  // keyed by resident PATH (cookResident's ensureOut key in p_->outBuf); count ← p_->outCount[path]. Shared
+  // → contents() is a `const SwPoint*` (zero blit); nullptr+0 when the path cooked no points this frame.
+  const ::SwPoint* residentCookedPoints(const std::string& path, uint32_t& count) const;
 
   // Cross-frame FEEDBACK output (KeepPreviousFrame / SwapTextures): the texture this node routed to its
-  // `ordinal`-th Texture2D OUTPUT last cook (0 = first output = PreviousFrame/TextureA, 1 = second =
-  // CurrentFrame/TextureB). `resident` selects the key space (flat "#id" vs resident path "id"). Borrowed
-  // (PointGraph-owned, points into the persistent pair or an upstream input); valid until the next cook
-  // of that node. nullptr if the node never cooked as a feedback op / ordinal out of range. For goldens.
+  // `ordinal`-th Texture2D OUTPUT last cook (0 = PreviousFrame/TextureA, 1 = CurrentFrame/TextureB).
+  // `resident` selects the key space (flat "#id" vs resident path "id"). Borrowed; nullptr off-range. Goldens.
   MTL::Texture* debugCookedFeedbackOutput(int nodeId, int ordinal, bool resident = false) const;
 
-  // Texture a TEXTURE-flow node cooked last frame (Impl::texBuf). debugCookedTexture: FLAT key, test-support.
-  // residentTexFor: RESIDENT path key (cookResident's ensureTex key), node-thumbnail face (TiXL). Borrowed.
+  // Texture a TEXTURE-flow node cooked last frame (Impl::texBuf). debugCookedTexture: FLAT key (test);
+  // residentTexFor: RESIDENT path key (cookResident's ensureTex key), node-thumbnail face. Both borrowed.
   MTL::Texture* debugCookedTexture(int nodeId) const;
   MTL::Texture* residentTexFor(const std::string& path) const;
 

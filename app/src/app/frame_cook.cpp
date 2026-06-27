@@ -382,17 +382,17 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // Bars); bars-domain value ops (PerlinNoise2) read this. Offset-12 slot (was _pad); GPU upload skips → no-op.
   ctx.localFxTime = (float)fxBars;
 
-  // The resident cook fills ITS two-clock ctx (localTime/localFxTime, bars) from the transport
-  // via these params, so automation-driven Float inputs sampled inside the cook walk the curve at
-  // the playhead. (point_graph_resident reads them off the args — no more ctx.time placeholder.)
-  // S3a: thread s_ctxVars (populated above) so a Command-rail SetVarCmd scopes a var around its SubGraph.
+  // The resident cook fills ITS two-clock ctx from the transport via these params, so automation Float
+  // inputs walk the curve at the playhead. S3a: thread s_ctxVars so a Command SetVarCmd scopes a var.
   pg.cookResident(g_residentGraph, ctx, /*reg=*/nullptr, targetPath,
                   (float)posBars, (float)fxBars, &doc::g_lib(), &s_ctxVars);
-  // Cache the cooked PointGraph so residentCookedGradient (the 8th-flow gradient-inspector face) can
-  // read gradientBuf between frames. The shell owns one PointGraph for the process lifetime — safe.
+  // value-output-rail Phase 4: point-into-frame emit (PointToMatrix/GetPointDataFromList) — AFTER the
+  // point cook, when this frame's point buffers exist. Reads them via PointGraph (additive, no cook-core).
+  cookPointValueFromGraph(g_residentGraph, pg, (float)posBars, (float)fxBars, &doc::g_lib());
+  // Cache the cooked PointGraph so residentCookedGradient (8th-flow gradient face) reads gradientBuf
+  // between frames. The shell owns one PointGraph for the process lifetime — safe.
   g_lastPg = &pg;
-  // editor-only: stamp lastUpdatePass on live nodes (Time/Automation-driven) so the UI's idle
-  // fade signal is accurate. Static nodes keep their old lastUpdatePass (idle after 60 frames).
+  // editor-only: stamp lastUpdatePass on live nodes (Time/Automation) so the UI idle-fade is accurate.
   stampLiveLastUpdatePass(g_residentGraph, g_frameIndex);
 }
 

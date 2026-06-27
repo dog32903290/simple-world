@@ -12,17 +12,34 @@
 // reference/pointer), so this header does NOT include resident_eval_graph.h (no circular include).
 #pragma once
 
+#include <array>
+#include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
 
 #include <simd/simd.h>  // simd::float4 (cookResidentColorList element type)
 
+struct SwPoint;  // runtime/tixl_point.h (64B host point — PointAccessor element type, below)
+
 namespace sw {
 
 struct ResidentEvalGraph;  // resident_eval_graph.h
 struct ResidentEvalCtx;    // resident_eval_graph.h
 struct StringState;        // string_op_registry.h (cookStringNodes/cookResidentString cross-frame slot)
+
+// value-output-rail Phase 4 — POINT-INTO-FRAME value-emit accessor. The point-buffer twin of
+// ResidentEvalCtx (which carries no point buffer to the frame-level emit pass — the WALL named in
+// resident_matrix_output_cook.cpp for PointToMatrix). Resolves a resident node's Points-input
+// srcNodePath → the cooked Shared point buffer (PointGraph::residentCookedPoints reads p_->outBuf[path],
+// ResourceStorageModeShared → contents() is a `const SwPoint*` with ZERO blit), writing the point count
+// into `outCount`. Returns nullptr (and leaves outCount 0) when the upstream path produced no buffer this
+// frame (off the cooked draw chain, or an empty list) — the emit pass then emits identity, faithful to
+// TiXL's NumElements==0 → return (the Slot keeps its prior/default value). The ONE seam between the
+// cook-core (PointGraph owns the buffers) and this pure-CPU frame-level emit pass; built once per frame in
+// cook_host_values from the live PointGraph (additive — reads finished buffers, NO cook-core touch).
+using PointAccessor = std::function<const ::SwPoint*(const std::string& srcNodePath, uint32_t& outCount)>;
 
 // Cook ONE upstream FloatList-producing resident node (FloatsToList, …) into `out`, gathering its
 // inputs THROUGH the resident Connection drivers (mirror of the flat cookFloatListNode). Returns false
@@ -86,6 +103,32 @@ void cookValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 // channel rather than a dedicated Matrix slot. EXTENDS the colorlist channel; cook-core-FREE (additive,
 // same frame slot family as cookColorListNodes — NO point_graph recursion/collector touch).
 void cookMatrixOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+
+// value-output-rail Phase 4 — POINT-INTO-FRAME value-emit (resident_point_value_output_cook.cpp). The
+// pass that lifts PointToMatrix off its deferral (resident_matrix_output_cook.cpp header named
+// defer-pointtomatrix-needs-point-into-frame-pass) and wires GetPointDataFromList: both read a single
+// POINT from a cooked Shared point buffer host-side (= TiXL pointList.TypedElements[i], PointToMatrix.cs:
+// 27 / GetPointDataFromList.cs:40) via `acc` (the PointAccessor, resolving the node's Points-input
+// srcNodePath → buffer). For PointToMatrix it builds the SRT matrix of point[0] (pointToMatrixRows) and
+// writes the 4 rows onto extColorOut (IDENTICAL channel + math as cookMatrixOutputNodes's TransformMatrix
+// path); for GetPointDataFromList it indexes point[ItemIndex.Mod(N)] (Euclidean) and writes Position→
+// extOut[0..2], F1(W)→extOut[3], Orientation→extOut[4..7] (the scalar-pack fork, mirror of
+// RequestedResolution). `ctx` resolves a WIRED ItemIndex through the frame clocks (a Constant ItemIndex
+// ignores it). Runs AFTER pg.cookResident (the point buffers exist), unlike cookMatrixOutputNodes (which
+// runs in cook_host_values, BEFORE the point cook — the ordering reason this is a SEPARATE pass). Mutates g
+// (writes extOut/extColorOut). Pure CPU, no Metal. Additive — reads finished buffers through `acc`; NO
+// point_graph recursion/cook-core touch. When `acc` yields no buffer (off the cooked chain / empty list)
+// the op emits identity (PointToMatrix) / leaves extOut 0 (GetPointDataFromList), faithful to TiXL's
+// NumElements==0 early-return (the Slot keeps its prior/default value).
+void cookPointValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
+                               const PointAccessor& acc);
+
+// PointToMatrix's 4 output rows from one point (Position/Orientation/Scale) — VERBATIM PointToMatrix.cs:
+// 55-95 (pivot=0, rotation=the point's Orientation quat, no shear/invert; Transpose; Row1..4). Defined in
+// resident_matrix_output_cook.cpp (the matrix MATH home, golden-verified there); declared here so the
+// point-into-frame emit pass reuses the IDENTICAL SRT/transpose/row path on a cooked point.
+std::array<simd::float4, 4> pointToMatrixRows(const simd::float3& position, const float orientQ[4],
+                                              const simd::float3& scale);
 
 // Cook ONE upstream COLORLIST-producing resident node (ColorsToList, …) into `out` (host color list),
 // gathering its inputs THROUGH the resident Connection drivers (mirror of the flat cookColorListNode).

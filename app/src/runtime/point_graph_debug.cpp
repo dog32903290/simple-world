@@ -116,6 +116,24 @@ const SwGradient* PointGraph::residentGradientFor(const std::string& path) const
   return it != p_->gradientBuf.end() ? &it->second : nullptr;
 }
 
+// PRODUCTION (value-output-rail Phase 4, point-into-frame value emit): the cooked Shared point buffer a
+// RESIDENT Points node produced LAST cook, keyed by its resident PATH (the SAME key cookResident's
+// ensureOut writes p_->outBuf[path], point_graph_resident.cpp). ResourceStorageModeShared (ensureOut), so
+// contents() reinterprets to a `const SwPoint*` host-readable with ZERO blit — the host-side
+// pointList.TypedElements[i] analog (PointToMatrix.cs:27 / GetPointDataFromList.cs:40). `count` ←
+// p_->outCount[path] (the count this node cooked). nullptr + count 0 when the path never cooked points
+// (off the cooked draw chain — only the viewed node's upstream subtree cooks). Borrowed (PointGraph-owned;
+// valid until next cook). Feeds the PointAccessor cookPointValueOutputNodes (resident_point_value_output_
+// cook.cpp) reads.
+const ::SwPoint* PointGraph::residentCookedPoints(const std::string& path, uint32_t& count) const {
+  count = 0;
+  auto bit = p_->outBuf.find(path);
+  if (bit == p_->outBuf.end() || !bit->second) return nullptr;
+  auto cit = p_->outCount.find(path);
+  count = cit != p_->outCount.end() ? cit->second : 0u;
+  return static_cast<const ::SwPoint*>(bit->second->contents());
+}
+
 MTL::Texture* PointGraph::debugCookedTexture(int nodeId) const {
   auto it = p_->texBuf.find(flatKey(nodeId));
   return it != p_->texBuf.end() ? it->second : nullptr;

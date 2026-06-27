@@ -8,8 +8,10 @@
 
 #include "runtime/bpm_provider.h"          // BpmProvider (the [SetBpm] triggered-pull singleton)
 #include "runtime/compound_graph.h"        // CompositionSettings (the comp.bpm sink)
+#include "runtime/point_graph.h"           // PointGraph::residentCookedPoints (point-into-frame accessor)
 #include "runtime/resident_eval_graph.h"  // ResidentEvalGraph / ResidentEvalCtx + cook*Nodes prototypes
 #include "runtime/string_op_registry.h"   // StringState (the stateful-string seam's cross-frame store)
+#include "runtime/tixl_point.h"            // SwPoint (PointAccessor element type)
 
 namespace sw::framecook {
 
@@ -77,6 +79,23 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // [SetBpm] triggered-pull (PlaybackUtils.cs:74-78), folded in after the host-value cook so frame_cook
   // stays under its line-count cap. Returns whether comp.bpm changed → the caller bumps the transport.
   return lib ? pullSetBpmRate(lib->composition) : false;
+}
+
+// value-output-rail Phase 4 — the point-into-frame emit, run AFTER pg.cookResident (frame_cook.cpp), when
+// this frame's point buffers EXIST. Builds the PointAccessor over the live PointGraph (residentCookedPoints
+// reads the cooked Shared buffer host-side, zero blit) and runs cookPointValueOutputNodes (PointToMatrix /
+// GetPointDataFromList). SEPARATE from cookHostValueNodes (which runs BEFORE the point cook) precisely
+// because these ops need a point INTO this frame. Additive — reads finished buffers; no cook-core touch.
+void cookPointValueFromGraph(ResidentEvalGraph& g, PointGraph& pg, float posBars, float fxBars,
+                             SymbolLibrary* lib) {
+  ResidentEvalCtx ctx;
+  ctx.localTime = posBars;   // playhead (bars) — a WIRED ItemIndex automation samples this
+  ctx.localFxTime = fxBars;  // wall clock (bars)
+  ctx.lib = lib;             // Automation drivers on ItemIndex resolve through this
+  PointAccessor acc = [&pg](const std::string& srcNodePath, uint32_t& outCount) -> const SwPoint* {
+    return pg.residentCookedPoints(srcNodePath, outCount);
+  };
+  cookPointValueOutputNodes(g, ctx, acc);
 }
 
 // = TiXL PlaybackUtils.cs:74-78 (the per-frame [SetBpm] consumer). The triggered PULL: returns false
