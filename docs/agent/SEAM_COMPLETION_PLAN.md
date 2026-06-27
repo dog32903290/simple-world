@@ -29,10 +29,34 @@
 >
 > **校正後依賴圖 = 三條已鋪、互不依賴的島可平行採**（① field-SDF ② point-buffer ③ Metal-render〔Layer2d/camera3d〕）。**唯一序列脊椎 = cook-core 檔**（point_graph.cpp / frame_cook / resident_eval）——動這些才要序列、要柏為在場。
 >
-> **誠實剩餘總量（op_census 現算 440/749 已港，剩 309）：**
-> - **~150-170 葉 fan-out**（point ~39 / render+camera ~28 / mesh ~17 / numbers ~46 / image ~38 / string ~8 / flow+field 殘）= 騎已建縫，sw-node-batch 自走可採。
-> - **~25-30 cook-core 脊椎**（拆 point_graph.cpp / list-state / keyframe-anim / context-var 殘通道 / point-sim cross-frame）= 序列，柏為在場較佳。
-> - **~110-130 柏為域**（io 61 device-IO + render pbr/lighting/postfx 28 + loader/gltf）= 硬體/演出/外部 SDK，驗證模型不同（見 §7）。
+> **誠實剩餘總量（op_census 現算 447/749 已港，剩 302）：**
+>
+> **★★ 2026-06-27 二次校正（ground-truth scout，code-cited，debunk「~150-170 葉 fan-out」樂觀數）：**
+> 把 field-SDF / mesh-gen-modify / point-buffer-remainder 三桶逐顆對碼，**真實 clean-leaf 池 ≈ 5，不是 ~150-170**。剩餘的 point/mesh/field op 絕大多數**仍卡 seam**（縫的「主幹」已建，但每一脈葉子需要一塊**子 seam** 才能採）。逐桶 ground-truth：
+> - **field-SDF**：~18 殘 op 中 clean **~1**（Raster3dField 已採 `field_ops_raster3dfield.cpp`）；其餘卡 field-render-output / vec3-field / texture-into-field / sample 子縫（undone：Render2dField/SDFToColor/VisualizeFieldDistance/SdfToVector/ApplyVectorField/SampleFieldPoints/RepeatFieldAtPoints/HeightMapSdf/SubDivPattern3d）。
+> - **mesh gen/modify**：~15 殘中 clean **0**（純 CPU mesh rail 已採盡）；其餘卡 CPU-simplex-noise / texture-into-mesh / points-into-mesh / camera3d-render / loader（undone：ColorVerticesWithField/CustomFaceShader/CustomVertexShader/SelectVerticesWithSDF/DisplaceMeshNoise/ScatterMeshFaces/TextureDisplaceMesh/DisplaceMeshVAT/Warp2dMesh/MoveMeshToPointLine/RepeatMeshAtPoints/MeshFacesPoints/BlendMeshToPoints/Draw*/LoadObj/Delaunay/Extrude）。
+> - **point-buffer remainder**：~45 殘中 clean **~4-5**（只剩部分 Draw* 變體）；~85-90% 卡 cross-frame-sim / mesh-input / shader-graph-Field / CPU-readback / camera3d / loader 子縫。
+> - **PointsOnImage 不是 clean leaf**（前 point-buffer scout 誤列）：它是 **4-pass GPU prefix-sum**（TiXL `Assets/shaders/points/_internal/PointsOnImage/{0-Clear,1-SumRows,2-SumColumns,3-EmitPoints}.hlsl`）需 GPU-determined-output-count 架構 = 柏為 call。
+>
+> **校正後的剩餘真正結構 = cook-core 脊椎 + rail-specific 子 seam 群（不是葉 fan-out）**：
+> - **clean-leaf 池 ≈ 5**（散在 point Draw* 變體殘 + field Raster3dField 類）= 真的騎已建縫、sw-node-batch 自走可採的全部現貨。
+> - **rail-specific 子 seam 群**（每塊解鎖一小簇，見下表「§0′-seam-cluster」）= 自走剩餘的主體，承重工法（柏為在場較佳的標 ★柏為）。
+> - **cook-core 脊椎**（F✅ A✅ B✅，C/D/E 在製）= 唯一序列脊椎；point-sim cross-frame = sub-seam E。
+> - **~110-130 柏為域**（io 61 device-IO + render pbr/lighting/postfx + loader/gltf）= 硬體/演出/外部 SDK，驗證模型不同（見 §7）。
+>
+> **★ vecmath-leaf / numbers / string / image / camera-leaf / render-leaf 等 value-rail 葉桶不在此校正範圍**——那些騎 value-graph/transport 真的是 clean fan-out（census `--seams` 的 vecmath-leaf 17 / string-leaf 8 / render-leaf 14 / camera-leaf 14 等）。本次校正只戳破 **field/mesh/point GPU-rail 三桶**被誤估的「~150 葉」。
+>
+> #### §0′-seam-cluster：剩餘 point/mesh/field op 的子 seam 群（ground-truth 2026-06-27）
+> | 子 seam | 解鎖 op 簇（約數） | 性質 |
+> |---|---|---|
+> | **shader-graph-Field input**（ShaderGraphNode field 輸入 + 任意 HLSL eval，異於已建的 direct-Field gather） | PointColorWithField / SelectPointsWithSDF / CustomPointShader（~5）+ field SDFToColor | 承重 |
+> | **mesh-input → point op**（Mesh buffer → point op） | FindClosestPointsOnMesh / DrawMeshAtPoints2 / SimFollowMeshSurface（~4）+ mesh DisplaceMesh/points-into-mesh | 承重 |
+> | **cross-frame-sim（= cook-core sub-seam E，point-sim）** | PointTrail / PointTrailFast / PointSimulation / SamplePointSimAttributes / Sim*（~7-9） | 簡單者騎已建 ParticleSystem state factory；**PointSimulation pool-growth ABI = ★柏為-architecture call（E-hard）** |
+> | **CPU-readback** | PointsToCPU / ReadPointColors / SampleCpuPoints / PointToMatrix / CpuPointToCamera（~5-7） | 承重 |
+> | **CPU-simplex-noise（mesh）** | DisplaceMeshNoise / ScatterMeshFaces（snoiseVec3 未在 CPU rail） | 承重 |
+> | **texture-into-mesh / points-into-mesh** | mesh DisplaceMesh / Warp2dMesh / MoveMeshToPointLine 家族 | 承重 |
+> | **file-I/O / loaders（★柏為 device 域）** | LoadObjAsPoints / LoadSvg / DataPoint* / mesh LoadObj/LoadGltf | 柏為域 |
+> | **GPU-determined-output-count** | PointsOnImage（4-pass prefix-sum）| ★柏為 call |
 >
 > 同夜其他 debunked：keyframe-anim BUILT（騎 curve_animator）、matrix output BUILT（resident_matrix_output_cook.cpp）、GPU-compute generators parity-complete、dict-ctx 是 pure-host 非 device-IO、string-wire 閘（task_32b5b6e5）已 CLOSED、compound-graph-host = 假縫 debunked（5ccc637）。
 
@@ -40,7 +64,7 @@
 
 ## 0. 一句話戰略
 
-**現成彈藥只有 18 顆乾淨葉子；800 顆裡絕大多數卡在 ~20 塊未建 seam 後面 → 補縫是主路徑，不是次要。**
+**現成彈藥只有 ~5 顆 GPU-rail 乾淨葉子（見 §0′ 二次校正，原文「18」是 2026-06-20 快照）；800 顆裡絕大多數卡在 ~20 塊 seam（含每脈的 rail-specific 子 seam）後面 → 補縫是主路徑，不是次要。**
 補縫（改引擎底層）與採葉子（改 registry）**踩不同檔、可同跑不同 lane 不互撞**：補一塊縫解鎖一批葉子 → sw-node-batch 並行採掉 → 補下一塊。
 
 > **姊妹帳：[DEBT_LEDGER](DEBT_LEDGER.md)（債線）。** 本檔＝**產能線**（往前織網：補縫+採葉子）。DEBT_LEDGER＝**債線**（回頭補洞：架構債 26 檔破 400 行 + 排修/parity 真債）。兩條踩不同檔、並行不互撞，但**產能線跑越快、架構債長越多**＝對沖。從 chip 落地進度表後，債第一次有狀態（queued/active/closed）可被撿。動 `node_registry_*` / `point_graph.cpp` / `point_ops.h` 等共享檔的還債 lane 與產能線**不可同跑同檔**（見 DEBT_LEDGER §E/§F）。
@@ -52,7 +76,10 @@
 ### 1.1 已建地基（六塊視覺承重根，Cut 85-99 編完，可扣除）
 point-buffer(~44/90 採) / shader-graph·field-SDF(~29/60) / context-var / cpu-upload-texture(**4/4 ✅**：ValuesToTexture+GradientsToTexture+CurvesToTexture+ValuesToTexture2 全活，`d468c16`) / Layer2d+dx11-render-graph(**~70%**：DrawScreenQuad/Clear/Layer2d 核心活，blend/postfx 殘) / camera3d + mesh-pipeline(CPU 幾何 output 活，mesh-input 未)。
 
-### 1.2 現可採乾淨葉子＝18 顆（階段 0 立採，census 逐顆證）
+### 1.2 現可採乾淨葉子＝18 顆（★2026-06-20 快照；GPU-rail 部分已被 §0′ 二次校正推翻）
+
+> **★★ 2026-06-27 ground-truth：下表 field 5 / mesh 5 / point 1 是 2026-06-20 估，GPU-rail 三桶已採盡到 clean ≈ 5（field~1 已採、mesh 0、point ~4-5）。numbers/string 列仍大致準（value-rail）。新派工以 §0′ 校正 + `op_census --seams` 現算為準，勿照本表 GPU-rail 數字派空 lane。**
+
 | 家族 | clean 數 | 葉子 |
 |------|---------|------|
 | field | 5 | RepeatPolar, TranslateUV, StairCombineSDF, NoiseDisplaceSDF, SpatialDisplaceSDF |

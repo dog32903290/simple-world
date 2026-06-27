@@ -28,7 +28,7 @@
 #     的「✗ 未建 ~90/~64」歷史標籤已過時，同日寫回校正。
 #
 field-raymarch	seam-build	MED	^field/(render|use|analyze)	field出海口:raymarch/2D-render EXECUTOR已建(field_render.cpp RaymarchParamsGpu+field_raymarch_template.metal,RGBA32Float frag,2026-06-27 ground-truth)→剩~10 terminal葉(Render2dField/SDFToColor/VisualizeFieldDistance)接線即可,SDF generator已採盡
-field-leaf	leaf-ready	LOW	^field/	field SDF葉(codegen已建,近採盡)
+field-leaf	leaf-ready	LOW	^field/	field SDF葉(codegen已建,★2026-06-27 ground-truth:SDF generator採盡,clean≈1,殘卡field-render-output/vec3-field/sample子seam見field-raymarch行)
 camera-leaf	leaf-ready	LOW	^render/(camera|gizmo)	camera變體+gizmo(承重bridge已蓋,騎它採)
 text-font	seam-build	MED	^render/sprite	文字渲染(bitmapfont seam未建)
 pbr-lighting	domain-blocked	HIGH	^render/(shading|scene)	材質/光照=全新3D-render大島
@@ -56,10 +56,10 @@ dict-ctx	seam-build	LOW	^numbers/data	dict select(需dict-context seam)
 vecmath-leaf	leaf-ready	LOW	^numbers/	純值/向量/matrix葉(零縫)
 point-sim	seam-build	MED	^point/sim	point模擬(feedback類cross-frame)
 point-io	domain-blocked	MED	^point/(io|usse)	point GPU-readback/DMX輸出
-point-leaf	leaf-ready	LOW	^point/	point葉(buffer已建,近採盡)
+point-leaf	leaf-ready	LOW	^point/	point葉(buffer縫已建;★2026-06-27 ground-truth:clean-leaf近採盡≈4-5僅Draw*變體殘,此regex 命中的 ~24 殘多卡子 seam=cross-frame-sim/mesh-input/shader-graph-Field/CPU-readback/camera3d-Draw*/loader,派工前 op_census --undone point 逐顆確認別當大葉桶)
 particle-force	seam-build	MED	^particle/	力場(多卡mesh/texture/RWStructuredBuffer/sdf/user-HLSL縫)
 mesh-draw	domain-blocked	MED	^mesh/draw	DrawMesh(需camera+material島)
-mesh-leaf	leaf-ready	LOW	^mesh/	mesh幾何葉(gen/modify;Load*需loader)
+mesh-leaf	leaf-ready	LOW	^mesh/	mesh幾何葉(gen/modify;★2026-06-27 ground-truth:純CPU mesh rail已採盡,clean gen/modify≈0,此regex命中的~17殘全卡子seam=CPU-simplex-noise/texture-into-mesh/points-into-mesh/shader-graph-Field/camera3d-Draw*/loader→非待採大葉桶,派工前 op_census --undone mesh 逐顆確認)
 string-leaf	leaf-ready	LOW	^string/	字串葉(剩datetime/random)
 device-io	domain-blocked	LOW	^io/	MIDI/OSC/video/serial/DMX=柏為裝置域(loopback半已建)
 flow-var	seam-build	LOW	^flow/context	context-var剩餘通道(Vec3/Matrix/Object Var)

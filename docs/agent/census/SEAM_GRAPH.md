@@ -21,6 +21,8 @@
 > | `feedback` ~16 | ✗ 未建 | **BUILT** — ping-pong seam（`5385e6b`）+ multi-pass executor（`15161e3`，Bloom parity）。 |
 >
 > **校正後依賴圖：NO dx11 keystone。三條已鋪、互不依賴的島**（field-SDF / point-buffer / Metal-render）可平行採。唯一序列脊椎 = cook-core 檔（point_graph.cpp / frame_cook / resident_eval）。
+>
+> **★★ 2026-06-27 二次 GROUND-TRUTH（leaf-pool 校正，code-cited）：上表的「剩 ~39 葉 fan-out / ~10 terminal 葉」是 GPU-rail op **總殘數**，不是 clean-leaf 數。逐桶對碼後 GPU-rail 三桶真實 clean-leaf 池 ≈ 5（field~1 已採 / mesh-gen-modify 0 / point ~4-5 Draw* 變體），其餘全卡 rail-specific 子 seam（cross-frame-sim / mesh-input → point / shader-graph-Field input / CPU-readback / CPU-simplex-noise / texture-into-mesh / points-into-mesh / loader / GPU-determined-output-count）。「~150-170 葉 fan-out」估算已 debunk。PointsOnImage 不是 leaf = 4-pass prefix-sum（GPU-determined-output-count）。子 seam 簇表見 `SEAM_COMPLETION_PLAN.md §0′-seam-cluster`。⚠ value-rail 葉桶（vecmath/string/numbers/image/camera-leaf/render-leaf）不在此校正，仍是真 clean fan-out。**
 > 同夜其他 debunked：field-raymarch BUILT（executor）、keyframe-anim BUILT（騎 curve_animator）、GPU-compute generators parity-complete、matrix output BUILT（resident_matrix_output_cook.cpp）、dict-ctx 是 pure-host（非 device-IO）、string-wire 閘（task_32b5b6e5）已 CLOSED。
 > **真實 SSOT = `docs/agent/SEAM_COMPLETION_PLAN.md`（標 ✅+commit）。** 本檔 §1-§5 以下為 2026-06-16 歷史快照，僅供依賴鏈骨架參考，「✗」欄一律以上表為準。
 
