@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 6184c02
-DIRTY: 1 files
-CENSUS: 440 / 749 done
-BITE: 493 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T11:22
+HEAD: ba440a1
+DIRTY: clean
+CENSUS: 442 / 749 done
+BITE: 495 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-27T11:52
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,9 +18,12 @@ STAMP_AT: 2026-06-27T11:22
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-27 11:04 RaymarchPoints 落地＝point-modify 三 rail fan-out 完成，HEAD `380e724`，--bite 493 / FAILED=[]，census 440/749 floor）。柏為 10:43 定向：優先把 cook-core 子縫做完=最重要。現入「系統性清 cook-core 子縫」campaign。**
-- **✅ point-modify 三 rail 已 fan-out（6 op，全 refuter MERGE-SAFE）**：**SDF/count-multiply rail**（MovePointsToSDF `64aa0a0`/`f5689bb` 開縫+gatherPointFieldTree unifier、SdfReflectionLinePoints `2f0b31c`、RaymarchPoints `380e724` two-mode）+ **texture-into-points rail**（SamplePointAttributes/DisplacePoints2d/TransformWithImage `c62b2c1`）。.t3-defaults 審成標準（抓到 MoveToSDF SetOrientation/SetColor + Write* 多個 default-active 分支）。NIT 群：MaxSteps clamp（count-multiply ops，非預設才差）/SdfReflection golden 未測 bounce。
-- **★campaign＝7 cook-core 子縫 grind-list（map scout `ab2ff989` 鎖定，非 12；ABI 比 label 完整）**：**F** second-point-buffer(SetAttributesWithPointFields,~1-3,likely leaf inputs[1])→**A** list-state resident slot(AmplifyValues/Damp/Keep/Merge*,~4-6,mirror 已建 ensureState)→**B** ctx-var Vec3/Matrix(4,加 ContextVarMap 欄)→**C** ctx-var String(2,string-wire gate 已 closed)→**D** dict-ctx host rail(~7,純 host 非 device-IO)→**E** point-sim cross-frame(~8,5 簡單 ride ParticleSystem state factory)。**序列做(cook-core 一條一條)，map 給 first-op+golden 免再 scout。**
+**none（2026-06-27 11:52 grind-F ✅ + Raster3dField + SSOT 校正寫回，HEAD `ba440a1`，--bite 495 / FAILED=[]，census 442/749）。柏為定向：優先清 cook-core 子縫。campaign：F 完成→下一條 A。**
+- **★柏為 11:16 表(7 大 island seam)=stale，master scout 全 debunk＋寫回 SSOT(`b037566`)**：**NO dx11 keystone**(最大 myth，render_command.h 已覆蓋)/5-of-7 已建或 partial/3 條獨立已鋪島(field-SDF/point-buffer/Metal-render)。真剩 ~309：~150-170 leaf fan-out(autonomous)+~25-30 cook-core spine(F-E)+~110-130 柏為域(3D render tail/network-io/loaders/gizmo)。**stale trap 在 census docs 非 seam_map。**
+- **✅ grind-F second-point-buffer(SetAttributesWithPointFields `24f1bbd`)**：LEAF（inputs[1] 可定址零 cook-core，同 SnapToPoints），2-point attr-transfer blend，refuter MERGE-SAFE byte-faithful。NIT:gradient white-step 1.0 vs 0.9884(sub-1.2% 色 task_07476ef4)。
+- **✅ Raster3dField(field-SDF leaf)**：**★finding:field-SDF leaf rail 近採盡——12 未 port 只 1 clean，其餘 11 blocked**(sdftocolor=Gradient 柏為域/heightmap=Texture2D/render2dfield=render Command/subdivpattern3d 高風險)。待寫回 SSOT。
+- **✅ point-modify 三 rail（前 6 op，全 refuter MERGE-SAFE）**：SDF/count-multiply（MoveToSDF/SdfReflection/RaymarchPoints）+texture-into-points（SamplePointAttributes/DisplacePoints2d/TransformWithImage）詳見 git。
+- **★campaign＝cook-core 子縫 grind-list（map `ab2ff989`，序列一條一條）**：**F ✅**(SetAttr,leaf)→**A 下一條** list-state resident slot(AmplifyValues/Damp/Keep/Merge*,~4-6,mirror 已建 ensureState,2-frame golden)→**B** ctx-var Vec3/Matrix(4,加 ContextVarMap 欄)→**C** ctx-var String(2,string-wire gate 已 closed)→**D** dict-ctx host rail(~7,純 host 非 device-IO)→**E** point-sim cross-frame(~8,5 簡單 ride ParticleSystem state factory)。**spine 序列 + leaf fan-out 並行(不同檔)。**
 - **★需柏為架構決定（grind 到再問，已先擺出）**：**E-hard** PointSimulation pool-growth ABI（growable pool 要新 resident-state ABI 還是復用 ParticleSystem 固定 pool？）/**G** asset/file loader（LoadObjAsPoints/LoadSvg：file-IO/asset lifetime model？device-IO-adjacent）。
 - 前批：anim+list harvest（`49582bd`）+matrix seam（`96e4923`）+維護加固 工作1+2+folder-package+ColorThemeEditor 詳見 history。**★★方法論鐵律（柏為 2026-06-27 定，根因修）：seam 開採前必 ground-truth scout；scout 揪出 stale label（已建/真數/依賴）後**必立刻派 plan-update subagent 寫回 `tools/seam_map.tsv`+census docs**，否則每 session 重栽同坑、差點重蓋已建縫（一晚 6+ 次）。scout→write-back→build，漏寫回=下次重栽。[[sw-groundtruth-writeback-rule]]**
 
