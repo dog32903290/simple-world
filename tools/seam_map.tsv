@@ -81,7 +81,7 @@ mesh-draw	domain-blocked	MED	^mesh/draw	DrawMesh(需camera+material島)
 mesh-leaf	leaf-ready	LOW	^mesh/	mesh幾何葉(gen/modify;★2026-06-27 ground-truth:純CPU mesh rail已採盡,clean gen/modify≈0,此regex命中的~17殘全卡子seam=CPU-simplex-noise/texture-into-mesh/points-into-mesh/shader-graph-Field/camera3d-Draw*/loader→非待採大葉桶,派工前 op_census --undone mesh 逐顆確認)
 string-leaf	leaf-ready	LOW	^string/	字串葉(剩datetime/random)
 device-io	domain-blocked	LOW	^io/	MIDI/OSC/video/serial/DMX=柏為裝置域(loopback半已建)
-flow-var	seam-build	LOW	^flow/context	context-var剩餘通道(Vec3/Matrix/Object Var)
+flow-var	seam-build	LOW	^flow/context	context-var剩餘通道(★2026-06-27 String通道 BUILT@b03cddd:Get/SetStringVar on typed stringVars channel+writer-first string cook 2-pass+per-frame clear,鏡像Vec3Var縫;剩Matrix/Object Var)
 flow-leaf	leaf-ready	LOW	^flow/	flow葉
 data-leaf	leaf-ready	LOW	^data/	data雜項
 # (結尾哨兵行,確保上方最後一條規則被 while-read 讀到)

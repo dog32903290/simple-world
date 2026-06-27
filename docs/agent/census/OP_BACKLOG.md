@@ -183,7 +183,8 @@ image: BubbleZoom/LinearGradient/BoxGradient/RadialGradient/NGonGradient/Mandelb
 field: SDFToColor/_ExecuteSdfToColor（次要）
 
 ### `context-var`（15，最便宜中型）
-flow: GetBoolVar/GetFloatVar/GetIntVar/GetMatrixVar/GetObjectVar/GetStringVar/GetVec3Var/GetForegroundColor/SetBoolVar/SetFloatVar/SetIntVar/SetMatrixVar/SetObjectVar/SetStringVar/SetVec3Var（Set 系列 SubGraph 部分次要依賴 Layer2d+Execute）
+flow: GetBoolVar/GetFloatVar/GetIntVar/GetMatrixVar/GetObjectVar/~~GetStringVar~~ ✅BUILT@b03cddd/GetVec3Var/GetForegroundColor/SetBoolVar/SetFloatVar/SetIntVar/SetMatrixVar/SetObjectVar/~~SetStringVar~~ ✅BUILT@b03cddd/SetVec3Var（Set 系列 SubGraph 部分次要依賴 Layer2d+Execute）
+> **★2026-06-27 String 通道 BUILT@b03cddd**：Get/SetStringVar on typed `stringVars` channel（鏡像 vec3Vars 縫）+ writer-first 2-pass string cook + per-frame clear。.t3 defaults VariableName="s"/FallbackDefault=""。named defer `defer-setstringvar-subgraph-command-rail`（SubGraph push/restore scope 未實作，待 SetStringVarCmd Command type，同 float SetFloatVarCmd）；named fork `fork-setstringvar-echo-output`（TiXL Slot<Command> Output→String echo，同 SetFloatVar/SetVec3Var）。
 
 ### `network-io`（~9 主擋 + ~14 UDP 共用底層）
 io: TcpClient/TcpServer/UDPInput/UDPOutput/WebSocketClient/WebSocketServer/WebServer/RequestUrl

@@ -46,7 +46,7 @@
 | `network-io` | io census `network-io`；**`osc`/`artnet-dmx`/`camera-tracking` 的共同 UDP 底層** | TCP/UDP/WebSocket/HTTP（macOS Network.framework） |
 | `cpu-upload-texture` | numbers census 同名 | CPU float/RGBA array → MTLTexture（R32/RGBA32F），不走 shader |
 | `compute-readback` | image census `compute-readback`、numbers census `cpu-readback-texture`、point census `readback-cpu`、render census `RWStructuredBuffer` readback 部分 | GPU UAV/texture → CPU staging readback |
-| `context-var` | flow census 同名 | eval-context 上的 typed 變數字典（Float/Int/String/Bool/Vec3/Matrix/Object Variables） |
+| `context-var` | flow census 同名 | eval-context 上的 typed 變數字典（Float/Int/String/Bool/Vec3/Matrix/Object Variables）。**String 通道 BUILT@b03cddd**：Get/SetStringVar on typed `stringVars`（std::map<string,string>）channel in ContextVarMap（鏡像 vec3Vars 縫，TiXL StringVariables 是 typed dict 非 boxed-object）+ writer-first 2-pass string cook + per-frame `stringVars.clear()`。剩 Matrix/Object 通道 |
 | `cpu-point-list` | point census 同名、numbers census `structured-list-cpu` | CPU 側 StructuredList<T> 讀寫，無 GPU dispatch |
 | `RWStructuredBuffer` | brief 同名 | 可讀寫 structured compute buffer（SRV+UAV，非 Point 專用） |
 
