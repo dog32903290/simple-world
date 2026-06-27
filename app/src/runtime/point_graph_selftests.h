@@ -241,6 +241,9 @@ int runLinearSamplePointAttributesSelfTest(bool injectBug);
 // injectBug omits the gradient scratch bind → Color = white passthrough (≠ the injected gradient color);
 // want FIXED at the true values.
 int runMapPointAttributesSelfTest(bool injectBug);
+// SetAttributesWithPointFields golden (point_ops_setattributeswithpointfields.cpp): 2nd-Points (inputs[1]
+// = FieldPoints) + bake-into-point seam; injectBug severs FieldPoints → passthrough → pos/color RED.
+int runSetAttributesWithPointFieldsSelfTest(bool injectBug);
 
 // TransformPointsFromClipspace golden (point_ops_transformpointsfromclipspace.cpp): the FIRST Points op
 // to consume the camera-matrix-into-points seam (PointCookCtx::cameraToWorld). A count-preserving

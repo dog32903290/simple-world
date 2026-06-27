@@ -296,5 +296,57 @@ static const PointModifyOp _reg_SortPoints{
        "point.modify"}
 };
 
+// ---- second-point-buffer + bake-into-point seam: SetAttributesWithPointFields --------------------
+// TiXL parity: external/tixl .../point/modify/SetAttributesWithPointFields.{cs,t3} +
+// .../Assets/shaders/points/modify/SetPointAttributesWithPointFields.hlsl. A count-preserving MODIFIER
+// with a SECOND Points input (FieldPoints): for each SourcePoint it accumulates a stylistic gravity
+// field over the FieldPoints, then offsets/orients/colors/writes-W. The Gradient (baked → GradientImage)
+// is a host-value input; WCurve (baked → CurveImage) has no producer (embedded .t3 ramp default).
+//
+// ★LEAF (not a seam): inputs[1] (FieldPoints) is addressable by port order — the cook driver's
+// buffer-input gather pushes each Points port into inputs[]/inputCounts[] distinctly (NOT concatenated;
+// concatenation is CombineBuffers' own blit). countFromFirstPointsInput=true (see
+// point_ops_setattributeswithpointfields.cpp) sizes output to SourcePoints only (both ports are
+// "Points" → default sumPointsCount would over-size). Same pattern as SnapToPoints.
+//
+// Ports 1:1 with SetAttributesWithPointFields.cs [Input] (.t3 defaults audited in the .cpp header):
+static const PointModifyOp _reg_SetAttributesWithPointFields{
+      {"SetAttributesWithPointFields",
+       "SetAttributesWithPointFields",
+       {{"Points", "Points", "Points", true},            // SourcePoints — primary bag (port 0)
+        {"FieldPoints", "FieldPoints", "Points", true},  // field bag (port 1) — the 2nd-Points seam input
+        {"out", "out", "Points", false},                  // modified output bag (port 2)
+        // .hlsl cbuffer b0 (verbatim, .t3 defaults):
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 1.0f},            // .t3 1.0
+        {"Range", "Range", "Float", true, 1.0f, 0.0f, 10.0f},            // .t3 1.0
+        {"OffsetRange", "OffsetRange", "Float", true, 0.0f, 0.0f, 10.0f}, // .t3 0.0
+        {"AffectPosition", "AffectPosition", "Float", true, 0.25f, 0.0f, 1.0f},  // .t3 0.25
+        {"AffectOrientation", "AffectOrientation", "Float", true, 1.0f, 0.0f, 1.0f},  // .t3 1.0
+        {"AffectColor", "AffectColor", "Float", true, 1.0f, 0.0f, 1.0f},  // .t3 1.0
+        {"AffectW", "AffectW", "Float", true, 0.0f, 0.0f, 1.0f},          // .t3 0.0
+        {"Variation", "Variation", "Float", true, 0.0f, 0.0f, 1.0f},      // .t3 0.0
+        // BiasAndGain (Vec2, .t3 (0.365,0.59)) → .hlsl GainAndBias. Read per-component.
+        {"BiasAndGain.x", "BiasAndGain", "Float", true, 0.365f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"BiasAndGain.y", "BiasAndGain.y", "Float", true, 0.59f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // OrientationUpVector (Vec3, .t3 (0,0,1)).
+        {"OrientationUpVector.x", "OrientationUpVector", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"OrientationUpVector.y", "OrientationUpVector.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"OrientationUpVector.z", "OrientationUpVector.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // .hlsl cbuffer b1 enums (.t3 defaults):
+        {"ColorMode", "ColorMode", "Float", true, 2.0f, 0.0f, 2.0f, Widget::Enum,
+         {"Add", "Average", "Blend"}},                                    // .t3 2 (Blend)
+        {"WMode", "WMode", "Float", true, 2.0f, 0.0f, 2.0f, Widget::Enum,
+         {"Set", "Add", "BlendWithOriginal"}},                            // .t3 2 (Blend)
+        {"WCurveAffectsWeight", "WCurveAffectsWeight", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},  // .t3 false
+        // Gradient (host value input, .t3 black→white) — baked into GradientImage @t3. Gathered into
+        // PointCookCtx::inputGradients; unwired → embedded black→white default.
+        {"Gradient", "Gradient", "Gradient", true},
+        // WCurve (host value input, .t3 ramp 0→1) — baked into CurveImage @t2. Gathered into
+        // PointCookCtx::inputCurves (no producer yet → embedded ramp default).
+        {"WCurve", "WCurve", "Curve", true}},
+       nullptr,
+       "point.modify"}
+};
+
 }  // namespace
 }  // namespace sw
