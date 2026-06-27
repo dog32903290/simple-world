@@ -97,6 +97,7 @@ namespace sw { int runFieldRepeatAxisGoldenSelfTest(bool); }      // field_ops_r
 namespace sw { int runFieldReflectFieldGoldenSelfTest(bool); }    // field_ops_reflectfield_golden.cpp (single-input PRE-wrap; pReflect, vec3 normal + offset)
 namespace sw { int runFieldBendFieldGoldenSelfTest(bool); }       // field_ops_bendfield_golden.cpp (single-input PRE+POST wrap; opBend, axis enum)
 namespace sw { int runFieldCombineFieldColorGoldenSelfTest(bool); } // field_ops_combinefieldcolor_golden.cpp (two-input color combiner)
+namespace sw { int runFieldRaster3dFieldGoldenSelfTest(bool); }   // field_ops_raster3dfield_golden.cpp (zero-input color generator; fRaster3d, f.r-read template)
 namespace sw { int runFieldRotateAxisGoldenSelfTest(bool); }      // field_ops_rotateaxis_golden.cpp (single-input PRE-wrap; pRotateAxis, axis enum)
 namespace sw { int runFieldRotateFieldGoldenSelfTest(bool); }     // field_ops_rotatefield_golden.cpp (single-input PRE-wrap; pRotateAxis ×3, vec3 RotateRad; shares pRotateAxis globals key)
 namespace sw { int runFieldTwistFieldGoldenSelfTest(bool); }      // field_ops_twistfield_golden.cpp (single-input PRE-wrap; twist about axis)
