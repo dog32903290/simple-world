@@ -90,7 +90,7 @@ void growstrains(
         SwPoint A = PointsA[sourceIndex];
         SwPoint B = PointsB[targetIndex];
 
-        float3 pLocal = qRotateVec3(float3(A.Position), normalize(B.Rotation));
+        float3 pLocal = qRotateVec3(float3(A.Position), B.Rotation);  // TiXL: raw, no normalize (qRotateVec3 doesn't normalize internally)
 
         float age = B.FX1;  // LegacyPoint.W
         float w = A.FX1;    // LegacyPoint.W
@@ -100,7 +100,7 @@ void growstrains(
         if (d < 0.001f)
             d = sqrt(-1.0f);
 
-        float4 rotation = qMul(normalize(A.Rotation), normalize(B.Rotation));
+        float4 rotation = qMul(A.Rotation, B.Rotation);  // TiXL: raw, no normalize
 
         float noiseWeight = attributes.g;
         float3 offset;
