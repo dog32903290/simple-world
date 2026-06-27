@@ -41,6 +41,7 @@ void registerTransformWithImageOp();
 void registerAttributesFromImageChannelsOp();
 void registerLinearSamplePointAttributesOp();
 void registerMapPointAttributesOp();
+void registerSetAttributesWithPointFieldsOp();
 void registerTransformPointsFromClipspaceOp();
 void registerSamplePointsByCameraDistanceOp();
 void registerSortPointsOp();
@@ -80,6 +81,7 @@ void registerPointModifyPointOps() {
   registerAttributesFromImageChannelsOp(); // Points → Points (route texture channels into attributes; texture-into-points seam)
   registerLinearSamplePointAttributesOp(); // Points → Points (sample texture by point index, route channels into attributes; texture-into-points seam)
   registerMapPointAttributesOp();          // Points → Points (bake host Curve/Gradient into scratch tex, sample per point; bake-into-point seam)
+  registerSetAttributesWithPointFieldsOp();  // Points + FieldPoints(inputs[1]) → Points (gravity-field offset/orient/color/W; 2nd-Points + bake-into-point seam)
   registerTransformPointsFromClipspaceOp();  // Points → Points (unproject via CameraToWorld; camera-matrix-into-points seam)
   registerSamplePointsByCameraDistanceOp();  // Points → Points (scale W by camera-depth WForDistance curve; camera-matrix + bake-into-point seams)
   registerSortPointsOp();                    // Points → Points (reorder by camera-distance; camera-matrix-into-points seam, converged-sort fork)
