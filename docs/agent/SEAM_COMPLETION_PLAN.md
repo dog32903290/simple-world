@@ -47,16 +47,23 @@
 > **★ vecmath-leaf / numbers / string / image / camera-leaf / render-leaf 等 value-rail 葉桶不在此校正範圍**——那些騎 value-graph/transport 真的是 clean fan-out（census `--seams` 的 vecmath-leaf 17 / string-leaf 8 / render-leaf 14 / camera-leaf 14 等）。本次校正只戳破 **field/mesh/point GPU-rail 三桶**被誤估的「~150 葉」。
 >
 > #### §0′-seam-cluster：剩餘 point/mesh/field op 的子 seam 群（ground-truth 2026-06-27）
+>
+> **★★ 2026-06-27 final-autonomous-seam scout（code-cited，再校正下表「承重」=「rail 已建，只剩葉」的三條）：mesh-input / CPU-readback / StructuredList 三條 rail 全 BUILT（非待蓋承重 seam）。三條合計剩 autonomous leaf 恰 3 顆（FindClosestPointsOnMesh / SampleCpuPoints / JoinLists），其餘全是柏為域（render / sim / value-emit / ICamera）。誠實殘渣小。**
+>
 > | 子 seam | 解鎖 op 簇（約數） | 性質 |
 > |---|---|---|
 > | **shader-graph-Field input**（ShaderGraphNode field 輸入 + 任意 HLSL eval，異於已建的 direct-Field gather） | PointColorWithField / SelectPointsWithSDF / CustomPointShader（~5）+ field SDFToColor | 承重 |
-> | **mesh-input → point op**（Mesh buffer → point op） | FindClosestPointsOnMesh / DrawMeshAtPoints2 / SimFollowMeshSurface（~4）+ mesh DisplaceMesh/points-into-mesh | 承重 |
+> | **mesh-input rail = ✅BUILT**（PointCookCtx::meshVtx/meshIdx，point_graph_cook_ctx.h:88，filled point_graph.cpp:355-356；MeshVerticesToPoints/PointsOnMesh 已騎，是葉非 seam-gated） | autonomous leaf 剩 **1 = FindClosestPointsOnMesh**（brute-force tri-distance .hlsl，無 BVH/camera）。**DrawMeshAtPoints2 = Slot<Command> render（柏為 render tail，非此 rail）；SimFollowMeshSurface = PointSimulation-gated（柏為 E-hard）** | rail 已建·剩 1 葉 |
+> | **CPU-readback rail = ✅BUILT**（production：upstream op commit+wait，SwPoint bag StorageModeShared，ops 直讀 contents()；ReadPointColors=colorlist_ops_readpointcolors.cpp + PointsToCPU=pointlist_ops_pointstocpu.cpp **已註冊/已建**） | autonomous leaf 剩 **1 = SampleCpuPoints**（PointList→PointList，host Bezier+quat）。**PointToMatrix（evaluate==nullptr，卡 value-emit seam＋ICamera）+ CpuPointToCamera（ICamera/projection object）= 柏為域** | rail 已建·剩 1 葉 |
+> | **StructuredList rail = ✅BUILT**（producer = 已建 PointList 第 7 flow（host vector<SwPoint>）；cook driver 已展開 MultiInput PointList port，point_graph_hostvalue_cook.cpp:64-108。非 device-IO / 非 dict-gated） | autonomous leaf 剩 **1 = JoinLists**（MultiInput concat → Result；其 int `Length` 第 2 output 騎 value rail = deferred 柏為 fork）。**GetPointDataFromList（output Vector3/float/Vector4 到 value rail，撞同一 point-into-frame value-emit 牆）= 柏為域** | rail 已建·剩 1 葉 |
 > | **cross-frame-sim（= cook-core sub-seam E，point-sim）** | PointTrail / PointTrailFast / PointSimulation / SamplePointSimAttributes / Sim*（~7-9） | 簡單者騎已建 ParticleSystem state factory；**PointSimulation pool-growth ABI = ★柏為-architecture call（E-hard）** |
-> | **CPU-readback** | PointsToCPU / ReadPointColors / SampleCpuPoints / PointToMatrix / CpuPointToCamera（~5-7） | 承重 |
+> | **★point-into-frame value-emit pass（= 解鎖一整族的單一柏為架構 seam）** | GetPointDataFromList + PointToMatrix-emit + GetTextureSize + value-out-from-point 全族（~10-15） | ★柏為 call。resident value-emit 看不到 point buffer（named defer `defer-pointtomatrix-needs-point-into-frame-pass`，resident_matrix_output_cook.cpp:28；node_registry_math_anim.cpp:212-228）。一 seam 解鎖整族 |
 > | **CPU-simplex-noise（mesh）** | DisplaceMeshNoise / ScatterMeshFaces（snoiseVec3 未在 CPU rail） | 承重 |
 > | **texture-into-mesh / points-into-mesh** | mesh DisplaceMesh / Warp2dMesh / MoveMeshToPointLine 家族 | 承重 |
 > | **file-I/O / loaders（★柏為 device 域）** | LoadObjAsPoints / LoadSvg / DataPoint* / mesh LoadObj/LoadGltf | 柏為域 |
 > | **GPU-determined-output-count** | PointsOnImage（4-pass prefix-sum）| ★柏為 call |
+>
+> **柏為域分界（乾淨線）= 凡「從 point buffer emit 到 value rail / 是 camera / render / simulate」皆柏為域**（measured 量級）：camera3d/3D-render tail ~40-60；PointSimulation pool ABI ~15-25；value-emit-from-buffer seam ~10-15（一塊 seam）；device-IO（dict-ctx deferred = device-IO，loaders，audio/MIDI/file）~30-40；gizmo/loader/field-SDF tail/mesh-gen tail ~80-100（measured 近零 autonomous yield：field-SDF 1/18、mesh-gen 0/15）。**dict-ctx 不是乾淨 host rail，死在 device-IO producer → 柏為域非 autonomous；C cook-core sub-seam（String/Command ctx-var）是 medium seam，非 Vec3 鏡像。**
 >
 > 同夜其他 debunked：keyframe-anim BUILT（騎 curve_animator）、matrix output BUILT（resident_matrix_output_cook.cpp）、GPU-compute generators parity-complete、dict-ctx 是 pure-host 非 device-IO、string-wire 閘（task_32b5b6e5）已 CLOSED、compound-graph-host = 假縫 debunked（5ccc637）。
 

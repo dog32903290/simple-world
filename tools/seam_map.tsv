@@ -23,6 +23,12 @@
 #     已 1:1 吸收 TiXL D3D11 RTV/DSV/BlendState/Viewport（DrawScreenQuad/Layer2d/Mesh/Clear 皆 DrawKind）。
 #     「camera3d/Layer2d 卡 dx11」這條依賴是 FALSE（見 dx11-skip 行 = domain-blocked,正確標 SKIP）。
 #   mesh-pipeline = BUILT（meshSpecSink live, 31 mesh 檔, mesh-input seam d81d705/3c65ae2）。
+#   ★ 2026-06-27 final-autonomous-seam scout（code-cited）：mesh-input / CPU-readback / StructuredList 三條 rail 全 BUILT（非待蓋 seam）：
+#     - mesh-input rail：PointCookCtx::meshVtx/meshIdx（point_graph_cook_ctx.h:88,filled point_graph.cpp:355-356）；autonomous leaf 剩 FindClosestPointsOnMesh。
+#     - CPU-readback rail：production commit+wait+SwPoint StorageModeShared 直讀；ReadPointColors/PointsToCPU 已建；autonomous leaf 剩 SampleCpuPoints。
+#     - StructuredList rail：producer=已建 PointList 第7 flow,cook driver 已展開 MultiInput PointList（point_graph_hostvalue_cook.cpp:64-108）；autonomous leaf 剩 JoinLists。
+#   ★ 單一柏為架構 seam = point-into-frame value-emit pass（resident value-emit 看不到 point buffer,named defer resident_matrix_output_cook.cpp:28 / node_registry_math_anim.cpp:212-228）→一 seam 解鎖 GetPointDataFromList + PointToMatrix-emit + GetTextureSize + value-out-from-point 全族 ~10-15。柏為域乾淨線=凡從 point buffer emit value / camera / render / simulate。
+#     （此 seam 無乾淨 regex 家=ops 散在 numbers/point/render,故記於此 header 不加會 mis-route 的 regex 行。）
 #   ★ 本表已大致校準（point-leaf/camera-leaf/render-leaf/mesh-leaf/field-leaf 全 leaf-ready 正確）；
 #     真實 SSOT 看 docs/agent/SEAM_COMPLETION_PLAN.md（標 ✅+commit）。census docs(SEAM_GRAPH/OP_BACKLOG)
 #     的「✗ 未建 ~90/~64」歷史標籤已過時，同日寫回校正。
@@ -52,10 +58,10 @@ feedback	seam-build	MED	^image/fx/feedback	上一幀/feedback基礎縫(ping-pong
 image-leaf	leaf-ready	LOW	^image/	image濾鏡/生成乾淨葉(fallthrough,僅真乾淨葉如DirectionalBlur落這)
 list-state	seam-build	MED	^numbers/(floats|ints)	FloatList stateful(需resident state-slot縫)
 keyframe-anim	seam-build	MED	^numbers/(anim|curve)	animator/keyframe(需keyframe seam)
-dict-ctx	seam-build	LOW	^numbers/data	dict select(需dict-context seam)
+dict-ctx	domain-blocked	LOW	^numbers/data	dict select(★2026-06-27 ground-truth:dict-ctx非乾淨host rail,死在device-IO producer→柏為域非autonomous;非Vec3鏡像)
 vecmath-leaf	leaf-ready	LOW	^numbers/	純值/向量/matrix葉(零縫)
 point-sim	seam-build	MED	^point/sim	point模擬(feedback類cross-frame)
-point-io	domain-blocked	MED	^point/(io|usse)	point GPU-readback/DMX輸出
+point-io	domain-blocked	MED	^point/(io|usse)	point GPU-readback/DMX輸出(★2026-06-27 ground-truth:CPU-readback rail已BUILT=production commit+wait+SwPoint StorageModeShared直讀,ReadPointColors/PointsToCPU已建;autonomous leaf剩SampleCpuPoints;PointToMatrix/CpuPointToCamera卡value-emit-seam/ICamera=柏為域;DMX/io真domain-blocked)
 point-leaf	leaf-ready	LOW	^point/	point葉(buffer縫已建;★2026-06-27 ground-truth:clean-leaf近採盡≈4-5僅Draw*變體殘,此regex 命中的 ~24 殘多卡子 seam=cross-frame-sim/mesh-input/shader-graph-Field/CPU-readback/camera3d-Draw*/loader,派工前 op_census --undone point 逐顆確認別當大葉桶)
 particle-force	seam-build	MED	^particle/	力場(多卡mesh/texture/RWStructuredBuffer/sdf/user-HLSL縫)
 mesh-draw	domain-blocked	MED	^mesh/draw	DrawMesh(需camera+material島)
