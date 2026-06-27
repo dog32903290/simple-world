@@ -49,6 +49,13 @@ namespace {
 
 constexpr int kResidentStringDepthCap = 64;  // same cycle guard as evalResidentFloat / cookResident
 
+// String-channel context-var WRITER predicate (sub-seam C): the writer-first 2-pass in cookStringNodes runs
+// every SetStringVar BEFORE any other String op (incl. the GetStringVar readers), deterministically each
+// frame (simple_world iterates g.nodes in BUILD order, not dataflow → ordering imposed explicitly). This is
+// the string twin of stateful_value_ops' isContextVarWriter (which orders the FLOAT-channel Set*Var). Kept
+// an explicit name (refuter-auditable; a future "SetupStringX" op can't accidentally join the writer pass).
+bool isStringCtxVarWriter(const std::string& opType) { return opType == "SetStringVar"; }
+
 }  // namespace
 
 // Cook ONE upstream String-producing resident node into `out` (host string), gathering its inputs
@@ -69,7 +76,7 @@ constexpr int kResidentStringDepthCap = 64;  // same cycle guard as evalResident
 bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
                         const ResidentEvalCtx& ctx, std::string& out, int depth,
                         std::map<int, std::string>* extraStrOut, std::map<int, float>* scalarOut,
-                        StringState* state) {
+                        StringState* state, ContextVarMap* vars) {
   out.clear();
   if (depth > kResidentStringDepthCap) return false;
   const ResidentNode* n = g.node(path);
@@ -177,6 +184,9 @@ bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
   sc.params = &params;  // FloatToString/IntToString/Vec3ToString read Value/Vector.* from here
   sc.extraStrOutputs = extraStrOut;  // nullptr for the recursive gather; the producer loop's sinks else
   sc.scalarOutputs = scalarOut;
+  // String ctx-var seam (sub-seam C): the per-frame ContextVarMap (Set/GetStringVar touch stringVars). nullptr
+  // for the recursive gather (an upstream String producer never reads/writes a var); the producer loop's map else.
+  sc.ctxVars = vars;
   // Per-node CROSS-FRAME slot (HasStringChanged's `_lastString`): nullptr for the RECURSIVE upstream
   // gather (those calls omit it → default nullptr; upstream String producers are stateless), supplied
   // ONLY by the cookStringNodes producer loop for the top node it cooks. A stateless op ignores it.
@@ -186,12 +196,13 @@ bool cookResidentString(const ResidentEvalGraph& g, const std::string& path,
 }
 
 void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
-                     std::map<std::string, StringState>* state) {
-  for (ResidentNode& rn : g.nodes) {
-    const StringCookFn* fn = findStringOp(rn.opType);
-    if (!fn || !*fn) continue;  // not a string op
-    const NodeSpec* s = findSpec(rn.opType);
-    if (!s) continue;
+                     std::map<std::string, StringState>* state, ContextVarMap* vars) {
+  // Cook ONE top-level String-producer node (fan its outputs onto the resident channels). Factored into a
+  // lambda so the String ctx-var seam's WRITER-FIRST 2-pass can call it in two phases (SetStringVar writers
+  // first, then every other String op incl. the GetStringVar readers) — the structural delta vs the old
+  // single build-order loop. A graph with NO String ctx-var op runs every node in pass 2 → byte-identical
+  // order to before (writer pass is empty). The `vars` map is threaded so Set/GetStringVar reach stringVars.
+  auto cookOne = [&](ResidentNode& rn, const NodeSpec* s) {
 
     // Find this op's MAIN String OUTPUT port (the channel a downstream consumer / the golden reads).
     // A real String producer has its MAIN String output at the FIRST String output port (port 0 for
@@ -211,7 +222,7 @@ void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
     //     cross-frame s_stringState store; the host-scalar pass has no state. We cook it through the SAME
     //     cookResidentString (with the per-path state slot) and fan its bool→Float scalar onto extOut.
     const bool scalarOnly = (mainPortIdx < 0);
-    if (scalarOnly && isHostScalarOp(rn.opType)) continue;  // StringLength → host-scalar pass
+    if (scalarOnly && isHostScalarOp(rn.opType)) return;  // StringLength → host-scalar pass
 
     // Per-node CROSS-FRAME state slot (HasStringChanged's `_lastString`): supplied ONLY here, ONLY for the
     // top node this loop cooks (recursive upstream gathers inside cookResidentString pass nullptr). Keyed
@@ -228,7 +239,9 @@ void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
     std::string str;
     std::map<int, std::string> extraStr;
     std::map<int, float> scalarOut;
-    cookResidentString(g, rn.path, ctx, str, 0, &extraStr, &scalarOut, st);
+    // `vars` (String ctx-var seam, sub-seam C) reaches Set/GetStringVar's stringVars channel — threaded ONLY
+    // for this top producer (the recursive upstream gathers inside cookResidentString pass nullptr).
+    cookResidentString(g, rn.path, ctx, str, 0, &extraStr, &scalarOut, st, vars);
 
     // FAN the outputs onto the right resident channels (keyed by the op's own spec output-port index):
     //   • MAIN String → extStrOut[mainPortIdx] (the downstream-readable / golden channel) — ONLY when the
@@ -243,7 +256,33 @@ void cookStringNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
       if (kv.first >= 0 && kv.first < (int)(sizeof(rn.extOut) / sizeof(rn.extOut[0])))
         rn.extOut[kv.first] = kv.second;
     }
+  };  // cookOne
+
+  // WRITER-FIRST 2-pass (String ctx-var seam, sub-seam C — the structural delta). pass 1: SetStringVar
+  // WRITERS populate vars->stringVars; pass 2: every other String op (incl. GetStringVar readers) runs after,
+  // so a within-frame Set→Get rendezvous deterministically regardless of g.nodes (build-order) declaration.
+  // BOUNDARY (named, same as the float channel): two passes = exactly ONE write-generation; a Set→Get→Set
+  // chain in one frame is NOT supported (needs scope order = the deferred Command rail). When the graph has no
+  // SetStringVar, pass 1 is empty and pass 2 visits every node in build order = byte-identical to the old loop.
+  // The ordering-bug TEETH hook (stringCtxVarOrderBug, golden -bug leg) collapses to a single in-order loop.
+  auto resolveSpec = [](ResidentNode& rn) -> const NodeSpec* {
+    const StringCookFn* fn = findStringOp(rn.opType);
+    if (!fn || !*fn) return nullptr;  // not a string op
+    return findSpec(rn.opType);
+  };
+  if (stringCtxVarOrderBug()) {  // -bug: collapse to one in-order loop → an early Get reads the empty fallback
+    for (ResidentNode& rn : g.nodes)
+      if (const NodeSpec* s = resolveSpec(rn)) cookOne(rn, s);
+    return;
   }
+  // pass 1: WRITERS (SetStringVar) — every writer runs before any reader, deterministically.
+  for (ResidentNode& rn : g.nodes)
+    if (isStringCtxVarWriter(rn.opType))
+      if (const NodeSpec* s = resolveSpec(rn)) cookOne(rn, s);
+  // pass 2: readers + every other String op.
+  for (ResidentNode& rn : g.nodes)
+    if (!isStringCtxVarWriter(rn.opType))
+      if (const NodeSpec* s = resolveSpec(rn)) cookOne(rn, s);
 }
 
 }  // namespace sw

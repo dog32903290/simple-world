@@ -483,6 +483,7 @@ add_executable(simple_world
   src/runtime/string_ops_buildrandomstring.cpp
   src/runtime/string_ops_buildrandomstring_wrap.cpp
   src/runtime/string_ops_wrapstring.cpp
+  src/runtime/string_ops_stringctxvar.cpp
   src/runtime/stringlist_op_registry.cpp
   src/runtime/stringlist_ops_splitstring.cpp
   src/runtime/stringlist_ops_zipstringlist.cpp
@@ -493,6 +494,7 @@ add_executable(simple_world
   src/string_ops_blendstrings_golden.cpp
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp
+  src/stringctxvar_golden.cpp
   src/runtime/variation_selftest.cpp  # Lane L1 (Variation/Snapshot) harness-first golden: Mix + SpringDamp math
   src/runtime/variation_snapshot_actions_selftest.cpp  # L1 (Variation): snapshot-slot state machine golden (--selftest-variation-snapshot-actions)
   src/runtime/pointlist_op_registry.cpp

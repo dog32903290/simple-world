@@ -19,7 +19,7 @@ namespace sw::framecook {
 // verbatim from frame_cook.cpp's run() so that file stays under its line-count cap (the inline block
 // is now this one call). Byte-identical behaviour; the cross-frame state statics moved in with it.
 bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, SymbolLibrary* lib,
-                        uint32_t reqW, uint32_t reqH) {
+                        uint32_t reqW, uint32_t reqH, ContextVarMap* vars) {
   ResidentEvalCtx hsCtx;
   hsCtx.localTime = posBars;     // playhead (bars) — automation-driven list params sample this
   hsCtx.localFxTime = fxBars;    // wall clock (bars)
@@ -42,7 +42,10 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // PRODUCTION resident path; a stateless string op never touches its slot (so this static stays empty for
   // a graph without a stateful string op).
   static std::map<std::string, StringState> s_stringState;
-  cookStringNodes(g, hsCtx, &s_stringState);
+  // `vars` (String ctx-var seam, sub-seam C) = the per-frame ContextVarMap (= frame_cook's s_ctxVars, already
+  // cleared this frame by cookStatefulValueNodes). Threaded so SetStringVar writes vars->stringVars + GetStringVar
+  // reads it, both inside cookStringNodes' writer-first 2-pass. nullptr for a caller that has no ctx-var graph.
+  cookStringNodes(g, hsCtx, &s_stringState, vars);
 
   // Cook the FloatList→Float BRIDGE host-scalar ops (FloatListLength / PickFloatFromList / StringLength)
   // — the PRODUCTION leg of the list-routing seam. Same once-per-frame extOut-mirror slot: walks the

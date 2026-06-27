@@ -25,6 +25,11 @@ bool& stringInjectBug() {
   return b;
 }
 
+bool& stringCtxVarOrderBug() {  // String ctx-var seam (sub-seam C) ordering TEETH hook; off in production
+  static bool b = false;
+  return b;
+}
+
 StringOp::StringOp(NodeSpec spec, StringCookFn cook) {
   stringCookFns()[spec.type] = cook;
   stringSpecSink().push_back(std::move(spec));
