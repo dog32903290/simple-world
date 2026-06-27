@@ -27,7 +27,20 @@
 #     - mesh-input rail：PointCookCtx::meshVtx/meshIdx（point_graph_cook_ctx.h:88,filled point_graph.cpp:355-356）；autonomous leaf FindClosestPointsOnMesh ✅BUILT @504f149（point_ops_findclosestpointsonmesh.cpp）。
 #     - CPU-readback rail：production commit+wait+SwPoint StorageModeShared 直讀；ReadPointColors/PointsToCPU 已建；autonomous leaf SampleCpuPoints ✅BUILT @504f149（pointlist_ops_samplecpupoints.cpp；fork=samplecpupoints-singleinput / cpupoint-reuses-swpoint）。
 #     - StructuredList rail：producer=已建 PointList 第7 flow,cook driver 已展開 MultiInput PointList（point_graph_hostvalue_cook.cpp:64-108）；autonomous leaf JoinLists ✅BUILT @504f149（pointlist_ops_joinlists.cpp,Result-only；fork=joinlists-length-deferred=Length int→value rail deferred 柏為域）。
-#   ★ 單一柏為架構 seam = point-into-frame value-emit pass（resident value-emit 看不到 point buffer,named defer resident_matrix_output_cook.cpp:28 / node_registry_math_anim.cpp:212-228）→一 seam 解鎖 GetPointDataFromList + PointToMatrix-emit + GetTextureSize + value-out-from-point 全族 ~10-15。柏為域乾淨線=凡從 point buffer emit value / camera / render / simulate。
+#   ★ point-into-frame value-emit pass = ✅BUILT @b77789e（fe35682，--bite 508；named defer `defer-pointtomatrix-needs-point-into-frame-pass` RESOLVED）。
+#     機制：additive 第二 pass cookPointValueOutputNodes（resident_point_value_output_cook.cpp）在 pg.cookResident 之後跑（frame_cook.cpp:391），
+#     host-read 完成的 StorageModeShared point buffer（PointGraph::residentCookedPoints(path),resident-path keyed）,重用 golden pointToMatrixRows。
+#     零 point_graph.cpp / EvaluationContext / resident-recursion 改動（純 additive）。
+#     已 WIRE：PointToMatrix（emit 半邊,從 evaluate==nullptr 翻正）+ GetPointDataFromList @b77789e。
+#     unblocked-but-not-yet-ported 葉（同形 follow-up fan-out,各:resolve Points input→host-index→emit）：
+#       GetTextureSize（texture-source 兄弟,DIFFERENT accessor=texture 非 point）/ point-attribute / SamplePointAtList readers。
+#   ★★ 兩個 NAMED LATENT RISK（今日 inert=0 forward consumer,但柏為蓋 PointToMatrix→camera / 任何 in-graph value-from-point consumer rail 前必解）：
+#     ① latent-pointvalue-emit-one-frame-late：新 pass 在 cookResident 之後寫 extOut/extColorOut,其餘 emit pass 都在之前寫。
+#        未來 in-graph consumer 在 cookResident 期間拉這些值 → 讀到「上一幀」的值。sw forward push-cook 的本質（TiXL 是 pull-graph,無此延遲）。
+#        golden 用 stub accessor,未覆蓋 multi-frame consumer 路徑。
+#     ② latent-stale-points-off-display-subtree：PointGraph::outBuf 無 per-frame invalidation + resident cook 是 target-driven（只有顯示節點的 upstream subtree 會 cook）。
+#        PointToMatrix/GetPointData 的 Points src 若在顯示 subtree 之外 → 讀到 STALE 前一幀 buffer（non-null,錯 count）→ emit stale points,非 identity。
+#   ★ NAMED FORK fork-getpointdata-vec-as-scalar-ports：Vec3/float/Vec4 攤到 scalar extOut[8]（3+1+4）,值相等,同 RequestedResolution Size-as-2-floats 已立 fork。
 #     （此 seam 無乾淨 regex 家=ops 散在 numbers/point/render,故記於此 header 不加會 mis-route 的 regex 行。）
 #   ★ 本表已大致校準（point-leaf/camera-leaf/render-leaf/mesh-leaf/field-leaf 全 leaf-ready 正確）；
 #     真實 SSOT 看 docs/agent/SEAM_COMPLETION_PLAN.md（標 ✅+commit）。census docs(SEAM_GRAPH/OP_BACKLOG)
@@ -61,7 +74,7 @@ keyframe-anim	seam-build	MED	^numbers/(anim|curve)	animator/keyframe(需keyframe
 dict-ctx	domain-blocked	LOW	^numbers/data	dict select(★2026-06-27 ground-truth:dict-ctx非乾淨host rail,死在device-IO producer→柏為域非autonomous;非Vec3鏡像)
 vecmath-leaf	leaf-ready	LOW	^numbers/	純值/向量/matrix葉(零縫)
 point-sim	seam-build	MED	^point/sim	point模擬(feedback類cross-frame)
-point-io	domain-blocked	MED	^point/(io|usse)	point GPU-readback/DMX輸出(★2026-06-27 ground-truth:CPU-readback rail已BUILT=production commit+wait+SwPoint StorageModeShared直讀,ReadPointColors/PointsToCPU已建;autonomous leaf SampleCpuPoints ✅BUILT@504f149;PointToMatrix/CpuPointToCamera卡value-emit-seam/ICamera=柏為域;DMX/io真domain-blocked)
+point-io	domain-blocked	MED	^point/(io|usse)	point GPU-readback/DMX輸出(★2026-06-27 ground-truth:CPU-readback rail已BUILT=production commit+wait+SwPoint StorageModeShared直讀,ReadPointColors/PointsToCPU已建;autonomous leaf SampleCpuPoints ✅BUILT@504f149;★PointToMatrix-emit ✅BUILT@b77789e=value-emit pass已建,emit半邊已WIRE;CpuPointToCamera仍卡ICamera=柏為域;DMX/io真domain-blocked)
 point-leaf	leaf-ready	LOW	^point/	point葉(buffer縫已建;★2026-06-27 ground-truth:clean-leaf近採盡≈4-5僅Draw*變體殘,此regex 命中的 ~24 殘多卡子 seam=cross-frame-sim/mesh-input/shader-graph-Field/CPU-readback/camera3d-Draw*/loader,派工前 op_census --undone point 逐顆確認別當大葉桶)
 particle-force	seam-build	MED	^particle/	力場(多卡mesh/texture/RWStructuredBuffer/sdf/user-HLSL縫)
 mesh-draw	domain-blocked	MED	^mesh/draw	DrawMesh(需camera+material島)

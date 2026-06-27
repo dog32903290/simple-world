@@ -164,7 +164,7 @@ point draw（雙擋 +point-buffer）: 全 16 draw op + _VisualizePointFields/_Bu
 
 ### `camera3d`（~~~50，依賴 dx11-api-wrapper~~ ✅core-BUILT 2026-06-27，**零 dx11 依賴**；field_camera.h Mat4 stack+point_ops_camera.cpp+resident_matrix_output_cook.cpp。剩 ~25-29：gizmo 0/15、camera 變體、value-output Phase2/3=需柏為）
 render camera 全 11 / gizmo 全 15 / transform 全 8 / _/ Apply* 系列 / GetScreenPos / TransformsConstBuffer
-point: CpuPointToCamera/PointToMatrix
+point: CpuPointToCamera（仍卡 ICamera=柏為域）/PointToMatrix（★emit 半邊 ✅BUILT@b77789e=value-emit pass 已建）
 field render: RaymarchField/Render2dField/VisualizeFieldDistance（次要）
 
 ### `dx11-api-wrapper`（~~~25，最底層前置~~ ❌N/A 2026-06-27 — Metal 上非真縫）
@@ -202,10 +202,16 @@ numbers: ValuesToTexture/ValuesToTexture2/GradientsToTexture/CurvesToTexture
 > **★★ 2026-06-27 final-autonomous-seam scout（code-cited）：StructuredList rail 已建 → 此段 autonomous leaf JoinLists ✅BUILT @504f149（MultiInput concat → Result，Result-only；pointlist_ops_joinlists.cpp；fork=joinlists-length-deferred=其 int `Length` 第 2 output 騎 value rail = deferred 柏為域）。GetPointDataFromList（output Vector3/float/Vector4 到 value rail）撞同一 point-into-frame value-emit 牆 = 柏為域（見下「value-emit」段）。SampleCpuPoints = CPU-readback rail 的 autonomous leaf（已建 rail，host Bezier+quat）✅BUILT @504f149，非此段。**
 point _cpu: LinePointsCpu/LinearPointsCpu/RadialPointsCpu/RepeatAtPointsCpu/SampleSplinePoint/TransformCpuPoint
 point helper/io: SampleCpuPoints(★CPU-readback rail leaf ✅BUILT@504f149)/DataPointConverter/APoint(COMPOUND)
-numbers: GetListItemAttribute/GetPointDataFromList(★柏為域 value-emit)/JoinLists(★autonomous leaf ✅BUILT@504f149,Result-only)
+numbers: GetListItemAttribute/GetPointDataFromList(★✅BUILT@b77789e value-emit pass 已建;fork=fork-getpointdata-vec-as-scalar-ports Vec3/float/Vec4→scalar extOut[8] 3+1+4 值相等)/JoinLists(★autonomous leaf ✅BUILT@504f149,Result-only)
 
-### `point-into-frame value-emit pass`（★柏為架構 seam，一塊解鎖一族 ~10-15）
-> resident value-emit 看不到 point buffer（named defer `defer-pointtomatrix-needs-point-into-frame-pass`，resident_matrix_output_cook.cpp:28；node_registry_math_anim.cpp:212-228）。一 seam 解鎖：GetPointDataFromList + PointToMatrix-emit + GetTextureSize + value-out-from-point 全族。**柏為 call。**
+### `point-into-frame value-emit pass`（★✅BUILT @b77789e，一塊解鎖一族 ~10-15）
+> ✅BUILT @b77789e（fe35682，--bite 508；named defer `defer-pointtomatrix-needs-point-into-frame-pass` RESOLVED）。**機制**：additive 第二 pass `cookPointValueOutputNodes`（resident_point_value_output_cook.cpp）在 `pg.cookResident` 之後跑（frame_cook.cpp:391），host-read 完成的 StorageModeShared point buffer（`PointGraph::residentCookedPoints(path)`），重用 golden `pointToMatrixRows`；零 point_graph.cpp / EvaluationContext / resident-recursion 改動（純 additive）。
+> **已 WIRE @b77789e**：PointToMatrix（emit 半邊,evaluate==nullptr 已翻正）+ GetPointDataFromList。
+> **unblocked-but-not-yet-ported 同形 fan-out 葉**（各:resolve Points input→host-index→emit）：GetTextureSize（texture-source 兄弟,DIFFERENT accessor=texture 非 point）/ point-attribute / SamplePointAtList readers。
+> **★兩個 NAMED LATENT RISK（今日 inert=0 forward consumer,柏為蓋 PointToMatrix→camera / 任何 in-graph value-from-point consumer rail 前必解，詳 SEAM_COMPLETION_PLAN §0′-latent-risks）**：
+> - `latent-pointvalue-emit-one-frame-late`：pass 在 cookResident **之後**寫 extOut/extColorOut（其餘 emit pass 都在之前）→ in-graph consumer 於 cookResident 期間拉值=讀上一幀。sw forward push-cook 本質（TiXL pull-graph 無此延遲）；goldens 用 stub accessor,未覆蓋 multi-frame consumer 路徑。
+> - `latent-stale-points-off-display-subtree`：`PointGraph::outBuf` 無 per-frame invalidation + resident cook target-driven（只 cook 顯示節點 upstream subtree）→ Points src 在顯示 subtree 之外=讀 STALE 前一幀 buffer（non-null,錯 count）→ emit stale points 非 identity。
+> **★NAMED FORK** `fork-getpointdata-vec-as-scalar-ports`：Vec3/float/Vec4 攤到 scalar extOut[8]（3+1+4）,值相等,同 RequestedResolution Size-as-2-floats 已立 fork。
 
 ### `RWStructuredBuffer`（~7）
 particle: ReconstructiveForce(R3)/VerletRibbonForce(R3)
