@@ -190,6 +190,29 @@ int runAdjustColorsSelfTest(bool injectBug);
 // (1,0,0,1) -> RED.
 int runSamplePointColorAttributesSelfTest(bool injectBug);
 
+// SamplePointAttributes_v1 (point_ops_samplepointattributes.cpp): texture-into-points seam consumer that
+// samples the Texture2D per point (via transformSampleSpace) and ROUTES L/R/G/B channels (each via an
+// Attributes routing enum + Factor/Offset) into Position xyz / W(FX1) / Rotation / Stretch(Scale). Golden
+// (2 analytic legs over a UNIFORM ~0.5 texture): POS-route (L=For_X,Factor=1 -> newPos.x = pos.x+gray) +
+// W-route (Blue=For_W,Factor=2 -> FX1 = FX1+c.b*2). injectBug drops the texture bind -> passthrough -> RED.
+int runSamplePointAttributesSelfTest(bool injectBug);
+
+// DisplacePoints2d (point_ops_displacepoints2d.cpp): texture-into-points seam consumer. Samples a
+// DisplaceMap, takes the central-difference GRADIENT of the gray map at ±SampleRadius, and displaces each
+// point by direction*DisplaceAmount/100 along the gradient angle (atan2(d.x,d.y)+Twist). WorldToObject =
+// inverse of the op-local TRS (Center/TextureRotate/TextureScale) — NO camera (fork-worldtoobject-op-local).
+// Golden: a CONSTANT-GRADIENT ramp (gray = u) -> the X-gradient is constant, Y-gradient 0 -> every point
+// displaces along a KNOWN direction by a KNOWN magnitude. injectBug drops the texture -> no displace -> RED.
+int runDisplacePoints2dSelfTest(bool injectBug);
+
+// TransformWithImage (point_ops_transformwithimage.cpp): texture-into-points seam consumer (TiXL op for
+// TranslateWithImage.hlsl). Samples an Image, derives a per-point strength = Strength·(gray+StrengthOffset)·
+// (StrengthFactor channel), then applies a host-composed TRS TransformMatrix (Translate/Scale/ScaleUniform/
+// Rotate) lerp-blended by strength (transformSampleSpace for the uv; NO camera). Golden: a UNIFORM image
+// (gray=0.5) + a pure-Translate TransformMatrix -> every point moves by Translate·strength (analytic).
+// injectBug drops the texture -> gray=0 -> strength collapses -> no move -> RED.
+int runTransformWithImageSelfTest(bool injectBug);
+
 // AttributesFromImageChannels — texture-into-points seam consumer that ROUTES sampled channels into
 // point attributes (position/F1/F2/rotate/scale) via per-channel Factor/Offset gains. Golden: ROUTING
 // direct-cook leg (R->Position_X / G->Position_Y with non-identity gains -> want pos=(0.50,0.80,0)) +
