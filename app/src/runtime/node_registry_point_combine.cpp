@@ -113,6 +113,34 @@ const std::vector<NodeSpec>& pointCombineSpecs() {
         {"AddSeparators",    "AddSeparators",    "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},         // port 10
        nullptr,
        "point.generate"},
+
+      // ---- count-product + GrowthMap seam: GrowStrains (TiXL experimental sim op) -------------------
+      // TiXL parity: external/tixl .../point/sim/experimental/GrowStrains.{cs,t3} +
+      //              .../Assets/shaders/points/sim/GrowStrains.hlsl
+      // A STATELESS 2-input transform: PointsA × PointsB cartesian product (+1 NaN separator/source loop),
+      // gated by a GrowthMap Texture2D (sampled at float2(B.W, 1-A.W)). Output count = (A.N+1)*B.N via the
+      // static-stash countTransform. NoiseAmount drives a simplex displacement; the GrowthMap gates strand
+      // length (d=saturate(r-0.05)). Ports 1:1 with GrowStrains.cs [Input] order, .t3 defaults.
+      // fork[white-growthmap-fallback]: unwired GrowthMap → 1×1 white (live transform; see leaf).
+      {"GrowStrains",
+       "GrowStrains",
+       {{"GPoints", "GPoints", "Points", true},                  // port 0: PointsA (GPoints, t0)
+        {"GTargets", "GTargets", "Points", true},                 // port 1: PointsB (GTargets, t1)
+        {"out", "out", "Points", false},                          // port 2: ResultPoints
+        {"GrowthMap", "GrowthMap", "Texture2D", true},            // port 3: GrowthMap (t2; unwired→white)
+        {"Variation", "Variation", "Float", true, 0.0f, 0.0f, 1.0f},                  // port 4 (.t3 0)
+        {"NoiseAmount", "NoiseAmount", "Float", true, 0.0f, 0.0f, 10.0f},             // port 5 (.t3 0)
+        {"Frequency", "Frequency", "Float", true, 0.0f, 0.0f, 10.0f},                 // port 6 (.t3 0)
+        {"NoisePhase", "NoisePhase", "Float", true, 0.0f, -100.0f, 100.0f},           // port 7 (.t3 0)
+        {"NoiseDistribution.x", "NoiseDistribution", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3}, // port 8
+        {"NoiseDistribution.y", "NoiseDistribution.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}, // port 9
+        {"NoiseDistribution.z", "NoiseDistribution.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}, // port 10
+        {"NoiseRotationLookUp", "NoiseRotationLookUp", "Float", true, 0.5f, 0.0f, 10.0f},  // port 11 (.t3 0.5)
+        {"Length", "Length", "Float", true, 0.13f, 0.0f, 10.0f},                      // port 12 (.t3 0.13)
+        {"Width", "Width", "Float", true, 0.25f, 0.0f, 10.0f},                        // port 13 (.t3 0.25)
+        {"NoiseDensity", "NoiseDensity", "Float", true, 1.0f, 0.0f, 10.0f}},          // port 14 (.t3 1.0)
+       nullptr,
+       "point.sim"},
   };
   return specs;
 }

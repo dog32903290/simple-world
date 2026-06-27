@@ -187,3 +187,6 @@ namespace sw { int runThemeRegistrySelfTest(bool); }             // theme_regist
 namespace sw { int runMeshBlendMeshVerticesGoldenSelfTest(bool); }  // mesh_blendpick_golden.cpp (mesh modify: BlendMeshVertices two-mesh lerp, flat + R-2 resident)
 namespace sw { int runMeshPickMeshBufferGoldenSelfTest(bool); }     // mesh_blendpick_golden.cpp (mesh modify: PickMeshBuffer MultiInput modular selector, flat + R-2 resident)
 namespace sw { int runTimeSelfTest(bool); }                          // stateful_value_ops_selftest_time.cpp (Time 5-mode + GetFrameSpeedFactor fsf-valid/fallback)
+namespace sw { int runPointTrailFastSelfTest(bool); }                // point_ops_pointtrailfast.cpp (★cross-frame trail ring: 2-frame persistent-ring accumulation, posA survives into f1)
+namespace sw { int runPointTrailSelfTest(bool); }                    // point_ops_pointtrail.cpp (★cross-frame 3-pass trail: Collect ring persists, Copy emits newest-first; -bug wipes ring)
+namespace sw { int runGrowStrainsSelfTest(bool); }                   // point_ops_growstrains.cpp (2-input cartesian product + GrowthMap texture; per-frame transform vs formula; -bug severs GrowthMap)
