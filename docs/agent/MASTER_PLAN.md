@@ -46,7 +46,13 @@ STAMP_AT: 2026-06-27T17:28
   - **① vec4/Color host-value output 縫**——autonomous-buildable，解鎖 PickColorFromList/PickColor/Vector4Components/RgbaToColor/DotVec4 一族；先例＝SampleGradient 把 color 攤成 4 個 Float output port；縫＝教 evalFloat/evalResidentFloat gather 一個 ColorList/Vector4 input、把其分量攤上 4 個 output port。（PickColorFromList 此 session 試採→honest BLOCKED 卡這條縫。）
   - **② B 軌 menu-bar**——最後一條乾淨純皮 `ui/` Tier1 skin gap（top menu bar vs floating Toolbar），eye-hand + ui_census 驗。
   - **③ Command ctx-var 縫**——medium，SetXxxVarCmd command-rail SubGraph scope（Set{Float,Vec3,String}Var 的延後那半），低值。
-- **柏為域（NOT autonomous，需他架構拍板）**：**point-into-frame value-emit consumer rail**（被上方兩條 NAMED LATENT RISK 擋住——wire PointToMatrix→camera 前必先解 one-frame-late + stale-off-subtree）／camera object / ICamera ／3D-render Command tail（~40-60）／PointSimulation pool ABI（~15-25）／device-IO / loaders（~30-40）。
+- **★效能優先項目（柏為 2026-06-27 指定，按 ROI 排序）**：
+  - **P1 PSO 快取接線**（小，53 個 point op 從每幀重建 PSO → 接上已存在的 `computePsoCache()`，`tex_op_cache.cpp:42`；一行替換 ×53，autonomous）
+  - **P2 批次 GPU 提交**（中，142 個 point op 各自 `commit()+waitUntilCompleted()` → 一幀一個 command buffer 末端一次 commit；需穿 `PointCookCtx`，autonomous）
+  - **P3 dirty-flag 接線**（中，`pullResidentFloat`+`bumpLiveSources` 已在 `resident_eval_cache.cpp:196-244` 建好測好，接進 production eval path；MV 調參有感，VJ 幫助有限）
+  - **P4 增量 patch 接線**（大，`patchSetConstant`/`patchAddConnection` 等 10 個函式已建好測好，接上後使用者拖滑桿 → 只增量更新不全重建；這是真正解決 push 全刷的那把鑰匙）
+  - **注意**：P1+P2 讓全刷**變便宜**；P3+P4 讓全刷**變少**。做完 P1+P2 後 push 的「float 改一個全重算」問題**仍存在**，只是代價更低。P3+P4 才真正解決這個問題。
+- **柏為域（NOT autonomous，需他架構拍板）**：**point-into-frame value-emit consumer rail**（決定文件 `docs/agent/VALUE_EMIT_CONSUMER_RAIL_DECISION.md`，方案 A 已定，三件套：forced-cook+1-frame settle+scope-correct；先做 P1/P2 後再開）／camera object / ICamera ／3D-render Command tail（~40-60）／PointSimulation pool ABI（~15-25）／device-IO / loaders（~30-40）。
 - **★方法論硬規（stale label 反覆踩過）**：seam 開採前**必先 ground-truth scout**，seam_map「解鎖量」不可信。每個 sub-seam 配 CPU-readback golden（debugCookedBuffer）+ injectBug + refuter；碰 cook-core driver 的必驗 4 島守門綠。scout 揪出 stale label 後**必立刻寫回 SSOT**（[[sw-groundtruth-writeback-rule]]）。
 - **★仍需柏為 routing/greenlight（真 owner-lock）**：reduction 縫（PointsOnImage，GPU-determined output count，1 op 低值）／resident list-state slot（AmplifyValues/Damp/Keep/Merge*）／ContextVarMap string/object 通道／string-value（前置 close `task_32b5b6e5` [[sw-string-rail-resident-gate]]）／字面 matrix cook-type（camera family）／dict-ctx（死在 device-IO producer，你的域）。
 - **★策略問柏為（適時）**：clone 61%，剩 sub-seam grind vs pivot MV-tooling（你的真 target [[simple-world-real-target-mv-tooling]]）——你定。
