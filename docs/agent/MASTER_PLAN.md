@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: f5689bb
+HEAD: 2f0b31c
 DIRTY: clean
-CENSUS: 437 / 749 done
-BITE: 488 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T08:56
+CENSUS: 438 / 749 done
+BITE: 489 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-27T09:29
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,7 +18,9 @@ STAMP_AT: 2026-06-27T08:56
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-27 08:56 MovePointsToSDF＝SDF point-modify sub-seam PROVEN，HEAD `f5689bb`，--bite 488 / FAILED=[]，census 437/749）。柏為 greenlit GPU-compute→實已建→轉 point-modify sub-seam，autonomous-safe 自走中。**
+**none（2026-06-27 09:29 SDF point-modify rail 開通+fan-out，HEAD `2f0b31c`，--bite 489 / FAILED=[]，census 438/749）。柏為 greenlit GPU-compute→實已建→point-modify sub-seam，autonomous-safe 自走中。**
+- **✅ SdfReflectionLinePoints**（merge `2f0b31c`）：點反射 off SDF→polyline per source（count-multiply `out=src*(MaxRefl+3)`）。同 `gatherPointFieldTree`（零 driver edit）+ count-multiply static-stash（SubdivideLinePoints 模式）。**★.t3-defaults 教訓奏效**：抓到 WriteDistanceTo=1(FX1)/WriteStepCountTo=2(FX2) 兩 default-active 分支都 port。dispatch fork（over source，one-frame-lag guard 防 OOB）。refuter MERGE-SAFE（count-multiply+GPU-safety guard 兩 gate 過）。NIT(非阻塞)：MaxSteps 未 clamp [1,100]（非預設才差）/golden 只測 first-hit 未測 reflection bounce。
+- **⚠️ MovePointsForwardToSDF ≠ 真 TiXL op**（dangling .hlsl 無 .cs/.t3；真 op=**RaymarchPoints**，two-mode count-multiply，需自己 lane 非 clone-and-go）。**6th stale-ish label**（我 scout list 從 dangling .hlsl 誤生）。
 - **✅ MovePointsToSDF（SDF point-modify sub-seam 開通）**（merge `64aa0a0`，fix `f5689bb`）：點 raymarch 貼到 SDF 表面。**唯一新 cook-core 接線＝`gatherPointFieldTree` unifier**（force gather 先，回不變；只在 null+有 direct `Field` 埠才 fall to `gatherTexFieldTree`）——refuter 證 force/ParticleForce 流 byte-identical（全 registry 只 MoveToSDF 有 direct Field 埠）、4 島守門綠。cook fn mirror `runFieldForce`（assembleFieldMSL codegen→PSO→dispatch，null→passthrough）。**★refuter BLOCK→fix**：原漏 SetOrientation+SetColor 兩個 **TiXL .t3 預設=true** 的分支（reorient 點到 normal `qSlerp(qLookAt)` + recolor from field `evalField(pp).rgb`）且誤標 default-false→**兩分支都 port**（SetColor 可港:field codegen 出 color；w=1 選 white color-mode 與 TiXL 一致）。golden 加 orientation 斷言（rotated+Z 對 normal,64/64 minDot=1.0,identity seed 證非平凡）。focused refuter 4/4 MERGE-SAFE。**★解鎖整條 SDF point-modify rail**（40+ SDF field op × assembleFieldMSL codegen），2 sibling（MovePointsForwardToSDF/SdfReflectionLinePoints）同 gather fan-out。
 - **★方法論血證：今晚 5 次 stale seam-map 標籤揪出**（CameraWithRotation/field-raymarch 已建/keyframe-anim 已建/46 leaf-ready=0/**GPU-compute 縫實已建+generator fan-out 採盡**）。**規則：seam 開採前必 ground-truth scout。**
 - 前批：anim+list harvest（`49582bd` 3 op+resident bug 修）+matrix seam（`96e4923`）+維護加固 工作1+2（gate census/島7 拆檔）+folder-package+ColorThemeEditor 詳見 history。
@@ -40,10 +42,9 @@ STAMP_AT: 2026-06-27T08:56
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `f5689bb`，--bite 488，census 437。**★狀態：GPU-compute 縫實已建（5th stale label）+generator fan-out 採盡→轉 point-modify sub-seam。SDF sub-seam 已開通（MovePointsToSDF），autonomous-safe 自走中。clone 58%，剩~42% 卡 ~12 MED cook-core sub-seam（非 owner-lock，多 autonomous-safe）。**
-- **★當前 fan-out（autonomous-safe，續採）**：
-  - **SDF point-modify rail（剛開）**：fan out **MovePointsForwardToSDF + SdfReflectionLinePoints**（同 `gatherPointFieldTree`，clone MovePointsToSDF recipe，CPU-readback golden）。
-  - **texture-into-points sub-seam（scout 證已 live，2nd autonomous-safe）**：DisplacePoints2d/SamplePointAttributes/TranslateWithImage（`inputTextures[]` + host-composed `transformSampleSpace` 已 production，sibling SamplePointColorAttributes 在跑）。最低風險、零新 gather。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `2f0b31c`，--bite 489，census 438。**★狀態：point-modify sub-seam 自走中。SDF rail 開通+fan-out（MovePointsToSDF+SdfReflectionLinePoints 已採；RaymarchPoints 是剩的 SDF-ish 大 op，需自己 lane）。clone 58%，剩 ~12 MED cook-core sub-seam（多 autonomous-safe）。**
+- **★當前下一批＝texture-into-points sub-seam（scout 證已 live，最低風險、零新 gather）**：DisplacePoints2d/SamplePointAttributes/TranslateWithImage（`inputTextures[]` + host-composed `transformSampleSpace` 已 production，sibling SamplePointColorAttributes 在跑）。clone `node_registry_point_modify_texture.cpp` 既有 op，CPU-readback golden。**★必查 .t3 defaults（教訓 ×2）。**
+- **★後續 point-modify**：RaymarchPoints（two-mode count-multiply，自己 lane）/SetPointAttributesWithPointFields（second-point-buffer sub-seam，非 SDF）。
 - **★方法論硬規（今晚 5 次踩 stale label）**：seam 開採前**必先 ground-truth scout**，seam_map「解鎖量」不可信。每個 point-modify sub-seam 配 CPU-readback golden（debugCookedBuffer）+ injectBug + refuter；碰 cook-core driver 的必驗 4 島守門綠。
 - **★仍需柏為 routing/greenlight（真 owner-lock）**：reduction 縫（PointsOnImage，GPU-determined output count，1 op 低值）／resident list-state slot（AmplifyValues/Damp/Keep/Merge*）／ContextVarMap string/object 通道／string-value（前置 close `task_32b5b6e5` [[sw-string-rail-resident-gate]]）／字面 matrix cook-type（camera family）／dict-ctx（死在 device-IO producer，你的域）。
 - **★策略問柏為（適時）**：clone 58%，剩 ~12 sub-seam grind vs pivot MV-tooling（你的真 target [[simple-world-real-target-mv-tooling]]）——你定。
