@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: b77789e
-DIRTY: 1 files
+HEAD: b03cddd
+DIRTY: clean
 CENSUS: 456 / 749 done
-BITE: 508 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T16:10
+BITE: 509 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-27T16:46
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,7 +18,8 @@ STAMP_AT: 2026-06-27T16:10
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none — ★SEAM 1 point-into-frame value-emit pass ✅（2026-06-27 16:10 結帳，HEAD `b77789e`，--bite 508 / FAILED=[]，census 456/749）。** cook-core seam scout 推翻早先「觸底」誤判→value-emit 已建（additive 第二 pass，refuter MERGE-SAFE）。**剩唯一 autonomous cook-core 縫＝C-string（低值 2 op，下一條可選）；之後真進柏為域（consumer rail/camera object/PointSim pool/device-IO）。**
+**none — ★AUTONOMOUS COOK-CORE CAMPAIGN 完成（2026-06-27 16:46 結帳，HEAD `b03cddd`，--bite 509 / FAILED=[]，census 456/749）。** 本 session 收尾全部已識別的 autonomous cook-core 縫：spine F/A/B/E + **SEAM 1 value-emit pass** + **C-string ctx-var**。**剩餘 ~290 op 真進柏為域**——三類：(a) 在新 value-emit rail 上的 consumer/fan-out（但有 2 條 latent risk 要先解，見下）(b) camera object/3D-render Command tail/PointSim pool ABI/device-IO（架構決定）(c) B 軌體驗復刻純皮 Tier1（eye-hand 自走，不碰 cook-core，柏為-absent 唯一可撿）。**下個 session 若柏為未回：撿 B 軌純皮 Tier1 或 value-emit rail 上的 point-attribute reader fan-out（先 scout 確認非空 + 兩 latent risk 是否擋路）；承重架構縫等柏為。**
+- **✅ C-string ctx-var seam（`acbbc7b` merged → `b03cddd`，refuter MERGE-SAFE 6/6，additive：point_graph.cpp/EvalContext diff 空）**：Get/SetStringVar 騎新 `stringVars` typed channel（同 vec3Vars，TiXL StringVariables 本就 typed dict 非 boxed→零 fork）。結構 delta=string cook 加 writer-first 2-pass（SetStringVar pass1→其餘 pass2，無 Set 時 byte-identical 舊單迴圈）+ per-frame `stringVars.clear()`（在 `frame_cook.cpp:228-233` vec3 旁，cross-frame golden section H 驅真 production clear 證非洩漏=vec3-clear-bug class 已關）。.t3 audit：VariableName="s"/FallbackDefault=""。defer[setstringvar-subgraph-command-rail]（SubGraph scope 同 float SetVarCmd 延後）+fork[setstringvar-echo-output]（同 SetFloat/Vec3Var）。
 - **✅ SEAM 1 value-emit pass（`fe35682` merged → `b77789e`，refuter MERGE-SAFE 6/6，additive：point_graph.cpp/EvalContext/resident diff 全空）**：新 pass `cookPointValueOutputNodes` 在 `frame_cook.cpp:391`（`pg.cookResident` 後）跑，host-read finished StorageModeShared point buffer（`residentCookedPoints(path)` resident-path keyed，非 flat debugCookedBuffer），復用 golden `pointToMatrixRows`。**wired 2 op：PointToMatrix(emit half，flip 自 deferred)＋GetPointDataFromList**（int.Mod Euclidean，W=FX1@12 對位）。fork[getpointdata-vec-as-scalar-ports]=Vec3/float/Vec4 攤上 extOut[8]（同 RequestedResolution Size-as-2-floats，value-identical 只 wire-cardinality forked）。
 - **★★兩條 NAMED LATENT RISK（今天 inert，0 forward consumer；柏為建 PointToMatrix→camera consumer rail 時必先讀）**：① `latent-pointvalue-emit-one-frame-late`——新 pass 寫在 cookResident 後、其餘 emit pass 寫在前；未來若有 in-graph consumer 在 cookResident 期間 pull 這些 emit→讀到**前一幀**值（sw forward push-cook 本質，TiXL 是 pull-graph 無此問題）。② `latent-stale-points-off-display-subtree`——`outBuf` 無 per-frame invalidation＋resident cook 是 target-driven（只 cook 顯示子樹）→Points src 在顯示子樹外的 PointToMatrix 讀到 stale 前幀 buffer（non-null 錯 count）非 identity。**goldens 用 stub accessor 不覆蓋 multi-frame consumer path**——consumer rail 開工前這兩條要先解。
 - **✅ 3 final autonomous leaf（`504f149`，refuter MERGE-SAFE 全 PASS，spine git diff 空）**：FindClosestPointsOnMesh（mesh-input rail，brute-force Ericson tri-distance 1:1，unwired-Mesh→identity）/ SampleCpuPoints（PointList host rail，Bezier+quat-slerp host math，.t3 TangentScale=0 collapse trap）/ JoinLists（StructuredList MultiInput N-way concat，Result-only，fork[joinlists-length-deferred]=Length int 騎 value rail 延後）。三 rail（mesh-input/CPU-readback/StructuredList）scout 證早已建→這 3 顆是 leaf 非 seam。
