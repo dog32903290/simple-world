@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 2e43ca0
+HEAD: 0704185
 DIRTY: clean
 CENSUS: 447 / 749 done
 BITE: 498 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T13:16
+STAMP_AT: 2026-06-27T13:45
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,7 +18,10 @@ STAMP_AT: 2026-06-27T13:16
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-27 13:16 grind-B Vec3 ✅ + Damp/Keep ✅，HEAD `2e43ca0`，--bite 498 / FAILED=[]，census 447/749）。柏為定向：優先清 cook-core 子縫。campaign：F+A+B ✅→下一條 C。**
+**none（2026-06-27 13:45 vec3-clear bug 修 + shader-graph-Field 證 2-op leaf，HEAD `0704185`，--bite 498 / FAILED=[]，census 447/749）。campaign cook-core spine F✅A✅B✅；C DEFER；下一條 D + shader-graph-Field leaf 採。**
+- **✅ vec3-clear bug 修(`0704185`)**：grind-C STOP 揪出 grind-B 隱性 bug——`frame_cook` 漏 clear vec3Vars→vec3 ctx-var 跨幀殘留。修=加 `vec3Vars.clear()`(單一 clear site,bool 騎 intVars,string 不存在)+cross-frame golden section G(移掉 fix 則 production FAIL 證咬)。grind-B refuter 漏(golden within-frame only)。
+- **⏸ C ctx-var String DEFER**：grind-C scout 證**非 mirror Vec3**——GetStringVar=String value producer/SetStringVar=Command 輸出,String 是獨立 currency(cookStringNodes/extStrOut),float-only cookStatefulValueNodes 裝不下。真 medium seam(thread ContextVarMap 進 string cook+2-pass),2 op 低值→緩。
+- **★shader-graph-Field 群 scout 證 stale label**：**PointColorWithField + SelectPointsWithSDF = LEAF FAN-OUT on 已建 `gatherPointFieldTree`**(同 MoveToSDF,更簡單,evalField(pos,w) 選 color/distance,.t3 無破壞性 default 分支)→**便宜採 2 op clone MoveToSDF**(正在派)。CustomPointShader=真 seam(arbitrary HLSL→MSL string,柏為-judgment defer)。
 - **✅ grind-B ctx-var Vec3(`5ae642b`)+A-fan-out Damp/Keep(`2e43ca0`)**（合一 refuter MERGE-SAFE，additivity gate 全清）：**SetVec3Var/GetVec3Var**（加 ContextVarMap `vec3Vars` 欄,fork=typed-channel vs TiXL ObjectVariables boxing,round-trip byte-identical,namespace 不撞）+ **DampFloatList**(Method0 LinearDamp)+**KeepFloatValues**(ring accumulator)（ride 已建 FloatList slot,FloatListState 加 5 欄 additive,point_graph 威脅 untouched）。.t3 OVERRIDE C# ctor 全審。NIT:DampFloatList frame-0@lfx=0 dt-gate 微歧(self-correcting,註解誤導,follow-up)。
 - **★3 個 deferred 到柏為-call/未來小縫**：**Matrix var**(GetMatrixVar 出 Vector4[]=16 float,stateful out[8] 裝不下,需 matrixVars 通道接 matrix-output cook pass=cross-rail)/**MergeFloatLists**(Ltp/FailOver 需 int-list wire)/DampFloatList Method1 DampedSpring(需 spring 積分+LastFrameDuration)。
 - **✅ grind-A list-state resident slot(`143876f`)**：FloatList cook flow 加 per-node 跨幀 state slot（仿已建 ColorList/String host-state，非 GPU ensureState），AmplifyValues 港。**additive**（stateful flag default false，stateless floatlist op byte-unchanged，flat+resident 雙路）。**★.t3 OVERRIDE C# ctor**（Smoothing 0.95/MixAverage 1.0，抓到 trap）。refuter MERGE-SAFE（additivity+persistence 兩 gate，RAMP f3=12.5 證持久）。**slot 解鎖 DampFloatList/KeepFloatValues/Merge*（fan out 中）。**
@@ -27,7 +30,7 @@ STAMP_AT: 2026-06-27T13:16
 - **✅ grind-F second-point-buffer(SetAttributesWithPointFields `24f1bbd`)**：LEAF（inputs[1] 可定址零 cook-core，同 SnapToPoints），2-point attr-transfer blend，refuter MERGE-SAFE byte-faithful。NIT:gradient white-step 1.0 vs 0.9884(sub-1.2% 色 task_07476ef4)。
 - **✅ Raster3dField(field-SDF leaf)**：**★finding:field-SDF leaf rail 近採盡——12 未 port 只 1 clean，其餘 11 blocked**(sdftocolor=Gradient 柏為域/heightmap=Texture2D/render2dfield=render Command/subdivpattern3d 高風險)。待寫回 SSOT。
 - **✅ point-modify 三 rail（前 6 op，全 refuter MERGE-SAFE）**：SDF/count-multiply（MoveToSDF/SdfReflection/RaymarchPoints）+texture-into-points（SamplePointAttributes/DisplacePoints2d/TransformWithImage）詳見 git。
-- **★campaign cook-core 子縫 grind-list（map `ab2ff989`，序列）**：**F✅ A✅ B✅(Vec3,Matrix 緩)**→**C 下一條** ctx-var String(2,加 ContextVarMap `stringVars` 欄,同 Vec3 additive pattern,gate 已 closed)→**D** dict-ctx host rail(~7,純 host 非 device-IO,新 host currency+cookDictNode)→**E** point-sim cross-frame(~8,5 簡單 ride ParticleSystem state factory,E-hard PointSim pool ABI 需柏為)。**spine 序列 + leaf 並行(不同檔，但 leaf pool 已小→先 scout)。**
+- **★campaign cook-core 子縫 grind-list**：**F✅ A✅ B✅(Vec3)**→C 緩(medium String/Command seam)→**D 下一條** dict-ctx host rail(~7,純 host 非 device-IO,新 host currency+cookDictNode)→**E** point-sim cross-frame(~8,5 簡單 ride ParticleSystem state factory,E-hard PointSim pool ABI 需柏為)。**+ 並行 leaf:shader-graph-Field 2 op(PointColorWithField/SelectPointsWithSDF clone MoveToSDF)。** rail-seam 後續:Mesh-input(4)/CPU-readback(5-7)/texture-into-mesh/CPU-noise。**spine 序列 + leaf 並行(不同檔);leaf 桶先 scout(已採盡多)。**
 - **★需柏為架構決定（grind 到再問，已先擺出）**：**E-hard** PointSimulation pool-growth ABI（growable pool 要新 resident-state ABI 還是復用 ParticleSystem 固定 pool？）/**G** asset/file loader（LoadObjAsPoints/LoadSvg：file-IO/asset lifetime model？device-IO-adjacent）。
 - 前批：anim+list harvest（`49582bd`）+matrix seam（`96e4923`）+維護加固 工作1+2+folder-package+ColorThemeEditor 詳見 history。**★★方法論鐵律（柏為 2026-06-27 定，根因修）：seam 開採前必 ground-truth scout；scout 揪出 stale label（已建/真數/依賴）後**必立刻派 plan-update subagent 寫回 `tools/seam_map.tsv`+census docs**，否則每 session 重栽同坑、差點重蓋已建縫（一晚 6+ 次）。scout→write-back→build，漏寫回=下次重栽。[[sw-groundtruth-writeback-rule]]**
 
