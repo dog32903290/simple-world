@@ -33,6 +33,61 @@ std::string firstOutputType(const std::string& id) {
     return "";
 }
 
+// Port-drag type-filter predicates (= TiXL SymbolFilter UpdateMatchingSymbols / GetInputMatchingType
+// / GetOutputMatchingType, Symbol.cs:332-352). STRICT dataType equality, scanning EVERY port (TiXL
+// checks all InputDefinitions/OutputDefinitions, not just the first). Dual lookup like
+// firstOutputType above: atomic ops resolve through the registry spec's `ports`; live compounds
+// through inputDefs/outputDefs. READ-ONLY; no mutation, no new fields. Empty dataType = no
+// constraint (= TiXL's _inputType/_outputType == null short-circuit).
+bool opHasInputOfType(const std::string& id, const std::string& dataType) {
+    if (dataType.empty()) return true;
+    if (const sw::NodeSpec* spec = sw::findSpec(id)) {
+        for (const auto& p : spec->ports)
+            if (p.isInput && p.dataType == dataType) return true;
+        return false;
+    }
+    if (const sw::Symbol* s = sw::doc::g_lib().find(id))
+        for (const auto& d : s->inputDefs)
+            if (d.dataType == dataType) return true;
+    return false;
+}
+
+bool opHasOutputOfType(const std::string& id, const std::string& dataType) {
+    if (dataType.empty()) return true;
+    if (const sw::NodeSpec* spec = sw::findSpec(id)) {
+        for (const auto& p : spec->ports)
+            if (!p.isInput && p.dataType == dataType) return true;
+        return false;
+    }
+    if (const sw::Symbol* s = sw::doc::g_lib().find(id))
+        for (const auto& d : s->outputDefs)
+            if (d.dataType == dataType) return true;
+    return false;
+}
+
+// Combined gate (= TiXL SymbolFilter: the _inputType block keeps ops with a matching input, the
+// _outputType block keeps ops with a matching output; an unset filter imposes no constraint). When
+// BOTH are set (drag onto a snapped connection, PlaceholderCreation.cs:74-76) the op must satisfy
+// both directions — AND semantics, matching TiXL's two sequential `continue`s.
+bool passesPortFilter(const std::string& id, const std::string& inputFilter,
+                      const std::string& outputFilter) {
+    return opHasInputOfType(id, inputFilter) && opHasOutputOfType(id, outputFilter);
+}
+
+// Type-hint line at the palette top (= TiXL PlaceHolderUi.cs:322-331 DrawTypeFilterHint): surfaces
+// the constraining dataType(s) of an active port-drag pre-filter. No-op for the unfiltered Cmd+F
+// path. Emits qa:filter:in/out eye markers so the hand/eye harness can assert the active filter.
+void drawTypeFilterHint(const std::string& inputFilter, const std::string& outputFilter) {
+    if (!inputFilter.empty()) {
+        ImGui::TextDisabled("\xE2\x86\x92 in: %s", inputFilter.c_str());  // "→ in: <type>"
+        sw::eye::recordItem(("qa:filter:in:" + inputFilter).c_str());
+    }
+    if (!outputFilter.empty()) {
+        ImGui::TextDisabled("out: %s \xE2\x86\x92", outputFilter.c_str());  // "out: <type> →"
+        sw::eye::recordItem(("qa:filter:out:" + outputFilter).c_str());
+    }
+}
+
 namespace {
 // Port-summary tooltip built ONLY from existing fields (no description field added). Atomic:
 // list non-Vec-tail input port names + their dataType, then outputs. Compound: input/output defs.
