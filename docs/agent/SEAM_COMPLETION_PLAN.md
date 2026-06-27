@@ -11,6 +11,33 @@
 
 ---
 
+## 0′. ★★ 2026-06-27 GROUND-TRUTH 校正（依賴圖 + 誠實總量）
+
+> master scout（code-cited）寫回：census docs（SEAM_GRAPH/OP_BACKLOG）把已建縫標「✗ 未建」，每 session 照舊差點重蓋（一夜抓到 6+）。本檔（§1.1/§2 標 ✅+commit）是真實 SSOT；此段把校正後的依賴圖 + 誠實總量釘在最前。
+>
+> **七大縫 5/7 已建，NO dx11 keystone：**
+>
+> | seam | 真實狀態（file:line 驗） |
+> |---|---|
+> | shader-graph/field-SDF | ✅BUILT — field_graph_builder.h + 42×field_ops_*.cpp + field_render.cpp（raymarch executor）。剩 ~10 terminal 葉 |
+> | point-buffer | ✅BUILT — point_graph_registry.cpp:29 四-map registrar；PointCookCtx 完整。剩 ~39 葉 fan-out |
+> | Layer2d+Execute | ✅PARTIAL~70% — point_ops_{execute,loop,switch,layer2d}.cpp。剩 ~12 進階 fx 葉。**無 dx11 前置** |
+> | camera3d | ✅core-BUILT — field_camera.h+point_ops_camera.cpp+resident_matrix_output_cook.cpp。**零 dx11 依賴**。剩 ~25-29（gizmo/變體/value-output Phase2-3=需柏為） |
+> | mesh-pipeline | ✅BUILT — mesh-input d81d705，31 檔，meshSpecSink live。剩 Draw* 需 camera3d、loader 需柏為 |
+> | feedback | ✅BUILT — ping-pong 5385e6b + multi-pass executor 15161e3 |
+> | **dx11-api-wrapper** | ❌**N/A on Metal** — render_command.h:40-110 DrawKind/BlendMode 已 1:1 吸收 D3D11 RTV/DSV/BlendState/Viewport。「dx11 keystone」依賴是 **FALSE**，刪。 |
+>
+> **校正後依賴圖 = 三條已鋪、互不依賴的島可平行採**（① field-SDF ② point-buffer ③ Metal-render〔Layer2d/camera3d〕）。**唯一序列脊椎 = cook-core 檔**（point_graph.cpp / frame_cook / resident_eval）——動這些才要序列、要柏為在場。
+>
+> **誠實剩餘總量（op_census 現算 440/749 已港，剩 309）：**
+> - **~150-170 葉 fan-out**（point ~39 / render+camera ~28 / mesh ~17 / numbers ~46 / image ~38 / string ~8 / flow+field 殘）= 騎已建縫，sw-node-batch 自走可採。
+> - **~25-30 cook-core 脊椎**（拆 point_graph.cpp / list-state / keyframe-anim / context-var 殘通道 / point-sim cross-frame）= 序列，柏為在場較佳。
+> - **~110-130 柏為域**（io 61 device-IO + render pbr/lighting/postfx 28 + loader/gltf）= 硬體/演出/外部 SDK，驗證模型不同（見 §7）。
+>
+> 同夜其他 debunked：keyframe-anim BUILT（騎 curve_animator）、matrix output BUILT（resident_matrix_output_cook.cpp）、GPU-compute generators parity-complete、dict-ctx 是 pure-host 非 device-IO、string-wire 閘（task_32b5b6e5）已 CLOSED、compound-graph-host = 假縫 debunked（5ccc637）。
+
+---
+
 ## 0. 一句話戰略
 
 **現成彈藥只有 18 顆乾淨葉子；800 顆裡絕大多數卡在 ~20 塊未建 seam 後面 → 補縫是主路徑，不是次要。**

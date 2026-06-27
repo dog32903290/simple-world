@@ -6,6 +6,26 @@
 
 ---
 
+> ## ★★ 2026-06-27 GROUND-TRUTH 校正（master scout，code-cited）— 本檔 §1-§5 大量過時，先讀這段
+>
+> 下表的「✗ 未建」標籤是 2026-06-16 Phase A 快照，**已被後續施工推翻**。每 session 照舊標差點重蓋已建縫（一夜抓到 6+ 次）。真實狀態（逐檔 file:line 驗）：
+>
+> | seam | §2 舊標 | **真實（2026-06-27 file:line 驗）** |
+> |---|---|---|
+> | `shader-graph` ~64 | ✗ 未建 | **BUILT** — `field_graph_builder.h` + 42×`field_ops_*.cpp` + `field_render.cpp`（raymarch executor）。~64 就是 field 島，已採 42/52，剩 ~10 terminal 葉。**無獨立「通用 shader-graph」縫**（inline-HLSL = `_ImageFxShaderSetup` = image-filter rail，已建）。 |
+> | `point-buffer` ~90 | ✗ 未建（單塊解鎖最多） | **BUILT** — `point_graph_registry.cpp:29` 四-map registrar（cook/draw/cmd/tex）；PointCookCtx 完整（inputTextures[]/count-multiply）。point 已採 61/100，剩 ~39 葉 fan-out + 子縫 point-sim/feedback。 |
+> | `Layer2d+Execute` ~37 | ✗ 未建（依賴 dx11） | **PARTIAL ~70%** — `point_ops_{execute,loop,switch,layer2d}.cpp` BUILT（Execute/Loop/Switch/Layer2d/Bloom/AfterGlow/LightRaysFx）。剩 ~12（Sketch/AsciiRender/GlitchDisplace/WaveForm/ScreenCloseUp/DetectMotion/FieldToImage）。**無 dx11 前置。** |
+> | `dx11-api-wrapper` ~25 | ✗ 未建（camera3d/Layer2d 前置） | **N/A — Metal 上不是真縫。** `render_command.h:40-110` DrawKind/BlendMode enum 已 1:1 吸收 D3D11 RTV/DSV/BlendState/Viewport（ScreenQuad/Layer2d/Mesh/Clear 皆 DrawKind）。**「dx11 keystone」依賴是 FALSE**——刪/標 N/A。 |
+> | `camera3d` ~50 | ✗ 未建（依賴 dx11） | **core-BUILT，零 dx11 依賴** — `field_camera.h` 全 Mat4 stack + `point_ops_camera.cpp`（Camera/OrthographicCamera）+ `resident_matrix_output_cook.cpp`。剩 ~25-29（gizmo 0/15、camera 變體、value-output Phase2/3 = 需柏為）。 |
+> | `mesh-pipeline` ~49 | ✗ 未建 | **BUILT** — mesh-input seam done（`d81d705`），31 mesh 檔，meshSpecSink live，Transform/Combine/FlipNormals/RecomputeNormals 已採（`3c65ae2`）。剩 ~10-15（Draw* 需 camera3d，gltf/obj loader 需柏為）。 |
+> | `feedback` ~16 | ✗ 未建 | **BUILT** — ping-pong seam（`5385e6b`）+ multi-pass executor（`15161e3`，Bloom parity）。 |
+>
+> **校正後依賴圖：NO dx11 keystone。三條已鋪、互不依賴的島**（field-SDF / point-buffer / Metal-render）可平行採。唯一序列脊椎 = cook-core 檔（point_graph.cpp / frame_cook / resident_eval）。
+> 同夜其他 debunked：field-raymarch BUILT（executor）、keyframe-anim BUILT（騎 curve_animator）、GPU-compute generators parity-complete、matrix output BUILT（resident_matrix_output_cook.cpp）、dict-ctx 是 pure-host（非 device-IO）、string-wire 閘（task_32b5b6e5）已 CLOSED。
+> **真實 SSOT = `docs/agent/SEAM_COMPLETION_PLAN.md`（標 ✅+commit）。** 本檔 §1-§5 以下為 2026-06-16 歷史快照，僅供依賴鏈骨架參考，「✗」欄一律以上表為準。
+
+---
+
 ## 0. 命名統一（合併別名）
 
 各類別 agent 對同一塊 seam 命名有出入。本檔統一如下，原別名列在括號：
@@ -57,15 +77,15 @@
 
 | # | seam | 已建? | 主擋解鎖數 | 代表風險 | 依賴的 seam | ROI 評語 |
 |---|------|------|-----------|---------|------------|---------|
-| 1 | **`point-buffer`** | ✗ | **~90**（point generate/modify/sim/transform/combine 全島） | R1（多數 generator 純數學 compute） | 無（葉子地基，自足） | **單塊解鎖最多。** point 類別 128 顆有效 op 全靠它。蓋好＝最大量乾淨葉子 |
-| 2 | **`shader-graph`** | ✗ | **~64**（field/ 全 60 + particle 4 force + mesh 次要 4） | R1（SDF generator 數學直白） | 無（自足；raymarch 是它的下游消費，非前置） | **解鎖整個 field 島。** 60 顆 R1/R2 SDF op 可同時開採 |
+| 1 | **`point-buffer`** | ✅BUILT（2026-06-27 校正：point_graph_registry.cpp:29 四-map registrar）| 剩 ~39 葉 fan-out（point 已採 61/100） | R1 | 無 | **縫已建，葉 fan-out。** 非待蓋大縫 |
+| 2 | **`shader-graph`** | ✅BUILT（2026-06-27 校正：field_graph_builder.h+42×field_ops_*.cpp+field_render.cpp）| 剩 ~10 terminal 葉（field 已採 42/52） | R1 | 無 | **field 島已建。** 無獨立通用 shader-graph 縫 |
 | 3 | **`context-var`** | ✗ | **15**（flow Get/Set Var 全家桶 + GetForegroundColor） | R1（純字典讀寫） | 無（**與 Layer2d+Execute 無依賴，可獨立建**） | **最便宜的中型解鎖。** 投入小、零前置、解鎖 15 顆 |
 | 4 | **`cpu-upload-texture`** | ✗ | **4**（ValuesToTexture/ValuesToTexture2/GradientsToTexture/CurvesToTexture） | R2 | png-decode 已有 MTLTexture 基礎 | **Metal API 現成**（MTLTexture replaceRegion）。低投入，補 audio-vis 工具鏈；GradientsToTexture 是多顆 gradient op 的底層 |
-| 5 | **`Layer2d+Execute`** | ✗ | **~37**（render basic 5 + image 10 + flow 16 + 部分 point draw） | R3（brittle blend + 視覺判斷） | **依賴 `dx11-api-wrapper`**（Execute 要 Draw/OM/SamplerState 等底層 op） | 最大解鎖之一，但 brittle + 前置 dx11；排在地基鋪好後 |
-| 6 | **`dx11-api-wrapper`** | ✗ | **~25**（render _dx11/api 多數） | R2 | 無（最底層） | **camera3d + Layer2d+Execute 的共同前置**，不能跳。多數 op 是 compound 內部子節點，非孤立葉子 |
-| 7 | **`camera3d`** | ✗ | **~50**（render camera 11 + gizmo 15 + transform 8 + _/ Apply* + point 2 + field render 3 + mesh draw 8 次要） | R1（多數 transform 純矩陣） | **依賴 `dx11-api-wrapper`**（context 矩陣要被 TransformsConstBuffer/Draw 消費） | 第二大解鎖鍵，但前置 dx11；解鎖整個 3D render graph |
-| 8 | **`mesh-pipeline`** | ✗ | **~49**（mesh/ 全島，扣 gltf/obj loader） | R1（純 CPU 幾何 generator） | 無（CPU 幾何自足；draw 子集次要依賴 camera3d+Layer2d） | mesh 島地基。純 CPU generator（Quad/Sphere/Torus…）可先採 |
-| 9 | **`feedback`** | ✗ | **~16**（image feedback 7 + image use 5 + point 1 + render 2 + numbers 1） | R3（時間相干 brittle） | 部分依賴 multi-image（已有）/ point-buffer（point 版） | ping-pong 基礎；KeepPreviousFrame 是最簡入口（89 行 CopyResource） |
+| 5 | **`Layer2d+Execute`** | ✅PARTIAL~70%（2026-06-27 校正：point_ops_{execute,loop,switch,layer2d}.cpp）| 剩 ~12（Sketch/AsciiRender/GlitchDisplace/WaveForm/ScreenCloseUp/DetectMotion/FieldToImage） | R3 | **無 dx11 前置（FALSE 依賴已刪）** | 核心已建，剩進階 fx 葉 |
+| 6 | **`dx11-api-wrapper`** | ❌N/A（2026-06-27 校正：Metal 上非真縫）| — | — | — | **render_command.h:40-110 DrawKind/BlendMode 已 1:1 吸收 D3D11 RTV/DSV/BlendState/Viewport。「dx11 keystone」依賴是 FALSE。** |
+| 7 | **`camera3d`** | ✅core-BUILT（2026-06-27 校正：field_camera.h Mat4 stack+point_ops_camera.cpp+resident_matrix_output_cook.cpp）| 剩 ~25-29（gizmo 0/15、camera 變體、value-output Phase2/3=需柏為） | R1 | **零 dx11 依賴** | 矩陣 bridge 已蓋；gizmo/變體 fan-out |
+| 8 | **`mesh-pipeline`** | ✅BUILT（2026-06-27 校正：mesh-input seam d81d705，31 mesh 檔，meshSpecSink live）| 剩 ~10-15（Draw* 需 camera3d，gltf/obj loader 需柏為） | R1 | 無 | Transform/Combine/FlipNormals/RecomputeNormals 已採（3c65ae2） |
+| 9 | **`feedback`** | ✅BUILT（2026-06-27 校正：ping-pong seam 5385e6b + multi-pass executor 15161e3 Bloom parity）| 剩進階 cross-frame 消費者（feedback-advanced 桶） | R3 | — | KeepPreviousFrame/SwapTextures 已採 |
 | 10 | **`gradient-widget`** | ✗ | **~14**（image 12 + field 2 次要） | R2 | 部分配 `cpu-upload-texture`（GradientsToTexture） | 柏為 authoring 域（畫色帶）；解鎖漸層生成器群 |
 | 11 | **`source-op`** | ✗ | **3**（LoadImage/ImageSequenceClip/BuildAsciiFontSorting） | R1（LoadImage 本身） | png-decode 已有；差 path-watcher + async load | LoadImage 是乾淨消費者（decoder 已建），差 source 路徑 |
 | 12 | **`network-io`** | ✗ | **~9 主擋 + ~14 共用底層**（TCP/UDP/WS/HTTP；**osc 2 / artnet-dmx 8 / camera-tracking 4 的 UDP 底層**） | R1（RequestUrl 輕量） | 無（macOS Network.framework） | **建通用 UDP 原語＝osc/artnet/camera-tracking 工作量大減** |

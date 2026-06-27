@@ -11,7 +11,23 @@
 # 欄：seam_id <TAB> kind <TAB> blast <TAB> path_regex(對 island/subdir/op 比對,第一個 match 勝) <TAB> desc
 # path_regex 越具體越前（fallthrough 的島級 *-leaf 放各島最後）。
 #
-field-raymarch	seam-build	MED	^field/(render|use|analyze)	SDF→畫面渲染:field島出海口(RaymarchField/Render2dField/SDFToColor)解鎖39顆SDF變可見
+# ★★ 2026-06-27 GROUND-TRUTH 校正（master scout code-cited，寫回 SSOT 停止重蓋已建縫）：
+#   7 大縫 5/7 已建。三條已鋪「島」互不依賴可平行採，NO dx11 keystone：
+#     ① shader-graph/field-SDF = BUILT（field_graph_builder.h + 42×field_ops_*.cpp + field_render.cpp）。
+#        ~64 就是 field 島，已採 42/52，剩 ~10 terminal 葉。無獨立「通用 shader-graph」縫。
+#     ② point-buffer = BUILT（point_graph_registry.cpp:29 四-map registrar cook/draw/cmd/tex，
+#        PointCookCtx 完整 inputTextures[]/count-multiply）。point 已採 61/100，剩 ~39 葉 fan-out。
+#     ③ Metal-render（Layer2d/Execute/camera3d）= PARTIAL：point_ops_{execute,loop,switch,layer2d}.cpp +
+#        field_camera.h + point_ops_camera.cpp + resident_matrix_output_cook.cpp 全在。
+#   ★ dx11-api-wrapper = NOT A REAL SEAM on Metal：render_command.h:40-110 DrawKind/BlendMode enum
+#     已 1:1 吸收 TiXL D3D11 RTV/DSV/BlendState/Viewport（DrawScreenQuad/Layer2d/Mesh/Clear 皆 DrawKind）。
+#     「camera3d/Layer2d 卡 dx11」這條依賴是 FALSE（見 dx11-skip 行 = domain-blocked,正確標 SKIP）。
+#   mesh-pipeline = BUILT（meshSpecSink live, 31 mesh 檔, mesh-input seam d81d705/3c65ae2）。
+#   ★ 本表已大致校準（point-leaf/camera-leaf/render-leaf/mesh-leaf/field-leaf 全 leaf-ready 正確）；
+#     真實 SSOT 看 docs/agent/SEAM_COMPLETION_PLAN.md（標 ✅+commit）。census docs(SEAM_GRAPH/OP_BACKLOG)
+#     的「✗ 未建 ~90/~64」歷史標籤已過時，同日寫回校正。
+#
+field-raymarch	seam-build	MED	^field/(render|use|analyze)	field出海口:raymarch/2D-render EXECUTOR已建(field_render.cpp RaymarchParamsGpu+field_raymarch_template.metal,RGBA32Float frag,2026-06-27 ground-truth)→剩~10 terminal葉(Render2dField/SDFToColor/VisualizeFieldDistance)接線即可,SDF generator已採盡
 field-leaf	leaf-ready	LOW	^field/	field SDF葉(codegen已建,近採盡)
 camera-leaf	leaf-ready	LOW	^render/(camera|gizmo)	camera變體+gizmo(承重bridge已蓋,騎它採)
 text-font	seam-build	MED	^render/sprite	文字渲染(bitmapfont seam未建)
@@ -21,7 +37,7 @@ dx11-skip	domain-blocked	LOW	^render/_dx11	Metal已吸收等價,多數SKIP
 render-leaf	leaf-ready	LOW	^render/	render葉(basic/utils/transform)
 # ── image 真實阻塞縫(op-name regex,跨 subdir,必排在 feedback/image-leaf 之前才搶得到 match) ──
 # multi-image gather 縫本 session 已蓋(fixed-port + variable-N MultiInput<Texture2D>,Combine3Images/CombineMaterialChannels/HSE/MosiacTiling/PickTexture 全騎它出貨),已非阻塞,故移除舊 multi-image seam-build 規則。剩餘 image/use + 其他 subdir 的 todo 卡的是下面這些 per-op 縫:
-compound-graph	seam-build	MED	^image/.*/(BlendImages|CompareImages|FakeLight|Glow|MakeTileableImage|MakeTileableImageAdvanced|ScreenCloseUp|SortPixelGlitch|NumberPattern|SubdivisionStretch|AdvancedFeedback2)$	無自帶.hlsl,.t3是多節點子圖(需compound-graph-host縫組裝其他op)
+compound-graph	seam-build	MED	^image/.*/(BlendImages|CompareImages|FakeLight|Glow|MakeTileableImage|MakeTileableImageAdvanced|ScreenCloseUp|SortPixelGlitch|NumberPattern|SubdivisionStretch|AdvancedFeedback2)$	無自帶.hlsl,.t3是多節點子圖(★compound-graph-host=假縫 debunked a22db65/5ccc637:多數可拆已建op組合,逐顆個案非通用host縫)
 compute-dispatch	seam-build	MED	^image/.*/(ConvertFormat|ImageFFT|JumpFloodFill|ColorPhysarum|GetImageBrightness|OpticalFlow)$	RWStructuredBuffer/RWByteAddressBuffer/[numthreads]歸約(需compute-dispatch縫)
 feedback-advanced	seam-build	MED	^image/.*/(FluidFeedback|SimpleLiquid|SimpleLiquid2|SlidingHistory|DetectMotion|RemoveStaticBackground|TimeDisplace|WaveForm)$	跨幀history-array/流體狀態(超出已建ping-pong對)
 asset-load	seam-build	MED	^image/.*/(AsciiRender|LoadImageFromUrl|LoadSvgAsTexture2D|ImageSequenceClip|Sketch)$	檔案/字型/svg/url載入縫
@@ -30,7 +46,7 @@ render-graph-perpass	seam-build	MED	^image/.*/RenderWithMotionBlur$	SetTime+per-
 depth-buffer	seam-build	MED	^image/.*/ColorGradeDepth$	depth-buffer縫
 field-to-image	seam-build	MED	^image/.*/FieldToImage$	field→texture橋
 string-shader	seam-build	MED	^image/.*/CustomPixelShader$	runtime HLSL編譯縫
-point-sprite-render	seam-build	MED	^image/.*/GlitchDisplace$	point-buffer→quad sprite繪製+camera transform(point-render縫未建=parked大縫,等柏為greenlight)
+point-sprite-render	seam-build	MED	^image/.*/GlitchDisplace$	point-buffer→quad sprite繪製+camera transform(★draw-pipeline已建:DrawClosedLines/DrawPoints2/DrawLinesBuildup 1c74d3e/6189670,render_command.h DrawKind吸收;GlitchDisplace剩=Layer2d-image-fx子,非parked大縫)
 tex-select-logic	leaf-ready	LOW	^image/.*/(FirstValidTexture|UseFallbackTexture|UseTextureReference)$	純texture-select邏輯,無pixel shader(騎已建gather+小型no-shader passthrough)
 feedback	seam-build	MED	^image/fx/feedback	上一幀/feedback基礎縫(ping-pong已建;此subdir剩進階消費者已歸feedback-advanced,僅守新增基礎feedback op)
 image-leaf	leaf-ready	LOW	^image/	image濾鏡/生成乾淨葉(fallthrough,僅真乾淨葉如DirectionalBlur落這)

@@ -126,8 +126,10 @@ FirstValidTexture / PickTexture / UseFallbackTexture / UseTextureReference（純
 ## 桶 C — BLOCKED（按擋住它的未建 seam 分組）
 
 > 每段一個未建 seam，列它解鎖哪些 op（名字 + 風險）。完整依賴鏈見 SEAM_GRAPH.md §3。
+>
+> **★★ 2026-06-27 GROUND-TRUTH 校正：本桶下列段落 6 塊 seam 標題寫「未建」已過時——`point-buffer`/`shader-graph`/`mesh-pipeline`/`feedback` 已 BUILT，`Layer2d+Execute`/`camera3d` core-BUILT，`dx11-api-wrapper` 在 Metal 上 N/A（render_command.h:40-110 DrawKind 吸收）。這些段落底下的 op 多數已是「葉 fan-out」而非「卡未建 seam」。校正詳 SEAM_GRAPH.md 頂 ground-truth 表 + SEAM_COMPLETION_PLAN.md（標 ✅+commit）。下列保留原文供 op 清單參考，但「擋住=未建 seam」一律以校正表為準。**
 
-### `point-buffer`（~90，最大解鎖）
+### `point-buffer`（~~~90，最大解鎖~~ ✅BUILT 2026-06-27，剩 ~39 葉 fan-out；point_graph_registry.cpp:29）
 generate: BoundingBoxPoints/CommonPointSets/DoyleSpiralPoints2/GridPoints/HexGridPoints/LinePoints/MeshVerticesToPoints/PointInfoLines/PointsOnImage/PointsOnMesh/PointTrail(R3)/PointTrailFast/RadialPoints/RepeatAtPoints/RepetitionPoints/SpherePoints/SubdivideLinePoints（TiXL GPU 原版）
 modify: AddNoise/AttributesFromImageChannels/ClearSomePoints/CustomPointShader(R3,+sdf+gradient)/FilterPoints/LinearSamplePointAttributes/MapPointAttributes(+gradient+curve)/MoveToSDF(R3,+sdf)/PointAttributeFromNoise/PointColorWithField(+sdf)/RandomizePoints/ResampleLinePoints/Sample*Attributes/SamplePointsByCameraDistance(+camera3d)/SelectPoints/SelectPointsWithSDF(+sdf)/SetAttributesWithPointFields(R3)/SetPointAttributes/SortPoints(+camera3d)/TransformWithImage
 sim: PointSimulation(R3,+feedback)/SamplePointSimAttributes/SimCentricalOffset/SimDirectionalOffset/SimDisplacePoints2d/SimForceOffset/SimNoiseOffset/GrowStrains/SimBlendTo/SimFollowMeshSurface(+mesh)/SimPointMeshCollisions(+mesh)/ApplyRandomWalk(+feedback)
@@ -135,34 +137,35 @@ transform: BoundPoints/FindClosestPointsOnMesh(+mesh)/IkChain(R3)/MovePointsToCu
 combine: BlendPoints/CombineBuffers/PairPointsForGridWalkLines/PairPointsForLines/PairPointsForSplines/PickPointList/SplinePoints(+cpu-point-list)/_ExecuteCombineBuffers
 _internal: AnalyzeBuffers/MultiUpdatePoints/_AppendPoints/_OffsetPoints/KeepBufferReference/NumberLinePoints/RecycleBuffer/TraceContourLines
 
-### `shader-graph`（~64，解鎖整個 field 島）
+### `shader-graph`（~~~64，解鎖整個 field 島~~ ✅BUILT 2026-06-27，剩 ~10 terminal 葉；field_graph_builder.h+42×field_ops_*.cpp+field_render.cpp。無獨立通用 shader-graph 縫）
 field/ 全 60 顆（SDF generators 16 + modifiers 7 + space transformers 10 + combiners 4 + texture/vec3 field 3 + use/render/analyze + internal helpers）。R1 主力：BoxSDF/SphereSDF/TorusSDF/CylinderSDF/PlaneSDF/OctahedronSDF/Pyramid/Prism/CappedTorus/Capsule/ChainLink/BoxFrame/Bend/Reflect/Repeat*/Rotate*/Translate/Invert/Absolute/TranslateUV…
 ＋particle force：CustomForce(R3)/FieldDistanceForce(R3)/FieldVolumeForce(R3)/RandomJumpForce(R2)
 次要（shader-graph 解鎖後相關）：raymarch（RaymarchField/Render2dField/RaymarchPoints…6）、mesh ColorVerticesWithField/SelectVerticesWithSDF/CustomFaceShader/CustomVertexShader
 
-### `mesh-pipeline`（~49，mesh 島）
+### `mesh-pipeline`（~~~49，mesh 島~~ ✅BUILT 2026-06-27，mesh-input seam d81d705，31 mesh 檔，meshSpecSink live；剩 Draw* 需 camera3d、loader 需柏為）
 generator R1: QuadMesh/SphereMesh/TorusMesh/CylinderMesh/NGonMesh/CubeMesh/IcosahedronMesh
 modifier R1: FlipNormals/RecomputeNormals/CombineMeshes/BlendMeshVertices/SplitMeshVertices/TransformMesh/TransformMeshUVs/DisplaceMeshNoise/PickMeshBuffer/_MeshBufferComponents
 R2-R3: Deform/Displace*/Delaunay(R3)/Extrude/Collapse/Scatter/Warp2d/MeshProjectUV/Custom*Shader(+shader-graph)/AnalyzeMeshBuffers/_AssembleMeshBuffers/UVsViewer
 draw（次要 +camera3d+Layer2d）: DrawMesh/DrawMeshAtPoints/DrawMeshCelShading/DrawMeshChunksAtPoints/DrawMeshHatched/DrawMeshUnlit/DrawMeshWithShadow/VisualizeMesh/VisualizeUvMap
 
-### `Layer2d+Execute`（~37）
+### `Layer2d+Execute`（~~~37~~ ✅PARTIAL~70% 2026-06-27，core 已建 point_ops_{execute,loop,switch,layer2d}.cpp；剩 ~12 進階 fx 葉。**無 dx11 前置**）
 render basic: Layer2d/DrawScreenQuad/DrawScreenQuadAdvanced
 image: Glow(R3)/Bloom(已port?)/AfterGlow/AfterGlow2/AdvancedFeedback/AdvancedFeedback2/Sketch/AsciiRender/GlitchDisplace/WaveForm/LightRaysFx/ScreenCloseUp/ColorPhysarum/DetectMotion/FieldToImage(+gradient)
 flow: Execute/ExecRepeatedly/ExecuteOnce/LoadSoundtrack/LogMessage/Loop(R3,+context-var)/ResetSubtreeTrigger/Switch/TimeClip(R3)/BlendScenes/GetPosition(+camera3d)/SetRequestedResolutionCmd/ExecuteRawBufferUpdate(+RWStructuredBuffer)/Set*Var 系列(SubGraph 部分)
 point draw（雙擋 +point-buffer）: 全 16 draw op + _VisualizePointFields/_BuildSpatialHashMap/SampleSplinePoint
 
-### `camera3d`（~50，依賴 dx11-api-wrapper）
+### `camera3d`（~~~50，依賴 dx11-api-wrapper~~ ✅core-BUILT 2026-06-27，**零 dx11 依賴**；field_camera.h Mat4 stack+point_ops_camera.cpp+resident_matrix_output_cook.cpp。剩 ~25-29：gizmo 0/15、camera 變體、value-output Phase2/3=需柏為）
 render camera 全 11 / gizmo 全 15 / transform 全 8 / _/ Apply* 系列 / GetScreenPos / TransformsConstBuffer
 point: CpuPointToCamera/PointToMatrix
 field render: RaymarchField/Render2dField/VisualizeFieldDistance（次要）
 
-### `dx11-api-wrapper`（~25，最底層前置）
+### `dx11-api-wrapper`（~~~25，最底層前置~~ ❌N/A 2026-06-27 — Metal 上非真縫）
+> **render_command.h:40-110 DrawKind/BlendMode enum 已 1:1 吸收 TiXL D3D11 RTV/DSV/BlendState/Viewport（ScreenQuad/Layer2d/Mesh/Clear 皆 DrawKind）。「camera3d/Layer2d 卡 dx11」這條 keystone 依賴是 FALSE。下列 op 多為 compound 內部子節點或已被 render-command 資料化吸收，不是孤立待蓋葉子。**
 render _dx11/api: Draw/DrawInstancedIndirect/ClearRenderTarget/Rtv/Dsv/Uav/SrvFromTexture2d/Srv*/Input/Output/Rasterizer/Viewport/ResolutionConstBuffer/GetSRVProperties/InputAssemblerStage/OutputMergerStage/SetPixelAndVertexShaderStage…
 _dx11/buffer: GetBufferComponents/IntsToBufferWithViews/ListToBuffer/Texture3dComponents
 _dx11/fxsetup: ShowTexture3d/ExecuteBufferUpdate/PickBlendMode/SwitchBlendState/PrefixSum
 
-### `feedback`（~16）
+### `feedback`（~~~16~~ ✅BUILT 2026-06-27，ping-pong seam 5385e6b + multi-pass executor 15161e3 Bloom parity；剩進階 cross-frame 消費者）
 image: AdvancedFeedback/AdvancedFeedback2/AfterGlow/AfterGlow2/FluidFeedback/SimpleLiquid/SimpleLiquid2/KeepPreviousFrame(R2,最簡入口)/SwapTextures/RenderWithMotionBlur/_KeepPreviousFrame_Old1/SlidingHistory
 point: KeepPreviousPointBuffer(usse)
 render: TemporalAccumulation/SwapBuffers
