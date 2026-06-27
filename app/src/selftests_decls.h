@@ -177,6 +177,8 @@ namespace sw { int runGizmoSphereSelfTest(bool); }               // drawspheregi
 namespace sw { int runGizmoGridSelfTest(bool); }                 // drawlinegrid_golden.cpp (C3 gizmo Tranche-1: DrawLineGrid wireframe grid, adjacent-line pixel)
 namespace sw { int runGizmoLocatorSelfTest(bool); }              // locator_golden.cpp (C3 gizmo Tranche-1: Locator 3-axis cross [fork-gizmo-screen-constant], geometry only)
 namespace sw { int runPointsToCpuSelfTest(bool); }               // pointstocpu_golden.cpp (PointsToCPU: GPU Points bag -> host List<Point>, flat)
+namespace sw { int runSampleCpuPointsSelfTest(bool); }           // samplecpupoints_golden.cpp (SampleCpuPoints: 2-key host list -> 1 Bezier+quaternion resampled point)
+namespace sw { int runJoinListsSelfTest(bool); }                 // joinlists_golden.cpp (JoinLists Result-only: N host lists -> ONE concat in wire order; Length deferred)
 namespace sw { int runGradientSelfTest(bool); }                  // gradient_golden.cpp (8th cook flow: SwGradient::sample byte-vs-TiXL)
 namespace sw { int runPickGradientSelfTest(bool); }              // gradient_ops_pickgradient.cpp (MultiInput Gradient select)
 namespace sw { int runBlendGradientsSelfTest(bool); }            // gradient_ops_blendgradients.cpp (2-gradient cross-merge)

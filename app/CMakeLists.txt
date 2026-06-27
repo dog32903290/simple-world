@@ -501,6 +501,8 @@ add_executable(simple_world
   src/runtime/pointlist_ops_linepointscpu.cpp
   src/runtime/pointlist_ops_linearpointscpu.cpp
   src/runtime/pointlist_ops_repeatatpointscpu.cpp
+  src/runtime/pointlist_ops_samplecpupoints.cpp
+  src/runtime/pointlist_ops_joinlists.cpp
   src/runtime/pointlist_ops_listtobuffer.cpp
   src/runtime/pointlist_ops_pointstocpu.cpp
   src/runtime/gizmo_geometry.cpp
@@ -516,6 +518,8 @@ add_executable(simple_world
   src/drawspheregizmo_golden.cpp
   src/locator_golden.cpp
   src/pointstocpu_golden.cpp
+  src/samplecpupoints_golden.cpp
+  src/joinlists_golden.cpp
   src/valuestotexture_golden.cpp
   src/runtime/gradient_op_registry.cpp
   src/runtime/gradient_ops_definegradient.cpp
