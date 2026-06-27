@@ -6,11 +6,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: e4df20d
+HEAD: 504f149
 DIRTY: clean
-CENSUS: 452 / 749 done
-BITE: 503 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-27T14:48
+CENSUS: 455 / 749 done
+BITE: 506 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-27T15:19
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -18,7 +18,8 @@ STAMP_AT: 2026-06-27T14:48
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none（2026-06-27 14:48 結帳：shader-graph-Field 2-op leaf + grind-E trail 3-op，HEAD `e4df20d`，--bite 503 / FAILED=[]，census 452/749）。campaign cook-core spine F✅A✅B✅ E✅；C DEFER（medium String/Command seam，柏為域）；D DEFER（dict-ctx=device-IO，柏為域）。** **★autonomous campaign 近完：final-seam scout 證 mesh-input/CPU-readback/StructuredList 三 rail 全已建→只剩 3 顆 autonomous leaf（FindClosestPointsOnMesh/SampleCpuPoints/JoinLists-Result-only），正在派。採完＝autonomous floor 觸底，剩 ~290 全柏為-device/render/camera/sim 域。**
+**none — ★AUTONOMOUS CAMPAIGN 觸底（2026-06-27 15:19 結帳，HEAD `504f149`，--bite 506 / FAILED=[]，census 455/749=61%）。** orchestrator-autonomous 可採的 op 已採盡：cook-core spine F✅A✅B✅E✅（C/D=柏為域）+ 3 條 final rail 的最後 3 顆 leaf 全收（FindClosestPointsOnMesh/SampleCpuPoints/JoinLists-Result-only，refuter MERGE-SAFE）。**剩 ~290 op 全在柏為-device/render/camera/sim 域——等柏為定方向（見 Next Handoff 的「present 柏為」summary + 架構縫排序）。** 下個 session 若柏為未回，可撿的只剩 B 軌體驗復刻純皮 Tier1（eye-hand，不碰 cook-core）+ 維運 chip，承重 op 已無 autonomous 餘料。
+- **✅ 3 final autonomous leaf（`504f149`，refuter MERGE-SAFE 全 PASS，spine git diff 空）**：FindClosestPointsOnMesh（mesh-input rail，brute-force Ericson tri-distance 1:1，unwired-Mesh→identity）/ SampleCpuPoints（PointList host rail，Bezier+quat-slerp host math，.t3 TangentScale=0 collapse trap）/ JoinLists（StructuredList MultiInput N-way concat，Result-only，fork[joinlists-length-deferred]=Length int 騎 value rail 延後）。三 rail（mesh-input/CPU-readback/StructuredList）scout 證早已建→這 3 顆是 leaf 非 seam。
 - **✅ grind-E trail 3-op（`40aac24` merged → main `efdfd21`）**：PointTrailFast/PointTrail（stateful cross-frame ring，ride 已建 ensureState）+ GrowStrains（stateless，2-input cartesian + GrowthMap 騎 inputTextures[]）。**spine 4 檔 git diff 空**（registry 簽名未加寬，count=f(param) 騎 file-static stash 非 PointCountFn）。refuter MERGE-SAFE 6/6。**★.t3 trap：PointTrailFast ring stride=TrailLength+1 且 CycleIndex==FrameCount（+1/frame，非 advance-by-TrailLength，.cs 註解誤導）。** fork[growstrains-white-growthmap-fallback]（unwired→1×1 white 避 black→NaN 退化）。
 - **✅ GrowStrains normalize 修（`e4df20d`）**：refuter 揪出 metal:93,103 加了 TiXL 沒有的 normalize() on rotations（qRotateVec3/qMul 不內部 normalize）→非 default 時非-unit quat 會偏→移掉求 byte-faithful（golden 仍綠，unit quat no-op）。
 - **★shader-graph-Field 2-op leaf（`3fea8f6`）refuter MERGE-SAFE**：PointColorWithField（evalField(pos,1).rgb→mix(Color,field,Strength)，.t3 Strength=1/Range dead）+ SelectPointsWithSDF（evalField(pos,0).w，Mode/Mapping/GainAndBias→FX1/FX2，.t3 DiscardNonSelected=FALSE/GainAndBias(0.5,0.5)=identity，52-byte params）。ZERO gather/driver edit，clone MoveToSDF leaf 模板。
