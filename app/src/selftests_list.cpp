@@ -42,4 +42,10 @@ REGISTER_SELFTESTS(/*orderBase=*/310,
     {"dampfloatlist", runDampFloatListSelfTest},            // DampFloatList cross-frame STATE (per-index damp + dt-gate; flat + production-resident)
     {"keepfloatvalues", runKeepFloatValuesSelfTest},        // KeepFloatValues cross-frame STATE (front-insert ring accumulator; flat + production-resident)
 );
+// PointList host-rail LEAF ops (SampleCpuPoints / JoinLists). Own high-orderBase block so they append at
+// the end of --selftest-list deterministically (the registry sorts by `order`; the 72-block is full).
+REGISTER_SELFTESTS(/*orderBase=*/320,
+    {"samplecpupoints", runSampleCpuPointsSelfTest},        // SampleCpuPoints: 2-key host list -> 1 Bezier+quaternion resampled point (pure CPU)
+    {"joinlists", runJoinListsSelfTest},                    // JoinLists (Result-only): N host lists -> ONE concat in wire order (Length deferred)
+);
 }  // namespace sw
