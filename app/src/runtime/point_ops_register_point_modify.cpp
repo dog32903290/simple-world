@@ -46,6 +46,7 @@ void registerSamplePointsByCameraDistanceOp();
 void registerSortPointsOp();
 void registerMoveToSdfOp();
 void registerSdfReflectionLinePointsOp();
+void registerRaymarchPointsOp();
 
 void registerPointModifyPointOps() {
   registerTransformPointsOp();
@@ -84,6 +85,7 @@ void registerPointModifyPointOps() {
   registerSortPointsOp();                    // Points → Points (reorder by camera-distance; camera-matrix-into-points seam, converged-sort fork)
   registerMoveToSdfOp();                     // Points → Points (raymarch each point to a wired SDF surface; SDF point-modify seam, direct-Field gather)
   registerSdfReflectionLinePointsOp();       // Points → Points (raymarch+reflect each point off a wired SDF, emit polyline; SDF point-modify + count-multiply seam)
+  registerRaymarchPointsOp();                // Points → Points (two-mode raymarch each point to/through a wired SDF; SDF point-modify + count-multiply seam, Raymarch/KeepSteps)
 }
 
 }  // namespace sw

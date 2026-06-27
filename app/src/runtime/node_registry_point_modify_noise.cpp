@@ -194,5 +194,44 @@ static const PointModifyOp _reg_SdfReflectionLinePoints{
        "point.modify"}
 };
 
+// ---- SDF point-modify + count-multiply seam (TWO modes): RaymarchPoints ----------
+// TiXL parity: external/tixl .../field/use/RaymarchPoints.cs +
+//              .../Assets/shaders/points/modify/MovePointsForwardToSDF.hlsl
+// A COUNT-MULTIPLYING op with a DIRECT "Field" input (TiXL ShaderGraphNode): per source point, raymarch
+// along the point's forward axis toward the wired SDF. TWO modes (RaymarchPoints.cs:49-53 enum Modes):
+//   Mode 0 Raymarch  — keep source + one point per reflection bounce (surface hits), NaN-separator padded.
+//   Mode 1 KeepSteps — keep the WHOLE march path (every step is a point, per reflection), NaN-separated.
+// Output count = sourceCount * PointCountPerLineReflections, with (mode-INDEPENDENT, .t3 backward-trace):
+//   PointCountPerLine            = MaxSteps + 1            (CompareInt(PointMode<0) is unconditionally false)
+//   PointCountPerLineReflections = (MaxSteps+1) * (clamp(MaxReflectionCount,0,10)+1)
+// Combines the MoveToSDF direct-Field gather seam (point_graph.cpp) with the SubdivideLinePoints
+// count-multiply driver path (static-stash countTransform reading c.inputCounts[0]).
+// Defaults from RaymarchPoints.t3 (GUID-keyed): MaxSteps=20, MaxReflectionCount=0, MinDistance=0.005,
+//   StepDistanceFactor=1.0, NormalSamplingDistance=0.01, MaxDistance=100, Mode=0(Raymarch),
+//   WriteDistanceTo=1(FX1), WriteStepCountTo=2(FX2). BOTH Write* DEFAULT-ACTIVE (different FX slots), ported.
+//   [Input] order matches the .cs: Field, Points, MaxSteps, MinDistance, StepDistanceFactor,
+//   MaxReflectionCount, Mode, WriteDistanceTo, WriteStepCountTo, NormalSamplingDistance, MaxDistance.
+static const PointModifyOp _reg_RaymarchPoints{
+      {"RaymarchPoints",
+       "Raymarch Points",
+       {{"points", "points", "Points", true},   // input bag (port 0) — the source points
+        {"out", "out", "Points", false},          // raymarched-polyline output bag (port 1)
+        // DIRECT Field input (TiXL ShaderGraphNode). dataType "Field" -> the cook's one-hop direct-Field gather.
+        {"Field", "Field", "Field", true},
+        {"MaxSteps", "MaxSteps", "Float", true, 20.0f, 1.0f, 100.0f},
+        {"MinDistance", "MinDistance", "Float", true, 0.005f, 0.0f, 1.0f},
+        {"StepDistanceFactor", "StepDistanceFactor", "Float", true, 1.0f, 0.0f, 2.0f},
+        {"MaxReflectionCount", "MaxReflectionCount", "Float", true, 0.0f, 0.0f, 10.0f},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Raymarch", "KeepSteps"}},
+        {"WriteDistanceTo", "WriteDistanceTo", "Float", true, 1.0f, 0.0f, 2.0f,
+         Widget::Enum, {"None", "FX1", "FX2"}},
+        {"WriteStepCountTo", "WriteStepCountTo", "Float", true, 2.0f, 0.0f, 2.0f,
+         Widget::Enum, {"None", "FX1", "FX2"}},
+        {"NormalSamplingDistance", "NormalSamplingDistance", "Float", true, 0.01f, 0.0f, 1.0f},
+        {"MaxDistance", "MaxDistance", "Float", true, 100.0f, 0.0f, 1000.0f}},
+       nullptr,
+       "point.modify"}
+};
+
 }  // namespace
 }  // namespace sw

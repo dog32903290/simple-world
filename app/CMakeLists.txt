@@ -339,6 +339,7 @@ add_executable(simple_world
   src/fieldtree_builder_golden.cpp
   src/movepointstosdf_golden.cpp  # SDF point-modify: GridPoints -> MoveToSDF(Field=SphereSDF) -> on-sphere readback (--selftest-movepointstosdf)
   src/sdfreflectionlinepoints_golden.cpp  # SDF point-modify + count-multiply: LinePoints -> SdfReflectionLinePoints(Field=SphereSDF) -> per-line polyline readback (--selftest-sdfreflectionlinepoints)
+  src/raymarchpoints_golden.cpp  # SDF point-modify + count-multiply (TWO modes): LinePoints -> RaymarchPoints(Field=SphereSDF) -> MODE0 line[1] / MODE1 last-step on-sphere readback (--selftest-raymarchpoints)
   src/field_paramapply_golden.cpp
   src/field_paramapply_cases.cpp
   src/field_paramapply_enumcases.cpp
@@ -693,6 +694,10 @@ target_compile_definitions(simple_world PRIVATE
   # source point off a wired SDF, emit a polyline; the count-multiplying sibling of MoveToSDF). Same
   # string-asset rule; assembleFieldMSL fills the SAME hooks; the cook compiles via cachedSourceComputePSO.
   SW_SDF_REFLECTION_LINE_POINTS_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/sdf_reflection_line_points_template.metal"
+  # SDF point-MODIFY + COUNT-MULTIPLY compute TEMPLATE for RaymarchPoints (two-mode raymarch each source
+  # point to/through a wired SDF; the two-mode sibling of SdfReflectionLinePoints). Same string-asset rule;
+  # assembleFieldMSL fills the SAME hooks; the cook compiles the result via cachedSourceComputePSO.
+  SW_RAYMARCH_POINTS_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/raymarch_points_template.metal"
 )
 
 # The executable needs the metallib built before it runs.

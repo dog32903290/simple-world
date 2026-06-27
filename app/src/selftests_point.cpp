@@ -109,6 +109,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"fieldtree-builder", runFieldTreeBuilderSelfTest},  // PF-0: graph->FieldNode builder (flat+resident both legs)
     {"movepointstosdf", runMoveToSdfSelfTest},  // SDF point-modify seam: MoveToSDF raymarch to SphereSDF surface (on-sphere readback; -bug severs Field -> pass-through)
     {"sdfreflectionlinepoints", runSdfReflectionLinePointsSelfTest},  // SDF point-modify + count-multiply seam: LinePoints -> SdfReflectionLinePoints(Field=SphereSDF) -> count=src*perLine + line[1] on-sphere; -bug severs Field -> pass-through
+    {"raymarchpoints", runRaymarchPointsSelfTest},  // SDF point-modify + count-multiply seam (TWO modes): LinePoints -> RaymarchPoints(Field=SphereSDF) -> count=src*(MaxSteps+1)*(clampRefl+1); MODE0 line[1] / MODE1 last-step on-sphere; -bug severs Field -> pass-through
     {"field-paramapply", runFieldParamApplySelfTest},  // PF-0c: data-driven field param-apply (graph SphereSDF {Radius:0.8} -> GPU + buffer + enum + slot-id guard)
     {"time-op", runTimeSelfTest},  // Time 5-mode (localFxTime/localTime/playback/runtime/frozen) + GetFrameSpeedFactor (fsf-valid/fallback/interactive)
 );
