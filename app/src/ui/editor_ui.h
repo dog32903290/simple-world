@@ -16,7 +16,6 @@ extern bool g_navPending;
 // output_window.cpp) owns the pin gesture; the shell reads this to pick the cook target.
 extern int g_pinnedNode;
 
-void drawMenuBar();      // ui/menu_bar.cpp: imgui top menu bar (File/Edit/View), TiXL-shaped
 void drawToolbar();      // ui/toolbar.cpp: file ops + Add Node + audio pick + breadcrumbs
 void drawNodeCanvas();   // ui/editor_ui.cpp: the main node graph workspace
 void drawInspector();    // ui/inspector.cpp: selected node's parameters + FPS

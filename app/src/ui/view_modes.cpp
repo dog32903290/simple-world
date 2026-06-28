@@ -66,12 +66,6 @@ bool handleToggleAllUiElements() {
   return true;
 }
 
-void menuOsFullScreen() {
-  // View > Fullscreen menu item: call the wired platform fn directly (no key gate). Same seam as
-  // handleOsFullScreen; no-op until main.cpp wires it via setOsFullScreenFn.
-  if (s_osFullScreenFn) s_osFullScreenFn();
-}
-
 bool handleOsFullScreen() {
   // Bare F11, no modifiers (modes.md [polish]; TiXL _pWindow->toggleFullScreen).
   // Platform fn is wired by main.cpp via setOsFullScreenFn (leaf-inversion seam).

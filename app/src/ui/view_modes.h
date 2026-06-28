@@ -34,10 +34,6 @@ bool handleToggleFocusMode();      // F12
 bool handleToggleAllUiElements();  // Shift+Esc
 bool handleOsFullScreen();         // F11 — calls the fn registered by setOsFullScreenFn
 
-// Ungated trampoline to the OS fullscreen fn — for the View menu item (no key gate). Same wired
-// platform fn handleOsFullScreen() uses; no-op until setOsFullScreenFn wires it.
-void menuOsFullScreen();
-
 // Leaf-inversion seam (ARCHITECTURE.md): platform/window_mode must not be included from ui/.
 // main.cpp registers the real fn at startup; view_modes.cpp stores and calls it through this ptr.
 void setOsFullScreenFn(void (*)());

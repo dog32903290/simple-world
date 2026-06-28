@@ -2,20 +2,27 @@
 // Zone: app. One row per menu item; a builder turns tables into NSMenus.
 // Adding a menu item = add one row below. No per-item boilerplate.
 //
-// FORK (named: fork-menubar-imgui-primary-nsmenu-minimal-appmenu): the user-facing menu content
-// (File/Edit/View) now lives in the imgui top menu bar (ui/menu_bar.cpp, = TiXL AppMenuBar.cs).
-// TiXL is not a macOS app and has no native menu, so 照TiXL does not cover the NSMenu question.
-// We KEEP a MINIMAL NSMenu because macOS expects it (Cmd-Q is a system convention) AND because the
-// File/Window key-equivalents below are the ONLY binding for Cmd-N/O/S/Shift-S/W — imgui MenuItem
-// shortcut strings are display-only and register no handlers, and keymap.cpp does not bind these.
-// So the File + Window submenus stay as HIDDEN KEY-EQUIVALENT CARRIERS (their VISIBLE content is
-// duplicated in the imgui bar). The redundant View submenu was dropped (its Fullscreen is bound by
-// keymap F11 + the imgui View menu). This is TiXL-shaped (imgui bar primary) AND macOS-correct, and
-// is fully reversible (re-add addSubmenu rows to restore any NSMenu submenu).
+// FORK (named: fork-menubar-nsmenu-primary): the native NSMenu is the SOLE menu bar.
+// macOS draws its menu bar at the top of the screen; a second in-window imgui menu bar would stack
+// two bars and is macOS-wrong, so 柏為 (2026-06-29) ruled OUT the in-window imgui bar (the former
+// ui/menu_bar.cpp = TiXL AppMenuBar.cs, now removed). TiXL is not a macOS app and has no native
+// menu, so 照TiXL does not cover the NSMenu question — this fork answers it: ALL user-facing menu
+// content (File / Edit / View / Window) lives HERE, in the native bar.
+//   • File   — New/Open/Save/Save As (Cmd+N/O/S/Shift+S key-equivalents; the ONLY binding for these).
+//   • Edit   — Undo/Redo (Cmd+Z / Cmd+Shift+Z); also fire via the imgui canvas, so the menu just
+//              adds the visible entry — no key collision.
+//   • View   — Assets/Variation/Theme windows + Toggle-All UI + Focus Mode + Fullscreen.
+//   • Window — Close Window (Cmd+W key-equivalent).
+// The View toggles live in the UI zone; app/menu.cpp MUST NOT include ui/* (ui→app is one-way). So
+// View reaches the UI through a startup-registered fn-ptr seam (app/view_menu_actions, filled by
+// ui/view_menu_register at startup), exactly like the OS-fullscreen inversion. Fullscreen reaches
+// platform directly (app→platform is legal).
 #include "app/menu.h"
 
+#include "app/command.h"           // g_commands undo/redo + canUndo/canRedo
 #include "app/document.h"
-#include "platform/window_mode.h"  // P6 toggleOsFullScreen (View > Fullscreen, modes.md [polish])
+#include "app/view_menu_actions.h"  // View leaf-inversion seam (invokeViewAction; UI registers it)
+#include "platform/window_mode.h"  // toggleOsFullScreen (View > Fullscreen) — app→platform legal
 #include "verify/eye/eye.h"  // one-line hook: native menu rows -> map.json (鐵律 3)
 
 namespace sw::menu {
@@ -77,6 +84,39 @@ const MenuItemDef kFileMenu[] = {
     {"Save As…", "s", CmdShift, "fileSaveAs", [](void*, SEL, const NS::Object*) { sw::doc::doSaveAs(); }},
 };
 
+// Edit (Undo/Redo). Reuses the EXACT g_commands path the imgui canvas Cmd+Z uses, then sets the
+// status line + asks for a relayout — same as the canvas handler. Undo/Redo no-op safely on an
+// empty stack, so we leave them always-enabled (native menu validation would grey them, but the
+// metal-cpp wrapper exposes no validator hook — see view_menu_actions.h note on check marks).
+const MenuItemDef kEditMenu[] = {
+    {"Undo", "z", Cmd, "editUndo",
+     [](void*, SEL, const NS::Object*) {
+       sw::g_commands.undo(); sw::doc::g_status = "undo"; sw::doc::g_relayout = true;
+     }},
+    {"Redo", "z", CmdShift, "editRedo",
+     [](void*, SEL, const NS::Object*) {
+       sw::g_commands.redo(); sw::doc::g_status = "redo"; sw::doc::g_relayout = true;
+     }},
+};
+
+// View. Window toggles + Toggle-All UI + Focus Mode reach the UI via the app/view_menu_actions
+// seam (UI registers the fns at startup); Fullscreen reaches platform directly. No key-equivalents
+// here — those toggles are bound by ui/keymap (F11/F12/Shift+Esc); the menu just adds the entries.
+const MenuItemDef kViewMenu[] = {
+    {"Assets Window", "", 0, "viewAssets",
+     [](void*, SEL, const NS::Object*) { sw::app::invokeViewAction(sw::app::kAssetsWindow); }},
+    {"Variation Window", "", 0, "viewVariation",
+     [](void*, SEL, const NS::Object*) { sw::app::invokeViewAction(sw::app::kVariationWindow); }},
+    {"Theme Window", "", 0, "viewTheme",
+     [](void*, SEL, const NS::Object*) { sw::app::invokeViewAction(sw::app::kThemeWindow); }},
+    {"Toggle All UI", "", 0, "viewToggleAll",
+     [](void*, SEL, const NS::Object*) { sw::app::invokeViewAction(sw::app::kToggleAllUi); }},
+    {"Focus Mode", "", 0, "viewFocus",
+     [](void*, SEL, const NS::Object*) { sw::app::invokeViewAction(sw::app::kFocusMode); }},
+    {"Enter Full Screen", "f", Cmd | NS::EventModifierFlagControl, "viewFullscreen",
+     [](void*, SEL, const NS::Object*) { sw::platform::toggleOsFullScreen(); }},
+};
+
 const MenuItemDef kWindowMenu[] = {
     {"Close Window", "w", Cmd, "windowClose",
      [](void*, SEL, const NS::Object*) {
@@ -85,29 +125,25 @@ const MenuItemDef kWindowMenu[] = {
      }},
 };
 
-// P6 OS-fullscreen (modes.md [polish]): one item in a new View submenu.
-// Key equivalent "^$f" = Ctrl+Cmd+F (macOS convention for Enter Full Screen).
-// F11 is also bound via keymap.cpp (handleOsFullScreen) as the TiXL-parity shortcut.
-[[maybe_unused]] const MenuItemDef kViewMenu[] = {
-    {"Enter Full Screen", "f", Cmd | NS::EventModifierFlagControl, "viewFullscreen",
-     [](void*, SEL, const NS::Object*) { sw::platform::toggleOsFullScreen(); }},
-};
-
 }  // namespace
 
 NS::Menu* buildMainMenu() {
   NS::Menu* mainMenu = NS::Menu::alloc()->init();
-  // Minimal NSMenu per the fork above: App (Quit) + File/Window key-equivalent carriers. The View
-  // submenu is intentionally NOT assembled — kViewMenu (Enter Full Screen) stays in the table for
-  // reversibility but its Fullscreen is reachable via keymap F11 and the imgui View menu.
+  // Standard macOS order: App / File / Edit / View / Window (fork-menubar-nsmenu-primary above).
   NS::Menu* appMenu = buildMenu("simple_world", kAppMenu);
-  NS::Menu* fileMenu = buildMenu("File", kFileMenu);  // carries Cmd-N/O/S/Shift-S key equivalents
-  NS::Menu* windowMenu = buildMenu("Window", kWindowMenu);  // carries Cmd-W key equivalent
+  NS::Menu* fileMenu = buildMenu("File", kFileMenu);
+  NS::Menu* editMenu = buildMenu("Edit", kEditMenu);
+  NS::Menu* viewMenu = buildMenu("View", kViewMenu);
+  NS::Menu* windowMenu = buildMenu("Window", kWindowMenu);
   addSubmenu(mainMenu, appMenu);
   addSubmenu(mainMenu, fileMenu);
+  addSubmenu(mainMenu, editMenu);
+  addSubmenu(mainMenu, viewMenu);
   addSubmenu(mainMenu, windowMenu);
   appMenu->release();
   fileMenu->release();
+  editMenu->release();
+  viewMenu->release();
   windowMenu->release();
   return mainMenu->autorelease();
 }

@@ -207,6 +207,7 @@ add_executable(simple_world
   src/app/asset_library.cpp          # L3 檔案: available-asset enumeration + click-to-create LoadImage payload (EXP #2)
   src/app/asset_library_selftest.cpp # L3 檔案: asset-library golden (--selftest-asset-library, enum + undoable create-op)
   src/app/menu.cpp
+  src/app/view_menu_actions.cpp  # View-menu leaf-inversion seam storage (native NSMenu ↔ UI toggles)
   src/ui/cjk_font.cpp
   src/ui/canvas_ids.cpp
   src/ui/fence_preview.cpp
@@ -215,7 +216,7 @@ add_executable(simple_world
   src/ui/editor_ui_canvas_edit.cpp  # keyboard + delete macro (split from editor_ui.cpp)
   src/ui/editor_ui_layout.cpp       # canvas position sync + drag (split from editor_ui.cpp)
   src/ui/toolbar.cpp
-  src/ui/menu_bar.cpp  # imgui top menu bar (File/Edit/View), TiXL AppMenuBar parity
+  src/ui/view_menu_register.cpp  # UI side of the native View-menu seam (registers toggles at startup)
   src/ui/combine_dialog.cpp
   src/ui/connection_ops.cpp        # shared wire-edit (drag + connect/disconnect verbs) + verb hooks
   src/ui/connect_verb_selftest.cpp # connect/disconnect verb golden (--selftest-hand-connect, headless)

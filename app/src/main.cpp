@@ -54,6 +54,7 @@
 #include "ui/output_window.h"
 #include "ui/timeline_window.h"
 #include "ui/view_modes.h"  // P6 g_focusMode / editorChromeVisible (演出/Focus mode gating)
+#include "ui/view_menu_register.h"  // registerViewMenu (native View-menu seam wiring)
 #include "ui/variation_panel.h"  // P2 Variation window (snapshot pool + N-way mix + crossfader)
 #include "ui/theme_editor.h"      // Color Theme Editor window (dropdown + per-field color edits)
 #include "ui/theme.h"             // applyColors (apply the active user theme at startup)
@@ -306,6 +307,9 @@ Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
   // P6 OS-fullscreen seam (leaf-inversion: ui/view_modes can't include platform/).
   // Wired here so the F11 keymap handler + View > Fullscreen menu both reach the platform call.
   sw::ui::setOsFullScreenFn(&sw::platform::toggleOsFullScreen);
+  // Native View-menu seam (app/view_menu_actions): UI registers the toggle/state fns so the native
+  // NSMenu View items reach the real tool-window bools without app/menu.cpp including any ui/ header.
+  sw::ui::registerViewMenu();
 }
 
 Renderer::~Renderer() {
@@ -423,7 +427,6 @@ void Renderer::draw(MTK::View* pView) {
     // Shift+Esc collapse them; the canvas above keeps editing/navigation alive (Focus Mode is a
     // reversible in-editor state, modes.md [important]).
     if (sw::ui::editorChromeVisible()) {
-      sw::ui::drawMenuBar();        // imgui top menu bar (File/Edit/View) — drawn first = top strip
       sw::ui::drawToolbar();        // New/Open/Save/Save As + Add Node (floating)
       sw::ui::drawInspector();      // floats on top
       sw::ui::drawTimelineWindow(); // S3 dope-sheet (animator lanes + playhead + key gestures)
