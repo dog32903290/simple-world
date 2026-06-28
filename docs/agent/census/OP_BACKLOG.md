@@ -82,7 +82,8 @@ FirstValidTexture / PickTexture / UseFallbackTexture / UseTextureReference（純
 
 - 踩 `audio-analysis`（已建）：**AudioReaction**（已對接 audio_monitor + spectrum_analyzer）/ AudioFrequencies(WIP) / AudioWaveform(WIP) / DetectBeatOffset(R2,WIP) / DetectBpm(R2,WIP) / _SetAudioAnalysis(debug)
 - 踩 `transport`：**PlayAudioClip**（已用 AudioEngine.UseSoundtrackClip）
-- 踩 `value-graph`（檔案/JSON 純解析）：FilesInFolder / ReadFile / WriteToFile / GetAttributeFromJsonString
+- 踩 `value-graph`（檔案/JSON 純解析，**非 device-io**）：FilesInFolder / ReadFile / WriteToFile / GetAttributeFromJsonString
+  - ★2026-06-28 ground-truth：這四顆雖在 `io/` 目錄下卻**不是裝置 op**。ReadFile/FilesInFolder = CLEAN LEAF 騎已建 String/StringList rail（string_ops_filepathparts.cpp 已 std::filesystem）＝零新縫；GetAttributeFromJsonString = 解析 JSON **string 輸入**、做 ZERO device IO，僅閘在小型 JSON-parse 縫。**勿因 `^io/` regex 把它們掃進「device-io 柏為裝置域」桶**（seam_map.tsv 已加 io-file-leaf / io-json-parse carve-out 攔截）。
 - ⚠ WIP 註：audio/_/ 下 AudioFrequencies/AudioWaveform/DetectBeatOffset/DetectBpm 是 TiXL 自標 WIP（`_/` 目錄），優先度可略低。
 
 ### B8. render 葉子（~14 全新）
@@ -235,7 +236,7 @@ image: LoadImage(R1,decoder已建,差path-watcher)/ImageSequenceClip/BuildAsciiF
 `data-recording`(4) / `gamepad`(1) / `beat-timing-details`(1)
 
 ### 單顆/小眾 NEW-SEAM（低優先）
-`dict-context`(4) / `trigger-dirty`(2: Once/ResetSubtreeTrigger) / `keyframe-edit`(2) /
+`dict-context`(4，★2026-06-28 ground-truth：TiXL **無任何 file-based Dict producer**→loaders lane 無法解鎖此縫；所有 `Dict<>` producer 皆 live-device op(WebSocket/OSC/MIDI/gamepad)+audio GetBeatTimingDetails；唯一 realistic 非 device opener=io/audio GetBeatTimingDetails(audio lane)，非通用 device-IO→柏為域非 autonomous) / `trigger-dirty`(2: Once/ResetSubtreeTrigger) / `keyframe-edit`(2) /
 `cubemap`(2) / `cpu-point-array`(2: NoisePoints/_MixPoints) / `obj-loader`(3) /
 `int-cbuffer`(1) / `spatial-hash-grid`(1: CollisionForce) / `gpu-query`(1) /
 `texture-format-convert`(1) / `texture-array`(1) / `fft-compute`(1) / `raw-srv`(1) /

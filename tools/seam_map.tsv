@@ -71,7 +71,7 @@ feedback	seam-build	MED	^image/fx/feedback	上一幀/feedback基礎縫(ping-pong
 image-leaf	leaf-ready	LOW	^image/	image濾鏡/生成乾淨葉(fallthrough,僅真乾淨葉如DirectionalBlur落這)
 list-state	seam-build	MED	^numbers/(floats|ints)	FloatList stateful(需resident state-slot縫)
 keyframe-anim	seam-build	MED	^numbers/(anim|curve)	animator/keyframe(需keyframe seam)
-dict-ctx	domain-blocked	LOW	^numbers/data	dict select(★2026-06-27 ground-truth:dict-ctx非乾淨host rail,死在device-IO producer→柏為域非autonomous;非Vec3鏡像)
+dict-ctx	domain-blocked	LOW	^numbers/data	dict select(★2026-06-28 ground-truth scout code-cited:TiXL無任何file-based Dict producer→loaders lane無法解鎖dict-ctx;所有Dict<>producer皆live-device op(WebSocket/OSC/MIDI/gamepad)+audio GetBeatTimingDetails;唯一realistic非device opener=io/audio GetBeatTimingDetails(audio lane,非通用device-IO)→柏為域非autonomous;非Vec3鏡像)
 colorlist-value-emit	seam-build	MED	^numbers/color/PickColorFromList	★2026-06-28 ground-truth carve-out:PickColorFromList 非零縫 leaf=ColorList-consumer(TiXL input=InputSlot<List<Vector4>> ColorList rail + Vector4 output)→需 ColorList-consumer→host-value(vec4)-emit 跨 rail 縫(未建);此規則必排在 vecmath-leaf 之前才搶得到 match,否則被 ^numbers/ 掃進零縫桶=stale 誤判。其餘 color/ op 全已 BUILT,僅此一顆殘
 vecmath-leaf	leaf-ready	LOW	^numbers/	純值/向量/matrix葉(零縫;★例外=numbers/color/PickColorFromList 走上面 colorlist-value-emit 縫,非此桶)
 point-sim	seam-build	MED	^point/sim	point模擬(feedback類cross-frame)
@@ -81,7 +81,9 @@ particle-force	seam-build	MED	^particle/	力場(多卡mesh/texture/RWStructuredB
 mesh-draw	domain-blocked	MED	^mesh/draw	DrawMesh(需camera+material島)
 mesh-leaf	leaf-ready	LOW	^mesh/	mesh幾何葉(gen/modify;★2026-06-27 ground-truth:純CPU mesh rail已採盡,clean gen/modify≈0,此regex命中的~17殘全卡子seam=CPU-simplex-noise/texture-into-mesh/points-into-mesh/shader-graph-Field/camera3d-Draw*/loader→非待採大葉桶,派工前 op_census --undone mesh 逐顆確認)
 string-leaf	leaf-ready	LOW	^string/	字串葉(剩datetime/random)
-device-io	domain-blocked	LOW	^io/	MIDI/OSC/video/serial/DMX=柏為裝置域(loopback半已建)
+io-file-leaf	leaf-ready	LOW	^io/file/(ReadFile|FilesInFolder)	★2026-06-28 ground-truth carve-out:ReadFile/FilesInFolder=CLEAN LEAF零新縫,騎已建String/StringList cook rail(string_ops_filepathparts.cpp已std::filesystem)→非seam-build、非device-io;必排在下面^io/ device-io catch-all之前才搶得到match,否則被^io/regex掃進柏為裝置域=stale誤判
+io-json-parse	seam-build	LOW	^io/(json|.*Json)	★2026-06-28 ground-truth carve-out:GetAttributeFromJsonString做ZERO device-IO=解析JSON string輸入(非裝置),被^io/ catch-all誤掃進device-io桶;只需小型JSON-parse縫(string-in,非device)→非柏為裝置域;必排在下面^io/之前
+device-io	domain-blocked	LOW	^io/	MIDI/OSC/video/serial/DMX=柏為裝置域(loopback半已建)(★注意:io/file loaders+io/json解析非device,已由上面io-file-leaf/io-json-parse carve-out攔截)
 flow-var	seam-build	LOW	^flow/context	context-var剩餘通道(★2026-06-27 String通道 BUILT@b03cddd:Get/SetStringVar on typed stringVars channel+writer-first string cook 2-pass+per-frame clear,鏡像Vec3Var縫;剩Matrix/Object Var)
 flow-leaf	leaf-ready	LOW	^flow/	flow葉
 data-leaf	leaf-ready	LOW	^data/	data雜項

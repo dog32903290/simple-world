@@ -51,8 +51,8 @@
 
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|----------|------|------|------|
-| FilesInFolder | 列出資料夾下的檔案清單，輸出 List<string> | value-graph | READY-LEAF | R1 | 純 string/filesystem；value-graph 可撐 |
-| ReadFile | 從路徑讀取文字檔，輸出 string | value-graph | READY-LEAF | R1 | Resource<string> pattern；sw 已有類似 asset 機制 |
+| FilesInFolder | 列出資料夾下的檔案清單，輸出 List<string> | value-graph | READY-LEAF | R1 | ★2026-06-28 ground-truth：CLEAN LEAF 零新縫，騎已建 StringList cook rail；非 device-io（io/file 非裝置） |
+| ReadFile | 從路徑讀取文字檔，輸出 string | value-graph | READY-LEAF | R1 | ★2026-06-28 ground-truth：CLEAN LEAF 零新縫，騎已建 String cook rail（string_ops_filepathparts.cpp 已 std::filesystem）；非 device-io |
 | WriteToFile | 將 string 寫入檔案，輸出路徑 | value-graph | READY-LEAF | R1 | 副作用型 op；pure write；無特殊 seam |
 
 ### io/freed/ — 2 ops
@@ -81,7 +81,7 @@
 
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|----------|------|------|------|
-| GetAttributeFromJsonString | 解析 JSON string，輸出 string/columns/rowCount | value-graph | READY-LEAF | R1 | 純 JSON 解析；依賴 string value-graph |
+| GetAttributeFromJsonString | 解析 JSON string，輸出 string/columns/rowCount | json-parse | READY-LEAF | R1 | ★2026-06-28 ground-truth：做 ZERO device IO＝解析 JSON **string 輸入**（非裝置）；被 `^io/` regex catch-all 誤掃進「device-io 柏為裝置域」桶＝**STALE**。host string→table op，僅閘在小型 JSON-parse 縫（string-in），**非 device-IO** |
 | RequestUrl | HTTP GET 請求，輸出 string | NEW-SEAM:network-io | BLOCKED:network-io | R1 | async HTTP；macOS URLSession 可用；較輕量 |
 
 ### io/midi/ — 10 ops
