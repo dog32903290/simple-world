@@ -217,6 +217,7 @@ add_executable(simple_world
   src/ui/editor_ui_layout.cpp       # canvas position sync + drag (split from editor_ui.cpp)
   src/ui/toolbar.cpp
   src/ui/view_menu_register.cpp  # UI side of the native View-menu seam (registers toggles at startup)
+  src/ui/view_menu_state_selftest.cpp  # View-menu live check-mark data path gate (--selftest-view-menu-state)
   src/ui/combine_dialog.cpp
   src/ui/connection_ops.cpp        # shared wire-edit (drag + connect/disconnect verbs) + verb hooks
   src/ui/connect_verb_selftest.cpp # connect/disconnect verb golden (--selftest-hand-connect, headless)
@@ -275,6 +276,7 @@ add_executable(simple_world
   src/platform/osc_loopback.cpp
   src/platform/midi_loopback.mm
   src/platform/window_mode.mm
+  src/platform/menu_appkit_ext.cpp  # tracked AppKit NSMenu extension (live check marks + menuNeedsUpdate: delegate) — replaces the gitignored vendored metal-cpp edits
   src/platform/live_binding.cpp
   src/runtime/beat_timing.cpp        # tap BPM engine (port of TiXL BeatTiming.cs)
   src/runtime/cmd_view_background.cpp  # Output-window view background ambient (TiXL EvaluationContext.BackgroundColor)

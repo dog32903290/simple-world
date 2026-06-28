@@ -37,5 +37,6 @@ REGISTER_SELFTESTS(/*orderBase=*/500,
     {"eye-occlusion", eye::runOcclusionSelfTest},  // map.json occluded flag: covered widget reports occluded
     {"theme", ui::theme::runThemeSelfTest},        // default theme table == TiXL UiColors constants (value-golden)
     {"theme-roundtrip", runThemeRegistrySelfTest}, // color-theme registry: construct→save→reload bit-for-bit survival (+RED leg)
+    {"view-menu-state", runViewMenuStateSelfTest}, // View-menu live check marks: invokeViewAction→viewActionState round-trip (the data path the menuNeedsUpdate: delegate reads)
 );
 }  // namespace sw

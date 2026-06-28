@@ -9,14 +9,16 @@
 // Fullscreen is NOT in this seam: app/menu.cpp reaches it directly via platform/window_mode
 // (app→platform is legal), same call the F11 keymap handler uses.
 //
-// Each window toggle has an ACTION (flip the bool) and a STATE getter (current visibility) so a
-// future native menu validator can show a check mark. The action is the load-bearing behavior.
+// Each toggle has an ACTION (flip the bool) and a STATE getter (current on/off) so the native menu's
+// menuNeedsUpdate: delegate (app/menu.cpp syncViewMenuChecks) can show a live check mark. The action
+// is the load-bearing behavior; state is read each time the View menu opens.
 #pragma once
 
 namespace sw::app {
 
-// One View action's wiring: flip the toggle + read its current on/off state. state may be null for
-// actions with no meaningful checked state (Toggle-All UI, Focus Mode — they are momentary flips).
+// One View action's wiring: flip the toggle + read its current on/off state. All five View toggles
+// (3 windows + Toggle-All UI + Focus Mode) are stateful and register a real getter; state==null is
+// still tolerated (treated as unchecked) so a future stateless action can be added without a getter.
 struct ViewMenuAction {
   void (*toggle)() = nullptr;  // perform the toggle (flip the window/mode)
   bool (*state)() = nullptr;   // current checked state, or null if not a stateful toggle

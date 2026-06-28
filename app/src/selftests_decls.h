@@ -189,6 +189,7 @@ namespace sw { int runTransformOpsSelfTest(bool); }              // point_ops_tr
 namespace sw { int runKeymapPersistSelfTest(bool); }             // keymap_prefs_selftest.cpp (★#11: user keymap JSON overrides factory — set→save→reload round-trip + no-file=factory)
 namespace sw { int runUserSettingsSelfTest(bool); }              // user_settings_selftest.cpp (★#12: recent-files MRU — push→save→reload round-trip + dedup/cap/no-file=empty)
 namespace sw { int runOutputWindowStateSelfTest(bool); }         // output_window_state_selftest.cpp (out-window-persistence: Output view state pin/res/bg — save→reload round-trip + no-file=Defaults)
+namespace sw { int runViewMenuStateSelfTest(bool); }             // view_menu_state_selftest.cpp (View-menu live check marks: invokeViewAction→viewActionState round-trip = the data path syncViewMenuChecks reads)
 namespace sw { int runThemeRegistrySelfTest(bool); }             // theme_registry_selftest.cpp (color-theme-system: construct non-default theme → save → fresh-registry load → bit-for-bit survival)
 namespace sw { int runMeshBlendMeshVerticesGoldenSelfTest(bool); }  // mesh_blendpick_golden.cpp (mesh modify: BlendMeshVertices two-mesh lerp, flat + R-2 resident)
 namespace sw { int runMeshPickMeshBufferGoldenSelfTest(bool); }     // mesh_blendpick_golden.cpp (mesh modify: PickMeshBuffer MultiInput modular selector, flat + R-2 resident)

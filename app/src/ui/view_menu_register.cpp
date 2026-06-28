@@ -30,9 +30,14 @@ void registerViewMenu() {
   actions[sw::app::kThemeWindow] = {
       [] { sw::ui::themeEditorVisible() = !sw::ui::themeEditorVisible(); },
       [] { return sw::ui::themeEditorVisible(); }};
-  // Toggle-All UI + Focus Mode are momentary flips (no meaningful persistent check mark) → state null.
-  actions[sw::app::kToggleAllUi] = {[] { sw::ui::toggleShowChrome(); }, nullptr};
-  actions[sw::app::kFocusMode] = {[] { sw::ui::toggleFocusMode(); }, nullptr};
+  // Toggle-All UI + Focus Mode DO have a persistent on/off state, so they get check marks too:
+  // "Toggle All UI" is checked when chrome is currently shown (g_showChrome); "Focus Mode" is checked
+  // when focus mode is on (g_focusMode). Reading the live bool the draw path checks keeps the menu in
+  // sync however the state was changed (menu click, F12/Shift+Esc keymap, etc.).
+  actions[sw::app::kToggleAllUi] = {[] { sw::ui::toggleShowChrome(); },
+                                    [] { return sw::ui::g_showChrome; }};
+  actions[sw::app::kFocusMode] = {[] { sw::ui::toggleFocusMode(); },
+                                  [] { return sw::ui::g_focusMode; }};
 
   sw::app::registerViewMenuActions(actions);
 }
