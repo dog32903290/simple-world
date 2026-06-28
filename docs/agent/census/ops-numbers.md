@@ -190,14 +190,14 @@
 | HSLToColor | HSL→RGBA | value-graph | TRIVIAL | R1 | |
 | OKLChToColor | OKLCh→RGBA | value-graph | TRIVIAL | R1 | |
 | RgbaToColor | float4→Color | value-graph | TRIVIAL | R1 | （在 vec4/ 下） |
-| PickColorFromList | 從 list 取 color | value-graph | TRIVIAL | R1 | |
+| PickColorFromList | 從 list 取 color | NEW-SEAM:colorlist-value-emit | BLOCKED:colorlist-value-emit | R2 | ★非 trivial value-leaf：TiXL input=InputSlot<List<Vector4>>（ColorList rail）+ Vector4 output → 需 ColorList-consumer→host-value(vec4)-emit 跨 rail 縫（未建）。唯一未 build 的 color op |
 | CombineColorLists | 合併 color list | value-graph | TRIVIAL | R1 | |
 | KeepColors | 保持上一幀 color | value-graph | TRIVIAL | R2 | frame-level state |
 | DefineGradient | 定義最多 4 色的 Gradient | value-graph | READY-LEAF | R1 | 輸出 Gradient 型別 |
 | BuildGradient | 從 color list + position list 建 Gradient | value-graph | READY-LEAF | R1 | |
 | BlendGradients | 兩 Gradient lerp | value-graph | READY-LEAF | R1 | |
 | PickGradient | 條件選 Gradient | value-graph | READY-LEAF | R1 | |
-| SampleGradient | 取樣 Gradient 某位置顏色 | value-graph | READY-LEAF | R1 | |
+| SampleGradient | 取樣 Gradient 某位置顏色 | value-graph | ✅BUILT | R1 | value_op_samplegradient.cpp；SwGradient 型別已存在於 sw_gradient.h（先前「需確認已實作」caveat 已過時） |
 | PickColorFromImage | 從 Texture2D CPU readback 取像素色 | NEW-SEAM:cpu-readback-texture | BLOCKED:cpu-readback-texture | R2 | CopyResource+MapSubresource；需 GPU→CPU readback 路徑（Metal 有，但需平台封裝） |
 | GradientsToTexture | Gradient list → RGBA32F Texture2D | NEW-SEAM:cpu-upload-texture | BLOCKED:cpu-upload-texture | R2 | 同 ValuesToTexture，CPU 上傳 RGBA float array |
 

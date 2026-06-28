@@ -72,7 +72,8 @@ image-leaf	leaf-ready	LOW	^image/	image濾鏡/生成乾淨葉(fallthrough,僅真
 list-state	seam-build	MED	^numbers/(floats|ints)	FloatList stateful(需resident state-slot縫)
 keyframe-anim	seam-build	MED	^numbers/(anim|curve)	animator/keyframe(需keyframe seam)
 dict-ctx	domain-blocked	LOW	^numbers/data	dict select(★2026-06-27 ground-truth:dict-ctx非乾淨host rail,死在device-IO producer→柏為域非autonomous;非Vec3鏡像)
-vecmath-leaf	leaf-ready	LOW	^numbers/	純值/向量/matrix葉(零縫)
+colorlist-value-emit	seam-build	MED	^numbers/color/PickColorFromList	★2026-06-28 ground-truth carve-out:PickColorFromList 非零縫 leaf=ColorList-consumer(TiXL input=InputSlot<List<Vector4>> ColorList rail + Vector4 output)→需 ColorList-consumer→host-value(vec4)-emit 跨 rail 縫(未建);此規則必排在 vecmath-leaf 之前才搶得到 match,否則被 ^numbers/ 掃進零縫桶=stale 誤判。其餘 color/ op 全已 BUILT,僅此一顆殘
+vecmath-leaf	leaf-ready	LOW	^numbers/	純值/向量/matrix葉(零縫;★例外=numbers/color/PickColorFromList 走上面 colorlist-value-emit 縫,非此桶)
 point-sim	seam-build	MED	^point/sim	point模擬(feedback類cross-frame)
 point-io	domain-blocked	MED	^point/(io|usse)	point GPU-readback/DMX輸出(★2026-06-27 ground-truth:CPU-readback rail已BUILT=production commit+wait+SwPoint StorageModeShared直讀,ReadPointColors/PointsToCPU已建;autonomous leaf SampleCpuPoints ✅BUILT@504f149;★PointToMatrix-emit ✅BUILT@b77789e=value-emit pass已建,emit半邊已WIRE;CpuPointToCamera仍卡ICamera=柏為域;DMX/io真domain-blocked)
 point-leaf	leaf-ready	LOW	^point/	point葉(buffer縫已建;★2026-06-27 ground-truth:clean-leaf近採盡≈4-5僅Draw*變體殘,此regex 命中的 ~24 殘多卡子 seam=cross-frame-sim/mesh-input/shader-graph-Field/CPU-readback/camera3d-Draw*/loader,派工前 op_census --undone point 逐顆確認別當大葉桶)

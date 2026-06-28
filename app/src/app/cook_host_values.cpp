@@ -13,6 +13,12 @@
 #include "runtime/string_op_registry.h"   // StringState (the stateful-string seam's cross-frame store)
 #include "runtime/tixl_point.h"            // SwPoint (PointAccessor element type)
 
+namespace sw {
+// PickColorFromList host-emit cook pass (value_op_pickcolorfromlist.cpp). Forward-declared here (it is a
+// value-op leaf, not in resident_value_cooks.h) so the single wire-in below stays a leaf-local hook.
+void cookColorPickNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+}  // namespace sw
+
 namespace sw::framecook {
 
 // Cook the host-value currencies (String / host-scalar / ColorList) for one frame — the body lifted
@@ -65,6 +71,11 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // slot (so this static stays empty for a graph without KeepColors).
   static std::map<std::string, std::vector<simd::float4>> s_colorListState;
   cookColorListNodes(g, hsCtx, s_colorListState);
+
+  // Cook the ColorList-CONSUMER → host-value(vec4) emit op (PickColorFromList) — runs AFTER
+  // cookColorListNodes so the ColorList producer (ColorsToList) it gathers is settled (producer-before-
+  // consumer, same rule as colorlist→host-scalar above). Writes the picked vec4 onto extOut[0..3].
+  cookColorPickNodes(g, hsCtx);
 
   // Cook the VALUE-OUTPUT rail ops (value-output-rail Phase 1: RequestedResolution) — the cook-emit
   // family whose value comes from the COOK CONTEXT (ctx.requestedWidth/Height), not from inputs. Same

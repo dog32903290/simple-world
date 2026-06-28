@@ -37,9 +37,9 @@
 - **int/（~21）**：AddInts / IntAdd / IntDiv / IntToFloat / ModInt / MultiplyInt / MultiplyInts / SubInts / SumInts / CompareInt / CountInt / HasIntChanged / IsIntEven / PickInt / ClampInt / FloatToInt / GetAPrime / KeepInts / MaxInt / MinInt / TryParseInt
 - **int2/（6）**：AddInt2 / Int2Components / MakeResolution / MaxInt2 / ScaleResolution / ScaleSize
 - **ints/（5）**：IntListLength / IntsToList / MergeIntLists / PickIntFromList / SetIntListValue
-- **vec2/vec3/vec4 補漏（~20）**：凡 A1 §H 未列者（GridPosition / Int2ToVector2 / PerlinNoise2/3 / PickVector2/3 / TransformVec3 / MulMatrix / Vector3Gizmo / DotVec4 / PickColor / Vector4Components…）
+- **vec2/vec3/vec4 補漏（~20）**：凡 A1 §H 未列者（GridPosition / Int2ToVector2 / PerlinNoise2/3 / PickVector2/3 / TransformVec3 / MulMatrix / Vector3Gizmo / ✅DotVec4(BUILT value_op_dotvec4.cpp) / ✅PickColor(BUILT value_op_pickcolor.cpp) / ✅Vector4Components(BUILT value_op_vector4components.cpp)…）
 - **floats/ list（~26）**：FloatListLength / FloatsToList / ColorsToList / SetFloatListValue / FloatListToIntList / IntListToFloatList / ComposeVec3FromList / PickFloatFromList / PickFloatList / AmplifyValues / AnalyzeFloatList / ColorListToInts / CombineFloatLists / CompareFloatLists / DampFloatList / DampPeakDecay / DeltaSinceLastFrame / KeepFloatValues / MergeFloatLists / RemapFloatList / SmoothValues / SumRange / RandomChoiceIndex
-- **color/ Gradient ops（~13）**：BlendColors / HSBToColor / HSLToColor / OKLChToColor / PickColorFromList / CombineColorLists / KeepColors / DefineGradient / BuildGradient / BlendGradients / PickGradient / SampleGradient / DefineIqGradient（⚠ Gradient 型別 sw 需確認已實作）
+- **color/ Gradient ops（~13）**：BlendColors / HSBToColor / HSLToColor / OKLChToColor / ⛔PickColorFromList(僅此一顆未做=ColorList-consumer 需 colorlist-value-emit 縫,非 trivial leaf) / CombineColorLists / KeepColors / DefineGradient / BuildGradient / BlendGradients / PickGradient / ✅SampleGradient(BUILT value_op_samplegradient.cpp) / DefineIqGradient（✅Gradient 型別已實作：SwGradient @ sw_gradient.h，「需確認」caveat 已過時）
 - **curve/**：SampleCurve
 
 ### B2. string TRIVIAL（33 顆全新）

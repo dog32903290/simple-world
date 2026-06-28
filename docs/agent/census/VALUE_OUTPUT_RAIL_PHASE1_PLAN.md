@@ -1,3 +1,8 @@
+> ⚠️ **HISTORICAL — 已實作，此文僅留作設計脈絡（2026-06-28 stamp）**
+> Phase 1（cookValueOutputNodes / RequestedResolution）與 Phase 3（cookMatrixOutputNodes）皆已 SHIPPED：
+> `resident_value_output_cook.cpp` + `resident_matrix_output_cook.cpp`，接線於 `app/src/app/cook_host_values.cpp`。
+> 下方規劃內容為當時的設計藍圖，非待辦；不要照此重蓋已建縫。
+>
 # Value-Output-Rail Phase 1 Build Plan (cook-emit Int2/Int3/Vec3 scalar outputs)
 
 > HEAD 97a8451. The "seam" joins two ALREADY-SHIPPING mechanisms — multi-Float-output ops + extOut[8] cook-emit — for cook/context ops. Phase 1 = SMALL, cook-core-FREE. Unlocks CalcDispatchCount/RequestedResolution/GetTextureSize/GetPosition-WorldSpace.
