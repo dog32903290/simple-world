@@ -155,11 +155,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return &(paramsMemo[id] = resolveNodeParams(g, *n, ctx, reg));
   };
 
-  // Forward-declared (body below): the PointList cook flow (7th flow = host std::vector<SwPoint>). A
-  // pointlist op (RadialPointsCpu/TransformCpuPoint) gathers its PointList inputs by recursing into
-  // cookPointListNode; the ListToBuffer bridge (a Points op, cookNode below) also calls it to gather the
-  // host list it memcpys to the GPU. Declared HERE (before cookNode) so cookNode's ListToBuffer branch
-  // can call it; std::function breaks the ordering (the body is assigned after cookNode is defined).
+  // Forward-declared (body below): the PointList cook flow (7th flow = host std::vector<SwPoint>). A pointlist
+  // op gathers its PointList inputs by recursing into cookPointListNode; the ListToBuffer bridge (a Points op,
+  // cookNode below) also calls it to gather the host list it memcpys to the GPU. Declared HERE (before cookNode)
+  // so cookNode's ListToBuffer branch can call it; std::function breaks the ordering (body assigned after cookNode).
   std::function<const std::vector<SwPoint>*(int)> cookPointListNode;
 
   // Forward-declared HERE (above cookNode, same trick as cookPointListNode) so cookNode's Texture2D
@@ -541,7 +540,8 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // this flow's self-recursion keep calling through the slot. PointList CROSSES one boundary: PointsToCPU
   // reads a Points bag back, so cookNode rides in by-ref alongside g / ctx / nodeParams.)
   cookPointListNode = [&](int id) -> const std::vector<SwPoint>* {
-    return p_->cookFlatPointList(g, ctx, nodeParams, cookNode, id);
+    // cookStringNode rides in (slot by-ref, set below) for LoadObjAsPoints.Path — fork-pointlist-string-path-channel.
+    return p_->cookFlatPointList(g, ctx, nodeParams, cookNode, cookStringNode, id);
   };
 
   // Cook a STRING-flow node (the 6th cook flow = TiXL Slot<string>). The currency is a HOST

@@ -85,6 +85,14 @@ struct PointListCookCtx {
   // Cooked upstream PointList inputs (one entry per WIRED PointList source, in spec port order with
   // MultiInput ports expanded into wire-declaration order). Borrowed (driver-owned); never retained.
   const std::vector<std::vector<SwPoint>>* inputLists = nullptr;
+  // STRING-input channel (fork-pointlist-string-path-channel): the cooked String input(s) of THIS node,
+  // in spec port order, gathered wire-OR-const (a wired upstream String → its cooked value; an unwired
+  // String input → Node::strParams[id] override, else PortSpec.strDef). This is a SMALL mirror of
+  // StringCookCtx::inputStrings — added so a pointlist op can carry a file PATH (the OBJ-IO sub-lane:
+  // LoadObjAsPoints.Path). params is map<string,float> (float-only) and cannot carry a path; the driver
+  // (cookFlatPointList) gathers String inputs via the SHARED gatherStringInputs (point_graph_string_cook.cpp)
+  // exactly as the String rail does. Empty (no String input ports) for every prior pointlist op. Borrowed.
+  const std::vector<std::string>* inputStrings = nullptr;
   // POINTS-bag input (the GPU→host point-readback rail-crossing, the DOWNLOAD mirror of ListToBuffer's
   // host→GPU upload): the already-cooked upstream Points buffer wired to a pointlist op's "PointBuffer"
   // input port, + its point count. A pointlist op that READS a GPU point bag (PointsToCPU) copies whole

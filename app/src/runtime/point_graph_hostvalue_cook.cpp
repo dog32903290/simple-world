@@ -267,7 +267,8 @@ const SwGradient* PointGraph::Impl::cookFlatGradient(const Graph& g, const Evalu
 // (nullptr if not a pointlist op / unknown node).
 const std::vector<SwPoint>* PointGraph::Impl::cookFlatPointList(
     const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
-    const std::function<MTL::Buffer*(int)>& cookNode, int id) {
+    const std::function<MTL::Buffer*(int)>& cookNode,
+    const std::function<const std::string*(int)>& cookStringNode, int id) {
   const Node* n = g.node(id);
   if (!n) return nullptr;
   const NodeSpec* s = findSpec(n->type);
@@ -278,6 +279,11 @@ const std::vector<SwPoint>* PointGraph::Impl::cookFlatPointList(
   std::vector<std::vector<SwPoint>> inputLists;
   const MTL::Buffer* pointsBag = nullptr;  // POINTS-bag input (PointsToCPU GPU→host readback crossing)
   uint32_t pointsCount = 0;                 // its point count
+  // STRING-input gather (fork-pointlist-string-path-channel): if this pointlist op has String input
+  // port(s) (LoadObjAsPoints.Path — the OBJ-IO sub-lane), gather them wire-OR-const via the SHARED
+  // gatherStringInputs (the SAME gather the String rail uses). A pointlist op with no String port → empty
+  // (every prior pointlist op). cookStringNode rides in by-ref for a wired upstream String source.
+  std::vector<std::string> inputStrings = gatherStringInputs(g, id, *s, cookStringNode);
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& port = s->ports[i];
     if (!port.isInput) continue;
@@ -285,7 +291,8 @@ const std::vector<SwPoint>* PointGraph::Impl::cookFlatPointList(
     if (port.dataType == "PointList") {
       for (const Connection& c : g.connections) {
         if (c.toPin != inPin) continue;
-        const std::vector<SwPoint>* up = cookFlatPointList(g, ctx, nodeParams, cookNode, pinNode(c.fromPin));
+        const std::vector<SwPoint>* up =
+            cookFlatPointList(g, ctx, nodeParams, cookNode, cookStringNode, pinNode(c.fromPin));
         inputLists.push_back(up ? *up : std::vector<SwPoint>{});
         if (!port.multiInput) break;  // single-input: first wire only
       }
@@ -304,6 +311,7 @@ const std::vector<SwPoint>* PointGraph::Impl::cookFlatPointList(
   pc.dev = dev; pc.lib = lib; pc.queue = queue;
   pc.ctx = &ctx; pc.nodeId = id;
   pc.inputLists = &inputLists;
+  pc.inputStrings = &inputStrings;  // fork-pointlist-string-path-channel (LoadObjAsPoints.Path)
   pc.inputPointsBag = pointsBag;
   pc.inputPointsCount = pointsCount;
   pc.output = &out;

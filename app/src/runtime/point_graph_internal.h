@@ -375,7 +375,7 @@ struct PointGraph::Impl {
   const SwGradient* cookFlatGradient(const Graph& g, const EvaluationContext& ctx,
                                      const NodeParamsFn& nodeParams, int id);
   const std::vector<SwPoint>* cookFlatPointList(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
-                                                const std::function<MTL::Buffer*(int)>& cookNode, int id);
+                                                const std::function<MTL::Buffer*(int)>& cookNode, const std::function<const std::string*(int)>& cookStringNode, int id);
   // The FLAT STRING cooks + host-scalar, point_graph_string_cook.cpp / point_graph_hostscalar_cook.cpp (full doc in leaves). gatherStringInputs = the SHARED wire-OR-const String gather (both cooks call it).
   std::vector<std::string> gatherStringInputs(
       const Graph& g, int id, const NodeSpec& s,

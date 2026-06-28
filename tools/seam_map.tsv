@@ -78,7 +78,7 @@ point-sim	seam-build	MED	^point/sim	point模擬(feedback類cross-frame)
 point-io	domain-blocked	MED	^point/(io|usse)	point GPU-readback/DMX輸出(★2026-06-27 ground-truth:CPU-readback rail已BUILT=production commit+wait+SwPoint StorageModeShared直讀,ReadPointColors/PointsToCPU已建;autonomous leaf SampleCpuPoints ✅BUILT@504f149;★PointToMatrix-emit ✅BUILT@b77789e=value-emit pass已建,emit半邊已WIRE;CpuPointToCamera仍卡ICamera=柏為域;DMX/io真domain-blocked)
 point-leaf	leaf-ready	LOW	^point/	point葉(buffer縫已建;★2026-06-27 ground-truth:clean-leaf近採盡≈4-5僅Draw*變體殘,此regex 命中的 ~24 殘多卡子 seam=cross-frame-sim/mesh-input/shader-graph-Field/CPU-readback/camera3d-Draw*/loader,派工前 op_census --undone point 逐顆確認別當大葉桶)
 particle-force	seam-build	MED	^particle/	力場(多卡mesh/texture/RWStructuredBuffer/sdf/user-HLSL縫)
-mesh-draw	domain-blocked	MED	^mesh/draw	DrawMesh(需camera+material島)
+mesh-draw	domain-blocked	MED	^mesh/draw	★2026-06-28 ground-truth scout code-cited:DrawMeshUnlit ✅BUILT(depth-tested unlit triangle raster,無camera-island block;point_ops_drawmeshunlit.cpp)→非整桶blocked;僅PBR DrawMesh變體需camera+material島(blocked);派工前op_census --undone mesh/draw逐顆別當整桶domain-blocked
 mesh-leaf	leaf-ready	LOW	^mesh/	mesh幾何葉(gen/modify;★2026-06-27 ground-truth:純CPU mesh rail已採盡,clean gen/modify≈0,此regex命中的~17殘全卡子seam=CPU-simplex-noise/texture-into-mesh/points-into-mesh/shader-graph-Field/camera3d-Draw*/loader→非待採大葉桶,派工前 op_census --undone mesh 逐顆確認)
 string-leaf	leaf-ready	LOW	^string/	字串葉(剩datetime/random)
 io-file-leaf	leaf-ready	LOW	^io/file/(ReadFile|FilesInFolder)	★2026-06-28 ground-truth carve-out:ReadFile/FilesInFolder=CLEAN LEAF零新縫,騎已建String/StringList cook rail(string_ops_filepathparts.cpp已std::filesystem)→非seam-build、非device-io;必排在下面^io/ device-io catch-all之前才搶得到match,否則被^io/regex掃進柏為裝置域=stale誤判
