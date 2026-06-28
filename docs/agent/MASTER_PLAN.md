@@ -14,11 +14,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: c32eed9
+HEAD: a01467e
 DIRTY: clean
 CENSUS: 457 / 749 done
 BITE: 510 PASS
-STAMP_AT: 2026-06-28T23:18
+STAMP_AT: 2026-06-28T23:41
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -26,15 +26,17 @@ STAMP_AT: 2026-06-28T23:18
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none — 2026-06-28 自走批次：vec4/Color 家族收尾 + stale-label write-back（HEAD `c32eed9`，--bite 510 / FAILED=[]，census 457/749）。** scout 揭穿舊菜單 ① 前提是 stale：**vec4/Color 家族 5 顆裡 4 顆早已 BUILT**（RgbaToColor/Vector4Components/DotVec4/PickColor）、vec4-spread 縫早已 shipped；真正剩的只有 **PickColorFromList**（不是 vec4-spread 縫，是 ColorList-consumer→host-value(vec4)-emit 跨 rail）→ 本批建完（`c32eed9`，`[G]` golden byte-identical 對手算 TiXL floor-Mod + bug=RED + --bite 510 全綠；fork-pickcolorfromlist-empty-is-zero 照 PickFloat 兄弟）。同批照 [[sw-groundtruth-writeback-rule]] 把 5 條 stale label 寫回 seam_map.tsv + census docs。**vec4/Color 家族＝完整。下一棒撿 Next Handoff 菜單 ②/③。**
-- **★建構陷阱（本批 1 顆真縫）**：`evalResidentFloat` 的 `!evaluate` readback 回 `extOut[i]`，i 是 port 在 `s->ports` 的**全索引（含 inputs）**非 0-based output index → `Selected.x/.y/.z/.w` 在 spec index **2..5**（Input(0)/Index(1) 在前），cook 必須寫 `extOut[2..5]` 非 `[0..3]`。藍圖原寫 `[0..3]` 是錯的；任何 host-value-emit op 都要從 spec 算 output-port→extOut-slot 映射（PickColor 同註）。
-- **★★兩條 NAMED LATENT RISK（今天 inert，0 forward consumer；柏為建 PointToMatrix→camera consumer rail 時必先讀）**：① `latent-pointvalue-emit-one-frame-late`——新 pass 寫在 cookResident 後、其餘 emit pass 寫在前；未來若有 in-graph consumer 在 cookResident 期間 pull 這些 emit→讀到**前一幀**值（sw forward push-cook 本質，TiXL 是 pull-graph 無此問題）。② `latent-stale-points-off-display-subtree`——`outBuf` 無 per-frame invalidation＋resident cook 是 target-driven（只 cook 顯示子樹）→Points src 在顯示子樹外的 PointToMatrix 讀到 stale 前幀 buffer（non-null 錯 count）非 identity。**goldens 用 stub accessor 不覆蓋 multi-frame consumer path**——consumer rail 開工前這兩條要先解。
+**none — 2026-06-28 自走 turn 兩批皆收，tree clean（HEAD `a01467e`，--bite 510 / FAILED=[]，census 457/749）。**
+- **批1（菜單①）vec4/Color 家族收尾 `[G]`（`c32eed9`）**：scout 揭穿前提 stale——5 顆裡 4 顆早已 BUILT（RgbaToColor/Vector4Components/DotVec4/PickColor）、vec4-spread 縫早已 shipped；真正剩的只有 **PickColorFromList**（ColorList-consumer→host-value(vec4)-emit 跨 rail，非 vec4-spread）→建完，golden 對手算 TiXL floor-Mod + bug=RED + --bite 510；fork-pickcolorfromlist-empty-is-zero 照 PickFloat 兄弟。同批照 [[sw-groundtruth-writeback-rule]] 寫回 5 條 stale label。**vec4/Color 家族＝完整。**
+- **批2（菜單②）imgui 頂部選單列 `[Y]`（`a01467e`）**：B 軌 menu-bar gap→DONE（ui_census 自動 flip）。`ui/menu_bar.cpp` File/Edit/View 對齊 TiXL AppMenuBar，資料驅動。fork-menubar-imgui-primary-nsmenu-minimal-appmenu（NSMenu 留作 Cmd-N/O/S/W/Q key-equiv 載體）。eye-hand map.json 證三 header rect 在頂條未遮擋；快捷鍵仍 fire。**已落「待柏為驗收」佇列。下一棒撿菜單 ③ 或更大 `[Y]` 縫。**
+- **★建構陷阱（批1 真縫）**：`evalResidentFloat` 的 `!evaluate` readback 回 `extOut[i]`，i 是 port 在 `s->ports` 的**全索引（含 inputs）**非 0-based output index → `Selected.x/.y/.z/.w` 在 spec index **2..5**（Input(0)/Index(1) 在前），cook 必須寫 `extOut[2..5]` 非 `[0..3]`。任何 host-value-emit op 都要從 spec 算 output-port→extOut-slot 映射（PickColor 同註）。
+- **★eye-hand 限制（批2 發現）**：in-process 合成 hand **點不開 `BeginMainMenuBar` 選單**（同 hand 能開 `BeginPopup`，470 row Add-Node 已證）=imgui main-menu-bar input-stack 與合成 hand 的 quirk，非碼缺陷。menu-bar 類 UI 的 load-bearing 證明＝map.json rect 斷言，dropdown 點擊是 best-effort。
 - **★★兩條 NAMED LATENT RISK（今天 inert，0 forward consumer；柏為建 PointToMatrix→camera consumer rail 時必先讀）**：① `latent-pointvalue-emit-one-frame-late`——新 pass 寫在 cookResident 後、其餘 emit pass 寫在前；未來若有 in-graph consumer 在 cookResident 期間 pull 這些 emit→讀到**前一幀**值（sw forward push-cook 本質，TiXL 是 pull-graph 無此問題）。② `latent-stale-points-off-display-subtree`——`outBuf` 無 per-frame invalidation＋resident cook 是 target-driven（只 cook 顯示子樹）→Points src 在顯示子樹外的 PointToMatrix 讀到 stale 前幀 buffer（non-null 錯 count）非 identity。**goldens 用 stub accessor 不覆蓋 multi-frame consumer path**——consumer rail 開工前這兩條要先解。
 - **★★方法論鐵律（柏為 2026-06-27 定，根因修）：seam 開採前必 ground-truth scout；scout 揪出 stale label（已建/真數/依賴）後**必立刻派 plan-update subagent 寫回 `tools/seam_map.tsv`+census docs**，否則每 session 重栽同坑、差點重蓋已建縫（一晚 6+ 次）。scout→write-back→build，漏寫回=下次重栽。[[sw-groundtruth-writeback-rule]]**
 
 ## 待柏為驗收（PENDING BAIWEI-VERIFY）
 > `[Y]` 任務自走做完後落這裡，柏為回場一次批次驗收。每項格式＝**做了什麼 + commit hash + 怎麼驗（scenario 名/截圖路徑/一句肉眼判準）+ 機器閘狀態（golden/refuter/--bite）**。**驗收非阻塞：agent 落這裡後直接接下一個 `[Y]`/`[G]`，不等柏為。** 柏為驗過的項移到 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)。
-- （空——尚無自走 `[Y]` 完成項。第一個 `[Y]` 任務完成時填入。）
+- **imgui 頂部選單列 File/Edit/View（`a01467e`，2026-06-28）** — 做了什麼：新 `ui/menu_bar.cpp` BeginMainMenuBar，File（New/Open/Save/Save As 複用 doc action）/Edit（Undo/Redo）/View（chrome 與視窗 toggle），對齊 TiXL `AppMenuBar.cs`。NSMenu 縮成 Cmd-N/O/S/W/Q key-equiv 載體（fork-menubar-imgui-primary-nsmenu-minimal-appmenu）。**怎麼驗**：開 app 看頂條（截圖 `artifacts/menubar_topstrip.png`）；肉眼判準＝① 頂條 File/Edit/View 三項在不在、② 字級/高度/padding 像不像 TiXL（截圖看到 glyph 頂端略被切，menu-bar 高度/padding 可能要調）、③ View 選單那幾項該綁哪些視窗（目前綁 Assets/Variation/Theme + Toggle-All/Fullscreen/Focus，TiXL 是 Main Menu/Title/Minimap/Toolbar/Timeline，sw 無全對應→agent 選了現有的，你可改）。**機器閘**：--bite 510 全綠無回歸、check-arch OK、eye-hand map.json 證三 header rect 在頂條未遮擋、Cmd-N/O/S 仍 fire。**待你簽**：高度/padding 觀感 + View 綁哪些視窗。
 
 ## Conflict Register
 - **（已解）MV 工單 +66 行收進 main（`2765fe4`）**：先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
@@ -54,7 +56,7 @@ STAMP_AT: 2026-06-28T23:18
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `c32eed9`，--bite 510，census 457/749（61%）。**★狀態：2026-06-28 自走批次完成 vec4/Color 家族（PickColorFromList，菜單 ①）+ 5 條 stale-label write-back，零未 commit。下一棒撿菜單 ② B 軌 menu-bar `[Y]`（推薦，純皮 Tier1 drain B-track）或 ③ Command ctx-var 縫 `[G]`。皆 autonomous 非柏為域。**
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `a01467e`，--bite 510，census 457/749（61%）。**★狀態：2026-06-28 自走 turn 兩批皆收（菜單① vec4/Color 家族 `c32eed9` + 菜單② imgui menu-bar `a01467e`），零未 commit。第一個 `[Y]` 落「待柏為驗收」佇列（menu-bar 高度/padding + View 綁窗待簽）。下一棒撿菜單 ③ Command ctx-var `[G]`，或開更大 `[Y]` 縫（device-IO/loaders `[G]` ~30-40 顆 load round-trip golden 機器可驗＝高產能 autonomous lane，建議 scout）。**
 - **autonomous 菜單（解鎖÷風險排序，全已 ground-truth）**：
   - **✅ ① vec4/Color host-value output 家族＝DONE（`c32eed9` 2026-06-28）**——scout 揭穿前提 stale：4 顆早已 BUILT，只剩 PickColorFromList（非 vec4-spread 縫，是 ColorList-consumer→host-value(vec4)-emit）→已建完，--bite 510。**家族完整。**
   - **② B 軌 menu-bar＝`[Y]`（★推薦下一個）**——最後一條乾淨純皮 `ui/` Tier1 skin gap（top menu bar vs floating Toolbar）；自走做完→eye-hand 截圖 + ui_census→落待驗收佇列（UI 觀感柏為事後驗）。註：柏為 decision queue 有「menu-bar chrome 範式 native-NSMenu vs TiXL-imgui」一條——預設照 TiXL（imgui menu bar），不選 native。
