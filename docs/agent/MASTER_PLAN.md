@@ -5,6 +5,12 @@
 > **開頭定位**：跑 `tools/sw_status.sh`（三區 ① LIVE git+census 現測 / ② STAMPED@結帳 bite / ③ HAND 手寫接力）。**結帳**：`sw_status.sh --stamp <bite PASS>` 蓋章 + 手寫更新下方 Active Lane/Conflict/Next + `--check` 過閘。舊 snapshot 在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)。
 >
 > **★★範圍閘（柏為 2026-06-27 21:24 拍板）：TiXL clone 完成前，不開 TiXL-absent 的全新能力。** clone 仍進行時，分岔出 parity 軸的新方向對目前的模樣太有風險（①動到還在變的 cook-core 跟 clone 互踩，同 P2 ②TiXL-absent 能力沒有 TiXL 當 ground-truth＝柏為退出視覺驗證後機器驗證的唯一錨點，golden 體系對它失效）。**判準＝這能力 TiXL 源碼有沒有對應物**：有＝parity 軸（clone 中照做，例 audio-reactive/BpmDetection port 自 TiXL）；沒有＝等 clone 完（例 AI segmentation 節點、真 audio 引擎整合 Ableton/scsynth 子進程+OSC）。劃錯雙向都錯：別把 port-TiXL 誤擋成新能力（白停產能），別把 TiXL-absent 誤當 parity 放行。AI segmentation 方向已壓（即時節點 framing 撞決定性 export+golden 體系，正解＝離線 mask 生成存檔當固定 input；定案前需 spike 真 footage）＝典型「等 clone 完」項。
+>
+> **★★自走/驗收政策（柏為 2026-06-28 22:29 拍板：「不要每次都在等我在場，我等你做完再慢慢驗」）：柏為預設 ABSENT，agent 自走做完、事後批次驗收。** 每個任務標三類之一：
+> - **`[G｜自走-機器閘]`**：golden byte-identical + refuter + `--bite` + check-arch 全綠＝完成，零柏為介入，直接 commit。
+> - **`[Y｜自走-事後視覺驗]`**：機器閘守正確性，但有機器測不到的觀感/手感→自走做完+截圖/scenario→落「## 待柏為驗收」佇列→柏為回場一次掃。**做完不等驗收，直接接下一個；驗收非阻塞。**
+> - **`[R｜預先拍板]`**：TiXL 無對應物的設計分岔、選錯難回頭→必須柏為先選方向。**因範圍閘＋「分岔預設照 TiXL」，clone 完成前這類趨近空**（TiXL 有=照抄不需拍板；TiXL 無=範圍閘擋到 clone 後）。標 `[R]` 前先自問「照 TiXL 是否就有答案」，是＝其實是假 R，降 G/Y。
+> 判準預設照 TiXL（[[baiwei-direct-decide-tixl-default]]）；G/Y 不確定的標 `[?待scout]`，自走 session 先 ground-truth scout 再定（方法論鐵律）。**標籤是 agent 自填自走的，不是等柏為確認的；柏為事後看 plan 可否決任何分類。**
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
@@ -25,6 +31,10 @@ STAMP_AT: 2026-06-27T18:26
 - **★★兩條 NAMED LATENT RISK（今天 inert，0 forward consumer；柏為建 PointToMatrix→camera consumer rail 時必先讀）**：① `latent-pointvalue-emit-one-frame-late`——新 pass 寫在 cookResident 後、其餘 emit pass 寫在前；未來若有 in-graph consumer 在 cookResident 期間 pull 這些 emit→讀到**前一幀**值（sw forward push-cook 本質，TiXL 是 pull-graph 無此問題）。② `latent-stale-points-off-display-subtree`——`outBuf` 無 per-frame invalidation＋resident cook 是 target-driven（只 cook 顯示子樹）→Points src 在顯示子樹外的 PointToMatrix 讀到 stale 前幀 buffer（non-null 錯 count）非 identity。**goldens 用 stub accessor 不覆蓋 multi-frame consumer path**——consumer rail 開工前這兩條要先解。
 - **★★方法論鐵律（柏為 2026-06-27 定，根因修）：seam 開採前必 ground-truth scout；scout 揪出 stale label（已建/真數/依賴）後**必立刻派 plan-update subagent 寫回 `tools/seam_map.tsv`+census docs**，否則每 session 重栽同坑、差點重蓋已建縫（一晚 6+ 次）。scout→write-back→build，漏寫回=下次重栽。[[sw-groundtruth-writeback-rule]]**
 
+## 待柏為驗收（PENDING BAIWEI-VERIFY）
+> `[Y]` 任務自走做完後落這裡，柏為回場一次批次驗收。每項格式＝**做了什麼 + commit hash + 怎麼驗（scenario 名/截圖路徑/一句肉眼判準）+ 機器閘狀態（golden/refuter/--bite）**。**驗收非阻塞：agent 落這裡後直接接下一個 `[Y]`/`[G]`，不等柏為。** 柏為驗過的項移到 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)。
+- （空——尚無自走 `[Y]` 完成項。第一個 `[Y]` 任務完成時填入。）
+
 ## Conflict Register
 - **（已解）MV 工單 +66 行收進 main（`2765fe4`）**：先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
 - 工作1/工作2 零未解衝突（島7 單線 cook-core 已收，tree clean）。**無未解衝突**。
@@ -34,7 +44,7 @@ STAMP_AT: 2026-06-27T18:26
 ## Session Safety
 - **★結帳前必 rebuild 再 --bite（本批踩）**：`tools/run_all_selftests.sh --bite` 跑的是 `app/build/simple_world` **既有 binary**（只有「binary 不存在」才報錯，stale binary 靜默跑舊）→ merge 完直接 --bite 會拿到舊數字（本批看到 474 該是 478，差點誤蓋章）。合流後順序＝`cmake --build app/build -j8` → `--bite` → `--stamp`。
 - 另有 parked worktree `.worktrees/ui-node-skin`（branch `ui/tixl-node-skin` @ `fd542f5`）= 舊 L2 node-skin lane，未合流，**別當死的清掉**。
-- 柏為 2026-06-26 01:09 回場下令「需我在場的工作你先做、不等我、自走到我喊停」→ 結果 S2 脊椎查出早已蓋好，present-requiring 阻塞自動消解 → 轉做 S2 殘餘 image-leaf fan-out（absent-safe）。**S2/S3 脊椎已建，不必再等授權重開**；真正剩的 owner-lock 縫＝S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫——這些才需柏為在場。
+- 柏為 2026-06-26 01:09 回場下令「需我在場的工作你先做、不等我、自走到我喊停」→ 結果 S2 脊椎查出早已蓋好，present-requiring 阻塞自動消解 → 轉做 S2 殘餘 image-leaf fan-out（absent-safe）。**S2/S3 脊椎已建，不必再等授權重開**；真正剩的 owner-lock 縫＝S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫——這些才需柏為在場。**（→ 2026-06-28 政策已 override：這些重分類為 `[Y]` 自走-事後視覺驗，不需預先在場，見頂部「自走/驗收政策」。此句為 dated record。）**
 - **worktree 隔離教訓**：派並行 build agent 要在 Agent 呼叫上設 `isolation:worktree`；只在工單寫 `agent_worktree_setup.sh` 而不設 flag → 無 worktree 可 ff → 全跑進 main checkout 共用樹（本批 4 agent 都落 main，幸好 self-registering 零共享檔+建置非同時才無損）。見 [[worktree-base-main-trap]]。
 - **拆檔狀態（ratchet headroom）**：✅`output_window.cpp`（301）/✅`editor_ui.cpp`（263）/✅`document.cpp`（`b053941` 400→**31**，解鎖 folder-package-save，chip `task_19264e66` 可關）/✅`point_graph.h`（已拆 cook_ctx）都有餘量。**仍卡無 headroom**：`point_ops.h`@553 grandfather cap（SP 本批靠 trim 註解才容下，再加 point-op 前須拆或騰空間）。**拆檔紀律：拆+裝/降 ratchet 綁一起 [[gate-or-it-rots]]。**
 - **merged worktree 都已清**（本 session 十 lane 的 worktree+branch 已清；`review/mv-plan-fixer-addition` 已收進 main 並刪）。**保留** `.worktrees/ui-node-skin`（未合流，故意）。其餘 `worktree-agent-*` 老分支動前先查未合流。
@@ -45,18 +55,24 @@ STAMP_AT: 2026-06-27T18:26
 ## Next Handoff Sentence
 下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `bfe5b88`，--bite 509，census 456/749（61%）。**★狀態：autonomous 雙軸觸底 + checkpoint（context 衛生交棒）。cook-core spine（柏為 #1）+ B 軌 port-drag-filter 收尾，零未 commit。下一棒照下方 autonomous 菜單接（解鎖÷風險排序），三條都 autonomous 非柏為域。**
 - **autonomous 菜單（解鎖÷風險排序，全已 ground-truth）**：
-  - **① vec4/Color host-value output 縫**——autonomous-buildable，解鎖 PickColorFromList/PickColor/Vector4Components/RgbaToColor/DotVec4 一族；先例＝SampleGradient 把 color 攤成 4 個 Float output port；縫＝教 evalFloat/evalResidentFloat gather 一個 ColorList/Vector4 input、把其分量攤上 4 個 output port。（PickColorFromList 此 session 試採→honest BLOCKED 卡這條縫。）
-  - **② B 軌 menu-bar**——最後一條乾淨純皮 `ui/` Tier1 skin gap（top menu bar vs floating Toolbar），eye-hand + ui_census 驗。
-  - **③ Command ctx-var 縫**——medium，SetXxxVarCmd command-rail SubGraph scope（Set{Float,Vec3,String}Var 的延後那半），低值。
+  - **① vec4/Color host-value output 縫＝`[G]`（★推薦第一個自走任務）**——autonomous-buildable，解鎖 PickColorFromList/PickColor/Vector4Components/RgbaToColor/DotVec4 一族；先例＝SampleGradient 把 color 攤成 4 個 Float output port；縫＝教 evalFloat/evalResidentFloat gather 一個 ColorList/Vector4 input、把其分量攤上 4 個 output port。（PickColorFromList 此 session 試採→honest BLOCKED 卡這條縫。）value-output 是 Float port，golden byte-identical 機器全驗→零柏為。
+  - **② B 軌 menu-bar＝`[Y]`**——最後一條乾淨純皮 `ui/` Tier1 skin gap（top menu bar vs floating Toolbar）；自走做完→eye-hand 截圖 + ui_census→落待驗收佇列（UI 觀感柏為事後驗）。
+  - **③ Command ctx-var 縫＝`[G]`**——medium，SetXxxVarCmd command-rail SubGraph scope（Set{Float,Vec3,String}Var 的延後那半），低值。
 - **★效能優先項目（柏為 2026-06-27 指定，按 ROI 排序）**：
   - **✅ P1 PSO 快取接線（DONE `5c22f7f` 2026-06-27，--bite 509）**——51 個 point op cook site 從每幀 `newComputePipelineState` 改走 device-global `cachedComputePSO`（`tex_op_cache.cpp:203`）；同 kernel 只建一次 PSO。**+48 個自建-device selftest 補 `clearTexOpCache()`**（cook 路徑現在把 PSO 存進 process-global cache → selftest device teardown 前不清 = 跨-device UAF；既有 field selftest 契約，device 建立前清）。particle_system/pointtrail/pointtrailfast 用 pre-cached SimState/ring，正確跳過。淨 -146 行。工法：canonical(addnoise)親驗→Workflow 50 檔 fan-out(transform→refuter)→中央合 build。試壓全 golden byte-identical。
   - **P2 批次 GPU 提交 / 移除誤植 per-op wait**（中，142 個 point op 各自 `commit()+waitUntilCompleted()` → 一幀一個 command buffer 末端一次 commit；需穿 `PointCookCtx`）。**★延後到 TiXL clone 完成後再做（柏為 2026-06-27 21:02 拍板）**——現在接會讓 cook-core 碼亂、clone 仍進行中。**診斷已驗證為真債**：per-op `waitUntilCompleted` 是 clone TiXL 時把「selftest readback 才需要的 wait」誤植進 production cook body（已對碼證實：filterpoints/clearsomepoints 等 production readback 全 `g_cap*`-gated = selftest-only，production wait 後不讀 = 純浪費；TiXL 不 per-op sync，整條鏈靠 driver hazard tracking）。**那個 session 已試寫 helper（`cook_wait.{h,cpp}` defer-sync 切換點）但已回退**（untracked/未接線/未進 build，且 header 自稱 `--benchmark-hazard 已實測` 為假 = working-tree 地雷，已移除以防 autonomous 誤接）。**正確順序（非直接接 helper）**：(1) 先 profile 證 wait 真佔可觀幀時間（目前零數字＝否則憑信仰優化）；(2) 寫 `--benchmark-hazard` 證 Metal 同 queue **跨 command buffer** 對 shared-storage buffer 的 hazard ordering 足夠（每 op 獨立 cmdbuf；defer 後跨 cmdbuf 讀寫順序靠這個，golden 單 op 隔離測不到整鏈同幀 race）；(3) 證明後才接線。詳 `DEBT_LEDGER.md §B`。
   - **P3 dirty-flag 接線**（中，`pullResidentFloat`+`bumpLiveSources` 已在 `resident_eval_cache.cpp:196-244` 建好測好，接進 production eval path；MV 調參有感，VJ 幫助有限）
   - **P4 增量 patch 接線**（大，`patchSetConstant`/`patchAddConnection` 等 10 個函式已建好測好，接上後使用者拖滑桿 → 只增量更新不全重建；這是真正解決 push 全刷的那把鑰匙）
   - **注意**：P1+P2 讓全刷**變便宜**；P3+P4 讓全刷**變少**。做完 P1+P2 後 push 的「float 改一個全重算」問題**仍存在**，只是代價更低。P3+P4 才真正解決這個問題。
-- **柏為域（NOT autonomous，需他架構拍板）**：**point-into-frame value-emit consumer rail**（決定文件 `docs/agent/VALUE_EMIT_CONSUMER_RAIL_DECISION.md`，方案 A 已定，三件套：forced-cook+1-frame settle+scope-correct；先做 P1/P2 後再開）／camera object / ICamera ／3D-render Command tail（~40-60）／PointSimulation pool ABI（~15-25）／device-IO / loaders（~30-40）。
+- **過去「柏為域」重新分類（柏為 2026-06-28 政策：拆成機器閘/事後驗/預先拍板，無一項需預先在場）**：
+  - **value-emit consumer rail＝`[Y]`**（方案 A 已拍板，決定文件 `VALUE_EMIT_CONSUMER_RAIL_DECISION.md`：forced-cook+1-frame settle+scope-correct；剩 line 25 兩條 latent-risk 是技術前置非品味→自走解+接 consumer；事後驗 PointToMatrix→camera 視覺結果）
+  - **camera object / ICamera＝`[Y]`**（照 TiXL schema；sw forward-push vs TiXL pull-graph 的 adaptation 是技術判斷→自走，事後驗 camera 手感）
+  - **3D-render Command tail（~40-60）＝`[Y]`**（render→觀感，自走，事後驗畫面）
+  - **PointSimulation pool ABI（~15-25）＝`[Y]`**（照 TiXL ABI，粒子行為 golden 守正確、觀感事後驗）
+  - **device-IO / loaders（~30-40）＝`[G]`**（load round-trip golden 機器可驗，照 TiXL 格式；dict-ctx producer 在此）
+  **無一項 `[R]`——都不需柏為預先在場，`[Y]` 做完落「## 待柏為驗收」佇列。** value-emit/camera 動 cook-core，照方法論鐵律先 scout + 4 島守門綠 + refuter。
 - **★方法論硬規（stale label 反覆踩過）**：seam 開採前**必先 ground-truth scout**，seam_map「解鎖量」不可信。每個 sub-seam 配 CPU-readback golden（debugCookedBuffer）+ injectBug + refuter；碰 cook-core driver 的必驗 4 島守門綠。scout 揪出 stale label 後**必立刻寫回 SSOT**（[[sw-groundtruth-writeback-rule]]）。
-- **★仍需柏為 routing/greenlight（真 owner-lock）**：reduction 縫（PointsOnImage，GPU-determined output count，1 op 低值）／resident list-state slot（AmplifyValues/Damp/Keep/Merge*）／ContextVarMap string/object 通道／string-value（前置 close `task_32b5b6e5` [[sw-string-rail-resident-gate]]）／字面 matrix cook-type（camera family）／dict-ctx（死在 device-IO producer，你的域）。
+- **過去「需 routing/greenlight」重新分類（同政策，全部非 `[R]`）**：reduction 縫(PointsOnImage GPU-determined count,1op 低值)＝**`[G]`**／resident list-state slot(AmplifyValues/Damp/Keep/Merge*)＝**`[G]`**／ContextVarMap string/object 通道＝**`[G]`**(DEBT_LEDGER `contextvar-channel-sub-seam`)／**string-value＝`[G]`，gate 已解**(前置 `task_32b5b6e5` resident string-wire 已 **CLOSED `0bb25e2`**，string Phase C OPEN；舊標「前置 close」=stale，[[sw-string-rail-resident-gate]] 已過時)／字面 matrix cook-type(camera family)＝**`[Y]`**／dict-ctx＝**`[?待scout]`**(死在 device-IO producer→先 scout 是否 `[G]`)。
 - **★策略問柏為（適時）**：clone 61%，剩 sub-seam grind vs pivot MV-tooling（你的真 target [[simple-world-real-target-mv-tooling]]）——你定。
 - **不需大縫的零星自走（若要 loop 不停可撿）**：B 軌 `ui_census --gaps` 純皮零星（多卡 output_window/encoder/抽介面）；維運 chip（seam_map 重校 `task_5aa45438`、ui_census false-neg `task_a47c8f98`、memory shrink `task_2487de3c`）；CTE/SP/RO 低優先 polish。**但這些是邊角，非承重——大方向等柏為 routing。**
 **剩餘 owner-lock 縫（需柏為在場）**：S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field G3-bridge）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫（GlitchDisplace 家族）、生成器 t1 asset-bind 縫（NumberPattern/digit-atlas）。C 桶葉子（多影像/depth/compute/asset/field→image）卡這些縫。
