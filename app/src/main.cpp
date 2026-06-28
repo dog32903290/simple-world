@@ -423,6 +423,7 @@ void Renderer::draw(MTK::View* pView) {
     // Shift+Esc collapse them; the canvas above keeps editing/navigation alive (Focus Mode is a
     // reversible in-editor state, modes.md [important]).
     if (sw::ui::editorChromeVisible()) {
+      sw::ui::drawMenuBar();        // imgui top menu bar (File/Edit/View) — drawn first = top strip
       sw::ui::drawToolbar();        // New/Open/Save/Save As + Add Node (floating)
       sw::ui::drawInspector();      // floats on top
       sw::ui::drawTimelineWindow(); // S3 dope-sheet (animator lanes + playhead + key gestures)

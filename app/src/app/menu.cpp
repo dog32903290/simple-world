@@ -1,6 +1,17 @@
-// app/menu — the app's menu bar, defined as data tables.
+// app/menu — the macOS NATIVE NSMenu, defined as data tables.
 // Zone: app. One row per menu item; a builder turns tables into NSMenus.
 // Adding a menu item = add one row below. No per-item boilerplate.
+//
+// FORK (named: fork-menubar-imgui-primary-nsmenu-minimal-appmenu): the user-facing menu content
+// (File/Edit/View) now lives in the imgui top menu bar (ui/menu_bar.cpp, = TiXL AppMenuBar.cs).
+// TiXL is not a macOS app and has no native menu, so 照TiXL does not cover the NSMenu question.
+// We KEEP a MINIMAL NSMenu because macOS expects it (Cmd-Q is a system convention) AND because the
+// File/Window key-equivalents below are the ONLY binding for Cmd-N/O/S/Shift-S/W — imgui MenuItem
+// shortcut strings are display-only and register no handlers, and keymap.cpp does not bind these.
+// So the File + Window submenus stay as HIDDEN KEY-EQUIVALENT CARRIERS (their VISIBLE content is
+// duplicated in the imgui bar). The redundant View submenu was dropped (its Fullscreen is bound by
+// keymap F11 + the imgui View menu). This is TiXL-shaped (imgui bar primary) AND macOS-correct, and
+// is fully reversible (re-add addSubmenu rows to restore any NSMenu submenu).
 #include "app/menu.h"
 
 #include "app/document.h"
@@ -77,7 +88,7 @@ const MenuItemDef kWindowMenu[] = {
 // P6 OS-fullscreen (modes.md [polish]): one item in a new View submenu.
 // Key equivalent "^$f" = Ctrl+Cmd+F (macOS convention for Enter Full Screen).
 // F11 is also bound via keymap.cpp (handleOsFullScreen) as the TiXL-parity shortcut.
-const MenuItemDef kViewMenu[] = {
+[[maybe_unused]] const MenuItemDef kViewMenu[] = {
     {"Enter Full Screen", "f", Cmd | NS::EventModifierFlagControl, "viewFullscreen",
      [](void*, SEL, const NS::Object*) { sw::platform::toggleOsFullScreen(); }},
 };
@@ -86,17 +97,17 @@ const MenuItemDef kViewMenu[] = {
 
 NS::Menu* buildMainMenu() {
   NS::Menu* mainMenu = NS::Menu::alloc()->init();
+  // Minimal NSMenu per the fork above: App (Quit) + File/Window key-equivalent carriers. The View
+  // submenu is intentionally NOT assembled — kViewMenu (Enter Full Screen) stays in the table for
+  // reversibility but its Fullscreen is reachable via keymap F11 and the imgui View menu.
   NS::Menu* appMenu = buildMenu("simple_world", kAppMenu);
-  NS::Menu* fileMenu = buildMenu("File", kFileMenu);
-  NS::Menu* viewMenu = buildMenu("View", kViewMenu);
-  NS::Menu* windowMenu = buildMenu("Window", kWindowMenu);
+  NS::Menu* fileMenu = buildMenu("File", kFileMenu);  // carries Cmd-N/O/S/Shift-S key equivalents
+  NS::Menu* windowMenu = buildMenu("Window", kWindowMenu);  // carries Cmd-W key equivalent
   addSubmenu(mainMenu, appMenu);
   addSubmenu(mainMenu, fileMenu);
-  addSubmenu(mainMenu, viewMenu);
   addSubmenu(mainMenu, windowMenu);
   appMenu->release();
   fileMenu->release();
-  viewMenu->release();
   windowMenu->release();
   return mainMenu->autorelease();
 }
