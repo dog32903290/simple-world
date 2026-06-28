@@ -14,11 +14,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: d1e66be
-DIRTY: clean
+HEAD: 701b2a1
+DIRTY: 1 files
 CENSUS: 461 / 749 done
-BITE: 515 PASS
-STAMP_AT: 2026-06-29T02:20
+BITE: 516 PASS
+STAMP_AT: 2026-06-29T02:53
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -39,7 +39,7 @@ STAMP_AT: 2026-06-29T02:20
 
 ## 待柏為驗收（PENDING BAIWEI-VERIFY）
 > `[Y]` 任務自走做完後落這裡，柏為回場一次批次驗收。每項格式＝**做了什麼 + commit hash + 怎麼驗（scenario 名/截圖路徑/一句肉眼判準）+ 機器閘狀態（golden/refuter/--bite）**。**驗收非阻塞：agent 落這裡後直接接下一個 `[Y]`/`[G]`，不等柏為。** 柏為驗過的項移到 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)。
-- **menu-bar 改 native-only（`5ee250f`，柏為 2026-06-29 現身拍板，推翻 a01467e imgui 版）** — macOS 上 a01467e 的 in-window imgui bar 與 OS 最頂 native bar 重複兩層＝macOS-wrong。已改成只用 native NSMenu、補完整 App/File/Edit/View/Window（Edit=Undo/Redo；View=Assets/Variation/Theme 視窗+Toggle-All+Focus+Fullscreen，經 ui→app fn-ptr seam）。**怎麼驗**：開 app，肉眼看螢幕**最頂**那條 native bar 點開 File/Edit/View 內容對不對（視窗內已無 imgui 條，截圖 `artifacts/menubar_native_only_014658.png` 證視窗乾淨）。**機器閘**：--bite 514 無回歸、check-arch 綠、map.json native_menu_items 證 Edit/View 項出現、Cmd-N/O/S/Z 仍 fire。**待你簽 + 待定**：① native bar 內容 OK 嗎 ② View 選單綁哪些視窗（目前 Assets/Variation/Theme+全UI+Focus+全螢幕，你可改）③ **checkmark TODO**：視窗 toggle 點了會動但選單不顯示打勾（vendored metal-cpp 無 setState/menu-validation hook）——要補嗎？
+- **menu-bar 改 native-only（`5ee250f`，柏為 2026-06-29 現身拍板，推翻 a01467e imgui 版）** — macOS 上 a01467e 的 in-window imgui bar 與 OS 最頂 native bar 重複兩層＝macOS-wrong。已改成只用 native NSMenu、補完整 App/File/Edit/View/Window（Edit=Undo/Redo；View=Assets/Variation/Theme 視窗+Toggle-All+Focus+Fullscreen，經 ui→app fn-ptr seam）。**怎麼驗**：開 app，肉眼看螢幕**最頂**那條 native bar 點開 File/Edit/View 內容對不對（視窗內已無 imgui 條，截圖 `artifacts/menubar_native_only_014658.png` 證視窗乾淨）。**機器閘**：--bite 516 無回歸、check-arch 綠、map.json native_menu_items 證 Edit/View 項出現、Cmd-N/O/S/Z 仍 fire。**checkmark ✅已補（`701b2a1`，柏為授權）**：View 視窗 toggle 顯示打勾反映開關狀態（NSMenu menuNeedsUpdate delegate + setState，binding 在 tracked `platform/menu_appkit_ext`，非 vendored）；--selftest-view-menu-state 證資料路徑，OS 側打勾渲染待你肉眼。**待你簽**：① native bar 內容 OK 嗎 ② View 選單綁哪些視窗（目前 Assets/Variation/Theme+全UI+Focus+全螢幕，你可改）③ 打勾顯示對不對。
 
 ## Conflict Register
 - **（已解）MV 工單 +66 行收進 main（`2765fe4`）**：先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
