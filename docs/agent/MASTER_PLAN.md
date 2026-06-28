@@ -14,11 +14,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 5c50631
+HEAD: 8eea376
 DIRTY: clean
-CENSUS: 460 / 749 done
-BITE: 513 PASS
-STAMP_AT: 2026-06-29T00:27
+CENSUS: 461 / 749 done
+BITE: 514 PASS
+STAMP_AT: 2026-06-29T01:23
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -26,9 +26,11 @@ STAMP_AT: 2026-06-29T00:27
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none — 2026-06-29 00:27 自走批：device-IO loaders 首批 3 顆乾淨葉 `[G]`，tree clean（HEAD `5c50631`，--bite 513 / FAILED=[]，census 460/749）。**
-- **本批（device-IO lane 開張）`[G]`（`5c50631`）**：ReadFile / FilesInFolder / GetAttributeFromJsonString——3 顆乾淨葉零新縫（騎已建 String/StringList flat-cook rail，仿 string_ops_filepathparts 兄弟）。golden hermetic byte-exact + bug-leg --bite 咬（510→513，NO-BITE 仍只 detectbpm）。JSON 顆過 refuter=MERGE-SAFE。同批寫回 seam_map io-file/io-json carve-out（脫 device-io 桶）+ dict-ctx 釐清。**NIT chip `task_6363d628`：JSON number-stringification fork 註解過度宣稱（exponent/decimal/culture 邊角），非阻塞。**
-- **上一 turn（2026-06-28）兩批**：菜單① vec4/Color 家族收尾（`c32eed9`，PickColorFromList，家族完整）+ 菜單② imgui menu-bar `[Y]`（`a01467e`，B 軌 gap→DONE，落待驗收佇列）。詳見 [MASTER_PLAN_HISTORY.md] 或 commit。
+**none — 2026-06-29 01:23 自走批：OBJ parser seam + LoadObjAsPoints `[G]`，tree clean（HEAD `8eea376`，--bite 514 / FAILED=[]，census 461/749）。**
+- **本批（device-IO OBJ 子-lane 開張）`[G]`（`8eea376`）**：scout 揭穿前提 stale——sw 早有 mesh rail（DrawMeshUnlit 已 draw）+ points rail。`obj_parse.{h,cpp}`（純 runtime，仿 checked-out ObjMesh.cs）+ `obj_parse_distinct.cpp`（dedup+TBN，**未接線 infra 為未來 LoadObj**）+ `pointlist_ops_loadobjaspoints.cpp`（raw positions/color-as-rotation quirk）。cook-core 小縫 `fork-pointlist-string-path-channel`（~10 行，refuter 證 regression-safe：gather skip 非-String port、resident null-safe）。golden 對手算 TiXL + bug-leg 咬（513→514）。refuter MERGE-SAFE。寫回 seam_map mesh-draw 拆 + OP_BACKLOG/render_mesh_point 4 grade。
+- **★latent risk（refuter，未來 LoadObj 接線前必解）**：`obj_parse_distinct.cpp:74-103` face-index deref **無界**→malformed .obj（out-of-range face idx）segfault。今無 call site 不咬；LoadObj 接線時必加 bounds guard（TiXL 靠 IndexOutOfRange→catch→return false 免費拿 bounds-safety，sw 要顯式 guard 讓 load 失敗）。**chip `task_b4797723`**（含此 guard + 2 條 obj_parse fork 註解 honesty 修）。
+- **NIT chip 待清**：`task_6363d628`（JSON number-stringification fork 註解）、`task_b4797723`（obj_parse guard+註解）。
+- **前幾批（2026-06-28~29）**：device-IO 首批 ReadFile/FilesInFolder/GetAttributeFromJsonString（`5c50631`）；菜單① vec4/Color 家族（`c32eed9`）；菜單② imgui menu-bar `[Y]`（`a01467e`，落待驗收）。詳見 history / commit。
 - **★durable trap（host-value-emit op）**：`evalResidentFloat` 的 `!evaluate` readback 回 `extOut[i]`，i 是 port 在 `s->ports` 的**全索引（含 inputs）**非 0-based output index → output port 要從 spec 算 output→extOut-slot 映射（PickColor/PickColorFromList 同註）。
 - **★durable：String/StringList rail = flat-cook，不進 resident graph**（string_op_registry.h:24）→ 這些 op 的 golden 只覆蓋 flat leg，多輸出受限（StringCookCtx 只帶 extraStrOutputs+scalarOutputs 單值，無 list-output sink；scalar sink outCache[3] 上限 3 個）。新 string/stringlist op 是 explicit CMake list 非 glob（合流要中央補行）。
 - **★eye-hand 限制（durable）**：in-process 合成 hand 點不開 `BeginMainMenuBar`（能開 `BeginPopup`）→ menu-bar 類 UI load-bearing 證明＝map.json rect 斷言，dropdown 點擊 best-effort。
@@ -57,10 +59,10 @@ STAMP_AT: 2026-06-29T00:27
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `5c50631`，--bite 513，census 460/749（61%）。**★狀態：device-IO loaders lane 開張，首批 3 顆乾淨葉收（`5c50631`），零未 commit。**
-- **device-IO lane 續採（scout 已 map，[G] 自走）**：① **WriteToFile**（io/file，file-write，非 round-trip 但同 rail）② **OBJ parser 縫**（NEW seam，med-risk：LoadObj/LoadObjAsPoints/LoadObjEdges，TiXL ObjMesh.TryLoadFromFile 有 distinct-vertex dedup+sort+tangent，手刻 parser 配 vertex-count/position golden 對 committed .obj，**自成一批**）③ **DataPointImportExport**（JSON+point-buffer-from-CPU，接 JSON seam 已開）。**deferred**：SVG（high-risk，.NET Svg lib 無 native 等價）/LoadDataClip（timeline island，柏為域）/network+device island（柏為裝置域）。
-- **或換 lane**：菜單③ Command ctx-var `[G]`（低值）；或更大 `[Y]` 縫（camera/3D-render/PointSim，皆已重分類 `[Y]` 自走-事後驗，動 cook-core 須先 scout + 4 島守門綠 + refuter）。
-- **dict-ctx 已釐清非此 lane**：無 file Dict producer，唯一 non-device opener=audio GetBeatTimingDetails（audio lane）。
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `8eea376`，--bite 514，census 461/749（61%）。**★狀態：device-IO OBJ 子-lane 開張，OBJ parser seam + LoadObjAsPoints 收（`8eea376`），零未 commit。**
+- **OBJ 子-lane 續採（obj_parse seam 已建，[G]）**：① **LoadObjEdges**（pointlist rail，同 LoadObjAsPoints 模式，unique-edge dedup，乾淨葉）② **LoadObj**（mesh rail 已存在＝NOT rail-blocked；但 count-before-cook 需 parse-cache 縫＝中等，且**接 obj_parse_distinct 前必先補 face-index bounds guard，見 latent risk / `task_b4797723`**）③ **WriteToFile**（io/file，file-write，同 String rail）④ **DataPointImportExport**（JSON+point-buffer，JSON seam 已開）。**deferred**：SVG/LoadDataClip/network+device island（柏為域）。
+- **或換 lane**：菜單③ Command ctx-var `[G]`（低值）；或更大 `[Y]` 縫（camera/3D-render/PointSim，動 cook-core 須先 scout + 4 島守門綠 + refuter）。
+- **dict-ctx 已釐清非 loader lane**：無 file Dict producer，唯一 non-device opener=audio GetBeatTimingDetails（audio lane）。
 - **autonomous 菜單（解鎖÷風險排序，全已 ground-truth）**：
   - **✅ ① vec4/Color host-value output 家族＝DONE（`c32eed9` 2026-06-28）**——scout 揭穿前提 stale：4 顆早已 BUILT，只剩 PickColorFromList（非 vec4-spread 縫，是 ColorList-consumer→host-value(vec4)-emit）→已建完，--bite 510。**家族完整。**
   - **② B 軌 menu-bar＝`[Y]`（★推薦下一個）**——最後一條乾淨純皮 `ui/` Tier1 skin gap（top menu bar vs floating Toolbar）；自走做完→eye-hand 截圖 + ui_census→落待驗收佇列（UI 觀感柏為事後驗）。註：柏為 decision queue 有「menu-bar chrome 範式 native-NSMenu vs TiXL-imgui」一條——預設照 TiXL（imgui menu bar），不選 native。
