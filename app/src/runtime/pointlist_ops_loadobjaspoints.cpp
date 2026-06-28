@@ -92,8 +92,11 @@ void cookLoadObjAsPoints(PointListCookCtx& c) {
   if (sorting >= 0 && sorting < 6) {
     int axis = kSortAxisAndDir[sorting].axis;
     int dir = kSortAxisAndDir[sorting].dir;
-    // .NET List.Sort with a comparator returning CompareTo*dir. std::stable_sort with the same predicate
-    // (CompareTo is a total order; the *dir flips direction). stable keeps ties in original index order.
+    // .NET List.Sort with a comparator returning CompareTo*dir. fork-loadobjaspoints-stable-sort-tieorder:
+    // .NET List<T>.Sort is UNSTABLE (introsort), so equal-axis vertices may land in a TiXL-different order;
+    // sw uses std::stable_sort, which keeps ties in original index order. Named fork — only observable when
+    // two+ vertices share the sort-axis value AND a non-Ignore Sorting is selected (the DEFAULT mode is
+    // Ignore = no sort, so this is usually moot).
     std::stable_sort(sortedVertexIndices.begin(), sortedVertexIndices.end(), [&](int a, int b) {
       float va = axisOf(mesh.positions[(size_t)a], axis);
       float vb = axisOf(mesh.positions[(size_t)b], axis);

@@ -516,6 +516,7 @@ add_executable(simple_world
   src/runtime/obj_parse.cpp                    # device-IO OBJ sub-lane: pure-CPU .obj text parser (ObjMesh.cs)
   src/runtime/obj_parse_distinct.cpp           # distinct-vertex dedup + TBN (for the later LoadObj; split per rule 4)
   src/runtime/pointlist_ops_loadobjaspoints.cpp # LoadObjAsPoints leaf (first obj_parse consumer + String-path channel)
+  src/runtime/pointlist_ops_loadobjedges.cpp   # LoadObjEdges leaf (2nd obj_parse consumer: unique face edges → from/to/sep triples)
   src/runtime/gizmo_geometry.cpp
   src/runtime/pointlist_ops_conegizmo.cpp
   src/runtime/pointlist_ops_drawlinegrid.cpp

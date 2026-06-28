@@ -34,14 +34,18 @@ std::vector<std::string> splitKeepEmpty(const std::string& s, char delim) {
 
 // float.Parse(token, InvariantCulture). strtof parses a standard "-1.5e2" decimal (the OBJ numeric form).
 // `ok` is set false if the token is empty or has no parseable number (mirrors float.Parse's FormatException
-// → the TryLoadFromFile catch → return false). Trailing garbage after a number is tolerated like .NET's
-// loose-ish parse of well-formed obj tokens (obj files do not put garbage after a coordinate).
+// → the TryLoadFromFile catch → return false). FAITHFUL: .NET float.Parse THROWS on trailing garbage
+// ("1.5x" → FormatException), so we reject it too — anything after the number that is not whitespace makes
+// the load fail (tokens are already space-split, so trailing whitespace is not expected, but .NET's parse
+// trims surrounding whitespace, so we allow trailing spaces for exact parity).
 float parseFloat(const std::string& tok, bool& ok) {
   if (tok.empty()) { ok = false; return 0.0f; }
   const char* b = tok.c_str();
   char* end = nullptr;
   float v = std::strtof(b, &end);
   if (end == b) { ok = false; return 0.0f; }  // no digits consumed → FormatException → load fails
+  while (*end == ' ' || *end == '\t') ++end;  // .NET trims surrounding whitespace
+  if (*end != '\0') { ok = false; return 0.0f; }  // trailing garbage → FormatException → load fails
   return v;
 }
 
@@ -131,6 +135,34 @@ bool objParseFromText(const std::string& text, ObjMesh& out) {
   }
 
   if (!ok) { out = ObjMesh{}; return false; }  // TryLoadFromFile catch → mesh discarded, return false
+
+  // BOUNDS GUARD (fork-objparse-bounds-fail-to-load): every face/line index must address an existing
+  // position / normal / texcoord. TiXL has no explicit check — it derefs Positions[face.V0] etc. inside
+  // TryLoadFromFile (InitializeVertices, ObjMesh.cs:277-290), so an out-of-range index throws
+  // IndexOutOfRangeException → the TryLoadFromFile catch → returns false (the LOAD FAILS). sw has no
+  // exceptions in the hot path, and the raw-position consumers (LoadObjAsPoints/LoadObjEdges) index
+  // mesh.Positions[face.V*] directly while the distinct path (obj_parse_distinct.cpp) indexes
+  // positions/normals/texCoords — ALL of which would segfault on an out-of-range index. So we validate up
+  // front and FAIL the load (NOT clamp — clamping would diverge from TiXL's load-fails behaviour).
+  const int posN = (int)out.positions.size();
+  const int normN = (int)out.normals.size();
+  const int texN = (int)out.texCoords.size();
+  auto inRange = [](int idx, int n) { return idx >= 0 && idx < n; };
+  for (const ObjFace& f : out.faces) {
+    // texCoords: a "v//n" face left texIdx=0; if the file has NO vt lines that index is still out of
+    // range. TiXL's InitializeVertices ensures >=1 texcoord (ObjMesh.cs:235) so texIdx 0 is always valid
+    // there — mirror that allowance: tex index 0 is OK even with zero vt (the distinct path appends one).
+    bool texOk = (f.v0t == 0 || inRange(f.v0t, texN)) && (f.v1t == 0 || inRange(f.v1t, texN)) &&
+                 (f.v2t == 0 || inRange(f.v2t, texN));
+    if (!inRange(f.v0, posN) || !inRange(f.v1, posN) || !inRange(f.v2, posN) ||
+        !inRange(f.v0n, normN) || !inRange(f.v1n, normN) || !inRange(f.v2n, normN) || !texOk) {
+      out = ObjMesh{};
+      return false;  // out-of-range face index → load fails (IndexOutOfRange → catch → false)
+    }
+  }
+  for (const ObjLine& l : out.lines) {  // "l" indices also deref Positions in TiXL's line path
+    if (!inRange(l.v0, posN) || !inRange(l.v2, posN)) { out = ObjMesh{}; return false; }
+  }
 
   // TiXL's success = DistinctDistinctVertices.Count != 0 (ObjMesh.cs:125). DistinctDistinctVertices is
   // built by InitializeVertices, which iterates FACES only (ObjMesh.cs:277-290) — so a mesh with NO faces
