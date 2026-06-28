@@ -14,11 +14,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 5c22f7f
+HEAD: c32eed9
 DIRTY: clean
-CENSUS: 456 / 749 done
-BITE: 509 PASS
-STAMP_AT: 2026-06-27T18:26
+CENSUS: 457 / 749 done
+BITE: 510 PASS
+STAMP_AT: 2026-06-28T23:18
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -26,8 +26,9 @@ STAMP_AT: 2026-06-27T18:26
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**none — ★AUTONOMOUS 雙軸觸底 + checkpoint（2026-06-27 17:28 結帳，HEAD `bfe5b88`，--bite 509 / FAILED=[]，census 456/749）。** 本 session 收尾全部 autonomous 高值料：**cook-core 縫（柏為 #1 優先）= 完成**（spine F/A/B/E + SEAM 1 value-emit pass + C-string ctx-var，皆 refuter MERGE-SAFE）+ **B 軌 port-drag-type-filter**（純皮 Tier1，TiXL parity，ui_census GAP→DONE）。**checkpoint 理由＝orchestrator context 飽和（本 turn ~9 build/refute/結帳 cycle）→ context 衛生（非 fatigue）→ 乾淨交棒讓新 session/wakeup 接續，零損失。**（本 session 批次敘述移至 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)「2026-06-27 session — autonomous 雙軸 campaign」段。）
-- **下一棒可撿的 autonomous 工（全已 ground-truth，照解鎖÷風險排序，見 Next Handoff 完整菜單）**：① **vec4/Color host-value output 縫**（中值，解鎖 PickColorFromList/PickColor/Vector4Components/RgbaToColor/DotVec4 一族；autonomous-buildable，SampleGradient 4-port color-output 已是先例；PickColorFromList 此 session 試採→honest BLOCKED 卡這條縫）② **B 軌 menu-bar**（最後一條乾淨純皮 Tier1，drain B-track）③ **Command ctx-var 縫**（medium，SetXxxVarCmd command-rail scope，低值）。**這三條都 autonomous 非柏為域；之後才是真柏為域（camera/render/PointSim/device-IO）。**
+**none — 2026-06-28 自走批次：vec4/Color 家族收尾 + stale-label write-back（HEAD `c32eed9`，--bite 510 / FAILED=[]，census 457/749）。** scout 揭穿舊菜單 ① 前提是 stale：**vec4/Color 家族 5 顆裡 4 顆早已 BUILT**（RgbaToColor/Vector4Components/DotVec4/PickColor）、vec4-spread 縫早已 shipped；真正剩的只有 **PickColorFromList**（不是 vec4-spread 縫，是 ColorList-consumer→host-value(vec4)-emit 跨 rail）→ 本批建完（`c32eed9`，`[G]` golden byte-identical 對手算 TiXL floor-Mod + bug=RED + --bite 510 全綠；fork-pickcolorfromlist-empty-is-zero 照 PickFloat 兄弟）。同批照 [[sw-groundtruth-writeback-rule]] 把 5 條 stale label 寫回 seam_map.tsv + census docs。**vec4/Color 家族＝完整。下一棒撿 Next Handoff 菜單 ②/③。**
+- **★建構陷阱（本批 1 顆真縫）**：`evalResidentFloat` 的 `!evaluate` readback 回 `extOut[i]`，i 是 port 在 `s->ports` 的**全索引（含 inputs）**非 0-based output index → `Selected.x/.y/.z/.w` 在 spec index **2..5**（Input(0)/Index(1) 在前），cook 必須寫 `extOut[2..5]` 非 `[0..3]`。藍圖原寫 `[0..3]` 是錯的；任何 host-value-emit op 都要從 spec 算 output-port→extOut-slot 映射（PickColor 同註）。
+- **★★兩條 NAMED LATENT RISK（今天 inert，0 forward consumer；柏為建 PointToMatrix→camera consumer rail 時必先讀）**：① `latent-pointvalue-emit-one-frame-late`——新 pass 寫在 cookResident 後、其餘 emit pass 寫在前；未來若有 in-graph consumer 在 cookResident 期間 pull 這些 emit→讀到**前一幀**值（sw forward push-cook 本質，TiXL 是 pull-graph 無此問題）。② `latent-stale-points-off-display-subtree`——`outBuf` 無 per-frame invalidation＋resident cook 是 target-driven（只 cook 顯示子樹）→Points src 在顯示子樹外的 PointToMatrix 讀到 stale 前幀 buffer（non-null 錯 count）非 identity。**goldens 用 stub accessor 不覆蓋 multi-frame consumer path**——consumer rail 開工前這兩條要先解。
 - **★★兩條 NAMED LATENT RISK（今天 inert，0 forward consumer；柏為建 PointToMatrix→camera consumer rail 時必先讀）**：① `latent-pointvalue-emit-one-frame-late`——新 pass 寫在 cookResident 後、其餘 emit pass 寫在前；未來若有 in-graph consumer 在 cookResident 期間 pull 這些 emit→讀到**前一幀**值（sw forward push-cook 本質，TiXL 是 pull-graph 無此問題）。② `latent-stale-points-off-display-subtree`——`outBuf` 無 per-frame invalidation＋resident cook 是 target-driven（只 cook 顯示子樹）→Points src 在顯示子樹外的 PointToMatrix 讀到 stale 前幀 buffer（non-null 錯 count）非 identity。**goldens 用 stub accessor 不覆蓋 multi-frame consumer path**——consumer rail 開工前這兩條要先解。
 - **★★方法論鐵律（柏為 2026-06-27 定，根因修）：seam 開採前必 ground-truth scout；scout 揪出 stale label（已建/真數/依賴）後**必立刻派 plan-update subagent 寫回 `tools/seam_map.tsv`+census docs**，否則每 session 重栽同坑、差點重蓋已建縫（一晚 6+ 次）。scout→write-back→build，漏寫回=下次重栽。[[sw-groundtruth-writeback-rule]]**
 
@@ -53,10 +54,10 @@ STAMP_AT: 2026-06-27T18:26
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `bfe5b88`，--bite 509，census 456/749（61%）。**★狀態：autonomous 雙軸觸底 + checkpoint（context 衛生交棒）。cook-core spine（柏為 #1）+ B 軌 port-drag-filter 收尾，零未 commit。下一棒照下方 autonomous 菜單接（解鎖÷風險排序），三條都 autonomous 非柏為域。**
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `c32eed9`，--bite 510，census 457/749（61%）。**★狀態：2026-06-28 自走批次完成 vec4/Color 家族（PickColorFromList，菜單 ①）+ 5 條 stale-label write-back，零未 commit。下一棒撿菜單 ② B 軌 menu-bar `[Y]`（推薦，純皮 Tier1 drain B-track）或 ③ Command ctx-var 縫 `[G]`。皆 autonomous 非柏為域。**
 - **autonomous 菜單（解鎖÷風險排序，全已 ground-truth）**：
-  - **① vec4/Color host-value output 縫＝`[G]`（★推薦第一個自走任務）**——autonomous-buildable，解鎖 PickColorFromList/PickColor/Vector4Components/RgbaToColor/DotVec4 一族；先例＝SampleGradient 把 color 攤成 4 個 Float output port；縫＝教 evalFloat/evalResidentFloat gather 一個 ColorList/Vector4 input、把其分量攤上 4 個 output port。（PickColorFromList 此 session 試採→honest BLOCKED 卡這條縫。）value-output 是 Float port，golden byte-identical 機器全驗→零柏為。
-  - **② B 軌 menu-bar＝`[Y]`**——最後一條乾淨純皮 `ui/` Tier1 skin gap（top menu bar vs floating Toolbar）；自走做完→eye-hand 截圖 + ui_census→落待驗收佇列（UI 觀感柏為事後驗）。
+  - **✅ ① vec4/Color host-value output 家族＝DONE（`c32eed9` 2026-06-28）**——scout 揭穿前提 stale：4 顆早已 BUILT，只剩 PickColorFromList（非 vec4-spread 縫，是 ColorList-consumer→host-value(vec4)-emit）→已建完，--bite 510。**家族完整。**
+  - **② B 軌 menu-bar＝`[Y]`（★推薦下一個）**——最後一條乾淨純皮 `ui/` Tier1 skin gap（top menu bar vs floating Toolbar）；自走做完→eye-hand 截圖 + ui_census→落待驗收佇列（UI 觀感柏為事後驗）。註：柏為 decision queue 有「menu-bar chrome 範式 native-NSMenu vs TiXL-imgui」一條——預設照 TiXL（imgui menu bar），不選 native。
   - **③ Command ctx-var 縫＝`[G]`**——medium，SetXxxVarCmd command-rail SubGraph scope（Set{Float,Vec3,String}Var 的延後那半），低值。
 - **★效能優先項目（柏為 2026-06-27 指定，按 ROI 排序）**：
   - **✅ P1 PSO 快取接線（DONE `5c22f7f` 2026-06-27，--bite 509）**——51 個 point op cook site 從每幀 `newComputePipelineState` 改走 device-global `cachedComputePSO`（`tex_op_cache.cpp:203`）；同 kernel 只建一次 PSO。**+48 個自建-device selftest 補 `clearTexOpCache()`**（cook 路徑現在把 PSO 存進 process-global cache → selftest device teardown 前不清 = 跨-device UAF；既有 field selftest 契約，device 建立前清）。particle_system/pointtrail/pointtrailfast 用 pre-cached SimState/ring，正確跳過。淨 -146 行。工法：canonical(addnoise)親驗→Workflow 50 檔 fan-out(transform→refuter)→中央合 build。試壓全 golden byte-identical。
