@@ -14,11 +14,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 51d3ef5
+HEAD: ca5a19d
 DIRTY: clean
-CENSUS: 461 / 749 done
-BITE: 529 PASS
-STAMP_AT: 2026-06-29T14:23
+CENSUS: 471 / 749 done
+BITE: 536 PASS
+STAMP_AT: 2026-06-29T19:45
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -73,11 +73,19 @@ STAMP_AT: 2026-06-29T14:23
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-**★柏為 14:38 定向（優先序覆寫）：先補完旋鈕（已 port 節點旋鈕完整性全綠/全覆蓋、確認沒 silent 偏差）→ 再推共享 seam。** 即：閘擴多島看全景 → 逐顆補「乾淨」真缺口 → 卡共享 seam（PF-0d float4x4 / render-state+asset-bind）的具名標記**不補**、留到「補完旋鈕」後的下一階段。
+**★★接力（原子地基 pivot，柏為 15:41 定向；param-completion lane 凍結為歷史）：選批 SSOT＝`docs/agent/census/ATOM_SEAM_MAP.md`（讀 code 真帳，取代不可信 census）。**
 
-**★★接力（param-completion fan-out，進行中）：generator 島 ✅（13/13，`b0845d4`）+ flow Set*Var 族 ✅（6/6，`51d3ef5`，dual-rail fork）。跨島地圖 `docs/agent/census/PARAM_COMPLETION_MAP.md`（選批 SSOT，含閘擴充工單 A-D 完整 spec + 4 SW_UNKNOWN verdict）。下一批＝閘擴多島（解鎖 field/mesh/image ~139 節點系統化掃描）：先工單 D（`dumpNodeSpec` fold-bug→收斂到既有 positional consume-the-run walk＝Inspector/animGroupForSlot 同源；generator 無 Vec head 數學保證 13/13 不回歸；建議抽 `graph.h` `foldVecRun` 共用 helper + 守護 invariant 斷言），再 A（island .cs 子樹解析 + fork header authority 吃掉 B）+ C（image resolution-trio 排除）+ cook-path 分類（NodeSpec/texReg/cmdReg，非 NodeSpec 標 N/A）。spec 細到可直接實作＝MAP §閘擴多島修法。⚠ graph.h 是 cook-core owner-lock，動前確認無並行 lane 寫它。之後真缺口 fan-out：field TransformField -5/RaymarchField -3、mesh DrawMeshUnlit -11、image RenderTarget -6、string BlendStrings -2。ParticleSystem -11 卡柏為 pool-fork。每顆 golden cook-through production NodeSpec。**
+**今天承重發現：census/scout 系統性 stale，6-8 次「待辦/卡縫」一讀 code 都是早建好**（image/value/shader/String/Matrix/anim/list 全中）→ 任何 claim 進工單前必多處 code-verified done-check（grep 中央表 node_registry_math_* + registry + CMake + cook flow，非單一處）。[[orchestrator-read-code-before-difficulty-verdict]]
 
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（HEAD/bite/census 看機器塊，勿信此處手打）。**★狀態：generator+flow 兩島 param-completion 收尾，閘擴多島 spec 已備。零未 commit。**
+**狀態**：① **.t3 重放 rail 已證**（spike `spike/t3-importer` 分支：步1 FloatsToBuffer 原子 ABI byte-parity `8784a06`、步2 importer routing-fidelity `aa6f5d3`；步3=Buffer-currency resident cook 碰 cook-core 等柏為）。② **今天織 10 顆原子上 main**（TryParse/TryParseInt/PickFloatList/Merge{Float,Int}Lists/WasTrigger/SetPlaybackTime/SetPlaybackSpeed/DateTimeToFloat/DateTimeToString），census 461→471。③ **乾淨葉子量產近乎見底**（yield 5→1→4 遞減，主體早建好）。
+
+**下一階段＝cook-core seam-building（全等柏為 owner-lock）+ shader 體力批**：
+- **★第一優先 buffer-currency seam（spike 步3）**：`point_graph_cook_ctx.h` 加 raw Buffer currency → 解鎖 49 原子 **+ FloatsToBuffer 是 208 複合 keystone**（同時開原子量產 + .t3 重放軌）。ROI 最高，碰 cook-core，等柏為決定（自己推 or 授權 agent）。
+- 其他 cook-core 縫：Dict+StructuredList currency（data 族，但 Dict 無 host 生產者=低 ROI）、keyframe editor-introspection（FindKeyframes/SetKeyframes）、各 sub-seam（變長 buffer state/list-output sink/floatlist-input/parse-parity）。
+- **可自走殘餘**（零 cook-core，少量）：DateTime route-B 餘 + anim 組B stateful（TriggerAnim/SequenceAnim/Adsr）+ stateful 尾巴——但 yield 低，每顆撞 sub-seam 機率高。
+- **固定 shader 批 ~270**：census 數未 code-verify（依今天 pattern 可能少很多）；體力手翻 .hlsl→.metal，無架構風險，可並行——**但先 code-verify 真實缺口數再開**。
+
+下個 session 開頭跑 `tools/sw_status.sh`（HEAD/bite/census 看機器塊）。**★狀態：原子地基 pivot 第一天，10 原子 + spike rail 證；乾淨葉子近見底，下階段 cook-core seam 等柏為。零未 commit。** 排修 chip：`task_0e9d1e2d`（DateTime golden 增強）、`task_48b2ae42`（image fold gate）。
 - **4 顆 SW_UNKNOWN 已查（MAP §SW_UNKNOWN）**：EdgeRepeat/PolarCoordinates(texReg)/Switch(cmdReg)=非 NodeSpec 路徑閘 N/A 正常；**Steps=census 假陽性（"Steps" 是 node_registry 插值 enum-label 字串被 census source#3 grep 誤判，sw 實際未 port）→ 真缺口待採**。census source#3 capitalized-string 掃描會把 enum-label 誤判成 done（done 數略灌水），修法見 MAP。
 - **PARITY_GATE_PLAN.md 殘餘**（有狀態重節點，與 param-completion 不同軸）：Stage 2 裝閘（有狀態節點清單 ratchet）尚未做；Force/point-render 可手算 golden、ParticleSystem host-cut input、DrawPoints pixel-deferred 仍在 §清單。
 - **fan-out 待採（PARITY_GATE_PLAN §清單）**：ParticleSystem（integrator 已忠實，修 host 砍掉的 input；**MaxParticleCount/IsAutoCount pool fork 是 `[?]` 需柏為拍板留不留**）、DrawPoints（換 DrawPoints2 quad 實作，緊性質探針；**純像素 reference = `pixel-deferred-windows`**）、各 Force（FieldDistance/FieldVolume/RandomJump/AxisStep/SnapToAngles/VectorField）、point/render 可手算（MoveToSDF/PointToMatrix/SnapPointsToGrid/TransformFromClipSpace/DoyleSpiralPoints2/Transform/Shear/RotateAroundAxis）。
