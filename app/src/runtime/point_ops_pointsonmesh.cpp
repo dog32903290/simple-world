@@ -22,6 +22,14 @@
 //     64 (independent threads, not load-bearing — same total dispatch via calcDispatchCount).
 //   • Second `Colors` output (ResultColors u1) DEFERRED — the color already lives in p.Color.
 //   • Unwired ColorMap → a 1×1 white fallback (TiXL's UseFallbackTexture white.png) → Color=(1,1,1,1).
+//   • IsEnabled (PointsOnMesh.cs:28-29, default true) DEFERRED as a named FORK (faithful-dead). The
+//     .t3 forwards this [Input] straight into the generic flow/Execute wrapper's IsEnabled slot
+//     (guid d68b5569-…, defined in flow/Execute.t3ui and shared verbatim by dozens of unrelated ops:
+//     DrawConnectionLines, Locator, DirectionalForce, …). It is the generic "skip this op's GPU
+//     pass" toggle, NOT a PointsOnMesh-specific behavioral knob — same shape as CombineMeshes'
+//     deferred IsEnabled (mesh_ops_combinemeshes.cpp:15). At default true the cook always runs; a
+//     disabled op in sw means "don't place the node". So we do NOT expose a meaningless inspector
+//     param; the nodespec_integrity gate records this as a known-fork (sw=5 + 1 fork == TiXL=6).
 #include "runtime/point_ops.h"
 
 #include <cmath>

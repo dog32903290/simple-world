@@ -23,6 +23,9 @@
 //   { (-1,90),(0,30), (0,150),(-1,-30), (-1,-150),(0,-90),
 //     (0,30),(-1,90), (-1,-30),(0,150), (0,-90),(-1,-150) }
 //
+// Scale (TiXL Single [Input], default 1.0): per .t3 (HexGridPoints.t3:329-337) it routes through
+//   ScaleVector3 to multiply the Size Vector3 (effective Size = Scale * Size). Applied host-side in
+//   the cook (faithful to the ScaleVector3 routing); shader is unchanged.
 // Fork: Rotation set via Y·X·Z order (CreateFromYawPitchRoll=Y·X·Z per batch16/17 rule).
 //       OrientationAxis/OrientationAngle from params -> full quat. Color=white baked.
 //       W from port (default 1.0). Triangular and default patterns baked to Pattern=2 (Hexa).
@@ -60,7 +63,10 @@ struct HexGridParams {
   float OrientAxisY;
   float OrientAxisZ;
   float OrientAngle;   // TiXL OrientationAngle (Single, default 0) in degrees
-  float _pad0;
+  // TiXL Scale (Single, default 1.0). .t3 routes Scale -> ScaleVector3.Factor, scaling the Size
+  // Vector3 (HexGridPoints.t3:329-337). We bake that multiply into Size on the host (cook), so the
+  // shader sees the already-scaled Size; this field carries the raw factor for golden/inspection.
+  float Scale;
   float _pad1;         // -> 16 bytes (5th row)
 };
 

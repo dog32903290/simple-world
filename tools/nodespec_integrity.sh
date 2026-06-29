@@ -11,10 +11,15 @@
 #   TiXL side: grep the node's .cs for `[Input(` on non-comment lines (each InputSlot<VectorN> is
 #              ONE [Input] line → already folded, no expansion needed).
 #
-# PASS when sw == TiXL. FAIL (nonzero) with a diff when they differ — a mismatch means either a
-# missing sw param (sw < TiXL) or an extra/forked one (sw > TiXL); the implementer reads the dump +
-# the .cs to decide which inputs to add (or to record as a named FORK, e.g. PointsOnMesh's deferred
-# IsEnabled graph-wrapper).
+# PASS when sw + known-forks == TiXL. FAIL (nonzero) with a diff when they differ — a mismatch means
+# either a missing sw param (sw < TiXL) or an extra/forked one (sw > TiXL); the implementer reads the
+# dump + the .cs to decide which inputs to add (or to record as a named FORK).
+#
+# KNOWN FORKS: some TiXL [Input]s are intentionally NOT exposed as sw params (faithful-dead) — e.g.
+# PointsOnMesh's IsEnabled, which forwards into the generic flow/Execute disable-wrapper (not a
+# node-specific knob). These are listed in known_fork_count() with a justification, and ADDED to the
+# sw side before the compare. Stuffing a meaningless param would lie to the inspector; the fork list
+# keeps the gate green WITHOUT that lie. The list is small and each entry cites its op-source header.
 #
 # Usage:
 #   tools/nodespec_integrity.sh <NodeType>        # gate one generator
@@ -38,6 +43,21 @@ cs_for_type() {
   case "$1" in
     DoyleSpiralPoints) echo "DoyleSpiralPoints2.cs" ;;  # sw type vs TiXL .cs name
     *)                 echo "$1.cs" ;;
+  esac
+}
+
+# known_fork_count <Type> — number of TiXL [Input] lines that sw intentionally does NOT expose as a
+# param, recorded as named FORKs (faithful-dead). These are added to the sw side before the compare,
+# so the gate reads "sw_folded + known_forks == TiXL". Each entry MUST be justified in the op's source
+# header (the gate stays loud about genuine omissions; only listed, documented forks are absolved).
+#   • PointsOnMesh: IsEnabled (PointsOnMesh.cs:28-29) routes into the generic flow/Execute wrapper's
+#     IsEnabled slot (guid d68b5569-…, flow/Execute.t3ui) — the generic "skip this op's GPU pass"
+#     toggle, not a node-specific knob. Same shape as CombineMeshes' deferred IsEnabled.
+#     See point_ops_pointsonmesh.cpp header (NAMED TiXL forks).
+known_fork_count() {
+  case "$1" in
+    PointsOnMesh) echo 1 ;;   # IsEnabled = generic flow/Execute graph-wrapper toggle
+    *)            echo 0 ;;
   esac
 }
 
@@ -68,9 +88,10 @@ sw_folded_count() {
 # gate_one <Type> — returns 0 if sw==TiXL, 1 otherwise. Prints a one-line verdict.
 gate_one() {
   local t="$1"
-  local sw tixl
+  local sw tixl forks eff
   sw="$(sw_folded_count "$t")"
   tixl="$(tixl_input_count "$t")"
+  forks="$(known_fork_count "$t")"
   if [ "$sw" = "?" ]; then
     printf '  ✗ %-22s sw=UNKNOWN (node type not registered?)  TiXL=%s\n' "$t" "$tixl"
     return 1
@@ -79,14 +100,24 @@ gate_one() {
     printf '  ✗ %-22s sw=%s  TiXL=MISSING .cs (%s)\n' "$t" "$sw" "$(cs_for_type "$t")"
     return 1
   fi
-  if [ "$sw" = "$tixl" ]; then
-    printf '  ✓ %-22s sw=%s == TiXL=%s\n' "$t" "$sw" "$tixl"
+  # effective sw count = exposed params + intentionally-deferred named forks
+  eff=$(( sw + forks ))
+  if [ "$eff" = "$tixl" ]; then
+    if [ "$forks" -gt 0 ]; then
+      printf '  ✓ %-22s sw=%s + %s fork == TiXL=%s\n' "$t" "$sw" "$forks" "$tixl"
+    else
+      printf '  ✓ %-22s sw=%s == TiXL=%s\n' "$t" "$sw" "$tixl"
+    fi
     return 0
   fi
-  local delta=$(( sw - tixl ))
+  local delta=$(( eff - tixl ))
   local dir
   if [ "$delta" -lt 0 ]; then dir="sw MISSING $(( -delta )) param(s)"; else dir="sw has $delta EXTRA param(s)"; fi
-  printf '  ✗ %-22s sw=%s != TiXL=%s  (%s)\n' "$t" "$sw" "$tixl" "$dir"
+  if [ "$forks" -gt 0 ]; then
+    printf '  ✗ %-22s sw=%s + %s fork != TiXL=%s  (%s)\n' "$t" "$sw" "$forks" "$tixl" "$dir"
+  else
+    printf '  ✗ %-22s sw=%s != TiXL=%s  (%s)\n' "$t" "$sw" "$tixl" "$dir"
+  fi
   return 1
 }
 

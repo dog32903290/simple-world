@@ -30,7 +30,7 @@ void cookRadialPoints(PointCookCtx& c);
 // Parity-gate -bug DRIVER latches: re-bake pre-gate constants so the parity goldens' injectBug legs flip RED.
 bool& radialBakedBugForceForTest();  // point_ops_radial.cpp
 bool& gridBakedBugForceForTest();    // point_ops_gridpoints.cpp
-bool& lineBakedBugForceForTest();    // point_ops_linepoints.cpp
+bool& lineBakedBugForceForTest();    // point_ops_linepoints.cpp; hexScale variant fwd-declared at its golden call-site (ratchet)
 void cookParticleSim(PointCookCtx& c);  // force param-fill helpers in point_ops_forceparams.h
 RenderCommand cookDrawPoints(CmdCookCtx& c);
 void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count);

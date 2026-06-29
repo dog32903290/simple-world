@@ -13,10 +13,12 @@
 //   OrientationAngle (Single, default 0 degrees)
 //   Pivot (Vector3, default 0,0,0)
 //   SizeMode (enum: Cell/Bounds, default Cell=0)
+//   Scale (Single, default 1.0): scales the Size Vector3 (.t3 ScaleVector3 routing), applied host-side
 // TiXL ports baked:
 //   Pattern baked to 2 (Hexa); Triangular (1) and default (3) deferred. -- NAMED FORK
 //   Color baked to white (TiXL: ResultPoints.Color=1). -- NAMED FORK
-//   Scale baked to 1 (TiXL: Stretch=1). -- NAMED FORK
+//   per-point Stretch baked to 1 (TiXL: ResultPoints.Stretch=1; this is the SwPoint attribute,
+//     NOT the Scale [Input] above). -- NAMED FORK
 //
 // NOTE on count: total = CountX * CountY * CountZ. The NodeSpec carries a "Count" port =
 // the buffer CAPACITY (total hex grid points). The cook drives the GPU with that capacity;
@@ -45,6 +47,12 @@
 #endif
 
 namespace sw {
+
+// Parity-gate -bug DRIVER latch: re-bakes the pre-gate Scale behavior (Scale absent → multiplier 1)
+// so the HexGridPoints parity golden's injectBug leg flips the Scale tooth RED. Declared in
+// point_ops.h. (All other HexGridPoints params were always wired — not re-baked here.)
+bool& hexScaleBakedBugForceForTest() { static bool b = false; return b; }
+
 namespace {
 
 void cookHexGridPoints(PointCookCtx& c) {
@@ -67,6 +75,12 @@ void cookHexGridPoints(PointCookCtx& c) {
   cookVecN(c, "Center", center, 3, center);
   cookVecN(c, "Pivot",  pivot,  3, pivot);
   cookVecN(c, "OrientationAxis", axis, 3, axis);
+  // TiXL Scale [Input] (default 1.0): .t3 routes Scale -> ScaleVector3.Factor scaling the Size
+  // Vector3 (HexGridPoints.t3:329-337). Bake that multiply into Size on the host so the shader sees
+  // the already-scaled spacing. Scale=1 is a no-op (parity at default). The -bug latch re-bakes the
+  // pre-gate behavior (Scale absent → multiplier 1) so the golden's Scale tooth flips RED.
+  P.Scale = hexScaleBakedBugForceForTest() ? 1.0f : cookParam(c, "Scale", 1.0f);
+  size[0] *= P.Scale; size[1] *= P.Scale; size[2] *= P.Scale;
   P.SizeX   = size[0]; P.SizeY   = size[1]; P.SizeZ   = size[2];
   P.CenterX = center[0]; P.CenterY = center[1]; P.CenterZ = center[2];
   P.PivotX  = pivot[0];  P.PivotY  = pivot[1];  P.PivotZ  = pivot[2];

@@ -23,8 +23,10 @@ const std::vector<NodeSpec>& generatorSpecsExtra() {
       // Defaults: CountX=4, CountY=4, CountZ=1, Size=(1,1,1), Center=(0,0,0),
       //   W=1.0, OrientationAxis=(0,1,0), OrientationAngle=0, Pivot=(0,0,0), SizeMode=Cell.
       // NOTE: Count = buffer CAPACITY = CountX * CountY * CountZ (host responsibility).
+      // Scale (TiXL Single [Input], default 1.0): .t3 routes Scale -> ScaleVector3 scaling the Size
+      //   Vector3 (HexGridPoints.t3:329-337); applied host-side in the cook (effective Size=Scale*Size).
       // FORK: Pattern baked to 2 (Hexa); Triangular (1) and default (3) branches deferred.
-      //       Color baked white; Scale baked 1.
+      //       Color baked white; per-point Stretch attribute baked 1 (distinct from Scale [Input]).
       {"HexGridPoints",
        "HexGridPoints",
        {{"points", "points", "Points", false},
@@ -51,7 +53,10 @@ const std::vector<NodeSpec>& generatorSpecsExtra() {
         {"OrientationAxis.x", "OrientationAxis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
         {"OrientationAxis.y", "OrientationAxis.y", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f}},
+        {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f},
+        // Scale (TiXL Single, default 1.0) — scales the Size Vector3 (.t3 ScaleVector3 routing).
+        //   APPEND-ONLY: kept last so existing pin ids stay stable (no .scn breakage).
+        {"Scale", "Scale", "Float", true, 1.0f, 0.0f, 10.0f}},
        nullptr,
        "point.generate"},
       // ---- point generate — DoyleSpiralPoints2 -------------------------------------
