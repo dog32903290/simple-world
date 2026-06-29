@@ -51,7 +51,14 @@ Trigger/Damp*/Spring*/Ease* …）**早已 ported，在中央 `node_registry_mat
 
 ## ★★今天的承重發現：census/scout 數字四次高估，sw 遠比文件完整
 2026-06-29 連續四次「待辦/卡縫」一讀 code 都是早建好：① image 真缺 1→34（fold 假象）② value 331→近乎見底（中央表已做）③ shader「200 卡死」→假問題（codegen 等價機制已建 41 顆）④ String「25 卡 seam」→ seam 早 live + 26 顆已做。**模式：sw 的硬基建大多早已建，census 的「todo/blocked」標籤系統性 stale**（done-check 只看單一處→漏中央表/registry；seam 標籤停在開工前狀態）。
-- **真正 code-verified 沒建的縫**（定論清點 2026-06-29 補第三+四+五條）：(a) **raw Buffer currency**（spike 步 3，49+2 原子+複合 keystone，碰 cook-core）(b) **Matrix port type**（TransformVec3 卡，currency ABI）(c) **DateTime host type**（string/datetime 5 顆卡，新 host currency）(d) **anim time/playback/keyframe ctx**（anim 家族 ~12 顆卡）(e) **Dict/Iterator ctx**（data 家族 ~13 顆卡）。
+- **縫範圍勘查定論（2026-06-29，讀 code 修正——又抓 6/7 次「卡縫其實早建好」）**：
+  - ~~(b) Matrix port type~~ → **已建好且 live，刪除**：TransformVec3/MulMatrix 走 `fork-mat4-as-16-floats`（16 Float port row-major，`value_op_transformvec3.cpp`/`value_op_mulmatrix.cpp`，GLOB 自動註冊），numbers/ 只 2 op 碰 Matrix 都已做。`string_ops_vec3tostring.cpp:20-26` 的「BLOCKED」是 stale 注釋（待刪）。**無 Matrix 縫。**
+  - **(c) DateTime ★可自走（路線 B float-epoch）**：DateTime 走 double-epoch Float port（仿 Matrix-as-16-floats），避開新 currency → 5 顆全 leaf 級（string_ops + value_op，DateTimeToString/StringToDateTime 用 std::tm/strftime host helper）。路線 A（新 DateTime currency）碰 cook-core 不划算。
+  - **(d) anim ★~70% 已建，7 顆可自走 + 2 顆等柏為**：transport core（`transport.h/cpp` 雙時鐘+automation）、SetBpm/GetBpm、AnimValue 族全已建。可自走：組 A SetTime/SetPlaybackTime/SetPlaybackSpeed/SetSpeedFactors（clone SetBpm 寫 `g_transport`，stateful_value GLOB）+ 組 B TriggerAnim/SequenceAnim/AdsrEnvelope（純 stateful value）。**等柏為**：FindKeyframes/SetKeyframes（碰 editor curve-store 內省）。
+  - **(e) Dict/Iterator = 最低 ROI 陷阱，等柏為且優先序最後**：iteration 機制早建（`point_ops_loop.cpp` re-cook keystone）；**Dict 全庫無 host 生產者**（只 io 節點產 Dict）→ 建 Dict currency 只名義解鎖 4 顆 Select* 無料吃；Iterator 半卡 StructuredList currency（cook-core）。
+  - **(a) raw Buffer currency（不變）**：spike 步 3，49+2 原子+複合 keystone，碰 cook-core，等柏為。
+
+- **★自走優先序（ROI=解鎖÷難度，零 cook-core）**：① anim 組 A+B（7 顆，clone SetBpm/stateful）② DateTime 路線 B（5 顆，float-epoch）③ stateful 乾淨尾巴（WasTrigger 等）。**等柏為（碰 owner-locked spine）**：buffer keystone / keyframe editor-introspection / Dict+StructuredList currency。
 
 ## ★★定論 code-verified backlog（numbers+string，2026-06-29，取代 census 桶數）
 五處 done-check（value_op leaf / 中央表 / registry / CMake / 節點碼）+ `grep "\"Name\""` 二次確認 0 命中。
