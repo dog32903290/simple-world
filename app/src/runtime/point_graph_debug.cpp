@@ -112,6 +112,14 @@ const SwBuffer* PointGraph::debugCookedSwBuffer(int nodeId) const {
   return it != p_->bufferMeta.end() ? &it->second : nullptr;
 }
 
+// Seam-1 RESIDENT face (WO-E): the SwBuffer a RESIDENT Buffer node cooked LAST, keyed by its resident PATH
+// (cookResidentBuffer's bufferMeta[path] key — NO flatKey prefix). Mirror of residentGradientFor (8th flow)
+// / residentCookedPoints (point face). Borrowed; nullptr when the path never cooked a Buffer node.
+const SwBuffer* PointGraph::residentSwBufferFor(const std::string& path) const {
+  auto it = p_->bufferMeta.find(path);
+  return it != p_->bufferMeta.end() ? &it->second : nullptr;
+}
+
 // PRODUCTION (gradient-inspector face): the SwGradient a RESIDENT Gradient-flow node cooked LAST frame,
 // keyed by its resident PATH — same key cookResidentGradient writes to p_->gradientBuf[path]. Borrowed
 // (PointGraph-owned, valid until the next cook of that node). nullptr when the path never cooked a

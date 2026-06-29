@@ -26,6 +26,7 @@
 #include "runtime/mesh_op_registry.h"          // MeshCookCtx/SwMeshView/findMeshOp (the 4th cook flow = MeshBuffers)
 #include "runtime/pointlist_op_registry.h"     // PointListCookCtx/findPointListOp (the 7th cook flow = host SwPoint list)
 #include "runtime/gradient_op_registry.h"      // GradientCookCtx/findGradientOp (the 8th cook flow = host Gradient)
+#include "runtime/buffer_op_registry.h"        // BufferCookFn/findBufferOp (Seam-1 GPU "Buffer" currency, WO-E)
 #include "runtime/curve.h"                 // sw::Curve (bake-into-point seam: PointCookCtx::inputCurves complete type)
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + op registries
 #include "runtime/point_ops_setvarcmd.h"   // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
@@ -130,6 +131,16 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   // GradientsToTexture (a tex op below) calls this to gather the host gradients it samples into a
   // texture on the production path. Returns nullptr if `path` is not a gradient op.
   std::function<const SwGradient*(const std::string&, int)> cookResidentGradient;
+
+  // Buffer walker (Seam-1 GPU "Buffer" currency on the RESIDENT/PRODUCTION path — the R-2 iron rule, WO-E).
+  // Cooks ONE Buffer-producing node (FloatsToBuffer / GetBufferComponents / TransformsConstBuffer / …) into
+  // its per-path SwBuffer (Impl::bufferMeta[path] + rawBuf[path]), gathering its Buffer inputs THROUGH the
+  // resident graph (Connection drivers, self-recursing) + the Float MultiInput payload via evalResidentFloat.
+  // Mirror of the flat cookFlatBuffer; the body is the extracted leaf Impl::cookResidentBuffer
+  // (point_graph_resident_buffer.cpp) so point_graph_resident.cpp stays under its line-count cap. Returns
+  // nullptr if `path` is not a Buffer op. THE production fix: before WO-E a Buffer terminal fell to a
+  // zero-no-op in the live app; this makes Buffer ops actually produce on the resident path.
+  std::function<const SwBuffer*(const std::string&, int)> cookResidentBuffer;
 
   // Mesh walker (4th cook flow on the RESIDENT/PRODUCTION path — the R-2 iron rule). Cooks ONE mesh
   // node (generator OR consumer) into its PER-PATH owned pair (p_->meshVtxBuf/meshIdxBuf[path]) and
@@ -441,6 +452,14 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     return &out;
   };
 
+  // Buffer walker body (Seam-1 currency on the RESIDENT path, WO-E): forwards to the extracted method
+  // PointGraph::Impl::cookResidentBuffer (point_graph_resident_buffer.cpp). The lambda keeps the two-arg
+  // (path, depth) call shape the terminal dispatch + the Buffer→Buffer self-recursion use, threading the
+  // shared rg/ctx/rc/nodeParams + the SELF slot in by reference. Byte-identical to the flat cookFlatBuffer.
+  cookResidentBuffer = [&](const std::string& path, int depth) -> const SwBuffer* {
+    return p_->cookResidentBuffer(rg, ctx, rc, nodeParams, cookResidentBuffer, path, depth);
+  };
+
   // Mesh walker body (4th cook flow): forwards to the extracted method PointGraph::Impl::cookResidentMesh
   // (resident_mesh_cook.cpp). The lambda keeps the one-arg call shape every caller uses (the cookCommand
   // Mesh branch, the Mesh terminal, the new cookNode Mesh gather) + threads the shared rg/rc/ctx in. The
@@ -538,6 +557,15 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   } else if (cmdReg().find(tn->opType) != cmdReg().end()) {
     RenderCommand chain = cookCommand(termPath, 0);
     execIntoTarget(chain, "RenderTarget", termPath);
+  } else if (findBufferOp(tn->opType)) {
+    // Buffer terminal (preview pin on a Buffer-producing op), WO-E — PARALLEL to the flat findBufferOp branch
+    // (point_graph.cpp) and placed BEFORE the cookNode fallthrough so a Buffer op no longer falls to the
+    // zero-no-op. Cook the SwBuffer for readback (residentSwBufferFor) — there is no Buffer VISUALIZER yet, so
+    // clear the viewport (OUTPUT_PIN_VIEWER_CONTRACT §5). The cook stores into bufferMeta[termPath]/rawBuf
+    // [termPath] keyed by resident PATH; the production fix is that the cook RUNS at all on this leg now.
+    cookResidentBuffer(termPath, 0);
+    p_->clearTarget();
+    return;
   } else {
     MTL::Buffer* out = cookNode(termPath, 0);
     const PortSpec* outPort = nullptr;

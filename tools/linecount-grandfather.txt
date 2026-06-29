@@ -103,7 +103,7 @@ app/src/runtime/point_graph.cpp:751
 # TexCookCtx/FeedbackCookCtx) + their cook fn-ptr typedefs moved to runtime/point_graph_cook_ctx.h (ABI-
 # preserving; point_graph.h #includes it in the same spot, the 249 includers see identical symbols). This
 # bought the margin for TexCookCtx.inputFieldTree (the RaymarchField tex-op gather seam).
-app/src/runtime/point_graph.h:240
+app/src/runtime/point_graph.h:245
 # C1 (2026-06-23) +6: the shared two-cook seam header (already at the 400 ceiling) — fillPointCamera now
 # reads the live ActiveCamera (the wired Camera the draws respect) instead of ALWAYS the default, + the
 # point_ops_camera_scope.h include. The if/else + include are irreducible cook-core seam glue; comments at the
@@ -124,7 +124,7 @@ app/src/runtime/point_graph.h:240
 # marshal-op LEAVES (FloatsToBuffer/GetBufferComponents/ExecuteBufferUpdate) stay bounded <400-line leaf TUs.
 # The cookFlatBuffer Impl method decl (4 lines, the cookBufferNode-slot-by-ref signature) adds to this — the
 # thin twin of cookFlatPointList, declared here because both cooks share Impl.
-app/src/runtime/point_graph_internal.h:464
+app/src/runtime/point_graph_internal.h:475
 # S2c (2026-06-23) +8: resident cookCommand gained its Texture2D input gather — a production black-hole
 # (Layer2d/DrawScreenQuad drew BLACK on the resident path because cc.inputTexture was never set; the flat
 # cookCommand has had this branch since FORK#1). Caught by --selftest-layercompose's resident leg. The
@@ -159,7 +159,7 @@ app/src/runtime/point_graph_internal.h:464
 # false-shared with the flat twin (path/ResidentInput vs int-id/g.connections genuinely diverge). ALL the
 # S2c/S3a/S3b/S3c/C1 "split lowers this" notes above are now PAID. Proven byte-identical by --selftest-loop/
 # -camera-scope/-setvar-scope/-layercompose (resident legs, the production canaries) + --bite=483.
-app/src/runtime/point_graph_resident.cpp:556
+app/src/runtime/point_graph_resident.cpp:584
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 # +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
 # +1 (2026-06-29): lineBakedBugForceForTest() decl — the LinePoints parity-gate -bug latch, mirroring the

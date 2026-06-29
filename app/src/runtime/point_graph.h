@@ -211,6 +211,11 @@ class PointGraph {
   const SwGradient* debugCookedGradient(int nodeId) const;                     // 8th cook: gradientBuf (flat key)
   const SwGradient* residentGradientFor(const std::string& path) const;        // 8th cook: gradientBuf (resident path, UI face)
   const SwBuffer* debugCookedSwBuffer(int nodeId) const;                        // Seam-1: bufferMeta (flat key); GPU buffer + stride/count for byte-parity goldens
+  // Seam-1 RESIDENT face (WO-E): the SwBuffer a RESIDENT Buffer-flow node cooked LAST cook, keyed by its
+  // resident PATH (the SAME key cookResidentBuffer writes p_->bufferMeta[path]). Borrowed; nullptr when the
+  // path never cooked a Buffer node. The resident twin of debugCookedSwBuffer (flat key) — the flat==resident
+  // byte-parity gate (selftests_buffer_resident.cpp) reads both off the same bufferMeta map, two key spaces.
+  const SwBuffer* residentSwBufferFor(const std::string& path) const;
   // value-output-rail Phase 4: the cooked Shared point buffer a RESIDENT Points node produced last cook,
   // keyed by resident PATH (cookResident's ensureOut key in p_->outBuf); count ← p_->outCount[path]. Shared
   // → contents() is a `const SwPoint*` (zero blit); nullptr+0 when the path cooked no points this frame.
