@@ -4,6 +4,14 @@
 > MASTER_PLAN.md 頂只留**一份**現行 snapshot——多份疊著就是「看進度幻覺」的肥大來源。
 > 這裡是 source material / 歷史證據，**不是 dashboard**；事實以 git/工具為準。
 
+## 2026-06-30 自走夜（柏為 absent → 07:32 回場）：Seam 1 整條 + param backlog 全清 + Seam 2 turnkey
+一晚 12 lane merged+stamped（每條 refuter+orchestrator reverify+--bite gate），HEAD 9ce745e→79f819a，--bite 536→541。
+- **param-completion（5 批，36 param 全島對齊 TiXL）**：Lane A 15 時間源旋鈕(UseAppRunTime×8/OverrideTime×7,MV 離線決定性,`d66fa61`) + Lane B 4 command-rail known_fork(`9572d74`) + leaf 7(Lerp Clamp/Remap BiasAndGain 真功能+5 dead/fold,`ece21e8`) + numbers-fold 5(RgbaToColor/RemapValues Vec→Slider fold-tag 修、MergeFloat/IntLists StartIndices fork、GradientsToTexture+ClearSomePoints dumpNodeSpec 排除過寬救回真缺口,`9cd46dd`) + mesh 5(CubeMesh/Icosahedron UV enum 真缺,`26190ec`) + seam-adjacent 3(LoadImage CacheResources default-FALSE/PointsToCPU+ReadPointColors async known_fork,`3d9b41c`)。
+- **Seam 1 buffer-marshalling 整條 COMPLETE（`9ce745e`→`f722f3e`）**：keystone Buffer 通貨(FloatsToBuffer,解 208 複合) + WO-A/B(IntsToBuffer const 變體/GetSRVProperties) + WO-D(TransformsConstBuffer 640-byte HLSL-transpose,refuter 獨立 off-diag 手推證) + WO-E(resident-leg mirror,OWNER-LOCKED,flat==resident byte-parity sound,buffer 算子 live 在 production)。WO-C(SrvFromTexture2d,0-consumer)skip。
+- **cook-core 解凍 + Seam 2 turnkey**：柏為 2026-06-29 在場授權碰 cook-core；deep-research(106-agent 三票驗)證 DX11→Metal 14 closed-form 公式驗去 Windows 化（`DX11_METAL_CONVERSION_TABLE.md`）；codegen 假對撞排除；Seam 2 states-census + 藍圖完(`SEAM2_RENDERSTATE_BUILD_PLAN.md`)。
+- **事故救回（都進 memory/Session Safety）**：① watchdog false-death→salvage agent git-stash 差點掃掉 Lane A work(stash pop 救回) ② WO-D worktree add-A 把 root build/*.air 掃進 commit(cherry-pick 抓到,reset+explicit-list 救,.gitignore /build/ *.air 補) ③ chip 雙開(柏為點了 mesh-UV chip,我又派 agent,停掉)。
+- **memory 新增**：parity-gate-split-deterministic-vs-emergent、chip-started-by-baiwei-no-dup-dispatch；sw-watchdog false-death 補 git-mutate 禁令。
+
 ---
 
 ## 2026-06-27 session — autonomous 雙軸 campaign（--bite 498→509, census 447→456）

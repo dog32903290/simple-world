@@ -1,9 +1,15 @@
 # SEAM2_RENDERSTATE_BUILD_PLAN — DX11 render-state → Metal PSO collapse
 
-> 2026-06-30 Opus architect blueprint (read-only, vs main 7f12d7f + TiXL 395c4c55). Parity ref =
-> `DX11_METAL_CONVERSION_TABLE.md` (14 closed-form / depth-bias emergent / dual-source+logic-op guards).
+> **★★做 Seam 2 的 agent：開工第零步先讀這兩份，再動手——**
+> **① `DX11_METAL_CONVERSION_TABLE.md`＝DX11→Metal 研究報告**（deep-research 三票驗，每個 render 狀態
+>    closed-form/emergent/no-equivalent 的逐項分類＋確切轉換公式＝你照著做的 parity 權威；告訴你哪些能本機
+>    公式驗、哪些是 emergent 要 ground-truth、哪些根本沒對應要當 guard）。**這份就是「可以怎麼做事」的答案。**
+> **② 本檔**＝把那份研究落成可執行的 build：census 結果＋FrozenRenderState 設計＋per-op＋forks＋goldens＋最高風險。
+> 沒讀①就照②做＝會在「為什麼這個狀態能/不能公式驗」上瞎猜——①才是判準。
+>
+> 2026-06-30 Opus architect blueprint (read-only, vs main 7f12d7f + TiXL 395c4c55).
 > **The blueprint RAN the states-census** (refuter prerequisite) — results below bound the whole build.
-> 承重 seam 全工法：census(step0) → Plan(此) → Opus build → Opus refuter → orchestrator reverify → merge.
+> 承重 seam 全工法：census(step0,已跑) → Plan(此) → Opus build → Opus refuter → orchestrator reverify → explicit-list merge.
 
 ## 0. Settled architecture
 4 TiXL ops = immediate-context state mutators w/ save/set/restore (Rasterizer.cs:15-40, InputAssemblerStage.cs:16-37,
