@@ -9,10 +9,13 @@
 - 交叉驗零異常：Children 空∧Connections 空 = 569；569+356 = 925 全覆蓋。
 - 核對 ROI 估 925/563/349：差 ≤1%，**估值成立**。
 
-## ★翻盤：「~200 shader 原子卡死」是恐慌誤判
-- shader-codegen 葉子實 **48 個**，其中 **47 是 field/SDF（sw 已解決**，`field_graph_builder.cpp` codegen seam 運作中），真未解 render-shader 葉子 **≈1**（`SetPixelAndVertexShaderStage`）。
-- 「200 shader 節點」絕大多數是**複合（~174）**——走 .t3 重放軌，**不是要手刻的原子**。真正卡 shader-codegen 的原子是個位數。
-- ⚠ 待深讀確認的一個 subtlety：shader 複合照 .t3 重放給的是「圖結構」，要真跑出 shader 仍可能需要 codegen（圖→可執行 shader）。複合是否真繞過 codegen＝shader-codegen 深讀 scout 收尾。
+## ★★翻盤定論：「shader 哲學衝突」sw 早已解決（shader-codegen 深讀，讀 code 證）
+GenerateShaderGraphCode **不是通用 shader 編譯器**，是 **SDF/field 距離函數的字串組裝器 + 模板注入**：動態的只有距離函數那 1-3 行 HLSL 片段，塞進**手寫固定 .hlsl 模板**；參數走 cbuffer（改參不重編），只 structural/code 變才重生。
+- **真動態 shader（需 codegen，實作 `IGraphNodeOp`）= 46 個，全在 `Lib/field/`（SDF）**。固定 .hlsl（load-and-run，不 codegen）= **422 個**（image/fx/points/particles/mesh 全固定）。比例 ~1:9。
+- **sw 早已把這套（方向 C 混合）造好 ~90%**：`field_render.cpp`（`assembleFieldMSL`→`cachedSourcePSO` srcHash 快取，「exactly TiXL's code/param split」）+ `field_graph.cpp`（FieldNode/CodeAssembleCtx 鏡像 ShaderGraphNode）+ `metal_compile.mm`（runtime `newLibrary(source)` 已在生產跑）+ 11 個 MSL 模板。**離 runtime 編譯＝零。**
+- **46 動態 op：41 已移植且 parity golden 綠**，剩 **5 個重節點**（ExecuteImage2dSdf/ExecuteHeightmapSdf/SubDivPattern3d/ExecuteRepeatFieldAtPoints/SdfToColor——吃纹理/resource/color，唯一未被 golden 蓋的硬塊）。
+- **方向 A「全翻譯機」是誤判**（會逼 422 固定 shader 也走 codegen＝浪費）；sw 無通用 HLSL→MSL 翻譯器，是**逐 op 手刻 MSL 片段**（HLSL↔MSL 差極小：saturate→clamp/lerp→mix/register(tN)→[[buffer(N)]]/inout→thread&）。**真正落地的是方向 C 且已落地。**
+- **結論：哲學衝突在 codebase 層已解決。** 剩 (a) 固定 422 批體力手翻（中，已翻 ~150，無架構風險，可並行）(b) 收尾 5 個重 field op 的 resource seam（小-中，唯一真未知）。第一步 spike＝`ExecuteImage2dSdf`（驗 codegen+SRV/纹理 resource binding，過了 46 動態批全收）。
 
 ## 原子按 seam 分桶（569，總和對帳）
 
