@@ -1,9 +1,19 @@
-// Native node-graph data model — the source of truth for the canvas (the
-// editorGraph + cook params) on the CURRENT flat path. NOTE: the compound contract
-// (契約 1, 照 TiXL) supersedes the old "NOT TiXL's Symbol/Instance system" stance —
-// the nested model lives in compound_graph.h (Symbol/Child/Connection) and the
-// resident eval engine in resident_eval_graph.*; this flat Graph remains the editor/
-// save/UI representation until the batch-2 production swap migrates them.
+// Op-type registry (NodeSpec/PortSpec/findSpec) + the legacy flat `Graph` struct.
+// STATUS (verified 2026-06-29, prior "remains the editor/save/UI representation until
+// the batch-2 production swap" note was STALE — the swap landed incrementally):
+//   - LIVE & load-bearing: the NodeSpec/PortSpec/findSpec op registry below. Everything
+//     consumes it, INCLUDING the resident engine (resident_eval_graph.* depends on it).
+//   - SUPERSEDED for topology: the editor/canvas/save/cook now run on the NESTED model
+//     (compound_graph.h Symbol/Child/Connection) projected to a resident eval graph. The
+//     live frame loop is frame_cook.cpp `run()` → buildEvalGraph(doc::g_lib()) →
+//     pg.cookResident(...); the canvas edits Symbol children directly (editor_ui.cpp:4
+//     "no flat Graph, no projection layer").
+//   - The flat `Graph` struct here now survives ONLY as per-op golden T1 test legs
+//     (hand-built flat graph, the direct-kernel leg) + history; it is NOT the live path.
+//     ("R-2 iron rule": a golden that exercises ONLY flat-cook is a production black hole.)
+// The compound contract (契約 1, 照 TiXL) also supersedes the old "NOT TiXL's
+// Symbol/Instance system" stance. Remaining cleanup (per migration-cost scout): golden
+// flat→resident migration, stateful-op state key node-id→path, pin-id tooling.
 #pragma once
 #include <map>
 #include <string>

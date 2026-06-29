@@ -5,10 +5,14 @@
 // AUTHORITY for Automation lives in the definition-layer Animator (contract C3/P2) — the
 // resident input's driver is a PROJECTION resolved at build/patch time, never the store.
 //
-// This module is the batch-1 engine. It is pure CPU (no Metal) and a runtime leaf:
-// depends only on compound_graph.h (nested model) + graph.h (NodeSpec/findSpec). It is
-// proven headless (--selftest-residenteval) and NOT yet wired to production cook — that
-// is a named follow-on slice (see docs/superpowers/plans/2026-06-10-resident-eval-graph-batch1.md).
+// This module began as the batch-1 engine. It is pure CPU (no Metal) and a runtime leaf:
+// depends only on compound_graph.h (nested model) + graph.h (NodeSpec/findSpec). STATUS
+// (verified 2026-06-29 — the original "NOT yet wired to production cook" note was STALE):
+// this IS the production cook path now. The live frame loop frame_cook.cpp `run()` builds
+// it every libRevision (buildEvalGraph(doc::g_lib())) and cooks through it
+// (PointGraph::cookResident, frame_cook.cpp:387). Headless proof remains --selftest-residenteval.
+// Origin slice: docs/superpowers/plans/2026-06-10-resident-eval-graph-batch1.md (its
+// "production swap = batch-2, deferred" framing is superseded — the swap landed incrementally).
 #pragma once
 #include <cstdint>
 #include <map>

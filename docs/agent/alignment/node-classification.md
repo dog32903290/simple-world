@@ -8,7 +8,7 @@
 ### [core] 節點沒有 namespace/category 分類軸
 
 - **對齊規格**:在 NodeSpec 加 `std::string ns;`（原子 op，如 "Lib.numbers.float.basic"），在 Symbol 加 `std::string ns;`（compound 預設 "user"）。每個 op 註冊時填它對應 TiXL 的 namespace（external/tixl/Operators 下資料夾路徑為 ground truth，Operators/Lib/X/Y/Z → "Lib.X.Y.Z"）。承重線——後三條 gap（relevancy、browse-tree、usage、tags 加權）全依賴它。
-- **驗證證據**:graph.h:47-55 `struct NodeSpec { std::string type, title; std::vector<PortSpec> ports; float (*evaluate)(...); }` — 無 ns 欄位。compound_graph.h:112-136 `struct Symbol { id; name; atomic; inputDefs; outputDefs; children; connections; nextChildId; animator; annotations; }` — 無 ns 欄位。node_registry_generators.cpp:11-32 的 NodeSpec literal 是 positional aggregate init `{"RadialPoints","RadialPoints",{ports...},nullptr}`，欄位數對應 {type,title,ports,evaluate}，無 namespace 槽。全 app grep namespace 分類用法（排除 C++ `namespace` 關鍵字）= 零命中。rebuildAllItems (quick_add.cpp:62-74) 只 push specTypes() 與 compound s.id，從未讀 namespace。
+- **驗證證據（2026-06-29 校正：NodeSpec 欄位已存在，缺的是「填值＋消費」非「加欄位」）**:NodeSpec 已加 `std::string category;`（graph.h，註解標 `= TiXL Symbol.Namespace`，APPEND 最後成員）— 原文「graph.h 無 ns 欄位」已 stale。BUT `grep '\.category ='` = 零個 registrar 填它，quick_add 也從未讀它 → 分類軸仍不通，真正工作＝逐 op populate（資料夾路徑→category）＋ browse-tree 消費，不是加欄位。compound_graph.h 的 Symbol 是否已有對應欄位未複查（待採時確認）。node_registry_generators.cpp 的 NodeSpec positional aggregate init 因 category 是 APPEND 最後成員、預設空字串，故既有 `{type,title,ports,evaluate}` 寫法不受影響（填 category 要逐筆補末位）。rebuildAllItems (quick_add.cpp) 仍只 push specTypes() 與 compound s.id，從未讀 category。
 
 ### [core] 搜尋結果無排序（registry 順序）vs TiXL 多因子 relevancy
 

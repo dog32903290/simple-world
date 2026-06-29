@@ -1,5 +1,7 @@
 # Resident Eval Graph (Batch 1, Slice 1) Implementation Plan
 
+> **⚠ STATUS (2026-06-29): the "production swap = batch-2, deferred" framing below is SUPERSEDED — the swap landed incrementally.** Verified in code: the live frame loop `frame_cook.cpp run()` builds the resident graph from `doc::g_lib()` (the nested SymbolLibrary) every revision and cooks through `PointGraph::cookResident`; the canvas edits Symbol children directly (`editor_ui.cpp:4` "no flat Graph, no projection layer"). The flat `Graph` survives only as per-op golden T1 test legs. Remaining work is hardening/cleanup (golden flat→resident migration, stateful-op state key node-id→path, pin-id tooling), NOT the spine swap. This plan doc is kept as historical origin material.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Land the resident (build-once, frame-stable) evaluation graph as a headless, selftest-proven runtime module — flatten a nested `SymbolLibrary` into a walkable `ResidentEvalGraph` whose nodes carry driver-bearing inputs, and value-walk it. NOT wired to production cook (that is a named follow-on slice).

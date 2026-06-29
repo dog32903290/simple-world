@@ -1,7 +1,10 @@
 // runtime/compound_graph — the NESTED graph model (TiXL compound). This is the
 // graph-model layer ONLY: pure CPU data, no Metal, no upward deps (ARCHITECTURE.md
-// runtime leaf). It coexists with the flat `Graph` (graph.h) — the flat graph is
-// what cook()/evalFloat consume TODAY. The batch-1 flattener (resident_eval_graph.*)
+// runtime leaf). STATUS (verified 2026-06-29 — prior "the flat graph is what
+// cook()/evalFloat consume TODAY" note was STALE): this nested model IS the live model.
+// The editor/canvas (editor_ui.cpp), save (doc::g_lib() is a SymbolLibrary) and the
+// production cook (frame_cook.cpp → buildEvalGraph → cookResident) all run on it now.
+// The flat `Graph` (graph.h) survives only as a golden T1 test leg. The flattener (resident_eval_graph.*)
 // inlines a nested SymbolLibrary into a RESIDENT eval graph (build-once, frame-stable,
 // edit-time patched) — NOT a per-frame throwaway flat graph (that route was 作廢, see
 // compound contract §2.2: cache must hang on a node with stable cross-frame identity).
