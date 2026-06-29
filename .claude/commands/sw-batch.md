@@ -56,7 +56,9 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
 
 ## 單批迴圈（重複直到停止條件）
 1. **定位**：**先跑 `tools/sw_status.sh`**（三區：LIVE git+census / STAMPED bite / HAND 手寫接力）＝零 grep 拿到接續所需。**① LIVE 含兩軌現算 parity：A 軌 `op_census`（節點）+ B 軌 `ui_census`（非節點 UI/skin 防漏網）——兩軌都「現算不 stale」，是真相源。**需細節再讀 `docs/agent/MASTER_PLAN.md`（頂層路由權威）＋ memory（跨 session 教訓/規則）。樹要乾淨、HEAD 對齊；不乾淨先盤點（可能是上一棒的活，照 single-plan gate 處理）。
-2. **選批（MASTER_PLAN 驅動的全並行，柏為 2026-06-23）**：讀 MASTER_PLAN，取「**未阻塞 + 不撞檔**」的工作項跨 lane 組一批。排修項永遠優先。
+2. **選批**：讀 MASTER_PLAN，取「**未阻塞 + 不撞檔**」的工作項組一批。排修項永遠優先。
+   - **★★當前策略（柏為 2026-06-29 pivot，22:13 確認）= 原子節點 → 巢狀（.t3 重放複合），不在 flat runtime 手刻複合。** 節點普查 SSOT＝`tools/node_health.sh`/.html + `docs/agent/census/ATOM_SEAM_MAP.md`（讀 code 多源 done-check，**舊 op_census/seam_map done/todo 不可信、勿用**）。當前 Active Lane 兩條：① 補 38 真原子 baked param（`PARAM_COMPLETION_MAP` §307 全掃，先打時間源旋鈕家族）② 標廢棄 135 壓平複合（`deprecation_candidates.md`，只標 tag）。
+   - **⛔ 廢（pivot-前）：下方任何「Cook-Core 序列脊椎 S1-S4 / 並行 lane L1-L6 / Phase B 蓋大接縫 / seam_map 解鎖量選批」＝舊全並行策略（在 cook-core 蓋縫讓手刻複合在 flat 跑），與新策略矛盾，勿照它選批。** cook-core 現只為原子策略真縫（buffer-currency keystone 步3 等，碰 cook-core 等柏為）動。下方 lane 結構保留僅 durable 參考。
    - **★第三軸=體驗復刻（柏為 2026-06-24，[EXPERIENCE_PARITY_PLAN](../../docs/agent/EXPERIENCE_PARITY_PLAN.md)）也是選批來源**：演出脊椎 P1-P6 + 編輯 lane Tier1-3 + MagGraph/Timeline/Gradient/Audio 獨立施工圖 + SliderLadder。**B 軌「還缺哪些」現算看 `tools/ui_census.sh --gaps`（同 op_census 對 A 軌：done/gap/CHECK 別信文字、工具為準；每條施工規格在 `docs/agent/alignment/<area>.md`；標「刻意fork」的別追）。**
    - **★體驗 lane 避撞看「主檔」欄，不看 Tier**（Tier 是驗證閘維度非避撞維度）：**每個主檔同時只派一條 lane**（`ui/node_draw.cpp`、`ui/editor_ui.cpp` 是 Tier 內序列瓶頸，多條 lane 撞它→序列不並行）。
    - **★體驗軸動核心檔的 lane（S0 `graph.h` schema / 演出 P* `frame_cook.cpp` / Tier3 cook）與引擎 cook-core 脊椎 S1-S4 同一條 owner-lock，不可並行**；純皮 Tier1（不碰 graph.h 的純 `ui/`）自由並行。S0 跑時暫停 L4 寫 graph.h（短、一次合即解凍）。

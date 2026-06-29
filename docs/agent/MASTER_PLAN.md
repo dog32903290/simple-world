@@ -29,7 +29,14 @@ STAMP_AT: 2026-06-29T22:09
 ## Active Lane
 > **★★STEERING 覆寫（柏為 2026-06-29 15:41 拍板，[R] 級方向，可能不可逆）：停 monolithic 節點產線、轉投「原子地基優先」。** 鐵證：DrawPoints/DrawMesh/RadialPoints/DrawLines/GridPoints/LinePoints/DrawBillboards/TransformPoints 在 TiXL **全是複合非原子**；我方 461 done ≈ 102 atomic + 359 monolithic-compound-equiv＝**一路把 TiXL 複合層壓成單體手寫、真原子層只做 ~102**。後果：無原子地基／無法重放 .t3／無法做鑽進複合的磁吸 UI。**新方向＝建被最多複合重用的原子詞彙（ROI 表 `scratchpad/t3roi.py`）**：① buffer-marshalling（keystone `FloatsToBuffer` 208 顆=58%／GetBufferComponents 163／ExecuteBufferUpdate 117／SrvFromTexture2d 116／IntsToBuffer／GetSRVProperties，全未 port）② DX11 render-state（Rasterizer／InputAssemblerStage／OutputMergerStage／Draw／TransformsConstBuffer，~72 each 未 port）＝一直 defer 的 `shader-graph`+`dx11-wrapper` seam。math/value 層已做。**gating 設計難題**：`GenerateShaderGraphCode`（inline HLSL codegen）撞「預編譯 shader」哲學，決定 draw 類能否重放。**下一步**：spike `FloatsToBuffer` 原子節點 + 最小 .t3 importer，證 byte-parity。**協調：下方 param-completion lane ＝被停的 monolithic 線；另一 session（sad-goodall worktree, commits ca0972e/6686fa1）在跑它，需 redirect。** 詳 [[sw-clone-two-rails-atomic-compound]]。**以下 param-completion lane 內容凍結為歷史，勿續推。**
 
-**〔已凍結 2026-06-29，見上方 STEERING〕parity-gate retrofit〔進行中，柏為 02:38 第一優先〕— 主體 ✅（Radial/Turbulence/DrawPoints 修 + Force 6 + transform 7 確認）。★第三維度 param 補全（柏為 11:40 開，inspector 旋鈕完整性=「sw NodeSpec param 數對齊 TiXL .cs [Input] 數」）進行中：**
+**★★當前 Active Lane（柏為 2026-06-29 22:13）= 原子→巢狀策略，`/sw-batch` 自走兩條工作：**
+- **① 補 38 顆真原子的 baked param**（讓真原子旋鈕齊 TiXL `[Input]`，柏為怕的「舊原子 baked 沒暴露旋鈕」）。清單＝`docs/agent/census/PARAM_COMPLETION_MAP.md` §307 真原子 param 全掃 + `tools/node_health.sh` param-gap 欄。**先打 ~15 顆時間源旋鈕共通家族（UseAppRunTime/OverrideTime，一次解鎖多顆 ROI 最高）**；剔除 known_fork 假 MISSING（SubGraph/ClearAfterExecution 該進 fork list 非盲補）。每顆 cook-through golden red-first + refuter。
+- **② 標廢棄 135 顆壓平複合**（只標 tag 不挪 code、不刪，柏為定）。清單＝`docs/agent/census/deprecation_candidates.md`。13 顆有依賴（`compound_save.cpp` atomicUuidTable 存檔 UUID 合約，退役會破 .swproj）暫不動，等存檔遷移。
+- **★策略＝原子節點 → 巢狀（.t3 重放複合），不在 flat runtime 手刻複合。** 節點普查 SSOT＝`tools/node_health.sh`/.html + `docs/agent/census/ATOM_SEAM_MAP.md`。.t3 重放 rail 已證（spike `spike/t3-importer` 步1 FloatsToBuffer 原子 + 步2 importer routing-fidelity）；buffer-currency keystone（步3，碰 cook-core）等柏為。
+- **★舊「Cook-Core 序列脊椎 S1-S4 + 並行 lane L1-L6」全並行策略（下方 §最快路徑原則起）＝pivot-前殘留，已廢，勿照它選批**：那是「在 cook-core 做縫、讓手刻複合節點在 flat runtime 跑」的舊路，與新策略（原子+巢狀重放）矛盾。cook-core 現在只為原子策略的縫（buffer-currency 等）動，不為「讓 flat 複合跑」動。
+
+---
+**〔以下全凍結為歷史 2026-06-29，見上方 STEERING + 當前 Active Lane；勿續推〕parity-gate retrofit〔柏為 02:38〕— ★第三維度 param 補全（柏為 11:40 開，inspector 旋鈕完整性=「sw NodeSpec param 數對齊 TiXL .cs [Input] 數」）：**
 - **fan-out 基建 ✅（`eb909ff`）**：拆 generator table（400→168+extra，ratchet 降 180）+ `--dump-nodespec <type>` CLI（folded logical count）+ `tools/nodespec_integrity.sh`（sw FOLDED vs TiXL grep [Input]，自動完整性閘抓漏特製 param）。
 - **三顆補完**：RadialPoints（`4082e6f`，★接管另一 session 並行寫的半成品+審查+補完，撞車解決）/GridPoints（`0be5919`，共通 attr 基建 `appendPointOrientationSpec` 抽出）/LinePoints（`46146b9`，18==18，雙色 lerp+11 param，主戰場）。每顆完整性閘綠+golden red-first+refuter SURVIVES。--bite→527。
 - **★generator 島 param-completion 完整（13/13 閘綠，`b0845d4` 收尾）**：HexGridPoints 補 Scale（第 11 [Input]，.t3 ScaleVector3 → Result=Size·Scale routing）；PointsOnMesh IsEnabled=named FORK（通用 flow/Execute skip-GPU-pass 開關 guid d68b5569 跨 49 op 共用，非節點特有 → `known_fork_count()` 逐節點 hardcoded case）。red-first 證牙+Opus refuter 兩處 SURVIVES。--bite→528。
@@ -74,7 +81,7 @@ STAMP_AT: 2026-06-29T22:09
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-**★★接力（原子地基 pivot，柏為 15:41 定向；param-completion lane 凍結為歷史）：選批 SSOT＝`docs/agent/census/ATOM_SEAM_MAP.md`（讀 code 真帳，取代不可信 census）。**
+**★★接力（原子地基 pivot；param-completion 舊 lane + Cook-Core 脊椎舊策略已凍結/廢，見上方 Active Lane）：策略＝原子→巢狀（.t3 重放），SSOT＝`tools/node_health.sh`/.html + `docs/agent/census/ATOM_SEAM_MAP.md`（讀 code 真帳，舊 census 不可信勿用）。`/sw-batch` 自走當前兩條：① 補 38 真原子 baked param（先時間源旋鈕家族 UseAppRunTime/OverrideTime，剔 known_fork 假 MISSING；清單 PARAM_COMPLETION_MAP §307 全掃）② 標廢棄 135 壓平複合（deprecation_candidates.md，只標 tag）。之後：buffer-currency keystone（spike 步3，碰 cook-core 等柏為）+ .t3 importer 多原子串接 + 固定 shader 體力批。**
 
 **今天承重發現：census/scout 系統性 stale，6-8 次「待辦/卡縫」一讀 code 都是早建好**（image/value/shader/String/Matrix/anim/list 全中）→ 任何 claim 進工單前必多處 code-verified done-check（grep 中央表 node_registry_math_* + registry + CMake + cook flow，非單一處）。[[orchestrator-read-code-before-difficulty-verdict]]
 
@@ -120,6 +127,8 @@ STAMP_AT: 2026-06-29T22:09
 **剩餘 owner-lock 縫（需柏為在場）**：S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field G3-bridge）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫（GlitchDisplace 家族）、生成器 t1 asset-bind 縫（NumberPattern/digit-atlas）。C 桶葉子（多影像/depth/compute/asset/field→image）卡這些縫。
 **柏為 decision queue**：①menu-bar chrome 範式（native-NSMenu vs TiXL-imgui）②`startup-lock-conform` unwired 葉子算不算 DONE 門檻③剩餘 owner-lock 縫的開採序。維運 chip：ui_census 其餘 4 區 false-neg 審 `task_a47c8f98`、document.cpp 拆檔 `task_19264e66`（已頂 400 ratchet，動前必拆）、census A 軌 `task_3e02cdcc`、memory shrink `task_2487de3c`。
 ## 最快路徑原則:一條序列脊椎 + N 條並行 lane
+
+> **⛔ 已廢（柏為 2026-06-29 pivot，22:13 確認拿掉）**：以下「Cook-Core 序列脊椎 S1-S4 + 並行 lane L1-L6」是 **pivot-前的舊全並行策略——在 cook-core 蓋縫、讓手刻單體複合節點在 flat runtime 跑。** 新策略＝**原子節點 → 巢狀（.t3 重放複合）**，見上方「當前 Active Lane」+ `ATOM_SEAM_MAP.md`。**勿照以下脊椎/lane 結構選批。** cook-core 現在只為原子策略的真縫（buffer-currency keystone 等）動，不為「讓 flat 複合跑」蓋縫。以下保留僅為 durable 事實參考（哪些檔是 cook-core owner-lock）+ 歷史，**不是再來的工單**。
 
 **唯一逼序列的東西 = 動到 cook 核心的檔**（`point_graph.cpp` / `frame_cook` / `resident_eval_graph` / `EvaluationContext`）。所有承重縫 + 拆檔債都擠在這幾個檔上 → 彼此不能並行 = **關鍵路徑（長極）**。
 **其他全部踩不同檔域 → 現在就並行開跑，不必等節點大縫。**

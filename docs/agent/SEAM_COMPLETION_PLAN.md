@@ -1,5 +1,7 @@
 # SEAM_COMPLETION_PLAN — 補縫施作計劃（從現在到所有縫補完）
 
+> **⛔ 已廢（柏為 2026-06-29 pivot，22:13 確認）**：這份「補縫到位→Phase C 大規模並行」roadmap 是 **pivot-前的舊全並行策略——在 cook-core 蓋縫、讓手刻單體複合節點在 flat runtime 跑。** 新策略＝**原子節點 → 巢狀（.t3 重放複合）**。**勿照此計劃選批。** 當前策略+工單見 `MASTER_PLAN.md` Active Lane + `docs/agent/census/ATOM_SEAM_MAP.md` + `tools/node_health.sh`。此檔僅留 durable 縫設計參考 + 歷史。
+
 > 柏為 2026-06-20 19:12 下令：「寫一個到我們全部的縫都補起來的施作計劃」。
 > 這是 directive 工法③「補縫到位→進 Phase C 大規模並行」的完整 roadmap。
 > 可追蹤、可跨 session 接手、可被無人值守 watcher + sw-node-batch / sw-batch 照著一塊塊自走。
