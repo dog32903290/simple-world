@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 8722d96
-DIRTY: clean
+HEAD: 15f90f3
+DIRTY: 3 files
 CENSUS: 471 / 749 done
-BITE: 536 PASS
-STAMP_AT: 2026-06-29T22:09
+BITE: 537 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-30T00:34
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -27,6 +27,13 @@ STAMP_AT: 2026-06-29T22:09
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
+
+**★本批結帳（2026-06-30 00:30，HEAD 15f90f3）落地 3 lane：** Lane A 15 顆時間源旋鈕（UseAppRunTime×8 Spring/Damp/Ease + OverrideTime×7 Perlin/Anim/Oscillate，default 對齊 TiXL 零觀感變，refuter PASS）+ Lane B 4 顆 command-rail known_fork 具名（SetBpm/SetPlayback{Time,Speed}/SetStringVar，閘 --all-flow 10/10）+ **Seam 1 Buffer 通貨 keystone**（FloatsToBuffer byte-parity 過閘，解 208 複合，flat-leg，resident 待補；refuter SAFE-TO-MERGE=additive，resident 碰 Buffer port→graceful zero no-op 不崩）。--bite 537、check-arch 綠。scenario red=`point_modify_chain` 已證 **PRE-EXISTING**（base 9ce745e 同紅，line-27 AddNoise 菜單 spawn harness 壞，非 code bug，task_df8df769 修，不擋）。
+
+**★★cook-core 兩承重縫已解凍（柏為 2026-06-29 在場討論授權碰 cook-core）：** ① 縫一 buffer-marshalling 開工（spike 過、fan-out 待）；② 縫二 DX11 render-state **不再卡 Windows**——deep-research（106-agent 三票驗）證 14 差異 closed-form 可本機公式驗、僅 **depth-bias 1 顆 emergent**（罕用，當 named fork 可延後）、logic-op+dual-source-MRT 2 顆 no-equiv 當 port-time guard。authority=`docs/agent/census/DX11_METAL_CONVERSION_TABLE.md`。codegen「預編譯撞即時生成」是**假對撞**（`platform/metal_compile.h` 早有 runtime MSL compile 路徑，與 TiXL 同切法）。方法論詳 [[parity-gate-split-deterministic-vs-emergent]]。
+
+**★下一棒（單一 Active Lane）＝Seam 1 fan-out**：剩 6 buffer op——IntsToBuffer（先 backward-trace 兩 GUID 哪個）/GetSRVProperties/SrvFromTexture2d（type-collapse 軟點，trace 下游消費者）/TransformsConstBuffer（真 CB 16B-packing，**不可沿用 FloatsToBuffer 的 tight-memcpy**）/ExecuteBufferUpdate（spike 已 done）+ **resident-leg Buffer mirror**（production 才能消費 Buffer op，現 flat-only=dormant）。並行可採 leaf-ready param：AnimVec2/BlendStrings/Lerp/Remap/RgbaToColor/Trigger/PickVector2（剔 float4x4-blocked PointToMatrix/TransformField）。Seam 2 build 排 Seam 1 落地後。**owner-lock：Seam 1 resident-mirror + Seam 2 build 都碰 cook-core/point_graph，不可同跑同檔。**
+
 > **★★STEERING 覆寫（柏為 2026-06-29 15:41 拍板，[R] 級方向，可能不可逆）：停 monolithic 節點產線、轉投「原子地基優先」。** 鐵證：DrawPoints/DrawMesh/RadialPoints/DrawLines/GridPoints/LinePoints/DrawBillboards/TransformPoints 在 TiXL **全是複合非原子**；我方 461 done ≈ 102 atomic + 359 monolithic-compound-equiv＝**一路把 TiXL 複合層壓成單體手寫、真原子層只做 ~102**。後果：無原子地基／無法重放 .t3／無法做鑽進複合的磁吸 UI。**新方向＝建被最多複合重用的原子詞彙（ROI 表 `scratchpad/t3roi.py`）**：① buffer-marshalling（keystone `FloatsToBuffer` 208 顆=58%／GetBufferComponents 163／ExecuteBufferUpdate 117／SrvFromTexture2d 116／IntsToBuffer／GetSRVProperties，全未 port）② DX11 render-state（Rasterizer／InputAssemblerStage／OutputMergerStage／Draw／TransformsConstBuffer，~72 each 未 port）＝一直 defer 的 `shader-graph`+`dx11-wrapper` seam。math/value 層已做。**gating 設計難題**：`GenerateShaderGraphCode`（inline HLSL codegen）撞「預編譯 shader」哲學，決定 draw 類能否重放。**下一步**：spike `FloatsToBuffer` 原子節點 + 最小 .t3 importer，證 byte-parity。**協調：下方 param-completion lane ＝被停的 monolithic 線；另一 session（sad-goodall worktree, commits ca0972e/6686fa1）在跑它，需 redirect。** 詳 [[sw-clone-two-rails-atomic-compound]]。**以下 param-completion lane 內容凍結為歷史，勿續推。**
 
 **★★當前 Active Lane（柏為 2026-06-29 22:13）= 原子→巢狀策略，`/sw-batch` 自走兩條工作：**
@@ -63,6 +70,8 @@ STAMP_AT: 2026-06-29T22:09
 - **DrawPoints 換 quad sprite（`3310181`，柏為 02:38 parity 修）** — 預設面板 DrawPoints 從「不分大小的 4px 死點」變成「依 PointSize 的 6-vert camera-facing quad sprite」，照 TiXL DrawPoints.hlsl（11 param 全砍→接回 PointSize/Color/ScaleFactor/BlendMode）。**怎麼驗**：開 app 看預設場景，點現在是 quad sprite（吃 PointSize/Color/blend）；預設場景 PointSize=1.5 可見，裸節點 .t3 預設 0.1≈1px（忠實但小，你可調 PointSize 旋鈕）。**機器閘**：drawpoints-parity golden no-bug GREEN+bug RED、7 顆下游 golden 無回歸、--bite 525、refuter 5/5 SURVIVES。**待你簽**：① quad sprite 觀感對不對 ② 預設場景 PointSize=1.5 vs TiXL 預設場景值（可能需跑真 TiXL 看）③ 純像素 byte parity 標 pixel-deferred-windows（等 Windows TiXL reference）。
 
 ## Conflict Register
+- **（2026-06-30 本批，非阻塞）`point_modify_chain.scn` PRE-EXISTING red**：line-27 AddNoise#104 經 `@ctx:add_node_bg`→`@bgctx:add:AddNoise` 背景菜單 spawn 不 fire（map dump 零 `bgctx:add:*` 項）→級聯到 line-58 `assert_diff` 假紅。triage 證 base 9ce745e 同紅、指紋逐 byte 一致＝**非本批引入**（Seam 1 Buffer terminal 是 target-type-gated 對 DrawPoints inert，refuter additive 宣稱未被推翻）。分類 (b) 驗證基建/harness brittle，task_df8df769 修，**不擋 commit**。
+- **（2026-06-30 cleanup）可清的 worktree**：3 條已合流 branch（`worktree-agent-{ad693ae1,aff4090f8,aaeb07fc}`）+ 死 salvage worktree（false-death 殘留）可 `git worktree prune`/remove；`.worktrees/{t3-importer,ui-node-skin}` 是 parked spike，**別清**。
 - **（已解，2026-06-29）graph 三層 header 註釋 stale — production 早已跑巢狀/resident，文件停在 batch-1**：`graph.h`/`compound_graph.h`/`resident_eval_graph.h` 的頭註說「flat Graph 仍是 editor/save/UI/cook 現役」「resident NOT yet wired to production / 等 batch-2 swap」——**全 stale**。亲驗 code：live 帧循環 `frame_cook.cpp run()`:280 `buildEvalGraph(doc::g_lib())` +:387 `pg.cookResident(...)`；canvas `editor_ui.cpp:4`「no flat Graph, no projection layer」遍歷 `Symbol.children/connections`，雙擊 compound child 可鑽入。flat `Graph`+`cook(Graph&)` 只剩 golden T1 test leg（R-2 鐵律:only-flat=production black hole）。**三 header 註釋 + batch-1 plan + node-classification.md(category 欄位已存在)已校正。** 剩餘 cleanup（非脊椎 swap）:golden flat→resident 遷移、stateful-op state key node-id→path、pin-id 工具、Automation 曲線解析。**教訓（第三次同根因）:doc/header 會 stale，狀態看 code 不看註釋 [[gate-or-it-rots]]。**
 - **（finding 2026-06-29，候選下一大 seam，待柏為定）clone 策略可裂兩軌 — 原子手刻 + 複合重放 .t3**：TiXL `Lib/`=925 真算子,**原子:複合=563:349（複合 38%,其中 345 純圖、僅 4 混合體）**。複合節點在 TiXL 就是「.t3 子圖」零計算碼→可由載入 .t3 重放,非逐顆手刻（記憶血證:DirectionalBlur/_multiImageFxSetup 手刻複合猜錯內部接線=parity-wrong,重放可滅此類 bug）。**運行時已就位（production 跑巢狀 compound graph）,但缺口=無 `.t3 → SymbolLibrary` importer**（`.t3` 在我方 code 只出現在 golden 註釋,191 個 point_ops 全手刻）。原子軌瓶頸=~200 shader 類（composition 救不了）。**建議:spike 一顆子節點已備齊的非平凡複合,證「載入 .t3 → 我方 cook == TiXL output」byte-parity,再決定裂軌。** 詳 [[sw-clone-two-rails-atomic-compound]]。待量:461「done」裡幾顆是 TiXL-複合被手刻（追溯浪費量）。先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
 - 工作1/工作2 零未解衝突（島7 單線 cook-core 已收，tree clean）。**無未解衝突**。
