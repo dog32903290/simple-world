@@ -6,6 +6,11 @@
 
 namespace sw {
 const std::vector<NodeSpec>& generatorSpecs();
+// Second half of the generator table (Hex/Doyle/Repetition/CommonPointSets/BoundingBox/
+// MeshVertices/PointsOnMesh/PointTrail[Fast]) — split to node_registry_generators_extra.cpp
+// to keep both files under the rule-4 cap. generatorSpecs() concatenates this AFTER the four
+// core generators, so the flat registry order is unchanged. Build NEW generators here.
+const std::vector<NodeSpec>& generatorSpecsExtra();
 
 // ---- common point-attribute NodeSpec cluster (param-completion fan-out) -------------------
 // Every TiXL point GENERATOR ends its [Input] list with the same "per-point attribute" knobs:

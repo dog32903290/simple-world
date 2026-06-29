@@ -559,6 +559,7 @@ add_executable(simple_world
   src/runtime/graph.cpp
   src/runtime/node_registry.cpp
   src/runtime/node_registry_generators.cpp
+  src/runtime/node_registry_generators_extra.cpp  # second half of the generator table (rule-4 split, param-completion fan-out)
   src/runtime/node_registry_attr_cluster.cpp  # shared per-point attribute NodeSpec cluster (param-completion fan-out; peeled for the ratchet)
   src/runtime/node_registry_point_combine.cpp
   src/runtime/node_registry_particle.cpp

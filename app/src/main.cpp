@@ -213,6 +213,8 @@ int main(int argc, char* argv[]) {
           "  simple_world --selftest-<name>         run one self-test (append -bug for the\n"
           "                                         fault-injected negative variant)\n"
           "  simple_world --selftest-dispatch       run the compute-dispatch self-test\n"
+          "  simple_world --dump-nodespec <Type>    print a node's params + folded logical count\n"
+          "                                         (param-completion gate; see nodespec_integrity.sh)\n"
           "  simple_world --list-audio-devices      list capture devices and exit\n"
           "  simple_world --audio-permission-status print mic-permission status and exit\n"
           "  simple_world --audio-capture-smoke <s> [out]  record a short capture smoke run\n"

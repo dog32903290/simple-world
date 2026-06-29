@@ -21,6 +21,7 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
+#include "runtime/graph.h"                     // findSpec — NodeSpec for --dump-nodespec
 #include "runtime/dispatch.h"                  // runDispatchSelfTest (non-uniform entry)
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
@@ -81,6 +82,62 @@ int runColorSelfTest(bool injectBug) {
   dev->release();
   pool->release();
   return pass ? 0 : 1;
+}
+
+// --dump-nodespec <type>: print one NodeSpec's params (one per line) + the FOLDED logical param
+// count, for the param-completion integrity gate (tools/nodespec_integrity.sh). "Folded logical"
+// = the count that should equal the TiXL .cs [Input] count: a Vec param (Vector2/3/4) is ONE
+// logical input (TiXL declares it as a single InputSlot<VectorN>), but sw spells it as a HEAD port
+// (widget==Vec, vecArity>=2) followed by vecArity-1 COMPONENT ports (widget==Vec, vecArity==1) —
+// so we count the head and skip the components. We also exclude sw-internal-convention ports that
+// have NO TiXL [Input] behind them: every output port (isInput==false, e.g. "points"/"out"), and
+// the grid-family CAPACITY "Count" port (sw sets it = CountX*CountY*CountZ; TiXL's grid nodes have
+// CountX/Y/Z but no standalone Count). A non-grid generator's "Count" IS a real TiXL InputSlot<int>
+// (RadialPoints/LinePoints/SpherePoints) so it is NOT excluded. Non-Float seam inputs (Mesh/
+// Texture2D/Points bag) ARE real TiXL [Input]s → counted as 1 each.
+int dumpNodeSpec(const char* type) {
+  const sw::NodeSpec* spec = sw::findSpec(type);
+  if (!spec) {
+    std::fprintf(stderr, "--dump-nodespec: unknown node type '%s'\n", type);
+    return 2;
+  }
+  // Grid-family detection: a CountX port means the standalone "Count" is the capacity convention.
+  bool hasCountX = false;
+  for (const auto& p : spec->ports)
+    if (p.id == "CountX") { hasCountX = true; break; }
+
+  std::printf("NodeSpec: %s (title=%s)\n", spec->type.c_str(), spec->title.c_str());
+  int folded = 0;
+  for (const auto& p : spec->ports) {
+    const char* role = nullptr;
+    if (!p.isInput) {
+      role = "OUTPUT (excluded: sw output port, no TiXL [Input])";
+    } else if (p.widget == sw::Widget::Vec && p.vecArity == 1) {
+      role = "vec-component (excluded: folded into its Vec head)";
+    } else if (hasCountX && p.id == "Count") {
+      role = "capacity-Count (excluded: sw buffer-capacity convention, no TiXL [Input])";
+    }
+    if (role) {
+      std::printf("  - %-22s [%-9s]  %s\n", p.id.c_str(), p.dataType.c_str(), role);
+      continue;
+    }
+    // A counted logical param. Describe the widget + Vec-head arity.
+    const char* w = "scalar";
+    switch (p.widget) {
+      case sw::Widget::Slider: w = "slider"; break;
+      case sw::Widget::Enum:   w = "enum";   break;
+      case sw::Widget::Bool:   w = "bool";   break;
+      case sw::Widget::Vec:    w = "VEC-HEAD"; break;
+    }
+    if (p.widget == sw::Widget::Vec)
+      std::printf("  + %-22s [%-9s]  %s/arity%d  (counts 1)\n", p.id.c_str(), p.dataType.c_str(), w,
+                  p.vecArity);
+    else
+      std::printf("  + %-22s [%-9s]  %s  (counts 1)\n", p.id.c_str(), p.dataType.c_str(), w);
+    ++folded;
+  }
+  std::printf("FOLDED_LOGICAL_COUNT: %d\n", folded);
+  return 0;
 }
 
 }  // namespace
@@ -146,6 +203,15 @@ int runSelftestFromArgs(int argc, char** argv) {
       std::string base = std::string("--selftest-") + e.first;
       if (base == a) return e.second(false);
       if (base + "-bug" == a) return e.second(true);
+    }
+
+    // --dump-nodespec <type>: print one node's params + folded logical count (param-completion gate).
+    if (std::strcmp(a, "--dump-nodespec") == 0) {
+      if (i + 1 >= argc) {
+        std::fprintf(stderr, "--dump-nodespec: missing <NodeType> argument\n");
+        return 2;
+      }
+      return dumpNodeSpec(argv[i + 1]);
     }
 
     // Non-uniform entries (no bug variant / take arguments).

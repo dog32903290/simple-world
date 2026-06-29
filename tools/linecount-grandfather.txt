@@ -18,6 +18,15 @@
 # navigation selftest → document_io.cpp. document.cpp (400→31) is now the thin coordinator (g_lib
 # accessor + session view-globals + lib revision). All three new TUs are well under 400 → no
 # grandfather entry needed; document.cpp never had one and is now well under the cap.
+# generators split (2026-06-29, param-completion fan-out): node_registry_generators.cpp was AT the
+# hard 400 wall with ZERO headroom — blocking the ~16 generators still owed their full TiXL [Input]
+# param set. Mechanical split, zero behavior change: the four CORE generators (RadialPoints/LinePoints/
+# GridPoints/SpherePoints — the integrity-gate calibration pair) stay here; the rest moved VERBATIM to
+# node_registry_generators_extra.cpp (the working file for new generators + fan-out, governed by the
+# default ≤400 cap with room to grow). generatorSpecs() concatenates both (core, then extra) so the
+# flat registry order is byte-identical. RATCHET DOWN 400→180: the core four are stable, so the gain is
+# locked tight here — new generator work happens in the _extra file, which can't drift this one back up.
+app/src/runtime/node_registry_generators.cpp:180
 app/src/app/child_state_selftest.cpp:402
 app/src/app/copy_paste_selftest.cpp:443
 # gradient-inspector (2026-06-26): +17 for residentCookedGradient() API (the 8th-flow gradient face
