@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>節點健康帳 — simple_world ⇄ TiXL</title>
+<style>
+  :root{--bg:#0f1115;--card:#181b22;--ink:#e6e8ec;--mut:#8a93a3;--line:#262b35;
+    --atom:#4ade80;--flat:#fbbf24;--undone:#60a5fa;--nonspec:#a78bfa;--nohdr:#f87171;}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:28px}
+  h1{font-size:22px;margin:0 0 4px} .sub{color:var(--mut);margin:0 0 22px;font-size:13px}
+  .kpis{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:26px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:12px 16px;min-width:130px} .kpi .n{font-size:26px;font-weight:700}
+  .kpi .l{color:var(--mut);font-size:12px;margin-top:2px}
+  .kpi.atom .n{color:var(--atom)} .kpi.flat .n{color:var(--flat)}
+  .kpi.undone .n{color:var(--undone)} .kpi.nonspec .n{color:var(--nonspec)}
+  .kpi.nohdr .n{color:var(--nohdr)}
+  section{margin-bottom:30px}
+  .sechead{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--line);
+    padding-bottom:8px;margin-bottom:14px}
+  .sechead h2{font-size:17px;margin:0} .sechead .cnt{color:var(--mut);font-size:13px}
+  .sechead .desc{color:var(--mut);font-size:12px;margin-left:auto;text-align:right}
+  .grid{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{background:var(--card);border:1px solid var(--line);border-left-width:3px;
+    border-radius:7px;padding:6px 10px;font-size:12.5px;display:flex;flex-direction:column;min-width:0}
+  .chip .nm{font-weight:600;white-space:nowrap} .chip .meta{color:var(--mut);font-size:11px;margin-top:1px}
+  .s-atom .chip{border-left-color:var(--atom)} .s-flat .chip{border-left-color:var(--flat)}
+  .s-undone .chip{border-left-color:var(--undone)} .s-nonspec .chip{border-left-color:var(--nonspec)}
+  .s-nohdr .chip{border-left-color:var(--nohdr)}
+  .chip .tag{display:inline-block;font-size:10px;padding:1px 5px;border-radius:4px;margin-top:3px}
+  .tag.safe{background:#14361f;color:var(--atom)} .tag.deps{background:#3a2410;color:var(--flat)}
+  .tag.pg{background:#1c2a3f;color:var(--undone)}
+  details>summary{cursor:pointer;color:var(--mut);font-size:12px;margin-bottom:8px}
+</style></head><body>
+<h1>節點健康帳 — simple_world ⇄ TiXL</h1>
+<p class="sub">TiXL 902 算子 (親數 .t3 = ground-truth universe) · done-check 多處錨定來源 · 身份 = sw做了 × TiXL原子/複合 · 由 tools/node_health.sh --html 產（跟 code 走不 stale）</p>
+<div class="kpis">
+  <div class="kpi atom"><div class="n">307</div><div class="l">真原子 (留·真積木)</div></div>
+  <div class="kpi flat"><div class="n">148</div><div class="l">壓平複合 (廢棄候選)</div></div>
+  <div class="kpi undone"><div class="n">416</div><div class="l">未做</div></div>
+  <div class="kpi nonspec"><div class="n">31</div><div class="l">非NodeSpec (param N/A)</div></div>
+  <div class="kpi nohdr"><div class="n">0</div><div class="l">無@tixl-header</div></div>
+</div>
+<section class="s-atom"><div class="sechead"><h2>真原子 — 留 (真積木)</h2><span class="cnt">307 顆</span><span class="desc">sw做了 ∧ TiXL .t3 Children 空</span></div><div class="grid">
+<div class="chip"><span class="nm">Abs</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AbsoluteSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">Accumulator</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Add</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AddInt2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AddInts</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AddVec2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AddVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">All</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AmplifyValues</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">And</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AnimBoolean</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AnimFloatList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AnimInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AnimValue</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AnimVec2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AnimVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Any</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Atan2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AudioReaction</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">BendField</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">BlendColors</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">BlendGradients</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">BlendSDFWithSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">BlendStrings</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">BlendValues</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">BlendVector3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">BoolToFloat</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">BoolToInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">BoxFrameSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">BoxSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">BuildRandomString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">CalcDispatchCount</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">CappedTorusSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">CapsuleLineSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">Ceil</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ChainLinkSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">ChangeCase</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">Clamp</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ClampInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ClipTime</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ColorsToList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CombineColorLists</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CombineFieldColor</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">CombineFloatLists</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CombineSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">CombineStrings</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">CommonPointSets</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">Compare</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CompareFloatLists</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CompareInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ConeGizmo</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ConvertTime</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Cos</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CountInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CrossVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CubeMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">CurvesToTexture</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CustomSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">CylinderMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">CylinderSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">Damp</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DampAngle</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DampFloatList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DampPeakDecay</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DampVec2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DampVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DateTimeToFloat</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">DateTimeToString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">DefineGradient</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DefineIqGradient</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DelayTriggerChange</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DeltaSinceLastFrame</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DetectBpm</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">DetectPulse</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Div</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DivideVector2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DotVec2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DotVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DotVec4</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Ease</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">EaseVec2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">EaseVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">EulerToAxisAngle</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ExecuteImage2dSdf</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">FilePathParts</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">FilesInFolder</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">FirstValidTexture</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">FlipBool</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">FlipFlop</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">FloatHash</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">FloatListLength</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">FloatListToIntList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">FloatListToString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">FloatToInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">FloatToString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">FloatsToList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Floor</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">FractalSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">FreezeValue</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">GetAPrime</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">GetAttributeFromJsonString</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">GetBoolVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">GetBpm</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">GetFloatVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">GetFrameSpeedFactor</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">GetIntVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">GetPointDataFromList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">GetStringVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">GetVec3Var</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">GradientsToTexture</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HSBToColor</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HSLToColor</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HasBooleanChanged</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HasIntChanged</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HasStringChanged</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">HasTimeChanged</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HasValueChanged</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HasValueDecreased</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HasValueIncreased</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HasVec2Changed</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HasVec3Changed</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">IcosahedronMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">IndexOf</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">Int2Components</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Int2ToVector2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">IntAdd</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">IntDiv</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">IntListLength</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">IntListToFloatList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">IntToFloat</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">IntToString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">IntsToList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">InvertFloat</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">InvertSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">IsGreater</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">IsIntEven</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">JoinLists</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">JoinStringList</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">KeepBoolean</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">KeepColors</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">KeepFloatValues</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">KeepPreviousFrame</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">LastFrameDuration</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Lerp</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">LerpVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">LinePointsCpu</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">LinearPointsCpu</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">ListToBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">LoadImage</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">LoadObjAsPoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">LoadObjEdges</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">Log</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Magnitude</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MakeResolution</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MaxInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MaxInt2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MergeFloatLists</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MergeIntLists</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MinInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MockStrings</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">ModInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Modulo</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MulMatrix</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MultiUpdatePoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">Multiply</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MultiplyInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">MultiplyInts</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">NGonMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">NoiseDisplaceSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">NormalizeVector3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Not</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">OKLChToColor</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">OctahedronSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">Or</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">OscillateVec2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">OscillateVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PadVec2Range</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PeakLevel</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PerlinNoise</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PerlinNoise2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PerlinNoise3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickBool</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickColor</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickColorFromList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickFloat</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickFloatFromList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickFloatList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickGradient</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickIntFromList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickMeshBuffer</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">PickPointList</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">PickString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">PickStringFromList</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">PickStringPart</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">PickTexture</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">PickVector2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickVector3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PlaneSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">PointToMatrix</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">PointsToCPU</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">Pow</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PrismSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">PushPullSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">PyramidSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">QuadMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">RadialPointsCpu</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">Random</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Raster3dField</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">ReadFile</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">ReadPointColors</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">ReflectField</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">Remap</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">RemapFloatList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">RemapValues</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">RemapVec2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">RepeatAtPointsCpu</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">RepeatAxis</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">RepeatField3</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">RepeatFieldLimit</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">RepeatPolar</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">RepetitionPoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">RequestedResolution</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">RgbaToColor</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">RotateAxis</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">RotateField</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">RotateVector3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">RotatedPlaneSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">Round</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">RoundVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">RunTime</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SampleCpuPoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">SampleCurve</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SampleGradient</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ScaleResolution</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ScaleSize</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ScaleVector2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ScaleVector3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SearchAndReplace</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">SetBoolVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">SetBpm</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SetFloatListValue</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SetFloatVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">SetIntListValue</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SetIntVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">SetPlaybackSpeed</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SetPlaybackTime</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SetSDFMaterial</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">SetStringVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">SetVec3Var</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">Sigmoid</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Sin</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SmoothStep</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SmoothValues</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SpatialDisplaceSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">SphereMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">SphereSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">SplinePoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">SplitString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">Spring</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SpringVec2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SpringVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Sqrt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">StairCombineSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">StopWatch</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">StringBuilderToString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">StringInsert</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">StringLength</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">StringRepeat</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">Sub</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SubInts</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SubString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">SubVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Sum</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SumInts</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SumRange</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SwapTextures</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">Time</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ToggleBoolean</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ToroidalVortexField</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">TorusMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">TorusSDF</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">TransformCpuPoint</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">TransformField</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">TransformMatrix</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">TransformVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Translate</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">TranslateUV</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">Trigger</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">TryParse</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">TryParseInt</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">TwistField</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">UseFallbackTexture</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">ValuesToTexture2</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Vec2Magnitude</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Vec2ToVec3</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Vec3Distance</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Vec3ToString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">Vector2Components</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Vector3Components</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Vector3Gizmo</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Vector4Components</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">WasTrigger</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">WrapString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">Xor</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ZipStringList</span><span class="meta">string</span></div>
+</div></section>
+<section class="s-flat"><div class="sechead"><h2>壓平複合 — 廢棄候選</h2><span class="cnt">148 顆</span><span class="desc">sw 手刻單體 ∧ TiXL 是 .t3 複合 → 等 .t3 重放取代；標依賴別動 code</span></div><div class="grid">
+<div class="chip"><span class="nm">AddNoise</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">AdjustColors</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">AdvancedFeedback</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">AfterGlow</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">AfterGlow2</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">AttributesFromImageChannels</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">AxisStepForce</span><span class="meta">particle</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Blend</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">BlendMeshVertices</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">BlendPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">BlendWithMask</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Blob</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Blur</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">BoundPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">BoundingBoxPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">BoxGradient</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">BubbleZoom</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ChannelMixer</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">CheckerBoard</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ChromaticAbberation</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ChromaticDistortion</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ClearSomePoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">CollapseVertices</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ColorGrade</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Combine3Images</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">CombineBuffers</span><span class="meta">point</span><span class="tag deps">有依賴 1 處</span></div>
+<div class="chip"><span class="nm">CombineMaterialChannels</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">CombineMaterialChannels2</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">CombineMeshes</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ConvertColors</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Crop</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">DeformMesh</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">DepthBufferAsGrayScale</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">DetectEdges</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">DirectionalForce</span><span class="meta">particle</span><span class="tag deps">有依賴 1 處</span></div>
+<div class="chip"><span class="nm">Displace</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">DistortAndShade</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Dither</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">DoyleSpiralPoints2</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">DrawBoxGizmo</span><span class="meta">render</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">DrawLineGrid</span><span class="meta">render</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">DrawSphereGizmo</span><span class="meta">render</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">FastBlur</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">FieldDistanceForce</span><span class="meta">particle</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">FieldVolumeForce</span><span class="meta">particle</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">FilterPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">FindClosestPointsOnMesh</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">FlipNormals</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">FractalNoise</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">FraserGrid</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Fxaa</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Grain</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">GridPoints</span><span class="meta">point</span><span class="tag deps">有依賴 1 處</span></div>
+<div class="chip"><span class="nm">GrowStrains</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">HSE</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">HexGridPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">HoneyCombTiles</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Image2dSDF</span><span class="meta">field</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ImageLevels</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">KeyColor</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">KochKaleidoskope</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">LinePoints</span><span class="meta">point</span><span class="tag deps">有依賴 1 處</span></div>
+<div class="chip"><span class="nm">LinearGradient</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">LinearSamplePointAttributes</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Locator</span><span class="meta">render</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">MandelbrotFractal</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">MapPointAttributes</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">MeshProjectUV</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">MeshVerticesToPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">MirrorRepeat</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">MosiacTiling</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">MoveToSDF</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">MunchingSquares2</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">NGon</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">NGonGradient</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">NormalMap</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">OrientPoints</span><span class="meta">point</span><span class="tag deps">有依賴 1 處</span></div>
+<div class="chip"><span class="nm">PairPointsForGridWalkLines</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">PairPointsForLines</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">PairPointsForSplines</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ParticleSystem</span><span class="meta">particle</span><span class="tag deps">有依賴 2 處</span></div>
+<div class="chip"><span class="nm">Pixelate</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">PointAttributeFromNoise</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">PointColorWithField</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">PointTrail</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">PointTrailFast</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">PointsOnMesh</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">PolarTransformPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RadialGradient</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RadialPoints</span><span class="meta">point</span><span class="tag deps">有依賴 4 處</span></div>
+<div class="chip"><span class="nm">RandomJumpForce</span><span class="meta">particle</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RandomizePoints</span><span class="meta">point</span><span class="tag deps">有依賴 1 處</span></div>
+<div class="chip"><span class="nm">Raster</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RaymarchPoints</span><span class="meta">field</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RecomputeNormals</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RemapColor</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ReorientLinePoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RepeatAtPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ResampleLinePoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RgbTV</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Rings</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RoundedRect</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RyojiPattern1</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">RyojiPattern2</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SamplePointColorAttributes</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SamplePointsByCameraDistance</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SdfReflectionLinePoints</span><span class="meta">field</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SelectPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SelectPointsWithSDF</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SelectVertices</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SetAttributesWithPointFields</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SetPointAttributes</span><span class="meta">point</span><span class="tag deps">有依賴 1 處</span></div>
+<div class="chip"><span class="nm">ShardNoise</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Sharpen</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SimCentricalOffset</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SimDirectionalOffset</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SimForceOffset</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SimNoiseOffset</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SinForm</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SnapPointsToGrid</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SnapToAnglesForce</span><span class="meta">particle</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SnapToPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SoftTransformPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SortPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SpherePoints</span><span class="meta">point</span><span class="tag deps">有依賴 1 處</span></div>
+<div class="chip"><span class="nm">SplitMeshVertices</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">StarGlowStreaks</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">SubdivideLinePoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">TileableNoise</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">Tint</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ToneMapping</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">TransformFromClipSpace</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">TransformImage</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">TransformMesh</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">TransformMeshUVs</span><span class="meta">mesh</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">TransformPoints</span><span class="meta">point</span><span class="tag deps">有依賴 2 處</span></div>
+<div class="chip"><span class="nm">TransformSomePoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">TransformWithImage</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">TurbulenceForce</span><span class="meta">particle</span><span class="tag deps">有依賴 2 處</span></div>
+<div class="chip"><span class="nm">ValueRaster</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">VectorFieldForce</span><span class="meta">particle</span><span class="tag deps">有依賴 1 處</span></div>
+<div class="chip"><span class="nm">VelocityForce</span><span class="meta">particle</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">VoronoiCells</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">WorleyNoise</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">WrapPointPosition</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">WrapPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">ZollnerPattern</span><span class="meta">image</span><span class="tag safe">可安全廢棄</span></div>
+<div class="chip"><span class="nm">_OffsetPoints</span><span class="meta">point</span><span class="tag safe">可安全廢棄</span></div>
+</div></section>
+<section class="s-undone"><div class="sechead"><h2>未做</h2><span class="cnt">416 顆</span><span class="desc">TiXL 有 ∧ sw 多處 done-check 全不命中</span></div><div class="grid">
+<div class="chip"><span class="nm">APoint</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">AbletonLinkSync</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ActionCamera</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">AdsrEnvelope</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AdvancedFeedback2</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">AnalyzeBuffers</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">AnalyzeFloatList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">AnalyzeMeshBuffers</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">AnimRandomString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">ApplyCamMatrices</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ApplyCamTransform</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ApplyRandomWalk</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">ApplyTransformMatrix</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ApplyVectorField</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">ArtnetInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">ArtnetOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">ArtnetPixelOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">AsciiRender</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">AudioFrequencies</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">AudioPlayer</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">AudioToneGenerator</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">AudioWaveform</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">BlendCameras</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">BlendImages</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">BlendMeshToPoints</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">BlendScenes</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">BlurWithMask</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">BuildAsciiFontSorting</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">BuildGradient</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CacheBoolean</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">CalcInt2DispatchCount</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">CamPosition</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">CameraCalibrator</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">CameraWithRotation</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">CollisionForce</span><span class="meta">particle</span></div>
+<div class="chip"><span class="nm">ColorGradeDepth</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">ColorListToInts</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ColorPhysarum</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">ColorVerticesWithField</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">CompareImages</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">ComposeVec3FromList</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ComputeImageDifference</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ContextCBuffers</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ConvertEquirectangle</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ConvertFormat</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">CountDown</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">CpuPointToCamera</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">CurrentCamMatrices</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">CustomFaceShader</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">CustomForce</span><span class="meta">particle</span></div>
+<div class="chip"><span class="nm">CustomPixelShader</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">CustomPointShader</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">CustomVertexShader</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DMXOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">DataPointConverter</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DataPointImportExport</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DataRecording</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">DateTimeInSecs</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DefineLensFlare</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DefineMaterials</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DelaunayMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DelayBoolean</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">DepthOfField</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DetectBeatOffset</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">DetectMotion</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">DirectionalBlur</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">DisplaceMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DisplaceMeshNoise</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DisplaceMeshVAT</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">Draw</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawAsSplitView</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawCamGizmos</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawConnectionLines</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawInstancedIndirect</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawLensFlares</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawLensShimmer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawLinesShaded</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DrawMeshAtPoints</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DrawMeshAtPoints2</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawMeshCelShading</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DrawMeshChunksAtPoints</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DrawMeshHatched</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DrawMeshWithShadow</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DrawMovingPoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawPointSprites</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawPointSpritesShaded</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawPointsDOF</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawPointsShaded</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawQuad</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawQuiz</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">DrawRayLines</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawRibbons</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawScene</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawScreenQuadAdvanced</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawSpatialAudioGizmos</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawSphere</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawTubes</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DsvFromTexture2d</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DustParticles</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">EaseKeys</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">EaseVec2Keys</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">EaseVec3Keys</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Equirectangle</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ExecuteBufferUpdate</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ExecuteHeightmapSdf</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">ExecuteRawBufferUpdate</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">ExecuteRepeatFieldAtPoints</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">ExecuteTextureUpdate</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ExecuteValueUpdate</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ExtrudeCurves</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">FadingSlideShow</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">FakeLight</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">FieldToImage</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">FindKeyframes</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">FirstValidBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">FloatsToBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">FluidFeedback</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">FollowMeshSurfaceForce</span><span class="meta">particle</span></div>
+<div class="chip"><span class="nm">ForwardBeatTaps</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">FourPointLights</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">FreeDInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">FreeDOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">Gamepad</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">GenerateMips</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GenerateShaderGraphCode</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">GetAllCameras</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GetAllSpatialAudioPlayers</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">GetBeatTimingDetails</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">GetBufferComponents</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GetCamTransformBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GetForegroundColor</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">GetImageBrightness</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">GetLightPosition</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GetListItemAttribute</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">GetMatrixVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">GetObjectVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">GetParticleComponents</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">GetPbrParameters</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GetPointLightOccclusion</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GetPosition</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">GetSRVProperties</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GetScreenPos</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GetTextureFromContext</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GetTextureSize</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GlitchDisplace</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">Glow</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">GodRays</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GpuMeasure</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GridPlane</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">GridPosition</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">HeightMapSdf</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">IkChain</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">ImageFFT</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">ImageQuiz</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">ImageSequenceClip</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">InputAssemblerStage</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">IntListToBuffer</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">IntToWrapmode</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">IntsToBuffer</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">IntsToBufferWithViews</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">IsBufferDirty</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">JonBakerSDFLoader</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">JumpFloodFill</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">KeepBufferReference</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">KeepInTextureArray</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">KeepInts</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">KeepPreviousPointBuffer</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">KeepStrings</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">KeyboardInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">KeyboardInputAsInt</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">LegacyParticleSimulation</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">LenseFlareHoop</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">LenseFlareSetup</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">LenseFlareSetupAdvanced</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">LineTextPoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">LinkToMidiTime</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">LoadDataClip</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">LoadGltf</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">LoadGltfScene</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">LoadImageFromUrl</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">LoadObj</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">LoadSoundtrack</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">LoadSvg</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">LoadSvgAsTexture2D</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">MakeTileableImage</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">MakeTileableImageAdvanced</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">MeshFacesPoints</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">MeshVolumeForce</span><span class="meta">particle</span></div>
+<div class="chip"><span class="nm">MidiClip</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">MidiControlOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">MidiInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">MidiNoteOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">MidiOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">MidiPitchbendOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">MidiRecording</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">MidiSysexOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">MidiTriggerOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">MotionBlur</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">MouseInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">MoveMeshToPointLine</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">MovePointsToCurveSpace</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">NoisePoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">NowAsDateTime</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">NumberLinePoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">NumberPattern</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">Once</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">OnvifCamera</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">OpticalFlow</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">OrbitCamera</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">OscInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">OscOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">OutputMergerStage</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">PickBlendMode</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">PickBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">PickColorFromImage</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PickObject</span><span class="meta">data</span></div>
+<div class="chip"><span class="nm">PickSDXVector4</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">PlayAudioClip</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">PlayVideo</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">PlayVideoClip</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">PlaybackFFT</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">PlotValueCurve</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">PointInfoLines</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">PointLight</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">PointSimulation</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">PointsFromMeshData</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">PointsOnImage</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">PointsToDMXLights</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">PointsToRGBList</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">PosiStageInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">PosiStageOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">PrefixSum</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">PrepareSvgLineTransition</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">ProjectLight</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">RandomChoiceIndex</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">Rasterizer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ReconstructiveForce</span><span class="meta">particle</span></div>
+<div class="chip"><span class="nm">RecycleBuffer</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">ReflectionLines</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">RemoveStaticBackground</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">Render2dField</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">RenderWithMotionBlur</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">RepeatFieldAtPoints</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">RepeatMeshAtPoints</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">RepeatWithMotionBlur</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ReprojectToUV</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">RequestUrl</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">ResetSubtreeTrigger</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">ResolutionConstBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ReuseCamera</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ReuseCamera2</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">RtvFromTexture2d</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SDFToColor</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">SSAO</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SacnInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">SacnOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">SampleFieldPoints</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">SamplePointAttributes_v1</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">SamplePointSimAttributes</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">SampleSplinePoint</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">SampleSpriteAttributes</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ScatterMeshFaces</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">ScreenCloseUp</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">SdfToVector</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">SelectBoolFromFloatDict</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SelectFloatFromDict</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SelectVec2FromDict</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SelectVec3FromDict</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SelectVerticesWithSDF</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">SequenceAnim</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SerialInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">SerialOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">SetContextTexture</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SetEnvironment</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SetFog</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SetKeyframes</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SetMaterial</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SetMatrixVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">SetObjectVar</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">SetPixelAndVertexShaderStage</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SetPointLight</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SetRequestedResolutionCmd</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">SetShadow</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SetSpeedFactors</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">SetTime</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">ShadowPlane</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ShiftCamera</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ShowTexture2d</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ShowTexture3d</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SimBlendTo</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">SimDisplacePoints2d</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">SimFollowMeshSurface</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">SimPointMeshCollisions</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">SimpleLiquid</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">SimpleLiquid2</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">SimulateIoData</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">Sketch</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">SliceViewPort</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SlidingHistory</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">SortPixelGlitch</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">SpatialAudioPlayer</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">SpatialAudioPlayerGizmo</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">SpreadIntoGrid</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SpreadLayout</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SrvFromStructuredBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SrvFromTexture2d</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">Steps</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">StringToDateTime</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">SubDivPattern3d</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">SubdivisionStretch</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">SwapBuffers</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SwiftCamDevice</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">SwitchBlendState</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SwitchParticleForce</span><span class="meta">particle</span></div>
+<div class="chip"><span class="nm">TcpClient</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">TcpServer</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">TemporalAccumulation</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">Text</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">TextGrid</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">TextOutlines</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">TextSprites</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">Texture3dComponents</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">TextureDisplaceMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">TextureMapForce</span><span class="meta">particle</span></div>
+<div class="chip"><span class="nm">TextureToCubeMap</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">TimeClip</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">TimeConstBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">TimeDisplace</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">TimeToString</span><span class="meta">string</span></div>
+<div class="chip"><span class="nm">TraceContourLines</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">TransformsConstBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">TriggerAnim</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">TypoGridBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">UDPInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">UDPOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">UVsViewer</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">UavFromBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">UavFromStructuredBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">UavFromTexture2d</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">UseFallbackBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">UseMaterial</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">UseTextureReference</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">ValueQuiz</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">ValueToRate</span><span class="meta">numbers</span></div>
+<div class="chip"><span class="nm">VerletRibbonForce</span><span class="meta">particle</span></div>
+<div class="chip"><span class="nm">Video2DPointScanner</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">VideoClip</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">VideoDeviceInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">VideoStreamInput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">Viewport</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ViscaCamera</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">VisibleGizmos</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">VisualizeCamTrail</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">VisualizeFieldDistance</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">VisualizeMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">VisualizePoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">VisualizeSpotLights</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">VisualizeUvMap</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">VolumeForce</span><span class="meta">particle</span></div>
+<div class="chip"><span class="nm">WLedSerialOutput</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">Warp2dMesh</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">WaveForm</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">WebServer</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">WebSocketClient</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">WebSocketServer</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">WriteToFile</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">_AdjustFeedbackImage</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">_AppendPoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_AssembleMeshBuffers</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">_BuildSpatialHashMap</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_CameraGizmo</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_ComputeBRDFLookup</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_ComputeDepthToLinear</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_ComputeLightOcclusions</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_DepthOfField</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_DispatchSceneDraws</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_DoyleSpiralRoot</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_DrawBillboardsOld</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_DrawPointInfo</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_DrawQuads</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_DrawVaryingQuads</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_ExecuteBloomPasses</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">_ExecuteCombineBuffers</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_ExecuteFastBlurPasses</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">_ExecuteParticleUpdate</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_ExecuteSdfToColor</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">_GetSceneDefinitionPoints</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_GetSketchPoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_ImageFxShaderSetup2</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_ImageFxShaderSetupStatic</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_KeepPreviousFrame_Old1</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">_LegacySimForwardMovement</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_LenseFlareHoopPosition</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_MeshBufferComponents</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">_MixPoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_OutputWindowGrid</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_ProcessLayer2d</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_ProjectedLight</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_QuizUp</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">_RandomizePoints_Legacy1</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_ReadBackImageDifference</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">_ReadIntFromGpuBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_RenderFontBuffer</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_ReprojectShadowMap</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_SetAudioAnalysis</span><span class="meta">io</span></div>
+<div class="chip"><span class="nm">_SetParticleSystemComponents</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_SketchImpl</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_SpecularPrefilter</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">_ValueQuizGraph</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">_VisLenseFxZone</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_VisualizePointFields</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">_VisualizeTBN</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">_multiImageFxSetup</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">_multiImageFxSetupStatic</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">_trippleImageFxSetup</span><span class="meta">image</span></div>
+</div></section>
+<section class="s-nonspec"><div class="sechead"><h2>非 NodeSpec 路徑</h2><span class="cnt">31 顆</span><span class="desc">sw做了，走 texReg/cmdReg → param 閘 N/A</span></div><div class="grid">
+<div class="chip"><span class="nm">Bloom</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">Camera</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ClearRenderTarget</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">DrawBillboards</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawClosedLines</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawLines</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawLinesBuildup</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawMeshUnlit</span><span class="meta">mesh</span></div>
+<div class="chip"><span class="nm">DrawPoints</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawPoints2</span><span class="meta">point</span></div>
+<div class="chip"><span class="nm">DrawScreenQuad</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">EdgeRepeat</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">ExecRepeatedly</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">Execute</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">ExecuteOnce</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">Group</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">Layer2d</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">LightRaysFx</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">LogMessage</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">Loop</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">OrthographicCamera</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">PolarCoordinates</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">RaymarchField</span><span class="meta">field</span></div>
+<div class="chip"><span class="nm">RenderTarget</span><span class="meta">image</span></div>
+<div class="chip"><span class="nm">RotateAroundAxis</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">RotateTowards</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">SetRequestedResolution</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">Shear</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">Switch</span><span class="meta">flow</span></div>
+<div class="chip"><span class="nm">Transform</span><span class="meta">render</span></div>
+<div class="chip"><span class="nm">ValuesToTexture</span><span class="meta">numbers</span></div>
+</div></section>
+<section class="s-nohdr"><div class="sechead"><h2>無 @tixl-header</h2><span class="cnt">0 顆</span><span class="desc">sw 葉檔 stem 對不上任何 TiXL 名 (fork 待補 // @tixl: header)</span></div><div class="grid">
+</div></section>
+</body></html>
