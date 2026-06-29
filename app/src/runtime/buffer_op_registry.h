@@ -84,6 +84,18 @@ struct BufferCookCtx {
   const std::map<std::string, float>* params = nullptr;       // resolved Float params (value spine)
   const std::vector<float>* floatInputs = nullptr;            // wired scalar Float payload (marshal)
   const std::vector<std::array<float, 16>>* vec4Inputs = nullptr;  // wired Vector4[] matrix payload
+  // CAMERA matrices (camera-matrix-into-buffer seam, for TransformsConstBuffer): the driver fills the 3
+  // SOURCE matrices TiXL's TransformBufferLayout ctor takes (TransformsConstBuffer.cs:58-60
+  // context.CameraToClipSpace / WorldToCamera / ObjectToWorld). Filled by fillBufferCamera (mirror of
+  // fillPointCamera) from the DEFAULT camera + IDENTITY ObjectToWorld at the output aspect — fork
+  // `transformsconstbuffer-camera-from-default`. ROW-MAJOR float[16] (m[r*4+c], the field_camera Mat4
+  // convention; the op transposes them itself per fork transformsconstbuffer-hlsl-rowmajor-bytes).
+  // hasCamera=false → no Camera-wanting op present, fields stay identity/zero → every other Buffer op is
+  // byte-identical (they ignore these).
+  bool hasCamera = false;
+  float camCameraToClipSpace[16] = {0};
+  float camWorldToCamera[16] = {0};
+  float camObjectToWorld[16] = {0};
 };
 
 // A Buffer op: read inputBuffers/floatInputs/vec4Inputs → fill *output (via requestBytes for a producer,

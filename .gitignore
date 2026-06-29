@@ -15,6 +15,9 @@ __pycache__/
 # Vendored metal-cpp + imgui donor trees and CMake build output stay local.
 /app/third_party/
 /app/build/
+# Defensive: a stray root-level CMake build dir (worktree agents sometimes build here) + Metal AIR intermediates.
+/build/
+*.air
 
 # Agent-verification output (eye/ears/hands captures) — products, not source.
 /app/.eye/

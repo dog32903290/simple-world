@@ -563,6 +563,7 @@ add_executable(simple_world
   src/runtime/buffer_ops_executebufferupdate.cpp # ExecuteBufferUpdate (run Command, forward Buffer unchanged)
   src/runtime/buffer_ops_intstobuffer.cpp        # IntsToBuffer (host ints → GPU buffer, 16-byte-padded int32 slices)
   src/runtime/buffer_ops_getsrvproperties.cpp    # GetSRVProperties (Buffer passthrough + element-count read-out, thin GetBufferComponents sibling)
+  src/runtime/buffer_ops_transformsconstbuffer.cpp # TransformsConstBuffer (640-byte 10-matrix camera const buffer, HLSL row-major transposed bytes)
   src/runtime/gradient_op_registry.cpp
   src/runtime/gradient_ops_definegradient.cpp
   src/runtime/gradient_ops_pickgradient.cpp

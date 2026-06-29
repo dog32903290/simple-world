@@ -31,12 +31,31 @@
 #include <Metal/Metal.hpp>
 
 #include "runtime/buffer_op_registry.h"  // BufferCookCtx/BufferCookFn/findBufferOp
+#include "runtime/field_camera.h"        // Mat4, mat4Identity, defaultLayerCameraForward (camera bridge)
 #include "runtime/graph.h"               // Graph/Node/NodeSpec/PortSpec/Connection/pinId/pinNode/findSpec/evalFloat
 #include "runtime/sw_buffer.h"           // SwBuffer (full def)
 
 namespace sw {
 
 using pgdetail::flatKey;
+
+namespace {
+// CAMERA gather (camera-matrix-into-buffer seam, for TransformsConstBuffer) — mirror of
+// pgdetail::fillPointCamera (point_graph_internal.h:87-97). FORK `transformsconstbuffer-camera-from-
+// default`: fill the 3 SOURCE matrices (CameraToClipSpace / WorldToCamera / ObjectToWorld) from the
+// DEFAULT camera at the output aspect + IDENTITY ObjectToWorld (the same v1 fork as pointCameraMatrices;
+// a wired Camera op is a later seam). Only TransformsConstBuffer reads them; every other Buffer op
+// ignores cam* → byte-identical. The op itself derives the other 7 matrices + transposes.
+void fillBufferCamera(BufferCookCtx& bc, const NodeSpec& spec, float aspect) {
+  if (spec.type != "TransformsConstBuffer") return;  // every other Buffer op → byte-identical
+  LayerCameraForward fwd = defaultLayerCameraForward(aspect);  // worldToCamera + cameraToClipSpace
+  Mat4 objectToWorld = mat4Identity();                          // v1 fork: identity O2W
+  std::memcpy(bc.camCameraToClipSpace, fwd.cameraToClipSpace.m, sizeof(float) * 16);
+  std::memcpy(bc.camWorldToCamera, fwd.worldToCamera.m, sizeof(float) * 16);
+  std::memcpy(bc.camObjectToWorld, objectToWorld.m, sizeof(float) * 16);
+  bc.hasCamera = true;
+}
+}  // namespace
 
 const SwBuffer* PointGraph::Impl::cookFlatBuffer(
     const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
@@ -94,6 +113,11 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
   bc.params = nodeParams(id);
   bc.floatInputs = &floatInputs;
   bc.vec4Inputs = &vec4Inputs;
+  // Camera bridge (TransformsConstBuffer): default camera at the ACTIVE RequestedResolution aspect,
+  // mirroring point_graph.cpp:364-366's fillPointCamera call site. Every other Buffer op → byte-identical.
+  fillBufferCamera(bc, *s, (requestedResolution.h > 0)
+                               ? (float)requestedResolution.w / (float)requestedResolution.h
+                               : 1.0f);
   const std::string key = flatKey(id);
   bc.requestBytes = [this, key, &out](uint32_t byteSize) -> void* {
     MTL::Buffer* b = ensureRawBuffer(key, byteSize);
