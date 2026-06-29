@@ -51,7 +51,19 @@ Trigger/Damp*/Spring*/Ease* …）**早已 ported，在中央 `node_registry_mat
 
 ## ★★今天的承重發現：census/scout 數字四次高估，sw 遠比文件完整
 2026-06-29 連續四次「待辦/卡縫」一讀 code 都是早建好：① image 真缺 1→34（fold 假象）② value 331→近乎見底（中央表已做）③ shader「200 卡死」→假問題（codegen 等價機制已建 41 顆）④ String「25 卡 seam」→ seam 早 live + 26 顆已做。**模式：sw 的硬基建大多早已建，census 的「todo/blocked」標籤系統性 stale**（done-check 只看單一處→漏中央表/registry；seam 標籤停在開工前狀態）。
-- **真正 code-verified 沒建的縫只剩兩條**：(a) **raw Buffer currency**（spike 步 3 證實，49 原子+複合 keystone，碰 cook-core）(b) **Matrix port type**（`string_ops_vec3tostring.cpp:20-21` 證 TransformVec3 卡此，sw 無 Matrix input port，碰 currency ABI）。
+- **真正 code-verified 沒建的縫**（定論清點 2026-06-29 補第三+四+五條）：(a) **raw Buffer currency**（spike 步 3，49+2 原子+複合 keystone，碰 cook-core）(b) **Matrix port type**（TransformVec3 卡，currency ABI）(c) **DateTime host type**（string/datetime 5 顆卡，新 host currency）(d) **anim time/playback/keyframe ctx**（anim 家族 ~12 顆卡）(e) **Dict/Iterator ctx**（data 家族 ~13 顆卡）。
+
+## ★★定論 code-verified backlog（numbers+string，2026-06-29，取代 census 桶數）
+五處 done-check（value_op leaf / 中央表 / registry / CMake / 節點碼）+ `grep "\"Name\""` 二次確認 0 命中。
+- **numbers+string 原子 ~245 / 已做 ~191（~78%）/ 真 TODO ~54**。
+- **真 TODO 拆解**：**乾淨可立刻織 ~12-14** + **卡 seam ~40**（Texture 5 / Buffer 2 / DateTime 5 / Dict-Iterator 13 / anim-ctx 12 / FFT 1 / keyframe-ease 2）。
+- **★乾淨彈藥庫（currency 齊、互不撞，唯一可大量自走織的）**：
+  - 純值 leaf：`TryParse`(string→float+bool)、`TryParseInt`、`GridPosition`(index→Vec2，讀 ctx 無 resource)。
+  - host-list（floatlist/intlist registry 已建）：`MergeIntLists`、`MergeFloatLists`、`PickFloatList`。
+  - stateful（走已建 stateful_value_ops，需 stateful golden 紀律 [[sw-stateful-node-parity-gap]]）：`WasTrigger`/`CacheBoolean`/`DelayBoolean`/`KeepInts`/`EaseKeys`/`ValueToRate`/`RandomChoiceIndex`/`ComposeVec3FromList`。
+- **★真 backlog 體量在 seam-gated 桶（anim+data+texture+buffer+datetime），不在純值**——value/math/string 主體 ~95% 已做。**選批鐵律：anim(36)/data(13) 整族卡 ctx-currency，不是純值，別當 value 桶開。**
+- census 假陽性剔除：DefineGradient/DefineIqGradient/PickGradient/BlendGradients（gradient_ops 已做）、Int2ToVector2（fork 改名 value_op_int2tovec2）。
+- field/mesh/point（量級）：field 41/47 done 剩 6（RepeatFieldAtPoints 卡 point-buffer）；point 大批是壓平複合（要停，非原子 backlog）；mesh 小。
 - **行動鐵律**：任何「待辦/卡縫」claim 進工單前，先 code-verified done-check（grep 中央表+registry+CMake+cook flow 多處），別信 census 數字、別信前一個 scout 的「blocked」。
 - **真 backlog 取得法**：對照 TiXL `Operators/Lib/<family>/*` vs sw 已建清單（CMake + registrar），差集才是真缺。逐家族做一次 definitive 對帳，取代不可信的 census 桶數。
 
