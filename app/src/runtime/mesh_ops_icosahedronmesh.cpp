@@ -263,8 +263,18 @@ NodeSpec icoSpec() {
   rtz.def = 0.0f; rtz.minV = -360.0f; rtz.maxV = 360.0f;
   PortSpec shd; shd.id = "Shading"; shd.name = "Shading"; shd.dataType = "Float"; shd.isInput = true;
   shd.def = 0.0f; shd.minV = 0.0f; shd.maxV = 1.0f; shd.widget = Widget::Enum; shd.labels = {"Flat", "Smoothed"};
+  // TexCoord / TexCoord2: real TiXL [Input]s (IcosahedronMesh.cs:781-785).
+  // UV modes (0=Faces, 1=Unwrapped, 2=Atlas, 3=FacesSub, 4=GridFacesSub) — default=0 is the
+  // Faces mapper already implemented. Non-zero modes are DEFERRED (fork); NodeSpec exposes the
+  // knob so the inspector shows it; cook ignores non-zero and falls back to Faces (neutral at def).
+  PortSpec tco; tco.id = "TexCoord"; tco.name = "TexCoord"; tco.dataType = "Float"; tco.isInput = true;
+  tco.def = 0.0f; tco.minV = 0.0f; tco.maxV = 4.0f;
+  tco.widget = Widget::Enum; tco.labels = {"Faces", "Unwrapped", "Atlas", "FacesSub", "GridFacesSub"};
+  PortSpec tc2; tc2.id = "TexCoord2"; tc2.name = "TexCoord2"; tc2.dataType = "Float"; tc2.isInput = true;
+  tc2.def = 0.0f; tc2.minV = 0.0f; tc2.maxV = 4.0f;
+  tc2.widget = Widget::Enum; tc2.labels = {"Faces", "Unwrapped", "Atlas", "FacesSub", "GridFacesSub"};
   PortSpec out; out.id = "Data"; out.name = "Data"; out.dataType = "Mesh"; out.isInput = false;
-  s.ports = {sub, sph, str, stx, sty, scl, pvx, pvy, pvz, ctx, cty, ctz, rtx, rty, rtz, shd, out};
+  s.ports = {sub, sph, str, stx, sty, scl, pvx, pvy, pvz, ctx, cty, ctz, rtx, rty, rtz, shd, tco, tc2, out};
   return s;
 }
 

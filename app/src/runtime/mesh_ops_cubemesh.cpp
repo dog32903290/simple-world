@@ -217,8 +217,20 @@ NodeSpec cubeSpec() {
   rtz.def = 0.0f; rtz.minV = -360.0f; rtz.maxV = 360.0f;
   PortSpec mgn; mgn.id = "Margin"; mgn.name = "Margin"; mgn.dataType = "Float"; mgn.isInput = true;
   mgn.def = 0.0f; mgn.minV = 0.0f; mgn.maxV = 0.5f;
+  // TexCoord / TexCoord2 / Margin2: real TiXL [Input]s (CubeMesh.cs:481-491).
+  // UV modes (0=Standard/Default, 1=UnwrappedCube, 2=CubeMap, 3=CubeMapSquare) — default=0 is the
+  // Standard mapper already implemented. Non-zero modes are DEFERRED (fork); NodeSpec exposes the
+  // knob so the inspector shows it; cook ignores non-zero and falls back to Standard (neutral at def).
+  PortSpec tco; tco.id = "TexCoord"; tco.name = "TexCoord"; tco.dataType = "Float"; tco.isInput = true;
+  tco.def = 0.0f; tco.minV = 0.0f; tco.maxV = 3.0f;
+  tco.widget = Widget::Enum; tco.labels = {"Standard", "Unwrapped", "CubeMap", "CubeMapSquare"};
+  PortSpec tc2; tc2.id = "TexCoord2"; tc2.name = "TexCoord2"; tc2.dataType = "Float"; tc2.isInput = true;
+  tc2.def = 0.0f; tc2.minV = 0.0f; tc2.maxV = 3.0f;
+  tc2.widget = Widget::Enum; tc2.labels = {"Standard", "Unwrapped", "CubeMap", "CubeMapSquare"};
+  PortSpec mg2; mg2.id = "Margin2"; mg2.name = "Margin2"; mg2.dataType = "Float"; mg2.isInput = true;
+  mg2.def = 0.0f; mg2.minV = 0.0f; mg2.maxV = 0.5f;
   PortSpec out; out.id = "Data"; out.name = "Data"; out.dataType = "Mesh"; out.isInput = false;
-  s.ports = {sgx, sgy, sgz, stx, sty, stz, scl, pvx, pvy, pvz, ctx, cty, ctz, rtx, rty, rtz, mgn, out};
+  s.ports = {sgx, sgy, sgz, stx, sty, stz, scl, pvx, pvy, pvz, ctx, cty, ctz, rtx, rty, rtz, mgn, tco, tc2, mg2, out};
   return s;
 }
 
