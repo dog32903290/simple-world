@@ -49,4 +49,10 @@ REGISTER_SELFTESTS(/*orderBase=*/320,
     {"samplecpupoints", runSampleCpuPointsSelfTest},        // SampleCpuPoints: 2-key host list -> 1 Bezier+quaternion resampled point (pure CPU)
     {"joinlists", runJoinListsSelfTest},                    // JoinLists (Result-only): N host lists -> ONE concat in wire order (Length deferred)
 );
+// Atom-layer leaves (numbers/string): String->Float/Int parse host-scalars + FloatList aggregators. Own
+// high-orderBase block so they append at the end of --selftest-list deterministically.
+REGISTER_SELFTESTS(/*orderBase=*/330,
+    {"tryparse", runTryParseSelfTest},                      // TryParse/TryParseInt: String -> Float/Int (parse-or-Default), flat + resident bridge
+    {"mergelists", runMergeListsSelfTest},                  // MergeFloatLists/MergeIntLists (Append/Htp/Average) + PickFloatList, chain-through-evalFloat
+);
 }  // namespace sw

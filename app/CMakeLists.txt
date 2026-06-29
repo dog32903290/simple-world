@@ -445,6 +445,10 @@ add_executable(simple_world
   src/runtime/floatlist_ops_amplifyvalues.cpp   # AmplifyValues (FIRST cross-frame STATEFUL FloatList op: damped-average follower)
   src/runtime/floatlist_ops_dampfloatlist.cpp   # DampFloatList (cross-frame STATEFUL: per-index damped follower + dt-gate, Method 0)
   src/runtime/floatlist_ops_keepfloatvalues.cpp # KeepFloatValues (cross-frame STATEFUL: front-insert ring-buffer accumulator)
+  src/runtime/floatlist_ops_pickfloatlist.cpp   # PickFloatList (MultiInput list picker, T3 floor-Mod index; numbers/floats/logic/PickFloatList.cs)
+  src/runtime/floatlist_ops_mergefloatlists.cpp # MergeFloatLists (Append/Htp/Average; StartIndices + Ltp/FailOver deferred)
+  src/runtime/floatlist_ops_mergeintlists.cpp   # MergeIntLists (int twin; integer-Average; shares cookMergeListsShared)
+  src/merge_lists_golden.cpp                     # --selftest-mergelists (Merge*Lists + PickFloatList chain-through-evalFloat)
   src/floatlist_golden.cpp
   src/floatlist_producers_golden.cpp
   src/floatlist_smoothvalues_golden.cpp
@@ -471,6 +475,9 @@ add_executable(simple_world
   src/runtime/host_scalar_ops_intlistlength.cpp       # IntList (dissolved) -> count (list fan-out wave-1)
   src/runtime/host_scalar_ops_pickintfromlist.cpp     # IntList (dissolved)+Index -> picked element (list fan-out wave-1)
   src/runtime/host_scalar_ops_comparefloatlists.cpp   # ListA+ListB+Threshold -> differing-ratio (list fan-out wave-1)
+  src/runtime/host_scalar_ops_tryparse.cpp            # String -> float (parse-or-Default; numbers/float/logic/TryParse.cs)
+  src/runtime/host_scalar_ops_tryparseint.cpp         # String -> int (dissolved Float; numbers/int/process/TryParseInt.cs)
+  src/tryparse_golden.cpp                              # --selftest-tryparse (String->Float/Int bridge: flat + resident)
   src/list_routing_golden.cpp
   src/list_routing_wave1_golden.cpp                    # --selftest-listroutingwave1 (wave-1 host-scalar consumers bridge golden)
   src/runtime/string_op_registry.cpp
