@@ -83,7 +83,13 @@ app/src/runtime/math_ops_selftest.cpp:1341
 # dispatch) moved VERBATIM to PointGraph::Impl::cookFlatCommand (point_graph_command_cook.cpp, 236 lines);
 # cook() keeps a thin forwarding lambda. ALL the S3a/S3b/S3c/C1/PF-0 "split lowers this" notes above are now
 # PAID. Proven byte-identical by --selftest-loop/-camera-scope/-setvar-scope (flat legs) + --bite=483.
-app/src/runtime/point_graph.cpp:730
+# Seam-1 Buffer currency (2026-06-29) +21 (730→751): the NEW GPU "Buffer" cook flow's DRIVER glue — the
+# cookBufferNode forward-decl + thin forwarding slot (body extracted to point_graph_buffer_cook.cpp, 肉 OUT
+# of this file, same pattern as the Command split above) + the Buffer terminal branch (preview-pin readback)
+# + the rawBuf release in ~PointGraph. Irreducible per-flow dispatch wiring, the same class as every prior
+# cook flow added here; the marshal LEAVES + the cook body stay bounded <400-line TUs. Proven by
+# --selftest-floatstobuffer (+ -bug RED).
+app/src/runtime/point_graph.cpp:751
 # S3a (2026-06-23) +12: CmdCookCtx gained the ContextVarMap* ctxVars field (additive ABI, mirrors
 # inputCommand) + the forward-decl + cook/cookResident gained the trailing ctxVars param. Doc squeezed to
 # the floor; the field + its load-bearing comment (the two-rail fork note, blueprint risk #3) are irreducible.
@@ -110,7 +116,15 @@ app/src/runtime/point_graph.h:240
 # split is strongly NEGATIVE: the two god-drivers shed 299 lines (868→730 + 717→556) into bounded <400 leaf
 # TUs; the bloat moved OUT of the unsafe-to-touch drivers, which is exactly what the gate exists to force.
 # Slot-type aliases (Flat/Resident*Fn) added to collapse the repeated std::function spellings. No slack.
-app/src/runtime/point_graph_internal.h:433
+# Seam-1 Buffer currency (2026-06-29) +27 (433→460): a NEW GPU cook flow (TiXL BufferWithViews → one
+# MTL::Buffer) joins Points/Mesh/host-value in Impl — the irreducible per-flow resource maps (rawBuf +
+# rawCap + bufferMeta, the allocate→reuse→reallocate-on-grow trio every GPU flow carries) + ensureRawBuffer
+# (the StorageModeShared allocator, twin of ensureOut/ensureMesh) + the sw_buffer.h include for the SwBuffer
+# stored-by-value map. Same class of justified structural growth as the +27 cook-driver split above; the
+# marshal-op LEAVES (FloatsToBuffer/GetBufferComponents/ExecuteBufferUpdate) stay bounded <400-line leaf TUs.
+# The cookFlatBuffer Impl method decl (4 lines, the cookBufferNode-slot-by-ref signature) adds to this — the
+# thin twin of cookFlatPointList, declared here because both cooks share Impl.
+app/src/runtime/point_graph_internal.h:464
 # S2c (2026-06-23) +8: resident cookCommand gained its Texture2D input gather — a production black-hole
 # (Layer2d/DrawScreenQuad drew BLACK on the resident path because cc.inputTexture was never set; the flat
 # cookCommand has had this branch since FORK#1). Caught by --selftest-layercompose's resident leg. The

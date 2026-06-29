@@ -556,6 +556,11 @@ add_executable(simple_world
   src/samplecpupoints_golden.cpp
   src/joinlists_golden.cpp
   src/valuestotexture_golden.cpp
+  # Seam-1 "Buffer" currency (TiXL BufferWithViews → one MTL::Buffer): the registry + marshal-op leaves.
+  src/runtime/buffer_op_registry.cpp             # Buffer-op self-registration sinks + bufferParam accessor
+  src/runtime/buffer_ops_floatstobuffer.cpp      # FloatsToBuffer (keystone: host floats → GPU buffer, matrix-then-float fill)
+  src/runtime/buffer_ops_getbuffercomponents.cpp # GetBufferComponents (metadata read-out + Buffer passthrough)
+  src/runtime/buffer_ops_executebufferupdate.cpp # ExecuteBufferUpdate (run Command, forward Buffer unchanged)
   src/runtime/gradient_op_registry.cpp
   src/runtime/gradient_ops_definegradient.cpp
   src/runtime/gradient_ops_pickgradient.cpp
@@ -585,6 +590,7 @@ add_executable(simple_world
   src/runtime/point_graph_mesh_cook.cpp
   src/runtime/point_graph_tex_cook.cpp
   src/runtime/point_graph_hostvalue_cook.cpp
+  src/runtime/point_graph_buffer_cook.cpp        # Seam-1: the flat "Buffer" cook (extracted from point_graph.cpp)
   src/runtime/point_graph_string_cook.cpp
   src/runtime/point_graph_hostscalar_cook.cpp
   src/runtime/point_graph_registry.cpp

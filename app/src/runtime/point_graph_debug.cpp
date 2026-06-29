@@ -107,6 +107,11 @@ const SwGradient* PointGraph::debugCookedGradient(int nodeId) const {
   return it != p_->gradientBuf.end() ? &it->second : nullptr;
 }
 
+const SwBuffer* PointGraph::debugCookedSwBuffer(int nodeId) const {
+  auto it = p_->bufferMeta.find(flatKey(nodeId));
+  return it != p_->bufferMeta.end() ? &it->second : nullptr;
+}
+
 // PRODUCTION (gradient-inspector face): the SwGradient a RESIDENT Gradient-flow node cooked LAST frame,
 // keyed by its resident PATH — same key cookResidentGradient writes to p_->gradientBuf[path]. Borrowed
 // (PointGraph-owned, valid until the next cook of that node). nullptr when the path never cooked a

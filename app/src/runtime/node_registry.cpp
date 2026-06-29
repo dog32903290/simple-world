@@ -42,6 +42,7 @@
 #include "runtime/stringlist_op_registry.h"    // stringListSpecSink() — stringlist (host List<string>) ops self-register
 #include "runtime/pointlist_op_registry.h"     // pointListSpecSink() — pointlist (7th flow: CPU point list) ops self-register
 #include "runtime/gradient_op_registry.h"      // gradientSpecSink() — gradient (8th flow: host Gradient) ops self-register
+#include "runtime/buffer_op_registry.h"        // bufferSpecSink() — Buffer (Seam-1: GPU "Buffer" currency) ops self-register
 #include "runtime/math_op_registry.h"          // mathSpecSink() — math / value ops self-register
 
 #include <map>
@@ -150,6 +151,10 @@ const NodeSpec* findSpec(const std::string& type) {
   // populated by pre-main dynamic init of each gradient_ops_<name>.cpp GradientOp registrar).
   for (const auto& s : gradientSpecSink())
     if (s.type == type) return &s;
+  // Buffer family (Seam-1 = GPU "Buffer" currency = TiXL BufferWithViews): same live-read seam (init-order
+  // safe — sink populated by pre-main dynamic init of each buffer_ops_<name>.cpp BufferOp registrar).
+  for (const auto& s : bufferSpecSink())
+    if (s.type == type) return &s;
   // Math/value family: read the self-registration sink live (init-order safe — sink fully populated by
   // pre-main dynamic init of each node_registry_math_<subfamily>.cpp MathOp registrar; see registry()
   // note on why this can't be baked into the cached snapshot).
@@ -188,6 +193,8 @@ std::vector<std::string> specTypes() {
   for (const auto& s : pointListSpecSink()) out.push_back(s.type);
   // Gradient ops (the 8th cook flow = host Gradient) self-register into their own sink — append.
   for (const auto& s : gradientSpecSink()) out.push_back(s.type);
+  // Buffer ops (Seam-1: GPU "Buffer" currency) self-register into their own sink — append for the Add menu.
+  for (const auto& s : bufferSpecSink()) out.push_back(s.type);
   // Math/value ops self-register into their own sink — append so the Add menu lists them (same note).
   for (const auto& s : mathSpecSink()) out.push_back(s.type);
   return out;

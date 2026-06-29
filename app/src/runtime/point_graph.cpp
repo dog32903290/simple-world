@@ -25,6 +25,7 @@
 #include "runtime/string_op_registry.h"        // StringCookCtx/findStringOp (the 6th cook flow = host std::string)
 #include "runtime/stringlist_op_registry.h"    // StringListCookCtx/findStringListOp (host List<string> = Sub-seam A)
 #include "runtime/pointlist_op_registry.h"     // PointListCookCtx/findPointListOp (the 7th cook flow = host SwPoint list)
+#include "runtime/buffer_op_registry.h"        // findBufferOp (Seam-1: GPU "Buffer" currency; SwBuffer def via internal.h)
 #include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
@@ -90,6 +91,8 @@ PointGraph::~PointGraph() {
   for (auto& kv : p_->meshVtxBuf)
     if (kv.second) kv.second->release();
   for (auto& kv : p_->meshIdxBuf)
+    if (kv.second) kv.second->release();
+  for (auto& kv : p_->rawBuf)  // Seam-1 Buffer currency: release the raw byte buffers
     if (kv.second) kv.second->release();
   for (auto& kv : p_->feedbackTexBuf) {  // cross-frame PAIR (KeepPreviousFrame): release BOTH
     if (kv.second.a) kv.second.a->release();
@@ -160,6 +163,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // cookNode below) also calls it to gather the host list it memcpys to the GPU. Declared HERE (before cookNode)
   // so cookNode's ListToBuffer branch can call it; std::function breaks the ordering (body assigned after cookNode).
   std::function<const std::vector<SwPoint>*(int)> cookPointListNode;
+
+  // Forward-declared (body below, thin slot → Impl::cookFlatBuffer): the Buffer cook flow (Seam-1 = GPU
+  // "Buffer" currency = TiXL BufferWithViews). Declared HERE so it can self-recurse (Buffer→Buffer gather).
+  std::function<const SwBuffer*(int)> cookBufferNode;
 
   // Forward-declared HERE (above cookNode, same trick as cookPointListNode) so cookNode's Texture2D
   // gather (the texture-into-points seam) can recurse into the upstream tex op: a Points op with a
@@ -544,6 +551,12 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     return p_->cookFlatPointList(g, ctx, nodeParams, cookNode, cookStringNode, id);
   };
 
+  // Cook a BUFFER-flow node (Seam-1 = TiXL Slot<BufferWithViews>). Body in Impl::cookFlatBuffer
+  // (point_graph_buffer_cook.cpp, full doc in leaf); thin forwarding slot, cookBufferNode self-recurses.
+  cookBufferNode = [&](int id) -> const SwBuffer* {
+    return p_->cookFlatBuffer(g, ctx, nodeParams, cookBufferNode, id);
+  };
+
   // Cook a STRING-flow node (the 6th cook flow = TiXL Slot<string>). The currency is a HOST
   // std::string living in Impl::stringBuf (no GPU buffer, no pre-sizing — the op assigns it). The
   // walker mirrors cookFloatListNode but the gather is over STRING inputs with the DUAL IDENTITY
@@ -652,6 +665,14 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // here); ListToBuffer is a Points op (cmd-consumable), so it does NOT reach this branch.
   if (findPointListOp(target->type)) {
     cookPointListNode(target->id);
+    p_->clearTarget();
+    return;
+  }
+
+  // Buffer terminal (preview pin on a Buffer-producing op): cook the SwBuffer for readback
+  // (debugCookedSwBuffer). No Buffer VISUALIZER → clear the viewport (§5). Parallel to the PointList branch.
+  if (findBufferOp(target->type)) {
+    cookBufferNode(target->id);
     p_->clearTarget();
     return;
   }

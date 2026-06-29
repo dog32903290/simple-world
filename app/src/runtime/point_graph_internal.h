@@ -26,6 +26,7 @@
 #include "runtime/string_op_registry.h"  // StringState (flat stringState cross-frame store)
 #include "runtime/floatlist_op_registry.h"  // FloatListState (floatListState store)
 #include "runtime/sw_gradient.h"  // SwGradient — the 8th flow's host value (gradientBuf)
+#include "runtime/sw_buffer.h"    // SwBuffer — the Seam-1 GPU "Buffer" currency (bufferMeta stores by value)
 #include "runtime/tixl_point.h"   // SwPoint (64B) — output buffers are SwPoint bags
 
 namespace sw {
@@ -159,6 +160,15 @@ struct PointGraph::Impl {
   std::map<std::string, std::vector<SwPoint>> pointListBuf;        // key -> host SwPoint list
   std::map<std::string, SwGradient> gradientBuf;                   // key -> host gradient
 
+  // GPU-resident "Buffer" currency (Seam-1, TiXL BufferWithViews → one MTL::Buffer). UNLIKE the host
+  // value flows above, a Buffer op produces a REAL StorageModeShared MTL::Buffer (the marshal ops memcpy
+  // host floats into it). Same allocate→reuse→reallocate-on-grow lifetime as outBuf (rawCap = allocated
+  // bytes; reuse while rawCap >= byteSize, realloc when it grows). bufferMeta = the SwBuffer VIEW each
+  // node produced last cook (stride/count + a borrowed ptr into rawBuf), keyed flatKey(id)/resident path.
+  std::map<std::string, MTL::Buffer*> rawBuf;     // key -> raw byte buffer (driver-owned)
+  std::map<std::string, uint32_t> rawCap;         // key -> allocated capacity (BYTES)
+  std::map<std::string, SwBuffer> bufferMeta;     // key -> cooked SwBuffer view (stride/count + bytes ptr)
+
   // CROSS-FRAME value state (the only host maps that PERSIST between flat cooks; keyed flatKey(id); resident
   // keeps the SAME per resident path). colorListState = KeepColors's `_list`; stringState = HasStringChanged's
   // `_lastString`; floatListState = AmplifyValues's _averaged/_last/_output. A stateless op never touches its
@@ -220,6 +230,23 @@ struct PointGraph::Impl {
     meshIdxCount[key] = idxCount;
     outVtx = vb;
     outIdx = ib;
+  }
+
+  // The Buffer node's raw output (Seam-1 "Buffer" currency). Sizes the buffer to byteSize bytes (the
+  // marshal op computed it from its float payload — a StructuredBuffer fill, NOT a SwPoint-count buffer),
+  // reusing it across frames and reallocating only when byteSize GROWS past rawCap (RESOURCE_LIFETIME,
+  // same as ensureOut/ensureMesh). Never allocs zero (an empty FloatsToBuffer → a 1-byte buffer, the
+  // engine's "empty" convention). StorageModeShared so the marshal op memcpys host floats into contents()
+  // AND a CPU-readback golden can read them (byte-parity). Returns the buffer; the caller reads contents().
+  MTL::Buffer* ensureRawBuffer(const std::string& key, uint32_t byteSize) {
+    MTL::Buffer*& b = rawBuf[key];
+    if (!b || rawCap[key] < byteSize) {
+      if (b) b->release();
+      uint32_t cap = byteSize > 0 ? byteSize : 1;  // never alloc zero
+      b = dev->newBuffer((NS::UInteger)cap, MTL::ResourceStorageModeShared);
+      rawCap[key] = cap;
+    }
+    return b;
   }
 
   // The RenderTarget node's own output texture, sized to its resolved resolution. Reused across frames;
@@ -376,6 +403,10 @@ struct PointGraph::Impl {
                                      const NodeParamsFn& nodeParams, int id);
   const std::vector<SwPoint>* cookFlatPointList(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
                                                 const std::function<MTL::Buffer*(int)>& cookNode, const std::function<const std::string*(int)>& cookStringNode, int id);
+  // The FLAT BUFFER cook (Seam-1 = GPU "Buffer" currency), point_graph_buffer_cook.cpp (full doc in leaf).
+  // cookBufferNode rides in by-ref (Buffer→Buffer self-recursion). Returns the cooked SwBuffer (bufferMeta).
+  const SwBuffer* cookFlatBuffer(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
+                                 const std::function<const SwBuffer*(int)>& cookBufferNode, int id);
   // The FLAT STRING cooks + host-scalar, point_graph_string_cook.cpp / point_graph_hostscalar_cook.cpp (full doc in leaves). gatherStringInputs = the SHARED wire-OR-const String gather (both cooks call it).
   std::vector<std::string> gatherStringInputs(
       const Graph& g, int id, const NodeSpec& s,

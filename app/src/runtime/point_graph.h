@@ -35,9 +35,8 @@ class Texture;
 struct EvaluationContext;  // runtime/eval_context.h (full def in point_graph.cpp)
 struct SwPoint;            // runtime/tixl_point.h (64B host point; full def where the cook includes it)
 namespace sw { struct ContextVarMap; }  // stateful_value_ops.h (host per-frame var map; S3a)
-namespace sw { struct SwGradient; }  // runtime/sw_gradient.h (host Gradient; full def where the op includes it)
-namespace sw { class Curve; }        // runtime/curve.h (host Curve currency; full def where the op includes it)
-namespace sw { struct FieldNode; }   // runtime/field_graph.h (FieldNode tree; full def in the builder + PF-a cook TU)
+namespace sw { struct SwGradient; struct SwBuffer; }  // sw_gradient.h (host Gradient) / sw_buffer.h (Seam-1 GPU "Buffer" currency); full defs where the ops include them
+namespace sw { class Curve; struct FieldNode; }  // curve.h (host Curve) / field_graph.h (FieldNode tree); full defs in the builder + PF-a cook TU
 
 // The FOUR cook-context structs (PointCookCtx / CmdCookCtx / TexCookCtx / FeedbackCookCtx) and their cook
 // function-pointer typedefs (PointCookFn / PointDrawFn / PointCmdFn / PointTexFn / PointFeedbackFn) live in
@@ -211,6 +210,7 @@ class PointGraph {
   const std::vector<::SwPoint>* debugCookedPointList(int nodeId) const;        // 7th cook: pointListBuf
   const SwGradient* debugCookedGradient(int nodeId) const;                     // 8th cook: gradientBuf (flat key)
   const SwGradient* residentGradientFor(const std::string& path) const;        // 8th cook: gradientBuf (resident path, UI face)
+  const SwBuffer* debugCookedSwBuffer(int nodeId) const;                        // Seam-1: bufferMeta (flat key); GPU buffer + stride/count for byte-parity goldens
   // value-output-rail Phase 4: the cooked Shared point buffer a RESIDENT Points node produced last cook,
   // keyed by resident PATH (cookResident's ensureOut key in p_->outBuf); count ← p_->outCount[path]. Shared
   // → contents() is a `const SwPoint*` (zero blit); nullptr+0 when the path cooked no points this frame.
