@@ -143,10 +143,13 @@ enum EmitBinding {
 };
 
 // RadialPoints (point-operator graph, lane A) — faithful port of TiXL
-// .../points/generate/RadialPoints.hlsl SHAPE math (spiral around an axis). Scalar params
-// only; TiXL's Vector inputs (Axis/Center/Color) + quaternion orientation are baked to
-// TiXL-equivalent defaults in radial_points.metal until vector params land in NodeSpec.
-// All-scalar layout (no packed_float3) so there are zero cbuffer alignment traps.
+// .../points/generate/RadialPoints.hlsl (spiral around an axis). Every TiXL input is now a
+// live inspector knob (param-completion gate): the former baked-default fields (Axis,
+// GainAndBias, CloseCircle, Scale, F1/F2, Color, Orientation*) are real struct members the
+// cook fills from the NodeSpec and the kernel reads.
+// ALL-SCALAR layout (no packed_float3): every TiXL Vector is flattened to consecutive floats
+// so there is zero cbuffer alignment trap (the established convention for this struct; the
+// kernel reassembles float3(X,Y,Z) on read). 32 floats == 128 bytes (16-byte multiple).
 struct RadialParams {
 #ifdef __METAL_VERSION__
   uint Count;
@@ -156,14 +159,34 @@ struct RadialParams {
   float Radius;
   float RadiusOffset;
   float StartAngle;  // degrees
-  float Cycles;      // turns around the axis (TiXL "Cycles")
-  float ScaleBase;   // TiXL PointScaleRange.x
-  float ScaleByF;    // TiXL PointScaleRange.y (x normalized index)
-  float CenterX;     // TiXL Center (Vector3) — translation added to every point. All-scalar
-  float CenterY;     // (no packed_float3) so there are zero cbuffer alignment traps; the
-  float CenterZ;     // shader reassembles float3(CenterX,Y,Z). First vector param on the contract.
-  float _pad0;
-  float _pad1;       // -> 48 bytes (16-byte multiple, like Sim/TurbParams)
+  float Cycles;      // turns around the axis (TiXL "Cycles"/Rotations)
+  float ScaleBase;   // TiXL PointScaleRange.x (Scale.x)
+  float ScaleByF;    // TiXL PointScaleRange.y (Scale.y; × normalized index)
+  float CenterX;     // TiXL Center (Vector3) — translation added to every point.
+  float CenterY;
+  float CenterZ;
+  float AxisX;       // TiXL Axis (Vector3) — spiral axis (.t3 default +Z).
+  float AxisY;
+  float AxisZ;
+  float OffsetCenterX;  // TiXL OffsetCenter (CenterOffset) — Center += OffsetCenter·f.
+  float OffsetCenterY;
+  float OffsetCenterZ;
+  float GainX;       // TiXL GainAndBias.x (gain)  — ApplyGainAndBias remaps f (.t3 default 0.5).
+  float GainY;       // TiXL GainAndBias.y (bias)
+  float CloseCircle; // TiXL CloseCircleLine (bool→float; >0.5). angleStepCount + NaN terminator.
+  float F1Base;      // TiXL F1.x  — FX1 = F1.x + F1.y·f (.t3 default F1=(1,0)).
+  float F1ByF;       // TiXL F1.y
+  float F2Base;      // TiXL F2.x  — FX2 = F2.x + F2.y·f (.t3 default F2=(1,0)).
+  float F2ByF;       // TiXL F2.y
+  float ColorR;      // TiXL Color (Vector4) — per-point color (.t3 default white).
+  float ColorG;
+  float ColorB;
+  float ColorA;
+  float OrientAxisX;  // TiXL OrientationAxis (Vector3) (.t3 default +Z).
+  float OrientAxisY;
+  float OrientAxisZ;
+  float OrientAngle;  // TiXL OrientationAngle (degrees).
+  float OrientMode;   // TiXL OrientationMode (enum→float; <0.5 Classic, else AlignedToCurvature).
 };
 
 enum RadialBinding {
@@ -178,5 +201,5 @@ enum DrawBinding {
 
 #ifndef __METAL_VERSION__
 static_assert(sizeof(EmitParams) == 16, "EmitParams 16 bytes");
-static_assert(sizeof(RadialParams) == 48, "RadialParams 48 bytes");
+static_assert(sizeof(RadialParams) == 128, "RadialParams 128 bytes (32 floats, all-scalar)");
 #endif

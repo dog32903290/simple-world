@@ -29,7 +29,46 @@ const std::vector<NodeSpec>& generatorSpecs() {
         // moves connections to slot IDS, which retires this hazard.
         {"RadiusOffset", "RadiusOffset", "Float", true, 0.0f, -10.0f, 10.0f},
         {"StartAngle", "StartAngle", "Float", true, 0.0f, 0.0f, 360.0f},
-        {"Cycles", "Cycles", "Float", true, 1.0f, 0.0f, 10.0f}},
+        {"Cycles", "Cycles", "Float", true, 1.0f, 0.0f, 10.0f},
+        // PARAM-COMPLETION GATE: the 10 TiXL inputs that were baked in the kernel are now real
+        // inspector knobs. ALL APPENDED (pin ids are port-INDEX based; inserting would re-target
+        // saved wires — same hazard the Center comment above flags). Defaults cite RadialPoints.t3.
+        // Axis (Vector3) — spiral axis. .t3:45 default (0,0,1).
+        {"Axis.x", "Axis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"Axis.y", "Axis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Axis.z", "Axis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // OffsetCenter (Vector3) — Center += OffsetCenter·f. .t3:99 default (0,0,0).
+        {"OffsetCenter.x", "OffsetCenter", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"OffsetCenter.y", "OffsetCenter.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"OffsetCenter.z", "OffsetCenter.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // GainAndBias (Vector2) — remaps f. .t3:92 default (0.5,0.5) = identity.
+        {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // CloseCircleLine (bool) — angleStepCount=count-2 + NaN terminator. .t3:53 default false.
+        {"CloseCircleLine", "CloseCircleLine", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        // Scale (PointScaleRange, Vector2) — Scale = x + y·f. .t3:73 default (1,0).
+        {"Scale.x", "Scale", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 2},
+        {"Scale.y", "Scale.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // F1 (Vector2) — FX1 = x + y·f. .t3:18 default (1,0)  ★not (0,0).
+        {"F1.x", "F1", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 2},
+        {"F1.y", "F1.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // F2 (Vector2) — FX2 = x + y·f. .t3:29 default (1,0)  ★not (0,0).
+        {"F2.x", "F2", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 2},
+        {"F2.y", "F2.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // Color (Vector4) — per-point color. .t3:36 default white.
+        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // OrientationAxis (Vector3). .t3:7 default (0,0,1).
+        {"OrientationAxis.x", "OrientationAxis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"OrientationAxis.y", "OrientationAxis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // OrientationAngle (degrees). .t3:88 default 0.0.
+        {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f},
+        // OrientationMode (enum). .t3:61 default 0 (Classic). Labels = OrientationModes enum order.
+        {"OrientationMode", "OrientationMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Classic", "AlignedToCurvature"}}},
        nullptr,
        "point.generate"},
       {"LinePoints",

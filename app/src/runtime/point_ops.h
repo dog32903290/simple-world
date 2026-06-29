@@ -24,22 +24,22 @@ void registerDrawPointOps();          // DrawPoints, DrawLines, DrawBillboards, 
 // (Image-filter ops self-register via ImageFilterOp registrars in their leaf .cpp — no family
 //  registrar, no registerImageFilterPointOps(). See image_filter_op_registry.h.)
 
-// Inline cook fns defined in point_ops.cpp (the ops whose kernels live in the central file:
-// RadialPoints/ParticleSystem/DrawPoints). Declared here so their family registrars can wire
-// them. simStateNew/simStateFree are ParticleSystem's per-node state lifecycle hooks.
+// Cook fns whose registrars wire them. cookRadialPoints lives in point_ops_radial.cpp;
+// cookParticleSim/cookDrawPoints in point_ops.cpp. simStateNew/Free are ParticleSystem state hooks.
 void cookRadialPoints(PointCookCtx& c);
+// Parity-gate -bug DRIVER flag (CPU latch, not a shader branch): when true cookRadialPoints re-bakes
+// the pre-gate constants so --selftest-radial-parity's injectBug leg flips RED. In point_ops_radial.cpp.
+bool& radialBakedBugForceForTest();
 void cookParticleSim(PointCookCtx& c);  // force param-fill helpers in point_ops_forceparams.h
 RenderCommand cookDrawPoints(CmdCookCtx& c);
 void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count);
 void simStateFree(void* p);
-// Headless golden proof of the RadialPoints cook op THROUGH the point-graph: cook
-// RadialPoints -> a capture draw, assert the bag lies on a circle of the requested radius
-// and is spread around it. injectBug sets Cycles=0 so all points collapse to one angle
-// (spread -> 0) and the test FAILS — real degenerate, not a flipped assertion.
+// Headless golden proof of RadialPoints THROUGH the point-graph: cook -> capture draw, assert the
+// bag lies on a circle of the requested radius and is spread around it. injectBug sets Cycles=0 so
+// all points collapse to one angle (spread -> 0) — a real degenerate FAIL, not a flipped assertion.
 int runRadialOpSelfTest(bool injectBug);
-// Vector-param contract golden: RadialPoints with Center=(5,0,0) translates the whole ring
-// (mean x ~= 5, ring preserved around the new center). Proves NodeSpec Vec ports -> readVecN
-// -> RadialParams -> shader end to end. injectBug omits Center so the assertion FAILS.
+// Vector-param contract golden: RadialPoints with Center=(5,0,0) translates the whole ring (mean
+// x ~= 5). Proves NodeSpec Vec -> readVecN -> RadialParams -> shader. injectBug omits Center -> FAIL.
 int runRadialCenterSelfTest(bool injectBug);
 // Golden proof of the DrawPoints draw op: cook RadialPoints -> DrawPoints (real renderer),
 // assert a lit ring + black center in the target texture. injectBug (0 points) -> all black.

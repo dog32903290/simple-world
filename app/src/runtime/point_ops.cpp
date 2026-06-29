@@ -24,43 +24,8 @@
 
 namespace sw {
 
-// RadialPoints generator: dispatch the radial_points kernel into the node's output bag.
-// Reads the Float params it has today (Count via ctx.count; Radius/RadiusOffset/StartAngle/
-// Cycles from the node) + Center via readVecN (first vector param on the contract). TiXL's
-// remaining vector params (Axis/Color) + quat orientation are still baked to TiXL defaults
-// in the kernel until they are added the same way.
-// NOTE: builds the PSO per cook — fine for the headless golden (one cook). The live loop
-// (A1.5) must cache PSOs; flagged there, not here.
-void cookRadialPoints(PointCookCtx& c) {
-  if (!c.output || c.count == 0 || !c.lib) return;
-  MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "radial_points");
-  if (!pso) return;
-
-  RadialParams P{};
-  P.Count = c.count;
-  P.Radius = cookParam(c, "Radius", 1.0f);  // TiXL RadialPoints.t3:65 default
-  P.RadiusOffset = cookParam(c, "RadiusOffset", 0.0f);
-  P.StartAngle = cookParam(c, "StartAngle", 0.0f);
-  P.Cycles = cookParam(c, "Cycles", 1.0f);
-  P.ScaleBase = 1.0f;
-  P.ScaleByF = 0.0f;
-  float center[3] = {0.0f, 0.0f, 0.0f};
-  cookVecN(c, "Center", center, 3, center);  // TiXL Center (Vector3), per-node
-  P.CenterX = center[0]; P.CenterY = center[1]; P.CenterZ = center[2];
-
-  MTL::CommandBuffer* cmd = c.queue->commandBuffer();
-  MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
-  enc->setComputePipelineState(pso);
-  enc->setBuffer(c.output, 0, RADIAL_Points);
-  enc->setBytes(&P, sizeof(P), RADIAL_Params);
-  const uint32_t tg = 64;
-  enc->dispatchThreadgroups(MTL::Size::Make(calcDispatchCount(c.count, tg), 1, 1),
-                            MTL::Size::Make(tg, 1, 1));
-  enc->endEncoding();
-  cmd->commit();
-  cmd->waitUntilCompleted();
-  // PSO owned by device-global computePsoCache (released in clearTexOpCache); do NOT release here.
-}
+// cookRadialPoints + its parity-gate -bug latch (radialBakedBugForceForTest) moved to
+// point_ops_radial.cpp when the param-completion gate pushed this file past the 400-line ratchet.
 
 // DrawPoints command op (Points → Command): emit a 1-item RenderCommand describing how to
 // draw the upstream bag. No render pass here anymore — RenderTarget executes the chain (the
