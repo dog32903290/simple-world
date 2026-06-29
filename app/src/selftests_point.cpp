@@ -122,5 +122,10 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"radial-parity", runRadialPointsParitySelfTest},  // ★PARITY-GATE Stage-1 pilot: RadialPoints production defaults vs TiXL .t3 (RED-first template)
     {"turbulence-parity", runTurbulenceParitySelfTest},  // ★PARITY-GATE Stage-1: TurbulenceForce 15× amplitude tooth + Phase=wall-clock determinism probe (RED-first)
     {"directionalforce-parity", runDirectionalForceParitySelfTest},  // ★PARITY-GATE Stage-3 Force-class first: DirectionalForce NodeSpec-default cook-through vs TiXL .t3 Amount=0.007 + closed-form kernel-vel (补验证闸, already-faithful)
+    {"axisstep-parity", runAxisStepForceParitySelfTest},  // Stage-3 Force: AxisStepForce CREATE-vel T2 cook-through 守 NodeSpec SelectRatio=0.1
+    {"vectorfieldforce-parity", runVectorFieldForceParitySelfTest},  // Stage-3 Force: VectorFieldForce CREATE-vel no-field baked, T2 cook-through 守 NodeSpec
+    {"snaptoanglesforce-parity", runSnapToAnglesForceParitySelfTest},  // Stage-3 Force: SnapToAnglesForce TRANSFORM; cook no-op 契約, NodeSpec discrim direct-kernel (cook-through-NodeSpec DEFERRED seam)
+    {"fielddistanceforce-parity", runFieldDistanceForceParitySelfTest},  // Stage-3 Force: FieldDistanceForce TRANSFORM baked no-field no-op 契約 (wired-SDF DEFERRED)
+    {"fieldvolumeforce-parity", runFieldVolumeForceParitySelfTest},  // Stage-3 Force: FieldVolumeForce TRANSFORM baked no-field no-op 契約 (wired-SDF DEFERRED)
 );
 }  // namespace sw

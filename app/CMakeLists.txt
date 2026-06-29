@@ -350,6 +350,11 @@ add_executable(simple_world
   src/radial_points_parity_golden.cpp  # ★PARITY-GATE Stage-1 pilot: RadialPoints production defaults vs TiXL .t3 Count=100/Radius=1 (--selftest-radial-parity, RED-first template)
   src/turbulence_parity_golden.cpp     # ★PARITY-GATE Stage-1: TurbulenceForce 15× amplitude tooth + Phase=wall-clock determinism probe (--selftest-turbulence-parity, RED-first)
   src/directional_force_parity_golden.cpp  # ★PARITY-GATE Stage-3 Force-class first: DirectionalForce NodeSpec-default vs TiXL .t3 Amount=0.007 cook-through + closed-form kernel-vel (--selftest-directionalforce-parity, 补验证闸 already-faithful)
+  src/axisstep_force_parity_golden.cpp  # Stage-3 Force: AxisStepForce CREATE-vel cook-through 守 NodeSpec SelectRatio=0.1 (--selftest-axisstep-parity)
+  src/vectorfield_force_parity_golden.cpp  # Stage-3 Force: VectorFieldForce CREATE-vel no-field baked cook-through (--selftest-vectorfieldforce-parity)
+  src/snaptoangles_force_parity_golden.cpp  # Stage-3 Force: SnapToAnglesForce TRANSFORM cook no-op + direct-kernel NodeSpec discrim (--selftest-snaptoanglesforce-parity)
+  src/fielddistance_force_parity_golden.cpp  # Stage-3 Force: FieldDistanceForce TRANSFORM baked no-field no-op 契約 (--selftest-fielddistanceforce-parity)
+  src/fieldvolume_force_parity_golden.cpp  # Stage-3 Force: FieldVolumeForce TRANSFORM baked no-field no-op 契約 (--selftest-fieldvolumeforce-parity)
   src/field_paramapply_golden.cpp
   src/field_paramapply_cases.cpp
   src/field_paramapply_enumcases.cpp
