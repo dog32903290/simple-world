@@ -41,22 +41,99 @@ if [ ! -x "$BIN" ]; then
   exit 3
 fi
 
-# type → .cs basename map. Default is "<Type>.cs"; only the mismatches need an override here.
+# SW source roots (read the leaf op's header authority — workitem B, stale-proof fork rename).
+SW_RT="$REPO_ROOT/app/src/runtime"
+SW_APP="$REPO_ROOT/app/src"
+
+# ---- fork-rename authority map (workitem B, stale-proof, PRECOMPUTED ONCE) ----
+# A handful of sw leaf ops fork the TiXL filename/op-id (DoyleSpiralPoints→DoyleSpiralPoints2,
+# chromab→ChromaticAbberation…). The authoritative TiXL .cs name is DECLARED in the leaf's LEADING
+# comment header as `// @tixl: <OpName>` or `// TiXL authority: .../<OpName>.cs` — the SAME census
+# source#4 convention (op_census.sh:45-62), so the gate and census read one SSOT and never drift.
+# We scan ONLY the few files that actually carry such a header (grep -l up front) and build a
+# TYPE<TAB><OpName>.cs map FILE once (bash 3.2 has no associative arrays), so cs_for_type is a cheap
+# grep lookup instead of a per-type tree grep (the per-type grep made the image-island sweep of
+# ~hundreds of types unusably slow).
+FORK_MAP="$(mktemp -t nodespec_fork.XXXXXX)"
+NONSPEC_SET="$(mktemp -t nodespec_nonspec.XXXXXX)"
+# Build the TYPE<TAB><OpName>.cs fork map. ONE awk pass per authority-carrying file (no nested process
+# substitution — bash 3.2 segfaults on deep `< <()` nesting): the awk emits a line per (declared type ×
+# authority .cs) found in that file's leading header + body type= decls.
+_build_fork_map() {
+  local f flist; flist="$(mktemp -t nodespec_flist.XXXXXX)"
+  grep -rlE '@tixl:|TiXL authority:' "$SW_RT" "$SW_APP" --include='*.cpp' 2>/dev/null > "$flist"
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    awk '
+      # Phase 1: accumulate the LEADING // comment block to find the authority .cs.
+      NR==1 {inhdr=1}
+      inhdr && /^[[:space:]]*\/\// {
+        if (match($0, /@tixl:[[:space:]]*[A-Za-z0-9_]+/)) {
+          a=substr($0,RSTART,RLENGTH); sub(/^@tixl:[[:space:]]*/,"",a); auth=a".cs"
+        }
+        if (index($0,"TiXL authority:")>0) grab=3
+        if (grab>0) { abuf=abuf " " $0; grab-- }
+        next
+      }
+      inhdr && /^[[:space:]]*$/ && hdrseen==0 { next }
+      inhdr { inhdr=0
+        if (auth=="" && match(abuf, /[A-Za-z0-9_]+\.(cs|\{cs)/)) {
+          t=substr(abuf,RSTART,RLENGTH); sub(/\.(cs|\{cs)$/,"",t); auth=t".cs"
+        }
+      }
+      # Phase 2: scan the whole file for NodeSpec type = "X" declarations.
+      /type[[:space:]]*=[[:space:]]*"[A-Za-z0-9]+"/ {
+        s=$0
+        while (match(s, /type[[:space:]]*=[[:space:]]*"[A-Za-z0-9]+"/)) {
+          tok=substr(s,RSTART,RLENGTH)
+          sub(/^type[[:space:]]*=[[:space:]]*"/,"",tok); sub(/"$/,"",tok)
+          if (tok!="") types[tok]=1
+          s=substr(s,RSTART+RLENGTH)
+        }
+      }
+      END{
+        if (auth=="") exit
+        for (k in types) print k "\t" auth
+      }
+    ' "$f" >> "$FORK_MAP"
+  done < "$flist"
+  rm -f "$flist"
+}
+_build_fork_map
+
+# type → .cs basename map. Default is "<Type>.cs". A fork-map entry (workitem B header authority) is
+# honored ONLY when it is a GENUINE rename: the authority basename differs from "<Type>.cs" AND no
+# literal "<Type>.cs" exists anywhere under Lib. This rejects FALSE map entries — an authority-carrying
+# leaf (e.g. point_ops_blur.cpp, header @tixl: Blur) often builds OTHER nodes in its golden/test body
+# (`type = "RadialPoints"`), which would otherwise mis-map RadialPoints→Blur.cs. RadialPoints.cs exists,
+# so its own name wins; DoyleSpiralPoints.cs does NOT exist (TiXL renamed it to DoyleSpiralPoints2.cs),
+# so the fork map's DoyleSpiralPoints2.cs is honored. No hand-maintained rename table.
 cs_for_type() {
-  case "$1" in
-    DoyleSpiralPoints) echo "DoyleSpiralPoints2.cs" ;;  # sw type vs TiXL .cs name
-    *)                 echo "$1.cs" ;;
-  esac
+  local h; h="$(awk -F'\t' -v k="$1" '$1==k{print $2; exit}' "$FORK_MAP")"
+  if [ -n "$h" ] && [ "$h" != "$1.cs" ]; then
+    # genuine rename only if the literal <Type>.cs is absent under Lib
+    if [ -z "$(find "$TIXL_LIB" -name "$1.cs" 2>/dev/null | grep -vE '_obsolete|/_' | head -1)" ]; then
+      echo "$h"; return
+    fi
+  fi
+  echo "$1.cs"
 }
 
-# cs_path <Type> — resolve the .cs full path. Generator types live in point/generate (the original gate
-# scope); flow-island types live scattered under Lib/flow{,/context}. Falls back to a Lib-wide find so a
-# new island's .cs is located without a per-island dir constant. Echoes the path, or "" if not found.
+# cs_path <Type> [island] — resolve the .cs full path. Generator types live in point/generate (the
+# original gate scope). When an <island> is given (field/mesh/image…), search ONLY that island subtree
+# (workitem A: islands' .cs scatter under sub-dirs, e.g. field/generate/sdf), excluding _obsolete and
+# leading-underscore helper dirs. Falls back to a Lib-wide find so flow/other islands still resolve.
+# Echoes the path, or "" if not found.
 cs_path() {
   local base; base="$(cs_for_type "$1")"
+  local island="${2:-}"
   if [ -f "$TIXL_GEN/$base" ]; then echo "$TIXL_GEN/$base"; return; fi
+  if [ -n "$island" ] && [ -d "$TIXL_LIB/$island" ]; then
+    local hit; hit="$(find "$TIXL_LIB/$island" -name "$base" 2>/dev/null | grep -vE '_obsolete|/_' | head -1)"
+    if [ -n "$hit" ]; then echo "$hit"; return; fi
+  fi
   # flow / other Lib islands: find the first non-_obsolete match under Lib.
-  find "$TIXL_LIB" -name "$base" 2>/dev/null | grep -v _obsolete | head -1
+  find "$TIXL_LIB" -name "$base" 2>/dev/null | grep -vE '_obsolete|/_' | head -1
 }
 
 # known_fork_count <Type> — number of TiXL [Input] lines that sw intentionally does NOT expose as a
@@ -99,32 +176,65 @@ ALL_GENERATORS=(
   BoundingBoxPoints MeshVerticesToPoints PointsOnMesh PointTrailFast PointTrail
 )
 
-# tixl_input_count <Type> — folded TiXL [Input] count (comment lines stripped so commented-out
+# tixl_input_count <Type> [island] — folded TiXL [Input] count (comment lines stripped so commented-out
 # inputs like RepetitionPoints' Vector3 Scale don't inflate the count). Echoes the count, or "?"
 # if the .cs is missing (so the caller can flag a missing authority file).
 tixl_input_count() {
-  local cs; cs="$(cs_path "$1")"
+  local cs; cs="$(cs_path "$1" "${2:-}")"
   if [ -z "$cs" ] || [ ! -f "$cs" ]; then echo "?"; return; fi
   grep -vE '^[[:space:]]*//' "$cs" | grep -c '\[Input('
 }
 
+# ---- non-NodeSpec cook-path set (texReg/cmdReg, PRECOMPUTED ONCE) ----
+# Types registered via registerTexOp / registerCmdOp. A type in this set that ALSO lacks a NodeSpec
+# (--dump-nodespec empty) cooks on a non-NodeSpec path → N/A, not a param缺口. (A type with BOTH a
+# NodeSpec AND a cmdReg hook — e.g. LogMessage — is still NodeSpec-driven; the empty-dump test gates
+# that.) Precomputed to a set FILE (bash 3.2 = no assoc arrays) so the island sweep doesn't re-grep
+# the tree per type.
+grep -rhoE 'register(Tex|Cmd)Op\("[A-Za-z0-9]+"' "$SW_RT" --include='*.cpp' 2>/dev/null \
+  | grep -oE '"[A-Za-z0-9]+"' | tr -d '"' | sort -u > "$NONSPEC_SET"
+
+# is_non_nodespec_path <Type> — true (0) if this sw type cooks via a NON-NodeSpec registry.
+is_non_nodespec_path() {
+  grep -qxF "$1" "$NONSPEC_SET"
+}
+
 # sw_folded_count <Type> — the FOLDED_LOGICAL_COUNT line from --dump-nodespec, or "?" if unknown.
+# Sets the global SW_VEC_RUN_SHORT=1 when the dump tripped its structural invariant (exit code 4 =
+# a Vec head declared arity N but didn't lay down N-1 component ports → author bug, must be loud).
 sw_folded_count() {
-  local out
-  out="$("$BIN" --dump-nodespec "$1" 2>/dev/null)"
+  local out rc
+  out="$("$BIN" --dump-nodespec "$1" 2>/dev/null)"; rc=$?
+  SW_VEC_RUN_SHORT=0
+  [ "$rc" -eq 4 ] && SW_VEC_RUN_SHORT=1
   if [ -z "$out" ]; then echo "?"; return; fi
   echo "$out" | sed -n 's/^FOLDED_LOGICAL_COUNT: //p'
 }
 
-# gate_one <Type> — returns 0 if sw==TiXL, 1 otherwise. Prints a one-line verdict.
+# gate_one <Type> [island] — returns 0 if sw==TiXL, 1 otherwise. Prints a one-line verdict. When an
+# <island> is given, the .cs is resolved island-scoped (workitem A). A type that cooks via a non-NodeSpec
+# registry (texReg/cmdReg) is marked N/A (not a缺口) and returns 0.
 gate_one() {
-  local t="$1"
+  local t="$1" island="${2:-}"
   local sw tixl forks eff
   sw="$(sw_folded_count "$t")"
-  tixl="$(tixl_input_count "$t")"
+  tixl="$(tixl_input_count "$t" "$island")"
   forks="$(known_fork_count "$t")"
+  # Cook-path classification: a type with NO NodeSpec (--dump-nodespec empty → sw="?") that cooks via a
+  # texReg/cmdReg registry is a non-NodeSpec path → N/A, not a real缺口. (A type that has BOTH a NodeSpec
+  # AND a cmdReg hook — e.g. LogMessage, a Command-rail op WITH params — is still NodeSpec-driven: the
+  # dump succeeds, so it is gated normally. The N/A only catches the spec-less texReg/cmdReg ops.)
+  if [ "$sw" = "?" ] && is_non_nodespec_path "$t"; then
+    printf '  · %-22s N/A (non-NodeSpec path: texReg/cmdReg, no param spec)\n' "$t"
+    return 0
+  fi
   if [ "$sw" = "?" ]; then
     printf '  ✗ %-22s sw=UNKNOWN (node type not registered?)  TiXL=%s\n' "$t" "$tixl"
+    return 1
+  fi
+  # Structural invariant: a short Vec run is an author bug, surface it LOUD even if counts happen to align.
+  if [ "${SW_VEC_RUN_SHORT:-0}" = "1" ]; then
+    printf '  ✗ %-22s VEC-RUN-SHORT (a Vec head lacks its component ports — see --dump-nodespec %s)\n' "$t" "$t"
     return 1
   fi
   if [ "$tixl" = "?" ]; then
@@ -167,10 +277,50 @@ elif [ "${1:-}" = "--all-flow" ]; then
   done
   if [ "$rc" -eq 0 ]; then echo "[nodespec_integrity] OK — every flow op's param set matches TiXL."
   else echo "[nodespec_integrity] FAIL — one or more flow ops diverge from TiXL (see ✗ rows)."; fi
+elif [ "${1:-}" = "--island" ]; then
+  # --island <name>: sweep every REGISTERED sw type whose authoritative .cs resolves under Lib/<name>/.
+  # The type set is DERIVED (--dump-nodespec-types ∩ island subtree), never hardcoded — adding an op
+  # auto-enters the sweep, deleting one auto-leaves. Prints a per-island缺口 panorama (MATCH / MISSING /
+  # EXTRA / N-A non-NodeSpec). Returns 0 if no real param缺口 (MISSING+EXTRA, after forks); else 1.
+  island="${2:-}"
+  if [ -z "$island" ]; then echo "usage: $0 --island <name>" >&2; exit 2; fi
+  if [ ! -d "$TIXL_LIB/$island" ]; then
+    echo "✗ nodespec_integrity: island subtree not found: $TIXL_LIB/$island" >&2; exit 3
+  fi
+  echo "[nodespec_integrity] sweeping island '$island' (registered types whose .cs lives under Lib/$island/)..."
+  # All registered NodeSpec types from the binary (portable read loop — no mapfile dependency).
+  ALL_TYPES_RAW="$("$BIN" --dump-nodespec-types 2>/dev/null | sort -u)"
+  swept=0; match=0; missing=0; extra=0; na=0; short=0
+  while IFS= read -r t; do
+    [ -z "$t" ] && continue
+    # Belongs to this island iff its authoritative .cs resolves UNDER Lib/<island>/.
+    csp="$(cs_path "$t" "$island")"
+    case "$csp" in
+      "$TIXL_LIB/$island"/*) : ;;   # in island
+      *) continue ;;                  # not this island — skip
+    esac
+    swept=$((swept+1))
+    sw="$(sw_folded_count "$t")"; tixl="$(tixl_input_count "$t" "$island")"; forks="$(known_fork_count "$t")"
+    # Non-NodeSpec path (spec-less texReg/cmdReg) → N/A, not a real缺口.
+    if [ "$sw" = "?" ] && is_non_nodespec_path "$t"; then
+      gate_one "$t" "$island"; na=$((na+1)); continue
+    fi
+    if [ "${SW_VEC_RUN_SHORT:-0}" = "1" ]; then
+      gate_one "$t" "$island"; short=$((short+1)); rc=1; continue
+    fi
+    if [ "$sw" = "?" ] || [ "$tixl" = "?" ]; then gate_one "$t" "$island"; rc=1; continue; fi
+    eff=$(( sw + forks )); delta=$(( eff - tixl ))
+    if [ "$delta" -eq 0 ]; then match=$((match+1)); gate_one "$t" "$island"
+    elif [ "$delta" -lt 0 ]; then missing=$((missing+1)); rc=1; gate_one "$t" "$island"
+    else extra=$((extra+1)); rc=1; gate_one "$t" "$island"; fi
+  done <<< "$ALL_TYPES_RAW"
+  echo "[nodespec_integrity] island '$island': swept=$swept  MATCH=$match  MISSING=$missing  EXTRA=$extra  N/A=$na  VEC-SHORT=$short"
 elif [ -n "${1:-}" ]; then
   gate_one "$1" || rc=1
 else
-  echo "usage: $0 <NodeType> | --all-generators | --all-flow" >&2
+  rm -f "$FORK_MAP" "$NONSPEC_SET"
+  echo "usage: $0 <NodeType> | --all-generators | --all-flow | --island <name>" >&2
   exit 2
 fi
+rm -f "$FORK_MAP" "$NONSPEC_SET"
 exit "$rc"

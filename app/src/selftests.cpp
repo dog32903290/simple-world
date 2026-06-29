@@ -88,13 +88,29 @@ int runColorSelfTest(bool injectBug) {
 // count, for the param-completion integrity gate (tools/nodespec_integrity.sh). "Folded logical"
 // = the count that should equal the TiXL .cs [Input] count: a Vec param (Vector2/3/4) is ONE
 // logical input (TiXL declares it as a single InputSlot<VectorN>), but sw spells it as a HEAD port
-// (widget==Vec, vecArity>=2) followed by vecArity-1 COMPONENT ports (widget==Vec, vecArity==1) —
-// so we count the head and skip the components. We also exclude sw-internal-convention ports that
-// have NO TiXL [Input] behind them: every output port (isInput==false, e.g. "points"/"out"), and
-// the grid-family CAPACITY "Count" port (sw sets it = CountX*CountY*CountZ; TiXL's grid nodes have
-// CountX/Y/Z but no standalone Count). A non-grid generator's "Count" IS a real TiXL InputSlot<int>
-// (RadialPoints/LinePoints/SpherePoints) so it is NOT excluded. Non-Float seam inputs (Mesh/
-// Texture2D/Points bag) ARE real TiXL [Input]s → counted as 1 each.
+// (widget==Vec, vecArity>=2) followed by vecArity-1 COMPONENT ports — so we count the head and
+// POSITIONALLY consume (skip) the next N-1 ports.
+//
+// ★FOLD WALK = POSITIONAL CONSUME-THE-RUN (同源 Inspector ui/inspector.cpp:83-86 + animGroupForSlot
+// runtime/node_registry.cpp:196-213): a Vec head at index i (widget==Vec, vecArity>=2) OWNS the
+// next min(vecArity,4)-1 ports by POSITION, regardless of those component ports' own widget. The
+// PRIOR rule keyed components on `widget==Vec && vecArity==1`, which DIVERGED from the codebase
+// walk: field/mesh ops hand-write component ports (Center.y/.z) with NO widget set (default Slider,
+// vecArity 1) — the old rule didn't recognise them as components, so each counted 1 → false EXTRA
+// (SphereSDF dumped 4, true logical 2). The positional walk folds them correctly. GENERATOR-SAFE
+// by construction: the 13 point generators have NO Vec head, so every port is visited individually
+// — identical to the old per-port walk → 13/13 cannot regress.
+//
+// Also excludes sw-internal-convention ports with NO TiXL [Input] behind them: every output port
+// (isInput==false), the grid-family CAPACITY "Count" port (sw sets it = CountX*CountY*CountZ; a
+// non-grid generator's "Count" IS a real TiXL InputSlot<int> so it is NOT excluded), and the image
+// RenderTarget output-format trio Resolution/CustomW/CustomH (sw RenderTarget convention baked onto
+// every image op; TiXL keeps them in _ImageOutputFormat/.t3, not as op [Input]s — workitem C).
+//
+// STRUCTURAL INVARIANT (loud, stale-proof): a Vec head declares vecArity=N but the run is cut short
+// by the next head / an output port / end-of-ports before N-1 components are consumed → the author
+// forgot to lay the components down. Prints "!! VEC-RUN-SHORT" + sets a nonzero return so the gate
+// surfaces it instead of silently miscounting.
 int dumpNodeSpec(const char* type) {
   const sw::NodeSpec* spec = sw::findSpec(type);
   if (!spec) {
@@ -108,35 +124,74 @@ int dumpNodeSpec(const char* type) {
 
   std::printf("NodeSpec: %s (title=%s)\n", spec->type.c_str(), spec->title.c_str());
   int folded = 0;
-  for (const auto& p : spec->ports) {
-    const char* role = nullptr;
+  bool vecRunShort = false;
+  const auto& ports = spec->ports;
+  for (size_t i = 0; i < ports.size(); ++i) {
+    const sw::PortSpec& p = ports[i];
+
+    // Excluded sw-convention ports (still printed for transparency, never counted).
+    const char* excl = nullptr;
     if (!p.isInput) {
-      role = "OUTPUT (excluded: sw output port, no TiXL [Input])";
-    } else if (p.widget == sw::Widget::Vec && p.vecArity == 1) {
-      role = "vec-component (excluded: folded into its Vec head)";
+      excl = "OUTPUT (excluded: sw output port, no TiXL [Input])";
     } else if (hasCountX && p.id == "Count") {
-      role = "capacity-Count (excluded: sw buffer-capacity convention, no TiXL [Input])";
+      excl = "capacity-Count (excluded: sw buffer-capacity convention, no TiXL [Input])";
+    } else if (p.id == "Resolution" || p.id == "CustomW" || p.id == "CustomH") {
+      excl = "output-format synthetic (excluded: image RenderTarget trio, no TiXL [Input])";
     }
-    if (role) {
-      std::printf("  - %-22s [%-9s]  %s\n", p.id.c_str(), p.dataType.c_str(), role);
+    if (excl) {
+      std::printf("  - %-22s [%-9s]  %s\n", p.id.c_str(), p.dataType.c_str(), excl);
       continue;
     }
-    // A counted logical param. Describe the widget + Vec-head arity.
+
+    // Vec head: counts 1, then POSITIONALLY consume the next N-1 component ports (same walk as the
+    // Inspector / animGroupForSlot). Do NOT look at the components' own widget.
+    if (p.isInput && p.widget == sw::Widget::Vec && p.vecArity >= 2) {
+      int N = p.vecArity > 4 ? 4 : p.vecArity;
+      std::printf("  + %-22s [%-9s]  VEC-HEAD/arity%d  (counts 1, consumes %d component(s))\n",
+                  p.id.c_str(), p.dataType.c_str(), p.vecArity, N - 1);
+      ++folded;
+      int consumed = 0;
+      for (int k = 1; k < N; ++k) {
+        size_t j = i + (size_t)k;
+        // Run cut short by an output port / a next Vec head / end-of-ports = author forgot the run.
+        if (j >= ports.size() || !ports[j].isInput ||
+            (ports[j].widget == sw::Widget::Vec && ports[j].vecArity >= 2)) {
+          break;
+        }
+        std::printf("    · %-20s [%-9s]  vec-component (folded into %s)\n", ports[j].id.c_str(),
+                    ports[j].dataType.c_str(), p.id.c_str());
+        ++consumed;
+      }
+      if (consumed != N - 1) {
+        std::printf("  !! VEC-RUN-SHORT: %s arity=%d expected %d component(s), consumed %d "
+                    "(author forgot to lay the run)\n",
+                    p.id.c_str(), p.vecArity, N - 1, consumed);
+        vecRunShort = true;
+      }
+      i += (size_t)consumed;  // advance past the consumed components
+      continue;
+    }
+
+    // A plain counted logical param. Describe the widget.
     const char* w = "scalar";
     switch (p.widget) {
       case sw::Widget::Slider: w = "slider"; break;
       case sw::Widget::Enum:   w = "enum";   break;
       case sw::Widget::Bool:   w = "bool";   break;
-      case sw::Widget::Vec:    w = "VEC-HEAD"; break;
+      case sw::Widget::Vec:    w = "VEC-HEAD"; break;  // vecArity==1 stray head: treated as scalar
     }
-    if (p.widget == sw::Widget::Vec)
-      std::printf("  + %-22s [%-9s]  %s/arity%d  (counts 1)\n", p.id.c_str(), p.dataType.c_str(), w,
-                  p.vecArity);
-    else
-      std::printf("  + %-22s [%-9s]  %s  (counts 1)\n", p.id.c_str(), p.dataType.c_str(), w);
+    std::printf("  + %-22s [%-9s]  %s  (counts 1)\n", p.id.c_str(), p.dataType.c_str(), w);
     ++folded;
   }
   std::printf("FOLDED_LOGICAL_COUNT: %d\n", folded);
+  return vecRunShort ? 4 : 0;  // 4 = structural invariant tripped (distinct from findSpec-null 2)
+}
+
+// --dump-nodespec-types: print every registered NodeSpec type, one per line. Lets the integrity
+// gate DERIVE an island's type set (sw types whose authoritative .cs lives under the island subtree)
+// instead of hardcoding a per-island list that goes stale. Read-only enumeration of specTypes().
+int dumpNodeSpecTypes() {
+  for (const std::string& t : sw::specTypes()) std::printf("%s\n", t.c_str());
   return 0;
 }
 
@@ -213,6 +268,8 @@ int runSelftestFromArgs(int argc, char** argv) {
       }
       return dumpNodeSpec(argv[i + 1]);
     }
+    // --dump-nodespec-types: enumerate every registered NodeSpec type (island-sweep derivation).
+    if (std::strcmp(a, "--dump-nodespec-types") == 0) return dumpNodeSpecTypes();
 
     // Non-uniform entries (no bug variant / take arguments).
     if (std::strcmp(a, "--selftest-dispatch") == 0) return runDispatchSelfTest();
