@@ -14,11 +14,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: f2921f2
-DIRTY: clean
+HEAD: 46146b9
+DIRTY: 1 files
 CENSUS: 461 / 749 done
-BITE: 525 PASS
-STAMP_AT: 2026-06-29T10:02
+BITE: 527 PASS
+STAMP_AT: 2026-06-29T13:05
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -26,7 +26,14 @@ STAMP_AT: 2026-06-29T10:02
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**parity-gate retrofit〔★主體完成，柏為 2026-06-29 02:38 第一優先〕— Stage 1 模板 ✅ + RadialPoints/Turbulence parity ✅（`25946ae`）+ Force 類 6 顆 cook-through golden ✅（`5b958b5`+`aa1874b`）+ DrawPoints 換 quad sprite ✅（`3310181`）+ point-render transform 7 顆 scout 確認**早已有 cook-through golden**（MoveToSDF/TransformFromClipSpace/SnapPointsToGrid/Transform/Shear/RotateAroundAxis/DoyleSpiral2——非裸奔，是最初覆蓋分析的 runner-名≠op-名命名漏抓；偏差堆=0）。--bite 525。**剩餘全卡柏為/大 seam（無乾淨無阻塞自走候選）**：①ParticleSystem [?]（MaxParticleCount/IsAutoCount pool fork 需柏為拍板留不留）②PointToMatrix（latent-risk gated：live multi-frame consumer 路徑未覆蓋，建 golden 踩 line 39 兩條 latent risk，需先解 value-emit consumer rail=cook-core 高 blast）③三個 [Y] 待驗收（turbulence 靜止/radial 點數半徑/DrawPoints quad）④可選低價值增強（DrawPoints default-guard golden 守 PointSize=0.1、TRANSFORM force velocity-seed seam、RandomJump wired-SDF）。工單＝`docs/agent/PARITY_GATE_PLAN.md`。**
+**parity-gate retrofit〔進行中，柏為 02:38 第一優先〕— 主體 ✅（Radial/Turbulence/DrawPoints 修 + Force 6 + transform 7 確認）。★第三維度 param 補全（柏為 11:40 開，inspector 旋鈕完整性=「sw NodeSpec param 數對齊 TiXL .cs [Input] 數」）進行中：**
+- **fan-out 基建 ✅（`eb909ff`）**：拆 generator table（400→168+extra，ratchet 降 180）+ `--dump-nodespec <type>` CLI（folded logical count）+ `tools/nodespec_integrity.sh`（sw FOLDED vs TiXL grep [Input]，自動完整性閘抓漏特製 param）。
+- **三顆補完**：RadialPoints（`4082e6f`，★接管另一 session 並行寫的半成品+審查+補完，撞車解決）/GridPoints（`0be5919`，共通 attr 基建 `appendPointOrientationSpec` 抽出）/LinePoints（`46146b9`，18==18，雙色 lerp+11 param，主戰場）。每顆完整性閘綠+golden red-first+refuter SURVIVES。--bite→527。
+- **★閘掃 13 generator 真實缺口只 3 顆**（推翻「~18 顆都缺一堆」）：已收 LinePoints；剩 **HexGridPoints −1（Scale baked，補）/PointsOnMesh −1（IsEnabled 具名 FORK，判 faithful-dead or 補）**；其餘 10 已齊。
+- **★fan-out 工法（範式 3 顆已穩）**：套共通基建（Color+Orientation 小尾巴，別過度抽象）→ 逐顆對 .cs 補特有 param（APPEND-ONLY，pin id port-index based）→ backward-trace .t3 routing（防 silent parity-wrong，如 GridPoints Scale 經 ScaleVector3）→ `nodespec_integrity.sh` 閘綠 → golden red-first → 親驗+refuter+commit。值來源:.t3 default+.hlsl 公式為主，.var preset/examples 真實值為 bonus（稀疏）。
+- **下一步**：收 2 顆小 generator → 擴完整性閘掃其他島（image/field/draw/force）看全 749 缺口全景。
+- **剩餘卡柏為**：ParticleSystem [?]（MaxParticleCount pool fork）+ PointToMatrix（latent-risk/cook-core）+ 3 個 [Y] 待驗收（見佇列）。可選增強:DrawPoints default-guard/velocity-seed/RandomJump。
+工單＝`docs/agent/PARITY_GATE_PLAN.md`。**
 - **本批 `[G][Y]`（`25946ae`）**：建有狀態節點 parity-golden 模板（`app/src/parity_golden_harness.h`：ParityHarness+ParityReport，固定場景 cook→CPU readback→對 TiXL 公式手算斷言+injectBug tooth）+ 修 RadialPoints（Count 2048→100/Radius 2→1）、TurbulenceForce（Amount 15→1/Freq 1.2→1/**Phase 解綁 wall-clock→inspector param 預設0**，修離線 render 決定性）到 TiXL parity。red-first 三態證牙（no-bug GREEN / injectBug RED / 注入舊偏差 RED）。
 - **★★parity-gate 新鐵律（本批 refuter 血證，已寫進 PARITY_GATE_PLAN）：parity-golden 必須 cook-through production NodeSpec default，不准繞過 cook 直接打 kernel。** 首版 turbulence golden direct-kernel→假綠（NodeSpec 沒改、改的 cook fallback 是死碼，`resolveNodeParams` 從 `p.def` 填、1.0f fallback 永不 fire）→ refuter 抓出 production 實際還是 15× → 改 cook-through 後 NodeSpec=15 立刻 RED 咬住。**fan-out 每顆務必 cook-through，否則假綠洗白。**
 - **★[Y] 待柏為驗收**：見下方佇列（turbulence 變靜止 / radial 點數半徑變，照 TiXL）。
