@@ -6,7 +6,7 @@
 #   一支命令、三個可信度分層，殺掉「看進度就幻覺」。
 #
 # 三區（出力分層 = 反幻覺機制，永不混淆）：
-#   ① LIVE        現在量到的（git + op_census）——HEAD/乾淨度/克隆進度/縫。可信。
+#   ① LIVE        現在量到的（git + node_health 節點健康帳 SSOT）——HEAD/乾淨度/節點普查（真原子/廢棄/未做）/縫。可信。
 #   ② STAMPED@結帳 上次收尾蓋章的（--bite PASS 數）——標年齡，是「記憶」不是「量測」。
 #   ③ HAND 手寫接力 MASTER_PLAN 頂的三句（Active Lane / Next / Conflict）——機器驗不了，
 #                  唯一防線是它們在單一 snapshot 裡夠刺眼。
@@ -26,6 +26,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLAN="$ROOT/docs/agent/MASTER_PLAN.md"
 CENSUS="$ROOT/tools/op_census.sh"
 UICENSUS="$ROOT/tools/ui_census.sh"
+NODEHEALTH="$ROOT/tools/node_health.sh"
 
 BEGIN_RE='<!-- sw_status:begin'
 END_RE='<!-- sw_status:end'
@@ -63,13 +64,17 @@ cmd_status() {
   if [ "$dirtyn" -ne 0 ]; then
     (cd "$ROOT" && git status --porcelain 2>/dev/null | sed 's/^/          /' | head -12)
   fi
-  if [ -x "$CENSUS" ]; then
-    census_done="$(bash "$CENSUS" --overview 2>/dev/null | grep -E '克隆 TiXL 進度' | sed -E 's/^[^0-9]*//')"
-    printf "CENSUS    %s  [floor — fork 命名可能略低估；逐顆複查 op_census <island>]\n" "${census_done:-?}"
-    echo   "SEAMS     （tools/op_census.sh --seams 看全圖；seam-build 解鎖最多先做）"
-    bash "$CENSUS" --seams 2>/dev/null | grep -A3 'seam-build' | grep -E '^[[:space:]]+[0-9]' | head -3 | sed 's/^/          /'
+  # ★節點普查 SSOT = node_health.sh（讀 code 多源 done-check，治本舊 census 系統性 stale，柏為 2026-06-29）。
+  #   op_census 的 done/todo 不可信（單一處 done-check→6-8 次假陽性，如 Steps 誤判已做）→ 一律以 node_health 為準。
+  if [ -x "$NODEHEALTH" ]; then
+    echo   "NODES     ★節點健康帳 SSOT = tools/node_health.sh（讀 code，可信）/ 視覺 docs/agent/census/node_health.html"
+    bash "$NODEHEALTH" 2>/dev/null | grep -E '節點健康帳|真原子|壓平複合|非NodeSpec|未做' | head -6 | sed 's/^/          /'
+    echo   "          （身份: --class atom|flattened|undone|nonspec / 廢棄依賴: --discard / 驗準: --verify）"
   else
-    echo "CENSUS    (tools/op_census.sh 不可執行)"
+    echo "NODES     (tools/node_health.sh 不可執行)"
+  fi
+  if [ -x "$CENSUS" ]; then
+    echo   "CENSUS    ⚠舊 op_census（done/todo 不可信，僅備查；節點普查看上方 NODES/node_health）"
   fi
   if [ -x "$UICENSUS" ]; then
     bash "$UICENSUS" --overview 2>/dev/null | sed 's/^/          /'

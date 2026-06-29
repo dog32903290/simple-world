@@ -2,7 +2,8 @@
 
 > 柏為 2026-06-23:「程式碼全翻完了，寫一份全部可以並行、以最快路徑為原則的計劃表。」
 > **本檔=頂層路由權威。** sub-plan:節點/縫=[SEAM_COMPLETION_PLAN](SEAM_COMPLETION_PLAN.md)、債=[DEBT_LEDGER](DEBT_LEDGER.md)、非節點 spec=[alignment/](alignment/README.md)。事實以 git/碼為準。
-> **開頭定位**：跑 `tools/sw_status.sh`（三區 ① LIVE git+census 現測 / ② STAMPED@結帳 bite / ③ HAND 手寫接力）。**結帳**：`sw_status.sh --stamp <bite PASS>` 蓋章 + 手寫更新下方 Active Lane/Conflict/Next + `--check` 過閘。舊 snapshot 在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)。
+> **開頭定位**：跑 `tools/sw_status.sh`（三區 ① LIVE git+節點健康帳 / ② STAMPED@結帳 bite / ③ HAND 手寫接力）。**結帳**：`sw_status.sh --stamp <bite PASS>` 蓋章 + 手寫更新下方 Active Lane/Conflict/Next + `--check` 過閘。舊 snapshot 在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)。
+> **★★節點普查 SSOT（柏為 2026-06-29，治本舊 census 系統性 stale）= `tools/node_health.sh`（讀 code 多源 done-check）+ 視覺 `docs/agent/census/node_health.html`。** 身份分類：真原子(留)/壓平複合(廢棄候選,等.t3重放)/未做/非NodeSpec（`--class`/`--discard`/`--verify`）。**舊 `op_census` 的 done/todo 不可信（單一處 done-check→假陽性如 Steps 誤判已做），一律以 node_health 為準。** 任何「某節點做了沒/是不是真原子/旋鈕齊不齊」的判斷先查 node_health，別憑 census 數字或印象（[[orchestrator-read-code-before-difficulty-verdict]]）。
 >
 > **★★範圍閘（柏為 2026-06-27 21:24 拍板）：TiXL clone 完成前，不開 TiXL-absent 的全新能力。** clone 仍進行時，分岔出 parity 軸的新方向對目前的模樣太有風險（①動到還在變的 cook-core 跟 clone 互踩，同 P2 ②TiXL-absent 能力沒有 TiXL 當 ground-truth＝柏為退出視覺驗證後機器驗證的唯一錨點，golden 體系對它失效）。**判準＝這能力 TiXL 源碼有沒有對應物**：有＝parity 軸（clone 中照做，例 audio-reactive/BpmDetection port 自 TiXL）；沒有＝等 clone 完（例 AI segmentation 節點、真 audio 引擎整合 Ableton/scsynth 子進程+OSC）。劃錯雙向都錯：別把 port-TiXL 誤擋成新能力（白停產能），別把 TiXL-absent 誤當 parity 放行。AI segmentation 方向已壓（即時節點 framing 撞決定性 export+golden 體系，正解＝離線 mask 生成存檔當固定 input；定案前需 spike 真 footage）＝典型「等 clone 完」項。
 >
