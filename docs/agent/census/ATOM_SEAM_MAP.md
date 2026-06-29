@@ -46,8 +46,14 @@ Trigger/Damp*/Spring*/Ease* …）**早已 ported，在中央 `node_registry_mat
   **這桶不是大彈藥庫。**
 - **真乾淨可立刻織**：list 聚合家族 ~6-8 顆真缺（FloatListLength/IntListLength/MergeIntLists/SumRange/
   CompareFloatLists/PickIntFromList，各走 floatlist/intlist registry，互不撞）。
-- **真正下一個大批 = String 家族 ~25 顆，但卡 String-value seam**（sw value op 無 String currency）→ 先蓋 seam。
+- ~~真正下一個大批 = String 家族 ~25 顆，但卡 String-value seam~~ → **第四次高估，String seam 早已建好且 live**：String 是 sw 第 6 條 cook flow（`string_op_registry.h` host std::string currency + `resident_string_cook.cpp` resident production cook + `cook_host_values.cpp:54` 每幀跑），**26 個 string op leaf 已建**（FloatToString/IntToString/Vec3ToString/ChangeCase/SubString/IndexOf/SearchAndReplace/WrapString/CombineStrings/StringLength… 全在 `CMakeLists.txt:476-504`）。新增一顆 = 純 leaf（一檔 + 一行 CMake，零 cook-core）。**string 真缺剩個位數**（TryParse 等）。
 - field/SDF 47：41 已做，剩 6（見 shader 桶）。
+
+## ★★今天的承重發現：census/scout 數字四次高估，sw 遠比文件完整
+2026-06-29 連續四次「待辦/卡縫」一讀 code 都是早建好：① image 真缺 1→34（fold 假象）② value 331→近乎見底（中央表已做）③ shader「200 卡死」→假問題（codegen 等價機制已建 41 顆）④ String「25 卡 seam」→ seam 早 live + 26 顆已做。**模式：sw 的硬基建大多早已建，census 的「todo/blocked」標籤系統性 stale**（done-check 只看單一處→漏中央表/registry；seam 標籤停在開工前狀態）。
+- **真正 code-verified 沒建的縫只剩兩條**：(a) **raw Buffer currency**（spike 步 3 證實，49 原子+複合 keystone，碰 cook-core）(b) **Matrix port type**（`string_ops_vec3tostring.cpp:20-21` 證 TransformVec3 卡此，sw 無 Matrix input port，碰 currency ABI）。
+- **行動鐵律**：任何「待辦/卡縫」claim 進工單前，先 code-verified done-check（grep 中央表+registry+CMake+cook flow 多處），別信 census 數字、別信前一個 scout 的「blocked」。
+- **真 backlog 取得法**：對照 TiXL `Operators/Lib/<family>/*` vs sw 已建清單（CMake + registrar），差集才是真缺。逐家族做一次 definitive 對帳，取代不可信的 census 桶數。
 
 → **量產不是「並行開 402」**。原子層的 value/math 主體**已建好**（在中央表）；剩的是 list 小尾巴 +
 seam-gated 批（String ~25 / buffer ~49）+ 固定 shader 手翻批（~270，見下）+ dx11/io/audio。架構硬的已解決，
