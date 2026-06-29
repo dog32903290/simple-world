@@ -121,5 +121,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"growstrains", runGrowStrainsSelfTest},        // 2-input cartesian product + GrowthMap texture; per-frame transform vs formula
     {"radial-parity", runRadialPointsParitySelfTest},  // ★PARITY-GATE Stage-1 pilot: RadialPoints production defaults vs TiXL .t3 (RED-first template)
     {"turbulence-parity", runTurbulenceParitySelfTest},  // ★PARITY-GATE Stage-1: TurbulenceForce 15× amplitude tooth + Phase=wall-clock determinism probe (RED-first)
+    {"directionalforce-parity", runDirectionalForceParitySelfTest},  // ★PARITY-GATE Stage-3 Force-class first: DirectionalForce NodeSpec-default cook-through vs TiXL .t3 Amount=0.007 + closed-form kernel-vel (补验证闸, already-faithful)
 );
 }  // namespace sw
