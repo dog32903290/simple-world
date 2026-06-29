@@ -30,18 +30,20 @@
 //   established fork-vec*-decompose-arity convention (PickVector2, PerlinNoise2). in[] is gathered
 //   in port order by the flat/resident Float gather; the 2-output Vector2 dissolves to Result.x/.y
 //   (outIdx selects the component). in[] order MUST match the port list in the registrar below:
-//     [SpeedFactor, Amplitude.x, Amplitude.y, AmplitudeScale,
-//      Period.x, Period.y, Phase.x, Phase.y, Offset.x, Offset.y]   (10 inputs).
-//   `t` = ctx.localFxTime * SpeedFactor (see fork-oscvec2-overridetime below).
+//     [OverrideTime, SpeedFactor, Amplitude.x, Amplitude.y, AmplitudeScale,
+//      Period.x, Period.y, Phase.x, Phase.y, Offset.x, Offset.y]   (11 inputs).
+//   `t` = OverrideTime != 0 ? OverrideTime : ctx.localFxTime * SpeedFactor (see fork-oscvec2-overridetime below).
 //
 // FORKS (named):
-//   - fork-oscvec2-overridetime-always-localfxtime: TiXL branches on OverrideTime.HasInputConnections;
-//     the flat/resident value-eval path has no per-port wired-vs-unwired probe inside evaluate(). This
-//     port implements the NORMAL case (OverrideTime UNWIRED) verbatim: t = ctx.localFxTime *
-//     SpeedFactor. The OverrideTime input is therefore DROPPED from the port list (it would otherwise
-//     be an unread Float that confuses the gather order); wiring an explicit time source is out of
-//     scope for this leaf. Byte-EXACT to TiXL whenever OverrideTime is unwired (the default authoring
-//     case). Same precedent + rationale as fork-perlin2-overridetime-always-localfxtime.
+//   - fork-oscvec2-overridetime-nonzero-single-clock: TiXL branches on OverrideTime.HasInputConnections;
+//     the flat/resident value-eval path has no per-port wired-vs-unwired probe inside evaluate(). The
+//     standing single-clock convention (AnimValue/AnimVec2) maps "has input connection" → "the
+//     OverrideTime constant is non-zero": t = overrideTime != 0 ? overrideTime : ctx.localFxTime *
+//     SpeedFactor. With the .t3 default OverrideTime=0 this is exactly ctx.localFxTime*SpeedFactor (the
+//     default authoring case), byte-EXACT to TiXL; a non-zero OverrideTime constant overrides the bars
+//     clock (and, like TiXL's wired branch, BYPASSES the SpeedFactor multiply). Diverges from TiXL ONLY
+//     in the narrow "OverrideTime connected AND driven to exactly 0.0" case — unreachable here without
+//     plumbing per-port connection state into evaluate() (owner-locked cook-core spine).
 //   - fork-oscvec2-vec2-as-2-floats: every Vector2 input/output is a pair of Float ports (no Vector2
 //     type on this runtime). Not an eval fork — the component mapping is byte-identical to TiXL.
 //   - fork-oscvec2-phase-default-asymmetric: Phase's .t3 DefaultValue is {X:1.570789, Y:0.0} — the two
@@ -61,23 +63,25 @@ int runOscillateVec2SelfTest(bool injectBug);
 
 namespace {
 
-// in[] = [SpeedFactor, Amplitude.x, Amplitude.y, AmplitudeScale,
-//         Period.x, Period.y, Phase.x, Phase.y, Offset.x, Offset.y]  (10 inputs).
-// `t` = ctx.localFxTime * SpeedFactor (fork-oscvec2-overridetime-always-localfxtime).
-// Output Result.x at spec index 10, Result.y at 11 → component = outIdx - n.
+// in[] = [OverrideTime, SpeedFactor, Amplitude.x, Amplitude.y, AmplitudeScale,
+//         Period.x, Period.y, Phase.x, Phase.y, Offset.x, Offset.y]  (11 inputs).
+// `t` = OverrideTime != 0 ? OverrideTime : ctx.localFxTime * SpeedFactor (fork-oscvec2-overridetime-nonzero-single-clock).
+// Output Result.x at spec index 11, Result.y at 12 → component = outIdx - n.
 float evalOscillateVec2(int outIdx, const float* in, int n, const EvaluationContext& ctx) {
-  if (n < 10) return 0.0f;
+  if (n < 11) return 0.0f;
   const int comp = outIdx - n;  // 0 = Result.x, 1 = Result.y (outputs follow the n inputs)
   if (comp < 0 || comp > 1) return 0.0f;
 
-  const float speedFactor    = in[0];
-  const float amplitudeX     = in[1], amplitudeY = in[2];
-  const float amplitudeScale = in[3];
-  const float periodX        = in[4], periodY = in[5];
-  const float phaseX         = in[6], phaseY  = in[7];
-  const float offsetX        = in[8], offsetY = in[9];
+  const float overrideTime   = in[0];
+  const float speedFactor    = in[1];
+  const float amplitudeX     = in[2], amplitudeY = in[3];
+  const float amplitudeScale = in[4];
+  const float periodX        = in[5], periodY = in[6];
+  const float phaseX         = in[7], phaseY  = in[8];
+  const float offsetX        = in[9], offsetY = in[10];
 
-  const float t = ctx.localFxTime * speedFactor;  // OverrideTime unwired → ctx.localFxTime (bars)
+  // OverrideTime nonzero overrides the bars clock (and bypasses SpeedFactor, matching TiXL's wired branch).
+  const float t = (overrideTime != 0.0f) ? overrideTime : ctx.localFxTime * speedFactor;
 
   if (comp == 0)
     return (float)std::sin(t / periodX + phaseX) * amplitudeX * amplitudeScale + offsetX;
@@ -92,10 +96,11 @@ static const ValueOp _reg_oscillatevec2{
     // OscillateVec2 (TiXL Lib.numbers.anim.animators.OscillateVec2): per-component sin oscillator
     //   off the bars clock. Result = sin(t/period + phase) * amplitude * amplitudeScale + offset.
     // Port order MUST match evalOscillateVec2's in[] read. Defaults from OscillateVec2.t3.
-    // OverrideTime is intentionally absent (fork-oscvec2-overridetime-always-localfxtime).
+    // OverrideTime FIRST (TiXL [Input] order); nonzero overrides the clock (fork-oscvec2-overridetime-nonzero-single-clock).
     // Phase.x/.y carry DIFFERENT .t3 defaults (fork-oscvec2-phase-default-asymmetric).
     {"OscillateVec2", "OscillateVec2",
-     {{"SpeedFactor",    "SpeedFactor",    "Float", true, 1.0f,      -100000.0f, 100000.0f, Widget::Slider},
+     {{"OverrideTime",   "OverrideTime",   "Float", true, 0.0f,      -100000.0f, 100000.0f, Widget::Slider},
+      {"SpeedFactor",    "SpeedFactor",    "Float", true, 1.0f,      -100000.0f, 100000.0f, Widget::Slider},
       {"Amplitude.x",    "Amplitude",      "Float", true, 1.0f,      -100000.0f, 100000.0f, Widget::Vec, {}, false, 2},
       {"Amplitude.y",    "Amplitude.y",    "Float", true, 1.0f,      -100000.0f, 100000.0f, Widget::Vec, {}, false, 1},
       {"AmplitudeScale", "AmplitudeScale", "Float", true, 1.0f,      -100000.0f, 100000.0f, Widget::Slider},
@@ -185,6 +190,33 @@ int runOscillateVec2SelfTest(bool injectBug) {
   //   y = sin(6.0 + 0.0)      * 1 * 1 + 0 = sin(6.0)       = -0.279415488 (float32)
   check("C x speed=3 → t=6 (phaseX=1.570789)", evalO(2.0f, "Result.x", 3, 1,1, 1, 1,1, 1.570789f,0.0f, 0,0),  0.960168242f, eps);
   check("C y speed=3 → t=6 (phaseY=0.0)",      evalO(2.0f, "Result.y", 3, 1,1, 1, 1,1, 1.570789f,0.0f, 0,0), -0.279415488f, eps);
+
+  // CASE D (OverrideTime=5.0 nonzero, localFxTime=2.0, SpeedFactor=3): proves the OverrideTime knob
+  //   OVERRIDES the bars clock AND bypasses SpeedFactor (TiXL wired branch: t = OverrideTime, no *speed).
+  //   t = 5.0 (NOT 2.0*3=6 from the clock). x = sin(5.0 + 1.570789)*1*1+0 = sin(6.570789) = 0.279415..
+  //   This case is INDEPENDENT of injectBug (which only detaches ctx.localFxTime): with OverrideTime
+  //   driving, ctx.localFxTime is unused, so the SAME want holds on both legs — it pins that a nonzero
+  //   OverrideTime decouples the result from the bars clock entirely (the knob is live, not dead).
+  //   x = sin(5.0 + 1.570789) = sin(6.570789) = 0.283655018 (float32)
+  //   y = sin(5.0 + 0.0)      = sin(5.0)       = -0.958924294 (float32)
+  {
+    const NodeSpec* spec = findSpec("OscillateVec2");
+    if (spec) {
+      auto evalD = [&](const char* outName) -> float {
+        Graph g; Node nd; nd.id = g.nextId++; nd.type = "OscillateVec2";
+        for (const auto& p : spec->ports) if (p.isInput && p.dataType == "Float") nd.params[p.id] = p.def;
+        g.nodes.push_back(nd); int nid = g.nodes.back().id;
+        g.node(nid)->params["OverrideTime"] = 5.0f;  // nonzero → override the clock
+        g.node(nid)->params["SpeedFactor"]  = 3.0f;  // must be IGNORED on the override branch
+        int outIdx = -1;
+        for (size_t i = 0; i < spec->ports.size(); ++i) if (spec->ports[i].id == outName) { outIdx = (int)i; break; }
+        EvaluationContext ctx{}; ctx.localFxTime = injectBug ? 0.0f : 2.0f;  // unused when overridden
+        return outIdx < 0 ? -997.0f : evalFloat(g, pinId(nid, outIdx), ctx, 0);
+      };
+      check("D x OverrideTime=5 (clock+speed bypassed)", evalD("Result.x"),  0.283655018f, eps);
+      check("D y OverrideTime=5 (clock+speed bypassed)", evalD("Result.y"), -0.958924294f, eps);
+    }
+  }
 
   return ok ? 0 : 1;
 }

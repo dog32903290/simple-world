@@ -55,12 +55,14 @@
 //   - fork-animfloatlist-floatlist-rail: AnimFloatList is a PRODUCER on the host FloatList currency
 //     (Slot<List<float>>), cooked by the floatlist driver (the 5th cook flow). Its output cannot ride
 //     NodeSpec::evaluate (which returns ONE float); evaluate is nullptr. Same rail as FloatsToList.
-//   - fork-animfloatlist-overridetime-always-localfxtime: TiXL branches on OverrideTime.HasInputConnections;
-//     this rail has no per-port wired-probe inside the cook. The NORMAL case (OverrideTime UNWIRED) is
-//     implemented VERBATIM: time = ctx.LocalFxTime (bars). The OverrideTime input is DROPPED from the port
-//     list (an unread Float port would mis-align nothing here — there are no Float MultiInput gathers — but
-//     keeping it out matches AnimVec3/AnimValue's single-clock fork and avoids a dead pinless param).
-//     Byte-EXACT to TiXL whenever OverrideTime is unwired (the default authoring case).
+//   - fork-animfloatlist-overridetime-nonzero-single-clock: TiXL branches on OverrideTime.HasInputConnections;
+//     this rail has no per-port wired-probe inside the cook. The standing single-clock convention
+//     (AnimValue/AnimVec2/AnimVec3) maps "has input connection" → "the OverrideTime constant is non-zero":
+//     time = overrideTime != 0 ? overrideTime : ctx.LocalFxTime (bars). With the .t3 default OverrideTime=0
+//     this is exactly ctx.LocalFxTime (the default authoring case), byte-EXACT to TiXL; a non-zero
+//     OverrideTime constant overrides the bars clock. Diverges from TiXL ONLY in the narrow "OverrideTime
+//     connected AND driven to exactly 0.0" case — unreachable here without owner-locked cook-core per-port
+//     connection plumbing. Same fork as AnimVec3 / AnimVec2.
 //   - fork-animfloatlist-speedfactor-from-context-var: AnimMath.GetSpeedOverrideFromContext reads
 //     context.FloatVariables["SpeedFactorA"/"B"] when AllowSpeedFactor != None, defaulting to 1 on a miss.
 //     The value/list rail's EvaluationContext has no FloatVariables map → rateFactorFromContext is ALWAYS
@@ -88,7 +90,7 @@ namespace sw {
 namespace {
 
 // AnimFloatList: emit OffsetNumber AnimMath shape samples, one per index, per AnimFloatList.cs Update().
-//   time = ctx.localFxTime (fork-animfloatlist-overridetime-always-localfxtime).
+//   time = OverrideTime != 0 ? OverrideTime : ctx.localFxTime (fork-animfloatlist-overridetime-nonzero-single-clock).
 //   rateFactorFromContext = 1 (fork-animfloatlist-speedfactor-from-context-var; no FloatVariables on rail).
 //   Per index i:
 //     adjustedTime = (float)(time + phase + i*offsetCycle + offsetNumber)
@@ -122,10 +124,14 @@ void cookAnimFloatList(FloatListCookCtx& c) {
   const int offsetNumber = (int)floatListParam(c.params, "OffsetNumber", 0.0f);
   if (offsetNumber <= 0) return;  // .cs: Result.Value = new List<float>(); return;
 
-  // time = ctx.LocalFxTime (bars). c.ctx is wired by both the flat (point_graph_hostvalue_cook.cpp) and
-  // resident (resident_host_scalar_cook.cpp cookResidentFloatList) drivers; a hand-built golden ctx
-  // supplies it directly. nullptr ctx → time 0 (a defensive default; the production drivers never pass it).
-  const double time = c.ctx ? (double)c.ctx->localFxTime : 0.0;
+  // time = OverrideTime != 0 ? OverrideTime : ctx.LocalFxTime (bars). c.ctx is wired by both the flat
+  // (point_graph_hostvalue_cook.cpp) and resident (resident_host_scalar_cook.cpp cookResidentFloatList)
+  // drivers; a hand-built golden ctx supplies it directly. nullptr ctx → clock 0 (a defensive default;
+  // the production drivers never pass it). OverrideTime nonzero overrides the clock entirely.
+  const float overrideTime = floatListParam(c.params, "OverrideTime", 0.0f);
+  const double time = (overrideTime != 0.0f)
+                          ? (double)overrideTime
+                          : (c.ctx ? (double)c.ctx->localFxTime : 0.0);
 
   c.output->reserve((size_t)offsetNumber);
   for (int i = 0; i < offsetNumber; ++i) {
@@ -151,13 +157,14 @@ void cookAnimFloatList(FloatListCookCtx& c) {
 // Self-registration. File-scope static FloatListOp — independent leaf .cpp (no shared edit point).
 //   Ports: "out" first (FloatList output). NO FloatList input and NO Float MultiInput (a pure animator
 //   producer — every term is a single scalar param or LocalFxTime). All inputs are pinless params (the
-//   curve-editor authoring shape), in AnimFloatList.cs declaration-adjacent order. OverrideTime is
-//   intentionally absent (fork-animfloatlist-overridetime-always-localfxtime). Shape/AllowSpeedFactor are
-//   Widget::Enum selectors (AnimVec3 precedent). PortSpec field order: id,name,dataType,isInput,def,minV,
-//   maxV,widget,labels,pinless,vecArity,multiInput.
+//   curve-editor authoring shape), in AnimFloatList.cs declaration-adjacent order. OverrideTime FIRST
+//   (TiXL [Input] order); nonzero overrides the clock (fork-animfloatlist-overridetime-nonzero-single-clock).
+//   Shape/AllowSpeedFactor are Widget::Enum selectors (AnimVec3 precedent). PortSpec field order:
+//   id,name,dataType,isInput,def,minV,maxV,widget,labels,pinless,vecArity,multiInput.
 static const FloatListOp _reg_animfloatlist{
     {"AnimFloatList", "AnimFloatList",
      {{"out", "out", "FloatList", false},
+      {"OverrideTime", "OverrideTime", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider, {}, /*pinless=*/true},
       {"Shape", "Shape", "Float", true, 1.0f, 0.0f, 12.0f, Widget::Enum,
        {"Endless", "Ramps", "Saws", "KickSaws", "Square", "ZigZag", "Wave", "Sin",
         "PerlinNoise", "PerlinNoiseSigned", "Random", "RandomSigned", "Steps"},

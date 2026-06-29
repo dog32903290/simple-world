@@ -21,26 +21,33 @@ namespace {
       // extOut; evalResidentFloat reads extOut[outputPortIndex] (generic no-evaluate path). The
       // step math + parity citations live in runtime/stateful_value_ops.cpp.
       // Damp — exponential / critically-damped smoothing toward a target. TiXL float/process/Damp.cs.
+      // UseAppRunTime (TiXL [Input], default false) added for parity. FAITHFULLY INERT here: in TiXL it
+      // only selects the clock fed to the dropped 1ms MinTimeElapsedBeforeEvaluation guard (DampenFloat
+      // itself samples Playback.LastFrameDuration regardless). sw cooks once/frame so that guard is gone
+      // (named fork in stateful_value_ops_damp.cpp) → the knob changes NO output. NOT a dead-knob lie:
+      // it mirrors TiXL's own no-effect-on-smoothing input. See fork-damp-useapprunetime-inert.
 static const MathOp _reg_Damp{
       {"Damp", "Damp",
        {{"Result", "Result", "Float", false},
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Damping", "Damping", "Float", true, 0.9f, 0.0f, 1.0f},
         {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
-         {"LinearInterpolation", "DampedSpring"}}},
+         {"LinearInterpolation", "DampedSpring"}},
+        {"UseAppRunTime", "UseAppRunTime", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
        nullptr,
        "numbers.float.process"}
 };
 
       // DampAngle — Damp in angle space (re-targets through the shortest angular delta). TiXL
-      // float/process/DampAngle.cs.
+      // float/process/DampAngle.cs. UseAppRunTime faithfully inert (same as Damp; guard dropped).
 static const MathOp _reg_DampAngle{
       {"DampAngle", "DampAngle",
        {{"Result", "Result", "Float", false},
         {"Value", "Value", "Float", true, 0.0f, -360.0f, 360.0f},
         {"Damping", "Damping", "Float", true, 0.9f, 0.0f, 1.0f},
         {"Method", "Method", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
-         {"LinearInterpolation", "DampedSpring"}}},
+         {"LinearInterpolation", "DampedSpring"}},
+        {"UseAppRunTime", "UseAppRunTime", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
        nullptr,
        "numbers.float.process"}
 };
@@ -100,17 +107,21 @@ static const MathOp _reg_FreezeValue{
 };
 
       // Spring — spring physics toward a target (overshoots, settles). TiXL float/process/Spring.cs.
+      // UseAppRunTime faithfully inert (SpringDamp samples LastFrameDuration; the guard the knob feeds
+      // is dropped — same fork as Damp). See stateful_value_ops_spring.cpp.
 static const MathOp _reg_Spring{
       {"Spring", "Spring",
        {{"Result", "Result", "Float", false},
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Tension", "Tension", "Float", true, 0.1f, 0.0f, 1.0f},
-        {"Strength", "Strength", "Float", true, 0.5f, 0.0f, 4.0f}},
+        {"Strength", "Strength", "Float", true, 0.5f, 0.0f, 4.0f},
+        {"UseAppRunTime", "UseAppRunTime", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
        nullptr,
        "numbers.float.process"}
 };
 
       // SpringVec2 / SpringVec3 — component-wise Spring. TiXL vec2/process/SpringVec2.cs, vec3/process/SpringVec3.cs.
+      // UseAppRunTime faithfully inert (same as Spring).
 static const MathOp _reg_SpringVec2{
       {"SpringVec2", "SpringVec2",
        {{"Result.x", "Result.x", "Float", false},
@@ -118,7 +129,8 @@ static const MathOp _reg_SpringVec2{
         {"Value.x", "Value", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
         {"Value.y", "Value.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
         {"Tension", "Tension", "Float", true, 0.1f, 0.0f, 1.0f},
-        {"Strength", "Strength", "Float", true, 0.5f, 0.0f, 4.0f}},
+        {"Strength", "Strength", "Float", true, 0.5f, 0.0f, 4.0f},
+        {"UseAppRunTime", "UseAppRunTime", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
        nullptr,
        "numbers.vec2.process"}
 };
@@ -132,20 +144,25 @@ static const MathOp _reg_SpringVec3{
         {"Value.y", "Value.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
         {"Value.z", "Value.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
         {"Tension", "Tension", "Float", true, 0.1f, 0.0f, 1.0f},
-        {"Strength", "Strength", "Float", true, 0.5f, 0.0f, 4.0f}},
+        {"Strength", "Strength", "Float", true, 0.5f, 0.0f, 4.0f},
+        {"UseAppRunTime", "UseAppRunTime", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
        nullptr,
        "numbers.vec3.process"}
 };
 
       // Ease — time-based eased re-target toward a changing input. TiXL float/process/Ease.cs.
-      // Port order = TiXL InputSlot decl order MINUS the dropped UseAppRunTime (named fork): Value,
-      // Duration, Direction(enum), Interpolation(enum). Duration default 1.0 (TiXL .cs has no source
-      // default; SymbolJson supplies one — 1.0s is the faithful neutral). Stateful: evaluate=nullptr.
+      // Port order = TiXL InputSlot decl order: Value, Duration, UseAppRunTime, Direction, Interpolation.
+      // UseAppRunTime (default false) is BEHAVIORAL here (unlike Damp/Spring): Ease's progress is driven
+      // by `currentTime` directly (_startTime/elapsed), so the knob selects the clock source — false →
+      // context fx-time (= sw's `time` arg, the current baked behavior), true → app run-time clock
+      // (tr.runTimeSecs). Default false = ZERO observable change. Duration default 1.0 (.cs has none;
+      // SymbolJson supplies it — 1.0s neutral). Stateful: evaluate=nullptr.
 static const MathOp _reg_Ease{
       {"Ease", "Ease",
        {{"Result", "Result", "Float", false},
         {"Value", "Value", "Float", true, 0.0f, -10.0f, 10.0f},
         {"Duration", "Duration", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"UseAppRunTime", "UseAppRunTime", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"Direction", "Direction", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
          {"In", "Out", "InOut"}},
         {"Interpolation", "Interpolation", "Float", true, 0.0f, 0.0f, 10.0f, Widget::Enum,
@@ -156,7 +173,8 @@ static const MathOp _reg_Ease{
 
       // EaseVec2 / EaseVec3 — component-wise Ease (shared eased-t, no cross-channel bleed). TiXL
       // vec2/process/EaseVec2.cs, vec3/process/EaseVec3.cs. Result.* outputs FIRST (stateful path
-      // reads extOut by port index), then Value.* (Vec convention), Duration, Direction, Interpolation.
+      // reads extOut by port index), then Value.* (Vec convention), Duration, UseAppRunTime(behavioral),
+      // Direction, Interpolation.
 static const MathOp _reg_EaseVec2{
       {"EaseVec2", "EaseVec2",
        {{"Result.x", "Result.x", "Float", false},
@@ -164,6 +182,7 @@ static const MathOp _reg_EaseVec2{
         {"Value.x", "Value", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2},
         {"Value.y", "Value.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
         {"Duration", "Duration", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"UseAppRunTime", "UseAppRunTime", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"Direction", "Direction", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
          {"In", "Out", "InOut"}},
         {"Interpolation", "Interpolation", "Float", true, 0.0f, 0.0f, 10.0f, Widget::Enum,
@@ -181,6 +200,7 @@ static const MathOp _reg_EaseVec3{
         {"Value.y", "Value.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
         {"Value.z", "Value.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
         {"Duration", "Duration", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"UseAppRunTime", "UseAppRunTime", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
         {"Direction", "Direction", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
          {"In", "Out", "InOut"}},
         {"Interpolation", "Interpolation", "Float", true, 0.0f, 0.0f, 10.0f, Widget::Enum,

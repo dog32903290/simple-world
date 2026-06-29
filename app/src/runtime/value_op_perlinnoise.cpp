@@ -54,17 +54,18 @@
 //   only Vector2 input → decomposes into 2 consecutive Float ports (x,y) per the established
 //   fork-vec*-decompose-arity convention (Widget::Vec head + vecArity). Single Float output (Result).
 //   in[] order MUST match the registrar port list:
-//     [Phase, Seed, Frequency, Octaves, RangeMin, RangeMax, Amplitude, BiasAndGain.x, BiasAndGain.y]
-//   (9 inputs). `value` = ctx.localFxTime + Phase (see fork-perlin-overridetime below).
+//     [OverrideTime, Phase, Seed, Frequency, Octaves, RangeMin, RangeMax, Amplitude, BiasAndGain.x, BiasAndGain.y]
+//   (10 inputs). `value` = (OverrideTime != 0 ? OverrideTime : ctx.localFxTime) + Phase (see fork-perlin-overridetime below).
 //
 // FORKS (named):
-//   - fork-perlin-overridetime-always-localfxtime: TiXL branches on OverrideTime.HasInputConnections; the
-//     flat/resident value-eval path has no per-port wired-vs-unwired probe inside evaluate(). This port
-//     implements the NORMAL case (OverrideTime UNWIRED) verbatim: value = ctx.localFxTime. The
-//     OverrideTime input is therefore DROPPED from the port list (it would otherwise be an unread Float
-//     that confuses the gather order); wiring an explicit time source is out of scope for this leaf.
-//     Byte-EXACT to TiXL whenever OverrideTime is unwired (the default authoring case). Identical
-//     treatment to the ported PerlinNoise2.
+//   - fork-perlin-overridetime-nonzero-single-clock: TiXL branches on OverrideTime.HasInputConnections;
+//     the flat/resident value-eval path has no per-port wired-vs-unwired probe inside evaluate(). The
+//     standing single-clock convention (AnimValue/AnimVec2) maps "has input connection" → "the
+//     OverrideTime constant is non-zero": value = (overrideTime != 0 ? overrideTime : ctx.localFxTime)
+//     + Phase. With the .t3 default OverrideTime=0 this is exactly ctx.localFxTime + Phase (the default
+//     authoring case), byte-EXACT to TiXL; a non-zero OverrideTime constant overrides the bars clock.
+//     Diverges from TiXL ONLY in the narrow "OverrideTime connected AND driven to exactly 0.0" case —
+//     unreachable here without owner-locked cook-core per-port connection plumbing.
 //   - fork-perlin-gainbias-applies-to-WHOLE (★ INVERTED vs PerlinNoise2's trap): PerlinNoise.cs writes
 //     `(( noiseSum * scaleToUniformFactor + 1f) * 0.5f).ApplyGainAndBias(bg.X, bg.Y)`. The outer paren
 //     CLOSES at `0.5f)` BEFORE `.ApplyGainAndBias`, so member-access binds to the WHOLE inner expression
@@ -162,23 +163,26 @@ inline float applyGainAndBias(float value, float gain, float bias) {
   return value;
 }
 
-// in[] = [Phase, Seed, Frequency, Octaves, RangeMin, RangeMax, Amplitude, BiasAndGain.x, BiasAndGain.y].
-// `value` = ctx.localFxTime + Phase (fork-perlin-overridetime-always-localfxtime).
-// Single output (Result) at spec index 9 → outIdx == n.
+// in[] = [OverrideTime, Phase, Seed, Frequency, Octaves, RangeMin, RangeMax, Amplitude, BiasAndGain.x, BiasAndGain.y].
+// `value` = (OverrideTime != 0 ? OverrideTime : ctx.localFxTime) + Phase (fork-perlin-overridetime-nonzero-single-clock).
+// Single output (Result) at spec index 10 → outIdx == n.
 float evalPerlinNoise(int outIdx, const float* in, int n, const EvaluationContext& ctx) {
-  if (n < 9) return 0.0f;
+  if (n < 10) return 0.0f;
   if (outIdx != n) return 0.0f;  // single output: Result follows the n inputs
 
-  const float phase    = in[0];
-  const int   seed     = (int)(int32_t)in[1];  // fork-perlin-seed-octaves-int-on-float-port
-  const float period   = in[2];                // Frequency
-  const int   octaves  = (int)(int32_t)in[3];
-  const float rangeMin = in[4];                // SCALAR (fork-perlin-rangemin-scalar)
-  const float rangeMax = in[5];                // SCALAR
-  const float scale    = in[6];                // Amplitude
-  const float bgX      = in[7], bgY = in[8];   // BiasAndGain (X,Y)
+  const float overrideTime = in[0];
+  const float phase    = in[1];
+  const int   seed     = (int)(int32_t)in[2];  // fork-perlin-seed-octaves-int-on-float-port
+  const float period   = in[3];                // Frequency
+  const int   octaves  = (int)(int32_t)in[4];
+  const float rangeMin = in[5];                // SCALAR (fork-perlin-rangemin-scalar)
+  const float rangeMax = in[6];                // SCALAR
+  const float scale    = in[7];                // Amplitude
+  const float bgX      = in[8], bgY = in[9];   // BiasAndGain (X,Y)
 
-  const float value = ctx.localFxTime + phase;  // OverrideTime unwired → ctx.localFxTime (bars)
+  // OverrideTime nonzero overrides the bars clock; Phase always added on top (TiXL: value += Phase).
+  const float baseTime = (overrideTime != 0.0f) ? overrideTime : ctx.localFxTime;
+  const float value = baseTime + phase;
 
   const float noiseSum = perlinNoise(value, period, octaves, seed);
   const float dist = rangeMax - rangeMin;
@@ -197,9 +201,10 @@ float evalPerlinNoise(int outIdx, const float* in, int n, const EvaluationContex
 static const ValueOp _reg_perlinnoise{
     // PerlinNoise (TiXL Lib.numbers.float.random.PerlinNoise): scalar 1D Perlin noise from the bars clock.
     // Port order MUST match evalPerlinNoise's in[] read. Defaults from PerlinNoise.t3.
-    // OverrideTime is intentionally absent (fork-perlin-overridetime-always-localfxtime).
+    // OverrideTime FIRST (TiXL [Input] order); nonzero overrides the clock (fork-perlin-overridetime-nonzero-single-clock).
     {"PerlinNoise", "PerlinNoise",
-     {{"Phase",         "Phase",         "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider},
+     {{"OverrideTime",  "OverrideTime",  "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider},
+      {"Phase",         "Phase",         "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider},
       {"Seed",          "Seed",          "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider},
       {"Frequency",     "Frequency",     "Float", true, 1.0f, -100000.0f, 100000.0f, Widget::Slider},
       {"Octaves",       "Octaves",       "Float", true, 4.0f,  1.0f,      20.0f,     Widget::Slider},
@@ -291,6 +296,26 @@ int runPerlinNoiseSelfTest(bool injectBug) {
   //   (noiseSum*1.37+1)*ApplyGainAndBias(0.5,0.8,0.3) = 0.278238654 → would FAIL this assertion.
   //   Result = 0.292006642 * 1 * 1 + 0 = 0.292006642.  injectBug (t=0) → 0.254552513 → RED.
   check("E bg=(0.8,0.3) apply-to-whole", evalP(2.5f, 0,0,1,4, 0,1, 1, 0.8f,0.3f), 0.292006642f, eps);
+
+  // CASE F (OverrideTime=2.5 nonzero, ctx.localFxTime=0): proves the knob OVERRIDES the bars clock.
+  //   value = OverrideTime(2.5) + Phase(0) = 2.5 → same noiseSum as CASE A (-0.052947380) → Result=0.463731050.
+  //   ctx.localFxTime is 0 here, so WITHOUT the override the result would be CASE B's 0.331101537; the
+  //   override forces the A value instead. Because the override decouples from the clock, this holds on
+  //   BOTH legs (injectBug only zeroes ctx.localFxTime, which is already unused) → pins a LIVE knob.
+  {
+    const NodeSpec* spec = findSpec("PerlinNoise");
+    if (spec) {
+      Graph g; Node nd; nd.id = g.nextId++; nd.type = "PerlinNoise";
+      for (const auto& p : spec->ports) if (p.isInput && p.dataType == "Float") nd.params[p.id] = p.def;
+      g.nodes.push_back(nd); int nid = g.nodes.back().id;
+      g.node(nid)->params["OverrideTime"] = 2.5f;  // nonzero → override the clock
+      int outIdx = -1;
+      for (size_t i = 0; i < spec->ports.size(); ++i) if (spec->ports[i].id == "Result") { outIdx = (int)i; break; }
+      EvaluationContext ctx{}; ctx.localFxTime = injectBug ? 0.0f : 0.0f;  // 0 → without override = CASE B
+      float got = outIdx < 0 ? -997.0f : evalFloat(g, pinId(nid, outIdx), ctx, 0);
+      check("F OverrideTime=2.5 (clock bypassed)", got, 0.463731050f, eps);
+    }
+  }
 
   return ok ? 0 : 1;
 }

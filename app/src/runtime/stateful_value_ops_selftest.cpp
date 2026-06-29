@@ -240,6 +240,24 @@ int runStatefulValueSelfTest(bool injectBug) {
     printf("[selftest-statefulvalue] EaseVec3 p=0.5=(%.3f,%.3f,%.3f) want=(0.500,%.3f,2.000) -> %s\n", out[0], out[1], out[2], wy, pass ? "PASS" : "FAIL");
   }
 
+  // ----- Ease UseAppRunTime knob selects tr.runTimeSecs (useApp=1) vs context fx-time (useApp=0). The
+  // SELECTED clock walks 0,0,0.5 → OutQuad(0.5)=0.75; the UNSELECTED source is parked at 99 → if the knob
+  // were ignored, progress→1→Result 1.0≠0.75 → RED. Default useApp=0 ⇒ zero change (other Ease blocks).
+  for (int leg = 0; leg <= 1; ++leg) {
+    const float useApp = (float)leg;
+    StatefulValueState st; float out[3] = {0, 0, 0};
+    auto cook = [&](double clk, float val) {
+      TransportSnapshot tr; tr.runTimeSecs = leg ? clk : 99.0;
+      cookStatefulValueOp("Ease", {{"Value", val}, {"Duration", 1.0f}, {"Direction", 1.0f},
+          {"Interpolation", 2.0f}, {"UseAppRunTime", useApp}}, dt60, leg ? 99.0f : (float)clk, st, out, tr);
+    };
+    cook(0.0, 0.0f); cook(0.0, 1.0f); cook(0.5, 1.0f);  // restart@0 then sample@0.5
+    float w = injectBug ? 0.5f : 0.75f;  // bug: linear curve
+    bool pass = std::fabs(out[0] - w) < eps;
+    ok = ok && pass;
+    printf("[selftest-statefulvalue] Ease.UseAppRunTime[%d]=%.4f want=%.4f -> %s\n", leg, out[0], w, pass ? "PASS" : "FAIL");
+  }
+
   // ----- HasValueIncreased, Threshold=0.5: Value 1,3,3.2,2 → flag 1,1,0,0 -----
   // lastValue inits 0. f1: 1>0+0.5 → 1. f2: 3>1+0.5 → 1. f3: 3.2>3+0.5? (3.5) no → 0. f4: 2>3.2+0.5 no → 0.
   // (f3 proves the Threshold band — a +0.2 rise under the 0.5 threshold does NOT trigger.)

@@ -31,16 +31,24 @@ namespace {
 // stored float reconstructs the previous Result for any N. This is faithful to TiXL and fits s[12]
 // (the spec's "out[] carries prior Result" assumption is broken by frame_cook's zeroing; this is the
 // minimal correct substitute — flagged in the dossier).
+// UseAppRunTime (TiXL [Input], default false) — BEHAVIORAL here (unlike Damp/Spring whose knob is
+//   inert): Ease's `currentTime` directly drives _startTime + elapsed, so the knob selects the clock.
+//   TiXL: currentTime = UseAppRunTime ? Playback.RunTimeInSecs : context.LocalFxTime. sw mirrors this:
+//   the caller passes `time` = the context fx-time (frame_cook hands fxSecs) and `runTimeSecs` = the
+//   process-lifetime run clock (TransportSnapshot.runTimeSecs = TiXL Playback.RunTimeInSecs analog).
+//   useAppRunTime!=0 → currentTime = runTimeSecs; else → currentTime = time (the default, = current
+//   baked behavior; default false ⇒ ZERO observable change). NOT a fork — faithful clock selection.
 // Fork (named) — same precedent as Damp/Spring (batch25):
-//   • UseAppRunTime input DROPPED — frame_cook always cooks once per frame with wall time (TiXL's
-//     non-default RunTimeInSecs branch has no analog here; we always use context-time = `time`).
 //   • The 1ms MinTimeElapsedBeforeEvaluation early-return DROPPED — frame_cook cooks exactly once
 //     per frame, so the sub-ms double-eval that guard prevents cannot occur.
 //   • The __MotionBlurPass skip DROPPED — no motion-blur pass system in this runtime.
 // Faithful: _previousInput field-inits to 0, so on frame 1 a nonzero input triggers an immediate
 // restart capturing initialValue=prevResult=0 (matches TiXL's exact first-frame behavior).
-void easeImpl(const std::map<std::string, float>& in, float time, StatefulValueState& st,
+// `currentTime` = the already-selected clock (the step wrapper picks runTimeSecs vs fxSecs per the
+// UseAppRunTime knob), matching TiXL's `var currentTime = UseAppRunTime ? RunTimeInSecs : LocalFxTime`.
+void easeImpl(const std::map<std::string, float>& in, float currentTime, StatefulValueState& st,
               float out[3], int N) {
+  const float time = currentTime;
   float duration = getIn(in, "Duration", 1.0f);
   if (duration == 0.0f) duration = 0.0001f;  // TiXL guard
   const int direction = enumOf(in, "Direction");
@@ -78,9 +86,14 @@ void easeImpl(const std::map<std::string, float>& in, float time, StatefulValueS
   }
   prevEased = eased;
 }
-void stepEase(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) { easeImpl(in, time, st, out, 1); }
-void stepEaseVec2(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) { easeImpl(in, time, st, out, 2); }
-void stepEaseVec3(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) { easeImpl(in, time, st, out, 3); }
+// UseAppRunTime != 0 → use the app run-time clock (tr.runTimeSecs); else the context fx-time (`time`).
+// Default false ⇒ currentTime == time == the prior baked behavior (zero observable change).
+inline float easeClock(const std::map<std::string, float>& in, float time, const TransportSnapshot& tr) {
+  return (getIn(in, "UseAppRunTime", 0.0f) != 0.0f) ? (float)tr.runTimeSecs : time;
+}
+void stepEase(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot& tr, ContextVarMap*, const std::string&) { easeImpl(in, easeClock(in, time, tr), st, out, 1); }
+void stepEaseVec2(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot& tr, ContextVarMap*, const std::string&) { easeImpl(in, easeClock(in, time, tr), st, out, 2); }
+void stepEaseVec3(const std::map<std::string, float>& in, float, float time, StatefulValueState& st, float out[3], const TransportSnapshot& tr, ContextVarMap*, const std::string&) { easeImpl(in, easeClock(in, time, tr), st, out, 3); }
 
 }  // namespace
 

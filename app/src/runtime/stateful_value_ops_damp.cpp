@@ -15,11 +15,16 @@ namespace sw {
 namespace {
 
 // --- Damp (TiXL Lib/numbers/float/process/Damp.cs) ---
-// Ports: Value, Damping, Method(enum 0=LinearInterpolation, 1=DampedSpring).
+// Ports: Value, Damping, Method(enum 0=LinearInterpolation, 1=DampedSpring), UseAppRunTime(bool).
 // State: s[0]=dampedValue, s[1]=velocity. First cook seeds dampedValue=Value (TiXL _isFirstEval).
-// Fork (named): TiXL's UseAppRunTime input + the 1ms MinTimeElapsedBeforeEvaluation guard are
-//   DROPPED — frame_cook cooks each node exactly once per frame, so there is no sub-millisecond
-//   double-eval to guard against (the whole reason that guard exists in TiXL).
+// fork-damp-useapprunetime-inert (named): the UseAppRunTime [Input] is EXPOSED (inspector parity with
+//   TiXL, default false) but FAITHFULLY INERT — it is NOT read here. In TiXL, UseAppRunTime only
+//   selects the clock fed to the 1ms MinTimeElapsedBeforeEvaluation guard + _lastEvalTime bookkeeping;
+//   DampFunctions.DampenFloat ITSELF samples Playback.LastFrameDuration regardless (MathUtils.cs:711).
+//   frame_cook cooks each node exactly once per frame, so that sub-ms double-eval guard is DROPPED →
+//   the clock the knob switches has no consumer → the knob changes no output. This is NOT a dead-knob
+//   lie: it mirrors TiXL's own input, which likewise does not affect the smoothing math. (The 1ms guard
+//   is dropped for the same once-per-frame reason.)
 void stepDamp(const std::map<std::string, float>& in, float dt, float /*time*/,
               StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float value = getIn(in, "Value", 0.0f);
@@ -36,8 +41,8 @@ void stepDamp(const std::map<std::string, float>& in, float dt, float /*time*/,
 // --- DampAngle (TiXL Lib/numbers/float/process/DampAngle.cs) ---
 // Like Damp but in angle space: first re-target through the SHORTEST angular delta so 359°→1°
 // damps +2° not -358°. Ports: Value, Damping, Method. State: s[0]=dampedValue, s[1]=velocity.
-// Fork (named): UseAppRunTime + 1ms guard dropped (same once-per-frame reason). NOTE TiXL DampAngle
-// has NO _isFirstEval — it damps from 0 on frame 1 (faithful: no init seeding here).
+// fork-damp-useapprunetime-inert (same as Damp): UseAppRunTime exposed but inert; 1ms guard dropped.
+// NOTE TiXL DampAngle has NO _isFirstEval — it damps from 0 on frame 1 (faithful: no init seeding here).
 void stepDampAngle(const std::map<std::string, float>& in, float dt, float /*time*/,
                    StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float value = getIn(in, "Value", 0.0f);

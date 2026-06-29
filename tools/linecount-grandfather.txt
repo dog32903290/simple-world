@@ -179,10 +179,13 @@ app/src/runtime/point_ops_transformsomepoints.cpp:549
 app/src/runtime/point_ops_valuestotexture2.cpp:452
 app/src/runtime/point_ops_worleynoise.cpp:462
 app/src/runtime/resident_eval_graph.h:410
-app/src/runtime/stateful_value_ops_selftest.cpp:1234
+# +18 (2026-06-29, time-source param fan-out): Ease.UseAppRunTime clock-selector teeth (new behavioral
+# knob coverage in this test aggregator). Production leaf code unchanged-size; this is test growth only.
+app/src/runtime/stateful_value_ops_selftest.cpp:1252
 app/src/runtime/transport_selftest.cpp:429
 app/src/runtime/value_eval_ops.cpp:740
-app/src/runtime/value_op_perlinnoise3.cpp:455
+# value_op_perlinnoise3 split (2026-06-29, time-source param fan-out): golden body extracted to
+# value_op_perlinnoise3_golden.cpp; leaf now 261 (<400), sibling <400 — RATCHET ENTRY REMOVED (rule 8).
 app/src/string_rail_golden.cpp:1605
 # editor_ui split (2026-06-27): 488→264, RATCHET ENTRY REMOVED (now <400, rule 8). editor_ui.cpp
 # was AT its 518 cap with zero headroom (blocking color-theme + other ui gaps). Mechanical split by

@@ -13,10 +13,12 @@ namespace sw {
 namespace {
 
 // --- Spring (TiXL Lib/numbers/float/process/Spring.cs) ---
-// Ports: Value, Tension, Strength. State: s[0]=springedValue, s[1]=result (the previous output).
+// Ports: Value, Tension, Strength, UseAppRunTime(bool). State: s[0]=springedValue, s[1]=result.
 // Fork (named): TiXL Spring uses NO dt term — it is purely iterative per frame (frame-rate
-//   dependent); kept faithful (dt is ignored). UseAppRunTime + the 1ms guard are dropped for the
-//   same once-per-frame-cook reason as Damp.
+//   dependent); kept faithful (dt is ignored). fork-damp-useapprunetime-inert: UseAppRunTime is
+//   EXPOSED for parity (default false) but FAITHFULLY INERT — TiXL's SpringDamp samples
+//   Playback.LastFrameDuration regardless; the knob only fed the 1ms guard, which is dropped for the
+//   same once-per-frame-cook reason as Damp. Not read here; changes no output. (Same fork as Damp.)
 void stepSpring(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
                 StatefulValueState& st, float out[3], const TransportSnapshot&, ContextVarMap*, const std::string&) {
   const float value = getIn(in, "Value", 0.0f);

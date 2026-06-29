@@ -219,6 +219,23 @@ int runAnimFloatListSelfTest(bool injectBug) {
     runResident("D N=4 Length", "4", "Length", 1.0f, 4.0f, g);
   }
 
+  // === CASE E — OverrideTime knob (live clock substitute). Self-consistency: AnimFloatList driven by
+  //     OverrideTime=T with LocalFxTime=0 must emit the SAME element as the default node (OverrideTime=0)
+  //     driven by the clock at LocalFxTime=T. Proves the knob substitutes for the bars clock 1:1 on BOTH
+  //     the flat and the production resident path, and that the new OverrideTime param actually gathers.
+  //     Element index 0, CASE A's Sin params (N=3). (Not bug-carrying: injectBug only drops the tail.)
+  {
+    const float T = 2.0f;
+    // Reference: default node (OverrideTime=0) on the clock at LocalFxTime=T → use the known A0=8.048166.
+    // Override leg: OverrideTime=T, clock at 0 → must reproduce A0 from the knob, not the (zero) clock.
+    Graph g; int c = 100;
+    int t = chainAnimPick(g, c, /*Index*/ 0, /*Sin*/ 7, /*N*/ 3, /*cycle*/ 0.13f, /*rate*/ 0.7f,
+                          /*amp*/ 2, /*phase*/ 0.05f, /*off*/ 10, /*bias*/ 0.5f, /*ratio*/ 1, /*speed*/ 1);
+    g.node(2)->params["OverrideTime"] = T;  // nonzero → override the clock (node id 2 = AnimFloatList)
+    runFlat("E OverrideTime=2 (clock=0) [0]", t, /*LocalFxTime*/ 0.0f, A0, g);
+    runResident("E OverrideTime=2 (clock=0) [0]", "4", "Selected", /*LocalFxTime*/ 0.0f, A0, g);
+  }
+
   q->release();
   dev->release();
   pool->release();
