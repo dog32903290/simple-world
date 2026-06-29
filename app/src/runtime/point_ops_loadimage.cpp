@@ -46,6 +46,20 @@
 //     always the decoded file's NATIVE dimensions. sw adds a Resolution enum (default WindowFollow) and
 //     resolution-pins the output, nearest-resampling when output size != native (e.g. 512x512 asset ->
 //     8x8 window in the resident leg). A same-size output is byte-exact (what the flat golden pins).
+//   - fork[cache-resources-no-flush]: TiXL CacheResources (LoadImage.cs:98-99, [Input] bool, default
+//     FALSE — new InputSlot<bool>() + LoadImage.t3 DefaultValue:false) gates whether decoded textures
+//     are kept in a per-instance _resourcesCache (cs:52-77) or re-decoded on each cook (cs:19-48
+//     DisposeCache path). sw's cachedAssetTexture memoizes FOREVER (a process-global decode-once cache),
+//     so sw BEHAVES like CacheResources=true regardless of the knob; the false branch (per-cook flush)
+//     is a dead knob — sw has no per-cook flush seam (cachedAssetTexture never invalidates). Output is
+//     IDENTICAL either way (cache vs re-decode = perf/memory, not pixels). The param is EXPOSED pinless
+//     bool with default 0=FALSE to match TiXL's inspector default; its false branch is UNIMPLEMENTED
+//     (follow-up: per-cook flush seam in cachedAssetTexture).
+//     Follow-up: implement a per-cook flush path in cachedAssetTexture (cache-invalidation seam) and
+//     wire it via CacheResources=false in cookLoadImage. Named: fork[cache-resources-no-flush].
+//   NOTE: SourcePathSlot is NOT a TiXL [Input] param — it is a C# interface property alias
+//     (LoadImage.cs:104: `public InputSlot<string> SourcePathSlot => Path;`) that re-exposes the
+//     Path slot for the IDescriptiveFilename interface. It is not a separate inspector knob.
 //
 // Self-contained leaf: cookLoadImage + ImageFilterOp self-registration + the static asset-key
 // registration + runLoadImageSelfTest. CMake glob auto-picks this file + loadimage.metal.
@@ -188,6 +202,9 @@ static const ImageFilterOp _reg_loadimage{
       // Path (String): the asset key. strDef = the committed default asset (last positional field).
       {"Path", "Path", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false,
        "Lib:images/basic/perlin-noise-rgb.png"},
+      // CacheResources (TiXL bool, default true): exposed as a pinless bool; see
+      // fork[cache-resources-no-flush] — the false branch (per-cook flush) is not yet implemented.
+      {"CacheResources", "CacheResources", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
       // Resolution (standard image-source enum; default WindowFollow)
       {"Resolution", "Resolution", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
        {"WindowFollow", "HD720", "HD1080", "UHD4K", "Custom"}, true},

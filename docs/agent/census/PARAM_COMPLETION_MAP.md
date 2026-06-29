@@ -219,7 +219,7 @@ FloatsToBuffer/BlendColors/RasterizerState 子節點 routing（補時 backward-t
 | GradientsToTexture | numbers | 1 param | Resolution |
 | IcosahedronMesh | mesh | 2 param | TexCoord, TexCoord2 |
 | Lerp | numbers | 1 param | Clamp |
-| LoadImage | image | 1 param | CacheResources, SourcePathSlot |
+| LoadImage | image | 0 param | ~~CacheResources~~ → added (default-neutral 1=true, fork[cache-resources-no-flush]: false branch unimplemented; follow-up: per-cook flush seam in cachedAssetTexture); ~~SourcePathSlot~~ → NOT a param (C# interface alias, LoadImage.cs:104 `SourcePathSlot => Path`) |
 | MergeFloatLists | numbers | 1 param | （名稱對不上：count 差 1，sw-fold 與 TiXL 命名歧義，補時逐顆 trace） |
 | MergeIntLists | numbers | 1 param | （名稱對不上：count 差 1，sw-fold 與 TiXL 命名歧義，補時逐顆 trace） |
 | OscillateVec2 | numbers | 1 param | OverrideTime |
@@ -229,8 +229,8 @@ FloatsToBuffer/BlendColors/RasterizerState 子節點 routing（補時 backward-t
 | PerlinNoise3 | numbers | 1 param | OverrideTime |
 | PickVector2 | numbers | 1 param | Index |
 | PointToMatrix | point | 10 param | AlsoOffsetTarget, AspectRatio, ClipPlanes, FieldOfView, LensShift, PositionOffset, Roll, RotationOffset, SamplePos, Up |
-| PointsToCPU | point | 3 param | Async, TriggerUpdate, UpdateContinuously |
-| ReadPointColors | point | 1 param | Async |
+| PointsToCPU | point | 0 param | ~~Async, TriggerUpdate, UpdateContinuously~~ → FORK 2 in pointlist_ops_pointstocpu.cpp (DX11 async-cadence knobs; value-less on Metal shared-storage; recorded in nodespec_integrity known_fork_count=3) |
+| ReadPointColors | point | 0 param | ~~Async~~ → FORK 1 in colorlist_ops_readpointcolors.cpp (DX11 transport knob; value-less on Metal shared-storage; recorded in nodespec_integrity known_fork_count=1) |
 | Remap | numbers | 2 param | BiasAndGain, Mode |
 | RemapValues | numbers | 1 param | InputValue |
 | RgbaToColor | numbers | 3 param | A, B, G |

@@ -199,6 +199,13 @@ known_fork_count() {
     MergeIntLists)     echo 1 ;;   # StartIndices = InputSlot<List<int>> (MergeIntLists.cs:30-31,304-318)
                                    # Identical deferral to MergeFloatLists (same sub-seam-merge-startindices).
                                    # See floatlist_ops_mergeintlists.cpp header for the named defer label.
+    PointsToCPU)       echo 3 ;;   # Async (cs:186-187) + TriggerUpdate (cs:174-175) + UpdateContinuously
+                                   # (cs:177-178): DX11 async-readback cadence knobs — value-less on Metal
+                                   # (shared-storage bag is always immediately readable synchronously).
+                                   # FORK 2 in pointlist_ops_pointstocpu.cpp header.
+    ReadPointColors)   echo 1 ;;   # Async (cs:157-158): DX11 StructuredBufferReadAccess transport knob —
+                                   # value-less on Metal (shared-storage bag is always synchronous).
+                                   # FORK 1 in colorlist_ops_readpointcolors.cpp header.
     *)                 echo 0 ;;
   esac
 }
