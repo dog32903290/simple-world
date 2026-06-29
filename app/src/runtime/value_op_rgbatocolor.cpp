@@ -21,10 +21,15 @@
 // FORKS (named):
 //   - fork-vec4-compose-arity (RgbaToColor.cs:7,16): TiXL's Result is a single Slot<Vector4>. This
 //     runtime has no native vec4/Color port type, so the vec4 output is exposed as four Float ports
-//     (Result.x/.y/.z/.w) grouped under one Widget::Vec head (vecArity=4) — purely a UI/authoring
-//     affordance. The compose is byte-identical: each output emits its own input channel, no
-//     arithmetic. Same decompose convention already shipped for Vector4Components (the twin op);
-//     this just runs it in the composing direction. NOT a taste fork — sw has no Slot<Vector4>.
+//     (Result.x/.y/.z/.w) — purely a UI/authoring affordance. The compose is byte-identical: each
+//     output emits its own input channel, no arithmetic. Same decompose convention already shipped
+//     for Vector4Components (the twin op); this just runs it in the composing direction. NOT a taste
+//     fork — sw has no Slot<Vector4>.
+//   - inputs-as-sliders (param-completion fix): TiXL has R/G/B/A as 4 SEPARATE InputSlot<float> —
+//     no Vec4 grouping. sw originally registered them under Widget::Vec (R as head arity=4, G/B/A as
+//     components), which the dumpNodeSpec fold walker collapsed to a logical count of 1 (vs TiXL=4)
+//     and the inspector showed as a single Vec4 row. Corrected to Widget::Slider per port (same as
+//     TiXL's design: 4 independent float knobs, same as HSBToColor). Folded count now 4 == TiXL=4.
 //   - NO clamp/branch fork: RgbaToColor.cs:16 is a bare Vector4 ctor — identity, no clamping to
 //     [0,1] despite the "Color" name. Ported verbatim (the goldens below use 0.2/0.4/0.6/0.8 and
 //     1.0 — all already in-range, so even a hypothetical clamp would not show; the identity is the
@@ -61,14 +66,15 @@ float evalRgbaToColor(int outIdx, const float* in, int n, const EvaluationContex
 static const ValueOp _reg_rgbatocolor{
     // RgbaToColor (TiXL Lib.numbers.vec4.RgbaToColor): compose 4 Float (R/G/B/A) → Vec4 Result.
     // Port order MUST match evalRgbaToColor's in[] read: the 4 R/G/B/A inputs first, then the 4
-    // named outputs (Result.x/.y/.z/.w grouped under one Widget::Vec head, vecArity=4 —
-    // fork-vec4-compose-arity). RgbaToColor defaults R=G=B=A=1.0 (RgbaToColor.cs:7,20/23/26/29 —
+    // named outputs (Result.x/.y/.z/.w — fork-vec4-compose-arity). Inputs are Widget::Slider, NOT
+    // Widget::Vec: TiXL has 4 separate InputSlot<float> (no Vec4 grouping), matching HSBToColor's
+    // pattern. RgbaToColor defaults R=G=B=A=1.0 (RgbaToColor.cs:7,20/23/26/29 —
     // InputSlot<float> default; the .t3 ships all four at 1.0).
     {"RgbaToColor", "RgbaToColor",
-     {{"R", "R", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 4},
-      {"G", "G", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
-      {"B", "B", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
-      {"A", "A", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+     {{"R", "R", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Slider},
+      {"G", "G", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Slider},
+      {"B", "B", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Slider},
+      {"A", "A", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Slider},
       {"Result.x", "Result.x", "Float", false},
       {"Result.y", "Result.y", "Float", false},
       {"Result.z", "Result.z", "Float", false},

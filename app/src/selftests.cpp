@@ -122,6 +122,14 @@ int dumpNodeSpec(const char* type) {
   bool hasCountX = false;
   for (const auto& p : spec->ports)
     if (p.id == "CountX") { hasCountX = true; break; }
+  // Image output-format trio detection: Resolution/CustomW/CustomH are sw RenderTarget conventions
+  // baked onto image ops (workitem C). These are excluded ONLY when CustomW is present (i.e., the
+  // spec carries the full output-format trio). Ops like GradientsToTexture have a "Resolution" port
+  // that IS a real TiXL [Input] (GradientsToTexture.cs:138, InputSlot<int>) and do NOT have
+  // CustomW/CustomH — they must NOT be excluded. The trio exclusion is conditional on hasCustomW.
+  bool hasCustomW = false;
+  for (const auto& p : spec->ports)
+    if (p.id == "CustomW") { hasCustomW = true; break; }
 
   std::printf("NodeSpec: %s (title=%s)\n", spec->type.c_str(), spec->title.c_str());
   int folded = 0;
@@ -136,7 +144,7 @@ int dumpNodeSpec(const char* type) {
       excl = "OUTPUT (excluded: sw output port, no TiXL [Input])";
     } else if (hasCountX && p.id == "Count") {
       excl = "capacity-Count (excluded: sw buffer-capacity convention, no TiXL [Input])";
-    } else if (p.id == "Resolution" || p.id == "CustomW" || p.id == "CustomH") {
+    } else if (hasCustomW && (p.id == "Resolution" || p.id == "CustomW" || p.id == "CustomH")) {
       excl = "output-format synthetic (excluded: image RenderTarget trio, no TiXL [Input])";
     }
     if (excl) {

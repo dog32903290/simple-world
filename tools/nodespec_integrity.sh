@@ -189,6 +189,16 @@ known_fork_count() {
     SetStringVar)      echo 2 ;;   # SubGraph (cs:54) + ClearAfterExecution (cs:57) → future SetStringVarCmd
     BuildRandomString) echo 1 ;;   # OverrideBuilder = InputSlot<StringBuilder>; no StringBuilder channel in sw
                                    # (fork-buildrandomstring-no-override-builder: always uses fallback buffer)
+    MergeFloatLists)   echo 1 ;;   # StartIndices = InputSlot<List<int>> (MergeFloatLists.cs:30-31,318-319)
+                                   # Controls per-list write offsets in UpdateAppend. FloatListCookCtx carries
+                                   # only the homogeneous InputLists gather; a second per-list IntList input
+                                   # port would need a dedicated driver gather seam (sub-seam-merge-startindices).
+                                   # With StartIndices EMPTY (the .t3 default) the DEFAULT cook is faithful;
+                                   # only explicitly-wired StartIndices is unreachable → deferred.
+                                   # See floatlist_ops_mergefloatlists.cpp header (NAMED DEFER label).
+    MergeIntLists)     echo 1 ;;   # StartIndices = InputSlot<List<int>> (MergeIntLists.cs:30-31,304-318)
+                                   # Identical deferral to MergeFloatLists (same sub-seam-merge-startindices).
+                                   # See floatlist_ops_mergeintlists.cpp header for the named defer label.
     *)                 echo 0 ;;
   esac
 }

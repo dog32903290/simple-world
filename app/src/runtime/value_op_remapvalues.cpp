@@ -94,9 +94,15 @@ static const ValueOp _reg_remapvalues{
     // trails it (PickFloat mixed convention).
     // Port order MUST match evalRemapValues's in[] read: InputAndOutputPairs (multiInput) first,
     // InputValue last.  Defaults from RemapValues.t3: InputValue = 0.
+    // Widget choice: InputAndOutputPairs uses Widget::Slider (NOT Widget::Vec) so the inspector +
+    // dumpNodeSpec fold walk does NOT eat InputValue as a vec-component. The vecArity=2 annotation
+    // is preserved for documentation (2 floats per Vec2 source) but is not read by the resident
+    // eval. Widget::Slider is the correct choice for a mixed-multiInput head followed by regular
+    // ports (same as PickFloat's Values port). Using Widget::Vec here caused the fold walker to
+    // consume InputValue as the Vec2-head's component → it vanished from the inspector.
     {"RemapValues", "RemapValues",
      {{"InputAndOutputPairs", "InputAndOutputPairs", "Float", true, 0.0f, -100000.0f, 100000.0f,
-       Widget::Vec, {}, false, /*vecArity=*/2, /*multiInput=*/true},
+       Widget::Slider, {}, false, /*vecArity=*/2, /*multiInput=*/true},
       {"InputValue", "InputValue", "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Slider},
       {"out", "out", "Float", false}},
      evalRemapValues},
