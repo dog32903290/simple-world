@@ -12,8 +12,9 @@ const std::vector<NodeSpec>& generatorSpecs() {
       {"RadialPoints",
        "RadialPoints",
        {{"points", "points", "Points", false},
-        {"Count", "Count", "Float", true, 2048.0f, 16.0f, 8192.0f},
-        {"Radius", "Radius", "Float", true, 2.0f, 0.1f, 10.0f},
+        // Defaults照 RadialPoints.t3: Count=100 (.t3:69), Radius=1.0 (.t3:65).
+        {"Count", "Count", "Float", true, 100.0f, 16.0f, 8192.0f},
+        {"Radius", "Radius", "Float", true, 1.0f, 0.1f, 10.0f},
         // Center (TiXL Vector3 TranslationInput) — first vector param on the contract.
         // Three Float components drawn as one DragFloat3; read via evalVecN("Center").
         {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},

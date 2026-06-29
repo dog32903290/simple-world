@@ -10,11 +10,15 @@ namespace sw {
 
 const std::vector<NodeSpec>& particleSpecs() {
   static const std::vector<NodeSpec> specs = {
+      // TurbulenceForce — TiXL particle/force/TurbulanceForce. Adds curlNoise(pos*Freq) to velocity,
+      // scaled by Amount/100. Defaults照 TurbulanceForce.t3: Amount=1.0, Frequency=1.0, Phase=0
+      // (the NodeSpec def IS the production cook value — resolveNodeParams fills the param map from
+      // p.def, so point_ops.cpp's cookInputParam fallback never fires for these; keep them in sync).
       {"TurbulenceForce",
        "TurbulenceForce",
        {{"force", "force", "ParticleForce", false},
-        {"Amount", "Amount", "Float", true, 15.0f, 0.0f, 100.0f},
-        {"Frequency", "Frequency", "Float", true, 1.2f, 0.0f, 5.0f},
+        {"Amount", "Amount", "Float", true, 1.0f, 0.0f, 100.0f},     // TiXL .t3 default 1.0
+        {"Frequency", "Frequency", "Float", true, 1.0f, 0.0f, 5.0f},  // TiXL .t3 default 1.0
         {"Phase", "Phase", "Float", true, 0.0f, 0.0f, 10.0f},
         // _ForceKind: the pinless discriminator cookParticleSim reads (particle_params.h
         // ForceKind). Inspector/canvas hide it (pinless); default 0 = Turbulence. NOT a TiXL

@@ -347,6 +347,8 @@ add_executable(simple_world
   src/raymarchpoints_golden.cpp  # SDF point-modify + count-multiply (TWO modes): LinePoints -> RaymarchPoints(Field=SphereSDF) -> MODE0 line[1] / MODE1 last-step on-sphere readback (--selftest-raymarchpoints)
   src/pointcolorwithfield_golden.cpp  # direct-Field gather LEAF: GridPoints -> SetPointAttributes(seed) -> PointColorWithField(Field=SphereSDF) -> recolored-white readback (--selftest-pointcolorwithfield)
   src/selectpointswithsdf_golden.cpp  # direct-Field gather LEAF: GridPoints -> SelectPointsWithSDF(Field=SphereSDF) -> per-point FX1=max(0,1-2*dist) readback (--selftest-selectpointswithsdf)
+  src/radial_points_parity_golden.cpp  # ★PARITY-GATE Stage-1 pilot: RadialPoints production defaults vs TiXL .t3 Count=100/Radius=1 (--selftest-radial-parity, RED-first template)
+  src/turbulence_parity_golden.cpp     # ★PARITY-GATE Stage-1: TurbulenceForce 15× amplitude tooth + Phase=wall-clock determinism probe (--selftest-turbulence-parity, RED-first)
   src/field_paramapply_golden.cpp
   src/field_paramapply_cases.cpp
   src/field_paramapply_enumcases.cpp

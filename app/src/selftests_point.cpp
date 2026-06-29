@@ -119,5 +119,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"pointtrailfast", runPointTrailFastSelfTest},  // ★cross-frame trail ring: 2-frame persistent-ring accumulation (posA survives into f1)
     {"pointtrail", runPointTrailSelfTest},          // ★cross-frame 3-pass trail: Collect ring persists across frames, Copy emits newest-first
     {"growstrains", runGrowStrainsSelfTest},        // 2-input cartesian product + GrowthMap texture; per-frame transform vs formula
+    {"radial-parity", runRadialPointsParitySelfTest},  // ★PARITY-GATE Stage-1 pilot: RadialPoints production defaults vs TiXL .t3 (RED-first template)
+    {"turbulence-parity", runTurbulenceParitySelfTest},  // ★PARITY-GATE Stage-1: TurbulenceForce 15× amplitude tooth + Phase=wall-clock determinism probe (RED-first)
 );
 }  // namespace sw

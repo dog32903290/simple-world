@@ -197,3 +197,5 @@ namespace sw { int runTimeSelfTest(bool); }                          // stateful
 namespace sw { int runPointTrailFastSelfTest(bool); }                // point_ops_pointtrailfast.cpp (★cross-frame trail ring: 2-frame persistent-ring accumulation, posA survives into f1)
 namespace sw { int runPointTrailSelfTest(bool); }                    // point_ops_pointtrail.cpp (★cross-frame 3-pass trail: Collect ring persists, Copy emits newest-first; -bug wipes ring)
 namespace sw { int runGrowStrainsSelfTest(bool); }                   // point_ops_growstrains.cpp (2-input cartesian product + GrowthMap texture; per-frame transform vs formula; -bug severs GrowthMap)
+namespace sw { int runRadialPointsParitySelfTest(bool); }            // radial_points_parity_golden.cpp (★PARITY-GATE Stage-1 pilot: RadialPoints production defaults vs TiXL .t3 Count=100/Radius=1 — RED-first template)
+namespace sw { int runTurbulenceParitySelfTest(bool); }              // turbulence_parity_golden.cpp (★PARITY-GATE Stage-1: TurbulenceForce Amount=15→TiXL=1 amplitude tooth + Phase=wall-clock determinism probe — RED-first)

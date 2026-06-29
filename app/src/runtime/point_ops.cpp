@@ -38,7 +38,7 @@ void cookRadialPoints(PointCookCtx& c) {
 
   RadialParams P{};
   P.Count = c.count;
-  P.Radius = cookParam(c, "Radius", 2.0f);
+  P.Radius = cookParam(c, "Radius", 1.0f);  // TiXL RadialPoints.t3:65 default
   P.RadiusOffset = cookParam(c, "RadiusOffset", 0.0f);
   P.StartAngle = cookParam(c, "StartAngle", 0.0f);
   P.Cycles = cookParam(c, "Cycles", 1.0f);
@@ -318,9 +318,17 @@ void cookParticleSim(PointCookCtx& c) {
         runForce(s->psoFieldVolume, &fp, sizeof(fp));  // fork-FieldVolume-baked fallback
     } else {  // FORCE_KIND_TURBULENCE (default)
       TurbParams tp{};
-      tp.Amount = cookInputParam(c, 1, "Amount", 15.0f);
-      tp.Frequency = cookInputParam(c, 1, "Frequency", 1.2f);
-      tp.Phase = time; tp.Variation = 0.0f;
+      // The 1.0f here is the absent-key fallback only; in production the param map is pre-filled by
+      // resolveNodeParams from the TurbulenceForce NodeSpec defaults (node_registry_particle.cpp:
+      // Amount=1.0, Frequency=1.0 — TiXL TurbulanceForce.t3), so this fallback never fires. Kept equal
+      // to the NodeSpec defaults so the two paths agree if the key were ever missing (no 15/1.2 ghost).
+      tp.Amount = cookInputParam(c, 1, "Amount", 1.0f);      // = NodeSpec default (TiXL .t3 = 1.0)
+      tp.Frequency = cookInputParam(c, 1, "Frequency", 1.0f);  // = NodeSpec default (TiXL .t3 = 1.0)
+      // Phase is a TiXL user input (default 0, only animates if Time is wired) — read it from the
+      // inspector param like Amount/Frequency, NOT wall-clock. Binding Phase=time made offline render
+      // non-deterministic (two cooks with identical inputs diverged); fixed for determinism contract.
+      tp.Phase = cookInputParam(c, 1, "Phase", 0.0f);
+      tp.Variation = 0.0f;
       tp.SpeedFactor = 1.0f; tp.VariationGroupCount = 0.0f; tp.Count = pool;
       runForce(s->psoTurb, &tp, sizeof(tp));
     }

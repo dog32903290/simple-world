@@ -202,7 +202,11 @@ Mean cookResidentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, 
 
   SymbolLibrary slib;
   slib.symbols["RadialPoints"] = [] { Symbol s; s.id = s.name = "RadialPoints"; s.atomic = true;
-    s.inputDefs = {{"Count", "Count", "Float", 0.0f}};
+    // Radius declared + overridden to 2.0 so the resident ring MATCHES the flat leg's explicit
+    // gen.params["Radius"]=2.0 (cookFlat). Previously this leg relied on the cook fallback default
+    // (point_ops.cpp), which was 2.0; Stage-3 corrected that default to the TiXL .t3 value (1.0), so
+    // the scene radius must now be pinned explicitly here — same as Count — to keep both legs identical.
+    s.inputDefs = {{"Count", "Count", "Float", 0.0f}, {"Radius", "Radius", "Float", 2.0f}};
     s.outputDefs = {{"points", "points", "Points", 0.0f}}; return s; }();
   slib.symbols["ParticleSystem"] = [] { Symbol s; s.id = s.name = "ParticleSystem"; s.atomic = true;
     s.inputDefs = {{"emit", "emit", "Points", 0.0f}, {"forces", "forces", "ParticleForce", 0.0f}};
@@ -223,6 +227,7 @@ Mean cookResidentLeg(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib, 
   Symbol root; root.id = root.name = "Root"; root.atomic = false;
   root.outputDefs = {{"out", "out", "Command", 0.0f}};
   SymbolChild cg; cg.id = 1; cg.symbolId = "RadialPoints"; cg.overrides["Count"] = (float)N;
+  cg.overrides["Radius"] = 2.0f;  // match the flat leg's explicit Radius=2.0 (cookFlat)
   SymbolChild cs; cs.id = 2; cs.symbolId = "ParticleSystem";
   SymbolChild cd; cd.id = 3; cd.symbolId = "DrawPoints";
   SymbolChild cv; cv.id = 4; cv.symbolId = "VectorFieldForce"; cv.overrides["Amount"] = amount;
