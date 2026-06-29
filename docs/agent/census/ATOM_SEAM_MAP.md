@@ -13,7 +13,9 @@
 GenerateShaderGraphCode **不是通用 shader 編譯器**，是 **SDF/field 距離函數的字串組裝器 + 模板注入**：動態的只有距離函數那 1-3 行 HLSL 片段，塞進**手寫固定 .hlsl 模板**；參數走 cbuffer（改參不重編），只 structural/code 變才重生。
 - **真動態 shader（需 codegen，實作 `IGraphNodeOp`）= 46 個，全在 `Lib/field/`（SDF）**。固定 .hlsl（load-and-run，不 codegen）= **422 個**（image/fx/points/particles/mesh 全固定）。比例 ~1:9。
 - **sw 早已把這套（方向 C 混合）造好 ~90%**：`field_render.cpp`（`assembleFieldMSL`→`cachedSourcePSO` srcHash 快取，「exactly TiXL's code/param split」）+ `field_graph.cpp`（FieldNode/CodeAssembleCtx 鏡像 ShaderGraphNode）+ `metal_compile.mm`（runtime `newLibrary(source)` 已在生產跑）+ 11 個 MSL 模板。**離 runtime 編譯＝零。**
-- **46 動態 op：41 已移植且 parity golden 綠**，剩 **5 個重節點**（ExecuteImage2dSdf/ExecuteHeightmapSdf/SubDivPattern3d/ExecuteRepeatFieldAtPoints/SdfToColor——吃纹理/resource/color，唯一未被 golden 蓋的硬塊）。
+- **46 動態 op：41 已移植且 parity golden 綠**（對抗壓測證 golden 是真 parity 非 smoke：70 個錨 TiXL `.cs`/`.hlsl` 公式、82 個 injectBug 咬合、0 個錨 sw readback），剩 **6 個未移植**（壓測修正：scout 少算 1）：ExecuteHeightmapSdf/ExecuteRepeatFieldAtPoints/SubDivPattern3d/SdfToVector/_ExecuteSdfToColor(+_Old)。
+- **★Image2dSdf 已完成**（scout 誤列待辦）——有真 GPU texture-binding parity golden（`field_render.cpp:86-92` Seam A texture-bind 已驗），**texture-resource seam 不是黑洞**。
+- **★真正待壓的唯一 resource 接縫＝`RepeatFieldAtPoints`（point-buffer 餵進 field）**——這條 resource 種類 sw 尚無任何驗過消費者，是 6 顆裡唯一真硬骨頭（不是「重節點」一句帶過）。第一步 spike 改採這顆（非 Image2dSdf，後者已完成）。
 - **方向 A「全翻譯機」是誤判**（會逼 422 固定 shader 也走 codegen＝浪費）；sw 無通用 HLSL→MSL 翻譯器，是**逐 op 手刻 MSL 片段**（HLSL↔MSL 差極小：saturate→clamp/lerp→mix/register(tN)→[[buffer(N)]]/inout→thread&）。**真正落地的是方向 C 且已落地。**
 - **結論：哲學衝突在 codebase 層已解決。** 剩 (a) 固定 422 批體力手翻（中，已翻 ~150，無架構風險，可並行）(b) 收尾 5 個重 field op 的 resource seam（小-中，唯一真未知）。第一步 spike＝`ExecuteImage2dSdf`（驗 codegen+SRV/纹理 resource binding，過了 46 動態批全收）。
 
