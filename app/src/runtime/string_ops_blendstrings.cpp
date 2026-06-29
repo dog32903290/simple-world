@@ -270,6 +270,13 @@ static const StringOp _reg_blendstrings{
       {"ScrambleSeed","ScrambleSeed","Float",  true,  0.0f, -100000.0f, 100000.0f, Widget::Slider},
       {"MaxLength",   "MaxLength",   "Float",  true,  10000.0f, 1.0f, 10000.0f, Widget::Slider},
       {"Characters",  "Characters",  "String", true,  0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
+       /*multiInput=*/false, ""},
+      // InputTextA / InputTextB (TiXL BlendStrings.cs l.182-185: [Input] InputSlot<string>).
+      // Declared in TiXL but NOT called in Update() — dead ports. Exposed here so the inspector
+      // matches TiXL; the cook does not read them (BlendStrings.t3 defaults: "" for both).
+      {"InputTextA",  "InputTextA",  "String", true,  0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
+       /*multiInput=*/false, ""},
+      {"InputTextB",  "InputTextB",  "String", true,  0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
        /*multiInput=*/false, ""}},
      /*evaluate=*/nullptr},  // String output cannot ride NodeSpec::evaluate (returns ONE float)
     cookBlendStrings};

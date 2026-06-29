@@ -197,7 +197,8 @@ app/src/runtime/resident_eval_graph.h:410
 # knob coverage in this test aggregator). Production leaf code unchanged-size; this is test growth only.
 app/src/runtime/stateful_value_ops_selftest.cpp:1252
 app/src/runtime/transport_selftest.cpp:429
-app/src/runtime/value_eval_ops.cpp:740
+# +54 (2026-06-30, baked-param fan-out): evalRemap BiasAndGain+Mode helpers + evalLerp Clamp.
+app/src/runtime/value_eval_ops.cpp:794
 # value_op_perlinnoise3 split (2026-06-29, time-source param fan-out): golden body extracted to
 # value_op_perlinnoise3_golden.cpp; leaf now 261 (<400), sibling <400 — RATCHET ENTRY REMOVED (rule 8).
 app/src/string_rail_golden.cpp:1605

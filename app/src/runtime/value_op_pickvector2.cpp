@@ -79,8 +79,12 @@ static const ValueOp _reg_pickvector2{
     // Port order: Input (multiInput Vec2 head, vecArity=2), Index (trailing scalar), Selected.x/.y.
     // Defaults from PickVector2.t3: Index=0; Input default {X:0.0, Y:0.0}.
     // fork-pickvec2-vec2-as-2-floats: Vec2 multiInput = 2 Float ports per source in in[].
+    // Port field order: id, name, dataType, isInput, def, minV, maxV, widget, labels, pinless, vecArity, multiInput.
+    // Input: multiInput Vec2 source wires (vecArity NOT set as VEC head — avoids folding Index as a vec-component;
+    // the 2-float-per-element convention is an eval-side gather contract, not a PortSpec fold).
+    // Index: plain scalar, MUST follow Input as a non-vec port (TiXL InputSlot<int>, default 0).
     {"PickVector2", "PickVector2",
-     {{"Input",   "Input",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 2,
+     {{"Input",   "Input",   "Float", true, 0.0f, -100.0f, 100.0f, Widget::Slider, {}, false, 1,
        /*multiInput=*/true},
       {"Index",      "Index",      "Float", true, 0.0f, 0.0f, 1000.0f, Widget::Slider},
       {"Selected.x", "Selected.x", "Float", false},

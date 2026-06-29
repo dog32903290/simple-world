@@ -187,6 +187,8 @@ known_fork_count() {
     SetPlaybackSpeed)  echo 1 ;;   # SubGraph → future SetPlaybackSpeedCmd (SetPlaybackSpeed.cs:48)
     SetPlaybackTime)   echo 2 ;;   # SubGraph (cs:62) + ShowLogMessages (cs:73, telemetry-only) → SetPlaybackTimeCmd
     SetStringVar)      echo 2 ;;   # SubGraph (cs:54) + ClearAfterExecution (cs:57) → future SetStringVarCmd
+    BuildRandomString) echo 1 ;;   # OverrideBuilder = InputSlot<StringBuilder>; no StringBuilder channel in sw
+                                   # (fork-buildrandomstring-no-override-builder: always uses fallback buffer)
     *)                 echo 0 ;;
   esac
 }

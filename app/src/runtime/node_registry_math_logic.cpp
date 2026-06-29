@@ -258,12 +258,18 @@ static const MathOp _reg_HasBooleanChanged{
       // Trigger — bool gate: passes BoolValue through, OR (OnlyOnDown=true, the .t3 default) emits a
       // one-frame pulse on the RISING edge of BoolValue. TiXL bool/logic/Trigger.cs (stateful; output
       // FIRST; nullptr eval). Bool→Float 0/1 (Cut 32). .t3 defaults: OnlyOnDown=true, BoolValue=false.
-      // ColorInGraph (cosmetic Vec4) dropped — never touches the output.
+      // ColorInGraph (Vec4 cosmetic — Trigger.cs l.30: ColorInGraph.DirtyFlag.Clear(); never touches
+      // the output). Vec4 decomposed as 4 Float ports (fork-vec4-decompose-arity convention).
+      // .t3 default: ColorInGraph={X:0.5359,Y:0.5359,Z:0.5359,W:0.5885} (a UI grey; dead knob).
 static const MathOp _reg_Trigger{
       {"Trigger", "Trigger",
-       {{"Result", "Result", "Float", false},
-        {"BoolValue", "BoolValue", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
-        {"OnlyOnDown", "OnlyOnDown", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},
+       {{"Result",       "Result",       "Float", false},
+        {"BoolValue",    "BoolValue",    "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"OnlyOnDown",   "OnlyOnDown",   "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},
+        {"ColorInGraph.x", "ColorInGraph",   "Float", true, 0.5359f, 0.0f, 1.0f, Widget::Vec, {}, false, 4},
+        {"ColorInGraph.y", "ColorInGraph.y", "Float", true, 0.5359f, 0.0f, 1.0f, Widget::Vec, {}, false, 1},
+        {"ColorInGraph.z", "ColorInGraph.z", "Float", true, 0.5359f, 0.0f, 1.0f, Widget::Vec, {}, false, 1},
+        {"ColorInGraph.w", "ColorInGraph.w", "Float", true, 0.5885f, 0.0f, 1.0f, Widget::Vec, {}, false, 1}},
        nullptr,
        "numbers.bool.logic"}
 };

@@ -93,16 +93,24 @@ static const MathOp _reg_Clamp{
        "numbers.float.adjust"}
 };
 
-      // Remap: linear remap [RangeInMin..RangeInMax] → [RangeOutMin..RangeOutMax]
-      // (TiXL adjust/Remap.cs; fork: BiasAndGain+Mode omitted — see evalRemap comment)
+      // Remap: linear remap [RangeInMin..RangeInMax] → [RangeOutMin..RangeOutMax] with BiasAndGain + Mode.
+      // (TiXL adjust/Remap.cs)
+      // BiasAndGain: Vec2 decomposed as two consecutive Float ports (fork-vec2-as-2-floats convention).
+      //   Remap.t3 default: BiasAndGain = {X:0.5, Y:0.5} (identity = no reshaping, zero-observable).
+      // Mode: Enum (Normal=0, Clamped=1, Modulo=2). Remap.t3 default: 0 (Normal = unclamped passthrough).
+      // in order MUST match evalRemap: [Value, RangeInMin, RangeInMax, RangeOutMin, RangeOutMax, BG.x, BG.y, Mode]
 static const MathOp _reg_Remap{
       {"Remap", "Remap",
-       {{"Value",       "Value",       "Float", true, 0.0f, -10.0f, 10.0f},
-        {"RangeInMin",  "RangeInMin",  "Float", true, 0.0f, -10.0f, 10.0f},
-        {"RangeInMax",  "RangeInMax",  "Float", true, 1.0f, -10.0f, 10.0f},
-        {"RangeOutMin", "RangeOutMin", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"RangeOutMax", "RangeOutMax", "Float", true, 1.0f, -10.0f, 10.0f},
-        {"out", "out", "Float", false}},
+       {{"Value",          "Value",          "Float", true, 0.0f, -10.0f, 10.0f},
+        {"RangeInMin",     "RangeInMin",     "Float", true, 0.0f, -10.0f, 10.0f},
+        {"RangeInMax",     "RangeInMax",     "Float", true, 1.0f, -10.0f, 10.0f},
+        {"RangeOutMin",    "RangeOutMin",    "Float", true, 0.0f, -10.0f, 10.0f},
+        {"RangeOutMax",    "RangeOutMax",    "Float", true, 1.0f, -10.0f, 10.0f},
+        {"BiasAndGain.x",  "BiasAndGain",    "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, false, 2},
+        {"BiasAndGain.y",  "BiasAndGain.y",  "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, false, 1},
+        {"Mode",           "Mode",           "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"Normal", "Clamped", "Modulo"}},
+        {"out",            "out",            "Float", false}},
        evalRemap,
        "numbers.float.adjust"}
 };
@@ -125,13 +133,16 @@ static const MathOp _reg_Floor{
        "numbers.float.adjust"}
 };
 
-      // Lerp: A + (B-A)*F (TiXL process/Lerp.cs; fork: Clamp bool input omitted, always unclamped)
+      // Lerp: A + (B-A)*clamp?(F) (TiXL process/Lerp.cs).
+      // TiXL Lerp.cs l.19-21: if (Clamp.GetValue(context)) { f = f.Clamp(0, 1); }
+      // Clamp default false (Lerp.t3: DefaultValue=false). Bool dissolved to Float 0/1.
 static const MathOp _reg_Lerp{
       {"Lerp", "Lerp",
-       {{"A", "A", "Float", true, 0.0f, -10.0f, 10.0f},
-        {"B", "B", "Float", true, 1.0f, -10.0f, 10.0f},
-        {"F", "F", "Float", true, 0.5f, 0.0f,   1.0f},
-        {"out", "out", "Float", false}},
+       {{"A",     "A",     "Float", true, 0.0f, -10.0f, 10.0f},
+        {"B",     "B",     "Float", true, 1.0f, -10.0f, 10.0f},
+        {"F",     "F",     "Float", true, 0.5f, 0.0f,   1.0f},
+        {"Clamp", "Clamp", "Float", true, 0.0f, 0.0f,   1.0f, Widget::Bool},
+        {"out",   "out",   "Float", false}},
        evalLerp,
        "numbers.float.process"}
 };

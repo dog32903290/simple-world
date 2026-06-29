@@ -173,6 +173,12 @@ static const ValueOp _reg_animvec2{
       {"Offsets.y",       "Offsets.y",       "Float", true, 0.0f, -100000.0f, 100000.0f, Widget::Vec, {}, false, 1},
       {"Bias",            "Bias",            "Float", true, 0.5f, 0.0f,       1.0f,       Widget::Slider},
       {"Ratio",           "Ratio",           "Float", true, 1.0f, -100000.0f, 100000.0f, Widget::Slider},
+      // AllowSpeedFactor (TiXL AnimVec2.cs l.71: [Input] InputSlot<int> AllowSpeedFactor, MappedType=AnimMath.SpeedFactors).
+      // Dead knob on this path (fork-animvec2-speedoverride-always-one): rateFactorFromContext=1.0 always;
+      // the knob is exposed so the inspector matches TiXL, but its value never changes Result.
+      // .t3 default = 1 (FactorA). Enum labels mirror AnimMath.SpeedFactors (None=0, FactorA=1, FactorB=2, FactorAorB=3).
+      {"AllowSpeedFactor", "AllowSpeedFactor", "Float", true, 1.0f, 0.0f, 3.0f, Widget::Enum,
+       {"None", "FactorA", "FactorB", "FactorAorB"}},
       {"Result.x",        "Result.x",        "Float", false},
       {"Result.y",        "Result.y",        "Float", false}},
      evalAnimVec2},

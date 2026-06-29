@@ -53,17 +53,67 @@ float evalClamp(int, const float* in, int n, const EvaluationContext&) {
   return fminf(fmaxf(v, lo), hi);  // T.Min(T.Max(v,min),max) verbatim — MathUtils.cs:253
 }
 
-// Remap: maps value from [RangeInMin, RangeInMax] → [RangeOutMin, RangeOutMax].
-// TiXL Remap.cs (adjust/): normalized=(value-inMin)/(inMax-inMin), result=normalized*(outMax-outMin)+outMin.
-// FORK (named): BiasAndGain and Mode omitted (both are identity defaults: BiasAndGain=(0.5,0.5)
-// = linear passthrough; Mode=Normal = unclamped). Add when needed.
-// in: [Value, RangeInMin, RangeInMax, RangeOutMin, RangeOutMax]
+// Remap: maps value from [RangeInMin, RangeInMax] → [RangeOutMin, RangeOutMax] with optional
+// BiasAndGain shaping and Mode (Normal/Clamped/Modulo). TiXL Remap.cs (adjust/).
+// TiXL Remap.cs l.17-56 (verbatim logic):
+//   normalized = (value - inMin) / (inMax - inMin)
+//   if (normalized > 0 && normalized < 1) normalized = normalized.ApplyGainAndBias(bg.X, bg.Y)
+//   v = normalized * (outMax - outMin) + outMin
+//   case Clamped: v = Clamp(v, min(outMin,outMax), max(outMin,outMax))
+//   case Modulo:  v = Fmod(v, max-min)
+// BiasAndGain default = (0.5, 0.5) [Remap.t3: identity, i.e. no reshaping].
+// Mode default = 0 (Normal = unclamped/unmodulo'd passthrough).
+// in: [Value, RangeInMin, RangeInMax, RangeOutMin, RangeOutMax, BiasAndGain.x, BiasAndGain.y, Mode]
+// (n<5 → return 0; n<6 → BiasAndGain defaults to identity (0.5,0.5); n<8 → Mode defaults to 0)
+
+// ApplyGainAndBias helpers (MathUtils.cs verbatim — same algebra as point_ops_boxgradient.cpp).
+static float remapGetBias(float b, float x) {
+  return x / ((1.0f / b - 2.0f) * (1.0f - x) + 1.0f);
+}
+static float remapGetSchlickBias(float g, float x) {
+  if (x < 0.5f) { x *= 2.0f; x = 0.5f * remapGetBias(g, x); }
+  else { x = 2.0f * x - 1.0f; x = 0.5f * remapGetBias(1.0f - g, x) + 0.5f; }
+  return x;
+}
+// MathUtils.ApplyGainAndBias(value, gain, bias): identity at gain=0.5, bias=0.5.
+// Clamps g and b to [0,1]; near-zero/near-one value shortcuts.
+static float remapApplyGainAndBias(float value, float gain, float bias) {
+  float b = (bias  < 0.0f ? 0.0f : (bias  > 1.0f ? 1.0f : bias));
+  float g = (gain < 0.0f ? 0.0f : (gain > 1.0f ? 1.0f : gain));
+  if (value > 0.999f) return 1.0f;
+  if (value < 0.00001f) return 0.0f;
+  if (g < 0.5f) { value = remapGetBias(b, value); value = remapGetSchlickBias(g, value); }
+  else          { value = remapGetSchlickBias(g, value); value = remapGetBias(b, value); }
+  return value;
+}
+
 float evalRemap(int, const float* in, int n, const EvaluationContext&) {
   if (n < 5) return 0.0f;
-  float v = in[0], inMin = in[1], inMax = in[2], outMin = in[3], outMax = in[4];
-  float dIn = inMax - inMin;
-  float t = dIn == 0.0f ? 0.0f : (v - inMin) / dIn;
-  return outMin + (outMax - outMin) * t;
+  const float value  = in[0];
+  const float inMin  = in[1], inMax  = in[2];
+  const float outMin = in[3], outMax = in[4];
+  const float bgX = (n >= 7) ? in[5] : 0.5f;  // BiasAndGain.x — default 0.5 (identity)
+  const float bgY = (n >= 7) ? in[6] : 0.5f;  // BiasAndGain.y — default 0.5 (identity)
+  const int   mode = (n >= 8) ? (int)in[7] : 0;  // Mode — default 0 (Normal)
+
+  const float dIn = inMax - inMin;
+  float t = (dIn == 0.0f) ? 0.0f : (value - inMin) / dIn;
+  // Remap.cs l.28-31: apply only when 0 < normalized < 1.
+  if (t > 0.0f && t < 1.0f) {
+    t = remapApplyGainAndBias(t, bgX, bgY);
+  }
+  float v = t * (outMax - outMin) + outMin;
+  if (mode == 1) {  // Clamped: Clamp(v, min(outMin,outMax), max(outMin,outMax))
+    const float lo = outMin < outMax ? outMin : outMax;
+    const float hi = outMin < outMax ? outMax : outMin;
+    v = v < lo ? lo : (v > hi ? hi : v);
+  } else if (mode == 2) {  // Modulo: MathUtils.Fmod(v, max-min) = v - floor(v/delta)*delta
+    const float lo = outMin < outMax ? outMin : outMax;
+    const float hi = outMin < outMax ? outMax : outMin;
+    const float delta = hi - lo;
+    if (delta != 0.0f) v = v - delta * std::floor(v / delta);
+  }
+  return v;
 }
 
 // Abs: |Value|. TiXL Abs.cs: "Result.Value = v > 0 ? v : (-1*v);"
@@ -79,12 +129,17 @@ float evalFloor(int, const float* in, int n, const EvaluationContext&) {
 }
 
 // Lerp: A + (B-A)*F. TiXL Lerp.cs uses MathUtils.Lerp(a, b, f) = a + (b-a)*f.
-// TiXL has a Clamp bool input (default false = no clamp on F). FORK (named): Clamp input omitted
-// (always unclamped, matching TiXL default Clamp=false). Add when needed.
-// in: [A, B, F]
+// TiXL Lerp.cs l.19-21: if (Clamp.GetValue(context)) { f = f.Clamp(0, 1); }
+// in: [A, B, F, Clamp]  (Clamp = bool dissolved to Float >0.5; default false = 0.0f)
 float evalLerp(int, const float* in, int n, const EvaluationContext&) {
   if (n < 3) return 0.0f;
-  return in[0] + (in[1] - in[0]) * in[2];
+  float f = in[2];
+  if (n >= 4 && in[3] > 0.5f) {
+    // Clamp.GetValue(context) true: f = MathUtils.Clamp(f, 0, 1)
+    if (f < 0.0f) f = 0.0f;
+    else if (f > 1.0f) f = 1.0f;
+  }
+  return in[0] + (in[1] - in[0]) * f;
 }
 
 
