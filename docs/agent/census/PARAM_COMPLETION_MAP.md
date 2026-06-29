@@ -141,6 +141,30 @@ synthetic flag）給 `role="output-format synthetic"` + `continue` 不計數 →
 
 ---
 
+## ★兩個 fold 缺陷修復落地 + refuter 驗證（2026-06-29，本 session）
+
+兩缺陷都堵上（`app/src/selftests.cpp` dumpNodeSpec 守衛 + `tools/nodespec_integrity.sh` VEC-SHORT 跨 subshell 傳遞）：
+- **缺陷 1**：dumpNodeSpec 守衛改成鏡像權威 walk（`inspector.cpp:83`/`node_registry.cpp:203`）的**盲目位置消費**——head 宣告 arity=N 就吃 N-1 個 port，不看 component widget；只在撞 output / port 用盡時喊 VEC-RUN-SHORT。移除了「component 是 Vec head 就 break」的發散規則。
+- **缺陷 2**：`sw="$(sw_folded_count …)"` 的 subshell 吃掉 `SW_VEC_RUN_SHORT` global → 改寫 temp-file（`VEC_SHORT_FLAG`）+ `sw_vec_run_short` reader，跨 subshell 存活。實證活了：`PickColor`/`BlendVector3`/`PickVector3`/`MaxInt2`（Vec head arity 撞 output 的真結構案例）現在大聲報 VEC-RUN-SHORT 而非靜默歸帳。
+
+**閘擴後 image 真缺口全景（refuter 逐顆對 .cs 驗過，NOT REFUTED）**：
+
+| 島 | swept | MATCH | MISSING | EXTRA | VEC-SHORT | 可信度 |
+|---|---|---|---|---|---|---|
+| image | 73 | 31 | **42（真缺口，地板已破）** | **0** | 0 | ✅ refuter 驗準（符號翻轉已修） |
+| field | 43 | 38 | 2 | 3 | 0 | ✅ 數字未動（無回歸） |
+| mesh | 20 | 15 | 5 | 0 | 0 | ✅ 數字未動（無回歸） |
+| generator | 13 | 13 | 0 | 0 | 0 | ✅ 13/13（無回歸） |
+| flow | 6 | 6 | 0 | 0 | 0 | ✅ 6/6（無回歸） |
+
+10 顆假 EXTRA 翻正：**7 顆→MISSING**（AfterGlow −1·Blend −2·BlendWithMask −1·BoxGradient −1·Combine3Images −1·CombineMaterialChannels2 −1·MirrorRepeat −1）+ **3 顆→MATCH**（AfterGlow2·DistortAndShade·LightRaysFx）。image MISSING `34→42`（先前 34 是地板，多出的 8 是被過度折開藏住的真缺口）。EXTRA `10→0`。
+
+refuter 確認（獨立數 `[Input(`）：Blend sw8/TiXL10 缺 GenerateMips+Resolution；AfterGlow/BoxGradient/MirrorRepeat 各缺 Resolution（TiXL 真 Int2 [Input]，非 sw synthetic trio）。**最硬 break-test：Rings（3 連續 Vec4 + 6 連續 Vec2 head）9 顆全各折一顆、零塌陷** → 盲目位置消費不會把相鄰獨立 Vec 併掉，無新增假 MISSING。
+
+**守護牙**：`--selftest-nodespecfold` 新增 `Blend==8` chained-Vec golden（-bug 下每個 Vector4 過折成 3 → 12 → RED），與 SphereSDF/BoxSDF（裸 component 形）兩種 fold-bug 形都釘住。`--bite`：PASS=530 無 failure。
+
+---
+
 ## ★閘擴後 fan-out 目標 ground-truth（2026-06-29 scout，難度排序）
 
 **★★承重發現：剩餘大宗 param-completion 不是逐顆 leaf，是兩條共享 seam 卡住**——
@@ -160,3 +184,74 @@ synthetic flag）給 `role="output-format synthetic"` + `continue` 不計數 →
 routing 註：TransformField/RenderTarget 的 .t3 都 empty Children/Connections=純 host input 無中間節點
 （無 silent routing trap，trap 在 matrix 數學）；RaymarchField/DrawMeshUnlit 的缺 param 多經
 FloatsToBuffer/BlendColors/RasterizerState 子節點 routing（補時 backward-trace）。
+
+---
+
+## ★307 真原子 param 全掃（2026-06-29，fold-fix c0251ea 後全島可信）
+
+對 `node_health.sh --class atom` 的 307 真原子（done ∧ TiXL 原子）逐顆跑 `nodespec_integrity`（sw-folded vs TiXL [Input]）。
+快照 `--tsv --params`；KPI 進 node_health.html「真原子旋鈕不全」欄。
+
+| 結果 | 顆數 | 意義 |
+|---|---|---|
+| match（旋鈕齊） | 246 | sw 暴露的 param 數 == TiXL [Input] |
+| **MISSING（旋鈕不全）** | **38** | **baked 寫死沒暴露成 inspector 旋鈕 = 補 backlog** |
+| EXTRA | 5 | 多為 float4x4 fold 上限假象（見下）|
+| no-cs | 11 | 閘解析不到 .cs（fork/rename 待補 header 或 sw-internal 無 TiXL 對應）|
+| vec-short | 4 | Vec head 宣告 arity 但 component 沒鋪滿（author 結構 bug，閘大聲報）|
+| unregistered | 3 | atom 名非已註冊 NodeSpec（走他路 / 名字對不上）|
+
+### ★38 真原子旋鈕不全清單（補 baked-param backlog；缺的 TiXL [Input] 已對 .cs）
+
+| 算子 | 島 | 缺 | 缺哪些（對 TiXL .cs [Input]）|
+|---|---|---|---|
+| AnimFloatList | numbers | 1 param | OverrideTime |
+| AnimVec2 | numbers | 1 param | AllowSpeedFactor |
+| AnimVec3 | numbers | 1 param | OverrideTime |
+| BlendStrings | string | 2 param | InputTextA, InputTextB |
+| BuildRandomString | string | 1 param | OverrideBuilder |
+| CubeMesh | mesh | 3 param | Margin2, TexCoord, TexCoord2 |
+| Damp | numbers | 1 param | UseAppRunTime |
+| DampAngle | numbers | 1 param | UseAppRunTime |
+| Ease | numbers | 1 param | UseAppRunTime |
+| EaseVec2 | numbers | 1 param | UseAppRunTime |
+| EaseVec3 | numbers | 1 param | UseAppRunTime |
+| GradientsToTexture | numbers | 1 param | Resolution |
+| IcosahedronMesh | mesh | 2 param | TexCoord, TexCoord2 |
+| Lerp | numbers | 1 param | Clamp |
+| LoadImage | image | 1 param | CacheResources, SourcePathSlot |
+| MergeFloatLists | numbers | 1 param | （名稱對不上：count 差 1，sw-fold 與 TiXL 命名歧義，補時逐顆 trace） |
+| MergeIntLists | numbers | 1 param | （名稱對不上：count 差 1，sw-fold 與 TiXL 命名歧義，補時逐顆 trace） |
+| OscillateVec2 | numbers | 1 param | OverrideTime |
+| OscillateVec3 | numbers | 1 param | OverrideTime |
+| PerlinNoise | numbers | 1 param | OverrideTime |
+| PerlinNoise2 | numbers | 1 param | OverrideTime |
+| PerlinNoise3 | numbers | 1 param | OverrideTime |
+| PickVector2 | numbers | 1 param | Index |
+| PointToMatrix | point | 10 param | AlsoOffsetTarget, AspectRatio, ClipPlanes, FieldOfView, LensShift, PositionOffset, Roll, RotationOffset, SamplePos, Up |
+| PointsToCPU | point | 3 param | Async, TriggerUpdate, UpdateContinuously |
+| ReadPointColors | point | 1 param | Async |
+| Remap | numbers | 2 param | BiasAndGain, Mode |
+| RemapValues | numbers | 1 param | InputValue |
+| RgbaToColor | numbers | 3 param | A, B, G |
+| SetBpm | numbers | 1 param | SubGraph |
+| SetPlaybackSpeed | numbers | 1 param | SubGraph |
+| SetPlaybackTime | numbers | 2 param | ShowLogMessages, SubGraph |
+| SetStringVar | flow | 2 param | ClearAfterExecution, SubGraph |
+| Spring | numbers | 1 param | UseAppRunTime |
+| SpringVec2 | numbers | 1 param | UseAppRunTime |
+| SpringVec3 | numbers | 1 param | UseAppRunTime |
+| TransformField | field | 5 param | Pivot, Rotation, Scale, Shear, Translation |
+| Trigger | numbers | 1 param | ColorInGraph |
+
+### 系統性 pattern（補 backlog 的槓桿點）
+
+- **時間源旋鈕**（最大宗，~15 顆）：`UseAppRunTime`（Spring/Damp/Ease 家族 8 顆）+ `OverrideTime`（PerlinNoise/Anim/Oscillate 7 顆）全沒暴露。
+  **這正是 MEMORY 警告的 wall-clock 綁定點**——離線決定性 render（MV 目標）要靠這顆把 anim 從 wall-clock 切到 app-time。補一顆共通 time-source 旋鈕家族 = 一次解鎖多顆。
+- **Command-rail fork 疑似假 MISSING**（SetBpm/SetPlaybackTime/SetPlaybackSpeed/SetStringVar 的 `SubGraph`+`ClearAfterExecution`）：
+  與 `known_fork_count` 已記錄的 Set{Int,Float,Vec3,Bool}Var **同形**（value-rail node 故意不掛 SubGraph/Command；SubGraph 那半在 Set*VarCmd）。
+  **這 4 顆很可能該進 known_fork_count 而非當缺口補**——待對 op-source header 驗證（同 SetIntVar 註解）。先標疑似 fork，別盲補。
+- **matrix fold 上限假象（EXTRA）**：TransformVec3（+12）/MulMatrix（+24）的 `Matrix` 是 float4x4 攤成 16 個 `m11..m44` flat port；
+  dumpNodeSpec 的 Vec fold `min(vecArity,4)` 對 arity16 折不動（折 4 顆、剩 12 顆各算 1）→ 假 EXTRA。**非真分歧，是 PF-0d float4x4 param-spine 缺**（同 TransformField -5）。
+  CombineSDF/StairCombineSDF/CombineFieldColor 各 +1 EXTRA = field combiner 多輸入 fold，待逐顆 trace（小量）。
+- **TransformField -5**（Translation/Rotation/Scale/Shear/Pivot 全 Vec3）= PF-0d float4x4 spine 卡住（已在上方 fan-out 目標表記）。

@@ -23,8 +23,9 @@
 #       未做          = TiXL 有 ∧ sw 多處 done-check 全不命中
 #       非NodeSpec    = sw 做了，但走 texReg/cmdReg（param 閘 N/A）
 #       無header      = sw 做了某顆但對不上 TiXL 名（filename fork 又無 @tixl header）→ 盤點待補
-#   • param-gap 欄：呼叫 nodespec_integrity（generator/flow 可信；其餘島 fold-bug 修中 task_48b2ae42 →
-#     標 pending）。fold 修好後本欄才全島可信 —— 本工具不重修 fold。
+#   • param-gap 欄：呼叫 nodespec_integrity 逐顆求值（fold-bug 已修 c0251ea → 全島可信）。
+#     gate 自己分類 cook 路徑（NodeSpec → 真比對；texReg/cmdReg → N/A）+ 自動解析島（Lib-wide find）。
+#     本工具不重修 fold，只接 nodespec_integrity 現有閘。
 #   • 廢棄候選 + 依賴掃描：壓平複合逐顆 grep 其他節點/scenario/.scn 是否引用此 type →
 #     標「可安全廢棄(無依賴) / 有依賴(挪會壞)」。只標不動 code（柏為定：先標記別動）。
 #
@@ -176,24 +177,26 @@ find "$SWRT" -name '*.cpp' | grep -E "/($LEAF_PREFIX)_" | while read -r f; do
 done | sort -u > "$TMP/sw_unmatched.txt"
 
 # ============================================================================
-# 4. param-gap (best-effort, defer to nodespec_integrity; fold-bug task_48b2ae42)
+# 4. param-gap (defer to nodespec_integrity; fold-bug FIXED c0251ea → all islands trustworthy)
 # ============================================================================
-# Only the generator + flow sets are fold-trustworthy today (fold-bug task_48b2ae42 修中 → 其餘島不可信，
-# 標 pending)。fold 修好後本欄才全島可信 —— 本工具不重修 fold，只接 nodespec_integrity 現有閘。
+# fold-bug 已修（c0251ea：dumpNodeSpec 鏡像權威盲目位置消費 + VEC-SHORT 跨 subshell 傳遞）→ 全島可信。
+# 本欄逐顆 spawn `nodespec_integrity <Op>`：gate 自己分類 cook 路徑（NodeSpec → sw-folded vs TiXL [Input]
+# 真比對；texReg/cmdReg spec-less → N/A）+ 自動解析島（generator 在 point/generate；其餘 Lib-wide find）。
 # 預設不跑（每呼叫 ~2.4s spawn binary）；--tsv --params 才逐顆求值。SW_TIXL_LIB 透傳（worktree 無 external/）。
-param_gap_for() { # <Op> <island> -> string
-  local op="$1" island="$2"
+param_gap_for() { # <Op> [island] -> string  (island arg kept for callsite symmetry; gate resolves it)
+  local op="$1"
   if [ ! -x "$BIN" ]; then echo "no-bin"; return; fi
-  case "$island" in
-    point|flow) : ;;  # generator/flow set is fold-trustworthy
-    *) echo "pending(fold-fix task_48b2ae42)"; return ;;
-  esac
   local line; line="$(SW_TIXL_LIB="$TIXL_LIB" SW_BIN="$BIN" "$INTEGRITY" "$op" 2>/dev/null | tail -1)"
+  # Gate verdict text (gate_one): "sw MISSING N param(s)" / "sw has N EXTRA param(s)" — count precedes
+  # the keyword, so extract "<N> (MISSING|EXTRA)" and re-emit as "MISSING N param" / "EXTRA N param".
   case "$line" in
     *"=="*) echo "match" ;;
-    *"MISSING"*) echo "$(echo "$line" | grep -oE 'MISSING [0-9]+ param' | head -1)" ;;
-    *"EXTRA"*) echo "$(echo "$line" | grep -oE 'EXTRA [0-9]+ param' | head -1)" ;;
+    *"VEC-RUN-SHORT"*) echo "vec-short(author bug)" ;;
+    *"MISSING .cs"*) echo "no-cs" ;;
+    *"sw MISSING"*) echo "MISSING $(echo "$line" | grep -oE '[0-9]+ param' | head -1 | grep -oE '[0-9]+') param" ;;
+    *"EXTRA"*) echo "EXTRA $(echo "$line" | grep -oE '[0-9]+ EXTRA' | head -1 | grep -oE '[0-9]+') param" ;;
     *"N/A"*) echo "n/a" ;;
+    *"UNKNOWN"*) echo "unregistered" ;;
     *) echo "?" ;;
   esac
 }
@@ -328,9 +331,22 @@ case "${1:-}" in
 
   --html)
     OUT="${2:-$REPO_ROOT/docs/agent/census/node_health.html}"
+    # PARAM_TSV (env): a precomputed `--tsv --params` snapshot. When set, the HTML reads the param-gap
+    # column per atom from it instead of re-spawning the binary 307×. param_gap_lookup echoes the cached
+    # value (or "" when no cache / not present). Keeps --html fast; the slow sweep runs once into the cache.
+    PARAM_TSV="${PARAM_TSV:-}"
+    param_gap_lookup() { # <Op> -> cached param-gap string or ""
+      [ -n "$PARAM_TSV" ] && [ -f "$PARAM_TSV" ] || { echo ""; return; }
+      awk -F'\t' -v o="$1" '$1==o{print $5; exit}' "$PARAM_TSV"
+    }
     {
       atom=$(count_ident atom); flat=$(count_ident flattened); undone=$(count_ident undone); nonspec=$(count_ident nonspec)
       total=$(wc -l < "$TMP/ledger.txt" | tr -d ' '); noheader=$(wc -l < "$TMP/sw_unmatched.txt" | tr -d ' ')
+      # 真原子旋鈕不全 = atoms whose cached param-gap reports MISSING (baked param not exposed as a knob).
+      pggap=0
+      if [ -n "$PARAM_TSV" ] && [ -f "$PARAM_TSV" ]; then
+        pggap=$(awk -F'\t' '$3=="atom" && $5 ~ /MISSING/' "$PARAM_TSV" | wc -l | tr -d ' ')
+      fi
       cat <<HTMLHEAD
 <!DOCTYPE html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
@@ -364,16 +380,19 @@ case "${1:-}" in
   .chip .tag{display:inline-block;font-size:10px;padding:1px 5px;border-radius:4px;margin-top:3px}
   .tag.safe{background:#14361f;color:var(--atom)} .tag.deps{background:#3a2410;color:var(--flat)}
   .tag.pg{background:#1c2a3f;color:var(--undone)}
+  .tag.pg-match{background:#14361f;color:var(--atom)} .tag.pg-miss{background:#3a1414;color:var(--nohdr)}
+  .tag.pg-na{background:#23262e;color:var(--mut)} .tag.pg-short{background:#3a2410;color:var(--flat)}
   details>summary{cursor:pointer;color:var(--mut);font-size:12px;margin-bottom:8px}
 </style></head><body>
 <h1>節點健康帳 — simple_world ⇄ TiXL</h1>
-<p class="sub">TiXL $total 算子 (親數 .t3 = ground-truth universe) · done-check 多處錨定來源 · 身份 = sw做了 × TiXL原子/複合 · 由 tools/node_health.sh --html 產（跟 code 走不 stale）</p>
+<p class="sub">TiXL $total 算子 (親數 .t3 = ground-truth universe) · done-check 多處錨定來源 · 身份 = sw做了 × TiXL原子/複合 · 真原子 param-gap 由 nodespec_integrity 逐顆對 TiXL [Input]（fold-bug c0251ea 修後全島可信）· 由 tools/node_health.sh --html [PARAM_TSV=快照] 產（跟 code 走不 stale）</p>
 <div class="kpis">
   <div class="kpi atom"><div class="n">$atom</div><div class="l">真原子 (留·真積木)</div></div>
   <div class="kpi flat"><div class="n">$flat</div><div class="l">壓平複合 (廢棄候選)</div></div>
   <div class="kpi undone"><div class="n">$undone</div><div class="l">未做</div></div>
   <div class="kpi nonspec"><div class="n">$nonspec</div><div class="l">非NodeSpec (param N/A)</div></div>
   <div class="kpi nohdr"><div class="n">$noheader</div><div class="l">無@tixl-header</div></div>
+  <div class="kpi nohdr"><div class="n">$pggap</div><div class="l">真原子旋鈕不全 (baked MISSING)</div></div>
 </div>
 HTMLHEAD
 
@@ -393,8 +412,23 @@ HTMLHEAD
           done
         else
           awk -F'\t' -v i="$ident" '$3==i{print $1"\t"$2}' "$TMP/ledger.txt" | sort | while IFS=$'\t' read -r op island; do
-            printf '<div class="chip"><span class="nm">%s</span><span class="meta">%s</span></div>\n' \
-              "$(echo "$op"|html_esc)" "$(echo "$island"|html_esc)"
+            # param-gap tag (atoms only, from cached snapshot): match / MISSING N / N/A / vec-short.
+            pgtag=""
+            if [ "$ident" = "atom" ]; then
+              local pg; pg="$(param_gap_lookup "$op")"
+              case "$pg" in
+                match)        pgtag='<span class="tag pg-match">旋鈕齊</span>' ;;
+                MISSING*)     pgtag="<span class=\"tag pg-miss\">缺 $(echo "$pg"|grep -oE '[0-9]+') 旋鈕</span>" ;;
+                EXTRA*)       pgtag="<span class=\"tag pg-short\">EXTRA $(echo "$pg"|grep -oE '[0-9]+')</span>" ;;
+                vec-short*)   pgtag='<span class="tag pg-short">VEC-SHORT</span>' ;;
+                n/a)          pgtag='<span class="tag pg-na">param N/A</span>' ;;
+                no-cs|unregistered) pgtag="<span class=\"tag pg-na\">$pg</span>" ;;
+                "") : ;;  # no cache → no tag
+                *)            pgtag='<span class="tag pg-na">?</span>' ;;
+              esac
+            fi
+            printf '<div class="chip"><span class="nm">%s</span><span class="meta">%s</span>%s</div>\n' \
+              "$(echo "$op"|html_esc)" "$(echo "$island"|html_esc)" "$pgtag"
           done
         fi
         echo "</div></section>"

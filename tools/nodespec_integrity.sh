@@ -56,6 +56,13 @@ SW_APP="$REPO_ROOT/app/src"
 # ~hundreds of types unusably slow).
 FORK_MAP="$(mktemp -t nodespec_fork.XXXXXX)"
 NONSPEC_SET="$(mktemp -t nodespec_nonspec.XXXXXX)"
+# VEC-RUN-SHORT flag passed ACROSS the command-substitution subshell boundary. sw_folded_count runs
+# inside `sw="$(...)"`, so a shell variable it sets is lost when that subshell exits — the structural
+# invariant would be silently dead (image-island bug: VEC-SHORT never tripped, ops mis-reported as
+# EXTRA). A file write survives the subshell, so the function stamps 1/0 here and the parent reads it
+# back via sw_vec_run_short after each `sw=$(...)`.
+VEC_SHORT_FLAG="$(mktemp -t nodespec_vecshort.XXXXXX)"
+printf '0' > "$VEC_SHORT_FLAG"
 # Build the TYPE<TAB><OpName>.cs fork map. ONE awk pass per authority-carrying file (no nested process
 # substitution — bash 3.2 segfaults on deep `< <()` nesting): the awk emits a line per (declared type ×
 # authority .cs) found in that file's leading header + body type= decls.
@@ -200,15 +207,23 @@ is_non_nodespec_path() {
 }
 
 # sw_folded_count <Type> — the FOLDED_LOGICAL_COUNT line from --dump-nodespec, or "?" if unknown.
-# Sets the global SW_VEC_RUN_SHORT=1 when the dump tripped its structural invariant (exit code 4 =
-# a Vec head declared arity N but didn't lay down N-1 component ports → author bug, must be loud).
+# Stamps VEC_SHORT_FLAG with 1 when the dump tripped its structural invariant (exit code 4 = a Vec
+# head declared arity N but didn't lay down N-1 component ports → author bug, must be loud). We write
+# a FILE, not a shell var: this function is always called as `sw="$(sw_folded_count ...)"`, and a var
+# set inside that subshell would not survive — the parent reads the flag back via sw_vec_run_short.
 sw_folded_count() {
-  local out rc
+  local out rc short=0
   out="$("$BIN" --dump-nodespec "$1" 2>/dev/null)"; rc=$?
-  SW_VEC_RUN_SHORT=0
-  [ "$rc" -eq 4 ] && SW_VEC_RUN_SHORT=1
+  [ "$rc" -eq 4 ] && short=1
+  printf '%s' "$short" > "$VEC_SHORT_FLAG"
   if [ -z "$out" ]; then echo "?"; return; fi
   echo "$out" | sed -n 's/^FOLDED_LOGICAL_COUNT: //p'
+}
+
+# sw_vec_run_short — true (0) if the LAST sw_folded_count call tripped VEC-RUN-SHORT. Reads the flag
+# file the function stamped (survives the `sw=$(...)` subshell, unlike a plain variable).
+sw_vec_run_short() {
+  [ "$(cat "$VEC_SHORT_FLAG" 2>/dev/null)" = "1" ]
 }
 
 # gate_one <Type> [island] — returns 0 if sw==TiXL, 1 otherwise. Prints a one-line verdict. When an
@@ -233,7 +248,7 @@ gate_one() {
     return 1
   fi
   # Structural invariant: a short Vec run is an author bug, surface it LOUD even if counts happen to align.
-  if [ "${SW_VEC_RUN_SHORT:-0}" = "1" ]; then
+  if sw_vec_run_short; then
     printf '  ✗ %-22s VEC-RUN-SHORT (a Vec head lacks its component ports — see --dump-nodespec %s)\n' "$t" "$t"
     return 1
   fi
@@ -305,7 +320,7 @@ elif [ "${1:-}" = "--island" ]; then
     if [ "$sw" = "?" ] && is_non_nodespec_path "$t"; then
       gate_one "$t" "$island"; na=$((na+1)); continue
     fi
-    if [ "${SW_VEC_RUN_SHORT:-0}" = "1" ]; then
+    if sw_vec_run_short; then
       gate_one "$t" "$island"; short=$((short+1)); rc=1; continue
     fi
     if [ "$sw" = "?" ] || [ "$tixl" = "?" ]; then gate_one "$t" "$island"; rc=1; continue; fi
@@ -318,9 +333,9 @@ elif [ "${1:-}" = "--island" ]; then
 elif [ -n "${1:-}" ]; then
   gate_one "$1" || rc=1
 else
-  rm -f "$FORK_MAP" "$NONSPEC_SET"
+  rm -f "$FORK_MAP" "$NONSPEC_SET" "$VEC_SHORT_FLAG"
   echo "usage: $0 <NodeType> | --all-generators | --all-flow | --island <name>" >&2
   exit 2
 fi
-rm -f "$FORK_MAP" "$NONSPEC_SET"
+rm -f "$FORK_MAP" "$NONSPEC_SET" "$VEC_SHORT_FLAG"
 exit "$rc"

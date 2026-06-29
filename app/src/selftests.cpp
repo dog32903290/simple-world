@@ -108,9 +108,10 @@ int runColorSelfTest(bool injectBug) {
 // every image op; TiXL keeps them in _ImageOutputFormat/.t3, not as op [Input]s — workitem C).
 //
 // STRUCTURAL INVARIANT (loud, stale-proof): a Vec head declares vecArity=N but the run is cut short
-// by the next head / an output port / end-of-ports before N-1 components are consumed → the author
-// forgot to lay the components down. Prints "!! VEC-RUN-SHORT" + sets a nonzero return so the gate
-// surfaces it instead of silently miscounting.
+// by an output port / end-of-ports before N-1 components are consumed → the author forgot to lay the
+// components down. (We do NOT short on the next port being a Vec head — that mirrored the authority
+// walk's blind positional consume; breaking there was the image-island fold bug.) Prints
+// "!! VEC-RUN-SHORT" + sets a nonzero return so the gate surfaces it instead of silently miscounting.
 int dumpNodeSpec(const char* type) {
   const sw::NodeSpec* spec = sw::findSpec(type);
   if (!spec) {
@@ -153,9 +154,18 @@ int dumpNodeSpec(const char* type) {
       int consumed = 0;
       for (int k = 1; k < N; ++k) {
         size_t j = i + (size_t)k;
-        // Run cut short by an output port / a next Vec head / end-of-ports = author forgot the run.
-        if (j >= ports.size() || !ports[j].isInput ||
-            (ports[j].widget == sw::Widget::Vec && ports[j].vecArity >= 2)) {
+        // Run cut short ONLY by an output port / end-of-ports = author forgot the run. We do NOT
+        // break on a component that is itself tagged Vec: the authority walk (animGroupForSlot
+        // node_registry.cpp:203-207, Inspector inspector.cpp:83-86) consumes the next N-1 ports BY
+        // POSITION regardless of their widget. The 10 image ops (AfterGlow/Blend/BlendWithMask/
+        // BoxGradient/Combine3Images/CombineMaterialChannels2/DistortAndShade/LightRaysFx/
+        // MirrorRepeat/AfterGlow2) spell a Vector4 Color as Color.x/.y/.z/.w where EACH component is
+        // ALSO tagged widget==Vec with DESCENDING arity (4→3→2→1); the prior `widget==Vec &&
+        // vecArity>=2` break wrongly read Color.y as an independent head → folded one Vector4 into 3
+        // → false EXTRA (symbol flip: it is really MISSING). Mirroring the blind positional consume
+        // folds it to 1. (field/mesh bare components have NO widget so they were already folded; this
+        // change does not touch them. Generators have no Vec head so the inner loop never runs.)
+        if (j >= ports.size() || !ports[j].isInput) {
           break;
         }
         std::printf("    · %-20s [%-9s]  vec-component (folded into %s)\n", ports[j].id.c_str(),

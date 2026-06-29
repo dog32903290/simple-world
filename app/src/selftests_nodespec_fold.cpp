@@ -20,9 +20,14 @@
 //                        unported inputs, a real gap this golden does not pretend to close.
 //   RadialPoints == 17 — a NO-Vec-head generator (generator-safe: the walk must be identical to the
 //                        old per-port walk → the 13/13 generator gate cannot regress)
+//   Blend     == 8   — the CHAINED-Vec-head victim (image island): two Vector4 params ColorA/ColorB
+//                        whose components are THEMSELVES tagged widget==Vec with descending arity
+//                        (4→3→2→1). The prior guard broke on a Vec-tagged component → folded each
+//                        Vector4 into 3 → false EXTRA (symbol flip). The blind positional consume
+//                        folds each to 1. (8 != its TiXL .cs 10 — Blend has 2 real unported gaps.)
 // -bug: reverts to the DIVERGENT old rule (component = widget==Vec && vecArity==1 only). SphereSDF/BoxSDF
-//   then over-count (un-folded components leak) → their assertions go RED, proving the positional walk is
-//   load-bearing, not cosmetic.
+//   over-count (hand-written un-tagged components leak) AND Blend over-folds (each Vector4 → 3, total 12)
+//   → their assertions go RED, proving the positional walk is load-bearing for BOTH fold-bug shapes.
 //
 // Pure CPU runtime leaf (findSpec only — no Metal, no UI, no upward deps).
 #include <cstdio>
@@ -60,12 +65,13 @@ int foldCount(const NodeSpec& spec, bool positional) {
       if (p.isInput && p.widget == Widget::Vec && p.vecArity >= 2) {
         int N = p.vecArity > 4 ? 4 : p.vecArity;
         ++folded;
-        // consume the next N-1 ports positionally (stop at a next head / output / end)
+        // consume the next N-1 ports positionally (stop ONLY at output / end — NOT at a component
+        // that is itself tagged Vec; the authority walk consumes by position regardless of widget,
+        // and the chained-Vec image ops (Blend etc.) tag Color.x/.y/.z/.w with descending arity).
         int consumed = 0;
         for (int k = 1; k < N; ++k) {
           size_t j = i + (size_t)k;
-          if (j >= ports.size() || !ports[j].isInput ||
-              (ports[j].widget == Widget::Vec && ports[j].vecArity >= 2))
+          if (j >= ports.size() || !ports[j].isInput)
             break;
           ++consumed;
         }
@@ -109,6 +115,16 @@ int runNodeSpecFoldSelfTest(bool injectBug) {
   // of 14 — RaymarchField has 3 genuinely-unported inputs, a real MISSING gap this batch does NOT close;
   // this golden anchors the sw-side fold, not parity completeness.)
   pin("RaymarchField", 11);
+
+  // Blend (image island): the CHAINED-Vec-head fold-bug victim. This op spells TWO Vector4 params
+  // (ColorA/ColorB) as Color?.x/.y/.z/.w where EACH component is itself tagged widget==Vec with
+  // DESCENDING arity (4→3→2→1). The prior positional guard broke on a component being a Vec head →
+  // folded each Vector4 into 3 → false EXTRA (symbol flip: really MISSING). The blind positional
+  // consume folds each to 1. Folded = ImageA + ImageB + ColorA + ColorB + BlendMode + AlphaMode +
+  // NormalForUpperHalf + ScaleMode = 8 (out + Resolution/CustomW/CustomH excluded). 8 != its TiXL .cs
+  // count of 10 (Blend has 2 genuinely-unported [Input]s — a real MISSING gap this golden anchors the
+  // sw-side fold for, not parity). Under -bug each Vector4 over-folds to 3 → 12 → RED.
+  pin("Blend", 8);
 
   bool all = true;
   for (const Check& c : checks) {
