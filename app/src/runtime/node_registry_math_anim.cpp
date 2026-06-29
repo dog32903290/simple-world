@@ -273,5 +273,41 @@ static const MathOp _reg_SetBpm{
        "numbers.anim.vj"}
 };
 
+      // TiXL SetPlaybackTime (Lib/numbers/anim/time/SetPlaybackTime.cs) — the transport-PLAYHEAD writer.
+      // On a rising Enabled edge (OnceEnabledGetsTrue) OR every frame while Enabled (Continuously) it
+      // arms the PlaybackProvider with TimeInBars; frame_cook pulls it onto g_transport.position (scrub).
+      // STATEFUL — per-instance edge memory (s[0]=prevEnabled), evaluate==nullptr; cooked by frame_cook's
+      // stateful-value seam (step fn in runtime/stateful_value_ops_setplayback.cpp). Output (Command in
+      // TiXL, no value) → out[0] echoes the bars this cook would write (golden probe). Ports = TiXL
+      // InputSlot decl order MINUS the Command SubGraph and the telemetry-only ShowLogMessages (NAMED
+      // FORK, same Command-drop as SetBpm). .t3 defaults (SetPlaybackTime.t3): TimeInBars=0,
+      // TriggerMode=0 (OnceEnabledGetsTrue), Enabled=false.
+static const MathOp _reg_SetPlaybackTime{
+      {"SetPlaybackTime", "SetPlaybackTime",
+       {{"Result", "Result", "Float", false},
+        {"TimeInBars", "TimeInBars", "Float", true, 0.0f, -1000.0f, 1000.0f, Widget::Slider},
+        {"TriggerMode", "TriggerMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"OnceEnabledGetsTrue", "Continuously"}},
+        {"Enabled", "Enabled", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr,
+       "numbers.anim.time"}
+};
+
+      // TiXL SetPlaybackSpeed (Lib/numbers/anim/time/SetPlaybackSpeed.cs) — the transport-SPEED writer.
+      // LEVEL-gated (TiXL's WasTriggered is COMMENTED OUT, cs:24) — every frame TriggerUpdate is true it
+      // snap-adjusts SpeedFactor (near-1→1, small-positive→0.0001) and arms the PlaybackProvider;
+      // frame_cook pulls it onto g_transport.rate (setRate gate). STATEFUL in the cook sense (no state
+      // used; evaluate==nullptr; product = the provider arm). Output → out[0] echoes the snap-adjusted
+      // speed (golden probe). Ports = decl order MINUS the Command SubGraph. .t3 defaults
+      // (SetPlaybackSpeed.t3): SpeedFactor=1.0, TriggerUpdate=false.
+static const MathOp _reg_SetPlaybackSpeed{
+      {"SetPlaybackSpeed", "SetPlaybackSpeed",
+       {{"Result", "Result", "Float", false},
+        {"SpeedFactor", "SpeedFactor", "Float", true, 1.0f, -16.0f, 16.0f, Widget::Slider},
+        {"TriggerUpdate", "TriggerUpdate", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+       nullptr,
+       "numbers.anim.time"}
+};
+
 }  // namespace
 }  // namespace sw

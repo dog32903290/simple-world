@@ -360,12 +360,12 @@ void run(PointGraph& pg, const std::string& targetPath) {
   }
 
   // Cook the HOST-VALUE currencies (String / host-scalar / ColorList + value-output-rail) — PRODUCTION legs +
-  // (Phase 1) RequestedResolution from frameResolution() (S1 hook = OutputWindow.cs:411-414). String ctx-var
-  // seam (sub-seam C): s_ctxVars threaded so SetStringVar writes stringVars + GetStringVar reads it INSIDE
-  // cookStringNodes (the map cookStatefulValueNodes cleared above). It ALSO runs the [SetBpm] triggered-pull
-  // (PlaybackUtils.cs:74-78): armed edge writes composition.bpm + returns true → bump g_transport.bpm (cs:80).
+  // (Phase 1) RequestedResolution (S1 hook = OutputWindow.cs:411-414). String ctx-var seam (sub-seam C):
+  // s_ctxVars threaded so SetStringVar writes stringVars + GetStringVar reads it INSIDE cookStringNodes
+  // (cleared above). It ALSO runs [SetBpm] (PlaybackUtils.cs:74-78: armed edge → composition.bpm → bump
+  // g_transport.bpm cs:80) + [SetPlaybackTime]/[SetPlaybackSpeed] (→ scrub/setRate on g_transport).
   if (cookHostValueNodes(g_residentGraph, (float)posBars, (float)fxBars, &doc::g_lib(),
-                         pg.frameResolution().w, pg.frameResolution().h, &s_ctxVars)) {
+                         pg.frameResolution().w, pg.frameResolution().h, &s_ctxVars, &g_transport)) {
     g_transport.bpm = doc::g_lib().composition.bpm;
     doc::invalidateDirtyCache();
   }

@@ -7,6 +7,8 @@
 #include <simd/simd.h>  // simd::float4 (s_colorListState — KeepColors's cross-frame accumulator store)
 
 #include "runtime/bpm_provider.h"          // BpmProvider (the [SetBpm] triggered-pull singleton)
+#include "runtime/playback_provider.h"     // PlaybackProvider (the [SetPlaybackTime/Speed] write mailbox)
+#include "runtime/transport.h"             // Transport (pullSetPlayback applies scrub/setRate to it)
 #include "runtime/compound_graph.h"        // CompositionSettings (the comp.bpm sink)
 #include "runtime/point_graph.h"           // PointGraph::residentCookedPoints (point-into-frame accessor)
 #include "runtime/resident_eval_graph.h"  // ResidentEvalGraph / ResidentEvalCtx + cook*Nodes prototypes
@@ -25,7 +27,7 @@ namespace sw::framecook {
 // verbatim from frame_cook.cpp's run() so that file stays under its line-count cap (the inline block
 // is now this one call). Byte-identical behaviour; the cross-frame state statics moved in with it.
 bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, SymbolLibrary* lib,
-                        uint32_t reqW, uint32_t reqH, ContextVarMap* vars) {
+                        uint32_t reqW, uint32_t reqH, ContextVarMap* vars, Transport* transport) {
   ResidentEvalCtx hsCtx;
   hsCtx.localTime = posBars;     // playhead (bars) — automation-driven list params sample this
   hsCtx.localFxTime = fxBars;    // wall clock (bars)
@@ -90,6 +92,12 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // Float inputs). PointToMatrix's emit is deferred (needs a point into this frame-level pass).
   cookMatrixOutputNodes(g, hsCtx);
 
+  // [SetPlaybackTime]/[SetPlaybackSpeed] pull (SetPlaybackTime.cs:54 / SetPlaybackSpeed.cs:48), folded in
+  // here (not a separate frame_cook line) so frame_cook stays at-or-below its line-count cap — the
+  // position/speed twin of the [SetBpm] pull below. Applies scrub/setRate to the transport on an armed
+  // channel only (null transport = a stateless golden → skipped, byte-identical for that caller).
+  if (transport) pullSetPlayback(*transport);
+
   // [SetBpm] triggered-pull (PlaybackUtils.cs:74-78), folded in after the host-value cook so frame_cook
   // stays under its line-count cap. Returns whether comp.bpm changed → the caller bumps the transport.
   return lib ? pullSetBpmRate(lib->composition) : false;
@@ -123,6 +131,18 @@ bool pullSetBpmRate(CompositionSettings& comp) {
   if (!BpmProvider::instance().tryGetNewBpmRate(newBpm)) return false;  // not armed → comp.bpm untouched
   comp.bpm = (double)newBpm;  // settings.Playback.Bpm = newBpmRate (cs:77)
   return true;
+}
+
+// = TiXL SetPlaybackTime.cs:54 / SetPlaybackSpeed.cs:48 (the Playback.Current write). The per-frame
+// PULL of the PlaybackProvider mailbox + APPLY to the transport: scrub() on an armed TIME write (marks
+// the playhead manipulated → next advance snaps fxTime to it), setRate() on an armed SPEED write (the
+// NaN-refuse / ±16 gate lives in the Transport). An un-armed channel leaves `t` untouched (the make-
+// or-break: a no-write frame must not clobber the playhead/speed the operator is otherwise driving).
+void pullSetPlayback(Transport& t) {
+  auto& p = PlaybackProvider::instance();
+  float bars, speed;
+  if (p.tryGetNewTime(bars)) t.scrub((double)bars);     // Playback.Current.TimeInBars = newTime
+  if (p.tryGetNewSpeed(speed)) t.setRate((double)speed);  // Playback.Current.PlaybackSpeed = speedFactor
 }
 
 }  // namespace sw::framecook

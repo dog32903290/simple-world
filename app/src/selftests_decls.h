@@ -153,6 +153,7 @@ namespace sw { int runFloatListSelfTest(bool); }                 // floatlist_go
 namespace sw { int runColorsToListSelfTest(bool); }              // colorlist_golden.cpp (vec4-list cook flow: ColorsToList host color list, flat + R-2 resident)
 namespace sw { int runColorListSelfTest(bool); }                // colorlist_fanout_golden.cpp (ColorList identity passthrough, flat + R-2 resident)
 namespace sw { int runSetBpmSelfTest(bool); }                   // setbpm_golden.cpp ([SetBpm] VJ op: triggered-pull SetBpm edge → BpmProvider → comp.bpm)
+namespace sw { int runSetPlaybackSelfTest(bool); }              // setplayback_golden.cpp ([SetPlaybackTime]/[SetPlaybackSpeed]: op → PlaybackProvider → g_transport.scrub/setRate)
 namespace sw { int runBpmTransportSelfTest(bool); }             // bpm_transport_golden.cpp (end-to-end: DetectBpm auto → SetBpm edge → BpmProvider → transport.bpm)
 namespace sw::runtime { int runBeatSyncSelfTest(bool); }        // beat_synchronizer.cpp (G1: audio-locked BPM/bar P-controller, port of BeatSynchronizer.cs)
 namespace sw { int runBeatLockSelfTest(bool); }                 // beat_lock_selftest.cpp (G2 SlidingAverage<10> de-jitter + G3 beat_timing audio-lock orphan接通)

@@ -44,6 +44,7 @@ REGISTER_SELFTESTS(/*orderBase=*/90,
 // list byte-identical except for the one new --selftest-setbpm line.
 REGISTER_SELFTESTS(/*orderBase=*/250,
     {"setbpm", runSetBpmSelfTest},  // triggered-pull SetBpm edge → BpmProvider → comp.bpm (PlaybackUtils.cs:74-78)
+    {"setplayback", runSetPlaybackSelfTest},  // [SetPlaybackTime]/[SetPlaybackSpeed] op → PlaybackProvider → g_transport (scrub/setRate)
     {"bpmtransport", runBpmTransportSelfTest},  // end-to-end: DetectBpm auto-detect → SetBpm edge → BpmProvider → transport.bpm
     {"beatsync", runtime::runBeatSyncSelfTest},  // G1: BeatSynchronizer audio-locked BPM/bar P-controller
     {"beatlock", runBeatLockSelfTest},  // G2 SlidingAverage<10> de-jitter + G3 beat_timing audio-lock (orphan接通)

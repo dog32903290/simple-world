@@ -465,6 +465,7 @@ add_executable(simple_world
   src/runtime/colorlist_ops_keepcolors.cpp
   src/colorlist_golden.cpp
   src/setbpm_golden.cpp             # --selftest-setbpm ([SetBpm] VJ op triggered-pull golden)
+  src/setplayback_golden.cpp        # --selftest-setplayback ([SetPlaybackTime]/[SetPlaybackSpeed] op→PlaybackProvider→transport)
   src/bpm_transport_golden.cpp      # --selftest-bpmtransport (end-to-end DetectBpm auto → SetBpm → transport.bpm)
   src/colorlist_fanout_golden.cpp
   src/keepcolors_golden.cpp
@@ -483,6 +484,7 @@ add_executable(simple_world
   src/runtime/string_op_registry.cpp
   src/runtime/string_ops_stringlength.cpp
   src/runtime/string_ops_floattostring.cpp
+  src/runtime/string_ops_datetimetostring.cpp  # DateTimeToString (route-B epoch Float + .NET format → string)
   src/runtime/string_ops_combinestrings.cpp
   src/runtime/string_ops_inttostring.cpp
   src/runtime/string_ops_vec3tostring.cpp
@@ -676,6 +678,7 @@ add_executable(simple_world
   src/runtime/beat_lock_selftest.cpp # G2 SlidingAverage<10> de-jitter + G3 beat_timing audio-lock orphan接通
   src/runtime/bpm_detection.cpp
   src/runtime/bpm_provider.cpp       # [SetBpm] triggered-pull singleton (= TiXL Core/IO/BpmProvider.cs)
+  src/runtime/playback_provider.cpp  # [SetPlaybackTime/Speed] write mailbox (= SetPlaybackTime/Speed.cs Playback.Current write)
   src/runtime/detect_bpm.cpp
   src/runtime/audio_reaction.cpp
   src/runtime/dispatch.cpp
