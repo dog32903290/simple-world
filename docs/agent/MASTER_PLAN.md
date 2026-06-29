@@ -14,11 +14,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 701b2a1
-DIRTY: 1 files
+HEAD: 25946ae
+DIRTY: clean
 CENSUS: 461 / 749 done
-BITE: 516 PASS
-STAMP_AT: 2026-06-29T02:53
+BITE: 518 PASS
+STAMP_AT: 2026-06-29T08:04
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -26,11 +26,10 @@ STAMP_AT: 2026-06-29T02:53
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**parity-gate retrofit〔★今晚第一優先，柏為 2026-06-29 02:38 下令〕— 執行 `docs/agent/PARITY_GATE_PLAN.md`：修「當初沒走過 parity 驗證」的有狀態重節點（particle/point-draw/render；起於預設面板 RadialPoints/Turbulence/ParticleSystem/DrawPoints 跟 TiXL 不一樣，查證見 memory `sw-stateful-node-parity-gap`）。命根＝red-first 硬閘防洗白：模板沒咬住現狀偏差就停止報告、不准修碼。前 lane（OBJ LoadObjEdges+obj_parse guard `[G]`）已收，HEAD `7284738`，--bite 516，census 461/749。**
-- **本批 `[G]`（`d1e66be`）**：LoadObjEdges（obj_parse seam 第二消費者，pointlist rail，16-bit pack edge dedup、from→to→Separator(NaN-scale) triples、port "Data"）+ obj_parse 硬化：parse-time face-index bounds guard（out-of-range→load fails，保護全消費者，還清前批 latent crash）+ parseFloat 改拒 trailing garbage + sort fork 註解修。golden 4 leg（含 out-of-range→load-fails 證 guard）+ bug-leg 咬（514→515）。
-- **★未 refute（柏為打斷 refuter 要先收尾）→ chip `task_7c964566`**：parseFloat tighten 對 **CRLF 行尾**（Blender/Windows .obj 最後 token 帶 `\r`）+ **負索引**（OBJ 相對索引）的 regression 風險未驗；--bite 綠是 LF fixture，CRLF/負索引是覆蓋洞。下批或 chip 先驗。
-- **本 session 其他**：menu-bar 改 native-only（`5ee250f`，柏為現身拍板，落待驗收+checkmark 待補）；OBJ seam+LoadObjAsPoints（`8eea376`）；device-IO 首批（`5c50631`）；vec4/Color 家族（`c32eed9`）；imgui menu-bar→已被 native 版取代。
-- **NIT chip 待清**：`task_6363d628`（JSON number-stringification 註解）、`task_7c964566`（obj_parse CRLF/負索引 refute）。
+**parity-gate retrofit〔進行中，柏為 2026-06-29 02:38 第一優先〕— Stage 1 模板+harness ✅ + Stage 3 前兩顆 RadialPoints/TurbulenceForce parity ✅（`25946ae`，--bite 518，refuter 4/4 SURVIVES）。下一批＝Stage 2 裝閘 + Stage 3 fan-out 其餘有狀態重節點。工單＝`docs/agent/PARITY_GATE_PLAN.md`。**
+- **本批 `[G][Y]`（`25946ae`）**：建有狀態節點 parity-golden 模板（`app/src/parity_golden_harness.h`：ParityHarness+ParityReport，固定場景 cook→CPU readback→對 TiXL 公式手算斷言+injectBug tooth）+ 修 RadialPoints（Count 2048→100/Radius 2→1）、TurbulenceForce（Amount 15→1/Freq 1.2→1/**Phase 解綁 wall-clock→inspector param 預設0**，修離線 render 決定性）到 TiXL parity。red-first 三態證牙（no-bug GREEN / injectBug RED / 注入舊偏差 RED）。
+- **★★parity-gate 新鐵律（本批 refuter 血證，已寫進 PARITY_GATE_PLAN）：parity-golden 必須 cook-through production NodeSpec default，不准繞過 cook 直接打 kernel。** 首版 turbulence golden direct-kernel→假綠（NodeSpec 沒改、改的 cook fallback 是死碼，`resolveNodeParams` 從 `p.def` 填、1.0f fallback 永不 fire）→ refuter 抓出 production 實際還是 15× → 改 cook-through 後 NodeSpec=15 立刻 RED 咬住。**fan-out 每顆務必 cook-through，否則假綠洗白。**
+- **★[Y] 待柏為驗收**：見下方佇列（turbulence 變靜止 / radial 點數半徑變，照 TiXL）。
 - **★durable trap（host-value-emit op）**：`evalResidentFloat` 的 `!evaluate` readback 回 `extOut[i]`，i 是 port 在 `s->ports` 的**全索引（含 inputs）**非 0-based output index → output port 要從 spec 算 output→extOut-slot 映射（PickColor/PickColorFromList 同註）。
 - **★durable：String/StringList rail = flat-cook，不進 resident graph**（string_op_registry.h:24）→ 這些 op 的 golden 只覆蓋 flat leg，多輸出受限（StringCookCtx 只帶 extraStrOutputs+scalarOutputs 單值，無 list-output sink；scalar sink outCache[3] 上限 3 個）。新 string/stringlist op 是 explicit CMake list 非 glob（合流要中央補行）。
 - **★eye-hand 限制（durable）**：in-process 合成 hand 點不開 `BeginMainMenuBar`（能開 `BeginPopup`）→ menu-bar 類 UI load-bearing 證明＝map.json rect 斷言，dropdown 點擊 best-effort。
@@ -40,6 +39,7 @@ STAMP_AT: 2026-06-29T02:53
 ## 待柏為驗收（PENDING BAIWEI-VERIFY）
 > `[Y]` 任務自走做完後落這裡，柏為回場一次批次驗收。每項格式＝**做了什麼 + commit hash + 怎麼驗（scenario 名/截圖路徑/一句肉眼判準）+ 機器閘狀態（golden/refuter/--bite）**。**驗收非阻塞：agent 落這裡後直接接下一個 `[Y]`/`[G]`，不等柏為。** 柏為驗過的項移到 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)。
 - **menu-bar 改 native-only（`5ee250f`，柏為 2026-06-29 現身拍板，推翻 a01467e imgui 版）** — macOS 上 a01467e 的 in-window imgui bar 與 OS 最頂 native bar 重複兩層＝macOS-wrong。已改成只用 native NSMenu、補完整 App/File/Edit/View/Window（Edit=Undo/Redo；View=Assets/Variation/Theme 視窗+Toggle-All+Focus+Fullscreen，經 ui→app fn-ptr seam）。**怎麼驗**：開 app，肉眼看螢幕**最頂**那條 native bar 點開 File/Edit/View 內容對不對（視窗內已無 imgui 條，截圖 `artifacts/menubar_native_only_014658.png` 證視窗乾淨）。**機器閘**：--bite 516 無回歸、check-arch 綠、map.json native_menu_items 證 Edit/View 項出現、Cmd-N/O/S/Z 仍 fire。**checkmark ✅已補（`701b2a1`，柏為授權）**：View 視窗 toggle 顯示打勾反映開關狀態（NSMenu menuNeedsUpdate delegate + setState，binding 在 tracked `platform/menu_appkit_ext`，非 vendored）；--selftest-view-menu-state 證資料路徑，OS 側打勾渲染待你肉眼。**待你簽**：① native bar 內容 OK 嗎 ② View 選單綁哪些視窗（目前 Assets/Variation/Theme+全UI+Focus+全螢幕，你可改）③ 打勾顯示對不對。
+- **parity-gate Stage 3 前兩顆 RadialPoints/TurbulenceForce（`25946ae`，柏為 02:38 下令的 parity 修）** — 修預設面板「跟 TiXL 不一樣」的兩顆到 TiXL parity。**怎麼驗**：開 app 看預設場景——turbulence 現在預設**靜止**（Phase=0，TiXL 行為，接 Time 才動）、radial 點數變少（100 非 2048）半徑變小（1 非 2）。**機器閘**：radial-parity/turbulence-parity golden no-bug GREEN+bug RED、--bite 518、refuter 4/4 SURVIVES。**待你簽**：這個「更靜、更少點」的預設面板是否就是 TiXL 的樣子（機器已證數值對 TiXL，這裡只簽觀感無誤）。
 
 ## Conflict Register
 - **（已解）MV 工單 +66 行收進 main（`2765fe4`）**：先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
@@ -59,9 +59,12 @@ STAMP_AT: 2026-06-29T02:53
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-**★★今晚第一優先（柏為 2026-06-29 02:38 下令，覆寫以下所有舊優先）：執行 `docs/agent/PARITY_GATE_PLAN.md` — parity 閘 retrofit。有狀態重節點對 TiXL 的 parity，每顆 red-first 證模板有牙才修碼（防洗白；模板沒咬住現狀偏差＝停止報告不修碼）。Stage 1 pilot（建議 RadialPoints 或 ParticleSystem）逼出模板＋驗收＝套上 Turbulence 能讓 Amount=15 變 RED → Stage 2 裝閘（清單 ratchet 進 --bite）→ Stage 3 fan-out。做完這個再回下面 OBJ/menu lane。**
+**★★接力（柏為 02:38 parity-gate 第一優先，進行中）：執行 `docs/agent/PARITY_GATE_PLAN.md` 續做。Stage 1 模板+harness ✅、Stage 3 前兩顆 RadialPoints/TurbulenceForce ✅（`25946ae`）。下一批＝① Stage 2 裝閘（把有狀態節點清單 ratchet 進 --bite/check-arch：沒 parity-golden 又沒標 deferred = 紅燈，仿 linecount-grandfather）② Stage 3 fan-out 其餘。每顆 golden 務必 cook-through production NodeSpec（新鐵律，否則假綠洗白）。**
 
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `7284738`，--bite 516，census 461/749（61%）。**★狀態：OBJ 子-lane LoadObjAsPoints+LoadObjEdges 收，obj_parse guard 還清。menu session 已收尾。零未 commit。**
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `25946ae`，--bite 518，census 461/749（61%）。**★狀態：parity-gate Stage1+前兩顆收。零未 commit。**
+- **fan-out 待採（PARITY_GATE_PLAN §清單）**：ParticleSystem（integrator 已忠實，修 host 砍掉的 input；**MaxParticleCount/IsAutoCount pool fork 是 `[?]` 需柏為拍板留不留**）、DrawPoints（換 DrawPoints2 quad 實作，緊性質探針；**純像素 reference = `pixel-deferred-windows`**）、各 Force（FieldDistance/FieldVolume/RandomJump/AxisStep/SnapToAngles/VectorField）、point/render 可手算（MoveToSDF/PointToMatrix/SnapPointsToGrid/TransformFromClipSpace/DoyleSpiralPoints2/Transform/Shear/RotateAroundAxis）。
+- **Stage 2 裝閘時補一條閘**：下游 golden 不准依賴 cook fallback default，共用場景參數必須顯式 pin（本批 particlefield_probe 隱性耦合就是缺這道閘才漏）。
+- **parity-gate 做完再回 OBJ/menu lane**：OBJ 續採（LoadObj/WriteToFile/DataPointImportExport）、menu-bar checkmark 已補（`701b2a1`）、chip `task_7c964566`（obj_parse CRLF/負索引 refute）。
 - **★先處理（柏為在場）**：① **menu-bar checkmark**（柏為授權「可以先補」）——擴充 vendored metal-cpp wrapper 接 NS::MenuItem setState/menu-validation，讓 View 視窗 toggle 顯示打勾。② chip `task_7c964566`（obj_parse CRLF/負索引 refute，可能真 regression）。
 - **OBJ 子-lane 續採（obj_parse seam 已建，[G]）**：① **LoadObj**（mesh rail 已存在；count-before-cook 需 parse-cache 縫＝中等；obj_parse_distinct guard 已補可安全接）② **WriteToFile**（io/file，String rail）③ **DataPointImportExport**（JSON+point-buffer，JSON seam 已開）。**deferred**：SVG/LoadDataClip/network+device island（柏為域）。
 - **或換 lane**：菜單③ Command ctx-var `[G]`（低值）；或更大 `[Y]` 縫（camera/3D-render/PointSim，動 cook-core 須先 scout + 4 島守門綠 + refuter）。

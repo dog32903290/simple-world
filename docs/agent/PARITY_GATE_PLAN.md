@@ -36,6 +36,12 @@
 - **可手算類**（位置/積分/參數值）→ CPU readback 對 TiXL 公式手算確定值，**達真 parity**。今晚主力。
 - **純像素類**（DrawPoints 的 sprite 長相）→ 本批只到**緊性質探針**（寬度/顏色/blend 結構級）。**像素級 byte 比對做不到**（DX11 vs Metal 跨 GPU，rasterize/blend/抗鋸齒必差最後幾 bit，逐像素相等是 GPU 噪音誤報）。真像素 parity ＝容差比對（SSIM/per-pixel 容差），**需 Windows TiXL reference 錄製 lane**（[[windows-tixl-copilot-kit]]），標記延後、別在本批空轉。
 
+### 鐵律 4 — golden 必須 cook-through production（refuter 血證，2026-06-29 Stage1 踩）
+parity-golden 必須**走 production cook path、用 NodeSpec default cook**，不准繞過 cook 直接 dispatch kernel 用手設參數。Stage1 turbulence 首版 direct-kernel 假綠：NodeSpec default 沒改（Amount 還是 15）、fixer 改的 cook-side fallback 是死碼（`resolveNodeParams` 對每個 Float port 從 `p.def` 填、`cookInputParam` fallback 永不 fire），但 golden 繞過 cook 所以沒咬到 → production 實際還是 15× 卻 GREEN。**只有 cook-through 才守得住 NodeSpec default。** RadialPoints 做對了（cook-through，clean-base 全 RED）。
+
+### 鐵律 5 — 下游 golden 不准吃 cook fallback default
+共用場景的參數（如生成器 Radius）必須在 golden 場景裡**顯式 pin**，不准依賴 cook fallback default。Stage1 particlefield_probe 隱性耦合：resident leg 只 override Count 沒 override Radius → 吃了 cook fallback default → 改 production default 時 probe 翻紅（非 production bug）。Stage 2 裝閘時加這道 lint。
+
 ---
 
 ## 階段（順序固定，pilot 先試壓模板）
