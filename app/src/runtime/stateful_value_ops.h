@@ -168,4 +168,11 @@ void setAnimIntBug(int mode);
 // TriggerOutput tooth never advances); 2 = FREEZE the edge to 0 (TriggerOutput forced low).
 void setAnimBooleanBug(int mode);
 
+// WasTrigger TEETH hook (--selftest-wastrigger). 0 = production; 1 = DROP the _wasHit state write
+// (the cross-frame rising-edge gate never advances → a HELD-rising input re-pulses every frame);
+// 2 = DROP the var read (value forced to 0 → no trigger ever fires). The golden sets this around the
+// REAL cookStatefulValueNodes cook so a fixed (bug-independent) expected value bites. Sticky module
+// switch (cleared back to 0 by the golden after each bug run), mirrors setAnimValueBug.
+void setWasTriggerBug(int mode);
+
 }  // namespace sw

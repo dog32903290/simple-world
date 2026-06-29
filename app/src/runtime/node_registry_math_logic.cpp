@@ -283,5 +283,26 @@ static const MathOp _reg_KeepBoolean{
        "numbers.bool.process"}
 };
 
+      // WasTrigger — fires a one-frame TRUE on the rising edge of a named trigger VARIABLE rising.
+      // TiXL numbers/bool/logic/WasTrigger.cs. STATEFUL in the cook sense (evaluate==nullptr): it
+      // reads context.FloatVariables (the host ContextVarMap.floatVars, the SAME channel Set/GetFloatVar
+      // use) for the selected trigger source, then a cross-frame rising-edge gate (_lastValue/_wasHit).
+      // It is a READER (NOT in isContextVarWriter) → runs in the reader pass after every Set*Var writer.
+      // Output WasTriggered FIRST (extOut[0]). Trigger enum = {None,TriggerA,TriggerB,Custom}, .t3
+      // default 1=TriggerA (reads floatVars["__TriggerA"]). NAMED FORK fork-wastrigger-varname-channel:
+      // TiXL's string input is `CustomVariableName`; sw names it `VariableName` so it rides the rail's
+      // canonical string channel (frame_cook resolves strInputs["VariableName"]) — without this rename
+      // the Custom mode would be a DEAD knob (the rail never resolves any other string-port name). The
+      // value semantics are byte-identical; only the inspector label diverges. .t3: VariableName="".
+static const MathOp _reg_WasTrigger{
+      {"WasTrigger", "WasTrigger",
+       {{"WasTriggered", "WasTriggered", "Float", false},
+        {"Trigger", "Trigger", "Float", true, 1.0f, 0.0f, 3.0f, Widget::Enum,
+         {"None", "TriggerA", "TriggerB", "Custom"}},
+        {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, ""}},
+       nullptr,
+       "numbers.bool.logic"}
+};
+
 }  // namespace
 }  // namespace sw

@@ -48,5 +48,6 @@ REGISTER_SELFTESTS(/*orderBase=*/250,
     {"beatsync", runtime::runBeatSyncSelfTest},  // G1: BeatSynchronizer audio-locked BPM/bar P-controller
     {"beatlock", runBeatLockSelfTest},  // G2 SlidingAverage<10> de-jitter + G3 beat_timing audio-lock (orphan接通)
     {"folder-package", runFolderPackageSelfTest},  // ADDITIVE .swpkg folder save/load round-trip + cross-format (.swproj==.swpkg) invariant
+    {"wastrigger", framecook::runWasTriggerSelfTest},  // WasTrigger rising-edge pulse on a named trigger var (REAL cook seam) — appended at the 250-block tail (no row-order shift)
 );
 }  // namespace sw

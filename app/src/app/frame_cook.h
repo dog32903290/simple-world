@@ -109,6 +109,14 @@ int runAnimIntSelfTest(bool injectBug);
 // (setAnimBooleanBug: drop the state write / freeze the edge low) so the fixed wants bite.
 int runAnimBooleanSelfTest(bool injectBug);
 
+// WasTrigger PRODUCTION-PATH pin (--selftest-wastrigger): drives the REAL cookStatefulValueNodes
+// across a 5-frame trigger sequence (one ContextVarMap + one StatefulValueState carried) where a
+// SetFloatVar("__TriggerA") writer feeds a WasTrigger reader through the shared floatVars channel,
+// asserting the rising-edge pulse train (fire on rise, no re-pulse while held, re-arm on decrease).
+// injectBug flips a REAL production term (setWasTriggerBug: drop the _wasHit state write / drop the
+// var read) so the fixed wants bite.
+int runWasTriggerSelfTest(bool injectBug);
+
 // AR clock-domain pin (refuter-S5 盲區 3, --selftest-arclock): proves through the REAL cook
 // seam above that AudioReaction receives BARS — hit timestamps == transport.fxTime (bars, not
 // seconds), and halving the BPM halves the wall-clock hits a fixed-debounce pulse train yields
