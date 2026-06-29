@@ -14,12 +14,15 @@
 //     SetStringVariable.t3: VariableName default "s", StringValue default "", ClearAfterExecution false,
 //                           SubGraph null.  → the NodeSpec strDef for VariableName is "s" for BOTH.
 //
-// ★DEFERRED (named loudly) — defer-setstringvar-subgraph-command-rail: SetStringVar's SubGraph push/restore
-//   scope (SetStringVar.cs:26-41, the `if (SubGraph.HasInputConnections)` branch) is the SAME Command-rail
-//   scoping that float/int's SetVarCmd is — NOT implemented here. sw's two-rail model can't put a String echo
-//   output AND a Command SubGraph output on one node-spec (the precedent is point_ops_setvarcmd.cpp:
-//   SetFloatVarCmd). THIS leaf is the no-SubGraph branch only (cs:42-45 — the flat map write). A future
-//   "SetStringVarCmd" Command type carries the SubGraph half, exactly as SetFloatVarCmd did for the float rail.
+// NAMED FORK (fork-setstringvar-subgraph-command-rail): SetStringVar's SubGraph(Command) push/restore scope
+//   (SetStringVar.cs:26-41, the `if (SubGraph.HasInputConnections)` branch, [Input] at cs:54-55) +
+//   ClearAfterExecution(bool) ([Input] at cs:57-58, used inside the restore branch at cs:37) are the SAME
+//   Command-rail scoping as SetFloatVar.cs:26-41 / SetIntVar.cs:38-64 — NOT ported here. sw's two-rail model
+//   can't put a String echo output AND a Command SubGraph output on one node-spec (precedent:
+//   point_ops_setvarcmd.cpp SetFloatVarCmd). THIS leaf is the no-SubGraph branch only (cs:42-45 — the flat map
+//   write). A future "SetStringVarCmd" Command type carries SubGraph + ClearAfterExecution, exactly as
+//   SetFloatVarCmd did for the float rail. Behaviour-faithful, spelling-forked. Fork count = 2.
+//   Recorded in tools/nodespec_integrity.sh known_fork_count() as SetStringVar→2.
 //
 // NAMED FORK (fork-setstringvar-echo-output): TiXL's SetStringVar.Output is a Slot<Command> (no value-rail
 //   analog). sw gives it a String echo Output (the written value) — the SAME echo-as-golden-probe fork

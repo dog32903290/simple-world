@@ -159,21 +159,46 @@ cs_path() {
 #     ClearAfterExecution. So on the value-rail node those inputs are intentional forks (behaviour-faithful,
 #     spelling-forked). SetIntVar/SetFloatVar fork 2 (SubGraph + ClearAfterExecution); SetVec3Var/SetBoolVar
 #     fork 1 (SubGraph; their .cs has no ClearAfterExecution). See point_ops_setvarcmd.cpp / .h headers.
+#   • numbers transport-write Set{Bpm,PlaybackSpeed}: TiXL's Command outputs pass SubGraph(Command) through
+#     (SetBpm.cs:42 SubGraph.GetValue(context); SetPlaybackSpeed.cs:41 same pattern) — a downstream chaining
+#     hook, not a value-producing input. sw's stateful-value-op rail (BpmProvider / PlaybackProvider mailbox)
+#     is a transport-write node: the SubGraph chaining behaviour is deferred to a future Command-rail twin
+#     (SetBpmCmd / SetPlaybackSpeedCmd) in the same pattern as Set*VarCmd. Both fork 1 (SubGraph only; no
+#     ClearAfterExecution in either .cs). See stateful_value_ops_setbpm.cpp / stateful_value_ops_setplayback.cpp headers.
+#   • numbers/anim/time SetPlaybackTime: same SubGraph chaining fork (SetPlaybackTime.cs:62) + ShowLogMessages
+#     (SetPlaybackTime.cs:73-75) — a telemetry-only Log.Debug gate with zero value effect (no transport write,
+#     no state change, pure logging). Neither knob affects the TimeInBars write (cs:47). Both are intentional
+#     forks; the SubGraph half is deferred to SetPlaybackTimeCmd. Fork count = 2 (SubGraph + ShowLogMessages).
+#     See stateful_value_ops_setplayback.cpp header (NAMED FORK labels).
+#   • flow/context SetStringVar: same two-rail split as Set{Int,Float}Var. TiXL's SetStringVar.cs carries
+#     SubGraph(Command):54 (push/restore scope) + ClearAfterExecution:57 (post-restore cleanup) — the SAME
+#     SubGraph branch as SetFloatVar.cs:26-41. sw's string-channel cook (string_ops_stringctxvar.cpp) is the
+#     no-SubGraph branch only (cs:42-45: flat map write); the SubGraph half is deferred to "SetStringVarCmd"
+#     (exact same pattern as SetFloatVarCmd). Fork count = 2 (SubGraph + ClearAfterExecution).
+#     See string_ops_stringctxvar.cpp header (defer-setstringvar-subgraph-command-rail).
 known_fork_count() {
   case "$1" in
-    PointsOnMesh) echo 1 ;;   # IsEnabled = generic flow/Execute graph-wrapper toggle
-    SetIntVar)    echo 2 ;;   # SubGraph + ClearAfterExecution → SetIntVarCmd (Command rail)
-    SetFloatVar)  echo 2 ;;   # SubGraph + ClearAfterExecution → SetFloatVarCmd
-    SetVec3Var)   echo 1 ;;   # SubGraph → SetVec3VarCmd (no ClearAfterExecution in .cs)
-    SetBoolVar)   echo 1 ;;   # SubGraph → SetBoolVarCmd (no ClearAfterExecution in .cs)
-    *)            echo 0 ;;
+    PointsOnMesh)      echo 1 ;;   # IsEnabled = generic flow/Execute graph-wrapper toggle
+    SetIntVar)         echo 2 ;;   # SubGraph + ClearAfterExecution → SetIntVarCmd (Command rail)
+    SetFloatVar)       echo 2 ;;   # SubGraph + ClearAfterExecution → SetFloatVarCmd
+    SetVec3Var)        echo 1 ;;   # SubGraph → SetVec3VarCmd (no ClearAfterExecution in .cs)
+    SetBoolVar)        echo 1 ;;   # SubGraph → SetBoolVarCmd (no ClearAfterExecution in .cs)
+    SetBpm)            echo 1 ;;   # SubGraph → future SetBpmCmd (transport-write; SetBpm.cs:66)
+    SetPlaybackSpeed)  echo 1 ;;   # SubGraph → future SetPlaybackSpeedCmd (SetPlaybackSpeed.cs:48)
+    SetPlaybackTime)   echo 2 ;;   # SubGraph (cs:62) + ShowLogMessages (cs:73, telemetry-only) → SetPlaybackTimeCmd
+    SetStringVar)      echo 2 ;;   # SubGraph (cs:54) + ClearAfterExecution (cs:57) → future SetStringVarCmd
+    *)                 echo 0 ;;
   esac
 }
 
 # The flow-island type set the gate sweeps for --all-flow. = the sw context-var + log NodeSpec types whose
 # TiXL [Input] count the param-completion fan-out closed (value-rail Set*/Get*Var carry their forks above).
+# numbers-island transport-write ops (SetBpm, SetPlaybackTime, SetPlaybackSpeed) and flow/context SetStringVar
+# are also included here because their SubGraph / ShowLogMessages forks are recorded in known_fork_count.
 ALL_FLOW=(
   SetIntVar SetFloatVar SetVec3Var SetBoolVar GetIntVar LogMessage
+  SetBpm SetPlaybackTime SetPlaybackSpeed
+  SetStringVar
 )
 
 # The generator set the gate sweeps for --all-generators. = the sw NodeSpec generator types.

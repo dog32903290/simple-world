@@ -8,6 +8,13 @@
 // state s[0]=prevTrigger and whose product is the BpmProvider mutation — exactly the SetFloatVar
 // pattern (side-effect op, out[0] echoes a golden probe; the real product is the singleton write).
 //
+// NAMED FORK (fork-setbpm-subgraph): TiXL's SetBpm.cs carries [Input] SubGraph(Command) (cs:65-66),
+//   called unconditionally at cs:42 (SubGraph.GetValue(context)) — a downstream-chaining hook that
+//   lets the subtree cook after the BPM write. sw's value-rail node (stateful cook on BpmProvider) is
+//   the BPM-write half only; the SubGraph chaining is deferred to a future Command-rail twin
+//   "SetBpmCmd", exactly as Set*Var deferred to Set*VarCmd. No value effect is lost on this rail.
+//   Recorded in tools/nodespec_integrity.sh known_fork_count() as SetBpm→1.
+//
 // EDGE, NOT LEVEL (confirmed from source): SetBpm.cs:22 uses MathUtils.WasTriggered(TriggerUpdate,
 // ref _triggerUpdate) — a false→true RISING edge (MathUtils.cs:531-538: returns newState only when
 // it CHANGED, then stores it). Holding TriggerUpdate=true a 2nd frame does NOT re-fire. We mirror it

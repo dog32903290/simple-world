@@ -6,6 +6,22 @@
 //
 // = TiXL Operators/Lib/numbers/anim/time/SetPlaybackTime.cs + SetPlaybackSpeed.cs (read-only authority).
 //
+// NAMED FORK (fork-setplaybacktime-subgraph): TiXL SetPlaybackTime.cs carries [Input] SubGraph(Command)
+//   (cs:61-62), called at cs:50 (SubGraph.GetValue(context)) — downstream-chaining hook, no value effect
+//   on the TimeInBars write. Deferred to a future "SetPlaybackTimeCmd" Command-rail twin (same pattern as
+//   SetBpmCmd / Set*VarCmd). Recorded in known_fork_count() as SetPlaybackTime→2 (with ShowLogMessages).
+//
+// NAMED FORK (fork-setplaybacktime-showlogmessages): TiXL SetPlaybackTime.cs carries [Input]
+//   ShowLogMessages(bool) (cs:73-74), used ONLY to gate a Log.Debug call (cs:43-44:
+//   `Log.Debug($"Setting playback time to {newTime}")`) — zero effect on transport state, pure telemetry
+//   toggle. sw drops this input; the debug log is not part of the runtime behaviour contract.
+//   Recorded in known_fork_count() together with SubGraph as SetPlaybackTime→2.
+//
+// NAMED FORK (fork-setplaybackspeed-subgraph): TiXL SetPlaybackSpeed.cs carries [Input] SubGraph(Command)
+//   (cs:47-48), called at cs:41 (SubGraph.GetValue(context)) — downstream-chaining hook, no value effect
+//   on the PlaybackSpeed write. Deferred to a future "SetPlaybackSpeedCmd" Command-rail twin.
+//   Recorded in known_fork_count() as SetPlaybackSpeed→1.
+//
 // runtime leaf: pure computation + ONE side-effect into the runtime PlaybackProvider singleton (a
 // runtime sibling — runtime→runtime is legal). No hardware, no UI, no app dependency.
 #include <cmath>
