@@ -70,6 +70,8 @@ STAMP_AT: 2026-06-29T14:23
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
+**★柏為 14:38 定向（優先序覆寫）：先補完旋鈕（已 port 節點旋鈕完整性全綠/全覆蓋、確認沒 silent 偏差）→ 再推共享 seam。** 即：閘擴多島看全景 → 逐顆補「乾淨」真缺口 → 卡共享 seam（PF-0d float4x4 / render-state+asset-bind）的具名標記**不補**、留到「補完旋鈕」後的下一階段。
+
 **★★接力（param-completion fan-out，進行中）：generator 島 ✅（13/13，`b0845d4`）+ flow Set*Var 族 ✅（6/6，`51d3ef5`，dual-rail fork）。跨島地圖 `docs/agent/census/PARAM_COMPLETION_MAP.md`（選批 SSOT，含閘擴充工單 A-D 完整 spec + 4 SW_UNKNOWN verdict）。下一批＝閘擴多島（解鎖 field/mesh/image ~139 節點系統化掃描）：先工單 D（`dumpNodeSpec` fold-bug→收斂到既有 positional consume-the-run walk＝Inspector/animGroupForSlot 同源；generator 無 Vec head 數學保證 13/13 不回歸；建議抽 `graph.h` `foldVecRun` 共用 helper + 守護 invariant 斷言），再 A（island .cs 子樹解析 + fork header authority 吃掉 B）+ C（image resolution-trio 排除）+ cook-path 分類（NodeSpec/texReg/cmdReg，非 NodeSpec 標 N/A）。spec 細到可直接實作＝MAP §閘擴多島修法。⚠ graph.h 是 cook-core owner-lock，動前確認無並行 lane 寫它。之後真缺口 fan-out：field TransformField -5/RaymarchField -3、mesh DrawMeshUnlit -11、image RenderTarget -6、string BlendStrings -2。ParticleSystem -11 卡柏為 pool-fork。每顆 golden cook-through production NodeSpec。**
 
 下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（HEAD/bite/census 看機器塊，勿信此處手打）。**★狀態：generator+flow 兩島 param-completion 收尾，閘擴多島 spec 已備。零未 commit。**
