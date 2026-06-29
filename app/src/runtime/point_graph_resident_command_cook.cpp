@@ -33,6 +33,7 @@
 //   already-shared scope helpers — all runtime). Defined as a method on PointGraph::Impl; cookResident
 //   wraps it in a forwarding lambda.
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + decl + cmdReg/fillPointCamera/warnCookDepthOnce
+#include "runtime/point_ops_logmessage.h"  // logMessageCurrentText (LogMessage Message thread, resident mirror)
 
 #include <functional>
 #include <map>
@@ -240,6 +241,13 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   if (const ActiveCamera* lc = liveActiveCamera()) {
     cc.hasCamera = true;
     activeCameraMatrices(*lc, cc.worldToCamera, cc.cameraToWorld);
+  }
+  // LogMessage Message thread (resident mirror — production runs THIS leg; param-completion fan-out): resolve
+  // the node's String "Message" off ResidentNode::strInputs into the op's process-scoped text (LogMessage.cs:26).
+  // Mirrors the flat leg byte-for-byte (the S2c flat-resident gate — a resident-only miss = a prod-only miss).
+  if (n->opType == "LogMessage" && !logMessageSkipMessageThread()) {
+    auto mit = n->strInputs.find("Message");
+    logMessageCurrentText() = (mit != n->strInputs.end()) ? mit->second : std::string();
   }
   return cm->second(cc);
 }

@@ -30,7 +30,10 @@ set -u
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="${SW_BIN:-$REPO_ROOT/app/build/simple_world}"
-TIXL_GEN="$REPO_ROOT/external/tixl/Operators/Lib/point/generate"
+# external/tixl normally lives in the running checkout; SW_TIXL_LIB overrides the root (e.g. a worktree
+# whose external/ is only present in the main checkout — point it at the main repo's Operators/Lib).
+TIXL_LIB="${SW_TIXL_LIB:-$REPO_ROOT/external/tixl/Operators/Lib}"
+TIXL_GEN="$TIXL_LIB/point/generate"
 
 if [ ! -x "$BIN" ]; then
   echo "✗ nodespec_integrity: binary not found/executable: $BIN" >&2
@@ -46,6 +49,16 @@ cs_for_type() {
   esac
 }
 
+# cs_path <Type> — resolve the .cs full path. Generator types live in point/generate (the original gate
+# scope); flow-island types live scattered under Lib/flow{,/context}. Falls back to a Lib-wide find so a
+# new island's .cs is located without a per-island dir constant. Echoes the path, or "" if not found.
+cs_path() {
+  local base; base="$(cs_for_type "$1")"
+  if [ -f "$TIXL_GEN/$base" ]; then echo "$TIXL_GEN/$base"; return; fi
+  # flow / other Lib islands: find the first non-_obsolete match under Lib.
+  find "$TIXL_LIB" -name "$base" 2>/dev/null | grep -v _obsolete | head -1
+}
+
 # known_fork_count <Type> — number of TiXL [Input] lines that sw intentionally does NOT expose as a
 # param, recorded as named FORKs (faithful-dead). These are added to the sw side before the compare,
 # so the gate reads "sw_folded + known_forks == TiXL". Each entry MUST be justified in the op's source
@@ -54,12 +67,30 @@ cs_for_type() {
 #     IsEnabled slot (guid d68b5569-…, flow/Execute.t3ui) — the generic "skip this op's GPU pass"
 #     toggle, not a node-specific knob. Same shape as CombineMeshes' deferred IsEnabled.
 #     See point_ops_pointsonmesh.cpp header (NAMED TiXL forks).
+#   • flow context-var Set*Var: TiXL's ONE Set{Int,Float,Vec3,Bool}Var node carries a SubGraph(Command)
+#     input + (Int/Float) a ClearAfterExecution. sw's two-rail model can't put a Float/Vec output AND a
+#     Command output on one node-spec, so the no-SubGraph VALUE write stayed the value-rail "Set*Var"
+#     (node_registry_math_contextvar.cpp / stateful_value_ops_context_vars.cpp) and the SubGraph-scoped half
+#     is the separate Command type "Set*VarCmd" (point_ops_setvarcmd.cpp), which DOES carry SubGraph +
+#     ClearAfterExecution. So on the value-rail node those inputs are intentional forks (behaviour-faithful,
+#     spelling-forked). SetIntVar/SetFloatVar fork 2 (SubGraph + ClearAfterExecution); SetVec3Var/SetBoolVar
+#     fork 1 (SubGraph; their .cs has no ClearAfterExecution). See point_ops_setvarcmd.cpp / .h headers.
 known_fork_count() {
   case "$1" in
     PointsOnMesh) echo 1 ;;   # IsEnabled = generic flow/Execute graph-wrapper toggle
+    SetIntVar)    echo 2 ;;   # SubGraph + ClearAfterExecution → SetIntVarCmd (Command rail)
+    SetFloatVar)  echo 2 ;;   # SubGraph + ClearAfterExecution → SetFloatVarCmd
+    SetVec3Var)   echo 1 ;;   # SubGraph → SetVec3VarCmd (no ClearAfterExecution in .cs)
+    SetBoolVar)   echo 1 ;;   # SubGraph → SetBoolVarCmd (no ClearAfterExecution in .cs)
     *)            echo 0 ;;
   esac
 }
+
+# The flow-island type set the gate sweeps for --all-flow. = the sw context-var + log NodeSpec types whose
+# TiXL [Input] count the param-completion fan-out closed (value-rail Set*/Get*Var carry their forks above).
+ALL_FLOW=(
+  SetIntVar SetFloatVar SetVec3Var SetBoolVar GetIntVar LogMessage
+)
 
 # The generator set the gate sweeps for --all-generators. = the sw NodeSpec generator types.
 ALL_GENERATORS=(
@@ -72,8 +103,8 @@ ALL_GENERATORS=(
 # inputs like RepetitionPoints' Vector3 Scale don't inflate the count). Echoes the count, or "?"
 # if the .cs is missing (so the caller can flag a missing authority file).
 tixl_input_count() {
-  local cs="$TIXL_GEN/$(cs_for_type "$1")"
-  if [ ! -f "$cs" ]; then echo "?"; return; fi
+  local cs; cs="$(cs_path "$1")"
+  if [ -z "$cs" ] || [ ! -f "$cs" ]; then echo "?"; return; fi
   grep -vE '^[[:space:]]*//' "$cs" | grep -c '\[Input('
 }
 
@@ -97,7 +128,7 @@ gate_one() {
     return 1
   fi
   if [ "$tixl" = "?" ]; then
-    printf '  ✗ %-22s sw=%s  TiXL=MISSING .cs (%s)\n' "$t" "$sw" "$(cs_for_type "$t")"
+    printf '  ✗ %-22s sw=%s  TiXL=MISSING .cs (%s, not found under Lib)\n' "$t" "$sw" "$(cs_for_type "$t")"
     return 1
   fi
   # effective sw count = exposed params + intentionally-deferred named forks
@@ -129,10 +160,17 @@ if [ "${1:-}" = "--all-generators" ]; then
   done
   if [ "$rc" -eq 0 ]; then echo "[nodespec_integrity] OK — every generator's param set matches TiXL."
   else echo "[nodespec_integrity] FAIL — one or more generators diverge from TiXL (see ✗ rows)."; fi
+elif [ "${1:-}" = "--all-flow" ]; then
+  echo "[nodespec_integrity] sweeping ${#ALL_FLOW[@]} flow-island context-var/log ops (sw folded + forks vs TiXL [Input])..."
+  for t in "${ALL_FLOW[@]}"; do
+    gate_one "$t" || rc=1
+  done
+  if [ "$rc" -eq 0 ]; then echo "[nodespec_integrity] OK — every flow op's param set matches TiXL."
+  else echo "[nodespec_integrity] FAIL — one or more flow ops diverge from TiXL (see ✗ rows)."; fi
 elif [ -n "${1:-}" ]; then
   gate_one "$1" || rc=1
 else
-  echo "usage: $0 <NodeType> | --all-generators" >&2
+  echo "usage: $0 <NodeType> | --all-generators | --all-flow" >&2
   exit 2
 fi
 exit "$rc"

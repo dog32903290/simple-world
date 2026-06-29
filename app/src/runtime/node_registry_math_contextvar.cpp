@@ -44,22 +44,35 @@ static const MathOp _reg_GetFloatVar{
 
       // SetIntVar — write (int)Value into the named int var (truncate toward zero). TiXL flow/context/
       // SetIntVar.cs (no-SubGraph :61-64). Value on a Float port (no Int port type). .t3: Value=0, Name="i".
+      // LogLevel (param-completion fan-out): MappedType<LogLevels> int input (SetIntVar.cs:77-78); sw renders
+      // it as a Float port + Enum widget carrying the 4 level names (no new mapping basework — sw Widget::Enum
+      // already exists, the MappedType is just an int dropdown). Default 0=None (SetIntVar.t3 DefaultValue=0).
+      // Drives the empty-name warning via ctxVarLogSink (stepSetIntVar). KNOWN FORKS (recorded in
+      // nodespec_integrity.sh): SubGraph(Command) + ClearAfterExecution live on the Cmd-rail SetIntVarCmd —
+      // the value rail (no-SubGraph branch) has no Command output nor an after-subtree clear.
 static const MathOp _reg_SetIntVar{
       {"SetIntVar", "SetIntVar",
        {{"Output", "Output", "Float", false},
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "i"},
-        {"Value", "Value", "Float", true, 0.0f, -1000.0f, 1000.0f}},
+        {"Value", "Value", "Float", true, 0.0f, -1000.0f, 1000.0f},
+        {"LogLevel", "LogLevel", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+         {"None", "Warnings", "Changes", "AllUpdates"}, true}},
        nullptr,
        "flow.context"}
 };
 
       // GetIntVar — read the named int var, else FallbackValue (both int-truncated). TiXL flow/context/
-      // GetIntVar.cs (:16-50). DROP LogLevels enum + dropdown. .t3: VariableName="i", FallbackValue=0.
+      // GetIntVar.cs (:16-50). DROP ICustomDropdownHolder (var-name dropdown UI). .t3: VariableName="i",
+      // FallbackValue=0. LogUpdates (param-completion fan-out): MappedType<LogLevels> int input
+      // (GetIntVar.cs:60-61) → Float port + Enum widget (4 level names). Default 0=None (GetIntVar.t3
+      // DefaultValue=0). Drives the read-debug / undefined-warning emission via ctxVarLogSink (stepGetIntVar).
 static const MathOp _reg_GetIntVar{
       {"GetIntVar", "GetIntVar",
        {{"Result", "Result", "Float", false},
         {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "i"},
-        {"FallbackValue", "FallbackValue", "Float", true, 0.0f, -1000.0f, 1000.0f}},
+        {"FallbackValue", "FallbackValue", "Float", true, 0.0f, -1000.0f, 1000.0f},
+        {"LogUpdates", "LogUpdates", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+         {"None", "Warnings", "Changes", "AllUpdates"}, true}},
        nullptr,
        "flow.context"}
 };

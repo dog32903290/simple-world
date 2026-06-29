@@ -52,12 +52,21 @@ void stepGetFloatVar(const std::map<std::string, float>& in, float, float, State
 // SubGraph branch cs:61-64). Value arrives on a Float port (no Int port type) → C# (int) cast =
 // TRUNCATION toward zero ((long)std::trunc; 7.9→7), NOT rounding (CountInt convention :709). Empty
 // name → no-op (cs:30-36). out[0] echoes the stored int (golden). .t3 defaults: Value=0, Name="i".
+// LogLevel (param-completion fan-out, MappedType<LogLevels> SetIntVar.cs:77-78, .t3 default 0=None):
+// on the no-SubGraph value rail the ONLY reachable log is the empty-name warning (cs:32-33,
+// `logLevel >= Warnings`); the Changes/AllUpdates debug lines (cs:47-55) live in the SubGraph branch,
+// which is the Cmd-rail fork (SetIntVarCmd). Gated emission proves the knob is behaviour-bearing.
 void stepSetIntVar(const std::map<std::string, float>& in, float, float, StatefulValueState&,
                    float out[3], const TransportSnapshot&, ContextVarMap* vars,
                    const std::string& varName) {
   const long newValue = (long)std::trunc(getIn(in, "Value", 0.0f));  // C# (int) cast = truncate
   out[0] = (float)newValue;
-  if (varName.empty() || !vars) return;
+  int logLevel = (int)std::trunc(getIn(in, "LogLevel", 0.0f));  // 0=None 1=Warnings 2=Changes 3=AllUpdates
+  if (ctxVarLogBug()) logLevel = 3;  // -bug: ignore the knob, always emit (dead-knob degeneracy)
+  if (varName.empty() || !vars) {
+    if (varName.empty() && logLevel >= 1) ctxVarLogSink().warnings++;  // cs:32-33 Log.Warning invalid name
+    return;
+  }
   vars->intVars[varName] = newValue;
 }
 
@@ -70,11 +79,25 @@ void stepGetIntVar(const std::map<std::string, float>& in, float, float, Statefu
                    float out[3], const TransportSnapshot&, ContextVarMap* vars,
                    const std::string& varName) {
   const long fallback = (long)std::trunc(getIn(in, "FallbackValue", 0.0f));
+  // LogUpdates (param-completion fan-out, MappedType<LogLevels> GetIntVar.cs:60-61, .t3 default 0=None):
+  // on a HIT, logUpdates >= AllUpdates(3) → Log.Debug "int X is V" (cs:34-35). on a MISS, complain when
+  // >= Warnings(1) (or == AllUpdates) → Log.Warning "Can't read undefined int" (cs:41-48). NAMED FORK vs
+  // TiXL: sw drops the _complainedOnce once-latch (no cross-frame editor-noise suppression; a stateful
+  // value op has no per-instance "complained" memory wired here) — every miss at >=Warnings emits. The
+  // gating BY LEVEL is faithful; only the once-de-dupe is dropped (editor-telemetry, same class as the
+  // dropped LogMessage perf timing). Read value/fallback is byte-identical at every level.
+  int logUpdates = (int)std::trunc(getIn(in, "LogUpdates", 0.0f));
+  if (ctxVarLogBug()) logUpdates = 3;  // -bug: ignore the knob, always emit (dead-knob degeneracy)
   if (vars) {
     auto it = vars->intVars.find(varName);
-    if (it != vars->intVars.end()) { out[0] = (float)it->second; return; }  // TryGetValue hit
+    if (it != vars->intVars.end()) {
+      out[0] = (float)it->second;                      // TryGetValue hit
+      if (logUpdates >= 3) ctxVarLogSink().updates++;  // cs:34-35 Log.Debug on hit at AllUpdates
+      return;
+    }
   }
   out[0] = (float)fallback;                   // unset → fallbackValue
+  if (logUpdates >= 1) ctxVarLogSink().warnings++;  // cs:41-48 Log.Warning on undefined read
 }
 
 // --- SetBoolVar (TiXL Lib/flow/context/SetBoolVar.cs) — writes the bool (0/1) into vars.intVars[name]
@@ -152,6 +175,12 @@ bool isContextVarWriter(const std::string& opType) {
   return opType == "SetFloatVar" || opType == "SetIntVar" || opType == "SetBoolVar"
       || opType == "SetVec3Var";
 }
+
+// The LogLevel/LogUpdates diagnostic sink (declared in stateful_value_ops.h). Process-scoped leaf data
+// the golden flips/reads to prove the new enum knobs gate emission. No upper consumer wired yet (sw has
+// no editor log pane) — same deferred-consumer shape as point_ops_logmessage.cpp's logSink.
+CtxVarLogSink& ctxVarLogSink() { static CtxVarLogSink s; return s; }
+bool& ctxVarLogBug() { static bool v = false; return v; }
 
 static const StatefulOpReg _reg_SetFloatVar{"SetFloatVar", stepSetFloatVar};
 static const StatefulOpReg _reg_GetFloatVar{"GetFloatVar", stepGetFloatVar};

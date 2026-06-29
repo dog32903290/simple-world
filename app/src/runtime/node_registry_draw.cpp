@@ -360,10 +360,13 @@ const std::vector<NodeSpec>& drawSpecs() {
       // channel, resolved by the op via a process-scoped per-node map — the one deferred prod string-thread
       // wire (no behaviour-bearing render path ships a LogMessage gate; authoring/telemetry node). .t3:
       // OnlyOnChanges=false, LogLevel default Messages(1).
+      // Message (param-completion fan-out, LogMessage.cs:66-67 InputSlot<string>, .t3 default ""): emitted text
+      // (empty → "Log", cs:54); the cook driver threads its strParams/strInputs into logMessageCurrentText().
       {"LogMessage", "LogMessage",
        {{"SubGraph", "SubGraph", "Command", true},
         {"out", "out", "Command", false},
         {"OnlyOnChanges", "OnlyOnChanges", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"Message", "Message", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, ""},
         {"LogLevel", "LogLevel", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Enum,
          {"None", "Messages", "UpdateTime"}, true}},
        nullptr,

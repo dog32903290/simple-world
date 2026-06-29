@@ -38,6 +38,7 @@
 //   already-shared scope helpers — all runtime). Defined as a method on PointGraph::Impl; cook() wraps it
 //   in a forwarding lambda.
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + decl + cmdReg/fillPointCamera
+#include "runtime/point_ops_logmessage.h"  // logMessageCurrentText (LogMessage Message thread)
 
 #include <functional>
 #include <map>
@@ -227,6 +228,13 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
   if (const ActiveCamera* lc = liveActiveCamera()) {
     cc.hasCamera = true;
     activeCameraMatrices(*lc, cc.worldToCamera, cc.cameraToWorld);
+  }
+  // LogMessage Message thread (param-completion fan-out): resolve the node's String "Message" param into the
+  // process-scoped text the op emits (LogMessage.cs:26 Message.GetValue) — same shape as VariableName above.
+  // Closes the previously-deferred prod string-thread wire on the flat leg (resident mirrors it).
+  if (n->type == "LogMessage" && !logMessageSkipMessageThread()) {
+    auto mit = n->strParams.find("Message");
+    logMessageCurrentText() = (mit != n->strParams.end()) ? mit->second : std::string();
   }
   RenderCommand out = cm->second(cc);
   cmdVisiting.erase(id);  // pop: this node is no longer on the command stack

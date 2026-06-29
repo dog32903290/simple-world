@@ -106,6 +106,27 @@ struct ContextVarMap {
 // frame (simple_world iterates g.nodes in build order, not dataflow → ordering imposed explicitly).
 bool isContextVarWriter(const std::string& opType);
 
+// ── ctxVarLogSink — the LogLevel/LogUpdates diagnostic channel (param-completion fan-out, flow island) ──
+// TiXL SetIntVar.LogLevel (SetIntVar.cs:28-55) and GetIntVar.LogUpdates (GetIntVar.cs:23-48) are
+// MappedType<LogLevels> int inputs whose ONLY effect is gating Log.Warning/Log.Debug telemetry — they
+// change NO value, NO map, NO render (faithful: the variable write/read is identical at every level).
+// sw has no editor log pane, so the leaf exposes a tiny SINK (a per-level counter) an upper layer could
+// later wire to a real console; the param-completion golden reads it to PROVE the LogLevel knob actually
+// gates emission (so the new enum input is behaviour-bearing, not a dead inspector field). Mirrors the
+// LogMessage logSink shape (point_ops_logmessage.cpp) — runtime owns the data, no upward dep.
+//   LogLevels: 0=None, 1=Warnings, 2=Changes, 3=AllUpdates (SetIntVar.cs enum; GetIntVar shares it).
+struct CtxVarLogSink {
+  int warnings = 0;   // empty-name / undefined-var warnings emitted (level >= Warnings)
+  int updates = 0;    // set/read debug lines emitted (level >= Changes for Set, AllUpdates for Get)
+};
+CtxVarLogSink& ctxVarLogSink();
+
+// ctxVarLogBug — the --selftest-ctxvarlog TEETH hook. false = production (LogLevel/LogUpdates GATE the
+// emission, faithful). true = the pre-fan-out degeneracy: IGNORE the level and ALWAYS emit (the dead-knob
+// bug a missing/unwired LogLevel input would produce) → the LogLevel=None case emits anyway → the golden's
+// "None suppresses" assertion goes RED. OFF in production; the golden flips it for the bug leg then resets.
+bool& ctxVarLogBug();
+
 // True if opType names a stateful value op (has a step fn in kStatefulValueOps). frame_cook uses
 // this to pick which resident nodes to cook (the value-graph sibling of `opType == "AudioReaction"`).
 bool isStatefulValueOp(const std::string& opType);

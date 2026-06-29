@@ -26,6 +26,7 @@
 //
 // runtime leaf: pure CPU + Metal (the golden cooks through PointGraph); no UI, no upward deps.
 #include "runtime/point_ops.h"
+#include "runtime/point_ops_logmessage.h"  // logMessageCurrentText (shared with the cook drivers)
 
 #include <cstdint>
 #include <cstdio>
@@ -71,6 +72,7 @@ LogSinkState& logSink() { static LogSinkState s; return s; }
 // node, not a draw op). The passthrough + gate semantics ARE exercised on both legs; only the prod
 // string-threading wire is deferred to when a real LogMessage authoring path lands.
 std::string& logMessageCurrentText() { static std::string s = "Log"; return s; }
+bool& logMessageSkipMessageThread() { static bool v = false; return v; }
 
 // ───────────────────────────── the LogMessage op (transparent passthrough + gated emit) ─────────────────────────────
 RenderCommand cookLogMessage(CmdCookCtx& c) {
@@ -145,6 +147,9 @@ void installLogMessageSpecs() {
   setDynamicSpecs(std::move(dyn));
 }
 
+// The LogMessage node's Message is ALWAYS carried on its strParams["Message"] (the production wire): the cook
+// DRIVER threads it into logMessageCurrentText before the op cook. logMessageCurrentText is pre-seeded to a
+// STALE marker so a working thread MUST overwrite it (a skipped thread → the op emits the stale text → bites).
 bool cookLogGraph(MTL::Device* dev, MTL::Library* lib, MTL::CommandQueue* q, int whichPath,
                   bool onlyOnChanges, int logLevel, const std::string& msg, RenderCommand& outChain) {
   Graph g;
@@ -152,12 +157,13 @@ bool cookLogGraph(MTL::Device* dev, MTL::Library* lib, MTL::CommandQueue* q, int
   Node lm; lm.id = 2; lm.type = "LogMessage";
   lm.params["OnlyOnChanges"] = onlyOnChanges ? 1.0f : 0.0f;
   lm.params["LogLevel"] = (float)logLevel;
+  lm.strParams["Message"] = msg;  // the production wire: driver threads strParams → logMessageCurrentText
   g.nodes.push_back(lm);
   Node rt; rt.id = 3; rt.type = "StubRenderTarget"; g.nodes.push_back(rt);
   g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // StubCmd.out → LogMessage.SubGraph
   g.connections.push_back({102, pinId(2, 1), pinId(3, 0)});  // LogMessage.out → StubRenderTarget.command
 
-  logMessageCurrentText() = msg;  // the op resolves its Message from this (the deferred-wire fork)
+  logMessageCurrentText() = "STALE-not-threaded";  // working thread must overwrite from strParams
   g_capturedChain = RenderCommand{};
   EvaluationContext ctx{};
   ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
@@ -190,6 +196,7 @@ int runLogMessageSelfTest(bool injectBug) {
 
   if (injectBug) registerCmdOp("LogMessage", cookLogMessageBug);  // -bug variant: gate dropped
   else           registerLogMessageOp();                          // the REAL op under test
+  logMessageSkipMessageThread() = injectBug;  // -bug: also skip the Message-thread → msgThread tooth bites
   registerCmdOp("StubCmd", stubCmd);
   registerTexOp("StubRenderTarget", stubRenderTarget);
   installLogMessageSpecs();
@@ -221,15 +228,26 @@ int runLogMessageSelfTest(bool injectBug) {
     cookLogGraph(dev, lib, q, path, /*onlyOnChanges=*/false, /*logLevel=*/0, "C", c5);
     bool levelNone = (logSink().count == 3) && (c5.items.size() == 1);  // None → no fire, still passthrough
 
-    bool legOk = passthrough && emit1 && emit2 && dedupe && changeFires && levelNone;
+    // MESSAGE-THREAD tooth (param-completion fan-out): cook with the LogMessage node's strParams["Message"]
+    // = "hello" (the cookLogGraph helper pre-seeds logMessageCurrentText to a STALE marker). A working cook
+    // driver threads strParams["Message"] → logMessageCurrentText → sink.lastMessage == "hello". The bug
+    // (logMessageSkipMessageThread) skips the thread → the op emits the stale text → lastMessage != "hello".
+    logSink() = LogSinkState{};  // isolate the message-thread count from the gate teeth above
+    RenderCommand c6;
+    cookLogGraph(dev, lib, q, path, /*onlyOnChanges=*/false, /*logLevel=*/1, /*msg=*/"hello", c6);
+    bool msgThread = (logSink().lastMessage == "hello") && (logSink().count == 1);
+
+    bool legOk = passthrough && emit1 && emit2 && dedupe && changeFires && levelNone && msgThread;
     allFaithful = allFaithful && legOk;
     std::printf("[selftest-logmessage] %s passthrough=%d emit1=%d emit2=%d dedupe=%d change=%d levelNone=%d "
-                "(count end=%d) -> %s\n", pathName[path], passthrough, emit1, emit2, dedupe, changeFires,
-                levelNone, logSink().count, legOk ? "faithful-ok" : "tripped");
+                "msgThread=%d(last='%s') -> %s\n", pathName[path], passthrough, emit1, emit2, dedupe,
+                changeFires, levelNone, msgThread, logSink().lastMessage.c_str(),
+                legOk ? "faithful-ok" : "tripped");
   }
 
   logSink() = LogSinkState{};       // process hygiene
   logMessageCurrentText() = "Log";
+  logMessageSkipMessageThread() = false;
   setDynamicSpecs({});
   lib->release(); q->release(); dev->release(); pool->release();
 
