@@ -121,6 +121,26 @@ synthetic flag）給 `role="output-format synthetic"` + `continue` 不計數 →
 
 ---
 
+## ★閘擴多島實機結果 + refuter 更正（2026-06-29，`ca0972e` + refuter）
+
+閘擴後實掃（fold/trio 假象部分清掉）：
+
+| 島 | swept | MATCH | MISSING | EXTRA | 可信度 |
+|---|---|---|---|---|---|
+| field | 43 | 38 | 2（TransformField/RaymarchField） | 3 | ✅ 準 |
+| mesh | 20 | 15 | 5（DrawMeshUnlit/CubeMesh/IcosahedronMesh/CombineMeshes/DeformMesh） | 0 | ✅ 準 |
+| image | 73 | 29 | **34（地板）** | 10（**假帳**） | ⚠ MISSING 可信、EXTRA 是 bug |
+| generator | 13 | 13 | 0 | 0 | ✅ 準（無回歸） |
+| flow | 6 | 6 | 0 | 0 | ✅ 準（無回歸） |
+
+**★refuter 抓到的 BREAK（image 島專屬，未修，已派 task）**：
+- **image MISSING=34 是真缺口下界**：逐顆對 TiXL .cs 驗過（Blur sw5/tixl7 缺 Resolution+Wrap、RenderTarget sw2/tixl11 缺 9），無假象污染，**照這 34 顆補旋鈕安全**。
+- **但 image EXTRA=10 是假帳，符號翻轉**：AfterGlow/Blend/BlendWithMask/BoxGradient/Combine3Images/CombineMaterialChannels2/DistortAndShade/LightRaysFx/MirrorRepeat/AfterGlow2 這 10 顆**其實也是 MISSING**，被 fold 守衛過度折開（Blend 真缺 2 報成 +2 EXTRA、AfterGlow 真缺 1 報成 +1）。**真 image 缺口 >34。**
+- **根因二（都在 image 島）**：(a) `dumpNodeSpec` 的 positional walk 守衛跟 `inspector.cpp:83-86`/`node_registry.cpp:205-207` **不同源**——這 10 顆 op 把 `Vector4 Color` 拆成 `Color.x/.y/.z/.w` 且**每個 component 自己 tag widget==Vec、vecArity 遞減 4→3→2**，守衛看到 `Color.y` 也是 Vec head 就 break → 一個 Vector4 折成 3。(b) `nodespec_integrity.sh` 的 VEC-RUN-SHORT 偵測**在 shell 裡是死的**：`sw=$(...)` 在 subshell 跑、設的 `SW_VEC_RUN_SHORT` global 出 subshell 消失 → 守衛永不觸發 → 靜悄悄歸 EXTRA 而非大聲報結構 bug。
+- **修法（task 派出）**：(a) dumpNodeSpec 守衛改成「component 自身 tag Vec 且 arity 遞減＝仍屬同一 head 的 run，繼續吃不 break」；(b) shell 改 subshell 變數傳遞（temp-file 或 exit-code 帶 VEC-SHORT 旗標）。修完 image EXTRA→正確 MISSING、真缺口全景才現。**field/mesh/generator/flow 不受影響（裸 component 無 chained-Vec-head，已驗準）。**
+
+---
+
 ## ★閘擴後 fan-out 目標 ground-truth（2026-06-29 scout，難度排序）
 
 **★★承重發現：剩餘大宗 param-completion 不是逐顆 leaf，是兩條共享 seam 卡住**——
