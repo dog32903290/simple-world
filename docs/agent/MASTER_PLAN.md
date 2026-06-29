@@ -14,11 +14,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 25946ae
+HEAD: 5b958b5
 DIRTY: clean
 CENSUS: 461 / 749 done
-BITE: 518 PASS
-STAMP_AT: 2026-06-29T08:04
+BITE: 519 PASS
+STAMP_AT: 2026-06-29T08:30
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -26,10 +26,11 @@ STAMP_AT: 2026-06-29T08:04
 - 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
 
 ## Active Lane
-**parity-gate retrofit〔進行中，柏為 2026-06-29 02:38 第一優先〕— Stage 1 模板+harness ✅ + Stage 3 前兩顆 RadialPoints/TurbulenceForce parity ✅（`25946ae`，--bite 518，refuter 4/4 SURVIVES）。下一批＝Stage 2 裝閘 + Stage 3 fan-out 其餘有狀態重節點。工單＝`docs/agent/PARITY_GATE_PLAN.md`。**
+**parity-gate retrofit〔進行中，柏為 2026-06-29 02:38 第一優先〕— Stage 1 模板 ✅ + RadialPoints/TurbulenceForce parity ✅（`25946ae`）+ Force 類範式首顆 DirectionalForce ✅（`5b958b5`，--bite 519）。下一批＝Workflow 並行 fan-out 其餘 Force（write-leaf+中央接線）+ scout 偏差堆。工單＝`docs/agent/PARITY_GATE_PLAN.md`。**
 - **本批 `[G][Y]`（`25946ae`）**：建有狀態節點 parity-golden 模板（`app/src/parity_golden_harness.h`：ParityHarness+ParityReport，固定場景 cook→CPU readback→對 TiXL 公式手算斷言+injectBug tooth）+ 修 RadialPoints（Count 2048→100/Radius 2→1）、TurbulenceForce（Amount 15→1/Freq 1.2→1/**Phase 解綁 wall-clock→inspector param 預設0**，修離線 render 決定性）到 TiXL parity。red-first 三態證牙（no-bug GREEN / injectBug RED / 注入舊偏差 RED）。
 - **★★parity-gate 新鐵律（本批 refuter 血證，已寫進 PARITY_GATE_PLAN）：parity-golden 必須 cook-through production NodeSpec default，不准繞過 cook 直接打 kernel。** 首版 turbulence golden direct-kernel→假綠（NodeSpec 沒改、改的 cook fallback 是死碼，`resolveNodeParams` 從 `p.def` 填、1.0f fallback 永不 fire）→ refuter 抓出 production 實際還是 15× → 改 cook-through 後 NodeSpec=15 立刻 RED 咬住。**fan-out 每顆務必 cook-through，否則假綠洗白。**
 - **★[Y] 待柏為驗收**：見下方佇列（turbulence 變靜止 / radial 點數半徑變，照 TiXL）。
+- **Force 類範式首顆 `[G]`（`5b958b5`）**：DirectionalForce cook-through parity golden。**GREEN case（早已忠實，零 production 改動，純補閘）**——scout 證 sw NodeSpec 預設(Amount=0.007/Dir=(0,-1,0)/RandomAmount=0)與 TiXL .t3 完全相同、kernel byte-1:1。三牙範式(T1 direct-kernel 閉式/T2 cook-through 守 NodeSpec/T3 determinism)。**fan-out 並行情報**：golden 檔零撞可並行寫；3 註冊檔(selftests_decls/selftests_point/CMakeLists)會撞→write-leaf 並行+中央接線(point lane 範式)；偏差堆(需修 point_ops production)逐顆序列。**⚠ 教訓：agent 自 commit 違反 orchestrator 親合流→下批工單明令「不自 commit、回報讓 orchestrator 親驗合流」。**
 - **★durable trap（host-value-emit op）**：`evalResidentFloat` 的 `!evaluate` readback 回 `extOut[i]`，i 是 port 在 `s->ports` 的**全索引（含 inputs）**非 0-based output index → output port 要從 spec 算 output→extOut-slot 映射（PickColor/PickColorFromList 同註）。
 - **★durable：String/StringList rail = flat-cook，不進 resident graph**（string_op_registry.h:24）→ 這些 op 的 golden 只覆蓋 flat leg，多輸出受限（StringCookCtx 只帶 extraStrOutputs+scalarOutputs 單值，無 list-output sink；scalar sink outCache[3] 上限 3 個）。新 string/stringlist op 是 explicit CMake list 非 glob（合流要中央補行）。
 - **★eye-hand 限制（durable）**：in-process 合成 hand 點不開 `BeginMainMenuBar`（能開 `BeginPopup`）→ menu-bar 類 UI load-bearing 證明＝map.json rect 斷言，dropdown 點擊 best-effort。
