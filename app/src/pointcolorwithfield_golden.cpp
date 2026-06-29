@@ -82,6 +82,7 @@ int runPointColorWithFieldSelfTest(bool injectBug) {
   gen.params["Count"] = 64.0f;
   gen.params["CountX"] = 8.0f; gen.params["CountY"] = 8.0f; gen.params["CountZ"] = 1.0f;
   gen.params["SizeMode"] = 1.0f;
+  gen.params["Scale"] = 1.0f;  // unit multiplier: Size below is the literal grid extent (param-completion fan-out added the Scale knob, .t3 default 0.1)
   gen.params["Size.x"] = 1.0f; gen.params["Size.y"] = 1.0f; gen.params["Size.z"] = 1.0f;
   g.nodes.push_back(gen);
 

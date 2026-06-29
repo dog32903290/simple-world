@@ -27,9 +27,9 @@ void registerDrawPointOps();          // DrawPoints, DrawLines, DrawBillboards, 
 // Cook fns whose registrars wire them. cookRadialPoints lives in point_ops_radial.cpp;
 // cookParticleSim/cookDrawPoints in point_ops.cpp. simStateNew/Free are ParticleSystem state hooks.
 void cookRadialPoints(PointCookCtx& c);
-// Parity-gate -bug DRIVER flag (CPU latch, not a shader branch): when true cookRadialPoints re-bakes
-// the pre-gate constants so --selftest-radial-parity's injectBug leg flips RED. In point_ops_radial.cpp.
-bool& radialBakedBugForceForTest();
+// Parity-gate -bug DRIVER latches: re-bake pre-gate constants so the parity goldens' injectBug legs flip RED.
+bool& radialBakedBugForceForTest();  // point_ops_radial.cpp
+bool& gridBakedBugForceForTest();    // point_ops_gridpoints.cpp
 void cookParticleSim(PointCookCtx& c);  // force param-fill helpers in point_ops_forceparams.h
 RenderCommand cookDrawPoints(CmdCookCtx& c);
 void* simStateNew(MTL::Device* dev, MTL::Library* lib, uint32_t count);

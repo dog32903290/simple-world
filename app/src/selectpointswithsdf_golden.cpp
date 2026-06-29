@@ -83,6 +83,7 @@ int runSelectPointsWithSdfSelfTest(bool injectBug) {
   gen.params["Count"] = 64.0f;
   gen.params["CountX"] = 8.0f; gen.params["CountY"] = 8.0f; gen.params["CountZ"] = 1.0f;
   gen.params["SizeMode"] = 1.0f;  // Bounds: Size is TOTAL extent → grid spans ~[-0.5,0.44] in x,y (z=0)
+  gen.params["Scale"] = 1.0f;  // unit multiplier: Size below is the literal grid extent (param-completion fan-out added the Scale knob, .t3 default 0.1)
   gen.params["Size.x"] = 2.0f; gen.params["Size.y"] = 2.0f; gen.params["Size.z"] = 1.0f;
   g.nodes.push_back(gen);
 

@@ -11,7 +11,7 @@ const std::vector<NodeSpec>& generatorSpecs() {
   static const std::vector<NodeSpec> specs = {
       {"RadialPoints",
        "RadialPoints",
-       {{"points", "points", "Points", false},
+       [] { std::vector<PortSpec> p = {{"points", "points", "Points", false},
         // Defaults照 RadialPoints.t3: Count=100 (.t3:69), Radius=1.0 (.t3:65).
         {"Count", "Count", "Float", true, 100.0f, 16.0f, 8192.0f},
         {"Radius", "Radius", "Float", true, 1.0f, 0.1f, 10.0f},
@@ -55,20 +55,17 @@ const std::vector<NodeSpec>& generatorSpecs() {
         // F2 (Vector2) — FX2 = x + y·f. .t3:29 default (1,0)  ★not (0,0).
         {"F2.x", "F2", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 2},
         {"F2.y", "F2.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // Color (Vector4) — per-point color. .t3:36 default white.
-        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
-        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        // OrientationAxis (Vector3). .t3:7 default (0,0,1).
-        {"OrientationAxis.x", "OrientationAxis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
-        {"OrientationAxis.y", "OrientationAxis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        // OrientationAngle (degrees). .t3:88 default 0.0.
-        {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f},
-        // OrientationMode (enum). .t3:61 default 0 (Classic). Labels = OrientationModes enum order.
-        {"OrientationMode", "OrientationMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
-         {"Classic", "AlignedToCurvature"}}},
+        };
+        // Color(Vec4) + OrientationAxis(Vec3) + OrientationAngle — the shared attribute cluster
+        // (appendPointOrientationSpec, also used by GridPoints). RadialPoints.t3 OrientationAxis
+        // default (0,0,1). Byte-identical to the prior inline rows → pin indices unchanged.
+        const float axisDefault[3] = {0.0f, 0.0f, 1.0f};
+        appendPointOrientationSpec(p, axisDefault);
+        // OrientationMode (enum). .t3:61 default 0 (Classic) — RadialPoints-specific, appended after
+        // the shared cluster so the indices of every prior port stay put.
+        p.push_back({"OrientationMode", "OrientationMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+                     {"Classic", "AlignedToCurvature"}});
+        return p; }(),
        nullptr,
        "point.generate"},
       {"LinePoints",
@@ -95,27 +92,49 @@ const std::vector<NodeSpec>& generatorSpecs() {
        "point.generate"},
       {"GridPoints",
        "GridPoints",
-       {{"points", "points", "Points", false},
-        // Count = output buffer CAPACITY (host sets = CountX*CountY*CountZ; PointGraph::nodeCount
-        // sizes the bag from this single "Count" port). CountX/Y/Z below are the real grid dims.
-        {"Count", "Count", "Float", true, 100.0f, 1.0f, 65536.0f},
-        {"CountX", "CountX", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
-        {"CountY", "CountY", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
-        {"CountZ", "CountZ", "Float", true, 1.0f, 1.0f, 256.0f, Widget::Slider},
-        {"SizeMode", "SizeMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Cell", "Bounds"}},
-        // Size (TiXL Vector3) — per-axis extent (Cell: spacing, Bounds: total volume).
-        {"Size.x", "Size", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Size.y", "Size.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Size.z", "Size.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // Center (TiXL Vector3 TranslationInput) — translation added to every point.
-        {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
-        {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
-        // Pivot (TiXL Vector3) — grid anchor offset; 0 centers the grid on Center.
-        {"Pivot.x", "Pivot", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 3},
-        {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
-        {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
-        {"PointScale", "PointScale", "Float", true, 1.0f, 0.0f, 5.0f, Widget::Slider}},
+       // PARAM-COMPLETION GATE: GridPoints.cs has 16 [Input]s. Shape params were already wired; this
+       // fan-out adds the 8 baked TiXL inputs (Scale, Tiling, F1, F2, Color, OrientationAxis,
+       // OrientationAngle, W) so the inspector covers the .cs 1:1. Color/Orientation tail = the shared
+       // appendPointOrientationSpec helper. APPEND-ONLY (pin ids are index-based). Defaults cite .t3.
+       [] {
+         std::vector<PortSpec> p = {
+             {"points", "points", "Points", false},
+             // Count = output buffer CAPACITY (host sets = CountX*CountY*CountZ). CountX/Y/Z = grid dims.
+             {"Count", "Count", "Float", true, 100.0f, 1.0f, 65536.0f},
+             {"CountX", "CountX", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
+             {"CountY", "CountY", "Float", true, 10.0f, 1.0f, 256.0f, Widget::Slider},
+             {"CountZ", "CountZ", "Float", true, 1.0f, 1.0f, 256.0f, Widget::Slider},
+             {"SizeMode", "SizeMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"Cell", "Bounds"}},
+             // Size (TiXL Vector3) — per-axis extent (Cell: spacing, Bounds: total volume).
+             {"Size.x", "Size", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+             {"Size.y", "Size.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+             {"Size.z", "Size.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+             // Center (TiXL Vector3 TranslationInput) — translation added to every point.
+             {"Center.x", "Center", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+             {"Center.y", "Center.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+             {"Center.z", "Center.z", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+             // Pivot (TiXL Vector3) — grid anchor offset; 0 centers the grid on Center.
+             {"Pivot.x", "Pivot", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 3},
+             {"Pivot.y", "Pivot.y", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+             {"Pivot.z", "Pivot.z", "Float", true, 0.0f, -2.0f, 2.0f, Widget::Vec, {}, true, 1},
+             {"PointScale", "PointScale", "Float", true, 1.0f, 0.0f, 5.0f, Widget::Slider},
+             // ---- param-completion fan-out: the 8 baked TiXL inputs now exposed --------------
+             // Scale (.t3 default 0.1) — UNIFORM Size multiplier (.t3 ScaleVector3: shader Size = Size·Scale).
+             {"Scale", "Scale", "Float", true, 0.1f, 0.0f, 10.0f, Widget::Slider},
+             // Tiling (.t3 default 0=Cartesian). Other 3 branches still baked (Cartesian-only fork); knob for parity.
+             {"Tiling", "Tiling", "Float", true, 0.0f, 0.0f, 3.0f, Widget::Enum,
+              {"Cartesian", "Triangular", "HoneyCombs", "Diagonal"}},
+             // F1/F2 (TiXL Single → SwPoint.FX1/FX2). .t3 default 1.0 each (★not 0 — old kernel baked 0).
+             {"F1", "F1", "Float", true, 1.0f, -10.0f, 10.0f},
+             {"F2", "F2", "Float", true, 1.0f, -10.0f, 10.0f},
+         };
+         const float axisDefault[3] = {1.0f, 0.0f, 0.0f};  // GridPoints.t3 OrientationAxis default (1,0,0)
+         appendPointOrientationSpec(p, axisDefault);        // Color + OrientationAxis + OrientationAngle
+         // W (TiXL Single, .t3 default 1.0) — declared [Input] in GridPoints.cs but UNUSED by the .hlsl
+         // (no cbuffer field / no FloatsToBuffer wire). Faithful-dead knob, exposed for 1:1 [Input] parity.
+         p.push_back({"W", "W", "Float", true, 1.0f, -100.0f, 100.0f});
+         return p;
+       }(),
        nullptr,
        "point.generate"},
       {"SpherePoints",

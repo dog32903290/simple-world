@@ -32,14 +32,24 @@
 #endif
 
 namespace sw {
+
+// Parity-gate -bug latch (off in production). When true, cookGridPoints reverts the newly exposed
+// per-point attribute knobs (Color/F1/F2/Orientation) to the PRE-GATE baked constants — white,
+// FX1=FX2=0, identity rotation — reproducing the "knob not wired" deviation this gate closed. Used
+// by the GridPoints parity golden's injectBug leg so the attribute teeth flip RED. Declared in
+// point_ops.h. (Shape params CountX/Y/Z/Size/Center/Pivot were always wired — not re-baked here.)
+bool& gridBakedBugForceForTest() { static bool b = false; return b; }
+
 namespace {
 
 // GridPoints generator: writes a 3D grid of SwPoints. Counts per axis (scalar Float),
-// Size/Center/Pivot via cookVecN (vector params), SizeMode (Cell|Bounds) scalar.
+// Size/Center/Pivot via cookVecN (vector params), SizeMode (Cell|Bounds) scalar. PARAM-COMPLETION
+// GATE: Scale multiplier, F1/F2, Color, OrientationAxis/Angle now read from the NodeSpec.
 void cookGridPoints(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.lib) return;
   MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "gridpoints");
   if (!pso) return;
+  const bool baked = gridBakedBugForceForTest();
 
   GridParams P{};
   P.CountX = (uint32_t)std::lround(std::fmax(1.0f, cookParam(c, "CountX", 10.0f)));
@@ -54,9 +64,36 @@ void cookGridPoints(PointCookCtx& c) {
   cookVecN(c, "Size", size, 3, size);
   cookVecN(c, "Center", center, 3, center);
   cookVecN(c, "Pivot", pivot, 3, pivot);
-  P.SizeX = size[0]; P.SizeY = size[1]; P.SizeZ = size[2];
+  // Scale (.t3 default 0.1) is a UNIFORM multiplier on Size — the .t3 ScaleVector3 node feeds
+  // shader Size = Size_input * Scale. Apply it host-side so the kernel's `Size` is the product.
+  // Pre-gate, Scale was ABSENT (effective Size = Size, i.e. multiplier 1). The -bug latch re-bakes
+  // that so the Scale tooth flips RED too.
+  const float scaleMul = baked ? 1.0f : cookParam(c, "Scale", 0.1f);
+  P.SizeX = size[0] * scaleMul; P.SizeY = size[1] * scaleMul; P.SizeZ = size[2] * scaleMul;
   P.CenterX = center[0]; P.CenterY = center[1]; P.CenterZ = center[2];
   P.PivotX = pivot[0]; P.PivotY = pivot[1]; P.PivotZ = pivot[2];
+
+  // Per-point attributes (param-completion fan-out). Defaults cite GridPoints.t3.
+  P.FX1 = cookParam(c, "F1", 1.0f);  // .t3 default 1.0  ★not 0
+  P.FX2 = cookParam(c, "F2", 1.0f);  // .t3 default 1.0  ★not 0
+  float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};       // .t3 Color default white
+  cookVecN(c, "Color", color, 4, color);
+  P.ColorR = color[0]; P.ColorG = color[1]; P.ColorB = color[2]; P.ColorA = color[3];
+  float oAxis[3] = {1.0f, 0.0f, 0.0f};             // .t3 OrientationAxis default (1,0,0)
+  cookVecN(c, "OrientationAxis", oAxis, 3, oAxis);
+  P.OrientAxisX = oAxis[0]; P.OrientAxisY = oAxis[1]; P.OrientAxisZ = oAxis[2];
+  P.OrientAngle = cookParam(c, "OrientationAngle", 0.0f);  // .t3 default 0.0
+  // W (TiXL GridPoints.cs [Input], .t3 default 1.0) is read for inspector/param parity but is a
+  // dead input in TiXL itself (no .hlsl cbuffer field / no FloatsToBuffer wire) — consumed nowhere.
+  (void)cookParam(c, "W", 1.0f);
+
+  if (baked) {
+    // Re-bake the pre-gate attribute constants: the kernel wrote white/0/identity before the gate.
+    P.FX1 = 0.0f; P.FX2 = 0.0f;
+    P.ColorR = P.ColorG = P.ColorB = P.ColorA = 1.0f;  // white
+    // Identity rotation: qFromAngleAxis(0, +Z) = (0,0,0,1). Axis +Z, angle 0 reproduces it.
+    P.OrientAxisX = 0.0f; P.OrientAxisY = 0.0f; P.OrientAxisZ = 1.0f; P.OrientAngle = 0.0f;
+  }
 
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();
@@ -124,6 +161,7 @@ int runGridPointsSelfTest(bool injectBug) {
   gen.params["CountY"] = (float)NY;
   gen.params["CountZ"] = (float)NZ;
   gen.params["SizeMode"] = 0.0f;  // Cell
+  gen.params["Scale"] = 1.0f;     // unit multiplier so effective spacing == Size (test pins Size directly)
   gen.params["Size.x"] = injectBug ? 0.0f : SX;  // bug: zero spacing -> grid collapses
   gen.params["Size.y"] = injectBug ? 0.0f : SY;
   gen.params["Size.z"] = 1.0f;

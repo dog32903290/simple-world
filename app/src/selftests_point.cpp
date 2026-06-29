@@ -120,6 +120,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"pointtrail", runPointTrailSelfTest},          // ★cross-frame 3-pass trail: Collect ring persists across frames, Copy emits newest-first
     {"growstrains", runGrowStrainsSelfTest},        // 2-input cartesian product + GrowthMap texture; per-frame transform vs formula
     {"radial-parity", runRadialPointsParitySelfTest},  // ★PARITY-GATE Stage-1 pilot: RadialPoints production defaults vs TiXL .t3 (RED-first template)
+    {"grid-parity", runGridPointsParitySelfTest},  // ★PARITY-GATE param-completion fan-out #2: GridPoints attribute knobs Color/F1/F2/Orientation/Scale (RED-first)
     {"turbulence-parity", runTurbulenceParitySelfTest},  // ★PARITY-GATE Stage-1: TurbulenceForce 15× amplitude tooth + Phase=wall-clock determinism probe (RED-first)
     {"directionalforce-parity", runDirectionalForceParitySelfTest},  // ★PARITY-GATE Stage-3 Force-class first: DirectionalForce NodeSpec-default cook-through vs TiXL .t3 Amount=0.007 + closed-form kernel-vel (补验证闸, already-faithful)
     {"axisstep-parity", runAxisStepForceParitySelfTest},  // Stage-3 Force: AxisStepForce CREATE-vel T2 cook-through 守 NodeSpec SelectRatio=0.1
