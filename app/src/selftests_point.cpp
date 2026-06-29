@@ -127,5 +127,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"snaptoanglesforce-parity", runSnapToAnglesForceParitySelfTest},  // Stage-3 Force: SnapToAnglesForce TRANSFORM; cook no-op 契約, NodeSpec discrim direct-kernel (cook-through-NodeSpec DEFERRED seam)
     {"fielddistanceforce-parity", runFieldDistanceForceParitySelfTest},  // Stage-3 Force: FieldDistanceForce TRANSFORM baked no-field no-op 契約 (wired-SDF DEFERRED)
     {"fieldvolumeforce-parity", runFieldVolumeForceParitySelfTest},  // Stage-3 Force: FieldVolumeForce TRANSFORM baked no-field no-op 契約 (wired-SDF DEFERRED)
+    {"drawpoints-parity", runDrawPointsParitySelfTest},  // ★PARITY-GATE 修偏差: DrawPoints v1 退化4px死點 → DrawKind::Points2 quad-sprite + PointSize/Color cook-through (RED-first 雙牙; -bug 復活4px死點)
 );
 }  // namespace sw

@@ -363,7 +363,9 @@ int runRepeatAtPointsProductionSelfTest(bool injectBug) {
     if (withTarget) g.connections.push_back({101, pinId(2, sphOut), pinId(3, rapTgtIn)});  // target (bug drops)
     if (withRender) {
       Node draw; draw.id = 4; draw.type = "DrawPoints";
-      draw.params["Radius"] = 0.05f; draw.params["Color.x"] = 1.0f; draw.params["Color.y"] = 1.0f;
+      // PointSize is DrawPoints' v1 size knob (DrawPoints.t3; Radius is DrawPoints2's). 1.5 → visible
+      // sprite (the .t3 default 0.1 is ~1px, too small for the lit probe).
+      draw.params["PointSize"] = 1.5f; draw.params["Color.x"] = 1.0f; draw.params["Color.y"] = 1.0f;
       draw.params["Color.z"] = 1.0f; draw.params["Color.w"] = 1.0f;  // white points
       g.nodes.push_back(draw);
       Node rt; rt.id = 5; rt.type = "RenderTarget";

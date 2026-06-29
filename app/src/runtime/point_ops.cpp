@@ -67,10 +67,44 @@ void cookRadialPoints(PointCookCtx& c) {
 // render pass/pipeline moved to cookRenderTarget). This is TiXL's DrawPoints: Slot<Command>
 // out, not pixels. viewExtent is the camera half-extent (== ParticleSystem kRadius*1.75);
 // it becomes a DrawPoints param in batch 3's draw-param family.
+// Parity-gate -bug latch (off in production). When true, cookDrawPoints reverts to the pre-fix
+// degenerate DrawKind::Points 4px dead point — used by --selftest-drawpoints-parity's -bug leg to
+// re-introduce the deviation. Declared in render_command.h.
+bool& drawPointsBugForceV1ForTest() { static bool b = false; return b; }
+
 RenderCommand cookDrawPoints(CmdCookCtx& c) {
   RenderCommand rc;
-  if (c.points && c.count > 0)
-    rc.items.push_back(RenderDrawItem{c.points, c.count, 3.5f});
+  if (!c.points || c.count == 0) return rc;
+
+  // -bug latch (parity-gate regression only): revert to the pre-fix degenerate DrawKind::Points 4px
+  // dead point (no PointSize, no Color tint). Off in production.
+  if (drawPointsBugForceV1ForTest()) {
+    rc.items.push_back(RenderDrawItem{c.points, c.count, 3.5f});  // DrawKind::Points (default)
+    return rc;
+  }
+
+  // TiXL DrawPoints (DrawPoints.cs/.hlsl) draws each Point as a screen-facing QUAD SPRITE — the SAME
+  // shader as DrawPoints2 (DrawPoints.hlsl Corners). So v1 rides DrawKind::Points2 (draw_points2.metal)
+  // wired to v1's OWN params: PointSize feeds the shader PointSize DIRECTLY (.t3 default 0.1; NO ×10.8
+  // — that ×10.8 is DrawPoints2's Radius→Multiply chain, a DrawPoints2-only fork), Color tints
+  // (Color×Point.Color), ScaleFactor==F1(1) → the per-point W (FX1) scales each sprite (ScaleFX==1 path;
+  // .t3 default None(0) → no W-factor). The v1 DrawKind::Points 4px path stays compiled (the -bug latch)
+  // but is dead in production.
+  //   FORKS (named, DEFERRED): UsePointsScale (.t3 default true) — the per-point Scale.xy stretch
+  //   (DrawPoints.hlsl quadPos*Scale): draw_points2.metal does NOT read Scale.xy (same fork as the
+  //   existing DrawPoints2 op). AlphaCutOff discard, FadeNearest (camera-Z fade), EnableZWrite/ZTest,
+  //   the Texture_ sprite atlas (asset-bind seam not built → flat square, no round-dot mask), ColorField,
+  //   and the camera/Transforms cbuffer are all dropped (sw's camera-less baked-ortho fork class). The
+  //   BlendMode param is carried on the NodeSpec but the executor's Points2 case draws alpha-over
+  //   (Normal); Additive routing for Points2 is deferred (the .t3 default is Normal(0)).
+  RenderDrawItem it{c.points, c.count, 3.5f};
+  it.kind = DrawKind::Points2;
+  float white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+  cookVecN(c, "Color", white, 4, it.color);                       // TiXL Color (.t3 white) × Point.Color
+  it.size = cookParam(c, "PointSize", 0.1f);                      // → shader PointSize DIRECTLY (.t3 0.1, no ×10.8)
+  it.useWForSize = cookParam(c, "ScaleFactor", 0.0f) >= 0.5f &&   // ScaleFactor==F1(1) → scale by W(FX1)
+                   cookParam(c, "ScaleFactor", 0.0f) < 1.5f;      // (.t3 default None(0) → no W-factor)
+  rc.items.push_back(it);
   return rc;
 }
 

@@ -411,7 +411,7 @@ int runDrawScreenQuadWiredSelfTest(bool injectBug) {
   Graph g;
   Node gen; gen.id = 1; gen.type = "RadialPoints";
   gen.params["Count"] = 128.0f; gen.params["Radius"] = 2.0f; g.nodes.push_back(gen);
-  Node drw; drw.id = 2; drw.type = "DrawPoints"; g.nodes.push_back(drw);
+  Node drw; drw.id = 2; drw.type = "DrawPoints"; drw.params["PointSize"] = 1.5f; g.nodes.push_back(drw);  // faithful sprite (.t3 0.1 ~1px too small for the gathered-tex probe)
   Node srcRT; srcRT.id = 3; srcRT.type = "RenderTarget";
   srcRT.params["Resolution"] = 4.0f;  // Custom
   srcRT.params["CustomW"] = (float)RW; srcRT.params["CustomH"] = (float)RH; g.nodes.push_back(srcRT);

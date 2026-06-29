@@ -13,11 +13,27 @@ const std::vector<NodeSpec>& drawTransformSpecs();
 const std::vector<NodeSpec>& drawSpecs() {
   static const std::vector<NodeSpec> specs = [] {
     std::vector<NodeSpec> base = {
-      // DrawPoints (TiXL Slot<Command> out): points bag in -> a render Command out. The Command
-      // output wires into a RenderTarget, which executes it into a Texture2D.
+      // DrawPoints (TiXL Lib.point.draw.DrawPoints → DrawPoints.hlsl): points bag in -> a render
+      // Command out (wires into a RenderTarget). Draws each Point as a screen-facing QUAD SPRITE sized
+      // by PointSize (the SAME DrawPoints.hlsl shader as DrawPoints2; sw rides DrawKind::Points2 — see
+      // cookDrawPoints). Params mirror DrawPoints.t3 DefaultValue: PointSize=0.1, Color(Vec4)=white,
+      // ScaleFactor=None(0) (F1 → scale sprite by W=FX1), BlendMode=Normal(0). FORK (named): camera/
+      // Transforms/Fog/FadeNearest/AlphaCutOff/EnableZWrite/EnableZTest + the Texture_ sprite atlas
+      // (asset-bind seam not built → flat square, no round-dot mask) + ColorField + UsePointsScale's
+      // per-point Scale.xy stretch (draw_points2.metal doesn't read Scale.xy, same fork as DrawPoints2)
+      // are dropped (sw's camera-less baked-ortho fork class).
       {"DrawPoints", "DrawPoints",
        {{"points", "points", "Points", true},
-        {"out", "out", "Command", false}},
+        {"out", "out", "Command", false},
+        {"PointSize", "PointSize", "Float", true, 0.1f, 0.0f, 10.0f},
+        {"Color.x", "Color", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"Color.y", "Color.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.z", "Color.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Color.w", "Color.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ScaleFactor", "ScaleFactor", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"None", "F1", "F2"}, true},
+        {"BlendMode", "BlendMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Normal", "Additive"}, true}},
        nullptr,
        "point.draw"},
       // DrawLines (TiXL Lib.point.draw.DrawLines): connects the point bag into a polyline —

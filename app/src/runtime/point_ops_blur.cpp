@@ -231,7 +231,7 @@ int runBlurChainSelfTest(bool injectBug) {
   Graph g;
   Node gen; gen.id = 1; gen.type = "RadialPoints";
   gen.params["Count"] = (float)N; gen.params["Radius"] = 2.0f; g.nodes.push_back(gen);
-  Node drw; drw.id = 2; drw.type = "DrawPoints"; g.nodes.push_back(drw);
+  Node drw; drw.id = 2; drw.type = "DrawPoints"; drw.params["PointSize"] = 1.5f; g.nodes.push_back(drw);  // faithful sprite (.t3 0.1 ~1px too small for blur probe)
   Node rt; rt.id = 3; rt.type = "RenderTarget";
   rt.params["Resolution"] = 4.0f;  // Custom
   rt.params["CustomW"] = (float)RW; rt.params["CustomH"] = (float)RH; g.nodes.push_back(rt);

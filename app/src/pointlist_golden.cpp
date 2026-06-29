@@ -258,7 +258,7 @@ int runPointListSelfTest(bool injectBug) {
     r.params["Count"] = (float)ringCount; r.params["Radius"] = kRadius; r.params["W"] = 1.0f;
     g.nodes.push_back(r);
     Node ltb; ltb.id = 2; ltb.type = "ListToBuffer"; g.nodes.push_back(ltb);
-    Node drw; drw.id = 3; drw.type = "DrawPoints"; g.nodes.push_back(drw);
+    Node drw; drw.id = 3; drw.type = "DrawPoints"; drw.params["PointSize"] = 1.5f; g.nodes.push_back(drw);  // PointSize=1.5: faithful sprite (.t3 0.1 ~1px too small for lit probe)
     Node rt; rt.id = 4; rt.type = "RenderTarget";
     rt.params["Resolution"] = 4.0f;  // Custom
     rt.params["CustomW"] = (float)RW; rt.params["CustomH"] = (float)RH; g.nodes.push_back(rt);
@@ -393,7 +393,7 @@ int runPointListSelfTest(bool injectBug) {
     lr.params["Offset.x"] = 3.0f; lr.params["Offset.y"] = 0.0f; lr.params["Offset.z"] = 0.0f;
     gp.nodes.push_back(lr);
     Node ltb; ltb.id = 2; ltb.type = "ListToBuffer"; gp.nodes.push_back(ltb);
-    Node drw; drw.id = 3; drw.type = "DrawPoints"; gp.nodes.push_back(drw);
+    Node drw; drw.id = 3; drw.type = "DrawPoints"; drw.params["PointSize"] = 1.5f; gp.nodes.push_back(drw);  // PointSize=1.5: faithful sprite (.t3 0.1 ~1px too small for lit probe)
     Node rt; rt.id = 4; rt.type = "RenderTarget";
     rt.params["Resolution"] = 4.0f; rt.params["CustomW"] = (float)RW; rt.params["CustomH"] = (float)RH;
     gp.nodes.push_back(rt);
@@ -497,7 +497,7 @@ int runPointListSelfTest(bool injectBug) {
     gp.nodes.push_back(dst);
     Node rep; rep.id = 3; rep.type = "RepeatAtPointsCpu"; gp.nodes.push_back(rep);
     Node ltb; ltb.id = 4; ltb.type = "ListToBuffer"; gp.nodes.push_back(ltb);
-    Node drw; drw.id = 5; drw.type = "DrawPoints"; gp.nodes.push_back(drw);
+    Node drw; drw.id = 5; drw.type = "DrawPoints"; drw.params["PointSize"] = 1.5f; gp.nodes.push_back(drw);  // PointSize=1.5: faithful sprite (.t3 0.1 ~1px too small for lit probe)
     Node rt; rt.id = 6; rt.type = "RenderTarget";
     rt.params["Resolution"] = 4.0f; rt.params["CustomW"] = (float)RW; rt.params["CustomH"] = (float)RH;
     gp.nodes.push_back(rt);

@@ -71,7 +71,10 @@ void buildBlockGraph(Graph& g, uint32_t RS, int agId) {
   Node gen; gen.id = 1; gen.type = "RadialPoints";
   gen.params["Count"] = 96.0f; gen.params["Radius"] = 0.22f;  // small centered cluster (a block)
   g.nodes.push_back(gen);
-  Node drw; drw.id = 2; drw.type = "DrawPoints"; g.nodes.push_back(drw);
+  // DrawPoints now draws faithful PointSize-sized quad sprites (TiXL DrawPoints.hlsl); the .t3 default
+  // 0.1 is ~1px. Bump PointSize so the 96-pt cluster has a visible footprint for the AfterGlow probe
+  // (the subject under test is the glow/decay, not the sprite size — DrawPoints parity has its own gate).
+  Node drw; drw.id = 2; drw.type = "DrawPoints"; drw.params["PointSize"] = 1.5f; g.nodes.push_back(drw);
   Node rt; rt.id = 3; rt.type = "RenderTarget";
   rt.params["Resolution"] = 4.0f; rt.params["CustomW"] = (float)RS; rt.params["CustomH"] = (float)RS;
   g.nodes.push_back(rt);

@@ -304,4 +304,13 @@ void execRepeatedlyRunRepetitions(int count, RenderCommand& out,
 // Defined in point_ops_execrepeatedly.cpp.
 bool& execRepeatedlyBugRunOnceForTest();
 
+// DrawPoints (v1) -bug DRIVER flag (the parity-gate regression latch): when true, cookDrawPoints
+// reverts to emitting the DEGENERATE DrawKind::Points 4px dead point (the pre-fix deviation: no
+// PointSize response, no Color tint) instead of the faithful DrawKind::Points2 quad sprite. So
+// --selftest-drawpoints-parity's -bug leg re-introduces the deviation → the PointSize + tint teeth go
+// RED. OFF in production (zero behaviour change — the cook always emits the faithful Points2 sprite).
+// A CPU DRIVER flag, NOT a shader bug-branch (constitution rule); read by cookDrawPoints. Defined in
+// point_ops.cpp.
+bool& drawPointsBugForceV1ForTest();
+
 }  // namespace sw

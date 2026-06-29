@@ -355,6 +355,7 @@ add_executable(simple_world
   src/snaptoangles_force_parity_golden.cpp  # Stage-3 Force: SnapToAnglesForce TRANSFORM cook no-op + direct-kernel NodeSpec discrim (--selftest-snaptoanglesforce-parity)
   src/fielddistance_force_parity_golden.cpp  # Stage-3 Force: FieldDistanceForce TRANSFORM baked no-field no-op 契約 (--selftest-fielddistanceforce-parity)
   src/fieldvolume_force_parity_golden.cpp  # Stage-3 Force: FieldVolumeForce TRANSFORM baked no-field no-op 契約 (--selftest-fieldvolumeforce-parity)
+  src/drawpoints_parity_golden.cpp  # ★PARITY-GATE 修偏差: DrawPoints v1 退化4px死點 → DrawKind::Points2 quad-sprite + PointSize/Color cook-through (--selftest-drawpoints-parity, RED-first PointSize+tint 雙牙)
   src/field_paramapply_golden.cpp
   src/field_paramapply_cases.cpp
   src/field_paramapply_enumcases.cpp
