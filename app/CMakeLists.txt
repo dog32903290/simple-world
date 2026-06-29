@@ -561,6 +561,8 @@ add_executable(simple_world
   src/runtime/buffer_ops_floatstobuffer.cpp      # FloatsToBuffer (keystone: host floats → GPU buffer, matrix-then-float fill)
   src/runtime/buffer_ops_getbuffercomponents.cpp # GetBufferComponents (metadata read-out + Buffer passthrough)
   src/runtime/buffer_ops_executebufferupdate.cpp # ExecuteBufferUpdate (run Command, forward Buffer unchanged)
+  src/runtime/buffer_ops_intstobuffer.cpp        # IntsToBuffer (host ints → GPU buffer, 16-byte-padded int32 slices)
+  src/runtime/buffer_ops_getsrvproperties.cpp    # GetSRVProperties (Buffer passthrough + element-count read-out, thin GetBufferComponents sibling)
   src/runtime/gradient_op_registry.cpp
   src/runtime/gradient_ops_definegradient.cpp
   src/runtime/gradient_ops_pickgradient.cpp
