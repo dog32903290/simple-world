@@ -118,3 +118,25 @@ mesh 在 `mesh/generate/`、image 在 `image/fx/{distort,stylize,...}`。`cs_for
 ### 工單 C（image resolution-trio 排除）
 與既有 grid-`Count` 排除同形。`dumpNodeSpec` 對 port id ∈ {Resolution,CustomW,CustomH}（或宣告處打
 synthetic flag）給 `role="output-format synthetic"` + `continue` 不計數 → image 島 `sw=tixl+3` 假 EXTRA 歸零。
+
+---
+
+## ★閘擴後 fan-out 目標 ground-truth（2026-06-29 scout，難度排序）
+
+**★★承重發現：剩餘大宗 param-completion 不是逐顆 leaf，是兩條共享 seam 卡住**——
+排 seam-build 先，3/4 顆才變乾淨 fan-out：
+- **PF-0d float4x4 param-spine**：現 float-spine `map<string,float>` 載不動矩陣 → 凡需 matrix 的 param
+  全卡（TransformField 全 5 顆）。
+- **render-state + texture-asset-bind infra**：pipeline-state（rasterizer/depth/blend）+ Texture2D
+  sampler 綁定，是 codebase-wide infra gap（DrawPoints/Lines/ScreenQuad/DrawMeshUnlit 共享延後）。
+
+| 節點 | 缺 | 乾淨/卡 | 下批序 |
+|---|---|---|---|
+| **RaymarchField** | 6（Color/TextureScale/NormalSamplingD/SpecularAA/WriteDepth/UVMapping） | 5 乾淨（騎現有 FloatsToBuffer float-pack pipe，MaxSteps 等已證）+ UVMapping 輕 #define-seam | **① 先採**（最高乾淨產出、零新 seam，UVMapping 那顆延後） |
+| **RenderTarget** | 6（Clear/GenerateMips/EnableUpdate 乾淨；Multisampling/TextureFormat/WithDepth/WithNormalBuffer 卡） | 3 toggle 乾淨（gate 既有機制）+ 餘卡 texture-alloc/MSAA-resolve/multi-attach seam | **② split-node**：先採 3 toggle，餘延後 |
+| **TransformField** | 5（Translation/Rotation/Scale/Shear/Pivot 全 Vec3，純 host input 無中間 routing） | 單一 seam：T/R/S/Shear/Pivot→float4x4（TiXL transpose+invert+yaw/pitch/roll 序）+ **PF-0d float4x4 param-apply** | **③ 等 PF-0d**（self-contained 但卡 param-spine） |
+| **DrawMeshUnlit** | 11（BlendMode/FillMode/Culling/ZTest/ZWrite/Texture/UseCubeMap/AlphaCutOff/BlurLevel/TextureWrap/UseVertexColor） | 跨兩條共享 seam：render-state（5）+ texture-asset-bind（6） | **④ 等 shared seam**（最重，與 Draw* 家族同解鎖） |
+
+routing 註：TransformField/RenderTarget 的 .t3 都 empty Children/Connections=純 host input 無中間節點
+（無 silent routing trap，trap 在 matrix 數學）；RaymarchField/DrawMeshUnlit 的缺 param 多經
+FloatsToBuffer/BlendColors/RasterizerState 子節點 routing（補時 backward-trace）。
