@@ -65,7 +65,11 @@ Graph defaultParticleGraph() {
   // (DrawPoints.t3) is 0.1 ≈ 1px. This curated SCENE picks a visible PointSize so the default particle
   // preview reads on screen (a scene param, exactly as 柏為 would dial it — the .t3 node default is
   // untouched). [Y] 觀感: the default preview点 is a sized sprite quad now, not the old 4px dead point.
-  { Node dp = makeNode(7, "DrawPoints", 560, 50); dp.params["PointSize"] = 1.5f; g.nodes.push_back(dp); }
+  // ★PointSize=0.4 not 1.5 (柏為 2026-06-29 fps regression): scene has ~18000 particles (RadialPoints
+  // Count=100 × pool kPoolLifeFrames=180); each is a quad sprite with alpha blend, fill ∝ PointSize².
+  // 1.5 → ~51×51px sprites × 18000 = ~47M px/frame overdraw = 30fps fill-bound. 0.4 keeps sprites
+  // visible (~14×14px) at 60fps. (TiXL 預設場景的真實 PointSize 待對 Windows TiXL reference;此為折衷.)
+  { Node dp = makeNode(7, "DrawPoints", 560, 50); dp.params["PointSize"] = 0.4f; g.nodes.push_back(dp); }
   // AudioReaction present but UNWIRED: 柏為 drags level -> a knob (e.g. via Multiply) to
   // map sound to it. No hidden auto-drive — the wire is his to make and to see.
   g.nodes.push_back(makeNode(8, "AudioReaction", 20, 300));
