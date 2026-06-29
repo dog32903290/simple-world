@@ -14,11 +14,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 46146b9
+HEAD: b0845d4
 DIRTY: 1 files
 CENSUS: 461 / 749 done
-BITE: 527 PASS
-STAMP_AT: 2026-06-29T13:05
+BITE: 528 PASS
+STAMP_AT: 2026-06-29T13:44
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -29,9 +29,9 @@ STAMP_AT: 2026-06-29T13:05
 **parity-gate retrofit〔進行中，柏為 02:38 第一優先〕— 主體 ✅（Radial/Turbulence/DrawPoints 修 + Force 6 + transform 7 確認）。★第三維度 param 補全（柏為 11:40 開，inspector 旋鈕完整性=「sw NodeSpec param 數對齊 TiXL .cs [Input] 數」）進行中：**
 - **fan-out 基建 ✅（`eb909ff`）**：拆 generator table（400→168+extra，ratchet 降 180）+ `--dump-nodespec <type>` CLI（folded logical count）+ `tools/nodespec_integrity.sh`（sw FOLDED vs TiXL grep [Input]，自動完整性閘抓漏特製 param）。
 - **三顆補完**：RadialPoints（`4082e6f`，★接管另一 session 並行寫的半成品+審查+補完，撞車解決）/GridPoints（`0be5919`，共通 attr 基建 `appendPointOrientationSpec` 抽出）/LinePoints（`46146b9`，18==18，雙色 lerp+11 param，主戰場）。每顆完整性閘綠+golden red-first+refuter SURVIVES。--bite→527。
-- **★閘掃 13 generator 真實缺口只 3 顆**（推翻「~18 顆都缺一堆」）：已收 LinePoints；剩 **HexGridPoints −1（Scale baked，補）/PointsOnMesh −1（IsEnabled 具名 FORK，判 faithful-dead or 補）**；其餘 10 已齊。
-- **★fan-out 工法（範式 3 顆已穩）**：套共通基建（Color+Orientation 小尾巴，別過度抽象）→ 逐顆對 .cs 補特有 param（APPEND-ONLY，pin id port-index based）→ backward-trace .t3 routing（防 silent parity-wrong，如 GridPoints Scale 經 ScaleVector3）→ `nodespec_integrity.sh` 閘綠 → golden red-first → 親驗+refuter+commit。值來源:.t3 default+.hlsl 公式為主，.var preset/examples 真實值為 bonus（稀疏）。
-- **下一步**：收 2 顆小 generator → 擴完整性閘掃其他島（image/field/draw/force）看全 749 缺口全景。
+- **★generator 島 param-completion 完整（13/13 閘綠，`b0845d4` 收尾）**：HexGridPoints 補 Scale（第 11 [Input]，.t3 ScaleVector3 → Result=Size·Scale routing）；PointsOnMesh IsEnabled=named FORK（通用 flow/Execute skip-GPU-pass 開關 guid d68b5569 跨 49 op 共用，非節點特有 → `known_fork_count()` 逐節點 hardcoded case）。red-first 證牙+Opus refuter 兩處 SURVIVES。--bite→528。
+- **★fan-out 工法（範式已穩）**：套共通基建（Color+Orientation 小尾巴，別過度抽象）→ 逐顆對 .cs 補特有 param（APPEND-ONLY，pin id port-index based）→ backward-trace .t3 routing（防 silent parity-wrong，如 GridPoints Scale 經 ScaleVector3）→ `nodespec_integrity.sh` 閘綠 → golden red-first（cook-through production NodeSpec）→ 親驗+refuter+commit。值來源:.t3 default+.hlsl 公式為主，.var preset/examples 真實值為 bonus（稀疏）。
+- **★跨島偵察完成 → 缺口地圖 `docs/agent/census/PARAM_COMPLETION_MAP.md`（選批 SSOT）**：其他島主流是 `sw>TiXL` EXTRA，**兩種成因要分開**——成因 A（image）resolution trio 是真 baked output-format 慣例非缺口；成因 B（field/mesh）是 `--dump-nodespec` Vec fold bug 假 EXTRA。**閘擴多島前必先修 fold bug（工單 D）**。真缺口序：flow Set*Var 族（最密 6/14）→ ParticleSystem -11（卡柏為 pool-fork）。
 - **剩餘卡柏為**：ParticleSystem [?]（MaxParticleCount pool fork）+ PointToMatrix（latent-risk/cook-core）+ 3 個 [Y] 待驗收（見佇列）。可選增強:DrawPoints default-guard/velocity-seed/RandomJump。
 工單＝`docs/agent/PARITY_GATE_PLAN.md`。**
 - **本批 `[G][Y]`（`25946ae`）**：建有狀態節點 parity-golden 模板（`app/src/parity_golden_harness.h`：ParityHarness+ParityReport，固定場景 cook→CPU readback→對 TiXL 公式手算斷言+injectBug tooth）+ 修 RadialPoints（Count 2048→100/Radius 2→1）、TurbulenceForce（Amount 15→1/Freq 1.2→1/**Phase 解綁 wall-clock→inspector param 預設0**，修離線 render 決定性）到 TiXL parity。red-first 三態證牙（no-bug GREEN / injectBug RED / 注入舊偏差 RED）。
@@ -70,9 +70,11 @@ STAMP_AT: 2026-06-29T13:05
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
-**★★接力（柏為 02:38 parity-gate 第一優先，進行中）：執行 `docs/agent/PARITY_GATE_PLAN.md` 續做。Stage 1 模板+harness ✅、Stage 3 前兩顆 RadialPoints/TurbulenceForce ✅（`25946ae`）。下一批＝① Stage 2 裝閘（把有狀態節點清單 ratchet 進 --bite/check-arch：沒 parity-golden 又沒標 deferred = 紅燈，仿 linecount-grandfather）② Stage 3 fan-out 其餘。每顆 golden 務必 cook-through production NodeSpec（新鐵律，否則假綠洗白）。**
+**★★接力（param-completion fan-out，進行中）：generator 島 ✅完整（13/13 閘綠，`b0845d4`）。跨島缺口地圖已建＝`docs/agent/census/PARAM_COMPLETION_MAP.md`（選批 SSOT，含優先序+閘擴充工單 A-D）。下一批兩條：① 閘擴多島——`tools/nodespec_integrity.sh` 現只懂 generator 島，先做工單 D（修 `--dump-nodespec` 的 field/mesh Vec3 fold bug，否則掃 field/mesh 全假紅、閘失信號），再 A（island .cs 子樹解析）+ C（image resolution-trio 排除）。② 真缺口 fan-out：flow Set*Var 族先（最密 6/14，context-var 通道完整性，小顆解鎖高，SetIntVar -3 含 LogLevels 通道）。ParticleSystem -11 解鎖最多但卡柏為 pool-recycle fork 拍板。每顆 golden cook-through production NodeSpec（鐵律，否則假綠洗白）。**
 
-下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位。HEAD `25946ae`，--bite 518，census 461/749（61%）。**★狀態：parity-gate Stage1+前兩顆收。零未 commit。**
+下個 `/sw-batch` 開頭先跑 `tools/sw_status.sh` 定位（HEAD/bite/census 看機器塊，勿信此處手打）。**★狀態：generator 島 param-completion 完整收尾，跨島地圖已建。零未 commit。**
+- **4 顆 SW_UNKNOWN 待查**（census done 但 `--dump-nodespec` 回空＝沒進 NodeSpec registry）：EdgeRepeat/PolarCoordinates/Steps/Switch——param 完整性閘看不到它們，需單獨查是否走非 NodeSpec 路徑（見 MAP §SW_UNKNOWN）。
+- **PARITY_GATE_PLAN.md 殘餘**（有狀態重節點，與 param-completion 不同軸）：Stage 2 裝閘（有狀態節點清單 ratchet）尚未做；Force/point-render 可手算 golden、ParticleSystem host-cut input、DrawPoints pixel-deferred 仍在 §清單。
 - **fan-out 待採（PARITY_GATE_PLAN §清單）**：ParticleSystem（integrator 已忠實，修 host 砍掉的 input；**MaxParticleCount/IsAutoCount pool fork 是 `[?]` 需柏為拍板留不留**）、DrawPoints（換 DrawPoints2 quad 實作，緊性質探針；**純像素 reference = `pixel-deferred-windows`**）、各 Force（FieldDistance/FieldVolume/RandomJump/AxisStep/SnapToAngles/VectorField）、point/render 可手算（MoveToSDF/PointToMatrix/SnapPointsToGrid/TransformFromClipSpace/DoyleSpiralPoints2/Transform/Shear/RotateAroundAxis）。
 - **Stage 2 裝閘時補一條閘**：下游 golden 不准依賴 cook fallback default，共用場景參數必須顯式 pin（本批 particlefield_probe 隱性耦合就是缺這道閘才漏）。
 - **parity-gate 做完再回 OBJ/menu lane**：OBJ 續採（LoadObj/WriteToFile/DataPointImportExport）、menu-bar checkmark 已補（`701b2a1`）、chip `task_7c964566`（obj_parse CRLF/負索引 refute）。
