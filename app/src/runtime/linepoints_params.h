@@ -8,10 +8,12 @@
 // RadialParams discipline in particle_params.h. Padded to a 16-byte multiple +
 // static_assert.
 //
-// TiXL Vector/enum inputs NOT ported (baked to TiXL defaults in linepoints.metal,
-// see parityNotes): ColorA/ColorB (Color = white), the two Orientation modes +
-// OrientationAxis/Angle/Twist (Rotation = identity quat), F1/F2 (FX1/FX2 = 0),
-// AddSeparator (false), W/WOffset (unused in the .hlsl — commented out there too).
+// PARAM-COMPLETION GATE: the full TiXL [Input] set is now wired. ColorA/ColorB (Color =
+// lerp(ColorA,ColorB,f1)), the two Orientation modes (UsingUpVector qLookAt / Simple
+// qFromAngleAxis) + OrientationAxis/Angle/Twist, F1/F2 (FX1/FX2 = x + y·f1), AddSeparator
+// (last point NaN-scale terminator + step span shrink) are real struct members the cook
+// fills from the NodeSpec and the kernel reads. W/WOffset stay UNUSED — they are commented
+// out in the .hlsl too (no cbuffer field, no ResultPoints[i].W write): faithful-dead.
 #pragma once
 
 #ifdef __METAL_VERSION__
@@ -40,9 +42,39 @@ struct LineParams {
   float GainBiasY;      // TiXL GainAndBias.y (bias)
   float ScaleBase;      // TiXL Scale/PointSize.x — base point scale
   float ScaleByF;       // TiXL Scale/PointSize.y — scale * normalized index (f1)
-  float _pad0;
-  float _pad1;
-  float _pad2;          // -> 64 bytes (16-byte multiple, like RadialParams)
+  // ---- param-completion fan-out: per-point attribute inputs (were baked) -----------------
+  float FX1Base;        // TiXL F1.x — FX1 = F1.x + F1.y·f1.  .t3 default (1,0)
+  float FX1ByF;         // TiXL F1.y
+  float FX2Base;        // TiXL F2.x — FX2 = F2.x + F2.y·f1.  .t3 default (1,0)
+  float FX2ByF;         // TiXL F2.y
+  float ColorAR;        // TiXL ColorA (Vector4) — Color = lerp(ColorA,ColorB,f1). .t3 white
+  float ColorAG;
+  float ColorAB;
+  float ColorAA;
+  float ColorBR;        // TiXL ColorB (Vector4). .t3 white
+  float ColorBG;
+  float ColorBB;
+  float ColorBA;
+  float Twist;          // TiXL Twist (degrees) — angle += Twist·f.  .t3 default 0
+  float OrientationAngle;  // TiXL OrientationAngle (degrees).  .t3 default 0
+  float OrientAxisX;    // TiXL OrientationAxis (Vector3, Simple mode). .t3 default (0,0,1)
+  float OrientAxisY;
+  float OrientAxisZ;
+#ifdef __METAL_VERSION__
+  uint AddSeparator;    // TiXL AddSeparator (bool→int): last point NaN-scale + steps-1.  .t3 false
+  uint OrientationMode; // TiXL Orientation enum: 0 = UsingUpVector (qLookAt), 1 = Simple. .t3 = 1
+  uint _pad0;
+  uint _pad1;
+  uint _pad2;
+  uint _pad3;           // -> 144 bytes (16-byte multiple)
+#else
+  uint32_t AddSeparator;
+  uint32_t OrientationMode;
+  uint32_t _pad0;
+  uint32_t _pad1;
+  uint32_t _pad2;
+  uint32_t _pad3;
+#endif
 };
 
 enum LineBinding {
@@ -51,5 +83,5 @@ enum LineBinding {
 };
 
 #ifndef __METAL_VERSION__
-static_assert(sizeof(LineParams) == 64, "LineParams must be a 16-byte multiple (64)");
+static_assert(sizeof(LineParams) == 144, "LineParams must be a 16-byte multiple (144)");
 #endif

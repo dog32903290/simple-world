@@ -75,6 +75,14 @@ const std::vector<NodeSpec>& generatorSpecs() {
        "point.generate"},
       {"LinePoints",
        "LinePoints",
+       // PARAM-COMPLETION GATE: LinePoints.cs has 18 [Input]s; the shape/distribution params
+       // (Count/Length/Pivot/Center/Direction/GainAndBias/Scale = 7 logical) were already wired.
+       // This fan-out adds the remaining 11 (F1, F2, ColorA, ColorB, Orientation, Twist,
+       // OrientationAxis, OrientationAngle, AddSeparator, W, WOffset) so the inspector covers the
+       // .cs 1:1. APPEND-ONLY (pin ids are port-INDEX based; inserting re-targets saved wires).
+       // Defaults cite LinePoints.t3. NOTE: LinePoints has DUAL color (ColorA/ColorB) so the
+       // shared appendPointOrientationSpec helper (single Color) does NOT fit — ColorA/ColorB and
+       // the OrientationAxis/Angle tail are spelled inline here.
        {{"points", "points", "Points", false},
         {"Count", "Count", "Float", true, 64.0f, 2.0f, 8192.0f},
         {"Length", "Length", "Float", true, 5.0f, 0.0f, 50.0f},
@@ -90,9 +98,44 @@ const std::vector<NodeSpec>& generatorSpecs() {
         // GainAndBias (TiXL Vector2) — distribution along the line; 0.5,0.5 = identity.
         {"GainAndBias.x", "GainAndBias", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 2},
         {"GainAndBias.y", "GainAndBias.y", "Float", true, 0.5f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        // Scale (TiXL Vector2 / PointSize) — base + per-index scale.
+        // Scale (TiXL Vector2 / PointSize) — base + per-index scale. .t3 default (1,0).
         {"Scale.x", "Scale", "Float", true, 1.0f, 0.0f, 10.0f, Widget::Vec, {}, true, 2},
-        {"Scale.y", "Scale.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1}},
+        {"Scale.y", "Scale.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // ---- param-completion fan-out: the 11 baked TiXL inputs now exposed --------------------
+        // F1 (Vector2) — FX1 = x + y·f1. .t3 default (1,0)  ★not (0,0).
+        {"F1.x", "F1", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 2},
+        {"F1.y", "F1.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // F2 (Vector2) — FX2 = x + y·f1. .t3 default (1,0)  ★not (0,0).
+        {"F2.x", "F2", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 2},
+        {"F2.y", "F2.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        // ColorA / ColorB (Vector4) — per-point color = lerp(ColorA, ColorB, f1). .t3 default white both.
+        {"ColorA.x", "ColorA", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"ColorA.y", "ColorA.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ColorA.z", "ColorA.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ColorA.w", "ColorA.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ColorB.x", "ColorB", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"ColorB.y", "ColorB.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ColorB.z", "ColorB.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ColorB.w", "ColorB.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // Orientation (enum, MappedType OrientationModes). .t3 default 1 = Simple (NOT UsingUpVector).
+        {"Orientation", "Orientation", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Enum,
+         {"UsingUpVector", "Simple"}},
+        // Twist (degrees) — added to OrientationAngle, ramped by f. .t3 default 0.0.
+        {"Twist", "Twist", "Float", true, 0.0f, -360.0f, 360.0f},
+        // OrientationAxis (Vector3, Simple-mode rotation axis). .t3 default (0,0,1).
+        {"OrientationAxis.x", "OrientationAxis", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"OrientationAxis.y", "OrientationAxis.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"OrientationAxis.z", "OrientationAxis.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // OrientationAngle (degrees). .t3 default 0.0.
+        {"OrientationAngle", "OrientationAngle", "Float", true, 0.0f, -360.0f, 360.0f},
+        // AddSeparator (bool) — last point gets NaN scale (a line terminator) + shrinks the step span
+        // by 1 so the visible points still span Length. .t3 default false.
+        {"AddSeparator", "AddSeparator", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        // W / WOffset (Single) — declared [Input] in LinePoints.cs but UNUSED by the .hlsl (the
+        // cbuffer fields AND the ResultPoints[i].W write are commented out there). Faithful-dead
+        // knobs, exposed for 1:1 [Input] parity. .t3 defaults W=1.0, WOffset=0.0.
+        {"W", "W", "Float", true, 1.0f, -100.0f, 100.0f},
+        {"WOffset", "WOffset", "Float", true, 0.0f, -100.0f, 100.0f}},
        nullptr,
        "point.generate"},
       {"GridPoints",

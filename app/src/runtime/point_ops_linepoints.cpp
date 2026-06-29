@@ -5,6 +5,11 @@
 // Self-contained leaf (parallel-safe): its own cook fn, register fn, and golden with
 // its own capture vector + registerDrawOp. The main agent wires the integration
 // snippets (NodeSpec, CMake, selftest table) centrally.
+//
+// PARAM-COMPLETION GATE: the full TiXL [Input] set is wired (Color=lerp(ColorA,ColorB,f1),
+// FX1/FX2 ramps, qLookAt/qFromAngleAxis orientation + Twist, AddSeparator NaN terminator).
+// W/WOffset stay faithful-dead (commented out in the .hlsl too). A lineBakedBugForceForTest()
+// latch re-bakes the pre-gate constants so the parity golden's injectBug leg flips RED.
 #include "runtime/point_ops.h"
 
 #include <cmath>
@@ -27,17 +32,26 @@
 #endif
 
 namespace sw {
+
+// Parity-gate -bug latch (off in production). When true, cookLinePoints reverts the newly exposed
+// per-point attribute knobs (ColorA/ColorB/F1/F2/Twist/Orientation*) to the PRE-GATE baked
+// constants — white, FX1=FX2=0, identity rotation — reproducing the "knob not wired" deviation this
+// gate closed. Used by the LinePoints parity golden's injectBug leg so the attribute teeth flip RED.
+// Declared in point_ops.h. (Shape params Count/Length/Pivot/Center/Direction were always wired.)
+bool& lineBakedBugForceForTest() { static bool b = false; return b; }
+
 namespace {
 
 // LinePoints generator: dispatch the linepoints kernel into the node's output bag.
 // Reads scalar Float params (Count via ctx.count; Length/Pivot/Scale*/GainBias* via
-// cookParam) + the two vector params Center & Direction via cookVecN. TiXL's
-// Color/orientation-quat/F1/F2 are baked to defaults in linepoints.metal until those
-// param kinds land in NodeSpec.
+// cookParam) + the vector params Center/Direction/ColorA/ColorB/OrientationAxis via cookVecN.
+// PARAM-COMPLETION GATE: ColorA/ColorB, F1/F2, Twist, Orientation(enum)/OrientationAxis/Angle and
+// AddSeparator now read from the NodeSpec (were baked to TiXL white/0/identity in linepoints.metal).
 void cookLinePoints(PointCookCtx& c) {
   if (!c.output || c.count == 0 || !c.lib) return;
   MTL::ComputePipelineState* pso = cachedComputePSO(c.dev, c.lib, "linepoints");
   if (!pso) return;
+  const bool baked = lineBakedBugForceForTest();
 
   LineParams P{};
   P.Count = c.count;
@@ -54,6 +68,42 @@ void cookLinePoints(PointCookCtx& c) {
   float direction[3] = {0.0f, 1.0f, 0.0f};
   cookVecN(c, "Direction", dirFallback, 3, direction);
   P.DirectionX = direction[0]; P.DirectionY = direction[1]; P.DirectionZ = direction[2];
+
+  // Per-point attribute fan-out. Defaults cite LinePoints.t3.
+  P.FX1Base = cookParam(c, "F1.x", 1.0f);  // .t3 F1 default (1,0)  ★not 0
+  P.FX1ByF = cookParam(c, "F1.y", 0.0f);
+  P.FX2Base = cookParam(c, "F2.x", 1.0f);  // .t3 F2 default (1,0)  ★not 0
+  P.FX2ByF = cookParam(c, "F2.y", 0.0f);
+  float colorA[4] = {1.0f, 1.0f, 1.0f, 1.0f};        // .t3 ColorA default white
+  cookVecN(c, "ColorA", colorA, 4, colorA);
+  P.ColorAR = colorA[0]; P.ColorAG = colorA[1]; P.ColorAB = colorA[2]; P.ColorAA = colorA[3];
+  float colorB[4] = {1.0f, 1.0f, 1.0f, 1.0f};        // .t3 ColorB default white
+  cookVecN(c, "ColorB", colorB, 4, colorB);
+  P.ColorBR = colorB[0]; P.ColorBG = colorB[1]; P.ColorBB = colorB[2]; P.ColorBA = colorB[3];
+  P.Twist = cookParam(c, "Twist", 0.0f);                   // .t3 default 0
+  P.OrientationAngle = cookParam(c, "OrientationAngle", 0.0f);  // .t3 default 0
+  float oAxis[3] = {0.0f, 0.0f, 1.0f};               // .t3 OrientationAxis default (0,0,1)
+  cookVecN(c, "OrientationAxis", oAxis, 3, oAxis);
+  P.OrientAxisX = oAxis[0]; P.OrientAxisY = oAxis[1]; P.OrientAxisZ = oAxis[2];
+  P.AddSeparator = (cookParam(c, "AddSeparator", 0.0f) > 0.5f) ? 1u : 0u;  // .t3 default false
+  P.OrientationMode = (uint32_t)std::lround(cookParam(c, "Orientation", 1.0f));  // .t3 default 1=Simple
+  // W / WOffset (TiXL LinePoints.cs [Input]s) read for inspector/param parity but DEAD in TiXL itself
+  // (commented out in the .hlsl — no cbuffer field, no ResultPoints[i].W write) — consumed nowhere.
+  (void)cookParam(c, "W", 1.0f);
+  (void)cookParam(c, "WOffset", 0.0f);
+
+  if (baked) {
+    // Re-bake the pre-gate attribute constants: the kernel wrote white/0/identity before the gate.
+    P.FX1Base = 0.0f; P.FX1ByF = 0.0f; P.FX2Base = 0.0f; P.FX2ByF = 0.0f;
+    P.ColorAR = P.ColorAG = P.ColorAB = P.ColorAA = 1.0f;  // white
+    P.ColorBR = P.ColorBG = P.ColorBB = P.ColorBA = 1.0f;  // white
+    P.Twist = 0.0f; P.OrientationAngle = 0.0f;
+    // Identity rotation: the pre-gate kernel wrote float4(0,0,0,1). Drive Simple mode around +Z at
+    // angle 0 -> qFromAngleAxis(0,+Z) = (0,0,0,1).
+    P.OrientationMode = 1u;
+    P.OrientAxisX = 0.0f; P.OrientAxisY = 0.0f; P.OrientAxisZ = 1.0f;
+    P.AddSeparator = 0u;
+  }
 
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::ComputeCommandEncoder* enc = cmd->computeCommandEncoder();

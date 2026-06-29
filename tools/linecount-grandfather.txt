@@ -26,7 +26,12 @@
 # default ≤400 cap with room to grow). generatorSpecs() concatenates both (core, then extra) so the
 # flat registry order is byte-identical. RATCHET DOWN 400→180: the core four are stable, so the gain is
 # locked tight here — new generator work happens in the _extra file, which can't drift this one back up.
-app/src/runtime/node_registry_generators.cpp:180
+# 180→211 (2026-06-29, LinePoints param-completion): the integrity gate (tools/nodespec_integrity.sh
+# LinePoints) demanded LinePoints' full 18 [Input] set, +31 irreducible param-row data lines for the 11
+# missing knobs (F1/F2/ColorA/ColorB/Orientation/Twist/OrientationAxis/OrientationAngle/AddSeparator/W/
+# WOffset). The "core four are stable" assumption above held for shape but not for the per-point attribute
+# fan-out; this is gated growth (integrity 18==18), not drift. Re-locked tight at 211. Still far under 400.
+app/src/runtime/node_registry_generators.cpp:211
 app/src/app/child_state_selftest.cpp:402
 app/src/app/copy_paste_selftest.cpp:443
 # gradient-inspector (2026-06-26): +17 for residentCookedGradient() API (the 8th-flow gradient face
@@ -143,7 +148,9 @@ app/src/runtime/point_graph_internal.h:433
 app/src/runtime/point_graph_resident.cpp:556
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 # +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
-app/src/runtime/point_ops.h:553
+# +1 (2026-06-29): lineBakedBugForceForTest() decl — the LinePoints parity-gate -bug latch, mirroring the
+# radialBakedBugForceForTest/gridBakedBugForceForTest rows two lines above. One irreducible decl line.
+app/src/runtime/point_ops.h:554
 app/src/runtime/point_ops_attributesfromimagechannels.cpp:429
 app/src/runtime/point_ops_blend.cpp:426
 app/src/runtime/point_ops_blendwithmask.cpp:434
