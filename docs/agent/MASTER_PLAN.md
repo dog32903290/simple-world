@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 26190ec
+HEAD: a272d93
 DIRTY: clean
 CENSUS: 472 / 749 done
-BITE: 539 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-30T03:48
+BITE: 540 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-30T05:04
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -32,7 +32,9 @@ STAMP_AT: 2026-06-30T03:48
 
 **★★cook-core 兩承重縫已解凍（柏為 2026-06-29 在場討論授權碰 cook-core）：** ① 縫一 buffer-marshalling 開工（spike 過、fan-out 待）；② 縫二 DX11 render-state **不再卡 Windows**——deep-research（106-agent 三票驗）證 14 差異 closed-form 可本機公式驗、僅 **depth-bias 1 顆 emergent**（罕用，當 named fork 可延後）、logic-op+dual-source-MRT 2 顆 no-equiv 當 port-time guard。authority=`docs/agent/census/DX11_METAL_CONVERSION_TABLE.md`。codegen「預編譯撞即時生成」是**假對撞**（`platform/metal_compile.h` 早有 runtime MSL compile 路徑，與 TiXL 同切法）。方法論詳 [[parity-gate-split-deterministic-vs-emergent]]。
 
-**★下一棒（單一 Active Lane）＝Seam 1 fan-out 續（藍圖 `docs/agent/census/SEAM1_FANOUT_BUILD_PLAN.md`）**：已 merged WO-A/B（`c063375`，refuter SAFE）= IntsToBuffer(const 變體非 WithViews,16B pad faithful)+GetSRVProperties(薄 GetBufferComponents,ElementCount 真契約,Buffer output 在 TiXL 本就 dead)，--bite 539。ExecuteBufferUpdate spike 已 done。**剩 3 顆**：WO-C SrvFromTexture2d（放 tex flow/Texture2D passthrough，**非 cook-core**）/ WO-D TransformsConstBuffer（cook-core camera-ctx edit + HLSL row-major **transpose silent-corruption 風險**，byte-parity selftest de-risk，PrevBuffer 延後）/ **WO-E resident-leg mirror（OWNER-LOCKED `point_graph_resident.cpp`，Vec4Params param-path 分歧＝最高風險；de-risk＝先寫 flat==resident byte-parity selftest 再實作；SERIAL 不可與 Seam 2 並行）**。leaf-ready param **7 顆已 merged（`ece21e8`，refuter SAFE）**：AnimVec2/Lerp(Clamp)/Remap(BiasAndGain/Mode)/Trigger/BlendStrings/PickVector2(vec-fold 修)/BuildRandomString(known_fork)。**★numbers fold-suspect 已收尾（`9cd46dd`，refuter SAFE）**：RgbaToColor/RemapValues=Vec→Slider fold-tag 修、MergeFloat/IntLists=StartIndices known_fork、GradientsToTexture+ClearSomePoints=dumpNodeSpec Resolution 排除過寬救回 2 顆真缺口。**→「補 38 旋鈕」directive 完成（numbers island MISSING 6→1）。** **★mesh fold-suspect 已收尾（`26190ec`，refuter MERGE-WITH-FOLLOW-UP）**：CubeMesh{TexCoord/TexCoord2 enum,Margin2}+IcosahedronMesh{TexCoord/TexCoord2}＝**真缺口非 fold**，NodeSpec 暴露齊 TiXL、default-neutral。**⚠[待柏為]dead-knob tradeoff**：cook 只實作 UV mode0，inspector 現出現 enum 下拉但選非預設＝無聲 no-op（named fork×3+census，非 silent，但操作者轉旋鈕看不到變化）。我自決照 TiXL 暴露（UI parity>藏旋鈕）+ spawn task_e4745352 實作 UV mappers 補實。**若你覺得「可見但死的旋鈕」不可接受＝改 implement-before-expose，否決這條即可。** 剩 image/point fold-suspect（LoadImage asset-cache、PointsToCPU/ReadPointColors CPU-readback seam）較 seam-adjacent，留細查。follow-up：Lerp-Clamp=true/Remap-BiasAndGain scalar golden（task_127047e2）、UV mappers（task_e4745352）、scn fix（task_df8df769）。Seam 2 build 排 Seam 1 落地後。**owner-lock：WO-E resident-mirror + Seam 2 build 都碰 cook-core/point_graph，不可同跑同檔。**
+**★下一棒（單一 Active Lane）＝Seam 1 fan-out 收尾（藍圖 `SEAM1_FANOUT_BUILD_PLAN.md`）**：已 merged keystone+WO-A/B(IntsToBuffer const 變體/GetSRVProperties)+**WO-D TransformsConstBuffer（`a272d93`，640-byte 10-matrix HLSL-transpose，refuter 獨立 off-diag 手推證 TiXL-correct，camera-bridge cook-core edit，--bite 540）**。**剩 2**：① **WO-E resident-leg mirror（OWNER-LOCKED `point_graph_resident.cpp`，Vec4Params param-path 分歧＝最高風險；de-risk＝先寫 flat==resident byte-parity selftest 再實作；SERIAL 不可與 Seam 2 並行；prefer 柏為 reachable）** ② WO-C SrvFromTexture2d（low-value,0 graph consumer,tex-flow,skip/last）。**Seam 2 build**（`DX11_METAL_CONVERSION_TABLE.md`,14 closed-form 公式驗 no-Windows）排 WO-E 後。**owner-lock：WO-E + Seam 2 都碰 cook-core/point_graph，不可同跑同檔。**
+
+**★param-completion directive 完成**（time-source 15+fork 4+leaf 7+numbers-fold 5+mesh 5 全 merged+stamped；numbers MISSING 6→1，mesh 5→3）。**⚠[待柏為]mesh UV dead-knob tradeoff**：CubeMesh/Icosahedron 暴露 UV enum 但 cook 只實作 mode0→選非預設＝無聲 no-op（named fork×3，我自決照 TiXL 暴露 UI-parity>藏，task_e4745352 補實 mappers；你若覺得「可見但死的旋鈕」不可接受＝改 implement-before-expose，否決即可）。剩 seam-adjacent param（LoadImage asset-cache、PointsToCPU/ReadPointColors CPU-readback）留細查。chips：task_127047e2(Lerp/Remap golden)、task_e4745352(UV mappers)、task_df8df769(scn fix)。
 
 **★★CLEAN CHECKPOINT（2026-06-30 02:43，HEAD 9cd46dd，--bite 539）**：本夜自走落地＝param-completion 全 4 批（時間源 15+fork 4+leaf 7+fold-suspect 5，directive 完成）+ Seam 1 keystone + buffer fan-out WO-A/B，皆 refuter+orchestrator 復跑+stamp。**剩全是「careful cook-core 層」**：WO-C(低值,0 consumer)、WO-D(transpose 慣例 subtlety)、WO-E(OWNER-LOCKED resident param-path)、Seam 2 build——這些 ROI/風險不適合深夜無人盲推，**下個有暇 session 帶 fresh context 接**（藍圖/conversion-table 都在 disk）。
 
@@ -81,6 +83,7 @@ STAMP_AT: 2026-06-30T03:48
 - （更早已解項移 history：soundtrack flake `cd47f72`/field scn `644d100`；chip `task_eb3375a3`/`task_2fc4a37a` 可關，`task_9d081266`=detectbpm NO-BITE 待修。）
 
 ## Session Safety
+- **★合流必驗 cherry-pick stat 無 build 污染（2026-06-30 WO-D 踩，救回）**：worktree agent 偶爾 build 到 root `build/`（非 `app/build/`，舊 .gitignore 只擋後者）→ 合流的 `git -C <wt> add -A` 把 140 個 .air + 整個 build/ .o 掃進 commit → cherry-pick 進 main。**救：cherry-pick 輸出冒 `create build/*.air` 即抓到 → `git reset --hard <pre> + git checkout <wt-commit> -- <只挑 source 檔> + commit`。** 已補 .gitignore `/build/` `*.air`。**鐵律：worktree 合流前 `git -C <wt> diff --cached --stat | grep -E 'build/|\.air'` 確認零命中，或別用 add -A、明列 source 檔。**
 - **★結帳前必 rebuild 再 --bite（本批踩）**：`tools/run_all_selftests.sh --bite` 跑的是 `app/build/simple_world` **既有 binary**（只有「binary 不存在」才報錯，stale binary 靜默跑舊）→ merge 完直接 --bite 會拿到舊數字（本批看到 474 該是 478，差點誤蓋章）。合流後順序＝`cmake --build app/build -j8` → `--bite` → `--stamp`。
 - 另有 parked worktree `.worktrees/ui-node-skin`（branch `ui/tixl-node-skin` @ `fd542f5`）= 舊 L2 node-skin lane，未合流，**別當死的清掉**。
 - 柏為 2026-06-26 01:09 回場下令「需我在場的工作你先做、不等我、自走到我喊停」→ 結果 S2 脊椎查出早已蓋好，present-requiring 阻塞自動消解 → 轉做 S2 殘餘 image-leaf fan-out（absent-safe）。**S2/S3 脊椎已建，不必再等授權重開**；真正剩的 owner-lock 縫＝S4 殘餘 infra（texture-array/RWStructuredBuffer/vec-color-field）+ point_graph 拆檔債、camera3d value-output Phase2/3、point-sprite render 縫——這些才需柏為在場。**（→ 2026-06-28 政策已 override：這些重分類為 `[Y]` 自走-事後視覺驗，不需預先在場，見頂部「自走/驗收政策」。此句為 dated record。）**
