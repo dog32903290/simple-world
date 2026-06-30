@@ -406,7 +406,7 @@ struct PointGraph::Impl {
   // The FLAT BUFFER cook (Seam-1 = GPU "Buffer" currency), point_graph_buffer_cook.cpp (full doc in leaf).
   // cookBufferNode rides in by-ref (Buffer→Buffer self-recursion). Returns the cooked SwBuffer (bufferMeta).
   const SwBuffer* cookFlatBuffer(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
-                                 const std::function<const SwBuffer*(int)>& cookBufferNode, int id);
+                                 const std::function<const SwBuffer*(int)>& cookBufferNode, const std::function<const std::vector<simd::float4>*(int)>& cookColorListNode, int id);
   // The RESIDENT BUFFER cook (Seam-1 = GPU "Buffer" currency, WO-E), point_graph_resident_buffer.cpp (full
   // doc in leaf). Resident twin of cookFlatBuffer — the PRODUCTION leg (today's live app cooks resident). Walks
   // a Buffer node by resident PATH, gathering its Buffer inputs through ResidentInput::Connection drivers (the

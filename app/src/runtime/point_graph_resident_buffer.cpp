@@ -21,10 +21,13 @@
 //     (primary + extraConns, wire-declaration order) via evalResidentFloat — the SAME pattern the resident
 //     host-scalar / PointList walkers use. This is the PRODUCTION path (real wired float connections), and it
 //     gathers byte-identical to the flat leg's evalFloat-over-g.connections.
-//   • Vec4Params (matrix MultiInput): NO resident source exists (no Vector4[] producer, and Node::params is
-//     flat-test-only). So resident gathers ZERO matrices → vec4Inputs empty. That is FAITHFUL to production:
-//     a real graph never feeds Vec4Params via the flat-test Node::params stand-in. When a Vector4[] producer
-//     op lands, this becomes a Buffer-style recursion (the same TODO the flat leaf carries).
+//   • Vec4Params (matrix MultiInput): the VEC4-CURRENCY BRIDGE (fork `cookresidentbuffer-vec4-from-extcolorout`,
+//     SEAM1_VEC4_CURRENCY_BUILD_PLAN). A wired matrix/Vector4[] producer (TransformMatrix, …) rides the resident
+//     ColorList channel — a 4×4 matrix IS a 4-element Vector4[] (fork-matrix-as-4-vec4-on-extColorOut), settled
+//     onto the upstream node's extColorOut by cookMatrixOutputNodes/cookColorListNodes (cook_host_values.cpp,
+//     BEFORE pg.cookResident). matrixFromColorOut (below) reads each wired source's 4 rows = one 16-float matrix.
+//     This is the PRODUCTION path the 17 TiXL compounds depend on; byte-identical to the flat leg's
+//     cookColorListNode gather (selftests_buffer_vec4.cpp's flat==resident gate proves it).
 //   • TransformsConstBuffer (WO-D) sources its 3 camera matrices via the RESIDENT camera path (fillBufferCamera
 //     below = the resident mirror of the flat fillBufferCamera / pgdetail::fillPointCamera), NOT Vec4Params.
 // So the byte-parity holds BY CONSTRUCTION whenever the matrices are absent (the only production case today),
@@ -32,6 +35,7 @@
 // gather identically — the flat==resident gate proves it.
 #include "runtime/point_graph_internal.h"
 
+#include <algorithm>
 #include <array>
 #include <string>
 #include <vector>
@@ -60,6 +64,40 @@ void fillBufferCamera(BufferCookCtx& bc, const NodeSpec& spec, float aspect) {
   std::memcpy(bc.camWorldToCamera, fwd.worldToCamera.m, sizeof(float) * 16);
   std::memcpy(bc.camObjectToWorld, objectToWorld.m, sizeof(float) * 16);
   bc.hasCamera = true;
+}
+
+// VEC4-CURRENCY BRIDGE helper (fork cookresidentbuffer-vec4-from-extcolorout): read ONE matrix (16 floats,
+// .X.Y.Z.W per row) off the upstream resident node's ColorList output. A 4×4 matrix IS a 4-element Vector4[]
+// (fork-matrix-as-4-vec4-on-extColorOut); cookMatrixOutputNodes/cookColorListNodes (cook_host_values.cpp,
+// BEFORE pg.cookResident) already settled the rows onto extColorOut. Maps srcSlotId → the source spec's
+// matching output PORT INDEX (extColorOut's key). Missing source / >4 / <4 rows → clamp + zero-pad (the
+// faithful contract is exactly 4 rows = one matrix; TiXL's *4*4 assumes it).
+std::array<float, 16> matrixFromColorOut(const ResidentEvalGraph& rg, const std::string& srcPath,
+                                         const std::string& srcSlotId) {
+  std::array<float, 16> mat{};
+  int rn = 0;  // rows actually read (0 across EVERY no-rows path → unresolved gate fires below)
+  const ResidentNode* src = rg.node(srcPath);
+  const NodeSpec* ss = src ? findSpec(src->opType) : nullptr;
+  int outIdx = -1;
+  if (ss)
+    for (size_t i = 0; i < ss->ports.size(); ++i)
+      if (!ss->ports[i].isInput && ss->ports[i].id == srcSlotId) { outIdx = (int)i; break; }
+  if (src && outIdx >= 0) {
+    auto it = src->extColorOut.find(outIdx);
+    if (it != src->extColorOut.end()) {
+      const std::vector<simd::float4>& rows = it->second;
+      rn = (int)std::min<size_t>(4, rows.size());
+      for (int r = 0; r < rn; ++r) {
+        mat[r * 4 + 0] = rows[r].x; mat[r * 4 + 1] = rows[r].y;
+        mat[r * 4 + 2] = rows[r].z; mat[r * 4 + 3] = rows[r].w;
+      }
+    }
+  }
+  // UNRESOLVED-MATRIX-SOURCE GATE: a WIRED Vec4Params source sw can't resolve to rows (absent producer op/
+  // output — e.g. TransformMatrix.ResultInverted / GetMatrixVar) → NON-silent (++counter + warn-once) instead
+  // of an invisible zero matrix block. SEAM1_VEC4_UNRESOLVED_SOURCE_GATE.md.
+  if (rn == 0) noteUnresolvedMatrixSource();
+  return mat;
 }
 }  // namespace
 
@@ -107,8 +145,20 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
         for (const auto& ec : ri->extraConns)
           floatInputs.push_back(evalResidentFloat(rg, ec.first, ec.second, rc));
       }
+    } else if (port.dataType == "Vec4Params") {
+      // VEC4-CURRENCY BRIDGE (fork cookresidentbuffer-vec4-from-extcolorout): gather each WIRED matrix off
+      // the upstream node's ColorList output (extColorOut, settled by cookMatrixOutputNodes/cookColorListNodes
+      // before this cook). Primary + extraConns, wire-declaration order = matrices-first into the buffer. This
+      // is the PRODUCTION path the 17 TiXL compounds (TransformMatrix → FloatsToBuffer.Vec4Params) depend on;
+      // byte-identical to the flat leg's cookColorListNode gather (both take 4 rows = one matrix per wire).
+      const ResidentInput* ri = n->input(port.id);
+      if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        vec4Inputs.push_back(matrixFromColorOut(rg, ri->srcNodePath, ri->srcSlotId));
+        for (const auto& ec : ri->extraConns)
+          vec4Inputs.push_back(matrixFromColorOut(rg, ec.first, ec.second));
+      }
     }
-    // (Vec4Params: no resident source → no entry. Single scalar Float inputs ride the resolved params map.)
+    // (Single scalar Float inputs ride the resolved params map.)
   }
 
   SwBuffer& out = bufferMeta[path];  // RESIDENT PATH key (NOT flatKey) — the same map the flat leg keys by #id

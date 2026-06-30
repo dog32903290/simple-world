@@ -41,6 +41,20 @@
 - **不可與 leaf 並行(cook-core writer):WO-D**(buffer_op_registry.h camera ctx+buffer_cook.cpp)，leaf 落地後或 serialize cook-core 支。
 - **WO-E＝serial OWNER-LOCKED**(point_graph_resident.cpp)，**不可與 Seam 2 build 同跑**，獨佔 cook-core owner lane。
 
-## 最高風險 + de-risk
+## ◧ Vec4-currency 通貨 CLOSED；producer 覆蓋 PARTIAL (2026-06-30, refuter+ground-truth 校正)
+**通貨橋已落地且 byte-parity**(SEAM1_VEC4_CURRENCY_BUILD_PLAN.md)：`FloatsToBuffer.Vec4Params` 兩條腿都從
+**ColorList 通貨**(4 float4 rows = 一矩陣,fork-matrix-as-4-vec4-on-extColorOut)gather WIRED 矩陣 — flat 走
+`cookColorListNode`(Node::params 降 fallback)、resident 走上游 `extColorOut`(`matrixFromColorOut`,
+cookMatrixOutputNodes/cookColorListNodes 在 pg.cookResident 前 settle,frame_cook.cpp:367<387 已驗)。
+gate=`--selftest-buffer-vec4`(G1 ColorsToList both-legs byte-parity + G2 TransformMatrix resident keystone vs
+閉式,兩 leg `-bug` 都 bite),542 全綠零回歸。
+- **★別再 overclaim「17 複合全通」**：橋只 SERVE source 是 sw 有的 producer 的複合 = `TransformMatrix.Result
+  (751E97DE)`(ground-truth 確認 TransformPoints/VolumeForce 第一 wire …)。**殘留 producer-seam(非橋缺陷,已開 chip)**：
+  `TransformMatrix.ResultInverted(ECA8121B)`=deferred fork 未 port(AttributesFromImageChannels/VolumeForce 第二
+  wire/SamplePoint… → 零矩陣塊);`GetMatrixVar.Result(1EEAB949)`=op 在 sw 不存在(DrawMeshChunksAtPoints…)。
+- 殘留(latent,inferred-sound,未建 golden):多矩陣(>1 wire 進同一 Vec4Params,如 VolumeForce)flat-vs-resident
+  順序——與已 golden 的 Float-MultiInput(buffer-resident LEG1)同機制,推得一致但未 pin。
+
+## 最高風險 + de-risk（歷史記錄,已 closed 見上）
 **WO-E resident Vec4Params/param-path 分歧**(疊 WO-D transpose 風險)：flat 讀 Node::params["Vec4Params..."]，resident 無此 store、resolveResidentFloatInputs 不 surface 合成 key→naive clone 產**不同於 flat 的 bytes**(parity-gate fail 或 production 矩陣靜默歸零)。
 **de-risk:寫 cookResidentBuffer 前先加 resident byte-parity selftest**(clone runFloatsToBufferSelfTest 驅 resident cook)，先對未改 resident 跑＝捕 zero-no-op RED；再實作到 resident bytes **byte-identical flat debugCookedSwBuffer**(test 內 assert flat==resident)。parity assert(非 shader)先抓分歧。

@@ -2,6 +2,8 @@
 // Meyers singletons (init-order safe, same as pointlist_op_registry.cpp / floatlist_op_registry.cpp).
 #include "runtime/buffer_op_registry.h"
 
+#include <cstdio>
+
 namespace sw {
 
 std::vector<NodeSpec>& bufferSpecSink() {
@@ -23,6 +25,22 @@ const BufferCookFn* findBufferOp(const std::string& type) {
 bool& bufferInjectBug() {
   static bool b = false;
   return b;
+}
+
+uint32_t& bufferUnresolvedMatrixSources() {
+  static uint32_t n = 0;
+  return n;
+}
+
+void noteUnresolvedMatrixSource() {
+  bufferUnresolvedMatrixSources()++;
+  static bool warned = false;  // warn-once (mirror pgdetail::warnCookDepthOnce)
+  if (!warned) {
+    warned = true;
+    std::fprintf(stderr,
+                 "[FloatsToBuffer] Vec4Params wired to a source with no matrix rows — the buffer's matrix "
+                 "block is ZERO (missing producer? e.g. TransformMatrix.ResultInverted / GetMatrixVar).\n");
+  }
 }
 
 BufferOp::BufferOp(NodeSpec spec, BufferCookFn cook) {

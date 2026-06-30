@@ -117,6 +117,15 @@ const BufferCookFn* findBufferOp(const std::string& type);
 // flipping the expected value). Off in production. A leaf reads it at the end of its cook.
 bool& bufferInjectBug();
 
+// UNRESOLVED-MATRIX-SOURCE GATE (SEAM1_VEC4_UNRESOLVED_SOURCE_GATE.md). Vec4Params can be WIRED to a source
+// sw cannot resolve to matrix rows (a producer op/output sw has not ported — e.g. TransformMatrix.ResultInverted
+// / GetMatrixVar). The gather then silently emits a ZERO matrix block (count is right, bytes are zero → points
+// collapse to origin, byte-parity can't catch it). `noteUnresolvedMatrixSource()` makes that NON-silent: it
+// bumps a test-visible counter AND warns once. Both cook legs call it when a Vec4Params wire yields no rows.
+// The counter is the regression GATE: a selftest asserts it fires; remove the detection → counter 0 → RED.
+uint32_t& bufferUnresolvedMatrixSources();  // test-visible; reset to 0 before a cook like bufferInjectBug()
+void noteUnresolvedMatrixSource();          // ++counter + warn-once (called by both gather legs)
+
 // RAII registrar: declare one file-scope static of this type at the end of each Buffer-op leaf.
 //   BufferOp(spec, cookFn);  // pushes spec into bufferSpecSink() and cook into bufferCookFns()
 struct BufferOp {
