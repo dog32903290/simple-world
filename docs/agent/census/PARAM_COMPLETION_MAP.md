@@ -210,14 +210,14 @@ FloatsToBuffer/BlendColors/RasterizerState 子節點 routing（補時 backward-t
 | AnimVec3 | numbers | 1 param | OverrideTime |
 | BlendStrings | string | 2 param | InputTextA, InputTextB |
 | BuildRandomString | string | 1 param | OverrideBuilder |
-| CubeMesh | mesh | 3 param | Margin2, TexCoord, TexCoord2 |
+| CubeMesh | mesh | 0 param | ~~Margin2, TexCoord, TexCoord2~~ → all exposed (26190ec) + cook now ports all 4 UV mappers (Standard/Unwrapped/CubeMap/CubeMapSquare); faithful, no fork. Gate: nodespec_integrity sw=10==TiXL=10; --selftest-mesh-cube-uv |
 | Damp | numbers | 1 param | UseAppRunTime |
 | DampAngle | numbers | 1 param | UseAppRunTime |
 | Ease | numbers | 1 param | UseAppRunTime |
 | EaseVec2 | numbers | 1 param | UseAppRunTime |
 | EaseVec3 | numbers | 1 param | UseAppRunTime |
 | GradientsToTexture | numbers | 1 param | Resolution |
-| IcosahedronMesh | mesh | 2 param | TexCoord, TexCoord2 |
+| IcosahedronMesh | mesh | 0 param | ~~TexCoord, TexCoord2~~ → both exposed (26190ec) + cook now ports all 5 UV mappers (Faces/Unwrapped/Atlas/FacesSub/GridFacesSub); faithful, no fork. Gate: nodespec_integrity sw=11==TiXL=11; --selftest-mesh-icosahedron-uv |
 | Lerp | numbers | 1 param | Clamp |
 | LoadImage | image | 0 param | ~~CacheResources~~ → added (default-neutral 1=true, fork[cache-resources-no-flush]: false branch unimplemented; follow-up: per-cook flush seam in cachedAssetTexture); ~~SourcePathSlot~~ → NOT a param (C# interface alias, LoadImage.cs:104 `SourcePathSlot => Path`) |
 | MergeFloatLists | numbers | 1 param | （名稱對不上：count 差 1，sw-fold 與 TiXL 命名歧義，補時逐顆 trace） |

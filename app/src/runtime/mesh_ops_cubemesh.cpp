@@ -15,10 +15,10 @@
 //     position = TransformNormal(position, cubeRot) ; final = position + center.                    [:116,120]
 //     face wind = (vi, vi+rowCount, vi+1) , (vi+rowCount, vi+rowCount+1, vi+1).                     [:133-134]
 //
-// FORK (named): only the StandardUvMapper (TexCoord mode 0, the .t3 default) is ported. CubeMesh's
-// other UV modes (1=UnwrappedCube, 2=CubeMap, 3=CubeMapSquare) are texture-atlas layouts; they are
-// DEFERRED and fall back to Standard. At default margin=0 Standard is identity uv (u,v). Texcoord2
-// likewise uses Standard. This is a parity-narrowing on UV only — positions/topology are 1:1.
+// UV mappers (all four ported, CubeMesh.cs:291-442): 0=Standard 1=UnwrappedCube 2=CubeMap
+// 3=CubeMapSquare. TexCoord selects the mapper for Texcoord (margin Margin), TexCoord2 for Texcoord2
+// (margin Margin2). At the .t3 default (mode 0, margin 0) Standard is identity uv (u,v). See
+// cubeCalcUv / regionUv below; --selftest-mesh-cube-uv pins each non-default mode to its TiXL layout.
 #include "runtime/graph.h"  // NodeSpec, PortSpec, Widget
 
 #include <cmath>
@@ -65,6 +65,74 @@ const Side kSides[6] = {
     {(float)(kPiD * 1.5), 0, 0, AX, AZ, AY},          // Bottom
 };
 
+// UV mappers (CubeMesh.cs:291-442). All four are pure functions of (u, v, sideIndex, padding) and
+// write a Vector2 into out[2]. Selected per channel by TexCoord / TexCoord2.
+//   _faceRegions for CubeMap (CubeMesh.cs:365-373) and CubeMapSquare (:405-413): [x, y, w, h].
+const float kOneThird = 1.0f / 3.0f;
+struct Vec4 { float x, y, z, w; };
+const Vec4 kCubeMapRegions[6] = {
+    {0.25f, kOneThird, 0.25f, kOneThird},          // Front
+    {0.50f, kOneThird, 0.25f, kOneThird},          // Right
+    {0.75f, kOneThird, 0.25f, kOneThird},          // Back
+    {0.0f, kOneThird, 0.25f, kOneThird},           // Left
+    {0.25f, 0.0f, 0.25f, kOneThird},               // Top
+    {0.25f, kOneThird * 2.0f, 0.25f, kOneThird},   // Bottom
+};
+const Vec4 kCubeMapSquareRegions[6] = {
+    {0.25f, 0.25f + 0.125f, 0.25f, 0.25f},  // Front
+    {0.50f, 0.25f + 0.125f, 0.25f, 0.25f},  // Right
+    {0.75f, 0.25f + 0.125f, 0.25f, 0.25f},  // Back
+    {0.0f, 0.25f + 0.125f, 0.25f, 0.25f},   // Left
+    {0.25f, 0.0f + 0.125f, 0.25f, 0.25f},   // Top
+    {0.25f, 0.50f + 0.125f, 0.25f, 0.25f},  // Bottom
+};
+
+// CubeMap / CubeMapSquare share the same region→UV body (CubeMesh.cs:375-398, :415-440), verbatim
+// (the double width/height reassignment is kept as TiXL wrote it).
+void regionUv(const Vec4& region, float u, float v, float padding, float* out) {
+  float x = region.x + padding, y = region.y + padding;
+  float width = region.z - (padding * 2.0f), height = region.w - (padding * 2.0f);
+  float xCenter = region.x + region.z / 2.0f, yCenter = region.y + region.w / 2.0f;
+  x = xCenter - width / 2.0f + padding;
+  y = yCenter - height / 2.0f + padding;
+  width = width - (padding * 2.0f);
+  height = height - (padding * 2.0f);
+  out[0] = x + u * width;
+  out[1] = y + v * height;
+}
+
+// uvMapMode: 0=Standard 1=UnwrappedCube 2=CubeMap 3=CubeMapSquare (CubeMesh.cs:291-301).
+void cubeCalcUv(int mode, float u, float v, int sideIndex, float padding, float* out) {
+  switch (mode) {
+    case 1: {  // UnwrappedCubeMapper (CubeMesh.cs:320-358)
+      float usableWidth = (1.0f - 4.0f * padding) / 3.0f;   // 3 columns, 4 pad gaps
+      float usableHeight = (1.0f - 3.0f * padding) / 2.0f;   // 2 rows, 3 pad gaps
+      int column = sideIndex % 3;
+      int row = sideIndex / 3;
+      float faceSize = std::fmin(usableWidth, usableHeight);
+      float xOffset = column * (usableWidth + padding) + padding;
+      float yOffset = row * (usableHeight + padding) + padding;
+      if (usableWidth > usableHeight)
+        xOffset += (usableWidth - faceSize) / 2.0f;
+      else if (usableHeight > usableWidth)
+        yOffset += (usableHeight - faceSize) / 2.0f;
+      out[0] = u * faceSize + xOffset;
+      out[1] = v * faceSize + yOffset;
+      return;
+    }
+    case 2:  // CubeMap
+      regionUv(kCubeMapRegions[sideIndex], u, v, padding, out);
+      return;
+    case 3:  // CubeMapSquare
+      regionUv(kCubeMapSquareRegions[sideIndex], u, v, padding, out);
+      return;
+    default:  // 0 Standard (CubeMesh.cs:308-318)
+      out[0] = 0.5f + (u - 0.5f) * (1.0f - 2.0f * padding);
+      out[1] = 0.5f + (v - 0.5f) * (1.0f - 2.0f * padding);
+      return;
+  }
+}
+
 int clampSeg1(float v) {
   int s = (int)(v + 0.5f);
   if (s < 1) s = 1;
@@ -101,6 +169,9 @@ void cubeCook(MeshCookCtx& c) {
   float centerDef[3] = {0, 0, 0};
   float center[3]; cookMeshVecN(c.params, "Center", centerDef, 3, center);
   float margin = cookMeshParam(c.params, "Margin", 0.0f);
+  float margin2 = cookMeshParam(c.params, "Margin2", 0.0f);
+  int uvMode = (int)(cookMeshParam(c.params, "TexCoord", 0.0f) + 0.5f);
+  int uvMode2 = (int)(cookMeshParam(c.params, "TexCoord2", 0.0f) + 0.5f);
   float cyaw = rot[1] * kDeg2Rad, cpitch = rot[0] * kDeg2Rad, croll = rot[2] * kDeg2Rad;
 
   int xSeg, ySeg, zSeg, totalV, totalT;
@@ -108,12 +179,6 @@ void cubeCook(MeshCookCtx& c) {
   auto segForAxis = [&](Axis a) { return a == AX ? xSeg : a == AY ? ySeg : zSeg; };
   auto compForAxis = [&](Axis a) { return a == AX ? stretch[0] : a == AY ? stretch[1] : stretch[2]; };
   (void)compForAxis;
-
-  // StandardUvMapper (CubeMesh.cs:308-318): u,v scaled toward (0.5,0.5) by (1-2*margin).
-  auto stdUv = [&](float u, float v, float* out) {
-    out[0] = 0.5f + (u - 0.5f) * (1.0f - 2.0f * margin);
-    out[1] = 0.5f + (v - 0.5f) * (1.0f - 2.0f * margin);
-  };
 
   SwVertex* verts = (SwVertex*)c.output_vertices->contents();
   SwTriIndex* idx = (SwTriIndex*)c.output_indices->contents();
@@ -147,7 +212,8 @@ void cubeCook(MeshCookCtx& c) {
         int faceIndex = 2 * (rowIndex + columnIndex * (rowCount - 1)) + sideFaceIndex;
         V3 p = {columnFragment, rowFragment, depthScale};
         float v0 = rowIndex / ((float)rowCount - 1.0f);
-        float uv0[2]; stdUv(u0, v0, uv0);
+        float uv0[2]; cubeCalcUv(uvMode, u0, v0, sideIndex, margin, uv0);
+        float uv1[2]; cubeCalcUv(uvMode2, u0, v0, sideIndex, margin2, uv1);
 
         // position = (TransformNormal(p+offset, sideRot) + pivot) * stretch * scale  (offset=-0.5).
         V3 pOff = {p.x - 0.5f, p.y - 0.5f, p.z - 0.5f};
@@ -162,7 +228,7 @@ void cubeCook(MeshCookCtx& c) {
         v.Tangent = {tangent.x, tangent.y, tangent.z};
         v.Bitangent = {binormal.x, binormal.y, binormal.z};
         v.Texcoord = {uv0[0], uv0[1]};
-        v.Texcoord2 = {uv0[0], uv0[1]};  // FORK: Standard mapper for both (see header).
+        v.Texcoord2 = {uv1[0], uv1[1]};
         v.Selection = 1.0f;
         v.ColorRgb = {1, 1, 1};
 
@@ -218,9 +284,8 @@ NodeSpec cubeSpec() {
   PortSpec mgn; mgn.id = "Margin"; mgn.name = "Margin"; mgn.dataType = "Float"; mgn.isInput = true;
   mgn.def = 0.0f; mgn.minV = 0.0f; mgn.maxV = 0.5f;
   // TexCoord / TexCoord2 / Margin2: real TiXL [Input]s (CubeMesh.cs:481-491).
-  // UV modes (0=Standard/Default, 1=UnwrappedCube, 2=CubeMap, 3=CubeMapSquare) — default=0 is the
-  // Standard mapper already implemented. Non-zero modes are DEFERRED (fork); NodeSpec exposes the
-  // knob so the inspector shows it; cook ignores non-zero and falls back to Standard (neutral at def).
+  // UV modes (0=Standard/Default, 1=UnwrappedCube, 2=CubeMap, 3=CubeMapSquare) — all four ported in
+  // the cook (cubeCalcUv). TexCoord/TexCoord2 each select a mapper; Margin/Margin2 are their paddings.
   PortSpec tco; tco.id = "TexCoord"; tco.name = "TexCoord"; tco.dataType = "Float"; tco.isInput = true;
   tco.def = 0.0f; tco.minV = 0.0f; tco.maxV = 3.0f;
   tco.widget = Widget::Enum; tco.labels = {"Standard", "Unwrapped", "CubeMap", "CubeMapSquare"};

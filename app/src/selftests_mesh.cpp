@@ -26,7 +26,9 @@ REGISTER_SELFTESTS(/*orderBase=*/330,
     {"mesh-torus", runMeshTorusGoldenSelfTest},
     {"mesh-cylinder", runMeshCylinderGoldenSelfTest},
     {"mesh-cube", runMeshCubeGoldenSelfTest},
+    {"mesh-cube-uv", runMeshCubeUvGoldenSelfTest},
     {"mesh-icosahedron", runMeshIcosahedronGoldenSelfTest},
+    {"mesh-icosahedron-uv", runMeshIcosahedronUvGoldenSelfTest},
 );
 // Modify family batch 2 (Split/Select/Deform/Collapse/ProjectUV). Fresh high orderBase appends to
 // --selftest-list without reshuffling the pre-existing mesh rows.

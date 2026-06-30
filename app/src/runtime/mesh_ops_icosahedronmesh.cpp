@@ -17,11 +17,12 @@
 //     pos = (vX*scale*stretchX, vY*scale*stretchY, vZ*scale*stretchX) ;
 //     pos = Transform(pos+offset, R) + center.
 //     Normal/Tangent/Bitangent = TransformNormal(n / cross(n,UnitY) / cross(n,UnitX), R).
-//   UV (Faces mode 0): _baseUvs[vertexIndex % 3].                                                  [:373-391,735-740]
-//
-// FORK (named): only the Faces UV mapper (TexCoord mode 0, the .t3 default) is ported. Modes
-// 1=Unwrapped / 2=Atlas / 3=FacesSub / 4=GridFacesSub are texture-atlas layouts; DEFERRED and fall
-// back to Faces. Positions/topology/normals are 1:1 across subdivision + both shading modes.
+//   UV (all five mappers ported, IcosahedronMesh.cs:355-719): 0=Faces (_baseUvs[vertexIndex%3]),
+//     1=Unwrapped (spherical projection + seam-fix, prepareUnwrapped), 2=Atlas, 3=FacesSub,
+//     4=GridFacesSub (atlas/grid base-UV table + recursive TessellateUV per subdivision level).
+//     TexCoord selects the mapper for Texcoord, TexCoord2 for Texcoord2. Positions/topology/normals
+//     are 1:1 across subdivision + both shading modes. --selftest-mesh-icosahedron-uv pins each
+//     non-default mode to its TiXL layout (FacesSub probed at sub=1, where it diverges from Faces).
 #include "runtime/graph.h"  // NodeSpec, PortSpec, Widget
 
 #include <cmath>
@@ -34,9 +35,10 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
-#include "runtime/eval_context.h"      // EvaluationContext
-#include "runtime/mesh_op_registry.h"  // MeshOp self-registration + MeshCookCtx + cookMeshParam/VecN
-#include "runtime/sw_mesh.h"           // SwVertex (80B) + SwTriIndex (12B)
+#include "runtime/eval_context.h"        // EvaluationContext
+#include "runtime/mesh_icosahedron_uv.h"  // ico_uv:: UV mappers (Faces/Unwrapped/Atlas/FacesSub/Grid)
+#include "runtime/mesh_op_registry.h"    // MeshOp self-registration + MeshCookCtx + cookMeshParam/VecN
+#include "runtime/sw_mesh.h"             // SwVertex (80B) + SwTriIndex (12B)
 
 namespace sw {
 namespace {
@@ -71,9 +73,6 @@ V3 transformNormal(V3 v, float yaw, float pitch, float roll) {
 
 const float kPhi = (1.0f + std::sqrt(5.0f)) / 2.0f;
 float tiltAngle() { return std::atan(2.0f / (2.0f * kPhi)); }
-
-// _baseUvs (IcosahedronMesh.cs:735-740).
-const V3 kBaseUv[3] = {{0.5f, 1.0f, 0}, {0.067f, 0.250f, 0}, {0.933f, 0.250f, 0}};
 
 void generateIcosahedron(std::vector<V3>& verts, std::vector<Tri>& tris) {
   float p = kPhi;
@@ -184,6 +183,8 @@ void icoCook(MeshCookCtx& c) {
   bool spherical = cookMeshParam(c.params, "Spherical", 0.0f) > 0.5f;
   float strength = cookMeshParam(c.params, "Strength", 1.0f);
   int shadingMode = clampI(cookMeshParam(c.params, "Shading", 0.0f), 0, 1);
+  int uvMode = (int)(cookMeshParam(c.params, "TexCoord", 0.0f) + 0.5f);
+  int uvMode2 = (int)(cookMeshParam(c.params, "TexCoord2", 0.0f) + 0.5f);
 
   float yaw = rot[1] * kDeg2Rad, pitch = rot[0] * kDeg2Rad, roll = rot[2] * kDeg2Rad;
   float rollOffset = roll - tiltAngle();
@@ -194,6 +195,16 @@ void icoCook(MeshCookCtx& c) {
   std::vector<V3> normals;
   if (shadingMode == 1) smoothNormals(verts, tris, normals);
   else flatNormals(verts, tris, normals);
+
+  // Per-channel UV: Unwrapped (mode 1) needs a whole-mesh Prepare pass; the rest are per-vertex.
+  // verts/tris are tightly-packed {x,y,z}/{i0,i1,i2} so reinterpret to the raw views the header wants.
+  std::vector<ico_uv::UvV2> unwrapped0, unwrapped1;
+  if (uvMode == 1)
+    ico_uv::prepareUnwrapped((const float*)verts.data(), verts.size(), (const int*)tris.data(),
+                             tris.size(), tiltAngle(), (float)kPiD, unwrapped0);
+  if (uvMode2 == 1)
+    ico_uv::prepareUnwrapped((const float*)verts.data(), verts.size(), (const int*)tris.data(),
+                             tris.size(), tiltAngle(), (float)kPiD, unwrapped1);
 
   SwVertex* outV = (SwVertex*)c.output_vertices->contents();
   SwTriIndex* outI = (SwTriIndex*)c.output_indices->contents();
@@ -209,14 +220,15 @@ void icoCook(MeshCookCtx& c) {
     V3 n = transformNormal(normals[i], yaw, pitch, rollOffset);
     V3 t = transformNormal(cross(normals[i], V3{0, 1, 0}), yaw, pitch, rollOffset);
     V3 bn = transformNormal(cross(normals[i], V3{1, 0, 0}), yaw, pitch, rollOffset);
-    V3 uv = kBaseUv[i % 3];  // FORK: Faces UV mapper only (see header).
+    ico_uv::UvV2 uv0 = ico_uv::uvForVertex(uvMode, (int)i, subdivisions, unwrapped0);
+    ico_uv::UvV2 uv1 = ico_uv::uvForVertex(uvMode2, (int)i, subdivisions, unwrapped1);
     SwVertex& v = outV[i];
     v.Position = {pos.x, pos.y, pos.z};
     v.Normal = {n.x, n.y, n.z};
     v.Tangent = {t.x, t.y, t.z};
     v.Bitangent = {bn.x, bn.y, bn.z};
-    v.Texcoord = {uv.x, uv.y};
-    v.Texcoord2 = {uv.x, uv.y};
+    v.Texcoord = {uv0.x, uv0.y};
+    v.Texcoord2 = {uv1.x, uv1.y};
     v.Selection = 1.0f;
     v.ColorRgb = {1, 1, 1};
   }
@@ -264,9 +276,8 @@ NodeSpec icoSpec() {
   PortSpec shd; shd.id = "Shading"; shd.name = "Shading"; shd.dataType = "Float"; shd.isInput = true;
   shd.def = 0.0f; shd.minV = 0.0f; shd.maxV = 1.0f; shd.widget = Widget::Enum; shd.labels = {"Flat", "Smoothed"};
   // TexCoord / TexCoord2: real TiXL [Input]s (IcosahedronMesh.cs:781-785).
-  // UV modes (0=Faces, 1=Unwrapped, 2=Atlas, 3=FacesSub, 4=GridFacesSub) — default=0 is the
-  // Faces mapper already implemented. Non-zero modes are DEFERRED (fork); NodeSpec exposes the
-  // knob so the inspector shows it; cook ignores non-zero and falls back to Faces (neutral at def).
+  // UV modes (0=Faces, 1=Unwrapped, 2=Atlas, 3=FacesSub, 4=GridFacesSub) — all five ported in
+  // mesh_icosahedron_uv.h (ico_uv::uvForVertex). TexCoord/TexCoord2 each select a mapper per channel.
   PortSpec tco; tco.id = "TexCoord"; tco.name = "TexCoord"; tco.dataType = "Float"; tco.isInput = true;
   tco.def = 0.0f; tco.minV = 0.0f; tco.maxV = 4.0f;
   tco.widget = Widget::Enum; tco.labels = {"Faces", "Unwrapped", "Atlas", "FacesSub", "GridFacesSub"};
