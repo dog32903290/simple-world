@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 79f819a
-DIRTY: 3 files
+HEAD: 0863355
+DIRTY: 1 files
 CENSUS: 472 / 749 done
 BITE: 541 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-30T07:52
+STAMP_AT: 2026-06-30T09:28
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -41,11 +41,14 @@ STAMP_AT: 2026-06-30T07:52
 **★並行/衝突（Session Safety）**：柏為 chip-session 在做 **mesh UV mappers（task_e4745352，動 mesh 葉檔 mesh_ops_{cubemesh,icosahedronmesh}.cpp）**→**orchestrator 不碰 mesh_ops_*.cpp**，等它落地接新 main。vec4/Seam2（cook-core）與 mesh（葉）不撞，可平行。（我曾誤派自己的 agent 做同一 chip→雙開撞車，已停；教訓見 [[chip-started-by-baiwei-no-dup-dispatch]]。）
 chips 排隊：task_127047e2(Lerp/Remap golden)、task_df8df769(scn fix)、task_a9c5f724(PointsToCPU MaxCount 0→100)、task_964c2da1(vec4-currency＝上面①)。
 
-**★★CLEAN CHECKPOINT（2026-06-30 02:43，HEAD 9cd46dd，--bite 539）**：本夜自走落地＝param-completion 全 4 批（時間源 15+fork 4+leaf 7+fold-suspect 5，directive 完成）+ Seam 1 keystone + buffer fan-out WO-A/B，皆 refuter+orchestrator 復跑+stamp。**剩全是「careful cook-core 層」**：WO-C(低值,0 consumer)、WO-D(transpose 慣例 subtlety)、WO-E(OWNER-LOCKED resident param-path)、Seam 2 build——這些 ROI/風險不適合深夜無人盲推，**下個有暇 session 帶 fresh context 接**（藍圖/conversion-table 都在 disk）。
+---
+> **🔒〔以下全為歷史塊，已被本檔頂部「現狀」取代——勿讀成現行 active lane〕** CLEAN CHECKPOINT(02:43)／STEERING-pivot(15:41)／「22:13 原 Active Lane」／舊全並行策略，都是夜間/pivot 當下的快照。**param-completion + Seam 1（keystone+6 ops+resident mirror）都已完成、buffer 算子 live 在 production。** 這些只當「為什麼走『原子地基優先』」的背景讀；**現行 active lane = 頂部「現狀」+「下一棒 vec4→Seam2」**，不是底下任何一塊。
+
+**〔歷史〕CLEAN CHECKPOINT（2026-06-30 02:43，HEAD 9cd46dd）**：param-completion 4 批 + Seam 1 keystone + buffer fan-out WO-A/B 落地（皆 refuter+復跑+stamp）。當時剩「careful cook-core 層」WO-C/D/E + Seam 2——**現都已做完（WO-D/E merged，Seam 2 turnkey），此塊已過時**。
 
 > **★★STEERING 覆寫（柏為 2026-06-29 15:41 拍板，[R] 級方向，可能不可逆）：停 monolithic 節點產線、轉投「原子地基優先」。** 鐵證：DrawPoints/DrawMesh/RadialPoints/DrawLines/GridPoints/LinePoints/DrawBillboards/TransformPoints 在 TiXL **全是複合非原子**；我方 461 done ≈ 102 atomic + 359 monolithic-compound-equiv＝**一路把 TiXL 複合層壓成單體手寫、真原子層只做 ~102**。後果：無原子地基／無法重放 .t3／無法做鑽進複合的磁吸 UI。**新方向＝建被最多複合重用的原子詞彙（ROI 表 `scratchpad/t3roi.py`）**：① buffer-marshalling（keystone `FloatsToBuffer` 208 顆=58%／GetBufferComponents 163／ExecuteBufferUpdate 117／SrvFromTexture2d 116／IntsToBuffer／GetSRVProperties，全未 port）② DX11 render-state（Rasterizer／InputAssemblerStage／OutputMergerStage／Draw／TransformsConstBuffer，~72 each 未 port）＝一直 defer 的 `shader-graph`+`dx11-wrapper` seam。math/value 層已做。**gating 設計難題**：`GenerateShaderGraphCode`（inline HLSL codegen）撞「預編譯 shader」哲學，決定 draw 類能否重放。**下一步**：spike `FloatsToBuffer` 原子節點 + 最小 .t3 importer，證 byte-parity。**協調：下方 param-completion lane ＝被停的 monolithic 線；另一 session（sad-goodall worktree, commits ca0972e/6686fa1）在跑它，需 redirect。** 詳 [[sw-clone-two-rails-atomic-compound]]。**以下 param-completion lane 內容凍結為歷史，勿續推。**
 
-**★★當前 Active Lane（柏為 2026-06-29 22:13）= 原子→巢狀策略，`/sw-batch` 自走兩條工作：**
+**〔歷史·已完成，非現行〕原 Active Lane（柏為 2026-06-29 22:13）= 原子→巢狀策略，當時 `/sw-batch` 兩條工作（① param-completion ② 標廢棄——①已全清，②清單已產 deprecation_candidates.md）：**
 - **① 補 38 顆真原子的 baked param**（讓真原子旋鈕齊 TiXL `[Input]`，柏為怕的「舊原子 baked 沒暴露旋鈕」）。清單＝`docs/agent/census/PARAM_COMPLETION_MAP.md` §307 真原子 param 全掃 + `tools/node_health.sh` param-gap 欄。**先打 ~15 顆時間源旋鈕共通家族（UseAppRunTime/OverrideTime，一次解鎖多顆 ROI 最高）**；剔除 known_fork 假 MISSING（SubGraph/ClearAfterExecution 該進 fork list 非盲補）。每顆 cook-through golden red-first + refuter。
 - **② 標廢棄 135 顆壓平複合**（只標 tag 不挪 code、不刪，柏為定）。清單＝`docs/agent/census/deprecation_candidates.md`。13 顆有依賴（`compound_save.cpp` atomicUuidTable 存檔 UUID 合約，退役會破 .swproj）暫不動，等存檔遷移。
 - **★策略＝原子節點 → 巢狀（.t3 重放複合），不在 flat runtime 手刻複合。** 節點普查 SSOT＝`tools/node_health.sh`/.html + `docs/agent/census/ATOM_SEAM_MAP.md`。.t3 重放 rail 已證（spike `spike/t3-importer` 步1 FloatsToBuffer 原子 + 步2 importer routing-fidelity）；buffer-currency keystone（步3，碰 cook-core）等柏為。
