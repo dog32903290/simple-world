@@ -51,8 +51,10 @@
 // FORK 3 — int ports ride as Float params (the value rail is float-only). StartIndex/MaxCount are
 //   InputSlot<int> in TiXL; this codebase's pointlist cook resolves Float params only, so they live as
 //   pinless Float params read via pointListParam and truncated to int (the established int-as-Float fork,
-//   same as every int port in the point/value families). Default StartIndex 0; MaxCount default is 0,
-//   which TiXL reads as "all remaining" (cs:119: requestedMaxCount>0 ? value : int.MaxValue) — preserved.
+//   same as every int port in the point/value families). Two-layer default (mirrors TiXL's two layers):
+//   the PortSpec def is the .t3 DefaultValue 柏為 sees on add (StartIndex 0 = t3:6; MaxCount 100 = t3:10),
+//   while the cook's pointListParam fallback (StartIndex/MaxCount = 0) mirrors the .cs InputSlot<int>()
+//   default, where 0 means "all remaining" (cs:119: requestedMaxCount>0 ? value : int.MaxValue).
 //
 // FORK 4 — output rides the existing PointList host currency (std::vector<SwPoint>), NOT a fresh
 //   StructuredList<Point> Slot type. SwPoint is the byte-identical host twin of TiXL Point (tixl_point.h:
@@ -115,7 +117,8 @@ void cookPointsToCpu(PointListCookCtx& c) {
 // Self-registration. File-scope static PointListOp — independent leaf .cpp (no shared edit point).
 //   Ports: "PointBuffer" = the Points bag input (the readback source, the GPU→host crossing);
 //          "StartIndex"  = pinless Float param (int-as-Float fork), default 0;
-//          "MaxCount"    = pinless Float param, default 0 (0 = read all remaining, cs:119);
+//          "MaxCount"    = pinless Float param, PortSpec def 100 (t3:10; caps readback); cook fallback
+//                          0 = read all remaining (cs:119, mirrors .cs InputSlot<int>());
 //          "Output"      = the PointList output (the host SwPoints read back).
 //   Async / UpdateContinuously / TriggerUpdate are omitted (FORK 2: value-less async-cadence knobs;
 //   a synchronous shared read is always immediately readable).
@@ -125,7 +128,7 @@ static const PointListOp _reg_pointstocpu{
      {{"PointBuffer", "PointBuffer", "Points", true},
       {"StartIndex", "StartIndex", "Float", true, 0.0f, 0.0f, 100000.0f, Widget::Slider, {},
        /*pinless=*/true},
-      {"MaxCount", "MaxCount", "Float", true, 0.0f, 0.0f, 100000.0f, Widget::Slider, {},
+      {"MaxCount", "MaxCount", "Float", true, 100.0f, 0.0f, 100000.0f, Widget::Slider, {},
        /*pinless=*/true},
       {"Output", "Output", "PointList", false}},
      /*evaluate=*/nullptr},  // PointList output cannot ride NodeSpec::evaluate (returns ONE float)
