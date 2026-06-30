@@ -16,24 +16,39 @@
 # capture clean = DrawPoints#7 的 Metal render 輸出 (DrawPoints 仍是 cmdReg 第一個).
 # RED 面: 把最後 assert_diff 改成 assert_same → 必紅 (拖 Strength 改擾動量 = 點座標變 = 像素變).
 
-# --- 加 AddNoise#104 (空白 canvas 右鍵) ---
-do rclick 380 320
+# --- 加 AddNoise#104 (quick-add palette: 對 canvas 按 Cmd+F → 篩選 "AddNoise" → 點選) ---
+# 為何不走 bg-context「Add Node」submenu (blur/filter/math 等 sibling 的做法): 那個 submenu 是
+# 單一未篩選的長清單 (491 項, ~6861px 高), 遠高於視窗 (720px)。AddNoise 註冊在 point-modify 段、
+# 落在 y≈812 — 已捲出視窗外。submenu 的項目即使被捲掉, recordItem 仍記下它捲動前的邏輯 rect,
+# 於是 @bgctx:add:AddNoise 解析成功卻把座標點擊打在「視窗外」→ 永不 spawn (siblings 的
+# RenderTarget/DrawLines 剛好排在清單上半截才碰巧落在可點區; 同樣機制下 Blur/Tint/Add 其實也脆)。
+# quick-add 會把清單篩成短表 → 目標永遠在畫面內 = 確定性的 GUI spawn 路徑, 同樣證承重線(1)
+# 「AddNoise 可被 GUI spawn」。此路徑已由 field_sdf_palette.scn 驗證會落 id 104。
+do click 380 320
+wait 0.3
+do keychord cmd f
+wait 0.5
+assert_map_has qa:input
+do text AddNoise
 wait 0.4
-assert_map_has ctx:add_node_bg
-do click @ctx:add_node_bg
-wait 0.4
-do click @bgctx:add:AddNoise
+assert_map_has qa:AddNoise
+do click @qa:AddNoise
 wait 0.5
 assert_state '[.lib.symbols[].children[] | select(.id == 104)] | length == 1'
 echo addnoise-104-spawned
 
-# --- 接線 1: ParticleSystem#2.result(203) → AddNoise#104.points(10401) ---
-do drag @pin:203 @pin:10401
+# --- 接線: 用 connect 直接動詞, 不用座標 pin→pin 拖曳 ---
+# 為何不用 do drag @pin:..: node-editor 的連線手勢是逐幀 state machine, 合成的座標 drag 即使
+# 兩端 pin 都在畫面內、未被遮擋也不會落成一條連線 (eye-hand skill「#1 卡點」, 本機實測 203→10401
+# 拖完仍 3 條未連)。connect 走 app 的 setConnectHook → 推同一條 AddWireCommand (驗 type/方向),
+# = 真實拖曳的資料模型結果, 且 skin-independent。單輸入 port 重接時 applyConnection 自動 replace。
+# 接線 1: ParticleSystem#2.result → AddNoise#104.points
+do connect 2 result 104 points
 wait 0.4
 
-# --- 接線 2: AddNoise#104.out(10402) → DrawPoints#7.points(701) ---
-# (取代舊的 ParticleSystem#2.result → DrawPoints#7.points, 單輸入 port 重接 = replace)
-do drag @pin:10402 @pin:701
+# 接線 2: AddNoise#104.out → DrawPoints#7.points
+# (DrawPoints.points 是單輸入, 已被 ParticleSystem#2.result 佔用 → connect 自動 replace 舊線)
+do connect 104 out 7 points
 wait 0.4
 
 # 連線數: 舊 3 + 新 PS→AN(1) + 新 AN→DP(1) - 取代舊 PS→DP(1) = 4
@@ -46,7 +61,10 @@ capture clean before_strength
 echo captured-addnoise-render-baseline
 
 # --- 選 AddNoise#104 → Inspector 顯示 Strength 滑桿 ---
-do click @node:104^
+# 用 selectnode 直接動詞而非座標標題點擊: 接線 replace 後的 relayout 會移動/遮擋節點本體,
+# 且 node-editor 標題點擊本就 hover/幾何相依 (skill「click sometimes doesn't select」)。
+# selectnode → ed::SelectNode, 跳過座標 hit-test; g_selectedNode 每幀從 ed 選取同步 (editor_ui)。
+do selectnode 104
 wait 0.3
 assert_state '.selectedNode == 104'
 echo addnoise-selected
