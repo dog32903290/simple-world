@@ -1,5 +1,7 @@
 # SEAM1_BUFFER_BUILD_PLAN — buffer-marshalling keystone (照 TiXL, non-fork)
 
+> **🔒 STATUS: COMPLETE + 部分指示已被 SEAM1_FANOUT_BUILD_PLAN 修正** — Seam 1 整條已 build+merged+pushed(4566d63)。本檔是原始藍圖,**兩處指示已過時被 FANOUT 推翻,勿照本檔做**：①IntsToBuffer 應 port const-buffer 變體(2eb20a76,78 consumers)非 WithViews(0 consumer);②IntsToBuffer selftest [7,8,9]→count==**4**(16-byte pad bytes[7,8,9,0])非 count==3。正解見 SEAM1_FANOUT_BUILD_PLAN §Backward-trace。
+
 > 2026-06-29 Opus architect blueprint (read-only, re-confirmed against current main + TiXL SHA 395c4c55).
 > Strategy DECIDED (柏為 2026-06-29 cook-core unblock): distinct "Buffer" port currency (raw bytes + stride),
 > separate from "Points", faithful to TiXL BufferWithViews. DX11 SRV/UAV/Buffer triple → ONE MTL::Buffer.

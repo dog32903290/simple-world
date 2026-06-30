@@ -4,6 +4,8 @@
 > 從「盲掃」變成「地圖」。**這是下批 fan-out 的選批 SSOT。** 缺口數字會隨補完移動——
 > 真相源永遠是 `tools/nodespec_integrity.sh`（現只懂 generator 島，擴島見 §閘擴充）。
 
+> **🔒 2026-06-30 更新：param-completion backlog 已全清(36 param,5 批 merged)。下方「真缺口清單」「下批 fan-out 優先序」是收尾前的快照,flow/mesh 等多已 CLOSED——勿當待辦選批。真相源 = tools/node_health.sh --class undone + nodespec_integrity。剩真開的:ParticleSystem -11(deferred fork,卡柏為 pool-fork)等少數,逐顆查 node_health 不信本表。**
+
 ## ★核心：EXTRA 有兩種成因，分不清下批會白工
 
 其他島主流是 `sw > TiXL`（EXTRA），但 EXTRA **不等於**「sw 多做了要砍」。兩種成因：

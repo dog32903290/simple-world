@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: ffe63f7
-DIRTY: 1 files
+HEAD: 4566d63
+DIRTY: 7 files
 CENSUS: 472 / 749 done
 BITE: 544 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-30T10:31
+STAMP_AT: 2026-06-30T10:45
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -39,8 +39,8 @@ STAMP_AT: 2026-06-30T10:31
 2. **Seam 2 render-state build（TURNKEY）**：FrozenRenderState accumulator + PSO cache（mirror Camera/Group stamp）。**★★做 Seam 2 的 agent 開工第零步必讀（工單明列）：`docs/agent/census/DX11_METAL_CONVERSION_TABLE.md`＝DX11→Metal 研究報告（每個狀態 closed-form/emergent 分類，14 公式驗/depth-bias emergent/2 guard，你的 parity 權威）＋ `docs/agent/census/SEAM2_RENDERSTATE_BUILD_PLAN.md`＝完整藍圖（states-census 已跑＋FrozenRenderState 設計＋per-op＋forks＋goldens＋最高風險）。** 真實面小:cull(None/Back)+7 blend+3 op,其餘 dormant,唯一 emergent=DepthBias=-6。spike=Rasterizer。**★highest risk=flat/resident 雙 command-cook leg accumulator 分歧（resident-only miss=無聲錯 render）→de-risk push/pop 單一 shared helper + both-leg selftest。** owner-lock 脊椎 render_command.h(249-includer)→cook_ctx→雙 command-cook→rendertarget materialize+cache(serial)，之後 4 op leaf 並行。
 - 低優先殘留：TransformsConstBuffer resident camera golden（reasoned-not-tested，verbatim-copy 低風險）。
 
-**★並行/衝突（Session Safety）**：柏為 chip-session 在做 **mesh UV mappers（task_e4745352，動 mesh 葉檔 mesh_ops_{cubemesh,icosahedronmesh}.cpp）**→**orchestrator 不碰 mesh_ops_*.cpp**，等它落地接新 main。vec4/Seam2（cook-core）與 mesh（葉）不撞，可平行。（我曾誤派自己的 agent 做同一 chip→雙開撞車，已停；教訓見 [[chip-started-by-baiwei-no-dup-dispatch]]。）
-chips 排隊：task_127047e2(Lerp/Remap golden)、task_df8df769(scn fix)、task_a9c5f724(PointsToCPU MaxCount 0→100)、task_964c2da1(vec4-currency＝上面①)。
+**★並行/衝突（Session Safety）**：~~柏為 chip-session 在做 **mesh UV mappers（task_e4745352，動 mesh 葉檔 mesh_ops_{cubemesh,icosahedronmesh}.cpp）**→**orchestrator 不碰 mesh_ops_*.cpp**~~（**mesh UV modes DONE 897e3da，lock 解除**，無衝突）。
+chips 排隊：~~task_127047e2(Lerp/Remap golden)、task_df8df769(scn fix)、task_a9c5f724(PointsToCPU MaxCount 0→100)、task_964c2da1(vec4-currency＝上面①)~~ → **✅ 全 merged（5 chip 已 pushed ffe63f7）**。
 
 ---
 > **🔒〔以下全為歷史塊，已被本檔頂部「現狀」取代——勿讀成現行 active lane〕** CLEAN CHECKPOINT(02:43)／STEERING-pivot(15:41)／「22:13 原 Active Lane」／舊全並行策略，都是夜間/pivot 當下的快照。**param-completion + Seam 1（keystone+6 ops+resident mirror）都已完成、buffer 算子 live 在 production。** 這些只當「為什麼走『原子地基優先』」的背景讀；**現行 active lane = 頂部「現狀」+「下一棒 vec4→Seam2」**，不是底下任何一塊。
@@ -104,6 +104,9 @@ chips 排隊：task_127047e2(Lerp/Remap golden)、task_df8df769(scn fix)、task_
 - **eye-hand 截圖被面板遮擋擋住（本 session raymarch 踩）**：spawned node 生在浮動 Output/Inspector 面板下方→hand 拖線點到面板不到 pin，eye-hand 視覺驗證做不出來。這是 orthogonal UI 問題非 seam；production-path golden（cook→`pg.target()`，與 OutputWindow 同源 texture）是 load-bearing 證明，eye 截圖 best-effort。值得開 chip 解（移開/可關面板 or spawn 到 clear canvas）。
 
 ## Next Handoff Sentence
+
+**〔🔒 歷史·已完成，非現行——現行見本檔頂部「現狀」+「下一棒＝Seam 2」〕**
+
 **★★接力（原子地基 pivot；param-completion 舊 lane + Cook-Core 脊椎舊策略已凍結/廢，見上方 Active Lane）：策略＝原子→巢狀（.t3 重放），SSOT＝`tools/node_health.sh`/.html + `docs/agent/census/ATOM_SEAM_MAP.md`（讀 code 真帳，舊 census 不可信勿用）。`/sw-batch` 自走當前兩條：① 補 38 真原子 baked param（先時間源旋鈕家族 UseAppRunTime/OverrideTime，剔 known_fork 假 MISSING；清單 PARAM_COMPLETION_MAP §307 全掃）② 標廢棄 135 壓平複合（deprecation_candidates.md，只標 tag）。之後：buffer-currency keystone（spike 步3，碰 cook-core 等柏為）+ .t3 importer 多原子串接 + 固定 shader 體力批。**
 
 **今天承重發現：census/scout 系統性 stale，6-8 次「待辦/卡縫」一讀 code 都是早建好**（image/value/shader/String/Matrix/anim/list 全中）→ 任何 claim 進工單前必多處 code-verified done-check（grep 中央表 node_registry_math_* + registry + CMake + cook flow，非單一處）。[[orchestrator-read-code-before-difficulty-verdict]]

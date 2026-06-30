@@ -1,5 +1,7 @@
 # SEAM1_VEC4_CURRENCY_BUILD_PLAN — FloatsToBuffer.Vec4Params from a WIRED matrix, both legs
 
+> **🔒 STATUS: COMPLETE(2026-06-30,commit 2421b2a,pushed 4566d63,--selftest-buffer-vec4 GREEN 兩腿)。本檔為已完成 build,勿重新執行——它動的是 OWNER-LOCKED cook-core(buffer cook 兩 leg),重做會撞已蓋的碼。殘留只剩 producer-seam(ResultInverted/GetMatrixVar,非本橋)。**
+
 > 2026-06-30 Opus blueprint (vs main `79f819a` + TiXL `395c4c55`). OWNER-LOCKED cook-core, serial.
 > Closes the named fork `floatstobuffer-vec4-from-nodeparams`: production (resident leg) gathered ZERO
 > Vec4Params, so any compound wiring a matrix into `FloatsToBuffer.Vec4Params(914EA6E8)` produced a buffer
