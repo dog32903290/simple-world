@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 0863355
+HEAD: ffe63f7
 DIRTY: 1 files
 CENSUS: 472 / 749 done
-BITE: 541 PASS | NO-BITE=[detectbpm]
-STAMP_AT: 2026-06-30T09:28
+BITE: 544 PASS | NO-BITE=[detectbpm]
+STAMP_AT: 2026-06-30T10:31
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -28,13 +28,14 @@ STAMP_AT: 2026-06-30T09:28
 
 ## Active Lane
 
-**★現狀（2026-06-30 07:46，HEAD 79f819a，--bite 541，clean）** — 詳批次敘述在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md) 2026-06-30 段：
+**★現狀（2026-06-30 10:27，HEAD ffe63f7，--bite 544，clean，已 push origin）** — 詳批次敘述在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md) 2026-06-30 段：
+- **vec4-currency 橋 DONE**（5 chip：mesh-UV 全模式/scn 修/vec4 橋/Lerp-Remap golden/MaxCount——柏為 merged，orchestrator verify 綠 → pushed）。buffer 算子能 marshal 矩陣了（殘留 producer 體力活見下「下一棒」①）。
 - **Seam 1 buffer-marshalling 整條 COMPLETE，buffer 算子 live 在 production**（keystone + 6 ops + resident mirror）。**這是原子地基基石**——「忠實重放 .t3 複合」的前提。
 - **param-completion backlog 全清**（36 param 跨 numbers/mesh/image/point 對齊 TiXL；含修掉一個藏真缺口的 dumpNodeSpec 閘 bug）。
 - 方法論 durable：[[parity-gate-split-deterministic-vs-emergent]]（拆 closed-form vs emergent 砍 ground-truth 依賴）。
 
-**★★下一棒（柏為 2026-06-30 07:46 拍板：vec4 先、再 Seam2；兩個都 cook-core，一次一條，不可同跑同檔）：**
-1. **vec4-currency seam（task_964c2da1，先做）**：FloatsToBuffer.Vec4Params 在 TiXL 是 **17 複合**用 TransformMatrix→Vector4[] 灌矩陣進 buffer；sw 兩條 cook leg 都 gather ZERO（對稱既有限制非 bug），sw 有 TransformMatrix(出 ColorList)但沒橋進 Vec4Params port→FloatsToBuffer 漏矩陣。**這是 buffer 算子真正能用的關鍵縫。** 承重全工法，動 buffer cook 兩 leg（flat `point_graph_buffer_cook.cpp` + resident `point_graph_resident_buffer.cpp`）+ 對 TiXL FloatsToBuffer.cs 填序 byte-parity golden。
+**★★下一棒（vec4-currency 已 DONE；現行下一棒＝Seam 2 build。cook-core 一次一條，不可同跑同檔）：**
+1. **✅ vec4-currency seam DONE**（2026-06-30，5 chip + 橋全 merged+**pushed** `ffe63f7`，--bite 544、point_modify_chain scn 轉綠）：FloatsToBuffer.Vec4Params 兩腿從 **ColorList 通貨** gather WIRED 矩陣（fork-matrix-as-4-vec4-on-extColorOut），G1/G2 both-leg byte-parity 過閘。詳 `SEAM1_FANOUT_BUILD_PLAN.md` ◧ 段。**殘留 producer-seam（非橋缺陷）**：`TransformMatrix.ResultInverted`（deferred fork 未 port→零矩陣塊）、`GetMatrixVar`（op 在 sw 不存在）；latent 未 pin：多矩陣(>1 wire 進同 Vec4Params)flat-vs-resident 順序（同機制已 golden，推得一致）。**這些是 producer 體力活，非承重縫。**
 2. **Seam 2 render-state build（TURNKEY）**：FrozenRenderState accumulator + PSO cache（mirror Camera/Group stamp）。**★★做 Seam 2 的 agent 開工第零步必讀（工單明列）：`docs/agent/census/DX11_METAL_CONVERSION_TABLE.md`＝DX11→Metal 研究報告（每個狀態 closed-form/emergent 分類，14 公式驗/depth-bias emergent/2 guard，你的 parity 權威）＋ `docs/agent/census/SEAM2_RENDERSTATE_BUILD_PLAN.md`＝完整藍圖（states-census 已跑＋FrozenRenderState 設計＋per-op＋forks＋goldens＋最高風險）。** 真實面小:cull(None/Back)+7 blend+3 op,其餘 dormant,唯一 emergent=DepthBias=-6。spike=Rasterizer。**★highest risk=flat/resident 雙 command-cook leg accumulator 分歧（resident-only miss=無聲錯 render）→de-risk push/pop 單一 shared helper + both-leg selftest。** owner-lock 脊椎 render_command.h(249-includer)→cook_ctx→雙 command-cook→rendertarget materialize+cache(serial)，之後 4 op leaf 並行。
 - 低優先殘留：TransformsConstBuffer resident camera golden（reasoned-not-tested，verbatim-copy 低風險）。
 
