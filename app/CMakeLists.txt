@@ -677,6 +677,7 @@ add_executable(simple_world
   src/runtime/resident_eval_patch_lib.cpp
   src/runtime/resident_eval_patch_lib_selftest.cpp
   src/runtime/math_ops_selftest.cpp
+  src/runtime/math_ops_selftest_extra.cpp  # vec2 + logic + misc-vec teeth split off (line-cap)
   ${SW_POINT_OP_SRCS}  # globbed: point_ops.cpp + _selftest + every per-op leaf + per-family registrars
   ${SW_VALUE_OP_SRCS}  # globbed: value_op_registry.cpp + every stateless value-op leaf (Sin/PickFloat/…)
   ${SW_STATEFUL_OP_SRCS}  # globbed: stateful_value_op_registry.cpp + every per-subfamily leaf + selftest

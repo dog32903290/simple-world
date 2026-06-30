@@ -43,8 +43,10 @@ app/src/gradient_golden.cpp:421
 app/src/pointlist_golden.cpp:544
 app/src/runtime/compound_load.cpp:416
 app/src/runtime/gradient_ops_blendgradients.cpp:484
-app/src/runtime/math_ops_selftest.cpp:1341
+app/src/runtime/math_ops_selftest.cpp:1151
 # +2 for Float Clamp min>max TiXL parity golden (task_d288a684). Irreducible test assertion.
+# 1341→1151 (2026-06-30): vec2 + logic + misc-vec teeth split VERBATIM to math_ops_selftest_extra.cpp
+# (file was AT cap, blocking scalar Lerp-Clamp / Remap BiasAndGain+Mode coverage). _extra is ≤400.
 # S2a keystone (MultiInput Command collector, Execute op) added a minimal load-bearing branch to the
 # flat + resident cookCommand — both files were AT their exact cap with zero headroom (same as S1's
 # landing). Caps raised by the exact seam delta; comments already squeezed to the floor. The collector
