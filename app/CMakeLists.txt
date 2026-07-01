@@ -572,6 +572,8 @@ add_executable(simple_world
   src/runtime/buffer_ops_transformsconstbuffer.cpp # TransformsConstBuffer (640-byte 10-matrix camera const buffer, HLSL row-major transposed bytes)
   src/runtime/buffer_ops_computeshaderstage.cpp  # ComputeShaderStage (GENERIC compute stage: bind CB/SRV/UAV + dispatch a named MSL kernel)
   src/runtime/buffer_ops_structuredbufferwithviews.cpp # StructuredBufferWithViews (allocate an empty Stride*Count GPU buffer = the UAV write target)
+  src/runtime/buffer_ops_meshbuffercomponents.cpp # _MeshBufferComponents (骨4 mesh↔buffer bridge: MeshBuffers → vertex buffer passthrough)
+  src/runtime/buffer_ops_assemblemeshbuffers.cpp # _AssembleMeshBuffers (骨4 mesh↔buffer bridge: vertex buffer → MeshBuffers passthrough)
   src/runtime/gradient_op_registry.cpp
   src/runtime/gradient_ops_definegradient.cpp
   src/runtime/gradient_ops_pickgradient.cpp
@@ -640,6 +642,7 @@ add_executable(simple_world
   src/runtime/compound_graph.cpp
   src/runtime/compound_graph_selftest.cpp
   src/runtime/t3_import.cpp                        # .t3 IMPORTER (keystone首證: forward-ported spike, 6-atom buffer map)
+  src/runtime/t3_import_maps.cpp                   # .t3 importer Guid→sw mapping DATA (TABLE ②/③, split for the line ratchet)
   src/runtime/t3import_transformpoints_golden.cpp  # KEYSTONE parity: TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe
   src/runtime/t3import_transformmesh_golden.cpp    # 骨8 MESH keystone: TransformMesh.t3 replay → SwVertex readback vs oracle
   src/runtime/output_slot_view_selftest.cpp  # output-slot picker golden (viewProducerPath startSlot)

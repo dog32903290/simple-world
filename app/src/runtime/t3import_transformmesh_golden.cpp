@@ -20,23 +20,26 @@
 // cb0 layout = TransformMatrix.Result (16 floats, transposed) + useVertexSelection (1 scalar), EXACTLY
 // what FloatsToBuffer assembles from Vec4Params(matrix)-first then Params(scalar)-second.
 //
-// ── THE MESH↔BUFFER BRIDGE GAP (honest scope; the residual = next bone) ────────────────────────────
-// TransformMesh.t3's mesh-currency seam uses two nested compounds the importer does NOT map (no sw atom):
-//   _MeshBufferComponents (MeshBuffers → {Vertices,Indices,ChunkDefs} SRVs)  — SymbolId 5b9f1d97…
-//   _AssembleMeshBuffers  ({Vertices,Indices,ChunkDefs,PrepareCommand} → MeshBuffers) — SymbolId e0849edd…
-// Both are PURE structural passthroughs (verified against their .cs — they only move BufferWithViews
-// handles around a MeshBuffers wrapper). Because they are unmapped, their wires DROP on import — which
-// severs: (a) the Mesh boundary → vertex GetBufferComponents feed, (b) the ExecuteBufferUpdate → Result
-// output, (c) PBRVertex.Stride → StructuredBufferWithViews.Stride, (d) BoolToFloat → FloatsToBuffer.Params.
-// This golden REWIRES around exactly those four dropped edges (the same class of test-scaffold the point
-// keystone uses for its `Points` boundary): it feeds a fixture SwVertex buffer straight into the vertex
-// GetBufferComponents, reads the ExecuteBufferUpdate terminal directly as SwVertex[], overrides the
-// StructuredBufferWithViews Stride to 80 (the PbrVertex stride PBRVertex.Stride would have supplied), and
-// supplies the useVertexSelection scalar via a Const child wired into FloatsToBuffer.Params. The
-// COMPUTE-TRANSFORM CORE (the load-bearing question — does a mesh compound's vertex buffer transform
-// correctly through the real production compute-stage) runs end-to-end on real 80B vertices. Mapping the
-// two mesh-bridge compounds as sw atoms (so MeshBuffers currency imports natively, no rewire) is the
-// PRECISE residual this bone exposes = the next bone.
+// ── THE MESH↔BUFFER BRIDGE (骨4 — now NATIVE, scaffold removed) ─────────────────────────────────────
+// TransformMesh.t3's mesh-currency seam uses two nested compounds + two value ops the importer once did
+// NOT map (their wires dropped on import). 骨4 mapped all four to sw atoms:
+//   _MeshBufferComponents (MeshBuffers → {Vertices,Indices,ChunkDefs}) — SymbolId 5b9f1d97… → sw buffer atom
+//   _AssembleMeshBuffers  ({Vertices,Indices,ChunkDefs,PrepareCommand} → MeshBuffers) — e0849edd… → sw buffer atom
+//   BoolToFloat (numbers/bool/convert) — 9db2fcbf… → existing sw value op
+//   IntValue(PBRVertex.Stride) (Types/Values) — cc07b314… → sw Const (int const producer)
+// Both compounds are PURE structural passthroughs (verified against their .cs — they only move
+// BufferWithViews handles around a MeshBuffers wrapper); on sw's collapsed currency (fork
+// bufferwithviews-collapse-to-mtlbuffer) they are single-buffer passthroughs carrying the VERTEX buffer.
+// With them mapped, the four mesh-bridge wires now import NATIVELY — no scaffold:
+//   (a) Mesh boundary → _MeshBufferComponents.Vertices → GetBufferComponents (the SRV feed)
+//   (b) ExecuteBufferUpdate.Output2 → _AssembleMeshBuffers.Vertices → Result output (the terminal)
+//   (c) IntValue(PBRVertex.Stride) → StructuredBufferWithViews.Stride (forked 64→80 for SwVertex)
+//   (d) UseVertexSelection boundary → BoolToFloat → FloatsToBuffer.Params (the cb0[16] scalar)
+// The golden now only (1) supplies the TEST mesh input at _MeshBufferComponents.MeshBuffers (the .t3's
+// Mesh boundary has no producer — a test must feed one), (2) authors the transform params on the imported
+// TransformMatrix, (3) forks the sw vertex stride 64→80 on the imported Const child. It reads the
+// _AssembleMeshBuffers terminal (the true Result output) as SwVertex[] — proving the transformed vertices
+// flow END-TO-END through BOTH native bridge compounds. See STEP 1b.
 //
 // ZONE: runtime golden (shell tier — binds runtime import + resident cook + the oracle reference).
 #include <cmath>
@@ -164,8 +167,9 @@ int runT3TransformMeshParity(bool injectBug) {
   g_fixtureVerts = &in;
 
   // ---- STEP 1: import the real .t3 via the PRODUCTION importer ----
-  // (No t3ImportInjectBug here: its MultiInput-order reversal is toothless for TransformMesh — see the
-  // RED-tooth note at scaffold step (a). The tooth for THIS golden severs the compute-stage SRV feed.)
+  // (No t3ImportInjectBug here: its MultiInput-order reversal is toothless for TransformMesh — TransformMesh's
+  // mapped wires have no natural (dstChild,dstSlot) collision to swap. The tooth for THIS golden withholds the
+  // mesh input so the compute-stage SRV feed never arrives — see STEP 1b (1) -bug.)
   SymbolLibrary lib;
   std::string rootId;
   std::vector<std::string> warnings;
@@ -182,52 +186,43 @@ int runT3TransformMeshParity(bool injectBug) {
     for (const auto& kv : byType) printf(" %s×%d", kv.first.c_str(), kv.second);
     printf("\n"); }
 
-  // ---- STEP 1b: TEST-SCAFFOLD rewire around the four dropped mesh-bridge edges (see file header) ----
-  // Locate the two GetBufferComponents: one is fed by StructuredBufferWithViews (the UAV/write target,
-  // src=SBV), the other's input feed was DROPPED with _MeshBufferComponents (the vertex SRV input). We
-  // find the SBV-fed one, then treat the OTHER as the input-side GetBufferComponents.
-  const int sbvId = childIdOfType(*sym, "StructuredBufferWithViews");
-  const int ebuId = childIdOfType(*sym, "ExecuteBufferUpdate");
+  // ---- STEP 1b: NATIVE mesh-bridge import (骨4 — the four mesh-bridge wires now import via sw atoms) ----
+  // The two nested passthrough compounds (_MeshBufferComponents / _AssembleMeshBuffers) now map to sw
+  // buffer atoms + BoolToFloat / IntValue(→Const) map too, so the Mesh boundary → GBC vertex feed, the
+  // ExecuteBufferUpdate → Result output, PBRVertex.Stride → SBV.Stride, and BoolToFloat → FloatsToBuffer
+  // wires ALL survive import. No scaffold rewires them. This step only: (1) supplies the TEST mesh input
+  // (the .t3's Mesh boundary has no producer — a test must feed one; wired at the compound's MeshBuffers
+  // input, the natural seam the boundary feeds), (2) authors the transform params on the imported
+  // TransformMatrix (the boundary Vector3 wires need values), (3) forks the sw vertex stride 64→80.
+  const int mbcId = childIdOfType(*sym, "_MeshBufferComponents");  // the vertex-unwrap bridge compound (now atom)
+  const int asmId = childIdOfType(*sym, "_AssembleMeshBuffers");   // the vertex-rewrap bridge compound (now atom)
   const int tmId  = childIdOfType(*sym, "TransformMatrix");
-  const int ftbId = childIdOfType(*sym, "FloatsToBuffer");
-  if (!sbvId || !ebuId || !tmId || !ftbId) {
-    printf("[t3-transformmesh] FAIL: missing core child (sbv=%d ebu=%d tm=%d ftb=%d)\n", sbvId, ebuId, tmId, ftbId);
-    pool->release(); return 1;
-  }
-  int gbcUav = 0;  // the GetBufferComponents whose BufferWithViews is wired FROM StructuredBufferWithViews
-  for (const SymbolConnection& w : sym->connections)
-    if (w.srcChild == sbvId && w.dstSlot == "BufferWithViews") { gbcUav = w.dstChild; break; }
-  int gbcSrv = 0;  // the OTHER GetBufferComponents = the input-side one (its feed dropped with _MeshBufferComponents)
-  for (const SymbolChild& c : sym->children)
-    if (c.symbolId == "GetBufferComponents" && c.id != gbcUav) { gbcSrv = c.id; break; }
-  if (!gbcUav || !gbcSrv) {
-    printf("[t3-transformmesh] FAIL: could not disambiguate GetBufferComponents (uav=%d srv=%d)\n", gbcUav, gbcSrv);
+  const int strideConstId = childIdOfType(*sym, "Const");          // the imported IntValue(PBRVertex.Stride)→Const
+  if (!mbcId || !asmId || !tmId || !strideConstId) {
+    printf("[t3-transformmesh] FAIL: mesh-bridge atom not imported (mbc=%d asm=%d tm=%d strideConst=%d)\n",
+           mbcId, asmId, tmId, strideConstId);
     pool->release(); return 1;
   }
 
-  // (a) Add the fixture SwVertex producer; wire it into the input-side GetBufferComponents.BufferWithViews
-  //     (replacing the dropped _MeshBufferComponents.Vertices → GetBufferComponents feed).
-  //     ── RED tooth (injectBug): SEVER this SRV feed. The ComputeShaderStage cook early-returns when it
-  //     has no ShaderResource (buffer_ops_computeshaderstage.cpp:86 `if (uavs.empty()||srvs.empty()) return`),
-  //     so the transform kernel NEVER dispatches → the UAV write target stays zeroed → the readback diverges
-  //     from the oracle. This bites on the REAL compute-transform seam: it proves the golden detects "the
-  //     input mesh vertex buffer did NOT reach the compute stage / the transform kernel did not run" — not a
-  //     scaffold inversion. (t3ImportInjectBug's MultiInput-order reversal is TOOTHLESS here: TransformMesh's
-  //     surviving mapped wires have no natural (dstChild,dstSlot) collision to swap, unlike TransformPoints.)
+  // (1) Add the fixture SwVertex producer; wire it into _MeshBufferComponents.MeshBuffers — the Mesh
+  //     boundary's own downstream. The bridge compounds then carry it through to the compute stage's SRV
+  //     NATIVELY (Vertices → GBC → ComputeShaderStage.ShaderResources), no mid-graph rewire.
+  //     ── RED tooth (injectBug): DON'T feed the mesh input. With no ShaderResource reaching the compute
+  //     stage, ComputeShaderStage early-returns without dispatching (buffer_ops_computeshaderstage.cpp:86
+  //     `if (uavs.empty()||srvs.empty()) return`) → the UAV write target stays zeroed → the readback
+  //     diverges from the oracle. Same seam the point keystone bites on: proves the golden detects "the
+  //     mesh vertex buffer did NOT reach the compute stage / the transform kernel did not run".
   if (!lib.symbols.count("t3xf_input_verts"))
     if (const NodeSpec* fs = findSpec("t3xf_input_verts"))
       lib.symbols["t3xf_input_verts"] = atomicSymbolFromSpec(*fs);
   const int fixtureId = sym->nextChildId++;
   { SymbolChild p; p.id = fixtureId; p.symbolId = "t3xf_input_verts"; sym->children.push_back(p); }
-  if (!injectBug) {  // faithful: wire the SRV feed. -bug: leave gbcSrv unfed → compute stage can't dispatch.
-    SymbolConnection w; w.srcChild = fixtureId; w.srcSlot = "Buffer"; w.dstChild = gbcSrv; w.dstSlot = "BufferWithViews";
+  if (!injectBug) {  // faithful: feed the mesh input. -bug: leave it unfed → compute stage can't dispatch.
+    SymbolConnection w; w.srcChild = fixtureId; w.srcSlot = "Buffer"; w.dstChild = mbcId; w.dstSlot = "MeshBuffers";
     sym->connections.push_back(w);
   }
 
-  // (b) StructuredBufferWithViews.Stride = 80 (PbrVertex stride the dropped PBRVertex.Stride would supply).
-  for (SymbolChild& c : sym->children) if (c.id == sbvId) { c.overrides["Stride"] = 80.0f; break; }
-
-  // (c) TransformMatrix overrides (the .t3 boundary Vector3 wires land only on .x heads — the established
+  // (2) TransformMatrix overrides (the .t3 boundary Vector3 wires land only on .x heads — the established
   //     fork-t3-vec3-wire-lands-on-head; author the full transform on the imported TransformMatrix child).
   for (SymbolChild& c : sym->children) if (c.id == tmId) {
     c.overrides["Translation.x"] = TRN[0]; c.overrides["Translation.y"] = TRN[1]; c.overrides["Translation.z"] = TRN[2];
@@ -237,14 +232,17 @@ int runT3TransformMeshParity(bool injectBug) {
     break;
   }
 
-  // (d) useVertexSelection scalar via a Const child wired into FloatsToBuffer.Params (the dropped BoolToFloat
-  //     source). cb0 = [matrix(16) | this scalar] — the 17th float the kernel reads at cb0[16].
-  if (!lib.symbols.count("Const"))
-    if (const NodeSpec* fs = findSpec("Const")) lib.symbols["Const"] = atomicSymbolFromSpec(*fs);
-  const int constId = sym->nextChildId++;
-  { SymbolChild k; k.id = constId; k.symbolId = "Const"; k.overrides["value"] = useVertexSelection; sym->children.push_back(k); }
-  { SymbolConnection w; w.srcChild = constId; w.srcSlot = "value"; w.dstChild = ftbId; w.dstSlot = "Params";
-    sym->connections.push_back(w); }
+  // (3) FORK `pbrvertex-stride-64-to-80-swvertex`: the imported IntValue(PBRVertex.Stride)→Const carries the
+  //     .t3 value 64 (TiXL PbrVertex). sw's SwVertex is 80B, so override the Const's value to 80 ON THE
+  //     IMPORTED CHILD (the native IntValue→SBV.Stride wire is faithful; only the constant is forked). SBV
+  //     resolves Stride from this wired Const via evalResidentFloat (resolveResidentFloatInputs).
+  for (SymbolChild& c : sym->children) if (c.id == strideConstId) { c.overrides["value"] = 80.0f; break; }
+
+  // (void) useVertexSelection: now NATIVE. The .t3's UseVertexSelection boundary (default false) feeds
+  //   BoolToFloat.BoolValue → BoolToFloat.Result (=ForFalse=0) → FloatsToBuffer.Params. Unwired boundary
+  //   resolves to the Constant default (0 = false) → the 17th cb0 float is 0 (full transform) — exactly the
+  //   load-bearing s=1 math, with ZERO scaffold. (Matches useVertexSelection=0.0f documented above.)
+  (void)useVertexSelection;
 
   // ---- STEP 2: build the eval graph (production flattener) + settle the TransformMatrix rows ----
   ResidentEvalGraph g = buildEvalGraph(lib, rootId);
@@ -253,9 +251,12 @@ int runT3TransformMeshParity(bool injectBug) {
   cookMatrixOutputNodes(g, rc);  // TransformMatrix → 4 transposed SRT rows onto extColorOut
   printf("[t3-transformmesh] buildEvalGraph: resident nodes=%zu\n", g.nodes.size());
 
-  const std::string termPath = std::to_string(ebuId);  // ExecuteBufferUpdate = terminal (the transformed vtx bag)
+  // Terminal = _AssembleMeshBuffers (the NATIVE Result output): ExecuteBufferUpdate.Output2 → Assemble.
+  // Vertices → NewMeshBuffers → boundary Result. Reading the assemble node proves the FULL native chain
+  // (both bridge compounds carried the transformed vertices), not just the compute stage's raw UAV.
+  const std::string termPath = std::to_string(asmId);
 
-  // ---- STEP 3: cook the resident graph; read back the ExecuteBufferUpdate output buffer as SwVertex[] ----
+  // ---- STEP 3: cook the resident graph; read back the _AssembleMeshBuffers output buffer as SwVertex[] ----
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
   MTL::CommandQueue* q = dev->newCommandQueue();
   NS::Error* err = nullptr;
@@ -306,10 +307,11 @@ int runT3TransformMeshParity(bool injectBug) {
     return 0;
   }
 
-  // injectBug leg: the SRV feed into the compute stage was SEVERED (scaffold step (a)). With no
-  // ShaderResource wired, ComputeShaderStage early-returns without dispatching, so the UAV write target
-  // stays zeroed and the readback (all-zero vertices) diverges from the oracle. Tooth bites iff NOT green —
-  // proving the golden actually depends on the transform kernel running on the real mesh vertex buffer.
+  // injectBug leg: the mesh input was NOT fed into _MeshBufferComponents (STEP 1b (1) -bug). With no
+  // ShaderResource reaching the compute stage, ComputeShaderStage early-returns without dispatching, so the
+  // UAV write target stays zeroed and the readback (all-zero vertices) diverges from the oracle. Tooth
+  // bites iff NOT green — proving the golden depends on the transform kernel running on the real mesh
+  // vertex buffer arriving THROUGH the native bridge compounds.
   const bool bites = !parityGreen;
   printf("[t3-transformmesh] -bug: routing tooth %s (parity green under bug == %s)\n",
          bites ? "BITES" : "TOOTHLESS", parityGreen ? "true" : "false");
