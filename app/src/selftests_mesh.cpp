@@ -44,4 +44,8 @@ REGISTER_SELFTESTS(/*orderBase=*/350,
     {"mesh-blendmeshvertices", runMeshBlendMeshVerticesGoldenSelfTest},
     {"mesh-pickmeshbuffer", runMeshPickMeshBufferGoldenSelfTest},
 );
+// 骨8 MESH-family keystone: real TransformMesh.t3 import→buildEvalGraph→cookResident vs oracle.
+REGISTER_SELFTESTS(/*orderBase=*/360,
+    {"t3-transformmesh", runT3TransformMeshParity},
+);
 }  // namespace sw

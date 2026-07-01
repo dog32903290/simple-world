@@ -141,6 +141,7 @@ namespace sw { int runPointsOnMeshSelfTest(bool); }              // point_ops_po
 namespace sw { int runFindClosestPointsOnMeshSelfTest(bool); }   // point_ops_findclosestpointsonmesh.cpp (★mesh-into-points seam: snap each point onto nearest mesh surface; brute-force tri loop, hand-computed golden + degenerate-tri RED)
 namespace sw { int runMeshRecomputeNormalsGoldenSelfTest(bool); }// mesh_modify_golden.cpp (mesh modify: RecomputeNormals face-cross, flat + R-2 resident)
 namespace sw { int runMeshTransformUvsGoldenSelfTest(bool); }    // mesh_modify_golden.cpp (mesh modify: TransformMeshUVs matrix·uv, flat + R-2 resident)
+namespace sw { int runT3TransformMeshParity(bool); }            // t3import_transformmesh_golden.cpp (★骨8 MESH keystone: TransformMesh.t3 replay → SwVertex readback vs oracle)
 namespace sw { int runMeshSplitVerticesGoldenSelfTest(bool); }   // mesh_modify2_golden.cpp (mesh modify: SplitMeshVertices un-weld 3×face, flat + R-2 resident)
 namespace sw { int runMeshSelectVerticesGoldenSelfTest(bool); }  // mesh_modify2_golden.cpp (mesh modify: SelectVertices volume field → Selection, flat + R-2 resident)
 namespace sw { int runMeshDeformGoldenSelfTest(bool); }          // mesh_modify2_golden.cpp (mesh modify: DeformMesh Spherize/Taper/Twist position, flat + R-2 resident)
