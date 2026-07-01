@@ -122,14 +122,14 @@ int runT3ChannelMixerParity(bool injectBug) {
                                       : "FAILED (collapse did not keep helpers / build atom)");
   if (!structOk) { pool->release(); return injectBug ? 2 : 1; }
 
-  // ---- STEP 2: author ColorA/ColorB = (1,1,1,1) on the two imported Vector4Components children.
-  // [fork-blend-vec4-boundary-default-authored-on-child] — the vec4 boundary default isn't plumbed yet.
+  // ---- STEP 2: ColorA/ColorB = (1,1,1,1) is now PLUMBED by the collapse. Blend.t3's ColorA/ColorB
+  // boundary inputs carry a vec4 default {1,1,1,1}; the collapse authors those onto the two kept
+  // Vector4Components helpers' Value.x/.y/.z/.w (collapse-boundary-typed-default-plumbed-through-kept-helper,
+  // t3_import_collapse.cpp) — the SAME machine that fixed the BubbleZoom GainAndBias hollow-green. So the
+  // golden no longer authors them by hand (the former [fork-blend-vec4-boundary-default-authored-on-child]
+  // workaround is retired). If the plumb regresses, ColorA/ColorB fall to (0,0,0,0) → the Normal-blend
+  // parity oracle diverges → this golden goes RED, so it now GUARDS the vec-default plumb for vec4 too.
   Symbol* sym = const_cast<Symbol*>(rsym);
-  for (SymbolChild& c : sym->children)
-    if (c.symbolId == "Vector4Components") {
-      c.overrides["Value.x"] = 1.0f; c.overrides["Value.y"] = 1.0f;
-      c.overrides["Value.z"] = 1.0f; c.overrides["Value.w"] = 1.0f;
-    }
 
   // Supply ImageA (RED) + ImageB (GREEN α=0.5) as RenderTarget producers wired to the Blend atom.
   registerTexOp("RenderTarget", texSource);

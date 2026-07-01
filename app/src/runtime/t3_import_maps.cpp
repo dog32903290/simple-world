@@ -283,8 +283,9 @@ std::string swTexOpForCollapseRootGuid(const std::string& rootGuid) {
       {"9f43f769-d32a-4f49-92ac-e0be3ba250cf", "Blend"},
       // BubbleZoom (image/fx/distort/BubbleZoom.t3): the GRADIENT-FED proof — root = BubbleZoom.cs [Guid].
       // Its fx-setup child's ImageB (t1) is fed by a GradientsToTexture child that renders the root's
-      // FeatherGradient boundary Gradient to a texture. sw's BubbleZoom atom instead consumes the Gradient
-      // DIRECTLY (it samples it in-shader), so the collapse ELIDES the GradientsToTexture pass-through
+      // FeatherGradient boundary Gradient to a texture. sw's BubbleZoom atom takes the Gradient on a PORT and
+      // rasterizes it to a 1×512 row ITSELF (both raster-then-sample; NOT continuous in-shader), so the
+      // SEPARATE GradientsToTexture is redundant → the collapse ELIDES the GradientsToTexture pass-through
       // (named fork gradientstotexture-elided-to-gradient-port, in t3_import_collapse.cpp): the atom's
       // ImageB fixed slot maps to the "Gradient" port (④c) and receives GradientsToTexture's Gradients
       // SOURCE. Two Vector2Components helpers (Center/GainAndBias vec2→X/Y) feed the FloatParams rail.

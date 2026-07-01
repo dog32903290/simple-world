@@ -43,8 +43,14 @@ namespace {
 // GRADIENT-FED collapse (named fork gradientstotexture-elided-to-gradient-port): a whole class of
 // image-fx wrappers (BubbleZoom, RemapColor, …) feed the fx-setup child's ImageB (t1) from a
 // GradientsToTexture child (SymbolId 2c53eee7) that renders the root's Gradient boundary into a 1D
-// texture. sw's collapsed atoms (e.g. BubbleZoom) instead consume the Gradient DIRECTLY (they sample it
-// in-shader — see point_ops_bubblezoom.cpp), so the intermediate GradientsToTexture render is redundant.
+// texture row. sw's collapsed atoms (e.g. BubbleZoom) take the Gradient on a "Gradient" PORT and
+// rasterize it to a 1×512 texture row THEMSELVES (rasterizeGradientRow, point_ops_bubblezoom.cpp:161 —
+// NOT continuous in-shader sampling; sw and TiXL BOTH raster-then-sample). So the SEPARATE GradientsToTexture
+// child is redundant: the atom already does the equivalent row raster internally. (Corrects an earlier wrong
+// note that claimed sw samples the gradient continuously in-shader — the equivalence is "both rasterize".)
+// The row raster carries a named format fork [fork-grad-row-format-32f] (sw 512-texel RGBA32F LINEAR vs
+// GradientsToTexture's R16F default), documented at gradient_raster.h — sub-perceptual on a linear gradient
+// ([fork-gradient-row-sampler]: sw's larger, higher-precision, LINEAR-filtered row vs TiXL's; below threshold).
 // The collapse ELIDES the GradientsToTexture child: it is NOT emitted, and any wire off its Texture2D
 // output re-anchors to the SOURCE feeding its Gradients input (588be11f). So the .t3 chain
 //   <gradient src> → GTT.Gradients ; GTT.out → fxSetup.ImageB

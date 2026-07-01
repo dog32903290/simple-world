@@ -6,12 +6,15 @@
 // BubbleZoom.t3 (byte-embedded below) has 4 children: the fx-setup framework child (_multiImageFxSetupStatic,
 // cc34a183), TWO Vector2Components helpers (Center / GainAndBias vec2 → X/Y into the FloatParams rail), and
 // a GradientsToTexture child (2c53eee7) that renders the root's FeatherGradient boundary Gradient into a 1D
-// texture wired to the fx-setup child's ImageB (t1). sw's BubbleZoom atom (point_ops_bubblezoom.cpp) instead
-// consumes the Gradient DIRECTLY (it samples it in-shader — the t1 binding is a Gradient port, not a
-// texture). So the GradientsToTexture render is redundant: the collapse ELIDES it
-// (gradientstotexture-elided-to-gradient-port, t3_import_collapse.cpp), re-anchoring the atom's Gradient
-// port onto GradientsToTexture's Gradients SOURCE. The two Vector2Components helpers are KEPT (they have sw
-// atoms + map rows); the fx-setup child collapses onto the flat sw "BubbleZoom" tex atom.
+// texture wired to the fx-setup child's ImageB (t1). sw's BubbleZoom atom (point_ops_bubblezoom.cpp) takes
+// the Gradient on a "Gradient" PORT and rasterizes it to a 1×512 texture row ITSELF (rasterizeGradientRow,
+// :161) — the equivalence is "both raster-then-sample", NOT sw-samples-continuously-in-shader. So the SEPARATE
+// GradientsToTexture render is redundant (the atom does the equivalent raster internally): the collapse ELIDES
+// it (gradientstotexture-elided-to-gradient-port, t3_import_collapse.cpp), re-anchoring the atom's Gradient
+// port onto GradientsToTexture's Gradients SOURCE. Row format/sampler diff = [fork-grad-row-format-32f] /
+// [fork-gradient-row-sampler] (sub-perceptual, named in gradient_raster.h + t3_import_collapse.cpp). The two
+// Vector2Components helpers are KEPT (they have sw atoms + map rows); the fx-setup child collapses onto the
+// flat sw "BubbleZoom" tex atom.
 //
 // ── WHAT THIS MEASURES ───────────────────────────────────────────────────────────────────────────────
 // (STRUCTURE) import BubbleZoom.t3 → the collapsed graph = 3 children (2×Vector2Components + 1 BubbleZoom
