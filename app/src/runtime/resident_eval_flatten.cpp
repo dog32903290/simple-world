@@ -250,73 +250,68 @@ ProducerMap inlineSymbol(
   }
 
   // 2. Resolve this symbol's wires onto atomic dst inputs + collect this symbol's output
-  //    producers. producerOf is the ONE source resolver (atomic Connection / compound
-  //    ProducerMap / 修C bypassed-compound redirect).
+  //    producers, in a SINGLE pass over sym.connections (骨7b). producerOf is the ONE
+  //    source resolver (atomic Connection / compound ProducerMap / 修C bypassed-compound redirect).
+  //
+  //    ★骨7b ORDER FIX: this used to be TWO passes — a child→child pass (old loop 2) that ran
+  //    ENTIRELY BEFORE a boundary→child pass (old loop 3), both appending to the SAME slot's
+  //    extraConns. A MultiInput slot fed by BOTH a child wire and a boundary wire therefore always
+  //    ended up ordered [all child…, all boundary…], regardless of the real wire-declaration order
+  //    in sym.connections. Downstream the marshal cook (point_graph_resident_buffer.cpp:145-147)
+  //    packs floatInputs positionally as [primary, extraConns…] straight into a constant buffer, so a
+  //    scrambled extraConns = a scrambled constant buffer = wrong compute-shader output. The entire
+  //    mesh/modify + mesh/draw Lib family (DisplaceMesh / DeformMesh / DrawMesh …, ~224 production
+  //    compounds) has such mixed slots. Folding both source kinds into ONE pass makes extraConns
+  //    honour the true declaration order (refuter 骨7 Finding3, CONFIRMED).
+  //
+  //    Boundary-only + single-child behaviour is unchanged: a boundary wire still copies inBindings,
+  //    a child wire still copies producerOf, and a non-Connection / non-multi slot still whole-
+  //    replaces the primary exactly as before (single-cardinality inputs byte-identical).
   for (const SymbolConnection& w : sym.connections) {
     if (targetIsSymbolOutput(w)) {                 // child -> this symbol's external output
       if (sourceIsSymbolInput(w)) continue;        // pass-through input->output (rare); skip in slice 1
       outProducers[w.dstSlot] = producerOf(w.srcChild, w.srcSlot);
       continue;
     }
-    if (sourceIsSymbolInput(w)) continue;          // boundary-input already applied via childIn above
-    // child -> child: only ATOMIC dst gets a resident input here (compound dst handled via childIn).
+    // dst is a child. Only ATOMIC dst gets a resident input here (compound dst handled via childIn).
     std::string dstPath = prefix + std::to_string(w.dstChild);
     auto it = g.byPath.find(dstPath);
     if (it == g.byPath.end()) continue;            // dst is compound (driven via childIn) -> skip
+
+    // Resolve the driver to apply by SOURCE kind, but apply it through the SAME slot-append logic
+    // for both kinds — that shared logic is what preserves the declaration order across mixed slots.
+    ResidentInput pr;
+    if (sourceIsSymbolInput(w)) {
+      // boundary-input: copy the outer driver the parent gave us (old loop 3). A boundary input
+      // with no binding (unwired parent slot) drops, exactly as the old loop-3 miss did.
+      auto bit = inBindings.find(w.srcSlot);
+      if (bit == inBindings.end()) continue;
+      pr = bit->second;
+    } else {
+      // child -> child: resolve to the sibling's producer driver (old loop 2).
+      pr = producerOf(w.srcChild, w.srcSlot);
+    }
+    pr.slotId = w.dstSlot;
+
     // Is the dst slot a MultiInput port? (批次25 seam) — then a 2nd+ Connection wire APPENDS to the
     // slot's extraConns instead of overwriting the primary, so eval can expand all N into in[].
     bool dstMulti = false;
     if (const NodeSpec* dspec = findSpec(g.nodes[it->second].opType))
       for (const PortSpec& p : dspec->ports)
         if (p.id == w.dstSlot) { dstMulti = p.multiInput; break; }
-    ResidentInput pr = producerOf(w.srcChild, w.srcSlot);
-    pr.slotId = w.dstSlot;
     for (ResidentInput& in : g.nodes[it->second].inputs)
       if (in.slotId == w.dstSlot) {
         if (dstMulti && in.driver == ResidentInput::Driver::Connection &&
             pr.driver == ResidentInput::Driver::Connection) {
-          // primary already set by an earlier wire → this wire is an extra MultiInput source.
+          // primary already set by an earlier wire (child OR boundary) → this wire is an extra
+          // MultiInput source. Appended in the order sym.connections lists it = true declaration
+          // order (the 骨7b fix — no longer "all child then all boundary").
           in.extraConns.emplace_back(pr.srcNodePath, pr.srcSlotId);
         } else {
           // A Connection keeps the input's KEPT Constant fallback (in.constant survives under a wire
           // — patchRemoveConnection restores it); a Constant/Automation redirect replaces it whole.
           if (pr.driver == ResidentInput::Driver::Connection) pr.constant = in.constant;
           in = pr;  // first wire (or non-multi / non-Connection) sets the primary driver
-        }
-      }
-  }
-
-  // 3. Apply boundary-INPUT bindings onto atomic children that read this symbol's input defs
-  //    (a wire srcChild==boundary, dstChild==atomic): copy the outer driver onto the inner input.
-  for (const SymbolConnection& w : sym.connections) {
-    if (!sourceIsSymbolInput(w) || targetIsSymbolOutput(w)) continue;
-    std::string dstPath = prefix + std::to_string(w.dstChild);
-    auto it = g.byPath.find(dstPath);
-    if (it == g.byPath.end()) continue;            // dst compound: bound via childIn already
-    auto bit = inBindings.find(w.srcSlot);
-    if (bit == inBindings.end()) continue;
-    // MultiInput dst (骨7 boundary-flatten seam): N boundary wires can land on ONE MultiInput slot
-    // (e.g. Space + StrengthFactor boundary wires → IntsToBuffer.Params). The pre-fix `in = b` OVERWROTE
-    // the primary each time — the 2nd wire clobbered the 1st, losing the MultiInput count/order (only
-    // one of the two ints survived). Mirror loop 2's MultiInput handling: the 2nd+ Connection-driver
-    // boundary wire APPENDS to extraConns (wire-declaration order = the order sym.connections lists
-    // them, which the marshal cook gathers as primary+extraConns). A non-Connection driver (Constant/
-    // Automation) or a non-multi slot keeps the whole-replace behaviour (single-cardinality inputs are
-    // byte-identical to before — the primary fields hold the one driver).
-    bool dstMulti = false;
-    if (const NodeSpec* dspec = findSpec(g.nodes[it->second].opType))
-      for (const PortSpec& p : dspec->ports)
-        if (p.id == w.dstSlot) { dstMulti = p.multiInput; break; }
-    for (ResidentInput& in : g.nodes[it->second].inputs)
-      if (in.slotId == w.dstSlot) {
-        ResidentInput b = bit->second;
-        b.slotId = w.dstSlot;
-        if (dstMulti && in.driver == ResidentInput::Driver::Connection &&
-            b.driver == ResidentInput::Driver::Connection) {
-          // primary already set by an earlier boundary wire → this one is an extra MultiInput source.
-          in.extraConns.emplace_back(b.srcNodePath, b.srcSlotId);
-        } else {
-          in = b;  // first wire (or non-multi / non-Connection) sets the primary driver
         }
       }
   }

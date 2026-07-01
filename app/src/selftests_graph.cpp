@@ -50,5 +50,6 @@ REGISTER_SELFTESTS(/*orderBase=*/250,
     {"beatlock", runBeatLockSelfTest},  // G2 SlidingAverage<10> de-jitter + G3 beat_timing audio-lock (orphan接通)
     {"folder-package", runFolderPackageSelfTest},  // ADDITIVE .swpkg folder save/load round-trip + cross-format (.swproj==.swpkg) invariant
     {"wastrigger", framecook::runWasTriggerSelfTest},  // WasTrigger rising-edge pulse on a named trigger var (REAL cook seam) — appended at the 250-block tail (no row-order shift)
+    {"mixed-multiinput", runMixedMultiInputOrderSelfTest},  // 骨7b: flatten loop2/loop3 merge — MultiInput slot fed by child+boundary keeps wire-declaration order (mesh family unblocker); appended at 250-block tail (no row-order shift)
 );
 }  // namespace sw
