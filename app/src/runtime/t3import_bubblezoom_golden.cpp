@@ -22,12 +22,14 @@
 //   ports IN ④d ORDER. To catch a port-order misconfig (refuter finding B: a neutral-default golden can't),
 //   the collapsed connection list is asserted wire-by-wire against the EXPECTED (source → atom.<port>) map.
 // (COOK) then wire a real DefineGradient producer (NON-default RED→GREEN) onto the atom's Gradient port +
-//   an unwired Image (transparent-black dummy), author NON-NEUTRAL Radius=1 / Feather=1 on the atom (the
-//   values the FloatParams rail carries — [fork-bubblezoom-scalar-authored-on-atom], same precedent as
-//   Blend's vec4-default-on-child: the boundary scalar defaults aren't plumbed through the collapse yet),
-//   cook resident, read back two pins, and assert they match the CLOSED-FORM BubbleZoom.hlsl gradient-param
-//   oracle (identical math to --selftest-bubblezoom). -bug OMITS the Gradient wire → the cook falls to the
-//   near-transparent white→blue fallback → the pins collapse to ~black → the green-dominance tooth bites.
+//   an unwired Image (transparent-black dummy). The parity params reach the GPU on the UNAUTHORED production
+//   path: GainAndBias/Center via the plumbed vec-default collapse; Feather/Magnify/FlipEffect via the sw
+//   atom's OWN port defaults (their boundary FloatParams wires drop, and the port defaults are byte-equal to
+//   BubbleZoom.t3's boundary defaults → [fork-bubblezoom-scalar-drop-benign], the drop is proven harmless).
+//   The ONLY hand-authored value is Radius=1, a deliberate non-default test choice (0.5 saturates flat).
+//   Cook resident, read back three pins (center / corner / MID-FIELD), and assert they match the CLOSED-FORM
+//   BubbleZoom.hlsl gradient-param oracle (identical math to --selftest-bubblezoom). -bug OMITS the Gradient
+//   wire → the cook falls to the near-transparent white→blue fallback → pins collapse to ~black → tooth bites.
 //
 // ZONE: runtime golden (shell tier — runtime import/collapse + resident tex cook + closed-form gradient oracle).
 #include <cmath>
@@ -183,22 +185,27 @@ int runT3BubbleZoomParity(bool injectBug) {
   if (!orderOk) { pool->release(); return injectBug ? 2 : 1; }
 
   // ---- STEP 2: cook. Wire a real DefineGradient (RED→GREEN) onto the atom's Gradient port + Image dummy.
-  // GainAndBias is NO LONGER authored on the atom — the collapse now PLUMBS the boundary GainAndBias vec
-  // default (0.5,0.5) through the kept V2C[GainAndBias] helper onto atom.GainAndBias.x/y
-  // (collapse-boundary-typed-default-plumbed-through-kept-helper, t3_import_collapse.cpp). So the cook's
-  // GainAndBias reaches the GPU exactly as the oracle's (0.5,0.5) — SAME SPEC, not a hollow atom-override
-  // that the V2C wire clobbers. The Radius/Feather/Magnify SCALAR params ARE still authored on the atom:
-  // those boundary scalar defaults aren't plumbed through collapse yet ([fork-bubblezoom-scalar-authored-on-
-  // atom] — a NAMED residual gap, honest, distinct from the vec-default hole just fixed), and the golden
-  // deliberately picks Radius=1 (the .t3 default 0.5 saturates flat → no spatial variation to measure).
+  // NOTHING that carries BubbleZoom parity semantics is hand-authored on the atom anymore — the golden now
+  // tests the UNAUTHORED production path end-to-end:
+  //   * GainAndBias (0.5,0.5): PLUMBED — the collapse authors the boundary vec2 default through the kept
+  //     V2C[GainAndBias] helper onto atom.GainAndBias.x/y (collapse-boundary-typed-default-plumbed-through-
+  //     kept-helper). Center (0,0) rides the same plumb (V2C[Center]).
+  //   * Feather=1 / Magnify=1.25 / FlipEffect=0 SCALARS: their boundary→atom FloatParams wires DROP at cook
+  //     (no top-level boundary injection), so production reads the sw atom's OWN PORT DEFAULTS. Those port
+  //     defaults were ported from the SAME TiXL op and are BYTE-EQUAL to BubbleZoom.t3's boundary defaults
+  //     (Feather 1.0==1.0, Magnify 1.25==1.25, FlipEffect 0.0==0.0, Radius 0.5==0.5 — verified against
+  //     point_ops_bubblezoom.cpp ports vs the .t3 Inputs[]). So the scalar drop is BENIGN: unauthored cook ==
+  //     .t3 default == oracle. [fork-bubblezoom-scalar-drop-benign] (was -scalar-authored-on-atom; the
+  //     authoring is retired now that the drop is proven benign). NOT authored here — the golden relies on
+  //     the atom port defaults, so a future port-default drift would turn this golden RED (it now GUARDS them).
+  // The ONLY override is Radius=1 — a DELIBERATE non-default test choice (the .t3/atom default 0.5 saturates
+  // the field flat → no spatial ramp to measure); the oracle's shaderT hardcodes the matching Radius=1.
   Symbol* sym = const_cast<Symbol*>(rsym);
   for (SymbolChild& c : sym->children)
     if (c.id == bzId) {
-      c.overrides["Radius"] = 1.0f;   // NON-default (0.5 saturates flat → no spatial variation)
-      c.overrides["Feather"] = 1.0f;  // .t3 default
-      c.overrides["Magnify"] = 1.25f; c.overrides["FlipEffect"] = 0.0f;
-      c.overrides["Center.x"] = 0.0f; c.overrides["Center.y"] = 0.0f;
-      // GainAndBias.x/y INTENTIONALLY NOT authored here — it flows through the plumbed collapse.
+      c.overrides["Radius"] = 1.0f;   // NON-default TEST CHOICE (0.5 saturates flat → no spatial variation)
+      // Feather/Magnify/FlipEffect/Center/GainAndBias INTENTIONALLY NOT authored — plumbed vec defaults +
+      // benign scalar drop to the (byte-equal) atom port defaults carry the production values.
       c.overrides["Resolution"] = 4.0f; c.overrides["CustomW"] = (float)kW; c.overrides["CustomH"] = (float)kH;
     }
 
