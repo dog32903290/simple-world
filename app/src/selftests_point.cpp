@@ -147,5 +147,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"hexgrid-parity", runHexGridPointsParitySelfTest},  // ★PARITY-GATE param-completion fan-out: HexGridPoints 11th input Scale (Size·Scale via .t3 ScaleVector3) cook-through vs TiXL .hlsl closed-form X (RED-first; -bug re-bakes Scale→1)
     {"t3-transformpoints", runT3TransformPointsParity},  // ★KEYSTONE首證: real TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe — MEASURED RED (replay seam hole: no ComputeShaderStage atom)
     {"t3-combinebuffers", runT3CombineBuffersParity},  // 187 量產第一波: real CombineBuffers.t3 code-op replay → concat oracle parity (量產配方 verification spike on an arbitrary compound)
+    {"t3-hse", runT3HseParity},  // ★IMAGE-fx collapse seam: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle (RED→GREEN; -bug drops FxTexture → RED)
 );
 }  // namespace sw

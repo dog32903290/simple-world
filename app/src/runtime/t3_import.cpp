@@ -2,6 +2,7 @@
 // scope). Pure CPU: strip .t3 inline comments, crude_json parse, three Guid→sw maps, fill one Symbol.
 #include "runtime/t3_import.h"
 
+#include <functional>
 #include <map>
 #include <string>
 #include <utility>
@@ -63,6 +64,107 @@ std::string stripT3Comments(const std::string& in) {
   return out;
 }
 
+// ── IMAGE-FX COLLAPSE (image-fx-wrapper-collapses-to-tex-atom) ───────────────────────────────────────
+// A whole family of image .t3 ops are THIN wrappers: the root's single meaningful child is a TiXL
+// image-fx-setup FRAMEWORK symbol (_multiImageFxSetupStatic / …), parameterized by a ShaderPath pixel
+// shader, with the root's boundary Inputs wired INTO the child and the child's Texture2D output wired
+// back OUT. In sw this collapses to ONE flat tex atom whose ports are 1:1 with the op's .cs. The normal
+// importer path can't express that (it maps each child guid → an atom; the fx-setup child has none, so it
+// drops → empty root). This collapse builds the atom directly and RE-ANCHORS the child's inner wires:
+//   boundary → fxchild.ImageA/ImageB   ⇒ boundary → atom.Image/FxTexture (via ④c fixed-slot map)
+//   boundary → fxchild.FloatParams[k]  ⇒ boundary → atom.<④d order[k]>  (positional scalar rail)
+//   fxchild.Output → boundary out      ⇒ atom.out → boundary out
+// Returns true if it produced a collapsed symbol (sym populated + committed by caller); false if the .t3
+// is NOT the expected single-fx-setup-child shape (caller then reports the mismatch — no silent fallback).
+bool collapseImageFxWrapper(const crude_json::value& root, const std::string& swType, Symbol& sym,
+                            SymbolLibrary& lib,
+                            const std::function<void(const std::string&)>& warn) {
+  const NodeSpec* fs = findSpec(swType);
+  if (!fs) { warn("t3: collapse target " + swType + " has no NodeSpec, aborting collapse"); return false; }
+
+  // Locate the SINGLE fx-setup framework child; every other child would mean a NON-single-wrapper shape
+  // this table does not yet cover (multi-child fx wrappers feed params via helper value ops — a子類 gap).
+  std::string fxChildGuid;
+  int fxSetupCount = 0, otherChildCount = 0;
+  if (root["Children"].is_array()) {
+    for (const crude_json::value& cv : root["Children"].get<crude_json::array>()) {
+      if (!cv.is_object()) continue;
+      const std::string sid = lc(asStr(cv, "SymbolId"));
+      if (isImageFxSetupGuid(sid)) { fxChildGuid = lc(asStr(cv, "Id")); fxSetupCount++; }
+      else otherChildCount++;
+    }
+  }
+  if (fxSetupCount != 1 || otherChildCount != 0) {
+    warn("t3: collapse root maps to " + swType + " but shape is not single-fx-setup-child (fxSetup=" +
+         std::to_string(fxSetupCount) + " other=" + std::to_string(otherChildCount) +
+         ") — multi-child fx wrapper 子類 not yet covered, aborting collapse");
+    return false;
+  }
+
+  if (!lib.symbols.count(swType)) lib.symbols[swType] = atomicSymbolFromSpec(*fs);
+  const int atomId = 1;
+  SymbolChild atom;
+  atom.id = atomId;
+  atom.symbolId = swType;
+  sym.children.push_back(atom);
+  sym.nextChildId = 2;
+
+  const std::vector<std::string>& floatOrder = swFloatParamOrderForCollapse(swType);
+  int floatWireIdx = 0;  // positional index into FloatParams (2929c4c9) wires, in .t3 array order.
+
+  std::vector<SymbolConnection> conns;
+  if (root["Connections"].is_array()) {
+    for (const crude_json::value& wv : root["Connections"].get<crude_json::array>()) {
+      if (!wv.is_object()) continue;
+      const std::string srcGuid = lc(asStr(wv, "SourceParentOrChildId"));
+      const std::string dstGuid = lc(asStr(wv, "TargetParentOrChildId"));
+      const std::string srcSlot = asStr(wv, "SourceSlotId");
+      const std::string dstSlot = asStr(wv, "TargetSlotId");
+      const bool srcIsFx = (srcGuid == fxChildGuid);
+      const bool dstIsFx = (dstGuid == fxChildGuid);
+
+      if (dstIsFx && isBoundaryGuid(srcGuid)) {
+        // boundary Input → fx-setup child inner slot. Re-anchor onto the atom's matching port.
+        const std::string fxSlot = lc(dstSlot);
+        if (fxSlot == t3Lc(kFxSetupFloatParamsSlot)) {
+          // Positional scalar rail: the k-th FloatParams wire lands on ④d order[k].
+          if (floatWireIdx < (int)floatOrder.size()) {
+            conns.push_back({kSymbolBoundary, lc(srcSlot), atomId, floatOrder[floatWireIdx]});
+          } else {
+            warn("t3: collapse FloatParams wire #" + std::to_string(floatWireIdx) + " beyond " + swType +
+                 " scalar order (" + std::to_string(floatOrder.size()) + "), dropped");
+          }
+          floatWireIdx++;
+          continue;
+        }
+        const std::string port = swCollapseSlotNameForGuid(swType, fxSlot);
+        if (port.empty()) {
+          warn("t3: collapse boundary→fx slot " + fxSlot + " has no " + swType + " port, dropped");
+          continue;
+        }
+        conns.push_back({kSymbolBoundary, lc(srcSlot), atomId, port});
+        continue;
+      }
+      if (srcIsFx && isBoundaryGuid(dstGuid)) {
+        // fx-setup child output → boundary out. Re-anchor the atom's output onto the boundary out.
+        const std::string port = swCollapseSlotNameForGuid(swType, lc(srcSlot));
+        if (port.empty()) {
+          warn("t3: collapse fx→boundary slot " + lc(srcSlot) + " has no " + swType + " port, dropped");
+          continue;
+        }
+        conns.push_back({atomId, port, kSymbolBoundary, lc(dstSlot)});
+        continue;
+      }
+      // Any wire NOT touching the fx-setup child (shouldn't occur in a pure single-child wrapper) — drop
+      // with a warning so the shape assumption stays honest.
+      warn("t3: collapse ignored a wire not incident to the fx-setup child (src=" + srcGuid +
+           " dst=" + dstGuid + ")");
+    }
+  }
+  sym.connections = std::move(conns);
+  return true;
+}
+
 }  // namespace
 
 bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
@@ -92,6 +194,21 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
       d.dataType = "Float";
       if (iv["DefaultValue"].is_number()) d.def = (float)iv["DefaultValue"].get<crude_json::number>();
       sym.inputDefs.push_back(d);
+    }
+  }
+
+  // ---- IMAGE-FX COLLAPSE (image-fx-wrapper-collapses-to-tex-atom): if this ROOT is a known image-fx
+  // wrapper (④b table), collapse the whole compound to ONE sw tex atom instead of the normal per-child
+  // map (whose fx-setup child has no atom → empty root). collapseImageFxWrapper builds the atom + wires;
+  // on success we commit the symbol and return. On a shape mismatch it warns and we fall through to the
+  // normal path (which reports the same empty-root diagnostic — no silent success).
+  const std::string collapseType = swTexOpForCollapseRootGuid(symGuid);
+  if (!collapseType.empty()) {
+    if (collapseImageFxWrapper(root, collapseType, sym, lib, warn)) {
+      lib.symbols[sym.id] = sym;
+      if (lib.rootId.empty()) lib.rootId = sym.id;
+      if (outSymbolId) *outSymbolId = sym.id;
+      return true;
     }
   }
 

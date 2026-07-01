@@ -22,6 +22,10 @@ const char* const kComputeShaderCsOutSlot = "6c118567-8827-4422-86cc-4d4d00762d8
 const char* const kComputeStageCsInSlot = "5c0e9c96-9aba-4757-ae1f-cc50fb6173f1";      // ComputeShaderStage.ComputeShader in
 const char* const kCombineBuffersCsInSlot = "d91e52f2-52c6-4533-ac14-f5b2ce8b4c0f";    // _ExecuteCombineBuffers.ComputeShader in (187)
 
+// image-fx-wrapper-collapses-to-tex-atom: the FloatParams MultiInput slot every fx-setup framework
+// symbol exposes (positional scalar rail — Hue/Sat/Exposure… land here in wire order).
+const char* const kFxSetupFloatParamsSlot = "2929c4c9-6d6a-47b7-b80e-d7a1f90b6945";
+
 // ---- TABLE ③: t3 symbol guid → sw op type. The buffer atoms sw HAS (forward-port widening).
 // The atom's NodeSpec is resolved via findSpec (production registry) — no per-atom provider on main.
 // Guids verified against the TiXL .cs [Guid] on the symbol class:
@@ -223,6 +227,63 @@ std::string swSlotNameForGuid(const std::string& swType, const std::string& slot
   if (t == kTable.end()) return std::string();
   auto s = t->second.find(t3Lc(slotGuid));
   return s != t->second.end() ? s->second : std::string();
+}
+
+// ── IMAGE-FX COLLAPSE SEAM tables (image-fx-wrapper-collapses-to-tex-atom) ────────────────────────────
+// The fx-setup framework wrapper SymbolIds (the child collapsed AWAY). Guids from the .cs [Guid]:
+//   _multiImageFxSetupStatic  cc34a183  (image/fx/_/_multiImageFxSetupStatic.cs:3) — HSE's single child
+//   _multiImageFxSetup        a2567844  (image/fx/_/_multiImageFxSetup.cs:3)
+//   _trippleImageFxSetup      5b999887  (image/fx/_/_trippleImageFxSetup.cs:3)
+bool isImageFxSetupGuid(const std::string& guid) {
+  static const std::map<std::string, bool> kSet = {
+      {"cc34a183-3978-4b6b-8ef1-dd8102410816", true},  // _multiImageFxSetupStatic
+      {"a2567844-3314-48de-bda7-7904b5546535", true},  // _multiImageFxSetup
+      {"5b999887-19df-4e91-9f58-1df2d8f1440b", true},  // _trippleImageFxSetup
+  };
+  return kSet.count(t3Lc(guid)) != 0;
+}
+
+// TABLE ④b: ROOT symbol guid → sw tex op type. Only roots whose .t3 is a KNOWN, SINGLE-fx-setup-child
+// wrapper we can collapse 1:1 to a flat sw tex atom (ports match the op's .cs). Add an image-fx op =
+// add a row here + its ④c fixed-slot rows + its ④d FloatParams order (data-driven, ARCHITECTURE rule 7).
+std::string swTexOpForCollapseRootGuid(const std::string& rootGuid) {
+  static const std::map<std::string, std::string> kTable = {
+      // HSE (image/color/HSE.t3): the ONLY pure single-child cc34a183 wrapper. Root guid = HSE.cs [Guid].
+      {"3c8003e8-70ca-4d71-9294-3df845bbb4a5", "HSE"},
+  };
+  auto it = kTable.find(t3Lc(rootGuid));
+  return it != kTable.end() ? it->second : std::string();
+}
+
+// TABLE ④c: (collapsed swType, fx-setup-child FIXED slot guid) → sw tex atom port NAME. The fx-setup
+// framework's ImageA/ImageB/Output slot guids are SHARED across all wrappers (same _*FxSetup*.cs), so
+// these rows are effectively per-framework, keyed by swType for clarity. FloatParams (2929c4c9) is NOT
+// here — it is the positional scalar rail resolved by ④d (swFloatParamOrderForCollapse).
+std::string swCollapseSlotNameForGuid(const std::string& swType, const std::string& slotGuid) {
+  static const std::map<std::string, std::map<std::string, std::string>> kTable = {
+      {"HSE",
+       {
+           {"55126bff-8c94-415d-96dd-3c16e216e663", "Image"},      // _*FxSetupStatic.ImageA  → HSE.Image
+           {"0bb90f8d-88c9-4a99-b44f-f284b505c65b", "FxTexture"},  // _*FxSetupStatic.ImageB  → HSE.FxTexture
+           {"76b6c677-12db-4404-aff7-ee3391d2d831", "out"},        // _*FxSetupStatic.Output  → HSE.out
+       }},
+  };
+  auto t = kTable.find(swType);
+  if (t == kTable.end()) return std::string();
+  auto s = t->second.find(t3Lc(slotGuid));
+  return s != t->second.end() ? s->second : std::string();
+}
+
+// TABLE ④d: for a collapsed swType, the ORDERED sw scalar port names that the fx-setup FloatParams
+// MultiInput (2929c4c9) wires land on positionally. HSE.t3 wires Hue,Saturation,Exposure IN THAT ORDER
+// into FloatParams (verified against HSE.t3 Connections + HueShift.hlsl cbuffer {Hue,Saturation,Exposure}).
+const std::vector<std::string>& swFloatParamOrderForCollapse(const std::string& swType) {
+  static const std::map<std::string, std::vector<std::string>> kTable = {
+      {"HSE", {"Hue", "Saturation", "Exposure"}},
+  };
+  static const std::vector<std::string> kEmpty;
+  auto it = kTable.find(swType);
+  return it != kTable.end() ? it->second : kEmpty;
 }
 
 }  // namespace sw
