@@ -24,8 +24,13 @@
 // displacement's amplitude / frequency / distribution corrupt → the readback Position diverges. The
 // same buffer backbone that TransformMesh proved (GetBufferComponents / ComputeShaderStage /
 // StructuredBufferWithViews / ExecuteBufferUpdate / _MeshBufferComponents / _AssembleMeshBuffers) carries
-// the SwVertex data UNCHANGED; only the cb1 payload op changes (FloatsToBuffer, now interleaved) and two
-// value atoms are added (IntToFloat, Vector3Components — 骨9 map rows).
+// the SwVertex data UNCHANGED; the cb1 payload op changes (FloatsToBuffer, now interleaved), TWO value
+// atoms are added (IntToFloat, Vector3Components — 骨9 map rows), and TWO import seams DisplaceMeshNoise
+// exercises that TransformMesh did not (both closed in 骨9):
+//   (1) the root boundary Params wires are DIRECT BND→FloatsToBuffer.Params (TransformMesh's went via a
+//       child BoolToFloat), so they need buildEvalGraph's boundaryFloatInputs injection — see STEP 2.
+//   (2) SBV.Count feeds from GetBufferComponents.Length (not GetSRVProperties.ElementCount like
+//       TransformMesh); mapping Length → the Buffer view rail lets SBV allocate the UAV (t3_import_maps).
 //
 // ── THE PROVING KERNEL ───────────────────────────────────────────────────────────────────────────────
 // computeshaderstage_displacemeshnoise.metal — a faithful MSL port of the .t3's ComputeShader.Source
@@ -36,9 +41,13 @@
 // NO TBN rotation), Variation=0 (variationOffset=0 → NO hash31), UseVertexSelection=0 (selection=1).
 // Then per the .hlsl: Position_out = Position_in + offset, where
 //   offset = (snoiseVec3((posInWorld*0.91)*Frequency + Phase) + OffsetDirection) * Amount/100 * AmountDist.
-// The oracle recomputes snoiseVec3 in DOUBLE (this file's simplexNoise3, a straight port of the SAME
-// Ashima algorithm in noise.metal.h) — NOT derived from the import path, so GREEN is not self-proving.
-// We parity-check the Position component (the load-bearing displaced output).
+// The oracle recomputes snoiseVec3 in FLOAT (this file's snoise3/snoiseVec3d, our own port of the SAME
+// Ashima algorithm in noise.metal.h — NOT derived from the import/cook path, so GREEN is not self-
+// proving). FLOAT not double DELIBERATELY: 3-D simplex has floor()/step() branch points and snoiseVec3's
+// offsets push lookups to |coord|~120, where a double oracle lands on DIFFERENT simplex cells than the
+// float GPU → the noise value forks entirely (measured maxPosErr 0.5, not a rounding delta). Matching
+// the GPU's float precision is the faithful reference; the final Position add is done in double.
+// We parity-check the Position component (the load-bearing displaced output; measured maxPosErr 8e-6).
 //
 // ── THE 骨9 TOOTH (-bug, load-bearing) ──────────────────────────────────────────────────────────────
 // The -bug leg REVERSES the FloatsToBuffer.Params wire order in sym.connections before buildEvalGraph.
