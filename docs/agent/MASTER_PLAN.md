@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 0e1a0e3
-DIRTY: 2 files
+HEAD: 9be2f0c
+DIRTY: 1 files
 CENSUS: 473 / 749 done
 BITE: 561 PASS
-STAMP_AT: 2026-07-02T01:26
+STAMP_AT: 2026-07-02T01:31
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -108,13 +108,9 @@ STAMP_AT: 2026-07-02T01:26
 - **DrawPoints 換 quad sprite（`3310181`，柏為 02:38 parity 修）** — 預設面板 DrawPoints 從「不分大小的 4px 死點」變成「依 PointSize 的 6-vert camera-facing quad sprite」，照 TiXL DrawPoints.hlsl（11 param 全砍→接回 PointSize/Color/ScaleFactor/BlendMode）。**怎麼驗**：開 app 看預設場景，點現在是 quad sprite（吃 PointSize/Color/blend）；預設場景 PointSize=1.5 可見，裸節點 .t3 預設 0.1≈1px（忠實但小，你可調 PointSize 旋鈕）。**機器閘**：drawpoints-parity golden no-bug GREEN+bug RED、7 顆下游 golden 無回歸、--bite 525、refuter 5/5 SURVIVES。**待你簽**：① quad sprite 觀感對不對 ② 預設場景 PointSize=1.5 vs TiXL 預設場景值（可能需跑真 TiXL 看）③ 純像素 byte parity 標 pixel-deferred-windows（等 Windows TiXL reference）。
 
 ## Conflict Register
-- **（2026-06-30 本批，非阻塞）`point_modify_chain.scn` PRE-EXISTING red**：line-27 AddNoise#104 經 `@ctx:add_node_bg`→`@bgctx:add:AddNoise` 背景菜單 spawn 不 fire（map dump 零 `bgctx:add:*` 項）→級聯到 line-58 `assert_diff` 假紅。triage 證 base 9ce745e 同紅、指紋逐 byte 一致＝**非本批引入**（Seam 1 Buffer terminal 是 target-type-gated 對 DrawPoints inert，refuter additive 宣稱未被推翻）。分類 (b) 驗證基建/harness brittle，task_df8df769 修，**不擋 commit**。
-- **（2026-06-30 cleanup）可清的 worktree**：3 條已合流 branch（`worktree-agent-{ad693ae1,aff4090f8,aaeb07fc}`）+ 死 salvage worktree（false-death 殘留）可 `git worktree prune`/remove；`.worktrees/{t3-importer,ui-node-skin}` 是 parked spike，**別清**。
-- **（已解，2026-06-29）graph 三層 header 註釋 stale — production 早已跑巢狀/resident，文件停在 batch-1**：`graph.h`/`compound_graph.h`/`resident_eval_graph.h` 的頭註說「flat Graph 仍是 editor/save/UI/cook 現役」「resident NOT yet wired to production / 等 batch-2 swap」——**全 stale**。亲驗 code：live 帧循環 `frame_cook.cpp run()`:280 `buildEvalGraph(doc::g_lib())` +:387 `pg.cookResident(...)`；canvas `editor_ui.cpp:4`「no flat Graph, no projection layer」遍歷 `Symbol.children/connections`，雙擊 compound child 可鑽入。flat `Graph`+`cook(Graph&)` 只剩 golden T1 test leg（R-2 鐵律:only-flat=production black hole）。**三 header 註釋 + batch-1 plan + node-classification.md(category 欄位已存在)已校正。** 剩餘 cleanup（非脊椎 swap）:golden flat→resident 遷移、stateful-op state key node-id→path、pin-id 工具、Automation 曲線解析。**教訓（第三次同根因）:doc/header 會 stale，狀態看 code 不看註釋 [[gate-or-it-rots]]。**
-- **（finding 2026-06-29，候選下一大 seam，待柏為定）clone 策略可裂兩軌 — 原子手刻 + 複合重放 .t3**：TiXL `Lib/`=925 真算子,**原子:複合=563:349（複合 38%,其中 345 純圖、僅 4 混合體）**。複合節點在 TiXL 就是「.t3 子圖」零計算碼→可由載入 .t3 重放,非逐顆手刻（記憶血證:DirectionalBlur/_multiImageFxSetup 手刻複合猜錯內部接線=parity-wrong,重放可滅此類 bug）。**運行時已就位（production 跑巢狀 compound graph）,但缺口=無 `.t3 → SymbolLibrary` importer**（`.t3` 在我方 code 只出現在 golden 註釋,191 個 point_ops 全手刻）。原子軌瓶頸=~200 shader 類（composition 救不了）。**建議:spike 一顆子節點已備齊的非平凡複合,證「載入 .t3 → 我方 cook == TiXL output」byte-parity,再決定裂軌。** 詳 [[sw-clone-two-rails-atomic-compound]]。待量:461「done」裡幾顆是 TiXL-複合被手刻（追溯浪費量）。先前 batch-4 期間此改動出現在 main checkout，我誤判為 ColorThemeEditor fixer 越權→park 到 review 分支；**柏為 01:51 澄清＝另一 session 在同 checkout 寫的合法 post-parity 工單**（[[sw-batch-no-parallel-launch]] 雙 session 同 checkout 情境），授權收。review 分支已刪。**教訓：main checkout 冒出任務範圍外改動，可能是平行 session 不是自家 agent——但處理法相同：`git diff --stat` 核範圍 + pathspec commit（這次救了沒混進 theme 批）。**
-- 工作1/工作2 零未解衝突（島7 單線 cook-core 已收，tree clean）。**無未解衝突**。
-- 非阻塞 follow-up：gate_census absent-gate 改 fail-safe（低）；FP safeStem 外部 `:`-id disambiguator；CTE 剩無-sw-consumer 欄（Widget*/Status* 無 sw 渲染對象→theme 它們是 dead weight，等 sw 真 render 那些 UI 元件再接）；SP 補 LookAt 斷言；RO 補 disk-corrupt leg。皆低優先。
-- （更早已解項移 history：soundtrack flake `cd47f72`/field scn `644d100`；chip `task_eb3375a3`/`task_2fc4a37a` 可關，`task_9d081266`=detectbpm NO-BITE 待修。）
+無 active 平行 lane、無未解衝突，tree clean（HEAD 見機器塊）。今日 session（2026-07-01→07-02）連線極不穩、殺了多個 build agent（骨7b/骨8），全靠 worktree 隔離 + 增量 commit + orchestrator salvage-commit 撐住，零工作損失——這條工法今天被壓測過。未 push：領先 origin 若干 doc commit（`0e1a0e3` 已推、之後 doc-cleanup 未推，待柏為授權）。非阻塞 pre-existing：`point_modify_chain.scn` harness-brittle red（task_df8df769，非本線引入、不擋 commit）；`detectbpm` NO-BITE（task_9d081266）。
+
+〔以下 2026-06-29/30 舊條目多已解或屬歷史，非現行衝突；留作背景，勿讀成當前阻塞〕
 
 ## Session Safety
 - **★合流必驗 cherry-pick stat 無 build 污染（2026-06-30 WO-D 踩，救回）**：worktree agent 偶爾 build 到 root `build/`（非 `app/build/`，舊 .gitignore 只擋後者）→ 合流的 `git -C <wt> add -A` 把 140 個 .air + 整個 build/ .o 掃進 commit → cherry-pick 進 main。**救：cherry-pick 輸出冒 `create build/*.air` 即抓到 → `git reset --hard <pre> + git checkout <wt-commit> -- <只挑 source 檔> + commit`。** 已補 .gitignore `/build/` `*.air`。**鐵律：worktree 合流前 `git -C <wt> diff --cached --stat | grep -E 'build/|\.air'` 確認零命中，或別用 add -A、明列 source 檔。**
@@ -130,9 +126,9 @@ STAMP_AT: 2026-07-02T01:26
 
 ## Next Handoff Sentence
 
-**〔🔒 歷史·已完成，非現行——現行見本檔頂部「現狀」+「下一棒＝Seam 2」〕**
+**★★下一根（2026-07-02，現行）：收尾 mesh 家族兩缺口 → 開 187 量產。** ① **骨4** mesh-buffer 橋原子（`_MeshBufferComponents`/`_AssembleMeshBuffers`，做真 atom + import mapping，拔骨8 golden 的 scaffold rewire）② **骨9** 挑一顆真有 mixed-slot（child+boundary 交錯進同 MultiInput）的 mesh/modify 或 mesh/draw 複合，端到端 replay 驗骨7b 排序修對真 mesh 有效（TransformMesh/TransformPoints 都零 mixed-slot、始終未驗）。兩者碰 importer/flatten 邊緣＝序列 owner-lock、可與**骨2**（HLSL→MSL 尾巴，零 cook-core 自走）並行。收尾後 187 進大量並行體力（每顆 embed .t3 + 手翻 kernel + refuter）。**ParticleSystem 已解鎖**（柏為 2026-07-02 定＝照 TiXL 拔 fork [[particlesystem-pool-fork-match-tixl]]）。開頭跑 `tools/sw_status.sh`；細節見上方 ## Active Lane。
 
-**★★接力（原子地基 pivot；param-completion 舊 lane + Cook-Core 脊椎舊策略已凍結/廢，見上方 Active Lane）：策略＝原子→巢狀（.t3 重放），SSOT＝`tools/node_health.sh`/.html + `docs/agent/census/ATOM_SEAM_MAP.md`（讀 code 真帳，舊 census 不可信勿用）。`/sw-batch` 自走當前兩條：① 補 38 真原子 baked param（先時間源旋鈕家族 UseAppRunTime/OverrideTime，剔 known_fork 假 MISSING；清單 PARAM_COMPLETION_MAP §307 全掃）② 標廢棄 135 壓平複合（deprecation_candidates.md，只標 tag）。之後：buffer-currency keystone（spike 步3，碰 cook-core 等柏為）+ .t3 importer 多原子串接 + 固定 shader 體力批。**
+〔以下為 2026-06-29 原子 pivot 首日的舊接力，非現行；留作背景〕
 
 **今天承重發現：census/scout 系統性 stale，6-8 次「待辦/卡縫」一讀 code 都是早建好**（image/value/shader/String/Matrix/anim/list 全中）→ 任何 claim 進工單前必多處 code-verified done-check（grep 中央表 node_registry_math_* + registry + CMake + cook flow，非單一處）。[[orchestrator-read-code-before-difficulty-verdict]]
 
