@@ -23,6 +23,7 @@
 //   *  → fxchild.<other slot>        ⇒ dropped (atom uses its port defaults; e.g. Resolution/WrapMode)
 #include "runtime/t3_import_internal.h"
 
+#include <cctype>
 #include <map>
 #include <string>
 #include <utility>
@@ -52,6 +53,30 @@ namespace {
 const char* const kGradientsToTextureGuid = "2c53eee7-eb38-449b-ad2a-d7a674952e5b";  // GradientsToTexture.cs:9
 const char* const kGradientsToTextureGradientsSlot =
     "588be11f-d0db-4e51-8dbb-92a25408511c";  // GradientsToTexture.Gradients MultiInput (.cs:134-135)
+
+// BOUNDARY-VEC-DEFAULT PLUMB (collapse-boundary-typed-default-plumbed-through-kept-helper): the .t3
+// root's Inputs[] carry TYPED defaults. A scalar default (System.Single) is captured by the importer's
+// SlotDef.def; a VECTOR default is a JSON object {X,Y[,Z,W]}. When a kept decompose helper's Value input
+// (Vector2/3/4Components) is fed by a boundary input that is NOT wired to an external producer, the cook
+// drops that boundary→helper wire (buildEvalGraph injects boundary consts only for CALLER-supplied inputs),
+// so the helper reads its OWN port default (0) for Value — decomposing to all-zeros and clobbering the atom
+// scalar rail through the kept helper.X/.Y wires. Root cause of the BubbleZoom hollow-green (GainAndBias
+// default (0.5,0.5) never reached the GPU → near-binary field). Fix: author the boundary's typed vec default
+// onto the helper child's Value.x/.y/.z/.w overrides so the UNWIRED case decomposes the REAL default. A
+// top-level driver still wins (the override is the KEPT fallback under a wire — resident_eval_flatten loop 3).
+// The head port a decompose helper exposes for its Vector input is "Value.x" (fork-vecN-as-N-floats).
+const char* const kDecomposeValueHead = "Value.x";
+// Read a boundary DefaultValue object's {X,Y,Z,W} into an ordered [x,y,z,w] list (as many as present).
+std::vector<std::pair<std::string, float>> readVecDefault(const crude_json::value& dv) {
+  std::vector<std::pair<std::string, float>> out;
+  if (!dv.is_object()) return out;
+  for (const char* comp : {"X", "Y", "Z", "W"}) {
+    if (dv.contains(comp) && dv[comp].is_number())
+      out.push_back({std::string("Value.") + (char)std::tolower(comp[0]),
+                     (float)dv[comp].get<crude_json::number>()});
+  }
+  return out;
+}
 }  // namespace
 
 bool collapseImageFxWrapper(const crude_json::value& root, const std::string& swType, Symbol& sym,
@@ -80,6 +105,34 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       if (lc(asStr(wv, "TargetSlotId")) != t3Lc(kGradientsToTextureGradientsSlot)) continue;
       gttGradientSrc[lc(asStr(wv, "TargetParentOrChildId"))] = {lc(asStr(wv, "SourceParentOrChildId")),
                                                                 asStr(wv, "SourceSlotId")};
+    }
+
+  // BOUNDARY-VEC-DEFAULT PLUMB pre-scan (collapse-boundary-typed-default-plumbed-through-kept-helper):
+  //   (a) index each root boundary input's raw DefaultValue object by its slot guid (only vec objects
+  //       matter; scalar/null are ignored — those defaults ride the atom's own port default already).
+  //   (b) find every wire boundary → <helper child>.<its Vector Value HEAD slot guid>. That helper's
+  //       Value input is boundary-fed; its typed default is the boundary's vec default. Keyed by the
+  //       helper .t3 child guid so Pass 1 can author it as the helper's Value.x/.y/.z/.w overrides.
+  std::map<std::string, const crude_json::value*> boundaryDefaultByGuid;  // boundary slot guid → DefaultValue
+  if (root["Inputs"].is_array())
+    for (const crude_json::value& iv : root["Inputs"].get<crude_json::array>()) {
+      if (!iv.is_object()) continue;
+      const std::string sid = lc(asStr(iv, "Id"));
+      if (!sid.empty() && iv.contains("DefaultValue") && iv["DefaultValue"].is_object())
+        boundaryDefaultByGuid[sid] = &iv["DefaultValue"];
+    }
+  // helper .t3 child guid → (target slot guid, raw boundary DefaultValue object) for a boundary→helper
+  // wire. Pass 1 confirms the slot resolves to the helper's Value HEAD before authoring the default.
+  std::map<std::string, std::pair<std::string, const crude_json::value*>> helperValueBoundaryDefault;
+  if (root["Connections"].is_array())
+    for (const crude_json::value& wv : root["Connections"].get<crude_json::array>()) {
+      if (!wv.is_object()) continue;
+      const std::string srcGuid = lc(asStr(wv, "SourceParentOrChildId"));
+      if (!isBoundaryGuid(srcGuid)) continue;                       // only boundary-fed Value inputs
+      auto bd = boundaryDefaultByGuid.find(lc(asStr(wv, "SourceSlotId")));
+      if (bd == boundaryDefaultByGuid.end()) continue;              // boundary has no vec default
+      helperValueBoundaryDefault[lc(asStr(wv, "TargetParentOrChildId"))] =
+          {lc(asStr(wv, "TargetSlotId")), bd->second};              // slot resolved in Pass 1
     }
 
   if (root["Children"].is_array()) {
@@ -116,6 +169,15 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
           else if (vtype == "System.Boolean" && ivv["Value"].is_boolean())
             ch.overrides[slotName] = ivv["Value"].get<crude_json::boolean>() ? 1.0f : 0.0f;
         }
+      // BOUNDARY-VEC-DEFAULT PLUMB: if this helper's Value HEAD is fed by a boundary carrying a typed vec
+      // default, author each component onto the helper's Value.x/.y/.z/.w overrides (the KEPT fallback for
+      // the UNWIRED-at-top case). Only when the wire truly targets the Value head (a boundary feeding some
+      // OTHER helper slot must not hijack the Value default). An explicit InputValue on Value.* (rare) is
+      // NOT overwritten — the .cs authored constant wins over the boundary default.
+      if (auto hv = helperValueBoundaryDefault.find(childGuid); hv != helperValueBoundaryDefault.end())
+        if (swSlotNameForGuid(helperType, hv->second.first) == kDecomposeValueHead && hv->second.second)
+          for (const auto& [comp, val] : readVecDefault(*hv->second.second))
+            if (!ch.overrides.count(comp)) ch.overrides[comp] = val;
       sym.children.push_back(ch);
     }
   }
