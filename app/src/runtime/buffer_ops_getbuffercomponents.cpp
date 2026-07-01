@@ -51,7 +51,15 @@ NodeSpec makeSpec() {
   spec.category = "render/buffer";
   spec.ports = {
       {"Buffer", "Buffer", "Buffer", false},   // passthrough output (the .cs Buffer slot, .cs:13)
-      {"BufferWithViews", "Buffer", "Buffer", true},  // single Buffer input (.cs:97-98)
+      {"BufferWithViews", "Buffer", "Buffer", true},  // single Buffer input (.cs:97-98) — port index 1 (goldens wire here)
+      // VIEW OUTPUTS — fork `getbuffercomponents-views-alias-buffer` (bufferwithviews-collapse-to-mtlbuffer):
+      // on Metal SRV/UAV ARE the same MTL::Buffer as Buffer, so these output ports all ALIAS the forwarded
+      // SwBuffer (the buffer cook stores ONE SwBuffer per node; every output slot returns it). Declared so
+      // the .t3 wires off ShaderResourceView/UnorderedAccessView RESOLVE (they carried the compute stage's
+      // SRV/UAV — the keystone RED's wire #15 gap). Placed AFTER the input so the input keeps port index 1
+      // (goldens/selftests wire the input by index). Import maps by slot NAME, so order is free.
+      {"ShaderResourceView", "Buffer", "Buffer", false},    // = Buffer (.cs:47)
+      {"UnorderedAccessView", "Buffer", "Buffer", false},   // = Buffer (.cs:48)
       // Length/Stride/IsValid scalar outputs DEFERRED (getbuffercomponents-scalar-outputs-deferred): the
       // metadata rides the forwarded SwBuffer (elementCount/elementStride), read by goldens off the view.
   };

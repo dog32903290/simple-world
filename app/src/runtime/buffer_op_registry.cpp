@@ -54,4 +54,11 @@ float bufferParam(const std::map<std::string, float>* params, const char* id, fl
   return it != params->end() ? it->second : def;
 }
 
+std::string bufferStrParam(const std::map<std::string, std::string>* strs, const char* id,
+                           const std::string& def) {
+  if (!strs) return def;
+  auto it = strs->find(id);
+  return it != strs->end() ? it->second : def;
+}
+
 }  // namespace sw

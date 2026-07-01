@@ -4,9 +4,8 @@
 // (PointGraph::Impl, shared via point_graph_internal.h — the path string IS the frame-stable resource key
 // the resident era exists for), and driver-resolved Float params (PointCookCtx::params, the 2b seam).
 //
-// Float reads go through evalResidentFloat (no version-chasing cache yet — wiring
-// pullResidentFloat into the production pull is the swap cut, named-deferred). The flat
-// cook() in point_graph.cpp mirrors this file; flat dies at the production swap, this stays.
+// Float reads go through evalResidentFloat (no version-chasing cache yet — wiring pullResidentFloat into
+// the production pull is the swap cut, named-deferred). The flat cook() in point_graph.cpp mirrors this.
 #include "runtime/point_graph.h"
 
 #include <array>
@@ -51,8 +50,7 @@ namespace {
 // Recursion cap for the cook walk (修2, 批次8): the SAME 64 every other resident-era walk uses. Before
 // this only the TERMINAL bypass loop was capped — a bypass redirect CYCLE inside cookNode/cookCommand
 // (A↔B both bypassed) recursed bare = ASan stack-overflow. Exceeding the cap is a SAFE FAIL: null buffer /
-// empty chain + one stderr warn per process, never a crash. The cap threads through ALL cookNode/
-// cookCommand recursion, so a plain non-bypass wire cycle also fail-safes (covered incidentally).
+// empty chain + one stderr warn per process, never a crash (threads through ALL cook recursion).
 constexpr int kCookDepthCap = 64;
 bool g_warnedCookDepth = false;
 }  // namespace
@@ -452,12 +450,14 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     return &out;
   };
 
-  // Buffer walker body (Seam-1 currency on the RESIDENT path, WO-E): forwards to the extracted method
-  // PointGraph::Impl::cookResidentBuffer (point_graph_resident_buffer.cpp). The lambda keeps the two-arg
-  // (path, depth) call shape the terminal dispatch + the Buffer→Buffer self-recursion use, threading the
-  // shared rg/ctx/rc/nodeParams + the SELF slot in by reference. Byte-identical to the flat cookFlatBuffer.
+  // Buffer walker (Seam-1, WO-E) → extracted method. PER-COOK MEMO (bufferCooked): cook each Buffer node
+  // ONCE/cook (TiXL DirtyFlag) — else a fan-out node re-cooks on its 2nd consumer path, re-zeroing a buffer
+  // a ComputeShaderStage just wrote. Reuses the same-node view pointer (bufferMeta addresses are stable).
+  std::map<std::string, const SwBuffer*> bufferCooked;
   cookResidentBuffer = [&](const std::string& path, int depth) -> const SwBuffer* {
-    return p_->cookResidentBuffer(rg, ctx, rc, nodeParams, cookResidentBuffer, path, depth);
+    auto m = bufferCooked.find(path);
+    return m != bufferCooked.end() ? m->second
+        : (bufferCooked[path] = p_->cookResidentBuffer(rg, ctx, rc, nodeParams, cookResidentBuffer, path, depth));
   };
 
   // Mesh walker body (4th cook flow): forwards to the extracted method PointGraph::Impl::cookResidentMesh

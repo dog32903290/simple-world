@@ -62,6 +62,7 @@ set(SW_SHADER_DEPS
   src/runtime/mesh_draw_params.h src/runtime/sw_mesh.h src/runtime/meshverticestopoints_params.h
   src/runtime/pointsonmesh_params.h src/runtime/findclosestpointsonmesh_params.h
   src/runtime/samplepointattributes_params.h src/runtime/displacepoints2d_params.h src/runtime/transformwithimage_params.h
+  src/runtime/computeshaderstage_params.h
   shaders/shared/noise.metal.h shaders/shared/quat.metal.h shaders/shared/hash.metal.h)
 set(SW_COMPILE_CMDS "")
 foreach(s ${SW_SHADERS})
@@ -566,6 +567,8 @@ add_executable(simple_world
   src/runtime/buffer_ops_intstobuffer.cpp        # IntsToBuffer (host ints → GPU buffer, 16-byte-padded int32 slices)
   src/runtime/buffer_ops_getsrvproperties.cpp    # GetSRVProperties (Buffer passthrough + element-count read-out, thin GetBufferComponents sibling)
   src/runtime/buffer_ops_transformsconstbuffer.cpp # TransformsConstBuffer (640-byte 10-matrix camera const buffer, HLSL row-major transposed bytes)
+  src/runtime/buffer_ops_computeshaderstage.cpp  # ComputeShaderStage (GENERIC compute stage: bind CB/SRV/UAV + dispatch a named MSL kernel)
+  src/runtime/buffer_ops_structuredbufferwithviews.cpp # StructuredBufferWithViews (allocate an empty Stride*Count GPU buffer = the UAV write target)
   src/runtime/gradient_op_registry.cpp
   src/runtime/gradient_ops_definegradient.cpp
   src/runtime/gradient_ops_pickgradient.cpp

@@ -74,6 +74,12 @@ struct BufferCookCtx {
   const EvaluationContext* ctx = nullptr;  // time / frameIndex / deltaTime
   int nodeId = 0;
   const std::vector<const SwBuffer*>* inputBuffers = nullptr;  // cooked upstream Buffer inputs (borrowed)
+  // PARALLEL to inputBuffers: the spec PORT ID each gathered SwBuffer arrived on (same index/order).
+  // Lets a multi-Buffer-port op (ComputeShaderStage: ConstantBuffers / ShaderResources / Uavs) tell
+  // which wired buffer is a CB vs SRV vs UAV — the flat inputBuffers vector alone loses that grouping.
+  // Empty/absent for single-Buffer-input ops (they read inputBuffers->front() unchanged). Both cook
+  // legs (flat + resident) fill it alongside inputBuffers.
+  const std::vector<std::string>* inputBufferPorts = nullptr;
   const MTL::Texture* inputTexture = nullptr;                  // wired Texture2D input (SrvFromTexture2d)
   const RenderCommand* inputCommand = nullptr;                 // wired+executed Command (ExecuteBufferUpdate)
   SwBuffer* output = nullptr;                                  // THIS node's output (driver-owned bytes)
@@ -82,6 +88,10 @@ struct BufferCookCtx {
   // output->elementStride / output->elementCount.
   std::function<void*(uint32_t byteSize)> requestBytes;
   const std::map<std::string, float>* params = nullptr;       // resolved Float params (value spine)
+  // Resolved STRING params of THIS node (slot id -> text), the string twin of `params`. Populated by
+  // both cook legs from the node's string overrides else the spec's PortSpec.strDef. Used by ops that
+  // name a resource by string (ComputeShaderStage's KernelName). Absent/empty for float-only ops.
+  const std::map<std::string, std::string>* strParams = nullptr;
   const std::vector<float>* floatInputs = nullptr;            // wired scalar Float payload (marshal)
   const std::vector<std::array<float, 16>>* vec4Inputs = nullptr;  // wired Vector4[] matrix payload
   // CAMERA matrices (camera-matrix-into-buffer seam, for TransformsConstBuffer): the driver fills the 3
@@ -104,6 +114,9 @@ using BufferCookFn = void (*)(BufferCookCtx&);
 
 // Read a Float param from a BufferCookCtx's RESOLVED map (mirror of pointListParam); `def` when no map.
 float bufferParam(const std::map<std::string, float>* params, const char* id, float def);
+// Read a String param from a BufferCookCtx's RESOLVED string map; `def` when no map / no key.
+std::string bufferStrParam(const std::map<std::string, std::string>* strs, const char* id,
+                           const std::string& def);
 
 // --- the two sinks every Buffer-op leaf registrar feeds ---
 std::vector<NodeSpec>& bufferSpecSink();                  // NodeSpecs (node_registry reads live)

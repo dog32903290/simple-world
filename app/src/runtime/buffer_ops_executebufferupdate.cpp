@@ -34,10 +34,25 @@ void cookExecuteBufferUpdate(BufferCookCtx& c) {
   // IsEnabled (.cs:17): default true. When false, TiXL early-returns without forwarding — output stays
   // the default-invalid SwBuffer (nothing produced this cook).
   if (bufferParam(c.params, "IsEnabled", 1.0f) < 0.5f) return;
-  // The wired Command (UpdateCommand, .cs:25) is already executed by the driver before this op runs
-  // (BufferCookCtx::inputCommand is the executed handle). Forward the input buffer unchanged (.cs:27).
-  const SwBuffer* in =
-      (c.inputBuffers && !c.inputBuffers->empty()) ? c.inputBuffers->front() : nullptr;
+  // TiXL runs the wired Command (UpdateCommand, .cs:25) — a GPU pass that writes INTO the buffer — THEN
+  // forwards the buffer (.cs:27). sw fork `executebufferupdate-command-is-buffer`: the Command currency
+  // collapses to a Buffer (ComputeShaderStage dispatches during ITS cook, fork
+  // computeshaderstage-dispatch-in-cook, and outputs the written buffer). The buffer cook recurses BOTH
+  // Buffer inputs (UpdateCommand + BufferWithViews) BEFORE this op, so the dispatch has ALREADY run by
+  // the time we forward — TiXL's ordering guarantee is preserved. UpdateCommand's buffer (the written
+  // result) and BufferWithViews (the SAME underlying MTL::Buffer) are byte-identical; forward the first
+  // present one (prefer UpdateCommand = the executed result).
+  const SwBuffer* cmdBuf = nullptr;
+  const SwBuffer* viewBuf = nullptr;
+  if (c.inputBuffers && c.inputBufferPorts &&
+      c.inputBuffers->size() == c.inputBufferPorts->size()) {
+    for (size_t i = 0; i < c.inputBuffers->size(); ++i) {
+      const std::string& p = (*c.inputBufferPorts)[i];
+      if (p == "UpdateCommand") cmdBuf = (*c.inputBuffers)[i];
+      else if (p == "BufferWithViews") viewBuf = (*c.inputBuffers)[i];
+    }
+  }
+  const SwBuffer* in = (cmdBuf && cmdBuf->bytes) ? cmdBuf : viewBuf;
   if (!in || !in->bytes) return;  // no buffer to forward → output stays default-invalid
   *c.output = *in;
 }
@@ -49,8 +64,11 @@ NodeSpec makeSpec() {
   spec.category = "render/buffer";
   spec.ports = {
       {"Output2", "Buffer", "Buffer", false},               // forwarded buffer (.cs:6-7)
-      {"UpdateCommand", "Command", "Command", true},         // executed before forward (.cs:30-31, driver-run)
-      {"BufferWithViews", "Buffer", "Buffer", true},         // the buffer to forward (.cs:33-34)
+      // UpdateCommand: TiXL Command (.cs:30-31). Fork executebufferupdate-command-is-buffer — on Metal the
+      // Command collapses to the written Buffer (ComputeShaderStage's Output). Buffer-typed so the cook
+      // recurses it (runs the dispatch) BEFORE forwarding — the ordering TiXL's Command execution gives.
+      {"UpdateCommand", "UpdateCommand", "Buffer", true},    // executed-then-forwarded (.cs:25,30-31)
+      {"BufferWithViews", "BufferWithViews", "Buffer", true},// the buffer to forward (.cs:33-34)
       // IsEnabled (.cs:36-37): pinless bool param (default true), read via bufferParam.
       {"IsEnabled", "IsEnabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
   };

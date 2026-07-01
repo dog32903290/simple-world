@@ -120,6 +120,7 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
   // gathers each wired scalar via evalResidentFloat (primary + extraConns, wire order). Vec4Params → empty
   // (no resident source; see fork in the header).
   std::vector<const SwBuffer*> inputBuffers;
+  std::vector<std::string> inputBufferPorts;  // parallel to inputBuffers: the port id each arrived on
   std::vector<float> floatInputs;
   std::vector<std::array<float, 16>> vec4Inputs;  // stays empty on the resident leg (fork — see header)
   for (const PortSpec& port : s->ports) {
@@ -128,11 +129,11 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
     if (port.dataType == "Buffer") {
       if (ri && ri->driver == ResidentInput::Driver::Connection) {
         const SwBuffer* up = cookResidentBuffer(ri->srcNodePath, depth + 1);
-        if (up) inputBuffers.push_back(up);
+        if (up) { inputBuffers.push_back(up); inputBufferPorts.push_back(port.id); }
         if (port.multiInput) {
           for (const auto& ec : ri->extraConns) {
             const SwBuffer* ue = cookResidentBuffer(ec.first, depth + 1);
-            if (ue) inputBuffers.push_back(ue);
+            if (ue) { inputBuffers.push_back(ue); inputBufferPorts.push_back(port.id); }
           }
         }
       }
@@ -167,8 +168,10 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
   bc.dev = dev; bc.lib = lib; bc.queue = queue;
   bc.ctx = &ctx; bc.nodeId = 0;  // resident: no flat node id (resources key by path, not id)
   bc.inputBuffers = &inputBuffers;
+  bc.inputBufferPorts = &inputBufferPorts;
   bc.output = &out;
   bc.params = nodeParams(path);  // resolved Float params (value spine; marshal ops read floatInputs, not this)
+  bc.strParams = &n->strInputs;  // resolved String params (ComputeShaderStage's KernelName)
   bc.floatInputs = &floatInputs;
   bc.vec4Inputs = &vec4Inputs;
   // Camera bridge (TransformsConstBuffer): default camera at the ACTIVE RequestedResolution aspect, the

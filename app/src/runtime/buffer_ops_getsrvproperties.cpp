@@ -53,9 +53,13 @@ NodeSpec makeSpec() {
   spec.category = "render/buffer";
   spec.ports = {
       {"Buffer", "Buffer", "Buffer", false},  // passthrough output (the .cs Buffer slot, .cs:9-10)
-      {"SRV", "SRV", "Buffer", true},          // single Buffer input (the SRV-is-buffer view, .cs:36-37)
-      // ElementCount scalar output DEFERRED (getsrvproperties-scalar-output-deferred): the count rides the
-      // forwarded SwBuffer (elementCount), read by goldens off the view.
+      {"SRV", "SRV", "Buffer", true},          // single Buffer input (the SRV-is-buffer view, .cs:36-37) — port index 1 (goldens wire here)
+      // ElementCount OUTPUT — fork `getsrvproperties-elementcount-is-buffer-view`: TiXL's ElementCount is
+      // an int (.cs:6-7,28). sw collapses the int rail onto the forwarded Buffer VIEW — a downstream reader
+      // (StructuredBufferWithViews.Count) takes the wired buffer's elementCount. Output port is Buffer-typed
+      // and ALIASES the forwarded SwBuffer (every output returns the node's one SwBuffer). Placed AFTER the
+      // input so the input keeps port index 1 (goldens wire by index); import maps by slot NAME.
+      {"ElementCount", "ElementCount", "Buffer", false},  // count via the Buffer view rail (.cs:6-7,28)
   };
   spec.evaluate = nullptr;
   return spec;

@@ -73,6 +73,7 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
   if (!fn || !*fn) return nullptr;
 
   std::vector<const SwBuffer*> inputBuffers;
+  std::vector<std::string> inputBufferPorts;  // parallel to inputBuffers: the port id each arrived on
   std::vector<float> floatInputs;
   std::vector<std::array<float, 16>> vec4Inputs;
   for (size_t i = 0; i < s->ports.size(); ++i) {
@@ -83,7 +84,7 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
       for (const Connection& c : g.connections) {
         if (c.toPin != inPin) continue;
         const SwBuffer* up = cookBufferNode(pinNode(c.fromPin));
-        if (up) inputBuffers.push_back(up);
+        if (up) { inputBuffers.push_back(up); inputBufferPorts.push_back(port.id); }
         if (!port.multiInput) break;  // single-input: first wire only
       }
     } else if (port.dataType == "Float" && port.multiInput) {
@@ -139,8 +140,10 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
   bc.dev = dev; bc.lib = lib; bc.queue = queue;
   bc.ctx = &ctx; bc.nodeId = id;
   bc.inputBuffers = &inputBuffers;
+  bc.inputBufferPorts = &inputBufferPorts;
   bc.output = &out;
   bc.params = nodeParams(id);
+  bc.strParams = &n->strParams;  // resolved String params (ComputeShaderStage's KernelName)
   bc.floatInputs = &floatInputs;
   bc.vec4Inputs = &vec4Inputs;
   // Camera bridge (TransformsConstBuffer): default camera at the ACTIVE RequestedResolution aspect,

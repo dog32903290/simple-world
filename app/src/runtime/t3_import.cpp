@@ -52,10 +52,27 @@ std::string swTypeForSymbolGuid(const std::string& guid) {
       {"58351c8f-4a73-448e-b7bb-69412e71bd76", "ExecuteBufferUpdate"},
       // TransformsConstBuffer symbol guid (render/_dx11/api/TransformsConstBuffer.cs:6 [Guid]).
       {"a60adc26-d7c6-4615-af78-8d2d6da46b79", "TransformsConstBuffer"},
+      // compute-stage keystone: the 5 formerly-unmapped children now have sw atoms.
+      {"8bef116d-7d1c-4c1b-b902-25c1d5e925a9", "ComputeShaderStage"},          // Gfx/ComputeShaderStage.cs:5
+      {"b6c5be1d-b133-45e9-a269-8047ea0d6ad7", "StructuredBufferWithViews"},   // Gfx/StructuredBufferWithViews.cs:3
+      {"eb68addb-ec59-416f-8608-ff9d2319f3a3", "CalcDispatchCount"},           // render/_dx11/api/CalcDispatchCount.cs:3
+      {"17324ce1-8920-4653-ac67-c211ad507a81", "TransformMatrix"},             // render/_/TransformMatrix.cs:7 (sw math atom)
+      // ComputeShader (Gfx/ComputeShader.cs) has NO standalone sw atom — its Source string folds onto the
+      // ComputeShaderStage's KernelName (fork computeshader-source-folded-onto-stage, applied in a post-pass
+      // below). Deliberately NOT in this table (it must NOT become a child); the fold pass handles it.
   };
   auto it = kTable.find(lc(guid));
   return it != kTable.end() ? it->second : std::string();
 }
+
+// The ComputeShader symbol guid (Gfx/ComputeShader.cs [Guid]) + its Source input guid + its CS output
+// guid. The fold post-pass reads Source off a ComputeShader child, finds the ComputeShaderStage it wires
+// its CS output into, and sets that stage's KernelName strOverride (fork computeshader-source-folded-
+// onto-stage). ComputeShader itself never becomes an sw child.
+constexpr const char* kComputeShaderGuid = "a256d70f-adb3-481d-a926-caf35bd3e64c";
+constexpr const char* kComputeShaderSourceSlot = "afb69c81-5063-4cb9-9d42-841b994b5ec0";  // Source (String)
+constexpr const char* kComputeShaderCsOutSlot = "6c118567-8827-4422-86cc-4d4d00762d87";   // CS output
+constexpr const char* kComputeStageCsInSlot = "5c0e9c96-9aba-4757-ae1f-cc50fb6173f1";     // ComputeShaderStage.ComputeShader in
 
 // ---- TABLE ②: (sw op type, t3 slot guid) → sw slot NAME (= PortSpec.id). Per-atom, hand-verified
 // from the TiXL .cs [Input]/[Output] Guid attributes AND cross-checked against the sw atom's
@@ -81,14 +98,53 @@ std::string swSlotNameForGuid(const std::string& swType, const std::string& slot
        {
            {"7a13b834-21e5-4cef-ad5b-23c3770ea763", "BufferWithViews"},  // input (.cs:97-98)
            {"a7d11905-eb9e-42a4-a077-11d2c1cb41b2", "Buffer"},           // Buffer output (.cs:12-13)
-           // OUTPUT GAP: ShaderResourceView(1368ab8e) / UnorderedAccessView(f03246a7) / Length /
-           // Stride / IsValid — sw atom has NO such ports → intentionally UNMAPPED (wires drop).
+           // VIEW OUTPUTS now MAPPED (compute-stage keystone): SRV/UAV alias the forwarded buffer on Metal
+           // (fork getbuffercomponents-views-alias-buffer). These fed the compute stage's SRV/UAV wires.
+           {"1368ab8e-d75e-429f-8ecd-0944f3ede9ab", "ShaderResourceView"},   // SRV output (.cs:47)
+           {"f03246a7-e39f-4a41-a0c3-22bc976a6000", "UnorderedAccessView"},  // UAV output (.cs:48)
+           // Length / Stride / IsValid scalar outputs still DEFERRED (ride the SwBuffer metadata).
        }},
       {"GetSRVProperties",
        {
            {"e79473f4-3fd2-467e-acda-b27ef7dae6a9", "SRV"},     // input (.cs:36-37)
            {"59c4fe70-9129-4bce-ba39-6d252a59fb97", "Buffer"},  // Buffer output (.cs:9-10)
-           // OUTPUT GAP: ElementCount(431b39fd) — sw atom has NO such port → UNMAPPED (wire drops).
+           // ElementCount now MAPPED (compute-stage keystone): rides the Buffer view rail (fork
+           // getsrvproperties-elementcount-is-buffer-view) → StructuredBufferWithViews.Count reads it.
+           {"431b39fd-4b62-478b-bbfa-4346102c3f61", "ElementCount"},  // element count output (.cs:6-7,28)
+       }},
+      {"ComputeShaderStage",
+       {
+           {"34cf06fe-8f63-4f14-9c59-35a2c021b817", "ConstantBuffers"},  // b0.. (.cs:248-249)
+           {"88938b09-d5a7-437c-b6e1-48a5b375d756", "ShaderResources"},  // t0.. (.cs:251-252)
+           {"599384c2-bf6c-4953-be74-d363292ab1c7", "Uavs"},             // u0.. (.cs:257-258)
+           {"c382284f-7e37-4eb0-b284-bc735247f26b", "Output"},           // Command→Buffer output (.cs:8-9)
+           // Dispatch(180cae35) / DispatchCallCount / ComputeShader(5c0e9c96 = folded) / SamplerStates /
+           // VariousResources / UavBufferCounter: NO sw slot (folded/ignored) → those wires drop honestly.
+       }},
+      {"StructuredBufferWithViews",
+       {
+           {"16f98211-fe97-4235-b33a-ddbbd2b5997f", "Count"},            // Count int rail (view collapse, .cs:74-75)
+           {"c997268d-6709-49de-980e-64d7a47504f7", "BufferWithViews"},  // allocated output (.cs:7-8)
+           {"0016dd87-8756-4a97-a0da-096e1a879c05", "Stride"},           // Stride param InputValue (=64, .cs:77-78)
+       }},
+      {"CalcDispatchCount",
+       {
+           {"f79ccc37-05fd-4f81-97d6-6c1cafca180c", "Count"},          // element count via view rail (.cs:24-25)
+           {"35c0e513-812f-49e2-96fa-17541751c19b", "DispatchCount"},  // count passthrough (.cs:6-7)
+           // ThreadGroupSize(3979e440) → folded (stage derives dispatch from SRV); that wire drops.
+       }},
+      {"TransformMatrix",
+       {
+           // sw TransformMatrix decomposes Vector3 inputs into .x/.y/.z; a single .t3 Vector3 wire lands on
+           // the HEAD (.x) port (the established vec-decomposition fork). Y/Z of a WIRED vector are not
+           // separately routable from one .t3 wire — flagged as fork-t3-vec3-wire-lands-on-head.
+           {"3b817e6c-f532-4a8c-a2ff-a00dc926eeb2", "Translation.x"},          // Translation (Vec3)
+           {"5339862d-5a18-4d0c-b908-9277f5997563", "Rotation_PitchYawRoll.x"},// Rotation (Vec3)
+           {"58b9dfb6-0596-4f0d-baf6-7fb3ae426c94", "Scale.x"},                // Stretch/Scale (Vec3)
+           {"566f1619-1de0-4b41-b167-7fc261730d62", "UniformScale"},           // Scale (uniform float)
+           {"f53f3311-e1fc-418b-8861-74adc175d5fa", "Shear.x"},                // Shearing (Vec3)
+           {"279730b7-c427-4924-9fde-77eb65a3076c", "Pivot.x"},                // Pivot (Vec3)
+           {"751e97de-c418-48c7-823e-d4660073a559", "Result"},                 // the 4-row matrix output
        }},
       {"ExecuteBufferUpdate",
        {
@@ -176,6 +232,9 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
   // ---- TABLE ①: t3 child guid → int childId. Built while walking Children[].
   std::map<std::string, int> childGuidToId;
   std::map<int, std::string> childIdToSwType;
+  // Fold pass state (computeshader-source-folded-onto-stage): ComputeShader child guid → its Source string.
+  // ComputeShader is NOT emitted as an sw child; its Source rides onto the ComputeShaderStage it feeds.
+  std::map<std::string, std::string> computeShaderSource;
   int nextChildId = 1;
 
   if (root["Children"].is_array()) {
@@ -184,6 +243,16 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
       const std::string childGuid = lc(asStr(cv, "Id"));
       const std::string symbolId = asStr(cv, "SymbolId");
       if (childGuid.empty()) { warn("t3: child missing Id, skipped"); continue; }
+      // Fold: a ComputeShader child contributes its Source (not a child); capture it for the post-pass.
+      if (lc(symbolId) == kComputeShaderGuid) {
+        if (cv["InputValues"].is_array())
+          for (const crude_json::value& ivv : cv["InputValues"].get<crude_json::array>()) {
+            if (ivv.is_object() && lc(asStr(ivv, "Id")) == kComputeShaderSourceSlot &&
+                ivv["Value"].is_string())
+              computeShaderSource[childGuid] = ivv["Value"].get<crude_json::string>();
+          }
+        continue;  // ComputeShader itself is never an sw child
+      }
       const std::string swType = swTypeForSymbolGuid(symbolId);
       if (swType.empty()) {
         warn("t3: child " + childGuid + " unmapped SymbolId " + lc(symbolId) +
@@ -235,6 +304,26 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
     }
   }
   sym.nextChildId = nextChildId;
+
+  // ---- FOLD PASS (computeshader-source-folded-onto-stage): for each raw connection ComputeShader.CS →
+  // ComputeShaderStage.ComputeShader, set the STAGE child's KernelName strOverride to the ComputeShader's
+  // Source. ComputeShader has no sw child, so this is the ONLY way its Source reaches the dispatch.
+  if (!computeShaderSource.empty() && root["Connections"].is_array()) {
+    for (const crude_json::value& wv : root["Connections"].get<crude_json::array>()) {
+      if (!wv.is_object()) continue;
+      const std::string srcGuid = lc(asStr(wv, "SourceParentOrChildId"));
+      const std::string srcSlot = lc(asStr(wv, "SourceSlotId"));
+      const std::string dstGuid = lc(asStr(wv, "TargetParentOrChildId"));
+      const std::string dstSlot = lc(asStr(wv, "TargetSlotId"));
+      auto cs = computeShaderSource.find(srcGuid);
+      if (cs == computeShaderSource.end() || srcSlot != kComputeShaderCsOutSlot) continue;
+      if (dstSlot != kComputeStageCsInSlot) continue;
+      auto dit = childGuidToId.find(dstGuid);
+      if (dit == childGuidToId.end()) continue;  // stage not mapped (shouldn't happen)
+      for (SymbolChild& ch : sym.children)
+        if (ch.id == dit->second) { ch.strOverrides["KernelName"] = cs->second; break; }
+    }
+  }
 
   // Connections[] → SymbolConnection 4-tuples, ARRAY ORDER PRESERVED (MultiInput order).
   auto slotNameForEndpoint = [&](int childId, const std::string& slotGuid) -> std::string {

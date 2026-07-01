@@ -17,12 +17,14 @@
 //     TiXL .cs [Input]/[Output] Guid attributes (IntsToBuffer.cs / GetBufferComponents.cs /
 //     GetSRVProperties.cs / ExecuteBufferUpdate.cs / FloatsToBuffer.cs / TransformsConstBuffer.cs).
 //
-// ★HONEST SCOPE (keystone RED note): TransformPoints.t3 has 11 children; only 6 are buffer atoms sw
-//   has. The OTHER 5 (ComputeShader / ComputeShaderStage / StructuredBufferWithViews /
-//   CalcDispatchCount / TransformMatrix) are the ops that actually DISPATCH the HLSL kernel — sw has
-//   NO atom for them (they map to nothing → children skipped, wires touching them dropped). This
-//   importer maps what CAN be mapped faithfully; the missing 5 are the exposed seam, not an importer
-//   bug. See t3import_transformpoints_golden.cpp for the measured RED.
+// ★SCOPE (compute-stage keystone — now GREEN): TransformPoints.t3's 11 children ALL map now. The 5
+//   formerly-unmapped ones gained sw atoms: ComputeShaderStage (generic bind CB/SRV/UAV + dispatch),
+//   StructuredBufferWithViews (allocate the UAV target), TransformMatrix (existing SRT math atom),
+//   CalcDispatchCount (existing value op; dispatch folded into the stage), and ComputeShader — which has
+//   NO standalone atom: its Source string FOLDS onto the ComputeShaderStage's KernelName (fork
+//   computeshader-source-folded-onto-stage, the post-pass in importT3Symbol). A handful of wires still
+//   drop honestly (Dispatch/DispatchCount/ThreadGroupSize/CS-handle — folded or derived, no sw slot).
+//   The replay reproduces the transform to parity — see t3import_transformpoints_golden.cpp (GREEN).
 //
 // ZONE: runtime (純計算). Pure CPU: JSON parse (crude_json) + three maps + SymbolLibrary fill.
 #pragma once
