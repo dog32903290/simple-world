@@ -633,6 +633,8 @@ add_executable(simple_world
   src/runtime/curve_animator_selftest_vec.cpp
   src/runtime/compound_graph.cpp
   src/runtime/compound_graph_selftest.cpp
+  src/runtime/t3_import.cpp                        # .t3 IMPORTER (keystone首證: forward-ported spike, 6-atom buffer map)
+  src/runtime/t3import_transformpoints_golden.cpp  # KEYSTONE parity: TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe
   src/runtime/output_slot_view_selftest.cpp  # output-slot picker golden (viewProducerPath startSlot)
   src/runtime/compound_save.cpp
   src/runtime/compound_load.cpp

@@ -144,5 +144,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"fieldvolumeforce-parity", runFieldVolumeForceParitySelfTest},  // Stage-3 Force: FieldVolumeForce TRANSFORM baked no-field no-op 契約 (wired-SDF DEFERRED)
     {"drawpoints-parity", runDrawPointsParitySelfTest},  // ★PARITY-GATE 修偏差: DrawPoints v1 退化4px死點 → DrawKind::Points2 quad-sprite + PointSize/Color cook-through (RED-first 雙牙; -bug 復活4px死點)
     {"hexgrid-parity", runHexGridPointsParitySelfTest},  // ★PARITY-GATE param-completion fan-out: HexGridPoints 11th input Scale (Size·Scale via .t3 ScaleVector3) cook-through vs TiXL .hlsl closed-form X (RED-first; -bug re-bakes Scale→1)
+    {"t3-transformpoints", runT3TransformPointsParity},  // ★KEYSTONE首證: real TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe — MEASURED RED (replay seam hole: no ComputeShaderStage atom)
 );
 }  // namespace sw
