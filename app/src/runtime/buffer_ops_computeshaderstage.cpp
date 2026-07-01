@@ -62,6 +62,8 @@ std::string kernelNameFor(const std::string& src) {
     return "computeshaderstage_transformpoints";
   if (src.find("mesh/mesh-TransformVertices.hlsl") != std::string::npos)
     return "computeshaderstage_transformmesh";  // 骨8: mesh family compute-transform (SwVertex 80B)
+  if (src.find("mesh/mesh-LegacyNoiseDisplace.hlsl") != std::string::npos)
+    return "computeshaderstage_displacemeshnoise";  // 骨9: mesh mixed-slot MultiInput noise displace (SwVertex 80B)
   return src;  // unmapped path → let the PSO lookup fail loudly (no silent wrong kernel)
 }
 

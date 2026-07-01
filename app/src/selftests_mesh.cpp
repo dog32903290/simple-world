@@ -48,4 +48,10 @@ REGISTER_SELFTESTS(/*orderBase=*/350,
 REGISTER_SELFTESTS(/*orderBase=*/360,
     {"t3-transformmesh", runT3TransformMeshParity},
 );
+// 骨9 MESH mixed-slot MultiInput proof: real DisplaceMeshNoise.t3 (interleaved FloatsToBuffer.Params)
+// import→buildEvalGraph→cookResident vs the double-precision snoise oracle. -bug reverses the Params
+// wire order → cb1 scrambled → RED (proves 骨7b's order fix holds on real SwVertex mesh currency).
+REGISTER_SELFTESTS(/*orderBase=*/370,
+    {"t3-displacemeshnoise", runT3DisplaceMeshNoiseParity},
+);
 }  // namespace sw

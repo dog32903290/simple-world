@@ -52,6 +52,11 @@ std::string swTypeForSymbolGuid(const std::string& guid) {
       // 骨4 residual value atoms the mesh scaffold also worked around (unmapped → their wires dropped):
       {"9db2fcbf-54b9-4222-878b-80d1a0dc6edf", "BoolToFloat"},                 // numbers/bool/convert/BoolToFloat.cs:3 (sw value op)
       {"cc07b314-4582-4c2c-84b8-bb32f59fc09b", "Const"},                       // Types/Values/IntValue.cs:3 → sw Const (int const producer)
+      // 骨9 mixed-slot MultiInput proof (DisplaceMeshNoise): two more value atoms feed the interleaved
+      // FloatsToBuffer.Params. IntToFloat (Space/Direction int→float) and Vector3Components (AmountDistribution
+      // vec3→3 floats) both already exist as sw value ops (value_op_inttofloat.cpp / value_op_vector3components.cpp).
+      {"17db8a36-079d-4c83-8a2a-7ea4c1aa49e6", "IntToFloat"},                  // numbers/int/basic/IntToFloat.cs:3 (sw value op)
+      {"a8083b41-951e-41f2-bb8a-9b511da26102", "Vector3Components"},           // numbers/vec3/Vector3Components.cs:3 (sw value op)
       // ComputeShader (Gfx/ComputeShader.cs) has NO standalone sw atom — its Source string folds onto the
       // ComputeShaderStage's KernelName (fork computeshader-source-folded-onto-stage, applied in a post-pass
       // in t3_import.cpp). Deliberately NOT in this table (it must NOT become a child); the fold pass handles it.
@@ -176,6 +181,22 @@ std::string swSlotNameForGuid(const std::string& swType, const std::string& slot
        {
            {"4515c98e-05bc-4186-8773-4d2b31a8c323", "value"},  // Int input (.cs:19-20)
            {"8a65b34b-40be-4dbf-812c-d4c663464c7f", "out"},    // Result output (.cs:6-7)
+       }},
+      // 骨9: IntToFloat (numbers/int/basic/IntToFloat.cs) — Space/Direction int→float into FloatsToBuffer.Params.
+      // sw port ids from value_op_inttofloat.cpp: IntValue (input) / out (output).
+      {"IntToFloat",
+       {
+           {"01809b63-4b4a-47be-9588-98d5998ddb0c", "IntValue"},  // int input (.cs:19-20)
+           {"db1073a1-b9d8-4d52-bc5c-7ae8c0ee1ac3", "out"},       // Result output (.cs:6-7)
+       }},
+      // 骨9: Vector3Components (numbers/vec3/Vector3Components.cs) — AmountDistribution vec3 → 3 scalar floats.
+      // sw port ids from value_op_vector3components.cpp: Value.x head (the vec3-on-head fork), X/Y/Z outputs.
+      {"Vector3Components",
+       {
+           {"bc217d95-25d4-44e8-b5ba-05b7facd9a20", "Value.x"},  // Vector3 input → lands on .x head (fork)
+           {"2f05b628-8fc0-46dc-b312-9b107b8ca4a2", "X"},        // X output (.cs:6-7)
+           {"f07622c1-aca1-4b8b-8e4a-42d94be87539", "Y"},        // Y output (.cs:8-9)
+           {"5173cf99-c9ae-4da4-8b7a-a6b6f27daa84", "Z"},        // Z output (.cs:10-11)
        }},
   };
   auto t = kTable.find(swType);
