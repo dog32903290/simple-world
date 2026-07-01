@@ -117,6 +117,7 @@ namespace sw { int runFieldBlendSdfWithSdfGoldenSelfTest(bool); } // field_ops_b
 namespace sw { int runFieldToroidalVortexFieldGoldenSelfTest(bool); } // field_ops_toroidalvortexfield_golden.cpp (vec3 VECTOR-field generator; decay-channel GPU golden + velocity-text assertion, axis-enum)
 namespace sw { int runFieldSetSDFMaterialGoldenSelfTest(bool); }    // field_ops_setsdfmaterial_golden.cpp (custom-collect adjust; p.w gate (0.5,1.5) + Color float4; p.w-setter + Readback leaf pattern)
 namespace sw { int runFieldRaymarchSelfTest(bool); }               // field_raymarch_golden.cpp (3D sphere-trace path: silhouette+symmetry+depth/hit teeth; camera from defaultRaymarchTransforms)
+namespace sw { int runParticleSimIntegrateParitySelfTest(bool); } // particle_sim_integrate_parity_golden.cpp (骨5: ParticleSystem INTEGRATOR core cook-through — per-step Δpos == TiXL closed-form pow(1-Drag,Speed)·Speed·0.01 + DirectionalForce; injectBug=stale linear-drag/missing-0.01 → RED)
 namespace sw { int runParticleFieldProbeSelfTest(bool); }         // particlefield_probe_golden.cpp (PF-a TERMINAL probe: field-into-force bridge consumed on both legs — anisotropy≠0)
 namespace sw { int runVectorFieldForceFieldSelfTest(bool); }      // particlefield_probe_golden.cpp (PF-a closed-form: one particle @field-space(0.25,0,0) -> Velocity≈(0.5625A,0,0.5625A))
 namespace sw { int runFieldDistanceForceFieldSelfTest(bool); }    // fielddistanceforce_field_golden.cpp (PF bridge closed-form: SphereSDF + particle @(1,0,0) -> Velocity≈(-A,0,0))
