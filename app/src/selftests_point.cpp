@@ -94,6 +94,13 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"execute", runExecuteSelfTest},
     {"layercompose", runLayerComposeSelfTest},
     {"group", runGroupSelfTest},
+    {"renderstate-bothleg", runRenderStateBothLegSelfTest},  // ★Seam 2 harness-first: flat+resident stamped tuples byte-identical
+    {"rasterizerstate", runRasterizerStateSelfTest},         // Seam 2 closed-form: cull/fill/winding → MTL enum + DX11 defaults
+    {"blendstate", runBlendStateSelfTest},                   // Seam 2 closed-form: 7 blend factors + 3 ops + A2C=false
+    {"pso-cache", runPsoCacheSelfTest},                      // Seam 2: frozenPSOKey full-tuple key (dynamic depthBias excluded)
+    {"s2-guards", runS2GuardsSelfTest},                      // Seam 2 Bucket-C guards: logic-op / dual-source+MRT port-time reject
+    {"s2-depthbias", runS2DepthBiasSelfTest},                // Seam 2 Bucket-B: depthBias pass-through (numeric-output DEFERRED)
+
     {"transformops", runTransformOpsSelfTest},
     {"drawmeshunlit", runDrawMeshUnlitSelfTest},
     {"mathops", runMathOpsSelfTest},

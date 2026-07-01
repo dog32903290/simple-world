@@ -586,6 +586,7 @@ add_executable(simple_world
   src/runtime/node_registry_particle.cpp
   src/runtime/node_registry_draw.cpp
   src/runtime/node_registry_draw_transform.cpp  # render-island transform-context specs (peeled for the ratchet)
+  src/runtime/node_registry_draw_renderstate.cpp  # Seam 2 render-state specs (Rasterizer/OutputMerger, peeled for the ratchet)
   ${SW_MATH_SRCS}  # globbed: math_op_registry.cpp + every per-subfamily math leaf
   src/runtime/value_eval_ops.cpp
   src/runtime/graph_selftest.cpp

@@ -24,6 +24,7 @@ void registerLoopOp();    // S3c: Command(SubGraph) → Command (cook-core RE-CO
 void registerExecuteOnceOp();     // S3b: Command(MultiInput) → Command (gated concat-all; point_ops_executeonce.cpp)
 void registerLogMessageOp();      // S3b: Command(SubGraph) → Command (passthrough + log sink; point_ops_logmessage.cpp)
 void registerExecRepeatedlyOp();  // S3c: Command(MultiInput) → Command (cook-core RE-COOK ×RepeatCount; point_ops_execrepeatedly.cpp)
+void registerRasterizerOp();      // Seam 2: Command → Command (render-state STAMP: cull/fill/winding/depthBias; point_ops_renderstate.cpp)
 
 void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
@@ -49,6 +50,7 @@ void registerDrawPointOps() {
   registerExecuteOnceOp();                       // Command(MultiInput) → Command (S3b: gated concat-all by Trigger)
   registerLogMessageOp();                        // Command(SubGraph) → Command (S3b: transparent passthrough + log sink)
   registerExecRepeatedlyOp();                    // Command(MultiInput) → Command (S3c: cook-core RE-COOK ×RepeatCount)
+  registerRasterizerOp();                        // Command → Command (Seam 2: render-state STAMP — Rasterizer spike)
   registerDrawMeshUnlitOp();                    // Mesh → Command (DrawKind::Mesh, the FIRST 3D mesh, Cut 99)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
 }

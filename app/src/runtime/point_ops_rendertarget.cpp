@@ -39,6 +39,10 @@
 
 namespace sw {
 
+// Seam 2: apply the frozen rasterizer state (cull/winding/depthBias) onto the encoder per item — defined
+// in point_ops_renderstate.cpp (the render-state leaf owns the closed-form MTL mapping).
+void applyFrozenRasterEncoderState(MTL::RenderCommandEncoder* enc, const RenderDrawItem& it);
+
 // Test-only depth-disable hook (Tooth B). File-scope flag, off in production; the depth-occlusion golden
 // flips it to prove the LessEqual+ZWrite state is load-bearing (see render_command.h).
 bool& meshDepthDisableForTest() {
@@ -53,12 +57,10 @@ float paramOr(const std::map<std::string, float>& params, const char* id, float 
   return it != params.end() ? it->second : def;
 }
 
-// Build a render PSO for a vs/fs function pair into `pixelFormat`. `blend` turns on standard
-// premultiplied-style src-alpha blending (lines/billboards composite over what's drawn before);
-// DrawPoints stays opaque (blend=false), matching its pre-batch-13 behavior. When `mode` is
-// non-null it overrides `blend` and selects the EXACT TiXL BlendMode factor table (Normal/Add,
-// from Core/Rendering/DefaultRenderingStates.cs) — used by DrawScreenQuad. Returns nullptr (and
-// the caller skips that kind) if either function is missing.
+// Build a render PSO for a vs/fs function pair into `pixelFormat`. `blend` turns on standard src-alpha
+// blending (lines/billboards composite over prior draws); DrawPoints stays opaque (blend=false). When `mode`
+// is non-null it overrides `blend` and selects the EXACT TiXL BlendMode factor table (Normal/Add, from
+// Core/Rendering/DefaultRenderingStates.cs) — used by DrawScreenQuad. nullptr if either function is missing.
 MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const char* vsName,
                                       const char* fsName, MTL::PixelFormat pf, bool blend,
                                       const BlendMode* mode = nullptr) {
@@ -69,13 +71,11 @@ MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const
     MTL::RenderPipelineDescriptor* rpd = MTL::RenderPipelineDescriptor::alloc()->init();
     rpd->setVertexFunction(vs);
     rpd->setFragmentFunction(fs);
-    // ★ALL-PSOs-FORMAT GOTCHA (depth seam): the pass attaches a Depth32Float texture (so the mesh can
-    // depth-test), and once a render pass has a depth attachment EVERY PSO that draws into it MUST
-    // declare the same depthAttachmentPixelFormat — even the depth-DISABLED 2D composites (Points/
-    // Lines/Billboard/ScreenQuad/Layer2d). A mismatch is a hard PSO validation failure / no draw.
-    // Declared UNCONDITIONALLY here so every kind's PSO is valid; the per-draw MTLDepthStencilState
-    // (set on the encoder) decides whether a kind actually tests/writes depth (2D kinds = Always +
-    // write-off → byte-identical 2D output, the depth buffer is inert for them).
+    // ★ALL-PSOs-FORMAT GOTCHA (depth seam): the pass attaches a Depth32Float texture (so the mesh can depth-
+    // test), and once a pass has a depth attachment EVERY PSO drawing into it MUST declare the same
+    // depthAttachmentPixelFormat — even the depth-DISABLED 2D composites. A mismatch = hard PSO validation
+    // failure / no draw. Declared UNCONDITIONALLY; the per-draw MTLDepthStencilState (encoder) decides whether
+    // a kind tests/writes depth (2D kinds = Always + write-off → byte-identical 2D, the depth buffer inert).
     rpd->setDepthAttachmentPixelFormat(MTL::PixelFormatDepth32Float);
     auto* att = rpd->colorAttachments()->object(0);
     att->setPixelFormat(pf);
@@ -115,12 +115,12 @@ MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const
 // RenderTarget draw: open one render pass on `output`, clear it once, then draw every item in the
 // command chain in order (later items composite on top). The chain can MIX draw kinds (DrawPoints /
 // DrawLines / DrawBillboards): each item names its DrawKind, the executor selects the matching PSO
-// + primitive type. PSOs are built lazily per kind per call (only the kinds actually present) — the
-// live loop's per-frame caching is a follow-up (same posture as batch 1's per-call note).
-// NOT file-local (out of the anon namespace) so the draw-op leaf selftests can drive a chain
-// straight through it (point_ops_drawlines.cpp / point_ops_drawbillboards.cpp).
+// + primitive type. PSOs are built lazily per kind per call (only the kinds actually present) — the live
+// loop's per-frame caching is a follow-up. NOT file-local (out of the anon namespace) so the draw-op leaf
+// selftests can drive a chain straight through it (point_ops_drawlines.cpp / point_ops_drawbillboards.cpp).
 void cookRenderTarget(TexCookCtx& c) {
   if (!c.lib || !c.output) return;
+  if (RenderCommand* cap = renderStateCaptureForTest(); cap && c.command) *cap = *c.command;  // S2 both-leg cap
   MTL::PixelFormat pf = c.output->pixelFormat();
   MTL::RenderPipelineState* psoPoints = nullptr;
   MTL::RenderPipelineState* psoPoints2 = nullptr;     // DrawPoints2 (DrawKind::Points2)
@@ -145,12 +145,10 @@ void cookRenderTarget(TexCookCtx& c) {
   const LayerCameraForward camFwd = defaultLayerCameraForward(aspectF);
 
   // ── Depth seam (TiXL DrawMeshUnlit DepthStencilState) ──────────────────────────────────────────
-  // Alloc a Depth32Float depth texture (same W×H as the color output, private, render-target usage)
-  // and attach it (clear to 1.0 = far, DontCare store — depth is consumed within the pass, never read
-  // back). clip-z is already D3D [0,1] (field_camera.h perspectiveFovRH M33=far/(near-far)) → matches
-  // Metal's [0,1] depth + LessEqual, NO remap. Single-sample (the executor is single-sample). This
-  // makes the FIRST 3D mesh occlude correctly (Tooth B); the 2D composites draw depth-DISABLED below
-  // (compare Always, write off) → byte-identical to before the seam (the depth buffer is inert to them).
+  // Alloc a Depth32Float depth texture (same W×H, private, render-target) + attach (clear 1.0=far, DontCare
+  // store — consumed within the pass). clip-z is already D3D [0,1] (field_camera.h perspectiveFovRH M33=
+  // far/(near-far)) → matches Metal [0,1] depth + LessEqual, NO remap. Single-sample. Makes the FIRST 3D mesh
+  // occlude (Tooth B); 2D composites draw depth-DISABLED (Always, write off) → byte-identical (depth inert).
   MTL::Texture* depthTex = nullptr;
   {
     MTL::TextureDescriptor* dtd = MTL::TextureDescriptor::texture2DDescriptor(
@@ -215,6 +213,7 @@ void cookRenderTarget(TexCookCtx& c) {
       if (it.kind != DrawKind::ScreenQuad && it.kind != DrawKind::Layer2d &&
           it.kind != DrawKind::Mesh && (!it.points || it.count == 0))
         continue;
+      applyFrozenRasterEncoderState(enc, it);  // Seam 2: cull/winding/depthBias (no-op default when unstamped)
       switch (it.kind) {
         case DrawKind::Points: {
           if (!psoPoints)

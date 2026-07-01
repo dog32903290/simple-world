@@ -1,5 +1,30 @@
 # SEAM2_RENDERSTATE_BUILD_PLAN — DX11 render-state → Metal PSO collapse
 
+> **★BUILD STATUS (2026-07-01, branch worktree-agent-a3b112b15567f155d, base c6dd009):** spike LANDED end-to-end
+> (Rasterizer op → FrozenRenderState stamp → executor cull/winding/depthBias). Harness-first both-leg selftest
+> GREEN (flat+resident stamped tuples byte-identical). 6 new selftests all bite: renderstate-bothleg /
+> rasterizerstate / blendstate / pso-cache / s2-guards / s2-depthbias(plumbing). --bite=550 PASS 0 FAIL,
+> check-arch+linecount green.
+>
+> **★BLUEPRINT-vs-BUILD RECONCILIATION (intentional, not a miss):** §2/§6 specced the accumulator as a
+> `CmdCookCtx::renderStateAccum` field + a driver save/set/restore in BOTH command-cook legs. BUILD instead
+> rode the ALREADY-PROVEN Camera/Group per-item STAMP path: the render-state op (cookRasterizer) is a plain
+> Command→Command op that both legs gather (cc.inputCommand) and dispatch IDENTICALLY, then stampRenderState()
+> (the single shared helper) writes it.frozen onto every unstamped item (innermost-wins = push/pop). Net: there
+> is NO per-leg accumulator code to diverge → the §1/§7 ★HIGHEST RISK (flat-vs-resident accumulator divergence)
+> is dissolved BY CONSTRUCTION, not merely tested. The both-leg selftest still PROVES it + latches regressions.
+> This is strictly simpler than the blueprint (zero cook-core/driver edits in point_graph_command_cook.cpp /
+> point_graph_resident_command_cook.cpp) and touches fewer owner-locked files. **Refuter: verify the stamp path
+> is truly leg-agnostic (it is — both legs call the one registered cookRasterizer), not that renderStateAccum exists.**
+>
+> **DONE:** FrozenRenderState struct + dx11_metal_state_map.h (closed-form table, 25 compile-time static_asserts
+> vs real MTL enums) + stampRenderState/frozenPSOKey shared helpers + Rasterizer op/NodeSpec + executor
+> encoder-state wiring + 14-closed-form goldens (rasterizer/blend/pso-cache tables) + Bucket-C guards + DepthBias
+> pass-through (numeric-output DEFERRED per Bucket-B). **NOT DONE (next棒):** OutputMerger op (blend/depth STAGE
+> — blend factors table is proven, the OP that stamps blend onto the tuple + the executor's per-item BLEND PSO
+> materialization/cache is the remaining leaf); Wireframe/A2C/IndependentBlend fields shipped but dormant paths
+> unbuilt (census: never wired); DepthBias numeric golden (needs Windows-TiXL reference).
+
 > **★★做 Seam 2 的 agent：開工第零步先讀這兩份，再動手——**
 > **① `DX11_METAL_CONVERSION_TABLE.md`＝DX11→Metal 研究報告**（deep-research 三票驗，每個 render 狀態
 >    closed-form/emergent/no-equivalent 的逐項分類＋確切轉換公式＝你照著做的 parity 權威；告訴你哪些能本機

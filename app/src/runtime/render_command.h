@@ -75,6 +75,57 @@ enum class BlendMode : uint32_t {
   Additive = 1,  // add:        src*SrcA + dst*1         (DefaultRenderingStates.AdditiveBlendState)
 };
 
+// ─────────────────────────── Seam 2: FROZEN RENDER-STATE (DX11 → Metal PSO) ───────────────────────────
+// TiXL's render-state ops (Rasterizer / OutputMergerStage / BlendState) are immediate-mode DX11 context
+// mutators with save/set/restore terminated by one Draw. SW is retained-mode: a render-state op ACCUMULATES
+// those mutations into this frozen tuple and STAMPS it onto every RenderDrawItem its subtree produced
+// (exactly the Camera-stamp / Group-SRT mechanism: per-item, innermost-wins push/pop). The Draw-leaf
+// executor (cookRenderTarget) reads the stamped tuple to materialize ONE cached MTL::RenderPipelineState.
+//
+// The tuple defaults reproduce TODAY'S hardcoded behavior byte-for-byte — every existing RenderDrawItem
+// (hasRenderState=false) is unchanged. Only an item under a render-state op carries a non-default tuple.
+//
+// All enum fields are sw-local Dx11* ordinals (dx11_metal_state_map.h); the executor maps them to MTL
+// enums via metalBlendFactor/metalBlendOp/metalCull/metalFill/metalCompare/metalWinding (the CLOSED-FORM
+// table). Census (PLAN §1): real surface = cull None/Back + 7 blend factors + 3 ops; the rest are dormant
+// (Wireframe/A2C/IndependentBlend never wired — fields shipped, paths guarded) or EMERGENT (DepthBias=-6,
+// one consumer → deferred Bucket-B golden). dualSourceUsed/logicOpEnabled are Bucket-C GUARD flags.
+struct FrozenBlendRT {
+  bool enabled = false;          // BlendEnable (DX11 default FALSE → blending off = opaque)
+  uint32_t srcRGB = 1;           // Dx11Blend::One     (default blend = src*One + dst*Zero)
+  uint32_t dstRGB = 0;           // Dx11Blend::Zero
+  uint32_t opRGB = 0;            // Dx11BlendOp::Add
+  uint32_t srcA = 1;             // Dx11Blend::One
+  uint32_t dstA = 0;             // Dx11Blend::Zero
+  uint32_t opA = 0;              // Dx11BlendOp::Add
+  // ColorWriteMask OMITTED: TiXL hardcodes WRITE_ALL (RenderTargetBlendDescription.cs:24) → executor writes All.
+};
+struct FrozenRenderState {
+  // Rasterizer (DX11 default: Solid / Back / CW-front). cull/fill/frontCCW are encoder-or-PSO state the
+  // executor sets explicitly (Metal defaults DIFFER — no cull, CCW front — table "Default rasterizer state").
+  uint32_t fillMode = 1;         // Dx11Fill::Solid
+  uint32_t cullMode = 2;         // Dx11Cull::Back   (DX11 default)
+  bool frontCCW = false;         // FrontCounterClockwise=FALSE → CW front (DX11 default)
+  // Depth-bias (Bucket-B EMERGENT: param-passing maps 1:1 to setDepthBias, numeric output is NOT formula-
+  // portable — DX11 2^(exp−mantissa) scaling). depthBias=0 is the no-bias common path; the one census
+  // consumer wires -6 → deferred fork golden. Encoder dynamic state (not in the PSO key).
+  float depthBias = 0.0f;
+  float slopeScaledDepthBias = 0.0f;  // census: always 0 (slope inert)
+  float depthBiasClamp = 0.0f;
+  // Blend (single-RT — census: IndependentBlend always FALSE; rt[0] is the only non-default attachment).
+  FrozenBlendRT rt;
+  bool alphaToCoverage = false;  // census: never enabled (dormant fork; explicit-false per table default)
+  // Depth-stencil (DX11 default: DepthEnable=TRUE, WriteAll, LESS → precompiled MTLDepthStencilState).
+  uint32_t depthCompare = 1;     // Dx11Compare::Less
+  bool depthWrite = true;
+  // Bucket-C GUARD flags (NO-METAL-EQUIVALENT). Census: NEVER set (logic-op/dual-source absent in TiXL's
+  // node set) → the guards are provable no-ops. dualSourceUsed && rtCount>1 = port-time error; logicOp
+  // = port-time error. rtCount is the attachment count (always 1 in census; >1 only matters for the guard).
+  bool dualSourceUsed = false;
+  bool logicOpEnabled = false;
+  uint32_t rtCount = 1;
+};
+
 // One draw in a render command chain: a point bag + how to draw it. New fields are appended
 // AFTER viewExtent so existing aggregate inits (RenderDrawItem{pts,count,extent}) stay valid —
 // they default to a white DrawPoints item, the pre-batch-13 behavior.
@@ -206,7 +257,33 @@ struct RenderDrawItem {
   // every other kind ignores it). Default identity (a no-op = no group push).
   bool hasGroup = false;
   float groupObjectToWorld[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+  // ── Seam 2 render-state stamp (TiXL Rasterizer/OutputMerger/BlendState push/pop) ──
+  // A render-state op (Rasterizer/OutputMerger) STAMPS its accumulated FrozenRenderState onto every
+  // subtree item that has none yet (hasRenderState=false → stamp; already-stamped → skip = innermost
+  // wins = TiXL's restore-on-pop). The Draw executor reads `frozen` to materialize/cache the PSO +
+  // set the encoder dynamic state. hasRenderState=false → the default tuple → byte-identical to the
+  // pre-Seam-2 hardcoded path (the executor takes its legacy per-kind branch). Read by every draw kind.
+  bool hasRenderState = false;
+  FrozenRenderState frozen;
 };
+
+// Seam 2 render-state STAMP helper (the SINGLE shared push both command-cook legs' render-state op fn
+// rides — like Camera's per-item stamp, so flat & resident can NEVER diverge on the accumulator). Copies
+// `src.items`, then for each item with hasRenderState==false sets it.frozen = st and hasRenderState=true
+// (innermost-wins: an item a NESTED render-state op already stamped is left alone). Returns the stamped
+// chain. Defined in point_ops_renderstate.cpp; called by cookRasterizer/cookOutputMerger AND driven by
+// the both-leg selftest through BOTH cookFlatCommand and cookResidentCommand to assert byte-identical tuples.
+struct RenderCommand;
+RenderCommand stampRenderState(const RenderCommand& src, const FrozenRenderState& st);
+
+// PSO cache key: a stable hash over the FROZEN (pipeline-descriptor) fields ONLY — fill/cull/frontCCW/
+// blend.*/alphaToCoverage/depthCompare/depthWrite + the color pixel format. The DYNAMIC fields
+// (depthBias/slope/clamp — encoder setDepthBias) are DELIBERATELY excluded (refuter amendment: keying on
+// them would explode the cache; they are live encoder state, not PSO state). Two items with the same
+// frozen pipeline tuple → the SAME cached PSO pointer; one differing field → a distinct key. Defined in
+// point_ops_renderstate.cpp; asserted by --selftest-pso-cache. `colorPixelFormat` = the MTL::PixelFormat
+// integer of the render target (part of the PSO identity — a different attachment format needs its own PSO).
+uint64_t frozenPSOKey(const FrozenRenderState& st, uint32_t colorPixelFormat);
 
 // A render command chain: draw items in execution order (later items composite on top).
 // DrawPoints produces a 1-item chain; RenderTarget concatenates all upstream chains.
@@ -221,6 +298,13 @@ struct RenderCommand {
 // NOT a shader bug-branch (no test seam in the production .metal — constitution rule). Parallel to
 // mesh_op_registry.h's meshInjectBug(). Defined in point_ops_rendertarget.cpp.
 bool& meshDepthDisableForTest();
+
+// Seam 2 test-only CAPTURE hook: when non-null, cookRenderTarget COPIES the stamped `c.command` chain into
+// *renderStateCaptureForTest() before drawing, so the both-leg selftest reads back the FrozenRenderState
+// tuples each cook leg (flat/resident) produced and asserts they are byte-identical (highest-risk seam: a
+// resident-only accumulator divergence = silent wrong-render). null in production (no copy). CPU hook, NOT a
+// shader branch (constitution). Defined in point_ops_renderstate.cpp; pointer target owned by the selftest.
+RenderCommand*& renderStateCaptureForTest();
 
 // S2a test-only DRIVER flag (the MultiInput Command collector tooth): when true, cookCommand's
 // MultiInput Command branch COLLAPSES to the first wire (the `break` bug) instead of concatenating all

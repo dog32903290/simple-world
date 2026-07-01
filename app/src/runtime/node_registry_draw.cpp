@@ -1,14 +1,13 @@
-// runtime/node_registry_draw — NodeSpec table for DRAW/RENDER ops.
-// Ops that produce Command or Texture2D outputs from a point bag: DrawPoints, DrawLines,
-// DrawBillboards, RenderTarget.  Split from node_registry.cpp (批次16-R, ARCHITECTURE rule 4).
+// runtime/node_registry_draw — NodeSpec table for DRAW/RENDER ops (produce Command/Texture2D from a point
+// bag: DrawPoints/DrawLines/DrawBillboards/RenderTarget). Split from node_registry.cpp (ARCHITECTURE rule 4).
 #include "runtime/node_registry_draw.h"
 #include "runtime/graph.h"
 
 namespace sw {
 
-// The render-island transform-context specs (RotateAroundAxis/Shear/Transform/RotateTowards) live in
-// node_registry_draw_transform.cpp (peeled out for the 400-line ratchet); appended in source order below.
+// Peeled NodeSpec leaves (400-line ratchet), appended below: transform-context ops + Seam 2 render-state.
 const std::vector<NodeSpec>& drawTransformSpecs();
+const std::vector<NodeSpec>& drawRenderStateSpecs();
 
 const std::vector<NodeSpec>& drawSpecs() {
   static const std::vector<NodeSpec> specs = [] {
@@ -391,6 +390,8 @@ const std::vector<NodeSpec>& drawSpecs() {
     // Append the render-island transform-context specs (peeled leaf) in source order — table order unchanged.
     const std::vector<NodeSpec>& tf = drawTransformSpecs();
     base.insert(base.end(), tf.begin(), tf.end());
+    const std::vector<NodeSpec>& rs = drawRenderStateSpecs();  // Seam 2 render-state (peeled leaf)
+    base.insert(base.end(), rs.begin(), rs.end());
     return base;
   }();
   return specs;
