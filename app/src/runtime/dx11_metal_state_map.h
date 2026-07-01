@@ -67,6 +67,23 @@ enum class Dx11Fill : uint32_t {
   Solid = 1,
 };
 
+// ── DX11 PRIMITIVE TOPOLOGY (D3D_PRIMITIVE_TOPOLOGY; SharpDX PrimitiveTopology mirrors the native enum 1:1).
+// The InputAssemblerStage's ONLY closed-form output (InputLayout/VertexBuffers/IndexBuffer are the named FORK —
+// dropped: sw's VS is SV_VertexID-driven, buffers are bound by the Draw leaf, not an IA input layout). Census
+// (PLAN §1 / grep of external/tixl): every TiXL consumer leaves PrimitiveTopology at its .t3 default TriangleList
+// (InputAssemblerStage.t3 DefaultValue "TriangleList"); the non-triangle rows ship for completeness (sw could
+// wire them) but are dormant. The ordinals below are the D3D_PRIMITIVE_TOPOLOGY native values (Undefined=0,
+// PointList=1, LineList=2, LineStrip=3, TriangleList=4, TriangleStrip=5) — the same integers SharpDX's enum
+// carries, so a serialized .t3 topology int maps directly. Adjacency/patch topologies are out of census scope.
+enum class Dx11Topology : uint32_t {
+  Undefined = 0,
+  PointList = 1,
+  LineList = 2,
+  LineStrip = 3,
+  TriangleList = 4,  // DX11 + TiXL default (every census consumer)
+  TriangleStrip = 5,
+};
+
 // ── DX11 depth compare (D3D11_COMPARISON_FUNC; default LESS, mesh uses LESS_EQUAL) ──
 enum class Dx11Compare : uint32_t {
   Never = 0,
@@ -142,6 +159,23 @@ constexpr uint32_t metalCompare(Dx11Compare c) {
     case Dx11Compare::Always:       return 7;  // MTL::CompareFunctionAlways
   }
   return 1;
+}
+
+// PrimitiveTopology → MTL::PrimitiveType (the InputAssemblerStage's closed-form row). D3D primitive-LIST/STRIP
+// discriminator maps to Metal's PrimitiveType. NOT arithmetic (`mtl = d3d-1` happens to hold for these six but
+// adjacency/patch topologies — out of census scope — break the pattern), so the table is written explicitly.
+// D3D Undefined(0) has no Metal counterpart → clamp to Triangle (the TiXL default; an Undefined topology never
+// reaches a real draw). Returns the metal-cpp enum integer (== MTL::PrimitiveType* value).
+constexpr uint32_t metalPrimitiveType(Dx11Topology t) {
+  switch (t) {
+    case Dx11Topology::PointList:     return 0;  // MTL::PrimitiveTypePoint
+    case Dx11Topology::LineList:      return 1;  // MTL::PrimitiveTypeLine
+    case Dx11Topology::LineStrip:     return 2;  // MTL::PrimitiveTypeLineStrip
+    case Dx11Topology::TriangleList:  return 3;  // MTL::PrimitiveTypeTriangle
+    case Dx11Topology::TriangleStrip: return 4;  // MTL::PrimitiveTypeTriangleStrip
+    case Dx11Topology::Undefined:     return 3;  // no Metal equiv → Triangle (TiXL default; never drawn)
+  }
+  return 3;  // unreachable; Triangle = safe default
 }
 
 // FrontCounterClockwise → MTL winding. DX11 default FrontCounterClockwise=FALSE = CW front

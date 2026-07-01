@@ -88,9 +88,8 @@ MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const
     if (frozen) {
       applyFrozenBlend(att, *frozen);  // Seam 2: PSO blend from the stamped OutputMerger tuple (closed-form)
     } else if (mode) {
-      // TiXL BlendMode factor table (DefaultRenderingStates.cs / PickBlendMode.t3). RGB factors
-      // differ per mode; the ALPHA channel is the SAME for both (SrcA=One, DstA=1-SrcA, Add) —
-      // verbatim from DefaultBlendState/AdditiveBlendState. RGB op is Add for both.
+      // TiXL BlendMode factor table (DefaultRenderingStates.cs / PickBlendMode.t3). RGB factors differ per mode;
+      // ALPHA is SAME for both (SrcA=One, DstA=1-SrcA, Add), verbatim from Default/AdditiveBlendState. RGB op Add.
       att->setBlendingEnabled(true);
       att->setRgbBlendOperation(MTL::BlendOperationAdd);
       att->setAlphaBlendOperation(MTL::BlendOperationAdd);
@@ -246,15 +245,14 @@ void cookRenderTarget(TexCookCtx& c) {
   if (c.command) {
     for (const RenderDrawItem& it : c.command->items) {
       if (it.kind == DrawKind::Clear) continue;  // not a draw — handled by the pass clear color above
-      // Point-based kinds need a non-empty bag; ScreenQuad/Layer2d draw from a texture, Mesh from its
-      // own vertex+index buffers (none read `points`) — exempt all three from the point-bag guard.
+      // Point-based kinds need a non-empty bag; ScreenQuad/Layer2d/Mesh draw from tex/mesh buffers (none read
+      // `points`) — exempt all three. (Explicit also has no bag but its executor case is a deferred no-op.)
       if (it.kind != DrawKind::ScreenQuad && it.kind != DrawKind::Layer2d &&
           it.kind != DrawKind::Mesh && (!it.points || it.count == 0))
         continue;
       applyFrozenRasterEncoderState(enc, it);  // Seam 2: cull/winding/depthBias (no-op default when unstamped)
       // Seam 2 OutputMerger DEPTH: a STAMPED non-mesh item sets its frozen compare+write (pooled per item); an
-      // UNstamped one re-asserts dsDisabled (no stale depth-stencil leaks to the next). The Mesh case is EXEMPT:
-      // it hardcodes dsMesh+CCW+CullBack below, never reads it.frozen (census OutputMerger = 2D composite only).
+      // UNstamped one re-asserts dsDisabled (no stale leak). Mesh is EXEMPT: hardcodes dsMesh+CCW+CullBack below.
       if (it.kind != DrawKind::Mesh) {
         if (it.hasRenderState) {
           MTL::DepthStencilState* fds = makeFrozenDepthStencilState(c.dev, it.frozen);
@@ -549,6 +547,8 @@ void cookRenderTarget(TexCookCtx& c) {
         }
         case DrawKind::Clear:
           break;  // already skipped above (handled by the pass clear color); explicit for -Wswitch
+        case DrawKind::Explicit:  // Seam 2 Draw: NAMED DEFERRED executor leaf — bare-shader render is a no-op (no
+          break;                  // census graph wires it; plumbing cooked/verified in point_ops_draw_explicit.cpp).
       }
     }
   }

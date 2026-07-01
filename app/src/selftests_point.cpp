@@ -102,6 +102,10 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"s2-depthbias", runS2DepthBiasSelfTest},                // Seam 2 Bucket-B: depthBias pass-through (numeric-output DEFERRED)
     {"outputmerger-bothleg", runOutputMergerBothLegSelfTest},        // ★Seam 2 OutputMerger harness-first: flat+resident stamped blend/depth tuples byte-identical
     {"outputmerger-cookthrough", runOutputMergerCookThroughSelfTest},// Seam 2 OutputMerger cook-through: real NodeSpec blend/depth params → cookOutputMerger → stamped tuple == census combo
+    {"inputassembler", runInputAssemblerSelfTest},                   // Seam 2 IA closed-form: PrimitiveTopology → MTL::PrimitiveType table
+    {"inputassembler-cookthrough", runInputAssemblerCookThroughSelfTest}, // Seam 2 IA cook-through: real NodeSpec topology → cookInputAssembler → stamped frozen.topology == census (both legs identical)
+    {"draw-explicit", runDrawExplicitSelfTest},                      // Seam 2 Draw cook-through: real NodeSpec VertexCount/Start → cookDrawExplicit → DrawKind::Explicit item (both legs identical)
+    {"draw-explicit-topology", runDrawExplicitTopologySelfTest},     // Seam 2 Draw composition: InputAssembler(LineList) wraps Draw → stamped Explicit item's topology == LineList
 
     {"transformops", runTransformOpsSelfTest},
     {"drawmeshunlit", runDrawMeshUnlitSelfTest},

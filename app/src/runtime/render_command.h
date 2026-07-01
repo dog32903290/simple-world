@@ -6,19 +6,16 @@
 // SwPoint). DrawPoints turns that buffer into a RenderCommand. RenderTarget executes
 // the RenderCommand into a Texture2D, and is where resolution is pinned.
 //
-// Why a DATA RECORD, not a closure (TiXL's {PrepareAction,RestoreAction}):
-// TiXL's Prepare/Restore inject into an immediate-mode DX11 device context. We are
-// retained-mode — each RenderTarget opens its own commandBuffer→encoder→endEncoding,
-// so Prepare/Restore are render-pass boundaries owned by the EXECUTOR, not carried by
-// the op. And compositing (blend layering two point bags) is just chaining: a record
-// chain appends with vector::insert (O(n), zero GPU, zero buffer copy) and stays
-// introspectable (debug sees how many draws, each draw's count). N closures would each
+// Why a DATA RECORD, not a closure (TiXL's {PrepareAction,RestoreAction}): TiXL's Prepare/Restore inject into an
+// immediate-mode DX11 context. We are retained-mode — each RenderTarget opens its own commandBuffer→encoder→
+// endEncoding, so Prepare/Restore are render-pass boundaries owned by the EXECUTOR, not carried by the op.
+// Compositing (blend-layering two point bags) is just chaining: a record chain appends with vector::insert
+// (O(n), zero GPU/buffer copy) and stays introspectable (debug sees each draw's count). N closures would each
 // open their own pass and clear each other out.
 //
-// Zone: runtime leaf (no upward deps). Pure CPU container — borrows buffer pointers,
-// never retains. A RenderCommand lives shorter than one cook() (single-frame memo);
-// it must NOT be stored across frames (the borrowed buffers are PointGraph-owned and
-// reused next frame).
+// Zone: runtime leaf (no upward deps). Pure CPU container — borrows buffer pointers, never retains. A
+// RenderCommand lives shorter than one cook() (single-frame memo); it must NOT be stored across frames (the
+// borrowed buffers are PointGraph-owned and reused next frame).
 #pragma once
 #include <cstdint>
 #include <functional>
@@ -64,6 +61,10 @@ enum class DrawKind : uint32_t {
                    // per-fragment W-reveal (TiXL DrawLinesBuildup → DrawLinesBuildup.hlsl). Reads
                    // color/lineWidth + transitionProgress/visibleRange. Its OWN shader/PSO →
                    // DrawKind::Lines (DrawLines/DrawClosedLines) stays untouched.
+  Explicit = 9,    // TiXL Draw.cs: an EXPLICIT deviceContext.Draw(VertexCount, VertexStart) — a raw N-vertex draw
+                   // of the currently-bound shader, no point/mesh/texture buffer. The Draw leaf emits this item
+                   // carrying explicitVertexCount/explicitBaseVertex + the stamped frozen.topology. The ONLY kind
+                   // whose primitive comes from the IA-stamped topology, not a per-kind constant (draw_explicit.cpp).
 };
 
 // Per-item blend equation (TiXL SharedEnums.BlendModes, factors from Core/Rendering/
@@ -124,6 +125,11 @@ struct FrozenRenderState {
   bool dualSourceUsed = false;
   bool logicOpEnabled = false;
   uint32_t rtCount = 1;
+  // InputAssemblerStage topology (Dx11Topology ordinal; dx11_metal_state_map.h metalPrimitiveType). The IA op
+  // STAMPS it like the other render-state ops. NOT in the PSO key (Metal bakes no primitive type — it is a
+  // drawPrimitives arg, live like depthBias). Census: every consumer = TriangleList(4) default. FORK (named):
+  // IA's InputLayout/VertexBuffers/IndexBuffer are DROPPED (sw VS is SV_VertexID-driven, buffers bound by Draw).
+  uint32_t topology = 4;         // Dx11Topology::TriangleList (DX11 + TiXL default)
 };
 
 // One draw in a render command chain: a point bag + how to draw it. New fields are appended
@@ -139,14 +145,12 @@ struct RenderDrawItem {
   float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};  // tint (TiXL Color default = white)
   float lineWidth = 0.02f;                     // DrawLines.LineWidth (.t3 default 0.02)
   float size = 1.0f;                           // DrawBillboards.Scale (.t3 default 1.0)
-  // DrawClosedLines (TiXL Lib.point.draw.DrawClosedLines → DrawLinesAlt.hlsl GetWrappedIndex). The
-  // closed-loop variant of DrawKind::Lines: segment i connects Points[i]→Points[(i+1)%shapePts],
-  // wrapping the last point back to the first (a closed polygon), vs DrawLines' open Points[i]→[i+1].
-  // pointsPerShape>0 splits the bag into that-many-point closed shapes (TiXL PointsPerShape, .t3
-  // default 0 = ONE shape using every point). Read ONLY by DrawKind::Lines; lineClosed=false +
-  // pointsPerShape=0 → the exact pre-batch open DrawLines path (executor draws (count-1) segments,
-  // shader never wraps) → byte-identical. The two fields travel together: lineClosed flips the
-  // executor's segment count (count instead of count-1) AND the shader's wrap modulo.
+  // DrawClosedLines (TiXL Lib.point.draw.DrawClosedLines → DrawLinesAlt.hlsl GetWrappedIndex): the closed-loop
+  // variant of DrawKind::Lines — segment i connects Points[i]→Points[(i+1)%shapePts] (wraps last→first), vs
+  // DrawLines' open Points[i]→[i+1]. pointsPerShape>0 splits the bag into that-many-point closed shapes (TiXL
+  // PointsPerShape, .t3 default 0 = ONE shape over every point). Read ONLY by DrawKind::Lines; lineClosed=false +
+  // pointsPerShape=0 → the pre-batch open DrawLines path (executor draws count-1 segments, no wrap) →
+  // byte-identical. The two travel together: lineClosed flips the segment count AND the shader's wrap modulo.
   bool lineClosed = false;        // true → wrap last→first (closed loop); false → open DrawLines
   uint32_t pointsPerShape = 0;    // TiXL PointsPerShape (0 = single shape over the whole bag)
   // ScreenQuad fields (TiXL DrawScreenQuad). srcTexture is the sampled input — borrowed (a
@@ -187,17 +191,13 @@ struct RenderDrawItem {
   float layerPosZ = 0.0f;               // TiXL PositionZ (.t3 default 0); position[] above = PositionXy
   uint32_t layerScaleMode = 0;          // TiXL ScaleMode (.t3 default 0 = FitHeight)
   // ── Camera op (Cut 3): explicit per-item camera (TiXL Camera.cs push/pop, mechanism Option a) ──
-  // TiXL's Camera evaluates its subtree with context.WorldToCamera/CameraToClipSpace temporarily set
-  // to ITS matrices, then restores (Camera.cs:36-45). We are retained-mode with a per-item executor —
-  // there is no runtime scope stack to push onto. Instead the Camera op STAMPS its raw camera params
-  // onto every item its subtree produced (cookCamera); the EXECUTOR, when it composes a Layer2d item's
-  // ObjectToClipSpace, uses THIS camera's WorldToCamera/CameraToClipSpace instead of the driver-local
-  // default (F1). This reproduces push/pop without a scope stack — like the FloatList/context-var
-  // host-context precedent. hasCamera=false → the executor uses defaultLayerCameraForward (no Camera op).
-  //   NESTING/push-pop semantics: the INNERMOST camera wins. cookCamera stamps only items where
-  //   !hasCamera, so a deeper Camera (which already stamped) is respected by an outer one — exactly
-  //   restoring the previous context on pop. Ignored by every kind that does not read a camera (only
-  //   Layer2d reads it today; ScreenQuad is raw-clip by design).
+  // TiXL's Camera evals its subtree with context.WorldToCamera/CameraToClipSpace temporarily set to ITS matrices,
+  // then restores (Camera.cs:36-45). We are retained-mode per-item (no runtime scope stack), so the Camera op
+  // STAMPS its raw params onto every subtree item (cookCamera); the EXECUTOR, composing a Layer2d item's
+  // ObjectToClipSpace, uses THIS camera's matrices instead of the driver-local default (F1) — reproducing
+  // push/pop without a scope stack (FloatList/context-var precedent). hasCamera=false → defaultLayerCameraForward.
+  //   NESTING: INNERMOST wins. cookCamera stamps only !hasCamera items, so a deeper Camera is respected by an
+  //   outer one (= restore-on-pop). Read only by Layer2d today (ScreenQuad is raw-clip by design).
   // RAW params (NOT the matrices): the executor builds worldToCamera=lookAtRH(eye,target,up) and
   // cameraToClipSpace=perspectiveFovRH(fovDeg, aspect, near, far). Aspect mirrors Camera.cs:53-55:
   // camAspect>0 uses it, else the executor's output aspect (the RequestedResolution fallback).
@@ -232,29 +232,23 @@ struct RenderDrawItem {
   const MTL::Buffer* meshIdx = nullptr;   // borrowed SwTriIndex buffer (t1 FaceIndices)
   uint32_t meshIndexCount = 0;            // FACE count; vertexCount = meshIndexCount*3 (TiXL MultiplyInt ×3)
   // ── DrawKind::Points2 (TiXL DrawPoints2 → DrawPoints.hlsl Radius variant) ──────────────────────
-  // useWForSize: TiXL UseWForSize (.t3 default true) — when true the per-Point W (FX1) scales each
-  // sprite (the shader's ScaleFX==1 path). DrawPoints2 uses `size` for the sprite size = Radius*10.8.
-  // Read ONLY by DrawKind::Points2; default true matches the .t3 default. Ignored by every other kind
-  // (DrawBillboards reads `size` but never `useWForSize`) → those items are byte-identical.
+  // useWForSize: TiXL UseWForSize (.t3 default true) — true → per-Point W (FX1) scales each sprite (shader
+  // ScaleFX==1). DrawPoints2 uses `size` = Radius*10.8. Read ONLY by DrawKind::Points2; Billboards reads
+  // `size` but never `useWForSize` → those items byte-identical.
   bool useWForSize = true;
   // ── DrawKind::LinesBuildup (TiXL DrawLinesBuildup → DrawLinesBuildup.hlsl) ──────────────────────
-  // The progressive-reveal params: transitionProgress sweeps the visible window along the polyline
-  // (OffsetU = transitionProgress - 0.01 in the shader); visibleRange = the window width. Read ONLY
-  // by DrawKind::LinesBuildup; the .t3 defaults are 0.5/0.5. Ignored by every other kind → byte-identical.
+  // transitionProgress sweeps the visible window along the polyline (shader OffsetU = it-0.01); visibleRange =
+  // window width. Read ONLY by DrawKind::LinesBuildup (.t3 defaults 0.5/0.5). Ignored by others → byte-identical.
   float transitionProgress = 0.5f;  // TiXL TransitionProgress (.t3 default 0.5)
   float visibleRange = 0.5f;        // TiXL VisibleRange (.t3 default 0.5)
   // ── Group SRT (S2b): the accumulated parent transform-context push (TiXL Group.cs ObjectToWorld) ──
-  // TiXL Group sets context.ObjectToWorld = Multiply(groupSRT, prevObjectToWorld) around its collected
-  // child Commands, then restores on exit (Group.cs:54-82). SW is retained-mode per-item (no runtime
-  // ObjectToWorld scope stack) so — exactly like the Camera op's per-item camera stamp (hasCamera/cam*
-  // above) — the Group op STAMPS its accumulated SRT onto every subtree item, and the EXECUTOR
-  // right-multiplies it into the item's own ObjectToWorld: finalO2W = layerO2W · groupObjectToWorld
-  // (row-vector v·M; the group is the PARENT transform applied AFTER the child's own = TiXL's
-  // child·context order). NESTING accumulates: an outer Group does it.group = it.group · outerSRT, so a
-  // child sees v·childO2W·innerSRT·outerSRT (innermost first). hasGroup=false → identity → the pre-S2b
-  // path is byte-identical (the executor skips the multiply). ROW-MAJOR (m[r*4+c]), same convention as
-  // objectToClipSpace / layer2dObjectToWorld. Read by Layer2d + Mesh (the kinds that compose ObjectToWorld;
-  // every other kind ignores it). Default identity (a no-op = no group push).
+  // TiXL Group sets context.ObjectToWorld = Multiply(groupSRT, prevObjectToWorld) around its child Commands,
+  // then restores on exit (Group.cs:54-82). SW is retained-mode per-item (no ObjectToWorld scope stack), so —
+  // like the Camera op's per-item stamp — the Group op STAMPS its accumulated SRT onto every subtree item and
+  // the EXECUTOR right-multiplies it: finalO2W = layerO2W · groupObjectToWorld (row-vector v·M; group = PARENT
+  // applied AFTER child = TiXL child·context order). NESTING accumulates: an outer Group does it.group =
+  // it.group · outerSRT (innermost first). hasGroup=false → identity → pre-S2b byte-identical (executor skips
+  // the multiply). ROW-MAJOR (m[r*4+c]). Read by Layer2d + Mesh; every other kind ignores it.
   bool hasGroup = false;
   float groupObjectToWorld[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
   // ── Seam 2 render-state stamp (TiXL Rasterizer/OutputMerger/BlendState push/pop) ──
@@ -265,6 +259,12 @@ struct RenderDrawItem {
   // pre-Seam-2 hardcoded path (the executor takes its legacy per-kind branch). Read by every draw kind.
   bool hasRenderState = false;
   FrozenRenderState frozen;
+  // ── DrawKind::Explicit (TiXL Draw.cs → deviceContext.Draw(VertexCount, VertexStart)) ──
+  // The raw explicit draw: `explicitVertexCount` vertices starting at `explicitBaseVertex`, primitive from the
+  // IA-stamped frozen.topology (metalPrimitiveType). Read ONLY by DrawKind::Explicit; every other kind ignores
+  // them (default 0/0 = nothing). VertexStart maps to drawPrimitives' vertexStart arg (TiXL startVertexLocation).
+  uint32_t explicitVertexCount = 0;   // TiXL Draw.VertexCount
+  uint32_t explicitBaseVertex = 0;    // TiXL Draw.VertexStartLocation → drawPrimitives vertexStart
 };
 
 // Seam 2 render-state STAMP helper (the SINGLE shared push both command-cook legs' render-state op fn

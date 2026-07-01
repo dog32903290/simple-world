@@ -64,6 +64,32 @@ const std::vector<NodeSpec>& drawRenderStateSpecs() {
          {"Never", "Less", "Equal", "LessEqual", "Greater", "NotEqual", "GreaterEqual", "Always"}, true}},
        nullptr,
        "render.shading"},
+      // InputAssemblerStage (TiXL Lib.render._dx11.api.InputAssemblerStage — Seam 2 IA stage). Wraps a Command
+      // subtree and STAMPS the accumulated PrimitiveTopology (as frozen.topology) onto every subtree draw item;
+      // the executor maps it to MTL::PrimitiveType for DrawKind::Explicit. SW folds the topology param directly.
+      // Census (PLAN §1): all 74 consumers = TriangleList (the .t3 default). FORKS (named, per point_ops_
+      // inputassembler.cpp): InputLayout / VertexBuffers / IndexBuffer are DROPPED (sw VS is SV_VertexID-driven,
+      // buffers bound by the Draw leaf — there is no fixed-function input layout). Command in → Command out.
+      // Default topology index 3 = TriangleList (matches the .t3 default; every existing chain unchanged).
+      {"InputAssemblerStage", "InputAssemblerStage",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"PrimitiveTopology", "PrimitiveTopology", "Float", true, 3.0f, 0.0f, 4.0f, Widget::Enum,
+         {"PointList", "LineList", "LineStrip", "TriangleList", "TriangleStrip"}, true}},
+       nullptr,
+       "render.shading"},
+      // Draw (TiXL Lib.render._dx11.api.Draw — Seam 2 explicit-draw terminal). A Command SOURCE (no input) that
+      // emits ONE DrawKind::Explicit item = a raw deviceContext.Draw(VertexCount, VertexStartLocation): N bare
+      // vertices of the bound shader, primitive from the IA-stamped topology. SW folds VertexCount/VertexStart
+      // directly (.t3 defaults 3 / 0). SCOPE (named, per point_ops_draw_explicit.cpp): the COMMAND + closed-form
+      // count/baseVertex/topology plumbing are built here; the executor render-path for a bare-shader Explicit
+      // draw is a deferred leaf (no census point-graph wires a bare Draw). Command out.
+      {"Draw", "Draw",
+       {{"out", "out", "Command", false},
+        {"VertexCount", "VertexCount", "Float", true, 3.0f, 0.0f, 100000.0f},
+        {"VertexStartLocation", "VertexStartLocation", "Float", true, 0.0f, 0.0f, 100000.0f}},
+       nullptr,
+       "render.shading"},
   };
   return specs;
 }

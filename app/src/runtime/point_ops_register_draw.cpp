@@ -26,6 +26,8 @@ void registerLogMessageOp();      // S3b: Command(SubGraph) → Command (passthr
 void registerExecRepeatedlyOp();  // S3c: Command(MultiInput) → Command (cook-core RE-COOK ×RepeatCount; point_ops_execrepeatedly.cpp)
 void registerRasterizerOp();      // Seam 2: Command → Command (render-state STAMP: cull/fill/winding/depthBias; point_ops_renderstate.cpp)
 void registerOutputMergerOp();    // Seam 2: Command → Command (render-state STAMP: blend + depth STAGE; point_ops_renderstate.cpp)
+void registerInputAssemblerOp();  // Seam 2: Command → Command (render-state STAMP: PrimitiveTopology; point_ops_inputassembler.cpp)
+void registerDrawExplicitOp();    // Seam 2: Command SOURCE (DrawKind::Explicit raw N-vertex draw; point_ops_draw_explicit.cpp)
 
 void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
@@ -53,6 +55,8 @@ void registerDrawPointOps() {
   registerExecRepeatedlyOp();                    // Command(MultiInput) → Command (S3c: cook-core RE-COOK ×RepeatCount)
   registerRasterizerOp();                        // Command → Command (Seam 2: render-state STAMP — Rasterizer spike)
   registerOutputMergerOp();                      // Command → Command (Seam 2: render-state STAMP — OutputMerger blend/depth stage)
+  registerInputAssemblerOp();                    // Command → Command (Seam 2: render-state STAMP — InputAssembler topology)
+  registerDrawExplicitOp();                      // Command SOURCE (Seam 2: DrawKind::Explicit raw N-vertex draw leaf)
   registerDrawMeshUnlitOp();                    // Mesh → Command (DrawKind::Mesh, the FIRST 3D mesh, Cut 99)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
 }
