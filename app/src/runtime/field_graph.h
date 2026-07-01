@@ -42,6 +42,12 @@ SourceCompileFn fieldSourceCompiler();
 struct CodeAssembleCtx {
   // Globals: pure reusable helper functions, de-duplicated by key (one copy in the final shader).
   std::map<std::string, std::string> globals;
+  // ResourceTypes: struct DEFINITIONS a resource-consuming node needs declared at file scope before
+  // the buffer arg that references them (port of TiXL CodeAssembleContext.ResourceTypes — e.g.
+  // RepeatFieldAtPoints registers the `struct PointTransform {...}`). De-duped by key (the type name);
+  // emitted into the template's /*{STRUCT_DEFS}*/ hook, ABOVE the FieldParams struct so the buffer's
+  // element type resolves. EMPTY for every existing leaf -> the hook collapses to nothing (byte-parity).
+  std::map<std::string, std::string> resourceTypes;
   // Definitions: instance-specific code that may reference unique node params (injected before calls).
   std::string definitions;
   // Calls: the actual distance-function body — the primary target the tree writes to.
@@ -84,6 +90,35 @@ struct CodeAssembleCtx {
 struct TexBinding {
   std::string declName;          // MSL texture-arg base name (assembler prepends "P_")
   const void* texture = nullptr; // opaque MTL::Texture* (cast back at the bind site only)
+};
+
+// ---- structured-buffer binding (sw's port of the SrvBufferReference for a StructuredBuffer) --------
+//
+// The GENERALIZABLE point-buffer→field SRV seam (the resource kind Image2dSDF's texture seam does NOT
+// cover). TiXL declares these via IGraphNodeOp.AppendShaderResources too, but as a
+// `StructuredBuffer<PointTransform> {node}PointTransforms` bound at register(tN) — a STRUCTURED BUFFER,
+// not a Texture2D. In MSL a StructuredBuffer<T> is a `device const T* arg [[buffer(N)]]` fragment arg.
+// The seam is deliberately NOT PointTransform-specific: a leaf declares (elemType, name, handle,
+// elementCount); the assembler threads a `device const <elemType>* P_<name>` arg through the fragment
+// signature + evalField/getDistance/getNormal, and field_render binds the opaque buffer at a base slot
+// past the reserved param/raymarch/camera buffers. Any future field op that consumes a structured
+// buffer (a second point-driven op, a curve buffer, …) rides the SAME seam — declare a different type.
+//
+// PURITY (check-arch: runtime ↛ platform): the buffer is an OPAQUE `const void*` — runtime must NOT
+// name MTL types. field_render (runtime shell-tier, may name MTL) casts it back to MTL::Buffer* at
+// bind time, exactly like the TexBinding cast site.
+//
+//   elemType — the MSL element struct name (e.g. "PointTransform"); the STRUCT_DEFS hook must carry a
+//              matching `struct <elemType> {...}` (registered via CodeAssembleCtx.resourceTypes).
+//   declName — the MSL buffer-arg base name WITHOUT the "P_" prefix (assembler prepends "P_" so it
+//              never collides with the param struct P or another leaf). E.g. "<prefix>PointTransforms".
+//   buffer   — opaque MTL::Buffer* handle, host-supplied by the cook seam (the point-buffer input).
+//   elementCount — the element count baked into codegen as a loop-bound literal (TiXL bakes _count too).
+struct BufBinding {
+  std::string elemType;         // MSL element struct name (declared in resourceTypes / STRUCT_DEFS)
+  std::string declName;         // MSL buffer-arg base name (assembler prepends "P_")
+  const void* buffer = nullptr; // opaque MTL::Buffer* (cast back at the bind site only)
+  uint32_t elementCount = 0;    // baked into codegen as the loop-bound (parity: TiXL _count literal)
 };
 
 // ---- field node interface (sw's IGraphNodeOp) ----------------------------------------------------
@@ -130,6 +165,13 @@ struct FieldNode {
   // empty for a zero-texture field). Only a texture-consuming leaf (Image2dSDF) overrides this. TiXL
   // parity: IGraphNodeOp.AppendShaderResources — collected depth-first (same order as collectParams).
   virtual void collectTextures(std::vector<TexBinding>&) const {}
+
+  // collectBuffers: append this node's structured-buffer SRV decls (the point-buffer→field seam). The
+  // DEFAULT IS A NO-OP — every existing SDF leaf overrides nothing, so it emits ZERO buffers and the
+  // /*{BUFFERS}*/ hook collapses to empty (byte-identical MSL). Only a structured-buffer-consuming leaf
+  // (RepeatFieldAtPoints) overrides it. Collected depth-first (same order as collectTextures/Params);
+  // the index a binding lands at IS its slot offset from the buffer base (past params/raymarch/camera).
+  virtual void collectBuffers(std::vector<BufBinding>&) const {}
 };
 
 // ---- assembler (port of GenerateShaderGraphCode.GenerateShaderCode) ------------------------------
@@ -138,6 +180,7 @@ struct AssembledField {
   std::string msl;                 // template with all hooks filled (no /*{...}*/ remaining).
   std::vector<float> floatParams;  // the single packed param buffer (16-byte aligned).
   std::vector<TexBinding> textures;// ordered fragment textures (Seam A) — [[texture(0..N)]], depth-first.
+  std::vector<BufBinding> buffers; // ordered structured-buffer SRVs — [[buffer(BASE+0..N)]], depth-first.
   uint64_t srcHash = 0;            // FNV-1a of `msl` — Build-2's PSO/library cache key (computed, unused here).
 };
 
@@ -146,8 +189,12 @@ struct AssembledField {
 //   /*{GLOBALS}*/  /*{FLOAT_PARAMS}*/  /*{FIELD_CALL}*/
 //   /*{TEXTURES}*/ (fragment args, [[texture(N)]])  /*{TEXTURE_PARAMS}*/ (evalField params, no attr)
 //   /*{TEXTURE_ARGS}*/ (evalField call args — forward the texture into evalField)
-// All are filled; the result contains no residual /*{...}*/ for them. The three TEXTURE* hooks
-// collapse to empty for a zero-texture field (every existing SDF leaf) — byte-identical MSL.
+//   /*{STRUCT_DEFS}*/ (file-scope struct definitions a buffer element type needs, above FieldParams)
+//   /*{BUFFERS}*/ (fragment args, device const T* [[buffer(BASE+N)]])
+//   /*{BUFFER_PARAMS}*/ (evalField/getDistance params, no attr)  /*{BUFFER_ARGS}*/ (call args)
+// All are filled; the result contains no residual /*{...}*/ for them. The TEXTURE* and BUFFER* + the
+// STRUCT_DEFS hooks all collapse to empty for a field with no such resource (every existing SDF leaf)
+// — byte-identical MSL.
 AssembledField assembleFieldMSL(const std::shared_ptr<FieldNode>& root, const std::string& templateMsl);
 
 // FNV-1a 64-bit over a string (srcHash). Exposed so Build-2 keys its cache the same way.

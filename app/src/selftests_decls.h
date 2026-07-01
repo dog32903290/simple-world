@@ -105,6 +105,7 @@ namespace sw { int runFieldRepeatFieldLimitGoldenSelfTest(bool); } // field_ops_
 namespace sw { int runFieldFractalSdfGoldenSelfTest(bool); }      // field_ops_fractalsdf_golden.cpp (Mandelbulb fold; iterations=compile-time selector)
 namespace sw { int runFieldCustomSdfGoldenSelfTest(bool); }       // field_ops_customsdf_golden.cpp (verbatim user DistanceFunction inject)
 namespace sw { int runFieldImage2dSdfGoldenSelfTest(bool); }      // field_ops_image2dsdf_golden.cpp (FIRST texture-binding leaf; Seam A)
+namespace sw { int runFieldRepeatFieldAtPointsGoldenSelfTest(bool); } // field_ops_repeatfieldatpoints_golden.cpp (FIRST structured-buffer-binding leaf; point-buffer→field SRV seam)
 namespace sw { int runFieldRepeatPolarGoldenSelfTest(bool); }     // field_ops_repeatpolar_golden.cpp (single-input PRE-wrap; pModPolar/pModPolarMirror swizzle by-value, axis+mirror enums)
 namespace sw { int runFieldTranslateUvGoldenSelfTest(bool); }     // field_ops_translateuv_golden.cpp (single-input POST-wrap; f.xyz shift via readback wrapper)
 namespace sw { int runFieldStairCombineSdfGoldenSelfTest(bool); } // field_ops_staircombinesdf_golden.cpp (multi-input combiner; stairs/columns joinery, by-value pMod1 compile)

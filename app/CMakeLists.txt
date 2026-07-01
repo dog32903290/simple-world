@@ -322,6 +322,7 @@ add_executable(simple_world
   src/runtime/field_ops_fractalsdf.cpp
   src/runtime/field_ops_customsdf.cpp
   src/runtime/field_ops_image2dsdf.cpp
+  src/runtime/field_ops_repeatfieldatpoints.cpp
   src/runtime/field_ops_repeatpolar.cpp
   src/runtime/field_ops_translateuv.cpp
   src/runtime/field_ops_staircombinesdf.cpp
@@ -391,6 +392,7 @@ add_executable(simple_world
   src/field_ops_fractalsdf_golden.cpp
   src/field_ops_customsdf_golden.cpp
   src/field_ops_image2dsdf_golden.cpp
+  src/field_ops_repeatfieldatpoints_golden.cpp
   src/field_ops_repeatpolar_golden.cpp
   src/field_ops_translateuv_golden.cpp
   src/field_ops_staircombinesdf_golden.cpp

@@ -34,6 +34,9 @@ constexpr sampler clampedSampler(coord::normalized, address::clamp_to_edge, filt
 // --- node helper globals (de-duplicated reusable functions) ----
 /*{GLOBALS}*/
 
+// --- resource element-type struct definitions (point-buffer→field seam; empty for a leaf-only field) ----
+/*{STRUCT_DEFS}*/
+
 // --- all node parameters, packed into a single 16-byte-aligned constant buffer (TiXL FloatParams) ----
 struct FieldParams {
 /*{FLOAT_PARAMS}*/
@@ -42,7 +45,7 @@ struct FieldParams {
 // Evaluate the assembled field at a local position. p.xyz = sample point, p.w = mode flag (0 = field
 // eval, matching TiXL GetField's `float4(p3.xyz, 0)`). Returns f: f.w = signed distance, f.xyz =
 // local space / color carry (TiXL convention).
-static float4 evalField(float4 p, constant FieldParams& P/*{TEXTURE_PARAMS}*/) {
+static float4 evalField(float4 p, constant FieldParams& P/*{TEXTURE_PARAMS}*//*{BUFFER_PARAMS}*/) {
     // PARITY external/tixl/Operators/Lib/Assets/shaders/img/generate/FieldToImageTemplate.hlsl:99
     //   `float4 f = 1;` — the field SEED is all-ones (f.w=1, f.xyz=1), NOT zero. This is the value a
     // node reads before it writes (load-bearing for future combiners). A single SphereSDF leaf
@@ -72,7 +75,7 @@ vertex VsOut sw_field_vertex(uint vid [[vertex_id]]) {
 }
 
 fragment float4 sw_field_fragment(VsOut in [[stage_in]],
-                                  constant FieldParams& P [[buffer(0)]]/*{TEXTURES}*/) {
+                                  constant FieldParams& P [[buffer(0)]]/*{TEXTURES}*//*{BUFFERS}*/) {
     // Map texCoord -> field space (FieldToImageTemplate default regula). texCoord.y is already the
     // flipped TiXL convention from the vertex; the psMain `uv.y = 1-uv.y` then `uv-=0.5; uv*=2` net
     // maps to p.xy below. p.z = SliceDepth = 0, p.w = 0 (field-eval mode).
@@ -83,7 +86,7 @@ fragment float4 sw_field_fragment(VsOut in [[stage_in]],
     // fork: aspect=1 假設；非方形輸出未對齊 TiXL uv.x*=aspectRatio。方形 golden 範圍內 byte-parity，非方形 follow-up。
     // (TiXL FieldToImageTemplate.hlsl:124,128 `aspectRatio = TargetWidth/TargetHeight; uv.x *= aspectRatio;`)
     float4 p = float4(uv, 0.0, 0.0);
-    float4 f = evalField(p, P/*{TEXTURE_ARGS}*/);
+    float4 f = evalField(p, P/*{TEXTURE_ARGS}*//*{BUFFER_ARGS}*/);
     // Distance -> RED channel (golden reads R). Keep g/b/a defined for a stable readback layout.
     return float4(f.w, 0.0, 0.0, 1.0);
 }

@@ -32,6 +32,9 @@ constexpr sampler clampedSampler(coord::normalized, address::clamp_to_edge, filt
 // --- node helper globals (de-duplicated reusable functions) ----
 /*{GLOBALS}*/
 
+// --- resource element-type struct definitions (point-buffer→field seam; empty for a leaf-only field) ----
+/*{STRUCT_DEFS}*/
+
 // --- all node parameters, packed into a single 16-byte-aligned constant buffer (TiXL FloatParams) ----
 struct FieldParams {
 /*{FLOAT_PARAMS}*/
@@ -81,24 +84,24 @@ static float4 mul4(constant float M[16], float4 v) {
 
 // Field eval (REUSED UNCHANGED from the 2D template — same evalField contract). p.xyz = world sample
 // point, p.w = 0 (field-eval mode). Returns f: f.w = signed distance.
-static float4 evalField(float4 p, constant FieldParams& P/*{TEXTURE_PARAMS}*/) {
+static float4 evalField(float4 p, constant FieldParams& P/*{TEXTURE_PARAMS}*//*{BUFFER_PARAMS}*/) {
     float4 f = float4(1.0);
 /*{FIELD_CALL}*/
     return f;
 }
 
 // GetDistance: the march primitive. TiXL GetDistance(p3) = GetField(float4(p3,0)).w.
-static float getDistance(float3 p3, constant FieldParams& P/*{TEXTURE_PARAMS}*/) {
-    return evalField(float4(p3, 0.0), P/*{TEXTURE_ARGS}*/).w;
+static float getDistance(float3 p3, constant FieldParams& P/*{TEXTURE_PARAMS}*//*{BUFFER_PARAMS}*/) {
+    return evalField(float4(p3, 0.0), P/*{TEXTURE_ARGS}*//*{BUFFER_ARGS}*/).w;
 }
 
 // GetNormal forward-difference gradient (RaymarchSDFFieldTemplate.hlsl:115-123). dt=0.01.
-static float3 getNormal(float3 p, constant FieldParams& P/*{TEXTURE_PARAMS}*/) {
+static float3 getNormal(float3 p, constant FieldParams& P/*{TEXTURE_PARAMS}*//*{BUFFER_PARAMS}*/) {
     float dt = 0.01;
-    float3 n = float3(getDistance(p + float3(dt, 0, 0), P/*{TEXTURE_ARGS}*/),
-                      getDistance(p + float3(0, dt, 0), P/*{TEXTURE_ARGS}*/),
-                      getDistance(p + float3(0, 0, dt), P/*{TEXTURE_ARGS}*/)) -
-               getDistance(p, P/*{TEXTURE_ARGS}*/);
+    float3 n = float3(getDistance(p + float3(dt, 0, 0), P/*{TEXTURE_ARGS}*//*{BUFFER_ARGS}*/),
+                      getDistance(p + float3(0, dt, 0), P/*{TEXTURE_ARGS}*//*{BUFFER_ARGS}*/),
+                      getDistance(p + float3(0, 0, dt), P/*{TEXTURE_ARGS}*//*{BUFFER_ARGS}*/)) -
+               getDistance(p, P/*{TEXTURE_ARGS}*//*{BUFFER_ARGS}*/);
     return normalize(n);
 }
 
@@ -125,7 +128,7 @@ struct FragOut {
 fragment FragOut sw_field_fragment(VsOut in [[stage_in]],
                                    constant FieldParams& P [[buffer(0)]],
                                    constant RaymarchParams& R [[buffer(1)]],
-                                   constant Transforms& X [[buffer(2)]]/*{TEXTURES}*/) {
+                                   constant Transforms& X [[buffer(2)]]/*{TEXTURES}*//*{BUFFERS}*/) {
     // --- ray unproject (RaymarchSDFFieldTemplate.hlsl vsMain4 :69-82, done per-fragment here) ---
     // NAMED FORK: TiXL builds worldTViewPos/worldTViewDir in the VERTEX shader and interpolates them;
     // we recompute them in the FRAGMENT from texCoord. For a fullscreen quad this is mathematically
@@ -150,7 +153,7 @@ fragment FragOut sw_field_fragment(VsOut in [[stage_in]],
     int steps = 0;
     int maxSteps = (int)(R.MaxSteps - 0.5);
     for (steps = 0; steps < maxSteps && abs(D) > R.MinDistance && D < R.MaxDistance; steps++) {
-        D = getDistance(p, P/*{TEXTURE_ARGS}*/);
+        D = getDistance(p, P/*{TEXTURE_ARGS}*//*{BUFFER_ARGS}*/);
         p += dp * D;
     }
 

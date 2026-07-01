@@ -19,6 +19,11 @@ namespace {
 constexpr const char* kVsName = "sw_field_vertex";
 constexpr const char* kFsName = "sw_field_fragment";
 
+// Fragment-buffer base slot for graph-collected structured buffers (point-buffer→field seam). MUST
+// match field_graph.cpp's kBufferBaseSlot (the [[buffer(BASE+i)]] baked into the assembled MSL). Base 3
+// is past the raymarch path's reserved 0=params/1=raymarch/2=camera; the 2D path leaves 1,2 as gaps.
+constexpr int kFieldBufferBaseSlot = 3;
+
 // Host mirror of the MSL `RaymarchParams` struct (field_raymarch_template.metal) — exact byte layout.
 // 7 floats + 1 pad (= one 16B + ...) then 4 float4s, packed_float3 + pad, float2. Built with explicit
 // padding so a plain std::memcpy lands every field on the MSL-expected offset (no simd surprises).
@@ -90,6 +95,16 @@ MTL::Texture* renderField2d(MTL::Device* dev, MTL::CommandQueue* queue,
   for (size_t i = 0; i < asmField.textures.size(); ++i) {
     if (asmField.textures[i].texture)
       enc->setFragmentTexture((MTL::Texture*)asmField.textures[i].texture, (NS::UInteger)i);
+  }
+  // Point-buffer→field seam: bind each assembled structured buffer at [[buffer(kFieldBufferBaseSlot+i)]].
+  // The 2D path reserves only buffer(0) (params), so slots 1,2 are unused gaps; the base 3 keeps this
+  // path's binding indices identical to the raymarch path (which reserves 0,1,2), so the SAME assembled
+  // MSL cooks into either template. Empty for every existing SDF leaf -> this loop does nothing. Opaque
+  // void* -> MTL::Buffer* cast HERE (the only place naming the platform type), same as the texture cast.
+  for (size_t i = 0; i < asmField.buffers.size(); ++i) {
+    if (asmField.buffers[i].buffer)
+      enc->setFragmentBuffer((MTL::Buffer*)asmField.buffers[i].buffer, 0,
+                             (NS::UInteger)(kFieldBufferBaseSlot + i));
   }
   enc->drawPrimitives(MTL::PrimitiveTypeTriangle, (NS::UInteger)0, (NS::UInteger)3);
   enc->endEncoding();
@@ -179,6 +194,14 @@ MTL::Texture* renderField3d(MTL::Device* dev, MTL::CommandQueue* queue,
   for (size_t i = 0; i < asmField.textures.size(); ++i) {
     if (asmField.textures[i].texture)
       enc->setFragmentTexture((MTL::Texture*)asmField.textures[i].texture, (NS::UInteger)i);
+  }
+  // Point-buffer→field seam: bind structured buffers at [[buffer(kFieldBufferBaseSlot+i)]] (base 3 is
+  // past this path's reserved 0=params,1=raymarch,2=camera). Same base as the 2D path -> identical
+  // assembled MSL cooks into either template. Empty for the SDF leaves; same cast site as the texture.
+  for (size_t i = 0; i < asmField.buffers.size(); ++i) {
+    if (asmField.buffers[i].buffer)
+      enc->setFragmentBuffer((MTL::Buffer*)asmField.buffers[i].buffer, 0,
+                             (NS::UInteger)(kFieldBufferBaseSlot + i));
   }
   enc->drawPrimitives(MTL::PrimitiveTypeTriangle, (NS::UInteger)0, (NS::UInteger)3);
   enc->endEncoding();

@@ -112,6 +112,15 @@ void collectAllTextures(const FieldNode& node, std::vector<TexBinding>& out) {
   node.collectTextures(out);
 }
 
+void collectAllBuffers(const FieldNode& node, std::vector<BufBinding>& out) {
+  // Structured-buffer SRV seam: same depth-first order as collectAllTextures. Inputs first, then this
+  // node's buffers. The index a binding lands at in `out` IS its offset from the buffer base slot
+  // (BASE + i), mirroring TiXL's register(tN) allocation ordering for structured buffers.
+  for (const auto& in : node.inputs)
+    if (in) collectAllBuffers(*in, out);
+  node.collectBuffers(out);
+}
+
 // TiXL GenerateShaderGraphCode.TryInject: replace /*{HOOK}*/ with the assembled text.
 std::string injectHook(std::string code, const std::string& hookId, const std::string& insert) {
   const std::string tag = "/*{" + hookId + "}*/";
@@ -256,6 +265,10 @@ AssembledField assembleFieldMSL(const std::shared_ptr<FieldNode>& root,
   //     for every existing SDF leaf (collectTextures default no-op) -> the TEXTURES hook is empty.
   collectAllTextures(*root, out.textures);
 
+  // 2c. Structured-buffer SRVs (point-buffer→field seam), depth-first — index in `buffers` == offset
+  //     from the buffer BASE slot. Empty for every existing SDF leaf -> the BUFFERS hook is empty.
+  collectAllBuffers(*root, out.buffers);
+
   // 3. Build the GLOBALS block (helper functions, de-duped by key, in map order).
   std::string globalsBlock = "// --- globals -------------------\n";
   for (const auto& [key, code] : cac.globals) {
@@ -263,6 +276,15 @@ AssembledField assembleFieldMSL(const std::shared_ptr<FieldNode>& root,
     globalsBlock += "\n\n";
   }
   globalsBlock += cac.definitions;
+
+  // 3b. Build the STRUCT_DEFS block (resource element-type struct definitions, de-duped by type name,
+  //     in map order). Emitted ABOVE the FieldParams struct so a `device const <elemType>*` buffer arg
+  //     resolves its element type. EMPTY for every field with no structured buffer -> hook collapses.
+  std::string structDefsBlock;
+  for (const auto& [key, code] : cac.resourceTypes) {
+    structDefsBlock += code;
+    structDefsBlock += "\n\n";
+  }
 
   // 4. Build the FLOAT_PARAMS block (struct fields, one per line, tab-indented like TiXL).
   std::string paramsBlock;
@@ -292,16 +314,43 @@ AssembledField assembleFieldMSL(const std::shared_ptr<FieldNode>& root,
     texArgsBlock += ", " + argName;
   }
 
+  // 4c. Build the BUFFER blocks (point-buffer→field seam): one trailing fragment-arg per collected
+  //     structured buffer, `, device const <elemType>* P_<declName> [[buffer(BASE+i)]]`. BASE = 3 is
+  //     PAST the reserved fragment buffers (0=FieldParams in both templates; 1=RaymarchParams,
+  //     2=Transforms in the raymarch template). Using a fixed BASE lets ONE assembled arg list serve
+  //     BOTH the 2D template (where slots 1,2 are simply unused — Metal permits gaps) and the raymarch
+  //     template (where 1,2 are taken). HLSL->MSL FORK (named): TiXL's SRV
+  //     `StructuredBuffer<PointTransform> {node}PointTransforms` at register(tN) becomes an MSL fragment
+  //     ARG `device const PointTransform* ...` with `[[buffer(BASE+N)]]` — same depth-first index
+  //     allocation, only the SRV/buffer syntax differs. The `P_` prefix keeps it off the param struct P
+  //     and unique per leaf. EMPTY for a zero-buffer field -> byte-identical to the pre-seam MSL.
+  constexpr int kBufferBaseSlot = 3;
+  std::string buffersBlock;   // FRAGMENT signature args (carry the [[buffer(BASE+N)]] bind attribute).
+  std::string bufParamsBlock; // evalField/getDistance signature params (typed, NO attribute).
+  std::string bufArgsBlock;   // evalField/getDistance call args (forward the fragment's buffer inward).
+  for (size_t i = 0; i < out.buffers.size(); ++i) {
+    const std::string argName = "P_" + out.buffers[i].declName;
+    const std::string ty = "device const " + out.buffers[i].elemType + "* " + argName;
+    buffersBlock += ",\n                                  " + ty + " [[buffer(" +
+                    std::to_string(kBufferBaseSlot + static_cast<int>(i)) + ")]]";
+    bufParamsBlock += ", " + ty;
+    bufArgsBlock += ", " + argName;
+  }
+
   // 5. Inject the hooks. The three TEXTURE* hooks all derive from the SAME depth-first list, so the
   //    fragment arg, the evalField param, and the evalField call arg name+order line up exactly. All
   //    are EMPTY for a zero-texture field -> byte-identical to the pre-seam MSL.
   std::string code = templateMsl;
   code = injectHook(code, "GLOBALS", globalsBlock);
+  code = injectHook(code, "STRUCT_DEFS", structDefsBlock);
   code = injectHook(code, "FLOAT_PARAMS", paramsBlock);
   code = injectHook(code, "FIELD_CALL", cac.calls);
   code = injectHook(code, "TEXTURES", texturesBlock);
   code = injectHook(code, "TEXTURE_PARAMS", texParamsBlock);
   code = injectHook(code, "TEXTURE_ARGS", texArgsBlock);
+  code = injectHook(code, "BUFFERS", buffersBlock);
+  code = injectHook(code, "BUFFER_PARAMS", bufParamsBlock);
+  code = injectHook(code, "BUFFER_ARGS", bufArgsBlock);
 
   out.msl = code;
   out.srcHash = fnv1a64(out.msl);
