@@ -65,6 +65,9 @@ std::string swTypeForSymbolGuid(const std::string& guid) {
       // image-fx collapse (Blend 子類): Vector4Components decomposes a ColorA/ColorB vec4 boundary input
       // into X/Y/Z/W scalars that feed the fx-setup FloatParams rail. sw has value_op_vector4components.cpp.
       {"b15e4950-5c72-4655-84bc-c00647319030", "Vector4Components"},           // numbers/vec4/Vector4Components.cs:3 (sw value op)
+      // image-fx collapse (BubbleZoom 子類, gradient-fed): Vector2Components decomposes a Center/GainAndBias
+      // vec2 boundary input into X/Y scalars that feed the fx-setup FloatParams rail. sw value_op_vector2components.cpp.
+      {"0946c48b-85d8-4072-8f21-11d17cc6f6cf", "Vector2Components"},           // numbers/vec2/Vector2Components.cs:3 (sw value op)
       // 187 量產第一波: _ExecuteCombineBuffers (point/combine/_ExecuteCombineBuffers.cs:8) — the CODE-OP that
       // hides CombineBuffers.t3's whole compute-stage assembly (result alloc + per-input dispatch loop) in
       // C#. sw has a DEDICATED replay atom (buffer_ops_executecombinebuffers.cpp). Its ComputeShader child's
@@ -236,6 +239,15 @@ std::string swSlotNameForGuid(const std::string& swType, const std::string& slot
            {"162bb4fe-3c59-45c2-97cc-ecba85c1b275", "Z"},        // Z output (.cs)
            {"e1dede5f-6963-4bcc-aa12-abeb819bb5da", "W"},        // W output (.cs)
        }},
+      // image-fx collapse (BubbleZoom 子類): Vector2Components. Value(36f14238) vec2 input lands on the .x
+      // head (same vec-on-head fork); X/Y outputs feed the collapsed atom's FloatParams scalar rail.
+      // sw port ids from value_op_vector2components.cpp; slot guids from Vector2Components.cs [Input]/[Output].
+      {"Vector2Components",
+       {
+           {"36f14238-5bb8-4521-9533-f4d1e8fb802b", "Value.x"},  // Vector2 input → .x head (fork)
+           {"1cee5adb-8c3c-4575-bdd6-5669c04d55ce", "X"},        // X output (.cs:6-7)
+           {"305d321d-3334-476a-9fa3-4847912a4c58", "Y"},        // Y output (.cs:8-9)
+       }},
   };
   auto t = kTable.find(swType);
   if (t == kTable.end()) return std::string();
@@ -269,6 +281,14 @@ std::string swTexOpForCollapseRootGuid(const std::string& rootGuid) {
       // IntToFloat×3 → BlendMode/AlphaMode/ScaleMode, BoolToFloat → NormalForUpperHalf), all KEPT as real
       // sw children by the collapse (they have atoms + map rows). Proves the collapse table is not HSE-only.
       {"9f43f769-d32a-4f49-92ac-e0be3ba250cf", "Blend"},
+      // BubbleZoom (image/fx/distort/BubbleZoom.t3): the GRADIENT-FED proof — root = BubbleZoom.cs [Guid].
+      // Its fx-setup child's ImageB (t1) is fed by a GradientsToTexture child that renders the root's
+      // FeatherGradient boundary Gradient to a texture. sw's BubbleZoom atom instead consumes the Gradient
+      // DIRECTLY (it samples it in-shader), so the collapse ELIDES the GradientsToTexture pass-through
+      // (named fork gradientstotexture-elided-to-gradient-port, in t3_import_collapse.cpp): the atom's
+      // ImageB fixed slot maps to the "Gradient" port (④c) and receives GradientsToTexture's Gradients
+      // SOURCE. Two Vector2Components helpers (Center/GainAndBias vec2→X/Y) feed the FloatParams rail.
+      {"ca3f3c1b-6f22-4bf3-b06b-d2b0d85a8881", "BubbleZoom"},
   };
   auto it = kTable.find(t3Lc(rootGuid));
   return it != kTable.end() ? it->second : std::string();
@@ -292,6 +312,15 @@ std::string swCollapseSlotNameForGuid(const std::string& swType, const std::stri
            {"0bb90f8d-88c9-4a99-b44f-f284b505c65b", "ImageB"},  // _*FxSetupStatic.ImageB → Blend.ImageB
            {"76b6c677-12db-4404-aff7-ee3391d2d831", "out"},     // _*FxSetupStatic.Output → Blend.out
        }},
+      {"BubbleZoom",
+       {
+           {"55126bff-8c94-415d-96dd-3c16e216e663", "Image"},     // _*FxSetupStatic.ImageA → BubbleZoom.Image (t0)
+           // ImageB (t1) is the GRADIENT texture in TiXL; sw's BubbleZoom samples the Gradient DIRECTLY,
+           // so ImageB collapses onto the "Gradient" PORT. The collapse elides the GradientsToTexture child
+           // feeding this slot and re-anchors its Gradients source here (gradientstotexture-elided fork).
+           {"0bb90f8d-88c9-4a99-b44f-f284b505c65b", "Gradient"},  // _*FxSetupStatic.ImageB → BubbleZoom.Gradient
+           {"76b6c677-12db-4404-aff7-ee3391d2d831", "out"},       // _*FxSetupStatic.Output → BubbleZoom.out
+       }},
   };
   auto t = kTable.find(swType);
   if (t == kTable.end()) return std::string();
@@ -312,6 +341,13 @@ const std::vector<std::string>& swFloatParamOrderForCollapse(const std::string& 
        {"ColorA.x", "ColorA.y", "ColorA.z", "ColorA.w",
         "ColorB.x", "ColorB.y", "ColorB.z", "ColorB.w",
         "BlendMode", "AlphaMode", "NormalForUpperHalf", "ScaleMode"}},
+      // BubbleZoom FloatParams rail — verified against BubbleZoom.t3 wire order into 2929c4c9 AND the
+      // BubbleZoom.hlsl b0 cbuffer ParamConstants {Center.xy, ScaleFactor, Feather, Radius, GainAndBias.xy,
+      // FlipEffect}. Center/GainAndBias arrive as Vector2Components X/Y pairs; Magnify→ScaleFactor (sw port
+      // name Magnify, [fork-magnify-rename] in point_ops_bubblezoom.cpp). Matches the sw BubbleZoom port ids.
+      {"BubbleZoom",
+       {"Center.x", "Center.y", "Magnify", "Feather", "Radius",
+        "GainAndBias.x", "GainAndBias.y", "FlipEffect"}},
   };
   static const std::vector<std::string> kEmpty;
   auto it = kTable.find(swType);

@@ -38,6 +38,22 @@ using t3i::asStr;
 using t3i::isBoundaryGuid;
 using t3i::lc;
 
+namespace {
+// GRADIENT-FED collapse (named fork gradientstotexture-elided-to-gradient-port): a whole class of
+// image-fx wrappers (BubbleZoom, RemapColor, …) feed the fx-setup child's ImageB (t1) from a
+// GradientsToTexture child (SymbolId 2c53eee7) that renders the root's Gradient boundary into a 1D
+// texture. sw's collapsed atoms (e.g. BubbleZoom) instead consume the Gradient DIRECTLY (they sample it
+// in-shader — see point_ops_bubblezoom.cpp), so the intermediate GradientsToTexture render is redundant.
+// The collapse ELIDES the GradientsToTexture child: it is NOT emitted, and any wire off its Texture2D
+// output re-anchors to the SOURCE feeding its Gradients input (588be11f). So the .t3 chain
+//   <gradient src> → GTT.Gradients ; GTT.out → fxSetup.ImageB
+// collapses to  <gradient src> → atom.Gradient  (ImageB→Gradient via ④c). This is the ONLY sanctioned
+// elision — a GTT whose output does NOT feed a collapsing fx child is not reached by this pass.
+const char* const kGradientsToTextureGuid = "2c53eee7-eb38-449b-ad2a-d7a674952e5b";  // GradientsToTexture.cs:9
+const char* const kGradientsToTextureGradientsSlot =
+    "588be11f-d0db-4e51-8dbb-92a25408511c";  // GradientsToTexture.Gradients MultiInput (.cs:134-135)
+}  // namespace
+
 bool collapseImageFxWrapper(const crude_json::value& root, const std::string& swType, Symbol& sym,
                             SymbolLibrary& lib,
                             const std::function<void(const std::string&)>& warn) {
@@ -50,13 +66,31 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
   int fxSetupCount = 0;
   std::map<std::string, int> childGuidToId;    // helper .t3 guid → sw childId
   std::map<int, std::string> childIdToSwType;  // sw childId → sw type (for slot resolution)
+  std::map<std::string, std::pair<std::string, std::string>> gttGradientSrc;  // GTT guid → its Gradients wire src (guid,slot)
+  std::map<std::string, bool> gttChildGuids;   // .t3 guids of ELIDED GradientsToTexture children
   int nextChildId = 1;
+
+  // Pre-scan Connections for each GradientsToTexture child's Gradients-input SOURCE (the endpoint feeding
+  // 588be11f). The elision re-anchors GTT.out consumers onto this source. Done before Pass 1 so the child
+  // walk can skip GTT children knowing their source is captured. (A GTT with NO wired Gradients source is
+  // still elided; its consumers resolve to the empty source → dropped, mirroring an unwired atom.Gradient.)
+  if (root["Connections"].is_array())
+    for (const crude_json::value& wv : root["Connections"].get<crude_json::array>()) {
+      if (!wv.is_object()) continue;
+      if (lc(asStr(wv, "TargetSlotId")) != t3Lc(kGradientsToTextureGradientsSlot)) continue;
+      gttGradientSrc[lc(asStr(wv, "TargetParentOrChildId"))] = {lc(asStr(wv, "SourceParentOrChildId")),
+                                                                asStr(wv, "SourceSlotId")};
+    }
+
   if (root["Children"].is_array()) {
     for (const crude_json::value& cv : root["Children"].get<crude_json::array>()) {
       if (!cv.is_object()) continue;
       const std::string childGuid = lc(asStr(cv, "Id"));
       const std::string sid = lc(asStr(cv, "SymbolId"));
       if (isImageFxSetupGuid(sid)) { fxChildGuid = childGuid; fxSetupCount++; continue; }
+      // GradientsToTexture: ELIDED (gradientstotexture-elided-to-gradient-port). Not emitted as a child;
+      // recorded so resolveEndpoint substitutes its Gradients source for any wire off its output.
+      if (t3Lc(sid) == t3Lc(kGradientsToTextureGuid)) { gttChildGuids[childGuid] = true; continue; }
       const std::string helperType = swTypeForSymbolGuid(sid);
       if (helperType.empty()) {
         warn("t3: collapse helper child " + childGuid + " has unmapped SymbolId " + sid +
@@ -102,8 +136,18 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
   // Resolve a wire endpoint (guid+slotGuid) to a (childId, slotName) in the collapsed graph. Boundary →
   // (kSymbolBoundary, lowercased slot guid = SlotDef.id). Helper child → (its childId, sw slot name).
   // Returns false if the endpoint is a helper child whose slot has no sw name (wire then dropped).
-  auto resolveEndpoint = [&](const std::string& guid, const std::string& slotGuid,
-                             int& outChild, std::string& outSlot) -> bool {
+  std::function<bool(const std::string&, const std::string&, int&, std::string&)> resolveEndpoint =
+      [&](const std::string& guid, const std::string& slotGuid, int& outChild,
+          std::string& outSlot) -> bool {
+    // GradientsToTexture output → substitute its Gradients source (elision). GTT.out is the ONLY output
+    // consumers wire, so ANY endpoint on a GTT child re-anchors to that source (recurse once — the source
+    // is a boundary or a real helper, never another GTT in the wrappers we cover).
+    auto gtt = gttChildGuids.find(guid);
+    if (gtt != gttChildGuids.end()) {
+      auto src = gttGradientSrc.find(guid);
+      if (src == gttGradientSrc.end()) return false;  // GTT with unwired Gradients → consumer drops
+      return resolveEndpoint(src->second.first, src->second.second, outChild, outSlot);
+    }
     if (isBoundaryGuid(guid)) { outChild = kSymbolBoundary; outSlot = lc(slotGuid); return true; }
     auto it = childGuidToId.find(guid);
     if (it == childGuidToId.end()) return false;  // unknown (fx-setup handled by caller) → skip
@@ -122,6 +166,11 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       const std::string dstSlot = asStr(wv, "TargetSlotId");
       const bool srcIsFx = (srcGuid == fxChildGuid);
       const bool dstIsFx = (dstGuid == fxChildGuid);
+
+      // Wire INTO an elided GradientsToTexture child (e.g. <gradient src> → GTT.Gradients) is dropped:
+      // its source is re-anchored directly onto the atom when GTT.out → fxSetup.ImageB is processed
+      // (resolveEndpoint substitutes it there). Keeping it here would create a source→source self-wire.
+      if (gttChildGuids.count(dstGuid)) continue;
 
       if (dstIsFx) {
         // wire INTO the fx-setup child → re-anchor its TARGET onto the atom, keeping the SOURCE.

@@ -149,5 +149,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"t3-combinebuffers", runT3CombineBuffersParity},  // 187 量產第一波: real CombineBuffers.t3 code-op replay → concat oracle parity (量產配方 verification spike on an arbitrary compound)
     {"t3-hse", runT3HseParity},  // ★IMAGE-fx collapse seam: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle (RED→GREEN; -bug drops FxTexture → RED)
     {"t3-channelmixer", runT3ChannelMixerParity},  // ★IMAGE-fx collapse GENERALIZES: MULTI-child Blend.t3 (6 helper value ops + fx-setup) through the SAME collapse → Normal-blend oracle; proves not HSE-only (name is the pre-declared CLI slot; op = Blend)
+    {"t3-bubblezoom", runT3BubbleZoomParity},  // ★IMAGE-fx collapse GRADIENT-FED: BubbleZoom.t3 with GradientsToTexture ELIDED onto the atom's Gradient port (2×Vector2Components kept) → closed-form gradient oracle; -bug drops the Gradient wire → RED. Unlocks gradient-fed image-fx
 );
 }  // namespace sw
