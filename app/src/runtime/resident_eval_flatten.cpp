@@ -295,11 +295,29 @@ ProducerMap inlineSymbol(
     if (it == g.byPath.end()) continue;            // dst compound: bound via childIn already
     auto bit = inBindings.find(w.srcSlot);
     if (bit == inBindings.end()) continue;
+    // MultiInput dst (骨7 boundary-flatten seam): N boundary wires can land on ONE MultiInput slot
+    // (e.g. Space + StrengthFactor boundary wires → IntsToBuffer.Params). The pre-fix `in = b` OVERWROTE
+    // the primary each time — the 2nd wire clobbered the 1st, losing the MultiInput count/order (only
+    // one of the two ints survived). Mirror loop 2's MultiInput handling: the 2nd+ Connection-driver
+    // boundary wire APPENDS to extraConns (wire-declaration order = the order sym.connections lists
+    // them, which the marshal cook gathers as primary+extraConns). A non-Connection driver (Constant/
+    // Automation) or a non-multi slot keeps the whole-replace behaviour (single-cardinality inputs are
+    // byte-identical to before — the primary fields hold the one driver).
+    bool dstMulti = false;
+    if (const NodeSpec* dspec = findSpec(g.nodes[it->second].opType))
+      for (const PortSpec& p : dspec->ports)
+        if (p.id == w.dstSlot) { dstMulti = p.multiInput; break; }
     for (ResidentInput& in : g.nodes[it->second].inputs)
       if (in.slotId == w.dstSlot) {
         ResidentInput b = bit->second;
         b.slotId = w.dstSlot;
-        in = b;
+        if (dstMulti && in.driver == ResidentInput::Driver::Connection &&
+            b.driver == ResidentInput::Driver::Connection) {
+          // primary already set by an earlier boundary wire → this one is an extra MultiInput source.
+          in.extraConns.emplace_back(b.srcNodePath, b.srcSlotId);
+        } else {
+          in = b;  // first wire (or non-multi / non-Connection) sets the primary driver
+        }
       }
   }
 
@@ -308,19 +326,61 @@ ProducerMap inlineSymbol(
 
 }  // namespace
 
-ResidentEvalGraph buildEvalGraph(const SymbolLibrary& lib, const std::string& rootId) {
+namespace {
+// 骨7 top-level boundary injection: materialize a synthetic resident `Const` producer node holding
+// `value` (evaluated via evalResidentFloat("out")), keyed by a "$in/" path that cannot collide with a
+// real child id chain. Returns the ResidentInput a boundary consumer copies (a Connection to it).
+ResidentInput injectBoundaryConst(ResidentEvalGraph& g, const std::string& path, float value) {
+  ResidentNode rn;
+  rn.path = path;
+  rn.opType = "Const";
+  ResidentInput vin;
+  vin.slotId = "value";
+  vin.driver = ResidentInput::Driver::Constant;
+  vin.constant = value;
+  rn.inputs.push_back(vin);
+  g.byPath[rn.path] = (int)g.nodes.size();
+  g.nodes.push_back(std::move(rn));
+  ResidentInput out;
+  out.driver = ResidentInput::Driver::Connection;
+  out.srcNodePath = path;
+  out.srcSlotId = "out";
+  return out;
+}
+}  // namespace
+
+ResidentEvalGraph buildEvalGraph(const SymbolLibrary& lib, const std::string& rootId,
+                                 const std::map<std::string, std::vector<float>>& boundaryFloatInputs) {
   ResidentEvalGraph g;
   const Symbol* root = lib.find(rootId);
   if (!root) return g;
   std::vector<std::string> onPath = {rootId};
-  std::map<std::string, ResidentInput> noBindings;  // root has no outer driver
+  // 骨7 boundary injection: seed the root's boundary INPUT bindings from the caller-supplied values.
+  // Each root inputDef becomes ONE inBinding — a Connection to a synthetic Const producer. A boundary
+  // input feeding a MultiInput consumer through several DIFFERENT inputDefs rides loop-3 append; a
+  // single inputDef carrying several values (rare) materializes several Consts and the extra values
+  // ride the binding's extraConns (so a boundary input wired to a MultiInput slot expands to N).
+  std::map<std::string, ResidentInput> rootBindings;
+  for (const auto& [defId, values] : boundaryFloatInputs) {
+    if (values.empty()) continue;
+    ResidentInput b = injectBoundaryConst(g, "$in/" + defId + "#0", values[0]);
+    for (size_t i = 1; i < values.size(); ++i) {
+      ResidentInput extra = injectBoundaryConst(g, "$in/" + defId + "#" + std::to_string(i), values[i]);
+      b.extraConns.emplace_back(extra.srcNodePath, extra.srcSlotId);
+    }
+    rootBindings[defId] = b;
+  }
   // The public outputs map stays (path, slot)-shaped; only Connection producers are expressible
   // there (a root output whose producer is a bypassed compound's Constant redirect is dropped —
   // same expressiveness gap as the input->output passthrough skip, named in inlineSymbol).
-  for (const auto& [outId, ri] : inlineSymbol(lib, *root, "", noBindings, g, onPath, 0))
+  for (const auto& [outId, ri] : inlineSymbol(lib, *root, "", rootBindings, g, onPath, 0))
     if (ri.driver == ResidentInput::Driver::Connection)
       g.outputs[outId] = {ri.srcNodePath, ri.srcSlotId};
   return g;
+}
+
+ResidentEvalGraph buildEvalGraph(const SymbolLibrary& lib, const std::string& rootId) {
+  return buildEvalGraph(lib, rootId, {});  // no boundary injection — the plain flatten
 }
 
 }  // namespace sw

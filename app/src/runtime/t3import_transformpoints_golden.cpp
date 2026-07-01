@@ -18,13 +18,21 @@
 //   ATOM is GENERIC (binding driven by wired buffers), not TransformPoints-special-cased.
 //
 // ── FEEDING THE INPUT (honest test scaffold) ─────────────────────────────────────────────────────
-// The .t3's `Points` is a BOUNDARY input with no in-graph producer, and cookResident has no GPU-buffer
-// boundary-injection seam. So the golden REWIRES the imported symbol: a test-fixture Buffer producer
-// (t3xf_input_points, registered in this TU) emits a known N-point bag, and the boundary→GetBufferComponents
-// wire is repointed at it. The TRANSFORM is set as constant overrides on the imported TransformMatrix child
-// (the .t3's boundary Vector3 inputs don't vec-decompose through one wire — fork-t3-vec3-wire-lands-on-head),
-// matching the reference. This scaffolding drives the SAME production atoms/cook the live app runs; only the
-// input source + the transform's authoring are test-supplied.
+// The .t3's `Points` is a BOUNDARY input with no in-graph producer (no GPU-buffer boundary-injection seam
+// yet), so the golden REWIRES it: a test-fixture Buffer producer (t3xf_input_points, registered in this TU)
+// emits a known N-point bag, and the boundary→GetBufferComponents wire is repointed at it. The TRANSFORM is
+// set as constant overrides on the imported TransformMatrix child (the .t3's boundary Vector3 inputs don't
+// vec-decompose through one wire — fork-t3-vec3-wire-lands-on-head), matching the reference.
+//
+// ── 骨7 BOUNDARY-FLATTEN SEAM (Const scaffold REMOVED) ────────────────────────────────────────────
+// The marshal Params (Strength/Space/StrengthFactor) used to be hand-authored as Const CHILDREN repointed
+// onto the marshal ops — a scaffold that hid the real gap (a top-level compound's boundary inputs dropped
+// on flatten, and two boundary wires into one MultiInput slot overwrote each other). That scaffold is GONE:
+// the boundary wires stay intact and the values are fed through buildEvalGraph's TOP-LEVEL BOUNDARY-INJECTION
+// overload (骨7) — exactly what a real parent .t3 supplies. The flatten materializes a synthetic Const
+// producer per boundary value AND appends the two IntsToBuffer.Params boundary wires (Space, StrengthFactor)
+// in order (loop-3 MultiInput append). Only the input source + the transform authoring remain test-supplied;
+// the Params boundary path now runs the PRODUCTION flatten seam end-to-end.
 //
 // ZONE: runtime golden (shell tier — binds runtime import + resident cook + the host-matrix reference).
 #include <cmath>
@@ -212,37 +220,30 @@ int runT3TransformPointsParity(bool injectBug) {
     c.overrides["UniformScale"] = 1.0f; c.overrides["RotationMode"] = 0.0f;
     break;
   }
-  // (c) Marshal-payload scalars via Const producers (the .t3 wires these from boundary inputs; sw's
-  //     resident marshal-Float gather only collects Connection-driven sources, so the golden supplies the
-  //     values a parent/upstream would as real wired Const nodes). Repoint each boundary→marshal.Params
-  //     wire at a Const: Strength=1.0 → FloatsToBuffer.Params; Space=1(ObjectSpace) + StrengthFactor=0 →
-  //     IntsToBuffer.Params (wire order = Space then StrengthFactor, matching cb1 = {Space, StrengthFactor}).
-  auto addConst = [&](float v) -> int {
-    int id = sym->nextChildId++;
-    SymbolChild c; c.id = id; c.symbolId = "Const"; c.overrides["value"] = v;
-    sym->children.push_back(c);
-    if (!lib.symbols.count("Const"))
-      if (const NodeSpec* fs = findSpec("Const")) lib.symbols["Const"] = atomicSymbolFromSpec(*fs);
-    return id;
-  };
-  // Rebind each boundary→(marshal).Params wire (in ARRAY ORDER, preserving MultiInput order) to a Const.
-  // Strength boundary guid → FloatsToBuffer.Params; Space & StrengthFactor boundary → IntsToBuffer.Params.
-  for (SymbolConnection& w : sym->connections) {
+  // (c) Marshal-payload scalars via the 骨7 TOP-LEVEL BOUNDARY-INJECTION seam (NO Const scaffold).
+  //     The .t3 wires Strength/Space/StrengthFactor from the compound's BOUNDARY inputs into the marshal
+  //     ops' Params MultiInput. This compound runs in ISOLATION (no parent), so those boundary inputs have
+  //     no in-graph producer. Instead of hand-authoring Const children (the pre-seam scaffold), we LEAVE the
+  //     boundary wires intact and feed each boundary INPUT DEF a value through buildEvalGraph's injection
+  //     overload — EXACTLY what a real parent .t3 would supply. The flatten materializes a synthetic Const
+  //     producer per value and resolves the boundary wires to it as Connection drivers; the two boundary
+  //     wires into IntsToBuffer.Params (Space then StrengthFactor) ride the loop-3 MultiInput append in
+  //     wire-declaration order (cb1 = {Space, StrengthFactor}).
+  //       Strength boundary guid → 1.0 ; Space guid 1ab4671f… → 1.0 (ObjectSpace) ; StrengthFactor → 0.0.
+  std::map<std::string, std::vector<float>> boundaryFloatInputs;
+  for (const SymbolConnection& w : sym->connections) {
     if (w.srcChild != kSymbolBoundary || w.dstSlot != "Params") continue;
     const std::string swType = [&]{
       for (const SymbolChild& c : sym->children) if (c.id == w.dstChild) return c.symbolId; return std::string(); }();
     float v = 0.0f;
     if (swType == "FloatsToBuffer") v = 1.0f;          // Strength
-    else if (swType == "IntsToBuffer") {
-      // two wires land here: Space(first) then StrengthFactor(second). Distinguish by the boundary guid.
-      // Space guid 1ab4671f…, StrengthFactor guid a2b65311…
-      v = (w.srcSlot.rfind("1ab4671f", 0) == 0) ? 1.0f /*ObjectSpace*/ : 0.0f /*StrengthFactor*/;
-    }
-    w.srcChild = addConst(v); w.srcSlot = "out";
+    else if (swType == "IntsToBuffer")                 // Space guid 1ab4671f… → ObjectSpace(1); else StrengthFactor(0)
+      v = (w.srcSlot.rfind("1ab4671f", 0) == 0) ? 1.0f : 0.0f;
+    boundaryFloatInputs[w.srcSlot] = {v};              // one boundary inputDef → one scalar producer value
   }
 
-  // ---- STEP 2: build the eval graph via the PRODUCTION flattener + settle the matrix rows ----
-  ResidentEvalGraph g = buildEvalGraph(lib, rootId);
+  // ---- STEP 2: build the eval graph via the PRODUCTION flattener (+ 骨7 boundary injection) + settle rows ----
+  ResidentEvalGraph g = buildEvalGraph(lib, rootId, boundaryFloatInputs);
   initResidentCache(g);
   ResidentEvalCtx rc; rc.frameIndex = 0; rc.localTime = 0.0f; rc.localFxTime = 0.0f; rc.lib = &lib;
   cookMatrixOutputNodes(g, rc);  // TransformMatrix → 4 transposed SRT rows onto extColorOut
@@ -311,8 +312,12 @@ int runT3TransformPointsParity(bool injectBug) {
   }
 
   // injectBug leg: the importer's routing tooth reversed the FIRST MultiInput collision (the two boundary
-  // wires into IntsToBuffer.Params = Space/StrengthFactor). That perturbs a KEPT wire order → the replay
-  // must DIVERGE from the reference (or fail to produce). Tooth bites iff parity is NOT green under -bug.
+  // wires into IntsToBuffer.Params = Space/StrengthFactor). Now that the boundary values ride the 骨7
+  // injection seam, the swap flips the ORDER those two wires land in IntsToBuffer.Params's extraConns
+  // (loop-3 append follows sym.connections order) → cb1 = {StrengthFactor, Space} instead of
+  // {Space, StrengthFactor} → Space reads 0 (WorldSpace) → the replay DIVERGES from the ObjectSpace
+  // reference. Tooth bites iff parity is NOT green under -bug (proves the MultiInput order is load-bearing
+  // AND actually flows through the new boundary path, not silently dropped).
   const bool bites = !parityGreen;
   printf("[t3-transformpoints] -bug: routing tooth %s (parity green under bug == %s)\n",
          bites ? "BITES" : "TOOTHLESS", parityGreen ? "true" : "false");

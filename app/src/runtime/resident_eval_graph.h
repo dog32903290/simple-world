@@ -183,6 +183,22 @@ float sampleAutomation(const ResidentEvalCtx& ctx, const ResidentInput& ri);
 // to bail us out). Returns an empty graph if rootId is missing.
 ResidentEvalGraph buildEvalGraph(const SymbolLibrary& lib, const std::string& rootId);
 
+// 骨7 boundary-flatten seam — TOP-LEVEL BOUNDARY INJECTION. A root compound run in ISOLATION
+// (e.g. a .t3 compound replayed on its own, no parent supplying its boundary inputs) has boundary
+// inputs with no in-graph producer, so its inner consumers read 0/null (the boundary wire drops in
+// the plain overload: noBindings → loop-3 miss). This overload lets the caller feed each root
+// boundary INPUT def a value, EXACTLY as a real parent .t3 would wire a producer into it: for each
+// (rootInputDefId → values), a synthetic resident `Const` producer node is materialized per value
+// and the root's boundary wires resolve to it as Connection drivers. A MultiInput consumer slot fed
+// by several boundary inputs collects them in wire-declaration order (loop-3 MultiInput append).
+// Values are scalar Floats (the marshal rail's currency); a single-valued binding = one Const.
+// This is the seam that replaces the Const-scaffold the keystone golden used — the injected Const
+// is the SAME thing a parent would supply, now materialized at flatten time instead of hand-authored
+// into the Symbol. Empty map == the plain overload (no injection). Producer node paths are namespaced
+// under a reserved "$in/" prefix so they never collide with a real child path.
+ResidentEvalGraph buildEvalGraph(const SymbolLibrary& lib, const std::string& rootId,
+                                 const std::map<std::string, std::vector<float>>& boundaryFloatInputs);
+
 // Pull the float value produced by (nodePath, outSlotId), resolving each input's driver and
 // recursing Connection drivers. Reuses the SAME NodeSpec::evaluate fns as flat evalFloat
 // (builds a transient 16-byte EvaluationContext: time = ctx.localFxTime for now). depth>64
