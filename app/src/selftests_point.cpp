@@ -148,5 +148,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"t3-transformpoints", runT3TransformPointsParity},  // ★KEYSTONE首證: real TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe — MEASURED RED (replay seam hole: no ComputeShaderStage atom)
     {"t3-combinebuffers", runT3CombineBuffersParity},  // 187 量產第一波: real CombineBuffers.t3 code-op replay → concat oracle parity (量產配方 verification spike on an arbitrary compound)
     {"t3-hse", runT3HseParity},  // ★IMAGE-fx collapse seam: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle (RED→GREEN; -bug drops FxTexture → RED)
+    {"t3-channelmixer", runT3ChannelMixerParity},  // ★IMAGE-fx collapse GENERALIZES: MULTI-child Blend.t3 (6 helper value ops + fx-setup) through the SAME collapse → Normal-blend oracle; proves not HSE-only (name is the pre-declared CLI slot; op = Blend)
 );
 }  // namespace sw

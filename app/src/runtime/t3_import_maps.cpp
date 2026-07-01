@@ -62,6 +62,9 @@ std::string swTypeForSymbolGuid(const std::string& guid) {
       // vec3→3 floats) both already exist as sw value ops (value_op_inttofloat.cpp / value_op_vector3components.cpp).
       {"17db8a36-079d-4c83-8a2a-7ea4c1aa49e6", "IntToFloat"},                  // numbers/int/basic/IntToFloat.cs:3 (sw value op)
       {"a8083b41-951e-41f2-bb8a-9b511da26102", "Vector3Components"},           // numbers/vec3/Vector3Components.cs:3 (sw value op)
+      // image-fx collapse (Blend 子類): Vector4Components decomposes a ColorA/ColorB vec4 boundary input
+      // into X/Y/Z/W scalars that feed the fx-setup FloatParams rail. sw has value_op_vector4components.cpp.
+      {"b15e4950-5c72-4655-84bc-c00647319030", "Vector4Components"},           // numbers/vec4/Vector4Components.cs:3 (sw value op)
       // 187 量產第一波: _ExecuteCombineBuffers (point/combine/_ExecuteCombineBuffers.cs:8) — the CODE-OP that
       // hides CombineBuffers.t3's whole compute-stage assembly (result alloc + per-input dispatch loop) in
       // C#. sw has a DEDICATED replay atom (buffer_ops_executecombinebuffers.cpp). Its ComputeShader child's
@@ -222,6 +225,17 @@ std::string swSlotNameForGuid(const std::string& swType, const std::string& slot
            {"f07622c1-aca1-4b8b-8e4a-42d94be87539", "Y"},        // Y output (.cs:8-9)
            {"5173cf99-c9ae-4da4-8b7a-a6b6f27daa84", "Z"},        // Z output (.cs:10-11)
        }},
+      // image-fx collapse (Blend 子類): Vector4Components. Value(980ef785) vec4 input lands on the .x head
+      // (same vec-on-head fork as Vector3Components); X/Y/Z/W outputs feed the collapsed atom's scalar rail.
+      // sw port ids from value_op_vector4components.cpp.
+      {"Vector4Components",
+       {
+           {"980ef785-6ae2-44d1-803e-febfc75791c5", "Value.x"},  // Vector4 input → .x head (fork)
+           {"cfb58526-0053-4bca-aa85-d83823efba96", "X"},        // X output (.cs)
+           {"2f8e90dd-ba03-43dc-82a2-8d817df45cc7", "Y"},        // Y output (.cs)
+           {"162bb4fe-3c59-45c2-97cc-ecba85c1b275", "Z"},        // Z output (.cs)
+           {"e1dede5f-6963-4bcc-aa12-abeb819bb5da", "W"},        // W output (.cs)
+       }},
   };
   auto t = kTable.find(swType);
   if (t == kTable.end()) return std::string();
@@ -250,6 +264,11 @@ std::string swTexOpForCollapseRootGuid(const std::string& rootGuid) {
   static const std::map<std::string, std::string> kTable = {
       // HSE (image/color/HSE.t3): the ONLY pure single-child cc34a183 wrapper. Root guid = HSE.cs [Guid].
       {"3c8003e8-70ca-4d71-9294-3df845bbb4a5", "HSE"},
+      // Blend (image/use/Blend.t3): the MULTI-child generalization proof. Root = Blend.cs [Guid]. Its
+      // fx-setup child's FloatParams rail is fed by helper value ops (Vector4Components×2 → ColorA/ColorB,
+      // IntToFloat×3 → BlendMode/AlphaMode/ScaleMode, BoolToFloat → NormalForUpperHalf), all KEPT as real
+      // sw children by the collapse (they have atoms + map rows). Proves the collapse table is not HSE-only.
+      {"9f43f769-d32a-4f49-92ac-e0be3ba250cf", "Blend"},
   };
   auto it = kTable.find(t3Lc(rootGuid));
   return it != kTable.end() ? it->second : std::string();
@@ -267,6 +286,12 @@ std::string swCollapseSlotNameForGuid(const std::string& swType, const std::stri
            {"0bb90f8d-88c9-4a99-b44f-f284b505c65b", "FxTexture"},  // _*FxSetupStatic.ImageB  → HSE.FxTexture
            {"76b6c677-12db-4404-aff7-ee3391d2d831", "out"},        // _*FxSetupStatic.Output  → HSE.out
        }},
+      {"Blend",
+       {
+           {"55126bff-8c94-415d-96dd-3c16e216e663", "ImageA"},  // _*FxSetupStatic.ImageA → Blend.ImageA
+           {"0bb90f8d-88c9-4a99-b44f-f284b505c65b", "ImageB"},  // _*FxSetupStatic.ImageB → Blend.ImageB
+           {"76b6c677-12db-4404-aff7-ee3391d2d831", "out"},     // _*FxSetupStatic.Output → Blend.out
+       }},
   };
   auto t = kTable.find(swType);
   if (t == kTable.end()) return std::string();
@@ -280,6 +305,13 @@ std::string swCollapseSlotNameForGuid(const std::string& swType, const std::stri
 const std::vector<std::string>& swFloatParamOrderForCollapse(const std::string& swType) {
   static const std::map<std::string, std::vector<std::string>> kTable = {
       {"HSE", {"Hue", "Saturation", "Exposure"}},
+      // Blend FloatParams rail (verified against Blend.t3 wire order + Blend.cs input order + guids):
+      // ColorA(Vec4C).xyzw, ColorB(Vec4C).xyzw, then BlendMode, AlphaMode, NormalForUpperHalf, ScaleMode
+      // (the int/bool scalars, fed through IntToFloat/BoolToFloat helpers). Matches Blend atom port ids.
+      {"Blend",
+       {"ColorA.x", "ColorA.y", "ColorA.z", "ColorA.w",
+        "ColorB.x", "ColorB.y", "ColorB.z", "ColorB.w",
+        "BlendMode", "AlphaMode", "NormalForUpperHalf", "ScaleMode"}},
   };
   static const std::vector<std::string> kEmpty;
   auto it = kTable.find(swType);

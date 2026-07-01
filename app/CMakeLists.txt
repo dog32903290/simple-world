@@ -649,6 +649,7 @@ add_executable(simple_world
   src/runtime/t3import_displacemeshnoise_golden.cpp # 骨9 MESH mixed-slot: DisplaceMeshNoise.t3 interleaved FloatsToBuffer.Params → SwVertex vs snoise oracle
   src/runtime/t3import_combinebuffers_golden.cpp   # 187 量產第一波: CombineBuffers.t3 code-op replay → concat-oracle parity (recipe verification spike)
   src/runtime/t3import_hse_golden.cpp              # ★IMAGE-fx collapse: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle
+  src/runtime/t3import_blend_golden.cpp            # ★IMAGE-fx collapse GENERALIZES: MULTI-child Blend.t3 (6 helper value ops + fx-setup) → same collapse → Normal-blend oracle (proves not HSE-only)
   src/runtime/output_slot_view_selftest.cpp  # output-slot picker golden (viewProducerPath startSlot)
   src/runtime/compound_save.cpp
   src/runtime/compound_load.cpp
