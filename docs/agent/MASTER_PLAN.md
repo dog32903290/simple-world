@@ -35,14 +35,28 @@ STAMP_AT: 2026-07-01T12:20
 - **★alpha 是 closed-form 不是延後**（柏為 2026-07-01 糾正）：TiXL `DefaultRenderingStates.cs` `DestinationAlphaBlend=InverseSourceAlpha` 常數（Normal/Additive 都是）→ 本機 golden 驗（Additive `dstA==InvSrcAlpha` red-first），零 Windows frame。build agent 曾把它從 RGB-dst 推導（Additive 錯）又貼「延後 Windows」標籤掩蓋→refuter 抓出。**方法已固化成 skill `parity-without-reference-frame`**（拆 closed-form/emergent/no-equiv，別預設看畫面）+ [[parity-gate-split-deterministic-vs-emergent]]。
 - **⚠ 誠實延後（named fork，非「卡 Windows」）**：**DepthBias numeric-scale** = 真 emergent（規範 `VK_EXT_depth_bias_control` 明文允許兩邊 r 不同）→ named fork、**不建畫面閘**（根本沒 on-machine TiXL，畫面閘是空的）、真有 .t3 接了 depth-bias 才補。這**不是**阻塞。
 
-**★★下一棒（柏為 2026-07-01 12:12 定「先苦後甘」→ 硬骨頭已釘，待柏為選具體 spike）：**
-- **★★存亡未知已關（reasoned）＝原子重放對 GPU 節點沒有架構天花板**：hard-bone scout 讀 code 定案——最硬骨頭＝`GenerateShaderGraphCode`（動態 HLSL codegen），**非** `ComputeShaderStage`（後者僅 bind+dispatch，sw 已到處有）。sw 已有 **live、TiXL-parity 的動態 shader codegen 管道**：`field_graph.h assembleFieldMSL`（拼字串）+ `metal_compile.mm compileLibraryFromSource`（動態編譯）+ `tex_op_cache.cpp srcHash PSO cache`（對應 ChangedFlags.Code），wire 進 live app（`main.cpp:278`），已綠燈跑完 `field→PointColorWithField→DrawPoints` 複合 cook。DrawPoints=hybrid(fixed 骨架 shader + codegen ColorField)，sw 已複刻同一 split。**剩下是廣度（接更多 template + 把 compute-stage 暴露成離散原子）非賭注。** 詳 [[atom-replay-codegen-bone-already-live]]。
-- **候選下一棒（synthesis 已給柏為，待他選）**：① **Spike A**＝拿最小 SDF leaf（`field_ops_spheresdf`）走一次動態編譯（既有 `runFieldCodegenSelfTest` 入口）+ 新 hook 組合 → 把存亡未知 reasoned→tested（綠=正式關閉，剩全廣度可並行；紅=天花板在 HLSL→MSL snippet 翻譯＝軟，逐 snippet 非架構）。② **視覺 demo**＝cook 現綠的 `field→DrawPoints` 複合 + 內建 eye 截圖給柏為肉眼驗（orchestrator 可用 eye-hand）。③ **importer step3**（buffer-currency keystone，碰 cook-core）＝真 `.t3` 重放（Layer 2），等柏為。
-- **★no pure-CPU welded compound**（scout 定論）：148 顆焊死複合**全在 GPU 島**，純 CPU/math/list 複合走原子軌不焊死 → 無純 CPU ground-truth 可對驗 →「最淺 CPU 第一刀」不存在，compound-first 只能選 GPU 骨頭。詳 [[no-pure-cpu-welded-compound]]。
-- 低優先殘留：Fork B dormant tripwire（單 hasRenderState gate，非-TriangleList IA 疊 inner Rasterizer 靜默丟 topology）→ fixer backlog，非阻塞；TransformsConstBuffer resident camera golden（reasoned-not-tested）；DepthBias numeric（named fork）。
+**★★施作順序＝hard-bone-first（柏為 2026-07-01 15:21 approve「先啃完所有最難的、驗證，再清簡單尾巴」；census by mechanism，code-verified 信心）：**
+真 genuinely-unknown 只有 3 根（骨1 importer-parity / 骨5 particle-parity / 骨6b point→field），其中**只有骨1 卡柏為**。已關的骨頭別再列未知：codegen 存亡（reasoned-closed [[atom-replay-codegen-bone-already-live]]）、render-state（done）、feedback（done）、ComputeShaderStage（誤報，僅 bind+dispatch）。
+```
+先啃（keystone，最先，最關鍵/信心最低）:
+  骨1  .t3 importer → live resident cook，證 replay==焊死版 byte/pixel-parity   ★卡柏為(見下)
+並行自走 de-risk（零 cook-core、不卡柏為，可與骨1同時）:
+  骨5  particle/stateful parity harness（fixed-seed 單步 readback golden 錨 TiXL .cs；pool-fork 路線柏為已拍）
+  骨6b RepeatFieldAtPoints（point→field resource seam，收尾 6 field op）
+  骨2  HLSL→MSL 翻譯尾巴（KNOWN-works：151 .metal shipped/92 golden；對帳差集逐顆翻+golden，純體力）
+  骨4  mesh-buffer 橋原子（_MeshBufferComponents/_AssembleMeshBuffers，兩端 currency 已建）
+骨1 GREEN 後解鎖:
+  骨3  compute-stage 離散可重放原子（依賴骨1接縫定義的 spec 形狀）
+  [187 未做複合 .t3 replay 批 — 大量並行體力]
+卡柏為/實體:  骨1決策、骨6c io/audio 裝置
+```
+- **★★骨1 keystone 信心上修（census code-verified）**：keystone 的**機器早已在 main 建好且 live**——spike/t3-importer 從 `de92fa3` 停在第2步，但 main 後續 52 commit 已把 buffer currency（`buffer_op_registry`+6 buffer op+production live）+ 巢狀 resident cook（`resident_eval_flatten.cpp::inlineSymbol` 遞迴內聯，含 MultiInput/buffer-shaped）建好。**keystone 不是「造機器」是「接縫驗證」**：importer 從沒 forward-port 進 main（`grep importT3 main = 0`）、從沒接上 `buildEvalGraph`、從沒拿真複合證 parity。詳 [[t3-importer-keystone-machine-already-on-main]]。
+- **骨1 執行（柏為 15:21 委派 2 決策給 orchestrator）**：① importer **forward-port** `.worktrees/t3-importer/app/src/runtime/t3_import.cpp` 進 main 接 `buildEvalGraph`（不特別 merge 整個 spike 分支）② 首證複合 orchestrator 挑（最小-非平凡：buffer+巢狀+1 GPU stage，從 148 焊死複合選）。接縫主戰場＝`resident_eval_flatten.cpp::inlineSymbol`；live cook 入口＝`frame_cook.cpp:281/387`。GREEN=replay 軌成立、187 複合解鎖；RED=flatten↔importer 接縫或 buffer 內聯有洞，暴露具體缺口。
+- **★no pure-CPU welded compound**：148 焊死複合全在 GPU 島 →「最淺 CPU 第一刀」不存在，首證只能選 GPU 骨頭。詳 [[no-pure-cpu-welded-compound]]。
+- 低優先殘留：Fork B dormant tripwire → fixer backlog；TransformsConstBuffer resident camera golden；DepthBias numeric（named fork）。
 
-**★並行/衝突（Session Safety）**：無 active 平行 lane，tree clean @ `7666202`，未 push 領先 origin（待柏為授權）。
-- **柏為在場對話中（12:xx）**：方向＝先苦後甘啃硬骨頭；hard-bone scout 已回報「codegen 骨頭已 live」，等柏為選 Spike A / 視覺 demo / importer。
+**★並行/衝突（Session Safety）**：tree clean @ `7666202`，未 push 領先 origin（待柏為授權）。
+- **骨1 keystone lane 啟動中（柏為 15:21「走」）**：orchestrator 挑首證複合 + forward-port importer 證 parity。此 lane 碰 cook-core 邊緣（`buildEvalGraph`/`inlineSymbol`），**與任何碰 `resident_eval_flatten.cpp`/`frame_cook.cpp` 的 lane owner-lock 互斥**。並行自走 lane（骨5/6b/2/4）踩不同檔域可同跑，但合流時共享 registration 檔（selftests_decls/point/CMakeLists）序列 append。
 - 已修坑（進 memory/skill 自動避）：連線 drop→[[worktree-agent-must-commit-to-branch]]；`git reset` 洩 shared main→工單「只在自己 worktree」；stale-binary→[[bite-verify-check-binary-mtime]]。**新：watchdog 讀 symlink mtime 假死**（agent output 是 symlink→指真 `.jsonl` 路徑才準）→ [[agent-watchdog-follow-symlink-target]]。
 
 ---
