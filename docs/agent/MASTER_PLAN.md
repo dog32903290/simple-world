@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 3e78125
-DIRTY: 1 files
+HEAD: 7666202
+DIRTY: clean
 CENSUS: 472 / 749 done
-BITE: 552 PASS
-STAMP_AT: 2026-07-01T11:08
+BITE: 556 PASS
+STAMP_AT: 2026-07-01T12:20
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -28,24 +28,22 @@ STAMP_AT: 2026-07-01T11:08
 
 ## Active Lane
 
-**★現狀（2026-07-01 11:06，HEAD `3e78125`，--bite 552，clean，已 push origin @ `3e78125`＝柏為 10:44 授權推、origin 同步）** — 前情（Seam1/vec4/param 全 DONE）在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)：
+**★現狀（2026-07-01 12:20，HEAD `7666202`，--bite 556，clean，**未 push 領先 origin**＝待柏為授權）** — **render-state keystone 四顆全齊（Rasterizer/OM/IA/Draw）**。前情（Seam1/vec4/param 全 DONE）在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)；下方 Seam2 兩塊 DONE 為 done-record 非 active：
 - **Seam 2 render-state 兩塊都 DONE（原子地基 keystone #2）**：
   - **① Rasterizer encoder state（`ce14f9f`）**：`FrozenRenderState` + closed-form DX11→Metal 表（25 static_assert 鎖 MTL ABI）+ **both-leg flat/resident byte-identical golden**（最高風險 resident-only 無聲錯 render，de-risk via 單一 shared stamp helper；per-item STAMP 非 cook-core accumulator＝divergence-proof、零 cook-core leg 改動）。cull/winding/depthBias 走 encoder dynamic state。refuter 5/5 SURVIVES。
   - **② OutputMerger blend-PSO（`a59ff2d`）**：blend/depth 表接進 `makeDrawPSO`（不再 hardcode BlendMode）+ per-item blend-PSO cache（`frozenPSOKey`）。both-leg + cook-through goldens。refuter 5/6 SURVIVE→抓出 alpha bug + header bump→fixer 收。press-pass：unstamped 走 legacy PSO byte-identical，552 全綠。
 - **★alpha 是 closed-form 不是延後**（柏為 2026-07-01 糾正）：TiXL `DefaultRenderingStates.cs` `DestinationAlphaBlend=InverseSourceAlpha` 常數（Normal/Additive 都是）→ 本機 golden 驗（Additive `dstA==InvSrcAlpha` red-first），零 Windows frame。build agent 曾把它從 RGB-dst 推導（Additive 錯）又貼「延後 Windows」標籤掩蓋→refuter 抓出。**方法已固化成 skill `parity-without-reference-frame`**（拆 closed-form/emergent/no-equiv，別預設看畫面）+ [[parity-gate-split-deterministic-vs-emergent]]。
 - **⚠ 誠實延後（named fork，非「卡 Windows」）**：**DepthBias numeric-scale** = 真 emergent（規範 `VK_EXT_depth_bias_control` 明文允許兩邊 r 不同）→ named fork、**不建畫面閘**（根本沒 on-machine TiXL，畫面閘是空的）、真有 .t3 接了 depth-bias 才補。這**不是**阻塞。
 
-**★★下一棒（明確＝完成 render-state keystone 的最後 2 顆 stage-op；cook-core/render 一次一條）：**
-1. **InputAssemblerStage + Draw op（render-state「4 op leaf」的剩 2 顆，Rasterizer+OutputMerger 已做）**：脊椎已建、這兩顆是**葉子**（比 accumulator/PSO 脊椎低風險）。規格＝`SEAM2_RENDERSTATE_BUILD_PLAN.md` **line 40, 86-88, 108**：
-   - **InputAssemblerStage**（新檔 `point_ops_inputassembler.cpp`）：`PrimitiveTopology→MTL::PrimitiveType`，**具名 FORK**：InputLayout/VertexBuffers/IndexBuffer 丟棄（sw VS=SV_VertexID-driven，buffer 由 Draw 綁）→ IA=topology only。
-   - **Draw**（新檔 `point_ops_draw_explicit.cpp`）：`RenderDrawItem{kind from topology, frozen=accum, count=VertexCount}`，`VertexStart→drawPrimitives baseVertex`。
-   - 工法：harness-first both-leg + cook-through golden（topology→primitive 是 enum 映射＝**closed-form，別貼延後**，用 skill `parity-without-reference-frame`）→ refuter → 親手復跑（**先 `cmake --build app/build -j` + 對 binary mtime**，防 stale-binary 假數）→ 合流。一顆 build agent 做兩顆即可（共享 registration「low-contention append」）。
-2. 低優先殘留：TransformsConstBuffer resident camera golden（reasoned-not-tested，低風險）；DepthBias numeric（named fork，非阻塞）。
+**★★下一棒（柏為 2026-07-01 12:12 定「先苦後甘」→ 硬骨頭已釘，待柏為選具體 spike）：**
+- **★★存亡未知已關（reasoned）＝原子重放對 GPU 節點沒有架構天花板**：hard-bone scout 讀 code 定案——最硬骨頭＝`GenerateShaderGraphCode`（動態 HLSL codegen），**非** `ComputeShaderStage`（後者僅 bind+dispatch，sw 已到處有）。sw 已有 **live、TiXL-parity 的動態 shader codegen 管道**：`field_graph.h assembleFieldMSL`（拼字串）+ `metal_compile.mm compileLibraryFromSource`（動態編譯）+ `tex_op_cache.cpp srcHash PSO cache`（對應 ChangedFlags.Code），wire 進 live app（`main.cpp:278`），已綠燈跑完 `field→PointColorWithField→DrawPoints` 複合 cook。DrawPoints=hybrid(fixed 骨架 shader + codegen ColorField)，sw 已複刻同一 split。**剩下是廣度（接更多 template + 把 compute-stage 暴露成離散原子）非賭注。** 詳 [[atom-replay-codegen-bone-already-live]]。
+- **候選下一棒（synthesis 已給柏為，待他選）**：① **Spike A**＝拿最小 SDF leaf（`field_ops_spheresdf`）走一次動態編譯（既有 `runFieldCodegenSelfTest` 入口）+ 新 hook 組合 → 把存亡未知 reasoned→tested（綠=正式關閉，剩全廣度可並行；紅=天花板在 HLSL→MSL snippet 翻譯＝軟，逐 snippet 非架構）。② **視覺 demo**＝cook 現綠的 `field→DrawPoints` 複合 + 內建 eye 截圖給柏為肉眼驗（orchestrator 可用 eye-hand）。③ **importer step3**（buffer-currency keystone，碰 cook-core）＝真 `.t3` 重放（Layer 2），等柏為。
+- **★no pure-CPU welded compound**（scout 定論）：148 顆焊死複合**全在 GPU 島**，純 CPU/math/list 複合走原子軌不焊死 → 無純 CPU ground-truth 可對驗 →「最淺 CPU 第一刀」不存在，compound-first 只能選 GPU 骨頭。詳 [[no-pure-cpu-welded-compound]]。
+- 低優先殘留：Fork B dormant tripwire（單 hasRenderState gate，非-TriangleList IA 疊 inner Rasterizer 靜默丟 topology）→ fixer backlog，非阻塞；TransformsConstBuffer resident camera golden（reasoned-not-tested）；DepthBias numeric（named fork）。
 
-**★並行/衝突（Session Safety）**：無 active 平行 lane，tree clean @ `3e78125`，origin 同步。
-- **⚠ IA+Draw 首次嘗試 agent 死了（2026-07-01 10:42 派、~10:45 連線 drop 死、零 output）**：無 worktree/無 commit/無 salvage＝**這批沒發生、零損失**，不是「做到一半」。fresh session 直接照上面「下一棒」重派即可（別去找殘骸，沒有）。
-- **⚠ 今天 session 不順（柏為 10:57 決定重開 Claude 再來）**：API 連線今天反覆 mid-stream drop（殺了 3 個 agent），故柏為重啟。**fresh session 開頭照常跑 `sw_status.sh` 定位，零損失接續。** 三個已修的坑（都已進 memory/skill，會自動避）：① 連線 drop→[[worktree-agent-must-commit-to-branch]] 增量 commit。② agent `git reset` 洩到 shared main→工單鐵律「只在自己 worktree、不碰 shared ref」。③ stale-binary 假數→[[bite-verify-check-binary-mtime]] 驗前對 binary mtime。
-- 待清 stray：`seam2-renderstate`(空)、已合流 `worktree-agent-*`（可 prune）。
+**★並行/衝突（Session Safety）**：無 active 平行 lane，tree clean @ `7666202`，未 push 領先 origin（待柏為授權）。
+- **柏為在場對話中（12:xx）**：方向＝先苦後甘啃硬骨頭；hard-bone scout 已回報「codegen 骨頭已 live」，等柏為選 Spike A / 視覺 demo / importer。
+- 已修坑（進 memory/skill 自動避）：連線 drop→[[worktree-agent-must-commit-to-branch]]；`git reset` 洩 shared main→工單「只在自己 worktree」；stale-binary→[[bite-verify-check-binary-mtime]]。**新：watchdog 讀 symlink mtime 假死**（agent output 是 symlink→指真 `.jsonl` 路徑才準）→ [[agent-watchdog-follow-symlink-target]]。
 
 ---
 > **🔒〔以下全為歷史塊，已被本檔頂部「現狀」取代——勿讀成現行 active lane〕** CLEAN CHECKPOINT(02:43)／STEERING-pivot(15:41)／「22:13 原 Active Lane」／舊全並行策略，都是夜間/pivot 當下的快照。**param-completion + Seam 1（keystone+6 ops+resident mirror）都已完成、buffer 算子 live 在 production。** 這些只當「為什麼走『原子地基優先』」的背景讀；**現行 active lane = 頂部「現狀」+「下一棒 vec4→Seam2」**，不是底下任何一塊。
