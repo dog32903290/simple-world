@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <unordered_map>
 #include <vector>
 
 #include <Foundation/Foundation.hpp>
@@ -31,6 +32,7 @@
 #include "runtime/particle_params.h"  // DRAW_Points, DRAW_ViewExtent
 #include "runtime/point_graph.h"      // TexCookCtx, RenderResolution, registerTexOp
 #include "runtime/render_command.h"   // RenderCommand / RenderDrawItem / DrawKind
+#include "runtime/render_command_state.h" // makeFrozenDepthStencilState (executor depth-stencil)
 #include "runtime/tixl_point.h"       // SwPoint (64B)
 
 #ifndef SW_SHADER_METALLIB
@@ -61,9 +63,13 @@ float paramOr(const std::map<std::string, float>& params, const char* id, float 
 // blending (lines/billboards composite over prior draws); DrawPoints stays opaque (blend=false). When `mode`
 // is non-null it overrides `blend` and selects the EXACT TiXL BlendMode factor table (Normal/Add, from
 // Core/Rendering/DefaultRenderingStates.cs) — used by DrawScreenQuad. nullptr if either function is missing.
+// ★Seam 2 OutputMerger: when `frozen` is non-null (a STAMPED item), the PSO's blend equation comes from that
+// tuple via applyFrozenBlend (the closed-form metalBlend* table) — OVERRIDING both `mode` and `blend`. Unstamped
+// items pass frozen=null → the exact legacy hardcoded blend path (byte-identical, press-pass).
 MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const char* vsName,
                                       const char* fsName, MTL::PixelFormat pf, bool blend,
-                                      const BlendMode* mode = nullptr) {
+                                      const BlendMode* mode = nullptr,
+                                      const FrozenRenderState* frozen = nullptr) {
   MTL::Function* vs = lib->newFunction(NS::String::string(vsName, NS::UTF8StringEncoding));
   MTL::Function* fs = lib->newFunction(NS::String::string(fsName, NS::UTF8StringEncoding));
   MTL::RenderPipelineState* rps = nullptr;
@@ -79,7 +85,9 @@ MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const
     rpd->setDepthAttachmentPixelFormat(MTL::PixelFormatDepth32Float);
     auto* att = rpd->colorAttachments()->object(0);
     att->setPixelFormat(pf);
-    if (mode) {
+    if (frozen) {
+      applyFrozenBlend(att, *frozen);  // Seam 2: PSO blend from the stamped OutputMerger tuple (closed-form)
+    } else if (mode) {
       // TiXL BlendMode factor table (DefaultRenderingStates.cs / PickBlendMode.t3). RGB factors
       // differ per mode; the ALPHA channel is the SAME for both (SrcA=One, DstA=1-SrcA, Add) —
       // verbatim from DefaultBlendState/AdditiveBlendState. RGB op is Add for both.
@@ -143,6 +151,36 @@ void cookRenderTarget(TexCookCtx& c) {
   const float aspectF =
       (c.output->height() > 0) ? (float)c.output->width() / (float)c.output->height() : 1.0f;
   const LayerCameraForward camFwd = defaultLayerCameraForward(aspectF);
+
+  // ── Seam 2 per-item BLEND-PSO cache (OutputMerger materialization) ──────────────────────────────
+  // A STAMPED item (it.hasRenderState) draws with a PSO whose blend equation comes from it.frozen (via
+  // applyFrozenBlend in makeDrawPSO), NOT the hardcoded per-kind blend. Materialized ONCE and cached by
+  // frozenPSOKey(frozen, pf) MIXED with the vs/fs pair (a different shader = a different PSO even for the
+  // same blend tuple). Two items with the same frozen tuple + same kind → the SAME cached PSO. UNstamped
+  // items NEVER touch this — they keep the legacy lazy per-kind PSOs above (byte-identical, press-pass).
+  std::unordered_map<uint64_t, MTL::RenderPipelineState*> frozenCache;
+  // pickPSO: the SINGLE PSO selector every draw case rides. STAMPED item → a frozen-blend PSO from the cache
+  // (keyed by frozenPSOKey(frozen,pf) folded with the vs/fs pair, materialized once via applyFrozenBlend).
+  // UNstamped item → the legacy lazy per-kind PSO in *slot (built once with the hardcoded blend/mode →
+  // byte-identical to the pre-Seam-2 path). Returns nullptr if the shader pair is missing (case breaks).
+  auto pickPSO = [&](const RenderDrawItem& it, MTL::RenderPipelineState** slot, const char* vs, const char* fs,
+                     bool blend, const BlendMode* mode) -> MTL::RenderPipelineState* {
+    if (it.hasRenderState) {
+      uint64_t key = frozenPSOKey(it.frozen, (uint32_t)pf);
+      for (const char* p = vs; *p; ++p) key = (key ^ (uint8_t)*p) * 1099511628211ull;  // fold vs name
+      for (const char* p = fs; *p; ++p) key = (key ^ (uint8_t)*p) * 1099511628211ull;  // fold fs name
+      auto found = frozenCache.find(key);
+      if (found != frozenCache.end()) return found->second;
+      MTL::RenderPipelineState* pso = makeDrawPSO(c.dev, c.lib, vs, fs, pf, false, nullptr, &it.frozen);
+      frozenCache.emplace(key, pso);
+      return pso;
+    }
+    if (!*slot) *slot = makeDrawPSO(c.dev, c.lib, vs, fs, pf, blend, mode);  // legacy lazy per-kind
+    return *slot;
+  };
+  // A stamped item's DEPTH-STENCIL (compare+write from it.frozen) is built per stamped-item and released at
+  // pass end (small count; the frozen depth-stencils accumulate in this vector). Unstamped → dsDisabled/dsMesh.
+  std::vector<MTL::DepthStencilState*> frozenDSPool;
 
   // ── Depth seam (TiXL DrawMeshUnlit DepthStencilState) ──────────────────────────────────────────
   // Alloc a Depth32Float depth texture (same W×H, private, render-target) + attach (clear 1.0=far, DontCare
@@ -214,12 +252,24 @@ void cookRenderTarget(TexCookCtx& c) {
           it.kind != DrawKind::Mesh && (!it.points || it.count == 0))
         continue;
       applyFrozenRasterEncoderState(enc, it);  // Seam 2: cull/winding/depthBias (no-op default when unstamped)
+      // Seam 2 OutputMerger DEPTH: a STAMPED non-mesh item sets its frozen compare+write (pooled per item); an
+      // UNstamped one re-asserts dsDisabled (no stale depth-stencil leaks to the next). The Mesh case is EXEMPT:
+      // it hardcodes dsMesh+CCW+CullBack below, never reads it.frozen (census OutputMerger = 2D composite only).
+      if (it.kind != DrawKind::Mesh) {
+        if (it.hasRenderState) {
+          MTL::DepthStencilState* fds = makeFrozenDepthStencilState(c.dev, it.frozen);
+          frozenDSPool.push_back(fds);
+          enc->setDepthStencilState(fds);
+        } else {
+          enc->setDepthStencilState(dsDisabled);
+        }
+      }
       switch (it.kind) {
         case DrawKind::Points: {
-          if (!psoPoints)
-            psoPoints = makeDrawPSO(c.dev, c.lib, "draw_points_vs", "draw_points_fs", pf, false);
-          if (!psoPoints) break;
-          enc->setRenderPipelineState(psoPoints);
+          MTL::RenderPipelineState* use =
+              pickPSO(it, &psoPoints, "draw_points_vs", "draw_points_fs", false, nullptr);
+          if (!use) break;
+          enc->setRenderPipelineState(use);
           enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAW_Points);
           float viewExtent = it.viewExtent;
           enc->setVertexBytes(&viewExtent, sizeof(float), DRAW_ViewExtent);
@@ -230,10 +280,10 @@ void cookRenderTarget(TexCookCtx& c) {
           // DrawPoints2 (TiXL DrawPoints2 → DrawPoints.hlsl Radius variant): a screen-facing quad
           // sprite per Point sized by `size` (= Radius*10.8) and optionally scaled by Point.W (FX1).
           // Its own shader/PSO — DrawKind::Points (v1) is untouched. Blends (alpha-over) like billboards.
-          if (!psoPoints2)
-            psoPoints2 = makeDrawPSO(c.dev, c.lib, "draw_points2_vs", "draw_points2_fs", pf, true);
-          if (!psoPoints2) break;
-          enc->setRenderPipelineState(psoPoints2);
+          MTL::RenderPipelineState* use =
+              pickPSO(it, &psoPoints2, "draw_points2_vs", "draw_points2_fs", true, nullptr);
+          if (!use) break;
+          enc->setRenderPipelineState(use);
           enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAWPOINT2_Points);
           DrawPoint2Params pp{};
           pp.color[0] = it.color[0]; pp.color[1] = it.color[1];
@@ -249,10 +299,10 @@ void cookRenderTarget(TexCookCtx& c) {
         }
         case DrawKind::Lines: {
           if (it.count < 2) break;  // need ≥2 points to form one segment
-          if (!psoLines)
-            psoLines = makeDrawPSO(c.dev, c.lib, "draw_lines_vs", "draw_lines_fs", pf, true);
-          if (!psoLines) break;
-          enc->setRenderPipelineState(psoLines);
+          MTL::RenderPipelineState* use =
+              pickPSO(it, &psoLines, "draw_lines_vs", "draw_lines_fs", true, nullptr);
+          if (!use) break;
+          enc->setRenderPipelineState(use);
           enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAWLINE_Points);
           DrawLineParams lp{};
           lp.color[0] = it.color[0]; lp.color[1] = it.color[1];
@@ -292,11 +342,10 @@ void cookRenderTarget(TexCookCtx& c) {
           // visible window). Its own shader/PSO — DrawKind::Lines is untouched. Blends (alpha-over) so
           // the reveal ramp fades in/out. The FS reads the same params cbuffer (reveal math).
           if (it.count < 2) break;  // need ≥2 points to form one segment
-          if (!psoLinesBuildup)
-            psoLinesBuildup =
-                makeDrawPSO(c.dev, c.lib, "draw_lines_buildup_vs", "draw_lines_buildup_fs", pf, true);
-          if (!psoLinesBuildup) break;
-          enc->setRenderPipelineState(psoLinesBuildup);
+          MTL::RenderPipelineState* use = pickPSO(it, &psoLinesBuildup, "draw_lines_buildup_vs",
+                                                  "draw_lines_buildup_fs", true, nullptr);
+          if (!use) break;
+          enc->setRenderPipelineState(use);
           enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAWLINEBU_Points);
           DrawLineBuildupParams bp{};
           bp.color[0] = it.color[0]; bp.color[1] = it.color[1];
@@ -313,10 +362,10 @@ void cookRenderTarget(TexCookCtx& c) {
           break;
         }
         case DrawKind::Billboards: {
-          if (!psoBb)
-            psoBb = makeDrawPSO(c.dev, c.lib, "draw_billboards_vs", "draw_billboards_fs", pf, true);
-          if (!psoBb) break;
-          enc->setRenderPipelineState(psoBb);
+          MTL::RenderPipelineState* use =
+              pickPSO(it, &psoBb, "draw_billboards_vs", "draw_billboards_fs", true, nullptr);
+          if (!use) break;
+          enc->setRenderPipelineState(use);
           enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.points), 0, DRAWBB_Points);
           DrawBillboardParams bp{};
           bp.color[0] = it.color[0]; bp.color[1] = it.color[1];
@@ -335,12 +384,10 @@ void cookRenderTarget(TexCookCtx& c) {
           // UseFallbackTexture posture, fork-resolved as "empty result".
           if (!it.srcTexture) break;
           int bmi = (it.blendMode == BlendMode::Additive) ? 1 : 0;
-          if (!psoSQ[bmi]) {
-            BlendMode m = it.blendMode;
-            psoSQ[bmi] =
-                makeDrawPSO(c.dev, c.lib, "draw_screenquad_vs", "draw_screenquad_fs", pf, false, &m);
-          }
-          if (!psoSQ[bmi]) break;
+          BlendMode m = it.blendMode;
+          MTL::RenderPipelineState* use =
+              pickPSO(it, &psoSQ[bmi], "draw_screenquad_vs", "draw_screenquad_fs", false, &m);
+          if (!use) break;
           if (!sqSampler) {
             // TiXL DrawScreenQuad.t3 instantiates its OWN SamplerState (child 810afc82) with
             // Filter=MinMagMipLinear + Address Clamp, and routes the op's Filter input (default
@@ -356,7 +403,7 @@ void cookRenderTarget(TexCookCtx& c) {
             sqSampler = c.dev->newSamplerState(sd);
             sd->release();
           }
-          enc->setRenderPipelineState(psoSQ[bmi]);
+          enc->setRenderPipelineState(use);
           DrawScreenQuadParams P{};
           P.color[0] = it.color[0]; P.color[1] = it.color[1];
           P.color[2] = it.color[2]; P.color[3] = it.color[3];
@@ -378,13 +425,11 @@ void cookRenderTarget(TexCookCtx& c) {
           // unwired-texture posture as ScreenQuad (skip → cleared background shows through).
           if (!it.srcTexture) break;
           int bmi = (it.blendMode == BlendMode::Additive) ? 1 : 0;
-          if (!psoL2[bmi]) {
-            BlendMode m = it.blendMode;
-            // F2: the xf VS + the SHARED ScreenQuad FS (psMain byte-identical to DrawScreenQuad).
-            psoL2[bmi] =
-                makeDrawPSO(c.dev, c.lib, "draw_quad_xf_vs", "draw_screenquad_fs", pf, false, &m);
-          }
-          if (!psoL2[bmi]) break;
+          BlendMode m = it.blendMode;
+          // F2: the xf VS + the SHARED ScreenQuad FS (psMain byte-identical to DrawScreenQuad).
+          MTL::RenderPipelineState* use =
+              pickPSO(it, &psoL2[bmi], "draw_quad_xf_vs", "draw_screenquad_fs", false, &m);
+          if (!use) break;
           if (!sqSampler) {  // reuse the ScreenQuad sampler (TiXL Layer2d Filter default = Linear+Clamp)
             MTL::SamplerDescriptor* sd = MTL::SamplerDescriptor::alloc()->init();
             sd->setMinFilter(MTL::SamplerMinMagFilterLinear);
@@ -395,7 +440,7 @@ void cookRenderTarget(TexCookCtx& c) {
             sqSampler = c.dev->newSamplerState(sd);
             sd->release();
           }
-          enc->setRenderPipelineState(psoL2[bmi]);
+          enc->setRenderPipelineState(use);
           DrawQuadXfParams P{};
           P.color[0] = it.color[0]; P.color[1] = it.color[1];
           P.color[2] = it.color[2]; P.color[3] = it.color[3];
@@ -520,6 +565,8 @@ void cookRenderTarget(TexCookCtx& c) {
   if (psoL2[0]) psoL2[0]->release();
   if (psoL2[1]) psoL2[1]->release();
   if (psoMesh) psoMesh->release();
+  for (auto& kv : frozenCache) if (kv.second) kv.second->release();   // Seam 2: materialized blend-PSOs
+  for (MTL::DepthStencilState* ds : frozenDSPool) if (ds) ds->release();  // Seam 2: per-item frozen depth-stencils
   if (sqSampler) sqSampler->release();
   if (dsMesh) dsMesh->release();
   if (dsDisabled) dsDisabled->release();

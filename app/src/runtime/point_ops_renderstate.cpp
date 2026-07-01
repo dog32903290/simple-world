@@ -22,7 +22,8 @@
 // ZONE: runtime leaf. Contains: the two SHARED helpers (stampRenderState / frozenPSOKey) + the render-state
 // ops (Rasterizer/OutputMerger) + the closed-form goldens. Split note: if this grows past ~400 lines, the
 // goldens move to point_ops_renderstate_golden.cpp (the drawmeshunlit/camera golden-split precedent).
-#include "runtime/render_command.h"       // RenderCommand / RenderDrawItem / FrozenRenderState (+ helper decls)
+#include "runtime/render_command.h"       // RenderCommand / RenderDrawItem / FrozenRenderState
+#include "runtime/render_command_state.h" // applyFrozenBlend / makeFrozenDepthStencilState (impl here)
 
 #include "runtime/dx11_metal_state_map.h"  // Dx11Cull/Dx11Fill/Dx11Compare/Dx11Blend* (closed-form ordinals)
 #include "runtime/point_graph.h"           // CmdCookCtx, registerCmdOp, cookParam
@@ -59,6 +60,35 @@ void applyFrozenRasterEncoderState(MTL::RenderCommandEncoder* enc, const RenderD
 RenderCommand*& renderStateCaptureForTest() {
   static RenderCommand* p = nullptr;
   return p;
+}
+
+// EXECUTOR SIDE (called from makeDrawPSO when an item is STAMPED): apply the frozen BLEND state onto a PSO
+// colorAttachment via the CLOSED-FORM table (metalBlendFactor/metalBlendOp). BlendEnable=false → blending off
+// (opaque src*One+dst*Zero, the DX11 default) → byte-identical to a non-blended legacy PSO. ColorWriteMask is
+// left at MTL default (WriteAll — TiXL hardcodes All, no port). This is the OutputMerger materialization: the
+// PSO's blend equation now comes from the stamped tuple, not the hardcoded BlendMode switch.
+void applyFrozenBlend(MTL::RenderPipelineColorAttachmentDescriptor* att, const FrozenRenderState& st) {
+  if (!st.rt.enabled) { att->setBlendingEnabled(false); return; }
+  att->setBlendingEnabled(true);
+  att->setRgbBlendOperation((MTL::BlendOperation)metalBlendOp((Dx11BlendOp)st.rt.opRGB));
+  att->setAlphaBlendOperation((MTL::BlendOperation)metalBlendOp((Dx11BlendOp)st.rt.opA));
+  att->setSourceRGBBlendFactor((MTL::BlendFactor)metalBlendFactor((Dx11Blend)st.rt.srcRGB));
+  att->setDestinationRGBBlendFactor((MTL::BlendFactor)metalBlendFactor((Dx11Blend)st.rt.dstRGB));
+  att->setSourceAlphaBlendFactor((MTL::BlendFactor)metalBlendFactor((Dx11Blend)st.rt.srcA));
+  att->setDestinationAlphaBlendFactor((MTL::BlendFactor)metalBlendFactor((Dx11Blend)st.rt.dstA));
+}
+
+// EXECUTOR SIDE (called from cookRenderTarget's item loop for a STAMPED item): build the frozen DEPTH-STENCIL
+// state (compare + write) via the closed-form compare table. A2C/stencil are dormant (census never wires) so
+// only compare+write are set — the same two knobs the pre-Seam-2 dsMesh/dsDisabled pair carried. Caller owns
+// the release. Unstamped items keep the executor's legacy dsMesh/dsDisabled (this is stamped-only).
+MTL::DepthStencilState* makeFrozenDepthStencilState(MTL::Device* dev, const FrozenRenderState& st) {
+  MTL::DepthStencilDescriptor* dsd = MTL::DepthStencilDescriptor::alloc()->init();
+  dsd->setDepthCompareFunction((MTL::CompareFunction)metalCompare((Dx11Compare)st.depthCompare));
+  dsd->setDepthWriteEnabled(st.depthWrite);
+  MTL::DepthStencilState* ds = dev->newDepthStencilState(dsd);
+  dsd->release();
+  return ds;
 }
 
 // ─────────────────────── SHARED HELPER 1: the per-item stamp (both legs ride this) ───────────────────────
@@ -140,6 +170,100 @@ RenderCommand cookRasterizer(CmdCookCtx& c) {
 }
 
 void registerRasterizerOp() { registerCmdOp("Rasterizer", cookRasterizer); }
+
+// ─────────────────────────── OUTPUT-MERGER OP (Command → Command) ───────────────────────────
+// TiXL OutputMergerStage.cs folds a BlendState (RenderTargetBlendDescription[] + A2C + IndependentBlend)
+// + a DepthStencilState around a Draw, terminated by one deviceContext.Draw. SW is retained-mode: this op
+// folds the census-real blend + depth knobs DIRECTLY onto the op (no separate BlendState currency — same
+// posture as cookRasterizer / the "no RasterizerState currency" fold) and STAMPS the accumulated blend/depth
+// half of FrozenRenderState onto the subtree via stampRenderState. The RenderTarget executor reads the stamp
+// to materialize the PSO's colorAttachment blend + the encoder's MTLDepthStencilState.
+//
+// CENSUS (PLAN §1): BlendEnable true×22/false×11; SourceBlend {SrcAlpha,One,Zero,InvDestColor};
+// DestinationBlend {InvSrcAlpha,One,InvSrcColor,Zero,SrcColor,SrcAlpha}; BlendOp {Add,ReverseSubtract,Min}.
+// ColorWriteMask hardcoded All (no port). A2C/IndependentBlend always false (dormant). Depth: compare
+// Less(default)/LessEqual, write on. The op folds the RGB blend triple + the SAME-channel alpha triple the
+// census wires (Src=One/SrcAlpha/InvSrcAlpha · Dst=InvSrcAlpha/Zero/One/DstAlpha), driven off the RGB enum by
+// default (blend[Enum] indices index the shared Dx11Blend/Dx11BlendOp ordinals via the closed-form table).
+namespace {
+// The census-wired BlendOptions the OutputMerger enum exposes (index → Dx11Blend ordinal). Order chosen so
+// the .t3 default (blend disabled = src One / dst Zero) sits at 0/1 and the common alpha-over combo is present.
+Dx11Blend blendFactorFromIndex(int i) {
+  switch (i) {
+    case 1:  return Dx11Blend::One;
+    case 2:  return Dx11Blend::SrcAlpha;
+    case 3:  return Dx11Blend::InvSrcAlpha;
+    case 4:  return Dx11Blend::SrcColor;
+    case 5:  return Dx11Blend::InvSrcColor;
+    case 6:  return Dx11Blend::DestColor;
+    case 7:  return Dx11Blend::InvDestColor;
+    case 8:  return Dx11Blend::DestAlpha;
+    case 9:  return Dx11Blend::InvDestAlpha;
+    default: return Dx11Blend::Zero;  // 0
+  }
+}
+Dx11BlendOp blendOpFromIndex(int i) {
+  switch (i) {
+    case 1:  return Dx11BlendOp::Subtract;
+    case 2:  return Dx11BlendOp::ReverseSubtract;
+    case 3:  return Dx11BlendOp::Min;
+    case 4:  return Dx11BlendOp::Max;
+    default: return Dx11BlendOp::Add;  // 0
+  }
+}
+Dx11Compare compareFromIndex(int i) {
+  switch (i) {
+    case 0:  return Dx11Compare::Never;
+    case 1:  return Dx11Compare::Less;      // DX11 default
+    case 2:  return Dx11Compare::Equal;
+    case 3:  return Dx11Compare::LessEqual;
+    case 4:  return Dx11Compare::Greater;
+    case 5:  return Dx11Compare::NotEqual;
+    case 6:  return Dx11Compare::GreaterEqual;
+    case 7:  return Dx11Compare::Always;
+    default: return Dx11Compare::Less;
+  }
+}
+}  // namespace
+
+// OutputMerger: Command subtree in → Command out. Reads its blend + depth params, builds the blend/depth half
+// of a FrozenRenderState (leaving the rasterizer stage at DX11 defaults — this op owns the OM stage only),
+// stamps it onto every unstamped subtree item. Unwired Command → empty chain (TiXL evals an empty subtree).
+// BlendEnable=false → the DX11 default opaque src*One + dst*Zero (blending off); the executor then draws the
+// item with blend disabled (byte-identical to the pre-Seam-2 opaque path for a default tuple).
+RenderCommand cookOutputMerger(CmdCookCtx& c) {
+  if (!c.inputCommand) return RenderCommand{};  // no subtree wired → empty
+  FrozenRenderState st;  // defaults = DX11 defaults (rasterizer Back/Solid/CW untouched by this stage)
+  st.rt.enabled = cookParam(c, "BlendEnable", 0.0f) > 0.5f;   // DX11 default FALSE (opaque)
+  int srcI = (int)std::lround(cookParam(c, "SourceBlend", 1.0f));       // default One
+  int dstI = (int)std::lround(cookParam(c, "DestinationBlend", 0.0f));  // default Zero
+  int opI  = (int)std::lround(cookParam(c, "BlendOp", 0.0f));           // default Add
+  st.rt.srcRGB = (uint32_t)blendFactorFromIndex(srcI);
+  st.rt.dstRGB = (uint32_t)blendFactorFromIndex(dstI);
+  st.rt.opRGB  = (uint32_t)blendOpFromIndex(opI);
+  // Alpha channel (census "Src/Dst/AlphaOp" column, PLAN §1): AlphaOp is ALWAYS Add (the census never wires a
+  // non-Add alpha op — even when the RGB op is ReverseSubtract/Min); SrcAlpha=One; DstAlpha is a CONSTANT
+  // InverseSourceAlpha — NOT derived from the RGB dst. Ground truth: TiXL DefaultRenderingStates.cs sets
+  // DestinationAlphaBlend = BlendOption.InverseSourceAlpha for BOTH DefaultBlendState (Normal, :68) AND
+  // AdditiveBlendState (:112). Deriving dstA from dstRGB was WRONG for Additive (dstRGB=One → dstA would become
+  // One instead of InvSrcAlpha). This is a closed-form constant, latched by --selftest-outputmerger-cookthrough's
+  // Additive case (frozen.rt.dstA == InvSrcAlpha). Blend OFF → opaque One/Zero (dstA=Zero, blend disabled).
+  st.rt.srcA = (uint32_t)Dx11Blend::One;                                          // census: alpha src One
+  st.rt.dstA = st.rt.enabled ? (uint32_t)Dx11Blend::InvSrcAlpha                   // TiXL const: DstAlphaBlend=InvSrcAlpha
+                             : (uint32_t)Dx11Blend::Zero;                         // blend OFF → opaque
+  st.rt.opA  = (uint32_t)Dx11BlendOp::Add;                                        // census: alpha op ALWAYS Add
+  // Depth-stencil half (DX11 default DepthEnable=TRUE / WriteAll / LESS). DepthEnable=false → compare Always +
+  // write off (the executor's depth-disabled state — every 2D kind's effective default → byte-identical).
+  bool depthEnable = cookParam(c, "DepthEnable", 0.0f) > 0.5f;  // sw 2D default: depth inert (Always/no-write)
+  st.depthCompare = depthEnable
+      ? (uint32_t)compareFromIndex((int)std::lround(cookParam(c, "DepthCompare", 1.0f)))  // default Less
+      : (uint32_t)Dx11Compare::Always;
+  st.depthWrite = depthEnable && (cookParam(c, "DepthWrite", 1.0f) > 0.5f);
+  st.alphaToCoverage = false;  // census: never enabled (dormant fork)
+  return stampRenderState(*c.inputCommand, st);
+}
+
+void registerOutputMergerOp() { registerCmdOp("OutputMerger", cookOutputMerger); }
 
 // ─────────────────────────── BUCKET-C GUARDS (NO-METAL-EQUIVALENT, port-time) ───────────────────────────
 // Two DX11 render-state capabilities have no standard public-Metal path (conversion table §Bucket C): logic-op

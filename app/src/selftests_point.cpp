@@ -100,6 +100,8 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"pso-cache", runPsoCacheSelfTest},                      // Seam 2: frozenPSOKey full-tuple key (dynamic depthBias excluded)
     {"s2-guards", runS2GuardsSelfTest},                      // Seam 2 Bucket-C guards: logic-op / dual-source+MRT port-time reject
     {"s2-depthbias", runS2DepthBiasSelfTest},                // Seam 2 Bucket-B: depthBias pass-through (numeric-output DEFERRED)
+    {"outputmerger-bothleg", runOutputMergerBothLegSelfTest},        // ★Seam 2 OutputMerger harness-first: flat+resident stamped blend/depth tuples byte-identical
+    {"outputmerger-cookthrough", runOutputMergerCookThroughSelfTest},// Seam 2 OutputMerger cook-through: real NodeSpec blend/depth params → cookOutputMerger → stamped tuple == census combo
 
     {"transformops", runTransformOpsSelfTest},
     {"drawmeshunlit", runDrawMeshUnlitSelfTest},

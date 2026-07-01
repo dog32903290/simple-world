@@ -183,7 +183,16 @@ app/src/runtime/point_ops_ngongradient.cpp:503
 app/src/runtime/point_ops_radialgradient.cpp:463
 app/src/runtime/point_ops_remapcolor.cpp:471
 # +13: S2b Group SRT per-item right-multiply in the Layer2d + Mesh executor cases (finalO2W = childO2W·groupO2W); debt task spawned to extract the per-DrawKind cases into leaves.
-app/src/runtime/point_ops_rendertarget.cpp:680
+# Seam 2 OutputMerger (2026-07-01) +46 (680→726): the blend-PSO MATERIALIZATION landed exactly as
+# SEAM2_RENDERSTATE_BUILD_PLAN.md §2 prescribed ("descriptor→PSO cache replaces per-DrawKind lazy build";
+# "blend from frozen.blend.rt[0] not BlendMode switch"). makeDrawPSO gained the `const FrozenRenderState*`
+# arg (frozen blend overrides the hardcoded blend/mode); a per-item unordered_map<uint64_t,PSO*> blend-PSO
+# cache (keyed by frozenPSOKey folded with the vs/fs pair) + a pickPSO selector every DrawKind case rides
+# (STAMPED → frozen-blend cached PSO, UNstamped → the exact legacy lazy per-kind PSO = byte-identical); the
+# per-item frozen depth-stencil (compare+write) + its release pool. The closed-form MTL mapping肉 lives in
+# point_ops_renderstate.cpp (applyFrozenBlend/makeFrozenDepthStencilState), NOT here. DEBT: the per-DrawKind
+# switch is the standing extract-to-leaves target (the S2b note above); this raises the cap by the seam delta.
+app/src/runtime/point_ops_rendertarget.cpp:726
 app/src/runtime/point_ops_repeatatpoints.cpp:452
 app/src/runtime/point_ops_rgbtv.cpp:538
 app/src/runtime/point_ops_rings.cpp:456
@@ -194,6 +203,10 @@ app/src/runtime/point_ops_transformpoints.cpp:454
 app/src/runtime/point_ops_transformsomepoints.cpp:549
 app/src/runtime/point_ops_valuestotexture2.cpp:452
 app/src/runtime/point_ops_worleynoise.cpp:462
+# Seam 2 OutputMerger (2026-07-01): render_command.h stays at the 400 wall — the OutputMerger materialization
+# helpers (applyFrozenBlend/makeFrozenDepthStencilState) + their 3 MTL forward-decls were PEELED into
+# render_command_state.h (2 real consumers: point_ops_rendertarget.cpp + point_ops_renderstate.cpp), so the
+# ~249-includer core header did NOT bump. No grandfather entry needed (render_command.h < 400).
 app/src/runtime/resident_eval_graph.h:410
 # +18 (2026-06-29, time-source param fan-out): Ease.UseAppRunTime clock-selector teeth (new behavioral
 # knob coverage in this test aggregator). Production leaf code unchanged-size; this is test growth only.

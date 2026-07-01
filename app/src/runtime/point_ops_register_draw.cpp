@@ -25,6 +25,7 @@ void registerExecuteOnceOp();     // S3b: Command(MultiInput) → Command (gated
 void registerLogMessageOp();      // S3b: Command(SubGraph) → Command (passthrough + log sink; point_ops_logmessage.cpp)
 void registerExecRepeatedlyOp();  // S3c: Command(MultiInput) → Command (cook-core RE-COOK ×RepeatCount; point_ops_execrepeatedly.cpp)
 void registerRasterizerOp();      // Seam 2: Command → Command (render-state STAMP: cull/fill/winding/depthBias; point_ops_renderstate.cpp)
+void registerOutputMergerOp();    // Seam 2: Command → Command (render-state STAMP: blend + depth STAGE; point_ops_renderstate.cpp)
 
 void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
@@ -51,6 +52,7 @@ void registerDrawPointOps() {
   registerLogMessageOp();                        // Command(SubGraph) → Command (S3b: transparent passthrough + log sink)
   registerExecRepeatedlyOp();                    // Command(MultiInput) → Command (S3c: cook-core RE-COOK ×RepeatCount)
   registerRasterizerOp();                        // Command → Command (Seam 2: render-state STAMP — Rasterizer spike)
+  registerOutputMergerOp();                      // Command → Command (Seam 2: render-state STAMP — OutputMerger blend/depth stage)
   registerDrawMeshUnlitOp();                    // Mesh → Command (DrawKind::Mesh, the FIRST 3D mesh, Cut 99)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
 }
