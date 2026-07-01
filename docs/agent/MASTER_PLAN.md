@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 5b3c9f5
+HEAD: f03e055
 DIRTY: clean
 CENSUS: 473 / 749 done
-BITE: 559 PASS
-STAMP_AT: 2026-07-01T19:13
+BITE: 560 PASS
+STAMP_AT: 2026-07-01T20:01
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -28,7 +28,7 @@ STAMP_AT: 2026-07-01T19:13
 
 ## Active Lane
 
-**★現狀（2026-07-01 19:13，HEAD `5b3c9f5`，--bite 559，clean，**未 push 領先 origin**＝待柏為授權）** — **原子重放對 GPU-compute 端到端證明可行**（compute-stage keystone GREEN，refuter 反證 CPU 短路）。**本波三條並行骨頭全合流（refuter 驗過）**：骨5 particle integrator parity + 骨6b RepeatFieldAtPoints（point→field SRV seam）+ 骨7 boundary-flatten（TransformPoints 免 scaffold GREEN）。**⚠ 187 複合閘仍 contingent on 骨7b**（骨7 refuter 抓出 loop2/loop3 排序 bug 會亂序 ~224 production mesh 複合，見下）。render-state keystone 為 done-record。前情在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)；下方 Seam2/keystone DONE 為 done-record 非 active：
+**★現狀（2026-07-01 20:01，HEAD `f03e055`，--bite 560，clean，**未 push 領先 origin**＝待柏為授權）** — **原子重放 .t3→cook 的共用機器全驗證正確**：讀圖機(骨1)/compute-stage atom(骨3)/particle parity(骨5)/point→field SRV(骨6b)/boundary 注入(骨7)/flatten 排序(骨7b) 全 refuter 驗過合流。GPU-compute 端到端證明可行（TransformPoints.t3 免 scaffold replay parity GREEN）。**⚠ 下一步＝拿一顆真 mesh 複合端到端證（骨8，見下）——骨7b 只修好排序機制，「真 mesh 家族 replay」尚未端到端證（refuter claim4：此 worktree 無 .t3 無法驗）。** render-state keystone 為 done-record。前情在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)；下方 Seam2/keystone DONE 為 done-record 非 active：
 - **Seam 2 render-state 兩塊都 DONE（原子地基 keystone #2）**：
   - **① Rasterizer encoder state（`ce14f9f`）**：`FrozenRenderState` + closed-form DX11→Metal 表（25 static_assert 鎖 MTL ABI）+ **both-leg flat/resident byte-identical golden**（最高風險 resident-only 無聲錯 render，de-risk via 單一 shared stamp helper；per-item STAMP 非 cook-core accumulator＝divergence-proof、零 cook-core leg 改動）。cull/winding/depthBias 走 encoder dynamic state。refuter 5/5 SURVIVES。
   - **② OutputMerger blend-PSO（`a59ff2d`）**：blend/depth 表接進 `makeDrawPSO`（不再 hardcode BlendMode）+ per-item blend-PSO cache（`frozenPSOKey`）。both-leg + cook-through goldens。refuter 5/6 SURVIVE→抓出 alpha bug + header bump→fixer 收。press-pass：unstamped 走 legacy PSO byte-identical，552 全綠。
@@ -38,24 +38,23 @@ STAMP_AT: 2026-07-01T19:13
 **★★施作順序＝hard-bone-first（柏為 15:21 approve；兩個 keystone 探完後 code-verified 重排）：**
 兩個 keystone 都做完：骨1（`0edc44e`，importer live + buffer-marshalling 半條）→ 骨3（`8f97132`，compute-stage atom + GPU-compute replay parity GREEN）。**原子重放對 GPU-compute 端到端證明可行（真 dispatch/真 GPU readback，refuter 反證 CPU 短路）。** 但 refuter 抓出「187 閘真開」contingent on 一個 **boundary-flatten seam**——即真正的下一根。
 ```
-★下一根（骨7b＝真正打開 187 免 scaffold replay 的完成步）:
-  骨7b 修 loop2/loop3 排序 bug（骨7 refuter CONFIRMED，碰 resident_eval_flatten.cpp cook-core 邊緣）:
-       症狀: inlineSymbol loop2(child→child)全跑在 loop3(boundary→child)前、都 append 同一 extraConns
-             → 混合 MultiInput slot 恆 [child...,boundary...]、丟真 sym.connections 序。
-       corpus: 320 顆 mixed slot,224 production Lib(整個 mesh/modify+mesh/draw:DisplaceMesh/DeformMesh/DrawMesh...)
-             child 排 boundary 後→replay 亂序 marshaled buffer→輸出錯。
-       修法: loop2/3 合成單一 sym.connections 順序 pass（一次解 child+boundary 兩種 source,保 declaration 序）。
-       harness: 加一顆 mixed-MultiInput golden（child+boundary interleaved,現有 boundary-only 牙抓不到此類）。
-       → 綠後 187 批(尤其 mesh 家族)才能無亂序 replay
-並行自走 de-risk（零 cook-core、不卡柏為，可與骨7b同時；下一波可放）:
-  骨2  HLSL→MSL 翻譯尾巴（KNOWN-works：151 .metal/92 golden；對帳差集逐顆翻，純體力）
+★下一根（骨8＝拿一顆真 mesh 複合端到端證，把「共用機器」升成「mesh 家族通過」）:
+  骨8  真 mesh-family .t3 複合端到端 replay 首證(補 TransformPoints 只證 point 的缺):
+       挑一顆最小的真 mesh/modify 或 mesh/draw 複合(DisplaceMesh 級) → importT3→cook→readback
+       對焊死版 parity。這會逼出 mesh compute atom/kernel 缺口(需 骨2 HLSL→MSL 逐顆翻 + mesh compute-stage)。
+       GREEN=mesh 家族真通、187 大量體力可開;RED=暴露 mesh 專屬缺口(具體記錄)。
+       ⚠此工單需 worktree 帶 external/tixl(唯讀,禁 pull)才能對真 mesh .t3 —— 與前幾根不同。
+並行自走 de-risk（零 cook-core、不卡柏為，可與骨8同時）:
+  骨2  HLSL→MSL 翻譯尾巴（KNOWN-works：151 .metal/92 golden；對帳差集逐顆翻，純體力；骨8 需要它）
   骨4  mesh-buffer 橋原子（_MeshBufferComponents/_AssembleMeshBuffers，兩端 currency 已建）
-骨7b GREEN 後解鎖:
+骨8 GREEN 後解鎖:
   [187 未做複合 .t3 replay 批 — 大量並行體力；每顆需 kernel 的 HLSL→MSL(骨2 提供)]
 卡柏為/實體:  骨6c io/audio 裝置
 ```
-**本波已合流（皆 refuter 驗過，`5b3c9f5`，559）：**
-- **骨7 boundary-flatten（`444ab30`→merged）**：loop-3 MultiInput append + top-level boundary-injection seam(buildEvalGraph overload)。TransformPoints 免 scaffold GREEN(maxPosErr=0)。refuter Finding1/2/4 SURVIVES(injection 真修非搬皮)，**Finding3 CONFIRMED=loop2/3 排序 bug→骨7b**。TransformPoints 零 mixed slot 故其綠為真。
+**★共用機器全驗證（今日 session，皆 refuter 驗過合流；不是 keystone 未知了）：** 讀圖機+compute-stage+boundary 注入+flatten 排序 全正確。剩下 187 是**逐顆體力**（mesh kernel + 骨2 shader 翻譯），非架構賭注——但**骨8 先拿一顆真 mesh 端到端證**，別假設 point 通了 mesh 就通。
+**本波已合流（皆 refuter 驗過，`f03e055`，560）：**
+- **骨7b flatten loop2/3 合併（salvaged→merged）**：合成單一 sym.connections 宣告序 pass（混合 MultiInput slot 保序，修骨7 Finding3）+ mixed-multiinput golden。refuter 3/4 SURVIVES（機制正確、無回歸）；claim4「真 mesh 家族端到端」此 worktree 無 .t3 無法驗＝骨8。**agent 死於 API error pre-commit，orchestrator salvage-commit + 親驗（零工作損失，只失 self-report）**——連線不穩再證 worktree 隔離+salvage 撐得住。
+- **骨7 boundary-flatten（`444ab30`→merged）**：loop-3 MultiInput append + top-level boundary-injection seam(buildEvalGraph overload)。TransformPoints 免 scaffold GREEN(maxPosErr=0)。refuter Finding1/2/4 SURVIVES(injection 真修非搬皮)，**Finding3 CONFIRMED=loop2/3 排序 bug→骨7b(已修)**。TransformPoints 零 mixed slot 故其綠為真。
 - **骨5 particle integrator parity（`501d59a`→merged）**：cook-through Δpos 閉式錨 TiXL ParticleSystem.hlsl:106/111+DirectionalForce.hlsl:25。refuter NOT REFUTED(決定性壓測:改 production kernel→GREEN→RED)。補上「只到 smoke」的 particle integrator。
 - **骨6b RepeatFieldAtPoints（`3b5f5b2`→merged）**：新泛用 resource kind BufBinding(point-buffer→field SRV)。refuter NOT REFUTED(4/4;反證偷渡=符號相反)。收掉 RepeatFieldAtPoints(剩 4 field op)。
 - **骨3 compute-stage keystone（`8f97132`）**：泛用 ComputeShaderStage atom + UAV executor。[[gpu-compute-replay-proven-boundary-flatten-next]]。
@@ -63,10 +62,9 @@ STAMP_AT: 2026-07-01T19:13
 - 低優先殘留：mixed-MultiInput golden(骨7b 帶)；golden 顯示精度 %.6f→%.9f；wire count 24→25 stale；BufBinding de-dup key "PointTransform" vs TiXL "PointMatrix"(多節點才分歧)；Fork B tripwire；DepthBias fork。
 
 **★並行/衝突（Session Safety）**：tree clean @ `5b3c9f5`，未 push 領先 origin（待柏為授權，累積 IA+Draw+骨1+骨3+骨5+骨6b+骨7）。
-- **骨7b lane 啟動中**：碰 `resident_eval_flatten.cpp`（loop2/3 合併，cook-core 邊緣），**與任何碰 flatten/importer/buffer 的 lane owner-lock 互斥**。並行自走 lane（骨2/骨4）踩不同檔域可同跑（下一波），合流時共享 registration 檔（selftests_decls/point/CMakeLists）序列 append。
-- 柏為在場對話中。**今日大帳**：render-state keystone 全齊 + 原子重放對 GPU-compute 端到端證明可行（骨1 importer/骨3 compute-stage/骨5 particle/骨6b field-SRV/骨7 boundary-flatten 全 refuter 驗過合流）；187 unlock 差骨7b。
-- 柏為在場對話中；下一步＝dispatch 骨3 compute-stage build（待柏為過目下一根方向）+ 視需要 fan-out 骨5/6b。
-- 已修坑（進 memory/skill 自動避）：連線 drop→[[worktree-agent-must-commit-to-branch]]；`git reset` 洩 shared main→工單「只在自己 worktree」；stale-binary→[[bite-verify-check-binary-mtime]]。**新：watchdog 讀 symlink mtime 假死**（agent output 是 symlink→指真 `.jsonl` 路徑才準）→ [[agent-watchdog-follow-symlink-target]]。
+- **無 active lane**（骨7b build+refuter 均已收，worktree 已 prune，tree clean）。
+- **今日大帳**：render-state keystone 全齊 + 原子重放 .t3→cook 共用機器全驗證正確（骨1/3/5/6b/7/7b 全 refuter 驗過合流，IA+Draw+2 keystone+3 並行骨+7b）。GPU-compute 端到端證明可行。**下一步＝骨8（真 mesh 複合端到端證，需 worktree 帶 external/tixl）**。未 push 領先 origin（待柏為授權，累積一整天）。
+- 已修坑（進 memory/skill 自動避）：連線 drop→[[worktree-agent-must-commit-to-branch]]（本日再證：agent 死可 salvage-commit worktree WIP）；stale-binary→[[bite-verify-check-binary-mtime]]；watchdog 讀 symlink mtime 假死→[[agent-watchdog-follow-symlink-target]]（指真 `.jsonl`）。
 
 ---
 > **🔒〔以下全為歷史塊，已被本檔頂部「現狀」取代——勿讀成現行 active lane〕** CLEAN CHECKPOINT(02:43)／STEERING-pivot(15:41)／「22:13 原 Active Lane」／舊全並行策略，都是夜間/pivot 當下的快照。**param-completion + Seam 1（keystone+6 ops+resident mirror）都已完成、buffer 算子 live 在 production。** 這些只當「為什麼走『原子地基優先』」的背景讀；**現行 active lane = 頂部「現狀」+「下一棒 vec4→Seam2」**，不是底下任何一塊。
