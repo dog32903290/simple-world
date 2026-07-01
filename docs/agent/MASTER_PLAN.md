@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: ce14f9f
+HEAD: a59ff2d
 DIRTY: clean
 CENSUS: 472 / 749 done
-BITE: 550 PASS
-STAMP_AT: 2026-07-01T09:11
+BITE: 552 PASS
+STAMP_AT: 2026-07-01T10:35
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -28,17 +28,19 @@ STAMP_AT: 2026-07-01T09:11
 
 ## Active Lane
 
-**★現狀（2026-07-01 09:11，HEAD ce14f9f，--bite 550，clean）** — 前情（Seam1/vec4/param 全 DONE）在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)：
-- **Seam 2 render-state 第一塊 DONE（`ce14f9f`，原子地基 keystone #2）**：`FrozenRenderState` + Rasterizer op + closed-form DX11→Metal 表（25 static_assert 鎖 MTL ABI）+ **★both-leg flat/resident byte-identical golden**（最高風險 resident-only 無聲錯 render，de-risk via 單一 shared stamp helper；走 per-item STAMP 路非 cook-core accumulator＝divergence-proof by construction，零 cook-core leg 改動）。獨立 Opus refuter 5/5 SURVIVES + fixer 補真 cook-through depthbias 牙。--bite 550(+6)、check-arch/linecount OK。
-- **⚠ 範圍誠實**：只有 **encoder dynamic state（cull/winding/depthBias）wired 到 production**。**blend-PSO materialization 沒做**（`makeDrawPSO` 仍 hardcode BlendMode）＝下一棒。DepthBias numeric-output DEFERRED（需 Windows-TiXL frame 對 emergent 2^(exp−r)）。**別把 Seam 2 誤讀成「blend state 已 port」。**
-- 方法論 durable：[[parity-gate-split-deterministic-vs-emergent]] / 增量 commit 救連線 drop [[worktree-agent-must-commit-to-branch]]。
+**★現狀（2026-07-01 10:35，HEAD a59ff2d，--bite 552，clean，⚠未 push＝領先 origin 4 commit，等柏為授權推）** — 前情（Seam1/vec4/param 全 DONE）在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)：
+- **Seam 2 render-state 兩塊都 DONE（原子地基 keystone #2）**：
+  - **① Rasterizer encoder state（`ce14f9f`）**：`FrozenRenderState` + closed-form DX11→Metal 表（25 static_assert 鎖 MTL ABI）+ **both-leg flat/resident byte-identical golden**（最高風險 resident-only 無聲錯 render，de-risk via 單一 shared stamp helper；per-item STAMP 非 cook-core accumulator＝divergence-proof、零 cook-core leg 改動）。cull/winding/depthBias 走 encoder dynamic state。refuter 5/5 SURVIVES。
+  - **② OutputMerger blend-PSO（`a59ff2d`）**：blend/depth 表接進 `makeDrawPSO`（不再 hardcode BlendMode）+ per-item blend-PSO cache（`frozenPSOKey`）。both-leg + cook-through goldens。refuter 5/6 SURVIVE→抓出 alpha bug + header bump→fixer 收。press-pass：unstamped 走 legacy PSO byte-identical，552 全綠。
+- **★alpha 是 closed-form 不是延後**（柏為 2026-07-01 糾正）：TiXL `DefaultRenderingStates.cs` `DestinationAlphaBlend=InverseSourceAlpha` 常數（Normal/Additive 都是）→ 本機 golden 驗（Additive `dstA==InvSrcAlpha` red-first），零 Windows frame。build agent 曾把它從 RGB-dst 推導（Additive 錯）又貼「延後 Windows」標籤掩蓋→refuter 抓出。**方法已固化成 skill `parity-without-reference-frame`**（拆 closed-form/emergent/no-equiv，別預設看畫面）+ [[parity-gate-split-deterministic-vs-emergent]]。
+- **⚠ 誠實延後（named fork，非「卡 Windows」）**：**DepthBias numeric-scale** = 真 emergent（規範 `VK_EXT_depth_bias_control` 明文允許兩邊 r 不同）→ named fork、**不建畫面閘**（根本沒 on-machine TiXL，畫面閘是空的）、真有 .t3 接了 depth-bias 才補。這**不是**阻塞。
 
 **★★下一棒（cook-core/render 一次一條，不可同跑同檔）：**
-1. **OutputMerger op（blend-PSO materialization）**：把 `dx11_metal_state_map.h` 已 verify 但**未 wired** 的 blend/depth/fill/compare 表接進 executor `makeDrawPSO`（現 hardcode BlendMode）+ per-item blend-PSO cache（`frozenPSOKey` 已備）。承重 seam，全工法（藍圖續用 `SEAM2_RENDERSTATE_BUILD_PLAN.md` OutputMerger 段 + `DX11_METAL_CONVERSION_TABLE.md`）。**★工單必令：① 增量 commit 到自己 branch（防連線 drop 丟工作）② 只在自己 worktree 動、絕不對 shared main checkout ref 動手（見 Conflict）。**
-2. 低優先殘留：TransformsConstBuffer resident camera golden（reasoned-not-tested，低風險）；DepthBias numeric golden（卡 Windows-TiXL ref）。
+1. **Seam 2 render 剩餘 leaf / 下一 foundation seam**：render-state 兩塊已足供 blend/raster 重放；再往下＝藍圖 `SEAM2_RENDERSTATE_BUILD_PLAN.md` 的殘餘 op leaf（若有），或轉下一個原子地基縫（看 `tools/seam_map.tsv` 解鎖量）。**建議先讓柏為 review + push 這批再開下一承重塊**（避免無限堆疊未推承重工作）。
+2. 低優先殘留：TransformsConstBuffer resident camera golden（reasoned-not-tested，低風險）；DepthBias numeric（named fork，見上，非阻塞）。
 
-**★並行/衝突（Session Safety）**：無 active 平行 lane，tree clean @ ce14f9f。
-- **⚠ 本批事故（2026-07-01，已無損但記坑）**：Seam 2 worktree agent 兩度因 API 連線 mid-stream drop 死、丟未 commit 工作（改增量 commit 後扛住）；且 refuter/fixer 的 `git reset --hard <sha>` 洩到 shared main checkout HEAD（reflog 08:34→23b68fa/08:51→5c65eed），fixer 誤 reset shared main 後自 restore。**end state 已親驗乾淨（main==origin/main 起步 c6dd009→merge 後 ce14f9f），但下批工單必明令 agent 不碰 shared checkout ref。**
+**★並行/衝突（Session Safety）**：無 active 平行 lane，tree clean @ a59ff2d。
+- **⚠ 本批三坑（已無損但記坑，都已寫 memory/skill/工單鐵律）**：① API 連線 mid-stream drop 兩度丟未 commit 工作→增量 commit 工法扛住 [[worktree-agent-must-commit-to-branch]]。② refuter/fixer `git reset --hard` 洩到 shared main HEAD、fixer 誤 reset 後自 restore→下批工單鐵律「agent 只在自己 worktree、不碰 shared ref」。③ **`--bite` 驗證前必確認 binary mtime 是新的**——本批 squash-merge 後 `run_all_selftests --bite` 跑到 stale binary 報假 550（新 glob 檔沒觸發 rebuild），手動 `cmake --build` 後才真 552。驗證讀數前先 `ls -la app/build/simple_world` 對時間。
 - 待清 stray：`seam2-renderstate`(空)、已合流 `worktree-agent-*`（可 prune）。
 
 ---
