@@ -15,16 +15,14 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: b0369ad
-DIRTY: clean
+HEAD: 0e1a0e3
+DIRTY: 2 files
 CENSUS: 473 / 749 done
 BITE: 561 PASS
-STAMP_AT: 2026-07-02T00:42
+STAMP_AT: 2026-07-02T01:26
 <!-- sw_status:end -->
 
-- 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
-- **柏為-absent 自走可採 = 第三軸體驗復刻尾**（[EXPERIENCE_PARITY_PLAN](EXPERIENCE_PARITY_PLAN.md)：純皮 Tier1 / Output O3 / 維運），eye-hand 驗、不碰 cook-core。
-- 本 session 落地：**field 紅修**（`644d100` AudioReaction 救回）+ **quick-add 型別色**（`e427d55`）+ **ui_census 校正×3**（`56a2057`/`708b253`/`7765469`）+ **out-snapshot-png**（`5a9a51f`）+ **★S1 輸出解析度縫端到端完成**（柏為 23:35 授權：`1b53b12` cook-core override hook + `a93f2dc` UI 選擇器,皆 refuter 8/8 SURVIVES）→ B 軌 out-resolution-selector 自動 DONE,B 軌 16→19。
+- **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
 
 ## Active Lane
 
@@ -36,7 +34,7 @@ STAMP_AT: 2026-07-02T00:42
 - **⚠ 誠實延後（named fork，非「卡 Windows」）**：**DepthBias numeric-scale** = 真 emergent（規範 `VK_EXT_depth_bias_control` 明文允許兩邊 r 不同）→ named fork、**不建畫面閘**（根本沒 on-machine TiXL，畫面閘是空的）、真有 .t3 接了 depth-bias 才補。這**不是**阻塞。
 
 **★★施作順序＝hard-bone-first（柏為 15:21 approve；兩個 keystone 探完後 code-verified 重排）：**
-兩個 keystone 都做完：骨1（`0edc44e`，importer live + buffer-marshalling 半條）→ 骨3（`8f97132`，compute-stage atom + GPU-compute replay parity GREEN）。**原子重放對 GPU-compute 端到端證明可行（真 dispatch/真 GPU readback，refuter 反證 CPU 短路）。** 但 refuter 抓出「187 閘真開」contingent on 一個 **boundary-flatten seam**——即真正的下一根。
+機器已驗證 point→mesh 跨家族泛用（骨1 importer→骨3 compute-stage→骨7/7b boundary+排序→骨8 mesh keystone，全 refuter 驗過）。**原子重放端到端證明可行。** 剩下＝收尾 mesh 兩缺口（骨4/骨9）→ 開 187 量產。
 ```
 ★下一根（收尾 mesh 家族的兩個誠實缺口，兩者可並行、都碰 importer/flatten 邊緣需序列 owner-lock）:
   骨4  mesh-buffer 橋原子(_MeshBufferComponents/_AssembleMeshBuffers):骨8 golden 用 scaffold rewire 繞過
@@ -48,8 +46,9 @@ STAMP_AT: 2026-07-02T00:42
   骨2  HLSL→MSL 翻譯尾巴（KNOWN-works：151 .metal/92 golden；對帳差集逐顆翻，純體力；187 每顆要它）
 骨4+骨9 GREEN 後解鎖:
   [187 未做複合 .t3 replay 批 — 大量並行體力；每顆需 kernel 的 HLSL→MSL(骨2 提供)]
-卡柏為/實體:  骨6c io/audio 裝置
+卡柏為/實體:  骨6c io/audio 裝置(接實體裝置)
 ```
+- **★ParticleSystem pool-fork＝柏為 2026-07-02 已拍板：照 TiXL 一模一樣、拔掉 sw 的 CPU 循環池 fork（不再卡柏為，變 build 工單）。** 做的時候第一步先讀「TiXL 原生池是否本來就決定性」：是→parity+決定性一次拿到、無取捨；否→照 TiXL 為預設，另一個「決定性輸出模式」是 **TiXL-absent 能力＝範圍閘擋到 clone 後**才做（柏為要的 MV frame-accurate export 是 clone-後承重 [[simple-world-real-target-mv-tooling]]），且必須做成**可選旋鈕（預設 TiXL-exact）非靜默分岔**。詳 [[particlesystem-pool-fork-match-tixl]]。
 **★機器泛化已驗（今日 session，皆 refuter 驗過）：** 讀圖機+compute-stage+boundary+flatten 排序 全正確，且 **point→mesh 跨家族泛用**（骨8：compute-stage +2 行即吃 mesh）。剩 187 是**逐顆體力**（mesh/其他 kernel + 骨2 shader 翻譯），非架構賭注——**骨4/骨9 收尾 mesh 兩缺口後即可開量產**。
 **本波已合流（皆 refuter 驗過，`b0369ad`，561）：**
 - **骨8 mesh 家族端到端（`698eb20`→merged）**：真 TransformMesh.t3(byte-identical embed)→importT3→cookResident→SwVertex readback 對 oracle parity(maxPosErr<5e-7)。機器 point→mesh 泛用(compute-stage +2 行資料列)。refuter 4/5 SURVIVES(切 SRV→readback 全零=反證偷渡)；**claim2 REFUTED=TransformMesh 零 mixed-slot→骨7b-對-mesh 未驗(骨9)**；_MeshBufferComponents/_AssembleMeshBuffers scaffold 繞過(骨4)。agent 死於網路斷,3 保命 WIP commit 全在→salvage 驗。
