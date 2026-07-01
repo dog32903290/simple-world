@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 7666202
+HEAD: 0edc44e
 DIRTY: clean
 CENSUS: 472 / 749 done
-BITE: 556 PASS
-STAMP_AT: 2026-07-01T12:20
+BITE: 557 PASS
+STAMP_AT: 2026-07-01T16:29
 <!-- sw_status:end -->
 
 - 引擎 clone **57%（427/749）**。★**「clean-leaf 採盡」兩度被推翻**：(1) S2/S3 脊椎查出早已蓋好+golden 綠→單輸入 texture-rail 葉子可採；(2) **multi-image seam 也早已建**（gather 綁 4 input texture，Blend/Displace/Combine3Images 已證）→ **fixed-port 多輸入 op 是乾淨葉子**。**本 session 六批已採 10 顆 image 葉子 + 1 小 seam**（batch1 `627458b` Mandelbrot+DepthBuffer、batch2 `fc92eca` ImageLevels+2×Ryoji+HoneyComb、batch4 `9fa193e` CombineMaterialChannels、batch5 `646544d` HSE+MosiacTiling、batch6 `0fd14a4` MultiInput<Texture2D> gather 擴充 + PickTexture）。**★方法論血證（4-5 次）：census/scout 系統性把「已建的 seam」誤報 gated（S2/S3 脊椎、multi-image gather 都早已建）→ 別信 census done/todo，ground-truth=讀 cook path（派 Plan agent 深讀，不是 Explore census）。** 選葉子要開 .hlsl 親看（單 pass？非 compute-reduction？非 compound？fixed-port？）。
@@ -28,35 +28,39 @@ STAMP_AT: 2026-07-01T12:20
 
 ## Active Lane
 
-**★現狀（2026-07-01 12:20，HEAD `7666202`，--bite 556，clean，**未 push 領先 origin**＝待柏為授權）** — **render-state keystone 四顆全齊（Rasterizer/OM/IA/Draw）**。前情（Seam1/vec4/param 全 DONE）在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)；下方 Seam2 兩塊 DONE 為 done-record 非 active：
+**★現狀（2026-07-01 16:29，HEAD `0edc44e`，--bite 557，clean，**未 push 領先 origin**＝待柏為授權）** — **keystone 首證做完（RED 探路成功）**：.t3 importer live 在 main、buffer-marshalling 半條 replay 軌端到端通；RED 精確定位下一根＝compute-stage atom（見下方施作順序）。render-state keystone 四顆全齊（Rasterizer/OM/IA/Draw）為 done-record。前情在 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)；下方 Seam2 兩塊 DONE 為 done-record 非 active：
 - **Seam 2 render-state 兩塊都 DONE（原子地基 keystone #2）**：
   - **① Rasterizer encoder state（`ce14f9f`）**：`FrozenRenderState` + closed-form DX11→Metal 表（25 static_assert 鎖 MTL ABI）+ **both-leg flat/resident byte-identical golden**（最高風險 resident-only 無聲錯 render，de-risk via 單一 shared stamp helper；per-item STAMP 非 cook-core accumulator＝divergence-proof、零 cook-core leg 改動）。cull/winding/depthBias 走 encoder dynamic state。refuter 5/5 SURVIVES。
   - **② OutputMerger blend-PSO（`a59ff2d`）**：blend/depth 表接進 `makeDrawPSO`（不再 hardcode BlendMode）+ per-item blend-PSO cache（`frozenPSOKey`）。both-leg + cook-through goldens。refuter 5/6 SURVIVE→抓出 alpha bug + header bump→fixer 收。press-pass：unstamped 走 legacy PSO byte-identical，552 全綠。
 - **★alpha 是 closed-form 不是延後**（柏為 2026-07-01 糾正）：TiXL `DefaultRenderingStates.cs` `DestinationAlphaBlend=InverseSourceAlpha` 常數（Normal/Additive 都是）→ 本機 golden 驗（Additive `dstA==InvSrcAlpha` red-first），零 Windows frame。build agent 曾把它從 RGB-dst 推導（Additive 錯）又貼「延後 Windows」標籤掩蓋→refuter 抓出。**方法已固化成 skill `parity-without-reference-frame`**（拆 closed-form/emergent/no-equiv，別預設看畫面）+ [[parity-gate-split-deterministic-vs-emergent]]。
 - **⚠ 誠實延後（named fork，非「卡 Windows」）**：**DepthBias numeric-scale** = 真 emergent（規範 `VK_EXT_depth_bias_control` 明文允許兩邊 r 不同）→ named fork、**不建畫面閘**（根本沒 on-machine TiXL，畫面閘是空的）、真有 .t3 接了 depth-bias 才補。這**不是**阻塞。
 
-**★★施作順序＝hard-bone-first（柏為 2026-07-01 15:21 approve「先啃完所有最難的、驗證，再清簡單尾巴」；census by mechanism，code-verified 信心）：**
-真 genuinely-unknown 只有 3 根（骨1 importer-parity / 骨5 particle-parity / 骨6b point→field），其中**只有骨1 卡柏為**。已關的骨頭別再列未知：codegen 存亡（reasoned-closed [[atom-replay-codegen-bone-already-live]]）、render-state（done）、feedback（done）、ComputeShaderStage（誤報，僅 bind+dispatch）。
+**★★施作順序＝hard-bone-first（柏為 15:21 approve；keystone 首證後 code-verified 重排）：**
+骨1 keystone 首證做完（`0edc44e`）＝**buffer-marshalling 半條 replay 軌端到端通、importer live 在 main**（走 findSpec 真路），VERDICT RED（探路成功，refuter 4/4 SURVIVES，無 routing bug）。**RED 重排骨頭序**：TransformPoints 變換跑在泛用 ComputeShaderStage 上、sw 無此 atom → **任何 GPU-compute 複合在 compute-stage atom 存在前都 replay 不出正確結果**（buffer marshalling 只搬 bytes，幹活永遠在 compute/shader stage）→ **骨3(compute-stage) 從「骨1後續」升為「真正的下一根、整條 GPU replay 的前置」**。
 ```
-先啃（keystone，最先，最關鍵/信心最低）:
-  骨1  .t3 importer → live resident cook，證 replay==焊死版 byte/pixel-parity   ★卡柏為(見下)
-並行自走 de-risk（零 cook-core、不卡柏為，可與骨1同時）:
-  骨5  particle/stateful parity harness（fixed-seed 單步 readback golden 錨 TiXL .cs；pool-fork 路線柏為已拍）
+★下一根（compute-stage keystone，最關鍵，解鎖整條 GPU-compute replay）:
+  骨3  泛用 ComputeShaderStage 族 atom = 任意 MSL dispatch 綁 SRV/UAV buffer
+       + StructuredBufferWithViews atom
+       + ExecuteBufferUpdate 真 executor（現是 *out=*in passthrough → UAV write-back）
+       + GetBufferComponents/GetSRVProperties 補 SRV/UAV/ElementCount output port
+       → 綠後 TransformPoints.t3 replay 應轉 GREEN（golden 已在，characterization→parity）
+並行自走 de-risk（零 cook-core、不卡柏為，可與骨3同時）:
+  骨5  particle/stateful parity harness（fixed-seed 單步 readback golden；pool-fork 路線柏為已拍）
   骨6b RepeatFieldAtPoints（point→field resource seam，收尾 6 field op）
-  骨2  HLSL→MSL 翻譯尾巴（KNOWN-works：151 .metal shipped/92 golden；對帳差集逐顆翻+golden，純體力）
+  骨2  HLSL→MSL 翻譯尾巴（KNOWN-works：151 .metal/92 golden；對帳差集逐顆翻，純體力）
   骨4  mesh-buffer 橋原子（_MeshBufferComponents/_AssembleMeshBuffers，兩端 currency 已建）
-骨1 GREEN 後解鎖:
-  骨3  compute-stage 離散可重放原子（依賴骨1接縫定義的 spec 形狀）
+compute-stage GREEN 後解鎖:
   [187 未做複合 .t3 replay 批 — 大量並行體力]
-卡柏為/實體:  骨1決策、骨6c io/audio 裝置
+卡柏為/實體:  骨6c io/audio 裝置
 ```
-- **★★骨1 keystone 信心上修（census code-verified）**：keystone 的**機器早已在 main 建好且 live**——spike/t3-importer 從 `de92fa3` 停在第2步，但 main 後續 52 commit 已把 buffer currency（`buffer_op_registry`+6 buffer op+production live）+ 巢狀 resident cook（`resident_eval_flatten.cpp::inlineSymbol` 遞迴內聯，含 MultiInput/buffer-shaped）建好。**keystone 不是「造機器」是「接縫驗證」**：importer 從沒 forward-port 進 main（`grep importT3 main = 0`）、從沒接上 `buildEvalGraph`、從沒拿真複合證 parity。詳 [[t3-importer-keystone-machine-already-on-main]]。
-- **骨1 執行（柏為 15:21 委派 2 決策給 orchestrator）**：① importer **forward-port** `.worktrees/t3-importer/app/src/runtime/t3_import.cpp` 進 main 接 `buildEvalGraph`（不特別 merge 整個 spike 分支）② 首證複合 orchestrator 挑（最小-非平凡：buffer+巢狀+1 GPU stage，從 148 焊死複合選）。接縫主戰場＝`resident_eval_flatten.cpp::inlineSymbol`；live cook 入口＝`frame_cook.cpp:281/387`。GREEN=replay 軌成立、187 複合解鎖；RED=flatten↔importer 接縫或 buffer 內聯有洞，暴露具體缺口。
-- **★no pure-CPU welded compound**：148 焊死複合全在 GPU 島 →「最淺 CPU 第一刀」不存在，首證只能選 GPU 骨頭。詳 [[no-pure-cpu-welded-compound]]。
-- 低優先殘留：Fork B dormant tripwire → fixer backlog；TransformsConstBuffer resident camera golden；DepthBias numeric（named fork）。
+- **骨1 keystone 已做（`0edc44e`，557）**：importer forward-port 進 main（`t3_import`，findSpec 真路無 fork）+ 6 buffer atom slot 映射 + TransformPoints.t3 characterization golden（differential 證牙）。keystone 機器（buffer currency + `inlineSymbol` 巢狀 cook）早已在 main [[t3-importer-keystone-machine-already-on-main]]。RED=compute-stage gap（refuter 4/4 SURVIVES，25 wire 20 drop 全合法：19 unmapped-endpoint + 1 missing-UAV-port 同族）。
+- **★compute-stage 是真 keystone（census 曾低估）**：census 把 ComputeShaderStage 當「誤報/只 bind+dispatch」＝**低估**。真缺口＝泛用可 wire 的 compute-stage atom（任意 MSL 綁 SRV/UAV）+ UAV write-back executor，是所有 GPU-compute 複合 replay 的前置。已更正 [[atom-replay-codegen-bone-already-live]]。
+- **★no pure-CPU welded compound**：148 焊死複合全在 GPU 島 → 首證只能選 GPU 骨頭。[[no-pure-cpu-welded-compound]]。
+- 低優先殘留：golden wire count 24→25 stale（下 spike 順修）；Fork B tripwire → fixer backlog；TransformsConstBuffer camera golden；DepthBias fork。
 
-**★並行/衝突（Session Safety）**：tree clean @ `7666202`，未 push 領先 origin（待柏為授權）。
-- **骨1 keystone lane 啟動中（柏為 15:21「走」）**：orchestrator 挑首證複合 + forward-port importer 證 parity。此 lane 碰 cook-core 邊緣（`buildEvalGraph`/`inlineSymbol`），**與任何碰 `resident_eval_flatten.cpp`/`frame_cook.cpp` 的 lane owner-lock 互斥**。並行自走 lane（骨5/6b/2/4）踩不同檔域可同跑，但合流時共享 registration 檔（selftests_decls/point/CMakeLists）序列 append。
+**★並行/衝突（Session Safety）**：tree clean @ `0edc44e`，未 push 領先 origin（待柏為授權，累積 IA+Draw+keystone 探路）。
+- **無 active 平行 lane**（keystone build+refuter 均已收，worktree 已 prune）。下一根 compute-stage（骨3）碰 `t3_import.cpp`/`buffer_ops_*`/新 compute atom，**與任何碰 importer/buffer/`resident_eval_flatten.cpp` 的 lane owner-lock 互斥**；並行自走 lane（骨5/6b/2/4）踩不同檔域可同跑，合流時共享 registration 檔（selftests_decls/point/CMakeLists）序列 append。
+- 柏為在場對話中；下一步＝dispatch 骨3 compute-stage build（待柏為過目下一根方向）+ 視需要 fan-out 骨5/6b。
 - 已修坑（進 memory/skill 自動避）：連線 drop→[[worktree-agent-must-commit-to-branch]]；`git reset` 洩 shared main→工單「只在自己 worktree」；stale-binary→[[bite-verify-check-binary-mtime]]。**新：watchdog 讀 symlink mtime 假死**（agent output 是 symlink→指真 `.jsonl` 路徑才準）→ [[agent-watchdog-follow-symlink-target]]。
 
 ---
