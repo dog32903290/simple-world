@@ -25,5 +25,9 @@ extern const char* const kComputeShaderGuid;
 extern const char* const kComputeShaderSourceSlot;
 extern const char* const kComputeShaderCsOutSlot;
 extern const char* const kComputeStageCsInSlot;
+// 187 量產第一波: _ExecuteCombineBuffers's ComputeShader input slot — a SECOND fold target for the same
+// ComputeShader.Source→KernelName post-pass (CombineBuffers.t3 wires its ComputeShader here, not into a
+// ComputeShaderStage). The fold accepts either CS-in slot so a code-op compound folds like a stage does.
+extern const char* const kCombineBuffersCsInSlot;
 
 }  // namespace sw

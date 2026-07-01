@@ -183,7 +183,9 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
       const std::string dstSlot = lc(asStr(wv, "TargetSlotId"));
       auto cs = computeShaderSource.find(srcGuid);
       if (cs == computeShaderSource.end() || srcSlot != kComputeShaderCsOutSlot) continue;
-      if (dstSlot != kComputeStageCsInSlot) continue;
+      // Accept EITHER CS-in slot: ComputeShaderStage.ComputeShader OR _ExecuteCombineBuffers.ComputeShader
+      // (187 量產第一波 — a code-op compound folds its ComputeShader.Source onto KernelName like a stage).
+      if (dstSlot != kComputeStageCsInSlot && dstSlot != kCombineBuffersCsInSlot) continue;
       auto dit = childGuidToId.find(dstGuid);
       if (dit == childGuidToId.end()) continue;  // stage not mapped (shouldn't happen)
       for (SymbolChild& ch : sym.children)

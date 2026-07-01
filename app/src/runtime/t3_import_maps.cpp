@@ -20,6 +20,7 @@ const char* const kComputeShaderGuid = "a256d70f-adb3-481d-a926-caf35bd3e64c";
 const char* const kComputeShaderSourceSlot = "afb69c81-5063-4cb9-9d42-841b994b5ec0";  // Source (String)
 const char* const kComputeShaderCsOutSlot = "6c118567-8827-4422-86cc-4d4d00762d87";    // CS output
 const char* const kComputeStageCsInSlot = "5c0e9c96-9aba-4757-ae1f-cc50fb6173f1";      // ComputeShaderStage.ComputeShader in
+const char* const kCombineBuffersCsInSlot = "d91e52f2-52c6-4533-ac14-f5b2ce8b4c0f";    // _ExecuteCombineBuffers.ComputeShader in (187)
 
 // ---- TABLE ③: t3 symbol guid → sw op type. The buffer atoms sw HAS (forward-port widening).
 // The atom's NodeSpec is resolved via findSpec (production registry) — no per-atom provider on main.
@@ -57,6 +58,11 @@ std::string swTypeForSymbolGuid(const std::string& guid) {
       // vec3→3 floats) both already exist as sw value ops (value_op_inttofloat.cpp / value_op_vector3components.cpp).
       {"17db8a36-079d-4c83-8a2a-7ea4c1aa49e6", "IntToFloat"},                  // numbers/int/basic/IntToFloat.cs:3 (sw value op)
       {"a8083b41-951e-41f2-bb8a-9b511da26102", "Vector3Components"},           // numbers/vec3/Vector3Components.cs:3 (sw value op)
+      // 187 量產第一波: _ExecuteCombineBuffers (point/combine/_ExecuteCombineBuffers.cs:8) — the CODE-OP that
+      // hides CombineBuffers.t3's whole compute-stage assembly (result alloc + per-input dispatch loop) in
+      // C#. sw has a DEDICATED replay atom (buffer_ops_executecombinebuffers.cpp). Its ComputeShader child's
+      // Source (CombineBuffersAsInt.hlsl) folds onto the atom's KernelName (fold pass generalized in t3_import).
+      {"56f7cf15-678d-4527-a328-8666a80882d0", "_ExecuteCombineBuffers"},      // point/combine/_ExecuteCombineBuffers.cs:8
       // ComputeShader (Gfx/ComputeShader.cs) has NO standalone sw atom — its Source string folds onto the
       // ComputeShaderStage's KernelName (fork computeshader-source-folded-onto-stage, applied in a post-pass
       // in t3_import.cpp). Deliberately NOT in this table (it must NOT become a child); the fold pass handles it.
@@ -194,6 +200,14 @@ std::string swSlotNameForGuid(const std::string& swType, const std::string& slot
        {
            {"01809b63-4b4a-47be-9588-98d5998ddb0c", "IntValue"},  // int input (.cs:19-20)
            {"db1073a1-b9d8-4d52-bc5c-7ae8c0ee1ac3", "out"},       // Result output (.cs:6-7)
+       }},
+      // 187 量產第一波: _ExecuteCombineBuffers (point/combine/_ExecuteCombineBuffers.cs). The ComputeShader
+      // input (d91e52f2) is NOT a row: like the ComputeShaderStage.ComputeShader slot, it is the FOLD target
+      // (the ComputeShader child's Source rides onto KernelName via the generalized fold pass), never a wire.
+      {"_ExecuteCombineBuffers",
+       {
+           {"c8a5769e-2536-4caa-8380-22fbeed1ef12", "InputBuffers"},  // MultiInput<BufferWithViews> (.cs:169-170)
+           {"d6770718-842e-441d-a5f6-db9b2a20839b", "Output"},        // combined Buffer output (.cs:11-12)
        }},
       // 骨9: Vector3Components (numbers/vec3/Vector3Components.cs) — AmountDistribution vec3 → 3 scalar floats.
       // sw port ids from value_op_vector3components.cpp: Value.x head (the vec3-on-head fork), X/Y/Z outputs.
