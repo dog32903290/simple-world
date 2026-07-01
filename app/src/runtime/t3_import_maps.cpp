@@ -93,7 +93,13 @@ std::string swSlotNameForGuid(const std::string& swType, const std::string& slot
            // (fork getbuffercomponents-views-alias-buffer). These fed the compute stage's SRV/UAV wires.
            {"1368ab8e-d75e-429f-8ecd-0944f3ede9ab", "ShaderResourceView"},   // SRV output (.cs:47)
            {"f03246a7-e39f-4a41-a0c3-22bc976a6000", "UnorderedAccessView"},  // UAV output (.cs:48)
-           // Length / Stride / IsValid scalar outputs still DEFERRED (ride the SwBuffer metadata).
+           // 骨9: Length output (.cs:60 = SRV.Description.Buffer.ElementCount) rides the Buffer view rail —
+           // sw's GetBufferComponents "Buffer" output IS the passthrough buffer carrying elementCount, and
+           // StructuredBufferWithViews.Count reads a wired Buffer input's elementCount. So mapping Length →
+           // "Buffer" makes DisplaceMeshNoise's SBV.Count ← GBC(mesh).Length resolve to the mesh vertex
+           // count. Same fork as GetSRVProperties.ElementCount → Buffer view rail (elementcount-is-buffer-view).
+           {"d7918fd8-906e-424d-8c5c-9631941cfc9d", "Buffer"},               // Length output → Buffer view rail (骨9)
+           // Stride / IsValid scalar outputs still DEFERRED (ride the SwBuffer metadata).
        }},
       {"GetSRVProperties",
        {
