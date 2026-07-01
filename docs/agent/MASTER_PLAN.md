@@ -15,19 +15,22 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 541cd0f
+HEAD: 98e8a56
 DIRTY: clean
 CENSUS: 473 / 749 done
-BITE: 565 PASS
-STAMP_AT: 2026-07-02T06:13
+BITE: 566 PASS
+STAMP_AT: 2026-07-02T07:44
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
 
 ## Active Lane
 
-**★現狀（2026-07-02 06:13，HEAD `541cd0f`，--bite 565，clean，**未 push 領先 origin**＝待柏為授權）** — **★187 量產 phase・image-collapse 機制已落地（image currency 打通）。wave-1+2 全 refuter SURVIVES+orchestrator 親驗。**
-- **★image-fx collapse import seam（`541cd0f`，merged+refuter SURVIVES）＝image 家族鑰匙**：root-collapse 機制（root-guid→sw-tex-op 表 ④b + 3 個 fx-setup framework guid ④a：cc34a183/a2567844/5b999887）把 image-fx wrapper collapse 成平面 sw tex atom。**HSE(single-child)+Blend(multi-child,7 children,helper value-op 保留為真 child) 兩子類端到端 image parity GREEN**（HSE got=(0,255,0)、Blend got=(127,128,0)＝Normal-blend 閉式精確到 byte，127-vs-128 是 α=128/255 的算術非 bug）。--bite 565。t3_import.cpp 拆 279（+t3_import_collapse.cpp）。
+**★現狀（2026-07-02 07:44，HEAD `98e8a56`，--bite 566，clean，**未 push 領先 origin**＝待柏為授權）** — **★187 量產 phase・image currency 打通 + 首個 gradient-fed op 落地。全 refuter+orchestrator 親驗。**
+- **★A1 gradient-fed collapse（`98e8a56`，merged，refuter 攻破→fixer 修→親驗）＝image 逐子類第一根**：把 `GradientsToTexture`(2c53eee7) 接進 collapse 映射（**atom 早已 live 在 main**，缺的只是 mapping＝keystone-already-live 型），證於真 `BubbleZoom.t3` gradient-fed 複合端到端 GREEN。**★這根被 refuter 抓到空心綠→是本 session 最有價值的一次否證**：原 golden pin 坐奇異同值點遮住整片背離（GPU 近二值場 vs oracle 平滑 ramp，dR=±251），底下真洞＝collapse 沒把 boundary vec2 default(GainAndBias=0.5) plumb 過保留的 Vector2Components helper(helper 灌 0,0 蓋掉)。**fixer 通用修 boundary-typed-default plumbing(V2/V3/V4Components)** + golden 換 mid-field pin + 拿掉 authoring 測 unauthored 路徑；scalar boundary default 證良性(atom port default==t3 default,同源港)。**副效益：Blend 也拿掉手寫 (1,1,1,1)、改由 plumb guard vec4**。教訓進 memory [[replay-golden-pins-must-sample-diverging-middle]]。566。
+  - **⚠ image 逐子類代價不低**：A1 一顆 gradient op 花了 build→refuter(攻破)→fixer→resume 四輪（空心綠+plumbing 洞）。image fan-out 不是「加一行 data row」的乾淨葉子，每顆要真 oracle+非端點 pin+boundary-default plumbing 檢查。**gradient-fed class 7 顆：1 done(BubbleZoom)，其餘 6**（NGon/Radial/BoxGradient 只缺 ④b/c/d 列+golden；RemapColor/LinearGradient/SubdivisionStretch 另缺 helper atom）。
+  - **★187 是 class-gated 非 leaf-parallel（scout 壓測校正）**：剩非 image backlog 幾乎全 seam-gated by class（feedback~12/iteration~8/multi-stage~25/render-state~40/dict~12，數字僅估）。**「非 image wired-atom 乾淨葉子 fan-out」≈無貨可採**（scout 掃出只 Image2dSDF）。⇒ 前進＝逐 class 建 seam 骨→該 class 才 fan out，非大量並行葉子。
+- **image-fx collapse import seam（`541cd0f`，merged+refuter SURVIVES）＝image 家族鑰匙**：root-collapse 機制（root-guid→sw-tex-op 表 ④b + 3 個 fx-setup framework guid ④a：cc34a183/a2567844/5b999887）把 image-fx wrapper collapse 成平面 sw tex atom。**HSE(single-child)+Blend(multi-child,7 children,helper value-op 保留為真 child) 兩子類端到端 image parity GREEN**（HSE got=(0,255,0)、Blend got=(127,128,0)＝Normal-blend 閉式精確到 byte，127-vs-128 是 α=128/255 的算術非 bug）。--bite 565。t3_import.cpp 拆 279（+t3_import_collapse.cpp）。
   - **⚠誠實範圍（勿當 102 全解鎖）**：只證 2 子類。**剩 image 大宗 gated on 逐子類補映射**（非機制重寫）：① `GradientsToTexture`(2c53eee7)**無 sw atom**→擋 gradient-fed 大宗(BubbleZoom/gradient/RemapColor…) ② `IntParameters`(333c2bba) MultiInput/op-專屬 helper 未映射(Pixelate/OpticalFlow/TimeDisplace/HoneyCombTiles) ③ `_trippleImageFxSetup`/`_multiImageFxSetup`(non-static) 變體偵測到未端到端跑。
   - **⚠★fan-out 隱藏工（refuter finding B，coverage gap 非 correctness bug）**：④d FloatParams **positional port-order 表是逐 op 手核、golden 不 guard**（neutral-default 參數不過 parity 閾值→打亂 order 仍 GREEN；只有帶非零值的 wire 打亂才翻 RED）。⇒ **每顆 image op fan-out 必手核 ④d order，且 golden 要餵非零 scalar 值才 exercise 到 order**（否則 port 錯配 golden 抓不到）。同 骨7b 類。
 - **CombineBuffers（`9144e6d`，第一顆量產 op，merged+refuter SURVIVES）**：真 `CombineBuffers.t3`(point-buffer concat) replay GREEN(outCount=15 exact,maxPosErr=0)+tooth(反轉 InputBuffers 序→RED)。**recipe 驗證＝配方對任意複合可重複。** 動了共享 `t3_import.cpp` fold 泛化（+1 CS-in slot `_ExecuteCombineBuffers.ComputeShader`）——refuter 證 **additive-by-unique-GUID**（d91e52f2 只在 _ExecuteCombineBuffers 4 檔，結構上不可能誤觸）+ 三顆既有 t3 golden 仍 GREEN+BITE。bespoke atom 忠實 C# loop（不等長 bag 257/1/513 跨 threadgroup→maxPosErr=0）。563 orchestrator 親驗。
@@ -48,23 +51,23 @@ STAMP_AT: 2026-07-02T06:13
 **★★施作順序＝hard-bone-first（柏為 15:21 approve；兩個 keystone 探完後 code-verified 重排）：**
 機器已驗證 point→mesh 跨家族泛用且 mesh 兩缺口全收（骨1 importer→骨3 compute-stage→骨7/7b boundary+排序→骨8 mesh keystone→骨4 mesh-bridge 原生 import→**骨9 mixed-slot mesh 驗骨7b**，全 refuter 驗過）。**原子重放端到端證明完成，mesh 家族無架構缺口。** 剩下＝逐顆體力量產。
 ```
-★image-collapse 機制 DONE（HSE+Blend 兩子類綠）。下一批＝兩條可並行（不同檔域）:
-[A] image 逐子類解鎖（碰 importer/maps＝序列 owner-lock，一次一根，每根解鎖一批 image op）:
-  A1 `GradientsToTexture`(2c53eee7) 做 sw tex atom + 映射 → 解鎖 gradient-fed 大宗(BubbleZoom/gradient/RemapColor…最多)
-  A2 `IntParameters`(333c2bba) MultiInput + op-專屬 helper 映射 → Pixelate/OpticalFlow/TimeDisplace/HoneyCombTiles
-  A3 `_trippleImageFxSetup`/`_multiImageFxSetup`(non-static) 變體端到端跑通（偵測已在，需一顆真 op 驗）
-  ★每顆 image op golden 必餵非零 scalar 值 exercise ④d port-order（refuter finding B：neutral-default golden 抓不到 port 錯配）
-[B] wired-atom fan-out（proven currency,不碰 importer,零撞葉檔,可與 [A] 並行）:
-  從 backlog 挑 wired-atom 複合（非 image、落既有 compute-stage/buffer/mesh/field 能力）3-5 顆 worktree 並行；
-  每顆 = embed .t3 → replay → 獨立 oracle parity + tooth + refuter。★工法可用 /sw-node-batch（家族並行）。
-  ⚠ code-op（藏 C# Update()）全庫僅 _ExecuteCombineBuffers 1 顆(已做)，其餘皆 wired-atom。
-  ⚠ 撞點：共享 fold-slot list / collapse 表（t3_import.cpp）若某顆需新 slot→集中改別各 lane 撞（O(1)-per-op、misfire-proof）。
-低優先 cleanup: Blend golden 誤註冊在 `--selftest-t3-channelmixer` flag（leftover 名，功能對，改名即可）。
+★A1 gradient-fed DONE(BubbleZoom)。187 是 class-gated：逐 class 建 seam/補映射→該 class fan out。下一批選一:
+[A] 續 image gradient-fed 剩 6（collapse default-plumbing 洞已修，後續應較乾淨）:
+  A1剩 NGon/Radial/BoxGradient(只缺 ④b/c/d 列+golden) → RemapColor/LinearGradient/SubdivisionStretch(另缺 helper atom)
+  ★每顆 golden 照 memory [[replay-golden-pins-must-sample-diverging-middle]]：mid-field pin+非零值+測 unauthored 路徑，別空心綠。
+[A2/A3] 其它 image 子類 seam: `IntParameters`(333c2bba)→Pixelate/OpticalFlow/TimeDisplace/HoneyCombTiles;
+  `_trippleImageFxSetup`/`_multiImageFxSetup`(non-static) 變體端到端驗(偵測已在)。
+[C] 非 image class-seam（ROI=解鎖數×可行性；每根一根骨,序列 owner-lock t3_import/cook-core）:
+  multi-compute-stage(~25,序列 dispatch seam) / feedback(~12,previous-frame texture) / iteration(~8,RW-buffer loop)
+  / render-state chain(~40 最多但設計凍結/難) / dict(~12,新 currency)。數字僅估,開前先讀 code 定 scope。
+⛔ 別再派「非 image wired-atom 乾淨葉子 fan-out」——scout 壓測證幾乎無 ready 貨（只 Image2dSDF）。
+⚠ image op 每顆代價不低（A1 花四輪）：真 oracle+非端點 pin+boundary-default plumbing，非加一行。
 卡柏為/實體:  骨6c io/audio 裝置(接實體裝置)；ParticleSystem pool-fork（已解鎖為 build 工單，見下）
 ```
 - **★ParticleSystem pool-fork＝柏為 2026-07-02 已拍板：照 TiXL 一模一樣、拔掉 sw 的 CPU 循環池 fork（不再卡柏為，變 build 工單）。** 做的時候第一步先讀「TiXL 原生池是否本來就決定性」：是→parity+決定性一次拿到、無取捨；否→照 TiXL 為預設，另一個「決定性輸出模式」是 **TiXL-absent 能力＝範圍閘擋到 clone 後**才做（柏為要的 MV frame-accurate export 是 clone-後承重 [[simple-world-real-target-mv-tooling]]），且必須做成**可選旋鈕（預設 TiXL-exact）非靜默分岔**。詳 [[particlesystem-pool-fork-match-tixl]]。
 **★機器泛化已驗（今日 session，皆 refuter 驗過）：** 讀圖機+compute-stage+boundary+flatten 排序 全正確，且 **point→mesh 跨家族泛用**（骨8：compute-stage +2 行即吃 mesh）。剩 187 是**逐顆體力**（mesh/其他 kernel + 骨2 shader 翻譯），非架構賭注——**骨4/骨9 收尾 mesh 兩缺口後即可開量產**。
-**本波已合流（皆 refuter 驗過，`541cd0f`，565）：**
+**本波已合流（皆 refuter 驗過，`98e8a56`，566）：**
+- **A1 gradient-fed collapse（`98e8a56`→merged，refuter 攻破→fixer 修→親驗）**：見頂部「現狀」——BubbleZoom gradient-fed image 端到端 GREEN；refuter 抓空心綠(pin 坐奇異點)+真洞(boundary vec2 default 沒 plumb 過 kept helper)→fixer 通用修 default-plumbing+golden 換血+Blend 改由 plumb guard。教訓 [[replay-golden-pins-must-sample-diverging-middle]]。566。
 - **image-fx collapse seam（`541cd0f`→merged）**：見頂部「現狀」——image currency 打通，HSE+Blend 兩子類綠，refuter 7 角 SURVIVES（127-vs-128 benign、collapse 不誤觸、oracle 非循環），一 coverage gap（④d port-order 逐 op 手核）。565。
 - **CombineBuffers 量產 wave-1（`9144e6d`→merged）**：見頂部「現狀」——第一顆量產 op，驗證配方可重複 + fold 泛化 additive-by-unique-GUID（refuter SURVIVES）。563。
 - **骨9 mixed-slot mesh 驗骨7b（`12fbb18`→merged）**：真 `DisplaceMeshNoise.t3`（13-wire FloatsToBuffer.Params BND/CH 交錯）端到端 replay GREEN(maxPosErr=8e-6)+cb1-序 tooth。**refuter A3-exact：退回骨7b-前兩-pass 序→RED＝骨7b 對真 mesh currency 承重 CONFIRMED。** 收兩 import seam(boundary Params 直注/SBV.Count←Length)，additive 不壞既有牙。float oracle（double 在大 coord simplex-cell 分叉，實測 2.04 偏差）＝忠實非循環。軟註 2：shipped tooth 反轉全序＝superset（interleave-specific 是 A3 regroup，refuter 已證）；Position-only parity（TBN 騎同 cb1 未逐分量驗，低風險）→spawn follow-up。
@@ -78,9 +81,9 @@ STAMP_AT: 2026-07-02T06:13
 - **骨1 importer（`0edc44e`）**：forward-port findSpec 真路 [[t3-importer-keystone-machine-already-on-main]]。
 - 低優先殘留：mixed-MultiInput golden(骨7b 帶)；golden 顯示精度 %.6f→%.9f；wire count 24→25 stale；BufBinding de-dup key "PointTransform" vs TiXL "PointMatrix"(多節點才分歧)；Fork B tripwire；DepthBias fork。
 
-**★並行/衝突（Session Safety）**：tree clean @ `541cd0f`（+ 頂 doc commit），未 push 領先 origin（待柏為授權，累積 IA+Draw+骨1..9+CombineBuffers+image-collapse+doc）。
-- **無 active lane**（image-collapse build+refuter 均已收+合流+orchestrator 親驗，tree clean `541cd0f`）。今日多個 worktree（骨4/骨9/spike×2/image-seam/refuter×4）可 prune、branch 可刪（HSE tripwire 已 merge 進 image-collapse，不再需保留）。
-- **今日大帳**：mesh 全收 → 187 量產 phase 開跑。wave-1 CombineBuffers（第一顆 op）+wave-2 image-collapse seam（image currency 打通，HSE+Blend 兩子類）。兩結構發現：image gated on collapse+逐子類補映射；187 分軸 wired-atom vs code-op（code-op 僅 1 顆）。`--bite` 552→565。**下一步＝[A] image 逐子類解鎖（A1 GradientsToTexture atom 解鎖最多）∥ [B] wired-atom fan-out**。未 push 領先 origin（待柏為授權，累積一整天+跨午夜）。
+**★並行/衝突（Session Safety）**：tree clean @ `98e8a56`（+ 頂 doc commit），未 push 領先 origin（待柏為授權，累積 IA+Draw+骨1..9+CombineBuffers+image-collapse+A1+doc）。
+- **無 active lane**（A1 build+refuter+fixer 均已收+合流+orchestrator 親驗，tree clean `98e8a56`）。今日一堆 worktree（骨4/骨9/spike×2/image-seam/A1/refuter×5/fixer）可 prune、branch 可刪。
+- **今日大帳**：mesh 全收 → 187 量產 phase 開跑。CombineBuffers（第一顆）+image-collapse seam（image currency 打通）+A1 gradient-fed（BubbleZoom，refuter 攻破空心綠→fixer 修 default-plumbing）。`--bite` 552→566。**下一步＝續 image gradient 剩 6，或開一根非 image class-seam（multi-stage/feedback…）——187 是 class-gated（見上「下一根」）。** 柏為 07:xx 現身下「繼續自走」後續跑。未 push 領先 origin（待柏為授權，累積一整天+跨午夜）。
 - **⚠今天連線極不穩**（殺了多個 agent：骨7b/骨8 都死於 API/網路斷）——worktree 隔離 + 增量 commit + orchestrator salvage 全撐住，零工作損失。這條工法今天被壓力測試通過。
 - 已修坑（進 memory/skill 自動避）：連線 drop→[[worktree-agent-must-commit-to-branch]]（本日再證：agent 死可 salvage-commit worktree WIP）；stale-binary→[[bite-verify-check-binary-mtime]]；watchdog 讀 symlink mtime 假死→[[agent-watchdog-follow-symlink-target]]（指真 `.jsonl`）。
 
