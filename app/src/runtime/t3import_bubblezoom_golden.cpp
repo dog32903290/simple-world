@@ -179,9 +179,15 @@ int runT3BubbleZoomParity(bool injectBug) {
                  : "RED (a FloatParams wire landed on the WRONG atom port — ④d order broken)");
   if (!orderOk) { pool->release(); return injectBug ? 2 : 1; }
 
-  // ---- STEP 2: cook. Wire a real DefineGradient (RED→GREEN) onto the atom's Gradient port + Image dummy,
-  // and author the NON-NEUTRAL Radius/Feather scalars the FloatParams rail carries onto the atom.
-  // [fork-bubblezoom-scalar-authored-on-atom] — the boundary scalar defaults aren't plumbed through collapse.
+  // ---- STEP 2: cook. Wire a real DefineGradient (RED→GREEN) onto the atom's Gradient port + Image dummy.
+  // GainAndBias is NO LONGER authored on the atom — the collapse now PLUMBS the boundary GainAndBias vec
+  // default (0.5,0.5) through the kept V2C[GainAndBias] helper onto atom.GainAndBias.x/y
+  // (collapse-boundary-typed-default-plumbed-through-kept-helper, t3_import_collapse.cpp). So the cook's
+  // GainAndBias reaches the GPU exactly as the oracle's (0.5,0.5) — SAME SPEC, not a hollow atom-override
+  // that the V2C wire clobbers. The Radius/Feather/Magnify SCALAR params ARE still authored on the atom:
+  // those boundary scalar defaults aren't plumbed through collapse yet ([fork-bubblezoom-scalar-authored-on-
+  // atom] — a NAMED residual gap, honest, distinct from the vec-default hole just fixed), and the golden
+  // deliberately picks Radius=1 (the .t3 default 0.5 saturates flat → no spatial variation to measure).
   Symbol* sym = const_cast<Symbol*>(rsym);
   for (SymbolChild& c : sym->children)
     if (c.id == bzId) {
@@ -189,7 +195,7 @@ int runT3BubbleZoomParity(bool injectBug) {
       c.overrides["Feather"] = 1.0f;  // .t3 default
       c.overrides["Magnify"] = 1.25f; c.overrides["FlipEffect"] = 0.0f;
       c.overrides["Center.x"] = 0.0f; c.overrides["Center.y"] = 0.0f;
-      c.overrides["GainAndBias.x"] = 0.5f; c.overrides["GainAndBias.y"] = 0.5f;
+      // GainAndBias.x/y INTENTIONALLY NOT authored here — it flows through the plumbed collapse.
       c.overrides["Resolution"] = 4.0f; c.overrides["CustomW"] = (float)kW; c.overrides["CustomH"] = (float)kH;
     }
 
@@ -237,22 +243,30 @@ int runT3BubbleZoomParity(bool injectBug) {
     out[0] = px[i]; out[1] = px[i + 1]; out[2] = px[i + 2]; out[3] = px[i + 3];
   };
 
-  // Two pins: CENTER (dBiased≈0 → near-RED) and an OFF-CENTER pin (dBiased>0 → GREEN rises). Oracle = the
-  // closed-form host red→green sample at shaderT(px,py). The off-center G is the resident-wire teeth-guard.
-  const int cx = kW / 2, cy = kH / 2, ox = 4, oy = 4;
-  uint8_t cpin[4], opin[4]; pixel(cx, cy, cpin); pixel(ox, oy, opin);
+  // THREE pins across the field, chosen to CATCH the hollow-green hole the refuter found:
+  //   CENTER (32,32): dBiased≈0.02 → near-RED (249,6). Coincidence point #1 — GPU==oracle even under the bug.
+  //   CORNER (4,4):   dBiased=1.0 → full GREEN (0,255). Coincidence point #2 + the resident-wire teeth-guard.
+  //   MID-FIELD (48,32): dBiased≈0.516 → R≈123,G≈132. The DECISIVE pin — it sits in the SMOOTH radial ramp
+  //     where the near-binary bug field (GainAndBias=(0,0)) diverges MAXIMALLY (~±130) from the oracle. It is
+  //     GREEN only if GainAndBias=(0.5,0.5) truly reached the GPU through the plumbed collapse. (Before the
+  //     machine fix this pin was RED — the old two pins straddled it without ever testing the ramp.)
+  const int cx = kW / 2, cy = kH / 2, ox = 4, oy = 4, mx = 48, my = 32;
+  uint8_t cpin[4], opin[4], mpin[4]; pixel(cx, cy, cpin); pixel(ox, oy, opin); pixel(mx, my, mpin);
   SwGradient ref = redGreenGradient();
-  simd::float4 refO = ref.sample(shaderT(ox, oy, kW, kH));  // expected off-center rgb
+  simd::float4 refO = ref.sample(shaderT(ox, oy, kW, kH));  // expected corner rgb
   simd::float4 refC = ref.sample(shaderT(cx, cy, kW, kH));  // expected center rgb
+  simd::float4 refM = ref.sample(shaderT(mx, my, kW, kH));  // expected MID-FIELD rgb (the decisive pin)
   auto near8 = [](int v, float t) { return std::abs(v - (int)std::lround(t * 255.0f)) <= 8; };
   bool oOk = haveOut && near8(opin[0], refO.x) && near8(opin[1], refO.y) && near8(opin[2], refO.z);
   bool cOk = haveOut && near8(cpin[0], refC.x) && near8(cpin[1], refC.y) && near8(cpin[2], refC.z);
-  bool greenGuard = haveOut && opin[1] > 40;  // off-center G clearly > 0 (impossible under transparent fallback)
-  bool pass = oOk && cOk && greenGuard;
-  printf("[t3-bubblezoom] replay-vs-oracle: haveOut=%d off=(%u,%u,%u) want~(%.0f,%.0f,%.0f) center=(%u,%u,%u) "
-         "want~(%.0f,%.0f,%.0f) greenGuard=%d injectBug=%d\n",
+  bool mOk = haveOut && near8(mpin[0], refM.x) && near8(mpin[1], refM.y) && near8(mpin[2], refM.z);
+  bool greenGuard = haveOut && opin[1] > 40;  // corner G clearly > 0 (impossible under transparent fallback)
+  bool pass = oOk && cOk && mOk && greenGuard;
+  printf("[t3-bubblezoom] replay-vs-oracle: haveOut=%d corner=(%u,%u,%u) want~(%.0f,%.0f,%.0f) "
+         "center=(%u,%u,%u) want~(%.0f,%.0f,%.0f) MID=(%u,%u,%u) want~(%.0f,%.0f,%.0f) greenGuard=%d injectBug=%d\n",
          haveOut ? 1 : 0, opin[0], opin[1], opin[2], refO.x * 255, refO.y * 255, refO.z * 255,
-         cpin[0], cpin[1], cpin[2], refC.x * 255, refC.y * 255, refC.z * 255, greenGuard, injectBug ? 1 : 0);
+         cpin[0], cpin[1], cpin[2], refC.x * 255, refC.y * 255, refC.z * 255,
+         mpin[0], mpin[1], mpin[2], refM.x * 255, refM.y * 255, refM.z * 255, greenGuard, injectBug ? 1 : 0);
 
   mlib->release(); q->release(); dev->release();
 
