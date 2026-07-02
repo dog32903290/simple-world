@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sw-import-rg",
+      "runtimeExecutable": "./build/simple_world",
+      "runtimeArgs": ["--import-t3", "/Users/chenbaiwei/Desktop/vibe coding/simple_world/external/tixl/Operators/Lib/image/generate/basic/RadialGradient.t3"],
+      "port": 0
+    }
+  ]
+}
