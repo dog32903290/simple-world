@@ -13,7 +13,11 @@
 
 #include "app/command.h"
 #include "platform/dialogs.h"
+#include <fstream>
+#include <sstream>
+
 #include "runtime/compound_save.h"  // .swproj v2 (SymbolLibrary) save/load + v1 migration
+#include "runtime/t3_import.h"       // importT3Symbol: APPEND a .t3 compound into the live lib
 #include "runtime/compound_folder.h" // ADDITIVE .swpkg folder-package save/load (second capability)
 #include "runtime/graph.h"          // defaultParticleGraph (seed only)
 #include "runtime/graph_bridge.h"   // libFromGraph (default-lib seed) + refreshCompoundSpecs
@@ -169,6 +173,47 @@ void doOpen() {
   nfdresult_t r = NFD::OpenDialog(outPath, filters, 1, nullptr);
   if (r != NFD_OKAY) return;
   doOpenPath(outPath.get());
+}
+
+// APPEND a .t3 compound into the LIVE lib as a draggable catalog Symbol (see document.h). This is the
+// FIRST-STEP TiXL-direction path: read the .t3 → importT3Symbol(json, g_lib()) (append-only, sets
+// rootId only when empty, so a document with a default root keeps it) → bumpLibRevision so
+// frame_cook's refreshCompoundSpecs picks it up next frame and the palette can see it. NO lib swap,
+// NO unsaved-guard: nothing is discarded.
+std::string doImportT3AsSymbol(const std::string& path, bool quiet) {
+  std::ifstream f(path, std::ios::binary);
+  if (!f) {
+    if (quiet) std::fprintf(stderr, "[import-t3] cannot read: %s\n", path.c_str());
+    else sw::showError("無法讀取此 .t3 檔：" + path);
+    return std::string();
+  }
+  std::ostringstream ss; ss << f.rdbuf();
+  const std::string json = ss.str();
+
+  std::string symId;
+  std::vector<std::string> warnings;
+  const bool ok = sw::importT3Symbol(json, g_lib(), &symId, &warnings);
+  for (const std::string& w : warnings) std::fprintf(stderr, "[import-t3] %s\n", w.c_str());
+  if (!ok || symId.empty()) {
+    if (quiet) std::fprintf(stderr, "[import-t3] import failed: %s\n", path.c_str());
+    else sw::showError("匯入 .t3 失敗：" + path);
+    return std::string();
+  }
+  bumpLibRevision();       // frame_cook → refreshCompoundSpecs registers the new symbol into the dynamic
+                           // spec table next frame → Cmd+F palette + draggable node with an output pin.
+  invalidateDirtyCache();  // the lib grew (a new symbol) → the • must relight against the saved snapshot.
+  const sw::Symbol* s = g_lib().find(symId);
+  g_status = "imported <- " + path + " (" + (s ? s->name : symId) + ")";
+  return symId;
+}
+
+void doImportT3() {
+  NFD::Guard nfdGuard;
+  NFD::UniquePath outPath;
+  nfdfilteritem_t filters[1] = {{"TiXL operator", "t3"}};
+  nfdresult_t r = NFD::OpenDialog(outPath, filters, 1, nullptr);
+  if (r != NFD_OKAY) return;
+  doImportT3AsSymbol(outPath.get());
 }
 
 // ADDITIVE: Save As → folder package (.swpkg dir, one .t3 per symbol + metadata.json). Prompts for

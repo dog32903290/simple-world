@@ -87,6 +87,16 @@ void doOpenPackage();           // unsaved-guard -> Finder folder picker -> load
 // quiet=true reports failure on stderr ONLY — the CLI seam runs before NSApplication
 // exists, where showError's NSAlert runModal hangs forever (refuter N3 B1).
 bool doOpenPath(const std::string& path, bool quiet = false);
+// APPEND a TiXL .t3 compound into the LIVE lib as a draggable catalog Symbol (importT3Symbol →
+// g_lib().symbols[id]). Unlike doOpenPath this does NOT swap/replace the document — the existing
+// root + symbols are untouched (importT3Symbol is append-only, sets rootId only when empty). Bumps
+// the lib revision so frame_cook's refreshCompoundSpecs registers it into the dynamic spec table →
+// it then appears in the Cmd+F palette (by its real /*Name*/) and can be dragged out with an output
+// pin. Returns the imported symbol id (empty on failure). quiet=true → stderr-only (pre-GUI/CLI).
+std::string doImportT3AsSymbol(const std::string& path, bool quiet = false);
+// Dialog wrapper: Finder .t3 picker → doImportT3AsSymbol (no unsaved-guard — it APPENDS, never
+// discards the current document).
+void doImportT3();
 void doNew();                   // unsaved-guard -> reset to default graph
 bool confirmDiscardIfDirty();   // false == user canceled (caller aborts)
 void updateWindowTitle();       // filename + dirty • ; no-op when unchanged (uses g_window)

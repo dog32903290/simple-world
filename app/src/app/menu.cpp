@@ -100,6 +100,8 @@ const MenuItemDef kAppMenu[] = {
 const MenuItemDef kFileMenu[] = {
     {"New", "n", Cmd, "fileNew", [](void*, SEL, const NS::Object*) { sw::doc::doNew(); }},
     {"Open…", "o", Cmd, "fileOpen", [](void*, SEL, const NS::Object*) { sw::doc::doOpen(); }},
+    {"Import .t3 as Node…", "", 0, "fileImportT3",
+     [](void*, SEL, const NS::Object*) { sw::doc::doImportT3(); }},
     {"Save", "s", Cmd, "fileSave", [](void*, SEL, const NS::Object*) { sw::doc::doSave(); }},
     {"Save As…", "s", CmdShift, "fileSaveAs", [](void*, SEL, const NS::Object*) { sw::doc::doSaveAs(); }},
 };

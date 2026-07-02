@@ -236,6 +236,14 @@ int main(int argc, char* argv[]) {
     if (std::strcmp(argv[i], "--open") == 0 && !sw::doc::doOpenPath(argv[i + 1], /*quiet=*/true))
       std::fprintf(stderr, "[open] falling back to the default project\n");
 
+  // `--import-t3 <file.t3>`: APPEND a TiXL .t3 compound into the live lib as a draggable catalog
+  // Symbol before the GUI starts (no dialog — the hand cannot click into NFD). Runs AFTER any --open
+  // and AFTER the default doc exists, so it appends to a live root (append-only, never swaps). This is
+  // the agent's dialog-free seam to prove the catalog path (eye/hand Step 4). quiet=true: stderr only.
+  for (int i = 1; i + 1 < argc; ++i)
+    if (std::strcmp(argv[i], "--import-t3") == 0)
+      sw::doc::doImportT3AsSymbol(argv[i + 1], /*quiet=*/true);
+
   // `--play`: start in演出/Player mode (modes.md [core]). Just sets the flag the draw loop reads;
   // the window/GUI startup is identical — player mode is a draw-time gate, not a separate entry.
   for (int i = 1; i < argc; ++i)
