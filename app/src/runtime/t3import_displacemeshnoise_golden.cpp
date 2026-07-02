@@ -47,16 +47,29 @@
 // offsets push lookups to |coord|~120, where a double oracle lands on DIFFERENT simplex cells than the
 // float GPU → the noise value forks entirely (measured maxPosErr 0.5, not a rounding delta). Matching
 // the GPU's float precision is the faithful reference; the final Position add is done in double.
-// We parity-check the Position component (the load-bearing displaced output; measured maxPosErr 8e-6).
+// We parity-check the Position component (the load-bearing displaced output; measured maxPosErr 8e-6)
+// AND the recomputed Normal/Tangent/Bitangent frame (each vertex's T/B rebuilt from getNoise at ±tangent
+// anchors, N = T×B — the SAME getNoiseOracle the Position leg uses, so a passing TBN means the frame is
+// geometrically right, not just the position; closes the "TBN wrong while Position right" hole).
 //
 // ── THE 骨9 TOOTH (-bug, load-bearing) ──────────────────────────────────────────────────────────────
-// The -bug leg REVERSES the FloatsToBuffer.Params wire order in sym.connections before buildEvalGraph.
-// Faithful order → these 13 floats fill cb1[0..12] correctly → GREEN. Reversed → Amount(cb1[0]) swaps
-// with UseVertexSelection(cb1[12]) etc. → the noise amplitude becomes 0 (UseVertexSelection=0) → offset≈0
-// → the readback Positions ≈ the un-displaced input → DIVERGES from the oracle → RED. That RED is the
-// proof that the declaration-order preservation (骨7b) is what makes the interleaved mixed slot correct
-// on real SwVertex mesh currency. (Reversing exercises the EXACT sym.connections→extraConns→floatInputs
-// →cb1 chain the fix guards; it is not a synthetic re-scramble outside that path.)
+// The -bug leg REGROUPS the FloatsToBuffer.Params wires in sym.connections into [all child…, all
+// boundary…] before buildEvalGraph — exactly what the OLD pre-骨7b two-pass flatten produced (see the
+// 承重线 note above). This is the INTERLEAVE-SPECIFIC mutation, not a generic scramble: it keeps all 13
+// wires and each group's internal order, and ONLY collapses the child/boundary INTERLEAVE that 骨7b's
+// single-pass fix preserves. (A full reverse would also bite, but reverse proves the SUPERSET "any cb1
+// positional dependence"; the label here is specifically "mixed-slot interleave preservation", so the
+// tooth must isolate exactly the regroup 骨7b prevents.) Faithful interleave → the 13 floats fill
+// cb1[0..12] correctly → GREEN. Regrouped → child wires (AmountDistribution×3, Space, Direction,
+// UseVertexSelection) migrate to cb1[0..5] and the boundary wires (Amount, Frequency, Phase, Variation,
+// RotationLookupDistance, UseWAsWeight, OffsetDirection) to cb1[6..12] → readParams reads Amount from
+// AmountDistribution.x(=1), Frequency from AmountDistribution.y, AmountDistribution from (Direction=0,
+// UseVertexSelection=0, Amount=25) etc. → the displaced offset lands on wrong axes with wrong noise
+// frequency → the readback Positions DIVERGE from the oracle → RED. That RED is the proof that the
+// single-pass declaration-order preservation (骨7b) is what keeps the interleaved mixed slot correct on
+// real SwVertex mesh currency. (Regrouping exercises the EXACT sym.connections→extraConns→floatInputs
+// →cb1 chain the fix guards — it re-creates the pre-fix flatten output in-place, not a synthetic
+// scramble outside that path.)
 //
 // ZONE: runtime golden (shell tier — binds runtime import + resident cook + the independent oracle).
 #include <cmath>
@@ -79,12 +92,14 @@
 #include "runtime/sw_buffer.h"              // SwBuffer
 #include "runtime/sw_mesh.h"                // SwVertex (80B)
 #include "runtime/t3_import.h"              // importT3Symbol
+#include "runtime/t3import_displacemeshnoise_oracle.h"  // the independent float snoise oracle + getNoiseOracle
 
 namespace sw {
 
 void registerBuiltinPointOps();
 
 namespace {
+using namespace dmn_oracle;  // F / V3 / snoiseVec3d / getNoiseOracle / vec helpers (the oracle-math half)
 
 static const char* kDisplaceMeshNoiseT3 =
 #include "runtime/displacemeshnoise_t3_embed.inc"
@@ -121,83 +136,8 @@ NodeSpec fixtureSpec() {
 }
 const BufferOp _reg_t3dmn_input_verts(fixtureSpec(), cookInputVertsFixture);
 
-// ── Oracle: snoiseVec3 in DOUBLE — a straight port of app/shaders/shared/noise.metal.h (Ashima 3-D
-//    simplex), independent of the import/cook path. ────────────────────────────────────────────────
-// NOTE the noise runs in FLOAT (not double): 3-D simplex has floor()/step() branch points, and the
-// snoiseVec3 offsets push lookups to |coord|~120; a double oracle lands on DIFFERENT simplex cells than
-// the float GPU there → the noise value forks entirely (not a rounding delta). Matching the GPU's FLOAT
-// precision is the faithful oracle — it is STILL independent (this is our own float port of the Ashima
-// algorithm, not derived from the import/cook path). Only the FINAL offset add is done in double.
-typedef float F;
-struct V3 { F x, y, z; };
-struct V4 { F x, y, z, w; };
-V3 scl3(V3 a, F s) { return {a.x*s, a.y*s, a.z*s}; }
-F dot3(V3 a, V3 b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
-F flr(F x) { return std::floor(x); }
-F stp(F edge, F x) { return x < edge ? 0.0f : 1.0f; }  // step(edge,x)
-F mod289d(F x) { return x - std::floor(x * (1.0f/289.0f)) * 289.0f; }
-V4 mod289v4(V4 v) { return {mod289d(v.x), mod289d(v.y), mod289d(v.z), mod289d(v.w)}; }
-V4 permute(V4 x) {  // ((x*34)+1)*x mod 289
-  return mod289v4(V4{(x.x*34.0f+1.0f)*x.x, (x.y*34.0f+1.0f)*x.y, (x.z*34.0f+1.0f)*x.z, (x.w*34.0f+1.0f)*x.w});
-}
-V4 taylorInvSqrt(V4 r) {
-  return {1.79284291400159f - 0.85373472095314f*r.x, 1.79284291400159f - 0.85373472095314f*r.y,
-          1.79284291400159f - 0.85373472095314f*r.z, 1.79284291400159f - 0.85373472095314f*r.w};
-}
-F snoise3(V3 v) {
-  const F Cx = 1.0f/6.0f, Cy = 1.0f/3.0f;
-  const F Dy = 0.5f;
-  V3 i0 = {flr(v.x + dot3(v, {Cy, Cy, Cy})), flr(v.y + dot3(v, {Cy, Cy, Cy})), flr(v.z + dot3(v, {Cy, Cy, Cy}))};
-  V3 x0 = {v.x - i0.x + dot3(i0, {Cx, Cx, Cx}), v.y - i0.y + dot3(i0, {Cx, Cx, Cx}), v.z - i0.z + dot3(i0, {Cx, Cx, Cx})};
-  V3 g = {stp(x0.y, x0.x), stp(x0.z, x0.y), stp(x0.x, x0.z)};   // g = step(x0.yzx, x0.xyz)
-  V3 l = {1.0f-g.x, 1.0f-g.y, 1.0f-g.z};
-  V3 lzxy = {l.z, l.x, l.y};
-  V3 i1 = {std::min(g.x, lzxy.x), std::min(g.y, lzxy.y), std::min(g.z, lzxy.z)};  // min(g.xyz, l.zxy)
-  V3 i2 = {std::max(g.x, lzxy.x), std::max(g.y, lzxy.y), std::max(g.z, lzxy.z)};  // max(g.xyz, l.zxy)
-  V3 x1 = {x0.x - i1.x + Cx, x0.y - i1.y + Cx, x0.z - i1.z + Cx};
-  V3 x2 = {x0.x - i2.x + Cy, x0.y - i2.y + Cy, x0.z - i2.z + Cy};
-  V3 x3 = {x0.x - Dy, x0.y - Dy, x0.z - Dy};
-  // Permutations (noise.metal.h: permute(permute(permute(iz+…) + iy+…) + ix+…)).
-  i0 = {mod289d(i0.x), mod289d(i0.y), mod289d(i0.z)};
-  V4 pz = permute(V4{i0.z + 0.0f, i0.z + i1.z, i0.z + i2.z, i0.z + 1.0f});
-  V4 py = permute(V4{pz.x + i0.y + 0.0f, pz.y + i0.y + i1.y, pz.z + i0.y + i2.y, pz.w + i0.y + 1.0f});
-  V4 p  = permute(V4{py.x + i0.x + 0.0f, py.y + i0.x + i1.x, py.z + i0.x + i2.x, py.w + i0.x + 1.0f});
-  const F n_ = 0.142857142857f;  // 1/7
-  V3 ns = {n_*2.0f - 0.0f, n_*0.5f - 1.0f, n_*1.0f - 0.0f};  // n_*D.wyz - D.xzx, D=(0,.5,1,2)
-  F jarr[4] = {p.x, p.y, p.z, p.w};
-  F xarr[4], yarr[4], harr[4];
-  for (int k = 0; k < 4; ++k) {
-    F j = jarr[k] - 49.0f * flr(jarr[k] * ns.z * ns.z);
-    F x_ = flr(j * ns.z);
-    F y_ = flr(j - 7.0f * x_);
-    xarr[k] = x_ * ns.x + ns.y;
-    yarr[k] = y_ * ns.x + ns.y;
-    harr[k] = 1.0f - std::fabs(xarr[k]) - std::fabs(yarr[k]);
-  }
-  V4 b0 = {xarr[0], xarr[1], yarr[0], yarr[1]};
-  V4 b1 = {xarr[2], xarr[3], yarr[2], yarr[3]};
-  F s0[4] = {flr(b0.x)*2.0f+1.0f, flr(b0.y)*2.0f+1.0f, flr(b0.z)*2.0f+1.0f, flr(b0.w)*2.0f+1.0f};
-  F s1[4] = {flr(b1.x)*2.0f+1.0f, flr(b1.y)*2.0f+1.0f, flr(b1.z)*2.0f+1.0f, flr(b1.w)*2.0f+1.0f};
-  F sh[4] = {-stp(harr[0], 0.0f), -stp(harr[1], 0.0f), -stp(harr[2], 0.0f), -stp(harr[3], 0.0f)};
-  F a0[4] = {b0.x + s0[0]*sh[0], b0.z + s0[2]*sh[0], b0.y + s0[1]*sh[1], b0.w + s0[3]*sh[1]};
-  F a1[4] = {b1.x + s1[0]*sh[2], b1.z + s1[2]*sh[2], b1.y + s1[1]*sh[3], b1.w + s1[3]*sh[3]};
-  V3 p0 = {a0[0], a0[1], harr[0]};
-  V3 p1 = {a0[2], a0[3], harr[1]};
-  V3 p2 = {a1[0], a1[1], harr[2]};
-  V3 p3 = {a1[2], a1[3], harr[3]};
-  V4 norm = taylorInvSqrt(V4{dot3(p0,p0), dot3(p1,p1), dot3(p2,p2), dot3(p3,p3)});
-  p0 = scl3(p0, norm.x); p1 = scl3(p1, norm.y); p2 = scl3(p2, norm.z); p3 = scl3(p3, norm.w);
-  F m[4] = {std::max(0.6f - dot3(x0,x0), 0.0f), std::max(0.6f - dot3(x1,x1), 0.0f),
-            std::max(0.6f - dot3(x2,x2), 0.0f), std::max(0.6f - dot3(x3,x3), 0.0f)};
-  for (int k = 0; k < 4; ++k) { m[k] = m[k]*m[k]; m[k] = m[k]*m[k]; }
-  return 42.0f * (m[0]*dot3(p0,x0) + m[1]*dot3(p1,x1) + m[2]*dot3(p2,x2) + m[3]*dot3(p3,x3));
-}
-V3 snoiseVec3d(V3 p) {
-  F s  = snoise3({p.x + 0.0001f, p.y,          p.z});
-  F s1 = snoise3({p.y - 19.1f,   p.z + 33.4f,  p.x + 47.2f});
-  F s2 = snoise3({p.z + 74.2f,   p.x - 124.5f, p.y + 99.4f});
-  return {s, s1, s2};
-}
+// The independent float snoise oracle (Ashima 3-D simplex port + getNoiseOracle + V3 helpers) lives in
+// runtime/t3import_displacemeshnoise_oracle.h — see that header for the FLOAT-not-double rationale.
 
 int childIdOfType(const Symbol& s, const std::string& type) {
   for (const SymbolChild& c : s.children) if (c.symbolId == type) return c.id;
@@ -212,6 +152,7 @@ int runT3DisplaceMeshNoiseParity(bool injectBug) {
 
   // Closed-form config (see header): Space=0, Direction=0, Variation=0, UseVertexSelection=0.
   const float AMOUNT = 25.0f, FREQ = 1.3f, PHASE = 0.4f, OFFDIR = 0.2f;
+  const float RLD = 0.5f;  // RotationLookupDistance — only affects the TBN recompute (Position ignores it)
   const V3 AMTDIST = {1.0, 0.7, 1.4};
 
   // ---- Input bag: N vertices with distinct Position AND TexCoord (posInWorld=(TexCoord.xy,0)). ----
@@ -271,7 +212,7 @@ int runT3DisplaceMeshNoiseParity(bool injectBug) {
       {"4b1a66a4-b5e4-4bc3-97f5-bd3cda668893", FREQ},   // Frequency
       {"b89b6730-de46-4d56-b2a8-b7d6f6876620", PHASE},  // Phase
       {"093a468c-c208-4caf-be4f-d5d7d9ceddeb", OFFDIR}, // OffsetDirection
-      {"08e2222f-6de1-46a8-bbdc-da83251f424e", 0.5f},   // RotationLookupDistance (only affects normals)
+      {"08e2222f-6de1-46a8-bbdc-da83251f424e", RLD},    // RotationLookupDistance (only affects the TBN recompute)
       {"9a82f2a6-390e-4073-bc80-e5fd3b1c0bfe", 0.0f},   // UseWAsWeight (unused in Position math)
   };
   std::map<std::string, std::vector<float>> boundary;
@@ -303,21 +244,35 @@ int runT3DisplaceMeshNoiseParity(bool injectBug) {
   { SymbolConnection w; w.srcChild = fixtureId; w.srcSlot = "Buffer"; w.dstChild = mbcId; w.dstSlot = "MeshBuffers";
     sym->connections.push_back(w); }
 
-  // ---- 骨9 TOOTH (-bug): reverse the FloatsToBuffer.Params wire order in sym.connections. Faithful
-  //     order fills cb1[0..12] correctly; reversed swaps Amount(cb1[0]) with UseVertexSelection(cb1[12])
-  //     etc. → noise amplitude=0 → offset≈0 → Positions ≈ un-displaced input → RED. Reverses ONLY the
-  //     Params wires (the interleaved mixed slot), preserving every other wire. ----
+  // ---- 骨9 TOOTH (-bug): REGROUP the FloatsToBuffer.Params wires in sym.connections into
+  //     [all child…, all boundary…] — the OLD pre-骨7b two-pass flatten output, reproduced in-place.
+  //     This is the INTERLEAVE-SPECIFIC scramble: it keeps all 13 wires and each group's internal order,
+  //     and ONLY collapses the child/boundary INTERLEAVE that 骨7b's single-pass fix preserves (a full
+  //     reverse would also bite, but reverse proves the SUPERSET "any cb1 positional dependence"; this
+  //     tooth isolates exactly the regroup the fix prevents, matching the golden's label). Regrouped →
+  //     child wires migrate to cb1[0..5], boundary wires to cb1[6..12] → readParams mis-reads Amount from
+  //     AmountDistribution.x etc. → offset lands on wrong axes with wrong noise frequency → RED. ----
   if (injectBug) {
     std::vector<size_t> paramWireIdx;
     for (size_t i = 0; i < sym->connections.size(); ++i) {
       const SymbolConnection& w = sym->connections[i];
       if (w.dstChild == f2bId && w.dstSlot == "Params") paramWireIdx.push_back(i);
     }
-    // In-place reverse the Params wires at their original positions (keeps the interleave slots, flips order).
-    for (size_t a = 0, b = paramWireIdx.size(); a < b / 2; ++a)
-      std::swap(sym->connections[paramWireIdx[a]], sym->connections[paramWireIdx[b - 1 - a]]);
-    printf("[t3-displacemeshnoise] -bug: reversed %zu FloatsToBuffer.Params wires (scrambles cb1 order)\n",
-           paramWireIdx.size());
+    // Partition the Params wires (preserving each group's original relative order), then write them back
+    // into the same slots as [child…, boundary…] — exactly the two-pass grouping 骨7b replaced.
+    std::vector<SymbolConnection> childWires, boundaryWires;
+    for (size_t idx : paramWireIdx) {
+      const SymbolConnection& w = sym->connections[idx];
+      if (sourceIsSymbolInput(w)) boundaryWires.push_back(w); else childWires.push_back(w);
+    }
+    std::vector<SymbolConnection> regrouped;
+    regrouped.reserve(paramWireIdx.size());
+    for (const SymbolConnection& w : childWires)    regrouped.push_back(w);
+    for (const SymbolConnection& w : boundaryWires) regrouped.push_back(w);
+    for (size_t k = 0; k < paramWireIdx.size(); ++k) sym->connections[paramWireIdx[k]] = regrouped[k];
+    printf("[t3-displacemeshnoise] -bug: two-pass REGROUP of %zu FloatsToBuffer.Params wires "
+           "(%zu child-first, %zu boundary-last) — collapses mixed-slot interleave (pre-骨7b order)\n",
+           paramWireIdx.size(), childWires.size(), boundaryWires.size());
   }
 
   // ---- STEP 2: build the eval graph (production flattener) + inject the root boundary values ----
@@ -343,32 +298,71 @@ int runT3DisplaceMeshNoiseParity(bool injectBug) {
   std::vector<SwVertex> got(N);
   if (haveOut) std::memcpy(got.data(), const_cast<MTL::Buffer*>(outBuf->bytes)->contents(), N * sizeof(SwVertex));
 
-  // ---- Oracle: Position_out = Position_in + offset (Space=0/Dir=0/Var=0/sel=1). ----
+  // ---- Oracle: Position AND TBN (Space=0/Dir=0/Var=0/sel=1 ⇒ weight=1, no TBN rotation of offset).
+  //   Position_out = Position_in + offset.
+  //   T/B recompute (verbatim kernel): with lud = RotationLookupDistance/Frequency and newPos =
+  //   posInWorld + offset, tangent from ± anchors along the input Tangent, bitangent along Bitangent,
+  //   Normal = cross(T,B). Same getNoiseOracle the Position leg uses, so TBN can only pass if the SAME
+  //   noise the Position green already validated also lands the recomputed frame — closing the
+  //   "TBN geometrically wrong while Position right" hole. ----
   double maxPos = 0.0; int worstI = -1; double wExp[3]{}, wGot[3]{};
+  double maxTbn = 0.0; int worstJ = -1; char worstFrame = '?'; double tExp[3]{}, tGot[3]{};
   if (haveOut)
     for (uint32_t i = 0; i < N; ++i) {
       V3 posInWorld = { in[i].Texcoord.x, in[i].Texcoord.y, 0.0f };
-      V3 lookup = { posInWorld.x*0.91f*FREQ + PHASE, posInWorld.y*0.91f*FREQ + PHASE, posInWorld.z*0.91f*FREQ + PHASE };
-      V3 noise = snoiseVec3d(lookup);  // GetNoise: (snoiseVec3(...) + OffsetDirection) * Amount/100 * AmountDist
-      V3 offset = { (noise.x + OFFDIR) * AMOUNT/100.0f * AMTDIST.x,
-                    (noise.y + OFFDIR) * AMOUNT/100.0f * AMTDIST.y,
-                    (noise.z + OFFDIR) * AMOUNT/100.0f * AMTDIST.z };
+      V3 offset = getNoiseOracle(posInWorld, FREQ, PHASE, OFFDIR, AMOUNT, AMTDIST);
       double ep[3] = { in[i].Position.x + offset.x, in[i].Position.y + offset.y, in[i].Position.z + offset.z };
       double gp[3] = { got[i].Position.x, got[i].Position.y, got[i].Position.z };
       double dp = std::sqrt((ep[0]-gp[0])*(ep[0]-gp[0])+(ep[1]-gp[1])*(ep[1]-gp[1])+(ep[2]-gp[2])*(ep[2]-gp[2]));
       if (dp > maxPos) { maxPos = dp; worstI = (int)i; for (int k=0;k<3;k++){wExp[k]=ep[k];wGot[k]=gp[k];} }
+
+      // TBN recompute (Direction=0 ⇒ offset NOT rotated; weight=selection=1).
+      const F lud = RLD / FREQ;
+      V3 newPos = add3(posInWorld, offset);
+      V3 T = { in[i].Tangent.x, in[i].Tangent.y, in[i].Tangent.z };
+      V3 B = { in[i].Bitangent.x, in[i].Bitangent.y, in[i].Bitangent.z };
+      V3 tA  = add3(posInWorld, scl3(T, lud));
+      V3 tA2 = sub3(posInWorld, scl3(T, lud));
+      V3 nT  = nrm3(sub3(add3(tA,  getNoiseOracle(tA,  FREQ, PHASE, OFFDIR, AMOUNT, AMTDIST)), newPos));
+      V3 nT2 = scl3(nrm3(sub3(add3(tA2, getNoiseOracle(tA2, FREQ, PHASE, OFFDIR, AMOUNT, AMTDIST)), newPos)), -1.0f);
+      V3 expT = mix3(nT, nT2, 0.5f);
+      V3 bA  = add3(posInWorld, scl3(B, lud));
+      V3 bA2 = sub3(posInWorld, scl3(B, lud));
+      V3 nB  = nrm3(sub3(add3(bA,  getNoiseOracle(bA,  FREQ, PHASE, OFFDIR, AMOUNT, AMTDIST)), newPos));
+      V3 nB2 = scl3(nrm3(sub3(add3(bA2, getNoiseOracle(bA2, FREQ, PHASE, OFFDIR, AMOUNT, AMTDIST)), newPos)), -1.0f);
+      V3 expB = mix3(nB, nB2, 0.5f);
+      V3 expN = crs3(expT, expB);
+      struct { char tag; V3 exp; V3 got; } frames[3] = {
+        {'T', expT, {got[i].Tangent.x,   got[i].Tangent.y,   got[i].Tangent.z}},
+        {'B', expB, {got[i].Bitangent.x, got[i].Bitangent.y, got[i].Bitangent.z}},
+        {'N', expN, {got[i].Normal.x,    got[i].Normal.y,    got[i].Normal.z}},
+      };
+      for (const auto& fr : frames) {
+        double d = std::sqrt((double)dot3(sub3(fr.exp, fr.got), sub3(fr.exp, fr.got)));
+        if (d > maxTbn) { maxTbn = d; worstJ = (int)i; worstFrame = fr.tag;
+          tExp[0]=fr.exp.x; tExp[1]=fr.exp.y; tExp[2]=fr.exp.z;
+          tGot[0]=fr.got.x; tGot[1]=fr.got.y; tGot[2]=fr.got.z; }
+      }
     }
 
+  // TBN rides normalize()/cross() on top of the SAME float snoise as Position; the divisions could amplify
+  // the simplex floor()-branch rounding, but in this fixed config the measured TBN residual is ~1e-5 (same
+  // order as the Position 8e-6), so it holds the SAME 2e-3 gate — well above rounding, far below the ~0.5
+  // divergence a wrong cb1 layout produces (the -bug leg measures 0.55). A geometric TBN error can't hide.
+  const double kTbnThresh = 2e-3;
   printf("[t3-displacemeshnoise] replay-vs-oracle: haveOut=%d maxPosErr=%.6f(need<2e-3) worstI=%d "
          "exp=(%.4f,%.4f,%.4f) got=(%.4f,%.4f,%.4f)\n",
          haveOut ? 1 : 0, maxPos, worstI, wExp[0], wExp[1], wExp[2], wGot[0], wGot[1], wGot[2]);
+  printf("[t3-displacemeshnoise] replay-vs-oracle TBN: maxTbnErr=%.6f(need<%.0e) worst=%c[%d] "
+         "exp=(%.4f,%.4f,%.4f) got=(%.4f,%.4f,%.4f)\n",
+         maxTbn, kTbnThresh, worstFrame, worstJ, tExp[0], tExp[1], tExp[2], tGot[0], tGot[1], tGot[2]);
 
   // Threshold 2e-3: float-GPU snoise vs double-oracle snoise carries a few 1e-4 rounding deltas at the
   // simplex floor() branch points; the displaced offset (~Amount/100 scale) stays well under 2e-3.
-  const bool parityGreen = haveOut && (maxPos < 2e-3);
+  const bool parityGreen = haveOut && (maxPos < 2e-3) && (maxTbn < kTbnThresh);
   printf("[t3-displacemeshnoise] PARITY VERDICT: %s\n",
-         parityGreen ? "GREEN (mesh mixed-slot replay reproduces the noise displacement)"
-                     : "RED (mesh mixed-slot replay seam gap / cb1 order scrambled)");
+         parityGreen ? "GREEN (mesh mixed-slot replay reproduces the noise displacement + TBN frame)"
+                     : "RED (mesh mixed-slot replay seam gap / cb1 order scrambled / TBN diverged)");
 
   mlib->release(); q->release(); dev->release();
   g_fixtureVerts = nullptr;
@@ -380,9 +374,10 @@ int runT3DisplaceMeshNoiseParity(bool injectBug) {
     pool->release(); return 0;
   }
 
-  // injectBug leg: the Params wire order was reversed → cb1 scrambled → RED. Tooth bites iff NOT green.
+  // injectBug leg: the Params wires were regrouped [child…, boundary…] → cb1 interleave collapsed → RED.
+  // Tooth bites iff NOT green.
   const bool bites = !parityGreen;
-  printf("[t3-displacemeshnoise] -bug: cb1-order tooth %s (parity green under bug == %s)\n",
+  printf("[t3-displacemeshnoise] -bug: cb1-interleave tooth %s (parity green under bug == %s)\n",
          bites ? "BITES" : "TOOTHLESS", parityGreen ? "true" : "false");
   pool->release();
   return bites ? 1 : 2;
