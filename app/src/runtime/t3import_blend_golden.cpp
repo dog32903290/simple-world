@@ -1,5 +1,5 @@
-// runtime/t3import_blend_golden (--selftest-t3-channelmixer registers this as "t3-channelmixer" — see
-// NOTE below on the name) — the MULTI-CHILD generalization proof for the image-fx collapse seam.
+// runtime/t3import_blend_golden (--selftest-t3-blend) — the MULTI-CHILD generalization proof for the
+// image-fx collapse seam.
 //
 // HSE.t3 (t3import_hse_golden.cpp) is the SINGLE-fx-setup-child wrapper: its only child is
 // _multiImageFxSetupStatic, so the collapse is 1-child → 1 atom. But HSE is the ONLY such op in TiXL —
@@ -88,10 +88,10 @@ int countType(const Symbol& s, const std::string& type) {
 
 }  // namespace
 
-// Registered as "t3-channelmixer" for CLI stability with the pre-declared slot, but the op proven is
-// Blend (the simplest MULTI-child fx-wrapper whose helpers all already have sw atoms/map rows — see
-// header). injectBug: OMIT the ImageB wire → Normal blend degenerates to RED (the tooth).
-int runT3ChannelMixerParity(bool injectBug) {
+// The op proven is Blend (the simplest MULTI-child fx-wrapper whose helpers all already have sw
+// atoms/map rows — see header). injectBug: OMIT the ImageB wire → Normal blend degenerates to RED
+// (the tooth).
+int runT3BlendParity(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   registerBuiltinPointOps();
 
