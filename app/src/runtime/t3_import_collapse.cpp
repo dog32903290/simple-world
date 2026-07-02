@@ -94,6 +94,14 @@ const char* const kDecomposeValueHead = "Value.x";
 // the BoolToFloat helper's "BoolValue" override so the UNWIRED case emits the REAL default branch. The head
 // port the BoolToFloat helper exposes for its bool input is "BoolValue".
 const char* const kBoolToFloatBoolHead = "BoolValue";
+// BOUNDARY-INT-DEFAULT PLUMB (collapse-boundary-int-default-plumbed-through-kept-inttofloat): the SAME
+// dropped-wire hazard again, for an INT boundary default routed through a KEPT IntToFloat helper. A .t3 int
+// boundary default is a SCALAR number (not object, not boolean). sw's IntToFloat IntValue port defaults to
+// 0; when the boundary→IntValue wire drops (unwired at top), the helper emits 0 → the atom's int scalar
+// (e.g. RemapColor.Mode, whose .t3 default is 1 = IndividualChannels) is forced to 0 (UseGrayScale) even
+// when the .t3 boundary default is 1 → the field collapses to the wrong-mode projection. Fix: author the
+// boundary's int default onto the IntToFloat helper's "IntValue" override. Head port = "IntValue".
+const char* const kIntToFloatIntHead = "IntValue";
 // Read a boundary DefaultValue object's {X,Y,Z,W} into an ordered [x,y,z,w] list (as many as present).
 std::vector<std::pair<std::string, float>> readVecDefault(const crude_json::value& dv) {
   std::vector<std::pair<std::string, float>> out;
@@ -150,6 +158,7 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
   //       helper .t3 child guid so Pass 1 can author it as the helper's Value.x/.y/.z/.w overrides.
   std::map<std::string, const crude_json::value*> boundaryDefaultByGuid;  // boundary slot guid → vec DefaultValue
   std::map<std::string, float> boundaryBoolDefaultByGuid;                 // boundary slot guid → bool default (0/1)
+  std::map<std::string, float> boundaryNumDefaultByGuid;                  // boundary slot guid → scalar number default (for IntToFloat)
   if (root["Inputs"].is_array())
     for (const crude_json::value& iv : root["Inputs"].get<crude_json::array>()) {
       if (!iv.is_object()) continue;
@@ -158,12 +167,16 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       if (iv["DefaultValue"].is_object()) boundaryDefaultByGuid[sid] = &iv["DefaultValue"];
       else if (iv["DefaultValue"].is_boolean())                          // scalar bool boundary default
         boundaryBoolDefaultByGuid[sid] = iv["DefaultValue"].get<crude_json::boolean>() ? 1.0f : 0.0f;
+      else if (iv["DefaultValue"].is_number())                           // scalar number default (int→IntToFloat)
+        boundaryNumDefaultByGuid[sid] = (float)iv["DefaultValue"].get<crude_json::number>();
     }
   // helper .t3 child guid → (target slot guid, raw boundary DefaultValue object) for a boundary→helper
   // wire. Pass 1 confirms the slot resolves to the helper's Value HEAD before authoring the default.
   std::map<std::string, std::pair<std::string, const crude_json::value*>> helperValueBoundaryDefault;
   // helper .t3 child guid → (target slot guid, bool default 0/1) for a boundary→BoolToFloat.BoolValue wire.
   std::map<std::string, std::pair<std::string, float>> helperBoolBoundaryDefault;
+  // helper .t3 child guid → (target slot guid, number default) for a boundary→IntToFloat.IntValue wire.
+  std::map<std::string, std::pair<std::string, float>> helperIntBoundaryDefault;
   if (root["Connections"].is_array())
     for (const crude_json::value& wv : root["Connections"].get<crude_json::array>()) {
       if (!wv.is_object()) continue;
@@ -176,6 +189,9 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       else if (auto bb = boundaryBoolDefaultByGuid.find(srcSlot); bb != boundaryBoolDefaultByGuid.end())
         helperBoolBoundaryDefault[lc(asStr(wv, "TargetParentOrChildId"))] =
             {lc(asStr(wv, "TargetSlotId")), bb->second};            // slot resolved in Pass 1
+      else if (auto bn = boundaryNumDefaultByGuid.find(srcSlot); bn != boundaryNumDefaultByGuid.end())
+        helperIntBoundaryDefault[lc(asStr(wv, "TargetParentOrChildId"))] =
+            {lc(asStr(wv, "TargetSlotId")), bn->second};            // slot resolved in Pass 1 (IntToFloat.IntValue only)
     }
 
   if (root["Children"].is_array()) {
@@ -234,6 +250,12 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       if (auto hb = helperBoolBoundaryDefault.find(childGuid); hb != helperBoolBoundaryDefault.end())
         if (swSlotNameForGuid(helperType, hb->second.first) == kBoolToFloatBoolHead)
           ch.overrides[kBoolToFloatBoolHead] = hb->second.second;
+      // BOUNDARY-INT-DEFAULT PLUMB: same rule for an IntToFloat helper whose IntValue HEAD is boundary-fed.
+      // The unwired-at-top case would otherwise emit 0; author the .t3 boundary int default (e.g.
+      // RemapColor.Mode=1) so the kept IntToFloat feeds the atom's int scalar with the REAL default.
+      if (auto hi = helperIntBoundaryDefault.find(childGuid); hi != helperIntBoundaryDefault.end())
+        if (swSlotNameForGuid(helperType, hi->second.first) == kIntToFloatIntHead)
+          ch.overrides[kIntToFloatIntHead] = hi->second.second;
       sym.children.push_back(ch);
     }
   }

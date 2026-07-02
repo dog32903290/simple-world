@@ -153,5 +153,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"t3-radialgradient", runT3RadialGradientParity},  // GRADIENT-FED generator: RadialGradient.t3 (3×V2C+3×B2F+I2F helpers, GTT elided) → closed-form radial oracle; -bug drops Gradient wire → RED
     {"t3-ngongradient", runT3NGonGradientParity},  // GRADIENT-FED generator: NGonGradient.t3 (2×V2C+2×B2F+I2F, 8 boundary FloatParams, GTT elided) → closed-form NGon oracle; -bug drops Gradient wire → RED
     {"t3-boxgradient", runT3BoxGradientParity},  // GRADIENT-FED generator: BoxGradient.t3 (3×V2C+V4C(CornersRadius)+2×B2F+I2F, GTT elided) → closed-form box-SDF oracle; -bug drops Gradient wire → RED
+    {"t3-remapcolor", runT3RemapColorParity},  // GRADIENT-FED COLOR + TRANSFORMIMAGE-PASSTHROUGH: RemapColor.t3 (I2F+B2F+V2C kept; GTT+identity TransformImage+bypassed GenerateMips all elided) → two-region CheckerBoard vs sw ColorRemap rowLinear oracle; -bug drops Gradient wire → gray → RED
 );
 }  // namespace sw
