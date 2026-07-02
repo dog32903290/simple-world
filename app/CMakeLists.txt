@@ -643,7 +643,8 @@ add_executable(simple_world
   src/runtime/compound_graph.cpp
   src/runtime/compound_graph_selftest.cpp
   src/runtime/t3_import.cpp                        # .t3 IMPORTER (keystone首證: forward-ported spike, 6-atom buffer map)
-  src/runtime/t3_import_maps.cpp                   # .t3 importer Guid→sw mapping DATA (TABLE ②/③/④, split for the line ratchet)
+  src/runtime/t3_import_maps.cpp                   # .t3 importer Guid→sw mapping DATA (TABLE ②/③, split for the line ratchet)
+  src/runtime/t3_import_maps_collapse.cpp          # .t3 image-fx-wrapper collapse TABLES (④a-d), split from t3_import_maps.cpp for the ≤400 ratchet
   src/runtime/t3_import_collapse.cpp               # .t3 image-fx-wrapper→tex-atom collapse pass (split from t3_import.cpp for the ≤400 ratchet)
   src/runtime/t3import_transformpoints_golden.cpp  # KEYSTONE parity: TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe
   src/runtime/t3import_transformmesh_golden.cpp    # 骨8 MESH keystone: TransformMesh.t3 replay → SwVertex readback vs oracle
@@ -652,6 +653,9 @@ add_executable(simple_world
   src/runtime/t3import_hse_golden.cpp              # ★IMAGE-fx collapse: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle
   src/runtime/t3import_blend_golden.cpp            # ★IMAGE-fx collapse GENERALIZES: MULTI-child Blend.t3 (6 helper value ops + fx-setup) → same collapse → Normal-blend oracle (proves not HSE-only)
   src/runtime/t3import_bubblezoom_golden.cpp       # ★IMAGE-fx collapse GRADIENT-FED: BubbleZoom.t3 (GradientsToTexture-elided-to-Gradient-port) → sw BubbleZoom atom + 2×Vector2Components → closed-form gradient oracle (unlocks gradient-fed image-fx)
+  src/runtime/t3import_radialgradient_golden.cpp   # GRADIENT-FED generator: RadialGradient.t3 (GTT-elided, 3×V2C+3×B2F+I2F kept) → closed-form radial oracle
+  src/runtime/t3import_ngongradient_golden.cpp     # GRADIENT-FED generator: NGonGradient.t3 (GTT-elided, 2×V2C+2×B2F+I2F, 8 boundary FloatParams) → closed-form NGon-SDF oracle
+  src/runtime/t3import_boxgradient_golden.cpp      # GRADIENT-FED generator: BoxGradient.t3 (GTT-elided, 3×V2C+V4C(CornersRadius)+2×B2F+I2F) → closed-form box-SDF oracle
   src/runtime/output_slot_view_selftest.cpp  # output-slot picker golden (viewProducerPath startSlot)
   src/runtime/compound_save.cpp
   src/runtime/compound_load.cpp

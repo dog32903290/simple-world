@@ -72,6 +72,16 @@ const char* const kGradientsToTextureGradientsSlot =
 // top-level driver still wins (the override is the KEPT fallback under a wire — resident_eval_flatten loop 3).
 // The head port a decompose helper exposes for its Vector input is "Value.x" (fork-vecN-as-N-floats).
 const char* const kDecomposeValueHead = "Value.x";
+// BOUNDARY-BOOL-DEFAULT PLUMB (collapse-boundary-bool-default-plumbed-through-kept-booltofloat): the SAME
+// dropped-wire hazard as the vec plumb, but for a BOOL boundary default routed through a KEPT BoolToFloat
+// helper. A .t3 bool boundary default is a SCALAR (JSON true/false), NOT an object, so the vec index above
+// skips it. sw's BoolToFloat BoolValue port defaults to 0 (false); when the boundary→BoolValue wire drops
+// (unwired at top), the helper emits ForFalse → the atom's bool scalar (e.g. PingPong) is forced to the
+// false branch even when the .t3 boundary default is TRUE. This bit BoxGradient (PingPong default=TRUE →
+// its center field collapsed to the PingPong=false projection). Fix: author the boundary's bool default onto
+// the BoolToFloat helper's "BoolValue" override so the UNWIRED case emits the REAL default branch. The head
+// port the BoolToFloat helper exposes for its bool input is "BoolValue".
+const char* const kBoolToFloatBoolHead = "BoolValue";
 // Read a boundary DefaultValue object's {X,Y,Z,W} into an ordered [x,y,z,w] list (as many as present).
 std::vector<std::pair<std::string, float>> readVecDefault(const crude_json::value& dv) {
   std::vector<std::pair<std::string, float>> out;
@@ -119,26 +129,34 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
   //   (b) find every wire boundary → <helper child>.<its Vector Value HEAD slot guid>. That helper's
   //       Value input is boundary-fed; its typed default is the boundary's vec default. Keyed by the
   //       helper .t3 child guid so Pass 1 can author it as the helper's Value.x/.y/.z/.w overrides.
-  std::map<std::string, const crude_json::value*> boundaryDefaultByGuid;  // boundary slot guid → DefaultValue
+  std::map<std::string, const crude_json::value*> boundaryDefaultByGuid;  // boundary slot guid → vec DefaultValue
+  std::map<std::string, float> boundaryBoolDefaultByGuid;                 // boundary slot guid → bool default (0/1)
   if (root["Inputs"].is_array())
     for (const crude_json::value& iv : root["Inputs"].get<crude_json::array>()) {
       if (!iv.is_object()) continue;
       const std::string sid = lc(asStr(iv, "Id"));
-      if (!sid.empty() && iv.contains("DefaultValue") && iv["DefaultValue"].is_object())
-        boundaryDefaultByGuid[sid] = &iv["DefaultValue"];
+      if (sid.empty() || !iv.contains("DefaultValue")) continue;
+      if (iv["DefaultValue"].is_object()) boundaryDefaultByGuid[sid] = &iv["DefaultValue"];
+      else if (iv["DefaultValue"].is_boolean())                          // scalar bool boundary default
+        boundaryBoolDefaultByGuid[sid] = iv["DefaultValue"].get<crude_json::boolean>() ? 1.0f : 0.0f;
     }
   // helper .t3 child guid → (target slot guid, raw boundary DefaultValue object) for a boundary→helper
   // wire. Pass 1 confirms the slot resolves to the helper's Value HEAD before authoring the default.
   std::map<std::string, std::pair<std::string, const crude_json::value*>> helperValueBoundaryDefault;
+  // helper .t3 child guid → (target slot guid, bool default 0/1) for a boundary→BoolToFloat.BoolValue wire.
+  std::map<std::string, std::pair<std::string, float>> helperBoolBoundaryDefault;
   if (root["Connections"].is_array())
     for (const crude_json::value& wv : root["Connections"].get<crude_json::array>()) {
       if (!wv.is_object()) continue;
       const std::string srcGuid = lc(asStr(wv, "SourceParentOrChildId"));
       if (!isBoundaryGuid(srcGuid)) continue;                       // only boundary-fed Value inputs
-      auto bd = boundaryDefaultByGuid.find(lc(asStr(wv, "SourceSlotId")));
-      if (bd == boundaryDefaultByGuid.end()) continue;              // boundary has no vec default
-      helperValueBoundaryDefault[lc(asStr(wv, "TargetParentOrChildId"))] =
-          {lc(asStr(wv, "TargetSlotId")), bd->second};              // slot resolved in Pass 1
+      const std::string srcSlot = lc(asStr(wv, "SourceSlotId"));
+      if (auto bd = boundaryDefaultByGuid.find(srcSlot); bd != boundaryDefaultByGuid.end())
+        helperValueBoundaryDefault[lc(asStr(wv, "TargetParentOrChildId"))] =
+            {lc(asStr(wv, "TargetSlotId")), bd->second};            // slot resolved in Pass 1
+      else if (auto bb = boundaryBoolDefaultByGuid.find(srcSlot); bb != boundaryBoolDefaultByGuid.end())
+        helperBoolBoundaryDefault[lc(asStr(wv, "TargetParentOrChildId"))] =
+            {lc(asStr(wv, "TargetSlotId")), bb->second};            // slot resolved in Pass 1
     }
 
   if (root["Children"].is_array()) {
@@ -178,12 +196,19 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       // BOUNDARY-VEC-DEFAULT PLUMB: if this helper's Value HEAD is fed by a boundary carrying a typed vec
       // default, author each component onto the helper's Value.x/.y/.z/.w overrides (the KEPT fallback for
       // the UNWIRED-at-top case). Only when the wire truly targets the Value head (a boundary feeding some
-      // OTHER helper slot must not hijack the Value default). An explicit InputValue on Value.* (rare) is
-      // NOT overwritten — the .cs authored constant wins over the boundary default.
+      // OTHER helper slot must not hijack the Value default). The boundary WIRE supersedes any embedded
+      // InputValue the .t3 left on the head slot (in TiXL a wired slot's embedded value is DEAD), so this
+      // OVERWRITES the just-authored InputValue for those head components — the boundary default is the truth.
       if (auto hv = helperValueBoundaryDefault.find(childGuid); hv != helperValueBoundaryDefault.end())
         if (swSlotNameForGuid(helperType, hv->second.first) == kDecomposeValueHead && hv->second.second)
           for (const auto& [comp, val] : readVecDefault(*hv->second.second))
-            if (!ch.overrides.count(comp)) ch.overrides[comp] = val;
+            ch.overrides[comp] = val;
+      // BOUNDARY-BOOL-DEFAULT PLUMB: same rule for a BoolToFloat helper whose BoolValue HEAD is boundary-fed.
+      // The boundary wire supersedes the child's embedded BoolValue InputValue (which BoxGradient.t3 leaves as
+      // a STALE False on the PingPong BoolToFloat even though the boundary default is True) → OVERWRITE it.
+      if (auto hb = helperBoolBoundaryDefault.find(childGuid); hb != helperBoolBoundaryDefault.end())
+        if (swSlotNameForGuid(helperType, hb->second.first) == kBoolToFloatBoolHead)
+          ch.overrides[kBoolToFloatBoolHead] = hb->second.second;
       sym.children.push_back(ch);
     }
   }

@@ -150,5 +150,8 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"t3-hse", runT3HseParity},  // ★IMAGE-fx collapse seam: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle (RED→GREEN; -bug drops FxTexture → RED)
     {"t3-channelmixer", runT3ChannelMixerParity},  // ★IMAGE-fx collapse GENERALIZES: MULTI-child Blend.t3 (6 helper value ops + fx-setup) through the SAME collapse → Normal-blend oracle; proves not HSE-only (name is the pre-declared CLI slot; op = Blend)
     {"t3-bubblezoom", runT3BubbleZoomParity},  // ★IMAGE-fx collapse GRADIENT-FED: BubbleZoom.t3 with GradientsToTexture ELIDED onto the atom's Gradient port (2×Vector2Components kept) → closed-form gradient oracle; -bug drops the Gradient wire → RED. Unlocks gradient-fed image-fx
+    {"t3-radialgradient", runT3RadialGradientParity},  // GRADIENT-FED generator: RadialGradient.t3 (3×V2C+3×B2F+I2F helpers, GTT elided) → closed-form radial oracle; -bug drops Gradient wire → RED
+    {"t3-ngongradient", runT3NGonGradientParity},  // GRADIENT-FED generator: NGonGradient.t3 (2×V2C+2×B2F+I2F, 8 boundary FloatParams, GTT elided) → closed-form NGon oracle; -bug drops Gradient wire → RED
+    {"t3-boxgradient", runT3BoxGradientParity},  // GRADIENT-FED generator: BoxGradient.t3 (3×V2C+V4C(CornersRadius)+2×B2F+I2F, GTT elided) → closed-form box-SDF oracle; -bug drops Gradient wire → RED
 );
 }  // namespace sw
