@@ -60,6 +60,18 @@ const char* const kGradientsToTextureGuid = "2c53eee7-eb38-449b-ad2a-d7a674952e5
 const char* const kGradientsToTextureGradientsSlot =
     "588be11f-d0db-4e51-8dbb-92a25408511c";  // GradientsToTexture.Gradients MultiInput (.cs:134-135)
 
+// TRANSFORMIMAGE-PASSTHROUGH elision (fork transformimage-identity-passthrough-elided): RemapColor.t3
+// interposes a TransformImage (32e18957) on the gradient path — GTT.out → TransformImage.Image ;
+// TransformImage.TextureOutput → fxSetup.ImageB — with ALL transform inputs UNWIRED at identity (only
+// GenerateMips=true), so on the row it is a no-op copy. ELIDED like the GTT: a wire off its output
+// re-anchors to the SOURCE feeding its Image input (3aab9b12), which chains on to the GTT and thence the
+// Gradient boundary. Its non-identity transform inputs are NOT modeled (safe here — .t3 leaves them
+// identity). A GenerateMips child (32a6a351, IsBypassed) also hangs off the GTT; its output is unconsumed
+// (dead branch) → its guid is elided too so any stray consumer drops (there is none here).
+const char* const kTransformImageGuid = "32e18957-3812-4f64-8663-18454518d005";  // TransformImage.cs:3
+const char* const kTransformImageImageSlot = "3aab9b12-1e02-4d7a-83b6-da1500a6bcbf";  // TransformImage.Image (.cs:9-10)
+const char* const kGenerateMipsGuid = "32a6a351-6d22-4915-aa0e-e0483b7f4e76";  // GenerateMips (dead branch)
+
 // BOUNDARY-VEC-DEFAULT PLUMB (collapse-boundary-typed-default-plumbed-through-kept-helper): the .t3
 // root's Inputs[] carry TYPED defaults. A scalar default (System.Single) is captured by the importer's
 // SlotDef.def; a VECTOR default is a JSON object {X,Y[,Z,W]}. When a kept decompose helper's Value input
@@ -109,18 +121,25 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
   std::map<int, std::string> childIdToSwType;  // sw childId → sw type (for slot resolution)
   std::map<std::string, std::pair<std::string, std::string>> gttGradientSrc;  // GTT guid → its Gradients wire src (guid,slot)
   std::map<std::string, bool> gttChildGuids;   // .t3 guids of ELIDED GradientsToTexture children
+  std::map<std::string, std::pair<std::string, std::string>> tiImageSrc;  // TransformImage guid → its Image wire src (guid,slot)
+  std::map<std::string, bool> passthroughChildGuids;  // .t3 guids of ELIDED TransformImage/GenerateMips children
   int nextChildId = 1;
 
   // Pre-scan Connections for each GradientsToTexture child's Gradients-input SOURCE (the endpoint feeding
-  // 588be11f). The elision re-anchors GTT.out consumers onto this source. Done before Pass 1 so the child
-  // walk can skip GTT children knowing their source is captured. (A GTT with NO wired Gradients source is
-  // still elided; its consumers resolve to the empty source → dropped, mirroring an unwired atom.Gradient.)
+  // 588be11f) AND each TransformImage child's Image-input SOURCE (feeding 3aab9b12). Both elisions re-anchor
+  // output consumers onto these sources. Done before Pass 1 so the child walk can skip them knowing the
+  // source is captured. (A GTT/TransformImage with NO wired source is still elided; its consumers resolve
+  // to the empty source → dropped, mirroring an unwired atom.Gradient.)
   if (root["Connections"].is_array())
     for (const crude_json::value& wv : root["Connections"].get<crude_json::array>()) {
       if (!wv.is_object()) continue;
-      if (lc(asStr(wv, "TargetSlotId")) != t3Lc(kGradientsToTextureGradientsSlot)) continue;
-      gttGradientSrc[lc(asStr(wv, "TargetParentOrChildId"))] = {lc(asStr(wv, "SourceParentOrChildId")),
-                                                                asStr(wv, "SourceSlotId")};
+      const std::string tslot = lc(asStr(wv, "TargetSlotId"));
+      if (tslot == t3Lc(kGradientsToTextureGradientsSlot))
+        gttGradientSrc[lc(asStr(wv, "TargetParentOrChildId"))] = {lc(asStr(wv, "SourceParentOrChildId")),
+                                                                  asStr(wv, "SourceSlotId")};
+      else if (tslot == t3Lc(kTransformImageImageSlot))
+        tiImageSrc[lc(asStr(wv, "TargetParentOrChildId"))] = {lc(asStr(wv, "SourceParentOrChildId")),
+                                                              asStr(wv, "SourceSlotId")};
     }
 
   // BOUNDARY-VEC-DEFAULT PLUMB pre-scan (collapse-boundary-typed-default-plumbed-through-kept-helper):
@@ -168,6 +187,12 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       // GradientsToTexture: ELIDED (gradientstotexture-elided-to-gradient-port). Not emitted as a child;
       // recorded so resolveEndpoint substitutes its Gradients source for any wire off its output.
       if (t3Lc(sid) == t3Lc(kGradientsToTextureGuid)) { gttChildGuids[childGuid] = true; continue; }
+      // TransformImage / GenerateMips: ELIDED (transformimage-identity-passthrough-elided). TransformImage
+      // is a no-op identity copy on the gradient row → its output re-anchors to its Image source (chained in
+      // resolveEndpoint). GenerateMips is a dead bypassed branch → elided with no source (any consumer drops).
+      if (t3Lc(sid) == t3Lc(kTransformImageGuid) || t3Lc(sid) == t3Lc(kGenerateMipsGuid)) {
+        passthroughChildGuids[childGuid] = true; continue;
+      }
       const std::string helperType = swTypeForSymbolGuid(sid);
       if (helperType.empty()) {
         warn("t3: collapse helper child " + childGuid + " has unmapped SymbolId " + sid +
@@ -241,6 +266,16 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       if (src == gttGradientSrc.end()) return false;  // GTT with unwired Gradients → consumer drops
       return resolveEndpoint(src->second.first, src->second.second, outChild, outSlot);
     }
+    // TransformImage output → substitute its Image source (transformimage-identity-passthrough-elided).
+    // The identity copy has one output consumers wire, so ANY endpoint on it re-anchors to its Image source
+    // (chains once more into the GTT above, then the Gradient boundary). GenerateMips (also in the set) has
+    // no recorded source → its consumers drop (dead bypassed branch).
+    auto pt = passthroughChildGuids.find(guid);
+    if (pt != passthroughChildGuids.end()) {
+      auto src = tiImageSrc.find(guid);
+      if (src == tiImageSrc.end()) return false;  // TransformImage w/ unwired Image or a GenerateMips → drop
+      return resolveEndpoint(src->second.first, src->second.second, outChild, outSlot);
+    }
     if (isBoundaryGuid(guid)) { outChild = kSymbolBoundary; outSlot = lc(slotGuid); return true; }
     auto it = childGuidToId.find(guid);
     if (it == childGuidToId.end()) return false;  // unknown (fx-setup handled by caller) → skip
@@ -264,6 +299,9 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       // its source is re-anchored directly onto the atom when GTT.out → fxSetup.ImageB is processed
       // (resolveEndpoint substitutes it there). Keeping it here would create a source→source self-wire.
       if (gttChildGuids.count(dstGuid)) continue;
+      // Same for a wire INTO an elided TransformImage/GenerateMips (e.g. GTT.out → TransformImage.Image):
+      // the source is re-anchored when the passthrough's OUTPUT is followed (resolveEndpoint chains it).
+      if (passthroughChildGuids.count(dstGuid)) continue;
 
       if (dstIsFx) {
         // wire INTO the fx-setup child → re-anchor its TARGET onto the atom, keeping the SOURCE.

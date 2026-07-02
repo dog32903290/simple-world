@@ -59,6 +59,14 @@ std::string swTexOpForCollapseRootGuid(const std::string& rootGuid) {
       // BoxGradient (BoxGradient.cs:[Guid]) — the FOUR-component-corner proof: a Vector4Components helper
       // decomposes CornersRadius vec4 into the FloatParams rail (that helper class already mapped for Blend).
       {"dc2273a7-8a54-4e6f-8d8e-9a675c1ef599", "BoxGradient"},
+      // RemapColor (image/color/RemapColor.cs [Guid]) — the GRADIENT-FED COLOR op + the TRANSFORMIMAGE-
+      // PASSTHROUGH proof. Same GradientsToTexture-elided-to-Gradient-port seam as the gradient trio, but the
+      // GTT feeds an interposed TransformImage (identity copy, GenerateMips=true) before the fx child's ImageB
+      // → that TransformImage is ALSO elided (transformimage-identity-passthrough-elided, t3_import_collapse.cpp),
+      // chaining the atom's Gradient port back through it to the GTT's Gradients source. A dead bypassed
+      // GenerateMips child hangs off the GTT too (elided, unconsumed). Helpers kept: IntToFloat (Mode),
+      // BoolToFloat (DontColorAlpha), Vector2Components (GainAndBias) — all already mapped.
+      {"da93f7d1-ef91-4b4a-9708-2d9b1baa4c14", "RemapColor"},
   };
   auto it = kTable.find(t3Lc(rootGuid));
   return it != kTable.end() ? it->second : std::string();
@@ -111,6 +119,14 @@ std::string swCollapseSlotNameForGuid(const std::string& swType, const std::stri
            {"55126bff-8c94-415d-96dd-3c16e216e663", "Image"},     // _*FxSetupStatic.ImageA → BoxGradient.Image
            {"0bb90f8d-88c9-4a99-b44f-f284b505c65b", "Gradient"},  // _*FxSetupStatic.ImageB → BoxGradient.Gradient (elided)
            {"76b6c677-12db-4404-aff7-ee3391d2d831", "out"},       // _*FxSetupStatic.Output → BoxGradient.out
+       }},
+      // RemapColor — same _*FxSetupStatic framework slots. ImageA→Image (background, generator dummy when
+      // unwired); ImageB→Gradient via the GTT→TransformImage double-elision; Output→out.
+      {"RemapColor",
+       {
+           {"55126bff-8c94-415d-96dd-3c16e216e663", "Image"},     // _*FxSetupStatic.ImageA → RemapColor.Image
+           {"0bb90f8d-88c9-4a99-b44f-f284b505c65b", "Gradient"},  // _*FxSetupStatic.ImageB → RemapColor.Gradient (GTT+TransformImage elided)
+           {"76b6c677-12db-4404-aff7-ee3391d2d831", "out"},       // _*FxSetupStatic.Output → RemapColor.out
        }},
   };
   auto t = kTable.find(swType);
@@ -168,6 +184,13 @@ const std::vector<std::string>& swFloatParamOrderForCollapse(const std::string& 
         "CornersRadius.x", "CornersRadius.y", "CornersRadius.z", "CornersRadius.w",
         "Rotation", "UniformScale", "GradientWidth", "Offset", "PingPong", "Repeat",
         "GainAndBias.x", "GainAndBias.y", "BlendMode"}},
+      // RemapColor FloatParams rail — verified against RemapColor.t3 wire order into 2929c4c9 AND the
+      // ColorRemap.hlsl b0 cbuffer {DontColorAlpha, Mode, Offset, Exposure, GainAndBias.xy, Repeat}.
+      // DontColorAlpha via BoolToFloat; Mode via IntToFloat; GainAndBias via Vector2Components; Cycle/
+      // Exposure/Repeat straight from the boundary. sw port for the cbuffer Offset field is "Cycle" (the
+      // .cs input name — [fork-offset-from-cycle], matches point_ops_remapcolor.cpp port ids). 7 scalars.
+      {"RemapColor",
+       {"DontColorAlpha", "Mode", "Cycle", "Exposure", "GainAndBias.x", "GainAndBias.y", "Repeat"}},
   };
   static const std::vector<std::string> kEmpty;
   auto it = kTable.find(swType);
