@@ -71,6 +71,13 @@ extern const char* const kGradientsToTextureGradientsSlot; // GradientsToTexture
 // child's ImageB → ALSO elided (transformimage-identity-passthrough-elided): a wire off its TextureOutput
 // re-anchors to its Image source, which chains on to the GTT. A bypassed GenerateMips child hangs off the
 // GTT too (dead branch, elided with no source).
+// ★FORK (named): the elided TransformImage's GenerateMips=true is NOT a true no-op — it makes TiXL's LUT
+//   row texture MIPPED, and ColorRemap.hlsl samples it with .Sample() (auto-LOD), so at high-frequency
+//   input-color regions the lookup can pick a COARSER mip. sw's rasterizeGradientRow (gradient_raster.h)
+//   builds a NON-mipped row (mipmapped=false), always sampling base level. Dropping GenerateMips thus omits
+//   LUT mip generation: sw and TiXL diverge (slight blur) only where adjacent input colors differ sharply.
+//   Sub-perceptual on a 256-wide 1D LUT and zero at flat-region golden pins, so it is documented, not fixed.
+//   [fork-remapcolor-lut-no-mips]
 extern const char* const kTransformImageGuid;        // TransformImage.cs:3
 extern const char* const kTransformImageImageSlot;    // TransformImage.Image (.cs:9-10)
 extern const char* const kGenerateMipsGuid;           // GenerateMips.cs (dead branch)

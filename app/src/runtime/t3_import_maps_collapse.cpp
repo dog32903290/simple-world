@@ -66,11 +66,20 @@ std::string swTexOpForCollapseRootGuid(const std::string& rootGuid) {
       // chaining the atom's Gradient port back through it to the GTT's Gradients source. A dead bypassed
       // GenerateMips child hangs off the GTT too (elided, unconsumed). Helpers kept: IntToFloat (Mode),
       // BoolToFloat (DontColorAlpha), Vector2Components (GainAndBias) — all already mapped.
+      // ★FORK (named): eliding the TransformImage DROPS its GenerateMips=true, which is not a true no-op —
+      // it omits LUT mip generation. TiXL's ColorRemap.hlsl samples the LUT with auto-LOD .Sample() over a
+      // mipped row; sw's rasterizeGradientRow builds a NON-mipped row (base-level lookup). Divergence is
+      // sub-perceptual on a 256-wide 1D LUT and zero at flat-region pins, surfacing only at high-frequency
+      // input-color transitions — documented, not fixed. [fork-remapcolor-lut-no-mips]
       {"da93f7d1-ef91-4b4a-9708-2d9b1baa4c14", "RemapColor"},
       // LinearGradient (image/generate/basic/LinearGradient.cs [Guid]) — GRADIENT-FED image GENERATOR, same
-      // GTT-elided seam as the trio, PLUS an Offset-routing subgraph: Multiply (Width×Offset) + PickFloat
-      // (OffsetMode select) KEPT as real children feeding FloatParams[8]=Offset (fork
-      // offset-double-routed-benign-at-default; sw's atom reimplements the routing → benign at defaults).
+      // GTT-elided seam as the trio, PLUS an Offset-routing subgraph — PickFloat(OffsetMode,[Offset,
+      // Multiply(Width×Offset)]) — that is ELIDED (fork offset-routing-subgraph-elided-atom-reimplements,
+      // t3_import_collapse.cpp): the atom reimplements the selection internally from its own Offset+OffsetMode
+      // ports, so PickFloat.out re-anchors to its FIRST FloatValues source (raw Offset), the OffsetMode
+      // boundary re-anchors onto the atom's own OffsetMode port, and the Multiply (fed only PickFloat) is
+      // dropped. Keeping them would double-route + saturate (Multiply a=b=1 default → Offset=1). See the
+      // kPickFloatGuid block in t3_import_maps.h; golden asserts Multiply×0 PickFloat×0.
       {"2c3d2c26-ac45-42e9-8f13-6ea338333568", "LinearGradient"},
   };
   auto it = kTable.find(t3Lc(rootGuid));
