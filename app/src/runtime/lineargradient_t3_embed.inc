@@ -1,8 +1,8 @@
 // AUTO-EMBED: external/tixl/Operators/Lib/image/generate/basic/LinearGradient.t3 (byte-faithful).
-// Included by t3import_lineargradient_golden.cpp as the GRADIENT-FED image-fx collapse input (same
-// GradientsToTexture-elided-to-Gradient-port seam as RadialGradient, plus KEPT Multiply/PickFloat
-// helpers for the Offset routing). Data, not code (kept out of the .cpp so the golden LOGIC stays
-// under the 400-line arch gate).
+// Included by t3import_lineargradient_golden.cpp as the GRADIENT-FED image GENERATOR collapse input
+// (same GradientsToTexture-elided-to-Gradient-port seam as RadialGradient, PLUS a KEPT Multiply +
+// PickFloat Offset-routing subgraph). Data, not code (kept out of the .cpp so the golden LOGIC
+// stays under the 400-line arch gate).
 R"T3(
 {
   "Id": "2c3d2c26-ac45-42e9-8f13-6ea338333568"/*LinearGradient*/,

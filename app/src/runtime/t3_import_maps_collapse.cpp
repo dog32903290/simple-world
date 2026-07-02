@@ -67,6 +67,11 @@ std::string swTexOpForCollapseRootGuid(const std::string& rootGuid) {
       // GenerateMips child hangs off the GTT too (elided, unconsumed). Helpers kept: IntToFloat (Mode),
       // BoolToFloat (DontColorAlpha), Vector2Components (GainAndBias) — all already mapped.
       {"da93f7d1-ef91-4b4a-9708-2d9b1baa4c14", "RemapColor"},
+      // LinearGradient (image/generate/basic/LinearGradient.cs [Guid]) — GRADIENT-FED image GENERATOR, same
+      // GTT-elided seam as the trio, PLUS an Offset-routing subgraph: Multiply (Width×Offset) + PickFloat
+      // (OffsetMode select) KEPT as real children feeding FloatParams[8]=Offset (fork
+      // offset-double-routed-benign-at-default; sw's atom reimplements the routing → benign at defaults).
+      {"2c3d2c26-ac45-42e9-8f13-6ea338333568", "LinearGradient"},
   };
   auto it = kTable.find(t3Lc(rootGuid));
   return it != kTable.end() ? it->second : std::string();
@@ -127,6 +132,14 @@ std::string swCollapseSlotNameForGuid(const std::string& swType, const std::stri
            {"55126bff-8c94-415d-96dd-3c16e216e663", "Image"},     // _*FxSetupStatic.ImageA → RemapColor.Image
            {"0bb90f8d-88c9-4a99-b44f-f284b505c65b", "Gradient"},  // _*FxSetupStatic.ImageB → RemapColor.Gradient (GTT+TransformImage elided)
            {"76b6c677-12db-4404-aff7-ee3391d2d831", "out"},       // _*FxSetupStatic.Output → RemapColor.out
+       }},
+      // LinearGradient — same _*FxSetupStatic framework slots. ImageA→Image (optional background, generator
+      // dummy when unwired); ImageB→Gradient via the GTT elision; Output→out.
+      {"LinearGradient",
+       {
+           {"55126bff-8c94-415d-96dd-3c16e216e663", "Image"},     // _*FxSetupStatic.ImageA → LinearGradient.Image
+           {"0bb90f8d-88c9-4a99-b44f-f284b505c65b", "Gradient"},  // _*FxSetupStatic.ImageB → LinearGradient.Gradient (GTT elided)
+           {"76b6c677-12db-4404-aff7-ee3391d2d831", "out"},       // _*FxSetupStatic.Output → LinearGradient.out
        }},
   };
   auto t = kTable.find(swType);
@@ -191,6 +204,15 @@ const std::vector<std::string>& swFloatParamOrderForCollapse(const std::string& 
       // .cs input name — [fork-offset-from-cycle], matches point_ops_remapcolor.cpp port ids). 7 scalars.
       {"RemapColor",
        {"DontColorAlpha", "Mode", "Cycle", "Exposure", "GainAndBias.x", "GainAndBias.y", "Repeat"}},
+      // LinearGradient FloatParams rail — verified against LinearGradient.t3 wire order into 2929c4c9 AND the
+      // LinearGradient.hlsl b0 cbuffer {Center.xy, Width, Rotation, PingPong, Repeat, GainAndBias.xy, Offset,
+      // SizeMode, BlendMode, IsTextureValid(auto)}. Center/GainAndBias via Vector2Components; PingPong/Repeat
+      // via BoolToFloat; SizeMode/BlendMode via IntToFloat; Offset via the PickFloat routing subgraph (kept).
+      // sw port for the cbuffer Rotation field is "Rotate" (the .cs input name — matches
+      // point_ops_lineargradient.cpp port ids). 11 scalars (IsTextureValid is atom-derived, not wired).
+      {"LinearGradient",
+       {"Center.x", "Center.y", "Width", "Rotate", "PingPong", "Repeat",
+        "GainAndBias.x", "GainAndBias.y", "Offset", "SizeMode", "BlendMode"}},
   };
   static const std::vector<std::string> kEmpty;
   auto it = kTable.find(swType);

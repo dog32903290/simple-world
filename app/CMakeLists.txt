@@ -657,6 +657,7 @@ add_executable(simple_world
   src/runtime/t3import_ngongradient_golden.cpp     # GRADIENT-FED generator: NGonGradient.t3 (GTT-elided, 2×V2C+2×B2F+I2F, 8 boundary FloatParams) → closed-form NGon-SDF oracle
   src/runtime/t3import_boxgradient_golden.cpp      # GRADIENT-FED generator: BoxGradient.t3 (GTT-elided, 3×V2C+V4C(CornersRadius)+2×B2F+I2F) → closed-form box-SDF oracle
   src/runtime/t3import_remapcolor_golden.cpp       # GRADIENT-FED COLOR + TRANSFORMIMAGE-PASSTHROUGH: RemapColor.t3 (GTT + identity TransformImage + bypassed GenerateMips all elided; I2F+B2F+V2C kept) → two-region CheckerBoard vs sw ColorRemap rowLinear oracle
+  src/runtime/t3import_lineargradient_golden.cpp   # GRADIENT-FED generator + OFFSET-ROUTING-SUBGRAPH: LinearGradient.t3 (GTT-elided; 2×V2C+2×B2F+2×I2F+Multiply+PickFloat kept) → closed-form linear-ramp oracle
   src/runtime/output_slot_view_selftest.cpp  # output-slot picker golden (viewProducerPath startSlot)
   src/runtime/compound_save.cpp
   src/runtime/compound_load.cpp

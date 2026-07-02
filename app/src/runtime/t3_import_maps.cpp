@@ -26,6 +26,17 @@ const char* const kCombineBuffersCsInSlot = "d91e52f2-52c6-4533-ac14-f5b2ce8b4c0
 // symbol exposes (positional scalar rail — Hue/Sat/Exposure… land here in wire order).
 const char* const kFxSetupFloatParamsSlot = "2929c4c9-6d6a-47b7-b80e-d7a1f90b6945";
 
+// Redundant-subgraph elision guids (rationale in t3_import_maps.h; used by t3_import_collapse.cpp).
+const char* const kGradientsToTextureGuid = "2c53eee7-eb38-449b-ad2a-d7a674952e5b";
+const char* const kGradientsToTextureGradientsSlot = "588be11f-d0db-4e51-8dbb-92a25408511c";
+const char* const kTransformImageGuid = "32e18957-3812-4f64-8663-18454518d005";
+const char* const kTransformImageImageSlot = "3aab9b12-1e02-4d7a-83b6-da1500a6bcbf";
+const char* const kGenerateMipsGuid = "32a6a351-6d22-4915-aa0e-e0483b7f4e76";
+const char* const kPickFloatGuid = "63e6e642-827b-4518-ac64-9ab0a8d4391e";
+const char* const kPickFloatValuesSlot = "d7ef7f1a-a6bd-4f94-a29a-bb19e2854001";
+const char* const kPickFloatIndexSlot = "465b4fc3-899c-4b97-9892-f237fa6613e8";
+const char* const kMultiplyOffsetGuid = "17b60044-9125-4961-8a79-ca94697b3726";
+
 // ---- TABLE ③: t3 symbol guid → sw op type. The buffer atoms sw HAS (forward-port widening).
 // The atom's NodeSpec is resolved via findSpec (production registry) — no per-atom provider on main.
 // Guids verified against the TiXL .cs [Guid] on the symbol class:
@@ -68,6 +79,9 @@ std::string swTypeForSymbolGuid(const std::string& guid) {
       // image-fx collapse (BubbleZoom 子類, gradient-fed): Vector2Components decomposes a Center/GainAndBias
       // vec2 boundary input into X/Y scalars that feed the fx-setup FloatParams rail. sw value_op_vector2components.cpp.
       {"0946c48b-85d8-4072-8f21-11d17cc6f6cf", "Vector2Components"},           // numbers/vec2/Vector2Components.cs:3 (sw value op)
+      // NOTE: LinearGradient.t3's Multiply (17b60044) + PickFloat (63e6e642) Offset-routing subgraph is NOT
+      // mapped here — it is ELIDED by the collapse (fork offset-routing-subgraph-elided-atom-reimplements,
+      // t3_import_collapse.cpp), because sw's LinearGradient atom recomputes the OffsetMode selection itself.
       // 187 量產第一波: _ExecuteCombineBuffers (point/combine/_ExecuteCombineBuffers.cs:8) — the CODE-OP that
       // hides CombineBuffers.t3's whole compute-stage assembly (result alloc + per-input dispatch loop) in
       // C#. sw has a DEDICATED replay atom (buffer_ops_executecombinebuffers.cpp). Its ComputeShader child's

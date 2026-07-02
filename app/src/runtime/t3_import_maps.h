@@ -60,4 +60,29 @@ const std::vector<std::string>& swFloatParamOrderForCollapse(const std::string& 
 // The fx-setup FloatParams MultiInput slot guid (2929c4c9) — the positional scalar rail all wrappers share.
 extern const char* const kFxSetupFloatParamsSlot;
 
+// ── REDUNDANT-SUBGRAPH ELISION guids (used by t3_import_collapse.cpp) ─────────────────────────────────
+// A whole class of image-fx wrappers feed the fx child's ImageB from a GradientsToTexture that renders the
+// root's Gradient boundary → a 1D row; sw's atoms rasterize the Gradient row THEMSELVES from a "Gradient"
+// PORT, so the GTT is redundant and ELIDED (gradientstotexture-elided-to-gradient-port): a wire off GTT.out
+// re-anchors to the SOURCE feeding its Gradients input.
+extern const char* const kGradientsToTextureGuid;         // GradientsToTexture.cs:9
+extern const char* const kGradientsToTextureGradientsSlot; // GradientsToTexture.Gradients MultiInput (.cs:134-135)
+// RemapColor.t3 interposes a TransformImage (identity copy, GenerateMips=true) between the GTT and the fx
+// child's ImageB → ALSO elided (transformimage-identity-passthrough-elided): a wire off its TextureOutput
+// re-anchors to its Image source, which chains on to the GTT. A bypassed GenerateMips child hangs off the
+// GTT too (dead branch, elided with no source).
+extern const char* const kTransformImageGuid;        // TransformImage.cs:3
+extern const char* const kTransformImageImageSlot;    // TransformImage.Image (.cs:9-10)
+extern const char* const kGenerateMipsGuid;           // GenerateMips.cs (dead branch)
+// LinearGradient.t3 routes Offset through a PickFloat(OffsetMode,[Offset, Multiply(Width,Offset)]) subgraph.
+// sw's atom REIMPLEMENTS that selection internally from its own Offset+OffsetMode ports → the subgraph is
+// redundant and ELIDED (offset-routing-subgraph-elided-atom-reimplements): PickFloat.out re-anchors to its
+// FIRST FloatValues source (raw Offset), the OffsetMode boundary re-anchors onto the atom's OffsetMode port,
+// and the Multiply (fed only PickFloat) is dropped. Keeping it double-routes + the dropped boundary→Multiply
+// wires poison it (Multiply reads a=b=1 default → Offset=1 → the ramp saturates).
+extern const char* const kPickFloatGuid;         // PickFloat.cs:5
+extern const char* const kPickFloatValuesSlot;    // PickFloat.FloatValues MultiInput (.cs:45)
+extern const char* const kPickFloatIndexSlot;     // PickFloat.Index (.cs:48)
+extern const char* const kMultiplyOffsetGuid;     // Multiply.cs:3 (Width×Offset, elided)
+
 }  // namespace sw

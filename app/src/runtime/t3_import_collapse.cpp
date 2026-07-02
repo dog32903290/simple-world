@@ -40,37 +40,12 @@ using t3i::isBoundaryGuid;
 using t3i::lc;
 
 namespace {
-// GRADIENT-FED collapse (named fork gradientstotexture-elided-to-gradient-port): a whole class of
-// image-fx wrappers (BubbleZoom, RemapColor, …) feed the fx-setup child's ImageB (t1) from a
-// GradientsToTexture child (SymbolId 2c53eee7) that renders the root's Gradient boundary into a 1D
-// texture row. sw's collapsed atoms (e.g. BubbleZoom) take the Gradient on a "Gradient" PORT and
-// rasterize it to a 1×512 texture row THEMSELVES (rasterizeGradientRow, point_ops_bubblezoom.cpp:161 —
-// NOT continuous in-shader sampling; sw and TiXL BOTH raster-then-sample). So the SEPARATE GradientsToTexture
-// child is redundant: the atom already does the equivalent row raster internally. (Corrects an earlier wrong
-// note that claimed sw samples the gradient continuously in-shader — the equivalence is "both rasterize".)
-// The row raster carries a named format fork [fork-grad-row-format-32f] (sw 512-texel RGBA32F LINEAR vs
-// GradientsToTexture's R16F default), documented at gradient_raster.h — sub-perceptual on a linear gradient
-// ([fork-gradient-row-sampler]: sw's larger, higher-precision, LINEAR-filtered row vs TiXL's; below threshold).
-// The collapse ELIDES the GradientsToTexture child: it is NOT emitted, and any wire off its Texture2D
-// output re-anchors to the SOURCE feeding its Gradients input (588be11f). So the .t3 chain
-//   <gradient src> → GTT.Gradients ; GTT.out → fxSetup.ImageB
-// collapses to  <gradient src> → atom.Gradient  (ImageB→Gradient via ④c). This is the ONLY sanctioned
-// elision — a GTT whose output does NOT feed a collapsing fx child is not reached by this pass.
-const char* const kGradientsToTextureGuid = "2c53eee7-eb38-449b-ad2a-d7a674952e5b";  // GradientsToTexture.cs:9
-const char* const kGradientsToTextureGradientsSlot =
-    "588be11f-d0db-4e51-8dbb-92a25408511c";  // GradientsToTexture.Gradients MultiInput (.cs:134-135)
-
-// TRANSFORMIMAGE-PASSTHROUGH elision (fork transformimage-identity-passthrough-elided): RemapColor.t3
-// interposes a TransformImage (32e18957) on the gradient path — GTT.out → TransformImage.Image ;
-// TransformImage.TextureOutput → fxSetup.ImageB — with ALL transform inputs UNWIRED at identity (only
-// GenerateMips=true), so on the row it is a no-op copy. ELIDED like the GTT: a wire off its output
-// re-anchors to the SOURCE feeding its Image input (3aab9b12), which chains on to the GTT and thence the
-// Gradient boundary. Its non-identity transform inputs are NOT modeled (safe here — .t3 leaves them
-// identity). A GenerateMips child (32a6a351, IsBypassed) also hangs off the GTT; its output is unconsumed
-// (dead branch) → its guid is elided too so any stray consumer drops (there is none here).
-const char* const kTransformImageGuid = "32e18957-3812-4f64-8663-18454518d005";  // TransformImage.cs:3
-const char* const kTransformImageImageSlot = "3aab9b12-1e02-4d7a-83b6-da1500a6bcbf";  // TransformImage.Image (.cs:9-10)
-const char* const kGenerateMipsGuid = "32a6a351-6d22-4915-aa0e-e0483b7f4e76";  // GenerateMips (dead branch)
+// REDUNDANT-SUBGRAPH ELISION guids (GTT-gradient / TransformImage-passthrough / PickFloat-offset-routing) —
+// each fork + its re-anchoring rule is documented at the extern declarations in t3_import_maps.h. In every
+// case sw's collapsed atom already does the elided subgraph's work internally, so the wrapper's helper chain
+// is redundant: a wire off the elided child's output re-anchors (via resolveEndpoint) to the SOURCE feeding
+// its own input, and a wire INTO it is dropped (its source lands directly on the atom when the output is
+// followed). See kGradientsToTextureGuid / kTransformImageGuid / kPickFloatGuid & friends in the header.
 
 // BOUNDARY-VEC-DEFAULT PLUMB (collapse-boundary-typed-default-plumbed-through-kept-helper): the .t3
 // root's Inputs[] carry TYPED defaults. A scalar default (System.Single) is captured by the importer's
@@ -131,6 +106,9 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
   std::map<std::string, bool> gttChildGuids;   // .t3 guids of ELIDED GradientsToTexture children
   std::map<std::string, std::pair<std::string, std::string>> tiImageSrc;  // TransformImage guid → its Image wire src (guid,slot)
   std::map<std::string, bool> passthroughChildGuids;  // .t3 guids of ELIDED TransformImage/GenerateMips children
+  std::map<std::string, std::pair<std::string, std::string>> pickValuesSrc;  // PickFloat guid → its FIRST FloatValues wire src
+  std::pair<std::string, std::string> pickIndexSrc;  // the boundary src (guid,slot) feeding any PickFloat.Index (OffsetMode)
+  std::map<std::string, bool> offsetRoutingChildGuids;  // .t3 guids of ELIDED PickFloat/Multiply offset-routing children
   int nextChildId = 1;
 
   // Pre-scan Connections for each GradientsToTexture child's Gradients-input SOURCE (the endpoint feeding
@@ -148,6 +126,17 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       else if (tslot == t3Lc(kTransformImageImageSlot))
         tiImageSrc[lc(asStr(wv, "TargetParentOrChildId"))] = {lc(asStr(wv, "SourceParentOrChildId")),
                                                               asStr(wv, "SourceSlotId")};
+      else if (tslot == t3Lc(kPickFloatValuesSlot)) {
+        // Capture ONLY the FIRST FloatValues wire per PickFloat (the raw Offset / RelativeToImage=0 branch;
+        // the 2nd is the elided Multiply). PickFloat.out re-anchors to this raw source.
+        const std::string pg = lc(asStr(wv, "TargetParentOrChildId"));
+        if (!pickValuesSrc.count(pg))
+          pickValuesSrc[pg] = {lc(asStr(wv, "SourceParentOrChildId")), asStr(wv, "SourceSlotId")};
+      } else if (tslot == t3Lc(kPickFloatIndexSlot)) {
+        // The OffsetMode boundary feeding PickFloat.Index → re-anchored onto the atom's OffsetMode port so
+        // the atom re-selects itself. (One PickFloat in these wrappers → a single index source is enough.)
+        pickIndexSrc = {lc(asStr(wv, "SourceParentOrChildId")), asStr(wv, "SourceSlotId")};
+      }
     }
 
   // BOUNDARY-VEC-DEFAULT PLUMB pre-scan (collapse-boundary-typed-default-plumbed-through-kept-helper):
@@ -208,6 +197,11 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       // resolveEndpoint). GenerateMips is a dead bypassed branch → elided with no source (any consumer drops).
       if (t3Lc(sid) == t3Lc(kTransformImageGuid) || t3Lc(sid) == t3Lc(kGenerateMipsGuid)) {
         passthroughChildGuids[childGuid] = true; continue;
+      }
+      // PickFloat / Multiply: ELIDED (offset-routing-subgraph-elided-atom-reimplements). PickFloat.out
+      // re-anchors to its raw-Offset FIRST FloatValues source; Multiply fed only PickFloat → dead → dropped.
+      if (t3Lc(sid) == t3Lc(kPickFloatGuid) || t3Lc(sid) == t3Lc(kMultiplyOffsetGuid)) {
+        offsetRoutingChildGuids[childGuid] = true; continue;
       }
       const std::string helperType = swTypeForSymbolGuid(sid);
       if (helperType.empty()) {
@@ -273,6 +267,18 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
   const std::vector<std::string>& floatOrder = swFloatParamOrderForCollapse(swType);
   int floatWireIdx = 0;  // positional index into FloatParams (2929c4c9) wires, in .t3 array order.
 
+  // OFFSET-ROUTING re-anchor: if an offset-routing subgraph was elided, wire the OffsetMode boundary
+  // (which fed the elided PickFloat.Index) onto the atom's OWN OffsetMode port so the atom re-selects the
+  // offset itself. Only fires when a PickFloat was elided AND the atom exposes an "OffsetMode" port.
+  auto atomHasPort = [&](const char* pid) {
+    for (const PortSpec& ps : fs->ports) if (ps.id == pid) return true;
+    return false;
+  };
+  std::vector<SymbolConnection> preConns;
+  if (!offsetRoutingChildGuids.empty() && !pickIndexSrc.first.empty() &&
+      isBoundaryGuid(pickIndexSrc.first) && atomHasPort("OffsetMode"))
+    preConns.push_back({kSymbolBoundary, lc(pickIndexSrc.second), atomId, "OffsetMode"});
+
   // Resolve a wire endpoint (guid+slotGuid) to a (childId, slotName) in the collapsed graph. Boundary →
   // (kSymbolBoundary, lowercased slot guid = SlotDef.id). Helper child → (its childId, sw slot name).
   // Returns false if the endpoint is a helper child whose slot has no sw name (wire then dropped).
@@ -298,6 +304,15 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       if (src == tiImageSrc.end()) return false;  // TransformImage w/ unwired Image or a GenerateMips → drop
       return resolveEndpoint(src->second.first, src->second.second, outChild, outSlot);
     }
+    // PickFloat/Multiply output → substitute the raw-Offset source (offset-routing-subgraph elision).
+    // PickFloat.out re-anchors to its FIRST FloatValues source (the raw Offset). Multiply (which fed only
+    // PickFloat) has no recorded source here → its consumers drop (its output already consumed by PickFloat).
+    auto orte = offsetRoutingChildGuids.find(guid);
+    if (orte != offsetRoutingChildGuids.end()) {
+      auto src = pickValuesSrc.find(guid);
+      if (src == pickValuesSrc.end()) return false;  // Multiply (or unwired PickFloat) → consumer drops
+      return resolveEndpoint(src->second.first, src->second.second, outChild, outSlot);
+    }
     if (isBoundaryGuid(guid)) { outChild = kSymbolBoundary; outSlot = lc(slotGuid); return true; }
     auto it = childGuidToId.find(guid);
     if (it == childGuidToId.end()) return false;  // unknown (fx-setup handled by caller) → skip
@@ -306,7 +321,7 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
     return !outSlot.empty();
   };
 
-  std::vector<SymbolConnection> conns;
+  std::vector<SymbolConnection> conns = std::move(preConns);  // seed with the OffsetMode re-anchor (if any)
   if (root["Connections"].is_array()) {
     for (const crude_json::value& wv : root["Connections"].get<crude_json::array>()) {
       if (!wv.is_object()) continue;
@@ -324,6 +339,10 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
       // Same for a wire INTO an elided TransformImage/GenerateMips (e.g. GTT.out → TransformImage.Image):
       // the source is re-anchored when the passthrough's OUTPUT is followed (resolveEndpoint chains it).
       if (passthroughChildGuids.count(dstGuid)) continue;
+      // Same for a wire INTO an elided PickFloat/Multiply (Offset/OffsetMode/Multiply.out → PickFloat.*,
+      // Width/Offset → Multiply.*): dropped — the raw Offset is re-anchored via PickFloat.out, and the
+      // OffsetMode boundary was already wired onto the atom's OffsetMode port (preConns above).
+      if (offsetRoutingChildGuids.count(dstGuid)) continue;
 
       if (dstIsFx) {
         // wire INTO the fx-setup child → re-anchor its TARGET onto the atom, keeping the SOURCE.
