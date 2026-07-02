@@ -352,8 +352,15 @@ int runDetectBpmSelfTest(bool injectBug) {
     }
   }
 
-  if (injectBug) ok = !ok;  // -bug: (1)'s detune must have broken recovery, flipping the verdict
-  if (ok) std::printf("[detectbpm] PASS%s\n", injectBug ? " (injectBug expected-FAIL inverted)" : "");
+  if (injectBug) {
+    // -bug: (1)'s detune must have broken recovery, so `ok` is now false. Signal the bite the way EVERY
+    // other tooth does — a NON-zero exit (do NOT self-invert to a pass). run_all_selftests.sh --bite reads
+    // a -bug exit!=0 as "tooth bit"; the old self-inverted exit-0 was mis-counted as a blind eye (NO-BITE).
+    if (!ok) { std::printf("[detectbpm] -bug: recovery broke as expected -> tooth BITES\n"); return 1; }
+    std::printf("[detectbpm] -bug: TOOTHLESS (injected detune did not break recovery)\n");
+    return 0;
+  }
+  std::printf("[detectbpm] %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
 
