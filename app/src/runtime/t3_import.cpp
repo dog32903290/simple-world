@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <map>
+#include <regex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -61,6 +62,19 @@ std::string stripT3Comments(const std::string& in) {
   return out;
 }
 
+// TOP-LEVEL NAME from the .t3 Id comment (imported-compound-shows-guid-not-name): TiXL writes the
+// symbol's readable name as an inline comment on its top-level Id — `"Id": "<guid>"/*RadialGradient*/`.
+// stripT3Comments deletes ALL such comments before parsing, so the parsed Symbol.name would be the raw
+// GUID and the Cmd+F palette would show a string of hex. Recover the FIRST (= root object's) Id comment
+// from the RAW text here, BEFORE stripping. Returns "" when the root Id has no name comment (leave the
+// GUID fallback). Anchored to the first `"Id"` key so a child's Id comment can never win.
+std::string topLevelName(const std::string& raw) {
+  static const std::regex re(R"("Id"\s*:\s*"[^"]+"\s*/\*([^*]+)\*/)");
+  std::smatch m;
+  if (std::regex_search(raw, m, re) && m.size() >= 2) return m[1].str();
+  return std::string();
+}
+
 }  // namespace
 
 bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
@@ -75,7 +89,10 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
 
   Symbol sym;
   sym.id = symGuid;
-  sym.name = symGuid;
+  // Readable name from the root Id's inline comment (else fall back to the GUID) — set BEFORE the
+  // collapse branch commits its Symbol, so both the collapse and the normal path carry the real name.
+  const std::string readableName = topLevelName(t3Json);
+  sym.name = readableName.empty() ? symGuid : readableName;
   sym.atomic = false;
 
   // Top-level Inputs[] → the symbol's external input SlotDefs (boundary ports). Named by guid.
@@ -266,6 +283,28 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
       }
     }
   doneSwap:;
+  }
+
+  // COMPOUND-OUTPUT-DEF (imported-compound-needs-outputdefs-to-be-draggable-child): each wire whose
+  // TARGET is the SYMBOL BOUNDARY names one of THIS compound's external output slots (dstSlot = the .t3
+  // boundary output guid). Without a matching SlotDef the imported compound has NO output PIN when
+  // dragged as a child (specFromSymbol emits output ports from outputDefs) AND viewProducerPath returns
+  // "" (`s->outputDefs.empty()`) → dead node / black cook. The port TYPE/name is copied from the SOURCE
+  // child atom's OUTPUT PortSpec that feeds this boundary (the terminal producer of that output). One
+  // SlotDef per distinct boundary output slot, in first-seen wire order. Metadata only — the flattener
+  // already keys outProducers on dstSlot regardless, so the cook product is unchanged.
+  for (const SymbolConnection& c : conns) {
+    if (c.dstChild != kSymbolBoundary) continue;
+    bool have = false;
+    for (const SlotDef& od : sym.outputDefs) if (od.id == c.dstSlot) { have = true; break; }
+    if (have) continue;
+    std::string dtype = "Texture2D", dname = c.dstSlot;
+    auto tit = childIdToSwType.find(c.srcChild);
+    if (tit != childIdToSwType.end())
+      if (const NodeSpec* ss = findSpec(tit->second))
+        for (const PortSpec& p : ss->ports)
+          if (!p.isInput && p.id == c.srcSlot) { dtype = p.dataType; dname = p.name; break; }
+    sym.outputDefs.push_back({c.dstSlot, dname, dtype, 0.0f});
   }
 
   sym.connections = std::move(conns);

@@ -44,9 +44,8 @@ namespace {
 // each fork + its re-anchoring rule is documented at the extern declarations in t3_import_maps.h. In every
 // case sw's collapsed atom already does the elided subgraph's work internally, so the wrapper's helper chain
 // is redundant: a wire off the elided child's output re-anchors (via resolveEndpoint) to the SOURCE feeding
-// its own input, and a wire INTO it is dropped (its source lands directly on the atom when the output is
-// followed). See kGradientsToTextureGuid / kTransformImageGuid / kPickFloatGuid & friends in the header.
-
+// its own input, and a wire INTO it is dropped (source lands on the atom when the output is followed). See
+// kGradientsToTextureGuid / kTransformImageGuid / kPickFloatGuid & friends in the header.
 // BOUNDARY-VEC-DEFAULT PLUMB (collapse-boundary-typed-default-plumbed-through-kept-helper): the .t3
 // root's Inputs[] carry TYPED defaults. A scalar default (System.Single) is captured by the importer's
 // SlotDef.def; a VECTOR default is a JSON object {X,Y[,Z,W]}. When a kept decompose helper's Value input
@@ -81,15 +80,13 @@ const char* const kIntToFloatIntHead = "IntValue";
 std::vector<std::pair<std::string, float>> readVecDefault(const crude_json::value& dv) {
   std::vector<std::pair<std::string, float>> out;
   if (!dv.is_object()) return out;
-  for (const char* comp : {"X", "Y", "Z", "W"}) {
+  for (const char* comp : {"X", "Y", "Z", "W"})
     if (dv.contains(comp) && dv[comp].is_number())
       out.push_back({std::string("Value.") + (char)std::tolower(comp[0]),
                      (float)dv[comp].get<crude_json::number>()});
-  }
   return out;
 }
 }  // namespace
-
 bool collapseImageFxWrapper(const crude_json::value& root, const std::string& swType, Symbol& sym,
                             SymbolLibrary& lib,
                             const std::function<void(const std::string&)>& warn) {
@@ -377,6 +374,12 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
           continue;
         }
         conns.push_back({atomId, port, dChild, dSlot});
+        // COMPOUND-OUTPUT-DEF (imported-compound-needs-outputdefs-to-be-draggable-child): fx→BOUNDARY ⇒
+        // dSlot is this compound's external output; give it a SlotDef from the terminal atom's OUTPUT port
+        // so the dragged child gets an output PIN + viewProducerPath doesn't bail on empty defs (black cook).
+        if (dChild == kSymbolBoundary && sym.outputDefs.empty())
+          for (const PortSpec& p : fs->ports)
+            if (!p.isInput) { sym.outputDefs.push_back({dSlot, p.name, p.dataType, p.def}); break; }
         continue;
       }
       // Neither endpoint is the fx-setup child (boundary→helper, helper→helper) — keep the wire as-is,
