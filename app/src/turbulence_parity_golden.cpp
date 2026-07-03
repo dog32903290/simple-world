@@ -10,16 +10,19 @@
 // TiXL .t3=1.0, (b) Frequency default 1.2 vs TiXL .t3=1.0, and (c) the COOK forcing Phase=wall-clock
 // (point_ops.cpp:323 `tp.Phase = time`) over TiXL's Phase=user-input-default-0.
 //
-// ── TOOTH 1a (kernel-math parity, direct-kernel) ─────────────────────────────────────────────────────
+// ── TOOTH 1a (kernel-math parity, direct-kernel, TiXL-TRANSCRIBED oracle — P5 fix) ──────────────────
 // We dispatch the PRODUCTION `turbulence_force` kernel directly on a fixed synthetic Particle buffer
 // (known positions, ZERO initial velocity, FIXED Phase=0), so each particle's post-velocity IS its
-// displacement Δv = curlNoise(noiseLookup) * (Amount/100). Because curlNoise is a fixed function of the
-// (fixed) lookup, Δv scales EXACTLY linearly in Amount and is a fixed function of Frequency.
-// TiXL GROUND-TRUTH ANCHOR (rule 2): a CALIBRATION pass at Amount=100, Frequency=1.0 (TiXL .t3), Phase=0
-// → amount factor 1.0 → velocity == C_i := curlNoise(Particles[i].Position*0.9 * 1.0). TiXL DEFAULT
-// Amount=1.0 predicts meanLen_tixl = mean_i|C_i| * 0.01. We dispatch Amount=1,Freq=1 and ASSERT it ==
-// that. This anchors the noise MATH to TiXL — but it HAND-SETS TurbParams, so it is BLIND to the NodeSpec
-// default (the template-gap the refuter caught: a wrong NodeSpec default never reaches this tooth).
+// displacement Δv = curlNoise(noiseLookup) * (Amount/100). OLD SHAPE (P5 self-calibration, REMOVED): a
+// second dispatch of the SAME kernel at Amount=100 "calibrated" the expectation — that only ever proved
+// linearity in Amount (A==A), never that the noise math matches TiXL. NEW SHAPE (true-value anchors):
+//   (i)  CLOSED-FORM magnitude — TiXL's curlNoise ends in normalize() (noise-functions.hlsl:282), so
+//        |Δv| == Amount/100 exactly; at the TiXL .t3 default Amount=1 the mean speed must be 0.01.
+//   (ii) NOISE-MATH parity — per-particle Δv is compared against a HOST transcription of TiXL's
+//        snoise/snoiseVec3/curlNoise (noise-functions.hlsl:179-283, transcribed in tixl_noise_oracle.h,
+//        NOT sw's noise.metal.h port) driven by the force formula TurbulanceForce.hlsl:64-65,72-73.
+// This still HAND-SETS TurbParams, so it is BLIND to the NodeSpec default (the template-gap the refuter
+// caught: a wrong NodeSpec default never reaches this tooth) — TOOTH 1b guards that.
 //
 // ── TOOTH 1b (NodeSpec-default parity, THROUGH THE REAL COOK) ─────────────────────────────────────────
 // This is the gap-plug. We COOK the production rig (RadialPoints -> ParticleSystem(+TurbulenceForce) ->
@@ -60,6 +63,7 @@
 #include "runtime/force_params.h"  // TurbParams, FORCE_Particles/FORCE_Params
 #include "runtime/graph.h"         // Graph/Node/pinId
 #include "runtime/tixl_point.h"    // Particle / SwPoint (64B)
+#include "tixl_noise_oracle.h"     // tixl_noise:: — TiXL noise-functions.hlsl transcription (TOOTH 1a oracle)
 
 namespace sw {
 namespace {
@@ -114,6 +118,7 @@ double meanSpeed(const std::vector<Particle>& v) {
                    (double)p.Velocity.z * p.Velocity.z);
   return s / (double)v.size();
 }
+
 
 // ---- TOOTH 2 cook capture (RadialPoints -> ParticleSystem(+Turbulence) -> DrawPoints) ----
 std::vector<SwPoint>* g_turbCap = nullptr;
@@ -195,24 +200,58 @@ int runTurbulenceParitySelfTest(bool injectBug) {
 
   const uint32_t N = 1024;
 
-  // ── TOOTH 1a: KERNEL-MATH parity (direct-kernel, TiXL closed-form) ───────────────────────────────
-  // This anchors the noise MATH to TiXL (curlNoise * Amount/100) but is BLIND to the NodeSpec default
-  // (it hand-sets TurbParams, bypassing cook). TOOTH 1b below is what actually guards the NodeSpec.
-  // CALIBRATION: Amount=100 (factor 1.0), Frequency=1.0 (TiXL .t3), Phase=0 → velocity == curlNoise(L),
-  // i.e. C itself. Its mean length, scaled by the TiXL default amount (1/100), is the parity expectation.
-  TurbParams cal{};
-  cal.Amount = 100.0f; cal.Frequency = 1.0f; cal.Phase = 0.0f; cal.Variation = 0.0f;
-  cal.SpeedFactor = 1.0f; cal.VariationGroupCount = 0.0f; cal.Count = N;
-  double meanLenCurl = meanSpeed(dispatchTurb(h.dev, h.queue, h.lib, cal, N));  // == mean|C_i| (Freq=1)
-  double expectedTiXL = meanLenCurl * (1.0 / 100.0);  // TiXL default Amount=1.0 → factor 0.01
-
+  // ── TOOTH 1a: KERNEL-MATH parity vs the TiXL-TRANSCRIBED host oracle (P5 fix) ────────────────────
+  // The old CALIBRATION dispatch (Amount=100 of the same kernel) is GONE — it only proved linearity in
+  // Amount (A==A). Expectations now come from TiXL source only:
+  //   TurbulanceForce.hlsl:64  pos = Position * 0.9
+  //   TurbulanceForce.hlsl:65  noiseLookup = (pos + variationOffset(=0, Variation=0) + Phase(=0)*(1,-1,0)) * Frequency
+  //   TurbulanceForce.hlsl:72-73  Δv = curlNoise(noiseLookup) * (Amount/100 * fieldAmount(=1, no field) * SpeedFactor(=1))
+  //   noise-functions.hlsl:282    curlNoise is NORMALIZED → |Δv| == Amount/100 exactly.
+  // Still hand-sets TurbParams (kernel-math anchor, NOT the cook); TOOTH 1b guards the NodeSpec default.
   TurbParams k1{};
-  k1.Amount = 1.0f; k1.Frequency = 1.0f;  // TiXL .t3 constants (kernel-math anchor, NOT the cook)
+  k1.Amount = 1.0f; k1.Frequency = 1.0f;  // TiXL .t3 defaults
   k1.Phase = 0.0f; k1.Variation = 0.0f; k1.SpeedFactor = 1.0f;
   k1.VariationGroupCount = 0.0f; k1.Count = N;
-  double meanLenKernel = meanSpeed(dispatchTurb(h.dev, h.queue, h.lib, k1, N));
-  double tol = 0.2 * expectedTiXL + 1e-6;
-  rep.expect("kernelMath==TiXL(Amount=1,Freq=1)", meanLenKernel, expectedTiXL, tol);
+  std::vector<Particle> got1 = dispatchTurb(h.dev, h.queue, h.lib, k1, N);
+  rep.expectTrue("kernelDispatch(bagN)", got1.size() == N, (double)got1.size());
+
+  // (i) CLOSED-FORM magnitude anchor: mean |Δv| == Amount/100 == 0.01 (hlsl:282 normalize + :72-73).
+  double meanLenKernel = meanSpeed(got1);
+  rep.expect("meanSpeed==Amount/100(hlsl:282)", meanLenKernel, 1.0 / 100.0, 5e-4);
+
+  // (ii) NOISE-MATH parity: per-particle Δv vs the tixl_noise transcription at the particle's own
+  // (readback) position — zero initial velocity, so post-velocity IS Δv. ROBUST-FRACTION asserts, and
+  // the gate is calibrated to the fp physics of the curl: snoise float jitter between two faithful
+  // implementations was MEASURED at ~1e-5 (this transcription vs the independent
+  // t3import_displacemeshnoise_oracle lineage over this exact lattice); the finite-difference divides
+  // it by 2e=0.002 → raw-curl error ~1e-2 worst → after normalize, |Δv| error can reach ~1e-4..1e-3
+  // where the raw curl is small. So the per-particle gate is 1e-3 (10% of |Δv|) with fraction ≥90% —
+  // WRONG noise math (offsets/constants/permutation/frequency wiring) decorrelates essentially every
+  // direction (typical |Δv-host| ≈ √2·0.01 ≈ 14× the gate; the fraction inside 0.1 rad of a random
+  // direction is <1%) → fraction collapses → RED. Wrong/missing normalize spreads per-particle speeds
+  // (raw |curl| is O(1..10), not 1) → the magnitude fraction collapses → RED.
+  uint32_t nCmp = 0, nDirOk = 0, nMagOk = 0;
+  for (uint32_t i = 0; i < (uint32_t)got1.size(); ++i) {
+    const Particle& pp = got1[i];
+    tixl_noise::V3 posl = {pp.Position.x * 0.9f, pp.Position.y * 0.9f, pp.Position.z * 0.9f};  // hlsl:64
+    tixl_noise::V3 lookup = {posl.x * k1.Frequency, posl.y * k1.Frequency, posl.z * k1.Frequency};  // hlsl:65
+    tixl_noise::V3 c = tixl_noise::curlNoise(lookup);
+    const double amt = (double)k1.Amount / 100.0;  // hlsl:72
+    double dx = (double)pp.Velocity.x - (double)c.x * amt;
+    double dy = (double)pp.Velocity.y - (double)c.y * amt;
+    double dz = (double)pp.Velocity.z - (double)c.z * amt;
+    double err = std::sqrt(dx * dx + dy * dy + dz * dz);
+    double sp = std::sqrt((double)pp.Velocity.x * pp.Velocity.x +
+                          (double)pp.Velocity.y * pp.Velocity.y +
+                          (double)pp.Velocity.z * pp.Velocity.z);
+    ++nCmp;
+    if (err < 1e-3) ++nDirOk;                  // 10% of |Δv| — see gate calibration note above
+    if (std::fabs(sp - amt) < 1e-4) ++nMagOk;  // 1% of |Δv| — normalize makes every speed == amt
+  }
+  double fracDir = nCmp ? (double)nDirOk / nCmp : 0.0;
+  double fracMag = nCmp ? (double)nMagOk / nCmp : 0.0;
+  rep.expectTrue("noiseParity(|dv-host|<1e-3)>=90%", fracDir >= 0.90, fracDir);
+  rep.expectTrue("normalized(|sp-0.01|<1e-4)>=99%", fracMag >= 0.99, fracMag);
 
   // ── TOOTH 1b: NODESPEC-DEFAULT parity through the REAL COOK (the模板盲區 plug) ────────────────────
   // Build the production rig (RadialPoints -> ParticleSystem(+TurbulenceForce) -> DrawPoints) and COOK it

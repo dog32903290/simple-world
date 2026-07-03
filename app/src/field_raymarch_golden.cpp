@@ -197,7 +197,7 @@ int runFieldRaymarchSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-field-raymarch] FAIL: injectBug (frozen march) tripped no tooth "
                   "(silhouette survived a frozen ray)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-field-raymarch] injectBug correctly RED\n");
     return 1;

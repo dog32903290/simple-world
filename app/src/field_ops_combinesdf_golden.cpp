@@ -360,7 +360,7 @@ int runFieldCombineSdfGoldenSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-field-combinesdf] FAIL: injectBug did not trip any probe (tooth has no "
                   "bite)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-field-combinesdf] injectBug correctly RED\n");
     return 1;

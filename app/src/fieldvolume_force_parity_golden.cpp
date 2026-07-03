@@ -24,8 +24,8 @@
 //   (field_volume_force_template.metal) and the no-field BAKED kernel (field_volume_force.metal) are byte-1:1
 //   with FieldVolumeForce.hlsl:91-151.
 // → FieldVolumeForce was already FAITHFUL. This golden ADDS the missing no-field/cook-through gate; it does NOT
-//   fix a deviation, because there is none. NO production edits accompany it. The injectBug tooth still proves
-//   teeth (it flips a NodeSpec-default expectation to a false deviation → RED).
+//   fix a deviation, because there is none. NO production edits accompany it. The injectBug leg proves teeth by
+//   SEVERING the TOOTH-2b Field wire (real cook-path data corruption) → the wired-field liveness assert → RED.
 //
 // ── THE NO-FIELD CONTRACT (fork-FieldVolume-baked, the thing this golden guards) ──────────────────────────────
 // FieldVolumeForce's Field input is a procedural SDF (ShaderGraphNode). With NO field wired, runFieldForce
@@ -53,10 +53,31 @@
 // (resolveNodeParams → cookInputParam → fillFieldVolumeForceParams, applying the .t3 forks) AND, with no Field
 // tree, dispatches the baked no-op kernel. We compare that production cook to a NO-FORCE baseline cook (the SAME
 // rig with the FieldVolumeForce node and its connection removed). Because the no-field force is a faithful no-op,
-// the two MUST be bit-identical (the force changes NOTHING). no-bug expects prod==baseline (maxPosDelta==0);
-// injectBug flips the expectation to "the force MOVED particles off baseline" (asserts maxPosDelta > a real
-// threshold) — which is FALSE for the faithful no-op, so it goes RED. Because this runs THROUGH the cook, a
-// NodeSpec / dropped-NaN-guard / baked-fallback regression (invisible to a hand-set kernel tooth) is caught.
+// the two MUST be bit-identical (the force changes NOTHING) — asserted in BOTH legs (a property of the cook).
+// Because this runs THROUGH the cook, a NodeSpec / dropped-NaN-guard / baked-fallback regression (invisible to
+// a hand-set kernel tooth) is caught. NOTE the no-op equality alone cannot carry the -bug (an EMPTY kernel is
+// also a no-op) — TOOTH 2b below is the positive tooth that closes that hole.
+//
+// ── TOOTH 2b (WIRED-FIELD liveness THROUGH THE REAL COOK — the positive tooth + the -bug carrier) ────────────
+// Cook the SAME rig with a SphereSDF node (ctor defaults Center=(0,0,0), Radius=0.5 == SphereSDF.t3) wired into
+// FieldVolumeForce.Field through the graph (the two-hop gather: field_graph_builder.cpp gatherForceFieldTree →
+// PointCookCtx::inputFieldTree → cookParticleSim assembles + compiles field_volume_force_template.metal). The
+// ring (Radius=2) sits OUTSIDE the sphere → the ATTRACT branch fires with a NON-ZERO force — the sibling golden
+// fieldvolumeforce_field_golden.cpp proves that closed-form against TiXL (SphereSDF + particle @(1,0,0),
+// Attraction=1 → Velocity==(-0.425·A,0,0), FieldVolumeForce.hlsl:143-146): a wired field MUST change velocity,
+// so particles MUST move off the no-force baseline. We assert maxPosDelta(prodField, baseline) > 1e-3 (~0.02
+// measured-scale displacement over 8 frames vs the no-op's exact 0). This tooth also guards the SILENT BAKED
+// FALLBACK failure mode (compiler seam unset / template unreadable / gather broken → runFieldForce returns
+// false → no-op): any of those regressions turns the no-bug leg RED here, loudly.
+//
+// injectBug LEG (REAL cook injection, GOLDEN_STANDARD 特徵3 — was a P3 expectation-inversion, fixed): the -bug
+// leg SEVERS the Field wire in the TOOTH-2b cook (the family's established "-bug severs Field -> pass-through"
+// convention: movepointstosdf / raymarchpoints / sdfreflectionlinepoints / pointcolorwithfield). The severed
+// input corrupts the REAL cook path's data: gatherForceFieldTree finds no wired Field → the cook dispatches the
+// baked NaN-guarded no-op → nothing moves → the SAME "must move off baseline" assertion reads 0 → RED. If the
+// injection did not trip (a severed field somehow still moved particles), the assert passes and the leg exits
+// 0 → run_all_selftests --bite's NO-BITE list catches the dead tooth. no-bug → wired field moves particles →
+// GREEN (--bite-collectable). TOOTH 1/2/3 assert the same thing in both legs.
 //
 // ── TOOTH 3 (offline-render determinism, through the REAL cook) ──────────────────────────────────────────────
 // FieldVolumeForce has no Phase / no wall-clock term, so two cooks with IDENTICAL inputs and frame schedule but
@@ -64,16 +85,14 @@
 // TurbulenceForce had). We cook the prod rig twice with different time0 and assert maxPosDelta==0. GREEN in both
 // legs — it documents that, like DirectionalForce, this force needed no wall-clock un-binding.
 //
-// injectBug LEG: TOOTH 2 flips its expectation from "no-op (prod==baseline)" to "force moved particles", which
-// the faithful no-op cannot satisfy → RED. no-bug → prod==baseline → GREEN. So the gate reads no-bug GREEN ↔
-// injectBug RED (--bite-collectable).
+// DEFERRED (named): the WIRED-SDF VALUE parity (bounce/attract/repel numbers, *0.425 fork, reflect math) is
+// already guarded closed-form by fieldvolumeforce_field_golden.cpp — this golden intentionally does NOT re-pin
+// those numbers; TOOTH 2b asserts only LIVENESS (field wired ⇒ motion) through the real cook. It owns the
+// complementary NO-FIELD baked no-op + NodeSpec-default cook-through contract.
 //
-// DEFERRED (named): the WIRED-SDF bounce/attract/repel behavior (the field path, *0.425 fork, reflect math) is
-// already guarded by fieldvolumeforce_field_golden.cpp — this golden intentionally does NOT re-cover it; it owns
-// the complementary NO-FIELD baked no-op + NodeSpec-default cook-through contract.
-//
-// ZONE: shell tier (app/src/ root, like directional_force_parity_golden.cpp / turbulence_parity_golden.cpp).
-// Crosses runtime (PointGraph cook + the baked kernel). NO production edits — FieldVolumeForce was already faithful.
+// ZONE: shell tier (app/src/ root, like fieldvolumeforce_field_golden.cpp). Crosses runtime (PointGraph cook +
+// the baked kernel + assembleFieldMSL) AND platform (the field source compiler seam, exactly what main.cpp
+// wires — the TOOTH-2b wired-field cook needs it). NO production edits — FieldVolumeForce was already faithful.
 #include "runtime/point_graph.h"
 
 #include <algorithm>
@@ -82,9 +101,13 @@
 #include <vector>
 
 #include "parity_golden_harness.h"
-#include "runtime/force_params.h"  // FieldVolumeForceParams, FORCE_Particles/FORCE_Params
-#include "runtime/graph.h"         // Graph/Node/pinId
-#include "runtime/tixl_point.h"    // Particle / SwPoint (64B)
+#include "runtime/field_graph.h"    // setFieldSourceCompiler (the compiler seam the wired-field cook needs)
+#include "runtime/force_params.h"   // FieldVolumeForceParams, FORCE_Particles/FORCE_Params
+#include "runtime/graph.h"          // Graph/Node/pinId
+#include "runtime/tex_op_cache.h"   // clearTexOpCache (fresh source-compute-PSO cache per run-device)
+#include "runtime/tixl_point.h"     // Particle / SwPoint (64B)
+
+#include "platform/metal_compile.h"  // platform::compileLibraryFromSource (the field source compiler)
 
 namespace sw {
 namespace {
@@ -150,15 +173,18 @@ void captureFV(PointCookCtx& c, MTL::Texture*, const MTL::Buffer* pts) {
 
 // Cook the FieldVolume rig for `steps` frames from a fixed time base time0 + i*dt; return the captured
 // positions.
-//   • withForce == true  -> RadialPoints -> ParticleSystem(+FieldVolumeForce, NO Field wired, NodeSpec
-//                           DEFAULTS) -> DrawPoints. The cook reads the production NodeSpec defaults and, with
-//                           no field tree, dispatches the BAKED no-op kernel. This is the production path the
-//                           gate guards.
+//   • withForce == true  -> RadialPoints -> ParticleSystem(+FieldVolumeForce, NodeSpec DEFAULTS) ->
+//                           DrawPoints. The cook reads the production NodeSpec defaults. With no field tree
+//                           it dispatches the BAKED no-op kernel (TOOTH 2); with wireField it runs the
+//                           runtime-compiled field kernel (TOOTH 2b).
 //   • withForce == false -> the SAME rig with the FieldVolumeForce node + its connection REMOVED (no force).
 //                           The baseline a faithful no-op must reproduce exactly.
+//   • wireField == true  -> a SphereSDF node (ctor defaults Center=0, Radius=0.5 == SphereSDF.t3) is wired
+//                           into FieldVolumeForce.Field (spec port 1) — the two-hop gatherForceFieldTree
+//                           path. The -bug leg SEVERS this wire (family "-bug severs Field" convention).
 // Two calls with the SAME inputs but DIFFERENT time0 expose any wall-clock dependence (TOOTH 3).
 std::vector<SwPoint> cookFVRig(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
-                               float time0, int steps, bool withForce) {
+                               float time0, int steps, bool withForce, bool wireField = false) {
   registerBuiltinPointOps();
   std::vector<SwPoint> captured;
   g_fvCap = &captured;
@@ -172,13 +198,20 @@ std::vector<SwPoint> cookFVRig(MTL::Device* dev, MTL::CommandQueue* q, MTL::Libr
   Node drw; drw.id = 3; drw.type = "DrawPoints";
   g.nodes.push_back(gen); g.nodes.push_back(sim);
   if (withForce) {
-    Node force; force.id = 4; force.type = "FieldVolumeForce";  // NO param override -> NodeSpec defaults; NO Field wired
+    Node force; force.id = 4; force.type = "FieldVolumeForce";  // NO param override -> NodeSpec defaults
     g.nodes.push_back(force);
+    if (wireField) {
+      Node fld; fld.id = 5; fld.type = "SphereSDF";  // ctor defaults Center=(0,0,0), Radius=0.5 (SphereSDF.t3)
+      g.nodes.push_back(fld);
+    }
   }
   g.nodes.push_back(drw);
   g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // RadialPoints.points -> emit
-  if (withForce)
-    g.connections.push_back({102, pinId(4, 0), pinId(2, 1)});  // FieldVolumeForce.force -> forces (NO Field input)
+  if (withForce) {
+    g.connections.push_back({102, pinId(4, 0), pinId(2, 1)});  // FieldVolumeForce.force -> forces
+    if (wireField)
+      g.connections.push_back({104, pinId(5, 4), pinId(4, 1)});  // SphereSDF.Result(port 4) -> FieldVolumeForce.Field(port 1)
+  }
   g.connections.push_back({103, pinId(2, 2), pinId(3, 0)});  // result -> DrawPoints
 
   const int targetId = pg.defaultDrawTarget(g);
@@ -217,6 +250,15 @@ int runFieldVolumeForceParitySelfTest(bool injectBug) {
     printf("[selftest-fieldvolumeforce-parity] FAIL: no metallib\n");
     return 1;
   }
+
+  // Wire the field source compiler (the SAME seam main.cpp wires) so the TOOTH-2b wired-field cook can
+  // compile the assembled field MSL. WITHOUT it, cachedSourceComputePSO returns null → silent baked
+  // fallback → TOOTH 2b reads no motion → RED in the no-bug leg (loud — exactly the regression it guards).
+  setFieldSourceCompiler([](void* device, const char* msl) -> void* {
+    NS::Error* e = nullptr;
+    return platform::compileLibraryFromSource(static_cast<MTL::Device*>(device), msl, &e);
+  });
+  clearTexOpCache();
 
   // ── TOOTH 1: BAKED-KERNEL NO-OP contract (direct-kernel, TiXL closed-form) ────────────────────────
   // No field wired -> baked field_volume_force.metal: constant all-ones field -> GetNormal=normalize(0)=NaN
@@ -282,18 +324,30 @@ int runFieldVolumeForceParitySelfTest(bool injectBug) {
                  prodDef.size() > 0 && prodDef.size() == baseline.size(), (double)prodDef.size());
 
   double dProdVsBase = maxPosDelta(prodDef, baseline);
-  // THE NO-FIELD NODESPEC TOOTH: a faithful no-op force changes NOTHING, so the prod cook must match the
-  // no-force baseline EXACTLY.
-  //   no-bug   -> expect prod == baseline (maxPosDelta == 0): the no-field force is a faithful no-op.
-  //   injectBug-> expect the force MOVED particles (maxPosDelta > kMoveThresh): FALSE for the no-op -> RED.
+  // THE NO-FIELD NODESPEC TOOTH (both legs): a faithful no-op force changes NOTHING, so the prod cook must
+  // match the no-force baseline EXACTLY. (This equality alone cannot carry the -bug — an empty kernel is
+  // also a no-op — the -bug rides TOOTH 2b below.)
+  rep.expect("prodNoField==baseline(no-op)", dProdVsBase, 0.0, 1e-6);
+
+  // ── TOOTH 2b: WIRED-FIELD liveness THROUGH THE REAL COOK (positive tooth + the -bug carrier) ──────
+  // SphereSDF (Center=0, Radius=0.5) wired into FieldVolumeForce.Field → the ring (Radius=2) is OUTSIDE
+  // the sphere → the ATTRACT branch fires with a non-zero force (closed-form proven vs TiXL by the sibling
+  // fieldvolumeforce_field_golden: Velocity==(-0.425·A,0,0) at (1,0,0), FieldVolumeForce.hlsl:143-146) →
+  // particles MUST move off the no-force baseline (~0.02 over 8 frames vs the no-op's exact 0).
+  //   no-bug   -> field wired          -> real field kernel -> motion   -> GREEN.
+  //   injectBug-> Field wire SEVERED (real cook-path data corruption, family "-bug severs Field"
+  //               convention) -> gatherForceFieldTree finds nothing -> baked NaN-guarded no-op -> the SAME
+  //               "must move" assert reads 0 -> RED. Did-not-trip (severed yet moved) -> PASS -> exit 0
+  //               (NO-BITE list catches the dead tooth).
+  // This tooth also guards the SILENT BAKED FALLBACK (compiler unset / template unreadable / gather broken):
+  // any of those turns the no-bug leg RED here.
   const double kMoveThresh = 1e-3;  // a real displacement the no-op cannot produce
-  if (injectBug) {
-    // FALSE assertion for the faithful production: "the no-field force visibly moved particles off baseline".
-    rep.expectTrue("prodMovedOffBaseline(injectBug)", dProdVsBase > kMoveThresh, dProdVsBase);
-  } else {
-    // The faithful no-op: prod cook bit-identical to the no-force baseline.
-    rep.expect("prodNoField==baseline(no-op)", dProdVsBase, 0.0, 1e-6);
-  }
+  std::vector<SwPoint> prodField = cookFVRig(h.dev, h.queue, h.lib, 0.0f, kSteps,
+                                             /*withForce=*/true, /*wireField=*/!injectBug);
+  rep.expectTrue("fieldWiredBagSize(==baseline>0)",
+                 prodField.size() > 0 && prodField.size() == baseline.size(), (double)prodField.size());
+  double dFieldVsBase = maxPosDelta(prodField, baseline);
+  rep.expectTrue("fieldWired->particlesMoved(>1e-3)", dFieldVsBase > kMoveThresh, dFieldVsBase);
 
   // ── TOOTH 3: offline-render determinism through the real cook ────────────────────────────────────
   // FieldVolumeForce has no Phase / no wall-clock term, so identical inputs at different ctx.time must be

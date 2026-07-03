@@ -140,7 +140,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"directionalforce-parity", runDirectionalForceParitySelfTest},  // ★PARITY-GATE Stage-3 Force-class first: DirectionalForce NodeSpec-default cook-through vs TiXL .t3 Amount=0.007 + closed-form kernel-vel (补验证闸, already-faithful)
     {"axisstep-parity", runAxisStepForceParitySelfTest},  // Stage-3 Force: AxisStepForce CREATE-vel T2 cook-through 守 NodeSpec SelectRatio=0.1
     {"vectorfieldforce-parity", runVectorFieldForceParitySelfTest},  // Stage-3 Force: VectorFieldForce CREATE-vel no-field baked, T2 cook-through 守 NodeSpec
-    {"snaptoanglesforce-parity", runSnapToAnglesForceParitySelfTest},  // Stage-3 Force: SnapToAnglesForce TRANSFORM; cook no-op 契約, NodeSpec discrim direct-kernel (cook-through-NodeSpec DEFERRED seam)
+    {"snaptoanglesforce-parity", runSnapToAnglesForceParitySelfTest},  // Stage-3 Force: SnapToAnglesForce TRANSFORM; cook no-op 契約 + T1b cook-through NodeSpec discrim (velocity-seed latch; P5 恆真假錨 fixed 2026-07-03)
     {"fielddistanceforce-parity", runFieldDistanceForceParitySelfTest},  // Stage-3 Force: FieldDistanceForce TRANSFORM baked no-field no-op 契約 (wired-SDF DEFERRED)
     {"fieldvolumeforce-parity", runFieldVolumeForceParitySelfTest},  // Stage-3 Force: FieldVolumeForce TRANSFORM baked no-field no-op 契約 (wired-SDF DEFERRED)
     {"drawpoints-parity", runDrawPointsParitySelfTest},  // ★PARITY-GATE 修偏差: DrawPoints v1 退化4px死點 → DrawKind::Points2 quad-sprite + PointSize/Color cook-through (RED-first 雙牙; -bug 復活4px死點)

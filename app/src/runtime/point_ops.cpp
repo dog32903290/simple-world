@@ -138,6 +138,14 @@ void simStateFree(void* p) {
   delete s;
 }
 
+// Parity-gate velocity-seed latch (snaptoangles golden TOOTH 1b): the cook bakes InitialVelocity = 0
+// on emit (the named fork below — PS motion comes from wired forces, not the emitter), which makes every
+// velocity-TRANSFORM force (SnapToAnglesForce) a structural no-op through the cook: it never sees a
+// non-zero velocity to rotate. The golden latches a non-zero emit speed here so emitted particles carry
+// velocity = emitDirection * seed (particle_sim.metal:55-57) and the snap becomes OBSERVABLE through the
+// REAL cook. 0.0f in production (same latch idiom as radialBakedBugForceForTest).
+float& simEmitVelocityForTest() { static float v = 0.0f; return v; }
+
 // ParticleSystem sim op: emit bag (input[0], from RadialPoints) -> persistent particles ->
 // per-frame turbulence + integrate -> result bag (output). Faithful to ParticleSystem's
 // runTurbulence + runSim (same params/kernels). Speed/Drag come from THIS node's resolved
@@ -152,7 +160,8 @@ void cookParticleSim(PointCookCtx& c) {
   if (!emit) return;  // no emit bag -> nothing to seed/sim
 
   const float speed = cookParam(c, "Speed", 1.0f);
-  const float drag = cookParam(c, "Drag", 0.02f);
+  // -bug latch (point_ops_forceparams.h): integrator Drag drift for the particlesim parity golden.
+  const float drag = particleSimDragBugForTest() ? 0.5f : cookParam(c, "Drag", 0.02f);
   // forces = buffer input 1 (spec order: emit, forces). Wired iff its params map is present.
   const bool hasForce = c.inputParams && c.inputCount > 1 && c.inputParams[1] != nullptr;
   // _ForceKind tags which kernel the wired force runs (particle_params.h ForceKind). The cook
@@ -168,7 +177,7 @@ void cookParticleSim(PointCookCtx& c) {
 
   auto integrate = [&](bool emitFlag, bool resetFlag) {
     SimParams P{};
-    P.Speed = speed; P.Drag = drag; P.InitialVelocity = 0.0f; P.Time = time;
+    P.Speed = speed; P.Drag = drag; P.InitialVelocity = simEmitVelocityForTest(); P.Time = time;
     P.OrientTowardsVelocity = 0.15f; P.RadiusFromW = 0.01f; P.LifeTime = -1.0f;
     // Shared host policy (particle_params.h): per-frame emit + cycle advance + aging.
     SimIntParams I = makeSimIntParams(emitFlag, resetFlag, s->frame, emitCount, pool);
@@ -248,6 +257,7 @@ void cookParticleSim(PointCookCtx& c) {
       dp.DirY = cookInputParam(c, 1, "Direction.y", -1.0f);
       dp.DirZ = cookInputParam(c, 1, "Direction.z", 0.0f);
       dp.Amount = cookInputParam(c, 1, "Amount", 0.007f);
+      if (dirForceAmountBugForTest()) dp.Amount *= 15.0f;  // -bug latch: TurbulenceForce-style 15× drift
       dp.RandomAmount = cookInputParam(c, 1, "RandomAmount", 0.0f);
       dp.SpeedFactor = 1.0f; dp.Count = pool;
       runForce(s->psoDir, &dp, sizeof(dp));
@@ -255,6 +265,7 @@ void cookParticleSim(PointCookCtx& c) {
       // Defaults = TiXL VectorFieldForce.t3: Amount=1.0, Randomize=0.0.
       VecFieldForceParams vp{};
       vp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
+      if (vecFieldAmountBugForTest()) vp.Amount *= 15.0f;  // -bug latch: same 15x drift class as DIRECTIONAL
       vp.Variation = cookInputParam(c, 1, "Randomize", 0.0f);  // TiXL slot name "Randomize"
       vp.SpeedFactor = 1.0f; vp.Count = pool;
       // PF-a field-into-force bridge (runFieldForce): a wired field -> the runtime-compiled
@@ -288,8 +299,16 @@ void cookParticleSim(PointCookCtx& c) {
       // field_distance_force kernel samples its distance .w at each particle's raw Position
       // (FieldDistanceForce.hlsl:81) and finite-differences a surface normal to attract/repel; no field ->
       // the baked (.w=1 everywhere) static PSO degenerates to a faithful no-op (fork-FieldDistance-baked).
-      if (!runFieldForce(fieldDistanceTemplate(), "field_distance_force", &fp, sizeof(fp)))
-        runForce(s->psoFieldDist, &fp, sizeof(fp));  // fork-FieldDistance-baked fallback
+      if (!runFieldForce(fieldDistanceTemplate(), "field_distance_force", &fp, sizeof(fp))) {
+        if (fieldDistBakedPushBugForTest()) {  // -bug latch: no-op-contract drift — the baked fallback
+          DirForceParams bp{};                 //  wrongly PUSHES (phantom directional kernel) instead of
+          bp.DirY = -1.0f; bp.Amount = 0.05f;  //  the faithful no-op -> parity golden's no-op asserts RED.
+          bp.SpeedFactor = 1.0f; bp.Count = pool;
+          runForce(s->psoDir, &bp, sizeof(bp));
+        } else {
+          runForce(s->psoFieldDist, &fp, sizeof(fp));  // fork-FieldDistance-baked fallback
+        }
+      }
     } else if (forceKind == FORCE_KIND_RANDOMJUMP) {
       // RandomJumpForce — defaults照 RandomJumpForce.t3: Amount=1, Frequency=1, Phase=0, Variation=0,
       // DirectionDistribution=(1,1,1). DirectionDistribution(.cs) -> AmountDistribution(template);

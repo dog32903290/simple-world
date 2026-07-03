@@ -27,6 +27,13 @@ while [ $# -gt 0 ]; do
 done
 [ -x "$BIN" ] || { echo "[selftest-all] no binary at $BIN (build first)" >&2; exit 2; }
 
+# Source-level golden lint (P1 vacuous-bite polarity — docs/agent/GOLDEN_STANDARD.md). Runs on every
+# sweep so the anti-patterns from the 2026-07-03 oracle audit cannot silently return.
+if ! "$ROOT/tools/golden_lint.sh"; then
+  echo "[selftest-all] golden_lint FAILED (fix the listed goldens before trusting --bite)" >&2
+  exit 2
+fi
+
 # Prefer the binary's own list (covers self-registered image-filter ops). Fall back to the source
 # grep if the binary predates --selftest-list.
 names=$("$BIN" --selftest-list 2>/dev/null)
@@ -40,8 +47,15 @@ while IFS= read -r n; do
   flag="--selftest"; [ -n "$n" ] && flag="--selftest-$n"
   if "$BIN" "$flag" >/dev/null 2>&1; then pass=$((pass+1)); else failed+=("${n:-base}"); fi
   if [ "$BITE" = 1 ]; then
-    # a -bug variant that exits 0 is a tooth that cannot bite = a blind eye
-    if "$BIN" "$flag-bug" >/dev/null 2>&1; then nobite+=("${n:-base}"); fi
+    # a -bug variant that exits 0 is a tooth that cannot bite = a blind eye. Second layer: a variant
+    # that PRINTS a dead-tooth diagnostic but still exits non-zero (P1 vacuous polarity) is caught by
+    # grepping its output — belt over the source lint's suspenders.
+    bugout=$("$BIN" "$flag-bug" 2>&1); bugrc=$?
+    if [ $bugrc -eq 0 ]; then
+      nobite+=("${n:-base}")
+    elif printf '%s' "$bugout" | grep -qiE 'did not trip|tooth has no bite|tripped no tooth'; then
+      nobite+=("${n:-base}(vacuous-exit)")
+    fi
   fi
 done <<< "$names"
 

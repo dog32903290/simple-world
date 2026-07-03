@@ -4,7 +4,13 @@
 //
 //   TransformMesh (flat CPU-readback): QuadMesh → TransformMesh → debugCookedMesh; assert the
 //     transformed vertex positions vs the hand-derived TiXL matrix (TransformMatrix.cs +
-//     mesh-TransformVertices.hlsl), topology unchanged. Two sub-cases: pure translation, pure scale.
+//     mesh-TransformVertices.hlsl), topology unchanged. Three sub-cases: pure translation, pure
+//     scale, pure ROTATION (P2 fix — the first two leave the rotation block identity, so a wrong
+//     rotation matrix stayed green). Rotation oracle (TransformMatrix.cs @395c4c55): yaw=r.Y,
+//     pitch=r.X, roll=r.Z (:29-32); Quaternion.CreateFromYawPitchRoll (:39) about Pivot=0 (:47-52),
+//     .NET row-vector convention. Rotation=(0,30,0) → RotY(30°): x' = x·cos30 + z·sin30,
+//     z' = -x·sin30 + z·cos30. python: cos30=0.8660254, sin30=0.5 →
+//     v2 (1,0,0)→(0.8660254, 0, -0.5); v3 (1,1,0)→(0.8660254, 1, -0.5); v0/v1 (x=z=0) fixed.
 //   CombineMeshes (flat CPU-readback): two QuadMesh → CombineMeshes (MultiInput) → debugCookedMesh;
 //     assert verts concatenated + the second mesh's face indices REBASED by +4 (vertex offset).
 //   ★ PRODUCTION PIXEL (R-2): QuadMesh → TransformMesh → DrawMeshUnlit → RenderTarget built through
@@ -141,6 +147,47 @@ int runMeshTransformGoldenSelfTest(bool injectBug) {
       std::printf("[selftest-mesh-transform] scale(2): v2=(%.1f,%.1f,%.1f) v3=(%.1f,%.1f,%.1f) vOk=%d\n",
                   v[2].Position.x, v[2].Position.y, v[2].Position.z,
                   v[3].Position.x, v[3].Position.y, v[3].Position.z, vOk);
+    }
+    ok = ok && pass;
+  }
+
+  // ── SUB-CASE 3: pure ROTATION (0,30,0) — P2 fix, the rotation block leaves identity.
+  //    Oracle: TransformMatrix.cs:29-32 (yaw=r.Y), :39/:47-52 (CreateFromYawPitchRoll about Pivot=0),
+  //    .NET row-vector RotY(30°): v2 (1,0,0)→(0.8660254,0,-0.5); v3 (1,1,0)→(0.8660254,1,-0.5). ──
+  {
+    PointGraph pg3(dev, nullptr, q, 64, 64);
+    Graph g;
+    g.nodes.push_back(makeQuad(1, 0, 0, 0));
+    Node t; t.id = 2; t.type = "TransformMesh";
+    t.params["Rotation.x"] = 0.0f; t.params["Rotation.y"] = 30.0f; t.params["Rotation.z"] = 0.0f;
+    g.nodes.push_back(t);
+    int quadOut = -1, txMeshIn = 0;
+    { const NodeSpec* qs = findSpec("QuadMesh");
+      for (size_t i = 0; i < qs->ports.size(); ++i) if (!qs->ports[i].isInput) { quadOut = (int)i; break; }
+      const NodeSpec* tsp = findSpec("TransformMesh");
+      for (size_t i = 0; i < tsp->ports.size(); ++i)
+        if (tsp->ports[i].isInput && tsp->ports[i].dataType == "Mesh") { txMeshIn = (int)i; break; } }
+    g.connections.push_back({100, pinId(1, quadOut), pinId(2, txMeshIn)});
+
+    EvaluationContext ctx{}; ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+    meshInjectBug() = injectBug;
+    pg3.cook(g, ctx, nullptr, /*terminal=*/2);
+    meshInjectBug() = false;
+
+    const MTL::Buffer* vb = nullptr; const MTL::Buffer* ib = nullptr; uint32_t vc = 0, fc = 0;
+    bool got = pg3.debugCookedMesh(2, vb, vc, ib, fc);
+    bool pass = got && vc == 4;
+    if (pass) {
+      const SwVertex* v = (const SwVertex*)const_cast<MTL::Buffer*>(vb)->contents();
+      // cos30=0.8660254, sin30=0.5 (python: math.cos/sin(math.radians(30))).
+      bool vOk = posEq(v[0], 0, 0, 0) && posEq(v[1], 0, 1, 0) &&
+                 posEq(v[2], 0.8660254f, 0.0f, -0.5f) && posEq(v[3], 0.8660254f, 1.0f, -0.5f);
+      pass = vOk;
+      std::printf("[selftest-mesh-transform] rotateY(30): v2=(%.4f,%.4f,%.4f) v3=(%.4f,%.4f,%.4f) "
+                  "vOk=%d\n", v[2].Position.x, v[2].Position.y, v[2].Position.z,
+                  v[3].Position.x, v[3].Position.y, v[3].Position.z, vOk);
+    } else {
+      std::printf("[selftest-mesh-transform] rotate FAIL: no cooked mesh (got=%d vc=%u)\n", got, vc);
     }
     ok = ok && pass;
   }

@@ -14,9 +14,8 @@
 //     Normal/UV — only a position move shifts the quad), collapsing f0 → the lower-left probe reads
 //     background → RED. Teeth on the actual cook path, not by inverting a faithful pass.
 //
-// QuadMesh defaults (Segments=(1,1), Scale=1, Pivot=0.5): verts v0=(0,0,0) v1=(0,1,0) v2=(1,0,0)
-// v3=(1,1,0); faces f0=(0,2,1) f1=(2,3,1). Attributes (QuadMesh.cs/quadCook): Normal=(0,0,1),
-// Tangent=(1,0,0), Bitangent=(0,1,0), Selection=1, TexCoord v0=(0,0) v1=(0,1) v2=(1,0) v3=(1,1).
+// QuadMesh defaults + every hand/python-derived case oracle live in mesh_modify_golden_cases.h
+// (shared with mesh_modify2_golden.cpp), split out per ARCHITECTURE.md rule 4.
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -34,6 +33,8 @@
 #include "runtime/resident_eval_graph.h"    // buildEvalGraph (production path)
 #include "runtime/sw_mesh.h"                // SwVertex / SwTriIndex
 
+#include "mesh_modify_golden_cases.h"       // makeQuad/meshPins + case derivations/constants
+
 #ifndef SW_SHADER_METALLIB
 #define SW_SHADER_METALLIB "shaders.metallib"
 #endif
@@ -41,32 +42,13 @@
 namespace sw {
 namespace {
 
+using namespace mesh_golden;
+
 bool nearf(float a, float b, float t = 1e-4f) { return std::fabs(a - b) < t; }
 bool n3(const SW_MESH_PACKED3& v, float x, float y, float z) {
   return nearf(v.x, x) && nearf(v.y, y) && nearf(v.z, z);
 }
 bool uvEq(const SW_MESH_FLOAT2& v, float x, float y) { return nearf(v.x, x) && nearf(v.y, y); }
-
-Node makeQuad(int id, float cx, float cy, float cz) {
-  Node m; m.id = id; m.type = "QuadMesh";
-  m.params["Segments.x"] = 1.0f; m.params["Segments.y"] = 1.0f; m.params["Scale"] = 1.0f;
-  m.params["Stretch.x"] = 1.0f; m.params["Stretch.y"] = 1.0f;
-  m.params["Pivot.x"] = 0.5f; m.params["Pivot.y"] = 0.5f;
-  m.params["Center.x"] = cx; m.params["Center.y"] = cy; m.params["Center.z"] = cz;
-  return m;
-}
-
-// Find a node spec's output pin index + its first Mesh-typed input pin index.
-void meshPins(const char* type, int& outPin, int& meshInPin) {
-  outPin = -1; meshInPin = 0;
-  const NodeSpec* s = findSpec(type);
-  for (size_t i = 0; i < s->ports.size(); ++i) {
-    if (!s->ports[i].isInput && s->ports[i].dataType == "Mesh") outPin = (int)i;
-    if (s->ports[i].isInput && s->ports[i].dataType == "Mesh" && meshInPin == 0) meshInPin = (int)i;
-  }
-  // outPin may also be a non-Mesh "Data"/"Result"; re-scan for the single output if not found above.
-  if (outPin < 0) for (size_t i = 0; i < s->ports.size(); ++i) if (!s->ports[i].isInput) { outPin = (int)i; break; }
-}
 
 // ── shared production-pixel leg: QuadMesh(Center -0.5,-0.5,0) → op → DrawMeshUnlit → RenderTarget,
 //    through libFromGraph → buildEvalGraph → cookResident; probe the lower-left f0 triangle. ──
@@ -222,9 +204,7 @@ int runMeshRecomputeNormalsGoldenSelfTest(bool injectBug) {
   bool flat = got && vc == 4 && fc == 2;
   if (flat) {
     const SwVertex* v = (const SwVertex*)const_cast<MTL::Buffer*>(vb)->contents();
-    // Flat z=0 quad: every face N=(0,0,1) → normalSum∝(0,0,1) → newNormal=(0,0,1). newTangent=
-    // cross(bitangent(0,1,0), N(0,0,1))=(1,0,0); newBitangent=cross(N,(1,0,0))=(0,1,0). Selection=faceCount:
-    // v0 in f0 only=1; v1 in f0,f1=2; v2 in f0,f1=2; v3 in f1 only=1 (THE recompute-only discriminator).
+    // Oracle: cases header §"RecomputeNormals, FLAT quad" — N/T/B identity, Selection=faceCount(1,2,2,1).
     bool nOk = n3(v[0].Normal, 0, 0, 1) && n3(v[1].Normal, 0, 0, 1) && n3(v[3].Normal, 0, 0, 1);
     bool tOk = n3(v[1].Tangent, 1, 0, 0) && n3(v[1].Bitangent, 0, 1, 0);
     bool selOk = nearf(v[0].Selection, 1.0f) && nearf(v[1].Selection, 2.0f) &&
@@ -237,6 +217,58 @@ int runMeshRecomputeNormalsGoldenSelfTest(bool injectBug) {
     std::printf("[selftest-mesh-recomputenormals] flat FAIL: no cooked mesh (got=%d vc=%u fc=%u)\n", got, vc, fc);
   }
   q->release(); dev->release(); pool->release();
+
+  // ── SUB-CASE 2: NON-COPLANAR fold (P2 fix) — derivation + kFold* in cases header §"RecomputeNormals, NON-COPLANAR fold" (mesh-RecomputeNormals.hlsl @395c4c55). ──
+  {
+    NS::AutoreleasePool* pool2 = NS::AutoreleasePool::alloc()->init();
+    MTL::Device* dev2 = MTL::CreateSystemDefaultDevice();
+    MTL::CommandQueue* q2 = dev2->newCommandQueue();
+    PointGraph pg2(dev2, nullptr, q2, 64, 64);
+
+    Graph g2;
+    g2.nodes.push_back(makeQuad(1, 0, 0, 0));
+    Node dm; dm.id = 2; dm.type = "DeformMesh";
+    dm.params["UseVertexSelection"] = 0.0f; dm.params["Spherize"] = 0.0f; dm.params["Taper"] = 0.0f;
+    dm.params["Twist"] = 90.0f; dm.params["TwistAxis"] = 0.0f;  // fold about X → v3=(1,0,1)
+    g2.nodes.push_back(dm);
+    Node rn; rn.id = 3; rn.type = "RecomputeNormals"; g2.nodes.push_back(rn);
+    int quadOut, dummy2, dmOut, dmMeshIn, rnOut, rnMeshIn;
+    meshPins("QuadMesh", quadOut, dummy2);
+    meshPins("DeformMesh", dmOut, dmMeshIn);
+    meshPins("RecomputeNormals", rnOut, rnMeshIn);
+    g2.connections.push_back({100, pinId(1, quadOut), pinId(2, dmMeshIn)});
+    g2.connections.push_back({101, pinId(2, dmOut), pinId(3, rnMeshIn)});
+
+    EvaluationContext ctx2{}; ctx2.frameIndex = 0; ctx2.time = 0.0f; ctx2.deltaTime = 1.0f / 60.0f;
+    meshInjectBug() = injectBug;
+    pg2.cook(g2, ctx2, nullptr, 3);
+    meshInjectBug() = false;
+
+    const MTL::Buffer* vb2 = nullptr; const MTL::Buffer* ib2 = nullptr; uint32_t vc2 = 0, fc2 = 0;
+    bool got2 = pg2.debugCookedMesh(3, vb2, vc2, ib2, fc2);
+    bool pass2 = got2 && vc2 == 4 && fc2 == 2;
+    if (pass2) {
+      const SwVertex* v = (const SwVertex*)const_cast<MTL::Buffer*>(vb2)->contents();
+      bool n0Ok = n3(v[0].Normal, 0, 0, 1);
+      bool n1Ok = n3(v[1].Normal, kFoldN12xy, kFoldN12xy, kFoldN12z) &&
+                  n3(v[2].Normal, kFoldN12xy, kFoldN12xy, kFoldN12z);
+      bool n3Ok = n3(v[3].Normal, kFoldN3xy, kFoldN3xy, 0.0f);
+      bool t3Ok = n3(v[3].Tangent, 0.0f, 0.0f, kFoldT3z);  // cross((0,1,0), n3), unnormalized
+      bool selOk2 = nearf(v[0].Selection, 1.0f) && nearf(v[1].Selection, 2.0f) &&
+                    nearf(v[2].Selection, 2.0f) && nearf(v[3].Selection, 1.0f);
+      pass2 = n0Ok && n1Ok && n3Ok && t3Ok && selOk2;
+      std::printf("[selftest-mesh-recomputenormals] folded: N1=(%.5f,%.5f,%.5f) N3=(%.5f,%.5f,%.5f) "
+                  "T3=(%.5f,%.5f,%.5f) n0Ok=%d n1Ok=%d n3Ok=%d t3Ok=%d selOk=%d\n",
+                  v[1].Normal.x, v[1].Normal.y, v[1].Normal.z, v[3].Normal.x, v[3].Normal.y,
+                  v[3].Normal.z, v[3].Tangent.x, v[3].Tangent.y, v[3].Tangent.z,
+                  n0Ok, n1Ok, n3Ok, t3Ok, selOk2);
+    } else {
+      std::printf("[selftest-mesh-recomputenormals] folded FAIL: cook (got=%d vc=%u fc=%u)\n",
+                  got2, vc2, fc2);
+    }
+    q2->release(); dev2->release(); pool2->release();
+    flat = flat && pass2;
+  }
 
   int prod = productionLeg("RecomputeNormals", "selftest-mesh-recomputenormals-prod", injectBug);
   bool ok = flat && prod == 0;
@@ -252,8 +284,7 @@ int runMeshTransformUvsGoldenSelfTest(bool injectBug) {
 
   bool flat = true;
 
-  // ── SUB-CASE 1: pure UV translation (0.1,0.2). Pivot 0.5, Stretch 1, Rot 0 → M = T(0.1,0.2,0).
-  //    (Pivot cancels for the identity scale/rotation block → pure translation regardless of pivot.) ──
+  // ── SUB-CASE 1: pure UV translation (0.1,0.2) — cases header §"TransformMeshUVs sub-case 1". ──
   {
     PointGraph pg(dev, nullptr, q, 64, 64);
     Graph g;
@@ -290,8 +321,7 @@ int runMeshTransformUvsGoldenSelfTest(bool injectBug) {
     flat = flat && pass;
   }
 
-  // ── SUB-CASE 2: pure UV scale-about-pivot (Stretch 2, Pivot 0.5). M scales UVs about (0.5,0.5):
-  //    uv' = (uv - 0.5)*2 + 0.5. v0 (0,0)→(-0.5,-0.5); v3 (1,1)→(1.5,1.5); the (0.5,0.5) center is fixed. ──
+  // ── SUB-CASE 2: pure UV scale-about-pivot (Stretch 2, Pivot 0.5) — cases header §"TransformMeshUVs sub-case 2": uv' = (uv-0.5)*2 + 0.5. ──
   {
     PointGraph pg2(dev, nullptr, q, 64, 64);
     Graph g;
@@ -318,6 +348,42 @@ int runMeshTransformUvsGoldenSelfTest(bool injectBug) {
       pass = uOk;
       std::printf("[selftest-mesh-transformuvs] scale-about-pivot(2): uv0=(%.2f,%.2f) uv3=(%.2f,%.2f) "
                   "uOk=%d\n", v[0].Texcoord.x, v[0].Texcoord.y, v[3].Texcoord.x, v[3].Texcoord.y, uOk);
+    }
+    flat = flat && pass;
+  }
+
+  // ── SUB-CASE 3: pure UV ROTATION (P2 fix) — oracle + kRotZ30Uv* in cases header §"TransformMeshUVs sub-case 3" (TransformMatrix.cs @395c4c55, RotZ(30°) about pivot). ──
+  {
+    PointGraph pg3(dev, nullptr, q, 64, 64);
+    Graph g;
+    g.nodes.push_back(makeQuad(1, 0, 0, 0));
+    Node op; op.id = 2; op.type = "TransformMeshUVs";
+    op.params["Rotate.x"] = 0.0f; op.params["Rotate.y"] = 0.0f; op.params["Rotate.z"] = 30.0f;
+    g.nodes.push_back(op);
+    int quadOut, dummy, opOut, opMeshIn;
+    meshPins("QuadMesh", quadOut, dummy);
+    meshPins("TransformMeshUVs", opOut, opMeshIn);
+    g.connections.push_back({100, pinId(1, quadOut), pinId(2, opMeshIn)});
+
+    EvaluationContext ctx{}; ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+    meshInjectBug() = injectBug;
+    pg3.cook(g, ctx, nullptr, 2);
+    meshInjectBug() = false;
+
+    const MTL::Buffer* vb = nullptr; const MTL::Buffer* ib = nullptr; uint32_t vc = 0, fc = 0;
+    bool got = pg3.debugCookedMesh(2, vb, vc, ib, fc);
+    bool pass = got && vc == 4;
+    if (pass) {
+      const SwVertex* v = (const SwVertex*)const_cast<MTL::Buffer*>(vb)->contents();
+      bool uOk = uvEq(v[0].Texcoord, kRotZ30Uv0x, kRotZ30Uv0y) &&
+                 uvEq(v[3].Texcoord, kRotZ30Uv3x, kRotZ30Uv3y);
+      bool pOk = n3(v[3].Position, 1, 1, 0);  // position untouched
+      pass = uOk && pOk;
+      std::printf("[selftest-mesh-transformuvs] rotateZ(30): uv0=(%.5f,%.5f) uv3=(%.5f,%.5f) "
+                  "uOk=%d pOk=%d\n", v[0].Texcoord.x, v[0].Texcoord.y, v[3].Texcoord.x,
+                  v[3].Texcoord.y, uOk, pOk);
+    } else {
+      std::printf("[selftest-mesh-transformuvs] rotate FAIL: no cooked mesh (got=%d vc=%u)\n", got, vc);
     }
     flat = flat && pass;
   }

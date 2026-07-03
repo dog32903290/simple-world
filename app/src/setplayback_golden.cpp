@@ -9,10 +9,17 @@
 //   (pullSetPlayback) against a LOCAL Transport, frame by frame, so the make-or-break per-frame-mailbox
 //   semantics (an un-armed frame leaves the transport UNTOUCHED) are machine-verified, no 柏為 in loop.
 //
-// The teeth (-bug): no production bug-flag in the ops (faithful path only) → the bug is injected at the
-// EXPECTATION level — each case flips its expected value to the WRONG-port answer (level instead of
-// edge / a write without a gate / the un-snapped speed), so the real production output FAILs against
-// it. Green = the production path does the RIGHT thing; -bug RED = the asserted wrong behavior bites.
+// The teeth (-bug): REAL injection via setSetPlaybackBug (stateful_value_ops.h) — each mode corrupts
+// one production term inside the step fns (stateful_value_ops_setplayback.cpp) while every expected
+// value below stays FIXED at the production-correct answer (GOLDEN_STANDARD 特徵 3: corrupt the cook,
+// never flip the want). Mode → tooth:
+//   1 GATE IGNORED          → CASE 2 (held re-scrubs to 9), CASE 5 (no-edge frame scrubs), CASE 8
+//                             (no-trigger frame sets the speed) — the per-frame-overwrite wrong port
+//   2 EDGE-ONLY             → CASE 3 (Continuously stops re-firing), CASE 6 (speed LEVEL becomes edge)
+//   3 WRITE SEVERED         → CASE 1 (the edge scrub never lands), CASE 6/7 (rate never set)
+//   4 CONDITIONING DROPPED  → CASE 4 (NaN passes through instead of →0), CASE 7 (raw un-snapped speed)
+// Under -bug every mode must ADD failures against the SAME fixed asserts; a mode that adds none is a
+// dead tooth → return 0 so --bite's NO-BITE list surfaces it.
 //
 // Transport apply notes (transport.h): scrub(bars) clamps position to >= 0 (no negative bars) — the
 // golden uses non-negative target bars. setRate gate: NaN refused (keeps last), |r| clamped to ±16,
@@ -22,34 +29,37 @@
 
 #include "app/cook_host_values.h"        // framecook::pullSetPlayback(Transport&)
 #include "runtime/playback_provider.h"   // PlaybackProvider (resetForTest between cases)
-#include "runtime/stateful_value_ops.h"  // cookStatefulValueOp / StatefulValueState
+#include "runtime/stateful_value_ops.h"  // cookStatefulValueOp / StatefulValueState / setSetPlaybackBug
 #include "runtime/transport.h"           // Transport (the apply target the golden inspects)
 
 namespace sw {
+namespace {
 
 // One op cook through the PRODUCTION step fn (keyed off the per-instance edge state `st`).
-static void cookSetTime(StatefulValueState& st, float timeInBars, float mode, float enabled) {
+void cookSetTime(StatefulValueState& st, float timeInBars, float mode, float enabled) {
   float out[8] = {0, 0, 0, 0, 0, 0, 0, 0};
   cookStatefulValueOp("SetPlaybackTime",
                       {{"TimeInBars", timeInBars}, {"TriggerMode", mode}, {"Enabled", enabled}},
                       1.0f / 60.0f, 0.0f, st, out);
 }
-static float cookSetSpeed(StatefulValueState& st, float speedFactor, float trigger) {
+float cookSetSpeed(StatefulValueState& st, float speedFactor, float trigger) {
   float out[8] = {0, 0, 0, 0, 0, 0, 0, 0};
   cookStatefulValueOp("SetPlaybackSpeed", {{"SpeedFactor", speedFactor}, {"TriggerUpdate", trigger}},
                       1.0f / 60.0f, 0.0f, st, out);
   return out[0];  // golden probe = the snap-adjusted speed this cook would write
 }
 
-int runSetPlaybackSelfTest(bool injectBug) {
+// The full 8-case battery with FIXED production-correct wants (independent of any bug mode).
+// Returns the number of failed assertions. `tag` labels the run (clean / bug N) in the printout.
+int runCases(const char* tag) {
   const double eps = 1e-4;
-  bool ok = true;
+  int fails = 0;
   auto& p = PlaybackProvider::instance();
 
-  auto check = [&](const char* tag, double got, double want) {
-    bool pass = std::fabs(got - want) < eps;
-    ok = ok && pass;
-    std::printf("[selftest-setplayback] %s got=%.4f want=%.4f -> %s\n", tag, got, want,
+  auto check = [&](const char* what, double got, double want) {
+    const bool pass = std::fabs(got - want) < eps;
+    if (!pass) ++fails;
+    std::printf("[selftest-setplayback][%s] %s got=%.4f want=%.4f -> %s\n", tag, what, got, want,
                 pass ? "PASS" : "FAIL");
   };
 
@@ -65,8 +75,7 @@ int runSetPlaybackSelfTest(bool injectBug) {
     framecook::pullSetPlayback(t);      // scrub(4)
     const double afterFirst = t.position;
     framecook::pullSetPlayback(t);      // un-re-armed → NO move
-    const double wantBars = injectBug ? 0.0 : 4.0;  // bug: claim the playhead never moved
-    check("time-edge scrub", afterFirst, wantBars);
+    check("time-edge scrub", afterFirst, 4.0);
     check("time-edge no-double", t.position, afterFirst);  // 2nd pull left it where the 1st put it
   }
 
@@ -81,8 +90,7 @@ int runSetPlaybackSelfTest(bool injectBug) {
     framecook::pullSetPlayback(t);      // scrub(4)
     cookSetTime(st, 9.0f, 0.0f, 1.0f);  // STILL true (held), mode 0 → must NOT re-arm (edge, not level)
     framecook::pullSetPlayback(t);      // un-armed → playhead stays at 4 (NOT 9)
-    const double want = injectBug ? 9.0 : 4.0;  // bug: claim a held-true LEVEL re-scrubbed to 9
-    check("time-edge-not-level", t.position, want);
+    check("time-edge-not-level", t.position, 4.0);
   }
 
   // ===== CASE 3: SetPlaybackTime CONTINUOUSLY (mode 1): scrubs EVERY frame while Enabled, no edge.
@@ -97,8 +105,7 @@ int runSetPlaybackSelfTest(bool injectBug) {
     cookSetTime(st, 7.5f, 1.0f, 1.0f);  // STILL enabled, no edge — Continuously re-arms 7.5
     framecook::pullSetPlayback(t);      // scrub(7.5)
     check("time-continuous f1", f1, 2.0);
-    const double wantF2 = injectBug ? 2.0 : 7.5;  // bug: claim Continuously only fired once
-    check("time-continuous f2", t.position, wantF2);
+    check("time-continuous f2", t.position, 7.5);
   }
 
   // ===== CASE 4: SetPlaybackTime NaN/Inf → 0 (cs:34-37). Continuously, NaN newTime → scrub(0).
@@ -109,8 +116,7 @@ int runSetPlaybackSelfTest(bool injectBug) {
     StatefulValueState st;
     cookSetTime(st, std::nanf(""), 1.0f, 1.0f);  // Continuously, NaN → cs:36 newTime=0 → scrub(0)
     framecook::pullSetPlayback(t);
-    const double want = injectBug ? 5.0 : 0.0;  // bug: claim NaN was rejected / playhead unchanged
-    check("time-nan->0", t.position, want);
+    check("time-nan->0", t.position, 0.0);
   }
 
   // ===== CASE 5: SetPlaybackTime no-fire: mode 0, never an edge → playhead UNTOUCHED (make-or-break).
@@ -122,8 +128,7 @@ int runSetPlaybackSelfTest(bool injectBug) {
     cookSetTime(st, 4.0f, 0.0f, 0.0f);  // Enabled never rises → never arms
     cookSetTime(st, 4.0f, 0.0f, 0.0f);
     framecook::pullSetPlayback(t);
-    const double want = injectBug ? 4.0 : 3.0;  // bug: claim a no-edge frame scrubbed to 4
-    check("time-no-fire untouched", t.position, want);
+    check("time-no-fire untouched", t.position, 3.0);
   }
 
   // ===== CASE 6: SetPlaybackSpeed LEVEL: setRate every frame TriggerUpdate is true (WasTriggered off).
@@ -141,8 +146,7 @@ int runSetPlaybackSelfTest(bool injectBug) {
     check("speed-level probe1", probe1, 2.0);
     check("speed-level f1", f1, 2.0);
     check("speed-level probe2", probe2, 3.0);
-    const double wantF2 = injectBug ? 2.0 : 3.0;  // bug: claim it was edge-gated (2nd frame silent)
-    check("speed-level f2", t.rate, wantF2);
+    check("speed-level f2", t.rate, 3.0);
   }
 
   // ===== CASE 7: SetPlaybackSpeed SNAP: near-1 → 1 (cs:39-42), small-positive → 0.0001 (cs:43-46).
@@ -154,10 +158,9 @@ int runSetPlaybackSelfTest(bool injectBug) {
       StatefulValueState st;
       const float probe = cookSetSpeed(st, cases[i].in, 1.0f);  // triggered → snap then arm
       framecook::pullSetPlayback(t);                            // setRate(snapped)
-      const double want = injectBug ? (double)cases[i].in : cases[i].want;  // bug: raw un-snapped survived
-      char tag[48];
-      std::snprintf(tag, sizeof(tag), "speed-snap in=%.4f", cases[i].in);
-      check(tag, t.rate, want);
+      char what[48];
+      std::snprintf(what, sizeof(what), "speed-snap in=%.4f", cases[i].in);
+      check(what, t.rate, cases[i].want);
       check("speed-snap probe", probe, cases[i].want);
     }
   }
@@ -171,14 +174,49 @@ int runSetPlaybackSelfTest(bool injectBug) {
     cookSetSpeed(st, 2.0f, 0.0f);  // trigger false → never arms
     cookSetSpeed(st, 2.0f, 0.0f);
     framecook::pullSetPlayback(t);
-    const double want = injectBug ? 2.0 : 4.0;  // bug: claim a no-trigger frame set the speed to 2
-    check("speed-no-trigger untouched", t.rate, want);
+    check("speed-no-trigger untouched", t.rate, 4.0);
   }
 
-  // Leave the singleton clean for any later in-process selftest (no cross-test bleed).
-  p.resetForTest();
-  std::printf("[selftest-setplayback] %s\n", ok ? "PASS" : "FAIL");
-  return ok ? 0 : 1;
+  p.resetForTest();  // leave the singleton clean (no cross-case / cross-test bleed)
+  return fails;
+}
+
+}  // namespace
+
+int runSetPlaybackSelfTest(bool injectBug) {
+  setSetPlaybackBug(0);
+  const int cleanFail = runCases("clean");
+
+  if (!injectBug) {
+    std::printf("[selftest-setplayback] %s\n", cleanFail == 0 ? "PASS" : "FAIL");
+    return cleanFail == 0 ? 0 : 1;
+  }
+
+  // -bug: rerun the SAME fixed-want battery under each real production-term corruption. Every mode
+  // must ADD failures (its tooth bites); a mode adding none = dead tooth → return 0 (NO-BITE list).
+  bool allTripped = true;
+  const struct { int mode; const char* name; } bugs[4] = {{1, "bug1-gate-ignored"},
+                                                          {2, "bug2-edge-only"},
+                                                          {3, "bug3-write-severed"},
+                                                          {4, "bug4-conditioning-dropped"}};
+  for (const auto& b : bugs) {
+    setSetPlaybackBug(b.mode);
+    const int f = runCases(b.name);
+    std::printf("[selftest-setplayback] %s added %d failure(s)\n", b.name, f);
+    if (f == 0) allTripped = false;
+  }
+  setSetPlaybackBug(0);  // restore production
+
+  if (cleanFail != 0) {  // broken clean is a real red regardless of bite bookkeeping
+    std::printf("[selftest-setplayback] FAIL (clean run broken under -bug harness)\n");
+    return 1;
+  }
+  if (!allTripped) {
+    std::printf("[selftest-setplayback] injectBug did not trip (a bug mode added no failures)\n");
+    return 0;  // dead tooth → NO-BITE list catches it
+  }
+  std::printf("[selftest-setplayback] BITE (all bug modes tripped against fixed wants)\n");
+  return 1;
 }
 
 }  // namespace sw

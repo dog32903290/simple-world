@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 141fc9b
-DIRTY: 2 files
-CENSUS: 0 / 0 done
-BITE: 572 PASS
-STAMP_AT: 2026-07-03T12:05
+HEAD: a7e6165
+DIRTY: 96 files
+CENSUS: 120 / 166 done
+BITE: 572 PASS | FAILED=[0] | NO-BITE=[0]
+STAMP_AT: 2026-07-03T13:31
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。

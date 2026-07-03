@@ -12,7 +12,7 @@
 // pattern from TranslateUV/BlendSdfWithSdf goldens: a golden-only wrapper that copies f.xyz.x (= f.r)
 // into f.w after the op runs — then the standard R32Float readback reads the color R channel.
 //
-// TWO CASES exercised:
+// FOUR CASES exercised:
 //   Case A (no ColorField, p.w = 1.0):
 //     SetSDFMaterial emits `f{parent} = float4(P.<prefix>Color.rgb, f{parent}.w);`
 //     → f.rgb = Color.rgb; f.w = sphere distance (unchanged by the no-ColorField branch).
@@ -23,6 +23,15 @@
 //     SetSDFMaterial emits `f{parent}.rgb = f{albedo}.rgb * P.<prefix>Color.rgb;`
 //     → f.rgb.r = kAlbedoR * Color.r.
 //     Readback reads f.rgb.r = kAlbedoR * Color.r.
+//
+//   NEGATIVE cases (P2 fix, GOLDEN_ORACLE_AUDIT "setsdfmaterial — gate 單側"): A/B only prove the gate
+//   FIRES in-band; an implementation that paints UNCONDITIONALLY passes both. C/D prove it does NOT fire
+//   out-of-band, one probe per band edge (TiXL SetSDFMaterial.cs:47 `if(p{c}.w > 0.5 && p{c}.w < 1.5)`):
+//   Case C (no ColorField, p.w = 0.0 — BELOW band; the SDF child leaves p.w at the template seed
+//     float4(uv,0,0)): 0.0 > 0.5 FALSE → no paint → f.rgb keeps the all-ones template seed (`float4 f=1`)
+//     → Readback reads 1.0, NOT Color.r. Kills unconditional-paint AND a dropped `> 0.5` lower bound.
+//   Case D (no ColorField, p.w = 2.0 — ABOVE band): 2.0 < 1.5 FALSE → no paint → Readback reads 1.0.
+//     Kills a dropped `< 1.5` upper bound.
 //
 // P.W GATE GUARD (tooth): injectBug=1 inverts the gate to `<= 0.5 || >= 1.5` → gate NEVER fires with
 //   p.w = 1.0 (which is NOT ≤0.5 and IS ≥1.5, so the inverted gate doesn't fire either). Wait: p.w=1.0
@@ -85,15 +94,20 @@ std::string loadTemplate() {
 float pX(uint32_t px) { return (2.0f * px + 1.0f) / kW - 1.0f; }
 float pY(uint32_t py) { return 1.0f - (2.0f * py + 1.0f) / kH; }
 
-// Golden-only SdfWithPwSet: sphere SDF at origin that ALSO writes `p{ctx}.w = 1.0` to trigger the
-// SetSDFMaterial p.w gate. Real distance: f.w = length(p.xyz) - kSphR.
+// Golden-only SdfWithPwSet: sphere SDF at origin that ALSO writes the material-band marker `p{ctx}.w`
+// to drive the SetSDFMaterial p.w gate. Real distance: f.w = length(p.xyz) - kSphR.
+//   pwMode 1 → emit `p.w = 1.0` (IN band (0.5,1.5) → gate fires; Cases A/B)
+//   pwMode 0 → leave p.w untouched (template seed float4(uv,0,0) → p.w = 0.0, BELOW band; Case C)
+//   pwMode 2 → emit `p.w = 2.0` (ABOVE band; Case D)
 struct SdfWithPwSet : FieldNode {
+  int pwMode = 1;
   SdfWithPwSet() { prefix = "GSdf_"; }
   void preShaderCode(CodeAssembleCtx& c, int) const override {
     const std::string ctx = c.ctx();
     c.appendCall("f" + ctx + ".w = length(p" + ctx + ".xyz) - P." + prefix + "Radius;");
-    // Set p.w = 1.0 to fall inside the material band (0.5, 1.5).
-    c.appendCall("p" + ctx + ".w = 1.0;");
+    if (pwMode == 1) c.appendCall("p" + ctx + ".w = 1.0;");        // inside the band (0.5, 1.5)
+    else if (pwMode == 2) c.appendCall("p" + ctx + ".w = 2.0;");   // above the band
+    // pwMode 0: no p.w write — the template's float4(uv, 0, 0) seed keeps p.w = 0 (below the band).
   }
   void collectParams(std::vector<float>& fp, std::vector<std::string>& pf) const override {
     appendScalarParam(fp, pf, prefix + "Radius", kSphR);
@@ -128,12 +142,14 @@ struct ReadbackNode : FieldNode {
   void collectParams(std::vector<float>&, std::vector<std::string>&) const override {}
 };
 
-// Build a tree: Readback → SetSDFMaterial → [SdfWithPwSet, optional ConstColorField].
-std::shared_ptr<FieldNode> buildTree(bool withColorField, int injectBug) {
+// Build a tree: Readback → SetSDFMaterial → [SdfWithPwSet(pwMode), optional ConstColorField].
+std::shared_ptr<FieldNode> buildTree(bool withColorField, int injectBug, int pwMode) {
   std::shared_ptr<FieldNode> mat = makeFieldNode("SetSDFMaterial", "golden0");
   if (!mat) return nullptr;
   configureSetSDFMaterial(*mat, kColorR, kColorG, kColorB, kColorA, injectBug);
-  mat->inputs.push_back(std::make_shared<SdfWithPwSet>());          // inputs[0] = SdfField
+  auto sdf = std::make_shared<SdfWithPwSet>();
+  sdf->pwMode = pwMode;
+  mat->inputs.push_back(sdf);                                        // inputs[0] = SdfField
   if (withColorField)
     mat->inputs.push_back(std::make_shared<ConstColorField>());      // inputs[1] = ColorField (opt.)
   // Readback wraps SetSDFMaterial: its inputs[0] = mat, and postShaderCode copies f.r into f.w.
@@ -175,9 +191,10 @@ int runFieldSetSDFMaterialGoldenSelfTest(bool injectBug) {
   int rc = 0;
   const uint32_t cy = (kH - 1) / 2;
 
-  auto runCase = [&](const char* caseName, bool withColorField, std::vector<Probe>& probes) {
+  auto runCase = [&](const char* caseName, bool withColorField, std::vector<Probe>& probes,
+                     int pwMode = 1) {
     clearTexOpCache();
-    std::shared_ptr<FieldNode> tree = buildTree(withColorField, bugMode);
+    std::shared_ptr<FieldNode> tree = buildTree(withColorField, bugMode, pwMode);
     if (!tree || tree->inputs.empty() || !tree->inputs[0]) {
       std::printf("[selftest-field-setsdfmaterial] FAIL[%s]: SetSDFMaterial factory not registered\n",
                   caseName);
@@ -236,6 +253,34 @@ int runFieldSetSDFMaterialGoldenSelfTest(bool injectBug) {
     runCase("withColorFld", /*withColorField=*/true, probes);
   }
 
+  // ---- Case C (NEGATIVE, P2 fix): p.w = 0.0 — BELOW the band. Gate must NOT fire. ----
+  // TiXL SetSDFMaterial.cs:47 `if(p{c}.w > 0.5 && p{c}.w < 1.5)`: 0.0 > 0.5 is FALSE → no paint →
+  // f.rgb keeps the all-ones template seed (`float4 f = 1;`) → Readback reads 1.0, NOT kColorR.
+  // An implementation that paints unconditionally (or drops the `> 0.5` lower bound) reads kColorR → RED.
+  // With injectBug=1 (gate inverted to `<= 0.5 || >= 1.5`): 0.0 <= 0.5 TRUE → paints → got=kColorR ≠ 1.0
+  // → probe bites (the tooth now bites from BOTH sides of the gate).
+  {
+    std::vector<Probe> probes = {
+        {"center", kW / 2,     cy, 1.0f, kTol},
+        {"left",   kW / 4,     cy, 1.0f, kTol},
+        {"right",  3 * kW / 4, cy, 1.0f, kTol},
+    };
+    runCase("pwBelowBand", /*withColorField=*/false, probes, /*pwMode=*/0);
+  }
+
+  // ---- Case D (NEGATIVE, P2 fix): p.w = 2.0 — ABOVE the band. Gate must NOT fire. ----
+  // TiXL SetSDFMaterial.cs:47: 2.0 < 1.5 is FALSE → no paint → Readback reads the 1.0 seed.
+  // Kills a dropped `< 1.5` upper bound (a `p.w > 0.5`-only gate paints here → RED).
+  // With injectBug=1: 2.0 >= 1.5 TRUE → paints → got=kColorR ≠ 1.0 → probe bites.
+  {
+    std::vector<Probe> probes = {
+        {"center", kW / 2,     cy, 1.0f, kTol},
+        {"left",   kW / 4,     cy, 1.0f, kTol},
+        {"right",  3 * kW / 4, cy, 1.0f, kTol},
+    };
+    runCase("pwAboveBand", /*withColorField=*/false, probes, /*pwMode=*/2);
+  }
+
   q->release();
   dev->release();
   pool->release();
@@ -244,7 +289,7 @@ int runFieldSetSDFMaterialGoldenSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-field-setsdfmaterial] FAIL: injectBug did not trip any probe (tooth has "
                   "no bite)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-field-setsdfmaterial] injectBug correctly RED\n");
     return 1;

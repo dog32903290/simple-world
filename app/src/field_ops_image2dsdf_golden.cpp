@@ -35,6 +35,21 @@
 //   out-of-bounds branch (sqrt of squared edge-delta + texDist). Pins the edge branch + the worldDelta
 //   geometry. A center probe (p≈0, uv≈0.5 in-bounds) is kept as the in-bounds control in case B too.
 //
+// CASE C (y-flip tooth, P2 fix — GOLDEN_ORACLE_AUDIT: `uv.y *= -1` had NO probe): a constant texture
+//   can NEVER see the flip — in-bounds texDist is uv-independent, and the OOB edge-delta magnitude is
+//   y-symmetric (|0.5-t| == |(0.5+t)-1|), so cases A/B stay green with the flip dropped. Case C swaps
+//   in a SECOND host-authored texture that is CONSTANT PER ROW but split in y: rows 0-3 = 0.25 (the
+//   uv.y<0.5 half), rows 4-7 = 0.75. Probes off the center row then make the y map load-bearing
+//   (ExecuteImage2dSdf.cs:39-41 uv derivation, :45 sample, :52-53 in-bounds return; imageSize=(4,4),
+//   nearest sampling -> texel row = floor(uv.y*8)):
+//     flip_top px=64,py=25: p=(0.0078125, +0.6015625) -> uv.y = -0.6015625/4 + 0.5 = 0.3496094
+//       -> row floor(2.796875)=2 -> V=0.25 -> f.w = (1-0.25)*0.8 + 0.1 = 0.700000
+//     flip_bot px=64,py=102: p=(0.0078125, -0.6015625) -> uv.y = 0.6503906 -> row 5 -> V=0.75
+//       -> f.w = (1-0.75)*0.8 + 0.1 = 0.300000
+//   Flip dropped -> the two probes swap values (0.3/0.7) -> both RED. The split sits at the row-4
+//   texel boundary (uv.y=0.5) and both probes are >1 texel away from it AND from their own texel
+//   edges, so the values hold under nearest OR linear filtering (filter-mode-robust).
+//
 // injectBug: corrupt the template's RED-channel distance write so every cooked distance is shifted by
 // +1.0 -> all VALUE probes RED (same technique/tier/magnitude as field_ops_customsdf_golden.cpp). This
 // proves the value teeth bite cooked pixels, not a blind pass. (A separate failure mode — the texture
@@ -94,10 +109,11 @@ std::string loadTemplate() {
 float pX(uint32_t px) { return (2.0f * px + 1.0f) / kW - 1.0f; }
 float pY(uint32_t py) { return 1.0f - (2.0f * py + 1.0f) / kH; }
 
-// Host re-derivation of sdf2DColumn for a CONSTANT texture (value kTexVal). pos = (px_field, py_field),
-// imageSize = (sx, sy). Mirrors ExecuteImage2dSdf.cs sdf2DColumn byte-for-byte (constant tex -> texDist
-// is uv-independent). Returns f.w = column + offset.
-float hostColumn(float posX, float posY, float sx, float sy, float scale, float offset) {
+// Host re-derivation of sdf2DColumn (ExecuteImage2dSdf.cs:37-57) at pos = (px_field, py_field),
+// imageSize = (sx, sy). `texV` is the authored value of the texel the sampler lands on — kTexVal for
+// the constant-texture cases A/B (uv-independent), or the HAND-DERIVED row value for case C (the
+// probe comment carries the floor(uv.y*8) row derivation). Returns f.w = column + offset.
+float hostColumn(float posX, float posY, float sx, float sy, float scale, float offset, float texV) {
   float uvx = posX / sx;
   float uvy = posY / sy;
   uvy *= -1.0f;
@@ -106,7 +122,7 @@ float hostColumn(float posX, float posY, float sx, float sy, float scale, float 
   float cuvx = std::fmin(std::fmax(uvx, 0.0f), 1.0f);
   float cuvy = std::fmin(std::fmax(uvy, 0.0f), 1.0f);
   float dx = uvx - cuvx, dy = uvy - cuvy;
-  float satV = std::fmin(std::fmax(kTexVal, 0.0f), 1.0f);  // saturate(V)
+  float satV = std::fmin(std::fmax(texV, 0.0f), 1.0f);  // saturate(V)
   float texDist = (1.0f - satV) * scale;
   float wdx = dx * sx, wdy = dy * sy;
   float outsideDist = std::sqrt(wdx * wdx + wdy * wdy);
@@ -128,6 +144,24 @@ MTL::Texture* makeConstTexture(MTL::Device* dev, float value) {
   MTL::Texture* tex = dev->newTexture(td);
   if (!tex) return nullptr;
   std::vector<float> data((size_t)kTexN * kTexN, value);
+  tex->replaceRegion(MTL::Region::Make2D(0, 0, kTexN, kTexN), 0, data.data(), kTexN * sizeof(float));
+  return tex;
+}
+
+// Case C texture: constant per ROW, split in y — rows 0..3 (uv.y<0.5) = topVal, rows 4..7 = botVal.
+// Rows are uniform across x so the uv.x texel pick is value-irrelevant; only the y map discriminates.
+MTL::Texture* makeRowSplitTexture(MTL::Device* dev, float topVal, float botVal) {
+  MTL::TextureDescriptor* td =
+      MTL::TextureDescriptor::texture2DDescriptor(MTL::PixelFormatR32Float, kTexN, kTexN,
+                                                  /*mipmapped=*/false);
+  td->setUsage(MTL::TextureUsageShaderRead);
+  td->setStorageMode(MTL::StorageModeShared);
+  MTL::Texture* tex = dev->newTexture(td);
+  if (!tex) return nullptr;
+  std::vector<float> data((size_t)kTexN * kTexN, 0.0f);
+  for (uint32_t row = 0; row < kTexN; ++row)
+    for (uint32_t col = 0; col < kTexN; ++col)
+      data[(size_t)row * kTexN + col] = (row < kTexN / 2) ? topVal : botVal;
   tex->replaceRegion(MTL::Region::Make2D(0, 0, kTexN, kTexN), 0, data.data(), kTexN * sizeof(float));
   return tex;
 }
@@ -190,17 +224,24 @@ int runFieldImage2dSdfGoldenSelfTest(bool injectBug) {
     if (px >= (int)kW) px = kW - 1;
     return (uint32_t)px;
   };
+  auto pyFor = [](float target) -> uint32_t {
+    float f = ((1.0f - target) * kH - 1.0f) * 0.5f;
+    int py = (int)std::lround(f);
+    if (py < 0) py = 0;
+    if (py >= (int)kH) py = kH - 1;
+    return (uint32_t)py;
+  };
 
-  auto buildTree = [&](float sx, float sy) -> std::shared_ptr<FieldNode> {
+  auto buildTree = [&](MTL::Texture* boundTex, float sx, float sy) -> std::shared_ptr<FieldNode> {
     std::shared_ptr<FieldNode> node = makeFieldNode("Image2dSDF", "golden0");
     if (!node) return nullptr;
-    configureImage2dSdf(*node, inputTex, sx, sy, kScale, kOffset);
+    configureImage2dSdf(*node, boundTex, sx, sy, kScale, kOffset);
     return node;
   };
 
-  auto runCase = [&](const char* caseName, float sx, float sy,
+  auto runCase = [&](const char* caseName, MTL::Texture* boundTex, float sx, float sy,
                      std::vector<Probe>& probes) -> bool {
-    std::shared_ptr<FieldNode> tree = buildTree(sx, sy);
+    std::shared_ptr<FieldNode> tree = buildTree(boundTex, sx, sy);
     if (!tree) {
       std::printf("[selftest-field-image2dsdf] FAIL[%s]: Image2dSDF factory not registered\n", caseName);
       rc = 1;
@@ -242,11 +283,11 @@ int runFieldImage2dSdfGoldenSelfTest(bool injectBug) {
     uint32_t midPx = pxFor(0.0f);
     uint32_t rightPx = pxFor(0.6f);
     std::vector<Probe> probes = {
-        {"in_left", leftPx, cy, hostColumn(pX(leftPx), pY(cy), sx, sy, kScale, kOffset)},
-        {"in_mid", midPx, cy, hostColumn(pX(midPx), pY(cy), sx, sy, kScale, kOffset)},
-        {"in_right", rightPx, cy, hostColumn(pX(rightPx), pY(cy), sx, sy, kScale, kOffset)},
+        {"in_left", leftPx, cy, hostColumn(pX(leftPx), pY(cy), sx, sy, kScale, kOffset, kTexVal)},
+        {"in_mid", midPx, cy, hostColumn(pX(midPx), pY(cy), sx, sy, kScale, kOffset, kTexVal)},
+        {"in_right", rightPx, cy, hostColumn(pX(rightPx), pY(cy), sx, sy, kScale, kOffset, kTexVal)},
     };
-    runCase("inbounds", sx, sy, probes);
+    runCase("inbounds", inputTex, sx, sy, probes);
   }
 
   // ---- Case B: imageSize=(0.5,0.5) -> |p|>0.25 maps uv OUTSIDE [0,1] (out-of-bounds branch). --------
@@ -258,11 +299,40 @@ int runFieldImage2dSdfGoldenSelfTest(bool injectBug) {
     uint32_t oobLeftPx = pxFor(-0.8f); // uv far below 0 -> OOB
     uint32_t oobRightPx = pxFor(0.8f); // uv far above 1 -> OOB
     std::vector<Probe> probes = {
-        {"oob_ctrl", ctrlPx, cy, hostColumn(pX(ctrlPx), pY(cy), sx, sy, kScale, kOffset)},
-        {"oob_left", oobLeftPx, cy, hostColumn(pX(oobLeftPx), pY(cy), sx, sy, kScale, kOffset)},
-        {"oob_right", oobRightPx, cy, hostColumn(pX(oobRightPx), pY(cy), sx, sy, kScale, kOffset)},
+        {"oob_ctrl", ctrlPx, cy, hostColumn(pX(ctrlPx), pY(cy), sx, sy, kScale, kOffset, kTexVal)},
+        {"oob_left", oobLeftPx, cy, hostColumn(pX(oobLeftPx), pY(cy), sx, sy, kScale, kOffset, kTexVal)},
+        {"oob_right", oobRightPx, cy, hostColumn(pX(oobRightPx), pY(cy), sx, sy, kScale, kOffset, kTexVal)},
     };
-    runCase("outbounds", sx, sy, probes);
+    runCase("outbounds", inputTex, sx, sy, probes);
+  }
+
+  // ---- Case C (P2 fix): y-split texture, OFF-center-row probes -> the `uv.y *= -1` flip BITES. ------
+  // Texture rows 0..3 (uv.y<0.5) = 0.25, rows 4..7 = 0.75; imageSize=(4,4) keeps everything in-bounds.
+  // Row derivation (ExecuteImage2dSdf.cs:39-41 + nearest sample :45; row = floor(uv.y*8)):
+  //   flip_top py=25: p.y=+0.6015625 -> uv.y = -0.6015625/4+0.5 = 0.3496094 -> row 2 -> V=0.25
+  //     -> f.w = (1-0.25)*0.8+0.1 = 0.700000   (flip dropped -> uv.y=0.6503906 -> row 5 -> 0.3 RED)
+  //   flip_bot py=102: p.y=-0.6015625 -> uv.y = 0.6503906 -> row 5 -> V=0.75
+  //     -> f.w = (1-0.75)*0.8+0.1 = 0.300000   (flip dropped -> row 2 -> 0.7 RED)
+  // Both probes are >1 texel from the row-4 split AND from their own texel edges -> the expected V is
+  // filter-mode-robust (nearest or linear). V is HAND-picked from the authored table via the uv map —
+  // never read back from sw.
+  {
+    MTL::Texture* splitTex = makeRowSplitTexture(dev, 0.25f, 0.75f);
+    if (!splitTex) {
+      std::printf("[selftest-field-image2dsdf] FAIL: could not author y-split texture\n");
+      rc = 1;
+    } else {
+      const float sx = 4.0f, sy = 4.0f;
+      uint32_t fx = pxFor(0.0f);         // p.x = 0.0078125 -> uv.x = 0.5019531 (off texel boundary)
+      uint32_t topPy = pyFor(0.6f);      // py=25  -> p.y = +0.6015625 -> uv.y = 0.3496094 -> row 2
+      uint32_t botPy = pyFor(-0.6f);     // py=102 -> p.y = -0.6015625 -> uv.y = 0.6503906 -> row 5
+      std::vector<Probe> probes = {
+          {"flip_top", fx, topPy, hostColumn(pX(fx), pY(topPy), sx, sy, kScale, kOffset, 0.25f)},
+          {"flip_bot", fx, botPy, hostColumn(pX(fx), pY(botPy), sx, sy, kScale, kOffset, 0.75f)},
+      };
+      runCase("yflip", splitTex, sx, sy, probes);
+      splitTex->release();
+    }
   }
 
   inputTex->release();
@@ -274,7 +344,7 @@ int runFieldImage2dSdfGoldenSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-field-image2dsdf] FAIL: injectBug did not trip any probe (tooth has no "
                   "bite)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-field-image2dsdf] injectBug correctly RED\n");
     return 1;

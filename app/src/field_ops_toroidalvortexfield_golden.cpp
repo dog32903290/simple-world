@@ -8,8 +8,12 @@
 //       field-forces / ApplyVectorField on an unbuilt seam). So we ALSO assert the ASSEMBLED MSL contains
 //       the velocity math (the cross(e_phi,r) swirl + normalize + the radial dirToRing terms). A
 //       regression that drops the velocity is caught at the codegen tier even though the template can't
-//       render it. When the particle-field / vector-application seam lands, a follow-up golden should
-//       probe f.xyz directly.
+//       render it.
+//   (3) VELOCITY VALUE PROBE (P4 upgrade 2026-07-03) — tooth (2) is a substring assert: a flipped cross
+//       sign / wrong coefficient keeps the text present and stays GREEN. Tooth (3) VALUE-probes f.x/f.y/
+//       f.z at a mid-band texel by patching the loaded template's ONE visualization line (test-side seam;
+//       the shipped template and the op emit are untouched). Expected values hand-derived from TiXL
+//       ToroidalVortexField.cs:78-106 (derivation + python at the tooth). Sign/coefficient errors go RED.
 //
 // ZONE: shell tier (app/src/ root) — crosses runtime (renderField2d, makeFieldNode, assembleFieldMSL) +
 //   platform (compileLibraryFromSource); a runtime-zone selftest may not include platform (check_arch),
@@ -104,6 +108,22 @@ std::shared_ptr<FieldNode> buildTree(int injectBug) {
 
 bool contains(const std::string& hay, const std::string& needle) {
   return hay.find(needle) != std::string::npos;
+}
+
+// TEST-SIDE PROBE SEAM: the shipped 2D template visualizes ONLY f.w (field_render_template.metal:91
+// `return float4(f.w, 0.0, 0.0, 1.0);`). To VALUE-probe the velocity (f.xyz) we patch that one return
+// line in the LOADED template string to write the requested channel into RED instead. The shipped
+// template file is untouched; the op's assembled GLOBALS/FIELD_CALL — the subject under test — is
+// byte-identical in every variant. Returns "" if the anchor line is missing (template drifted -> the
+// caller FAILS loudly instead of probing the wrong channel).
+std::string patchTemplateChannel(const std::string& tmpl, const char* channelExpr) {
+  const std::string anchor = "return float4(f.w, 0.0, 0.0, 1.0);";
+  size_t pos = tmpl.find(anchor);
+  if (pos == std::string::npos) return "";
+  std::string out = tmpl;
+  out.replace(pos, anchor.size(),
+              std::string("return float4(") + channelExpr + ", 0.0, 0.0, 1.0);");
+  return out;
 }
 
 struct Probe { const char* name; uint32_t px, py; };
@@ -227,6 +247,75 @@ int runFieldToroidalVortexFieldGoldenSelfTest(bool injectBug) {
                 pr.name, px, py, got, expected, diff, ok ? "OK" : "RED");
   }
 
+  // ── Tooth (3): VELOCITY VALUE PROBE (f.xyz) — P4 upgrade 2026-07-03 ─────────────────────────────
+  // The substring assertions in tooth (2) cannot catch a WRONG cross sign / coefficient (the text is
+  // present either way). Probe the actual velocity VALUES at one mid-band texel by patching the
+  // template's visualization line (patchTemplateChannel above) to render f.x / f.y / f.z into RED.
+  //
+  // EXPECTED — hand-derived from TiXL ToroidalVortexField.cs (fToroidalVectorField, .cs:67-107; call
+  // site .cs:114-116 with Axis=Z -> _axisCodes0[2]="xyz" identity swizzle, .cs:121-123), golden config
+  // Center=0, Radius=0.5, Range=0.5, SwirlGain=1, RadialGain=1, decayK=2:
+  //   probe texel (px=88, py=63): p = (pX(88), pY(63), 0) = (0.3828125, 0.0078125, 0) — mid-band,
+  //   INNER side of the ring (m < Radius), off every singularity (rho ~ 0.117 >> eps).
+  //   .cs:78-81  phi = atan2(p.y,p.x); e_r = (c,s,0); e_phi = (-s,c,0)
+  //   .cs:84-87  C = R*e_r; r = p - C = (m-R)*e_r (p lies along e_r, z=0); rho = |m-R|
+  //   .cs:90-91  decay = saturate(1 - (rho/Range)^2)
+  //   .cs:96-98  vSwirl = normalize(cross(e_phi, r))*(1*decay); cross(e_phi,(m-R)*e_r) = (0,0,-(m-R))
+  //              -> m<R -> (0,0,+rho) -> normalize = (0,0,1) -> vSwirl = (0, 0, decay)
+  //   .cs:102-103 dirToRing = -r/rho = +e_r (m<R) -> vRadial = (c*decay, s*decay, 0)
+  //   .cs:105-106 f = float4(vSwirl+vRadial, decay)
+  //   python (in-comment derivation only, NOT run against sw):
+  //     pxf=(2*88+1)/128-1            # 0.3828125
+  //     pyf=1-(2*63+1)/128            # 0.0078125
+  //     phi=math.atan2(pyf,pxf)       # 0.020405331
+  //     c,s=math.cos(phi),math.sin(phi)  # 0.999791818, 0.020403915
+  //     m=math.hypot(pxf,pyf)         # 0.382892211 ; rho=abs(m-0.5)  # 0.117107789
+  //     decay=1-(rho/0.5)**2          # 0.945143063
+  //     f.x=c*decay=0.944946302  f.y=s*decay=0.019284618  f.z=decay=0.945143063
+  // BITE: cross order flipped -> f.z = -0.945 RED; radial direction flipped -> f.x = -0.945 RED;
+  // swirl/radial gain mis-wired or decay not applied to a term -> f.x/f.z off by >>tol RED. Under
+  // injectBug the field call is dropped -> f stays the seed (1,1,1,1) -> all three probes RED (diff
+  // 0.055 / 0.981 / 0.055 >> tol). Tolerance 5e-4: GPU fast-math trig slack (the decay probes hold
+  // 1e-5 through the same sin/cos path), while the smallest failure signal (f.y sign, 2*0.0193) is
+  // still 77x the tolerance.
+  {
+    struct VelProbe { const char* channel; float expected; };
+    const uint32_t vx = 88, vy = 63;  // p = (0.3828125, 0.0078125, 0)
+    const VelProbe vps[] = {
+        {"f.x", 0.9449463f},   // c*decay  (radial, toward the ring: +e_r on the inner side)
+        {"f.y", 0.0192846f},   // s*decay  (radial y-component; sign-discriminating, small but >>tol)
+        {"f.z", 0.9451431f},   // decay    (swirl: normalize(cross(e_phi,r)) = +z on the inner side)
+    };
+    const float kVelTol = 5e-4f;
+    for (const VelProbe& vp : vps) {
+      std::string patched = patchTemplateChannel(tmpl, vp.channel);
+      if (patched.empty()) {
+        std::printf("[selftest-field-toroidalvortexfield] vel %-3s FAIL: template patch anchor "
+                    "missing (field_render_template.metal return line changed?)\n", vp.channel);
+        rc = 1;
+        continue;
+      }
+      clearTexOpCache();
+      MTL::Texture* vtex = renderField2d(dev, q, tree, patched, kW, kH);
+      if (!vtex) {
+        std::printf("[selftest-field-toroidalvortexfield] vel %-3s FAIL: renderField2d null\n",
+                    vp.channel);
+        rc = 1;
+        continue;
+      }
+      std::vector<float> vbuf((size_t)kW * kH, 0.0f);
+      vtex->getBytes(vbuf.data(), kW * sizeof(float), MTL::Region::Make2D(0, 0, kW, kH), 0);
+      float got = vbuf[(size_t)vy * kW + vx];
+      float diff = std::fabs(got - vp.expected);
+      bool ok = diff <= kVelTol;
+      if (!ok) rc = 1;
+      std::printf("[selftest-field-toroidalvortexfield] vel %-3s p=(0.3828,0.0078) got=% .6f "
+                  "expected=% .6f diff=%.2e %s\n",
+                  vp.channel, got, vp.expected, diff, ok ? "OK" : "RED");
+      vtex->release();
+    }
+  }
+
   tex->release();
   q->release();
   dev->release();
@@ -236,7 +325,7 @@ int runFieldToroidalVortexFieldGoldenSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-field-toroidalvortexfield] FAIL: injectBug did not trip any probe (tooth "
                   "has no bite)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-field-toroidalvortexfield] injectBug correctly RED\n");
     return 1;

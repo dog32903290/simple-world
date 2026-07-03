@@ -14,7 +14,24 @@
 // Golden asserts EXACT positions + counts + first face winding (TBN computed but not asserted — its
 // hand-derivation is brittle; scope is the position/topology spine, the visible parity surface).
 //
-// injectBug -> meshInjectBug() -> corrupts verts[0] in the REAL cook -> RED.
+// CASE 2 (non-identity: P2 fix — Radius=1/Spin=0/Fill=360 above are identity for the param wiring):
+//   Radius=2, Thickness=0.5, Segments=(4,4), Spin=(90,90), Fill=(180,180).
+//   Hand-derived from TiXL TorusMesh.cs @395c4c55 (:29-34 spin/fill, :51-52 angle fractions,
+//   :56-59 tubeAngle/tubePosition, :74-78 radiusAngle/p):
+//     radiusSpin=spinMinor=pi/2 (:29-30); fillRadius=tubeFill=0.5 (:33-34);
+//     tubeAngleFraction=radiusAngleFraction=0.5/4*2pi=pi/4 (:51-52).
+//   tubeIndex=0: tubeAngle=0+pi/2 -> tubeX=sin(pi/2)*0.5=0.5, tubeY=cos(pi/2)*0.5=0.
+//     vi=0: radiusAngle=0+pi/2    -> p=(sin(pi/2)*(0.5+2), cos(pi/2)*2.5, 0)       = (2.5, 0, 0)
+//     vi=1: radiusAngle=3pi/4     -> p=(0.70710678*2.5, -0.70710678*2.5, 0)
+//                                   = (1.76776695, -1.76776695, 0)   # python: sin(3*pi/4)*2.5
+//     vi=2: radiusAngle=pi        -> p=(0, -2.5, 0)
+//   tubeIndex=1 (vi=5): tubeAngle=pi/4+pi/2=3pi/4 -> tubeX=sin(3pi/4)*0.5=0.35355339,
+//     tubeY=cos(3pi/4)*0.5=-0.35355339; radiusAngle=pi/2
+//     -> p=(1*(0.35355339+2), 0, -0.35355339) = (2.35355339, 0, -0.35355339)
+//   Counts unchanged (fill does not change vertex/face counts, :39-40): vc=25, fc=32.
+//   A formula error in Radius plumbing, Spin offset, or Fill fraction diverges every one of these pins.
+//
+// injectBug -> meshInjectBug() -> corrupts verts[0] in the REAL cook -> RED (both cases assert v[0]).
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -78,6 +95,44 @@ int runMeshTorusGoldenSelfTest(bool injectBug) {
                 "f0=(%d,%d,%d) vOk=%d fOk=%d attrOk=%d\n",
                 vc, fc, v[0].Position.x, v[0].Position.y, v[0].Position.z, v[5].Position.x,
                 v[5].Position.y, v[5].Position.z, f[0].X, f[0].Y, f[0].Z, vOk, fOk, attrOk);
+  }
+
+  // ── CASE 2: non-identity params (Radius=2, Spin=(90,90), Fill=(180,180)) — the P2 fix.
+  //    Expected values hand-derived from TiXL TorusMesh.cs (see header). ──
+  if (ok) {
+    PointGraph pg2(dev, nullptr, q, 64, 64);
+    Graph g2;
+    Node m2; m2.id = 1; m2.type = "TorusMesh";
+    m2.params["Radius"] = 2.0f; m2.params["Thickness"] = 0.5f;
+    m2.params["Segments.x"] = 4.0f; m2.params["Segments.y"] = 4.0f;
+    m2.params["Spin.x"] = 90.0f; m2.params["Spin.y"] = 90.0f;
+    m2.params["Fill.x"] = 180.0f; m2.params["Fill.y"] = 180.0f;
+    g2.nodes.push_back(m2);
+
+    pg2.cook(g2, ctx, nullptr, 1);
+    const MTL::Buffer* vb2 = nullptr;
+    const MTL::Buffer* ib2 = nullptr;
+    uint32_t vc2 = 0, fc2 = 0;
+    bool got2 = pg2.debugCookedMesh(1, vb2, vc2, ib2, fc2);
+    bool pass2 = got2 && vc2 == 25 && fc2 == 32;
+    if (pass2) {
+      const SwVertex* v2 = (const SwVertex*)const_cast<MTL::Buffer*>(vb2)->contents();
+      // TorusMesh.cs:74-78 with radiusSpin=spinMinor=pi/2, fractions pi/4 (hand-derived, header).
+      bool vOk2 = posEq(v2[0], 2.5f, 0.0f, 0.0f) &&
+                  posEq(v2[1], 1.76776695f, -1.76776695f, 0.0f) &&
+                  posEq(v2[2], 0.0f, -2.5f, 0.0f) &&
+                  posEq(v2[5], 2.35355339f, 0.0f, -0.35355339f);
+      pass2 = vOk2;
+      std::printf("[selftest-mesh-torus] case2 spin/fill: v0=(%.4f,%.4f,%.4f) v1=(%.4f,%.4f,%.4f) "
+                  "v5=(%.4f,%.4f,%.4f) vOk=%d\n",
+                  v2[0].Position.x, v2[0].Position.y, v2[0].Position.z, v2[1].Position.x,
+                  v2[1].Position.y, v2[1].Position.z, v2[5].Position.x, v2[5].Position.y,
+                  v2[5].Position.z, vOk2);
+    } else {
+      std::printf("[selftest-mesh-torus] case2 FAIL: no cooked mesh (got=%d vc=%u fc=%u)\n", got2,
+                  vc2, fc2);
+    }
+    ok = ok && pass2;
   }
 
   meshInjectBug() = false;

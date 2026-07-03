@@ -26,6 +26,22 @@
 // Both are GOLDEN DISCIPLINE-safe: p.x,p.y in [-1,1], on a flat d-plateau (no fwidth-sensitive
 // half-decay pixel), value asserted by the same closed-form the shader runs.
 //
+// SLOPE PROBES (P2 fix, GOLDEN_ORACLE_AUDIT: the two plateau probes sit on the same d≈-0.05 constant,
+// so the slanted-face branches d2/d3 and the h1/h2 sign logic never discriminate). Mid-height row
+// p.y ≈ 0 (shifted y = p.y + halfHeight ≈ 1, halfway up the pyramid — the face-slope region where
+// dot(d3,d3) is the min and h2 carries the sign; PyramidSDF.cs:56 d2 / :62 d3 / :64 sign):
+//   slope-in  px=80,  py=63: p=(0.2578125, 0.0078125) — INSIDE the slanted face. Hand-derived from
+//     fPyramid (PyramidSDF.cs:46-65), hw=hd=hh=1, ra=0.05, python (float64):
+//       shifted p=(0.2578125, 1.0078125, 0); q=p-(1,0,1)
+//       dot_d1=1.0156860  dot_d2=0.1968872  dot_d3=0.0454224 (d3 = slanted-face branch WINS)
+//       h1=-0.1984375, h2=-0.0953125, -p.y=-1.0078125 -> max<0 -> sign=-1 (inside)
+//       d = -sqrt(0.0454224) - 0.05 = -0.263125229
+//   slope-out px=108, py=63: p=(0.6953125, 0.0078125) — OUTSIDE the slanted face (h2=+0.0796875>0
+//     flips the sign; same d3 branch, dot_d3=0.0317505):
+//       d = +sqrt(0.0317505) - 0.05 = +0.128186667
+// A wrong d2/d3 clamp, a wrong n3/n4 normal, or a broken h1/h2 sign rule shifts BOTH (the plateau
+// probes would stay green — these two are the anti-P2 teeth).
+//
 // ★ GOLDEN DISCIPLINE (value probes only, no boundary-sign tooth): the base-row sign crossing lands at
 // p.x = halfWidth + Rounding = 1.05, which is OFF-SCREEN for a 128-px field (max on-screen p.x =
 // pX(127) = 0.9921875 < 1.05). A boundary-scan loop would never find the crossing and would fail on
@@ -214,10 +230,18 @@ int runFieldPyramidSdfGoldenSelfTest(bool injectBug) {
   // px nearest p.x=0.5: (0.5+1)*W = 192, /2 = 96; px=96 -> p.x = (193/128)-1 = 0.5078125
   const uint32_t halfPx = 96;
 
+  // Slope probes (P2 fix): mid-height row py=63 -> p.y = 1 - 127/128 = 0.0078125 (shifted y ≈ 1,
+  // halfway up the face — the d3/h2 slope branch dominates; see header SLOPE PROBES derivation).
+  const uint32_t midRow = 63;        // p.y = 0.0078125
+  const uint32_t slopeInPx = 80;     // p.x = 161/128-1 = 0.2578125 -> d = -0.263125229 (inside face)
+  const uint32_t slopeOutPx = 108;   // p.x = 217/128-1 = 0.6953125 -> d = +0.128186667 (outside face)
+
   struct Probe { const char* name; uint32_t px, py; };
   Probe probes[] = {
-      {"base-center", centerPx, baseRow},  // p≈(0,-1)   -> d≈-0.05 (inside base footprint)
-      {"base-mid",    halfPx,   baseRow},  // p≈(0.5,-1) -> d≈-0.05 (inside base footprint)
+      {"base-center", centerPx, baseRow},   // p≈(0,-1)   -> d≈-0.05 (inside base footprint)
+      {"base-mid",    halfPx,   baseRow},   // p≈(0.5,-1) -> d≈-0.05 (inside base footprint)
+      {"slope-in",    slopeInPx, midRow},   // p≈(0.26,0) -> d≈-0.2631252 (d3 branch, sign=-1)
+      {"slope-out",   slopeOutPx, midRow},  // p≈(0.70,0) -> d≈+0.1281867 (d3 branch, h2>0 -> sign=+1)
   };
   for (const Probe& pr : probes) {
     float px = pX(pr.px), py = pY(pr.py);
@@ -240,7 +264,7 @@ int runFieldPyramidSdfGoldenSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-field-pyramidsdf] FAIL: injectBug did not trip any probe (tooth has no "
                   "bite)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-field-pyramidsdf] injectBug correctly RED\n");
     return 1;

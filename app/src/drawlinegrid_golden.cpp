@@ -1,11 +1,18 @@
 // drawlinegrid_golden — --selftest-gizmo-grid. C3 Tranche-1: DrawLineGrid (wireframe grid plane) via the
 // pointlist seam. (See gizmo_geometry.h emitGridLines [fork-gizmo-grid-composite].)
 //   LEG 1 — TRANSPORT (flat): assert the line count + that every point lies in the chosen plane (XY → z=0)
-//           on the [-0.5,0.5] grid, vs a CLOSED-FORM re-derivation. (segsX+1)+(segsY+1) lines × (2+sep).
+//           + the CLOSED-FORM line coordinates: vertical line i at x = -0.5 + i/segsX (y spans ±0.5),
+//           horizontal line j at y = -0.5 + j/segsY (x spans ±0.5). Formula hand-derived from TiXL
+//           DrawLineGrid.t3 (locked SHA 395c4c55): each rail is a LinePoints child (Count=101, Pivot=0.5
+//           → unit span centered on the origin, line k at -0.5 + k/100), scaled by a downstream Transform
+//           (UniformScale=10); the sw fork [fork-gizmo-grid-composite] parameterizes the cell count.
 //   LEG 2 — ★PRODUCTION PIXEL (resident): grid → ListToBuffer → DrawLines → RenderTarget, readback: TWO
 //           ADJACENT vertical grid lines are BOTH lit (the grid spacing is real, not one line); the cell
-//           CENTER between them is dark. injectBug → black → RED. (blueprint §4: assert two adjacent line
-//           centers lit, never just one.)
+//           CENTER between them is dark. (blueprint §4: assert two adjacent line centers lit, never just
+//           one.) WANT-FIXED: no-bug and -bug run the SAME asserts (no want-flip, GOLDEN_STANDARD 特徵 3).
+//           injectBug clears the REAL output inside cookDrawLineGrid (pointlist_ops_drawlinegrid.cpp:40;
+//           the resident walker dispatches the same leaf cook) → black screen → the same asserts go RED.
+//           did-not-trip → all pass → exit 0 (--bite NO-BITE list catches a dead tooth).
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -75,10 +82,36 @@ int runGizmoGridSelfTest(bool injectBug) {
       if (isSep != isNanf(p.Scale.x)) sepOk = false;
       if (!isSep && std::fabs(p.Position.z) > 1e-5f) planeOk = false;  // XY plane → z=0
     }
-    pass = pass && sepOk && planeOk;
+    // CLOSED-FORM line coordinates (not just count/plane — a warped-spacing grid must go RED here, not
+    // only via LEG2 pixels). Formula from DrawLineGrid.t3 LinePoints Count=101/Pivot=0.5 (unit span
+    // centered → line k at -0.5 + k/100, SHA 395c4c55), cells parameterized by the sw fork:
+    // vertical line i (elements 3i, 3i+1) at x = -0.5 + i/segsX with y endpoints ∓0.5; horizontal line j
+    // (after the segsX+1 verticals) at y = -0.5 + j/segsY with x endpoints ∓0.5.
+    bool coordOk = pass;
+    if (pass) {
+      for (int i = 0; i <= kSegX && coordOk; ++i) {
+        const SwPoint& a = (*got)[(size_t)i * 3];
+        const SwPoint& b = (*got)[(size_t)i * 3 + 1];
+        float wantX = -0.5f + (float)i / (float)kSegX;
+        if (std::fabs(a.Position.x - wantX) > 1e-5f || std::fabs(b.Position.x - wantX) > 1e-5f ||
+            std::fabs(a.Position.y + 0.5f) > 1e-5f || std::fabs(b.Position.y - 0.5f) > 1e-5f)
+          coordOk = false;
+      }
+      size_t base = (size_t)(kSegX + 1) * 3;
+      for (int j = 0; j <= kSegY && coordOk; ++j) {
+        const SwPoint& a = (*got)[base + (size_t)j * 3];
+        const SwPoint& b = (*got)[base + (size_t)j * 3 + 1];
+        float wantY = -0.5f + (float)j / (float)kSegY;
+        if (std::fabs(a.Position.y - wantY) > 1e-5f || std::fabs(b.Position.y - wantY) > 1e-5f ||
+            std::fabs(a.Position.x + 0.5f) > 1e-5f || std::fabs(b.Position.x - 0.5f) > 1e-5f)
+          coordOk = false;
+      }
+    }
+    pass = pass && sepOk && planeOk && coordOk;
     ok = ok && pass;
-    std::printf("[selftest-gizmo-grid] LEG1 transport n=%zu want=%zu(%dx%d) sep=%d plane(z=0)=%d -> %s\n",
-                got ? got->size() : 0, wantN, kSegX, kSegY, sepOk ? 1 : 0, planeOk ? 1 : 0, pass ? "PASS" : "FAIL");
+    std::printf("[selftest-gizmo-grid] LEG1 transport n=%zu want=%zu(%dx%d) sep=%d plane(z=0)=%d coord=%d -> %s\n",
+                got ? got->size() : 0, wantN, kSegX, kSegY, sepOk ? 1 : 0, planeOk ? 1 : 0, coordOk ? 1 : 0,
+                pass ? "PASS" : "FAIL");
   }
 
   // ===== LEG 2 — ★PRODUCTION PIXEL (resident): two ADJACENT grid lines both lit, the cell between dark. =====
@@ -121,7 +154,10 @@ int runGizmoGridSelfTest(bool injectBug) {
       bLit = litAt(px, RW, lineB, probeY);
       midDark = !litAt(px, RW, mid, probeY);
     }
-    bool pass = sized && (injectBug ? (!aLit && !bLit) : (aLit && bLit && midDark));
+    // WANT-FIXED assert (same in no-bug and -bug): two adjacent vertical lines lit, the cell mid dark.
+    // Under -bug the injected clear rides the REAL resident cook (cookDrawLineGrid → empty list → black
+    // screen) → aLit/bLit=false → this SAME assert goes RED. No flipped expectation.
+    bool pass = sized && aLit && bLit && midDark;
     ok = ok && pass;
     std::printf("[selftest-gizmo-grid] LEG2 ★PRODUCTION adjacentLines a=%d b=%d cellMidDark=%d -> %s\n",
                 aLit ? 1 : 0, bLit ? 1 : 0, midDark ? 1 : 0, pass ? "PASS" : "FAIL");

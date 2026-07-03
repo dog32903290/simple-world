@@ -160,7 +160,7 @@ int runRaymarchFieldOutputSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-raymarchfield-output] FAIL: injectBug (black clear) tripped no tooth "
                   "(silhouette survived a skipped raymarch)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-raymarchfield-output] injectBug correctly RED\n");
     return 1;

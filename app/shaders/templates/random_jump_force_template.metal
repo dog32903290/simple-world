@@ -167,9 +167,10 @@ struct FieldParams {
 
 // Evaluate the assembled field at a sample point. p.xyz = sample point, p.w = mode flag (0 = field eval,
 // matching TiXL GetField's `float4(p3.xyz, 0)`). Returns f: f.rgb = the field color (RandomJumpForce reads
-// only its magnitude), f.w = the field weight/decay. The SEED is all-ones (TiXL GetField `float4 f = 1;`) —
-// a single SDF leaf overwrites only f.w, so f.rgb stays the (1,1,1) seed (fieldAmount=1) for the SphereSDF
-// graph the golden wires.
+// only its magnitude), f.w = the field weight/decay. The SEED is all-ones (TiXL GetField `float4 f = 1;`).
+// NOTE: an SDF leaf in eval mode (p.w < 0.5) ALSO writes f.xyz = the local-space sample pos ("save local
+// space", SphereSDF.cs:36) — so for the golden's SphereSDF graph with seed (1,0,0): f.rgb=(0.9,0,0),
+// fieldAmount = avg = 0.3 (NOT the all-ones seed / fieldAmount=1 this comment used to claim).
 static float4 evalField(float4 p, constant FieldParams& P/*{TEXTURE_PARAMS}*/) {
     float4 f = float4(1.0);
 /*{FIELD_CALL}*/

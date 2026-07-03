@@ -38,9 +38,16 @@
 //
 // RED-FIRST TEETH (three states) ───────────────────────────────────────────────────────────────────────
 //   • no-bug              → GREEN: measured Δpos == TiXL closed form (drag=pow, step-scale=0.01 both right).
-//   • injectBug           → RED: expectation flips to the STALE-DEVIATION formula a naive port would write
-//     (linear drag `(1-Drag)` instead of `pow(1-Drag,Speed)` AND the missing 0.01 step scale). The measured
-//     production Δpos no longer matches → the gate bites. This is a real, historically-plausible sim drift.
+//   • injectBug (REAL cook injection, GOLDEN_STANDARD 特徵3 — was a P3 want-flip, fixed) → RED: the -bug
+//     leg flips particleSimDragBugForTest() (point_ops_forceparams.h, the family's *BugForceForTest latch
+//     convention) around the MAIN cook ONLY. The latch corrupts the REAL integrator param path
+//     (cookParticleSim: Drag → 0.5, an integrator-param drift), so the measured production Δpos becomes
+//     closedForm(Drag=0.5) = 0.5·0.5·0.01 = 0.0025 while the assert still pins the TiXL closed form
+//     0.0049 (tol 5e-5) → RED (and the dragProbe ratio collapses to ~1 → RED too). If the latch ever
+//     dies (injection does not trip), the cook stays faithful, the asserts PASS and the leg exits 0 →
+//     run_all_selftests --bite's NO-BITE list catches the dead tooth. NOTE: the shader-side stale form a
+//     naive port would write (linear drag / missing 0.01) is not host-injectable without a shader test
+//     seam; the drag PROBE below is the tooth that pins the pow-form against exactly that drift.
 //   • dragProbe (both legs, context tooth) → an independent Drag=0.5 cook must scale Δpos by pow(0.5,Speed)
 //     relative to the Drag=0.02 cook — proves the drag term is the `pow` form, not linear, not ignored.
 //
@@ -59,8 +66,9 @@
 #include <vector>
 
 #include "parity_golden_harness.h"
-#include "runtime/graph.h"       // Graph / Node / pinId
-#include "runtime/tixl_point.h"  // SwPoint (64B)
+#include "runtime/graph.h"                  // Graph / Node / pinId
+#include "runtime/point_ops_forceparams.h"  // particleSimDragBugForTest (-bug real-cook latch)
+#include "runtime/tixl_point.h"             // SwPoint (64B)
 
 namespace sw {
 namespace {
@@ -77,13 +85,6 @@ constexpr float kStepScale = 0.01f;   // ParticleSystem.hlsl:111 `pos += velocit
 //   Δ = Direction*Amount * pow(1-Drag, Speed) * Speed * 0.01
 double closedFormDeltaX(float amount, float drag, float speed) {
   return (double)amount * std::pow(1.0 - (double)drag, (double)speed) * (double)speed * (double)kStepScale;
-}
-
-// The STALE-DEVIATION a naive integrator port would produce: linear drag (1-Drag) and NO 0.01 step scale
-// (`pos += velocity * Speed`). This is the injectBug expectation — the measured production Δ must NOT match
-// it, so pinning to it flips the gate RED.
-double staleDeviationDeltaX(float amount, float drag, float speed) {
-  return (double)amount * (1.0 - (double)drag) * (double)speed;  // linear drag, missing *0.01
 }
 
 // ---- cook capture (RadialPoints -> ParticleSystem(+DirectionalForce) -> DrawPoints) --------------------
@@ -167,22 +168,24 @@ int runParticleSimIntegrateParitySelfTest(bool injectBug) {
   }
 
   // ── MAIN: production cook, measure the integrator's per-step position delta ────────────────────────
+  // -bug REAL injection: the latch corrupts the integrator's Drag read (0.02 → 0.5) on the REAL cook path
+  // for THIS cook only (the drag probe below cooks clean). Scoped set+reset, never leaks.
+  particleSimDragBugForTest() = injectBug;
   std::vector<SwPoint> p0, p1;
   cookTwoSteps(h.dev, h.queue, h.lib, kDirAmount, kDrag, kSpeed, p0, p1);
+  particleSimDragBugForTest() = false;
   Delta d = cleanCohortDelta(p0, p1);
 
   // The clean cohort must be non-empty (the [0,emitCount) slots survived the seed and were not re-emitted).
   rep.expectTrue("cleanCohortAlive(n>0)", d.n > 0, (double)d.n);
 
-  // THE INTEGRATOR TOOTH: measured Δx == the TiXL closed form (drag=pow(1-Drag,Speed), step-scale=0.01).
-  //   no-bug   → expected = closedFormDeltaX  (faithful).
-  //   injectBug→ expected = staleDeviationDeltaX (linear drag + missing 0.01) → production Δ ≠ it → RED.
+  // THE INTEGRATOR TOOTH: measured Δx == the TiXL closed form (drag=pow(1-Drag,Speed), step-scale=0.01) —
+  // the expected value in BOTH legs (never flipped). In the -bug leg the latch corrupted the real cook
+  // (Drag→0.5 → measured Δx = 0.5·0.5·0.01 = 0.0025), so THIS SAME assert diverges (48× the tol) → RED;
+  // if the injection did not trip, it passes and the leg exits 0 (NO-BITE list catches the dead tooth).
   const double expClosed = closedFormDeltaX(kDirAmount, kDrag, kSpeed);   // (0.5·0.98·1·0.01) = 0.0049
-  const double expStale  = staleDeviationDeltaX(kDirAmount, kDrag, kSpeed);  // 0.5·0.98·1     = 0.49
-  const double expDX = injectBug ? expStale : expClosed;
-  // Tolerance: GPU float epsilon on a ~5e-3 quantity. The stale form (0.49) is ~100× away, so injectBug is
-  // unambiguously RED; the faithful form sits well inside this band.
-  rep.expect("integratorDeltaX==TiXL(pow-drag,*0.01)", d.mx, expDX, 5e-5);
+  // Tolerance: GPU float epsilon on a ~5e-3 quantity; the faithful form sits well inside this band.
+  rep.expect("integratorDeltaX==TiXL(pow-drag,*0.01)", d.mx, expClosed, 5e-5);
 
   // Sideways components: the push is pure +X, so Δy == Δz == 0 (DirectionalForce Direction=(1,0,0)).
   rep.expect("integratorDeltaY==0", d.my, 0.0, 5e-5);
@@ -192,6 +195,8 @@ int runParticleSimIntegrateParitySelfTest(bool injectBug) {
   // A second cook with Drag=0.5 must scale Δx by pow(0.5,Speed)/pow(0.98,Speed) relative to the Drag=0.02
   // cook. If drag were ignored the ratio would be 1; if linear it would be (1-0.5)/(1-0.02)=0.51 — both
   // differ from the pow ratio pow(0.5,1)/pow(0.98,1)=0.5102... actually distinct enough to pin the FORM.
+  // (This probe cooks with the latch OFF; in the -bug leg the corrupted main cook makes the measured
+  // ratio collapse to ~1 → this tooth ALSO bites there, a second independent diverging assert.)
   std::vector<SwPoint> q0, q1;
   cookTwoSteps(h.dev, h.queue, h.lib, kDirAmount, /*drag=*/0.5f, kSpeed, q0, q1);
   Delta dq = cleanCohortDelta(q0, q1);

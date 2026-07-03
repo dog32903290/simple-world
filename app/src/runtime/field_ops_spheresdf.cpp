@@ -35,6 +35,9 @@ namespace {
 struct SphereSDFNode : FieldNode {
   float centerX = 0.f, centerY = 0.f, centerZ = 0.f;
   float radius = 0.5f;
+  // test-only bug mode (configureSphereSdfBug, mirrors ToroidalVortexFieldNode::injectBug):
+  // 0 = none, 1 = drop the field-call emit -> f stays the all-ones template seed (severed field).
+  int injectBug = 0;
 
   explicit SphereSDFNode(const std::string& shortId) {
     // TiXL BuildNodeId: <TypeName>_<shortGuid>_  — collision-free param prefix.
@@ -42,6 +45,7 @@ struct SphereSDFNode : FieldNode {
   }
 
   void preShaderCode(CodeAssembleCtx& c, int /*inputIndex*/) const override {
+    if (injectBug == 1) return;  // drop the field call -> f stays seed (1,1,1,1) -> field goldens RED.
     // PARITY external/tixl/Operators/Lib/field/generate/sdf/SphereSDF.cs:35-36
     //   c.AppendCall($"f{c}.w = length(p{c}.xyz - {n}Center) - {n}Radius;");
     //   c.AppendCall($"f{c}.xyz = p.w < 0.5 ?  p{c}.xyz : 1;");
@@ -111,4 +115,14 @@ const FieldOp g_sphereSdfOp(sphereSdfSpec(), makeSphereSdf, configureSphereSdf,
                             {"Center.x", "Center.y", "Center.z", "Radius"});
 
 }  // namespace
+
+// Test seam (mirrors configureToroidalVortexField's injectBug): corrupt the OP's REAL preShaderCode
+// emit (0 none / 1 drop-field-call -> f stays the all-ones seed) so field goldens that wire a SphereSDF
+// can inject a true severed-field regression through the REAL assembleFieldMSL->compile->dispatch path
+// instead of flipping expectations (GOLDEN_STANDARD.md 特徵3). The leaf type is TU-private; this
+// downcasts inside the owning TU. Production never calls it (injectBug stays 0).
+void configureSphereSdfBug(FieldNode& node, int injectBug) {
+  if (auto* n = dynamic_cast<SphereSDFNode*>(&node)) n->injectBug = injectBug;
+}
+
 }  // namespace sw

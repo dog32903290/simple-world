@@ -175,4 +175,18 @@ void setAnimBooleanBug(int mode);
 // switch (cleared back to 0 by the golden after each bug run), mirrors setAnimValueBug.
 void setWasTriggerBug(int mode);
 
+// SetBpm TEETH hook (--selftest-setbpm + --selftest-bpmtransport). 0 = production; 1 = GATE IGNORED
+// (arm the BpmProvider every cook bpm>1 — the per-frame-overwrite wrong port / level-not-edge);
+// 2 = CLAMP DROPPED (arm the raw rate, SetBpm.cs:24 forgotten); 3 = WRITE SEVERED (the edge fires
+// but the provider is never armed — "the rate never reaches the transport"). Sticky module switch
+// (the goldens restore 0), mirrors setAnimValueBug.
+void setSetBpmBug(int mode);
+
+// SetPlaybackTime/Speed TEETH hook (--selftest-setplayback). 0 = production; 1 = GATE IGNORED (both
+// ops arm the PlaybackProvider every cook — per-frame overwrite); 2 = EDGE-ONLY (Time drops the
+// Continuously branch cs:39; Speed resurrects the commented-out WasTriggered cs:24); 3 = WRITE
+// SEVERED; 4 = CONDITIONING DROPPED (Time skips NaN/Inf→0 cs:34-37; Speed skips the snap cs:39-46).
+// Sticky module switch (the golden restores 0), mirrors setAnimValueBug.
+void setSetPlaybackBug(int mode);
+
 }  // namespace sw

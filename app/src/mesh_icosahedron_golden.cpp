@@ -11,6 +11,14 @@
 //   UV (Faces mode 0): verts[0] uv = _baseUvs[0] = (0.5, 1.0).
 //   Flat normal of face0 = normalize(cross(v1-v0, v2-v0)) (cross-checked from the readback).
 //
+// CASE 2 (P2 fix — Scale=1 above is identity for the scale wiring): Scale=2, rest defaults.
+//   TiXL IcosahedronMesh.cs @395c4c55 :86-94: pos = vertices[i] * scale * stretch, THEN
+//   Vector3.Transform(pos + offset, rotationMatrix) + center; offset = stretch*scale*pivot = 0
+//   (Pivot default (0,0,0), IcosahedronMesh.t3). Rotation preserves length ->
+//   |pos| == 2 for ALL verts, and v0 = 2 * (0,1,0) = (0, 2, 0) (same tilt argument as CASE 1).
+//   UV untouched by scale (uvMapper reads base vertices, :96): uv0 stays (0.5, 1.0).
+//   A scale-plumbing error (ignored / squared / applied post-rotation with pivot) breaks these pins.
+//
 // injectBug -> meshInjectBug() -> corrupts verts[0] in the REAL cook -> RED (also breaks |pos|==1).
 #include <cmath>
 #include <cstdint>
@@ -83,6 +91,40 @@ int runMeshIcosahedronGoldenSelfTest(bool injectBug) {
                 "v0Ok=%d sphereOk=%d idxOk=%d uvOk=%d attrOk=%d\n",
                 vc, fc, v[0].Position.x, v[0].Position.y, v[0].Position.z, plen(v[30]), v0Ok,
                 sphereOk, idxOk, uvOk, attrOk);
+  }
+
+  // ── CASE 2: Scale=2 (P2 fix; expected values hand-derived from IcosahedronMesh.cs:86-94, header). ──
+  if (ok) {
+    PointGraph pg2(dev, nullptr, q, 64, 64);
+    Graph g2;
+    Node m2; m2.id = 1; m2.type = "IcosahedronMesh";
+    m2.params["Subdivisions"] = 0.0f; m2.params["Spherical"] = 0.0f; m2.params["Strength"] = 1.0f;
+    m2.params["Scale"] = 2.0f; m2.params["Stretch.x"] = 1.0f; m2.params["Stretch.y"] = 1.0f;
+    m2.params["Shading"] = 0.0f;
+    g2.nodes.push_back(m2);
+    pg2.cook(g2, ctx, nullptr, 1);
+
+    const MTL::Buffer* vb2 = nullptr;
+    const MTL::Buffer* ib2 = nullptr;
+    uint32_t vc2 = 0, fc2 = 0;
+    bool got2 = pg2.debugCookedMesh(1, vb2, vc2, ib2, fc2);
+    bool pass2 = got2 && vc2 == 60 && fc2 == 20;
+    if (pass2) {
+      const SwVertex* v2 = (const SwVertex*)const_cast<MTL::Buffer*>(vb2)->contents();
+      bool v0Ok2 = posEq(v2[0], 0, 2, 0);  // 2 * tilted base vert (0,1,0)
+      bool sphereOk2 = true;               // scale applied pre-rotation -> |pos| == 2 everywhere
+      for (uint32_t i = 0; i < vc2; ++i)
+        if (!nearf(plen(v2[i]), 2.0f, 2e-3f)) { sphereOk2 = false; break; }
+      bool uvOk2 = nearf(v2[0].Texcoord.x, 0.5f) && nearf(v2[0].Texcoord.y, 1.0f);  // UV scale-free
+      pass2 = v0Ok2 && sphereOk2 && uvOk2;
+      std::printf("[selftest-mesh-icosahedron] case2 scale2: v0=(%.3f,%.3f,%.3f) |v30|=%.4f "
+                  "v0Ok=%d sphereOk=%d uvOk=%d\n", v2[0].Position.x, v2[0].Position.y,
+                  v2[0].Position.z, plen(v2[30]), v0Ok2, sphereOk2, uvOk2);
+    } else {
+      std::printf("[selftest-mesh-icosahedron] case2 FAIL: no cooked mesh (got=%d vc=%u fc=%u)\n",
+                  got2, vc2, fc2);
+    }
+    ok = ok && pass2;
   }
 
   meshInjectBug() = false;

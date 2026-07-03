@@ -7,7 +7,7 @@
 繼承自 `/sw-batch`（不重述）：北極星＝Mac TiXL 完整 clone；規則訂版問 TiXL 不問柏為；
 工作法照 `docs/agent/WORKFLOW.md`（Opus×Sonnet 分層）＋工單引 `docs/agent/CONTEXT_PACK.md`；
 品質閘（run_all --bite 零 NO-BITE／對抗 refuter／RED 面／orchestrator 親手復跑後才 commit／
-活體 .scn）；律法自檢每 commit；結帳補 Cut＋memory lane-state。
+活體 .scn）／golden 照 `docs/agent/GOLDEN_STANDARD.md` 三特徵＋`tools/golden_lint.sh` 綠）；律法自檢每 commit；結帳補 Cut＋memory lane-state。
 
 ---
 

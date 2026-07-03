@@ -9,76 +9,70 @@
 // mirrored in snaptoanglesforce.metal:78) and the velocity is untouched. NO field binding, NO wall-clock /
 // Phase=time term → a deterministic offline render is trivially reproducible.
 //
-// ── SEAM CONSTRAINT (why the discrimination tooth is DIRECT-KERNEL, not cook-displacement) ─────────────
-// The ParticleSystem cook runs EXACTLY ONE force kernel, selected by the wired force's _ForceKind at input
-// slot 1 (point_ops.cpp:158-162,274-277) — it does NOT chain multiple wired forces. AND the sim seeds
-// emitted particles with velocity = direction * InitialVelocity, where the cook bakes InitialVelocity = 0
-// (point_ops.cpp:172; particle_sim.metal:55-57). With no force able to inject velocity BEFORE the snap and
-// no initial velocity, a SnapToAngles cook ALWAYS sees zero-velocity particles → the hlsl:120 early-return
-// fires → the snap is a faithful NO-OP and produces displacement IDENTICAL to a no-force cook, regardless
-// of AngleCount/Amount/Mode. So a behavioral PARAMETER-discrimination tooth is structurally IMPOSSIBLE
-// through this cook seam (the cook is blind to SnapToAngles params on un-seeded particles — and that
-// no-op IS the faithful behavior). The NodeSpec-default discrimination therefore lives in TOOTH 1
-// (direct-kernel, where this golden controls the velocity); TOOTH 2 stays a cook-through tooth that proves
-// the OTHER faithful property — the zero-velocity early-return no-op + determinism. (DEFERRED: a behavioral
-// cook-displacement snap tooth must wait for a velocity-seed seam — an emitter that sets a non-zero
-// InitialVelocity, or a force-chain so a preceding force can seed velocity. See caveats.)
+// ── VELOCITY-SEED LATCH (the seam that makes a cook-through NodeSpec tooth possible) ───────────────────
+// The cook bakes InitialVelocity = 0 on emit (point_ops.cpp cookParticleSim, the named fork: PS motion
+// comes from wired forces; particle_sim.metal:55-57) — so a plain cook always feeds SnapToAngles
+// zero-velocity particles and the hlsl:120 early-return makes it a faithful NO-OP. The 2026-07-03 oracle
+// audit (GOLDEN_ORACLE_AUDIT.md 待修#1) caught what this file used to do about that: TOOTH 1b dispatched
+// the SAME hand-built params twice and asserted A==A — production NodeSpec was NEVER read (P5 恆真假錨).
+// FIX: the velocity-seed latch simEmitVelocityForTest() (point_ops.cpp) lets this golden seed a non-zero
+// emit speed, so particles carry velocity = emitDirection * seed and the snap acts THROUGH THE REAL COOK
+// — TOOTH 1b is now a true cook-through NodeSpec discrimination, isomorphic to vectorfield_force_parity
+// TOOTH 2 (the audit's correct對照組). The rig authors RadialPoints OrientationAngle=90° about X so emit
+// directions (qRotateVec3(+Z, Rotation), particle_sim.metal:57) leave +Z, and the ring's per-point spin
+// about the default Axis=(0,0,1) (radial_points.metal:104-110) sweeps them around the FULL XY circle —
+// dense OFF-GRID coverage in the default Mode=0 (WorldXY) snap plane; the cook-side analog of fillOffGrid.
 //
 // ── HONEST RED-FIRST CLASSIFICATION (PARITY_GATE_PLAN.md Stage-3 §2) ──────────────────────────────────
-// This is a "补验证闸" GREEN case, NOT a "修偏差" case. I scouted SnapToAnglesForce's production state:
-//   sw NodeSpec defaults (node_registry_particle.cpp:121-132): Amount=1, AngleCount=45, Twist=0,
-//     VariationThreshold=0.1, Variation=0.2, KeepPlanar=0.5, Mode=0.
-//   TiXL SnapToAnglesForce.t3 DefaultValue (lines 4-31):        Amount=1, AngleCount=45, Twist=0,
-//     VariationThreshold=0.1, Variation=0.2, KeepPlanar=0.5, Mode=0.
-//   The cook fill (point_ops_forceparams.cpp:60-72) reads every param via cookInputParam with the SAME
-//   TiXL fallbacks and bakes RandomSeed=0 (the .cs exposes NO Seed slot — SnapToAnglesForce.cs:10-29).
-//   The kernel math (snaptoanglesforce.metal) is byte-1:1 with SnapOrientationForce.hlsl:99-156.
-// → SnapToAnglesForce was already FAITHFUL; it was merely NAKED. The existing --selftest-snaptoanglesforce
-//   smoke (point_ops_selftest.cpp:500) hand-injects Amount=1/AngleCount=360/Variation=0/Mode=1 and asserts
-//   only "all directions collinear" — it is STRUCTURALLY BLIND to the NodeSpec DEFAULTS (it never reads
-//   them) and to the per-axis snap geometry / KeepPlanar. This golden ADDS the missing parity gate; it
-//   does NOT fix a deviation, because there is none. NO production edits accompany it. The injectBug tooth
-//   still proves teeth.
+// This is a "补验证闸" GREEN case, NOT a "修偏差" case. Scouted production state: sw NodeSpec defaults
+// (node_registry_particle.cpp:121-132) == TiXL SnapToAnglesForce.t3 DefaultValue (lines 4-31): Amount=1,
+// AngleCount=45, Twist=0, VariationThreshold=0.1, Variation=0.2, KeepPlanar=0.5, Mode=0 (re-verified
+// 2026-07-03 against the TiXL operator catalog, op 7eefe668-d290-4673-b766-39c98b9ba12e). The cook fill
+// (point_ops_forceparams.cpp fillSnapAnglesForceParams) reads every param with the SAME TiXL fallbacks and
+// bakes RandomSeed=0 (the .cs exposes NO Seed slot — SnapToAnglesForce.cs:10-29). The kernel math
+// (snaptoanglesforce.metal) is byte-1:1 with SnapOrientationForce.hlsl:99-156. → already FAITHFUL, merely
+// NAKED: this golden ADDS the missing gate; the only production-file edits are the two test-only latches
+// (velocity seed + -bug AngleCount corrupt), both 0 in production.
 //
-// ── TOOTH 1 (kernel-math parity + NodeSpec-default discrimination, direct-kernel, TiXL closed-form) ────
-// TOOTH 1a — closed-form snap geometry (no-bug GREEN, no injectBug dependence):
+// ── TOOTH 1a (kernel-math parity, direct-kernel, TiXL closed-form) ────────────────────────────────────
 //   Mode=2 (WorldXZ, camera-free), AngleCount=45 → subdivisions = 360/45 = 8, Amount=1, Variation=0,
-//   VariationRatio=0 (hash gate hlsl:129 never fires → seed-independent), Twist=0, KeepPlanar=1. We seed
-//   each particle's velocity on a SNAP NODE (planar XZ direction at aNormalized=k/8) plus a non-zero Y.
-//   Closed form (SnapOrientationForce.hlsl:120-142): snap-node identity (round(k)==k, Amount=1) → out
-//   planar dir == in planar dir; pure rotation → planar XZ length preserved (==1); KeepPlanar=1 →
-//   off-plane Y zeroed (remainingAxis *= (1-1)). Expected values are hlsl-derived, never an sw snapshot.
-// TOOTH 1b — NodeSpec-default discrimination (the模板盲區 plug, carries injectBug):
-//   On a velocity OFF the snap grid, run the kernel with the FULL production NodeSpec DEFAULTS
-//   (Amount=1, AngleCount=45, Twist=0, VariationThreshold=0.1, Variation=0.2, KeepPlanar=0.5, Mode=0) vs a
-//   WRONG AngleCount=4 (coarse 90° grid → the off-grid direction snaps to a DIFFERENT discrete angle →
-//   measurably different output velocity). no-bug expects the NodeSpec-default run to match the
-//   AngleCount=45 result; injectBug flips the expectation to the AngleCount=4 result → RED. This anchors
-//   ALL seven NodeSpec defaults to the TiXL .t3 constants through the production kernel. (Variation=0.2 +
-//   VariationThreshold=0.1 are the live defaults, with RandomSeed=0 → the per-particle hash gate is
-//   deterministic, so the run is reproducible while still exercising the variation path.)
+//   VariationRatio=0 (hash gate hlsl:129 never fires → seed-independent), Twist=0, KeepPlanar=1. Seed each
+//   velocity ON a snap node (planar XZ at aNormalized=k/8) plus non-zero Y. Closed form (hlsl:120-142):
+//   snap-node identity (round(k)==k, Amount=1) → out planar dir == in planar dir; pure rotation → planar
+//   XZ length preserved (==1); KeepPlanar=1 → Y zeroed. Expected values hlsl-derived, never an sw snapshot.
 //
-// ── TOOTH 2 (cook-through faithful-no-op + determinism, rule 4 — honest to the seam) ──────────────────
-// Cook RadialPoints → ParticleSystem(+SnapToAnglesForce, NodeSpec DEFAULTS) → DrawPoints. Per the SEAM
-// CONSTRAINT the particles are un-seeded (velocity 0) so SnapToAngles correctly early-returns (hlsl:120)
-// → its cook displacement is IDENTICAL to a baseline cook with NO force. We assert: (a) the prod-default
-// SnapToAngles cook produces a non-empty, NaN-free pool the same size as the baseline, and (b) it is
-// bit-identical to the no-force baseline (the faithful zero-velocity no-op). This proves the cook REACHES
-// the SnapToAngles kernel path (forceKind routing, point_ops.cpp:274-277) and that the early-return is
-// faithful — NOT a parameter-discrimination (impossible here, see SEAM CONSTRAINT). GREEN in both legs.
+// ── TOOTH 1b (NodeSpec-default discrimination THROUGH THE REAL COOK — the P5 fix, carries injectBug) ──
+// Geometry-liveness half (direct-kernel, kept — this half was sound): on the off-grid fillOffGrid sweep,
+// hand-filled TiXL .t3 defaults at AngleCount=45 vs WRONG AngleCount=4 must produce measurably different
+// kernel output. Both legs hand-filled → GREEN in both legs (a geometry probe, NOT the NodeSpec tooth).
+// THE NODESPEC TOOTH (cook-through): with the velocity-seed latch ON, cook the SAME rig three ways —
+//   ref45    SnapToAnglesForce node HAND-AUTHORED with the seven TiXL .t3 DefaultValues (rule-2 anchor)
+//   refWrong same, but AngleCount=4 (coarse 90° grid → divergent trajectories)
+//   prod     NO param overrides → the cook resolves the PRODUCTION NodeSpec defaults
+//            (node_registry_particle.cpp spec → resolveNodeParams → fillSnapAnglesForceParams)
+// Assert: prod is bit-identical to ref45 (identical resolved params ⇒ identical dispatches), diverges from
+// refWrong, and ref45 vs refWrong diverge (probe live). A NodeSpec registration drift now resolves
+// different params in the prod cook ONLY → prod leaves ref45 → RED for real.
+//
+// ── TOOTH 2 (cook-through faithful-no-op, honest to the production seam) ──────────────────────────────
+// Cook the rig with NodeSpec DEFAULTS and the velocity-seed latch OFF (the PRODUCTION emit path: velocity
+// 0). SnapToAngles correctly early-returns (hlsl:120) → its cook displacement must be bit-identical to a
+// no-force baseline cook (non-empty, NaN-free, same pool size). Proves the cook REACHES the SnapToAngles
+// kernel path (forceKind routing) and the early-return is faithful. GREEN in both legs.
 //
 // ── TOOTH 3 (offline-render determinism through the real cook) ────────────────────────────────────────
-// SnapToAngles has no Phase / no wall-clock term (Twist is a static param; RandomSeed baked 0 + index), so
-// two cooks with IDENTICAL inputs/frame-schedule but DIFFERENT ctx.time must be bit-identical. We cook
-// twice with different time0 and assert maxPosDelta==0. GREEN in both legs.
+// No Phase / wall-clock term (Twist static; RandomSeed baked 0 + index): two cooks with IDENTICAL
+// inputs/frame-schedule but DIFFERENT ctx.time must be bit-identical (maxPosDelta==0). GREEN in both legs.
 //
-// injectBug LEG: TOOTH 1b flips its expectation from the AngleCount=45 (NodeSpec default) kernel result to
-// the AngleCount=4 result, so the production-default run (correct AngleCount=45) no longer matches → RED.
-// no-bug → prod-default == AngleCount=45 → GREEN. So the gate reads no-bug GREEN ↔ injectBug RED
-// (--bite-collectable). TOOTH 1a / 2 / 3 are GREEN in both legs (structural-faithfulness teeth).
+// injectBug LEG (真注入, not want-flip): snapAnglesBugAngleCountForTest() (point_ops_forceparams.cpp)
+// corrupts the REAL cook fill — the resolved AngleCount is REPLACED with 4 during the prod-default cook
+// ONLY (a simulated NodeSpec drift; reference cooks stay clean). prod then bit-tracks refWrong and leaves
+// ref45 → the same asserts that gate parity go RED; the expectation never flips. If the injection does
+// not trip (prod still == ref45 under the latch) the golden returns 0, so --bite's NO-BITE list catches
+// the dead tooth (P1, GOLDEN_STANDARD.md). TOOTH 1a / liveness / TOOTH 2 / TOOTH 3 GREEN in both legs.
 //
-// ZONE: shell tier (app/src/ root, like directional_force_parity_golden.cpp). Crosses runtime (PointGraph
-// cook + the kernel). NO production edits — SnapToAnglesForce was already faithful.
+// ZONE: shell tier (like vectorfield_force_parity_golden.cpp). Crosses runtime (PointGraph cook + the
+// kernel). Production edits = the two test-only latches only (kernels/cooks untouched).
 #include "runtime/point_graph.h"
 
 #include <algorithm>
@@ -89,6 +83,7 @@
 #include "parity_golden_harness.h"
 #include "runtime/force_params.h"  // SnapAnglesForceParams, FORCE_Particles/FORCE_Params
 #include "runtime/graph.h"         // Graph/Node/pinId
+#include "runtime/point_ops_forceparams.h"  // simEmitVelocityForTest + snapAnglesBugAngleCountForTest latches
 #include "runtime/tixl_point.h"    // Particle / SwPoint (64B)
 
 namespace sw {
@@ -103,9 +98,11 @@ constexpr float kTiXLVariationThreshold = 0.1f; // SnapToAnglesForce.t3 Variatio
 constexpr float kTiXLKeepPlanar = 0.5f;         // SnapToAnglesForce.t3 KeepPlanar DefaultValue
 constexpr float kTiXLMode = 0.0f;               // SnapToAnglesForce.t3 Mode DefaultValue (CameraSpace→WorldXY)
 constexpr float kWrongAngleCount = 4.0f;        // coarse 90° grid (≠ 45 → different discrete snap)
+// Emit speed for the TOOTH-1b seeded cooks (velocity-seed latch); 1.0 == TiXL's own EmitVelocity default.
+constexpr float kVelocitySeed = 1.0f;
 
-// Build a SnapAnglesForceParams carrying the FULL production NodeSpec DEFAULTS, with AngleCount overridable
-// (so 1b can compare the default 45 vs a wrong 4). RandomSeed baked 0 (the cook does the same).
+// Hand-built SnapAnglesForceParams carrying the TiXL .t3 defaults, AngleCount overridable. Used ONLY for
+// the 1b direct-kernel GEOMETRY probe — the NodeSpec tooth reads production values through the real cook.
 SnapAnglesForceParams nodeSpecDefaultParams(uint32_t N, float angleCount) {
   SnapAnglesForceParams P{};
   P.Amount = kTiXLAmount;
@@ -115,7 +112,7 @@ SnapAnglesForceParams nodeSpecDefaultParams(uint32_t N, float angleCount) {
   P.VariationRatio = kTiXLVariationThreshold;  // = VariationThreshold (.cs)
   P.KeepPlanar = kTiXLKeepPlanar;
   P.SpaceAndPlane = kTiXLMode;          // = Mode (.cs): 0 = CameraSpace == WorldXY (named camera fork)
-  P.RandomSeed = 0.0f;                  // .cs exposes no Seed slot → cook bakes 0 (point_ops_forceparams.cpp:69)
+  P.RandomSeed = 0.0f;                  // .cs exposes no Seed slot → cook bakes 0 (point_ops_forceparams.cpp)
   P.Count = N;
   return P;
 }
@@ -159,7 +156,7 @@ std::vector<Particle> dispatchSnap(MTL::Device* dev, MTL::CommandQueue* q, MTL::
   return out;
 }
 
-// ---- TOOTH 2/3 cook capture (RadialPoints → ParticleSystem(+SnapToAngles or none) → DrawPoints) ----
+// ---- cook capture (RadialPoints → ParticleSystem(+SnapToAngles or none) → DrawPoints) ----
 std::vector<SwPoint>* g_snapCap = nullptr;
 void captureSnap(PointCookCtx& c, MTL::Texture*, const MTL::Buffer* pts) {
   if (!g_snapCap || !pts || c.count == 0) return;
@@ -168,14 +165,22 @@ void captureSnap(PointCookCtx& c, MTL::Texture*, const MTL::Buffer* pts) {
               (size_t)c.count * sizeof(SwPoint));
 }
 
+// Which SnapToAnglesForce authoring a cookSnapRig leg carries (TOOTH 1b/2/3 legs).
+enum class SnapLeg {
+  NoForce,        // pristine baseline: no force node wired
+  ProdDefault,    // snap node with NO param overrides → the cook resolves the PRODUCTION NodeSpec defaults
+  AuthoredTiXL,   // all seven params HAND-AUTHORED to the TiXL .t3 DefaultValues (the rule-2 anchor leg)
+  AuthoredWrong,  // same authored set but AngleCount=kWrongAngleCount (the divergence reference)
+};
+
 // Cook the snap rig for `steps` frames from a fixed time base time0 + i*dt; return captured positions.
-//   • withSnap = true  → wires a SnapToAnglesForce (NO param overrides → the cook resolves the production
-//                        NodeSpec DEFAULTS). Per the SEAM CONSTRAINT the un-seeded (velocity 0) particles
-//                        make the snap a faithful no-op, so this MUST equal the no-force baseline.
-//   • withSnap = false → no force wired (the pristine baseline; sim drag/aging only).
-// Two calls with the SAME inputs but DIFFERENT time0 expose any wall-clock dependence (TOOTH 3).
+// `velocitySeed` drives the simEmitVelocityForTest() latch for the duration of the cook (reset after):
+// 0 → the PRODUCTION emit path (InitialVelocity=0), SnapToAngles is the faithful no-op (TOOTH 2/3);
+// >0 → particles carry velocity = emitDirection * seed → the snap ACTS through the cook and integrate
+// accumulates the snapped directions into positions (TOOTH 1b). Two calls with the SAME inputs but
+// DIFFERENT time0 expose any wall-clock dependence (TOOTH 3).
 std::vector<SwPoint> cookSnapRig(MTL::Device* dev, MTL::CommandQueue* q, MTL::Library* lib,
-                                 float time0, int steps, bool withSnap) {
+                                 float time0, int steps, SnapLeg leg, float velocitySeed) {
   registerBuiltinPointOps();
   std::vector<SwPoint> captured;
   g_snapCap = &captured;
@@ -185,17 +190,37 @@ std::vector<SwPoint> cookSnapRig(MTL::Device* dev, MTL::CommandQueue* q, MTL::Li
   Graph g;
   Node gen; gen.id = 1; gen.type = "RadialPoints";
   gen.params["Count"] = 256.0f; gen.params["Radius"] = 2.0f;  // pinned scene (rule 5): explicit, not cook-default
+  // Tilt emit directions into the snap plane: OrientationAngle=90° about X maps the emitter's +Z
+  // (particle_sim.metal:57) into the XY plane; the ring's own per-point rotation about Axis=(0,0,1)
+  // (radial_points.metal:104-110) then sweeps them around the FULL XY circle → dense off-grid directions
+  // for the default Mode=0 (WorldXY) plane. Explicit (pinned), harmless when velocitySeed==0.
+  gen.params["OrientationAngle"] = 90.0f;
+  gen.params["OrientationAxis.x"] = 1.0f;
+  gen.params["OrientationAxis.y"] = 0.0f;
+  gen.params["OrientationAxis.z"] = 0.0f;
   Node sim; sim.id = 2; sim.type = "ParticleSystem";
   Node drw; drw.id = 3; drw.type = "DrawPoints";
   g.nodes.push_back(gen); g.nodes.push_back(sim);
-  Node snap; snap.id = 4; snap.type = "SnapToAnglesForce";  // NO param overrides → NodeSpec default cook
-  if (withSnap) g.nodes.push_back(snap);
+  Node snap; snap.id = 4; snap.type = "SnapToAnglesForce";
+  if (leg == SnapLeg::AuthoredTiXL || leg == SnapLeg::AuthoredWrong) {
+    // HAND-AUTHOR the seven TiXL .t3 DefaultValues on the node (rule-2 anchor: values transcribed from
+    // TiXL source, never read back from sw). AuthoredWrong deviates ONLY in AngleCount.
+    snap.params["Amount"] = kTiXLAmount;
+    snap.params["AngleCount"] = (leg == SnapLeg::AuthoredWrong) ? kWrongAngleCount : kTiXLAngleCount;
+    snap.params["Twist"] = kTiXLTwist;
+    snap.params["VariationThreshold"] = kTiXLVariationThreshold;
+    snap.params["Variation"] = kTiXLVariation;
+    snap.params["KeepPlanar"] = kTiXLKeepPlanar;
+    snap.params["Mode"] = kTiXLMode;
+  }  // ProdDefault: NO param overrides → resolveNodeParams falls to the production NodeSpec defaults
+  if (leg != SnapLeg::NoForce) g.nodes.push_back(snap);
   g.nodes.push_back(drw);
   g.connections.push_back({101, pinId(1, 0), pinId(2, 0)});  // RadialPoints.points → emit
-  if (withSnap)
+  if (leg != SnapLeg::NoForce)
     g.connections.push_back({102, pinId(4, 0), pinId(2, 1)});  // SnapToAnglesForce.force → forces
   g.connections.push_back({103, pinId(2, 2), pinId(3, 0)});    // result → DrawPoints
 
+  simEmitVelocityForTest() = velocitySeed;  // velocity-seed latch ON for this cook only
   const int targetId = pg.defaultDrawTarget(g);
   for (int i = 0; i < steps; ++i) {
     EvaluationContext ctx{};
@@ -204,6 +229,7 @@ std::vector<SwPoint> cookSnapRig(MTL::Device* dev, MTL::CommandQueue* q, MTL::Li
     ctx.deltaTime = 1.0f / 60.0f;
     pg.cook(g, ctx, nullptr, targetId);
   }
+  simEmitVelocityForTest() = 0.0f;  // never leak the latch into other selftests
   g_snapCap = nullptr;
   return captured;
 }
@@ -222,7 +248,7 @@ double maxPosDelta(const std::vector<SwPoint>& a, const std::vector<SwPoint>& b)
   return m;
 }
 
-// Max per-particle velocity delta between two kernel runs (same N/order). Used by TOOTH 1b.
+// Max per-particle velocity delta between two kernel runs (same N/order). Used by the 1b geometry probe.
 double maxVelDelta(const std::vector<Particle>& a, const std::vector<Particle>& b) {
   size_t n = std::min(a.size(), b.size());
   double m = 0.0;
@@ -287,10 +313,9 @@ int runSnapToAnglesForceParitySelfTest(bool injectBug) {
   rep.expect("kernelPlanarLen==1(TiXL)", maxLenErr, 0.0, 1e-4);    // hlsl:140 pure rotation → length kept
   rep.expect("kernelSnapNodeIdentity", maxDirErr, 0.0, 1e-4);      // hlsl:123-140 round(k)==k, Amount=1
 
-  // ── TOOTH 1b: NODESPEC-DEFAULT discrimination (direct-kernel, carries injectBug) ──────────────────
-  // Velocity OFF the snap grid (so AngleCount actually changes the snapped output). Run the kernel with the
-  // FULL production NodeSpec DEFAULTS at AngleCount=45 vs a WRONG AngleCount=4. Mode default (0=CameraSpace
-  // == WorldXY, camera fork) → planeCoords = v.xy, so the off-grid direction lives in XY.
+  // ── TOOTH 1b GEOMETRY PROBE (direct-kernel, both legs hand-filled — NOT the NodeSpec tooth) ───────
+  // Velocity OFF the snap grid: TiXL .t3 defaults at AngleCount=45 vs WRONG AngleCount=4 snap the
+  // direction to DIFFERENT discrete angles → measurable divergence (the quantizer grid is live here).
   auto fillOffGrid = [](uint32_t i, Particle& pt) {
     // Spread directions densely around the XY circle, offset by a half-step so they sit BETWEEN snap nodes
     // (worst case for the quantizer → AngleCount choice maximally changes the snapped angle). Speed 1.
@@ -301,37 +326,48 @@ int runSnapToAnglesForceParitySelfTest(bool injectBug) {
       dispatchSnap(h.dev, h.queue, h.lib, nodeSpecDefaultParams(N, kTiXLAngleCount), N, fillOffGrid);
   std::vector<Particle> velWrong4 =
       dispatchSnap(h.dev, h.queue, h.lib, nodeSpecDefaultParams(N, kWrongAngleCount), N, fillOffGrid);
-  // The PRODUCTION path: AngleCount comes from the NodeSpec DEFAULT (45). We model the NodeSpec default with
-  // nodeSpecDefaultParams(N, kTiXLAngleCount) — i.e. AngleCount pulled from the TiXL .t3 default, every other
-  // field also the TiXL .t3 default. (This is the same SnapAnglesForceParams the cook's
-  // fillSnapAnglesForceParams produces from the NodeSpec defaults.)
-  std::vector<Particle> velProdDefault =
-      dispatchSnap(h.dev, h.queue, h.lib, nodeSpecDefaultParams(N, kTiXLAngleCount), N, fillOffGrid);
-
-  rep.expectTrue("kernel1bSawAllParticles",
-                 velDefault45.size() == N && velWrong4.size() == N && velProdDefault.size() == N,
-                 (double)velProdDefault.size());
-  // The two AngleCounts must actually DIFFER on this off-grid velocity (so the probe is live): 45 vs 4 snaps
-  // the direction to different discrete angles → measurable velocity divergence.
+  rep.expectTrue("kernel1bSawAllParticles", velDefault45.size() == N && velWrong4.size() == N,
+                 (double)velDefault45.size());
   double dDefaultVsWrong = maxVelDelta(velDefault45, velWrong4);
   rep.expectTrue("ref1b_live(45≠4 snaps differ)", dDefaultVsWrong > 1e-4, dDefaultVsWrong);
 
-  // THE NODESPEC TOOTH: which AngleCount does the PRODUCTION DEFAULT match?
-  //   no-bug   → expect prod == AngleCount=45 (NodeSpec default IS 45 == TiXL .t3) → delta ~0.
-  //   injectBug→ expect prod == AngleCount=4 (a NodeSpec deviation) → prod(45) vs 4-ref diverges → RED.
-  const std::vector<Particle>& expectedRef = injectBug ? velWrong4 : velDefault45;
-  double dProdVsExpected = maxVelDelta(velProdDefault, expectedRef);
-  rep.expect("prodDefault==AngleCount45(NodeSpec)", dProdVsExpected, 0.0, 1e-5);
-  // Context probe: prod-vs-45 must be ~0 (no-bug) independent of the bug leg's expectation flip.
-  double dProdVs45 = maxVelDelta(velProdDefault, velDefault45);
-  rep.expectTrue("prodTracksTiXLDefault(~0)", dProdVs45 < 1e-5, dProdVs45);
-
-  // ── TOOTH 2: cook-through faithful zero-velocity no-op + structure (rule 4, honest to the seam) ───
-  // Per the SEAM CONSTRAINT the cook's particles are un-seeded (velocity 0), so the prod-default
-  // SnapToAngles cook is a faithful no-op → bit-identical to the no-force baseline. GREEN in both legs.
+  // ── TOOTH 1b THE NODESPEC TOOTH: prod-default cook vs hand-authored TiXL .t3 cook (velocity seeded) ─
+  // The production leg goes THROUGH THE REAL COOK with NO param overrides (resolveNodeParams → production
+  // NodeSpec defaults → fillSnapAnglesForceParams → kernel on seeded velocities); the anchor leg
+  // hand-authors the TiXL .t3 DefaultValues on the same rig. Identical resolved params ⇒ bit-identical
+  // positions; a NodeSpec drift breaks ONLY the prod leg → RED. injectBug corrupts the prod cook's fill.
   const int kSteps = 8;
-  std::vector<SwPoint> baseline = cookSnapRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*withSnap=*/false);
-  std::vector<SwPoint> prodCook = cookSnapRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*withSnap=*/true);
+  std::vector<SwPoint> ref45 =
+      cookSnapRig(h.dev, h.queue, h.lib, 0.0f, kSteps, SnapLeg::AuthoredTiXL, kVelocitySeed);
+  std::vector<SwPoint> refWrong =
+      cookSnapRig(h.dev, h.queue, h.lib, 0.0f, kSteps, SnapLeg::AuthoredWrong, kVelocitySeed);
+  if (injectBug) snapAnglesBugAngleCountForTest() = kWrongAngleCount;  // corrupt the REAL cook fill
+  std::vector<SwPoint> prod1b =
+      cookSnapRig(h.dev, h.queue, h.lib, 0.0f, kSteps, SnapLeg::ProdDefault, kVelocitySeed);
+  snapAnglesBugAngleCountForTest() = 0.0f;  // never leak the latch into other selftests
+
+  rep.expectTrue("cook1bBagSize(prod==refs>0)",
+                 prod1b.size() > 0 && prod1b.size() == ref45.size() && prod1b.size() == refWrong.size(),
+                 (double)prod1b.size());
+  // Liveness: the two authored AngleCounts must diverge THROUGH the cook (proves the velocity seed took —
+  // un-seeded particles would make both cooks identical no-ops — and that AngleCount reaches the kernel).
+  double dRefLive = maxPosDelta(ref45, refWrong);
+  rep.expectTrue("cook1b_live(45vs4 cooks differ)", dRefLive > 1e-4, dRefLive);
+  // THE TOOTH: the production NodeSpec defaults must equal the TiXL .t3 transcription — bit-identical.
+  double dProdVsT3 = maxPosDelta(prod1b, ref45);
+  rep.expect("prodCook==TiXL.t3Cook(NodeSpec)", dProdVsT3, 0.0, 1e-5);
+  // And the prod cook must NOT be sitting on the wrong-AngleCount trajectory (二重咬合: under injectBug
+  // the corrupted prod bit-tracks refWrong, so this goes RED together with the tooth above).
+  double dProdVsWrong = maxPosDelta(prod1b, refWrong);
+  rep.expectTrue("prodCook!=wrongAngleCook", dProdVsWrong > 1e-4, dProdVsWrong);
+
+  // ── TOOTH 2: cook-through faithful zero-velocity no-op + structure (production emit path, seed 0) ─
+  // The PRODUCTION cook's particles are un-seeded (velocity 0), so the prod-default SnapToAngles cook is
+  // a faithful no-op → bit-identical to the no-force baseline (hlsl:120). GREEN in both legs.
+  std::vector<SwPoint> baseline =
+      cookSnapRig(h.dev, h.queue, h.lib, 0.0f, kSteps, SnapLeg::NoForce, /*velocitySeed=*/0.0f);
+  std::vector<SwPoint> prodCook =
+      cookSnapRig(h.dev, h.queue, h.lib, 0.0f, kSteps, SnapLeg::ProdDefault, /*velocitySeed=*/0.0f);
 
   rep.expectTrue("cookBagSize(prod==baseline>0)",
                  prodCook.size() > 0 && prodCook.size() == baseline.size(), (double)prodCook.size());
@@ -345,11 +381,19 @@ int runSnapToAnglesForceParitySelfTest(bool injectBug) {
   rep.expect("cookSnapNoOp==baseline(early-return)", dCookVsBaseline, 0.0, 1e-5);
 
   // ── TOOTH 3: offline-render determinism through the real cook ──────────────────────────────────
-  std::vector<SwPoint> cookA = cookSnapRig(h.dev, h.queue, h.lib, /*time0=*/0.0f, /*steps=*/8, /*withSnap=*/true);
-  std::vector<SwPoint> cookB = cookSnapRig(h.dev, h.queue, h.lib, /*time0=*/10.0f, /*steps=*/8, /*withSnap=*/true);
+  std::vector<SwPoint> cookA =
+      cookSnapRig(h.dev, h.queue, h.lib, /*time0=*/0.0f, kSteps, SnapLeg::ProdDefault, /*velocitySeed=*/0.0f);
+  std::vector<SwPoint> cookB =
+      cookSnapRig(h.dev, h.queue, h.lib, /*time0=*/10.0f, kSteps, SnapLeg::ProdDefault, /*velocitySeed=*/0.0f);
   double dDet = maxPosDelta(cookA, cookB);
   rep.expect("cookDeterministic(maxPosDelta==0)", dDet, 0.0, 1e-5);
 
+  if (injectBug && dProdVsT3 <= 1e-5) {
+    // The -bug latch failed to corrupt the prod cook (prod still bit-tracks the TiXL anchor) — the
+    // injection did not trip. A dead tooth MUST exit 0 so --bite lands it on the NO-BITE list (P1).
+    printf("[selftest-snaptoanglesforce-parity] -bug injection did not trip -> NO-BITE\n");
+    return 0;
+  }
   return rep.finish();
 }
 

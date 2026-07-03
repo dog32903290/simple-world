@@ -18,6 +18,20 @@
 //   the "became white" assertion FAILS (RED). The only difference is whether the field reaches the cook, so
 //   the bite lands precisely on the gather.
 //
+// CASE 2 (P2 fix, GOLDEN_ORACLE_AUDIT "pointcolorwithfield — 飽和+恆白"): Case 1's Strength=1 + all-white
+//   field makes "unconditionally paint white" indistinguishable from correct sampling+lerp. Case 2 runs
+//   the SAME cook with Strength=0.5 (lerp MIDPOINT, off the saturation endpoint) and a NON-WHITE field
+//   color: SphereSDF -> SetSDFMaterial(Color=(0.9,0.2,0.6)) -> PointColorWithField.Field. In the field
+//   eval GetField(float4(pos,1)) passes p.w=1 (ColorPointsWithField.hlsl:75), which sits inside
+//   SetSDFMaterial's material band (SetSDFMaterial.cs:47 `p.w > 0.5 && p.w < 1.5`) -> the no-ColorField
+//   branch (SetSDFMaterial.cs:69) emits `f = float4(Color.rgb, f.w)` -> field.rgb = (0.9,0.2,0.6) at
+//   EVERY point. Then ColorPointsWithField.hlsl:76 `p.Color = lerp(p.Color, field, strength)`:
+//     expected.rgb = seed + (mat - seed)*0.5   (hand-derived, python: [s+(m-s)*0.5 for s,m in
+//                    zip((0.2,0.4,0.8),(0.9,0.2,0.6))] = [0.55, 0.30, 0.70])
+//   This kills: paint-white (got (1,1,1)), copy-field-without-lerp (got (0.9,0.2,0.6)), Strength unwired
+//   (got seed or white), field color branch broken (got lerp-to-white (0.6,0.7,0.9)). injectBug severs
+//   the SetSDFMaterial->PCWF Field wire (same gather seam) -> pass-through seed -> RED.
+//
 // ZONE: shell tier (app/src/ root, like movepointstosdf_golden.cpp). Crosses runtime (PointGraph cook, the
 // field/point NodeSpecs, assembleFieldMSL via the cook) AND platform (the field source compiler the cook's
 // PSO build needs); runtime selftests may NOT include platform, so the golden lives here.
@@ -154,14 +168,76 @@ int runPointColorWithFieldSelfTest(bool injectBug) {
   // SINGLE invariant (so the -bug leg BITES, per the --bite harness): with the field wired the cook recolors
   // EVERY point to white. injectBug severs the Field wire → the pass-through leaves the SEEDED color → the
   // "became white" gate FAILS (RED). We assert it UNCONDITIONALLY (no injectBug branch) so the tooth bites.
-  bool pass = enough && whiteFrac >= 0.99f;
+  bool pass1 = enough && whiteFrac >= 0.99f;
 
   std::printf("[selftest-pointcolorwithfield] R=%.2f tested=%zu becameWhite=%zu (frac=%.3f, maxErr=%.4f) "
               "stayedSeed=%zu (frac=%.3f, maxErr=%.4f)%s -> %s\n",
               R, tested, becameWhite, whiteFrac, maxWhiteErr, stayedSeed, seedFrac, maxSeedErr,
               injectBug ? " [field severed -> pass-through seed color]" : " [field wired -> recolored white]",
-              pass ? "PASS" : "FAIL");
+              pass1 ? "PASS" : "FAIL");
 
+  // ---- CASE 2 (P2 fix): Strength=0.5 lerp MIDPOINT + NON-WHITE field color via SetSDFMaterial. ----
+  // SetSDFMaterial material color (deliberately channel-distinct, non-white, != seed):
+  const float MR = 0.9f, MG = 0.2f, MB = 0.6f;
+  // Expected per-point Color.rgb — hand-derived from ColorPointsWithField.hlsl:75-76
+  //   (field = GetField(float4(pos,1)); p.Color = lerp(p.Color, field, strength)) with
+  //   field.rgb = (MR,MG,MB) everywhere (SetSDFMaterial.cs:47 gate TRUE at p.w=1, .cs:69 no-ColorField
+  //   branch `f = float4(Color.rgb, f.w)`), strength = 0.5*1 (StrengthFactor None, hlsl:69-72):
+  //   python: [s+(m-s)*0.5 for s,m in zip((0.2,0.4,0.8),(0.9,0.2,0.6))] -> [0.55, 0.30, 0.70]
+  const float ER = SR + (MR - SR) * 0.5f, EG = SG + (MG - SG) * 0.5f, EB = SB + (MB - SB) * 0.5f;
+
+  Graph g2;
+  g2.nodes.push_back(gen);   // same GridPoints (id 1)
+  g2.nodes.push_back(setc);  // same seeded SetPointAttributes (id 5)
+  g2.nodes.push_back(sph);   // same SphereSDF (id 4)
+  Node mat; mat.id = 7; mat.type = "SetSDFMaterial";
+  mat.params["Color.r"] = MR; mat.params["Color.g"] = MG; mat.params["Color.b"] = MB;
+  mat.params["Color.a"] = 1.0f;
+  g2.nodes.push_back(mat);
+  Node pcwf2; pcwf2.id = 6; pcwf2.type = "PointColorWithField";
+  pcwf2.params["Strength"] = 0.5f;       // OFF the saturation endpoint: the lerp itself is load-bearing
+  pcwf2.params["StrengthFactor"] = 0.0f; // None → ×1
+  g2.nodes.push_back(pcwf2);
+  Node drw2; drw2.id = 3; drw2.type = "DrawPoints"; g2.nodes.push_back(drw2);
+
+  g2.connections.push_back({201, pinId(1, 1), pinId(5, 0)});  // GridPoints -> SetPointAttributes
+  g2.connections.push_back({202, pinId(5, 1), pinId(6, 0)});  // SetPointAttributes -> PCWF.points
+  g2.connections.push_back({203, pinId(6, 1), pinId(3, 0)});  // PCWF -> DrawPoints
+  // Field chain: SphereSDF.Result (out port idx 4) -> SetSDFMaterial.SdfField (in port idx 0);
+  // SetSDFMaterial.Result (out port idx 6) -> PCWF.Field (in port idx 2). injectBug severs the LAST hop
+  // (same gather seam as case 1) -> pass-through -> Color stays seeded -> the lerp assert FAILS (RED).
+  g2.connections.push_back({204, pinId(4, 4), pinId(7, 0)});
+  if (!injectBug)
+    g2.connections.push_back({205, pinId(7, 6), pinId(6, 2)});
+
+  pg.cook(g2, ctx, nullptr, pg.defaultDrawTarget(g2));
+  const MTL::Buffer* outBag2 = pg.debugCookedBuffer(6);
+  bool pass2 = false;
+  if (!outBag2) {
+    std::printf("[selftest-pointcolorwithfield] FAIL: case2 output buffer not cooked\n");
+  } else {
+    std::vector<SwPoint> bag2(N, SwPoint{});
+    std::memcpy(bag2.data(), const_cast<MTL::Buffer*>(outBag2)->contents(), N * sizeof(SwPoint));
+    size_t tested2 = 0, atLerp = 0;
+    float maxLerpErr = 0.0f;
+    for (const SwPoint& p : bag2) {
+      if (!std::isfinite(p.Color.x) || !std::isfinite(p.Color.y) || !std::isfinite(p.Color.z)) continue;
+      ++tested2;
+      float le = std::fmax(std::fmax(std::fabs(p.Color.x - ER), std::fabs(p.Color.y - EG)),
+                           std::fabs(p.Color.z - EB));
+      if (le > maxLerpErr) maxLerpErr = le;
+      if (le < 1e-3f) ++atLerp;  // exact-value band: nearest WRONG oracle (white/field/seed) is >=0.05 away
+    }
+    float lerpFrac = tested2 > 0 ? (float)atLerp / (float)tested2 : 0.0f;
+    pass2 = tested2 >= 32 && lerpFrac >= 0.99f;  // asserted UNCONDITIONALLY (tooth bites via severed wire)
+    std::printf("[selftest-pointcolorwithfield] case2 Strength=0.5 mat=(%.2f,%.2f,%.2f) "
+                "expected=(%.3f,%.3f,%.3f) tested=%zu atLerp=%zu (frac=%.3f, maxErr=%.5f)%s -> %s\n",
+                MR, MG, MB, ER, EG, EB, tested2, atLerp, lerpFrac, maxLerpErr,
+                injectBug ? " [field severed -> pass-through seed color]" : " [field wired -> mid lerp]",
+                pass2 ? "PASS" : "FAIL");
+  }
+
+  bool pass = pass1 && pass2;
   if (q) q->release(); lib->release(); if (dev) dev->release(); pool->release();
   return pass ? 0 : 1;
 }

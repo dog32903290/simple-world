@@ -33,6 +33,14 @@
 #include "runtime/stateful_value_ops_internal.h"  // getIn
 
 namespace sw {
+
+// --- SetBpm TEETH hook (--selftest-setbpm / --selftest-bpmtransport; mirrors setAnimValueBug) ---
+// Sticky module switch corrupting a REAL production term inside stepSetBpm so the goldens' FIXED
+// (bug-independent) expected values bite. 0 = production. The goldens set a mode around the real
+// cook, then restore 0.
+static int g_setBpmBug = 0;
+void setSetBpmBug(int mode) { g_setBpmBug = mode; }
+
 namespace {
 
 // --- SetBpm (TiXL Lib/numbers/anim/vj/SetBpm.cs:18-43) ---
@@ -67,8 +75,16 @@ void stepSetBpm(const std::map<std::string, float>& in, float /*dt*/, float /*ti
   if (clampedRate < 54.0f) clampedRate = 54.0f;
   else if (clampedRate > 240.0f) clampedRate = 240.0f;
 
-  if (wasTriggered && bpm > 1.0f) {
-    BpmProvider::instance().setNewBpmRate(clampedRate);  // cs:38-39 (NewBpmRate + SetBpmTriggered)
+  // TEETH (setSetBpmBug): each mode corrupts ONE real production term (never the expectation):
+  //   1 = GATE IGNORED — arm every cook bpm>1, edge dropped (the per-frame-overwrite wrong port
+  //       bpm_provider.h:13 warns about; also the level-instead-of-edge defect, SetBpm.cs:22)
+  //   2 = CLAMP DROPPED — arm the RAW rate (a port that forgot SetBpm.cs:24 .Clamp(54,240))
+  //   3 = WRITE SEVERED — the edge fires but the provider is never armed ("the rate never reaches
+  //       the transport", the bpm_transport chain's make-or-break)
+  const bool fire = (g_setBpmBug == 1) ? (bpm > 1.0f) : (wasTriggered && bpm > 1.0f);
+  const float armRate = (g_setBpmBug == 2) ? bpm : clampedRate;
+  if (fire && g_setBpmBug != 3) {
+    BpmProvider::instance().setNewBpmRate(armRate);  // cs:38-39 (NewBpmRate + SetBpmTriggered)
   }
 
   out[0] = clampedRate;  // golden probe (Command has no value); the real product is the singleton write

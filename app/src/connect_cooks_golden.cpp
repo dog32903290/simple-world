@@ -170,7 +170,7 @@ int runConnectCooksSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-connect-cooks] FAIL: injectBug (no connect) tripped no tooth "
                   "(silhouette survived a skipped wire)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-connect-cooks] injectBug correctly RED\n");
     return 1;

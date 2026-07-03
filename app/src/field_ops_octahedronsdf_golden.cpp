@@ -12,13 +12,23 @@
 // PIXEL -> FIELD-SPACE p (must match field_render_template.metal; identical map to field_render_golden):
 //   p.x = (2*px + 1)/W - 1 ;  p.y = 1 - (2*py + 1)/H ;  p.z = 0, p.w = 0.
 //   Expected RED = fsdOctahedron(float3(p.x,p.y,0), center=0, Size, EdgeRadius).
-// Each probe reads its EXACT p (not an assumed coord) and asserts against the host evaluation of the
-// SAME closed-form helper — robust to the half-texel offset.
 //
-// PROBES (Size=0.5, EdgeRadius=0.002, center=0; checked against the work-order reference values):
-//   boundary p=(0.5,0,0)  -> d = -EdgeRadius          = -0.002
-//   inside   p=(0,0,0)    -> d = -(1/6)*sqrt(3)-0.002 ≈ -0.2907
-//   outside  p=(1,0,0)    -> d =  0.5 - EdgeRadius     =  0.498
+// ORACLE PROVENANCE (P5 fix): the host mirror octaSdf() below is TRANSCRIBED from the TiXL source
+// external/tixl Operators/Lib/field/generate/sdf/OctahedronSDF.cs:38-47 (the fsdOctahedron HLSL global
+// the op registers; SHA 395c4c55), NOT from the sw leaf's emitted MSL — so a leaf-side formula drift
+// cannot self-certify. On top of the transcription, each GPU probe is ALSO asserted against a
+// hand-derived REGIME closed form (independent of the transcription), and the transcription itself is
+// pinned to hand-computed constants at the canonical anchor positions:
+//
+// ANCHORS (Size=0.5, EdgeRadius=0.002, center=0 — hand-derived from OctahedronSDF.cs:41-46, ASSERTED
+// below, not just noted):
+//   p=(0.5,0,0): m=(0.5-0.5)/3=0 → k=0, clamp no-op → length(p-o)=0, sign(0)=0 → d = -ra      = -0.002
+//   p=(0,0,0)  : m=-s/3 → o=(s/3,s/3,s/3), k=0, no clamp → p-o=(m,m,m) → d = -(s/3)√3 - ra
+//                                                                          = -(1/6)√3 - 0.002 ≈ -0.290701
+//   p=(1,0,0)  : o clamps onto the +x vertex (s,0,0) → d = (1-s) - ra                          =  0.498
+// GPU PROBES land near those targets at exact texel centers; each is asserted against its regime
+// closed form at that EXACT p (face regime: d = (|px|+|py|-s)/√3 - ra ; +x-vertex regime:
+// d = ‖(|px|-s, |py|)‖ - ra — derivations at the probe loop).
 // plus a boundary-SIGN probe: along the center row scanning +x, d must flip negative->positive (the
 // octahedron has a real inside region at the center). Skipped under injectBug (the +1.0 shift removes
 // the inside region entirely).
@@ -69,7 +79,16 @@ std::string loadTemplate() {
 float pX(uint32_t px) { return (2.0f * px + 1.0f) / kW - 1.0f; }
 float pY(uint32_t py) { return 1.0f - (2.0f * py + 1.0f) / kH; }
 
-// Host evaluation of the SAME fsdOctahedron helper the shader emits (parity reference). center=0.
+// Host mirror of fsdOctahedron, TRANSCRIBED from TiXL OctahedronSDF.cs:38-47 (the HLSL global the op
+// registers; SHA 395c4c55), NOT from the sw leaf's emitted MSL. Line map (center=0 fixed, .cs:39 p-=center
+// is a no-op here):
+//   .cs:40  p = abs(p)                          -> ax/ay/az
+//   .cs:41  m = (p.x+p.y+p.z - s) / 3.0         -> m
+//   .cs:42  o = p - m                           -> ox/oy/oz
+//   .cs:43  k = min(o, 0.0)                     -> kx/ky/kz
+//   .cs:44  o = o + (k.x+k.y+k.z)*0.5 - k*1.5   -> the ksum line
+//   .cs:45  o = clamp(o, 0.0, s)                -> the fmin/fmax pair
+//   .cs:46  return length(p-o)*sign(m) - ra     -> len * sgn - ra
 float octaSdf(float px, float py, float pz, float s, float ra) {
   float ax = std::fabs(px), ay = std::fabs(py), az = std::fabs(pz);
   float m = (ax + ay + az - s) / 3.0f;
@@ -156,33 +175,79 @@ int runFieldOctahedronSdfGoldenSelfTest(bool injectBug) {
   auto sampleAt = [&](uint32_t px, uint32_t py) { return buf[(size_t)py * kW + px]; };
 
   // GPU float distance tolerance (same as field_render_golden: single-precision length()/sqrt parity).
-  const float kTol = 1e-5f;
+  const float kTol = 1e-5f;      // GPU vs the transcription (identical op sequence, float both sides)
+  const float kTolClosed = 5e-5f;  // GPU vs the regime closed form (different op order → looser)
   int rc = 0;
 
+  // ── HOST ANCHOR asserts (the old header-comment-only values, upgraded to real asserts): pin the
+  // transcription itself to hand-derived constants at the canonical reference positions. Derivations in
+  // the file header (from OctahedronSDF.cs:41-46). Pure host math — no GPU involved, so these hold in
+  // both legs (the injectBug leg's bite comes from the GPU probes below).
+  {
+    const double kSq3 = std::sqrt(3.0);
+    struct Anchor { const char* name; float px, py, pz; double expected; };
+    const Anchor anchors[] = {
+        {"anchor-boundary", 0.5f, 0.0f, 0.0f, -0.002},                       // sign(0)=0 → d=-ra
+        {"anchor-inside",   0.0f, 0.0f, 0.0f, -(1.0 / 6.0) * kSq3 - 0.002},  // -(s/3)√3 - ra
+        {"anchor-outside",  1.0f, 0.0f, 0.0f, 0.5 - 0.002},                  // (1-s) - ra
+    };
+    for (const Anchor& a : anchors) {
+      float got = octaSdf(a.px, a.py, a.pz, kSize, kEdgeRadius);
+      double diff = std::fabs((double)got - a.expected);
+      bool ok = diff <= 2e-6;
+      if (!ok) rc = 1;
+      std::printf("[selftest-field-octahedronsdf] %-15s p=(%.1f,%.1f,%.1f) got=% .6f expected=% .6f %s\n",
+                  a.name, a.px, a.py, a.pz, got, a.expected, ok ? "OK" : "RED");
+    }
+  }
+
   // DISTANCE GOLDEN at the three reference field positions (boundary / inside / outside). Probe pixels
-  // chosen so each probed p lands near the work-order targets (0.5,0)/(0,0)/(1,0); expected is the
-  // host octaSdf at the EXACT probed p (robust to the half-texel offset).
+  // chosen so each probed p lands near the anchor targets (0.5,0)/(0,0)/(1,0). Each probe is asserted
+  // TWO independent ways at its EXACT texel p:
+  //   (C) a hand-derived REGIME closed form (independent of the transcription — a transcription typo
+  //       cannot self-certify):
+  //       face regime  (inside probe: p_abs components small → m<0, k=0, clamp no-op, p_abs-o=(m,m,m)):
+  //           d = length((m,m,m))*sign(m) - ra = m√3 - ra = (|px|+|py|-s)/√3 - ra
+  //       +x-vertex regime (boundary/outside probes: hand-run of .cs:41-45 lands o EXACTLY on the +x
+  //           vertex (s,0,0) — for boundary p=(0.5078125,0.0078125): m=0.005208¯3, o'=(0.5,0,0) before
+  //           clamp already; for outside p=(0.9921875,0.0078125): clamp caps (0.6627..,-0.0833..,
+  //           -0.0794..) to (0.5,0,0)):
+  //           d = ‖p_abs - (s,0,0)‖ - ra = ‖(|px|-s, |py|)‖ - ra
+  //   (T) the transcription octaSdf(p) (OctahedronSDF.cs:38-47) — cross-checked against (C) so the two
+  //       oracles cannot drift apart silently.
   const uint32_t cy = (kH - 1) / 2;     // 63 -> p.y = 0.0078125 (≈ center row)
   const uint32_t cx = (kW - 1) / 2;     // 63 -> p.x = -0.0078125 (≈ center)
   // p.x ≈ 0.5 -> px = ((0.5+1)*W - 1)/2 = 95.5 -> px=96 gives p.x=0.5078125
   const uint32_t boundaryPx = 96;
   const uint32_t rightPx = kW - 1;      // 127 -> p.x = 0.9921875 (≈ 1.0, outside)
-  struct Probe { const char* name; uint32_t px, py; };
+  struct Probe { const char* name; uint32_t px, py; bool vertexRegime; };
   Probe probes[] = {
-      {"boundary", boundaryPx, cy},
-      {"inside", cx, cy},
-      {"outside", rightPx, cy},
+      {"boundary", boundaryPx, cy, true},
+      {"inside", cx, cy, false},
+      {"outside", rightPx, cy, true},
   };
   for (const Probe& pr : probes) {
     float px = pX(pr.px), py = pY(pr.py);
-    float expected = octaSdf(px, py, 0.0f, kSize, kEdgeRadius);
+    double ax = std::fabs((double)px), ay = std::fabs((double)py);
+    double expectedC = pr.vertexRegime
+        ? std::sqrt((ax - (double)kSize) * (ax - (double)kSize) + ay * ay) - (double)kEdgeRadius
+        : (ax + ay - (double)kSize) / std::sqrt(3.0) - (double)kEdgeRadius;
+    float expectedT = octaSdf(px, py, 0.0f, kSize, kEdgeRadius);
+    // Transcription vs closed form (host-only): the two oracles must agree.
+    double diffTC = std::fabs((double)expectedT - expectedC);
+    bool okTC = diffTC <= 2e-6;
+    if (!okTC) rc = 1;
+    // GPU vs the closed form (THE anchor assert) and vs the transcription (tightest).
     float got = sampleAt(pr.px, pr.py);
-    float diff = std::fabs(got - expected);
-    bool ok = diff <= kTol;
-    if (!ok) rc = 1;
-    std::printf("[selftest-field-octahedronsdf] probe %-8s p=(% .4f,% .4f) got=% .6f expected=% .6f "
-                "diff=%.2e %s\n",
-                pr.name, px, py, got, expected, diff, ok ? "OK" : "RED");
+    double diffC = std::fabs((double)got - expectedC);
+    float diffT = std::fabs(got - expectedT);
+    bool okC = diffC <= kTolClosed;
+    bool okT = diffT <= kTol;
+    if (!okC || !okT) rc = 1;
+    std::printf("[selftest-field-octahedronsdf] probe %-8s p=(% .4f,% .4f) got=% .6f closed=% .6f "
+                "transcribed=% .6f dC=%.2e dT=%.2e dTC=%.2e %s\n",
+                pr.name, px, py, got, expectedC, expectedT, diffC, (double)diffT, diffTC,
+                (okC && okT && okTC) ? "OK" : "RED");
   }
 
   // BOUNDARY-SIGN tooth: along the center row, scanning +x, the distance must flip from negative
@@ -210,7 +275,7 @@ int runFieldOctahedronSdfGoldenSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-field-octahedronsdf] FAIL: injectBug did not trip any probe (tooth has "
                   "no bite)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-field-octahedronsdf] injectBug correctly RED\n");
     return 1;

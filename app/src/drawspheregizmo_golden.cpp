@@ -5,7 +5,11 @@
 //           the unit sphere (|p|==radius), every 3rd point a separator.
 //   LEG 2 — ★PRODUCTION PIXEL (resident): sphere → ListToBuffer → DrawLines → RenderTarget, readback: the
 //           sphere's silhouette rim (a point on the outer circle at radius·NDC) is lit; a point WELL
-//           OUTSIDE the sphere is dark. injectBug → black → RED.
+//           OUTSIDE the sphere is dark. WANT-FIXED: no-bug and -bug run the SAME asserts (no want-flip,
+//           GOLDEN_STANDARD 特徵 3). injectBug clears the REAL output inside cookDrawSphereGizmo
+//           (pointlist_ops_drawspheregizmo.cpp:34; the resident walker dispatches the same leaf cook) →
+//           black screen → the same asserts go RED. did-not-trip → all pass → exit 0 (--bite NO-BITE
+//           list catches a dead tooth).
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -125,7 +129,10 @@ int runGizmoSphereSelfTest(bool injectBug) {
       rimLit = litAt(px, RW, rimNdcX, 0.0f);
       outsideDark = !litAt(px, RW, 0.98f, 0.98f);
     }
-    bool pass = sized && (injectBug ? (!rimLit) : (rimLit && outsideDark));
+    // WANT-FIXED assert (same in no-bug and -bug): the equator rim is lit, well-outside is dark.
+    // Under -bug the injected clear rides the REAL resident cook (cookDrawSphereGizmo → empty list →
+    // black screen) → rimLit=false → this SAME assert goes RED. No flipped expectation.
+    bool pass = sized && rimLit && outsideDark;
     ok = ok && pass;
     std::printf("[selftest-gizmo-sphere] LEG2 ★PRODUCTION rimLit@(%.2f,0)=%d outsideDark=%d -> %s\n",
                 rimNdcX, rimLit ? 1 : 0, outsideDark ? 1 : 0, pass ? "PASS" : "FAIL");

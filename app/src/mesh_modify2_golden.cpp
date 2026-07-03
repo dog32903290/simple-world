@@ -9,9 +9,7 @@
 // injectBug corrupts the op's primary output AND v0.Position in the REAL cook → flat assertion fails and
 // the production f0 probe goes dark → RED on the actual cook path.
 //
-// QuadMesh defaults (Segments=(1,1), Scale=1, Pivot=0.5, Center varies): verts v0=(0,0,0) v1=(0,1,0)
-// v2=(1,0,0) v3=(1,1,0); faces f0=(0,2,1) f1=(2,3,1). Attrs: Normal=(0,0,1), Tangent=(1,0,0),
-// Bitangent=(0,1,0), Selection=1, TexCoord v0=(0,0) v1=(0,1) v2=(1,0) v3=(1,1).
+// QuadMesh defaults + every hand/python-derived case oracle live in mesh_modify_golden_cases.h (shared with mesh_modify_golden.cpp), split out per ARCHITECTURE.md rule 4.
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -29,6 +27,8 @@
 #include "runtime/resident_eval_graph.h" // buildEvalGraph
 #include "runtime/sw_mesh.h"             // SwVertex / SwTriIndex
 
+#include "mesh_modify_golden_cases.h"    // makeQuad/meshPins + case derivations/constants
+
 #ifndef SW_SHADER_METALLIB
 #define SW_SHADER_METALLIB "shaders.metallib"
 #endif
@@ -36,33 +36,15 @@
 namespace sw {
 namespace {
 
+using namespace mesh_golden;
+
 bool nearf(float a, float b, float t = 1e-3f) { return std::fabs(a - b) < t; }
 bool n3(const SW_MESH_PACKED3& v, float x, float y, float z) {
   return nearf(v.x, x) && nearf(v.y, y) && nearf(v.z, z);
 }
 bool uvEq(const SW_MESH_FLOAT2& v, float x, float y) { return nearf(v.x, x) && nearf(v.y, y); }
 
-Node makeQuad(int id, float cx, float cy, float cz) {
-  Node m; m.id = id; m.type = "QuadMesh";
-  m.params["Segments.x"] = 1.0f; m.params["Segments.y"] = 1.0f; m.params["Scale"] = 1.0f;
-  m.params["Stretch.x"] = 1.0f; m.params["Stretch.y"] = 1.0f;
-  m.params["Pivot.x"] = 0.5f; m.params["Pivot.y"] = 0.5f;
-  m.params["Center.x"] = cx; m.params["Center.y"] = cy; m.params["Center.z"] = cz;
-  return m;
-}
-
-void meshPins(const char* type, int& outPin, int& meshInPin) {
-  outPin = -1; meshInPin = 0;
-  const NodeSpec* s = findSpec(type);
-  for (size_t i = 0; i < s->ports.size(); ++i) {
-    if (!s->ports[i].isInput && s->ports[i].dataType == "Mesh") outPin = (int)i;
-    if (s->ports[i].isInput && s->ports[i].dataType == "Mesh" && meshInPin == 0) meshInPin = (int)i;
-  }
-  if (outPin < 0) for (size_t i = 0; i < s->ports.size(); ++i) if (!s->ports[i].isInput) { outPin = (int)i; break; }
-}
-
-// Shared production-pixel leg (identical to mesh_modify_golden's): QuadMesh(Center -0.5,-0.5,0) → op →
-// DrawMeshUnlit → RenderTarget via cookResident; probe the lower-left f0 triangle is RED.
+// Shared production-pixel leg (identical to mesh_modify_golden's): QuadMesh(Center -0.5,-0.5,0) → op → DrawMeshUnlit → RenderTarget via cookResident; probe the lower-left f0 triangle is RED.
 int productionLeg(const char* opType, const char* tag, bool injectBug,
                   const std::vector<std::pair<const char*, float>>& opParams) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
@@ -142,13 +124,13 @@ int productionLeg(const char* opType, const char* tag, bool injectBug,
   return pass ? 0 : 1;
 }
 
-// Cook QuadMesh → op (with params) on the flat path and hand back the cooked mesh buffers.
+// Cook QuadMesh → op (with params) on the flat path and hand back the cooked mesh buffers. cx/cy/cz shift the source quad (default origin) — e.g. off-origin for singularity-free Spherize.
 bool cookFlat(MTL::Device* dev, MTL::CommandQueue* q, const char* opType, bool injectBug,
               const std::vector<std::pair<const char*, float>>& opParams,
               const SwVertex** vOut, uint32_t& vc, const SwTriIndex** iOut, uint32_t& fc,
-              PointGraph& pg) {
+              PointGraph& pg, float cx = 0.0f, float cy = 0.0f, float cz = 0.0f) {
   Graph g;
-  g.nodes.push_back(makeQuad(1, 0, 0, 0));
+  g.nodes.push_back(makeQuad(1, cx, cy, cz));
   Node op; op.id = 2; op.type = opType;
   for (auto& kv : opParams) op.params[kv.first] = kv.second;
   g.nodes.push_back(op);
@@ -174,9 +156,7 @@ bool cookFlat(MTL::Device* dev, MTL::CommandQueue* q, const char* opType, bool i
 }  // namespace
 
 // ============================== SplitMeshVertices ==============================
-// QuadMesh → SplitMeshVertices (ShadeFlat=0). Topology un-weld: 2 faces → 6 verts, faces re-indexed
-// (0,1,2) and (3,4,5). Each face's 3 verts are copies of the source corners; at ShadeFlat=0 the normals
-// stay (0,0,1). Face f0=(v0,v2,v1) → out verts [v0,v2,v1] at positions (0,0,0)(1,0,0)(0,1,0).
+// Oracle: cases header §"SplitMeshVertices" — un-weld 2 faces → 6 verts, re-indexed (0,1,2)/(3,4,5).
 int runMeshSplitVerticesGoldenSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
@@ -208,14 +188,7 @@ int runMeshSplitVerticesGoldenSelfTest(bool injectBug) {
 }
 
 // ============================== SelectVertices ==============================
-// QuadMesh → SelectVertices (Box volume, Center=(0.5,0.5,0) so the quad's [0,1]² centers on the gizmo,
-// Stretch=1, Scale=1, FallOff=0, Mode=Override, Strength=1, ClampResult off).
-// TransformVolume = inverse(T(0.5,0.5,0)) → posInVolume = pos - (0.5,0.5,0).
-//   v0 (0,0,0)→(-0.5,-0.5,0): |max|=0.5 → smoothstep(1,1→clamps)... d=0.5 < 1 → t=(0.5-1)/(1-1)... uses
-//   smoothstep(1+0, 1, 0.5): edge0=1,edge1=1 degenerate; HLSL smoothstep with edge0==edge1 → step. To
-//   avoid the degenerate edge we use FallOff=1 → smoothstep(2,1,d). d(v0)=0.5 → t=(0.5-2)/(1-2)=1.5→clamp1
-//   → s=1 (fully selected, INSIDE). A far point: Center=(5,5,0) → posInVolume huge → d>2 → s=0.
-// We assert: with Center on the quad, all 4 verts Selection==1; with Center far away, all ==0.
+// Oracle + FallOff/degenerate-smoothstep rationale: cases header §"SelectVertices, INSIDE/OUTSIDE" — inside → all 4 verts Selection==1; far Center → all ==0; plus the MID-FALLOFF leg (P2 fix).
 int runMeshSelectVerticesGoldenSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
@@ -259,6 +232,25 @@ int runMeshSelectVerticesGoldenSelfTest(bool injectBug) {
     }
     flat = flat && pass;
   }
+  // MID-FALLOFF (P2 fix): derivation + kSelMid* in cases header §"SelectVertices, MID-FALLOFF"
+  // (mesh-SelectVertices.hlsl @395c4c55) — two verts parked in the diverging smoothstep middle.
+  {
+    PointGraph pg(dev, nullptr, q, 64, 64);
+    const SwVertex* v = nullptr; const SwTriIndex* idx = nullptr; uint32_t vc = 0, fc = 0;
+    std::vector<std::pair<const char*, float>> P = {
+      {"VolumeShape", 1.0f}, {"Center.x", -1.5f}, {"Center.y", 0.5f}, {"Center.z", 0.0f},
+      {"FallOff", 2.0f}, {"Mode", 0.0f}, {"Strength", 1.0f}};
+    bool got = cookFlat(dev, q, "SelectVertices", injectBug, P, &v, vc, &idx, fc, pg);
+    bool pass = got && vc == 4;
+    if (pass) {
+      bool selOk = nearf(v[0].Selection, kSelMidNear) && nearf(v[1].Selection, kSelMidNear) &&
+                   nearf(v[2].Selection, kSelMidFar) && nearf(v[3].Selection, kSelMidFar);
+      pass = selOk;
+      std::printf("[selftest-mesh-selectvertices] mid-falloff: sel=(%.5f,%.5f,%.5f,%.5f) selOk=%d\n",
+                  v[0].Selection, v[1].Selection, v[2].Selection, v[3].Selection, selOk);
+    } else std::printf("[selftest-mesh-selectvertices] mid-falloff FAIL: cook vc=%u\n", vc);
+    flat = flat && pass;
+  }
   q->release(); dev->release(); pool->release();
 
   int prod = productionLeg("SelectVertices", "selftest-mesh-selectvertices-prod", injectBug, {});
@@ -268,14 +260,7 @@ int runMeshSelectVerticesGoldenSelfTest(bool injectBug) {
 }
 
 // ============================== DeformMesh ==============================
-// QuadMesh → DeformMesh, UseVertexSelection=false (s=1). Twist about Z, TwistAxis=2, Twist=90°,
-// TwistPivot=0, Spherize=0, Taper=0. Only Twist active.
-//   twist angle for a vertex = pos.z * radians(90). All quad verts have z=0 → angle=0 → no change.
-//   → Position unchanged. To get a measurable twist we set TwistAxis=0 (about X), Twist=90:
-//   angle = pos.x * radians(90). v2 (1,0,0): angle = 1 * π/2; rotate (twp=pos, twPivot=0) about X:
-//     tw.x=twp.x=1; tw.y=twp.y*cos - twp.z*sin = 0; tw.z=twp.y*sin + twp.z*cos = 0 → (1,0,0) unchanged
-//     (y=z=0). v3 (1,1,0): angle=π/2; tw.y=1*cos(π/2)-0=~0; tw.z=1*sin(π/2)+0=1 → (1, 0, 1).
-//   Assert v3.Position ≈ (1, 0, 1); v0 (0,0,0) angle=0 → (0,0,0).
+// TWIST oracle derivation: cases header §"DeformMesh, TWIST" — TwistAxis=X, Twist=90° → v3 (1,1,0)→(1,0,1), v0 fixed. SUB-CASE 2 (P2 fix) = the SPHERIZE branch, see below.
 int runMeshDeformGoldenSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
@@ -297,6 +282,31 @@ int runMeshDeformGoldenSelfTest(bool injectBug) {
                 v[3].Position.x, v[3].Position.y, v[3].Position.z, v[0].Position.x, v[0].Position.y,
                 v[0].Position.z, v3Ok, v0Ok);
   } else std::printf("[selftest-mesh-deform] flat FAIL: cook vc=%u\n", vc);
+
+  // ── SUB-CASE 2: SPHERIZE (P2 fix) — derivation + kSph* in cases header §"DeformMesh, SPHERIZE"
+  //    (mesh-Deform.hlsl @395c4c55); off-origin quad avoids the |pos|=0 singularity. ──
+  {
+    PointGraph pg2(dev, nullptr, q, 64, 64);
+    const SwVertex* v2 = nullptr; const SwTriIndex* idx2 = nullptr; uint32_t vc2 = 0, fc2 = 0;
+    std::vector<std::pair<const char*, float>> P2 = {
+      {"UseVertexSelection", 0.0f}, {"Spherize", 0.5f}, {"Radius", 2.0f},
+      {"Taper", 0.0f}, {"Twist", 0.0f}};
+    bool got2 = cookFlat(dev, q, "DeformMesh", injectBug, P2, &v2, vc2, &idx2, fc2, pg2,
+                         /*cx=*/1.0f, /*cy=*/0.0f, /*cz=*/0.0f);
+    bool pass2 = got2 && vc2 == 4;
+    if (pass2) {
+      bool v0Ok2 = n3(v2[0].Position, kSphV0x, 0.0f, 0.0f);
+      bool v1Ok2 = n3(v2[1].Position, kSphV1xy, kSphV1xy, 0.0f);
+      bool v3Ok2 = n3(v2[3].Position, kSphV3x, kSphV3y, 0.0f);
+      pass2 = v0Ok2 && v1Ok2 && v3Ok2;
+      std::printf("[selftest-mesh-deform] spherize0.5: v0=(%.5f,%.5f,%.5f) v1=(%.5f,%.5f,%.5f) "
+                  "v3=(%.5f,%.5f,%.5f) v0Ok=%d v1Ok=%d v3Ok=%d\n",
+                  v2[0].Position.x, v2[0].Position.y, v2[0].Position.z, v2[1].Position.x,
+                  v2[1].Position.y, v2[1].Position.z, v2[3].Position.x, v2[3].Position.y,
+                  v2[3].Position.z, v0Ok2, v1Ok2, v3Ok2);
+    } else std::printf("[selftest-mesh-deform] spherize FAIL: cook vc=%u\n", vc2);
+    flat = flat && pass2;
+  }
   q->release(); dev->release(); pool->release();
 
   // production leg: no params (identity deform) → quad unchanged → lit; injectBug flies v0 off → dark.
@@ -307,13 +317,7 @@ int runMeshDeformGoldenSelfTest(bool injectBug) {
 }
 
 // ============================== CollapseVertices ==============================
-// QuadMesh → CollapseVertices, Box volume Center=(0.5,0.5,0) FallOff=1 (so s=1 everywhere on the quad),
-// StepCount=1, Strength=2, GridOffset=0, Amount=1, SmoothSteps=0 (→ BlendStep=0 → smoothstep(0,1,0)=0 →
-// take snap1 only). With s=1, StepCount=1: xx=1, step=1 → but step clamps via (1<<step). To get a clean
-// snap pick StepCount=1, s=1 → xx=1.0, step=1, ff=0. maxS=1<<1=2. ss1=(1<<1)/2*2 = 2. snap1=floor(pos/2+0.5)*2.
-//   v0 (0,0,0): floor(0/2+0.5)*2 = floor(0.5)*2 = 0 → (0,0,0). v3 (1,1,0): floor(1/2+0.5)*2=floor(1)*2=2 →
-//   (2,2,0). Position = lerp(pos, snap1+GridOffset, Amount=1) = snap1. Assert v3 ≈ (2,2,0), v0 ≈ (0,0,0).
-//   (ff=0 → blend uses snap1 regardless of BlendStep; SmoothSteps irrelevant here, keeps the golden exact.)
+// Full grid-snap derivation: cases header §"CollapseVertices" — snap1=floor(pos/2+0.5)*2 → v0 → (0,0,0), v3 → (2,2,0).
 int runMeshCollapseGoldenSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();
@@ -346,9 +350,7 @@ int runMeshCollapseGoldenSelfTest(bool injectBug) {
 }
 
 // ============================== MeshProjectUV ==============================
-// QuadMesh → MeshProjectUV (identity: Translate=0, Rotate=0, Stretch=1, Scale=1, ToTexCoord2=false).
-//   Transform = Identity → uv = pos.xy + (1,1). v0 (0,0,0) → TexCoord (1,1); v3 (1,1,0) → (2,2).
-//   With Translate=(0.5, -0.5, 0): uv = (pos.x+0.5, pos.y-0.5) + (1,1). v0 → (1.5, 0.5); v3 → (2.5,1.5).
+// Oracle: cases header §"MeshProjectUV" — identity → uv = pos.xy + (1,1); Translate leg shifts it.
 int runMeshProjectUvGoldenSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   MTL::Device* dev = MTL::CreateSystemDefaultDevice();

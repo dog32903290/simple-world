@@ -39,10 +39,10 @@
 // displacement off the pristine (no-force) ring and compare it to two REFERENCE cooks: one that explicitly
 // sets Amount=0.007 (TiXL .t3) and one that sets a WRONG Amount (15× = 0.105, the kind of deviation that
 // drifted into TurbulenceForce). A correct NodeSpec default makes the production cook bit-track the
-// Amount=0.007 reference and DIVERGE ~15× from the wrong reference. no-bug expects prod==0.007-ref;
-// injectBug flips the expectation to the wrong reference → RED. Because this runs THROUGH the cook, a
-// NodeSpec / dead-code-fallback regression (invisible to TOOTH 1) is caught. Expected numbers come only
-// from the Amount=0.007 / wrong reference cooks and the TiXL .t3 default — never an absolute sw snapshot.
+// Amount=0.007 reference and DIVERGE ~15× from the wrong reference. The expectation is prod==0.007-ref in
+// BOTH legs (never flipped). Because this runs THROUGH the cook, a NodeSpec / dead-code-fallback regression
+// (invisible to TOOTH 1) is caught. Expected numbers come only from the Amount=0.007 / wrong reference
+// cooks and the TiXL .t3 default — never an absolute sw snapshot.
 //
 // ── TOOTH 3 (offline-render determinism, through the REAL cook) ───────────────────────────────────────
 // DirectionalForce has no Phase / no wall-clock term, so two cooks with IDENTICAL inputs and frame schedule
@@ -51,9 +51,14 @@
 // property of the cook (independent of injectBug) and is GREEN in both legs — it documents that, unlike
 // TurbulenceForce, this force needed no wall-clock un-binding.
 //
-// injectBug LEG: TOOTH 2 flips its expectation to the WRONG-Amount reference, so the production-default
-// cook (correct NodeSpec=0.007) no longer matches → RED (plus the prod/ref ratio probe goes ~15× → RED).
-// no-bug → prod==0.007 ref → GREEN. So the gate reads no-bug GREEN ↔ injectBug RED (--bite-collectable).
+// injectBug LEG (REAL cook injection, GOLDEN_STANDARD 特徵3 — was a P3 want-flip, fixed): the -bug leg
+// flips dirForceAmountBugForTest() (point_ops_forceparams.h, the family's *BugForceForTest latch
+// convention) around the TOOTH-2 production-default cook ONLY. The latch corrupts the REAL param-marshaling
+// path (cookParticleSim DIRECTIONAL fill: Amount *= 15 — exactly the TurbulenceForce-style drift kWrongAmount
+// models), so the SAME prod==0.007-ref assertion diverges (~15× displacement) → RED, and the prod/TiXL ratio
+// probe reads ~15 → RED. If the latch ever dies (injection does not trip), the cook stays faithful, every
+// assert PASSES and the leg exits 0 → run_all_selftests --bite's NO-BITE list catches the dead tooth.
+// no-bug → prod==0.007 ref → GREEN (--bite-collectable).
 //
 // ZONE: shell tier (app/src/ root, like turbulence_parity_golden.cpp). Crosses runtime (PointGraph cook +
 // the kernel). NO production edits — DirectionalForce was already faithful.
@@ -65,9 +70,10 @@
 #include <vector>
 
 #include "parity_golden_harness.h"
-#include "runtime/force_params.h"  // DirForceParams, FORCE_Particles/FORCE_Params
-#include "runtime/graph.h"         // Graph/Node/pinId
-#include "runtime/tixl_point.h"    // Particle / SwPoint (64B)
+#include "runtime/force_params.h"           // DirForceParams, FORCE_Particles/FORCE_Params
+#include "runtime/graph.h"                  // Graph/Node/pinId
+#include "runtime/point_ops_forceparams.h"  // dirForceAmountBugForTest (-bug real-cook latch)
+#include "runtime/tixl_point.h"             // Particle / SwPoint (64B)
 
 namespace sw {
 namespace {
@@ -221,7 +227,11 @@ int runDirectionalForceParitySelfTest(bool injectBug) {
   std::vector<SwPoint> baseline = cookDirRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/0.0f);          // no force = pristine ring
   std::vector<SwPoint> refTiXL  = cookDirRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/kTiXLAmount);   // TiXL .t3=0.007
   std::vector<SwPoint> refWrong = cookDirRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/kWrongAmount);  // 15× deviation
+  // -bug REAL injection: the latch corrupts the DIRECTIONAL param-marshaling (Amount *= 15) on the REAL
+  // cook path for THIS cook only (reference cooks above / TOOTH 3 below cook clean). Scoped set+reset.
+  dirForceAmountBugForTest() = injectBug;
   std::vector<SwPoint> prodDef  = cookDirRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/-1.0f);         // NodeSpec DEFAULT
+  dirForceAmountBugForTest() = false;
 
   // Structure: prod-default cook produced a non-empty bag, the SAME size as the reference cooks (same rig,
   // only the force Amount differs → identical pool size). Well-posed per-particle displacement comparison.
@@ -236,13 +246,14 @@ int runDirectionalForceParitySelfTest(bool injectBug) {
   // Reference legs must actually move (so the probe is live) and the wrong (15×) Amount must dwarf 0.007.
   rep.expectTrue("refDisp_live(Wrong>>TiXL>0)", dTiXL > 1e-6 && dWrong > 4.0 * dTiXL, dWrong);
 
-  // THE NODESPEC TOOTH: which reference does the PRODUCTION DEFAULT match?
-  //   no-bug   → expect prod == Amount=0.007 reference (NodeSpec default IS 0.007 == TiXL .t3).
-  //   injectBug→ expect prod == wrong reference (a NodeSpec deviation, like the one TurbulenceForce had).
-  double dExpected = injectBug ? dWrong : dTiXL;
-  double dTol = 0.05 * dExpected + 1e-7;  // tight: prod cook and the matching ref share identical params
-  rep.expect("prodDefaultDisp==Amount(NodeSpec)", dProd, dExpected, dTol);
-  // Ratio probe (context + extra tooth): prod/TiXL must be ~1 (no-bug) or ~15× off (injectBug).
+  // THE NODESPEC TOOTH: the production DEFAULT cook must match the Amount=0.007 (TiXL .t3) reference —
+  // in BOTH legs (the expectation never flips). In the -bug leg the latch corrupted the real cook
+  // (Amount×15 → dProd ≈ dWrong ≈ 15×dTiXL), so THIS SAME assert diverges → RED; if the injection did
+  // not trip, it passes and the leg exits 0 (NO-BITE list catches the dead tooth).
+  double dTol = 0.05 * dTiXL + 1e-7;  // tight: prod cook and the matching ref share identical params
+  rep.expect("prodDefaultDisp==Amount(NodeSpec)", dProd, dTiXL, dTol);
+  // Ratio probe (context + extra tooth): prod/TiXL must be ~1; the -bug leg's real Amount×15 corruption
+  // drives it to ~15 → RED (same assert, no flipped expectation).
   double ratioVsTiXL = dTiXL > 1e-9 ? dProd / dTiXL : 0.0;
   rep.expectTrue("prod/TiXL_ratio(~1 parity)", std::fabs(ratioVsTiXL - 1.0) < 0.1, ratioVsTiXL);
 

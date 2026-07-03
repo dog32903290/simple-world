@@ -32,6 +32,20 @@
 //   CELL-CENTER probe near p=(0.5,0.5): frac(.5)=.5 -> qx=qy=0 -> d=0 < 0.448 -> line=1 -> f.r=ColorB.r.
 //   (Expected is recomputed at the EXACT texel p, robust to the half-texel offset, like the combine golden.)
 //
+// FEATHER MID-BAND case (P2 fix, GOLDEN_ORACLE_AUDIT: the two saturated probes never exercise the
+// smoothstep POLYNOMIAL t*t*(3-2t) — any wrong mid curve stays green). A second render uses
+// feather=0.1 -> transition band d∈[0.35,0.55] (wide: |d-slope| = 0.6/0.2 = 3 per unit d, so a ~1e-7
+// GPU/CPU float wobble in d moves f.r by ~3e-7 << kTol; the production 0.002 feather would amplify it
+// x50 past tolerance). Probes at exact texel p (Raster3dField.cs:34-36 fRaster3d, python float64):
+//   mid1 px=67,py=32: p=(0.0546875, 0.4921875) -> qx=-0.4453125, qy=-0.0078125, qz=0
+//        d=0.4453125; t=(d-0.55)/(0.35-0.55)=0.5234375; line=t*t*(3-2t)=0.535130501
+//        f.r = 0.2 + line*0.6 = 0.521078300
+//   mid2 px=70,py=32: p=(0.1015625, 0.4921875) -> d=0.3984375; t=0.7578125; line=0.852446556
+//        f.r = 0.711467934
+// NOTE smoothstep with REVERSED edges (edge0 > edge1) is what TiXL authored (Raster3dField.cs:36) —
+// the mid-band probes pin Metal's reversed-edge smoothstep against the HLSL formula, which the
+// saturated endpoints could never do.
+//
 // COLORS: ColorA.r=0.2, ColorB.r=0.8 (distinct so the lerp endpoint each probe lands on is discriminating).
 //
 // injectBug: configureRaster3dField(..., injectBug) corrupts the OP'S REAL postShaderCode emit —
@@ -103,15 +117,16 @@ float pY(uint32_t py) { return 1.0f - (2.0f * py + 1.0f) / kH; }
 // Host floored mod (mod(x,1) = x - floor(x)).
 float modf1(float x) { return x - std::floor(x); }
 
-// Host closed-form f.r at a texel (z=0). Mirrors fRaster3d + the lerp endpoint.
-float rasterR(float px, float py) {
+// Host closed-form f.r at a texel (z=0). Mirrors fRaster3d + the lerp endpoint. `feather` is a
+// parameter so the mid-band case (feather=0.1) shares the same mirror as the saturated case (0.002).
+float rasterR(float px, float py, float feather) {
   const float qx = modf1(px / kScale - 0.0f) - 0.5f;   // Offset.x=0
   const float qy = modf1(py / kScale - 0.0f) - 0.5f;   // Offset.y=0
   const float qz = modf1(0.0f / kScale - kOffZ) - 0.5f;  // p.z=0, Offset.z=0.5 -> qz=0
   const float d = std::fmax(std::fmax(std::fabs(qx), std::fabs(qy)), std::fabs(qz));
   // smoothstep(edge0,edge1,x) with edge0 > edge1 (reversed): below edge1 -> 1, above edge0 -> 0.
-  const float e0 = kLW / 2.0f + kFeather;  // 0.452
-  const float e1 = kLW / 2.0f - kFeather;  // 0.448
+  const float e0 = kLW / 2.0f + feather;
+  const float e1 = kLW / 2.0f - feather;
   float line;
   if (d >= e0)
     line = 0.0f;
@@ -125,12 +140,12 @@ float rasterR(float px, float py) {
   return kCAr + line * (kCBr - kCAr);  // lerp(ColorA.r, ColorB.r, line)
 }
 
-std::shared_ptr<FieldNode> buildTree(int injectBug) {
+std::shared_ptr<FieldNode> buildTree(int injectBug, float feather) {
   std::shared_ptr<FieldNode> node = makeFieldNode("Raster3dField", "golden0");
   if (!node) return nullptr;
-  // ColorA=(0.2,?,?,1), ColorB=(0.8,?,?,1); Offset=(0,0,0.5); Scale=(1,1,1); LineWidth/Feather defaults.
+  // ColorA=(0.2,?,?,1), ColorB=(0.8,?,?,1); Offset=(0,0,0.5); Scale=(1,1,1); LineWidth default.
   configureRaster3dField(*node, kCAr, 0.3f, 0.4f, 1.0f, kCBr, 0.7f, 0.6f, 1.0f, 0.0f, 0.0f, kOffZ,
-                         kScale, kScale, kScale, kLW, kFeather, injectBug);
+                         kScale, kScale, kScale, kLW, feather, injectBug);
   return node;
 }
 
@@ -167,25 +182,6 @@ int runFieldRaster3dFieldGoldenSelfTest(bool injectBug) {
   const float kTol = 1e-5f;
   int rc = 0;
 
-  std::shared_ptr<FieldNode> tree = buildTree(bugMode);
-  if (!tree) {
-    std::printf("[selftest-field-raster3dfield] FAIL: Raster3dField factory not registered\n");
-    pool->release();
-    return 1;
-  }
-  clearTexOpCache();
-  MTL::Texture* tex = renderField2d(dev, q, tree, tmpl, kW, kH);
-  if (!tex) {
-    std::printf("[selftest-field-raster3dfield] FAIL: renderField2d null (compile/PSO failure)\n");
-    q->release();
-    dev->release();
-    pool->release();
-    return 1;
-  }
-  std::vector<float> buf((size_t)kW * kH, 0.0f);
-  tex->getBytes(buf.data(), kW * sizeof(float), MTL::Region::Make2D(0, 0, kW, kH), 0);
-  auto sampleAt = [&](uint32_t px, uint32_t py) { return buf[(size_t)py * kW + px]; };
-
   auto pxFor = [](float target) -> uint32_t {
     float f = ((target + 1.0f) * kW - 1.0f) * 0.5f;
     int px = (int)std::lround(f);
@@ -201,28 +197,67 @@ int runFieldRaster3dFieldGoldenSelfTest(bool injectBug) {
     return (uint32_t)py;
   };
 
-  // CELL-EDGE near p=(0,0): d=0.5 plateau -> line=0 -> ColorA.r=0.2.
-  uint32_t ex = pxFor(0.0f), ey = pyFor(0.0f);
-  // CELL-CENTER near p=(0.5,0.5): d=0 plateau -> line=1 -> ColorB.r=0.8.
-  uint32_t cx = pxFor(0.5f), cy = pyFor(0.5f);
-
-  std::vector<Probe> probes = {
-      {"edge", ex, ey, rasterR(pX(ex), pY(ey))},
-      {"center", cx, cy, rasterR(pX(cx), pY(cy))},
+  // One render + probe sweep per feather (the mid-band case needs its own cooked field).
+  auto runCase = [&](const char* caseName, float feather, std::vector<Probe>& probes) {
+    std::shared_ptr<FieldNode> tree = buildTree(bugMode, feather);
+    if (!tree) {
+      std::printf("[selftest-field-raster3dfield] FAIL[%s]: Raster3dField factory not registered\n",
+                  caseName);
+      rc = 1;
+      return;
+    }
+    clearTexOpCache();
+    MTL::Texture* tex = renderField2d(dev, q, tree, tmpl, kW, kH);
+    if (!tex) {
+      std::printf("[selftest-field-raster3dfield] FAIL[%s]: renderField2d null (compile/PSO failure)\n",
+                  caseName);
+      rc = 1;
+      return;
+    }
+    std::vector<float> buf((size_t)kW * kH, 0.0f);
+    tex->getBytes(buf.data(), kW * sizeof(float), MTL::Region::Make2D(0, 0, kW, kH), 0);
+    for (Probe& pr : probes) {
+      float px = pX(pr.px), py = pY(pr.py);
+      float got = buf[(size_t)pr.py * kW + pr.px];
+      float diff = std::fabs(got - pr.expected);
+      bool ok = diff <= kTol;
+      if (!ok) rc = 1;
+      std::printf("[selftest-field-raster3dfield] %-8s probe %-7s p=(% .4f,% .4f) got=% .6f "
+                  "expected=% .6f diff=%.2e %s\n",
+                  caseName, pr.name, px, py, got, pr.expected, diff, ok ? "OK" : "RED");
+    }
+    tex->release();
   };
 
-  for (Probe& pr : probes) {
-    float px = pX(pr.px), py = pY(pr.py);
-    float got = sampleAt(pr.px, pr.py);
-    float diff = std::fabs(got - pr.expected);
-    bool ok = diff <= kTol;
-    if (!ok) rc = 1;
-    std::printf("[selftest-field-raster3dfield] probe %-7s p=(% .4f,% .4f) got=% .6f expected=% .6f "
-                "diff=%.2e %s\n",
-                pr.name, px, py, got, pr.expected, diff, ok ? "OK" : "RED");
+  // ---- Case 1: production feather=0.002, SATURATED plateaus (line exactly 0 / 1). -------------------
+  {
+    // CELL-EDGE near p=(0,0): d=0.5 plateau -> line=0 -> ColorA.r=0.2.
+    uint32_t ex = pxFor(0.0f), ey = pyFor(0.0f);
+    // CELL-CENTER near p=(0.5,0.5): d=0 plateau -> line=1 -> ColorB.r=0.8.
+    uint32_t cx = pxFor(0.5f), cy = pyFor(0.5f);
+    std::vector<Probe> probes = {
+        {"edge", ex, ey, rasterR(pX(ex), pY(ey), kFeather)},
+        {"center", cx, cy, rasterR(pX(cx), pY(cy), kFeather)},
+    };
+    runCase("sat", kFeather, probes);
   }
 
-  tex->release();
+  // ---- Case 2 (P2 fix): feather=0.1, MID-BAND probes — the smoothstep polynomial t*t*(3-2t) itself. --
+  // Band d∈[0.35,0.55]; probes at exact texel p (header FEATHER MID-BAND derivation,
+  // Raster3dField.cs:34-36):
+  //   mid1 px=67,py=32: d=0.4453125 -> line=0.535130501 -> f.r=0.521078300
+  //   mid2 px=70,py=32: d=0.3984375 -> line=0.852446556 -> f.r=0.711467934
+  {
+    const float kFeatherWide = 0.1f;
+    uint32_t m1x = pxFor(0.05f), m1y = pyFor(0.5f);  // px=67, py=32
+    uint32_t m2x = pxFor(0.1f), m2y = pyFor(0.5f);   // px=70, py=32
+    std::vector<Probe> probes = {
+        {"mid1", m1x, m1y, rasterR(pX(m1x), pY(m1y), kFeatherWide)},
+        {"mid2", m2x, m2y, rasterR(pX(m2x), pY(m2y), kFeatherWide)},
+    };
+    runCase("midband", kFeatherWide, probes);
+  }
+
   q->release();
   dev->release();
   pool->release();
@@ -231,7 +266,7 @@ int runFieldRaster3dFieldGoldenSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-field-raster3dfield] FAIL: injectBug did not trip any probe (tooth has no "
                   "bite)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-field-raster3dfield] injectBug correctly RED\n");
     return 1;

@@ -5,19 +5,22 @@
 //           the closed-form ring coords (hand-derived from RadialPointsCpu.cs, NOT self-consistent).
 //   LEG 2 — UPLOAD BRIDGE byte-parity (flat): RadialPointsCpu → ListToBuffer → readback the GPU buffer
 //           contents() and assert it is byte-identical to the host list, ALL 64 bytes per SwPoint
-//           (Position@0 / FX1@12 / Rotation@16 / Color@32 / Scale@48 / FX2@60). This is the
-//           packed_float3 stride proof: a wrong stride would scramble every field after offset 12.
+//           (Position@0 / FX1@12 / Rotation@16 / Color@32 / Scale@48 / FX2@60). This is the packed_float3
+//           stride proof: a wrong stride would scramble every field after offset 12.
 //   LEG 3 — TransformCpuPoint (flat): a hand-built 1-point list → TransformCpuPoint(Translation) →
 //           readback the 1-element output and assert Position += translation, Rotation composed.
-//   LEG 4 — ★ PRODUCTION PIXEL (R-2): RadialPointsCpu → ListToBuffer → DrawPoints → RenderTarget built
-//           through the CANONICAL production path (libFromGraph → buildEvalGraph → cookResident), then
-//           read pg.target() pixels and assert the RING is lit + the CENTER is black. This is the leg
-//           that proves the bridge LIVES in the running app (the lane Cut47 trap: a flat-only bridge
-//           passes its golden but draws nothing on screen because production walks cookResident).
+//   LEG 4 — ★ PRODUCTION PIXEL (R-2): RadialPointsCpu → ListToBuffer → DrawPoints → RenderTarget built through
+//           the CANONICAL production path (libFromGraph → buildEvalGraph → cookResident), then read pg.target()
+//           pixels and assert the RING is lit + the CENTER is black. This is the leg that proves the bridge
+//           LIVES in the running app (the lane Cut47 trap: a flat-only bridge passes its golden but draws
+//           nothing on screen because production walks cookResident).
 //
-// injectBug routes through pointListInjectBug(): RadialPointsCpu CLEARS its real output → the transport
-// readback is empty (≠ ring), the GPU buffer is count 0, and the production screen is BLACK. Teeth on
-// the actual cook path, NOT by flipping the expected value.
+// injectBug routes through pointListInjectBug(): RadialPointsCpu CLEARS its real output → the transport readback
+// is empty (≠ ring), the GPU buffer is count 0, and the production screen is BLACK. Teeth on the actual cook
+// path, NOT by flipping the expected value: EVERY leg asserts the SAME fixed (production-correct) want under
+// clean AND -bug (GOLDEN_STANDARD 特徵 3). So a live latch makes the -bug run FAIL (return 1, the bite) while a
+// silently-dead latch leaves everything green (return 0, did-not-trip) and lands on --bite's NO-BITE list — no
+// leg swaps its expectation to the buggy output (a swap would fake-bite in reverse exactly when the latch dies).
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -47,9 +50,9 @@ bool nearf(float a, float b, float t = 1e-4f) { return std::fabs(a - b) < t; }
 
 // CLOSED-FORM RadialPointsCpu reference (RadialPointsCpu.cs, NOT a copy of the leaf's code path):
 // independent re-derivation so the golden checks the leaf against TiXL, not against itself. Defaults
-// axis=(0,0,1), center=(0,0,0), offset=0, startAngle=0, cycles=1, radiusOffset=0, closeCircle=false.
-// With axis=Z: each point's Position = rotateZ((R,0,0), angle) + center; angle starts at π/2, step
-// -2π/corners. F1 = W (no W-offset). The leaf computes the same via Rodrigues — agreement = parity.
+// axis=(0,0,1), center=(0,0,0), offset=0, startAngle=0, cycles=1, radiusOffset=0, closeCircle=false. With
+// axis=Z: Position = rotateZ((R,0,0), angle) + center; angle starts at π/2, step -2π/corners. F1 = W (no
+// W-offset). The leaf computes the same via Rodrigues — agreement = parity.
 std::vector<SwPoint> radialRef(int count, float radius, float w) {
   std::vector<SwPoint> out;
   int corners = count < 1 ? 1 : (count > 10000 ? 10000 : count);
@@ -72,8 +75,7 @@ std::vector<SwPoint> radialRef(int count, float radius, float w) {
   return out;
 }
 
-// CLOSED-FORM LinePointsCpu reference (LinePointsCpu.cs, NOT a copy of the leaf): 2 points (from→to),
-// both carrying rot = CreateFromAxisAngle((0,1,0), atan2(from.X-to.X, from.Y-to.Y)). F1[0]=w, F1[1]=w+wOff.
+// CLOSED-FORM LinePointsCpu reference (LinePointsCpu.cs, NOT a copy of the leaf): 2 points (from→to), both carrying rot = CreateFromAxisAngle((0,1,0), atan2(from.X-to.X, from.Y-to.Y)). F1[0]=w, F1[1]=w+wOff.
 std::vector<SwPoint> lineRef(const float from[3], const float to[3], float w, float wOff) {
   float angle = std::atan2(from[0] - to[0], from[1] - to[1]);
   float h = angle * 0.5f;
@@ -86,8 +88,7 @@ std::vector<SwPoint> lineRef(const float from[3], const float to[3], float w, fl
   return {p0, p1};
 }
 
-// CLOSED-FORM LinearPointsCpu reference (LinearPointsCpu.cs): N points, Position = Lerp(start, start+off,
-// x/count) — NOTE /count (last point never reaches start+off), Orientation identity, F1 = Lerp(sw, sw+ow).
+// CLOSED-FORM LinearPointsCpu reference (LinearPointsCpu.cs): N points, Position = Lerp(start, start+off, x/count) — NOTE /count (last point never reaches start+off), Orientation identity, F1 = Lerp(sw, sw+ow).
 std::vector<SwPoint> linearRef(int count, const float start[3], const float off[3], float sw, float ow) {
   std::vector<SwPoint> out;
   int n = count < 1 ? 1 : (count > 10000 ? 10000 : count);
@@ -172,8 +173,8 @@ int runPointListSelfTest(bool injectBug) {
                 kCount, got ? got->size() : 0, want.size(), pass ? "PASS" : "FAIL");
   }
 
-  // ===== LEG 2 — UPLOAD BRIDGE byte-parity (flat): RadialPointsCpu → ListToBuffer → GPU readback. ====
-  // The bridge's whole point: the host list crosses to a GPU SwPoint buffer byte-identical (all 64B).
+  // ===== LEG 2 — UPLOAD BRIDGE byte-parity (flat): RadialPointsCpu → ListToBuffer → GPU readback. The
+  // bridge's whole point: the host list crosses to a GPU SwPoint buffer byte-identical (all 64B). =====
   {
     PointGraph pg(dev, lib, q, 64, 64);
     Graph g;
@@ -192,12 +193,13 @@ int runPointListSelfTest(bool injectBug) {
     pointListInjectBug() = false;
 
     uint32_t gpuCount = pg.debugCookedCount(2);
-    std::vector<SwPoint> want = injectBug ? std::vector<SwPoint>{} : radialRef(kCount, kRadius, kW);
+    // HARD tooth (fixed want): assert the full ring ALWAYS. injectBug (list cleared → count 0) FAILS this same assert; a dead latch leaves it green (did-not-trip → the NO-BITE list catches it).
+    std::vector<SwPoint> want = radialRef(kCount, kRadius, kW);
     bool pass = gpuCount == (uint32_t)want.size();
-    // Read the ACTUAL GPU buffer contents() (StorageModeShared) and assert byte-parity per SwPoint —
-    // ALL 64 bytes (Position@0 / FX1@12 / Rotation@16 / Color@32 / Scale@48 / FX2@60). This is the
-    // packed_float3 STRIDE proof: a wrong stride would scramble every field past offset 12. The bytes
-    // came through ListToBuffer's host→GPU memcpy, so this proves the bridge crossed correctly.
+    // Read the ACTUAL GPU buffer contents() (StorageModeShared) and assert byte-parity per SwPoint — ALL 64
+    // bytes (Position@0 / FX1@12 / Rotation@16 / Color@32 / Scale@48 / FX2@60). This is the packed_float3
+    // STRIDE proof: a wrong stride would scramble every field past offset 12. The bytes came through
+    // ListToBuffer's host→GPU memcpy, so this proves the bridge crossed correctly.
     if (pass && gpuCount > 0) {
       MTL::Buffer* buf = const_cast<MTL::Buffer*>(pg.debugCookedBuffer(2));  // contents() is non-const
       pass = buf != nullptr && buf->length() >= (NS::UInteger)gpuCount * sizeof(SwPoint);
@@ -234,10 +236,11 @@ int runPointListSelfTest(bool injectBug) {
     const std::vector<SwPoint>* got = pg.debugCookedPointList(2);
     // Source: RadialPointsCpu Count=1 Radius=0 → one point at origin (f=1 for corners==1; v=(0,0,0)).
     // TransformCpuPoint: Position += (1.5,-0.5,0.25); Rotation unchanged (Rotation params 0 → identity
-    // composed). Expected single output point at (1.5,-0.5,0.25).
-    bool pass = !injectBug ? (got && got->size() == 1 && nearf((*got)[0].Position.x, 1.5f) &&
-                              nearf((*got)[0].Position.y, -0.5f) && nearf((*got)[0].Position.z, 0.25f))
-                           : (got && got->empty());  // inject → no input → empty output
+    // composed). Expected single output point at (1.5,-0.5,0.25). HARD tooth (fixed want): assert the
+    // translated point ALWAYS. injectBug (source cleared → Transform sees no input → empty out) FAILS
+    // this same assert; a dead latch stays green.
+    bool pass = got && got->size() == 1 && nearf((*got)[0].Position.x, 1.5f) &&
+                nearf((*got)[0].Position.y, -0.5f) && nearf((*got)[0].Position.z, 0.25f);
     ok = ok && pass;
     std::printf("[selftest-pointlist] LEG3 TransformCpuPoint +(1.5,-0.5,0.25) n=%zu pos=(%.2f,%.2f,%.2f) -> %s\n",
                 got ? got->size() : 0, (got && !got->empty()) ? (*got)[0].Position.x : 0.0f,
@@ -284,8 +287,7 @@ int runPointListSelfTest(bool injectBug) {
         size_t i = ((size_t)y * RW + x) * 4;
         return px[i] > 40 || px[i + 1] > 40 || px[i + 2] > 40;
       };
-      // RING: count lit pixels across the whole image (the white points). CENTER: a small box at image
-      // center (world (0,0) → NDC (0,0) → pixel center) must be black (no point sits at the origin).
+      // RING: count lit pixels across the whole image (the white points). CENTER: a small box at image center (world (0,0) → NDC (0,0) → pixel center) must be black (no point sits at the origin).
       for (uint32_t y = 0; y < RH; ++y)
         for (uint32_t x = 0; x < RW; ++x)
           if (lit(x, y)) ++ringLit;
@@ -294,10 +296,10 @@ int runPointListSelfTest(bool injectBug) {
         for (uint32_t x = cx - hb; x <= cx + hb; ++x)
           if (lit(x, y)) centerBlack = false;
     }
-    // GREEN: ring lit (≥ ringCount/2 lit pixels, allowing point-size spread) AND center black.
-    // injectBug clears the list → empty bag → DrawPoints draws nothing → ringLit 0 → RED. (No need for
-    // centerBlack under inject; the empty screen fails the ring assertion decisively.)
-    bool pass = sized && (injectBug ? (ringLit == 0) : (ringLit >= ringCount / 2 && centerBlack));
+    // HARD tooth (fixed want): ring lit (≥ ringCount/2 lit pixels, allowing point-size spread) AND center
+    // black — asserted ALWAYS. injectBug clears the list → empty bag → DrawPoints draws nothing → ringLit
+    // 0 → this same assert FAILS; a dead latch draws the ring and stays green.
+    bool pass = sized && ringLit >= ringCount / 2 && centerBlack;
     ok = ok && pass;
     std::printf("[selftest-pointlist] LEG4 ★PRODUCTION cookResident pixel: ringLit=%d(need≥%d) "
                 "centerBlack=%d size=%lux%lu -> %s\n",
@@ -320,9 +322,8 @@ int runPointListSelfTest(bool injectBug) {
     };
     std::vector<SwPoint> want = lineRef(kFrom, kTo, kLW, kLWOff);
 
-    // 5a transport (flat). HARD per-op tooth: assert the FULL non-degenerate reference ALWAYS. Under
-    // injectBug the op clears its output → got is empty → mismatch → this leg FAILS on its own (each new
-    // op has its OWN bite, not leaning on LEG1).
+    // 5a transport (flat). HARD per-op tooth: assert the FULL non-degenerate reference ALWAYS. Under injectBug
+    // the op clears its output → got is empty → mismatch → this leg FAILS on its own (each new op has its OWN bite, not leaning on LEG1).
     PointGraph pg(dev, lib, q, 64, 64);
     Graph g; buildLine(g);
     EvaluationContext ctx{}; ctx.frameIndex = 0; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
@@ -358,8 +359,7 @@ int runPointListSelfTest(bool injectBug) {
   }
 
   // ===== LEG 6 — LinearPointsCpu: ★PRODUCTION pixel (resident) + transport. Count=N along a line. =====
-  // Transport: Count=4 Start=(0,0,0) Offset=(4,0,0) → x at 0,1,2,3 (NOT 4: fX=x/count). Production: a
-  // horizontal line of points off the vertical center column → lit pixels present, the top-left corner black.
+  // Transport: Count=4 Start=(0,0,0) Offset=(4,0,0) → x at 0,1,2,3 (NOT 4: fX=x/count). Production: a horizontal line of points off the vertical center column → lit pixels present, the top-left corner black.
   {
     const float kStart[3] = {0.0f, 0.0f, 0.0f}, kOff[3] = {4.0f, 0.0f, 0.0f};
     // 6a transport (flat), Count=4
@@ -380,9 +380,8 @@ int runPointListSelfTest(bool injectBug) {
     bool passT = got && got->size() == want.size();
     if (passT) for (size_t i = 0; i < want.size(); ++i) if (!pointsEq((*got)[i], want[i])) { passT = false; break; }
 
-    // 6b ★PRODUCTION resident pixel: a SHORT horizontal line of points across the image → lit, AND a
-    // top-left corner box (far from any point) stays black. Count many points along a small line so the
-    // pixel test is robust to point size. Start=(-1.5,0,0) Offset=(3,0,0) → points span x∈[-1.5, ~1.4].
+    // 6b ★PRODUCTION resident pixel: a SHORT horizontal line of points across the image → lit, AND a top-left
+    // corner box (far from any point) stays black. Count many points along a small line so the pixel test is robust to point size. Start=(-1.5,0,0) Offset=(3,0,0) → points span x∈[-1.5, ~1.4].
     const uint32_t RW = 128, RH = 128;
     const int lineCount = 48;
     PointGraph pgP(dev, lib, q, RW, RH);
@@ -427,11 +426,9 @@ int runPointListSelfTest(bool injectBug) {
   }
 
   // ===== LEG 7 — RepeatAtPointsCpu (★dual-input): source(2 pts) × dest(RadialPointsCpu ring) → product.
-  // Transport: assert the cartesian product against an INDEPENDENT re-derivation (dest-frame transform).
-  // Production: the product points form rings → lit + center black. injectBug → inputs cleared → empty.
+  // Transport: assert the cartesian product against an INDEPENDENT re-derivation (dest-frame transform). Production: the product points form rings → lit + center black. injectBug → inputs cleared → empty.
   {
-    // Source = LinearPointsCpu Count=2 Start=(0.5,0,0) Offset=(1,0,0) → 2 pts at (0.5,0,0),(1.0,0,0),
-    // both identity rotation, F1=1. Dest = RadialPointsCpu Count=4 Radius=2 → 4 ring points w/ rotations.
+    // Source = LinearPointsCpu Count=2 Start=(0.5,0,0) Offset=(1,0,0) → 2 pts at (0.5,0,0),(1.0,0,0), both identity rotation, F1=1. Dest = RadialPointsCpu Count=4 Radius=2 → 4 ring points w/ rotations.
     const int destN = 4; const float destR = 2.0f;
     const float srcStart[3] = {0.5f, 0.0f, 0.0f}, srcOff[3] = {1.0f, 0.0f, 0.0f};
     std::vector<SwPoint> srcRef = linearRef(2, srcStart, srcOff, 1.0f, 0.0f);  // identity rotations
@@ -476,8 +473,7 @@ int runPointListSelfTest(bool injectBug) {
     pg.cook(g, ctx, nullptr, /*terminal=*/3);
     pointListInjectBug() = false;
     const std::vector<SwPoint>* got = pg.debugCookedPointList(3);
-    // HARD per-op tooth: assert the full cartesian product ALWAYS → injectBug (upstream cleared → RepeatAt
-    // sees no input → empty out) FAILS here. Proves the dual-input gather + product math, not vacuously.
+    // HARD per-op tooth: assert the full cartesian product ALWAYS → injectBug (upstream cleared → RepeatAt sees no input → empty out) FAILS here. Proves the dual-input gather + product math, not vacuously.
     std::vector<SwPoint> want = prodRef;
     bool passT = got && got->size() == want.size();
     if (passT) for (size_t i = 0; i < want.size(); ++i) if (!pointsEq((*got)[i], want[i])) { passT = false; break; }
@@ -535,8 +531,10 @@ int runPointListSelfTest(bool injectBug) {
 
   lib->release(); q->release(); dev->release(); pool->release();
 
-  // Harness convention (run_all_selftests.sh --bite): the -bug variant must exit NON-zero. injectBug
-  // clears the cooked list → all legs fail (empty transport / count 0 / black screen) → return 1.
+  // Harness convention (run_all_selftests.sh --bite): the -bug variant must exit NON-zero. injectBug clears
+  // the cooked list → every leg's FIXED assert fails (empty transport / count 0 / black screen) → return 1.
+  // If the latch silently dies, all fixed asserts stay green → return 0 (did-not-trip) → the NO-BITE list
+  // surfaces the dead tooth (no expectation ever swaps to the buggy output, so a dead latch can never fake a bite).
   std::printf("[selftest-pointlist] %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

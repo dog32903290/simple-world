@@ -25,7 +25,14 @@
 // half it wrote at frame 0, folding it with the all-black input -> the carried trail is mis-addressed
 // -> the shifted-trail assert collapses -> exit 1. `want` stays FIXED (the bug removes the trail, it
 // does NOT flip the expected).
+//
+// SHIFTBRIGHTNESS-ISOLATION tooth (P4 upgrade 2026-07-03): the behaviour bands have no TiXL numeric
+// anchor; one channel is now pinned closed-form — the FeedbackAdjust ADDITIVE ShiftBrightness constant
+// (FeedbackAdjustImage.hlsl:148), isolated as a two-run DIFFERENCE with the warp chain neutralized:
+// dLum = (b_A-b_B)*255*3 = 61.2 exactly. Full hand-trace + .t3/.hlsl line citations at the tooth
+// below. The band asserts are KEPT (band + real tooth coexist).
 #include <cstdio>
+#include <cstdlib>  // std::abs(int) — shiftbrightness-isolation band
 #include <vector>
 
 #include <Foundation/Foundation.hpp>
@@ -208,6 +215,96 @@ int runAdvancedFeedbackSelfTest(bool injectBug) {
         std::printf("[selftest-advancedfeedback] resident: centerF0=%d aboveF0=%d aboveF1=%d(shift) "
                     "centerF1=%d maxF1=%d(clamp) PASS\n", rC0, rA0, rA1, rC1, rM1);
       }
+    }
+  }
+
+  // ---------------- SHIFTBRIGHTNESS-ISOLATION tooth (difference closed-form vs the TiXL constant) ---
+  // P4 upgrade 2026-07-03: the behaviour bands above (>60/<30/+12/<255/(6,760)) have no TiXL numeric
+  // anchor — a mis-scaled decay/shift constant stays green. This tooth isolates ONE channel closed-form:
+  // ShiftBrightness, the per-frame ADDITIVE brightness constant of the FeedbackAdjust stage.
+  //
+  // TiXL derivation (HAND-TRACED, external/tixl):
+  //   * wiring: OUTER ShiftBrightness (AdvancedFeedback.t3:64) -> _AdjustFeedbackImage 4318ad5e's
+  //     ShiftBrightness pin, DIRECT connection, no Multiply on the path (AdvancedFeedback.t3:419-424;
+  //     pin GUID a46a797a == _AdjustFeedbackImage.cs:18-19).
+  //   * shader: FeedbackAdjustImage.hlsl:148  `c.rgb += limitShift + ShiftBrightness + edgeDelta;`
+  //     — a PURE ADDITIVE constant on the carried trail, once per frame.
+  //   * everything else in that line is forced to cancel between two runs that differ ONLY in
+  //     ShiftBrightness b:
+  //       - limitShift (hlsl:139-145) depends only on the INPUT trail's neighbourhood average — the
+  //         two runs feed an IDENTICAL frame-0 trail (see below), so it cancels in the difference.
+  //       - edgeDelta (hlsl:132-136) is multiplied by DetectEdges <- AmplifyEdges = 0 here -> 0.
+  //       - hue/sat path (hlsl:151-153): scenario sets ShiftHue=0/ShiftSaturation=0 AND the trail is
+  //         GREY (white DrawPoints), so rgbToHsv returns s=0 (hlsl:44-47) and hsvToRgb(h,0,v) = (v,v,v)
+  //         (hlsl:97-99) — an EXACT no-op.
+  //       - final clamp (hlsl:156-157) not hit at the probe (guards below keep the plateau mid-range).
+  //   * the rest of the warp chain is neutralized so the +b constant passes through with unit gain:
+  //       - Displace.hlsl:118 `p2 = direction * (-DisplaceAmount*len*10 + DisplaceOffset)`:
+  //         Displacement=0 AND DisplaceOffset=0 -> p2 = 0 (pure identity sample);
+  //         Displace.hlsl:120 `c.rgb *= (1 - len*Shade*100)`: Shade=0 -> multiplier 1.
+  //       - Transform: Zoom=1 / Offset=(0,0) / Rotate=0 -> identity resample. (Even a fixed non-identity
+  //         resample would keep the difference: resample(f + b) == resample(f) + b for a constant b.)
+  //       - composite: frame-1 current is BLACK -> coverage 0 -> output == warped trail unchanged.
+  //   * frame-0 trails are IDENTICAL in both runs BY CONSTRUCTION: both b values are <= -0.0032, so the
+  //     frame-0 background (adjust of the fresh BLACK pair) hits the same hlsl:157 floor clamp
+  //     (0 + lowerD(0.1^2*0.32=0.0032) + b < 0 -> 0.0001) in BOTH runs, and the block itself is drawn
+  //     from an IDENTICAL current image. So the frame-1 difference at the block center is EXACTLY
+  //     b_A - b_B on each channel.
+  //   EXPECTED (python, in-comment only):  b_A=-0.01, b_B=-0.09
+  //     dLum = (b_A - b_B) * 255 * 3 = 0.08 * 765 = 61.2
+  //     per-pass unorm8 chain rounding: per channel round(k-2.55)-round(k-22.95) = (k-3)-(k-23) = 20
+  //     -> chain-rounded dLum = 60. Band: |dLum - 61| <= 8.
+  //   BITE BY CONSTRUCTION (want FIXED): ShiftBrightness dropped -> dLum = 0 RED; mis-scaled x0.01
+  //   (the Displacement-style .t3 Multiply this pin does NOT have) -> dLum ~ 0.6 RED.
+  //   HONEST LIMIT (named): at a near-saturated grey plateau an (1+b)-MULTIPLICATIVE mis-impl gives
+  //   dLum ~ plateau*0.08*765 ~ close to additive — this tooth pins the CONSTANT's magnitude & reach,
+  //   not additive-vs-multiplicative; discriminating that needs a mid-brightness probe (follow-up).
+  if (!injectBug) {
+    auto centerF1ForShift = [&](float shiftB, int& f0Center) -> int {
+      const int afId = 4;
+      PointGraph pg(dev, lib, q, 64, 64);
+      Graph g;
+      buildBlockGraph(g, RS, afId);
+      Node* af = g.node(afId);
+      af->params["Zoom"] = 1.0f;             // identity Transform (no shrink)
+      af->params["Offset.y"] = 0.0f;         // no shift
+      af->params["Displacement"] = 0.0f;     // Displace.hlsl:118 -> p2 = 0 (identity sample)
+      af->params["DisplaceOffset"] = 0.0f;
+      af->params["Shade"] = 0.0f;            // Displace.hlsl:120 -> shade multiplier = 1
+      af->params["Twist"] = 0.0f;            // rotates a zero displacement — kept 0 for clarity
+      af->params["AmplifyEdges"] = 0.0f;     // FeedbackAdjustImage.hlsl:132-136 edgeDelta -> 0
+      af->params["ShiftHue"] = 0.0f;         // grey trail -> hlsl:44-47/97-99 exact hue no-op
+      af->params["ShiftSaturation"] = 0.0f;
+      af->params["ShiftBrightness"] = shiftB;
+      EvaluationContext ctx{}; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      ctx.frameIndex = 0;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/afId);
+      f0Center = lumAt(pg.debugCookedFeedbackOutput(afId, /*ordinal=*/0), cx, cy);
+      g.node(1)->params["Count"] = 0.0f;  // frame 1: black input -> output = adjusted trail only
+      ctx.frameIndex = 1;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/afId);
+      return lumAt(pg.debugCookedFeedbackOutput(afId, /*ordinal=*/0), cx, cy);
+    };
+    int f0A = -1, f0B = -1;
+    int sA = centerF1ForShift(-0.01f, f0A);  // b_A
+    int sB = centerF1ForShift(-0.09f, f0B);  // b_B
+    int dLum = sA - sB;
+    // Guards: frame-0 block lit well above the -0.09 floor-clamp zone (channel k>30 -> k/255-0.09 >>
+    // 0.0001) and both frame-1 plateaus mid-range (grey => per-channel = lum/3; <250/channel un-clamped).
+    bool baseLit = f0A > 90 && f0B > 90;
+    bool plateauInRange = sB > 30 && sA < 750;
+    bool hitsBand = std::abs(dLum - 61) <= 8;  // 0.08*765 = 61.2 (chain-rounded ~60)
+    bool shiftIso = baseLit && plateauInRange && hitsBand;
+    if (!shiftIso) {
+      std::printf("[selftest-advancedfeedback] shiftbrightness-isolation FAIL f0A=%d f0B=%d "
+                  "centerF1(b=-0.01)=%d centerF1(b=-0.09)=%d dLum=%d "
+                  "(want |dLum-61|<=8 [=(bA-bB)*765, FeedbackAdjustImage.hlsl:148], f0>90, "
+                  "B>30, A<750)\n", f0A, f0B, sA, sB, dLum);
+      ok = false;
+    } else {
+      std::printf("[selftest-advancedfeedback] shiftbrightness-isolation: centerF1(b=-0.01)=%d "
+                  "centerF1(b=-0.09)=%d dLum=%d ~ 61 (=0.08*765; +ShiftBrightness constant, "
+                  "FeedbackAdjustImage.hlsl:148, unit gain through the chain) PASS\n", sA, sB, dLum);
     }
   }
 

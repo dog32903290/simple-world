@@ -27,7 +27,7 @@
 //       `inout float3 p` and the op CALLS it with a SWIZZLE arg `p{c}.{perm}` (perm = yzx/xzy/xyz). MSL
 //       rejects binding a swizzle to a non-const `thread float3&`. So the helper is written BY-VALUE +
 //       RETURN and the call is a swizzle ASSIGNMENT — this reproduces HLSL inout copy-in/copy-out
-//       byte-identically. `mul(m, p.xy)` -> `m * p.xy` (frozen fork). opTwist calls only cos/sin/float2x2
+//       byte-identically. `mul(m, p.xy)` -> `p.xy * m` (frozen fork; HLSL row-filled literal: mul(m,v) == v*m in MSL — m*v rotates the WRONG WAY, caught by the twist61mid golden probe 2026-07-03). opTwist calls only cos/sin/float2x2
 //       built-ins (no inter-helper call) -> it is the SOLE globals key -> NO MSL forward-declaration
 //       needed (confirmed: the globals std::map holds exactly one key "opTwist").
 //       The float2x2 constructor + the k /= (180/3.14157892) magic constant are byte-verbatim from the
@@ -53,7 +53,7 @@ namespace {
 // opTwist helper — byte-verbatim from TwistField.cs:38-44 with the Cut-94 swizzle fix + frozen forks:
 //   HLSL `inout float3 p`  -> MSL BY-VALUE float3 p + `return p;`  (called with a SWIZZLE arg -> MSL
 //       cannot bind a swizzle to `thread float3&`; by-value+return reproduces inout copy-in/copy-out).
-//   HLSL `mul(m,p.xy)`     -> MSL `m * p.xy`                       (mul(matrix,vec) -> matrix*vec).
+//   HLSL `mul(m,p.xy)`     -> MSL `p.xy * m`                       (row-filled literal: mul(m,v) == v*m).
 // No inter-helper call (only cos/sin/float2x2 built-ins) -> this is the SOLE globals key -> no forward
 // prototype needed. The deg->rad constant 180/3.14157892 is the .cs's literal (their idiosyncratic pi
 // spelling) — kept exact for byte parity, do NOT "fix" to 3.14159. The angle progresses along p.z (the
@@ -64,7 +64,7 @@ static const char* kBodyOpTwist =
     "    float c = cos(k * p.z);\n"
     "    float s = sin(k * p.z);\n"
     "    float2x2  m = float2x2(c,-s,s,c);\n"
-    "    p = float3(m * p.xy, p.z);\n"
+    "    p = float3(p.xy * m, p.z);\n"
     "    return p;\n"
     "}";
 

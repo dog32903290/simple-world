@@ -28,6 +28,9 @@ bool posEq(const SwVertex& v, float x, float y, float z) {
   return nearf(v.Position.x, x) && nearf(v.Position.y, y) && nearf(v.Position.z, z);
 }
 bool triEq(const SwTriIndex& t, int x, int y, int z) { return t.X == x && t.Y == y && t.Z == z; }
+bool tanEq(const SwVertex& v, float x, float y, float z) {
+  return nearf(v.Tangent.x, x) && nearf(v.Tangent.y, y) && nearf(v.Tangent.z, z);
+}
 
 }  // namespace
 
@@ -76,6 +79,53 @@ int runMeshNGonGoldenSelfTest(bool injectBug) {
                 "vOk=%d fOk=%d attrOk=%d\n",
                 vc, fc, v[1].Position.x, v[1].Position.y, v[1].Position.z, f[3].X, f[3].Y, f[3].Z,
                 vOk, fOk, attrOk);
+  }
+
+  // ---- Case 2 (P2 fix: parameter wiring off identity — Radius/Stretch/Rotation/Center biting).
+  // Segments=4, Radius=0.7, Stretch=(1.5,0.5), Rotation=(0,0,30), Center=(0.1,0.2,0.3).
+  // Hand-derived from NGonMesh.cs: p = (R*sin(phi)*st.X, R*cos(phi)*st.Y, 0)  [NGonMesh.cs:87-89];
+  // posRotated = TransformNormal(p, CreateFromYawPitchRoll(0,0,roll=30deg))    [:33-39,:109]
+  //   = Rz(30) row-vector: (x*c - y*s, x*s + y*c, z), c=cos30=0.8660254, s=0.5;
+  // Position = posRotated + center [:112]; vertex[0] = center [:73].
+  //   phi=0:   p=(0, 0.35, 0)  -> (-0.175, 0.3031089, 0)      +C = (-0.075,     0.5031089, 0.3)
+  //   phi=90:  p=(1.05, 0, 0)  -> (0.9093267, 0.525, 0)       +C = (1.0093267,  0.725,     0.3)
+  //   phi=180: p=(0, -0.35, 0) -> (0.175, -0.3031089, 0)      +C = (0.275,     -0.1031089, 0.3)
+  //   phi=270: p=(-1.05, 0, 0) -> (-0.9093267, -0.525, 0)     +C = (-0.8093267, -0.325,    0.3)
+  // Tangent = TransformNormal(Right, R) = (cos30, sin30, 0) = (0.8660254, 0.5, 0)  [:55].
+  // A dropped Radius multiply reads 30% high; a dropped Stretch.x reads 50% high; a dropped
+  // rotation leaves v1 at x=0 — every leg of the position product chain diverges here.
+  {
+    Graph g2;
+    Node m2; m2.id = 2; m2.type = "NGonMesh";
+    m2.params["Segments"] = 4.0f; m2.params["Radius"] = 0.7f;
+    m2.params["Stretch.x"] = 1.5f; m2.params["Stretch.y"] = 0.5f;
+    m2.params["Rotation.z"] = 30.0f;
+    m2.params["Center.x"] = 0.1f; m2.params["Center.y"] = 0.2f; m2.params["Center.z"] = 0.3f;
+    m2.params["TextureMode"] = 0.0f;
+    g2.nodes.push_back(m2);
+    pg.cook(g2, ctx, nullptr, 2);
+
+    const MTL::Buffer* vb2 = nullptr;
+    const MTL::Buffer* ib2 = nullptr;
+    uint32_t vc2 = 0, fc2 = 0;
+    bool got2 = pg.debugCookedMesh(2, vb2, vc2, ib2, fc2);
+    bool ok2 = got2 && vc2 == 5 && fc2 == 4;
+    if (ok2) {
+      const SwVertex* v = (const SwVertex*)const_cast<MTL::Buffer*>(vb2)->contents();
+      bool vOk2 = posEq(v[0], 0.1f, 0.2f, 0.3f) &&
+                  posEq(v[1], -0.075f, 0.5031089f, 0.3f) &&
+                  posEq(v[2], 1.0093267f, 0.725f, 0.3f) &&
+                  posEq(v[3], 0.275f, -0.1031089f, 0.3f) &&
+                  posEq(v[4], -0.8093267f, -0.325f, 0.3f);
+      bool tOk2 = tanEq(v[0], 0.8660254f, 0.5f, 0.0f);
+      ok2 = vOk2 && tOk2;
+      std::printf("[selftest-mesh-ngon] case2 v1=(%.4f,%.4f,%.4f) v2=(%.4f,%.4f,%.4f) vOk=%d tOk=%d\n",
+                  v[1].Position.x, v[1].Position.y, v[1].Position.z, v[2].Position.x,
+                  v[2].Position.y, v[2].Position.z, vOk2, tOk2);
+    } else {
+      std::printf("[selftest-mesh-ngon] case2 FAIL: got=%d verts=%u faces=%u\n", got2, vc2, fc2);
+    }
+    ok = ok && ok2;
   }
 
   meshInjectBug() = false;
@@ -134,6 +184,54 @@ int runMeshQuadGoldenSelfTest(bool injectBug) {
     std::printf("[selftest-mesh-quad] verts=%u faces=%u f0=(%d,%d,%d) f1=(%d,%d,%d) "
                 "vOk=%d fOk=%d attrOk=%d\n",
                 vc, fc, f[0].X, f[0].Y, f[0].Z, f[1].X, f[1].Y, f[1].Z, vOk, fOk, attrOk);
+  }
+
+  // ---- Case 2 (P2 fix: Scale/Stretch/Pivot/Rotation/Center all off identity and biting).
+  // Segments=(1,1), Scale=0.7, Stretch=(2,0.5), Pivot=(0,1), Rotation=(0,0,30), Center=(0.1,-0.2,0.25).
+  // Hand-derived from QuadMesh.cs:
+  //   offset = (st.X*sc*(pv.X-0.5), st.Y*sc*(pv.Y-0.5), 0) = (-0.7, 0.175, 0)      [:38-40]
+  //   columnStep = sc*st.X/(cols-1) = 1.4 ; rowStep = sc*st.Y/(rows-1) = 0.35      [:58-59]
+  //   Position = TransformNormal(p+offset, Rz(30)) + center                        [:94]
+  //     Rz(30) row-vec: (x*c - y*s, x*s + y*c, z), c=0.8660254, s=0.5.
+  //   v0=(c0,r0): p+off=(-0.7, 0.175,0) -> (-0.6937178,-0.1984456,0) +C = (-0.5937178,-0.3984456,0.25)
+  //   v1=(c0,r1): p+off=(-0.7, 0.525,0) -> (-0.8687178, 0.1046633,0) +C = (-0.7687178,-0.0953367,0.25)
+  //   v2=(c1,r0): p+off=( 0.7, 0.175,0) -> ( 0.5187178, 0.5015544,0) +C = ( 0.6187178, 0.3015544,0.25)
+  //   v3=(c1,r1): p+off=( 0.7, 0.525,0) -> ( 0.3437178, 0.8046633,0) +C = ( 0.4437178, 0.6046633,0.25)
+  //   Tangent = TransformNormal(Right, R) = (0.8660254, 0.5, 0)                    [:66]
+  // A dropped Scale multiplies the span by 1/0.7; a dropped Pivot.y kills the +0.175 offset; a
+  // dropped rotation zeroes the x/y cross-terms — each leg diverges at these probes.
+  {
+    Graph g2;
+    Node m2; m2.id = 2; m2.type = "QuadMesh";
+    m2.params["Segments.x"] = 1.0f; m2.params["Segments.y"] = 1.0f;
+    m2.params["Scale"] = 0.7f;
+    m2.params["Stretch.x"] = 2.0f; m2.params["Stretch.y"] = 0.5f;
+    m2.params["Pivot.x"] = 0.0f; m2.params["Pivot.y"] = 1.0f;
+    m2.params["Rotation.z"] = 30.0f;
+    m2.params["Center.x"] = 0.1f; m2.params["Center.y"] = -0.2f; m2.params["Center.z"] = 0.25f;
+    g2.nodes.push_back(m2);
+    pg.cook(g2, ctx, nullptr, 2);
+
+    const MTL::Buffer* vb2 = nullptr;
+    const MTL::Buffer* ib2 = nullptr;
+    uint32_t vc2 = 0, fc2 = 0;
+    bool got2 = pg.debugCookedMesh(2, vb2, vc2, ib2, fc2);
+    bool ok2 = got2 && vc2 == 4 && fc2 == 2;
+    if (ok2) {
+      const SwVertex* v = (const SwVertex*)const_cast<MTL::Buffer*>(vb2)->contents();
+      bool vOk2 = posEq(v[0], -0.5937178f, -0.3984456f, 0.25f) &&
+                  posEq(v[1], -0.7687178f, -0.0953367f, 0.25f) &&
+                  posEq(v[2], 0.6187178f, 0.3015544f, 0.25f) &&
+                  posEq(v[3], 0.4437178f, 0.6046633f, 0.25f);
+      bool tOk2 = tanEq(v[0], 0.8660254f, 0.5f, 0.0f);
+      ok2 = vOk2 && tOk2;
+      std::printf("[selftest-mesh-quad] case2 v0=(%.4f,%.4f,%.4f) v3=(%.4f,%.4f,%.4f) vOk=%d tOk=%d\n",
+                  v[0].Position.x, v[0].Position.y, v[0].Position.z, v[3].Position.x,
+                  v[3].Position.y, v[3].Position.z, vOk2, tOk2);
+    } else {
+      std::printf("[selftest-mesh-quad] case2 FAIL: got=%d verts=%u faces=%u\n", got2, vc2, fc2);
+    }
+    ok = ok && ok2;
   }
 
   meshInjectBug() = false;

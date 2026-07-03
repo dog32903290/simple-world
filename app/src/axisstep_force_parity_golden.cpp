@@ -43,8 +43,7 @@
 // param overrides → the cook resolves the production NodeSpec DEFAULTS (incl. SelectRatio=0.1). Off the
 // pristine (no-force) ring, count the fraction of particles that MOVED (a particle is hit iff selected).
 // The observable is the SelectRatio gate: with the default 0.1, ~10% of particles displace. We assert the
-// moved-fraction ≈ SelectRatio=0.1. no-bug expects 0.1 (TiXL .t3); injectBug expects 1.0 (a NodeSpec
-// deviation = "every particle hit", the kind of default-drift this gate guards) → RED. This runs THROUGH
+// moved-fraction ≈ SelectRatio=0.1 (TiXL .t3) in BOTH legs — the expectation never flips. This runs THROUGH
 // the cook so a NodeSpec / fallback regression invisible to TOOTH 1 is caught. Expected = TiXL .t3 SelectRatio.
 //
 // ── TOOTH 3 (offline-render determinism, through the REAL cook) ───────────────────────────────────────
@@ -52,9 +51,13 @@
 // cooks with identical inputs/frame-schedule but DIFFERENT ctx.time must be bit-identical. Assert
 // maxPosDelta==0. GREEN in both legs (property of the cook, independent of injectBug).
 //
-// injectBug LEG: TOOTH 2 flips its expected SelectRatio from 0.1 (TiXL .t3) to 1.0 → the production-default
-// cook (correct 0.1 → ~10% moved) no longer matches the 1.0 expectation → RED. no-bug → 0.1 match → GREEN.
-// So the gate reads no-bug GREEN ↔ injectBug RED (--bite-collectable).
+// injectBug LEG (REAL cook injection, GOLDEN_STANDARD 特徵3 — was a P3 want-flip, fixed): the -bug leg
+// flips axisStepSelectRatioBugForTest() (point_ops_forceparams.h, the family's *BugForceForTest latch
+// convention) around the TOOTH-2 production-default cook ONLY. The latch corrupts the REAL param-marshaling
+// path (fillAxisStepForceParams: SelectRatio → 1.0, the "every particle hit" default-drift this gate guards),
+// so the SAME 0.1 assertion diverges: ~100% moved vs expected 0.1 → RED. If the latch ever dies (injection
+// does not trip), the cook stays faithful, the assert PASSES and the leg exits 0 → run_all_selftests --bite's
+// NO-BITE list catches the dead tooth. no-bug → 0.1 match → GREEN (--bite-collectable).
 //
 // ZONE: shell tier (app/src/ root, like turbulence_parity_golden.cpp). Crosses runtime (PointGraph cook +
 // the kernel). NO production edits — AxisStepForce was already faithful.
@@ -66,9 +69,10 @@
 #include <vector>
 
 #include "parity_golden_harness.h"
-#include "runtime/force_params.h"  // AxisStepForceParams, FORCE_Particles/FORCE_Params
-#include "runtime/graph.h"         // Graph/Node/pinId
-#include "runtime/tixl_point.h"    // Particle / SwPoint (64B)
+#include "runtime/force_params.h"           // AxisStepForceParams, FORCE_Particles/FORCE_Params
+#include "runtime/graph.h"                  // Graph/Node/pinId
+#include "runtime/point_ops_forceparams.h"  // axisStepSelectRatioBugForTest (-bug real-cook latch)
+#include "runtime/tixl_point.h"             // Particle / SwPoint (64B)
 
 namespace sw {
 namespace {
@@ -76,7 +80,6 @@ namespace {
 // TiXL AxisStepForce.t3 DefaultValue constants (the parity anchors, rule 2).
 constexpr float kTiXLSelectRatio = 0.1f;   // AxisStepForce.t3 SelectRatio DefaultValue
 constexpr float kTiXLStrength = 1.0f;      // AxisStepForce.t3 Strength DefaultValue
-constexpr float kWrongSelectRatio = 1.0f;  // "every particle hit" deviation (the kind a default-drift causes)
 
 // Dispatch the production axis_step_force kernel on N zero-velocity particles; return post velocities
 // (== the offset, since initial velocity is zero). Mirrors dispatchDir in directional_force_parity_golden.cpp.
@@ -238,7 +241,11 @@ int runAxisStepForceParitySelfTest(bool injectBug) {
   const int kSteps = 8;
   const double kMoveEps = 1e-4;  // a kicked particle moves >> this over 8 frames; a still one stays exactly put
   std::vector<SwPoint> baseline = cookAxisRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*select=*/0.0f);  // SelectRatio=0 -> no force
+  // -bug REAL injection: the latch corrupts fillAxisStepForceParams (SelectRatio -> 1.0) on the REAL cook
+  // path for THIS cook only (baseline above / TOOTH 3 below cook clean). Scoped set+reset, never leaks.
+  axisStepSelectRatioBugForTest() = injectBug;
   std::vector<SwPoint> prodDef  = cookAxisRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*select=*/-1.0f); // NodeSpec DEFAULT (0.1)
+  axisStepSelectRatioBugForTest() = false;
 
   // Structure: prod-default cook produced a non-empty bag the SAME size as baseline (same rig, only the
   // force SelectRatio differs). Well-posed per-particle moved comparison.
@@ -247,12 +254,12 @@ int runAxisStepForceParitySelfTest(bool injectBug) {
                  (double)prodDef.size());
 
   double fracMoved = movedFraction(prodDef, baseline, kMoveEps);
-  // THE NODESPEC TOOTH: the production DEFAULT SelectRatio determines the moved fraction.
-  //   no-bug   → expect moved-fraction == SelectRatio=0.1 (NodeSpec default IS 0.1 == TiXL .t3).
-  //   injectBug→ expect moved-fraction == 1.0 ("every particle hit", a NodeSpec deviation) → RED.
-  double fracExpected = injectBug ? (double)kWrongSelectRatio : (double)kTiXLSelectRatio;
+  // THE NODESPEC TOOTH: the production DEFAULT SelectRatio determines the moved fraction. The expected
+  // value is the TiXL .t3 constant in BOTH legs (never flipped). In the -bug leg the latch corrupted the
+  // real cook (SelectRatio→1.0 → ~100% moved), so THIS SAME assert diverges → RED; if the injection did
+  // not trip, it passes and the leg exits 0 (NO-BITE list catches the dead tooth).
   // tol absorbs hash-gate sampling noise around the 0.1 expectation; a 0.1-vs-1.0 mismatch dwarfs it.
-  rep.expect("prodMovedFrac==SelectRatio(NodeSpec)", fracMoved, fracExpected, 0.04);
+  rep.expect("prodMovedFrac==SelectRatio(NodeSpec)", fracMoved, (double)kTiXLSelectRatio, 0.04);
 
   // ── TOOTH 3: offline-render determinism through the real cook ──────────────────────────────────
   // AxisStepForce has no Phase / wall-clock term (Seed fixed, hash index-based) → identical inputs at

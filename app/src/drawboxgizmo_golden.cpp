@@ -9,8 +9,12 @@
 //           a point ON a projected edge (between its two endpoints, NOT at a corner) is lit; a point in a
 //           known-empty interior cell is dark. Proves the resident DrawLines dispatch draws the wireframe.
 //
-// injectBug routes through pointListInjectBug(): DrawBoxGizmo CLEARS its real output → empty list →
-// transport size mismatch + black production screen → RED. Teeth on the real cook path.
+// injectBug routes through pointListInjectBug(): DrawBoxGizmo CLEARS its real output (cookDrawBoxGizmo,
+// pointlist_ops_drawboxgizmo.cpp:33 — the resident walker dispatches the SAME leaf cook, so the clear
+// reaches BOTH legs) → empty list → transport size mismatch + black production screen → RED.
+// WANT-FIXED: no-bug and -bug run the SAME asserts on both legs (no want-flip, GOLDEN_STANDARD 特徵 3);
+// the -bug divergence comes only from the injected clear. did-not-trip → everything passes → exit 0
+// (the --bite NO-BITE list catches a dead tooth).
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -37,8 +41,9 @@ namespace {
 bool nearf(float a, float b, float t = 1e-4f) { return std::fabs(a - b) < t; }
 bool isNanf(float a) { return a != a; }
 
-// CLOSED-FORM CommonPointSets.CubePoints reference (CommonPointSets.cs:104-167, re-derived — NOT a copy of
-// emitBoxEdges). 12 edges in TiXL order, each 2 pts + separator; S=0.5, then a uniform scale applied.
+// CLOSED-FORM CommonPointSets.CubePoints reference (CommonPointSets.cs:133-182 at the locked SHA 395c4c55,
+// re-derived — NOT a copy of emitBoxEdges). 12 edges in TiXL order, each 2 pts + separator; S=0.5
+// (CommonPointSets.cs:106), F1=1 + Color=Vector4.One per point (:135-181), then a uniform scale applied.
 std::vector<SwPoint> boxRef(float scale) {
   const float S = 0.5f * scale;
   struct E { float a[3], b[3]; };
@@ -63,7 +68,12 @@ bool ptEq(const SwPoint& g, const SwPoint& w) {
   if (!nearf(g.Position.x, w.Position.x) || !nearf(g.Position.y, w.Position.y) || !nearf(g.Position.z, w.Position.z))
     return false;
   if (gs) return true;
-  return nearf(g.FX1, w.FX1);
+  if (!nearf(g.FX1, w.FX1)) return false;
+  // Color parity: every CubePoints edge point is `Color = Vector4.One` (CommonPointSets.cs:135-181, each
+  // entry; Init() re-stamps p.Color = Vector4.One at :50) — verified at the locked TiXL SHA 395c4c55.
+  // (Older sw comments cite CubePoints at :104-167; the range at that SHA is :133-182.)
+  return nearf(g.Color.x, w.Color.x) && nearf(g.Color.y, w.Color.y) &&
+         nearf(g.Color.z, w.Color.z) && nearf(g.Color.w, w.Color.w);
 }
 
 bool litAt(const std::vector<uint8_t>& px, uint32_t W, float ndcX, float ndcY) {
@@ -147,7 +157,10 @@ int runGizmoBoxSelfTest(bool injectBug) {
       edgeLit = litAt(px, RW, 0.0f, topNdcY);     // middle of the top edge
       centerDark = !litAt(px, RW, 0.0f, 0.0f);    // box center (hollow)
     }
-    bool pass = sized && (injectBug ? (!edgeLit) : (edgeLit && centerDark));
+    // WANT-FIXED assert (same in no-bug and -bug): the wireframe edge is lit, the hollow center dark.
+    // Under -bug the injected clear rides the REAL resident cook (cookDrawBoxGizmo → empty list → black
+    // screen) → edgeLit=false → this SAME assert goes RED. No flipped expectation.
+    bool pass = sized && edgeLit && centerDark;
     ok = ok && pass;
     std::printf("[selftest-gizmo-box] LEG2 ★PRODUCTION edgeLit@(0,%.2f)=%d centerDark=%d -> %s\n",
                 topNdcY, edgeLit ? 1 : 0, centerDark ? 1 : 0, pass ? "PASS" : "FAIL");

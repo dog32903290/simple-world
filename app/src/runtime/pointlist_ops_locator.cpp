@@ -32,9 +32,11 @@ void cookLocator(PointListCookCtx& c) {
   float size = pointListParam(p, "Size", 0.5f);  // Locator.t3 Size; scales the unit [-0.5,0.5] cross.
 
   emitAxisCross(*c.output);  // unit 3-axis cross (±0.5 on X/Y/Z)
-  // The emit spans ±0.5 (a unit cross of total length 1). Locator.Size is the cross HALF-extent in TiXL
-  // (Size=0.5 default → the cross reaches ±0.5), so multiply by 2*size to map the unit ±0.5 → ±size.
-  float k = 2.0f * size;
+  // The emit spans ±0.5 (a unit cross of total length 1). TiXL wires Size into the Transform child's
+  // UniformScale (Locator.t3 43f63f2d -> a7b1e667; Transform.cs:28 s = Scale*UniformScale), so the ±0.5
+  // cross scales to ±0.5*Size — arm half-length = 0.5*Size (Size=0.5 default → ±0.25). The old 2*size
+  // mapping was a 2x self-invented fork (caught by the 2026-07-03 oracle audit, P5).
+  float k = size;
   if (k != 1.0f)
     for (SwPoint& pt : *c.output) {
       pt.Position.x *= k; pt.Position.y *= k; pt.Position.z *= k;

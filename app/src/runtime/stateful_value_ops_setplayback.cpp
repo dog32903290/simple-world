@@ -34,6 +34,21 @@
 #include "runtime/stateful_value_ops_internal.h"  // getIn
 
 namespace sw {
+
+// --- SetPlaybackTime/Speed TEETH hook (--selftest-setplayback; mirrors setAnimValueBug) ---
+// Sticky module switch corrupting a REAL production term inside the two step fns so the golden's
+// FIXED (bug-independent) expected values bite. 0 = production. Modes (each is a plausible port
+// defect, never an expectation flip):
+//   1 = GATE IGNORED — both ops arm the provider EVERY cook (the per-frame-overwrite wrong port
+//       playback_provider.h:24 calls the make-or-break)
+//   2 = EDGE-ONLY — SetPlaybackTime drops the Continuously branch (cs:39 right half);
+//       SetPlaybackSpeed resurrects the commented-out WasTriggered (cs:24) → edge instead of LEVEL
+//   3 = WRITE SEVERED — the gate fires but the provider is never armed
+//   4 = CONDITIONING DROPPED — SetPlaybackTime skips the NaN/Inf→0 guard (cs:34-37);
+//       SetPlaybackSpeed skips the snap block (cs:39-46)
+static int g_setPlaybackBug = 0;
+void setSetPlaybackBug(int mode) { g_setPlaybackBug = mode; }
+
 namespace {
 
 // --- SetPlaybackTime (TiXL Lib/numbers/anim/time/SetPlaybackTime.cs:24-58) ---
@@ -65,11 +80,16 @@ void stepSetPlaybackTime(const std::map<std::string, float>& in, float /*dt*/, f
   const bool wasTriggered = enabled && !prevEnabled;  // false→true only
   st.s[0] = enabled ? 1.0f : 0.0f;
 
-  if (std::isnan(newTime) || std::isinf(newTime)) newTime = 0.0f;  // cs:34-37
+  if (g_setPlaybackBug != 4) {  // TEETH bug 4: a port that forgot the NaN/Inf conditioning
+    if (std::isnan(newTime) || std::isinf(newTime)) newTime = 0.0f;  // cs:34-37
+  }
 
   // cs:39: fire on the edge (OnceEnabledGetsTrue) OR every frame while enabled (Continuously, mode==1).
-  const bool fire = wasTriggered || (enabled && mode == 1);
-  if (fire) {
+  // TEETH bug 1: gate ignored (arm every cook); bug 2: Continuously branch dropped (edge-only).
+  const bool fire = (g_setPlaybackBug == 1)   ? true
+                    : (g_setPlaybackBug == 2) ? wasTriggered
+                                              : (wasTriggered || (enabled && mode == 1));
+  if (fire && g_setPlaybackBug != 3) {  // TEETH bug 3: write severed
     PlaybackProvider::instance().setNewTime(newTime);  // cs:54 Playback.Current.TimeInBars = newTime
   }
 
@@ -93,16 +113,29 @@ void stepSetPlaybackTime(const std::map<std::string, float>& in, float /*dt*/, f
 // in the .cs (cs:24 + cs:50) — TiXL ships SetPlaybackSpeed as LEVEL-gated (writes every triggered
 // frame), NOT edge-gated; we mirror the SHIPPED behaviour (a held-true trigger keeps writing).
 void stepSetPlaybackSpeed(const std::map<std::string, float>& in, float /*dt*/, float /*time*/,
-                          StatefulValueState&, float out[8], const TransportSnapshot&, ContextVarMap*,
+                          StatefulValueState& st, float out[8], const TransportSnapshot&, ContextVarMap*,
                           const std::string&) {
   float speedFactor = getIn(in, "SpeedFactor", 1.0f);
   const bool triggered = getIn(in, "TriggerUpdate", 0.0f) > 0.5f;  // LEVEL (WasTriggered commented out)
 
-  if (triggered) {
-    // cs:39-46 snap: near-1 → exactly 1 ; small-positive → 0.0001 (not quite stopping playback).
-    if (speedFactor > 0.95f && speedFactor < 1.05f) speedFactor = 1.0f;
-    else if (speedFactor > 0.0f && speedFactor < 0.03f) speedFactor = 0.0001f;
-    PlaybackProvider::instance().setNewSpeed(speedFactor);  // cs:48 Playback.Current.PlaybackSpeed
+  // TEETH bug 2: resurrect the commented-out WasTriggered (cs:24/cs:50) — the edge-instead-of-LEVEL
+  // defect a port copying the dead code would ship. Edge state parked in s[0] (unused in production).
+  bool fire = triggered;
+  if (g_setPlaybackBug == 2) {
+    const bool prev = st.s[0] > 0.5f;
+    fire = triggered && !prev;
+    st.s[0] = triggered ? 1.0f : 0.0f;
+  }
+  if (g_setPlaybackBug == 1) fire = true;  // TEETH bug 1: gate ignored (per-frame overwrite)
+
+  if (fire) {
+    if (g_setPlaybackBug != 4) {  // TEETH bug 4: a port that forgot the snap conditioning
+      // cs:39-46 snap: near-1 → exactly 1 ; small-positive → 0.0001 (not quite stopping playback).
+      if (speedFactor > 0.95f && speedFactor < 1.05f) speedFactor = 1.0f;
+      else if (speedFactor > 0.0f && speedFactor < 0.03f) speedFactor = 0.0001f;
+    }
+    if (g_setPlaybackBug != 3)  // TEETH bug 3: write severed
+      PlaybackProvider::instance().setNewSpeed(speedFactor);  // cs:48 Playback.Current.PlaybackSpeed
   }
 
   out[0] = speedFactor;  // golden probe (snap-adjusted); the real product is the provider arm

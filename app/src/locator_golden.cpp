@@ -1,9 +1,25 @@
 // locator_golden — --selftest-gizmo-locator. C3 Tranche-1: Locator (3-axis cross marker, geometry only —
 // label/screen-constant DROPPED, see gizmo_geometry.h emitAxisCross fork) via the pointlist seam.
-//   LEG 1 — TRANSPORT (flat): assert the 3 axis segments vs a CLOSED-FORM CommonPointSets.CrossPoints
-//           re-derivation (Y, X, Z order; ±k on each axis; 3 edges × (2 pts + sep) = 9 points).
+//   LEG 1 — TRANSPORT (flat): assert the 3 axis segments vs the TiXL CommonPointSets.CrossPoints set
+//           (Y, X, Z order; 3 edges × (2 pts + sep) = 9 points; F1/F2/Color pinned).
 //   LEG 2 — ★PRODUCTION PIXEL (resident): Locator → ListToBuffer → DrawLines → RenderTarget, readback: a
 //           point on the +X arm (between origin and +x tip) is lit; an off-axis diagonal point is dark.
+//
+// ORACLE PROVENANCE (P5 fix — all expectations from TiXL source, SHA 395c4c55):
+//   • Cross point set: Operators/Lib/point/generate/CommonPointSets.cs:106 (S=0.5) + :108-120
+//     (CrossPoints — Y axis pair, X axis pair, Z axis pair, each followed by Point.Separator(), every
+//     point F1=1, F2=1) and :49-51 (Init(): Orientation=Identity, Color=Vector4.One → WHITE points; the
+//     teal Locator Color param tints at the DrawLines stage, NOT in the point buffer — Locator.t3
+//     connection Color→DrawLines slot 75419a73).
+//   • Arm-length semantics: Locator.t3 wires the op's Size input (43f63f2d) into a Transform child's
+//     UniformScale slot (a7b1e667; Transform.cs:60-61) and Transform.cs:28 applies s = Scale *
+//     UniformScale — so in TiXL the drawn cross is the unit ±0.5 CrossPoints scaled by Size:
+//     ARM HALF-LENGTH = 0.5 * Size (default Size=0.5 → arms reach ±0.25).
+//   ★NAMED DIVERGENCE (reported prey — do NOT silently rebase): the sw cook
+//     (runtime/pointlist_ops_locator.cpp:37) scales by k = 2*Size → arms reach ±Size, i.e. 2× the TiXL
+//     arm. This golden pins the CURRENT sw behavior (armHalf = Size) so the suite stays green while the
+//     fork is decided; when the leaf is re-anchored to TiXL, flip kArmHalfIsSize below to the 0.5*Size
+//     convention in the same commit.
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -30,18 +46,33 @@ namespace {
 bool nearf(float a, float b, float t = 1e-4f) { return std::fabs(a - b) < t; }
 bool isNanf(float a) { return a != a; }
 
-// CLOSED-FORM Locator cross reference (CommonPointSets.CrossPoints, Y/X/Z order). The cook scales the unit
-// ±0.5 cross by k = 2*Size, so the arms reach ±Size. 3 edges × (2 pts + sep) = 9 points.
+// TiXL arm-scale convention vs the sw fork (see header ★NAMED DIVERGENCE). TiXL: armHalf = 0.5*Size
+// (CommonPointSets.cs:106 unit ±0.5 × Transform.cs:28 UniformScale=Size). sw cook: armHalf = Size
+// (pointlist_ops_locator.cpp:37 k=2*Size). The golden pins the CURRENT sw behavior; flip to false when
+// the leaf is re-anchored to the TiXL convention.
+constexpr bool kArmHalfIsSize = false;  // leaf re-anchored to TiXL 0.5*Size (2026-07-03)
+
+// Locator cross reference — CommonPointSets.CrossPoints TRANSCRIBED from CommonPointSets.cs:108-120
+// (Y, X, Z axis order, Point.Separator() after each pair, F1=1 F2=1 per point) + :49-51 (Init():
+// Color=Vector4.One, Orientation=Identity). 3 edges × (2 pts + sep) = 9 points. Only the arm HALF-LENGTH
+// uses the sw forked convention (see kArmHalfIsSize above).
 std::vector<SwPoint> crossRef(float size) {
-  const float k = size;  // arm half-length (Size)
+  const float k = kArmHalfIsSize ? size : 0.5f * size;  // arm half-length
   struct E { float a[3], b[3]; };
   const E edges[3] = {
-      {{0,-k,0},{0, k,0}},  // Y axis
-      {{-k,0,0},{ k,0,0}},  // X axis
-      {{0,0,-k},{0,0, k}},  // Z axis
+      {{0,-k,0},{0, k,0}},  // Y axis  (CrossPoints[0..1], cs:110-111)
+      {{-k,0,0},{ k,0,0}},  // X axis  (CrossPoints[3..4], cs:113-114)
+      {{0,0,-k},{0,0, k}},  // Z axis  (CrossPoints[6..7], cs:117-118)
   };
   std::vector<SwPoint> out;
-  auto pt = [&](const float v[3]) { SwPoint p = swPointDefault(); p.Position = {v[0], v[1], v[2]}; p.FX1 = 1.0f; p.Color = {1,1,1,1}; return p; };
+  auto pt = [&](const float v[3]) {
+    SwPoint p = swPointDefault();  // TiXL `new Point()` seed
+    p.Position = {v[0], v[1], v[2]};
+    p.FX1 = 1.0f;                  // F1 = 1 (cs:110)
+    p.FX2 = 1.0f;                  // F2 = 1 (cs:110)
+    p.Color = {1, 1, 1, 1};        // Init() Color = Vector4.One (cs:50) — WHITE, not the teal param
+    return p;
+  };
   auto sep = []() { SwPoint s = swPointDefault(); s.Scale = {std::nanf(""), std::nanf(""), std::nanf("")}; return s; };
   for (const E& e : edges) { out.push_back(pt(e.a)); out.push_back(pt(e.b)); out.push_back(sep()); }
   return out;
@@ -51,7 +82,11 @@ bool ptEq(const SwPoint& g, const SwPoint& w) {
   bool gs = isNanf(g.Scale.x), ws = isNanf(w.Scale.x);
   if (gs != ws) return false;
   if (!nearf(g.Position.x, w.Position.x) || !nearf(g.Position.y, w.Position.y) || !nearf(g.Position.z, w.Position.z)) return false;
-  return gs ? true : nearf(g.FX1, w.FX1);
+  if (gs) return true;  // separator: only the NaN-Scale marker + position matter
+  // Non-separator points carry the full TiXL CrossPoints attribute set (cs:108-120 + Init cs:49-51).
+  return nearf(g.FX1, w.FX1) && nearf(g.FX2, w.FX2) &&
+         nearf(g.Color.x, w.Color.x) && nearf(g.Color.y, w.Color.y) &&
+         nearf(g.Color.z, w.Color.z) && nearf(g.Color.w, w.Color.w);
 }
 
 bool litAt(const std::vector<uint8_t>& px, uint32_t W, float ndcX, float ndcY) {
@@ -74,9 +109,9 @@ int runGizmoLocatorSelfTest(bool injectBug) {
   registerBuiltinPointOps();
 
   bool ok = true;
-  const float kSize = 2.0f;  // arms reach ±2 (k = 2*Size in the cook; here Size param chosen so arm=±2)
-  // The cook scales the unit cross by 2*Size, so arm half-length = Size? No: emit spans ±0.5, k=2*Size →
-  // ±0.5*2*Size = ±Size. So Size param = arm half-length. Pass Size=kSize directly.
+  const float kSize = 2.0f;  // Size param. Under the sw forked convention (kArmHalfIsSize, see header
+                             // ★NAMED DIVERGENCE) arms reach ±2; TiXL semantics would be ±1 (0.5*Size,
+                             // Transform.cs:28 + CommonPointSets.cs:106).
 
   // ===== LEG 1 — TRANSPORT (flat). =====
   {
@@ -123,10 +158,11 @@ int runGizmoLocatorSelfTest(bool injectBug) {
 
     MTL::Texture* tex = pg.target();
     bool sized = tex && (uint32_t)tex->width() == RW && (uint32_t)tex->height() == RH;
-    // The X arm runs along world y=0 from x=-2 to x=+2 → NDC line y=0, x∈[-0.571,0.571]. The Y arm runs
-    // along world x=0 → NDC line x=0. Probe the +X arm at world (1.2,0)→NDC(0.343,0) — lit (on the arm).
-    // Probe an OFF-AXIS diagonal (NDC 0.3, 0.3) — dark (the cross has no diagonal arm).
-    const float armNdcX = 1.2f / 3.5f;  // ≈ 0.343
+    // The X arm runs along world y=0 from x=-1 to x=+1 (TiXL ±0.5*Size arm, leaf re-anchored 2026-07-03)
+    // → NDC line y=0, x∈[-0.286,0.286]. The Y arm runs along world x=0 → NDC line x=0. Probe the +X arm
+    // at world (0.6,0)→NDC(0.171,0) — lit (mid-arm). Probe an OFF-AXIS diagonal (NDC 0.3, 0.3) — dark
+    // (the cross has no diagonal arm).
+    const float armNdcX = 0.6f / 3.5f;  // ≈ 0.171
     bool armLit = false, diagDark = true;
     if (sized) {
       std::vector<uint8_t> px((size_t)RW * RH * 4, 0);
@@ -134,13 +170,26 @@ int runGizmoLocatorSelfTest(bool injectBug) {
       armLit = litAt(px, RW, armNdcX, 0.0f);
       diagDark = !litAt(px, RW, 0.3f, 0.3f);
     }
-    bool pass = sized && (injectBug ? (!armLit) : (armLit && diagDark));
+    // SAME assert in both legs (no want-flip): the arm pixel must be lit and the diagonal dark. The
+    // injectBug leg corrupts the REAL cook (pointListInjectBug → pointlist_ops_locator.cpp:43 clears the
+    // cooked list) so this identical assert goes RED through the production pixel path.
+    bool pass = sized && armLit && diagDark;
     ok = ok && pass;
     std::printf("[selftest-gizmo-locator] LEG2 ★PRODUCTION armLit@(%.2f,0)=%d diagDark=%d -> %s\n",
                 armNdcX, armLit ? 1 : 0, diagDark ? 1 : 0, pass ? "PASS" : "FAIL");
   }
 
   lib->release(); q->release(); dev->release(); pool->release();
+  if (injectBug) {
+    if (ok) {
+      // Injection reached nothing — dead tooth. exit 0 so --bite's NO-BITE list catches it (a dead
+      // tooth returning 1 would look like a healthy bite forever).
+      std::printf("[selftest-gizmo-locator] FAIL: injectBug did not trip any leg (tooth has no bite)\n");
+      return 0;
+    }
+    std::printf("[selftest-gizmo-locator] injectBug correctly RED\n");
+    return 1;
+  }
   std::printf("[selftest-gizmo-locator] %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

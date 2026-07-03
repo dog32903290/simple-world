@@ -21,7 +21,7 @@
 //       Emitted tokens: P.BendField_<id>_Amount / P.BendField_<id>_StepFactor. NOT a forward-assumed
 //       literal; a wrong prefix reads the wrong/0 struct member and the golden's StepFactor probe bites.
 //   (2) HLSL->MSL helper port (opBend body): `inout float3 p` -> `thread float3& p` (frozen fork: HLSL
-//       inout -> MSL thread X& ONLY inside helpers). `mul(m, p.xy)` -> `m * p.xy` (frozen fork). No lerp /
+//       inout -> MSL thread X& ONLY inside helpers). `mul(m, p.xy)` -> `p.xy * m` (frozen fork; HLSL float2x2 literal fills ROWS, MSL fills COLUMNS, so mul(m,v) == v*m in MSL — m*v would rotate the WRONG WAY, caught by the bend45mid golden probe 2026-07-03). No lerp /
 //       no inter-helper call inside opBend (it calls only built-ins cos/sin/float2x2/float3) -> NO MSL
 //       forward-declaration needed (confirmed: the globals std::map holds exactly one key "opBend").
 //       The float2x2 constructor + the k /= (180/3.14157892) magic constant are byte-verbatim from the
@@ -46,7 +46,7 @@ namespace {
 
 // opBend helper — byte-verbatim from BendField.cs:38-46 with the two frozen MSL forks applied:
 //   HLSL `inout float3 p`  -> MSL `thread float3& p`   (inout -> thread& inside helpers)
-//   HLSL `mul(m,p.xy)`     -> MSL `m * p.xy`           (mul(matrix,vec) -> matrix*vec)
+//   HLSL `mul(m,p.xy)`     -> MSL `p.xy * m`           (row-filled HLSL literal: mul(m,v) == v*m in MSL)
 // No inter-helper call (only cos/sin/float2x2 built-ins) -> this is the SOLE globals key -> no forward
 // prototype needed (unlike combinesdf.cpp:216 fork-5). The deg->rad constant 180/3.14157892 is the .cs's
 // literal (their idiosyncratic pi spelling) — kept exact for byte parity, do NOT "fix" to 3.14159.
@@ -56,7 +56,7 @@ static const char* kBodyOpBend =
     "    float c = cos(k * p.x);\n"
     "    float s = sin(k * p.x);\n"
     "    float2x2  m = float2x2(c, -s, s, c);\n"
-    "    p = float3(m * p.xy, p.z);\n"
+    "    p = float3(p.xy * m, p.z);\n"
     "    return p;\n"
     "}";
 

@@ -20,7 +20,14 @@
 // half it wrote at frame N, folding it with the all-black input -> the carried trail is NOT addressed
 // correctly -> the frame-N+1 lit-from-black asserts collapse -> exit 1. The `want` stays FIXED (we
 // assert the trail persists & spreads; the bug removes it, it does NOT flip the expected).
+//
+// DECAY-ISOLATION tooth (P4 upgrade 2026-07-03): the behaviour band alone (centerN1 < centerN) cannot
+// catch a WRONG (1-DecayRate) multiplier (the black frame-N+1 input drops centerN1 regardless). A
+// closed-form ratio tooth (afterglow2 pattern) isolates it: centerN1(survival s) = trailN_center * s,
+// expected ratio 0.75 — hand-traced from AfterGlow.t3 (DrawQuad black-over decay + Layer2d ADD glow;
+// exact .t3 line citations at the tooth below). The band asserts are KEPT (band + real tooth coexist).
 #include <cstdio>
+#include <cstdlib>  // std::abs(int) — decay-isolation band
 #include <vector>
 
 #include <Foundation/Foundation.hpp>
@@ -147,6 +154,65 @@ int runAfterGlowSelfTest(bool injectBug) {
                 injectBug ? "diverged under -bug (expected, tooth bites)" : "FAIL",
                 fCenterN, fOff, fCenterN1);
     ok = false;
+  }
+
+  // ---------------- DECAY-ISOLATION tooth (the (1-DecayRate) MULTIPLIER must bite its target) ------
+  // The flat decayBand assert above (centerN1 < centerN) passes even with NO decay, because frame N+1's
+  // black input ALSO removes the Color.rgb*blur(current) contribution that lit centerN — so centerN1
+  // drops regardless of the (1-DecayRate) multiplier (this file's own v1 note admitted a naive band can
+  // pass with zero decay). Isolate the multiplier — afterglow2_golden.cpp decay-isolation pattern.
+  //
+  // TiXL derivation (external/tixl Operators/Lib/image/fx/feedback/AfterGlow.t3, HAND-TRACED):
+  //   * trail buffer = "RenderTarget (NoClear)" 82e6547e, Clear=false (AfterGlow.t3:263-267) — the
+  //     buffer persists across frames.
+  //   * decay pass = DrawQuad 4f2d6e89 (AfterGlow.t3:200-215): its Color pin <- Vector4 3f6f5346
+  //     .Result (.t3:415-419); that Vector4's W <- OUTER DecayRate (.t3:397-401; target slot GUID
+  //     6CE53000… == Vector4.cs:28-29 `InputSlot<float> W`), X/Y/Z unconnected -> 0 (the Vector4 node
+  //     has no InputValues, .t3:129-133) => quad rgba = (0,0,0, DecayRate). DrawQuad BlendMode is NOT
+  //     overridden in AfterGlow (.t3:200-215 sets only Color) -> default 0 (DrawQuad.t3:14-15) =
+  //     Normal alpha-over (SharedEnums.cs:7-9 BlendModes.Normal=0)
+  //       => trail = trail*(1 - DecayRate) + (0,0,0)*DecayRate = trail*(1 - DecayRate).
+  //   * glow pass = Layer2d 0750217c, BlendMode = 1 ADD (.t3:62-65), Texture <- Blur output
+  //     (.t3:367-371), Color <- OUTER Color (.t3:373-377) => trail += Color.rgb*blur(current).
+  //   => collapsed per-frame composite: out = prev*(1 - DecayRate) + Color.rgb*blur(current).
+  //   Frame N (fresh pair, prev = black): trailN = Color.rgb*blur(block) — INDEPENDENT of DecayRate.
+  //   Frame N+1 (black input; golden sets ContrastOffset2 = 0 so blur adds no constant): blur(black)=0
+  //       -> Output_center = trailN_center * (1 - DecayRate)   (a clean linear probe of the multiplier)
+  //   Run A DecayRate 0.25 (survival 0.75), run B DecayRate 0 (survival 1.0). Expected ratio = 0.75.
+  //   A wrong decay (multiplier dropped -> survival 1.0 for run A too) makes ratio == 1.0 -> the
+  //   |A - 0.75*B| band FAILS. `want` (ratio 0.75) is FIXED — the (1-DecayRate) the .t3 wiring declares.
+  if (!injectBug) {
+    auto centerN1ForDecay = [&](float decayRate) -> int {
+      PointGraph pg(dev, lib, q, 64, 64);
+      Graph g;
+      buildBlockGraph(g, RS, /*agId=*/4);
+      g.node(4)->params["DecayRate"] = decayRate;
+      EvaluationContext ctx{}; ctx.time = 0.0f; ctx.deltaTime = 1.0f / 60.0f;
+      ctx.frameIndex = 0;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/4);
+      g.node(1)->params["Count"] = 0.0f;  // frame N+1: black input -> output = trailN * survival
+      ctx.frameIndex = 1;
+      pg.cook(g, ctx, nullptr, /*targetNodeId=*/4);
+      return lumAt(pg.debugCookedFeedbackOutput(4, /*ordinal=*/0), cx, cy);
+    };
+    int dA = centerN1ForDecay(0.25f);  // survival 0.75
+    int dB = centerN1ForDecay(0.0f);   // survival 1.0 (no decay) -> the upper anchor
+    // dB = trailN_center; dA = trailN_center * 0.75. Predicted dA, with an 8-bit + sampling tolerance.
+    int predictedA = (int)(dB * 0.75f + 0.5f);
+    bool anchorLit = dB > 32;                       // the no-decay anchor is bright enough to resolve 0.75
+    bool decaysBelowAnchor = dA + 6 < dB;           // 0.75 multiplier visibly pulls A below the anchor B
+    bool hitsBand = std::abs(dA - predictedA) <= 6; // A lands on trailN*0.75 (NOT on trailN -> rejects decay=1)
+    bool decayIso = anchorLit && decaysBelowAnchor && hitsBand;
+    if (!decayIso) {
+      std::printf("[selftest-afterglow] decay-isolation FAIL survival0.75=%d survival1.0=%d "
+                  "predicted0.75=%d (want |A-pred|<=6 AND A+6<B AND B>32)\n",
+                  dA, dB, predictedA);
+      ok = false;
+    } else {
+      std::printf("[selftest-afterglow] decay-isolation: survival0.75=%d survival1.0=%d predicted=%d "
+                  "(ratio %.3f ~ 0.75; (1-DecayRate) multiplier bites) PASS\n",
+                  dA, dB, predictedA, dB > 0 ? (float)dA / (float)dB : 0.0f);
+    }
   }
 
   // ---------------- RESIDENT (production) cook, 2 frames (R-2 production proof) ---------------------

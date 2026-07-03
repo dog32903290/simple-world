@@ -15,6 +15,20 @@
 
 namespace sw {
 
+// Parity-golden -bug latches (point_ops_forceparams.h). Static-local bools, false in production;
+// the axisstep/directional/particlesim parity goldens flip ONE around a single cook and reset it.
+bool& axisStepSelectRatioBugForTest() { static bool b = false; return b; }
+bool& dirForceAmountBugForTest() { static bool b = false; return b; }
+bool& vecFieldAmountBugForTest() { static bool b = false; return b; }
+bool& particleSimDragBugForTest() { static bool b = false; return b; }
+// fielddistance parity -bug latch: the FIELDDISTANCE no-field baked fallback dispatches a phantom
+// directional push instead of the faithful no-op kernel (a no-op-contract regression injected into
+// the REAL cook dispatch — point_ops.cpp FIELDDISTANCE branch). false in production.
+bool& fieldDistBakedPushBugForTest() { static bool b = false; return b; }
+// snaptoangles TOOTH 1b -bug latch: non-zero REPLACES the resolved AngleCount (a simulated
+// NodeSpec-default registration drift injected into the REAL cook fill). 0.0f in production.
+float& snapAnglesBugAngleCountForTest() { static float v = 0.0f; return v; }
+
 // VelocityForce — defaults照 VelocityForce.t3: Amount=1, Accelerate=1, MinSpeed=0, MaxSpeed=1000,
 // Variation=0, VariationGainAndBias=(0.5,0.5).
 VelForceParams fillVelForceParams(const PointCookCtx& c, uint32_t pool) {
@@ -39,6 +53,7 @@ AxisStepForceParams fillAxisStepForceParams(const PointCookCtx& c, uint32_t pool
   ap.Strength = cookInputParam(c, 1, "Strength", 1.0f);
   ap.RandomizeStrength = cookInputParam(c, 1, "RandomizeStrength", 0.0f);
   ap.SelectRatio = cookInputParam(c, 1, "SelectRatio", 0.1f);
+  if (axisStepSelectRatioBugForTest()) ap.SelectRatio = 1.0f;  // -bug latch: "every particle hit" drift
   ap.AxisDistributionX = cookInputParam(c, 1, "AxisDistribution.x", 1.0f);
   ap.AxisDistributionY = cookInputParam(c, 1, "AxisDistribution.y", 1.0f);
   ap.AxisDistributionZ = cookInputParam(c, 1, "AxisDistribution.z", 1.0f);
@@ -61,6 +76,7 @@ SnapAnglesForceParams fillSnapAnglesForceParams(const PointCookCtx& c, uint32_t 
   SnapAnglesForceParams sp{};
   sp.Amount = cookInputParam(c, 1, "Amount", 1.0f);
   sp.SnapAngle = cookInputParam(c, 1, "AngleCount", 45.0f);
+  if (snapAnglesBugAngleCountForTest() != 0.0f) sp.SnapAngle = snapAnglesBugAngleCountForTest();  // -bug latch
   sp.PhaseAngle = cookInputParam(c, 1, "Twist", 0.0f);
   sp.Variation = cookInputParam(c, 1, "Variation", 0.2f);
   sp.VariationRatio = cookInputParam(c, 1, "VariationThreshold", 0.1f);

@@ -6,6 +6,7 @@
 ## 北極星（完成定義）
 Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模一樣（路線 B，視覺也追）。
 **完成定義 = 對 TiXL 機器驗證得到**（golden 對手算 TiXL 公式／源碼常數 + 獨立 refuter + scenario 全綠）。
+**golden 規格閘（2026-07-03 oracle 審計後立）**：寫/改任何 `*_golden.cpp` 前讀 `docs/agent/GOLDEN_STANDARD.md`（三特徵＋五反型 P1-P5）；`tools/golden_lint.sh` 綠（run_all 每次 sweep 自動掃）。期望值絕不拿 sw 自己輸出/自家 helper 當 oracle（P5 自洽假綠＝snaptoangles 恆真教訓）；本體公式必須在非恆等參數被咬過（P2 教訓）。
 **柏為不驗證、不定方向（2026-06-16 柏為定）**——他手上沒有 TiXL 可對，他的眼睛當 parity 閘無意義。方向 orchestrator 定，驗證全交機器。
 **parity ground-truth 順序**：①TiXL 源碼（golden/refuter/scenario）→ ②源碼讀不出答案（歧義）時 → **跑真 TiXL 對**（Windows TiXL lane / copilot kit，見 [[windows-tixl-copilot-kit]]）。柏為的眼睛從不在這條鏈上。
 

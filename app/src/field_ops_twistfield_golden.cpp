@@ -17,13 +17,42 @@
 //     StepFactor=1.0  -> +0.1   (identity twist + identity scale; the WHOLE-path baseline)
 //     StepFactor=0.5  -> +0.05  (the f.w POST discriminator: only a real `*= StepFactor` gives 0.05)
 //
-// Why Amount=0 (identity twist): the twist rotates p.xy by an angle proportional to p.z; at Amount=0 the
-// pre line is a VERIFIED no-op (q=p) so the StepFactor probe isolates the POST emit cleanly. (The pre
-// opTwist STILL compiles & runs — a wrong swizzle / dropped opTwist would fail to compile or read wrong,
-// so the pre path is exercised, just at its identity point.) The twist is rotation-about-z; at z=0 (the 2D
-// render plane) the angle is k*p.z=0 even for non-zero Amount, so an origin-centered child is the clean
-// choice here (the rotation-invariant OFF-CENTER trick is only needed when the transform is observable on
-// the render plane — here the discriminator is the POST StepFactor, exactly as BendField).
+// Why the two Amount=0 probes stay: at Amount=0 the pre line is a verified no-op (q=p) so the StepFactor
+// probes isolate the POST emit cleanly (they also pin the pixel->p mapping the mid probe reuses). But an
+// identity point can NEVER bite the twist math itself (P2, GOLDEN_ORACLE_AUDIT.md) — and with Axis=Z the
+// twist angle is k*p.z = 0 everywhere on the z=0 render plane, and an ORIGIN-CENTERED child hides ANY
+// rotation (|twist(p)| == |p|). Hence the third probe below: Axis=X (whose swizzle makes the angle
+// proportional to p.x, observable on the plane), Amount!=0, and an off-center child with cz != 0 (the
+// twist pushes the sample out of the plane in z — only a cz != 0 child center can see z's SIGN).
+//
+// MID PROBE "twist61mid" (P2 fix — the twist formula finally bites). Hand-derived from TwistField.cs ONLY
+// (never from sw output). Axis=X -> swizzle "yzx" (TwistField.cs:61-66): copy-in t = p.yzx = (y,z,x);
+// TiXL math (TwistField.cs:37-44, HLSL):
+//     k  = Amount / (180 / 3.14157892)          (.cs:39 — TiXL's literal pi, kept exact)
+//     th = k * t.z                              (.cs:40-41 — angle proportional to swizzled .z = p.x!)
+//     m  = float2x2(c,-s,s,c)  -- HLSL fills ROW-major: row0=(c,-s), row1=(s,c)
+//     mul(m, t.xy)             -- t.xy as COLUMN vector -> (c*x - s*y, s*x + c*y) = rotation by +th
+//     copy-out p.yzx = t'  ->  q = (x, y*cos(th), y*sin(th))   [on the z=0 plane, t=(y,0,x)]
+// Probe pixel (96,48) -> p=(0.5078125, 0.2421875, 0); Amount=120 -> th = 1.063555364 rad (60.9372 deg):
+//     cos=0.485767458 sin=0.874088083
+//     q = (0.5078125, 0.117646806, 0.211693208)
+// Child sphere center (-0.1,-0.2,0.3) r=0.4 (cz=0.3 != 0 so the z-sign is observable):
+//     d = |q - C| - 0.4 = 0.291472066;  expected = d * StepFactor(0.5) = 0.145736033
+// Discrimination (all >> kTolMid=1e-4, python-verified):
+//     transposed rotation R(-th)      -> 0.227833  (dev 0.082)   [see HLSL-vs-MSL note below]
+//     pre line dropped (q=p)          -> 0.204650  (dev 0.059)
+//     deg-not-rad (k = Amount)        -> 0.207757  (dev 0.062)
+//     wrong swizzle (xzy applied)     -> 0.151487  (dev 0.0058)
+//     angle from t.x (bend-style)     -> 0.178213  (dev 0.032)
+//     post *= StepFactor dropped      -> 0.291472  (dev 0.146)   [so injectBug trips this probe too]
+//
+// SUSPECTED PARITY FORK (audit prey — implementation NOT touched, per P2 workorder): TiXL HLSL
+// `float2x2(c,-s,s,c)` fills ROW-major (row0=(c,-s)) and `mul(m,v)` treats v as a column -> rotation by
+// +th. sw's MSL port (field_ops_twistfield.cpp:66-67) emits `float2x2(c,-s,s,c)` + `m * p.xy` — MSL fills
+// scalars COLUMN-major (col0=(c,-s)), so `m*v` computes the TRANSPOSE = rotation by -th. If this probe
+// goes RED with got ~= +0.227833 (the R(-th) prediction above), that is the frozen "mul(m,v) -> m*v" fork
+// flipping rotation direction — invisible at Amount=0 and for origin-centered children, which is exactly
+// why no golden ever caught it. Expected value stays TiXL-derived (the authority); do not backfill.
 //
 // PARAM-PREFIX (BLOOD LESSON): the emitted token P.TwistField_<id>_StepFactor MUST match sw's frozen
 //   prefix convention ("<Type>_"+shortId+"_", accessed P.<prefix><Name>; backward-traced from
@@ -62,8 +91,6 @@ namespace {
 
 constexpr uint32_t kW = 128, kH = 128;
 constexpr float kSphR = 0.4f;
-constexpr float kAmount = 0.0f;  // identity twist (opTwist with k=0 -> identity rotation).
-constexpr int kAxis = 0;         // X (yzx swizzle) — irrelevant at Amount=0, but exercises the pre path.
 
 std::string loadTemplate() {
 #ifdef SW_FIELD_TEMPLATE
@@ -97,26 +124,52 @@ struct GoldenSphere : FieldNode {
   }
 };
 
-// Host closed-form: identity twist (Amount=0) -> child samples q=p -> (|p| - r) scaled by StepFactor.
-float twistedField(float px, float py, float stepFactor) {
-  const float d = std::sqrt(px * px + py * py) - kSphR;  // child sphere at q=p (identity twist)
-  return d * stepFactor;
+// Host oracle — the FULL TiXL twist formula, hand-ported from TwistField.cs (HLSL semantics; NEVER from
+// sw's MSL emit — that would be a self-consistent fake anchor, P5). Double precision. The render plane
+// samples p=(px,py,0). Steps + citations:
+//   swizzle copy-in  t = p.<perm>          — TwistField.cs:50-51 call `opTwist(p{c}.{axi}, ...)`; HLSL
+//                                            inout on a swizzle = copy-in/copy-out. perm table .cs:61-66.
+//   k  = Amount/(180/3.14157892)           — TwistField.cs:39 (TiXL's literal pi — kept exact).
+//   th = k * t.z                           — TwistField.cs:40-41 (angle proportional to swizzled .z; the
+//                                            ONLY math difference vs BendField's k * t.x).
+//   rot: HLSL float2x2(c,-s,s,c) fills ROW-major (row0=(c,-s)); mul(m, t.xy) treats t.xy as a COLUMN
+//        vector -> (c*x - s*y, s*x + c*y) = rotation by +th.  — TwistField.cs:42-43.
+//   swizzle copy-out p.<perm> = rotated t  — the inout write-back; then child d = |q - C| - r and the
+//   post scale d * StepFactor              — TwistField.cs:56.
+// At Amount=0 this reduces exactly to the old identity closed-form (|p| - r) * StepFactor.
+float twistedFieldTiXL(float px, float py, float amount, int axis, float cx, float cy, float cz,
+                       float stepFactor) {
+  static const int kPerm[3][3] = {{1, 2, 0}, {0, 2, 1}, {0, 1, 2}};  // "yzx","xzy","xyz" (.cs:61-66)
+  const int* perm = kPerm[axis];
+  const double p[3] = {px, py, 0.0};
+  const double t[3] = {p[perm[0]], p[perm[1]], p[perm[2]]};  // copy-in: t = p.<perm>
+  const double k = amount / (180.0 / 3.14157892);            // .cs:39
+  const double th = k * t[2];                                // .cs:40-41 (twist: angle from t.z)
+  const double c = std::cos(th), s = std::sin(th);
+  const double rot[3] = {c * t[0] - s * t[1], s * t[0] + c * t[1], t[2]};  // .cs:42-43 (+th, see above)
+  double q[3] = {p[0], p[1], p[2]};
+  q[perm[0]] = rot[0]; q[perm[1]] = rot[1]; q[perm[2]] = rot[2];  // copy-out: p.<perm> = t
+  const double dx = q[0] - cx, dy = q[1] - cy, dz = q[2] - cz;
+  const double d = std::sqrt(dx * dx + dy * dy + dz * dz) - kSphR;  // child sphere
+  return (float)(d * stepFactor);                                  // .cs:56 post scale
 }
 
-std::shared_ptr<FieldNode> buildTree(float stepFactor, int injectBug) {
+std::shared_ptr<FieldNode> buildTree(float amount, float stepFactor, int axis, float cx, float cy,
+                                     float cz, int injectBug) {
   std::shared_ptr<FieldNode> mod = makeFieldNode("TwistField", "golden0");
   if (!mod) return nullptr;
-  configureTwistField(*mod, kAmount, stepFactor, kAxis, injectBug);
-  mod->inputs.push_back(std::make_shared<GoldenSphere>("a", 0.f, 0.f, 0.f, kSphR));
+  configureTwistField(*mod, amount, stepFactor, axis, injectBug);
+  mod->inputs.push_back(std::make_shared<GoldenSphere>("a", cx, cy, cz, kSphR));
   return mod;
 }
 
-// Render one tree (a given StepFactor + injectBug) and check the p=(0.5,0) probe == expected.
-// Returns 0 if the probe matches expected within tol, 1 otherwise. Prints one line.
+// Render one tree (Amount/StepFactor/Axis/child-center/injectBug) and check the probe pixel (targetX on
+// row `rowPy`) against the host TiXL oracle. Returns 0 if within tol, 1 otherwise. Prints one line.
 int renderAndCheck(MTL::Device* dev, MTL::CommandQueue* q, const std::string& tmpl, const char* label,
-                   float stepFactor, int injectBug) {
+                   float amount, float stepFactor, int axis, float cx, float cy, float cz, float targetX,
+                   uint32_t rowPy, float tol, int injectBug) {
   clearTexOpCache();
-  std::shared_ptr<FieldNode> tree = buildTree(stepFactor, injectBug);
+  std::shared_ptr<FieldNode> tree = buildTree(amount, stepFactor, axis, cx, cy, cz, injectBug);
   if (!tree) {
     std::printf("[selftest-field-twistfield] FAIL: TwistField factory not registered\n");
     return 1;
@@ -129,7 +182,6 @@ int renderAndCheck(MTL::Device* dev, MTL::CommandQueue* q, const std::string& tm
   std::vector<float> buf((size_t)kW * kH, 0.0f);
   tex->getBytes(buf.data(), kW * sizeof(float), MTL::Region::Make2D(0, 0, kW, kH), 0);
 
-  const uint32_t cy = (kH - 1) / 2;
   auto pxFor = [](float target) -> uint32_t {
     float f = ((target + 1.0f) * kW - 1.0f) * 0.5f;
     int px = (int)std::lround(f);
@@ -138,17 +190,16 @@ int renderAndCheck(MTL::Device* dev, MTL::CommandQueue* q, const std::string& tm
     return (uint32_t)px;
   };
 
-  // p=(0.5,0): identity twist -> child d = +0.1; * StepFactor -> +0.1 (SF=1) / +0.05 (SF=0.5).
-  const uint32_t qx = pxFor(0.5f);
-  const float px = pX(qx), py = pY(cy);
-  const float expected = twistedField(px, py, stepFactor);  // CORRECT field (never altered for injectBug)
-  const float got = buf[(size_t)cy * kW + qx];
+  const uint32_t qx = pxFor(targetX);
+  const float px = pX(qx), py = pY(rowPy);
+  // CORRECT field per the TiXL formula (never altered for injectBug, never backfilled from sw output).
+  const float expected = twistedFieldTiXL(px, py, amount, axis, cx, cy, cz, stepFactor);
+  const float got = buf[(size_t)rowPy * kW + qx];
   const float diff = std::fabs(got - expected);
-  const float kTol = 1e-5f;
-  const bool ok = diff <= kTol;
-  std::printf("[selftest-field-twistfield] probe %-10s p=(% .4f,% .4f) SF=%.2f got=% .6f expected=% .6f "
-              "diff=%.2e %s\n",
-              label, px, py, stepFactor, got, expected, diff, ok ? "OK" : "RED");
+  const bool ok = diff <= tol;
+  std::printf("[selftest-field-twistfield] probe %-11s p=(% .4f,% .4f) A=%.1f SF=%.2f axis=%d got=% .6f "
+              "expected=% .6f diff=%.2e %s\n",
+              label, px, py, amount, stepFactor, axis, got, expected, diff, ok ? "OK" : "RED");
   tex->release();
   return ok ? 0 : 1;
 }
@@ -181,14 +232,28 @@ int runFieldTwistFieldGoldenSelfTest(bool injectBug) {
 
   // injectBug lives in the OP's REAL postShaderCode emit (drops `*= StepFactor`); production passes 0.
   const int bugMode = injectBug ? 1 : 0;
+  const uint32_t kCenterRow = (kH - 1) / 2;  // row 63 -> p.y = 0.0078125
+  const uint32_t kMidRow = 48;               // row 48 -> p.y = 0.2421875 (twist needs y != 0 to observe)
   int rc = 0;
-  // StepFactor=1.0 -> identity scale baseline (+0.1). With the bug dropped, *no scale* still reads +0.1
+  // Identity probes (Amount=0, axis X, origin child): p=(0.5078,0.0078) -> child d = |p| - 0.4 ~ +0.1.
+  // StepFactor=1.0 -> identity scale baseline. With the bug dropped, *no scale* still reads the same
   // here, so this case alone can't catch the bug — but it confirms the identity-twist + identity-scale
   // whole path is correct in production.
-  rc |= renderAndCheck(dev, q, tmpl, "stepfactor1", 1.0f, bugMode);
-  // StepFactor=0.5 -> the POST discriminator (+0.05 with the scale, +0.1 without). injectBug drops the
-  // `*= StepFactor` -> this probe reads +0.1 != +0.05 -> RED.
-  rc |= renderAndCheck(dev, q, tmpl, "stepfactor05", 0.5f, bugMode);
+  rc |= renderAndCheck(dev, q, tmpl, "stepfactor1", 0.0f, 1.0f, 0, 0.f, 0.f, 0.f, 0.5f, kCenterRow,
+                       1e-5f, bugMode);
+  // StepFactor=0.5 -> the POST discriminator (+0.05-ish with the scale, unscaled without). injectBug
+  // drops the `*= StepFactor` -> this probe goes RED.
+  rc |= renderAndCheck(dev, q, tmpl, "stepfactor05", 0.0f, 0.5f, 0, 0.f, 0.f, 0.f, 0.5f, kCenterRow,
+                       1e-5f, bugMode);
+  // MID PROBE (P2 fix): Amount=120, Axis=X ("yzx" — angle = k*p.x, observable on the z=0 plane; the
+  // rotation moves the sample OUT of the plane: q=(x, y*cos, y*sin)), OFF-CENTER child (-0.1,-0.2,0.3)
+  // r=0.4 (cz != 0 so z's SIGN is observable), StepFactor=0.5. Hand-derived expected (header derivation):
+  //   th = 1.063555364 rad; q = (0.5078125, 0.117646806, 0.211693208); expected = 0.145736033.
+  // Transposed-rotation (MSL column-major float2x2 fill) would read ~+0.227833 — see the SUSPECTED
+  // PARITY FORK note in the header. Tol 1e-4 (float32 GPU trig; every modeled formula error deviates
+  // >= 5.8e-3, i.e. >= 58x tol). SF=0.5 also makes this probe bite injectBug (unscaled +0.291472).
+  rc |= renderAndCheck(dev, q, tmpl, "twist61mid", 120.0f, 0.5f, 0, -0.1f, -0.2f, 0.3f, 0.5f, kMidRow,
+                       1e-4f, bugMode);
 
   q->release();
   dev->release();
@@ -198,7 +263,7 @@ int runFieldTwistFieldGoldenSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-field-twistfield] FAIL: injectBug did not trip any probe (tooth has no "
                   "bite)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-field-twistfield] injectBug correctly RED\n");
     return 1;

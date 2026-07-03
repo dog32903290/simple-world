@@ -13,10 +13,13 @@
 // over a TWO-NODE resident graph (DetectBpm → SetBpm wired by Connection) so the resident resolver
 // walking DetectBpm.extOut[0] into SetBpm.BpmRate is machine-verified, headlessly, no 柏為 in the loop.
 //
-// The teeth (-bug): there is no production bug hook in this faithful chain, so the -bug is injected at
-// the EXPECTATION level — flip the expected transport.bpm to the WRONG-port answer (the unwired
-// default, i.e. "detection never reached transport"). A green = the detected rate really arrived at
-// comp.bpm (±1, the engine's faithful recovery tolerance); -bug RED = the unwired answer is wrong.
+// The teeth (-bug): REAL injection via setSetBpmBug(3) (stateful_value_ops.h, WRITE SEVERED): the
+// SetBpm edge fires inside the PRODUCTION cooker but the BpmProvider is never armed — the exact
+// "detection never reached transport" failure this golden exists to catch. The expected transport.bpm
+// stays FIXED at the detected value for clean AND -bug (GOLDEN_STANDARD 特徵 3: corrupt the cook,
+// never flip the want); comp.bpm is seeded with a non-default 77 sentinel so BOTH targets (120 and
+// 90) diverge under the severed write (without the sentinel the 120 target would coincide with the
+// unwired default). did-not-trip under -bug → return 0 (NO-BITE list catches a dead tooth).
 #include <cmath>
 #include <cstdio>
 #include <map>
@@ -107,6 +110,8 @@ double driveChain(float bpmTarget, int lower, int upper, int lowestBpm, int high
 
   BpmProvider::instance().resetForTest();
   CompositionSettings comp;  // bpm defaults 120
+  comp.bpm = 77.0;  // non-default sentinel (test-input choice): if the armed pull never writes, the
+                    // readout stays 77 — so a severed chain diverges for BOTH targets (even 120)
   Transport t;               // bpm 120 (unused by the chain — SetBpm reads BpmRate, not transport.bpm)
 
   std::map<std::string, DetectBpm> detState;
@@ -142,35 +147,58 @@ double driveChain(float bpmTarget, int lower, int upper, int lowestBpm, int high
 }  // namespace
 
 int runBpmTransportSelfTest(bool injectBug) {
-  bool ok = true;
   const int lower = 2, upper = 199;   // DetectBpm.t3 defaults (integer bin borders)
   const int loBpm = 80, hiBpm = 180;  // bracket both planted targets (test inputs)
   const int frames = 900;             // 15s buffer fully filled (detectbpm golden's frame count)
 
   // Two targets (120, 90) rule out a hard-coded transport write: the value that lands on comp.bpm must
-  // track the PLANTED beat, proving it flowed DetectBpm → SetBpm → provider → transport.
-  struct { float target; } cases[2] = {{120.0f}, {90.0f}};
-  for (int i = 0; i < 2; i++) {
-    float detected = -1.0f;
-    const double transportBpm = driveChain(cases[i].target, lower, upper, loBpm, hiBpm, frames, detected);
+  // track the PLANTED beat, proving it flowed DetectBpm → SetBpm → provider → transport. Wants are
+  // FIXED (production-correct) for clean AND -bug: the make-or-break is transport.bpm == the DETECTED
+  // value (±1, the engine's faithful recovery tolerance) — i.e. detection really reached the transport.
+  auto runBattery = [&](const char* tag) {
+    int fails = 0;
+    struct { float target; } cases[2] = {{120.0f}, {90.0f}};
+    for (int i = 0; i < 2; i++) {
+      float detected = -1.0f;
+      const double transportBpm =
+          driveChain(cases[i].target, lower, upper, loBpm, hiBpm, frames, detected);
+      const bool detectedTracksTarget = std::fabs(detected - cases[i].target) <= 1.0f;
+      const bool transportGotDetected = std::fabs(transportBpm - (double)detected) <= 1.0;
+      const bool pass = detectedTracksTarget && transportGotDetected;
+      if (!pass) ++fails;
+      std::printf("[bpmtransport][%s] target=%.0f detected=%.2f transport.bpm=%.2f (want detected) "
+                  "detectTracks=%d arrived=%d -> %s\n",
+                  tag, cases[i].target, detected, transportBpm, detectedTracksTarget,
+                  transportGotDetected, pass ? "PASS" : "FAIL");
+    }
+    return fails;
+  };
 
-    // The make-or-break: transport.bpm must equal the DETECTED value (±1) — i.e. detection reached the
-    // transport. -bug claims the WRONG port: the unwired default (120), i.e. "detection never arrived".
-    // (For the 120 target the unwired default coincides with the answer, so its bug-expectation is the
-    // 90-target's default-stays — but the 90 case is the decisive tooth: detected 90 vs unwired 120.)
-    const double wantBpm = injectBug ? 120.0 : (double)detected;
-    const bool detectedTracksTarget = std::fabs(detected - cases[i].target) <= 1.0f;
-    const bool transportGotDetected = std::fabs(transportBpm - wantBpm) <= 1.0f;
-    const bool pass = detectedTracksTarget && transportGotDetected;
-    ok = ok && pass;
-    std::printf("[bpmtransport] target=%.0f detected=%.2f transport.bpm=%.2f (want %.2f) "
-                "detectTracks=%d arrived=%d -> %s%s\n",
-                cases[i].target, detected, transportBpm, wantBpm, detectedTracksTarget,
-                transportGotDetected, pass ? "PASS" : "FAIL", injectBug ? "  (injectBug)" : "");
+  setSetBpmBug(0);
+  const int cleanFail = runBattery("clean");
+  if (!injectBug) {
+    std::printf("[bpmtransport] %s\n", cleanFail == 0 ? "PASS" : "FAIL");
+    return cleanFail == 0 ? 0 : 1;
   }
 
-  std::printf("[bpmtransport] %s\n", ok ? "PASS" : "FAIL");
-  return ok ? 0 : 1;
+  // -bug: sever the SetBpm→BpmProvider write inside the PRODUCTION cooker (setSetBpmBug mode 3) and
+  // rerun the SAME fixed-want battery. Detection still locks (detectTracks stays green) but the rate
+  // never arrives: comp.bpm stays at the 77 sentinel → BOTH targets must now FAIL the arrival assert.
+  setSetBpmBug(3);
+  const int bugFail = runBattery("bug3-write-severed");
+  setSetBpmBug(0);  // restore production
+  std::printf("[bpmtransport] bug3-write-severed added %d failure(s)\n", bugFail);
+
+  if (cleanFail != 0) {  // broken clean is a real red regardless of bite bookkeeping
+    std::printf("[bpmtransport] FAIL (clean run broken under -bug harness)\n");
+    return 1;
+  }
+  if (bugFail < 2) {
+    std::printf("[bpmtransport] injectBug did not trip (severed write must fail both targets)\n");
+    return 0;  // dead tooth → NO-BITE list catches it
+  }
+  std::printf("[bpmtransport] BITE (severed chain failed both targets against fixed wants)\n");
+  return 1;
 }
 
 }  // namespace sw

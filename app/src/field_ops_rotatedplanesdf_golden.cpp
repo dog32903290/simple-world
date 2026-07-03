@@ -26,6 +26,20 @@
 //   p≈(0.7,0.3) -> d = 0.3   (x is irrelevant: d=p.y -> proves Normal picks Y, not the full vector)
 //   boundary: scan -py (increasing p.y) on a column, find the +y crossing where d goes >= 0 at p.y≈0.
 //
+// NON-DEFAULT LEG (P2 fix — the default config is the IDENTITY point d=p.y; a hardcoded `p.y` impl
+// stays green on it, dot/normalize never bite). Second render with Center=(0.2,-0.1,0.3) and an
+// UNNORMALIZED Normal=(1,2,-1), applied through the production param seam
+// (configureFieldNodeFromParams). Expected values hand-derived from TiXL RotatedPlaneSDF.cs:40-43
+// (repo tixl3d/tixl @ locked SHA 395c4c55): d = dot(p.xyz - Center, normalize(Normal));
+// normalize((1,2,-1)) = (1,2,-1)/sqrt(6), and with p=(px,py,0):
+//   d = ((px-0.2)*1 + (py+0.1)*2 + (0-0.3)*(-1)) / sqrt(6)
+// Divergence margins (all >> kTolRot=5e-5) if the impl formula is wrong:
+//   skip normalize (raw dot)      -> d off by factor sqrt(6)  (>0.18 at every probe)
+//   hardcoded d=p.y               -> off by >0.28 at every probe
+//   Center ignored                -> rot-c isolates it: d = 0.3/sqrt(6) vs ~0 (off 0.122)
+//   Normal.z / Center.z dropped   -> loses the +0.3 z-term and/or the sqrt(6) norm (off >0.05)
+//   packed_float3 pad misread     -> Normal=(pad,Nx,Ny)=(0,1,2) -> wildly different values
+//
 // injectBug: shift the cooked field by +1.0 by corrupting the template's RED-channel write (same
 // technique + magnitude as field_render_golden.cpp) so every probe's expected d is off by 1.0 ->
 // all probes RED, and the boundary crossing (p.y=0) is pushed off-plane so it never bites correctly.
@@ -35,6 +49,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -215,6 +230,60 @@ int runFieldRotatedPlaneSdfGoldenSelfTest(bool injectBug) {
     }
   }
 
+  // ---- NON-DEFAULT LEG (P2 fix): Center=(0.2,-0.1,0.3), Normal=(1,2,-1) UNNORMALIZED ----
+  // TiXL RotatedPlaneSDF.cs:40-43 (@ SHA 395c4c55): d = dot(p.xyz - Center, normalize(Normal)).
+  // Forces the REAL dot + normalize to run (see header for the hand-derived expectation and the
+  // per-bug divergence margins). Params go through the production seam configureFieldNodeFromParams
+  // (slot ids = PortSpec ids), so a broken param projection ALSO bites here. Runs under injectBug too:
+  // the template's +1.0 RED-write shift trips these probes exactly like the default-leg probes.
+  std::shared_ptr<FieldNode> plane2 = makeFieldNode("RotatedPlaneSDF", "golden1");
+  if (!plane2) {
+    std::printf("[selftest-field-rotatedplanesdf] FAIL: second RotatedPlaneSDF factory build failed\n");
+    tex->release(); q->release(); dev->release(); pool->release();
+    return 1;
+  }
+  configureFieldNodeFromParams(*plane2, "RotatedPlaneSDF",
+                               {{"Center.x", 0.2f}, {"Center.y", -0.1f}, {"Center.z", 0.3f},
+                                {"Normal.x", 1.0f}, {"Normal.y", 2.0f}, {"Normal.z", -1.0f}});
+  MTL::Texture* tex2 = renderField2d(dev, q, plane2, useTmpl, kW, kH);
+  if (!tex2) {
+    std::printf("[selftest-field-rotatedplanesdf] FAIL: non-default render null (compile/PSO failure)\n");
+    tex->release(); q->release(); dev->release(); pool->release();
+    return 1;
+  }
+  std::vector<float> buf2((size_t)kW * kH, 0.0f);
+  tex2->getBytes(buf2.data(), kW * sizeof(float), MTL::Region::Make2D(0, 0, kW, kH), 0);
+
+  // Hand-derived from RotatedPlaneSDF.cs:41 — the dot expanded at p=(px,py,0), Center=(0.2,-0.1,0.3),
+  // Normal=(1,2,-1): d = ((px-0.2)*1 + (py-(-0.1))*2 + (0-0.3)*(-1)) / sqrt(6). Written in dot form
+  // (not algebraically collapsed) so the mapping to the .cs line stays 1:1 auditable.
+  auto rotD = [](float px, float py) {
+    const float inv = 1.0f / std::sqrt(6.0f);  // |(1,2,-1)| = sqrt(1+4+1)
+    return ((px - 0.2f) * 1.0f + (py - (-0.1f)) * 2.0f + (0.0f - 0.3f) * (-1.0f)) * inv;
+  };
+  // Slightly wider tol than the default leg's 1e-5: this path adds a fast-math normalize (rsqrt) —
+  // still 3+ orders below the smallest bug signal (~0.05, see header).
+  const float kTolRot = 5e-5f;
+  Probe rotProbes[] = {
+      {"rot-a",  0.5f,  0.25f},  // d = ( 0.5+0.5+0.3)/sqrt(6) ≈  0.5307  (mid-band, all terms live)
+      {"rot-b", -0.6f, -0.4f},   // d = (-0.6-0.8+0.3)/sqrt(6) ≈ -0.4491  (negative side)
+      {"rot-c",  0.3f, -0.15f},  // px+2py = 0 -> d = 0.3/sqrt(6) ≈ 0.1225 (isolates the Center term)
+  };
+  for (const Probe& pr : rotProbes) {
+    uint32_t px, py;
+    nearestPixel(pr.tx, pr.ty, px, py);
+    float fpx = pX(px), fpy = pY(py);
+    float expected = rotD(fpx, fpy);  // TiXL-pure; under injectBug the +1.0 texel shift trips it
+    float got = buf2[(size_t)py * kW + px];
+    float diff = std::fabs(got - expected);
+    bool ok = diff <= kTolRot;
+    if (!ok) rc = 1;
+    std::printf("[selftest-field-rotatedplanesdf] probe %-10s p=(% .4f,% .4f) got=% .6f expected=% .6f "
+                "diff=%.2e %s\n",
+                pr.name, fpx, fpy, got, expected, diff, ok ? "OK" : "RED");
+  }
+  tex2->release();
+
   tex->release();
   q->release();
   dev->release();
@@ -224,7 +293,7 @@ int runFieldRotatedPlaneSdfGoldenSelfTest(bool injectBug) {
     if (rc == 0) {
       std::printf("[selftest-field-rotatedplanesdf] FAIL: injectBug did not trip any probe (tooth has "
                   "no bite)\n");
-      return 1;
+      return 0;  // dead tooth -> exit 0 so --bite NO-BITE list catches it
     }
     std::printf("[selftest-field-rotatedplanesdf] injectBug correctly RED\n");
     return 1;

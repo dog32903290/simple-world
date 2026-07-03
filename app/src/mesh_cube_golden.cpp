@@ -74,13 +74,78 @@ int runMeshCubeGoldenSelfTest(bool injectBug) {
     bool vOk = posEq(v[0], -0.5f, -0.5f, 0.5f) && posEq(v[1], -0.5f, 0.5f, 0.5f) &&
                posEq(v[2], 0.5f, -0.5f, 0.5f) && posEq(v[3], 0.5f, 0.5f, 0.5f);
     bool nrmOk = nrmEq(v[0], 0, 0, 1);  // Front face normal = ForwardLH = (0,0,1)
+    // P2 fix: non-front sides were previously unasserted (sideRot=identity only). Hand-derived from
+    // the _sides table (CubeMesh.cs:209-289) + position math (:115-116):
+    //   Right (sideIndex 1, verts 4..7): sideRot yaw=PI/2 -> (x,y,z)->(z,y,-x); p+offset=(c-.5,r-.5,.5)
+    //     -> (0.5, r-0.5, 0.5-c). v4(c0,r0)=(0.5,-0.5,0.5) ; v6(c1,r0)=(0.5,-0.5,-0.5).
+    //     Normal = TransformNormal(ForwardLH, sideRot) = (1,0,0).
+    //   Fifth side (sideIndex 4, verts 16..19): sideRot pitch=PI/2 -> (x,y,z)->(x,-z,y)
+    //     -> (c-0.5, -0.5, r-0.5). v16(c0,r0)=(-0.5,-0.5,-0.5) ; v19(c1,r1)=(0.5,-0.5,0.5).
+    //     Normal = (0,-1,0). (TiXL labels this side "Top"; its pitch=+PI/2 maps depth +0.5 to y=-0.5
+    //     — the formula, not the label, is the oracle.)
+    bool sideOk = posEq(v[4], 0.5f, -0.5f, 0.5f) && posEq(v[6], 0.5f, -0.5f, -0.5f) &&
+                  nrmEq(v[4], 1, 0, 0) &&
+                  posEq(v[16], -0.5f, -0.5f, -0.5f) && posEq(v[19], 0.5f, -0.5f, 0.5f) &&
+                  nrmEq(v[16], 0, -1, 0);
     bool fOk = triEq(f[0], 0, 2, 1) && triEq(f[1], 2, 3, 1);
     bool attrOk = nearf(v[0].Selection, 1.0f) && nearf(v[0].ColorRgb.x, 1.0f);
-    ok = vOk && nrmOk && fOk && attrOk;
+    ok = vOk && nrmOk && sideOk && fOk && attrOk;
     std::printf("[selftest-mesh-cube] verts=%u faces=%u v0=(%.2f,%.2f,%.2f) v3=(%.2f,%.2f,%.2f) "
-                "f0=(%d,%d,%d) vOk=%d nrmOk=%d fOk=%d attrOk=%d\n",
+                "f0=(%d,%d,%d) vOk=%d nrmOk=%d sideOk=%d fOk=%d attrOk=%d\n",
                 vc, fc, v[0].Position.x, v[0].Position.y, v[0].Position.z, v[3].Position.x,
-                v[3].Position.y, v[3].Position.z, f[0].X, f[0].Y, f[0].Z, vOk, nrmOk, fOk, attrOk);
+                v[3].Position.y, v[3].Position.z, f[0].X, f[0].Y, f[0].Z, vOk, nrmOk, sideOk, fOk,
+                attrOk);
+  }
+
+  // ---- Case 2 (P2 fix: Scale/Stretch/Pivot/Rotation/Center off identity + non-front sides).
+  // Segments=(1,1,1), Scale=0.7, Stretch=(1,2,1.5), Pivot=(0.5,0,0), Rotation=(0,30,0) [deg X,Y,Z],
+  // Center=(0.1,0.2,0.3). Hand-derived from CubeMesh.cs:115-116,:120:
+  //   position = (TransformNormal(p+offset, sideRot) + pivot) * stretch * scale        [:115]
+  //   position = TransformNormal(position, cubeRot(yaw=30deg)) ; final = position + center
+  //   cubeRot yaw=30 row-vec: (x*c + z*s, y, -x*s + z*c), c=0.8660254, s=0.5.
+  //   Front v0 (c0,r0): ps=(-0.5,-0.5,0.5) +pv=(0,-0.5,0.5) *st*sc=(0,-0.7,0.525)
+  //     -> rot (0.2625, -0.7, 0.4546633) +C = (0.3625, -0.5, 0.7546633)
+  //   Front v3 (c1,r1): ps=(0.5,0.5,0.5) +pv=(1,0.5,0.5) *st*sc=(0.7,0.7,0.525)
+  //     -> rot (0.86871778, 0.7, 0.10466330) +C = (0.9687178, 0.9, 0.4046633)
+  //   Right v6 (c1,r0): sideRot->(0.5,-0.5,-0.5) +pv=(1,-0.5,-0.5) *st*sc=(0.7,-0.7,-0.525)
+  //     -> rot (0.3437178, -0.7, -0.8046633) +C = (0.4437178, -0.5, -0.5046633)
+  //   Side4 v16 (c0,r0): sideRot->(-0.5,-0.5,-0.5) +pv=(0,-0.5,-0.5) *st*sc=(0,-0.7,-0.525)
+  //     -> rot (-0.2625, -0.7, -0.4546633) +C = (-0.1625, -0.5, -0.1546633)
+  //   Right normal = TransformNormal((1,0,0), cubeRot) = (0.8660254, 0, -0.5)          [:89]
+  // A dropped Scale/Stretch component, a pivot added after (instead of before) the stretch multiply,
+  // or a skipped cubeRot pass each diverges at these probes.
+  {
+    Graph g2;
+    Node m2; m2.id = 2; m2.type = "CubeMesh";
+    m2.params["Segments.x"] = 1.0f; m2.params["Segments.y"] = 1.0f; m2.params["Segments.z"] = 1.0f;
+    m2.params["Scale"] = 0.7f;
+    m2.params["Stretch.x"] = 1.0f; m2.params["Stretch.y"] = 2.0f; m2.params["Stretch.z"] = 1.5f;
+    m2.params["Pivot.x"] = 0.5f;
+    m2.params["Rotation.y"] = 30.0f;
+    m2.params["Center.x"] = 0.1f; m2.params["Center.y"] = 0.2f; m2.params["Center.z"] = 0.3f;
+    g2.nodes.push_back(m2);
+    pg.cook(g2, ctx, nullptr, 2);
+
+    const MTL::Buffer* vb2 = nullptr;
+    const MTL::Buffer* ib2 = nullptr;
+    uint32_t vc2 = 0, fc2 = 0;
+    bool got2 = pg.debugCookedMesh(2, vb2, vc2, ib2, fc2);
+    bool ok2 = got2 && vc2 == 24 && fc2 == 12;
+    if (ok2) {
+      const SwVertex* v = (const SwVertex*)const_cast<MTL::Buffer*>(vb2)->contents();
+      bool vOk2 = posEq(v[0], 0.3625f, -0.5f, 0.7546633f) &&
+                  posEq(v[3], 0.9687178f, 0.9f, 0.4046633f) &&
+                  posEq(v[6], 0.4437178f, -0.5f, -0.5046633f) &&
+                  posEq(v[16], -0.1625f, -0.5f, -0.1546633f);
+      bool nOk2 = nrmEq(v[4], 0.8660254f, 0.0f, -0.5f);
+      ok2 = vOk2 && nOk2;
+      std::printf("[selftest-mesh-cube] case2 v3=(%.4f,%.4f,%.4f) v16=(%.4f,%.4f,%.4f) vOk=%d nOk=%d\n",
+                  v[3].Position.x, v[3].Position.y, v[3].Position.z, v[16].Position.x,
+                  v[16].Position.y, v[16].Position.z, vOk2, nOk2);
+    } else {
+      std::printf("[selftest-mesh-cube] case2 FAIL: got=%d verts=%u faces=%u\n", got2, vc2, fc2);
+    }
+    ok = ok && ok2;
   }
 
   meshInjectBug() = false;

@@ -25,7 +25,8 @@
 //   baked kernel math (field_distance_force.metal:28-60) is byte-1:1 with FieldDistanceForce.hlsl:74-101.
 // → FieldDistanceForce is already FAITHFUL. This golden ADDS the missing parity gate for the NO-FIELD
 //   BAKED CONTRACT (the contract the existing smoke never asserts: "no field → no force"). It does NOT fix
-//   a deviation, because there is none. NO production edits accompany it.
+//   a deviation, because there is none. (The only production touch is the off-by-default -bug latch
+//   consume in the FIELDDISTANCE fallback — see ZONE note below.)
 //
 // ── DEFERRED (NOT in this batch): wired-SDF attract/repel behavior ───────────────────────────────────
 // The WIRED-field path (runtime-compiled template sampling a real SDF, attract outside / repel inside) is
@@ -50,12 +51,19 @@
 // Cook the production rig RadialPoints -> ParticleSystem(+FieldDistanceForce, NO Field input wired) ->
 // DrawPoints with the FieldDistanceForce node carrying NO param override → the cook resolves the
 // production NodeSpec DEFAULTS (node_registry_particle.cpp → resolveNodeParams → cookInputParam) AND, with
-// no inputFieldTree, runFieldForce returns false → the BAKED fallback no-op kernel runs (point_ops.cpp:292-
-// 293). We compare the produced positions to a NO-FORCE baseline cook (the FieldDistanceForce node removed
-// entirely). The no-field baked contract says they must be POSITION-IDENTICAL (the force is a pure no-op).
-//   no-bug   → expect prodDefault == no-force baseline (the faithful no-op contract holds).
-//   injectBug→ expect prodDefault to MOVE off the baseline (a fake deviation: pretend the baked path
-//              shoves particles like a wired field would) → the no-op assertion flips RED.
+// no inputFieldTree, runFieldForce returns false → the BAKED fallback no-op kernel runs (point_ops.cpp
+// FIELDDISTANCE branch). We compare the produced positions to a NO-FORCE baseline cook (the
+// FieldDistanceForce node removed entirely). The no-field baked contract says they must be
+// POSITION-IDENTICAL (the force is a pure no-op) — and that expectation NEVER flips.
+//   injectBug → REAL injection (GOLDEN_STANDARD 特徵3): fieldDistBakedPushBugForTest()
+//              (point_ops_forceparams.h, the family's *BugForTest latch convention) is set around the
+//              prod-default cook ONLY. The latch corrupts the REAL cook dispatch: the no-field baked
+//              fallback dispatches a phantom directional push (point_ops.cpp FIELDDISTANCE branch)
+//              instead of the faithful no-op kernel → particles actually MOVE off the baseline → the
+//              SAME no-op asserts (expected 0) diverge → RED. If the injection does not trip (e.g. the
+//              measurement chain reads a constant 0), every assert stays green and the leg exits 0 →
+//              the --bite NO-BITE list catches the dead tooth. (The old leg only flipped the expected
+//              value — a broken always-0 measurement chain was invisible to it.)
 // Because this runs THROUGH the cook, a NodeSpec / baked-fallback / guard regression (e.g. someone breaks
 // the isnan guard, or wires a phantom default field) is caught — invisible to TOOTH 1's hand-set params.
 //
@@ -65,13 +73,16 @@
 // twice with different time0 and assert maxPosDelta==0. This is a property of the cook (independent of
 // injectBug) and is GREEN in both legs.
 //
-// injectBug LEG: TOOTH 2 flips its expectation — it expects the prod-default cook to DIVERGE from the
-// no-force baseline (a fake "the baked path pushes"偏差). The faithful production no-op makes prod ==
-// baseline, so that flipped expectation fails → RED. no-bug → prod == baseline → GREEN. So the gate reads
-// no-bug GREEN ↔ injectBug RED (--bite-collectable).
+// injectBug LEG: TOOTH 2's REAL latch corruption (above) makes the prod-default cook diverge from the
+// no-force baseline while the asserts keep expecting 0 → RED. TOOTH 1 dispatches the baked kernel
+// DIRECTLY (not through the cook), so the latch cannot reach it — its no-op expectation stays 0.0 and
+// GREEN in both legs (documented ceiling: the constant baked field is a no-op for ANY params, so no data
+// corruption can make the direct dispatch move; the bite lives in TOOTH 2). So the gate reads
+// no-bug GREEN ↔ injectBug RED (--bite-collectable), and injection-did-not-trip exits 0 (NO-BITE list).
 //
 // ZONE: shell tier (app/src/ root, like turbulence_parity_golden.cpp / directional_force_parity_golden.cpp).
-// Crosses runtime (PointGraph cook + the kernel). NO production edits — FieldDistanceForce was already faithful.
+// Crosses runtime (PointGraph cook + the kernel). Production edit = ONE -bug latch consume in the
+// FIELDDISTANCE fallback (family convention, off in production) — the faithful behavior is unchanged.
 #include "runtime/point_graph.h"
 
 #include <algorithm>
@@ -80,9 +91,10 @@
 #include <vector>
 
 #include "parity_golden_harness.h"
-#include "runtime/force_params.h"  // FieldDistForceParams, FORCE_Particles/FORCE_Params
-#include "runtime/graph.h"         // Graph/Node/pinId
-#include "runtime/tixl_point.h"    // Particle / SwPoint (64B)
+#include "runtime/force_params.h"           // FieldDistForceParams, FORCE_Particles/FORCE_Params
+#include "runtime/graph.h"                  // Graph/Node/pinId
+#include "runtime/point_ops_forceparams.h"  // fieldDistBakedPushBugForTest (-bug real-cook latch)
+#include "runtime/tixl_point.h"             // Particle / SwPoint (64B)
 
 namespace sw {
 namespace {
@@ -240,16 +252,20 @@ int runFieldDistanceForceParitySelfTest(bool injectBug) {
     double d = dx + dy + dz;
     if (d > maxVelDelta) maxVelDelta = d;
   }
-  // no-bug: TiXL no-field contract -> velocity unchanged -> maxVelDelta == 0.
-  // injectBug: pretend the baked path SHOULD push (a fake偏差) -> expect a nonzero move. The faithful no-op
-  //   keeps maxVelDelta==0, so this nonzero expectation fails -> RED.
-  double expectedMaxVelDelta = injectBug ? 0.5 : 0.0;  // injectBug: fake "must move ≥0.5" expectation
-  rep.expect("bakedNoFieldVel==v0(no-op)", maxVelDelta, expectedMaxVelDelta, 1e-5);
+  // TiXL no-field contract (FieldDistanceForce.hlsl:81-86) -> velocity unchanged -> maxVelDelta == 0,
+  // in BOTH legs (never flipped). The -bug latch corrupts the COOK dispatch, which this direct-kernel
+  // tooth bypasses by design — TOOTH 2 is the biting tooth (see header).
+  rep.expect("bakedNoFieldVel==v0(no-op)", maxVelDelta, 0.0, 1e-5);
 
   // ── TOOTH 2: NODESPEC-DEFAULT no-field contract through the REAL COOK (rule 4, the gap-plug) ──────
   const int kSteps = 8;
   std::vector<SwPoint> baseline = cookFieldDistRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*withForce=*/false);
+  // -bug REAL injection: the latch makes the no-field baked fallback dispatch a phantom push (point_ops
+  // .cpp FIELDDISTANCE branch) for THIS cook only (baseline above has no force node; TOOTH 3 below cooks
+  // clean). Scoped set+reset — the family convention (directional/axisstep parity goldens).
+  fieldDistBakedPushBugForTest() = injectBug;
   std::vector<SwPoint> prodDef  = cookFieldDistRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*withForce=*/true);
+  fieldDistBakedPushBugForTest() = false;
 
   // Structure: prod-default cook produced a non-empty bag, the SAME size as the baseline (same rig, only
   // the no-op force node differs → identical pool size). Well-posed per-particle comparison.
@@ -261,14 +277,13 @@ int runFieldDistanceForceParitySelfTest(bool injectBug) {
   rep.expectTrue("cookHadValidPoints", dd.valid > 0, (double)dd.valid);
 
   // THE NO-FIELD CONTRACT TOOTH: does the production-default FieldDistanceForce (no field wired) leave the
-  // ring EXACTLY where the no-force baseline left it (the faithful baked no-op)?
-  //   no-bug   → expect prod == baseline (maxPosDelta == 0).
-  //   injectBug→ expect prod to MOVE off baseline (maxPosDelta == 0.1, a fake "the baked path pushes"偏差).
-  //              The faithful no-op keeps maxPosDelta==0, so this expectation fails -> RED.
-  double expectedMaxPosDelta = injectBug ? 0.1 : 0.0;
-  rep.expect("prodDefault==noForce(no-op)", dd.maxv, expectedMaxPosDelta, 1e-5);
-  // Mean-displacement context probe (same contract, mean form): no-bug ~0, injectBug expectation flips.
-  rep.expect("prodDefaultMeanDisp(no-op)", dd.mean, injectBug ? 0.1 : 0.0, 1e-5);
+  // ring EXACTLY where the no-force baseline left it (the faithful baked no-op)? Expected 0 in BOTH legs —
+  // the -bug leg's REAL phantom-push corruption makes the cook actually move particles (~0.05-Amount push
+  // integrated over 7 frames » 1e-5), so THIS SAME assert diverges → RED; if the injection did not trip
+  // (or the measurement chain reads a constant 0), it stays green and the leg exits 0 (NO-BITE list).
+  rep.expect("prodDefault==noForce(no-op)", dd.maxv, 0.0, 1e-5);
+  // Mean-displacement context probe (same contract, mean form; expectation never flips).
+  rep.expect("prodDefaultMeanDisp(no-op)", dd.mean, 0.0, 1e-5);
 
   // ── TOOTH 3: offline-render determinism through the real cook ──────────────────────────────────
   // FieldDistanceForce has no Phase / no wall-clock term, so identical inputs at different ctx.time must be

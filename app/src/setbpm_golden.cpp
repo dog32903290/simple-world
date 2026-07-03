@@ -6,32 +6,40 @@
 // "SetBpm") and the PRODUCTION consumer (pullSetBpmRate) headlessly, frame by frame, so the make-or-break
 // triggered-pull semantics (NOT a per-frame overwrite) are machine-verified with no 柏為 in the loop.
 //
-// The teeth (-bug): there is no production bug-flag hook in the op (faithful path only), so the bug is
-// injected at the EXPECTATION level — each case flips its expected value to the WRONG-port answer
-// (level instead of edge / a write without a trigger / the unclamped rate), so the real production
-// output FAILs against it. A green here = the production path does the RIGHT thing; -bug RED = the
-// asserted wrong behavior really is wrong (the tooth bites).
+// The teeth (-bug): REAL injection via setSetBpmBug (stateful_value_ops.h) — each mode corrupts one
+// production term inside stepSetBpm (stateful_value_ops_setbpm.cpp) while every expected value below
+// stays FIXED at the production-correct answer (GOLDEN_STANDARD 特徵 3: corrupt the cook, never flip
+// the want). Mode → tooth:
+//   1 GATE IGNORED   → CASE 2 (a no-trigger frame writes; comp.bpm clobbered) + CASE 3 (held re-fires)
+//   2 CLAMP DROPPED  → CASE 4 (the raw 300/10 survives instead of 240/54)
+//   3 WRITE SEVERED  → CASE 1 (the edge never arms; comp.bpm never becomes 128)
+// Under -bug every mode must ADD failures against the SAME fixed asserts; a mode that adds none is a
+// dead tooth → return 0 so --bite's NO-BITE list surfaces it.
 #include <cstdio>
 #include <cmath>
 
 #include "app/cook_host_values.h"          // framecook::pullSetBpmRate
 #include "runtime/bpm_provider.h"           // BpmProvider (probe + resetForTest)
 #include "runtime/compound_graph.h"         // CompositionSettings
-#include "runtime/stateful_value_ops.h"     // cookStatefulValueOp / StatefulValueState
+#include "runtime/stateful_value_ops.h"     // cookStatefulValueOp / StatefulValueState / setSetBpmBug
 
 namespace sw {
+namespace {
 
 // One SetBpm op cook (the production step fn), keyed off the per-instance edge state `st`.
-static void cookSetBpm(StatefulValueState& st, float bpmRate, float trigger) {
+void cookSetBpm(StatefulValueState& st, float bpmRate, float trigger) {
   float out[8] = {0, 0, 0, 0, 0, 0, 0, 0};
   cookStatefulValueOp("SetBpm", {{"BpmRate", bpmRate}, {"TriggerUpdate", trigger}}, 1.0f / 60.0f,
                       0.0f, st, out);
 }
 
-int runSetBpmSelfTest(bool injectBug) {
+// The full 4-case battery with FIXED production-correct wants (independent of any bug mode).
+// Returns the number of failed assertions. `tag` labels the run (clean / bug N) in the printout.
+int runCases(const char* tag) {
   const float eps = 1e-4f;
-  bool ok = true;
+  int fails = 0;
   auto& provider = BpmProvider::instance();
+  auto note = [&](bool pass) { if (!pass) ++fails; return pass ? "PASS" : "FAIL"; };
 
   // ===== CASE 1: rising edge BpmRate=128 → provider holds 128 ONCE, then false; transport→128 =====
   // SetBpm.cs:22,25,38-39: a false→true edge with bpm>1 arms BpmProvider.NewBpmRate=clampedRate. The
@@ -55,14 +63,11 @@ int runSetBpmSelfTest(bool injectBug) {
     cookSetBpm(st2, 128.0f, 1.0f);
     const bool wrote = framecook::pullSetBpmRate(comp);
 
-    const bool wantFirst = !injectBug;        // bug: claim no edge fired (writes-without-trigger fork)
-    const float wantBpm = injectBug ? 120.0f : 128.0f;  // bug: claim transport stayed at default
-    const bool pass = (gotFirst == wantFirst) && !gotSecond && std::fabs(pulled - 128.0f) < eps &&
-                      wrote && std::fabs(comp.bpm - wantBpm) < eps;
-    ok = ok && pass;
-    std::printf("[selftest-setbpm] edge128 firstPull=%d(want %d) secondPull=%d(want 0) pulled=%.1f "
-                "comp.bpm=%.1f(want %.1f) -> %s\n",
-                gotFirst, wantFirst, gotSecond, pulled, comp.bpm, wantBpm, pass ? "PASS" : "FAIL");
+    const bool pass = gotFirst && !gotSecond && std::fabs(pulled - 128.0f) < eps && wrote &&
+                      std::fabs(comp.bpm - 128.0) < eps;
+    std::printf("[selftest-setbpm][%s] edge128 firstPull=%d(want 1) secondPull=%d(want 0) pulled=%.1f "
+                "comp.bpm=%.1f(want 128.0) -> %s\n",
+                tag, gotFirst, gotSecond, pulled, comp.bpm, note(pass));
   }
 
   // ===== CASE 2: NO trigger / no edge → false; transport UNCHANGED (the make-or-break) =====
@@ -76,12 +81,9 @@ int runSetBpmSelfTest(bool injectBug) {
     cookSetBpm(st, 128.0f, 0.0f);  // trigger never rises → never arms
     cookSetBpm(st, 128.0f, 0.0f);
     const bool wrote = framecook::pullSetBpmRate(comp);  // not armed → false, comp untouched
-    const bool wantWrote = injectBug;                    // bug: claim a no-trigger frame DID write
-    const double wantBpm = injectBug ? 128.0 : 137.0;    // bug: claim it overwrote to 128
-    const bool pass = (wrote == wantWrote) && std::fabs(comp.bpm - wantBpm) < 1e-4;
-    ok = ok && pass;
-    std::printf("[selftest-setbpm] no-trigger wrote=%d(want %d) comp.bpm=%.1f(want %.1f) -> %s\n",
-                wrote, wantWrote, comp.bpm, wantBpm, pass ? "PASS" : "FAIL");
+    const bool pass = !wrote && std::fabs(comp.bpm - 137.0) < 1e-4;
+    std::printf("[selftest-setbpm][%s] no-trigger wrote=%d(want 0) comp.bpm=%.1f(want 137.0) -> %s\n",
+                tag, wrote, comp.bpm, note(pass));
   }
 
   // ===== CASE 3: EDGE not LEVEL — holding TriggerUpdate=true a 2nd frame does NOT re-fire =====
@@ -97,11 +99,9 @@ int runSetBpmSelfTest(bool injectBug) {
     cookSetBpm(st, 144.0f, 1.0f);  // STILL true (held) → must NOT re-arm (edge, not level)
     float p2 = -1.0f;
     const bool e2 = provider.tryGetNewBpmRate(p2);   // no new edge → false
-    const bool wantE2 = injectBug;  // bug: claim a held-true LEVEL re-fired (the level-instead-of-edge bug)
-    const bool pass = e1 && std::fabs(p1 - 128.0f) < eps && (e2 == wantE2);
-    ok = ok && pass;
-    std::printf("[selftest-setbpm] edge-not-level firstEdge=%d(128 once) heldReFire=%d(want %d) -> %s\n",
-                e1, e2, wantE2, pass ? "PASS" : "FAIL");
+    const bool pass = e1 && std::fabs(p1 - 128.0f) < eps && !e2;
+    std::printf("[selftest-setbpm][%s] edge-not-level firstEdge=%d(128 once) heldReFire=%d(want 0) -> %s\n",
+                tag, e1, e2, note(pass));
   }
 
   // ===== CASE 4: CLAMP 54..240 (SetBpm.cs:24 .Clamp(54,240)) =====
@@ -115,19 +115,50 @@ int runSetBpmSelfTest(bool injectBug) {
       cookSetBpm(st, cases[i].in, 1.0f);  // edge → arms clamp(in)
       float p = -1.0f;
       provider.tryGetNewBpmRate(p);
-      // bug: claim the RAW unclamped rate survived (the clamp-dropped fork)
-      const float want = injectBug ? cases[i].in : cases[i].want;
-      const bool pass = std::fabs(p - want) < eps;
-      ok = ok && pass;
-      std::printf("[selftest-setbpm] clamp in=%.0f -> %.0f(want %.0f) -> %s\n", cases[i].in, p, want,
-                  pass ? "PASS" : "FAIL");
+      const bool pass = std::fabs(p - cases[i].want) < eps;
+      std::printf("[selftest-setbpm][%s] clamp in=%.0f -> %.0f(want %.0f) -> %s\n", tag, cases[i].in,
+                  p, cases[i].want, note(pass));
     }
   }
 
-  // Leave the singleton clean for any later in-process selftest (no cross-test bleed).
-  provider.resetForTest();
-  std::printf("[selftest-setbpm] %s\n", ok ? "PASS" : "FAIL");
-  return ok ? 0 : 1;
+  provider.resetForTest();  // leave the singleton clean (no cross-case / cross-test bleed)
+  return fails;
+}
+
+}  // namespace
+
+int runSetBpmSelfTest(bool injectBug) {
+  setSetBpmBug(0);
+  const int cleanFail = runCases("clean");
+
+  if (!injectBug) {
+    std::printf("[selftest-setbpm] %s\n", cleanFail == 0 ? "PASS" : "FAIL");
+    return cleanFail == 0 ? 0 : 1;
+  }
+
+  // -bug: rerun the SAME fixed-want battery under each real production-term corruption. Every mode
+  // must ADD failures (its tooth bites); a mode adding none = dead tooth → return 0 (NO-BITE list).
+  bool allTripped = true;
+  const struct { int mode; const char* name; } bugs[3] = {
+      {1, "bug1-gate-ignored"}, {2, "bug2-clamp-dropped"}, {3, "bug3-write-severed"}};
+  for (const auto& b : bugs) {
+    setSetBpmBug(b.mode);
+    const int f = runCases(b.name);
+    std::printf("[selftest-setbpm] %s added %d failure(s)\n", b.name, f);
+    if (f == 0) allTripped = false;
+  }
+  setSetBpmBug(0);  // restore production
+
+  if (cleanFail != 0) {  // broken clean is a real red regardless of bite bookkeeping
+    std::printf("[selftest-setbpm] FAIL (clean run broken under -bug harness)\n");
+    return 1;
+  }
+  if (!allTripped) {
+    std::printf("[selftest-setbpm] injectBug did not trip (a bug mode added no failures)\n");
+    return 0;  // dead tooth → NO-BITE list catches it
+  }
+  std::printf("[selftest-setbpm] BITE (all bug modes tripped against fixed wants)\n");
+  return 1;
 }
 
 }  // namespace sw

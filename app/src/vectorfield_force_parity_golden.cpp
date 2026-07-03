@@ -45,7 +45,7 @@
 // pristine (no-force) ring and compare it to two REFERENCE cooks: one that explicitly sets Amount=1.0 (TiXL
 // .t3) and one that sets a WRONG Amount (15× = 15.0, the kind of deviation that drifted into TurbulenceForce).
 // A correct NodeSpec default makes the production cook bit-track the Amount=1.0 reference and DIVERGE ~15×
-// from the wrong reference. no-bug expects prod==1.0-ref; injectBug flips the expectation to the wrong
+// from the wrong reference. Both legs assert prod==1.0-ref (want fixed); -bug corrupts the cook fill
 // reference → RED. Because this runs THROUGH the cook, a NodeSpec / dead-code-fallback regression (invisible
 // to TOOTH 1) is caught. Expected numbers come only from the Amount=1.0 / wrong reference cooks and the TiXL
 // .t3 default — never an absolute sw snapshot.
@@ -56,7 +56,7 @@
 // contract; cf. the Phase=time bug that TurbulenceForce had). We cook twice with different time0 and assert
 // maxPosDelta==0. This is a property of the cook (independent of injectBug) and is GREEN in both legs.
 //
-// injectBug LEG: TOOTH 2 flips its expectation to the WRONG-Amount reference, so the production-default
+// injectBug LEG: vecFieldAmountBugForTest() corrupts the real cook's Amount (15x), so the production-default
 // cook (correct NodeSpec=1.0) no longer matches → RED (plus the prod/ref ratio probe goes ~15× → RED).
 // no-bug → prod==1.0 ref → GREEN. So the gate reads no-bug GREEN ↔ injectBug RED (--bite-collectable).
 //
@@ -76,6 +76,7 @@
 #include "parity_golden_harness.h"
 #include "runtime/force_params.h"  // VecFieldForceParams, FORCE_Particles/FORCE_Params
 #include "runtime/graph.h"         // Graph/Node/pinId
+#include "runtime/point_ops_forceparams.h"  // vecFieldAmountBugForTest (-bug real-cook latch)
 #include "runtime/tixl_point.h"    // Particle / SwPoint (64B)
 
 namespace sw {
@@ -232,7 +233,9 @@ int runVectorFieldForceParitySelfTest(bool injectBug) {
   std::vector<SwPoint> baseline = cookVffRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/0.0f);          // no force = pristine ring
   std::vector<SwPoint> refTiXL  = cookVffRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/kTiXLAmount);   // TiXL .t3=1.0
   std::vector<SwPoint> refWrong = cookVffRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/kWrongAmount);  // 15× deviation
+  vecFieldAmountBugForTest() = injectBug;  // -bug: corrupt the REAL cook's Amount fill (15x drift); want stays fixed
   std::vector<SwPoint> prodDef  = cookVffRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/-1.0f);         // NodeSpec DEFAULT
+  vecFieldAmountBugForTest() = false;
 
   // Structure: prod-default cook produced a non-empty bag, the SAME size as the reference cooks (same rig,
   // only the force Amount differs → identical pool size). Well-posed per-particle displacement comparison.
@@ -247,10 +250,9 @@ int runVectorFieldForceParitySelfTest(bool injectBug) {
   // Reference legs must actually move (so the probe is live) and the wrong (15×) Amount must dwarf 1.0.
   rep.expectTrue("refDisp_live(Wrong>>TiXL>0)", dTiXL > 1e-6 && dWrong > 4.0 * dTiXL, dWrong);
 
-  // THE NODESPEC TOOTH: which reference does the PRODUCTION DEFAULT match?
-  //   no-bug   → expect prod == Amount=1.0 reference (NodeSpec default IS 1.0 == TiXL .t3).
-  //   injectBug→ expect prod == wrong reference (a NodeSpec deviation, like the one TurbulenceForce had).
-  double dExpected = injectBug ? dWrong : dTiXL;
+  // THE NODESPEC TOOTH: the PRODUCTION DEFAULT must match the hand-filled TiXL .t3 reference. The want
+  // NEVER flips: -bug corrupts the real cook's Amount fill (latch above) so this SAME assert diverges.
+  double dExpected = dTiXL;
   double dTol = 0.05 * dExpected + 1e-7;  // tight: prod cook and the matching ref share identical params
   rep.expect("prodDefaultDisp==Amount(NodeSpec)", dProd, dExpected, dTol);
   // Ratio probe (context + extra tooth): prod/TiXL must be ~1 (no-bug) or ~15× off (injectBug).

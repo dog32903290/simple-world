@@ -11,3 +11,4 @@
 5. 每個子系統要有可單獨跑的隔離測試（`--selftest-*` CLI 模式）。
 6. 動程式碼前過自檢三題：①屬哪一區 ②依賴方向對嗎 ③要 hook 驗證嗎（只留一行，肉放 verify/）。
 7. 重複的建立樣板（menu item、node 註冊、inspector 欄位…）改資料驅動：一張表 + 一個 builder，加一項 = 加一行資料。範例見 `app/src/app/menu.cpp`。
+8. 寫 / 改任何 `*_golden.cpp` 前先讀 `docs/agent/GOLDEN_STANDARD.md`（三特徵＋五反型）；`tools/golden_lint.sh` 必須綠（`run_all_selftests.sh` 每次 sweep 自動掃）。
