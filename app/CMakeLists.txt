@@ -163,6 +163,7 @@ add_executable(simple_world
   src/app/document.cpp
   src/app/document_navigation.cpp  # composition-path nav + combine + resident paths (split from document.cpp)
   src/app/document_io.cpp          # new/open/save lifecycle + dirty tracking + window title + selftest (split from document.cpp)
+  src/app/catalog_boot.cpp         # boot CATALOG loader: scan assets/catalog_t3/*.t3 → append into g_lib() at startup (TiXL operator-library parity)
   src/app/snapshot.cpp  # out-snapshot-png: product Output→PNG action (path policy + TiXL timestamp)
   src/app/audio_settings.cpp
   src/app/keymap_prefs.cpp           # #11: user keymap JSON override store (cross-session rebinding)
@@ -759,6 +760,10 @@ target_compile_definitions(simple_world PRIVATE
   # Repo assets dir (copied parity assets, e.g. images/basic/perlin-noise-rgb.png from TiXL Lib).
   # ../assets because CMakeLists lives in app/ but assets/ is at the repo root.
   SW_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../assets"
+  # Boot CATALOG dir: a managed folder of clean-replay .t3 compounds loaded into the lib at startup
+  # (TiXL operator-library parity — always in the menu, no per-session re-import). Committed to the
+  # repo so runtime never depends on external/. doc::loadCatalogFromFolder scans this at boot.
+  SW_CATALOG_T3_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../assets/catalog_t3"
   # Field shader-graph render TEMPLATE (a string asset, NOT precompiled — see shaders/templates/).
   # assembleFieldMSL reads this and fills /*{GLOBALS}*/ /*{FLOAT_PARAMS}*/ /*{FIELD_CALL}*/ at runtime.
   SW_FIELD_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/field_render_template.metal"

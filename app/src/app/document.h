@@ -97,6 +97,12 @@ std::string doImportT3AsSymbol(const std::string& path, bool quiet = false);
 // Dialog wrapper: Finder .t3 picker → doImportT3AsSymbol (no unsaved-guard — it APPENDS, never
 // discards the current document).
 void doImportT3();
+// BOOT CATALOG: scan `dir` for `.t3` files and APPEND each into the live lib (TiXL operator-library
+// parity — load once at startup, always in the menu, no re-import). IDEMPOTENT (skips a .t3 whose
+// symbol id is already in the lib) and FAIL-SOFT (a bad file is skipped with a warning, never crashes).
+// Bumps the revision only when it actually grew the lib. Returns the count imported this call. Call once
+// at startup AFTER the default doc exists and AFTER any --open. quiet=true → stderr-only (pre-GUI/CLI).
+int loadCatalogFromFolder(const std::string& dir, bool quiet = false);
 void doNew();                   // unsaved-guard -> reset to default graph
 bool confirmDiscardIfDirty();   // false == user canceled (caller aborts)
 void updateWindowTitle();       // filename + dirty • ; no-op when unchanged (uses g_window)

@@ -20,6 +20,7 @@ namespace sw {
 using t3i::asStr;
 using t3i::isBoundaryGuid;
 using t3i::lc;
+using t3i::stripT3Comments;
 
 // Test-only injection seam (routing RED case). When set, the FIRST MultiInput collision (two wires
 // into the same (childId, slotName)) has its connection order REVERSED — corrupting only the order.
@@ -30,37 +31,8 @@ bool& t3ImportInjectBug() {
 
 namespace {
 
-// lc / isBoundaryGuid / asStr now live in t3_import_internal.h (shared with t3_import_collapse.cpp);
-// pulled into this namespace via the `using t3i::…` above (ARCHITECTURE rule 4 split).
-
-// Strip TiXL inline `/* ... */` comments so crude_json can parse. Quote state tracked so a literal
-// "/*" inside a JSON string value survives verbatim.
-std::string stripT3Comments(const std::string& in) {
-  std::string out;
-  out.reserve(in.size());
-  bool inStr = false;
-  for (size_t i = 0; i < in.size(); ++i) {
-    char c = in[i];
-    if (inStr) {
-      out.push_back(c);
-      if (c == '\\' && i + 1 < in.size()) {
-        out.push_back(in[++i]);
-      } else if (c == '"') {
-        inStr = false;
-      }
-      continue;
-    }
-    if (c == '"') { inStr = true; out.push_back(c); continue; }
-    if (c == '/' && i + 1 < in.size() && in[i + 1] == '*') {
-      size_t end = in.find("*/", i + 2);
-      if (end == std::string::npos) break;
-      i = end + 1;
-      continue;
-    }
-    out.push_back(c);
-  }
-  return out;
-}
+// lc / isBoundaryGuid / asStr / stripT3Comments now live in t3_import_internal.h (shared with
+// t3_import_collapse.cpp); pulled into this namespace via the `using t3i::…` above (ARCH rule 4 split).
 
 // TOP-LEVEL NAME from the .t3 Id comment (imported-compound-shows-guid-not-name): TiXL writes the
 // symbol's readable name as an inline comment on its top-level Id — `"Id": "<guid>"/*RadialGradient*/`.
@@ -137,6 +109,16 @@ void refineInputTypesFromWires(Symbol& sym, const SymbolLibrary& lib) {
 }
 
 }  // namespace
+
+// Cheap top-level Id peek (boot-catalog idempotency): parse ONLY the root Id — same strip+parse+lc(Id)
+// the importer uses, so it matches importT3Symbol's sym.id byte-for-byte. false when no usable Id.
+bool symbolIdOfT3(const std::string& t3Json, std::string* outId) {
+  crude_json::value root = crude_json::value::parse(stripT3Comments(t3Json));
+  const std::string id = root.is_object() ? lc(asStr(root, "Id")) : std::string();
+  if (id.empty()) return false;
+  if (outId) *outId = id;
+  return true;
+}
 
 bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
                     std::vector<std::string>* warnings) {

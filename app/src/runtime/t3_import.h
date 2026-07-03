@@ -44,6 +44,11 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib,
                     std::string* outSymbolId = nullptr,
                     std::vector<std::string>* warnings = nullptr);
 
+// Cheap top-level Id peek: parse ONLY the root object's Id (comment-strip + crude_json + lowercase),
+// matching the sym.id importT3Symbol would assign. Lets the boot catalog skip a .t3 whose symbol is
+// already in the lib WITHOUT a full import. Returns false (outId untouched) when there is no usable Id.
+bool symbolIdOfT3(const std::string& t3Json, std::string* outId);
+
 // Test-only injection seam (routing RED case): reverse the connection order of the first MultiInput
 // collision (two wires into the same (child,slot)) — corrupts ONLY the order, not the maps. Off in
 // production. The keystone golden flips this around importT3Symbol.

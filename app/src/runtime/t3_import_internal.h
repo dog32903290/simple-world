@@ -24,6 +24,33 @@ inline std::string asStr(const crude_json::value& v, const char* key) {
   return v[key].is_string() ? v[key].get<crude_json::string>() : std::string();
 }
 
+// Strip TiXL inline `/* ... */` comments so crude_json can parse. Quote state tracked so a literal
+// "/*" inside a JSON string value survives verbatim. Shared by t3_import.cpp (full walk) and the
+// symbolIdOfT3 peek below (one definition here — no ODR risk, the reason this header exists).
+inline std::string stripT3Comments(const std::string& in) {
+  std::string out;
+  out.reserve(in.size());
+  bool inStr = false;
+  for (size_t i = 0; i < in.size(); ++i) {
+    char c = in[i];
+    if (inStr) {
+      out.push_back(c);
+      if (c == '\\' && i + 1 < in.size()) out.push_back(in[++i]);
+      else if (c == '"') inStr = false;
+      continue;
+    }
+    if (c == '"') { inStr = true; out.push_back(c); continue; }
+    if (c == '/' && i + 1 < in.size() && in[i + 1] == '*') {
+      size_t end = in.find("*/", i + 2);
+      if (end == std::string::npos) break;
+      i = end + 1;
+      continue;
+    }
+    out.push_back(c);
+  }
+  return out;
+}
+
 }  // namespace t3i
 
 // IMAGE-FX COLLAPSE (image-fx-wrapper-collapses-to-tex-atom): if `root` is a known image-fx wrapper

@@ -244,6 +244,20 @@ int main(int argc, char* argv[]) {
     if (std::strcmp(argv[i], "--import-t3") == 0)
       sw::doc::doImportT3AsSymbol(argv[i + 1], /*quiet=*/true);
 
+  // BOOT CATALOG (TiXL operator-library parity): APPEND the managed folder of clean-replay .t3
+  // compounds into the live lib so they are ALWAYS in the Add-Node / Cmd+F menu — no per-session
+  // re-import. Runs AFTER --open (so it can idempotently skip symbols a loaded project already has)
+  // and AFTER the default doc exists. Orchestration lives in app/document_io (doc layer); this is a
+  // one-line boot hook. `--no-catalog` opts out (the RED leg of the eye/hand proof: menu goes empty).
+  {
+    bool noCatalog = false;
+    for (int i = 1; i < argc; ++i)
+      if (std::strcmp(argv[i], "--no-catalog") == 0) noCatalog = true;
+#ifdef SW_CATALOG_T3_DIR
+    if (!noCatalog) sw::doc::loadCatalogFromFolder(SW_CATALOG_T3_DIR, /*quiet=*/true);
+#endif
+  }
+
   // `--play`: start in演出/Player mode (modes.md [core]). Just sets the flag the draw loop reads;
   // the window/GUI startup is identical — player mode is a draw-time gate, not a separate entry.
   for (int i = 1; i < argc; ++i)
