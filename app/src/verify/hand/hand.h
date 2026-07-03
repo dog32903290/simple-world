@@ -56,6 +56,13 @@
 //   disconnect <dstChild> <dstSlot>
 //                             remove whatever wire feeds the current compound's (dstChild,dstSlot)
 //                             input, via the app-owned hook. No-op if no hook / input unwired.
+//   spawnsymbol <symbolId>    instantiate the lib symbol `symbolId` as a child of the CURRENT root,
+//                             via the app-owned hook (the same AddChildCommand a menu pick pushes —
+//                             no coordinate hit-test). Works for atomic OR compound symbols. No-op if
+//                             no hook / the symbol id isn't in the lib.
+//   entercompound <childId>   drill INTO the compound child `childId` of the current symbol, via the
+//                             app-owned pushComposition hook (bypasses the double-click gesture). No-op
+//                             if no hook / the child isn't a compound.
 // A click/drag spans multiple frames (ImGui needs down and up on separate
 // frames), so commands are expanded into per-frame steps and consumed one per
 // frame. After issuing a command, give the app a few frames before reading back.
@@ -80,6 +87,14 @@ void setLearnArmHook(void (*hook)(int childId, const char* slotId));
 void setConnectHook(void (*hook)(int srcChild, const char* srcSlot,
                                  int dstChild, const char* dstSlot));
 void setDisconnectHook(void (*hook)(int dstChild, const char* dstSlot));
+
+// App-owned catalog/navigation hooks (same leaf inversion). `spawnsymbol <symbolId>` forwards the
+// symbol id string here — the app instantiates that lib symbol as a child of the current root via the
+// same AddChildCommand a menu pick would push (no coordinate hit-test). `entercompound <childId>`
+// forwards the child id — the app runs pushComposition to drill into it (no double-click gesture).
+// Both are verification tools over the EXISTING command/navigation paths. Unset (null) = no-op.
+void setSpawnSymbolHook(void (*hook)(const char* symbolId));
+void setEnterCompoundHook(void (*hook)(int childId));
 
 // Read+consume the SW_EYE_DIR/hand command file (if any), expand commands into
 // per-frame input steps. Cheap; safe to call every frame.

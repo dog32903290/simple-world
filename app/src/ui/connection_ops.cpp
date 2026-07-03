@@ -8,9 +8,10 @@
 #include <vector>
 
 #include "app/command.h"          // g_commands / MacroCommand
-#include "app/document.h"         // doc::g_lib / currentSymbol / g_status
+#include "app/document.h"         // doc::g_lib / currentSymbol / g_status / pushComposition
 #include "app/graph_commands.h"   // AddWireCommand / DeleteWiresCommand
 #include "runtime/graph.h"        // findSpec (atomic child ports)
+#include "ui/editor_ui.h"         // spawnNodeAt (the AddChildCommand path a menu pick uses)
 #include "verify/hand/hand.h"     // setConnectHook / setDisconnectHook (mount the verbs)
 
 namespace sw::ui {
@@ -143,11 +144,34 @@ void disconnectByVerb(int dstChild, const char* dstSlot) {
   applyDisconnection(cur, dstChild, dstSlot);
 }
 
+// `spawnsymbol <symbolId>` verb: instantiate a lib symbol as a child of the CURRENT root via the SAME
+// spawnNodeAt path a menu/Cmd+F pick uses (AddChildCommand → undoable → output pin). spawnNodeAt
+// already validates (currentSymbol exists + cycle-gate) and sets g_status, so an unknown/cyclic id is
+// a message no-op, never a silent corruption. A fixed drop point (140,140): the agent doesn't care
+// where — it reads inspector by selection, not coordinate. (= toolbar addNode, node-select-independent.)
+void spawnSymbolByVerb(const char* symbolId) {
+  if (!symbolId || !*symbolId) return;
+  sw::ui::spawnNodeAt(std::string(symbolId), 140.0f, 140.0f);
+}
+
+// `entercompound <childId>` verb: drill INTO a compound child of the current symbol via the doc's
+// pushComposition (the SAME navigation a canvas double-click triggers — TiXL TrySetCompositionOpToChild).
+// pushComposition refuses a non-compound (atomic) child and returns false; we surface that on the status
+// line so a bad id is a visible no-op, not a silent nothing (反沉默拒絕鐵律, mirrors the connect guards).
+void enterCompoundByVerb(int childId) {
+  if (sw::doc::pushComposition(childId))
+    sw::doc::g_status = "entered compound child " + std::to_string(childId);
+  else
+    sw::doc::g_status = "entercompound: child " + std::to_string(childId) + " is not a compound";
+}
+
 }  // namespace
 
 void mountConnectionVerbs() {
   sw::hand::setConnectHook(&connectByVerb);
   sw::hand::setDisconnectHook(&disconnectByVerb);
+  sw::hand::setSpawnSymbolHook(&spawnSymbolByVerb);
+  sw::hand::setEnterCompoundHook(&enterCompoundByVerb);
 }
 
 }  // namespace sw::ui

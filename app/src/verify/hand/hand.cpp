@@ -52,6 +52,10 @@ void (*g_learnArmHook)(int, const char*) = nullptr;
 // directives forward bare ints + slot strings; null = the directive is a no-op (verify stays a leaf).
 void (*g_connectHook)(int, const char*, int, const char*) = nullptr;
 void (*g_disconnectHook)(int, const char*) = nullptr;
+// App-owned catalog/navigation hooks (set via setSpawnSymbolHook/setEnterCompoundHook). The
+// `spawnsymbol`/`entercompound` directives forward here; null = the directive is a no-op (leaf).
+void (*g_spawnSymbolHook)(const char*) = nullptr;
+void (*g_enterCompoundHook)(int) = nullptr;
 // Gap 2: `selectnode <childId>` requests, applied by the canvas (editor current) rather
 // than expanded into mouse frames — a direct selection that skips coordinate hit-tests.
 // Separate queue from g_pending: these don't consume IO frames, they consume one drain
@@ -229,6 +233,17 @@ void parseLine(const std::string& line) {
     std::string dstSlot;
     if ((is >> dstChild >> dstSlot) && g_disconnectHook)
       g_disconnectHook(dstChild, dstSlot.c_str());
+  } else if (op == "spawnsymbol") {
+    // spawnsymbol <symbolId> — instantiate a lib symbol (atomic OR compound) as a child of the current
+    // root through the app hook (the same AddChildCommand a menu pick pushes). Immediate (side map, like
+    // connect): the lib is not ImGui IO. No-op if the hook is unset (leaf). The symbol id is one token.
+    std::string sym;
+    if ((is >> sym) && g_spawnSymbolHook) g_spawnSymbolHook(sym.c_str());
+  } else if (op == "entercompound") {
+    // entercompound <childId> — drill into the compound child via the app's pushComposition hook
+    // (bypasses the double-click). Immediate. No-op if the hook is unset / the child isn't a compound.
+    int child;
+    if ((is >> child) && g_enterCompoundHook) g_enterCompoundHook(child);
   } else if (op == "selectnode") {
     // selectnode <childId> — queue a DIRECT node-editor selection (gap 2). The childId is
     // the operator node's ed node id (ui/node_draw.cpp ed::BeginNode(child.id)); identity
@@ -296,6 +311,8 @@ void setMidiInjectHook(void (*hook)(int, int, int)) { g_midiInjectHook = hook; }
 void setLearnArmHook(void (*hook)(int, const char*)) { g_learnArmHook = hook; }
 void setConnectHook(void (*hook)(int, const char*, int, const char*)) { g_connectHook = hook; }
 void setDisconnectHook(void (*hook)(int, const char*)) { g_disconnectHook = hook; }
+void setSpawnSymbolHook(void (*hook)(const char*)) { g_spawnSymbolHook = hook; }
+void setEnterCompoundHook(void (*hook)(int)) { g_enterCompoundHook = hook; }
 
 void feedLine(const char* line) { parseLine(line); }
 
