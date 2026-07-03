@@ -129,3 +129,61 @@ adaptive thinking 開。子 agent 仍照 §一分層派（Sonnet 機械／Opus �
   更穩：N 個獨立 /sw-batch session 各擁一個 §D 子系統，全靠磁碟協調（一張 assignment ledger：誰擁哪個
   子系統／整合順序／契約接縫），順「狀態永遠在磁碟」世界觀，各自 worktree（「多 session 同樹互擾」雷）。
   meta 角色守的不是「他們在不在工作」，是**子系統之間的契約接縫**（合流／否證）——那才是難的部分。
+
+## 九、審計-修理戰役形＋三隊形選擇＋監工儀表（2026-07-03 golden-audit 戰役實測回寫；無 Fable 依然全跑得動）
+
+出身：123 顆 golden oracle 審計→55 FLAGGED 同日全修（--bite 572/0/0），21 個 agent、
+三隻「自洽永綠」獵物（bend/twist 旋轉轉置、Locator 2×、snaptoangles 假錨）。
+§二管線是「蓋新的」；這節是「翻舊帳」（audit→repair）的戰役形＋通用強化件。
+
+### 9.1 戰役形（audit-first，四拍）
+
+```
+1. 審計波（唯讀 fan-out）：existing 資產按 rubric 逐顆判，每 agent 一批（~20 顆）
+     工單必含【校準樣本】（見 9.3）＋ 判定三態（✔/✘/需人看）＋ file:line 硬證據
+2. orchestrator triage：top-N 最嚴重宣稱**親自對碼**（本戰 3/3 實錘才放行）；
+     把病歸成系統型（型 > 單顆——修一型除一窩），寫 AUDIT SSOT 檔
+3. 修理波（按型分波）：機械型（Sonnet 大 fan-out）→ 判斷型（Opus，檔不相撞並行）
+     修理工單硬規則：oracle 只准權威源（TiXL 引行號）／不准跑 sw 回填／檔域白名單／
+     發現實作差異「回報不改」（獵物歸 orchestrator 裁決）
+4. 統一驗收：orchestrator 親手 build → lint → 全量 --bite → 紅的逐顆 triage
+     （期望值算術錯→打回原 agent；實作差異實錘→照 TiXL 修 leaf 另開一刀）→ 防再犯閘落地 → commit
+```
+
+關鍵：**審計只交判定不交修**、**修理只施工不裁決**、**裁決全留 orchestrator**——三權分立
+是品質來源，模型換成 Sonnet 也塌不了（判定品質靠 9.3 校準閘兜底）。
+
+### 9.2 三隊形選擇表（並行寫碼怎麼排）
+
+| 隊形 | 適用 | 成本 | 前提 |
+|---|---|---|---|
+| **主樹檔不相撞並行**（本戰主力） | 每 agent 的檔域可白名單化且互斥 | 最低（免 worktree/symlink/合併） | 工單寫死檔域；**agent 只改檔不 build**（自檢用 `clang -fsyntax-only`＋lint）；orchestrator 統一 build 驗收 |
+| worktree 並行（§二） | 檔域會重疊、或要整包丟棄 | 中（symlink 坑＋合併） | [[worktree-agent-must-commit-to-branch]] |
+| 主樹序列（§六補遺3 Workflow 工具） | 全撞共享脊椎（registry） | wall-clock 最貴 | self_healing 迴圈 |
+
+主樹並行的兩條血規：①共享檔（如 forceparams.h）兩 lane 都要加東西＝可以，但工單互相聲明
+「照家族慣例追加、不重排既有」；②修理波進行中 orchestrator **絕不 build**（半成品編譯假紅）。
+
+### 9.3 校準信任閘（便宜模型的品質兜底）
+
+fan-out 判定類工單必附**已知答案的樣本**：一顆已知好（本戰 gradient_golden＝三特徵範本）
+放進 rubric 當尺；若批內含已知壞（snaptoangles）而 agent 判成好 → **該 agent 整批判定作廢重派**。
+配套：top-N 宣稱 orchestrator 親驗後才起修理波。這兩道閘讓「Sonnet 當審計員」成立——
+信任來自機械可驗的校準，不來自模型檔次。
+
+### 9.4 回報硬規格（token 紀律）
+
+工單尾端固定：「回傳判定/摘要本身，**不貼大段碼**；每宣稱附 file:line;拿不準標『需人看』不准猜」。
+本戰 21 agent 無一超支的主因。加：agent 的「順手發現」（stale 註解/審計自身矛盾/環境異常如
+external/tixl 被清空）一律「寫回報不動手」——好幾隻獵物來自這條。
+
+### 9.5 監工儀表（柏為 2026-07-03 定：監工持續優化到萬無一失；標準＝品質/速度/token）
+
+每戰役結帳時記三行進 Cut（數據不是印象）：
+- **品質**：閘抓到的紅（本戰：lint 41+2、行數閘 4、--bite 首跑 2 顆實錘獵物）vs 逃逸到 commit 後的紅（目標恆 0）；agent 判定被親驗推翻數（本戰 0/3）
+- **速度**：波數×每波 wall-clock（本戰審計 ~6min/批並行、修理 ~25min/波並行、總 ~2.5h）
+- **token**：per-agent tokens（usage 欄）×模型單價;判斷密度低的 lane 用了 Opus＝浪費,標記下戰降檔試
+調參規則：Sonnet 兩次不過驗收→同工單升 Opus（§一既有）；**新增反向**：Opus lane 產出兩戰
+全是零判斷機械活→下戰降 Sonnet＋收緊 rubric 試跑（有 9.3 校準閘兜底,降檔風險有限）。
+沒有 Fable 的對照：本戰審計員由 Fable 擔任;無 Fable 時審計員＝Sonnet(rubric 更細+校準閘)、
+親驗與 triage＝Opus——結構閘不變,品質預期同級,只是 orchestrator 親驗抽樣要從 top-3 提到 top-5。

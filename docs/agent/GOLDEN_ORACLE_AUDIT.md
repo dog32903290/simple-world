@@ -8,6 +8,10 @@
 > 其餘 sw 實作對 TiXL 逐行核過 **verbatim**(mesh 全家、SDF 家族、simplex noise 位元組相同)。
 > 防再犯已落閘:`tools/golden_lint.sh`(run_all 每次自動掃)+ --bite vacuous-exit 第二層 + `docs/agent/GOLDEN_STANDARD.md` + CLAUDE.md 鐵律 8 + sw-batch/sw-node-batch 品質閘。
 > 裁決「接受不修」三項:particlefield_probe(檔頭自認探針)、field_raymarch 兩顆(結構/接線定位,已修 P1 極性)、fieldvolumeforce_field swap(承重 liveness,檔頭有理由)。
+> **矩陣乘全 repo 掃描(2026-07-03 晚,獵物 1 的收尾)**:runtime+shaders+templates 全掃,除 bend/twist 外
+> 無第三個「HLSL 字面值直抄+m*v」病灶——其餘全是手動轉置(有註解自證)/跑時基底/buffer 讀入(有 golden)/
+> 自建 row-major;cube/cylinder 的 CreateFromYawPitchRoll 落地由當日新增的非恆等旋轉 probe(30°Y/Spin30°)
+> 在 572 全綠 sweep 釘住。此病結案。
 > 下表保留為病理記錄(修理前的原始判定),供寫新 golden 時對照五反型。
 
 **日期**:2026-07-03 **方法**:6 個並行 agent 逐行審 `app/src/*_golden.cpp` 全部 123 顆,
