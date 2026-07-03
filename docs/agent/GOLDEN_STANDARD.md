@@ -40,6 +40,32 @@
 - [ ] 有狀態/emergent 的 op(粒子、跨 frame):沒有 closed-form 就明標 smoke 級,
       不冒充 parity golden(見 memory `sw-stateful-node-parity-gap`)
 
+## 新 golden 出廠檢查(refuter 波必跑;左移閘,把 2026-07-03 的事後審計搬到源頭)
+
+**這是 /sw-node-batch refuter 波對每顆新 golden 的固定 checklist。** 五反型不是等以後翻舊帳,
+是出廠當下逐條考——舊帳從此不再累積。機器代勞的先跑,剩下純語義的人工判。
+
+**機器層(先跑,秒級):**
+- P1 → `tools/golden_lint.sh`(硬閘,擋 build):did-not-trip 極性。0 違規才往下。
+- P3 → `tools/golden_lint.sh --audit`(軟篩,report-only):列出「期望值 = injectBug ?」的 want-flip
+  嫌疑當攻擊清單。**每一條 refuter 都要親判**:是真 flip(期望值隨 bug 翻=病),還是合法的
+  路徑分支斷言(severed 時斷不同的真實物理量=OK)。機器只篩,判定是人的。
+
+**人工層(refuter 對每顆逐條問,grep 抓不到):**
+- **P2 恆等點**:把這顆 op 的本體公式在腦中換成錯的(角度縮放/swizzle/符號/漏乘 radius)——
+  golden 會紅嗎?若所有 probe 都坐在 Amount=0/Scale=1/飽和端/奇異點 → 本體從沒被測 → 打回。
+- **P4 無 oracle**:期望值是「行為帶(>40/<30)」或「substring 斷言」或只驗「有動+決定性」嗎?
+  → 沒有 TiXL 數值錨 → 要求補閉式牙或誠實降級標 smoke。
+- **P5 自洽 oracle**:期望值的出處是 TiXL .cs/.hlsl(引行號)嗎?還是抄了 sw 自己的 helper / MSL /
+  同一 kernel 的另一次 dispatch(A==A)?→ 自洽假綠 → 回 TiXL 重錨。
+
+**refuter 出廠判定 = 機器兩層綠 + 人工三條各有明確答案。** 任一條「需人看」未解 → 該 golden 不入主線。
+
+> **實證(2026-07-03,harness 的存在證明)**:turbulence_parity 的 TOOTH 2 是 want-flip,穿過了當日
+> 123 顆全量審計(審計火力集中在它的 TOOTH 1a,把 TOOTH 2 當真閘)——一個逃逸紅。隔日建此 harness 時,
+> `golden_lint --audit` 的 P3 篩子**在工具還沒建完的試壓階段就把它撈出來**。若此閘當時已在生產線上,
+> 它根本逃不掉。這就是「事後審計 → 源頭閘」左移的全部理由。
+
 ## 修理進度指標
 
 修 FLAGGED 顆時照 GOLDEN_ORACLE_AUDIT.md 檔尾順位;每修一顆,把該顆從

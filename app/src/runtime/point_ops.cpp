@@ -341,6 +341,7 @@ void cookParticleSim(PointCookCtx& c) {
       // Amount=1.0, Frequency=1.0 — TiXL TurbulanceForce.t3), so this fallback never fires. Kept equal
       // to the NodeSpec defaults so the two paths agree if the key were ever missing (no 15/1.2 ghost).
       tp.Amount = cookInputParam(c, 1, "Amount", 1.0f);      // = NodeSpec default (TiXL .t3 = 1.0)
+      if (turbAmountBugForTest()) tp.Amount *= 15.0f;       // -bug latch: NodeSpec drift (same 15x class as DIRECTIONAL)
       tp.Frequency = cookInputParam(c, 1, "Frequency", 1.0f);  // = NodeSpec default (TiXL .t3 = 1.0)
       // Phase is a TiXL user input (default 0, only animates if Time is wired) — read it from the
       // inspector param like Amount/Frequency, NOT wall-clock. Binding Phase=time made offline render

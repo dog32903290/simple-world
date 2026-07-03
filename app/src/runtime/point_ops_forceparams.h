@@ -21,6 +21,7 @@ FieldVolumeForceParams fillFieldVolumeForceParams(const PointCookCtx& c, uint32_
 // (GOLDEN_STANDARD.md 特徵3). Off (false) in production; goldens set + reset around ONE cook.
 bool& axisStepSelectRatioBugForTest();  // fillAxisStepForceParams: SelectRatio -> 1.0 ("every particle hit")
 bool& dirForceAmountBugForTest();       // cookParticleSim DIRECTIONAL fill: Amount *= 15 (TurbulenceForce-style drift)
+bool& turbAmountBugForTest();            // cookParticleSim TURBULENCE fill: Amount *= 15 (NodeSpec drift, same class)
 bool& vecFieldAmountBugForTest();       // cookParticleSim VECTORFIELD fill: Amount *= 15 (same drift class)
 bool& particleSimDragBugForTest();      // cookParticleSim integrator: Drag -> 0.5 (integrator-param drift)
 bool& fieldDistBakedPushBugForTest();   // cookParticleSim FIELDDISTANCE no-field fallback: dispatch a phantom

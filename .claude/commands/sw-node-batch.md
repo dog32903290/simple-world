@@ -136,6 +136,10 @@ buffer/texture/curve/sim-state 依賴；**先 grep `.cs` 確認，sizing 不可�
    `selftests.cpp` kTable 一行（各家族 append，orchestrator 逐家族加）。真撞了＝Phase 0 沒拆乾淨，補 Phase 0。
 4. **全閘 + 否證**：主樹 `run_all --bite`（零 NO-BITE）+ `check-arch` + scenario；高風險 op 派 Opus
    refuter（對 TiXL .hlsl 逐行）；fixer 波 Sonnet 兩次不過升 Opus。
+   **★每顆新 golden 過 `docs/agent/GOLDEN_STANDARD.md` 的「新 golden 出廠檢查」五反型**（左移閘）：
+   機器層 `golden_lint.sh`（P1 硬閘）+ `golden_lint.sh --audit`（P3 want-flip 嫌疑清單，refuter 逐條判
+   真 flip / 合法分支）；人工層 refuter 對每顆逐條問 P2 恆等點 / P4 無 oracle / P5 自洽 oracle。
+   任一「需人看」未解＝該 golden 不入主線。這道閘把「事後翻舊帳」搬到「出廠當下」，舊帳不再累積。
 5. **commit 邊界＝機器驗證（柏為 2026-06-16 定 + 2026-06-20 再確認，覆寫舊「等柏為肉眼」版本）**：
    完成定義＝**對 TiXL 機器驗證得到**（golden 對手算 TiXL 公式/源碼常數 + 獨立 refuter + scenario 全綠）。
    **柏為的眼睛不在 parity 鏈上**（他手上沒 TiXL 可對）。

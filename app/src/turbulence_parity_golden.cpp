@@ -63,6 +63,7 @@
 #include "runtime/force_params.h"  // TurbParams, FORCE_Particles/FORCE_Params
 #include "runtime/graph.h"         // Graph/Node/pinId
 #include "runtime/tixl_point.h"    // Particle / SwPoint (64B)
+#include "runtime/point_ops_forceparams.h"  // turbAmountBugForTest (-bug real-cook latch)
 #include "tixl_noise_oracle.h"     // tixl_noise:: — TiXL noise-functions.hlsl transcription (TOOTH 1a oracle)
 
 namespace sw {
@@ -265,7 +266,9 @@ int runTurbulenceParitySelfTest(bool injectBug) {
   std::vector<SwPoint> baseline = cookTurbRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/0.0f);  // no force = pristine ring
   std::vector<SwPoint> refA1    = cookTurbRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/1.0f);   // TiXL .t3
   std::vector<SwPoint> refA15   = cookTurbRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/15.0f);  // pre-fix bug
+  turbAmountBugForTest() = injectBug;  // -bug: corrupt the REAL cook's Amount fill (15x drift); want stays fixed
   std::vector<SwPoint> prodDef  = cookTurbRig(h.dev, h.queue, h.lib, 0.0f, kSteps, /*amount=*/-1.0f);  // NodeSpec DEFAULT
+  turbAmountBugForTest() = false;
 
   // Structure: the production-default cook produced a non-empty bag, the SAME size as the reference
   // cooks (the particle pool; same rig, only the force Amount differs → identical pool size). This is
@@ -282,10 +285,9 @@ int runTurbulenceParitySelfTest(bool injectBug) {
   // Reference legs must actually move (so the probe is live) and Amount=15 must dwarf Amount=1.
   rep.expectTrue("refDisp_live(A15>>A1>0)", dA1 > 1e-5 && dA15 > 4.0 * dA1, dA15);
 
-  // THE NODESPEC TOOTH: which reference does the PRODUCTION DEFAULT match?
-  //   no-bug   → expect prod == Amount=1 reference (NodeSpec default IS 1.0).
-  //   injectBug→ expect prod == Amount=15 reference (the pre-fix NodeSpec deviation).
-  double dExpected = injectBug ? dA15 : dA1;
+  // THE NODESPEC TOOTH: the PRODUCTION DEFAULT must match the Amount=1 reference (TiXL .t3). The want
+  // NEVER flips: -bug corrupts the real cook's Amount fill (latch above, 15x) so this SAME assert diverges.
+  double dExpected = dA1;
   double dTol = 0.05 * dExpected + 1e-6;   // tight: prod cook and the matching ref share identical params
   rep.expect("prodDefaultDisp==Amount(NodeSpec)", dProd, dExpected, dTol);
   // Ratio probe (context + extra tooth): prod/A1 must be ~1 (no-bug) or ~15× off (injectBug咬住 NodeSpec=15).

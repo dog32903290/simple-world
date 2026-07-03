@@ -19,6 +19,7 @@ namespace sw {
 // the axisstep/directional/particlesim parity goldens flip ONE around a single cook and reset it.
 bool& axisStepSelectRatioBugForTest() { static bool b = false; return b; }
 bool& dirForceAmountBugForTest() { static bool b = false; return b; }
+bool& turbAmountBugForTest() { static bool b = false; return b; }
 bool& vecFieldAmountBugForTest() { static bool b = false; return b; }
 bool& particleSimDragBugForTest() { static bool b = false; return b; }
 // fielddistance parity -bug latch: the FIELDDISTANCE no-field baked fallback dispatches a phantom
