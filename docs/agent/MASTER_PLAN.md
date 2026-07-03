@@ -15,20 +15,22 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: dbf952a
-DIRTY: clean
-CENSUS: 473 / 749 done
+HEAD: 141fc9b
+DIRTY: 2 files
+CENSUS: 0 / 0 done
 BITE: 572 PASS
-STAMP_AT: 2026-07-02T11:49
+STAMP_AT: 2026-07-03T12:05
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
 
 ## Active Lane
 
-**★★方向 PIVOT（柏為 2026-07-02 11:xx 拍板）＝完全照 TiXL 節點模型：複合＝巢狀 catalog 註冊節點（能拖/能鑽入子節點），image 不壓扁。詳 memory [[tixl-clone-model-nested-catalog-node]]。**★現狀（2026-07-02 11:49，HEAD `dbf952a`，--bite 572，clean，NO-BITE=[]，**未 push 領先 origin**＝待柏為授權）——**第一顆 catalog 節點落地並 orchestrator 眼手親驗。**
-- **★catalog-node step-1（`dbf952a`，merged，orchestrator 眼手復驗）＝完全照 TiXL 第一步**：先壓測（找出真破綻）再建。機器盤點結論：graph model 本來就是 TiXL SymbolPackage 形狀、quick-add 自動掃 `g_lib` 的 `!atomic` 複合、AddChild/inline-cook/drill-in（pushComposition）對 imported compound **零改動可用**。真承重補了兩欄：**importer 產出 `outputDefs`**（不補→拖出來沒 output pin＝死節點，壓測 attack E 抓到）+ **從 .t3 註解抓真名**。新 `doImportT3AsSymbol` append 進活 lib（非 replace-doc）。眼手實證（我親跑）：`menu:RadialGradient` 出現在 Add-Node palette（真名）、拖出有 Texture2D output pin、鑽入看到子節點（RadialGradient+3×V2C+3×B2F+IntToFloat）。12 顆 t3 golden 全綠、--bite 571→572(+t3-outputdefs tooth)、check-arch 綠。
-  - **⚠下一根＝boundary INPUT 型別回復（outputDefs 的對稱洞）**：importer 把 boundary `inputDefs` 全 hard-code 成 `"Float"`（`t3_import.cpp:90`）→拖出的節點 input pin 型別錯→**柏為接不了正確上游**（RadialGradient 單拖顯示白色 unwired fallback，非漸層；漸層視覺由 golden 焊死證明）。修法＝從 collapse re-anchor 目標 atom port 型別倒推，跟 outputDef 對稱。**這是「柏為手拖能看到真效果」的前置。**
+**★★方向 PIVOT（柏為 2026-07-02 拍板）＝完全照 TiXL 節點模型：複合＝巢狀 catalog 註冊節點（能拖/能鑽入子節點），image 不壓扁。詳 memory [[tixl-clone-model-nested-catalog-node]]。**★現狀（2026-07-03 12:05，HEAD `141fc9b`，--bite 572，clean，NO-BITE=[]，**未 push 領先 origin**）——**catalog 節點：名字回復 + 開機載入庫落地，柏為三條驗收全過（orchestrator 眼手親驗）。**
+- **★開機載入 .t3 庫 + hand verbs（`141fc9b`，merged，眼手親驗）＝柏為「走到開機載入庫」終點**：`assets/catalog_t3/`（8 顆 .t3 commit 進 repo，byte-from-embed）→ `catalog_boot.cpp` app 啟動掃資料夾 importT3Symbol 進 g_lib（idempotent/fail-soft/`--no-catalog` RED leg）。**重開 app 不用匯，節點永遠在選單**（實測 boot log「8 imported」+重開再證）。加兩個眼手 data-verb `spawnsymbol <id>`/`entercompound <childId>`（繞過會卡的座標，未來 catalog 驗證可靠）。⚠persist-into-.swproj 未刻意設計（imported symbol 隨 libToJsonV2 存進 .swproj、boot-load idempotent 跳過已存在，不會壞但去重沒設計）＝可能一根 follow-up。
+- **★名字回復（`818317b`，merged，眼手親驗）**：imported 複合 input-port 名字/型別回復——guid→name 表（掃整份 .t3 註解）+ wire-reanchor 型別。**柏為三條全過（orchestrator 眼手直證）**：① inspector+節點埠真名（Center/Gradient/BiasAndGain/PingPong/BlendMode/Resolution/Noise…，full.png 眼證零 GUID）② palette 選得到 RadialGradient 真名 ③ entercompound 鑽入內部 8 子節點全真名（IntToFloat/BoolToFloat×3/Vector2Components×3/RadialGradient，零 GUID）。型別 Gradient/Texture2D 回復、其餘退 Float（sw 無 Vec2/Int 型別，clone-first 不硬造）。公開輸入集=15=TiXL 真集。⚠合流踩雷：agent 誤把 `external` symlink commit 成 gitlink→FF 撞 vuo 唯讀檔失敗→改只 commit source 兩檔（工單已加「別 git add external」防再犯）。
+- **★catalog-node step-1（`dbf952a`，merged，眼手復驗）＝完全照 TiXL 第一步**：先壓測（找出真破綻）再建。機器盤點結論：graph model 本來就是 TiXL SymbolPackage 形狀、quick-add 自動掃 `g_lib` 的 `!atomic` 複合、AddChild/inline-cook/drill-in（pushComposition）對 imported compound **零改動可用**。真承重補了兩欄：**importer 產出 `outputDefs`**（不補→拖出來沒 output pin＝死節點，壓測 attack E 抓到）+ **從 .t3 註解抓真名**。新 `doImportT3AsSymbol` append 進活 lib（非 replace-doc）。眼手實證（我親跑）：`menu:RadialGradient` 出現在 Add-Node palette（真名）、拖出有 Texture2D output pin、鑽入看到子節點（RadialGradient+3×V2C+3×B2F+IntToFloat）。12 顆 t3 golden 全綠、--bite 571→572(+t3-outputdefs tooth)、check-arch 綠。
+  - **✅ boundary INPUT 型別回復＝名字回復那根已一併做**（Gradient/Texture2D/String 從 wire-reanchor 回復；Vec2/Int/Bool 退 Float=sw 模型正解非 bug）。⚠**待柏為/下一步實測**：Gradient input 現在是 Gradient 型→柏為應能把 DefineGradient 接進去看到真漸層（單拖仍是 noise/白 unwired fallback，inspector 明寫「connect a gradient source」）。**若接線後真出漸層＝「手拖看到真效果」達成**；若接不上＝還有 wiring gap 要查。這是柏為下次可先測的。
   - **⚠廣度**：outputDefs/inputDefs 型別回復目前只覆蓋 image-fx collapse + buffer normal-path；其它家族各自要確認終端 producer 型別解析得出。多層巢狀（鑽到底）仍 gated on ~200 atom 廣度（隨港隨長齊，非阻塞）。
 —— 以下為方向 pivot 前的 187 量產 done-record（output-parity 工，留用；節點 MODEL 改巢狀 catalog）：
 **★187 量產 phase・image gradient-fed class 6/7（done-record，`38282b4`，571）。全 refuter+orchestrator 親驗。**
