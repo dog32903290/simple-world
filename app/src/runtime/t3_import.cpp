@@ -75,6 +75,67 @@ std::string topLevelName(const std::string& raw) {
   return std::string();
 }
 
+// GUID→NAME TABLE (imported-compound-input-port-shows-guid-not-name): the SAME `/*Name*/` inline
+// comments that carry the readable name also sit on EVERY identified thing in the .t3 — inputs,
+// outputs, children, slots. topLevelName only recovers the ROOT name; this sweeps the WHOLE raw text
+// (BEFORE stripT3Comments deletes them) into a map so the input SlotDefs (and any other name-needing
+// endpoint) can look up their real display name instead of the bare GUID. Guids are lowercased so a
+// lookup keyed by the lowercased slot id (SlotDef.id) hits regardless of the .t3's casing.
+std::map<std::string, std::string> guidNameMap(const std::string& raw) {
+  std::map<std::string, std::string> out;
+  static const std::regex re(R"RE("Id"\s*:\s*"([^"]+)"\s*/\*([^*]+)\*/)RE");
+  for (auto it = std::sregex_iterator(raw.begin(), raw.end(), re), end = std::sregex_iterator();
+       it != end; ++it) {
+    const std::string guid = lc((*it)[1].str());
+    if (!guid.empty() && !out.count(guid)) out[guid] = (*it)[2].str();
+  }
+  return out;
+}
+
+// INPUT-PORT TYPE from the boundary input's .t3 DefaultValue SHAPE, mapped onto sw's dataType
+// vocabulary (Float/Texture2D/Gradient/Color/String — sw has NO distinct Vec2/Vec3/Int/Bool; a
+// vector is N scalar Float rails on the atom, so a vec BOUNDARY port is a Float in sw's model).
+// This is the FALLBACK type source; the primary is the collapse/wire re-anchor target atom port's
+// dataType (back-propagated after connections are built), which is exact where an input is wired.
+// Returns "" when the shape gives no signal (e.g. null Image — the wire re-anchor supplies Texture2D;
+// if that also fails the caller keeps Float and the honest gap is the null default).
+std::string dataTypeFromDefault(const crude_json::value& dv) {
+  if (dv.is_string()) return "String";              // e.g. TextureFormat = "R16G16B16A16_Float"
+  if (dv.is_boolean() || dv.is_number()) return "Float";  // bool / int / float all ride the Float rail
+  if (dv.is_object()) {
+    if (dv.contains("Gradient")) return "Gradient";       // {Gradient:{Steps:[...]}}
+    if (dv.contains("R") || dv.contains("G") || dv.contains("B")) return "Color";  // {R,G,B,A}
+    return "Float";                                        // {X,Y[,Z,W]} vec → scalar Float in sw
+  }
+  return std::string();                                    // null / unknown → let the wire decide
+}
+
+// INPUT-TYPE RE-ANCHOR (primary type source): after the subgraph is built, each boundary INPUT that
+// feeds a child's port inherits that port's EXACT sw dataType — the truth where the input is wired
+// (Image→Texture2D, Gradient→Gradient, a scalar→Float). This runs on the committed `sym` for BOTH the
+// collapse path and the normal path (each stores its wires in sym.connections + registers every child
+// symbol in `lib`), so it needs no path-local maps. Only OVERWRITES when the target port resolves to a
+// non-empty, DIFFERENT type — an unwired input keeps its DefaultValue-shape type. First wire wins
+// (deterministic; a boundary vec fanning into two .x/.y Float rails resolves to Float either way).
+void refineInputTypesFromWires(Symbol& sym, const SymbolLibrary& lib) {
+  for (const SymbolConnection& c : sym.connections) {
+    if (c.srcChild != kSymbolBoundary) continue;           // only wires OUT of a boundary input
+    if (c.dstChild == kSymbolBoundary) continue;           // input→output passthrough: no child port
+    // Resolve the destination child's referenced symbol → its input port's dataType.
+    const SymbolChild* dc = nullptr;
+    for (const SymbolChild& ch : sym.children) if (ch.id == c.dstChild) { dc = &ch; break; }
+    if (!dc) continue;
+    const NodeSpec* ds = findSpec(dc->symbolId);
+    if (!ds) continue;
+    std::string portType;
+    for (const PortSpec& p : ds->ports)
+      if (p.isInput && p.id == c.dstSlot) { portType = p.dataType; break; }
+    if (portType.empty()) continue;
+    for (SlotDef& d : sym.inputDefs)
+      if (d.id == c.srcSlot && d.dataType != portType) { d.dataType = portType; break; }
+  }
+}
+
 }  // namespace
 
 bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
@@ -87,6 +148,14 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
   const std::string symGuid = lc(asStr(root, "Id"));
   if (symGuid.empty()) { warn("t3: missing top-level Id"); return false; }
 
+  // GUID→NAME table from the RAW text (before the comments are stripped). SSOT for recovering the
+  // readable name of every identified endpoint — root symbol, input/output slots, children, sub-slots.
+  const std::map<std::string, std::string> nameByGuid = guidNameMap(t3Json);
+  auto nameFor = [&](const std::string& guid) -> std::string {
+    auto it = nameByGuid.find(lc(guid));
+    return it != nameByGuid.end() ? it->second : std::string();
+  };
+
   Symbol sym;
   sym.id = symGuid;
   // Readable name from the root Id's inline comment (else fall back to the GUID) — set BEFORE the
@@ -95,7 +164,11 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
   sym.name = readableName.empty() ? symGuid : readableName;
   sym.atomic = false;
 
-  // Top-level Inputs[] → the symbol's external input SlotDefs (boundary ports). Named by guid.
+  // Top-level Inputs[] → the symbol's external input SlotDefs (boundary ports). Name recovered from the
+  // guid→name table (was the bare GUID — imported-compound-input-port-shows-guid-not-name); type from the
+  // DefaultValue SHAPE (was hard-coded Float — a vec/gradient/image/string input mis-labelled Float
+  // couldn't be told apart in the Inspector or wired by type). The wire re-anchor sharpens this further
+  // below (an input feeding a known atom port inherits that port's exact dataType).
   if (root["Inputs"].is_array()) {
     for (const crude_json::value& iv : root["Inputs"].get<crude_json::array>()) {
       if (!iv.is_object()) continue;
@@ -103,8 +176,11 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
       if (sid.empty()) { warn("t3: input slot missing Id, skipped"); continue; }
       SlotDef d;
       d.id = sid;
-      d.name = sid;
-      d.dataType = "Float";
+      const std::string nm = nameFor(sid);
+      d.name = nm.empty() ? sid : nm;  // real name, else GUID fallback (honest gap for an unnamed slot)
+      const std::string dt = iv.contains("DefaultValue") ? dataTypeFromDefault(iv["DefaultValue"])
+                                                          : std::string();
+      d.dataType = dt.empty() ? "Float" : dt;  // shape-derived; wire re-anchor may override below
       if (iv["DefaultValue"].is_number()) d.def = (float)iv["DefaultValue"].get<crude_json::number>();
       sym.inputDefs.push_back(d);
     }
@@ -118,6 +194,7 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
   const std::string collapseType = swTexOpForCollapseRootGuid(symGuid);
   if (!collapseType.empty()) {
     if (collapseImageFxWrapper(root, collapseType, sym, lib, warn)) {
+      refineInputTypesFromWires(sym, lib);  // sharpen boundary-input types from the atom/helper ports
       lib.symbols[sym.id] = sym;
       if (lib.rootId.empty()) lib.rootId = sym.id;
       if (outSymbolId) *outSymbolId = sym.id;
@@ -308,6 +385,7 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
   }
 
   sym.connections = std::move(conns);
+  refineInputTypesFromWires(sym, lib);  // sharpen boundary-input types from the child ports they feed
 
   lib.symbols[sym.id] = sym;
   if (lib.rootId.empty()) lib.rootId = sym.id;

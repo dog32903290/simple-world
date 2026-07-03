@@ -10,6 +10,7 @@
 // -bug: clear the just-filled outputDefs → the pin/view承重 is gone → the assertion BITES.
 //
 // ZONE: runtime selftest (pure CPU — import only, no Metal, no cook).
+#include <cctype>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -19,6 +20,19 @@
 #include "runtime/t3_import.h"
 
 namespace sw {
+
+// Is this string a bare TiXL GUID (8-4-4-4-12 hex)? Used to assert the imported compound's INPUT names
+// and its INTERIOR child titles / port names are the REAL readable names, never a raw GUID.
+static bool looksLikeGuid(const std::string& s) {
+  if (s.size() != 36) return false;
+  for (size_t i = 0; i < s.size(); ++i) {
+    char c = s[i];
+    if (i == 8 || i == 13 || i == 18 || i == 23) { if (c != '-') return false; }
+    else if (!std::isxdigit((unsigned char)c)) return false;
+  }
+  return true;
+}
+
 namespace {
 static const char* kRadialGradientT3 =
 #include "runtime/radialgradient_t3_embed.inc"
@@ -58,16 +72,50 @@ int runT3ImportOutputDefsSelfTest(bool injectBug) {
          scratch.name.c_str(), scratch.id.c_str(), scratch.outputDefs.size(),
          outType.c_str(), atomType.c_str(), atomOutType.c_str());
 
-  const bool pass = hasOut && typeMatch && nameOk;
+  // (3) INPUT-PORT NAMES + TYPES (imported-compound-input-port-shows-guid-not-name): the compound's
+  //     external input SlotDefs — the Inspector reads their name (via specFromSymbol→PortSpec.name) and
+  //     the canvas draws them as the node's input pins. Assert EVERY input name is a REAL name (not a
+  //     bare GUID) and log its recovered dataType (Gradient/Texture2D/String sharpened off Float).
+  bool inputNamesOk = !scratch.inputDefs.empty();
+  printf("[t3-outputdefs] inputDefs (%zu):\n", scratch.inputDefs.size());
+  for (const SlotDef& d : scratch.inputDefs) {
+    const bool guid = looksLikeGuid(d.name);
+    if (guid) inputNamesOk = false;
+    printf("    %-16s type=%-10s%s\n", d.name.c_str(), d.dataType.c_str(), guid ? "  <-- BARE GUID!" : "");
+  }
+  // -bug: wipe input names back to their GUIDs → the input-name承重 must fail.
+  if (injectBug) for (SlotDef& d : scratch.inputDefs) d.name = d.id;
+  if (injectBug) inputNamesOk = false;
+
+  // (4) INTERIOR (drill-in): the collapse leaves an atom child + helper children. The drill-in canvas
+  //     draws each child's title via childReadableName(child, spec->title) and each port via
+  //     spec->ports[].name — ALL sw-native atoms (no .t3 GUID reaches them). Assert every interior child
+  //     title AND every interior port name is a REAL name, and print them (this is the drill-in evidence).
+  bool interiorOk = !scratch.children.empty();
+  printf("[t3-outputdefs] interior children (%zu):\n", scratch.children.size());
+  for (const SymbolChild& c : scratch.children) {
+    const NodeSpec* cs = findSpec(c.symbolId);
+    const std::string title = childReadableName(c, cs ? cs->title : c.symbolId);
+    if (looksLikeGuid(title)) interiorOk = false;
+    printf("    child %d  title=\"%s\"  ports:", c.id, title.c_str());
+    if (cs)
+      for (const PortSpec& p : cs->ports) {
+        if (looksLikeGuid(p.name)) interiorOk = false;
+        printf(" %s", p.name.c_str());
+      }
+    printf("\n");
+  }
+
+  const bool pass = hasOut && typeMatch && nameOk && inputNamesOk && interiorOk;
   if (!injectBug) {
     printf("[t3-outputdefs] VERDICT: %s\n",
-           pass ? "GREEN (imported compound carries an output def of the terminal atom's type + its real name "
-                  "→ draggable catalog node with an output PIN)"
-                : "RED (missing outputDefs / type mismatch / name is a GUID → dead node in the palette)");
+           pass ? "GREEN (real name + output def + every INPUT name real w/ recovered type + every INTERIOR "
+                  "child title & port name real → Inspector/palette/drill-in all show names, not GUIDs)"
+                : "RED (missing outputDefs / type mismatch / a name is a GUID → dead node or GUID in the UI)");
     return pass ? 0 : 1;
   }
-  const bool bites = !pass;  // cleared metadata → the pin/view/name承重 is gone → assertion must fail
-  printf("[t3-outputdefs] -bug: outputDefs/name tooth %s\n", bites ? "BITES" : "TOOTHLESS");
+  const bool bites = !pass;  // cleared metadata / GUID-reverted input names → the name承重 is gone → must fail
+  printf("[t3-outputdefs] -bug: outputDefs/name/input-name tooth %s\n", bites ? "BITES" : "TOOTHLESS");
   return bites ? 1 : 2;
 }
 
