@@ -94,6 +94,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"shiftcamera", runShiftCameraSelfTest},  // camera-B: ShiftCamera additive CameraToClipSpace nudge (math + resident render flip)
     {"visiblegizmos", runVisibleGizmosSelfTest},  // camera-B: VisibleGizmos MultiInput visibility gate (On/Off/Inherit truth table, resident)
     {"reusecamera", runReuseCameraSelfTest},  // camera-B: ReuseCamera referenced-camera push (Object wire, flat+resident + missing-ref drop)
+    {"orbitcamera", runOrbitCameraSelfTest},  // camera-B: OrbitCamera angle->position pipeline (transcription oracle + invariants + resident render)
     {"execute", runExecuteSelfTest},
     {"layercompose", runLayerComposeSelfTest},
     {"group", runGroupSelfTest},

@@ -41,6 +41,7 @@
 #include "runtime/field_camera.h"    // lookAtRH/perspectiveFovRH/mat4* + selftest convention
 #include "runtime/point_graph.h"     // CmdCookCtx, registerCmdOp, cookParam/cookVecN
 #include "runtime/point_ops_camera_scope.h"  // C1: ActiveCamera / LiveCameraScope / activeCameraMatrices
+#include "runtime/point_ops_orbitcamera.h"   // resolveOrbitCamera (the ReuseCamera OrbitCamera provider)
 #include "runtime/render_command.h"  // RenderCommand / RenderDrawItem / DrawKind
 
 #include <cmath>
@@ -150,13 +151,11 @@ bool& cameraScopeBugSkipPush() {
   return v;
 }
 
+// Provider set doc: fork-reusecamera-provider-set (point_ops_camera_scope.h).
 bool resolveReferencedCamera(const std::string& opType, const std::map<std::string, float>& params,
                              float localFxTime, ActiveCamera& out) {
-  (void)localFxTime;  // the OrbitCamera provider seam (time-dependent eye); unused by "Camera"
-  if (opType == "Camera") {  // v1 provider set (fork-reusecamera-provider-set, point_ops_camera_scope.h)
-    out = resolveActiveCamera(params);
-    return true;
-  }
+  if (opType == "Camera") { out = resolveActiveCamera(params); return true; }
+  if (opType == "OrbitCamera") { out = resolveOrbitCamera(params, localFxTime); return true; }
   return false;  // non-camera source → ReuseCamera.cs:25-29 invalid-reference posture
 }
 

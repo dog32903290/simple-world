@@ -13,6 +13,7 @@
 #include "runtime/point_ops_shiftcamera.h"  // camera-B: registerShiftCameraOp (Command→Command projection nudge)
 #include "runtime/point_ops_visiblegizmos.h"  // camera-B: registerVisibleGizmosOp (MultiInput Command visibility gate)
 #include "runtime/point_ops_reusecamera.h"  // camera-B: registerReuseCameraOp (referenced-camera push)
+#include "runtime/point_ops_orbitcamera.h"  // camera-B: registerOrbitCameraOp (animated orbit/wobble camera)
 
 namespace sw {
 
@@ -46,6 +47,7 @@ void registerDrawPointOps() {
   registerShiftCameraOp();                       // Command → Command (additive CameraToClipSpace nudge, camera-B)
   registerVisibleGizmosOp();                     // Command(MultiInput) → Command (gizmo visibility gate, camera-B)
   registerReuseCameraOp();                       // Command → Command (referenced-camera push via Object wire, camera-B)
+  registerOrbitCameraOp();                       // Command → Command (animated orbit/wobble camera push, camera-B)
   registerExecuteOp();                           // Command(MultiInput) → Command (S2a KEYSTONE: N-chain concat)
   registerGroupOp();                             // Command(MultiInput) → Command (S2b: Execute + SRT transform-context push)
   registerRotateAroundAxisOp();                  // Command → Command (axis-angle transform-context push, S2 island)
