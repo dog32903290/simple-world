@@ -109,6 +109,14 @@ int runAnimIntSelfTest(bool injectBug);
 // (setAnimBooleanBug: drop the state write / freeze the edge low) so the fixed wants bite.
 int runAnimBooleanSelfTest(bool injectBug);
 
+// RandomChoiceIndex PRODUCTION-PATH pin (--selftest-randomchoiceindex): the deterministic no-repeat
+// choice op. Drives the REAL cookStatefulValueNodes across frames (one StatefulValueState map = the
+// cross-frame channel) and asserts the XxHash slice-buffer chain values + the window/modulo refill
+// hysteresis (history vs fresh instances diverge on the same input). injectBug flips a REAL
+// production term (setRandomChoiceIndexBug: drop the "+1" anti-repetition offset) so the fixed
+// (oracle-derived) wants bite.
+int runRandomChoiceIndexSelfTest(bool injectBug);
+
 // WasTrigger PRODUCTION-PATH pin (--selftest-wastrigger): drives the REAL cookStatefulValueNodes
 // across a 5-frame trigger sequence (one ContextVarMap + one StatefulValueState carried) where a
 // SetFloatVar("__TriggerA") writer feeds a WasTrigger reader through the shared floatVars channel,

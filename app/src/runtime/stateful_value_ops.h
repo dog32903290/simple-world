@@ -168,6 +168,12 @@ void setAnimIntBug(int mode);
 // TriggerOutput tooth never advances); 2 = FREEZE the edge to 0 (TriggerOutput forced low).
 void setAnimBooleanBug(int mode);
 
+// RandomChoiceIndex TEETH hook (--selftest-randomchoiceindex). 0 = production; 1 = DROP the "+1"
+// anti-repetition term in the XxHash chain offset (RandomChoiceIndex.cs:75) — every chained buffer
+// value shifts, the mod>=3 goldens bite. Sticky module switch (golden restores 0), mirrors
+// setAnimValueBug.
+void setRandomChoiceIndexBug(int mode);
+
 // WasTrigger TEETH hook (--selftest-wastrigger). 0 = production; 1 = DROP the _wasHit state write
 // (the cross-frame rising-edge gate never advances → a HELD-rising input re-pulses every frame);
 // 2 = DROP the var read (value forced to 0 → no trigger ever fires). The golden sets this around the
