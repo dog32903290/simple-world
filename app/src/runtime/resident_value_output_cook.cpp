@@ -62,6 +62,53 @@ void cookValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
                                    // matching TiXL's unguarded width/(float)height; 0/0 → NaN)
       continue;
     }
+    // GridPosition (TiXL Lib.numbers.vec2.GridPosition): a per-cell grid layout position + size. Unlike
+    // RequestedResolution (context-only), it reads BOTH its resolved Float INPUTS (Index, RasterSize.x/y)
+    // AND the cook-context aspect (ctx.requestedWidth/Height) — so it lives on this rail (its value cannot
+    // come from a pure evaluate() fn: the aspect is context, not an input). Output-port order (= extOut):
+    //   [0] Position.x  [1] Position.y  [2] Size.x  [3] Size.y
+    //   TiXL GridPosition.cs:19-37 (verbatim):
+    //     var index   = Index.GetValue(context);                                          // cs:21 (int)
+    //     var size    = RasterSize.GetValue(context);                                      // cs:22 (Int2)
+    //     var columns = size.Width.Clamp(1, 10000);                                        // cs:23
+    //     var rows    = size.Height.Clamp(1, 10000);                                       // cs:24
+    //     var row     = index / columns;                                                   // cs:26 (INT div)
+    //     var column  = index - (row * columns);                                           // cs:27
+    //     var aspectRatio = (float)context.RequestedResolution.Width / .Height;            // cs:29
+    //     var sizeValue   = new Vector2(1f/columns, 1f/rows);                               // cs:30-31
+    //     var x = ((float)column/columns - 0.5f)*aspectRatio*2 + sizeValue.X*aspectRatio;  // cs:33
+    //     var y = (((float)(rows-row-1)/rows) - 0.5f)*2 + sizeValue.Y;                      // cs:34
+    //     Size.Value = sizeValue;  Position.Value = new Vector2(x, y);                      // cs:36-37
+    //   The `A` input (Vector2, cs:41) is UNUSED in TiXL's Update — a dead input; sw omits it (no wire
+    //   consumes it, no value depends on it → a faithful drop, named fork-gridposition-drop-dead-A).
+    //   FORK fork-gridposition-int-via-floatrail: Index/RasterSize are int/Int2 in TiXL; on this rail they
+    //   ride Float (truncated toward zero via (int)), so row/column integer division matches C# int math.
+    if (rn.opType == "GridPosition") {
+      const std::map<std::string, float> in = resolveResidentFloatInputs(g, rn, ctx);
+      auto getIn = [&](const char* id, float def) -> float {
+        auto it = in.find(id);
+        return it != in.end() ? it->second : def;
+      };
+      const int index = (int)getIn("Index", 0.0f);           // cs:21 (int, .t3 default 0)
+      int columns = (int)getIn("RasterSize.x", 0.0f);        // cs:23 size.Width.Clamp(1,10000)
+      int rows    = (int)getIn("RasterSize.y", 0.0f);        // cs:24 size.Height.Clamp(1,10000)
+      if (columns < 1) columns = 1;
+      if (columns > 10000) columns = 10000;
+      if (rows < 1) rows = 1;
+      if (rows > 10000) rows = 10000;
+      const int row    = index / columns;                    // cs:26 (int division)
+      const int column = index - (row * columns);            // cs:27
+      const float aspect = (float)ctx.requestedWidth / (float)ctx.requestedHeight;  // cs:29 (no zero guard)
+      const float sizeX = 1.0f / (float)columns;             // cs:30
+      const float sizeY = 1.0f / (float)rows;                // cs:31
+      const float x = ((float)column / (float)columns - 0.5f) * aspect * 2.0f + sizeX * aspect;  // cs:33
+      const float y = (((float)(rows - row - 1) / (float)rows) - 0.5f) * 2.0f + sizeY;           // cs:34
+      rn.extOut[0] = x;      // Position.x
+      rn.extOut[1] = y;      // Position.y
+      rn.extOut[2] = sizeX;  // Size.x
+      rn.extOut[3] = sizeY;  // Size.y
+      continue;
+    }
     // (future context-reading cook-emit ops fan out here — same extOut[outputPortIndex] contract.)
   }
 }

@@ -352,6 +352,7 @@ add_executable(simple_world
   src/selectpointswithsdf_golden.cpp  # direct-Field gather LEAF: GridPoints -> SelectPointsWithSDF(Field=SphereSDF) -> per-point FX1=max(0,1-2*dist) readback (--selftest-selectpointswithsdf)
   src/radial_points_parity_golden.cpp  # ★PARITY-GATE Stage-1 pilot: RadialPoints production defaults vs TiXL .t3 Count=100/Radius=1 (--selftest-radial-parity, RED-first template)
   src/grid_points_parity_golden.cpp    # ★PARITY-GATE param-completion fan-out #2: GridPoints attribute knobs (Color/F1/F2/Orientation/Scale) wired vs TiXL .t3/.hlsl (--selftest-grid-parity, RED-first)
+  src/grid_position_golden.cpp         # --selftest-gridposition (GridPosition value-output rail: per-cell grid Position/Size from Index/RasterSize + ctx aspect, vs TiXL GridPosition.cs closed-form)
   src/hexgrid_points_parity_golden.cpp # ★PARITY-GATE param-completion fan-out: HexGridPoints 11th input Scale (Size·Scale via .t3 ScaleVector3) cook-through vs TiXL .hlsl closed-form X (--selftest-hexgrid-parity, RED-first)
   src/line_points_parity_golden.cpp    # ★PARITY-GATE param-completion fan-out #3: LinePoints knobs (ColorA/ColorB dual-color lerp/F1/F2/Orientation/Twist/AddSeparator) wired vs TiXL .t3/.hlsl (--selftest-line-parity, RED-first)
   src/turbulence_parity_golden.cpp     # ★PARITY-GATE Stage-1: TurbulenceForce 15× amplitude tooth + Phase=wall-clock determinism probe (--selftest-turbulence-parity, RED-first)

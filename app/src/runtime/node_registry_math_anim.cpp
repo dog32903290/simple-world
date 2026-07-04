@@ -162,6 +162,28 @@ static const MathOp _reg_RequestedResolution{
        "render.utils"}
 };
 
+      // GridPosition (TiXL Lib.numbers.vec2.GridPosition) — value-output rail (context + inputs). Emits a
+      // per-cell grid Position (Vector2) + Size (Vector2). evaluate=nullptr: the value depends on the cook-
+      // context aspect (ctx.requestedWidth/Height), impossible in a pure evaluate() — cooked once per frame
+      // by cookValueOutputNodes (resident_value_output_cook.cpp), which ALSO resolves this node's Float inputs.
+      // OUTPUT PORTS FIRST → output-port index == extOut index: [0]Position.x [1]Position.y [2]Size.x [3]Size.y.
+      // FORK fork-vec-output-as-n-scalar-ports: TiXL Position/Size are Slot<Vector2>; here each is 2 Float ports.
+      // FORK fork-gridposition-drop-dead-A: TiXL's `A` Vector2 input is UNUSED in Update() (a dead port) → omitted.
+      // FORK fork-gridposition-int-via-floatrail: Index (int) + RasterSize (Int2) ride Float, truncated to int.
+      // .t3 defaults: Index=0, RasterSize=(0,0) (clamped to (1,1) by the cook's Clamp(1,10000)).
+static const MathOp _reg_GridPosition{
+      {"GridPosition", "GridPosition",
+       {{"Position.x",   "Position",     "Float", false},
+        {"Position.y",   "Position.y",   "Float", false},
+        {"Size.x",       "Size",         "Float", false},
+        {"Size.y",       "Size.y",       "Float", false},
+        {"Index",        "Index",        "Float", true, 0.0f, 0.0f, 10000.0f, Widget::Slider},
+        {"RasterSize.x", "RasterSize",   "Float", true, 0.0f, 0.0f, 10000.0f, Widget::Vec, {}, false, 2},
+        {"RasterSize.y", "RasterSize.y", "Float", true, 0.0f, 0.0f, 10000.0f, Widget::Vec, {}, false, 1}},
+       nullptr,
+       "numbers.vec2"}
+};
+
       // TiXL TransformMatrix (Lib/render/_/TransformMatrix.cs) — value-output-rail Phase 3 (MATRIX value).
       // Builds an SRT matrix (Scale·Rotation·Translation about Pivot, + shear, then HLSL-row Transpose) and
       // emits the 4 transposed ROWS (Row1..Row4) as a 4-element Vector4[] = TiXL Slot<Vector4[]> Result.
