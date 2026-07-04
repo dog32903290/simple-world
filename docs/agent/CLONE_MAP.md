@@ -41,6 +41,10 @@ device-io 57(MIDI/OSC/DMX/serial=柏為域)/ pbr-lighting 16(新 3D-render 島)/
   乾淨;CompareImages/Glow 需 golden 驗多pass)+ **2 分類錯的葉子**(FakeLight/NumberPattern 自帶 .hlsl,
   該歸 image-fx 葉縫)+ **3 卡真下游縫**(ScreenCloseUp→pbr-lighting/postfx、SortPixelGlitch→compute-dispatch、
   AdvancedFeedback2→compute+feedback)。
+- **骨7b caveat(monitor 親驗)**:host flatten 連 mixed-MultiInput slot 排序都已修
+  (`resident_eval_flatten.cpp:270` 單一 sym.connections pass,mesh 家族 replay 不亂序)——**但缺一顆
+  mixed-MultiInput golden 牙**(碼修閘沒補,回歸無防護)。派工人補一顆,過新出廠閘。見 memory
+  [[gpu-compute-replay-proven-boundary-flatten-next]] 骨7b 收尾。
 - **seam_map:59 這條桶該拆**:6 移 image-leaf、2 移 shader-leaf、3 移各自下游縫。
 
 ### field-raymarch 6 → executor live 真綠,只 1 顆真接線
