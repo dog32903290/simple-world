@@ -251,6 +251,24 @@ const std::vector<NodeSpec>& drawRenderSpecs() {
         {"IsEnabled", "IsEnabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr,
        "render.transform"},
+      // GetScreenPos (TiXL Lib.render.analyze.GetScreenPos): projects a WORLD position through the
+      // ambient camera into screen space (GetScreenPos.cs:17-53) — Command SOURCE (UpdateCommand runs
+      // the projection inside the render eval, no draw items) + Position.x/y/z on the VALUE rail via
+      // the cross-rail latch (point_ops_getscreenpos.cpp; evaluate=nullptr → resident extOut, the
+      // stateful-value sink fills extOut[1..3] = these port indices — Position ports MUST stay at
+      // spec indices 1..3). Params mirror GetScreenPos.t3: LocalPosition=(0,0,0), SetDepthToZero=true.
+      // FORKS named in the op leaf (frame-latch / single-latch / identity-O2W / perspective-only).
+      {"GetScreenPos", "GetScreenPos",
+       {{"UpdateCommand", "UpdateCommand", "Command", false},
+        {"Position.x", "Position.x", "Float", false},
+        {"Position.y", "Position.y", "Float", false},
+        {"Position.z", "Position.z", "Float", false},
+        {"LocalPosition.x", "LocalPosition", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"LocalPosition.y", "LocalPosition.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"LocalPosition.z", "LocalPosition.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"SetDepthToZero", "SetDepthToZero", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr,
+       "render.analyze"},
   };
   return specs;
 }
