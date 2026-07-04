@@ -176,6 +176,7 @@ namespace sw { int runAnimFloatListSelfTest(bool); }             // floatlist_an
 namespace sw { int runAmplifyValuesSelfTest(bool); }             // floatlist_amplifyvalues_golden.cpp (AmplifyValues cross-frame STATE: damp toward input over frames, flat + R-2 resident)
 namespace sw { int runDampFloatListSelfTest(bool); }             // floatlist_dampfloatlist_golden.cpp (DampFloatList cross-frame STATE: per-index damp + dt-gate, flat + resident)
 namespace sw { int runKeepFloatValuesSelfTest(bool); }           // floatlist_keepfloatvalues_golden.cpp (KeepFloatValues cross-frame STATE: front-insert ring accumulator, flat + resident)
+namespace sw { int runKeepIntsSelfTest(bool); }                  // floatlist_keepints_golden.cpp (KeepInts INT twin: front-insert ring accumulator pad-0, flat + resident)
 namespace sw { int runFloatListConversionSelfTest(bool); }       // floatlist_conversion_golden.cpp (FloatListToIntList trunc-toward-zero + IntListToFloatList widening, chain-through-evalFloat)
 namespace sw { int runListRoutingWave1SelfTest(bool); }          // list_routing_wave1_golden.cpp (list fan-out wave-1: SumRange/IntListLength/PickIntFromList/CompareFloatLists bridge)
 namespace sw { int runTryParseSelfTest(bool); }                  // tryparse_golden.cpp (String→Float/Int host-scalar bridge: TryParse/TryParseInt, flat + resident)

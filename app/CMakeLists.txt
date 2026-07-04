@@ -452,6 +452,7 @@ add_executable(simple_world
   src/runtime/floatlist_ops_amplifyvalues.cpp   # AmplifyValues (FIRST cross-frame STATEFUL FloatList op: damped-average follower)
   src/runtime/floatlist_ops_dampfloatlist.cpp   # DampFloatList (cross-frame STATEFUL: per-index damped follower + dt-gate, Method 0)
   src/runtime/floatlist_ops_keepfloatvalues.cpp # KeepFloatValues (cross-frame STATEFUL: front-insert ring-buffer accumulator)
+  src/runtime/floatlist_ops_keepints.cpp        # KeepInts (INT twin of KeepFloatValues: front-insert ring-buffer accumulator, pad-0)
   src/runtime/floatlist_ops_pickfloatlist.cpp   # PickFloatList (MultiInput list picker, T3 floor-Mod index; numbers/floats/logic/PickFloatList.cs)
   src/runtime/floatlist_ops_mergefloatlists.cpp # MergeFloatLists (Append/Htp/Average; StartIndices + Ltp/FailOver deferred)
   src/runtime/floatlist_ops_mergeintlists.cpp   # MergeIntLists (int twin; integer-Average; shares cookMergeListsShared)
@@ -463,6 +464,7 @@ add_executable(simple_world
   src/floatlist_amplifyvalues_golden.cpp        # --selftest-amplifyvalues (cross-frame FloatList STATE: damp toward input over frames, flat + R-2 resident)
   src/floatlist_dampfloatlist_golden.cpp        # --selftest-dampfloatlist (cross-frame STATE: damp + dt-gate, flat + resident)
   src/floatlist_keepfloatvalues_golden.cpp      # --selftest-keepfloatvalues (cross-frame STATE: front-insert history ring, flat + resident)
+  src/floatlist_keepints_golden.cpp             # --selftest-keepints (INT twin: front-insert history ring pad-0, flat + resident)
   src/floatlist_conversion_golden.cpp
   src/runtime/colorlist_op_registry.cpp
   src/runtime/colorlist_ops_colorstolist.cpp
@@ -683,6 +685,7 @@ add_executable(simple_world
   src/app/frame_cook_animint_selftest.cpp
   src/app/frame_cook_animboolean_selftest.cpp
   src/app/frame_cook_wastrigger_selftest.cpp
+  src/app/frame_cook_delayboolean_selftest.cpp  # --selftest-delayboolean (DelayBoolean N-frame trigger delay via cross-frame Queue<bool>, REAL cook seam)
   src/app/soundtrack.cpp
   src/app/soundtrack_selftest.cpp
   src/app/soundtrack_selftest_d4.cpp
