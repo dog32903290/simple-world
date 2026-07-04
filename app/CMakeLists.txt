@@ -485,10 +485,13 @@ add_executable(simple_world
   src/runtime/host_scalar_ops_comparefloatlists.cpp   # ListA+ListB+Threshold -> differing-ratio (list fan-out wave-1)
   src/runtime/host_scalar_ops_tryparse.cpp            # String -> float (parse-or-Default; numbers/float/logic/TryParse.cs)
   src/runtime/host_scalar_ops_tryparseint.cpp         # String -> int (dissolved Float; numbers/int/process/TryParseInt.cs)
+  src/runtime/host_scalar_ops_stringtodatetime.cpp   # String -> DateTime route-B epoch Float (string/datetime/StringToDateTime.cs)
   src/tryparse_golden.cpp                              # --selftest-tryparse (String->Float/Int bridge: flat + resident)
+  src/stringtodatetime_golden.cpp                      # --selftest-stringtodatetime (String->DateTime epoch bridge: flat + resident)
   src/list_routing_golden.cpp
   src/list_routing_wave1_golden.cpp                    # --selftest-listroutingwave1 (wave-1 host-scalar consumers bridge golden)
   src/runtime/string_op_registry.cpp
+  src/runtime/datetime_host.cpp  # shared DateTime kernel: wall-clock-now seam + C# TryParse subset (NowAsDateTime/CountDown/StringToDateTime)
   src/runtime/string_ops_stringlength.cpp
   src/runtime/string_ops_floattostring.cpp
   src/runtime/string_ops_datetimetostring.cpp  # DateTimeToString (route-B epoch Float + .NET format → string)
