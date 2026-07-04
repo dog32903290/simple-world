@@ -15,6 +15,7 @@
 #include "runtime/graph.h"                   // NodeSpec / PortSpec / findSpec
 #include "runtime/point_graph.h"             // registerCmdOp (CmdCookCtx via point_graph_cook_ctx.h)
 #include "runtime/point_ops_camera_scope.h"  // ActiveCamera / resolveActiveCamera (one resolve codepath)
+#include "runtime/point_ops_camerawithrotation.h"  // cameraWithRotationMatrices (T(−pos)·R + LensShift)
 #include "runtime/resident_eval_graph.h"     // ResidentEvalGraph / resolveResidentFloatInputs
 
 namespace sw {
@@ -28,9 +29,10 @@ namespace {
 
 // The camera-family op types whose Command-input subtree runs under THEIR pushed matrices (the
 // enclosing-camera writers this walk can terminate on). Camera (isCameraScopeWriter) +
-// OrthographicCamera today; CameraWithRotation / BlendCameras join as their lanes land.
+// OrthographicCamera + CameraWithRotation today; BlendCameras joins as its lane lands.
 bool isEnclosingCameraType(const std::string& opType) {
-  return isCameraScopeWriter(opType) || opType == "OrthographicCamera";
+  return isCameraScopeWriter(opType) || opType == "OrthographicCamera" ||
+         opType == "CameraWithRotation";
 }
 
 // True iff `slotId` is a Command-typed OUTPUT port of `spec` (the walk only follows the Command rail —
@@ -129,6 +131,37 @@ void enclosingCameraForward(const ResidentEvalGraph& g, const ResidentNode* cam,
                              stretch, aspect, p("NearFarClip.x", 0.1f), p("NearFarClip.y", 1000.0f));
     outW2C = f.worldToCamera;
     outC2C = f.cameraToClipSpace;
+    return;
+  }
+  if (cam->opType == "CameraWithRotation") {
+    // Same param ids + .t3 defaults as readCameraWithRotationParams (point_ops_camerawithrotation.cpp)
+    // — but the VALUE rail consumes the RAW pushed matrices (T(−pos)·R + LensShift projection), the
+    // exact pair TiXL's context would carry (cs:110-117), lens shift included (no stamp involved).
+    CameraWithRotationParams cw;
+    cw.position[0] = p("Position.x", 0.0f);
+    cw.position[1] = p("Position.y", 0.0f);
+    cw.position[2] = p("Position.z", 2.4141f);
+    cw.rotationMode = (int)p("RotationMode", 0.0f);
+    cw.rotation[0] = p("Rotation.x", 0.0f);
+    cw.rotation[1] = p("Rotation.y", 0.0f);
+    cw.rotation[2] = p("Rotation.z", 0.0f);
+    cw.rotationFactor[0] = p("RotationFactor.x", 1.0f);
+    cw.rotationFactor[1] = p("RotationFactor.y", 1.0f);
+    cw.rotationFactor[2] = p("RotationFactor.z", 1.0f);
+    cw.rotationOffset2[0] = p("RotationOffset2.x", 0.0f);
+    cw.rotationOffset2[1] = p("RotationOffset2.y", 0.0f);
+    cw.rotationOffset2[2] = p("RotationOffset2.z", 0.0f);
+    cw.quaternion[0] = p("RotationQuaternion.x", 1.0f);
+    cw.quaternion[1] = p("RotationQuaternion.y", 1.0f);
+    cw.quaternion[2] = p("RotationQuaternion.z", 1.0f);
+    cw.quaternion[3] = p("RotationQuaternion.w", 1.0f);
+    cw.fovDeg = p("FOV", 45.0f);
+    cw.clipNear = p("ClipPlanes.x", 0.01f);
+    cw.clipFar = p("ClipPlanes.y", 1000.0f);
+    cw.aspectIn = p("AspectRatio", -1.0f);
+    cw.lensShift[0] = p("LensShift.x", 0.0f);
+    cw.lensShift[1] = p("LensShift.y", 0.0f);
+    cameraWithRotationMatrices(cw, reqAspect, outW2C, outC2C);
     return;
   }
   // Camera — the SAME resolve codepath the C1 scope + cookCamera use (one param semantics).

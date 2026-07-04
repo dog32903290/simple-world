@@ -697,6 +697,7 @@ add_executable(simple_world
   src/runtime/resident_matrix_output_cook.cpp
   src/runtime/resident_camera_value_cook.cpp  # camera-A: CamPosition ambient-camera value emit (extOut)
   src/camera_value_golden.cpp                 # camera-A: camera value-output family golden (--selftest-camposition)
+  src/camerawithrotation_golden.cpp           # camera-A: CameraWithRotation math+cook-through golden
   src/runtime/resident_point_value_output_cook.cpp
   src/runtime/resident_colorlist_cook.cpp
   src/runtime/resident_string_cook.cpp

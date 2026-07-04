@@ -99,6 +99,56 @@ const std::vector<NodeSpec>& drawCameraSpecs() {
         {"WorldToClipSpace", "WorldToClipSpace", "ColorList", false}},
        nullptr,
        "render.camera"},
+      // CameraWithRotation (TiXL Lib.render.camera.CameraWithRotation, camera-A lane): the
+      // ROTATION-driven camera push — worldToCamera = T(−Position)·R (cs:114-115), R from Euler
+      // (heading·pitch·roll, cs:78-84; euler = Rotation·RotationFactor + RotationOffset2, cs:66) or a
+      // Quaternion (cs:87-88); camToClipSpace = PerspectiveFovRH + LensShift M31/M32 (cs:110-112).
+      // Command in → Command out (per-item stamp via the exact LookAtRH decomposition of T(−pos)·R —
+      // point_ops_camerawithrotation.h has the proof + the named forks: lensshift-drawrail-drop,
+      // nonunit-quat-renormalized, no-point-rail-scope). Defaults = CameraWithRotation.t3 (AspectRatio
+      // -1 → output aspect, Position.z 2.4141 — TiXL's exact value, NOT the Camera default).
+      // Up / PositionOffset / AlsoOffsetTarget / RotationOffset are DEAD for the pushed matrices in
+      // TiXL itself (cs:114-115) — carried for interface parity + the future CameraDefinition rail.
+      {"CameraWithRotation", "CameraWithRotation",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"Position.x", "Position", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"Position.y", "Position.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Position.z", "Position.z", "Float", true, 2.4141f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"RotationMode", "RotationMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Euler", "Quaternion"}, true},
+        {"Rotation.x", "Rotation", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"Rotation.y", "Rotation.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"Rotation.z", "Rotation.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"RotationFactor.x", "RotationFactor", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"RotationFactor.y", "RotationFactor.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"RotationFactor.z", "RotationFactor.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"RotationOffset2.x", "RotationOffset2", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"RotationOffset2.y", "RotationOffset2.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"RotationOffset2.z", "RotationOffset2.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"RotationQuaternion.x", "RotationQuaternion", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 4},
+        {"RotationQuaternion.y", "RotationQuaternion.y", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"RotationQuaternion.z", "RotationQuaternion.z", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"RotationQuaternion.w", "RotationQuaternion.w", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"FOV", "FOV", "Float", true, 45.0f, 1.0f, 179.0f},
+        {"PositionOffset.x", "PositionOffset", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"PositionOffset.y", "PositionOffset.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"PositionOffset.z", "PositionOffset.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"AlsoOffsetTarget", "AlsoOffsetTarget", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Off", "On"}, true},
+        {"RotationOffset.x", "RotationOffset", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 3},
+        {"RotationOffset.y", "RotationOffset.y", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"RotationOffset.z", "RotationOffset.z", "Float", true, 0.0f, -360.0f, 360.0f, Widget::Vec, {}, true, 1},
+        {"LensShift.x", "LensShift", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 2},
+        {"LensShift.y", "LensShift.y", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"ClipPlanes.x", "ClipPlanes", "Float", true, 0.01f, 0.0001f, 1000.0f, Widget::Vec, {}, true, 2},
+        {"ClipPlanes.y", "ClipPlanes.y", "Float", true, 1000.0f, 0.0001f, 100000.0f, Widget::Vec, {}, true, 1},
+        {"AspectRatio", "AspectRatio", "Float", true, -1.0f, -1.0f, 10.0f},
+        {"Up.x", "Up", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
+        {"Up.y", "Up.y", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        {"Up.z", "Up.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}},
+       nullptr,
+       "render.camera"},
   };
   return specs;
 }
