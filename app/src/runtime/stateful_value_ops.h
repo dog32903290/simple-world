@@ -180,6 +180,10 @@ void setAnimIntBug(int mode);
 // TriggerOutput tooth never advances); 2 = FREEZE the edge to 0 (TriggerOutput forced low).
 void setAnimBooleanBug(int mode);
 
+// Once TEETH hook (--selftest-once). 0 = production; 1 = DROP the state write (the trigger latch
+// never primes -> OutputTrigger stuck high); 2 = FREEZE the edge to 0 (OutputTrigger forced low).
+void setOnceBug(int mode);
+
 // WasTrigger TEETH hook (--selftest-wastrigger). 0 = production; 1 = DROP the _wasHit state write
 // (the cross-frame rising-edge gate never advances → a HELD-rising input re-pulses every frame);
 // 2 = DROP the var read (value forced to 0 → no trigger ever fires). The golden sets this around the

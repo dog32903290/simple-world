@@ -218,6 +218,21 @@ const std::vector<std::string>* PointGraph::Impl::cookFlatStringListNode(
   }
 
   std::vector<std::string>& out = stringListBuf[flatKey(id)];
+
+  // CROSS-FRAME STATE + cook-once guard (only for a STATEFUL op — KeepStrings; the AmplifyValues
+  // pattern). A stateless op leaves slc.state null and re-cooks freely (byte-identical). For a stateful
+  // op: thread the Impl-owned slot (persists across cook() calls — the stringState precedent) and guard
+  // the ADVANCE to once per ctx.frameIndex — a second pull this frame (fan-out) re-publishes the settled
+  // accumulator WITHOUT advancing the state machine again.
+  StringListState* st = nullptr;
+  if (stringListOpIsStateful(n->type)) {
+    st = &stringListState[flatKey(id)];
+    if (st->everCooked && st->lastCookedFrame == ctx.frameIndex) {
+      out = st->strings;  // re-publish the settled accumulator (KeepStrings publishes _strings verbatim)
+      return &out;
+    }
+  }
+
   StringListCookCtx slc;
   slc.dev = dev; slc.lib = lib; slc.queue = queue;
   slc.ctx = &ctx; slc.nodeId = id;
@@ -225,7 +240,9 @@ const std::vector<std::string>* PointGraph::Impl::cookFlatStringListNode(
   slc.inputLists = &inputLists;
   slc.output = &out;
   slc.params = nodeParams(id);
+  slc.state = st;  // null for a stateless op (byte-identical)
   (*fn)(slc);
+  if (st) { st->lastCookedFrame = ctx.frameIndex; st->everCooked = true; }  // mark advanced this frame
   return &out;
 }
 

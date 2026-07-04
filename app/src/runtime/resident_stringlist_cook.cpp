@@ -33,7 +33,21 @@ namespace {
 
 constexpr int kResidentStringListDepthCap = 64;  // same cycle guard as evalResidentFloat / cookResident
 
+// PRODUCTION-path cross-frame state for STATEFUL StringList ops (KeepStrings), keyed by resident path.
+// Process-lifetime (the residentFloatListState / s_stringState precedent): the StringList rail is
+// pull-driven (no per-frame pass), so a process static reached from the pull point is the only way to
+// persist state across frames. A stateless op never creates an entry -> no leak.
+std::map<std::string, StringListState>& residentStringListState() {
+  static std::map<std::string, StringListState> s;
+  return s;
+}
+
 }  // namespace
+
+// Test-only reset of the production StringList state store (a golden runs multiple independent
+// trajectories in one process; without this the previous trajectory's accumulator would leak into the
+// next). Mirror of resetResidentFloatListState. No production caller.
+void resetResidentStringListState() { residentStringListState().clear(); }
 
 // Cook ONE upstream StringList-producing resident node into `out` (host string list), gathering its inputs
 // THROUGH the resident graph. Mirror of cookResidentColorList but walking std::string:
@@ -103,6 +117,20 @@ bool cookResidentStringList(const ResidentEvalGraph& g, const std::string& path,
   gpuCtx.time = ctx.localFxTime;  // symmetry with the sibling cooks (stringlist ops are time-independent)
   gpuCtx.deltaTime = 0.0f;
 
+  // CROSS-FRAME STATE + cook-once guard (only for a STATEFUL op — KeepStrings; the AmplifyValues /
+  // ResidentFloatListSlot pattern). A stateless op leaves sc.state null and re-cooks freely. For a
+  // stateful op: resolve the process-lifetime slot keyed by resident path, then guard the ADVANCE to
+  // once per ctx.frameIndex — a later pull this frame (fan-out) re-publishes the settled accumulator
+  // WITHOUT advancing the state machine again.
+  StringListState* st = nullptr;
+  if (stringListOpIsStateful(n->opType)) {
+    st = &residentStringListState()[path];
+    if (st->everCooked && st->lastCookedFrame == ctx.frameIndex) {
+      out = st->strings;  // re-publish the settled accumulator (KeepStrings publishes _strings verbatim)
+      return true;
+    }
+  }
+
   StringListCookCtx sc;
   sc.dev = nullptr; sc.lib = nullptr; sc.queue = nullptr;  // host-only stringlist ops ignore these
   sc.ctx = &gpuCtx;
@@ -111,7 +139,9 @@ bool cookResidentStringList(const ResidentEvalGraph& g, const std::string& path,
   sc.inputLists = &inputLists;
   sc.output = &out;
   sc.params = &params;
+  sc.state = st;  // null for a stateless op (byte-identical)
   (*fn)(sc);  // computes the list; stringListInjectBug() (golden teeth) corrupts it IN the cook
+  if (st) { st->lastCookedFrame = ctx.frameIndex; st->everCooked = true; }  // mark advanced this frame
   return true;
 }
 

@@ -488,13 +488,17 @@ add_executable(simple_world
   src/runtime/host_scalar_ops_comparefloatlists.cpp   # ListA+ListB+Threshold -> differing-ratio (list fan-out wave-1)
   src/runtime/host_scalar_ops_tryparse.cpp            # String -> float (parse-or-Default; numbers/float/logic/TryParse.cs)
   src/runtime/host_scalar_ops_tryparseint.cpp         # String -> int (dissolved Float; numbers/int/process/TryParseInt.cs)
+  src/runtime/host_scalar_ops_stringtodatetime.cpp   # String -> DateTime route-B epoch Float (string/datetime/StringToDateTime.cs)
   src/tryparse_golden.cpp                              # --selftest-tryparse (String->Float/Int bridge: flat + resident)
+  src/stringtodatetime_golden.cpp                      # --selftest-stringtodatetime (String->DateTime epoch bridge: flat + resident)
   src/list_routing_golden.cpp
   src/list_routing_wave1_golden.cpp                    # --selftest-listroutingwave1 (wave-1 host-scalar consumers bridge golden)
   src/runtime/string_op_registry.cpp
+  src/runtime/datetime_host.cpp  # shared DateTime kernel: wall-clock-now seam + C# TryParse subset (NowAsDateTime/CountDown/StringToDateTime)
   src/runtime/string_ops_stringlength.cpp
   src/runtime/string_ops_floattostring.cpp
   src/runtime/string_ops_datetimetostring.cpp  # DateTimeToString (route-B epoch Float + .NET format → string)
+  src/runtime/string_ops_countdown.cpp  # CountDown (wall-clock duration -> .NET TimeSpan format engine; string/datetime/CountDown.cs)
   src/runtime/string_ops_combinestrings.cpp
   src/runtime/string_ops_inttostring.cpp
   src/runtime/string_ops_vec3tostring.cpp
@@ -525,12 +529,15 @@ add_executable(simple_world
   src/runtime/stringlist_ops_splitstring.cpp
   src/runtime/stringlist_ops_zipstringlist.cpp
   src/runtime/stringlist_ops_filesinfolder.cpp
+  src/runtime/stringlist_ops_keepstrings.cpp  # KeepStrings (STATEFUL StringList accumulator, 4 insert modes; string/list/KeepStrings.cs)
   src/string_rail_golden.cpp
   src/string_rail_golden_subseama.cpp
   src/string_ops_getattributefromjson_golden.cpp
   src/string_builder_golden.cpp
   src/string_ops_wrapstring_golden.cpp
   src/string_ops_blendstrings_golden.cpp
+  src/string_ops_countdown_golden.cpp  # --selftest-countdown (pinned-clock TimeSpan format goldens)
+  src/keepstrings_golden.cpp  # --selftest-keepstrings (multi-frame accumulator goldens, flat+resident+guard)
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp
   src/stringctxvar_golden.cpp
@@ -688,6 +695,7 @@ add_executable(simple_world
   src/app/frame_cook_animboolean_selftest.cpp
   src/app/frame_cook_wastrigger_selftest.cpp
   src/app/frame_cook_delayboolean_selftest.cpp  # --selftest-delayboolean (DelayBoolean N-frame trigger delay via cross-frame Queue<bool>, REAL cook seam)
+  src/app/frame_cook_once_selftest.cpp
   src/app/soundtrack.cpp
   src/app/soundtrack_selftest.cpp
   src/app/soundtrack_selftest_d4.cpp

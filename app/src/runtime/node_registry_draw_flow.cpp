@@ -135,6 +135,34 @@ const std::vector<NodeSpec>& drawFlowSpecs() {
         {"SkipFrameCount", "SkipFrameCount", "Float", true, 0.0f, 0.0f, 10000.0f}},
        nullptr,
        "flow"},
+      // LoadSoundtrack (TiXL Lib.flow.LoadSoundtrack:14-39): the Execute TWIN — at runtime the .cs is
+      // verbatim Execute's prepare/execute/restore loop gated by IsEnabled (.t3 default TRUE). The
+      // soundtrack FILE is NOT in the op: TiXL keeps it in the composition's PlaybackSettings, and sw's
+      // port of that machine is composition.soundtrackPath + app/soundtrack.{h,cpp} (transport-follow,
+      // --selftest-soundtrack). NAMED FORK fork-loadsoundtrack-settings-attachment: the per-op timeline
+      // anchor affordance (editor UI) is deferred; runtime behavior is identical (the op only forwards
+      // commands in BOTH systems). Cook = point_ops_loadsoundtrack.cpp (gated concat-all, zero cook-core
+      // change — rides the generic MultiInput Command collector).
+      {"LoadSoundtrack", "LoadSoundtrack",
+       {{"Command", "Command", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
+        {"out", "out", "Command", false},
+        {"IsEnabled", "IsEnabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr,
+       "flow"},
+      // ResetSubtreeTrigger (TiXL Lib.flow.ResetSubtreeTrigger:14-69): a single (non-MultiInput) Command
+      // SubGraph PASSTHROUGH whose Trigger, in TiXL, recursively invalidates the subtree's dirty flags
+      // (a pull-graph cache-buster) and self-clears. NAMED FORK fork-resetsubtree-invalidation-noop: sw
+      // re-cooks the graph every frame with no cross-frame slot cache to bust → the Invalidate walk +
+      // Trigger self-clear + DirtyFlagTrigger.Always are structural no-ops; what remains load-bearing is
+      // the transparent forward (:23, the LogMessage passthrough shape minus the log). Trigger kept as a
+      // real port (.t3 default false) — it is the seam where a future cache-bust hook lands. Cook =
+      // point_ops_resetsubtreetrigger.cpp (zero cook-core change — rides the generic single-input collector).
+      {"ResetSubtreeTrigger", "ResetSubtreeTrigger",
+       {{"Command", "Command", "Command", true},
+        {"out", "out", "Command", false},
+        {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr,
+       "flow"},
   };
   return specs;
 }

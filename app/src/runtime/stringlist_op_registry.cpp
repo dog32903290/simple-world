@@ -2,6 +2,8 @@
 // Meyers singletons (init-order safe). VERBATIM-shaped clone of colorlist_op_registry.cpp over std::string.
 #include "runtime/stringlist_op_registry.h"
 
+#include <set>
+
 namespace sw {
 
 std::vector<NodeSpec>& stringListSpecSink() {
@@ -25,8 +27,22 @@ bool& stringListInjectBug() {
   return b;
 }
 
-StringListOp::StringListOp(NodeSpec spec, StringListCookFn cook) {
+// The set of STATEFUL stringlist op type names (Meyers singleton; the registrar inserts KeepStrings).
+// stringListOpIsStateful reads this; the cook drivers thread state + apply the cook-once advance guard
+// to members only (mirror of floatListStatefulSet / AmplifyValues).
+static std::set<std::string>& stringListStatefulSet() {
+  static std::set<std::string> s;
+  return s;
+}
+
+bool stringListOpIsStateful(const std::string& type) {
+  auto& s = stringListStatefulSet();
+  return s.find(type) != s.end();
+}
+
+StringListOp::StringListOp(NodeSpec spec, StringListCookFn cook, bool stateful) {
   stringListCookFns()[spec.type] = cook;
+  if (stateful) stringListStatefulSet().insert(spec.type);
   stringListSpecSink().push_back(std::move(spec));
 }
 

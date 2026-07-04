@@ -184,6 +184,7 @@ namespace sw { int runKeepIntsSelfTest(bool); }                  // floatlist_ke
 namespace sw { int runFloatListConversionSelfTest(bool); }       // floatlist_conversion_golden.cpp (FloatListToIntList trunc-toward-zero + IntListToFloatList widening, chain-through-evalFloat)
 namespace sw { int runListRoutingWave1SelfTest(bool); }          // list_routing_wave1_golden.cpp (list fan-out wave-1: SumRange/IntListLength/PickIntFromList/CompareFloatLists bridge)
 namespace sw { int runTryParseSelfTest(bool); }                  // tryparse_golden.cpp (String→Float/Int host-scalar bridge: TryParse/TryParseInt, flat + resident)
+namespace sw { int runStringToDateTimeSelfTest(bool); }          // stringtodatetime_golden.cpp (String→DateTime route-B epoch host-scalar bridge, flat + resident)
 namespace sw { int runMergeListsSelfTest(bool); }                // merge_lists_golden.cpp (MergeFloatLists/MergeIntLists Append/Htp/Average + PickFloatList, chain-through-evalFloat)
 namespace sw { int runPointListSelfTest(bool); }                 // pointlist_golden.cpp (7th cook flow: CPU point list + ListToBuffer bridge)
 namespace sw { int runConeGizmoSelfTest(bool); }                 // conegizmo_golden.cpp (C3 gizmo Tranche-0: ConeGizmo generator via pointlist seam, closed-form cone geometry)
