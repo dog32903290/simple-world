@@ -92,6 +92,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"camera-resident", runCameraResidentSelfTest},  // C0: Camera→Layer2d through the resident terminal
     {"orthographiccamera", runOrthographicCameraSelfTest},  // C2: OrthographicCamera ortho projection (flat+resident)
     {"shiftcamera", runShiftCameraSelfTest},  // camera-B: ShiftCamera additive CameraToClipSpace nudge (math + resident render flip)
+    {"visiblegizmos", runVisibleGizmosSelfTest},  // camera-B: VisibleGizmos MultiInput visibility gate (On/Off/Inherit truth table, resident)
     {"execute", runExecuteSelfTest},
     {"layercompose", runLayerComposeSelfTest},
     {"group", runGroupSelfTest},

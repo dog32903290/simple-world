@@ -51,6 +51,7 @@
 #include "runtime/point_ops_camera_scope.h"  // runCameraScopeSelfTest (C1) + runCameraResidentSelfTest (C0)
 #include "runtime/point_ops_orthographiccamera.h"  // runOrthographicCameraSelfTest (camera3d C2)
 #include "runtime/point_ops_shiftcamera.h"  // runShiftCameraSelfTest (camera-B: projection nudge)
+#include "runtime/point_ops_visiblegizmos.h"  // runVisibleGizmosSelfTest (camera-B: gizmo visibility gate)
 #include "runtime/spectrum_analyzer.h"
 #include "runtime/bpm_detection.h"  // runBpmDetectionSelfTest (L6 BPM auto-detect, TiXL parity)
 #include "runtime/detect_bpm.h"     // runDetectBpmSelfTest (TiXL DetectBpm operator parity, node-level)
