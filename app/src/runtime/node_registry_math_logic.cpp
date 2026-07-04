@@ -310,5 +310,19 @@ static const MathOp _reg_WasTrigger{
        "numbers.bool.logic"}
 };
 
+// DelayBoolean (TiXL Lib.numbers.bool.process.DelayBoolean): a bool Trigger delayed by FrameCount+1
+// frames through a cross-frame Queue<bool>. Stateful (evaluate=nullptr) — cooked once per frame by
+// cookStatefulValueNodes (step fn in stateful_value_ops_delayboolean.cpp). Output DelayedTrigger FIRST
+// (extOut[0]). Trigger = bool (Widget::Bool, .t3 false); FrameCount = int-dissolved Float (.t3 0,
+// range [0,500] = DelayBoolean.cs:23 Clamp). category numbers.bool.process (its .cs namespace).
+static const MathOp _reg_DelayBoolean{
+      {"DelayBoolean", "DelayBoolean",
+       {{"DelayedTrigger", "DelayedTrigger", "Float", false},
+        {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+        {"FrameCount", "FrameCount", "Float", true, 0.0f, 0.0f, 500.0f, Widget::Slider}},
+       nullptr,
+       "numbers.bool.process"}
+};
+
 }  // namespace
 }  // namespace sw

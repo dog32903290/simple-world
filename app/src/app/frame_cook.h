@@ -117,6 +117,13 @@ int runAnimBooleanSelfTest(bool injectBug);
 // var read) so the fixed wants bite.
 int runWasTriggerSelfTest(bool injectBug);
 
+// DelayBoolean PRODUCTION-PATH pin (--selftest-delayboolean): drives the REAL cookStatefulValueNodes
+// across a 5-frame Trigger sequence (one StatefulValueState carried) with FrameCount=2, asserting the
+// N-frame delay (DelayedTrigger@N == Trigger@(N-3)) materializes ONLY via the persisted cross-frame
+// Queue<bool>. injectBug flips a REAL production term (setDelayBooleanBug: drop the queue persistence)
+// so the fixed wants bite.
+int runDelayBooleanSelfTest(bool injectBug);
+
 // AR clock-domain pin (refuter-S5 盲區 3, --selftest-arclock): proves through the REAL cook
 // seam above that AudioReaction receives BARS — hit timestamps == transport.fxTime (bars, not
 // seconds), and halving the BPM halves the wall-clock hits a fixed-debounce pulse train yields
