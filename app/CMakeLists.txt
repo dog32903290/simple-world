@@ -336,6 +336,7 @@ add_executable(simple_world
   src/runtime/field_ops_blendsdfwithsdf.cpp
   src/runtime/field_ops_toroidalvortexfield.cpp
   src/runtime/field_ops_setsdfmaterial.cpp
+  src/runtime/field_ops_sdftovector.cpp
   src/field_render_golden.cpp
   src/field_raymarch_golden.cpp
   src/field_raymarch_output_golden.cpp
@@ -407,6 +408,7 @@ add_executable(simple_world
   src/field_ops_blendsdfwithsdf_golden.cpp
   src/field_ops_toroidalvortexfield_golden.cpp
   src/field_ops_setsdfmaterial_golden.cpp
+  src/field_ops_sdftovector_golden.cpp
   src/field_ops_raster3dfield_golden.cpp
   src/field_ops_subdivpattern3d_golden.cpp
   src/runtime/mesh_op_registry.cpp

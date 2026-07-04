@@ -121,6 +121,7 @@ namespace sw { int runFieldPushPullSdfGoldenSelfTest(bool); }     // field_ops_p
 namespace sw { int runFieldBlendSdfWithSdfGoldenSelfTest(bool); } // field_ops_blendsdfwithsdf_golden.cpp (3-input custom-collect; sdfBlendByMask helper + f.xyz mix, shared Common key)
 namespace sw { int runFieldToroidalVortexFieldGoldenSelfTest(bool); } // field_ops_toroidalvortexfield_golden.cpp (vec3 VECTOR-field generator; decay-channel GPU golden + velocity-text assertion, axis-enum)
 namespace sw { int runFieldSetSDFMaterialGoldenSelfTest(bool); }    // field_ops_setsdfmaterial_golden.cpp (custom-collect adjust; p.w gate (0.5,1.5) + Color float4; p.w-setter + Readback leaf pattern)
+namespace sw { int runFieldSdfToVectorGoldenSelfTest(bool); }       // field_ops_sdftovector_golden.cpp (single-input custom-collect; SDF->normal VECTOR via 4-sample tetra finite-diff, f.xyz-channel golden template variant)
 namespace sw { int runFieldRaymarchSelfTest(bool); }               // field_raymarch_golden.cpp (3D sphere-trace path: silhouette+symmetry+depth/hit teeth; camera from defaultRaymarchTransforms)
 namespace sw { int runParticleSimIntegrateParitySelfTest(bool); } // particle_sim_integrate_parity_golden.cpp (骨5: ParticleSystem INTEGRATOR core cook-through — per-step Δpos == TiXL closed-form pow(1-Drag,Speed)·Speed·0.01 + DirectionalForce; injectBug=stale linear-drag/missing-0.01 → RED)
 namespace sw { int runParticleFieldProbeSelfTest(bool); }         // particlefield_probe_golden.cpp (PF-a TERMINAL probe: field-into-force bridge consumed on both legs — anisotropy≠0)
