@@ -62,6 +62,25 @@ const std::vector<NodeSpec>& drawCameraSpecs() {
         {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
        nullptr,
        "render.camera"},
+      // CpuPointToCamera (TiXL Lib.point.helper.CpuPointToCamera): build a camera from the FIRST point of
+      // a Points buffer (CPU readback: eye = p.Position; target = eye + Transform(UnitZ, p.Orientation);
+      // up = Transform(UnitY, p.Orientation) — .cs:47-51) and render a Command subtree through it (the
+      // Camera-op per-item stamp). NAMED FORKS (doc: point_ops_cpupointtocamera.cpp): TiXL outputs an
+      // ICamera Object reference (no sw Object rail yet) → sw wraps the subtree directly, output keeps the
+      // TiXL name CamReference; Roll/offsets/LensShift/Up dropped (the Camera v1 scope); SamplePos shipped
+      // but unread (dead in TiXL's own Update, :29-39 commented out). .t3: FieldOfView=45,
+      // ClipPlanes=(0.01,1000), AspectRatio=-1 (<0.0001 → output aspect, :42-45).
+      {"CpuPointToCamera", "CpuPointToCamera",
+       {{"CamPointBuffer", "CamPointBuffer", "Points", true},
+        {"Command", "Command", "Command", true},
+        {"CamReference", "CamReference", "Command", false},
+        {"SamplePos", "SamplePos", "Float", true, 0.0f, 0.0f, 1000.0f},
+        {"FieldOfView", "FieldOfView", "Float", true, 45.0f, 1.0f, 179.0f},
+        {"ClipPlanes.x", "ClipPlanes", "Float", true, 0.01f, 0.0001f, 1000.0f, Widget::Vec, {}, true, 2},
+        {"ClipPlanes.y", "ClipPlanes.y", "Float", true, 1000.0f, 0.0001f, 100000.0f, Widget::Vec, {}, true, 1},
+        {"AspectRatio", "AspectRatio", "Float", true, -1.0f, -1.0f, 10.0f}},
+       nullptr,
+       "point.helper"},
   };
   return specs;
 }
