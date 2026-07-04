@@ -82,6 +82,26 @@ device-io 57(MIDI/OSC/DMX/serial=柏為域)/ pbr-lighting 16(新 3D-render 島)/
 「蓋一根解鎖一批」只對 pbr島 真成立;能立即並行的葉子從 93 增至 ~96(3 顆 compute 葉降級)。其餘
 seam-build 帳面被誤分類灌水。**
 
+## 複合重放軌 — 產能真引擎(2026-07-04 code-verify,壓測 scout 樂觀後)
+
+**這根之前 CLONE_MAP 三骨頭完全漏了**(那時沒切原子/複合,把複合誤當 leaf 手刻)。驗完真相:
+機器已建、資產在庫、真閘是子圖依賴。
+
+- **機器已建(不是漏掉的骨頭,是已蓋)**:t3_import(`sym.atomic=false`+children+connections)、
+  開機載入 catalog(`catalog_boot.cpp`,fail-soft)、`entercompound`/`spawnsymbol` 鑽入
+  (`document_navigation.cpp:52 pushComposition` 拒原子納複合)、resident flatten 遞迴 inline。
+  一顆端到端綠:RadialGradient.t3 import→cook→GPU→閉式 parity(`t3_import_radialgradient_golden.cpp`)。
+  commit 46b5b92/141fc9b/a7e6165。**柏為 07-02 拍板的巢狀節點模型已實現**(07-02 memory「模型要重設計」已過時)。
+- **資產全在 external/tixl,importer 吃原版**:`assets/catalog_t3/` 的 8 顆 = TiXL 原版逐 byte 相同
+  (RadialGradient/BoxGradient diff 證)。「補 291 .t3」是 scout 錯判 —— 不是手刻,是複製/指向 external。
+- **真閘=子圖依賴**:複合 child 靠 GUID→sw type 映射解析(`t3_import.cpp` findSpec/swTypeForSymbolGuid)。
+  一顆複合能重放 **iff 子圖引用的原子都在 sw registry**。→ **原子軌不是小頭,是複合軌的前置基底**;
+  鋪原子=複合子圖有料=複合逐批自動解鎖重放。兩軌其實是一條依賴鏈。
+- **可操作(比「補 291 .t3」準)**:(a)大量灌 external 複合 .t3 進 catalog_t3/(boot fail-soft,不 crash)
+  → 跑一遍自動生「子圖齊備=現在可重放」清單 vs「卡缺原子」清單;(b)並行鋪原子,可重放集隨之長大。
+- **caveat**:draw/text 家族(DrawTubes/Text)TiXL 是複合但本質渲染,sw 已有 DrawPoints/Lines 單一路徑,
+  可能單一實作達 parity 繞過重放 —— 逐顆判(見 LEAF_ATOMIC_CENSUS caveat)。
+
 ## 給大量產的操作接縫(2026-07-04 軌A scout 排定 11 lane)
 
 - **⚠先過原子閘再談並行(2026-07-04 柏為攔查,見 LEAF_ATOMIC_CENSUS.md)**:93 leaf-ready 裡
