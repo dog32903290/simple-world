@@ -19,9 +19,12 @@ sparse checkout 只 materialize 兩島源夾,已補全 12 島 @ SHA 395c4c55)+ �
 
 ## 276 todo 三分類(全分類,0 未歸)
 
-### leaf-ready 93 顆 — 縫已建,今天就能並行採(★大量產的甜點)
-point-leaf 17 / mesh-leaf 17 / render-leaf 14 / camera-leaf 14 / vecmath-leaf 12 / flow-leaf 8 /
-string-leaf 6 / field-leaf 2 / 其他 3。**這 93 顆是「大量並行工人」真正該吃的,不卡任何縫。**
+### leaf-ready 93 顆 — ⚠實際只 40 原子可手刻,53 是複合(2026-07-04 柏為攔查,見 `docs/agent/LEAF_ATOMIC_CENSUS.md`)
+帳面家族:point 17/mesh 17/render 14/camera 14/vecmath 12/flow 8/string 6/field 2/其他 3。
+**但歸縫(seam_map regex)從沒切原子/複合這一刀** → 這 93 顆裡 **53 顆(57%)是 TiXL 複合節點
+(.t3 有子圖),該走 .t3 importer 巢狀重放、不是手刻**;真正可手刻的原子只 **40 顆**。
+最糟:**mesh(15/17 複合)、point(16/17 複合)** 兩個原以為的「大甜點」lane 幾乎全複合;唯一 100%
+原子 lane = **vecmath 12**。乾淨白名單 + 53 複合名單見 LEAF_ATOMIC_CENSUS.md。
 
 ### seam-build 86 顆 — 要先蓋縫(但帳面高估,見下方三縫驗證)
 compound-graph 11 / keyframe-anim 10 / flow-var 10 / particle-force 9 / feedback-advanced 8 /
@@ -81,12 +84,15 @@ seam-build 帳面被誤分類灌水。**
 
 ## 給大量產的操作接縫(2026-07-04 軌A scout 排定 11 lane)
 
-- **今天就能大量並行(工人活,不卡縫)**:93 leaf-ready + 3 顆 compute 葉降級 + 三縫解放 ~11 顆
-  ≈ **~107 顆**。軌A scout 排成 **11 條 lane**,並行度兩級:
-  - **8 條可立即 100%/95% 並行**(point 17/mesh 17/vecmath 12/string 6/field 2/image 1/tex-select 1
-    +point-modify;各家族自註冊或獨立 registry,零/近零競爭)。
-  - **4 條卡同一瓶頸**:render 14/camera 14/flow 8/data 1 = **37 顆全撞 `node_registry_draw.cpp`
-    的 drawSpecs() 表**(並行=git merge 衝突,非行數問題)。
+- **⚠先過原子閘再談並行(2026-07-04 柏為攔查,見 LEAF_ATOMIC_CENSUS.md)**:93 leaf-ready 裡
+  **只 40 顆原子可手刻,53 顆複合走 .t3 importer 重放**。「~107 顆手刻並行」是污染前的錯數 ——
+  真正可手刻的第一波 = **40 原子**(那 3 顆 compute 葉 SampleFieldPoints/ApplyVectorField/SortPixelGlitch
+  本身也是複合,走已建 executor 重放,不算手刻)。
+  registry 併發結構(11 lane、node_registry_draw 拆檔)仍成立,但**每 lane 先套 40 原子白名單**、不整批吃家族數。
+- **40 原子 lane 分佈**:vecmath 12(唯一全乾淨)/camera 9/render 5/string 4/flow 4/mesh 2/point 1/field·data·tex 3。
+  併發:vecmath/string/flow/mesh/point 各自註冊零競爭;camera/render 走已拆的 node_registry_draw_*(eaa678b)。
+- **caveat**:53 複合裡 draw/render 家族(DrawTubes/Text…)本質渲染,sw 已有單一 render 路徑,**可能單一實作達
+  parity 非重放整個子圖**——逐顆判;DustParticles/Quiz/Gizmos 這種真場景組合才無疑義重放。
 - **★前置已落地(commit eaa678b,2026-07-04)**:`node_registry_draw.cpp` 已拆家族分檔
   (node_registry_draw_render/_camera/_flow/_data.cpp,原檔收斂成純 concat driver、零 literal op 行);
   drawSpecs() 506 顆拆前拆後 `--dump-nodespec-types` diff **IDENTICAL**,build+check-arch+line-ratchet
