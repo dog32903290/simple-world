@@ -1,5 +1,6 @@
 #include "app/cook_host_values.h"
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -15,10 +16,17 @@
 #include "runtime/string_op_registry.h"   // StringState (the stateful-string seam's cross-frame store)
 #include "runtime/tixl_point.h"            // SwPoint (PointAccessor element type)
 
+namespace MTL { class Texture; }
+
 namespace sw {
 // PickColorFromList host-emit cook pass (value_op_pickcolorfromlist.cpp). Forward-declared here (it is a
 // value-op leaf, not in resident_value_cooks.h) so the single wire-in below stays a leaf-local hook.
 void cookColorPickNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+// PickColorFromImage texture-into-frame cook pass (value_op_pickcolorfromimage.cpp). Same leaf-local
+// hook pattern; runs on the point-into-frame slot (cookPointValueFromGraph below) because it needs a
+// cooked texture INTO this frame (texFor = PointGraph::residentTexFor).
+void cookPickColorFromImageNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
+                                 const std::function<MTL::Texture*(const std::string&)>& texFor);
 }  // namespace sw
 
 namespace sw::framecook {
@@ -118,6 +126,10 @@ void cookPointValueFromGraph(ResidentEvalGraph& g, PointGraph& pg, float posBars
     return pg.residentCookedPoints(srcNodePath, outCount);
   };
   cookPointValueOutputNodes(g, ctx, acc);
+  // PickColorFromImage — the TEXTURE twin of the point-into-frame emit: picks a CPU color from a
+  // texture cooked INTO this frame (residentTexFor), writes extOut[0..3] (leaf-local hook above).
+  cookPickColorFromImageNodes(g, ctx,
+                              [&pg](const std::string& p) { return pg.residentTexFor(p); });
 }
 
 // = TiXL PlaybackUtils.cs:74-78 (the per-frame [SetBpm] consumer). The triggered PULL: returns false

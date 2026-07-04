@@ -488,6 +488,7 @@ add_executable(simple_world
   src/runtime/host_scalar_ops_valuetorate.cpp         # String rate table + Value -> picked rate (numbers/float/logic/ValueToRate.cs)
   src/tryparse_golden.cpp                              # --selftest-tryparse (String->Float/Int bridge: flat + resident)
   src/valuetorate_golden.cpp                           # --selftest-valuetorate (ValueToRate rate quantizer bridge: flat + resident)
+  src/pickcolorfromimage_golden.cpp                    # --selftest-pickcolorfromimage (Texture2D -> host vec4 eyedropper, production pass)
   src/list_routing_golden.cpp
   src/list_routing_wave1_golden.cpp                    # --selftest-listroutingwave1 (wave-1 host-scalar consumers bridge golden)
   src/runtime/string_op_registry.cpp
