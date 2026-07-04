@@ -31,6 +31,7 @@ void registerDrawExplicitOp();    // Seam 2: Command SOURCE (DrawKind::Explicit 
 void registerCameraValueOps();    // camera-A: CamPosition Command no-op hook (values ride the frame-level
                                   // cookCameraValueOutputNodes pass; resident_camera_value_cook.cpp)
 void registerCameraWithRotationOp();  // camera-A: rotation-driven camera push (point_ops_camerawithrotation.cpp)
+void registerBlendCamerasOp();        // camera-A: slerp-blend of referenced cameras (point_ops_blendcameras.cpp)
 
 void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
@@ -45,6 +46,7 @@ void registerDrawPointOps() {
   registerOrthographicCameraOp();                // Command → Command (ORTHOGRAPHIC projection push, camera3d C2)
   registerCameraValueOps();                      // Command SOURCE no-op (CamPosition — values on the frame-level pass)
   registerCameraWithRotationOp();                // Command → Command (rotation-driven camera push, camera-A)
+  registerBlendCamerasOp();                      // Command → Command (slerp-blend of camera refs, camera-A)
   registerExecuteOp();                           // Command(MultiInput) → Command (S2a KEYSTONE: N-chain concat)
   registerGroupOp();                             // Command(MultiInput) → Command (S2b: Execute + SRT transform-context push)
   registerRotateAroundAxisOp();                  // Command → Command (axis-angle transform-context push, S2 island)

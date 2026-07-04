@@ -97,6 +97,7 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   RenderCommand inCmd;          // Camera op's Command subtree (Cut 3)
   bool haveInCmd = false;
   bool havePts = false;
+  std::vector<CmdCookCtx::CmdCameraRef> camRefs;  // camera-A: wired CameraRef inputs (BlendCameras)
   for (const PortSpec& port : s->ports) {
     if (!port.isInput) continue;
     if (port.dataType == "Points" && !havePts) {
@@ -121,6 +122,18 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
       const ResidentInput* ri = n->input(port.id);
       if (ri && ri->driver == ResidentInput::Driver::Connection)
         inTex = cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId);
+    } else if (port.dataType == "CameraRef") {
+      // camera-A ref gather (resident mirror of the flat branch — production runs THIS leg): each
+      // wire into a CameraRef port resolves its UPSTREAM node to (opType, resolved params), primary +
+      // extraConns in wire order (CmdCookCtx::cameraRefs doc; = TiXL GetCollectedTypedInputs).
+      const ResidentInput* ri = n->input(port.id);
+      if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        if (const ResidentNode* up = rg.node(ri->srcNodePath))
+          camRefs.push_back({up->opType, nodeParams(ri->srcNodePath)});
+        for (const auto& ec : ri->extraConns)
+          if (const ResidentNode* up = rg.node(ec.first))
+            camRefs.push_back({up->opType, nodeParams(ec.first)});
+      }
     } else if (port.dataType == "Command" && !haveInCmd) {
       // S2a KEYSTONE — resident mirror of the flat MultiInput Command collector (doc: point_ops_execute
       // .cpp). MultiInput Command (Execute) concats the primary wire (srcNodePath) + extraConns (批次25,
@@ -235,6 +248,7 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   cc.inputTexture = inTex;  // ★S2c Texture2D gather (Layer2d/DrawScreenQuad)
   cc.inputCommand = haveInCmd ? &inCmd : nullptr;
   cc.ctxVars = ctxVars;  // S3a: SubGraph Command ops read the scoped var off this (resident leg)
+  cc.cameraRefs = std::move(camRefs);  // camera-A: wired CameraRef inputs (empty for every other op)
   cc.params = nodeParams(path);
   // CAMERA bridge (resident mirror — PRODUCTION runs THIS leg; the S2c flat-resident gate): surface the
   // C1 live Camera onto cc so RotateTowards FORK#2 reads it. IDENTICAL to the flat leg's populate.

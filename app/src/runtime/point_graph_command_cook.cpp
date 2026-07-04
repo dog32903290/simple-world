@@ -100,6 +100,7 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
   RenderCommand inCmd;          // Camera op's Command subtree (Cut 3); empty unless a Command input wired
   bool haveInCmd = false;
   bool havePts = false;
+  std::vector<CmdCookCtx::CmdCameraRef> camRefs;  // camera-A: wired CameraRef inputs (BlendCameras)
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& port = s->ports[i];
     if (!port.isInput) continue;
@@ -121,6 +122,17 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
       // upstream tex node (same cook-upstream-on-demand as Points). Borrowed, single-frame.
       const Connection* c = g.connectionToInput(pinId(id, (int)i));
       if (c) inTex = cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100);
+    } else if (port.dataType == "CameraRef") {
+      // camera-A ref gather (MIRRORED on resident): each wire into a CameraRef port resolves its
+      // UPSTREAM node to (opType, resolved params) — the structural stand-in for TiXL's Slot<Object>
+      // camera reference (CmdCookCtx::cameraRefs doc). Wire order (= TiXL GetCollectedTypedInputs).
+      for (const Connection& c : g.connections) {
+        if (c.toPin != pinId(id, (int)i)) continue;
+        const Node* up = g.node(pinNode(c.fromPin));
+        if (!up) continue;
+        camRefs.push_back({up->type, nodeParams(pinNode(c.fromPin))});
+        if (!port.multiInput) break;
+      }
     } else if (port.dataType == "Command" && !haveInCmd) {
       // S2a KEYSTONE — MultiInput Command collector (TiXL Execute.cs; full doc in point_ops_execute.cpp):
       // concat N wired chains in wire order. S1: SetRequestedResolution pushes resolution (save/restore).
@@ -222,6 +234,7 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
   cc.inputCommand = haveInCmd ? &inCmd : nullptr;
   cc.ctxVars = ctxVars;  // S3a: a Command op cooked in a SubGraph reads the scoped var off this
   cc.meshVtx = inMeshVtx; cc.meshIdx = inMeshIdx; cc.meshFaceCount = inMeshFaces;
+  cc.cameraRefs = std::move(camRefs);  // camera-A: wired CameraRef inputs (empty for every other op)
   cc.params = nodeParams(id);
   // CAMERA bridge: surface the C1 live Camera (set around an enclosing Camera's SubGraph cook, so a
   // Command op cooked inside it sees this) onto cc → RotateTowards FORK#2 reads it. MIRRORED on resident.

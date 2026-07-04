@@ -156,6 +156,19 @@ struct CmdCookCtx {
   const MTL::Buffer* meshIdx = nullptr;   // upstream SwTriIndex buffer
   uint32_t meshFaceCount = 0;             // upstream FACE count (== SwTriIndex count); VS draws ×3
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
+  // CAMERA-REFERENCE inputs (camera-A seam: BlendCameras first, ActionCamera next): each wired
+  // "CameraRef" input port's UPSTREAM camera op resolved to (opType, resolved Float params), in wire
+  // order (MultiInput expands primary + extraConns, the inCmd gather contract). = TiXL's Slot<Object>
+  // camera reference (BlendCameras.cs:28 GetCollectedTypedInputs) — sw has no live op instances to
+  // hand out, so the driver hands the STRUCTURAL identity (type + resolved params) and the consumer
+  // rebuilds the referenced camera's CameraDefinition from it (point_ops_blendcameras.cpp). `params`
+  // is BORROWED from the driver's per-cook memo (stable std::map storage) — never retained. Empty for
+  // every op without a CameraRef port (universal today) → byte-identical.
+  struct CmdCameraRef {
+    std::string opType;                                    // upstream camera op type ("Camera", …)
+    const std::map<std::string, float>* params = nullptr;  // its resolved Float params (borrowed)
+  };
+  std::vector<CmdCameraRef> cameraRefs;
   // CAMERA bridge (camera→CmdCookCtx, camera3d-remaining #1): the cook driver consults the C1
   // LiveCameraScope (liveActiveCamera) at this cc-fill and surfaces the live Camera's matrices so a
   // Command-rail op (RotateTowards FORK#2 / GetScreenPos / GetPosition) reads WorldToCamera/CameraToWorld

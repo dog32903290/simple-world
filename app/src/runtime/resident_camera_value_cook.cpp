@@ -10,11 +10,13 @@
 #include <cmath>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "runtime/field_camera.h"            // Mat4 / mat4Inverse / mat4Mul / *CameraForward builders
 #include "runtime/graph.h"                   // NodeSpec / PortSpec / findSpec
 #include "runtime/point_graph.h"             // registerCmdOp (CmdCookCtx via point_graph_cook_ctx.h)
 #include "runtime/point_ops_camera_scope.h"  // ActiveCamera / resolveActiveCamera (one resolve codepath)
+#include "runtime/point_ops_blendcameras.h"        // SwCameraDefinition / blend / buildProjectionMatrices
 #include "runtime/point_ops_camerawithrotation.h"  // cameraWithRotationMatrices (T(−pos)·R + LensShift)
 #include "runtime/resident_eval_graph.h"     // ResidentEvalGraph / resolveResidentFloatInputs
 
@@ -32,7 +34,7 @@ namespace {
 // OrthographicCamera + CameraWithRotation today; BlendCameras joins as its lane lands.
 bool isEnclosingCameraType(const std::string& opType) {
   return isCameraScopeWriter(opType) || opType == "OrthographicCamera" ||
-         opType == "CameraWithRotation";
+         opType == "CameraWithRotation" || opType == "BlendCameras";
 }
 
 // True iff `slotId` is a Command-typed OUTPUT port of `spec` (the walk only follows the Command rail —
@@ -131,6 +133,56 @@ void enclosingCameraForward(const ResidentEvalGraph& g, const ResidentNode* cam,
                              stretch, aspect, p("NearFarClip.x", 0.1f), p("NearFarClip.y", 1000.0f));
     outW2C = f.worldToCamera;
     outC2C = f.cameraToClipSpace;
+    return;
+  }
+  if (cam->opType == "BlendCameras") {
+    // The value-rail mirror of cookBlendCameras (point_ops_blendcameras.cpp): refs gathered
+    // STRUCTURALLY off the resident graph (the CameraReferences input's primary + extraConns, wire
+    // order — the same set the drivers' CameraRef gather hands the cmd cook), blended per
+    // ICamera.cs:38-73, matrices per :110-130 (lens shift alive on this rail). Aspect: either raw ref
+    // aspect < 0.0001 → the output aspect (fork-blendcameras-mixed-aspect-fallback), else the lerp.
+    // No/invalid refs → the default camera (micro-fork: TiXL's error leg does not evaluate the
+    // subtree at all — a frame-level value pass must still emit something; default = the unpushed
+    // ambient context).
+    std::vector<const ResidentNode*> refs;
+    if (const ResidentInput* ri = cam->input("CameraReferences")) {
+      if (ri->driver == ResidentInput::Driver::Connection) {
+        if (const ResidentNode* up = g.node(ri->srcNodePath)) refs.push_back(up);
+        for (const auto& ec : ri->extraConns)
+          if (const ResidentNode* up = g.node(ec.first)) refs.push_back(up);
+      }
+    }
+    const int count = (int)refs.size();
+    auto fallbackDefault = [&]() {
+      LayerCameraForward f = defaultLayerCameraForward(reqAspect);
+      outW2C = f.worldToCamera;
+      outC2C = f.cameraToClipSpace;
+    };
+    if (count == 0) {
+      fallbackDefault();
+      return;
+    }
+    float floatIndex = p("Index", 0.0f);
+    const float hi = (float)count - 1.0001f;  // BlendCameras.cs:31
+    floatIndex = floatIndex < 0.0f ? 0.0f : (floatIndex > hi ? hi : floatIndex);
+    int index = (int)floatIndex;
+    if (index < 0) index = 0;
+    const float blend = floatIndex - (float)index;  // cs:74
+    const ResidentNode* ra = refs[count == 1 ? 0 : index];
+    const ResidentNode* rb = refs[count == 1 ? 0 : index + 1];
+    SwCameraDefinition camA, camB;
+    const std::map<std::string, float> pa = resolveResidentFloatInputs(g, *ra, ctx);
+    const std::map<std::string, float> pb = resolveResidentFloatInputs(g, *rb, ctx);
+    if (!cameraDefinitionFromParams(ra->opType, pa, camA) ||
+        !cameraDefinitionFromParams(rb->opType, pb, camB)) {
+      fallbackDefault();
+      return;
+    }
+    SwCameraDefinition blended = blendCameraDefinitions(camA, camB, blend);
+    blended.aspectRatio = (camA.aspectRatio < 0.0001f || camB.aspectRatio < 0.0001f)
+                              ? reqAspect
+                              : blended.aspectRatio;
+    buildProjectionMatrices(blended, outC2C, outW2C);
     return;
   }
   if (cam->opType == "CameraWithRotation") {

@@ -31,7 +31,12 @@ const std::vector<NodeSpec>& drawCameraSpecs() {
         {"FieldOfView", "FieldOfView", "Float", true, 45.0f, 1.0f, 179.0f},
         {"ClipPlanes.x", "ClipPlanes", "Float", true, 0.01f, 0.0001f, 1000.0f, Widget::Vec, {}, true, 2},
         {"ClipPlanes.y", "ClipPlanes.y", "Float", true, 1000.0f, 0.0001f, 100000.0f, Widget::Vec, {}, true, 1},
-        {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
+        {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f},
+        // Reference output (TiXL Camera.cs:12-13 Slot<Object> Reference, camera-A): the camera-
+        // reference handle BlendCameras/ActionCamera consume. The wire carries the STRUCTURAL identity
+        // (the cook drivers' CameraRef gather resolves the upstream op's type+params). APPENDED at the
+        // tail so no existing pin index shifts (TiXL lists it 2nd — port ORDER is an established fork).
+        {"Reference", "Reference", "CameraRef", false}},
        nullptr,
        "render.camera"},
       // OrthographicCamera (TiXL Lib.render.camera.OrthographicCamera): the perspective Camera's twin — wraps
@@ -146,7 +151,31 @@ const std::vector<NodeSpec>& drawCameraSpecs() {
         {"AspectRatio", "AspectRatio", "Float", true, -1.0f, -1.0f, 10.0f},
         {"Up.x", "Up", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 3},
         {"Up.y", "Up.y", "Float", true, 1.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"Up.z", "Up.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1}},
+        {"Up.z", "Up.z", "Float", true, 0.0f, -1.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // Reference output (CameraWithRotation.cs:13-14 Slot<Object> Reference; appended at the tail —
+        // same rationale as Camera's Reference above).
+        {"Reference", "Reference", "CameraRef", false}},
+       nullptr,
+       "render.camera"},
+      // BlendCameras (TiXL Lib.render.camera.BlendCameras, camera-A lane): slerp-blend N referenced
+      // cameras by a float Index — BlendCameras.cs:24-106 + CameraDefinition.Blend (ICamera.cs:38-73:
+      // lerp position/scalars, slerp the extracted orientations shortest-path, rebuild Target/Up from
+      // the blended quaternion). Command in → Command out (per-item stamp from the blended camera's
+      // rigid worldToCamera via the inverse-decomposition; point_ops_blendcameras.h has the forks:
+      // ref-types-v1 Camera/CameraWithRotation only, mixed-aspect-fallback, lensshift-drawrail-drop).
+      // CameraReferences = MultiInput CameraRef (the camera-A gather seam; = TiXL MultiInputSlot<Object>
+      // GetCollectedTypedInputs). TiXL's error legs (no/invalid refs) do NOT evaluate the subtree →
+      // empty chain. Defaults = BlendCameras.t3 (Index 0).
+      {"BlendCameras", "BlendCameras",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"CameraReferences", "CameraReferences", "CameraRef", true, 0.0f, 0.0f, 1.0f, Widget::Slider,
+         {}, false, 1, true},
+        {"Index", "Index", "Float", true, 0.0f, 0.0f, 10.0f},
+        // CameraReference output (BlendCameras.cs:12-13): BlendCameras is itself an ICamera in TiXL
+        // (nested blending). v1 the ref GATHER does not resolve a BlendCameras upstream
+        // (fork-blendcameras-ref-types-v1) — the port exists for interface parity.
+        {"CameraReference", "CameraReference", "CameraRef", false}},
        nullptr,
        "render.camera"},
   };
