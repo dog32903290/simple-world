@@ -117,6 +117,12 @@ int runAnimBooleanSelfTest(bool injectBug);
 // var read) so the fixed wants bite.
 int runWasTriggerSelfTest(bool injectBug);
 
+// Once PRODUCTION-PATH pin (--selftest-once): drives the REAL cookStatefulValueNodes across
+// multi-frame Trigger sequences (one StatefulValueState carried), asserting the trigger latch
+// (fire on first cook + on any Trigger change, exactly once — not level-triggered). injectBug
+// flips a REAL production term (setOnceBug: drop the state write / freeze the edge low).
+int runOnceSelfTest(bool injectBug);
+
 // AR clock-domain pin (refuter-S5 盲區 3, --selftest-arclock): proves through the REAL cook
 // seam above that AudioReaction receives BARS — hit timestamps == transport.fxTime (bars, not
 // seconds), and halving the BPM halves the wall-clock hits a fixed-debounce pulse train yields
