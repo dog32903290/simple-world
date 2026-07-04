@@ -10,6 +10,7 @@
 #include "runtime/point_ops.h"    // cookDrawPoints, registerDrawLinesOp/Billboards/RenderTargetOp
 #include "runtime/point_ops_orthographiccamera.h"  // C2: registerOrthographicCameraOp (Command→Command ortho push)
 #include "runtime/point_ops_setvarcmd.h"  // S3a: registerSetVarCmdOps (Command-rail SetFloatVarCmd/SetIntVarCmd)
+#include "runtime/point_ops_spread.h"     // render lane: registerSpreadOps (SpreadIntoGrid/SpreadLayout per-wire SRT)
 
 namespace sw {
 
@@ -42,6 +43,7 @@ void registerDrawPointOps() {
   registerOrthographicCameraOp();                // Command → Command (ORTHOGRAPHIC projection push, camera3d C2)
   registerExecuteOp();                           // Command(MultiInput) → Command (S2a KEYSTONE: N-chain concat)
   registerGroupOp();                             // Command(MultiInput) → Command (S2b: Execute + SRT transform-context push)
+  registerSpreadOps();                           // Command(MultiInput) → Command (render lane: per-WIRE SRT — SpreadIntoGrid/SpreadLayout)
   registerRotateAroundAxisOp();                  // Command → Command (axis-angle transform-context push, S2 island)
   registerShearOp();                             // Command → Command (shear transform-context push, S2 island)
   registerTransformOp();                         // Command → Command (full TRS+pivot transform-context push, S2 island)

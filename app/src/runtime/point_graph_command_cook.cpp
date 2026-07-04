@@ -98,6 +98,7 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
   uint32_t inMeshFaces = 0;
   bool haveMesh = false;
   RenderCommand inCmd;          // Camera op's Command subtree (Cut 3); empty unless a Command input wired
+  std::vector<uint32_t> inCmdWireCounts;  // per-wire item counts of the generic gather (spread seam)
   bool haveInCmd = false;
   bool havePts = false;
   for (size_t i = 0; i < s->ports.size(); ++i) {
@@ -206,6 +207,7 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
             if (c.toPin != pinId(id, (int)i)) continue;
             RenderCommand sub = cookCommand(pinNode(c.fromPin));
             inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+            inCmdWireCounts.push_back((uint32_t)sub.items.size());  // spread seam: per-wire boundary
             if (!port.multiInput || executeCollectFirstOnlyForTest()) break;  // single-input / -bug collapse
           }
         }
@@ -220,6 +222,7 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
   cc.nodeId = id; cc.points = pts; cc.count = cnt;
   cc.inputTexture = inTex;
   cc.inputCommand = haveInCmd ? &inCmd : nullptr;
+  cc.inputCmdWireItemCounts = std::move(inCmdWireCounts);  // spread seam (empty for non-generic gathers)
   cc.ctxVars = ctxVars;  // S3a: a Command op cooked in a SubGraph reads the scoped var off this
   cc.meshVtx = inMeshVtx; cc.meshIdx = inMeshIdx; cc.meshFaceCount = inMeshFaces;
   cc.params = nodeParams(id);

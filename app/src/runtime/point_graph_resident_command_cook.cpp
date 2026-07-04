@@ -95,6 +95,7 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   SwMeshView inMesh;            // ★R-2: first wired Mesh input (DrawMeshUnlit) — was UNGATHERED before
   bool haveMesh = false;
   RenderCommand inCmd;          // Camera op's Command subtree (Cut 3)
+  std::vector<uint32_t> inCmdWireCounts;  // per-wire item counts of the generic gather (spread seam)
   bool haveInCmd = false;
   bool havePts = false;
   for (const PortSpec& port : s->ports) {
@@ -216,10 +217,12 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
         } else if (ri && ri->driver == ResidentInput::Driver::Connection) {
           RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
           inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+          inCmdWireCounts.push_back((uint32_t)sub.items.size());  // spread seam: per-wire boundary
           if (port.multiInput && !executeCollectFirstOnlyForTest())  // -bug: skip the extra wires
             for (const auto& ec : ri->extraConns) {
               RenderCommand es = cookCommand(ec.first, depth + 1);
               inCmd.items.insert(inCmd.items.end(), es.items.begin(), es.items.end());
+              inCmdWireCounts.push_back((uint32_t)es.items.size());  // spread seam (extra wires)
             }
         }
       }
@@ -234,6 +237,7 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   cc.meshVtx = inMesh.vtx; cc.meshIdx = inMesh.idx; cc.meshFaceCount = inMesh.faceCount;
   cc.inputTexture = inTex;  // ★S2c Texture2D gather (Layer2d/DrawScreenQuad)
   cc.inputCommand = haveInCmd ? &inCmd : nullptr;
+  cc.inputCmdWireItemCounts = std::move(inCmdWireCounts);  // spread seam (empty for non-generic gathers)
   cc.ctxVars = ctxVars;  // S3a: SubGraph Command ops read the scoped var off this (resident leg)
   cc.params = nodeParams(path);
   // CAMERA bridge (resident mirror — PRODUCTION runs THIS leg; the S2c flat-resident gate): surface the
