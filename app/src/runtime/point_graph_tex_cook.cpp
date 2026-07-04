@@ -67,6 +67,12 @@ namespace sw {
 using pgdetail::flatKey;
 using pgdetail::texReg;
 
+// TEXREF stash (defined in point_ops_usetexturereference.cpp; local extern — the pickObject posture).
+// The walker PUBLISHES a cooked texture under the wired UseTextureReference node's key after cooking a
+// node with a "TexRef" input port (RenderTarget.cs:143-148 reference.ColorTexture = ColorTexture).
+void textureReferencePublish(const std::string& refKey, MTL::Texture* tex);
+bool& useTextureReferenceBugSkipPublish();  // test-only: skip the publish (the golden's tooth)
+
 // Cook a TEXTURE-flow node into its OWN resolution-sized texture (ensureTex, keyed by flat id) and return
 // it — the Texture2D gather direct-through (lane I). Body extracted VERBATIM from cookTexNode; the
 // captured cook()-stack slots ride in by reference (see leaf header). `cookTexNode` is the SELF slot the
@@ -348,7 +354,23 @@ MTL::Texture* PointGraph::Impl::cookFlatTexNode(
       tc.assetTexture = cachedAssetTexture(dev, ai->second, /*mipped=*/false);
   }
   tc.params = tp;
+  tc.cookKey = flatKey(id);  // TEXREF seam: this node's stash identity (UseTextureReference lookup)
   tx->second(tc);
+  // TEXREF publish (RenderTarget.cs:143-148): a node with a WIRED "TexRef" input port publishes its
+  // cooked output under the SOURCE (UseTextureReference) node's key. -bug skips it (the golden tooth).
+  if (!useTextureReferenceBugSkipPublish()) {
+    for (size_t i2 = 0; i2 < s->ports.size(); ++i2) {
+      const PortSpec& p2 = s->ports[i2];
+      if (!(p2.isInput && p2.dataType == "TexRef")) continue;
+      const Connection* c2 = g.connectionToInput(pinId(id, (int)i2));
+      if (c2) textureReferencePublish(flatKey(pinNode(c2->fromPin)), tex);
+    }
+  }
+  // TEXREF redirect: UseTextureReference routes the referenced texture through (no copy) — return it.
+  if (tc.redirectTexture) {
+    texVisiting.erase(id);
+    return tc.redirectTexture;
+  }
   // mip-WRITE: the leaf cook committed+waited internally, so level 0 is ready. Fill levels 1..N
   // by a blit generateMipmaps (NOT a shader — pattern from point_ops_combinebuffers.cpp). A
   // separate command buffer; commit+wait so a same-frame downstream sample(level(lod)) sees mips.

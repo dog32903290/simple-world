@@ -379,17 +379,17 @@ struct PointGraph::Impl {
   }
 
   // The resident MESH cook (4th flow), from cookResidentMesh (resident_mesh_cook.cpp); wrapped by a lambda.
-  SwMeshView cookResidentMesh(const ResidentEvalGraph& rg, const std::string& path,
-                              const ResidentEvalCtx& rc, const EvaluationContext& ctx, int depth);
+  SwMeshView cookResidentMesh(const ResidentEvalGraph& rg, const std::string& path, const ResidentEvalCtx& rc,
+                              const EvaluationContext& ctx, const std::function<const std::vector<::SwPoint>*(const std::string&, int)>& cookPointList, int depth);
 
   // The FLAT MESH cook (point_graph_mesh_cook.cpp, Cut-6; full doc in leaf). debugCookedMeshInline = inlined twin of PointGraph::debugCookedMesh.
   bool debugCookedMeshInline(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
                              const MTL::Buffer*& idx, uint32_t& idxCount);
   bool cookFlatMeshNode(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
-                        int id);
+                        const std::function<const std::vector<::SwPoint>*(int)>& cookPointListNode, int id);
   bool cookFlatMeshInto(const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
-                        int id, const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx,
-                        uint32_t& faceCount);
+                        const std::function<const std::vector<::SwPoint>*(int)>& cookPointListNode, int id,
+                        const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx, uint32_t& faceCount);
   // The FLAT HOST-VALUE cooks (FloatList/ColorList/Gradient/PointList), point_graph_hostvalue_cook.cpp (Cut-4;
   // full doc in leaf). FloatList + ColorList cross a per-frame memo (by-ref) so a stateful op cooks once/frame.
   const std::vector<float>* cookFlatFloatList(const Graph& g, const EvaluationContext& ctx,

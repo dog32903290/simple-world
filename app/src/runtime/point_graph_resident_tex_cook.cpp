@@ -73,6 +73,10 @@
 
 namespace sw {
 
+// TEXREF stash (point_ops_usetexturereference.cpp; local extern, mirror of the flat twin's seam doc).
+void textureReferencePublish(const std::string& refKey, MTL::Texture* tex);
+bool& useTextureReferenceBugSkipPublish();  // test-only: skip the publish (the golden's tooth)
+
 using pgdetail::texReg;
 
 // Cook a TEXTURE-flow node (RenderTarget OR an image filter like Blur) into its OWN resolution-sized
@@ -366,7 +370,18 @@ MTL::Texture* PointGraph::Impl::cookResidentTexNode(
       tc.assetTexture = cachedAssetTexture(dev, ai->second, /*mipped=*/false);
   }
   tc.params = tp;
+  tc.cookKey = path;  // TEXREF seam: this node's stash identity (resident key = the node path)
   tx->second(tc);
+  // TEXREF publish + redirect (resident mirror of the flat walker's seam — production runs THIS leg).
+  if (!useTextureReferenceBugSkipPublish()) {
+    for (const PortSpec& p2 : s->ports) {
+      if (!(p2.isInput && p2.dataType == "TexRef")) continue;
+      const ResidentInput* ri2 = n->input(p2.id);
+      if (ri2 && ri2->driver == ResidentInput::Driver::Connection)
+        textureReferencePublish(ri2->srcNodePath, tex);
+    }
+  }
+  if (tc.redirectTexture) return tc.redirectTexture;  // UseTextureReference routes through (no copy)
   // mip-WRITE: leaf committed+waited internally (level 0 ready) -> fill levels 1..N via a blit
   // generateMipmaps (NOT a shader). Same as flat cookTexNode (point_graph.cpp).
   if (needsMips && tex) {

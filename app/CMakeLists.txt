@@ -316,6 +316,7 @@ add_executable(simple_world
   src/runtime/field_ops_bendfield.cpp
   src/runtime/field_ops_combinefieldcolor.cpp
   src/runtime/field_ops_raster3dfield.cpp
+  src/runtime/field_ops_subdivpattern3d.cpp
   src/runtime/field_ops_rotateaxis.cpp
   src/runtime/field_ops_rotatefield.cpp
   src/runtime/field_ops_twistfield.cpp
@@ -407,6 +408,7 @@ add_executable(simple_world
   src/field_ops_toroidalvortexfield_golden.cpp
   src/field_ops_setsdfmaterial_golden.cpp
   src/field_ops_raster3dfield_golden.cpp
+  src/field_ops_subdivpattern3d_golden.cpp
   src/runtime/mesh_op_registry.cpp
   src/runtime/mesh_ops_ngonmesh.cpp
   src/runtime/mesh_ops_quadmesh.cpp
@@ -427,6 +429,9 @@ add_executable(simple_world
   src/runtime/mesh_ops_icosahedronmesh.cpp
   src/runtime/mesh_ops_blendmeshvertices.cpp
   src/runtime/mesh_ops_pickmeshbuffer.cpp
+  src/runtime/mesh_ops_loadobj.cpp
+  src/runtime/delaunay_core.cpp
+  src/runtime/mesh_ops_delaunaymesh.cpp
   src/mesh_golden.cpp
   src/mesh_input_golden.cpp
   src/mesh_modify_golden.cpp
@@ -439,6 +444,8 @@ add_executable(simple_world
   src/mesh_cube_uv_golden.cpp
   src/mesh_icosahedron_golden.cpp
   src/mesh_icosahedron_uv_golden.cpp
+  src/mesh_loadobj_golden.cpp
+  src/mesh_delaunay_golden.cpp
   src/runtime/floatlist_op_registry.cpp
   src/runtime/floatlist_ops_floatstolist.cpp
   src/runtime/floatlist_ops_combinefloatlists.cpp

@@ -56,6 +56,11 @@ namespace sw {
 using pgdetail::cmdReg;
 using pgdetail::warnCookDepthOnce;
 
+// PickObject selection helpers (defined in point_ops_pickobject.cpp; render_command.h is at its line cap,
+// so the decls ride locally here — same local-extern posture as the flat twin point_graph_command_cook.cpp).
+int pickObjectSelectIndex(int rawIndex, int count);
+bool& pickObjectIgnoreIndexForTest();
+
 // Cook a resident COMMAND-flow node into a RenderCommand draw-chain. Body extracted VERBATIM from the
 // cookResident cookCommand lambda; the captured cook-stack slots ride in by reference (see leaf header).
 // `cookCommand` is the SELF slot the Command→Command + bypass recursion calls (lambda → method → slot →
@@ -221,6 +226,30 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
           } else if (sel != kSwitchSelectNone) {  // -1/empty: cook NOTHING (inCmd stays empty)
             RenderCommand sub = cookCommand(srcPaths[(size_t)sel], depth + 1);  // ONLY the selected wire
             inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+          }
+        } else if (n->opType == "PickObject") {
+          // data.object PickObject SUB-SELECT (resident mirror — production runs THIS leg). PickObject.cs:23
+          // Index.Mod(count): negatives WRAP; NO -1=none/-2=all sentinels (point_ops_pickobject.cpp). Same
+          // §3 wire-order trap as Switch: srcPaths primary-FIRST then extraConns to match the flat order.
+          std::vector<std::string> srcPaths;  // wire-declaration order: [primary] + extraConns
+          if (ri && ri->driver == ResidentInput::Driver::Connection) {
+            srcPaths.push_back(ri->srcNodePath);                                 // wire 0 = primary
+            for (const auto& ec : ri->extraConns) srcPaths.push_back(ec.first);  // wires 1..N
+          }
+          int rawIndex = 0;  // PickObject.Index value param (C# (int) cast = trunc toward 0)
+          const std::map<std::string, float>* sp = nodeParams(path);
+          if (sp) { auto it = sp->find("Index"); if (it != sp->end()) rawIndex = (int)it->second; }
+          if (pickObjectIgnoreIndexForTest()) {
+            for (const std::string& spath : srcPaths) {  // -bug: concat ALL (selection lost) — the pick tooth
+              RenderCommand sub = cookCommand(spath, depth + 1);
+              inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+            }
+          } else {
+            const int sel = pickObjectSelectIndex(rawIndex, (int)srcPaths.size());
+            if (sel >= 0) {  // no wires → nothing to cook (PickObject.cs:19-20)
+              RenderCommand sub = cookCommand(srcPaths[(size_t)sel], depth + 1);  // ONLY the picked wire
+              inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+            }
           }
         } else if (n->opType == "Loop") {
           // S3c Loop RE-COOK (resident mirror — production runs THIS leg). Same loopRunIterations() the flat

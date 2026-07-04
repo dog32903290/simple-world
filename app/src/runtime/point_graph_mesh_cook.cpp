@@ -42,6 +42,8 @@
 namespace sw {
 
 using pgdetail::flatKey;
+// The flat pointlist walker's slot type (cook()'s cookPointListNode; rides in for the PointList gather).
+using CookPointListFn = std::function<const std::vector<::SwPoint>*(int)>;
 
 // Cook a MESH-flow node (the 4th cook flow = TiXL MeshBuffers). A mesh GENERATOR (NGonMesh/QuadMesh)
 // owns NO Mesh input — it computes its vertex+index counts from its own params. A mesh CONSUMER
@@ -58,11 +60,12 @@ using pgdetail::flatKey;
 // ensureMesh keys by flat id, so a consumer's own pair never aliases its sources' pairs — the borrowed
 // SwMeshView buffers stay valid across this node's ensureMesh (different map keys, no realloc churn).
 bool PointGraph::Impl::cookFlatMeshNode(const Graph& g, const EvaluationContext& ctx,
-                                        const NodeParamsFn& nodeParams, int id) {
+                                        const NodeParamsFn& nodeParams,
+                                        const CookPointListFn& cookPointListNode, int id) {
   const Node* n = g.node(id);
   if (!n) return false;
   const MeshOpReg* reg = findMeshOp(n->type);
-  if (!reg || !reg->cook || !reg->count) return false;
+  if (!reg || !reg->cook || (!reg->count && !reg->countStr && !reg->countPts)) return false;
 
   // Gather upstream Mesh inputs (spec port order; MultiInput → one view per wire, connection order).
   std::vector<SwMeshView> inputMeshes;
@@ -76,7 +79,7 @@ bool PointGraph::Impl::cookFlatMeshNode(const Graph& g, const EvaluationContext&
         if (c.toPin != inPin) continue;
         const int srcId = pinNode(c.fromPin);
         SwMeshView v;
-        if (cookFlatMeshNode(g, ctx, nodeParams, srcId))  // cook the source pair into meshVtxBuf/meshIdxBuf[srcKey]
+        if (cookFlatMeshNode(g, ctx, nodeParams, cookPointListNode, srcId))  // cook the source pair
           debugCookedMeshInline(srcId, v.vtx, v.vtxCount, v.idx, v.faceCount);
         inputMeshes.push_back(v);   // an unwired/non-mesh source pushes an empty view (faithful no-op)
         if (!port.multiInput) break;  // single-input: first wire only
@@ -84,10 +87,38 @@ bool PointGraph::Impl::cookFlatMeshNode(const Graph& g, const EvaluationContext&
     }
   }
 
+  // STRING channel (fork-mesh-string-const-only, mesh_op_registry.h): gather this node's String input
+  // ports via the SHARED gatherStringInputs. The mesh flow cooks no upstream String producer (a wired
+  // String source reads empty — the null lambda); the const half (strParams override else strDef) is
+  // what LoadObj.Path rides. Empty for every op without a String port (byte-identical).
+  std::vector<std::string> inputStrings;
+  if (s) inputStrings = gatherStringInputs(g, id, *s, [](int) -> const std::string* { return nullptr; });
+
+  // HOST POINTLIST gather (the pointlist-into-mesh seam, DelaunayMesh): each PointList input port in
+  // spec order, cooked via the flat pointlist walker (rides in from cook()'s closure web). Unwired →
+  // null entry (spec-order parallel). Empty for every op without a PointList port (byte-identical).
+  std::vector<const std::vector<SwPoint>*> inputPointLists;
+  if (s) {
+    for (size_t i = 0; i < s->ports.size(); ++i) {
+      const PortSpec& port = s->ports[i];
+      if (!(port.isInput && port.dataType == "PointList")) continue;
+      const std::vector<SwPoint>* up = nullptr;
+      const Connection* c = g.connectionToInput(pinId(id, (int)i));
+      if (c && cookPointListNode) up = cookPointListNode(pinNode(c->fromPin));
+      inputPointLists.push_back(up);
+    }
+  }
+
   const std::map<std::string, float>* mp = nodeParams(id);
   uint32_t vtxCount = 0, idxCount = 0;
   // count FIRST: generator ignores the views; consumer reads them (TransformMesh inputs[0]; CombineMeshes Σ).
-  reg->count(mp, inputMeshes.data(), (int)inputMeshes.size(), vtxCount, idxCount);
+  if (reg->countPts)
+    reg->countPts(mp, inputMeshes.data(), (int)inputMeshes.size(), inputPointLists.data(),
+                  (int)inputPointLists.size(), vtxCount, idxCount);
+  else if (reg->countStr)
+    reg->countStr(mp, inputMeshes.data(), (int)inputMeshes.size(), &inputStrings, vtxCount, idxCount);
+  else
+    reg->count(mp, inputMeshes.data(), (int)inputMeshes.size(), vtxCount, idxCount);
 
   MTL::Buffer* vb = nullptr;
   MTL::Buffer* ib = nullptr;
@@ -100,6 +131,9 @@ bool PointGraph::Impl::cookFlatMeshNode(const Graph& g, const EvaluationContext&
   mc.output_vertices = vb; mc.output_indices = ib;
   mc.inputMeshes = inputMeshes.data(); mc.inputMeshCount = (int)inputMeshes.size();
   mc.params = mp;
+  mc.inputStrings = &inputStrings;  // mesh STRING channel (LoadObj.Path)
+  mc.inputPointLists = inputPointLists.data();  // pointlist-into-mesh seam (DelaunayMesh)
+  mc.inputPointListCount = (int)inputPointLists.size();
   reg->cook(mc);
   return true;
 }
@@ -109,9 +143,11 @@ bool PointGraph::Impl::cookFlatMeshNode(const Graph& g, const EvaluationContext&
 // std::function so cookCommand can call it. Returns false (and leaves the out-params untouched) if the
 // node is not a mesh op / produced nothing.
 bool PointGraph::Impl::cookFlatMeshInto(const Graph& g, const EvaluationContext& ctx,
-                                        const NodeParamsFn& nodeParams, int id, const MTL::Buffer*& vtx,
-                                        uint32_t& vtxCount, const MTL::Buffer*& idx, uint32_t& faceCount) {
-  if (!cookFlatMeshNode(g, ctx, nodeParams, id)) return false;  // cook the generator into meshVtxBuf/meshIdxBuf (or no-op)
+                                        const NodeParamsFn& nodeParams,
+                                        const CookPointListFn& cookPointListNode, int id,
+                                        const MTL::Buffer*& vtx, uint32_t& vtxCount,
+                                        const MTL::Buffer*& idx, uint32_t& faceCount) {
+  if (!cookFlatMeshNode(g, ctx, nodeParams, cookPointListNode, id)) return false;  // cook (or no-op)
   return debugCookedMeshInline(id, vtx, vtxCount, idx, faceCount);
 }
 

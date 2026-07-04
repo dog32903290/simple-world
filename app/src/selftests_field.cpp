@@ -56,4 +56,9 @@ REGISTER_SELFTESTS(/*orderBase=*/26,
     {"raymarchfield-output", runRaymarchFieldOutputSelfTest},
     {"connect-cooks", runConnectCooksSelfTest},  // connect VERB → production cook → sphere silhouette
 );
+// generate/texture COLOR-field batch 2 (mesh-misc lane). Fresh high orderBase appends to
+// --selftest-list without reshuffling the pre-existing field rows above.
+REGISTER_SELFTESTS(/*orderBase=*/382,
+    {"field-subdivpattern3d", runFieldSubDivPattern3dGoldenSelfTest},
+);
 }  // namespace sw

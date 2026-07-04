@@ -189,7 +189,13 @@ const std::vector<NodeSpec>& drawRenderSpecs() {
         {"ClearColor.x", "ClearColor", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 4},
         {"ClearColor.y", "ClearColor.y", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
         {"ClearColor.z", "ClearColor.z", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
-        {"ClearColor.w", "ClearColor.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1}},
+        {"ClearColor.w", "ClearColor.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, true, 1},
+        // TextureReference (RenderTarget.cs:684 InputSlot<RenderTargetReference>, the TiXL "wireless"
+        // texture link): wire a UseTextureReference.Reference here → after this RenderTarget cooks,
+        // BOTH tex walkers publish its output texture under that node's key (RenderTarget.cs:143-148
+        // reference.ColorTexture = ColorTexture) and UseTextureReference.Texture serves it anywhere in
+        // the graph. dataType "TexRef" is a MARKER wire (no cooked value travels; no gather reads it).
+        {"TextureReference", "TextureReference", "TexRef", true}},
        nullptr,
        "image.generate.basic"},
       // SetRequestedResolution (TiXL Lib.render.shading.SetRequestedResolution): the EXPLICIT override

@@ -486,10 +486,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // keep calling cookMeshInto through the slot. The methods take the minimal shared cook-stack state by
   // ref — the flat graph g, the eval ctx, and the nodeParams memo — because the mesh flow is a CLOSED
   // sub-graph (mesh→mesh only); see point_graph_mesh_cook.cpp for the full doc + verbatim body.
-  cookMeshNode = [&](int id) -> bool { return p_->cookFlatMeshNode(g, ctx, nodeParams, id); };
+  cookMeshNode = [&](int id) -> bool { return p_->cookFlatMeshNode(g, ctx, nodeParams, cookPointListNode, id); };  // pointlist gather rides in (DelaunayMesh)
   cookMeshInto = [&](int id, const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx,
                      uint32_t& faceCount) -> bool {
-    return p_->cookFlatMeshInto(g, ctx, nodeParams, id, vtx, vtxCount, idx, faceCount);
+    return p_->cookFlatMeshInto(g, ctx, nodeParams, cookPointListNode, id, vtx, vtxCount, idx, faceCount);
   };
 
   // Cook a FLOATLIST-flow node (5th cook flow = TiXL Slot<List<float>>). Currency = a HOST

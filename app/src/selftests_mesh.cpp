@@ -54,4 +54,10 @@ REGISTER_SELFTESTS(/*orderBase=*/360,
 REGISTER_SELFTESTS(/*orderBase=*/370,
     {"t3-displacemeshnoise", runT3DisplaceMeshNoiseParity},
 );
+// mesh-misc lane batch (LoadObj — obj_parse seam consumer + the mesh STRING channel;
+// DelaunayMesh — the pointlist-into-mesh seam consumer). Fresh orderBase.
+REGISTER_SELFTESTS(/*orderBase=*/383,
+    {"mesh-loadobj", runMeshLoadObjGoldenSelfTest},
+    {"mesh-delaunay", runMeshDelaunayGoldenSelfTest},
+);
 }  // namespace sw

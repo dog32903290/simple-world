@@ -26,6 +26,8 @@ void registerShearOp();
 void registerTransformOp();
 void registerRotateTowardsOp();  // Command → Command (LookAt-style facing rotation push; point_ops_rotatetowards.cpp)
 void registerSwitchOp();  // S3b: Command(MultiInput) → Command (cook-core sub-select; point_ops_switch.cpp)
+void registerPickObjectOp();  // data.object: Command(MultiInput) → Command (Mod pick; point_ops_pickobject.cpp)
+void registerCpuPointToCameraOp();  // point.helper: Points+Command → Command (point[0] camera stamp; point_ops_cpupointtocamera.cpp)
 void registerLoopOp();    // S3c: Command(SubGraph) → Command (cook-core RE-COOK per iteration; point_ops_loop.cpp)
 void registerExecuteOnceOp();     // S3b: Command(MultiInput) → Command (gated concat-all; point_ops_executeonce.cpp)
 void registerLoadSoundtrackOp();  // flow lane: Command(MultiInput) → Command (Execute twin, IsEnabled gate; audio rides app/soundtrack — point_ops_loadsoundtrack.cpp)
@@ -70,6 +72,8 @@ void registerDrawPointOps() {
   registerSetRequestedResolutionOp();           // Command → Command (explicit RequestedResolution push/pop, S1)
   registerSetVarCmdOps();                        // Command → Command (S3a context-var SubGraph scope: SetFloatVarCmd/SetIntVarCmd)
   registerSwitchOp();                            // Command(MultiInput) → Command (S3b: cook-core sub-select by Index)
+  registerPickObjectOp();                        // Command(MultiInput) → Command (data.object: Mod pick by Index)
+  registerCpuPointToCameraOp();                  // Points+Command → Command (point.helper: point[0] camera stamp)
   registerLoopOp();                              // Command(SubGraph) → Command (S3c: cook-core RE-COOK per iteration)
   registerExecuteOnceOp();                       // Command(MultiInput) → Command (S3b: gated concat-all by Trigger)
   registerLoadSoundtrackOp();                    // Command(MultiInput) → Command (flow: Execute twin, IsEnabled gate)
