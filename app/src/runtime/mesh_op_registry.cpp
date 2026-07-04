@@ -30,6 +30,11 @@ MeshOp::MeshOp(NodeSpec spec, MeshCountFn count, MeshCookFn cook) {
   meshSpecSink().push_back(std::move(spec));
 }
 
+MeshOp::MeshOp(NodeSpec spec, MeshCountStrFn countStr, MeshCookFn cook) {
+  meshCookFns()[spec.type] = MeshOpReg{nullptr, cook, countStr};
+  meshSpecSink().push_back(std::move(spec));
+}
+
 // Resolved-param accessors (mirror cookParam/cookVecN in point_graph.cpp). Defined here so the leaf
 // ops + goldens can read params without depending on the point-graph TU.
 float cookMeshParam(const std::map<std::string, float>* params, const char* id, float def) {

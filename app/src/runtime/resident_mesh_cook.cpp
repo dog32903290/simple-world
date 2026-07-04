@@ -48,7 +48,7 @@ SwMeshView PointGraph::Impl::cookResidentMesh(const ResidentEvalGraph& rg, const
   const NodeSpec* s = findSpec(n->opType);
   if (!s) return outView;
   const MeshOpReg* reg = findMeshOp(n->opType);
-  if (!reg || !reg->cook || !reg->count) return outView;
+  if (!reg || !reg->cook || (!reg->count && !reg->countStr)) return outView;
 
   // Gather upstream Mesh inputs through the resident graph (Connection drivers; MultiInput → primary +
   // extraConns, wire-declaration order). The recursion fills meshVtxBuf[srcPath] for each source.
@@ -68,8 +68,23 @@ SwMeshView PointGraph::Impl::cookResidentMesh(const ResidentEvalGraph& rg, const
   // Resolve THIS node's Float params inline (the memo-free twin of cookResident's nodeParams; same
   // pure resolver, byte-identical map). Held local so mc.params stays valid through reg->cook.
   std::map<std::string, float> params = resolveResidentFloatInputs(rg, *n, rc);
+
+  // STRING channel, resident mirror (mesh_op_registry.h fork-mesh-string-const-only): spec String ports
+  // in order, ResidentNode::strInputs (flatten-resolved const, strOverrides else strDef) else the spec
+  // strDef. Empty for every op without a String port (byte-identical).
+  std::vector<std::string> inputStrings;
+  for (const PortSpec& port : s->ports) {
+    if (!(port.isInput && port.dataType == "String")) continue;
+    auto it = n->strInputs.find(port.id);
+    inputStrings.push_back(it != n->strInputs.end() ? it->second : port.strDef);
+  }
+
   uint32_t vtxCount = 0, idxCount = 0;
-  reg->count(&params, inputMeshes.data(), (int)inputMeshes.size(), vtxCount, idxCount);  // counts FIRST
+  if (reg->countStr)
+    reg->countStr(&params, inputMeshes.data(), (int)inputMeshes.size(), &inputStrings, vtxCount,
+                  idxCount);  // counts FIRST (string-aware twin)
+  else
+    reg->count(&params, inputMeshes.data(), (int)inputMeshes.size(), vtxCount, idxCount);  // counts FIRST
 
   MTL::Buffer* vb = nullptr;
   MTL::Buffer* ib = nullptr;
@@ -82,6 +97,7 @@ SwMeshView PointGraph::Impl::cookResidentMesh(const ResidentEvalGraph& rg, const
   mc.output_vertices = vb; mc.output_indices = ib;
   mc.inputMeshes = inputMeshes.data(); mc.inputMeshCount = (int)inputMeshes.size();
   mc.params = &params;
+  mc.inputStrings = &inputStrings;  // mesh STRING channel (LoadObj.Path)
   reg->cook(mc);
 
   outView.vtx = vb; outView.vtxCount = vtxCount;

@@ -62,7 +62,7 @@ bool PointGraph::Impl::cookFlatMeshNode(const Graph& g, const EvaluationContext&
   const Node* n = g.node(id);
   if (!n) return false;
   const MeshOpReg* reg = findMeshOp(n->type);
-  if (!reg || !reg->cook || !reg->count) return false;
+  if (!reg || !reg->cook || (!reg->count && !reg->countStr)) return false;
 
   // Gather upstream Mesh inputs (spec port order; MultiInput → one view per wire, connection order).
   std::vector<SwMeshView> inputMeshes;
@@ -84,10 +84,20 @@ bool PointGraph::Impl::cookFlatMeshNode(const Graph& g, const EvaluationContext&
     }
   }
 
+  // STRING channel (fork-mesh-string-const-only, mesh_op_registry.h): gather this node's String input
+  // ports via the SHARED gatherStringInputs. The mesh flow cooks no upstream String producer (a wired
+  // String source reads empty — the null lambda); the const half (strParams override else strDef) is
+  // what LoadObj.Path rides. Empty for every op without a String port (byte-identical).
+  std::vector<std::string> inputStrings;
+  if (s) inputStrings = gatherStringInputs(g, id, *s, [](int) -> const std::string* { return nullptr; });
+
   const std::map<std::string, float>* mp = nodeParams(id);
   uint32_t vtxCount = 0, idxCount = 0;
   // count FIRST: generator ignores the views; consumer reads them (TransformMesh inputs[0]; CombineMeshes Σ).
-  reg->count(mp, inputMeshes.data(), (int)inputMeshes.size(), vtxCount, idxCount);
+  if (reg->countStr)
+    reg->countStr(mp, inputMeshes.data(), (int)inputMeshes.size(), &inputStrings, vtxCount, idxCount);
+  else
+    reg->count(mp, inputMeshes.data(), (int)inputMeshes.size(), vtxCount, idxCount);
 
   MTL::Buffer* vb = nullptr;
   MTL::Buffer* ib = nullptr;
@@ -100,6 +110,7 @@ bool PointGraph::Impl::cookFlatMeshNode(const Graph& g, const EvaluationContext&
   mc.output_vertices = vb; mc.output_indices = ib;
   mc.inputMeshes = inputMeshes.data(); mc.inputMeshCount = (int)inputMeshes.size();
   mc.params = mp;
+  mc.inputStrings = &inputStrings;  // mesh STRING channel (LoadObj.Path)
   reg->cook(mc);
   return true;
 }
