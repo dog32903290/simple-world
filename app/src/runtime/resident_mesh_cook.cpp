@@ -25,6 +25,7 @@
 //   reach ensureMesh/meshVtxBuf); cookResident wraps it in a forwarding lambda.
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl (ensureMesh / meshVtxBuf) + the method decl
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -38,9 +39,11 @@
 
 namespace sw {
 
-SwMeshView PointGraph::Impl::cookResidentMesh(const ResidentEvalGraph& rg, const std::string& path,
-                                              const ResidentEvalCtx& rc, const EvaluationContext& ctx,
-                                              int depth) {
+SwMeshView PointGraph::Impl::cookResidentMesh(
+    const ResidentEvalGraph& rg, const std::string& path, const ResidentEvalCtx& rc,
+    const EvaluationContext& ctx,
+    const std::function<const std::vector<::SwPoint>*(const std::string&, int)>& cookPointList,
+    int depth) {
   SwMeshView outView;
   if (depth > 64) return outView;  // same cycle guard as cookResident's kCookDepthCap (safe empty)
   const ResidentNode* n = rg.node(path);
@@ -48,7 +51,7 @@ SwMeshView PointGraph::Impl::cookResidentMesh(const ResidentEvalGraph& rg, const
   const NodeSpec* s = findSpec(n->opType);
   if (!s) return outView;
   const MeshOpReg* reg = findMeshOp(n->opType);
-  if (!reg || !reg->cook || (!reg->count && !reg->countStr)) return outView;
+  if (!reg || !reg->cook || (!reg->count && !reg->countStr && !reg->countPts)) return outView;
 
   // Gather upstream Mesh inputs through the resident graph (Connection drivers; MultiInput → primary +
   // extraConns, wire-declaration order). The recursion fills meshVtxBuf[srcPath] for each source.
@@ -57,10 +60,10 @@ SwMeshView PointGraph::Impl::cookResidentMesh(const ResidentEvalGraph& rg, const
     if (!(port.isInput && port.dataType == "Mesh")) continue;
     const ResidentInput* ri = n->input(port.id);
     if (ri && ri->driver == ResidentInput::Driver::Connection) {
-      inputMeshes.push_back(cookResidentMesh(rg, ri->srcNodePath, rc, ctx, depth + 1));
+      inputMeshes.push_back(cookResidentMesh(rg, ri->srcNodePath, rc, ctx, cookPointList, depth + 1));
       if (port.multiInput)
         for (const auto& ec : ri->extraConns)
-          inputMeshes.push_back(cookResidentMesh(rg, ec.first, rc, ctx, depth + 1));
+          inputMeshes.push_back(cookResidentMesh(rg, ec.first, rc, ctx, cookPointList, depth + 1));
     }
     // (An unwired / Constant Mesh input contributes NO entry → empty → faithful to the flat gather.)
   }
@@ -79,8 +82,23 @@ SwMeshView PointGraph::Impl::cookResidentMesh(const ResidentEvalGraph& rg, const
     inputStrings.push_back(it != n->strInputs.end() ? it->second : port.strDef);
   }
 
+  // HOST POINTLIST gather, resident mirror (the pointlist-into-mesh seam, DelaunayMesh): each PointList
+  // input port in spec order through the resident pointlist walker. Unwired/Constant → null entry.
+  std::vector<const std::vector<SwPoint>*> inputPointLists;
+  for (const PortSpec& port : s->ports) {
+    if (!(port.isInput && port.dataType == "PointList")) continue;
+    const std::vector<SwPoint>* up = nullptr;
+    const ResidentInput* ri = n->input(port.id);
+    if (ri && ri->driver == ResidentInput::Driver::Connection && cookPointList)
+      up = cookPointList(ri->srcNodePath, depth + 1);
+    inputPointLists.push_back(up);
+  }
+
   uint32_t vtxCount = 0, idxCount = 0;
-  if (reg->countStr)
+  if (reg->countPts)
+    reg->countPts(&params, inputMeshes.data(), (int)inputMeshes.size(), inputPointLists.data(),
+                  (int)inputPointLists.size(), vtxCount, idxCount);  // counts FIRST (pointlist twin)
+  else if (reg->countStr)
     reg->countStr(&params, inputMeshes.data(), (int)inputMeshes.size(), &inputStrings, vtxCount,
                   idxCount);  // counts FIRST (string-aware twin)
   else
@@ -98,6 +116,8 @@ SwMeshView PointGraph::Impl::cookResidentMesh(const ResidentEvalGraph& rg, const
   mc.inputMeshes = inputMeshes.data(); mc.inputMeshCount = (int)inputMeshes.size();
   mc.params = &params;
   mc.inputStrings = &inputStrings;  // mesh STRING channel (LoadObj.Path)
+  mc.inputPointLists = inputPointLists.data();  // pointlist-into-mesh seam (DelaunayMesh)
+  mc.inputPointListCount = (int)inputPointLists.size();
   reg->cook(mc);
 
   outView.vtx = vb; outView.vtxCount = vtxCount;

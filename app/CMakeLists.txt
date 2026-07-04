@@ -429,6 +429,8 @@ add_executable(simple_world
   src/runtime/mesh_ops_blendmeshvertices.cpp
   src/runtime/mesh_ops_pickmeshbuffer.cpp
   src/runtime/mesh_ops_loadobj.cpp
+  src/runtime/delaunay_core.cpp
+  src/runtime/mesh_ops_delaunaymesh.cpp
   src/mesh_golden.cpp
   src/mesh_input_golden.cpp
   src/mesh_modify_golden.cpp
@@ -442,6 +444,7 @@ add_executable(simple_world
   src/mesh_icosahedron_golden.cpp
   src/mesh_icosahedron_uv_golden.cpp
   src/mesh_loadobj_golden.cpp
+  src/mesh_delaunay_golden.cpp
   src/runtime/floatlist_op_registry.cpp
   src/runtime/floatlist_ops_floatstolist.cpp
   src/runtime/floatlist_ops_combinefloatlists.cpp

@@ -465,7 +465,7 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   // Mesh branch, the Mesh terminal, the new cookNode Mesh gather) + threads the shared rg/rc/ctx in. The
   // method resolves params inline (memo-free twin of nodeParams; same pure resolver → byte-identical map).
   cookResidentMesh = [&](const std::string& path, int depth) -> SwMeshView {
-    return p_->cookResidentMesh(rg, path, rc, ctx, depth);
+    return p_->cookResidentMesh(rg, path, rc, ctx, cookResidentPointList, depth);  // pointlist gather rides in
   };
 
   // Cook a command node: resolve its upstream Points bag, then call its cmd fn -> RenderCommand.

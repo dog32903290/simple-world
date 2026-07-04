@@ -25,6 +25,8 @@
 
 #include "runtime/graph.h"  // NodeSpec
 
+struct SwPoint;  // runtime/tixl_point.h (64B host point; the PointList gather hands borrowed vectors)
+
 namespace MTL {
 class Device;
 class Library;
@@ -86,6 +88,13 @@ struct MeshCookCtx {
   // the mesh flow yet, it reads as empty). Resident: ResidentNode::strInputs (flatten-resolved) else
   // strDef. null/empty for every existing mesh op (no String port → byte-identical).
   const std::vector<std::string>* inputStrings = nullptr;
+  // HOST POINTLIST inputs of THIS node in spec PointList-port order (the pointlist-into-mesh seam —
+  // DelaunayMesh.BoundaryPoints/ExtraPoints = TiXL StructuredList<Point>, the CPU list currency). Both
+  // drivers gather each PointList port through their pointlist walker (flat cookPointListNode /
+  // resident cookResidentPointList); an unwired port contributes a null entry (spec-order parallel).
+  // Borrowed single-frame (driver memo owns the vectors). null/0 for every existing mesh op.
+  const std::vector<SwPoint>* const* inputPointLists = nullptr;
+  int inputPointListCount = 0;
 };
 
 // A mesh op: compute counts (countFn) then write vertices+indices (cookFn). Two fns because the
@@ -105,6 +114,12 @@ using MeshCountFn = void (*)(const std::map<std::string, float>* params, const S
 using MeshCountStrFn = void (*)(const std::map<std::string, float>* params, const SwMeshView* inputs,
                                int inputCount, const std::vector<std::string>* inputStrings,
                                uint32_t& vertexCount, uint32_t& indexCount);
+// POINTLIST-AWARE count twin (fork-mesh-pointlist-count, the DelaunayMesh seam): an op whose counts
+// depend on gathered HOST PointList inputs (Delaunay must RUN the triangulation to know its counts)
+// registers THIS. Same additive posture as MeshCountStrFn — existing ops untouched.
+using MeshCountPtsFn = void (*)(const std::map<std::string, float>* params, const SwMeshView* inputs,
+                               int inputCount, const std::vector<SwPoint>* const* pointLists,
+                               int pointListCount, uint32_t& vertexCount, uint32_t& indexCount);
 using MeshCookFn = void (*)(MeshCookCtx&);
 
 // Read a Float param from a MeshCookCtx's RESOLVED map (mirror of cookParam); `def` when the driver
@@ -120,6 +135,7 @@ struct MeshOpReg {
   MeshCountFn count = nullptr;
   MeshCookFn cook = nullptr;
   MeshCountStrFn countStr = nullptr;  // string-aware twin; when set the driver calls it instead of count
+  MeshCountPtsFn countPts = nullptr;  // pointlist-aware twin (DelaunayMesh); same precedence posture
 };
 std::map<std::string, MeshOpReg>& meshCookFns();  // type-name -> {count, cook}
 
@@ -136,6 +152,7 @@ bool& meshInjectBug();
 struct MeshOp {
   MeshOp(NodeSpec spec, MeshCountFn count, MeshCookFn cook);
   MeshOp(NodeSpec spec, MeshCountStrFn countStr, MeshCookFn cook);  // string-aware twin (LoadObj)
+  MeshOp(NodeSpec spec, MeshCountPtsFn countPts, MeshCookFn cook);  // pointlist-aware twin (DelaunayMesh)
 };
 
 }  // namespace sw

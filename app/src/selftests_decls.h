@@ -157,6 +157,7 @@ namespace sw { int runMeshCubeUvGoldenSelfTest(bool); }          // mesh_cube_uv
 namespace sw { int runMeshIcosahedronGoldenSelfTest(bool); }     // mesh_icosahedron_golden.cpp (mesh generate: IcosahedronMesh golden-ratio base, unit-sphere invariant)
 namespace sw { int runMeshIcosahedronUvGoldenSelfTest(bool); }   // mesh_icosahedron_uv_golden.cpp (mesh generate: IcosahedronMesh non-default UV mappers 1/2/3/4, closed-form)
 namespace sw { int runMeshLoadObjGoldenSelfTest(bool); }         // mesh_loadobj_golden.cpp (mesh generate: LoadObj .obj → distinct/TBN pair + resident string-channel pixel)
+namespace sw { int runMeshDelaunayGoldenSelfTest(bool); }        // mesh_delaunay_golden.cpp (mesh generate: DelaunayMesh pointlist→mesh, brute-force circumcircle oracle + resident pixel)
 namespace sw { int runFloatListSelfTest(bool); }                 // floatlist_golden.cpp (5th cook flow: FloatsToList host list)
 namespace sw { int runColorsToListSelfTest(bool); }              // colorlist_golden.cpp (vec4-list cook flow: ColorsToList host color list, flat + R-2 resident)
 namespace sw { int runColorListSelfTest(bool); }                // colorlist_fanout_golden.cpp (ColorList identity passthrough, flat + R-2 resident)
