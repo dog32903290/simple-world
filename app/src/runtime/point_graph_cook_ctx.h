@@ -144,6 +144,14 @@ struct CmdCookCtx {
   // command node, mirrors inputTexture). null when unwired. Borrowed pointer into a driver-local
   // RenderCommand (single-frame); the op may COPY its items. Non-wrappers leave it null → byte-identical.
   const RenderCommand* inputCommand = nullptr;
+  // Per-WIRE item counts of the MultiInput Command gather (SPREAD family seam): entry i = how many
+  // items wire i contributed to inputCommand (concat order = wire-declaration order). A spread op
+  // (SpreadLayout/SpreadIntoGrid: TiXL loops CollectedInputs pushing a PER-CHILD ObjectToWorld)
+  // uses these boundaries to stamp a DIFFERENT group-SRT per child chain. Filled by BOTH cook legs'
+  // generic MultiInput Command collector (flat point_graph_command_cook.cpp + resident twin — the
+  // flat/resident mirror gate); the Switch/Loop/ExecRepeatedly special branches leave it empty (those
+  // ops never read it). Empty for every non-gathering op / ~243 golden callers → byte-identical.
+  std::vector<uint32_t> inputCmdWireItemCounts;
   // S3a context-var bridge (flow seam): LIVE host var map (= TiXL EvaluationContext.Float/IntVariables),
   // threaded into EVERY command cook (mirrors inputCommand) so a Command-rail SetFloatVarCmd/SetIntVarCmd
   // WRITES a scoped var around its SubGraph; a Command op cooked inside reads cc.ctxVars->floatVars[name].

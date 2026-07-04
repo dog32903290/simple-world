@@ -208,6 +208,67 @@ const std::vector<NodeSpec>& drawRenderSpecs() {
         {"Multiply", "Multiply", "Float", true, 1.0f, 0.0f, 16.0f}},
        nullptr,
        "render.shading"},
+      // SpreadIntoGrid (TiXL Lib.render.transform.SpreadIntoGrid): MultiInput Command layout — child i
+      // is TRANSLATED to grid cell (i%gx, i/gx, i/(gx·gy)) scaled by Spread·SpreadScale (per-child
+      // ObjectToWorld push, SpreadIntoGrid.cs:33-66; cooked via the per-wire group stamp,
+      // point_ops_spreadintogrid.cpp). Params mirror SpreadIntoGrid.t3: Spread=(1,1,1), SpreadScale=1,
+      // GridSize=(3,3,1) (Int3 → 3 Floats, sw vec-as-N-floats). Single child ⇒ spread zeroed (cs:20-21).
+      {"SpreadIntoGrid", "SpreadIntoGrid",
+       {{"Commands", "Commands", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
+        {"out", "out", "Command", false},
+        {"Spread.x", "Spread", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"Spread.y", "Spread.y", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Spread.z", "Spread.z", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"SpreadScale", "SpreadScale", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"GridSize.x", "GridSize", "Float", true, 3.0f, 1.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"GridSize.y", "GridSize.y", "Float", true, 3.0f, 1.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"GridSize.z", "GridSize.z", "Float", true, 1.0f, 1.0f, 100.0f, Widget::Vec, {}, true, 1}},
+       nullptr,
+       "render.transform"},
+      // SpreadLayout (TiXL Lib.render.transform.SpreadLayout): Group's SRT push with the TRANSLATION
+      // spread per child along Spread — child i at Translation − Spread·f_i, f_i = (0.5−(i/(count−1)
+      // −0.5))−Pivot (SpreadLayout.cs:55-93; per-wire group stamp, point_ops_spreadlayout.cpp). Params
+      // mirror SpreadLayout.t3: Spread/Translation/Rotation=(0,0,0), Scale=(1,1,1), UniformScale=1,
+      // Pivot=0.5, IsEnabled=true. FORK (named, Group fork class): Color foreground-tint +
+      // ForceColorUpdate dropped (S3 shading-context concern; .t3 Color default white = parity no-op).
+      {"SpreadLayout", "SpreadLayout",
+       {{"Commands", "Commands", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
+        {"out", "out", "Command", false},
+        {"Spread.x", "Spread", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"Spread.y", "Spread.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Spread.z", "Spread.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Translation.x", "Translation", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 3},
+        {"Translation.y", "Translation.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Translation.z", "Translation.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, true, 1},
+        {"Rotation.x", "Rotation", "Float", true, 0.0f, -180.0f, 180.0f, Widget::Vec, {}, true, 3},
+        {"Rotation.y", "Rotation.y", "Float", true, 0.0f, -180.0f, 180.0f, Widget::Vec, {}, true, 1},
+        {"Rotation.z", "Rotation.z", "Float", true, 0.0f, -180.0f, 180.0f, Widget::Vec, {}, true, 1},
+        {"Scale.x", "Scale", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Scale.y", "Scale.y", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Scale.z", "Scale.z", "Float", true, 1.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"UniformScale", "UniformScale", "Float", true, 1.0f, 0.0f, 10.0f},
+        {"Pivot", "Pivot", "Float", true, 0.5f, -1.0f, 2.0f},
+        {"IsEnabled", "IsEnabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr,
+       "render.transform"},
+      // GetScreenPos (TiXL Lib.render.analyze.GetScreenPos): projects a WORLD position through the
+      // ambient camera into screen space (GetScreenPos.cs:17-53) — Command SOURCE (UpdateCommand runs
+      // the projection inside the render eval, no draw items) + Position.x/y/z on the VALUE rail via
+      // the cross-rail latch (point_ops_getscreenpos.cpp; evaluate=nullptr → resident extOut, the
+      // stateful-value sink fills extOut[1..3] = these port indices — Position ports MUST stay at
+      // spec indices 1..3). Params mirror GetScreenPos.t3: LocalPosition=(0,0,0), SetDepthToZero=true.
+      // FORKS named in the op leaf (frame-latch / single-latch / identity-O2W / perspective-only).
+      {"GetScreenPos", "GetScreenPos",
+       {{"UpdateCommand", "UpdateCommand", "Command", false},
+        {"Position.x", "Position.x", "Float", false},
+        {"Position.y", "Position.y", "Float", false},
+        {"Position.z", "Position.z", "Float", false},
+        {"LocalPosition.x", "LocalPosition", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"LocalPosition.y", "LocalPosition.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"LocalPosition.z", "LocalPosition.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"SetDepthToZero", "SetDepthToZero", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr,
+       "render.analyze"},
   };
   return specs;
 }
