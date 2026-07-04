@@ -124,13 +124,37 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
       if (c) inTex = cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100);
     } else if (port.dataType == "CameraRef") {
       // camera-A ref gather (MIRRORED on resident): each wire into a CameraRef port resolves its
-      // UPSTREAM node to (opType, resolved params) — the structural stand-in for TiXL's Slot<Object>
-      // camera reference (CmdCookCtx::cameraRefs doc). Wire order (= TiXL GetCollectedTypedInputs).
+      // UPSTREAM node to (opType, resolved params, identity) — the structural stand-in for TiXL's
+      // Slot<Object> camera reference (CmdCookCtx::cameraRefs doc). Wire order (= TiXL
+      // GetCollectedTypedInputs). ONE nested level: the upstream op's own CameraRef inputs
+      // (ActionCamera.ReferenceCamera) resolve into upstreamRefs (fork-cameraref-one-level-nesting).
       for (const Connection& c : g.connections) {
         if (c.toPin != pinId(id, (int)i)) continue;
-        const Node* up = g.node(pinNode(c.fromPin));
+        const int upId = pinNode(c.fromPin);
+        const Node* up = g.node(upId);
         if (!up) continue;
-        camRefs.push_back({up->type, nodeParams(pinNode(c.fromPin))});
+        CmdCookCtx::CmdCameraRef ref;
+        ref.opType = up->type;
+        ref.params = nodeParams(upId);
+        ref.nodePath = std::to_string(upId);
+        if (const NodeSpec* us = findSpec(up->type))
+          for (size_t j = 0; j < us->ports.size(); ++j) {
+            const PortSpec& p2 = us->ports[j];
+            if (!p2.isInput || p2.dataType != "CameraRef") continue;
+            for (const Connection& c2 : g.connections) {
+              if (c2.toPin != pinId(upId, (int)j)) continue;
+              const int up2Id = pinNode(c2.fromPin);
+              const Node* up2 = g.node(up2Id);
+              if (!up2) continue;
+              CmdCookCtx::CmdCameraRef r2;
+              r2.opType = up2->type;
+              r2.params = nodeParams(up2Id);
+              r2.nodePath = std::to_string(up2Id);
+              ref.upstreamRefs.push_back(std::move(r2));
+              if (!p2.multiInput) break;
+            }
+          }
+        camRefs.push_back(std::move(ref));
         if (!port.multiInput) break;
       }
     } else if (port.dataType == "Command" && !haveInCmd) {

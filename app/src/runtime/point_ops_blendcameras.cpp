@@ -4,6 +4,7 @@
 
 #include <cmath>
 
+#include "runtime/point_ops_actioncamera.h"        // resolveCameraRefDefinition (stateful ref dispatch)
 #include "runtime/point_ops_camera_scope.h"        // resolveActiveCamera (the Camera param semantics)
 #include "runtime/point_ops_camerawithrotation.h"  // cameraWithRotationRotation (the CWR rotation)
 #include "runtime/render_command.h"                // RenderDrawItem (the stamp target)
@@ -342,9 +343,10 @@ RenderCommand cookBlendCameras(CmdCookCtx& c) {
   const int ia = count == 1 ? 0 : index;
   const int ib = count == 1 ? 0 : index + 1;  // (cs:44-56 single-camera leg: camA = camB)
   SwCameraDefinition camA, camB;
-  if (!c.cameraRefs[ia].params || !c.cameraRefs[ib].params ||
-      !cameraDefinitionFromParams(c.cameraRefs[ia].opType, *c.cameraRefs[ia].params, camA) ||
-      !cameraDefinitionFromParams(c.cameraRefs[ib].opType, *c.cameraRefs[ib].params, camB))
+  // Refs dispatch through resolveCameraRefDefinition (point_ops_actioncamera.h): a STATEFUL
+  // ActionCamera ref integrates once per frame off cc.ctx; plain camera refs rebuild from params.
+  if (!resolveCameraRefDefinition(c.cameraRefs[ia], c.ctx, camA) ||
+      !resolveCameraRefDefinition(c.cameraRefs[ib], c.ctx, camB))
     return rc;  // "That's not a camera" (cs:51-55) — subtree not evaluated
 
   const SwCameraDefinition blended = blendCameraDefinitions(camA, camB, blend);  // (cs:75)

@@ -167,6 +167,14 @@ struct CmdCookCtx {
   struct CmdCameraRef {
     std::string opType;                                    // upstream camera op type ("Camera", …)
     const std::map<std::string, float>* params = nullptr;  // its resolved Float params (borrowed)
+    // Frame-stable node identity (resident path / stringified flat id): the cross-frame STATE key for
+    // a STATEFUL referenced camera (ActionCamera's _cameraDefinition/_lastUpdateTime persistence).
+    std::string nodePath;
+    // ONE-level nested refs: the referenced op's OWN wired CameraRef inputs (ActionCamera's
+    // ReferenceCamera), resolved by the same gather. NOT recursive — a chain deeper than one hop
+    // (ActionCamera referencing an ActionCamera) is a named fork (fork-cameraref-one-level-nesting):
+    // the second hop's own upstreamRefs stay empty, so it resolves as reference-less.
+    std::vector<CmdCameraRef> upstreamRefs;
   };
   std::vector<CmdCameraRef> cameraRefs;
   // CAMERA bridge (camera→CmdCookCtx, camera3d-remaining #1): the cook driver consults the C1

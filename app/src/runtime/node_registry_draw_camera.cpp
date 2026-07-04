@@ -178,6 +178,32 @@ const std::vector<NodeSpec>& drawCameraSpecs() {
         {"CameraReference", "CameraReference", "CameraRef", false}},
        nullptr,
        "render.camera"},
+      // ActionCamera (TiXL Lib.render.camera.ActionCamera, camera-A lane): the STATEFUL fly-camera
+      // CameraDefinition provider — no Command flow (its only output is the Reference handle,
+      // ActionCamera.cs:10-11). Each frame it blends toward its ReferenceCamera's definition
+      // (BlendToReferenceCamera·dt·60, cs:44-52) then integrates Position/Target from
+      // Forward/Sideways/UpDown/Yaw/Pitch scaled by Speed/RotationSpeed·dt (cs:54-79). The
+      // integration lives in resolveActionCameraDefinition (point_ops_actioncamera.cpp), driven when
+      // a consumer (BlendCameras) resolves the ref — once per frame, state keyed by node identity.
+      // Named forks in the leaf header: clock-ctx-time, no-input-writeback (edge-detected reset),
+      // drawrail-only. Defaults = ActionCamera.t3 (Speed 0.01, RotationSpeed 0.2, rest 0).
+      {"ActionCamera", "ActionCamera",
+       {{"Reference", "Reference", "CameraRef", false},
+        {"ReferenceCamera", "ReferenceCamera", "CameraRef", true, 0.0f, 0.0f, 1.0f, Widget::Slider,
+         {}, false, 1, false, "", true},
+        {"BlendToReferenceCamera", "BlendToReferenceCamera", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"TriggerReset", "TriggerReset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"Speed", "Speed", "Float", true, 0.01f, 0.0f, 10.0f},
+        {"Forward", "Forward", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Sideways", "Sideways", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"UpDown", "UpDown", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"RotationSpeed", "RotationSpeed", "Float", true, 0.2f, 0.0f, 10.0f},
+        {"Yaw", "Yaw", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Pitch", "Pitch", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"Roll", "Roll", "Float", true, 0.0f, -10.0f, 10.0f},
+        {"FOV", "FOV", "Float", true, 0.0f, -10.0f, 10.0f}},
+       nullptr,
+       "render.camera"},
   };
   return specs;
 }
