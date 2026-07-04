@@ -100,6 +100,7 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
   RenderCommand inCmd;          // Camera op's Command subtree (Cut 3); empty unless a Command input wired
   bool haveInCmd = false;
   bool havePts = false;
+  ActiveCamera refCam;          // ReuseCamera: referenced camera off an "Object" wire (inactive = none)
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& port = s->ports[i];
     if (!port.isInput) continue;
@@ -121,6 +122,17 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
       // upstream tex node (same cook-upstream-on-demand as Points). Borrowed, single-frame.
       const Connection* c = g.connectionToInput(pinId(id, (int)i));
       if (c) inTex = cookTexNode(pinNode(c->fromPin), (c->fromPin - 1) % 100);
+    } else if (port.dataType == "Object" && !refCam.active) {
+      // ReuseCamera CameraReference gather (camera-B): resolve the WIRED source node's camera params
+      // DRIVER-side (only the driver reaches another node's resolved params) through the ONE shared
+      // resolveReferencedCamera — the resident twin calls the same helper (S2c mirror law). Unwired /
+      // non-camera source → refCam stays inactive → the op returns empty (ReuseCamera.cs:17-29).
+      const Connection* c2 = g.connectionToInput(pinId(id, (int)i));
+      if (c2) {
+        const Node* src = g.node(pinNode(c2->fromPin));
+        if (src)
+          resolveReferencedCamera(src->type, *nodeParams(pinNode(c2->fromPin)), ctx.localFxTime, refCam);
+      }
     } else if (port.dataType == "Command" && !haveInCmd) {
       // S2a KEYSTONE — MultiInput Command collector (TiXL Execute.cs; full doc in point_ops_execute.cpp):
       // concat N wired chains in wire order. S1: SetRequestedResolution pushes resolution (save/restore).
@@ -223,6 +235,14 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
   cc.ctxVars = ctxVars;  // S3a: a Command op cooked in a SubGraph reads the scoped var off this
   cc.meshVtx = inMeshVtx; cc.meshIdx = inMeshIdx; cc.meshFaceCount = inMeshFaces;
   cc.params = nodeParams(id);
+  if (refCam.active) {  // ReuseCamera: surface the referenced camera's raw params (mirrored on resident)
+    cc.hasRefCamera = true;
+    for (int k = 0; k < 3; ++k) {
+      cc.refCamEye[k] = refCam.eye[k]; cc.refCamTarget[k] = refCam.target[k]; cc.refCamUp[k] = refCam.up[k];
+    }
+    cc.refCamFovDeg = refCam.fovDeg; cc.refCamNear = refCam.nearClip; cc.refCamFar = refCam.farClip;
+    cc.refCamAspect = refCam.aspect;
+  }
   // CAMERA bridge: surface the C1 live Camera (set around an enclosing Camera's SubGraph cook, so a
   // Command op cooked inside it sees this) onto cc → RotateTowards FORK#2 reads it. MIRRORED on resident.
   if (const ActiveCamera* lc = liveActiveCamera()) {

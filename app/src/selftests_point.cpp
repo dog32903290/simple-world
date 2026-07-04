@@ -93,6 +93,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"orthographiccamera", runOrthographicCameraSelfTest},  // C2: OrthographicCamera ortho projection (flat+resident)
     {"shiftcamera", runShiftCameraSelfTest},  // camera-B: ShiftCamera additive CameraToClipSpace nudge (math + resident render flip)
     {"visiblegizmos", runVisibleGizmosSelfTest},  // camera-B: VisibleGizmos MultiInput visibility gate (On/Off/Inherit truth table, resident)
+    {"reusecamera", runReuseCameraSelfTest},  // camera-B: ReuseCamera referenced-camera push (Object wire, flat+resident + missing-ref drop)
     {"execute", runExecuteSelfTest},
     {"layercompose", runLayerComposeSelfTest},
     {"group", runGroupSelfTest},

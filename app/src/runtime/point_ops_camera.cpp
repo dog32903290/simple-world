@@ -150,6 +150,16 @@ bool& cameraScopeBugSkipPush() {
   return v;
 }
 
+bool resolveReferencedCamera(const std::string& opType, const std::map<std::string, float>& params,
+                             float localFxTime, ActiveCamera& out) {
+  (void)localFxTime;  // the OrbitCamera provider seam (time-dependent eye); unused by "Camera"
+  if (opType == "Camera") {  // v1 provider set (fork-reusecamera-provider-set, point_ops_camera_scope.h)
+    out = resolveActiveCamera(params);
+    return true;
+  }
+  return false;  // non-camera source → ReuseCamera.cs:25-29 invalid-reference posture
+}
+
 LiveCameraScope::LiveCameraScope(const ActiveCamera& cam)
     : prev_(t_liveActiveCamera), engaged_(cam.active) {
   // ENGAGE only on an active Camera push (an inactive scope / non-Camera Command leaves the prior live

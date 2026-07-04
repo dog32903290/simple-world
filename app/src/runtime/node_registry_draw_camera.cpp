@@ -31,7 +31,11 @@ const std::vector<NodeSpec>& drawCameraSpecs() {
         {"FieldOfView", "FieldOfView", "Float", true, 45.0f, 1.0f, 179.0f},
         {"ClipPlanes.x", "ClipPlanes", "Float", true, 0.01f, 0.0001f, 1000.0f, Widget::Vec, {}, true, 2},
         {"ClipPlanes.y", "ClipPlanes.y", "Float", true, 1000.0f, 0.0001f, 100000.0f, Widget::Vec, {}, true, 1},
-        {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
+        {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f},
+        // Reference OUTPUT (TiXL Camera.cs:16-17 Slot<Object> Reference): the camera-instance handle a
+        // ReuseCamera's CameraReference wire consumes (the cook driver resolves the SOURCE node's params
+        // via resolveReferencedCamera — no value flows through this pin; it is the wire's anchor).
+        {"Reference", "Reference", "Object", false}},
        nullptr,
        "render.camera"},
       // OrthographicCamera (TiXL Lib.render.camera.OrthographicCamera): the perspective Camera's twin — wraps
@@ -75,6 +79,18 @@ const std::vector<NodeSpec>& drawCameraSpecs() {
         {"Translation.x", "Translation", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
         {"Translation.y", "Translation.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
         {"Translation.z", "Translation.z", "Float", true, 0.0f, -1000.0f, 1000.0f, Widget::Vec, {}, true, 1}},
+       nullptr,
+       "render.camera"},
+      // ReuseCamera (TiXL Lib.render.camera.ReuseCamera): renders its Command subtree through ANOTHER
+      // camera's matrices — CameraReference (Slot<Object>) wired from a Camera's Reference output
+      // (ReuseCamera.cs:31-41 push/pop). The cook DRIVER resolves the wire's source node into raw camera
+      // params (resolveReferencedCamera, both legs); cookReuseCamera stamps them like cookCamera. A
+      // missing/invalid reference drops the subtree (cs:17-29 warn + no render). FORKS (named,
+      // point_ops_reusecamera.h): v1 provider = Camera only; gather-side-effects; no point-rail scope.
+      {"ReuseCamera", "ReuseCamera",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"CameraReference", "CameraReference", "Object", true}},
        nullptr,
        "render.camera"},
   };

@@ -165,6 +165,20 @@ struct CmdCookCtx {
   bool hasCamera = false;
   float worldToCamera[16] = {0};  // == ObjectToCamera (identity O2W); LookAtRH(eye,target,up)
   float cameraToWorld[16] = {0};  // inverse(WorldToCamera); camera WORLD pos = transform((0,0,0), this)
+  // REFERENCED CAMERA (ReuseCamera, camera-B): the RAW camera params of the node wired into this op's
+  // "Object" input port (TiXL Slot<Object> CameraReference). The cook DRIVER resolves them (only the
+  // driver can reach another node's resolved params — resolveReferencedCamera, shared by BOTH legs so
+  // flat/resident can't diverge) and hands them here; cookReuseCamera stamps them onto its subtree
+  // items exactly like cookCamera. false = unwired / non-camera source → the op returns an EMPTY chain
+  // (ReuseCamera.cs:17-29 warn-and-skip). Every op without an Object port ignores these → byte-identical.
+  bool hasRefCamera = false;
+  float refCamEye[3] = {0.0f, 0.0f, 0.0f};
+  float refCamTarget[3] = {0.0f, 0.0f, 0.0f};
+  float refCamUp[3] = {0.0f, 1.0f, 0.0f};
+  float refCamFovDeg = 45.0f;
+  float refCamNear = 0.01f;
+  float refCamFar = 1000.0f;
+  float refCamAspect = 0.0f;  // <=0 → executor output aspect (Camera.cs:53-55 fallback)
 };
 // A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.
 using PointCmdFn = RenderCommand (*)(CmdCookCtx&);
