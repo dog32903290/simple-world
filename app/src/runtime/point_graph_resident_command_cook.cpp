@@ -98,6 +98,7 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   std::vector<uint32_t> inCmdWireCounts;  // per-wire item counts of the generic gather (spread seam)
   bool haveInCmd = false;
   bool havePts = false;
+  std::vector<CmdCookCtx::CmdCameraRef> camRefs;  // camera-A: wired Object refs (BlendCameras/ActionCamera)
   ActiveCamera refCam;          // ReuseCamera: referenced camera off an "Object" wire (inactive = none)
   for (const PortSpec& port : s->ports) {
     if (!port.isInput) continue;
@@ -123,14 +124,50 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
       const ResidentInput* ri = n->input(port.id);
       if (ri && ri->driver == ResidentInput::Driver::Connection)
         inTex = cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId);
-    } else if (port.dataType == "Object" && !refCam.active) {
-      // ReuseCamera CameraReference gather (resident mirror — PRODUCTION runs THIS leg): the SAME
-      // resolveReferencedCamera the flat twin calls (S2c mirror law); source node off the primary wire.
+    } else if (port.dataType == "Object") {
+      // The TWO camera-reference gathers share the "Object" wire currency (merge unification,
+      // camera-A × camera-B; resident mirror — PRODUCTION runs THIS leg):
+      // (1) camera-B single-ref (ReuseCamera): the SAME resolveReferencedCamera the flat twin calls
+      //     (S2c mirror law); source node off the FIRST Object port's primary wire.
+      // (2) camera-A structural multi-ref (BlendCameras/ActionCamera): EVERY wire (primary +
+      //     extraConns, wire order) resolves its UPSTREAM node to (opType, resolved params, path)
+      //     with ONE nested Object level (ActionCamera.ReferenceCamera;
+      //     fork-cameraref-one-level-nesting). CmdCookCtx::cameraRefs doc has the currency contract.
+      auto resolveRef = [&](const std::string& upPath) {
+        const ResidentNode* up = rg.node(upPath);
+        if (!up) return;
+        CmdCookCtx::CmdCameraRef ref;
+        ref.opType = up->opType;
+        ref.params = nodeParams(upPath);
+        ref.nodePath = upPath;
+        if (const NodeSpec* us = findSpec(up->opType))
+          for (const PortSpec& p2 : us->ports) {
+            if (!p2.isInput || p2.dataType != "Object") continue;
+            const ResidentInput* ri2 = up->input(p2.id);
+            if (!ri2 || ri2->driver != ResidentInput::Driver::Connection) continue;
+            auto pushNested = [&](const std::string& p) {
+              if (const ResidentNode* up2 = rg.node(p)) {
+                CmdCookCtx::CmdCameraRef r2;
+                r2.opType = up2->opType;
+                r2.params = nodeParams(p);
+                r2.nodePath = p;
+                ref.upstreamRefs.push_back(std::move(r2));
+              }
+            };
+            pushNested(ri2->srcNodePath);
+            for (const auto& ec2 : ri2->extraConns) pushNested(ec2.first);
+          }
+        camRefs.push_back(std::move(ref));
+      };
       const ResidentInput* ri = n->input(port.id);
       if (ri && ri->driver == ResidentInput::Driver::Connection) {
-        const ResidentNode* src = rg.node(ri->srcNodePath);
-        if (src)
-          resolveReferencedCamera(src->opType, *nodeParams(ri->srcNodePath), ctx.localFxTime, refCam);
+        if (!refCam.active) {
+          const ResidentNode* src = rg.node(ri->srcNodePath);
+          if (src)
+            resolveReferencedCamera(src->opType, *nodeParams(ri->srcNodePath), ctx.localFxTime, refCam);
+        }
+        resolveRef(ri->srcNodePath);
+        for (const auto& ec : ri->extraConns) resolveRef(ec.first);
       }
     } else if (port.dataType == "Command" && !haveInCmd) {
       // S2a KEYSTONE — resident mirror of the flat MultiInput Command collector (doc: point_ops_execute
@@ -249,6 +286,7 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   cc.inputCommand = haveInCmd ? &inCmd : nullptr;
   cc.inputCmdWireItemCounts = std::move(inCmdWireCounts);  // spread seam (empty for non-generic gathers)
   cc.ctxVars = ctxVars;  // S3a: SubGraph Command ops read the scoped var off this (resident leg)
+  cc.cameraRefs = std::move(camRefs);  // camera-A: wired CameraRef inputs (empty for every other op)
   cc.params = nodeParams(path);
   if (refCam.active) {  // ReuseCamera: surface the referenced camera (IDENTICAL to the flat leg's fill)
     cc.hasRefCamera = true;

@@ -36,6 +36,10 @@ void registerRasterizerOp();      // Seam 2: Command → Command (render-state S
 void registerOutputMergerOp();    // Seam 2: Command → Command (render-state STAMP: blend + depth STAGE; point_ops_renderstate.cpp)
 void registerInputAssemblerOp();  // Seam 2: Command → Command (render-state STAMP: PrimitiveTopology; point_ops_inputassembler.cpp)
 void registerDrawExplicitOp();    // Seam 2: Command SOURCE (DrawKind::Explicit raw N-vertex draw; point_ops_draw_explicit.cpp)
+void registerCameraValueOps();    // camera-A: CamPosition Command no-op hook (values ride the frame-level
+                                  // cookCameraValueOutputNodes pass; resident_camera_value_cook.cpp)
+void registerCameraWithRotationOp();  // camera-A: rotation-driven camera push (point_ops_camerawithrotation.cpp)
+void registerBlendCamerasOp();        // camera-A: slerp-blend of referenced cameras (point_ops_blendcameras.cpp)
 
 void registerDrawPointOps() {
   registerCmdOp("DrawPoints", cookDrawPoints);  // Points → Command (was a draw op)
@@ -48,6 +52,9 @@ void registerDrawPointOps() {
   registerLayer2dOp();                          // Texture2D → Command (DrawKind::Layer2d, camera-context seam)
   registerCameraOp();                           // Command → Command (explicit camera push/pop, Cut 3)
   registerOrthographicCameraOp();                // Command → Command (ORTHOGRAPHIC projection push, camera3d C2)
+  registerCameraValueOps();                      // Command SOURCE no-op (CamPosition — values on the frame-level pass)
+  registerCameraWithRotationOp();                // Command → Command (rotation-driven camera push, camera-A)
+  registerBlendCamerasOp();                      // Command → Command (slerp-blend of camera refs, camera-A)
   registerShiftCameraOp();                       // Command → Command (additive CameraToClipSpace nudge, camera-B)
   registerVisibleGizmosOp();                     // Command(MultiInput) → Command (gizmo visibility gate, camera-B)
   registerReuseCameraOp();                       // Command → Command (referenced-camera push via Object wire, camera-B)

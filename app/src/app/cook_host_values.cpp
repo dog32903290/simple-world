@@ -27,6 +27,9 @@ void cookColorPickNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 // cooked texture INTO this frame (texFor = PointGraph::residentTexFor).
 void cookPickColorFromImageNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
                                  const std::function<MTL::Texture*(const std::string&)>& texFor);
+// Camera value-output cook-emit pass (resident_camera_value_cook.cpp: CamPosition — the ambient-camera
+// twin of cookValueOutputNodes). Same leaf-local hook shape as cookColorPickNodes above.
+void cookCameraValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 }  // namespace sw
 
 namespace sw::framecook {
@@ -99,6 +102,11 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // Same once-per-frame slot family as cookColorListNodes; stateless (a pure function of the resolved SRT
   // Float inputs). PointToMatrix's emit is deferred (needs a point into this frame-level pass).
   cookMatrixOutputNodes(g, hsCtx);
+
+  // Cook the CAMERA value-output ops (CamPosition — camera-A lane): the ambient-camera twin of
+  // cookValueOutputNodes. Resolves each op's enclosing camera STRUCTURALLY off the resident graph
+  // (resident_camera_value_cook.cpp) and writes Position/Direction/AspectRatio onto extOut. Stateless.
+  cookCameraValueOutputNodes(g, hsCtx);
 
   // [SetPlaybackTime]/[SetPlaybackSpeed] pull (SetPlaybackTime.cs:54 / SetPlaybackSpeed.cs:48), folded in
   // here (not a separate frame_cook line) so frame_cook stays at-or-below its line-count cap — the
