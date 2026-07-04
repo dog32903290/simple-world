@@ -236,13 +236,13 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, 
   // Cook one node (resolve Float inputs + the String VariableName, step, write extOut).
   auto cookOne = [&](ResidentNode& rn) {
     std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
-    // context-var ops read the resolved String VariableName off the resident node's strInputs (the
-    // string sub-seam channel; empty for every non-var op → harmless). NOT smuggled through a float.
-    std::string varName;
+    // context-var ops read the resolved String VariableName off strInputs (string sub-seam; empty for non-var ops; NOT smuggled through a float).
     auto vit = rn.strInputs.find("VariableName");
-    if (vit != rn.strInputs.end()) varName = vit->second;
+    const std::string varName = (vit != rn.strInputs.end()) ? vit->second : std::string();
     float out[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // ≥3-output ops (HasVec3Changed=7)
-    cookStatefulValueOp(rn.opType, P, dtSecs, timeSecs, state[rn.path], out, tr, &vars, varName);
+    // EaseKeys-family seam hook (meat in runtime/stateful_value_ops_easekeys.cpp — reads the keyframe curves on rn's OWN Automation drivers, def-layer context P cannot carry).
+    if (!cookEaseKeysNode(rn, rctx, P, out))  // false for every other op → generic path unchanged
+      cookStatefulValueOp(rn.opType, P, dtSecs, timeSecs, state[rn.path], out, tr, &vars, varName);
     for (int i = 0; i < 8; ++i) rn.extOut[i] = out[i];
   };
 

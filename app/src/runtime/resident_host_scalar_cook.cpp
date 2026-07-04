@@ -60,6 +60,7 @@ bool tryParseInt32(const std::string& s, int& out);
 // StringToDateTime's shared cook math (host_scalar_ops_stringtodatetime.cpp) — same byte-identical
 // contract: the dedicated branch below and the flat cook both call this ONE helper.
 float stringToDateTimeEpoch(const std::string& dateString);
+float valueToRateResult(const std::string& rates, float value);  // host_scalar_ops_valuetorate.cpp
 
 namespace {
 
@@ -274,19 +275,22 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
       rn.extOut[0] = idx;  // Index output port index 0
       continue;
     }
-    // TryParse / TryParseInt resident leg (String input → host scalar → extOut[0]). Both use the full
-    // HostScalarOp registry (findHostScalarOp returns a real cook fn), but the generic loop below would
-    // skip them via the String-input guard. This dedicated branch handles them FIRST — the resident twin
-    // of the flat cookFlatHostScalar (which gathers the String via gatherStringInputs):
-    //   • Port 1 "String"  → gathered via cookResidentString (wired) or strInputs (const)
-    //   • Param "Default"  → resolved Float fallback (resolveResidentFloatInputs)
-    // Computes parse-or-default with the SHARED helper (byte-identical to the flat cook), writes extOut[0].
+    // TryParse / TryParseInt / ValueToRate resident leg (ONE String input + Float params → host scalar
+    // → extOut[0]). All three use the full HostScalarOp registry (findHostScalarOp returns a real cook
+    // fn), but the generic loop below would skip them via the String-input guard. This dedicated branch
+    // handles them FIRST — the resident twin of the flat cookFlatHostScalar (which gathers the String
+    // via gatherStringInputs):
+    //   • the one String port ("String" / "Rates") → gathered via cookResidentString (wired) or
+    //     strInputs (const)
+    //   • Float params ("Default" / "Value")       → resolveResidentFloatInputs
+    // Computes with the SHARED helpers (byte-identical to the flat cooks), writes extOut[0].
     // Teeth: hostScalarInjectBug() writes a sentinel; the golden red case fires on the actual cook path
     // (NOT by flipping expected values — mirror of StringLength / IndexOf).
-    if (rn.opType == "TryParse" || rn.opType == "TryParseInt" || rn.opType == "StringToDateTime") {
-      // StringToDateTime rides this SAME branch (identical shape: ONE String input → scalar via the
-      // shared leaf helper; no Default param). Its "DateString" is the first String port the generic
-      // gather below finds — byte-identical parse to the flat cook via stringToDateTimeEpoch.
+    // StringToDateTime rides this SAME branch (identical shape: ONE String input → scalar via the
+    // shared leaf helper; no Default param). Its "DateString" is the first String port the generic
+    // gather below finds — byte-identical parse to the flat cook via stringToDateTimeEpoch.
+    if (rn.opType == "TryParse" || rn.opType == "TryParseInt" || rn.opType == "StringToDateTime" ||
+        rn.opType == "ValueToRate") {
       const NodeSpec* s = findSpec(rn.opType);
       if (!s) continue;
       // Gather the ONE String input (port 1 "String") — wired upstream string or strDef const.
@@ -314,11 +318,14 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
         const float def = getDef(0.0f);
         result = def;
         tryParseFloat(in, result);  // leaves result == def on failure
-      } else {  // TryParseInt — int dissolve to Float
+      } else if (rn.opType == "TryParseInt") {  // int dissolve to Float
         const float defF = getDef(0.0f);
         int parsed = (int)(defF >= 0.0f ? (defF + 0.5f) : (defF - 0.5f));
         tryParseInt32(in, parsed);  // leaves parsed == default on failure
         result = (float)parsed;
+      } else {  // ValueToRate — pick _ratios[(int)((n-1)*clamp(Value,0,0.99)+0.5)] from the Rates lines
+        auto vit = params.find("Value");
+        result = valueToRateResult(in, vit != params.end() ? vit->second : 0.5f);
       }
       if (hostScalarInjectBug()) result = -999.0f;  // golden teeth (mirror flat cook)
       rn.extOut[0] = result;  // Result output port index 0

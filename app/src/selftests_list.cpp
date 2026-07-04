@@ -57,5 +57,6 @@ REGISTER_SELFTESTS(/*orderBase=*/330,
     {"stringtodatetime", runStringToDateTimeSelfTest},      // StringToDateTime: String -> DateTime route-B epoch (parse-or-0), flat + resident bridge
     {"stringtodatetime", runStringToDateTimeSelfTest},      // StringToDateTime: String -> DateTime route-B epoch (parse-or-0), flat + resident bridge
     {"mergelists", runMergeListsSelfTest},                  // MergeFloatLists/MergeIntLists (Append/Htp/Average) + PickFloatList, chain-through-evalFloat
+    {"valuetorate", runValueToRateSelfTest},                // ValueToRate: String rate table + Value -> picked rate, flat + resident bridge
 );
 }  // namespace sw
