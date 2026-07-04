@@ -12,6 +12,10 @@
 #include "runtime/point_ops_setvarcmd.h"  // S3a: registerSetVarCmdOps (Command-rail SetFloatVarCmd/SetIntVarCmd)
 #include "runtime/point_ops_spread.h"     // render lane: registerSpreadOps (SpreadIntoGrid/SpreadLayout per-wire SRT)
 #include "runtime/point_ops_getscreenpos.h"  // render lane: registerGetScreenPosOp (world→screen projection + value latch)
+#include "runtime/point_ops_shiftcamera.h"  // camera-B: registerShiftCameraOp (Command→Command projection nudge)
+#include "runtime/point_ops_visiblegizmos.h"  // camera-B: registerVisibleGizmosOp (MultiInput Command visibility gate)
+#include "runtime/point_ops_reusecamera.h"  // camera-B: registerReuseCameraOp (referenced-camera push)
+#include "runtime/point_ops_orbitcamera.h"  // camera-B: registerOrbitCameraOp (animated orbit/wobble camera)
 
 namespace sw {
 
@@ -42,6 +46,10 @@ void registerDrawPointOps() {
   registerLayer2dOp();                          // Texture2D → Command (DrawKind::Layer2d, camera-context seam)
   registerCameraOp();                           // Command → Command (explicit camera push/pop, Cut 3)
   registerOrthographicCameraOp();                // Command → Command (ORTHOGRAPHIC projection push, camera3d C2)
+  registerShiftCameraOp();                       // Command → Command (additive CameraToClipSpace nudge, camera-B)
+  registerVisibleGizmosOp();                     // Command(MultiInput) → Command (gizmo visibility gate, camera-B)
+  registerReuseCameraOp();                       // Command → Command (referenced-camera push via Object wire, camera-B)
+  registerOrbitCameraOp();                       // Command → Command (animated orbit/wobble camera push, camera-B)
   registerExecuteOp();                           // Command(MultiInput) → Command (S2a KEYSTONE: N-chain concat)
   registerGroupOp();                             // Command(MultiInput) → Command (S2b: Execute + SRT transform-context push)
   registerSpreadOps();                           // Command(MultiInput) → Command (render lane: per-WIRE SRT — SpreadIntoGrid/SpreadLayout)

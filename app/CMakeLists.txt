@@ -602,6 +602,7 @@ add_executable(simple_world
   src/runtime/node_registry_draw_camera.cpp  # camera family specs (Camera/OrthographicCamera — parallel-lane peel)
   src/runtime/node_registry_draw_flow.cpp  # flow family specs (Execute/Loop/… — parallel-lane peel)
   src/runtime/node_registry_draw_data.cpp  # data family specs (lane hook, starts empty — parallel-lane peel)
+  src/runtime/node_registry_draw_gizmo.cpp  # gizmo family specs (VisibleGizmos — camera-B parallel-lane peel)
   src/runtime/node_registry_draw_transform.cpp  # render-island transform-context specs (peeled for the ratchet)
   src/runtime/node_registry_draw_renderstate.cpp  # Seam 2 render-state specs (Rasterizer/OutputMerger, peeled for the ratchet)
   ${SW_MATH_SRCS}  # globbed: math_op_registry.cpp + every per-subfamily math leaf

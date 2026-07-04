@@ -98,6 +98,7 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   std::vector<uint32_t> inCmdWireCounts;  // per-wire item counts of the generic gather (spread seam)
   bool haveInCmd = false;
   bool havePts = false;
+  ActiveCamera refCam;          // ReuseCamera: referenced camera off an "Object" wire (inactive = none)
   for (const PortSpec& port : s->ports) {
     if (!port.isInput) continue;
     if (port.dataType == "Points" && !havePts) {
@@ -122,6 +123,15 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
       const ResidentInput* ri = n->input(port.id);
       if (ri && ri->driver == ResidentInput::Driver::Connection)
         inTex = cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId);
+    } else if (port.dataType == "Object" && !refCam.active) {
+      // ReuseCamera CameraReference gather (resident mirror — PRODUCTION runs THIS leg): the SAME
+      // resolveReferencedCamera the flat twin calls (S2c mirror law); source node off the primary wire.
+      const ResidentInput* ri = n->input(port.id);
+      if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        const ResidentNode* src = rg.node(ri->srcNodePath);
+        if (src)
+          resolveReferencedCamera(src->opType, *nodeParams(ri->srcNodePath), ctx.localFxTime, refCam);
+      }
     } else if (port.dataType == "Command" && !haveInCmd) {
       // S2a KEYSTONE — resident mirror of the flat MultiInput Command collector (doc: point_ops_execute
       // .cpp). MultiInput Command (Execute) concats the primary wire (srcNodePath) + extraConns (批次25,
@@ -240,6 +250,14 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   cc.inputCmdWireItemCounts = std::move(inCmdWireCounts);  // spread seam (empty for non-generic gathers)
   cc.ctxVars = ctxVars;  // S3a: SubGraph Command ops read the scoped var off this (resident leg)
   cc.params = nodeParams(path);
+  if (refCam.active) {  // ReuseCamera: surface the referenced camera (IDENTICAL to the flat leg's fill)
+    cc.hasRefCamera = true;
+    for (int k = 0; k < 3; ++k) {
+      cc.refCamEye[k] = refCam.eye[k]; cc.refCamTarget[k] = refCam.target[k]; cc.refCamUp[k] = refCam.up[k];
+    }
+    cc.refCamFovDeg = refCam.fovDeg; cc.refCamNear = refCam.nearClip; cc.refCamFar = refCam.farClip;
+    cc.refCamAspect = refCam.aspect;
+  }
   // CAMERA bridge (resident mirror — PRODUCTION runs THIS leg; the S2c flat-resident gate): surface the
   // C1 live Camera onto cc so RotateTowards FORK#2 reads it. IDENTICAL to the flat leg's populate.
   if (const ActiveCamera* lc = liveActiveCamera()) {

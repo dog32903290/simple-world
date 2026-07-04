@@ -75,6 +75,16 @@ struct LiveCameraScope {
 // (point_graph_internal.h) to build the point-rail matrices from the wired Camera instead of the default.
 const ActiveCamera* liveActiveCamera();
 
+// ReuseCamera CameraReference resolve (camera-B): the RAW camera an "Object" wire's SOURCE node defines,
+// from its resolved Float params. Returns false for a non-camera source (ReuseCamera.cs:25-29 invalid-
+// reference warn). ONE shared code path called by BOTH cook legs' Object-input gather (the S2c mirror
+// law). `localFxTime` (bars) is unused by the perspective Camera; it is the seam a time-dependent
+// provider (OrbitCamera) plugs into without an ABI change. v1 providers: "Camera"
+// [fork-reusecamera-provider-set: OrthographicCamera refs deferred — the ref stamp carries no ortho
+// Scale/Stretch fields yet]. Defined in point_ops_camera.cpp.
+bool resolveReferencedCamera(const std::string& opType, const std::map<std::string, float>& params,
+                             float localFxTime, ActiveCamera& out);
+
 // Build the point-rail camera matrices (ObjectToCamera + CameraToWorld, row-major) from an ActiveCamera.
 // The SAME convention as field_camera's pointCameraMatrices, just with the Camera op's eye/target/up instead
 // of the SetDefaultCamera defaults. These two matrices are aspect-INDEPENDENT (LookAtRH + inverse, no

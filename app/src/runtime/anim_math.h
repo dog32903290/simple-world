@@ -64,9 +64,13 @@ inline uint32_t xxHash(uint32_t p) {
 inline float perlinNoiseFade(float t) { return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f); }
 inline float perlinLerp(float a, float b, float t) { return a + (b - a) * t; }  // MathUtils.Lerp
 inline float perlinNoiseHash(int x, int seed) {
-  int n = x + seed * 137;
+  // C# runs this hash in UNCHECKED int32 (silent two's-complement wrap); C++ signed overflow is UB
+  // (UBSan fired on the OrbitCamera seeds), so the arithmetic runs in uint32_t — the wrap is
+  // bit-identical and the & 0x7fffffff makes the sign bit irrelevant. Numerically unchanged.
+  uint32_t n = (uint32_t)x + (uint32_t)seed * 137u;
   n = (n << 13) ^ n;
-  return (float)(1.0 - ((n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff) / 1073741824.0);
+  const uint32_t m = n * (n * n * 15731u + 789221u) + 1376312589u;
+  return (float)(1.0 - (double)(m & 0x7fffffffu) / 1073741824.0);
 }
 inline float perlinNoise(float value, float period, int octaves, int seed) {
   float noiseSum = 0.0f;

@@ -91,6 +91,10 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"camera-scope", runCameraScopeSelfTest},        // C1: point-camera hole closed (flat + resident)
     {"camera-resident", runCameraResidentSelfTest},  // C0: Camera→Layer2d through the resident terminal
     {"orthographiccamera", runOrthographicCameraSelfTest},  // C2: OrthographicCamera ortho projection (flat+resident)
+    {"shiftcamera", runShiftCameraSelfTest},  // camera-B: ShiftCamera additive CameraToClipSpace nudge (math + resident render flip)
+    {"visiblegizmos", runVisibleGizmosSelfTest},  // camera-B: VisibleGizmos MultiInput visibility gate (On/Off/Inherit truth table, resident)
+    {"reusecamera", runReuseCameraSelfTest},  // camera-B: ReuseCamera referenced-camera push (Object wire, flat+resident + missing-ref drop)
+    {"orbitcamera", runOrbitCameraSelfTest},  // camera-B: OrbitCamera angle->position pipeline (transcription oracle + invariants + resident render)
     {"execute", runExecuteSelfTest},
     {"layercompose", runLayerComposeSelfTest},
     {"group", runGroupSelfTest},
