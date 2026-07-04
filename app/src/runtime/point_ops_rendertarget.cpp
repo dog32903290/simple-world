@@ -144,12 +144,27 @@ void cookRenderTarget(TexCookCtx& c) {
   // PSO (draw_quad_xf_vs + the shared draw_screenquad_fs), the clip-space ScreenQuad leaf untouched.
   MTL::RenderPipelineState* psoL2[2] = {nullptr, nullptr};  // [Normal, Additive]
   // F1 — function-local transform context (NOT a runtime global): the default camera FORWARD pair for
-  // THIS output's aspect (the resolution-pin point). When no Camera op is present (Cut 1: always),
-  // ObjectToClipSpace = ObjectToWorld · defaultWorldToCamera · defaultCameraToClipSpace. Built once
-  // here, reused per Layer2d item; Cut 2's Camera op will push/pop this context.
+  // THIS output's aspect (the resolution-pin point); ObjectToClipSpace = o2w·defaultW2C·defaultC2C.
   const float aspectF =
       (c.output->height() > 0) ? (float)c.output->width() / (float)c.output->height() : 1.0f;
   const LayerCameraForward camFwd = defaultLayerCameraForward(aspectF);
+  // Per-item camera (Cut 3 + camera-B): a stamped Camera/Ortho op replaces the default pair (aspect =
+  // camAspect>0 ? camAspect : this output's — Camera.cs:53-55 fallback); then the ShiftCamera stamp
+  // nudges the composed projection additively (ShiftCamera.cs:34-36; M31/M32/M33 = m[8]/m[9]/m[10]).
+  auto itemCamera = [&](const RenderDrawItem& it) -> LayerCameraForward {
+    LayerCameraForward cam = camFwd;
+    if (it.hasCamera)
+      cam = stampedCameraForward(it.camEye, it.camTarget, it.camUp, it.camOrtho, it.camFovDeg,
+                                 it.camOrthoScale, it.camOrthoStretch,
+                                 (it.camAspect > 0.0001f) ? it.camAspect : aspectF, it.camNear,
+                                 it.camFar);
+    if (it.hasClipShift) {
+      cam.cameraToClipSpace.m[8] += it.clipShift[0];
+      cam.cameraToClipSpace.m[9] += it.clipShift[1];
+      cam.cameraToClipSpace.m[10] += it.clipShift[2];
+    }
+    return cam;
+  };
 
   // ── Seam 2 per-item BLEND-PSO cache (OutputMerger materialization) ──────────────────────────────
   // A STAMPED item (it.hasRenderState) draws with a PSO whose blend equation comes from it.frozen (via
@@ -446,22 +461,12 @@ void cookRenderTarget(TexCookCtx& c) {
           P.width = it.width; P.height = it.height;
           P.clampMax[0] = it.clampMax[0]; P.clampMax[1] = it.clampMax[1];
           P.clampMax[2] = it.clampMax[2]; P.clampMax[3] = it.clampMax[3];
-          // F1: the EXECUTOR finishes ObjectToClipSpace with this output's default camera (the
-          // resolution-pin aspect). TransformBufferLayout.cs:13-16 order: o2w·worldToCamera·cameraToClipSpace.
-          // Cut 2: ObjectToWorld is the SRT stack (TiXL _ProcessLayer2d) composed HERE — the ScaleMode
-          // aspect coupling needs viewAspect (camera, executor-local) AND imageAspect (srcTexture).
-          // Cut 3: if this item was stamped by a Camera op (it.hasCamera), build ITS WorldToCamera/
-          // CameraToClipSpace from the raw params (TiXL Camera.cs BuildProjectionMatrices, v1 scope)
-          // instead of the default — reproducing the push/pop context. Aspect: camAspect>0 uses it,
-          // else this output's aspect (Camera.cs:53-55 RequestedResolution fallback). Both the SRT
-          // viewAspect AND the projection use this camera (faithful — _ProcessLayer2d reads context's
-          // CameraToClipSpace, which the Camera op set).
-          LayerCameraForward cam = camFwd;
-          if (it.hasCamera) {
-            float ar = (it.camAspect > 0.0001f) ? it.camAspect : aspectF;  // Camera.cs:53-55 fallback
-            cam = stampedCameraForward(it.camEye, it.camTarget, it.camUp, it.camOrtho, it.camFovDeg,
-                                       it.camOrthoScale, it.camOrthoStretch, ar, it.camNear, it.camFar);
-          }
+          // F1: the EXECUTOR finishes ObjectToClipSpace (TransformBufferLayout.cs:13-16 order:
+          // o2w·worldToCamera·cameraToClipSpace). Cut 2: ObjectToWorld = the SRT stack (TiXL
+          // _ProcessLayer2d) composed HERE — ScaleMode couples viewAspect (camera) + imageAspect
+          // (srcTexture). Cut 3 + camera-B: itemCamera resolves the stamped push + ShiftCamera nudge;
+          // both the SRT viewAspect AND the projection use it (= context's CameraToClipSpace in TiXL).
+          LayerCameraForward cam = itemCamera(it);
           Mat4 objectToWorld{};
           if (it.layer2dComposeSRT) {
             // viewAspect = CameraToClipSpace.M22/M11 (_ProcessLayer2d.cs:37). imageAspect = srcW/srcH.
@@ -509,13 +514,8 @@ void cookRenderTarget(TexCookCtx& c) {
           if (!psoMesh) break;
           enc->setRenderPipelineState(psoMesh);
           // Compose ObjectToClipSpace EXACTLY like Layer2d (object→world = identity for a mesh; the SRT
-          // stack belongs to a parent Transform op, deferred), with the default OR the stamped camera.
-          LayerCameraForward cam = camFwd;
-          if (it.hasCamera) {
-            float ar = (it.camAspect > 0.0001f) ? it.camAspect : aspectF;  // Camera.cs:53-55 fallback
-            cam = stampedCameraForward(it.camEye, it.camTarget, it.camUp, it.camOrtho, it.camFovDeg,
-                                       it.camOrthoScale, it.camOrthoStretch, ar, it.camNear, it.camFar);
-          }
+          // stack belongs to a parent Transform op, deferred): itemCamera = stamped/default + ShiftCamera.
+          LayerCameraForward cam = itemCamera(it);
           // S2b GROUP SRT: same per-item group push as Layer2d (a mesh's own O2W is identity here — the
           // SRT belongs to a parent Transform op, deferred — so the group IS its ObjectToWorld). Identity
           // when no Group → byte-identical.

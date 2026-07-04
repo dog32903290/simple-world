@@ -42,6 +42,7 @@ REGISTER_SELFTESTS(/*orderBase=*/310,
     {"amplifyvalues", runAmplifyValuesSelfTest},            // AmplifyValues cross-frame STATE (damp toward input over frames; flat + R-2 production-resident)
     {"dampfloatlist", runDampFloatListSelfTest},            // DampFloatList cross-frame STATE (per-index damp + dt-gate; flat + production-resident)
     {"keepfloatvalues", runKeepFloatValuesSelfTest},        // KeepFloatValues cross-frame STATE (front-insert ring accumulator; flat + production-resident)
+    {"keepints", runKeepIntsSelfTest},                      // KeepInts INT twin cross-frame STATE (front-insert ring accumulator pad-0; flat + production-resident)
 );
 // PointList host-rail LEAF ops (SampleCpuPoints / JoinLists). Own high-orderBase block so they append at
 // the end of --selftest-list deterministically (the registry sorts by `order`; the 72-block is full).
@@ -53,6 +54,8 @@ REGISTER_SELFTESTS(/*orderBase=*/320,
 // high-orderBase block so they append at the end of --selftest-list deterministically.
 REGISTER_SELFTESTS(/*orderBase=*/330,
     {"tryparse", runTryParseSelfTest},                      // TryParse/TryParseInt: String -> Float/Int (parse-or-Default), flat + resident bridge
+    {"stringtodatetime", runStringToDateTimeSelfTest},      // StringToDateTime: String -> DateTime route-B epoch (parse-or-0), flat + resident bridge
+    {"stringtodatetime", runStringToDateTimeSelfTest},      // StringToDateTime: String -> DateTime route-B epoch (parse-or-0), flat + resident bridge
     {"mergelists", runMergeListsSelfTest},                  // MergeFloatLists/MergeIntLists (Append/Htp/Average) + PickFloatList, chain-through-evalFloat
 );
 }  // namespace sw

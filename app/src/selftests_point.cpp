@@ -91,9 +91,16 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"camera-scope", runCameraScopeSelfTest},        // C1: point-camera hole closed (flat + resident)
     {"camera-resident", runCameraResidentSelfTest},  // C0: Camera→Layer2d through the resident terminal
     {"orthographiccamera", runOrthographicCameraSelfTest},  // C2: OrthographicCamera ortho projection (flat+resident)
+    {"shiftcamera", runShiftCameraSelfTest},  // camera-B: ShiftCamera additive CameraToClipSpace nudge (math + resident render flip)
+    {"visiblegizmos", runVisibleGizmosSelfTest},  // camera-B: VisibleGizmos MultiInput visibility gate (On/Off/Inherit truth table, resident)
+    {"reusecamera", runReuseCameraSelfTest},  // camera-B: ReuseCamera referenced-camera push (Object wire, flat+resident + missing-ref drop)
+    {"orbitcamera", runOrbitCameraSelfTest},  // camera-B: OrbitCamera angle->position pipeline (transcription oracle + invariants + resident render)
     {"execute", runExecuteSelfTest},
     {"layercompose", runLayerComposeSelfTest},
     {"group", runGroupSelfTest},
+    {"spreadintogrid", runSpreadIntoGridSelfTest},  // render lane: per-WIRE grid translation (SpreadIntoGrid.cs:47-51), flat+resident
+    {"spreadlayout", runSpreadLayoutSelfTest},      // render lane: per-WIRE line-spread SRT (SpreadLayout.cs:34/59-60), flat+resident
+    {"getscreenpos", runGetScreenPosSelfTest},      // render lane: world→screen projection (GetScreenPos.cs:22-44) + value-rail latch, flat+resident
     {"renderstate-bothleg", runRenderStateBothLegSelfTest},  // ★Seam 2 harness-first: flat+resident stamped tuples byte-identical
     {"rasterizerstate", runRasterizerStateSelfTest},         // Seam 2 closed-form: cull/fill/winding → MTL enum + DX11 defaults
     {"blendstate", runBlendStateSelfTest},                   // Seam 2 closed-form: 7 blend factors + 3 ops + A2C=false

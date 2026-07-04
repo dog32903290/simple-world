@@ -13,6 +13,7 @@
 // runtime leaf: pure computation, no hardware, no UI.
 #pragma once
 #include <array>
+#include <cstdint>
 #include <map>
 #include <string>
 
@@ -36,6 +37,17 @@ namespace sw {
 struct StatefulValueState {
   float s[12] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
   bool  init = false;
+  // DelayBoolean (DelayBoolean.cs:47 `Queue<bool> _queue`) cross-frame state — ADDITIVE, only
+  // DelayBoolean reads it. The s[12] scratch cannot hold DelayBoolean's variable-length bool queue
+  // (FrameCount.Clamp(0,500) → up to 501 entries), so it gets a dedicated bounded ring here. A plain
+  // FIFO ring of 512 bytes covers the max queue depth. head = index of the OLDEST element (dequeue
+  // front); count = live entries. Every other stateful op default-inits it empty and never touches it
+  // (byte-identical — same additive-state bargain FloatListState::keepList / EaseVec3's widened s[]
+  // took). NOT serialized / memcpy'd / sizeof-asserted anywhere (stored by-value in the per-path state
+  // map), so adding it is behavior-neutral for the ~30 existing ops.
+  std::array<uint8_t, 512> boolQueue{};  // FIFO ring; entry = 0/1 (TiXL Queue<bool>)
+  uint16_t boolQHead = 0;                // index of the oldest live element
+  uint16_t boolQCount = 0;               // number of live elements (0..512)
 };
 
 // Read-only per-frame transport snapshot (batch: playback-transport seam). A few stateful ops need
@@ -168,6 +180,10 @@ void setAnimIntBug(int mode);
 // TriggerOutput tooth never advances); 2 = FREEZE the edge to 0 (TriggerOutput forced low).
 void setAnimBooleanBug(int mode);
 
+// Once TEETH hook (--selftest-once). 0 = production; 1 = DROP the state write (the trigger latch
+// never primes -> OutputTrigger stuck high); 2 = FREEZE the edge to 0 (OutputTrigger forced low).
+void setOnceBug(int mode);
+
 // WasTrigger TEETH hook (--selftest-wastrigger). 0 = production; 1 = DROP the _wasHit state write
 // (the cross-frame rising-edge gate never advances → a HELD-rising input re-pulses every frame);
 // 2 = DROP the var read (value forced to 0 → no trigger ever fires). The golden sets this around the
@@ -188,5 +204,11 @@ void setSetBpmBug(int mode);
 // SEVERED; 4 = CONDITIONING DROPPED (Time skips NaN/Inf→0 cs:34-37; Speed skips the snap cs:39-46).
 // Sticky module switch (the golden restores 0), mirrors setAnimValueBug.
 void setSetPlaybackBug(int mode);
+
+// DelayBoolean TEETH hook (--selftest-delayboolean). 0 = production; 1 = DROP the queue persistence
+// (enqueue/dequeue on a FRESH empty queue each frame → the cross-frame delay never materializes → the
+// delayed-output assertion at t3/t4 goes RED). Sticky module switch (cleared back to 0 by the golden
+// after each bug run), mirrors setWasTriggerBug.
+void setDelayBooleanBug(int mode);
 
 }  // namespace sw

@@ -352,6 +352,7 @@ add_executable(simple_world
   src/selectpointswithsdf_golden.cpp  # direct-Field gather LEAF: GridPoints -> SelectPointsWithSDF(Field=SphereSDF) -> per-point FX1=max(0,1-2*dist) readback (--selftest-selectpointswithsdf)
   src/radial_points_parity_golden.cpp  # ★PARITY-GATE Stage-1 pilot: RadialPoints production defaults vs TiXL .t3 Count=100/Radius=1 (--selftest-radial-parity, RED-first template)
   src/grid_points_parity_golden.cpp    # ★PARITY-GATE param-completion fan-out #2: GridPoints attribute knobs (Color/F1/F2/Orientation/Scale) wired vs TiXL .t3/.hlsl (--selftest-grid-parity, RED-first)
+  src/grid_position_golden.cpp         # --selftest-gridposition (GridPosition value-output rail: per-cell grid Position/Size from Index/RasterSize + ctx aspect, vs TiXL GridPosition.cs closed-form)
   src/hexgrid_points_parity_golden.cpp # ★PARITY-GATE param-completion fan-out: HexGridPoints 11th input Scale (Size·Scale via .t3 ScaleVector3) cook-through vs TiXL .hlsl closed-form X (--selftest-hexgrid-parity, RED-first)
   src/line_points_parity_golden.cpp    # ★PARITY-GATE param-completion fan-out #3: LinePoints knobs (ColorA/ColorB dual-color lerp/F1/F2/Orientation/Twist/AddSeparator) wired vs TiXL .t3/.hlsl (--selftest-line-parity, RED-first)
   src/turbulence_parity_golden.cpp     # ★PARITY-GATE Stage-1: TurbulenceForce 15× amplitude tooth + Phase=wall-clock determinism probe (--selftest-turbulence-parity, RED-first)
@@ -452,6 +453,7 @@ add_executable(simple_world
   src/runtime/floatlist_ops_amplifyvalues.cpp   # AmplifyValues (FIRST cross-frame STATEFUL FloatList op: damped-average follower)
   src/runtime/floatlist_ops_dampfloatlist.cpp   # DampFloatList (cross-frame STATEFUL: per-index damped follower + dt-gate, Method 0)
   src/runtime/floatlist_ops_keepfloatvalues.cpp # KeepFloatValues (cross-frame STATEFUL: front-insert ring-buffer accumulator)
+  src/runtime/floatlist_ops_keepints.cpp        # KeepInts (INT twin of KeepFloatValues: front-insert ring-buffer accumulator, pad-0)
   src/runtime/floatlist_ops_pickfloatlist.cpp   # PickFloatList (MultiInput list picker, T3 floor-Mod index; numbers/floats/logic/PickFloatList.cs)
   src/runtime/floatlist_ops_mergefloatlists.cpp # MergeFloatLists (Append/Htp/Average; StartIndices + Ltp/FailOver deferred)
   src/runtime/floatlist_ops_mergeintlists.cpp   # MergeIntLists (int twin; integer-Average; shares cookMergeListsShared)
@@ -463,6 +465,7 @@ add_executable(simple_world
   src/floatlist_amplifyvalues_golden.cpp        # --selftest-amplifyvalues (cross-frame FloatList STATE: damp toward input over frames, flat + R-2 resident)
   src/floatlist_dampfloatlist_golden.cpp        # --selftest-dampfloatlist (cross-frame STATE: damp + dt-gate, flat + resident)
   src/floatlist_keepfloatvalues_golden.cpp      # --selftest-keepfloatvalues (cross-frame STATE: front-insert history ring, flat + resident)
+  src/floatlist_keepints_golden.cpp             # --selftest-keepints (INT twin: front-insert history ring pad-0, flat + resident)
   src/floatlist_conversion_golden.cpp
   src/runtime/colorlist_op_registry.cpp
   src/runtime/colorlist_ops_colorstolist.cpp
@@ -485,13 +488,17 @@ add_executable(simple_world
   src/runtime/host_scalar_ops_comparefloatlists.cpp   # ListA+ListB+Threshold -> differing-ratio (list fan-out wave-1)
   src/runtime/host_scalar_ops_tryparse.cpp            # String -> float (parse-or-Default; numbers/float/logic/TryParse.cs)
   src/runtime/host_scalar_ops_tryparseint.cpp         # String -> int (dissolved Float; numbers/int/process/TryParseInt.cs)
+  src/runtime/host_scalar_ops_stringtodatetime.cpp   # String -> DateTime route-B epoch Float (string/datetime/StringToDateTime.cs)
   src/tryparse_golden.cpp                              # --selftest-tryparse (String->Float/Int bridge: flat + resident)
+  src/stringtodatetime_golden.cpp                      # --selftest-stringtodatetime (String->DateTime epoch bridge: flat + resident)
   src/list_routing_golden.cpp
   src/list_routing_wave1_golden.cpp                    # --selftest-listroutingwave1 (wave-1 host-scalar consumers bridge golden)
   src/runtime/string_op_registry.cpp
+  src/runtime/datetime_host.cpp  # shared DateTime kernel: wall-clock-now seam + C# TryParse subset (NowAsDateTime/CountDown/StringToDateTime)
   src/runtime/string_ops_stringlength.cpp
   src/runtime/string_ops_floattostring.cpp
   src/runtime/string_ops_datetimetostring.cpp  # DateTimeToString (route-B epoch Float + .NET format → string)
+  src/runtime/string_ops_countdown.cpp  # CountDown (wall-clock duration -> .NET TimeSpan format engine; string/datetime/CountDown.cs)
   src/runtime/string_ops_combinestrings.cpp
   src/runtime/string_ops_inttostring.cpp
   src/runtime/string_ops_vec3tostring.cpp
@@ -522,12 +529,15 @@ add_executable(simple_world
   src/runtime/stringlist_ops_splitstring.cpp
   src/runtime/stringlist_ops_zipstringlist.cpp
   src/runtime/stringlist_ops_filesinfolder.cpp
+  src/runtime/stringlist_ops_keepstrings.cpp  # KeepStrings (STATEFUL StringList accumulator, 4 insert modes; string/list/KeepStrings.cs)
   src/string_rail_golden.cpp
   src/string_rail_golden_subseama.cpp
   src/string_ops_getattributefromjson_golden.cpp
   src/string_builder_golden.cpp
   src/string_ops_wrapstring_golden.cpp
   src/string_ops_blendstrings_golden.cpp
+  src/string_ops_countdown_golden.cpp  # --selftest-countdown (pinned-clock TimeSpan format goldens)
+  src/keepstrings_golden.cpp  # --selftest-keepstrings (multi-frame accumulator goldens, flat+resident+guard)
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp
   src/stringctxvar_golden.cpp
@@ -599,6 +609,7 @@ add_executable(simple_world
   src/runtime/node_registry_draw_camera.cpp  # camera family specs (Camera/OrthographicCamera — parallel-lane peel)
   src/runtime/node_registry_draw_flow.cpp  # flow family specs (Execute/Loop/… — parallel-lane peel)
   src/runtime/node_registry_draw_data.cpp  # data family specs (lane hook, starts empty — parallel-lane peel)
+  src/runtime/node_registry_draw_gizmo.cpp  # gizmo family specs (VisibleGizmos — camera-B parallel-lane peel)
   src/runtime/node_registry_draw_transform.cpp  # render-island transform-context specs (peeled for the ratchet)
   src/runtime/node_registry_draw_renderstate.cpp  # Seam 2 render-state specs (Rasterizer/OutputMerger, peeled for the ratchet)
   ${SW_MATH_SRCS}  # globbed: math_op_registry.cpp + every per-subfamily math leaf
@@ -683,6 +694,8 @@ add_executable(simple_world
   src/app/frame_cook_animint_selftest.cpp
   src/app/frame_cook_animboolean_selftest.cpp
   src/app/frame_cook_wastrigger_selftest.cpp
+  src/app/frame_cook_delayboolean_selftest.cpp  # --selftest-delayboolean (DelayBoolean N-frame trigger delay via cross-frame Queue<bool>, REAL cook seam)
+  src/app/frame_cook_once_selftest.cpp
   src/app/soundtrack.cpp
   src/app/soundtrack_selftest.cpp
   src/app/soundtrack_selftest_d4.cpp

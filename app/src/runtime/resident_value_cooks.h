@@ -70,6 +70,12 @@ bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
 // caller — frame_cook never resets (state must persist across frames in the running app).
 void resetResidentFloatListState();
 
+// Test-only reset of the production STRINGLIST state store (resident_stringlist_cook.cpp — the
+// KeepStrings cross-frame accumulator, keyed by resident path). Mirror of resetResidentFloatListState:
+// a golden runs multiple independent trajectories in one process; this clears the process static
+// between them. No production caller.
+void resetResidentStringListState();
+
 // Per-frame PRODUCTION cook for the FloatList→Float BRIDGE (list-routing seam). Walks the resident
 // graph, cooks every FloatList host-scalar op (FloatListLength / PickFloatFromList) by gathering its
 // upstream FloatList inputs THROUGH the resident Connection drivers, and writes the scalar onto the

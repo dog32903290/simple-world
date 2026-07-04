@@ -95,9 +95,11 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   SwMeshView inMesh;            // ★R-2: first wired Mesh input (DrawMeshUnlit) — was UNGATHERED before
   bool haveMesh = false;
   RenderCommand inCmd;          // Camera op's Command subtree (Cut 3)
+  std::vector<uint32_t> inCmdWireCounts;  // per-wire item counts of the generic gather (spread seam)
   bool haveInCmd = false;
   bool havePts = false;
-  std::vector<CmdCookCtx::CmdCameraRef> camRefs;  // camera-A: wired CameraRef inputs (BlendCameras)
+  std::vector<CmdCookCtx::CmdCameraRef> camRefs;  // camera-A: wired Object refs (BlendCameras/ActionCamera)
+  ActiveCamera refCam;          // ReuseCamera: referenced camera off an "Object" wire (inactive = none)
   for (const PortSpec& port : s->ports) {
     if (!port.isInput) continue;
     if (port.dataType == "Points" && !havePts) {
@@ -122,12 +124,15 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
       const ResidentInput* ri = n->input(port.id);
       if (ri && ri->driver == ResidentInput::Driver::Connection)
         inTex = cookTexNode(ri->srcNodePath, depth + 1, ri->srcSlotId);
-    } else if (port.dataType == "CameraRef") {
-      // camera-A ref gather (resident mirror of the flat branch — production runs THIS leg): each
-      // wire into a CameraRef port resolves its UPSTREAM node to (opType, resolved params, path),
-      // primary + extraConns in wire order (CmdCookCtx::cameraRefs doc; = TiXL
-      // GetCollectedTypedInputs). ONE nested level: the upstream op's own CameraRef inputs
-      // (ActionCamera.ReferenceCamera) resolve into upstreamRefs (fork-cameraref-one-level-nesting).
+    } else if (port.dataType == "Object") {
+      // The TWO camera-reference gathers share the "Object" wire currency (merge unification,
+      // camera-A × camera-B; resident mirror — PRODUCTION runs THIS leg):
+      // (1) camera-B single-ref (ReuseCamera): the SAME resolveReferencedCamera the flat twin calls
+      //     (S2c mirror law); source node off the FIRST Object port's primary wire.
+      // (2) camera-A structural multi-ref (BlendCameras/ActionCamera): EVERY wire (primary +
+      //     extraConns, wire order) resolves its UPSTREAM node to (opType, resolved params, path)
+      //     with ONE nested Object level (ActionCamera.ReferenceCamera;
+      //     fork-cameraref-one-level-nesting). CmdCookCtx::cameraRefs doc has the currency contract.
       auto resolveRef = [&](const std::string& upPath) {
         const ResidentNode* up = rg.node(upPath);
         if (!up) return;
@@ -137,7 +142,7 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
         ref.nodePath = upPath;
         if (const NodeSpec* us = findSpec(up->opType))
           for (const PortSpec& p2 : us->ports) {
-            if (!p2.isInput || p2.dataType != "CameraRef") continue;
+            if (!p2.isInput || p2.dataType != "Object") continue;
             const ResidentInput* ri2 = up->input(p2.id);
             if (!ri2 || ri2->driver != ResidentInput::Driver::Connection) continue;
             auto pushNested = [&](const std::string& p) {
@@ -156,6 +161,11 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
       };
       const ResidentInput* ri = n->input(port.id);
       if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        if (!refCam.active) {
+          const ResidentNode* src = rg.node(ri->srcNodePath);
+          if (src)
+            resolveReferencedCamera(src->opType, *nodeParams(ri->srcNodePath), ctx.localFxTime, refCam);
+        }
         resolveRef(ri->srcNodePath);
         for (const auto& ec : ri->extraConns) resolveRef(ec.first);
       }
@@ -254,10 +264,12 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
         } else if (ri && ri->driver == ResidentInput::Driver::Connection) {
           RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
           inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+          inCmdWireCounts.push_back((uint32_t)sub.items.size());  // spread seam: per-wire boundary
           if (port.multiInput && !executeCollectFirstOnlyForTest())  // -bug: skip the extra wires
             for (const auto& ec : ri->extraConns) {
               RenderCommand es = cookCommand(ec.first, depth + 1);
               inCmd.items.insert(inCmd.items.end(), es.items.begin(), es.items.end());
+              inCmdWireCounts.push_back((uint32_t)es.items.size());  // spread seam (extra wires)
             }
         }
       }
@@ -272,9 +284,18 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
   cc.meshVtx = inMesh.vtx; cc.meshIdx = inMesh.idx; cc.meshFaceCount = inMesh.faceCount;
   cc.inputTexture = inTex;  // ★S2c Texture2D gather (Layer2d/DrawScreenQuad)
   cc.inputCommand = haveInCmd ? &inCmd : nullptr;
+  cc.inputCmdWireItemCounts = std::move(inCmdWireCounts);  // spread seam (empty for non-generic gathers)
   cc.ctxVars = ctxVars;  // S3a: SubGraph Command ops read the scoped var off this (resident leg)
   cc.cameraRefs = std::move(camRefs);  // camera-A: wired CameraRef inputs (empty for every other op)
   cc.params = nodeParams(path);
+  if (refCam.active) {  // ReuseCamera: surface the referenced camera (IDENTICAL to the flat leg's fill)
+    cc.hasRefCamera = true;
+    for (int k = 0; k < 3; ++k) {
+      cc.refCamEye[k] = refCam.eye[k]; cc.refCamTarget[k] = refCam.target[k]; cc.refCamUp[k] = refCam.up[k];
+    }
+    cc.refCamFovDeg = refCam.fovDeg; cc.refCamNear = refCam.nearClip; cc.refCamFar = refCam.farClip;
+    cc.refCamAspect = refCam.aspect;
+  }
   // CAMERA bridge (resident mirror — PRODUCTION runs THIS leg; the S2c flat-resident gate): surface the
   // C1 live Camera onto cc so RotateTowards FORK#2 reads it. IDENTICAL to the flat leg's populate.
   if (const ActiveCamera* lc = liveActiveCamera()) {

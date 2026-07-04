@@ -144,6 +144,14 @@ struct CmdCookCtx {
   // command node, mirrors inputTexture). null when unwired. Borrowed pointer into a driver-local
   // RenderCommand (single-frame); the op may COPY its items. Non-wrappers leave it null → byte-identical.
   const RenderCommand* inputCommand = nullptr;
+  // Per-WIRE item counts of the MultiInput Command gather (SPREAD family seam): entry i = how many
+  // items wire i contributed to inputCommand (concat order = wire-declaration order). A spread op
+  // (SpreadLayout/SpreadIntoGrid: TiXL loops CollectedInputs pushing a PER-CHILD ObjectToWorld)
+  // uses these boundaries to stamp a DIFFERENT group-SRT per child chain. Filled by BOTH cook legs'
+  // generic MultiInput Command collector (flat point_graph_command_cook.cpp + resident twin — the
+  // flat/resident mirror gate); the Switch/Loop/ExecRepeatedly special branches leave it empty (those
+  // ops never read it). Empty for every non-gathering op / ~243 golden callers → byte-identical.
+  std::vector<uint32_t> inputCmdWireItemCounts;
   // S3a context-var bridge (flow seam): LIVE host var map (= TiXL EvaluationContext.Float/IntVariables),
   // threaded into EVERY command cook (mirrors inputCommand) so a Command-rail SetFloatVarCmd/SetIntVarCmd
   // WRITES a scoped var around its SubGraph; a Command op cooked inside reads cc.ctxVars->floatVars[name].
@@ -157,7 +165,7 @@ struct CmdCookCtx {
   uint32_t meshFaceCount = 0;             // upstream FACE count (== SwTriIndex count); VS draws ×3
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
   // CAMERA-REFERENCE inputs (camera-A seam: BlendCameras first, ActionCamera next): each wired
-  // "CameraRef" input port's UPSTREAM camera op resolved to (opType, resolved Float params), in wire
+  // "Object" (camera-ref) input port's UPSTREAM camera op resolved to (opType, resolved Float params), in wire
   // order (MultiInput expands primary + extraConns, the inCmd gather contract). = TiXL's Slot<Object>
   // camera reference (BlendCameras.cs:28 GetCollectedTypedInputs) — sw has no live op instances to
   // hand out, so the driver hands the STRUCTURAL identity (type + resolved params) and the consumer
@@ -186,6 +194,20 @@ struct CmdCookCtx {
   bool hasCamera = false;
   float worldToCamera[16] = {0};  // == ObjectToCamera (identity O2W); LookAtRH(eye,target,up)
   float cameraToWorld[16] = {0};  // inverse(WorldToCamera); camera WORLD pos = transform((0,0,0), this)
+  // REFERENCED CAMERA (ReuseCamera, camera-B): the RAW camera params of the node wired into this op's
+  // "Object" input port (TiXL Slot<Object> CameraReference). The cook DRIVER resolves them (only the
+  // driver can reach another node's resolved params — resolveReferencedCamera, shared by BOTH legs so
+  // flat/resident can't diverge) and hands them here; cookReuseCamera stamps them onto its subtree
+  // items exactly like cookCamera. false = unwired / non-camera source → the op returns an EMPTY chain
+  // (ReuseCamera.cs:17-29 warn-and-skip). Every op without an Object port ignores these → byte-identical.
+  bool hasRefCamera = false;
+  float refCamEye[3] = {0.0f, 0.0f, 0.0f};
+  float refCamTarget[3] = {0.0f, 0.0f, 0.0f};
+  float refCamUp[3] = {0.0f, 1.0f, 0.0f};
+  float refCamFovDeg = 45.0f;
+  float refCamNear = 0.01f;
+  float refCamFar = 1000.0f;
+  float refCamAspect = 0.0f;  // <=0 → executor output aspect (Camera.cs:53-55 fallback)
 };
 // A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.
 using PointCmdFn = RenderCommand (*)(CmdCookCtx&);

@@ -50,6 +50,29 @@ point-leaf 的 `Draw*`(DrawTubes/Ribbons/PointsShaded…)、render-leaf 的 Text
 路徑,這批**可能用單一實作達 parity 而非重放整個子圖**——待逐顆對 sw 現有 render 能力判。真正
 「場景組合」複合(DustParticles/Quiz/SlideShow/Gizmos)才無疑義走重放。這 caveat 未逐顆驗,別當定論。
 
+## 第二波普查:seam-build/domain-blocked 的原子分佈(2026-07-05 scout,code-derive)
+
+**seam-build 86 = 30 原子/56 複合(65% 複合!)** — 「蓋縫解鎖手刻」假設反轉:seam-build 主力是複合,
+蓋縫後走 .t3 重放非手刻。**domain-blocked 97 = 71 原子/26 複合** — 但 53 原子是 device-io(柏為硬體域)。
+
+### 第二波立即可採原子(~30 顆,縫已 LIVE,零等待)
+- **flow-var 10**(ContextVar 縫已建 @ b03cddd Get/SetStringVar rail):ExecuteRawBufferUpdate,
+  GetForegroundColor, GetMatrixVar, GetObjectVar, GetPosition, GetStringVar, SetMatrixVar, SetObjectVar,
+  SetRequestedResolutionCmd, SetStringVar
+- **keyframe-anim 9**(curve_animator.cpp+anim_math.h 已建):AbletonLinkSync, AdsrEnvelope, DateTimeInSecs,
+  FindKeyframes, ForwardBeatTaps, SequenceAnim, SetKeyframes, SetTime, TriggerAnim(SetSpeedFactors=複合,踢)
+- **list-state 4**(resident state-slot 已建):AnalyzeFloatList, ColorListToInts, ComposeVec3FromList, PlaybackFFT
+- **dict-ctx 5**(純選擇邏輯,domain-blocked 標籤是誤歸):GetListItemAttribute, SelectBoolFromFloatDict,
+  SelectFloatFromDict, SelectVec2FromDict, SelectVec3FromDict
+- **零星**:KeepInTextureArray / SdfToVector(field-raymarch 唯一原子)/ SwitchParticleForce / TextSprites
+  (text-font 原子,glyph 資料可用才做)/ RequestUrl(HTTP 依賴,邊界)
+- **point-io 4 純 IO**(CPU-readback rail 已建):DataPointConverter, DataPointImportExport,
+  KeepPreviousPointBuffer, LineTextPoints(LoadSvg×2 卡 SVG 庫)
+
+### 真縫排序(第二波後的骨頭,複合為主體)
+compute-dispatch(6 複合,HLSL→MSL)→ feedback-advanced(3 真新機制)→ point-sim(7,吃前兩者)→
+pbr-lighting island(7原子+9複合,最大 ROI 塊)→ postfx(6,吃 depth-buffer)。device-io 53 原子=柏為域,只分類不排產。
+
 ## 根治閘(否則每次算 leaf-ready 都重新混入複合)
 - **op_census.sh 該加 .t3 Children 判定**:歸 leaf-ready 前先切原子/複合,複合的自動改歸重放桶
   (或標 `leaf-composite`)。現況=純 relpath regex,結構性混複合。memory [[gate-or-it-rots]]。

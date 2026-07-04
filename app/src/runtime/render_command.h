@@ -14,8 +14,8 @@
 // open their own pass and clear each other out.
 //
 // Zone: runtime leaf (no upward deps). Pure CPU container — borrows buffer pointers, never retains. A
-// RenderCommand lives shorter than one cook() (single-frame memo); it must NOT be stored across frames (the
-// borrowed buffers are PointGraph-owned and reused next frame).
+// RenderCommand lives shorter than one cook() (single-frame memo); never store it across frames (the
+// borrowed buffers are PointGraph-owned, reused next frame).
 #pragma once
 #include <cstdint>
 #include <functional>
@@ -44,19 +44,17 @@ enum class DrawKind : uint32_t {
                    // ObjectToClipSpace (TiXL Layer2d → draw-Quad-vs.hlsl). Parallel to ScreenQuad
                    // (F2: a DISTINCT shader, NOT a flag on ScreenQuad — TiXL ships 2 shaders; the
                    // clip-space ScreenQuad leaf stays untouched). Reads objectToClipSpace[16] below.
-  Clear = 4,       // not a draw: a chain-clear directive (TiXL ClearRenderTarget). When it is the
-                   // FIRST chain item the executor sets the pass clear color from it (color[]); the
-                   // retained-mode pass already clears once, so this is free. A non-first Clear (mid
-                   // chain re-clear) needs a clear-quad and is deferred (no-op for now).
+  Clear = 4,       // not a draw: chain-clear directive (TiXL ClearRenderTarget). FIRST chain item →
+                   // pass clear color from color[] (free — the retained-mode pass already clears
+                   // once); a mid-chain re-clear needs a clear-quad and is deferred (no-op for now).
   Mesh = 6,        // mesh_draw_unlit_vs: SV_VertexID-driven triangle list reading a SwVertex buffer +
                    // SwTriIndex buffer (TiXL DrawMeshUnlit → mesh-DrawUnlit.hlsl). The FIRST 3D draw
                    // kind: it reads objectToClipSpace[16] + the camera-stamp fields (same as Layer2d)
                    // and is depth-TESTED (LessEqual + ZWrite) — every other kind draws depth-disabled.
                    // No point buffer; driven by meshVtx/meshIdx/meshIndexCount below.
   Points2 = 7,     // draw_points2_vs: 6-vert screen-facing quad per Point sized by Radius (TiXL
-                   // DrawPoints2 → DrawPoints.hlsl Radius variant). Like Billboards but the size knob
-                   // is `size` (= Radius*10.8) and `useWForSize` scales by Point.FX1. Reads color/size/
-                   // useWForSize. Its OWN shader/PSO → DrawKind::Points (v1 DrawPoints) stays untouched.
+                   // DrawPoints2 → DrawPoints.hlsl Radius variant). Like Billboards but size = Radius·
+                   // 10.8 and `useWForSize` scales by Point.FX1. Own shader/PSO → Points untouched.
   LinesBuildup = 8,// draw_lines_buildup_vs: open polyline (Points[i]→Points[i+1], like Lines) with a
                    // per-fragment W-reveal (TiXL DrawLinesBuildup → DrawLinesBuildup.hlsl). Reads
                    // color/lineWidth + transitionProgress/visibleRange. Its OWN shader/PSO →
@@ -265,6 +263,8 @@ struct RenderDrawItem {
   // them (default 0/0 = nothing). VertexStart maps to drawPrimitives' vertexStart arg (TiXL startVertexLocation).
   uint32_t explicitVertexCount = 0;   // TiXL Draw.VertexCount
   uint32_t explicitBaseVertex = 0;    // TiXL Draw.VertexStartLocation → drawPrimitives vertexStart
+  bool hasClipShift = false;  // ShiftCamera M31/M32/M33 nudge (ShiftCamera.cs:34-36; doc: point_ops_shiftcamera.h)
+  float clipShift[3] = {0.0f, 0.0f, 0.0f};  // accumulated deltas; [2] carries the already-divided t.Z/1000
 };
 
 // Seam 2 render-state STAMP helper (the SINGLE shared push both command-cook legs' render-state op fn
