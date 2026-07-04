@@ -24,6 +24,7 @@
 #include "runtime/sw_mesh.h"      // SwVertex (80B) + SwTriIndex (12B) — the Mesh flow's elements
 #include "runtime/mesh_op_registry.h"  // SwMeshView (cookResidentMesh return type)
 #include "runtime/string_op_registry.h"  // StringState (flat stringState cross-frame store)
+#include "runtime/stringlist_op_registry.h"  // StringListState (KeepStrings accumulator store)
 #include "runtime/floatlist_op_registry.h"  // FloatListState (floatListState store)
 #include "runtime/sw_gradient.h"  // SwGradient — the 8th flow's host value (gradientBuf)
 #include "runtime/sw_buffer.h"    // SwBuffer — the Seam-1 GPU "Buffer" currency (bufferMeta stores by value)
@@ -170,11 +171,10 @@ struct PointGraph::Impl {
   std::map<std::string, SwBuffer> bufferMeta;     // key -> cooked SwBuffer view (stride/count + bytes ptr)
 
   // CROSS-FRAME value state (the only host maps that PERSIST between flat cooks; keyed flatKey(id); resident
-  // keeps the SAME per resident path). colorListState = KeepColors's `_list`; stringState = HasStringChanged's
-  // `_lastString`; floatListState = AmplifyValues's _averaged/_last/_output. A stateless op never touches its
-  // map; all value-typed → cleaned up with the map (no ~ release).
+  // keeps the SAME per path). colorList=KeepColors, string=HasStringChanged, floatList=AmplifyValues, stringList=KeepStrings; all value-typed (no ~ release).
   std::map<std::string, std::vector<simd::float4>> colorListState;  // key -> persistent accumulator
   std::map<std::string, StringState> stringState;                  // key -> persistent string state
+  std::map<std::string, StringListState> stringListState;         // key -> KeepStrings accumulator
   std::map<std::string, FloatListState> floatListState;            // key -> persistent FloatList state
 
   // Per-node CROSS-FRAME texture PAIR (the feedback / ping-pong flow = TiXL KeepPreviousFrame). A feedback

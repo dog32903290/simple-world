@@ -526,6 +526,7 @@ add_executable(simple_world
   src/runtime/stringlist_ops_splitstring.cpp
   src/runtime/stringlist_ops_zipstringlist.cpp
   src/runtime/stringlist_ops_filesinfolder.cpp
+  src/runtime/stringlist_ops_keepstrings.cpp  # KeepStrings (STATEFUL StringList accumulator, 4 insert modes; string/list/KeepStrings.cs)
   src/string_rail_golden.cpp
   src/string_rail_golden_subseama.cpp
   src/string_ops_getattributefromjson_golden.cpp
@@ -533,6 +534,7 @@ add_executable(simple_world
   src/string_ops_wrapstring_golden.cpp
   src/string_ops_blendstrings_golden.cpp
   src/string_ops_countdown_golden.cpp  # --selftest-countdown (pinned-clock TimeSpan format goldens)
+  src/keepstrings_golden.cpp  # --selftest-keepstrings (multi-frame accumulator goldens, flat+resident+guard)
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp
   src/stringctxvar_golden.cpp

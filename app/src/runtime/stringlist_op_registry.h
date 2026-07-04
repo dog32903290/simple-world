@@ -18,6 +18,7 @@
 // namespace-scope static; ORDER in the sink follows cross-TU dynamic-init order, cosmetic only).
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
@@ -33,6 +34,29 @@ class CommandQueue;
 struct EvaluationContext;  // runtime/eval_context.h
 
 namespace sw {
+
+// PER-NODE CROSS-FRAME STATE for a STATEFUL StringList op (the StringList analog of FloatListState /
+// ColorList's KeepColors accumulator / StringState). The FIRST consumer is KeepStrings (TiXL
+// string/list/KeepStrings.cs), whose fields persist between frames verbatim:
+//   strings/insertTimes — `_strings` / `_insertTimes` (the persistent accumulator pair; insertTimes is
+//                          maintained faithfully even while its OUTPUT port is deferred — see the leaf).
+//   index               — `_index` (Overwrite mode's ring cursor).
+//   lastString          — `_lastString` (change detection for OnlyOnChanges).
+//   clearLatch          — `_clear` (MathUtils.WasTriggered's rising-edge latch for ClearTrigger).
+// A stateless stringlist op (SplitString/...) never touches it (ctx.state stays nullptr -> byte-identical).
+//   lastCookedFrame/everCooked — the DRIVERS' cook-once-per-frame advance guard (the resident
+//   ResidentFloatListSlot fields, folded into the state struct so the flat + resident stringlist legs
+//   share ONE guard shape). The cook fn itself never reads them; a hand-built golden ctx that calls the
+//   fn directly bypasses the guard (deterministic single-advance per call).
+struct StringListState {
+  std::vector<std::string> strings;  // KeepStrings _strings (the persistent accumulator)
+  std::vector<float> insertTimes;    // KeepStrings _insertTimes (parallel LocalFxTime stamps)
+  int index = 0;                     // KeepStrings _index (Overwrite ring cursor)
+  std::string lastString;            // KeepStrings _lastString (OnlyOnChanges change detection)
+  bool clearLatch = false;           // KeepStrings _clear (WasTriggered rising-edge latch)
+  uint32_t lastCookedFrame = 0xFFFFFFFFu;  // driver guard: frameIndex of the last ADVANCE
+  bool everCooked = false;                 // driver guard: "advanced on frame 0" vs "never"
+};
 
 // Everything a stringlist op gets to cook one node this frame. Mirrors ColorListCookCtx but the currency
 // is a HOST std::vector<std::string>, not std::vector<simd::float4>. NO pre-sizing (a vector self-sizes)
@@ -58,6 +82,13 @@ struct StringListCookCtx {
   const std::vector<std::vector<std::string>>* inputLists = nullptr;  // upstream StringList inputs (future combiner)
   std::vector<std::string>* output = nullptr;                         // driver-owned host string list
   const std::map<std::string, float>* params = nullptr;              // resolved Float params of THIS node
+  // PER-NODE CROSS-FRAME STATE (the FloatListCookCtx::state analog). null for a STATELESS stringlist op
+  // (every prior op -> byte-identical: never read). A stateful op (KeepStrings) reads + mutates *state
+  // across frames, then publishes its accumulator to *output (output = the per-frame readback channel;
+  // state is the memory). The driver owns + threads it (flat: Impl::stringListState[flatKey(id)];
+  // resident: a process-lifetime static keyed by resident path). null when no driver supplies it (a
+  // hand-built golden ctx passes its own) -> the op sees exactly the state it is handed.
+  StringListState* state = nullptr;
 };
 
 // A stringlist op: read inputs → write *output (clear + fill). ONE fn (a host vector self-sizes — the
@@ -75,15 +106,22 @@ std::map<std::string, StringListCookFn>& stringListCookFns();  // type-name -> c
 // Lookup the cook fn for a type (nullptr if not a stringlist op). Used by the cook driver's dispatch.
 const StringListCookFn* findStringListOp(const std::string& type);
 
+// Is this stringlist op STATEFUL (it reads + mutates StringListCookCtx::state across frames)? Set by
+// the registrar's `stateful` flag (default false). The cook drivers use it to thread the state slot and
+// apply the cook-once-per-frame advance guard ONLY to stateful ops (KeepStrings) — a stateless op is
+// re-cookable freely (byte-identical). Mirror of floatListOpIsStateful (AmplifyValues precedent).
+bool stringListOpIsStateful(const std::string& type);
+
 // Test-only injection seam (goldens): when set, a stringlist op's cook corrupts its REAL output (e.g.
 // drops the last element) so the golden's RED case fires on the actual cook path (NOT by flipping the
 // expected value). Off in production. A leaf reads it at the end of its cook.
 bool& stringListInjectBug();
 
 // RAII registrar: declare one file-scope static of this type at the end of each stringlist-op leaf.
-//   StringListOp(spec, cookFn);  // pushes spec into stringListSpecSink() and cook into stringListCookFns()
+//   StringListOp(spec, cookFn);                    // a STATELESS stringlist op (the default)
+//   StringListOp(spec, cookFn, /*stateful=*/true);  // a STATEFUL op (KeepStrings): reads + mutates state
 struct StringListOp {
-  StringListOp(NodeSpec spec, StringListCookFn cook);
+  StringListOp(NodeSpec spec, StringListCookFn cook, bool stateful = false);
 };
 
 }  // namespace sw
