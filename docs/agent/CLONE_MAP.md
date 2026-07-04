@@ -1,5 +1,11 @@
 # CLONE_MAP — TiXL 克隆真實地圖(2026-07-04 census 修準 + 三縫對 code 驗證)
 
+> **戰報 2026-07-05 凌晨(第一波原子清剿)**:40 顆 leaf 原子白名單 → **35 DONE 併入 main
+> (f09ef04,7 lane worktree 並行,合併態 sweep 606/0/0 綠)+ 5 BLOCKED 真縫**:
+> IntListToBuffer/BuildGradient(list-currency 橋)、GpuMeasure(GPU timestamp 地基選型)、
+> SliceViewPort(executor viewport 契約)、TimeClip(timeline TimeRange 資料模型)。
+> 第二波(~30 顆縫已 live 原子,見 LEAF_ATOMIC_CENSUS 第二波段)接續發。
+
 **出身**:2026-07-04 修準 op_census(原只涵蓋 image+field 兩島=漏島幻覺;根因=external/tixl
 sparse checkout 只 materialize 兩島源夾,已補全 12 島 @ SHA 395c4c55)+ 三條「沒蓋的縫」對 code
 驗證(全非空牆,大半是 regex 誤分類)。數字全 code-derive,非手寫。
