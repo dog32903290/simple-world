@@ -242,5 +242,27 @@ void setSetPlaybackBug(int mode);
 // delayed-output assertion at t3/t4 goes RED). Sticky module switch (cleared back to 0 by the golden
 // after each bug run), mirrors setWasTriggerBug.
 void setDelayBooleanBug(int mode);
+// AdsrEnvelope TEETH hook (--selftest-adsrenvelope). 0 = production; 1 = DROP the state write (the
+// envelope stage machine freezes → the Attack→Decay→Sustain progression breaks); 2 = DROP the Min/Max
+// Lerp (Result forced to the raw 0..1 envelope value). Sticky module switch; golden restores 0.
+void setAdsrEnvelopeBug(int mode);
+
+// TriggerAnim TEETH hook (--selftest-triggeranim). 0 = production; 1 = DROP the state write (LastFraction/
+// direction/triggerTime frozen → the multi-frame sweep never progresses); 2 = DROP the SchlickBias+shape
+// shaping (Result forced to Base + Amplitude*rawFraction). Sticky module switch; golden restores 0.
+void setTriggerAnimBug(int mode);
+
+// SequenceAnim TEETH hook (--selftest-sequenceanim). 0 = production; 1 = DROP the state write
+// (_lastStepIndex frozen → the WasStep cross-frame step-entry edge breaks); 2 = DROP the OutputMode
+// shaping (Result forced to the raw step strength). Sticky module switch; golden restores 0.
+void setSequenceAnimBug(int mode);
+
+// DateTimeInSecs TEETH hook (--selftest-datetimeinsecs). 0 = production; 1 = DROP the Freeze gate (the
+// latch re-samples the wall clock every cook even when Freeze=true → the frozen-value invariant breaks).
+// Sticky module switch; golden restores 0.
+void setDateTimeInSecsBug(int mode);
+// DateTimeInSecs deterministic-clock seam (golden-only): >=0 forces the op to read this Unix-second
+// instead of the OS clock (so the Freeze-latch invariant is testable); -1 = production (real clock).
+void setDateTimeInSecsClockOverride(long long unixSeconds);
 
 }  // namespace sw

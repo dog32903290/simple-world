@@ -55,5 +55,9 @@ REGISTER_SELFTESTS(/*orderBase=*/250,
     {"mixed-multiinput", runMixedMultiInputOrderSelfTest},  // 骨7b: flatten loop2/loop3 merge — MultiInput slot fed by child+boundary keeps wire-declaration order (mesh family unblocker); appended at 250-block tail (no row-order shift)
     {"randomchoiceindex", framecook::runRandomChoiceIndexSelfTest},  // RandomChoiceIndex: XxHash no-repeat choice + window/modulo hysteresis on the prod cook; appended at 250-block tail
     {"easekeys", framecook::runEaseKeysSelfTest},  // EaseKeys family: ease between an animated input's keyframes (REAL animator curves + prod cook); appended at 250-block tail
+    {"adsrenvelope", framecook::runAdsrEnvelopeSelfTest},    // keyframe-anim: AdsrEnvelope gate ADSR machine (REAL cook) — appended at 250-block tail
+    {"triggeranim", framecook::runTriggerAnimSelfTest},      // keyframe-anim: TriggerAnim one-shot sweep + shape (REAL cook) — appended at 250-block tail
+    {"sequenceanim", framecook::runSequenceAnimSelfTest},    // keyframe-anim: SequenceAnim step-sequencer playback (REAL cook) — appended at 250-block tail
+    {"datetimeinsecs", framecook::runDateTimeInSecsSelfTest},// keyframe-anim: DateTimeInSecs Freeze latch (deterministic clock, REAL cook) — appended at 250-block tail
 );
 }  // namespace sw

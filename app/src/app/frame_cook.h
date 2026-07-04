@@ -144,6 +144,23 @@ int runDelayBooleanSelfTest(bool injectBug);
 // (fire on first cook + on any Trigger change, exactly once — not level-triggered). injectBug
 // flips a REAL production term (setOnceBug: drop the state write / freeze the edge low).
 int runOnceSelfTest(bool injectBug);
+// ── keyframe-anim lane (batch: keyframe-anim) — all drive the REAL cookStatefulValueNodes seam ──
+// AdsrEnvelope PRODUCTION-PATH pin (--selftest-adsrenvelope): a multi-frame gate ADSR trajectory
+// asserts Result=Lerp(Min,Max,envelope) + IsActive across Attack→Decay→Sustain→Release. injectBug
+// (setAdsrEnvelopeBug: drop state write / drop Min/Max Lerp) makes the fixed wants bite.
+int runAdsrEnvelopeSelfTest(bool injectBug);
+// TriggerAnim PRODUCTION-PATH pin (--selftest-triggeranim): a Trigger-edge one-shot sweep asserts
+// Result = Base + Amplitude*SchlickBias(shape(fraction),bias) + HasCompleted, plus a Bias=0.25 leg
+// proving the shape engine is real. injectBug (setTriggerAnimBug: drop state write / drop shaping).
+int runTriggerAnimSelfTest(bool injectBug);
+// SequenceAnim PRODUCTION-PATH pin (--selftest-sequenceanim): a step-sequencer time sweep (Sequence
+// string via the real String sub-seam) asserts Result=Lerp(Min,Max,strength) + the cross-frame WasStep
+// edge. injectBug (setSequenceAnimBug: drop state write / drop OutputMode shaping).
+int runSequenceAnimSelfTest(bool injectBug);
+// DateTimeInSecs PRODUCTION-PATH pin (--selftest-datetimeinsecs): drives a deterministic injected clock
+// to assert the Freeze LATCH invariant (frozen cook holds the prior sample). injectBug
+// (setDateTimeInSecsBug: ignore the Freeze gate) makes the fixed latch wants bite.
+int runDateTimeInSecsSelfTest(bool injectBug);
 
 // AR clock-domain pin (refuter-S5 盲區 3, --selftest-arclock): proves through the REAL cook
 // seam above that AudioReaction receives BARS — hit timestamps == transport.fxTime (bars, not

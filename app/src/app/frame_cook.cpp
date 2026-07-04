@@ -233,12 +233,17 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, 
     vars.matrixVars.clear();  // sub-seam D: cleared HERE (same Reset), before the matrix ctx-var cook.
   }
 
-  // Cook one node (resolve Float inputs + the String VariableName, step, write extOut).
+  // Cook one node (resolve Float inputs + the single String input, step, write extOut). String =
+  // VariableName (context-var ops) or `Sequence` (SequenceAnim) — same channel, never both, empty else.
   auto cookOne = [&](ResidentNode& rn) {
     std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
-    // context-var ops read the resolved String VariableName off strInputs (string sub-seam; empty for non-var ops; NOT smuggled through a float).
+// context-var ops read the resolved String VariableName off strInputs (string sub-seam; empty for
+    // non-var ops; NOT smuggled through a float). SequenceAnim rides the SAME single-String channel
+    // via its `Sequence` input — never both on one op.
+    std::string varName;
     auto vit = rn.strInputs.find("VariableName");
-    const std::string varName = (vit != rn.strInputs.end()) ? vit->second : std::string();
+    if (vit == rn.strInputs.end()) vit = rn.strInputs.find("Sequence");
+    if (vit != rn.strInputs.end()) varName = vit->second;
     float out[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // ≥3-output ops (HasVec3Changed=7)
     // EaseKeys-family seam hook (meat in runtime/stateful_value_ops_easekeys.cpp — reads the keyframe curves on rn's OWN Automation drivers, def-layer context P cannot carry).
     if (!cookEaseKeysNode(rn, rctx, P, out))  // false for every other op → generic path unchanged
