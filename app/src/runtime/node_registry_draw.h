@@ -6,4 +6,14 @@
 
 namespace sw {
 const std::vector<NodeSpec>& drawSpecs();
+
+// Per-family draw sub-tables (parallel-lane peel: each family owns its own .cpp so the four
+// render/camera/flow/data lanes never touch drawSpecs()'s shared table = no merge conflict).
+// drawSpecs() appends these in source order (table order unchanged). Adding a node in a family =
+// add ONE row to that family's file; no shared-file edit. Mirror of drawTransformSpecs /
+// drawRenderStateSpecs (the earlier peels).
+const std::vector<NodeSpec>& drawRenderSpecs();  // DrawPoints/DrawLines/…/RenderTarget/SetRequestedResolution
+const std::vector<NodeSpec>& drawCameraSpecs();  // Camera / OrthographicCamera
+const std::vector<NodeSpec>& drawFlowSpecs();    // Execute/Loop/SetXxxVarCmd/LogMessage/…
+const std::vector<NodeSpec>& drawDataSpecs();    // data.* ops (lane hook — starts empty)
 }  // namespace sw
