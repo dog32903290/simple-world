@@ -65,20 +65,35 @@ device-io 57(MIDI/OSC/DMX/serial=柏為域)/ pbr-lighting 16(新 3D-render 島)/
 
 ## 真骨頭(剝掉誤分類後,真正要判斷力蓋的機制,反覆匯聚)
 
-1. **compute-dispatch**:census 標 6,但 SortPixelGlitch/SampleFieldPoints/ApplyVectorField/
-   SimpleLiquid×2/AdvancedFeedback2 全匯此 → 實際 unlock 遠大於 6。蓋這根解鎖最多。
+1. **SimpleLiquid×2 幀內迭代機器(原「compute-dispatch」,2026-07-04 軌B scout code 驗證後大幅縮水)**:
+   image-compute(`point_ops_crop.cpp`)+point-compute(`point_ops_movepointstosdf.cpp`)路徑**早已 live**,
+   本檔原「遠大於6/解鎖最多」是印象誇大。真相=原列 6 顆裡 **3 顆是接線葉子**(SampleFieldPoints/
+   ApplyVectorField ~4h、SortPixelGlitch ~8h 含 HLSL→MSL)→降級併入 leaf 波;**AdvancedFeedback2=誤報**
+   (走 RenderEncoder 已綠);唯一真骨頭=**SimpleLiquid×2**(一 cook 內多 dispatch+中間 buffer 交換+3
+   RWTexture2D 多 UAV,~24h;現有只 1 UAV/跨幀 toggle,缺幀內 ping-pong)。**只解鎖 2 顆。**
 2. **persistent accumulator / texture-array**:TimeDisplace(N-slice ring)/ SlidingHistory /
    RemoveStaticBackground(單張 in-place EMA)。三顆,兩種型。
 3. **pbr-lighting / 3D-render 島**:16 顆 + ScreenCloseUp 匯入。新島,最大單塊。
 
-**這三根才是判斷密度高、該用最強腦當刀刃蓋的。其餘 seam-build 帳面數字被誤分類灌水。**
+**判斷密度:骨3(pbr島,16顆)>骨2(accumulator,3顆)>骨1(SimpleLiquid 幀內迭代,2顆)。骨1 縮水後
+「蓋一根解鎖一批」只對 pbr島 真成立;能立即並行的葉子從 93 增至 ~96(3 顆 compute 葉降級)。其餘
+seam-build 帳面被誤分類灌水。**
 
-## 給大量產的操作接縫
+## 給大量產的操作接縫(2026-07-04 軌A scout 排定 11 lane)
 
-- **今天就能大量並行(工人活,不卡縫)**:93 leaf-ready + 三縫解放的 ~10 顆(compound 6 + raymarch 1
-  + feedback 2 + field generator 2)≈ **100+ 顆**。按島/家族分 lane 並行(每家族一 lane,registry 共享檔
-  由 orchestrator 統一加=/sw-node-batch 既有形),每顆過新 golden 出廠閘(GOLDEN_STANDARD 五反型)。
-- **judgment 活(刀刃,強腦,非量產)**:compute-dispatch → accumulator → pbr-3D 島,蓋一根解鎖一批。
+- **今天就能大量並行(工人活,不卡縫)**:93 leaf-ready + 3 顆 compute 葉降級 + 三縫解放 ~11 顆
+  ≈ **~107 顆**。軌A scout 排成 **11 條 lane**,並行度兩級:
+  - **8 條可立即 100%/95% 並行**(point 17/mesh 17/vecmath 12/string 6/field 2/image 1/tex-select 1
+    +point-modify;各家族自註冊或獨立 registry,零/近零競爭)。
+  - **4 條卡同一瓶頸**:render 14/camera 14/flow 8/data 1 = **37 顆全撞 `node_registry_draw.cpp`
+    的 drawSpecs() 表**(並行=git merge 衝突,非行數問題)。
+- **★前置已落地(commit eaa678b,2026-07-04)**:`node_registry_draw.cpp` 已拆家族分檔
+  (node_registry_draw_render/_camera/_flow/_data.cpp,原檔收斂成純 concat driver、零 literal op 行);
+  drawSpecs() 506 顆拆前拆後 `--dump-nodespec-types` diff **IDENTICAL**,build+check-arch+line-ratchet
+  +specdedup 全綠。**37 顆的 4 lane 已從 0% 解放到 100% 並行 → 11 lane 全部可並行採。**
+  (選拆檔非 orchestrator 代理:後者違 no-fieldwork 律 + 每波重複瓶頸。)
+- 每顆過新 golden 出廠閘(GOLDEN_STANDARD 五反型)。
+- **judgment 活(刀刃,強腦,非量產)**:SimpleLiquid 幀內迭代(2) → accumulator(3) → pbr-3D 島(16)。
 - **柏為域/延後**:device-io 57(硬體)、pbr 16(大島)——clone-first 範圍內晚做。
 
 ## census 防呆(這次踩的坑,寫下免重栽)
