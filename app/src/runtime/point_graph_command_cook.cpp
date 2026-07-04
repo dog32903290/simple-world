@@ -60,6 +60,11 @@ namespace sw {
 using pgdetail::cmdReg;
 using pgdetail::flatKey;
 
+// PickObject selection helpers (defined in point_ops_pickobject.cpp; render_command.h is at its line cap,
+// so the decls ride locally here — the registerSwitchOp/point_ops_register_draw.cpp local-extern precedent).
+int pickObjectSelectIndex(int rawIndex, int count);
+bool& pickObjectIgnoreIndexForTest();
+
 namespace {
 // Verbatim copy of the cook()-local mapParam helper (anon-namespace in point_graph.cpp): a NULL-safe
 // param-map lookup with default. Same logic, file-local — the Command walker uses it for Switch.Index /
@@ -171,6 +176,27 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
           } else if (sel != kSwitchSelectNone) {  // -1/empty: cook NOTHING (inCmd stays empty)
             RenderCommand sub = cookCommand(srcIds[(size_t)sel]);  // cook ONLY the selected wire
             inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+          }
+        } else if (n->type == "PickObject") {
+          // data.object PickObject SUB-SELECT (PickObject.cs:23 Index.Mod(count) — negatives WRAP; NO
+          // Switch-style -1=none/-2=all sentinels. Selection math + doc: point_ops_pickobject.cpp).
+          std::vector<int> srcIds;  // wired Command sources, wire order (== CollectedTypedInputs)
+          for (const Connection& c : g.connections) {
+            if (c.toPin != pinId(id, (int)i)) continue;
+            srcIds.push_back(pinNode(c.fromPin));
+          }
+          const int rawIndex = (int)mapParam(nodeParams(id), "Index", 0.0f);  // C# (int) trunc-toward-0
+          if (pickObjectIgnoreIndexForTest()) {
+            for (int sid : srcIds) {  // -bug: concat ALL (selection lost) — the pick tooth
+              RenderCommand sub = cookCommand(sid);
+              inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+            }
+          } else {
+            const int sel = pickObjectSelectIndex(rawIndex, (int)srcIds.size());
+            if (sel >= 0) {  // no wires → nothing to cook (PickObject.cs:19-20)
+              RenderCommand sub = cookCommand(srcIds[(size_t)sel]);  // cook ONLY the picked wire
+              inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+            }
           }
         } else if (n->type == "Loop") {
           // S3c Loop RE-COOK (TiXL flow/Loop.cs): cook the single wired SubGraph `Count` times, each iter
