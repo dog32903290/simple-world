@@ -148,10 +148,41 @@ RenderCommand cookCameraValueNoop(CmdCookCtx&) { return RenderCommand{}; }
 
 }  // namespace
 
-void registerCameraValueOps() { registerCmdOp("CamPosition", cookCameraValueNoop); }
+void registerCameraValueOps() {
+  registerCmdOp("CamPosition", cookCameraValueNoop);
+  registerCmdOp("CurrentCamMatrices", cookCameraValueNoop);
+}
 
 void cookCameraValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
   for (ResidentNode& rn : g.nodes) {
+    // CurrentCamMatrices (TiXL Lib.render.camera.CurrentCamMatrices) — emit the ambient camera's
+    // WorldToClipSpace as 4 Vector4 rows. CurrentCamMatrices.cs:28-42:
+    //   worldToClip = context.WorldToCamera * context.CameraToClipSpace;   // :30-32 (row-vector order
+    //                                                                     //  = mat4Mul(w2c, c2c))
+    //   worldToClip = Matrix4x4.Transpose(worldToClip);                    // :33
+    //   Value = { (M11..M14), (M21..M24), (M31..M34), (M41..M44) };        // :35-41
+    // Row i of the TRANSPOSED matrix = column i of worldToClip (m[i], m[4+i], m[8+i], m[12+i]).
+    // The 4-row list rides extColorOut (fork-matrix-as-4-vec4-on-extColorOut, TransformMatrix
+    // precedent) keyed by the ColorList output-port index.
+    if (rn.opType == "CurrentCamMatrices") {
+      Mat4 w2c, c2c;
+      enclosingCameraForward(g, findEnclosingCamera(g, rn.path), ctx, w2c, c2c);
+      const Mat4 wc = mat4Mul(w2c, c2c);
+      int outPortIdx = -1;  // the ColorList output port (mirror of cookMatrixOutputNodes' lookup)
+      if (const NodeSpec* s = findSpec(rn.opType))
+        for (size_t i = 0; i < s->ports.size(); ++i)
+          if (!s->ports[i].isInput && s->ports[i].dataType == "ColorList") {
+            outPortIdx = (int)i;
+            break;
+          }
+      if (outPortIdx < 0) continue;
+      rn.extColorOut[outPortIdx] = {
+          simd::float4{wc.m[0], wc.m[4], wc.m[8], wc.m[12]},
+          simd::float4{wc.m[1], wc.m[5], wc.m[9], wc.m[13]},
+          simd::float4{wc.m[2], wc.m[6], wc.m[10], wc.m[14]},
+          simd::float4{wc.m[3], wc.m[7], wc.m[11], wc.m[15]}};
+      continue;
+    }
     if (rn.opType != "CamPosition") continue;
     // CamPosition (TiXL Lib.render.camera.CamPosition) — emit the ambient camera's world-space
     // position/direction + the projection aspect. CamPosition.cs:29-38:

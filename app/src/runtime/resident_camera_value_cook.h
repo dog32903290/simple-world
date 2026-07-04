@@ -29,13 +29,14 @@ struct ResidentEvalCtx;
 
 // Per-frame PRODUCTION cook for the camera value-output ops. Walks the resident graph; for each
 // CamPosition resolves the enclosing camera's forward matrices and writes Position/Direction/AspectRatio
-// onto extOut[1..7] (CamPosition.cs:29-38); (CurrentCamMatrices lands on this same pass — commit 2).
-// Mutates g (writes extOut, like cookValueOutputNodes). Pure CPU, no Metal.
+// onto extOut[1..7] (CamPosition.cs:29-38); for each CurrentCamMatrices writes the 4 transposed
+// WorldToClipSpace rows onto extColorOut (CurrentCamMatrices.cs:28-42, the
+// fork-matrix-as-4-vec4-on-extColorOut channel). Mutates g. Pure CPU, no Metal.
 void cookCameraValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 
-// Register the camera value ops' Command-rail cooks (CamPosition — a NO-OP RenderCommand: TiXL's
-// Command output draws nothing; the values ride the frame-level pass above). Called from
-// registerPointOps' draw registrar (point_ops_register_draw.cpp).
+// Register the camera value ops' Command-rail cooks (CamPosition / CurrentCamMatrices — a NO-OP
+// RenderCommand: TiXL's Command output draws nothing; the values ride the frame-level pass above).
+// Called from registerPointOps' draw registrar (point_ops_register_draw.cpp).
 void registerCameraValueOps();
 
 // -bug seam (the goldens' true-cook corrosion): when true the enclosing-camera walk is SEVERED — every

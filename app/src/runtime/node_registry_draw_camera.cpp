@@ -85,6 +85,20 @@ const std::vector<NodeSpec>& drawCameraSpecs() {
         {"AspectRatio", "AspectRatio", "Float", false}},
        nullptr,
        "render.camera"},
+      // CurrentCamMatrices (TiXL Lib.render.camera.CurrentCamMatrices, camera-A lane): emits the AMBIENT
+      // camera's WorldToClipSpace as a 4-element Vector4[] — CurrentCamMatrices.cs:28-42 (worldToClip =
+      // context.WorldToCamera * context.CameraToClipSpace; Transpose; rows M11-14/M21-24/M31-34/M41-44).
+      // OUTPUT-ONLY (cs has no Input slots). CONTEXT-reading → evaluate==nullptr; cooked once per frame by
+      // cookCameraValueOutputNodes (resident_camera_value_cook.cpp) onto extColorOut[1] — the matrix rides
+      // the vec4-list channel (FORK fork-matrix-as-4-vec4-on-extColorOut, the TransformMatrix precedent:
+      // TiXL wires ONE Slot<Vector4[]>; sw emits the SAME 4 float4 rows onto the ColorList channel).
+      // Ambient camera = the structural enclosing-walk (fork-camera-value-structural-enclosing-walk).
+      // The Command output is the TiXL execution-path hook (draws nothing; no-op cmd op).
+      {"CurrentCamMatrices", "CurrentCamMatrices",
+       {{"Command", "Command", "Command", false},
+        {"WorldToClipSpace", "WorldToClipSpace", "ColorList", false}},
+       nullptr,
+       "render.camera"},
   };
   return specs;
 }

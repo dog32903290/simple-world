@@ -159,11 +159,110 @@ int runCamPositionGolden(bool injectBug) {
   return allFaithful ? 0 : 1;
 }
 
+// --- CurrentCamMatrices GOLDEN -------------------------------------------------------------------
+// TiXL CurrentCamMatrices.cs:28-42: worldToClip = WorldToCamera * CameraToClipSpace; Transpose;
+// emit rows (M11..M14)/(M21..M24)/(M31..M34)/(M41..M44) as a Vector4[4].
+//
+// HAND-DERIVED WANT (every element from GraphicsMath.cs formulas — no sw helper produces a want):
+//   Camera: eye=(3,0,4) target=(0,0,0) up=(0,1,0) fov=60° aspect=2 near=1 far=101. All off-identity
+//   (P2): rotated eye (3-4-5), fov≠45, aspect≠1, near/far≠defaults.
+//   LookAtRH (GraphicsMath.cs:10-22): zAxis=normalize(eye−target)=(0.6,0,0.8);
+//     xAxis=normalize(up×z)=(0.8,0,−0.6); yAxis=z×x=(0,1,0);
+//     W2C rows = [0.8,0,0.6,0] [0,1,0,0] [−0.6,0,0.8,0] [−x·eye,−y·eye,−z·eye,1]=[0,0,−5,1].
+//   PerspectiveFovRH (GraphicsMath.cs:27-56): yScale=1/tan(30°)=√3=1.7320508; xScale=y/2=0.8660254;
+//     M33=far/(near−far)=101/−100=−1.01; M34=−1; M43=near·far/(near−far)=−1.01.
+//   worldToClip = W2C·C2C (row-vector apply order, System.Numerics `*`):
+//     row0 = 0.8·c2cRow0 + 0.6·c2cRow2 = ( 0.69282032, 0, −0.606, −0.6)
+//     row1 =        1·c2cRow1          = ( 0, 1.7320508, 0, 0)
+//     row2 = −0.6·c2cRow0 + 0.8·c2cRow2 = (−0.51961524, 0, −0.808, −0.8)
+//     row3 = −5·c2cRow2 + 1·c2cRow3     = ( 0, 0, 4.04, 5)
+//   Transpose (cs:33) → emitted rows = COLUMNS of the above:
+//     T0 = ( 0.69282032, 0, −0.51961524, 0)
+//     T1 = ( 0, 1.7320508, 0, 0)
+//     T2 = (−0.606, 0, −0.808, 4.04)
+//     T3 = (−0.6, 0, −0.8, 5)
+//
+// injectBug = the SAME severed-walk seam → default camera matrices → every non-trivial element
+// (T2.w=4.04, T3.w=5, T0.z=−0.5196…) flips → RED. Wants stay FIXED.
+int runCurrentCamMatricesGolden(bool injectBug) {
+  const float eps = 1e-4f;
+  bool allFaithful = true;
+
+  ResidentEvalCtx ctx;
+  ctx.requestedWidth = 1280u;
+  ctx.requestedHeight = 720u;
+
+  ResidentEvalGraph g;
+  ResidentNode cm;
+  cm.path = "1";
+  cm.opType = "CurrentCamMatrices";
+  ResidentNode cam;
+  cam.path = "2";
+  cam.opType = "Camera";
+  cam.inputs.push_back(connIn("command", "1", "Command"));
+  cam.inputs.push_back(constIn("Position.x", 3.0f));
+  cam.inputs.push_back(constIn("Position.y", 0.0f));
+  cam.inputs.push_back(constIn("Position.z", 4.0f));
+  cam.inputs.push_back(constIn("FieldOfView", 60.0f));
+  cam.inputs.push_back(constIn("AspectRatio", 2.0f));
+  cam.inputs.push_back(constIn("ClipPlanes.x", 1.0f));
+  cam.inputs.push_back(constIn("ClipPlanes.y", 101.0f));
+  g.nodes.push_back(cm);
+  g.nodes.push_back(cam);
+  g.byPath["1"] = 0;
+  g.byPath["2"] = 1;
+
+  cameraValueBugSkipEnclosing() = injectBug;  // ★-bug: sever the walk (real cook-path corrosion)
+  cookCameraValueOutputNodes(g, ctx);
+  cameraValueBugSkipEnclosing() = false;
+
+  // WorldToClipSpace = output port index 1 (ports: [0]=Command, [1]=WorldToClipSpace ColorList).
+  const float want[4][4] = {{0.69282032f, 0.0f, -0.51961524f, 0.0f},
+                            {0.0f, 1.7320508f, 0.0f, 0.0f},
+                            {-0.606f, 0.0f, -0.808f, 4.04f},
+                            {-0.6f, 0.0f, -0.8f, 5.0f}};
+  auto it = g.nodes[0].extColorOut.find(1);
+  bool emitted = it != g.nodes[0].extColorOut.end() && it->second.size() == 4;
+  bool match = emitted;
+  if (emitted)
+    for (int r = 0; r < 4 && match; ++r)
+      for (int c = 0; c < 4; ++c)
+        if (std::fabs(it->second[(size_t)r][c] - want[r][c]) >= eps) {
+          match = false;
+          break;
+        }
+  allFaithful = emitted && match;
+  if (emitted)
+    std::printf("[selftest-currentcammatrices] enclosed(eye=(3,0,4) fov=60 ar=2 clip=(1,101)): "
+                "T0=(%.5f,%.1f,%.5f,%.1f) T2=(%.4f,%.1f,%.4f,%.3f) T3=(%.2f,%.1f,%.2f,%.2f) "
+                "want T0=(0.69282,0,-0.51962,0) T2=(-0.606,0,-0.808,4.040) T3=(-0.60,0,-0.80,5.00) "
+                "-> %s\n",
+                it->second[0][0], it->second[0][1], it->second[0][2], it->second[0][3],
+                it->second[2][0], it->second[2][1], it->second[2][2], it->second[2][3],
+                it->second[3][0], it->second[3][1], it->second[3][2], it->second[3][3],
+                allFaithful ? "ok" : "TRIPPED");
+  else
+    std::printf("[selftest-currentcammatrices] no extColorOut[1] emitted -> TRIPPED\n");
+
+  if (injectBug) {
+    if (allFaithful) {
+      std::printf("[selftest-currentcammatrices] injectBug did not trip any tooth\n");
+      return 0;  // dead tooth → NO-BITE list (GOLDEN_STANDARD polarity)
+    }
+    std::printf("[selftest-currentcammatrices] injectBug correctly RED (severed walk → default "
+                "camera matrix under a wired Camera)\n");
+    return 1;
+  }
+  std::printf("[selftest-currentcammatrices] %s\n", allFaithful ? "PASS" : "FAIL");
+  return allFaithful ? 0 : 1;
+}
+
 // Golden registrar — DIRECT push into the live valueOpSelfTests() sink (no shared-file edit;
 // mirror of RequestedResolutionGoldenRegistrar, resident_value_output_cook.cpp).
 struct CameraValueGoldenRegistrar {
   CameraValueGoldenRegistrar() {
     valueOpSelfTests().push_back({"camposition", runCamPositionGolden});
+    valueOpSelfTests().push_back({"currentcammatrices", runCurrentCamMatricesGolden});
   }
 };
 static const CameraValueGoldenRegistrar _reg_camera_value_golden;
