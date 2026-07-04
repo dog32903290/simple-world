@@ -93,5 +93,5 @@
 1. **String value-slot 型別**：string TRIVIAL 開採需 sw 已有 String 值 slot 型別（不只 NodeSpec，是 graph.h 的 slot 型別系統認得 String）。本批未深查 graph.h slot 型別清單，標盲區——value-op seam 蓋之前須確認 String slot 是否已存在（若無，+1 小型型別工）。
 2. **value-op 自登記 seam 的 evaluate-fn 分檔**：`value_eval_ops.cpp`（740 行）目前是集中 evalXxx 函數庫；自登記化時，新 op 的 eval fn 放各自 leaf 還是續用集中庫，是品味/工法決策（不影響 NodeSpec sink，但影響「真零共享檔」程度）。建議：sink 先做、新 op eval 放各自 leaf；舊 op 不動（incremental，不重織既有承重線）。
 3. **AdsrCalculator 工作量**：預檢③確認未建。AdsrEnvelope 依賴的 ADSR DSP helper 是否大，本批未估（TiXL `T3.Core.Audio.AdsrCalculator` 行數未查）。暫移出 READY-LEAF，需要時單獨評估。
-4. **numbers census line 177 誤判須更正**：「value-graph 已有 Gradient」與源碼矛盾（預檢①）。下次校 census 時修正 ops-numbers.md 的 DefineGradient/BuildGradient/SampleGradient 等「READY-LEAF」標記——它們其實 BLOCKED:gradient-type（一個比 gradient-widget 更底層的未建型別）。
+4. **~~numbers census line 177 誤判~~ ✅已解（2026-07-05）**：Gradient 型別早已建（SwGradient @ sw_gradient.h），DefineGradient/BlendGradients/PickGradient/DefineIqGradient/SampleGradient 皆 BUILT；BuildGradient 亦 DONE（list-currency 縫 gradient_ops_buildgradient.cpp）。原「BLOCKED:gradient-type」註記過時，已從 ops-numbers.md 撤除。
 5. **第一批 C-3 SinForm 用 dynamic shader**：預檢②證 dynamic/static 對 port 無礙（都成 .metal），但 SinForm 是本計畫第一顆「TiXL 標 dynamic」的新採 op，第一個 lane 可順帶確認 dynamic-source op 的 .hlsl→.metal 移植無隱藏陷阱（理論上與 static 同，但首採值得留意）。

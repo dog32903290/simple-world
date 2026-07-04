@@ -39,7 +39,7 @@
 - **ints/（5）**：IntListLength / IntsToList / MergeIntLists / PickIntFromList / SetIntListValue
 - **vec2/vec3/vec4 補漏（~20）**：凡 A1 §H 未列者（GridPosition / Int2ToVector2 / PerlinNoise2/3 / PickVector2/3 / TransformVec3 / MulMatrix / Vector3Gizmo / ✅DotVec4(BUILT value_op_dotvec4.cpp) / ✅PickColor(BUILT value_op_pickcolor.cpp) / ✅Vector4Components(BUILT value_op_vector4components.cpp)…）
 - **floats/ list（~26）**：FloatListLength / FloatsToList / ColorsToList / SetFloatListValue / FloatListToIntList / IntListToFloatList / ComposeVec3FromList / PickFloatFromList / PickFloatList / AmplifyValues / AnalyzeFloatList / ColorListToInts / CombineFloatLists / CompareFloatLists / DampFloatList / DampPeakDecay / DeltaSinceLastFrame / KeepFloatValues / MergeFloatLists / RemapFloatList / SmoothValues / SumRange / RandomChoiceIndex
-- **color/ Gradient ops（~13）**：BlendColors / HSBToColor / HSLToColor / OKLChToColor / ⛔PickColorFromList(僅此一顆未做=ColorList-consumer 需 colorlist-value-emit 縫,非 trivial leaf) / CombineColorLists / KeepColors / DefineGradient / BuildGradient / BlendGradients / PickGradient / ✅SampleGradient(BUILT value_op_samplegradient.cpp) / DefineIqGradient（✅Gradient 型別已實作：SwGradient @ sw_gradient.h，「需確認」caveat 已過時）
+- **color/ Gradient ops（~13）**：BlendColors / HSBToColor / HSLToColor / OKLChToColor / ⛔PickColorFromList(僅此一顆未做=ColorList-consumer 需 colorlist-value-emit 縫,非 trivial leaf) / CombineColorLists / KeepColors / DefineGradient / ✅BuildGradient(BUILT gradient_ops_buildgradient.cpp；list-currency 縫 ColorList+FloatList→Gradient) / BlendGradients / PickGradient / ✅SampleGradient(BUILT value_op_samplegradient.cpp) / DefineIqGradient（✅Gradient 型別已實作：SwGradient @ sw_gradient.h，「需確認」caveat 已過時）
 - **curve/**：SampleCurve
 
 ### B2. string TRIVIAL（33 顆全新）
@@ -218,7 +218,7 @@ numbers: GetListItemAttribute/GetPointDataFromList(★✅BUILT@b77789e value-emi
 ### `RWStructuredBuffer`（~7）
 particle: ReconstructiveForce(R3)/VerletRibbonForce(R3)
 render: UavFromStructuredBuffer/_ReadIntFromGpuBuffer
-numbers: IntListToBuffer
+numbers: ~~IntListToBuffer~~ ✅DONE（誤歸此 bucket：不需 SRV/UAV，BufferWithViews 塌成單 MTL::Buffer；list-currency 縫已解，buffer_ops_intlisttobuffer.cpp）
 flow: ExecuteRawBufferUpdate/_ReadBackImageDifference
 
 ### `source-op`（3）
@@ -272,7 +272,7 @@ image: LoadImage(R1,decoder已建,差path-watcher)/ImageSequenceClip/BuildAsciiF
 
 ## 盲區 / 待確認（給 Phase C 前查證）
 
-1. **Gradient 型別**：DefineGradient/BuildGradient/SampleGradient 等列 READY-LEAF，前提是 sw 已實作 `Gradient` 型別。**開採 color/ gradient ops 前須確認**（A1 未明列 Gradient 型別證據）。
+1. ~~**Gradient 型別**~~ ✅已確認並全採（2026-07-05）：SwGradient @ sw_gradient.h 早已實作；DefineGradient/BlendGradients/PickGradient/DefineIqGradient/SampleGradient/BuildGradient 皆 BUILT。BuildGradient 的 list-input（Colors=List<Vector4>/Positions=List<float>）由 list-currency 縫解（ColorList+FloatList→Gradient cook gather，flat+resident）。
 2. **dynamic shader（`_ImageFxShaderSetup2`）**：10 顆 image-filter 用 runtime hlsl 載入。sw 若只支援 static shader，需一行 platform 差異。**開採前確認 sw 是否支援動態 hlsl**。
 3. **AdsrCalculator**：AdsrEnvelope 是 sw 自加 op，依賴 AdsrCalculator（T3.Core.Audio）。**確認 sw 已有**。
 4. **PolarCoordinates/EdgeRepeat 孤兒**（見 D2）。

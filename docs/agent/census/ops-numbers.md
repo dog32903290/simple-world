@@ -194,7 +194,7 @@
 | CombineColorLists | 合併 color list | value-graph | TRIVIAL | R1 | |
 | KeepColors | 保持上一幀 color | value-graph | TRIVIAL | R2 | frame-level state |
 | DefineGradient | 定義最多 4 色的 Gradient | value-graph | READY-LEAF | R1 | 輸出 Gradient 型別 |
-| BuildGradient | 從 color list + position list 建 Gradient | value-graph | READY-LEAF | R1 | |
+| BuildGradient | 從 color list + position list 建 Gradient | value-graph | ✅DONE | R1 | gradient_ops_buildgradient.cpp；list-currency 縫（ColorList+FloatList→Gradient cook gather，flat+resident）；golden --selftest-buildgradient |
 | BlendGradients | 兩 Gradient lerp | value-graph | READY-LEAF | R1 | |
 | PickGradient | 條件選 Gradient | value-graph | READY-LEAF | R1 | |
 | SampleGradient | 取樣 Gradient 某位置顏色 | value-graph | ✅BUILT | R1 | value_op_samplegradient.cpp；SwGradient 型別已存在於 sw_gradient.h（先前「需確認已實作」caveat 已過時） |
@@ -217,7 +217,7 @@
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|----------|------|------|------|
 | IntsToBuffer | 多 int 參數 → constant buffer (Buffer) | NEW-SEAM:int-cbuffer | BLOCKED:int-cbuffer | R2 | 輸出 `Buffer`（constant buffer）而非 Texture；動態常數緩衝區上傳 |
-| IntListToBuffer | int list → StructuredBuffer（含 SRV+UAV） | RWStructuredBuffer | BLOCKED:RWStructuredBuffer | R2 | 使用 `StructuredList<int>` + SetupStructuredBuffer + CreateStructuredBufferSrv/Uav |
+| IntListToBuffer | int list → StructuredBuffer（含 SRV+UAV） | value-graph→Buffer | ✅DONE | R1 | buffer_ops_intlisttobuffer.cpp；list-currency 縫（單一 List<int> wire＝sw FloatList→tight int32 buffer，NO 16-byte pad，對比 IntsToBuffer）；SwBuffer=StorageModeShared MTL::Buffer（BufferWithViews 塌成單 buffer，既有 fork）；golden --selftest-intlisttobuffer |
 | RandomChoiceIndex | 隨機選整數（有 frame state） | value-graph | TRIVIAL | R1 | 純雜湊，無 buffer |
 
 ---
@@ -254,7 +254,7 @@
 | `NEW-SEAM:keyframe-edit` | 2 | SetKeyframes / FindKeyframes — 程序化讀寫 Curve keyframe |
 | `NEW-SEAM:ableton-link` | 1 | AbletonLinkSync — macOS 需 native Ableton Link DLL |
 | `NEW-SEAM:int-cbuffer` | 1 | IntsToBuffer — dynamic constant buffer |
-| `RWStructuredBuffer`（已知未建） | 1 | IntListToBuffer — StructuredBuffer SRV+UAV |
+| ~~`RWStructuredBuffer`（已知未建）~~ ✅DONE | 0 | IntListToBuffer — 誤判：BufferWithViews 塌成單 MTL::Buffer（既有 sw fork），SRV/UAV 非必需；list-currency 縫已解，DONE |
 | `Layer2d+Execute`（已知未建） | 1 | SetSpeedFactors — 輸出 Command slot |
 | `NEW-SEAM:audio-analysis` | 1 | PlaybackFFT — FFT 頻帶分析子系統 |
 

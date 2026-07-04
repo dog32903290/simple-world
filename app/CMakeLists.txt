@@ -606,6 +606,8 @@ add_executable(simple_world
   src/runtime/gradient_ops_blendgradients.cpp
   src/runtime/gradient_ops_defineiqgradient.cpp
   src/gradient_golden.cpp
+  src/buildgradient_golden.cpp   # BuildGradient (ColorList+FloatList list-input → Gradient; list-currency seam, flat+resident)
+  src/intlisttobuffer_golden.cpp # IntListToBuffer (FloatList list-input → tight int32 Buffer; list-currency seam, flat+resident)
   src/keeppreviousframe_golden.cpp
   src/swaptextures_golden.cpp
   src/afterglow_golden.cpp
