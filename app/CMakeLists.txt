@@ -495,6 +495,7 @@ add_executable(simple_world
   src/runtime/string_ops_stringlength.cpp
   src/runtime/string_ops_floattostring.cpp
   src/runtime/string_ops_datetimetostring.cpp  # DateTimeToString (route-B epoch Float + .NET format → string)
+  src/runtime/string_ops_countdown.cpp  # CountDown (wall-clock duration -> .NET TimeSpan format engine; string/datetime/CountDown.cs)
   src/runtime/string_ops_combinestrings.cpp
   src/runtime/string_ops_inttostring.cpp
   src/runtime/string_ops_vec3tostring.cpp
@@ -531,6 +532,7 @@ add_executable(simple_world
   src/string_builder_golden.cpp
   src/string_ops_wrapstring_golden.cpp
   src/string_ops_blendstrings_golden.cpp
+  src/string_ops_countdown_golden.cpp  # --selftest-countdown (pinned-clock TimeSpan format goldens)
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp
   src/stringctxvar_golden.cpp
