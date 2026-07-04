@@ -117,6 +117,14 @@ int runAnimBooleanSelfTest(bool injectBug);
 // (oracle-derived) wants bite.
 int runRandomChoiceIndexSelfTest(bool injectBug);
 
+// EaseKeys family PRODUCTION-PATH pin (--selftest-easekeys): EaseKeys/EaseVec2Keys/EaseVec3Keys —
+// ease BETWEEN the keyframes of an animated input (replacing the curve's own interpolation). Drives
+// the REAL cookStatefulValueNodes seam with REAL def-layer Animator curves installed, varying the
+// playhead per probe; asserts hand-derived EasingFunctions.cs values mid-segment + the fallback
+// paths (outside keys / Constant-out / not-animated). injectBug flips a REAL production term
+// (setEaseKeysBug: drop the easing shaping / sever the curve query) so the fixed wants bite.
+int runEaseKeysSelfTest(bool injectBug);
+
 // WasTrigger PRODUCTION-PATH pin (--selftest-wastrigger): drives the REAL cookStatefulValueNodes
 // across a 5-frame trigger sequence (one ContextVarMap + one StatefulValueState carried) where a
 // SetFloatVar("__TriggerA") writer feeds a WasTrigger reader through the shared floatVars channel,

@@ -686,6 +686,7 @@ add_executable(simple_world
   src/app/frame_cook_animboolean_selftest.cpp
   src/app/frame_cook_wastrigger_selftest.cpp
   src/app/frame_cook_randomchoice_selftest.cpp
+  src/app/frame_cook_easekeys_selftest.cpp
   src/app/soundtrack.cpp
   src/app/soundtrack_selftest.cpp
   src/app/soundtrack_selftest_d4.cpp

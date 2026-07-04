@@ -174,6 +174,21 @@ void setAnimBooleanBug(int mode);
 // setAnimValueBug.
 void setRandomChoiceIndexBug(int mode);
 
+// EaseKeys family TEETH hook (--selftest-easekeys). 0 = production; 1 = DROP the easing shaping
+// (eased := raw progress — every non-Linear probe reads the linear lerp); 2 = SEVER the curve query
+// (every animated probe collapses to the passthrough). Sticky module switch (golden restores 0).
+void setEaseKeysBug(int mode);
+
+// The EaseKeys-family production cook (stateful_value_ops_easekeys.cpp): reads the keyframe curves
+// on the node's OWN Value input through its Automation drivers (def-layer Animator — context the
+// resolved-Float map cannot carry) and eases between the bracketing keys. Called by frame_cook's
+// cookStatefulValueNodes cookOne BEFORE the generic cookStatefulValueOp; returns true when it
+// handled the node (EaseKeys / EaseVec2Keys / EaseVec3Keys), false otherwise (generic path runs).
+struct ResidentNode;    // resident_eval_graph.h
+struct ResidentEvalCtx; // resident_eval_graph.h
+bool cookEaseKeysNode(ResidentNode& rn, const ResidentEvalCtx& ctx,
+                      const std::map<std::string, float>& in, float out[8]);
+
 // WasTrigger TEETH hook (--selftest-wastrigger). 0 = production; 1 = DROP the _wasHit state write
 // (the cross-frame rising-edge gate never advances → a HELD-rising input re-pulses every frame);
 // 2 = DROP the var read (value forced to 0 → no trigger ever fires). The golden sets this around the

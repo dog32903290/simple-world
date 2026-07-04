@@ -52,5 +52,6 @@ REGISTER_SELFTESTS(/*orderBase=*/250,
     {"wastrigger", framecook::runWasTriggerSelfTest},  // WasTrigger rising-edge pulse on a named trigger var (REAL cook seam) — appended at the 250-block tail (no row-order shift)
     {"mixed-multiinput", runMixedMultiInputOrderSelfTest},  // 骨7b: flatten loop2/loop3 merge — MultiInput slot fed by child+boundary keeps wire-declaration order (mesh family unblocker); appended at 250-block tail (no row-order shift)
     {"randomchoiceindex", framecook::runRandomChoiceIndexSelfTest},  // RandomChoiceIndex: XxHash no-repeat choice + window/modulo hysteresis on the prod cook; appended at 250-block tail
+    {"easekeys", framecook::runEaseKeysSelfTest},  // EaseKeys family: ease between an animated input's keyframes (REAL animator curves + prod cook); appended at 250-block tail
 );
 }  // namespace sw
