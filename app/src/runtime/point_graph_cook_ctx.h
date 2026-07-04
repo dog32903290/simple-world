@@ -238,6 +238,13 @@ struct TexCookCtx {
   uint32_t* ownTexH = nullptr;               // op writes the texture height
   MTL::Texture* output = nullptr;          // PointGraph-owned, pre-sized; op draws here
   const std::map<std::string, float>* params = nullptr;  // resolved Float params (see PointCookCtx)
+  // TEXREF seam (UseTextureReference ↔ RenderTarget.TextureReference — the TiXL "wireless" texture
+  // link, point_ops_usetexturereference.cpp): cookKey = THIS node's stash identity (flat "#<id>" /
+  // resident path), set by both tex walkers; redirectTexture = op-SET: when non-null after the cook,
+  // the walker returns IT instead of `output` (UseTextureReference routes the referenced RenderTarget
+  // texture through without a copy). Empty/null for every existing tex op (byte-identical).
+  std::string cookKey;
+  MTL::Texture* redirectTexture = nullptr;
 };
 // A texture operator: execute `command` into `output`. No buffer/command return.
 using PointTexFn = void (*)(TexCookCtx&);
