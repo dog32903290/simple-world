@@ -316,6 +316,7 @@ add_executable(simple_world
   src/runtime/field_ops_bendfield.cpp
   src/runtime/field_ops_combinefieldcolor.cpp
   src/runtime/field_ops_raster3dfield.cpp
+  src/runtime/field_ops_subdivpattern3d.cpp
   src/runtime/field_ops_rotateaxis.cpp
   src/runtime/field_ops_rotatefield.cpp
   src/runtime/field_ops_twistfield.cpp
@@ -406,6 +407,7 @@ add_executable(simple_world
   src/field_ops_toroidalvortexfield_golden.cpp
   src/field_ops_setsdfmaterial_golden.cpp
   src/field_ops_raster3dfield_golden.cpp
+  src/field_ops_subdivpattern3d_golden.cpp
   src/runtime/mesh_op_registry.cpp
   src/runtime/mesh_ops_ngonmesh.cpp
   src/runtime/mesh_ops_quadmesh.cpp
