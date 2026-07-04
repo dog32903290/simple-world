@@ -485,7 +485,9 @@ add_executable(simple_world
   src/runtime/host_scalar_ops_comparefloatlists.cpp   # ListA+ListB+Threshold -> differing-ratio (list fan-out wave-1)
   src/runtime/host_scalar_ops_tryparse.cpp            # String -> float (parse-or-Default; numbers/float/logic/TryParse.cs)
   src/runtime/host_scalar_ops_tryparseint.cpp         # String -> int (dissolved Float; numbers/int/process/TryParseInt.cs)
+  src/runtime/host_scalar_ops_valuetorate.cpp         # String rate table + Value -> picked rate (numbers/float/logic/ValueToRate.cs)
   src/tryparse_golden.cpp                              # --selftest-tryparse (String->Float/Int bridge: flat + resident)
+  src/valuetorate_golden.cpp                           # --selftest-valuetorate (ValueToRate rate quantizer bridge: flat + resident)
   src/list_routing_golden.cpp
   src/list_routing_wave1_golden.cpp                    # --selftest-listroutingwave1 (wave-1 host-scalar consumers bridge golden)
   src/runtime/string_op_registry.cpp
