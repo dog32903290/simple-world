@@ -57,6 +57,9 @@ namespace sw {
 // the String wire is gathered via cookResidentString in the dedicated branch, the IndexOf pattern).
 bool tryParseFloat(const std::string& s, float& out);
 bool tryParseInt32(const std::string& s, int& out);
+// StringToDateTime's shared cook math (host_scalar_ops_stringtodatetime.cpp) — same byte-identical
+// contract: the dedicated branch below and the flat cook both call this ONE helper.
+float stringToDateTimeEpoch(const std::string& dateString);
 
 namespace {
 
@@ -280,7 +283,10 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
     // Computes parse-or-default with the SHARED helper (byte-identical to the flat cook), writes extOut[0].
     // Teeth: hostScalarInjectBug() writes a sentinel; the golden red case fires on the actual cook path
     // (NOT by flipping expected values — mirror of StringLength / IndexOf).
-    if (rn.opType == "TryParse" || rn.opType == "TryParseInt") {
+    if (rn.opType == "TryParse" || rn.opType == "TryParseInt" || rn.opType == "StringToDateTime") {
+      // StringToDateTime rides this SAME branch (identical shape: ONE String input → scalar via the
+      // shared leaf helper; no Default param). Its "DateString" is the first String port the generic
+      // gather below finds — byte-identical parse to the flat cook via stringToDateTimeEpoch.
       const NodeSpec* s = findSpec(rn.opType);
       if (!s) continue;
       // Gather the ONE String input (port 1 "String") — wired upstream string or strDef const.
@@ -302,7 +308,9 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
         return it != params.end() ? it->second : d;
       };
       float result;
-      if (rn.opType == "TryParse") {
+      if (rn.opType == "StringToDateTime") {
+        result = stringToDateTimeEpoch(in);  // parse-or-0 (fork-stringtodatetime-parsefail-zero)
+      } else if (rn.opType == "TryParse") {
         const float def = getDef(0.0f);
         result = def;
         tryParseFloat(in, result);  // leaves result == def on failure
