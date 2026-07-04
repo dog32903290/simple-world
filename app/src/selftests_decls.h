@@ -176,6 +176,7 @@ namespace sw { int runKeepColorsSelfTest(bool); }               // keepcolors_go
 namespace sw { int runStringRailSelfTest(bool); }                // string_rail_golden.cpp (6th cook flow: String value rail)
 namespace sw { int runHasStringChangedSelfTest(bool); }          // hasstringchanged_golden.cpp (per-node cross-frame STRING state: HasStringChanged delta, flat + R-2 resident)
 namespace sw { int runStringCtxVarSelfTest(bool); }              // stringctxvar_golden.cpp (String ctx-var seam sub-seam C: Set/GetStringVar on typed stringVars + writer-first 2-pass + per-frame clear)
+namespace sw { int runMatrixCtxVarSelfTest(bool); }              // matrixctxvar_golden.cpp (Matrix ctx-var seam sub-seam D: Set/GetMatrixVar on typed matrixVars, 4-row on extColorOut + writer-first 2-pass)
 namespace sw { int runListRoutingSelfTest(bool); }               // list_routing_golden.cpp (FloatList→Float bridge: downstream evalFloat)
 namespace sw { int runFloatListProducersSelfTest(bool); }        // floatlist_producers_golden.cpp (wave-2 FloatList→FloatList producers: Combine/IntsToList/SetFloat/SetInt/Remap, chain-through-evalFloat)
 namespace sw { int runSmoothValuesSelfTest(bool); }              // floatlist_smoothvalues_golden.cpp (SmoothValues forward-window box average, STATELESS FloatList→FloatList, chain-through-evalFloat)

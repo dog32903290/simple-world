@@ -276,6 +276,42 @@ static const MathOp _reg_GetPointDataFromList{
        "numbers.data.utils"}
 };
 
+      // TiXL GetMatrixVar (Lib/flow/context/GetMatrixVar.cs) — MATRIX context-var reader (sub-seam D).
+      // Reads context.ObjectVariables[VariableName] as a Vector4[] (a 4-row matrix); a miss OR wrong-type
+      // → the 4-row identity (GetMatrixVar.cs:42/91-97). A 4×4 matrix = a 4-element Vector4[], so Result
+      // rides the EXISTING extColorOut vec4 channel (the SAME matrix-as-4-vec4 rail TransformMatrix uses),
+      // NOT NodeSpec::evaluate (which returns ONE float). evaluate==nullptr; cookMatrixCtxVarNodes
+      // (resident_matrix_ctxvar_cook.cpp) reads the TYPED matrixVars channel host-side and writes the 4
+      // rows onto extColorOut once per frame. FORK fork-ctxvar-matrix-typed-channel: TiXL stores the
+      // Vector4[] in the boxed ObjectVariables dict; sw uses a typed std::array<float,16> channel (the SAME
+      // typed choice it took for vec3/string). DROP ICustomDropdownHolder + IStatusProvider (editor-only).
+      // .t3 default (GetMatrixVar.t3): VariableName="m".
+static const MathOp _reg_GetMatrixVar{
+      {"GetMatrixVar", "GetMatrixVar",
+       {{"Result", "Result", "ColorList", false},  // the 4-row matrix (extColorOut channel)
+        {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "m"}},
+       nullptr,
+       "flow.context"}
+};
+
+      // TiXL SetMatrixVar (Lib/flow/context/SetMatrixVar.cs) — MATRIX context-var writer (sub-seam D).
+      // Empty name → no-op (cs:22-25). The no-SubGraph, no-clear branch (cs:45-48): matrixVars[name]=Value.
+      // Value is a Vector4[] (a 4-row matrix) INPUT → the ColorList channel (fork-matrix-as-4-vec4); it is
+      // gathered THROUGH the resident graph (cookResidentColorList) by cookMatrixCtxVarNodes, which writes
+      // the typed matrixVars channel. Output ECHOES the written matrix (NAMED FORK fork-setmatrixvar-echo-
+      // output — TiXL's Output is a Slot<Command> with no value-rail analog; the echo is the golden probe +
+      // makes SetMatrixVar a matrix producer on extColorOut). DEFERRED FORK fork-setmatrixvar-subgraph-
+      // command-rail: SubGraph(Command)+ClearAfterExecution are the Command-rail scope (a future
+      // SetMatrixVarCmd, like SetFloatVarCmd/SetStringVar). .t3 default (SetMatrixVar.t3): VariableName="m".
+static const MathOp _reg_SetMatrixVar{
+      {"SetMatrixVar", "SetMatrixVar",
+       {{"Output", "Output", "ColorList", false},  // echo of the written matrix (extColorOut channel)
+        {"VariableName", "VariableName", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, "m"},
+        {"Value", "Value", "ColorList", true}},     // the 4-row matrix to store (gathered via cookResidentColorList)
+       nullptr,
+       "flow.context"}
+};
+
       // TiXL SetBpm (Lib/numbers/anim/vj/SetBpm.cs) — the [SetBpm] VJ transport-BPM writer. On a
       // TriggerUpdate RISING edge (SetBpm.cs:22 MathUtils.WasTriggered — edge, not level) it hands a
       // clamped BpmRate to the triggered-pull BpmProvider singleton; frame_cook pulls it onto

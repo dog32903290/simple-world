@@ -106,11 +106,23 @@ struct TransportSnapshot {
 // reset (frame_cook.cpp, next to floatVars/intVars/vec3Vars.clear()) — that pass runs BEFORE
 // cookStringNodes — while the WRITE (SetStringVar) + READ (GetStringVar) happen inside cookStringNodes'
 // own writer-first 2-pass split (resident_string_cook.cpp).
+// Matrix channel (sub-seam D): TiXL SetMatrixVar/GetMatrixVar store/read a Vector4[] (a 4-row matrix)
+// in the SHARED context.ObjectVariables dict (SetMatrixVar.cs:31/47 `context.ObjectVariables[name]=Vector4[]`,
+// GetMatrixVar.cs:27-31 with an `is Vector4[]` cast). sw keeps the float/int/vec3 convention of a TYPED
+// channel instead (NAMED FORK fork-ctxvar-matrix-typed-channel — the SAME typed-channel choice sw already
+// took for vec3/string over TiXL's boxed ObjectVariables dict): a std::array<float,16> map (4 rows × 4
+// floats, row-major = _matrix[0..3] = Row1..Row4). Byte-identical round-trip; can't collide with a
+// float/int/vec3/string of the same name. This is the matrix twin of vec3Vars — NOT the boxed-object
+// dict (that untyped box is GetObjectVar/SetObjectVar's, deliberately un-ported here — see the flow-var
+// BLOCKED note). GetMatrixVar reads this onto the extColorOut matrix output rail (4×float4, the SAME
+// matrix-as-4-vec4 channel resident_matrix_output_cook uses); SetMatrixVar writes it from its ColorList
+// Value input. Cook lives in resident_matrix_ctxvar_cook.cpp (writer-first, sibling of the matrix rail).
 struct ContextVarMap {
   std::map<std::string, float> floatVars;
   std::map<std::string, long> intVars;
   std::map<std::string, std::array<float, 3>> vec3Vars;
-  std::map<std::string, std::string> stringVars;  // String channel (sub-seam C): typed string vars
+  std::map<std::string, std::string> stringVars;         // String channel (sub-seam C): typed string vars
+  std::map<std::string, std::array<float, 16>> matrixVars;  // Matrix channel (sub-seam D): typed 4×4 (row-major)
 };
 
 // True if opType is a context-var WRITER (Set*Var family). The 2-pass ordering (writer-before-reader)

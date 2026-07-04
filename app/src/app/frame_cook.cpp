@@ -197,9 +197,8 @@ void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
 //   pass 0: CLEAR the map once (= EvaluationContext.Reset, cs:43-58) — the per-frame scratchpad.
 //   pass 1: WRITERS (isContextVarWriter: Set*Var) — populate the map.
 //   pass 2: everyone else (Get*Var readers + every non-var stateful op) — read the populated map.
-// BOUNDARY (named): two passes = exactly ONE write-generation; a Set→Get→Set chain in one frame is
-// NOT supported (needs topological/scope order = RED). No Set*Var VALUE input resolves through a
-// Get*Var extOut in the proving graph, so two passes suffice for the YELLOW tier.
+// BOUNDARY (named): two passes = ONE write-generation; a Set→Get→Set chain in one frame is NOT supported
+// (needs topological/scope order = RED) — no Set*Var VALUE resolves through a Get*Var extOut here, so two suffice.
 //
 // `ctxVarBug` is a TEETH hook (0 = production): 1 collapses the 2 passes into one in-order loop
 // (the C ordering golden bites), 2 skips the pass-0 clear (the D per-frame-reset golden bites). It
@@ -231,6 +230,7 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, 
     vars.intVars.clear();
     vars.vec3Vars.clear();
     vars.stringVars.clear();
+    vars.matrixVars.clear();  // sub-seam D: cleared HERE (same Reset), before the matrix ctx-var cook.
   }
 
   // Cook one node (resolve Float inputs + the String VariableName, step, write extOut).

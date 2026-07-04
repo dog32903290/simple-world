@@ -31,6 +31,7 @@ REGISTER_SELFTESTS(/*orderBase=*/72,
 REGISTER_SELFTESTS(/*orderBase=*/300,
     {"hasstringchanged", runHasStringChangedSelfTest},  // per-node cross-frame STRING state (HasStringChanged)
     {"stringctxvar", runStringCtxVarSelfTest},          // String ctx-var seam (sub-seam C): Set/GetStringVar on typed stringVars + writer-first 2-pass + per-frame clear
+    {"matrixctxvar", runMatrixCtxVarSelfTest},          // Matrix ctx-var seam (sub-seam D): Set/GetMatrixVar on typed matrixVars (4-row on extColorOut) + writer-first 2-pass
 );
 // Wave-2 FloatList→FloatList producers (list fan-out). Own high-orderBase block so it appends at the end
 // of --selftest-list deterministically (the registry sorts by `order`).

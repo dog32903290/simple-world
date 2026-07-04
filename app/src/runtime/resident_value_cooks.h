@@ -111,6 +111,22 @@ void cookValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 // same frame slot family as cookColorListNodes — NO point_graph recursion/collector touch).
 void cookMatrixOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 
+// MATRIX context-var seam (sub-seam D) — SetMatrixVar + GetMatrixVar (resident_matrix_ctxvar_cook.cpp).
+// The matrix twin of the vec3/string ctx-var ops: SetMatrixVar gathers its ColorList "Value" input (4
+// rows) through the resident graph and writes matrixVars[VariableName] (the TYPED std::array<float,16>
+// channel on ContextVarMap — NAMED FORK fork-ctxvar-matrix-typed-channel, the SAME typed choice sw took
+// for vec3/string over TiXL's boxed ObjectVariables dict); GetMatrixVar reads matrixVars[VariableName]
+// (else the 4-row identity — the miss/wrong-type fallback, GetMatrixVar.cs:42) onto extColorOut (the
+// SAME matrix-as-4-vec4 channel cookMatrixOutputNodes uses). WRITER-FIRST (all SetMatrixVar before any
+// GetMatrixVar, mirror of the string ctx-var 2-pass). `vars` = the per-frame ContextVarMap (matrixVars
+// already cleared this frame in frame_cook's pass-0 Reset); nullptr = no ctx-var graph → no-op. Mutates g
+// (writes extColorOut). Pure CPU. The SubGraph/ClearAfterExecution Command-rail scope is DEFERRED (named
+// fork-setmatrixvar-subgraph-command-rail — a future SetMatrixVarCmd, like SetFloatVarCmd/SetStringVar).
+void cookMatrixCtxVarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx, ContextVarMap* vars);
+// TEETH hook (--selftest-matrixctxvar). 0 = production; 1 = SetMatrixVar severs the map write; 2 =
+// GetMatrixVar corrupts the read (drops row4.W). Sticky module switch (the golden restores 0).
+void setMatrixCtxVarBug(int mode);
+
 // value-output-rail Phase 4 — POINT-INTO-FRAME value-emit (resident_point_value_output_cook.cpp). The
 // pass that lifts PointToMatrix off its deferral (resident_matrix_output_cook.cpp header named
 // defer-pointtomatrix-needs-point-into-frame-pass) and wires GetPointDataFromList: both read a single

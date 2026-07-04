@@ -552,6 +552,7 @@ add_executable(simple_world
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp
   src/stringctxvar_golden.cpp
+  src/matrixctxvar_golden.cpp
   src/runtime/variation_selftest.cpp  # Lane L1 (Variation/Snapshot) harness-first golden: Mix + SpringDamp math
   src/runtime/variation_snapshot_actions_selftest.cpp  # L1 (Variation): snapshot-slot state machine golden (--selftest-variation-snapshot-actions)
   src/runtime/pointlist_op_registry.cpp
@@ -721,6 +722,7 @@ add_executable(simple_world
   src/runtime/resident_host_scalar_cook.cpp
   src/runtime/resident_value_output_cook.cpp
   src/runtime/resident_matrix_output_cook.cpp
+  src/runtime/resident_matrix_ctxvar_cook.cpp  # sub-seam D: Set/GetMatrixVar on typed matrixVars (4-row on extColorOut)
   src/runtime/resident_camera_value_cook.cpp  # camera-A: CamPosition ambient-camera value emit (extOut)
   src/camera_value_golden.cpp                 # camera-A: camera value-output family golden (--selftest-camposition)
   src/camerawithrotation_golden.cpp           # camera-A: CameraWithRotation math+cook-through golden

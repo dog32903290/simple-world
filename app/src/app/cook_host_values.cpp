@@ -103,6 +103,16 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // Float inputs). PointToMatrix's emit is deferred (needs a point into this frame-level pass).
   cookMatrixOutputNodes(g, hsCtx);
 
+  // Cook the MATRIX context-var seam (sub-seam D: SetMatrixVar + GetMatrixVar) — the matrix twin of the
+  // String ctx-var pass above. WRITER-FIRST (every SetMatrixVar gathers its ColorList Value through the
+  // resident graph and writes the TYPED matrixVars channel, BEFORE any GetMatrixVar reads it), then emits
+  // the 4 rows onto extColorOut (the SAME matrix-as-4-vec4 channel as cookMatrixOutputNodes). `vars` = the
+  // per-frame ContextVarMap (matrixVars already cleared this frame by cookStatefulValueNodes's pass-0
+  // Reset); nullptr for a caller with no ctx-var graph → the pass is a no-op. Placed right after the matrix
+  // output pass (matrix-rail neighborhood); it re-cooks its ColorList Value producer via cookResidentColorList
+  // so it needs no ordering vs cookColorListNodes.
+  cookMatrixCtxVarNodes(g, hsCtx, vars);
+
   // Cook the CAMERA value-output ops (CamPosition — camera-A lane): the ambient-camera twin of
   // cookValueOutputNodes. Resolves each op's enclosing camera STRUCTURALLY off the resident graph
   // (resident_camera_value_cook.cpp) and writes Position/Direction/AspectRatio onto extOut. Stateless.
