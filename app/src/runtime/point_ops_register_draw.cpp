@@ -10,6 +10,7 @@
 #include "runtime/point_ops.h"    // cookDrawPoints, registerDrawLinesOp/Billboards/RenderTargetOp
 #include "runtime/point_ops_orthographiccamera.h"  // C2: registerOrthographicCameraOp (Command→Command ortho push)
 #include "runtime/point_ops_setvarcmd.h"  // S3a: registerSetVarCmdOps (Command-rail SetFloatVarCmd/SetIntVarCmd)
+#include "runtime/point_ops_shiftcamera.h"  // camera-B: registerShiftCameraOp (Command→Command projection nudge)
 
 namespace sw {
 
@@ -40,6 +41,7 @@ void registerDrawPointOps() {
   registerLayer2dOp();                          // Texture2D → Command (DrawKind::Layer2d, camera-context seam)
   registerCameraOp();                           // Command → Command (explicit camera push/pop, Cut 3)
   registerOrthographicCameraOp();                // Command → Command (ORTHOGRAPHIC projection push, camera3d C2)
+  registerShiftCameraOp();                       // Command → Command (additive CameraToClipSpace nudge, camera-B)
   registerExecuteOp();                           // Command(MultiInput) → Command (S2a KEYSTONE: N-chain concat)
   registerGroupOp();                             // Command(MultiInput) → Command (S2b: Execute + SRT transform-context push)
   registerRotateAroundAxisOp();                  // Command → Command (axis-angle transform-context push, S2 island)

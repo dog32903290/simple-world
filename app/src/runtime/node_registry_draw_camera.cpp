@@ -62,6 +62,21 @@ const std::vector<NodeSpec>& drawCameraSpecs() {
         {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
        nullptr,
        "render.camera"},
+      // ShiftCamera (TiXL Lib.render.camera.ShiftCamera): additive nudge on the AMBIENT CameraToClipSpace —
+      // M31/M32 += Translation.XY, M33 += Translation.Z/1000 (ShiftCamera.cs:34-36) — around its Command
+      // subtree (lens-shift/stereo-offset style). Command in → Command out (cookShiftCamera ACCUMULATES the
+      // delta onto every !hasCamera subtree item; the RenderTarget executor applies it after composing the
+      // item's projection). FORK (named, point_ops_shiftcamera.h): Scale/UniformScale inputs are DEAD in the
+      // live TiXL Update body (computed, never used; the Matrix.Transformation block :24-30 is commented
+      // out) → dropped, same precedent as the SetW/Visibility dead-input drops. .t3 default Translation=(0,0,0).
+      {"ShiftCamera", "ShiftCamera",
+       {{"command", "command", "Command", true},
+        {"out", "out", "Command", false},
+        {"Translation.x", "Translation", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 3},
+        {"Translation.y", "Translation.y", "Float", true, 0.0f, -10.0f, 10.0f, Widget::Vec, {}, true, 1},
+        {"Translation.z", "Translation.z", "Float", true, 0.0f, -1000.0f, 1000.0f, Widget::Vec, {}, true, 1}},
+       nullptr,
+       "render.camera"},
   };
   return specs;
 }

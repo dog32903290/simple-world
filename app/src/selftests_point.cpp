@@ -91,6 +91,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"camera-scope", runCameraScopeSelfTest},        // C1: point-camera hole closed (flat + resident)
     {"camera-resident", runCameraResidentSelfTest},  // C0: Camera→Layer2d through the resident terminal
     {"orthographiccamera", runOrthographicCameraSelfTest},  // C2: OrthographicCamera ortho projection (flat+resident)
+    {"shiftcamera", runShiftCameraSelfTest},  // camera-B: ShiftCamera additive CameraToClipSpace nudge (math + resident render flip)
     {"execute", runExecuteSelfTest},
     {"layercompose", runLayerComposeSelfTest},
     {"group", runGroupSelfTest},
