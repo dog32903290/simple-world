@@ -129,7 +129,7 @@ case "${1:-}" in
     gt=$(wc -l < "$TMP/status.txt" | tr -d ' ')
     gd=$(awk -F'\t' '$1=="done"' "$TMP/status.txt" | wc -l | tr -d ' ')
     gtd=$((gt-gd))
-    gpct=$(awk -v d="$gd" -v t="$gt" 'BEGIN{printf "%d",d*100/t}')
+    gpct=$(awk -v d="$gd" -v t="$gt" 'BEGIN{printf "%d",d*100/t}' < /dev/null)
     echo "════════════════════════════════════════════════════"
     echo " 克隆 TiXL 進度 — $gd / $gt 節點已 port  (${gpct}% done,  剩 $gtd)"
     echo "════════════════════════════════════════════════════"
@@ -157,11 +157,13 @@ case "${1:-}" in
     for isl in $ISLANDS; do
       t=$(awk -F'\t' -v i="$isl" '$2==i' "$TMP/status.txt" | wc -l | tr -d ' '); [ "$t" -eq 0 ] && continue
       d=$(awk -F'\t' -v i="$isl" '$2==i&&$1=="done"' "$TMP/status.txt" | wc -l | tr -d ' '); td=$((t-d))
-      printf "%-10s %6s %6s %6s  %s\n" "$isl" "$t" "$d" "$td" "$(awk "BEGIN{if($t)printf \"%d%%\",$td*100/$t}")"
+      pct=""; [ "$t" -gt 0 ] && pct="$(awk -v n="$td" -v d="$t" 'BEGIN{printf "%d%%", n*100/d}' < /dev/null)"
+      printf "%-10s %6s %6s %6s  %s\n" "$isl" "$t" "$d" "$td" "$pct"
       gt=$((gt+t)); gd=$((gd+d))
     done
     echo "-----------------------------------------------"
-    printf "%-10s %6s %6s %6s  %s\n" "TOTAL" "$gt" "$gd" "$((gt-gd))" "$(awk "BEGIN{printf \"%d%%\",($gt-$gd)*100/$gt}")"
+    gpct2=$(awk -v n="$((gt-gd))" -v d="$gt" 'BEGIN{printf "%d%%", n*100/d}' < /dev/null)
+    printf "%-10s %6s %6s %6s  %s\n" "TOTAL" "$gt" "$gd" "$((gt-gd))" "$gpct2"
     echo "(三命令: --overview 全局 / --seams 縫地圖 / <island> 逐顆)" ;;
 
   *)
