@@ -221,8 +221,10 @@ const std::vector<simd::float4>* PointGraph::Impl::cookFlatColorList(
 // port, gather upstream gradients (MultiInput → one per wire, wire-declaration order) into
 // `inputGradients`, then dispatch the op. A pure producer (DefineGradient) has no Gradient input.
 // Returns the cooked host gradient (nullptr if not a gradient op / unknown node).
-const SwGradient* PointGraph::Impl::cookFlatGradient(const Graph& g, const EvaluationContext& ctx,
-                                                    const NodeParamsFn& nodeParams, int id) {
+const SwGradient* PointGraph::Impl::cookFlatGradient(
+    const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
+    const std::function<const std::vector<simd::float4>*(int)>& cookColorListNode,
+    const std::function<const std::vector<float>*(int)>& cookFloatListNode, int id) {
   const Node* n = g.node(id);
   if (!n) return nullptr;
   const NodeSpec* s = findSpec(n->type);
@@ -231,15 +233,40 @@ const SwGradient* PointGraph::Impl::cookFlatGradient(const Graph& g, const Evalu
   if (!fn || !*fn) return nullptr;
 
   std::vector<SwGradient> inputGradients;
+  std::vector<simd::float4> colorListInput;  // LIST-CURRENCY BRIDGE: BuildGradient.Colors (List<Vector4>)
+  std::vector<float> floatListInput;         // LIST-CURRENCY BRIDGE: BuildGradient.Positions (List<float>)
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& port = s->ports[i];
-    if (!(port.isInput && port.dataType == "Gradient")) continue;
+    if (!port.isInput) continue;
     const int inPin = pinId(id, (int)i);
-    for (const Connection& c : g.connections) {
-      if (c.toPin != inPin) continue;
-      const SwGradient* up = cookFlatGradient(g, ctx, nodeParams, pinNode(c.fromPin));
-      inputGradients.push_back(up ? *up : SwGradient{});
-      if (!port.multiInput) break;  // single-input: first wire only
+    if (port.dataType == "Gradient") {
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        const SwGradient* up = cookFlatGradient(g, ctx, nodeParams, cookColorListNode, cookFloatListNode,
+                                                pinNode(c.fromPin));
+        inputGradients.push_back(up ? *up : SwGradient{});
+        if (!port.multiInput) break;  // single-input: first wire only
+      }
+    } else if (port.dataType == "ColorList") {
+      // LIST-CURRENCY BRIDGE (list-currency seam): a wired ColorList producer (ColorsToList) rides into the
+      // Gradient cook (BuildGradient.Colors = List<Vector4>). Single-input: first wire only (BuildGradient.cs:
+      // 19 GetValue). Empty when unwired → BuildGradient.cs:19 `?? []` → no steps.
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        const std::vector<simd::float4>* up = cookColorListNode ? cookColorListNode(pinNode(c.fromPin)) : nullptr;
+        if (up) colorListInput = *up;
+        break;  // single-input
+      }
+    } else if (port.dataType == "FloatList") {
+      // LIST-CURRENCY BRIDGE (list-currency seam): a wired FloatList producer (FloatsToList) rides into the
+      // Gradient cook (BuildGradient.Positions = List<float>). Single-input: first wire only. Empty when
+      // unwired → BuildGradient.cs:20-23 positions.Count==0 → the evenly-normalized 0..1 fallback.
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        const std::vector<float>* up = cookFloatListNode ? cookFloatListNode(pinNode(c.fromPin)) : nullptr;
+        if (up) floatListInput = *up;
+        break;  // single-input
+      }
     }
   }
 
@@ -248,6 +275,8 @@ const SwGradient* PointGraph::Impl::cookFlatGradient(const Graph& g, const Evalu
   gc.dev = dev; gc.lib = lib; gc.queue = queue;
   gc.ctx = &ctx; gc.nodeId = id;
   gc.inputGradients = &inputGradients;
+  gc.inputColorList = &colorListInput;  // LIST-CURRENCY BRIDGE (BuildGradient); empty for every other op
+  gc.inputFloatList = &floatListInput;  // LIST-CURRENCY BRIDGE (BuildGradient); empty for every other op
   gc.output = &out;
   gc.params = nodeParams(id);
   (*fn)(gc);

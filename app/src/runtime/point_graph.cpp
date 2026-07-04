@@ -534,7 +534,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // cookCommand's Gradient gather + this flow's self-recursion keep calling through the slot. Gradient
   // is a CLOSED sub-graph → minimal shared state: g / ctx / nodeParams by reference.)
   cookGradientNode = [&](int id) -> const SwGradient* {
-    return p_->cookFlatGradient(g, ctx, nodeParams, id);
+    return p_->cookFlatGradient(g, ctx, nodeParams, cookColorListNode, cookFloatListNode, id);
   };
 
   // Cook a POINTLIST-flow node (the 7th cook flow = TiXL Slot<StructuredList> / StructuredList<Point>).
@@ -554,7 +554,7 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // Cook a BUFFER-flow node (Seam-1 = TiXL Slot<BufferWithViews>). Body in Impl::cookFlatBuffer
   // (point_graph_buffer_cook.cpp, full doc in leaf); thin forwarding slot, cookBufferNode self-recurses.
   cookBufferNode = [&](int id) -> const SwBuffer* {
-    return p_->cookFlatBuffer(g, ctx, nodeParams, cookBufferNode, cookColorListNode, id);
+    return p_->cookFlatBuffer(g, ctx, nodeParams, cookBufferNode, cookColorListNode, cookFloatListNode, id);
   };
 
   // Cook a STRING-flow node (the 6th cook flow = TiXL Slot<string>). The currency is a HOST

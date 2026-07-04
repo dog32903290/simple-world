@@ -126,7 +126,10 @@ app/src/runtime/point_graph.h:245
 # marshal-op LEAVES (FloatsToBuffer/GetBufferComponents/ExecuteBufferUpdate) stay bounded <400-line leaf TUs.
 # The cookFlatBuffer Impl method decl (4 lines, the cookBufferNode-slot-by-ref signature) adds to this — the
 # thin twin of cookFlatPointList, declared here because both cooks share Impl.
-app/src/runtime/point_graph_internal.h:475
+# list-currency seam (2026-07-05) 475→478 +3: cookFlatBuffer + cookFlatGradient decls each gained a
+# cookFloatListNode / cookColorListNode slot-by-ref param line (the LIST-CURRENCY BRIDGE gather accessor for
+# IntListToBuffer / BuildGradient). Irreducible signature lines (the Impl methods live in leaf .cpp).
+app/src/runtime/point_graph_internal.h:478
 # S2c (2026-06-23) +8: resident cookCommand gained its Texture2D input gather — a production black-hole
 # (Layer2d/DrawScreenQuad drew BLACK on the resident path because cc.inputTexture was never set; the flat
 # cookCommand has had this branch since FORK#1). Caught by --selftest-layercompose's resident leg. The
@@ -161,7 +164,15 @@ app/src/runtime/point_graph_internal.h:475
 # false-shared with the flat twin (path/ResidentInput vs int-id/g.connections genuinely diverge). ALL the
 # S2c/S3a/S3b/S3c/C1 "split lowers this" notes above are now PAID. Proven byte-identical by --selftest-loop/
 # -camera-scope/-setvar-scope/-layercompose (resident legs, the production canaries) + --bite=483.
-app/src/runtime/point_graph_resident.cpp:584
+# list-currency seam (2026-07-05) 584→603 +19: the resident cookResidentGradient lambda gained the two
+# LIST-CURRENCY BRIDGE branches (BuildGradient.Colors→cookResidentColorList, BuildGradient.Positions→
+# cookResidentFloatList) — the resident twin of the flat cookFlatGradient ColorList/FloatList gather. Both
+# legs MUST be symmetric (cook_ctx.h byte-identical contract) so the branches are irreducible here; the loop
+# also converted from a single-dataType continue-guard to an if/else-if chain over 3 dataTypes (Gradient/
+# ColorList/FloatList). Same cook-driver-split debt (extract cookResidentGradient to a leaf, like the buffer/
+# tex/command resident cooks) would lower this again — deferred (out of scope for the seam task). Proven by
+# --selftest-buildgradient (resident leg) + --bite.
+app/src/runtime/point_graph_resident.cpp:603
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 # +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
 # +1 (2026-06-29): lineBakedBugForceForTest() decl — the LinePoints parity-gate -bug latch, mirroring the

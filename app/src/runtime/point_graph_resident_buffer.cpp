@@ -47,6 +47,7 @@
 #include "runtime/field_camera.h"         // Mat4, mat4Identity, defaultLayerCameraForward (camera bridge)
 #include "runtime/graph.h"                // NodeSpec/PortSpec/findSpec
 #include "runtime/resident_eval_graph.h"  // ResidentEvalGraph/ResidentNode/ResidentInput/evalResidentFloat
+#include "runtime/resident_value_cooks.h" // cookResidentFloatList (LIST-CURRENCY BRIDGE: IntListToBuffer payload)
 #include "runtime/sw_buffer.h"            // SwBuffer (full def)
 
 namespace sw {
@@ -123,10 +124,19 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
   std::vector<std::string> inputBufferPorts;  // parallel to inputBuffers: the port id each arrived on
   std::vector<float> floatInputs;
   std::vector<std::array<float, 16>> vec4Inputs;  // stays empty on the resident leg (fork — see header)
+  std::vector<float> floatListInput;  // LIST-CURRENCY BRIDGE: the single FloatList payload (IntListToBuffer)
   for (const PortSpec& port : s->ports) {
     if (!port.isInput) continue;
     const ResidentInput* ri = n->input(port.id);
-    if (port.dataType == "Buffer") {
+    if (port.dataType == "FloatList") {
+      // LIST-CURRENCY BRIDGE (list-currency seam) — RESIDENT twin of the flat FloatList gather. A wired
+      // FloatList producer (IntListToBuffer.IntList) is cooked through the resident FloatList rail
+      // (cookResidentFloatList, exported from resident_host_scalar_cook.cpp), byte-identical to the flat
+      // leg's cookFloatListNode (both walk the SAME producer op through the resident/flat drivers). Single-
+      // input: primary wire only (IntListToBuffer.cs:19 GetValue). Unwired → empty → no buffer (leaf).
+      if (ri && ri->driver == ResidentInput::Driver::Connection)
+        cookResidentFloatList(rg, ri->srcNodePath, rc, floatListInput);
+    } else if (port.dataType == "Buffer") {
       if (ri && ri->driver == ResidentInput::Driver::Connection) {
         const SwBuffer* up = cookResidentBuffer(ri->srcNodePath, depth + 1);
         if (up) { inputBuffers.push_back(up); inputBufferPorts.push_back(port.id); }
@@ -174,6 +184,7 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
   bc.strParams = &n->strInputs;  // resolved String params (ComputeShaderStage's KernelName)
   bc.floatInputs = &floatInputs;
   bc.vec4Inputs = &vec4Inputs;
+  bc.inputFloatList = &floatListInput;  // LIST-CURRENCY BRIDGE (IntListToBuffer); empty for every other op
   // Camera bridge (TransformsConstBuffer): default camera at the ACTIVE RequestedResolution aspect, the
   // resident mirror of the flat fillBufferCamera call site. Every other Buffer op → byte-identical.
   fillBufferCamera(bc, *s, (requestedResolution.h > 0)

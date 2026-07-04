@@ -30,6 +30,7 @@
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + op registries
 #include "runtime/point_ops_setvarcmd.h"   // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/resident_eval_graph.h"   // ResidentEvalGraph / drivers / resolveResidentFloatInputs
+#include "runtime/resident_value_cooks.h"  // cookResidentColorList/cookResidentFloatList (LIST-CURRENCY BRIDGE: BuildGradient)
 #include "runtime/tixl_point.h"            // SwPoint + EvaluationContext
 
 namespace sw {
@@ -423,20 +424,36 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     if (!fn || !*fn) return nullptr;
 
     std::vector<SwGradient> inputGradients;
+    std::vector<simd::float4> colorListInput;  // LIST-CURRENCY BRIDGE: BuildGradient.Colors (List<Vector4>)
+    std::vector<float> floatListInput;         // LIST-CURRENCY BRIDGE: BuildGradient.Positions (List<float>)
     for (const PortSpec& port : s->ports) {
-      if (!(port.isInput && port.dataType == "Gradient")) continue;
+      if (!port.isInput) continue;
       const ResidentInput* ri = n->input(port.id);
-      if (ri && ri->driver == ResidentInput::Driver::Connection) {
-        const SwGradient* upp = cookResidentGradient(ri->srcNodePath, depth + 1);
-        inputGradients.push_back(upp ? *upp : SwGradient{});
-        if (port.multiInput) {
-          for (const auto& ec : ri->extraConns) {
-            const SwGradient* uep = cookResidentGradient(ec.first, depth + 1);
-            inputGradients.push_back(uep ? *uep : SwGradient{});
+      if (port.dataType == "Gradient") {
+        if (ri && ri->driver == ResidentInput::Driver::Connection) {
+          const SwGradient* upp = cookResidentGradient(ri->srcNodePath, depth + 1);
+          inputGradients.push_back(upp ? *upp : SwGradient{});
+          if (port.multiInput) {
+            for (const auto& ec : ri->extraConns) {
+              const SwGradient* uep = cookResidentGradient(ec.first, depth + 1);
+              inputGradients.push_back(uep ? *uep : SwGradient{});
+            }
           }
         }
+        // (An unwired / Constant Gradient input contributes NO entry → faithful to the flat gather.)
+      } else if (port.dataType == "ColorList") {
+        // LIST-CURRENCY BRIDGE (list-currency seam) — RESIDENT twin of the flat ColorList gather
+        // (BuildGradient.Colors). Cooked through the resident ColorList rail (cookResidentColorList),
+        // byte-identical to the flat leg's cookColorListNode. Single-input: primary wire only.
+        if (ri && ri->driver == ResidentInput::Driver::Connection)
+          cookResidentColorList(rg, ri->srcNodePath, rc, colorListInput);
+      } else if (port.dataType == "FloatList") {
+        // LIST-CURRENCY BRIDGE (list-currency seam) — RESIDENT twin of the flat FloatList gather
+        // (BuildGradient.Positions). Cooked through the resident FloatList rail (cookResidentFloatList),
+        // byte-identical to the flat leg's cookFloatListNode. Single-input: primary wire only.
+        if (ri && ri->driver == ResidentInput::Driver::Connection)
+          cookResidentFloatList(rg, ri->srcNodePath, rc, floatListInput);
       }
-      // (An unwired / Constant Gradient input contributes NO entry → faithful to the flat gather.)
     }
 
     SwGradient& out = p_->gradientBuf[path];
@@ -444,6 +461,8 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
     gc.dev = p_->dev; gc.lib = p_->lib; gc.queue = p_->queue;
     gc.ctx = &ctx; gc.nodeId = 0;
     gc.inputGradients = &inputGradients;
+    gc.inputColorList = &colorListInput;  // LIST-CURRENCY BRIDGE (BuildGradient); empty for every other op
+    gc.inputFloatList = &floatListInput;  // LIST-CURRENCY BRIDGE (BuildGradient); empty for every other op
     gc.output = &out;
     gc.params = nodeParams(path);
     (*fn)(gc);

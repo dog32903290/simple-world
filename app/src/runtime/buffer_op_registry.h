@@ -94,6 +94,14 @@ struct BufferCookCtx {
   const std::map<std::string, std::string>* strParams = nullptr;
   const std::vector<float>* floatInputs = nullptr;            // wired scalar Float payload (marshal)
   const std::vector<std::array<float, 16>>* vec4Inputs = nullptr;  // wired Vector4[] matrix payload
+  // LIST-CURRENCY BRIDGE (list-currency seam): a wired FloatList producer's host list, gathered off the
+  // FloatList rail (cookFloatListNode flat / cookResidentFloatList resident). IntListToBuffer's payload is a
+  // SINGLE List<int> wire (IntListToBuffer.cs:19,32-35) = sw's FloatList of integer-valued floats (no Int
+  // rail, Cut32 — LIST_SEAM_BLUEPRINT §1); the leaf casts each float→int32. UNLIKE floatInputs (a scalar
+  // Float MultiInput = IntsToBuffer's per-int wires, 16-byte-padded), this is ONE list wire packed TIGHT
+  // (stride 4, count = list size, no pad — IntListToBuffer.cs:26,38). null/empty for every op without a
+  // FloatList input port (FloatsToBuffer/IntsToBuffer/… → byte-identical). Borrowed; both legs fill it.
+  const std::vector<float>* inputFloatList = nullptr;
   // CAMERA matrices (camera-matrix-into-buffer seam, for TransformsConstBuffer): the driver fills the 3
   // SOURCE matrices TiXL's TransformBufferLayout ctor takes (TransformsConstBuffer.cs:58-60
   // context.CameraToClipSpace / WorldToCamera / ObjectToWorld). Filled by fillBufferCamera (mirror of

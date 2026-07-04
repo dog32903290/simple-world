@@ -60,6 +60,14 @@ struct GradientCookCtx {
   // Cooked upstream Gradient inputs (one entry per WIRED Gradient source, in spec port order with
   // MultiInput ports expanded into wire-declaration order). Borrowed (driver-owned); never retained.
   const std::vector<SwGradient>* inputGradients = nullptr;
+  // LIST-CURRENCY BRIDGE (list-currency seam): the wired ColorList (colors) + FloatList (positions) inputs
+  // of THIS node, gathered off the color/float host rails (cookColorListNode+cookFloatListNode flat /
+  // cookResidentColorList+cookResidentFloatList resident). BuildGradient (BuildGradient.cs) reads
+  // Colors=List<Vector4> + Positions=List<float> → one gradient step per index (min count), positions
+  // falling back to evenly-normalized 0..1 when empty. null/empty for every op without a ColorList/FloatList
+  // input port (DefineGradient/PickGradient/… → byte-identical). Borrowed; both cook legs fill them.
+  const std::vector<simd::float4>* inputColorList = nullptr;  // BuildGradient.Colors (List<Vector4>)
+  const std::vector<float>* inputFloatList = nullptr;        // BuildGradient.Positions (List<float>)
   // Driver-owned output gradient. The op writes via output->steps; never allocates/frees it.
   SwGradient* output = nullptr;
   // RESOLVED Float params of THIS node (mirror of FloatListCookCtx::params); read via gradientParam.

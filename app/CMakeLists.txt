@@ -591,6 +591,7 @@ add_executable(simple_world
   src/runtime/buffer_ops_getbuffercomponents.cpp # GetBufferComponents (metadata read-out + Buffer passthrough)
   src/runtime/buffer_ops_executebufferupdate.cpp # ExecuteBufferUpdate (run Command, forward Buffer unchanged)
   src/runtime/buffer_ops_intstobuffer.cpp        # IntsToBuffer (host ints → GPU buffer, 16-byte-padded int32 slices)
+  src/runtime/buffer_ops_intlisttobuffer.cpp     # IntListToBuffer (List<int> wire → GPU buffer, TIGHT int32 no-pad; list-currency seam)
   src/runtime/buffer_ops_getsrvproperties.cpp    # GetSRVProperties (Buffer passthrough + element-count read-out, thin GetBufferComponents sibling)
   src/runtime/buffer_ops_transformsconstbuffer.cpp # TransformsConstBuffer (640-byte 10-matrix camera const buffer, HLSL row-major transposed bytes)
   src/runtime/buffer_ops_computeshaderstage.cpp  # ComputeShaderStage (GENERIC compute stage: bind CB/SRV/UAV + dispatch a named MSL kernel)
@@ -600,6 +601,7 @@ add_executable(simple_world
   src/runtime/buffer_ops_executecombinebuffers.cpp # _ExecuteCombineBuffers (187 量產第一波: CombineBuffers.t3 code-op replay — alloc result + per-input dispatch loop)
   src/runtime/gradient_op_registry.cpp
   src/runtime/gradient_ops_definegradient.cpp
+  src/runtime/gradient_ops_buildgradient.cpp   # BuildGradient (List<Vector4> colors + List<float> positions → Gradient; list-currency seam)
   src/runtime/gradient_ops_pickgradient.cpp
   src/runtime/gradient_ops_blendgradients.cpp
   src/runtime/gradient_ops_defineiqgradient.cpp

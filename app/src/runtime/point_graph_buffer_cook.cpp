@@ -64,7 +64,8 @@ void fillBufferCamera(BufferCookCtx& bc, const NodeSpec& spec, float aspect) {
 const SwBuffer* PointGraph::Impl::cookFlatBuffer(
     const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
     const std::function<const SwBuffer*(int)>& cookBufferNode,
-    const std::function<const std::vector<simd::float4>*(int)>& cookColorListNode, int id) {
+    const std::function<const std::vector<simd::float4>*(int)>& cookColorListNode,
+    const std::function<const std::vector<float>*(int)>& cookFloatListNode, int id) {
   const Node* n = g.node(id);
   if (!n) return nullptr;
   const NodeSpec* s = findSpec(n->type);
@@ -76,11 +77,23 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
   std::vector<std::string> inputBufferPorts;  // parallel to inputBuffers: the port id each arrived on
   std::vector<float> floatInputs;
   std::vector<std::array<float, 16>> vec4Inputs;
+  std::vector<float> floatListInput;  // LIST-CURRENCY BRIDGE: the single FloatList payload (IntListToBuffer)
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& port = s->ports[i];
     if (!port.isInput) continue;
     const int inPin = pinId(id, (int)i);
-    if (port.dataType == "Buffer") {
+    if (port.dataType == "FloatList") {
+      // LIST-CURRENCY BRIDGE (list-currency seam): a wired FloatList producer's host list rides into the
+      // Buffer cook (IntListToBuffer.IntList = single List<int> wire = sw FloatList, integer-valued floats).
+      // Single-input: first wire only (IntListToBuffer.cs:19 GetValue = one slot). Empty when unwired →
+      // IntListToBuffer emits no buffer (IntListToBuffer.cs:20-24 null/Count<1 → Result=null).
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        const std::vector<float>* up = cookFloatListNode ? cookFloatListNode(pinNode(c.fromPin)) : nullptr;
+        if (up) floatListInput = *up;
+        break;  // single-input
+      }
+    } else if (port.dataType == "Buffer") {
       for (const Connection& c : g.connections) {
         if (c.toPin != inPin) continue;
         const SwBuffer* up = cookBufferNode(pinNode(c.fromPin));
@@ -146,6 +159,7 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
   bc.strParams = &n->strParams;  // resolved String params (ComputeShaderStage's KernelName)
   bc.floatInputs = &floatInputs;
   bc.vec4Inputs = &vec4Inputs;
+  bc.inputFloatList = &floatListInput;  // LIST-CURRENCY BRIDGE (IntListToBuffer); empty for every other op
   // Camera bridge (TransformsConstBuffer): default camera at the ACTIVE RequestedResolution aspect,
   // mirroring point_graph.cpp:364-366's fillPointCamera call site. Every other Buffer op → byte-identical.
   fillBufferCamera(bc, *s, (requestedResolution.h > 0)
