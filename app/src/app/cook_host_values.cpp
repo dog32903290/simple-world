@@ -19,6 +19,9 @@ namespace sw {
 // PickColorFromList host-emit cook pass (value_op_pickcolorfromlist.cpp). Forward-declared here (it is a
 // value-op leaf, not in resident_value_cooks.h) so the single wire-in below stays a leaf-local hook.
 void cookColorPickNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+// Camera value-output cook-emit pass (resident_camera_value_cook.cpp: CamPosition — the ambient-camera
+// twin of cookValueOutputNodes). Same leaf-local hook shape as cookColorPickNodes above.
+void cookCameraValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 }  // namespace sw
 
 namespace sw::framecook {
@@ -91,6 +94,11 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // Same once-per-frame slot family as cookColorListNodes; stateless (a pure function of the resolved SRT
   // Float inputs). PointToMatrix's emit is deferred (needs a point into this frame-level pass).
   cookMatrixOutputNodes(g, hsCtx);
+
+  // Cook the CAMERA value-output ops (CamPosition — camera-A lane): the ambient-camera twin of
+  // cookValueOutputNodes. Resolves each op's enclosing camera STRUCTURALLY off the resident graph
+  // (resident_camera_value_cook.cpp) and writes Position/Direction/AspectRatio onto extOut. Stateless.
+  cookCameraValueOutputNodes(g, hsCtx);
 
   // [SetPlaybackTime]/[SetPlaybackSpeed] pull (SetPlaybackTime.cs:54 / SetPlaybackSpeed.cs:48), folded in
   // here (not a separate frame_cook line) so frame_cook stays at-or-below its line-count cap — the

@@ -62,6 +62,29 @@ const std::vector<NodeSpec>& drawCameraSpecs() {
         {"AspectRatio", "AspectRatio", "Float", true, 0.0f, 0.0f, 10.0f}},
        nullptr,
        "render.camera"},
+      // CamPosition (TiXL Lib.render.camera.CamPosition, camera-A lane): emits the AMBIENT camera's
+      // world-space Position / (unnormalized) view Direction / projection AspectRatio — CamPosition.cs:
+      // 29-38 (invert context.WorldToCamera; transform (0,0,0,1) and (0,0,1,1); M22/M11). OUTPUT-ONLY
+      // (CamPosition.cs has no Input slots). CONTEXT-reading → evaluate==nullptr; the values are cooked
+      // once per frame by cookCameraValueOutputNodes (resident_camera_value_cook.cpp) onto extOut[1..7],
+      // resolving the enclosing camera STRUCTURALLY (fork-camera-value-structural-enclosing-walk, named
+      // in that header). The Command output is the TiXL execution-path hook (draws nothing; registered
+      // as a no-op cmd op so a Command chain stays walkable through it).
+      // OUTPUT PORTS ONLY, extOut index = port index: [0]=Command (no float slot), [1..3]=Position,
+      // [4..6]=Direction, [7]=AspectRatio (exactly fills extOut[8]).
+      // FORK fork-vec-output-as-n-scalar-ports: TiXL's Position/Direction are ONE Slot<Vector3> each;
+      // here 3 Float ports each (the established output-side scalar-pack fork, RequestedResolution).
+      {"CamPosition", "CamPosition",
+       {{"Command", "Command", "Command", false},
+        {"Position.x", "Position", "Float", false},
+        {"Position.y", "Position.y", "Float", false},
+        {"Position.z", "Position.z", "Float", false},
+        {"Direction.x", "Direction", "Float", false},
+        {"Direction.y", "Direction.y", "Float", false},
+        {"Direction.z", "Direction.z", "Float", false},
+        {"AspectRatio", "AspectRatio", "Float", false}},
+       nullptr,
+       "render.camera"},
   };
   return specs;
 }
