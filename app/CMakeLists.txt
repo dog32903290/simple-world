@@ -573,6 +573,7 @@ add_executable(simple_world
   src/string_ops_wrapstring_golden.cpp
   src/string_ops_blendstrings_golden.cpp
   src/string_ops_countdown_golden.cpp  # --selftest-countdown (pinned-clock TimeSpan format goldens)
+  src/io_video_timing_golden.cpp  # --selftest-io-video-timing (PlayVideo/PlayVideoClip closed-form timing core)
   src/keepstrings_golden.cpp  # --selftest-keepstrings (multi-frame accumulator goldens, flat+resident+guard)
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp
