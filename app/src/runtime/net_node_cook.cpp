@@ -149,6 +149,68 @@ void cookNetOutputNodes(ResidentEvalGraph& g, std::map<std::string, NetOutputSta
   }
 }
 
+// ── HTTP nodes (RequestUrl / LoadImageFromUrl) ─────────────────────────────────────────────────────
+// The http request bus + the trigger-edge cook. See net_node_cook.h. The runtime DECIDES a GET should
+// fire; the app performs it (platform/http_request, a forbidden upward dep from runtime).
+namespace {
+int g_httpNodeBug = 0;
+enum : int { kHttpText = 0, kHttpImage = 1 };
+}  // namespace
+
+HttpBus& httpBus() {
+  static HttpBus bus;
+  return bus;
+}
+void endHttpFrame() { httpBus().requests.clear(); }
+void setHttpNodeBug(int mode) { g_httpNodeBug = mode; }
+int  httpNodeBug() { return g_httpNodeBug; }
+
+// A GET fires on the TriggerRequest RISING edge (TiXL MathUtils.WasTriggered, RequestUrl.cs:20) OR a Url
+// CHANGE to a non-empty value (RequestUrl.cs:22 Url.DirtyFlag.IsDirty; LoadImageFromUrl.cs:27 gates on
+// non-empty). We take the non-empty gate for both (the safe superset — a blank Url has nothing to GET).
+// TEETH mode 1 drops the rising-edge gate: a held trigger fires EVERY frame (→ the edge-gated golden RED).
+void cookHttpNodes(ResidentEvalGraph& g, std::map<std::string, HttpNodeState>& state) {
+  ResidentEvalCtx rctx;
+  for (ResidentNode& rn : g.nodes) {
+    const std::string& t = rn.opType;
+    const bool isText  = t == "RequestUrl";
+    const bool isImage = t == "LoadImageFromUrl";
+    if (!(isText || isImage)) continue;
+
+    std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
+    // The trigger port is named differently per node; both are the rising-edge bool.
+    const float trigVal = isText ? P["TriggerRequest"] : P["TriggerUpdate"];
+    const bool trigNow = trigVal > 0.5f;
+
+    // Url rides the resident String channel (strInputs), NOT the float rail.
+    std::string url;
+    auto it = rn.strInputs.find("Url");
+    if (it != rn.strInputs.end()) url = it->second;
+
+    HttpNodeState& st = state[rn.path];
+
+    // Rising edge (or, with TEETH 1, level). MathUtils.WasTriggered: false→true.
+    const bool rising = trigNow && !st.triggered;
+    const bool triggerFires = (g_httpNodeBug == 1) ? trigNow : rising;
+    st.triggered = trigNow;
+
+    // Url change: only fires once urlSeen (first cook establishes the baseline — no spurious fire on
+    // the very first cook when lastUrl is empty and url happens to be set).
+    const bool urlChanged = st.urlSeen && (url != st.lastUrl);
+    st.lastUrl = url;
+    st.urlSeen = true;
+
+    // The GET fires when a trigger or a url-change asks for it AND the url is non-empty (nothing to GET
+    // from a blank url). The non-empty gate is LoadImageFromUrl.cs:27 (`!string.IsNullOrEmpty(url)`),
+    // applied to both as the safe superset.
+    const bool fire = (triggerFires || urlChanged) && !url.empty();
+    if (fire) {
+      httpBus().requests.push_back({isText ? kHttpText : kHttpImage, url, rn.path});
+    }
+    rn.extOut[0] = fire ? 1.0f : 0.0f;   // RequestFired echo (value rail; body/texture deferred)
+  }
+}
+
 // frame_cook entry point: cook the net input + output families, then clear the bus. State map is a
 // function-local static keyed by resident path (per-instance, survives projection rebuilds).
 // DEFERRED-HW-VERIFY: once the real socket forwarder is wired app-side, it drains bus.out BEFORE this
@@ -156,8 +218,14 @@ void cookNetOutputNodes(ResidentEvalGraph& g, std::map<std::string, NetOutputSta
 // the golden drives the cooks directly and reads bus.out before its own clear.
 void cookNetDeviceNodes(ResidentEvalGraph& g) {
   static std::map<std::string, NetOutputState> s_outState;
+  static std::map<std::string, HttpNodeState> s_httpState;
   cookNetInputNodes(g);
   cookNetOutputNodes(g, s_outState);
+  cookHttpNodes(g, s_httpState);
+  // NOTE: endHttpFrame() is NOT called here — the APP drains httpBus().requests to the real GET AFTER
+  // this cook (deferred-hw-verify, mirror of bus.out). The app clears it once drained; the golden drives
+  // cookHttpNodes directly and clears its own bus. (endNetDeviceFrame stays here — the net bus is drained
+  // synchronously within the cook; the http request is async so its bus outlives this cook.)
   endNetDeviceFrame();
 }
 

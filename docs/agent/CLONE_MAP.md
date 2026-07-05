@@ -112,11 +112,24 @@ device-io 57(MIDI/OSC/DMX/serial=柏為域)/ pbr-lighting 16(新 3D-render 島)/
    ApplyVectorField ~4h、SortPixelGlitch ~8h 含 HLSL→MSL)→降級併入 leaf 波;**AdvancedFeedback2=誤報**
    (走 RenderEncoder 已綠);唯一真骨頭=**SimpleLiquid×2**(一 cook 內多 dispatch+中間 buffer 交換+3
    RWTexture2D 多 UAV,~24h;現有只 1 UAV/跨幀 toggle,缺幀內 ping-pong)。**只解鎖 2 顆。**
-2. **persistent accumulator / texture-array**:TimeDisplace(N-slice ring)/ SlidingHistory /
-   RemoveStaticBackground(單張 in-place EMA)。三顆,兩種型。
+2. **persistent accumulator / texture-array**:TimeDisplace(N-slice ring)/ **KeepInTextureArray(N-slice
+   ring,同機器,2026-07-06 seam/http-misc BLOCKED 實錘)** / SlidingHistory / RemoveStaticBackground(單張
+   in-place EMA)。四顆,兩種型。
+   - **KeepInTextureArray BLOCKED 診斷(2026-07-06)**:讀 `.cs`(image/use/KeepInTextureArray.cs)確認語義=
+     `MTL::TextureType2DArray` arrayLength=N、write 整張 src → slice `writeIndex mod N`(blit
+     copyFromTexture sourceSlice→destinationSlice)、read slice `readIndex mod N` → 單張輸出。**單做會歪**兩點:
+     (a) 需新 currency `ensureFeedbackArray`(N-slice 陣列 + 平行 realloc-key maps),但 `point_graph_internal.h`
+     (522/cap 522 RATCHET-locked)+ `point_graph_resident.cpp`(603/cap 603 locked)+ `point_graph_tex_cook.cpp`
+     (389/cap 400)三個都要動且全在/近 cap → 加 array 機器必超 ratchet,是結構閘擋的「不是 leaf-local」訊號;
+     (b) `TextureArray` 輸出型無 wire currency(sw 無 texture-array 線型;`SelectedSlice` 是普通 Texture2D 可接,
+     但 `TextureArray` 輸出會變 dead port)。現有 feedback 家族(AdvancedFeedback/AfterGlow×2/KeepPreviousFrame)
+     **全部只用 2-texture pair,無一需要 N-slice** → KeepInTextureArray 是第一顆真需要 N-slice array 的 op。
+     **與 TimeDisplace 共機器**:兩者同一 N-slice ring;蓋 bone2 的 array currency 時一起收(先建
+     `ensureFeedbackArray` + array-output wire 型 + 切分 ratchet-locked 檔,再兩顆並行)。單獨蓋 KeepInTextureArray
+     = 造半根骨頭 + 一個接不出去的 dead 輸出,歪。
 3. **pbr-lighting / 3D-render 島**:16 顆 + ScreenCloseUp 匯入。新島,最大單塊。
 
-**判斷密度:骨3(pbr島,16顆)>骨2(accumulator,3顆)>骨1(SimpleLiquid 幀內迭代,2顆)。骨1 縮水後
+**判斷密度:骨3(pbr島,16顆)>骨2(accumulator,4顆 — 含 KeepInTextureArray 2026-07-06 併入)>骨1(SimpleLiquid 幀內迭代,2顆)。骨1 縮水後
 「蓋一根解鎖一批」只對 pbr島 真成立;能立即並行的葉子從 93 增至 ~96(3 顆 compute 葉降級)。其餘
 seam-build 帳面被誤分類灌水。**
 

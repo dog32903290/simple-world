@@ -105,6 +105,9 @@ set_source_files_properties(src/platform/metal_compile_selftest.mm PROPERTIES CO
 # (they touch no metal-cpp pointers, so the MRC convention of the other .mm files doesn't apply).
 set_source_files_properties(src/platform/audio_capture.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+# http_request.mm uses NSURLSession/NSData — no metal-cpp pointers, so ARC keeps the ObjC lifetime
+# simple (same convention as audio_capture/audio_playback).
+set_source_files_properties(src/platform/http_request.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 # midi_loopback.mm (L5 IO lane): pure CoreMIDI C API (no ObjC objects) -> compile WITHOUT ARC, like
 # the other manual-lifetime .mm files. osc_loopback.cpp is plain C++ (POSIX sockets) — no .mm prop.
 set_source_files_properties(src/platform/midi_loopback.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
@@ -286,6 +289,7 @@ add_executable(simple_world
   src/platform/psn_packet.cpp        # L5 IO (posistage lane): PSN nested-chunk tracker packet codec (byte-推)
   src/platform/points_dmx.cpp        # L5 IO (dmx lane): PointsToRGBList / PointsToDmxLights closed-form value cores
   src/platform/write_to_file.cpp     # L5 IO (file lane): WriteToFile write-on-change gate + byte round-trip
+  src/platform/http_request.mm       # L5 IO (http lane): synchronous NSURLSession GET (RequestUrl/LoadImageFromUrl seam)
   src/platform/midi_loopback.mm
   src/platform/window_mode.mm
   src/platform/menu_appkit_ext.cpp  # tracked AppKit NSMenu extension (live check marks + menuNeedsUpdate: delegate) — replaces the gitignored vendored metal-cpp edits
@@ -788,6 +792,7 @@ add_executable(simple_world
   src/blendcameras_golden.cpp                 # camera-A: BlendCameras slerp-blend cook-through golden
   src/actioncamera_golden.cpp                 # camera-A: ActionCamera stateful-integrator golden
   src/runtime/resident_point_value_output_cook.cpp
+  src/runtime/resident_getlistitemattribute_golden.cpp  # GetListItemAttribute golden (split off the cook file at its line cap)
   src/runtime/resident_colorlist_cook.cpp
   src/runtime/resident_string_cook.cpp
   src/runtime/resident_stringlist_cook.cpp
