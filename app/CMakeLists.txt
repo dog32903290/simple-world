@@ -276,6 +276,10 @@ add_executable(simple_world
   src/platform/metal_compile.mm
   src/platform/metal_compile_selftest.mm
   src/platform/osc_loopback.cpp
+  src/platform/net_loopback.cpp      # L5 IO (socket lane): localhost TCP+UDP loopback (POSIX sockets)
+  src/platform/serial_loopback.cpp   # L5 IO (socket lane): POSIX termios serial over a PTY-pair loopback
+  src/platform/wled_frame.cpp        # L5 IO (socket lane): Adalight frame builder (WLedSerialOutput body)
+  src/platform/websocket_frame.cpp   # L5 IO (socket lane): RFC6455 handshake-accept + frame codec
   src/platform/midi_loopback.mm
   src/platform/window_mode.mm
   src/platform/menu_appkit_ext.cpp  # tracked AppKit NSMenu extension (live check marks + menuNeedsUpdate: delegate) — replaces the gitignored vendored metal-cpp edits
