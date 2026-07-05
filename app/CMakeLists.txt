@@ -574,6 +574,10 @@ add_executable(simple_world
   src/runtime/obj_parse_distinct.cpp           # distinct-vertex dedup + TBN (for the later LoadObj; split per rule 4)
   src/runtime/pointlist_ops_loadobjaspoints.cpp # LoadObjAsPoints leaf (first obj_parse consumer + String-path channel)
   src/runtime/pointlist_ops_loadobjedges.cpp   # LoadObjEdges leaf (2nd obj_parse consumer: unique face edges → from/to/sep triples)
+  src/runtime/svg_parse.cpp                    # device-IO SVG sub-lane: pure-CPU SVG parse+flatten+rasterize (nanosvg; LoadSvg.cs)
+  src/runtime/pointlist_ops_loadsvg.cpp        # LoadSvg leaf (svg_parse consumer + String-path channel: flattened paths → SwPoint polylines)
+  src/runtime/pointlist_ops_preparesvglinetransition.cpp # PrepareSvgLineTransition leaf (pure point-list F1 stroke-anim transform)
+  src/runtime/point_ops_loadsvgastexture2d.cpp # LoadSvgAsTexture2D leaf (svg_parse rasterize → RGBA8 output texture; image SOURCE)
   src/runtime/datapoint_json.cpp               # point/io data sub-lane: minimal JSON reader (DataPointImportExport/-Converter share it)
   src/runtime/pointlist_ops_datapointimportexport.cpp # DataPointImportExport leaf (JSON import/export + bag forward; String-path channel)
   src/runtime/pointlist_ops_datapointconverter.cpp    # DataPointConverter leaf (CSV/flat-JSON convert + column mapping + euler/quat export)
@@ -584,6 +588,9 @@ add_executable(simple_world
   src/runtime/pointlist_ops_drawspheregizmo.cpp
   src/runtime/pointlist_ops_locator.cpp
   src/pointlist_golden.cpp
+  src/loadsvg_golden.cpp                 # LoadSvg: .svg → flattened polylines → SwPoint list (straight-segment closed-form)
+  src/preparesvglinetransition_golden.cpp # PrepareSvgLineTransition: pure point-list F1 stroke-anim (closed-form)
+  src/loadsvgastexture2d_golden.cpp      # LoadSvgAsTexture2D: svg rasterize → RGBA8 output tex (interior-fill pixel probe)
   src/conegizmo_golden.cpp
   src/drawlinegrid_golden.cpp
   src/drawboxgizmo_golden.cpp
@@ -797,6 +804,7 @@ add_executable(simple_world
 
 target_include_directories(simple_world PRIVATE
   src
+  ${TP}          # third_party root — for header-only vendored libs (nanosvg/nanosvg.h)
   ${METAL_CPP_DIR}
   ${METAL_CPP_EXT_DIR}
   ${IMGUI_DIR}
