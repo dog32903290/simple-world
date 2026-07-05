@@ -82,7 +82,7 @@ VelocityForce, AxisStepForce, SnapToAnglesForce — 7 ops shipped.
 | GetFloatVar | 從 eval-context 讀 float 變數 | NEW-SEAM:context-var | BLOCKED:NEW-SEAM:context-var | R1 | context.FloatVariables |
 | GetIntVar | 從 eval-context 讀 int 變數 | NEW-SEAM:context-var | BLOCKED:NEW-SEAM:context-var | R1 | context.IntVariables |
 | GetMatrixVar | 從 eval-context 讀 Matrix(Vector4[]) 變數 | NEW-SEAM:context-var | BLOCKED:NEW-SEAM:context-var | R2 | context.MatrixVariables；IStatusProvider |
-| GetObjectVar | 從 eval-context 讀 object 變數 | NEW-SEAM:context-var | BLOCKED:NEW-SEAM:context-var | R2 | context.ObjectVariables；typed object box |
+| GetObjectVar | 從 eval-context 讀 object 變數 | NEW-SEAM:context-var | BLOCKED:no-consumer+no-boxed-currency (2026-07-06 深查) | R2 | context.ObjectVariables=boxed Dict<string,object>；**全 TiXL Operators 樹零下游消費者**(grep GetObjectVar 無任何 .t3 接入)；且 sw 的 "Object" wire 是 marker-only(camera-A/B ref gather 專用,resolveReferencedCamera 把 source node type+params 解成 camera params,無 boxed value payload)。要做 roundtrip 得先發明一個 sw 不存在的 boxed-value currency+producer 只為餵自己的 golden→P5 自洽假綠。matrixVars 已用 typed channel 蓋掉 Matrix box；剩純 untyped-object box 無 anchor。ctor default "i"(GetObjectVar.t3) |
 | GetStringVar | 從 eval-context 讀 string 變數 | NEW-SEAM:context-var | BLOCKED:NEW-SEAM:context-var | R1 | context.StringVariables |
 | GetVec3Var | 從 eval-context 讀 Vector3 變數 | NEW-SEAM:context-var | BLOCKED:NEW-SEAM:context-var | R1 | context.Vec3Variables |
 | GetForegroundColor | 讀取 UI foreground color context 值 | NEW-SEAM:context-var | BLOCKED:NEW-SEAM:context-var | R1 | Slot<Vector4>；context.ForegroundColor |
@@ -91,7 +91,7 @@ VelocityForce, AxisStepForce, SnapToAnglesForce — 7 ops shipped.
 | SetFloatVar | 寫 float 到 eval-context + SubGraph | NEW-SEAM:context-var + Layer2d+Execute | BLOCKED:NEW-SEAM:context-var | R1 | ClearAfterExecution 選項 |
 | SetIntVar | 寫 int 到 eval-context + SubGraph | NEW-SEAM:context-var + Layer2d+Execute | BLOCKED:NEW-SEAM:context-var | R1 | LogLevel 參數 |
 | SetMatrixVar | 寫 Matrix 到 eval-context + SubGraph | NEW-SEAM:context-var + Layer2d+Execute | BLOCKED:NEW-SEAM:context-var | R2 | InputSlot<Vector4[]> |
-| SetObjectVar | 寫 object 到 eval-context + SubGraph | NEW-SEAM:context-var + Layer2d+Execute | BLOCKED:NEW-SEAM:context-var | R2 | InputSlot<Object>；type-unsafe box |
+| SetObjectVar | 寫 object 到 eval-context + SubGraph | NEW-SEAM:context-var + Layer2d+Execute | BLOCKED:no-consumer+no-boxed-currency (2026-07-06 深查,見 GetObjectVar 列) | R2 | InputSlot<Object> boxed；SetObjectVar.cs 結構=SetMatrixVar 雙胞(empty-name no-op/SubGraph push-restore/else flat write),唯值型是 boxed object 非 Vector4[]。但無下游讀者(GetObjectVar 零消費)+sw 無 boxed-object wire→無真 cook seam 可咬,只能寫 A==A golden。ctor default "myObj"(SetObjectVar.t3) |
 | SetStringVar | 寫 string 到 eval-context + SubGraph | NEW-SEAM:context-var + Layer2d+Execute | BLOCKED:NEW-SEAM:context-var | R1 | |
 | SetVec3Var | 寫 Vector3 到 eval-context + SubGraph | NEW-SEAM:context-var + Layer2d+Execute | BLOCKED:NEW-SEAM:context-var | R1 | |
 | SetRequestedResolutionCmd | 改 context.RequestedResolution 後執行 SubGraph | Layer2d+Execute | BLOCKED:Layer2d+Execute | R2 | context.RequestedResolution；restore 後執行；類似 SetVar 但改 resolution 不是變數字典 |
