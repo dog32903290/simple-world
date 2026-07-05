@@ -136,6 +136,37 @@ static const MathOp _reg_WLedSerialOutput{
      nullptr, "io.serial"}
 };
 
+// ── io/json (HTTP) ─────────────────────────────────────────────────────────────────────────────────
+
+// TiXL RequestUrl (Lib/io/json/RequestUrl.cs) — HTTP GET, body → Result string. STATEFUL (async
+// download + rising-edge trigger), evaluate==nullptr; the http cook (net_node_cook http seam) writes
+// RequestFired → extOut[0] on the frame a request is kicked. .t3 DEFAULTS: Url="" (String device-select,
+// shared-transport fork), TriggerRequest=false. The Result STRING body is String currency → deferred
+// (fork-net-message-currency-deferred), exactly like TcpClient's ReceivedString; the scalar RequestFired
+// echo is the value rail. Request fires on TriggerRequest rising edge OR Url change (cs:18-23).
+static const MathOp _reg_RequestUrl{
+    {"RequestUrl", "RequestUrl",
+     {{"RequestFired", "RequestFired", "Float", false},  // extOut[0] — a GET was kicked this frame (cs:20)
+      {"Url", "Url", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, ""},  // cs:8c7a6493
+      {"TriggerRequest", "TriggerRequest", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},  // cs:4DC9DEF5
+     nullptr, "io.json"}
+};
+
+// TiXL LoadImageFromUrl (Lib/image/generate/load/LoadImageFromUrl.cs) — HTTP GET → WIC decode → Texture2D.
+// STATEFUL (async download + rising-edge trigger), evaluate==nullptr; the http cook writes RequestFired →
+// extOut[0] on the frame a download is kicked. .t3 DEFAULTS: Url="" (String device-select, shared-transport
+// fork), TriggerUpdate=false. The Texture2D output is texture currency riding the app image_decode path →
+// deferred (fork-net-message-currency-deferred, texture leg); the scalar RequestFired echo is the value
+// rail. Download fires on TriggerUpdate rising edge OR Url change to non-empty (cs:25-28); the 2xx gate is
+// the download path's (cs:76), surfaced as RequestFired only when a GET is actually issued.
+static const MathOp _reg_LoadImageFromUrl{
+    {"LoadImageFromUrl", "LoadImageFromUrl",
+     {{"RequestFired", "RequestFired", "Float", false},   // extOut[0] — a download was kicked (cs:26)
+      {"Url", "Url", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, ""},  // cs:21b2e219
+      {"TriggerUpdate", "TriggerUpdate", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool}},  // cs:710BA03D
+     nullptr, "image.load"}
+};
+
 // ── io/dmx ─────────────────────────────────────────────────────────────────────────────────────────
 
 // TiXL ArtnetOutput (Lib/io/dmx/ArtnetOutput.cs) — Art-Net DMX SENDER (UDP 6454). Packet body goldened

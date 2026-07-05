@@ -65,6 +65,58 @@ void emitNetPacket(int kind, int universe, const std::vector<uint8_t>& bytes);
 // read + the app drained the output packets.
 void endNetDeviceFrame();
 
+// ── The per-frame HTTP request bus (RequestUrl / LoadImageFromUrl) ──────────────────────────────────
+//
+// The http-family leaf-seam inversion (mirror of NetDeviceBus): the runtime cook DECIDES a GET should
+// fire (trigger rising edge OR url changed) and appends a request marker; the APP drains it, calls the
+// platform NSURLSession GET (platform/http_request — runtime cannot include it: runtime→platform is a
+// forbidden upward dep), and latches the response back for a later cook to route onto the deferred
+// String/Texture rail. The golden drives the cook directly and performs the GET against a localhost
+// loopback HTTP server (TcpServerLoopback), asserting the request marker + the transport parity — no
+// real network. TiXL's nodes are fire-and-forget async (async void, RequestUrl.cs:18 / LoadImageFromUrl
+// .cs:65); the request marker is the SYNC boundary the app expands back into an async worker (named fork).
+
+// One outbound GET a http node wants issued this frame. `kind`: 0=RequestUrl (text body), 1=
+// LoadImageFromUrl (image bytes → image_decode). `url` is the resolved Url string (the app performs the
+// GET; the runtime never touches a socket). `nodePath` identifies the node so the app can latch the
+// response back onto the right instance.
+struct HttpRequestMarker {
+  int kind = 0;
+  std::string url;
+  std::string nodePath;
+};
+
+struct HttpBus {
+  std::vector<HttpRequestMarker> requests;  // GETs the http cook wants issued this frame
+};
+
+HttpBus& httpBus();
+
+// Clear the http request markers — called once per frame AFTER the http cook wrote them + the app
+// drained them to the real NSURLSession GET.
+void endHttpFrame();
+
+// Per-instance memory for a http node — the rising-edge latch (TiXL MathUtils.WasTriggered, ref
+// _triggered) + the last-seen Url (TiXL Url.DirtyFlag.IsDirty; a url change also fires a request).
+struct HttpNodeState {
+  bool triggered = false;      // previous frame's trigger value (rising-edge detection)
+  std::string lastUrl;         // previous frame's Url (a change fires a request)
+  bool urlSeen = false;        // false until the first cook establishes lastUrl (avoids a spurious fire)
+};
+
+// Cook every http node (RequestUrl / LoadImageFromUrl) once this frame: on the trigger rising edge OR a
+// Url change, append a request marker to the http bus and echo RequestFired → extOut[0]. Per-node state
+// keyed by resident path. The Url string is read from the node's strParams (the resident string channel);
+// an empty Url never fires (TiXL: RequestUrl fires on any url change incl. blank, but LoadImageFromUrl
+// gates on non-empty, cs:27 — we take the non-empty gate for both, the safe superset).
+void cookHttpNodes(ResidentEvalGraph& g, std::map<std::string, HttpNodeState>& state);
+
+// Golden TEETH hook (--selftest-http-nodes). 0 = production; 1 = DROP the trigger rising-edge gate (a
+// held TriggerRequest fires a request EVERY frame → the edge-gated golden goes RED). Sticky module
+// switch; the golden restores 0. Mirrors setNetNodeBug's convention.
+void setHttpNodeBug(int mode);
+int  httpNodeBug();
+
 // ── Per-instance state + cooks ─────────────────────────────────────────────────────────────────────
 
 // Per-instance memory for a send-side output node — the trigger-edge latch (TiXL private `_wasSending`
