@@ -498,8 +498,10 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // all wired scalars via evalFloat into one list). Body in Impl::cookFlatFloatList (hostvalue_cook, Cut-4);
   // this thin forwarding lambda also threads floatListCooked (the cross-frame fan-out memo). FloatList = a
   // CLOSED sub-graph. (gather order == resident flatten extraConns, resident_eval_flatten.cpp:255-268.)
+  // cookColorListNode rides in by-ref = the COLORLIST→FLOATLIST BRIDGE (ColorListToInts.ColorLists);
+  // assigned just below (std::function slots captured by-ref → live by terminal dispatch).
   cookFloatListNode = [&](int id) -> const std::vector<float>* {
-    return p_->cookFlatFloatList(g, ctx, nodeParams, floatListCooked, id);
+    return p_->cookFlatFloatList(g, ctx, nodeParams, cookColorListNode, floatListCooked, id);
   };
 
   // Cook a COLORLIST-flow node (the vec4-list cook flow = TiXL Slot<List<Vector4>>). The currency is a

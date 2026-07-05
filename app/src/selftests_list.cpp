@@ -40,6 +40,8 @@ REGISTER_SELFTESTS(/*orderBase=*/310,
     {"smoothvalues", runSmoothValuesSelfTest},              // SmoothValues forward-window box average (STATELESS FloatList→FloatList, chain-through-evalFloat)
     {"animfloatlist", runAnimFloatListSelfTest},            // AnimFloatList animator PRODUCER (AnimMath shapes → List<float> on LocalFxTime; flat + production-resident chain-through)
     {"floatlistconversion", runFloatListConversionSelfTest},  // FloatListToIntList (trunc-toward-zero) + IntListToFloatList (widening), chain-through-evalFloat
+    {"colorlisttoints", runColorListToIntsSelfTest},       // ColorListToInts COLORLIST→FLOATLIST BRIDGE (vec4-list → int-list per-channel 0..255 truncate+clamp; RGBA/ARGB/RGB/R/A modes), chain-through-evalFloat
+    {"analyzefloatlist", runAnalyzeFloatListSelfTest},     // AnalyzeFloatList MULTI-OUTPUT host-scalar (Min/Max/AverageMean/AllValid off widened outCache[0..3]; the op that forced the 3→8 widen)
     {"amplifyvalues", runAmplifyValuesSelfTest},            // AmplifyValues cross-frame STATE (damp toward input over frames; flat + R-2 production-resident)
     {"dampfloatlist", runDampFloatListSelfTest},            // DampFloatList cross-frame STATE (per-index damp + dt-gate; flat + production-resident)
     {"keepfloatvalues", runKeepFloatValuesSelfTest},        // KeepFloatValues cross-frame STATE (front-insert ring accumulator; flat + production-resident)

@@ -392,8 +392,12 @@ struct PointGraph::Impl {
                         const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx, uint32_t& faceCount);
   // The FLAT HOST-VALUE cooks (FloatList/ColorList/Gradient/PointList), point_graph_hostvalue_cook.cpp (Cut-4;
   // full doc in leaf). FloatList + ColorList cross a per-frame memo (by-ref) so a stateful op cooks once/frame.
+  // cookColorListNode rides in by-ref = the COLORLIST→FLOATLIST BRIDGE (ColorListToInts.ColorLists = a
+  // ColorList MultiInput dissolved to the FloatList/IntList rail): a wired ColorList producer's host list
+  // is gathered off the ColorList rail into inputColorLists. null for every op with no ColorList input port.
   const std::vector<float>* cookFlatFloatList(const Graph& g, const EvaluationContext& ctx,
                                               const NodeParamsFn& nodeParams,
+                                              const std::function<const std::vector<simd::float4>*(int)>& cookColorListNode,
                                               std::map<int, const std::vector<float>*>& floatListCooked, int id);
   const std::vector<simd::float4>* cookFlatColorList(
       const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,

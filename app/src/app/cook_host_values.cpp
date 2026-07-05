@@ -30,6 +30,9 @@ void cookPickColorFromImageNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ct
 // Camera value-output cook-emit pass (resident_camera_value_cook.cpp: CamPosition — the ambient-camera
 // twin of cookValueOutputNodes). Same leaf-local hook shape as cookColorPickNodes above.
 void cookCameraValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
+// ComposeVec3FromList host-emit cook pass (value_op_composevec3fromlist.cpp: FloatList-consumer → Vector3
+// emit WITH cross-frame spring-damp state). Same leaf-local hook shape as cookColorPickNodes.
+void cookComposeVec3Nodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx);
 }  // namespace sw
 
 namespace sw::framecook {
@@ -72,6 +75,13 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // Connection drivers, and writes the scalar onto extOut[0] so the subsequent cookResident's
   // evalResidentFloat reads the bridged value (was 0 — flat-only — before this).
   cookHostScalarNodes(g, hsCtx);
+
+  // Cook the FloatList-CONSUMER → host-value(Vector3) emit op (ComposeVec3FromList) — runs AFTER
+  // cookHostScalarNodes so its FloatList producer (settled via cookResidentFloatList) is ready. Picks 3
+  // indexed values, remaps + spring-damps each (advancing the per-node cross-frame state ONCE this frame),
+  // and writes the Vector3 onto the 3 Result.* extOut slots. Producer-before-consumer, same rule as the
+  // colorlist→pick emit below. Cross-frame damp state lives in the op's process static (keyed by path).
+  cookComposeVec3Nodes(g, hsCtx);
 
   // Cook the COLORLIST currency ops (ColorsToList / the stateful KeepColors) — the PRODUCTION leg of the
   // vec4-list cook flow. Same once-per-frame slot: walks the resident graph, gathers each colorlist op's

@@ -187,6 +187,8 @@ namespace sw { int runDampFloatListSelfTest(bool); }             // floatlist_da
 namespace sw { int runKeepFloatValuesSelfTest(bool); }           // floatlist_keepfloatvalues_golden.cpp (KeepFloatValues cross-frame STATE: front-insert ring accumulator, flat + resident)
 namespace sw { int runKeepIntsSelfTest(bool); }                  // floatlist_keepints_golden.cpp (KeepInts INT twin: front-insert ring accumulator pad-0, flat + resident)
 namespace sw { int runFloatListConversionSelfTest(bool); }       // floatlist_conversion_golden.cpp (FloatListToIntList trunc-toward-zero + IntListToFloatList widening, chain-through-evalFloat)
+namespace sw { int runColorListToIntsSelfTest(bool); }           // colorlisttoints_golden.cpp (COLORLIST→FLOATLIST BRIDGE: ColorsToList → ColorListToInts → PickFloatFromList/FloatListLength, per-channel 0..255 truncate+clamp)
+namespace sw { int runAnalyzeFloatListSelfTest(bool); }          // analyzefloatlist_golden.cpp (MULTI-OUTPUT host-scalar Min/Max/AverageMean/AllValid via evalFloat off widened outCache[0..3]; fork-average-divides-by-full-count)
 namespace sw { int runListRoutingWave1SelfTest(bool); }          // list_routing_wave1_golden.cpp (list fan-out wave-1: SumRange/IntListLength/PickIntFromList/CompareFloatLists bridge)
 namespace sw { int runTryParseSelfTest(bool); }                  // tryparse_golden.cpp (String→Float/Int host-scalar bridge: TryParse/TryParseInt, flat + resident)
 namespace sw { int runStringToDateTimeSelfTest(bool); }          // stringtodatetime_golden.cpp (String→DateTime route-B epoch host-scalar bridge, flat + resident)

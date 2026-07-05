@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 
+#include <simd/simd.h>  // simd::float4 (COLORLIST→FLOATLIST BRIDGE input: ColorListToInts.ColorLists)
+
 #include "runtime/graph.h"  // NodeSpec
 
 namespace MTL {
@@ -88,6 +90,12 @@ struct FloatListCookCtx {
   // Cooked upstream FloatList inputs (one entry per WIRED FloatList source, in spec port order with
   // MultiInput ports expanded into wire-declaration order). Borrowed (driver-owned); never retained.
   const std::vector<std::vector<float>>* inputLists = nullptr;
+  // COLORLIST→FLOATLIST BRIDGE (list-currency seam): cooked upstream ColorList inputs, gathered off the
+  // ColorList rail into this FloatList-producing op (ColorListToInts.ColorLists = MultiInput<List<Vector4>>).
+  // One entry per WIRED ColorList source (spec port order, MultiInput-expanded, wire-declaration order).
+  // Empty for every FloatList op WITHOUT a ColorList input port (every prior op → byte-identical). The
+  // colorlist twin of `inputLists`; a consumer (ColorListToInts) reads it, a pure FloatList op ignores it.
+  const std::vector<std::vector<simd::float4>>* inputColorLists = nullptr;
   // Driver-owned output list. The op writes via output->clear()/push_back; never allocates/frees it.
   std::vector<float>* output = nullptr;
   // RESOLVED Float params of THIS node (mirror of MeshCookCtx::params); read via floatListParam.

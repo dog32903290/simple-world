@@ -121,6 +121,7 @@ void PointGraph::Impl::cookFlatHostScalar(
   std::vector<std::string> inputStrings = gatherStringInputs(g, id, *s, cookStringNode);
 
   float scalar = 0.0f;
+  std::map<int, float> scalarOut;  // MULTI-OUTPUT sink (AnalyzeFloatList Min/Max/AverageMean/AllValid)
   HostScalarCookCtx hc;
   hc.dev = dev; hc.lib = lib; hc.queue = queue;
   hc.ctx = &ctx; hc.nodeId = id;
@@ -128,6 +129,7 @@ void PointGraph::Impl::cookFlatHostScalar(
   hc.inputStrings = &inputStrings;
   hc.params = nodeParams(id);
   hc.output = &scalar;
+  hc.scalarOutputs = &scalarOut;
   (*fn)(hc);
 
   // Transport (legacy floatListBuf 1-elem) + BRIDGE (Node::outCache[0], const_cast — same precedent
@@ -135,7 +137,15 @@ void PointGraph::Impl::cookFlatHostScalar(
   // carry the corrupted value → the downstream evalFloat RED bites on the real path.
   std::vector<float>& out = floatListBuf[flatKey(id)];
   out.assign(1, scalar);
-  if (Node* mn = const_cast<Graph&>(g).node(id)) mn->outCache[0] = scalar;
+  if (Node* mn = const_cast<Graph&>(g).node(id)) {
+    mn->outCache[0] = scalar;
+    // MULTI-OUTPUT distribution (mirror of point_graph_string_cook.cpp): each extra output port k → outCache[k]
+    // (the channel evalFloat reads). Bound-guarded by the outCache array size (now 8). A single-output op
+    // leaves scalarOut empty → this loop is a no-op → byte-identical to the prior [0]-only write.
+    const int kOutCacheN = (int)(sizeof(mn->outCache) / sizeof(mn->outCache[0]));
+    for (const auto& kv : scalarOut)
+      if (kv.first >= 0 && kv.first < kOutCacheN) mn->outCache[kv.first] = kv.second;
+  }
 }
 
 }  // namespace sw

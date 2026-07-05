@@ -78,11 +78,21 @@ struct HostScalarCookCtx {
   const std::vector<std::vector<float>>* inputLists = nullptr;  // cooked FloatList inputs (spec order)
   const std::vector<std::string>* inputStrings = nullptr;       // resolved String inputs (spec order)
   const std::map<std::string, float>* params = nullptr;         // resolved Float params of THIS node
-  float* output = nullptr;                                      // driver-owned scalar slot; op writes it
+  float* output = nullptr;                                      // driver-owned scalar slot (port 0); op writes it
+  // MULTI-OUTPUT sink (mirror of StringCookCtx::scalarOutputs, string_op_registry.h): a host-scalar op with
+  // MORE THAN ONE Float output (AnalyzeFloatList = Min port0 / Max port1 / AverageMean port2 / AllValid
+  // port3) writes its EXTRA outputs here keyed by OUTPUT-PORT INDEX (port 0 also allowed here, but the
+  // single-output incumbents write *output = port 0 → the driver mirrors *output to outCache[0], and
+  // scalarOutputs stays empty → byte-identical). The driver distributes scalarOutputs[k] → Node::outCache[k]
+  // (flat) / ResidentNode::extOut[k] (resident), the SAME channel evalFloat/evalResidentFloat read. null for
+  // a single-output op (the driver may not supply it — e.g. a hand-built golden ctx) → the op falls back to
+  // *output only. The FIRST multi-output HOST-SCALAR op (PickStringPart pioneered this on the STRING rail).
+  std::map<int, float>* scalarOutputs = nullptr;
 };
 
 // A host-scalar op: read inputLists / inputStrings (+ resolved Float params) → write *output (one
-// float). ONE fn (a scalar self-sizes); the driver owns transport + the outCache bridge mirror.
+// float) AND/OR scalarOutputs[portIdx] (multi-output). ONE fn (a scalar self-sizes); the driver owns
+// transport + the outCache bridge mirror.
 using HostScalarCookFn = void (*)(HostScalarCookCtx&);
 
 // Read a Float param from a HostScalarCookCtx's RESOLVED map (mirror of floatListParam); `def` when

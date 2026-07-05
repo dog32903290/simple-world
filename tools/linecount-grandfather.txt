@@ -91,7 +91,12 @@ app/src/runtime/math_ops_selftest.cpp:1151
 # + the rawBuf release in ~PointGraph. Irreducible per-flow dispatch wiring, the same class as every prior
 # cook flow added here; the marshal LEAVES + the cook body stay bounded <400-line TUs. Proven by
 # --selftest-floatstobuffer (+ -bug RED).
-app/src/runtime/point_graph.cpp:751
+# COLORLIST→FLOATLIST BRIDGE (2026-07-05) 751→753 +2: the cookFloatListNode forwarding slot gained the
+# cookColorListNode-by-ref arg (ColorListToInts.ColorLists = a ColorList MultiInput dissolved to the
+# FloatList/IntList rail) + a 2-line load-bearing comment (the by-ref-live-by-dispatch ordering note).
+# Irreducible driver dispatch wiring, the twin of the existing Gradient/Buffer list-currency bridges; the
+# op body lives in the floatlist_ops_colorlisttoints.cpp leaf (<400). Proven by --selftest-colorlisttoints.
+app/src/runtime/point_graph.cpp:753
 # S3a (2026-06-23) +12: CmdCookCtx gained the ContextVarMap* ctxVars field (additive ABI, mirrors
 # inputCommand) + the forward-decl + cook/cookResident gained the trailing ctxVars param. Doc squeezed to
 # the floor; the field + its load-bearing comment (the two-rail fork note, blueprint risk #3) are irreducible.
@@ -129,7 +134,10 @@ app/src/runtime/point_graph.h:245
 # list-currency seam (2026-07-05) 475→478 +3: cookFlatBuffer + cookFlatGradient decls each gained a
 # cookFloatListNode / cookColorListNode slot-by-ref param line (the LIST-CURRENCY BRIDGE gather accessor for
 # IntListToBuffer / BuildGradient). Irreducible signature lines (the Impl methods live in leaf .cpp).
-app/src/runtime/point_graph_internal.h:478
+# COLORLIST→FLOATLIST BRIDGE (2026-07-05) 478→482 +4: cookFlatFloatList's decl gained the cookColorListNode
+# slot-by-ref param line (ColorListToInts.ColorLists, the vec4-list → int-list gather) + a 3-line load-bearing
+# comment. Irreducible signature line (the Impl method body lives in point_graph_hostvalue_cook.cpp <400).
+app/src/runtime/point_graph_internal.h:482
 # S2c (2026-06-23) +8: resident cookCommand gained its Texture2D input gather — a production black-hole
 # (Layer2d/DrawScreenQuad drew BLACK on the resident path because cc.inputTexture was never set; the flat
 # cookCommand has had this branch since FORK#1). Caught by --selftest-layercompose's resident leg. The

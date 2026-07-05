@@ -466,6 +466,8 @@ add_executable(simple_world
   src/runtime/floatlist_ops_pickfloatlist.cpp   # PickFloatList (MultiInput list picker, T3 floor-Mod index; numbers/floats/logic/PickFloatList.cs)
   src/runtime/floatlist_ops_mergefloatlists.cpp # MergeFloatLists (Append/Htp/Average; StartIndices + Ltp/FailOver deferred)
   src/runtime/floatlist_ops_mergeintlists.cpp   # MergeIntLists (int twin; integer-Average; shares cookMergeListsShared)
+  src/runtime/floatlist_ops_colorlisttoints.cpp # ColorListToInts (COLORLIST→FLOATLIST BRIDGE consumer: vec4-list → int-list, per-channel 0..255)
+  src/colorlisttoints_golden.cpp                 # --selftest-colorlisttoints (ColorsToList → ColorListToInts → PickFloatFromList chain-through-evalFloat)
   src/merge_lists_golden.cpp                     # --selftest-mergelists (Merge*Lists + PickFloatList chain-through-evalFloat)
   src/floatlist_golden.cpp
   src/floatlist_producers_golden.cpp
@@ -490,6 +492,9 @@ add_executable(simple_world
   src/keepcolors_golden.cpp
   src/runtime/host_scalar_op_registry.cpp
   src/runtime/host_scalar_ops_floatlistlength.cpp
+  src/runtime/host_scalar_ops_analyzefloatlist.cpp   # AnalyzeFloatList (FIRST multi-output host-scalar: Min/Max/AverageMean/AllValid — forced the outCache/extOut widen 3→8)
+  src/analyzefloatlist_golden.cpp                     # --selftest-analyzefloatlist (multi-output bridge: Min/Max/Mean/AllValid via evalFloat off outCache[0..3])
+  src/composevec3fromlist_golden.cpp                  # --selftest-composevec3fromlist (FloatList→Vector3 host-emit + cross-frame spring-damp; extOut/evalResidentFloat readback)
   src/runtime/host_scalar_ops_pickfloatfromlist.cpp
   src/runtime/host_scalar_ops_sumrange.cpp            # FloatList+Lower+Upper -> windowed sum (list fan-out wave-1)
   src/runtime/host_scalar_ops_intlistlength.cpp       # IntList (dissolved) -> count (list fan-out wave-1)
@@ -733,6 +738,7 @@ add_executable(simple_world
   src/runtime/resident_eval_graph.cpp
   src/runtime/resident_eval_flatten.cpp
   src/runtime/resident_host_scalar_cook.cpp
+  src/runtime/resident_floatlist_cook.cpp        # cookResidentFloatList (extracted from resident_host_scalar_cook.cpp; + COLORLIST→FLOATLIST BRIDGE)
   src/runtime/resident_value_output_cook.cpp
   src/runtime/resident_matrix_output_cook.cpp
   src/runtime/resident_matrix_ctxvar_cook.cpp  # sub-seam D: Set/GetMatrixVar on typed matrixVars (4-row on extColorOut)
