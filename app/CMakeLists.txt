@@ -573,6 +573,7 @@ add_executable(simple_world
   src/runtime/pointlist_ops_loadobjedges.cpp   # LoadObjEdges leaf (2nd obj_parse consumer: unique face edges → from/to/sep triples)
   src/runtime/datapoint_json.cpp               # point/io data sub-lane: minimal JSON reader (DataPointImportExport/-Converter share it)
   src/runtime/pointlist_ops_datapointimportexport.cpp # DataPointImportExport leaf (JSON import/export + bag forward; String-path channel)
+  src/runtime/pointlist_ops_datapointconverter.cpp    # DataPointConverter leaf (CSV/flat-JSON convert + column mapping + euler/quat export)
   src/runtime/gizmo_geometry.cpp
   src/runtime/pointlist_ops_conegizmo.cpp
   src/runtime/pointlist_ops_drawlinegrid.cpp
