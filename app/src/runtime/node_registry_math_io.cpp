@@ -60,5 +60,27 @@ static const MathOp _reg_OscInput{
      "io.osc"}
 };
 
+// TiXL MidiControlOutput (Lib/io/midi/MidiControlOutput.cs) — CC / ChannelPressure SENDER. STATEFUL
+// (per-node trigger-edge latch), evaluate==nullptr; cooked by cookMidiControlOutputNodes (io_node_cook.cpp)
+// which emits the short message to the device out bus + echoes the sent value onto extOut[0]. Result is
+// a Command in TiXL (no value) → the echo is the golden probe (fork-midioutput-echo-output). Inputs in
+// TiXL [Input] decl order MINUS Device (shared-transport fork — the app owns one destination, not a
+// per-name select). .t3 DEFAULTS: SendMode=0(SendContinuously), TriggerSend=false, CCorPressure=0(CC),
+// ChannelNumber=1, ControllerNumber=1, Value=0, UseValueFloat=false, ValueFloat=0.
+static const MathOp _reg_MidiControlOutput{
+    {"MidiControlOutput", "MidiControlOutput",
+     {{"Result", "Result", "Float", false},   // echo of the sent value (extOut[0], golden probe)
+      {"SendMode", "SendMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"SendContinuously", "SendWhenTriggered"}},
+      {"TriggerSend", "TriggerSend", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+      {"CCorPressure", "CCorPressure", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum, {"ContinuosController_CC", "ChannelPressure"}},
+      {"ChannelNumber", "ChannelNumber", "Float", true, 1.0f, 1.0f, 16.0f, Widget::Slider},
+      {"ControllerNumber", "ControllerNumber", "Float", true, 1.0f, 0.0f, 127.0f, Widget::Slider},
+      {"Value", "Value", "Float", true, 0.0f, 0.0f, 127.0f, Widget::Slider},
+      {"UseValueFloat", "UseValueFloat", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
+      {"ValueFloat", "ValueFloat", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Slider}},
+     nullptr,
+     "io.midi"}
+};
+
 }  // namespace
 }  // namespace sw

@@ -170,15 +170,85 @@ bool goldenOscTrigger(bool injectBug) {
   return g_fail == 0;
 }
 
+// ── MidiControlOutput: SendContinuously emits the exact CC short message; edge-gating under Triggered ─
+bool goldenMidiControlOutput(bool injectBug) {
+  // SendContinuously (0), CC (0), channel 3, controller 74, value 100 → CC short message
+  // status = 0xB0 | (3-1) = 0xB2, data1 = 74, data2 = 100.
+  SymbolLibrary lib = makeLib("MidiControlOutput", {
+      {"SendMode", 0.0f}, {"TriggerSend", 0.0f}, {"CCorPressure", 0.0f},
+      {"ChannelNumber", 3.0f}, {"ControllerNumber", 74.0f}, {"Value", 100.0f}, {"UseValueFloat", 0.0f}});
+  ResidentEvalGraph g = buildEvalGraph(lib, lib.rootId);
+  initResidentCache(g);
+  std::map<std::string, MidiOutputState> state;
+
+  endIoDeviceFrame();
+  cookMidiControlOutputNodes(g, state);
+  const IoDeviceBus& bus = ioDeviceBus();
+  bool okCount = bus.midiOut.size() == 1;
+  int status = okCount ? bus.midiOut[0].status : -1;
+  int data1  = okCount ? bus.midiOut[0].data1  : -1;
+  int data2  = okCount ? bus.midiOut[0].data2  : -1;
+  endIoDeviceFrame();
+  // FIXED expectation = the TiXL short message. (No bug affects the SendContinuously CC bytes; this is
+  // the path-independent production probe. The teeth live in the edge-gate + value-scale goldens below.)
+  expect("SendContinuously emits CC status 0xB2", okCount && status == 0xB2);
+  expect("SendContinuously CC controller == 74", data1 == 74);
+  expect("SendContinuously CC value == 100", data2 == 100);
+
+  // Edge-gate tooth: SendWhenTriggered (1) with TriggerSend HELD true across two cooks must emit ONLY on
+  // the rising edge (first cook), NOT the second. injectBug mode 1 drops the edge → emits BOTH → the
+  // second-frame count diverges from the FIXED 0 → RED.
+  SymbolLibrary lib2 = makeLib("MidiControlOutput", {
+      {"SendMode", 1.0f /*SendWhenTriggered*/}, {"TriggerSend", 1.0f}, {"CCorPressure", 0.0f},
+      {"ChannelNumber", 1.0f}, {"ControllerNumber", 10.0f}, {"Value", 64.0f}, {"UseValueFloat", 0.0f}});
+  ResidentEvalGraph g2 = buildEvalGraph(lib2, lib2.rootId);
+  initResidentCache(g2);
+  std::map<std::string, MidiOutputState> state2;
+  setIoNodeBug(injectBug ? 1 : 0);
+  endIoDeviceFrame();
+  cookMidiControlOutputNodes(g2, state2);      // frame 1: rising edge → emits
+  size_t frame1 = ioDeviceBus().midiOut.size();
+  endIoDeviceFrame();
+  cookMidiControlOutputNodes(g2, state2);      // frame 2: trigger still held, no new edge → NO emit
+  size_t frame2 = ioDeviceBus().midiOut.size();
+  endIoDeviceFrame();
+  setIoNodeBug(0);
+  expect("SendWhenTriggered emits on the rising edge (frame1 == 1)", frame1 == 1);
+  expect("SendWhenTriggered does NOT re-emit while held (frame2 == 0; bug re-emits → RED)", frame2 == 0);
+  return g_fail == 0;
+}
+
+// ── MidiControlOutput value scale tooth: UseValueFloat scales 0..1 → 0..127 ───────────────────────────
+bool goldenMidiOutputValueScale(bool injectBug) {
+  // UseValueFloat, ValueFloat 0.5 → (int)(0.5*127) = 63 (TiXL cs:46). injectBug mode 2 drops the
+  // clamp+scale → (int)0.5 = 0, diverging from the FIXED 63 → RED.
+  SymbolLibrary lib = makeLib("MidiControlOutput", {
+      {"SendMode", 0.0f}, {"CCorPressure", 0.0f}, {"ChannelNumber", 1.0f},
+      {"ControllerNumber", 20.0f}, {"UseValueFloat", 1.0f}, {"ValueFloat", 0.5f}});
+  ResidentEvalGraph g = buildEvalGraph(lib, lib.rootId);
+  initResidentCache(g);
+  std::map<std::string, MidiOutputState> state;
+  endIoDeviceFrame();
+  setIoNodeBug(injectBug ? 2 : 0);
+  cookMidiControlOutputNodes(g, state);
+  setIoNodeBug(0);
+  int data2 = ioDeviceBus().midiOut.size() == 1 ? ioDeviceBus().midiOut[0].data2 : -1;
+  endIoDeviceFrame();
+  expect("ValueFloat 0.5 scales to CC value 63 (bug drops scale → 0 → RED)", data2 == 63);
+  return g_fail == 0;
+}
+
 }  // namespace
 
 int runIoNodeSelfTest(bool injectBug) {
   g_fail = 0;
-  printf("[selftest] io-nodes (MidiInput/OscInput device-node cook; deferred-hw-verify for physical MIDI)\n");
+  printf("[selftest] io-nodes (MidiInput/OscInput/MidiControlOutput device-node cook; deferred-hw-verify)\n");
   goldenMidiInput(injectBug);
   goldenMidiReject(injectBug);
   goldenMidiRemap(injectBug);
   goldenOscTrigger(injectBug);
+  goldenMidiControlOutput(injectBug);
+  goldenMidiOutputValueScale(injectBug);
   printf("[selftest] io-nodes %s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
   return g_fail ? 1 : 0;
 }

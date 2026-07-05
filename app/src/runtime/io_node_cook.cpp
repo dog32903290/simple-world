@@ -148,14 +148,75 @@ void cookOscInputNodes(ResidentEvalGraph& g, std::map<std::string, OscInputState
   }
 }
 
-// frame_cook entry point: cook both io input families + clear the bus. State maps are function-local
-// statics keyed by resident path (survives projection rebuilds, per-instance), so frame_cook adds one
-// call not a state block.
+// ── MidiControlOutput ────────────────────────────────────────────────────────────────────────────
+// Faithful port of MidiControlOutput.cs Update: on the send condition build a CC (0xB0) or Channel-
+// Pressure (0xD0) short message and emit it. TiXL clamps controller 0..127 (cs:35), value 0..127 or
+// (float*127) 0..127 (cs:42/46), channel 1..16 (cs:72). SendModes: 0=SendContinuously (every frame),
+// 1=SendWhenTriggered (rising edge only, cs:82). DataTypes: 0=CC, 1=ChannelPressure. NAMED FORK
+// fork-midioutput-shared-transport: TiXL loops MidiOutsWithDevices matching Device name; sw emits to
+// the shared out bus (the app forwards to the real CoreMIDI destination — deferred-hw-verify), so the
+// Device-name select drops here (one destination, not per-name). Output Result is a Command in TiXL
+// (no value); sw echoes the emitted data2 (value) onto extOut[0] as the golden probe (0 if nothing
+// sent this frame). TEETH: mode 1 forces the send condition true (SendWhenTriggered fires without the
+// rising edge → the edge-gated golden goes RED); mode 2 drops the value clamp/scale (raw float → RED).
+static void cookMidiControlOutput(ResidentEvalGraph& g, std::map<std::string, MidiOutputState>& state) {
+  ResidentEvalCtx rctx;
+  for (ResidentNode& rn : g.nodes) {
+    if (rn.opType != "MidiControlOutput") continue;
+    std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
+    const int  sendMode  = (int)std::lround(P["SendMode"]);       // 0 continuous, 1 triggered
+    const bool trigActive = P["TriggerSend"] > 0.5f;
+    const int  ccOrPress = (int)std::lround(P["CCorPressure"]);   // 0 CC, 1 ChannelPressure
+    const bool useFloat  = P["UseValueFloat"] > 0.5f;
+    int channel    = (int)std::lround(P["ChannelNumber"]); channel = channel < 1 ? 1 : channel > 16 ? 16 : channel;
+    int controller = (int)std::lround(P["ControllerNumber"]); controller = controller < 0 ? 0 : controller > 127 ? 127 : controller;
+    int intValue;
+    if (!useFloat) { intValue = (int)std::lround(P["Value"]); }
+    else {
+      float vf = P["ValueFloat"]; vf = vf < 0.0f ? 0.0f : vf > 1.0f ? 1.0f : vf;
+      intValue = (g_ioNodeBug == 2) ? (int)P["ValueFloat"] : (int)(vf * 127.0f);  // bug: drop clamp+scale
+    }
+    if (g_ioNodeBug != 2) { intValue = intValue < 0 ? 0 : intValue > 127 ? 127 : intValue; }
+
+    MidiOutputState& st = state[rn.path];
+    const bool justActivated = trigActive && !st.triggered;   // rising edge (cs:58-64)
+    st.triggered = trigActive;
+
+    // Send condition (cs:79-106): continuous every frame, triggered only on the rising edge. TEETH
+    // mode 1: force the send condition (ignore the edge) → the SendWhenTriggered golden bites.
+    bool doSend = (sendMode == 0) || (sendMode == 1 && justActivated);
+    if (g_ioNodeBug == 1) doSend = (sendMode == 0) || (sendMode == 1 && trigActive);  // edge dropped
+
+    float echo = 0.0f;
+    if (doSend) {
+      if (ccOrPress == 0) {  // CC: 0xB0 | (channel-1), controller, value
+        emitMidiShort(0xB0 | (channel - 1), controller, intValue, 3);
+      } else {               // ChannelPressure: 0xD0 | (channel-1), value (2-byte)
+        emitMidiShort(0xD0 | (channel - 1), intValue, 0, 2);
+      }
+      echo = (float)intValue;
+    }
+    rn.extOut[0] = echo;  // Result echo (golden probe)
+  }
+}
+
+void cookMidiControlOutputNodes(ResidentEvalGraph& g, std::map<std::string, MidiOutputState>& state) {
+  cookMidiControlOutput(g, state);
+}
+
+// frame_cook entry point: cook both io input families + the output families, then clear the bus. State
+// maps are function-local statics keyed by resident path (survives projection rebuilds, per-instance),
+// so frame_cook adds one call not a state block. DEFERRED-HW-VERIFY: once the real CoreMIDI/UDP
+// forwarder is wired app-side, it must drain bus.midiOut/oscOut/sysexOut BEFORE this endIoDeviceFrame
+// clear (the send side-effect leg — the physical device). Today nothing forwards them (no device), so
+// the clear here is harmless; the golden drives the cooks directly and reads midiOut before its own clear.
 void cookIoDeviceNodes(ResidentEvalGraph& g) {
-  static std::map<std::string, MidiInputState> s_midiInState;
-  static std::map<std::string, OscInputState>  s_oscInState;
+  static std::map<std::string, MidiInputState>  s_midiInState;
+  static std::map<std::string, OscInputState>   s_oscInState;
+  static std::map<std::string, MidiOutputState> s_ctrlOutState;
   cookMidiInputNodes(g, s_midiInState);
   cookOscInputNodes(g, s_oscInState);
+  cookMidiControlOutputNodes(g, s_ctrlOutState);
   endIoDeviceFrame();
 }
 

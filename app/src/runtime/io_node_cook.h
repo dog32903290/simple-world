@@ -46,6 +46,19 @@ struct OscInputState {
 // (Dict<float>/List<float>) are DEFERRED to seam/dict-currency (see io_node_cook.cpp TODO).
 void cookOscInputNodes(ResidentEvalGraph& g, std::map<std::string, OscInputState>& state);
 
+// Per-instance memory for a MIDI/OSC OUTPUT node — the trigger-edge latch (TiXL private `_triggered`,
+// e.g. MidiControlOutput.cs:129). SendWhenTriggered fires only on the rising edge; SendContinuously
+// every frame the trigger is held.
+struct MidiOutputState {
+  bool triggered = false;   // TiXL _triggered (the previous frame's TriggerSend value)
+};
+
+// Cook every MidiControlOutput node once this frame: on the send condition (rising edge for
+// SendWhenTriggered, every frame for SendContinuously), build the exact CC / ChannelPressure short
+// message TiXL builds (MidiControlOutput.cs:84/88/100/104) and emit it to the device out bus. State
+// keyed by resident path. (The frozen output-node pattern the *Output siblings follow.)
+void cookMidiControlOutputNodes(ResidentEvalGraph& g, std::map<std::string, MidiOutputState>& state);
+
 // The single frame_cook entry point: cook every io device node (MidiInput + OscInput) and CLEAR the
 // device bus afterward (so next frame starts empty). Owns the per-instance state maps (function-local
 // statics keyed by resident path) so frame_cook stays a one-liner. The golden drives the per-family
