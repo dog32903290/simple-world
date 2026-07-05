@@ -55,20 +55,33 @@ struct EvaluationContext;  // runtime/eval_context.h
 
 namespace sw {
 
+struct SwFloatDict;  // dict_op_registry.h (the Dict<float> host currency the Select*FromDict ops consume)
+
 // Everything a host-scalar op gets to cook one node this frame. The driver GATHERS the upstream host
 // inputs by the op's spec port dataTypes BEFORE calling the op:
 //   • each "FloatList" input port → one already-cooked upstream list (cookFloatListNode), in spec port
 //     order with MultiInput ports expanded into wire-declaration order (an unwired port → empty list);
 //   • each "String" input port → one already-resolved upstream string (WIRE-OR-CONST), in spec port
-//     order (same gather as the String rail).
-// The op reads inputLists / inputStrings + its resolved Float params, computes ONE scalar, and writes
-// it to *output. The driver then mirrors *output into floatListBuf (1-elem) AND Node::outCache.
+//     order (same gather as the String rail);
+//   • each "Dict" input port → one cooked upstream SwFloatDict (cookFlatDict / cookResidentDict), in spec
+//     port order (single-wire; the Select*FromDict family's DictionaryInput). nullptr if unwired.
+// The op reads inputLists / inputStrings / inputDicts + its resolved Float/String params, computes ONE
+// scalar (or up to 3 components for a Vector2/Vector3 output) and writes them to *output / *outY / *outZ.
+// The driver then mirrors the components into Node::outCache[0..2] (the bridge evalFloat reads) AND
+// *output into floatListBuf (1-elem, the legacy transport).
 //
 //   inputLists   : cooked upstream FloatList inputs (borrowed, driver-owned; never retained).
 //   inputStrings : resolved upstream String inputs (borrowed, driver-owned; never retained).
+//   inputDicts   : cooked upstream Dict inputs (one per "Dict" input port, spec order; nullptr = unwired,
+//                  faithful to TiXL's null-dict → TryGetValue miss → 0). Borrowed; never retained.
 //   params       : RESOLVED Float params of THIS node (same value spine as FloatListCookCtx::params),
 //                  read via hostScalarParam (e.g. PickFloatFromList.Index).
-//   output       : THIS node's scalar result. The op writes *output = value; the driver routes it.
+//   strParams    : resolved STRING params of THIS node keyed by port id (the Select*FromDict "Select" key
+//                  is a String param the Float value spine cannot carry). Borrowed; may be null.
+//   output/outY/outZ : the op writes component 0 to *output (ALWAYS), and — for a Vector2/Vector3 output —
+//                  components 1/2 to *outY / *outZ. `components` tells the driver how many outCache slots
+//                  to mirror (1 for a plain Float/bool op — the default; 2 for Vec2; 3 for Vec3). A scalar
+//                  op leaves outY/outZ untouched and components at 1 → byte-identical to before this seam.
 struct HostScalarCookCtx {
   MTL::Device* dev = nullptr;
   MTL::Library* lib = nullptr;
@@ -77,8 +90,13 @@ struct HostScalarCookCtx {
   int nodeId = 0;
   const std::vector<std::vector<float>>* inputLists = nullptr;  // cooked FloatList inputs (spec order)
   const std::vector<std::string>* inputStrings = nullptr;       // resolved String inputs (spec order)
+  const std::vector<const SwFloatDict*>* inputDicts = nullptr;  // cooked Dict inputs (spec order; null=unwired)
   const std::map<std::string, float>* params = nullptr;         // resolved Float params of THIS node
-  float* output = nullptr;                                      // driver-owned scalar slot; op writes it
+  const std::map<std::string, std::string>* strParams = nullptr;  // resolved String params of THIS node
+  float* output = nullptr;                                      // driver-owned component-0 slot; op writes it
+  float* outY = nullptr;                                        // component 1 (Vector2/Vector3 output)
+  float* outZ = nullptr;                                        // component 2 (Vector3 output)
+  int components = 1;                                           // # of outCache components the op wrote (1/2/3)
 };
 
 // A host-scalar op: read inputLists / inputStrings (+ resolved Float params) → write *output (one
@@ -88,6 +106,11 @@ using HostScalarCookFn = void (*)(HostScalarCookCtx&);
 // Read a Float param from a HostScalarCookCtx's RESOLVED map (mirror of floatListParam); `def` when
 // the driver supplied no map (ops invoked outside a cook driver, e.g. a hand-built ctx in a golden).
 float hostScalarParam(const std::map<std::string, float>* params, const char* id, float def);
+
+// Read a STRING param from a HostScalarCookCtx's strParams map (the Select*FromDict "Select" key), keyed
+// by port id; `def` when no map / no entry.
+std::string hostScalarStrParam(const std::map<std::string, std::string>* strParams, const char* id,
+                               const std::string& def);
 
 // --- the three sinks every host-scalar-op leaf registrar feeds ---
 std::vector<NodeSpec>& hostScalarSpecSink();                  // NodeSpecs (node_registry reads live)

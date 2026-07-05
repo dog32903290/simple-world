@@ -60,4 +60,9 @@ REGISTER_SELFTESTS(/*orderBase=*/330,
     {"mergelists", runMergeListsSelfTest},                  // MergeFloatLists/MergeIntLists (Append/Htp/Average) + PickFloatList, chain-through-evalFloat
     {"valuetorate", runValueToRateSelfTest},                // ValueToRate: String rate table + Value -> picked rate, flat + resident bridge
 );
+// Dict-currency seam: Dict<float> host rail + the 4 Select*FromDict consumers. Own high-orderBase block so
+// it appends at the end of --selftest-list deterministically (the registry sorts by `order`).
+REGISTER_SELFTESTS(/*orderBase=*/340,
+    {"selectfromdict", runSelectFromDictSelfTest},          // Dict<float> currency + SelectFloat/Vec2/Vec3/BoolFromDict (flat + resident bridge)
+);
 }  // namespace sw

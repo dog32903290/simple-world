@@ -504,6 +504,15 @@ add_executable(simple_world
   src/tryparse_golden.cpp                              # --selftest-tryparse (String->Float/Int bridge: flat + resident)
   src/stringtodatetime_golden.cpp                      # --selftest-stringtodatetime (String->DateTime epoch bridge: flat + resident)
   src/runtime/host_scalar_ops_valuetorate.cpp         # String rate table + Value -> picked rate (numbers/float/logic/ValueToRate.cs)
+  # dict-currency seam: the Dict<float> host rail (producer registry + cook) + the 4 Select*FromDict consumers
+  src/runtime/dict_op_registry.cpp                     # Dict<float> producer self-registration sinks + param accessors
+  src/runtime/dict_ops_buildfloatdict.cpp             # BuildFloatDict (first Dict producer: comma-keys + Float MultiInput -> SwFloatDict)
+  src/runtime/dict_cook.cpp                            # cookFlatDict / cookResidentDict (Dict producer cook, flat + resident)
+  src/runtime/host_scalar_ops_selectfloatfromdict.cpp     # Dict + Select key -> Float (numbers/data/utils/SelectFloatFromDict.cs)
+  src/runtime/host_scalar_ops_selectboolfromfloatdict.cpp # Dict + Select key -> Bool (>0.5, dissolved Float) (SelectBoolFromFloatDict.cs)
+  src/runtime/host_scalar_ops_selectvec2fromdict.cpp      # Dict + SelectX -> Vector2 (ordinal-next-key Y) (SelectVec2FromDict.cs)
+  src/runtime/host_scalar_ops_selectvec3fromdict.cpp      # Dict + SelectX -> Vector3 (TryUpdateVectorKeysRelatedToX) (SelectVec3FromDict.cs)
+  src/select_from_dict_golden.cpp                      # --selftest-selectfromdict (Dict currency + 4 Select consumers: flat + resident bridge)
   src/tryparse_golden.cpp                              # --selftest-tryparse (String->Float/Int bridge: flat + resident)
   src/valuetorate_golden.cpp                           # --selftest-valuetorate (ValueToRate rate quantizer bridge: flat + resident)
   src/pickcolorfromimage_golden.cpp                    # --selftest-pickcolorfromimage (Texture2D -> host vec4 eyedropper, production pass)
@@ -747,6 +756,7 @@ add_executable(simple_world
   src/runtime/resident_eval_graph.cpp
   src/runtime/resident_eval_flatten.cpp
   src/runtime/resident_host_scalar_cook.cpp
+  src/runtime/resident_floatlist_cook.cpp   # cookResidentFloatList + FloatList prod-state (split out of resident_host_scalar_cook.cpp, ≤400 cap)
   src/runtime/resident_value_output_cook.cpp
   src/runtime/resident_matrix_output_cook.cpp
   src/runtime/resident_matrix_ctxvar_cook.cpp  # sub-seam D: Set/GetMatrixVar on typed matrixVars (4-row on extColorOut)

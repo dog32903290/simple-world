@@ -43,6 +43,8 @@
 #include <string>
 #include <vector>
 
+#include "runtime/dict_cook.h"                // cookResidentDict (dict-currency seam: Dict input gather)
+#include "runtime/dict_op_registry.h"         // SwFloatDict
 #include "runtime/eval_context.h"             // EvaluationContext (HostScalarCookCtx::ctx)
 #include "runtime/floatlist_op_registry.h"    // FloatListCookFn / FloatListCookCtx / findFloatListOp
 #include "runtime/graph.h"                     // NodeSpec / PortSpec / findSpec
@@ -61,147 +63,6 @@ bool tryParseInt32(const std::string& s, int& out);
 // contract: the dedicated branch below and the flat cook both call this ONE helper.
 float stringToDateTimeEpoch(const std::string& dateString);
 float valueToRateResult(const std::string& rates, float value);  // host_scalar_ops_valuetorate.cpp
-
-namespace {
-
-constexpr int kResidentFloatListDepthCap = 64;  // same cycle guard as evalResidentFloat / cookResident
-
-// PRODUCTION-path cross-frame state for STATEFUL FloatList ops (AmplifyValues), keyed by resident path.
-// Process-lifetime (a function-local static below), the FloatList twin of cook_host_values.cpp's
-// s_colorListState / s_stringState — BUT it lives HERE (not threaded from cook_host_values) because the
-// FloatList rail has NO single per-frame pass: it is pull-driven from several sites (ValuesToTexture,
-// host-scalar, cookResidentString). A process static reached internally is the only way to persist state
-// across frames from any of those pull points without threading a store through every call site. A
-// stateless op never creates an entry → no leak for a graph without a stateful floatlist op.
-struct ResidentFloatListSlot {
-  FloatListState state;
-  uint32_t lastCookedFrame = 0xFFFFFFFFu;  // frameIndex of the last ADVANCE (cook-once-per-frame guard)
-  bool everCooked = false;                 // distinguishes "never advanced" from "advanced on frame 0"
-};
-
-std::map<std::string, ResidentFloatListSlot>& residentFloatListState() {
-  static std::map<std::string, ResidentFloatListSlot> s;  // process-lifetime; mirror of s_colorListState
-  return s;
-}
-
-}  // namespace
-
-// Test-only reset of the production FloatList state store (a golden runs multiple independent trajectories
-// in one process; without this the previous trajectory's accumulated state would leak into the next). The
-// flat path resets naturally (a fresh PointGraph per case); this clears the resident process static. No
-// production caller.
-void resetResidentFloatListState() { residentFloatListState().clear(); }
-
-// Cook ONE upstream FloatList-producing resident node into `out` (host list), gathering its inputs
-// THROUGH the resident graph. Mirror of the flat cookFloatListNode (point_graph.cpp:633) but walking
-// ResidentInput drivers instead of flat Graph connections:
-//   • a "FloatList" input port → follow each Connection driver (primary + extraConns, wire order) and
-//     recurse this same fn into a gathered list per wire;
-//   • a scalar "Float" MultiInput port (FloatsToList.Input) → gather all wired scalar sources into ONE
-//     list via evalResidentFloat, in wire-declaration order (primary then extraConns).
-// Returns false if `path` is not a FloatList producer / unknown (caller treats as an empty list).
-bool cookResidentFloatList(const ResidentEvalGraph& g, const std::string& path,
-                           const ResidentEvalCtx& ctx, std::vector<float>& out, int depth,
-                           FloatListState* state) {
-  out.clear();
-  if (depth > kResidentFloatListDepthCap) return false;
-  const ResidentNode* n = g.node(path);
-  if (!n) return false;
-  const NodeSpec* s = findSpec(n->opType);
-  if (!s) return false;
-  const FloatListCookFn* fn = findFloatListOp(n->opType);
-  if (!fn || !*fn) return false;
-
-  // Gather inputs in spec port order (mirror cookFloatListNode's loop). Each entry is one upstream host
-  // list (a FloatList source) or one aggregated list of scalar Float sources (a scalar Float MultiInput).
-  std::vector<std::vector<float>> inputLists;
-  for (const PortSpec& port : s->ports) {
-    if (!port.isInput) continue;
-    const ResidentInput* ri = n->input(port.id);
-    if (port.dataType == "FloatList") {
-      // Follow the Connection driver(s). Primary first, then extraConns (wire-declaration order). A
-      // Constant/absent driver on a FloatList slot = unwired → contributes no list (faithful to the
-      // flat gather, where an unwired FloatList input yields no entry).
-      if (ri && ri->driver == ResidentInput::Driver::Connection) {
-        std::vector<float> up;
-        cookResidentFloatList(g, ri->srcNodePath, ctx, up, depth + 1);
-        inputLists.push_back(std::move(up));
-        if (port.multiInput) {
-          for (const auto& ec : ri->extraConns) {
-            std::vector<float> ue;
-            cookResidentFloatList(g, ec.first, ctx, ue, depth + 1);
-            inputLists.push_back(std::move(ue));
-          }
-        }
-      }
-    } else if (port.dataType == "Float" && port.multiInput) {
-      // Aggregate all wired scalar Float sources into ONE list (FloatsToList consumes inputLists[0]).
-      // Wire-declaration order: primary Connection then extraConns. An unwired / Constant-only port
-      // contributes an empty list (FloatsToList → empty output, faithful to GetCollectedTypedInputs:
-      // it collects CONNECTED inputs only, so a constant value on the slot is NOT a collected scalar).
-      std::vector<float> scalars;
-      if (ri && ri->driver == ResidentInput::Driver::Connection) {
-        scalars.push_back(evalResidentFloat(g, ri->srcNodePath, ri->srcSlotId, ctx));
-        for (const auto& ec : ri->extraConns)
-          scalars.push_back(evalResidentFloat(g, ec.first, ec.second, ctx));
-      }
-      inputLists.push_back(std::move(scalars));
-    }
-    // (Single scalar Float inputs / other dataTypes are read via resolved params, not gathered.)
-  }
-
-  // Build a 16-byte EvaluationContext from the resident ctx so a FloatList producer that reads
-  // LocalFxTime (the bars clock) — AnimFloatList — sees the SAME time the flat path hands it
-  // (point_graph_hostvalue_cook.cpp:116 fc.ctx = &ctx). Mirror of resident_eval_graph.cpp:185-192's
-  // ResidentEvalCtx→EvaluationContext lift. Held local so fc.ctx stays valid through (*fn)(fc).
-  // The pure producers (FloatsToList/IntsToList) ignore ctx; this only POPULATES it for the time-
-  // reading ones. The struct stays 16 bytes; no transport/cook-core spine touched.
-  EvaluationContext ec{};
-  ec.frameIndex  = ctx.frameIndex;
-  ec.time        = ctx.localFxTime;  // (existing readers touch .time; AnimFloatList reads .localFxTime)
-  ec.deltaTime   = 0.0f;
-  ec.localFxTime = ctx.localFxTime;  // BARS — TiXL EvaluationContext.LocalFxTime
-  // Resolve THIS node's Float params inline (the memo-free twin of cookResident's nodeParams; same
-  // pure resolver the host-scalar/mesh resident cooks use). Held local so fc.params stays valid.
-  // FloatsToList/IntsToList read none (the map is harmlessly unused for them); AnimFloatList reads
-  // Phase/Rate/Ratio/Amplitude/Offset/Bias/Shape/OffsetNumber/OffsetCycle through it.
-  std::map<std::string, float> params = resolveResidentFloatInputs(g, *n, ctx);
-
-  // CROSS-FRAME STATE + cook-once guard (only for a STATEFUL op — AmplifyValues). A stateless op leaves
-  // fc.state null and re-cooks freely (byte-identical). For a stateful op: resolve its state slot (an
-  // explicit `state` from a golden, else the process-lifetime static keyed by resident path), then guard
-  // the ADVANCE to ONCE per frameIndex — a later pull this frame (fan-out: ValuesToTexture + host-scalar)
-  // re-publishes the already-settled state->output WITHOUT advancing the damp again (mirror of the flat
-  // floatListCooked memo / the colorlist resident state=nullptr-on-recursion split).
-  const bool stateful = floatListOpIsStateful(n->opType);
-  FloatListState* st = nullptr;
-  ResidentFloatListSlot* slot = nullptr;
-  if (stateful) {
-    if (state) {
-      st = state;  // golden-supplied slot (deterministic, no static); no cook-once guard needed (1 pull)
-    } else {
-      slot = &residentFloatListState()[path];  // process static; operator[] default-creates
-      st = &slot->state;
-      // Already advanced this frame? Re-publish the settled output, do NOT re-run the op (no double damp).
-      if (slot->everCooked && slot->lastCookedFrame == ctx.frameIndex) {
-        out = slot->state.output;
-        return true;
-      }
-    }
-  }
-
-  FloatListCookCtx fc;
-  fc.dev = nullptr; fc.lib = nullptr; fc.queue = nullptr;  // host-only ops (FloatsToList) ignore these
-  fc.ctx = &ec;          // LocalFxTime-bearing (AnimFloatList's bars clock); was nullptr (no time reader)
-  fc.nodeId = 0;
-  fc.inputLists = &inputLists;
-  fc.output = &out;
-  fc.params = &params;   // resolved Float params (AnimFloatList's shape/rate/...); was nullptr
-  fc.state = st;         // cross-frame slot for a stateful op (AmplifyValues); null for a stateless one
-  (*fn)(fc);
-  if (slot) { slot->lastCookedFrame = ctx.frameIndex; slot->everCooked = true; }  // mark advanced this frame
-  return true;
-}
 
 void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
   for (ResidentNode& rn : g.nodes) {
@@ -336,15 +197,19 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
     const NodeSpec* s = findSpec(rn.opType);
     if (!s) continue;
 
-    // SKIP host-scalar ops with a String input — the resident graph drops String wires (flatten:100-103),
-    // so we cannot faithfully gather them. (Today only StringLength; the findHostScalarOp(StringLength)
-    // already returns null since StringLength registers no cook fn — this guard is belt-and-suspenders
-    // for any FUTURE String-consuming host-scalar op that DOES register a cook fn before the string-wire
-    // rail exists. extOut stays 0 → evalResidentFloat reads 0, same as the flat-rail-only behaviour.)
-    bool hasStringInput = false;
-    for (const PortSpec& port : s->ports)
-      if (port.isInput && port.dataType == "String") { hasStringInput = true; break; }
-    if (hasStringInput) continue;
+    // SKIP host-scalar ops with a WIRED String input — the resident graph drops String Connection wires
+    // (flatten:100-103), so we cannot faithfully gather a wired String source. A String input driven by a
+    // CONSTANT (a resolved strInputs param — e.g. the Select*FromDict "Select" key) IS resolvable and does
+    // NOT trip this skip; only a Connection-driven String input does. (Before the Dict seam this was "ANY
+    // String input" — narrowed to "wired String input" so the Dict consumers, whose Select key is a
+    // constant String param, run on the resident leg. StringLength stays skipped: its InputString is wired.)
+    bool hasWiredStringInput = false;
+    for (const PortSpec& port : s->ports) {
+      if (!(port.isInput && port.dataType == "String")) continue;
+      const ResidentInput* ri = rn.input(port.id);
+      if (ri && ri->driver == ResidentInput::Driver::Connection) { hasWiredStringInput = true; break; }
+    }
+    if (hasWiredStringInput) continue;
 
     // Gather FloatList inputs by following the resident Connection drivers (cookResidentFloatList),
     // in spec port order, mirroring the flat cookHostScalar's FloatList gather. An unwired FloatList
@@ -368,14 +233,30 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
       // (An unwired / Constant FloatList input contributes nothing → empty inputLists → 0.)
     }
 
+    // Gather Dict inputs (dict-currency seam): one cooked SwFloatDict per "Dict" input port (single-wire —
+    // Select*FromDict DictionaryInput), following the resident Connection driver via cookResidentDict.
+    // Owned in dictStore; nullptr for an unwired port (TiXL null-dict → miss → 0). Mirror of the flat gather.
+    std::vector<SwFloatDict> dictStore;
+    std::vector<const SwFloatDict*> inputDicts;
+    for (const PortSpec& port : s->ports) {
+      if (!(port.isInput && port.dataType == "Dict")) continue;
+      const ResidentInput* ri = rn.input(port.id);
+      const SwFloatDict* cooked = nullptr;
+      if (ri && ri->driver == ResidentInput::Driver::Connection) {
+        dictStore.emplace_back();
+        if (cookResidentDict(g, ri->srcNodePath, ctx, dictStore.back())) cooked = &dictStore.back();
+      }
+      inputDicts.push_back(cooked);
+    }
+
     // Resolved Float params of THIS node (PickFloatFromList.Index rides this) — the SAME value spine
     // the flat path uses (resolveResidentFloatInputs, mirror of flat nodeParams).
     std::map<std::string, float> params = resolveResidentFloatInputs(g, rn, ctx);
 
-    // No String inputs on this op (guarded above), so an empty inputStrings is faithful.
+    // No WIRED String inputs (guarded above); a constant String param (the Select key) rides strInputs.
     std::vector<std::string> inputStrings;
 
-    float scalar = 0.0f;
+    float cx = 0.0f, cy = 0.0f, cz = 0.0f;
     EvaluationContext gpuCtx{};
     gpuCtx.frameIndex = ctx.frameIndex;
     gpuCtx.time = ctx.localFxTime;  // wall clock (host-scalar ops are time-independent today; symmetry)
@@ -386,14 +267,18 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
     hc.nodeId = 0;
     hc.inputLists = &inputLists;
     hc.inputStrings = &inputStrings;
+    hc.inputDicts = &inputDicts;
     hc.params = &params;
-    hc.output = &scalar;
-    (*fn)(hc);  // computes the scalar; hostScalarInjectBug() (golden teeth) corrupts it IN the cook
+    hc.strParams = &rn.strInputs;  // the Select* "Select" key (constant String param, survives flatten)
+    hc.output = &cx; hc.outY = &cy; hc.outZ = &cz;
+    (*fn)(hc);  // computes the component(s); hostScalarInjectBug() (golden teeth) corrupts them IN the cook
 
-    // Write the scalar onto the resident node's MAIN (and only) Float output = port index 0 (the
-    // host-scalar layout: output port FIRST, FloatListLength.Length / PickFloatFromList.Selected). The
-    // host-scalar ops emit exactly ONE Float output, so extOut[0] is the whole result.
-    rn.extOut[0] = scalar;
+    // Write the component(s) onto the resident node's Float output ports (host-scalar layout: output
+    // port(s) FIRST — FloatListLength.Length / SelectVec2FromDict.Result.x/.y). A scalar op sets
+    // components=1 → extOut[0] only (byte-identical to before); a Vector2/Vector3 op → extOut[0..2].
+    rn.extOut[0] = cx;
+    if (hc.components >= 2) rn.extOut[1] = cy;
+    if (hc.components >= 3) rn.extOut[2] = cz;
   }
 }
 
