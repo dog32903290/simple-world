@@ -788,6 +788,7 @@ add_executable(simple_world
   src/blendcameras_golden.cpp                 # camera-A: BlendCameras slerp-blend cook-through golden
   src/actioncamera_golden.cpp                 # camera-A: ActionCamera stateful-integrator golden
   src/runtime/resident_point_value_output_cook.cpp
+  src/runtime/resident_getlistitemattribute_golden.cpp  # GetListItemAttribute golden (split off the cook file at its line cap)
   src/runtime/resident_colorlist_cook.cpp
   src/runtime/resident_string_cook.cpp
   src/runtime/resident_stringlist_cook.cpp

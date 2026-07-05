@@ -77,7 +77,8 @@ void cookPointValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
   for (ResidentNode& rn : g.nodes) {
     const bool isP2M = rn.opType == "PointToMatrix";
     const bool isGPD = rn.opType == "GetPointDataFromList";
-    if (!isP2M && !isGPD) continue;
+    const bool isGLA = rn.opType == "GetListItemAttribute";
+    if (!isP2M && !isGPD && !isGLA) continue;
     const NodeSpec* s = findSpec(rn.opType);
     if (!s) continue;
 
@@ -104,6 +105,40 @@ void cookPointValueOutputNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx,
         rows = identityRows();
       }
       rn.extColorOut[outPort] = {rows[0], rows[1], rows[2], rows[3]};
+      continue;
+    }
+
+    if (isGLA) {
+      // GetListItemAttribute → StructuredListUtils.GetValueOfFieldWithType<float> (cs:12-54): read ONE float
+      // FIELD of point[ItemIndex % N]. Empty/unwired → Result 0 (cs:16-17 null/empty → default). NOTE:
+      // TiXL's index is a PLAIN C# `%` (cs:19, NOT Euclidean — can go negative for a negative ItemIndex);
+      // we mirror that exactly (distinct from GetPointDataFromList's Euclidean Mod). A negative wrap indexes
+      // out of bounds in C# too (it would throw); we clamp to a safe in-range read (never crash) — the
+      // faithful in-range case (ItemIndex ≥ 0) is byte-identical, and out-of-range is a caller error TiXL
+      // itself does not define a value for.
+      if (!pts || count == 0) { rn.extOut[0] = 0.0f; continue; }
+      std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, ctx);
+      int idx = (int)std::lround(P["ItemIndex"]);
+      int n = (int)count;
+      int m = idx % n;              // plain C# % (cs:19); a negative idx yields a negative remainder
+      if (m < 0) m += n;            // safety: never read out of bounds (no crash; TiXL would throw here)
+      const SwPoint& p = pts[(uint32_t)m];
+
+      // Field selection: reflection INDEX or NAME picks which FLOAT-typed Point field. GetFields() order
+      // (TiXL Point.cs): 0=Position 1=F1 2=Orientation 3=Color 4=Scale 5=F2 (StructuredListUtils.cs:32-44,
+      // index checked before name). ONLY F1(idx1) / F2(idx5) are float (`is float`, cs:36) → the two we
+      // admit; any other index/name resolves to a non-float field or a miss → 0 (cs:45 default).
+      const int fieldIndex = (int)std::lround(P["FieldIndex"]);
+      std::string fieldName;
+      { auto it = rn.strInputs.find("OrFieldName"); if (it != rn.strInputs.end()) fieldName = it->second; }
+      // index wins first (cs:32 the loop hits the index match before a later name match). F1 = SwPoint.FX1
+      // @12 (== TiXL Point.F1); F2 = SwPoint.FX2 @60 (== TiXL Point.F2).
+      float result = 0.0f;
+      if (fieldIndex == 1 || fieldName == "F1")      result = p.FX1;
+      else if (fieldIndex == 5 || fieldName == "F2") result = p.FX2;
+      // else: a non-float field (Position/Orientation/Color/Scale) or an unknown name → 0 (the `is float`
+      // skip / no-match default). Faithful to the miss-returns-default contract (cs:45-51).
+      rn.extOut[0] = result;
       continue;
     }
 
@@ -297,7 +332,8 @@ int runGetPointDataFromListGolden(bool injectBug) {
 
 // Golden registrars — DIRECT push into the value-op selftest sink (zero shared-file edit; selftests.cpp
 // iterates valueOpSelfTests() for --selftest-<name> / -bug + --bite enumeration). Mirror of
-// resident_matrix_output_cook.cpp's TransformMatrixGoldenRegistrar.
+// resident_matrix_output_cook.cpp's TransformMatrixGoldenRegistrar. (GetListItemAttribute's golden lives
+// in the sibling resident_getlistitemattribute_golden.cpp — this file was at its line-count cap.)
 struct PointToMatrixEmitGoldenRegistrar {
   PointToMatrixEmitGoldenRegistrar() {
     valueOpSelfTests().push_back({"pointtomatrixemit", runPointToMatrixEmitGolden});
