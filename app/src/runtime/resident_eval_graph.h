@@ -53,6 +53,15 @@ struct ResidentEvalCtx {
   // the window resolution, faithful to the common top-level case.
   uint32_t requestedWidth = 0;
   uint32_t requestedHeight = 0;
+  // GetForegroundColor host-state seam (= TiXL EvaluationContext.ForegroundColor, EvaluationContext.cs:150,
+  // default Vector4.One). The cook-emit pass cookValueOutputNodes reads this to emit GetForegroundColor's
+  // Result.x/y/z/w onto extOut[]. Default {1,1,1,1} — the value TiXL's GetForegroundColor returns at the
+  // top level (no enclosing Group/SpreadLayout/SetMaterial has multiplied it down). sw has no ForegroundColor
+  // WRITER op yet (TiXL's writers are Group.cs:52 / SpreadLayout.cs:75 `context.ForegroundColor *= color`,
+  // save/restore around a subtree — RenderTarget.cs:96 resets to One); when that scope lands it populates
+  // this field mid-cook exactly like the SetRequestedResolution push. Until then the emit is the faithful
+  // default. The golden drives this field to a non-default value to prove the emit READS it (not a constant).
+  float foregroundColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 };
 
 // How one resident input is driven (= TiXL Slot's UpdateAction). The PROJECTION of the

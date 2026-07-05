@@ -162,6 +162,27 @@ static const MathOp _reg_RequestedResolution{
        "render.utils"}
 };
 
+      // GetForegroundColor (TiXL Lib.flow.context.GetForegroundColor.cs:14-17) — value-output rail
+      // (context-only). Body is ONE line: `Result.Value = context.ForegroundColor;` (a pure Vector4 read of
+      // the ambient ForegroundColor host state; NO inputs, NO Command output — GetForegroundColor.cs:6-7 has
+      // only the Slot<Vector4> Result). CONTEXT-reading → no pure evaluate() (evaluate cannot see
+      // ctx.foregroundColor) → evaluate==nullptr; cookValueOutputNodes (resident_value_output_cook.cpp) writes
+      // extOut[0..3] once per frame from ctx.foregroundColor (default Vector4.One, EvaluationContext.cs:150).
+      // OUTPUT PORTS FIRST → output-port index == extOut index: [0]Result.x [1]Result.y [2]Result.z [3]Result.w.
+      // FORK fork-foregroundcolor-vec4-as-4-scalar-ports: TiXL wires ONE Slot<Vector4>; here 4 Float ports
+      // (Result.x/y/z/w). Faithful in VALUE, forked in wire-cardinality (the RequestedResolution/GridPosition
+      // scalar-pack bargain). No ForegroundColor WRITER op in sw yet → the emit is always the default until a
+      // future Group/SetMaterial scope pushes ctx.foregroundColor (matches TiXL's no-writer top-level case).
+static const MathOp _reg_GetForegroundColor{
+      {"GetForegroundColor", "GetForegroundColor",
+       {{"Result.x", "Result",   "Float", false},
+        {"Result.y", "Result.y", "Float", false},
+        {"Result.z", "Result.z", "Float", false},
+        {"Result.w", "Result.w", "Float", false}},
+       nullptr,
+       "flow.context"}
+};
+
       // GridPosition (TiXL Lib.numbers.vec2.GridPosition) — value-output rail (context + inputs). Emits a
       // per-cell grid Position (Vector2) + Size (Vector2). evaluate=nullptr: the value depends on the cook-
       // context aspect (ctx.requestedWidth/Height), impossible in a pure evaluate() — cooked once per frame
