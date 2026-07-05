@@ -1,0 +1,17 @@
+[  0%] Checking zone dependency direction + line-count ratchet (ARCHITECTURE.md)
+[  1%] Built target sw_shaders
+[check-arch] verifying single-direction zone dependencies (ARCHITECTURE.md)...
+[  1%] Built target nfd
+[check-arch] OK — every zone respects the dependency direction.
+
+[check-linecount] verifying file size ratchet (ARCHITECTURE.md rule 4, ≤400 lines)...
+[check-linecount] OK — all files within their line-count caps.
+[  1%] Built target check-arch
+[  1%] Building CXX object CMakeFiles/simple_world.dir/src/selftests_io_nodes.cpp.o
+[  1%] Building CXX object CMakeFiles/simple_world.dir/src/runtime/node_registry_math_io.cpp.o
+[  1%] Building CXX object CMakeFiles/simple_world.dir/src/app/frame_cook.cpp.o
+[  1%] Building CXX object CMakeFiles/simple_world.dir/src/runtime/io_output_cook.cpp.o
+[  1%] Building CXX object CMakeFiles/simple_world.dir/src/runtime/io_node_cook.cpp.o
+[  1%] Linking CXX executable simple_world
+Re-sign to bind embedded Info.plist (TCC microphone)
+[100%] Built target simple_world
