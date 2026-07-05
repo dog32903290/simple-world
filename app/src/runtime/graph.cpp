@@ -2,6 +2,7 @@
 #include "runtime/Particle.h"  // full EvaluationContext definition (forward-decl'd in graph.h)
 #include "runtime/host_scalar_op_registry.h"  // isHostScalarOp — the FloatList→Float bridge eval-side predicate
 #include "runtime/point_ops_setvarcmd.h"  // S3b: liveCtxVars / liveGetVar / isValueRailContextVarReader
+#include "runtime/point_ops_settime.h"    // SetTime: liveTimeScopeActive / scopedTimeOr (fx-clock scope)
 #include "runtime/source_registry.h"  // BindingKind/LiveSource/SourceRegistry (L5 resolution)
 
 #include <cmath>
@@ -262,6 +263,15 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
   // Which output port of this node is being pulled (inverse of pinId): lets multi-output
   // nodes (AudioReaction level vs hit) return the right value; single-output nodes ignore it.
   const int outIdx = (outPin - 1) - nodeId * 100;
+  // SetTime LIVE fx-clock scope (point_ops_settime.h, the S3b liveGetVar shape): while a SetTime SubTree
+  // cook is active, evaluate() sees the SCOPED localFxTime (Absolute cuts / Relative adds — the chain).
+  // ctx.time (the seconds clock) stays untouched (fork-settime-flat-fxclock-only). OFF-scope this branch
+  // never runs → every existing caller is byte-identical.
+  if (liveTimeScopeActive()) {
+    EvaluationContext scoped = ctx;
+    scoped.localFxTime = scopedTimeOr(ctx.localFxTime);
+    return s->evaluate(outIdx, in, ni, scoped);
+  }
   return s->evaluate(outIdx, in, ni, ctx);
 }
 

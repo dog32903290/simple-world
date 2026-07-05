@@ -50,6 +50,7 @@
 #include "runtime/point_ops_camera_scope.h"  // C1: resolveActiveCamera/LiveCameraScope/LiveCtxVarScope/...
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/point_ops_forwardbeattaps.h"  // ForwardBeatTaps: isForwardBeatTaps/forwardBeatTapsApply
+#include "runtime/point_ops_settime.h"  // SetTime: LiveTimeScope/resolveSetTimeScope/isSetTimeScopeWriter
 #include "runtime/tixl_point.h"      // EvaluationContext (CmdCookCtx::ctx)
 
 namespace sw {
@@ -209,6 +210,13 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
         // LIVE. Engages only on an active writer push; else no-op.
         LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
         LiveCameraScope liveCam(activeCam);  // C1: active camera live for the SubGraph cook (point rail reads it)
+        // SetTime SUBTREE-TIME scope (resident mirror — production runs THIS leg; SetTime.cs:23-43): push
+        // the {Absolute/Relative, NewTime} chain node around the SubTree cook. The resident readers are the
+        // transient-ec fx clock (evalResidentFloat) AND automation localTime (sampleAutomation). Same
+        // -bug gate as the flat twin (a leg-split here would be the S2c anti-pattern).
+        LiveTimeScope timeScope((!setTimeBugSkipPush() && isSetTimeScopeWriter(n->opType))
+                                    ? resolveSetTimeScope(*nodeParams(path))
+                                    : SetTimeScopeSpec{});
         const ResidentInput* ri = n->input(port.id);
         if (n->opType == "Switch") {
           // S3b Switch SUB-SELECT (resident mirror — production runs THIS leg). ★§3 OFF-BY-ONE TRAP: build

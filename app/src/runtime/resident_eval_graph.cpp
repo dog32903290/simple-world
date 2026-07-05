@@ -7,6 +7,7 @@
 #include "runtime/graph.h"     // NodeSpec / findSpec / PortSpec
 #include "runtime/Particle.h"  // full EvaluationContext definition (graph.h only forward-decls it)
 #include "runtime/point_ops_setvarcmd.h"  // S3b: liveCtxVars / liveGetVar / isValueRailContextVarReader
+#include "runtime/point_ops_settime.h"    // SetTime: scopedTimeOr (fx-clock + automation-localTime scope)
 
 #include <string>  // std::string (S3b live-read fallback name)
 
@@ -31,11 +32,14 @@ const ResidentInput* ResidentNode::input(const std::string& slotId) const {
 float sampleAutomation(const ResidentEvalCtx& ctx, const ResidentInput& ri) {
   // Resolve the curve through the def-layer Animator on ri.animSymbolId, sample @ localTime (the
   // playhead). No lib / no symbol / no curve -> the projected constant (flat-parity fallback).
+  // SetTime scope (point_ops_settime.h): under an active SetTime SubTree cook the sample position is the
+  // SCOPED localTime (SetTime.cs:30/35 sets LocalTime too — automation inside the subtree runs at the
+  // scoped playhead). Resident-only: the flat leg has no localTime (fork-settime-flat-fxclock-only).
   if (ctx.lib) {
     const Symbol* sym = ctx.lib->find(ri.animSymbolId);
     if (sym) {
       const Curve* c = sym->animator.resolveRef(ri.curveRef);
-      if (c && !c->empty()) return (float)c->sample((double)ctx.localTime);
+      if (c && !c->empty()) return (float)c->sample((double)scopedTimeOr(ctx.localTime));
     }
   }
   return ri.constant;
@@ -182,14 +186,18 @@ float evalResidentFloat(const ResidentEvalGraph& g, const std::string& nodePath,
   // Reuse the SAME evaluate fns as the flat path: build a transient 16-byte ctx (time = wall
   // clock for now; automation sampling localTime arrives in S3). EvaluationContext lives in
   // Particle.h; include it in THIS .cpp's translation unit at the top (see Step 2).
+  // SetTime scope (point_ops_settime.h, mirror of the flat evalFloat intercept — the S2c mirror law):
+  // under an active SetTime SubTree cook the fx clock handed to evaluate() is the SCOPED one. OFF-scope
+  // scopedTimeOr is identity → byte-identical.
+  const float fx = scopedTimeOr(ctx.localFxTime);
   EvaluationContext ec{};
   ec.frameIndex = ctx.frameIndex;
-  ec.time = ctx.localFxTime;
+  ec.time = fx;
   ec.deltaTime = 0.0f;
   // LocalFxTime seam (additive): expose TiXL's LocalFxTime (BARS) to value ops that read it
   // (PerlinNoise2's OverrideTime-unwired path). ec.time stays as-is (the existing readers only
   // touch .time/.frameIndex/.deltaTime); this only POPULATES the formerly-dead offset-12 slot.
-  ec.localFxTime = ctx.localFxTime;
+  ec.localFxTime = fx;
   return s->evaluate(outIdx, in, ni, ec);
 }
 
