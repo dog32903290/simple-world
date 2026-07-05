@@ -190,6 +190,26 @@ const std::vector<NodeSpec>& drawFlowSpecs() {
         {"Trigger", "Trigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr,
        "flow"},
+      // GetPosition (TiXL Lib.flow.context.GetPosition.cs): transforms a PositionOffset through the eval-
+      // context transform scope (ObjectToWorld / WorldToCamera / CameraToClipSpace by the Space enum,
+      // cs:39-51) — Command SOURCE (UpdateCommand runs the transform read inside the render eval, no draw
+      // items) + Position.x/y/z on the VALUE rail via the cross-rail latch (point_ops_getposition.cpp;
+      // evaluate=nullptr → resident extOut, the stateful-value sink fills extOut[1..3] = these port indices
+      // — Position ports MUST stay at spec indices 1..3, the GetScreenPos contract). NO perspective divide
+      // (cs:51). Params mirror GetPosition.t3: Space=WorldSpace(0), PositionOffset=(0,0,0). FORKS named in
+      // the op leaf (frame-latch = TiXL _lastPosition / single-latch / identity-O2W).
+      {"GetPosition", "GetPosition",
+       {{"UpdateCommand", "UpdateCommand", "Command", false},
+        {"Position.x", "Position.x", "Float", false},
+        {"Position.y", "Position.y", "Float", false},
+        {"Position.z", "Position.z", "Float", false},
+        {"Space", "Space", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"WorldSpace", "CameraSpace", "ClipSpace"}, true},
+        {"PositionOffset.x", "PositionOffset", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 3},
+        {"PositionOffset.y", "PositionOffset.y", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"PositionOffset.z", "PositionOffset.z", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 1}},
+       nullptr,
+       "flow.context"},
   };
   return specs;
 }
