@@ -1,5 +1,18 @@
 # CLONE_MAP — TiXL 克隆真實地圖(2026-07-04 census 修準 + 三縫對 code 驗證)
 
+> **戰報 2026-07-06 凌晨(第三梯:縫+device-io,柏為令「蓋縫+原子全清+device-io 照 TiXL 做」)**:
+> **總進度 549/749(73%),原子 386/451(86%),sweep 636/0/0。**單日 +76 顆。
+> 收割:cmd-scoping 縫 4/4(SetTime=Arm A LiveTimeScope 裁定,兩腿對稱)/SVG 縫+3(nanosvg)/
+> cook-core 4 小縫+4(outCache→8/Vec3-from-list/colorlist橋/point-buffer feedback pair)/
+> **dict-currency 縫**+4 Select*/MIDI+OSC 9(io_device_bus 縫)/input 4(imgui-io 選型)/audio 1
+> (ToneGenerator 核心;AudioPlayer 卡 **per-operator mixer 縫**=真骨頭)/socket 平台縫(TCP/UDP/
+> serial/WLED/RFC6455 codec 全 golden)/census 第5源修(假 todo 根治)。
+> **剩 65 todo 原子**:io 41(socket 節點皮 7=縫已蓋只欠掛 NodeSpec、Artnet/DMX 9=UDP 已有可派、
+> video/camera ~17 最重、audio-mixer 卡數顆)/render 10(pbr 7 原子+GpuMeasure/SliceViewPort)/
+> flow 5(untyped-object 2/ForegroundColor/GetPosition/TimeClip)/numbers 5(AbletonLink DLL/
+> Find+SetKeyframes 跨op反射/StructuredList/PlaybackFFT)/零星 4。
+> **不一致記帳**:socket lane 照 osc_loopback 前例沒掛節點皮(midi-osc lane 掛了)——7 顆節點皮欠一小波。
+
 > **戰報 2026-07-05(兩波原子清剿結案,柏為令「完成所有原子節點」)**:
 > **46 顆節點 + 1 條縫進 main(63113d5),sweep 616/0/0,零假綠。**
 > 第一波 40 顆白名單→35 DONE;第二波→flow-var 2(Matrix var pair)+keyframe-anim 4
