@@ -55,6 +55,7 @@
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/point_ops_forwardbeattaps.h"  // ForwardBeatTaps: isForwardBeatTaps/forwardBeatTapsApply
 #include "runtime/point_ops_settime.h"  // SetTime: LiveTimeScope/resolveSetTimeScope/isSetTimeScopeWriter
+#include "runtime/point_ops_sliceviewport.h"  // SliceViewPort: resolveSliceViewPortResolution (cell push)
 #include "runtime/tixl_point.h"      // EvaluationContext (CmdCookCtx::ctx)
 
 namespace sw {
@@ -186,6 +187,8 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
         p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(id), savedReq);
       else if (n->type == "SetRequestedResolutionCmd")  // flow-rail sibling: same scope, +StretchResolution factor
         p_->requestedResolution = resolveSetRequestedResolutionCmd(*nodeParams(id), savedReq);
+      else if (n->type == "SliceViewPort")  // render/transform: push the CELL size (cs:103) around the subtree
+        p_->requestedResolution = resolveSliceViewPortResolution(*nodeParams(id), savedReq);
       // S3a context-var scope (TiXL SetFloatVar.cs:26-45 SubGraph branch): push the scoped var into
       // ctxVars BEFORE cooking the subtree, restore AFTER (same shape as the savedReq guard). varName off
       // Node::strParams. Inactive no-op when ctxVars null / not a writer / -bug skips the write.

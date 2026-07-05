@@ -51,6 +51,7 @@
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/point_ops_forwardbeattaps.h"  // ForwardBeatTaps: isForwardBeatTaps/forwardBeatTapsApply
 #include "runtime/point_ops_settime.h"  // SetTime: LiveTimeScope/resolveSetTimeScope/isSetTimeScopeWriter
+#include "runtime/point_ops_sliceviewport.h"  // SliceViewPort: resolveSliceViewPortResolution (cell push)
 #include "runtime/tixl_point.h"      // EvaluationContext (CmdCookCtx::ctx)
 
 namespace sw {
@@ -185,6 +186,8 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
         p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(path), savedReq);
       else if (n->opType == "SetRequestedResolutionCmd")  // flow-rail sibling (resident mirror): +StretchResolution
         p_->requestedResolution = resolveSetRequestedResolutionCmd(*nodeParams(path), savedReq);
+      else if (n->opType == "SliceViewPort")  // render/transform (resident mirror): push the CELL size (cs:103)
+        p_->requestedResolution = resolveSliceViewPortResolution(*nodeParams(path), savedReq);
       // S3a context-var scope (resident mirror — the S2c blood-lesson leg, production runs THIS). Same
       // TiXL SetFloatVar.cs:26-45 push/restore around the SubGraph; varName off ResidentNode::strInputs.
       // Inactive no-op when ctxVars null / not a writer / -bug skips the write.

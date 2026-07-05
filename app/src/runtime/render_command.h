@@ -265,6 +265,12 @@ struct RenderDrawItem {
   uint32_t explicitBaseVertex = 0;    // TiXL Draw.VertexStartLocation → drawPrimitives vertexStart
   bool hasClipShift = false;  // ShiftCamera M31/M32/M33 nudge (ShiftCamera.cs:34-36; doc: point_ops_shiftcamera.h)
   float clipShift[3] = {0.0f, 0.0f, 0.0f};  // accumulated deltas; [2] carries the already-divided t.Z/1000
+  // ── SliceViewPort per-cell sub-viewport + RepeatView clip scale (TiXL SliceViewPort.cs; per-item STAMP,
+  // Camera/Group precedent; INNERMOST wins; full story in point_ops_sliceviewport.cpp). Unstamped → full-target
+  // viewport + identity clip → byte-identical. viewport = NORMALIZED [0,1] fractions (executor scales to pixels).
+  bool hasViewport = false;
+  float viewport[4] = {0.0f, 0.0f, 0.0f, 0.0f};  // x, y, w, h as [0,1] fractions of the output; w==0 → full target
+  float clipScale[2] = {1.0f, 1.0f};             // RepeatView M11, M22 multipliers (aspect/stretch); 1 = identity
 };
 
 // Seam 2 render-state STAMP helper (the SINGLE shared push both command-cook legs' render-state op fn
@@ -338,22 +344,13 @@ bool& switchIgnoreIndexForTest();
 // ─────────────────────────────── S3c Loop (TiXL flow/Loop.cs) ───────────────────────────────
 // The re-cook keystone: cook the wired SubGraph `Count` times; iteration i writes index→BOTH Float+Int dicts
 // and progress→Float into the live ContextVarMap FIRST, then re-cooks the subtree (so a value-rail Get*Var
-// inside it reads i/progress live), concatenating each iteration's items into one chain. Faithful to
-// Loop.cs:23-40: index=i (Float+Int), progress = (Count==1 ? 0 : i/(float)(Count-1)), and DELIBERATELY does
-// NOT restore index/progress after the loop (Loop.cs:21 TODO leaks them — match it, do NOT "fix").
-//
-// loopRunIterations() is the SINGLE per-iteration mechanism both the flat (point_graph.cpp) and resident
-// (point_graph_resident.cpp) collectors call — the var write + live-scope + re-cook + concat can NEVER fork
-// between legs (the S2c/S3a blood lesson: a resident-only miss → production cooks the subtree once with the
-// LAST index → only the final iteration's layer draws). The leg supplies `cookOneIteration`: a callback that
-// FRESH-cooks the subtree and returns its items (the leg knows how to reach the single wired Command source;
-// the helper owns the var/scope/concat). `vars` may be null (golden callers without a map) → no var write,
-// the subtree still cooks `count` times (a benign no-op-var loop). `count<=0` → empty (TiXL `for i<end`).
-//   ★re-cook memo note: the helper engages a LiveCtxVarScope per iteration so the driver's nodeParams memo
-//   resolves the subtree's Float params FRESH each call (the scope-aware uncached branch) — that is how a
-//   value-rail GetFloatVar(index) yields a DISTINCT value per iteration. (A subtree that produces a per-node
-//   GPU Points BUFFER would still alias one output buffer across iterations — out of Loop's scope; the
-//   faithful per-iteration distinctness lives in the items' by-value transform/param fields, like the golden.)
+// inside it reads i/progress live), concatenating each iteration's items. Faithful to Loop.cs:23-40: index=i,
+// progress=(Count==1?0:i/(float)(Count-1)), and does NOT restore index/progress after (Loop.cs:21 TODO leaks
+// them — match it). loopRunIterations() is the SINGLE mechanism both the flat + resident collectors call (the
+// var-write + live-scope + re-cook + concat can NEVER fork between legs — the S2c/S3a blood lesson). The leg
+// supplies `cookOneIteration` (fresh-cooks the subtree, returns its items); the helper owns var/scope/concat.
+// `vars` null → no var write (benign no-op-var loop); `count<=0` → empty. A LiveCtxVarScope per iteration
+// makes the nodeParams memo re-resolve Float params FRESH so GetFloatVar(index) differs per iteration.
 void loopRunIterations(int count, const std::string& indexVar, const std::string& progressVar,
                        struct ContextVarMap* vars, RenderCommand& out,
                        const std::function<RenderCommand()>& cookOneIteration);

@@ -55,6 +55,21 @@ void applyFrozenRasterEncoderState(MTL::RenderCommandEncoder* enc, const RenderD
   }
 }
 
+// SliceViewPort: set this item's sub-viewport (TiXL SliceViewPort.cs:105 rasterizer.SetViewport). A stamped
+// item (hasViewport, width>0) renders into its cell rect — the op stamps NORMALIZED [0,1] fractions of the
+// output (it has no pixel resolution at cook time; the executor owns the output size, same bargain as
+// Layer2d's ScaleMode), and this scales them by the full target here (top-left origin — Metal + DX11
+// RawViewportF agree). An unstamped item re-asserts the FULL target viewport so a stamped item never leaves a
+// stale cell for a later unstamped one (the same no-stale-leak discipline as the raster state).
+void applyItemViewport(MTL::RenderCommandEncoder* enc, const RenderDrawItem& it, uint32_t fullW,
+                       uint32_t fullH) {
+  if (it.hasViewport && it.viewport[2] > 0.0f)
+    enc->setViewport({(double)it.viewport[0] * fullW, (double)it.viewport[1] * fullH,
+                      (double)it.viewport[2] * fullW, (double)it.viewport[3] * fullH, 0.0, 1.0});
+  else
+    enc->setViewport({0.0, 0.0, (double)fullW, (double)fullH, 0.0, 1.0});
+}
+
 // Seam 2 both-leg CAPTURE hook (see render_command.h). null in production; the both-leg selftest sets it so
 // cookRenderTarget copies the stamped chain into it to compare flat-vs-resident frozen tuples.
 RenderCommand*& renderStateCaptureForTest() {
