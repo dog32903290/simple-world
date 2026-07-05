@@ -281,6 +281,7 @@ add_executable(simple_world
   src/platform/serial_loopback.cpp   # L5 IO (socket lane): POSIX termios serial over a PTY-pair loopback
   src/platform/wled_frame.cpp        # L5 IO (socket lane): Adalight frame builder (WLedSerialOutput body)
   src/platform/websocket_frame.cpp   # L5 IO (socket lane): RFC6455 handshake-accept + frame codec
+  src/platform/dmx_packet.cpp        # L5 IO (dmx lane): Art-Net/sACN/DMX packet codec (byte-推 closed form)
   src/platform/midi_loopback.mm
   src/platform/window_mode.mm
   src/platform/menu_appkit_ext.cpp  # tracked AppKit NSMenu extension (live check marks + menuNeedsUpdate: delegate) — replaces the gitignored vendored metal-cpp edits
