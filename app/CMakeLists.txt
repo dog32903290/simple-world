@@ -571,6 +571,8 @@ add_executable(simple_world
   src/runtime/obj_parse_distinct.cpp           # distinct-vertex dedup + TBN (for the later LoadObj; split per rule 4)
   src/runtime/pointlist_ops_loadobjaspoints.cpp # LoadObjAsPoints leaf (first obj_parse consumer + String-path channel)
   src/runtime/pointlist_ops_loadobjedges.cpp   # LoadObjEdges leaf (2nd obj_parse consumer: unique face edges → from/to/sep triples)
+  src/runtime/datapoint_json.cpp               # point/io data sub-lane: minimal JSON reader (DataPointImportExport/-Converter share it)
+  src/runtime/pointlist_ops_datapointimportexport.cpp # DataPointImportExport leaf (JSON import/export + bag forward; String-path channel)
   src/runtime/gizmo_geometry.cpp
   src/runtime/pointlist_ops_conegizmo.cpp
   src/runtime/pointlist_ops_drawlinegrid.cpp
