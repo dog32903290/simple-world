@@ -228,6 +228,18 @@ int runWledFrameSelfTest(bool injectBug) {
   ok = ok && px(2, 0) == expBluG && px(2, 1) == expBluR && px(2, 2) == expBluB;
   ok = ok && px(3, 0) == expBluG && px(3, 1) == expBluR && px(3, 2) == expBluB;
 
+  // 3) Lerp map-mode at a DIVERGING MIDDLE (probes the interpolation body, not identity ends).
+  //    2 colors red(1,0,0)→blue(0,0,1), 3 LEDs, RGB order, brightness 1. lerpScale=(2-1)/(3-1)=0.5.
+  //    LED0 t=0 → red = R255 G0 B0.  LED1 t=0.5 → lerp 0.5 → (0.5,0,0.5) → R128 G0 B128.
+  //    LED2 t=1.0 → lo=1≥src-1 → blue = R0 G0 B255. (WLED :174-193.) The middle LED is the only
+  //    probe that would go RED if the interp math were wrong (frac/lo/lerpScale) — the P2 anchor.
+  std::vector<WledColor> two = {{1, 0, 0}, {0, 0, 1}};
+  auto lf = buildWledFrame(two, 3, WledMapMode::Lerp, WledColorOrder::RGB, 1.0f);
+  auto lp = [&](int i, int off) { return lf[6 + i * 3 + off]; };
+  ok = ok && lp(0, 0) == 255 && lp(0, 1) == 0 && lp(0, 2) == 0;    // red
+  ok = ok && lp(1, 0) == 128 && lp(1, 1) == 0 && lp(1, 2) == 128;  // MID: 0.5*255+0.5=128 both ends
+  ok = ok && lp(2, 0) == 0 && lp(2, 1) == 0 && lp(2, 2) == 255;    // blue
+
   std::printf("[selftest-io-wled-frame] frame=%zuB -> %s\n", frame.size(), ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
