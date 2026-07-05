@@ -1,4 +1,5 @@
 #include "app/cook_host_values.h"
+#include "app/device_input_cook.h"  // cookDeviceInputNodes (TiXL io/input device family)
 
 #include <functional>
 #include <map>
@@ -72,6 +73,15 @@ bool cookHostValueNodes(ResidentEvalGraph& g, float posBars, float fxBars, Symbo
   // Connection drivers, and writes the scalar onto extOut[0] so the subsequent cookResident's
   // evalResidentFloat reads the bridged value (was 0 — flat-only — before this).
   cookHostScalarNodes(g, hsCtx);
+
+  // Cook the io/input DEVICE family (KeyboardInput/KeyboardInputAsInt/MouseInput/Gamepad) — the same
+  // once-per-frame extOut-mirror slot as AudioReaction, lifted here (not into frame_cook.cpp, which is at
+  // its line-count cap) since this pass already carries reqW/reqH (MouseInput's SignedPosition aspect =
+  // TiXL context.RequestedResolution) + lib. Reads the DeviceInputProvider (the shell fills it from imgui
+  // io each frame). s_deviceState = the per-path cross-frame store (KeyboardInput edge / KeyboardInputAsInt
+  // hold latch), a function-local static like s_stringState / s_colorListState above.
+  static std::map<std::string, DeviceInputNodeState> s_deviceState;
+  cookDeviceInputNodes(g, reqW, reqH, lib, s_deviceState);
 
   // Cook the COLORLIST currency ops (ColorsToList / the stateful KeepColors) — the PRODUCTION leg of the
   // vec4-list cook flow. Same once-per-frame slot: walks the resident graph, gathers each colorlist op's
