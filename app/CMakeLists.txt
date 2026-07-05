@@ -108,6 +108,8 @@ set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OP
 # http_request.mm uses NSURLSession/NSData — no metal-cpp pointers, so ARC keeps the ObjC lifetime
 # simple (same convention as audio_capture/audio_playback).
 set_source_files_properties(src/platform/http_request.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+# audio_mixer.mm (seam/audio-mixer): per-operator AVAudioEngine mixer — same AVFoundation+ARC as playback.
+set_source_files_properties(src/platform/audio_mixer.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 # midi_loopback.mm (L5 IO lane): pure CoreMIDI C API (no ObjC objects) -> compile WITHOUT ARC, like
 # the other manual-lifetime .mm files. osc_loopback.cpp is plain C++ (POSIX sockets) — no .mm prop.
 set_source_files_properties(src/platform/midi_loopback.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
@@ -178,6 +180,7 @@ add_executable(simple_world
   src/app/theme_registry.cpp                # color-theme-system: named-theme registry + per-theme JSON persistence (~/.simple_world/Themes)
   src/app/theme_registry_selftest.cpp       # color-theme-system: construct→save→reload bit-for-bit gate (--selftest-theme-roundtrip)
   src/app/audio_monitor.cpp
+  src/app/audio_playback_drain.cpp  # seam/audio-mixer: replay AudioPlaybackBus commands onto the app-owned AudioMixer (app->platform)
   src/app/command.cpp
   src/app/graph_commands.cpp
   src/app/graph_commands_selftest.cpp
@@ -273,6 +276,7 @@ add_executable(simple_world
   src/platform/dialogs.mm
   src/platform/audio_capture.mm
   src/platform/audio_playback.mm
+  src/platform/audio_mixer.mm    # seam/audio-mixer: per-operator AVAudioEngine mixer (AudioPlayer/PlayAudioClip streams)
   src/platform/audio_devices.mm
   src/platform/image_decode.mm
   src/platform/image_decode_selftest.mm
@@ -509,6 +513,8 @@ add_executable(simple_world
   src/bpm_transport_golden.cpp      # --selftest-bpmtransport (end-to-end DetectBpm auto → SetBpm → transport.bpm)
   src/runtime/tone_synth.cpp        # io/audio: AudioToneGenerator synthesis core (pure waveform math; not glob-matched)
   src/tonesynth_golden.cpp          # --selftest-tonesynth (closed-form AudioToneGenerator waveform parity)
+  src/audio_mixer_golden.cpp        # seam/audio-mixer LAYER(a): platform/audio_mixer level clamp+gate closed-form (--selftest-audio-mixer)
+  src/audio_playback_golden.cpp     # seam/audio-mixer LAYER(b): AudioPlayer ADSR-gain + play-edge command seam + PlayAudioClip targetTime (--selftest-audioplayer)
   src/colorlist_fanout_golden.cpp
   src/keepcolors_golden.cpp
   src/runtime/host_scalar_op_registry.cpp
@@ -826,6 +832,8 @@ add_executable(simple_world
   src/runtime/device_input_provider.cpp  # io/input device state singleton (= TiXL SystemUi KeyHandler/MouseInput)
   src/runtime/detect_bpm.cpp
   src/runtime/audio_reaction.cpp
+  src/runtime/audio_playback_bus.cpp  # seam/audio-mixer: per-frame playback-command seam (node cook writes, app drains to mixer)
+  src/runtime/audio_playback_cook.cpp # seam/audio-mixer: AudioPlayer/PlayAudioClip node cook (ADSR-gated volume + edges → bus)
   src/runtime/io_device_bus.cpp  # L5 IO lane: per-frame MIDI/OSC device-value seam (app writes, runtime reads)
   src/runtime/io_node_cook.cpp   # L5 IO lane: MidiInput/OscInput/MidiControlOutput node cook + cookIoDeviceNodes orchestrator
   src/runtime/io_output_cook.cpp # L5 IO lane: the remaining MIDI/OSC *Output sender cooks (split from io_node_cook, rule 4)

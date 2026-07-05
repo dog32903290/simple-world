@@ -14,6 +14,7 @@
 #include "runtime/audio_reaction.h"       // cookAudioReaction (TiXL AudioReaction parity)
 #include "runtime/detect_bpm.h"           // cookDetectBpmNodes (TiXL DetectBpm operator parity)
 #include "runtime/io_node_cook.h"         // cookIoDeviceNodes (TiXL MidiInput/OscInput device-node cook)
+#include "app/audio_playback_drain.h"     // cookAndDrainAudioPlayback (AudioPlayer/PlayAudioClip → mixer)
 #include "runtime/graph_bridge.h"         // refreshCompoundSpecs (frame-boundary spec swap)
 #include "runtime/eval_context.h"         // EvaluationContext
 #include "runtime/point_graph.h"          // PointGraph::cookResident
@@ -338,20 +339,19 @@ void run(PointGraph& pg, const std::string& targetPath) {
     static std::map<std::string, AudioReactionState> s_arState;
     cookAudioReactionNodes(g_residentGraph, spec, g_transport, g_frameIndex, &doc::g_lib(),
                            s_arState);
-    // DetectBpm (TiXL operator parity) rides the SAME slot: accumulate one energy sample from the live
-    // RawFft frame (spec.fftGain), write recovered BPM to extOut[0]. Per-path state. No throttle.
+    // DetectBpm (TiXL parity) rides the SAME slot: accumulate one RawFft energy sample, write BPM → extOut[0].
     static std::map<std::string, DetectBpm> s_bpmState;
     cookDetectBpmNodes(g_residentGraph, spec.fftGain.data(), (int)spec.fftGain.size(), s_bpmState);
     cookIoDeviceNodes(g_residentGraph);  // io/midi+osc + socket/DMX device nodes → extOut (device-cook slot; seams own state + bus clear)
+    cookAndDrainAudioPlayback(g_residentGraph, (float)fxSecs, s_runTimeSecs);  // playback nodes → bus → mixer
   }
 
-  // Cook stateful value ops (Damp/Spring/...) right after AudioReaction — same once-per-frame slot,
-  // same extOut-mirror contract. dtSecs is the RAW wall delta (these are CPU value sims, frame-rate
-  // dependent like TiXL Playback.LastFrameDuration); each op clamps internally. State keys off the
-  // resident path, so it rides projection rebuilds and stays per-instance inside compounds.
-  // context-var seam: host per-frame var map (= TiXL EvaluationContext Float/IntVariables; cleared once/frame
-  // in cookStatefulValueNodes). S3a: lifted OUT of the stateful block so the SAME instance reaches
-  // pg.cookResident below — value-rail writers populate it, THEN the Command SetVarCmd push/restore augments it.
+  // Cook stateful value ops (Damp/Spring/...) — same once-per-frame slot + extOut-mirror contract as
+  // AudioReaction. dtSecs is the RAW wall delta (CPU value sims, frame-rate dependent like TiXL
+  // Playback.LastFrameDuration; each op clamps internally). State keys off the resident path (rides
+  // projection rebuilds, per-instance inside compounds). context-var seam: host per-frame var map (= TiXL
+  // EvaluationContext Float/IntVariables; cleared once/frame). S3a: lifted OUT of the stateful block so the
+  // SAME instance reaches pg.cookResident below — value-rail writers populate it, THEN SetVarCmd augments it.
   static ContextVarMap s_ctxVars;
   {
     static std::map<std::string, StatefulValueState> s_svState;
