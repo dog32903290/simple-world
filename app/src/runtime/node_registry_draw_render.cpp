@@ -291,6 +291,41 @@ const std::vector<NodeSpec>& drawRenderSpecs() {
         {"SetDepthToZero", "SetDepthToZero", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr,
        "render.analyze"},
+      // GpuMeasure (TiXL Lib.render.analyze.GpuMeasure): times the GPU duration of a wrapped Command subtree
+      // (GpuMeasure.cs:31-80 — D3D timestamp queries in TiXL; sw uses MTLCommandBuffer.GPUEndTime−GPUStartTime,
+      // the whole-buffer analog). Command PASSTHROUGH (forwards the subtree items) + LastMeasureInMs (smoothed,
+      // cs:74) / LastMeasureInMicroSeconds (raw, cs:70) on the VALUE rail via the cross-rail latch
+      // (point_ops_gpumeasure.cpp; evaluate=nullptr → the stateful-value sink fills extOut[1..2] = these port
+      // indices — value ports MUST stay at spec indices 1..2, the GetScreenPos contract). SMOKE-level golden
+      // (no closed-form GPU time). Params mirror GpuMeasure.t3: Enabled=true, LogToConsole=false.
+      {"GpuMeasure", "GpuMeasure",
+       {{"Output", "Output", "Command", false},
+        {"LastMeasureInMs", "LastMeasureInMs", "Float", false},
+        {"LastMeasureInMicroSeconds", "LastMeasureInMicroSeconds", "Float", false},
+        {"Command", "Command", "Command", true},
+        {"Enabled", "Enabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"LogToConsole", "LogToConsole", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr,
+       "render.analyze"},
+      // SliceViewPort (TiXL Lib.render.transform.SliceViewPort): renders a Command SubGraph into ONE grid cell
+      // — a per-cell sub-viewport rect + a RepeatView CameraToClipSpace M11/M22 scale, with RequestedResolution
+      // pushed to the cell size (SliceViewPort.cs:24-114). Command PASSTHROUGH that STAMPS the viewport rect +
+      // clip scale onto every subtree item (point_ops_sliceviewport.cpp; the Camera/Group per-item stamp
+      // precedent); the driver pushes the cell RequestedResolution around the subtree cook (both cook legs).
+      // v1 FORK fork-sliceviewport-repeatview-only: Mode=RepeatView (M11/M22 scale); SliceView/FitProjection
+      // crop offsets deferred. .t3 defaults: CellIndex=0, CellCounts=(2,2), Stretch=(1,1), Mode=RepeatView(0).
+      {"SliceViewPort", "SliceViewPort",
+       {{"Output", "Output", "Command", false},
+        {"SubGraph", "SubGraph", "Command", true},
+        {"CellIndex", "CellIndex", "Float", true, 0.0f, 0.0f, 10000.0f, Widget::Slider},
+        {"CellCounts.x", "CellCounts", "Float", true, 2.0f, 1.0f, 100.0f, Widget::Vec, {}, false, 2},
+        {"CellCounts.y", "CellCounts.y", "Float", true, 2.0f, 1.0f, 100.0f, Widget::Vec, {}, false, 1},
+        {"Stretch.x", "Stretch", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Vec, {}, false, 2},
+        {"Stretch.y", "Stretch.y", "Float", true, 1.0f, 0.0f, 2.0f, Widget::Vec, {}, false, 1},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"RepeatView", "SliceView", "FitProjection"}, true}},
+       nullptr,
+       "render.transform"},
   };
   return specs;
 }

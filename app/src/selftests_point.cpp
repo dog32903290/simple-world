@@ -101,6 +101,9 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"spreadintogrid", runSpreadIntoGridSelfTest},  // render lane: per-WIRE grid translation (SpreadIntoGrid.cs:47-51), flat+resident
     {"spreadlayout", runSpreadLayoutSelfTest},      // render lane: per-WIRE line-spread SRT (SpreadLayout.cs:34/59-60), flat+resident
     {"getscreenpos", runGetScreenPosSelfTest},      // render lane: world→screen projection (GetScreenPos.cs:22-44) + value-rail latch, flat+resident
+    {"getposition", runGetPositionSelfTest},        // flow.context: transform-scope read (GetPosition.cs:39-51) + value-rail latch, flat+resident
+    {"gpumeasure", runGpuMeasureSelfTest},          // render.analyze: GPU-time measure mechanism (GpuMeasure.cs:65,74) SMOKE — value non-zero after render + monotone smoothing
+    {"sliceviewport", runSliceViewPortSelfTest},    // render.transform: cell viewport rect + RepeatView clip scale (SliceViewPort.cs:40-73) closed-form + pixel-in-cell, flat+resident
     {"renderstate-bothleg", runRenderStateBothLegSelfTest},  // ★Seam 2 harness-first: flat+resident stamped tuples byte-identical
     {"rasterizerstate", runRasterizerStateSelfTest},         // Seam 2 closed-form: cull/fill/winding → MTL enum + DX11 defaults
     {"blendstate", runBlendStateSelfTest},                   // Seam 2 closed-form: 7 blend factors + 3 ops + A2C=false

@@ -1,18 +1,15 @@
-// RenderTarget texture op (lane A render-target pivot, batch 1) — the THIRD cook flow.
-// Executes an upstream RenderCommand (Command stream) into a sized texture: TiXL's
-// RenderTarget (external/tixl .../image/generate/basic/RenderTarget.cs). This is the
-// RESOLUTION PIN point — Resolution param decides the output texture size; WindowFollow
-// tracks the output window (dynamic, no squash), fixed modes pin 16:9 / HD / 4K.
+// RenderTarget texture op (lane A render-target pivot, batch 1) — the THIRD cook flow. Executes an upstream
+// RenderCommand (Command stream) into a sized texture: TiXL's RenderTarget (external/tixl
+// .../image/generate/basic/RenderTarget.cs). This is the RESOLUTION PIN point — Resolution param decides the
+// output texture size; WindowFollow tracks the output window (dynamic, no squash), fixed modes pin 16:9/HD/4K.
 //
-// Self-contained leaf: cookRenderTarget + resolveRenderResolution + registerRenderTargetOp()
-// + runRenderTargetSelfTest(). Batch 1 lands the op + texture-stream machinery and proves
-// it in isolation; the cook() terminal dispatch wires it in batch 2/3 (until then texReg is
-// empty in production — zero behavior change, exactly like batch 0's cmd stream).
+// Self-contained leaf: cookRenderTarget + resolveRenderResolution + registerRenderTargetOp() +
+// runRenderTargetSelfTest(). Batch 1 lands the op + texture-stream machinery and proves it in isolation; the
+// cook() terminal dispatch wires it in batch 2/3 (until then texReg empty in production — zero behavior change).
 //
-// The draw is faithful to cookDrawPoints (same draw_points pipeline + DRAW_* bindings),
-// but loops the RenderCommand's items into ONE render pass: clear once, draw each item.
-// That single-pass-N-draws is the payoff of RenderCommand being a data record, not a
-// closure (compositing = the executor walks the chain; layers don't clear each other).
+// The draw is faithful to cookDrawPoints (same draw_points pipeline + DRAW_* bindings), but loops the
+// RenderCommand's items into ONE render pass: clear once, draw each item. That single-pass-N-draws is the
+// payoff of RenderCommand being a data record, not a closure (compositing = the executor walks the chain).
 #include "runtime/point_ops.h"
 
 #include <cmath>
@@ -29,6 +26,7 @@
 #include "runtime/field_camera.h"     // defaultLayerCameraForward / objectToClipSpace (Layer2d seam, F1)
 #include "runtime/graph.h"            // Graph/Node
 #include "runtime/mesh_draw_params.h" // MeshDrawParams + MESH_* bindings (DrawKind::Mesh)
+#include "runtime/point_ops_gpumeasure.h"  // gpuMeasureRecordBufferTime (GPU-time hook, GpuMeasure seam)
 #include "runtime/particle_params.h"  // DRAW_Points, DRAW_ViewExtent
 #include "runtime/point_graph.h"      // TexCookCtx, RenderResolution, registerTexOp
 #include "runtime/render_command.h"   // RenderCommand / RenderDrawItem / DrawKind
@@ -44,6 +42,8 @@ namespace sw {
 // Seam 2: apply the frozen rasterizer state (cull/winding/depthBias) onto the encoder per item — defined
 // in point_ops_renderstate.cpp (the render-state leaf owns the closed-form MTL mapping).
 void applyFrozenRasterEncoderState(MTL::RenderCommandEncoder* enc, const RenderDrawItem& it);
+// SliceViewPort: set the item's sub-viewport (cell rect / full target) — point_ops_renderstate.cpp.
+void applyItemViewport(MTL::RenderCommandEncoder* enc, const RenderDrawItem& it, uint32_t fullW, uint32_t fullH);
 
 // Test-only depth-disable hook (Tooth B). File-scope flag, off in production; the depth-occlusion golden
 // flips it to prove the LessEqual+ZWrite state is load-bearing (see render_command.h).
@@ -260,12 +260,12 @@ void cookRenderTarget(TexCookCtx& c) {
   if (c.command) {
     for (const RenderDrawItem& it : c.command->items) {
       if (it.kind == DrawKind::Clear) continue;  // not a draw — handled by the pass clear color above
-      // Point-based kinds need a non-empty bag; ScreenQuad/Layer2d/Mesh draw from tex/mesh buffers (none read
-      // `points`) — exempt all three. (Explicit also has no bag but its executor case is a deferred no-op.)
+      // Point-based kinds need a non-empty bag; ScreenQuad/Layer2d/Mesh draw from tex/mesh buffers (none read `points`).
       if (it.kind != DrawKind::ScreenQuad && it.kind != DrawKind::Layer2d &&
           it.kind != DrawKind::Mesh && (!it.points || it.count == 0))
         continue;
       applyFrozenRasterEncoderState(enc, it);  // Seam 2: cull/winding/depthBias (no-op default when unstamped)
+      applyItemViewport(enc, it, c.output->width(), c.output->height());  // SliceViewPort cell rect (else full)
       // Seam 2 OutputMerger DEPTH: a STAMPED non-mesh item sets its frozen compare+write (pooled per item); an
       // UNstamped one re-asserts dsDisabled (no stale leak). Mesh is EXEMPT: hardcodes dsMesh+CCW+CullBack below.
       if (it.kind != DrawKind::Mesh) {
@@ -555,6 +555,7 @@ void cookRenderTarget(TexCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
+  gpuMeasureRecordBufferTime(cmd->GPUEndTime() - cmd->GPUStartTime());  // GpuMeasure seam (record+disarm)
   if (psoPoints) psoPoints->release();
   if (psoPoints2) psoPoints2->release();
   if (psoLines) psoLines->release();
@@ -599,9 +600,8 @@ RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowS
 
 void registerRenderTargetOp() { registerTexOp("RenderTarget", cookRenderTarget); }
 
-// Batch 1 golden: drive a CPU-filled point bag through a 1-item RenderCommand into a
-// RenderTarget texture, readback, assert lit (non-black). Plus the resolution contract:
-// HD1080 -> 1920x1080, WindowFollow -> windowSize. injectBug = 0 points -> all black -> FAIL.
+// Batch 1 golden: drive a CPU-filled point bag through a 1-item RenderCommand into a RenderTarget texture,
+// readback, assert lit (non-black); + resolution contract (HD1080→1920×1080, WindowFollow→windowSize). injectBug = 0 points → all black → FAIL.
 int runRenderTargetSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   const uint32_t N = 64, W = 256, H = 256;
