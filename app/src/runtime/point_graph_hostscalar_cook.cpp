@@ -41,6 +41,8 @@
 
 #include <Metal/Metal.hpp>
 
+#include "runtime/dict_cook.h"                // cookFlatDict (dict-currency seam: Dict input gather)
+#include "runtime/dict_op_registry.h"         // SwFloatDict
 #include "runtime/graph.h"  // Graph/Node/NodeSpec/PortSpec/Connection/pinId/pinNode/findSpec
 #include "runtime/host_scalar_op_registry.h"  // HostScalarCookCtx/HostScalarCookFn/findHostScalarOp
 #include "runtime/string_op_registry.h"       // stringInjectBug (cookFlatStringLength's RED tooth)
@@ -120,22 +122,50 @@ void PointGraph::Impl::cookFlatHostScalar(
   // Gather String inputs (wire-OR-const) via the shared gather, in spec port order.
   std::vector<std::string> inputStrings = gatherStringInputs(g, id, *s, cookStringNode);
 
-  float scalar = 0.0f;
+  // Gather Dict inputs (dict-currency seam): one cooked SwFloatDict per "Dict" input port (single-wire —
+  // the Select*FromDict DictionaryInput). cookFlatDict cooks the upstream producer (BuildFloatDict / OSC).
+  // The dicts are owned HERE (dictStore) and pointed at via inputDicts (nullptr for an unwired port →
+  // TiXL null-dict → TryGetValue miss → 0). Mirror of the FloatList gather above.
+  std::vector<SwFloatDict> dictStore;
+  std::vector<const SwFloatDict*> inputDicts;
+  for (size_t i = 0; i < s->ports.size(); ++i) {
+    const PortSpec& port = s->ports[i];
+    if (!(port.isInput && port.dataType == "Dict")) continue;
+    const int inPin = pinId(id, (int)i);
+    const SwFloatDict* cooked = nullptr;
+    for (const Connection& c : g.connections) {
+      if (c.toPin != inPin) continue;
+      dictStore.emplace_back();
+      if (cookFlatDict(g, ctx, pinNode(c.fromPin), dictStore.back())) cooked = &dictStore.back();
+      break;  // single-wire (no Dict MultiInput in TiXL)
+    }
+    inputDicts.push_back(cooked);  // nullptr if unwired
+  }
+
+  float cx = 0.0f, cy = 0.0f, cz = 0.0f;
   HostScalarCookCtx hc;
   hc.dev = dev; hc.lib = lib; hc.queue = queue;
   hc.ctx = &ctx; hc.nodeId = id;
   hc.inputLists = &inputLists;
   hc.inputStrings = &inputStrings;
+  hc.inputDicts = &inputDicts;
   hc.params = nodeParams(id);
-  hc.output = &scalar;
+  hc.strParams = n ? &n->strParams : nullptr;  // the Select* "Select" key rides here (String param)
+  hc.output = &cx; hc.outY = &cy; hc.outZ = &cz;
   (*fn)(hc);
 
-  // Transport (legacy floatListBuf 1-elem) + BRIDGE (Node::outCache[0], const_cast — same precedent
-  // as cookFlatStringLength). A host-scalar op's injectBug corrupts `scalar` IN the cook → both channels
-  // carry the corrupted value → the downstream evalFloat RED bites on the real path.
+  // Transport (legacy floatListBuf 1-elem, component 0) + BRIDGE (Node::outCache[0..components-1],
+  // const_cast — same precedent as cookFlatStringLength). A Vector2/Vector3 op sets hc.components=2/3 and
+  // fills cy/cz; a scalar op leaves components=1 → outCache[1..2] untouched (byte-identical to before).
+  // A host-scalar op's injectBug corrupts the component(s) IN the cook → the downstream evalFloat RED
+  // bites on the real path.
   std::vector<float>& out = floatListBuf[flatKey(id)];
-  out.assign(1, scalar);
-  if (Node* mn = const_cast<Graph&>(g).node(id)) mn->outCache[0] = scalar;
+  out.assign(1, cx);
+  if (Node* mn = const_cast<Graph&>(g).node(id)) {
+    mn->outCache[0] = cx;
+    if (hc.components >= 2) mn->outCache[1] = cy;
+    if (hc.components >= 3) mn->outCache[2] = cz;
+  }
 }
 
 }  // namespace sw

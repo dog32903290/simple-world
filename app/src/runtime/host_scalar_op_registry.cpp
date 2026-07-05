@@ -52,4 +52,13 @@ float hostScalarParam(const std::map<std::string, float>* params, const char* id
   return it != params->end() ? it->second : def;
 }
 
+// Resolved STRING-param accessor (the Select*FromDict "Select" key rides HostScalarCookCtx::strParams,
+// keyed by port id). `def` when no map / no entry (a golden may hand-build a ctx with strParams null).
+std::string hostScalarStrParam(const std::map<std::string, std::string>* strParams, const char* id,
+                               const std::string& def) {
+  if (!strParams) return def;
+  auto it = strParams->find(id);
+  return it != strParams->end() ? it->second : def;
+}
+
 }  // namespace sw
