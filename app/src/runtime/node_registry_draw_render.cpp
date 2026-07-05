@@ -291,6 +291,22 @@ const std::vector<NodeSpec>& drawRenderSpecs() {
         {"SetDepthToZero", "SetDepthToZero", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr,
        "render.analyze"},
+      // GpuMeasure (TiXL Lib.render.analyze.GpuMeasure): times the GPU duration of a wrapped Command subtree
+      // (GpuMeasure.cs:31-80 — D3D timestamp queries in TiXL; sw uses MTLCommandBuffer.GPUEndTime−GPUStartTime,
+      // the whole-buffer analog). Command PASSTHROUGH (forwards the subtree items) + LastMeasureInMs (smoothed,
+      // cs:74) / LastMeasureInMicroSeconds (raw, cs:70) on the VALUE rail via the cross-rail latch
+      // (point_ops_gpumeasure.cpp; evaluate=nullptr → the stateful-value sink fills extOut[1..2] = these port
+      // indices — value ports MUST stay at spec indices 1..2, the GetScreenPos contract). SMOKE-level golden
+      // (no closed-form GPU time). Params mirror GpuMeasure.t3: Enabled=true, LogToConsole=false.
+      {"GpuMeasure", "GpuMeasure",
+       {{"Output", "Output", "Command", false},
+        {"LastMeasureInMs", "LastMeasureInMs", "Float", false},
+        {"LastMeasureInMicroSeconds", "LastMeasureInMicroSeconds", "Float", false},
+        {"Command", "Command", "Command", true},
+        {"Enabled", "Enabled", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"LogToConsole", "LogToConsole", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr,
+       "render.analyze"},
   };
   return specs;
 }

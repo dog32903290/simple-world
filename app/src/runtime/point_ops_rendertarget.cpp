@@ -9,10 +9,9 @@
 // it in isolation; the cook() terminal dispatch wires it in batch 2/3 (until then texReg is
 // empty in production — zero behavior change, exactly like batch 0's cmd stream).
 //
-// The draw is faithful to cookDrawPoints (same draw_points pipeline + DRAW_* bindings),
-// but loops the RenderCommand's items into ONE render pass: clear once, draw each item.
-// That single-pass-N-draws is the payoff of RenderCommand being a data record, not a
-// closure (compositing = the executor walks the chain; layers don't clear each other).
+// The draw is faithful to cookDrawPoints (same draw_points pipeline + DRAW_* bindings), but loops the
+// RenderCommand's items into ONE render pass: clear once, draw each item. That single-pass-N-draws is the
+// payoff of RenderCommand being a data record, not a closure (compositing = the executor walks the chain).
 #include "runtime/point_ops.h"
 
 #include <cmath>
@@ -29,6 +28,7 @@
 #include "runtime/field_camera.h"     // defaultLayerCameraForward / objectToClipSpace (Layer2d seam, F1)
 #include "runtime/graph.h"            // Graph/Node
 #include "runtime/mesh_draw_params.h" // MeshDrawParams + MESH_* bindings (DrawKind::Mesh)
+#include "runtime/point_ops_gpumeasure.h"  // gpuMeasureRecordBufferTime (GPU-time hook, GpuMeasure seam)
 #include "runtime/particle_params.h"  // DRAW_Points, DRAW_ViewExtent
 #include "runtime/point_graph.h"      // TexCookCtx, RenderResolution, registerTexOp
 #include "runtime/render_command.h"   // RenderCommand / RenderDrawItem / DrawKind
@@ -555,6 +555,7 @@ void cookRenderTarget(TexCookCtx& c) {
   enc->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
+  gpuMeasureRecordBufferTime(cmd->GPUEndTime() - cmd->GPUStartTime());  // GpuMeasure seam (record+disarm)
   if (psoPoints) psoPoints->release();
   if (psoPoints2) psoPoints2->release();
   if (psoLines) psoLines->release();
@@ -599,9 +600,8 @@ RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowS
 
 void registerRenderTargetOp() { registerTexOp("RenderTarget", cookRenderTarget); }
 
-// Batch 1 golden: drive a CPU-filled point bag through a 1-item RenderCommand into a
-// RenderTarget texture, readback, assert lit (non-black). Plus the resolution contract:
-// HD1080 -> 1920x1080, WindowFollow -> windowSize. injectBug = 0 points -> all black -> FAIL.
+// Batch 1 golden: drive a CPU-filled point bag through a 1-item RenderCommand into a RenderTarget texture,
+// readback, assert lit (non-black); + resolution contract (HD1080→1920×1080, WindowFollow→windowSize). injectBug = 0 points → all black → FAIL.
 int runRenderTargetSelfTest(bool injectBug) {
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
   const uint32_t N = 64, W = 256, H = 256;
