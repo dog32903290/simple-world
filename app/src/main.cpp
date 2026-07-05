@@ -47,6 +47,7 @@
 #include "selftests.h"
 #include "ui/asset_browser.h"  // AssetLibrary window (resource browser + click-to-create load-op)
 #include "ui/cjk_font.h"
+#include "ui/device_input_capture.h"  // captureDeviceInput (imgui io -> DeviceInputProvider, one hook)
 #include "ui/connection_ops.h"  // mountConnectionVerbs (connect/disconnect hand verbs)
 #include "ui/graph_dump.h"       // mountGraphDump (eye req_graph -> graph.json of current compound)
 #include "ui/editor_ui.h"
@@ -412,6 +413,9 @@ void Renderer::draw(MTK::View* pView) {
     if (targetPath.empty())
       targetPath = std::to_string(
           g_pointGraph->defaultDrawTarget(sw::doc::g_lib(), sw::doc::g_lib().rootId));  // root terminal
+    // Capture this frame's imgui io into the DeviceInputProvider (the ONE imgui→device-rail hook)
+    // BEFORE the cook, so the io/input nodes (KeyboardInput/MouseInput/...) see this frame's input.
+    sw::ui::captureDeviceInput(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
     // The production cook (projection rebuild + AudioReaction + RESIDENT graph cook) lives
     // in app/frame_cook.cpp — product behaviour, not shell.
     sw::framecook::run(*g_pointGraph, targetPath);

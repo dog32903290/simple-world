@@ -16,6 +16,7 @@
 
 #include "app/annotation_commands.h"  // runAnnotationSelfTest (Annotation 批A 資料/存讀/命令)
 #include "app/audio_monitor.h"
+#include "app/device_input_cook.h"  // runDeviceInputSelfTest (TiXL io/input device family golden)
 #include "app/command.h"
 #include "app/document.h"  // runNavigationSelfTest (composition-path semantics)
 #include "app/graph_commands.h"  // runDefRemovalSelfTest (S13 boundary-def removal)

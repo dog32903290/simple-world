@@ -229,6 +229,7 @@ add_executable(simple_world
   src/ui/copy_paste_ui.cpp
   src/ui/keymap.cpp
   src/ui/keymap_binding.cpp  # #11: user-override-aware chord test (rebinding seam, keymap.cpp at cap)
+  src/ui/device_input_capture.cpp  # io/input SHELL writer: imgui io -> DeviceInputProvider (one per-frame hook)
   src/ui/view_modes.cpp  # P6 演出/Focus modes (F12 / Shift+Esc toggles + handlers)
   src/ui/quick_add.cpp
   src/ui/quick_add_tree.cpp
@@ -710,6 +711,8 @@ add_executable(simple_world
   src/runtime/copy_paste.cpp
   src/app/frame_cook.cpp
   src/app/cook_host_values.cpp
+  src/app/device_input_cook.cpp     # TiXL io/input device family cook (KeyboardInput/MouseInput/Gamepad)
+  src/app/device_input_golden.cpp   # --selftest-deviceinput (io/input family golden)
   src/app/frame_cook_selftest.cpp
   src/app/frame_cook_contextvar_selftest.cpp
   src/app/frame_cook_setboolvar_selftest.cpp
@@ -773,6 +776,7 @@ add_executable(simple_world
   src/runtime/bpm_detection.cpp
   src/runtime/bpm_provider.cpp       # [SetBpm] triggered-pull singleton (= TiXL Core/IO/BpmProvider.cs)
   src/runtime/playback_provider.cpp  # [SetPlaybackTime/Speed] write mailbox (= SetPlaybackTime/Speed.cs Playback.Current write)
+  src/runtime/device_input_provider.cpp  # io/input device state singleton (= TiXL SystemUi KeyHandler/MouseInput)
   src/runtime/detect_bpm.cpp
   src/runtime/audio_reaction.cpp
   src/runtime/dispatch.cpp
