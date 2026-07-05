@@ -65,6 +65,19 @@ const std::vector<NodeSpec>& drawFlowSpecs() {
         {"SlideSyncTimeOffset", "SlideSyncTimeOffset", "Float", true, 0.0f, -1000.0f, 1000.0f}},
        nullptr,
        "numbers.anim.vj"},
+      // SetTime (TiXL Lib.numbers.anim.time.SetTime): the SUBTREE-TIME scope — rewrites the ambient
+      // LocalFxTime (both legs) and LocalTime (resident automation; fork-settime-flat-fxclock-only)
+      // around its SubTree cook, restoring after (SetTime.cs:23-43). OffsetMode: 0=Absolute (set),
+      // 1=Relative (add); GlobalAbsolute-with-subtree behaves like Relative (the .cs else-branch);
+      // the no-subtree global write is unsupported (fork-settime-globalabsolute-unscoped-unsupported).
+      // The PUSH is a driver-side LiveTimeScope (point_ops_settime.h); this op forwards the items.
+      {"SetTime", "SetTime",
+       {{"SubTree", "SubTree", "Command", true},
+        {"out", "out", "Command", false},
+        {"NewTime", "NewTime", "Float", true, 0.0f, -10000.0f, 10000.0f},
+        {"OffsetMode", "OffsetMode", "Float", true, 0.0f, 0.0f, 2.0f}},
+       nullptr,
+       "numbers.anim.time"},
       // Execute (TiXL Lib.flow.Execute): the S2a KEYSTONE — a MULTIINPUT Command port that concatenates
       // N wired Command chains in wire-declaration order into ONE chain (Execute.cs CollectedInputs). The
       // cook-core collector (cookCommand's MultiInput Command branch) does the gather+concat; this op just

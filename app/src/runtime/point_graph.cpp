@@ -28,6 +28,7 @@
 #include "runtime/buffer_op_registry.h"        // findBufferOp (Seam-1: GPU "Buffer" currency; SwBuffer def via internal.h)
 #include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
+#include "runtime/point_ops_settime.h"    // SetTime: liveTimeScopeActive (memo fresh-resolve gate)
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
 
 namespace sw {
@@ -141,18 +142,17 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   // the op via PointCookCtx::params. Stored in a node-keyed memo so pointers stay stable for
   // the whole cook (ops + inputParams point into it).
   std::map<int, std::map<std::string, float>> paramsMemo;
-  // S3b LIVE-READ memo trap: a node whose Float param is driven by a value-rail GetFloatVar resolves to a
-  // DIFFERENT value inside vs outside a SetVarCmd scope (the live var vs its fallback). The memo keys only on
-  // node id — so a value cached under one scope-state must NOT be served under the other. While a live scope is
-  // active (liveCtxVars()!=nullptr) we resolve FRESH and DO NOT cache (the scoped resolution is ambient-dependent,
-  // not a property of the graph). Off-scope the memo behaves exactly as before — every existing cook is unchanged
-  // (the live branch is reachable only inside a SetVarCmd SubGraph cook, which ~243 golden callers never enter).
+  // S3b/SetTime LIVE-READ memo trap: a param driven by a value-rail GetFloatVar (or a time-reading value op)
+  // resolves DIFFERENTLY inside vs outside a SetVarCmd/SetTime scope, but the memo keys only on node id — a
+  // value cached under one scope-state must NOT be served under the other. While ANY live scope is active we
+  // resolve FRESH and DO NOT cache (ambient-dependent, not a graph property). Off-scope = byte-identical
+  // (the live branch is reachable only inside a scoped SubGraph cook, which no off-scope cook enters).
   std::map<int, std::map<std::string, float>> scopedScratch;  // per-cook owner of fresh scoped param maps
   std::function<const std::map<std::string, float>*(int)> nodeParams =
       [&](int id) -> const std::map<std::string, float>* {
     const Node* n = g.node(id);
     if (!n) return nullptr;
-    if (liveCtxVars()) return &(scopedScratch[id] = resolveNodeParams(g, *n, ctx, reg));  // fresh, uncached
+    if (liveCtxVars() || liveTimeScopeActive()) return &(scopedScratch[id] = resolveNodeParams(g, *n, ctx, reg));  // fresh under var/time scope
     auto it = paramsMemo.find(id);
     if (it != paramsMemo.end()) return &it->second;
     return &(paramsMemo[id] = resolveNodeParams(g, *n, ctx, reg));

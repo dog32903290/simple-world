@@ -54,6 +54,7 @@
 #include "runtime/point_ops_camera_scope.h"  // C1: resolveActiveCamera/LiveCameraScope/LiveCtxVarScope/...
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/point_ops_forwardbeattaps.h"  // ForwardBeatTaps: isForwardBeatTaps/forwardBeatTapsApply
+#include "runtime/point_ops_settime.h"  // SetTime: LiveTimeScope/resolveSetTimeScope/isSetTimeScopeWriter
 #include "runtime/tixl_point.h"      // EvaluationContext (CmdCookCtx::ctx)
 
 namespace sw {
@@ -212,6 +213,12 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
         // Engages only when varScope is active (a real writer push happened); else no-op (leaves outer scope).
         LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
         LiveCameraScope liveCam(activeCam);  // C1: active camera live for the SubGraph cook (point rail reads it)
+        // SetTime SUBTREE-TIME scope (SetTime.cs:23-43; point_ops_settime.h — the S3b shape): push the
+        // {Absolute/Relative, NewTime} chain node around the SubTree cook so the value-rail fx clock (and
+        // resident automation localTime) read the SCOPED time. -bug (setTimeBugSkipPush) leaves it inactive.
+        LiveTimeScope timeScope((!setTimeBugSkipPush() && isSetTimeScopeWriter(n->type))
+                                    ? resolveSetTimeScope(*nodeParams(id))
+                                    : SetTimeScopeSpec{});
         // S3b Switch SUB-SELECT (TiXL flow/Switch.cs): gather wired sources in WIRE ORDER, then cook ONLY
         // the index-th (wrap/negative-safe; -2=all, -1/empty=none). Execute concats ALL, Switch sub-selects;
         // non-Switch ops keep the verbatim concat-all (single-input/-bug collapse via the break) below.

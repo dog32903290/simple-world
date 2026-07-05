@@ -29,6 +29,7 @@
 #include "runtime/curve.h"                 // sw::Curve (bake-into-point seam: PointCookCtx::inputCurves complete type)
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + op registries
 #include "runtime/point_ops_setvarcmd.h"   // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
+#include "runtime/point_ops_settime.h"    // SetTime: liveTimeScopeActive (memo fresh-resolve gate)
 #include "runtime/resident_eval_graph.h"   // ResidentEvalGraph / drivers / resolveResidentFloatInputs
 #include "runtime/resident_value_cooks.h"  // cookResidentColorList/cookResidentFloatList (LIST-CURRENCY BRIDGE: BuildGradient)
 #include "runtime/tixl_point.h"            // SwPoint + EvaluationContext
@@ -98,17 +99,16 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   // (Constant / Connection -> evalResidentFloat / Automation stub), memoized so pointers stay
   // stable for the whole cook (ops + inputParams point into it).
   std::map<std::string, std::map<std::string, float>> paramsMemo;
-  // S3b LIVE-READ memo trap (resident mirror of the flat leg, production runs THIS): a node whose Float param is
-  // driven by a value-rail GetFloatVar resolves to the LIVE scoped var inside a SetVarCmd SubGraph vs its fallback
-  // outside. The memo keys only on path — so while a live scope is active (liveCtxVars()!=nullptr) we resolve
-  // FRESH and DO NOT cache (the value is ambient-dependent, not a graph property). Off-scope = byte-identical to
-  // before (the live branch is reachable only inside a SetVarCmd SubGraph cook, which no off-scope cook enters).
+  // S3b/SetTime LIVE-READ memo trap (resident mirror, production runs THIS): a param driven by a value-rail
+  // GetFloatVar (or a time-reading value op) resolves DIFFERENTLY inside vs outside a SetVarCmd/SetTime scope,
+  // but the memo keys only on path. While ANY live scope is active we resolve FRESH and DO NOT cache
+  // (ambient-dependent, not a graph property). Off-scope = byte-identical (no off-scope cook enters).
   std::map<std::string, std::map<std::string, float>> scopedScratch;  // per-cook owner of fresh scoped maps
   std::function<const std::map<std::string, float>*(const std::string&)> nodeParams =
       [&](const std::string& path) -> const std::map<std::string, float>* {
     const ResidentNode* n = rg.node(path);
     if (!n) return nullptr;
-    if (liveCtxVars()) return &(scopedScratch[path] = resolveResidentFloatInputs(rg, *n, rc));  // fresh, uncached
+    if (liveCtxVars() || liveTimeScopeActive()) return &(scopedScratch[path] = resolveResidentFloatInputs(rg, *n, rc));  // fresh under var/time scope
     auto it = paramsMemo.find(path);
     if (it != paramsMemo.end()) return &it->second;
     return &(paramsMemo[path] = resolveResidentFloatInputs(rg, *n, rc));
