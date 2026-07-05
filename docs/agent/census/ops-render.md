@@ -96,27 +96,27 @@
 
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|-----------|------|------|------|
-| LoadGltfScene | 載入 GLTF 場景為 SceneSetup + MeshBuffers | NEW-SEAM:gltf-scene | BLOCKED:NEW-SEAM:gltf-scene | R3 | SharpGLTF 依賴；輸出 SceneSetup+MeshBuffers+PbrMaterial；需檔案資源系統 |
+| LoadGltfScene | 載入 GLTF 場景為 SceneSetup + MeshBuffers | NEW-SEAM:gltf-scene | BLOCKED:NEW-SEAM:gltf-scene | R3 | 需 cgltf(未 vendored, 照 nanosvg 前例)+全新 SwSceneSetup currency(SceneNode 樹/Transform/SceneDrawDispatch/MeshBuffers)+消費者 DrawScene 全 BLOCKED;parse-only slice 大且無消費者 → 本 lane 判 BLOCKED(非空做,是投資過大且下游全鎖) |
 | DrawScene | 繪製 SceneSetup（PBR 材質從 context） | NEW-SEAM:gltf-scene | BLOCKED:NEW-SEAM:gltf-scene | R3 | ICompoundWithUpdate；需 camera3d + PBR 材質 context |
 
 ### shading/ (22 ops)
 
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|-----------|------|------|------|
-| SetMaterial | 設定 PbrMaterial 參數與 texture maps | NEW-SEAM:pbr-material | BLOCKED:NEW-SEAM:pbr-material | R2 | 輸出 Command+PbrMaterial Reference；4 個 texture map 輸入 |
-| UseMaterial | 把 PbrMaterial reference 套入 context | NEW-SEAM:pbr-material | BLOCKED:NEW-SEAM:pbr-material | R1 | 輸入 PbrMaterial；context 注入 |
-| DefineMaterials | MultiInput<PbrMaterial> 收集注入 context | NEW-SEAM:pbr-material | BLOCKED:NEW-SEAM:pbr-material | R2 | ICompoundWithUpdate；收集多材質 |
+| SetMaterial | 設定 PbrMaterial 參數與 texture maps | NEW-SEAM:pbr-material | VALUE-SLICE-DONE / render-pass BLOCKED | R2 | ★值層已落地(SwPbrParameters+swResolvePbrParameters, sw_pbr_material.h, --selftest-pbrmaterial);剩 texture SRV + context stack + PBR shader = render-pass 島 |
+| UseMaterial | 把 PbrMaterial reference 套入 context | NEW-SEAM:pbr-material | BLOCKED:NEW-SEAM:pbr-material | R1 | 純 context-stack plumbing(UseMaterial.cs:18-35 只 push/pop 既有 PbrMaterial ref);無值可 resolve、無 data golden 可錨 → 真 BLOCKED 直到 render pass |
+| DefineMaterials | MultiInput<PbrMaterial> 收集注入 context | NEW-SEAM:pbr-material | BLOCKED:NEW-SEAM:pbr-material | R2 | 純 context-stack plumbing(收集 MultiInput→context.Materials→pop);無值可 resolve → 真 BLOCKED 直到 render pass |
 | SetEnvironment | IBL 環境貼圖設定（Equirect→cubemap probe） | NEW-SEAM:pbr-material | BLOCKED:NEW-SEAM:pbr-material | R3 | 輸入 Texture2D；Fallback enum（Studio/Cathedral/Black） |
 | Equirectangle | Equirectangular 貼圖作為環境 | NEW-SEAM:pbr-material | BLOCKED:NEW-SEAM:pbr-material | R2 | 輸出 Texture2D |
 | TextureToCubeMap | 2D 貼圖轉 CubeMap | NEW-SEAM:cubemap | BLOCKED:NEW-SEAM:cubemap | R3 | 輸出 Texture2D（CubeMap）；需 cubemap render-target |
 | PointLight | 點光源定義（ITransformable） | NEW-SEAM:lighting | BLOCKED:NEW-SEAM:lighting | R1 | 輸出 Command；Position+Intensity+Color+Range |
-| SetPointLight | 把 PointLight 注入 context | NEW-SEAM:lighting | BLOCKED:NEW-SEAM:lighting | R1 | 輸出 Command；context 注入 |
-| SetFog | 霧效參數設定 | NEW-SEAM:lighting | BLOCKED:NEW-SEAM:lighting | R1 | 輸出 Command；Fog params |
+| SetPointLight | 把 PointLight 注入 context | NEW-SEAM:lighting | VALUE-SLICE-DONE / render-pass BLOCKED | R1 | ★值層已落地(SwPointLight+swResolvePointLight, sw_point_light.h, --selftest-pointlight);剩 context.PointLights stack + PBR shader = render-pass 島 |
+| SetFog | 霧效參數設定 | NEW-SEAM:lighting | VALUE-SLICE-DONE / render-pass BLOCKED | R1 | ★值層已落地(SwFogParameters+swResolveFog+swFogAmbientDefault, sw_fog.h, --selftest-fog);剩 context.FogParameters buffer + shader = render-pass 島 |
 | SetShadow | 陰影參數設定 | NEW-SEAM:shadow-map | BLOCKED:NEW-SEAM:shadow-map | R2 | 輸出 Command；shadow bias/splits |
 | LenseFlareSetup | 鏡頭光暈設定 | NEW-SEAM:lens-flare | BLOCKED:NEW-SEAM:lens-flare | R2 | 輸出 Command |
 | LenseFlareSetupAdvanced | 進階鏡頭光暈設定 | NEW-SEAM:lens-flare | BLOCKED:NEW-SEAM:lens-flare | R2 | 輸出 Command |
 | SetRequestedResolution | 設定渲染解析度（從 Texture2D 讀） | NEW-SEAM:render-state | BLOCKED:NEW-SEAM:render-state | R1 | 輸出 Texture2D；讀 Description.Width/Height |
-| IntToWrapmode | int→TextureAddressMode 轉換 | value-graph | TRIVIAL | R1 | 輸出 TextureAddressMode enum |
+| IntToWrapmode | int→TextureAddressMode 轉換 | value-graph | ✅DONE | R1 | ★已落地:純 evalFloat MathOp(evalIntToWrapmode, node_registry_math_intbasic.cpp), Clamp(0,4)→enum 序數騎 Float value-spine; golden 在 --selftest-mathops(IntToWrapmode 探針 -1/2/7, -bug 咬) |
 | GetPointLightOccclusion | 計算點光源遮蔽率 | NEW-SEAM:lighting | BLOCKED:NEW-SEAM:lighting | R3 | 輸出 float；需深度/遮蔽計算 |
 | ContextCBuffers (_/) | 把多個 Buffer 注入 shader context | NEW-SEAM:render-state | BLOCKED:NEW-SEAM:render-state | R2 | 輸出 Buffer；內部工具 |
 | DrawQuad (_/) | 繪製一個四邊形 pass | NEW-SEAM:render-state | BLOCKED:NEW-SEAM:render-state | R2 | 輸出 Command；輸入 Texture2D |
