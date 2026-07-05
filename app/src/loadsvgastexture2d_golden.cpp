@@ -37,6 +37,7 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
+#include "runtime/eval_context.h"       // EvaluationContext full def (ctx built by value)
 #include "runtime/graph.h"
 #include "runtime/selftest_registry.h"  // REGISTER_SELFTESTS
 #include "runtime/tex_op_cache.h"
