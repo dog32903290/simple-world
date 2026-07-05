@@ -575,6 +575,7 @@ add_executable(simple_world
   src/string_ops_countdown_golden.cpp  # --selftest-countdown (pinned-clock TimeSpan format goldens)
   src/io_video_timing_golden.cpp  # --selftest-io-video-timing (PlayVideo/PlayVideoClip closed-form timing core)
   src/io_camera_checkerboard_golden.cpp  # --selftest-io-camera-checkerboard (CameraCalibrator OpenCV-free pattern geometry)
+  src/io_video_transform_golden.cpp  # --selftest-io-video-transform (VideoDeviceInput closed-form affine; capture deferred-hw)
   src/keepstrings_golden.cpp  # --selftest-keepstrings (multi-frame accumulator goldens, flat+resident+guard)
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp
