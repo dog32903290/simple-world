@@ -1140,8 +1140,8 @@ int runMathOpsSelfTest(bool injectBug) {
     printf("[selftest-mathops] RoundVec3 inject-floor-as-round x=%.1f assert=1 (INJECT BUG) -> %s\n", vx, pass ? "PASS" : "FAIL");
   }
 
-  // vec2 + logic + misc-vec teeth — moved VERBATIM to math_ops_selftest_extra.cpp (line-cap split).
-  ok = ok && (runMathOpsExtraSelfTest(injectBug) == 0);
+  // extra leaf on the && LHS so it ALWAYS runs (old `ok && run(...)` hid the whole extra suite in -bug mode).
+  ok = (runMathOpsExtraSelfTest(injectBug) == 0) && ok;
 
   printf("[selftest-mathops] -> %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
