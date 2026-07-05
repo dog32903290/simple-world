@@ -643,6 +643,7 @@ add_executable(simple_world
   src/runtime/gradient_ops_blendgradients.cpp
   src/runtime/gradient_ops_defineiqgradient.cpp
   src/gradient_golden.cpp
+  src/pbr_currency_golden.cpp    # pbr-lighting island value currencies: SwPointLight/SwFogParameters/SwPbrParameters resolver vs TiXL .cs (data-layer; context stack + PBR shader = BLOCKED render-pass seam)
   src/buildgradient_golden.cpp   # BuildGradient (ColorList+FloatList list-input → Gradient; list-currency seam, flat+resident)
   src/intlisttobuffer_golden.cpp # IntListToBuffer (FloatList list-input → tight int32 Buffer; list-currency seam, flat+resident)
   src/keeppreviousframe_golden.cpp

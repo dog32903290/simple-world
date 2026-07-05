@@ -67,4 +67,12 @@ REGISTER_SELFTESTS(/*orderBase=*/330,
 REGISTER_SELFTESTS(/*orderBase=*/340,
     {"selectfromdict", runSelectFromDictSelfTest},          // Dict<float> currency + SelectFloat/Vec2/Vec3/BoolFromDict (flat + resident bridge)
 );
+// pbr-lighting island value currencies (data-layer): SetPointLight/SetFog/SetMaterial value slices proven
+// against the TiXL .cs. Context stacks + PBR-shader consumer are the BLOCKED render-pass seam. Own high-
+// orderBase block so it appends at the end of --selftest-list deterministically.
+REGISTER_SELFTESTS(/*orderBase=*/350,
+    {"pointlight", runPointLightSelfTest},                  // SwPointLight currency vs SetPointLight.cs:17-21 (-bug swaps Intensity↔Range)
+    {"fog", runFogSelfTest},                                // SwFogParameters currency vs SetFog.cs:20-25 + ambient-default P2 guard (-bug swaps Distance↔Bias)
+    {"pbrmaterial", runPbrMaterialSelfTest},                // SwPbrParameters slice vs SetMaterial.cs:34-38 + fresh-default anchor (-bug swaps Roughness↔Specular)
+);
 }  // namespace sw
