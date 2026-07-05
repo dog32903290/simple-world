@@ -27,6 +27,7 @@
 #include "runtime/pointlist_op_registry.h"     // PointListCookCtx/findPointListOp (the 7th cook flow = host SwPoint list)
 #include "runtime/buffer_op_registry.h"        // findBufferOp (Seam-1: GPU "Buffer" currency; SwBuffer def via internal.h)
 #include "runtime/point_graph_internal.h" // PointGraph::Impl + op registries (shared w/ resident cook)
+#include "runtime/point_ops.h"            // resolveSwitchedForceSourceFlat (force-rail Switch sub-select hook)
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/point_ops_settime.h"    // SetTime: liveTimeScopeActive (memo fresh-resolve gate)
 #include "runtime/tixl_point.h"           // SwPoint (64B) + EvaluationContext (via eval_context.h)
@@ -244,11 +245,14 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
       const PortSpec& port = s->ports[i];
       if (!isBufferInput(port)) continue;
       const Connection* c = g.connectionToInput(pinId(id, (int)i));
-      MTL::Buffer* ub = c ? cookNode(pinNode(c->fromPin)) : nullptr;
-      uint32_t inCount = (c && ub) ? p_->outCount[flatKey(pinNode(c->fromPin))] : 0u;
+      // SwitchParticleForce sub-select hook (point_ops_switchforce.cpp): a switch source re-resolves to its Index-selected force.
+      int srcId = c ? pinNode(c->fromPin) : -1;
+      if (c && port.dataType == "ParticleForce") srcId = resolveSwitchedForceSourceFlat(g, srcId, nodeParams);
+      MTL::Buffer* ub = srcId >= 0 ? cookNode(srcId) : nullptr;
+      uint32_t inCount = (srcId >= 0 && ub) ? p_->outCount[flatKey(srcId)] : 0u;
       ins.push_back(ub);
       insCounts.push_back(inCount);
-      insParams.push_back(c ? nodeParams(pinNode(c->fromPin)) : nullptr);
+      insParams.push_back(srcId >= 0 ? nodeParams(srcId) : nullptr);
       if (port.dataType == "Points") {
         sumPointsCount += inCount;
         if (!haveFirstPoints) { firstPointsCount = inCount; haveFirstPoints = true; }

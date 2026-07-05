@@ -28,6 +28,7 @@
 #include "runtime/buffer_op_registry.h"        // BufferCookFn/findBufferOp (Seam-1 GPU "Buffer" currency, WO-E)
 #include "runtime/curve.h"                 // sw::Curve (bake-into-point seam: PointCookCtx::inputCurves complete type)
 #include "runtime/point_graph_internal.h"  // PointGraph::Impl + op registries
+#include "runtime/point_ops.h"             // resolveSwitchedForceSourceResident (force-rail Switch sub-select hook)
 #include "runtime/point_ops_setvarcmd.h"   // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/point_ops_settime.h"    // SetTime: liveTimeScopeActive (memo fresh-resolve gate)
 #include "runtime/resident_eval_graph.h"   // ResidentEvalGraph / drivers / resolveResidentFloatInputs
@@ -237,9 +238,14 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
       uint32_t inCount = 0;
       const std::map<std::string, float>* up = nullptr;
       if (ri && ri->driver == ResidentInput::Driver::Connection) {
-        ub = cookNode(ri->srcNodePath, depth + 1);
-        inCount = ub ? p_->outCount[ri->srcNodePath] : 0u;
-        up = nodeParams(ri->srcNodePath);
+        // SwitchParticleForce sub-select hook (resident mirror of the flat gather; point_ops_switchforce.cpp).
+        std::string srcPath = ri->srcNodePath;
+        if (port.dataType == "ParticleForce") srcPath = resolveSwitchedForceSourceResident(rg, srcPath, nodeParams);
+        if (!srcPath.empty()) {
+          ub = cookNode(srcPath, depth + 1);
+          inCount = ub ? p_->outCount[srcPath] : 0u;
+          up = nodeParams(srcPath);
+        }
       }
       ins.push_back(ub);
       insCounts.push_back(inCount);

@@ -5,9 +5,26 @@
 // (declared in point_graph.h) — called once at app startup and by each cook selftest.
 // Adding an operator = one cook fn + one registerPointOp line + its .metal + its golden.
 #pragma once
+#include <functional>
+#include <map>
 #include "runtime/point_graph.h"  // RenderResolution (RenderTarget op contract) + ctx structs
 namespace sw {
 struct Node;
+struct Graph;              // point_ops_switchforce resolvers (fwd-decl; full def graph.h)
+struct ResidentEvalGraph;  // point_ops_switchforce resolvers (fwd-decl; full def resident_eval_graph.h)
+
+// SwitchParticleForce (TiXL particle/force/SwitchParticleForce.cs) — the FORCE-rail Switch twin: a sub-select
+// over the ParticleForce currency. selectIndex() = the shared wrap/-1/empty math both force-gather legs call;
+// resolve*() re-resolve a ParticleForce source THROUGH a switch to its Index-selected force. Full doc in
+// point_ops_switchforce.cpp.
+constexpr int kSwitchForceSelectNone = -1;  // no force selected (cs:19-20 index==-1 OR count==0)
+int switchParticleForceSelectIndex(int rawIndex, int count);
+bool& switchForceIgnoreIndexForTest();  // -bug DRIVER flag: ignore Index, force wire0 (the sub-select tooth)
+int resolveSwitchedForceSourceFlat(const Graph& g, int srcNodeId,
+                                   const std::function<const std::map<std::string, float>*(int)>& nodeParams);
+std::string resolveSwitchedForceSourceResident(
+    const ResidentEvalGraph& rg, const std::string& srcPath,
+    const std::function<const std::map<std::string, float>*(const std::string&)>& nodeParams);
 
 // --- Per-family point-op registrars (point_ops_register_<family>.cpp) -------------------
 // registerBuiltinPointOps() (point_ops.cpp) calls these in family order. Each registrar owns
