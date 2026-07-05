@@ -14,11 +14,18 @@
 // FAMILY-WIDE FORKS (named, faithful — NOT invented):
 //  fork-tracking-buffer-currency-deferred: the CamerasAsBuffer / TrackersAsBuffer (Points buffer) and the
 //    CameraDataAsDict / TrackersAsDict (Dict<float>) outputs are Points/Dict currency. FreeDInput/
-//    PosiStageInput ship their Dict output (dict-currency IS live) + a scalar IsListening/CameraPos echo;
-//    the raw GPU Point BUFFER output is documented TODO (the GPU tracker-buffer seam), NOT faked onto Float.
+//    PosiStageInput ship their Dict output PIN (dict-currency IS live) + the scalar status pins; the raw
+//    GPU Point BUFFER output is documented TODO (the GPU tracker-buffer seam), NOT faked onto Float.
 //  fork-net-shared-transport: LocalIpAddress/MulticastIpAddress/Port/TargetIp device-select drops to app
 //    config (mirrors the net_io shared-transport fork); the node carries the semantically load-bearing
 //    Listen/Connect/SendOnChange/SendTrigger knobs + the tracking payload ports.
+//  fork-tracking-status-echo-deferred: the scalar status/echo outputs (IsListening / IsConnected /
+//    IsPlaying / GetLevel) are the value-RAIL half. The net_io family drives its echo from a per-frame
+//    net device bus (net_node_cook cookNetInputNodes); the equivalent tracking/audio device bus is NOT
+//    yet built (same seam as fork-net-shared-transport — no live UDP/audio device in this lane), so these
+//    outputs are declared on the spec (skin/inspect parity) but read 0 until a tracking-device-bus cook
+//    lands. The LOAD-BEARING value (packet bytes / conversions / synthesis) is fully goldened now
+//    (selftests_io_misc + tonesynth_golden); the echo is a status flag, not the op's output.
 //  fork-printtolog-dropped: PrintToLog inputs are editor logging, not node value → dropped.
 #include "runtime/graph.h"             // NodeSpec, PortSpec, Widget
 #include "runtime/math_op_registry.h"  // MathOp / mathSpecSink
@@ -29,8 +36,8 @@ namespace {
 // ── io/freed ─────────────────────────────────────────────────────────────────────────────────────
 
 // TiXL FreeDInput (Lib/io/freed/FreeDInput.cs) — bind+recv 29-byte "D1" packets → per-camera dict +
-// GPU buffer + selected-camera scalars. STATEFUL (UDP bus), evaluate==nullptr; cook writes IsListening →
-// extOut[0]. .t3 DEFAULTS: Listen=false, Port=6000, CameraId=-1, LocalIpAddress="0.0.0.0 (Any)". The
+// GPU buffer + selected-camera scalars. STATEFUL (UDP bus), evaluate==nullptr; IsListening status echo → extOut[0] (fork-tracking-status-echo-deferred:
+// reads 0 until a tracking-device-bus cook lands). .t3 DEFAULTS: Listen=false, Port=6000, CameraId=-1, LocalIpAddress="0.0.0.0 (Any)". The
 // CamerasAsBuffer (Points) is deferred (fork-tracking-buffer-currency-deferred); the CameraDataAsDict
 // output IS carried (dict-currency live). Port/LocalIp = shared-transport fork.
 static const MathOp _reg_FreeDInput{
@@ -44,7 +51,7 @@ static const MathOp _reg_FreeDInput{
 };
 
 // TiXL FreeDOutput (Lib/io/freed/FreeDOutput.cs) — build+send a 29-byte "D1" packet on trigger/change.
-// STATEFUL send side-effect; cook echoes IsConnected → extOut[0]. .t3: Connect=false, TargetIpAddress=
+// STATEFUL send side-effect; IsConnected status echo → extOut[0] (fork-tracking-status-echo-deferred). .t3: Connect=false, TargetIpAddress=
 // "127.0.0.1", TargetPort=6000, SendOnChange=false, SendTrigger=false, CameraId=0. Rotation/Position are
 // Vector3 payload inputs (Vec widgets); Zoom/Focus/User are int payloads. shouldSend = WasTriggered ||
 // SendOnChange (cs:45). Packet bytes goldened in platform/freed_packet.
@@ -71,8 +78,8 @@ static const MathOp _reg_FreeDOutput{
 // ── io/posistage ─────────────────────────────────────────────────────────────────────────────────
 
 // TiXL PosiStageInput (Lib/io/posistage/PosiStageInput.cs) — join a PSN multicast group + recv chunk
-// packets (root 0x6755) → per-tracker dict + GPU buffer. STATEFUL (UDP bus), evaluate==nullptr; cook
-// writes IsListening → extOut[0]. .t3: Listen=false, Port=56565, LocalIpAddress="0.0.0.0",
+// packets (root 0x6755) → per-tracker dict + GPU buffer. STATEFUL (UDP bus), evaluate==nullptr;
+// IsListening status echo → extOut[0] (fork-tracking-status-echo-deferred). .t3: Listen=false, Port=56565, LocalIpAddress="0.0.0.0",
 // MulticastIpAddress="236.10.10.10". TrackersAsBuffer (Points) deferred; TrackersAsDict carried.
 static const MathOp _reg_PosiStageInput{
     {"PosiStageInput", "PosiStageInput",
@@ -84,7 +91,7 @@ static const MathOp _reg_PosiStageInput{
 };
 
 // TiXL PosiStageOutput (Lib/io/posistage/PosiStageOutput.cs) — read a tracker Point buffer, build+send a
-// PSN_DATA packet on trigger/change. STATEFUL send side-effect; cook echoes IsConnected → extOut[0]. .t3:
+// PSN_DATA packet on trigger/change. STATEFUL send side-effect; IsConnected status echo → extOut[0] (fork-tracking-status-echo-deferred). .t3:
 // Connect=false, LocalIpAddress="127.0.0.1", TargetIpAddress="236.10.10.10", TargetPort=56565,
 // SendOnChange=true, ServerName="T3 PSN Output". TrackerData (Points buffer) is the payload input
 // (fork-tracking-buffer-currency-deferred: the input is carried as a Points pin; the CPU readback → PSN
@@ -138,7 +145,7 @@ static const MathOp _reg_PointsToDmxLights{
 
 // TiXL AudioToneGenerator (Lib/io/audio/AudioToneGenerator.cs) — synthesize a procedural tone into the
 // operator mixer (Sine/Square/Saw/Tri/White/Pink), ADSR-enveloped, Trigger/Gate modes. STATEFUL (BASS
-// mixer stream), evaluate==nullptr; cook echoes IsPlaying → extOut[0]. The waveform synthesis CORE is
+// mixer stream), evaluate==nullptr; IsPlaying status echo → extOut[0] (fork-tracking-status-echo-deferred). The waveform synthesis CORE is
 // goldened in runtime/tone_synth (tonesynth_golden); this spec is the NODE SKIN carrying the knobs +
 // IsPlaying/GetLevel status. .t3 defaults: Frequency 440 (0 → 440 fallback), Volume 1, WaveformType Sine,
 // TriggerMode Trigger, Envelope (A,D,S,R). The Result Command + real audio out are deferred-hw.
@@ -166,8 +173,8 @@ static const MathOp _reg_AudioToneGenerator{
 // ── io/file ──────────────────────────────────────────────────────────────────────────────────────
 
 // TiXL WriteToFile (Lib/io/file/WriteToFile.cs) — write Content to Filepath when Content changes; forward
-// Content + Filepath. STATEFUL (last-content gate), evaluate==nullptr; cook writes on change + echoes the
-// forwarded string. Content/Filepath are String inputs (strDef); the write-on-change gate + byte
+// Content + Filepath. STATEFUL (last-content gate), evaluate==nullptr; the write-on-change gate + forwarded-string echo are the value (goldened in
+// platform/write_to_file; the live per-frame cook that touches disk is deferred with the other echoes). Content/Filepath are String inputs (strDef); the write-on-change gate + byte
 // round-trip are goldened in platform/write_to_file. Result/OutFilepath (String) forwarded as the value.
 static const MathOp _reg_WriteToFile{
     {"WriteToFile", "WriteToFile",

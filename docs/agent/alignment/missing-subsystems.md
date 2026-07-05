@@ -46,6 +46,14 @@ runtime 有 `sw_gradient.h` + value-op SampleGradient，但 **inspector 對 Grad
 ### IO 編輯器互動層（critic，依賴 Variation 系統）
 node-coverage 盤了 73 個 io **節點**，但 TiXL 的 IO 還有**編輯器互動層**:8 種 MIDI 裝置 note/LED map（按硬體鍵觸發 snapshot、燈號回饋當前狀態）、SpaceMouse HID 驅動 3D 相機、IO Events 視窗顯示錄製中的 DataSet。綁在 Variation/Snapshot 上，op 計數抓不到。柏為硬體 VJ 控制的真實工作流。
 
+### ★ IO DataSet / 時間軸資料回放（`io/data/*` — LoadDataClip + SimulateIoData BLOCKED）
+io-misc lane 2026-07-06 診斷:`LoadDataClip.cs` / `SimulateIoData.cs` 這兩顆**卡整塊 DataSet-timeline 基建**，sw 完全不存在(grep `DataSet/DataClip/DataChannel/DataEvent/TimeRangeMapping/DataSetCache/IoDataSetRecorder/TimeClipSlot/SimulatedIoBus` 全 0)。不是單顆 golden 能補的縫,是一個子系統:
+- **DataSet / DataChannel / DataEvent / DataIntervalEvent** — 錄製事件容器(通道路徑分層 `["Midi",dev,"Ch<n>","<type><param>"]` / `["OSC:<port>",…]`,事件帶秒級 Time,note=interval 有 EndTime)。這是 IoDataSetRecorder 寫的格式,是兩顆節點路由的唯一權威。
+- **DataClip + TimeRangeMapping** — 時間軸綁定的 clip:TimeRange(timeline-bars)↔SourceRange(file-bars) 映射 + `LocalBarsToSourceSecs`(靠 clip 內烘的 Bpm),`IsActive(localTime)`。sw 無 TimeClip/timeline-clip 基建。
+- **DataSetCache** — `.data` 檔解析快取(依 path+mtime keying,同檔多 LoadDataClip 共享一份 DataSet)+ `.data` 檔格式 parser(sw 無)。
+- **SimulatedIoBus** — 模擬派發座(`DispatchMidi/DispatchOsc`)。注意:sw **已有** live 的 `io_device_bus`(ingestMidiSignal/ingestOscArg,MidiInput/OscInput 讀它),但那是 LIVE 硬體路徑;SimulateIoData 要的是「從 DataSet 事件回放 → 餵同一批 Input 節點」的**模擬**座,還缺 DataSet 事件源。橋接可能是「把 SimulatedIoBus 的派發接到現有 io_device_bus 的 ingest」——但前提是先有 DataSet+DataClip+TimeRangeMapping。
+- **建議**:當一整個 seam 規劃(依賴 timeline-clip 基建先落地),不要為這兩顆刻假 golden。可 golden 的資料層(通道路徑解析/事件視窗過濾/interval NoteOn-NoteOff 配對)在 DataSet 型別存在後才有意義。census 應把這兩顆標 BLOCKED-on-DataSet-timeline,非 leaf-ready。
+
 ### Audio 匯出 / 錄製 / 波形縮圖（critic）
 音訊「輸入/分析/playback」半已大量做。缺的是「輸出」半:離線 audio mixdown（配影片匯出）、live recording 到 WAV、FFT→waveform PNG 縮圖（grep 全 0）。跟 render-output 的影片匯出同一個演出輸出半身——影片匯出沒對齊音軌=匯出無聲。
 
