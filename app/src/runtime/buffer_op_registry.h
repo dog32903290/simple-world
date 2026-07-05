@@ -114,6 +114,17 @@ struct BufferCookCtx {
   float camCameraToClipSpace[16] = {0};
   float camWorldToCamera[16] = {0};
   float camObjectToWorld[16] = {0};
+
+  // CROSS-FRAME BUFFER FEEDBACK (KeepPreviousPointBuffer — the SwBuffer twin of the texture FeedbackCookCtx
+  // pairA/pairB/toggle). The driver sizes a persistent MTL::Buffer pair to the input buffer's byteSize
+  // (ensureBufferFeedbackPair) and hands it here; the op blit-copies the input into the toggle-selected
+  // buffer, routes BufferA/BufferB to the pair by the toggle, then flips it. A NON-feedback Buffer op
+  // leaves these null → never touches them (byte-identical). `secondOutput` = the op's SECOND SwBuffer
+  // output (BufferB); `output` above is the FIRST (BufferA). Both stride/count set by the op (= input's).
+  MTL::Buffer* pairA = nullptr;      // persistent pair buffer A (driver-owned, cross-frame)
+  MTL::Buffer* pairB = nullptr;      // persistent pair buffer B
+  bool* toggle = nullptr;            // persistent per-node toggle (_toggle); the op flips it
+  SwBuffer* secondOutput = nullptr;  // BufferB view (driver owns it in feedbackBufOut[key][1])
 };
 
 // A Buffer op: read inputBuffers/floatInputs/vec4Inputs → fill *output (via requestBytes for a producer,
@@ -133,6 +144,14 @@ std::map<std::string, BufferCookFn>& bufferCookFns();     // type-name -> cook f
 // Lookup the cook fn for a type (nullptr if not a Buffer op). Used by the cook driver's dispatch.
 const BufferCookFn* findBufferOp(const std::string& type);
 
+// CROSS-FRAME BUFFER-FEEDBACK type set (mirror of imageFilterComputeTypes / feedback registration). A
+// Buffer op that needs a persistent MTL::Buffer PAIR + toggle + dual SwBuffer output (KeepPreviousPointBuffer)
+// registers its type here. The cook driver (flat + resident) checks this set: for a feedback-buffer op it
+// sizes the pair (ensureBufferFeedbackPair) to the input buffer's byteSize, threads pairA/pairB/toggle +
+// secondOutput onto the ctx, and stores the dual outputs in feedbackBufOut[key][0/1]. Absent type (every
+// other Buffer op) → the driver's normal single-output path (byte-identical).
+bool bufferOpIsFeedback(const std::string& type);
+
 // Test-only injection seam (goldens): when set, a Buffer op's cook corrupts its REAL output (drops the
 // last float of FloatsToBuffer's payload) so the golden's RED case fires on the actual cook path (NOT by
 // flipping the expected value). Off in production. A leaf reads it at the end of its cook.
@@ -148,9 +167,11 @@ uint32_t& bufferUnresolvedMatrixSources();  // test-visible; reset to 0 before a
 void noteUnresolvedMatrixSource();          // ++counter + warn-once (called by both gather legs)
 
 // RAII registrar: declare one file-scope static of this type at the end of each Buffer-op leaf.
-//   BufferOp(spec, cookFn);  // pushes spec into bufferSpecSink() and cook into bufferCookFns()
+//   BufferOp(spec, cookFn);                    // normal single-output Buffer op
+//   BufferOp(spec, cookFn, /*feedback=*/true); // cross-frame feedback-buffer op (KeepPreviousPointBuffer):
+//                                              // ALSO registers the type in bufferOpIsFeedback's set.
 struct BufferOp {
-  BufferOp(NodeSpec spec, BufferCookFn cook);
+  BufferOp(NodeSpec spec, BufferCookFn cook, bool feedback = false);
 };
 
 }  // namespace sw

@@ -98,6 +98,10 @@ PointGraph::~PointGraph() {
     if (kv.second.a) kv.second.a->release();
     if (kv.second.b) kv.second.b->release();
   }
+  for (auto& kv : p_->feedbackBufBuf) {  // cross-frame BUFFER PAIR (KeepPreviousPointBuffer): release BOTH
+    if (kv.second.a) kv.second.a->release();
+    if (kv.second.b) kv.second.b->release();
+  }
   if (p_->target) p_->target->release();
   if (p_->queue) p_->queue->release();
   if (p_->lib) p_->lib->release();

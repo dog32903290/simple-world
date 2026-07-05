@@ -96,7 +96,10 @@ app/src/runtime/math_ops_selftest.cpp:1151
 # FloatList/IntList rail) + a 2-line load-bearing comment (the by-ref-live-by-dispatch ordering note).
 # Irreducible driver dispatch wiring, the twin of the existing Gradient/Buffer list-currency bridges; the
 # op body lives in the floatlist_ops_colorlisttoints.cpp leaf (<400). Proven by --selftest-colorlisttoints.
-app/src/runtime/point_graph.cpp:753
+# BUFFER FEEDBACK (2026-07-05) 753→757 +4: the ~PointGraph dtor gained the feedbackBufBuf pair release loop
+# (KeepPreviousPointBuffer's cross-frame MTL::Buffer pair — the SwBuffer twin of the feedbackTexBuf release
+# right above it). Irreducible resource cleanup (NO leak/UAF); same class as the texture feedback release.
+app/src/runtime/point_graph.cpp:757
 # S3a (2026-06-23) +12: CmdCookCtx gained the ContextVarMap* ctxVars field (additive ABI, mirrors
 # inputCommand) + the forward-decl + cook/cookResident gained the trailing ctxVars param. Doc squeezed to
 # the floor; the field + its load-bearing comment (the two-rail fork note, blueprint risk #3) are irreducible.
@@ -110,7 +113,9 @@ app/src/runtime/point_graph.cpp:753
 # TexCookCtx/FeedbackCookCtx) + their cook fn-ptr typedefs moved to runtime/point_graph_cook_ctx.h (ABI-
 # preserving; point_graph.h #includes it in the same spot, the 249 includers see identical symbols). This
 # bought the margin for TexCookCtx.inputFieldTree (the RaymarchField tex-op gather seam).
-app/src/runtime/point_graph.h:245
+# BUFFER FEEDBACK (2026-07-05) 245→246 +1: debugCookedFeedbackBuffer() decl (KeepPreviousPointBuffer dual
+# BufferA/BufferB golden readback off feedbackBufOut, twin of debugCookedFeedbackOutput for textures).
+app/src/runtime/point_graph.h:246
 # C1 (2026-06-23) +6: the shared two-cook seam header (already at the 400 ceiling) — fillPointCamera now
 # reads the live ActiveCamera (the wired Camera the draws respect) instead of ALWAYS the default, + the
 # point_ops_camera_scope.h include. The if/else + include are irreducible cook-core seam glue; comments at the
@@ -137,7 +142,15 @@ app/src/runtime/point_graph.h:245
 # COLORLIST→FLOATLIST BRIDGE (2026-07-05) 478→482 +4: cookFlatFloatList's decl gained the cookColorListNode
 # slot-by-ref param line (ColorListToInts.ColorLists, the vec4-list → int-list gather) + a 3-line load-bearing
 # comment. Irreducible signature line (the Impl method body lives in point_graph_hostvalue_cook.cpp <400).
-app/src/runtime/point_graph_internal.h:482
+# BUFFER FEEDBACK (2026-07-05) 482→522 +40: the NEW Buffer-rail cross-frame feedback subsystem
+# (KeepPreviousPointBuffer, the SwBuffer twin of the texture KeepPreviousFrame pair already grandfathered in
+# this file) — the irreducible per-flow resource state (BufferFeedbackPair struct + feedbackBufBuf/Size/
+# Stride/Toggle/Out realloc-key maps, the SAME allocate→reuse→realloc trio the texture FeedbackPair carries)
+# + ensureBufferFeedbackPair (the MTL::Buffer allocator, twin of ensureFeedbackPair right above it). Same
+# class of justified structural growth as the texture feedback pair this mirrors; the op body + the golden
+# live in bounded <400 leaf TUs (buffer_ops_keeppreviouspointbuffer.cpp / keeppreviouspointbuffer_golden.cpp).
+# DEBT: the same cook-driver/Impl split the file's other notes track would house this per-flow block too.
+app/src/runtime/point_graph_internal.h:522
 # S2c (2026-06-23) +8: resident cookCommand gained its Texture2D input gather — a production black-hole
 # (Layer2d/DrawScreenQuad drew BLACK on the resident path because cc.inputTexture was never set; the flat
 # cookCommand has had this branch since FORK#1). Caught by --selftest-layercompose's resident leg. The

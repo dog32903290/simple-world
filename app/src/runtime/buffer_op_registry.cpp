@@ -3,8 +3,16 @@
 #include "runtime/buffer_op_registry.h"
 
 #include <cstdio>
+#include <set>
 
 namespace sw {
+
+// CROSS-FRAME BUFFER-FEEDBACK type set (KeepPreviousPointBuffer). Meyers singleton, init-order safe.
+static std::set<std::string>& bufferFeedbackTypes() {
+  static std::set<std::string> s;
+  return s;
+}
+bool bufferOpIsFeedback(const std::string& type) { return bufferFeedbackTypes().count(type) > 0; }
 
 std::vector<NodeSpec>& bufferSpecSink() {
   static std::vector<NodeSpec> v;
@@ -43,8 +51,9 @@ void noteUnresolvedMatrixSource() {
   }
 }
 
-BufferOp::BufferOp(NodeSpec spec, BufferCookFn cook) {
+BufferOp::BufferOp(NodeSpec spec, BufferCookFn cook, bool feedback) {
   bufferCookFns()[spec.type] = cook;
+  if (feedback) bufferFeedbackTypes().insert(spec.type);  // KeepPreviousPointBuffer needs the pair path
   bufferSpecSink().push_back(std::move(spec));
 }
 

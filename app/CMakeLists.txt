@@ -599,6 +599,8 @@ add_executable(simple_world
   src/runtime/buffer_op_registry.cpp             # Buffer-op self-registration sinks + bufferParam accessor
   src/runtime/buffer_ops_floatstobuffer.cpp      # FloatsToBuffer (keystone: host floats → GPU buffer, matrix-then-float fill)
   src/runtime/buffer_ops_getbuffercomponents.cpp # GetBufferComponents (metadata read-out + Buffer passthrough)
+  src/runtime/buffer_ops_keeppreviouspointbuffer.cpp  # KeepPreviousPointBuffer (Buffer-rail cross-frame feedback pair: dual BufferA/BufferB ping-pong)
+  src/keeppreviouspointbuffer_golden.cpp              # --selftest-keeppreviouspointbuffer (dual-output ping-pong + cross-frame toggle via getBytes readback)
   src/runtime/buffer_ops_executebufferupdate.cpp # ExecuteBufferUpdate (run Command, forward Buffer unchanged)
   src/runtime/buffer_ops_intstobuffer.cpp        # IntsToBuffer (host ints → GPU buffer, 16-byte-padded int32 slices)
   src/runtime/buffer_ops_intlisttobuffer.cpp     # IntListToBuffer (List<int> wire → GPU buffer, TIGHT int32 no-pad; list-currency seam)
