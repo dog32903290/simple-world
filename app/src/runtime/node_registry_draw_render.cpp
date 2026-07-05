@@ -214,6 +214,22 @@ const std::vector<NodeSpec>& drawRenderSpecs() {
         {"Multiply", "Multiply", "Float", true, 1.0f, 0.0f, 16.0f}},
        nullptr,
        "render.shading"},
+      // SetRequestedResolutionCmd (TiXL Lib.flow.context.SetRequestedResolutionCmd): the flow-rail sibling
+      // of SetRequestedResolution — same Command-subtree RequestedResolution push, but the factor is
+      // ScaleResolution × StretchResolution (Vector2) instead of a single Multiply. The push happens in the
+      // cook driver (resolveSetRequestedResolutionCmd) BEFORE the subtree cooks; this op forwards the items.
+      // Width/Height (Int2 Resolution) default 0 + StretchResolution default (1,1): the cs:24 gate needs ALL
+      // FOUR >0 to adopt Resolution, else it scales the ambient size (a bare ScaleResolution). Cmd in → out.
+      {"SetRequestedResolutionCmd", "SetRequestedResolutionCmd",
+       {{"Texture", "Texture", "Command", true},
+        {"out", "out", "Command", false},
+        {"Width", "Width", "Float", true, 0.0f, 0.0f, 16384.0f},
+        {"Height", "Height", "Float", true, 0.0f, 0.0f, 16384.0f},
+        {"StretchResolution.x", "StretchResolution", "Float", true, 1.0f, 0.0f, 16.0f, Widget::Vec, {}, true, 2},
+        {"StretchResolution.y", "StretchResolution.y", "Float", true, 1.0f, 0.0f, 16.0f, Widget::Vec, {}, true, 1},
+        {"ScaleResolution", "ScaleResolution", "Float", true, 1.0f, 0.0f, 16.0f}},
+       nullptr,
+       "flow.context"},
       // SpreadIntoGrid (TiXL Lib.render.transform.SpreadIntoGrid): MultiInput Command layout — child i
       // is TRANSLATED to grid cell (i%gx, i/gx, i/(gx·gy)) scaled by Spread·SpreadScale (per-child
       // ObjectToWorld push, SpreadIntoGrid.cs:33-66; cooked via the per-wire group stamp,

@@ -605,6 +605,8 @@ add_executable(simple_world
   src/runtime/buffer_ops_floatstobuffer.cpp      # FloatsToBuffer (keystone: host floats → GPU buffer, matrix-then-float fill)
   src/runtime/buffer_ops_getbuffercomponents.cpp # GetBufferComponents (metadata read-out + Buffer passthrough)
   src/runtime/buffer_ops_executebufferupdate.cpp # ExecuteBufferUpdate (run Command, forward Buffer unchanged)
+  src/runtime/buffer_ops_executerawbufferupdate.cpp # ExecuteRawBufferUpdate (flow/context: run Command subtree, forward SEPARATE Buffer)
+  src/runtime/buffer_ops_executerawbufferupdate_golden.cpp # --selftest-executerawbufferupdate (forwards Buffer port, not UpdateCommands; flat+resident)
   src/runtime/buffer_ops_intstobuffer.cpp        # IntsToBuffer (host ints → GPU buffer, 16-byte-padded int32 slices)
   src/runtime/buffer_ops_intlisttobuffer.cpp     # IntListToBuffer (List<int> wire → GPU buffer, TIGHT int32 no-pad; list-currency seam)
   src/runtime/buffer_ops_getsrvproperties.cpp    # GetSRVProperties (Buffer passthrough + element-count read-out, thin GetBufferComponents sibling)
@@ -782,6 +784,7 @@ add_executable(simple_world
   src/runtime/beat_lock_selftest.cpp # G2 SlidingAverage<10> de-jitter + G3 beat_timing audio-lock orphan接通
   src/runtime/bpm_detection.cpp
   src/runtime/bpm_provider.cpp       # [SetBpm] triggered-pull singleton (= TiXL Core/IO/BpmProvider.cs)
+  src/runtime/tap_provider.cpp       # [ForwardBeatTaps] beat/resync/slide singleton (= TiXL Core/IO/TapProvider.Instance)
   src/runtime/playback_provider.cpp  # [SetPlaybackTime/Speed] write mailbox (= SetPlaybackTime/Speed.cs Playback.Current write)
   src/runtime/device_input_provider.cpp  # io/input device state singleton (= TiXL SystemUi KeyHandler/MouseInput)
   src/runtime/detect_bpm.cpp

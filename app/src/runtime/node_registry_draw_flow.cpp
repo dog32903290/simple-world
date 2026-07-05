@@ -51,6 +51,20 @@ const std::vector<NodeSpec>& drawFlowSpecs() {
         {"ClearAfterExecution", "ClearAfterExecution", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr,
        "flow.context"},
+      // ForwardBeatTaps (TiXL Lib.numbers.anim.vj.ForwardBeatTaps): edge-detect the beat/resync trigger LEVELS
+      // and publish the rising-edge pulses + the (NaN-guarded) SlideSyncTimeOffset into the process-global
+      // TapProvider, THEN forward the wired SubTree Command chain. The publish is a driver-side pre-subtree
+      // write (forwardBeatTapsApply, both cook legs); this op forwards the cooked items. TriggerBeatTap /
+      // TriggerResync are bool levels dissolved to Float (>0.5). SlideSyncTimeOffset NaN → keep the prior
+      // value. Command SubTree in → Command out.
+      {"ForwardBeatTaps", "ForwardBeatTaps",
+       {{"SubTree", "SubTree", "Command", true},
+        {"out", "out", "Command", false},
+        {"TriggerBeatTap", "TriggerBeatTap", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"TriggerResync", "TriggerResync", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"SlideSyncTimeOffset", "SlideSyncTimeOffset", "Float", true, 0.0f, -1000.0f, 1000.0f}},
+       nullptr,
+       "numbers.anim.vj"},
       // Execute (TiXL Lib.flow.Execute): the S2a KEYSTONE — a MULTIINPUT Command port that concatenates
       // N wired Command chains in wire-declaration order into ONE chain (Execute.cs CollectedInputs). The
       // cook-core collector (cookCommand's MultiInput Command branch) does the gather+concat; this op just

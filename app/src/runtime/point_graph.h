@@ -120,11 +120,10 @@ RenderResolution resolveRenderResolution(const std::map<std::string, float>& par
                                          RenderResolution windowSize);
 RenderResolution resolveRenderResolution(const Node* n, RenderResolution windowSize);
 
-// S1 EXPLICIT-OVERRIDE resolve (SetRequestedResolution): the resolution this op PUSHES around its Command
-// subtree = (Width>0?Width:current.w)*Multiply × likewise H, clamped [1,16384] (Set...cs:18-28; W/H==0 =
-// scale the ambient size). The cook driver calls it to push BEFORE cooking the subtree.
-RenderResolution resolveSetRequestedResolution(const std::map<std::string, float>& params,
-                                               RenderResolution current);
+// EXPLICIT-OVERRIDE resolves the cook driver PUSHES around a Command subtree (full doc in the leaf .cpp).
+// S1 SetRequestedResolution: (Width>0?Width:cur)*Multiply. Cmd sibling: +per-axis Stretch. clamp[1,16384].
+RenderResolution resolveSetRequestedResolution(const std::map<std::string, float>& params, RenderResolution current);
+RenderResolution resolveSetRequestedResolutionCmd(const std::map<std::string, float>& params, RenderResolution current);
 
 // --- resolved-param accessors (slice 2b seam; defined in point_graph_params.cpp) ---
 // Read a Float param from the ctx's RESOLVED map; falls back to `def` when the driver supplied
