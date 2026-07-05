@@ -6,7 +6,14 @@
 > (Adsr/TriggerAnim/SequenceAnim/DateTimeInSecs)+pointio-misc 3(SdfToVector/DataPointImportExport/
 > DataPointConverter)+**list-currency 縫蓋好**(flat+resident 對稱)解鎖 IntListToBuffer/BuildGradient。
 >
-> **可採原子已採盡。剩 ~27 顆 BLOCKED 全卡真縫**(每條都是工人對 code 驗證後的立停,非猜測),聚類:
+> **⚠ 進度數字修正(2026-07-05 code-derive,推翻本戰報初版「~27」)**:原子 451 顆 = **done 355 /
+> todo 96**(op_census --tsv × 原子分類)。「~27」是只數自派批的憑印象低估。96 的真實結構:
+> **device-io 53**(柏為硬體域,MIDI/OSC/DMX/Artnet,本來排後)+ **真縫 BLOCKED ~37**(下方聚類)+
+> **假 todo 數顆**(census done 判定漏 `StatefulOpReg` 靜態註冊格式 → Once/GetStringVar/SetStringVar
+> 明明做了卻列 todo,實證見 memory [[census-done-undercounts-statefulopreg]])。**扣掉 device-io+假 todo,
+> 真正待蓋的原子縫 ~37,全非工人活。**
+>
+> **可工人並行採的原子已採盡。剩 BLOCKED 全卡真縫**(每條都是工人對 code 驗證後的立停,非猜測),聚類:
 > ①**Command-rail executor**(卡 SetTime/ForwardBeatTaps/ExecuteRawBufferUpdate/SetRequestedResolutionCmd)
 > ②**currency 縫群**:dict-currency 4(producer 全在 device-io=柏為域)/StructuredList/untyped-object 2/
 > colorlist→floatlist/Texture2DArray ③**host state**:ForegroundColor、transform-scope-into-frame(GetPosition)
