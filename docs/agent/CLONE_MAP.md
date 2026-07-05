@@ -14,11 +14,12 @@
 > 真正待蓋的原子縫 ~37,全非工人活。**
 >
 > **可工人並行採的原子已採盡。剩 BLOCKED 全卡真縫**(每條都是工人對 code 驗證後的立停,非猜測),聚類:
-> ①**Command-rail executor**(卡 SetTime/ForwardBeatTaps/ExecuteRawBufferUpdate/SetRequestedResolutionCmd)
+ ①**Command-rail executor**(卡 SetTime/ForwardBeatTaps/ExecuteRawBufferUpdate/SetRequestedResolutionCmd)
 > ②**currency 縫群**:dict-currency 4(producer 全在 device-io=柏為域)/StructuredList/untyped-object 2/
-> colorlist→floatlist/Texture2DArray ③**host state**:ForegroundColor、transform-scope-into-frame(GetPosition)
-> ④**cook-core 結構**:outCache>3 加寬(AnalyzeFloatList)/Vec3-from-list/point-buffer feedback pair/
-> force-rail MultiInput ⑤audio→FloatList pass(PlaybackFFT)⑥資產/外部:SVG line-font(LineTextPoints+
+> ~~colorlist→floatlist~~【✅ 2026-07-05 蓋:ColorListToInts,FloatList cook 加 ColorList-input gather】/Texture2DArray
+> ③**host state**:ForegroundColor、transform-scope-into-frame(GetPosition)
+> ④**cook-core 結構**【✅ 2026-07-05 全蓋 branch seam/cookcore-batch】:~~outCache>3 加寬(AnalyzeFloatList,→8=extOut對齊,多輸出 host-scalar scalarOutputs)~~ / ~~Vec3-from-list(ComposeVec3FromList,FloatList→Vec3 host-emit+跨幀 spring-damp,cookComposeVec3Nodes)~~ / ~~point-buffer feedback pair(KeepPreviousPointBuffer,SwBuffer rail ensureBufferFeedbackPair 鏡射 texture 版+雙輸出 ordinal gather,flat+resident)~~ /
+> force-rail MultiInput(仍 BLOCKED) ⑤audio→FloatList pass(PlaybackFFT)⑥資產/外部:SVG line-font(LineTextPoints+
 > LoadSvg 族)/AbletonLink DLL/跨op Animator 反射(Find/SetKeyframes)⑦第一波遺留:GPU timestamp/
 > executor viewport/TimeClip timeline 模型。
 > **下一步的正確形**:縫是判斷活(刀刃),Command-rail executor 解鎖最多;縫蓋完原子尾巴自動解鎖。

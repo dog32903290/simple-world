@@ -143,6 +143,7 @@ void PointGraph::Impl::cookFlatHostScalar(
   }
 
   float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+  std::map<int, float> scalarOut;  // MULTI-OUTPUT sink (AnalyzeFloatList Min/Max/AverageMean/AllValid)
   HostScalarCookCtx hc;
   hc.dev = dev; hc.lib = lib; hc.queue = queue;
   hc.ctx = &ctx; hc.nodeId = id;
@@ -152,6 +153,7 @@ void PointGraph::Impl::cookFlatHostScalar(
   hc.params = nodeParams(id);
   hc.strParams = n ? &n->strParams : nullptr;  // the Select* "Select" key rides here (String param)
   hc.output = &cx; hc.outY = &cy; hc.outZ = &cz;
+  hc.scalarOutputs = &scalarOut;
   (*fn)(hc);
 
   // Transport (legacy floatListBuf 1-elem, component 0) + BRIDGE (Node::outCache[0..components-1],
@@ -165,6 +167,12 @@ void PointGraph::Impl::cookFlatHostScalar(
     mn->outCache[0] = cx;
     if (hc.components >= 2) mn->outCache[1] = cy;
     if (hc.components >= 3) mn->outCache[2] = cz;
+    // MULTI-OUTPUT distribution (mirror of point_graph_string_cook.cpp): each extra output port k → outCache[k]
+    // (the channel evalFloat reads). Bound-guarded by the outCache array size (now 8). A single-output op
+    // leaves scalarOut empty → this loop is a no-op → byte-identical to the prior [0]-only write.
+    const int kOutCacheN = (int)(sizeof(mn->outCache) / sizeof(mn->outCache[0]));
+    for (const auto& kv : scalarOut)
+      if (kv.first >= 0 && kv.first < kOutCacheN) mn->outCache[kv.first] = kv.second;
   }
 }
 

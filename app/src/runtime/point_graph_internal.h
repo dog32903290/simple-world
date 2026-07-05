@@ -193,6 +193,21 @@ struct PointGraph::Impl {
   static constexpr int kMaxFeedbackOut = 4;
   std::map<std::string, std::array<MTL::Texture*, kMaxFeedbackOut>> feedbackOut;
 
+  // Per-node CROSS-FRAME BUFFER PAIR (the Points/Buffer-rail feedback = TiXL KeepPreviousPointBuffer, the
+  // structured-buffer twin of KeepPreviousFrame above). Mirror of FeedbackPair over MTL::Buffer: two GPU
+  // buffers (bufA+bufB) PERSIST across frames + a toggle; the op copies the input into the toggle-selected
+  // buffer and exposes BufferA/BufferB. Realloc-keyed on byteSize (KeepPreviousPointBuffer.cs:45 compares
+  // SizeInBytes+StructureByteStride). Released on realloc + in ~PointGraph → NO leak/UAF. Keyed flat id.
+  struct BufferFeedbackPair { MTL::Buffer* a = nullptr; MTL::Buffer* b = nullptr; };
+  std::map<std::string, BufferFeedbackPair> feedbackBufBuf;  // key -> {bufA, bufB}
+  std::map<std::string, uint32_t> feedbackBufSize;           // realloc key (byte size)
+  std::map<std::string, uint32_t> feedbackBufStride;         // realloc key (element stride)
+  std::map<std::string, bool> feedbackBufToggle;             // key -> _toggle (flips each cook)
+  // Dual SwBuffer OUTPUTS a feedback-buffer node routed last cook, indexed by Buffer-output ordinal
+  // (0 = BufferA, 1 = BufferB). The SwBuffer views (bytes ptr into the pair + stride/count). Both are the
+  // readback channel a downstream Buffer input reads by source output ordinal (mirror of feedbackOut).
+  std::map<std::string, std::array<SwBuffer, kMaxFeedbackOut>> feedbackBufOut;
+
   MTL::Buffer* ensureOut(const std::string& key, uint32_t count) {
     MTL::Buffer*& b = outBuf[key];
     if (!b || outCap[key] < count) {
@@ -342,6 +357,31 @@ struct PointGraph::Impl {
     return fp.a && fp.b;
   }
 
+  // CROSS-FRAME BUFFER PAIR for a feedback-buffer op (KeepPreviousPointBuffer). The MTL::Buffer twin of
+  // ensureFeedbackPair: sizes BOTH buffers (bufA + bufB) to byteSize, reallocating BOTH only on a
+  // size/stride change (RESOURCE_LIFETIME on a PAIR; KeepPreviousPointBuffer.cs:40-46 recreates both when
+  // SizeInBytes or StructureByteStride differs). StorageModeShared (a getBytes golden reads it; the blit
+  // copyFromBuffer writes it). Parked in feedbackBufBuf → released here on realloc AND in ~PointGraph (NO
+  // leak, NO UAF). Returns false if either alloc failed / byteSize is 0.
+  bool ensureBufferFeedbackPair(const std::string& key, uint32_t byteSize, uint32_t stride,
+                                MTL::Buffer*& outA, MTL::Buffer*& outB) {
+    if (byteSize == 0) return false;
+    BufferFeedbackPair& fp = feedbackBufBuf[key];
+    const bool changed = !fp.a || !fp.b || feedbackBufSize[key] != byteSize ||
+                         feedbackBufStride[key] != stride;
+    if (changed) {
+      if (fp.a) { fp.a->release(); fp.a = nullptr; }
+      if (fp.b) { fp.b->release(); fp.b = nullptr; }
+      fp.a = dev->newBuffer(byteSize, MTL::ResourceStorageModeShared);
+      fp.b = dev->newBuffer(byteSize, MTL::ResourceStorageModeShared);
+      feedbackBufSize[key] = byteSize;
+      feedbackBufStride[key] = stride;
+    }
+    outA = fp.a;
+    outB = fp.b;
+    return fp.a && fp.b;
+  }
+
   // Per-node stateful-op memory. Re-created (free + new) when `count` GROWS past what the state was sized
   // for — stateNew sizes internal buffers (e.g. the sim's particle buffer) to the creation-time count, so
   // dispatching a larger count over stale state is a GPU out-of-bounds write (refuter 2b finding 1; mirror
@@ -392,8 +432,12 @@ struct PointGraph::Impl {
                         const MTL::Buffer*& vtx, uint32_t& vtxCount, const MTL::Buffer*& idx, uint32_t& faceCount);
   // The FLAT HOST-VALUE cooks (FloatList/ColorList/Gradient/PointList), point_graph_hostvalue_cook.cpp (Cut-4;
   // full doc in leaf). FloatList + ColorList cross a per-frame memo (by-ref) so a stateful op cooks once/frame.
+  // cookColorListNode rides in by-ref = the COLORLIST→FLOATLIST BRIDGE (ColorListToInts.ColorLists = a
+  // ColorList MultiInput dissolved to the FloatList/IntList rail): a wired ColorList producer's host list
+  // is gathered off the ColorList rail into inputColorLists. null for every op with no ColorList input port.
   const std::vector<float>* cookFlatFloatList(const Graph& g, const EvaluationContext& ctx,
                                               const NodeParamsFn& nodeParams,
+                                              const std::function<const std::vector<simd::float4>*(int)>& cookColorListNode,
                                               std::map<int, const std::vector<float>*>& floatListCooked, int id);
   const std::vector<simd::float4>* cookFlatColorList(
       const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,

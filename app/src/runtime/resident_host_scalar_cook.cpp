@@ -49,6 +49,7 @@
 #include "runtime/floatlist_op_registry.h"    // FloatListCookFn / FloatListCookCtx / findFloatListOp
 #include "runtime/graph.h"                     // NodeSpec / PortSpec / findSpec
 #include "runtime/host_scalar_op_registry.h"  // HostScalarCookFn / HostScalarCookCtx / findHostScalarOp
+#include "runtime/resident_value_cooks.h"     // cookResidentFloatList (extracted to resident_floatlist_cook.cpp)
 #include "runtime/string_op_registry.h"       // stringInjectBug (StringLength resident leg, the teeth)
 
 namespace sw {
@@ -261,6 +262,7 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
     gpuCtx.frameIndex = ctx.frameIndex;
     gpuCtx.time = ctx.localFxTime;  // wall clock (host-scalar ops are time-independent today; symmetry)
     gpuCtx.deltaTime = 0.0f;
+    std::map<int, float> scalarOut;  // MULTI-OUTPUT sink (AnalyzeFloatList Min/Max/AverageMean/AllValid)
     HostScalarCookCtx hc;
     hc.dev = nullptr; hc.lib = nullptr; hc.queue = nullptr;
     hc.ctx = &gpuCtx;
@@ -271,14 +273,20 @@ void cookHostScalarNodes(ResidentEvalGraph& g, const ResidentEvalCtx& ctx) {
     hc.params = &params;
     hc.strParams = &rn.strInputs;  // the Select* "Select" key (constant String param, survives flatten)
     hc.output = &cx; hc.outY = &cy; hc.outZ = &cz;
+    hc.scalarOutputs = &scalarOut;
     (*fn)(hc);  // computes the component(s); hostScalarInjectBug() (golden teeth) corrupts them IN the cook
 
     // Write the component(s) onto the resident node's Float output ports (host-scalar layout: output
     // port(s) FIRST — FloatListLength.Length / SelectVec2FromDict.Result.x/.y). A scalar op sets
     // components=1 → extOut[0] only (byte-identical to before); a Vector2/Vector3 op → extOut[0..2].
+    // A MULTI-OUTPUT op (AnalyzeFloatList) ALSO fills scalarOutputs[k] for its extra ports → distributed
+    // onto extOut[k] (the channel evalResidentFloat reads), bound-guarded by the extOut size.
     rn.extOut[0] = cx;
     if (hc.components >= 2) rn.extOut[1] = cy;
     if (hc.components >= 3) rn.extOut[2] = cz;
+    const int kExtN = (int)(sizeof(rn.extOut) / sizeof(rn.extOut[0]));
+    for (const auto& kv : scalarOut)
+      if (kv.first >= 0 && kv.first < kExtN) rn.extOut[kv.first] = kv.second;
   }
 }
 

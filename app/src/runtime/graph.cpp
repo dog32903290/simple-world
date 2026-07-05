@@ -186,7 +186,10 @@ float evalFloat(const Graph& g, int outPin, const EvaluationContext& ctx, int de
   if (s->evaluate == nullptr && !n->type.empty() &&
       (n->type == "AudioReaction" || isHostScalarOp(n->type))) {
     const int oi = (outPin - 1) - nodeId * 100;
-    return (oi >= 0 && oi < 3) ? n->outCache[oi] : 0.0f;
+    // outCache widened 3→8 (multi-output host-scalar: AnalyzeFloatList Min/Max/AverageMean/AllValid).
+    // Size-agnostic bound so the guard tracks the array (graph.h) with no second constant to drift.
+    const int kOutCacheN = (int)(sizeof(n->outCache) / sizeof(n->outCache[0]));
+    return (oi >= 0 && oi < kOutCacheN) ? n->outCache[oi] : 0.0f;
   }
   // S3b value↔command LIVE-READ (flat mirror of evalResidentFloat — production runs RESIDENT, but the flat leg
   // is the golden's other tooth + must never diverge, S2c blood lesson): a value-rail Get*Var cooked under a

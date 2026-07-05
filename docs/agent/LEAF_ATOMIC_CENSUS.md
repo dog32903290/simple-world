@@ -61,13 +61,13 @@ point-leaf 的 `Draw*`(DrawTubes/Ribbons/PointsShaded…)、render-leaf 的 Text
   SetRequestedResolutionCmd, SetStringVar
 - **keyframe-anim 9**(curve_animator.cpp+anim_math.h 已建):AbletonLinkSync, AdsrEnvelope, DateTimeInSecs,
   FindKeyframes, ForwardBeatTaps, SequenceAnim, SetKeyframes, SetTime, TriggerAnim(SetSpeedFactors=複合,踢)
-- **list-state 4**(resident state-slot 已建):AnalyzeFloatList, ColorListToInts, ComposeVec3FromList, PlaybackFFT
+- **list-state 4**(resident state-slot 已建):~~AnalyzeFloatList~~✅, ~~ColorListToInts~~✅, ~~ComposeVec3FromList~~✅【2026-07-05 全蓋,branch seam/cookcore-batch;各自 golden+bite】, PlaybackFFT(audio pass 仍待)
 - **dict-ctx 5**(純選擇邏輯,domain-blocked 標籤是誤歸):GetListItemAttribute, SelectBoolFromFloatDict,
   SelectFloatFromDict, SelectVec2FromDict, SelectVec3FromDict
 - **零星**:KeepInTextureArray / SdfToVector(field-raymarch 唯一原子)/ SwitchParticleForce / TextSprites
   (text-font 原子,glyph 資料可用才做)/ RequestUrl(HTTP 依賴,邊界)
 - **point-io 4 純 IO**(CPU-readback rail 已建):DataPointConverter, DataPointImportExport,
-  KeepPreviousPointBuffer, LineTextPoints(LoadSvg×2 卡 SVG 庫)
+  ~~KeepPreviousPointBuffer~~✅【2026-07-05 蓋:SwBuffer rail feedback pair,鏡射 texture KeepPreviousFrame,flat+resident golden】, LineTextPoints(LoadSvg×2 卡 SVG 庫)
 
 ### 真縫排序(第二波後的骨頭,複合為主體)
 compute-dispatch(6 複合,HLSL→MSL)→ feedback-advanced(3 真新機制)→ point-sim(7,吃前兩者)→

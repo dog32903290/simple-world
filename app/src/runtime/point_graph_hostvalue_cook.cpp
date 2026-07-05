@@ -73,6 +73,7 @@ using pgdetail::flatKey;
 // Returns the cooked host list (nullptr if not a floatlist op / unknown node).
 const std::vector<float>* PointGraph::Impl::cookFlatFloatList(
     const Graph& g, const EvaluationContext& ctx, const NodeParamsFn& nodeParams,
+    const std::function<const std::vector<simd::float4>*(int)>& cookColorListNode,
     std::map<int, const std::vector<float>*>& floatListCooked, int id) {
   const Node* n = g.node(id);
   if (!n) return nullptr;
@@ -91,6 +92,7 @@ const std::vector<float>* PointGraph::Impl::cookFlatFloatList(
   // aggregated list of scalar Float sources (a scalar Float MultiInput port). MultiInput ports admit
   // MULTIPLE connections to the SAME pin → collect them in g.connections (wire-declaration) order.
   std::vector<std::vector<float>> inputLists;
+  std::vector<std::vector<simd::float4>> inputColorLists;  // COLORLIST→FLOATLIST BRIDGE (ColorListToInts)
   for (size_t i = 0; i < s->ports.size(); ++i) {
     const PortSpec& port = s->ports[i];
     if (!port.isInput) continue;
@@ -101,8 +103,20 @@ const std::vector<float>* PointGraph::Impl::cookFlatFloatList(
       for (const Connection& c : g.connections) {
         if (c.toPin != inPin) continue;
         const std::vector<float>* up =
-            cookFlatFloatList(g, ctx, nodeParams, floatListCooked, pinNode(c.fromPin));
+            cookFlatFloatList(g, ctx, nodeParams, cookColorListNode, floatListCooked, pinNode(c.fromPin));
         inputLists.push_back(up ? *up : std::vector<float>{});
+        if (!port.multiInput) break;  // single-input: first wire only
+      }
+    } else if (port.dataType == "ColorList") {
+      // COLORLIST→FLOATLIST BRIDGE (list-currency seam): a wired ColorList producer (ColorsToList,
+      // ReadPointColors, …) rides off the ColorList rail into a FloatList-producing consumer
+      // (ColorListToInts.ColorLists = MultiInput<List<Vector4>>). MultiInput → one gathered list per wire
+      // in wire-declaration order; single-input → at most one. Empty (no entry) for an unwired port
+      // (faithful to GetCollectedTypedInputs: connected inputs only → ColorListToInts.cs:23,26).
+      for (const Connection& c : g.connections) {
+        if (c.toPin != inPin) continue;
+        const std::vector<simd::float4>* up = cookColorListNode ? cookColorListNode(pinNode(c.fromPin)) : nullptr;
+        inputColorLists.push_back(up ? *up : std::vector<simd::float4>{});
         if (!port.multiInput) break;  // single-input: first wire only
       }
     } else if (port.dataType == "Float" && port.multiInput) {
@@ -122,6 +136,7 @@ const std::vector<float>* PointGraph::Impl::cookFlatFloatList(
   fc.dev = dev; fc.lib = lib; fc.queue = queue;
   fc.ctx = &ctx; fc.nodeId = id;
   fc.inputLists = &inputLists;
+  fc.inputColorLists = &inputColorLists;  // COLORLIST→FLOATLIST BRIDGE; empty for every non-ColorListToInts op
   fc.output = &out;
   fc.params = nodeParams(id);
   // Per-node CROSS-FRAME state slot (AmplifyValues's _averagedValues/_lastValues/_output): the SAME

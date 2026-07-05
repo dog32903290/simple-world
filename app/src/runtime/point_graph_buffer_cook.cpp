@@ -96,7 +96,19 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
     } else if (port.dataType == "Buffer") {
       for (const Connection& c : g.connections) {
         if (c.toPin != inPin) continue;
-        const SwBuffer* up = cookBufferNode(pinNode(c.fromPin));
+        const int srcNode = pinNode(c.fromPin);
+        const SwBuffer* up = cookBufferNode(srcNode);  // cooks the source (fills feedbackBufOut for a fb op)
+        // DUAL-OUTPUT readback (KeepPreviousPointBuffer BufferA/BufferB): if the source is a feedback-buffer
+        // node, pick the SwBuffer by the source's OUTPUT ordinal ((fromPin-1)%100) — 0=BufferA, 1=BufferB.
+        // A non-feedback source has no feedbackBufOut entry → `up` (bufferMeta = the single output) stands.
+        const Node* sn = g.node(srcNode);
+        if (sn && bufferOpIsFeedback(sn->type)) {
+          auto it = feedbackBufOut.find(flatKey(srcNode));
+          if (it != feedbackBufOut.end()) {
+            const int ord = (c.fromPin - 1) % 100;  // source output-port ordinal (0=A, 1=B)
+            if (ord >= 0 && ord < Impl::kMaxFeedbackOut) up = &it->second[ord];
+          }
+        }
         if (up) { inputBuffers.push_back(up); inputBufferPorts.push_back(port.id); }
         if (!port.multiInput) break;  // single-input: first wire only
       }
@@ -171,7 +183,35 @@ const SwBuffer* PointGraph::Impl::cookFlatBuffer(
     out.bytes = b;
     return b ? b->contents() : nullptr;
   };
+
+  // CROSS-FRAME BUFFER FEEDBACK (KeepPreviousPointBuffer): size the persistent pair to the INPUT buffer's
+  // byteSize + hand the op the pair + toggle + BufferB slot. Only for a registered feedback-buffer op; a
+  // normal Buffer op leaves these null → the single-output path is byte-identical. The op writes BufferA
+  // into *output and BufferB into *secondOutput; we persist BOTH in feedbackBufOut[key][0/1] so a downstream
+  // reads either by source output ordinal (the gather below).
+  SwBuffer second{};
+  if (bufferOpIsFeedback(n->type)) {
+    const SwBuffer* in = (!inputBuffers.empty()) ? inputBuffers.front() : nullptr;
+    const uint32_t byteSize = (in && in->bytes) ? in->elementStride * in->elementCount : 0u;
+    MTL::Buffer* pa = nullptr;
+    MTL::Buffer* pb = nullptr;
+    if (byteSize && ensureBufferFeedbackPair(key, byteSize, in->elementStride, pa, pb)) {
+      bc.pairA = pa; bc.pairB = pb;
+      bc.toggle = &feedbackBufToggle[key];  // per-node persistent toggle (default-created false)
+      bc.secondOutput = &second;
+    }
+  }
+
   (*fn)(bc);
+
+  // Persist the dual feedback outputs (BufferA = *output, BufferB = second) so a downstream reads either by
+  // source output ordinal. A non-feedback op wrote only *output → we still store it at ordinal 0 (so the
+  // ordinal-aware gather's ordinal-0 read matches the normal bufferMeta read); ordinal 1 stays default.
+  if (bufferOpIsFeedback(n->type)) {
+    auto& outs = feedbackBufOut[key];
+    outs[0] = out;
+    outs[1] = second;
+  }
   return &out;
 }
 

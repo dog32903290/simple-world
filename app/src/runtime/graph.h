@@ -112,7 +112,13 @@ struct Node {
   // Transient (not serialized): outputs for stateful nodes whose value can't come from the
   // pure evaluate() — e.g. AudioReaction, cooked in main from the live spectrum each frame.
   // evalFloat returns outCache[outPortIndex] for such nodes. Index by the node's output port.
-  float outCache[3] = {0.0f, 0.0f, 0.0f};
+  // WIDENED 3→8 (2026-07-05) to MATCH the resident ResidentNode::extOut[8] (resident_eval_graph.h:123):
+  // a MULTI-OUTPUT host-scalar op (AnalyzeFloatList = Min/Max/AverageMean/AllValid, 4 Float outputs;
+  // FilePathParts.FileExists @ port 3) writes several outputs, each read back by evalFloat's !evaluate
+  // escape hatch off outCache[portIdx]. The old [3] capped the flat rail at 3 outputs (the string cook's
+  // scalarOutputs write already guards `portIdx < sizeof(outCache)/...` — so this just lifts the ceiling;
+  // AudioReaction/single-output ops touch only [0] → byte-identical). NOT serialized → no file churn.
+  float outCache[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 };
 struct Connection {
   int id = 0;

@@ -100,6 +100,30 @@ std::array<float, 16> matrixFromColorOut(const ResidentEvalGraph& rg, const std:
   if (rn == 0) noteUnresolvedMatrixSource();
   return mat;
 }
+
+// DUAL-OUTPUT buffer readback (KeepPreviousPointBuffer BufferA/BufferB) — resident twin of the flat gather's
+// feedbackBufOut pick. If `srcPath` is a feedback-buffer node, return its feedbackBufOut[srcPath][ordinal]
+// where ordinal = the source spec's output-port index for `srcSlotId` (BufferA=0, BufferB=1). A non-feedback
+// source (or missing entry) returns `fallback` (the node's single bufferMeta output) unchanged. Keyed by
+// resident PATH. Templated on the feedbackBufOut map type so this free helper needn't name the private
+// PointGraph::Impl (the array arity rides the deduced element type).
+template <class FeedbackBufOutMap>
+const SwBuffer* pickFeedbackBufferBySlot(const ResidentEvalGraph& rg, const FeedbackBufOutMap& feedbackBufOut,
+                                         const std::string& srcPath, const std::string& srcSlotId,
+                                         const SwBuffer* fallback) {
+  const ResidentNode* src = rg.node(srcPath);
+  if (!src || !bufferOpIsFeedback(src->opType)) return fallback;
+  auto it = feedbackBufOut.find(srcPath);
+  if (it == feedbackBufOut.end()) return fallback;
+  const NodeSpec* ss = findSpec(src->opType);
+  int outIdx = -1;
+  if (ss)
+    for (size_t i = 0; i < ss->ports.size(); ++i)
+      if (!ss->ports[i].isInput && ss->ports[i].id == srcSlotId) { outIdx = (int)i; break; }
+  const int cap = (int)it->second.size();  // the std::array arity (= Impl::kMaxFeedbackOut)
+  if (outIdx < 0 || outIdx >= cap) return fallback;
+  return &it->second[outIdx];
+}
 }  // namespace
 
 const SwBuffer* PointGraph::Impl::cookResidentBuffer(
@@ -139,10 +163,12 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
     } else if (port.dataType == "Buffer") {
       if (ri && ri->driver == ResidentInput::Driver::Connection) {
         const SwBuffer* up = cookResidentBuffer(ri->srcNodePath, depth + 1);
+        up = pickFeedbackBufferBySlot(rg, feedbackBufOut, ri->srcNodePath, ri->srcSlotId, up);  // BufferA/B
         if (up) { inputBuffers.push_back(up); inputBufferPorts.push_back(port.id); }
         if (port.multiInput) {
           for (const auto& ec : ri->extraConns) {
             const SwBuffer* ue = cookResidentBuffer(ec.first, depth + 1);
+            ue = pickFeedbackBufferBySlot(rg, feedbackBufOut, ec.first, ec.second, ue);
             if (ue) { inputBuffers.push_back(ue); inputBufferPorts.push_back(port.id); }
           }
         }
@@ -195,7 +221,30 @@ const SwBuffer* PointGraph::Impl::cookResidentBuffer(
     out.bytes = b;
     return b ? b->contents() : nullptr;
   };
+
+  // CROSS-FRAME BUFFER FEEDBACK (KeepPreviousPointBuffer) — the resident MIRROR of the flat leg (the
+  // PRODUCTION path; a resident-only miss = the feedback pair never survives in the running app, the R-2
+  // black hole). Keyed by resident PATH (not flatKey). Size the pair to the INPUT byteSize, thread
+  // pairA/pairB/toggle + secondOutput, persist dual outputs in feedbackBufOut[path][0/1].
+  SwBuffer second{};
+  if (bufferOpIsFeedback(n->opType)) {
+    const SwBuffer* in = (!inputBuffers.empty()) ? inputBuffers.front() : nullptr;
+    const uint32_t byteSize = (in && in->bytes) ? in->elementStride * in->elementCount : 0u;
+    MTL::Buffer* pa = nullptr; MTL::Buffer* pb = nullptr;
+    if (byteSize && ensureBufferFeedbackPair(path, byteSize, in->elementStride, pa, pb)) {
+      bc.pairA = pa; bc.pairB = pb;
+      bc.toggle = &feedbackBufToggle[path];
+      bc.secondOutput = &second;
+    }
+  }
+
   (*fn)(bc);
+
+  if (bufferOpIsFeedback(n->opType)) {
+    auto& outs = feedbackBufOut[path];
+    outs[0] = out;
+    outs[1] = second;
+  }
   return &out;
 }
 

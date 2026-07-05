@@ -112,6 +112,17 @@ const SwBuffer* PointGraph::debugCookedSwBuffer(int nodeId) const {
   return it != p_->bufferMeta.end() ? &it->second : nullptr;
 }
 
+// Buffer-rail FEEDBACK dual-output (KeepPreviousPointBuffer): the SwBuffer this node routed to its
+// `ordinal`-th Buffer OUTPUT last cook (0 = BufferA, 1 = BufferB). Reads feedbackBufOut[flatKey(id)] —
+// the twin of debugCookedFeedbackOutput (texture). Borrowed; nullptr off-range / never cooked. Goldens.
+const SwBuffer* PointGraph::debugCookedFeedbackBuffer(int nodeId, int ordinal, bool resident) const {
+  if (ordinal < 0 || ordinal >= Impl::kMaxFeedbackOut) return nullptr;
+  // Key space: flat "#id" (test cook) vs resident path "id" (production cook, cookResidentBuffer's key).
+  const std::string key = resident ? std::to_string(nodeId) : flatKey(nodeId);
+  auto it = p_->feedbackBufOut.find(key);
+  return it != p_->feedbackBufOut.end() ? &it->second[ordinal] : nullptr;
+}
+
 // Seam-1 RESIDENT face (WO-E): the SwBuffer a RESIDENT Buffer node cooked LAST, keyed by its resident PATH
 // (cookResidentBuffer's bufferMeta[path] key — NO flatKey prefix). Mirror of residentGradientFor (8th flow)
 // / residentCookedPoints (point face). Borrowed; nullptr when the path never cooked a Buffer node.
