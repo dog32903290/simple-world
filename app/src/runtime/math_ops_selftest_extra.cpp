@@ -279,6 +279,27 @@ int runMathOpsExtraSelfTest(bool injectBug) {
     printf("[selftest-mathops] RemapVec2 normal=%.1f(want %.1f) clamped=%.1f mod=%.1f -> %s\n", nrm, wN, clp, mod, pass ? "PASS" : "FAIL");
   }
 
+  // [pbr-atoms] IntToWrapmode — int ModeIndex → TextureAddressMode ordinal, Clamp'd to [Wrap=0,
+  // MirrorOnce=4]. TiXL render/shading/IntToWrapmode.cs:18-21 (Clamp = Min(Max(idx,0),4); the enum
+  // ordinal rides the Float value-spine). Expected values derived from the .cs clamp, impl-independent.
+  // Probes are OFF the identity: a mid passthrough (2→Clamp, tests the non-clamped pass) + BOTH clamp
+  // boundaries below (-1→0) and above (7→4). Corrupt the op body (drop the upper clamp / swap the enum
+  // table / off-by-one the bound) and at least one of these flips → the tooth is real.
+  {
+    float below = evalOpParams("IntToWrapmode", {{"ModeIndex", -1.0f}}, "Selected");   // .Clamp → 0 (Wrap)
+    float mid   = evalOpParams("IntToWrapmode", {{"ModeIndex", 2.0f}}, "Selected");    // passthrough → 2 (Clamp mode)
+    float above = evalOpParams("IntToWrapmode", {{"ModeIndex", 7.0f}}, "Selected");    // .Clamp → 4 (MirrorOnce)
+    // ★-bug leg (want-flip; documented technical reason: a pure closed-form evalFloat op has NO stateful
+    // cook seam / shared flag to corrupt — GOLDEN_STANDARD:36-38 allows the flip when no seam exists).
+    // The flip asserts the UN-clamped upper value (7): if the upper Clamp were dropped, above→7 not 4.
+    float wAbove = injectBug ? 7.0f : 4.0f;
+    bool pass = std::fabs(below - 0.0f) < eps && std::fabs(mid - 2.0f) < eps &&
+                std::fabs(above - wAbove) < eps;
+    ok = ok && pass;
+    printf("[selftest-mathops] IntToWrapmode(-1)=%.0f(want 0) (2)=%.0f(want 2) (7)=%.0f(want %.0f) -> %s\n",
+           below, mid, above, wAbove, pass ? "PASS" : "FAIL");
+  }
+
   return ok ? 0 : 1;
 }
 
