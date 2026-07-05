@@ -61,6 +61,7 @@ WsFrame wsDecodeFrame(const uint8_t* data, size_t len);
 // Minimal SHA-1 (RFC3174) and base64 — exposed for the selftest to assert against known vectors.
 // wsBase64 is standard base64 with '+' '/' and '=' padding (RFC4648).
 std::string wsSha1Hex(const std::string& in);          // 40-char lowercase hex digest
+std::vector<uint8_t> wsSha1Raw(const std::string& in); // the raw 20-byte digest (base64-of-digest use)
 std::string wsBase64(const std::vector<uint8_t>& in);  // standard base64
 
 }  // namespace sw
