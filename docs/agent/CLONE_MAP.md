@@ -1,10 +1,21 @@
 # CLONE_MAP — TiXL 克隆真實地圖(2026-07-04 census 修準 + 三縫對 code 驗證)
 
-> **戰報 2026-07-05 凌晨(第一波原子清剿)**:40 顆 leaf 原子白名單 → **35 DONE 併入 main
-> (f09ef04,7 lane worktree 並行,合併態 sweep 606/0/0 綠)+ 5 BLOCKED 真縫**:
-> IntListToBuffer/BuildGradient(list-currency 橋)、GpuMeasure(GPU timestamp 地基選型)、
-> SliceViewPort(executor viewport 契約)、TimeClip(timeline TimeRange 資料模型)。
-> 第二波(~30 顆縫已 live 原子,見 LEAF_ATOMIC_CENSUS 第二波段)接續發。
+> **戰報 2026-07-05(兩波原子清剿結案,柏為令「完成所有原子節點」)**:
+> **46 顆節點 + 1 條縫進 main(63113d5),sweep 616/0/0,零假綠。**
+> 第一波 40 顆白名單→35 DONE;第二波→flow-var 2(Matrix var pair)+keyframe-anim 4
+> (Adsr/TriggerAnim/SequenceAnim/DateTimeInSecs)+pointio-misc 3(SdfToVector/DataPointImportExport/
+> DataPointConverter)+**list-currency 縫蓋好**(flat+resident 對稱)解鎖 IntListToBuffer/BuildGradient。
+>
+> **可採原子已採盡。剩 ~27 顆 BLOCKED 全卡真縫**(每條都是工人對 code 驗證後的立停,非猜測),聚類:
+> ①**Command-rail executor**(卡 SetTime/ForwardBeatTaps/ExecuteRawBufferUpdate/SetRequestedResolutionCmd)
+> ②**currency 縫群**:dict-currency 4(producer 全在 device-io=柏為域)/StructuredList/untyped-object 2/
+> colorlist→floatlist/Texture2DArray ③**host state**:ForegroundColor、transform-scope-into-frame(GetPosition)
+> ④**cook-core 結構**:outCache>3 加寬(AnalyzeFloatList)/Vec3-from-list/point-buffer feedback pair/
+> force-rail MultiInput ⑤audio→FloatList pass(PlaybackFFT)⑥資產/外部:SVG line-font(LineTextPoints+
+> LoadSvg 族)/AbletonLink DLL/跨op Animator 反射(Find/SetKeyframes)⑦第一波遺留:GPU timestamp/
+> executor viewport/TimeClip timeline 模型。
+> **下一步的正確形**:縫是判斷活(刀刃),Command-rail executor 解鎖最多;縫蓋完原子尾巴自動解鎖。
+> 之後主力=複合重放軌(見上方「複合重放軌」段,~300 顆的產能引擎)。
 
 **出身**:2026-07-04 修準 op_census(原只涵蓋 image+field 兩島=漏島幻覺;根因=external/tixl
 sparse checkout 只 materialize 兩島源夾,已補全 12 島 @ SHA 395c4c55)+ 三條「沒蓋的縫」對 code
