@@ -59,5 +59,6 @@ REGISTER_SELFTESTS(/*orderBase=*/250,
     {"triggeranim", framecook::runTriggerAnimSelfTest},      // keyframe-anim: TriggerAnim one-shot sweep + shape (REAL cook) — appended at 250-block tail
     {"sequenceanim", framecook::runSequenceAnimSelfTest},    // keyframe-anim: SequenceAnim step-sequencer playback (REAL cook) — appended at 250-block tail
     {"datetimeinsecs", framecook::runDateTimeInSecsSelfTest},// keyframe-anim: DateTimeInSecs Freeze latch (deterministic clock, REAL cook) — appended at 250-block tail
+    {"tonesynth", runToneSynthSelfTest},                     // io/audio: AudioToneGenerator synthesis core — closed-form waveform parity (Sine/Square/Saw/Triangle); appended at 250-block tail
 );
 }  // namespace sw
