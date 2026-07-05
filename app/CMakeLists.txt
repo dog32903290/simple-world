@@ -814,6 +814,7 @@ add_executable(simple_world
   src/runtime/io_device_bus.cpp  # L5 IO lane: per-frame MIDI/OSC device-value seam (app writes, runtime reads)
   src/runtime/io_node_cook.cpp   # L5 IO lane: MidiInput/OscInput/MidiControlOutput node cook + cookIoDeviceNodes orchestrator
   src/runtime/io_output_cook.cpp # L5 IO lane: the remaining MIDI/OSC *Output sender cooks (split from io_node_cook, rule 4)
+  src/runtime/net_node_cook.cpp  # L5 IO lane: socket/DMX device-node cook (TcpClient/UDP/Serial/Artnet/Sacn/DMX) + net bus
   src/runtime/dispatch.cpp
   src/runtime/audio_ingest.cpp
   src/runtime/audio_ingest_replay.cpp

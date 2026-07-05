@@ -9,6 +9,7 @@
 #include <map>
 
 #include "runtime/io_device_bus.h"        // IoDeviceBus / MidiBusSignal / OscBusArg (the device seam)
+#include "runtime/net_node_cook.h"         // cookNetDeviceNodes (socket/DMX sibling seam, same cook slot)
 #include "runtime/resident_eval_graph.h"   // ResidentEvalGraph / ResidentNode / resolveResidentFloatInputs
 
 namespace sw {
@@ -233,6 +234,9 @@ void cookIoDeviceNodes(ResidentEvalGraph& g) {
   cookMidiSysexOutputNodes(g, s_sysexOutState);
   cookOscOutputNodes(g, s_oscOutState);
   endIoDeviceFrame();
+  // Socket/DMX device nodes ride the SAME device-cook slot (sibling seam owns its own state + net-bus
+  // clear). Kept here (not a second frame_cook line) so frame_cook stays under its line-count cap.
+  cookNetDeviceNodes(g);
 }
 
 }  // namespace sw
