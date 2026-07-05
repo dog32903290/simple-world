@@ -59,6 +59,26 @@ struct MidiOutputState {
 // keyed by resident path. (The frozen output-node pattern the *Output siblings follow.)
 void cookMidiControlOutputNodes(ResidentEvalGraph& g, std::map<std::string, MidiOutputState>& state);
 
+// Wall-clock the duration/tempo output modes need (TiXL Playback.RunTimeInSecs / Playback.Bpm). Most
+// output cooks ignore it (edge-triggered); only Note_FixedDuration + TempoEvent read it. frame_cook
+// fills it from the transport; the golden passes an explicit clock to drive the duration modes.
+struct IoOutClock {
+  double runTimeSecs = 0.0;   // TiXL Playback.RunTimeInSecs (process-lifetime wall accumulator)
+  double bpm = 120.0;         // TiXL Playback.Current.Bpm (TempoEvent)
+};
+
+// The 5 remaining MIDI/OSC output cooks (io_output_cook.cpp), same shape as cookMidiControlOutput:
+// resolve inputs, edge/continuous send condition, build the TiXL short message, emit to the out bus,
+// echo a golden probe onto extOut[0]. Per-node state keyed by resident path.
+struct MidiNoteOutputState { bool triggered = false; double lastNoteOnMs = -1.0; int offStatus = 0, offNote = 0; bool haveOff = false; };
+struct MidiTriggerOutputState { bool pc = false, start = false, stop = false, cont = false, tempo = false; };
+void cookMidiOutputNodes(ResidentEvalGraph& g, std::map<std::string, MidiNoteOutputState>& state, const IoOutClock& clk);
+void cookMidiNoteOutputNodes(ResidentEvalGraph& g, std::map<std::string, MidiNoteOutputState>& state, const IoOutClock& clk);
+void cookMidiPitchbendOutputNodes(ResidentEvalGraph& g, std::map<std::string, MidiOutputState>& state);
+void cookMidiTriggerOutputNodes(ResidentEvalGraph& g, std::map<std::string, MidiTriggerOutputState>& state, const IoOutClock& clk);
+void cookMidiSysexOutputNodes(ResidentEvalGraph& g, std::map<std::string, MidiOutputState>& state);
+void cookOscOutputNodes(ResidentEvalGraph& g, std::map<std::string, MidiOutputState>& state);
+
 // The single frame_cook entry point: cook every io device node (MidiInput + OscInput) and CLEAR the
 // device bus afterward (so next frame starts empty). Owns the per-instance state maps (function-local
 // statics keyed by resident path) so frame_cook stays a one-liner. The golden drives the per-family

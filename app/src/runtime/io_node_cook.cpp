@@ -211,12 +211,27 @@ void cookMidiControlOutputNodes(ResidentEvalGraph& g, std::map<std::string, Midi
 // clear (the send side-effect leg — the physical device). Today nothing forwards them (no device), so
 // the clear here is harmless; the golden drives the cooks directly and reads midiOut before its own clear.
 void cookIoDeviceNodes(ResidentEvalGraph& g) {
-  static std::map<std::string, MidiInputState>  s_midiInState;
-  static std::map<std::string, OscInputState>   s_oscInState;
-  static std::map<std::string, MidiOutputState> s_ctrlOutState;
+  static std::map<std::string, MidiInputState>       s_midiInState;
+  static std::map<std::string, OscInputState>        s_oscInState;
+  static std::map<std::string, MidiOutputState>      s_ctrlOutState;
+  static std::map<std::string, MidiNoteOutputState>  s_midiOutState;
+  static std::map<std::string, MidiNoteOutputState>  s_noteOutState;
+  static std::map<std::string, MidiOutputState>      s_pitchOutState;
+  static std::map<std::string, MidiTriggerOutputState> s_trigOutState;
+  static std::map<std::string, MidiOutputState>      s_sysexOutState;
+  static std::map<std::string, MidiOutputState>      s_oscOutState;
+  // DEFERRED-HW-VERIFY: the duration/tempo output modes read this clock; frame_cook fills it from the
+  // transport once the real forwarder is wired. Today a zero clock (edge-triggered modes are clock-free).
+  const IoOutClock clk;
   cookMidiInputNodes(g, s_midiInState);
   cookOscInputNodes(g, s_oscInState);
   cookMidiControlOutputNodes(g, s_ctrlOutState);
+  cookMidiOutputNodes(g, s_midiOutState, clk);
+  cookMidiNoteOutputNodes(g, s_noteOutState, clk);
+  cookMidiPitchbendOutputNodes(g, s_pitchOutState);
+  cookMidiTriggerOutputNodes(g, s_trigOutState, clk);
+  cookMidiSysexOutputNodes(g, s_sysexOutState);
+  cookOscOutputNodes(g, s_oscOutState);
   endIoDeviceFrame();
 }
 
