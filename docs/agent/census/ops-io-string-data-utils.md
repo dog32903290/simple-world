@@ -44,7 +44,7 @@
 | PointsToDMXLights | Point/BufferWithViews → DMX List<int> 燈光轉換 | NEW-SEAM:artnet-dmx | BLOCKED:artnet-dmx | R2 | 次要 seam: point-system（BufferWithViews 已有） |
 | SacnInput | 接收 sACN/E1.31 封包，輸出 List<int> | NEW-SEAM:artnet-dmx | BLOCKED:artnet-dmx | R2 | 與 ArtnetInput 同屬 DMX 族 |
 | SacnOutput | 發送 sACN/E1.31，Command 輸出 | NEW-SEAM:artnet-dmx | BLOCKED:artnet-dmx | R2 | UDP multicast |
-| _(helper)_ Video2DPointScanner | 攝影機掃描 2D point 位置（Texture2D in/out） | NEW-SEAM:video-input | BLOCKED:video-input | R3 | 需 camera/video-input seam + OpenCV；次要 seam: artnet-dmx |
+| _(helper)_ Video2DPointScanner | 攝影機掃描 2D point 位置（Texture2D in/out） | NEW-SEAM:video-input | BLOCKED:video-input | R3 | ★2026-07-05 對 code（在 io/dmx/helpers/）：全 OpenCV（Cv2.Undistort + FindBrightSpots blob 偵測）+ 載 CameraCalibrator .dat；無閉式 point-scan→BLOCKED（隨 OpenCV 縫；.dat CSV parse 微不足道，不獨立蓋牙） |
 | _(helper)_ VisualizeSpotLights | 用 BufferWithViews 視覺化 DMX 燈頭，Command 輸出 | NEW-SEAM:artnet-dmx | BLOCKED:artnet-dmx | R2 | 次要：point-system 已有 BufferWithViews |
 
 ### io/file/ — 3 ops
@@ -117,8 +117,8 @@
 
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|----------|------|------|------|
-| OnvifCamera | ONVIF IP 相機：PTZ 控制 + Texture2D 影像輸出 | NEW-SEAM:video-input | BLOCKED:video-input | R3 | Texture2D 輸出 + 網路 PTZ；需 RTSP + ONVIF 協定 |
-| ViscaCamera | Visca 相機 PTZ 控制 + Texture2D 影像輸出 | NEW-SEAM:video-input | BLOCKED:video-input | R3 | 同上；Visca-over-IP |
+| OnvifCamera | ONVIF IP 相機：PTZ 控制 + Texture2D 影像輸出 | NEW-SEAM:video-input | PARTIAL (digest golden) / BLOCKED (soap/rtsp) | R3 | ★2026-07-05 lane/dev-video：**WS-Security PasswordDigest 閉式驗**（platform/onvif_digest.h + --selftest-io-onvif-digest：Base64(SHA1(nonce++created++password)) cs:708-713，複用 websocket_frame SHA1/base64）。ONVIF SOAP discovery/RTSP stream/OpenCV decode 裝置縛→DEFERRED |
+| ViscaCamera | Visca 相機 PTZ 控制 + Texture2D 影像輸出 | NEW-SEAM:video-input | PARTIAL (protocol golden) / BLOCKED (udp) | R3 | ★2026-07-05：**VISCA-over-IP byte 協定閉式全驗**（platform/visca_protocol.h + --selftest-io-visca-protocol：command build+nibble split+header wrap+reply parse cs:187-342，wled/websocket 前例）。live UDP send/recv deferred-hw（可重用 net_loopback） |
 
 ### io/serial/ — 3 ops
 
@@ -146,13 +146,13 @@
 
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|----------|------|------|------|
-| PlayVideo | 播放影片（MediaFoundation），每幀更新 Texture2D | NEW-SEAM:video-input | BLOCKED:video-input | R3 | Windows MediaFoundation；macOS 需 AVFoundation 替換；Texture2D 輸出 |
-| PlayVideoClip | 播放 VideoClip timeline clip，Texture2D 輸出 | NEW-SEAM:video-input | BLOCKED:video-input | R3 | 同上；TimeClipSlot 整合 |
-| VideoClip | timeline video clip container，TimeClipSlot<Command> 輸出 | NEW-SEAM:video-input | BLOCKED:video-input | R2 | 容器 op；依賴 video-input 解碼基建 |
-| VideoDeviceInput | DirectShow 相機即時輸入，Texture2D 輸出 | NEW-SEAM:video-input | BLOCKED:video-input | R3 | Windows DirectShow + OpenCV；macOS 需 AVCaptureSession |
-| VideoStreamInput | RTSP/網路 stream 接收（OpenCV VideoCapture），Texture2D 輸出 | NEW-SEAM:video-input | BLOCKED:video-input | R3 | OpenCV VideoCapture RTSP；macOS 可用 |
-| SwiftCamDevice | SwiftImaging 科學相機 SDK，BGRA8→Texture2D | NEW-SEAM:video-input | BLOCKED:video-input | R3 | 廠商 SDK；高度 Windows 特定；macOS 可能無對應 |
-| CameraCalibrator | 棋盤格相機校正（OpenCV），Texture2D in/out | NEW-SEAM:video-input | BLOCKED:video-input | R3 | OpenCV 棋盤格偵測；macOS OpenCV 可用 |
+| PlayVideo | 播放影片（MediaFoundation），每幀更新 Texture2D | NEW-SEAM:video-input | PARTIAL (timing golden) / BLOCKED (decode) | R3 | ★2026-07-05 lane/dev-video：**timing 核已閉式驗**（runtime/video_playback.h + --selftest-io-video-timing；frame 量化/loop-clamp/最短路 seek/completion，PlayVideo.cs 逐行引號）。**decode 端**（AVFoundation AVAssetReader→MTL::Texture，照 image_decode.mm 檔形）DEFERRED |
+| PlayVideoClip | 播放 VideoClip timeline clip，Texture2D 輸出 | NEW-SEAM:video-input | PARTIAL (timing golden) / BLOCKED (decode) | R3 | ★2026-07-05：**timeclip bars→secs 映射閉式驗**（同 video_playback.h/--selftest-io-video-timing G7-G9：rate/window-clamp/play-gate，PlayVideoClip.cs:82-118）；decode 端同 PlayVideo DEFERRED |
+| VideoClip | timeline video clip container，TimeClipSlot<Command> 輸出 | NEW-SEAM:video-input | BLOCKED:video-input | R2 | 純容器 op（VideoClip.cs 無 Update，只有 TimeClipSlot+inputs）；無可算之肉，隨 decode 縫接線時純註冊 |
+| VideoDeviceInput | DirectShow 相機即時輸入，Texture2D 輸出 | NEW-SEAM:video-input | PARTIAL (transform golden) / BLOCKED (capture) | R3 | ★2026-07-05：**frame affine 變換閉式驗**（runtime/video_device_transform.h + --selftest-io-video-transform：中心樞紐 rotate+scale+reposition 2×3 矩陣 cs:382-402 + epsilon has-transform 閘 cs:485-490）。**capture 端**（DirectShow scan+OpenCV VideoCapture；macOS AVCaptureSession）deferred-hw-verify |
+| VideoStreamInput | RTSP/網路 stream 接收（OpenCV VideoCapture），Texture2D 輸出 | NEW-SEAM:video-input | BLOCKED:video-input | R3 | ★2026-07-05 對 code：純 OpenCV VideoCapture(RTSP)，無閉式可錨→BLOCKED（隨 OpenCV/AVFoundation stream 縫） |
+| SwiftCamDevice | SwiftImaging 科學相機 SDK，BGRA8→Texture2D | NEW-SEAM:video-input | BLOCKED:video-input | R3 | ★2026-07-05 對 code：廠商 SDK（swiftcam.dll，%LOCALAPPDATA%\TiXL\NativeDeps，Windows-only）；無 macOS SDK、無閉式→真 BLOCKED，勸退 |
+| CameraCalibrator | 棋盤格相機校正（OpenCV），Texture2D in/out | NEW-SEAM:video-input | PARTIAL (checkerboard golden) / BLOCKED (calibrate) | R3 | ★2026-07-05：**棋盤格生成幾何閉式驗**（runtime/checkerboard_gen.h + --selftest-io-camera-checkerboard：layout/black-cell parity/cell rect/3D corner grid cs:347-437，OpenCV-free）。**detection+calibration+undistort**（Cv2.FindChessboardCorners/CalibrateCamera/Undistort）真 OpenCV 數值、sw 無 OpenCV dep→DEFERRED |
 | PlayAudioClip | 播放 timeline audio clip，鎖定至 soundtrack 時間 | transport | READY-LEAF | R1 | 已用 AudioEngine.UseSoundtrackClip；sw soundtrack seam 已建 |
 
 ### io/websocket/ — 2 ops
@@ -167,7 +167,7 @@
 - **總 op 數：74**（main 59 + `_/` WIP 8 + helpers 7）
 - **READY-LEAF：7**（AudioReaction、PlayAudioClip、AudioFrequencies、AudioWaveform、DetectBeatOffset、DetectBpm、_SetAudioAnalysis）+ FilesInFolder、ReadFile、WriteToFile、GetAttributeFromJsonString = **11 READY-LEAF**
 - **主要 NEW-SEAM 分佈：**
-  - `NEW-SEAM:video-input` — 9 顆（PlayVideo/PlayVideoClip/VideoClip/VideoDeviceInput/VideoStreamInput/SwiftCamDevice/CameraCalibrator/OnvifCamera/ViscaCamera）
+  - `NEW-SEAM:video-input` — 9 顆（PlayVideo/PlayVideoClip/VideoClip/VideoDeviceInput/VideoStreamInput/SwiftCamDevice/CameraCalibrator/OnvifCamera/ViscaCamera）★2026-07-05 lane/dev-video 分層驗完：**5 顆帶閉式 golden**（PlayVideo/PlayVideoClip=timing 核、VideoDeviceInput=affine 變換、CameraCalibrator=棋盤格幾何、ViscaCamera=VISCA byte 協定、OnvifCamera=WS-Security digest）＝各 op 可算之肉已扎實；**decode/capture/OpenCV/RTSP/UDP 裝置端全 DEFERRED**（AVFoundation/AVCaptureSession/OpenCV-dep 縫尚未建）；**真 BLOCKED 僅 2 顆**（VideoStreamInput 純 OpenCV RTSP、SwiftCamDevice 廠商 Windows SDK）＋VideoClip 純容器。誠實分層＝5 顆閉式扎實 > 9 顆虛掛
   - `NEW-SEAM:midi` — 10 顆
   - `NEW-SEAM:network-io` — 9 顆（TcpClient/TcpServer/UDPInput/UDPOutput/WebSocketClient/WebSocketServer/WebServer/RequestUrl + 1）
   - `NEW-SEAM:artnet-dmx` — 8 顆
