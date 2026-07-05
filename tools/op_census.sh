@@ -38,6 +38,26 @@ TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
   grep -rhoE 'register[A-Za-z]*\(\s*"[A-Za-z0-9_]+"' "$SWRT" "$SWAPP" 2>/dev/null | grep -oE '"[A-Za-z0-9_]+"' | tr -d '"'
   find "$SWRT" \( -name '*_op_registry.*' -o -name '*_ops_registry.*' -o -name 'node_registry_*.cpp' \) \
     | xargs grep -hoE '"[A-Z][A-Za-z0-9]+"' 2>/dev/null | tr -d '"'
+  # 5th source: struct-init self-registration `static const <Type>Op|<Type>Reg _reg…{ "<Name>", …`.
+  # The DOMINANT registration form (458 in-tree); most are already caught by filename stem, but a
+  # leaf whose stem≠op-name AND lives in no *_registry file falls through sources 1-3 (實例:Once in
+  # stateful_value_ops_flow.cpp[78] `StatefulOpReg _reg_Once{"Once",…}`; GetStringVar/SetStringVar in
+  # string_ops_stringctxvar.cpp[94/104] `StringOp _reg_x{{ "GetStringVar",… }}`). Anchor = the `_reg`
+  # self-registration decl; grab the FIRST PascalCase "…" literal within the decl + next 2 lines (the
+  # op id is always first, whether same-line single-brace or next-line double-brace NodeSpec). 保守:
+  # every name comes from a real _reg → cannot mark an unported op done (寧漏勿誤 held: only the 3
+  # genuine struct-init misses flip todo→done, zero collateral).
+  find "$SWRT" "$SWAPP" -name '*.cpp' | while read -r f; do
+    awk '
+      /static const [A-Za-z]+(Op|Reg)[[:space:]]+_reg[A-Za-z0-9_]*\{/ { win=3 }
+      win>0 {
+        if (match($0, /"[A-Z][A-Za-z0-9_]*"/)) {
+          t=substr($0,RSTART,RLENGTH); gsub(/"/,"",t); print t; win=0; next
+        }
+        win--
+      }
+    ' "$f"
+  done
   # 4th source: authoritative `// TiXL authority: .../<OpName>.cs` declaration in leaf headers.
   # Catches sw命名 fork (filename≠TiXL-name). Scoped to the LEADING comment header block only
   # (so body cross-refs like "mirrors value_op_addint2.cpp" don't leak); reads the authority line
