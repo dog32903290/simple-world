@@ -486,6 +486,8 @@ add_executable(simple_world
   src/setbpm_golden.cpp             # --selftest-setbpm ([SetBpm] VJ op triggered-pull golden)
   src/setplayback_golden.cpp        # --selftest-setplayback ([SetPlaybackTime]/[SetPlaybackSpeed] op→PlaybackProvider→transport)
   src/bpm_transport_golden.cpp      # --selftest-bpmtransport (end-to-end DetectBpm auto → SetBpm → transport.bpm)
+  src/runtime/tone_synth.cpp        # io/audio: AudioToneGenerator synthesis core (pure waveform math; not glob-matched)
+  src/tonesynth_golden.cpp          # --selftest-tonesynth (closed-form AudioToneGenerator waveform parity)
   src/colorlist_fanout_golden.cpp
   src/keepcolors_golden.cpp
   src/runtime/host_scalar_op_registry.cpp
