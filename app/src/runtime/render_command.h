@@ -340,6 +340,8 @@ int switchSelectIndex(int rawIndex, int count);
 // production (zero behaviour change). A CPU DRIVER flag, NOT a shader bug-branch (constitution rule); read by
 // both collectors, parallel to executeCollectFirstOnlyForTest(). Defined in point_ops_switch.cpp.
 bool& switchIgnoreIndexForTest();
+// SwitchParticleForce (force-rail Switch twin): declarations + full rationale in point_ops.h /
+// point_ops_switchforce.cpp (kept out of this ≤400-line core header).
 
 // ─────────────────────────────── S3c Loop (TiXL flow/Loop.cs) ───────────────────────────────
 // The re-cook keystone: cook the wired SubGraph `Count` times; iteration i writes index→BOTH Float+Int dicts

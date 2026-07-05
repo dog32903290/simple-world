@@ -214,6 +214,27 @@ const std::vector<NodeSpec>& particleSpecs() {
          Widget::Slider, {}, /*pinless=*/true}},
        nullptr,
        "particle.force"},
+      // SwitchParticleForce — TiXL particle/force/SwitchParticleForce.cs. The FORCE-rail twin of flow/Switch:
+      // it collects N wired ParticleForce inputs (MultiInputSlot<ParticleSystem> in TiXL — force ops ARE
+      // ParticleSystem nodes there) and forwards the Index-selected one, so a ParticleSystem downstream runs
+      // THAT force's kernel. sw's force currency is ParticleForce (a param-only wire: _ForceKind + the force
+      // params — force ops have no cook fn / buffer, point_ops.cpp:166); so the SELECTION is a cook-core hook
+      // in the force-gather (point_graph.cpp / point_graph_resident.cpp), NOT this thin spec: when the
+      // ParticleSystem's `forces` source resolves to a SwitchParticleForce, the gather re-resolves to the
+      // selected upstream force node and reads ITS params (switchParticleForceSelectIndex, the shared
+      // wrap/-1/empty math both legs call). Index==-1 → NONE (cs:19-20 early return); else index.Mod(count)
+      // (cs:26). Defaults照 SwitchParticleForce.t3: Index=0. NO _ForceKind of its own — it FORWARDS the
+      // selected force's _ForceKind (a self _ForceKind would shadow the forward). The `Input` port is a
+      // MultiInput ParticleForce (mirror of Switch's MultiInput Commands); `force` output = ParticleForce so
+      // it plugs into ParticleSystem.forces. Registered as a force op (point_ops_switchforce.cpp) but has no
+      // kernel — it is pure routing, resolved before the ParticleSystem ever reads inputParams[1].
+      {"SwitchParticleForce",
+       "SwitchParticleForce",
+       {{"force", "force", "ParticleForce", false},
+        {"Input", "Input", "ParticleForce", true, 0.0f, 0.0f, 0.0f, Widget::Slider, {}, false, 1, true},
+        {"Index", "Index", "Float", true, 0.0f, -1000.0f, 1000.0f, Widget::Slider, {}, true}},
+       nullptr,
+       "particle.force"},
       {"ParticleSystem",
        "ParticleSystem",
        {{"emit", "emit", "Points", true},

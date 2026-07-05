@@ -99,7 +99,12 @@ app/src/runtime/math_ops_selftest.cpp:1151
 # BUFFER FEEDBACK (2026-07-05) 753→757 +4: the ~PointGraph dtor gained the feedbackBufBuf pair release loop
 # (KeepPreviousPointBuffer's cross-frame MTL::Buffer pair — the SwBuffer twin of the feedbackTexBuf release
 # right above it). Irreducible resource cleanup (NO leak/UAF); same class as the texture feedback release.
-app/src/runtime/point_graph.cpp:757
+# SWITCHPARTICLEFORCE (2026-07-06) 757→761 +4: the flat force-gather gained the SwitchParticleForce sub-select
+# hook (+point_ops.h include +srcId re-resolution: a ParticleForce source that IS a switch re-resolves to its
+# Index-selected upstream force). Irreducible cook-core seam glue (the force-rail twin of the Switch
+# collector); the selection math + resolvers live in the point_ops_switchforce.cpp leaf (<400). Gated growth
+# (proven by --selftest-switchparticleforce), NOT drift. Split target unchanged (this file's DEBT note).
+app/src/runtime/point_graph.cpp:761
 # S3a (2026-06-23) +12: CmdCookCtx gained the ContextVarMap* ctxVars field (additive ABI, mirrors
 # inputCommand) + the forward-decl + cook/cookResident gained the trailing ctxVars param. Doc squeezed to
 # the floor; the field + its load-bearing comment (the two-rail fork note, blueprint risk #3) are irreducible.
@@ -193,12 +198,22 @@ app/src/runtime/point_graph_internal.h:522
 # ColorList/FloatList). Same cook-driver-split debt (extract cookResidentGradient to a leaf, like the buffer/
 # tex/command resident cooks) would lower this again — deferred (out of scope for the seam task). Proven by
 # --selftest-buildgradient (resident leg) + --bite.
-app/src/runtime/point_graph_resident.cpp:603
+# SWITCHPARTICLEFORCE (2026-07-06) 603→609 +6: the resident force-gather gained the SwitchParticleForce
+# sub-select hook (+point_ops.h include +srcPath re-resolution through the switch, resident mirror of the flat
+# gather). Irreducible cook-core seam glue; selection math + resolvers in the point_ops_switchforce.cpp leaf
+# (<400). Gated growth (proven by --selftest-switchparticleforce, RESIDENT leg = the S2c blood lesson), NOT
+# drift. Same cook-driver-split debt target as above lowers this again when the resident cooks are extracted.
+app/src/runtime/point_graph_resident.cpp:609
 # point_ops.h +5: Execute op decls (cookExecute/registerExecuteOp/runExecuteSelfTest), S2a.
 # +9: Group op decls (cookGroup/registerGroupOp doc block), S2b — debt task spawned to data-drive the cmd-op decl rows.
 # +1 (2026-06-29): lineBakedBugForceForTest() decl — the LinePoints parity-gate -bug latch, mirroring the
 # radialBakedBugForceForTest/gridBakedBugForceForTest rows two lines above. One irreducible decl line.
-app/src/runtime/point_ops.h:554
+# SWITCHPARTICLEFORCE (2026-07-06) 554→571 +17: the public decl surface for the force-rail Switch
+# (selectIndex + the two force-gather resolve*() hooks + the -bug flag + Graph/ResidentEvalGraph fwd-decls +
+# <functional>/<map> for their signatures). Irreducible public-API rows (the flat+resident gather sites call
+# them); the bodies + full doc live in point_ops_switchforce.cpp (<400). Gated growth (proven by
+# --selftest-switchparticleforce), NOT drift.
+app/src/runtime/point_ops.h:571
 app/src/runtime/point_ops_attributesfromimagechannels.cpp:429
 app/src/runtime/point_ops_blend.cpp:426
 app/src/runtime/point_ops_blendwithmask.cpp:434

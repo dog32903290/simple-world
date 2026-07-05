@@ -113,8 +113,11 @@ struct TransportSnapshot {
 // took for vec3/string over TiXL's boxed ObjectVariables dict): a std::array<float,16> map (4 rows × 4
 // floats, row-major = _matrix[0..3] = Row1..Row4). Byte-identical round-trip; can't collide with a
 // float/int/vec3/string of the same name. This is the matrix twin of vec3Vars — NOT the boxed-object
-// dict (that untyped box is GetObjectVar/SetObjectVar's, deliberately un-ported here — see the flow-var
-// BLOCKED note). GetMatrixVar reads this onto the extColorOut matrix output rail (4×float4, the SAME
+// dict (that untyped box is GetObjectVar/SetObjectVar's, deliberately un-ported: BLOCKED — no downstream
+// consumer in the whole TiXL Operators tree + sw's "Object" wire is marker-only camera-ref currency, not a
+// boxed value, so a GetObjectVar golden could only be self-consistent (P5). Diagnosis:
+// docs/agent/census/ops-particle-flow.md GetObjectVar/SetObjectVar rows, 2026-07-06).
+// GetMatrixVar reads this onto the extColorOut matrix output rail (4×float4, the SAME
 // matrix-as-4-vec4 channel resident_matrix_output_cook uses); SetMatrixVar writes it from its ColorList
 // Value input. Cook lives in resident_matrix_ctxvar_cook.cpp (writer-first, sibling of the matrix rail).
 struct ContextVarMap {
