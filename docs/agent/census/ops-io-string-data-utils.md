@@ -124,23 +124,23 @@
 
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|----------|------|------|------|
-| SerialInput | 串列埠接收，輸出 string/List<string>/bool | NEW-SEAM:serial | BLOCKED:serial | R2 | macOS 可用 /dev/tty.*；需 ISerialReceiver |
-| SerialOutput | 串列埠發送 | NEW-SEAM:serial | BLOCKED:serial | R2 | 同上 |
-| WLedSerialOutput | W-LED 裝置的串列輸出 | NEW-SEAM:serial | BLOCKED:serial | R2 | 同上 + W-LED 協定 |
+| SerialInput | 串列埠接收，輸出 string/List<string>/bool | serial | SEAM-BUILT (loopback golden) | R2 | platform/serial_loopback (termios+PTY loopback)；--selftest-io-serial-loopback 綠+咬。真 /dev/tty.* 裝置=deferred-hw-verify（重用同 read+line-split path） |
+| SerialOutput | 串列埠發送 | serial | SEAM-BUILT (loopback golden) | R2 | 同上；WriteLine 追 '\n' 已驗 |
+| WLedSerialOutput | W-LED 裝置的串列輸出 | serial | SEAM-BUILT (frame golden) | R2 | platform/wled_frame Adalight 幀組裝閉式全驗（header+color-order+map-mode+brightness，--selftest-io-wled-frame）；serial write 重用 serial_loopback |
 
 ### io/tcp/ — 2 ops
 
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|----------|------|------|------|
-| TcpClient | TCP 用戶端，收發 string，history buffer | NEW-SEAM:network-io | BLOCKED:network-io | R2 | macOS Network.framework 可撐 |
-| TcpServer | TCP 伺服器，監聽+多連線，輸出 ConnectionCount/IsListening | NEW-SEAM:network-io | BLOCKED:network-io | R2 | 同上 |
+| TcpClient | TCP 用戶端，收發 string，history buffer | network-io | SEAM-BUILT (loopback golden) | R2 | platform/net_loopback TcpClientLoopback（POSIX AF_INET，pimpl）；--selftest-io-tcp-loopback 綠+咬。訊息語義=raw UTF-8 無 framing（TcpClient.cs:290 一致）。真遠端 peer=deferred-hw-verify |
+| TcpServer | TCP 伺服器，監聽+多連線，輸出 ConnectionCount/IsListening | network-io | SEAM-BUILT (loopback golden) | R2 | platform/net_loopback TcpServerLoopback（accept loop+broadcast+connectionCount 全驗） |
 
 ### io/udp/ — 2 ops
 
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|----------|------|------|------|
-| UDPInput | UDP 接收，輸出 IsListening/LastSender/Port | NEW-SEAM:network-io | BLOCKED:network-io | R2 | macOS Network/GCD Socket 可用 |
-| UDPOutput | UDP 發送 | NEW-SEAM:network-io | BLOCKED:network-io | R2 | 同上 |
+| UDPInput | UDP 接收，輸出 IsListening/LastSender/Port | network-io | SEAM-BUILT (loopback golden) | R2 | platform/net_loopback UdpLoopbackDevice（bind+recvfrom，LastSenderPort round-trip 已驗）；--selftest-io-udp-loopback 綠+咬 |
+| UDPOutput | UDP 發送 | network-io | SEAM-BUILT (loopback golden) | R2 | 同上 sendTo（同 device 涵蓋 in+out）；census 驗證錨點 |
 
 ### io/video/ — 8 ops
 
@@ -159,8 +159,8 @@
 
 | op | 一句功能 | 主要 seam | 狀態 | 風險 | 備註 |
 |----|---------|----------|------|------|------|
-| WebSocketClient | WebSocket 用戶端，收發 string，history | NEW-SEAM:network-io | BLOCKED:network-io | R2 | macOS URLSessionWebSocketTask 可撐 |
-| WebSocketServer | WebSocket 伺服器，多連線，輸出 IsListening/ConnectionCount | NEW-SEAM:network-io | BLOCKED:network-io | R2 | 同上 |
+| WebSocketClient | WebSocket 用戶端，收發 string，history | network-io | PARTIAL (codec golden) / BLOCKED (live) | R2 | platform/websocket_frame RFC6455 handshake-accept(SHA1+base64)+frame encode/decode 閉式全驗（--selftest-io-websocket-frame，RFC canonical vectors）。**BLOCKED**: 活體 client 需 HTTP upgrade + 控制幀/close 狀態機接上 TcpClientLoopback（見下 診斷）。Dict<float>/ReceivedParts 解析縫另工人（JSON→Dict） |
+| WebSocketServer | WebSocket 伺服器，多連線，輸出 IsListening/ConnectionCount | network-io | PARTIAL (codec golden) / BLOCKED (live) | R2 | 同上 codec 共用。**BLOCKED**: 活體 server 需 HTTP upgrade parse（TiXL 用 .NET HttpListener.AcceptWebSocketAsync，無可移植源）；transport 有 TcpServerLoopback，缺 upgrade+幀狀態機。Dict 縫另工人 |
 
 ### io/ 摘要
 
