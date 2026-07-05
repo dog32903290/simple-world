@@ -13,6 +13,7 @@
 #include "app/soundtrack.h"               // soundtrack follow rule (audio chases the transport)
 #include "runtime/audio_reaction.h"       // cookAudioReaction (TiXL AudioReaction parity)
 #include "runtime/detect_bpm.h"           // cookDetectBpmNodes (TiXL DetectBpm operator parity)
+#include "runtime/io_node_cook.h"         // cookIoDeviceNodes (TiXL MidiInput/OscInput device-node cook)
 #include "runtime/graph_bridge.h"         // refreshCompoundSpecs (frame-boundary spec swap)
 #include "runtime/eval_context.h"         // EvaluationContext
 #include "runtime/point_graph.h"          // PointGraph::cookResident
@@ -331,18 +332,17 @@ void run(PointGraph& pg, const std::string& targetPath) {
   const double fxSecs = g_transport.secondsFromBars(fxBars);  // ctx.time only (sane-floored bpm)
 
   const SpectrumSnapshot spec = audio_monitor::spectrum();
-
-  // Cook every AudioReaction instance — the seam (cookAudioReactionNodes) derives the AR clock from
-  // the transport, so the bars-domain decision has ONE home and --selftest-arclock exercises it.
+  // Device-driven extOut cooks (AudioReaction/DetectBpm/MidiInput/OscInput): the seam derives the AR
+  // clock from the transport (bars-domain has ONE home; --selftest-arclock exercises it).
   {
     static std::map<std::string, AudioReactionState> s_arState;
     cookAudioReactionNodes(g_residentGraph, spec, g_transport, g_frameIndex, &doc::g_lib(),
                            s_arState);
     // DetectBpm (TiXL operator parity) rides the SAME slot: accumulate one energy sample from the live
-    // RawFft frame (spec.fftGain — the bins it sums over its INTEGER borders), write recovered BPM to
-    // extOut[0]. Per-path state. No throttle (DetectBpm.Update runs every eval; TiXL sets no cadence).
+    // RawFft frame (spec.fftGain), write recovered BPM to extOut[0]. Per-path state. No throttle.
     static std::map<std::string, DetectBpm> s_bpmState;
     cookDetectBpmNodes(g_residentGraph, spec.fftGain.data(), (int)spec.fftGain.size(), s_bpmState);
+    cookIoDeviceNodes(g_residentGraph);  // io/midi+osc device nodes → extOut (same device-cook slot; seam owns state + bus clear)
   }
 
   // Cook stateful value ops (Damp/Spring/...) right after AudioReaction — same once-per-frame slot,
