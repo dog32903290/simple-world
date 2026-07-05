@@ -577,6 +577,7 @@ add_executable(simple_world
   src/io_camera_checkerboard_golden.cpp  # --selftest-io-camera-checkerboard (CameraCalibrator OpenCV-free pattern geometry)
   src/io_video_transform_golden.cpp  # --selftest-io-video-transform (VideoDeviceInput closed-form affine; capture deferred-hw)
   src/io_visca_protocol_golden.cpp  # --selftest-io-visca-protocol (ViscaCamera VISCA-over-IP byte protocol; UDP deferred-hw)
+  src/io_onvif_digest_golden.cpp  # --selftest-io-onvif-digest (OnvifCamera WS-Security PasswordDigest; SOAP/RTSP deferred-hw)
   src/keepstrings_golden.cpp  # --selftest-keepstrings (multi-frame accumulator goldens, flat+resident+guard)
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp

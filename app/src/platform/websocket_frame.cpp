@@ -85,6 +85,11 @@ std::string wsBase64(const std::vector<uint8_t>& in) {
   return out;
 }
 
+std::vector<uint8_t> wsSha1Raw(const std::string& in) {
+  auto d = sha1Raw(in);
+  return std::vector<uint8_t>(d.begin(), d.end());
+}
+
 std::string wsSha1Hex(const std::string& in) {
   auto d = sha1Raw(in);
   static const char* hex = "0123456789abcdef";
