@@ -10,6 +10,7 @@
 #include "runtime/point_ops.h"    // cookDrawPoints, registerDrawLinesOp/Billboards/RenderTargetOp
 #include "runtime/point_ops_orthographiccamera.h"  // C2: registerOrthographicCameraOp (Command→Command ortho push)
 #include "runtime/point_ops_setvarcmd.h"  // S3a: registerSetVarCmdOps (Command-rail SetFloatVarCmd/SetIntVarCmd)
+#include "runtime/point_ops_forwardbeattaps.h"  // VJ: registerForwardBeatTapsOp (TapProvider publish + SubTree forward)
 #include "runtime/point_ops_spread.h"     // render lane: registerSpreadOps (SpreadIntoGrid/SpreadLayout per-wire SRT)
 #include "runtime/point_ops_getscreenpos.h"  // render lane: registerGetScreenPosOp (world→screen projection + value latch)
 #include "runtime/point_ops_shiftcamera.h"  // camera-B: registerShiftCameraOp (Command→Command projection nudge)
@@ -69,8 +70,9 @@ void registerDrawPointOps() {
   registerShearOp();                             // Command → Command (shear transform-context push, S2 island)
   registerTransformOp();                         // Command → Command (full TRS+pivot transform-context push, S2 island)
   registerRotateTowardsOp();                     // Command → Command (LookAt-style facing rotation push, render/flow WAVE-1)
-  registerSetRequestedResolutionOp();           // Command → Command (explicit RequestedResolution push/pop, S1)
+  registerSetRequestedResolutionOp();           // Command → Command (explicit RequestedResolution push/pop, S1 + Cmd sibling)
   registerSetVarCmdOps();                        // Command → Command (S3a context-var SubGraph scope: SetFloatVarCmd/SetIntVarCmd)
+  registerForwardBeatTapsOp();                   // Command → Command (VJ: publish beat/resync/slide into TapProvider, forward SubTree)
   registerSwitchOp();                            // Command(MultiInput) → Command (S3b: cook-core sub-select by Index)
   registerPickObjectOp();                        // Command(MultiInput) → Command (data.object: Mod pick by Index)
   registerCpuPointToCameraOp();                  // Points+Command → Command (point.helper: point[0] camera stamp)

@@ -49,6 +49,7 @@
 #include "runtime/stateful_value_ops.h"  // ContextVarMap (complete type for cmdVarPush)
 #include "runtime/point_ops_camera_scope.h"  // C1: resolveActiveCamera/LiveCameraScope/LiveCtxVarScope/...
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
+#include "runtime/point_ops_forwardbeattaps.h"  // ForwardBeatTaps: isForwardBeatTaps/forwardBeatTapsApply
 #include "runtime/tixl_point.h"      // EvaluationContext (CmdCookCtx::ctx)
 
 namespace sw {
@@ -181,6 +182,8 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
       const RenderResolution savedReq = p_->requestedResolution;
       if (n->opType == "SetRequestedResolution")
         p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(path), savedReq);
+      else if (n->opType == "SetRequestedResolutionCmd")  // flow-rail sibling (resident mirror): +StretchResolution
+        p_->requestedResolution = resolveSetRequestedResolutionCmd(*nodeParams(path), savedReq);
       // S3a context-var scope (resident mirror — the S2c blood-lesson leg, production runs THIS). Same
       // TiXL SetFloatVar.cs:26-45 push/restore around the SubGraph; varName off ResidentNode::strInputs.
       // Inactive no-op when ctxVars null / not a writer / -bug skips the write.
@@ -191,6 +194,9 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
         if (vit != n->strInputs.end()) varName = vit->second;
         varScope = cmdVarPush(n->opType, *nodeParams(path), varName, ctxVars);
       }
+      // ForwardBeatTaps PRE-SUBTREE write (resident mirror — production runs THIS leg; ForwardBeatTaps.cs:22-38):
+      // publish the edge-detected beat/resync pulses + slide-sync into the TapProvider BEFORE cooking SubTree.
+      if (isForwardBeatTaps(n->opType)) forwardBeatTapsApply(*nodeParams(path));
       // C1 ACTIVE-CAMERA scope (resident mirror — production runs THIS leg; CAMERA3D_BLUEPRINT §1 HARD GATE).
       // A resident-only miss = resident point ops read the default under a wired Camera = a prod-only black-
       // hole (S2c). Same resolveActiveCamera + LiveCameraScope as flat; map from resident nodeParams(path).

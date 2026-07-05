@@ -70,6 +70,30 @@ RenderResolution resolveSetRequestedResolution(const std::map<std::string, float
   return RenderResolution{clampDim(baseW * mul), clampDim(baseH * mul)};
 }
 
+// SetRequestedResolutionCmd resolve (TiXL flow/context/SetRequestedResolutionCmd.cs:16-32) — the flow-rail
+// sibling that ADDS a per-axis StretchResolution (Vector2) to the ScaleResolution factor:
+//   var resolutionUpdate = Resolution.X>0 && Resolution.Y>0 && Stretch.X>0 && Stretch.Y>0;   // cs:24
+//   newResolution = resolutionUpdate ? Resolution : previousResolution;                       // cs:25
+//   RequestedResolution = Int2( clamp(newResolution.X * scale * Stretch.X, 1, 16384),         // cs:27
+//                               clamp(newResolution.Y * scale * Stretch.Y, 1, 16384) );        // cs:28
+// Width/Height carry Resolution (the Int2); ScaleResolution = the float factor; StretchResolution.x/.y =
+// the Vector2. The clamp-together GATE (all four >0) is the difference vs the plain W/H==0 passthrough of
+// resolveSetRequestedResolution: either the Resolution.Stretch pair is FULLY specified (>0) → use it, or
+// fall back to the ambient size — no partial (a bare Multiply here scales the ambient via the fallback).
+RenderResolution resolveSetRequestedResolutionCmd(const std::map<std::string, float>& params,
+                                                  RenderResolution current) {
+  float rw = paramOr(params, "Width", 0.0f);
+  float rh = paramOr(params, "Height", 0.0f);
+  float scale = paramOr(params, "ScaleResolution", 1.0f);
+  float sx = paramOr(params, "StretchResolution.x", 1.0f);
+  float sy = paramOr(params, "StretchResolution.y", 1.0f);
+  // cs:24 gate: ONLY take the wired Resolution when the Int2 AND the stretch are BOTH fully positive.
+  const bool resolutionUpdate = (rw > 0.0f && rh > 0.0f && sx > 0.0f && sy > 0.0f);
+  const float baseW = resolutionUpdate ? rw : (float)current.w;  // cs:25 newResolution
+  const float baseH = resolutionUpdate ? rh : (float)current.h;
+  return RenderResolution{clampDim(baseW * scale * sx), clampDim(baseH * scale * sy)};  // cs:27-28
+}
+
 // SetRequestedResolution cook: Command subtree in → Command out. The driver already PUSHED the resolution
 // around the subtree cook, so this op only forwards the cooked items (the RequestedResolution effect is
 // purely on the children, already realized by the time we get here). Unwired Command → empty chain.
@@ -79,8 +103,17 @@ RenderCommand cookSetRequestedResolution(CmdCookCtx& c) {
   return rc;
 }
 
+// SetRequestedResolutionCmd cook: IDENTICAL forward to SetRequestedResolution — the driver owns the push
+// (via resolveSetRequestedResolutionCmd), the op just chains the subtree it cooked under the pushed size.
+RenderCommand cookSetRequestedResolutionCmd(CmdCookCtx& c) {
+  RenderCommand rc;
+  if (c.inputCommand) rc.items = c.inputCommand->items;
+  return rc;
+}
+
 void registerSetRequestedResolutionOp() {
   registerCmdOp("SetRequestedResolution", cookSetRequestedResolution);
+  registerCmdOp("SetRequestedResolutionCmd", cookSetRequestedResolutionCmd);
 }
 
 // ───────────────────────────────── GOLDEN ─────────────────────────────────
@@ -280,5 +313,8 @@ int runRequestedResolutionFrameSelfTest(bool injectBug) {
 
 REGISTER_SELFTESTS(/*orderBase=*/311,
                    {"requestedresolution-frame", runRequestedResolutionFrameSelfTest});
+
+// The SetRequestedResolutionCmd GOLDEN lives in point_ops_setrequestedresolutioncmd_golden.cpp (a separate
+// TU so this file stays under the 400-line ratchet).
 
 }  // namespace sw

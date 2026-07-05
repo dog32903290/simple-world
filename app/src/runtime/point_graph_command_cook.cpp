@@ -53,6 +53,7 @@
 #include "runtime/stateful_value_ops.h"  // ContextVarMap (complete type for cmdVarPush)
 #include "runtime/point_ops_camera_scope.h"  // C1: resolveActiveCamera/LiveCameraScope/LiveCtxVarScope/...
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
+#include "runtime/point_ops_forwardbeattaps.h"  // ForwardBeatTaps: isForwardBeatTaps/forwardBeatTapsApply
 #include "runtime/tixl_point.h"      // EvaluationContext (CmdCookCtx::ctx)
 
 namespace sw {
@@ -182,6 +183,8 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
       const RenderResolution savedReq = p_->requestedResolution;
       if (n->type == "SetRequestedResolution")
         p_->requestedResolution = resolveSetRequestedResolution(*nodeParams(id), savedReq);
+      else if (n->type == "SetRequestedResolutionCmd")  // flow-rail sibling: same scope, +StretchResolution factor
+        p_->requestedResolution = resolveSetRequestedResolutionCmd(*nodeParams(id), savedReq);
       // S3a context-var scope (TiXL SetFloatVar.cs:26-45 SubGraph branch): push the scoped var into
       // ctxVars BEFORE cooking the subtree, restore AFTER (same shape as the savedReq guard). varName off
       // Node::strParams. Inactive no-op when ctxVars null / not a writer / -bug skips the write.
@@ -192,6 +195,10 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
         if (vit != n->strParams.end()) varName = vit->second;
         varScope = cmdVarPush(n->type, *nodeParams(id), varName, ctxVars);
       }
+      // ForwardBeatTaps PRE-SUBTREE write (ForwardBeatTaps.cs:22-38): publish the edge-detected beat/resync
+      // pulses + slide-sync into the process-global TapProvider BEFORE cooking the SubTree — same pre-subtree
+      // side-effect shape as cmdVarPush above. No restore (a per-frame publish, not a scoped push).
+      if (isForwardBeatTaps(n->type)) forwardBeatTapsApply(*nodeParams(id));
       // C1 ACTIVE-CAMERA scope (CAMERA3D_BLUEPRINT §1, mirror of the S3a var scope above): a Camera op sets
       // the thread_local active camera around its SubGraph cook so the POINT ops inside read the wired Camera
       // (fillPointCamera), not the default. Resolve the same v1 params cookCamera stamps onto items. -bug
