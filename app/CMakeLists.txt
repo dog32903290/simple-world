@@ -282,6 +282,10 @@ add_executable(simple_world
   src/platform/wled_frame.cpp        # L5 IO (socket lane): Adalight frame builder (WLedSerialOutput body)
   src/platform/websocket_frame.cpp   # L5 IO (socket lane): RFC6455 handshake-accept + frame codec
   src/platform/dmx_packet.cpp        # L5 IO (dmx lane): Art-Net/sACN/DMX packet codec (byte-推 closed form)
+  src/platform/freed_packet.cpp      # L5 IO (freed lane): FreeD "D1" 29-byte camera-tracking packet codec (byte-推)
+  src/platform/psn_packet.cpp        # L5 IO (posistage lane): PSN nested-chunk tracker packet codec (byte-推)
+  src/platform/points_dmx.cpp        # L5 IO (dmx lane): PointsToRGBList / PointsToDmxLights closed-form value cores
+  src/platform/write_to_file.cpp     # L5 IO (file lane): WriteToFile write-on-change gate + byte round-trip
   src/platform/midi_loopback.mm
   src/platform/window_mode.mm
   src/platform/menu_appkit_ext.cpp  # tracked AppKit NSMenu extension (live check marks + menuNeedsUpdate: delegate) — replaces the gitignored vendored metal-cpp edits
