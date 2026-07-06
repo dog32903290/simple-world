@@ -67,6 +67,11 @@ REGISTER_SELFTESTS(/*orderBase=*/330,
 REGISTER_SELFTESTS(/*orderBase=*/340,
     {"selectfromdict", runSelectFromDictSelfTest},          // Dict<float> currency + SelectFloat/Vec2/Vec3/BoolFromDict (flat + resident bridge)
 );
+// SwDataSet currency seam: the recorded-session value type + its 3 cores (LoadDataClip parse / MidiRecording
+// ingest / SimulateIoData replay window). Own high-orderBase block so it appends at the end deterministically.
+REGISTER_SELFTESTS(/*orderBase=*/800,
+    {"dataset", runDataSetSelfTest},                        // SwDataSet: parse .data JSON / record MIDI / simulate (last,current] window + TimeRangeMapping
+);
 // pbr-lighting island value currencies (data-layer): SetPointLight/SetFog/SetMaterial value slices proven
 // against the TiXL .cs. Context stacks + PBR-shader consumer are the BLOCKED render-pass seam. Own high-
 // orderBase block so it appends at the end of --selftest-list deterministically.

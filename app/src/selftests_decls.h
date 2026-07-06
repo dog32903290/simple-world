@@ -197,6 +197,7 @@ namespace sw { int runTryParseSelfTest(bool); }                  // tryparse_gol
 namespace sw { int runStringToDateTimeSelfTest(bool); }          // stringtodatetime_golden.cpp (String→DateTime route-B epoch host-scalar bridge, flat + resident)
 namespace sw { int runValueToRateSelfTest(bool); }               // valuetorate_golden.cpp (String→Float host-scalar bridge: ValueToRate rate quantizer, flat + resident)
 namespace sw { int runSelectFromDictSelfTest(bool); }            // select_from_dict_golden.cpp (Dict<float> currency + 4 Select*FromDict consumers: flat + resident bridge)
+namespace sw { int runDataSetSelfTest(bool); }                   // dataset_golden.cpp (SwDataSet currency: parse/record/simulate cores — LoadDataClip/MidiRecording/SimulateIoData)
 namespace sw { int runMergeListsSelfTest(bool); }                // merge_lists_golden.cpp (MergeFloatLists/MergeIntLists Append/Htp/Average + PickFloatList, chain-through-evalFloat)
 namespace sw { int runPointListSelfTest(bool); }                 // pointlist_golden.cpp (7th cook flow: CPU point list + ListToBuffer bridge)
 namespace sw { int runConeGizmoSelfTest(bool); }                 // conegizmo_golden.cpp (C3 gizmo Tranche-0: ConeGizmo generator via pointlist seam, closed-form cone geometry)
