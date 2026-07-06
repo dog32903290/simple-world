@@ -78,4 +78,73 @@ HttpResponse httpGet(const std::string& url, double timeoutSeconds) {
   return out;
 }
 
+// One POST = one NSURLSessionDataTask with an HTTPBody, awaited on a semaphore — the httpGet transport
+// with a request body + method + Content-Type. Same synchronous posture and the same ok/status/error
+// verdict rules. The ONVIF SOAP request (OnvifCamera.cs:720-728 PostAsync StringContent
+// "application/soap+xml") maps onto this directly.
+HttpResponse httpPost(const std::string& url, const std::string& body, const std::string& contentType,
+                      double timeoutSeconds) {
+  HttpResponse out;
+  @autoreleasepool {
+    NSString* urlStr = [NSString stringWithUTF8String:url.c_str()];
+    NSURL* nsurl = urlStr ? [NSURL URLWithString:urlStr] : nil;
+    if (!nsurl || !nsurl.scheme ||
+        !([nsurl.scheme caseInsensitiveCompare:@"http"] == NSOrderedSame ||
+          [nsurl.scheme caseInsensitiveCompare:@"https"] == NSOrderedSame)) {
+      out.error = "invalid url";
+      return out;
+    }
+
+    const double timeout = timeoutSeconds > 0.0 ? timeoutSeconds : 30.0;
+    NSMutableURLRequest* req = [NSMutableURLRequest requestWithURL:nsurl];
+    req.HTTPMethod = @"POST";
+    req.timeoutInterval = timeout;
+    if (!contentType.empty()) {
+      [req setValue:[NSString stringWithUTF8String:contentType.c_str()]
+          forHTTPHeaderField:@"Content-Type"];
+    }
+    req.HTTPBody = [NSData dataWithBytes:body.data() length:body.size()];
+
+    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+    __block int status = 0;
+    __block NSData* data = nil;
+    __block NSString* errStr = nil;
+
+    NSURLSessionDataTask* task = [[NSURLSession sharedSession]
+        dataTaskWithRequest:req
+          completionHandler:^(NSData* d, NSURLResponse* resp, NSError* err) {
+            if (err) {
+              errStr = err.localizedDescription ?: @"request failed";
+            } else {
+              data = d;
+              if ([resp isKindOfClass:[NSHTTPURLResponse class]])
+                status = (int)((NSHTTPURLResponse*)resp).statusCode;
+            }
+            dispatch_semaphore_signal(sem);
+          }];
+    [task resume];
+
+    dispatch_time_t deadline =
+        dispatch_time(DISPATCH_TIME_NOW, (int64_t)((timeout + 1.0) * NSEC_PER_SEC));
+    if (dispatch_semaphore_wait(sem, deadline) != 0) {
+      [task cancel];
+      out.error = "timeout";
+      return out;
+    }
+
+    if (errStr) {
+      out.error = errStr.UTF8String ? errStr.UTF8String : "request failed";
+      return out;
+    }
+
+    out.ok = true;
+    out.status = status;
+    if (data && data.length > 0) {
+      const uint8_t* bytes = (const uint8_t*)data.bytes;
+      out.body.assign(bytes, bytes + data.length);
+    }
+  }
+  return out;
+}
+
 }  // namespace sw
