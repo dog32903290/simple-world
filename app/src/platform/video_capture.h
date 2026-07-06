@@ -58,12 +58,30 @@ class VideoCapture {
   Impl* impl_;
 };
 
-// --selftest-io-video-capture entry. Starts the default-device session, waits up to a few seconds for
-// one frame, and asserts width>0 && height>0 (frame CONTENT deferred-content-verify). Prints SKIP (and
-// returns 0) when no camera is present or authorization is not granted — a graceful non-green skip, NOT
-// a false pass. There is no injectBug tooth: a live feed has no closed-form frame to corrupt, so the
-// test is a SMOKE-level liveness check (honestly labelled, per GOLDEN_STANDARD's stateful/emergent
-// carve-out) — injectBug is accepted and ignored. fn(bool) -> process exit code (0 PASS/SKIP, 1 FAIL).
+// ── Closed-form frame-packing core (the deterministic half the delegate runs on every frame). Copies a
+// source BGRA buffer whose rows may carry alignment PADDING (srcStride ≥ width*4) into a tightly-packed
+// width*4 destination — the exact repack the capture delegate does before handing bytes to the callback.
+// Factored out so it verifies WITHOUT a camera (the live capture path is emergent/deferred-content; this
+// stride math is closed form). Returns the packed byte count (= width*height*4), 0 on bad args.
+// dst must hold width*height*4 bytes. TEETH: setVideoCapturePackBug(1) drops the per-row stride step so
+// padded frames smear — a real corruption of the repack, biteable on a synthetic padded frame.
+void setVideoCapturePackBug(int mode);
+int  videoCapturePackBug();
+uint32_t packBgraFrame(uint8_t* dst, const uint8_t* src, uint32_t width, uint32_t height,
+                       uint32_t srcStride);
+
+// --selftest-io-video-capture entry. TWO halves:
+//   (1) CLOSED-FORM tooth (always runs, no hardware): feed a SYNTHETIC padded BGRA frame through
+//       packBgraFrame and assert the tightly-packed output pixels + dimensions are exact. injectBug
+//       (setVideoCapturePackBug) drops the row-stride step so the padded repack smears → RED. This is
+//       the biteable half — the stride/pack math is the deterministic part of the delegate's per-frame
+//       work, verifiable without a camera (the audiomonitor-synthetic-input precedent).
+//   (2) LIVE liveness probe (opportunistic, emergent): if a device is present AND authorized, start the
+//       session, wait ≤3s for a frame, assert dims>0 (content = deferred-content-verify). No device / no
+//       permission → prints SKIP for THIS half only (not a false green; the closed-form half already
+//       ran). A device present+authorized but no frame in 3s is a real FAIL.
+// fn(bool injectBug) -> process exit code (0 PASS, 1 FAIL; did-not-trip under injectBug → 0 for the
+// NO-BITE surfacing contract).
 int runVideoCaptureSelfTest(bool injectBug);
 
 }  // namespace sw
