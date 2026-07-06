@@ -18,4 +18,5 @@ const std::vector<NodeSpec>& drawFlowSpecs();    // Execute/Loop/SetXxxVarCmd/Lo
 const std::vector<NodeSpec>& drawDataSpecs();    // data.* ops (lane hook — starts empty)
 const std::vector<NodeSpec>& drawGizmoSpecs();   // render.gizmo Command ops (VisibleGizmos)
 const std::vector<NodeSpec>& drawShadingSpecs(); // render.shading Command-scope PBR (SetMaterial/SetPointLight/SetFog)
+const std::vector<NodeSpec>& drawIoVideoSpecs(); // io.video/io.ptz Texture2D sources (PlayVideo/VideoDeviceInput/ViscaCamera/OnvifCamera)
 }  // namespace sw
