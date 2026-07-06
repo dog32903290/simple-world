@@ -20,8 +20,8 @@ namespace {
 // --- Bezier flattening (fixed subdivision to a `flatness`-point tolerance) ---------------------------
 // A glyph outline is small (a few dozen curves); a fixed subdivision count keeps the walk simple and
 // deterministic (the golden pins fixture geometry, not curve density — curves are a named non-parity).
-// steps grows as the control-polygon span / flatness, clamped [2, 64]. This is NOT a parity claim
-// against any other tessellator (TiXL has none); it is a reasonable, monotone-in-flatness sampler.
+// steps grows as the control-polygon span / flatness, clamped [2, 64]. NOT a parity claim against any
+// other tessellator (TiXL has none); a reasonable, monotone-in-flatness sampler.
 int curveSteps(double spanPts, float flatness) {
   double f = flatness > 0.01f ? (double)flatness : 0.01;
   int n = (int)std::ceil(spanPts / f);
@@ -31,15 +31,16 @@ int curveSteps(double spanPts, float flatness) {
 }
 
 struct Walk {
-  std::vector<sw::GlyphContour>* contours = nullptr;
-  double curX = 0.0, curY = 0.0;    // current pen point
+  std::vector<PlatformGlyphContour>* contours = nullptr;
+  double curX = 0.0, curY = 0.0;      // current pen point
   double startX = 0.0, startY = 0.0;  // subpath start (for close)
   float flatness = 1.0f;
 };
 
 void pushPoint(Walk& w, double x, double y) {
   if (w.contours->empty()) return;
-  w.contours->back().points.push_back({(float)x, (float)y});
+  w.contours->back().xy.push_back((float)x);
+  w.contours->back().xy.push_back((float)y);
 }
 
 // CGPathApply callback: dispatch each path element, flattening beziers inline.
@@ -48,8 +49,7 @@ void applyElement(void* info, const CGPathElement* e) {
   const CGPoint* p = e->points;
   switch (e->type) {
     case kCGPathElementMoveToPoint: {
-      // New subpath → new contour. Seed with the move point.
-      w.contours->push_back(sw::GlyphContour{});
+      w.contours->push_back(PlatformGlyphContour{});
       w.curX = w.startX = p[0].x;
       w.curY = w.startY = p[0].y;
       pushPoint(w, w.curX, w.curY);
@@ -62,9 +62,9 @@ void applyElement(void* info, const CGPathElement* e) {
       break;
     }
     case kCGPathElementAddQuadCurveToPoint: {
-      const double c0x = w.curX, c0y = w.curY;         // start
-      const double cx = p[0].x, cy = p[0].y;           // control
-      const double ex = p[1].x, ey = p[1].y;           // end
+      const double c0x = w.curX, c0y = w.curY;  // start
+      const double cx = p[0].x, cy = p[0].y;    // control
+      const double ex = p[1].x, ey = p[1].y;    // end
       const double span = std::hypot(cx - c0x, cy - c0y) + std::hypot(ex - cx, ey - cy);
       const int steps = curveSteps(span, w.flatness);
       for (int i = 1; i <= steps; ++i) {
@@ -78,10 +78,10 @@ void applyElement(void* info, const CGPathElement* e) {
       break;
     }
     case kCGPathElementAddCurveToPoint: {
-      const double c0x = w.curX, c0y = w.curY;         // start
-      const double c1x = p[0].x, c1y = p[0].y;         // control 1
-      const double c2x = p[1].x, c2y = p[1].y;         // control 2
-      const double ex = p[2].x, ey = p[2].y;           // end
+      const double c0x = w.curX, c0y = w.curY;  // start
+      const double c1x = p[0].x, c1y = p[0].y;  // control 1
+      const double c2x = p[1].x, c2y = p[1].y;  // control 2
+      const double ex = p[2].x, ey = p[2].y;    // end
       const double span = std::hypot(c1x - c0x, c1y - c0y) + std::hypot(c2x - c1x, c2y - c1y) +
                           std::hypot(ex - c2x, ey - c2y);
       const int steps = curveSteps(span, w.flatness);
@@ -97,7 +97,7 @@ void applyElement(void* info, const CGPathElement* e) {
     }
     case kCGPathElementCloseSubpath: {
       // Repeat the subpath start to close the loop (first==last, LoadSvg's NeedsClosing convention).
-      if (!w.contours->empty() && !w.contours->back().points.empty()) {
+      if (!w.contours->empty() && !w.contours->back().xy.empty()) {
         pushPoint(w, w.startX, w.startY);
         w.contours->back().closed = true;
       }
@@ -108,14 +108,13 @@ void applyElement(void* info, const CGPathElement* e) {
   }
 }
 
-// Create a CTFont from a family/PostScript name or a font-FILE path. Empty name → system default.
+// Create a CTFont from a family/PostScript name or a font-FILE path. Empty name → Helvetica.
 // Caller CFRelease()s the result. Returns NULL only if creation fails entirely.
 CTFontRef makeFont(const char* fontName, float fontSize) {
   const CGFloat size = (CGFloat)(fontSize > 0.0f ? fontSize : 1.0f);
   if (!fontName || fontName[0] == '\0') {
     return CTFontCreateWithName(CFSTR("Helvetica"), size, nullptr);
   }
-  // If the name looks like a path to a readable font file, load the graphics font from it.
   std::string s(fontName);
   bool looksLikePath = (s.find('/') != std::string::npos) &&
                        (s.size() > 4 &&
@@ -126,8 +125,8 @@ CTFontRef makeFont(const char* fontName, float fontSize) {
     CFStringRef cfPath =
         CFStringCreateWithCString(kCFAllocatorDefault, s.c_str(), kCFStringEncodingUTF8);
     if (cfPath) {
-      CFURLRef url = CFURLCreateWithFileSystemPath(kCFAllocatorDefault, cfPath, kCFURLPOSIXPathStyle,
-                                                   false);
+      CFURLRef url =
+          CFURLCreateWithFileSystemPath(kCFAllocatorDefault, cfPath, kCFURLPOSIXPathStyle, false);
       CFRelease(cfPath);
       if (url) {
         CFArrayRef descs = CTFontManagerCreateFontDescriptorsFromURL(url);
@@ -153,7 +152,7 @@ CTFontRef makeFont(const char* fontName, float fontSize) {
 }  // namespace
 
 bool extractGlyphOutline(uint32_t codepoint, const char* fontName, float fontSize, float flatness,
-                         sw::GlyphOutline& out) {
+                         PlatformGlyphOutline& out) {
   out.contours.clear();
   out.advance = 0.0f;
   out.valid = false;
@@ -176,8 +175,6 @@ bool extractGlyphOutline(uint32_t codepoint, const char* fontName, float fontSiz
 
   CGGlyph glyphs[2] = {0, 0};
   bool haveGlyph = CTFontGetGlyphsForCharacters(font, utf16, glyphs, nUnits);
-  // Even if a substitution glyph is 0 (.notdef), we treat the font as usable and return valid=true
-  // with whatever outline/advance the primary glyph yields (advance still meaningful for layout).
   CGGlyph g = glyphs[0];
 
   // Advance (fontSize-scaled, since the font was created at fontSize).
@@ -194,11 +191,11 @@ bool extractGlyphOutline(uint32_t codepoint, const char* fontName, float fontSiz
       w.flatness = flatness > 0.0f ? flatness : 1.0f;
       CGPathApply(path, &w, applyElement);
       CFRelease(path);
-      // Drop any degenerate 0/1-point contour that a stray move produced.
-      std::vector<sw::GlyphContour> kept;
+      // Drop any degenerate <2-point (i.e. <4 floats) contour a stray move produced.
+      std::vector<PlatformGlyphContour> kept;
       kept.reserve(out.contours.size());
       for (auto& c : out.contours)
-        if (c.points.size() >= 2) kept.push_back(std::move(c));
+        if (c.xy.size() >= 4) kept.push_back(std::move(c));
       out.contours = std::move(kept);
     }
   }

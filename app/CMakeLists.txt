@@ -111,6 +111,9 @@ set_source_files_properties(src/platform/image_save.mm PROPERTIES COMPILE_OPTION
 # lifetime (NS::String/CompileOptions/Library/Function) alongside no ARC, like the .mm above.
 set_source_files_properties(src/platform/metal_compile.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 set_source_files_properties(src/platform/metal_compile_selftest.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
+# glyph_outline.mm: CoreText/CoreGraphics CFTypeRefs (CTFont/CGPath, manual CFRelease) — no ARC, same
+# manual-lifetime convention as image_decode.mm (glyph-outline leaf seam for TextToPoints).
+set_source_files_properties(src/platform/glyph_outline.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
 # audio_capture.mm / audio_playback.mm use AVFoundation — ARC keeps the ObjC lifetime simple
 # (they touch no metal-cpp pointers, so the MRC convention of the other .mm files doesn't apply).
 set_source_files_properties(src/platform/audio_capture.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
@@ -310,6 +313,7 @@ add_executable(simple_world
   src/platform/image_save.mm  # out-snapshot-png: product texture→PNG writer (ImageIO, byte-exact)
   src/platform/metal_compile.mm
   src/platform/metal_compile_selftest.mm
+  src/platform/glyph_outline.mm      # CoreText glyph-outline extractor (TextToPoints leaf seam, TiXL-absent)
   src/platform/osc_loopback.cpp
   src/platform/net_loopback.cpp      # L5 IO (socket lane): localhost TCP+UDP loopback (POSIX sockets)
   src/platform/serial_loopback.cpp   # L5 IO (socket lane): POSIX termios serial over a PTY-pair loopback
@@ -659,6 +663,8 @@ add_executable(simple_world
   src/runtime/pointlist_ops_loadobjaspoints.cpp # LoadObjAsPoints leaf (first obj_parse consumer + String-path channel)
   src/runtime/pointlist_ops_loadobjedges.cpp   # LoadObjEdges leaf (2nd obj_parse consumer: unique face edges → from/to/sep triples)
   src/runtime/svg_parse.cpp                    # device-IO SVG sub-lane: pure-CPU SVG parse+flatten+rasterize (nanosvg; LoadSvg.cs)
+  src/runtime/glyph_points.cpp                 # glyph-outline leaf-seam fn-ptr storage (TextToPoints ↔ platform/glyph_outline)
+  src/runtime/pointlist_ops_texttopoints.cpp   # TextToPoints leaf (TiXL-absent: text → glyph-outline SwPoint cloud via CoreText seam)
   src/runtime/pointlist_ops_loadsvg.cpp        # LoadSvg leaf (svg_parse consumer + String-path channel: flattened paths → SwPoint polylines)
   src/runtime/pointlist_ops_preparesvglinetransition.cpp # PrepareSvgLineTransition leaf (pure point-list F1 stroke-anim transform)
   src/runtime/point_ops_loadsvgastexture2d.cpp # LoadSvgAsTexture2D leaf (svg_parse rasterize → RGBA8 output texture; image SOURCE)
@@ -988,6 +994,7 @@ target_link_libraries(simple_world PRIVATE
   "-framework AppKit"
   "-framework Foundation"
   "-framework ImageIO"
+  "-framework CoreText"    # glyph_outline: CTFont* glyph-outline extraction (TextToPoints leaf seam)
   "-framework CoreGraphics"
   "-framework QuartzCore"
   "-framework Cocoa"
