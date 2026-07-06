@@ -1,5 +1,5 @@
 // runtime/node_registry_draw_iovideo — NodeSpec rows for the io/video + io/ptz Texture2D-producing ops:
-// PlayVideo / PlayVideoClip / VideoDeviceInput / ViscaCamera / OnvifCamera. Peeled into its own family
+// PlayVideo / PlayVideoClip / VideoDeviceInput / VideoStreamInput / ViscaCamera / OnvifCamera. Peeled into its own family
 // leaf (parallel-lane peel) so this node-hang lane never touches a shared table.
 //
 // WHY these hang now (the PARTIAL → census-recognised completion): each op's device leg is now built and
@@ -82,6 +82,22 @@ const std::vector<NodeSpec>& drawIoVideoSpecs() {
         {"FlipHorizontally", "FlipHorizontally", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
         {"FlipVertically", "FlipVertically", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
         {"CustomFps", "CustomFps", "Float", true, 0.0f, 0.0f, 240.0f}},
+       nullptr,
+       "io.video"},
+      // VideoStreamInput (TiXL Lib.io.video.VideoStreamInput): decode a live RTSP/http video stream (or a
+      // file URL) to a Texture2D via OpenCV VideoCapture(FFMPEG) → Read → CvtColor(BGR2BGRA) (cs:148/163/
+      // 173, golden'd decode+convert in runtime/cv_bridge, --selftest-io-video-stream). Texture2D out.
+      // Params mirror VideoStreamInput.cs InputSlots + .t3 DefaultValues: Connect=false (cs:15/t3:6),
+      // Url="rtsp://your_stream_url" (cs:30 — .t3:14 overrides to a demo mjpg URL; the .cs source default
+      // is the honest clone anchor). FORK (named): Reconnect (cs:18) is a device-dialog re-open affordance
+      // dropped for the first hang; the Resolution/Status value outputs (cs:24/27) are the deferred
+      // cross-rail latch half (secondary value outputs join when io-video's cross-rail latch is wired,
+      // GetPosition precedent). The live RTSP network fetch is deferred-hw-verify.
+      {"VideoStreamInput", "VideoStreamInput",
+       {{"out", "out", "Texture2D", false},
+        {"Url", "Url", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false,
+         "rtsp://your_stream_url"},
+        {"Connect", "Connect", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr,
        "io.video"},
       // ViscaCamera (TiXL Lib.io.ptz.ViscaCamera): PTZ camera control (VISCA-over-IP, golden'd byte

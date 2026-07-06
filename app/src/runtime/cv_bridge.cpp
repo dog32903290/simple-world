@@ -6,6 +6,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/calib3d.hpp>   // findChessboardCorners, calibrateCamera (CameraCalibrator.cs)
 #include <opencv2/imgproc.hpp>   // cvtColor, threshold, findContours, moments (Video2DPointScanner.cs)
+#include <opencv2/videoio.hpp>   // VideoCapture (VideoStreamInput.cs)
 
 #include <algorithm>
 
@@ -145,6 +146,63 @@ std::vector<BrightSpot> findBrightSpots(const HostImage& img, bool findAll, floa
     if (largest != contours.end()) emit(*largest);
   }
   return out;
+}
+
+// ── (c) VideoStreamInput ────────────────────────────────────────────────────────────────────────
+bool decodeStreamFrame(const std::string& url, int frameIndex, StreamFrame& out) {
+  out = StreamFrame{};
+  if (frameIndex < 0) return false;
+
+  // VideoStreamInput.cs:148 — new VideoCapture(url, VideoCaptureAPIs.FFMPEG). The FFMPEG backend opens a
+  // file path or a network stream identically (a file URL is the closed-form-checkable case).
+  cv::VideoCapture cap(url, cv::CAP_FFMPEG);
+  if (!cap.isOpened()) return false;                 // cs:150-155 — non-fatal "Error: Failed to open".
+
+  // Advance to the requested frame. A live stream ignores index (next frame); a file decodes to N.
+  cv::Mat frame;
+  for (int i = 0; i <= frameIndex; ++i) {
+    if (!cap.read(frame) || frame.empty()) return false;  // cs:163 _capture.Read(frame) && !frame.Empty()
+  }
+
+  // cs:170-173 — allocate a CV_8UC4 BGRA Mat and Cv2.CvtColor(frame, ..., BGR2BGRA). TEETH 3 swaps the
+  // B and R channels of the SOURCE before the convert, so the emitted BGRA has B↔R transposed — a real
+  // corruption of the channel-order mapping the B8G8R8A8 GPU texture depends on (not a want-flip).
+  cv::Mat src = frame;
+  if (g_bug == 3) {
+    cv::Mat swapped;
+    cv::cvtColor(frame, swapped, cv::COLOR_BGR2RGB);  // reinterpret BGR as if R and B were swapped
+    src = swapped;
+  }
+  cv::Mat bgra;
+  cv::cvtColor(src, bgra, cv::COLOR_BGR2BGRA);
+
+  out.width = bgra.cols;
+  out.height = bgra.rows;
+  out.bgra.resize((size_t)bgra.cols * bgra.rows * 4);
+  // Copy row-by-row to strip any cv::Mat stride padding (tightly packed, as the header contracts).
+  for (int r = 0; r < bgra.rows; ++r)
+    std::copy(bgra.ptr<uint8_t>(r), bgra.ptr<uint8_t>(r) + (size_t)bgra.cols * 4,
+              out.bgra.data() + (size_t)r * bgra.cols * 4);
+  return true;
+}
+
+bool writeSolidColorClip(const std::string& path, int width, int height,
+                         const std::vector<uint8_t>& bgrColors) {
+  const size_t nFrames = bgrColors.size() / 3;
+  if (nFrames == 0 || width <= 0 || height <= 0) return false;
+  // FFV1 = lossless intra codec in an AVI container. The golden asserts exact pixels, so lossy H.264 etc.
+  // are disallowed (they'd quantize the solid colors and break the closed-form).
+  cv::VideoWriter w(path, cv::VideoWriter::fourcc('F', 'F', 'V', '1'), 10.0,
+                    cv::Size(width, height), /*isColor=*/true);
+  if (!w.isOpened()) return false;
+  for (size_t i = 0; i < nFrames; ++i) {
+    cv::Mat frame(height, width,
+                  CV_8UC3,
+                  cv::Scalar(bgrColors[i * 3 + 0], bgrColors[i * 3 + 1], bgrColors[i * 3 + 2]));
+    w.write(frame);
+  }
+  w.release();
+  return true;
 }
 
 }  // namespace cv_bridge

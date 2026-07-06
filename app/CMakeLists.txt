@@ -27,8 +27,9 @@ add_subdirectory(${NFD_DIR})
 #   core     — cv::Mat, moments, TermCriteria
 #   imgproc  — cvtColor, threshold, findContours, contourArea (Video2DPointScanner bright-spot detect)
 #   calib3d  — findChessboardCorners, calibrateCamera (CameraCalibrator)
-# imgproc/calib3d pull core transitively; naming all three keeps the intent explicit.
-find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d)
+#   videoio  — cv::VideoCapture (VideoStreamInput stream/file decode via the FFMPEG backend)
+# imgproc/calib3d/videoio pull core transitively; naming all four keeps the intent explicit.
+find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d videoio)
 
 # ---- Dear ImGui core + Metal(C++) / OSX backends -----------------------------
 # imgui_impl_metal.mm / imgui_impl_osx.mm are written for manual reference
@@ -335,7 +336,7 @@ add_executable(simple_world
   src/platform/menu_appkit_ext.cpp  # tracked AppKit NSMenu extension (live check marks + menuNeedsUpdate: delegate) — replaces the gitignored vendored metal-cpp edits
   src/platform/live_binding.cpp
   src/runtime/beat_timing.cpp        # tap BPM engine (port of TiXL BeatTiming.cs)
-  src/runtime/cv_bridge.cpp          # OpenCV seam leaf: chessboard-detect+calibrate (CameraCalibrator.cs) + bright-spot detect (Video2DPointScanner.cs). ONLY TU that includes opencv2/*
+  src/runtime/cv_bridge.cpp          # OpenCV seam leaf: chessboard-detect+calibrate (CameraCalibrator.cs) + bright-spot detect (Video2DPointScanner.cs) + stream decode+BGRA convert (VideoStreamInput.cs). ONLY TU that includes opencv2/*
   src/runtime/cmd_view_background.cpp  # Output-window view background ambient (TiXL EvaluationContext.BackgroundColor)
   src/runtime/particle_system.cpp
   src/runtime/particle_decay_selftest.cpp
@@ -633,6 +634,7 @@ add_executable(simple_world
   src/io_camera_checkerboard_golden.cpp  # --selftest-io-camera-checkerboard (CameraCalibrator OpenCV-free pattern geometry)
   src/io_camera_calibrate_golden.cpp  # --selftest-io-camera-calibrate (CameraCalibrator OpenCV numerics: findChessboardCorners+calibrateCamera, synthetic closed-form)
   src/io_video_pointscan_golden.cpp   # --selftest-io-video-pointscan (Video2DPointScanner OpenCV blob-detect → point-list currency, synthetic closed-form)
+  src/io_video_stream_golden.cpp      # --selftest-io-video-stream (VideoStreamInput OpenCV VideoCapture decode → BGR2BGRA convert, lossless-clip closed-form)
   src/io_video_transform_golden.cpp  # --selftest-io-video-transform (VideoDeviceInput closed-form affine; capture deferred-hw)
   src/io_visca_protocol_golden.cpp  # --selftest-io-visca-protocol (ViscaCamera VISCA-over-IP byte protocol; UDP deferred-hw)
   src/io_onvif_digest_golden.cpp  # --selftest-io-onvif-digest (OnvifCamera WS-Security PasswordDigest; SOAP/RTSP deferred-hw)
