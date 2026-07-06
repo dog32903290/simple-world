@@ -678,6 +678,7 @@ add_executable(simple_world
   src/runtime/pointlist_ops_drawspheregizmo.cpp
   src/runtime/pointlist_ops_locator.cpp
   src/pointlist_golden.cpp
+  src/texttopoints_golden.cpp            # TextToPoints: TiXL-absent glyph→point cloud (fixture geometry anchors + real CoreText '口' smoke)
   src/loadsvg_golden.cpp                 # LoadSvg: .svg → flattened polylines → SwPoint list (straight-segment closed-form)
   src/preparesvglinetransition_golden.cpp # PrepareSvgLineTransition: pure point-list F1 stroke-anim (closed-form)
   src/loadsvgastexture2d_golden.cpp      # LoadSvgAsTexture2D: svg rasterize → RGBA8 output tex (interior-fill pixel probe)
