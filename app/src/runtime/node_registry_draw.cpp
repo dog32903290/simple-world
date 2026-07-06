@@ -33,6 +33,7 @@ const std::vector<NodeSpec>& drawSpecs() {
     append(drawFlowSpecs());         // Execute/Loop/SetXxxVarCmd/LogMessage/…
     append(drawDataSpecs());         // data.* ops (lane hook — starts empty)
     append(drawGizmoSpecs());        // render.gizmo Command ops (VisibleGizmos — camera-B peel)
+    append(drawShadingSpecs());      // render.shading Command-scope PBR (SetMaterial/SetPointLight/SetFog)
     // The two earlier render-island peels (transform-context ops + Seam 2 render-state).
     append(drawTransformSpecs());
     append(drawRenderStateSpecs());
