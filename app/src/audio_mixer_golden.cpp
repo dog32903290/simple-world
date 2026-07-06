@@ -13,11 +13,12 @@
 // independent-of-impl, NOT read back from the mixer). Probes sit at DIVERGING MIDDLES (a >1 value the clamp
 // bites, a paused/stopped row the gate bites) — not identity/saturation (特徵2).
 //
-// This selftest carries NO injectBug tooth of its own: the clamp+gate here are 4 lines of straight C++ with
-// no severable production seam to corrupt without a fake flag (that would be P3 want-flip theatre). The
-// EDGE/ADSR cook logic that DOES have a real cook seam is toothed in audio_playback_golden.cpp (bug 1/2 on
-// setAudioPlaybackBug). So injectBug is honestly a NO-OP here and the golden reports NO-BITE — a fixed
-// closed-form contract, not a dead tooth pretending to bite.
+// TOOTH: injectBug latches setAudioMixerBug(true), which CORRUPTS level()'s real clamp+gate in
+// platform/audio_mixer.mm (skips the playing/paused gate AND the min(peak,1) clamp — the exact production
+// lines this golden asserts). The C2 diverging-middle probes then diverge: the >1 row no longer clamps to 1,
+// the paused/stopped rows no longer gate to 0 → ok goes false → exit 1. (Initial version mis-judged the
+// clamp+gate as having "no severable seam"; a sticky module latch that rots the REAL readout path is sw's
+// standard injection convention — cf. setAudioPlaybackBug / hostScalarInjectBug — NOT a fake flag.)
 #include <cmath>
 #include <cstdio>
 
@@ -33,6 +34,10 @@ bool approx(double a, double b, double eps = 1e-6) { return std::fabs(a - b) <= 
 int runAudioMixerSelfTest(bool injectBug) {
   AudioMixer mix;
   bool ok = true;
+
+  // TOOTH: corrupt the REAL level() clamp+gate for the whole run, then run the SAME probes. The C2
+  // diverging-middle rows then read wrong (1.70 not clamped, paused/stopped not gated) → ok false → exit 1.
+  setAudioMixerBug(injectBug);
 
   // ── C1. Absent key: everything reads empty/0 (no stream created). ──────────────────────────────────
   ok = ok && !mix.hasStream("k1");
@@ -60,13 +65,8 @@ int runAudioMixerSelfTest(bool injectBug) {
   mix.debugInjectLevelBlock("sk", 0.5, /*playing=*/false, /*paused=*/true);
   ok = ok && !mix.playing("sk") && mix.paused("sk") && approx(mix.level("sk"), 0.0);
 
-  if (injectBug) {
-    // Honest NO-BITE: this closed-form contract has no severable production seam. --bite's NO-BITE list
-    // is the correct home for it; return 0 (never a false exit 1). The edge/ADSR teeth live in
-    // audio_playback_golden (--selftest-audioplayer, bug 1/2).
-    std::printf("[selftest-audio-mixer] injectBug is a NO-OP (closed-form contract; teeth in audioplayer)\n");
-    return 0;
-  }
+  setAudioMixerBug(false);   // restore production (sticky module switch)
+
   std::printf("[selftest-audio-mixer] %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }

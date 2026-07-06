@@ -9,6 +9,12 @@
 
 namespace sw {
 
+namespace {
+bool g_audioMixerBug = false;   // golden teeth latch (see setAudioMixerBug); production leaves it false.
+}  // namespace
+void setAudioMixerBug(bool on) { g_audioMixerBug = on; }
+bool audioMixerBug() { return g_audioMixerBug; }
+
 // One keyed stream = one AVAudioPlayerNode → varispeed → engine mainMixer, plus per-key seek base + render
 // tap. The single-segment position model is copied verbatim from audio_playback.mm (schedule ONE segment
 // [baseFrame,end); positionFrames = baseFrame + rendered-since-start; pause folds rendered back into base).
@@ -287,10 +293,10 @@ void AudioMixer::setRate(const std::string& key, double rate) {
 double AudioMixer::level(const std::string& key) const {
   const Stream* s = impl_->find(key);
   if (s == nullptr) return 0.0;
-  if (!s->playing || s->paused) return 0.0;   // cs:336-337
+  if (!g_audioMixerBug && (!s->playing || s->paused)) return 0.0;   // cs:336-337 gate (skipped under teeth)
   double v = (double)s->lastLevel->load(std::memory_order_relaxed);
   if (v < 0.0) v = 0.0;
-  if (v > 1.0) v = 1.0;   // min(peak, 1) — cs:344 / export cs:320
+  if (!g_audioMixerBug && v > 1.0) v = 1.0;   // min(peak, 1) — cs:344 / export cs:320 (skipped under teeth)
   return v;
 }
 

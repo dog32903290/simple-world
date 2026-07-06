@@ -95,4 +95,12 @@ class AudioMixer {
   Impl* impl_;
 };
 
+// ── Golden TEETH hook (--selftest-audio-mixer). false = production; true = CORRUPT level()'s REAL clamp+gate
+// (skip the playing/paused gate AND the min(peak,1) clamp — the same production lines the golden asserts) so
+// the diverging-middle probes (a paused/stopped row that must read 0, a >1 value that must clamp to 1) go
+// RED. Sticky module switch; the golden restores false. NOT a want-flip — it rots the real readout path.
+// Mirrors setAudioPlaybackBug's convention (audio_playback_cook.h).
+void setAudioMixerBug(bool on);
+bool audioMixerBug();
+
 }  // namespace sw
