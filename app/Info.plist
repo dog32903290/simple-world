@@ -12,5 +12,10 @@
        link time) so the bare binary can request the microphone without crashing. -->
   <key>NSMicrophoneUsageDescription</key>
   <string>simple_world listens to live audio so sound can drive the particles.</string>
+  <!-- Camera usage for the VideoDeviceInput live-capture leg (AVCaptureSession). Without this key
+       the bare binary crashes on the authorization request; the selftest skips gracefully when the
+       user has not granted access, but the live path needs the key present to prompt. -->
+  <key>NSCameraUsageDescription</key>
+  <string>simple_world captures live video from your camera so a device feed can drive the visuals.</string>
 </dict>
 </plist>

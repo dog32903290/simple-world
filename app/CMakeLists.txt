@@ -118,6 +118,14 @@ set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OP
 # http_request.mm uses NSURLSession/NSData — no metal-cpp pointers, so ARC keeps the ObjC lifetime
 # simple (same convention as audio_capture/audio_playback).
 set_source_files_properties(src/platform/http_request.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+# video_decode.mm / video_decode_selftest.mm: AVFoundation (AVAssetReader/Writer) — ARC keeps the ObjC
+# lifetime simple (same convention as audio_playback). The metal-cpp objects they also touch (MTL::* /
+# NS::AutoreleasePool) are manual-lifetime and released explicitly in-code — ARC only governs the ObjC
+# pointers, so the two lifetime models coexist (metal-cpp is not an ObjC object under ARC's view).
+set_source_files_properties(src/platform/video_decode.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+set_source_files_properties(src/platform/video_decode_selftest.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+# video_capture.mm: AVCaptureSession + an ObjC sample-buffer delegate — ARC governs the ObjC objects.
+set_source_files_properties(src/platform/video_capture.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 # audio_mixer.mm (seam/audio-mixer): per-operator AVAudioEngine mixer — same AVFoundation+ARC as playback.
 set_source_files_properties(src/platform/audio_mixer.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 # link_sync{,_selftest}.cpp: the ONLY TUs that compile the vendored Ableton Link (asio-heavy templates).
@@ -317,6 +325,11 @@ add_executable(simple_world
   src/platform/http_request.mm       # L5 IO (http lane): synchronous NSURLSession GET (RequestUrl/LoadImageFromUrl seam)
   src/platform/link_sync.cpp         # L5 IO (link lane): Ableton Link session (GPLv2) behind a pimpl (AbletonLinkSync native seam)
   src/platform/link_sync_selftest.cpp # L5 IO (link lane): local-session tempo/beat/phase closed-form gate (--selftest-linksync)
+  src/platform/video_decode.mm       # L5 IO (video lane): AVAssetReader→CVPixelBuffer→MTL::Texture decode-by-frame (PlayVideo decode leg)
+  src/platform/video_decode_selftest.mm  # --selftest-io-video-decode: AVAssetWriter 8-frame clip → decode → per-frame color assert
+  src/io_video_decode_register.cpp   # registers --selftest-io-video-decode (impl in the .mm)
+  src/platform/video_capture.mm      # L5 IO (video lane): AVCaptureSession live camera capture (VideoDeviceInput capture leg)
+  src/io_video_capture_register.cpp  # registers --selftest-io-video-capture (impl in the .mm)
   src/platform/midi_loopback.mm
   src/platform/window_mode.mm
   src/platform/menu_appkit_ext.cpp  # tracked AppKit NSMenu extension (live check marks + menuNeedsUpdate: delegate) — replaces the gitignored vendored metal-cpp edits
@@ -619,6 +632,7 @@ add_executable(simple_world
   src/io_video_transform_golden.cpp  # --selftest-io-video-transform (VideoDeviceInput closed-form affine; capture deferred-hw)
   src/io_visca_protocol_golden.cpp  # --selftest-io-visca-protocol (ViscaCamera VISCA-over-IP byte protocol; UDP deferred-hw)
   src/io_onvif_digest_golden.cpp  # --selftest-io-onvif-digest (OnvifCamera WS-Security PasswordDigest; SOAP/RTSP deferred-hw)
+  src/io_ptz_send_golden.cpp  # --selftest-io-ptz-send (ViscaCamera UDP-loopback send + OnvifCamera SOAP envelope assembly; real device deferred-hw)
   src/keepstrings_golden.cpp  # --selftest-keepstrings (multi-frame accumulator goldens, flat+resident+guard)
   src/hasstringchanged_golden.cpp
   src/buildrandomstring_golden.cpp
@@ -712,6 +726,8 @@ add_executable(simple_world
   src/runtime/node_registry_draw_flow.cpp  # flow family specs (Execute/Loop/… — parallel-lane peel)
   src/runtime/node_registry_draw_data.cpp  # data family specs (lane hook, starts empty — parallel-lane peel)
   src/runtime/node_registry_draw_gizmo.cpp  # gizmo family specs (VisibleGizmos — camera-B parallel-lane peel)
+  src/runtime/node_registry_draw_shading.cpp  # render.shading Command-scope PBR specs (SetMaterial/SetPointLight/SetFog — value-slice node hang)
+  src/runtime/node_registry_draw_iovideo.cpp  # io.video/io.ptz Texture2D source specs (PlayVideo/PlayVideoClip/VideoDeviceInput/ViscaCamera/OnvifCamera — device-leg node hang)
   src/runtime/node_registry_draw_transform.cpp  # render-island transform-context specs (peeled for the ratchet)
   src/runtime/node_registry_draw_renderstate.cpp  # Seam 2 render-state specs (Rasterizer/OutputMerger, peeled for the ratchet)
   ${SW_MATH_SRCS}  # globbed: math_op_registry.cpp + every per-subfamily math leaf
@@ -973,6 +989,8 @@ target_link_libraries(simple_world PRIVATE
   "-framework Carbon"
   "-framework GameController"
   "-framework AVFoundation"
+  "-framework CoreMedia"   # video_decode: CMSampleBuffer / CMTime (AVAssetReader frame decode)
+  "-framework CoreVideo"   # video_decode: CVPixelBuffer (decoded frame → MTL::Texture upload)
   "-framework CoreAudio"
   "-framework AudioToolbox"
   "-framework CoreMIDI"

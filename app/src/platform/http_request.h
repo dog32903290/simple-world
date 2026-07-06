@@ -48,4 +48,15 @@ struct HttpResponse {
 // error=...}. Safe to call off the main thread (the app kicks it onto a worker to model TiXL's async).
 HttpResponse httpGet(const std::string& url, double timeoutSeconds = 30.0);
 
+// Blocking HTTP/1.1 POST of `body` to `url` with Content-Type `contentType`. Same NSURLSession
+// transport, error, and status semantics as httpGet (a non-2xx with a body is ok=true,status=NNN; a
+// transport failure is ok=false,status=0,error=...). The ONVIF seam (OnvifCamera.cs:696-736
+// SendSoapRequestAsync) posts a SOAP envelope with Content-Type "application/soap+xml" — that whole
+// request is BODY + method + content-type over the identical NSURLSession the GET already uses; this
+// generalises the GET seam to carry a request body (TiXL's HttpClient.PostAsync with a StringContent).
+// The real camera endpoint is deferred-hw-verify; the closed-form half (envelope assembly incl. the
+// golden WS-Security digest) is verified against a canonical vector, independent of any device.
+HttpResponse httpPost(const std::string& url, const std::string& body,
+                      const std::string& contentType, double timeoutSeconds = 30.0);
+
 }  // namespace sw
