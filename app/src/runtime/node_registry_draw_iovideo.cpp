@@ -1,6 +1,7 @@
-// runtime/node_registry_draw_iovideo — NodeSpec rows for the io/video + io/ptz Texture2D-producing ops:
-// PlayVideo / PlayVideoClip / VideoDeviceInput / VideoStreamInput / ViscaCamera / OnvifCamera. Peeled into its own family
-// leaf (parallel-lane peel) so this node-hang lane never touches a shared table.
+// runtime/node_registry_draw_iovideo — NodeSpec rows for the io/video + io/ptz + io/dmx vision ops:
+// PlayVideo / PlayVideoClip / VideoDeviceInput / VideoStreamInput / ViscaCamera / OnvifCamera /
+// CameraCalibrator / Video2DPointScanner. Peeled into its own family leaf (parallel-lane peel) so this
+// node-hang lane never touches a shared table.
 //
 // WHY these hang now (the PARTIAL → census-recognised completion): each op's device leg is now built and
 // self-tested — PlayVideo/PlayVideoClip's frame decode (platform/video_decode, --selftest-io-video-decode)
@@ -138,6 +139,83 @@ const std::vector<NodeSpec>& drawIoVideoSpecs() {
         {"Move", "Move", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
        nullptr,
        "io.ptz"},
+      // TiXL authority: CameraCalibrator.cs
+      // CameraCalibrator (TiXL Lib.io.video.CameraCalibrator): chessboard camera calibration — OpenCV
+      // findChessboardCorners + calibrateCamera(RationalModel, 50/1e-4) → intrinsics K + distortion, then
+      // Undistort/Remap the feed. The genuine OpenCV numerics are golden'd in runtime/cv_bridge
+      // (findChessboardCorners cs:270, calibrateCameraViews cs:309-319; --selftest-io-camera-calibrate);
+      // the chessboard display geometry is golden'd in runtime/checkerboard_gen (--selftest-io-camera-
+      // checkerboard). This row registers the GRAPH NODE so census recognises the OPERATOR. TextureIn in,
+      // TextureOut (undistorted feed) + CheckerboardTexture (the display board) out — both Texture2D. The
+      // cook that fills the textures from the device leg (DX11/Metal staging readback → cv::Mat) is
+      // deferred-hw (ConvertTextureToMat, the hardware leg); the numeric calibrate cook rides the golden'd
+      // cv_bridge once the texture-source cook seam is wired, no re-registration ("hang now, fill later").
+      // Ports mirror CameraCalibrator.cs InputSlots (line-cited); Int2 ChessboardSize/DisplayResolution
+      // ride Widget::Vec arity-2 (two consecutive Float ports .x/.y); bool inputs ride Widget::Bool; enum
+      // Mode/UndistortMethod ride Widget::Enum. FORK (named): the IsCalibrated/StatusMessage value outputs
+      // (cs:55/73) are the deferred cross-rail latch half (secondary value outputs join when io-video's
+      // cross-rail latch is wired, GetPosition precedent).
+      {"CameraCalibrator", "CameraCalibrator",
+       {{"TextureIn", "TextureIn", "Texture2D", true},
+        {"TextureOut", "TextureOut", "Texture2D", false},
+        {"CheckerboardTexture", "CheckerboardTexture", "Texture2D", false},
+        {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 2.0f, Widget::Enum,
+         {"Passthrough", "Calibration", "LensCorrected"}, true},
+        {"ChessboardSize.x", "ChessboardSize", "Float", true, 7.0f, 1.0f, 32.0f, Widget::Vec, {}, false, 2},
+        {"ChessboardSize.y", "ChessboardSize.y", "Float", true, 6.0f, 1.0f, 32.0f, Widget::Vec, {}, false, 1},
+        {"SquareInMm", "SquareInMm", "Float", true, 25.0f, 0.0f, 1000.0f},
+        {"BorderInSquares", "BorderInSquares", "Float", true, 1.0f, 0.0f, 16.0f},
+        {"DisplayResolution.x", "DisplayResolution", "Float", true, 1920.0f, 1.0f, 16384.0f, Widget::Vec, {}, false, 2},
+        {"DisplayResolution.y", "DisplayResolution.y", "Float", true, 1080.0f, 1.0f, 16384.0f, Widget::Vec, {}, false, 1},
+        {"Alpha", "Alpha", "Float", true, 1.0f, 0.0f, 1.0f},
+        {"UndistortMethod", "UndistortMethod", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Enum,
+         {"Undistort", "Remap"}, true},
+        {"CaptureImage", "CaptureImage", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"Calibrate", "Calibrate", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"Reset", "Reset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"FilePath", "FilePath", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false,
+         "calibration.dat"},
+        {"Save", "Save", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"Load", "Load", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr,
+       "io.video"},
+      // TiXL authority: Video2DPointScanner.cs
+      // Video2DPointScanner (TiXL Lib.io.dmx.helpers.Video2DPointScanner): scan a camera feed for bright
+      // spots → 2D point map (projector/LED calibration, structured-light). The genuine OpenCV blob detect
+      // is golden'd in runtime/cv_bridge (FindBrightSpots cs:374-418: grayscale→threshold→findContours→
+      // area>2 centroid → device-normalize [-1,1]; --selftest-io-video-pointscan). This row registers the
+      // GRAPH NODE. VideoIn (Texture2D) in; ScannedPoints2D → the Points currency (TiXL BufferWithViews of
+      // 2D points, cs:59 — the point-list rail our detected-spot centroids ride, cs:394-395 NDC mapping);
+      // DebugTexture (Texture2D) out. The cook filling Points from a real feed rides the golden'd cv_bridge
+      // once the texture-source readback cook seam is wired (deferred-hw, same as CameraCalibrator's device
+      // leg), no re-registration. Ports mirror Video2DPointScanner.cs InputSlots (line-cited); bool inputs
+      // ride Widget::Bool; String inputs ride the String channel. FORK (named): PixelOutput (cs:47, the
+      // structured-light scan buffer, a second BufferWithViews) is dropped for the first hang — ScannedPoints2D
+      // is the load-bearing point-list output; the DebugMode/TestFullMode/TestPixelMode device-scan
+      // affordances hang as bool params but their scan-sequence behaviour is deferred-hw (needs the live
+      // output→camera feedback loop).
+      {"Video2DPointScanner", "Video2DPointScanner",
+       {{"VideoIn", "VideoIn", "Texture2D", true},
+        {"ScannedPoints2D", "ScannedPoints2D", "Points", false},
+        {"DebugTexture", "DebugTexture", "Texture2D", false},
+        {"Threshold", "Threshold", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"PixelBrightness", "PixelBrightness", "Float", true, 0.0f, 0.0f, 1.0f},
+        {"PixelCount", "PixelCount", "Float", true, 0.0f, 0.0f, 65535.0f},
+        {"ScanIntervallum", "ScanIntervallum", "Float", true, 0.0f, 0.0f, 60.0f},
+        {"ScanTrigger", "ScanTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"ResetScan", "ResetScan", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"ApplyCorrection", "ApplyCorrection", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"LoadCalibration", "LoadCalibration", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"CalibrationPath", "CalibrationPath", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false,
+         1, false, ""},
+        {"DebugMode", "DebugMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"TestFullMode", "TestFullMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"TestPixelMode", "TestPixelMode", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"FilePath", "FilePath", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, false, ""},
+        {"Save", "Save", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true},
+        {"Load", "Load", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool, {}, true}},
+       nullptr,
+       "io.dmx"},
   };
   return specs;
 }
