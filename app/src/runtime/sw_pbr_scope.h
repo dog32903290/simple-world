@@ -161,6 +161,19 @@ struct MaterialLibraryScope {
 // (UseMaterial.cs:19-20 invalid-reference: the op leaves the prior material). Read by the UseMaterial scope-set.
 bool lookupDefinedMaterial(const std::string& name, ActiveMaterial& out);
 
+// ─────────────────────────── two-leg SHARED scope resolve (S2c: ONE resolve site) ───────────────────────────
+// Resolve the four PBR scope objects from a command node's op type + String channel + resolved Float params.
+// BOTH cook legs call THIS (flat: type/strParams; resident: opType/strInputs) so the resolve can never fork.
+struct PbrScopeResolve {
+  ActiveMaterial mat, define;
+  SwPointLight light;
+  bool lightActive = false;
+  ActiveFog fog;
+};
+PbrScopeResolve resolvePbrScopes(const std::string& opType,
+                                 const std::map<std::string, std::string>& strChannel,
+                                 const std::map<std::string, float>& params);
+
 // ─────────────────────────── cc-fill bridge (the SINGLE source both cook legs read) ───────────────────────────
 // Read the live material / light / fog scope into the DrawMeshPbr surfacing fields. BOTH cook legs call THIS
 // (not the thread_local getters piecemeal) so the flat/resident fill can never fork (the S2c mirror gate).

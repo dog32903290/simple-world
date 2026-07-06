@@ -215,32 +215,7 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
       // PBR CONTEXT-STACK scope (mirror of the C1 camera scope): SetMaterial/UseMaterial push the active
       // material, SetPointLight pushes a light, SetFog pushes fog — around the SubGraph cook, so a DrawMeshPbr
       // inside reads the live scope. -bug (materialScopeBugSkipPush/…) leaves it unset → default → golden RED.
-      ActiveMaterial pbrMat;
-      if (!materialScopeBugSkipPush() && isMaterialScopeWriter(n->type)) {
-        std::string matName;  // SetMaterial.MaterialId / UseMaterial.MaterialReference (String channel)
-        auto sit = n->strParams.find(n->type == "UseMaterial" ? "MaterialReference" : "MaterialId");
-        if (sit != n->strParams.end()) matName = sit->second;
-        if (n->type == "UseMaterial") {
-          if (!lookupDefinedMaterial(matName, pbrMat)) pbrMat.active = false;  // invalid ref → leave prior (UseMaterial.cs:19)
-        } else {
-          pbrMat = resolveActiveMaterial(*nodeParams(id), matName);
-        }
-      }
-      SwPointLight pbrLight;
-      bool pbrLightActive = !pointLightScopeBugSkipPush() && isPointLightScopeWriter(n->type);
-      if (pbrLightActive) pbrLight = resolvePointLightFromParams(*nodeParams(id));
-      ActiveFog pbrFog;
-      if (!fogScopeBugSkipPush() && isFogScopeWriter(n->type)) pbrFog = resolveActiveFog(*nodeParams(id));
-      // DefineMaterials: register its Materials MultiInput into the by-name library for the SubGraph (v1:
-      // a SetMaterial wired into Materials surfaces its resolved material — but sw has no PbrMaterial slot
-      // currency, so DefineMaterials registers the material NAME it carries via strParams "Define<i>", a
-      // named fork; the UseMaterial reference resolves against it). The single-material common case rides
-      // the SetMaterial scope directly; DefineMaterials' library is the multi-define surface.
-      ActiveMaterial pbrDefine;
-      if (n->type == "DefineMaterials") {
-        auto sit = n->strParams.find("MaterialId");
-        if (sit != n->strParams.end()) { pbrDefine = resolveActiveMaterial(*nodeParams(id), sit->second); }
-      }
+      const PbrScopeResolve pbr = resolvePbrScopes(n->type, n->strParams, *nodeParams(id));
       {
         // S3b LIVE-READ scope: make ctxVars the ambient live map WHILE cooking the SubGraph, so a value-rail
         // GetFloatVar driving a param of a node inside the SubGraph re-resolves LIVE (closes S3a's hollow).
@@ -248,10 +223,10 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
         LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
         LiveCameraScope liveCam(activeCam);  // C1: active camera live for the SubGraph cook (point rail reads it)
         // PBR scopes live for the SubGraph cook so a DrawMeshPbr inside reads them (mirror of liveCam above).
-        LiveMaterialScope livePbrMat(pbrMat);
-        LivePointLightScope livePbrLight(pbrLight, pbrLightActive);
-        LiveFogScope livePbrFog(pbrFog);
-        MaterialLibraryScope livePbrDefine(pbrDefine, pbrDefine.active);  // DefineMaterials by-name library
+        LiveMaterialScope livePbrMat(pbr.mat);
+        LivePointLightScope livePbrLight(pbr.light, pbr.lightActive);
+        LiveFogScope livePbrFog(pbr.fog);
+        MaterialLibraryScope livePbrDefine(pbr.define, pbr.define.active);  // DefineMaterials by-name library
         // SetTime SUBTREE-TIME scope (SetTime.cs:23-43; point_ops_settime.h — the S3b shape): push the
         // {Absolute/Relative, NewTime} chain node around the SubTree cook so the value-rail fx clock (and
         // resident automation localTime) read the SCOPED time. -bug (setTimeBugSkipPush) leaves it inactive.

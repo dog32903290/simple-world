@@ -57,7 +57,6 @@
 #include "runtime/tixl_point.h"      // EvaluationContext (CmdCookCtx::ctx)
 
 namespace sw {
-
 using pgdetail::cmdReg;
 using pgdetail::warnCookDepthOnce;
 
@@ -200,60 +199,32 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
         if (vit != n->strInputs.end()) varName = vit->second;
         varScope = cmdVarPush(n->opType, *nodeParams(path), varName, ctxVars);
       }
-      // ForwardBeatTaps PRE-SUBTREE write (resident mirror — production runs THIS leg; ForwardBeatTaps.cs:22-38):
-      // publish the edge-detected beat/resync pulses + slide-sync into the TapProvider BEFORE cooking SubTree.
+      // ForwardBeatTaps PRE-SUBTREE write (resident mirror; ForwardBeatTaps.cs:22-38): publish pulses pre-cook.
       if (isForwardBeatTaps(n->opType)) forwardBeatTapsApply(*nodeParams(path));
-      // C1 ACTIVE-CAMERA scope (resident mirror — production runs THIS leg; CAMERA3D_BLUEPRINT §1 HARD GATE).
-      // A resident-only miss = resident point ops read the default under a wired Camera = a prod-only black-
-      // hole (S2c). Same resolveActiveCamera + LiveCameraScope as flat; map from resident nodeParams(path).
+      // C1 ACTIVE-CAMERA scope (resident mirror; CAMERA3D_BLUEPRINT §1 HARD GATE — a resident-only miss is
+      // a prod-only black-hole, S2c). Same resolveActiveCamera + LiveCameraScope as flat.
       ActiveCamera activeCam;
       if (!cameraScopeBugSkipPush() && isCameraScopeWriter(n->opType))
         activeCam = resolveActiveCamera(*nodeParams(path));
-      // PBR CONTEXT-STACK scope (resident mirror — production runs THIS leg; the S2c HARD GATE). A resident-only
-      // miss = a prod-only unlit black-hole. Same resolvers + Live scopes as flat; opType/strInputs from resident.
-      ActiveMaterial pbrMat;
-      if (!materialScopeBugSkipPush() && isMaterialScopeWriter(n->opType)) {
-        std::string matName;
-        auto sit = n->strInputs.find(n->opType == "UseMaterial" ? "MaterialReference" : "MaterialId");
-        if (sit != n->strInputs.end()) matName = sit->second;
-        if (n->opType == "UseMaterial") {
-          if (!lookupDefinedMaterial(matName, pbrMat)) pbrMat.active = false;
-        } else {
-          pbrMat = resolveActiveMaterial(*nodeParams(path), matName);
-        }
-      }
-      SwPointLight pbrLight;
-      bool pbrLightActive = !pointLightScopeBugSkipPush() && isPointLightScopeWriter(n->opType);
-      if (pbrLightActive) pbrLight = resolvePointLightFromParams(*nodeParams(path));
-      ActiveFog pbrFog;
-      if (!fogScopeBugSkipPush() && isFogScopeWriter(n->opType)) pbrFog = resolveActiveFog(*nodeParams(path));
-      ActiveMaterial pbrDefine;
-      if (n->opType == "DefineMaterials") {
-        auto sit = n->strInputs.find("MaterialId");
-        if (sit != n->strInputs.end()) pbrDefine = resolveActiveMaterial(*nodeParams(path), sit->second);
-      }
+      const PbrScopeResolve pbr = resolvePbrScopes(n->opType, n->strInputs, *nodeParams(path));  // S2c shared
       {
-        // S3b LIVE-READ scope (resident mirror — production runs THIS leg): ctxVars is the ambient live map
-        // WHILE the SubGraph cooks, so a value-rail GetFloatVar driving a SubGraph node's param re-resolves
-        // LIVE. Engages only on an active writer push; else no-op.
+        // S3b LIVE-READ scope (resident mirror): ctxVars ambient WHILE the SubGraph cooks (live re-resolve);
+        // engages only on an active writer push.
         LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
         LiveCameraScope liveCam(activeCam);  // C1: active camera live for the SubGraph cook (point rail reads it)
-        // PBR scopes (resident mirror of the flat twin — the S2c gate). Live for the SubGraph cook.
-        LiveMaterialScope livePbrMat(pbrMat);
-        LivePointLightScope livePbrLight(pbrLight, pbrLightActive);
-        LiveFogScope livePbrFog(pbrFog);
-        MaterialLibraryScope livePbrDefine(pbrDefine, pbrDefine.active);
-        // SetTime SUBTREE-TIME scope (resident mirror — production runs THIS leg; SetTime.cs:23-43): push
-        // the {Absolute/Relative, NewTime} chain node around the SubTree cook. The resident readers are the
-        // transient-ec fx clock (evalResidentFloat) AND automation localTime (sampleAutomation). Same
-        // -bug gate as the flat twin (a leg-split here would be the S2c anti-pattern).
+        // PBR scopes live for the SubGraph cook (resident mirror, S2c; shared resolvePbrScopes above).
+        LiveMaterialScope livePbrMat(pbr.mat);
+        LivePointLightScope livePbrLight(pbr.light, pbr.lightActive);
+        LiveFogScope livePbrFog(pbr.fog);
+        MaterialLibraryScope livePbrDefine(pbr.define, pbr.define.active);
+        // SetTime SUBTREE-TIME scope (resident mirror; SetTime.cs:23-43): push {Absolute/Relative,NewTime}
+        // around the SubTree cook; readers = transient-ec fx clock + automation localTime. Same -bug gate.
         LiveTimeScope timeScope((!setTimeBugSkipPush() && isSetTimeScopeWriter(n->opType))
                                     ? resolveSetTimeScope(*nodeParams(path))
                                     : SetTimeScopeSpec{});
         const ResidentInput* ri = n->input(port.id);
         if (n->opType == "Switch") {
-          // S3b Switch SUB-SELECT (resident mirror — production runs THIS leg). ★§3 OFF-BY-ONE TRAP: build
-          // srcPaths primary-FIRST (ri->srcNodePath) then extraConns to match the flat wire order.
+          // S3b Switch SUB-SELECT (resident mirror). ★§3 OFF-BY-ONE: primary-FIRST then extraConns = flat wire order.
           std::vector<std::string> srcPaths;  // wire-declaration order: [primary] + extraConns
           if (ri && ri->driver == ResidentInput::Driver::Connection) {
             srcPaths.push_back(ri->srcNodePath);                       // wire 0 = primary

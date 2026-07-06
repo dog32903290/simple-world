@@ -141,6 +141,32 @@ void fillCmdPbrFromScope(bool& outHasMaterial, SwPbrParameters& outMaterial, boo
   }
 }
 
+
+// two-leg SHARED resolve (see header). Verbatim consolidation of the identical flat/resident blocks.
+PbrScopeResolve resolvePbrScopes(const std::string& opType,
+                                 const std::map<std::string, std::string>& strChannel,
+                                 const std::map<std::string, float>& params) {
+  PbrScopeResolve r;
+  if (!materialScopeBugSkipPush() && isMaterialScopeWriter(opType)) {
+    std::string matName;  // SetMaterial.MaterialId / UseMaterial.MaterialReference (String channel)
+    auto sit = strChannel.find(opType == "UseMaterial" ? "MaterialReference" : "MaterialId");
+    if (sit != strChannel.end()) matName = sit->second;
+    if (opType == "UseMaterial") {
+      if (!lookupDefinedMaterial(matName, r.mat)) r.mat.active = false;  // invalid ref → prior (UseMaterial.cs:19)
+    } else {
+      r.mat = resolveActiveMaterial(params, matName);
+    }
+  }
+  r.lightActive = !pointLightScopeBugSkipPush() && isPointLightScopeWriter(opType);
+  if (r.lightActive) r.light = resolvePointLightFromParams(params);
+  if (!fogScopeBugSkipPush() && isFogScopeWriter(opType)) r.fog = resolveActiveFog(params);
+  if (opType == "DefineMaterials") {
+    auto sit = strChannel.find("MaterialId");
+    if (sit != strChannel.end()) r.define = resolveActiveMaterial(params, sit->second);
+  }
+  return r;
+}
+
 // ─────────────────────────── -bug driver flags ───────────────────────────
 bool& materialScopeBugSkipPush() { static bool f = false; return f; }
 bool& pointLightScopeBugSkipPush() { static bool f = false; return f; }
