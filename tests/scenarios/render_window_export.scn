@@ -1,0 +1,72 @@
+# render_window_export.scn — live tooth for the Render-to-file window (port of TiXL RenderWindow.cs):
+# the toolbar Render toggle opens a settings window that drives an app::ExportSession ONE frame per
+# editor frame (TiXL RenderProcess.Update, cs:189-232). This scenario opens the window, selects the
+# PNG-sequence codec, starts an export at the default range, and asserts — via the state.json
+# renderExport hook (main.cpp) — that the per-frame pump ran the WHOLE range to completion.
+#
+# WHY state.json (not a file assert): the export writes a PNG directory, but the robust machine signal
+# is the session's own progress (framesTotal / framesDone / done), which the shell serializes into
+# state.json every frame. That couples the assertion to the actual export state machine, not to disk
+# timing. The two-driver byte-parity + file existence + frame count are covered headless by
+# --selftest-render-session (Leg C compares stepwise vs blocking PNGs byte-for-byte) and
+# --selftest-export (Leg C: runExport → PNG sequence, files on disk).
+#
+# RED proofs:
+#   - break drawRenderWindow's per-frame pump (drop the stepOneFrame call) -> the export never
+#     advances -> renderExport.done stays false after the wait -> the done==true assert goes RED.
+#   - break the Start button wiring (startExport never called) -> renderExport stays null -> the
+#     framesTotal==60 assert goes RED.
+#   - break the frame-range compute (wrong begin/end) -> framesTotal != 60 -> RED.
+
+open app/testdata/compound_smoke.swproj
+
+# --- 1. The Render toggle exists on the toolbar (eye recordItem toggle_render) ---
+assert_map_has toggle_render
+echo render-toggle-present
+
+# Before opening the window no export has started -> the state hook reads null.
+assert_state '.renderExport == null'
+echo render-export-idle-null
+
+# --- 2. Open the Render window; its controls appear (Start button + codec combo) ---
+do click @toggle_render
+wait 0.4
+assert_map_has render_start_button
+assert_map_has render_codec
+echo render-window-open-controls-present
+
+# --- 3. Select the PNG-sequence codec (row index 2 in the codec table: ProRes=0, H264=1, PNG=2).
+# PNG writes a per-frame directory (the writer mkdir's it), so the export needs no pre-created .mov. ---
+do click @render_codec
+wait 0.3
+do click @render_codec:2
+wait 0.3
+echo png-codec-selected
+
+# --- 4. Shrink the range to 5 frames (End = 4, in the default Frames unit → 0..4 inclusive) so the
+# export completes quickly regardless of the harness frame rate. InputDouble is a click-to-edit field;
+# select-all (Cmd+A, Mac imgui maps Cmd→io.KeyCtrl) before typing because the hand's `text` APPENDS. ---
+do click @render_end
+wait 0.2
+do keychord cmd a
+do text 4
+do key enter
+wait 0.3
+echo range-end-set-to-4
+
+# --- 5. Start the export. The window pumps one frame per editor frame; the state hook reports
+# framesTotal (5 = 0..4 inclusive) immediately after Start. ---
+do click @render_start_button
+wait 0.4
+assert_state '.renderExport.framesTotal == 5'
+echo export-started-5-frames
+
+# --- 6. Let the per-frame pump run the whole range. 5 frames complete in well under a second of
+# editor time even at a throttled harness frame rate; 3s is a safe ceiling. Then the session is done. ---
+wait 3.0
+assert_state '.renderExport.done == true'
+echo export-ran-to-completion
+assert_state '.renderExport.framesDone == 5'
+echo export-wrote-all-5-frames
+assert_state '.renderExport.cancelled == false'
+echo export-completed-not-cancelled

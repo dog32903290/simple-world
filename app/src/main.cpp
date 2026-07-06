@@ -56,6 +56,7 @@
 #include "ui/editor_ui.h"
 #include "ui/fence_preview.h"  // fenceLastCoveredJson (eye state surface for the live .scn)
 #include "ui/output_window.h"
+#include "ui/render_window.h"   // Render-to-file settings window (drawRenderWindow + export state hook)
 #include "ui/timeline_window.h"
 #include "ui/view_modes.h"  // P6 g_focusMode / editorChromeVisible (演出/Focus mode gating)
 #include "ui/view_menu_register.h"  // registerViewMenu (native View-menu seam wiring)
@@ -150,6 +151,13 @@ void setOutputBackgroundColor(float r, float g, float b, float a) {
   sw::setCommandViewBackground(r, g, b, a);
 }
 void clearOutputBackgroundColor() { sw::clearCommandViewBackground(); }
+
+// Render-window Metal-context seam (ui/render_window). The Render window builds an app::ExportSession
+// against the LIVE editor Metal context — the same device/metallib/queue the Renderer cooks the graph
+// with. Same shell-owned contract as previewTexture(): the ui zone never names MTL directly, it asks the
+// shell for the three pointers. They are captured into file-scope globals in the Renderer ctor (below,
+// beside g_pointGraph). Returns false until the Renderer has built them (no export before the first frame).
+bool exportMetalContext(MTL::Device*& dev, MTL::Library*& lib, MTL::CommandQueue*& queue);
 }  // namespace sw
 
 // P6 — Player / 演出 output mode (modes.md [core]; TiXL Player/Program.cs is a separate exe, but
@@ -163,6 +171,12 @@ static bool g_playerMode = false;
 namespace {
 // Render-loop state owned by Renderer (internal to this TU).
 MTL::Library* g_shaderLib = nullptr;
+
+// The live editor Metal context, captured in the Renderer ctor so the shell's exportMetalContext() seam
+// can hand it to the Render window's ExportSession (same lifetime as g_pointGraph — valid from the first
+// Renderer construction to teardown). nullptr before the Renderer builds them.
+MTL::Device* g_exportDevice = nullptr;
+MTL::CommandQueue* g_exportQueue = nullptr;
 
 // --- World 1: live audio -> particles ---------------------------------------
 // Capture publishes a per-frame audio level; the cook loop feeds it into the
@@ -196,6 +210,18 @@ void drawFullscreenRender(bool behindCanvas) {
   ImGui::PopStyleVar(2);
 }
 }  // namespace
+
+namespace sw {
+// Definition of the Render-window Metal-context seam declared above. Reads the file-scope globals the
+// Renderer ctor captured. false (pointers untouched) until the Renderer has built the context.
+bool exportMetalContext(MTL::Device*& dev, MTL::Library*& lib, MTL::CommandQueue*& queue) {
+  if (!g_exportDevice || !g_shaderLib || !g_exportQueue) return false;
+  dev = g_exportDevice;
+  lib = g_shaderLib;
+  queue = g_exportQueue;
+  return true;
+}
+}  // namespace sw
 
 int main(int argc, char* argv[]) {
   if (int rc = sw::runSelftestFromArgs(argc, argv); rc >= 0) {
@@ -365,6 +391,10 @@ Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
       delete g_pointGraph;
       g_pointGraph = nullptr;
     }
+    // Publish the live Metal context for the Render window's ExportSession (exportMetalContext seam).
+    // Same trio that built g_pointGraph; the export renders the same document with the same device.
+    g_exportDevice = _pDevice;
+    g_exportQueue = _pCommandQueue;
   }
   // P3 live-control input: open the OSC + virtual-MIDI loopback transports and route incoming events
   // into the binding table (the grep-confirmed-missing app hook). A real controller / phone-OSC app —
@@ -524,6 +554,7 @@ void Renderer::draw(MTK::View* pView) {
       sw::ui::drawInspector();      // floats on top
       sw::ui::drawTimelineWindow(); // S3 dope-sheet (animator lanes + playhead + key gestures)
       sw::ui::drawOutputWindow();   // the live preview viewport (view ⊥ graph, pinned/terminal)
+      sw::ui::drawRenderWindow();   // Render-to-file settings + progress (drives ExportSession per frame)
       sw::ui::drawVariationPanel(); // P2 Variation window (snapshot pool grid + N-way mix + crossfader)
       sw::ui::drawAssetBrowser();   // AssetLibrary window (browse Lib: assets + click-to-create LoadImage)
       sw::ui::drawThemeEditor();    // Color Theme Editor (dropdown + name/author + per-field color edits)
@@ -581,6 +612,7 @@ void Renderer::draw(MTK::View* pView) {
                     ", \"fenceActive\": " + (sw::ui::fenceActive() ? "true" : "false") +
                     ", \"fenceLastCovered\": " + sw::ui::fenceLastCoveredJson() +
                     ", \"midiLearn\": " + sw::midibind::learnStateJson(sw::doc::g_lib()) +
+                    ", \"renderExport\": " + sw::ui::renderExportStateJson() +
                     ", \"lib\": " + sw::libToJsonV2(sw::doc::g_lib()) + "}";
     sw::eye::writeText("state.json", s.c_str());
   }

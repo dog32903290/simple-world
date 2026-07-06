@@ -282,6 +282,7 @@ add_executable(simple_world
   src/ui/editor_ui_canvas_edit.cpp  # keyboard + delete macro (split from editor_ui.cpp)
   src/ui/editor_ui_layout.cpp       # canvas position sync + drag (split from editor_ui.cpp)
   src/ui/toolbar.cpp
+  src/ui/render_window.cpp          # export: Render-to-file settings window (port of TiXL RenderWindow; drives ExportSession per frame)
   src/ui/view_menu_register.cpp  # UI side of the native View-menu seam (registers toggles at startup)
   src/ui/view_menu_state_selftest.cpp  # View-menu live check-mark data path gate (--selftest-view-menu-state)
   src/ui/combine_dialog.cpp
@@ -866,6 +867,8 @@ add_executable(simple_world
   src/app/frame_cook_export.cpp      # export: DETERMINISTIC offline cook (frameIndex→fixed dt; MV 承重 #3 frame-accurate)
   src/app/export_engine.cpp          # export: offline cook loop + GPU readback + video writer wiring (entry seam)
   src/app/export_cli.cpp             # export: headless --export CLI (device bootstrap + project load + runExport)
+  src/app/export_session.cpp         # export: STEPWISE per-frame export driver (Render window pump; named fork of runExport's blocking loop)
+  src/app/export_session_selftest.cpp # export: --selftest-render-session (advance/cancel state machine + two-driver PNG byte-parity)
   src/app/cook_host_values.cpp
   src/app/device_input_cook.cpp     # TiXL io/input device family cook (KeyboardInput/MouseInput/Gamepad)
   src/app/device_input_golden.cpp   # --selftest-deviceinput (io/input family golden)
