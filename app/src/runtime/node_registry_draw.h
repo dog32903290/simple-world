@@ -17,4 +17,5 @@ const std::vector<NodeSpec>& drawCameraSpecs();  // Camera / OrthographicCamera 
 const std::vector<NodeSpec>& drawFlowSpecs();    // Execute/Loop/SetXxxVarCmd/LogMessage/…
 const std::vector<NodeSpec>& drawDataSpecs();    // data.* ops (lane hook — starts empty)
 const std::vector<NodeSpec>& drawGizmoSpecs();   // render.gizmo Command ops (VisibleGizmos)
+const std::vector<NodeSpec>& drawShadingSpecs(); // render.shading PBR ops (SetMaterial/…/DrawMeshPbr)
 }  // namespace sw

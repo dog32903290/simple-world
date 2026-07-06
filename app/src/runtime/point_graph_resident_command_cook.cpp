@@ -52,6 +52,7 @@
 #include "runtime/point_ops_forwardbeattaps.h"  // ForwardBeatTaps: isForwardBeatTaps/forwardBeatTapsApply
 #include "runtime/point_ops_settime.h"  // SetTime: LiveTimeScope/resolveSetTimeScope/isSetTimeScopeWriter
 #include "runtime/point_ops_sliceviewport.h"  // SliceViewPort: resolveSliceViewPortResolution (cell push)
+#include "runtime/sw_pbr_scope.h"    // PBR: SetMaterial/SetPointLight/SetFog/UseMaterial/DefineMaterials scope
 #include "runtime/tixl_point.h"      // EvaluationContext (CmdCookCtx::ctx)
 
 namespace sw {
@@ -207,12 +208,40 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
       ActiveCamera activeCam;
       if (!cameraScopeBugSkipPush() && isCameraScopeWriter(n->opType))
         activeCam = resolveActiveCamera(*nodeParams(path));
+      // PBR CONTEXT-STACK scope (resident mirror — production runs THIS leg; the S2c HARD GATE). A resident-only
+      // miss = a prod-only unlit black-hole. Same resolvers + Live scopes as flat; opType/strInputs from resident.
+      ActiveMaterial pbrMat;
+      if (!materialScopeBugSkipPush() && isMaterialScopeWriter(n->opType)) {
+        std::string matName;
+        auto sit = n->strInputs.find(n->opType == "UseMaterial" ? "MaterialReference" : "MaterialId");
+        if (sit != n->strInputs.end()) matName = sit->second;
+        if (n->opType == "UseMaterial") {
+          if (!lookupDefinedMaterial(matName, pbrMat)) pbrMat.active = false;
+        } else {
+          pbrMat = resolveActiveMaterial(*nodeParams(path), matName);
+        }
+      }
+      SwPointLight pbrLight;
+      bool pbrLightActive = !pointLightScopeBugSkipPush() && isPointLightScopeWriter(n->opType);
+      if (pbrLightActive) pbrLight = resolvePointLightFromParams(*nodeParams(path));
+      ActiveFog pbrFog;
+      if (!fogScopeBugSkipPush() && isFogScopeWriter(n->opType)) pbrFog = resolveActiveFog(*nodeParams(path));
+      ActiveMaterial pbrDefine;
+      if (n->opType == "DefineMaterials") {
+        auto sit = n->strInputs.find("MaterialId");
+        if (sit != n->strInputs.end()) pbrDefine = resolveActiveMaterial(*nodeParams(path), sit->second);
+      }
       {
         // S3b LIVE-READ scope (resident mirror — production runs THIS leg): ctxVars is the ambient live map
         // WHILE the SubGraph cooks, so a value-rail GetFloatVar driving a SubGraph node's param re-resolves
         // LIVE. Engages only on an active writer push; else no-op.
         LiveCtxVarScope liveScope(varScope.active ? ctxVars : nullptr);
         LiveCameraScope liveCam(activeCam);  // C1: active camera live for the SubGraph cook (point rail reads it)
+        // PBR scopes (resident mirror of the flat twin — the S2c gate). Live for the SubGraph cook.
+        LiveMaterialScope livePbrMat(pbrMat);
+        LivePointLightScope livePbrLight(pbrLight, pbrLightActive);
+        LiveFogScope livePbrFog(pbrFog);
+        MaterialLibraryScope livePbrDefine(pbrDefine, pbrDefine.active);
         // SetTime SUBTREE-TIME scope (resident mirror — production runs THIS leg; SetTime.cs:23-43): push
         // the {Absolute/Relative, NewTime} chain node around the SubTree cook. The resident readers are the
         // transient-ec fx clock (evalResidentFloat) AND automation localTime (sampleAutomation). Same
@@ -348,6 +377,9 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
     cc.hasCamera = true;
     activeCameraMatrices(*lc, cc.worldToCamera, cc.cameraToWorld);
   }
+  // PBR bridge (resident mirror — PRODUCTION runs THIS leg; the S2c gate): surface the live material/lights/fog
+  // via the SAME fillCmdPbrFromScope both legs call (single source → can't fork). Identical to the flat leg.
+  fillCmdPbrFromScope(cc.pbrHasMaterial, cc.pbrMaterial, cc.pbrHasFog, cc.pbrFog, cc.pbrLightCount, cc.pbrLights);
   // LogMessage Message thread (resident mirror — production runs THIS leg; param-completion fan-out): resolve
   // the node's String "Message" off ResidentNode::strInputs into the op's process-scoped text (LogMessage.cs:26).
   // Mirrors the flat leg byte-for-byte (the S2c flat-resident gate — a resident-only miss = a prod-only miss).

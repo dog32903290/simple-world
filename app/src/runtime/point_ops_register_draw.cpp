@@ -17,6 +17,7 @@
 #include "runtime/point_ops_getposition.h"  // flow.context: registerGetPositionOp (transform-scope read + value latch)
 #include "runtime/point_ops_gpumeasure.h"  // render.analyze: registerGpuMeasureOp (GPU-time measure + value latch)
 #include "runtime/point_ops_sliceviewport.h"  // render.transform: registerSliceViewPortOp (cell viewport + clip stamp)
+#include "runtime/point_ops_pbrshading.h"  // PBR: registerPbrShadingOps (Set*/Use*/Define* scope + DrawMeshPbr)
 #include "runtime/point_ops_shiftcamera.h"  // camera-B: registerShiftCameraOp (Command→Command projection nudge)
 #include "runtime/point_ops_visiblegizmos.h"  // camera-B: registerVisibleGizmosOp (MultiInput Command visibility gate)
 #include "runtime/point_ops_reusecamera.h"  // camera-B: registerReuseCameraOp (referenced-camera push)
@@ -95,6 +96,7 @@ void registerDrawPointOps() {
   registerInputAssemblerOp();                    // Command → Command (Seam 2: render-state STAMP — InputAssembler topology)
   registerDrawExplicitOp();                      // Command SOURCE (Seam 2: DrawKind::Explicit raw N-vertex draw leaf)
   registerDrawMeshUnlitOp();                    // Mesh → Command (DrawKind::Mesh, the FIRST 3D mesh, Cut 99)
+  registerPbrShadingOps();                      // SetMaterial/SetPointLight/SetFog/UseMaterial/DefineMaterials + DrawMeshPbr (LIT mesh)
   registerRenderTargetOp();                     // Command → Texture2D (the resolution pin)
 }
 

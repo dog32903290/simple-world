@@ -26,6 +26,7 @@
 #include "runtime/field_camera.h"     // defaultLayerCameraForward / objectToClipSpace (Layer2d seam, F1)
 #include "runtime/graph.h"            // Graph/Node
 #include "runtime/mesh_draw_params.h" // MeshDrawParams + MESH_* bindings (DrawKind::Mesh)
+#include "runtime/mesh_pbr_fill.h"    // encodeMeshPbrDraw (DrawKind::MeshPbr draw, peeled for ratchet)
 #include "runtime/point_ops_gpumeasure.h"  // gpuMeasureRecordBufferTime (GPU-time hook, GpuMeasure seam)
 #include "runtime/particle_params.h"  // DRAW_Points, DRAW_ViewExtent
 #include "runtime/point_graph.h"      // TexCookCtx, RenderResolution, registerTexOp
@@ -134,23 +135,19 @@ void cookRenderTarget(TexCookCtx& c) {
   MTL::RenderPipelineState* psoLines = nullptr;
   MTL::RenderPipelineState* psoLinesBuildup = nullptr;  // DrawLinesBuildup (DrawKind::LinesBuildup)
   MTL::RenderPipelineState* psoBb = nullptr;
-  // ScreenQuad PSO variants, lazily built per blend mode (FORK#3, scoped to this batch's 2 modes:
-  // Normal/Additive). Same per-call lazy posture as the point/line PSOs above — the executor's
-  // per-frame PSO caching is a deferred follow-up (note at the top of this fn); folding ScreenQuad
-  // into the future cache is a one-line key extension when that lands.
+  // ScreenQuad PSO variants, lazily built per blend mode (FORK#3, this batch's 2 modes Normal/Additive).
+  // Same per-call lazy posture as the point/line PSOs above (per-frame PSO caching = deferred follow-up).
   MTL::RenderPipelineState* psoSQ[2] = {nullptr, nullptr};  // [Normal, Additive]
   MTL::SamplerState* sqSampler = nullptr;
   // Layer2d (DrawKind::Layer2d): same lazy-per-blend-mode posture as ScreenQuad. F2 — a SEPARATE
   // PSO (draw_quad_xf_vs + the shared draw_screenquad_fs), the clip-space ScreenQuad leaf untouched.
   MTL::RenderPipelineState* psoL2[2] = {nullptr, nullptr};  // [Normal, Additive]
-  // F1 — function-local transform context (NOT a runtime global): the default camera FORWARD pair for
-  // THIS output's aspect (the resolution-pin point); ObjectToClipSpace = o2w·defaultW2C·defaultC2C.
+  // F1 — function-local default camera FORWARD pair for THIS output's aspect (the resolution-pin point).
   const float aspectF =
       (c.output->height() > 0) ? (float)c.output->width() / (float)c.output->height() : 1.0f;
   const LayerCameraForward camFwd = defaultLayerCameraForward(aspectF);
-  // Per-item camera (Cut 3 + camera-B): a stamped Camera/Ortho op replaces the default pair (aspect =
-  // camAspect>0 ? camAspect : this output's — Camera.cs:53-55 fallback); then the ShiftCamera stamp
-  // nudges the composed projection additively (ShiftCamera.cs:34-36; M31/M32/M33 = m[8]/m[9]/m[10]).
+  // Per-item camera (Cut 3 + camera-B): a stamped Camera/Ortho op replaces the default (aspect fallback
+  // Camera.cs:53-55); ShiftCamera then nudges the projection additively (ShiftCamera.cs:34-36; M31..M33).
   auto itemCamera = [&](const RenderDrawItem& it) -> LayerCameraForward {
     LayerCameraForward cam = camFwd;
     if (it.hasCamera)
@@ -209,8 +206,7 @@ void cookRenderTarget(TexCookCtx& c) {
     dtd->setUsage(MTL::TextureUsageRenderTarget);
     depthTex = c.dev->newTexture(dtd);
   }
-  // Two depth-stencil states: dsMesh (DrawKind::Mesh, TiXL LessEqual + ZWrite=true + ZTest=true) and
-  // dsDisabled (every 2D kind: compare Always + write off → the depth attachment never affects them).
+  // dsMesh (Mesh/MeshPbr: TiXL LessEqual + ZWrite) + dsDisabled (2D kinds: Always + no write).
   MTL::DepthStencilState* dsMesh = nullptr;
   MTL::DepthStencilState* dsDisabled = nullptr;
   {
@@ -228,6 +224,7 @@ void cookRenderTarget(TexCookCtx& c) {
     dsd->release();
   }
   MTL::RenderPipelineState* psoMesh = nullptr;  // lazily built in the Mesh case
+  MTL::RenderPipelineState* psoMeshPbr = nullptr;  // lazily built in the MeshPbr case (lit mesh)
 
   MTL::RenderPassDescriptor* pass = MTL::RenderPassDescriptor::renderPassDescriptor();
   auto* ca = pass->colorAttachments()->object(0);
@@ -254,21 +251,19 @@ void cookRenderTarget(TexCookCtx& c) {
   da->setStoreAction(MTL::StoreActionDontCare);
   MTL::CommandBuffer* cmd = c.queue->commandBuffer();
   MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(pass);
-  // Default every draw to depth-DISABLED (the 2D composites). The Mesh case flips to dsMesh just for
-  // its draw, then restores dsDisabled — so a 2D item after a mesh stays unaffected (byte-identical 2D).
-  enc->setDepthStencilState(dsDisabled);
+  enc->setDepthStencilState(dsDisabled);  // 2D composites are depth-off; Mesh/MeshPbr flip to dsMesh then restore
   if (c.command) {
     for (const RenderDrawItem& it : c.command->items) {
       if (it.kind == DrawKind::Clear) continue;  // not a draw — handled by the pass clear color above
-      // Point-based kinds need a non-empty bag; ScreenQuad/Layer2d/Mesh draw from tex/mesh buffers (none read `points`).
-      if (it.kind != DrawKind::ScreenQuad && it.kind != DrawKind::Layer2d &&
-          it.kind != DrawKind::Mesh && (!it.points || it.count == 0))
+      // Point kinds need a non-empty bag; ScreenQuad/Layer2d/Mesh/MeshPbr draw from tex/mesh buffers.
+      if (it.kind != DrawKind::ScreenQuad && it.kind != DrawKind::Layer2d && it.kind != DrawKind::Mesh &&
+          it.kind != DrawKind::MeshPbr && (!it.points || it.count == 0))
         continue;
       applyFrozenRasterEncoderState(enc, it);  // Seam 2: cull/winding/depthBias (no-op default when unstamped)
       applyItemViewport(enc, it, c.output->width(), c.output->height());  // SliceViewPort cell rect (else full)
       // Seam 2 OutputMerger DEPTH: a STAMPED non-mesh item sets its frozen compare+write (pooled per item); an
-      // UNstamped one re-asserts dsDisabled (no stale leak). Mesh is EXEMPT: hardcodes dsMesh+CCW+CullBack below.
-      if (it.kind != DrawKind::Mesh) {
+      // UNstamped one re-asserts dsDisabled (no stale leak). Mesh/MeshPbr are EXEMPT: hardcode dsMesh+CCW+CullBack below.
+      if (it.kind != DrawKind::Mesh && it.kind != DrawKind::MeshPbr) {
         if (it.hasRenderState) {
           MTL::DepthStencilState* fds = makeFrozenDepthStencilState(c.dev, it.frozen);
           frozenDSPool.push_back(fds);
@@ -504,21 +499,16 @@ void cookRenderTarget(TexCookCtx& c) {
           break;
         }
         case DrawKind::Mesh: {
-          // The FIRST 3D mesh (TiXL DrawMeshUnlit → mesh-DrawUnlit.hlsl). SV_VertexID-driven triangle
-          // list reading the cooked SwVertex + SwTriIndex buffers; NO Metal index buffer (the VS reads
-          // FaceIndices itself). Borrowed buffers (null → nothing to draw). Depth-TESTED: LessEqual +
-          // ZWrite (dsMesh) + FrontCounterClockwise (CCW front) + Cull Back (TiXL Rasterizer 6e672779).
+          // The FIRST 3D mesh (TiXL DrawMeshUnlit → mesh-DrawUnlit.hlsl). SV_VertexID-driven; NO Metal index
+          // buffer (the VS reads FaceIndices). Depth-TESTED: LessEqual + ZWrite (dsMesh) + CCW front + Cull Back.
           if (!it.meshVtx || !it.meshIdx || it.meshIndexCount == 0) break;
           if (!psoMesh)
             psoMesh = makeDrawPSO(c.dev, c.lib, "mesh_draw_unlit_vs", "mesh_draw_unlit_fs", pf, false);
           if (!psoMesh) break;
           enc->setRenderPipelineState(psoMesh);
-          // Compose ObjectToClipSpace EXACTLY like Layer2d (object→world = identity for a mesh; the SRT
-          // stack belongs to a parent Transform op, deferred): itemCamera = stamped/default + ShiftCamera.
+          // ObjectToClipSpace like Layer2d (mesh O2W = identity; SRT stack = deferred parent Transform op).
+          // Optional Group SRT stamp (identity when no Group → byte-identical). itemCamera = stamped + ShiftCamera.
           LayerCameraForward cam = itemCamera(it);
-          // S2b GROUP SRT: same per-item group push as Layer2d (a mesh's own O2W is identity here — the
-          // SRT belongs to a parent Transform op, deferred — so the group IS its ObjectToWorld). Identity
-          // when no Group → byte-identical.
           Mat4 meshO2W = mat4Identity();
           if (it.hasGroup) { for (int i = 0; i < 16; ++i) meshO2W.m[i] = it.groupObjectToWorld[i]; }
           Mat4 o2c = objectToClipSpace(meshO2W, cam.worldToCamera, cam.cameraToClipSpace);
@@ -531,18 +521,27 @@ void cookRenderTarget(TexCookCtx& c) {
           enc->setVertexBuffer(const_cast<MTL::Buffer*>(it.meshIdx), 0, MESH_FaceIndices);
           enc->setVertexBytes(&M, sizeof(M), MESH_Params);
           enc->setFragmentBytes(&M, sizeof(M), MESH_Params);
-          // Production: dsMesh (LessEqual + ZWrite). Tooth-B bug hook: dsDisabled → no occlusion, draw
-          // order decides (the depth tooth bites). The hook is CPU-side (never a shader branch).
+          // Production: dsMesh (LessEqual+ZWrite). Tooth-B bug hook: dsDisabled → draw-order decides (CPU-side).
           enc->setDepthStencilState(meshDepthDisableForTest() ? dsDisabled : dsMesh);
           enc->setFrontFacingWinding(MTL::WindingCounterClockwise);  // TiXL FrontCounterClockwise=true
           enc->setCullMode(MTL::CullModeBack);                       // TiXL Cull Back
-          // 3 verts/face, SV_VertexID-driven (TiXL Draw vertexCount = faceCount × MultiplyInt(3)).
-          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
+          enc->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),  // 3 verts/face, SV_VertexID-driven
                               NS::UInteger((NS::UInteger)it.meshIndexCount * 3));
           // Restore depth-disabled + default winding/cull so a 2D item after a mesh is byte-identical.
           enc->setDepthStencilState(dsDisabled);
           enc->setFrontFacingWinding(MTL::WindingClockwise);
           enc->setCullMode(MTL::CullModeNone);
+          break;
+        }
+        case DrawKind::MeshPbr: {
+          // LIT mesh (DrawMesh → mesh-Draw.hlsl + ComputePbr). Whole draw in encodeMeshPbrDraw (mesh_pbr_fill.cpp).
+          if (!it.meshVtx || !it.meshIdx || it.meshIndexCount == 0) break;
+          if (!psoMeshPbr)
+            psoMeshPbr = makeDrawPSO(c.dev, c.lib, "mesh_draw_pbr_vs", "mesh_draw_pbr_fs", pf, false);
+          if (!psoMeshPbr) break;
+          LayerCameraForward cam = itemCamera(it);
+          encodeMeshPbrDraw(enc, it, psoMeshPbr, cam, meshDepthDisableForTest() ? dsDisabled : dsMesh,
+                            dsDisabled);
           break;
         }
         case DrawKind::Clear:
@@ -566,6 +565,7 @@ void cookRenderTarget(TexCookCtx& c) {
   if (psoL2[0]) psoL2[0]->release();
   if (psoL2[1]) psoL2[1]->release();
   if (psoMesh) psoMesh->release();
+  if (psoMeshPbr) psoMeshPbr->release();
   for (auto& kv : frozenCache) if (kv.second) kv.second->release();   // Seam 2: materialized blend-PSOs
   for (MTL::DepthStencilState* ds : frozenDSPool) if (ds) ds->release();  // Seam 2: per-item frozen depth-stencils
   if (sqSampler) sqSampler->release();
