@@ -12,7 +12,6 @@
 // (out-window-persistence: capture/restore pin/res/bg to the app store document.cpp saves per project).
 #include "ui/output_window.h"
 
-#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -214,6 +213,7 @@ void drawOutputWindow() {
   // --- the viewport: the shell's preview texture, cooked for the pinned/terminal node, drawn
   // aspect-correct (letterbox/pillarbox) so resizing the window NEVER distorts the image. ---
   const ImVec2 region = ImGui::GetContentRegionAvail();
+  pushFillWindowSize(region.x, region.y);  // S1-fill window-follow: Fill render size = this region, live
   const ImVec2 origin = ImGui::GetCursorScreenPos();
   MTL::Texture* tex = sw::previewTexture();
   int texW = 0, texH = 0;

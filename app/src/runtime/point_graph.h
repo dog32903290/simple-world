@@ -180,6 +180,7 @@ class PointGraph {
   int defaultDrawTarget(const SymbolLibrary& lib, const std::string& symbolId) const;
   MTL::Texture* target() const;
   RenderResolution windowResolution() const;  // value-output-rail P1: window size → RequestedResolution emit
+  void setWindowSize(uint32_t width, uint32_t height);  // S1-fill window-follow: applied at cook entry, rebuild on change only; doc _debug.cpp
   // S1 frame-level override hook (TiXL OutputWindow.cs:411-414 export>selector>Fill; doc in _debug.cpp).
   void setFrameResolutionOverride(RenderResolution res);  // Output/export requests a frame render size
   void clearFrameResolutionOverride();                    // back to Fill (window) — the default

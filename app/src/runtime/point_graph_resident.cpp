@@ -74,9 +74,9 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
                               float localTimeBars, float localFxTimeBars,
                               const SymbolLibrary* lib, ContextVarMap* ctxVars) {
   p_->displayTex = nullptr;  // default: target() shows the window-sized texture (cmd/preview paths)
-  // S1 seam: seed RequestedResolution to the FRAME resolution (TiXL output-layer seed before eval). Resident
-  // mirror of cook(); frameResolution() = override when engaged (Output/export), ELSE window = today byte-id.
-  p_->requestedResolution = frameResolution();
+  // S1 seam: apply pending Fill window-resize + seed RequestedResolution (TiXL output-layer seed before
+  // eval). Resident mirror of cook(); precedence = override when engaged (Output/export), ELSE window.
+  p_->seedFrameResolution();
 
   ResidentEvalCtx rc;
   rc.frameIndex = ctx.frameIndex;

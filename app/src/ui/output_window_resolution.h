@@ -32,4 +32,10 @@ void applyResolutionSelection(int winW, int winH);
 // the safe restore fallback (out-window-persistence). Used by the persistence restore path only.
 int resolutionIndexForTitle(const char* title);
 
+// S1-fill window-follow: the coordinator calls this every frame with the viewport content region
+// (TiXL re-reads ImGui.GetWindowSize() inside ComputeResolution every frame, ResolutionHandling.cs:120
+// + OutputWindow.cs:411-414). Pushes the size to the shell seam; the runtime applies it at cook entry
+// and rebuilds the window target ONLY when the size actually changed. Degenerate regions are dropped.
+void pushFillWindowSize(float regionW, float regionH);
+
 }  // namespace sw::ui

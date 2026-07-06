@@ -126,6 +126,12 @@ struct PointGraph::Impl : FeedbackStore {
   RenderResolution requestedResolution;
   std::optional<RenderResolution> frameResOverride;
 
+  // S1-fill window-follow: PointGraph::setWindowSize records the Output window's content-region here;
+  // BOTH cook entries apply it via seedFrameResolution() — deferred to cook entry so a mid-imgui-frame
+  // push can never release the `target` texture the current draw list still references. 0 == no pending.
+  uint32_t pendingWidth = 0, pendingHeight = 0;
+  void seedFrameResolution();  // apply pending resize (rebuild target ONLY on size change) + seed res; doc _debug.cpp
+
   // Per-node persistent resources (reused across frames; RESOURCE_LIFETIME golden: allocate → reuse (count
   // unchanged) → reallocate (count grew)). Keyed by resident path or "#"-prefixed flat id (pgdetail::flatKey).
   std::map<std::string, MTL::Buffer*> outBuf;    // key -> output point buffer

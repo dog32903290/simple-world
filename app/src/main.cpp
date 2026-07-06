@@ -124,6 +124,14 @@ void setOutputResolutionOverride(int w, int h) {
 void clearOutputResolutionOverride() {
   if (::g_pointGraph) ::g_pointGraph->clearFrameResolutionOverride();
 }
+// S1-fill window-follow seam: the Output window pushes its content-region pixels every frame
+// (TiXL ResolutionHandling.cs:120 `ImGui.GetWindowSize()` read live inside ComputeResolution +
+// OutputWindow.cs:411-414 every-frame RequestedResolution seed). The runtime records the push and
+// applies it at cook entry — rebuild only on an actual size change (PointGraph::setWindowSize).
+void setOutputWindowContentSize(int w, int h) {
+  if (::g_pointGraph && w > 0 && h > 0)
+    ::g_pointGraph->setWindowSize(static_cast<uint32_t>(w), static_cast<uint32_t>(h));
+}
 // The Fill baseline = the graph's window resolution (TiXL's ImGui.GetWindowSize() role in
 // Resolution.ComputeResolution). The aspect-ratio presets (1:1/16:9/4:3) fit against this; Fill
 // returns it verbatim. false when there is no graph yet.

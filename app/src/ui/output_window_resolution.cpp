@@ -6,10 +6,12 @@
 #include <cstring>  // std::strcmp (title lookup for the persistence restore path)
 
 // The shell owns the frame render-size override (cook seeds it into RequestedResolution). A preset
-// → set; Fill → clear (back to window size, byte-identical to today). Defined in main.cpp.
+// → set; Fill → clear (back to the live window size). setOutputWindowContentSize is the S1-fill
+// window-follow push (content region → runtime, applied at cook entry). All defined in main.cpp.
 namespace sw {
 void setOutputResolutionOverride(int w, int h);
 void clearOutputResolutionOverride();
+void setOutputWindowContentSize(int w, int h);
 }  // namespace sw
 
 namespace sw::ui {
@@ -64,6 +66,17 @@ void applyResolutionSelection(int winW, int winH) {
   const Int2 r = computeResolution(p, winW, winH);
   if (r.w > 0 && r.h > 0) sw::setOutputResolutionOverride(r.w, r.h);
   else sw::clearOutputResolutionOverride();  // degenerate window -> behave as Fill
+}
+
+// S1-fill window-follow (TiXL ResolutionHandling.cs:120: ComputeResolution reads the LIVE
+// `ImGui.GetWindowSize()` every frame; OutputWindow.cs:411-414 seeds RequestedResolution from it
+// every frame). The coordinator forwards the viewport content region here each frame; the shell
+// hands it to the runtime, which applies at cook entry and rebuilds ONLY on an actual size change
+// — so this per-frame push carries zero realloc churn. Degenerate regions (collapsed window,
+// first frame) are dropped: the cook keeps the last known size, like TiXL's un-drawn window.
+void pushFillWindowSize(float regionW, float regionH) {
+  if (regionW > 1.0f && regionH > 1.0f)
+    sw::setOutputWindowContentSize(static_cast<int>(regionW), static_cast<int>(regionH));
 }
 
 // TiXL ResolutionHandling.FindByTitle (OutputWindow.LoadStateFrom: match the saved title against the

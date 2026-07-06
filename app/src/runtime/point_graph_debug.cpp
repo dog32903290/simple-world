@@ -50,6 +50,43 @@ RenderResolution PointGraph::frameResolution() const {
   return p_->frameResOverride ? *p_->frameResOverride : RenderResolution{p_->width, p_->height};
 }
 
+// S1-fill window-follow. TiXL's Fill is the LIVE Output-window size, re-read every frame:
+//   ResolutionHandling.cs:120  `var windowSize = ImGui.GetWindowSize();`
+//   ResolutionHandling.cs:124-127  `if (Size.Width <= 0 || Size.Height <= 0) return new Int2(
+//       (int)windowSize.X - paddingForFocusBorder * 2, (int)windowSize.Y - ...);`
+//   OutputWindow.cs:411-414  `RequestedResolution = ...TryGetActiveExportResolution(...) ?
+//       overrideResolution : _selectedResolution.ComputeResolution();
+//       EvaluationContext.RequestedResolution = RequestedResolution;`   (runs EVERY frame)
+// sw analogue: the Output window pushes its content-region each frame (ui → shell → here); the
+// push only RECORDS — the rebuild happens at cook entry (Impl::seedFrameResolution below), never
+// mid-imgui-frame while the current draw list still references the old `target` texture.
+void PointGraph::setWindowSize(uint32_t width, uint32_t height) {
+  if (width == 0 || height == 0) return;  // degenerate (collapsed window) → keep the last size
+  p_->pendingWidth = width;
+  p_->pendingHeight = height;
+}
+
+// Both cook entries (flat point_graph.cpp / resident point_graph_resident.cpp) call this FIRST:
+// apply a pending window resize, then seed the per-cook RequestedResolution exactly as before
+// (TiXL OutputWindow.cs:411-414 precedence export/selector-override > Fill window). The window
+// `target` is rebuilt ONLY on an actual size change (RESOURCE_LIFETIME: the every-frame push is
+// idempotent, zero realloc churn). Releasing the old texture here is GPU-safe: a committed command
+// buffer holds its own retain on referenced resources (Metal default tracking).
+void PointGraph::Impl::seedFrameResolution() {
+  if (pendingWidth > 0 && (pendingWidth != width || pendingHeight != height)) {
+    width = pendingWidth;
+    height = pendingHeight;
+    if (target) target->release();
+    MTL::TextureDescriptor* td =
+        MTL::TextureDescriptor::texture2DDescriptor(kPointTargetFormat, width, height, false);
+    td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+    td->setStorageMode(MTL::StorageModeShared);
+    target = dev->newTexture(td);
+  }
+  pendingWidth = pendingHeight = 0;
+  requestedResolution = frameResOverride ? *frameResOverride : RenderResolution{width, height};
+}
+
 const MTL::Buffer* PointGraph::debugCookedBuffer(int nodeId) const {
   auto it = p_->outBuf.find(flatKey(nodeId));
   return it != p_->outBuf.end() ? it->second : nullptr;
