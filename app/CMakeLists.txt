@@ -20,6 +20,15 @@ set(NODE_EDITOR_DIR "${TP}/imgui-node-editor")
 set(NFD_DIR "${TP}/nativefiledialog-extended")
 add_subdirectory(${NFD_DIR})
 
+# ---- OpenCV (system dep, brew) — the io/video vision seam ---------------------
+# 柏為 2026-07-06 拍板吞 OpenCV。Quarantined behind runtime/cv_bridge.{h,cpp} (the ONLY TU that
+# includes opencv2/*). Link ONLY the modules the two operators need, not the whole world:
+#   core     — cv::Mat, moments, TermCriteria
+#   imgproc  — cvtColor, threshold, findContours, contourArea (Video2DPointScanner bright-spot detect)
+#   calib3d  — findChessboardCorners, calibrateCamera (CameraCalibrator)
+# imgproc/calib3d pull core transitively; naming all three keeps the intent explicit.
+find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d)
+
 # ---- Dear ImGui core + Metal(C++) / OSX backends -----------------------------
 # imgui_impl_metal.mm / imgui_impl_osx.mm are written for manual reference
 # counting (explicit [x release]/autorelease) -> compile WITHOUT ARC. The
@@ -299,6 +308,7 @@ add_executable(simple_world
   src/platform/menu_appkit_ext.cpp  # tracked AppKit NSMenu extension (live check marks + menuNeedsUpdate: delegate) — replaces the gitignored vendored metal-cpp edits
   src/platform/live_binding.cpp
   src/runtime/beat_timing.cpp        # tap BPM engine (port of TiXL BeatTiming.cs)
+  src/runtime/cv_bridge.cpp          # OpenCV seam leaf: chessboard-detect+calibrate (CameraCalibrator.cs) + bright-spot detect (Video2DPointScanner.cs). ONLY TU that includes opencv2/*
   src/runtime/cmd_view_background.cpp  # Output-window view background ambient (TiXL EvaluationContext.BackgroundColor)
   src/runtime/particle_system.cpp
   src/runtime/particle_decay_selftest.cpp
@@ -590,6 +600,8 @@ add_executable(simple_world
   src/string_ops_countdown_golden.cpp  # --selftest-countdown (pinned-clock TimeSpan format goldens)
   src/io_video_timing_golden.cpp  # --selftest-io-video-timing (PlayVideo/PlayVideoClip closed-form timing core)
   src/io_camera_checkerboard_golden.cpp  # --selftest-io-camera-checkerboard (CameraCalibrator OpenCV-free pattern geometry)
+  src/io_camera_calibrate_golden.cpp  # --selftest-io-camera-calibrate (CameraCalibrator OpenCV numerics: findChessboardCorners+calibrateCamera, synthetic closed-form)
+  src/io_video_pointscan_golden.cpp   # --selftest-io-video-pointscan (Video2DPointScanner OpenCV blob-detect → point-list currency, synthetic closed-form)
   src/io_video_transform_golden.cpp  # --selftest-io-video-transform (VideoDeviceInput closed-form affine; capture deferred-hw)
   src/io_visca_protocol_golden.cpp  # --selftest-io-visca-protocol (ViscaCamera VISCA-over-IP byte protocol; UDP deferred-hw)
   src/io_onvif_digest_golden.cpp  # --selftest-io-onvif-digest (OnvifCamera WS-Security PasswordDigest; SOAP/RTSP deferred-hw)
@@ -863,6 +875,7 @@ target_include_directories(simple_world PRIVATE
   ${IMGUI_DIR}/backends
   ${NODE_EDITOR_DIR}
   ${NFD_DIR}/src/include
+  ${OpenCV_INCLUDE_DIRS}  # opencv2/* — reached ONLY from src/runtime/cv_bridge.cpp (quarantined)
 )
 
 # IMGUI_IMPL_METAL_CPP        -> backend public API uses MTL::* (pure C++ caller)
@@ -945,6 +958,7 @@ target_link_libraries(simple_world PRIVATE
   "-framework AudioToolbox"
   "-framework CoreMIDI"
   "-framework Accelerate"
+  ${OpenCV_LIBS}  # core/imgproc/calib3d (find_package COMPONENTS); linked for the cv_bridge seam
 )
 
 # Embed Info.plist into the bare Mach-O so TCC can read NSMicrophoneUsageDescription
