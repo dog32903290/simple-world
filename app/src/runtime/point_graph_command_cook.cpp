@@ -55,6 +55,7 @@
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
 #include "runtime/point_ops_forwardbeattaps.h"  // ForwardBeatTaps: isForwardBeatTaps/forwardBeatTapsApply
 #include "runtime/point_ops_settime.h"  // SetTime: LiveTimeScope/resolveSetTimeScope/isSetTimeScopeWriter
+#include "runtime/point_ops_timeclip.h"  // TimeClip: window gate + remap (LiveTimeRemapScope) + flat test seam
 #include "runtime/point_ops_sliceviewport.h"  // SliceViewPort: resolveSliceViewPortResolution (cell push)
 #include "runtime/tixl_point.h"      // EvaluationContext (CmdCookCtx::ctx)
 
@@ -294,6 +295,28 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
             }
             return all;
           });
+        } else if (n->type == "TimeClip" && !timeClipBugSkipScope() && flatTimeClipTestScope().active) {
+          // TimeClip WINDOW GATE + REMAP (flat test leg; TimeClipSlot.cs:52-83). The flat Node carries no
+          // authored clip, so the window comes from the flat test seam (flatTimeClipTestScope, set by the
+          // golden). Gate on the AMBIENT fx clock (composed through any enclosing scope) — out-of-window →
+          // cook NOTHING (the SubTree contributes no items). In-window → push the remap scope so the value-
+          // rail fx clock the SubTree reads is remapped, and publish _normalizedTime for a scoped GetFloatVar.
+          const TimeClipScopeSpec& clip = flatTimeClipTestScope();
+          const float ambient = scopedTimeOr(ctx.localFxTime);  // fork-timeclip-flat-fxclock-gate
+          if (timeClipInWindow(clip, ambient)) {
+            TimeRemapScopeSpec rm; rm.active = true;
+            rm.inMin = clip.timeStart; rm.inMax = clip.timeEnd;
+            rm.outMin = clip.sourceStart; rm.outMax = clip.sourceEnd;
+            LiveTimeRemapScope remap(rm);
+            timeClipPublishNormalized(clip, ambient, ctxVars);  // TimeClip.cs:19-22 _normalizedTime var
+            LiveCtxVarScope ntLive(ctxVars ? ctxVars : nullptr);
+            for (const Connection& c : g.connections) {
+              if (c.toPin != pinId(id, (int)i)) continue;
+              RenderCommand sub = cookCommand(pinNode(c.fromPin));
+              inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+              inCmdWireCounts.push_back((uint32_t)sub.items.size());
+            }
+          }  // out-of-window: inCmd stays empty (== TimeClipSlot returns before _baseUpdateAction)
         } else {
           for (const Connection& c : g.connections) {  // g.connections = wire order (ListToBuffer :202)
             if (c.toPin != pinId(id, (int)i)) continue;

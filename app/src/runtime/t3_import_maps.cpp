@@ -73,6 +73,10 @@ std::string swTypeForSymbolGuid(const std::string& guid) {
       // vec3→3 floats) both already exist as sw value ops (value_op_inttofloat.cpp / value_op_vector3components.cpp).
       {"17db8a36-079d-4c83-8a2a-7ea4c1aa49e6", "IntToFloat"},                  // numbers/int/basic/IntToFloat.cs:3 (sw value op)
       {"a8083b41-951e-41f2-bb8a-9b511da26102", "Vector3Components"},           // numbers/vec3/Vector3Components.cs:3 (sw value op)
+      // DataSet-timeline seam: TimeClip = the timeline-window Command scope (flow/TimeClip.cs:5 [Guid]).
+      // Its per-instance TimeRange/SourceRange rides the child's Outputs[].OutputData (importer reads it
+      // into SymbolChild.clips), NOT an InputValue; the cook applies the window gate + time remap.
+      {"3036067a-a4c2-434b-b0e3-ac95c5c943f4", "TimeClip"},                    // flow/TimeClip.cs:5
       // image-fx collapse (Blend 子類): Vector4Components decomposes a ColorA/ColorB vec4 boundary input
       // into X/Y/Z/W scalars that feed the fx-setup FloatParams rail. sw has value_op_vector4components.cpp.
       {"b15e4950-5c72-4655-84bc-c00647319030", "Vector4Components"},           // numbers/vec4/Vector4Components.cs:3 (sw value op)
@@ -261,6 +265,14 @@ std::string swSlotNameForGuid(const std::string& swType, const std::string& slot
            {"36f14238-5bb8-4521-9533-f4d1e8fb802b", "Value.x"},  // Vector2 input → .x head (fork)
            {"1cee5adb-8c3c-4575-bdd6-5669c04d55ce", "X"},        // X output (.cs:6-7)
            {"305d321d-3334-476a-9fa3-4847912a4c58", "Y"},        // Y output (.cs:8-9)
+       }},
+      // DataSet-timeline seam: TimeClip slots (flow/TimeClip.cs). The Output slot is where the child's
+      // TimeClip OutputData is anchored (the importer keys child.clips by THIS name = "out"). The Command
+      // MultiInput is the SubTree the window gate wraps (= sw "SubTree", the SetTime precedent name).
+      {"TimeClip",
+       {
+           {"de6ff8b5-40fe-47fa-b9f2-d926b17f9a7f", "out"},       // Output TimeClipSlot<Command> (.cs:7-8)
+           {"35f501f4-5c79-4628-9441-8b3782544bf6", "SubTree"},   // Command MultiInput (.cs:44-45)
        }},
   };
   auto t = kTable.find(swType);

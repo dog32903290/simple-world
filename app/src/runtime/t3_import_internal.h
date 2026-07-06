@@ -62,4 +62,11 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
                             SymbolLibrary& lib,
                             const std::function<void(const std::string&)>& warn);
 
+// DataSet-timeline seam: read a child's Outputs[].OutputData TimeClip blocks (= SymbolJson.cs:112-131,
+// Type "T3.Core.Animation.TimeClip") into `child.clips`, keyed by the sw output slot name. Split out of
+// t3_import.cpp's Children loop ONLY for the rule-4 line ratchet (self-contained parse). No-op when the
+// child has no Outputs array / no OutputData. Impl in t3_import_collapse.cpp.
+void parseChildTimeClips(const crude_json::value& cv, const std::string& swType, SymbolChild& child,
+                         const std::function<void(const std::string&)>& warn);
+
 }  // namespace sw

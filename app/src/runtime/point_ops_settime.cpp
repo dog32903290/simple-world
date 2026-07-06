@@ -32,9 +32,14 @@ namespace sw {
 // ───────────────────────────── the thread_local scope chain ─────────────────────────────
 namespace {
 // One pushed scope node. `prev` = the enclosing scope (nesting, like TiXL's stacked context mutations).
+// TWO kinds share the chain: OFFSET (SetTime — absolute set / relative add) and REMAP (TimeClip — an
+// unclamped linear map TimeRange→SourceRange, TimeClipSlot.cs:64-68). scopedTimeOr composes innermost-out.
+enum class TimeScopeKind { Offset, Remap };
 struct TimeScopeNode {
-  bool absolute = false;
-  float newTime = 0.0f;
+  TimeScopeKind kind = TimeScopeKind::Offset;
+  bool absolute = false;   // Offset: set vs add
+  float newTime = 0.0f;    // Offset: the NewTime delta/set
+  float inMin = 0.0f, inMax = 0.0f, outMin = 0.0f, outMax = 0.0f;  // Remap: TimeRange→SourceRange
   const TimeScopeNode* prev = nullptr;
 };
 // The innermost active scope, or nullptr. thread_local for the same correct-by-construction reason as
@@ -46,10 +51,19 @@ float paramOr(const std::map<std::string, float>& m, const char* id, float def) 
   return it != m.end() ? it->second : def;
 }
 
-// Compose the chain innermost-out: Absolute CUTS (ignores everything outer), Relative ADDS onto the
-// enclosing effective clock (SetTime.cs:28-37 applied per nesting level).
+// Compose the chain innermost-out. OFFSET: Absolute CUTS (ignores everything outer), Relative ADDS onto the
+// enclosing effective clock (SetTime.cs:28-37). REMAP: applies the unclamped linear map to the enclosing
+// effective clock (TimeClipSlot.cs:64-68 — the remap operates on the already-mutated context clock, so it
+// composes onto the enclosing scope's output, MathUtils.cs:368-373). Degenerate remap window → outMin.
 float applyChain(const TimeScopeNode* s, float ambient) {
   if (!s) return ambient;
+  if (s->kind == TimeScopeKind::Remap) {
+    const float inner = applyChain(s->prev, ambient);
+    const float span = s->inMax - s->inMin;
+    if (span == 0.0f) return s->outMin;  // zero-width window is gated out before remap; guard /0 anyway
+    const float factor = (inner - s->inMin) / span;
+    return factor * (s->outMax - s->outMin) + s->outMin;
+  }
   return s->absolute ? s->newTime : applyChain(s->prev, ambient) + s->newTime;
 }
 }  // namespace
@@ -76,6 +90,23 @@ LiveTimeScope::LiveTimeScope(const SetTimeScopeSpec& spec)
   t_timeScope = n;
 }
 LiveTimeScope::~LiveTimeScope() {
+  if (!engaged_) return;
+  const TimeScopeNode* n = t_timeScope;
+  t_timeScope = static_cast<const TimeScopeNode*>(prev_);
+  delete n;
+}
+
+LiveTimeRemapScope::LiveTimeRemapScope(const TimeRemapScopeSpec& spec)
+    : prev_(t_timeScope), engaged_(spec.active) {
+  if (!engaged_) return;
+  auto* n = new TimeScopeNode();
+  n->kind = TimeScopeKind::Remap;
+  n->inMin = spec.inMin; n->inMax = spec.inMax;
+  n->outMin = spec.outMin; n->outMax = spec.outMax;
+  n->prev = t_timeScope;
+  t_timeScope = n;
+}
+LiveTimeRemapScope::~LiveTimeRemapScope() {
   if (!engaged_) return;
   const TimeScopeNode* n = t_timeScope;
   t_timeScope = static_cast<const TimeScopeNode*>(prev_);

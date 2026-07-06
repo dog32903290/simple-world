@@ -164,6 +164,11 @@ struct ResidentNode {
   // by output slot id (= NodeSpec output port id). Empty = every output default.
   std::map<std::string, bool> disabledOut;          // outSlotId -> true (frozen)
   std::map<std::string, bool> triggerAlwaysOut;     // outSlotId -> true (DirtyFlagTrigger.Always)
+  // TimeClip per-output placement (= TiXL Symbol.Child.Outputs[].OutputData / TimeClip). Projected from
+  // the SymbolChild's `clips` at build time (mirror of disabledOut above). Keyed by output slot id.
+  // The Command SubTree cook driver reads clipOut on a carrying op to apply the window gate + time remap
+  // (TimeClipSlot.cs:52-83). Empty for every non-clip node (zero footprint). See ClipTimeData (compound_graph.h).
+  std::map<std::string, ClipTimeData> clipOut;      // outSlotId -> authored clip window + source mapping
   const ResidentInput* input(const std::string& slotId) const;
 };
 

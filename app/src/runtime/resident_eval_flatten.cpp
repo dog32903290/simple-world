@@ -91,6 +91,10 @@ ProducerMap inlineSymbol(
         if (kv.second) rn.disabledOut[kv.first] = true;
       for (const auto& kv : c.triggerOverrides)
         if (kv.second == TriggerOverride::Always) rn.triggerAlwaysOut[kv.first] = true;
+      // TimeClip per-output placement: project the child's authored clip windows onto the resident node
+      // (the Command SubTree cook driver reads clipOut on a carrying op → window gate + time remap,
+      // TimeClipSlot.cs:52-83). Sparse — only carrying ops (TimeClip/MidiClip/…) have any entry.
+      for (const auto& kv : c.clips) rn.clipOut[kv.first] = kv.second;
       const NodeSpec* spec = findSpec(c.symbolId);  // anim-group lookup (Vec multi-channel)
       for (const SlotDef& d : def->inputDefs) {
         // String sub-seam: a String input carries BOTH a resolved-const fallback (strInputs) AND a

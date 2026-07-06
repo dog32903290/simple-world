@@ -255,6 +255,11 @@ bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* 
           }
         }
       }
+
+      // Outputs[].OutputData → per-instance TimeClip placement (= SymbolJson.cs:112-131). Reads the child's
+      // authored TimeRange/SourceRange/LayerIndex into child.clips (split to t3_import_collapse.cpp for the
+      // rule-4 line ratchet). Only carrying ops (TimeClip/MidiClip/…) have an OutputData block; the rest skip.
+      parseChildTimeClips(cv, swType, child, warn);
       sym.children.push_back(child);
     }
   }
