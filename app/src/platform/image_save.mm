@@ -81,5 +81,13 @@ bool saveTextureToPng(MTL::Texture* tex, const std::string& absPath) {
   }
 }
 
+bool saveRgbaToPng(const uint8_t* rgba, int w, int h, const std::string& absPath) {
+  @autoreleasepool {
+    if (!rgba || w <= 0 || h <= 0 || absPath.empty()) return false;
+    if (!ensureParentDir(absPath)) return false;
+    return writePngBytes(absPath, rgba, w, h);  // SAME encoder as the texture path (byte-identical)
+  }
+}
+
 }  // namespace platform
 }  // namespace sw

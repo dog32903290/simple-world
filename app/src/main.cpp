@@ -46,6 +46,7 @@
 #include "runtime/graph.h"
 #include "runtime/point_graph.h"
 #include "runtime/point_ops.h"
+#include "app/export_cli.h"    // runExportCli — headless deterministic --export render (no GUI)
 #include "selftests.h"
 #include "ui/asset_browser.h"  // AssetLibrary window (resource browser + click-to-create load-op)
 #include "ui/cjk_font.h"
@@ -198,6 +199,16 @@ int main(int argc, char* argv[]) {
     // So flush stdio (— _Exit does NOT flush, and --selftest-list output is piped to the harness)
     // then _Exit past every finalizer. ASan reports memory errors as they happen DURING the run;
     // only leak-at-exit is skipped, and the sweep already runs detect_leaks=0, so nothing is lost.
+    std::fflush(nullptr);
+    std::_Exit(rc);
+  }
+
+  // Headless deterministic video/PNG export (--export): a "render, print verdict, then die" batch
+  // mode like the self-tests above — it must exit BEFORE any GUI/window startup. Returns -1 when
+  // there is no --export flag (fall through to the GUI). Uses the SAME _Exit-past-finalizers guard
+  // as the selftest path (the export loads OpenCV/TBB globals via the cook; a finalizer SEGV must not
+  // flip an already-printed verdict).
+  if (int rc = sw::app::runExportCli(argc, argv); rc >= 0) {
     std::fflush(nullptr);
     std::_Exit(rc);
   }

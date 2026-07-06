@@ -128,6 +128,10 @@ set_source_files_properties(src/platform/http_request.mm PROPERTIES COMPILE_OPTI
 # pointers, so the two lifetime models coexist (metal-cpp is not an ObjC object under ARC's view).
 set_source_files_properties(src/platform/video_decode.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 set_source_files_properties(src/platform/video_decode_selftest.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+# video_writer.mm: AVAssetWriter (ProRes4444/H264 export) — ARC governs the pure AVFoundation objects
+# (no metal-cpp pointers cross this seam; the caller passes a plain RGBA byte buffer). Same convention
+# as video_decode.mm / audio_playback.mm.
+set_source_files_properties(src/platform/video_writer.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 # video_capture.mm: AVCaptureSession + an ObjC sample-buffer delegate — ARC governs the ObjC objects.
 set_source_files_properties(src/platform/video_capture.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 # audio_mixer.mm (seam/audio-mixer): per-operator AVAudioEngine mixer — same AVFoundation+ARC as playback.
@@ -357,6 +361,7 @@ add_executable(simple_world
   # target (GPL quarantine, see the sw_link block above). The executable links it dynamically.
   src/platform/link_sync_selftest.cpp # L5 IO (link lane): local-session tempo/beat/phase closed-form gate (--selftest-linksync); Link-free (POD API only) so it stays in the exe
   src/platform/video_decode.mm       # L5 IO (video lane): AVAssetReader→CVPixelBuffer→MTL::Texture decode-by-frame (PlayVideo decode leg)
+  src/platform/video_writer.mm       # export: AVAssetWriter ProRes4444(alpha)/H264/PNG-seq frame sink (MV 承重 #4; named fork of TiXL MfVideoWriter)
   src/platform/video_decode_selftest.mm  # --selftest-io-video-decode: AVAssetWriter 8-frame clip → decode → per-frame color assert
   src/io_video_decode_register.cpp   # registers --selftest-io-video-decode (impl in the .mm)
   src/platform/video_capture.mm      # L5 IO (video lane): AVCaptureSession live camera capture (VideoDeviceInput capture leg)
@@ -858,6 +863,9 @@ add_executable(simple_world
   src/runtime/copy_paste.cpp
   src/app/frame_cook.cpp
   src/app/frame_cook_link.cpp        # io/link: AbletonLinkSync per-frame cook (reads platform LinkSync snapshot → extOut)
+  src/app/frame_cook_export.cpp      # export: DETERMINISTIC offline cook (frameIndex→fixed dt; MV 承重 #3 frame-accurate)
+  src/app/export_engine.cpp          # export: offline cook loop + GPU readback + video writer wiring (entry seam)
+  src/app/export_cli.cpp             # export: headless --export CLI (device bootstrap + project load + runExport)
   src/app/cook_host_values.cpp
   src/app/device_input_cook.cpp     # TiXL io/input device family cook (KeyboardInput/MouseInput/Gamepad)
   src/app/device_input_golden.cpp   # --selftest-deviceinput (io/input family golden)

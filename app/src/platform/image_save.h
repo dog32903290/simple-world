@@ -12,6 +12,7 @@
 //
 // Compiled WITHOUT ARC (CMake -fno-objc-arc), like eye.mm / image_decode.mm: the
 // CoreGraphics/ImageIO CFTypeRefs are released manually.
+#include <cstdint>
 #include <string>
 
 namespace MTL { class Texture; }
@@ -24,6 +25,13 @@ namespace platform {
 // Returns false (and writes nothing) on a null texture, an unsupported pixel layout, or
 // any encode/IO failure — the caller surfaces the failure to the user.
 bool saveTextureToPng(MTL::Texture* tex, const std::string& absPath);
+
+// Encode a raw RGBA8 buffer (`rgba` = w*h*4 bytes, top row first, non-premultiplied AlphaLast)
+// to a PNG at `absPath`, colors verbatim — the byte-level sibling of saveTextureToPng that takes
+// pixels ALREADY read back (the export PNG-sequence sink hands it frames pulled from the cook
+// target). Same encoder, so a snapshot and an export frame are byte-identical. Creates parent
+// dirs. Returns false on a bad arg or any encode/IO failure.
+bool saveRgbaToPng(const uint8_t* rgba, int w, int h, const std::string& absPath);
 
 }  // namespace platform
 }  // namespace sw
