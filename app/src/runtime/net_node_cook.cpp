@@ -14,7 +14,10 @@ namespace {
 int g_netNodeBug = 0;
 
 // Net-signal kind codes (must match net_node_cook.h NetBusSignal.kind / the input-node families).
-enum : int { kUdp = 0, kTcpClient = 1, kTcpServer = 2, kSerial = 3, kArtnet = 4, kSacn = 5 };
+// kWsClient/kWsServer are the WebSocket families (live upgrade+frame stream in platform/ws_live; the app
+// pushes a decoded WS message arrival as its kind, exactly like the raw-TCP kinds).
+enum : int { kUdp = 0, kTcpClient = 1, kTcpServer = 2, kSerial = 3, kArtnet = 4, kSacn = 5,
+             kWsClient = 6, kWsServer = 7 };
 
 // Does a DMX input node accept this universe? Artnet/Sacn inputs subscribe [StartUniverse,
 // StartUniverse+NumUniverses). TEETH mode 2 drops the universe match (accept any).
@@ -58,9 +61,23 @@ void cookNetInputNodes(ResidentEvalGraph& g) {
     const bool isSerial = t == "SerialInput";
     const bool isArtnet = t == "ArtnetInput";
     const bool isSacn   = t == "SacnInput";
-    if (!(isUdp || isTcpCli || isTcpSrv || isSerial || isArtnet || isSacn)) continue;
+    // WebSocket families — WsClient rides TcpClient's [WasTrigger,IsConnected] shape; WsServer rides
+    // TcpServer's [IsListening,ConnectionCount]. WebServer echoes IsRunning from its Listen enable.
+    const bool isWsCli  = t == "WebSocketClient";
+    const bool isWsSrv  = t == "WebSocketServer";
+    const bool isWebSrv = t == "WebServer";
+    if (!(isUdp || isTcpCli || isTcpSrv || isSerial || isArtnet || isSacn || isWsCli || isWsSrv ||
+          isWebSrv))
+      continue;
 
     std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
+
+    if (isWebSrv) {
+      // WebServer: IsRunning echoes the Listen enable (WebServer.cs:62 _listener?.IsListening). No
+      // inbound message rail — it is a static HTTP responder (the live serve is the app-side seam).
+      rn.extOut[0] = P["Listen"] > 0.5f ? 1.0f : 0.0f;
+      continue;
+    }
 
     if (isArtnet || isSacn) {
       const int start = (int)std::lround(P["StartUniverse"]);
@@ -74,20 +91,22 @@ void cookNetInputNodes(ResidentEvalGraph& g) {
     }
 
     // Byte-stream input: kind-matched arrival → WasTrigger.
-    const int myKind = isUdp ? kUdp : isTcpCli ? kTcpClient : isTcpSrv ? kTcpServer : kSerial;
+    const int myKind = isUdp ? kUdp : isTcpCli ? kTcpClient : isTcpSrv ? kTcpServer
+                       : isSerial ? kSerial : isWsCli ? kWsClient : isWsSrv ? kWsServer : kUdp;
     bool trig = false;
     for (const NetBusSignal& s : bus.in)
       if (s.kind == myKind) trig = true;
     rn.extOut[0] = trig ? 1.0f : 0.0f;       // WasTrigger (UDP/Serial) / IsListening (TcpServer, see below)
 
-    // Two-output socket inputs: TcpServer [IsListening, ConnectionCount]; TcpClient/SerialInput
-    // [WasTrigger, IsConnected]. The level flags ride the config bool (Listen/Connect) — no live socket
-    // in the cook, so IsListening/IsConnected echo the enable (real-transport parity: app overwrites).
-    if (isTcpSrv) {
-      rn.extOut[0] = P["Listen"] > 0.5f ? 1.0f : 0.0f;                 // IsListening (cs:1129)
+    // Two-output socket inputs: TcpServer/WebSocketServer [IsListening, ConnectionCount]; TcpClient/
+    // SerialInput/WebSocketClient [WasTrigger, IsConnected]. The level flags ride the config bool
+    // (Listen/Connect) — no live socket in the cook, so IsListening/IsConnected echo the enable
+    // (real-transport parity: app overwrites with the actual ws_live server/client state).
+    if (isTcpSrv || isWsSrv) {
+      rn.extOut[0] = P["Listen"] > 0.5f ? 1.0f : 0.0f;                 // IsListening (cs:1129 / WS cs:118)
       rn.extOut[1] = (P["Listen"] > 0.5f && trig) ? 1.0f : 0.0f;       // ConnectionCount≥1 proxy
-    } else if (isTcpCli || isSerial) {
-      rn.extOut[1] = P["Connect"] > 0.5f ? 1.0f : 0.0f;               // IsConnected (cs:698 / cs:1505)
+    } else if (isTcpCli || isSerial || isWsCli) {
+      rn.extOut[1] = P["Connect"] > 0.5f ? 1.0f : 0.0f;               // IsConnected (cs:698 / cs:1505 / WS cs:239)
     }
   }
 }
@@ -117,18 +136,19 @@ void cookNetOutputNodes(ResidentEvalGraph& g, std::map<std::string, NetOutputSta
     const bool isArt   = t == "ArtnetOutput";
     const bool isDmx   = t == "DMXOutput";
     const bool isSacn  = t == "SacnOutput";
-    if (!(isUdp || isSer || isWled || isArt || isDmx || isSacn || isTcpS)) continue;
-    // (TcpClient's WasTrigger/IsConnected are cooked by cookNetInputNodes; its scalar rail has no send
-    // echo output, so it is not re-cooked here — avoids double-writing extOut[0].)
+    const bool isWsS   = t == "WebSocketServer";  // WS broadcast rides TcpServer's send-edge shape
+    if (!(isUdp || isSer || isWled || isArt || isDmx || isSacn || isTcpS || isWsS)) continue;
+    // (TcpClient/WebSocketClient's WasTrigger/IsConnected are cooked by cookNetInputNodes; their scalar
+    // rail has no send echo output, so they are not re-cooked here — avoids double-writing extOut[0].)
     (void)isTcpC;
 
     std::map<std::string, float> P = resolveResidentFloatInputs(g, rn, rctx);
     NetOutputState& st = state[rn.path];
 
-    // The send enable per family: manual SendTrigger (UDP/TCP/Serial/Artnet/Sacn) or Connect-held.
+    // The send enable per family: manual SendTrigger (UDP/TCP/WS/Serial/Artnet/Sacn) or Connect-held.
     bool enable = false;
     if (isUdp || isSer)          enable = P["SendTrigger"] > 0.5f || P["SendOnChange"] > 0.5f;
-    else if (isTcpS)             enable = P["SendTrigger"] > 0.5f || P["SendOnChange"] > 0.5f;
+    else if (isTcpS || isWsS)    enable = P["SendTrigger"] > 0.5f || P["SendOnChange"] > 0.5f;
     else if (isArt || isSacn)    enable = P["SendTrigger"] > 0.5f;
     else if (isDmx || isWled)    enable = P["Connect"] > 0.5f;
 
@@ -144,6 +164,7 @@ void cookNetOutputNodes(ResidentEvalGraph& g, std::map<std::string, NetOutputSta
     else if (isSacn)                 kind = kSacn;
     else if (isDmx || isSer || isWled) kind = kSerial;   // all serial-backed senders
     else if (isTcpS)                 kind = kTcpServer;
+    else if (isWsS)                  kind = kWsServer;
     emitNetPacket(kind, /*universe*/ 1, /*bytes*/ {});   // marker: 1 send this frame
     rn.extOut[0] = 1.0f;   // send-happened echo (packets-sent / IsConnected)
   }

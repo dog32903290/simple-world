@@ -167,6 +167,57 @@ static const MathOp _reg_LoadImageFromUrl{
      nullptr, "image.load"}
 };
 
+// ── io/websocket + io/http ───────────────────────────────────────────────────────────────────────
+
+// TiXL WebSocketClient (Lib/io/websocket/WebSocketClient.cs) — ClientWebSocket connect + send/recv text.
+// STATEFUL (net bus + live socket), evaluate==nullptr; cook writes WasTrigger → extOut[0], IsConnected →
+// extOut[1] (mirror of TcpClient). .t3 DEFAULTS: Connect=false, Url="ws://localhost:8080", SendOnChange=
+// true, SendTrigger=false, ListLength=10, ParsingMode=0(Raw), Delimiter=" ", Separator=" ". The String
+// ReceivedString/Lines + MessageParts (MultiInput<string>) + Dict/List<float> parse rails are String/
+// Dict currency → deferred (fork-net-message-currency-deferred); the scalar WasTrigger/IsConnected echo
+// is the value rail. Url is a String device-select (shared-transport fork). Send fires on manualTrigger
+// || (sendOnChange && changed) (cs:152).
+static const MathOp _reg_WebSocketClient{
+    {"WebSocketClient", "WebSocketClient",
+     {{"WasTrigger", "WasTrigger", "Float", false},     // extOut[0] — a message arrived (cs:238)
+      {"IsConnected", "IsConnected", "Float", false},    // extOut[1] — socket open (cs:239)
+      {"Connect", "Connect", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},           // cs:29
+      {"SendTrigger", "SendTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},   // cs:65
+      {"SendOnChange", "SendOnChange", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}, // cs:62
+      {"ListLength", "ListLength", "Float", true, 10.0f, 1.0f, 1000.0f, Widget::Slider}},  // cs:38
+     nullptr, "io.websocket"}
+};
+
+// TiXL WebSocketServer (Lib/io/websocket/WebSocketServer.cs) — HttpListener.AcceptWebSocket accept loop +
+// per-client recv + broadcast. STATEFUL; cook writes IsListening → extOut[0], ConnectionCount → extOut[1]
+// (mirror of TcpServer). .t3 DEFAULTS: Listen=false, Port=8080, Path="", LocalIpAddress="0.0.0.0 (…)",
+// SendOnChange=true, SendTrigger=false, ClientMessageParsingMode=0(Raw), ClientMessageDelimiter=" ".
+// LastReceivedClientString + Parts + Dictionary rails deferred (fork-net-message-currency-deferred);
+// Port/LocalIp/Path = shared-transport fork; Listen + Port kept as the load-bearing knobs.
+static const MathOp _reg_WebSocketServer{
+    {"WebSocketServer", "WebSocketServer",
+     {{"IsListening", "IsListening", "Float", false},   // extOut[0] — listener up (cs:118)
+      {"ConnectionCount", "ConnectionCount", "Float", false},  // extOut[1] — # clients (cs:119)
+      {"Listen", "Listen", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},            // cs:524
+      {"Port", "Port", "Float", true, 8080.0f, 0.0f, 65535.0f, Widget::Slider},       // cs:527
+      {"SendTrigger", "SendTrigger", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},  // cs:539
+      {"SendOnChange", "SendOnChange", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool}},   // cs:536
+     nullptr, "io.websocket"}
+};
+
+// TiXL WebServer (Lib/io/http/WebServer.cs) — HTTP static server: serve a user HTML string on "/" (200
+// text/html, cs:223), 404 any other path (cs:240). STATEFUL (live HttpListener); cook writes IsRunning →
+// extOut[0]. .t3 DEFAULTS: Listen=false, LocalIpAddress="0.0.0.0 (Any)", Port=8080, HtmlContent=<default
+// page>. The HtmlContent body is String currency → deferred (fork-net-message-currency-deferred); the
+// scalar IsRunning echo is the value rail. Port/LocalIp = shared-transport fork; Listen + Port kept.
+static const MathOp _reg_WebServer{
+    {"WebServer", "WebServer",
+     {{"IsRunning", "IsRunning", "Float", false},   // extOut[0] — listener up echo (cs:62)
+      {"Listen", "Listen", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},            // cs:379
+      {"Port", "Port", "Float", true, 8080.0f, 0.0f, 65535.0f, Widget::Slider}},      // cs:385
+     nullptr, "io.http"}
+};
+
 // ── io/dmx ─────────────────────────────────────────────────────────────────────────────────────────
 
 // TiXL ArtnetOutput (Lib/io/dmx/ArtnetOutput.cs) — Art-Net DMX SENDER (UDP 6454). Packet body goldened

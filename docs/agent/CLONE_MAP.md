@@ -1,5 +1,22 @@
 # CLONE_MAP — TiXL 克隆真實地圖(2026-07-04 census 修準 + 三縫對 code 驗證)
 
+> **★縫戰報 2026-07-06(WebSocket/HTTP live-server 縫結案,seam/ws-live 分支)**:
+> 「大縫戰役級」清單裡的 **WebSocket/HTTP live server** 縫已蓋(下方 34-todo 清單 ③ 的一項可移除)。
+> 缺的第三塊(websocket_frame codec 之上的「活」state machine)已補齊:
+> **platform/ws_live.{h,cpp}**(閉式 HTTP-upgrade REQUEST parse + 101 RESPONSE build/validate +
+> WebServer HTTP 靜態回應 parseHttpGetTarget/buildHttpResponse + TEETH)、**platform/ws_live_socket.cpp**
+> (WsLiveServer/WsLiveClient 自持 POSIX socket+rx thread,mirror net_loopback;per-connection FrameStream
+> = fragment 重組/ping→pong/close handshake。net_loopback「一 recv 一訊息」載不動 WS frame → WS 必須
+> per-conn byte buffer,本質複雜包進 message-callback 縫)。
+> 節點:**WebSocketClient**(WasTrigger/IsConnected,照 TcpClient)、**WebSocketServer**(IsListening/
+> ConnectionCount,照 TcpServer)、**WebServer**(IsRunning)註冊進 node_registry_math_net_io + cook 進
+> net_node_cook(新增 kWsClient/kWsServer kind)。Dict/String parse 軌照 fork-net-message-currency-deferred
+> 延後,scalar value 軌 live+golden'd(同 TcpClient/OscInput 紀律)。
+> golden:**selftests_io_ws_live.cpp** — 純 parser 對 RFC6455 推導值(io-ws-handshake)、loopback
+> client↔server 真端到端(真 101 upgrade + masked/unmasked frame 往返 + 300B extended-length)(io-ws-live)、
+> unmask 腿(io-ws-unmask);三顆牙全咬真 cook 路徑(setWsLiveBug:server accept / frame unmask)。
+> **sweep 671/0/0(NO-BITE:[]),check-arch + golden_lint 全綠。**
+
 > **★終戰報 2026-07-06 09:00(原子清剿戰役結束,第四+五梯收攏)**:
 > **總 580/749(77%),原子 417/451(92.5%),sweep 668/0/0(NO-BITE:[] 鐵律全程守住)。**
 > 兩天戰役自 473 起 = **+107 顆**。第四梯:net 節點皮+Artnet/DMX/sACN 13(dmx_packet 縫)/pbr 原子

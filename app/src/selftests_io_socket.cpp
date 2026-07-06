@@ -247,8 +247,10 @@ int runWledFrameSelfTest(bool injectBug) {
 // ===== WebSocket codec (RFC6455) =================================================================
 // --selftest-io-websocket-frame : the handshake-accept derivation + frame encode/decode, verified
 // against RFC6455's own canonical vectors. injectBug corrupts the input key so the accept-key assert
-// diverges on the real SHA1+base64 path. PARTIAL: this proves the protocol CODEC; the live WS server
-// (HTTP upgrade parse + control-frame/close state machine) is flagged BLOCKED below.
+// diverges on the real SHA1+base64 path. This proves the pure protocol CODEC; the LIVE WS state machine
+// (HTTP-upgrade parse + frame state machine + long-connection mgmt over a real TCP stream, and the
+// WebSocketClient/Server/WebServer nodes) is now built in platform/ws_live and proven end-to-end by
+// selftests_io_ws_live.cpp (--selftest-io-ws-handshake / -io-ws-live / -io-ws-unmask).
 int runWebSocketFrameSelfTest(bool injectBug) {
   bool ok = true;
 
