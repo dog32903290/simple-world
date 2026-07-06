@@ -211,14 +211,14 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, 
   // Read-only transport snapshot for the transport-reading ops (StopWatch). The run clock is the
   // process-lifetime wall accumulator (TiXL Playback.RunTimeInSecs analog, R-1 fork — see the op);
   // bars<->secs uses the transport bpm (transport.h:37). Filled host-side; NEVER reaches the GPU
-  // EvaluationContext (eval_context.h:39 16-byte lock). This is the ONLY frame_cook touch for the seam.
+  // EvaluationContext (eval_context.h:39 lock) — the ONLY frame_cook touch for the seam.
   TransportSnapshot tr;
   tr.runTimeSecs = runTimeSecs;
   tr.localTimeBars = t.position;
   tr.localFxTimeBars = t.fxTime;
   tr.playbackTimeBars = t.position;
-  tr.bpm = t.bpm;
-  tr.rate = t.rate;
+  tr.bpm = t.bpm; tr.rate = t.rate;
+  tr.frameSpeedFactor = t.frameSpeedFactor;  // relay (transport.h field; 1.0 live, fps/60 export-only)
 
   // pass 0: clear EVERY channel ONCE (= EvaluationContext.Reset; injectBug 2 skips → leak D/G/H). stringVars (sub-seam C) cleared HERE, BEFORE cookStringNodes writes/reads it (H golden bites a leak).
   if (ctxVarBug != 2) {

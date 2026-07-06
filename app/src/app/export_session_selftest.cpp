@@ -10,7 +10,7 @@
 // stepwise driver produces the EXACT SAME pixels as the blocking driver frame-for-frame — the whole
 // point of "only wrap, don't touch the core" is that the two drivers agree.
 //
-// THREE LEGS (each a real tooth):
+// FOUR LEGS (each a real tooth):
 //   A. ADVANCE — begin() → framesDone==0; each stepOneFrame() advances framesDone by exactly 1; after
 //      `total` steps done()==true and finish() reports framesWritten==total. (The state machine.)
 //   B. CANCEL — begin() a 6-frame run, step twice, abort() → active()==false, cancelled()==true,
@@ -20,6 +20,13 @@
 //      This is the byte-identity claim between the two drivers on the REAL output artifact; injectBug
 //      flips the EXPECTATION (want-equal → false) so a real divergence (someone forks the core in one
 //      driver) would go RED.
+//   D. PRE-ROLL PARITY (the fixer-2 crack, bitten directly) — a beginFrame>0 export of a STATEFUL,
+//      pixel-visible graph (Time → Damp → RadialPoints.Radius): the stepwise session (whose begin()
+//      pre-rolls frames [0, beginFrame)) must be byte-identical to the blocking runExport over the same
+//      from-N range. injectBug is a REAL seam injection: the session runs with preroll=false (exactly
+//      the pre-fix cold-start), the Damp integrator snaps instead of trailing, the ring radius differs,
+//      the files diverge → the SAME equality assertion goes RED. This is the leg that was impossible to
+//      keep green while only one driver carried pre-roll.
 #include "app/export_session.h"
 
 #include <cstdint>
@@ -35,6 +42,7 @@
 #include "app/export_engine.h"
 #include "platform/video_writer.h"
 #include "runtime/compound_graph.h"
+#include "runtime/graph_bridge.h"  // atomicSymbolFromSpec + findSpec — REAL registered ops (Time/Damp) for leg D
 #include "runtime/point_graph.h"  // registerBuiltinPointOps (the cook table the export needs)
 #include "runtime/selftest_registry.h"
 
@@ -69,6 +77,38 @@ SymbolLibrary buildRenderLib() {
   SymbolChild d; d.id = 2; d.symbolId = "DrawPoints";
   root.children = {g, d};
   root.connections = {{1, "points", 2, "points"}, {2, "out", kSymbolBoundary, "out"}};
+  lib.symbols["Root"] = root; lib.rootId = "Root";
+  return lib;
+}
+
+// Leg D graph: Time(20, mode=0 LocalIdleMotionFxTime) → Damp(21, Damping=0.9) → RadialPoints(1).Radius
+// → DrawPoints(2, Command terminal). Time grows with the deterministic fx clock, so Damp's target is
+// NOT constant; the damped value drives the ring RADIUS — a cross-frame integrator made PIXEL-VISIBLE.
+// A cold-started Damp at frame N snaps straight to Time's value AT N (Damp.cs _isFirstEval) while a
+// pre-rolled one carries the converged trail (≈0.356 vs 0.5 bars at frame 30 @30fps/120bpm — leg E of
+// selftests_export pins those numbers on this exact mechanism) → visibly different ring → different
+// PNG bytes. Time/Damp are the REAL registered ops (atomicSymbolFromSpec/findSpec), not stand-ins.
+SymbolLibrary buildStatefulRenderLib() {
+  SymbolLibrary lib;
+  lib.symbols["Time"] = atomicSymbolFromSpec(*findSpec("Time"));
+  lib.symbols["Damp"] = atomicSymbolFromSpec(*findSpec("Damp"));
+  lib.symbols["RadialPoints"] =
+      atomicOp("RadialPoints",
+               {{"Count", "Count", "Float", 64.0f}, {"Radius", "Radius", "Float", 0.5f}},
+               {{"points", "points", "Points", 0.0f}});
+  lib.symbols["DrawPoints"] =
+      atomicOp("DrawPoints", {{"points", "points", "Points", 0.0f}}, {{"out", "out", "Command", 0.0f}});
+  Symbol root; root.id = "Root"; root.name = "Root"; root.atomic = false;
+  root.outputDefs = {{"out", "out", "Command", 0.0f}};
+  SymbolChild t; t.id = 20; t.symbolId = "Time";  // Mode=0 default (LocalIdleMotionFxTime)
+  SymbolChild dmp; dmp.id = 21; dmp.symbolId = "Damp"; dmp.overrides["Damping"] = 0.9f;
+  SymbolChild g; g.id = 1; g.symbolId = "RadialPoints";
+  SymbolChild d; d.id = 2; d.symbolId = "DrawPoints";
+  root.children = {t, dmp, g, d};
+  root.connections = {{20, "Timefloat", 21, "Value"},
+                      {21, "Result", 1, "Radius"},
+                      {1, "points", 2, "points"},
+                      {2, "out", kSymbolBoundary, "out"}};
   lib.symbols["Root"] = root; lib.rootId = "Root";
   return lib;
 }
@@ -180,6 +220,52 @@ int runRenderSessionSelfTest(bool injectBug) {
     std::printf("[selftest-render-session]   C blockOk=%d stepOk=%d filesEqual=%d want=%d -> %s\n",
                 rb.ok, okStep, allEqual, wantEqual, (allEqual == wantEqual) ? "ok" : "RED");
     if (allEqual != wantEqual) pass = false;
+  }
+
+  // --- Leg D: PRE-ROLL PARITY (beginFrame>0, stateful pixel-visible graph — the fixer-2 crack) ---
+  // Blocking runExport(from=30, preroll default ON) vs stepwise session over the SAME range must be
+  // byte-identical: BOTH must pre-roll the Damp integrator through frames [0,30) or the ring radius
+  // (damped trail vs cold snap) — and therefore the PNG bytes — diverge. injectBug corrupts the REAL
+  // cook path (session preroll=false = exactly the pre-fix stepwise behavior) while the assertion stays
+  // "files must match" → the injected run's files really differ → RED. Not a want-flip: the assertion
+  // is constant, the injection is in the cooked frames themselves.
+  {
+    namespace fs = std::filesystem;
+    const SymbolLibrary slib = buildStatefulRenderLib();
+    constexpr uint32_t kFrom = 30;      // matches selftests_export leg E's pinned divergence point
+    constexpr uint32_t kParityFrames = 2;  // frames 30..31 — the first frame is the cold-start victim
+    const std::string blockDir = "/tmp/sw_render_session_preroll_block";
+    const std::string stepDir = "/tmp/sw_render_session_preroll_step";
+    std::error_code ec;
+    fs::remove_all(blockDir, ec);
+    fs::remove_all(stepDir, ec);
+
+    app::ExportSettings sb;
+    sb.beginFrame = kFrom; sb.endFrame = kFrom + kParityFrames - 1; sb.fps = kFps;
+    sb.width = kW; sb.height = kH;
+    sb.codec = platform::VideoCodec::PngSequence; sb.outputPath = blockDir;  // preroll: default true
+    app::ExportResult rb = app::runExport(sb, slib, dev, mlib, q, nullptr);
+
+    app::ExportSession sess;
+    app::ExportSettings ss = sb;
+    ss.outputPath = stepDir;
+    ss.preroll = !injectBug;  // ★ the REAL injection seam: no pre-roll == the pre-fix cold start
+    bool okStep = sess.begin(ss, slib, dev, mlib, q);
+    for (uint32_t f = 0; f < kParityFrames && okStep; ++f) okStep = sess.stepOneFrame();
+    okStep = sess.finish() && okStep;
+
+    bool allEqual = rb.ok && okStep && rb.framesWritten == kParityFrames &&
+                    sess.result().framesWritten == kParityFrames;
+    for (uint32_t f = 0; f < kParityFrames && allEqual; ++f) {
+      char name[32];
+      std::snprintf(name, sizeof(name), "/frame_%06u.png", f);
+      std::vector<uint8_t> a, b;
+      bool bothRead = readFileBytes(blockDir + name, a) && readFileBytes(stepDir + name, b);
+      if (!bothRead || a != b) allEqual = false;
+    }
+    std::printf("[selftest-render-session]   D blockOk=%d stepOk=%d(preroll=%d) from=%u filesEqual=%d -> %s\n",
+                rb.ok, okStep, (int)ss.preroll, kFrom, allEqual, allEqual ? "ok" : "RED");
+    if (!allEqual) pass = false;  // constant assertion; injectBug's cold start makes it really fail
   }
 
   std::printf("[selftest-render-session] -> %s\n", pass ? "PASS" : "FAIL");

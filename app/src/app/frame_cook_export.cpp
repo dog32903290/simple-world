@@ -37,6 +37,11 @@ DeterministicCookState::DeterministicCookState(const SymbolLibrary& lib, double 
   p_->bpm = lib.composition.bpm > 0.0 ? lib.composition.bpm : 120.0;
   p_->lib = &lib;  // borrowed; the caller keeps the doc alive for the whole export (process-long doc::g_lib)
   p_->transport.bpm = p_->bpm;
+  // FrameSpeedFactor (TiXL Playback.FrameSpeedFactor, RenderTiming.cs:124: `Playback.FrameSpeedFactor
+  // = FrameRate / 60`) — a render-to-file-only display/render-rate ratio; TiXL leaves it at 1.0 in the
+  // interactive path (matches sw's live g_transport, untouched). Set HERE on the export-local
+  // Transport only — cookStatefulValueNodes relays it into TransportSnapshot for GetFrameSpeedFactor.
+  p_->transport.frameSpeedFactor = p_->fps / 60.0;
   // Build the resident projection from the (frozen) lib, exactly like run()'s rebuild leg — but
   // ONCE: an export renders a snapshot of the document, so there is no per-frame libRevision watch.
   p_->graph = buildEvalGraph(lib, lib.rootId);
@@ -114,5 +119,11 @@ void cookFrameDeterministic(DeterministicCookState& st, PointGraph& pg, const st
 }
 
 double lastFrameTimeSecs(const DeterministicCookState& st) { return st.p_->lastFrameTimeSecs; }
+
+float residentNodeValue(const DeterministicCookState& st, const std::string& path, int outIdx) {
+  const ResidentNode* n = st.p_->graph.node(path);
+  if (!n || outIdx < 0 || outIdx >= 8) return 0.0f;
+  return n->extOut[outIdx];
+}
 
 }  // namespace sw::framecook

@@ -72,8 +72,10 @@ struct TransportSnapshot {
   double rate = 1.0;
   // frameSpeedFactor = TiXL Playback.FrameSpeedFactor — a display/render-rate ratio (default 1.0).
   // Set to Settings.FrameRate/60 only in render-to-file mode (TiXL Editor/RenderExport/RenderTiming.cs:124).
-  // In simple_world (interactive, no render-to-file) this is always 1.0 — frame_cook sets it from the
-  // process-global constant 1.0. Named here so GetFrameSpeedFactor can read it faithfully off the seam.
+  // cookStatefulValueNodes copies this straight from the caller's Transport::frameSpeedFactor
+  // (transport.h): the interactive live path's g_transport leaves it at 1.0 (unchanged); the
+  // deterministic export driver's export-local Transport (frame_cook_export.cpp) sets it to fps/60 —
+  // that is the ONLY writer, so this snapshot field just relays whichever Transport cooked the frame.
   double frameSpeedFactor = 1.0;
 };
 

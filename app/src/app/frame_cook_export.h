@@ -64,5 +64,10 @@ void cookFrameDeterministic(DeterministicCookState& st, PointGraph& pg, const st
 // fork directly (a graph-independent tooth on the mechanism, not on any node's time-sensitivity).
 double lastFrameTimeSecs(const DeterministicCookState& st);
 
+// Peek a resident node's extOut[outIdx] after the LAST cookFrameDeterministic (borrowed graph read,
+// no mutation). 0.0f if the path does not resolve. Exposed so --selftest-export can assert a stateful
+// op's value (e.g. GetFrameSpeedFactor) through the REAL export cook path end-to-end, not a fixture.
+float residentNodeValue(const DeterministicCookState& st, const std::string& path, int outIdx = 0);
+
 }  // namespace framecook
 }  // namespace sw

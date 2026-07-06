@@ -70,6 +70,13 @@ const char* argAfter(int argc, char** argv, const char* flag, const char* def) {
   return def;
 }
 
+// Parse a bare boolean `--flag` (no following value). True iff present anywhere in argv.
+bool argHasFlag(int argc, char** argv, const char* flag) {
+  for (int i = 1; i < argc; ++i)
+    if (std::strcmp(argv[i], flag) == 0) return true;
+  return false;
+}
+
 platform::VideoCodec parseCodec(const char* s, const std::string& outPath) {
   if (s) {
     if (std::strcmp(s, "h264") == 0) return platform::VideoCodec::H264;
@@ -115,6 +122,9 @@ int runExportCli(int argc, char** argv) {
   s.width = (uint32_t)atoi(argAfter(argc, argv, "--width", "512"));
   s.height = (uint32_t)atoi(argAfter(argc, argv, "--height", "512"));
   s.codec = parseCodec(argAfter(argc, argv, "--codec", nullptr), s.outputPath);
+  // Pre-roll escape hatch: ExportSettings::preroll defaults true (correct stateful-integrator
+  // continuity for beginFrame>0); --no-preroll opts back into the old cold-start behavior.
+  s.preroll = !argHasFlag(argc, argv, "--no-preroll");
 
   // Headless Metal bootstrap — the SAME device/metallib/op-table the goldens create (no GUI loop).
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
@@ -132,7 +142,10 @@ int runExportCli(int argc, char** argv) {
   MTL::CommandQueue* q = dev->newCommandQueue();
 
   ProgressFn onProgress = [](uint32_t done, uint32_t total) -> bool {
-    std::printf("\r[export] frame %u/%u", done, total);
+    if (total == 0)  // pre-roll sentinel (export_engine.h ProgressFn doc): warm-up frames, not output
+      std::printf("\r[export] preroll %u", done);
+    else
+      std::printf("\r[export] frame %u/%u", done, total);
     std::fflush(stdout);
     return true;  // headless CLI never cancels
   };

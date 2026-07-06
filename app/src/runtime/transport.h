@@ -32,6 +32,13 @@ struct Transport {
   double rate = 1.0;       // playback speed (= Playback.PlaybackSpeed when playing). 1.0 = forward.
   double bpm = 120.0;      // (= Playback.Bpm). bars<->secs lives here.
   PlayState playState = PlayState::Stopped;
+  // frameSpeedFactor = TiXL Playback.FrameSpeedFactor (a display/render-rate ratio). Default 1.0 =
+  // the interactive live path (byte-identical to before this field existed). The deterministic export
+  // driver (app/frame_cook_export.cpp) is sw's render-to-file mode and sets this to fps/60 on its
+  // OWN export-local Transport instance (TiXL RenderTiming.cs:124: `Playback.FrameSpeedFactor =
+  // FrameRate/60`), never touching the live g_transport. cookStatefulValueNodes copies this straight
+  // into TransportSnapshot.frameSpeedFactor (stateful_value_ops.h:77) for GetFrameSpeedFactor to read.
+  double frameSpeedFactor = 1.0;
 
   // --- bars<->secs (Playback.cs:147-155), exact ---
   double barsFromSeconds(double secs) const { return secs * bpm / 240.0; }
