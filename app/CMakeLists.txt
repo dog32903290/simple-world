@@ -774,6 +774,7 @@ add_executable(simple_world
   src/app/frame_cook_once_selftest.cpp
   src/app/frame_cook_randomchoice_selftest.cpp
   src/app/frame_cook_easekeys_selftest.cpp
+  src/app/frame_cook_keyframes_selftest.cpp       # anim/utils: Find/SetKeyframes cross-connection reflect (read+write, REAL cook)
   src/app/frame_cook_adsrenvelope_selftest.cpp    # keyframe-anim lane: AdsrEnvelope gate ADSR machine
   src/app/frame_cook_triggeranim_selftest.cpp     # keyframe-anim lane: TriggerAnim one-shot sweep + shape
   src/app/frame_cook_sequenceanim_selftest.cpp    # keyframe-anim lane: SequenceAnim step-sequencer playback

@@ -80,10 +80,17 @@ void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
 // Float/IntVariables), cleared at the top once per frame. `ctxVarBug` is a teeth hook (0 = production;
 // 1 collapses the 2 passes, 2 skips the clear) for --selftest-contextvar; defaults to 0 so run() is
 // unchanged. Declared here (was file-local) so the selftest drives the REAL seam, not a mock.
+// `mutableLib` (default nullptr) is the app-owned SymbolLibrary the SetKeyframes seam WRITES its
+// upstream curve edits into (the runtime leaf cannot include app/document.h; frame_cook passes
+// doc::g_lib()). When SetKeyframes mutates the store it sets *libDirtied → the caller bumps
+// libRevision (a definition edit, = TiXL broadcasting to instances). Both default off so every
+// existing caller (the selftests that pass only the const lib) is unchanged — no SetKeyframes write
+// happens without a mutable authority, an honest no-op (matches the flat rail).
 void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, double runTimeSecs,
                             const Transport& t, uint32_t frameIndex, const SymbolLibrary* lib,
                             std::map<std::string, StatefulValueState>& state,
-                            ContextVarMap& vars, int ctxVarBug = 0);
+                            ContextVarMap& vars, int ctxVarBug = 0, SymbolLibrary* mutableLib = nullptr,
+                            bool* libDirtied = nullptr);
 
 // Context-var seam pin (--selftest-contextvar): drives the REAL cookStatefulValueNodes 2-pass
 // through goldens A-E (roundtrip / unset-default / writer-before-reader ordering / per-frame reset /
@@ -124,6 +131,15 @@ int runRandomChoiceIndexSelfTest(bool injectBug);
 // paths (outside keys / Constant-out / not-animated). injectBug flips a REAL production term
 // (setEaseKeysBug: drop the easing shaping / sever the curve query) so the fixed wants bite.
 int runEaseKeysSelfTest(bool injectBug);
+
+// FindKeyframes / SetKeyframes PRODUCTION-PATH pin (--selftest-keyframes): the anim/utils keyframe-
+// reflection ops. Drives the REAL cookStatefulValueNodes with a two-child graph (an upstream Sine whose
+// `x` input is animated, wired into a Find/SetKeyframes AnimatedOp) — reads across the connection into
+// the UPSTREAM node's curves (≠ EaseKeys own-input). Asserts hand-derived Time/Value/KeyframeCount for
+// all three Find modes + the SetKeyframes write (AddOrUpdateV @ LocalFxTime / clear-all) with WasTriggered
+// edge latching. injectBug (setKeyframesBug: sever the cross-connection query / drop the value read)
+// makes the fixed wants bite.
+int runKeyframesSelfTest(bool injectBug);
 
 // WasTrigger PRODUCTION-PATH pin (--selftest-wastrigger): drives the REAL cookStatefulValueNodes
 // across a 5-frame trigger sequence (one ContextVarMap + one StatefulValueState carried) where a

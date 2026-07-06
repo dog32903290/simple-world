@@ -185,30 +185,23 @@ void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
   }
 }
 
-// Cook every stateful value node (Damp/Spring/...) — the value-graph sibling of
-// cookAudioReactionNodes. Same shape: resolve each node's Float inputs through the resident drivers
-// (so a Damp.Value wired from Time/Automation walks the curve), step the per-instance state (keyed
-// by resident PATH so it survives projection rebuilds AND stays per-instance inside compounds),
-// write the outputs onto extOut. evalResidentFloat reads them back via the generic no-evaluate path.
-// `dtSecs` is the RAW wall delta (TiXL Damp/Spring sample Playback.LastFrameDuration); each op
-// clamps internally as TiXL does (Damp's spring branch clamps to 1/60; Spring uses no dt).
+// Cook every stateful value node (Damp/Spring/...) — the value-graph sibling of cookAudioReactionNodes.
+// Resolve each node's Float inputs through the resident drivers (a Damp.Value wired from Time/Automation
+// walks the curve), step the per-instance state (keyed by resident PATH — survives rebuilds, per-instance
+// inside compounds), write extOut. `dtSecs` = RAW wall delta (each op clamps internally as TiXL does).
+// The EaseKeys + keyframe-reflection (Find/SetKeyframes) seams intercept in cookOne before the generic op.
 //
-// context-var YELLOW seam (block #1): `vars` is the host-side per-frame variable map (= TiXL
-// EvaluationContext.Float/IntVariables). The single g.nodes loop is split into THREE phases for
-// deterministic writer-before-reader ordering (simple_world iterates build order, not dataflow):
-//   pass 0: CLEAR the map once (= EvaluationContext.Reset, cs:43-58) — the per-frame scratchpad.
-//   pass 1: WRITERS (isContextVarWriter: Set*Var) — populate the map.
-//   pass 2: everyone else (Get*Var readers + every non-var stateful op) — read the populated map.
-// BOUNDARY (named): two passes = ONE write-generation; a Set→Get→Set chain in one frame is NOT supported
-// (needs topological/scope order = RED) — no Set*Var VALUE resolves through a Get*Var extOut here, so two suffice.
-//
-// `ctxVarBug` is a TEETH hook (0 = production): 1 collapses the 2 passes into one in-order loop
-// (the C ordering golden bites), 2 skips the pass-0 clear (the D per-frame-reset golden bites). It
-// defaults to 0 so run() and every other caller are unchanged.
+// context-var YELLOW seam (block #1): `vars` = the host per-frame var map (= TiXL EvaluationContext
+// Float/IntVariables). The g.nodes loop splits into THREE phases for deterministic writer-before-reader
+// ordering (sw iterates build order): pass 0 CLEAR (= EvaluationContext.Reset); pass 1 WRITERS (Set*Var);
+// pass 2 readers + every non-var stateful op. BOUNDARY: two passes = ONE write-generation (a Set→Get→Set
+// chain in one frame is RED — needs topological order; no Set*Var value resolves through a Get*Var here).
+// `ctxVarBug` TEETH (0 = production): 1 collapses the 2 passes; 2 skips the pass-0 clear.
 void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, double runTimeSecs,
                             const Transport& t, uint32_t frameIndex, const SymbolLibrary* lib,
                             std::map<std::string, StatefulValueState>& state,
-                            ContextVarMap& vars, int ctxVarBug) {
+                            ContextVarMap& vars, int ctxVarBug, SymbolLibrary* mutableLib,
+                            bool* libDirtied) {
   ResidentEvalCtx rctx;
   rctx.localTime = (float)t.position;    // playhead (bars) — automation sampling reads this
   rctx.localFxTime = (float)t.fxTime;    // wall clock (bars)
@@ -243,6 +236,9 @@ void cookStatefulValueNodes(ResidentEvalGraph& g, float dtSecs, float timeSecs, 
     if (vit == rn.strInputs.end()) vit = rn.strInputs.find("Sequence");
     const std::string varName = (vit != rn.strInputs.end()) ? vit->second : std::string();
     float out[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // ≥3-output ops (HasVec3Changed=7)
+    // Keyframe-reflection seam: Find/SetKeyframes reach across the AnimatedOp connection to upstream
+    // curves (stateful_value_ops_keyframes.cpp); Set may mutate mutableLib → *libDirtied.
+    if (cookKeyframeReflectionNode(g, rn, rctx, P, mutableLib, state[rn.path], libDirtied)) return;
     if (!cookEaseKeysNode(rn, rctx, P, out))  // EaseKeys-family seam hook (meat in stateful_value_ops_easekeys.cpp, reads rn's OWN Automation curves); false for every other op → generic path unchanged
       cookStatefulValueOp(rn.opType, P, dtSecs, timeSecs, state[rn.path], out, tr, &vars, varName);
     for (int i = 0; i < 8; ++i) rn.extOut[i] = out[i];
@@ -355,8 +351,12 @@ void run(PointGraph& pg, const std::string& targetPath) {
   static ContextVarMap s_ctxVars;
   {
     static std::map<std::string, StatefulValueState> s_svState;
+    bool libDirtied = false;  // SetKeyframes edge edited an upstream curve (a definition edit)
     cookStatefulValueNodes(g_residentGraph, (float)dtSecs, (float)fxSecs, s_runTimeSecs, g_transport,
-                           g_frameIndex, &doc::g_lib(), s_svState, s_ctxVars);
+                           g_frameIndex, &doc::g_lib(), s_svState, s_ctxVars, /*ctxVarBug=*/0,
+                           /*mutableLib=*/&doc::g_lib(), &libDirtied);
+    // → bump libRevision (next-frame resident rebuild = TiXL Animator-edit broadcast) + dirty save flag.
+    if (libDirtied) { doc::bumpLibRevision(); doc::invalidateDirtyCache(); }
   }
 
   // Cook the HOST-VALUE currencies (String / host-scalar / ColorList + value-output-rail) — PRODUCTION legs +

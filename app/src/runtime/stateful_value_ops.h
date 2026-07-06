@@ -214,10 +214,39 @@ void setEaseKeysBug(int mode);
 // resolved-Float map cannot carry) and eases between the bracketing keys. Called by frame_cook's
 // cookStatefulValueNodes cookOne BEFORE the generic cookStatefulValueOp; returns true when it
 // handled the node (EaseKeys / EaseVec2Keys / EaseVec3Keys), false otherwise (generic path runs).
-struct ResidentNode;    // resident_eval_graph.h
-struct ResidentEvalCtx; // resident_eval_graph.h
+struct ResidentNode;      // resident_eval_graph.h
+struct ResidentEvalCtx;   // resident_eval_graph.h
+struct ResidentEvalGraph; // resident_eval_graph.h
+struct SymbolLibrary;     // compound_graph.h (SetKeyframes' mutable def-layer authority)
 bool cookEaseKeysNode(ResidentNode& rn, const ResidentEvalCtx& ctx,
                       const std::map<std::string, float>& in, float out[8]);
+
+// FindKeyframes / SetKeyframes TEETH hook (--selftest-keyframes). 0 = production; 1 = SEVER the
+// cross-connection curve query (the reflection-through-connection reach returns no curve → Find
+// collapses to 0s, Set writes nothing); 2 = DROP the value read (Find returns the keyframe TIME where
+// it should return the VALUE — isolates the value-vs-time channel). Sticky module switch (golden
+// restores 0), mirrors setEaseKeysBug.
+void setKeyframesBug(int mode);
+
+// FindKeyframes production cook (stateful_value_ops_keyframes.cpp): follows the AnimatedOp CONNECTION
+// to the upstream node and READS its keyframe curves (Time/Value/KeyframeCount → extOut[0..2]). Unlike
+// cookEaseKeysNode (own-input curves), this reaches ACROSS the connection into the upstream node's
+// Automation drivers. const lib (read-only). Called from cookStatefulValueNodes; false for other ops.
+bool cookFindKeyframesNode(const ResidentEvalGraph& g, ResidentNode& rn, const ResidentEvalCtx& ctx,
+                           const std::map<std::string, float>& in);
+// SetKeyframes production cook (stateful_value_ops_keyframes.cpp): same cross-connection reach, but
+// WRITES the upstream curve (AddOrUpdateV @ LocalFxTime on TriggerSet edge / clear all on TriggerClear
+// edge). Needs a MUTABLE SymbolLibrary (the runtime leaf cannot include app/document.h, so frame_cook
+// passes doc::g_lib()). `state` holds the WasTriggered edge latches. Sets *dirtied when it mutates the
+// store (caller bumps libRevision). false for other ops.
+bool cookSetKeyframesNode(const ResidentEvalGraph& g, ResidentNode& rn, const ResidentEvalCtx& ctx,
+                          const std::map<std::string, float>& in, SymbolLibrary* mutableLib,
+                          StatefulValueState& state, bool* dirtied);
+// The single frame_cook entry: dispatches Find (read) / Set (write) to the two cooks above; true when
+// handled (extOut written). *libDirtied OR-ed on a real SetKeyframes store mutation.
+bool cookKeyframeReflectionNode(const ResidentEvalGraph& g, ResidentNode& rn,
+                                const ResidentEvalCtx& ctx, const std::map<std::string, float>& in,
+                                SymbolLibrary* mutableLib, StatefulValueState& state, bool* libDirtied);
 
 // WasTrigger TEETH hook (--selftest-wastrigger). 0 = production; 1 = DROP the _wasHit state write
 // (the cross-frame rising-edge gate never advances → a HELD-rising input re-pulses every frame);
