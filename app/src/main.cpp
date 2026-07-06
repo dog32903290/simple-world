@@ -189,7 +189,18 @@ void drawFullscreenRender(bool behindCanvas) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (int rc = sw::runSelftestFromArgs(argc, argv); rc >= 0) return rc;
+  if (int rc = sw::runSelftestFromArgs(argc, argv); rc >= 0) {
+    // Headless selftest / CLI-info paths are batch "print verdict, then die" invocations: their
+    // exit code must be a pure function of the assertions, NOT of dylib finalizer order. Returning
+    // from main() runs C++ static + atexit finalizers, which tear down OpenCV/TBB globals; under
+    // ASan a TBB __TBB_InitOnce destructor can SEGV inside __cxa_finalize AFTER the verdict already
+    // printed PASS, flipping the code to 134 and turning run_all_selftests.sh red (it keys on rc).
+    // So flush stdio (— _Exit does NOT flush, and --selftest-list output is piped to the harness)
+    // then _Exit past every finalizer. ASan reports memory errors as they happen DURING the run;
+    // only leak-at-exit is skipped, and the sweep already runs detect_leaks=0, so nothing is lost.
+    std::fflush(nullptr);
+    std::_Exit(rc);
+  }
 
   // INFO MODE early-exit (順手債 fix): `--help`/`-h`/`--version`/`-v` were NEVER handled flags —
   // they fell through every dispatch above and into pApp->run() (the NSApplication event loop),
