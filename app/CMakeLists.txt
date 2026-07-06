@@ -543,6 +543,8 @@ add_executable(simple_world
   src/floatlist_keepints_golden.cpp             # --selftest-keepints (INT twin: front-insert history ring pad-0, flat + resident)
   src/runtime/playback_fft.cpp                  # PlaybackFFT (FloatList producer: spectrum snapshot → InputBand-selected array on the host list rail)
   src/playbackfft_golden.cpp                    # --selftest-playbackfft (PlaybackFFT 5-mode closed-form: known snapshot → FloatList == selected array)
+  src/runtime/spatial_audio.cpp                 # SpatialAudioPlayer gain spine (linear distance attenuation + effective volume + Euler→forward/up; BASS 3D field deferred-hw-verify)
+  src/spatialaudio_golden.cpp                   # --selftest-spatialaudio (closed-form: distance atten + effective volume + Euler direction vectors)
   src/floatlist_conversion_golden.cpp
   src/runtime/colorlist_op_registry.cpp
   src/runtime/colorlist_ops_colorstolist.cpp

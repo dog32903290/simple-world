@@ -47,6 +47,7 @@ REGISTER_SELFTESTS(/*orderBase=*/310,
     {"keepfloatvalues", runKeepFloatValuesSelfTest},        // KeepFloatValues cross-frame STATE (front-insert ring accumulator; flat + production-resident)
     {"keepints", runKeepIntsSelfTest},                      // KeepInts INT twin cross-frame STATE (front-insert ring accumulator pad-0; flat + production-resident)
     {"playbackfft", runPlaybackFFTSelfTest},                // PlaybackFFT FloatList producer (spectrum snapshot → InputBand-selected array on the host list rail; 5 modes closed-form)
+    {"spatialaudio", runSpatialAudioSelfTest},              // SpatialAudioPlayer gain spine (linear distance attenuation + effective volume + Euler→forward/up; BASS 3D field deferred-hw-verify)
 );
 // PointList host-rail LEAF ops (SampleCpuPoints / JoinLists). Own high-orderBase block so they append at
 // the end of --selftest-list deterministically (the registry sorts by `order`; the 72-block is full).

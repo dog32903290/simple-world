@@ -191,6 +191,7 @@ namespace sw { int runKeepFloatValuesSelfTest(bool); }           // floatlist_ke
 namespace sw { int runKeepIntsSelfTest(bool); }                  // floatlist_keepints_golden.cpp (KeepInts INT twin: front-insert ring accumulator pad-0, flat + resident)
 namespace sw { int runFloatListConversionSelfTest(bool); }       // floatlist_conversion_golden.cpp (FloatListToIntList trunc-toward-zero + IntListToFloatList widening, chain-through-evalFloat)
 namespace sw { int runPlaybackFFTSelfTest(bool); }               // playbackfft_golden.cpp (PlaybackFFT FloatList producer: spectrum snapshot → InputBand-selected array on the host list rail, 5 modes closed-form)
+namespace sw { int runSpatialAudioSelfTest(bool); }              // spatialaudio_golden.cpp (SpatialAudioPlayer gain spine: linear distance attenuation + effective volume + Euler→forward/up; BASS 3D field deferred-hw-verify)
 namespace sw { int runColorListToIntsSelfTest(bool); }           // colorlisttoints_golden.cpp (COLORLIST→FLOATLIST BRIDGE: ColorsToList → ColorListToInts → PickFloatFromList/FloatListLength, per-channel 0..255 truncate+clamp)
 namespace sw { int runAnalyzeFloatListSelfTest(bool); }          // analyzefloatlist_golden.cpp (MULTI-OUTPUT host-scalar Min/Max/AverageMean/AllValid via evalFloat off widened outCache[0..3]; fork-average-divides-by-full-count)
 namespace sw { int runListRoutingWave1SelfTest(bool); }          // list_routing_wave1_golden.cpp (list fan-out wave-1: SumRange/IntListLength/PickIntFromList/CompareFloatLists bridge)
