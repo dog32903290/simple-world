@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 678e93a
-DIRTY: clean
+HEAD: b38a2e8
+DIRTY: 1 files
 CENSUS: 610 / 749 done
-BITE: 692 PASS
-STAMP_AT: 2026-07-07T01:28
+BITE: 694 PASS
+STAMP_AT: 2026-07-07T02:28
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -30,7 +30,10 @@ STAMP_AT: 2026-07-07T01:28
 - **setparam + readpixel done（`e95b32a`，Opus refuter 6/6 SURVIVES，--bite 691，未碰 cook-core）**：`setparam <childId> <slotId> <value>` 走 inspector 同一顆 `SetOverrideCommand`（undo/save/dirty 同源）；`readpixel <x> <y>`→readpixel.json byte-verbatim（clean target RGBA8Unorm/Shared/linear）。閉環 **spawn→connect→setparam→render→readpixel 全通**、skin-independent（data-verb + pixel 斷言撐得住 UI 改皮）。端到端 `tests/scenarios/graph_data_verb_pixel.scn`。
 - **deletenode done（`678e93a`，Opus refuter 全 SURVIVES，--bite 692）**：復用 canvas/鍵盤刪同一顆 `DeleteChildrenCommand`（doIt 掃 `src==child‖dst==child` 兩方向清 incident wire、undo 復原 child+wire+原 index），**無 fork**。refuter 最深攻＝multiInput slot 位序（position-based 非顯式 index，naive undo push_back 會靜默重排＝錯 shader binding 無 crash）→`restoreWires` ascending-index 插回 byte-exact 撐住；刪正在 cook 的 display root 也 SURVIVES（libRevision bump→frame_cook 全重建無 dangling）。文檔小修（String 措辭精確化 + .scn 104 漂移註解）已帶。**動詞集完整：spawn/connect/setparam/deletenode/disconnect/render/readpixel。**
 - **★harness 形式決策（orchestrator 定，柏為可否決）＝CLI `--json` + 專案內 SKILL.md，不做 MCP server**：sw app 跑本機、開發全在 Claude Code（能 Bash 呼叫 CLI）→CLI+SKILL 是最穩最短路徑；MCP 只在 claude.ai 遠端接本機才有值（但網頁 Claude 碰不到本機 sentinel＝空的），留以後真要遠端才加。
-- **批 B 在跑（`a9732bf...` worktree）**：CLI harness（`sw_graph.sh` 或擴充 `sw_drive.sh`，全 `--json`：status/graph/spawn/connect/setparam/delete/readpixel，typed error+hint）+ SKILL.md（給未來對話的 Claude）+ 端到端 demo（模擬全新對話 Claude 純 CLI 織 patch→渲→readpixel 斷言→delete→再驗）。**demo 全綠＝閉環完成。** SKILL 放專案內不裝全域（柏為要自動觸發自行 symlink 進 ~/.claude/skills/）。
+- **★★閉環完成 done（`b38a2e8`，orchestrator 親驗 demo GREEN exit0 / --red exit1 / --bite 694）**：CLI harness `tools/sw_graph.sh`（316 行，全 `--json`：status/graph/spawn/connect/disconnect/setparam/delete/readpixel/render，firing hand verb 前對 live graph.json 驗 id/slot/dir/type，typed error+repair hint）+ `tools/sw_graph_demo.sh`（端到端閉環：模擬全新對話 Claude 純 --json 零座標 spawn→connect→setparam→readpixel byte-exact→delete(child+wire 清)→re-render 畫面變+9 typed-error round-trip；`--red` exit1 證非空心）+ `docs/agent/SW_GRAPH_HARNESS.SKILL.md`（給未來對話 Claude 的說明書）。**零 C++＝純封裝層**（動詞已齊）；批 B 不派 refuter（無 cook-core/毀資料面，底層動詞已各自 refuter 過，demo `--red` 即活體對抗）。抓修 launch fd-hang（背景 app 繼承 cmd-subst stdout pipe＝之前 demo stall 真因）。
+  - **★誠實範圍（非 bug，known gaps）**：① **compound drill-in 未經 demo 端到端證**——`enter` 動詞在（atomic 上會正確報錯）但 default graph 無 compound 可成功 descend，鑽入內部織 patch 未驗 ② **setparam Float-only**——String/List/Dict/MultiInput param 設不了（底層 verb 限制，誠實 surface 非隱藏）③ launch ~9s（font atlas）在重載機器 16s cap 可能緊 ④ SKILL **未裝 `~/.claude/skills/`**（柏為要自動觸發自行 symlink）。
+  - **harness 形式決策（orchestrator 定，柏為可否決）＝CLI `--json` + 專案內 SKILL，不做 MCP server**：sw app 跑本機、開發全在 Claude Code（能 Bash 呼叫 CLI）→CLI+SKILL 最穩最短；MCP 只在 claude.ai 遠端接本機才有值（但網頁 Claude 碰不到本機 sentinel＝空），留以後真要遠端才加。
+  - **下一根（AI-畫布 lane 續）**：① compound drill-in demo（鑽入複合織 patch，補 known gap #1）② String param rail（解 setparam Float-only，但需先補 String command——撞 clone 主線的 String rail，非純封裝）③ readregion（區域比對，補單點 readpixel）④ 真實創作里程碑：讓 AI 用 harness 從一句意象織一個有意義的視覺（非 selftest，暴露動詞夠不夠）。
 
 **★★方向 PIVOT（柏為 2026-07-02 拍板）＝完全照 TiXL 節點模型：複合＝巢狀 catalog 註冊節點（能拖/能鑽入子節點），image 不壓扁。詳 memory [[tixl-clone-model-nested-catalog-node]]。**★現狀（2026-07-03 12:05，HEAD `141fc9b`，--bite 572，clean，NO-BITE=[]，**未 push 領先 origin**）——**catalog 節點：名字回復 + 開機載入庫落地，柏為三條驗收全過（orchestrator 眼手親驗）。**
 - **★開機載入 .t3 庫 + hand verbs（`141fc9b`，merged，眼手親驗）＝柏為「走到開機載入庫」終點**：`assets/catalog_t3/`（8 顆 .t3 commit 進 repo，byte-from-embed）→ `catalog_boot.cpp` app 啟動掃資料夾 importT3Symbol 進 g_lib（idempotent/fail-soft/`--no-catalog` RED leg）。**重開 app 不用匯，節點永遠在選單**（實測 boot log「8 imported」+重開再證）。加兩個眼手 data-verb `spawnsymbol <id>`/`entercompound <childId>`（繞過會卡的座標，未來 catalog 驗證可靠）。⚠persist-into-.swproj 未刻意設計（imported symbol 隨 libToJsonV2 存進 .swproj、boot-load idempotent 跳過已存在，不會壞但去重沒設計）＝可能一根 follow-up。
