@@ -288,6 +288,8 @@ add_executable(simple_world
   src/platform/serial_loopback.cpp   # L5 IO (socket lane): POSIX termios serial over a PTY-pair loopback
   src/platform/wled_frame.cpp        # L5 IO (socket lane): Adalight frame builder (WLedSerialOutput body)
   src/platform/websocket_frame.cpp   # L5 IO (socket lane): RFC6455 handshake-accept + frame codec
+  src/platform/ws_live.cpp           # L5 IO (socket lane): live RFC6455 PURE half — HTTP upgrade parse/build + WebServer HTTP static + TEETH
+  src/platform/ws_live_socket.cpp    # L5 IO (socket lane): live RFC6455 SOCKET half — WsLiveServer/WsLiveClient + per-conn frame state machine over TCP loopback
   src/platform/dmx_packet.cpp        # L5 IO (dmx lane): Art-Net/sACN/DMX packet codec (byte-推 closed form)
   src/platform/freed_packet.cpp      # L5 IO (freed lane): FreeD "D1" 29-byte camera-tracking packet codec (byte-推)
   src/platform/psn_packet.cpp        # L5 IO (posistage lane): PSN nested-chunk tracker packet codec (byte-推)

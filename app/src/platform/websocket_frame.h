@@ -13,10 +13,10 @@
 //   §5.2   Frame: FIN|RSV|opcode, MASK|payloadLen(7 / 7+16 / 7+64), masking-key(4B if MASK), payload.
 //   §5.3   Client→server frames MUST be masked (payload XOR the 4-byte key, cycled).
 //
-// SCOPE NOTE (honest): the full live WS server (HTTP upgrade parse + control-frame / continuation /
-// close-handshake state machine) is heavier than a single-session lane. This file ships the codec +
-// handshake-accept derivation that every WS path depends on and that is the actual protocol content;
-// the remaining server plumbing is flagged in the selftest as PARTIAL/BLOCKED with a diagnosis.
+// SCOPE NOTE: this file is the pure CODEC + handshake-accept derivation that every WS path depends on.
+// The live state machine that rides it (HTTP-upgrade REQUEST parse + continuation / ping-pong / close-
+// handshake state machine + long-connection mgmt over a real TCP stream) is built on top in
+// platform/ws_live.{h,cpp} + ws_live_socket.cpp and proven end-to-end by selftests_io_ws_live.cpp.
 #pragma once
 #include <cstdint>
 #include <string>
