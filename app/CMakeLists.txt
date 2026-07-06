@@ -128,15 +128,38 @@ set_source_files_properties(src/platform/video_decode_selftest.mm PROPERTIES COM
 set_source_files_properties(src/platform/video_capture.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 # audio_mixer.mm (seam/audio-mixer): per-operator AVAudioEngine mixer — same AVFoundation+ARC as playback.
 set_source_files_properties(src/platform/audio_mixer.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
-# link_sync{,_selftest}.cpp: the ONLY TUs that compile the vendored Ableton Link (asio-heavy templates).
-# Include dirs + defines are PER-SOURCE so no other TU pulls asio (build-time isolation) and the target's
-# global include set stays clean. LINK_PLATFORM_MACOSX selects Link's Darwin clock/socket; ASIO_STANDALONE
-# = header-only asio (no Boost). ASIO_DISABLE_VISIBILITY quiets a macOS visibility-attr warning under -Werror.
-set_source_files_properties(
-  src/platform/link_sync.cpp src/platform/link_sync_selftest.cpp
-  PROPERTIES
-    INCLUDE_DIRECTORIES "${LINK_DIR}/include;${LINK_DIR}/asio-include"
-    COMPILE_DEFINITIONS "ASIO_STANDALONE;LINK_PLATFORM_MACOSX=1")
+# ---- sw_link (SHARED) — GPLv2 quarantine (照 TiXL AbletonLinkDLL 的 DLL 模型) ----------------
+# Ableton Link is GPLv2 (third_party/ableton-link/LICENSE.md). Statically linking it into the main
+# executable would make the WHOLE binary a GPL-derived work (viral). TiXL sidesteps this by putting the
+# Link wrapper in a native DLL loaded at run time (AbletonLinkDLL, [DllImport]); the managed app links
+# only the POD interface. sw does the SAME with a shared library:
+#   * ONLY this .dylib compiles the vendored Link/asio templates — the GPL object code lives here.
+#   * link_sync.h is a pure POD/pimpl interface (zero ableton:: leakage), so the main executable's TUs
+#     include NO ableton header → the executable is MIT-clean, dynamically linked to the GPL boundary.
+# Hard gates (verified in the seam report): `nm -gU simple_world | grep -i ableton` is EMPTY (no static
+# Link symbols in the exe); `otool -L simple_world` lists sw_link.dylib (the dynamic GPL dependency).
+#
+# link_sync_selftest.cpp does NOT compile Link (it includes only link_sync.h + drives the pimpl API), so
+# it stays in the main executable — only link_sync.cpp needs the Link include dirs, which this target owns.
+# LINK_PLATFORM_MACOSX selects Link's Darwin clock/socket; ASIO_STANDALONE = header-only asio (no Boost).
+add_library(sw_link SHARED src/platform/link_sync.cpp)
+target_include_directories(sw_link
+  PUBLIC  src                                   # platform/link_sync.h (the POD seam header)
+  PRIVATE "${LINK_DIR}/include" "${LINK_DIR}/asio-include")
+target_compile_definitions(sw_link PRIVATE ASIO_STANDALONE LINK_PLATFORM_MACOSX=1)
+set_target_properties(sw_link PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+# The exe runs bare from app/build/ (no .app bundle); the .dylib builds beside it. @loader_path resolves
+# sw_link.dylib next to the executable at run time (TiXL DLL-beside-exe layout).
+set_target_properties(sw_link PROPERTIES
+  BUILD_WITH_INSTALL_RPATH OFF
+  INSTALL_NAME_DIR "@rpath")
+if(SW_SANITIZE)
+  # metal-cpp-discipline Rule 4: the dylib gets the SAME sanitizer as the exe so ASan/UBSan cover the
+  # Link seam too. Both images link the ONE shared @rpath/libclang_rt.asan runtime (verified via otool),
+  # so there is no double-runtime; the interceptors are shared, not duplicated.
+  target_compile_options(sw_link PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+  target_link_options(sw_link PRIVATE -fsanitize=address,undefined)
+endif()
 # midi_loopback.mm (L5 IO lane): pure CoreMIDI C API (no ObjC objects) -> compile WITHOUT ARC, like
 # the other manual-lifetime .mm files. osc_loopback.cpp is plain C++ (POSIX sockets) — no .mm prop.
 set_source_files_properties(src/platform/midi_loopback.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
@@ -323,8 +346,9 @@ add_executable(simple_world
   src/platform/points_dmx.cpp        # L5 IO (dmx lane): PointsToRGBList / PointsToDmxLights closed-form value cores
   src/platform/write_to_file.cpp     # L5 IO (file lane): WriteToFile write-on-change gate + byte round-trip
   src/platform/http_request.mm       # L5 IO (http lane): synchronous NSURLSession GET (RequestUrl/LoadImageFromUrl seam)
-  src/platform/link_sync.cpp         # L5 IO (link lane): Ableton Link session (GPLv2) behind a pimpl (AbletonLinkSync native seam)
-  src/platform/link_sync_selftest.cpp # L5 IO (link lane): local-session tempo/beat/phase closed-form gate (--selftest-linksync)
+  # link_sync.cpp is NOT here — it compiles the GPLv2 Ableton Link and lives in the sw_link.dylib SHARED
+  # target (GPL quarantine, see the sw_link block above). The executable links it dynamically.
+  src/platform/link_sync_selftest.cpp # L5 IO (link lane): local-session tempo/beat/phase closed-form gate (--selftest-linksync); Link-free (POD API only) so it stays in the exe
   src/platform/video_decode.mm       # L5 IO (video lane): AVAssetReader→CVPixelBuffer→MTL::Texture decode-by-frame (PlayVideo decode leg)
   src/platform/video_decode_selftest.mm  # --selftest-io-video-decode: AVAssetWriter 8-frame clip → decode → per-frame color assert
   src/io_video_decode_register.cpp   # registers --selftest-io-video-decode (impl in the .mm)
@@ -981,6 +1005,7 @@ target_compile_definitions(simple_world PRIVATE
 add_dependencies(simple_world sw_shaders)
 
 target_link_libraries(simple_world PRIVATE
+  sw_link  # GPLv2 Ableton Link, dynamically linked (SHARED .dylib) — GPL boundary, exe stays MIT-clean
   nfd
   "-framework UniformTypeIdentifiers"
   "-framework Metal"
@@ -1007,6 +1032,13 @@ target_link_libraries(simple_world PRIVATE
 # (required for AVAudioEngine mic capture without a .app bundle).
 target_link_options(simple_world PRIVATE
   "-Wl,-sectcreate,__TEXT,__info_plist,${CMAKE_CURRENT_SOURCE_DIR}/Info.plist")
+
+# @loader_path rpath so the bare exe (no .app bundle) finds sw_link.dylib beside it in app/build/
+# (its install_name is @rpath/libsw_link.dylib). BUILD_WITH_INSTALL_RPATH ON = the built exe already
+# carries this rpath (no separate install step needed).
+set_target_properties(simple_world PROPERTIES
+  BUILD_WITH_INSTALL_RPATH ON
+  INSTALL_RPATH "@loader_path")
 
 # The linker's auto adhoc signature does NOT bind (seal) the embedded Info.plist —
 # `codesign -dvvv` shows "Info.plist=not bound", and TCC then ignores the usage
