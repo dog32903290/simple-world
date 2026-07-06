@@ -34,11 +34,13 @@
 #include "platform/audio_capture.h"
 #include "platform/dialogs.h"
 #include "platform/image_decode.h"  // decodeImageToTexture (asset-texture decode leaf seam, app-owned)
+#include "platform/glyph_outline.h"  // extractGlyphOutline (CoreText glyph-outline leaf seam, app-owned)
 #include "platform/metal_compile.h"  // compileLibraryFromSource (field source compiler leaf seam)
 #include "platform/window_mode.h"    // toggleOsFullScreen (F11 / View > Fullscreen seam, wired below)
 #include "runtime/compound_graph.h"
 #include "runtime/image_filter_op_registry.h"  // setAssetTextureDecoder (the asset-decode leaf seam)
 #include "runtime/field_graph.h"               // setFieldSourceCompiler (the field source leaf seam)
+#include "runtime/glyph_points.h"              // setGlyphOutlineProvider (the glyph-outline leaf seam)
 #include "runtime/cmd_view_background.h"        // set/clearCommandViewBackground (Output view bg ambient)
 #include "runtime/compound_save.h"  // libToJsonV2 (eye state dump)
 #include "runtime/graph.h"
@@ -301,6 +303,32 @@ Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
     sw::setFieldSourceCompiler([](void* device, const char* msl) -> void* {
       NS::Error* err = nullptr;
       return sw::platform::compileLibraryFromSource(static_cast<MTL::Device*>(device), msl, &err);
+    });
+    // Glyph-outline leaf seam (runtime↛platform, TiXL-absent「中文字 as points」): runtime's
+    // TextToPoints op exposes the fn-ptr; the app owns platform/glyph_outline (CoreText) and installs
+    // it here, same招 as the field compiler above. The app bridges the platform-local POD (interleaved
+    // xy) into the runtime seam's sw::GlyphOutline (nested points) — main is the one place allowed to
+    // name both zones. NULL provider → the op emits nothing.
+    sw::setGlyphOutlineProvider([](uint32_t cp, const char* fontName, float fontSize, float flatness,
+                                   sw::GlyphOutline& rt) -> bool {
+      sw::platform::PlatformGlyphOutline pg;
+      if (!sw::platform::extractGlyphOutline(cp, fontName, fontSize, flatness, pg)) {
+        rt.valid = false;
+        return false;
+      }
+      rt.contours.clear();
+      rt.contours.reserve(pg.contours.size());
+      for (const auto& pc : pg.contours) {
+        sw::GlyphContour rc;
+        rc.closed = pc.closed;
+        rc.points.reserve(pc.xy.size() / 2);
+        for (size_t i = 0; i + 1 < pc.xy.size(); i += 2)
+          rc.points.push_back({pc.xy[i], pc.xy[i + 1]});
+        rt.contours.push_back(std::move(rc));
+      }
+      rt.advance = pg.advance;
+      rt.valid = pg.valid;
+      return true;
     });
     g_pointGraph = new sw::PointGraph(_pDevice, g_shaderLib, _pCommandQueue, /*W=*/512, /*H=*/512);
     if (!g_pointGraph->valid()) {
