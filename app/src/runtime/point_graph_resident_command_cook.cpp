@@ -49,6 +49,7 @@
 #include "runtime/stateful_value_ops.h"  // ContextVarMap (complete type for cmdVarPush)
 #include "runtime/point_ops_camera_scope.h"  // C1: resolveActiveCamera/LiveCameraScope/LiveCtxVarScope/...
 #include "runtime/point_ops_setvarcmd.h"  // S3a: cmdVarPush/cmdVarRestore/isCmdContextVarWriter/setVarBugSkipWrite
+#include "runtime/point_ops_timeclip.h"  // TimeClip: window gate + remap (LiveTimeRemapScope / clipOut)
 #include "runtime/point_ops_forwardbeattaps.h"  // ForwardBeatTaps: isForwardBeatTaps/forwardBeatTapsApply
 #include "runtime/point_ops_settime.h"  // SetTime: LiveTimeScope/resolveSetTimeScope/isSetTimeScopeWriter
 #include "runtime/point_ops_sliceviewport.h"  // SliceViewPort: resolveSliceViewPortResolution (cell push)
@@ -307,6 +308,41 @@ RenderCommand PointGraph::Impl::cookResidentCommand(
             }
             return all;
           });
+        } else if (n->opType == "TimeClip" && !timeClipBugSkipScope() && !n->clipOut.empty()) {
+          // TimeClip WINDOW GATE + REMAP (resident mirror — production runs THIS leg; TimeClipSlot.cs:52-83).
+          // The authored clip is projected onto n->clipOut (keyed by output slot id, TimeClip has one output).
+          // Gate on the AMBIENT fx clock (composed through any enclosing SetTime scope): out-of-window → cook
+          // NOTHING (SubTree contributes no items). In-window → push the remap onto the SAME time-scope chain
+          // (LiveTimeRemapScope) so the transient-ec fx clock the SubTree reads is remapped, and publish
+          // _normalizedTime for a scoped GetFloatVar.
+          //   fork-timeclip-fxclock-gate: TiXL gates on LocalTime (the playhead). The resident command cook
+          //   seam threads only the 16-byte GPU ctx (localFxTime, no localTime — the playhead lives on
+          //   ResidentEvalCtx, not threaded into this deep cook fn; same shape as sampleAutomation being the
+          //   ONLY reader of the playhead). So BOTH legs gate on localFxTime. At play localTime==localFxTime
+          //   → identical to TiXL; scrub-time gate divergence (localTime≠localFxTime) is deferred with the
+          //   playhead-into-command-cook threading. Documented, not silent.
+          const TimeClipScopeSpec clip = resolveTimeClipScope(n->clipOut.begin()->second);
+          const float gateAmbient = scopedTimeOr(ctx.localFxTime);  // fx clock (playhead not threaded here)
+          const float fxAmbient = gateAmbient;                      // remap/normalized ride the same clock
+          if (timeClipInWindow(clip, gateAmbient)) {
+            TimeRemapScopeSpec rm; rm.active = true;
+            rm.inMin = clip.timeStart; rm.inMax = clip.timeEnd;
+            rm.outMin = clip.sourceStart; rm.outMax = clip.sourceEnd;
+            LiveTimeRemapScope remap(rm);
+            timeClipPublishNormalized(clip, fxAmbient, ctxVars);  // TimeClip.cs:19-22 _normalizedTime
+            LiveCtxVarScope ntLive(ctxVars ? ctxVars : nullptr);
+            if (ri && ri->driver == ResidentInput::Driver::Connection) {
+              RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);
+              inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());
+              inCmdWireCounts.push_back((uint32_t)sub.items.size());
+              if (port.multiInput && !executeCollectFirstOnlyForTest())
+                for (const auto& ec : ri->extraConns) {
+                  RenderCommand es = cookCommand(ec.first, depth + 1);
+                  inCmd.items.insert(inCmd.items.end(), es.items.begin(), es.items.end());
+                  inCmdWireCounts.push_back((uint32_t)es.items.size());
+                }
+            }
+          }  // out-of-window: inCmd stays empty (== TimeClipSlot returns before _baseUpdateAction)
         } else if (ri && ri->driver == ResidentInput::Driver::Connection) {
           RenderCommand sub = cookCommand(ri->srcNodePath, depth + 1);  // primary wire (wire 0)
           inCmd.items.insert(inCmd.items.end(), sub.items.begin(), sub.items.end());

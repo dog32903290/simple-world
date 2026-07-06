@@ -50,6 +50,30 @@ struct SlotDef {
 // Real child ids are >= 1 (like node ids), so 0 is a natural, collision-free sentinel.
 constexpr int kSymbolBoundary = 0;
 
+// Per-instance timeline placement of one output slot (= TiXL Core/Animation/TimeClip.cs:25-33
+// TimeRange/SourceRange/LayerIndex). It is AUTHORED DATA that lives on the parent .t3's SymbolChild
+// (SymbolJson.cs:112-131 Outputs[].OutputData, Type "T3.Core.Animation.TimeClip"), NOT an input param
+// and NOT on the referenced Symbol — two children of the same TimeClip definition can sit at different
+// timeline positions. Only outputs whose Slot is a TimeClipSlot<T> (TimeClip / MidiClip / LoadDataClip /
+// ImageSequenceClip / VideoClip / PlayVideoClip) carry one; every other output has none (sparse map).
+//
+// COOK SEMANTICS (TimeClipSlot.cs:52-83 UpdateWithTimeRangeCheck — the SLOT wraps ANY carrying op):
+//   • WINDOW GATE:  if (LocalTime < TimeRange.Start || LocalTime >= TimeRange.End) → skip the cook
+//                   (the op contributes nothing outside its clip window).
+//   • TIME REMAP:   in-range → LocalTime'  = Remap(LocalTime,  TimeRange→SourceRange)   (unclamped linear,
+//                   LocalFxTime'= Remap(LocalFxTime,TimeRange→SourceRange)    MathUtils.cs:368-373)
+//                   cook the subtree with the remapped clocks, then restore.
+// The TimeClip OPERATOR (flow/TimeClip.cs) additionally publishes context.FloatVariables["_normalizedTime"]
+// = (LocalFxTime - start)/(end - start) for downstream GetFloatVar reads — but that is the op's own cook,
+// not the shared slot gate. Speed = SourceRange.Duration / TimeRange.Duration (TimeClip.cs:41).
+struct ClipTimeData {
+  float timeStart = 0.0f;    // TiXL TimeRange.Start — timeline-time (bars) where the clip begins
+  float timeEnd = 0.0f;      // TiXL TimeRange.End   — timeline-time (bars) where the clip ends
+  float sourceStart = 0.0f;  // TiXL SourceRange.Start — source-time (bars) the window maps FROM
+  float sourceEnd = 0.0f;    // TiXL SourceRange.End   — source-time (bars) the window maps TO
+  int   layerIndex = 0;      // TiXL LayerIndex — timeline layer/track (UI stacking; cook ignores it)
+};
+
 // One wire inside a Symbol's subgraph (= TiXL Connection 4-tuple). A side whose child id
 // is kSymbolBoundary refers to one of the parent Symbol's own SlotDefs (the boundary cross),
 // resolved by slotId against inputDefs (source side) or outputDefs (target side).
@@ -117,6 +141,12 @@ struct SymbolChild {
   int  snapshotGroupIndex     = 0;    // TiXL SnapshotGroupIndex; 0 = not relevant for snapshots
   int  connectionStyleOverride = 0;   // TiXL ConnectionStyles enum int; 0 = Default
   bool collapsedInto           = false; // TiXL IsCollapsedInto (noodle collapse into annotation)
+  // Timeline clip placement per output slot (= TiXL Symbol.Child.Outputs[].OutputData / TimeClip). SPARSE
+  // map keyed by the referenced symbol's outputDef slotId → its authored ClipTimeData. Absent key = the
+  // output carries no TimeClip (the common case → minimal file/diff). Read from the parent .t3's
+  // Outputs[].OutputData by the importer; consumed by the cook's window-gate + time-remap. LAST member +
+  // default-empty so existing positional aggregate inits stay valid (same discipline as the members above).
+  std::map<std::string, ClipTimeData> clips;
 };
 
 // The display title of an instance = its custom name, or the referenced Symbol's name if blank

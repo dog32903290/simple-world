@@ -58,6 +58,27 @@ struct LiveTimeScope {
   bool engaged_;
 };
 
+// A TimeClip REMAP push onto the SAME time-scope chain (TiXL TimeClipSlot remaps LocalFxTime by an
+// unclamped linear map). Distinct chain-node kind from SetTime's offset: composes with SetTime and other
+// TimeClips (scopedTimeOr walks both kinds). TimeClip (point_ops_timeclip) owns the semantic wrapper; this
+// is the shared chain primitive so the two time-scoping ops live in ONE stack, not two competing ones.
+struct TimeRemapScopeSpec {
+  bool active = false;
+  float inMin = 0.0f, inMax = 0.0f;    // TimeRange.Start / End
+  float outMin = 0.0f, outMax = 0.0f;  // SourceRange.Start / End
+};
+
+// RAII guard pushing a remap node onto the time-scope chain (mirror of LiveTimeScope). Inactive = no-op.
+struct LiveTimeRemapScope {
+  explicit LiveTimeRemapScope(const TimeRemapScopeSpec& spec);
+  ~LiveTimeRemapScope();
+  LiveTimeRemapScope(const LiveTimeRemapScope&) = delete;
+  LiveTimeRemapScope& operator=(const LiveTimeRemapScope&) = delete;
+ private:
+  const void* prev_;
+  bool engaged_;
+};
+
 // True iff ANY SetTime scope is active on this thread. The cook drivers' nodeParams memos consult this
 // (alongside liveCtxVars()) to resolve FRESH and UNCACHED while a scope is live — a time-driven param
 // resolved under the scope is ambient-dependent, not a graph property (the S3b memo law).

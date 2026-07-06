@@ -17,6 +17,23 @@
 > unmask 腿(io-ws-unmask);三顆牙全咬真 cook 路徑(setWsLiveBug:server accept / frame unmask)。
 > **sweep 671/0/0(NO-BITE:[]),check-arch + golden_lint 全綠。**
 
+> **★戰報 2026-07-06 中(DataSet-timeline 縫,seam/dataset-timeline)**:
+> **TimeClip 全 port 進縫(資料模型 + cook),--selftest-timeclip 綠 10 腿 + importer-read 腿,injectBug 兩腿全 RED。**
+> 前工人診斷坑證實:TimeClip 的 TimeRange 是 timeline 上 per-instance authored data(TiXL TimeClip.cs:25),
+> 序列化在**父 .t3 的 SymbolChild.Outputs[].OutputData**(SymbolJson.cs:112-131),sw graph model/importer 原本無此存儲。
+> **蓋法**:①ClipTimeData 騎 SymbolChild.clips(per-output sparse map)+ ResidentNode.clipOut(flatten 投影);
+> importer 讀 OutputData Type "T3.Core.Animation.TimeClip"(t3_import_clips.cpp)。②cook = TimeClipSlot.cs:52-83
+> 的窗閘 [start,end) + localFxTime 線性重映射 TimeRange→SourceRange,**騎 SetTime 同一 LiveTimeScope chain**
+> (新增 LiveTimeRemapScope 節點,兩者組合)——**最穩最短路徑:不造平行時鐘棧**。flat=test 腿,resident=production 腿。
+> **NAMED FORK fork-timeclip-fxclock-gate**:兩腿都用 localFxTime 閘(playhead localTime 未接進 command-cook 深層 fn,
+> = SetTime fork-settime-flat-fxclock-only 同形);play 時兩鐘相等與 TiXL 一致,scrub 分岔延後。
+> **另四顆 BLOCKED(各自獨立縫,非本役一場能收)**:任務 #3 說「SimulateIoData 最簡單」**事實錯**——它是
+> MIDI/OSC replay dispatcher(SimulatedIoBus + MidiConnectionManager,最重)。**真依賴序**:先要 SwDataSet currency
+> (DataSet.cs:Channels→Events time-stamped)+ 各自重機器:MidiClip=NAudio SMF parser、LoadDataClip=.data JSON
+> reader + DataClip value-rail currency(**無 consumer=死線**)、SimulateIoData=replay 派發、MidiRecording=DataRecording
+> 全域錄製 session。造任一個 dead-wire stub 會違 GOLDEN_STANDARD(無真 cook-through 可測)。**下一場=SwDataSet currency
+> 縫 + LoadDataClip(騎本役 TimeClip 資料模型,最近)。**timeline UI 拖拉延後(named fork,本役只資料模型+cook)。
+>
 > **★終戰報 2026-07-06 09:00(原子清剿戰役結束,第四+五梯收攏)**:
 > **總 580/749(77%),原子 417/451(92.5%),sweep 668/0/0(NO-BITE:[] 鐵律全程守住)。**
 > 兩天戰役自 473 起 = **+107 顆**。第四梯:net 節點皮+Artnet/DMX/sACN 13(dmx_packet 縫)/pbr 原子

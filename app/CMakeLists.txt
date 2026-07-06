@@ -750,6 +750,7 @@ add_executable(simple_world
   src/runtime/t3_import_maps.cpp                   # .t3 importer Guid→sw mapping DATA (TABLE ②/③, split for the line ratchet)
   src/runtime/t3_import_maps_collapse.cpp          # .t3 image-fx-wrapper collapse TABLES (④a-d), split from t3_import_maps.cpp for the ≤400 ratchet
   src/runtime/t3_import_collapse.cpp               # .t3 image-fx-wrapper→tex-atom collapse pass (split from t3_import.cpp for the ≤400 ratchet)
+  src/runtime/t3_import_clips.cpp                  # .t3 per-child TimeClip OutputData parse (DataSet-timeline seam, split for the ≤400 ratchet)
   src/runtime/t3import_transformpoints_golden.cpp  # KEYSTONE parity: TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe
   src/runtime/t3import_transformmesh_golden.cpp    # 骨8 MESH keystone: TransformMesh.t3 replay → SwVertex readback vs oracle
   src/runtime/t3import_displacemeshnoise_golden.cpp # 骨9 MESH mixed-slot: DisplaceMeshNoise.t3 interleaved FloatsToBuffer.Params → SwVertex vs snoise oracle

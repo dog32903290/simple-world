@@ -78,6 +78,19 @@ const std::vector<NodeSpec>& drawFlowSpecs() {
         {"OffsetMode", "OffsetMode", "Float", true, 0.0f, 0.0f, 2.0f}},
        nullptr,
        "numbers.anim.time"},
+      // TimeClip (TiXL Lib.flow.TimeClip): the TIMELINE-WINDOW scope — gates its SubTree cook to the clip's
+      // [TimeRange.Start, TimeRange.End) window and REMAPS LocalFxTime (TimeRange→SourceRange, an unclamped
+      // linear map) inside the window, restoring after (TimeClipSlot.cs:52-83). The window+mapping is NOT an
+      // input param — it is per-instance OutputData authored on the child's output ("out"), imported into
+      // SymbolChild.clips → ResidentNode::clipOut. The GATE + REMAP happen in the cook driver (window skip +
+      // LiveTimeRemapScope, point_ops_timeclip); this op forwards the cooked items. The op also publishes
+      // context.FloatVariables["_normalizedTime"] for a downstream GetFloatVar. Command MultiInput SubTree in
+      // → Command out (the SubTree carries multiInput=true, the Execute/Group precedent).
+      {"TimeClip", "TimeClip",
+       {{"SubTree", "SubTree", "Command", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1, true},
+        {"out", "out", "Command", false}},
+       nullptr,
+       "flow"},
       // Execute (TiXL Lib.flow.Execute): the S2a KEYSTONE — a MULTIINPUT Command port that concatenates
       // N wired Command chains in wire-declaration order into ONE chain (Execute.cs CollectedInputs). The
       // cook-core collector (cookCommand's MultiInput Command branch) does the gather+concat; this op just
