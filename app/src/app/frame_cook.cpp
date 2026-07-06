@@ -17,6 +17,7 @@
 #include "app/audio_playback_drain.h"     // cookAndDrainAudioPlayback (AudioPlayer/PlayAudioClip → mixer)
 #include "runtime/graph_bridge.h"         // refreshCompoundSpecs (frame-boundary spec swap)
 #include "runtime/eval_context.h"         // EvaluationContext
+#include "runtime/playback_fft.h"         // setCurrentSpectrum (publish spectrum to the PlaybackFFT producer)
 #include "runtime/point_graph.h"          // PointGraph::cookResident
 #include "runtime/resident_eval_graph.h"  // ResidentEvalGraph / buildEvalGraph
 #include "runtime/spectrum_analyzer.h"    // SpectrumSnapshot
@@ -322,15 +323,14 @@ void run(PointGraph& pg, const std::string& targetPath) {
   // running while paused). AudioReaction eats fxTime in BARS — TiXL's LocalFxTime IS
   // Playback.FxTimeInBars (EvaluationContext.cs:49) and MinTimeBetweenHits compares in the same
   // domain; feeding seconds skews the debounce window at any BPM != 240 (refuter-S5 BROKEN-A).
-  // ctx.time (the Metal sim uniform) stays in SECONDS — the pre-transport flat-sim contract the
-  // shaders were tuned against; that is OUR unit fork, named, not TiXL's context.
+  // ctx.time (the Metal sim uniform) stays in SECONDS — the pre-transport flat-sim contract the shaders were tuned against; that is OUR unit fork, named, not TiXL's context.
   const double posBars = g_transport.position;
   const double fxBars = g_transport.fxTime;
   const double fxSecs = g_transport.secondsFromBars(fxBars);  // ctx.time only (sane-floored bpm)
 
   const SpectrumSnapshot spec = audio_monitor::spectrum();
-  // Device-driven extOut cooks (AudioReaction/DetectBpm/MidiInput/OscInput/AbletonLinkSync): the seam
-  // derives the AR clock from the transport (bars-domain has ONE home; --selftest-arclock exercises it).
+  setCurrentSpectrum(spec);  // publish to the PlaybackFFT FloatList producer (pull-driven off the list rail)
+  // Device-driven extOut cooks (AudioReaction/DetectBpm/MidiInput/OscInput/AbletonLinkSync): AR clock from the transport (bars-domain has ONE home; --selftest-arclock exercises it).
   {
     static std::map<std::string, AudioReactionState> s_arState;
     cookAudioReactionNodes(g_residentGraph, spec, g_transport, g_frameIndex, &doc::g_lib(),

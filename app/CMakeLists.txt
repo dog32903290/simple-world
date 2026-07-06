@@ -541,6 +541,8 @@ add_executable(simple_world
   src/floatlist_dampfloatlist_golden.cpp        # --selftest-dampfloatlist (cross-frame STATE: damp + dt-gate, flat + resident)
   src/floatlist_keepfloatvalues_golden.cpp      # --selftest-keepfloatvalues (cross-frame STATE: front-insert history ring, flat + resident)
   src/floatlist_keepints_golden.cpp             # --selftest-keepints (INT twin: front-insert history ring pad-0, flat + resident)
+  src/runtime/playback_fft.cpp                  # PlaybackFFT (FloatList producer: spectrum snapshot → InputBand-selected array on the host list rail)
+  src/playbackfft_golden.cpp                    # --selftest-playbackfft (PlaybackFFT 5-mode closed-form: known snapshot → FloatList == selected array)
   src/floatlist_conversion_golden.cpp
   src/runtime/colorlist_op_registry.cpp
   src/runtime/colorlist_ops_colorstolist.cpp
