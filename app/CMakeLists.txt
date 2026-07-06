@@ -603,6 +603,8 @@ add_executable(simple_world
   # dict-currency seam: the Dict<float> host rail (producer registry + cook) + the 4 Select*FromDict consumers
   src/runtime/dict_op_registry.cpp                     # Dict<float> producer self-registration sinks + param accessors
   src/runtime/dict_ops_buildfloatdict.cpp             # BuildFloatDict (first Dict producer: comma-keys + Float MultiInput -> SwFloatDict)
+  src/runtime/dict_ops_midiclip.cpp                   # MidiClip (Dict producer: Filename .mid -> SwFloatDict, bars->ticks via localFxTime; io/midi/MidiClip.cs)
+  src/dict_ops_midiclip_golden.cpp                    # --selftest-midiclipnode (MidiClip node cook: Filename->.mid->cookFlatDict, bars->ticks)
   src/runtime/dict_cook.cpp                            # cookFlatDict / cookResidentDict (Dict producer cook, flat + resident)
   src/runtime/host_scalar_ops_selectfloatfromdict.cpp     # Dict + Select key -> Float (numbers/data/utils/SelectFloatFromDict.cs)
   src/runtime/host_scalar_ops_selectboolfromfloatdict.cpp # Dict + Select key -> Bool (>0.5, dissolved Float) (SelectBoolFromFloatDict.cs)
