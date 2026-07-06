@@ -1,5 +1,24 @@
 # CLONE_MAP — TiXL 克隆真實地圖(2026-07-04 census 修準 + 三縫對 code 驗證)
 
+> **★★★★ 原子健檢 + node_health 缺口對帳 2026-07-06 深夜(柏為問「原子都做完了嗎」逐顆查證)**:
+> **sweep 691/0/0、lint 綠。原子健檢(FABLE_VERIFY_REPORT.md)抓修 5 真 parity bug + held 語義裁定落地。**
+>
+> **⚠ node_health --summary 的「未做·原子 82」會誤導——別照它狂建。逐顆查證後真缺口=約 15-20,可做的更少。**
+> 82 顆 = TiXL 553 親原子 − sw 471(NodeSpec 424 + nonspec 47)。逐顆分桶(這輪對 .t3 路徑實查):
+> - **~50 架構外,本來就不做**:render 島 DX11/HLSL 管線原子(`DsvFromTexture2d`/`RtvFromTexture2d`/
+>   `Uav*FromBuffer`/`Srv*From*`/`OutputMergerStage`/`SwitchBlendState`/`Viewport`/`*ConstBuffer`——DirectX
+>   資源視圖物件,Metal 模型無對應)+ `_`前綴 TiXL 內部 helper(`_DispatchSceneDraws`/`_ProcessLayer2d`/
+>   `_ExecuteBloomPasses`/`_SpecularPrefilter`…=複合內臟非使用者積木)。
+> - **6 定性不做**:ArtnetPixelOutput(obsolete)/SwiftCamDevice(Win 廠商 SDK)/GetObjectVar+SetObjectVar
+>   (TiXL 全樹零使用)/LineTextPoints(TextToPoints 取代)/TextSprites(等 bitmap 字型資產)。
+> - **剩約 15-20 真缺口,但多在底線目錄**(非乾淨使用者原子):NoisePoints(`point/_internal`)/
+>   SampleSplinePoint(`point/_cpu`)/DefineLensFlare(`render/_`,被 3 個 .t3 引用=唯一像真特徵的)/
+>   ShowTexture2d+3d(`render/_dx11/fxsetup`=DX11 材質顯示,sw 走 Metal 原生 node_faces/point_graph_debug)。
+>   **音訊那批值得柏為看**(MV 承重):AudioFrequencies/AudioWaveform/DetectBeatOffset/GetBeatTimingDetails
+>   (io 島,核心 AudioReaction 已對齊,這幾顆頻譜/波形/beat 存取原子空著,做不做看 MV 要不要)。
+> - **判準**:node_health 掃全 902 宇宙(含 `_internal`/`_cpu`/`_dx11`/`_` 底線目錄——它只扣 `_obsolete`/`_Old`);
+>   CLONE_MAP 的 451 是柏為在意的策展範圍。**「可做的原子實質全清」仍成立**,82 是機械全宇宙數非待辦。
+>
 > **★★★收尾梯終帳 2026-07-06 18:00(七路+接線,柏為令「7 真剩+外部依賴決策+中文字破例」)**:
 > **總 610/749(81%)/ 原子 445/451(98.7%,todo 剩 6=可做原子全清)/ sweep 689/0/0。**
 > (CameraCalibrator/Video2DPointScanner NodeSpec 皮已補 done,port 數 14==14/16==16 對 TiXL 一致。)

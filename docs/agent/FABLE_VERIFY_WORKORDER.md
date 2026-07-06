@@ -1,5 +1,10 @@
 # FABLE_VERIFY_WORKORDER — 原子節點驗收先後順序(2026-07-06)
 
+> **✅ 已執行(2026-07-06 深夜)。終帳 + 逐檔判決 → `docs/agent/FABLE_VERIFY_REPORT.md`。**
+> 10 個審計 agent 平行掃 79 檔,抓修 5 真 parity bug(MidiClip key 兩軸/TriggerAnim latch/Drag 0.005/
+> Chessboard 16×9/sacn fork)+ lint 三重補強 + 34 顆死牙極性歸位;held 語義已裁定落地(net 輸出分
+> EVENT edge / REFRESH 燈光 level)。sweep 691/0/0、lint 綠。**下方是原始工單,留作方法論參考。**
+>
 > 給 Fable 的驗收工單。**動手前先讀 `docs/agent/GOLDEN_STANDARD.md`(三特徵＋五反型)。**
 > 這份工單只排「從哪開始、為什麼這個順序」;每顆節點怎麼驗，判準在 GOLDEN_STANDARD。
 
