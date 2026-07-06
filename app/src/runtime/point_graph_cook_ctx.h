@@ -34,6 +34,7 @@ namespace sw { struct ContextVarMap; }  // stateful_value_ops.h (host per-frame 
 namespace sw { struct SwGradient; }  // runtime/sw_gradient.h (host Gradient; full def where the op includes it)
 namespace sw { class Curve; }        // runtime/curve.h (host Curve currency; full def where the op includes it)
 namespace sw { struct FieldNode; }   // runtime/field_graph.h (FieldNode tree; full def in the builder + PF-a cook TU)
+namespace sw { struct FeedbackStore; }  // runtime/point_graph_feedback_store.h (N-slice array ring allocator; full def in internal.h path)
 
 namespace sw {
 
@@ -316,6 +317,13 @@ struct FeedbackCookCtx {
   MTL::Texture* pairA = nullptr;
   MTL::Texture* pairB = nullptr;
   bool* toggle = nullptr;  // the persistent _bufferToggle (the op reads it, then FLIPS it once per frame)
+  // CROSS-FRAME N-SLICE ARRAY ACCESS (KeepInTextureArray / TimeDisplace history ring). Unlike the pair
+  // (pre-sized by the driver from the input's w/h/fmt), the array's slice count N is a PARAM (ArraySize),
+  // so the op sizes its OWN ring: store->ensureFeedbackArray(nodeKey, w, h, fmt, N). `store` is the
+  // driver's FeedbackStore (the Impl base, keyed the same "#id"/path space); nodeKey is this node's
+  // resource key. Both null for a pair-only feedback op (KeepPreviousFrame never touches the array).
+  FeedbackStore* store = nullptr;
+  std::string nodeKey;
   // OUTPUTS the op fills, by OUTPUT-port-relative index (0 = first Texture2D output, 1 = second). The
   // driver returns outputs[requestedOutputIdx]. Unset entries stay null (a black sink, no crash).
   static constexpr int kMaxTexOutputs = 4;

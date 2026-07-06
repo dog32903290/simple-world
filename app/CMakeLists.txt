@@ -667,6 +667,7 @@ add_executable(simple_world
   src/buildgradient_golden.cpp   # BuildGradient (ColorList+FloatList list-input → Gradient; list-currency seam, flat+resident)
   src/intlisttobuffer_golden.cpp # IntListToBuffer (FloatList list-input → tight int32 Buffer; list-currency seam, flat+resident)
   src/keeppreviousframe_golden.cpp
+  src/keepintexturearray_golden.cpp  # --selftest-keepintexturearray (N-slice cross-frame ring; ReadIndex reaches authored history slice, flat+resident)
   src/swaptextures_golden.cpp
   src/afterglow_golden.cpp
   src/afterglow2_golden.cpp
