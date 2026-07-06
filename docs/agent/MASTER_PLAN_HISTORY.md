@@ -187,3 +187,111 @@
 
 ---
 
+
+---
+# 〔2026-07-06 token 瘦身搬運〕以下三塊自 MASTER_PLAN.md 原樣搬入（該檔結帳規則：舊 snapshot 不疊、移本檔）
+
+## 搬運塊 1／3：🔒歷史塊（CLEAN CHECKPOINT 06-30・STEERING pivot 06-29・原 Active Lane 06-29・parity-gate retrofit 凍結）
+> **🔒〔以下全為歷史塊，已被本檔頂部「現狀」取代——勿讀成現行 active lane〕** CLEAN CHECKPOINT(02:43)／STEERING-pivot(15:41)／「22:13 原 Active Lane」／舊全並行策略，都是夜間/pivot 當下的快照。**param-completion + Seam 1（keystone+6 ops+resident mirror）都已完成、buffer 算子 live 在 production。** 這些只當「為什麼走『原子地基優先』」的背景讀；**現行 active lane = 頂部「現狀」+「下一棒 vec4→Seam2」**，不是底下任何一塊。
+
+**〔歷史〕CLEAN CHECKPOINT（2026-06-30 02:43，HEAD 9cd46dd）**：param-completion 4 批 + Seam 1 keystone + buffer fan-out WO-A/B 落地（皆 refuter+復跑+stamp）。當時剩「careful cook-core 層」WO-C/D/E + Seam 2——**現都已做完（WO-D/E merged，Seam 2 turnkey），此塊已過時**。
+
+> **★★STEERING 覆寫（柏為 2026-06-29 15:41 拍板，[R] 級方向，可能不可逆）：停 monolithic 節點產線、轉投「原子地基優先」。** 鐵證：DrawPoints/DrawMesh/RadialPoints/DrawLines/GridPoints/LinePoints/DrawBillboards/TransformPoints 在 TiXL **全是複合非原子**；我方 461 done ≈ 102 atomic + 359 monolithic-compound-equiv＝**一路把 TiXL 複合層壓成單體手寫、真原子層只做 ~102**。後果：無原子地基／無法重放 .t3／無法做鑽進複合的磁吸 UI。**新方向＝建被最多複合重用的原子詞彙（ROI 表 `scratchpad/t3roi.py`）**：① buffer-marshalling（keystone `FloatsToBuffer` 208 顆=58%／GetBufferComponents 163／ExecuteBufferUpdate 117／SrvFromTexture2d 116／IntsToBuffer／GetSRVProperties，全未 port）② DX11 render-state（Rasterizer／InputAssemblerStage／OutputMergerStage／Draw／TransformsConstBuffer，~72 each 未 port）＝一直 defer 的 `shader-graph`+`dx11-wrapper` seam。math/value 層已做。**gating 設計難題**：`GenerateShaderGraphCode`（inline HLSL codegen）撞「預編譯 shader」哲學，決定 draw 類能否重放。**下一步**：spike `FloatsToBuffer` 原子節點 + 最小 .t3 importer，證 byte-parity。**協調：下方 param-completion lane ＝被停的 monolithic 線；另一 session（sad-goodall worktree, commits ca0972e/6686fa1）在跑它，需 redirect。** 詳 [[sw-clone-two-rails-atomic-compound]]。**以下 param-completion lane 內容凍結為歷史，勿續推。**
+
+**〔歷史·已完成，非現行〕原 Active Lane（柏為 2026-06-29 22:13）= 原子→巢狀策略，當時 `/sw-batch` 兩條工作（① param-completion ② 標廢棄——①已全清，②清單已產 deprecation_candidates.md）：**
+- **① 補 38 顆真原子的 baked param**（讓真原子旋鈕齊 TiXL `[Input]`，柏為怕的「舊原子 baked 沒暴露旋鈕」）。清單＝`docs/agent/census/PARAM_COMPLETION_MAP.md` §307 真原子 param 全掃 + `tools/node_health.sh` param-gap 欄。**先打 ~15 顆時間源旋鈕共通家族（UseAppRunTime/OverrideTime，一次解鎖多顆 ROI 最高）**；剔除 known_fork 假 MISSING（SubGraph/ClearAfterExecution 該進 fork list 非盲補）。每顆 cook-through golden red-first + refuter。
+- **② 標廢棄 135 顆壓平複合**（只標 tag 不挪 code、不刪，柏為定）。清單＝`docs/agent/census/deprecation_candidates.md`。13 顆有依賴（`compound_save.cpp` atomicUuidTable 存檔 UUID 合約，退役會破 .swproj）暫不動，等存檔遷移。
+- **★策略＝原子節點 → 巢狀（.t3 重放複合），不在 flat runtime 手刻複合。** 節點普查 SSOT＝`tools/node_health.sh`/.html + `docs/agent/census/ATOM_SEAM_MAP.md`。.t3 重放 rail 已證（spike `spike/t3-importer` 步1 FloatsToBuffer 原子 + 步2 importer routing-fidelity）；buffer-currency keystone（步3，碰 cook-core）等柏為。
+- **★舊「Cook-Core 序列脊椎 S1-S4 + 並行 lane L1-L6」全並行策略（下方 §最快路徑原則起）＝pivot-前殘留，已廢，勿照它選批**：那是「在 cook-core 做縫、讓手刻複合節點在 flat runtime 跑」的舊路，與新策略（原子+巢狀重放）矛盾。cook-core 現在只為原子策略的縫（buffer-currency 等）動，不為「讓 flat 複合跑」動。
+
+---
+**〔以下全凍結為歷史 2026-06-29，見上方 STEERING + 當前 Active Lane；勿續推〕parity-gate retrofit〔柏為 02:38〕— ★第三維度 param 補全（柏為 11:40 開，inspector 旋鈕完整性=「sw NodeSpec param 數對齊 TiXL .cs [Input] 數」）：**
+- **fan-out 基建 ✅（`eb909ff`）**：拆 generator table（400→168+extra，ratchet 降 180）+ `--dump-nodespec <type>` CLI（folded logical count）+ `tools/nodespec_integrity.sh`（sw FOLDED vs TiXL grep [Input]，自動完整性閘抓漏特製 param）。
+- **三顆補完**：RadialPoints（`4082e6f`，★接管另一 session 並行寫的半成品+審查+補完，撞車解決）/GridPoints（`0be5919`，共通 attr 基建 `appendPointOrientationSpec` 抽出）/LinePoints（`46146b9`，18==18，雙色 lerp+11 param，主戰場）。每顆完整性閘綠+golden red-first+refuter SURVIVES。--bite→527。
+- **★generator 島 param-completion 完整（13/13 閘綠，`b0845d4` 收尾）**：HexGridPoints 補 Scale（第 11 [Input]，.t3 ScaleVector3 → Result=Size·Scale routing）；PointsOnMesh IsEnabled=named FORK（通用 flow/Execute skip-GPU-pass 開關 guid d68b5569 跨 49 op 共用，非節點特有 → `known_fork_count()` 逐節點 hardcoded case）。red-first 證牙+Opus refuter 兩處 SURVIVES。--bite→528。
+- **★fan-out 工法（範式已穩）**：套共通基建（Color+Orientation 小尾巴，別過度抽象）→ 逐顆對 .cs 補特有 param（APPEND-ONLY，pin id port-index based）→ backward-trace .t3 routing（防 silent parity-wrong，如 GridPoints Scale 經 ScaleVector3）→ `nodespec_integrity.sh` 閘綠 → golden red-first（cook-through production NodeSpec）→ 親驗+refuter+commit。值來源:.t3 default+.hlsl 公式為主，.var preset/examples 真實值為 bonus（稀疏）。
+- **★跨島偵察完成 → 缺口地圖 `docs/agent/census/PARAM_COMPLETION_MAP.md`（選批 SSOT）**：其他島主流是 `sw>TiXL` EXTRA，**兩種成因要分開**——成因 A（image）resolution trio 是真 baked output-format 慣例非缺口；成因 B（field/mesh）是 `--dump-nodespec` Vec fold bug 假 EXTRA。**閘擴多島前必先修 fold bug（工單 D）**。真缺口序：✅**flow Set*Var 族（最密 6/14，`51d3ef5` 收）**——dual-rail（value-rail+command-rail）縫，SubGraph/ClearAfterExecution=cmd-rail 結構 fork（known_fork），補 LogLevel/LogUpdates/Message 真旋鈕，--bite→529 → 下一步**閘擴多島（工單 D fold-bug 先）**解鎖 field/mesh/image 系統化掃描 → ParticleSystem -11（卡柏為 pool-fork）。
+- **剩餘卡柏為**：ParticleSystem [?]（MaxParticleCount pool fork）+ PointToMatrix（latent-risk/cook-core）+ 3 個 [Y] 待驗收（見佇列）。可選增強:DrawPoints default-guard/velocity-seed/RandomJump。
+工單＝`docs/agent/PARITY_GATE_PLAN.md`。**
+- **本批 `[G][Y]`（`25946ae`）**：建有狀態節點 parity-golden 模板（`app/src/parity_golden_harness.h`：ParityHarness+ParityReport，固定場景 cook→CPU readback→對 TiXL 公式手算斷言+injectBug tooth）+ 修 RadialPoints（Count 2048→100/Radius 2→1）、TurbulenceForce（Amount 15→1/Freq 1.2→1/**Phase 解綁 wall-clock→inspector param 預設0**，修離線 render 決定性）到 TiXL parity。red-first 三態證牙（no-bug GREEN / injectBug RED / 注入舊偏差 RED）。
+- **★★parity-gate 新鐵律（本批 refuter 血證，已寫進 PARITY_GATE_PLAN）：parity-golden 必須 cook-through production NodeSpec default，不准繞過 cook 直接打 kernel。** 首版 turbulence golden direct-kernel→假綠（NodeSpec 沒改、改的 cook fallback 是死碼，`resolveNodeParams` 從 `p.def` 填、1.0f fallback 永不 fire）→ refuter 抓出 production 實際還是 15× → 改 cook-through 後 NodeSpec=15 立刻 RED 咬住。**fan-out 每顆務必 cook-through，否則假綠洗白。**
+- **★[Y] 待柏為驗收**：見下方佇列（turbulence 變靜止 / radial 點數半徑變，照 TiXL）。
+- **Force 類範式首顆 `[G]`（`5b958b5`）**：DirectionalForce cook-through parity golden。**GREEN case（早已忠實，零 production 改動，純補閘）**——scout 證 sw NodeSpec 預設(Amount=0.007/Dir=(0,-1,0)/RandomAmount=0)與 TiXL .t3 完全相同、kernel byte-1:1。三牙範式(T1 direct-kernel 閉式/T2 cook-through 守 NodeSpec/T3 determinism)。**fan-out 並行情報**：golden 檔零撞可並行寫；3 註冊檔(selftests_decls/selftests_point/CMakeLists)會撞→write-leaf 並行+中央接線(point lane 範式)；偏差堆(需修 point_ops production)逐顆序列。**⚠ 教訓：agent 自 commit 違反 orchestrator 親合流→下批工單明令「不自 commit、回報讓 orchestrator 親驗合流」。**
+- **Force fan-out 5 顆 `[G]`（`aa1874b`，Workflow write-leaf 並行+中央接線）**：AxisStep/VectorField（CREATE-vel，T2 cook-through **真守 NodeSpec**，refuter 實證改 NodeSpec→T2 RED）+ SnapToAngles/FieldDistance/FieldVolume（TRANSFORM-vel）。**★★承重發現（durable）：TRANSFORM-velocity force 的 cook-through-NodeSpec 守護結構上做不到**——cookParticleSim 種子 vel=0（`point_ops.cpp:172` baked InitialVelocity=0）+ 單 force kernel 不 chain + ParticleSystem NodeSpec 無 InitialVelocity port → TRANSFORM force 永遠看到 vel=0 → faithful no-op，NodeSpec discrim 退 direct-kernel（不抓 NodeSpec drift，SnapToAngles T1b labeling overclaim）。**這三顆 golden 補的是 no-op 契約 + kernel 閉式，非 NodeSpec-drift 守護。** 偏差堆空（六顆 production NodeSpec==.t3 已忠實）。--bite 524，refuter 5/5 SURVIVES。**follow-up（spawn_task）：velocity-seed seam（emitter InitialVelocity port 或 force-chain）讓 TRANSFORM force cook-through 守 NodeSpec=可能；test-coverage 議題非 production parity（production 今天忠實），低急迫但關閉 turbulence 同類洞。RandomJump+Field wired-SDF 行為 golden 同延後（需 field 綁定）。**
+- **DrawPoints 換 quad sprite `[G][Y]`（`3310181`）**：從退化 4px 死點換成 6-vert camera-facing quad（柏為最初四顆裡唯一定義級偏差）。cookDrawPoints emit DrawKind::Points2，NodeSpec 接回 PointSize/Color/ScaleFactor/BlendMode（執行器/draw_points2.metal 不動，quad 基建已在）。red-first 證牙（死點不響應 PointSize→RED）。7 顆下游 golden 回歸（忠實 sprite≈1px<4px 死點，像素探針讀不到）→場景設 PointSize=1.5 修（node .t3 default 仍忠實 0.1，零斷言改動，refuter 證非洗白）。refuter 5/5 SURVIVES，--bite 525。**★誠實標註：golden 守 param-response（PointSize 有接+驅動 sprite）非 NodeSpec-default 值（PointSize=0.1 無機械閘，靠 comment 錨 .t3，[Y] 觀感）→ default-guard golden 可選增強待補（同 TRANSFORM force 的 default-drift gap）。fork 延後具名：UsePointsScale Scale.xy/AlphaCutOff/FadeNearest/ZWrite/ZTest/Texture/ColorField/BlendMode-Additive。test flag `drawPointsBugForceV1ForTest()`=function-static CPU driver（非 shader bug-branch，第8顆同範式，不污染 production）。**
+
+## 搬運塊 2／3：2026-06-29 原子 pivot 首日舊接力（非現行背景）
+〔以下為 2026-06-29 原子 pivot 首日的舊接力，非現行；留作背景〕
+
+**今天承重發現：census/scout 系統性 stale，6-8 次「待辦/卡縫」一讀 code 都是早建好**（image/value/shader/String/Matrix/anim/list 全中）→ 任何 claim 進工單前必多處 code-verified done-check（grep 中央表 node_registry_math_* + registry + CMake + cook flow，非單一處）。[[orchestrator-read-code-before-difficulty-verdict]]
+
+**狀態**：① **.t3 重放 rail 已證**（spike `spike/t3-importer` 分支：步1 FloatsToBuffer 原子 ABI byte-parity `8784a06`、步2 importer routing-fidelity `aa6f5d3`；步3=Buffer-currency resident cook 碰 cook-core 等柏為）。② **今天織 10 顆原子上 main**（TryParse/TryParseInt/PickFloatList/Merge{Float,Int}Lists/WasTrigger/SetPlaybackTime/SetPlaybackSpeed/DateTimeToFloat/DateTimeToString），census 461→471。③ **乾淨葉子量產近乎見底**（yield 5→1→4 遞減，主體早建好）。
+
+**下一階段＝cook-core seam-building（全等柏為 owner-lock）+ shader 體力批**：
+- **★第一優先 buffer-currency seam（spike 步3）**：`point_graph_cook_ctx.h` 加 raw Buffer currency → 解鎖 49 原子 **+ FloatsToBuffer 是 208 複合 keystone**（同時開原子量產 + .t3 重放軌）。ROI 最高，碰 cook-core，等柏為決定（自己推 or 授權 agent）。
+- 其他 cook-core 縫：Dict+StructuredList currency（data 族，但 Dict 無 host 生產者=低 ROI）、keyframe editor-introspection（FindKeyframes/SetKeyframes）、各 sub-seam（變長 buffer state/list-output sink/floatlist-input/parse-parity）。
+- **可自走殘餘**（零 cook-core，少量）：DateTime route-B 餘 + anim 組B stateful（TriggerAnim/SequenceAnim/Adsr）+ stateful 尾巴——但 yield 低，每顆撞 sub-seam 機率高。
+- **固定 shader 批 ~270**：census 數未 code-verify（依今天 pattern 可能少很多）；體力手翻 .hlsl→.metal，無架構風險，可並行——**但先 code-verify 真實缺口數再開**。
+
+下個 session 開頭跑 `tools/sw_status.sh`（HEAD/bite/census 看機器塊）。**★狀態：原子地基 pivot 第一天，10 原子 + spike rail 證；乾淨葉子近見底，下階段 cook-core seam 等柏為。零未 commit。** 排修 chip：`task_0e9d1e2d`（DateTime golden 增強）、`task_48b2ae42`（image fold gate）。
+- **4 顆 SW_UNKNOWN 已查（MAP §SW_UNKNOWN）**：EdgeRepeat/PolarCoordinates(texReg)/Switch(cmdReg)=非 NodeSpec 路徑閘 N/A 正常；**Steps=census 假陽性（"Steps" 是 node_registry 插值 enum-label 字串被 census source#3 grep 誤判，sw 實際未 port）→ 真缺口待採**。census source#3 capitalized-string 掃描會把 enum-label 誤判成 done（done 數略灌水），修法見 MAP。
+- **PARITY_GATE_PLAN.md 殘餘**（有狀態重節點，與 param-completion 不同軸）：Stage 2 裝閘（有狀態節點清單 ratchet）尚未做；Force/point-render 可手算 golden、ParticleSystem host-cut input、DrawPoints pixel-deferred 仍在 §清單。
+- **fan-out 待採（PARITY_GATE_PLAN §清單）**：ParticleSystem（integrator 已忠實，修 host 砍掉的 input；**MaxParticleCount/IsAutoCount pool fork 是 `[?]` 需柏為拍板留不留**）、DrawPoints（換 DrawPoints2 quad 實作，緊性質探針；**純像素 reference = `pixel-deferred-windows`**）、各 Force（FieldDistance/FieldVolume/RandomJump/AxisStep/SnapToAngles/VectorField）、point/render 可手算（MoveToSDF/PointToMatrix/SnapPointsToGrid/TransformFromClipSpace/DoyleSpiralPoints2/Transform/Shear/RotateAroundAxis）。
+- **Stage 2 裝閘時補一條閘**：下游 golden 不准依賴 cook fallback default，共用場景參數必須顯式 pin（本批 particlefield_probe 隱性耦合就是缺這道閘才漏）。
+- **parity-gate 做完再回 OBJ/menu lane**：OBJ 續採（LoadObj/WriteToFile/DataPointImportExport）、menu-bar checkmark 已補（`701b2a1`）、chip `task_7c964566`（obj_parse CRLF/負索引 refute）。
+- **★先處理（柏為在場）**：① **menu-bar checkmark**（柏為授權「可以先補」）——擴充 vendored metal-cpp wrapper 接 NS::MenuItem setState/menu-validation，讓 View 視窗 toggle 顯示打勾。② chip `task_7c964566`（obj_parse CRLF/負索引 refute，可能真 regression）。
+- **OBJ 子-lane 續採（obj_parse seam 已建，[G]）**：① **LoadObj**（mesh rail 已存在；count-before-cook 需 parse-cache 縫＝中等；obj_parse_distinct guard 已補可安全接）② **WriteToFile**（io/file，String rail）③ **DataPointImportExport**（JSON+point-buffer，JSON seam 已開）。**deferred**：SVG/LoadDataClip/network+device island（柏為域）。
+- **或換 lane**：菜單③ Command ctx-var `[G]`（低值）；或更大 `[Y]` 縫（camera/3D-render/PointSim，動 cook-core 須先 scout + 4 島守門綠 + refuter）。
+- **dict-ctx 已釐清非 loader lane**：無 file Dict producer，唯一 non-device opener=audio GetBeatTimingDetails（audio lane）。
+- **autonomous 菜單（解鎖÷風險排序，全已 ground-truth）**：
+  - **✅ ① vec4/Color host-value output 家族＝DONE（`c32eed9` 2026-06-28）**——scout 揭穿前提 stale：4 顆早已 BUILT，只剩 PickColorFromList（非 vec4-spread 縫，是 ColorList-consumer→host-value(vec4)-emit）→已建完，--bite 510。**家族完整。**
+  - **② B 軌 menu-bar＝`[Y]`（★推薦下一個）**——最後一條乾淨純皮 `ui/` Tier1 skin gap（top menu bar vs floating Toolbar）；自走做完→eye-hand 截圖 + ui_census→落待驗收佇列（UI 觀感柏為事後驗）。註：柏為 decision queue 有「menu-bar chrome 範式 native-NSMenu vs TiXL-imgui」一條——預設照 TiXL（imgui menu bar），不選 native。
+  - **③ Command ctx-var 縫＝`[G]`**——medium，SetXxxVarCmd command-rail SubGraph scope（Set{Float,Vec3,String}Var 的延後那半），低值。
+
+## 搬運塊 3／3：⛔已廢的「Cook-Core 脊椎 S1-S4 + 並行 lane L1-L6」全並行結構（pivot-前舊策略）
+## 最快路徑原則:一條序列脊椎 + N 條並行 lane
+
+> **⛔ 已廢（柏為 2026-06-29 pivot，22:13 確認拿掉）**：以下「Cook-Core 序列脊椎 S1-S4 + 並行 lane L1-L6」是 **pivot-前的舊全並行策略——在 cook-core 蓋縫、讓手刻單體複合節點在 flat runtime 跑。** 新策略＝**原子節點 → 巢狀（.t3 重放複合）**，見上方「當前 Active Lane」+ `ATOM_SEAM_MAP.md`。**勿照以下脊椎/lane 結構選批。** cook-core 現在只為原子策略的真縫（buffer-currency keystone 等）動，不為「讓 flat 複合跑」蓋縫。以下保留僅為 durable 事實參考（哪些檔是 cook-core owner-lock）+ 歷史，**不是再來的工單**。
+
+**唯一逼序列的東西 = 動到 cook 核心的檔**（`point_graph.cpp` / `frame_cook` / `resident_eval_graph` / `EvaluationContext`）。所有承重縫 + 拆檔債都擠在這幾個檔上 → 彼此不能並行 = **關鍵路徑（長極）**。
+**其他全部踩不同檔域 → 現在就並行開跑，不必等節點大縫。**
+每條 lane 的第一步 = **蓋自己的驗證 harness（golden / eye-hand / round-trip），蓋完即自走**（柏為軌塌縮成「裝置 + 品味簽收」殘留，見底）。
+
+---
+
+## ⛓ 關鍵路徑 — Cook-Core 序列脊椎（一條 worker，不可內部並行）
+
+全部動同一批 cook 核心檔，只能照解鎖價值排序：
+
+| 序 | 縫 | 解鎖 | 為何在脊椎 |
+|---|---|---|---|
+| **S1** | **輸出解析度縫**（RequestedResolution→cook+EvalContext） | 解鎖 L2 輸出窗 + L6 匯出 | 動 EvaluationContext，最先（解鎖最多下游 lane） |
+| **S2 ✅** | **render-graph / Layer2d / Execute 縫＝已建+golden 綠** | 解鎖 texture-rail 葉子 fan-out（餵 L4，absent-safe） | 脊椎在 `point_graph.cpp:465`/`_resident.cpp:376`，六 golden 親驗；殘餘是葉子非縫 |
+| **S3 ✅** | **flow / 控制流縫（context-var + Execute/Loop）＝已建+golden 綠** | 解鎖 flow 葉子 | SetVar/Switch/Loop/ExecRepeatedly selftest 全 PASS |
+| **S4** | 殘餘 infra 縫（texture-array / RWStructuredBuffer / vec-color-field G3-bridge）+ **point_graph.cpp 拆檔債**（乾淨點交錯） | 解鎖剩餘島 + 還債 | 同檔，跟 S1-S3 同一 worker |
+
+> 這條是最短完成時間的下限。其餘 lane 全繞著它並行。**S1 先做**——它解鎖最多並行 lane。
+
+---
+
+## ∥ 並行 lane（全部現在開跑，踩不同檔域，互不撞）
+
+| Lane | 檔域 | 內容 | harness（第一步） | 依賴 |
+|---|---|---|---|---|
+| **L1 Variation/Snapshot** | 新子系統 + app/document override | VJ 現場核心:snapshot 抓取/過濾 + crossfader + Mix 插值 + 觸發（5 規格已備） | golden 對 TiXL Mix 公式 + spring-damp 常數 | **無**——現在開 |
+| **L2 UI 範式** | `ui/` | MagGraph 畫布 + 分類瀏覽 + 精密編輯(SliderLadder) + inspector + Gradient widget | eye-hand 斷言（寬度/排序/snap） | 分類←NodeSpec.category 欄位(先加);輸出窗←S1 |
+| **L3 檔案/專案** | `app/` document | 存載 + AssetLibrary 瀏覽器 + .t3/.swproj 拍板 | round-trip golden（存→載→相同） | **無**——現在開 |
+| **L4 節點開採** | `runtime/` op 葉 | 已解鎖島 fan-out（numbers/image/point/mesh/field） | 已有（golden+refuter） | 持續中;render/flow 島←S2/S3 |
+| **L5 IO/硬體** | `platform/` | network/osc/midi（loopback 可機器驗那半） | loopback golden（虛擬 MIDI/localhost UDP） | **無**——現在開（裝置半=殘留） |
+| **L6 音訊匯出+維運** | `platform/audio` + `ui/` | audio mixdown/錄製/波形 + perf overlay/console/auto-backup | 檔存在/round-trip | 匯出←S1;perf/backup 現在開 |
+
+> L1/L3/L5/L6 **零依賴，立刻開**。L2 大半立刻開（除輸出窗）。L4 已在跑。
+
+---
+
+## 🔗 同步點（少數跨 lane 依賴，就這幾條）
+- L2 輸出窗 UI ← **S1**（解析度縫）
+- L6 匯出 ← **S1**
+- L4 render/flow 島開採 ← **S2/S3**（但 L4 另有大把已解鎖島可先採，不空等）
+- L2 分類 ← **NodeSpec.category 欄位**（L2 第一個 micro-step，graph.h 加欄位=additive，與 L4 讀 NodeSpec 不撞）
+

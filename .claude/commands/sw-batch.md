@@ -37,8 +37,8 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
 3. 品質閘不可省：run_all --bite 零 NO-BITE／對抗 refuter（高風險 lane 用 Opus）／RED 面／
    orchestrator 親手復跑後才 commit／活體可證行為附 .scn。
 4. 律法自檢每 commit 前過（ARCHITECTURE.md 五區/單向/<400/資料驅動），law debt 不過夜。
-5. **看門狗硬節拍：每滿 20 分鐘必查一次所有在跑 subagent 的死活，不准空等。**
-   - 自走迴圈每 20 分鐘主動巡一次在跑的 lane（背景跑時用 `ScheduleWakeup` 排回來巡）。
+5. **看門狗＝事件驅動為主、60 分鐘 fallback 為輔（2026-07-06 修：原「每 20 分鐘巡」與 WORKFLOW §六 60min 閾值矛盾，且 20min 節拍每次醒來＝prompt cache（5min TTL）全失、整個 orchestrator context 全額重讀——一晚 24 次醒來是最大隱形 token 洞）。**
+   - **主訊號＝harness 完工/被殺通知**（§六補遺2 實證可靠，收到必動作）；`ScheduleWakeup` 只當 fallback，**≥3600s**，不當巡查節拍。
    - 派背景/並行 agent 後立刻 `run_in_background` 跑 `tools/agent_watchdog.sh` 盯 transcript mtime
      （純腳本，**別加 nohup/`&`**，否則訊號斷）。單條序列 lane 用前景不用背景（零盲區）；
      只有多 lane 並行才背景＋看門狗。
@@ -92,6 +92,9 @@ Mac 版 TiXL 完整 clone——功能、行為、**UI 節點視覺**全部一模
 ## 上下文衛生（迴圈不被撐爆的機制）
 - **狀態永遠在磁碟**：Cut 段＋memory＋CONTEXT_PACK＝完整重建點。上下文被壓縮/換 session
   都從步驟 1 重新定位，零損失——所以放心連跑，不要為了省結帳偷懶。
+- **長 session 主動換血（token 帳）**：context 越長，之後每個 turn 的 input 成本越高。連跑 2-3 批
+  後（或 context 已被壓縮過），結帳過閘 → **主動結束 session 換新的接力**，別戀棧同一條 context。
+  狀態在磁碟本來就是為這個蓋的。
 - 實作肉全在 subagent（它們的上下文用完即棄）；orchestrator 只留裁決、合流、verdict。
 - 結帳是硬步驟：`sw_status.sh --stamp` 蓋章 + 手寫三句 + `--check` 過綠才算結帳完；沒過閘就開下一批 = 違規。
 - **turn 不准空手結束（迴圈延續硬步驟——靜止的真因）**：每個 turn 結尾必二選一——要嘛有接續的
