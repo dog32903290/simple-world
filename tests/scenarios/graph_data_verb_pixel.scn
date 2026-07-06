@@ -13,6 +13,9 @@
 #
 # default graph = defaultParticleGraph (RadialPoints#1 / ParticleSystem#2 / TurbulenceForce#6 /
 # DrawPoints#7 / AudioReaction#8, nextChildId=104). So the first spawnsymbol lands at childId 104.
+# DRIFT PIN: 104 is defaultParticleGraph.nextChildId. If the default graph gains/loses a node (or its
+# nextChildId is re-based), the first spawnsymbol id shifts and EVERY `104` below must be re-pinned to the
+# new nextChildId. Symptom of drift: the `select(.id == 104)` assert on line 23 fails "length == 1".
 #
 # RED face: change the assert_pixel expected color (e.g. 51 153 204 -> 51 153 100) and it must fail —
 # the readback is a real number off the live render texture, so a wrong expectation bites.

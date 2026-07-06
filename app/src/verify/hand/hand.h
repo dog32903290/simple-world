@@ -71,6 +71,13 @@
 //                             exactly as the Inspector stores them (one command per component). Enum =
 //                             index-as-float, Bool = 0/1. Immediate (side map, like connect). No-op if no
 //                             hook / the child/slot doesn't exist / the slot isn't a Float input.
+//   deletenode <childId>      delete the current compound's child `childId` AND every wire incident on
+//                             it (src==child ‖ dst==child), via the app-owned hook — the SAME
+//                             DeleteChildrenCommand the canvas Delete key / context menu pushes
+//                             (node_menu_actions deleteCaptured). Undoable: undo restores the child at
+//                             its original index + all its incident wires. No-op if no hook / the child
+//                             doesn't exist. Leaving a dangling wire behind (src/dst to a gone child)
+//                             would crash cook, so the wire sweep is the load-bearing half.
 //   readpixel <x> <y>         read ONE pixel of the CLEAN render texture (g_pointGraph->target(), the
 //                             same layer clean.png dumps) at integer texel (x,y) and write it as JSON
 //                             {"x","y","r","g","b","a"} (uint8 0-255) to SW_EYE_DIR/readpixel.json, via
@@ -116,6 +123,12 @@ void setEnterCompoundHook(void (*hook)(int childId));
 // SetOverrideCommand the Inspector slider does (undo/save/dirty consistent, never a parallel path).
 // verify/hand never sees a Symbol/Command. Unset (null) = the directive is a no-op.
 void setSetParamHook(void (*hook)(int childId, const char* slotId, float value));
+
+// App-owned node-delete hook (same leaf inversion). `deletenode <childId>` forwards the bare child id
+// here — the app resolves the current compound and pushes the SAME DeleteChildrenCommand the canvas
+// Delete key does (node_menu_actions deleteCaptured), which drops the child AND all wires incident on it
+// as one undo unit. verify/hand never sees a Symbol/Command. Unset (null) = the directive is a no-op.
+void setDeleteNodeHook(void (*hook)(int childId));
 
 // App-owned pixel-readback hook (same leaf inversion). `readpixel <x> <y>` forwards the integer texel
 // coords here — the app reads the clean render texture at (x,y) and writes readpixel.json (it owns both

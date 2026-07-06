@@ -34,6 +34,7 @@ REGISTER_SELFTESTS(/*orderBase=*/500,
     {"output-window-state", runOutputWindowStateSelfTest},  // out-window-persistence: Output view-state sidecar (round-trip)
     {"hand-connect", runHandConnectSelfTest},      // connect/disconnect hand verbs → wire edit (headless)
     {"hand-setparam", runHandSetParamSelfTest},    // setparam hand verb → SetOverrideCommand (headless; +undo leg)
+    {"hand-deletenode", runHandDeleteNodeSelfTest},// deletenode hand verb → DeleteChildrenCommand: child + ALL incident wires (headless; +undo leg)
     {"graphdump", ui::runGraphDumpSelfTest},       // req_graph → graph.json of current compound (免座標 id 來源)
     {"eye-occlusion", eye::runOcclusionSelfTest},  // map.json occluded flag: covered widget reports occluded
     {"theme", ui::theme::runThemeSelfTest},        // default theme table == TiXL UiColors constants (value-golden)

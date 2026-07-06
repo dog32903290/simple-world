@@ -284,6 +284,7 @@ add_executable(simple_world
   src/ui/connection_ops.cpp        # shared wire-edit (drag + connect/disconnect verbs) + verb hooks
   src/ui/connect_verb_selftest.cpp # connect/disconnect verb golden (--selftest-hand-connect, headless)
   src/ui/setparam_verb_selftest.cpp # setparam verb golden (--selftest-hand-setparam, headless)
+  src/ui/deletenode_verb_selftest.cpp # deletenode verb golden (--selftest-hand-deletenode, headless: child + incident-wire sweep)
   src/ui/graph_dump.cpp            # req_graph -> graph.json serializer of the current compound (eye hook)
   src/ui/graph_dump_selftest.cpp   # graphdump golden (--selftest-graphdump, headless)
   src/ui/node_menu_actions.cpp

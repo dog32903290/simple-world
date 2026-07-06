@@ -59,6 +59,10 @@ void (*g_enterCompoundHook)(int) = nullptr;
 // App-owned param-set hook (set via setSetParamHook). The `setparam` directive forwards (childId, slotId,
 // value) here; null = no-op. The app pushes the SAME SetOverrideCommand the Inspector slider does.
 void (*g_setParamHook)(int, const char*, float) = nullptr;
+// App-owned node-delete hook (set via setDeleteNodeHook). The `deletenode` directive forwards the child id
+// here; null = no-op. The app pushes the SAME DeleteChildrenCommand the canvas Delete key does (child +
+// all incident wires, one undo unit).
+void (*g_deleteNodeHook)(int) = nullptr;
 // App-owned pixel-readback hook (set via setReadPixelHook). The `readpixel` directive forwards (x, y); the
 // app reads the clean target texture and writes readpixel.json. Null = no-op.
 void (*g_readPixelHook)(int, int) = nullptr;
@@ -261,6 +265,13 @@ void parseLine(const std::string& line) {
     float value;
     if ((is >> child >> slot >> value) && g_setParamHook)
       g_setParamHook(child, slot.c_str(), value);
+  } else if (op == "deletenode") {
+    // deletenode <childId> — delete the current compound's child AND all wires incident on it via the
+    // app hook (the SAME DeleteChildrenCommand the canvas Delete key pushes — child + incident wires as
+    // one undo unit). Immediate (side map, like connect): the lib is not ImGui IO. No-op if the hook is
+    // unset (leaf) / the child doesn't exist.
+    int child;
+    if ((is >> child) && g_deleteNodeHook) g_deleteNodeHook(child);
   } else if (op == "readpixel") {
     // readpixel <x> <y> — read ONE pixel of the clean render texture at texel (x,y) and write
     // readpixel.json via the app hook (the app owns the target texture + eye). Immediate: the target is
@@ -337,6 +348,7 @@ void setDisconnectHook(void (*hook)(int, const char*)) { g_disconnectHook = hook
 void setSpawnSymbolHook(void (*hook)(const char*)) { g_spawnSymbolHook = hook; }
 void setEnterCompoundHook(void (*hook)(int)) { g_enterCompoundHook = hook; }
 void setSetParamHook(void (*hook)(int, const char*, float)) { g_setParamHook = hook; }
+void setDeleteNodeHook(void (*hook)(int)) { g_deleteNodeHook = hook; }
 void setReadPixelHook(void (*hook)(int, int)) { g_readPixelHook = hook; }
 
 void feedLine(const char* line) { parseLine(line); }

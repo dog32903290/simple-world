@@ -9,7 +9,7 @@
 
 #include "app/command.h"          // g_commands / MacroCommand
 #include "app/document.h"         // doc::g_lib / currentSymbol / g_status / pushComposition
-#include "app/graph_commands.h"   // AddWireCommand / DeleteWiresCommand
+#include "app/graph_commands.h"   // AddWireCommand / DeleteWiresCommand / DeleteChildrenCommand
 #include "runtime/graph.h"        // findSpec (atomic child ports)
 #include "ui/editor_ui.h"         // spawnNodeAt (the AddChildCommand path a menu pick uses)
 #include "verify/hand/hand.h"     // setConnectHook / setDisconnectHook (mount the verbs)
@@ -168,8 +168,14 @@ void setParamByVerb(int childId, const char* slotId, float value) {
   const std::string slot = slotId ? slotId : "";
   SymbolChild* sel = sw::childById(*cur, childId);
   if (!sel) { sw::doc::g_status = "setparam: no such child " + std::to_string(childId); return; }
-  // The slot must be a Float INPUT port on this child's op — the only thing SetOverrideCommand drives
-  // (Float sliders + Enum/Bool, both stored as Float overrides; Vec components are per-component Floats).
+  // The slot must be an INPUT port whose dataType is stored as a Float override — the only thing
+  // SetOverrideCommand drives. Concretely: reject any non-Float dataType EXCEPT that Enum (index-as-float)
+  // and Bool (0/1) ARE accepted as Float and are NOT clamped, matching the Inspector's own widgets; only
+  // String (and other genuinely non-numeric types) are rejected. Vec components arrive as per-component
+  // Float slot ids (<base>.x/.y/.z/.w), so they pass this same Float check with no special casing.
+  // NOTE: sw's NodeSpec ports already fold Enum/Bool INTO dataType=="Float" (they are declared as Float
+  // ports), so the single `dataType == "Float"` test below IS this precise policy in practice — a slot
+  // declared "String" is the only input kind that fails it.
   const NodeSpec* spec = sw::findSpec(sel->symbolId);
   bool floatInput = false;
   if (spec)
@@ -196,6 +202,25 @@ void enterCompoundByVerb(int childId) {
     sw::doc::g_status = "entercompound: child " + std::to_string(childId) + " is not a compound";
 }
 
+// `deletenode <childId>` verb: delete a child of the CURRENT compound AND every wire incident on it,
+// through the SAME DeleteChildrenCommand the canvas Delete key / context menu pushes (node_menu_actions
+// deleteCaptured). DeleteChildrenCommand::doIt already snapshots + erases every wire where
+// src==child ‖ dst==child (the load-bearing half — a leftover dangling wire would crash cook), then the
+// child; its undo restores the child at its original index + all those wires. VALIDATES the child exists
+// first — a bad id is a NO-OP + status error (mirrors the connect/setparam bad-id guard), so we never push
+// a dead command that deletes nothing yet clutters the undo stack.
+void deleteNodeByVerb(int childId) {
+  Symbol* cur = sw::doc::currentSymbol();
+  if (!cur) { sw::doc::g_status = "deletenode: no current compound"; return; }
+  if (!sw::childById(*cur, childId)) {
+    sw::doc::g_status = "deletenode: no such child " + std::to_string(childId);
+    return;
+  }
+  g_commands.push(std::make_unique<sw::DeleteChildrenCommand>(
+      sw::doc::g_lib(), cur->id, std::vector<int>{childId}));
+  sw::doc::g_status = "deleted node " + std::to_string(childId);
+}
+
 }  // namespace
 
 void mountConnectionVerbs() {
@@ -204,6 +229,7 @@ void mountConnectionVerbs() {
   sw::hand::setSpawnSymbolHook(&spawnSymbolByVerb);
   sw::hand::setEnterCompoundHook(&enterCompoundByVerb);
   sw::hand::setSetParamHook(&setParamByVerb);
+  sw::hand::setDeleteNodeHook(&deleteNodeByVerb);
 }
 
 }  // namespace sw::ui

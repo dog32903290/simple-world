@@ -80,6 +80,7 @@ int runRaymarchFieldOutputSelfTest(bool);  // field_raymarch_output_golden.cpp (
 int runConnectCooksSelfTest(bool);         // connect_cooks_golden.cpp (connect VERB → cook → sphere silhouette)
 int runHandConnectSelfTest(bool);          // ui/connect_verb_selftest.cpp (connect/disconnect verbs → wire edit)
 int runHandSetParamSelfTest(bool);         // ui/setparam_verb_selftest.cpp (setparam verb → SetOverrideCommand)
+int runHandDeleteNodeSelfTest(bool);       // ui/deletenode_verb_selftest.cpp (deletenode verb → DeleteChildrenCommand + wire sweep)
 }  // ^ forward-declared (no header): the GPU field golden lives at shell tier (binds runtime+platform)
 // Per-op SDF GPU goldens (Phase C fan-out) — same shell tier, same no-header forward-decl pattern.
 namespace sw { int runFieldBoxSdfGoldenSelfTest(bool); }          // field_ops_boxsdf_golden.cpp
