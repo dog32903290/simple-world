@@ -74,6 +74,7 @@ REGISTER_SELFTESTS(/*orderBase=*/340,
 REGISTER_SELFTESTS(/*orderBase=*/800,
     {"dataset", runDataSetSelfTest},                        // SwDataSet: parse .data JSON / record MIDI / simulate (last,current] window + TimeRangeMapping
     {"midiclip", runMidiClipSelfTest},                      // MidiClip: minimal SMF reader (header+track+VLQ+events) → Dict<float> /channel<n>/<name>
+    {"midiclipnode", runMidiClipNodeSelfTest},              // MidiClip NODE cook: Filename→.mid→cookFlatDict, bars→ticks via EvaluationContext.localFxTime
 );
 // pbr-lighting island value currencies (data-layer): SetPointLight/SetFog/SetMaterial value slices proven
 // against the TiXL .cs. Context stacks + PBR-shader consumer are the BLOCKED render-pass seam. Own high-
