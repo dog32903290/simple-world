@@ -1,5 +1,24 @@
 # CLONE_MAP — TiXL 克隆真實地圖(2026-07-04 census 修準 + 三縫對 code 驗證)
 
+> **★終戰報 2026-07-06 09:00(原子清剿戰役結束,第四+五梯收攏)**:
+> **總 580/749(77%),原子 417/451(92.5%),sweep 668/0/0(NO-BITE:[] 鐵律全程守住)。**
+> 兩天戰役自 473 起 = **+107 顆**。第四梯:net 節點皮+Artnet/DMX/sACN 13(dmx_packet 縫)/pbr 原子
+> 1+3 value-slice(SwPbr/PointLight/Fog currency)/video 閉式核心 5(PlayVideo 時序/VISCA/ONVIF digest…)/
+> host-state 縫 4/4(**SliceViewPort executor viewport 契約落地**/GpuMeasure/GetPosition/ForegroundColor)。
+> 第五梯:io-misc 8(FreeD/PosiStage/tone皮/WriteToFile…)/HTTP 縫+2/GetListItemAttribute 窄版
+> (PointList=StructuredList<Point> 洞察)/SwitchParticleForce(force-rail MultiInput 縫)/**audio-mixer 縫**
+> (per-operator AVAudioEngine mixer)+AudioPlayer+PlayAudioClip/audio-mixer 死牙救活(latch 注入)。
+>
+> **剩 34 todo 原子 = 誠實邊界,四類**:①外部死鎖 ~10(OpenCV×2/SwiftCam WinSDK/AbletonLink DLL/
+> ArtnetPixelOutput obsolete/LineTextPoints SVG-font 資產/TextSprites glyph/跨op Animator 反射×2/
+> GetObjectVar+SetObjectVar=TiXL 全樹零使用,硬做=P5)②PARTIAL 已驗核心 census 不認 ~8(PlayVideo/
+> VideoDeviceInput/CameraCalibrator/ViscaCamera/OnvifCamera/pbr value-slice×3——閉式核心全 golden'd,
+> 缺的是 device/render-pass 腿)③大縫戰役級 ~16:**DataSet-timeline**(LoadDataClip/SimulateIoData/
+> MidiRecording/MidiClip/TimeClip)、**pbr render-pass**(DefineMaterials/UseMaterial/LoadGltfScene 匯入)、
+> **persistent-accumulator**(KeepInTextureArray+TimeDisplace 同機器)、**3D audio**(SpatialAudioPlayer)、
+> **WebSocket/HTTP live server**(WebServer/WebSocketClient/Server)、audio→FloatList(PlaybackFFT)。
+> **這些縫同時是複合軌/render 島的地基——原子戰役自然收斂進下一階段:複合重放軌+pbr 島戰役。**
+
 > **戰報 2026-07-06 凌晨(第三梯:縫+device-io,柏為令「蓋縫+原子全清+device-io 照 TiXL 做」)**:
 > **總進度 549/749(73%),原子 386/451(86%),sweep 636/0/0。**單日 +76 顆。
 > 收割:cmd-scoping 縫 4/4(SetTime=Arm A LiveTimeScope 裁定,兩腿對稱)/SVG 縫+3(nanosvg)/
