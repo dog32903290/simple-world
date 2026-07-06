@@ -18,6 +18,7 @@ set(METAL_CPP_EXT_DIR "${TP}/metal-cpp-extensions")
 set(IMGUI_DIR "${TP}/imgui")
 set(NODE_EDITOR_DIR "${TP}/imgui-node-editor")
 set(NFD_DIR "${TP}/nativefiledialog-extended")
+set(LINK_DIR "${TP}/ableton-link")  # Ableton Link (GPLv2) + asio-standalone (Boost) — network beat sync
 add_subdirectory(${NFD_DIR})
 
 # ---- OpenCV (system dep, brew) — the io/video vision seam ---------------------
@@ -119,6 +120,15 @@ set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OP
 set_source_files_properties(src/platform/http_request.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 # audio_mixer.mm (seam/audio-mixer): per-operator AVAudioEngine mixer — same AVFoundation+ARC as playback.
 set_source_files_properties(src/platform/audio_mixer.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+# link_sync{,_selftest}.cpp: the ONLY TUs that compile the vendored Ableton Link (asio-heavy templates).
+# Include dirs + defines are PER-SOURCE so no other TU pulls asio (build-time isolation) and the target's
+# global include set stays clean. LINK_PLATFORM_MACOSX selects Link's Darwin clock/socket; ASIO_STANDALONE
+# = header-only asio (no Boost). ASIO_DISABLE_VISIBILITY quiets a macOS visibility-attr warning under -Werror.
+set_source_files_properties(
+  src/platform/link_sync.cpp src/platform/link_sync_selftest.cpp
+  PROPERTIES
+    INCLUDE_DIRECTORIES "${LINK_DIR}/include;${LINK_DIR}/asio-include"
+    COMPILE_DEFINITIONS "ASIO_STANDALONE;LINK_PLATFORM_MACOSX=1")
 # midi_loopback.mm (L5 IO lane): pure CoreMIDI C API (no ObjC objects) -> compile WITHOUT ARC, like
 # the other manual-lifetime .mm files. osc_loopback.cpp is plain C++ (POSIX sockets) — no .mm prop.
 set_source_files_properties(src/platform/midi_loopback.mm PROPERTIES COMPILE_OPTIONS -fno-objc-arc)
@@ -305,6 +315,8 @@ add_executable(simple_world
   src/platform/points_dmx.cpp        # L5 IO (dmx lane): PointsToRGBList / PointsToDmxLights closed-form value cores
   src/platform/write_to_file.cpp     # L5 IO (file lane): WriteToFile write-on-change gate + byte round-trip
   src/platform/http_request.mm       # L5 IO (http lane): synchronous NSURLSession GET (RequestUrl/LoadImageFromUrl seam)
+  src/platform/link_sync.cpp         # L5 IO (link lane): Ableton Link session (GPLv2) behind a pimpl (AbletonLinkSync native seam)
+  src/platform/link_sync_selftest.cpp # L5 IO (link lane): local-session tempo/beat/phase closed-form gate (--selftest-linksync)
   src/platform/midi_loopback.mm
   src/platform/window_mode.mm
   src/platform/menu_appkit_ext.cpp  # tracked AppKit NSMenu extension (live check marks + menuNeedsUpdate: delegate) — replaces the gitignored vendored metal-cpp edits
@@ -777,6 +789,7 @@ add_executable(simple_world
   src/runtime/combine_selftest.cpp
   src/runtime/copy_paste.cpp
   src/app/frame_cook.cpp
+  src/app/frame_cook_link.cpp        # io/link: AbletonLinkSync per-frame cook (reads platform LinkSync snapshot → extOut)
   src/app/cook_host_values.cpp
   src/app/device_input_cook.cpp     # TiXL io/input device family cook (KeyboardInput/MouseInput/Gamepad)
   src/app/device_input_golden.cpp   # --selftest-deviceinput (io/input family golden)
@@ -791,6 +804,7 @@ add_executable(simple_world
   src/app/frame_cook_once_selftest.cpp
   src/app/frame_cook_randomchoice_selftest.cpp
   src/app/frame_cook_easekeys_selftest.cpp
+  src/app/frame_cook_keyframes_selftest.cpp       # anim/utils: Find/SetKeyframes cross-connection reflect (read+write, REAL cook)
   src/app/frame_cook_adsrenvelope_selftest.cpp    # keyframe-anim lane: AdsrEnvelope gate ADSR machine
   src/app/frame_cook_triggeranim_selftest.cpp     # keyframe-anim lane: TriggerAnim one-shot sweep + shape
   src/app/frame_cook_sequenceanim_selftest.cpp    # keyframe-anim lane: SequenceAnim step-sequencer playback
