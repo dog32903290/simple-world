@@ -9,8 +9,10 @@
 // to hardware, so deferred-hw-verify for the physical device), cook, and read the node's extOut.
 //   INPUT teeth  — a matching-KIND / matching-UNIVERSE arrival fires WasTrigger/Activity; a wrong one
 //                  must NOT (injectBug mode 2 drops the DMX universe filter → wrong-universe leaks → RED).
-//   OUTPUT teeth — SendWhenTriggered emits ONLY on the rising edge; injectBug mode 1 drops the edge →
-//                  a held trigger re-fires the second frame → the frame-2 count diverges from 0 → RED.
+//   OUTPUT teeth — TWO families (2026-07-06 拍板, 照 TiXL): EVENT senders (UDPOutput manual trigger)
+//                  emit ONLY on the rising edge; REFRESH senders (Artnet/Sacn/DMX/WLED lighting) STREAM
+//                  every frame the enable holds (ArtnetOutput.cs:123-128 sender thread; E1.31 silence =
+//                  source loss). injectBug mode 1 SWAPS the semantics → both families' goldens redden.
 //
 // Ground truth mirrored (external/tixl, read-only): io/{udp/UDPInput,udp/UDPOutput,tcp/TcpClient,
 //   tcp/TcpServer,serial/SerialInput,serial/SerialOutput,dmx/ArtnetInput,dmx/SacnInput,dmx/ArtnetOutput,
@@ -142,9 +144,12 @@ bool goldenSacnInputUniverse(bool injectBug) {
   return g_fail == 0;
 }
 
-// ── ArtnetOutput send-edge gate: SendTrigger held across 2 frames emits ONLY on the rising edge ───────
-// injectBug mode 1 drops the edge → the second frame re-emits → frame-2 count diverges from 0 → RED.
-bool goldenArtnetOutputEdge(bool injectBug) {
+// ── REFRESH family (Artnet/Sacn/DMX/WLED — lighting): held enable STREAMS every frame ─────────────────
+// 2026-07-06 拍板 (照 TiXL): ArtnetOutput.cs:123-128 StartSenderThread streams continuously while
+// SendTrigger is high; E1.31 receivers treat silence as source loss, and an edge-only marker could never
+// animate lights while held. The old golden here pinned the OPPOSITE ("held 不重發") — killed.
+// injectBug mode 1 SWAPS the gate semantics (refresh→edge) → frame 2 goes silent → RED.
+bool goldenArtnetOutputStream(bool injectBug) {
   SymbolLibrary lib = makeLib("ArtnetOutput", {{"SendTrigger", 1.0f}});  // held true across both frames
   ResidentEvalGraph g = buildEvalGraph(lib, lib.rootId);
   initResidentCache(g);
@@ -152,20 +157,32 @@ bool goldenArtnetOutputEdge(bool injectBug) {
 
   setNetNodeBug(injectBug ? 1 : 0);
   endNetDeviceFrame();
-  cookNetOutputNodes(g, state);                    // frame 1: rising edge → emit
+  cookNetOutputNodes(g, state);                    // frame 1: enabled → emit
   const size_t frame1 = netDeviceBus().out.size();
   endNetDeviceFrame();
-  cookNetOutputNodes(g, state);                    // frame 2: still held, no new edge → NO emit
+  cookNetOutputNodes(g, state);                    // frame 2: still held → KEEPS streaming
   const size_t frame2 = netDeviceBus().out.size();
   endNetDeviceFrame();
   setNetNodeBug(0);
-  expect("ArtnetOutput emits on the rising edge (frame1 == 1)", frame1 == 1);
-  expect("ArtnetOutput does NOT re-emit while held (frame2 == 0; bug level-fires → RED)", frame2 == 0);
+
+  // Gate closed → nothing emits (fresh graph/state, SendTrigger 0).
+  SymbolLibrary offLib = makeLib("ArtnetOutput", {{"SendTrigger", 0.0f}});
+  ResidentEvalGraph gOff = buildEvalGraph(offLib, offLib.rootId);
+  initResidentCache(gOff);
+  std::map<std::string, NetOutputState> stOff;
+  endNetDeviceFrame();
+  cookNetOutputNodes(gOff, stOff);
+  const size_t offCount = netDeviceBus().out.size();
+  endNetDeviceFrame();
+
+  expect("ArtnetOutput emits while enabled (frame1 == 1)", frame1 == 1);
+  expect("ArtnetOutput KEEPS streaming while held (frame2 == 1; bug edge-gates → RED)", frame2 == 1);
+  expect("ArtnetOutput disabled → no emit", offCount == 0);
   return g_fail == 0;
 }
 
-// ── SacnOutput send-edge gate (mirror) ────────────────────────────────────────────────────────────────
-bool goldenSacnOutputEdge(bool injectBug) {
+// ── SacnOutput refresh stream (mirror) ────────────────────────────────────────────────────────────────
+bool goldenSacnOutputStream(bool injectBug) {
   SymbolLibrary lib = makeLib("SacnOutput", {{"SendTrigger", 1.0f}, {"Priority", 100.0f}});
   ResidentEvalGraph g = buildEvalGraph(lib, lib.rootId);
   initResidentCache(g);
@@ -180,17 +197,40 @@ bool goldenSacnOutputEdge(bool injectBug) {
   const size_t frame2 = netDeviceBus().out.size();
   endNetDeviceFrame();
   setNetNodeBug(0);
-  expect("SacnOutput emits on the rising edge (frame1 == 1)", frame1 == 1);
-  expect("SacnOutput does NOT re-emit while held (frame2 == 0; bug level-fires → RED)", frame2 == 0);
+  expect("SacnOutput emits while enabled (frame1 == 1)", frame1 == 1);
+  expect("SacnOutput KEEPS streaming while held (frame2 == 1; bug edge-gates → RED)", frame2 == 1);
   return g_fail == 0;
 }
 
-// ── DMXOutput send: Connect held → send every frame (continuous serial DMX, DMXOutput.cs:1069) ────────
-// DMX has no rising-edge gate (it streams every frame while connected). Assert it emits BOTH frames;
-// injectBug mode 1 doesn't change continuous behaviour, so this golden's tooth is the CONNECT gate:
-// when Connect is false NOTHING emits (that path is the real send-gate the golden bites).
+// ── EVENT family counter-golden (UDPOutput manual SendTrigger): rising edge ONLY ─────────────────────
+// Discrete message senders must NOT machine-gun while the trigger is held. injectBug mode 1 SWAPS the
+// gate (event→level) → frame 2 re-emits → RED. This is the other half of the swap tooth.
+bool goldenUdpOutputEdge(bool injectBug) {
+  SymbolLibrary lib = makeLib("UDPOutput", {{"SendTrigger", 1.0f}});  // held true across both frames
+  ResidentEvalGraph g = buildEvalGraph(lib, lib.rootId);
+  initResidentCache(g);
+  std::map<std::string, NetOutputState> state;
+
+  setNetNodeBug(injectBug ? 1 : 0);
+  endNetDeviceFrame();
+  cookNetOutputNodes(g, state);                    // frame 1: rising edge → emit
+  const size_t frame1 = netDeviceBus().out.size();
+  endNetDeviceFrame();
+  cookNetOutputNodes(g, state);                    // frame 2: held, no new edge → NO emit
+  const size_t frame2 = netDeviceBus().out.size();
+  endNetDeviceFrame();
+  setNetNodeBug(0);
+  expect("UDPOutput emits on the rising edge (frame1 == 1)", frame1 == 1);
+  expect("UDPOutput does NOT re-emit while held (frame2 == 0; bug level-fires → RED)", frame2 == 0);
+  return g_fail == 0;
+}
+
+// ── DMXOutput send: Connect held → send EVERY frame (continuous serial DMX — refresh family) ─────────
+// The old leg only sampled the FIRST frame, so its own header claim ("streams every frame") was never
+// asserted — the 2026-07-06 audit caught the code edge-gating DMX while this comment said otherwise.
+// Now: Connect held across 2 frames → both emit; injectBug mode 1 (swap → edge) silences frame 2 → RED.
 bool goldenDmxOutputConnect(bool injectBug) {
-  // Connect false → no emit (the gate). injectBug is not the tell; the Connect gate is the fixed rail.
+  // Connect false → no emit (the gate rail, bug-invariant).
   SymbolLibrary offLib = makeLib("DMXOutput", {{"Connect", 0.0f}});
   ResidentEvalGraph gOff = buildEvalGraph(offLib, offLib.rootId);
   initResidentCache(gOff);
@@ -201,17 +241,22 @@ bool goldenDmxOutputConnect(bool injectBug) {
   endNetDeviceFrame();
   expect("DMXOutput NOT connected → no emit (Connect gate)", offCount == 0);
 
-  // Connect true → emits on the rising edge (Connect held-true from-false is a rising edge → 1 emit).
+  // Connect held → streams both frames (refresh family).
   SymbolLibrary onLib = makeLib("DMXOutput", {{"Connect", 1.0f}});
   ResidentEvalGraph gOn = buildEvalGraph(onLib, onLib.rootId);
   initResidentCache(gOn);
   std::map<std::string, NetOutputState> st1;
+  setNetNodeBug(injectBug ? 1 : 0);
   endNetDeviceFrame();
   cookNetOutputNodes(gOn, st1);
-  const size_t onCount = netDeviceBus().out.size();
+  const size_t frame1 = netDeviceBus().out.size();
   endNetDeviceFrame();
-  expect("DMXOutput connected → emits a frame", onCount == 1);
-  (void)injectBug;
+  cookNetOutputNodes(gOn, st1);
+  const size_t frame2 = netDeviceBus().out.size();
+  endNetDeviceFrame();
+  setNetNodeBug(0);
+  expect("DMXOutput connected → emits a frame", frame1 == 1);
+  expect("DMXOutput KEEPS streaming while connected (frame2 == 1; bug edge-gates → RED)", frame2 == 1);
   return g_fail == 0;
 }
 
@@ -224,8 +269,9 @@ int runNetNodeSelfTest(bool injectBug) {
   goldenUdpKindReject(injectBug);
   goldenArtnetInputUniverse(injectBug);
   goldenSacnInputUniverse(injectBug);
-  goldenArtnetOutputEdge(injectBug);
-  goldenSacnOutputEdge(injectBug);
+  goldenArtnetOutputStream(injectBug);
+  goldenSacnOutputStream(injectBug);
+  goldenUdpOutputEdge(injectBug);
   goldenDmxOutputConnect(injectBug);
   printf("[selftest] net-nodes %s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
   return g_fail ? 1 : 0;

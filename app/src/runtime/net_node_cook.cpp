@@ -112,15 +112,23 @@ void cookNetInputNodes(ResidentEvalGraph& g) {
 }
 
 // ── Output nodes ─────────────────────────────────────────────────────────────────────────────────
-// Send-edge gate (shared by every *Output). SendContinuously-style nodes (UDP/TCP/Serial with
-// SendOnChange, Artnet/Sacn/DMX with a send enable) fire every frame the enable holds; the manual
-// SendTrigger fires only on the rising edge. TEETH mode 1 drops the edge (fires while held → RED).
+// Send gate, TWO families (2026-07-06 拍板, 照 TiXL — the old code edge-gated everything while this
+// very comment claimed otherwise; comment and code now agree):
+//   • EVENT senders (UDP/TCP/WS/Serial manual SendTrigger): fire on the RISING EDGE only — they send
+//     discrete messages.
+//   • REFRESH senders (Artnet/Sacn/DMX/WLED — the lighting family): fire EVERY frame the enable/Connect
+//     holds. TiXL ArtnetOutput.cs:123-128 StartSenderThread streams continuously while SendTrigger is
+//     high (level semantics); DMXOutput sends every frame while connected. The protocols demand it:
+//     E1.31 receivers treat ~2.5s of silence as source loss, Art-Net nodes time out to fallback — and
+//     an edge-only marker could never animate values while held (lights that follow music need the
+//     per-frame refresh).
+// TEETH mode 1 SWAPS the two semantics (event→level, refresh→edge) so BOTH families' goldens redden.
 namespace {
-bool sendConditionEdge(bool enableNow, NetOutputState& st) {
+bool sendGate(bool enableNow, bool refreshDomain, NetOutputState& st) {
   const bool rising = enableNow && !st.triggered;   // rising edge
   st.triggered = enableNow;
-  if (g_netNodeBug == 1) return enableNow;           // edge dropped → level-fire
-  return rising;
+  if (g_netNodeBug == 1) return refreshDomain ? rising : enableNow;  // swapped semantics → RED
+  return refreshDomain ? enableNow : rising;
 }
 }  // namespace
 
@@ -152,7 +160,8 @@ void cookNetOutputNodes(ResidentEvalGraph& g, std::map<std::string, NetOutputSta
     else if (isArt || isSacn)    enable = P["SendTrigger"] > 0.5f;
     else if (isDmx || isWled)    enable = P["Connect"] > 0.5f;
 
-    const bool doSend = sendConditionEdge(enable, st);
+    const bool refreshDomain = isArt || isSacn || isDmx || isWled;  // lighting refresh family
+    const bool doSend = sendGate(enable, refreshDomain, st);
     if (!doSend) { rn.extOut[0] = 0.0f; continue; }
 
     // A send fired this frame: push a marker onto the net-out bus (the app drains it; the real DMX wire

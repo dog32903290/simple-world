@@ -136,13 +136,16 @@ frame_cook_triggeranim_selftest.cpp | 帶病(錨假×1)→✅已修 | TriggerAni
   sweep NO-BITE 爆 19 顆=自傷非真死牙），已精準回填並以 targeted+全 sweep 復驗。**那 19 顆牙本來就是活的**
   （Tier 0 種毒可證）；家族真正的病只有注入點失蹤時的遮蔽極性。
 
-## 拍板項（柏為的桌）
+## 拍板項 → 已裁定（柏為 07-06 委任：「選對我有利的」）
 
-- **Artnet/Sacn 輸出 held 語義**（selftests_net_nodes.cpp:147-186 + net_node_cook.cpp:115-117）：TiXL 是
-  level-enable 連續串流（ArtnetOutput.cs:123-128 rising 起背景執行緒、held 期間持續發）；sw cook 是
-  rising-edge 單 marker，且 runtime 註釋與 code 自相矛盾，golden 還把「held 不重發」釘進閘。兩路：
-  ①明定 bus marker=start/stop 轉換事件、app 端養 streamer（改兩處註釋+golden 措辭）；②照 TiXL 改
-  level 語義（bus 每 frame 發）。涉及 io bus 架構方向，不擅自動。
+- **Artnet/Sacn/DMX/WLED 輸出 held 語義 → 照 TiXL 走 level-streaming（已修，同日落地）**。
+  裁定理由（物理優先於律法）：燈光協定是刷新制——E1.31 收端 ~2.5s 無封包判 source loss、Art-Net
+  節點 timeout 回黑場；且 edge-only 下 enable 著改值送不出去=「燈跟音樂動」直接壞。設計落地：
+  send gate 分兩家——EVENT senders（UDP/TCP/WS/Serial 手動 trigger）維持 rising-edge（離散訊息不
+  該連發）；REFRESH senders（Artnet/Sacn/DMX/WLED）enable/Connect held 就每 frame 發 marker（app
+  drain 層轉真送）。牙=injectBug mode 1 把兩家語義互換（event→level、refresh→edge），兩家 golden
+  同時咬（net-nodes -bug 6 處齊紅親驗）。net_node_cook.cpp 註釋與 code 從此一致；DMX golden 原本
+  「檔頭宣稱每 frame、斷言只驗第一格」的脫鉤也一併封死；補 UDPOutput edge counter-golden。
 
 ## 剩餘工作項（記帳不擋路）
 
