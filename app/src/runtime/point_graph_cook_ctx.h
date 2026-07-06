@@ -209,6 +209,18 @@ struct CmdCookCtx {
   float refCamNear = 0.01f;
   float refCamFar = 1000.0f;
   float refCamAspect = 0.0f;  // <=0 → executor output aspect (Camera.cs:53-55 fallback)
+  // PBR CONTEXT-STACK bridge (sw_pbr_scope.h → CmdCookCtx): the cook driver consults the live
+  // SetMaterial/SetPointLight/SetFog scope at this cc-fill and surfaces its resolved currency so a
+  // DrawMeshPbr cooked inside the scope stamps the lit item's material/lights/fog. Empty (defaults) when
+  // no scope op is in scope → the mesh renders with the TiXL fresh-context defaults. POPULATED ON BOTH
+  // cook legs identically (the S2c flat-resident mirror gate — resident is production). The op reads
+  // these (NOT the thread_local scope directly) so the resident/flat drivers are the single fill site.
+  bool pbrHasMaterial = false;
+  SwPbrParameters pbrMaterial;          // the live SetMaterial/UseMaterial params (b4)
+  bool pbrHasFog = false;               // false → DrawMeshPbr's item uses the ambient fog default
+  SwFogParameters pbrFog;               // the live SetFog params (b2)
+  int pbrLightCount = 0;                // # live point lights (clamped by the op to kMaxPbrLights)
+  SwPointLight pbrLights[8];            // the live SetPointLight stack (b3 Lights[]) — up to 8
 };
 // A command operator: read the upstream point bag (+ Float params) → return a RenderCommand.
 using PointCmdFn = RenderCommand (*)(CmdCookCtx&);

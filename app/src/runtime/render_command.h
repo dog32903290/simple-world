@@ -21,6 +21,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include "runtime/mesh_pbr_item.h"  // MeshPbrItem (the DrawKind::MeshPbr per-item material/lights/fog payload)
 
 namespace MTL {
 class Buffer;
@@ -63,6 +64,8 @@ enum class DrawKind : uint32_t {
                    // of the currently-bound shader, no point/mesh/texture buffer. The Draw leaf emits this item
                    // carrying explicitVertexCount/explicitBaseVertex + the stamped frozen.topology. The ONLY kind
                    // whose primitive comes from the IA-stamped topology, not a per-kind constant (draw_explicit.cpp).
+  MeshPbr = 10,    // mesh_draw_pbr_vs/_fs: the LIT mesh (TiXL DrawMesh → mesh-Draw.hlsl). Like Mesh but reads
+                   // the scoped material/lights/fog (RenderDrawItem::pbr, mesh_pbr_item.h). Depth-tested (dsMesh).
 };
 
 // Per-item blend equation (TiXL SharedEnums.BlendModes, factors from Core/Rendering/
@@ -229,6 +232,10 @@ struct RenderDrawItem {
   const MTL::Buffer* meshVtx = nullptr;   // borrowed SwVertex buffer (t0 PbrVertices)
   const MTL::Buffer* meshIdx = nullptr;   // borrowed SwTriIndex buffer (t1 FaceIndices)
   uint32_t meshIndexCount = 0;            // FACE count; vertexCount = meshIndexCount*3 (TiXL MultiplyInt ×3)
+  // ── DrawKind::MeshPbr (TiXL DrawMesh → mesh-Draw.hlsl) ── scoped material/lights/fog, by value (payload
+  // in mesh_pbr_item.h). hasPbr=false → a plain unlit Mesh (pbr unread). Read only by DrawKind::MeshPbr.
+  bool hasPbr = false;
+  MeshPbrItem pbr;
   // ── DrawKind::Points2 (TiXL DrawPoints2 → DrawPoints.hlsl Radius variant) ──────────────────────
   // useWForSize: TiXL UseWForSize (.t3 default true) — true → per-Point W (FX1) scales each sprite (shader
   // ScaleFX==1). DrawPoints2 uses `size` = Radius*10.8. Read ONLY by DrawKind::Points2; Billboards reads
@@ -368,16 +375,11 @@ bool& loopBugCookOnceForTest();
 bool& loopBugReuseFirstForTest();
 
 // ─────────────────── S3c ExecRepeatedly: re-cook the MultiInput wires `count` times ───────────────────
-// The Loop SIBLING with no var injection (TiXL ExecRepeatedly.cs:34-53): it cooks the COLLECTED Command
-// wires (MultiInput, wire order) `repeatCount` times, concatenating every repetition's items. Unlike Loop
-// it writes NO index/progress context-var (the subtree just re-executes for its side-effects N times) and
-// it is MultiInput (Loop is a single SubGraph). repeatCount is clamped [0,100] (ExecRepeatedly.cs:24) — the
-// driver clamps before calling. execRepeatedlyRunRepetitions() is the SINGLE re-cook mechanism BOTH the flat
-// (point_graph.cpp) and resident (point_graph_resident.cpp) collectors call so the loop can NEVER fork (the
-// S2c/S3a blood lesson: a resident-only miss → production executes the subtree once instead of N times). The
-// leg supplies `cookAllWiresOnce`: a callback that FRESH-cooks every wired Command source in wire order and
-// returns their concatenated items (the leg knows how to reach the wires; the helper owns the repeat+concat).
-// count<=0 → empty (ExecRepeatedly.cs:25 `if repeatCount<=0 return`).
+// The Loop SIBLING with no var injection (TiXL ExecRepeatedly.cs:34-53): cooks the COLLECTED Command wires
+// (MultiInput, wire order) `repeatCount` times, concatenating every repetition. No index/progress var (the
+// subtree re-executes for its side-effects). repeatCount clamped [0,100] (ExecRepeatedly.cs:24; driver clamps).
+// execRepeatedlyRunRepetitions() = the SINGLE re-cook mechanism BOTH legs call so it can NEVER fork (S2c/S3a
+// lesson). The leg supplies `cookAllWiresOnce` (fresh-cook every wired source, wire order). count<=0 → empty.
 void execRepeatedlyRunRepetitions(int count, RenderCommand& out,
                                   const std::function<RenderCommand()>& cookAllWiresOnce);
 
@@ -387,13 +389,10 @@ void execRepeatedlyRunRepetitions(int count, RenderCommand& out,
 // Defined in point_ops_execrepeatedly.cpp.
 bool& execRepeatedlyBugRunOnceForTest();
 
-// DrawPoints (v1) -bug DRIVER flag (the parity-gate regression latch): when true, cookDrawPoints
-// reverts to emitting the DEGENERATE DrawKind::Points 4px dead point (the pre-fix deviation: no
-// PointSize response, no Color tint) instead of the faithful DrawKind::Points2 quad sprite. So
-// --selftest-drawpoints-parity's -bug leg re-introduces the deviation → the PointSize + tint teeth go
-// RED. OFF in production (zero behaviour change — the cook always emits the faithful Points2 sprite).
-// A CPU DRIVER flag, NOT a shader bug-branch (constitution rule); read by cookDrawPoints. Defined in
-// point_ops.cpp.
+// DrawPoints (v1) -bug DRIVER flag (the parity-gate regression latch): when true, cookDrawPoints reverts to
+// the DEGENERATE DrawKind::Points 4px dead point (no PointSize/tint) instead of the faithful Points2 sprite.
+// --selftest-drawpoints-parity's -bug leg re-introduces the deviation → PointSize + tint teeth RED. OFF in
+// production. A CPU DRIVER flag, NOT a shader bug-branch (constitution); read by cookDrawPoints (point_ops.cpp).
 bool& drawPointsBugForceV1ForTest();
 
 }  // namespace sw

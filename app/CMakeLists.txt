@@ -487,6 +487,10 @@ add_executable(simple_world
   src/runtime/mesh_ops_blendmeshvertices.cpp
   src/runtime/mesh_ops_pickmeshbuffer.cpp
   src/runtime/mesh_ops_loadobj.cpp
+  src/runtime/mesh_ops_loadgltf.cpp
+  src/runtime/sw_pbr_scope.cpp
+  src/runtime/mesh_pbr_fill.cpp
+  src/runtime/pbr_shading_golden.cpp
   src/runtime/delaunay_core.cpp
   src/runtime/mesh_ops_delaunaymesh.cpp
   src/mesh_golden.cpp
@@ -728,6 +732,7 @@ add_executable(simple_world
   src/runtime/node_registry_draw_gizmo.cpp  # gizmo family specs (VisibleGizmos — camera-B parallel-lane peel)
   src/runtime/node_registry_draw_shading.cpp  # render.shading Command-scope PBR specs (SetMaterial/SetPointLight/SetFog — value-slice node hang)
   src/runtime/node_registry_draw_iovideo.cpp  # io.video/io.ptz Texture2D source specs (PlayVideo/PlayVideoClip/VideoDeviceInput/ViscaCamera/OnvifCamera — device-leg node hang)
+  src/runtime/node_registry_draw_shading.cpp  # render.shading PBR family specs (SetMaterial/…/DrawMeshPbr — parallel-lane peel)
   src/runtime/node_registry_draw_transform.cpp  # render-island transform-context specs (peeled for the ratchet)
   src/runtime/node_registry_draw_renderstate.cpp  # Seam 2 render-state specs (Rasterizer/OutputMerger, peeled for the ratchet)
   ${SW_MATH_SRCS}  # globbed: math_op_registry.cpp + every per-subfamily math leaf
