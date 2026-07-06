@@ -50,10 +50,8 @@ sw::Animator::CurveArray g_curveSnapBefore;
 }  // namespace
 
 void drawInspector() {
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - 320.0f, vp->WorkPos.y + 24.0f),
-                          ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(300.0f, 180.0f), ImGuiCond_FirstUseEver);
+  // Docked by ui/layout_dock (default = top-right column). No manual SetNextWindowPos/Size —
+  // DockBuilder owns first placement so main-window resize re-flows it (柏為 drags it freely).
   ImGui::Begin("Inspector");
   sw::Symbol* cur = sw::doc::currentSymbol();
   sw::SymbolChild* sel = cur ? sw::childById(*cur, g_selectedNode) : nullptr;

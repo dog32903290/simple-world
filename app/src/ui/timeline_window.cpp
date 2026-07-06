@@ -160,10 +160,8 @@ void drawContextMenu(tl::State& s, const Symbol& sym) {
 }  // namespace
 
 void drawTimelineWindow() {
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + 20.0f, vp->WorkPos.y + vp->WorkSize.y - 240.0f),
-                          ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(640.0f, 220.0f), ImGuiCond_FirstUseEver);
+  // Docked by ui/layout_dock (default = bottom strip). No manual SetNextWindowPos/Size —
+  // DockBuilder owns first placement so main-window resize re-flows it (柏為 drags it freely).
   ImGui::Begin("Timeline");
 
   sw::Symbol* sym = sw::doc::currentSymbol();

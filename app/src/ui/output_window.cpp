@@ -67,13 +67,8 @@ void drawOutputWindow() {
   // toolbar reads them (this frame shows the restored pin/res/bg). Capture mirror at end of function.
   restoreOutputWindowStateIfPending(g_pinnedNode, g_selectedResIndex, g_viewBackground);
 
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  // Default spot: lower-right, clear of the toolbar (top-left), the Inspector (top-right)
-  // and the default graph's nodes. 柏為 drags it wherever he wants — it's his viewport.
-  ImGui::SetNextWindowSize(ImVec2(380.0f, 420.0f), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - 404.0f,
-                                 vp->WorkPos.y + vp->WorkSize.y - 444.0f),
-                          ImGuiCond_FirstUseEver);
+  // Docked by ui/layout_dock (default = first tab of the lower-right stack). No manual
+  // SetNextWindowPos/Size — DockBuilder owns first placement so resize re-flows it (柏為 drags freely).
   ImGui::Begin("Output");
 
   // Drop a stale pin (the pinned node was deleted) -> resume following selection.

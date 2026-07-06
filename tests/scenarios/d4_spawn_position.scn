@@ -11,7 +11,11 @@
 # Default project: nextChildId=104 (root has children 1,2,6,7,8).
 
 # --- node A: toolbar "Add Node" → fixed (120,120) ---
-do click 242 48
+# COORD (dock drift): the Toolbar is now docked as the top strip (ui/layout_dock); "Add Node" sits at
+# imgui center (221,32) — deterministic (proven by --selftest-dock-layout). The eye marker is "Add
+# Node" but @-resolution word-splits on the space, so this stays a hard coord. If the top-split ratio
+# in ui/layout_dock.cpp (柏為可調) changes, re-read the map and update this y.
+do click 221 32
 wait 0.5
 assert_map_has menu:RadialPoints
 do click @menu:RadialPoints

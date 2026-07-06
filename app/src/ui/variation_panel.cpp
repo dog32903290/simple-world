@@ -92,16 +92,9 @@ bool& variationPanelVisible() {
 
 void drawVariationPanel() {
   if (!variationPanelVisible()) return;  // closed: the canvas underneath keeps every click
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  // RIGHT-edge column (bottom), NOT over the canvas. The old bottom-LEFT default (+16, bottom-376)
-  // overlapped the graph's left/lower nodes (compound_smoke node:5 at canvas 400,480; node:1/2's
-  // column) — and an always-open panel there ate canvas clicks/right-clicks on those nodes, killing
-  // coordinate hit-test. TiXL docks tool windows at the screen edge clear of the graph; we stack on
-  // the right under the Asset Library (which sits y+216, h≈280). 柏為 drags it wherever he wants.
-  ImGui::SetNextWindowSize(ImVec2(360.0f, 360.0f), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowPos(
-      ImVec2(vp->WorkPos.x + vp->WorkSize.x - 376.0f, vp->WorkPos.y + 508.0f),
-      ImGuiCond_FirstUseEver);
+  // Docked by ui/layout_dock (default = tab in the lower-right stack) — clear of the graph so it no
+  // longer eats canvas clicks (the reason the old floating default was pinned to the screen edge).
+  // No manual SetNextWindowPos/Size — DockBuilder owns first placement so resize re-flows it.
   ImGui::Begin("Variation");
 
   // The selected slot persists across frames (the Grab/Activate/Delete + crossfade pickers act on it).

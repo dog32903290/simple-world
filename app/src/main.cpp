@@ -54,6 +54,7 @@
 #include "ui/connection_ops.h"  // mountConnectionVerbs (connect/disconnect hand verbs)
 #include "ui/graph_dump.h"       // mountGraphDump (eye req_graph -> graph.json of current compound)
 #include "ui/editor_ui.h"
+#include "ui/layout_dock.h"    // programmatic default dock layout (TiXL Layouts, ini-free)
 #include "ui/fence_preview.h"  // fenceLastCoveredJson (eye state surface for the live .scn)
 #include "ui/output_window.h"
 #include "ui/render_window.h"   // Render-to-file settings window (drawRenderWindow + export state hook)
@@ -541,6 +542,15 @@ void Renderer::draw(MTK::View* pView) {
   if (g_playerMode) {
     drawFullscreenRender(/*behindCanvas=*/false);
   } else {
+    // Dock host: tool windows dock into a proportional tree; the node canvas sits on the passthru
+    // central node底板 (TiXL Layouts). ensureDockLayout builds the default tree once (must run
+    // BEFORE the dockspace node is submitted — imgui DockBuilder requirement). PassthruCentralNode
+    // makes the central node background transparent + input-transparent so right-click/pan/zoom on
+    // the canvas underneath still work (spike-verified). Editor mode only — player mode fills the
+    // whole window with the live render, no chrome (see the if-branch above).
+    sw::ui::ensureDockLayout(ImGui::GetMainViewport());
+    ImGui::DockSpaceOverViewport(sw::ui::dockspaceId(), ImGui::GetMainViewport(),
+                                 ImGuiDockNodeFlags_PassthruCentralNode);
     // Focus mode draws the render fullscreen BEHIND the (still-interactive) canvas first, so the
     // canvas + nodes float over the live output (TiXL FocusMode GraphImageBackground). Plain editor
     // mode skips this entirely → present path unchanged.

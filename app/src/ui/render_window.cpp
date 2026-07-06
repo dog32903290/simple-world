@@ -181,9 +181,8 @@ void drawRenderWindow() {
 
   if (!g_st.visible) return;
 
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + 460.0f, vp->WorkPos.y + 12.0f), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(360.0f, 0.0f), ImGuiCond_FirstUseEver);
+  // Docked by ui/layout_dock (default = tab in the lower-right stack). No manual SetNextWindowPos/
+  // Size — DockBuilder owns first placement so resize re-flows it (柏為 drags it freely).
   if (!ImGui::Begin("Render", &g_st.visible)) { ImGui::End(); return; }
 
   const bool exporting = g_st.session.active();

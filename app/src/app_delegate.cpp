@@ -119,6 +119,11 @@ void AppDelegate::applicationDidFinishLaunching(NS::Notification* pNotification)
     // (drawNodeCanvas) is ImGuiWindowFlags_NoMove so this flag doesn't affect it.
     // = imgui ConfigWindowsMoveFromTitleBarOnly (bool, default false).
     io.ConfigWindowsMoveFromTitleBarOnly = true;
+    // Docking: tool windows dock into a proportional tree that ImGui re-flows on resize (TiXL
+    // Layouts). Node canvas sits on the passthru central node (see main.cpp DockSpaceOverViewport +
+    // ui/layout_dock). NOT ViewportsEnable — imgui-node-editor doesn't support multi-OS-window
+    // viewports, and multi-viewport would break the single-window eye/hand readback geometry.
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   }
   ImGui::StyleColorsDark();
   sw::ui::theme::apply();  // faithful TiXL default theme over the ImGui style (= T3Style.Apply; ui zone)

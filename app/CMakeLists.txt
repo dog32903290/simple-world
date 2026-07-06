@@ -281,6 +281,8 @@ add_executable(simple_world
   src/ui/editor_ui_grid.cpp         # canvas background grid (split from editor_ui.cpp)
   src/ui/editor_ui_canvas_edit.cpp  # keyboard + delete macro (split from editor_ui.cpp)
   src/ui/editor_ui_layout.cpp       # canvas position sync + drag (split from editor_ui.cpp)
+  src/ui/layout_dock.cpp            # programmatic default dock layout (TiXL Layouts, ini-free; partition table)
+  src/ui/layout_dock_selftest.cpp   # dock-layout determinism + table-conformance tooth (--selftest-dock-layout)
   src/ui/toolbar.cpp
   src/ui/render_window.cpp          # export: Render-to-file settings window (port of TiXL RenderWindow; drives ExportSession per frame)
   src/ui/view_menu_register.cpp  # UI side of the native View-menu seam (registers toggles at startup)

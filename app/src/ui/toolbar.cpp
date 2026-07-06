@@ -73,10 +73,8 @@ void drawToolbar() {
   // semantically identical for tap-BPM: both are process-lifetime wall seconds).
   sw::runtime::beatTimingUpdate(ImGui::GetTime());
 
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + 12.0f, vp->WorkPos.y + 12.0f),
-                          ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(440.0f, 0.0f), ImGuiCond_FirstUseEver);
+  // Docked by ui/layout_dock (default = top strip); 柏為 drags it wherever he wants. No manual
+  // SetNextWindowPos/Size — DockBuilder owns first placement so main-window resize re-flows it.
   ImGui::Begin("Toolbar");
   if (ImGui::Button("New")) sw::doc::doNew();
   sw::eye::recordItem("New");  // eye③: hand off this widget's screen rect

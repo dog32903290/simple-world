@@ -85,10 +85,8 @@ void drawThemeEditor() {
   if (!themeEditorVisible()) return;
   ensureInitialized();
 
-  const ImGuiViewport* vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowSize(ImVec2(360.0f, 520.0f), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - 376.0f, vp->WorkPos.y + 48.0f),
-                          ImGuiCond_FirstUseEver);
+  // Docked by ui/layout_dock (default = tab in the lower-right stack). No manual SetNextWindowPos/
+  // Size — DockBuilder owns first placement so resize re-flows it (柏為 drags it freely).
   ImGui::Begin("Color Theme");
 
   auto& reg = sw::theme::registry();
