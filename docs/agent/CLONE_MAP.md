@@ -1,5 +1,18 @@
 # CLONE_MAP — TiXL 克隆真實地圖(2026-07-04 census 修準 + 三縫對 code 驗證)
 
+> **★★★收尾梯終帳 2026-07-06 18:00(七路+接線,柏為令「7 真剩+外部依賴決策+中文字破例」)**:
+> **總 608/749(81%)/ 原子 443/451(98.2%,todo 剩 8)/ sweep 689/0/0。**
+> 收:VideoStreamInput(OpenCV videoio)/**AbletonLink 動態連結**(GPL 邊界關閉,主執行檔零 ableton 符號、
+> 4243 GPL 符號隔離進 libsw_link.dylib,照 TiXL DLL 模型;柏為裁動態連結)/**TextToPoints=中文字→字形
+> 輪廓點雲**(CoreText,TiXL-absent 破例第一顆,真「口」4 輪廓,MV 承重)/SpatialAudioPlayer+PlaybackFFT/
+> **SwDataSet 縫**+4(SimulateIoData/MidiRecording/LoadDataClip 核心 golden+MidiClip 端到端 SMF→Dict;
+> 3 顆 cook 待 DataClip/DataSet wire-currency 縫)/TBB rc=134 根治(cherry-pick chip 的 main.cpp std::_Exit,
+> ASan build exit code 免疫 TBB atexit,見 memory [[opencv-tbb-asan-teardown-crash]] [[selftest-exit-immune-tbb-atexit-segv-2026-07-06]])。
+> **原子 todo 剩 8 全定性完**:4 確定不做(ArtnetPixelOutput obsolete/SwiftCamDevice=Win 廠商 SDK 柏為拍板/
+> GetObjectVar+SetObjectVar=TiXL 全樹零使用)+ 2 假 todo(CameraCalibrator/Video2DPointScanner=OpenCV 核心
+> 已 golden 欠 NodeSpec 皮,lane/cv-nodes 補中)+ 2 資產/取代(LineTextPoints=已被 TextToPoints 破例路線取代
+> 中文需求/TextSprites=等 bitmap font 資產)。**可做的原子實質全清,剩複合重放軌(165/298)為主戰場。**
+
 > **★★大縫戰役終帳 2026-07-06 12:00(第六梯七路收攏,柏為令「四大縫+外部依賴+PARTIAL 全清」)**:
 > **總 601/749(80%)/ 原子 436/451(96.7%)/ 複合 165/298 / sweep 682/0/0。**
 > **四大縫全倒**:①DataSet-timeline(ClipTimeData 資料模型+importer+LiveTimeRemapScope 兩腿;TimeClip DONE)
