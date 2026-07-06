@@ -574,10 +574,10 @@ void cookRenderTarget(TexCookCtx& c) {
   if (depthTex) depthTex->release();
 }
 
-// Resolution enum (Float param + Widget::Enum): WindowFollow tracks `windowSize`; the
-// fixed modes ignore it and pin a standard output size; Custom reads CustomW/H. The map
-// overload is the core (flat AND resident drivers pass their resolved params); the Node*
-// overload wraps it (a node's stored params ARE a map) for flat callers/selftests.
+// Resolution enum (Float param + Widget::Enum): WindowFollow tracks `windowSize`; the fixed modes
+// ignore it and pin a standard output size; Custom reads CustomW/H (clamped [1,8192] per PortSpec,
+// node_registry_draw_render.cpp — jog overshoot else becomes GPU texture alloc size). Map overload is
+// the core (flat+resident drivers pass resolved params); Node* wraps it (params ARE a map) for flat/selftests.
 RenderResolution resolveRenderResolution(const std::map<std::string, float>& params,
                                          RenderResolution windowSize) {
   int mode = (int)std::lround(paramOr(params, "Resolution", 0.0f));
@@ -586,8 +586,8 @@ RenderResolution resolveRenderResolution(const std::map<std::string, float>& par
     case 2: return {1920, 1080};   // HD1080
     case 3: return {3840, 2160};   // UHD4K
     case 4: {                      // Custom
-      uint32_t w = (uint32_t)std::lround(std::fmax(1.0f, paramOr(params, "CustomW", 512.0f)));
-      uint32_t h = (uint32_t)std::lround(std::fmax(1.0f, paramOr(params, "CustomH", 512.0f)));
+      uint32_t w = (uint32_t)std::lround(std::fmin(8192.0f, std::fmax(1.0f, paramOr(params, "CustomW", 512.0f))));
+      uint32_t h = (uint32_t)std::lround(std::fmin(8192.0f, std::fmax(1.0f, paramOr(params, "CustomH", 512.0f))));
       return {w, h};
     }
     default: return windowSize;    // WindowFollow (0)

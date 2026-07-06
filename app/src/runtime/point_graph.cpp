@@ -1,5 +1,6 @@
 #include "runtime/point_graph.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstring>
@@ -339,6 +340,9 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
     for (const PortSpec& port : s->ports)
       if (port.isInput && port.dataType == "Float" && port.id == "Count") {
         float v = mapParam(params, "Count", port.def);
+        // clamp to PortSpec declared max (node_registry_generators.cpp Count=8192) — jog lets
+        // non-clamp params drag past max; unclamped here becomes the ensureOut GPU buffer alloc size.
+        v = std::min(v, 8192.0f);
         count = v > 0.0f ? (uint32_t)(v + 0.5f) : 0u;
         break;
       }

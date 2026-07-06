@@ -32,6 +32,7 @@
 #include "runtime/render_command.h"  // RenderCommand / RenderDrawItem / DrawKind::Explicit
 #include "runtime/point_graph.h"     // CmdCookCtx, registerCmdOp, cookParam
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -50,7 +51,9 @@ RenderCommand cookDrawExplicit(CmdCookCtx& c) {
   // sw clamps defensively — a 0-vertex Explicit item the executor simply skips).
   int vc = (int)std::lround(cookParam(c, "VertexCount", 3.0f));
   int vs = (int)std::lround(cookParam(c, "VertexStartLocation", 0.0f));
-  it.explicitVertexCount = vc > 0 ? (uint32_t)vc : 0u;
+  // clamp to PortSpec max 100000 (node_registry_draw_renderstate.cpp Draw.VertexCount) — jog lets
+  // non-clamp params drag past declared max; unclamped feeds drawPrimitives vertexCount directly.
+  it.explicitVertexCount = vc > 0 ? std::min((uint32_t)vc, 100000u) : 0u;
   it.explicitBaseVertex = vs > 0 ? (uint32_t)vs : 0u;
   it.count = it.explicitVertexCount;  // mirror onto the generic count (introspection / debug parity)
   rc.items.push_back(it);

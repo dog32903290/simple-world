@@ -23,6 +23,8 @@
 // priority: (1) a wired Buffer input's elementCount (the view-rail collapse, the production path), else
 // (2) the "Count" Float param (a host-fed stand-in, kept for a direct golden). Stride from the "Stride"
 // param (=64 for a Point buffer, set as an InputValue in the .t3).
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <vector>
 
@@ -36,7 +38,10 @@ namespace {
 void cookStructuredBufferWithViews(BufferCookCtx& c) {
   if (!c.output || !c.requestBytes) return;
 
-  const uint32_t stride = (uint32_t)(bufferParam(c.params, "Stride", 64.0f) + 0.5f);
+  // clamp Stride to PortSpec [0,4096] (:72 below) — jog lets non-clamp params drag past declared
+  // max; unclamped Stride*Count feeds a uint32 multiply that can wrap (undersized alloc, UAV OOB write).
+  uint32_t stride = (uint32_t)(bufferParam(c.params, "Stride", 64.0f) + 0.5f);
+  stride = std::min(stride, 4096u);
 
   // Count: a wired Buffer input's elementCount (the .t3's GetSRVProperties.ElementCount rail, collapsed
   // to the input Point buffer's view metadata); else the host-fed CountValue param (a direct-golden
@@ -47,9 +52,14 @@ void cookStructuredBufferWithViews(BufferCookCtx& c) {
     if (in && in->bytes) count = in->elementCount;
   }
   if (count == 0) count = (uint32_t)(bufferParam(c.params, "CountValue", 0.0f) + 0.5f);
+  // clamp CountValue to PortSpec [0,1048576] (:73 below) — same jog-overshoot guard as Stride.
+  count = std::min(count, 1048576u);
 
-  const uint32_t byteSize = stride * count;
-  if (byteSize == 0) return;  // .cs:23-27 sizeInBytes<=0 → null buffer (output stays default-invalid)
+  // compute in uint64 (4096*1048576 == 2^32 — a uint32 product at the individual clamps still
+  // wraps to 0) then re-check against uint32 range before the requestBytes(uint32_t) call.
+  const uint64_t byteSize64 = (uint64_t)stride * (uint64_t)count;
+  if (byteSize64 == 0 || byteSize64 > 0xFFFFFFFFull) return;  // .cs:23-27 sizeInBytes<=0 → null buffer
+  const uint32_t byteSize = (uint32_t)byteSize64;
 
   void* dst = c.requestBytes(byteSize);  // driver allocs a StorageModeShared buffer + sets output->bytes
   if (!dst) return;

@@ -282,7 +282,10 @@ RenderCommand PointGraph::Impl::cookFlatCommand(
           int subId = -1;
           for (const Connection& c : g.connections)
             if (c.toPin == pinId(id, (int)i)) { subId = pinNode(c.fromPin); break; }  // single-input source
-          const int count = (int)mapParam(nodeParams(id), "Count", 0.0f);
+          int count = (int)mapParam(nodeParams(id), "Count", 0.0f);
+          // clamp to PortSpec [0,1000] (node_registry_draw_flow.cpp Loop.Count) — jog lets non-clamp
+          // params drag past declared max; unclamped here re-cooks the wired subgraph N times per frame (hang).
+          count = count < 0 ? 0 : (count > 1000 ? 1000 : count);
           std::string iVar, pVar;
           if (auto it = n->strParams.find("IndexVariable"); it != n->strParams.end()) iVar = it->second;
           if (auto it = n->strParams.find("ProgressVariable"); it != n->strParams.end()) pVar = it->second;

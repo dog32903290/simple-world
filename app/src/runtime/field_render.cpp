@@ -1,6 +1,7 @@
 // runtime/field_render — see field_render.h. The GPU-dispatch half of the shader-graph island.
 #include "runtime/field_render.h"
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -150,7 +151,9 @@ MTL::Texture* renderField3d(MTL::Device* dev, MTL::CommandQueue* queue,
                 asmField.floatParams.size() * sizeof(float));
 
   RaymarchParamsGpu rp{};
-  rp.maxSteps = params.maxSteps; rp.stepSize = params.stepSize;
+  // clamp to PortSpec [1,512] (field_ops_raymarchfield.cpp MaxSteps) — jog lets non-clamp params
+  // drag past declared max; unclamped here is a per-pixel GPU marching-loop bound (frame freeze).
+  rp.maxSteps = std::min(params.maxSteps, 512.0f); rp.stepSize = params.stepSize;
   rp.minDistance = params.minDistance; rp.maxDistance = params.maxDistance;
   rp.fog = 1.0f; rp.distToColor = params.distToColor; rp.aoDistance = params.aoDistance;
   for (int i = 0; i < 4; ++i) {

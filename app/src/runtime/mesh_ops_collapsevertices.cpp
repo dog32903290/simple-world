@@ -23,6 +23,7 @@
 // default 1, StepCount default 4 (TiXL .t3 defaults). The gizmo TRS → ResultInverted = TransformVolume.
 #include "runtime/graph.h"  // NodeSpec, PortSpec, Widget
 
+#include <algorithm>
 #include <cmath>
 #include <map>
 #include <string>
@@ -81,7 +82,10 @@ void collapseVerticesCook(MeshCookCtx& c) {
 
   float amount = cookMeshParam(c.params, "Amount", 1.0f);
   int stepCount = (int)cookMeshParam(c.params, "StepCount", 4.0f);
-  if (stepCount < 1) stepCount = 1;
+  // clamp to PortSpec [1,16] (:169 below) — jog lets non-clamp params drag past declared max;
+  // unclamped stepCount feeds `1 << stepCount` (signed-shift UB past 31, and a huge shift silently
+  // corrupts maxS/snap math well before that).
+  stepCount = std::clamp(stepCount, 1, 16);
   float blendStep = cookMeshParam(c.params, "SmoothSteps", 1.0f);  // .cs SmoothSteps → shader BlendStep
   float strength = cookMeshParam(c.params, "Strength", 1.0f);
   float goDef[3] = {0,0,0}, gridOffset[3]; cookMeshVecN(c.params, "GridOffset", goDef, 3, gridOffset);
