@@ -62,7 +62,7 @@ set(SW_SHADER_DEPS
   src/runtime/mesh_draw_params.h src/runtime/sw_mesh.h src/runtime/meshverticestopoints_params.h
   src/runtime/pointsonmesh_params.h src/runtime/findclosestpointsonmesh_params.h
   src/runtime/samplepointattributes_params.h src/runtime/displacepoints2d_params.h src/runtime/transformwithimage_params.h
-  src/runtime/computeshaderstage_params.h
+  src/runtime/computeshaderstage_params.h src/runtime/timedisplace_params.h
   shaders/shared/noise.metal.h shaders/shared/quat.metal.h shaders/shared/hash.metal.h)
 set(SW_COMPILE_CMDS "")
 foreach(s ${SW_SHADERS})
@@ -668,6 +668,7 @@ add_executable(simple_world
   src/intlisttobuffer_golden.cpp # IntListToBuffer (FloatList list-input → tight int32 Buffer; list-currency seam, flat+resident)
   src/keeppreviousframe_golden.cpp
   src/keepintexturearray_golden.cpp  # --selftest-keepintexturearray (N-slice cross-frame ring; ReadIndex reaches authored history slice, flat+resident)
+  src/timedisplace_golden.cpp  # --selftest-timedisplace (per-pixel slice-select shader off the N-slice ring; DisplaceMap brightness → sliceOffset, flat+resident)
   src/swaptextures_golden.cpp
   src/afterglow_golden.cpp
   src/afterglow2_golden.cpp
