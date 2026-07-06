@@ -108,6 +108,12 @@ set_source_files_properties(src/platform/audio_playback.mm PROPERTIES COMPILE_OP
 # http_request.mm uses NSURLSession/NSData — no metal-cpp pointers, so ARC keeps the ObjC lifetime
 # simple (same convention as audio_capture/audio_playback).
 set_source_files_properties(src/platform/http_request.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+# video_decode.mm / video_decode_selftest.mm: AVFoundation (AVAssetReader/Writer) — ARC keeps the ObjC
+# lifetime simple (same convention as audio_playback). The metal-cpp objects they also touch (MTL::* /
+# NS::AutoreleasePool) are manual-lifetime and released explicitly in-code — ARC only governs the ObjC
+# pointers, so the two lifetime models coexist (metal-cpp is not an ObjC object under ARC's view).
+set_source_files_properties(src/platform/video_decode.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+set_source_files_properties(src/platform/video_decode_selftest.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 # audio_mixer.mm (seam/audio-mixer): per-operator AVAudioEngine mixer — same AVFoundation+ARC as playback.
 set_source_files_properties(src/platform/audio_mixer.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 # midi_loopback.mm (L5 IO lane): pure CoreMIDI C API (no ObjC objects) -> compile WITHOUT ARC, like
@@ -294,6 +300,9 @@ add_executable(simple_world
   src/platform/points_dmx.cpp        # L5 IO (dmx lane): PointsToRGBList / PointsToDmxLights closed-form value cores
   src/platform/write_to_file.cpp     # L5 IO (file lane): WriteToFile write-on-change gate + byte round-trip
   src/platform/http_request.mm       # L5 IO (http lane): synchronous NSURLSession GET (RequestUrl/LoadImageFromUrl seam)
+  src/platform/video_decode.mm       # L5 IO (video lane): AVAssetReader→CVPixelBuffer→MTL::Texture decode-by-frame (PlayVideo decode leg)
+  src/platform/video_decode_selftest.mm  # --selftest-io-video-decode: AVAssetWriter 8-frame clip → decode → per-frame color assert
+  src/io_video_decode_register.cpp   # registers --selftest-io-video-decode (impl in the .mm)
   src/platform/midi_loopback.mm
   src/platform/window_mode.mm
   src/platform/menu_appkit_ext.cpp  # tracked AppKit NSMenu extension (live check marks + menuNeedsUpdate: delegate) — replaces the gitignored vendored metal-cpp edits
@@ -942,6 +951,8 @@ target_link_libraries(simple_world PRIVATE
   "-framework Carbon"
   "-framework GameController"
   "-framework AVFoundation"
+  "-framework CoreMedia"   # video_decode: CMSampleBuffer / CMTime (AVAssetReader frame decode)
+  "-framework CoreVideo"   # video_decode: CVPixelBuffer (decoded frame → MTL::Texture upload)
   "-framework CoreAudio"
   "-framework AudioToolbox"
   "-framework CoreMIDI"
