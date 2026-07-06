@@ -71,6 +71,7 @@ REGISTER_SELFTESTS(/*orderBase=*/340,
 // ingest / SimulateIoData replay window). Own high-orderBase block so it appends at the end deterministically.
 REGISTER_SELFTESTS(/*orderBase=*/800,
     {"dataset", runDataSetSelfTest},                        // SwDataSet: parse .data JSON / record MIDI / simulate (last,current] window + TimeRangeMapping
+    {"midiclip", runMidiClipSelfTest},                      // MidiClip: minimal SMF reader (header+track+VLQ+events) → Dict<float> /channel<n>/<name>
 );
 // pbr-lighting island value currencies (data-layer): SetPointLight/SetFog/SetMaterial value slices proven
 // against the TiXL .cs. Context stacks + PBR-shader consumer are the BLOCKED render-pass seam. Own high-

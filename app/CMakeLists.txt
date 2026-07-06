@@ -583,6 +583,8 @@ add_executable(simple_world
   # SwDataSet currency seam: recorded-session value type + 3 cores (LoadDataClip/MidiRecording/SimulateIoData)
   src/runtime/dataset_ops.cpp                          # parseDataFile / recordMidiEvent / simulateClipWindow (DataSetCache/MidiDataRecording/SimulateIoData .cs)
   src/dataset_golden.cpp                               # --selftest-dataset (SwDataSet currency: parse/record/simulate cores)
+  src/runtime/midi_smf.cpp                             # minimal SMF reader + MidiClip Dict fold (MidiClip.cs)
+  src/midiclip_golden.cpp                              # --selftest-midiclip (SMF reader + Dict fold, embedded minimal .mid)
   src/tryparse_golden.cpp                              # --selftest-tryparse (String->Float/Int bridge: flat + resident)
   src/valuetorate_golden.cpp                           # --selftest-valuetorate (ValueToRate rate quantizer bridge: flat + resident)
   src/pickcolorfromimage_golden.cpp                    # --selftest-pickcolorfromimage (Texture2D -> host vec4 eyedropper, production pass)
