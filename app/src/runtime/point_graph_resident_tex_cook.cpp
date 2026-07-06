@@ -140,6 +140,7 @@ MTL::Texture* PointGraph::Impl::cookResidentTexNode(
     fc.params = nodeParams(path);
     for (int k = 0; k < fbInputCount; ++k) fc.inputTextures[k] = fbInputs[k];
     fc.inputTextureCount = fbInputCount;
+    fc.store = this; fc.nodeKey = path;  // N-slice array access (KeepInTextureArray/TimeDisplace); mirror of flat
     if (feedbackNeedsPair(n->opType) && fbInputs[0]) {
       const uint32_t w = (uint32_t)fbInputs[0]->width();
       const uint32_t h = (uint32_t)fbInputs[0]->height();

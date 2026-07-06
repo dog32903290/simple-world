@@ -96,14 +96,10 @@ PointGraph::~PointGraph() {
     if (kv.second) kv.second->release();
   for (auto& kv : p_->rawBuf)  // Seam-1 Buffer currency: release the raw byte buffers
     if (kv.second) kv.second->release();
-  for (auto& kv : p_->feedbackTexBuf) {  // cross-frame PAIR (KeepPreviousFrame): release BOTH
-    if (kv.second.a) kv.second.a->release();
-    if (kv.second.b) kv.second.b->release();
-  }
-  for (auto& kv : p_->feedbackBufBuf) {  // cross-frame BUFFER PAIR (KeepPreviousPointBuffer): release BOTH
-    if (kv.second.a) kv.second.a->release();
-    if (kv.second.b) kv.second.b->release();
-  }
+  // Cross-frame feedback resources (KeepPreviousFrame pair / KeepPreviousPointBuffer buffer pair /
+  // KeepInTextureArray+TimeDisplace N-slice array) — released by the FeedbackStore base helper (one place;
+  // mirrors the realloc-release rule → NO leak on teardown).
+  p_->releaseFeedbackResources();
   if (p_->target) p_->target->release();
   if (p_->queue) p_->queue->release();
   if (p_->lib) p_->lib->release();

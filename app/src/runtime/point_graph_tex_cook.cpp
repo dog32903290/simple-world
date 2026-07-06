@@ -125,6 +125,10 @@ MTL::Texture* PointGraph::Impl::cookFlatTexNode(
     fc.params = nodeParams(id);
     for (int k = 0; k < fbInputCount; ++k) fc.inputTextures[k] = fbInputs[k];
     fc.inputTextureCount = fbInputCount;
+    // N-slice ARRAY access (KeepInTextureArray/TimeDisplace): hand the op the FeedbackStore (this Impl,
+    // is-a FeedbackStore) + its flat resource key, so it can size its OWN cross-frame ring (N = a param).
+    fc.store = this;
+    fc.nodeKey = flatKey(id);
     // Cross-frame pair: sized to the FIRST Texture2D input's description (KeepPreviousFrame.cs:33-54
     // sizes _prevTextureA/B off `texture.Description`). A stateless feedback op (SwapTextures) skips
     // this (needsPair=false → pairA/B stay null → no allocation, no toggle state touched).

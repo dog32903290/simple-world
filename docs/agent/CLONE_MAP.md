@@ -165,24 +165,36 @@ device-io 57(MIDI/OSC/DMX/serial=柏為域)/ pbr-lighting 16(新 3D-render 島)/
    ApplyVectorField ~4h、SortPixelGlitch ~8h 含 HLSL→MSL)→降級併入 leaf 波;**AdvancedFeedback2=誤報**
    (走 RenderEncoder 已綠);唯一真骨頭=**SimpleLiquid×2**(一 cook 內多 dispatch+中間 buffer 交換+3
    RWTexture2D 多 UAV,~24h;現有只 1 UAV/跨幀 toggle,缺幀內 ping-pong)。**只解鎖 2 顆。**
-2. **persistent accumulator / texture-array**:TimeDisplace(N-slice ring)/ **KeepInTextureArray(N-slice
-   ring,同機器,2026-07-06 seam/http-misc BLOCKED 實錘)** / SlidingHistory / RemoveStaticBackground(單張
-   in-place EMA)。四顆,兩種型。
-   - **KeepInTextureArray BLOCKED 診斷(2026-07-06)**:讀 `.cs`(image/use/KeepInTextureArray.cs)確認語義=
-     `MTL::TextureType2DArray` arrayLength=N、write 整張 src → slice `writeIndex mod N`(blit
-     copyFromTexture sourceSlice→destinationSlice)、read slice `readIndex mod N` → 單張輸出。**單做會歪**兩點:
-     (a) 需新 currency `ensureFeedbackArray`(N-slice 陣列 + 平行 realloc-key maps),但 `point_graph_internal.h`
-     (522/cap 522 RATCHET-locked)+ `point_graph_resident.cpp`(603/cap 603 locked)+ `point_graph_tex_cook.cpp`
-     (389/cap 400)三個都要動且全在/近 cap → 加 array 機器必超 ratchet,是結構閘擋的「不是 leaf-local」訊號;
-     (b) `TextureArray` 輸出型無 wire currency(sw 無 texture-array 線型;`SelectedSlice` 是普通 Texture2D 可接,
-     但 `TextureArray` 輸出會變 dead port)。現有 feedback 家族(AdvancedFeedback/AfterGlow×2/KeepPreviousFrame)
-     **全部只用 2-texture pair,無一需要 N-slice** → KeepInTextureArray 是第一顆真需要 N-slice array 的 op。
-     **與 TimeDisplace 共機器**:兩者同一 N-slice ring;蓋 bone2 的 array currency 時一起收(先建
-     `ensureFeedbackArray` + array-output wire 型 + 切分 ratchet-locked 檔,再兩顆並行)。單獨蓋 KeepInTextureArray
-     = 造半根骨頭 + 一個接不出去的 dead 輸出,歪。
+2. **persistent accumulator / texture-array** ✅**核心兩顆已蓋(2026-07-06 seam/tex-accumulator,DONE)**:
+   TimeDisplace(N-slice ring)+ KeepInTextureArray(N-slice ring,同機器)已落地綠;SlidingHistory /
+   RemoveStaticBackground 兩顆待做但**皆非原診斷的「單張 in-place EMA」**(見下重分類)。
+   - **KeepInTextureArray + TimeDisplace 結案(2026-07-06)**:BLOCKED 診斷全兌現。作法照診斷=**先拆檔再蓋**:
+     (Phase1) 把 cross-frame feedback 資源機器(pair/buffer-pair)拆出 `point_graph_internal.h`(522→455,讓出
+     67 行)到新葉 `point_graph_feedback_store.h` 的 `FeedbackStore` base(Impl 繼承,零 call-site churn,eaa678b
+     慣例),同時在 base 蓋好 `ensureFeedbackArray`(N-slice `MTL::TextureType2DArray`,realloc-key w/h/fmt/N)。
+     純結構,668→668 逐一相同。commit f5050df。
+     (Phase2) 兩 op 皆 FeedbackOp;`FeedbackCookCtx` 加 `store+nodeKey`(array 的 N 是 param,op 自己 size 環,flat+
+     resident 對稱)。commit 3041b2e/6ca4fe7。
+     - **currency 決定(NAMED FORK,窄做)**:sw 無 Texture2DArray wire 線型 → KeepInTextureArray 的 `TextureArray`
+       輸出 **DROP**(只出 `SelectedSlice`=普通 Texture2D)。**關鍵發現:TimeDisplace.t3 本身是 COMPOUND**,內部
+       KeepInTextureArray 子節點(frame CountInt 驅動 WriteIndex)餵 TextureArray 進 shader Image(Texture2DArray)。
+       sw 無跨 op array 線 → **COLLAPSE 該 compound**:TimeDisplace 自帶內部環(同 `ensureFeedbackArray` 機器),array
+       handle 內部持有不出線。故不需造 array-output wire 型;未來若有 op 要吃獨立 KeepInTextureArray 的陣列再加。
+     - **TimeDisplace 原子核** = `TimeDisplace.hlsl:43-47`(非整個 .t3):per-pixel `slice=(SliceIndex+round(
+       brightness(DisplaceMap)*DisplaceAmount))%N`,轉錄成 `timedisplace.metal`(Texture2DArray→texture2d_array,
+       SampleLevel→sample(level(0)),psMain 無矩陣故無 mul→v* 規則)。.cs 的 Twist/Shade/SampleRadius 等 psMain 全不讀 → DROP。
+     - golden:兩顆閉式 flat+resident,期望=我方 authored slice 色(P5-safe),probe 坐發散中段(讀非最後寫 slice /
+       非零 offset),injectBug 腐蝕 slice 選擇。green+bite 皆綠;golden_lint 綠;全 sweep 668→670。
+   - **SlidingHistory 重分類(2026-07-06,讀 .cs/.hlsl 實錘)**:**不是 EMA**,是 scrolling waterfall——單張持久
+     `RWTexture2D` 每幀整體位移一行/列 + 邊緣插入 source 線(`SlidingHistory.hlsl` `[numthreads(1,1,1)]` per-column
+     序列 shift)。真需=**跨幀持久 RWTexture2D + compute serial-shift kernel**。sw compute-image 路徑(Crop/FastBlur)
+     現皆單幀,無跨幀 persistent RWTexture → 這是**新整合(feedback 單張持久 × compute dispatch),非 leaf-local**。岔路,未做。
+   - **RemoveStaticBackground 重分類(2026-07-06,讀 .cs/3 shader 實錘)**:**不是「單張 EMA」**,是 **3-pass compute
+     Gaussian per-pixel 統計背景模型**(learning/refine/output 三 shader,23 inputs 含 `MultiInputSlot<bool>
+     IsTraining`,9 debug modes)。重 op,遠超 tail 尺度。未做,不應再標「較簡單」。
 3. **pbr-lighting / 3D-render 島**:16 顆 + ScreenCloseUp 匯入。新島,最大單塊。
 
-**判斷密度:骨3(pbr島,16顆)>骨2(accumulator,4顆 — 含 KeepInTextureArray 2026-07-06 併入)>骨1(SimpleLiquid 幀內迭代,2顆)。骨1 縮水後
+**判斷密度:骨3(pbr島,16顆)>骨2(accumulator,4顆 — 2026-07-06 **核心 2 顆已蓋**,剩 SlidingHistory/RemoveStaticBackground 各自需新機器,見上重分類)>骨1(SimpleLiquid 幀內迭代,2顆)。骨1 縮水後
 「蓋一根解鎖一批」只對 pbr島 真成立;能立即並行的葉子從 93 增至 ~96(3 顆 compute 葉降級)。其餘
 seam-build 帳面被誤分類灌水。**
 

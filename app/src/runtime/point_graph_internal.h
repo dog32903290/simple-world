@@ -21,6 +21,7 @@
 #include "runtime/field_camera.h" // pointCameraMatrices (camera-matrix-into-points seam)
 #include "runtime/point_ops_camera_scope.h"  // C1: liveActiveCamera / activeCameraMatrices (Camera-op leg)
 #include "runtime/point_graph.h"  // PointGraph + op fn types
+#include "runtime/point_graph_feedback_store.h"  // FeedbackStore base (cross-frame pair/buffer/array machine)
 #include "runtime/sw_mesh.h"      // SwVertex (80B) + SwTriIndex (12B) — the Mesh flow's elements
 #include "runtime/mesh_op_registry.h"  // SwMeshView (cookResidentMesh return type)
 #include "runtime/string_op_registry.h"  // StringState (flat stringState cross-frame store)
@@ -110,8 +111,11 @@ void warnCookDepthOnce();
 
 constexpr MTL::PixelFormat kPointTargetFormat = MTL::PixelFormatRGBA8Unorm;
 
-struct PointGraph::Impl {
-  MTL::Device* dev = nullptr;
+// Impl inherits FeedbackStore: `dev` + the cross-frame pair/buffer/array resource maps + their ensure*
+// allocators live in the base (point_graph_feedback_store.h). Every existing reference (ensureFeedbackPair,
+// feedbackTexBuf, feedbackToggle, dev->…) resolves UNCHANGED through inheritance — verbatim split, zero
+// behaviour change (eaa678b discipline).
+struct PointGraph::Impl : FeedbackStore {
   MTL::Library* lib = nullptr;
   MTL::CommandQueue* queue = nullptr;
   MTL::Texture* target = nullptr;
@@ -177,32 +181,17 @@ struct PointGraph::Impl {
   std::map<std::string, StringListState> stringListState;         // key -> KeepStrings accumulator
   std::map<std::string, FloatListState> floatListState;            // key -> persistent FloatList state
 
-  // Per-node CROSS-FRAME texture PAIR (the feedback / ping-pong flow = TiXL KeepPreviousFrame). A feedback
-  // op owns TWO textures (texA+texB) that PERSIST across frames + a toggle bit (flips each frame) so it hands
-  // back the PREVIOUS frame while writing the current into the other buffer. Realloc-keyed like ensureOwnedTex
-  // (w/h/fmt → release the OLD pair; both released in ~PointGraph → NO leak/UAF). Keyed flat id / resident
-  // path. feedbackToggle defaults false per node (TiXL `_bufferToggle`, KeepPreviousFrame.cs:80).
-  struct FeedbackPair { MTL::Texture* a = nullptr; MTL::Texture* b = nullptr; };
-  std::map<std::string, FeedbackPair> feedbackTexBuf;   // key -> {texA, texB}
-  std::map<std::string, uint32_t> feedbackW, feedbackH; // realloc key (w/h)
-  std::map<std::string, uint32_t> feedbackFmt;          // realloc key (op-chosen pixel format)
-  std::map<std::string, bool> feedbackToggle;           // key -> _bufferToggle (flips each cook)
+  // CROSS-FRAME feedback RESOURCE maps (texture PAIR / buffer PAIR / N-slice ARRAY) + their ensure*
+  // allocators live in the FeedbackStore BASE (point_graph_feedback_store.h): feedbackTexBuf/feedbackToggle,
+  // feedbackBufBuf/feedbackBufToggle, feedbackArrayTex, ensureFeedbackPair/ensureBufferFeedbackPair/
+  // ensureFeedbackArray. Inherited unqualified. The OUTPUT-routing maps below stay in Impl (they hold value
+  // types — std::array of texture ptrs / SwBuffer — that the base's Metal-only leaf must not pull in).
+
   // Last-resolved OUTPUT textures by feedback node, indexed by Texture2D-output ordinal. Borrowed pointers
   // into feedbackTexBuf's pair / an upstream input (SwapTextures), NOT owned. Both cooks write it at a
-  // feedback cook's end so debugCookedFeedbackOutput can read Current/PreviousFrame.
-  static constexpr int kMaxFeedbackOut = 4;
+  // feedback cook's end so debugCookedFeedbackOutput can read Current/PreviousFrame. kMaxFeedbackOut from base.
   std::map<std::string, std::array<MTL::Texture*, kMaxFeedbackOut>> feedbackOut;
 
-  // Per-node CROSS-FRAME BUFFER PAIR (the Points/Buffer-rail feedback = TiXL KeepPreviousPointBuffer, the
-  // structured-buffer twin of KeepPreviousFrame above). Mirror of FeedbackPair over MTL::Buffer: two GPU
-  // buffers (bufA+bufB) PERSIST across frames + a toggle; the op copies the input into the toggle-selected
-  // buffer and exposes BufferA/BufferB. Realloc-keyed on byteSize (KeepPreviousPointBuffer.cs:45 compares
-  // SizeInBytes+StructureByteStride). Released on realloc + in ~PointGraph → NO leak/UAF. Keyed flat id.
-  struct BufferFeedbackPair { MTL::Buffer* a = nullptr; MTL::Buffer* b = nullptr; };
-  std::map<std::string, BufferFeedbackPair> feedbackBufBuf;  // key -> {bufA, bufB}
-  std::map<std::string, uint32_t> feedbackBufSize;           // realloc key (byte size)
-  std::map<std::string, uint32_t> feedbackBufStride;         // realloc key (element stride)
-  std::map<std::string, bool> feedbackBufToggle;             // key -> _toggle (flips each cook)
   // Dual SwBuffer OUTPUTS a feedback-buffer node routed last cook, indexed by Buffer-output ordinal
   // (0 = BufferA, 1 = BufferB). The SwBuffer views (bytes ptr into the pair + stride/count). Both are the
   // readback channel a downstream Buffer input reads by source output ordinal (mirror of feedbackOut).
@@ -323,64 +312,8 @@ struct PointGraph::Impl {
     return t;
   }
 
-  // CROSS-FRAME texture PAIR for a feedback op (KeepPreviousFrame). Sizes BOTH textures (texA + texB) to
-  // (w,h,fmt), reallocating BOTH only on a description change (RESOURCE_LIFETIME on a PAIR; TiXL
-  // KeepPreviousFrame.cs:46-54 disposes+recreates both on formatChanged). Usage = RenderTarget|ShaderRead
-  // (blit copyFromTexture writes + a downstream op/readback shader-reads); StorageMode Shared (getBytes
-  // golden). Parked in feedbackTexBuf → released here on realloc AND in ~PointGraph (NO leak, NO UAF).
-  // Returns false if either alloc failed.
-  bool ensureFeedbackPair(const std::string& key, uint32_t w, uint32_t h, MTL::PixelFormat fmt,
-                          MTL::Texture*& outA, MTL::Texture*& outB) {
-    if (w == 0) w = 1;
-    if (h == 0) h = 1;
-    FeedbackPair& fp = feedbackTexBuf[key];
-    const bool changed = !fp.a || !fp.b || feedbackW[key] != w || feedbackH[key] != h ||
-                         feedbackFmt[key] != (uint32_t)fmt;
-    if (changed) {
-      if (fp.a) { fp.a->release(); fp.a = nullptr; }
-      if (fp.b) { fp.b->release(); fp.b = nullptr; }
-      auto makeTex = [&]() -> MTL::Texture* {
-        MTL::TextureDescriptor* td =
-            MTL::TextureDescriptor::texture2DDescriptor(fmt, w, h, /*mipped=*/false);
-        td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
-        td->setStorageMode(MTL::StorageModeShared);
-        return dev->newTexture(td);
-      };
-      fp.a = makeTex();
-      fp.b = makeTex();
-      feedbackW[key] = w;
-      feedbackH[key] = h;
-      feedbackFmt[key] = (uint32_t)fmt;
-    }
-    outA = fp.a;
-    outB = fp.b;
-    return fp.a && fp.b;
-  }
-
-  // CROSS-FRAME BUFFER PAIR for a feedback-buffer op (KeepPreviousPointBuffer). The MTL::Buffer twin of
-  // ensureFeedbackPair: sizes BOTH buffers (bufA + bufB) to byteSize, reallocating BOTH only on a
-  // size/stride change (RESOURCE_LIFETIME on a PAIR; KeepPreviousPointBuffer.cs:40-46 recreates both when
-  // SizeInBytes or StructureByteStride differs). StorageModeShared (a getBytes golden reads it; the blit
-  // copyFromBuffer writes it). Parked in feedbackBufBuf → released here on realloc AND in ~PointGraph (NO
-  // leak, NO UAF). Returns false if either alloc failed / byteSize is 0.
-  bool ensureBufferFeedbackPair(const std::string& key, uint32_t byteSize, uint32_t stride,
-                                MTL::Buffer*& outA, MTL::Buffer*& outB) {
-    if (byteSize == 0) return false;
-    BufferFeedbackPair& fp = feedbackBufBuf[key];
-    const bool changed = !fp.a || !fp.b || feedbackBufSize[key] != byteSize ||
-                         feedbackBufStride[key] != stride;
-    if (changed) {
-      if (fp.a) { fp.a->release(); fp.a = nullptr; }
-      if (fp.b) { fp.b->release(); fp.b = nullptr; }
-      fp.a = dev->newBuffer(byteSize, MTL::ResourceStorageModeShared);
-      fp.b = dev->newBuffer(byteSize, MTL::ResourceStorageModeShared);
-      feedbackBufSize[key] = byteSize;
-      feedbackBufStride[key] = stride;
-    }
-    outA = fp.a;
-    outB = fp.b;
-    return fp.a && fp.b;
-  }
+  // ensureFeedbackPair / ensureBufferFeedbackPair / ensureFeedbackArray moved to the FeedbackStore base
+  // (point_graph_feedback_store.h) — inherited unqualified; call sites unchanged.
 
   // Per-node stateful-op memory. Re-created (free + new) when `count` GROWS past what the state was sized
   // for — stateNew sizes internal buffers (e.g. the sim's particle buffer) to the creation-time count, so
