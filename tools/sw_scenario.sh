@@ -194,6 +194,31 @@ run_line() {
       local f; f="$("$DRIVE" shot map)"
       local got; got=$(jq -r --arg s "$rest" '[.items[]? | select(.label == $s)] | length > 0' "$f")
       [ "$got" = "true" ] || fail "$ln" "assert_map_has $rest -> absent" ;;
+    assert_pixel)
+      # assert_pixel <x> <y> <r> <g> <b> [tol] — drive the `readpixel <x> <y>` HAND VERB (writes
+      # readpixel.json = one texel of the CLEAN render texture), then assert r/g/b within ±tol
+      # (default 2, the float→uint8 rounding slack). This is the numeric-pixel gate: the agent
+      # reads a single pixel NUMBER instead of OCR'ing clean.png. Couples the assertion to the
+      # verb chain — a RED variant that expects the wrong color fails on the same real readback.
+      local px py er eg eb tol; read -r px py er eg eb tol <<< "$rest"
+      tol="${tol:-2}"
+      local rpj="$EYE/readpixel.json"
+      local since; since="$(stat -f %Fm "$rpj" 2>/dev/null || echo 0)"
+      printf 'readpixel %s %s\n' "$px" "$py" > "$EYE/hand"
+      # readpixel fires the instant the hand file is polled; wait for readpixel.json to refresh.
+      local t=0
+      while [ "$(stat -f %Fm "$rpj" 2>/dev/null || echo 0)" = "$since" ]; do
+        sleep 0.1; t=$((t+1)); [ "$t" -ge 50 ] && { fail "$ln" "assert_pixel: readpixel.json never written"; break; }
+      done
+      [ "$t" -ge 50 ] && return
+      local gr gg gb; gr=$(jq -r '.r' "$rpj"); gg=$(jq -r '.g' "$rpj"); gb=$(jq -r '.b' "$rpj")
+      local dr=$(( gr>er ? gr-er : er-gr )) dg=$(( gg>eg ? gg-eg : eg-gg )) db=$(( gb>eb ? gb-eb : eb-gb ))
+      if [ "$dr" -le "$tol" ] && [ "$dg" -le "$tol" ] && [ "$db" -le "$tol" ]; then
+        note "pixel ($px,$py) = ($gr,$gg,$gb) within ±$tol of ($er,$eg,$eb)"
+      else
+        fail "$ln" "assert_pixel ($px,$py): got ($gr,$gg,$gb) want ($er,$eg,$eb) ±$tol (readpixel.json in $EYE)"
+        cp "$rpj" "$RUNDIR/L$ln.readpixel.json" 2>/dev/null
+      fi ;;
     capture)
       local kind="${rest%% *}" name="${rest#* }"
       local p; p="$("$DRIVE" shot "$kind")" || { fail "$ln" "capture: eye not answering"; return; }

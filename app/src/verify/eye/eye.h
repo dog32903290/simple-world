@@ -44,6 +44,14 @@ void dumpTextureRGBA(MTL::Texture* tex, const char* outName);
 // already gamma-encoded, written as-is so the PNG looks like the screen).
 void dumpDrawableBGRA(MTL::Texture* tex, const char* outName);
 
+// --- single-pixel readback (capability 6: readpixel -> readpixel.json) -------
+// Read ONE texel of `tex` at integer (x,y) and write it as JSON {"x","y","r","g","b","a"} (uint8
+// 0-255) to SW_EYE_DIR/outName. For an RGBA8Unorm StorageModeShared texture (the engine's clean
+// render target, point_graph.cpp) this is a byte-exact getBytes of a 1x1 region — no swizzle, no
+// sRGB transform (RGBA8Unorm is linear). Lets a scenario ASSERT a numeric pixel value instead of
+// OCR'ing clean.png. No-op (no file) if tex is null; clamps/rejects out-of-bounds coords.
+void readPixel(MTL::Texture* tex, int x, int y, const char* outName);
+
 // --- widget map (capability 3) ----------------------------------------------
 // Call once at the top of the imgui frame, then recordItem() after each widget
 // whose screen position the hand may need. writeWidgetMap() turns the collected

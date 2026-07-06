@@ -22,6 +22,7 @@ REGISTER_SELFTESTS(/*orderBase=*/72,
     {"pointlist", runPointListSelfTest},
     {"pointstocpu", runPointsToCpuSelfTest},
     {"gradient", runGradientSelfTest},
+    {"readpixel", runReadPixelSelfTest},
     {"pickgradient", runPickGradientSelfTest},
     {"blendgradients", runBlendGradientsSelfTest},
 );

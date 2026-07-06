@@ -283,6 +283,7 @@ add_executable(simple_world
   src/ui/combine_dialog.cpp
   src/ui/connection_ops.cpp        # shared wire-edit (drag + connect/disconnect verbs) + verb hooks
   src/ui/connect_verb_selftest.cpp # connect/disconnect verb golden (--selftest-hand-connect, headless)
+  src/ui/setparam_verb_selftest.cpp # setparam verb golden (--selftest-hand-setparam, headless)
   src/ui/graph_dump.cpp            # req_graph -> graph.json serializer of the current compound (eye hook)
   src/ui/graph_dump_selftest.cpp   # graphdump golden (--selftest-graphdump, headless)
   src/ui/node_menu_actions.cpp
@@ -751,6 +752,7 @@ add_executable(simple_world
   src/runtime/gradient_ops_blendgradients.cpp
   src/runtime/gradient_ops_defineiqgradient.cpp
   src/gradient_golden.cpp
+  src/readpixel_golden.cpp         # readpixel golden (--selftest-readpixel: eye::readPixel byte-exact 1x1 getBytes)
   src/pbr_currency_golden.cpp    # pbr-lighting island value currencies: SwPointLight/SwFogParameters/SwPbrParameters resolver vs TiXL .cs (data-layer; context stack + PBR shader = BLOCKED render-pass seam)
   src/buildgradient_golden.cpp   # BuildGradient (ColorList+FloatList list-input → Gradient; list-currency seam, flat+resident)
   src/intlisttobuffer_golden.cpp # IntListToBuffer (FloatList list-input → tight int32 Buffer; list-currency seam, flat+resident)

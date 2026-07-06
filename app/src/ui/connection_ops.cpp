@@ -154,6 +154,37 @@ void spawnSymbolByVerb(const char* symbolId) {
   sw::ui::spawnNodeAt(std::string(symbolId), 140.0f, 140.0f);
 }
 
+// `setparam <childId> <slotId> <value>` verb: set a child's Float input override to `value` through the
+// SAME SetOverrideCommand the Inspector slider pushes (inspector.cpp pushSet) — so the agent's text verb
+// walks the identical undo/save/dirty path, never a parallel one. VALIDATES (current compound exists; the
+// child exists; the slot is a Float INPUT port on the child's op) — a bad id/slot is a NO-OP + status
+// error, mirroring the connect/selectnode bad-id guard (an addressing typo must never corrupt the graph).
+// had/oldV are computed exactly as the Inspector does (overrides.count / effectiveInput), so undo restores
+// "had an override? old value : erase" identically. Vec components arrive as their component slot id
+// (<base>.x/.y/.z/.w) — each is a plain Float port, so this one path covers them with no special casing.
+void setParamByVerb(int childId, const char* slotId, float value) {
+  Symbol* cur = sw::doc::currentSymbol();
+  if (!cur) { sw::doc::g_status = "setparam: no current compound"; return; }
+  const std::string slot = slotId ? slotId : "";
+  SymbolChild* sel = sw::childById(*cur, childId);
+  if (!sel) { sw::doc::g_status = "setparam: no such child " + std::to_string(childId); return; }
+  // The slot must be a Float INPUT port on this child's op — the only thing SetOverrideCommand drives
+  // (Float sliders + Enum/Bool, both stored as Float overrides; Vec components are per-component Floats).
+  const NodeSpec* spec = sw::findSpec(sel->symbolId);
+  bool floatInput = false;
+  if (spec)
+    for (const PortSpec& p : spec->ports)
+      if (p.id == slot) { floatInput = p.isInput && p.dataType == "Float"; break; }
+  if (!floatInput) { sw::doc::g_status = "setparam: '" + slot + "' is not a Float input"; return; }
+  // had/oldV EXACTLY as inspector.cpp pushSet: had = override present, oldV = effective (override else
+  // definition default). Undo restores had ? oldV : erase, so the definition default is never polluted.
+  const bool had = sel->overrides.count(slot) > 0;
+  const float oldV = sw::effectiveInput(sw::doc::g_lib(), *sel, slot, 0.0f);
+  sw::g_commands.push(std::make_unique<sw::SetOverrideCommand>(
+      sw::doc::g_lib(), cur->id, sel->id, slot, had, oldV, value));
+  sw::doc::g_status = "set " + slot + " = " + std::to_string(value);
+}
+
 // `entercompound <childId>` verb: drill INTO a compound child of the current symbol via the doc's
 // pushComposition (the SAME navigation a canvas double-click triggers — TiXL TrySetCompositionOpToChild).
 // pushComposition refuses a non-compound (atomic) child and returns false; we surface that on the status
@@ -172,6 +203,7 @@ void mountConnectionVerbs() {
   sw::hand::setDisconnectHook(&disconnectByVerb);
   sw::hand::setSpawnSymbolHook(&spawnSymbolByVerb);
   sw::hand::setEnterCompoundHook(&enterCompoundByVerb);
+  sw::hand::setSetParamHook(&setParamByVerb);
 }
 
 }  // namespace sw::ui

@@ -79,6 +79,7 @@ int runFxaaSelfTest(bool);  // point_ops_fxaa.cpp — NVIDIA FXAA 3.11 AA (no po
 int runRaymarchFieldOutputSelfTest(bool);  // field_raymarch_output_golden.cpp (production-path field→output golden)
 int runConnectCooksSelfTest(bool);         // connect_cooks_golden.cpp (connect VERB → cook → sphere silhouette)
 int runHandConnectSelfTest(bool);          // ui/connect_verb_selftest.cpp (connect/disconnect verbs → wire edit)
+int runHandSetParamSelfTest(bool);         // ui/setparam_verb_selftest.cpp (setparam verb → SetOverrideCommand)
 }  // ^ forward-declared (no header): the GPU field golden lives at shell tier (binds runtime+platform)
 // Per-op SDF GPU goldens (Phase C fan-out) — same shell tier, same no-header forward-decl pattern.
 namespace sw { int runFieldBoxSdfGoldenSelfTest(bool); }          // field_ops_boxsdf_golden.cpp
@@ -213,6 +214,7 @@ namespace sw { int runPointsToCpuSelfTest(bool); }               // pointstocpu_
 namespace sw { int runSampleCpuPointsSelfTest(bool); }           // samplecpupoints_golden.cpp (SampleCpuPoints: 2-key host list -> 1 Bezier+quaternion resampled point)
 namespace sw { int runJoinListsSelfTest(bool); }                 // joinlists_golden.cpp (JoinLists Result-only: N host lists -> ONE concat in wire order; Length deferred)
 namespace sw { int runGradientSelfTest(bool); }                  // gradient_golden.cpp (8th cook flow: SwGradient::sample byte-vs-TiXL)
+namespace sw { int runReadPixelSelfTest(bool); }                 // readpixel_golden.cpp (eye::readPixel byte-exact 1x1 getBytes → readpixel.json)
 namespace sw { int runPointLightSelfTest(bool); }                // pbr_currency_golden.cpp (SetPointLight value currency: swResolvePointLight vs SetPointLight.cs:17-21; -bug swaps Intensity↔Range)
 namespace sw { int runFogSelfTest(bool); }                       // pbr_currency_golden.cpp (SetFog value currency: swResolveFog vs SetFog.cs:20-25 + ambient-default P2 guard; -bug swaps Distance↔Bias)
 namespace sw { int runPbrMaterialSelfTest(bool); }               // pbr_currency_golden.cpp (SetMaterial PbrParameters slice: swResolvePbrParameters vs SetMaterial.cs:34-38 + fresh-default anchor; -bug swaps Roughness↔Specular)

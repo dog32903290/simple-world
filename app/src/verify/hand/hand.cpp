@@ -56,6 +56,12 @@ void (*g_disconnectHook)(int, const char*) = nullptr;
 // `spawnsymbol`/`entercompound` directives forward here; null = the directive is a no-op (leaf).
 void (*g_spawnSymbolHook)(const char*) = nullptr;
 void (*g_enterCompoundHook)(int) = nullptr;
+// App-owned param-set hook (set via setSetParamHook). The `setparam` directive forwards (childId, slotId,
+// value) here; null = no-op. The app pushes the SAME SetOverrideCommand the Inspector slider does.
+void (*g_setParamHook)(int, const char*, float) = nullptr;
+// App-owned pixel-readback hook (set via setReadPixelHook). The `readpixel` directive forwards (x, y); the
+// app reads the clean target texture and writes readpixel.json. Null = no-op.
+void (*g_readPixelHook)(int, int) = nullptr;
 // Gap 2: `selectnode <childId>` requests, applied by the canvas (editor current) rather
 // than expanded into mouse frames — a direct selection that skips coordinate hit-tests.
 // Separate queue from g_pending: these don't consume IO frames, they consume one drain
@@ -244,6 +250,23 @@ void parseLine(const std::string& line) {
     // (bypasses the double-click). Immediate. No-op if the hook is unset / the child isn't a compound.
     int child;
     if ((is >> child) && g_enterCompoundHook) g_enterCompoundHook(child);
+  } else if (op == "setparam") {
+    // setparam <childId> <slotId> <value> — set the current compound child's Float input override to
+    // `value` via the app hook (the SAME SetOverrideCommand the Inspector slider pushes — undo/save/dirty
+    // consistent, never a parallel path). Immediate (side map, like connect): the lib is not ImGui IO, so
+    // it mutates the moment the line is parsed. No-op if the hook is unset (leaf). value is one float; Vec
+    // components are addressed by their component slot id (<base>.x/.y/.z/.w), Enum = index, Bool = 0/1.
+    int child;
+    std::string slot;
+    float value;
+    if ((is >> child >> slot >> value) && g_setParamHook)
+      g_setParamHook(child, slot.c_str(), value);
+  } else if (op == "readpixel") {
+    // readpixel <x> <y> — read ONE pixel of the clean render texture at texel (x,y) and write
+    // readpixel.json via the app hook (the app owns the target texture + eye). Immediate: the target is
+    // the last-cooked frame this loop iteration (same currency as clean.png). No-op if the hook is unset.
+    int x, y;
+    if ((is >> x >> y) && g_readPixelHook) g_readPixelHook(x, y);
   } else if (op == "selectnode") {
     // selectnode <childId> — queue a DIRECT node-editor selection (gap 2). The childId is
     // the operator node's ed node id (ui/node_draw.cpp ed::BeginNode(child.id)); identity
@@ -313,6 +336,8 @@ void setConnectHook(void (*hook)(int, const char*, int, const char*)) { g_connec
 void setDisconnectHook(void (*hook)(int, const char*)) { g_disconnectHook = hook; }
 void setSpawnSymbolHook(void (*hook)(const char*)) { g_spawnSymbolHook = hook; }
 void setEnterCompoundHook(void (*hook)(int)) { g_enterCompoundHook = hook; }
+void setSetParamHook(void (*hook)(int, const char*, float)) { g_setParamHook = hook; }
+void setReadPixelHook(void (*hook)(int, int)) { g_readPixelHook = hook; }
 
 void feedLine(const char* line) { parseLine(line); }
 

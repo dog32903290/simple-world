@@ -217,6 +217,32 @@ void dumpTextureRGBA(MTL::Texture* tex, const char* outName) {
   writePNG(outPath(outName), px.data(), w, h);
 }
 
+void readPixel(MTL::Texture* tex, int x, int y, const char* outName) {
+  if (!tex) return;  // no target -> no file (the caller's contract; readpixel.json simply not written)
+  ensureDir();
+  const int w = (int)tex->width();
+  const int h = (int)tex->height();
+  // Out-of-bounds is an addressing error, not a crash: report it in the JSON (r/g/b/a = -1) so a
+  // scenario asserting a color sees an obvious miss rather than reading a neighbouring texel.
+  if (x < 0 || y < 0 || x >= w || y >= h) {
+    char buf[160];
+    snprintf(buf, sizeof(buf),
+             "{\"x\": %d, \"y\": %d, \"r\": -1, \"g\": -1, \"b\": -1, \"a\": -1, "
+             "\"error\": \"out of bounds (%dx%d)\"}\n", x, y, w, h);
+    writeText(outName, buf);
+    return;
+  }
+  // RGBA8Unorm StorageModeShared: getBytes a 1x1 region straight into 4 bytes. No BGRA swizzle
+  // (the target is RGBA, unlike the drawable) and no sRGB decode (RGBA8Unorm is linear), so the
+  // bytes are the verbatim color — a scenario compares them to the expected value directly (±tol).
+  uint8_t rgba[4] = {0, 0, 0, 0};
+  tex->getBytes(rgba, 4, MTL::Region::Make2D(x, y, 1, 1), 0);
+  char buf[160];
+  snprintf(buf, sizeof(buf), "{\"x\": %d, \"y\": %d, \"r\": %d, \"g\": %d, \"b\": %d, \"a\": %d}\n",
+           x, y, (int)rgba[0], (int)rgba[1], (int)rgba[2], (int)rgba[3]);
+  writeText(outName, buf);
+}
+
 void dumpDrawableBGRA(MTL::Texture* tex, const char* outName) {
   if (!tex) return;
   ensureDir();

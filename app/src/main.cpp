@@ -367,6 +367,13 @@ Renderer::Renderer(MTL::Device* pDevice) : _pDevice(pDevice->retain()) {
   // verify/hand fn-ptr slots; the agent text verb then walks the SAME AddWire/Reconnect a canvas pin
   // drag would). One-line mount, like the OS-fullscreen seam below.
   sw::ui::mountConnectionVerbs();
+  // `readpixel <x> <y>` hand verb -> read the clean render target at texel (x,y) and write
+  // readpixel.json (eye owns the byte-exact getBytes; main owns the target texture — this hook
+  // bridges them so verify/hand needs neither MTL nor the point graph). Same currency as clean.png:
+  // g_pointGraph->target() holds the last-cooked frame when the hand poll fires this loop iteration.
+  sw::hand::setReadPixelHook([](int x, int y) {
+    if (g_pointGraph) sw::eye::readPixel(g_pointGraph->target(), x, y, "readpixel.json");
+  });
   sw::ui::mountGraphDump();  // eye req_graph -> serialize current compound into graph.json (免座標)
   // P6 OS-fullscreen seam (leaf-inversion: ui/view_modes can't include platform/).
   // Wired here so the F11 keymap handler + View > Fullscreen menu both reach the platform call.

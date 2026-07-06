@@ -63,6 +63,21 @@
 //   entercompound <childId>   drill INTO the compound child `childId` of the current symbol, via the
 //                             app-owned pushComposition hook (bypasses the double-click gesture). No-op
 //                             if no hook / the child isn't a compound.
+//   setparam <childId> <slotId> <value>
+//                             set the current compound child's Float input override to `value`, via the
+//                             app-owned hook — the SAME SetOverrideCommand the Inspector slider pushes
+//                             (undo/save/dirty identical; NOT a parallel path). `value` is one float.
+//                             Vec components are addressed by their component slot id (<base>.x/.y/.z/.w),
+//                             exactly as the Inspector stores them (one command per component). Enum =
+//                             index-as-float, Bool = 0/1. Immediate (side map, like connect). No-op if no
+//                             hook / the child/slot doesn't exist / the slot isn't a Float input.
+//   readpixel <x> <y>         read ONE pixel of the CLEAN render texture (g_pointGraph->target(), the
+//                             same layer clean.png dumps) at integer texel (x,y) and write it as JSON
+//                             {"x","y","r","g","b","a"} (uint8 0-255) to SW_EYE_DIR/readpixel.json, via
+//                             the app-owned hook (the app owns both the target texture and eye). Lets a
+//                             scenario ASSERT a numeric pixel value instead of OCR'ing clean.png. No-op
+//                             (no file) if no hook / no target. Coords are TEXEL indices (retina 2x: the
+//                             clean texture is the full backing resolution, not logical points).
 // A click/drag spans multiple frames (ImGui needs down and up on separate
 // frames), so commands are expanded into per-frame steps and consumed one per
 // frame. After issuing a command, give the app a few frames before reading back.
@@ -95,6 +110,17 @@ void setDisconnectHook(void (*hook)(int dstChild, const char* dstSlot));
 // Both are verification tools over the EXISTING command/navigation paths. Unset (null) = no-op.
 void setSpawnSymbolHook(void (*hook)(const char* symbolId));
 void setEnterCompoundHook(void (*hook)(int childId));
+
+// App-owned param-set hook (same leaf inversion). `setparam <childId> <slotId> <value>` forwards bare
+// int + slot string + float here — the app resolves the current compound child and pushes the SAME
+// SetOverrideCommand the Inspector slider does (undo/save/dirty consistent, never a parallel path).
+// verify/hand never sees a Symbol/Command. Unset (null) = the directive is a no-op.
+void setSetParamHook(void (*hook)(int childId, const char* slotId, float value));
+
+// App-owned pixel-readback hook (same leaf inversion). `readpixel <x> <y>` forwards the integer texel
+// coords here — the app reads the clean render texture at (x,y) and writes readpixel.json (it owns both
+// the target texture and eye, which verify/hand may not include). Unset (null) = the directive is a no-op.
+void setReadPixelHook(void (*hook)(int x, int y));
 
 // Read+consume the SW_EYE_DIR/hand command file (if any), expand commands into
 // per-frame input steps. Cheap; safe to call every frame.

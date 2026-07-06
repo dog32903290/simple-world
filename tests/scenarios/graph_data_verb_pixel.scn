@@ -1,0 +1,49 @@
+# graph_data_verb_pixel.scn — 活體牙: the coordinate-free graph data-verb closed loop, end to end.
+#
+# Proves the AI can weave + verify a patch WITHOUT a single mouse coordinate:
+#   spawnsymbol → connect → setparam → (render) → readpixel numeric assert.
+# Each step is a hand VERB driven by string ids from the graph, not a canvas drag — this is the
+# whole point of the data-verb rail (the eye/hand verify basestation, not a TiXL node capability).
+#
+# The deterministic pixel: a RenderTarget clears its whole texture to ClearColor (a Vec4 Float param,
+# node_registry_draw_render.cpp ClearColor.x/.y/.z/.w) before any draw command runs. RGBA8Unorm is
+# linear, so a CORNER texel (where no geometry is drawn) equals ClearColor byte-exact:
+#   ClearColor (0.2,0.6,0.8) -> round(.2*255),round(.6*255),round(.8*255) = (51,153,204). No tolerance
+# slack needed — this is a closed-form value, not an eyeballed screenshot.
+#
+# default graph = defaultParticleGraph (RadialPoints#1 / ParticleSystem#2 / TurbulenceForce#6 /
+# DrawPoints#7 / AudioReaction#8, nextChildId=104). So the first spawnsymbol lands at childId 104.
+#
+# RED face: change the assert_pixel expected color (e.g. 51 153 204 -> 51 153 100) and it must fail —
+# the readback is a real number off the live render texture, so a wrong expectation bites.
+
+# --- spawnsymbol: instantiate a RenderTarget as a child of the current root (no menu, no coordinate) ---
+do spawnsymbol RenderTarget
+wait 0.3
+assert_state '[.lib.symbols[].children[] | select(.id == 104)] | length == 1'
+echo rendertarget-104-spawned
+
+# --- connect: wire the existing DrawPoints#7 Command output into RenderTarget#104.command ---
+# (proves the connect verb participates in the chain; root connection count 3 -> 4). The corner texel
+# stays ClearColor regardless — points draw near center, not the corner — so the pixel assert holds.
+do connect 7 out 104 command
+wait 0.3
+assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[]] | length == 4'
+echo drawpoints7-wired-to-rendertarget104
+
+# --- setparam: set RenderTarget#104's ClearColor to a KNOWN color, one Vec component per verb ---
+# (the SAME SetOverrideCommand the Inspector slider pushes — undo/save/dirty identical). RenderTarget#104
+# is now the most-downstream tex sink, so the clean render texture shows its clear.
+do setparam 104 ClearColor.x 0.2
+do setparam 104 ClearColor.y 0.6
+do setparam 104 ClearColor.z 0.8
+do setparam 104 ClearColor.w 1.0
+wait 0.4
+assert_state '(.lib.symbols[].children[] | select(.id == 104) | .overrides["ClearColor.z"]) > 0.79'
+echo clearcolor-set-via-setparam
+
+# --- readpixel: read a CORNER texel of the clean render texture; assert it == ClearColor byte-exact ---
+# This is the payoff: a single-pixel NUMBER assertion (±2 rounding slack), not an OCR of clean.png.
+wait 0.3
+assert_pixel 5 5 51 153 204 2
+echo pixel-matches-clearcolor-closed-form
