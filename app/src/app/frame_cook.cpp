@@ -329,17 +329,17 @@ void run(PointGraph& pg, const std::string& targetPath) {
   const double fxSecs = g_transport.secondsFromBars(fxBars);  // ctx.time only (sane-floored bpm)
 
   const SpectrumSnapshot spec = audio_monitor::spectrum();
-  // Device-driven extOut cooks (AudioReaction/DetectBpm/MidiInput/OscInput): the seam derives the AR
-  // clock from the transport (bars-domain has ONE home; --selftest-arclock exercises it).
+  // Device-driven extOut cooks (AudioReaction/DetectBpm/MidiInput/OscInput/AbletonLinkSync): the seam
+  // derives the AR clock from the transport (bars-domain has ONE home; --selftest-arclock exercises it).
   {
     static std::map<std::string, AudioReactionState> s_arState;
     cookAudioReactionNodes(g_residentGraph, spec, g_transport, g_frameIndex, &doc::g_lib(),
                            s_arState);
-    // DetectBpm (TiXL parity) rides the SAME slot: accumulate one RawFft energy sample, write BPM → extOut[0].
-    static std::map<std::string, DetectBpm> s_bpmState;
+    static std::map<std::string, DetectBpm> s_bpmState;  // DetectBpm rides the SAME slot: RawFft sample → BPM extOut[0]
     cookDetectBpmNodes(g_residentGraph, spec.fftGain.data(), (int)spec.fftGain.size(), s_bpmState);
     cookIoDeviceNodes(g_residentGraph);  // io/midi+osc + socket/DMX device nodes → extOut (device-cook slot; seams own state + bus clear)
     cookAndDrainAudioPlayback(g_residentGraph, (float)fxSecs, s_runTimeSecs);  // playback nodes → bus → mixer
+    cookLinkSyncNodes(g_residentGraph, g_transport, g_frameIndex, &doc::g_lib());  // io/link: Ableton Link session → Result/Tempo/IsConnected extOut
   }
 
   // Cook stateful value ops (Damp/Spring/...) — same once-per-frame slot + extOut-mirror contract as

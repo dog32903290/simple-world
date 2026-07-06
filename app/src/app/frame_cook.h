@@ -73,6 +73,14 @@ void cookAudioReactionNodes(ResidentEvalGraph& g, const SpectrumSnapshot& spec,
                             const Transport& t, uint32_t frameIndex, const SymbolLibrary* lib,
                             std::map<std::string, AudioReactionState>& state);
 
+// Cook every AbletonLinkSync instance for this frame (frame_cook_link.cpp): read the app-owned Ableton
+// Link session snapshot + node params, run the start/stop/reconnect trigger edges, select Result by
+// OutputType (Bars/Phase/Beats/Time/Quantum), honour PauseIfDisconnected, write extOut
+// [0]=Result [1]=Tempo [2]=IsConnected. Externally-cooked (evaluate==nullptr) like AudioReaction. No-op
+// when the graph has no Link node (never opens a socket). Peer sync itself is deferred-hw-verify.
+void cookLinkSyncNodes(ResidentEvalGraph& g, const Transport& t, uint32_t frameIndex,
+                       const SymbolLibrary* lib);
+
 // Cook every stateful value op (Damp/Spring/... + the context-var Set*/Get*Var seam) in `g` for this
 // frame: 3-phase (clear var map → writers → readers) so the writer-before-reader ordering is
 // deterministic (context-var YELLOW seam, block #1). `state` keys off the resident path (per-instance

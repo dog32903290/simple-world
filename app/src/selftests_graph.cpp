@@ -61,5 +61,6 @@ REGISTER_SELFTESTS(/*orderBase=*/250,
     {"datetimeinsecs", framecook::runDateTimeInSecsSelfTest},// keyframe-anim: DateTimeInSecs Freeze latch (deterministic clock, REAL cook) — appended at 250-block tail
     {"tonesynth", runToneSynthSelfTest},                     // io/audio: AudioToneGenerator synthesis core — closed-form waveform parity (Sine/Square/Saw/Triangle); appended at 250-block tail
     {"keyframes", framecook::runKeyframesSelfTest},          // anim/utils: Find/SetKeyframes reflect ACROSS the AnimatedOp connection into an upstream node's curves (read + write, REAL cook); appended at 250-block tail
+    {"linksync", runLinkSyncSelfTest},                       // io/link: Ableton Link local-session tempo/beat/phase closed-form (no-peer; peer sync deferred-hw); appended at 250-block tail
 );
 }  // namespace sw
