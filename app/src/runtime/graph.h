@@ -59,6 +59,16 @@ struct PortSpec {
   // {...,multiInput,vecArity} inits are unaffected. MUST stay AFTER strDef as the new LAST member —
   // inserting it earlier would shift hundreds of positional aggregate inits across the registry.
   bool required = false;
+  // Drag sensitivity + range semantics (jog手感-parity, = TiXL FloatVectorInputValueUi.Scale /
+  // ClampMin/ClampMax). The Inspector's DragFloat/DragScalarN pixels-per-value comes from `scale`;
+  // 0 = AUTO, derived from [minV,maxV] exactly like TiXL GetScaleFromRange (see inspector.cpp
+  // dragSpeedFor). `clamp` gates hard-bounding: TiXL default is NON-clamp (a drag can leave the
+  // range — the runtime bounds internally where it matters), so only ports that OPT IN to clamp
+  // pass minV/maxV as a hard drag limit. Both default to the TiXL-neutral case (auto scale, no
+  // clamp) so existing positional {...} inits are byte-for-byte unaffected. MUST stay the two LAST
+  // members — inserting earlier shifts the ~5000 positional aggregate inits across the registry.
+  float scale = 0.0f;
+  bool clamp = false;
 };
 struct NodeSpec {
   std::string type, title;

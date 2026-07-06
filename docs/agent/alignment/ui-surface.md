@@ -57,10 +57,11 @@
 - **剩什麼**:剩：在每個輸入列右側畫該 slot 有效值字串（sw::effectiveInput 取值，%.3f / enum 用 label / bool true|false），字色 labelColor.Fade(0.7)；scale<~0.25 隱藏 label、<~0.4 隱藏值；標題字級依寬度縮放；multi-input slot 畫左側群組框。label 那半已有，值字串+縮放+multi-input 框是缺口。
 - **現況證據**:node_draw.cpp:116-144 pinRow 對每個非 pinless input 畫 type-colored slot + p.name（port 名稱 label 已畫）。但 grep effectiveInput / GetValueString / %.3f / valueString 在 node_draw.cpp 全 0 命中——本體內沒有任何即時值字串。也無 multi-input 群組框（node_draw 無 trapezoid/group-frame 繪製）。標題 :109 直接 TextUnformatted，不隨節點寬度 downScale。CanvasScale gating（>0.25 隱藏 label、>0.4 隱藏值）也不存在——pinRow 無條件畫。
 
-### [polish] 參數值編輯互動：jog-dial vs ImGui 滑桿
+### [polish] 參數值編輯互動：jog-dial vs ImGui 滑桿 — DONE(手感語義層), 剩 per-param scale 全量匯入
 
-- **剩什麼**:把 free scalar 從 SliderFloat 換成 DragFloat/DragScalar（無軌道、拖曳 scrub、雙擊打字，行為比 SliderFloat 接近 TiXL jog-dial）。靈敏度用 p.scale（目前 PortSpec 無 scale 欄位，需補或用固定值），min/max 只在 Clamp 為真時當硬界。Vec 已對。
-- **現況證據**:inspector.cpp:300 free 常數用 ImGui::SliderFloat（有軌道+硬界 p.minV/p.maxV），非 DragFloat。Vec 已用 DragScalarN（:185/:144，靈敏度 0.01f）——這半已對 TiXL jog 行為（拖曳 scrub+雙擊輸入）。scalar 那半仍是 SliderFloat。
+- **做了什麼**:四條 Float knob 路徑（free scalar / free Vec / animated scalar / animated Vec）全走同一 jog-drag helper（inspector_jog.h: jogDragFloat/jogDragScalarN）。① 靈敏度 = dragSpeedFor = TiXL FloatVectorInputValueUi.GetScaleFromRange（PortSpec.scale>0 用之，否則從 [minV,maxV] 導：|bound|>=9999 → 0.01f，否則 |min-max|/100；預設 [0,1] → 0.01f 與舊硬編一致）。② clamp 改資料驅動：PortSpec.clamp 預設 false = 照 TiXL 非 Clamp、拖得出範圍（effectiveInput 不夾，值原樣進 runtime）；只有 opt-in 的 port 才硬界。③ animated scalar 從 SliderFloat 換成 jog（原本 scalar/vec 分家已合）。④ undo 粒度=一拖一 command（IsItemActivated 開/IsItemDeactivatedAfterEdit 收，= TiXL ParameterWindow.cs:594-622 Started/Finished）——本來就對，未動。修飾鍵 Shift=×10/Alt=×0.01 由 ImGui DragBehavior 原生給（= TiXL SliderLadder.cs:129-144）。
+- **剩什麼(後續 dossier)**:per-param scale 全量匯入。TiXL 的 .t3ui 有手調 Scale（131×0.01 / 104×0.001 / 49×1.0 …），但 (a) .t3ui 是 C#-style JSON（inline /*guid*/ 註解，stdlib json 解不了）(b) sw port id 是字串（"RadiusOffset"），TiXL 是 GUID——缺 GUID→id 橋。故 per-param 匯入是獨立 seam（.t3ui parser + GUID map），非本 lane。目前 fallback 已對每個「不設 explicit Scale」的 TiXL param（多數）正確；設了 explicit Scale 的（少數）暫用 range-derived 近似。
+- **fork/風險**:非 Clamp 預設把 ~5000 個 Float port 從硬夾 [0,1] 翻成可拖出範圍（任務明令「非 Clamp 參數可拖出範圍——照 TiXL」授權）。maxV=10 家族（205 port）速度 0.01→0.2（20×），= TiXL 對同範圍的行為，非 bug。SliderLadder 疊加 overlay 仍是既有 fork（overlay-only、DragFloat owns delta）。
 
 ### [important] 節點右鍵選單缺：Disable/Duplicate/Select/Align/Display as/Add Comment
 

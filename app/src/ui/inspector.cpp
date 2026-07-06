@@ -7,6 +7,7 @@
 // old value : erase" so a never-overridden slot returns to following its definition default.
 #include "ui/editor_ui.h"
 #include "ui/gradient_widget.h"       // gradient color-band editor widget (port of TiXL GradientEditor.cs)
+#include "ui/inspector_jog.h"         // jogDragFloat/jogDragScalarN/dragSpeedFor (Float knob 手感)
 #include "ui/inspector_param_menu.h"  // ResetSlot + animateContextMenu (split for line-count rule)
 #include "ui/slider_ladder.h"         // SliderLadder precision-edit overlay (TiXL SliderLadder.cs)
 
@@ -103,8 +104,7 @@ void drawInspector() {
               pre[k] = vals[k];
             }
             ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 200, 90, 255));
-            ImGui::DragScalarN(p.name.c_str(), ImGuiDataType_Float, vals, N, 0.01f, &p.minV,
-                               &p.maxV, "%.2f");
+            jogDragScalarN(p.name.c_str(), vals, N, p);  // jog手感: speed+clamp = dragSpeedFor/p.clamp
             ImGui::PopStyleColor();
             sw::eye::recordItem(("param:" + p.id).c_str());
             if (ImGui::IsItemActivated() && arr) g_curveSnapBefore = *arr;
@@ -152,8 +152,7 @@ void drawInspector() {
           for (int k = 0; k < N; ++k) vecAnyOverride = vecAnyOverride || had[k];
           ImGui::PushStyleColor(ImGuiCol_Text, vecAnyOverride ? IM_COL32(255, 255, 255, 255)
                                                               : IM_COL32(128, 128, 128, 255));
-          ImGui::DragScalarN(p.name.c_str(), ImGuiDataType_Float, vals, N, 0.01f, &p.minV,
-                             &p.maxV, "%.2f");
+          jogDragScalarN(p.name.c_str(), vals, N, p);  // jog手感: speed+clamp = dragSpeedFor/p.clamp
           ImGui::PopStyleColor();
           sw::eye::recordItem(("param:" + p.id).c_str());
           if (ImGui::IsItemActivated()) {
@@ -238,7 +237,9 @@ void drawInspector() {
           sw::Animator::CurveArray* arr = cur->animator.curvesFor(sel->id, p.id);
           float v = (arr && !arr->empty()) ? (float)(*arr)[0].sample(playhead) : eff(p);
           ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 200, 90, 255));
-          ImGui::SliderFloat(p.name.c_str(), &v, p.minV, p.maxV);
+          // jog手感: was SliderFloat — now the same drag-to-scrub as the free/vec paths (TiXL
+          // FloatInputUi.cs:29-32 edits an animated Float through the identical jog). Key-write below unchanged.
+          jogDragFloat(p.name.c_str(), &v, p);
           ImGui::PopStyleColor();
           sw::eye::recordItem(("param:" + p.id).c_str());
           if (ImGui::IsItemActivated() && arr) g_curveSnapBefore = *arr;  // whole-curve pre-drag snapshot
@@ -268,10 +269,10 @@ void drawInspector() {
           }
           animateContextMenu(cur->id, sel->id, p.id, /*animated=*/true);
         } else {
-          // Free constant — JOG-DIAL drag editor (= TiXL SingleValueEdit drag-to-scrub; here the
-          // imgui DragFloat, matching the Vec row's DragScalarN). Writes LIVE into the override so
-          // the runtime sees changes mid-drag (柏為 expects immediate feedback). One undo step per
-          // drag: capture the pre-drag value + had-override on activation, record on release.
+          // Free constant — JOG-DIAL drag editor via jogDragFloat (= TiXL SingleValueEdit
+          // drag-to-scrub). Writes LIVE into the override; one undo step per drag (activation/release
+          // below). jogDragFloat owns sensitivity + hard-clamp (dragSpeedFor / p.clamp), replacing
+          // the old 0.01f + unconditional AlwaysClamp — a non-clamp port now scrubs past range.
           const bool had = sel->overrides.count(p.id) > 0;
           float v = eff(p);
           const float preV = v;
@@ -279,8 +280,7 @@ void drawInspector() {
           // white; default -> TextMuted grey. Colors the label + value text.
           ImGui::PushStyleColor(ImGuiCol_Text,
                                 had ? IM_COL32(255, 255, 255, 255) : IM_COL32(128, 128, 128, 255));
-          if (ImGui::DragFloat(p.name.c_str(), &v, 0.01f, p.minV, p.maxV, "%.2f",
-                               ImGuiSliderFlags_AlwaysClamp)) {
+          if (jogDragFloat(p.name.c_str(), &v, p)) {
             sel->overrides[p.id] = v;
             sw::doc::bumpLibRevision();  // projection contract (document.h)
           }

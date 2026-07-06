@@ -1,0 +1,45 @@
+# inspector_jog_scrub_undo.scn — 活體牙 (L2): the jog手感 drag alignment to TiXL SingleValueEdit.
+# Two NEW guarantees this scenario locks (beyond inspector_param_reset.scn's drag+reset):
+#
+#   A. NON-CLAMP SCRUB PAST RANGE (= TiXL default: a drag may leave [min,max]; the runtime bounds
+#      internally where it matters). RadialPoints.RadiusOffset has range [-10,10] and does NOT opt
+#      into clamp, so its jog speed is dragSpeedFor = |−10−10|/100 = 0.2 units/px (inspector_jog.h,
+#      = TiXL GetScaleFromRange). A +100px drag therefore moves ≈ +20 and the override lands ABOVE
+#      maxV=10 — impossible under the OLD hardcoded 0.01f speed + unconditional AlwaysClamp (which
+#      capped at 10 and only moved +1). Asserting value>10 proves BOTH the derived speed (0.2, not
+#      the old 0.01) and the non-clamp at once (measured ≈20).
+#   B. ONE DRAG = ONE UNDO STEP (= TiXL ParameterWindow.cs:594-622: Started opens ONE in-flight
+#      ChangeInputValueCommand, Finished pushes it once). A single Cmd+Z must fully erase the drag's
+#      override back to the definition default — not unwind it pixel-by-pixel.
+#
+# RED proofs:
+#   - (A) change 'value > 10' to 'value <= 10' -> FAIL (the scrub really left the range; if the old
+#         clamp/speed were back, value would sit at ≤10 and this would pass — so it guards the change).
+#   - (B) change the post-undo 'all(. == false)' to 'any' -> FAIL (one Cmd+Z really erased the whole drag).
+
+open app/testdata/compound_smoke.swproj
+
+# Enter EmitterComp (node:1 in Root) and select RadialPoints (node:1 inside).
+do double @node:1^
+assert_state '(.compositionPath | length) == 1'
+do click @node:1^
+# Baseline: RadiusOffset at its definition default (no override).
+assert_state '[.lib.symbols[] | select(.id=="EmitterComp") | .children[] | select(.id==1) | .overrides | has("RadiusOffset")] | all(. == false)'
+echo radiusoffset-starts-default
+
+# A. JOG scrub +100px right. speed 0.2 -> ≈ +20 -> override materializes ABOVE maxV=10 (non-clamp).
+do drag @param:RadiusOffset +100 +0
+wait 0.4
+assert_state '[.lib.symbols[] | select(.id=="EmitterComp") | .children[] | select(.id==1) | .overrides | has("RadiusOffset")] | any'
+assert_state '([.lib.symbols[] | select(.id=="EmitterComp") | .children[] | select(.id==1) | .overrides["RadiusOffset"]] | add) > 10'
+capture full scrubbed_past_range
+echo scrub-went-past-maxV-nonclamp
+
+# B. ONE Cmd+Z fully reverts the whole drag to the definition default (one drag = one undo command).
+# Click the node title to give the canvas focus (Cmd+Z gated on IsWindowFocused), then Cmd+Z.
+do click @node:1^
+wait 0.3
+do keychord cmd z
+wait 0.4
+assert_state '[.lib.symbols[] | select(.id=="EmitterComp") | .children[] | select(.id==1) | .overrides | has("RadiusOffset")] | all(. == false)'
+echo one-undo-reverted-the-whole-drag
