@@ -150,10 +150,11 @@ int runIoPtzSendSelfTest(bool injectBug) {
                      envelope.find(created) != std::string::npos;
   // (3) Body carried through.
   bool hasBody = envelope.find("AbsoluteMove") != std::string::npos;
-  // (4) The canonical digest itself is byte-stable (a fixed known vector). This is the PURE closed-form
-  //     anchor — hand-verifiable: SHA1(nonce++created++password) base64. We assert digestGolden is a
-  //     well-formed non-empty base64 of a 20-byte SHA1 (28 chars incl padding).
-  bool digestWellFormed = digestGolden.size() == 28;
+  // (4) The canonical digest pinned to the EXTERNAL constant (P5 fix, 2026-07-06 audit — the old check
+  //     only asserted "28 chars", i.e. any SHA1 passed): base64(SHA1(nonce ++ created ++ password)) of the
+  //     vector above, computed OUTSIDE sw (python hashlib) = "rzdNqUL++OuapYSPw8Ui1xx1ZUQ=". A digest
+  //     with the wrong concat order / wrong hash / wrong base64 alphabet cannot reproduce it.
+  bool digestWellFormed = digestGolden == "rzdNqUL++OuapYSPw8Ui1xx1ZUQ=";
 
   ok = ok && embedsDigest && digestGoldenMatch && hasEnvelope && hasSecurity && hasBody &&
        digestWellFormed;

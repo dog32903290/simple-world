@@ -15,7 +15,8 @@
 //   f2 t=0.4 Trig=1            Forward (0.4-0.1)/1=0.3                                    Result=3   Done=0
 //   f3 t=0.7 Trig=1            Forward 0.6                                               Result=6   Done=0
 //   f4 t=1.2 Trig=1            Forward 1.1≥1 → LastFraction=1, HasCompleted, dir=None     Result=10  Done=1
-//   f5 t=1.5 Trig=1            dir=None → LastFraction stays 1 (HasCompleted only on the completing frame) Result=10 Done=0
+//   f5 t=1.5 Trig=1            dir=None → LastFraction stays 1; HasCompleted is a LATCH (TriggerAnim.cs:60
+//            clears it ONLY on a trigger edge, cs:141 sets it at completion — no edge here, it HOLDS) Result=10 Done=1
 //
 // C config: SAME sweep but Bias=0.25 → the shape engine is REAL. At the f3 fraction 0.6:
 //   SchlickBias(0.6, 0.25) = 0.6 / ((1/0.25 - 2)(1-0.6) + 1) = 0.6/(2*0.4+1) = 0.6/1.8 = 1/3 → Result=10/3.
@@ -96,7 +97,7 @@ void runAll() {
   // A/B: Linear shape, Bias=0.5 (identity) → Result = 10*clamp01(fraction).
   {
     const float wantR[6]    = {0.0f, 0.0f, 3.0f, 6.0f, 10.0f, 10.0f};
-    const float wantDone[6] = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+    const float wantDone[6] = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f};  // latch holds at f5 (cs:60/141)
     runSweep("A/B linear", 0.5f, wantR, wantDone);
   }
   // C: Bias=0.25 → the shape engine is real. Only the mid frames differ (0/1 are SchlickBias fixed points).
@@ -104,7 +105,7 @@ void runAll() {
   //   f3 frac 0.6 → 0.6/1.8=1/3 → Result=10/3
   {
     const float wantR[6]    = {0.0f, 0.0f, 1.25f, 10.0f / 3.0f, 10.0f, 10.0f};
-    const float wantDone[6] = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+    const float wantDone[6] = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f};  // latch holds at f5 (cs:60/141)
     runSweep("C bias0.25", 0.25f, wantR, wantDone);
   }
 }

@@ -64,7 +64,7 @@ int runIoCameraCalibrateSelfTest(bool injectBug) {
   bool ok = true;
 
   // ─────────────────────────────────────────────────────────────────────────────────────────────
-  // G1. findChessboardCorners on a synthetic board. Pattern 7×6 inner corners (the .t3 default
+  // G1. findChessboardCorners on a synthetic board. Pattern 7×6 inner corners (the .cs InputSlot default, cs:47 — .t3 is 16×9; the
   //     ChessboardSize), image 960×720, border 1. The layout (checkerboard_gen.h, verified by the
   //     sibling golden) gives cell size and the inner-corner lattice: inner corner (i,j) for
   //     i∈[0..patternW-1], j∈[0..patternH-1] sits at the shared boundary of four cells —

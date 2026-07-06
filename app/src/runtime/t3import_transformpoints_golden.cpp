@@ -322,7 +322,7 @@ int runT3TransformPointsParity(bool injectBug) {
   printf("[t3-transformpoints] -bug: routing tooth %s (parity green under bug == %s)\n",
          bites ? "BITES" : "TOOTHLESS", parityGreen ? "true" : "false");
   pool->release();
-  return bites ? 1 : 2;  // non-zero = bite seen by --bite; 2 flags a toothless tooth distinctly
+  return bites ? 1 : 0;  // dead tooth exits 0 → --bite NO-BITE list catches it (GOLDEN_STANDARD 特徵3)
 }
 
 }  // namespace sw

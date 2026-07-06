@@ -106,9 +106,10 @@ int runReadPixelSelfTest(bool injectBug) {
   if (injectBug) {
     // Only leg 1 is meaningful under bug (the color was corrupted). Report + exit RED.
     if (!ok) { std::printf("[selftest-readpixel] injectBug correctly RED\n"); pool->release(); return 1; }
-    std::printf("[selftest-readpixel] FAIL: injectBug painted wrong yet the read matched\n");
+    // did-not-trip → 0 so --bite lands it on the NO-BITE list (GOLDEN_STANDARD 特徵3).
+    std::printf("[selftest-readpixel] injectBug did not trip — tooth has no bite\n");
     pool->release();
-    return 1;
+    return 0;
   }
 
   // (2) read a texel inside region B -> expect (Br,Bg,Bb,255). Proves per-texel addressing.

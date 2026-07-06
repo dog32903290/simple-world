@@ -124,7 +124,12 @@ std::vector<uint8_t> buildSacnSyncPacket(uint16_t syncUniverse, uint8_t sequence
   p[0] = 0x00; p[1] = 0x10; p[2] = 0x00; p[3] = 0x00;      // (cs:1450)
   std::memcpy(p.data() + 4, kAcnId, 9);                    // "ASC-E1.17" (cs:1451)
   putBE16(p, 16, (uint16_t)(0x7000 | 31));                 // root flags+length (cs:1453)
-  putBE32(p, 18, 0x00000008);                              // root vector VECTOR_ROOT_E131_EXTENDED (cs:1455)
+  // ★ NAMED FORK (fork-sacn-sync-root-vector, 2026-07-06 audit): TiXL SacnOutput.cs:378 writes root
+  // vector 0x00000004 in its sync packet — but ANSI E1.31 mandates VECTOR_ROOT_E131_EXTENDED (0x00000008)
+  // for sync packets (0x04 is the DATA root vector; TiXL's 0x04 is an upstream bug that E1.31-compliant
+  // receivers reject). sw follows the SPEC. The old "(cs:1455)" citation here was fabricated (file has
+  // 637 lines) and hid this divergence — never cite lines that don't exist.
+  putBE32(p, 18, 0x00000008);                              // VECTOR_ROOT_E131_EXTENDED (E1.31 §, spec-over-TiXL fork)
   for (int i = 0; i < 16; i++) p[22 + i] = (i < (int)cid16.size() ? cid16[i] : 0);  // CID (cs:1457)
   putBE16(p, 38, (uint16_t)(0x7000 | 9));                  // framing flags+length (cs:1458)
   putBE32(p, 40, 0x00000001);                              // framing vector VECTOR_E131_EXTENDED_SYNCHRONIZATION (cs:1460)

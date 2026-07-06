@@ -314,7 +314,7 @@ int runGroupSelfTest(bool injectBug) {
   if (injectBug) {
     if (allFaithful) {
       std::printf("[selftest-group] FAIL: injectBug tripped no tooth (group push survived the drop)\n");
-      return 1;
+      return 0;  // did-not-trip -> 0, NO-BITE list catches it (GOLDEN_STANDARD 特徵3)
     }
     std::printf("[selftest-group] injectBug correctly RED (group push dropped → quad never moved/scaled "
                 "→ translate + scale probes flipped on flat AND resident)\n");

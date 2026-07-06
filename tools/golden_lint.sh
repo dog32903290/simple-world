@@ -21,17 +21,21 @@ fail=0
 
 # ── P1 (HARD) — vacuous bite polarity: a "did not trip / no bite" diagnostic whose branch returns 1.
 # A dead tooth MUST exit 0 so run_all_selftests.sh --bite lands it on the NO-BITE list.
-# Window logic: after the diagnostic, the FIRST return decides — `return 0` = correct polarity,
-# `return 1` = vacuous (the RED path's later `return 1` is fine and must not false-positive).
-for f in "$ROOT"/app/src/*_golden.cpp; do
+# Window logic: after the diagnostic, the FIRST return decides — `return 0` (or a ternary whose
+# no-bite arm is 0, e.g. `return bites ? 1 : 0;`) = correct polarity; `return 1` or a ternary whose
+# no-bite arm is nonzero (`? 1 : 2` — the 2026-07-06 t3import family escape: exit 2 read as "bite"
+# by --bite, dead tooth invisible) = vacuous (the RED path's later `return 1` must not false-positive).
+# Glob covers ALL golden homes: app/src/ + app/src/app/ + app/src/runtime/ (runtime/ held 40 goldens
+# outside the gate until 2026-07-06).
+for f in "$ROOT"/app/src/*_golden.cpp "$ROOT"/app/src/app/*_golden.cpp "$ROOT"/app/src/runtime/*_golden.cpp; do
   if awk '
     { line = tolower($0) }
     w > 0 {
-      if ($0 ~ /return 0;/)      { w = 0 }
-      else if ($0 ~ /return 1;/) { bad = 1; w = 0 }
+      if ($0 ~ /return 0;/ || $0 ~ /\? 1 : 0;/)                 { w = 0 }
+      else if ($0 ~ /return 1;/ || $0 ~ /\? 1 : [1-9][0-9]*;/)  { bad = 1; w = 0 }
       else w--
     }
-    line ~ /did not trip|tooth has no bite|tripped no tooth/ { w = 5 }
+    line ~ /did not trip|tooth has no bite|tooth cannot bite|tripped no tooth|toothless|seam is hollow/ { w = 5 }
     END { exit bad ? 1 : 0 }
   ' "$f"; then :; else
     echo "[golden-lint] P1 vacuous-bite: ${f#$ROOT/} — did-not-trip branch must 'return 0' (NO-BITE list catches it)"
@@ -45,7 +49,7 @@ done
 # legit path-branch asserts (severed field → different physical claim) also match, so a human decides.
 if [ "$AUDIT" = 1 ]; then
   n=0
-  for f in "$ROOT"/app/src/*_golden.cpp; do
+  for f in "$ROOT"/app/src/*_golden.cpp "$ROOT"/app/src/app/*_golden.cpp "$ROOT"/app/src/runtime/*_golden.cpp; do
     # assignment to an expectation-ish var, from injectBug ?, not inside a printf string (no `"`).
     hits=$(grep -nE '(expected|Expected|want|Want|dExpected|pass|ref[A-Za-z]*)[^"]*=[^"]*injectBug[[:space:]]*\?' "$f" \
            | grep -vE 'printf|"') || true

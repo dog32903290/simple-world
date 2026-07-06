@@ -37,8 +37,11 @@ double posFmod(double a, double m) { double r = std::fmod(a, m); return r < 0 ? 
 // One FULLY deterministic timeline probe: build a session at `bpm`, quantum `q`, pick an anchor host
 // time T0 = the live clock (captured ONCE), anchor beat 0 there, then read the snapshot at host
 // T0+deltaMicros. Both anchor and read are at SPECIFIED host times (no live-clock drift between them),
-// so beat/phase are exactly the closed-form values. bug 1 SKIPS the anchor (origin undefined → the
-// known-offset beat/phase wants miss); bug 2 swaps phase into the beat channel.
+// so beat/phase are exactly the closed-form values. bug 1 anchors the WRONG beat into the REAL
+// requestBeatAtHostMicros → the whole timeline shifts 2 beats. (An old bug 2 swapped s.beat/s.phase in
+// the test harness AFTER the read — that corrupted no production path, only proved the assert could tell
+// two numbers apart (P3, removed 2026-07-06). A snapshot-tier seam would have to live inside the GPL
+// dylib boundary — not worth it; bug 1 carries the bite.)
 LinkSnapshot probe(double bpm, double q, double /*t0*/, double deltaMicros) {
   LinkSync link(bpm);
   link.setQuantum(q);
@@ -49,7 +52,6 @@ LinkSnapshot probe(double bpm, double q, double /*t0*/, double deltaMicros) {
   // shifts by a full 2 beats, a DECISIVE divergence from the closed-form wants (not a thin near-miss).
   link.requestBeatAtHostMicros(g_linkSyncBug == 1 ? 2.0 : 0.0, T0);
   LinkSnapshot s = link.snapshotAtHostMicros(T0 + deltaMicros);
-  if (g_linkSyncBug == 2) { double b = s.beat; s.beat = s.phase; s.phase = b; }  // channel swap
   return s;
 }
 }  // namespace
@@ -70,9 +72,8 @@ void runLinkSyncGoldens() {
     LinkSnapshot s2 = probe(120.0, 4.0, 0.0, 2000000.0);
     expectClose("120bpm +2s beat", s2.beat, 4.0);
     expectClose("120bpm +2s phase wraps to 0", s2.phase, 0.0);
-    // Link invariant: fmod(beat,q) == phase (production path, not swapped).
-    if (g_linkSyncBug != 2)
-      expectClose("120bpm +2s invariant fmod==phase", posFmod(s2.beat, 4.0), s2.phase);
+    // Link invariant: fmod(beat,q) == phase (production path).
+    expectClose("120bpm +2s invariant fmod==phase", posFmod(s2.beat, 4.0), s2.phase);
   }
   // B: 140 bpm (7/3 beats/sec), quantum 3. At +900ms → beat = (140/60)*0.9 = 2.1; phase = 2.1 mod 3 = 2.1.
   {
@@ -101,11 +102,7 @@ int runLinkSyncSelfTest(bool injectBug) {
     setLinkSyncBug(1);
     int b1 = g_fail;
     runLinkSyncGoldens();
-    printf("[selftest] linksync bug1(sever-anchor) added %d failure(s)\n", g_fail - b1);
-    setLinkSyncBug(2);
-    int b2 = g_fail;
-    runLinkSyncGoldens();
-    printf("[selftest] linksync bug2(beat/phase-channel-swap) added %d failure(s)\n", g_fail - b2);
+    printf("[selftest] linksync bug1(wrong-anchor-beat) added %d failure(s)\n", g_fail - b1);
     setLinkSyncBug(0);
   }
 

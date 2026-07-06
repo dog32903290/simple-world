@@ -316,7 +316,7 @@ int runT3TransformMeshParity(bool injectBug) {
   printf("[t3-transformmesh] -bug: routing tooth %s (parity green under bug == %s)\n",
          bites ? "BITES" : "TOOTHLESS", parityGreen ? "true" : "false");
   pool->release();
-  return bites ? 1 : 2;
+  return bites ? 1 : 0;  // dead tooth exits 0 → --bite NO-BITE list catches it (GOLDEN_STANDARD 特徵3)
 }
 
 }  // namespace sw

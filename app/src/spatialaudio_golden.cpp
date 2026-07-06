@@ -1,6 +1,14 @@
 // spatialaudio_golden — --selftest-spatialaudio. CLOSED-FORM golden for the SpatialAudioPlayer gain spine
-// (TiXL Operators/Lib/io/audio/SpatialAudioPlayer.cs + Core/Audio/SpatialOperatorAudioStream.cs). Proves
-// the value-exact parts sw can pin without BASS's 3D sound field (the per-ear pan/HRTF is deferred-hw-verify):
+// (TiXL Operators/Lib/io/audio/SpatialAudioPlayer.cs + Core/Audio/SpatialOperatorAudioStream.cs).
+//
+// ★ SCOPE HONESTY (2026-07-06 audit): this golden certifies the MATH LIBRARY ONLY. The spine functions
+// (spatialDistanceAttenuation / spatialEffectiveVolume / spatialForwardFromEuler) have ZERO production
+// callers today — SpatialAudioPlayer is a NodeSpec skin (evaluate==nullptr, externally-cooked slot with
+// no cooker wired yet). GREEN here ≠ the node works. When the cook seam lands it MUST call these
+// golden'd functions (not re-derive the math) and this golden should grow a node-path leg. Same shape as
+// memory `sw-stateful-node-parity-gap`: done = math ported ≠ node verified.
+//
+// Proves the value-exact parts sw can pin without BASS's 3D sound field (per-ear pan/HRTF deferred-hw-verify):
 //   (1) linear distance attenuation with both clamp layers,
 //   (2) effective volume = mute/beyond-max gate × attenuation,
 //   (3) listener/source Euler→forward/up direction vectors.

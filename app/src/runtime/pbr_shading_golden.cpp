@@ -237,9 +237,9 @@ int runPbrShadingSelfTest(bool injectBug) {
   if (injectBug) {
     // -bug: the light push was skipped on BOTH legs → the lit oracle must NOT be reproduced (pixel dark).
     if (matches) {
-      std::printf("[selftest-pbr-shading] FAIL: injectBug still matched the lit oracle (the light scope is "
-                  "not actually feeding DrawMeshPbr — the seam is hollow)\n");
-      return 1;
+      std::printf("[selftest-pbr-shading] injectBug did not trip: still matched the lit oracle (the light "
+                  "scope is not actually feeding DrawMeshPbr — the seam is hollow)\n");
+      return 0;  // did-not-trip -> 0, NO-BITE list catches it (GOLDEN_STANDARD 特徵3)
     }
     std::printf("[selftest-pbr-shading] injectBug correctly RED (skipped SetPointLight push → zero lights → "
                 "directLighting=0 → center pixel dark, not the lit Cook-Torrance value)\n");

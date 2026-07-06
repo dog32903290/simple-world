@@ -8,10 +8,11 @@
 //     list=[10,20,30], InputRange(0,100), OutputRange(0,1), indices 0/1/2 → (0.1, 0.2, 0.3). Closed-form,
 //     impl-independent (a plain linear remap) — the P5-safe anchor.
 //   OUT-OF-RANGE index → NaN (cs:37-38): IndexForX=5 on a 3-element list → Result.x = NaN.
-//   SEED FRAME (damping>0, frame 0): PickValue seeds damped=remapped, vel=0, then SpringDamp(target==
-//     current, vel=0) returns current unchanged (springForce=0, dampingForce=0) → frame-0 output ==
-//     remapped. Independent of the spring math (target==current ⇒ zero force ⇒ identity) — a real property,
-//     not an A==A. list=[1], InputRange(0,1), OutputRange(0,1), damping=1 → frame-0 Result.x = 1.0.
+//   SEED FRAME (damping>0, frame 0): PickValue seeds damped = RAW f (cs:41-42 `var f = list[index];
+//     if (IsNaN(damped)) damped = f;` — BEFORE the remap at cs:46; the old claim here said "seeds
+//     damped=remapped", which is FALSE — 2026-07-06 audit). On an IDENTITY remap raw==remapped, so
+//     target==current ⇒ zero force ⇒ frame-0 output == remapped (the LEG C property). The NON-identity
+//     seed semantics are pinned by LEG E below. list=[1], In(0,1)→Out(0,1), damping=1 → frame-0 = 1.0.
 //   DAMP STEP (damping=1, input changes 0→1 between frames): hand-computed from MathUtils.SpringDamp with
 //     k=100/1.001=99.9001, sqrt(k)=9.995004, dt=1/60, seeded at damped=0/vel=0 on frame 0 (input 0.0):
 //       frame 1 (input 1.0): vel=1.6650017, out=0.02775003 ;
@@ -196,6 +197,27 @@ int runComposeVec3FromListSelfTest(bool injectBug) {
     rep("DAMP frame0 (seed, input 0)=0.0", f0.x, 0.0f, nearf(f0.x, 0.0f));
     rep("DAMP frame1 (input 1)=0.0277500", f1.x, 0.0277500f, nearf(f1.x, 0.0277500f));
     rep("DAMP frame2 (input 1)=0.0732346", f2.x, 0.0732346f, nearf(f2.x, 0.0732346f));
+  }
+
+  // === LEG E: ★ RAW-SEED (damping=1, NON-identity remap — the seed-semantics tooth, 2026-07-06 audit).
+  //     TiXL seeds `damped` with the RAW list value BEFORE the remap (cs:41-42; remap at cs:46). Every
+  //     damp leg above sits on identity remaps where raw==remapped — an impl seeding damped=REMAPPED
+  //     stayed green until here. list=[1], In(0,2)→Out(0,1): raw seed 1.0, target Remap(1)=0.5. float32
+  //     Python ref (impl-independent): frame0 SpringDamp(0.5←1.0, vel=0, k=99.90009) → out=0.986125;
+  //     frame1 → out=0.9633827. A remapped-seed impl gives target==current ⇒ zero force ⇒ 0.5 (0.486
+  //     away). The bug (skip damp → emit remapped 0.5) also reddens both frames — a second tooth surface. ===
+  {
+    resetComposeVec3State();
+    composeVec3InjectBugRef() = injectBug;
+    CV3Graph g0 = makeLib({1.0f}, 0, 0, 0, 0, 2, 0, 1, /*damping=*/1.0f);
+    ResidentEvalGraph rg0 = buildEvalGraph(g0.lib, "Root");
+    Vec3 f0 = cookFrame(rg0, g0.lib);
+    CV3Graph g1 = makeLib({1.0f}, 0, 0, 0, 0, 2, 0, 1, /*damping=*/1.0f);
+    ResidentEvalGraph rg1 = buildEvalGraph(g1.lib, "Root");
+    Vec3 f1 = cookFrame(rg1, g1.lib);
+    composeVec3InjectBugRef() = false;
+    rep("RAWSEED frame0 (raw 1.0, target 0.5)=0.986125", f0.x, 0.986125f, nearf(f0.x, 0.986125f));
+    rep("RAWSEED frame1=0.9633827", f1.x, 0.9633827f, nearf(f1.x, 0.9633827f));
   }
 
   resetComposeVec3State();  // leave the store clean for any later test in this process

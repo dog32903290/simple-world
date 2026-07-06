@@ -29,7 +29,7 @@ int runIoCameraCheckerboardSelfTest(bool injectBug) {
   bool ok = true;
 
   // ─────────────────────────────────────────────────────────────────────────────────────────────
-  // G1. Layout (cs:355-358). Pattern 7×6 (the .t3 default ChessboardSize), image 1920×1080, border 1:
+  // G1. Layout (cs:355-358). Pattern 7×6 (the .cs InputSlot default, cs:47 — the .t3 DefaultValue is 16×9), image 1920×1080, border 1:
   //     totalX = 7+1+2 = 10 ; totalY = 6+1+2 = 9 ; sqW = 1920/10 = 192 ; sqH = 1080/9 = 120.
   CheckerLayout L = checkerLayout(/*pW=*/7, /*pH=*/6, /*imgW=*/1920, /*imgH=*/1080, /*border=*/1);
   ok = ok && L.totalSquaresX == 10 && L.totalSquaresY == 9;

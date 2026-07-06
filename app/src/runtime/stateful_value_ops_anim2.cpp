@@ -253,6 +253,11 @@ void stepTriggerAnim(const std::map<std::string, float>& in, float /*dt*/, float
   int dir = st.init ? (int)std::lround(st.s[2]) : 2;  // None on frame 1
   bool prevTrigger = st.init ? (st.s[3] != 0.0f) : false;
   double startProgress = (double)st.s[4];
+  // HasCompleted is a LATCH, not a pulse: TiXL clears it ONLY on a trigger edge (TriggerAnim.cs:60
+  // `HasCompleted.Value = false` inside `if (triggered != _trigger)`) and sets it at Forward completion
+  // (cs:141) — between those events the slot HOLDS its value across frames. The per-frame reset that
+  // used to live below was an undeclared pulse fork (2026-07-06 audit, parity bug).
+  bool hasCompleted = st.init ? (st.s[5] != 0.0f) : false;
   st.init = true;
 
   // triggered = Trigger || (no-connection var==1). fork-triggeranim-trigger-var.
@@ -263,10 +268,9 @@ void stepTriggerAnim(const std::map<std::string, float>& in, float /*dt*/, float
   }
   const bool triggered = (getIn(in, "Trigger", 0.0f) != 0.0f) || isTriggeredByVar;
 
-  bool hasCompleted = false;
-
   if (triggered != prevTrigger) {  // edge (cs:58)
     prevTrigger = triggered;
+    hasCompleted = false;  // latch clears on the edge only (cs:60)
     if (animMode == 2) {  // ForwardAndBackwards
       triggerTime = currentTime;
       dir = triggered ? 0 : 1;  // Forward : Backwards
@@ -317,6 +321,7 @@ void stepTriggerAnim(const std::map<std::string, float>& in, float /*dt*/, float
   if (g_triggerAnimBug != 1) {
     st.s[0] = (float)lastFraction; st.s[1] = (float)triggerTime; st.s[2] = (float)dir;
     st.s[3] = prevTrigger ? 1.0f : 0.0f; st.s[4] = (float)startProgress;
+    st.s[5] = hasCompleted ? 1.0f : 0.0f;  // latch persists (cs:60/141)
   }
 
   out[0] = (g_triggerAnimBug == 2) ? (baseValue + amplitude * (float)lastFraction)

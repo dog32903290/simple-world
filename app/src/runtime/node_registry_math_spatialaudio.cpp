@@ -8,8 +8,10 @@
 // STATEFUL, externally-cooked (evaluate==nullptr): per-instance stream on the mixer + edge memory across
 // frames, exactly like AudioPlayer. The audible product is the 3D sound-field side-effect (deferred-hw-
 // verify: the true per-ear pan/HRTF lives in the platform AVAudioEnvironmentNode, not in this spec). The
-// value-exact gain spine (linear distance attenuation + effective volume + Euler→direction) is proven by
-// runtime/spatial_audio's --selftest-spatialaudio. OUTPUTS FIRST → extOut idx: [0]=IsPlaying, [1]=IsPaused,
+// value-exact gain spine (linear distance attenuation + effective volume + Euler→direction) is golden'd
+// as a MATH LIBRARY by runtime/spatial_audio's --selftest-spatialaudio — but NO cooker is wired to this
+// spec yet, so nothing in production exercises that spine (2026-07-06 audit). The cook seam, when it
+// lands, MUST call the golden'd spatial_audio functions rather than re-derive the math. OUTPUTS FIRST → extOut idx: [0]=IsPlaying, [1]=IsPaused,
 // [2]=GetLevel (Result Command has no value rail). Params = TiXL InputSlots.
 //
 // .t3 DEFAULTS (SpatialAudioPlayer.t3, re-read): AudioFile="", PlayAudio/StopAudio/PauseAudio=false,

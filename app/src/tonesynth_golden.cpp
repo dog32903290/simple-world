@@ -63,9 +63,13 @@ const Probe kProbes[] = {
     // Triangle (.cs:279) — (4*|t-0.5|-1)*0.8. Both slopes (t=0.159 up-leg, t=0.637 down-leg).
     {1.0, ToneWaveform::Triangle,  0.2907041821059348, "tri@t=0.159"},
     {4.0, ToneWaveform::Triangle, -0.3628167284237396, "tri@t=0.637"},
-    // Negative-phase WRAP (.cs:268 floor path): -1.0 rad ≡ 2π-1; want = sin(2π-1) = -0.8414709848.
-    // fmod would give a wrong sign here — pins the operator's own wrap choice.
-    {-1.0, ToneWaveform::Sine, -0.8414709848078966, "sine@-1.0(wrap)"},
+    // Negative-phase WRAP (.cs:268 floor path). Sine CANNOT pin the wrap choice — sin is 2π-periodic,
+    // so sin(fmod(-1,2π)) == sin(2π-1): floor-wrap and fmod agree on every periodic waveform (the
+    // 2026-07-06 audit killed the old claim here). SAWTOOTH is aperiodic in t: floor-wrap gives
+    // t = 1 - 1/(2π) = 0.8408450569 → (2t-1)·0.8 = +0.5453520911, while plain fmod keeps t negative
+    // → (2·(-0.1591549431)-1)·0.8 = -1.0546789 — sign AND magnitude split. This is the wrap tooth.
+    {-1.0, ToneWaveform::Sawtooth, 0.5453520910529674, "saw@-1.0(wrap)"},
+    {-1.0, ToneWaveform::Sine, -0.8414709848078966, "sine@-1.0"},
 };
 
 bool closeEnough(double got, double want) { return std::fabs(got - want) <= 1e-6; }

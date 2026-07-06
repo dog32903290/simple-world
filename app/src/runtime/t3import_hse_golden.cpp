@@ -215,7 +215,7 @@ int runT3HseParity(bool injectBug) {
   const bool bites = !isGreen;  // bug drops FxTexture → RED → tooth bites
   printf("[t3-hse] -bug: fx-input tooth %s\n", bites ? "BITES" : "TOOTHLESS");
   pool->release();
-  return bites ? 1 : 2;
+  return bites ? 1 : 0;  // dead tooth exits 0 → --bite NO-BITE list catches it (GOLDEN_STANDARD 特徵3)
 }
 
 }  // namespace sw

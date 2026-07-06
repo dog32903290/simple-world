@@ -17,9 +17,11 @@
 //            channel messages are length-skipped; meta/sysex are length-skipped; End-of-Track (FF 2F) ends
 //            a track.
 //
-// NoteName: MidiClip keys note events by NAudio NoteEvent.NoteName. NAudio's algorithm (public, stable):
-//   name = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}[note % 12] + (note / 12 - 1)
-//   → note 60 = "C4" (middle C), note 61 = "C#4", note 72 = "C5". Reproduced in noteName() below.
+// NoteName: MidiClip keys note events by NAudio NoteEvent.NoteName. NAudio v2.3.0 (the version TiXL pins,
+// Core/Core.csproj:32) NoteEvent.cs:157:
+//   name = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}[note % 12] + (note / 12)   // NO "-1"
+//   → note 60 = "C5" (middle C), note 61 = "C#5", note 72 = "C6". Reproduced in smfNoteName().
+// Key channel is 1-BASED (NAudio MidiEvent.cs: (status & 0x0F) + 1) → "/channel1/.." (MidiClip.cs:161).
 //
 // runtime leaf: pure computation (byte parse), no GPU/UI/hardware/upward dep.
 #pragma once
@@ -37,7 +39,7 @@ namespace sw {
 struct SmfEvent {
   enum Kind { NoteOn, NoteOff, ControlChange } kind = NoteOn;
   int64_t absoluteTick = 0;  // sum of delta-times up to this event (MidiClip compares against timeInTicks)
-  int channel = 0;           // 0-based MIDI channel (status low nibble) — MidiClip keys "/channel<channel>/..."
+  int channel = 0;           // 0-based status nibble; keys are 1-based "/channel<channel+1>/..." (NAudio)
   int number = 0;            // note number (Note*) / controller id (CC)
   int value = 0;             // velocity (Note*) / controller value (CC) — 0..127
 };

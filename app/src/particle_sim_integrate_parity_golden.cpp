@@ -30,7 +30,8 @@
 // So the per-particle position DELTA between seed and step-1 is the CLOSED-FORM CONSTANT (same for every
 // clean slot, independent of emit geometry — the emit position cancels in the subtraction):
 //   Δpos = D · pow(1 - Drag, Speed) · Speed · 0.01
-// With Speed=1.0, Drag=0.02 (ParticleSystem NodeSpec .t3 defaults, node_registry_particle.cpp:222-223),
+// With Speed=1.0 (== ParticleSystem.t3 Speed DefaultValue) and Drag=0.02 (a CHOSEN test pin — the real
+// .t3 Drag DefaultValue is 0.005; the registry was drifted at 0.02 until the 2026-07-06 audit aligned it),
 // Direction=(1,0,0), Amount=0.5:  k = pow(0.98, 1) = 0.98 ; Δpos = (0.5·0.98·1·0.01, 0, 0) = (0.0049, 0, 0).
 // We read the delta straight off the captured ResultPoints (Velocity is internal to the Particle buffer and
 // never copied to the result; the position delta EXACTLY encodes both the drag and the step-scale, so it is
@@ -47,9 +48,11 @@
 //     dies (injection does not trip), the cook stays faithful, the asserts PASS and the leg exits 0 →
 //     run_all_selftests --bite's NO-BITE list catches the dead tooth. NOTE: the shader-side stale form a
 //     naive port would write (linear drag / missing 0.01) is not host-injectable without a shader test
-//     seam; the drag PROBE below is the tooth that pins the pow-form against exactly that drift.
+//     seam; the SPEED PROBE (Speed=2) is the tooth that pins the pow-form against exactly that drift.
 //   • dragProbe (both legs, context tooth) → an independent Drag=0.5 cook must scale Δpos by pow(0.5,Speed)
-//     relative to the Drag=0.02 cook — proves the drag term is the `pow` form, not linear, not ignored.
+//     relative to the Drag=0.02 cook — proves the drag term is drag-DEPENDENT (not ignored). At Speed=1 it
+//     canNOT distinguish pow from linear (pow(x,1)==x — the identity the 2026-07-06 audit caught); the
+//     Speed=2 probe below owns the FORM.
 //
 // NAMED FORK NOTE (pool-recycle, 柏為 拍板 kept sw-fork): MaxParticleCount recycle (particle_params.h
 // kPoolLifeFrames) is NOT under test here — we deliberately measure only the [0,emitCount) clean cohort on
@@ -74,8 +77,8 @@ namespace sw {
 namespace {
 
 // TiXL anchors (rule 2 — cited constants, never sw snapshots).
-constexpr float kSpeed = 1.0f;    // ParticleSystem.t3 Speed DefaultValue (node_registry_particle.cpp:222)
-constexpr float kDrag = 0.02f;    // ParticleSystem.t3 Drag DefaultValue  (node_registry_particle.cpp:223)
+constexpr float kSpeed = 1.0f;    // ParticleSystem.t3 Speed DefaultValue (t3:41-42)
+constexpr float kDrag = 0.02f;    // CHOSEN test pin (NOT the .t3 default — that is 0.005, t3:33-34)
 constexpr float kDirAmount = 0.5f;  // our chosen DirectionalForce.Amount (RandomAmount=0 → hash term == 1)
 constexpr uint32_t kEmitCount = 256;  // RadialPoints ring size (== newPointCount, the clean cohort width)
 constexpr float kStepScale = 0.01f;   // ParticleSystem.hlsl:111 `pos += velocity * Speed * 0.01`
@@ -203,6 +206,18 @@ int runParticleSimIntegrateParitySelfTest(bool injectBug) {
   const double measuredRatio = (d.mx != 0.0) ? dq.mx / d.mx : 0.0;
   const double expectedRatio = closedFormDeltaX(kDirAmount, 0.5f, kSpeed) / expClosed;  // pow-drag ratio
   rep.expect("dragProbe(Δ@0.5 / Δ@0.02 == pow-ratio)", measuredRatio, expectedRatio, 1e-3);
+
+  // ── SPEED PROBE (both legs): Speed=2 leaves the pow/linear IDENTITY POINT Speed=1 ─────────────────────
+  // pow(1-Drag, Speed) vs a stale linear `velocity *= (1-Drag)` (the commented-out ParticleSystem.hlsl:105
+  // form a naive port would copy) are the SAME NUMBER at Speed=1 (pow(x,1)==x) — every cook above sits on
+  // that identity, so the FORM itself had no tooth until here (2026-07-06 audit, P2). At Drag=0.5, Speed=2:
+  // faithful Δx = 0.5·pow(0.5,2)·2·0.01 = 0.0025; the stale linear form gives 0.5·0.5·2·0.01 = 0.005 —
+  // 50× the tolerance apart.
+  std::vector<SwPoint> r0, r1;
+  cookTwoSteps(h.dev, h.queue, h.lib, kDirAmount, /*drag=*/0.5f, /*speed=*/2.0f, r0, r1);
+  Delta dr = cleanCohortDelta(r0, r1);
+  rep.expect("speedProbe(Δx@Drag0.5,Speed2==pow-form)", dr.mx,
+             closedFormDeltaX(kDirAmount, 0.5f, 2.0f), 5e-5);
 
   return rep.finish();
 }

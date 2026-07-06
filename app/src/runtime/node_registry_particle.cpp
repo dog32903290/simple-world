@@ -241,7 +241,7 @@ const std::vector<NodeSpec>& particleSpecs() {
         {"forces", "forces", "ParticleForce", true},
         {"result", "result", "Points", false},
         {"Speed", "Speed", "Float", true, 1.0f, 0.0f, 3.0f},
-        {"Drag", "Drag", "Float", true, 0.02f, 0.0f, 0.2f},
+        {"Drag", "Drag", "Float", true, 0.005f, 0.0f, 0.2f},
         {"OrientTowardsVelocity", "OrientTowardsVelocity", "Float", true, 0.15f, 0.0f, 1.0f}},
        nullptr,
        "particle"},

@@ -3,15 +3,15 @@
 // HAND-BUILT minimal SMF byte buffer and the closed-form SMF spec + MidiClip.cs value math.
 //
 // THE FIXTURE (a format-0 SMF, 1 track, PPQN division 480), hand-assembled byte-by-byte below:
-//   tick 0   : NoteOn  ch0 note 60 (C4) vel 100   → key "/channel0/C4"          value 100/127 = 0.7874
-//   tick 0   : CC      ch0 controller 74 val 64   → key "/channel0/controller74" value 64/127 = 0.5039
-//   tick 240 : NoteOn  ch1 note 67 (G4) vel 127   → key "/channel1/G4"           value 127/127 = 1.0
-//   tick 480 : NoteOff ch0 note 60 (C4)           → key "/channel0/C4"           value 0 (overwrites)
+//   tick 0   : NoteOn  ch0 note 60 (C5) vel 100   → key "/channel1/C5"          value 100/127 = 0.7874
+//   tick 0   : CC      ch0 controller 74 val 64   → key "/channel1/controller74" value 64/127 = 0.5039
+//   tick 240 : NoteOn  ch1 note 67 (G5) vel 127   → key "/channel2/G5"           value 127/127 = 1.0
+//   tick 480 : NoteOff ch0 note 60 (C5)           → key "/channel1/C5"           value 0 (overwrites)
 //
 // EXPECTED (hand-derived, impl-independent — GOLDEN_STANDARD three-features):
-//   • parse: division 480; 4 channel events at the ticks above; note-name 60→"C4",67→"G4" (NAudio algorithm).
-//   • fold @ tick 300 (BETWEEN the G4 and the NoteOff): C4=0.7874 (still on), controller74=0.5039, G4=1.0.
-//   • fold @ tick 500 (AFTER the NoteOff): C4=0.0 (NoteOff overwrote), controller74=0.5039, G4=1.0.
+//   • parse: division 480; 4 channel events at the ticks above; note-name 60→"C5",67→"G5" (NAudio algorithm).
+//   • fold @ tick 300 (BETWEEN the G5 and the NoteOff): C5=0.7874 (still on), controller74=0.5039, G5=1.0.
+//   • fold @ tick 500 (AFTER the NoteOff): C5=0.0 (NoteOff overwrote), controller74=0.5039, G5=1.0.
 //   The two folds sit at DIVERGENT playhead points (one before, one after the note-off) so the tick-window +
 //   last-write-wins are exercised (P2: a fold that ignored the NoteOff, or used the wrong tick gate, reddens).
 //
@@ -111,10 +111,11 @@ int runMidiClipSelfTest(bool injectBug) {
                 f.deltaTicksPerQuarterNote, f.events.size(), pass ? "PASS" : "FAIL");
   }
 
-  // ── LEG 1b — smfNoteName: NAudio note→name (60→C4, 61→C#4, 67→G4, 72→C5). Closed-form, non-bug. ──
+  // ── LEG 1b — smfNoteName: NAudio v2.3.0 note→name, octave = note/12 with NO "-1" (NoteEvent.cs:157):
+  //    60→C5, 61→C#5, 67→G5, 72→C6, 69→A5. Closed-form spec anchor, non-bug. ──
   if (!injectBug) {
-    bool pass = smfNoteName(60) == "C4" && smfNoteName(61) == "C#4" &&
-                smfNoteName(67) == "G4" && smfNoteName(72) == "C5" && smfNoteName(69) == "A4";
+    bool pass = smfNoteName(60) == "C5" && smfNoteName(61) == "C#5" &&
+                smfNoteName(67) == "G5" && smfNoteName(72) == "C6" && smfNoteName(69) == "A5";
     ok = ok && pass;
     std::printf("[selftest-midiclip] LEG1b noteName: 60=%s 67=%s -> %s\n",
                 smfNoteName(60).c_str(), smfNoteName(67).c_str(), pass ? "PASS" : "FAIL");
@@ -123,52 +124,52 @@ int runMidiClipSelfTest(bool injectBug) {
   SmfFile f;
   parseSmf(smf, f);
 
-  // ── LEG 2 — fold @ tick 300 (before the NoteOff): C4 still on (0.7874), controller74 0.5039, G4 1.0. The
-  //    /127 normalisation tooth rides C4's value. FIXED want (P3-safe); -bug (skip norm) → 100 ≠ 0.7874. ──
+  // ── LEG 2 — fold @ tick 300 (before the NoteOff): C5 still on (0.7874), controller74 0.5039, G5 1.0. The
+  //    /127 normalisation tooth rides C5's value. FIXED want (P3-safe); -bug (skip norm) → 100 ≠ 0.7874. ──
   {
     midiClipInjectBug() = injectBug;
     SwFloatDict d;
     accumulateMidiClip(f, /*timeInTicks=*/300, d);
     midiClipInjectBug() = false;
 
-    float c4 = get(d, "/channel0/C4");
-    float cc = get(d, "/channel0/controller74");
-    float g4 = get(d, "/channel1/G4");
+    float c4 = get(d, "/channel1/C5");
+    float cc = get(d, "/channel1/controller74");
+    float g4 = get(d, "/channel2/G5");
     bool pass = nearf(c4, 100.0f / 127.0f) && nearf(cc, 64.0f / 127.0f) && nearf(g4, 1.0f);
     ok = ok && pass;
-    std::printf("[selftest-midiclip] LEG2 fold@300: C4=%.4f (want 0.7874) cc=%.4f G4=%.4f -> %s\n",
+    std::printf("[selftest-midiclip] LEG2 fold@300: C5=%.4f (want 0.7874) cc=%.4f G5=%.4f -> %s\n",
                 c4, cc, g4, pass ? "PASS" : "FAIL");
   }
 
-  // ── LEG 3 — fold @ tick 500 (after the NoteOff): C4 overwritten to 0.0; controller74 0.5039; G4 1.0. The
-  //    NoteOff-overwrites-NoteOn behaviour is load-bearing (a fold ignoring NoteOff would leave C4=0.7874).
-  //    Tooth rides controller74 (0.5039) so -bug reddens here too even though C4 is 0 both ways. ──
+  // ── LEG 3 — fold @ tick 500 (after the NoteOff): C5 overwritten to 0.0; controller74 0.5039; G5 1.0. The
+  //    NoteOff-overwrites-NoteOn behaviour is load-bearing (a fold ignoring NoteOff would leave C5=0.7874).
+  //    Tooth rides controller74 (0.5039) so -bug reddens here too even though C5 is 0 both ways. ──
   {
     midiClipInjectBug() = injectBug;
     SwFloatDict d;
     accumulateMidiClip(f, /*timeInTicks=*/500, d);
     midiClipInjectBug() = false;
 
-    float c4 = get(d, "/channel0/C4");
-    float cc = get(d, "/channel0/controller74");
-    float g4 = get(d, "/channel1/G4");
+    float c4 = get(d, "/channel1/C5");
+    float cc = get(d, "/channel1/controller74");
+    float g4 = get(d, "/channel2/G5");
     bool pass = nearf(c4, 0.0f) && nearf(cc, 64.0f / 127.0f) && nearf(g4, 1.0f);
     ok = ok && pass;
-    std::printf("[selftest-midiclip] LEG3 fold@500: C4=%.4f (want 0) cc=%.4f (want 0.5039) G4=%.4f -> %s\n",
+    std::printf("[selftest-midiclip] LEG3 fold@500: C5=%.4f (want 0) cc=%.4f (want 0.5039) G5=%.4f -> %s\n",
                 c4, cc, g4, pass ? "PASS" : "FAIL");
   }
 
-  // ── LEG 3b — fold @ tick 100 (before G4 arrives at 240): only C4 + controller74 present, NO G4 key. The
-  //    tick gate (event.absoluteTick <= time) is load-bearing (a fold ignoring the gate would include G4).
+  // ── LEG 3b — fold @ tick 100 (before G5 arrives at 240): only C5 + controller74 present, NO G5 key. The
+  //    tick gate (event.absoluteTick <= time) is load-bearing (a fold ignoring the gate would include G5).
   //    Pure boundary, non-bug. ──
   if (!injectBug) {
     SwFloatDict d;
     accumulateMidiClip(f, /*timeInTicks=*/100, d);
-    bool hasG4 = d.has("/channel1/G4");
-    bool pass = !hasG4 && nearf(get(d, "/channel0/C4"), 100.0f / 127.0f) && d.count() == 2;
+    bool hasG5 = d.has("/channel2/G5");
+    bool pass = !hasG5 && nearf(get(d, "/channel1/C5"), 100.0f / 127.0f) && d.count() == 2;
     ok = ok && pass;
-    std::printf("[selftest-midiclip] LEG3b fold@100: keys=%zu G4present=%d -> %s\n",
-                d.count(), hasG4, pass ? "PASS" : "FAIL");
+    std::printf("[selftest-midiclip] LEG3b fold@100: keys=%zu G5present=%d -> %s\n",
+                d.count(), hasG5, pass ? "PASS" : "FAIL");
   }
 
   std::printf("[selftest-midiclip] %s\n", ok ? "PASS" : "FAIL");

@@ -21,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <cstdio>
 #include <mutex>
 #include <string>
@@ -73,22 +74,23 @@ int runUdpLoopbackSelfTest(bool injectBug) {
   MsgCapture capB;
   UdpLoopbackDevice a, b;
   if (!b.startListening(0, udpCb, &capB) || !a.startListening(0, udpCb, nullptr)) {
-    std::printf("[selftest-io-udp-loopback] bind failed -> SKIP transport (env restricted)\n");
-    if (injectBug) return 1;
+    std::printf("[selftest-io-udp-loopback] bind failed -> SKIP transport (env restricted; tooth cannot bite)\n");
+    if (injectBug) return 0;  // did-not-trip -> 0, NO-BITE list surfaces the env-dead tooth
     return ok ? 0 : 1;
   }
 
   const int bPort = b.boundPort();
   const int aPort = a.boundPort();
-  ok = ok && a.sendTo(bPort, "hello world");
+  // injectBug corrupts the SENT payload (real transport input) — the want below stays FIXED, so the
+  // assert diverges on genuine wire carriage, not on a flipped expectation (P3 fix, 2026-07-06 audit).
+  ok = ok && a.sendTo(bPort, injectBug ? "CORRUPT" : "hello world");
   ok = ok && a.sendTo(bPort, "12.5 ok");
 
   bool arrived = waitFor(capB, 2, 1000);
   ok = ok && arrived;
   if (arrived) {
     std::lock_guard<std::mutex> lk(capB.mx);
-    // injectBug corrupts the first expected payload → decode assert diverges on the real recv path.
-    ok = ok && capB.msgs[0] == (injectBug ? "CORRUPT" : "hello world");
+    ok = ok && capB.msgs[0] == "hello world";  // FIXED want (send side carries the corruption)
     ok = ok && capB.msgs[1] == "12.5 ok";
     ok = ok && capB.ports[0] == aPort;  // LastSenderPort round-trips to A's bound port
   }
@@ -110,8 +112,8 @@ int runTcpLoopbackSelfTest(bool injectBug) {
   MsgCapture srvCap, cliCap;
   TcpServerLoopback server;
   if (!server.startListening(0, tcpServerCb, &srvCap)) {
-    std::printf("[selftest-io-tcp-loopback] listen failed -> SKIP transport (env restricted)\n");
-    if (injectBug) return 1;
+    std::printf("[selftest-io-tcp-loopback] listen failed -> SKIP transport (env restricted; tooth cannot bite)\n");
+    if (injectBug) return 0;  // did-not-trip -> 0, NO-BITE list surfaces the env-dead tooth
     return ok ? 0 : 1;
   }
   const int port = server.boundPort();
@@ -128,12 +130,12 @@ int runTcpLoopbackSelfTest(bool injectBug) {
   ok = ok && server.connectionCount() == 1;
 
   // client → server
-  ok = ok && client.send("ping from client");
+  ok = ok && client.send(injectBug ? "CORRUPT" : "ping from client");  // bug corrupts the SENT payload
   bool srvGot = waitFor(srvCap, 1, 1000);
   ok = ok && srvGot;
   if (srvGot) {
     std::lock_guard<std::mutex> lk(srvCap.mx);
-    ok = ok && srvCap.msgs[0] == (injectBug ? "CORRUPT" : "ping from client");
+    ok = ok && srvCap.msgs[0] == "ping from client";  // FIXED want (P3 fix, 2026-07-06 audit)
   }
 
   // server → client (broadcast)
@@ -164,19 +166,20 @@ int runSerialLoopbackSelfTest(bool injectBug) {
   MsgCapture cap;
   SerialLoopbackDevice serial;
   if (!serial.openLoopback(9600, serialCb, &cap)) {
-    std::printf("[selftest-io-serial-loopback] openpty failed -> SKIP transport (env restricted)\n");
-    if (injectBug) return 1;
+    std::printf("[selftest-io-serial-loopback] openpty failed -> SKIP transport (env restricted; tooth cannot bite)\n");
+    if (injectBug) return 0;  // did-not-trip -> 0, NO-BITE list surfaces the env-dead tooth
     return ok ? 0 : 1;
   }
 
   // 1) device → app: inject two newline-terminated lines; assert the split lines (CRLF stripped).
-  ok = ok && serial.injectFromDevice("sensor 42\r\npartial");  // one full line + a partial
+  ok = ok && serial.injectFromDevice(injectBug ? "CORRUPT\r\npartial"
+                                               : "sensor 42\r\npartial");  // bug corrupts the device bytes
   ok = ok && serial.injectFromDevice(" done\n");               // completes the second line
   bool arrived = waitFor(cap, 2, 1000);
   ok = ok && arrived;
   if (arrived) {
     std::lock_guard<std::mutex> lk(cap.mx);
-    ok = ok && cap.msgs[0] == (injectBug ? "CORRUPT" : "sensor 42");  // '\r' stripped
+    ok = ok && cap.msgs[0] == "sensor 42";  // FIXED want, '\r' stripped (P3 fix, 2026-07-06 audit)
     ok = ok && cap.msgs[1] == "partial done";
   }
 
@@ -283,6 +286,11 @@ int runWebSocketFrameSelfTest(bool injectBug) {
     const uint8_t mkey[4] = {0x37, 0xFA, 0x21, 0x3D};
     auto enc = wsEncodeFrame(WsOpcode::Text, "Hello", /*mask=*/true, mkey);
     ok = ok && (enc[1] & 0x80) != 0;  // MASK bit set
+    // RFC 6455 §5.7 EXAMPLE, exact wire bytes: masked "Hello" with this very key = 81 85 37 fa 21 3d
+    // 7f 9f 4d 51 58. Spec-anchored — kills the encode→decode self-consistency window where a
+    // double-XOR no-op stays green (P5 fix, 2026-07-06 audit).
+    const uint8_t kRfc57[11] = {0x81, 0x85, 0x37, 0xFA, 0x21, 0x3D, 0x7F, 0x9F, 0x4D, 0x51, 0x58};
+    ok = ok && enc.size() == 11 && std::memcmp(enc.data(), kRfc57, sizeof kRfc57) == 0;
     auto dec = wsDecodeFrame(enc.data(), enc.size());
     ok = ok && dec.ok && dec.masked && dec.payload == "Hello";
   }

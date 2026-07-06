@@ -291,7 +291,7 @@ int runT3BubbleZoomParity(bool injectBug) {
   const bool bites = !pass;  // bug drops the Gradient wire → transparent fallback → black → tooth bites
   printf("[t3-bubblezoom] -bug: Gradient-input tooth %s\n", bites ? "BITES" : "TOOTHLESS");
   pool->release();
-  return bites ? 1 : 2;
+  return bites ? 1 : 0;  // dead tooth exits 0 → --bite NO-BITE list catches it (GOLDEN_STANDARD 特徵3)
 }
 
 }  // namespace sw

@@ -133,7 +133,10 @@ bool parseSmf(const std::vector<uint8_t>& b, SmfFile& out) {
 std::string smfNoteName(int note) {
   static const char* kNames[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
   int pc = ((note % 12) + 12) % 12;
-  int octave = note / 12 - 1;  // NAudio: middle C (60) → octave 4
+  // NAudio v2.3.0 (the version TiXL pins, Core/Core.csproj:32) NoteEvent.cs:157: `int octave = noteNumber / 12;`
+  // — NO "-1". Middle C (60) → "C5". The scientific-pitch "-1" convention that used to sit here produced
+  // "/channelN/C4" keys no TiXL .t3 graph would ever match (2026-07-06 audit, parity bug).
+  int octave = note / 12;
   return std::string(kNames[pc]) + std::to_string(octave);
 }
 
@@ -160,12 +163,15 @@ void accumulateMidiClip(const SmfFile& file, int64_t timeInTicks, SwFloatDict& o
     out.entries.push_back({key, v});
   };
 
+  // Key channel is 1-BASED: NAudio MidiEvent.cs decodes `channel = (status & 0x0F) + 1`, and MidiClip.cs:161
+  // interpolates that Channel straight into the key — "/channel1/..". SmfEvent.channel stays the raw 0-based
+  // status nibble; the +1 lives only here at key-build time (2026-07-06 audit, parity bug).
   for (const SmfEvent* e : upTo) {
     if (e->kind == SmfEvent::ControlChange) {
-      const std::string key = "/channel" + std::to_string(e->channel) + "/controller" + std::to_string(e->number);
+      const std::string key = "/channel" + std::to_string(e->channel + 1) + "/controller" + std::to_string(e->number);
       setKey(key, skipNorm ? (float)e->value : e->value / 127.0f);  // MidiClip.cs:186
     } else {
-      const std::string key = "/channel" + std::to_string(e->channel) + "/" + smfNoteName(e->number);
+      const std::string key = "/channel" + std::to_string(e->channel + 1) + "/" + smfNoteName(e->number);
       if (e->kind == SmfEvent::NoteOn)
         setKey(key, skipNorm ? (float)e->value : e->value / 127.0f);  // MidiClip.cs:160
       else

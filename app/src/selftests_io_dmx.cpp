@@ -162,7 +162,8 @@ int runSacnSyncSelfTest(bool injectBug) {
   for (int i = 0; i < 9; i++) ok = ok && p[4 + i] == (uint8_t)acn[i];        // ACN id (cs:1451)
   // root flags+length = 0x7000|31 = 0x701F BE (cs:1453).
   ok = ok && p[16] == 0x70 && p[17] == 0x1F;
-  // root vector 0x00000008 (EXTENDED) BE (cs:1455) — the sync tell vs data's 0x04.
+  // root vector 0x00000008 (EXTENDED) BE — E1.31 spec value; NAMED FORK fork-sacn-sync-root-vector:
+  // TiXL SacnOutput.cs:378 writes 0x04 here (upstream bug, see dmx_packet.cpp). The sync tell vs data 0x04.
   ok = ok && p[18] == 0x00 && p[19] == 0x00 && p[20] == 0x00 && p[21] == 0x08;
   // framing flags+length 0x7000|9 = 0x7009 BE (cs:1458).
   ok = ok && p[38] == 0x70 && p[39] == 0x09;

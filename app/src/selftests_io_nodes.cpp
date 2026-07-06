@@ -282,8 +282,10 @@ bool goldenMidiNoteOutput(bool injectBug) {
   if (p1.count) { p1.status = ioDeviceBus().midiOut[0].status; p1.data1 = ioDeviceBus().midiOut[0].data1; p1.data2 = ioDeviceBus().midiOut[0].data2; }
   endIoDeviceFrame();
   expect("MidiNoteOutput NoteOn on edge → 0x90/60/100", p1.count == 1 && p1.status == 0x90 && p1.data1 == 60 && p1.data2 == 100);
-  // frame2: release the trigger → NoteOff (velocity 0). injectBug 1 (level-fire) re-sends NoteOn while
-  // still-held → but we now RELEASE, so use a fresh graph held-across-two-frames to bite the edge instead.
+  // ★ HONEST NO-TOOTH (2026-07-06 audit): this golden has NO injectBug wiring — the old comment here
+  // described a "fresh graph held-across-two-frames" bite that was never written, and the NoteOff leg
+  // (release → 0x80/vel0, MidiNoteOutput.cs:93-98) is untested. Debt: add a release-edge leg + a
+  // level-fire tooth. Until then the -bug variant exercises nothing on this golden.
   (void)injectBug;
   return g_fail == 0;
 }
@@ -323,6 +325,11 @@ bool goldenMidiTriggerOutput(bool injectBug) {
 }
 
 // ── MidiSysexOutput: parse "F0 43 12 F7" hex → 4 SysEx bytes on the rising edge ──────────────────────
+// ★ NAMED FORK (fork-midisysex-edge-gate-not-toggle, 2026-07-06 audit): TiXL MidiSysexOutput.cs:44-52
+// gates the send on `_initialized = !_initialized` — an ALTERNATING toggle (held trigger: frame1 silent,
+// frame2 sends, then every other frame), almost certainly an upstream bug. sw deliberately uses the
+// sanitized rising-edge gate the sibling Midi*Output ops use (send once on the rise, silent while held).
+// The hex parse / F0 framing below carries the TiXL anchor; the CADENCE is a declared sw divergence.
 bool goldenMidiSysexOutput(bool injectBug) {
   SymbolLibrary lib = makeLib("MidiSysexOutput", {{"TriggerSend", 1.0f}}, {{"SysexString", "F0 43 12 F7"}});
   ResidentEvalGraph g = buildEvalGraph(lib, lib.rootId); initResidentCache(g);

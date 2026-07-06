@@ -199,7 +199,7 @@ int runFieldPyramidSdfGoldenSelfTest(bool injectBug) {
       std::printf("[selftest-field-pyramidsdf] FAIL: injectBug could not find the distance-write site "
                   "in the template (tooth cannot bite)\n");
       q->release(); dev->release(); pool->release();
-      return 1;
+      return 0;  // did-not-trip -> 0, NO-BITE list catches it (GOLDEN_STANDARD 特徵3)
     }
     useTmpl.replace(pos, from.size(), to);
   }

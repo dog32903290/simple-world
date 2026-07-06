@@ -387,7 +387,7 @@ int runTransformOpsSelfTest(bool injectBug) {
   if (injectBug) {
     if (allFaithful) {
       std::printf("[selftest-transformops] FAIL: injectBug tripped no tooth (op stamp survived the drop)\n");
-      return 1;
+      return 0;  // did-not-trip -> 0, NO-BITE list catches it (GOLDEN_STANDARD 特徵3)
     }
     std::printf("[selftest-transformops] injectBug correctly RED (op stamp dropped → quad never "
                 "rotated/sheared/translated → probes flipped on flat AND resident)\n");

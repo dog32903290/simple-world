@@ -161,7 +161,7 @@ void cookParticleSim(PointCookCtx& c) {
 
   const float speed = cookParam(c, "Speed", 1.0f);
   // -bug latch (point_ops_forceparams.h): integrator Drag drift for the particlesim parity golden.
-  const float drag = particleSimDragBugForTest() ? 0.5f : cookParam(c, "Drag", 0.02f);
+  const float drag = particleSimDragBugForTest() ? 0.5f : cookParam(c, "Drag", 0.005f);
   // forces = buffer input 1 (spec order: emit, forces). Wired iff its params map is present.
   const bool hasForce = c.inputParams && c.inputCount > 1 && c.inputParams[1] != nullptr;
   // _ForceKind tags which kernel the wired force runs (particle_params.h ForceKind). The cook

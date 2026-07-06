@@ -8,13 +8,13 @@
 // It drives cookFlatDict on a real Graph node whose "Filename" strParam points at a hand-built SMF temp
 // file, at DIVERGENT playhead bars, and asserts the folded SwFloatDict.
 //
-// FIXTURE (same 4-event SMF as midiclip_golden, PPQN 480): NoteOn C4 @0 vel100, CC74 @0 val64, NoteOn G4
-// @240 vel127, NoteOff C4 @480. bars→ticks = bars * 4 * 480 = bars * 1920.
+// FIXTURE (same 4-event SMF as midiclip_golden, PPQN 480): NoteOn C5 @0 vel100, CC74 @0 val64, NoteOn G5
+// @240 vel127, NoteOff C5 @480. bars→ticks = bars * 4 * 480 = bars * 1920.
 //
 // EXPECTED (hand-derived from MidiClip.cs:144 + accumulateMidiClip key/value scheme, GOLDEN_STANDARD):
-//   • bars 0.15625 → tick 300 (between G4 and NoteOff): C4=100/127=0.7874, cc74=0.5039, G4=1.0.
-//   • bars 0.260417 → tick 500 (after NoteOff):         C4=0.0, cc74=0.5039, G4=1.0.
-//   • bars 0.0520833 → tick 100 (before G4):            C4=0.7874, cc74=0.5039, NO G4 key (tick gate).
+//   • bars 0.15625 → tick 300 (between G5 and NoteOff): C5=100/127=0.7874, cc74=0.5039, G5=1.0.
+//   • bars 0.260417 → tick 500 (after NoteOff):         C5=0.0, cc74=0.5039, G5=1.0.
+//   • bars 0.0520833 → tick 100 (before G5):            C5=0.7874, cc74=0.5039, NO G5 key (tick gate).
 //   Divergent bars exercise the bars→ticks math + the tick gate + last-write-wins THROUGH the node cook.
 //
 // TOOTH (one real transform seam, NOT want-flip): midiClipInjectBug() (midi_smf.h:74) skips the /127
@@ -57,10 +57,10 @@ void putU16(std::vector<uint8_t>& b, uint16_t v) { b.push_back((v >> 8) & 0xFF);
 
 std::vector<uint8_t> buildFixtureSmf() {
   std::vector<uint8_t> trk;
-  putVlq(trk, 0);   trk.push_back(0x90); trk.push_back(60);  trk.push_back(100);  // NoteOn  C4 @0
+  putVlq(trk, 0);   trk.push_back(0x90); trk.push_back(60);  trk.push_back(100);  // NoteOn  C5 @0
   putVlq(trk, 0);   trk.push_back(0xB0); trk.push_back(74);  trk.push_back(64);   // CC74      @0
-  putVlq(trk, 240); trk.push_back(0x91); trk.push_back(67);  trk.push_back(127);  // NoteOn  G4 @240
-  putVlq(trk, 240); trk.push_back(0x80); trk.push_back(60);  trk.push_back(0);    // NoteOff C4 @480
+  putVlq(trk, 240); trk.push_back(0x91); trk.push_back(67);  trk.push_back(127);  // NoteOn  G5 @240
+  putVlq(trk, 240); trk.push_back(0x80); trk.push_back(60);  trk.push_back(0);    // NoteOff C5 @480
   putVlq(trk, 0);   trk.push_back(0xFF); trk.push_back(0x2F); trk.push_back(0x00); // EoT
   std::vector<uint8_t> b;
   b.push_back('M'); b.push_back('T'); b.push_back('h'); b.push_back('d');
@@ -127,42 +127,42 @@ int runMidiClipNodeSelfTest(bool injectBug) {
   }
   const std::string path = mid.string();
 
-  // ── LEG 1 — cook @ bars 0.15625 (tick 300, before NoteOff): C4=0.7874, cc74=0.5039, G4=1.0. The /127
-  //    tooth rides C4 through the NODE cook → -bug (raw 100) reddens. Divergent playhead (P2). ──
+  // ── LEG 1 — cook @ bars 0.15625 (tick 300, before NoteOff): C5=0.7874, cc74=0.5039, G5=1.0. The /127
+  //    tooth rides C5 through the NODE cook → -bug (raw 100) reddens. Divergent playhead (P2). ──
   {
     SwFloatDict d = cookNode(path, 0.15625, injectBug);
-    float c4 = get(d, "/channel0/C4");
-    float cc = get(d, "/channel0/controller74");
-    float g4 = get(d, "/channel1/G4");
+    float c4 = get(d, "/channel1/C5");
+    float cc = get(d, "/channel1/controller74");
+    float g4 = get(d, "/channel2/G5");
     bool pass = nearf(c4, 100.0f / 127.0f) && nearf(cc, 64.0f / 127.0f) && nearf(g4, 1.0f);
     ok = ok && pass;
-    std::printf("[selftest-midiclipnode] LEG1 cook@bars0.15625: C4=%.4f (want 0.7874) cc=%.4f G4=%.4f -> %s\n",
+    std::printf("[selftest-midiclipnode] LEG1 cook@bars0.15625: C5=%.4f (want 0.7874) cc=%.4f G5=%.4f -> %s\n",
                 c4, cc, g4, pass ? "PASS" : "FAIL");
   }
 
-  // ── LEG 2 — cook @ bars 0.260417 (tick 500, after NoteOff): C4=0.0 (overwritten), cc74=0.5039, G4=1.0.
-  //    Tooth rides cc74 (0.5039) so -bug reddens even though C4=0 both ways. NoteOff-overwrite load-bearing. ──
+  // ── LEG 2 — cook @ bars 0.260417 (tick 500, after NoteOff): C5=0.0 (overwritten), cc74=0.5039, G5=1.0.
+  //    Tooth rides cc74 (0.5039) so -bug reddens even though C5=0 both ways. NoteOff-overwrite load-bearing. ──
   {
     SwFloatDict d = cookNode(path, 0.260417, injectBug);
-    float c4 = get(d, "/channel0/C4");
-    float cc = get(d, "/channel0/controller74");
-    float g4 = get(d, "/channel1/G4");
+    float c4 = get(d, "/channel1/C5");
+    float cc = get(d, "/channel1/controller74");
+    float g4 = get(d, "/channel2/G5");
     bool pass = nearf(c4, 0.0f) && nearf(cc, 64.0f / 127.0f) && nearf(g4, 1.0f);
     ok = ok && pass;
-    std::printf("[selftest-midiclipnode] LEG2 cook@bars0.260417: C4=%.4f (want 0) cc=%.4f (want 0.5039) G4=%.4f -> %s\n",
+    std::printf("[selftest-midiclipnode] LEG2 cook@bars0.260417: C5=%.4f (want 0) cc=%.4f (want 0.5039) G5=%.4f -> %s\n",
                 c4, cc, g4, pass ? "PASS" : "FAIL");
   }
 
-  // ── LEG 3 — cook @ bars 0.0520833 (tick 100, before G4 @240): C4=0.7874, cc74=0.5039, NO G4 key. The
-  //    bars→ticks conversion + tick gate are load-bearing (a wrong conversion would let G4 leak in early).
+  // ── LEG 3 — cook @ bars 0.0520833 (tick 100, before G5 @240): C5=0.7874, cc74=0.5039, NO G5 key. The
+  //    bars→ticks conversion + tick gate are load-bearing (a wrong conversion would let G5 leak in early).
   //    Pure boundary, non-bug. ──
   if (!injectBug) {
     SwFloatDict d = cookNode(path, 0.0520833, false);
-    bool hasG4 = d.has("/channel1/G4");
-    bool pass = !hasG4 && nearf(get(d, "/channel0/C4"), 100.0f / 127.0f) && d.count() == 2;
+    bool hasG5 = d.has("/channel2/G5");
+    bool pass = !hasG5 && nearf(get(d, "/channel1/C5"), 100.0f / 127.0f) && d.count() == 2;
     ok = ok && pass;
-    std::printf("[selftest-midiclipnode] LEG3 cook@bars0.052: keys=%zu G4present=%d -> %s\n",
-                d.count(), hasG4, pass ? "PASS" : "FAIL");
+    std::printf("[selftest-midiclipnode] LEG3 cook@bars0.052: keys=%zu G5present=%d -> %s\n",
+                d.count(), hasG5, pass ? "PASS" : "FAIL");
   }
 
   std::error_code ec;
