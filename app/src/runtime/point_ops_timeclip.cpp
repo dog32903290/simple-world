@@ -348,6 +348,6 @@ int runTimeClipSelfTest(bool injectBug) {
   return allGreen ? 0 : 1;
 }
 
-REGISTER_SELFTESTS(/*orderBase=*/324, {"timeclip", runTimeClipSelfTest});
+REGISTER_SELFTESTS(/*orderBase=*/323, {"timeclip", runTimeClipSelfTest});
 
 }  // namespace sw
