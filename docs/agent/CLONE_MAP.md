@@ -1,5 +1,24 @@
 # CLONE_MAP — TiXL 克隆真實地圖(2026-07-04 census 修準 + 三縫對 code 驗證)
 
+> **★★大縫戰役終帳 2026-07-06 12:00(第六梯七路收攏,柏為令「四大縫+外部依賴+PARTIAL 全清」)**:
+> **總 601/749(80%)/ 原子 436/451(96.7%)/ 複合 165/298 / sweep 682/0/0。**
+> **四大縫全倒**:①DataSet-timeline(ClipTimeData 資料模型+importer+LiveTimeRemapScope 兩腿;TimeClip DONE)
+> ②pbr render-pass(Cook-Torrance BRDF MSL keystone 逐位元 golden+context-stack 兩腿+DrawKind::MeshPbr+
+> cgltf;6 顆 shading ops 上圖;抓到 albedo 語義坑+resident 假黑洞兩真 bug)③persistent-accumulator
+> (拆檔+ensureFeedbackArray N-ring;KeepInTextureArray/TimeDisplace DONE,TimeDisplace=compound collapse
+> 窄做 fork)④WS-live(見下方縫戰報)。
+> **外部依賴**:OpenCV 接入(cv_bridge 隔離,calibrate/pointscan 閉式錨)/AbletonLink DONE(**⚠GPLv2
+> 待柏為裁:分發前要換商業授權或動態連結**)/跨op反射縫成立(沿 connection 摸 curve,Find/SetKeyframes
+> DONE 含寫入)/ArtnetPixelOutput=已被 PointsToRGBList→ArtnetOutput 取代不做。
+> **PARTIAL 全接腿**:PlayVideo decode(★MV frame-accurate 承重,by-INDEX 決定性+ProRes4444 閉式自測)/
+> capture/VISCA+ONVIF 發送/8 顆翻 DONE。
+> **剩 15 todo 原子定性**:4 不做(SwiftCam 柏為拍板/ObjectVar×2 TiXL 零使用/ArtnetPixel obsolete)+
+> 2 假 todo(CameraCalibrator/Video2DPointScanner 核心已 golden 只欠 NodeSpec 皮)+2 等柏為字型資產
+> (LineTextPoints/TextSprites)+**7 真剩**:SwDataSet currency 一場解 4(LoadDataClip/MidiClip/
+> MidiRecording/SimulateIoData)+SpatialAudioPlayer(3D mixer)+PlaybackFFT(audio→FloatList)+
+> VideoStreamInput(OpenCV videoio,CV 已入可解)。
+> **柏為桌上兩決策**:AbletonLink GPLv2、SVG 單線字型檔。
+
 > **★縫戰報 2026-07-06(WebSocket/HTTP live-server 縫結案,seam/ws-live 分支)**:
 > 「大縫戰役級」清單裡的 **WebSocket/HTTP live server** 縫已蓋(下方 34-todo 清單 ③ 的一項可移除)。
 > 缺的第三塊(websocket_frame codec 之上的「活」state machine)已補齊:
