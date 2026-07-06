@@ -1,7 +1,8 @@
 # CLONE_MAP — TiXL 克隆真實地圖(2026-07-04 census 修準 + 三縫對 code 驗證)
 
 > **★★★收尾梯終帳 2026-07-06 18:00(七路+接線,柏為令「7 真剩+外部依賴決策+中文字破例」)**:
-> **總 608/749(81%)/ 原子 443/451(98.2%,todo 剩 8)/ sweep 689/0/0。**
+> **總 610/749(81%)/ 原子 445/451(98.7%,todo 剩 6=可做原子全清)/ sweep 689/0/0。**
+> (CameraCalibrator/Video2DPointScanner NodeSpec 皮已補 done,port 數 14==14/16==16 對 TiXL 一致。)
 > 收:VideoStreamInput(OpenCV videoio)/**AbletonLink 動態連結**(GPL 邊界關閉,主執行檔零 ableton 符號、
 > 4243 GPL 符號隔離進 libsw_link.dylib,照 TiXL DLL 模型;柏為裁動態連結)/**TextToPoints=中文字→字形
 > 輪廓點雲**(CoreText,TiXL-absent 破例第一顆,真「口」4 輪廓,MV 承重)/SpatialAudioPlayer+PlaybackFFT/
