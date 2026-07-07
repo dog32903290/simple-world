@@ -15,16 +15,25 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: b38a2e8
-DIRTY: 1 files
+HEAD: 47c32a6
+DIRTY: clean
 CENSUS: 610 / 749 done
-BITE: 694 PASS
-STAMP_AT: 2026-07-07T02:28
+BITE: 701 PASS
+STAMP_AT: 2026-07-07T17:46
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
 
 ## Active Lane
+
+**★★★現行定位（2026-07-07，HEAD `47c32a6`，--bite 701/0/0，已 push origin）——接手先讀 memory [[uiux-lane-2026-07-07]] + [[next-phase-compound-catalog-2026-07-07]]，別被下方舊 lane 敘述帶歪。**
+- **今日完成＝柏為 UIUX 四訴求 + 二輪 Output 回饋全上岸**（14 commit `b9b2f0b`→`47c32a6`）：drag jog 手感 / 影片匯出(引擎+設定窗+ProRes4444) / 解析度 preset=固定像素+Fill window-follow+Custom / docking 版面(canvas 中央+周邊 dock+resize 自適應) / 相機 orbit(Viewer+Locked-to-Op)。全機器閘綠 + 眼手驗。
+- **★下一大階段＝復合戰役（柏為 2026-07-07 令，task#11-14，等他說開工——他說「復合等等再說」）**：①廢棄/obsolete 節點退場（先）②每節點對 TiXL census ③復合織完(165/298→滿) ④TiXL 巢狀 catalog 分佈。**開工先讀 CLONE_MAP.md 對帳**（複合帳 165/298）。
+- **★承重約束（別踩）**：sw DrawPoints 是 2D 正交廢棄版(丟 Z 不吃相機)，TiXL DrawPoints 是 3D 相機投影(源證在 next-phase memory)。**復合戰役重建點-draw 家族時必須港吃相機的點著色器 + executor DrawKind::Points 綁相機矩陣**——那才讓相機 orbit 對點生效(現在只對 mesh/layer 生效)。orbit 基建(view_camera A/B/C)已完整正確、非白做。
+- **⚠ 已知假綠**：`output_orbit_viewer.scn` 用粒子運動假證 orbit(點不吃相機故對它無效)；點著色器修好後改靜態點真證。
+
+---
+> ⬇⬇⬇ **以下為舊 lane 敘述（AI-畫布 harness / 187 mesh 量產 / 原子重放 — 今日 UIUX 之前的狀態）＝done-record 備查，非現行方向。現行看上方 2026-07-07 塊。** ⬇⬇⬇
 
 **★AI-畫布工具 lane（柏為 2026-07-06 開，與 clone 主線並行；屬 verify 基建＝驗證工具，不受範圍閘）＝graph data-verb 閉環讓 AI 繞座標織 patch 並程式化自驗。**
 - **setparam + readpixel done（`e95b32a`，Opus refuter 6/6 SURVIVES，--bite 691，未碰 cook-core）**：`setparam <childId> <slotId> <value>` 走 inspector 同一顆 `SetOverrideCommand`（undo/save/dirty 同源）；`readpixel <x> <y>`→readpixel.json byte-verbatim（clean target RGBA8Unorm/Shared/linear）。閉環 **spawn→connect→setparam→render→readpixel 全通**、skin-independent（data-verb + pixel 斷言撐得住 UI 改皮）。端到端 `tests/scenarios/graph_data_verb_pixel.scn`。
@@ -146,7 +155,9 @@ gradient-fed 6/7 DONE。187 是 class-gated：逐 class 建 seam/補映射→該
 
 ## Next Handoff Sentence
 
-**★★下一根（2026-07-02，現行）：收尾 mesh 家族兩缺口 → 開 187 量產。** ① **骨4** mesh-buffer 橋原子（`_MeshBufferComponents`/`_AssembleMeshBuffers`，做真 atom + import mapping，拔骨8 golden 的 scaffold rewire）② **骨9** 挑一顆真有 mixed-slot（child+boundary 交錯進同 MultiInput）的 mesh/modify 或 mesh/draw 複合，端到端 replay 驗骨7b 排序修對真 mesh 有效（TransformMesh/TransformPoints 都零 mixed-slot、始終未驗）。兩者碰 importer/flatten 邊緣＝序列 owner-lock、可與**骨2**（HLSL→MSL 尾巴，零 cook-core 自走）並行。收尾後 187 進大量並行體力（每顆 embed .t3 + 手翻 kernel + refuter）。**ParticleSystem 已解鎖**（柏為 2026-07-02 定＝照 TiXL 拔 fork [[particlesystem-pool-fork-match-tixl]]）。開頭跑 `tools/sw_status.sh`；細節見上方 ## Active Lane。
+**★★下一根（2026-07-07，現行，取代下方 07-02 mesh 句）：復合戰役（柏為令，等他說開工——「復合等等再說」）。** 順序：①廢棄/obsolete 節點退場（先）②每節點對 TiXL census ③復合織完（165/298→滿）④TiXL 巢狀 catalog 分佈（複合=巢狀註冊節點能拖/鑽入，image 不壓扁，[[tixl-clone-model-nested-catalog-node]]）。**開工先讀 CLONE_MAP.md 對帳 + memory [[next-phase-compound-catalog-2026-07-07]]**。承重約束：點-draw 家族重建必須港吃相機的著色器（見該 memory，否則相機 orbit 對點永遠無效）。task#11-14 帶依賴鏈。開頭跑 `tools/sw_status.sh`。
+
+〔舊句 2026-07-02（mesh 家族兩缺口→187 量產）已完成/被今日方向取代，移 done-record：骨4 mesh-buffer 橋 / 骨9 mixed-slot replay / 骨2 HLSL→MSL 尾巴 / ParticleSystem 解鎖照 [[particlesystem-pool-fork-match-tixl]]〕
 
 〔2026-06-29 原子 pivot 首日舊接力（autonomous 菜單/SW_UNKNOWN/OBJ 子-lane 等背景）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)，2026-07-06 搬〕
 - **★效能優先項目（柏為 2026-06-27 指定，按 ROI 排序）**：
