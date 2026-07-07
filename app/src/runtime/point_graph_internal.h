@@ -130,7 +130,19 @@ struct PointGraph::Impl : FeedbackStore {
   // BOTH cook entries apply it via seedFrameResolution() — deferred to cook entry so a mid-imgui-frame
   // push can never release the `target` texture the current draw list still references. 0 == no pending.
   uint32_t pendingWidth = 0, pendingHeight = 0;
-  void seedFrameResolution();  // apply pending resize (rebuild target ONLY on size change) + seed res; doc _debug.cpp
+  // The `target` texture's CURRENT pixel size (the preview surface previewTexture()/req_clean read).
+  // Tracks frameResolution() (= frameResOverride ? *override : {width,height}), NOT the raw window
+  // size — so a fixed preset (1080p/4k/Custom) actually retargets the default DrawPoints/Command
+  // preview surface (which has no displayTex to carry the override). Rebuild ONLY when the effective
+  // resolution differs from these (0 == never sized; the ctor seeds them). Was the bug: `target`
+  // followed the window (width/height) and IGNORED the preset override → the WxH overlay + preview
+  // stayed window-sized until a RenderTarget node happened to route displayTex. TiXL OutputWindow.cs:
+  // 411-414 seeds RequestedResolution export>selector>Fill EVERY frame and the output texture adopts it.
+  uint32_t targetW = 0, targetH = 0;
+  // TEST-ONLY: force seedFrameResolution back to the buggy pre-fix path (target from window, override
+  // ignored). Set via PointGraph::debugSetTargetFollowsWindowBug; the preset-target tooth's injectBug leg.
+  bool bugTargetFollowsWindow = false;
+  void seedFrameResolution();  // rebuild target when the EFFECTIVE resolution changes + seed res; doc _debug.cpp
 
   // Per-node persistent resources (reused across frames; RESOURCE_LIFETIME golden: allocate → reuse (count
   // unchanged) → reallocate (count grew)). Keyed by resident path or "#"-prefixed flat id (pgdetail::flatKey).

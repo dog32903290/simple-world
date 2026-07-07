@@ -5,11 +5,15 @@
 # preset retargets the render. This scenario drives the combo by hand and asserts the COOKED
 # preview dims actually change — coupling the assertion to the real cook, not to the UI label.
 #
-# WHY a RenderTarget terminal: the default doc's DrawPoints terminal is a Command op that renders
-# into the window-sized texture (the override is seeded but a Command terminal ignores it — its
-# texture follows the WINDOW, not the preset). A RenderTarget terminal with Resolution=WindowFollow
-# (its default) ADOPTS the active RequestedResolution, so its own texture retargets — exactly where
-# the override becomes visible. We build DrawPoints#7 -> RenderTarget#104 (RT = tex-sink terminal).
+# TWO faces are tested here:
+#   1. DEFAULT PREVIEW PATH (first block): the default doc's DrawPoints#7 Command terminal renders into
+#      the preview `target` (NO RenderTarget node → NO displayTex). After the seedFrameResolution fix
+#      (point_graph_debug.cpp) this `target` sizes to the EFFECTIVE resolution, so a fixed preset
+#      retargets the DEFAULT preview — the exact path the shipped bug broke and the RenderTarget leg
+#      below could not reach (a RenderTarget's OWN displayTex always adopted the override, masking it).
+#   2. RENDERTARGET TERMINAL (second block): a RenderTarget with Resolution=WindowFollow ADOPTS the
+#      active RequestedResolution into its OWN texture (displayTex). We build DrawPoints#7 ->
+#      RenderTarget#104 to prove the displayTex path retargets too. Both faces now agree.
 #
 # The Fill dims 246x230 = the Output window's content region in the default DOCK layout (Output is a
 # tab in the lower-right stack, ui/layout_dock; io.IniFilename = nullptr so every launch is the same
@@ -31,6 +35,30 @@
 assert_map_has output_resolution_combo
 echo resolution-combo-present
 
+# ══ FACE 1 — DEFAULT PREVIEW PATH (the face the RenderTarget leg below MISSED) ══════════════════════
+# The default doc's terminal is DrawPoints#7 — a Command op rendering into the window-sized preview
+# `target` (NO RenderTarget, NO displayTex). Pick 1080p on THIS default doc (no node setup — the doc is
+# as-launched) and assert the default preview retargets to 1920x1080. This is the exact surface the
+# shipped bug left window-sized; only the seedFrameResolution fix makes it retarget. Headless twin:
+# --selftest-preview-target-preset (its injectBug proves the RED face).
+do click @output_resolution_combo
+wait 0.4
+do click @output_res_row:6
+wait 0.6
+assert_state '.preview.w == 1920 and .preview.h == 1080'
+echo default-command-preview-retargets-to-1920x1080
+
+# return to Fill so FACE 2 starts from the window-follow baseline (also proves the override clears on
+# the default preview path, not just the RenderTarget one).
+do click @output_resolution_combo
+wait 0.4
+do click @output_res_row:0
+wait 0.6
+assert_state '.preview.w == 246 and .preview.h == 230'
+echo default-preview-clears-back-to-window-region
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+# ══ FACE 2 — RENDERTARGET TERMINAL (displayTex adopts the override) ═════════════════════════════════
 # --- build a RenderTarget terminal so the override is observable in cooked dims ---
 # Add RenderTarget on the blank canvas (same clear region blur_chain.scn uses).
 do rclick 250 240

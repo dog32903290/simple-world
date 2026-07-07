@@ -74,13 +74,13 @@ PointGraph::PointGraph(MTL::Device* dev, MTL::Library* lib, MTL::CommandQueue* q
   p_->dev = dev->retain();
   p_->lib = lib ? lib->retain() : nullptr;
   p_->queue = queue->retain();
-  p_->width = width;
-  p_->height = height;
+  p_->width = width; p_->height = height;
   MTL::TextureDescriptor* td =
       MTL::TextureDescriptor::texture2DDescriptor(kPointTargetFormat, width, height, false);
   td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
   td->setStorageMode(MTL::StorageModeShared);
   p_->target = dev->newTexture(td);
+  p_->targetW = width; p_->targetH = height;  // seed effective-size tracker: first cook (Fill) is a no-op rebuild
 }
 
 PointGraph::~PointGraph() {

@@ -188,6 +188,7 @@ void drawOutputWindow() {
   sw::eye::recordRect("output_resolution_combo", comboPos.x, comboPos.y,
                       comboPos.x + comboW, comboPos.y + ImGui::GetFrameHeight());
   ImGui::SameLine();
+  drawCustomResolutionEditor();  // Custom row only: inline W/H fields (split into the resolution module)
 
   // What the viewport is actually showing (viewNode/vs/outType resolved once at the top of the window).
   if (pinned)

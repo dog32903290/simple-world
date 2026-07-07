@@ -68,29 +68,58 @@ void PointGraph::setWindowSize(uint32_t width, uint32_t height) {
 
 // Both cook entries (flat point_graph.cpp / resident point_graph_resident.cpp) call this FIRST:
 // apply a pending window resize, then seed the per-cook RequestedResolution exactly as before
-// (TiXL OutputWindow.cs:411-414 precedence export/selector-override > Fill window). The window
-// `target` is rebuilt ONLY on an actual size change (RESOURCE_LIFETIME: the every-frame push is
-// idempotent, zero realloc churn). Releasing the old texture here is GPU-safe: a committed command
-// buffer holds its own retain on referenced resources (Metal default tracking).
+// (TiXL OutputWindow.cs:411-414 precedence export/selector-override > Fill window).
+//
+// The preview `target` texture is sized to the EFFECTIVE resolution = frameResolution() (=
+// frameResOverride ? *override : {width,height}), NOT the raw window size. This is the core fix
+// for "selecting a 1080p/4k preset didn't change the WxH overlay / preview" (root cause: `target`
+// only tracked the window and the preset override lived solely in requestedResolution, which the
+// default DrawPoints/Command preview surface — no displayTex — never consumed). Now a fixed preset
+// retargets `target` directly, so previewTexture()->width()/height() (main.cpp previewTextureSize)
+// report the preset dims. TiXL parity: OutputWindow.cs:411-414 seeds RequestedResolution
+// export>selector>Fill EVERY frame and the RenderTarget output texture adopts it (the sw `target`
+// is that adopting surface for the default preview path). Fill (no override) → effective ==
+// {width,height} == today, byte-identical. Export is UNAFFECTED: it drives a SEPARATE PointGraph
+// with its own frameResOverride = export size (export_session.cpp:105-107), never this live one,
+// so precedence export > selector > Fill holds by construction.
+//
+// Rebuild ONLY when the effective resolution differs from targetW/targetH (RESOURCE_LIFETIME: the
+// every-frame Fill push + on-change preset set are both idempotent, zero realloc churn). The gate
+// is the EFFECTIVE size now, not width!=pendingWidth — so a preset change with a STILL window is
+// caught. Releasing the old texture here is GPU-safe: a committed command buffer holds its own
+// retain on referenced resources (Metal default tracking).
 void PointGraph::Impl::seedFrameResolution() {
-  if (pendingWidth > 0 && (pendingWidth != width || pendingHeight != height)) {
-    width = pendingWidth;
-    height = pendingHeight;
-    if (target) target->release();
-    MTL::TextureDescriptor* td =
-        MTL::TextureDescriptor::texture2DDescriptor(kPointTargetFormat, width, height, false);
-    td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
-    td->setStorageMode(MTL::StorageModeShared);
-    target = dev->newTexture(td);
+  if (pendingWidth > 0) {
+    width = pendingWidth;    // Fill baseline (windowResolution / frameResolution's window leg) — the
+    height = pendingHeight;  // live Output content region; drives frameResolution() when no override.
   }
   pendingWidth = pendingHeight = 0;
   requestedResolution = frameResOverride ? *frameResOverride : RenderResolution{width, height};
+  // Effective preview size = the resolution the cook renders at this frame (== requestedResolution).
+  // TEST-ONLY injectBug (bugTargetFollowsWindow): size `target` from the raw window and IGNORE the
+  // override — the exact pre-fix regression the preview-target-preset tooth guards.
+  const uint32_t effW = bugTargetFollowsWindow ? width : requestedResolution.w;
+  const uint32_t effH = bugTargetFollowsWindow ? height : requestedResolution.h;
+  if (effW > 0 && effH > 0 && (!target || effW != targetW || effH != targetH)) {
+    if (target) target->release();
+    MTL::TextureDescriptor* td =
+        MTL::TextureDescriptor::texture2DDescriptor(kPointTargetFormat, effW, effH, false);
+    td->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+    td->setStorageMode(MTL::StorageModeShared);
+    target = dev->newTexture(td);
+    targetW = effW;
+    targetH = effH;
+  }
 }
 
 const MTL::Buffer* PointGraph::debugCookedBuffer(int nodeId) const {
   auto it = p_->outBuf.find(flatKey(nodeId));
   return it != p_->outBuf.end() ? it->second : nullptr;
 }
+
+// TEST-ONLY bug seam for the preview-target-preset tooth (declared in point_graph.h). Flips the Impl
+// flag seedFrameResolution reads; the next cook then sizes `target` from the window, ignoring the override.
+void PointGraph::debugSetTargetFollowsWindowBug(bool on) { p_->bugTargetFollowsWindow = on; }
 
 bool PointGraph::debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
                                  const MTL::Buffer*& idx, uint32_t& idxCount) const {

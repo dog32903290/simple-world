@@ -231,7 +231,7 @@ class PointGraph {
   // residentTexFor: RESIDENT path key (cookResident's ensureTex key), node-thumbnail face. Both borrowed.
   MTL::Texture* debugCookedTexture(int nodeId) const;
   MTL::Texture* residentTexFor(const std::string& path) const;
-
+  void debugSetTargetFollowsWindowBug(bool on);  // TEST-ONLY: force seedFrameResolution to the pre-fix bug (target←window, override ignored); impl _debug.cpp
  private:
   struct Impl;
   Impl* p_;
