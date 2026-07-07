@@ -86,6 +86,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"rendertarget", runRenderTargetSelfTest},
     {"rendertargetwired", runRenderTargetWiredSelfTest},
     {"field-camera", runFieldCameraSelfTest},
+    {"view-camera", runViewCameraSelfTest},  // output-camera-orbit: mutable ViewCamera orbit/zoom + default parity floor
     {"layer2d", runLayer2dSelfTest},
     {"camera", runCameraSelfTest},
     {"camera-scope", runCameraScopeSelfTest},        // C1: point-camera hole closed (flat + resident)
