@@ -15,11 +15,15 @@
 #      active RequestedResolution into its OWN texture (displayTex). We build DrawPoints#7 ->
 #      RenderTarget#104 to prove the displayTex path retargets too. Both faces now agree.
 #
-# The Fill dims 246x230 = the Output window's content region in the default DOCK layout (Output is a
+# The Fill dims 307x194 = the Output window's content region in the default DOCK layout (Output is a
 # tab in the lower-right stack, ui/layout_dock; io.IniFilename = nullptr so every launch is the same
-# default layout — deterministic, re-measured stable across runs). Was 380x377 when Output floated at
-# its old FirstUseEver 380x420. If the dock partition ratios (ui/layout_dock.cpp, 柏為可調) change,
-# these numbers change WITH them: re-measure with a probe (sw_drive state → .preview) and update both.
+# default layout — deterministic, re-measured stable across runs). Was 246x230 at right-ratio 0.240,
+# and 380x377 further back when Output floated at its old FirstUseEver 380x420. Bumped to 307x194 when
+# the narrow-dock toolbar-clip fix widened `right` to 0.300 AND wrapped the Output toolbar onto a
+# second row (Snapshot/background now wrap under Pin/Fit/1:1 at this window width, costing the
+# viewport one row of height). If the dock partition ratios (ui/layout_dock.cpp, 柏為可調) OR the
+# toolbar wrap point change, these numbers change WITH them: re-measure with a probe (sw_drive state
+# → .preview) and update both.
 #
 # RED proofs (assertions couple to actual cooked dims, not luck):
 #   - assert the WRONG dims (e.g. assert 1280x720 after picking 1080p) -> RED.
@@ -28,7 +32,7 @@
 #   - break Fill's clearOutputResolutionOverride -> preview stays 1920x1080 after the Fill pick ->
 #     the return-to-window assert goes RED (this is the lifetime leak the writer must prevent).
 #   - freeze the window-follow push (drop pushFillWindowSize) -> Fill resolves to the ctor 512x512
-#     again -> BOTH 380x377 asserts go RED (the S1-fill live tooth; selftest-window-follow is the
+#     again -> BOTH 307x194 asserts go RED (the S1-fill live tooth; selftest-window-follow is the
 #     headless twin).
 
 # --- the selector toolbar item exists (eye::recordRect output_resolution_combo) ---
@@ -54,7 +58,7 @@ do click @output_resolution_combo
 wait 0.4
 do click @output_res_row:0
 wait 0.6
-assert_state '.preview.w == 246 and .preview.h == 230'
+assert_state '.preview.w == 307 and .preview.h == 194'
 echo default-preview-clears-back-to-window-region
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
@@ -79,10 +83,10 @@ assert_state '[.lib.symbols[] | select(.id == "Root") | .connections[]] | length
 echo drawpoints-into-rendertarget-wired
 
 # --- Fill baseline: the RT terminal follows the LIVE window content region (S1-fill window-follow;
-# 380x377 = the default-layout region, see header). NOT the ctor 512x512 — that constant resolving
+# 307x194 = the default-layout region, see header). NOT the ctor 512x512 — that constant resolving
 # here again is exactly the regression this assert bites. ---
 wait 0.4
-assert_state '.preview.w == 246 and .preview.h == 230'
+assert_state '.preview.w == 307 and .preview.h == 194'
 echo fill-baseline-follows-window-region
 
 # --- drive the selector to 1080p. Each open preset row carries a '#'-free named rect
@@ -101,5 +105,5 @@ do click @output_resolution_combo
 wait 0.4
 do click @output_res_row:0
 wait 0.6
-assert_state '.preview.w == 246 and .preview.h == 230'
+assert_state '.preview.w == 307 and .preview.h == 194'
 echo fill-clears-override-back-to-window-region

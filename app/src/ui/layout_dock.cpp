@@ -52,7 +52,15 @@ constexpr Split kSplits[] = {
     {"bottom",  "",         ImGuiDir_Down,    0.300f},  // Timeline strip: ~216px @720, matches the
     //                                                    old floating height so the curve editor has
     //                                                    room to plot (a shorter strip clips it).
-    {"right",   "",         ImGuiDir_Right,   0.240f},  // right tool column (off what remains = middle)
+    {"right",   "",         ImGuiDir_Right,   0.300f},  // right tool column (off what remains = middle)
+    //                                                    was 0.240 — too narrow for the Output toolbar's
+    //                                                    resolution combo, which used to get pushed past
+    //                                                    the panel's right edge and become unclickable
+    //                                                    (柏為 couldn't reach it). 0.300 fits combo+Pin+
+    //                                                    Fit+1:1 on row 1; Snapshot+bg-swatch still wrap
+    //                                                    to row 2 at the default 1024px window — but the
+    //                                                    wrap (output_window.cpp sameLineIfFits) keeps
+    //                                                    every control inside the panel either way.
     {"right_bt","right",    ImGuiDir_Down,    0.620f},  // right column's lower stack (tabs)
     //                                                    → "right" keeps the top 38%  (Inspector)
     //                                                    → "right_bt" is the bottom 62% (tab group)

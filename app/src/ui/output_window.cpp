@@ -85,72 +85,22 @@ void drawOutputWindow() {
   const std::string outType = viewNode ? outputTypeOf(viewNode) : "";
   const bool viewIsCommand = !viewNode || outType == "Command";
 
-  // --- toolbar: Pin / switch / Unpin, on the active op (TiXL Icon.Pin + PinSelectionToView).
-  // Unpinned, the viewport FOLLOWS the selected node (TiXL); Pin LOCKS it so it stops
-  // following (and clicking other nodes no longer changes the view). One button:
-  //   - a node is selected that isn't the pinned one -> "Pin selected" locks / switches to it
-  //   - otherwise, if pinned -> "Unpin" resumes following selection ---
-  const bool canPinSelection = g_selectedNode != 0 && g_selectedNode != g_pinnedNode;
-  if (ImGui::Button(canPinSelection ? "Pin selected" : (pinned ? "Unpin" : "Pin selected"))) {
-    if (canPinSelection)
-      g_pinnedNode = g_selectedNode;                 // lock / switch to the active op
-    else if (pinned)
-      g_pinnedNode = 0;                              // resume following selection
-  }
-  sw::eye::recordItem("output_pin_btn");             // eye: hand off this button's screen rect
-  ImGui::SameLine();
+  // --- toolbar: wraps to a new row in a narrow dock (imgui_demo.cpp "Wrapping" idiom — check the
+  // PREVIOUS item's own right edge, not GetContentRegionAvail(), which already reads a fresh line). ---
+  const float toolbarRightEdge = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
+  auto sameLineIfFits = [toolbarRightEdge](float nextWidth) {
+    const float nextX2 = ImGui::GetItemRectMax().x + ImGui::GetStyle().ItemSpacing.x + nextWidth;
+    if (nextX2 < toolbarRightEdge) ImGui::SameLine();
+  };
 
-  // Fit / 1:1 view-mode buttons (TiXL ImageOutputCanvas.SetViewMode). Fit = aspect-correct
-  // letterbox; 1:1 = native pixels. Both recompute below once the texture size is known.
-  const bool wantFit = ImGui::Button("Fit");
-  sw::eye::recordItem("output_fit_btn");
-  ImGui::SameLine();
-  const bool wantPixel = ImGui::Button("1:1");
-  sw::eye::recordItem("output_pixel_btn");
-  ImGui::SameLine();
-
-  // Snapshot: save the current Output render to a PNG the user keeps (TiXL OutputWindow.cs:332
-  // Icon.Snapshot → RenderProcess.TryRenderScreenShot). Writes <project>/Screenshots/<stamp>.png
-  // directly — no save dialog (faithful to TiXL, which has none for screenshots). Disabled when
-  // there is no preview texture yet (nothing to capture), mirroring TiXL's MainOutputType==null
-  // disabled state. ui → app(saveSnapshot) → platform(image_save): no Metal in this zone.
-  {
-    MTL::Texture* snapTex = sw::previewTexture();
-    ImGui::BeginDisabled(snapTex == nullptr);
-    if (ImGui::Button("Snapshot")) {
-      std::string path;
-      const std::string written = sw::saveSnapshot(snapTex, &path);
-      sw::doc::g_status = written.empty() ? ("snapshot failed -> " + path)
-                                          : ("snapshot saved -> " + written);
-    }
-    ImGui::EndDisabled();
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-      ImGui::SetTooltip("Save screenshot");  // TiXL tooltip (OutputWindow.cs:338)
-  }
-  sw::eye::recordItem("output_snapshot_btn");  // eye: hand off this button's screen rect
-  ImGui::SameLine();
-
-  // --- View background color (TiXL OutputWindow.cs:306-312: shown ONLY for a Command view; no effect on a
-  // Texture2D view). Seeds the terminal Command executor's base clear; engage every frame (TiXL), else clear. ---
-  if (viewIsCommand) {
-    ImGui::ColorEdit4("##OutputBackground", g_viewBackground,
-                      ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaPreview);  // TiXL ColorEditButton
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Adjust background color of view");  // TiXL:311
-    sw::eye::recordItem("output_background_btn");
-    sw::setOutputBackgroundColor(g_viewBackground[0], g_viewBackground[1], g_viewBackground[2],
-                                 g_viewBackground[3]);
-    ImGui::SameLine();
-  } else {
-    sw::clearOutputBackgroundColor();  // Texture2D / preview view → executor default black
-  }
-
-  // --- Output resolution selector (TiXL ResolutionHandling.DrawSelector, OutputWindow.cs:316) ---
-  // Picks the frame render size the cook seeds into RequestedResolution. Fill (default) follows the window
-  // (byte-identical to today); a preset retargets a Texture terminal. g_selectedResIndex is view state,
-  // persisted per project via output_window_persist (out-window-persistence). Record the combo box's rect
-  // from PRE-widget geometry: while its popup is open, the "last item" is the popup's last Selectable, so
-  // recording after BeginCombo would hand the map that instead of the combo box (inspector.cpp:190 refuter
-  // N4 #2). The open rows are addressed by the eye's popup walker as popup_item:<combo-window>:<row>.
+  // --- Output resolution selector FIRST (TiXL ResolutionHandling.DrawSelector, OutputWindow.cs:316):
+  // moved to the front so it's laid out before anything else can push it off a narrow panel (the
+  // control 柏為 needs most often). Picks the frame render size the cook seeds into RequestedResolution;
+  // Fill follows the window, a preset retargets a Texture terminal. g_selectedResIndex is view state,
+  // persisted per project via output_window_persist. Record the combo's rect from PRE-widget geometry:
+  // while its popup is open the "last item" is the popup's last Selectable, so recording after
+  // BeginCombo would hand the map that instead (inspector.cpp:190 refuter N4 #2). Open rows are
+  // addressed by the eye's popup walker as popup_item:<combo-window>:<row>.
   const ImVec2 comboPos = ImGui::GetCursorScreenPos();
   ImGui::SetNextItemWidth(110.0f);
   const float comboW = 110.0f;
@@ -187,8 +137,62 @@ void drawOutputWindow() {
   }
   sw::eye::recordRect("output_resolution_combo", comboPos.x, comboPos.y,
                       comboPos.x + comboW, comboPos.y + ImGui::GetFrameHeight());
-  ImGui::SameLine();
+  sameLineIfFits(70.0f);  // Custom row's W x H fields, only drawn when Custom is picked
   drawCustomResolutionEditor();  // Custom row only: inline W/H fields (split into the resolution module)
+
+  // --- Pin / switch / Unpin (TiXL Icon.Pin + PinSelectionToView). Unpinned, the viewport FOLLOWS the
+  // selected node; Pin LOCKS it. One button: a differently-selected node -> "Pin selected"; else,
+  // if pinned -> "Unpin" resumes following selection. ---
+  sameLineIfFits(100.0f);  // "Pin selected" is the widest label this button ever shows
+  const bool canPinSelection = g_selectedNode != 0 && g_selectedNode != g_pinnedNode;
+  if (ImGui::Button(canPinSelection ? "Pin selected" : (pinned ? "Unpin" : "Pin selected"))) {
+    if (canPinSelection) g_pinnedNode = g_selectedNode;  // lock / switch to the active op
+    else if (pinned) g_pinnedNode = 0;                   // resume following selection
+  }
+  sw::eye::recordItem("output_pin_btn");             // eye: hand off this button's screen rect
+
+  // Fit / 1:1 view-mode buttons (TiXL ImageOutputCanvas.SetViewMode; both recompute below once size known).
+  sameLineIfFits(40.0f);
+  const bool wantFit = ImGui::Button("Fit");
+  sw::eye::recordItem("output_fit_btn");
+  sameLineIfFits(40.0f);
+  const bool wantPixel = ImGui::Button("1:1");
+  sw::eye::recordItem("output_pixel_btn");
+
+  // Snapshot: save the current Output render to a PNG the user keeps (TiXL OutputWindow.cs:332
+  // Icon.Snapshot → RenderProcess.TryRenderScreenShot). Writes <project>/Screenshots/<stamp>.png
+  // directly — no save dialog (faithful to TiXL, which has none for screenshots). Disabled when
+  // there is no preview texture yet (nothing to capture), mirroring TiXL's MainOutputType==null
+  // disabled state. ui → app(saveSnapshot) → platform(image_save): no Metal in this zone.
+  sameLineIfFits(80.0f);
+  {
+    MTL::Texture* snapTex = sw::previewTexture();
+    ImGui::BeginDisabled(snapTex == nullptr);
+    if (ImGui::Button("Snapshot")) {
+      std::string path;
+      const std::string written = sw::saveSnapshot(snapTex, &path);
+      sw::doc::g_status = written.empty() ? ("snapshot failed -> " + path)
+                                          : ("snapshot saved -> " + written);
+    }
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+      ImGui::SetTooltip("Save screenshot");  // TiXL tooltip (OutputWindow.cs:338)
+  }
+  sw::eye::recordItem("output_snapshot_btn");  // eye: hand off this button's screen rect
+
+  // --- View background color (TiXL OutputWindow.cs:306-312: shown ONLY for a Command view; no effect on a
+  // Texture2D view). Seeds the terminal Command executor's base clear; engage every frame (TiXL), else clear. ---
+  if (viewIsCommand) {
+    sameLineIfFits(30.0f);
+    ImGui::ColorEdit4("##OutputBackground", g_viewBackground,
+                      ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaPreview);  // TiXL ColorEditButton
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Adjust background color of view");  // TiXL:311
+    sw::eye::recordItem("output_background_btn");
+    sw::setOutputBackgroundColor(g_viewBackground[0], g_viewBackground[1], g_viewBackground[2],
+                                 g_viewBackground[3]);
+  } else {
+    sw::clearOutputBackgroundColor();  // Texture2D / preview view → executor default black
+  }
 
   // What the viewport is actually showing (viewNode/vs/outType resolved once at the top of the window).
   if (pinned)
