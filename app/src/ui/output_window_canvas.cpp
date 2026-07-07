@@ -4,6 +4,9 @@
 #include "ui/output_window_canvas.h"
 
 #include <algorithm>
+#include <cmath>
+
+#include "imgui.h"  // handleImageCanvasMouse: the Texture2D-view pan/zoom drag (reads MouseDelta/Wheel/Pos)
 
 namespace sw::ui {
 
@@ -34,6 +37,37 @@ void setPixelScale(CanvasState& c, float texW, float texH, float regionW, float 
   c.scale = 1.0f;
   c.scrollX = -(regionW - texW) * 0.5f;
   c.scrollY = -(regionH - texH) * 0.5f;
+}
+
+// The Texture2D-view mouse interaction (moved verbatim from the coordinator so a 3D vs 2D view is one
+// branch there). Left-drag pan + cursor-anchored wheel zoom; any manual move -> ViewMode::Custom.
+void handleImageCanvasMouse(float originX, float originY, bool active, bool hovered) {
+  // Pan: drag moves the content with the cursor (TiXL ScrollTarget -= delta / scale).
+  if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+    const ImVec2 d = ImGui::GetIO().MouseDelta;
+    if (d.x != 0.0f || d.y != 0.0f) {
+      g_canvas.scrollX -= d.x / g_canvas.scale;
+      g_canvas.scrollY -= d.y / g_canvas.scale;
+      g_canvas.mode = ViewMode::Custom;  // manual pan -> Custom (UpdateViewMode)
+    }
+  }
+  // Zoom around the cursor (TiXL ApplyZoomDelta): scale *= zoom, then keep the texel under the mouse
+  // fixed by shifting scroll toward the focus point by (zoom-1)/zoom.
+  const float wheel = ImGui::GetIO().MouseWheel;
+  if (hovered && wheel != 0.0f) {
+    const float zoom = std::pow(1.2f, wheel);  // TiXL zoomSpeed = 1.2 per notch
+    const float newScale = clampScale(g_canvas.scale * zoom);
+    if (newScale != g_canvas.scale) {
+      const float applied = newScale / g_canvas.scale;  // honour the clamp
+      const ImVec2 m = ImGui::GetIO().MousePos;
+      const float focusX = (m.x - originX) / g_canvas.scale + g_canvas.scrollX;
+      const float focusY = (m.y - originY) / g_canvas.scale + g_canvas.scrollY;
+      g_canvas.scale = newScale;
+      g_canvas.scrollX += (focusX - g_canvas.scrollX) * (applied - 1.0f) / applied;
+      g_canvas.scrollY += (focusY - g_canvas.scrollY) * (applied - 1.0f) / applied;
+      g_canvas.mode = ViewMode::Custom;  // manual zoom -> Custom
+    }
+  }
 }
 
 }  // namespace sw::ui

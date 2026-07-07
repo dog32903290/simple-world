@@ -115,7 +115,9 @@ void drawCustomResolutionEditor() {
     sw::outputWindowResolution(winW, winH);
     applyResolutionSelection(winW, winH);  // re-push the clamped session W/H → cook override
   }
-  ImGui::SameLine();
+  // No trailing SameLine here: the coordinator's own sameLineIfFits(...) decides whether the NEXT toolbar
+  // item (Pin) shares this row or wraps. An unconditional SameLine here defeated that fit check and crammed
+  // Pin against the W/H fields on a narrow panel (the combo-clip wrapping規範). Let the coordinator own it.
 }
 
 // S1-fill window-follow (TiXL ResolutionHandling.cs:120: ComputeResolution reads the LIVE

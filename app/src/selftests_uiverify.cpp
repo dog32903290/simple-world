@@ -40,5 +40,6 @@ REGISTER_SELFTESTS(/*orderBase=*/500,
     {"theme", ui::theme::runThemeSelfTest},        // default theme table == TiXL UiColors constants (value-golden)
     {"theme-roundtrip", runThemeRegistrySelfTest}, // color-theme registry: construct→save→reload bit-for-bit survival (+RED leg)
     {"view-menu-state", runViewMenuStateSelfTest}, // View-menu live check marks: invokeViewAction→viewActionState round-trip (the data path the menuNeedsUpdate: delegate reads)
+    {"output-orbit", ui::runOutputOrbitSelfTest},  // output-camera-orbit phase-C: Viewer/Locked mode gesture→param math + SetOverrideCommand do/undo
 );
 }  // namespace sw

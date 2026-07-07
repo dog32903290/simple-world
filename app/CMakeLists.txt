@@ -330,6 +330,8 @@ add_executable(simple_world
   src/ui/output_window_canvas.cpp      # aspect-correct image canvas (split from output_window.cpp)
   src/ui/output_window_resolution.cpp  # Output resolution selector (split from output_window.cpp)
   src/ui/output_window_persist.cpp     # out-window-persistence: capture/restore view state <-> app store
+  src/ui/output_window_orbit.cpp       # output-camera-orbit phase-C: 3D orbit gesture (Viewer / Locked-to-Op)
+  src/ui/output_window_orbit_selftest.cpp  # phase-C orbit gesture math + SetOverrideCommand do/undo (--selftest-output-orbit)
   src/ui/variation_panel.cpp  # Lane L1 (Variation): P2 Variation window (snapshot grid + N-way mix + crossfader)
   src/metal_impl.cpp
   src/verify/eye/eye.mm

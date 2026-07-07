@@ -6,6 +6,7 @@
 #include "app/document.h"             // currentSymbolConst (validate a restored pin id)
 #include "app/output_window_state.h"  // the app-zone store + restore latch + OutputWindowState
 #include "runtime/compound_graph.h"   // childById (does the saved pin still exist?)
+#include "ui/output_window_orbit.h"   // Viewer camera capture/restore (the phase-C session ViewCamera)
 #include "ui/output_window_resolution.h"  // kResPresets / resolutionIndexForTitle / applyResolutionSelection
 
 // The Fill-baseline window size (TiXL GetWindowSize role), defined in main.cpp (shell owns g_pointGraph).
@@ -25,6 +26,10 @@ void captureOutputWindowState(int pinnedNode, int selectedResIndex, const float 
   s.resolutionHeight = p.h;
   s.resolutionUseAsAspectRatio = p.useAsAspectRatio;
   for (int i = 0; i < 4; ++i) s.backgroundColor[i] = bg[i];
+  // Viewer camera (TiXL CameraSelectionHandling.SaveStateTo cs:410-412): mirror the live session
+  // ViewCamera's pose so the next Save writes it. Locked-to-Op's camera is node params (in the .swproj
+  // graph already), not this — captureViewerCamera reads only the Viewer-mode session camera.
+  captureViewerCamera(s.cameraPosition, s.cameraTarget, s.cameraRoll);
   settings::outputWindowStore().setState(s);
 }
 
@@ -50,6 +55,12 @@ bool restoreOutputWindowStateIfPending(int& pinnedNode, int& selectedResIndex, f
 
   // Background color (TiXL: _backgroundColor). The per-frame ColorEdit re-engages it on a Command view.
   for (int i = 0; i < 4; ++i) bg[i] = s.backgroundColor[i];
+
+  // Viewer camera (TiXL CameraSelectionHandling.LoadStateFrom cs:415-428): push the restored pose into the
+  // live session ViewCamera AND re-engage the cook override so the reopened project shows the same view.
+  // A default pose is byte-identical to no override (phase-A parity floor), so an un-orbited project is a
+  // no-op restore — divergence only for a project that was actually orbited + saved.
+  restoreViewerCamera(s.cameraPosition, s.cameraTarget, s.cameraRoll);
   return true;
 }
 

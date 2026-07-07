@@ -18,6 +18,11 @@ bool colorEq(const float (&a)[4], const float (&b)[4]) {
     if (a[i] != b[i]) return false;
   return true;
 }
+bool vec3Eq(const float (&a)[3], const float (&b)[3]) {
+  for (int i = 0; i < 3; ++i)
+    if (a[i] != b[i]) return false;
+  return true;
+}
 }  // namespace
 
 bool OutputWindowState::operator==(const OutputWindowState& o) const {
@@ -25,7 +30,9 @@ bool OutputWindowState::operator==(const OutputWindowState& o) const {
          resolutionTitle == o.resolutionTitle && resolutionWidth == o.resolutionWidth &&
          resolutionHeight == o.resolutionHeight &&
          resolutionUseAsAspectRatio == o.resolutionUseAsAspectRatio &&
-         colorEq(backgroundColor, o.backgroundColor);
+         colorEq(backgroundColor, o.backgroundColor) &&
+         vec3Eq(cameraPosition, o.cameraPosition) && vec3Eq(cameraTarget, o.cameraTarget) &&
+         cameraRoll == o.cameraRoll;
 }
 
 void OutputWindowStore::setState(const OutputWindowState& s) {
@@ -51,6 +58,13 @@ crude_json::value stateToJson(const OutputWindowState& s) {
   crude_json::array bg;
   for (int i = 0; i < 4; ++i) bg.push_back((crude_json::number)s.backgroundColor[i]);
   o["backgroundColor"] = crude_json::value(bg);
+  // Viewer camera (TiXL CameraPosition/CameraTarget/CameraRoll). Written as two 3-arrays + a scalar.
+  crude_json::array camPos, camTgt;
+  for (int i = 0; i < 3; ++i) camPos.push_back((crude_json::number)s.cameraPosition[i]);
+  for (int i = 0; i < 3; ++i) camTgt.push_back((crude_json::number)s.cameraTarget[i]);
+  o["cameraPosition"] = crude_json::value(camPos);
+  o["cameraTarget"]   = crude_json::value(camTgt);
+  o["cameraRoll"]     = (crude_json::number)s.cameraRoll;
   return crude_json::value(o);
 }
 
@@ -76,6 +90,19 @@ OutputWindowState stateFromJson(const crude_json::value& v) {
     for (int i = 0; i < 4 && i < (int)arr.size(); ++i)
       if (arr[i].is_number()) s.backgroundColor[i] = (float)arr[i].get<crude_json::number>();
   }
+  // Viewer camera (missing block => keep the TiXL default pose => byte-identical to no override).
+  if (v.contains("cameraPosition") && v["cameraPosition"].is_array()) {
+    const auto& arr = v["cameraPosition"].get<crude_json::array>();
+    for (int i = 0; i < 3 && i < (int)arr.size(); ++i)
+      if (arr[i].is_number()) s.cameraPosition[i] = (float)arr[i].get<crude_json::number>();
+  }
+  if (v.contains("cameraTarget") && v["cameraTarget"].is_array()) {
+    const auto& arr = v["cameraTarget"].get<crude_json::array>();
+    for (int i = 0; i < 3 && i < (int)arr.size(); ++i)
+      if (arr[i].is_number()) s.cameraTarget[i] = (float)arr[i].get<crude_json::number>();
+  }
+  if (v.contains("cameraRoll") && v["cameraRoll"].is_number())
+    s.cameraRoll = (float)v["cameraRoll"].get<crude_json::number>();
   return s;
 }
 }  // namespace

@@ -23,11 +23,15 @@
 //     dirty-snapshot, golden round-trips, and graph parity all stay byte-identical. A missing sidecar
 //     loads as Defaults (no-op), so old projects open exactly as before.
 //
-// SCOPED-OUT vs TiXL (documented, schema forward-compatible): camera (position/target/roll/speed)
-//   and gizmo (ShowGizmos / TransformGizmoMode) fields. sw's Output window holds no camera/gizmo
-//   session state to persist yet — field_camera RequestedResolution-coupled modes are DEFERRED
-//   (render-output-page OUT-01), and there is no output-window gizmo. The JSON is an object with a
-//   version, so those keys can be added later with no migration (same posture as user_settings.h).
+// CAMERA persisted (phase-C of "Output camera orbit"): the Viewer-mode session ViewCamera's
+//   position/target/roll — TiXL OutputWindowState.CameraPosition/CameraTarget/CameraRoll
+//   (CameraSelectionHandling.SaveStateTo cs:410-412). Added below beside the background color; the JSON
+//   round-trip keys are camera* (see .cpp). A missing camera block loads as the TiXL default pose
+//   (forward/backward compatible: an old sidecar without it opens at the default, byte-identical to today).
+// STILL SCOPED-OUT vs TiXL (documented, schema forward-compatible): camera SPEED + control-mode enum
+//   (Auto/Viewer/Locked — sw derives the mode live from selection each frame, not persisted) and gizmo
+//   (ShowGizmos / TransformGizmoMode) fields. There is no output-window gizmo. The JSON is a versioned
+//   object, so those keys can still be added later with no migration (same posture as user_settings.h).
 #pragma once
 
 #include <string>
@@ -56,6 +60,16 @@ struct OutputWindowState {
 
   // Command-view background color RGBA (TiXL OutputWindowState.BackgroundColor, default 0.1 grey).
   float backgroundColor[4] = {0.1f, 0.1f, 0.1f, 1.0f};
+
+  // Viewer camera (TiXL OutputWindowState.CameraPosition/CameraTarget/CameraRoll, written by
+  // CameraSelectionHandling.SaveStateTo cs:410-412). The Output window's Viewer-mode session ViewCamera
+  // (output_window_orbit.{h,cpp}) — "where I'm looking from" when no Camera op is selected. Locked-to-Op's
+  // camera is NODE params (already in the .swproj graph), so it isn't persisted here. Defaults = the TiXL
+  // SetDefaultCamera pose (eye on +z at DefaultCameraDistance ≈ 2.4142135, target origin, roll 0), so a
+  // never-orbited project round-trips byte-identical to the hard-wired default (the phase-A parity floor).
+  float cameraPosition[3] = {0.0f, 0.0f, 2.4142135f};
+  float cameraTarget[3]   = {0.0f, 0.0f, 0.0f};
+  float cameraRoll        = 0.0f;
 
   bool operator==(const OutputWindowState& o) const;
   bool operator!=(const OutputWindowState& o) const { return !(*this == o); }

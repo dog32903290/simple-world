@@ -21,6 +21,7 @@
 #include "app/snapshot.h"  // saveSnapshot: product Output→PNG (TiXL OutputWindow Icon.Snapshot)
 #include "ui/editor_ui.h"  // g_pinnedNode (the session pin) + g_selectedNode (what Pin grabs)
 #include "ui/output_window_canvas.h"      // the aspect-correct image canvas (split out)
+#include "ui/output_window_orbit.h"       // phase-C 3D orbit gesture: Viewer / Locked-to-Op (split out)
 #include "ui/output_window_persist.h"     // out-window-persistence: capture/restore view state (split out)
 #include "ui/output_window_resolution.h"  // the Output resolution selector (split out)
 #include "runtime/compound_graph.h"
@@ -180,6 +181,18 @@ void drawOutputWindow() {
   }
   sw::eye::recordItem("output_snapshot_btn");  // eye: hand off this button's screen rect
 
+  // --- Reset View (TiXL CameraSelectionHandling.ResetView → CameraInteraction.ResetView, cs:402-405):
+  // in Viewer mode clears the session ViewCamera override back to the TiXL default pose. A 3D-view control,
+  // so only shown for a Command/Points view (a Texture2D view has no orbit camera to reset). Locked-to-Op's
+  // reset is the node's own param reset (dossier follow-up), so this button only touches the Viewer camera. ---
+  const bool is3DView = !viewNode || outType == "Command" || outType == "Points";
+  if (is3DView) {
+    sameLineIfFits(70.0f);
+    if (ImGui::Button("Reset View")) sw::ui::resetOutputViewToDefault();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Reset the viewer camera to its default position");
+    sw::eye::recordItem("output_reset_view_btn");
+  }
+
   // --- View background color (TiXL OutputWindow.cs:306-312: shown ONLY for a Command view; no effect on a
   // Texture2D view). Seeds the terminal Command executor's base clear; engage every frame (TiXL), else clear. ---
   if (viewIsCommand) {
@@ -233,40 +246,23 @@ void drawOutputWindow() {
     if (g_canvas.mode == ViewMode::Fitted)
       fitToRegion(g_canvas, fTexW, fTexH, region.x, region.y);
 
-    // An invisible button over the whole region captures hover + drag for pan/zoom without
-    // letting the texture (drawn at an arbitrary offset) steal the interaction.
+    // An invisible button over the whole region captures hover + drag without letting the texture
+    // (drawn at an arbitrary offset) steal the interaction. It feeds EITHER the 3D orbit gesture (a
+    // Command/Points view) OR the 2D image-canvas pan/zoom (a Texture2D view) — the view-type gate below
+    // (TiXL CameraSelectionHandling.PreventImageCanvasInteraction, cs:83/141) picks which, mutually
+    // exclusively, so a 3D scene orbits and a flat texture still pans/zooms as before.
     ImGui::InvisibleButton("##outputcanvas", region,
                            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
     const bool hovered = ImGui::IsItemHovered();
+    const bool active = ImGui::IsItemActive();
 
-    // Pan: drag moves the content with the cursor (TiXL ScrollTarget -= delta / scale).
-    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-      const ImVec2 d = ImGui::GetIO().MouseDelta;
-      if (d.x != 0.0f || d.y != 0.0f) {
-        g_canvas.scrollX -= d.x / g_canvas.scale;
-        g_canvas.scrollY -= d.y / g_canvas.scale;
-        g_canvas.mode = ViewMode::Custom;            // manual pan -> Custom (UpdateViewMode)
-      }
-    }
-
-    // Zoom around the cursor (TiXL ApplyZoomDelta): scale *= zoom, then keep the texel under
-    // the mouse fixed by shifting scroll toward the focus point by (zoom-1)/zoom.
-    const float wheel = ImGui::GetIO().MouseWheel;
-    if (hovered && wheel != 0.0f) {
-      const float zoom = std::pow(1.2f, wheel);      // TiXL zoomSpeed = 1.2 per notch
-      const float newScale = clampScale(g_canvas.scale * zoom);
-      if (newScale != g_canvas.scale) {
-        const float applied = newScale / g_canvas.scale;  // honour the clamp
-        // focus point in canvas space (InverseTransformPositionFloat) at the OLD scale.
-        const ImVec2 m = ImGui::GetIO().MousePos;
-        const float focusX = (m.x - origin.x) / g_canvas.scale + g_canvas.scrollX;
-        const float focusY = (m.y - origin.y) / g_canvas.scale + g_canvas.scrollY;
-        g_canvas.scale = newScale;
-        g_canvas.scrollX += (focusX - g_canvas.scrollX) * (applied - 1.0f) / applied;
-        g_canvas.scrollY += (focusY - g_canvas.scrollY) * (applied - 1.0f) / applied;
-        g_canvas.mode = ViewMode::Custom;            // manual zoom -> Custom
-      }
-    }
+    if (is3DView)
+      // 3D view: left-drag = orbit, wheel = zoom. Auto mode routes to Locked-to-Op (a selected Camera /
+      // OrbitCamera node's params, undoable) or Viewer (a session ViewCamera → the phase-B cook seam).
+      sw::ui::handleOutputOrbit(cur, viewNode, active, hovered);
+    else
+      // Texture2D view: the existing 2D image-canvas pan/zoom (moved into output_window_canvas, unchanged).
+      handleImageCanvasMouse(origin.x, origin.y, active, hovered);
 
     // Draw the texture at its transformed rect (clipped to the region). Aspect is preserved
     // because width and height share the same `scale`.

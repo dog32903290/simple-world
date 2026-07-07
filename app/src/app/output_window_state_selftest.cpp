@@ -40,6 +40,11 @@ OutputWindowState sampleState() {
   s.backgroundColor[1] = 0.50f;
   s.backgroundColor[2] = 0.75f;
   s.backgroundColor[3] = 1.00f;
+  // Viewer camera (phase-C persistence): a distinctly non-default orbited pose so a dropped camera field
+  // is unmistakable on reload (default eye is (0,0,2.4142135), target origin, roll 0).
+  s.cameraPosition[0] = 1.5f; s.cameraPosition[1] = -2.0f; s.cameraPosition[2] = 3.5f;
+  s.cameraTarget[0] = 0.1f;   s.cameraTarget[1] = 0.2f;    s.cameraTarget[2] = -0.3f;
+  s.cameraRoll = 0.7f;
   return s;
 }
 }  // namespace

@@ -72,6 +72,7 @@
 #include "ui/theme.h"            // runThemeSelfTest (default theme table == TiXL UiColors constants)
 #include "ui/timeline_window.h"  // runTimelineSelfTest (S6 timeline gesture core)
 #include "ui/graph_dump.h"   // runGraphDumpSelfTest (req_graph -> graph.json of current compound)
+#include "ui/output_window_orbit.h"  // runOutputOrbitSelfTest (Output orbit gesture: Viewer/Locked mode math + undo)
 #include "verify/eye/eye.h"
 #include "verify/hand/hand.h"
 

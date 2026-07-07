@@ -1,0 +1,55 @@
+# output_orbit_viewer.scn — 活體牙 (phase-C of "Output camera orbit"): the Output window's 3D view can be
+# ORBITED with the mouse, and Reset View puts it back. This is the end-to-end proof that a left-drag over a
+# Command/Points (3D) Output view drives the session Viewer camera (output_window_orbit handleOutputOrbit →
+# sw::setOutputViewCamera → the phase-B cook override → the 8 activeViewCameraForward fallback sites), so the
+# rendered scene visibly rotates — through the REAL imgui draw path, not a unit test.
+#
+# TiXL parity: CameraSelectionHandling.AutoUseFirstCam (no Camera op selected → manipulate the
+# _outputWindowViewCamera, cs:175/193) + CameraInteraction left-drag=orbit (cs:146-165) + ResetView (cs:402).
+#
+# Fixture: compound_smoke.swproj opens on the TERMINAL Command view (no node pinned/selected) — a particle
+# ring rendered through the DEFAULT camera, exactly the fallback the Viewer override replaces. Playback is
+# stopped (Pos=0), so the sim does NOT animate at rest → a frame diff after the drag is PURELY the camera.
+#
+# NB the capture is `full` (the Output-window preview, driven by the Viewer camera), NOT `clean` — clean.png
+# is a separate raw particle target that is NOT projected through the Output Viewer camera (verified live:
+# clean stayed byte-identical while the full preview visibly rotated). Only `full` sees the orbit.
+#
+# RED proofs:
+#   - (orbit) make handleOutputOrbit's Viewer branch a no-op (drop the setOutputViewCamera push) → the drag
+#     no longer moves the camera → assert_diff after the drag goes RED (preview unchanged).
+#   - (reset) make resetOutputViewToDefault a no-op (drop clearOutputViewCamera) → Reset View leaves the
+#     orbited preview in place → the post-reset assert_diff goes RED (frame did not change back).
+
+open app/testdata/compound_smoke.swproj
+wait 0.6
+
+# The Reset View button exists (only drawn for a 3D Command/Points view) — proves the view-type gate picked
+# the 3D branch. (RED: revert the is3DView gate so it never shows → this assert_map_has goes RED.)
+assert_map_has output_reset_view_btn
+echo reset-view-button-present
+
+# Baseline: capture the Output preview of the un-orbited default-camera scene.
+capture full orbit_before
+echo captured-default-view
+
+# Orbit: a big left-drag INSIDE the Output viewport (below the toolbar). Repeated so the rotation is
+# unmistakable (~30° azimuth). Each drag feeds handleOutputOrbit → the session ViewCamera rotates → the
+# cook fallback reads it → the ring foreshortens/rotates.
+do drag 857 430 990 430
+do drag 857 430 990 430
+do drag 857 430 990 430
+wait 0.6
+
+# The preview MUST differ from the default view — the scene rotated (the orbit reached the render).
+assert_diff orbit_before
+echo orbit-rotated-the-view
+
+# Snapshot the orbited view, then Reset View — the preview must change AGAIN (back toward the default pose:
+# clearOutputViewCamera + the session camera reset). Reset View button center ≈ imgui (830, 309).
+capture full orbit_after
+echo captured-orbited-view
+do click 830 309
+wait 0.6
+assert_diff orbit_after
+echo reset-view-restored-default

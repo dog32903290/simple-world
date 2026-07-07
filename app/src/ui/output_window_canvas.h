@@ -33,4 +33,11 @@ void fitToRegion(CanvasState& c, float texW, float texH, float regionW, float re
 // TiXL Modes.Pixel: SetScaleToMatchPixels (scale -> 1). Recenter so 1:1 lands in the middle.
 void setPixelScale(CanvasState& c, float texW, float texH, float regionW, float regionH);
 
+// The 2D image-canvas MOUSE interaction (Texture2D view): left-drag pan (TiXL ScrollTarget -= delta/scale)
+// + cursor-anchored wheel zoom (TiXL ApplyZoomDelta). Called by the coordinator for a Texture2D view AFTER
+// the InvisibleButton is drawn; `active`/`hovered` are its IsItemActive()/IsItemHovered(). `origin` = the
+// viewport top-left (for the zoom focus point). Split from the coordinator so a 3D vs 2D view is a one-line
+// branch there (the 3D branch is output_window_orbit's handleOutputOrbit). Any pan/zoom sets mode = Custom.
+void handleImageCanvasMouse(float originX, float originY, bool active, bool hovered);
+
 }  // namespace sw::ui
