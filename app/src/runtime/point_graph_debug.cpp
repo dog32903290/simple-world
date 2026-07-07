@@ -50,6 +50,15 @@ RenderResolution PointGraph::frameResolution() const {
   return p_->frameResOverride ? *p_->frameResOverride : RenderResolution{p_->width, p_->height};
 }
 
+// OUTPUT-CAMERA OVERRIDE hook (phase-B "Output camera orbit"). Same sentinel shape + idempotence as the
+// frame-resolution override above: a plain assign / optional.reset, no cook churn on set. UNSET (reset) ==
+// the hard-wired SetDefaultCamera on both cook legs (byte-identical to today) — the parity floor. The stored
+// value is a COPY (optional<ViewCamera>); the cook legs engage a ViewCameraScope borrowing &*viewCameraOverride,
+// alive for the whole cook (the optional is stable in Impl across the cook). Doc view_camera_active.h.
+void PointGraph::setViewCameraOverride(const ViewCamera& cam) { p_->viewCameraOverride = cam; }
+void PointGraph::clearViewCameraOverride() { p_->viewCameraOverride.reset(); }
+bool PointGraph::hasViewCameraOverride() const { return p_->viewCameraOverride.has_value(); }
+
 // S1-fill window-follow. TiXL's Fill is the LIVE Output-window size, re-read every frame:
 //   ResolutionHandling.cs:120  `var windowSize = ImGui.GetWindowSize();`
 //   ResolutionHandling.cs:124-127  `if (Size.Width <= 0 || Size.Height <= 0) return new Int2(

@@ -16,6 +16,7 @@
 #include "runtime/graph.h"                   // NodeSpec / PortSpec / findSpec
 #include "runtime/point_graph.h"             // registerCmdOp (CmdCookCtx via point_graph_cook_ctx.h)
 #include "runtime/point_ops_camera_scope.h"  // ActiveCamera / resolveActiveCamera (one resolve codepath)
+#include "runtime/view_camera_active.h"       // phase-B: activeViewCameraForward (default camera OR output override)
 #include "runtime/point_ops_blendcameras.h"        // SwCameraDefinition / blend / buildProjectionMatrices
 #include "runtime/point_ops_camerawithrotation.h"  // cameraWithRotationMatrices (T(−pos)·R + LensShift)
 #include "runtime/resident_eval_graph.h"     // ResidentEvalGraph / resolveResidentFloatInputs
@@ -109,7 +110,10 @@ void enclosingCameraForward(const ResidentEvalGraph& g, const ResidentNode* cam,
                               ? (float)ctx.requestedWidth / (float)ctx.requestedHeight
                               : 1.0f;  // unseeded frame → square (the executor's own fallback shape)
   if (!cam) {
-    LayerCameraForward f = defaultLayerCameraForward(reqAspect);
+    // phase-B: no enclosing Camera op → the DEFAULT camera, now the OUTPUT override when engaged (so the
+    // value-rail GetScreenPos/GetPosition on the resident leg track the orbited output). reqAspect preserved.
+    // Override-absent → defaultLayerCameraForward(reqAspect), byte-identical. A resident scope covers this.
+    LayerCameraForward f = activeViewCameraForward(reqAspect);
     outW2C = f.worldToCamera;
     outC2C = f.cameraToClipSpace;
     return;
@@ -154,7 +158,9 @@ void enclosingCameraForward(const ResidentEvalGraph& g, const ResidentNode* cam,
     }
     const int count = (int)refs.size();
     auto fallbackDefault = [&]() {
-      LayerCameraForward f = defaultLayerCameraForward(reqAspect);
+      // phase-B: BlendCameras with no/invalid refs → the ambient (unpushed) camera = the DEFAULT, now the
+      // OUTPUT override when engaged. reqAspect preserved; override-absent → defaultLayerCameraForward(reqAspect).
+      LayerCameraForward f = activeViewCameraForward(reqAspect);
       outW2C = f.worldToCamera;
       outC2C = f.cameraToClipSpace;
     };

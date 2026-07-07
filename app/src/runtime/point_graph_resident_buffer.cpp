@@ -59,7 +59,10 @@ namespace {
 // byte-identical. The op derives the other 7 matrices + transposes (fork transformsconstbuffer-hlsl-rowmajor-bytes).
 void fillBufferCamera(BufferCookCtx& bc, const NodeSpec& spec, float aspect) {
   if (spec.type != "TransformsConstBuffer") return;  // every other Buffer op → byte-identical
-  LayerCameraForward fwd = defaultLayerCameraForward(aspect);  // worldToCamera + cameraToClipSpace
+  // phase-B: RESIDENT mirror of the flat fillBufferCamera swap — the DEFAULT camera source reads the OUTPUT
+  // override when engaged (resident is production; the S2c flat-resident MIRROR gate). aspect preserved;
+  // override-absent → defaultLayerCameraForward(aspect), byte-identical. cookResident engages the scope.
+  LayerCameraForward fwd = activeViewCameraForward(aspect);  // worldToCamera + cameraToClipSpace
   Mat4 objectToWorld = mat4Identity();                          // v1 fork: identity O2W
   std::memcpy(bc.camCameraToClipSpace, fwd.cameraToClipSpace.m, sizeof(float) * 16);
   std::memcpy(bc.camWorldToCamera, fwd.worldToCamera.m, sizeof(float) * 16);

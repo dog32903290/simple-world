@@ -126,29 +126,29 @@ void PointGraph::cook(const Graph& g, const EvaluationContext& ctx, const Source
   p_->displayTex = nullptr;  // default: target() shows the window-sized texture (cmd/preview paths)
   // S1 seam: apply pending Fill window-resize (rebuild target only on size change), then seed
   p_->seedFrameResolution();  // RequestedResolution (TiXL OutputWindow.cs:411-414 export>selector>Fill).
+  // phase-B: engage the OUTPUT-CAMERA override for the whole cook (RAII covers all exits). UNSET → nullptr →
+  // transparent → every fallback byte-identical. MIRRORED in cookResident (S2c flat-resident hard gate).
+  ViewCameraScope viewCamScope(p_->viewCameraOverride ? &*p_->viewCameraOverride : nullptr);
   const Node* target = g.node(targetNodeId);
   const NodeSpec* ts = target ? findSpec(target->type) : nullptr;
   if (!target || !ts) { p_->clearTarget(); return; }  // no/unknown target -> black, no crash
 
   std::map<int, MTL::Buffer*> cooked;  // this-frame memo (cook each node once)
 
-  // FEEDBACK per-frame memo (the cross-frame ping-pong flow): a feedback op (KeepPreviousFrame) MUST
-  // run its blit + toggle EXACTLY ONCE per frame — but tex nodes have no per-frame memo (every output
-  // pull re-cooks). If both PreviousFrame AND CurrentFrame are wired, the node would otherwise cook
-  // twice → double toggle → wrong frame returned. This memo caches the resolved OUTPUT textures (by
-  // output ordinal) the first time the node cooks this frame; the second output pull reads the cache.
+  // FEEDBACK per-frame memo (cross-frame ping-pong): a feedback op (KeepPreviousFrame) MUST blit+toggle
+  // EXACTLY ONCE/frame, but tex nodes re-cook per output pull. If both PreviousFrame AND CurrentFrame wire,
+  // it would cook twice → double toggle → wrong frame. This caches the resolved OUTPUT textures (by output
+  // ordinal) at first cook; the second pull reads the cache.
   std::map<int, std::array<MTL::Texture*, FeedbackCookCtx::kMaxTexOutputs>> feedbackCooked;
 
-  // Per-node resolved Float params (the 2b seam): resolved ONCE per node per cook through the
-  // full value spine (override → binding → wire → stored → default, graph.cpp), then handed to
-  // the op via PointCookCtx::params. Stored in a node-keyed memo so pointers stay stable for
-  // the whole cook (ops + inputParams point into it).
+  // Per-node resolved Float params (2b seam): resolved ONCE per node per cook through the full value spine
+  // (override → binding → wire → stored → default, graph.cpp), handed to the op via PointCookCtx::params.
+  // Node-keyed memo so pointers stay stable for the whole cook (ops + inputParams point into it).
   std::map<int, std::map<std::string, float>> paramsMemo;
-  // S3b/SetTime LIVE-READ memo trap: a param driven by a value-rail GetFloatVar (or a time-reading value op)
-  // resolves DIFFERENTLY inside vs outside a SetVarCmd/SetTime scope, but the memo keys only on node id — a
-  // value cached under one scope-state must NOT be served under the other. While ANY live scope is active we
-  // resolve FRESH and DO NOT cache (ambient-dependent, not a graph property). Off-scope = byte-identical
-  // (the live branch is reachable only inside a scoped SubGraph cook, which no off-scope cook enters).
+  // S3b/SetTime LIVE-READ memo trap: a param driven by value-rail GetFloatVar (or a time-reading value op)
+  // resolves DIFFERENTLY inside vs outside a SetVarCmd/SetTime scope, but the memo keys only on node id. While
+  // ANY live scope is active we resolve FRESH and DO NOT cache (ambient-dependent, not a graph property).
+  // Off-scope = byte-identical (the live branch is reachable only inside a scoped SubGraph cook).
   std::map<int, std::map<std::string, float>> scopedScratch;  // per-cook owner of fresh scoped param maps
   std::function<const std::map<std::string, float>*(int)> nodeParams =
       [&](int id) -> const std::map<std::string, float>* {

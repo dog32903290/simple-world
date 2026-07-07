@@ -34,6 +34,7 @@ class Texture;
 
 struct EvaluationContext;  // runtime/eval_context.h (full def in point_graph.cpp)
 struct SwPoint;            // runtime/tixl_point.h (64B host point; full def where the cook includes it)
+namespace sw { struct ViewCamera; }  // runtime/view_camera.h (output-camera override arg; full def in the cook TUs)
 namespace sw { struct ContextVarMap; }  // stateful_value_ops.h (host per-frame var map; S3a)
 namespace sw { struct SwGradient; struct SwBuffer; }  // sw_gradient.h (host Gradient) / sw_buffer.h (Seam-1 GPU "Buffer" currency); full defs where the ops include them
 namespace sw { class Curve; struct FieldNode; }  // curve.h (host Curve) / field_graph.h (FieldNode tree); full defs in the builder + PF-a cook TU
@@ -181,30 +182,30 @@ class PointGraph {
   MTL::Texture* target() const;
   RenderResolution windowResolution() const;  // value-output-rail P1: window size → RequestedResolution emit
   void setWindowSize(uint32_t width, uint32_t height);  // S1-fill window-follow: applied at cook entry, rebuild on change only; doc _debug.cpp
-  // S1 frame-level override hook (TiXL OutputWindow.cs:411-414 export>selector>Fill; doc in _debug.cpp).
+  // S1 frame-level override hook (TiXL OutputWindow.cs:411-414 export>selector>Fill; doc _debug.cpp).
   void setFrameResolutionOverride(RenderResolution res);  // Output/export requests a frame render size
   void clearFrameResolutionOverride();                    // back to Fill (window) — the default
   RenderResolution frameResolution() const;  // override if set, else windowResolution(); UNSET==today.
+  // OUTPUT-CAMERA OVERRIDE hook (phase-B; TiXL OutputWindow orbit → SetDefaultCamera; doc view_camera_active.h).
+  void setViewCameraOverride(const ViewCamera& cam);  // fallback camera on BOTH cook legs reads it (idempotent)
+  void clearViewCameraOverride();                     // → hard-wired default (UNSET == byte-identical to today)
+  bool hasViewCameraOverride() const;                 // test/UI face: engaged this frame?
   // Test-support: the count a flat-cooked node's output bag was sized to last cook (0 if never
   // cooked). Lets goldens assert the count-policy driver (e.g. SnapToPoints out == Points1, not sum).
   uint32_t debugCookedCount(int nodeId) const;
-  // Test-support: the GPU output buffer a flat-cooked Points-producing node holds last cook (nullptr if
-  // never cooked). StorageModeShared → a golden can read contents() for byte-parity (the ListToBuffer
-  // upload bridge proves the host→GPU memcpy + 64B SwPoint stride this way). Borrowed; do not release.
+  // Test-support: the GPU output buffer a flat-cooked Points node holds last cook (nullptr if never cooked).
+  // StorageModeShared → a golden reads contents() for byte-parity (ListToBuffer host→GPU memcpy). Borrowed.
   const MTL::Buffer* debugCookedBuffer(int nodeId) const;
-  // Test-support for the Mesh flow (4th cook): the vertex+index buffers a flat-cooked mesh node
-  // produced last cook, for CPU-readback goldens (contents()+memcpy, NO GPU draw). Returns false if
-  // the node never cooked a mesh. Buffers are PointGraph-owned (borrowed; do not release).
+  // Test-support for the Mesh flow (4th cook): the vertex+index buffers a flat-cooked mesh node produced last
+  // cook, for CPU-readback goldens (contents()+memcpy, NO GPU draw). false if none. PointGraph-owned (borrowed).
   bool debugCookedMesh(int nodeId, const MTL::Buffer*& vtx, uint32_t& vtxCount,
                        const MTL::Buffer*& idx, uint32_t& idxCount) const;
-  // Per-flow HOST-transport test-support readbacks (impls in point_graph_debug.cpp). Each returns the
-  // value the node produced on its LAST cook, keyed by flatKey(id) into the matching Impl buffer; all are
-  // nullptr when the node never cooked that flow, borrowed (valid until next cook). Used by goldens.
+  // Per-flow HOST-transport test-support readbacks (impls in point_graph_debug.cpp). Each returns the value the
+  // node produced LAST cook, keyed by flatKey(id); nullptr when the node never cooked that flow. Borrowed. Goldens.
   const std::vector<float>* debugCookedFloatList(int nodeId) const;            // 5th cook: floatListBuf
   const std::vector<simd::float4>* debugCookedColorList(int nodeId) const;     // vec4-list: colorListBuf
   const std::string* debugCookedString(int nodeId) const;                      // 6th cook: stringBuf (MAIN)
-  // MULTI-OUTPUT (Sub-seam B): an EXTRA String output keyed by spec output-port index (stringBuf[flatKey
-  // (id)+":"+portIdx]); portIdx==0 == debugCookedString. Scalar extras ride Node::outCache[portIdx].
+  // MULTI-OUTPUT (Sub-seam B): EXTRA String output keyed by output-port index; portIdx==0 == debugCookedString.
   const std::string* debugCookedStringPort(int nodeId, int portIdx) const;
   const std::vector<std::string>* debugCookedStringList(int nodeId) const;     // Sub-seam A: stringListBuf
   const std::vector<::SwPoint>* debugCookedPointList(int nodeId) const;        // 7th cook: pointListBuf
@@ -212,10 +213,9 @@ class PointGraph {
   const SwGradient* residentGradientFor(const std::string& path) const;        // 8th cook: gradientBuf (resident path, UI face)
   const SwBuffer* debugCookedSwBuffer(int nodeId) const;                        // Seam-1: bufferMeta (flat key); GPU buffer + stride/count for byte-parity goldens
   const SwBuffer* debugCookedFeedbackBuffer(int nodeId, int ordinal, bool resident = false) const;  // KeepPreviousPointBuffer dual out (0=BufferA/1=BufferB); feedbackBufOut key flat #id / resident path
-  // Seam-1 RESIDENT face (WO-E): the SwBuffer a RESIDENT Buffer-flow node cooked LAST cook, keyed by its
-  // resident PATH (the SAME key cookResidentBuffer writes p_->bufferMeta[path]). Borrowed; nullptr when the
-  // path never cooked a Buffer node. The resident twin of debugCookedSwBuffer (flat key) — the flat==resident
-  // byte-parity gate (selftests_buffer_resident.cpp) reads both off the same bufferMeta map, two key spaces.
+  // Seam-1 RESIDENT face (WO-E): the SwBuffer a RESIDENT Buffer-flow node cooked LAST cook, keyed by resident
+  // PATH (cookResidentBuffer's p_->bufferMeta[path] key). Resident twin of debugCookedSwBuffer; flat==resident
+  // byte-parity gate (selftests_buffer_resident.cpp) reads both off bufferMeta, two key spaces. Borrowed.
   const SwBuffer* residentSwBufferFor(const std::string& path) const;
   // value-output-rail Phase 4: the cooked Shared point buffer a RESIDENT Points node produced last cook,
   // keyed by resident PATH (cookResident's ensureOut key in p_->outBuf); count ← p_->outCount[path]. Shared

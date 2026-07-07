@@ -45,6 +45,7 @@
 #include "runtime/compound_save.h"  // libToJsonV2 (eye state dump)
 #include "runtime/graph.h"
 #include "runtime/point_graph.h"
+#include "runtime/view_camera.h"  // ViewCamera (setOutputViewCamera shell seam; phase-B output-camera orbit)
 #include "runtime/point_ops.h"
 #include "app/export_cli.h"    // runExportCli — headless deterministic --export render (no GUI)
 #include "selftests.h"
@@ -125,6 +126,18 @@ void setOutputResolutionOverride(int w, int h) {
 }
 void clearOutputResolutionOverride() {
   if (::g_pointGraph) ::g_pointGraph->clearFrameResolutionOverride();
+}
+// Output-window CAMERA ORBIT seam (phase-B; TiXL OutputWindow's CameraInteraction drives the ambient
+// SetDefaultCamera). Same shell-owned contract as setOutputResolutionOverride: the ui/mouse zone (phase-C)
+// owns the live ViewCamera (orbit/zoom/pan session state) and on a drag calls these to drive the cook-core
+// override. Set → the fallback camera on both cook legs reads it; clear → back to the hard-wired default
+// (byte-identical to today). Idempotent runtime setters → no cook churn on a per-drag call. The window is a
+// single output graph, so there is exactly one override to drive — no per-graph leak.
+void setOutputViewCamera(const sw::ViewCamera& cam) {
+  if (::g_pointGraph) ::g_pointGraph->setViewCameraOverride(cam);
+}
+void clearOutputViewCamera() {
+  if (::g_pointGraph) ::g_pointGraph->clearViewCameraOverride();
 }
 // S1-fill window-follow seam: the Output window pushes its content-region pixels every frame
 // (TiXL ResolutionHandling.cs:120 `ImGui.GetWindowSize()` read live inside ComputeResolution +

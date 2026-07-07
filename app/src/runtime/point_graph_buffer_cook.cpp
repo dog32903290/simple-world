@@ -52,7 +52,10 @@ namespace {
 // ignores cam* → byte-identical. The op itself derives the other 7 matrices + transposes.
 void fillBufferCamera(BufferCookCtx& bc, const NodeSpec& spec, float aspect) {
   if (spec.type != "TransformsConstBuffer") return;  // every other Buffer op → byte-identical
-  LayerCameraForward fwd = defaultLayerCameraForward(aspect);  // worldToCamera + cameraToClipSpace
+  // phase-B: the DEFAULT-camera source now reads the OUTPUT override when engaged (TransformsConstBuffer
+  // tracks the orbited output view). aspect preserved; override-absent → defaultLayerCameraForward(aspect),
+  // byte-identical. The flat cook engages the scope (point_graph.cpp) so this call sees it.
+  LayerCameraForward fwd = activeViewCameraForward(aspect);  // worldToCamera + cameraToClipSpace
   Mat4 objectToWorld = mat4Identity();                          // v1 fork: identity O2W
   std::memcpy(bc.camCameraToClipSpace, fwd.cameraToClipSpace.m, sizeof(float) * 16);
   std::memcpy(bc.camWorldToCamera, fwd.worldToCamera.m, sizeof(float) * 16);

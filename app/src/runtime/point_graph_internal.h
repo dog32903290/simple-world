@@ -20,6 +20,7 @@
 #include "runtime/graph.h"        // PortSpec (isBufferInput) + NodeSpec (fillPointCamera)
 #include "runtime/field_camera.h" // pointCameraMatrices (camera-matrix-into-points seam)
 #include "runtime/point_ops_camera_scope.h"  // C1: liveActiveCamera / activeCameraMatrices (Camera-op leg)
+#include "runtime/view_camera_active.h"  // phase-B: ViewCamera + ViewCameraScope (OUTPUT-camera override leg)
 #include "runtime/point_graph.h"  // PointGraph + op fn types
 #include "runtime/point_graph_feedback_store.h"  // FeedbackStore base (cross-frame pair/buffer/array machine)
 #include "runtime/sw_mesh.h"      // SwVertex (80B) + SwTriIndex (12B) — the Mesh flow's elements
@@ -125,6 +126,14 @@ struct PointGraph::Impl : FeedbackStore {
   // frameResOverride = FRAME OVERRIDE (export>selector>Fill; doc _debug.cpp; unset == Fill == today byte-id).
   RenderResolution requestedResolution;
   std::optional<RenderResolution> frameResOverride;
+
+  // OUTPUT-CAMERA OVERRIDE (phase-B "Output camera orbit"): the mutable ViewCamera the Output window drives
+  // (its orbit/zoom/pan; a phase-C mouse lane). UNSET (the production default) == the hard-wired
+  // SetDefaultCamera, byte-identical to every pre-phase-B frame. BOTH cook legs engage a ViewCameraScope
+  // from this at cook entry (right after seedFrameResolution) so every "no Camera op in scope" fallback
+  // reads it via activeViewCameraForward; a wired Camera op still wins (it short-circuits before the
+  // default branch). doc view_camera_active.h. Set/cleared via setViewCameraOverride/clearViewCameraOverride.
+  std::optional<ViewCamera> viewCameraOverride;
 
   // S1-fill window-follow: PointGraph::setWindowSize records the Output window's content-region here;
   // BOTH cook entries apply it via seedFrameResolution() — deferred to cook entry so a mid-imgui-frame

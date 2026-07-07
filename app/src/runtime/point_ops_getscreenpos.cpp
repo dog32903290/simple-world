@@ -43,6 +43,7 @@
 #include "runtime/field_camera.h"           // Mat4 / mat4Mul / perspectiveFovRH / defaultLayerCameraForward
 #include "runtime/point_graph.h"            // CmdCookCtx, registerCmdOp, cookParam/cookVecN
 #include "runtime/point_ops_camera_scope.h" // liveActiveCamera (projection params of the wired Camera)
+#include "runtime/view_camera_active.h"      // phase-B: activeViewCameraForward (default camera OR output override)
 #include "runtime/render_command.h"         // RenderCommand
 #include "runtime/stateful_value_op_registry.h"  // StatefulOpReg (value-rail step self-registration)
 #include "runtime/stateful_value_ops.h"          // StatefulValueState/TransportSnapshot/ContextVarMap decls
@@ -86,7 +87,10 @@ RenderCommand cookGetScreenPos(CmdCookCtx& c) {
     const float zf = (lc && lc->active) ? lc->farClip : 1000.0f;
     proj = perspectiveFovRH(fovDeg * (kPi / 180.0f), 1.0f, zn, zf);
   } else {
-    LayerCameraForward d = defaultLayerCameraForward(1.0f);
+    // phase-B: the DEFAULT-camera fallback reads the OUTPUT override when engaged so GetScreenPos tracks the
+    // orbited output view (aspect=1 preserved — the aspect factor is baked into the aspect=1 projection, per
+    // the note above). Override-absent → defaultLayerCameraForward(1.0f). The c.hasCamera branch wins first.
+    LayerCameraForward d = activeViewCameraForward(1.0f);
     w2c = d.worldToCamera;
     proj = d.cameraToClipSpace;
   }

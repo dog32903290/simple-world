@@ -46,6 +46,7 @@
 #include "runtime/field_camera.h"           // Mat4 / mat4Mul / perspectiveFovRH / defaultLayerCameraForward
 #include "runtime/point_graph.h"            // CmdCookCtx, registerCmdOp, cookParam/cookVecN
 #include "runtime/point_ops_camera_scope.h" // liveActiveCamera (projection params of the wired Camera)
+#include "runtime/view_camera_active.h"      // phase-B: activeViewCameraForward (default camera OR output override)
 #include "runtime/render_command.h"         // RenderCommand
 #include "runtime/stateful_value_op_registry.h"  // StatefulOpReg (value-rail step self-registration)
 #include "runtime/stateful_value_ops.h"          // StatefulValueState/TransportSnapshot/ContextVarMap decls
@@ -88,7 +89,10 @@ RenderCommand cookGetPosition(CmdCookCtx& c) {
     if (c.hasCamera) {
       for (int i = 0; i < 16; ++i) w2c.m[i] = c.worldToCamera[i];
     } else {
-      LayerCameraForward d = defaultLayerCameraForward(1.0f);
+      // phase-B: the DEFAULT-camera fallback now reads the OUTPUT override when engaged (aspect=1 preserved —
+      // a position is NOT perspective-divided, so aspect never matters here). Override-absent → identical to
+      // defaultLayerCameraForward(1.0f). The c.hasCamera branch (a wired Camera op) still wins first.
+      LayerCameraForward d = activeViewCameraForward(1.0f);
       w2c = d.worldToCamera;
     }
     if (space == 1) {
@@ -102,7 +106,9 @@ RenderCommand cookGetPosition(CmdCookCtx& c) {
         const float zf = (lc && lc->active) ? lc->farClip : 1000.0f;
         proj = perspectiveFovRH(fovDeg * (kPi / 180.0f), 1.0f, zn, zf);
       } else {
-        LayerCameraForward d = defaultLayerCameraForward(1.0f);
+        // phase-B: ClipSpace projection fallback pulls the OUTPUT override's CameraToClipSpace when engaged
+        // (aspect=1 preserved, per the header exactness note). Override-absent → defaultLayerCameraForward(1).
+        LayerCameraForward d = activeViewCameraForward(1.0f);
         proj = d.cameraToClipSpace;
       }
       m = mat4Mul(w2c, proj);  // ClipSpace: p · (WorldToCamera · CameraToClipSpace)

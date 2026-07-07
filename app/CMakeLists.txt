@@ -384,6 +384,8 @@ add_executable(simple_world
   src/runtime/field_camera_selftest.cpp
   src/runtime/view_camera.cpp            # output-camera-orbit phase-A leaf: mutable ViewCamera + orbit/zoom/pan math
   src/runtime/view_camera_selftest.cpp   # --selftest-view-camera (orbit/zoom/default-parity, pure math)
+  src/runtime/view_camera_active.cpp     # output-camera-orbit phase-B: ViewCameraScope + activeViewCameraForward (override seam)
+  src/runtime/view_camera_override_selftest.cpp  # --selftest-view-camera-override (takes-effect + no-leak, pure math)
   src/runtime/field_render.cpp
   src/runtime/field_node_registry.cpp
   src/runtime/field_graph_builder.cpp

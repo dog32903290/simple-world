@@ -77,13 +77,16 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
   // S1 seam: apply pending Fill window-resize + seed RequestedResolution (TiXL output-layer seed before
   // eval). Resident mirror of cook(); precedence = override when engaged (Output/export), ELSE window.
   p_->seedFrameResolution();
+  // phase-B: engage the OUTPUT-CAMERA override for the whole resident cook — S2c flat-resident MIRROR of
+  // point_graph.cpp's ViewCameraScope. UNSET → transparent → byte-identical. Resident is PRODUCTION (moves
+  // the orbit on screen); the flat leg mirrors it for selftests.
+  ViewCameraScope viewCamScope(p_->viewCameraOverride ? &*p_->viewCameraOverride : nullptr);
 
   ResidentEvalCtx rc;
   rc.frameIndex = ctx.frameIndex;
-  // S5: the two clocks now come from the Transport (frame_cook), in BARS. localTime = playhead
-  // (automation samples THIS — a scrubbed/paused playhead freezes the sampled value); localFxTime
-  // = wall clock (the Time op's evaluate reads THIS — keeps running while paused). The negative
-  // sentinel (selftest callers that don't pass them) falls back to the pre-S5 placeholder so the
+  // S5: the two clocks come from the Transport (frame_cook), in BARS. localTime = playhead (automation
+  // samples THIS — a scrubbed/paused playhead freezes it); localFxTime = wall clock (Time op reads THIS —
+  // runs while paused). The negative sentinel (selftest callers) falls back to the pre-S5 placeholder so
   // resident*/parity goldens are byte-unchanged.
   rc.localTime = localTimeBars >= 0.0f ? localTimeBars : ctx.time;
   rc.localFxTime = localFxTimeBars >= 0.0f ? localFxTimeBars : ctx.time;
@@ -91,19 +94,16 @@ void PointGraph::cookResident(const ResidentEvalGraph& rg, const EvaluationConte
 
   std::map<std::string, MTL::Buffer*> cooked;  // this-cook memo (cook each path once)
 
-  // FEEDBACK per-frame memo (cross-frame ping-pong flow = KeepPreviousFrame): resident mirror of the
-  // flat feedbackCooked. A feedback op runs its blit + toggle EXACTLY ONCE per frame; if both outputs
-  // are wired, the second pull reads this cache instead of re-cooking (= double toggle). Keyed by path.
+  // FEEDBACK per-frame memo (cross-frame ping-pong = KeepPreviousFrame): resident mirror of flat feedbackCooked.
+  // A feedback op blit+toggles ONCE/frame; if both outputs wire, the second pull reads this cache. Keyed by path.
   std::map<std::string, std::array<MTL::Texture*, FeedbackCookCtx::kMaxTexOutputs>> feedbackCooked;
 
-  // Per-node resolved Float params (the 2b seam): each input resolved through its driver
-  // (Constant / Connection -> evalResidentFloat / Automation stub), memoized so pointers stay
-  // stable for the whole cook (ops + inputParams point into it).
+  // Per-node resolved Float params (2b seam): each input resolved through its driver (Constant / Connection
+  // -> evalResidentFloat / Automation stub), memoized so pointers stay stable for the whole cook.
   std::map<std::string, std::map<std::string, float>> paramsMemo;
-  // S3b/SetTime LIVE-READ memo trap (resident mirror, production runs THIS): a param driven by a value-rail
-  // GetFloatVar (or a time-reading value op) resolves DIFFERENTLY inside vs outside a SetVarCmd/SetTime scope,
-  // but the memo keys only on path. While ANY live scope is active we resolve FRESH and DO NOT cache
-  // (ambient-dependent, not a graph property). Off-scope = byte-identical (no off-scope cook enters).
+  // S3b/SetTime LIVE-READ memo trap (resident mirror, production runs THIS): a param driven by value-rail
+  // GetFloatVar resolves DIFFERENTLY inside vs outside a SetVarCmd/SetTime scope, but the memo keys only on
+  // path. While ANY live scope is active we resolve FRESH, DO NOT cache. Off-scope = byte-identical.
   std::map<std::string, std::map<std::string, float>> scopedScratch;  // per-cook owner of fresh scoped maps
   std::function<const std::map<std::string, float>*(const std::string&)> nodeParams =
       [&](const std::string& path) -> const std::map<std::string, float>* {

@@ -24,6 +24,7 @@
 #include "runtime/cmd_view_background.h"  // commandViewBackground() — Output-window view bg (terminal Command clear)
 #include "runtime/draw_params.h"      // DrawLineParams/DrawBillboardParams/DrawScreenQuadParams + bindings
 #include "runtime/field_camera.h"     // defaultLayerCameraForward / objectToClipSpace (Layer2d seam, F1)
+#include "runtime/view_camera_active.h"  // phase-B: activeViewCameraForward (default camera OR the output override)
 #include "runtime/graph.h"            // Graph/Node
 #include "runtime/mesh_draw_params.h" // MeshDrawParams + MESH_* bindings (DrawKind::Mesh)
 #include "runtime/mesh_pbr_fill.h"    // encodeMeshPbrDraw (DrawKind::MeshPbr draw, peeled for ratchet)
@@ -60,13 +61,12 @@ float paramOr(const std::map<std::string, float>& params, const char* id, float 
   return it != params.end() ? it->second : def;
 }
 
-// Build a render PSO for a vs/fs function pair into `pixelFormat`. `blend` turns on standard src-alpha
-// blending (lines/billboards composite over prior draws); DrawPoints stays opaque (blend=false). When `mode`
-// is non-null it overrides `blend` and selects the EXACT TiXL BlendMode factor table (Normal/Add, from
-// Core/Rendering/DefaultRenderingStates.cs) — used by DrawScreenQuad. nullptr if either function is missing.
-// ★Seam 2 OutputMerger: when `frozen` is non-null (a STAMPED item), the PSO's blend equation comes from that
-// tuple via applyFrozenBlend (the closed-form metalBlend* table) — OVERRIDING both `mode` and `blend`. Unstamped
-// items pass frozen=null → the exact legacy hardcoded blend path (byte-identical, press-pass).
+// Build a render PSO for a vs/fs function pair into `pixelFormat`. `blend` turns on standard src-alpha blending
+// (lines/billboards composite; DrawPoints stays opaque). When `mode` is non-null it overrides `blend` and picks
+// the EXACT TiXL BlendMode factor table (Normal/Add, DefaultRenderingStates.cs) — DrawScreenQuad. nullptr if a
+// function is missing. ★Seam 2 OutputMerger: `frozen` non-null (STAMPED item) → the blend equation comes from
+// it via applyFrozenBlend (closed-form metalBlend* table), OVERRIDING `mode`/`blend`. frozen=null → the exact
+// legacy hardcoded blend path (byte-identical, press-pass).
 MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const char* vsName,
                                       const char* fsName, MTL::PixelFormat pf, bool blend,
                                       const BlendMode* mode = nullptr,
@@ -120,12 +120,10 @@ MTL::RenderPipelineState* makeDrawPSO(MTL::Device* dev, MTL::Library* lib, const
 
 }  // namespace
 
-// RenderTarget draw: open one render pass on `output`, clear it once, then draw every item in the
-// command chain in order (later items composite on top). The chain can MIX draw kinds (DrawPoints /
-// DrawLines / DrawBillboards): each item names its DrawKind, the executor selects the matching PSO
-// + primitive type. PSOs are built lazily per kind per call (only the kinds actually present) — the live
-// loop's per-frame caching is a follow-up. NOT file-local (out of the anon namespace) so the draw-op leaf
-// selftests can drive a chain straight through it (point_ops_drawlines.cpp / point_ops_drawbillboards.cpp).
+// RenderTarget draw: open one render pass on `output`, clear it once, then draw every item in the command
+// chain in order (later items composite on top). The chain can MIX draw kinds (DrawPoints/Lines/Billboards):
+// each item names its DrawKind, the executor selects the matching PSO + primitive. PSOs built lazily per kind
+// per call. NOT file-local (out of the anon namespace) so the draw-op leaf selftests can drive a chain through it.
 void cookRenderTarget(TexCookCtx& c) {
   if (!c.lib || !c.output) return;
   if (RenderCommand* cap = renderStateCaptureForTest(); cap && c.command) *cap = *c.command;  // S2 both-leg cap
@@ -135,8 +133,7 @@ void cookRenderTarget(TexCookCtx& c) {
   MTL::RenderPipelineState* psoLines = nullptr;
   MTL::RenderPipelineState* psoLinesBuildup = nullptr;  // DrawLinesBuildup (DrawKind::LinesBuildup)
   MTL::RenderPipelineState* psoBb = nullptr;
-  // ScreenQuad PSO variants, lazily built per blend mode (FORK#3, this batch's 2 modes Normal/Additive).
-  // Same per-call lazy posture as the point/line PSOs above (per-frame PSO caching = deferred follow-up).
+  // ScreenQuad PSO variants, lazily built per blend mode (FORK#3, Normal/Additive) — same lazy posture as above.
   MTL::RenderPipelineState* psoSQ[2] = {nullptr, nullptr};  // [Normal, Additive]
   MTL::SamplerState* sqSampler = nullptr;
   // Layer2d (DrawKind::Layer2d): same lazy-per-blend-mode posture as ScreenQuad. F2 — a SEPARATE
@@ -145,7 +142,10 @@ void cookRenderTarget(TexCookCtx& c) {
   // F1 — function-local default camera FORWARD pair for THIS output's aspect (the resolution-pin point).
   const float aspectF =
       (c.output->height() > 0) ? (float)c.output->width() / (float)c.output->height() : 1.0f;
-  const LayerCameraForward camFwd = defaultLayerCameraForward(aspectF);
+  // phase-B: activeViewCameraForward = the DEFAULT camera when no output override (override-absent →
+  // defaultLayerCameraForward(aspectF), BYTE-IDENTICAL to before), else the mutable orbit camera. A wired
+  // Camera op still wins — itemCamera below replaces this per-item when it.hasCamera.
+  const LayerCameraForward camFwd = activeViewCameraForward(aspectF);
   // Per-item camera (Cut 3 + camera-B): a stamped Camera/Ortho op replaces the default (aspect fallback
   // Camera.cs:53-55); ShiftCamera then nudges the projection additively (ShiftCamera.cs:34-36; M31..M33).
   auto itemCamera = [&](const RenderDrawItem& it) -> LayerCameraForward {

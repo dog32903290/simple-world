@@ -87,6 +87,7 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"rendertargetwired", runRenderTargetWiredSelfTest},
     {"field-camera", runFieldCameraSelfTest},
     {"view-camera", runViewCameraSelfTest},  // output-camera-orbit: mutable ViewCamera orbit/zoom + default parity floor
+    {"view-camera-override", runViewCameraOverrideSelfTest},  // phase-B: output-camera override seam (takes-effect + no-leak, both faces)
     {"layer2d", runLayer2dSelfTest},
     {"camera", runCameraSelfTest},
     {"camera-scope", runCameraScopeSelfTest},        // C1: point-camera hole closed (flat + resident)

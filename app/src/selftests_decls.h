@@ -44,6 +44,7 @@
 #include "runtime/field_graph.h"  // runFieldCodegenSelfTest (shader-graph codegen, pure string)
 #include "runtime/field_camera.h"  // runFieldCameraSelfTest (pure-math camera matrices; Layer2d seam)
 #include "runtime/view_camera.h"   // runViewCameraSelfTest (pure-math mutable output camera: orbit/zoom/pan)
+#include "runtime/view_camera_active.h"  // runViewCameraOverrideSelfTest (phase-B output-camera override seam)
 #include "runtime/graph.h"
 #include "runtime/image_filter_op_registry.h"  // imageFilterSelfTests() self-registered sink
 #include "runtime/value_op_registry.h"          // valueOpSelfTests() self-registered sink
