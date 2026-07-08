@@ -6,9 +6,11 @@
 #include <functional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "crude_json.h"
 #include "runtime/compound_graph.h"   // Symbol / SymbolLibrary
+#include "runtime/t3_import.h"        // T3Resolver (compound-recursion callback type)
 #include "runtime/t3_import_maps.h"   // t3Lc
 
 namespace sw {
@@ -68,5 +70,34 @@ bool collapseImageFxWrapper(const crude_json::value& root, const std::string& sw
 // child has no Outputs array / no OutputData. Impl in t3_import_collapse.cpp.
 void parseChildTimeClips(const crude_json::value& cv, const std::string& swType, SymbolChild& child,
                          const std::function<void(const std::string&)>& warn);
+
+// ── COMPOUND-RECURSION SEAM internals (t3_import_recurse.cpp) ─────────────────────────────────────────
+// Split out of t3_import.cpp for the rule-4 line ratchet (the walk+fill already sits at ~384 lines).
+
+// The depth-carrying importer CORE (defined in t3_import.cpp). Both public importT3Symbol overloads
+// forward here with depth 0; the recursion below re-enters it with depth+1. Declared here so the
+// recursion helper (a separate TU) can call back into the core without a header cycle.
+bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
+                        std::vector<std::string>* warnings, const T3Resolver& resolve, int depth);
+
+// §1.3 CROSS-LAYER SLOT FALLBACK: resolve a t3 slot guid → sw slot NAME for a child whose swType may be
+// a NESTED COMPOUND. An atom resolves via the maps (swSlotNameForGuid). A compound (atomic==false in
+// lib) has NO map row — its external ports ARE its inputDefs/outputDefs, keyed by the very .t3 slot guid
+// (Inputs[].Id / outputDefs). Without this, swSlotNameForGuid returns "" for a compound and the parent's
+// overrides + cross-layer connections silently vanish (nested compound imported but父參數/接線全空). "" if
+// neither an atom map row NOR a compound port matches.
+std::string t3SlotNameForChildType(const SymbolLibrary& lib, const std::string& swType,
+                                    const std::string& slotGuid);
+
+// NESTED-COMPOUND RESOLUTION: a child's SymbolId mapped to NO atom. If `resolve` supplies its .t3 (a
+// pure sub-graph compound) and it does not already exist / would not cycle / is within the depth cap,
+// recursively import it into `lib` and return its guid (the swType the parent SymbolChild references).
+// Returns "" when it should stay "unmapped, skipped" (no resolver, recursion disabled, resolver miss,
+// cycle, depth cap, or nested import failure — `warn` records the reason). `parentGuid` is the symbol
+// currently being built (cycle guard subject); `depth` is the current recursion depth (cap 64).
+std::string t3ResolveNestedCompound(const std::string& parentGuid, const std::string& childGuid,
+                                    const std::string& childSymbolId, SymbolLibrary& lib,
+                                    std::vector<std::string>* warnings, const T3Resolver& resolve,
+                                    int depth, const std::function<void(const std::string&)>& warn);
 
 }  // namespace sw

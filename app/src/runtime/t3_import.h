@@ -28,6 +28,7 @@
 //
 // ZONE: runtime (純計算). Pure CPU: JSON parse (crude_json) + three maps + SymbolLibrary fill.
 #pragma once
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -35,14 +36,36 @@
 
 namespace sw {
 
+// COMPOUND-RECURSION SEAM (nested .t3 → nested sub-compound). A child whose SymbolId maps to NO sw
+// atom might itself be a TiXL COMPOUND (a pure sub-graph .t3). To build it as a NESTED sub-compound
+// (drag/dive-in) instead of skipping/flattening it, the importer must fetch that child's .t3 by guid.
+// runtime is a filesystem-free leaf, so the guid→.t3 lookup is an INJECTED callback (= the
+// setAssetTextureDecoder seam pattern): the APP zone (catalog_boot) builds a guid→file index and binds
+// this resolver. Returns true + fills `outJson` when the guid is a known compound .t3; false = unknown
+// (the child then falls back to today's "unmapped, skipped"). An EMPTY resolver ⇒ no recursion at all
+// (byte-identical to the pre-seam single-layer importer — zero churn for every existing caller).
+using T3Resolver = std::function<bool(const std::string& guid, std::string& outJson)>;
+
 // Import one .t3 (JSON text) into `lib` as a single Symbol. id == the .t3 top-level Id; inputDefs
 // from Inputs[]; children/connections = the mapped subgraph. Every atom a child's SymbolId resolves
-// to is also generated into `lib` (atomicSymbolFromSpec via findSpec). Returns false only when the
-// JSON has no usable top-level Id. Local problems (unknown SymbolId, unresolvable slot/child guid)
-// drop that element with a warning. `outSymbolId` receives the id; `warnings` collects skips.
+// to is also generated into `lib` (atomicSymbolFromSpec via findSpec). A child whose SymbolId is a
+// COMPOUND (not an atom) is recursively imported via `resolve` as a nested sub-compound (dedup +
+// cycle-guard + depth cap); with no resolver it drops with a warning (today's behaviour). Returns
+// false only when the JSON has no usable top-level Id. Local problems (unknown SymbolId, unresolvable
+// slot/child guid) drop that element with a warning. `outSymbolId` receives the id; `warnings` skips.
 bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib,
                     std::string* outSymbolId = nullptr,
                     std::vector<std::string>* warnings = nullptr);
+
+// Recursion overload: same contract, plus `resolve` supplies nested compound children's .t3 by guid.
+bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
+                    std::vector<std::string>* warnings, const T3Resolver& resolve);
+
+// Test-only injection seam (compound-recursion RED case): force the recursion OFF even when a resolver
+// is supplied — the nested compound child reverts to "unmapped, skipped" (single-layer flatten). Off in
+// production. The nested-compound golden flips this around importT3Symbol to prove the recursion is the
+// load-bearing seam (nested absent → the nested terminal path vanishes → downstream diverges).
+bool& t3RecurseDisable();
 
 // Cheap top-level Id peek: parse ONLY the root object's Id (comment-strip + crude_json + lowercase),
 // matching the sym.id importT3Symbol would assign. Lets the boot catalog skip a .t3 whose symbol is
@@ -61,5 +84,14 @@ bool& t3ImportInjectBug();
 // drives the importer's connection-order RED tooth. See that file for the measured result + the
 // exact seam the keystone exposes.
 int runT3TransformPointsParity(bool injectBug);
+
+// COMPOUND-RECURSION keystone golden (--selftest-t3-nestedcompound): import the REAL DrawPointsDOF.t3
+// (root) whose lone TransformPoints child is itself a compound .t3, via an in-memory T3Resolver so the
+// importer RECURSES it into a nested sub-compound. Structural asserts (nested Symbol atomic==false +
+// children non-empty, parent SymbolChild.symbolId==TP guid, the DrawPointsDOF→TransformPoints.Points
+// cross-layer connection resolved = §1.3), then cook the NESTED TransformPoints terminal buffer through
+// buildEvalGraph→cookResident and compare to the焊死 host-matrix oracle. Lives in
+// t3import_nestedcompound_golden.cpp. injectBug flips t3RecurseDisable → nested reverts to skip → RED.
+int runT3NestedCompoundParity(bool injectBug);
 
 }  // namespace sw
