@@ -202,6 +202,41 @@ int dumpNodeSpec(const char* type) {
     ++folded;
   }
   std::printf("FOLDED_LOGICAL_COUNT: %d\n", folded);
+
+  // ---- DEFAULT-VALUE dump (default_value_parity gate, 值閘) ----
+  // A machine-parseable line PER INPUT PORT carrying its inspector default. This is the byte-truth of
+  // PortSpec.def / strDef straight from the live registry — no C++ aggregate-init parsing. RAW ports
+  // (NOT folded): a Vector3 is emitted as three DEF lines (base.x/.y/.z), so the parity tool can join
+  // each component against TiXL's DefaultValue {X,Y,Z}. Output ports are skipped (no default to match).
+  // Format (tab-separated, stable): DEF\t<id>\t<dataType>\t<widget>\t<def>\t<strDef>\t<labels-csv>
+  //   widget : Slider|Enum|Bool|Vec  (Enum → def is the selected label index)
+  //   def    : PortSpec.def (float, %.9g)          strDef : PortSpec.strDef (String ports; tabs/newlines→space)
+  //   labels : comma-joined enum labels ("" when none)  — lets the tool map "MirrorOnce"→index.
+  for (const sw::PortSpec& p : ports) {
+    if (!p.isInput) continue;
+    // Skip the SAME sw-convention ports the fold walk excludes (no TiXL [Input] behind them, so no
+    // default-parity to match): grid-family capacity Count, and the image RenderTarget output-format
+    // trio. Emitting them would false-positive against a type-zero TiXL fallback.
+    if (hasCountX && p.id == "Count") continue;
+    if (hasCustomW && (p.id == "Resolution" || p.id == "CustomW" || p.id == "CustomH")) continue;
+    const char* w = "Slider";
+    switch (p.widget) {
+      case sw::Widget::Slider: w = "Slider"; break;
+      case sw::Widget::Enum:   w = "Enum";   break;
+      case sw::Widget::Bool:   w = "Bool";   break;
+      case sw::Widget::Vec:    w = "Vec";    break;
+    }
+    // Sanitize strDef: strip tabs/newlines so the TSV stays one-line-per-port.
+    std::string sd = p.strDef;
+    for (char& c : sd) if (c == '\t' || c == '\n' || c == '\r') c = ' ';
+    std::string labels;
+    for (size_t li = 0; li < p.labels.size(); ++li) {
+      if (li) labels += ",";
+      labels += p.labels[li];
+    }
+    std::printf("DEF\t%s\t%s\t%s\t%.9g\t%s\t%s\n", p.id.c_str(), p.dataType.c_str(), w, p.def,
+                sd.c_str(), labels.c_str());
+  }
   return vecRunShort ? 4 : 0;  // 4 = structural invariant tripped (distinct from findSpec-null 2)
 }
 
