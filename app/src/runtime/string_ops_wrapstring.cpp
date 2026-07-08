@@ -149,14 +149,14 @@ void cookWrapString(StringCookCtx& c) {
 // Self-registration. File-scope static StringOp — independent leaf .cpp (no shared edit point).
 //   Ports (ORDER MATTERS for the gather): "Result" output first, then "InputText" (single String input,
 //   strDef=""), then "WrapColumn" (Float, default 1), then "Mode" (Float, Widget::Enum, 5 labels).
-//   WrapString.t3 default: Mode = DontWrap (0), WrapColumn unset → clamp floor 1.
+//   WrapString.t3 default: Mode = WrapAtWords (1), WrapColumn = 100.
 static const StringOp _reg_wrapstring{
     {"WrapString", "WrapString",
      {{"Result", "Result", "String", false},
       {"InputText", "InputText", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
        /*multiInput=*/false, /*strDef=*/""},
-      {"WrapColumn", "WrapColumn", "Float", true, 1.0f, 1.0f, 10000.0f, Widget::Slider},
-      {"Mode", "Mode", "Float", true, 0.0f, 0.0f, 4.0f, Widget::Enum,
+      {"WrapColumn", "WrapColumn", "Float", true, 100.0f, 1.0f, 10000.0f, Widget::Slider},
+      {"Mode", "Mode", "Float", true, 1.0f, 0.0f, 4.0f, Widget::Enum,
        {"DontWrap", "WrapAtWords", "WrapAtCharacters", "WrapToFillBlock", "SolidBlock"}}},
      /*evaluate=*/nullptr},  // String output cannot ride NodeSpec::evaluate (returns ONE float)
     cookWrapString};

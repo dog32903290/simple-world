@@ -265,10 +265,10 @@ static const StringOp _reg_blendstrings{
       {"InputStrings","InputStrings","String", true,  0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
        /*multiInput=*/true, ""},
       {"Blend",       "Blend",       "Float",  true,  0.0f, 0.0f, 1.0f, Widget::Slider},
-      {"BlendSpread", "BlendSpread", "Float",  true,  1.0f, 0.001f, 5.0f, Widget::Slider},
+      {"BlendSpread", "BlendSpread", "Float",  true,  0.5f, 0.001f, 5.0f, Widget::Slider},
       {"Scramble",    "Scramble",    "Float",  true,  0.0f, 0.0f, 1.0f, Widget::Slider},
       {"ScrambleSeed","ScrambleSeed","Float",  true,  0.0f, -100000.0f, 100000.0f, Widget::Slider},
-      {"MaxLength",   "MaxLength",   "Float",  true,  10000.0f, 1.0f, 10000.0f, Widget::Slider},
+      {"MaxLength",   "MaxLength",   "Float",  true,  1000.0f, 1.0f, 10000.0f, Widget::Slider},
       {"Characters",  "Characters",  "String", true,  0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
        /*multiInput=*/false, ""},
       // InputTextA / InputTextB (TiXL BlendStrings.cs l.182-185: [Input] InputSlot<string>).

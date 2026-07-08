@@ -90,7 +90,7 @@ static const StringOp _reg_stringrepeat{
      {{"Result",   "Result",   "String", false},
       {"Fragment", "Fragment", "String", true, 0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
        false, ""},
-      {"Count",    "Count",    "Float",  true, 0.0f, 0.0f, 1000.0f, Widget::Slider}},
+      {"Count",    "Count",    "Float",  true, 5.0f, 0.0f, 1000.0f, Widget::Slider}},
      /*evaluate=*/nullptr},  // String output cannot ride NodeSpec::evaluate (returns ONE float)
     cookStringRepeat};
 

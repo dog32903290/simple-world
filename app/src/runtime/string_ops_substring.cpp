@@ -126,7 +126,7 @@ static const StringOp _reg_substring{
       {"InputText", "InputText", "String", true,  0.0f, 0.0f, 1.0f, Widget::Slider, {}, false, 1,
        false, ""},
       {"Start",     "Start",     "Float",  true,  0.0f, -1000000.0f, 1000000.0f, Widget::Slider},
-      {"Length",    "Length",    "Float",  true,  0.0f, -1000000.0f, 1000000.0f, Widget::Slider}},
+      {"Length",    "Length",    "Float",  true,  10000.0f, -1000000.0f, 1000000.0f, Widget::Slider}},
      /*evaluate=*/nullptr},  // String output cannot ride NodeSpec::evaluate (returns ONE float)
     cookSubString};
 

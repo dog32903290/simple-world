@@ -158,7 +158,7 @@ static const StringOp _reg_stringinsert{
        false, 1, false, ""},
       {"Position",          "Position",          "Float",  true, 0.0f, -1000000.0f, 1000000.0f,
        Widget::Slider},
-      {"UseModuloPosition", "UseModuloPosition", "Float",  true, 0.0f, 0.0f, 1.0f, Widget::Bool}},
+      {"UseModuloPosition", "UseModuloPosition", "Float",  true, 1.0f, 0.0f, 1.0f, Widget::Bool}},
      /*evaluate=*/nullptr},  // String output cannot ride NodeSpec::evaluate (returns ONE float)
     cookStringInsert};
 
