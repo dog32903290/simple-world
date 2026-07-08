@@ -15,22 +15,23 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 18b08cc
+HEAD: 363e9ef
 DIRTY: 1 files
 CENSUS: 610 / 749 done
-BITE: 702 PASS
-STAMP_AT: 2026-07-08T16:18
+BITE: 704 PASS
+STAMP_AT: 2026-07-08T18:01
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
 
 ## Active Lane
 
-**★★★現行定位（2026-07-08，HEAD `18b08cc`，--bite 702/0/0，未 push）＝復合戰役開打，批 1 上岸——接手先讀 memory [[next-phase-compound-catalog-2026-07-07]] + 施工圖 `docs/agent/COMPOUND_RECURSION_SEAM_SPEC.md`。**
+**★★★現行定位（2026-07-08，HEAD `363e9ef`，--bite 704/0/0，未 push）＝復合戰役，keystone+.t3ui 上岸，主戰場=廢棄節點退場（柏為 18:00 令）——接手先讀 memory [[next-phase-compound-catalog-2026-07-07]] + 施工圖 `docs/agent/COMPOUND_RECURSION_SEAM_SPEC.md`。**
 - **★關鍵校正（4 scout + refuter 確認）＝巢狀複合節點 MODEL 早已 live，非「要重新設計」**（[[tixl-clone-model-nested-catalog-node]] 那句 stale）：巢狀資料模型 `compound_graph.h` / resident 遞迴 inline `resident_eval_flatten.cpp` / 複合→NodeSpec catalog 註冊 `graph_bridge.cpp` / dive-in `editor_ui.cpp:252` / 8 顆真 .t3 boot-load 全 live。**不用重織網。**
 - **批 1 DONE（今日）**：① **keystone 匯入器遞迴上岸**（`t3_import_recurse.cpp`，讓「子節點本身是複合」遞迴建巢狀子複合而非 skip/壓扁；含 §1.3 跨層 slot 解析）——golden `t3-nestedcompound`（DrawPointsDOF→TransformPoints 兩層、中段 pin、TiXL host-matrix oracle P5 乾淨）RED→GREEN、injectBug 咬、**獨立 Opus refuter 判可合流**（override 側免補=共用 helper、connection-green 涵蓋）。② **值閘全掃**（`tools/default_value_parity.sh`+census `default_value_drift.txt`）＝**295 條預設值飄離 TiXL / 151 節點**（float 176 最高信號 + enum 26 + string 38 + float-vs-zero 53 低信號待逐顆確認）。
-- **★下一根＝`.t3ui` 排版 lane**（柏為 07-08 觀察「鑽入複合子節點全擠原點」）：座標在 sibling `.t3ui` 非 .t3，sw catalog 只帶 .t3→child 全落 (0,0)。修=帶 .t3ui 進來 + importer 解析 `SymbolChildUis[].Position`→`child.x/y`（+ InputUis/OutputUis→SlotDef.x/y 邊界 pin）。**owner-lock 同 `t3_import.cpp`+`catalog_boot.cpp`，緊接 keystone 做、不可與碰這兩檔的 lane 並行。** 全規格在 SEAM_SPEC.md「後續 lane」節。
-- **批 2+ 排程**：namespace/category 分類軸 / 修 240 條預設值飄移(照 TiXL) / snapshot 真渲染縮圖牆(柏為要，中偏輕、機器已 live=ExportSession+cookResident、無需 atlas) / 151 顆退場替換(safe130 資料驅動+deps21 修腳手架+12 collapse 反轉)+ 教學/example .t3 匯入。
+- **`.t3ui` 排版 DONE（今日，`t3_import_layout.cpp`+8 顆 .t3ui 進 assets）**：鑽入複合子節點照 TiXL Position 擺（不再擠原點）。**⚠ 過程教訓**：merge 後 orchestrator 讀 eye state.json 誤報 0,0=**舊 app 實例遺留 state.json**(假警報,見 memory [[eye-hand-stale-instance-state-json]])；逼出真收穫=`catalog_boot_layout_selftest` base leg 從 `return 0` 假綠改 hard-fail（--bite 只驗 -bug leg，base leg NO-BITE 擋不住 boot 回歸）。親手 `--selftest-catalog-layout` 在真 assets 證 Blend 子節點非零 PASS。
+- **★★現行主戰場＝廢棄扁平化節點退場（柏為 18:00 令）**：151 顆壓平複合(130 safe+21 deps)換成巢狀 .t3 複合。機器齊(遞迴+排版+8 顆 catalog 範本)。執行藍圖 Plan agent 產出中→pilot 先證 replace-in-place 機制再資料驅動放量。**owner-lock t3_import*/node_registry/catalog_boot=序列瓶頸；各家族 leaf 檔可 worktree 並行。**
+- **批 2+ 其餘（與退場不撞檔可並行）**：namespace/category 分類軸 / 修 240 條預設值飄移(照 TiXL,census `default_value_drift.txt`) / snapshot 真渲染縮圖牆(柏為要，中偏輕、機器已 live、規格 `SNAPSHOT_THUMBNAIL_SPEC.md`) / 教學/example .t3 匯入。
 - **⚠ refuter 兩個非阻擋 follow-up（歸複合重放 lane）**：flatten 側「scalar override 灌進 nested 邊界輸入」未測+Const-child scaffold 暗示脆；`t3-transformpoints` 一行 stale "MEASURED RED" 註解（現實 GREEN）。
 
 ---
@@ -138,7 +139,7 @@ gradient-fed 6/7 DONE。187 是 class-gated：逐 class 建 seam/補映射→該
 - **DrawPoints 換 quad sprite（`3310181`，柏為 02:38 parity 修）** — 預設面板 DrawPoints 從「不分大小的 4px 死點」變成「依 PointSize 的 6-vert camera-facing quad sprite」，照 TiXL DrawPoints.hlsl（11 param 全砍→接回 PointSize/Color/ScaleFactor/BlendMode）。**怎麼驗**：開 app 看預設場景，點現在是 quad sprite（吃 PointSize/Color/blend）；預設場景 PointSize=1.5 可見，裸節點 .t3 預設 0.1≈1px（忠實但小，你可調 PointSize 旋鈕）。**機器閘**：drawpoints-parity golden no-bug GREEN+bug RED、7 顆下游 golden 無回歸、--bite 525、refuter 5/5 SURVIVES。**待你簽**：① quad sprite 觀感對不對 ② 預設場景 PointSize=1.5 vs TiXL 預設場景值（可能需跑真 TiXL 看）③ 純像素 byte parity 標 pixel-deferred-windows（等 Windows TiXL reference）。
 
 ## Conflict Register
-**2026-07-08 復合戰役批 1：main `18b08cc`，未 push（領先 origin 復合戰役全部 commit）。** keystone 遞迴（branch `worktree-agent-a8dd21ac0f2d9294d` FF）+ 值閘（branch `worktree-agent-a0015507449f7c901` cherry-pick `9ac32ea`）已進 main，兩 worktree 可清。**★下一根 `.t3ui` 排版 lane owner-lock `t3_import.cpp`+`catalog_boot.cpp`——任何碰這兩檔的 lane 不可與它並行**（namespace 軸也碰 graph_bridge/compound_graph，排序不撞；snapshot 縮圖牆碰 app/variation+ui/variation_panel 可並行；值閘飄移修碰 node_registry_* 可並行）。非阻塞 pre-existing：`point_modify_chain.scn` harness-brittle red（task_df8df769）；`detectbpm` 已於 07-06 修（見史）。
+**2026-07-08 復合戰役：main `363e9ef`，未 push（領先 origin 全部復合戰役 commit）。** 已進 main：keystone 遞迴 / 值閘 / .t3ui 排版 / boot-selftest 強化 fixer。可清 worktree：a8dd21ac(keystone)/a0015507(值閘)/a344db6e(.t3ui)/a19a2f4a(fixer)。**★主戰場退場戰役 owner-lock `t3_import*`+`node_registry*`+`catalog_boot`=序列瓶頸，一次一條動這些檔**（各家族 leaf 檔可 worktree 並行；namespace 軸碰 graph_bridge/compound_graph、值閘飄移修碰 node_registry_*——與退場撞 node_registry 要排序、別並行）。Plan agent `a5c8478d` 產退場藍圖中。非阻塞 pre-existing：`point_modify_chain.scn` harness-brittle red（task_df8df769）。
 
 〔以下 2026-06-29/30 舊條目多已解或屬歷史，非現行衝突；留作背景，勿讀成當前阻塞〕
 
@@ -156,7 +157,7 @@ gradient-fed 6/7 DONE。187 是 class-gated：逐 class 建 seam/補映射→該
 
 ## Next Handoff Sentence
 
-**★★下一根（2026-07-08，現行）：`.t3ui` 排版 lane（柏為觀察「鑽入複合子節點全擠原點」）。** 座標在 sibling `.t3ui`（非 .t3），sw catalog 只帶 .t3→child 全落 (0,0)。修兩步：①帶 .t3ui 進 `assets/catalog_t3/`（或 catalog_boot 從 external/tixl 讀 sibling）②`importT3Symbol` 解析 `SymbolChildUis[].Position`（ChildId→經現有 map→childId）寫 `child.x/y`，順手 InputUis/OutputUis→SlotDef.x/y 邊界 pin。harness=import 帶 .t3ui 複合→斷言 children x/y 非全 0 且互異，injectBug 不讀→全 0→diverge。座標系不用轉換。**owner-lock `t3_import.cpp`+`catalog_boot.cpp`。全規格 `docs/agent/COMPOUND_RECURSION_SEAM_SPEC.md`「後續 lane」節。** 之後：namespace 軸 / 修 240 飄移 / snapshot 縮圖牆 / 151 退場替換。開頭跑 `tools/sw_status.sh`。
+**★★下一根（2026-07-08，現行）：廢棄扁平化節點退場（柏為 18:00 令，復合戰役主戰場）。** 151 顆壓平複合(130 safe+21 deps)換成巢狀 .t3 複合(replace-in-place：同名巢狀複合接管+移除 flat atom 註冊，因 `node_registry.cpp:88-91` atom shadow 複合)。機器齊(遞迴 keystone+.t3ui 排版+8 顆 catalog 範本)。**執行藍圖 Plan agent 產出中**(ready-set 判定/collapse-12/分批/harness)→回來審→pilot 先證機制再資料驅動放量。owner-lock t3_import*/node_registry/catalog_boot 序列；leaf 檔並行。之後/並行：namespace 軸 / 修 240 飄移(`default_value_drift.txt`) / snapshot 縮圖牆(`SNAPSHOT_THUMBNAIL_SPEC.md`) / 教學 .t3。開頭跑 `tools/sw_status.sh`。
 
 〔舊句 2026-07-02（mesh 家族兩缺口→187 量產）已完成/被今日方向取代，移 done-record：骨4 mesh-buffer 橋 / 骨9 mixed-slot replay / 骨2 HLSL→MSL 尾巴 / ParticleSystem 解鎖照 [[particlesystem-pool-fork-match-tixl]]〕
 
