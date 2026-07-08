@@ -9,11 +9,12 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
 
-#include "runtime/t3_import.h"       // importT3Symbol / symbolIdOfT3 (append + cheap id peek)
+#include "runtime/t3_import.h"       // importT3Symbol / symbolIdOfT3 / T3Resolver (append + peek + recurse)
 #include "runtime/compound_graph.h"  // SymbolLibrary::find
 
 namespace sw::doc {
@@ -44,12 +45,34 @@ int loadCatalogFromFolder(const std::string& dir, bool quiet) {
   }
   std::sort(files.begin(), files.end());
 
-  int imported = 0, skipped = 0;
+  // guid→.t3 INDEX for the COMPOUND-RECURSION resolver (app zone does the filesystem; runtime stays a
+  // leaf). Peek each file's top-level Symbol id once, so a catalog compound whose child is ANOTHER
+  // catalog compound is RECURSED into a nested sub-compound instead of skipped. Scoped to THIS folder
+  // (no 925-wide Lib scan — that is an independent production-scale decision); a nested-compound child
+  // whose guid is not one of these files still drops with today's "unmapped, skipped" warning.
+  std::map<std::string, std::string> jsonByGuid;
+  std::map<fs::path, std::string> jsonByFile;
   for (const fs::path& p : files) {
     std::ifstream f(p, std::ios::binary);
-    if (!f) { std::fprintf(stderr, "[catalog] cannot read: %s\n", p.string().c_str()); continue; }
+    if (!f) continue;
     std::ostringstream ss; ss << f.rdbuf();
-    const std::string json = ss.str();
+    std::string json = ss.str();
+    std::string id;
+    if (sw::symbolIdOfT3(json, &id) && !id.empty()) jsonByGuid[id] = json;
+    jsonByFile[p] = std::move(json);
+  }
+  const sw::T3Resolver resolver = [&jsonByGuid](const std::string& guid, std::string& out) -> bool {
+    auto it = jsonByGuid.find(guid);
+    if (it == jsonByGuid.end()) return false;
+    out = it->second;
+    return true;
+  };
+
+  int imported = 0, skipped = 0;
+  for (const fs::path& p : files) {
+    auto jit = jsonByFile.find(p);
+    if (jit == jsonByFile.end()) { std::fprintf(stderr, "[catalog] cannot read: %s\n", p.string().c_str()); continue; }
+    const std::string& json = jit->second;
 
     // IDEMPOTENT pre-check: peek the .t3's own Symbol id; if the live lib already has it, skip WITHOUT
     // touching it (importT3Symbol would overwrite the definition — unwanted for an already-open doc).
@@ -58,7 +81,7 @@ int loadCatalogFromFolder(const std::string& dir, bool quiet) {
 
     std::string symId;
     std::vector<std::string> warnings;
-    const bool ok = sw::importT3Symbol(json, g_lib(), &symId, &warnings);
+    const bool ok = sw::importT3Symbol(json, g_lib(), &symId, &warnings, resolver);
     for (const std::string& w : warnings)
       std::fprintf(stderr, "[catalog] %s: %s\n", p.filename().string().c_str(), w.c_str());
     if (!ok || symId.empty()) {

@@ -213,10 +213,9 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
       }
       std::string swType = swTypeForSymbolGuid(symbolId);
       if (swType.empty()) {
-        // NESTED COMPOUND: the SymbolId is not a mapped atom. If a resolver can supply the child's own
-        // .t3 (a pure sub-graph compound), RECURSE it into `lib` as a nested sub-compound and reference
-        // it by guid — instead of skipping/flattening. Returns "" ⇒ still unmapped (no resolver / miss /
-        // cycle / depth cap / disabled), fall through to the honest skip below.
+        // NESTED COMPOUND: SymbolId is not a mapped atom. A resolver may supply the child's own .t3 (a
+        // pure sub-graph compound) → RECURSE it into `lib` as a nested sub-compound, referenced by guid,
+        // instead of skipping/flattening. "" ⇒ still unmapped → the honest skip below.
         swType = t3ResolveNestedCompound(symGuid, childGuid, symbolId, lib, warnings, resolve, depth, warn);
         if (swType.empty()) {
           warn("t3: child " + childGuid + " unmapped SymbolId " + lc(symbolId) +
@@ -224,9 +223,8 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
           continue;
         }
       }
-      // A NESTED COMPOUND swType (guid) is already committed into `lib` by the recursion and has no
-      // atom NodeSpec — skip the atom-registration path (findSpec would miss and drop it). Atoms take
-      // the original path: resolve the spec + generate the atomic Symbol into the lib.
+      // A NESTED COMPOUND swType (guid) is already committed into `lib` and has no atom NodeSpec — skip
+      // the atom-registration path (findSpec would miss + drop it). Atoms take the original spec path.
       const Symbol* swDef = lib.find(swType);
       const bool isNestedCompound = swDef && !swDef->atomic;
       if (!isNestedCompound) {
@@ -251,8 +249,7 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
         for (const crude_json::value& ivv : cv["InputValues"].get<crude_json::array>()) {
           if (!ivv.is_object()) continue;
           const std::string slotGuid = lc(asStr(ivv, "Id"));
-          // §1.3: an override on a NESTED COMPOUND child resolves through the nested Symbol's inputDefs
-          // (swSlotNameForGuid only knows atoms → would drop every parent override silently).
+          // §1.3: an override on a NESTED COMPOUND child resolves through the nested Symbol's inputDefs.
           const std::string slotName = t3SlotNameForChildType(lib, swType, slotGuid);
           if (slotName.empty()) {
             warn("t3: child " + childGuid + " InputValue unknown slot " + slotGuid + ", skipped");
@@ -311,8 +308,7 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
     if (childId == kSymbolBoundary) return lc(slotGuid);  // matches SlotDef.id from Inputs[]
     auto t = childIdToSwType.find(childId);
     if (t == childIdToSwType.end()) return std::string();
-    // §1.3: a wire crossing into/out of a NESTED COMPOUND child resolves through the nested Symbol's
-    // input/output defs (swSlotNameForGuid only knows atoms → the cross-layer wire would drop silently).
+    // §1.3: a wire into/out of a NESTED COMPOUND child resolves via the nested Symbol's in/out defs.
     return t3SlotNameForChildType(lib, t->second, slotGuid);
   };
 
@@ -396,20 +392,9 @@ bool importT3SymbolImpl(const std::string& t3Json, SymbolLibrary& lib, std::stri
   refineInputTypesFromWires(sym, lib);  // sharpen boundary-input types from the child ports they feed
 
   lib.symbols[sym.id] = sym;
-  if (depth == 0 && lib.rootId.empty()) lib.rootId = sym.id;  // only the TOP import seeds root (a nested
-  if (outSymbolId) *outSymbolId = sym.id;                     // recursion at depth>0 must not hijack it)
+  if (depth == 0 && lib.rootId.empty()) lib.rootId = sym.id;  // only the TOP import seeds root (depth>0
+  if (outSymbolId) *outSymbolId = sym.id;                     // nested recursion must not hijack it)
   return true;
-}
-
-// ── Public entry points (forward to the depth-carrying core) ──────────────────────────────────────────
-bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
-                    std::vector<std::string>* warnings, const T3Resolver& resolve) {
-  return importT3SymbolImpl(t3Json, lib, outSymbolId, warnings, resolve, /*depth=*/0);
-}
-
-bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
-                    std::vector<std::string>* warnings) {
-  return importT3SymbolImpl(t3Json, lib, outSymbolId, warnings, /*resolve=*/T3Resolver{}, /*depth=*/0);
 }
 
 }  // namespace sw

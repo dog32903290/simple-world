@@ -90,4 +90,15 @@ std::string t3ResolveNestedCompound(const std::string& parentGuid, const std::st
   return childSymGuid;  // the parent SymbolChild references the nested compound by guid
 }
 
+// ── Public entry points (forward to the depth-carrying core importT3SymbolImpl in t3_import.cpp) ───────
+bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
+                    std::vector<std::string>* warnings, const T3Resolver& resolve) {
+  return importT3SymbolImpl(t3Json, lib, outSymbolId, warnings, resolve, /*depth=*/0);
+}
+
+bool importT3Symbol(const std::string& t3Json, SymbolLibrary& lib, std::string* outSymbolId,
+                    std::vector<std::string>* warnings) {
+  return importT3SymbolImpl(t3Json, lib, outSymbolId, warnings, /*resolve=*/T3Resolver{}, /*depth=*/0);
+}
+
 }  // namespace sw

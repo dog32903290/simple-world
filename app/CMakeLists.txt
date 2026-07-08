@@ -846,8 +846,10 @@ add_executable(simple_world
   src/runtime/t3_import_maps.cpp                   # .t3 importer Guid→sw mapping DATA (TABLE ②/③, split for the line ratchet)
   src/runtime/t3_import_maps_collapse.cpp          # .t3 image-fx-wrapper collapse TABLES (④a-d), split from t3_import_maps.cpp for the ≤400 ratchet
   src/runtime/t3_import_collapse.cpp               # .t3 image-fx-wrapper→tex-atom collapse pass (split from t3_import.cpp for the ≤400 ratchet)
+  src/runtime/t3_import_recurse.cpp                # COMPOUND-RECURSION seam: nested-compound resolution + §1.3 cross-layer slot fallback (split of t3_import.cpp for the ≤400 ratchet)
   src/runtime/t3_import_clips.cpp                  # .t3 per-child TimeClip OutputData parse (DataSet-timeline seam, split for the ≤400 ratchet)
   src/runtime/t3import_transformpoints_golden.cpp  # KEYSTONE parity: TransformPoints.t3 import→buildEvalGraph→cookResident vs xfprobe
+  src/runtime/t3import_nestedcompound_golden.cpp   # ★COMPOUND-RECURSION keystone: DrawPointsDOF.t3 recurses TransformPoints into a nested compound → structural + cross-layer parity vs host-matrix oracle; -bug disables recursion → RED
   src/runtime/t3import_transformmesh_golden.cpp    # 骨8 MESH keystone: TransformMesh.t3 replay → SwVertex readback vs oracle
   src/runtime/t3import_displacemeshnoise_golden.cpp # 骨9 MESH mixed-slot: DisplaceMeshNoise.t3 interleaved FloatsToBuffer.Params → SwVertex vs snoise oracle
   src/runtime/t3import_combinebuffers_golden.cpp   # 187 量產第一波: CombineBuffers.t3 code-op replay → concat-oracle parity (recipe verification spike)
