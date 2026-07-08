@@ -199,11 +199,11 @@ NodeSpec repeatPolarSpec() {
   // Offset = angular offset (degrees-scaled per the .cs `offset/(180*PI)`) [GraphParam] float, .t3 0.0.
   PortSpec off; off.id = "Offset"; off.name = "Offset"; off.dataType = "Float"; off.isInput = true;
   off.def = 0.0f; off.minV = -180.0f; off.maxV = 180.0f;
-  // Axis = enum CODE SELECTOR (Widget::Enum dropdown) storing the enum index. .t3 default 0 (X). NOT a
-  // [GraphParam] (never packed); the node's `axis` int carries it at codegen time. Labels = AxisTypes
-  // (RepeatPolar.cs:101-106).
+  // Axis = enum CODE SELECTOR (Widget::Enum dropdown) storing the enum index. .t3 default 1 (Y,
+  // RepeatPolar.t3 Id 02e4130f). NOT a [GraphParam] (never packed); the node's `axis` int carries it at
+  // codegen time. Labels = AxisTypes (RepeatPolar.cs:101-106).
   PortSpec ax; ax.id = "Axis"; ax.name = "Axis"; ax.dataType = "Float"; ax.isInput = true;
-  ax.def = 0.0f; ax.minV = 0.0f; ax.maxV = 2.0f; ax.widget = Widget::Enum;
+  ax.def = 1.0f; ax.minV = 0.0f; ax.maxV = 2.0f; ax.widget = Widget::Enum;
   ax.labels = {"X", "Y", "Z"};
   // Mirror = bool code selector (drawn as a 2-value Enum Off/On), .t3 default 0 (Off). NOT packed; the
   // node's `mirror` bool carries it. Off -> pModPolar; On -> pModPolarMirror.

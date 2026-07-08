@@ -138,10 +138,10 @@ NodeSpec rotateAxisSpec() {
   PortSpec rot; rot.id = "Rotation"; rot.name = "Rotation"; rot.dataType = "Float"; rot.isInput = true;
   rot.def = 0.0f; rot.minV = -360.0f; rot.maxV = 360.0f;
   // Axis = enum CODE SELECTOR (Widget::Enum dropdown) — a Float port storing the enum index, .t3 default
-  // 0 (X). NOT a [GraphParam] (never packed); the node's `axis` int member carries it at codegen time.
-  // Labels mirror RotateAxis.cs:65-70 (X,Y,Z) by index.
+  // 2 (Z, RotateAxis.t3 Id c4ed2ce7). NOT a [GraphParam] (never packed); the node's `axis` int member
+  // carries it at codegen time. Labels mirror RotateAxis.cs:65-70 (X,Y,Z) by index.
   PortSpec ax; ax.id = "Axis"; ax.name = "Axis"; ax.dataType = "Float"; ax.isInput = true;
-  ax.def = 0.0f; ax.minV = 0.0f; ax.maxV = 2.0f; ax.widget = Widget::Enum;
+  ax.def = 2.0f; ax.minV = 0.0f; ax.maxV = 2.0f; ax.widget = Widget::Enum;
   ax.labels = {"X", "Y", "Z"};
   PortSpec out; out.id = "Result"; out.name = "Result"; out.dataType = "Field"; out.isInput = false;
   s.ports = {in, rot, ax, out};

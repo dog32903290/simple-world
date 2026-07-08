@@ -117,7 +117,7 @@ NodeSpec reflectFieldSpec() {
   PortSpec ny; ny.id = "PlaneNormal.y"; ny.name = "Plane Normal.y"; ny.dataType = "Float"; ny.isInput = true;
   ny.def = 0.0f; ny.minV = -1.0f; ny.maxV = 1.0f;
   PortSpec nz; nz.id = "PlaneNormal.z"; nz.name = "Plane Normal.z"; nz.dataType = "Float"; nz.isInput = true;
-  nz.def = 0.0f; nz.minV = -1.0f; nz.maxV = 1.0f;
+  nz.def = 1.0f; nz.minV = -1.0f; nz.maxV = 1.0f;  // ReflectField.t3 PlaneNormal=(0,0,1)
   // Offset = scalar [GraphParam], default 0.
   PortSpec off; off.id = "Offset"; off.name = "Offset"; off.dataType = "Float"; off.isInput = true;
   off.def = 0.0f; off.minV = -10.0f; off.maxV = 10.0f;

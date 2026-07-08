@@ -155,6 +155,9 @@ NodeSpec customSdfSpec() {
   // the inspector; out of scope for this batch's wiring, the golden sets them via configureCustomSdf.)
   PortSpec df; df.id = "DistanceFunction"; df.name = "Distance Function"; df.dataType = "String";
   df.isInput = true;
+  // .t3 default DistanceFunction body (CustomSDF.t3 Id bde89b93) — the SAME string the ctor injects
+  // verbatim; kept in sync so the inspector default matches TiXL (was previously "" = drift).
+  df.strDef = "return length(p - Offset)-A;\n";
   PortSpec ad; ad.id = "AdditionalDefines"; ad.name = "Additional Defines"; ad.dataType = "String";
   ad.isInput = true;
   // Output: a Field (ShaderGraphNode in TiXL).

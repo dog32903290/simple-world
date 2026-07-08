@@ -140,9 +140,9 @@ NodeSpec combineFieldColorSpec() {
   // exposes a fixed 2). dataType "Field" keeps them from wiring into Float/Points/Texture2D.
   PortSpec inA; inA.id = "InputA"; inA.name = "Input A"; inA.dataType = "Field"; inA.isInput = true;
   PortSpec inB; inB.id = "InputB"; inB.name = "Input B"; inB.dataType = "Field"; inB.isInput = true;
-  // K = the Mix blend factor [GraphParam] float, .t3 default 0.0.
+  // K = the Mix blend factor [GraphParam] float, .t3 default 0.5 (CombineFieldColor.t3 Id b9a9ba6a).
   PortSpec kp; kp.id = "K"; kp.name = "K"; kp.dataType = "Float"; kp.isInput = true;
-  kp.def = 0.0f; kp.minV = 0.0f; kp.maxV = 1.0f;
+  kp.def = 0.5f; kp.minV = 0.0f; kp.maxV = 1.0f;
   // CombineMethod = enum CODE SELECTOR (dropdown, Widget::Enum) — a Float port storing the enum index,
   // .t3 default 0 (Mix). NOT a [GraphParam] (never packed); the node's `combineMethod` int member
   // carries it at codegen time. Labels mirror CombineFieldColor.cs:82-87 by index.

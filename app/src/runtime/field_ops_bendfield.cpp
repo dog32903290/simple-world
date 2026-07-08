@@ -120,18 +120,18 @@ NodeSpec bendFieldSpec() {
   s.title = "Bend Field";
   // One Field input (TiXL InputField). dataType "Field" blocks wrong-type wires.
   PortSpec in; in.id = "InputField"; in.name = "Input Field"; in.dataType = "Field"; in.isInput = true;
-  // Amount = [GraphParam] float, .t3 default 0 (identity bend). BendField.cs:78-80.
+  // Amount = [GraphParam] float, .t3 default 0.5 (BendField.t3 Id c0490245). BendField.cs:78-80.
   PortSpec am; am.id = "Amount"; am.name = "Amount"; am.dataType = "Float"; am.isInput = true;
-  am.def = 0.0f; am.minV = -360.0f; am.maxV = 360.0f;
+  am.def = 0.5f; am.minV = -360.0f; am.maxV = 360.0f;
   // Axis = enum CODE SELECTOR (Widget::Enum dropdown) — a Float port storing the enum index, .t3 default
   // 0 (X). NOT a [GraphParam] (never packed); the node's `axis` int member carries it at codegen time.
   // Labels mirror BendField.cs:68-73 (X,Y,Z) by index.
   PortSpec ax; ax.id = "Axis"; ax.name = "Axis"; ax.dataType = "Float"; ax.isInput = true;
   ax.def = 0.0f; ax.minV = 0.0f; ax.maxV = 2.0f; ax.widget = Widget::Enum;
   ax.labels = {"X", "Y", "Z"};
-  // StepFactor = [GraphParam] float, .t3 default 1 (identity distance scale). BendField.cs:85-87.
+  // StepFactor = [GraphParam] float, .t3 default 0.9 (BendField.t3 Id b9f38594). BendField.cs:85-87.
   PortSpec sf; sf.id = "StepFactor"; sf.name = "Step Factor"; sf.dataType = "Float"; sf.isInput = true;
-  sf.def = 1.0f; sf.minV = 0.0f; sf.maxV = 2.0f;
+  sf.def = 0.9f; sf.minV = 0.0f; sf.maxV = 2.0f;
   PortSpec out; out.id = "Result"; out.name = "Result"; out.dataType = "Field"; out.isInput = false;
   s.ports = {in, am, ax, sf, out};
   return s;

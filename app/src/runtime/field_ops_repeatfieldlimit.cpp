@@ -182,12 +182,12 @@ NodeSpec repeatFieldLimitSpec() {
   // Size = the cell width [GraphParam] float, .t3 default 1.0. RepeatFieldLimit.cs:89-91.
   PortSpec sz; sz.id = "Size"; sz.name = "Size"; sz.dataType = "Float"; sz.isInput = true;
   sz.def = 1.0f; sz.minV = 0.001f; sz.maxV = 10.0f;
-  // Start = lowest kept cell index [GraphParam] float, .t3 default 0. RepeatFieldLimit.cs:93-95.
+  // Start = lowest kept cell index [GraphParam] float, .t3 default -5.0 (RepeatFieldLimit.t3 Id b73fe274).
   PortSpec st; st.id = "Start"; st.name = "Start"; st.dataType = "Float"; st.isInput = true;
-  st.def = 0.0f; st.minV = -10.0f; st.maxV = 10.0f;
-  // Stop = highest kept cell index [GraphParam] float, .t3 default 0. RepeatFieldLimit.cs:97-99.
+  st.def = -5.0f; st.minV = -10.0f; st.maxV = 10.0f;
+  // Stop = highest kept cell index [GraphParam] float, .t3 default 5.0 (RepeatFieldLimit.t3 Id c72615be).
   PortSpec sp; sp.id = "Stop"; sp.name = "Stop"; sp.dataType = "Float"; sp.isInput = true;
-  sp.def = 0.0f; sp.minV = -10.0f; sp.maxV = 10.0f;
+  sp.def = 5.0f; sp.minV = -10.0f; sp.maxV = 10.0f;
   PortSpec out; out.id = "Result"; out.name = "Result"; out.dataType = "Field"; out.isInput = false;
   s.ports = {in, ax, sz, st, sp, out};
   return s;

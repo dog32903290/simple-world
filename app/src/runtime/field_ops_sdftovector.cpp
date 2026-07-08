@@ -124,9 +124,10 @@ NodeSpec sdfToVectorSpec() {
   s.title = "Sdf To Vector";
   // InputField (the SDF to differentiate). dataType "Field" blocks wrong-type wires.
   PortSpec in; in.id = "InputField"; in.name = "Input Field"; in.dataType = "Field"; in.isInput = true;
-  // LookUpDistance = finite-difference step h [GraphParam] float, .t3 default 0.01.
+  // LookUpDistance = finite-difference step h [GraphParam] float, .t3 default 0.001 (SdfToVector.t3 Id
+  // 2ea69efd).
   PortSpec ld; ld.id = "LookUpDistance"; ld.name = "Look Up Distance"; ld.dataType = "Float";
-  ld.isInput = true; ld.def = 0.01f; ld.minV = 0.0001f; ld.maxV = 1.0f;
+  ld.isInput = true; ld.def = 0.001f; ld.minV = 0.0001f; ld.maxV = 1.0f;
   PortSpec out; out.id = "Result"; out.name = "Result"; out.dataType = "Field"; out.isInput = false;
   s.ports = {in, ld, out};
   return s;
