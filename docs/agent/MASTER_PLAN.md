@@ -15,20 +15,20 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: 6002315
-DIRTY: 1 files
+HEAD: fd94222
+DIRTY: clean
 CENSUS: 610 / 749 done
 BITE: 704 PASS
-STAMP_AT: 2026-07-08T19:15
+STAMP_AT: 2026-07-08T19:42
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
 
 ## Active Lane
 
-**⏸ LOOP 已停（柏為 2026-07-08 19:21 令「收尾關 loop」）。main `a51a6dc` 乾淨、704/0/0、過閘綠、未 push。接手先跑 `tools/sw_status.sh`。地基 lane（下方 Next）曾派後即停、零 WIP、需從頭重派（讀 `RETIREMENT_BATTLE_SPEC.md`）。stale worktree 待清（見 Conflict Register）。**
+**⏸ LOOP 已停（柏為 2026-07-08 19:21 令「收尾關 loop」）。main 乾淨（HEAD 見機器塊）、704/0/0、過閘綠、未 push。接手先跑 `tools/sw_status.sh`。地基 lane（下方 Next）曾派後即停、零 WIP、需從頭重派（讀 `RETIREMENT_BATTLE_SPEC.md`）。worktree 已全清（85→1，只剩 main；151 branch 保留可 `git checkout` 撈回）。**
 
-**★★★現行定位（2026-07-08，HEAD `a51a6dc`，--bite 704/0/0，未 push）＝復合戰役，keystone 遞迴+.t3ui 排版+退場機制 pilot 三根上岸，主戰場=廢棄 139 節點退場（柏為 18:00 令）——接手先讀 memory [[next-phase-compound-catalog-2026-07-07]] + 施工圖 `docs/agent/RETIREMENT_BATTLE_SPEC.md`。**
+**★★★現行定位（2026-07-08，HEAD 見機器塊，--bite 704/0/0，未 push）＝復合戰役，keystone 遞迴+.t3ui 排版+退場機制 pilot 三根上岸，主戰場=廢棄 139 節點退場（柏為 18:00 令）——接手先讀 memory [[next-phase-compound-catalog-2026-07-07]] + 施工圖 `docs/agent/RETIREMENT_BATTLE_SPEC.md`。**
 - **★關鍵校正（4 scout + refuter 確認）＝巢狀複合節點 MODEL 早已 live，非「要重新設計」**（[[tixl-clone-model-nested-catalog-node]] 那句 stale）：巢狀資料模型 `compound_graph.h` / resident 遞迴 inline `resident_eval_flatten.cpp` / 複合→NodeSpec catalog 註冊 `graph_bridge.cpp` / dive-in `editor_ui.cpp:252` / 8 顆真 .t3 boot-load 全 live。**不用重織網。**
 - **批 1 DONE（今日）**：① **keystone 匯入器遞迴上岸**（`t3_import_recurse.cpp`，讓「子節點本身是複合」遞迴建巢狀子複合而非 skip/壓扁；含 §1.3 跨層 slot 解析）——golden `t3-nestedcompound`（DrawPointsDOF→TransformPoints 兩層、中段 pin、TiXL host-matrix oracle P5 乾淨）RED→GREEN、injectBug 咬、**獨立 Opus refuter 判可合流**（override 側免補=共用 helper、connection-green 涵蓋）。② **值閘全掃**（`tools/default_value_parity.sh`+census `default_value_drift.txt`）＝**295 條預設值飄離 TiXL / 151 節點**（float 176 最高信號 + enum 26 + string 38 + float-vs-zero 53 低信號待逐顆確認）。
 - **`.t3ui` 排版 DONE（今日，`t3_import_layout.cpp`+8 顆 .t3ui 進 assets）**：鑽入複合子節點照 TiXL Position 擺（不再擠原點）。**⚠ 過程教訓**：merge 後 orchestrator 讀 eye state.json 誤報 0,0=**舊 app 實例遺留 state.json**(假警報,見 memory [[eye-hand-stale-instance-state-json]])；逼出真收穫=`catalog_boot_layout_selftest` base leg 從 `return 0` 假綠改 hard-fail（--bite 只驗 -bug leg，base leg NO-BITE 擋不住 boot 回歸）。親手 `--selftest-catalog-layout` 在真 assets 證 Blend 子節點非零 PASS。
@@ -143,7 +143,7 @@ gradient-fed 6/7 DONE。187 是 class-gated：逐 class 建 seam/補映射→該
 - **DrawPoints 換 quad sprite（`3310181`，柏為 02:38 parity 修）** — 預設面板 DrawPoints 從「不分大小的 4px 死點」變成「依 PointSize 的 6-vert camera-facing quad sprite」，照 TiXL DrawPoints.hlsl（11 param 全砍→接回 PointSize/Color/ScaleFactor/BlendMode）。**怎麼驗**：開 app 看預設場景，點現在是 quad sprite（吃 PointSize/Color/blend）；預設場景 PointSize=1.5 可見，裸節點 .t3 預設 0.1≈1px（忠實但小，你可調 PointSize 旋鈕）。**機器閘**：drawpoints-parity golden no-bug GREEN+bug RED、7 顆下游 golden 無回歸、--bite 525、refuter 5/5 SURVIVES。**待你簽**：① quad sprite 觀感對不對 ② 預設場景 PointSize=1.5 vs TiXL 預設場景值（可能需跑真 TiXL 看）③ 純像素 byte parity 標 pixel-deferred-windows（等 Windows TiXL reference）。
 
 ## Conflict Register
-**2026-07-08 復合戰役：main `363e9ef`，未 push（領先 origin 全部復合戰役 commit）。** 已進 main：keystone 遞迴 / 值閘 / .t3ui 排版 / boot-selftest 強化 fixer。可清 worktree：a8dd21ac(keystone)/a0015507(值閘)/a344db6e(.t3ui)/a19a2f4a(fixer)。**★主戰場退場戰役 owner-lock `t3_import*`+`node_registry*`+`catalog_boot`=序列瓶頸，一次一條動這些檔**（各家族 leaf 檔可 worktree 並行；namespace 軸碰 graph_bridge/compound_graph、值閘飄移修碰 node_registry_*——與退場撞 node_registry 要排序、別並行）。Plan agent `a5c8478d` 產退場藍圖中。非阻塞 pre-existing：`point_modify_chain.scn` harness-brittle red（task_df8df769）。
+**2026-07-08 復合戰役 loop 停於此（HEAD 見機器塊），未 push（領先 origin 一整天全部復合戰役 commit——要推等柏為授權）。** 已進 main：keystone 遞迴 / 值閘全掃 / .t3ui 排版 + boot-selftest 強化 / 退場機制 pilot（name→compound fallback + TransformPoints 退場，refuter GO）。**退場藍圖已產完＝`docs/agent/RETIREMENT_BATTLE_SPEC.md`**（非「產出中」）。**worktree 全清（85→1 只剩 main，151 branch 保留可撈）——無 active 平行 lane、無未合 WIP 要接。** **★主戰場退場戰役 owner-lock `graph_bridge`+`node_registry`+`t3_import_maps`+`catalog_boot`=序列瓶頸，一次一條動這些檔**（各家族 leaf 檔可 worktree 並行；namespace 軸碰 graph_bridge/compound_graph、值閘飄移修碰 node_registry_*——與退場撞要排序別並行）。非阻塞 pre-existing：`point_modify_chain.scn` harness-brittle red（task_df8df769）。**兩個未合 branch 值得知（工作已被取代、非阻塞）**：`worktree-agent-ae5b80ea…`=File>Import .t3 UI 入口（main 走 catalog auto-boot、此手動入口沒進，唯一可能想撿的）；`worktree-agent-a045ae477…`=影片匯出半成 WIP（功能已別路落地）。
 
 〔以下 2026-06-29/30 舊條目多已解或屬歷史，非現行衝突；留作背景，勿讀成當前阻塞〕
 
