@@ -132,4 +132,11 @@ int runT3LayoutGolden(bool injectBug);
 // t3import_transformpoints_retire_golden.cpp. See docs/agent/RETIREMENT_BATTLE_SPEC.md §7.
 int runT3TransformPointsRetireGates(bool injectBug);
 
+// 廢棄節點退場 PILOT #2 harness (--selftest-t3-combinebuffers-retire): the SAME four gates for the RETIRED
+// flat CombineBuffers atom, proving the replace-in-place seam is NOT TransformPoints-specific. ① takeover
+// polarity (name→compound guid 4dd8a618…, injectBug=stand-in atom shadows) + ③ reference reachability/
+// cookability (injectBug=drop alias→nullptr) + ② parity (delegates runT3CombineBuffersParity) + ④ layout
+// (inline .t3ui Position constants). Lives in t3import_combinebuffers_retire_golden.cpp. See §7.2.
+int runT3CombineBuffersRetireGates(bool injectBug);
+
 }  // namespace sw

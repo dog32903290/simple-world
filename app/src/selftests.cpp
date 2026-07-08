@@ -324,6 +324,15 @@ int runSelftestFromArgs(int argc, char** argv) {
     // --dump-nodespec-types: enumerate every registered NodeSpec type (island-sweep derivation).
     if (std::strcmp(a, "--dump-nodespec-types") == 0) return dumpNodeSpecTypes();
 
+    // --probe-import <path.t3>: retirement-sweep ready-set scanner (退場戰役 §2, impl selftests_retire.cpp).
+    if (std::strcmp(a, "--probe-import") == 0) {
+      if (i + 1 >= argc) {
+        std::fprintf(stderr, "--probe-import: missing <path.t3> argument\n");
+        return 2;
+      }
+      return runProbeImport(argv[i + 1]);
+    }
+
     // Non-uniform entries (no bug variant / take arguments).
     if (std::strcmp(a, "--selftest-dispatch") == 0) return runDispatchSelfTest();
     if (std::strcmp(a, "--audio-ingest-replay") == 0)

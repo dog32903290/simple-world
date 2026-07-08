@@ -857,6 +857,7 @@ add_executable(simple_world
   src/runtime/t3import_transformmesh_golden.cpp    # 骨8 MESH keystone: TransformMesh.t3 replay → SwVertex readback vs oracle
   src/runtime/t3import_displacemeshnoise_golden.cpp # 骨9 MESH mixed-slot: DisplaceMeshNoise.t3 interleaved FloatsToBuffer.Params → SwVertex vs snoise oracle
   src/runtime/t3import_combinebuffers_golden.cpp   # 187 量產第一波: CombineBuffers.t3 code-op replay → concat-oracle parity (recipe verification spike)
+  src/runtime/t3import_combinebuffers_retire_golden.cpp  # ★廢棄節點退場 PILOT #2: retired flat CombineBuffers atom → references auto-taken-over by the .t3 compound (①takeover ③reference ②parity ④layout) — proves the seam is not TransformPoints-specific
   src/runtime/t3import_hse_golden.cpp              # ★IMAGE-fx collapse: HSE.t3 (single _multiImageFxSetupStatic wrapper) → sw HSE tex atom → resident cook + readback vs hue-shift oracle
   src/runtime/t3import_blend_golden.cpp            # ★IMAGE-fx collapse GENERALIZES: MULTI-child Blend.t3 (6 helper value ops + fx-setup) → same collapse → Normal-blend oracle (proves not HSE-only)
   src/runtime/t3import_bubblezoom_golden.cpp       # ★IMAGE-fx collapse GRADIENT-FED: BubbleZoom.t3 (GradientsToTexture-elided-to-Gradient-port) → sw BubbleZoom atom + 2×Vector2Components → closed-form gradient oracle (unlocks gradient-fed image-fx)

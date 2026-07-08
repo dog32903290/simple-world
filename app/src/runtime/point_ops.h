@@ -130,9 +130,9 @@ int runRandomizePointsSelfTest(bool injectBug);
 int runRandomizePointsRotationLock(bool injectBug);
 // SetPointAttributes MODIFIER golden (point_ops_setpointattributes.cpp). injectBug = real degeneracy.
 int runSetPointAttributesSelfTest(bool injectBug);
-// CombineBuffers COMBINE golden (point_ops_combinebuffers.cpp): concat N bags, count = sum.
-// injectBug = drop one input -> count != sum. First combine op (multi-input -> one bag).
-int runCombineBuffersSelfTest(bool injectBug);
+// (CombineBuffers flat atom + its own --selftest-combinebuffers RETIRED 2026-07-08, 廢棄節點退場 pilot #2
+//  — the .t3 compound (guid 4dd8a618…) provides it now. The .t3 replay parity lives in the surviving
+//  t3import_combinebuffers_golden.cpp, independent of any leaf here. See RETIREMENT_BATTLE_SPEC §7.2.)
 // AddNoise MODIFIER golden (point_ops_addnoise.cpp): simplex noise displaces sphere points.
 // injectBug = Strength=0 -> identity passthrough -> no displacement -> FAIL.
 int runAddNoiseSelfTest(bool injectBug);

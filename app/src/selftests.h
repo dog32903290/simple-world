@@ -16,4 +16,11 @@ constexpr double kBgR = 0.12, kBgG = 0.12, kBgB = 0.12;  // V5: TiXL UiColors.cs
 // process exit code. Returns -1 when no flag matched (caller proceeds to launch the GUI).
 int runSelftestFromArgs(int argc, char** argv);
 
+// --probe-import <path.t3>: headless ready-set scanner for the retirement sweep (退場戰役 §2). Feeds
+// ONE .t3 through the production importT3Symbol + a sibling-folder resolver and prints a machine-grep
+// verdict line ("PROBE <name>: READY|NOT-READY (…)|EXCLUDED-COLLAPSE"). Exit: 0=READY / 2=NOT-READY /
+// 3=EXCLUDED (collapse-8 root). Read-only — never mutates a live lib or the registry. (Impl:
+// selftests_retire.cpp; dispatched from runSelftestFromArgs.)
+int runProbeImport(const char* t3Path);
+
 }  // namespace sw

@@ -8,17 +8,13 @@ namespace sw {
 
 const std::vector<NodeSpec>& pointCombineSpecs() {
   static const std::vector<NodeSpec> specs = {
-      {"CombineBuffers",
-       "CombineBuffers",
-       // COMBINE op: up to 4 Points inputs concatenated into one output bag (TiXL MultiInput).
-       // Output count = sum of wired inputs (PointGraph::nodeCount sumPointsCount contract).
-       {{"input0", "input0", "Points", true},
-        {"input1", "input1", "Points", true},
-        {"input2", "input2", "Points", true},
-        {"input3", "input3", "Points", true},
-        {"out", "out", "Points", false}},
-       nullptr,
-       "point.combine"},
+      // ── CombineBuffers flat atom RETIRED (廢棄節點退場 pilot #2, 2026-07-08) ──────────────────────────
+      // The flat CombineBuffers NodeSpec (the head 壓平原子) is retired: its behaviour is now provided by
+      // the nested .t3 compound (assets/catalog_t3/CombineBuffers.t3, guid 4dd8a618…). A human-name
+      // reference to "CombineBuffers" (makeNode / .swproj) no longer hits this sink — it falls through
+      // findSpec's tail to the compound's name alias (graph_bridge.cpp refreshCompoundSpecs). The .t3
+      // replay parity ORACLE stays LIVE in t3import_combinebuffers_golden.cpp (its own concat oracle +
+      // the _ExecuteCombineBuffers code-op), independent of this leaf. See RETIREMENT_BATTLE_SPEC §7.2.
 
       // ---- batch 21: point combine — SnapToPoints --------------------------------
       // TiXL parity: external/tixl .../point/transform/SnapToPoints.cs (slots) +
