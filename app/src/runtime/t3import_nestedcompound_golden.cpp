@@ -71,7 +71,6 @@ static const char* kTransformPointsT3 =
 const char* const kDrawPointsDOFGuid = "dcd04bb7-4531-40ab-bb18-26a3bc269dc4";
 const char* const kTransformPointsGuid = "7f6c64fe-ca2e-445e-a9b4-c70291ce354e";
 const char* const kTPPointsInputDef = "565ff364-c3d9-4c60-a9a0-79fdd36d3477";
-const char* const kTPSpaceBoundary = "1ab4671f-7977-4e7e-bb06-f828ae32e3af";        // ObjectSpace(1) rail
 
 // ── Test-fixture Buffer producer (identical to the母本; emits a fixed N-point SwPoint bag) ─────────
 std::vector<SwPoint>* g_fixturePoints = nullptr;
@@ -89,8 +88,8 @@ void cookInputPointsFixture(BufferCookCtx& c) {
 }
 NodeSpec fixtureSpec() {
   NodeSpec s;
-  s.type = "t3xf_input_points";
-  s.title = "t3xf_input_points";
+  s.type = "t3xf_nested_input_points";
+  s.title = "t3xf_nested_input_points";
   s.category = "test";
   s.ports = {{"Buffer", "Buffer", "Buffer", false}};
   s.evaluate = nullptr;
@@ -265,9 +264,9 @@ int runT3NestedCompoundParity(bool injectBug) {
   //     TransformPoints.Points cross-layer wire's SOURCE at it (the §1.3-resolved dstSlot is left intact
   //     → the buffer flows ACROSS the boundary into the nested compound's Points input).
   const int fixtureId = dp->nextChildId++;
-  { SymbolChild p; p.id = fixtureId; p.symbolId = "t3xf_input_points"; dp->children.push_back(p); }
-  if (!lib.symbols.count("t3xf_input_points"))
-    if (const NodeSpec* fs = findSpec("t3xf_input_points")) lib.symbols["t3xf_input_points"] = atomicSymbolFromSpec(*fs);
+  { SymbolChild p; p.id = fixtureId; p.symbolId = "t3xf_nested_input_points"; dp->children.push_back(p); }
+  if (!lib.symbols.count("t3xf_nested_input_points"))
+    if (const NodeSpec* fs = findSpec("t3xf_nested_input_points")) lib.symbols["t3xf_nested_input_points"] = atomicSymbolFromSpec(*fs);
   int repointed = 0;
   for (SymbolConnection& c : dp->connections)
     if (c.dstChild == tpChildId && c.dstSlot == kTPPointsInputDef) {
