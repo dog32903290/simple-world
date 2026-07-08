@@ -157,9 +157,12 @@ int runLayoutGate(bool injectBug) {
 
   if (!injectBug) {
     if (!(nonZero && distinct)) { printf("[cb-retire] ④layout NO-BITE: seam not exercised\n"); return 0; }
-    return (execOk && inOk && outOk) ? 0 : 1;  // GREEN iff all three landed on their .t3ui constants
+    return (execOk && inOk && outOk) ? 0 : 1;  // GREEN(0) iff all three landed on their .t3ui constants
   }
-  return (execOk && inOk && outOk) ? 0 : 1;  // -bug: 0 == everything collapsed to 0,0 (bug reproduced)
+  // -bug delegate convention (matches runT3LayoutGolden): return NONZERO (=bite) when the tooth fires,
+  // i.e. every position collapsed to 0,0 exactly as t3LayoutDisable demands; 0 (dead tooth) otherwise.
+  const bool bites = (execOk && inOk && outOk);  // execOk/inOk/outOk under -bug == "reverted to 0,0"
+  return bites ? 1 : 0;
 }
 
 }  // namespace

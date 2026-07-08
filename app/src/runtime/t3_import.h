@@ -108,6 +108,12 @@ bool& t3ImportInjectBug();
 // exact seam the keystone exposes.
 int runT3TransformPointsParity(bool injectBug);
 
+// 187 量產第一波 replay golden (--selftest-t3-combinebuffers): import the REAL CombineBuffers.t3, walk
+// importT3Symbol→buildEvalGraph→cookResident, read back the combined Point buffer and compare against an
+// INDEPENDENT concatenation oracle (bag0++bag1++bag2). Lives in t3import_combinebuffers_golden.cpp.
+// Returns 0 GREEN / 1 RED; injectBug reverses the InputBuffers wire order → concat diverges → RED.
+int runT3CombineBuffersParity(bool injectBug);
+
 // COMPOUND-RECURSION keystone golden (--selftest-t3-nestedcompound): import the REAL DrawPointsDOF.t3
 // (root) whose lone TransformPoints child is itself a compound .t3, via an in-memory T3Resolver so the
 // importer RECURSES it into a nested sub-compound. Structural asserts (nested Symbol atomic==false +

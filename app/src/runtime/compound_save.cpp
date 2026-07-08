@@ -27,7 +27,8 @@ const std::map<std::string, std::string>& atomicUuidTable() {
       {"OrientPoints", "47cfd913-2ab8-4c60-9374-e8156fab2f06"},
       {"RandomizePoints", "90ab37c5-de14-4982-b6c0-52f47e91a007"},
       {"SetPointAttributes", "3e60c2f8-71a9-4d35-82eb-c49d08361108"},
-      {"CombineBuffers", "ad95e041-b37f-4628-95a2-16e83c7d2209"},
+      {"CombineBuffers", "ad95e041-b37f-4628-95a2-16e83c7d2209"},  // flat atom RETIRED 2026-07-08 (廢棄節點退場 pilot #2); uuid row KEPT so a saved "CombineBuffers" round-trips + resolves to the .t3 compound via the name-fallback once the catalog is booted (RETIREMENT_BATTLE_SPEC §4 risk 3).
+      {"MultiUpdatePoints", "7b3f9a24-1e08-4c6d-b5a2-9f47e0c31d0e"},  // surviving multi-Points-input sibling (input0..input3/out); testdata/compound_smoke.swproj repoints its plumbing node here off the retired CombineBuffers.
       {"TurbulenceForce", "61f8ba2d-c490-47e1-8d53-a02b9e64330a"},
       {"DirectionalForce", "980b71de-9502-44b1-8b93-21c7e6c47bb2"},
       {"VectorFieldForce", "1595572f-adcd-4146-9e39-3778104847e9"},

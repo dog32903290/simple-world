@@ -29,7 +29,7 @@
       "children": [
         {"id": 1, "symbolId": "EmitterComp", "overrides": {}, "x": 120, "y": 200},
         {"id": 2, "symbolId": "EmitterComp", "overrides": {"Radius": 4.0}, "x": 120, "y": 360},
-        {"id": 3, "symbolId": "ad95e041-b37f-4628-95a2-16e83c7d2209", "overrides": {}, "x": 400, "y": 280},
+        {"id": 3, "symbolId": "7b3f9a24-1e08-4c6d-b5a2-9f47e0c31d0e", "overrides": {}, "x": 400, "y": 280},
         {"id": 4, "symbolId": "f04c79e6-25d1-4b98-ae37-68915cfa440b", "overrides": {}, "x": 640, "y": 280},
         {"id": 5, "symbolId": "61f8ba2d-c490-47e1-8d53-a02b9e64330a", "overrides": {}, "x": 400, "y": 480},
         {"id": 6, "symbolId": "7a2e58c1-9f06-4374-b1d9-3ce5a0b2550c", "overrides": {}, "x": 920, "y": 300}
