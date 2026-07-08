@@ -30,10 +30,12 @@
 //   colorListParam and rebuilds the float4. (NOT the 4-PARALLEL-MultiInput shape of ColorsToList — that
 //   fork is for a MultiInput<Vector4>; KeepColors's Color is a SINGLE Vector4.)
 //
-// .cs DEFAULTS (the InputSlots have no explicit default → C# field default of the value type):
+// .cs ctor defaults (the InputSlots have no explicit default → C# field default of the value type):
 //   Color = (0,0,0,0); AddColorToList = false; MaxLength = 0 (→ Clamp(1,100000) ⇒ 1); Reset = false.
-//   NOTE: AddColorToList default false ⇒ a freshly-placed node accumulates NOTHING until the user wires/
-//   sets it true — faithful to the .cs (the gate is the whole point; the golden drives it true).
+// KeepColors.t3 AUTHORED defaults (the SSOT this leaf's PortSpec mirrors — differs from the bare
+//   ctor above): Color = (1,1,1,1); AddColorToList = true; MaxLength = 100; Reset = false. NOTE: with
+//   the .t3 default AddColorToList=true, a freshly-placed node DOES accumulate from frame 1 (unlike
+//   the bare-ctor false) — faithful to the shipped asset, not the class default.
 #include <algorithm>
 #include <map>
 #include <string>
@@ -95,12 +97,12 @@ void cookKeepColors(ColorListCookCtx& c) {
 // PortSpec field order: id,name,dataType,isInput,def,minV,maxV,widget,labels,pinless,vecArity,multiInput.
 static const ColorListOp _reg_keepcolors{
     {"KeepColors", "KeepColors",
-     {{"Color.x", "Color", "Float", true, 0.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 4},
-      {"Color.y", "Color.y", "Float", true, 0.0f, -100.0f, 100.0f},
-      {"Color.z", "Color.z", "Float", true, 0.0f, -100.0f, 100.0f},
-      {"Color.w", "Color.w", "Float", true, 0.0f, -100.0f, 100.0f},
-      {"AddColorToList", "AddColorToList", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
-      {"MaxLength", "MaxLength", "Float", true, 0.0f, 0.0f, 100000.0f, Widget::Slider, {},
+     {{"Color.x", "Color", "Float", true, 1.0f, -100.0f, 100.0f, Widget::Vec, {}, false, 4},
+      {"Color.y", "Color.y", "Float", true, 1.0f, -100.0f, 100.0f},
+      {"Color.z", "Color.z", "Float", true, 1.0f, -100.0f, 100.0f},
+      {"Color.w", "Color.w", "Float", true, 1.0f, -100.0f, 100.0f},
+      {"AddColorToList", "AddColorToList", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Bool},
+      {"MaxLength", "MaxLength", "Float", true, 100.0f, 0.0f, 100000.0f, Widget::Slider, {},
        /*pinless=*/true},
       {"Reset", "Reset", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Bool},
       {"out", "out", "ColorList", false}},

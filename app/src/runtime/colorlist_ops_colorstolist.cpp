@@ -77,13 +77,13 @@ void cookColorsToList(ColorListCookCtx& c) {
 // PortSpec field order: id,name,dataType,isInput,def,minV,maxV,widget,labels,pinless,vecArity,multiInput.
 static const ColorListOp _reg_colorstolist{
     {"ColorsToList", "ColorsToList",
-     {{"Colors.x", "Colors", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, false, 4,
+     {{"Colors.x", "Colors", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, false, 4,
        /*multiInput=*/true},
-      {"Colors.y", "Colors.y", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, false, 3,
+      {"Colors.y", "Colors.y", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, false, 3,
        /*multiInput=*/true},
-      {"Colors.z", "Colors.z", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, false, 2,
+      {"Colors.z", "Colors.z", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, false, 2,
        /*multiInput=*/true},
-      {"Colors.w", "Colors.w", "Float", true, 0.0f, 0.0f, 1.0f, Widget::Vec, {}, false, 1,
+      {"Colors.w", "Colors.w", "Float", true, 1.0f, 0.0f, 1.0f, Widget::Vec, {}, false, 1,
        /*multiInput=*/true},
       {"out", "out", "ColorList", false}},
      /*evaluate=*/nullptr},  // ColorList output cannot ride NodeSpec::evaluate (returns ONE float)
