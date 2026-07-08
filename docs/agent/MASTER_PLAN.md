@@ -26,7 +26,10 @@ STAMP_AT: 2026-07-09T00:22
 
 ## Active Lane
 
-**▶ 退場戰役地基批 DONE（2026-07-09 00:22，HEAD 見機器塊，--bite 706/0/0，未 push，柏為在場）。地基三件套 + 機制雙顆 pilot 全 refuter GO＝具備開 139 家族平行 sweep 的條件。** 接手先跑 `tools/sw_status.sh`。**Active Lane = none（地基收完、sweep 未派）。**
+**▶▶ 框架修正（2026-07-09 01:30，柏為睡後自走）：退場「機械家族 sweep」是錯的——退場騎在 GPU-compute kernel porting 上（mesh+point 兩 lane 各自試壓、零退場、撞同根因實證，memory [[retire-gated-on-kernel-porting]]）。** probe「READY」只驗結構(R1-R3)不驗 cook；13「ready」實際可機械退＝0（全卡 R4 kernel 未 port / R5 stride fork）。真工＝逐顆 port kernel（＝GPU-compute 複合重放軌）。**別再盲派家族機械 sweep。**
+- **今晚 overnight 自走中（HEAD `07c3f19`，都帶 isolation:worktree）**：① probe R4-fix（加 compute-kernel-ported 判定，oracle 別再假 READY）② snapshot 軸2 Lane A（`captureLive` 接 `snapshotGroupIndex` EnabledForSnapshots parity，機器閘）③ 軸3 預設值 scout（scoping 295 條漂移）④ crash-fix `parseChildTimeClips` OOB(DrawMesh/FindClosestPointsOnMesh)。收齊各自親驗+refuter+結帳。
+- **★柏為待決（睡醒看）**：㈠ **R5 架構分岔**＝mesh-compute 退場需 production PbrVertex stride 64→80 fork + vec3-wire-lands-on-head fix，做法「烤進 catalog asset vs 泛化進 importer」＝架構決策，我不擅自定。㈡ **kernel-port pilot 要不要開**＝退場真工是逐顆 port HLSL→MSL kernel（本質複雜、無監督易假綠），點 compute（無 stride 問題）是較乾淨 pilot 候選（如 WrapPointPosition）；等你點頭再開。㈢ snapshot Lane B 池模型（單池 vs TiXL per-symbol 多池）+ 是否含 Preset 子系統。
+- 接手先跑 `tools/sw_status.sh`。**地基批（probe/lint/CombineBuffers/R4 hardening）已 refuter GO 在 main（`0de7ff7`）**。
 - **本批落地（main `0de7ff7`）**：① `--probe-import <t3>` ready-set 掃描器（`selftests_retire.cpp` `runProbeImport`；R1/R2/R3 + collapse-8 硬排除；退出碼 READY=0/NOT-READY=2/EXCLUDED=3；含 sweep 硬化：`no NodeSpec in findSpec` child-drop 也判 NOT-READY，防 maps 打錯字→假 READY 退錯顆）② catalog name 唯一性 lint（`--lint-catalog-names`，key=Symbol.name＝fallback 真命中 domain）③ CombineBuffers 退場（pilot #2，四閘 P1/P5 乾淨、證機制非 TransformPoints 專屬）。獨立 Opus refuter 三攻擊面全 **GO**。
 - **⚠ 過程債（memory [[agent-worktree-isolation-flag-required]]）**：本批我漏帶 `isolation:"worktree"`，Lane A/B 共用 main worktree commit 交纏（內容沒丟、已驗聚合綠、歷史髒）。**下批派家族 sweep 務必每個 Agent 呼叫帶 `isolation:"worktree"` + step-0 setup。**
 

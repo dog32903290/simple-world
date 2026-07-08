@@ -24,6 +24,9 @@
 - **R1** .t3 存在（`external/tixl/…/X.t3`）。
 - **R2** 全葉映射∨遞迴成功：餵 `importT3Symbol`(`t3_import.cpp:120`)+catalog resolver → warnings **零 "unmapped SymbolId … skipped"**(`:219`) 且結果 `atomic==false`+children 非空。
 - **R3** 無 code-op 卡點：子節點 guid 不落 framework code-op 集(`_multiImageFxSetup*` `t3_import_maps_collapse.cpp:21-27`、`ComputeShaderStage`/`StructuredBufferWithViews`/`TransformMatrix` `t3_import.cpp:220`)。R2 會自動擋。
+- **R4（2026-07-09 加，mesh+point 兩 lane 試壓實證）compute-stage kernel 已 ported**：R1-R3 只驗**結構**、不驗 cook。多數 flattened 是 GPU-compute 複合走 generic `ComputeShaderStage`，退場後要真 cook；kernel 未 port（`kernelNameFor()` `buffer_ops_computeshaderstage.cpp:57-67` 無列 + 無 `app/shaders/computeshaderstage_<op>.metal`）→ PSO miss → `if(!pso) return` → UAV 未寫 → ②parity RED。probe 須加 R4：任一 compute 子節點 kernel 未 ported → NOT-READY。**R4 必要非充分。**
+- **R5 production takeover cook 正確（超越 kernel 存在）**：TransformMesh 過 R4 卻卡 R5——golden 只靠 test-only PbrVertex stride 64→80 override(`SwVertex`80B/PbrVertex64B)+vec3-wire-lands-on-head fork 才 cook 對，production 無此 fork→退了溢位。修在 `t3_import_maps.cpp`＝「烤進 catalog asset vs 泛化進 importer」**架構分岔=柏為決策**。所有 mesh-compute 退場卡此。
+- **★★框架修正**：退場**非機械家族收割，它騎在 GPU-compute kernel porting 上**（見 memory `retire-gated-on-kernel-porting`）。真工＝逐顆 port kernel（＝GPU-compute 複合重放軌），port 完退場才 trivial。**別再盲派家族機械 sweep**（mesh+point 兩 lane 已證零產出）。可機械退殘量＝非 compute 純子圖 or kernel 已 ported，用 probe-with-R4 掃真 ready-set。2 pilot(CombineBuffers 非compute / TransformPoints kernel早port+point無stride)能退非通例。
 - **實作**：binary 加 `--probe-import <t3>` dump warnings headless 模式（或掃 catalog boot stderr `[catalog] X: …unmapped…`）。逐顆掃 `node_health --tsv | awk '$3=="flattened"'`。
 - **估量**：初期 ready ~15-40（卡 `swTypeForSymbolGuid` 今 87 guid 覆蓋率）；節奏=補 `t3_import_maps.cpp` 映射→ready 長→sweep 收割，**迭代非一次退 139**。
 
