@@ -1,13 +1,12 @@
 # default_value_parity — drift list (node\tparam\tsw\tTiXL\tkind)
-# generated 2026-07-08T07:12:32Z by tools/default_value_parity.sh
-# swept: compared=593  skipped(no .t3)=50
-# TOTAL default-value mismatches: 295  across 151 node(s)
+# generated 2026-07-08T18:20:38Z by tools/default_value_parity.sh
+# swept: compared=591  skipped(no .t3)=51
+# TOTAL default-value mismatches: 263  across 129 node(s)
 # kind distribution:
-#   enum                     26
+#   enum                     25
 #   float                    176
-#   float-vs-zero            53
+#   float-vs-zero            23
 #   string                   38
-#   string-vs-zero           1
 #   type-mismatch            1
 
 AnimFloatList	AllowSpeedFactor	1	0	enum
@@ -28,15 +27,10 @@ AudioToneGenerator	Envelope.y	0.1	1	float
 AudioToneGenerator	Envelope.z	0.7	1	float
 AudioToneGenerator	Volume	1	0	float
 AudioToneGenerator	WaveformType	0	2	enum
-AxisStepForce	_ForceKind	4	0	float-vs-zero
 BendField	Amount	0	0.5	float
 BendField	StepFactor	1	0.9	float
 BlendStrings	BlendSpread	1	0.5	float
 BlendStrings	MaxLength	10000	1000	float
-Blob	Fill.a	1	0	float-vs-zero
-Blob	Fill.b	1	0	float-vs-zero
-Blob	Fill.g	1	0	float-vs-zero
-Blob	Fill.r	1	0	float-vs-zero
 BuildGradient	Interpolation	0	3	enum
 Camera	AspectRatio	0	-1	float
 CameraCalibrator	Alpha	1	0	float
@@ -44,7 +38,6 @@ CameraCalibrator	FilePath	'calibration.dat'	''	string
 CameraCalibrator	SquareInMm	25	32	float
 CollapseVertices	FallOff	0.5	1	float
 CollapseVertices	StepCount	4	3	float
-CollapseVertices	Strength	1	0	float-vs-zero
 ColorListToInts	OutputMode	2	0	enum
 ColorsToList	Colors.w	0	1	float
 ColorsToList	Colors.x	0	1	float
@@ -82,7 +75,6 @@ DeformMesh	TaperAxis	1	0	float
 DeformMesh	TwistAxis	1	0	float
 DeformMesh	UseVertexSelection	0	1	float
 DeltaSinceLastFrame	Value	0	1	float
-DirectionalForce	_ForceKind	1	0	float-vs-zero
 Dither	GrayScaleWeights.b	0.114	0.0722	float
 Dither	GrayScaleWeights.g	0.587	0.7152	float
 Dither	GrayScaleWeights.r	0.299	0.2126	float
@@ -101,8 +93,6 @@ EaseVec3	Direction	0	2	enum
 EaseVec3	Duration	1	0.25	float
 EaseVec3	Interpolation	0	6	enum
 FastBlur	MaxLevels	0	5	float
-FieldDistanceForce	_ForceKind	6	0	float-vs-zero
-FieldVolumeForce	_ForceKind	8	0	float-vs-zero
 FilesInFolder	Filter	'*.png'	''	string
 FilesInFolder	Folder	'.'	'Examples:images/sequences/agingFacesFemale'	string
 FloatListToString	Format	''	'{0:0.000}'	string
@@ -137,10 +127,6 @@ KeepColors	Color.y	0	1	float
 KeepColors	Color.z	0	1	float
 KeepColors	MaxLength	0	100	float
 KeepInTextureArray	ArraySize	1	0	float
-KeyColor	KeyColor.a	1	0	float-vs-zero
-KeyColor	KeyColor.b	1	0	float-vs-zero
-KeyColor	KeyColor.g	1	0	float-vs-zero
-KeyColor	KeyColor.r	1	0	float-vs-zero
 KochKaleidoskope	Angle	3	0	float
 KochKaleidoskope	Center.x	0	0.5	float
 KochKaleidoskope	Center.y	0	0.5	float
@@ -161,8 +147,6 @@ LoadSvgAsTexture2D	Scale	0	1	float
 Loop	Count	0	1	float
 Loop	IndexVariable	'Index'	'i'	string
 Loop	ProgressVariable	'Progress'	'f'	string
-Multiply	a	1	0	float-vs-zero
-Multiply	b	1	0	float-vs-zero
 NGonMesh	Segments	4	5	float
 NormalMap	SampleRadius	1	2	float
 NormalMap	Twist	0	180	float
@@ -183,7 +167,6 @@ PrepareSvgLineTransition	SpreadMode	0	1	enum
 QuadMesh	Pivot.x	0.5	0	float
 QuadMesh	Pivot.y	0.5	0	float
 RadialPoints	Cycles	1	0	float-vs-zero
-RandomJumpForce	_ForceKind	7	0	float-vs-zero
 RandomizePoints	ClampColorsEtc	0	1	float
 RandomizePoints	Interpolation	1	2	enum
 RandomizePoints	OffsetMode	0	1	enum
@@ -208,16 +191,9 @@ RepeatFieldLimit	Stop	0	5	float
 RepeatPolar	Axis	0	1	enum
 RepetitionPoints	Count	16	0	float
 RequestUrl	Url	''	'https://cataas.com/cat'	string
-RgbTV	Contrast	1	0	float-vs-zero
-RgbTV	ImageBrightness	0.5	0	float-vs-zero
-Rings	Contrast	1	0	float-vs-zero
 RotateAxis	Axis	0	2	enum
-RyojiPattern1	ForegroundRatio	0.5	0	float-vs-zero
-RyojiPattern2	ForegroundRatio	0.503333	0	float-vs-zero
 SacnInput	Active	0	1	float
 SacnOutput	SyncUniverse	1	64001	float
-ScaleSize	Stretch.X	1	0	float-vs-zero
-ScaleSize	Stretch.Y	1	0	float-vs-zero
 SdfToVector	LookUpDistance	0.01	0.001	float
 SelectVertices	ClampResult	0	1	float
 SelectVertices	FallOff	0.5	1	float
@@ -246,14 +222,11 @@ SetPointLight	Color.z	0	1	float
 SetPointLight	Decay	0	2	float
 SetPointLight	Intensity	0	1	float
 SetPointLight	Range	0	100	float
-SetRequestedResolution	Multiply	1	0	float-vs-zero
-ShardNoise	Sharpness	1	0	float-vs-zero
 SliceViewPort	CellCounts.x	2	1	float
 SliceViewPort	CellCounts.y	2	1	float
 SmoothValues	WindowSize	0	999999	float
 SnapPointsToGrid	Amount	1	0.5	float
 SnapPointsToGrid	GridScale	1	0.5	float
-SnapToAnglesForce	_ForceKind	5	0	float-vs-zero
 SnapToPoints	Distance	1	0	float
 SnapToPoints	MaxAmount	1	0	float
 SpherePoints	Count	2048	100	float
@@ -267,18 +240,14 @@ StringInsert	UseModuloPosition	0	1	float
 StringLength	InputString	''	'ten plus eleven is 21'	string
 StringRepeat	Count	0	5	float
 SubString	Length	0	10000	float
-SubdivideLinePoints	InsertCount	100	0	float-vs-zero
 SumRange	UpperLimit	0	999999	float
 TcpClient	ListLength	10	9	float
 TcpClient	Port	8080	7070	float
 TcpServer	Port	8080	7070	float
 TcpServer	SendOnChange	1	0	float
-TimeDisplace	ArraySize	128	0	float-vs-zero
 ToneMapping	Mode	0	4	enum
 TransformImage	WrapMode	0	2	enum
-TransformPoints	Space	0	1	enum
 TransformSomePoints	Space	0	1	enum
-TriggerAnim	VariableName	'__Trigger'	''	string-vs-zero
 UDPInput	ListLength	10	1	float
 UDPInput	Listen	0	1	float
 UDPInput	Port	7000	6969	float
@@ -288,8 +257,6 @@ Vector4Components	Value.w	0	1	float
 Vector4Components	Value.x	0	1	float
 Vector4Components	Value.y	0	1	float
 Vector4Components	Value.z	0	1	float
-VectorFieldForce	_ForceKind	2	0	float-vs-zero
-VelocityForce	_ForceKind	3	0	float-vs-zero
 VideoStreamInput	Url	'rtsp://your_stream_url'	'https://webcam.rhein-taunus-krematorium.de:8081/mjpg/video.mjpg'	string
 ViscaCamera	Address	''	'192.168.1.100'	string
 VisibleGizmos	Visibility	-1	"Inherit"	type-mismatch
