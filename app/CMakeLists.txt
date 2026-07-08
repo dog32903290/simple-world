@@ -866,6 +866,7 @@ add_executable(simple_world
   src/runtime/t3import_boxgradient_golden.cpp      # GRADIENT-FED generator: BoxGradient.t3 (GTT-elided, 3×V2C+V4C(CornersRadius)+2×B2F+I2F) → closed-form box-SDF oracle
   src/runtime/t3import_remapcolor_golden.cpp       # GRADIENT-FED COLOR + TRANSFORMIMAGE-PASSTHROUGH: RemapColor.t3 (GTT + identity TransformImage + bypassed GenerateMips all elided; I2F+B2F+V2C kept) → two-region CheckerBoard vs sw ColorRemap rowLinear oracle
   src/runtime/t3import_lineargradient_golden.cpp   # GRADIENT-FED generator + OFFSET-ROUTING-SUBGRAPH: LinearGradient.t3 (GTT-elided; 2×V2C+2×B2F+2×I2F+Multiply+PickFloat kept) → closed-form linear-ramp oracle
+  src/runtime/t3import_timeclip_oob_golden.cpp     # CRASH regression: parseChildTimeClips heap-OOB on a DirtyFlagTrigger-only Outputs entry (absent OutputData, DrawMesh/FindClosestPointsOnMesh.t3); ① no-crash+empty ② full-clip values ③ absent SourceRange/LayerIndex conform; -bug removes the .contains() guard → ASan OOB abort
   src/runtime/t3import_outputdefs_selftest.cpp     # CATALOG-NODE metadata承重: imported RadialGradient.t3 outputDefs (type==terminal atom OUTPUT) + real name (not GUID) → draggable node w/ output PIN
   src/runtime/output_slot_view_selftest.cpp  # output-slot picker golden (viewProducerPath startSlot)
   src/runtime/compound_save.cpp

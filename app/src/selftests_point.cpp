@@ -172,5 +172,6 @@ REGISTER_SELFTESTS(/*orderBase=*/116,
     {"t3-boxgradient", runT3BoxGradientParity},  // GRADIENT-FED generator: BoxGradient.t3 (3×V2C+V4C(CornersRadius)+2×B2F+I2F, GTT elided) → closed-form box-SDF oracle; -bug drops Gradient wire → RED
     {"t3-remapcolor", runT3RemapColorParity},  // GRADIENT-FED COLOR + TRANSFORMIMAGE-PASSTHROUGH: RemapColor.t3 (I2F+B2F+V2C kept; GTT+identity TransformImage+bypassed GenerateMips all elided) → two-region CheckerBoard vs sw ColorRemap rowLinear oracle; -bug drops Gradient wire → gray → RED
     {"t3-lineargradient", runT3LinearGradientParity},  // GRADIENT-FED generator + OFFSET-ROUTING: LinearGradient.t3 (2×V2C+2×B2F+2×I2F+Multiply+PickFloat kept, GTT elided) → closed-form linear-ramp oracle; -bug drops Gradient wire → RED
+    {"t3-timeclip-oob", runT3TimeClipOobRegression}  // CRASH regression: parseChildTimeClips heap-OOB on a DirtyFlagTrigger-only Outputs entry (absent OutputData; DrawMesh/FindClosestPointsOnMesh.t3) — ① no-crash+empty ② full-clip values ③ conform; -bug drops the .contains() guard → ASan OOB abort
 );
 }  // namespace sw
