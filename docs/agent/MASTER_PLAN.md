@@ -15,11 +15,11 @@
 
 ## Current Snapshot
 <!-- sw_status:begin （機器塊：結帳時 tools/sw_status.sh --stamp <bite PASS> 寫入；勿手改） -->
-HEAD: c859d28
+HEAD: dbaae5b
 DIRTY: clean
 CENSUS: 610 / 749 done
 BITE: 708 PASS | FAILED=[0] | NO-BITE=[0]
-STAMP_AT: 2026-07-09T02:25
+STAMP_AT: 2026-07-09T02:56
 <!-- sw_status:end -->
 
 - **★現行方向＝原子重放（.t3→cook），見下方 Active Lane。** 更早的全並行批次敘述（image-leaf 採盡 / S1 解析度縫 / ui_census / 體驗軸尾）已移 [MASTER_PLAN_HISTORY.md](MASTER_PLAN_HISTORY.md)——**別讀成現行方向**。census 數以機器塊為準（上方 473/749）。方法論血證：別信 census done/todo，ground-truth=讀 cook path / `node_health.sh`（[[orchestrator-read-code-before-difficulty-verdict]]）。
@@ -28,7 +28,8 @@ STAMP_AT: 2026-07-09T02:25
 
 **▶▶ 框架修正（2026-07-09 01:30，柏為睡後自走）：退場「機械家族 sweep」是錯的——退場騎在 GPU-compute kernel porting 上（mesh+point 兩 lane 各自試壓、零退場、撞同根因實證，memory [[retire-gated-on-kernel-porting]]）。** probe「READY」只驗結構(R1-R3)不驗 cook；13「ready」實際可機械退＝0（全卡 R4 kernel 未 port / R5 stride fork）。真工＝逐顆 port kernel（＝GPU-compute 複合重放軌）。**別再盲派家族機械 sweep。**
 - **overnight 批1 DONE 合流（2026-07-09 02:25，HEAD 見機器塊 `c859d28`，--bite 708/0/0，各條親手 cherry-pick+重建復驗）**：① crash-fix `parseChildTimeClips` OOB（`d5e37df`，crude_json const op[] 懸空參照；DrawMesh/FindClosestPointsOnMesh 現 probe 乾淨）② snapshot 軸2 Lane A（`19c90a4`，captureLive 讀 snapshotGroupIndex，UI 觸點在 Variation 面板 `[待柏為簽收位置]`）③ probe R4-fix（`81f8797`，親測全 12 kernel-未port 顆由假 READY→NOT-READY(R4)，TransformPoints/CombineBuffers/TransformMesh 正確留 READY）④ 軸3 tool-fix（`c859d28`，比對器誠實化，假陽性 294→263、240 真漂移 byte-identical 保留）。
-- **overnight 批2 待開（下輪，都 isolation:worktree）**：軸3 mass-edit（照誠實 census：L1 net/io 17 atom 最安全起手→L2 stateful→L4 generators→L5 string[除 3 顆需讀 parser]；harness=`default_value_parity.sh <Type>` 前後 0 drift；先修 99 atom 避撞退場；詳 `DEFAULT_VALUE_PARITY_PLAN.md`）。snapshot Lane B（持久化）待柏為定池模型。
+- **overnight 批2 DONE 合流（HEAD 見機器塊 `dbaae5b`，708/0/0，親驗）＝軸3 L1+L2**：① net/io（`dbaae5b`，17 節點 26 漂移，直讀 .t3 壓出檔內 stale 註解）② stateful anim（`d9d0222`，12 節點 Damp/Spring/Ease）。~44 條真漂移對齊 TiXL（census 263→~219）。**過程料**：SacnOutput.SyncUniverse=64001>maxV、WLedSerialOutput.LedCount=-1<minV 照 TiXL 原樣（忠實 clone）——若 sw load 時 clamp 到 slider 範圍會是殘留 divergence，range 非本軸任務、記著。
+- **overnight 批3 待開（下輪，都 isolation:worktree）**：軸3 續 L4 generators + L5 string（除 `ValueToRate`/`SequenceAnim`/`JoinStringList` 需讀 parser）+ 其餘 atom float/enum 家族；harness=`default_value_parity.sh <Type>` 0 drift。snapshot Lane B（持久化）待柏為定池模型。詳 `DEFAULT_VALUE_PARITY_PLAN.md`。
 - **★柏為待決（睡醒看）**：㈠ **R5 架構分岔**＝mesh-compute 退場需 production PbrVertex stride 64→80 fork + vec3-wire-lands-on-head fix，做法「烤進 catalog asset vs 泛化進 importer」＝架構決策，我不擅自定。㈡ **kernel-port pilot 要不要開**＝退場真工是逐顆 port HLSL→MSL kernel（本質複雜、無監督易假綠），點 compute（無 stride 問題）是較乾淨 pilot 候選（如 WrapPointPosition）；等你點頭再開。㈢ snapshot Lane B 池模型（單池 vs TiXL per-symbol 多池）+ 是否含 Preset 子系統。
 - 接手先跑 `tools/sw_status.sh`。**地基批（probe/lint/CombineBuffers/R4 hardening）已 refuter GO 在 main（`0de7ff7`）**。
 - **本批落地（main `0de7ff7`）**：① `--probe-import <t3>` ready-set 掃描器（`selftests_retire.cpp` `runProbeImport`；R1/R2/R3 + collapse-8 硬排除；退出碼 READY=0/NOT-READY=2/EXCLUDED=3；含 sweep 硬化：`no NodeSpec in findSpec` child-drop 也判 NOT-READY，防 maps 打錯字→假 READY 退錯顆）② catalog name 唯一性 lint（`--lint-catalog-names`，key=Symbol.name＝fallback 真命中 domain）③ CombineBuffers 退場（pilot #2，四閘 P1/P5 乾淨、證機制非 TransformPoints 專屬）。獨立 Opus refuter 三攻擊面全 **GO**。
