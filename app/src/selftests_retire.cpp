@@ -8,9 +8,14 @@
 //   1. runProbeImport(<path.t3>)  — the ready-set scanner (§2). Non-uniform CLI entry dispatched from
 //      the selftests.cpp router as `--probe-import <path>`. Feeds ONE .t3 through the production
 //      importT3Symbol + a sibling-folder resolver and prints a machine-grep verdict line + exit code:
-//         PROBE <name>: READY                       (exit 0)  R1+R2+R3 all pass
+//         PROBE <name>: READY                       (exit 0)  R1+R2+R3+R4 all pass
 //         PROBE <name>: NOT-READY (R2 unmapped: …)  (exit 2)  file missing / import failed / unmapped
+//         PROBE <name>: NOT-READY (R4 compute-…)    (exit 2)  a ComputeShaderStage kernel未 ported
 //         PROBE <name>: EXCLUDED-COLLAPSE           (exit 3)  root guid ∈ collapse-8 (不可退, §3)
+//      R4 (compute-kernel-ported, selftests_retire_kernelprobe.*): structural READY ≠ cookable — R1-R3
+//      pass on a compound that dispatches an un-ported ComputeShaderStage kernel; it imports clean but
+//      cooks wrong. R4 is NECESSARY not sufficient (a ported kernel can still fork wrong deeper — that
+//      residue stays the retire §5 ②parity gate's job).
 //
 //   2. runLintCatalogNames(injectBug) — the catalog name-uniqueness lint (§5 風險#1). A registered
 //      selftest (`--lint-catalog-names`): imports every assets/catalog_t3/*.t3 root and hard-fails if
@@ -35,6 +40,7 @@
 #include "runtime/point_graph.h"        // registerBuiltinPointOps (atoms → findSpec resolves them)
 #include "runtime/t3_import.h"          // importT3Symbol / symbolIdOfT3 / T3Resolver / T3LayoutResolver
 #include "runtime/t3_import_maps.h"     // swTexOpForCollapseRootGuid (collapse-8 hard-exclude set)
+#include "selftests_retire_kernelprobe.h"  // R4 compute-kernel-ported judgment + its --selftest-probe-r4
 
 namespace sw {
 
@@ -219,6 +225,19 @@ int runProbeImport(const char* t3Path) {
     return done(2);
   }
 
+  // R4 (compute-kernel-ported): R1-R3 only proved the graph structure — every child mapped, no drops.
+  // But a ComputeShaderStage child can dispatch a kernel that was never ported to MSL: at cook,
+  // kernelNameFor() (buffer_ops_computeshaderstage.cpp) returns the raw HLSL path, cachedComputePSO
+  // misses, the dispatch is skipped, the UAV is never written → wrong output. Gate any un-ported compute
+  // kernel here. NECESSARY, NOT SUFFICIENT — a ported kernel can still cook wrong (deeper forks, e.g. the
+  // mesh stride 64→80); that residue stays the退場 §5 ②parity gate's job, R4 only stops the raw-unported hole.
+  const std::string unportedKernel = probeFirstUnportedComputeKernel(lib, symId);
+  if (!unportedKernel.empty()) {
+    std::printf("PROBE %s: NOT-READY (R4 compute-kernel-unported: %s)\n", name.c_str(),
+                unportedKernel.c_str());
+    return done(2);
+  }
+
   std::printf("PROBE %s: READY\n", name.c_str());
   return done(0);
 }
@@ -330,6 +349,7 @@ int runProbeClassifyGolden(bool injectBug) {
 }
 
 REGISTER_SELFTESTS(/*orderBase=*/960, {"lint-catalog-names", runLintCatalogNames},
-                   {"probe-classify", runProbeClassifyGolden});
+                   {"probe-classify", runProbeClassifyGolden},
+                   {"probe-r4", runProbeR4Golden});
 
 }  // namespace sw

@@ -1007,6 +1007,9 @@ target_compile_definitions(simple_world PRIVATE
   # (TiXL operator-library parity — always in the menu, no per-session re-import). Committed to the
   # repo so runtime never depends on external/. doc::loadCatalogFromFolder scans this at boot.
   SW_CATALOG_T3_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../assets/catalog_t3"
+  # Metal shader SOURCE dir (app/shaders/*.metal → shaders.metallib). Read by the retire probe's R4
+  # gate (selftests_retire_kernelprobe.cpp) to stat computeshaderstage_<kernel>.metal existence.
+  SW_SHADERS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
   # Field shader-graph render TEMPLATE (a string asset, NOT precompiled — see shaders/templates/).
   # assembleFieldMSL reads this and fills /*{GLOBALS}*/ /*{FLOAT_PARAMS}*/ /*{FIELD_CALL}*/ at runtime.
   SW_FIELD_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/shaders/templates/field_render_template.metal"
